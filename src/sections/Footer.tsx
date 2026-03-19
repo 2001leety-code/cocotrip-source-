@@ -1,4 +1,5 @@
 import { Phone, Mail, MapPin, CreditCard } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface FooterProps {
   t: any;
@@ -8,9 +9,23 @@ export function Footer({ t }: FooterProps) {
   return (
     <footer className="bg-[#1a1a2e] text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        
+        {/* Top Link Bar */}
+        <div className="border-b border-white/10 pb-6 mb-8">
+          <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-6 gap-y-2">
+            <Link to="/about" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.about}</Link>
+            <span className="text-white/30">|</span>
+            <Link to="/terms" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.terms}</Link>
+            <span className="text-white/30">|</span>
+            <Link to="/privacy" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.privacy}</Link>
+            <span className="text-white/30">|</span>
+            <Link to="/travel-terms" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.travelTerms}</Link>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           
-          {/* Company Info - Adjusted for better mobile stacking */}
+          {/* Company Info */}
           <div className="md:col-span-2 lg:col-span-2">
             <div className="flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-full bg-[#c0b283] flex items-center justify-center">
@@ -37,7 +52,7 @@ export function Footer({ t }: FooterProps) {
             </div>
           </div>
 
-          {/* Customer Service & Quick Links - Simplified Grid for better flow */}
+          {/* Customer Service */}
           <div className="border-t border-white/10 pt-8 md:pt-0 md:border-t-0">
             <h3 className="text-lg font-bold mb-6 text-[#c0b283]">{t.footer.cs}</h3>
             <div className="space-y-4">
@@ -56,14 +71,13 @@ export function Footer({ t }: FooterProps) {
             </div>
           </div>
 
+          {/* Quick Links */}
           <div className="border-t border-white/10 pt-8 md:pt-0 md:border-t-0">
             <h3 className="text-lg font-bold mb-6 text-[#c0b283]">Quick Links</h3>
             <nav className="space-y-3">
               <a href="#services" className="block text-gray-400 hover:text-white transition-colors">{t.nav.privateTour}</a>
               <a href="#services" className="block text-gray-400 hover:text-white transition-colors">{t.nav.groupTour}</a>
               <a href="#regions" className="block text-gray-400 hover:text-white transition-colors">{t.nav.packages}</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">{t.footer.terms}</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">{t.footer.privacy}</a>
             </nav>
           </div>
         </div>
