@@ -9,6 +9,7 @@ import { CTA } from '@/sections/CTA';
 import { Footer } from '@/sections/Footer';
 import { RegionDetail } from '@/pages/RegionDetail';
 import Booking from '@/pages/Booking';
+import About from '@/pages/About';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -39,8 +40,24 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/region/:regionId" element={<RegionDetail />} />
         <Route path="/booking" element={<BookingPageWrapper />} />
+        <Route path="/about" element={<AboutWrapper />} />
       </Routes>
     </BrowserRouter>
+  );
+}
+
+function AboutWrapper() {
+  const { language, t, changeLanguage } = useLanguage();
+  return (
+    <div className="min-h-screen bg-[#faf9f6]">
+      <Header
+        language={language}
+        t={t}
+        onLanguageChange={changeLanguage}
+      />
+      <About />
+      <Footer t={t} />
+    </div>
   );
 }
 
