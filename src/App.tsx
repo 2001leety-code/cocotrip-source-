@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 import { Header } from '@/sections/Header';
 import { HeroSlider } from '@/sections/HeroSlider';
@@ -38,9 +38,19 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/region/:regionId" element={<RegionDetail />} />
-        <Route path="/booking" element={<Booking />} />
+        <Route path="/booking" element={<BookingPageWrapper />} />
       </Routes>
     </BrowserRouter>
+  );
+}
+
+// Wrapper to handle the close action of the booking modal when accessed via route
+function BookingPageWrapper() {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen bg-black/90 relative" style={{ backgroundImage: "url('/1uA0qa_반포대교(1).jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <Booking onClose={() => navigate(-1)} />
+    </div>
   );
 }
 

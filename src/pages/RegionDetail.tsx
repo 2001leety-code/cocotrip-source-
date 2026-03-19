@@ -77,26 +77,23 @@ const regionImages: Record<string, string[]> = {
   ],
   incheon: [
     '/region-incheon.jpg',
-    '/Type1_인천_차이나타운_한국관광공사_이범수_br0BVa.jpg',
-    '/Type1_강화도_천준교_CbVKL2.jpg',
+    '/1uA0qa_반포대교(1).jpg', // Placeholder for Incheon, using a beautiful bridge
+    '/J7FqPa_서울 밤도깨비 야시장(1).jpg', // Placeholder
   ],
   paju: [
     '/region-paju.jpg',
-    '/Type1_임진각_관광지_한국관광공사_이범수_WX0kEa.jpg',
-    '/Type1_도라전망대_한국관광공사_이범수_ruNNUa.jpg',
-    '/paju-provence-village.jpg',
-    '/paju-heyri-art-village.jpg',
-    '/paju-book-city.jpg',
+    '/region-dmz.jpg', 
+    '/hero-paju.jpg',
   ],
   ganghwa: [
     '/region-ganghwa.jpg',
-    '/Type1_강화도_천준교_CbVKL2.jpg',
-    '/Type1_고성통일전망대_한국관광공사_김지호_DWrc2a.jpg',
+    '/hero-nature.jpg', // Placeholder
   ],
   jeonju: [
     '/region-jeonju.jpg',
-    '/3Xgcka_북촌한옥마을(1).jpg',
+    '/3Xgcka_북촌한옥마을(1).jpg', // Using Hanok village as placeholder for Jeonju
     '/dJ6Ara_북촌한옥마을(1).jpg',
+    '/hero-hanok-real.jpg',
   ],
 };
 
@@ -225,15 +222,13 @@ export function RegionDetail() {
             Let COCOTRIP create a personalized tour experience just for you.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="https://wa.me/821087140611"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+               onClick={() => navigate('/booking')}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white rounded-full font-bold hover:bg-[#128C7E] transition-colors"
             >
               <MessageCircle className="w-5 h-5" />
               {t.regionDetail.bookNow}
-            </a>
+            </button>
             <a
               href="tel:+821087140611"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 text-white rounded-full font-bold hover:bg-white/20 transition-colors"
