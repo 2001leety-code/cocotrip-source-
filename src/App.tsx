@@ -40,24 +40,9 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/region/:regionId" element={<RegionDetail />} />
         <Route path="/booking" element={<BookingPageWrapper />} />
-        <Route path="/about" element={<AboutWrapper />} />
+        <Route path="/about" element={<About />} />
       </Routes>
     </BrowserRouter>
-  );
-}
-
-function AboutWrapper() {
-  const { language, t, changeLanguage } = useLanguage();
-  return (
-    <div className="min-h-screen bg-[#faf9f6]">
-      <Header
-        language={language}
-        t={t}
-        onLanguageChange={changeLanguage}
-      />
-      <About />
-      <Footer t={t} />
-    </div>
   );
 }
 
