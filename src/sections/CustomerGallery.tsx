@@ -33,9 +33,6 @@ const customers = [
   { image: '/고객사진/KakaoTalk_20260116_120843308_27.jpg', name: 'Jackson from USA', location: 'Jeonju Hanok', quote: 'Loved staying in a traditional house.' },
   { image: '/고객사진/KakaoTalk_20260116_120843308_28.jpg', name: 'Sofia from Italy', location: 'Nami Island', quote: 'Perfect day trip out of the city.' },
   { image: '/고객사진/KakaoTalk_20260116_120843308_29.png', name: 'Avery from Canada', location: 'DMZ Tour', quote: 'An eye-opening journey.' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308.jpg', name: 'David from Spain', location: 'Seoul Night', quote: 'The city truly comes alive after dark.' },
-  { image: '/고객사진/KakaoTalk_20260116_120844521_01.jpg', name: 'Ella from Japan', location: 'Busan Coast', quote: 'Breathtaking ocean views.' },
-  { image: '/고객사진/KakaoTalk_20260116_120844521_02.jpg', name: 'Carter from China', location: 'Gyeongju Day Tour', quote: 'A must-do for history buffs.' },
   { image: '/고객사진/KakaoTalk_20260116_120844521.jpg', name: 'Grace from France', location: 'Seoul Food', quote: 'Can not get enough of Korean BBQ!' },
 ];
 
