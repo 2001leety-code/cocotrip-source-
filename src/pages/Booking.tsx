@@ -113,11 +113,11 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
           </Button>
         </div>
       ) : (
-        <div className="p-6 sm:p-8 text-white">
-          <h1 className="font-bold text-2xl sm:text-3xl mb-3 text-white">{t.booking.title}</h1>
-          <p className="mb-8 text-white/70 text-sm">{t.booking.subtitle}</p>
+        <div className="p-8 sm:p-10 text-white">
+          <h1 className="font-bold text-2xl sm:text-3xl mb-4 text-white">{t.booking.title}</h1>
+          <p className="mb-6 text-white/70 text-sm">{t.booking.subtitle}</p>
 
-          <div className="flex space-x-1 bg-white/10 p-1 rounded-xl mb-8">
+          <div className="flex space-x-1 bg-white/10 p-1 rounded-xl mb-6">
             {languages.map((l) => (
               <button
                 key={l.value}
@@ -135,10 +135,10 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
             ))}
           </div>
 
-          <form ref={form} onSubmit={sendEmail} className="space-y-5 text-sm sm:text-base">
+          <form ref={form} onSubmit={sendEmail} className="space-y-6 text-sm sm:text-base">
             <div>
               <label className="block text-sm font-medium text-white/70 mb-3">{t.booking.tourType}</label>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {(Object.keys(tourTypeData) as Array<keyof typeof tourTypeData>).map((key) => {
                   const tour = tourTypeData[key];
                   const Icon = tour.icon;
@@ -148,13 +148,13 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                       key={key}
                       onClick={() => setSelectedTourType(key)}
                       className={cn(
-                        'flex flex-col items-center py-3 px-2 sm:p-3 rounded-xl border transition-all',
+                        'flex flex-col items-center py-4 px-2 sm:p-4 rounded-xl border transition-all',
                         selectedTourType === key
                           ? 'bg-white border-white text-[#1a1a2e]'
                           : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white'
                       )}
                     >
-                      <Icon className="w-5 h-5 sm:w-6 sm:h-6 mb-1.5" />
+                      <Icon className="w-5 h-5 sm:w-6 sm:h-6 mb-2" />
                       <span className="text-[10px] sm:text-xs font-semibold leading-tight text-center">{t.booking.tourTypes[key]}</span>
                     </button>
                   );
@@ -163,7 +163,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
               <input type="hidden" name="tour_type" value={t.booking.tourTypes[selectedTourType]} />
             </div>
 
-            <div className="flex gap-3 sm:gap-4">
+            <div className="flex gap-4">
               <div className='flex-1'>
                 <label className="block text-sm font-medium text-white/70 mb-3">{t.booking.date}</label>
                 <Popover>
@@ -171,7 +171,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                     <Button
                       variant={"outline"}
                       className={cn(
-                        'w-full justify-start text-left font-normal rounded-xl py-4 sm:py-4 px-3 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white',
+                        'w-full justify-start text-left font-normal rounded-xl py-4 sm:py-4 px-3 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white h-[50px] sm:h-[50px]',
                         !date && 'text-white/50'
                       )}
                     >
@@ -209,7 +209,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
               />
             </div>
 
-            <div className="flex gap-3 sm:gap-4">
+            <div className="flex gap-4">
               <div className="flex-1">
                 <label htmlFor="from_name" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.name}</label>
                 <input type="text" name="from_name" id="from_name" placeholder="e.g., Hong Gildong" required className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" />
