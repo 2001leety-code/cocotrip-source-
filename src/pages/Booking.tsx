@@ -315,9 +315,10 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
           () => {
             setIsSubmitted(true);
           },
-          (error) => {
+          (error: unknown) => {
             toast.error(t.booking.validation.failed);
-            console.error('EMAILJS ERROR:', error.text);
+            // Type cast error to any or an object with text property if you know the exact type structure of emailjs error
+            console.error('EMAILJS ERROR:', (error as { text?: string }).text || error);
           }
         )
         .finally(() => {
