@@ -114,10 +114,10 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
         </div>
       ) : (
         <div className="p-6 sm:p-8 text-white">
-          <h1 className="font-bold text-2xl sm:text-3xl mb-2 text-white">{t.booking.title}</h1>
-          <p className="mb-6 text-white/70 text-sm">{t.booking.subtitle}</p>
+          <h1 className="font-bold text-2xl sm:text-3xl mb-3 text-white">{t.booking.title}</h1>
+          <p className="mb-8 text-white/70 text-sm">{t.booking.subtitle}</p>
 
-          <div className="flex space-x-1 bg-white/10 p-1 rounded-xl mb-6">
+          <div className="flex space-x-1 bg-white/10 p-1 rounded-xl mb-8">
             {languages.map((l) => (
               <button
                 key={l.value}
@@ -135,9 +135,9 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
             ))}
           </div>
 
-          <form ref={form} onSubmit={sendEmail} className="space-y-4 sm:space-y-5 text-sm sm:text-base">
+          <form ref={form} onSubmit={sendEmail} className="space-y-5 text-sm sm:text-base">
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">{t.booking.tourType}</label>
+              <label className="block text-sm font-medium text-white/70 mb-3">{t.booking.tourType}</label>
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {(Object.keys(tourTypeData) as Array<keyof typeof tourTypeData>).map((key) => {
                   const tour = tourTypeData[key];
@@ -148,7 +148,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                       key={key}
                       onClick={() => setSelectedTourType(key)}
                       className={cn(
-                        'flex flex-col items-center p-2 sm:p-3 rounded-xl border transition-all',
+                        'flex flex-col items-center py-3 px-2 sm:p-3 rounded-xl border transition-all',
                         selectedTourType === key
                           ? 'bg-white border-white text-[#1a1a2e]'
                           : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white'
@@ -165,7 +165,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
 
             <div className="flex gap-3 sm:gap-4">
               <div className='flex-1'>
-                <label className="block text-sm font-medium text-white/70 mb-2">{t.booking.date}</label>
+                <label className="block text-sm font-medium text-white/70 mb-3">{t.booking.date}</label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -186,19 +186,19 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                 <input type="hidden" name="tour_date" value={date ? format(date, 'yyyy-MM-dd') : ''} />
               </div>
                <div className="w-[35%] sm:w-2/5">
-                <label htmlFor="people" className="block text-sm font-medium text-white/70 mb-2">{t.booking.people}</label>
+                <label htmlFor="people" className="block text-sm font-medium text-white/70 mb-3">{t.booking.people}</label>
                 <input
                   type="number" id="people" name="number_of_people"
                   value={numberOfPeople}
                   onChange={(e) => setNumberOfPeople(parseInt(e.target.value, 10))}
                   min="1"
-                  className="w-full py-3.5 sm:py-3.5 px-3 border border-white/20 bg-white/10 rounded-xl text-white focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none h-[50px] sm:h-[50px]"
+                  className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none h-[50px] sm:h-[50px]"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="location" className="block text-sm font-medium text-white/70 mb-2">{t.booking.location}</label>
+              <label htmlFor="location" className="block text-sm font-medium text-white/70 mb-3">{t.booking.location}</label>
               <input 
                 type="text" 
                 name="location" 
@@ -211,17 +211,17 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
 
             <div className="flex gap-3 sm:gap-4">
               <div className="flex-1">
-                <label htmlFor="from_name" className="block text-sm font-medium text-white/70 mb-2">{t.booking.form.name}</label>
+                <label htmlFor="from_name" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.name}</label>
                 <input type="text" name="from_name" id="from_name" placeholder="e.g., Hong Gildong" required className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" />
               </div>
               <div className="flex-1">
-                 <label htmlFor="user_email" className="block text-sm font-medium text-white/70 mb-2">{t.booking.form.email}</label>
+                 <label htmlFor="user_email" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.email}</label>
                 <input type="email" name="user_email" id="user_email" placeholder="e.g., email@example.com" required className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" />
               </div>
             </div>
             
             <div>
-              <label htmlFor="contact_number" className="block text-sm font-medium text-white/70 mb-2">{t.booking.form.phone}</label>
+              <label htmlFor="contact_number" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.phone}</label>
               <div className="flex gap-2">
                 <input 
                   type="tel" 
@@ -235,7 +235,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
             </div>
 
             <div>
-              <label htmlFor="message" className="block text-sm font-medium text-white/70 mb-2">{t.booking.form.notes}</label>
+              <label htmlFor="message" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.notes}</label>
               <textarea
                 name="message" id="message" rows={3}
                 placeholder={t.booking.form.notesPlaceholder}
@@ -243,7 +243,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
               ></textarea>
             </div>
 
-            <Button type="submit" className="w-full py-4 text-base rounded-xl bg-[#0f3460] text-white hover:bg-[#1a1a2e] font-bold transition-colors border border-[#0f3460] hover:border-white/20 mt-2" disabled={isSubmitting}>
+            <Button type="submit" className="w-full py-4 text-base rounded-xl bg-[#0f3460] text-white hover:bg-[#1a1a2e] font-bold transition-colors border border-[#0f3460] hover:border-white/20 mt-8" disabled={isSubmitting}>
               {isSubmitting ? t.booking.buttons.submitting : t.booking.buttons.submit}
             </Button>
           </form>
