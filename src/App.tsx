@@ -10,6 +10,9 @@ import { Footer } from '@/sections/Footer';
 import { RegionDetail } from '@/pages/RegionDetail';
 import Booking from '@/pages/Booking';
 import About from '@/pages/About';
+import Terms from '@/pages/Terms';
+import Privacy from '@/pages/Privacy';
+import TravelTerms from '@/pages/TravelTerms';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -41,6 +44,9 @@ function App() {
         <Route path="/region/:regionId" element={<RegionDetail />} />
         <Route path="/booking" element={<BookingPageWrapper />} />
         <Route path="/about" element={<About />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/travel-terms" element={<TravelTerms />} />
       </Routes>
     </BrowserRouter>
   );
