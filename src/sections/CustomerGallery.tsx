@@ -40,30 +40,39 @@ const customers = [
 ];
 
 const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
-  <div className="group relative overflow-hidden rounded-2xl bg-white shadow-lg">
-    <div className="aspect-[4/5] overflow-hidden">
+  <div className="group relative overflow-hidden rounded-2xl bg-white shadow-lg flex flex-col h-full">
+    <div className="aspect-[4/5] overflow-hidden shrink-0">
       <img
         src={customer.image}
         alt={customer.name}
-        className="w-full h-full object-cover transition-transform duration-500"
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
     </div>
-    <div className="absolute inset-0 bg-gradient-to-t from-[#0f3460]/90 via-transparent to-transparent" />
-    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
-        <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/80 shrink-0">
-                <img src={customer.image} alt={customer.name} className="w-full h-full object-cover" />
-            </div>
-            <div>
-                <p className="text-white font-semibold text-sm">{customer.name}</p>
-                <p className="text-white/80 text-xs">{customer.location}</p>
-            </div>
-        </div>
-        {/* Added Quote Section */}
-        <p className="text-white/90 text-sm mt-3 italic line-clamp-2">"{customer.quote}"</p>
-    </div>
-    <div className="absolute top-4 left-4 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-[#0f3460]">
-      {customer.location}
+    
+    <div className="p-5 flex-1 flex flex-col justify-between bg-white relative">
+       {/* Location Badge positioned over the image overlap slightly */}
+       <div className="absolute -top-4 left-4 px-3 py-1 bg-[#0f3460] text-white rounded-full text-xs font-semibold shadow-md">
+         {customer.location}
+       </div>
+       
+       <div className="mt-2">
+         <p className="text-gray-800 text-sm leading-snug italic mb-4 line-clamp-3 relative">
+            <span className="text-2xl text-[#c0b283] font-serif leading-none absolute -top-1 -left-2">"</span>
+            &nbsp;&nbsp;&nbsp;{customer.quote}
+            <span className="text-2xl text-[#c0b283] font-serif leading-none absolute -bottom-3 ml-1">"</span>
+         </p>
+       </div>
+       
+       <div className="flex items-center gap-3 mt-auto pt-4 border-t border-gray-100">
+           <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 shrink-0 border border-gray-300">
+             {/* Using a placeholder avatar or the main image as avatar if user avatars aren't available */}
+               <img src={customer.image} alt={customer.name} className="w-full h-full object-cover" />
+           </div>
+           <div>
+               <p className="text-[#1a1a2e] font-bold text-xs">{customer.name}</p>
+               <p className="text-[#c0b283] text-[10px] uppercase tracking-wider font-semibold">Verified Traveler</p>
+           </div>
+       </div>
     </div>
   </div>
 );
@@ -76,7 +85,7 @@ export function CustomerGallery() {
   }, [Autoplay({ delay: 3000, stopOnInteraction: false })]);
 
   return (
-    <section className="py-20 lg:py-32 bg-white overflow-hidden">
+    <section className="py-20 lg:py-32 bg-[#faf9f6] overflow-hidden">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16 px-4">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1a1a2e] mb-4">
@@ -89,13 +98,15 @@ export function CustomerGallery() {
         </div>
 
         <div className="overflow-hidden" ref={emblaRef}>
-          <div className="flex -ml-4">
+          <div className="flex -ml-4 py-4">
             {customers.map((customer, index) => (
               <div
                 key={index}
-                className="flex-grow-0 flex-shrink-0 w-4/5 sm:w-2/5 md:w-1/3 lg:w-1/4 pl-4 sm:pl-5 md:pl-6"
+                className="flex-grow-0 flex-shrink-0 w-[85%] sm:w-1/2 md:w-1/3 lg:w-1/4 pl-4 sm:pl-5 md:pl-6"
               >
-                <CustomerCard customer={customer} />
+                <div className="h-full">
+                  <CustomerCard customer={customer} />
+                </div>
               </div>
             ))}
           </div>
