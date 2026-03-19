@@ -46,9 +46,6 @@ const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
     
     <div className="p-5 flex-1 flex flex-col justify-between bg-white relative">
        {/* Location Badge positioned over the image overlap slightly */}
-       <div className="absolute -top-4 left-4 px-3 py-1 bg-[#0f3460] text-white rounded-full text-xs font-semibold shadow-md">
-         {customer.location}
-       </div>
        
        <div className="mt-2">
          <p className="text-gray-800 text-sm leading-snug italic mb-4 line-clamp-3 relative">
