@@ -92,7 +92,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
   };
 
   const content = (
-    <div className="max-w-md w-full bg-black/80 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md border border-white/10 relative">
+    <div className="max-w-md w-full bg-[#0f1923] rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md border border-white/10 relative">
       {onClose && (
         <button
           onClick={onClose}
@@ -108,16 +108,16 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
           <h1 className="text-3xl font-bold mb-2">{t.booking.success.title}</h1>
           <p className="mb-8">{t.booking.success.message}</p>
           <p className="text-sm text-gray-400 mb-4">Closing automatically...</p>
-          <Button onClick={handleNewBooking} className="rounded-xl bg-blue-500 hover:bg-blue-600">
+          <Button onClick={handleNewBooking} className="rounded-xl bg-gradient-to-r from-[#c0b283] to-[#a09060] text-[#0f1923] hover:opacity-90 font-bold">
             {t.booking.success.newBooking}
           </Button>
         </div>
       ) : (
         <div className="p-8 text-white">
-          <h1 className="font-bold text-3xl mb-2">{t.booking.title}</h1>
+          <h1 className="font-bold text-3xl mb-2 text-white">{t.booking.title}</h1>
           <p className="mb-6 text-gray-300 text-sm">{t.booking.subtitle}</p>
 
-          <div className="flex space-x-1 bg-white/10 p-1 rounded-xl mb-6">
+          <div className="flex space-x-1 bg-[#c0b283]/10 p-1 rounded-xl mb-6">
             {languages.map((l) => (
               <button
                 key={l.value}
@@ -126,8 +126,8 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                 className={cn(
                   "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors",
                   language === l.value
-                    ? "bg-white text-black shadow"
-                    : "text-white/70 hover:text-white hover:bg-white/20"
+                    ? "bg-[#c0b283] text-[#0f1923] shadow font-bold"
+                    : "text-[#c0b283] hover:bg-[#c0b283]/20"
                 )}
               >
                 {l.label}
@@ -137,7 +137,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
 
           <form ref={form} onSubmit={sendEmail} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">{t.booking.tourType}</label>
+              <label className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.tourType}</label>
               <div className="grid grid-cols-3 gap-3">
                 {(Object.keys(tourTypeData) as Array<keyof typeof tourTypeData>).map((key) => {
                   const tour = tourTypeData[key];
@@ -148,10 +148,10 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                       key={key}
                       onClick={() => setSelectedTourType(key)}
                       className={cn(
-                        'flex flex-col items-center p-3 rounded-xl border-2 transition-all',
+                        'flex flex-col items-center p-3 rounded-xl border transition-all',
                         selectedTourType === key
-                          ? 'bg-blue-500/30 border-blue-400 text-white'
-                          : 'bg-white/10 border-gray-500 hover:bg-white/20'
+                          ? 'bg-[#c0b283]/20 border-[#c0b283] text-[#c0b283]'
+                          : 'bg-white/5 border-[#c0b283]/30 text-white/70 hover:bg-white/10 hover:border-[#c0b283]/50 hover:text-white'
                       )}
                     >
                       <Icon className="w-6 h-6 mb-1.5" />
@@ -165,91 +165,85 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
 
             <div className="flex gap-4">
               <div className='flex-1'>
-                <label className="block text-sm font-medium text-gray-200 mb-2">{t.booking.date}</label>
+                <label className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.date}</label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant={"outline"}
                       className={cn(
-                        'w-full justify-start text-left font-normal rounded-xl p-3 bg-white/10 border-gray-500 text-white hover:bg-white/20 hover:text-white',
-                        !date && 'text-gray-300'
+                        'w-full justify-start text-left font-normal rounded-xl p-3 bg-white/5 border-[#c0b283]/30 text-white hover:bg-white/10 hover:text-white',
+                        !date && 'text-gray-400'
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {date ? format(date, 'PPP') : <span>{t.booking.pickDate}</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={date} onSelect={setDate} initialFocus disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))} />
+                  <PopoverContent className="w-auto p-0 border-[#c0b283]/30 bg-[#0f1923] text-white">
+                    <Calendar mode="single" selected={date} onSelect={setDate} initialFocus disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))} className="text-white"/>
                   </PopoverContent>
                 </Popover>
                 <input type="hidden" name="tour_date" value={date ? format(date, 'yyyy-MM-dd') : ''} />
               </div>
                <div className="w-2/5">
-                <label htmlFor="people" className="block text-sm font-medium text-gray-200 mb-2">{t.booking.people}</label>
+                <label htmlFor="people" className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.people}</label>
                 <input
                   type="number" id="people" name="number_of_people"
                   value={numberOfPeople}
                   onChange={(e) => setNumberOfPeople(parseInt(e.target.value, 10))}
                   min="1"
-                  className="w-full p-3 border-gray-500 bg-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full p-3 border border-[#c0b283]/30 bg-white/5 rounded-xl text-white focus:ring-2 focus:ring-[#c0b283] focus:border-transparent outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="location" className="block text-sm font-medium text-gray-200 mb-2">{t.booking.location}</label>
+              <label htmlFor="location" className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.location}</label>
               <input 
                 type="text" 
                 name="location" 
                 id="location" 
                 required 
                 placeholder={t.booking.locationPlaceholder}
-                className="w-full p-3 border-gray-500 bg-white/10 rounded-xl text-white placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 outline-none" 
+                className="w-full p-3 border border-[#c0b283]/30 bg-white/5 rounded-xl text-white placeholder:text-gray-500 focus:ring-2 focus:ring-[#c0b283] focus:border-transparent outline-none" 
               />
             </div>
 
             <div className="flex gap-4">
               <div className="flex-1">
-                <label htmlFor="from_name" className="block text-sm font-medium text-gray-200 mb-2">{t.booking.form.name}</label>
-                <input type="text" name="from_name" id="from_name" required className="w-full p-3 border-gray-500 bg-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                <label htmlFor="from_name" className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.form.name}</label>
+                <input type="text" name="from_name" id="from_name" placeholder="e.g., Hong Gildong" required className="w-full p-3 border border-[#c0b283]/30 bg-white/5 rounded-xl text-white placeholder:text-gray-500 focus:ring-2 focus:ring-[#c0b283] focus:border-transparent outline-none" />
               </div>
               <div className="flex-1">
-                 <label htmlFor="user_email" className="block text-sm font-medium text-gray-200 mb-2">{t.booking.form.email}</label>
-                <input type="email" name="user_email" id="user_email" required className="w-full p-3 border-gray-500 bg-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                 <label htmlFor="user_email" className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.form.email}</label>
+                <input type="email" name="user_email" id="user_email" placeholder="e.g., email@example.com" required className="w-full p-3 border border-[#c0b283]/30 bg-white/5 rounded-xl text-white placeholder:text-gray-500 focus:ring-2 focus:ring-[#c0b283] focus:border-transparent outline-none" />
               </div>
             </div>
             
             <div>
-              <label htmlFor="contact_number" className="block text-sm font-medium text-gray-200 mb-2">{t.booking.form.phone}</label>
+              <label htmlFor="contact_number" className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.form.phone}</label>
               <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  name="country_code" 
-                  placeholder="+82"
-                  defaultValue="+82"
-                  className="w-1/4 p-3 border-gray-500 bg-white/10 rounded-xl text-center text-white focus:ring-2 focus:ring-blue-500 outline-none" 
-                />
                 <input 
                   type="tel" 
                   name="contact_number" 
                   id="contact_number" 
+                  placeholder="+82 10-1234-5678"
                   required 
-                  className="w-3/4 p-3 border-gray-500 bg-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none" 
+                  className="w-full p-3 border border-[#c0b283]/30 bg-white/5 rounded-xl text-white placeholder:text-gray-500 focus:ring-2 focus:ring-[#c0b283] focus:border-transparent outline-none" 
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="message" className="block text-sm font-medium text-gray-200 mb-2">{t.booking.form.notes}</label>
+              <label htmlFor="message" className="block text-sm font-bold text-[#c0b283] mb-2">{t.booking.form.notes}</label>
               <textarea
                 name="message" id="message" rows={3}
                 placeholder={t.booking.form.notesPlaceholder}
-                className="w-full p-3 border-gray-500 bg-white/10 rounded-xl text-white placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full p-3 border border-[#c0b283]/30 bg-white/5 rounded-xl text-white placeholder:text-gray-500 focus:ring-2 focus:ring-[#c0b283] focus:border-transparent outline-none"
               ></textarea>
             </div>
 
-            <Button type="submit" className="w-full text-lg py-6 rounded-xl bg-blue-600 hover:bg-blue-700 transition-colors" disabled={isSubmitting}>
+            <Button type="submit" className="w-full text-lg py-6 rounded-xl bg-gradient-to-r from-[#c0b283] to-[#a09060] text-[#0f1923] hover:opacity-90 font-bold transition-opacity border-0" disabled={isSubmitting}>
               {isSubmitting ? t.booking.buttons.submitting : t.booking.buttons.submit}
             </Button>
           </form>
