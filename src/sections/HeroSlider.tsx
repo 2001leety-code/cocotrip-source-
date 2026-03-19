@@ -127,7 +127,7 @@ export function HeroSlider({ t }: HeroSliderProps) {
                     to="/booking"
                     className="inline-flex items-center gap-2 px-6 py-3 md:px-8 md:py-3 bg-white/10 backdrop-blur-sm border border-white/30 text-white rounded-full font-medium hover:bg-white hover:text-[#0f3460] transition-all duration-300"
                   >
-                    {t.hero.cta}
+                    예약하기
                     <ChevronRight className="w-4 h-4" />
                   </Link>
                 </>

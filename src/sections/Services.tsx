@@ -46,7 +46,7 @@ export function Services({ t }: ServicesProps) {
             {serviceData.desc}
           </p>
           <div className="mt-6 flex items-center gap-2 text-[#c0b283] group-hover:text-white font-medium text-sm">
-            <span>Learn More</span>
+            <span>예약하기</span>
             <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform duration-300" />
           </div>
         </div>

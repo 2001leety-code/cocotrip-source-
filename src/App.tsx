@@ -22,9 +22,9 @@ function HomePage() {
       />
       <main>
         <HeroSlider t={t} />
+        <CustomerGallery />
         <Services t={t} />
         <Regions t={t} />
-        <CustomerGallery />
         <CTA t={t} />
       </main>
       <Footer t={t} />
