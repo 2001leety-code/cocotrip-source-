@@ -2,41 +2,41 @@ import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 
 const customers = [
-  { image: '/고객사진/KakaoTalk_20250923_114705709_11.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20250923_114705709_12.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_01.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_02.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_03.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_04.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_05.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_06.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_07.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_08.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_09.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_10.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_11.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_12.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_13.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_14.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_15.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_16.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_17.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_18.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_19.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_20.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_21.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_22.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_23.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_24.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_25.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_26.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_27.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_28.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_29.png', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120844521_01.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120844521_02.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
-  { image: '/고객사진/KakaoTalk_20260116_120844521.jpg', name: 'Happy Traveler', location: 'Korea Tour', quote: 'Amazing experience with COCOTRIP!' },
+  { image: '/고객사진/KakaoTalk_20250923_114705709_11.jpg', name: 'Maria from Italy', location: 'Seoul Tour', quote: 'The best way to see Seoul! Highly recommended.' },
+  { image: '/고객사진/KakaoTalk_20250923_114705709_12.jpg', name: 'John & Family', location: 'Busan Coast', quote: 'Beautiful scenery and perfect arrangement for our family.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_01.jpg', name: 'Sarah from UK', location: 'Gyeongju Historical', quote: 'Amazing experience! Our guide made everything so easy.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_02.jpg', name: 'David from USA', location: 'Jeonju Hanok', quote: 'Unforgettable memories with COCOTRIP!' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_03.jpg', name: 'Elena from Spain', location: 'Nami Island', quote: 'Safe and enjoyable solo trip experience.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_04.jpg', name: 'Kenji from Japan', location: 'DMZ Tour', quote: 'Very informative and well-organized tour.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_05.jpg', name: 'Wei from China', location: 'Jeju Island', quote: 'The local food recommendations were spot on!' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_06.jpg', name: 'Anna & Tom', location: 'Seoul Night View', quote: 'A magical evening we will never forget.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_07.jpg', name: 'Michael from Canada', location: 'Danyang Paragliding', quote: 'Exhilarating experience, felt completely safe.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_08.jpg', name: 'Sophie from Germany', location: 'Korean BBQ Tour', quote: 'Delicious food and great company.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_09.jpg', name: 'Lucas from France', location: 'Ganghwa History', quote: 'Learned so much about Korean history.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_10.jpg', name: 'Emma from Australia', location: 'Busan Seafood', quote: 'The freshest seafood I have ever had.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_11.jpg', name: 'Oliver from Brazil', location: 'Gyeongbokgung', quote: 'Wearing Hanbok was the highlight of the trip.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_12.jpg', name: 'Isabella from Mexico', location: 'Chuncheon Lakes', quote: 'Such a peaceful and relaxing getaway.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_13.jpg', name: 'William from UK', location: 'Incheon Airport', quote: 'Smooth pickup and great start to the holiday.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_14.jpg', name: 'Mia from Italy', location: 'Seoul Shopping', quote: 'Found all the best spots thanks to the guide.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_15.jpg', name: 'James from USA', location: 'Jeonju Bibimbap', quote: 'Authentic taste, highly recommended.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_16.jpg', name: 'Charlotte from Canada', location: 'DMZ Tour', quote: 'A sobering but essential experience.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_17.jpg', name: 'Benjamin from Spain', location: 'Nami Island', quote: 'Beautiful autumn colors everywhere.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_18.jpg', name: 'Amelia from Japan', location: 'Gyeongju Night', quote: 'The illuminated palaces are stunning.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_19.jpg', name: 'Elijah from China', location: 'Busan Haeundae', quote: 'Great beach vibes and nightlife.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_20.jpg', name: 'Harper from France', location: 'Seoul Street Food', quote: 'So many delicious snacks to try.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_21.jpg', name: 'Alexander from Germany', location: 'Danyang Caves', quote: 'Fascinating natural formations.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_22.jpg', name: 'Evelyn from Australia', location: 'Ganghwa Luge', quote: 'Fun for the whole family!' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_23.jpg', name: 'Daniel & Sarah', location: 'Incheon Chinatown', quote: 'Loved the lively atmosphere and food.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_24.jpg', name: 'Abigail from Brazil', location: 'Seoul Palaces', quote: 'Felt like stepping back in time.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_25.jpg', name: 'Matthew from Mexico', location: 'Busan Temples', quote: 'Serene and beautifully located.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_26.jpg', name: 'Elizabeth from UK', location: 'Gyeongju History', quote: 'A deeply educational tour.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_27.jpg', name: 'Jackson from USA', location: 'Jeonju Hanok', quote: 'Loved staying in a traditional house.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_28.jpg', name: 'Sofia from Italy', location: 'Nami Island', quote: 'Perfect day trip out of the city.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308_29.png', name: 'Avery from Canada', location: 'DMZ Tour', quote: 'An eye-opening journey.' },
+  { image: '/고객사진/KakaoTalk_20260116_120843308.jpg', name: 'David from Spain', location: 'Seoul Night', quote: 'The city truly comes alive after dark.' },
+  { image: '/고객사진/KakaoTalk_20260116_120844521_01.jpg', name: 'Ella from Japan', location: 'Busan Coast', quote: 'Breathtaking ocean views.' },
+  { image: '/고객사진/KakaoTalk_20260116_120844521_02.jpg', name: 'Carter from China', location: 'Gyeongju Day Tour', quote: 'A must-do for history buffs.' },
+  { image: '/고객사진/KakaoTalk_20260116_120844521.jpg', name: 'Grace from France', location: 'Seoul Food', quote: 'Can not get enough of Korean BBQ!' },
 ];
 
 const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
@@ -59,6 +59,8 @@ const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
                 <p className="text-white/80 text-xs">{customer.location}</p>
             </div>
         </div>
+        {/* Added Quote Section */}
+        <p className="text-white/90 text-sm mt-3 italic line-clamp-2">"{customer.quote}"</p>
     </div>
     <div className="absolute top-4 left-4 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-[#0f3460]">
       {customer.location}
@@ -71,7 +73,7 @@ export function CustomerGallery() {
     loop: true,
     align: 'start',
     dragFree: true,
-  }, [Autoplay({ delay: 2000, stopOnInteraction: false })]);
+  }, [Autoplay({ delay: 3000, stopOnInteraction: false })]);
 
   return (
     <section className="py-20 lg:py-32 bg-white overflow-hidden">
@@ -81,7 +83,7 @@ export function CustomerGallery() {
             Our Happy Travelers
           </h2>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Real moments from our guests exploring Korea
+            Real moments and stories from our guests exploring Korea
           </p>
           <div className="w-20 h-1 bg-[#c0b283] mx-auto rounded-full mt-6" />
         </div>

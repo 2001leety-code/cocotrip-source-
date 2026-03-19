@@ -5,7 +5,27 @@ import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
 
 const regionImages: Record<string, string[]> = {
-  ganghwa: ['/강화도/강화도 (1).jpg','/강화도/강화도 (2).jpg','/강화도/강화도 (3).jpg','/강화도/강화도 (4).jpg'],
+  ganghwa: [
+    '/강화도/강화도 (1).jpg',
+    '/강화도/강화도 (1).jpeg',
+    '/강화도/강화도 (2).jpg',
+    '/강화도/강화도 (2).jpeg',
+    '/강화도/강화도 (3).jpg',
+    '/강화도/강화도 (3).jpeg',
+    '/강화도/강화도 (4).jpg',
+    '/강화도/강화도 (4).jpeg',
+    '/강화도/강화도 (5).jpg',
+    '/강화도/강화도 (5).jpeg',
+    '/강화도/강화도 (6).jpg',
+    '/강화도/강화도 (6).jpeg',
+    '/강화도/강화도 (7).jpg',
+    '/강화도/강화도 (7).jpeg',
+    '/강화도/강화도 (8).jpg',
+    '/강화도/강화도 (9).jpg',
+    '/강화도/강화도 (10).jpg',
+    '/강화도/강화도 (11).jpg',
+    '/강화도/강화도 (12).jpg',
+  ],
   seoul: ['/region-seoul.jpg','/서울/서울 (1).jpg','/서울/서울 (2).jpg','/서울/서울 (3).jpg','/서울/서울 (4).jpg'],
   incheon: ['/region-incheon.jpg','/인천/인천 (1).jpg','/인천/인천 (2).jpg','/인천/인천 (3).jpg','/인천/인천 (4).jpg'],
   jeonju: ['/region-jeonju.jpg','/전주/전주 (1).jpg','/전주/전주 (2).jpg','/전주/전주 (3).jpg'],
