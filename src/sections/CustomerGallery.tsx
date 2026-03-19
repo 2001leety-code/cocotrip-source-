@@ -4,8 +4,6 @@ import Autoplay from 'embla-carousel-autoplay';
 const customers = [
   { image: '/고객사진/KakaoTalk_20250923_114705709_11.jpg', name: 'Maria from Italy', location: 'Seoul Tour', quote: 'The best way to see Seoul! Highly recommended.' },
   { image: '/고객사진/KakaoTalk_20250923_114705709_12.jpg', name: 'John & Family', location: 'Busan Coast', quote: 'Beautiful scenery and perfect arrangement for our family.' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_01.jpg', name: 'Sarah from UK', location: 'Gyeongju Historical', quote: 'Amazing experience! Our guide made everything so easy.' },
-  { image: '/고객사진/KakaoTalk_20260116_120843308_02.jpg', name: 'David from USA', location: 'Jeonju Hanok', quote: 'Unforgettable memories with COCOTRIP!' },
   { image: '/고객사진/KakaoTalk_20260116_120843308_03.jpg', name: 'Elena from Spain', location: 'Nami Island', quote: 'Safe and enjoyable solo trip experience.' },
   { image: '/고객사진/KakaoTalk_20260116_120843308_04.jpg', name: 'Kenji from Japan', location: 'DMZ Tour', quote: 'Very informative and well-organized tour.' },
   { image: '/고객사진/KakaoTalk_20260116_120843308_05.jpg', name: 'Wei from China', location: 'Jeju Island', quote: 'The local food recommendations were spot on!' },
