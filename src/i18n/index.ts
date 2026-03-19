@@ -9,6 +9,7 @@ export const translations = {
       contact: '문의',
       myPage: '마이페이지',
       inquiry: '1:1 문의하기',
+      bookNow: '예약하기',
     },
     hero: {
       slide1: {
@@ -263,6 +264,7 @@ export const translations = {
       contact: 'Contact',
       myPage: 'My Page',
       inquiry: '1:1 Inquiry',
+      bookNow: 'Book Now',
     },
     hero: {
       slide1: {
@@ -517,6 +519,7 @@ export const translations = {
       contact: 'お問い合わせ',
       myPage: 'マイページ',
       inquiry: '1:1お問い合わせ',
+      bookNow: '予約する',
     },
     hero: {
       slide1: {
@@ -771,6 +774,7 @@ export const translations = {
       contact: '联系我们',
       myPage: '我的页面',
       inquiry: '1:1咨询',
+      bookNow: '立即预订',
     },
     hero: {
       slide1: {
