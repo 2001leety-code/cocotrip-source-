@@ -1,6 +1,7 @@
 import { Users, Building2, Package, Palette, UtensilsCrossed, ArrowRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
+import { Link } from 'react-router-dom';
 
 interface ServicesProps {
   t: any;
@@ -29,8 +30,7 @@ export function Services({ t }: ServicesProps) {
     const cardClass = isMobileCard ? 'flex-shrink-0 w-4/5 mr-4' : 'md:col-span-2 lg:col-span-1';
 
     return (
-      <div
-        className={`group relative bg-white rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden ${cardClass}`}>
+      <Link to="/booking" className={`group relative bg-white rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden ${cardClass}`}>
         {/* Hover Background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0f3460] to-[#0f3460]/90 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         
@@ -50,7 +50,7 @@ export function Services({ t }: ServicesProps) {
             <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform duration-300" />
           </div>
         </div>
-      </div>
+      </Link>
     );
   };
 

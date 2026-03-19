@@ -1,7 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Quote, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
+import Autoplay from 'embla-carousel-autoplay';
 
 const customers = [
   {
@@ -52,22 +50,62 @@ const customers = [
     location: 'Seoul',
     quote: 'See you again in Korea! - Femi',
   },
+  { image: '/customers/KakaoTalk_20250923_114705709_11.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20250923_114705709_12.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_01.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_02.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_03.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_04.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_05.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_06.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_07.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_08.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_09.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_10.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_11.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_12.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_13.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_14.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_15.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_16.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_17.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_18.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_19.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_20.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_21.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_22.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_23.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_24.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_25.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_26.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_27.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120843308_28.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120844521.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120844521_01.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
+  { image: '/customers/KakaoTalk_20260116_120844521_02.jpg', name: 'Happy Traveler', location: 'South Korea', quote: 'A wonderful trip!' },
 ];
 
 const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
-  <div className="group relative overflow-hidden rounded-2xl bg-white shadow-lg hover:shadow-xl transition-all duration-300">
+  <div className="group relative overflow-hidden rounded-2xl bg-white shadow-lg">
     <div className="aspect-[4/5] overflow-hidden">
       <img
         src={customer.image}
         alt={customer.name}
-        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+        className="w-full h-full object-cover transition-transform duration-500"
       />
     </div>
-    <div className="absolute inset-0 bg-gradient-to-t from-[#0f3460]/90 via-[#0f3460]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-      <Quote className="w-8 h-8 text-[#c0b283] mb-3" />
-      <p className="text-white text-sm mb-2 italic">\"{customer.quote}\"</p>
-      <p className="text-[#c0b283] font-semibold text-sm">{customer.name}</p>
-      <p className="text-white/70 text-xs">{customer.location}</p>
+    <div className="absolute inset-0 bg-gradient-to-t from-[#0f3460]/90 via-transparent to-transparent" />
+    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+        <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/80 shrink-0">
+                <img src={customer.image} alt={customer.name} className="w-full h-full object-cover" />
+            </div>
+            <div>
+                <p className="text-white font-semibold text-sm">{customer.name}</p>
+                <p className="text-white/80 text-xs">{customer.location}</p>
+            </div>
+        </div>
     </div>
     <div className="absolute top-4 left-4 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-[#0f3460]">
       {customer.location}
@@ -76,28 +114,16 @@ const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
 );
 
 export function CustomerGallery() {
-  const isMobile = useIsMobile();
-  const [emblaRef, emblaApi] = useEmblaCarousel({ 
-    loop: true, 
-    align: isMobile ? 'center' : 'start',
-    containScroll: 'trimSnaps',
-  });
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const scrollPrev = useCallback(() => emblaApi && emblaApi.scrollPrev(), [emblaApi]);
-  const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    const onSelect = () => setCurrentIndex(emblaApi.selectedScrollSnap());
-    emblaApi.on('select', onSelect);
-    return () => { emblaApi.off('select', onSelect); };
-  }, [emblaApi]);
+  const [emblaRef] = useEmblaCarousel({
+    loop: true,
+    align: 'start',
+    dragFree: true,
+  }, [Autoplay({ delay: 2000, stopOnInteraction: false })]);
 
   return (
-    <section className="py-20 lg:py-32 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
+    <section className="py-20 lg:py-32 bg-white overflow-hidden">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16 px-4">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1a1a2e] mb-4">
             Our Happy Travelers
           </h2>
@@ -110,32 +136,14 @@ export function CustomerGallery() {
         <div className="overflow-hidden" ref={emblaRef}>
           <div className="flex -ml-4">
             {customers.map((customer, index) => (
-              <div 
-                key={index} 
-                className="flex-grow-0 flex-shrink-0 pl-4 lg:pl-6"
-                style={{ flexBasis: isMobile ? '85%' : 'calc(100% / 2 - 24px)' }} // Mobile: 1 card, SM: 2 cards, LG: 4 cards
+              <div
+                key={index}
+                className="flex-grow-0 flex-shrink-0 w-4/5 sm:w-2/5 md:w-1/3 lg:w-1/4 pl-4 sm:pl-5 md:pl-6"
               >
                 <CustomerCard customer={customer} />
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="flex justify-center items-center gap-4 mt-8">
-          <button onClick={scrollPrev} className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center text-[#0f3460] hover:bg-[#0f3460] hover:text-white transition-colors duration-300">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <div className="flex gap-2">
-            {Array.from({ length: Math.ceil(customers.length / (isMobile ? 1 : 2)) }).map((_, i) => (
-              <div 
-                key={i} 
-                className={`w-2 h-2 rounded-full transition-colors duration-200 ${currentIndex === i ? 'bg-[#0f3460]' : 'bg-gray-300'}`}
-              />
-            ))}
-          </div>
-          <button onClick={scrollNext} className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center text-[#0f3460] hover:bg-[#0f3460] hover:text-white transition-colors duration-300">
-            <ChevronRight className="w-5 h-5" />
-          </button>
         </div>
       </div>
     </section>
