@@ -1,4 +1,3 @@
-import React from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
