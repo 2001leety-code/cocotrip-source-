@@ -5,6 +5,7 @@ import { HeroSlider } from '@/sections/HeroSlider';
 import { Services } from '@/sections/Services';
 import { Regions } from '@/sections/Regions';
 import { CustomerGallery } from '@/sections/CustomerGallery';
+import { GoogleReviews } from '@/sections/GoogleReviews';
 import { CTA } from '@/sections/CTA';
 import { Footer } from '@/sections/Footer';
 import { RegionDetail } from '@/pages/RegionDetail';
@@ -27,6 +28,7 @@ function HomePage() {
       <main>
         <HeroSlider t={t} />
         <CustomerGallery />
+        <GoogleReviews />
         <Services t={t} />
         <Regions t={t} />
         <CTA t={t} />
