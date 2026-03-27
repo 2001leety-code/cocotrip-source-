@@ -14,6 +14,9 @@ import About from '@/pages/About';
 import Terms from '@/pages/Terms';
 import Privacy from '@/pages/Privacy';
 import TravelTerms from '@/pages/TravelTerms';
+import Admin from '@/pages/Admin';
+import PlannerPage from '@/pages/PlannerPage';
+import { AdminRoute } from '@/components/AdminRoute';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -45,6 +48,15 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/region/:regionId" element={<RegionDetail />} />
         <Route path="/booking" element={<BookingPageWrapper />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <Admin />
+            </AdminRoute>
+          }
+        />
+        <Route path="/planner" element={<PlannerPage />} />
         <Route path="/about" element={<About />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />

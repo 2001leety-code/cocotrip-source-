@@ -16,3 +16,6 @@
 # Environment Variables
 .env
 .env*.local
+
+# Local Netlify folder
+.netlify

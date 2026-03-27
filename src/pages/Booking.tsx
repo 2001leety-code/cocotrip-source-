@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
-import emailjs from '@emailjs/browser';
-import { Calendar as CalendarIcon, Users, Car, Plane, CheckCircle, X } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
+import { Calendar as CalendarIcon, CheckCircle, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Toaster, toast } from 'sonner';
 
@@ -11,11 +11,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useLanguage } from '@/hooks/useLanguage';
 import type { Language } from '@/i18n';
 
-const tourTypeData = {
-  private: { icon: Users, name: 'Private Tour' },
-  group: { icon: Car, name: 'Group Tour' },
-  pickup: { icon: Plane, name: 'Airport Pickup' },
-};
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+
+import { db, signInWithGoogle } from '@/lib/firebase';
+import { reserveTourSeats } from '@/services/bookingService';
+import { useAuth } from '@/hooks/useAuth';
 
 const languages: { value: Language; label: string }[] = [
   { value: 'ko', label: '한국어' },
@@ -26,12 +26,34 @@ const languages: { value: Language; label: string }[] = [
 
 export default function Booking({ onClose }: { onClose?: () => void }) {
   const { language, t, changeLanguage } = useLanguage();
+  const { user, loading: authLoading, error: authError } = useAuth();
   const form = useRef<HTMLFormElement>(null);
   const [date, setDate] = useState<Date | undefined>();
-  const [selectedTourType, setSelectedTourType] = useState<keyof typeof tourTypeData>('private');
+  const [toursLoading, setToursLoading] = useState(true);
+  const [toursError, setToursError] = useState<string | null>(null);
+  const [tours, setTours] = useState<
+    Array<{
+      id: string;
+      title?: string;
+      description?: string;
+      price?: number;
+      totalSeats?: number;
+      currentBookings?: number;
+    }>
+  >([]);
+  const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [numberOfPeople, setNumberOfPeople] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  const selectedRemainingSeats = useMemo(() => {
+    const tour = tours.find((x) => x.id === selectedTourId);
+    if (!tour) return 0;
+    const total = Number(tour.totalSeats ?? 0);
+    const current = Number(tour.currentBookings ?? 0);
+    return Math.max(0, total - current);
+  }, [tours, selectedTourId]);
 
   useEffect(() => {
     if (isSubmitted && onClose) {
@@ -42,7 +64,50 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
     }
   }, [isSubmitted, onClose]);
 
-  const sendEmail = (e: React.FormEvent) => {
+  useEffect(() => {
+    const q = query(collection(db, 'tours'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+        setTours(list);
+        setToursLoading(false);
+        setToursError(null);
+
+        if (list.length > 0) {
+          if (!selectedTourId || !list.some((x) => x.id === selectedTourId)) {
+            setSelectedTourId(list[0].id);
+          }
+        } else {
+          setSelectedTourId(null);
+        }
+      },
+      (err) => {
+        setToursError(err.message);
+        setToursLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [selectedTourId]);
+
+  const handleGoogleLogin = useCallback(async () => {
+    setIsSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : '구글 로그인에 실패했습니다.';
+      toast.error(message);
+    } finally {
+      setIsSigningIn(false);
+    }
+  }, []);
+
+  const handleReserve = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!date) {
@@ -50,29 +115,72 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
       return;
     }
 
-    if (form.current) {
-      setIsSubmitting(true);
-      
-      emailjs.init("f8sVlXUDk2UMg3K7W");
+    if (authLoading) {
+      toast.error('로그인 상태를 확인하는 중입니다. 잠시만 기다려주세요.');
+      return;
+    }
 
-      emailjs
-        .sendForm(
-          "service_cocotripkr",
-          "template_fcxgsif",
-          form.current
-        )
-        .then(
-          () => {
-            setIsSubmitted(true);
-          },
-          (error: unknown) => {
-            toast.error(t.booking.validation.failed);
-            console.error('EMAILJS ERROR:', (error as { text?: string }).text || error);
-          }
-        )
-        .finally(() => {
-          setIsSubmitting(false);
-        });
+    if (!user) {
+      toast.error('구글 로그인 후 예약을 진행해주세요.');
+      return;
+    }
+
+    if (!selectedTourId) {
+      toast.error('투어를 선택해주세요.');
+      return;
+    }
+
+    if (!form.current) return;
+
+    const fd = new FormData(form.current);
+    const tourDate = format(date, 'yyyy-MM-dd');
+    const fromName = String(fd.get('from_name') ?? '').trim();
+    const customerEmail = String(fd.get('user_email') ?? user.email ?? '').trim();
+    const phone = String(fd.get('contact_number') ?? '').trim();
+    const location = String(fd.get('location') ?? '').trim();
+    const notes = String(fd.get('message') ?? '').trim();
+
+    if (!fromName) {
+      toast.error('이름을 입력해주세요.');
+      return;
+    }
+    if (!customerEmail) {
+      toast.error('이메일을 입력해주세요.');
+      return;
+    }
+    if (!phone) {
+      toast.error('연락처를 입력해주세요.');
+      return;
+    }
+    if (!location) {
+      toast.error('로케이션을 입력해주세요.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await reserveTourSeats({
+        db,
+        tourId: selectedTourId,
+        partySize: numberOfPeople,
+        userId: user.uid,
+        tourDate,
+        customer: {
+          fromName,
+          email: customerEmail,
+          phone,
+          location,
+          notes,
+        },
+      });
+
+      setIsSubmitted(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : '예약 처리에 실패했습니다.';
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -80,12 +188,12 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
     if (form.current) form.current.reset();
     setDate(undefined);
     setNumberOfPeople(1);
-    setSelectedTourType('private');
+    setSelectedTourId(tours[0]?.id ?? null);
     setIsSubmitted(false);
     if (onClose) onClose();
   }
 
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleOverlayClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget && onClose) {
       onClose();
     }
@@ -117,7 +225,28 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
           <h1 className="font-bold text-2xl sm:text-3xl mb-4 text-white">{t.booking.title}</h1>
           <p className="mb-6 text-white/70 text-sm">{t.booking.subtitle}</p>
 
-          <div className="flex space-x-1 bg-white/10 p-1 rounded-xl mb-6">
+          {authLoading ? (
+            <div className="mt-6 text-sm text-white/70">Loading...</div>
+          ) : !user ? (
+            <div className="mt-6 space-y-4">
+              <h2 className="text-xl font-bold">구글로 시작하기</h2>
+              <p className="text-sm text-white/70">
+                구글 로그인 후 예약을 진행할 수 있습니다.
+              </p>
+              <Button
+                onClick={handleGoogleLogin}
+                disabled={isSigningIn}
+                className="w-full py-4 rounded-xl bg-[#0f3460] text-white hover:bg-[#1a1a2e] font-bold transition-colors border border-white/10"
+              >
+                {isSigningIn ? '로그인 중...' : '구글로 시작하기'}
+              </Button>
+              {authError ? (
+                <p className="text-sm text-red-300">{authError}</p>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <div className="flex space-x-1 bg-white/10 p-1 rounded-xl mb-6">
             {languages.map((l) => (
               <button
                 key={l.value}
@@ -135,32 +264,51 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
             ))}
           </div>
 
-          <form ref={form} onSubmit={sendEmail} className="space-y-6 text-sm sm:text-base">
+          <form ref={form} onSubmit={handleReserve} className="space-y-6 text-sm sm:text-base">
             <div>
               <label className="block text-sm font-medium text-white/70 mb-3">{t.booking.tourType}</label>
-              <div className="grid grid-cols-3 gap-3">
-                {(Object.keys(tourTypeData) as Array<keyof typeof tourTypeData>).map((key) => {
-                  const tour = tourTypeData[key];
-                  const Icon = tour.icon;
-                  return (
-                    <button
-                      type="button"
-                      key={key}
-                      onClick={() => setSelectedTourType(key)}
-                      className={cn(
-                        'flex flex-col items-center py-4 px-2 sm:p-4 rounded-xl border transition-all',
-                        selectedTourType === key
-                          ? 'bg-white border-white text-[#1a1a2e]'
-                          : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white'
-                      )}
-                    >
-                      <Icon className="w-5 h-5 sm:w-6 sm:h-6 mb-2" />
-                      <span className="text-[10px] sm:text-xs font-semibold leading-tight text-center">{t.booking.tourTypes[key]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <input type="hidden" name="tour_type" value={t.booking.tourTypes[selectedTourType]} />
+              {toursLoading ? (
+                <p className="text-xs text-white/60">Loading tours...</p>
+              ) : toursError ? (
+                <p className="text-xs text-red-300">{toursError}</p>
+              ) : tours.length === 0 ? (
+                <p className="text-xs text-white/60">등록된 상품이 없습니다.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {tours.map((tour) => {
+                    const total = Number(tour.totalSeats ?? 0);
+                    const current = Number(tour.currentBookings ?? 0);
+                    const remaining = Math.max(0, total - current);
+                    const isSelected = selectedTourId === tour.id;
+
+                    return (
+                      <button
+                        key={tour.id}
+                        type="button"
+                        onClick={() => setSelectedTourId(tour.id)}
+                        disabled={remaining <= 0}
+                        className={cn(
+                          'flex flex-col items-center text-center py-4 px-2 sm:p-4 rounded-xl border transition-all',
+                          isSelected
+                            ? 'bg-white border-white text-[#1a1a2e]'
+                            : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20 hover:text-white',
+                          remaining <= 0 ? 'opacity-50 cursor-not-allowed' : ''
+                        )}
+                      >
+                        <div className="text-sm font-semibold leading-tight">
+                          {tour.title ?? 'Untitled'}
+                        </div>
+                        <div className="text-xs opacity-80 mt-2">
+                          가격: {tour.price != null ? `${tour.price}` : '-'}
+                        </div>
+                        <div className="text-[10px] opacity-80 mt-1">
+                          잔여석: {remaining} / {total}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4">
@@ -216,7 +364,16 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
               </div>
               <div className="flex-1">
                  <label htmlFor="user_email" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.email}</label>
-                <input type="email" name="user_email" id="user_email" placeholder="e.g., email@example.com" required className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" />
+                <input
+                  type="email"
+                  name="user_email"
+                  id="user_email"
+                  placeholder="e.g., email@example.com"
+                  defaultValue={user?.email ?? ''}
+                  required
+                  readOnly
+                  className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base"
+                />
               </div>
             </div>
             
@@ -243,10 +400,22 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
               ></textarea>
             </div>
 
-            <Button type="submit" className="w-full py-4 text-base rounded-xl bg-[#0f3460] text-white hover:bg-[#1a1a2e] font-bold transition-colors border border-[#0f3460] hover:border-white/20 mt-8" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="w-full py-4 text-base rounded-xl bg-[#0f3460] text-white hover:bg-[#1a1a2e] font-bold transition-colors border border-[#0f3460] hover:border-white/20 mt-8"
+              disabled={
+                isSubmitting ||
+                !selectedTourId ||
+                toursLoading ||
+                tours.length === 0 ||
+                selectedRemainingSeats < numberOfPeople
+              }
+            >
               {isSubmitting ? t.booking.buttons.submitting : t.booking.buttons.submit}
             </Button>
           </form>
+            </>
+          )}
         </div>
       )}
     </div>
