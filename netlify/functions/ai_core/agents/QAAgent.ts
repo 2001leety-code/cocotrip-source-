@@ -1,5 +1,5 @@
-import { BaseAgent } from "./BaseAgent";
-import { AgentResult } from "../models";
+import { BaseAgent } from "./BaseAgent.js";
+import { AgentResult } from "../models.js";
 
 export class QAAgent extends BaseAgent {
   constructor(apiKey: string) {
@@ -107,7 +107,7 @@ export class QAAgent extends BaseAgent {
     console.log(`  - 예산 산출 완료: 스타리아 전세 총 ${transportCost}원`);
     
     return {
-      agentName: this.agentKey,
+      agentName: (this as any).agentKey,
       systemPrompt: "",
       userPrompt: "",
       rawOutput: `\`\`\`json\n${finalStr}\n\`\`\``,
