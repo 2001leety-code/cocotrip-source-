@@ -25,10 +25,11 @@ export default async (req: Request, context: Context) => {
   try {
     let rawBody: any = {};
     try {
-      rawBody = await req.json();
+      const text = await req.text();
+      rawBody = JSON.parse(text || '{}');
       console.log("Request Body [planner-quick]:", JSON.stringify(rawBody));
     } catch (e) {
-      console.warn("Body parse error, falling back to defaults", e);
+      console.warn("Body parse error, using defaults", e);
     }
 
     const destination = rawBody.destination || (rawBody.regions && rawBody.regions[0]) || "Seoul (추론 요망)";
