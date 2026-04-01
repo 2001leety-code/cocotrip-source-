@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { useLanguage } from '@/hooks/useLanguage';
+import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
+import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
 import { HeroSlider } from '@/sections/HeroSlider';
 import { Services } from '@/sections/Services';
@@ -17,6 +18,11 @@ import TravelTerms from '@/pages/TravelTerms';
 import Admin from '@/pages/Admin';
 import PlannerPage from '@/pages/PlannerPage';
 import { AdminRoute } from '@/components/AdminRoute';
+import { HeroCards } from '@/sections/HeroCards';
+import CharterPage from '@/pages/CharterPage';
+import { ChatWidget } from '@/components/ChatWidget';
+import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
+import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -30,6 +36,7 @@ function HomePage() {
       />
       <main>
         <HeroSlider t={t} />
+        <HeroCards t={t} />
         <CustomerGallery />
         <GoogleReviews />
         <Services t={t} />
@@ -41,28 +48,57 @@ function HomePage() {
   );
 }
 
+function GlobalWidgets() {
+  const { language } = useLanguage();
+  return (
+    <>
+      <EarlyBirdBanner language={language} />
+      <KpopConcertPopup />
+      <ChatWidget language={language} />
+    </>
+  );
+}
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/region/:regionId" element={<RegionDetail />} />
-        <Route path="/booking" element={<BookingPageWrapper />} />
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <Admin />
-            </AdminRoute>
-          }
-        />
-        <Route path="/planner" element={<PlannerPage />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/travel-terms" element={<TravelTerms />} />
-      </Routes>
-    </BrowserRouter>
+    <LanguageProvider>
+      <BrowserRouter>
+        <GlobalWidgets />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/region/:regionId" element={<RegionDetail />} />
+          <Route path="/booking" element={<BookingPageWrapper />} />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <Admin />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/charter"
+            element={
+              <AuthRequired>
+                <CharterPage />
+              </AuthRequired>
+            }
+          />
+          <Route
+            path="/planner"
+            element={
+              <AuthRequired>
+                <PlannerPage />
+              </AuthRequired>
+            }
+          />
+          <Route path="/about" element={<About />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/travel-terms" element={<TravelTerms />} />
+        </Routes>
+      </BrowserRouter>
+    </LanguageProvider>
   );
 }
 

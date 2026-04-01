@@ -17,7 +17,6 @@
  */
 
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
-import axios from 'axios';
 
 const VALID_CATEGORIES = ['K-pop', 'K-food', 'K-culture', 'K-beauty', 'nature', 'skiing', 'shopping', 'heritage'];
 
@@ -28,33 +27,11 @@ const CORS_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-// ── Gemini 응답 JSON 스키마 정의 ───────────────────────────────────────
-// SchemaType으로 구조를 선언하면 Gemini가 이 형식 외의 출력을 하지 않습니다.
-const RESPONSE_SCHEMA = {
+// ── Gemini 응답 JSON 스키마 정의 (핵심 일정만 — 경량) ─────────────────
+// meals / accommodation / budgetSummary / dailyTips 는 enrichPlan 에서 처리
+const CORE_SCHEMA = {
   type: SchemaType.OBJECT,
   properties: {
-    accommodation: {
-      type: SchemaType.OBJECT,
-      properties: {
-        name:       { type: SchemaType.STRING },
-        area:       { type: SchemaType.STRING },
-        reason:     { type: SchemaType.STRING },
-        priceRange: { type: SchemaType.STRING },
-        address:    { type: SchemaType.STRING },
-      },
-      required: ['name', 'area', 'reason', 'priceRange', 'address'],
-    },
-    budgetSummary: {
-      type: SchemaType.OBJECT,
-      properties: {
-        transport:     { type: SchemaType.STRING },
-        food:          { type: SchemaType.STRING },
-        admission:     { type: SchemaType.STRING },
-        accommodation: { type: SchemaType.STRING },
-        total:         { type: SchemaType.STRING },
-      },
-      required: ['transport', 'food', 'admission', 'accommodation', 'total'],
-    },
     itinerary: {
       type: SchemaType.ARRAY,
       items: {
@@ -62,20 +39,16 @@ const RESPONSE_SCHEMA = {
         properties: {
           day:  { type: SchemaType.NUMBER },
           date: { type: SchemaType.STRING },
-          dailyTips: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING },
-          },
           places: {
             type: SchemaType.ARRAY,
             items: {
               type: SchemaType.OBJECT,
               properties: {
-                order:        { type: SchemaType.NUMBER },
-                name:         { type: SchemaType.STRING },
-                nameEn:       { type: SchemaType.STRING },
-                category:     { type: SchemaType.STRING },
-                address:      { type: SchemaType.STRING },
+                order:               { type: SchemaType.NUMBER },
+                name:                { type: SchemaType.STRING },
+                nameEn:              { type: SchemaType.STRING },
+                category:            { type: SchemaType.STRING },
+                address:             { type: SchemaType.STRING },
                 coordinates: {
                   type: SchemaType.OBJECT,
                   properties: {
@@ -84,27 +57,27 @@ const RESPONSE_SCHEMA = {
                   },
                   required: ['lat', 'lng'],
                 },
-                duration:         { type: SchemaType.STRING },
-                admissionFee:     { type: SchemaType.STRING },
-                tips:             { type: SchemaType.STRING },
-                rainyAlternative:        { type: SchemaType.STRING },
-                openingHours:            { type: SchemaType.STRING },
-                closedDays:              { type: SchemaType.STRING },
-                naverMapUrl:             { type: SchemaType.STRING },
-                reservationRequired:     { type: SchemaType.STRING },
-                cashOnly:                { type: SchemaType.STRING },
-                crowdedTimes:            { type: SchemaType.STRING },
+                duration:            { type: SchemaType.STRING },
+                admissionFee:        { type: SchemaType.STRING },
+                tips:                { type: SchemaType.STRING },
+                rainyAlternative:    { type: SchemaType.STRING },
+                openingHours:        { type: SchemaType.STRING },
+                closedDays:          { type: SchemaType.STRING },
+                naverMapUrl:         { type: SchemaType.STRING },
+                reservationRequired: { type: SchemaType.STRING },
+                cashOnly:            { type: SchemaType.STRING },
+                crowdedTimes:        { type: SchemaType.STRING },
                 transportToNext: {
                   type: SchemaType.OBJECT,
                   properties: {
-                    method:               { type: SchemaType.STRING },
-                    detail:               { type: SchemaType.STRING },
-                    durationMin:          { type: SchemaType.NUMBER },
-                    costKRW:              { type: SchemaType.STRING },
-                    fatigueComment:       { type: SchemaType.STRING },
-                    charterRecommended:   { type: SchemaType.STRING },
-                    charterReason:        { type: SchemaType.STRING },
-                    charterCostEstimate:  { type: SchemaType.STRING },
+                    method:              { type: SchemaType.STRING },
+                    detail:              { type: SchemaType.STRING },
+                    durationMin:         { type: SchemaType.NUMBER },
+                    costKRW:             { type: SchemaType.STRING },
+                    fatigueComment:      { type: SchemaType.STRING },
+                    charterRecommended:  { type: SchemaType.STRING },
+                    charterReason:       { type: SchemaType.STRING },
+                    charterCostEstimate: { type: SchemaType.STRING },
                   },
                   required: ['method', 'detail', 'durationMin', 'costKRW'],
                 },
@@ -112,29 +85,12 @@ const RESPONSE_SCHEMA = {
               required: ['order', 'name', 'nameEn', 'category', 'address', 'coordinates', 'tips'],
             },
           },
-          meals: {
-            type: SchemaType.ARRAY,
-            items: {
-              type: SchemaType.OBJECT,
-              properties: {
-                type:                { type: SchemaType.STRING },
-                restaurantName:      { type: SchemaType.STRING },
-                cuisine:             { type: SchemaType.STRING },
-                costPerPerson:       { type: SchemaType.STRING },
-                reservationRequired: { type: SchemaType.STRING },
-                waitTime:            { type: SchemaType.STRING },
-                address:             { type: SchemaType.STRING },
-                tip:                 { type: SchemaType.STRING },
-              },
-              required: ['type', 'restaurantName', 'cuisine', 'costPerPerson', 'reservationRequired'],
-            },
-          },
         },
-        required: ['day', 'date', 'places', 'meals'],
+        required: ['day', 'date', 'places'],
       },
     },
   },
-  required: ['accommodation', 'budgetSummary', 'itinerary'],
+  required: ['itinerary'],
 };
 
 export const handler = async (event) => {
@@ -155,7 +111,7 @@ export const handler = async (event) => {
     return respond(400, { error: '요청 body가 유효한 JSON이 아닙니다.' });
   }
 
-  const { categories, regions, startDate, endDate, language = 'en', freeText = '', kpopDetails = [], transport = '' } = body;
+  const { categories, regions, startDate, endDate, language = 'en', freeText = '', kpopDetails = [], transport = '', preset = '' } = body;
   const LANG_MAP = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Chinese' };
   const tipsLanguage = LANG_MAP[language] ?? 'English';
 
@@ -191,13 +147,14 @@ export const handler = async (event) => {
     systemInstruction: buildSystemPrompt(tipsLanguage),
     generationConfig: {
       responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA,
+      responseSchema: CORE_SCHEMA,
       temperature: 0.7,
+      thinkingConfig: { thinkingBudget: 0 },
     },
   });
 
   // ── 3. 사용자 프롬프트 구성 및 Gemini 호출 ──────────────────────────
-  const userPrompt = buildUserPrompt({ categories, regions, startDate, endDate, totalDays, tipsLanguage, freeText, kpopDetails, transport });
+  const userPrompt = buildUserPrompt({ categories, regions, startDate, endDate, totalDays, tipsLanguage, freeText, kpopDetails, transport, preset });
 
   let aiResult;
   try {
@@ -211,27 +168,7 @@ export const handler = async (event) => {
     });
   }
 
-  // ── 4. 네이버 지도 API — Geocoding → Directions 5 순서로 처리 ────────
-  const naverClientId = process.env.NAVER_CLIENT_ID;
-  const naverClientSecret = process.env.NAVER_CLIENT_SECRET;
-
-  if (naverClientId && naverClientSecret) {
-    const naverHeaders = {
-      'X-NCP-APIGW-API-KEY-ID': naverClientId,
-      'X-NCP-APIGW-API-KEY':    naverClientSecret,
-    };
-
-    // Step 4-A/B: Geocoding + Directions — 5초 초과 시 AI 결과만 반환
-    await Promise.race([
-      Promise.all([
-        enrichWithGeocoordinates(aiResult.itinerary, naverHeaders),
-        enrichWithDrivingTimes(aiResult.itinerary, naverHeaders),
-      ]),
-      new Promise((resolve) => setTimeout(resolve, 5000)),
-    ]);
-  }
-
-  // ── 5. 최종 응답 ────────────────────────────────────────────────────
+  // ── 4. 최종 응답 ────────────────────────────────────────────────────
   const month = new Date().getMonth() + 1;
   let currentSeason = 'spring';
   if (month >= 6 && month <= 8) currentSeason = 'summer';
@@ -246,10 +183,9 @@ export const handler = async (event) => {
       endDate,
       generatedAt: new Date().toISOString(),
     },
-    accommodation: aiResult.accommodation,
-    budgetSummary: aiResult.budgetSummary,
     itinerary: aiResult.itinerary,
     currentSeason,
+    enriched: false,
   });
 };
 
@@ -271,13 +207,11 @@ Your role:
 - Select 3 to 5 places per day, ordered by optimal visit sequence (geography + opening hours).
 - Each place must match at least one of the user's selected categories.
 - Prioritize well-known, tourist-accessible locations with accurate Korean addresses and GPS coordinates.
-- Recommend a single best-value accommodation for the trip.
-- Provide realistic budget estimates in KRW (Korean Won).
 - For each place, suggest realistic transport to the NEXT place in the day's itinerary.
-- For each day, include 2–3 practical daily tips and meal recommendations (breakfast, lunch, dinner).
 
 Output rules (strictly enforced):
 - Respond ONLY with valid JSON matching the provided schema. No markdown, no prose, no explanation.
+- Do NOT include meals, accommodation, budget, or daily tips — those are handled separately.
 
 Place fields:
 - "name": Korean name (e.g. "경복궁")
@@ -305,38 +239,33 @@ Place fields:
   - "charterReason": why charter is recommended (if yes, in ${tipsLanguage})
   - "charterCostEstimate": estimated charter cost (if yes)
 
-Meal fields (3 per day: breakfast, lunch, dinner):
-- "type": "breakfast" | "lunch" | "dinner"
-- "restaurantName": restaurant name in Korean
-- "cuisine": cuisine type in ${tipsLanguage}
-- "costPerPerson": cost string (e.g. "₩8,000–12,000")
-- "reservationRequired": "yes" or "no"
-- "waitTime": expected wait time (e.g. "20–30 min") — optional
-- "address": Korean address — optional
-- "tip": 1-sentence dining tip in ${tipsLanguage} — optional
-
-Accommodation fields (1 for the whole trip):
-- "name": hotel/guesthouse name
-- "area": neighborhood (e.g. "명동", "홍대")
-- "reason": why recommended in ${tipsLanguage}
-- "priceRange": per night cost (e.g. "₩80,000–120,000/night")
-- "address": Korean address
-
-Budget summary (total for all days, 1 person):
-- "transport", "food", "admission", "accommodation", "total": all as KRW strings`;
+CocoTrip vehicle options (use when recommending charter transport):
+- Staria Van: up to 8 passengers, no guide required, private small group
+- Sprinter/Spinner Van: 9~15 passengers, professional guide included (₩300,000/day)
+- Charter Bus: 16+ passengers, professional guide included, custom quote needed
+When group size exceeds 8, automatically recommend appropriate vehicle.`;
 }
 
 /**
  * 사용자 프롬프트 — 카테고리, 지역, 날짜를 Gemini에 전달합니다.
  */
-function buildUserPrompt({ categories, regions, startDate, endDate, totalDays, tipsLanguage = 'English', freeText = '', kpopDetails = [], transport = '' }) {
+function buildUserPrompt({ categories, regions, startDate, endDate, totalDays, tipsLanguage = 'English', freeText = '', kpopDetails = [], transport = '', preset = '' }) {
   const freeTextLine = freeText
     ? `\nUser's specific requests: "${freeText}" → Prioritize these preferences when selecting places and activities.`
     : '';
   const kpopLine = kpopDetails.length > 0
     ? `\nK-pop specific interests: ${kpopDetails.join(', ')} → Include spots or activities that match these interests.`
     : '';
-  const transportLine = transport === 'charter'
+  const springBlossomsLine = preset === 'spring_blossoms'
+    ? `\n\nCRITICAL: The user clicked the Spring Cherry Blossom package. You MUST explicitly include at least one of the following in the itinerary: 'Jinhae Gunhangje (진해 군항제)', 'Yeouido Cherry Blossom Festival (여의도 벚꽃축제)', or 'Gyeongju Daereungwon (경주 대릉원)'. Adjust placement to fit the user's selected travel dates and regions. Cherry blossom spots must appear as named places in the itinerary.`
+    : '';
+  const transportLine = transport === 'staria'
+    ? `\nTransport preference: The traveler has booked a STARIA VAN (private charter, up to 8 passengers). Prioritize multi-region routes, suggest charterRecommended="yes" for most inter-place transport, and note that inter-city travel is comfortable.`
+    : transport === 'sprinter'
+    ? `\nTransport preference: The traveler has booked a SPRINTER VAN (9-15 passengers) with professional guide service included (\u20a9300,000/day). Suggest charterRecommended="yes" for inter-place transport.`
+    : transport === 'bus'
+    ? `\nTransport preference: The traveler has booked a CHARTER BUS (16+ passengers) with professional guide service included (\u20a9300,000/day). Suggest charterRecommended="yes" for all transport legs.`
+    : transport === 'charter'
     ? `\nTransport preference: The traveler prefers CHARTER vehicle. Prioritize multi-region routes, suggest charterRecommended="yes" for most inter-place transport, and note that inter-city travel is comfortable.`
     : transport === 'public'
     ? `\nTransport preference: The traveler prefers PUBLIC TRANSPORT. Prioritize subway/bus-accessible locations, avoid remote spots that require taxis, and set charterRecommended="no" unless truly necessary.`
@@ -347,7 +276,7 @@ function buildUserPrompt({ categories, regions, startDate, endDate, totalDays, t
 - Travel categories (interests): ${categories.join(', ')}
 - Regions to visit: ${regions.join(', ')}
 - Start date: ${startDate}
-- End date: ${endDate}${freeTextLine}${kpopLine}${transportLine}
+- End date: ${endDate}${freeTextLine}${kpopLine}${transportLine}${springBlossomsLine}
 
 Requirements:
 1. Generate exactly ${totalDays} day entries. Each day must have 3–5 places.
@@ -357,94 +286,7 @@ Requirements:
 5. Include "duration" and "admissionFee" for every place.
 6. Include "rainyAlternative" — a nearby indoor option for bad weather.
 7. Include "openingHours", "closedDays", "naverMapUrl", "reservationRequired", "cashOnly" for EVERY place.
-8. Include 3 meal recommendations per day (breakfast, lunch, dinner) with real restaurant names.
-9. Include 2–3 "dailyTips" per day (practical advice for that day's activities).
-10. Recommend one accommodation for the whole trip near the most visited area.
-11. Provide a realistic budget summary in KRW for 1 person covering all ${totalDays} days.
-12. Write all "tips", "rainyAlternative", "fatigueComment", "charterReason", "reason", and meal "tip" values in ${tipsLanguage}.`;
+8. Write all "tips", "rainyAlternative", "fatigueComment", "charterReason" values in ${tipsLanguage}.
+9. Do NOT generate meals, accommodation, budget summaries, or daily tips — those will be added separately.`;
 }
 
-/**
- * [Step 4-A] 네이버 Geocoding API — 주소 문자열을 정확한 WGS84 좌표로 변환합니다.
- *
- * - Gemini가 추정한 coordinates를 실제 측량 기반 좌표로 덮어씁니다.
- * - Geocoding 실패 시 Gemini 추정값을 유지합니다 (graceful fallback).
- */
-async function enrichWithGeocoordinates(itinerary, naverHeaders) {
-  const allPlaces = itinerary.flatMap((day) => day.places);
-
-  await Promise.all(
-    allPlaces.map(async (place) => {
-      try {
-        const { data } = await axios.get(
-          'https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode',
-          {
-            params: { query: place.address },
-            headers: naverHeaders,
-            timeout: 5000,
-          }
-        );
-        const first = data?.addresses?.[0];
-        if (first) {
-          place.coordinates = {
-            lat: parseFloat(first.y),
-            lng: parseFloat(first.x),
-          };
-        } else {
-          console.warn(`[Naver Geocoding] 결과 없음: "${place.address}" — Gemini 추정 좌표 유지`);
-        }
-      } catch (err) {
-        console.warn(
-          `[Naver Geocoding] "${place.address}" 변환 실패:`,
-          err?.response?.data ?? err.message
-        );
-      }
-    })
-  );
-}
-
-/**
- * [Step 4-B] 네이버 Directions 5 API — 장소 간 실제 차량 이동 시간을 채웁니다.
- *
- * - Geocoding으로 보정된 좌표를 사용합니다.
- * - 하루 일정의 첫 번째 장소는 travelTimeFromPrev = 0 유지.
- * - API 호출 실패 시 Gemini 추정값을 보존합니다 (graceful fallback).
- */
-async function enrichWithDrivingTimes(itinerary, naverHeaders) {
-  const tasks = [];
-
-  for (const day of itinerary) {
-    for (let i = 1; i < day.places.length; i++) {
-      const prev = day.places[i - 1].coordinates;
-      const curr = day.places[i].coordinates;
-      const place = day.places[i];
-      const label = `${day.places[i - 1].nameEn} → ${place.nameEn}`;
-
-      tasks.push(
-        axios
-          .get('https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving', {
-            params: {
-              start:  `${prev.lng},${prev.lat}`,
-              goal:   `${curr.lng},${curr.lat}`,
-              option: 'traoptimal',
-            },
-            headers: naverHeaders,
-            timeout: 4000,
-          })
-          .then(({ data }) => {
-            const durationMs = data?.route?.traoptimal?.[0]?.summary?.duration;
-            if (typeof durationMs === 'number') {
-              place.travelTimeFromPrev = Math.round(durationMs / 60000);
-            } else {
-              console.warn(`[Naver Directions] 경로 없음: ${label}`);
-            }
-          })
-          .catch((err) => {
-            console.warn(`[Naver Directions] ${label} 실패:`, err?.response?.data ?? err.message);
-          })
-      );
-    }
-  }
-
-  await Promise.allSettled(tasks);
-}

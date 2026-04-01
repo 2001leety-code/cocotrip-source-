@@ -17,5 +17,8 @@
 .env
 .env*.local
 
+# Google Service Account (민감한 인증 파일 - 절대 커밋 금지)
+service-account.json
+
 # Local Netlify folder
 .netlify

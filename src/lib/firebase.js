@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup } from 'firebase/auth';
 import {
   getFirestore,
   serverTimestamp,
@@ -22,11 +22,16 @@ const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+export const appleProvider = new OAuthProvider('apple.com');
 
 // UX: ensure Google account selection screen appears.
 googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
+
+// Request email and name from Apple.
+appleProvider.addScope('email');
+appleProvider.addScope('name');
 
 // Google 로그인 성공 시 Firestore `users/{uid}`에 자동 저장.
 export async function signInWithGoogle() {
@@ -54,6 +59,36 @@ export async function signInWithGoogle() {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : 'Google sign-in failed.';
+    throw new Error(message);
+  }
+}
+
+// Apple 로그인 성공 시 Firestore `users/{uid}`에 자동 저장.
+export async function signInWithApple() {
+  try {
+    const result = await signInWithPopup(auth, appleProvider);
+    const user = result.user;
+
+    if (!user?.uid) {
+      throw new Error('Apple sign-in did not return a user uid.');
+    }
+
+    await setDoc(
+      doc(db, 'users', user.uid),
+      {
+        uid: user.uid,
+        email: user.email ?? null,
+        name: user.displayName ?? null,
+        role: 'user',
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return user;
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : 'Apple sign-in failed.';
     throw new Error(message);
   }
 }

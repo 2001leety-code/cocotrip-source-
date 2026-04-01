@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Menu, X, MessageCircle, Globe, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { Language } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile'; // useIsMobile 훅 가져오기
 
@@ -43,31 +44,30 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   }, [isMobileMenuOpen]);
 
   const navItems = [
-    { label: t.nav.privateTour, href: '#services' },
-    { label: t.nav.groupTour, href: '#services' },
-    { label: t.nav.packages, href: '#regions' },
-    { label: t.nav.about, href: '#cta' },
+    { label: t.nav.charter   ?? '🚗 전세차량', to: '/charter' },
+    { label: t.nav.planner   ?? '🗺 AI 플래너', to: '/planner' },
+    { label: t.nav.about     ?? '소개',          to: '/about'   },
   ];
 
   const renderNavLinks = (isMobile = false) =>
     navItems.map((item) => (
-      <a
-        key={item.label}
-        href={item.href}
+      <Link
+        key={item.to}
+        to={item.to}
         onClick={() => setIsMobileMenuOpen(false)}
         className={isMobile
             ? 'block text-2xl font-bold text-gray-800 py-4 text-center hover:bg-gray-50 transition-colors'
             : `text-sm font-medium transition-colors hover:text-[#c0b283] ${isScrolled ? 'text-gray-700' : 'text-white'}`
         }>
         {item.label}
-      </a>
+      </Link>
     ));
 
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         isScrolled || isMobileMenuOpen
-          ? 'bg-white/95 backdrop-blur-md shadow-sm'
+          ? 'bg-white shadow-sm'
           : 'bg-transparent'
       }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -153,7 +153,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className={`p-2 rounded-lg transition-colors ${
                   isScrolled || isMobileMenuOpen
-                    ? 'text-gray-700 hover:bg-gray-100'
+                    ? 'text-[#1a1a2e] hover:bg-gray-100'
                     : 'text-white hover:bg-white/10'
                 }`}>
                 {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -165,7 +165,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
       {/* Mobile Menu (Full Screen Overlay) */}
       {isMobile && isMobileMenuOpen && (
-        <div className="fixed inset-0 top-0 bg-white pt-24 px-4 z-40 flex flex-col">
+        <div className="fixed inset-0 top-0 bg-white pt-20 px-4 z-40 flex flex-col shadow-xl">
             <nav className="flex flex-col divide-y divide-gray-100">
                 {renderNavLinks(true)}
             </nav>

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/.netlify/functions/:path*", "destination": "/api/:path*" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/daily-report",       "schedule": "0 22 * * *" },
+    { "path": "/api/traffic-alert",      "schedule": "0 21 * * *" },
+    { "path": "/api/content-generator",  "schedule": "0 23 * * *" },
+    { "path": "/api/competitor-monitor", "schedule": "0 0 * * *"  },
+    { "path": "/api/retarget-scheduler", "schedule": "0 1 * * *"  },
+    { "path": "/api/review-scheduler",   "schedule": "0 2 * * *"  },
+    { "path": "/api/reddit-monitor",     "schedule": "0 5 * * *"  },
+    { "path": "/api/weather-check",      "schedule": "0 9 * * *"  }
+  ]
+}

@@ -2,18 +2,36 @@
   command = "npm run build"
   publish = "dist"
 
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  included_files = ["netlify/functions/data/**"]
 
 [functions."generateTravelPlan"]
-  timeout = 30
+  timeout = 26
+
+[functions."enrichPlan"]
+  timeout = 26
 
 [functions."createPaypalOrder"]
   timeout = 15
 
 [functions."capturePaypalOrder"]
   timeout = 15
+
+[functions."booking-processor"]
+  timeout = 26
+
+[functions."chat"]
+  timeout = 15
+
+[functions."ai-planner"]
+  timeout = 26
 
 [[redirects]]
   from = "/*"

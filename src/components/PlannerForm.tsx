@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
+import { Pencil, LayoutGrid, MapPin, Users, Zap, Car, Bus, Train, Calendar, AlertTriangle } from 'lucide-react';
 
 // ── 상수 ────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { id: 'K-pop',     emoji: '🎤', subtextKey: 'kpopSubtext' },
-  { id: 'K-food',    emoji: '🍜', subtextKey: 'kfoodSubtext' },
-  { id: 'K-culture', emoji: '🏯', subtextKey: 'kcultureSubtext' },
-  { id: 'K-beauty',  emoji: '💄', subtextKey: 'kbeautySubtext' },
-  { id: 'nature',    emoji: '🌿', subtextKey: 'natureSubtext' },
-  { id: 'skiing',    emoji: '⛷️', subtextKey: 'skiSubtext' },
-  { id: 'shopping',  emoji: '🛍️', subtextKey: 'shoppingSubtext' },
-  { id: 'heritage',  emoji: '🏛️', subtextKey: 'heritageSubtext' },
+  { id: 'K-pop',     subtextKey: 'kpopSubtext' },
+  { id: 'K-food',    subtextKey: 'kfoodSubtext' },
+  { id: 'K-culture', subtextKey: 'kcultureSubtext' },
+  { id: 'K-beauty',  subtextKey: 'kbeautySubtext' },
+  { id: 'nature',    subtextKey: 'natureSubtext' },
+  { id: 'skiing',    subtextKey: 'skiSubtext' },
+  { id: 'shopping',  subtextKey: 'shoppingSubtext' },
+  { id: 'heritage',  subtextKey: 'heritageSubtext' },
 ];
 
 const KPOP_DETAILS = [
@@ -19,26 +20,26 @@ const KPOP_DETAILS = [
 ];
 
 const REGIONS_DATA = [
-  { id: 'seoul',       apiValue: '서울',   emoji: '🏙️' },
-  { id: 'busan',       apiValue: '부산',   emoji: '🌊' },
-  { id: 'gangwon',     apiValue: '강원도', emoji: '🌲' },
-  { id: 'gyeongju',    apiValue: '경주',   emoji: '🏯' },
-  { id: 'jeonju',      apiValue: '전주',   emoji: '🍃' },
-  { id: 'incheon',     apiValue: '인천',   emoji: '🏝️' },
-  { id: 'gapyeong',    apiValue: '가평',   emoji: '🌸' },
-  { id: 'pyeongchang', apiValue: '평창',   emoji: '⛷️' },
+  { id: 'seoul',       apiValue: '서울'   },
+  { id: 'busan',       apiValue: '부산'   },
+  { id: 'gangwon',     apiValue: '강원도' },
+  { id: 'gyeongju',    apiValue: '경주'   },
+  { id: 'jeonju',      apiValue: '전주'   },
+  { id: 'incheon',     apiValue: '인천'   },
+  { id: 'gapyeong',    apiValue: '가평'   },
+  { id: 'pyeongchang', apiValue: '평창'   },
 ] as const;
 
 const COMPANIONS = [
-  { id: 'solo',    emoji: '🧍', labelKey: 'companionSolo' },
-  { id: 'couple',  emoji: '👫', labelKey: 'companionCouple' },
-  { id: 'family',  emoji: '👨‍👩‍👧', labelKey: 'companionFamily' },
-  { id: 'friends', emoji: '👯', labelKey: 'companionFriends' },
+  { id: 'solo',    labelKey: 'companionSolo' },
+  { id: 'couple',  labelKey: 'companionCouple' },
+  { id: 'family',  labelKey: 'companionFamily' },
+  { id: 'friends', labelKey: 'companionFriends' },
 ];
 
 const PACES = [
-  { id: 'relaxed', emoji: '🐢', labelKey: 'paceRelaxed', descKey: 'paceRelaxedDesc' },
-  { id: 'action',  emoji: '⚡', labelKey: 'paceAction',  descKey: 'paceActionDesc' },
+  { id: 'relaxed', labelKey: 'paceRelaxed', descKey: 'paceRelaxedDesc' },
+  { id: 'action',  labelKey: 'paceAction',  descKey: 'paceActionDesc' },
 ];
 
 const CAT_LABELS: Record<string, Record<string, string>> = {
@@ -60,9 +61,10 @@ export interface PlannerFormValues {
   endDate: string;
   companion?: string;
   travelPace?: string;
-  transport?: 'public' | 'charter';
+  transport?: 'public' | 'staria' | 'sprinter' | 'bus';
   freeText?: string;
   kpopDetails?: string[];
+  arrivalAirport?: string;
 }
 
 interface Props {
@@ -90,16 +92,16 @@ function confirmLabel(p: any, n: number) {
 }
 
 // ── SectionLabel ──────────────────────────────────────────────────────
-function SectionLabel({ emoji, text }: { emoji: string; text: string }) {
+function SectionLabel({ icon, text }: { icon?: React.ReactNode; text: string }) {
   return (
     <p className="text-[11px] uppercase tracking-[.06em] text-white/40 font-semibold mb-3 flex items-center gap-1.5">
-      <span>{emoji}</span>{text}
+      {icon}{text}
     </p>
   );
 }
 
 // ── CalendarPicker ───────────────────────────────────────────────────
-function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lang = 'en' }: {
+export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lang = 'en' }: {
   startDate: string; endDate: string;
   onDateChange: (s: string, e: string) => void;
   p: any; lang?: string;
@@ -310,7 +312,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([]);
   const [companion,         setCompanion]         = useState('');
   const [travelPace,        setTravelPace]        = useState('');
-  const [transport,         setTransport]         = useState<'public'|'charter'|''>('');
+  const [transport,         setTransport]         = useState<'public'|'staria'|'sprinter'|'bus'|''>('');
   const [startDate,         setStartDate]         = useState('');
   const [endDate,           setEndDate]           = useState('');
   const [freeText,          setFreeText]          = useState('');
@@ -343,7 +345,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
       categories, regions, startDate, endDate,
       companion:   companion   || undefined,
       travelPace:  travelPace  || undefined,
-      transport:  (transport as 'public'|'charter') || undefined,
+      transport:  (transport as 'public'|'staria'|'sprinter'|'bus') || undefined,
       freeText:    freeText.trim() || undefined,
       kpopDetails: kpopDetails.length > 0 ? kpopDetails : undefined,
     });
@@ -364,7 +366,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
 
       {/* ── 00 자유 요청 */}
       <div>
-        <SectionLabel emoji="✏️" text={p.freeTextLabel} />
+        <SectionLabel icon={<Pencil className="w-3 h-3" />} text={p.freeTextLabel} />
         <textarea
           value={freeText} onChange={e => setFreeText(e.target.value)}
           placeholder={p.freeTextPlaceholder} rows={3}
@@ -374,15 +376,14 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
 
       {/* ── 01 관심사 */}
       <div className={div}>
-        <SectionLabel emoji="🎯" text={p.categoryLabel} />
+        <SectionLabel icon={<LayoutGrid className="w-3 h-3" />} text={p.categoryLabel} />
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map(cat => {
             const active = categories.includes(cat.id);
             return (
               <button key={cat.id} type="button" onClick={() => toggleCat(cat.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-sm font-medium transition-all duration-200 ${active ? chipSel : chipBase}`}>
-                <span className="text-base leading-none">{cat.emoji}</span>
-                <span>{CAT_LABELS[cat.id]?.[lang] ?? cat.id}</span>
+                className={`px-3.5 py-2 rounded-full border text-sm font-medium transition-all duration-200 ${active ? chipSel : chipBase}`}>
+                {CAT_LABELS[cat.id]?.[lang] ?? cat.id}
               </button>
             );
           })}
@@ -408,7 +409,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
 
       {/* ── 02 지역 */}
       <div className={div}>
-        <SectionLabel emoji="📍" text={p.regionLabel} />
+        <SectionLabel icon={<MapPin className="w-3 h-3" />} text={p.regionLabel} />
         <div className="grid grid-cols-4 gap-2">
           {REGIONS_DATA.map(r => {
             const active = selectedRegionIds.includes(r.id);
@@ -420,7 +421,6 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
                 className={`flex flex-col items-center gap-1 py-3 px-1 rounded-xl border transition-all duration-200 ${
                   active ? 'bg-[rgba(124,92,252,.10)] border-[rgba(124,92,252,.45)]' : 'border-white/10 bg-white/[0.04] hover:border-white/22'
                 }`}>
-                <span className="text-xl leading-none">{r.emoji}</span>
                 <span className={`text-[12px] font-bold leading-snug text-center ${active ? 'text-[#9d7ffe]' : 'text-white/70'}`}>{name}</span>
                 {vibe && <span className="text-[9px] text-white/28 leading-tight text-center px-1">{vibe}</span>}
               </button>
@@ -433,14 +433,13 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
       <div className={div}>
         <div className="grid grid-cols-2 gap-5">
           <div>
-            <SectionLabel emoji="👥" text={p.companionLabel} />
+            <SectionLabel icon={<Users className="w-3 h-3" />} text={p.companionLabel} />
             <div className="grid grid-cols-2 gap-1.5">
               {COMPANIONS.map(c => {
                 const active = companion === c.id;
                 return (
                   <button key={c.id} type="button" onClick={() => setCompanion(active ? '' : c.id)}
                     className={`flex items-center gap-1.5 px-2 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 ${active ? btnSel : btnBase}`}>
-                    <span className="text-base leading-none shrink-0">{c.emoji}</span>
                     <span className="truncate text-xs">{p[c.labelKey]}</span>
                   </button>
                 );
@@ -448,14 +447,13 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
             </div>
           </div>
           <div>
-            <SectionLabel emoji="⏩" text={p.paceLabel} />
+            <SectionLabel icon={<Zap className="w-3 h-3" />} text={p.paceLabel} />
             <div className="grid grid-cols-1 gap-1.5">
               {PACES.map(pace => {
                 const active = travelPace === pace.id;
                 return (
                   <button key={pace.id} type="button" onClick={() => setTravelPace(active ? '' : pace.id)}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 ${active ? btnSel : btnBase}`}>
-                    <span className="text-base leading-none shrink-0">{pace.emoji}</span>
                     <div className="text-left min-w-0">
                       <p className="text-xs font-semibold leading-tight">{p[pace.labelKey]}</p>
                       <p className="text-[10px] text-white/30 leading-tight">{p[pace.descKey]}</p>
@@ -470,24 +468,56 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
 
       {/* ── 04 이동 수단 */}
       <div className={div}>
-        <SectionLabel emoji="🚌" text={p.transportLabel} />
-        <div className="grid grid-cols-2 gap-2">
-          {[{ id: 'public', emoji: '🚇', lk: 'transportPublic' }, { id: 'charter', emoji: '🚐', lk: 'transportCharter' }].map(tr => {
-            const active = transport === tr.id;
-            return (
-              <button key={tr.id} type="button" onClick={() => setTransport(active ? '' : tr.id as 'public'|'charter')}
-                className={`flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${active ? btnSel : btnBase}`}>
-                <span className="text-lg leading-none">{tr.emoji}</span>
-                <span>{p[tr.lk]}</span>
-              </button>
-            );
-          })}
+        <SectionLabel icon={<Car className="w-3 h-3" />} text={p.transportLabel} />
+        <div className="flex flex-col gap-2">
+          {/* 대중교통 */}
+          <button type="button" onClick={() => setTransport(transport === 'public' ? '' : 'public')}
+            className={`flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${transport === 'public' ? btnSel : btnBase}`}>
+            <Train className="w-4 h-4" />
+            <span>{p.transportPublic}</span>
+          </button>
+          {/* 차량 선택 헤더 */}
+          <p className="text-[10px] uppercase tracking-[.06em] text-white/35 font-semibold mt-1 mb-0.5 px-1">{p.vehicleSelectType}</p>
+          {/* 스타리아 */}
+          <button type="button" onClick={() => setTransport(transport === 'staria' ? '' : 'staria')}
+            className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${transport === 'staria' ? btnSel : btnBase}`}>
+            <Car className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="text-left">
+              <p className="font-semibold">{p.vehicleStaria}</p>
+              <p className="text-[11px] text-white/45 font-normal mt-0.5">{p.transportCharter}</p>
+            </div>
+          </button>
+          {/* 스프린터 */}
+          <button type="button" onClick={() => setTransport(transport === 'sprinter' ? '' : 'sprinter')}
+            className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${transport === 'sprinter' ? btnSel : btnBase}`}>
+            <Bus className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="text-left">
+              <p className="font-semibold">{p.vehicleSprinter}</p>
+              <p className="text-[11px] text-amber-400/70 font-normal mt-0.5">{p.vehicleGuideRequired}</p>
+            </div>
+          </button>
+          {/* 대형버스 */}
+          <button type="button" onClick={() => setTransport(transport === 'bus' ? '' : 'bus')}
+            className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${transport === 'bus' ? btnSel : btnBase}`}>
+            <Bus className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="text-left">
+              <p className="font-semibold">{p.vehicleBus}</p>
+              <p className="text-[11px] text-amber-400/70 font-normal mt-0.5">{p.vehicleCustomQuote} · {p.vehicleGuideRequired}</p>
+            </div>
+          </button>
         </div>
+        {/* 가이드 안내 박스 */}
+        {(transport === 'sprinter' || transport === 'bus') && (
+          <div className="mt-3 flex items-start gap-2 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-3">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-200/80 leading-relaxed">{p.vehicleGuideNote}</p>
+          </div>
+        )}
       </div>
 
       {/* ── 05 날짜 */}
       <div className={div}>
-        <SectionLabel emoji="📅" text={p.dateLabel} />
+        <SectionLabel icon={<Calendar className="w-3 h-3" />} text={p.dateLabel} />
         <CalendarPicker startDate={startDate} endDate={endDate}
           onDateChange={(s, e) => { setStartDate(s); setEndDate(e); }} p={p} lang={lang} />
       </div>
@@ -495,7 +525,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
       {/* 에러 */}
       {error && (
         <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mt-5">
-          <span className="text-red-400 shrink-0">⚠</span>
+          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
           <p className="text-sm text-red-300">{error}</p>
         </div>
       )}
@@ -507,7 +537,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
           className="w-full py-3.5 rounded-xl text-white text-[15px] font-medium transition-all duration-300 disabled:bg-white/10 disabled:text-white/30 disabled:cursor-not-allowed hover:opacity-88 flex items-center justify-center gap-2">
           {isLoading
             ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{p.generating}</>
-            : `✨ ${p.generateBtn}`}
+            : p.generateBtn}
         </button>
       </div>
     </form>

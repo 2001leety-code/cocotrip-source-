@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface HeroSliderProps {
@@ -32,14 +31,14 @@ const slides = [
   },
   {
     image: '/hero-danyang.jpg',
-    imageMobile: '/hero-food-real.png',
+    imageMobile: '/hero-danyang.jpg',
     tag: 'slide4.tag',
     title: 'slide4.title',
     subtitle: 'slide4.subtitle',
   },
   {
     image: '/hero-chuncheon.jpg',
-    imageMobile: '/hero-banpo.jpg',
+    imageMobile: '/hero-chuncheon.jpg',
     tag: 'slide5.tag',
     title: 'slide5.title',
     subtitle: 'slide5.subtitle',
@@ -123,22 +122,6 @@ export function HeroSlider({ t }: HeroSliderProps) {
                   <p className="text-base md:text-lg text-white/90 mb-8 max-w-xs md:max-w-2xl mx-auto drop-shadow-md">
                     {getSlideContent(slide.subtitle)}
                   </p>
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                    <Link
-                      to="/booking"
-                      className="inline-flex items-center gap-2 px-6 py-3 md:px-8 md:py-3 bg-white/10 backdrop-blur-sm border border-white/30 text-white rounded-full font-medium hover:bg-white hover:text-[#0f3460] transition-all duration-300"
-                    >
-                      {t.nav.bookNow}
-                      <ChevronRight className="w-4 h-4" />
-                    </Link>
-                    <Link
-                      to="/planner"
-                      className="inline-flex items-center gap-2 px-6 py-3 md:px-8 md:py-3 border border-white text-white rounded-full font-medium hover:bg-white hover:text-black transition-all duration-300"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      {t.planner.badgeLabel}
-                    </Link>
-                  </div>
                 </>
               )}
             </div>

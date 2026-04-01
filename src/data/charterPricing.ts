@@ -85,8 +85,8 @@ export const DAILY_TOUR_PRICES: Record<string, {
   'seoul-city': {
     ko: '서울 시내 투어',
     en: 'Seoul City Tour',
-    priceKRW: 291200,
-    priceUSD: 210,
+    priceKRW: 330000,
+    priceUSD: 240,
     hours: 8,
     spots: ['경복궁', '홍대', '명동', '북촌', '인사동', '성수', '한강'],
     keywords: ['seoul', '서울', 'gyeongbokgung', 'hongdae', 'myeongdong', 'bukchon'],
@@ -148,10 +148,69 @@ export const DAILY_TOUR_PRICES: Record<string, {
 };
 
 // ────────────────────────────────────────
+// 차량 타입
+// ────────────────────────────────────────
+export const VEHICLE_TYPES = {
+  staria: {
+    name: { ko: '스타리아', en: 'Staria Van', ja: 'スターリア', zh: '星际旅行车' },
+    maxPassengers: 8,
+    guideRequired: false,
+    guideFee: 0,
+    description: {
+      ko: '프라이빗 소그룹 (최대 8인)',
+      en: 'Private small group (up to 8)',
+      ja: 'プライベート小グループ（最大８名）',
+      zh: '私人小团（最多8人）',
+    },
+  },
+  sprinter: {
+    name: { ko: '스프린터/스피너', en: 'Sprinter Van', ja: 'スプリンター', zh: '商务车' },
+    maxPassengers: 15,
+    guideRequired: true,
+    guideFeeDailyKRW: 300000,
+    description: {
+      ko: '중형 단체 (9~15인) · 가이드 필수',
+      en: 'Medium group (9~15) · Guide required',
+      ja: '中型グループ（9～15名）・ガイド必須',
+      zh: '中型团（9~15人）· 需要导游',
+    },
+  },
+  bus: {
+    name: { ko: '대형버스', en: 'Charter Bus', ja: '大型バス', zh: '大巴' },
+    maxPassengers: 999,
+    guideRequired: true,
+    guideFeeDailyKRW: 300000,
+    description: {
+      ko: '대형 단체 (16인 이상) · 가이드 필수 · 별도 견적',
+      en: 'Large group (16+) · Guide required · Custom quote',
+      ja: '大型グループ（16名以上）・ガイド必須・別途見積',
+      zh: '大型团（16人以上）· 需要导游 · 另行报价',
+    },
+  },
+};
+
+export const calculateTotalPrice = (
+  basePrice: number,
+  vehicleType: 'staria' | 'sprinter' | 'bus',
+  days = 1,
+): { basePrice: number; guideFee: number; totalPrice: number; guideRequired: boolean; note: string } => {
+  const vehicle = VEHICLE_TYPES[vehicleType];
+  const dailyFee = (vehicle as unknown as { guideFeeDailyKRW?: number }).guideFeeDailyKRW ?? 300000;
+  const guideTotal = vehicle.guideRequired ? dailyFee * days : 0;
+  return {
+    basePrice,
+    guideFee: guideTotal,
+    totalPrice: basePrice + guideTotal,
+    guideRequired: vehicle.guideRequired,
+    note: vehicle.guideRequired ? `가이드 비용 ₩300,000/일 × ${days}일 포함` : '',
+  };
+};
+
+// ────────────────────────────────────────
 // 추가 요금표
 // ────────────────────────────────────────
 export const EXTRA_CHARGES = {
-  overtimePerHour: 35000,
+  overtimePerHour: 33000,
   nightSurchargePercent: 20,
   peakSeasonPercent: 10,
   roundTripDiscountPercent: 10,
@@ -164,9 +223,10 @@ export const EXTRA_CHARGES = {
 // K-pop 콘서트 셔틀 요금
 // ────────────────────────────────────────
 export const KPOP_SHUTTLE = {
-  pricePerPerson: 26000,
+  priceOneWay: 35000,
+  priceRoundTrip: 65000,
   maxPassengers: 8,
-  pricePerVehicle: 208000,
+  pricePerVehicle: 260000,
   vehicleType: '현대 스타리아',
   includes: ['호텔 픽업', '공연장 이동', '공연 후 귀환', '24시간 기사 대기'],
   venues: [
