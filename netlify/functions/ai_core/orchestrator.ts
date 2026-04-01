@@ -50,8 +50,10 @@ export class CocoTripOrchestrator {
   }
 
   async *streamRun(request: TripRequest) {
-    const results: AgentResult[] = [];
+    let results: AgentResult[] = [];
     const totalSteps = AGENT_ORDER.length;
+    let retries = 0;
+    const MAX_RETRIES = 2;
     
     for (let i = 0; i < totalSteps; i++) {
       const agentKey = AGENT_ORDER[i];
@@ -61,6 +63,37 @@ export class CocoTripOrchestrator {
       results.push(result);
       
       yield { step: i + 1, totalSteps, agent: agentKey, result };
+      
+      // QA 검증 단계에서 반려(Backtracking) 유발 시
+      if (agentKey === 'qa' && result.hasError) {
+        if (retries < MAX_RETRIES) {
+          retries++;
+          console.warn(`\n🚨 [Orchestrator] QA 반려 로직 발동 (E_loss 초과). Retry ${retries}/${MAX_RETRIES} - 기획 단계로 파이프라인 롤백!`);
+          
+          // 파이프라인 초기화 및 반려 사유 주입
+          results = [{
+            agentName: "qa_feedback_system",
+            systemPrompt: "이전 기획 반려",
+            userPrompt: "",
+            rawOutput: result.errorMessage || "에러 사유 미상",
+            thinkingSummary: "이전 검수 반려사항 주입 및 재기획 지시",
+            inputTokens: 0,
+            outputTokens: 0
+          }];
+          
+          yield { 
+            step: "backtracking", 
+            totalSteps, 
+            agent: "QA (Backtracking to Planner)", 
+            result: results[0] 
+          };
+          
+          i = -1; // 다음 루프에서 i=0(planner)로 리스타트
+          continue;
+        } else {
+          console.warn(`[Orchestrator] QA 한계 재시도(${MAX_RETRIES}) 초과. 남은 프로세스를 강제 진행합니다.`);
+        }
+      }
     }
   }
 }
