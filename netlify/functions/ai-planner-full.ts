@@ -14,9 +14,8 @@ export default async (req: Request, context: Context) => {
       status: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-        "Access-Control-Max-Age": "86400",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
       },
     });
   }
@@ -28,10 +27,11 @@ export default async (req: Request, context: Context) => {
   try {
     let rawBody: any = {};
     try {
-      rawBody = await req.json();
+      const text = await req.text();
+      rawBody = JSON.parse(text || '{}');
       console.log("Request Body [planner-full]:", JSON.stringify(rawBody));
     } catch (e) {
-      console.warn("Body parse error, falling back to defaults", e);
+      console.warn("Body parse error, using defaults", e);
     }
 
     const prefsRaw = rawBody.preferences || rawBody.theme || rawBody.categories;
@@ -67,36 +67,47 @@ export default async (req: Request, context: Context) => {
           
           // 연산 종료 후 이메일 및 스프레드시트 업데이트
           if (rawBody.email && finalOutput) {
+            // ── 이메일 발송 (await 강제 — 함수 종료 방지) ──
             try {
               let parsedStr = finalOutput;
               const match = parsedStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
               if (match) parsedStr = match[1];
               const parsed = JSON.parse(parsedStr);
-              const mdReport = parsed.markdownReport || JSON.stringify(parsed.itinerary, null, 2);
-              
-              const transporter = nodemailer.createTransport({
-                 service: 'gmail',
-                 auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD }
-              });
-              
-              await transporter.sendMail({
-                 from: `"CocoTrip VVIP Planner" <${process.env.GMAIL_USER}>`,
-                 to: rawBody.email,
-                 subject: `[CocoTrip VIP] Your 3-Day Custom K-Tour Itinerary`,
-                 html: `<div style="font-family: Arial, sans-serif; background: #0c1220; color: #FFF; padding: 30px; border-radius: 12px; max-width: 600px; margin: auto;">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                      <h1 style="color: #7C5CFC; letter-spacing: 2px;">VVIP KOREA TOUR</h1>
-                      <p style="color: #c0b283; font-size: 14px;">Perfectly curated by our AI experts</p>
+              const mdReport = parsed.markdownReport || JSON.stringify(parsed.itinerary ?? parsed, null, 2);
+
+              const gmailUser = process.env.GMAIL_USER;
+              const gmailPass = process.env.GMAIL_APP_PASSWORD;
+
+              if (gmailUser && gmailPass) {
+                const transporter = nodemailer.createTransport({
+                  service: 'gmail',
+                  auth: { user: gmailUser, pass: gmailPass },
+                });
+                await transporter.sendMail({
+                  from: `"CocoTrip VVIP Planner" <${gmailUser}>`,
+                  to: rawBody.email,
+                  subject: `[CocoTrip VVIP] ${requestData.destination} — ${requestData.durationDays}일 맞춤 플랜 도착`,
+                  html: `<div style="font-family:'Helvetica Neue',Arial,sans-serif;background:#0c1220;color:#FFF;padding:32px;border-radius:16px;max-width:600px;margin:auto;">
+                    <div style="text-align:center;margin-bottom:24px;">
+                      <h1 style="font-size:22px;letter-spacing:3px;background:linear-gradient(90deg,#7C5CFC,#EA537E);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">VVIP KOREA TOUR</h1>
+                      <p style="color:#a0a0c0;font-size:13px;margin-top:4px;">Curated exclusively by CocoTrip AI Experts</p>
                     </div>
-                    <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px; border: 1px solid rgba(124,92,252,0.3);">
-                      <p style="white-space: pre-wrap; line-height: 1.6; color: #E2E8F0;">${mdReport.replace(/\\n/g, '<br/>')}</p>
+                    <div style="background:rgba(255,255,255,0.05);padding:24px;border-radius:12px;border:1px solid rgba(124,92,252,0.25);">
+                      <p style="white-space:pre-wrap;line-height:1.75;color:#E2E8F0;font-size:14px;">${mdReport.replace(/\n/g, '<br/>')}</p>
                     </div>
-                    <div style="margin-top: 30px; text-align: center;">
-                       <a href="https://cocotripkr.com/charter" style="background: linear-gradient(to right, #7C5CFC, #EA537E); color: white; padding: 15px 30px; text-decoration: none; border-radius: 30px; font-weight: bold; display: inline-block;">Book Your Private Van</a>
+                    <div style="margin-top:28px;text-align:center;">
+                      <a href="https://cocotripkr.com/charter" style="display:inline-block;background:linear-gradient(90deg,#7C5CFC,#EA537E);color:#fff;padding:14px 32px;border-radius:30px;font-weight:bold;text-decoration:none;font-size:14px;">Book Your Private Van</a>
                     </div>
-                 </div>`
-              });
-            } catch(e) { console.error("Email failed:", e); }
+                    <p style="margin-top:20px;font-size:11px;color:#555;text-align:center;">CocoTrip · cocotripkr.com · Unsubscribe anytime</p>
+                  </div>`,
+                });
+                console.log("Email sent successfully to:", rawBody.email);
+              } else {
+                console.warn("GMAIL credentials not configured — skipping email");
+              }
+            } catch(e) {
+              console.error("Email failed:", e);
+            }
             
             try {
                const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
