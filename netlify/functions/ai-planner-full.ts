@@ -26,14 +26,24 @@ export default async (req: Request, context: Context) => {
   }
 
   try {
-    const rawBody = await req.json();
+    let rawBody: any = {};
+    try {
+      rawBody = await req.json();
+      console.log("Request Body [planner-full]:", JSON.stringify(rawBody));
+    } catch (e) {
+      console.warn("Body parse error, falling back to defaults", e);
+    }
+
+    const prefsRaw = rawBody.preferences || rawBody.theme || rawBody.categories;
+    const prefsString = Array.isArray(prefsRaw) ? prefsRaw.join(', ') : (prefsRaw || "Free style");
+
     const requestData: TripRequest = {
-      destination: rawBody.destination || "서울 (Seoul)",
+      destination: rawBody.destination || (rawBody.regions && rawBody.regions[0]) || "서울 (Seoul)",
       startDate: rawBody.startDate || new Date().toISOString().split("T")[0],
       endDate: rawBody.endDate || new Date().toISOString().split("T")[0],
-      durationDays: rawBody.durationDays || 3,
-      preferences: rawBody.preferences || "K-pop, K-food",
-      pax: rawBody.pax || 4,
+      durationDays: rawBody.durationDays || rawBody.duration || 3,
+      preferences: prefsString,
+      pax: rawBody.pax || rawBody.members || 4,
       language: rawBody.language || "en",
       vehicleType: rawBody.vehicleType || "staria"
     };

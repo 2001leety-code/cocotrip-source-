@@ -23,10 +23,19 @@ export default async (req: Request, context: Context) => {
   }
 
   try {
-    const rawBody = await req.json();
-    const destination = rawBody.destination || "Seoul";
-    const preferences = rawBody.preferences || "K-pop";
-    const durationDays = rawBody.durationDays || 3;
+    let rawBody: any = {};
+    try {
+      rawBody = await req.json();
+      console.log("Request Body [planner-quick]:", JSON.stringify(rawBody));
+    } catch (e) {
+      console.warn("Body parse error, falling back to defaults", e);
+    }
+
+    const destination = rawBody.destination || (rawBody.regions && rawBody.regions[0]) || "Seoul (추론 요망)";
+    const prefsRaw = rawBody.preferences || rawBody.theme || rawBody.categories;
+    const preferences = Array.isArray(prefsRaw) ? prefsRaw.join(', ') : (prefsRaw || "매력적인 추천 테마");
+    const durationDays = rawBody.durationDays || rawBody.duration || 3;
+    const pax = rawBody.pax || rawBody.members || 2;
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
     if (!apiKey) throw new Error("API Key configuration missing");

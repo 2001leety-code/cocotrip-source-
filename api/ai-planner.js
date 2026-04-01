@@ -33,14 +33,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const rawBody = req.body;
+    const rawBody = req.body || {};
+    console.log("Request Body [ai-planner.js]:", JSON.stringify(rawBody));
+    
+    const prefsRaw = rawBody.preferences || rawBody.theme || rawBody.categories;
+    const prefsString = Array.isArray(prefsRaw) ? prefsRaw.join(', ') : (prefsRaw || '전통/모던 믹스 테마 (자동 추론)');
+    
     const requestData = {
-      destination: rawBody.destination || '서울 (Seoul)',
+      destination: rawBody.destination || (rawBody.regions && rawBody.regions[0]) || '서울 (Seoul)',
       startDate: rawBody.startDate || new Date().toISOString().split('T')[0],
       endDate: rawBody.endDate || new Date().toISOString().split('T')[0],
-      durationDays: rawBody.durationDays || 3,
-      preferences: rawBody.preferences || 'K-pop, K-food',
-      pax: rawBody.pax || 4,
+      durationDays: rawBody.durationDays || rawBody.duration || 3,
+      preferences: prefsString,
+      pax: rawBody.pax || rawBody.members || 4,
       language: rawBody.language || 'en',
       vehicleType: rawBody.vehicleType || 'staria',
     };
