@@ -74,15 +74,15 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <a href="/" className="flex items-center gap-2 z-50">
-            <div className="w-10 h-10 rounded-full bg-[#0f3460] flex items-center justify-center">
-              <span className="text-white font-bold text-sm">COCO</span>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7C5CFC] to-[#EA537E] flex items-center justify-center shadow-lg">
+              <span className="text-white font-black text-sm tracking-wider">COCO</span>
             </div>
             <div className="flex flex-col">
-              <span className={`font-bold text-lg leading-tight ${
-                  isScrolled || (isMobile && !isMobileMenuOpen) ? 'text-[#0f3460]' : isMobileMenuOpen ? 'text-[#0f3460]' : 'text-white'}`}>
+              <span className={`font-extrabold text-lg leading-tight tracking-tight ${
+                  isScrolled || (isMobile && !isMobileMenuOpen) ? 'text-[#EA537E]' : isMobileMenuOpen ? 'text-[#EA537E]' : 'text-white'}`}>
                 COCOTRIP
               </span>
-              <span className={`text-[10px] tracking-wider ${isScrolled || (isMobile && !isMobileMenuOpen) ? 'text-[#c0b283]' : isMobileMenuOpen ? 'text-[#c0b283]' : 'text-white/80'}`}>
+              <span className={`text-[10px] font-bold tracking-[0.2em] ${isScrolled || (isMobile && !isMobileMenuOpen) ? 'text-[#7C5CFC]' : isMobileMenuOpen ? 'text-[#7C5CFC]' : 'text-white/80'}`}>
                 KOREA PRIVATE TOUR
               </span>
             </div>

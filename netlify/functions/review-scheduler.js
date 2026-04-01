@@ -81,7 +81,7 @@ function buildDefaultReviewEmail(name, product, tourDate) {
 <!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f3f4f6;">
   <div style="background:#1a1a2e;border-radius:12px 12px 0 0;padding:28px 30px;text-align:center;">
-    <h1 style="color:#E84B8A;margin:0;font-size:26px;letter-spacing:2px;">COCOTRIPKR</h1>
+    <h1 style="color:#7C5CFC;margin:0;font-size:26px;letter-spacing:2px;">COCOTRIPKR</h1>
   </div>
   <div style="background:#fff;padding:30px;border-radius:0 0 12px 12px;">
     <p>Hi <strong>${name}</strong>,</p>
@@ -90,7 +90,7 @@ function buildDefaultReviewEmail(name, product, tourDate) {
     
     <div style="text-align:center;margin:28px 0;">
       <a href="https://g.page/r/CocoTripKR/review" target="_blank"
-         style="display:inline-block;background:#E84B8A;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:10px;">
+         style="display:inline-block;background:#7C5CFC;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:10px;">
         ⭐ Leave a Google Review
       </a>
     </div>

@@ -65,6 +65,8 @@ export interface PlannerFormValues {
   freeText?: string;
   kpopDetails?: string[];
   arrivalAirport?: string;
+  pax?: number;
+  durationDays?: number;
 }
 
 interface Props {

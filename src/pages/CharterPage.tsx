@@ -29,8 +29,8 @@ const AIRPORTS = [
 const ICN_DESTS = Object.entries(AIRPORT_TRANSFER_PRICES);
 
 // ── 스타일 상수 ─────────────────────────────────────
-const SEL  = 'border-[#C4956A] bg-[rgba(196,149,106,.12)] text-[#D4A574]';
-const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-white/25 hover:text-white/75';
+const SEL  = 'border-[#7C5CFC] bg-gradient-to-br from-[#7C5CFC]/10 to-[#EA537E]/10 text-[#7C5CFC] shadow-[0_0_15px_rgba(124,92,252,0.15)]';
+const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-[#7C5CFC]/50 hover:text-white/90 hover:shadow-[0_0_10px_rgba(124,92,252,0.1)] transition-all';
 const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/35 font-semibold mb-3';
 
 // ── 메인 컴포넌트 ────────────────────────────────────

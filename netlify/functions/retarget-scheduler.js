@@ -50,7 +50,7 @@ Write a warm follow-up email to a customer who showed interest but hasn't booked
 Tone: friendly, not pushy. Mention their specific service interest.
 Include a 10% early bird discount code: COCO10
 Output JSON: { "subject": "...", "html": "...", "text": "..." }
-HTML should be a complete styled email matching CocoTripKR brand (dark navy #1a1a2e, accent #E84B8A).`
+HTML should be a complete styled email matching CocoTripKR brand (dark navy #1a1a2e, accent #7C5CFC).`
   });
   const result = await model.generateContent(`Customer: ${booking.customerName || 'Guest'}, interested in: ${booking.product || 'Korea Tour'}, email: ${booking.customerEmail}`);
   const text = result.response.text();

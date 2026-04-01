@@ -136,7 +136,7 @@ export function HeroSlider({ t }: HeroSliderProps) {
           setIsAutoPlaying(false);
           setTimeout(() => setIsAutoPlaying(true), 10000);
         }}
-        className="absolute left-2 sm:left-8 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white hover:text-[#0f3460] transition-all duration-300"
+        className="absolute left-2 sm:left-8 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white hover:text-[#7C5CFC] transition-all duration-300 shadow-lg"
       >
         <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
       </button>
@@ -146,7 +146,7 @@ export function HeroSlider({ t }: HeroSliderProps) {
           setIsAutoPlaying(false);
           setTimeout(() => setIsAutoPlaying(true), 10000);
         }}
-        className="absolute right-2 sm:right-8 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white hover:text-[#0f3460] transition-all duration-300"
+        className="absolute right-2 sm:right-8 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white hover:text-[#7C5CFC] transition-all duration-300 shadow-lg"
       >
         <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
       </button>
