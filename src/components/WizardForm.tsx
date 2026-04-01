@@ -73,9 +73,39 @@ const INIT: WizardState = {
 };
 
 // ── 스타일 상수 (보라/핑크 테마) ─────────────────────────────────────
-const SEL   = 'border-[rgba(124,92,252,0.5)] bg-[rgba(124,92,252,0.15)] text-[#9d7ffe]';
+// ── 스타일 상수 & 대화형 UI 컴포넌트 ─────────────────────────────────────
+const SEL   = 'border-[rgba(232,75,138,0.5)] bg-[rgba(232,75,138,0.15)] text-[#E84B8A]';
 const UNSEL = 'border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white/55 hover:border-[rgba(255,255,255,0.18)] hover:text-white/75 hover:bg-[rgba(255,255,255,0.06)]';
-const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/40 font-semibold mb-3 flex items-center gap-1.5';
+
+function ChatBubble({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 mb-4 items-end" style={{ animation: 'fade-slide-up 0.4s ease forwards' }}>
+      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#E84B8A] to-[#C62368] flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(232,75,138,.4)]">
+        <Sparkles className="w-4 h-4 text-white" />
+      </div>
+      <div className="bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] text-white/90 px-4 py-3 text-sm leading-relaxed" 
+        style={{ borderRadius: '18px 18px 18px 4px' }}>
+        <div className="flex items-center gap-1.5 font-medium">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ChatTypingIndicator() {
+  return (
+    <div className="flex gap-3 mb-4 items-end" style={{ animation: 'fade-slide-up 0.2s ease forwards' }}>
+      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#E84B8A] to-[#C62368] flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(232,75,138,.4)]">
+        <Sparkles className="w-4 h-4 text-white" />
+      </div>
+      <div className="bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] px-5 py-3.5 flex gap-1.5 items-center justify-center h-[46px]"
+        style={{ borderRadius: '18px 18px 18px 4px' }}>
+        <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" />
+        <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+        <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+      </div>
+    </div>
+  );
+}
 
 // ── Step Progress (보라/핑크 그라디언트) ───────────────────────────────
 function StepProgress({ step }: { step: number }) {
@@ -86,15 +116,15 @@ function StepProgress({ step }: { step: number }) {
           <div key={s} className="flex-1 flex items-center">
             <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
               s < step  ? 'text-white' :
-              s === step ? 'text-white shadow-[0_0_18px_rgba(124,92,252,.5)]' :
+              s === step ? 'text-white shadow-[0_0_18px_rgba(232,75,138,.5)]' :
                            'bg-[rgba(255,255,255,0.06)] text-white/20 border border-[rgba(255,255,255,0.08)]'
             }`}
-              style={s <= step ? { background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' } : {}}
+              style={s <= step ? { background: 'linear-gradient(135deg, #E84B8A, #C62368)' } : {}}
             >
               {s < step ? <Check className="w-3.5 h-3.5" /> : s}
             </div>
             {s < 4 && (
-              <div className={`flex-1 h-px mx-2 transition-all duration-500 ${s < step ? 'bg-gradient-to-r from-[#7C5CFC] to-[#EA537E]' : 'bg-[rgba(255,255,255,0.08)]'}`}
+              <div className={`flex-1 h-px mx-2 transition-all duration-500 ${s < step ? 'bg-gradient-to-r from-[#E84B8A] to-[#C62368]' : 'bg-[rgba(255,255,255,0.08)]'}`}
                 style={s < step ? { height: '2px' } : {}} />
             )}
           </div>
@@ -109,8 +139,8 @@ function Step1({ data, upd, p }: { data: WizardState; upd: (x: Partial<WizardSta
   return (
     <div className="space-y-7">
       <div>
-        <p className={LABEL}><Plane className="w-3 h-3" /> {p.planner_step1_airport}</p>
-        <div className="grid grid-cols-4 gap-2.5">
+        <ChatBubble><Plane className="w-4 h-4" /> {p.planner_step1_airport}</ChatBubble>
+        <div className="grid grid-cols-4 gap-2.5 ml-12" style={{ width: 'calc(100% - 48px)' }}>
           {AIRPORTS.map(a => (
             <button key={a.id} type="button" onClick={() => upd({ airport: a.id })}
               className={`py-4 rounded-xl border text-center transition-all duration-200 ${data.airport === a.id ? SEL : UNSEL}`}>
@@ -122,8 +152,8 @@ function Step1({ data, upd, p }: { data: WizardState; upd: (x: Partial<WizardSta
       </div>
 
       <div>
-        <p className={LABEL}><MapPin className="w-3 h-3" /> {p.planner_step1_cities}</p>
-        <div className="grid grid-cols-4 gap-2.5">
+        <p className="flex items-center gap-1.5 ml-12 mb-3 text-[11px] uppercase tracking-[.07em] text-white/40 font-semibold"><MapPin className="w-4 h-4" /> {p.planner_step1_cities}</p>
+        <div className="grid grid-cols-4 gap-2.5 ml-12" style={{ width: 'calc(100% - 48px)' }}>
           {WIZARD_REGIONS.map(r => {
             const sel = data.regionIds.includes(r.id);
             return (
@@ -132,7 +162,7 @@ function Step1({ data, upd, p }: { data: WizardState; upd: (x: Partial<WizardSta
                 className={`relative flex flex-col items-center justify-center py-4 px-1 rounded-xl border transition-all duration-200 overflow-hidden ${sel ? SEL : UNSEL}`}>
                 {sel && (
                   <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}>
+                    style={{ background: 'linear-gradient(135deg, #E84B8A, #C62368)' }}>
                     <Check className="w-2.5 h-2.5 text-white" />
                   </div>
                 )}
@@ -143,11 +173,11 @@ function Step1({ data, upd, p }: { data: WizardState; upd: (x: Partial<WizardSta
         </div>
       </div>
 
-      <div>
-        <p className={LABEL}><Pencil className="w-3 h-3" /> {p.planner_step1_custom}</p>
+      <div className="mt-8">
+        <ChatBubble><Pencil className="w-4 h-4" /> {p.planner_step1_custom}</ChatBubble>
         <input type="text" value={data.customCity} onChange={e => upd({ customCity: e.target.value })}
           placeholder={p.planner_step1_custom_ph}
-          className="w-full px-4 py-3 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[rgba(124,92,252,.5)] transition-all duration-200" />
+          className="w-full px-4 py-3 ml-12 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[rgba(232,75,138,.5)] transition-all duration-200" style={{ width: 'calc(100% - 48px)' }} />
       </div>
     </div>
   );
@@ -158,19 +188,21 @@ function Step2({ data, upd, p, lang }: { data: WizardState; upd: (x: Partial<Wiz
   return (
     <div className="space-y-7">
       <div>
-        <p className={LABEL}><Calendar className="w-3 h-3" /> {p.planner_step2_date}</p>
-        <CalendarPicker
+        <ChatBubble><Calendar className="w-4 h-4" /> {p.planner_step2_date}</ChatBubble>
+        <div className="ml-12" style={{ width: 'calc(100% - 48px)' }}>
+          <CalendarPicker
           startDate={data.startDate}
           endDate={data.endDate}
           onDateChange={(s, e) => upd({ startDate: s, endDate: e })}
           p={p}
           lang={lang}
         />
+        </div>
       </div>
 
-      <div>
-        <p className={LABEL}><Users className="w-3 h-3" /> {p.planner_step2_adults} / {p.planner_step2_children}</p>
-        <div className="space-y-2.5">
+      <div className="mt-8">
+        <ChatBubble><Users className="w-4 h-4" /> {p.planner_step2_adults} / {p.planner_step2_children}</ChatBubble>
+        <div className="space-y-2.5 ml-12" style={{ width: 'calc(100% - 48px)' }}>
           {[
             { key: 'adults' as const, labelKey: 'planner_step2_adults', min: 1, max: 20 },
             { key: 'children' as const, labelKey: 'planner_step2_children', min: 0, max: 10 },
@@ -179,10 +211,10 @@ function Step2({ data, upd, p, lang }: { data: WizardState; upd: (x: Partial<Wiz
               <span className="text-sm text-white/65">{p[labelKey]}</span>
               <div className="flex items-center gap-3">
                 <button type="button" onClick={() => upd({ [key]: Math.max(min, data[key] - 1) })}
-                  className="w-8 h-8 rounded-full border border-[rgba(255,255,255,0.15)] flex items-center justify-center text-white/55 hover:border-[rgba(124,92,252,.4)] hover:text-[#9d7ffe] transition-all text-lg leading-none">−</button>
+                  className="w-8 h-8 rounded-full border border-[rgba(255,255,255,0.15)] flex items-center justify-center text-white/55 hover:border-[rgba(232,75,138,.4)] hover:text-[#E84B8A] transition-all text-lg leading-none">−</button>
                 <span className="text-base font-bold text-white w-6 text-center">{data[key]}</span>
                 <button type="button" onClick={() => upd({ [key]: Math.min(max, data[key] + 1) })}
-                  className="w-8 h-8 rounded-full border border-[rgba(255,255,255,0.15)] flex items-center justify-center text-white/55 hover:border-[rgba(124,92,252,.4)] hover:text-[#9d7ffe] transition-all text-lg leading-none">+</button>
+                  className="w-8 h-8 rounded-full border border-[rgba(255,255,255,0.15)] flex items-center justify-center text-white/55 hover:border-[rgba(232,75,138,.4)] hover:text-[#E84B8A] transition-all text-lg leading-none">+</button>
               </div>
             </div>
           ))}
@@ -197,8 +229,8 @@ function Step3({ data, upd, p }: { data: WizardState; upd: (x: Partial<WizardSta
   return (
     <div className="space-y-7">
       <div>
-        <p className={LABEL}><Target className="w-3 h-3" /> {p.planner_step3_interests}</p>
-        <div className="flex flex-wrap gap-2">
+        <ChatBubble><Target className="w-4 h-4" /> {p.planner_step3_interests}</ChatBubble>
+        <div className="flex flex-wrap gap-2 ml-12" style={{ width: 'calc(100% - 48px)' }}>
           {INTERESTS.map(int => {
             const label = p[int.i18nKey] ?? int.i18nKey;
             const sel = data.interests.includes(int.i18nKey);
@@ -215,9 +247,9 @@ function Step3({ data, upd, p }: { data: WizardState; upd: (x: Partial<WizardSta
         </div>
       </div>
 
-      <div>
-        <p className={LABEL}><CreditCard className="w-3 h-3" /> {p.planner_step3_budget}</p>
-        <div className="grid grid-cols-3 gap-2.5">
+      <div className="mt-8">
+        <ChatBubble><CreditCard className="w-4 h-4" /> {p.planner_step3_budget}</ChatBubble>
+        <div className="grid grid-cols-3 gap-2.5 ml-12" style={{ width: 'calc(100% - 48px)' }}>
           {BUDGET_OPTIONS.map(b => (
             <button key={b.id} type="button" onClick={() => upd({ budgetStyle: b.id })}
               className={`flex flex-col items-center py-4 px-2 rounded-xl border text-sm font-semibold transition-all duration-200 ${data.budgetStyle === b.id ? SEL : UNSEL}`}>
@@ -228,16 +260,16 @@ function Step3({ data, upd, p }: { data: WizardState; upd: (x: Partial<WizardSta
         </div>
       </div>
 
-      <div>
-        <p className={LABEL}><Car className="w-3 h-3" /> {p.planner_step3_transport}</p>
-        <div className="space-y-2">
+      <div className="mt-8">
+        <ChatBubble><Car className="w-4 h-4" /> {p.planner_step3_transport}</ChatBubble>
+        <div className="space-y-2 ml-12" style={{ width: 'calc(100% - 48px)' }}>
           {TRANSPORT_OPTIONS.map(tr => (
             <button key={tr.id} type="button" onClick={() => upd({ transportPref: tr.id })}
               className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium transition-all duration-200 ${data.transportPref === tr.id ? SEL : UNSEL}`}>
               <span className="shrink-0">{tr.icon}</span>
               <span className="flex-1 text-left">{p[tr.i18nKey] ?? tr.id}</span>
               {tr.badgeKey && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(124,92,252,.15)] border border-[rgba(124,92,252,.35)] text-[#9d7ffe] font-semibold shrink-0">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(232,75,138,.15)] border border-[rgba(232,75,138,.35)] text-[#E84B8A] font-semibold shrink-0">
                   {p[tr.badgeKey]}
                 </span>
               )}
@@ -264,19 +296,19 @@ function Step4({ data, upd, goToStep, p }: {
   const SummaryRow = ({ icon, text, step }: { icon: React.ReactNode; text: string; step: 1 | 2 | 3 | 4 }) => (
     <div className="flex items-center gap-2.5 py-2.5 border-b border-[rgba(255,255,255,0.06)] last:border-0 cursor-pointer group"
       onClick={() => goToStep(step)}>
-      <span className="shrink-0 text-[#9d7ffe]">{icon}</span>
+      <span className="shrink-0 text-[#E84B8A]">{icon}</span>
       <span className="flex-1 text-sm text-white/60 leading-snug">{text || '—'}</span>
-      <ArrowRight className="w-3 h-3 text-white/15 group-hover:text-[#9d7ffe] transition-colors" />
+      <ArrowRight className="w-3 h-3 text-white/15 group-hover:text-[#E84B8A] transition-colors" />
     </div>
   );
 
   return (
     <div className="space-y-6">
       <div>
-        <p className={LABEL}><Pencil className="w-3 h-3" /> {p.planner_step4_extra}</p>
+        <ChatBubble><Pencil className="w-4 h-4" /> {p.planner_step4_extra}</ChatBubble>
         <textarea value={data.freeText} onChange={e => upd({ freeText: e.target.value })}
           rows={3} placeholder={p.planner_step4_extra_ph}
-          className="w-full px-4 py-3 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[rgba(124,92,252,.5)] transition-all resize-none leading-relaxed" />
+          className="w-full px-4 py-3 ml-12 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[rgba(232,75,138,.5)] transition-all resize-none leading-relaxed" style={{ width: 'calc(100% - 48px)' }} />
       </div>
 
       <div className="bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-2xl px-4 py-2">
@@ -329,6 +361,7 @@ export function WizardForm({
   const [step, setStep] = useState<1 | 2 | 3 | 4>(saved?.step ?? 1);
   const [slideDir, setSlideDir] = useState<'in' | 'out-l' | 'out-r'>('in');
   const [data, setData] = useState<WizardState>(initData);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     try {
@@ -342,7 +375,16 @@ export function WizardForm({
 
   function animTo(next: 1 | 2 | 3 | 4, dir: 'forward' | 'back') {
     setSlideDir(dir === 'forward' ? 'out-l' : 'out-r');
-    setTimeout(() => { setStep(next); setSlideDir('in'); }, 180);
+    setTimeout(() => { 
+      setStep(next); 
+      if (dir === 'forward') {
+        setIsTyping(true);
+        setSlideDir('in');
+        setTimeout(() => setIsTyping(false), 800);
+      } else {
+        setSlideDir('in'); 
+      }
+    }, 180);
   }
 
   function goNext()                { animTo((step + 1) as 1 | 2 | 3 | 4, 'forward'); }
@@ -399,30 +441,36 @@ export function WizardForm({
     <div>
       <StepProgress step={step} />
 
-      <div style={slideStyle}>
-        {step === 1 && <Step1 data={data} upd={upd} p={p} />}
-        {step === 2 && <Step2 data={data} upd={upd} p={p} lang={lang} />}
-        {step === 3 && <Step3 data={data} upd={upd} p={p} />}
-        {step === 4 && <Step4 data={data} upd={upd} goToStep={goToStep} p={p} />}
+      <div style={slideStyle} className="min-h-[220px]">
+        {isTyping ? (
+          <ChatTypingIndicator />
+        ) : (
+          <>
+            {step === 1 && <Step1 data={data} upd={upd} p={p} />}
+            {step === 2 && <Step2 data={data} upd={upd} p={p} lang={lang} />}
+            {step === 3 && <Step3 data={data} upd={upd} p={p} />}
+            {step === 4 && <Step4 data={data} upd={upd} goToStep={goToStep} p={p} />}
+          </>
+        )}
       </div>
 
       <div className="flex gap-3 mt-8">
         {step > 1 && (
-          <button type="button" onClick={goBack}
-            className="flex-1 py-3.5 rounded-xl border border-[rgba(255,255,255,0.1)] text-sm font-medium text-white/50 hover:border-[rgba(255,255,255,0.25)] hover:text-white/75 transition-all duration-200 min-h-[44px] flex items-center justify-center gap-1.5">
+          <button type="button" onClick={goBack} disabled={isTyping}
+            className="flex-1 py-3.5 rounded-xl border border-[rgba(255,255,255,0.1)] text-sm font-medium text-white/50 hover:border-[rgba(255,255,255,0.25)] hover:text-white/75 transition-all duration-200 min-h-[44px] flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed">
             <ArrowLeft className="w-3.5 h-3.5" /> {p.planner_prev}
           </button>
         )}
         {step < 4 ? (
-          <button type="button" onClick={goNext} disabled={!canNext}
+          <button type="button" onClick={goNext} disabled={!canNext || isTyping}
             className="flex-[2] py-3.5 rounded-xl text-sm font-bold transition-all duration-200 min-h-[44px] disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center gap-1.5"
-            style={canNext ? { background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 4px 24px rgba(124,92,252,.35)' } : { background: 'rgba(255,255,255,0.06)' }}>
+            style={canNext ? { background: 'linear-gradient(135deg, #E84B8A, #C62368)', boxShadow: '0 4px 24px rgba(232,75,138,.35)' } : { background: 'rgba(255,255,255,0.06)' }}>
             {p.planner_next} <ArrowRight className="w-3.5 h-3.5" />
           </button>
         ) : (
           <button type="button" onClick={handleSubmit} disabled={isLoading}
             className="flex-[2] py-3.5 rounded-xl text-sm font-bold text-white transition-all duration-200 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-            style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.45)' }}>
+            style={{ background: 'linear-gradient(135deg, #E84B8A, #C62368)', boxShadow: '0 4px 28px rgba(232,75,138,.45)' }}>
             {isLoading ? '...' : <><Sparkles className="w-4 h-4" /> {p.planner_generate_cta}</>}
           </button>
         )}
