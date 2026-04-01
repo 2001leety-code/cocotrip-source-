@@ -15,9 +15,8 @@ export const config = {
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-  'Access-Control-Max-Age': '86400',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
 };
 
 export default async function handler(req, res) {
@@ -33,19 +32,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    const rawBody = req.body || {};
+    let rawBody = req.body;
+    if (typeof rawBody === 'string') {
+      try { rawBody = JSON.parse(rawBody); } catch (e) { rawBody = {}; }
+    }
+    rawBody = rawBody || {};
+    
     console.log("Request Body [ai-planner.js]:", JSON.stringify(rawBody));
     
     const prefsRaw = rawBody.preferences || rawBody.theme || rawBody.categories;
-    const prefsString = Array.isArray(prefsRaw) ? prefsRaw.join(', ') : (prefsRaw || '전통/모던 믹스 테마 (자동 추론)');
+    const prefsString = Array.isArray(prefsRaw) ? prefsRaw.join(', ') : (prefsRaw || 'Seoul Hotspots');
     
     const requestData = {
-      destination: rawBody.destination || (rawBody.regions && rawBody.regions[0]) || '서울 (Seoul)',
+      destination: rawBody.destination || (rawBody.regions && rawBody.regions[0]) || 'Seoul',
       startDate: rawBody.startDate || new Date().toISOString().split('T')[0],
       endDate: rawBody.endDate || new Date().toISOString().split('T')[0],
       durationDays: rawBody.durationDays || rawBody.duration || 3,
       preferences: prefsString,
-      pax: rawBody.pax || rawBody.members || 4,
+      pax: rawBody.pax || rawBody.members || 2,
       language: rawBody.language || 'en',
       vehicleType: rawBody.vehicleType || 'staria',
     };
