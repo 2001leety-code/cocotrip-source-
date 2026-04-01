@@ -7,7 +7,7 @@
 
 import { CocoTripOrchestrator } from '../netlify/functions/ai_core/orchestrator.js';
 
-export const maxDuration = 60; // Vercel Pro: 60초 (무료: 10초)
+export const maxDuration = 300; 
 
 export const config = {
   runtime: 'nodejs',
@@ -55,9 +55,17 @@ export default async function handler(req, res) {
       'Connection': 'keep-alive',
     });
 
-    // 스트리밍 전송
-    for await (const chunk of orchestrator.streamRun(requestData)) {
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    // 스트리밍 전송 및 504 타임아웃 방지용 heartbeat 추가
+    const heartbeatInterval = setInterval(() => {
+      res.write(`: heartbeat\n\n`); // SSE 주석(빈 데이터) 전송
+    }, 5000); // 5초마다
+
+    try {
+      for await (const chunk of orchestrator.streamRun(requestData)) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      }
+    } finally {
+      clearInterval(heartbeatInterval);
     }
 
     res.end();

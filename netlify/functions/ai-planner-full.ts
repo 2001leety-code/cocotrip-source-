@@ -4,6 +4,9 @@ import { TripRequest } from "./ai_core/models";
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
 
+export const maxDuration = 300; 
+export const runtime = 'nodejs'; // 혹은 'edge' (스트리밍 사용 시)
+
 export default async (req: Request, context: Context) => {
   // CORS 처리
   if (req.method === "OPTIONS") {
@@ -41,6 +44,7 @@ export default async (req: Request, context: Context) => {
     const stream = new ReadableStream({
       async start(controller) {
         let finalOutput = "";
+        const heartbeat = setInterval(() => controller.enqueue(new TextEncoder().encode(": heartbeat\n\n")), 5000);
         try {
           for await (const chunk of orchestrator.streamRun(requestData)) {
             // chunk 에는 { step: 1, totalSteps: 5, agent: 'planner', result: AgentResult } 등이 담김
@@ -102,9 +106,11 @@ export default async (req: Request, context: Context) => {
             } catch(e) { console.error("Sheets failed:", e); }
           }
           
+          clearInterval(heartbeat);
           controller.close();
         } catch (e: any) {
           console.error("Pipeline streaming error:", e);
+          clearInterval(heartbeat);
           const errorEvent = `data: ${JSON.stringify({ error: e.message })}\n\n`;
           controller.enqueue(new TextEncoder().encode(errorEvent));
           controller.close();

@@ -1,6 +1,9 @@
 import { Context } from "@netlify/functions";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+export const maxDuration = 300; 
+export const runtime = 'nodejs'; // 혹은 'edge' (스트리밍 사용 시)
+
 export default async (req: Request, context: Context) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
