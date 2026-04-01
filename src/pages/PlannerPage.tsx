@@ -177,12 +177,21 @@ function formatDate(dateStr: string, lang: string) {
 // ────────────────────────────────────────
 // ★ 트리비아 로딩 애니메이션
 // ────────────────────────────────────────
-function TriviaLoadingAnimation({ p }: { p: any }) {
+function TriviaLoadingAnimation({ p, streamStep, streamAgent }: { p: any, streamStep?: number, streamAgent?: string }) {
   const tips: string[]   = p.loading_tips ?? [];
   const phases: string[] = [p.loading_step1, p.loading_step2, p.loading_step3, p.loading_step4];
   const [tipIdx,   setTipIdx]   = useState(0);
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [visible,  setVisible]  = useState(true);
+
+  const AGENT_DISPLAY_NAMES: Record<string, string> = {
+    planner: "AI 기획팀 (Travel Planner) 생성 중...",
+    route: "AI 기술팀 (Naver Fact Checker) 검증 중...",
+    designer: "AI 디자인팀 (Localization & 미션) 작성 중...",
+    marketing: "AI 홍보팀 (PR & SNS 캡션) 추가 중...",
+    qa: "AI 검수팀 (QA & Budgeting) 예산 산출 중...",
+    cs: "AI 고객만족팀 (CS & Billing 봇) 마무리 중..."
+  };
 
   useEffect(() => {
     if (!tips.length) return;
@@ -197,22 +206,32 @@ function TriviaLoadingAnimation({ p }: { p: any }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const currentPhaseText = streamAgent && AGENT_DISPLAY_NAMES[streamAgent] ? AGENT_DISPLAY_NAMES[streamAgent] : phases[phaseIdx];
+  const progressPercent = streamStep ? Math.round((streamStep / 6) * 100) : null;
+
   return (
     <div className="rounded-2xl border border-white/10 overflow-hidden"
       style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 100%)' }}>
       <div className="relative h-1 bg-white/8 overflow-hidden">
-        <div className="absolute h-full rounded-full"
-          style={{ background: 'linear-gradient(90deg, #C4956A, #D4915C)', animation: 'indeterminate 2.1s cubic-bezier(.65,.815,.735,.395) infinite' }} />
-        <div className="absolute h-full rounded-full"
-          style={{ background: 'linear-gradient(90deg, #C4956A, #D4915C)', animation: 'indeterminate2 2.1s cubic-bezier(.5,.3,.1,.7) infinite 1.15s' }} />
+        {progressPercent ? (
+          <div className="absolute h-full rounded-full transition-all duration-700 ease-out"
+            style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #E84B8A, #C62368)' }} />
+        ) : (
+          <>
+            <div className="absolute h-full rounded-full"
+              style={{ background: 'linear-gradient(90deg, #E84B8A, #C62368)', animation: 'indeterminate 2.1s cubic-bezier(.65,.815,.735,.395) infinite' }} />
+            <div className="absolute h-full rounded-full"
+              style={{ background: 'linear-gradient(90deg, #E84B8A, #C62368)', animation: 'indeterminate2 2.1s cubic-bezier(.5,.3,.1,.7) infinite 1.15s' }} />
+          </>
+        )}
       </div>
       <div className="flex flex-col items-center py-12 px-6 gap-6">
         <div className="relative w-16 h-16 flex items-center justify-center">
           {[0, 1].map((i) => (
-            <div key={i} className="absolute inset-0 rounded-full border border-[rgba(196,149,106,.3)]"
+            <div key={i} className="absolute inset-0 rounded-full border border-[#E84B8A]/30"
               style={{ animation: 'pulse-ring 2s ease-out infinite', animationDelay: `${i * 0.8}s` }} />
           ))}
-          <Globe className="w-8 h-8 text-[#C4956A]" />
+          <Globe className="w-8 h-8 text-[#E84B8A]" />
         </div>
         <div className="text-center min-h-[52px] flex items-center">
           <p className="text-sm text-white/65 leading-relaxed max-w-xs"
@@ -220,7 +239,10 @@ function TriviaLoadingAnimation({ p }: { p: any }) {
             {tips[tipIdx]}
           </p>
         </div>
-        <p className="text-xs font-semibold text-[#C4956A] tracking-wider">{phases[phaseIdx]}</p>
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-sm font-semibold text-[#E84B8A] tracking-wider">{currentPhaseText}</p>
+          {streamStep && <p className="text-[10px] text-white/40">{streamStep} / 6 단계 가동 중 (상세 분석 및 교정) 🚀</p>}
+        </div>
       </div>
     </div>
   );
@@ -1226,6 +1248,8 @@ export default function PlannerPage() {
   const [result, setResult] = useState<PlannerResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [enriching, setEnriching] = useState(false);
+  const [streamStep, setStreamStep] = useState<number>(0);
+  const [streamAgent, setStreamAgent] = useState<string>('');
   const lastValues = useRef<PlannerFormValues | null>(null);
   const prevLangRef = useRef(language);
 
@@ -1242,6 +1266,8 @@ export default function PlannerPage() {
     setResult(null);
     setErrorMsg(null);
     setEnriching(false);
+    setStreamStep(0);
+    setStreamAgent('');
     
     try {
       const res = await fetch('/.netlify/functions/ai-planner', {
@@ -1313,6 +1339,8 @@ export default function PlannerPage() {
                   document.getElementById('planner-result')?.scrollIntoView({ behavior: 'smooth' });
                 }, 100);
               } else {
+                setStreamStep(data.step);
+                setStreamAgent(data.agent);
                 console.log(`Step ${data.step}/${data.totalSteps}: ${data.agent}`);
               }
             } catch (e) {
@@ -1363,7 +1391,7 @@ export default function PlannerPage() {
         )}
 
         {/* Loading */}
-        {status === 'loading' && <TriviaLoadingAnimation p={p} />}
+        {status === 'loading' && <TriviaLoadingAnimation p={p} streamStep={streamStep} streamAgent={streamAgent} />}
 
         {/* Error */}
         {status === 'error' && (
