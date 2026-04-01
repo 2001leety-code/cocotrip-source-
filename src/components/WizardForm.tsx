@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Send, MapPin, Users, Calendar, Sparkles, Wand2,
-  ArrowRight, Mail, Shield, Star, ChevronDown, X
+  ArrowRight, Mail, Shield, Star, ChevronDown, X,
+  MessageCircle, ChevronRight, ChevronLeft, Check
 } from 'lucide-react';
 import type { PlannerFormValues } from './PlannerForm';
 import { PICKUP_PRICES } from '@/config/affiliateLinks';
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════
    DATA
-   ═══════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════ */
 const AIRPORT_GROUPS = [
   { label: '수도권', airports: [
     { code: 'ICN', name: '인천국제공항 (Incheon Intl)' },
@@ -51,83 +52,51 @@ function buildSlimCards(code: string, cities: string[]) {
   const q = encodeURIComponent(city);
   const cards: { icon: string; text: string; cta: string; url: string }[] = [];
   const pickup = (PICKUP_PRICES[code] || [])[0];
-  if (pickup) cards.push({
-    icon: '🚐', text: `${code} 공항 픽업 · ${pickup.price}`,
-    cta: '예약', url: 'https://cocotripkr.com/charter',
-  });
-  cards.push({
-    icon: '🏨', text: `${city} 호텔 최저가`,
-    cta: '비교', url: `https://www.booking.com/searchresults.html?ss=${q}&no_rooms=1&group_adults=2`,
-  });
+  if (pickup) cards.push({ icon: '🚐', text: `${code} 공항 픽업 · ${pickup.price}`, cta: '예약', url: 'https://cocotripkr.com/charter' });
+  cards.push({ icon: '🏨', text: `${city} 호텔 최저가`, cta: '비교', url: `https://www.booking.com/searchresults.html?ss=${q}&no_rooms=1&group_adults=2` });
   if (['ICN', 'GMP'].includes(code) && cities.length > 1)
-    cards.push({
-      icon: '🚄', text: `서울 → ${cities[cities.length - 1]} KTX`,
-      cta: '예매', url: 'https://www.letskorail.com/ebizbf/EbizBfKrbs020a.do',
-    });
+    cards.push({ icon: '🚄', text: `서울 → ${cities[cities.length - 1]} KTX`, cta: '예매', url: 'https://www.letskorail.com/ebizbf/EbizBfKrbs020a.do' });
   else if (cities.length > 0)
-    cards.push({
-      icon: '🚗', text: `${city} 렌터카`,
-      cta: '검색', url: `https://www.rentalcars.com/en/search/Korea/${q}/`,
-    });
+    cards.push({ icon: '🚗', text: `${city} 렌터카`, cta: '검색', url: `https://www.rentalcars.com/en/search/Korea/${q}/` });
   return cards;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   COMPONENT
-   ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ═══════════════════════════════════════════════════════ */
 export function WizardForm({ onSubmit, isLoading }: any) {
+  const [step, setStep] = useState(0); // 0:공항 1:도시 2:기간인원 3:생성
 
-  /* ── state ── */
-  const [airportCode, setAirportCode]           = useState('');
-  const [showCustomInput, setShowCustomInput]   = useState(false);
-  const [customAirport, setCustomAirport]       = useState('');
-  const [selectedCities, setSelectedCities]     = useState<string[]>([]);
-  const [duration, setDuration]                 = useState(3);
-  const [pax, setPax]                           = useState(2);
-  const [email, setEmail]                       = useState('');
-  const [emailSent, setEmailSent]               = useState(false);
+  // data
+  const [airportCode, setAirportCode]         = useState('');
+  const [showCustom, setShowCustom]           = useState(false);
+  const [customAirport, setCustomAirport]     = useState('');
+  const [selectedCities, setSelectedCities]   = useState<string[]>([]);
+  const [duration, setDuration]               = useState(3);
+  const [pax, setPax]                         = useState(2);
+  const [email, setEmail]                     = useState('');
+  const [emailSent, setEmailSent]             = useState(false);
 
-  // chat
+  // floating chat
+  const [chatOpen, setChatOpen]       = useState(false);
   const [chatInput, setChatInput]     = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [extracted, setExtracted]     = useState<any>({ destination: null, durationDays: null, pax: null, preferences: [] });
   const [messages, setMessages]       = useState<{ role: 'ai' | 'user'; text: string }[]>([
-    { role: 'ai', text: '안녕하세요! CocoTrip AI 가이드입니다.\n오른쪽 패널에서 조건을 선택하시면 맞춤 플랜을 만들어 드립니다.\n무엇이든 궁금한 점은 여기서 질문해 주세요!' },
+    { role: 'ai', text: '안녕하세요! CocoTrip AI 가이드입니다.\n궁금한 점이나 특별 요청사항을 자유롭게 물어보세요!' },
   ]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const effectiveAirport = airportCode || (showCustomInput && customAirport ? customAirport : '');
-  const ready = Boolean(effectiveAirport) && selectedCities.length > 0;
+  const effectiveAirport = airportCode || (showCustom && customAirport ? customAirport : '');
   const slimCards = effectiveAirport ? buildSlimCards(airportCode || customAirport, selectedCities) : [];
-
-  /* ── auto-guide messages ── */
-  useEffect(() => {
-    if (effectiveAirport) {
-      setMessages(p => {
-        if (p.some(m => m.text.includes('공항 선택 완료'))) return p;
-        return [...p, { role: 'ai', text: `${effectiveAirport} 공항 선택 완료! 이제 방문 도시를 골라 보세요.` }];
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveAirport]);
-
-  useEffect(() => {
-    if (selectedCities.length > 0) {
-      setMessages(p => {
-        if (p.some(m => m.text.includes('동선이 설정'))) return p;
-        return [...p, { role: 'ai', text: `${selectedCities.join(' → ')} 동선이 설정되었습니다!\n기간과 인원을 확인한 뒤 플랜 생성 버튼을 눌러 주세요.` }];
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCities.length]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  /* ── handlers ── */
+  // handlers
   function handleAirportChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const v = e.target.value;
-    if (v === '__custom__') { setShowCustomInput(true); setAirportCode(''); }
-    else { setShowCustomInput(false); setAirportCode(v); setCustomAirport(''); }
+    if (v === '__custom__') { setShowCustom(true); setAirportCode(''); }
+    else { setShowCustom(false); setAirportCode(v); setCustomAirport(''); }
   }
 
   function toggleCity(name: string) {
@@ -177,40 +146,311 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     }).catch(err => console.warn('bg:', err));
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     RENDER
-     ═══════════════════════════════════════════════════════════ */
-  return (
-    <div className="flex flex-col lg:flex-row gap-5 w-full items-stretch">
+  const STEP_TITLES = ['입국 공항', '방문 도시', '기간 & 인원', '플랜 생성'];
 
-      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          LEFT COLUMN — AI Chat (sticky on desktop)
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div className="w-full lg:w-[310px] shrink-0 lg:sticky lg:top-4 lg:self-start">
-        <div className="flex flex-col rounded-2xl border border-white/[0.07] overflow-hidden"
-          style={{ height: 520, background: 'linear-gradient(160deg,#0b0f1e,#150a2e)' }}>
+  /* ═══════════════════════════════════════════════════════
+     STEP CONTENT
+  ═══════════════════════════════════════════════════════ */
+
+  // ── STEP 0: 입국 공항 ──
+  const StepAirport = () => (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-white">어느 공항으로 입국하시나요?</h2>
+      <p className="text-sm text-white/40">도착 공항을 선택하면 맞춤 픽업 서비스를 안내해 드립니다.</p>
+
+      <div className="relative">
+        <select value={showCustom ? '__custom__' : airportCode} onChange={handleAirportChange}
+          className="w-full appearance-none bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl pl-5 pr-12 py-4 text-base cursor-pointer focus:outline-none focus:border-[#7C5CFC]/70 transition-colors">
+          <option value="" disabled className="bg-[#0f111a]">공항을 선택하세요</option>
+          {AIRPORT_GROUPS.map(g => (
+            <optgroup key={g.label} label={`── ${g.label} ──`} className="bg-[#0f111a]">
+              {g.airports.map(a => <option key={a.code} value={a.code} className="bg-[#0f111a]">{a.code}  {a.name}</option>)}
+            </optgroup>
+          ))}
+          <optgroup label="── 기타 ──" className="bg-[#0f111a]">
+            <option value="__custom__" className="bg-[#0f111a]">직접 입력 (기타 공항/항구)</option>
+          </optgroup>
+        </select>
+        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none" />
+      </div>
+
+      {showCustom && (
+        <input type="text" value={customAirport} onChange={e => setCustomAirport(e.target.value)}
+          placeholder="공항 또는 항구명 입력 (예: 청주공항, 군산항)" autoFocus
+          className="w-full bg-white/[0.06] border border-[#7C5CFC]/40 text-white placeholder-white/30 rounded-2xl px-5 py-4 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+      )}
+
+      {/* 픽업 광고 */}
+      {effectiveAirport && (PICKUP_PRICES[airportCode] || []).length > 0 && (
+        <a href="https://cocotripkr.com/charter" target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-4 px-5 py-4 rounded-2xl border border-[#7C5CFC]/25 hover:border-[#7C5CFC]/50 transition-all group"
+          style={{ background: 'rgba(124,92,252,.08)' }}>
+          <span className="text-2xl">🚐</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-white">{effectiveAirport} 공항 픽업 — 스타리아 프라이빗</p>
+            <p className="text-xs text-[#7C5CFC] mt-0.5">{(PICKUP_PRICES[airportCode] || [])[0]?.price ?? '₩124,800~'} · No Hidden Fee</p>
+          </div>
+          <span className="text-xs font-bold text-white/50 group-hover:text-[#7C5CFC] transition-colors shrink-0">예약 →</span>
+        </a>
+      )}
+
+      <button onClick={() => setStep(1)} disabled={!effectiveAirport}
+        className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] active:scale-100 transition-all"
+        style={{ background: effectiveAirport ? 'linear-gradient(135deg,#7C5CFC,#EA537E)' : 'rgba(255,255,255,.1)' }}>
+        다음: 방문 도시 선택 <ChevronRight className="w-5 h-5" />
+      </button>
+    </div>
+  );
+
+  // ── STEP 1: 방문 도시 ──
+  const StepCities = () => (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-white">어디를 방문하고 싶으신가요?</h2>
+      <p className="text-sm text-white/40">클릭 순서대로 동선 번호가 붙습니다. 다시 클릭하면 해제.</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {CITIES.map(c => {
+          const idx = selectedCities.indexOf(c.name);
+          const sel = idx >= 0;
+          return (
+            <button key={c.id} onClick={() => toggleCity(c.name)}
+              className={`relative flex flex-col items-start gap-1 px-4 py-3.5 rounded-2xl border text-left transition-all hover:scale-[1.02] active:scale-100 ${
+                sel
+                  ? 'border-[#EA537E]/60 bg-[#EA537E]/12 text-white shadow-[0_0_16px_rgba(234,83,126,.2)]'
+                  : 'border-white/[0.1] bg-white/[0.04] text-white/55 hover:border-white/25 hover:text-white'
+              }`}>
+              {sel && (
+                <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center text-white shadow-lg"
+                  style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>{idx + 1}</span>
+              )}
+              <span className="text-base font-bold">{c.name}</span>
+              <span className="text-[11px] text-white/30">{c.sub}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 동선 표시 */}
+      {selectedCities.length > 0 && (
+        <div className="flex items-center gap-2 text-sm flex-wrap bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3">
+          <MapPin className="w-4 h-4 text-[#7C5CFC] shrink-0" />
+          {selectedCities.map((c, i) => (
+            <span key={c} className="flex items-center gap-1.5">
+              <span className="font-bold text-white">{c}</span>
+              {i < selectedCities.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-white/25" />}
+            </span>
+          ))}
+          <button onClick={() => setSelectedCities([])} className="ml-auto text-white/25 hover:text-white/60 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button onClick={() => setStep(0)}
+          className="px-5 py-3.5 rounded-2xl border border-white/[0.12] text-white/50 hover:text-white text-sm font-semibold flex items-center gap-1 transition-all">
+          <ChevronLeft className="w-4 h-4" /> 이전
+        </button>
+        <button onClick={() => setStep(2)} disabled={selectedCities.length === 0}
+          className="flex-1 py-3.5 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] active:scale-100 transition-all"
+          style={{ background: selectedCities.length > 0 ? 'linear-gradient(135deg,#7C5CFC,#EA537E)' : 'rgba(255,255,255,.1)' }}>
+          다음: 기간 & 인원 <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── STEP 2: 기간 & 인원 ──
+  const StepDetails = () => (
+    <div className="space-y-5">
+      <h2 className="text-lg font-bold text-white">여행 기간과 인원을 알려주세요</h2>
+
+      <div>
+        <p className="text-sm text-white/40 mb-3 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> 여행 기간</p>
+        <div className="flex flex-wrap gap-2">
+          {DURATIONS.map(d => (
+            <button key={d} onClick={() => setDuration(d)}
+              className="px-5 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.03] active:scale-100"
+              style={duration === d
+                ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', color: '#fff', boxShadow: '0 0 16px rgba(124,92,252,.4)' }
+                : { background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.5)' }}>
+              {d}일
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm text-white/40 mb-3 flex items-center gap-1.5"><Users className="w-4 h-4" /> 인원</p>
+        <div className="flex flex-wrap gap-2">
+          {PAX_OPTIONS.map(n => (
+            <button key={n} onClick={() => setPax(n)}
+              className="px-5 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.03] active:scale-100"
+              style={pax === n
+                ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', color: '#fff', boxShadow: '0 0 16px rgba(124,92,252,.4)' }
+                : { background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.5)' }}>
+              {n}명
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 슬림 광고 카드 */}
+      {slimCards.length > 0 && (
+        <div className="space-y-2 pt-2">
+          {slimCards.map((c, i) => (
+            <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/[0.08] hover:border-white/20 transition-all group"
+              style={{ background: 'rgba(255,255,255,.03)' }}>
+              <span className="text-sm">{c.icon}</span>
+              <span className="text-xs text-white/55 flex-1 group-hover:text-white/80 transition-colors">{c.text}</span>
+              <span className="text-[11px] font-bold text-[#7C5CFC] shrink-0 group-hover:text-white transition-colors">{c.cta} →</span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button onClick={() => setStep(1)}
+          className="px-5 py-3.5 rounded-2xl border border-white/[0.12] text-white/50 hover:text-white text-sm font-semibold flex items-center gap-1 transition-all">
+          <ChevronLeft className="w-4 h-4" /> 이전
+        </button>
+        <button onClick={() => setStep(3)}
+          className="flex-1 py-3.5 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-100 transition-all"
+          style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+          다음: 플랜 생성 <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── STEP 3: 생성 & 이메일 ──
+  const StepGenerate = () => (
+    <div className="space-y-5">
+      <h2 className="text-lg font-bold text-white">맞춤 플랜을 생성합니다</h2>
+
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <SummaryItem icon={<MapPin className="w-4 h-4" />} label="공항" value={effectiveAirport} />
+        <SummaryItem icon={<ArrowRight className="w-4 h-4" />} label="동선" value={selectedCities.join(' → ')} />
+        <SummaryItem icon={<Calendar className="w-4 h-4" />} label="기간" value={`${duration}일`} />
+        <SummaryItem icon={<Users className="w-4 h-4" />} label="인원" value={`${pax}명`} />
+      </div>
+
+      {/* 1단계: 즉시 생성 */}
+      <button onClick={handleGenerate} disabled={isLoading}
+        className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-100 disabled:opacity-50"
+        style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.4)' }}>
+        <Wand2 className="w-5 h-5" />
+        {isLoading ? 'AI 6개 팀 가동 중...' : '1페이지 미리보기 즉시 생성'}
+      </button>
+
+      {/* 2단계: 이메일 리포트 */}
+      {!emailSent ? (
+        <form onSubmit={handleEmailSubmit} className="space-y-2">
+          <p className="text-xs text-white/40 flex items-center gap-1.5">
+            <Star className="w-3.5 h-3.5 text-[#EA537E]" /> 이메일로 3페이지 VVIP 전체 리포트 무료 발송
+          </p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="이메일 주소 입력"
+                className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/30 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:outline-none focus:border-[#7C5CFC]/60 transition-colors" />
+            </div>
+            <button type="submit" disabled={!email.trim()}
+              className="px-6 py-3.5 rounded-2xl text-sm font-bold text-white shrink-0 disabled:opacity-35 hover:opacity-90 transition-all"
+              style={{ background: 'linear-gradient(135deg,#EA537E,#7C5CFC)' }}>
+              발송
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="flex items-center gap-3 px-5 py-4 rounded-2xl border border-emerald-500/30" style={{ background: 'rgba(16,185,129,.08)' }}>
+          <Shield className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-emerald-300">분석 및 검증 예약 완료!</p>
+            <p className="text-xs text-white/45 mt-0.5">5분 뒤 VVIP 리포트 발송 · 창을 닫으셔도 안전합니다</p>
+          </div>
+        </div>
+      )}
+
+      <button onClick={() => setStep(2)}
+        className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/40 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all">
+        <ChevronLeft className="w-4 h-4" /> 이전 단계로
+      </button>
+    </div>
+  );
+
+  /* ═══════════════════════════════════════════════════════
+     RENDER
+  ═══════════════════════════════════════════════════════ */
+  return (
+    <>
+      {/* ── STEP WIZARD (전체 너비 사용) ── */}
+      <div className="w-full">
+        {/* 스텝 인디케이터 */}
+        <div className="flex items-center justify-center gap-1 mb-8">
+          {STEP_TITLES.map((title, i) => (
+            <div key={i} className="flex items-center">
+              <button
+                onClick={() => {
+                  if (i === 0) setStep(0);
+                  else if (i === 1 && effectiveAirport) setStep(1);
+                  else if (i === 2 && selectedCities.length > 0) setStep(2);
+                  else if (i === 3 && effectiveAirport && selectedCities.length > 0) setStep(3);
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  i === step ? 'text-white' : i < step ? 'text-[#7C5CFC] cursor-pointer hover:text-white' : 'text-white/20 cursor-default'
+                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
+                  i === step ? 'text-white shadow-lg' : i < step ? 'bg-[#7C5CFC]/25 text-[#7C5CFC]' : 'bg-white/[0.06] text-white/20'
+                }`} style={i === step ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 0 12px rgba(124,92,252,.5)' } : {}}>
+                  {i < step ? <Check className="w-3 h-3" /> : i + 1}
+                </span>
+                <span className="hidden sm:inline">{title}</span>
+              </button>
+              {i < STEP_TITLES.length - 1 && (
+                <div className={`w-8 sm:w-12 h-0.5 rounded-full mx-1 ${i < step ? 'bg-[#7C5CFC]/50' : 'bg-white/[0.06]'}`} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* 스텝 콘텐츠 — 최대 너비 제한으로 가독성 유지 */}
+        <div className="max-w-2xl mx-auto">
+          {step === 0 && <StepAirport />}
+          {step === 1 && <StepCities />}
+          {step === 2 && <StepDetails />}
+          {step === 3 && <StepGenerate />}
+        </div>
+      </div>
+
+      {/* ── FLOATING CHAT WIDGET (우하단) ── */}
+      {chatOpen ? (
+        <div className="fixed bottom-4 right-4 z-50 w-[340px] sm:w-[380px] flex flex-col rounded-2xl overflow-hidden border border-white/[0.1] shadow-2xl"
+          style={{ height: 420, background: 'linear-gradient(160deg,#0b0f1e,#150a2e)', boxShadow: '0 8px 40px rgba(0,0,0,.6),0 0 20px rgba(124,92,252,.15)' }}>
 
           {/* header */}
           <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.06] shrink-0">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 0 12px rgba(124,92,252,.5)' }}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
               <Sparkles className="w-3.5 h-3.5 text-white" />
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-white leading-tight truncate">CocoTrip AI 가이드</p>
+            <div className="flex-1">
+              <p className="text-xs font-bold text-white">AI 가이드</p>
               <p className="text-[10px] text-[#7C5CFC]">무엇이든 물어보세요</p>
             </div>
-            <span className="ml-auto flex items-center gap-1 shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] text-white/30">Online</span>
-            </span>
+            <button onClick={() => setChatOpen(false)} className="text-white/30 hover:text-white transition-colors">
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* messages (internal scroll) */}
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#7C5CFC33 transparent' }}>
+          {/* messages */}
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ scrollbarWidth: 'thin' }}>
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[88%] px-3.5 py-2 text-xs leading-relaxed ${
+                <div className={`max-w-[85%] px-3.5 py-2 text-xs leading-relaxed ${
                   m.role === 'user'
                     ? 'rounded-[16px_16px_4px_16px] text-white'
                     : 'rounded-[16px_16px_16px_4px] text-white/85 border border-white/[0.07] bg-white/[0.03]'
@@ -220,238 +460,46 @@ export function WizardForm({ onSubmit, isLoading }: any) {
               </div>
             ))}
             {chatLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl rounded-bl-sm px-3 py-2 flex gap-1.5">
-                  {[0, .15, .3].map((d, i) => <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: i % 2 === 0 ? '#7C5CFC' : '#EA537E', animationDelay: `${d}s` }} />)}
-                </div>
-              </div>
+              <div className="flex"><div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl px-3 py-2 flex gap-1.5">
+                {[0,.15,.3].map((d,i) => <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: i%2===0?'#7C5CFC':'#EA537E', animationDelay:`${d}s` }} />)}
+              </div></div>
             )}
             <div ref={chatEndRef} />
           </div>
 
           {/* input */}
-          <div className="px-3 py-2 border-t border-white/[0.06] shrink-0">
-            <form onSubmit={handleChatSend} className="flex gap-1.5">
-              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="질문, 요청사항 입력..."
+          <div className="px-3 py-2.5 border-t border-white/[0.06] shrink-0">
+            <form onSubmit={handleChatSend} className="flex gap-2">
+              <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)}
+                placeholder="질문, 요청사항 입력..."
                 disabled={chatLoading}
                 className="flex-1 bg-white/[0.05] border border-white/[0.08] text-white placeholder-white/25 rounded-full px-4 py-2 text-xs focus:outline-none focus:border-[#7C5CFC]/50 transition-colors" />
               <button type="submit" disabled={!chatInput.trim() || chatLoading}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0 disabled:opacity-35 transition-all"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0 disabled:opacity-35"
                 style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
                 <Send className="w-3.5 h-3.5" />
               </button>
             </form>
           </div>
         </div>
-      </div>
-
-      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          RIGHT COLUMN — Input Widgets
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0">
-
-        {/* ─── 1. 공항 선택 ─── */}
-        <Card label="입국 공항">
-          <div className="relative">
-            <select value={showCustomInput ? '__custom__' : airportCode} onChange={handleAirportChange}
-              className="w-full appearance-none bg-white/[0.05] border border-white/[0.1] text-white rounded-xl pl-4 pr-10 py-2.5 text-sm cursor-pointer focus:outline-none focus:border-[#7C5CFC]/60 transition-colors">
-              <option value="" disabled className="bg-[#0f111a] text-white/50">공항을 선택하세요</option>
-              {AIRPORT_GROUPS.map(g => (
-                <optgroup key={g.label} label={`── ${g.label} ──`} className="bg-[#0f111a]">
-                  {g.airports.map(a => (
-                    <option key={a.code} value={a.code} className="bg-[#0f111a]">{a.code}  {a.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-              <optgroup label="── 기타 ──" className="bg-[#0f111a]">
-                <option value="__custom__" className="bg-[#0f111a]">직접 입력 (기타 공항/항구)</option>
-              </optgroup>
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/35 pointer-events-none" />
-          </div>
-
-          {showCustomInput && (
-            <div className="mt-2 overflow-hidden transition-all" style={{ animation: 'slideDown .2s ease-out' }}>
-              <input type="text" value={customAirport} onChange={e => setCustomAirport(e.target.value)}
-                placeholder="공항 또는 항구명 입력 (예: 청주공항, 군산항)"
-                autoFocus
-                className="w-full bg-white/[0.05] border border-[#7C5CFC]/40 text-white placeholder-white/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/60 transition-colors" />
-            </div>
-          )}
-
-          {/* 공항 픽업 슬림 카드 — 즉시 */}
-          {effectiveAirport && (PICKUP_PRICES[airportCode] || []).length > 0 && (
-            <a href="https://cocotripkr.com/charter" target="_blank" rel="noopener noreferrer"
-              className="mt-2.5 flex items-center gap-3 px-3 py-2 rounded-xl border border-[#7C5CFC]/25 hover:border-[#7C5CFC]/50 transition-all group"
-              style={{ background: 'rgba(124,92,252,.08)' }}>
-              <span className="text-sm">🚐</span>
-              <span className="text-xs text-white/70 flex-1 group-hover:text-white transition-colors">
-                {effectiveAirport} 공항 픽업 · {(PICKUP_PRICES[airportCode] || [])[0]?.price ?? '₩124,800~'} · No Hidden Fee
-              </span>
-              <span className="text-[10px] font-bold text-[#7C5CFC] shrink-0 group-hover:text-white transition-colors">예약 →</span>
-            </a>
-          )}
-        </Card>
-
-        {/* ─── 2. 방문 도시 ─── */}
-        <Card label="방문 도시">
-          <p className="text-[10px] text-white/30 mb-2">클릭 순서 = 동선 번호. 다시 클릭하면 해제.</p>
-          <div className="flex flex-wrap gap-2">
-            {CITIES.map(c => {
-              const idx = selectedCities.indexOf(c.name);
-              const sel = idx >= 0;
-              return (
-                <button key={c.id} onClick={() => toggleCity(c.name)}
-                  className={`relative flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                    sel
-                      ? 'border-[#EA537E]/60 bg-[#EA537E]/15 text-white pr-7'
-                      : 'border-white/10 bg-white/[0.04] text-white/50 hover:border-white/25 hover:text-white'
-                  }`}>
-                  {sel && (
-                    <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
-                      style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', width: 18, height: 18 }}>
-                      {idx + 1}
-                    </span>
-                  )}
-                  <span>{c.name}</span>
-                  <span className="text-[10px] text-white/30 font-normal hidden sm:inline">{c.sub}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 동선 텍스트 */}
-          {selectedCities.length > 0 && (
-            <div className="mt-3 flex items-center gap-1.5 text-sm flex-wrap bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2">
-              <MapPin className="w-3.5 h-3.5 text-[#7C5CFC] shrink-0" />
-              {selectedCities.map((c, i) => (
-                <span key={c} className="flex items-center gap-1">
-                  <span className="font-bold text-white">{c}</span>
-                  {i < selectedCities.length - 1 && <ArrowRight className="w-3 h-3 text-white/25" />}
-                </span>
-              ))}
-              <button onClick={() => setSelectedCities([])} className="ml-auto text-white/25 hover:text-white/60 transition-colors">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </Card>
-
-        {/* ─── 3. 기간 & 인원 ─── */}
-        <Card label="기간 & 인원">
-          <div className="grid grid-cols-2 gap-5">
-            <div>
-              <p className="text-[10px] text-white/30 mb-2 flex items-center gap-1"><Calendar className="w-3 h-3" /> 여행 기간</p>
-              <div className="flex flex-wrap gap-1.5">
-                {DURATIONS.map(d => (
-                  <Chip key={d} selected={duration === d} onClick={() => setDuration(d)}>{d}일</Chip>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-[10px] text-white/30 mb-2 flex items-center gap-1"><Users className="w-3 h-3" /> 인원</p>
-              <div className="flex flex-wrap gap-1.5">
-                {PAX_OPTIONS.map(n => (
-                  <Chip key={n} selected={pax === n} onClick={() => setPax(n)}>{n}명</Chip>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* ─── 4. 슬림 광고 카드 ─── */}
-        {selectedCities.length > 0 && slimCards.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            {slimCards.map((c, i) => (
-              <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-3 px-3.5 py-2 rounded-xl border border-white/[0.07] hover:border-white/15 transition-all group"
-                style={{ background: 'rgba(255,255,255,.02)' }}>
-                <span className="text-sm shrink-0">{c.icon}</span>
-                <span className="text-xs text-white/55 flex-1 group-hover:text-white/80 transition-colors truncate">{c.text}</span>
-                <span className="text-[10px] font-bold text-[#7C5CFC] shrink-0 whitespace-nowrap group-hover:text-white transition-colors">{c.cta} →</span>
-              </a>
-            ))}
-          </div>
-        )}
-
-        {/* ─── 5. 바텀 액션바 ─── */}
-        {ready && (
-          <div className="rounded-2xl border border-[#7C5CFC]/30 overflow-hidden"
-            style={{ background: 'linear-gradient(160deg,rgba(124,92,252,.1),rgba(234,83,126,.07))', boxShadow: '0 0 28px rgba(124,92,252,.12)' }}>
-
-            {/* 요약 */}
-            <div className="px-4 py-2.5 border-b border-white/[0.05] flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/45">
-              <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-[#7C5CFC]" />{effectiveAirport}</span>
-              <span className="text-white/15">|</span>
-              <span>{selectedCities.join(' → ')}</span>
-              <span className="text-white/15">|</span>
-              <span>{duration}일 · {pax}명</span>
-            </div>
-
-            <div className="p-4 space-y-3">
-              {/* 생성 버튼 */}
-              <button onClick={handleGenerate} disabled={isLoading}
-                className="w-full py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.015] active:scale-100 disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 24px rgba(124,92,252,.4)' }}>
-                <Wand2 className="w-4 h-4" />
-                {isLoading ? 'AI 플랜 생성 중...' : '1페이지 미리보기 즉시 생성'}
-              </button>
-
-              {/* 이메일 */}
-              {!emailSent ? (
-                <form onSubmit={handleEmailSubmit} className="flex gap-2 items-center">
-                  <div className="relative flex-1">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25" />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="이메일로 3p VVIP 리포트 무료 발송"
-                      className="w-full bg-white/[0.05] border border-white/[0.1] text-white placeholder-white/25 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/50 transition-colors" />
-                  </div>
-                  <button type="submit" disabled={!email.trim()}
-                    className="px-4 py-2.5 rounded-xl text-sm font-bold text-white shrink-0 disabled:opacity-35 hover:opacity-90 transition-all"
-                    style={{ background: 'linear-gradient(135deg,#EA537E,#7C5CFC)' }}>
-                    발송
-                  </button>
-                </form>
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-emerald-500/25" style={{ background: 'rgba(16,185,129,.07)' }}>
-                  <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-emerald-300">분석 및 검증 예약 완료!</p>
-                    <p className="text-[10px] text-white/40 mt-0.5">5분 뒤 VVIP 리포트 발송 · 창을 닫으셔도 안전합니다</p>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-[9px] text-white/20 text-center leading-relaxed">
-                <Star className="w-2.5 h-2.5 inline text-[#EA537E]/40" /> 제휴 링크를 통한 구매 시 CocoTrip에 소정의 수수료가 지급됩니다. 고객 가격에는 영향 없음.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      ) : (
+        /* 채팅 버블 버튼 */
+        <button onClick={() => setChatOpen(true)}
+          className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 active:scale-100 shadow-2xl"
+          style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 24px rgba(124,92,252,.5)' }}>
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
+    </>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Sub-components
-   ═══════════════════════════════════════════════════════════ */
-function Card({ label, children }: { label: string; children: React.ReactNode }) {
+/* ── Summary Item ── */
+function SummaryItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] p-4" style={{ background: 'linear-gradient(160deg,rgba(11,15,30,.97),rgba(21,10,46,.97))' }}>
-      <p className="text-[10px] font-bold text-white/30 uppercase tracking-[.15em] mb-3">{label}</p>
-      {children}
+    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
+      <span className="flex items-center gap-1 text-[10px] text-white/35 mb-1">{icon} {label}</span>
+      <p className="text-sm font-bold text-white truncate">{value}</p>
     </div>
-  );
-}
-
-function Chip({ children, selected, onClick }: { children: React.ReactNode; selected: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all"
-      style={selected
-        ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', color: '#fff' }
-        : { background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', color: 'rgba(255,255,255,.45)' }}>
-      {children}
-    </button>
   );
 }
