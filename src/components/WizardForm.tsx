@@ -126,7 +126,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   /* ═══════════════════════════════════════════════════════
      STEP 0: 공항 드롭다운
   ═══════════════════════════════════════════════════════ */
-  const StepAirport = () => (
+  const renderStepAirport = () => (
     <div className="space-y-4">
       <h2 className="text-lg font-bold text-white">{p.wizardAirportTitle}</h2>
       <p className="text-sm text-white/40">{p.wizardAirportHint}</p>
@@ -177,7 +177,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   /* ═══════════════════════════════════════════════════════
      STEP 1: 도시 + 카테고리 + 자유입력
   ═══════════════════════════════════════════════════════ */
-  const StepCities = () => (
+  const renderStepCities = () => (
     <div className="space-y-6">
       <h2 className="text-lg font-bold text-white">{p.wizardTitle}</h2>
 
@@ -291,7 +291,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   /* ═══════════════════════════════════════════════════════
      STEP 2: 캘린더 날짜 + 인원 직접입력
   ═══════════════════════════════════════════════════════ */
-  const StepDetails = () => (
+  const renderStepDetails = () => (
     <div className="space-y-5">
       <h2 className="text-lg font-bold text-white">여행 기간과 인원을 알려주세요</h2>
 
@@ -352,7 +352,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   /* ═══════════════════════════════════════════════════════
      STEP 3: 생성 & 이메일
   ═══════════════════════════════════════════════════════ */
-  const StepGenerate = () => (
+  const renderStepGenerate = () => (
     <div className="space-y-5">
       <h2 className="text-lg font-bold text-white">맞춤 플랜을 생성합니다</h2>
 
@@ -409,10 +409,10 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         </div>
 
         <div className="max-w-2xl mx-auto">
-          {step === 0 && <StepAirport />}
-          {step === 1 && <StepCities />}
-          {step === 2 && <StepDetails />}
-          {step === 3 && <StepGenerate />}
+          {step === 0 && renderStepAirport()}
+          {step === 1 && renderStepCities()}
+          {step === 2 && renderStepDetails()}
+          {step === 3 && renderStepGenerate()}
         </div>
       </div>
 
