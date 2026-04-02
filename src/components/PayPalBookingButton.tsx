@@ -72,7 +72,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     setPromoLoading(true);
     setPromoError(null);
     try {
-      const res = await fetch('/.netlify/functions/applyPromoCode', {
+      const res = await fetch('/api/applyPromoCode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: promoCode, productType, originalPrice: priceKRW }),
@@ -137,7 +137,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       createOrder: () => rateInfo.orderID,
       onApprove: async (data: { orderID: string }) => {
         try {
-          const res = await fetch('/.netlify/functions/capturePaypalOrder', {
+          const res = await fetch('/api/capturePaypalOrder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -196,7 +196,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     setLoading(true);
     buttonsRendered.current = false;
     try {
-      const res = await fetch('/.netlify/functions/createPaypalOrder', {
+      const res = await fetch('/api/createPaypalOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

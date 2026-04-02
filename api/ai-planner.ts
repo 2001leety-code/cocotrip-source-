@@ -1,6 +1,6 @@
 import { Context } from "@netlify/functions";
-import { CocoTripOrchestrator } from "./ai_core/orchestrator";
-import { TripRequest } from "./ai_core/models";
+import { CocoTripOrchestrator } from "./_ai_core/orchestrator";
+import { TripRequest } from "./_ai_core/models";
 
 export default async (req: Request, context: Context) => {
   // CORS 처리
@@ -75,3 +75,43 @@ export default async (req: Request, context: Context) => {
     });
   }
 };
+
+// --- Vercel Native Wrapper ---
+export default async function vercelHandler(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    return res.status(200).end();
+  }
+
+  const event = {
+    httpMethod: req.method,
+    path: req.url.split('?')[0],
+    body: typeof req.body === 'object' ? JSON.stringify(req.body) : (req.body || ''),
+    queryStringParameters: req.query || {},
+    headers: req.headers || {}
+  };
+  
+  try {
+    const result = await originalHandler(event, {});
+    
+    if (result && result.headers) {
+      for (const [key, val] of Object.entries(result.headers)) {
+        res.setHeader(key, val);
+      }
+    }
+    if (result && result.statusCode) {
+      let finalBody = result.body;
+      if (typeof finalBody === 'string') {
+        try { finalBody = JSON.parse(finalBody); } catch(e) {}
+      }
+      return res.status(result.statusCode).json(finalBody);
+    }
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('API Error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+  

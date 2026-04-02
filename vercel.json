@@ -7,27 +7,59 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
       ]
     }
   ],
   "functions": {
-    "api/**/*.js": { "maxDuration": 300 },
-    "api/**/*.ts": { "maxDuration": 300 },
-    "netlify/functions/**/*.ts": { "maxDuration": 300 }
+    "api/**/*.js": {
+      "maxDuration": 300
+    },
+    "api/**/*.ts": {
+      "maxDuration": 300
+    }
   },
   "rewrites": [
-    { "source": "/.netlify/functions/:path*", "destination": "/api/:path*" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/daily-report",       "schedule": "0 22 * * *" },
-    { "path": "/api/traffic-alert",      "schedule": "0 21 * * *" },
-    { "path": "/api/content-generator",  "schedule": "0 23 * * *" },
-    { "path": "/api/competitor-monitor", "schedule": "0 0 * * *"  },
-    { "path": "/api/retarget-scheduler", "schedule": "0 1 * * *"  },
-    { "path": "/api/review-scheduler",   "schedule": "0 2 * * *"  },
-    { "path": "/api/reddit-monitor",     "schedule": "0 5 * * *"  },
-    { "path": "/api/weather-check",      "schedule": "0 9 * * *"  }
+    {
+      "path": "/api/daily-report",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/traffic-alert",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/content-generator",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/competitor-monitor",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/retarget-scheduler",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/review-scheduler",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/reddit-monitor",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/weather-check",
+      "schedule": "0 9 * * *"
+    }
   ]
 }

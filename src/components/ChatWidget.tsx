@@ -139,7 +139,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
           .slice(1)
           .map((m) => ({ role: m.role, text: m.text }));
 
-        const res = await fetch('/.netlify/functions/chat', {
+        const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: trimmed, messages: history, sessionId, language }),

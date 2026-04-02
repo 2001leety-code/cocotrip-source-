@@ -1,6 +1,6 @@
 /**
  * Vercel API Route: AI Chat Extractor
- * Rewrites from /.netlify/functions/ai-chat-extractor
+ * Rewrites from /api/ai-chat-extractor
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 

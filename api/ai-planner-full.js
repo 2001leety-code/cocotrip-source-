@@ -1,6 +1,6 @@
 /**
  * Vercel API Route: AI Planner Full (SSE streaming + email + sheets)
- * Rewrites from /.netlify/functions/ai-planner-full
+ * Rewrites from /api/ai-planner-full
  */
 import { CocoTripOrchestrator } from '../netlify/functions/ai_core/orchestrator.js';
 import nodemailer from 'nodemailer';

@@ -1,6 +1,6 @@
 /**
  * Vercel API Route: AI Planner Quick (1-page preview)
- * Rewrites from /.netlify/functions/ai-planner-quick
+ * Rewrites from /api/ai-planner-quick
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 

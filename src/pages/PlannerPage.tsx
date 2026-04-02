@@ -1260,7 +1260,7 @@ export default function PlannerPage() {
     setErrorMsg(null);
     
     try {
-      const res = await fetch('/.netlify/functions/ai-planner-quick', {
+      const res = await fetch('/api/ai-planner-quick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -1302,7 +1302,7 @@ export default function PlannerPage() {
     
     try {
       const values = lastValues.current;
-      const res = await fetch('/.netlify/functions/ai-planner-full', {
+      const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
