@@ -17,8 +17,6 @@ export interface AgentResult {
   thinkingSummary: string;
   inputTokens: number;
   outputTokens: number;
-  hasError?: boolean;
-  errorMessage?: string;
 }
 
 export interface PipelineResult {

@@ -1,4 +1,4 @@
-import { BaseAgent } from "./BaseAgent.js";
+import { BaseAgent } from "./BaseAgent";
 
 export class PlannerAgent extends BaseAgent {
   constructor(apiKey: string) {

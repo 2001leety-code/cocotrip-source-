@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { AgentResult } from "../models.js";
-import { SYSTEM_PROMPTS, MODEL, MAX_TOKENS } from "../config.js";
+import { AgentResult } from "../models";
+import { SYSTEM_PROMPTS, MODEL, MAX_TOKENS } from "../config";
 
 export class BaseAgent {
   protected genAI: GoogleGenerativeAI;

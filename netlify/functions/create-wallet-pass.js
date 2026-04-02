@@ -1,15 +1,15 @@
 /**
- * CocoTripKR ??Google Wallet ?��????�스 ?�성
+ * CocoTripKR — Google Wallet 디지털 패스 생성
  *
- * Generic Pass (JWT) 방식 ?�용
- * ?�비??계정 private key�?RS256 ?�명 ??pay.google.com/gp/v/save/{jwt} URL 반환
+ * Generic Pass (JWT) 방식 사용
+ * 서비스 계정 private key로 RS256 서명 → pay.google.com/gp/v/save/{jwt} URL 반환
  *
- * CONTEXT: booking-processor.js?�서 ?�출?�는 ?�틸리티 (HTTP handler ?�음)
+ * CONTEXT: booking-processor.js에서 호출되는 유틸리티 (HTTP handler 없음)
  * ENV: GOOGLE_WALLET_ISSUER_ID, GOOGLE_WALLET_CLASS_ID,
  *      GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_KEY
  *
- * NOTE: Google Wallet API ?�전 ?�인 ?�요
- *       GOOGLE_WALLET_ISSUER_ID 미설????null 반환 (graceful skip)
+ * NOTE: Google Wallet API 사전 승인 필요
+ *       GOOGLE_WALLET_ISSUER_ID 미설정 시 null 반환 (graceful skip)
  */
 
 import crypto from 'crypto';
@@ -91,8 +91,9 @@ function buildWalletPassPayload(issuerId, classId, booking) {
 }
 
 /**
- * Google Wallet ?�스 ?�??링크 ?�성
- * @param {object} booking - ?�약 ?�이?? * @returns {Promise<string|null>} "https://pay.google.com/gp/v/save/{jwt}" ?�는 null
+ * Google Wallet 패스 저장 링크 생성
+ * @param {object} booking - 예약 데이터
+ * @returns {Promise<string|null>} "https://pay.google.com/gp/v/save/{jwt}" 또는 null
  */
 export async function createWalletPass(booking) {
   const issuerId  = process.env.GOOGLE_WALLET_ISSUER_ID;
@@ -101,12 +102,12 @@ export async function createWalletPass(booking) {
   const keyBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
 
   if (!issuerId || !classId) {
-    console.log('[create-wallet-pass] ISSUER_ID/CLASS_ID 미설????건너?� (?�인 ???�성??');
+    console.log('[create-wallet-pass] ISSUER_ID/CLASS_ID 미설정 — 건너뜀 (승인 후 활성화)');
     return null;
   }
 
   if (!email || !keyBase64) {
-    console.log('[create-wallet-pass] ?�비??계정 미설????건너?�');
+    console.log('[create-wallet-pass] 서비스 계정 미설정 — 건너뜀');
     return null;
   }
 
@@ -127,10 +128,10 @@ export async function createWalletPass(booking) {
     const jwt = signRS256JWT(header, payload, privateKey);
     const url = `https://pay.google.com/gp/v/save/${jwt}`;
 
-    console.log('[create-wallet-pass] Wallet 링크 ?�성 ?�료');
+    console.log('[create-wallet-pass] Wallet 링크 생성 완료');
     return url;
   } catch (err) {
-    console.error('[create-wallet-pass] ?�류:', err.message);
+    console.error('[create-wallet-pass] 오류:', err.message);
     return null;
   }
 }

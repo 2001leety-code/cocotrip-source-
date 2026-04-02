@@ -1,57 +1,58 @@
 /**
- * CocoTripKR ??경쟁??모니?�링 (?��?�??�수)
+ * CocoTripKR — 경쟁사 모니터링 (스케줄 함수)
  *
- * 매일 ?�전 9:00 KST (= UTC 00:00) ?�행
- * Klook, Viator, GetYourGuide ??경쟁??가�??�캔
- * 가�?변?????�레그램 ?�림
+ * 매일 오전 9:00 KST (= UTC 00:00) 실행
+ * Klook, Viator, GetYourGuide 등 경쟁사 가격 스캔
+ * 가격 변동 시 텔레그램 알림
  *
- * CONTEXT: CocoTripKR 마�????�동?? * SCHEDULE: 0 0 * * * (UTC) = 매일 KST 09:00
+ * CONTEXT: CocoTripKR 마케팅 자동화
+ * SCHEDULE: 0 0 * * * (UTC) = 매일 KST 09:00
  */
 
-// import { schedule } from '@netlify/functions'; // DISABLED
+import { schedule } from '@netlify/functions';
 import { sendLongMessage, sendErrorAlert } from './telegram.js';
 
-// ?�?� 경쟁??URL 목록 (공개 ?�이지 ?�크?�핑) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+// ── 경쟁사 URL 목록 (공개 페이지 스크래핑) ─────────────────────────
 const COMPETITORS = [
   {
     name: 'Klook',
-    category: '?�천공항 ?�업',
+    category: '인천공항 픽업',
     url: 'https://www.klook.com/ko/activity/6095-incheon-airport-transfer-seoul/',
     priceSelector: 'price',
     lastKnownPrice: 45000, // KRW
   },
   {
     name: 'Klook',
-    category: '?�울 ?�티?�어',
+    category: '서울 시티투어',
     url: 'https://www.klook.com/ko/activity/1425-seoul-city-tour/',
     priceSelector: 'price',
     lastKnownPrice: 89000,
   },
   {
     name: 'Viator',
-    category: '?�울 ?�라?�빗 ?�어',
+    category: '서울 프라이빗 투어',
     url: 'https://www.viator.com/Seoul-tours/Private-Tours/d973-g13-c118',
     priceSelector: 'price',
     lastKnownPrice: 150, // USD
   },
   {
     name: 'GetYourGuide',
-    category: '?�국 ?�라?�빗 ?�어',
+    category: '한국 프라이빗 투어',
     url: 'https://www.getyourguide.com/seoul-l563/private-tour-tc118/',
     priceSelector: 'price',
     lastKnownPrice: 180, // USD
   },
 ];
 
-// ?�?� 코코?�립 가격표 (비교 기�?) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+// ── 코코트립 가격표 (비교 기준) ──────────────────────────────────────
 const COCOTRIP_PRICES = {
-  '?�천공항 ?�업': { krw: 124800, usd: 90 },
-  '?�울 ?�티?�어': { krw: 291200, usd: 211 },
-  '?�울 ?�라?�빗 ?�어': { krw: 291200, usd: 211 },
-  '?�국 ?�라?�빗 ?�어': { krw: 291200, usd: 211 },
+  '인천공항 픽업': { krw: 124800, usd: 90 },
+  '서울 시티투어': { krw: 291200, usd: 211 },
+  '서울 프라이빗 투어': { krw: 291200, usd: 211 },
+  '한국 프라이빗 투어': { krw: 291200, usd: 211 },
 };
 
-// ?�?� 가�??�크?�핑 (간단???�스??기반) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+// ── 가격 스크래핑 (간단한 텍스트 기반) ───────────────────────────────
 async function scrapePrice(competitor) {
   try {
     const res = await fetch(competitor.url, {
@@ -66,9 +67,9 @@ async function scrapePrice(competitor) {
 
     const html = await res.text();
 
-    // 가�?추출 (?�양???�턴)
+    // 가격 추출 (다양한 패턴)
     const pricePatterns = [
-      /??s*([\d,]+)/,                    // ??5,000
+      /₩\s*([\d,]+)/,                    // ₩45,000
       /KRW\s*([\d,]+)/i,                 // KRW 45000
       /\$\s*([\d,.]+)/,                   // $150.00
       /USD\s*([\d,.]+)/i,                 // USD 150
@@ -85,15 +86,15 @@ async function scrapePrice(competitor) {
       }
     }
 
-    return { ...competitor, currentPrice: null, error: '가�?추출 ?�패' };
+    return { ...competitor, currentPrice: null, error: '가격 추출 실패' };
   } catch (err) {
     return { ...competitor, currentPrice: null, error: err.message };
   }
 }
 
-// ?�?� 메인 ?�들???�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+// ── 메인 핸들러 ──────────────────────────────────────────────────────
 const competitorTask = async () => {
-  console.log('[competitor-monitor] 경쟁??가�??�캔 ?�작');
+  console.log('[competitor-monitor] 경쟁사 가격 스캔 시작');
 
   try {
     const results = await Promise.allSettled(
@@ -116,7 +117,7 @@ const competitorTask = async () => {
           priceChanges.push({
             ...item,
             changePct,
-            direction: changePct > 0 ? '?�� ?�상' : '?�� ?�하',
+            direction: changePct > 0 ? '📈 인상' : '📉 인하',
           });
         }
       }
@@ -132,42 +133,40 @@ const competitorTask = async () => {
       }
     }
 
-    // ?�레그램 보고
-    let msg = `?�� <b>경쟁??가�?모니?�링 리포??/b>\n?�━?�━?�━?�━?�━?�━?�━?�━?�━\n\n`;
+    // 텔레그램 보고
+    let msg = `📊 <b>경쟁사 가격 모니터링 리포트</b>\n━━━━━━━━━━━━━━━━━━\n\n`;
 
     if (priceChanges.length > 0) {
-      msg += `?�️ <b>가�?변??감�?!</b>\n`;
+      msg += `⚠️ <b>가격 변동 감지!</b>\n`;
       for (const pc of priceChanges) {
-        msg += `${pc.direction} ${pc.name} (${pc.category}): ${pc.lastKnownPrice} ??${pc.currentPrice} (${pc.changePct}%)\n`;
+        msg += `${pc.direction} ${pc.name} (${pc.category}): ${pc.lastKnownPrice} → ${pc.currentPrice} (${pc.changePct}%)\n`;
       }
       msg += '\n';
     } else {
-      msg += `??주요 가�?변???�음\n\n`;
+      msg += `✅ 주요 가격 변동 없음\n\n`;
     }
 
-    msg += `?�� <b>경쟁??비교??/b>\n`;
+    msg += `📋 <b>경쟁사 비교표</b>\n`;
     for (const comp of comparisons) {
       const diff = comp.cocotripPrice - comp.competitorPrice;
-      const status = diff > 0 ? '⬆️ ?�리가 비쌈' : diff < 0 ? '⬇️ ?�리가 ?�?? : '?�� ?�일';
-      msg += `??${comp.competitor} ${comp.category}: ${comp.competitorPrice} vs 코코?�립 ${comp.cocotripPrice} ${status}\n`;
+      const status = diff > 0 ? '⬆️ 우리가 비쌈' : diff < 0 ? '⬇️ 우리가 저렴' : '🟰 동일';
+      msg += `• ${comp.competitor} ${comp.category}: ${comp.competitorPrice} vs 코코트립 ${comp.cocotripPrice} ${status}\n`;
     }
 
     const failedCount = scanned.filter(s => s.error).length;
     if (failedCount > 0) {
-      msg += `\n?�️ ${failedCount}�??�이???�캔 ?�패 (차단 ?�는 구조 변�?`;
+      msg += `\n⚠️ ${failedCount}개 사이트 스캔 실패 (차단 또는 구조 변경)`;
     }
 
     await sendLongMessage(msg);
-    console.log('[competitor-monitor] ?�캔 ?�료');
+    console.log('[competitor-monitor] 스캔 완료');
     return { statusCode: 200, body: `Scanned ${scanned.length} competitors` };
 
   } catch (err) {
-    console.error('[competitor-monitor] ?�류:', err.message);
+    console.error('[competitor-monitor] 오류:', err.message);
     try { await sendErrorAlert('competitor-monitor', err); } catch {}
     return { statusCode: 500, body: err.message };
   }
 };
 
-// DISABLED: 비용 최적?��? ?�해 비활?�화 (2026-04-02)
-// export const handler = schedule('0 0 * * *', competitorTask);
-export const handler = async () => ({ statusCode: 200, body: 'disabled' });
+export const handler = schedule('0 0 * * *', competitorTask);

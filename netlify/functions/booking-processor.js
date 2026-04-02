@@ -1,18 +1,20 @@
 /**
- * CocoTripKR ???ˆì•½ ì²˜ë¦¬ ?¤ì??¤íŠ¸?ˆì´?? * POST /.netlify/functions/booking-processor
+ * CocoTripKR â€” ì˜ˆì•½ ì²˜ë¦¬ ì˜¤ì¼€ìŠ¤íŠ¸ë ˆì´í„°
+ * POST /.netlify/functions/booking-processor
  *
- * capturePaypalOrder ?±ê³µ ???´ë??ìœ¼ë¡??¸ì¶œ?? * ?¤í–‰ ?œì„œ:
- *  1. Google Sheets???ˆì•½ ê¸°ë¡ ì¶”ê?
- *  2. USD/KRW ?˜ìœ¨ ì¡°íšŒ
- *  3. ?ˆì•½ ë²ˆí˜¸ ?ì„± (CT-YYYYMMDD-?œë²ˆ)
- *  4. Gemini 1?????”ë ˆê·¸ë¨ ?Œë¦¼ ë©”ì‹œì§€ ?ì„±
- *  5. ?”ë ˆê·¸ë¨ ???œì—°???Œë¦¼ ?„ì†¡
- *  6. Gemini 2?????•ì¸ ?´ë©”??+ ë°”ìš°ì²??ìŠ¤???ì„±
- *  7. Gmail ??ê³ ê° ?•ì¸ ?´ë©”??ë°œì†¡
- *  8. Google Sheets ?íƒœ ??'?•ì •' ?…ë°?´íŠ¸
+ * capturePaypalOrder ì„±ê³µ í›„ ë‚´ë¶€ì ìœ¼ë¡œ í˜¸ì¶œë¨
+ * ì‹¤í–‰ ìˆœì„œ:
+ *  1. Google Sheetsì— ì˜ˆì•½ ê¸°ë¡ ì¶”ê°€
+ *  2. USD/KRW í™˜ìœ¨ ì¡°íšŒ
+ *  3. ì˜ˆì•½ ë²ˆí˜¸ ìƒì„± (CT-YYYYMMDD-ìˆœë²ˆ)
+ *  4. Gemini 1í˜¸ â†’ í…”ë ˆê·¸ë¨ ì•Œë¦¼ ë©”ì‹œì§€ ìƒì„±
+ *  5. í…”ë ˆê·¸ë¨ â†’ íƒœì—°ë‹˜ ì•Œë¦¼ ì „ì†¡
+ *  6. Gemini 2í˜¸ â†’ í™•ì¸ ì´ë©”ì¼ + ë°”ìš°ì²˜ í…ìŠ¤íŠ¸ ìƒì„±
+ *  7. Gmail â†’ ê³ ê° í™•ì¸ ì´ë©”ì¼ ë°œì†¡
+ *  8. Google Sheets ìƒíƒœ â†’ 'í™•ì •' ì—…ë°ì´íŠ¸
  *
- * CONTEXT: CocoTripKR ?ë™??ë©”ì¸ ?¨ìˆ˜
- * ENV: ëª¨ë“  ê´€???˜ê²½ë³€???„ìš”
+ * CONTEXT: CocoTripKR ìë™í™” ë©”ì¸ í•¨ìˆ˜
+ * ENV: ëª¨ë“  ê´€ë ¨ í™˜ê²½ë³€ìˆ˜ í•„ìš”
  */
 
 import { appendBooking, updateBookingStatus } from './google-sheets.js';
@@ -37,7 +39,7 @@ function respond(statusCode, body) {
   return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
 
-// ?€?€ ?ˆì•½ ë²ˆí˜¸ ?ì„± (CT-YYYYMMDD-?œë²ˆ) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+// â”€â”€ ì˜ˆì•½ ë²ˆí˜¸ ìƒì„± (CT-YYYYMMDD-ìˆœë²ˆ) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function generateBookingRef() {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -46,7 +48,7 @@ function generateBookingRef() {
   return `CT-${dateStr}-${seq}`;
 }
 
-// ?€?€ ?˜ìœ¨ ì¡°íšŒ (exchangerate-api.com ë¬´ë£Œ ?Œëœ) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+// â”€â”€ í™˜ìœ¨ ì¡°íšŒ (exchangerate-api.com ë¬´ë£Œ í”Œëœ) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function getUSDKRWRate() {
   try {
     const res = await fetch(
@@ -56,20 +58,20 @@ async function getUSDKRWRate() {
     const data = await res.json();
     return data.rates?.KRW || 1380;
   } catch {
-    return 1380; // ê¸°ë³¸ ?˜ìœ¨ fallback
+    return 1380; // ê¸°ë³¸ í™˜ìœ¨ fallback
   }
 }
 
-// ?€?€ ê³ ê° ?¸ì–´ ê°ì? (ê°„ë‹¨ ?´ë¦¬?¤í‹±) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+// â”€â”€ ê³ ê° ì–¸ì–´ ê°ì§€ (ê°„ë‹¨ íœ´ë¦¬ìŠ¤í‹±) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function detectLanguage(email = '', name = '') {
-  // ?´ë©”???„ë©”?¸ìœ¼ë¡??€??ì¶”ì •
+  // ì´ë©”ì¼ ë„ë©”ì¸ìœ¼ë¡œ ëŒ€ëµ ì¶”ì •
   if (email.endsWith('.jp') || /[\u3040-\u30FF]/.test(name)) return 'ja';
   if (email.endsWith('.cn') || /[\u4E00-\u9FFF]/.test(name)) return 'zh';
   if (/[\uAC00-\uD7AF]/.test(name)) return 'ko';
   return 'en';
 }
 
-// ?€?€ ë©”ì¸ ?¸ë“¤???€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+// â”€â”€ ë©”ì¸ í•¸ë“¤ëŸ¬ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -86,7 +88,7 @@ export const handler = async (event) => {
     payerEmail,
     payerName,
     amount,     // USD amount string
-    // ?ˆì•½ ?ì„¸ ?•ë³´ (?„ë¡ ?¸ì—???¨ê»˜ ?„ë‹¬)
+    // ì˜ˆì•½ ìƒì„¸ ì •ë³´ (í”„ë¡ íŠ¸ì—ì„œ í•¨ê»˜ ì „ë‹¬)
     product,
     tourDate,
     pickupLocation,
@@ -100,22 +102,22 @@ export const handler = async (event) => {
   } = body;
 
   if (!orderID || !payerEmail) {
-    return respond(400, { error: 'orderID?€ payerEmail?€ ?„ìˆ˜?…ë‹ˆ??' });
+    return respond(400, { error: 'orderIDì™€ payerEmailì€ í•„ìˆ˜ì…ë‹ˆë‹¤.' });
   }
 
-  console.log('[booking-processor] ?ˆì•½ ì²˜ë¦¬ ?œì‘:', { orderID, payerEmail, amount });
+  console.log('[booking-processor] ì˜ˆì•½ ì²˜ë¦¬ ì‹œì‘:', { orderID, payerEmail, amount });
 
   const bookingRef = generateBookingRef();
   let exchangeRate = 1380;
   let amountKRW = 0;
 
-  // ?€?€ Step 1: ?˜ìœ¨ ì¡°íšŒ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ Step 1: í™˜ìœ¨ ì¡°íšŒ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     exchangeRate = await getUSDKRWRate();
     amountKRW = Math.round(parseFloat(amount || 0) * exchangeRate);
-    console.log('[booking-processor] ?˜ìœ¨:', exchangeRate, '??KRW:', amountKRW);
+    console.log('[booking-processor] í™˜ìœ¨:', exchangeRate, 'â†’ KRW:', amountKRW);
   } catch (err) {
-    console.warn('[booking-processor] ?˜ìœ¨ ì¡°íšŒ ?¤íŒ¨, ê¸°ë³¸ê°??¬ìš©:', err.message);
+    console.warn('[booking-processor] í™˜ìœ¨ ì¡°íšŒ ì‹¤íŒ¨, ê¸°ë³¸ê°’ ì‚¬ìš©:', err.message);
   }
 
   const booking = {
@@ -124,107 +126,112 @@ export const handler = async (event) => {
     customerName: payerName || 'Guest',
     customerEmail: payerEmail,
     customerPhone: customerPhone || '',
-    product: product || 'ì½”ì½”?¸ë¦½ ?œë¹„??,
+    product: product || 'ì½”ì½”íŠ¸ë¦½ ì„œë¹„ìŠ¤',
     tourDate: tourDate || 'ë¯¸ì •',
     pickupLocation: pickupLocation || '',
     dropoffLocation: dropoffLocation || '',
     paxCount: paxCount || 1,
-    vehicleType: vehicleType || '?¤í?ë¦¬ì•„',
+    vehicleType: vehicleType || 'ìŠ¤íƒ€ë¦¬ì•„',
     amountUSD: parseFloat(amount || 0).toFixed(2),
     amountKRW,
     exchangeRate,
-    couponApplied: couponApplied || '?†ìŒ',
+    couponApplied: couponApplied || 'ì—†ìŒ',
     memo: memo || '',
   };
 
   const language = detectLanguage(payerEmail, payerName);
   const results = { bookingRef, steps: {} };
 
-  // ?€?€ Step 2: Google Sheets ?ˆì•½ ê¸°ë¡ ì¶”ê? ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ Step 2: Google Sheets ì˜ˆì•½ ê¸°ë¡ ì¶”ê°€ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     await appendBooking(booking);
     results.steps.sheets = 'ok';
-    console.log('[booking-processor] Sheets ê¸°ë¡ ?„ë£Œ');
+    console.log('[booking-processor] Sheets ê¸°ë¡ ì™„ë£Œ');
   } catch (err) {
     results.steps.sheets = `error: ${err.message}`;
-    console.error('[booking-processor] Sheets ê¸°ë¡ ?¤íŒ¨:', err.message);
-    // ë¹„ì¹˜ëª…ì  ?¤ë¥˜ ??ê³„ì† ì§„í–‰
+    console.error('[booking-processor] Sheets ê¸°ë¡ ì‹¤íŒ¨:', err.message);
+    // ë¹„ì¹˜ëª…ì  ì˜¤ë¥˜ â€” ê³„ì† ì§„í–‰
   }
 
-  // ?€?€ Step 3: ?”ë ˆê·¸ë¨ ?Œë¦¼ ?„ì†¡ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ Step 3: í…”ë ˆê·¸ë¨ ì•Œë¦¼ ì „ì†¡ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
+    // Geminië¡œ ì•Œë¦¼ ë©”ì‹œì§€ ìƒì„± ì‹œë„, ì‹¤íŒ¨ ì‹œ ê¸°ë³¸ í˜•ì‹ ì‚¬ìš©
     let telegramMsg;
     try {
       telegramMsg = await generateBookingAlert(booking);
     } catch (aiErr) {
-      console.warn('[booking-processor] AI ?Œë¦¼ ?ì„± ?¤íŒ¨, ê¸°ë³¸ ?•ì‹ ?¬ìš©:', aiErr.message);
+      console.warn('[booking-processor] AI ì•Œë¦¼ ìƒì„± ì‹¤íŒ¨, ê¸°ë³¸ í˜•ì‹ ì‚¬ìš©:', aiErr.message);
       telegramMsg = null;
     }
+
     if (telegramMsg) {
       await sendMessage(telegramMsg);
     } else {
       await sendBookingAlert(booking);
     }
     results.steps.telegram = 'ok';
-    console.log('[booking-processor] ?”ë ˆê·¸ë¨ ?Œë¦¼ ?„ì†¡ ?„ë£Œ');
+    console.log('[booking-processor] í…”ë ˆê·¸ë¨ ì•Œë¦¼ ì „ì†¡ ì™„ë£Œ');
   } catch (err) {
     results.steps.telegram = `error: ${err.message}`;
-    console.error('[booking-processor] ?”ë ˆê·¸ë¨ ?„ì†¡ ?¤íŒ¨:', err.message);
+    console.error('[booking-processor] í…”ë ˆê·¸ë¨ ì „ì†¡ ì‹¤íŒ¨:', err.message);
   }
 
-  // ?€?€ Step 4: PDF ë°”ìš°ì²??ì„± ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ Step 4: PDF ë°”ìš°ì²˜ ìƒì„± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let pdfBuffer = null;
   try {
     pdfBuffer = await generateVoucherPDF(booking);
     results.steps.pdf = 'ok';
-    console.log('[booking-processor] PDF ë°”ìš°ì²??ì„± ?„ë£Œ, ?¬ê¸°:', pdfBuffer.length, 'bytes');
+    console.log('[booking-processor] PDF ë°”ìš°ì²˜ ìƒì„± ì™„ë£Œ, í¬ê¸°:', pdfBuffer.length, 'bytes');
   } catch (err) {
     results.steps.pdf = `error: ${err.message}`;
-    console.error('[booking-processor] PDF ?ì„± ?¤íŒ¨ (ê³„ì† ì§„í–‰):', err.message);
+    console.error('[booking-processor] PDF ìƒì„± ì‹¤íŒ¨ (ê³„ì† ì§„í–‰):', err.message);
   }
 
-  // ?€?€ Step 5: Google Wallet ?¨ìŠ¤ ?ì„± (?¹ì¸ ?„ë£Œ ???œì„±?? ?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ Step 5: Google Wallet íŒ¨ìŠ¤ ìƒì„± (ìŠ¹ì¸ ì™„ë£Œ í›„ í™œì„±í™”) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let walletUrl = null;
   try {
     walletUrl = await createWalletPass(booking);
     results.steps.wallet = walletUrl ? 'ok' : 'skipped (credentials not set)';
-    if (walletUrl) console.log('[booking-processor] Google Wallet ë§í¬ ?ì„± ?„ë£Œ');
+    if (walletUrl) console.log('[booking-processor] Google Wallet ë§í¬ ìƒì„± ì™„ë£Œ');
   } catch (err) {
     results.steps.wallet = `error: ${err.message}`;
-    console.error('[booking-processor] Wallet ?ì„± ?¤íŒ¨ (ê³„ì† ì§„í–‰):', err.message);
+    console.error('[booking-processor] Wallet ìƒì„± ì‹¤íŒ¨ (ê³„ì† ì§„í–‰):', err.message);
   }
 
-  // ?€?€ Step 6: ê³ ê° ?•ì¸ ?´ë©”??ë°œì†¡ (PDF ì²¨ë? + Wallet ë§í¬) ?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ Step 6: ê³ ê° í™•ì¸ ì´ë©”ì¼ ë°œì†¡ (PDF ì²¨ë¶€ + Wallet ë§í¬) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     let emailContent;
     let voucherText = '';
+
+    // Geminië¡œ ì´ë©”ì¼ + ë°”ìš°ì²˜ ìƒì„± ì‹œë„
     try {
       [emailContent, voucherText] = await Promise.all([
         generateConfirmationEmail(booking, language),
         generateVoucherText(booking),
       ]);
     } catch (aiErr) {
-      console.warn('[booking-processor] AI ?´ë©”???ì„± ?¤íŒ¨, ê¸°ë³¸ ?œí”Œë¦??¬ìš©:', aiErr.message);
+      console.warn('[booking-processor] AI ì´ë©”ì¼ ìƒì„± ì‹¤íŒ¨, ê¸°ë³¸ í…œí”Œë¦¿ ì‚¬ìš©:', aiErr.message);
       emailContent = buildDefaultConfirmationEmail(booking, walletUrl, itineraryData);
     }
+
     await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
     results.steps.email = 'ok';
-    console.log('[booking-processor] ê³ ê° ?´ë©”??ë°œì†¡ ?„ë£Œ:', payerEmail);
+    console.log('[booking-processor] ê³ ê° ì´ë©”ì¼ ë°œì†¡ ì™„ë£Œ:', payerEmail);
   } catch (err) {
     results.steps.email = `error: ${err.message}`;
-    console.error('[booking-processor] ?´ë©”??ë°œì†¡ ?¤íŒ¨:', err.message);
+    console.error('[booking-processor] ì´ë©”ì¼ ë°œì†¡ ì‹¤íŒ¨:', err.message);
   }
 
-  // ?€?€ Step 7: Google Sheets ?íƒœ '?•ì •'?¼ë¡œ ?…ë°?´íŠ¸ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ Step 7: Google Sheets ìƒíƒœ 'í™•ì •'ìœ¼ë¡œ ì—…ë°ì´íŠ¸ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
-    await updateBookingStatus(orderID, '?•ì •');
+    await updateBookingStatus(orderID, 'í™•ì •');
     results.steps.sheetsUpdate = 'ok';
   } catch (err) {
     results.steps.sheetsUpdate = `error: ${err.message}`;
-    console.error('[booking-processor] ?íƒœ ?…ë°?´íŠ¸ ?¤íŒ¨:', err.message);
+    console.error('[booking-processor] ìƒíƒœ ì—…ë°ì´íŠ¸ ì‹¤íŒ¨:', err.message);
   }
 
-  // ?€?€ ?¤ë¥˜ê°€ ?ˆì—ˆ?¤ë©´ ?œì—°?˜ê»˜ ?Œë¦¼ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // â”€â”€ ì˜¤ë¥˜ê°€ ìˆì—ˆë‹¤ë©´ íƒœì—°ë‹˜ê»˜ ì•Œë¦¼ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const failedSteps = Object.entries(results.steps)
     .filter(([, v]) => v.startsWith('error'))
     .map(([k, v]) => `${k}: ${v}`);
@@ -233,12 +240,12 @@ export const handler = async (event) => {
     try {
       await sendErrorAlert(
         'booking-processor',
-        new Error(`?¼ë? ?¨ê³„ ?¤íŒ¨:\n${failedSteps.join('\n')}`)
+        new Error(`ì¼ë¶€ ë‹¨ê³„ ì‹¤íŒ¨:\n${failedSteps.join('\n')}`)
       );
     } catch {}
   }
 
-  console.log('[booking-processor] ?ˆì•½ ì²˜ë¦¬ ?„ë£Œ:', results);
+  console.log('[booking-processor] ì˜ˆì•½ ì²˜ë¦¬ ì™„ë£Œ:', results);
   return respond(200, { success: true, bookingRef, steps: results.steps });
 };
 

@@ -1,34 +1,35 @@
 /**
- * CocoTripKR ???�시�?교통 ?�림 (?��?�??�수)
+ * CocoTripKR — 실시간 교통 알림 (스케줄 함수)
  *
- * 매일 ?�전 6:00 KST (= UTC 21:00 ?�날) ?�행
- * ?�늘 ?�어 1?�간 ??교통 ?�황 ?�인 ??15�??�상 지????고객 ?�동 ?�내
+ * 매일 오전 6:00 KST (= UTC 21:00 전날) 실행
+ * 오늘 투어 1시간 전 교통 상황 확인 → 15분 이상 지연 시 고객 자동 안내
  *
- * Google Maps Routes API ?�??Naver Maps Directions API ?�용 (?��? ??보유)
+ * Google Maps Routes API 대신 Naver Maps Directions API 사용 (이미 키 보유)
  *
- * CONTEXT: CocoTripKR ?�동?? * SCHEDULE: 0 21 * * * (UTC) = 매일 KST 06:00
+ * CONTEXT: CocoTripKR 자동화
+ * SCHEDULE: 0 21 * * * (UTC) = 매일 KST 06:00
  */
 
-// import { schedule } from '@netlify/functions'; // DISABLED
+import { schedule } from '@netlify/functions';
 import { getTodayTours } from './google-sheets.js';
 import { sendMessage, sendErrorAlert } from './telegram.js';
 
-// 지??�� 기본 좌표 (출발지 ???�착지 추정)
+// 지역별 기본 좌표 (출발지 → 도착지 추정)
 const LOCATION_COORDS = {
-  '?�천공항': { lat: 37.4602, lng: 126.4407 },
-  '김?�공??: { lat: 37.5586, lng: 126.7945 },
-  '?�울??: { lat: 37.5547, lng: 126.9707 },
+  '인천공항': { lat: 37.4602, lng: 126.4407 },
+  '김포공항': { lat: 37.5586, lng: 126.7945 },
+  '서울역': { lat: 37.5547, lng: 126.9707 },
   '강남': { lat: 37.4979, lng: 127.0276 },
-  '?��?': { lat: 37.5563, lng: 126.9234 },
+  '홍대': { lat: 37.5563, lng: 126.9234 },
   '명동': { lat: 37.5636, lng: 126.9869 },
-  '?�태??: { lat: 37.5340, lng: 126.9948 },
-  '?�실': { lat: 37.5133, lng: 127.1002 },
-  '가??: { lat: 37.8315, lng: 127.5117 },
-  '?�이??: { lat: 37.7909, lng: 127.5254 },
-  DEFAULT: { lat: 37.5665, lng: 126.9780 }, // ?�울 ?�청
+  '이태원': { lat: 37.5340, lng: 126.9948 },
+  '잠실': { lat: 37.5133, lng: 127.1002 },
+  '가평': { lat: 37.8315, lng: 127.5117 },
+  '남이섬': { lat: 37.7909, lng: 127.5254 },
+  DEFAULT: { lat: 37.5665, lng: 126.9780 }, // 서울 시청
 };
 
-// ?�?� 좌표 추정 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+// ── 좌표 추정 ────────────────────────────────────────────────────────
 function estimateCoords(locationText) {
   const text = (locationText || '').toLowerCase();
   for (const [key, coords] of Object.entries(LOCATION_COORDS)) {
@@ -38,13 +39,13 @@ function estimateCoords(locationText) {
   return LOCATION_COORDS.DEFAULT;
 }
 
-// ?�?� ?�이�?지??경로 조회 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+// ── 네이버 지도 경로 조회 ──────────────────────────────────────────
 async function getRouteInfo(startCoords, endCoords) {
   const clientId = process.env.NAVER_CLIENT_ID;
   const clientSecret = process.env.NAVER_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    // API ??미설????기본 추정�?반환
+    // API 키 미설정 시 기본 추정값 반환
     return {
       durationMin: 45,
       distanceKm: 25,
@@ -74,25 +75,25 @@ async function getRouteInfo(startCoords, endCoords) {
       };
     }
   } catch (err) {
-    console.warn('[traffic-alert] 경로 조회 ?�패:', err.message);
+    console.warn('[traffic-alert] 경로 조회 실패:', err.message);
   }
 
   return { durationMin: 45, distanceKm: 25, trafficStatus: 'unknown', estimated: true };
 }
 
-// ?�?� 메인 ?�들???�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+// ── 메인 핸들러 ──────────────────────────────────────────────────────
 const trafficTask = async () => {
-  console.log('[traffic-alert] 교통 ?�황 ?�인 ?�작');
+  console.log('[traffic-alert] 교통 상황 확인 시작');
 
   try {
     const todayTours = await getTodayTours();
 
     if (todayTours.length === 0) {
-      console.log('[traffic-alert] ?�늘 ?�어 ?�음');
+      console.log('[traffic-alert] 오늘 투어 없음');
       return { statusCode: 200, body: 'No tours today' };
     }
 
-    console.log(`[traffic-alert] ?�늘 ?�어 ${todayTours.length}�?교통 ?�인`);
+    console.log(`[traffic-alert] 오늘 투어 ${todayTours.length}건 교통 확인`);
 
     let alertCount = 0;
 
@@ -107,44 +108,43 @@ const trafficTask = async () => {
 
       const route = await getRouteInfo(startCoords, endCoords);
 
-      // ?�상 ?�요?�간??1.5�??�상?�면 지??경보 (기본 30�?기�? ??45�??�상)
-      const normalDuration = 30; // 기본 ?�상 ?�요?�간 (�?
+      // 정상 소요시간의 1.5배 이상이면 지연 경보 (기본 30분 기준 → 45분 이상)
+      const normalDuration = 30; // 기본 예상 소요시간 (분)
       const isDelayed = route.durationMin > normalDuration * 1.5;
 
       if (isDelayed) {
         alertCount++;
-        const msg = `?�� <b>교통 지??경보!</b>
+        const msg = `🚨 <b>교통 지연 경보!</b>
 
-?�� ?�어: ${product}
-?�� 고객: ${customerName}
-?�� 경로: ${pickup || '미정'} ??${dropoff || '미정'}
+📋 투어: ${product}
+👤 고객: ${customerName}
+📍 경로: ${pickup || '미정'} → ${dropoff || '미정'}
 
-???�상 ?�요?�간: <b>${route.durationMin}�?/b> (?�상 ${normalDuration}�?
-?�� 거리: ${route.distanceKm}km
-?�� 교통: ${route.trafficStatus === 'congested' ? '?�체' : '보통'}
-${route.estimated ? '?�️ (추정�???API 미연??' : '???�시�??�이??}
+⏱ 예상 소요시간: <b>${route.durationMin}분</b> (정상 ${normalDuration}분)
+📏 거리: ${route.distanceKm}km
+🚦 교통: ${route.trafficStatus === 'congested' ? '정체' : '보통'}
+${route.estimated ? '⚠️ (추정값 — API 미연동)' : '✅ 실시간 데이터'}
 
-?�� <b>권장 조치:</b>
-- 고객?�게 ${route.durationMin - normalDuration}�??�찍 출발 ?�내
-- ?��?경로 검??- ?�업 ?�간 조정 고려`;
+💡 <b>권장 조치:</b>
+- 고객에게 ${route.durationMin - normalDuration}분 일찍 출발 안내
+- 대체 경로 검토
+- 픽업 시간 조정 고려`;
 
         await sendMessage(msg);
       }
     }
 
     if (alertCount === 0) {
-      await sendMessage(`?�� <b>?�늘 교통 ?�황 ?�호</b>\n\n?�늘 ?�어 ${todayTours.length}�???모든 경로 ?�상 ?�요?�간 ?�상`);
+      await sendMessage(`🟢 <b>오늘 교통 상황 양호</b>\n\n오늘 투어 ${todayTours.length}건 — 모든 경로 정상 소요시간 예상`);
     }
 
     return { statusCode: 200, body: `Checked ${todayTours.length} tours, ${alertCount} alerts` };
 
   } catch (err) {
-    console.error('[traffic-alert] ?�류:', err.message);
+    console.error('[traffic-alert] 오류:', err.message);
     try { await sendErrorAlert('traffic-alert', err); } catch {}
     return { statusCode: 500, body: err.message };
   }
 };
 
-// DISABLED: 비용 최적?��? ?�해 비활?�화 (2026-04-02)
-// export const handler = schedule('0 21 * * *', trafficTask);
-export const handler = async () => ({ statusCode: 200, body: 'disabled' });
+export const handler = schedule('0 21 * * *', trafficTask);

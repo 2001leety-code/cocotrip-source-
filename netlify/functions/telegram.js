@@ -1,32 +1,33 @@
 /**
- * CocoTripKR ??Telegram Bot ?�림 모듈
+ * CocoTripKR — Telegram Bot 알림 모듈
  *
- * ?�연???�레그램?�로 ?�시�??�림 ?�송
+ * 태연님 텔레그램으로 실시간 알림 전송
  * ENV: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
  *
- * CONTEXT: CocoTripKR ?�동???�틸리티
+ * CONTEXT: CocoTripKR 자동화 유틸리티
  */
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
 /**
- * ?�레그램 메시지 ?�송
- * @param {string} text - 메시지 ?�스?? * @param {object} options - 추�? ?�션
- * @returns {object} API ?�답
+ * 텔레그램 메시지 전송
+ * @param {string} text - 메시지 텍스트
+ * @param {object} options - 추가 옵션
+ * @returns {object} API 응답
  */
 export async function sendMessage(text, options = {}) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!botToken || !chatId) {
-    console.error('[telegram] TELEGRAM_BOT_TOKEN ?�는 TELEGRAM_CHAT_ID 미설??);
-    throw new Error('Telegram ?�경변?��? ?�정?��? ?�았?�니??');
+    console.error('[telegram] TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 미설정');
+    throw new Error('Telegram 환경변수가 설정되지 않았습니다.');
   }
 
   const payload = {
     chat_id: chatId,
     text,
-    parse_mode: options.parseMode || 'HTML',  // HTML ?�싱 (굵게, ?�탤�???
+    parse_mode: options.parseMode || 'HTML',  // HTML 파싱 (굵게, 이탤릭 등)
     disable_web_page_preview: true,
     ...options,
   };
@@ -39,16 +40,16 @@ export async function sendMessage(text, options = {}) {
 
   const data = await res.json();
   if (!data.ok) {
-    console.error('[telegram] ?�송 ?�패:', data);
-    throw new Error(`Telegram ?�송 ?�패: ${data.description}`);
+    console.error('[telegram] 전송 실패:', data);
+    throw new Error(`Telegram 전송 실패: ${data.description}`);
   }
 
-  console.log('[telegram] 메시지 ?�송 ?�공, message_id:', data.result?.message_id);
+  console.log('[telegram] 메시지 전송 성공, message_id:', data.result?.message_id);
   return data;
 }
 
 /**
- * �?메시지�?4096???�위�?분할 ?�송
+ * 긴 메시지를 4096자 단위로 분할 전송
  * @param {string} text
  */
 export async function sendLongMessage(text) {
@@ -62,12 +63,13 @@ export async function sendLongMessage(text) {
   }
   for (const part of parts) {
     await sendMessage(part);
-    // ?�속 메시지 ?�이 짧�? ?�레??    await new Promise((r) => setTimeout(r, 300));
+    // 연속 메시지 사이 짧은 딜레이
+    await new Promise((r) => setTimeout(r, 300));
   }
 }
 
 /**
- * ???�약 ?�림 (빠른 구조??버전 ??Gemini ?�이)
+ * 새 예약 알림 (빠른 구조화 버전 — Gemini 없이)
  * @param {object} booking
  */
 export async function sendBookingAlert(booking) {
@@ -75,57 +77,63 @@ export async function sendBookingAlert(booking) {
   const rate = booking.exchangeRate || 1380;
   const amountKRW = booking.amountKRW || Math.round(parseFloat(booking.amountUSD || 0) * rate);
 
-  const msg = `?�� <b>???�약???�어?�습?�다!</b>
+  const msg = `🔔 <b>새 예약이 들어왔습니다!</b>
 
-?�� <b>?�약 ?�보</b>
-?�━?�━?�━?�━?�━?�━?�━??고객�? ${booking.customerName || '-'}
-?�메?? ${booking.customerEmail || '-'}
-?�품: ${booking.product || '-'}
-?�짜: ${booking.tourDate || '-'}
-?�원: ${booking.paxCount || '-'}�?
-?�� <b>결제 ?�보</b>
-?�━?�━?�━?�━?�━?�━?�━??결제 금액: $${booking.amountUSD || '0'} USD
-?�화 ?�산: ??{amountKRW.toLocaleString()} (?�율 ${rate})
-쿠폰 ?�용: ${booking.couponApplied || '?�음'}
+📋 <b>예약 정보</b>
+━━━━━━━━━━━━━━━
+고객명: ${booking.customerName || '-'}
+이메일: ${booking.customerEmail || '-'}
+상품: ${booking.product || '-'}
+날짜: ${booking.tourDate || '-'}
+인원: ${booking.paxCount || '-'}명
+
+💰 <b>결제 정보</b>
+━━━━━━━━━━━━━━━
+결제 금액: $${booking.amountUSD || '0'} USD
+원화 환산: ₩${amountKRW.toLocaleString()} (환율 ${rate})
+쿠폰 적용: ${booking.couponApplied || '없음'}
 PayPal 거래ID: <code>${booking.transactionId || '-'}</code>
 
-?�� <b>?�음 ?�계</b>
-- 바우�?발송: ?�동 처리??- ?�라?�버 배정: ?�인 ?�요
-- 고객 ?�인 메시지: ?�동 발송??
-??${kst}`;
+📌 <b>다음 단계</b>
+- 바우처 발송: 자동 처리됨
+- 드라이버 배정: 확인 필요
+- 고객 확인 메시지: 자동 발송됨
+
+⏰ ${kst}`;
 
   return sendMessage(msg);
 }
 
 /**
- * ?�러 ?�림
- * @param {string} funcName - ?�수�? * @param {Error} error
+ * 에러 알림
+ * @param {string} funcName - 함수명
+ * @param {Error} error
  */
 export async function sendErrorAlert(funcName, error) {
   const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-  const msg = `?�️ <b>?�동???�류 발생</b>
+  const msg = `⚠️ <b>자동화 오류 발생</b>
 
-?�수: ${funcName}
-?�류: ${error.message}
-?�간: ${kst}
+함수: ${funcName}
+오류: ${error.message}
+시간: ${kst}
 
-?�동 ?�인???�요?�니??`;
+수동 확인이 필요합니다.`;
 
   return sendMessage(msg);
 }
 
 /**
- * ?�씨 ?�상 ?�림
+ * 날씨 정상 알림
  * @param {object} tourInfo
  * @param {object} weather
  */
 export async function sendWeatherOkAlert(tourInfo, weather) {
-  const msg = `?��?<b>?�일 ?�씨 OK</b>
+  const msg = `☀️ <b>내일 날씨 OK</b>
 
-?�어: ${tourInfo.tourName || '-'}
-지?? ${tourInfo.region || '-'}
-?�씨: ${weather.description || '-'} / ${weather.temperature || '-'}°C
-?�이?�항: ?�음`;
+투어: ${tourInfo.tourName || '-'}
+지역: ${tourInfo.region || '-'}
+날씨: ${weather.description || '-'} / ${weather.temperature || '-'}°C
+특이사항: 없음`;
 
   return sendMessage(msg);
 }

@@ -1,6 +1,6 @@
 import axios from "axios";
-import { BaseAgent } from "./BaseAgent.js";
-import { AgentResult } from "../models.js";
+import { BaseAgent } from "./BaseAgent";
+import { AgentResult } from "../models";
 
 export class RouteAgent extends BaseAgent {
   constructor(apiKey: string) {
@@ -142,8 +142,8 @@ export class RouteAgent extends BaseAgent {
     console.log("  - 데이터 검증 및 팩트 교정 완료 (API 호출 대치)");
 
     return {
-      agentName: (this as any).agentKey,
-      systemPrompt: (this as any).systemPrompt,
+      agentName: this.agentKey,
+      systemPrompt: this.systemPrompt,
       userPrompt: userPrompt,
       rawOutput: `\`\`\`json\n${finalJsonStr}\n\`\`\``,
       thinkingSummary: "Naver Maps API 기반 정보 증강 완료 (LLM 생략)",
