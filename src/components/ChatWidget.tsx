@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { Bot, MessageCircle, X, Send } from 'lucide-react';
 import type { Language } from '@/i18n';
 import { useAuth } from '@/hooks/useAuth';
@@ -65,6 +65,10 @@ const LOGIN_CHAT_TEXT: Record<Language, { title: string; desc: string; google: s
   zh: { title: '登录后使用', desc: '登录后即可与AI对话。', google: '使用Google登录', apple: '使用Apple登录', loading: '登录中...' },
 };
 
+const ChatInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>((props, ref) => (
+  <input ref={ref} {...props} />
+));
+
 export function ChatWidget({ language }: ChatWidgetProps) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -119,6 +123,13 @@ export function ChatWidget({ language }: ChatWidgetProps) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
+
+  // Restore focus automatically when loading completes
+  useEffect(() => {
+    if (!loading && open) {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [loading, open]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -463,7 +474,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
               background: 'rgba(0,0,0,0.2)',
             }}
           >
-            <input
+            <ChatInput
               ref={inputRef}
               type="text"
               value={input}
