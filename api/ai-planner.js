@@ -5,7 +5,7 @@
  * Vercel Edge Runtime으로 60초 타임아웃 + SSE 스트리밍
  */
 
-import { CocoTripOrchestrator } from '../netlify/functions/ai_core/orchestrator.js';
+import { CocoTripOrchestrator } from './_ai_core/orchestrator.js';
 
 export const maxDuration = 300; 
 
