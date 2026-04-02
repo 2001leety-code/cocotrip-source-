@@ -1,15 +1,14 @@
 /**
- * CocoTripKR — PayPal 결제 캡처 + 자동화 트리거
- * POST /.netlify/functions/capturePaypalOrder
+ * CocoTripKR ??PayPal 결제 캡처 + ?�동???�리�? * POST /.netlify/functions/capturePaypalOrder
  *
- * 실행 순서:
+ * ?�행 ?�서:
  *  1. PayPal Access Token 발급
- *  2. Order Capture (결제 확정)
- *  3. booking-processor 호출 (비동기 — 고객 대기 없음)
- *  4. 성공 반환
+ *  2. Order Capture (결제 ?�정)
+ *  3. booking-processor ?�출 (비동�???고객 ?��??�음)
+ *  4. ?�공 반환
  *
- * CONTEXT: CocoTripKR 결제 처리 (sandbox → production 시 URL 변경 필요)
- * ENV: PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, URL (Netlify 자동 설정)
+ * CONTEXT: CocoTripKR 결제 처리 (sandbox ??production ??URL 변�??�요)
+ * ENV: PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, URL (Netlify ?�동 ?�정)
  */
 
 import { Buffer } from 'buffer';
@@ -21,8 +20,7 @@ const CORS_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-// TODO: 프로덕션 배포 시 sandbox → live URL로 변경
-// sandbox: https://api-m.sandbox.paypal.com
+// TODO: ?�로?�션 배포 ??sandbox ??live URL�?변�?// sandbox: https://api-m.sandbox.paypal.com
 // live:    https://api-m.paypal.com
 const PAYPAL_BASE_URL = process.env.PAYPAL_MODE === 'live'
   ? 'https://api-m.paypal.com'
@@ -64,7 +62,7 @@ export const handler = async (event) => {
 
   const {
     orderID,
-    // 예약 상세 정보 (프론트에서 함께 전달)
+    // ?�약 ?�세 ?�보 (?�론?�에???�께 ?�달)
     product,
     tourDate,
     pickupLocation,
@@ -77,30 +75,30 @@ export const handler = async (event) => {
     itineraryData,
   } = body;
 
-  console.log('[capturePaypalOrder] 요청 수신:', { orderID, hasItinerary: !!itineraryData });
+  console.log('[capturePaypalOrder] ?�청 ?�신:', { orderID, hasItinerary: !!itineraryData });
   if (!orderID) return respond(400, { error: 'orderID is required' });
 
   const clientId     = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-  console.log('[capturePaypalOrder] 환경변수 확인:', {
-    PAYPAL_CLIENT_ID:     clientId     ? '설정됨 (' + clientId.slice(0, 8) + '...)' : '❌ 미설정',
-    PAYPAL_CLIENT_SECRET: clientSecret ? '설정됨' : '❌ 미설정',
+  console.log('[capturePaypalOrder] ?�경변???�인:', {
+    PAYPAL_CLIENT_ID:     clientId     ? '?�정??(' + clientId.slice(0, 8) + '...)' : '??미설??,
+    PAYPAL_CLIENT_SECRET: clientSecret ? '?�정?? : '??미설??,
     PAYPAL_MODE:          process.env.PAYPAL_MODE || 'sandbox',
   });
 
-  // ── 1. Access Token 발급 ───────────────────────────────────────────
-  console.log('[capturePaypalOrder] 1. PayPal 토큰 발급 시작');
+  // ?�?� 1. Access Token 발급 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+  console.log('[capturePaypalOrder] 1. PayPal ?�큰 발급 ?�작');
   let accessToken;
   try {
     accessToken = await getPaypalAccessToken();
-    console.log('[capturePaypalOrder] PayPal 토큰 발급 성공');
+    console.log('[capturePaypalOrder] PayPal ?�큰 발급 ?�공');
   } catch (err) {
-    console.error('[capturePaypalOrder] PayPal 토큰 발급 실패:', err.message);
+    console.error('[capturePaypalOrder] PayPal ?�큰 발급 ?�패:', err.message);
     return respond(500, { error: `PayPal auth failed: ${err.message}` });
   }
 
-  // ── 2. Order Capture ──────────────────────────────────────────────────
-  console.log('[capturePaypalOrder] 2. Order Capture 시작:', orderID);
+  // ?�?� 2. Order Capture ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+  console.log('[capturePaypalOrder] 2. Order Capture ?�작:', orderID);
   let capture;
   try {
     const res = await fetch(
@@ -114,12 +112,12 @@ export const handler = async (event) => {
       }
     );
     capture = await res.json();
-    console.log('[capturePaypalOrder] Capture 응답:', JSON.stringify({ status: capture.status, id: capture.id }));
+    console.log('[capturePaypalOrder] Capture ?�답:', JSON.stringify({ status: capture.status, id: capture.id }));
     if (capture.status !== 'COMPLETED') {
       throw new Error(`Capture status: ${capture.status ?? 'unknown'}`);
     }
   } catch (err) {
-    console.error('[capturePaypalOrder] Capture 실패:', err.message);
+    console.error('[capturePaypalOrder] Capture ?�패:', err.message);
     return respond(500, { success: false, error: err.message });
   }
 
@@ -127,15 +125,15 @@ export const handler = async (event) => {
   const payerName  = `${capture.payer?.name?.given_name ?? ''} ${capture.payer?.name?.surname ?? ''}`.trim();
   const amount     = capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value ?? '0';
 
-  // ── 3. booking-processor 비동기 호출 (고객 응답 블로킹 없음) ─────────
-  // waitUntil 대신 fetch로 self-invoke (Netlify Functions background 미사용 시)
+  // ?�?� 3. booking-processor 비동�??�출 (고객 ?�답 블로???�음) ?�?�?�?�?�?�?�?�?�
+  // waitUntil ?�??fetch�?self-invoke (Netlify Functions background 미사????
   const siteUrl = process.env.URL || process.env.DEPLOY_URL || 'https://cocotripkr.com';
   const processorPayload = {
     orderID,
     payerEmail,
     payerName,
     amount,
-    // 예약 상세
+    // ?�약 ?�세
     product,
     tourDate,
     pickupLocation,
@@ -148,19 +146,19 @@ export const handler = async (event) => {
     itineraryData,
   };
 
-  // 비동기 실행 (결과를 기다리지 않음 — 고객은 즉시 성공 응답 받음)
+  // 비동�??�행 (결과�?기다리�? ?�음 ??고객?� 즉시 ?�공 ?�답 받음)
   fetch(`${siteUrl}/.netlify/functions/booking-processor`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(processorPayload),
   }).then((res) => {
-    console.log('[capturePaypalOrder] booking-processor 응답:', res.status);
+    console.log('[capturePaypalOrder] booking-processor ?�답:', res.status);
   }).catch((err) => {
-    console.error('[capturePaypalOrder] booking-processor 호출 실패:', err.message);
+    console.error('[capturePaypalOrder] booking-processor ?�출 ?�패:', err.message);
   });
 
-  // ── 4. 고객에게 즉시 성공 반환 ────────────────────────────────────────
-  console.log('[capturePaypalOrder] 4. 성공 반환 (자동화는 백그라운드 실행 중)');
+  // ?�?� 4. 고객?�게 즉시 ?�공 반환 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+  console.log('[capturePaypalOrder] 4. ?�공 반환 (?�동?�는 백그?�운???�행 �?');
   return respond(200, {
     success:    true,
     orderID,
@@ -168,6 +166,6 @@ export const handler = async (event) => {
     payerName,
     amount,
     currency:   'USD',
-    message:    '예약이 확정되었습니다. 확인 이메일을 발송 중입니다.',
+    message:    '?�약???�정?�었?�니?? ?�인 ?�메?�을 발송 중입?�다.',
   });
 };

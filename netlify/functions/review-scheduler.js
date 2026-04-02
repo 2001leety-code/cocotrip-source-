@@ -1,37 +1,37 @@
 /**
- * CocoTripKR — 후기 자동 수집 (스케줄 함수)
+ * CocoTripKR ???�기 ?�동 ?�집 (?��?�??�수)
  *
- * 매일 오전 11:00 KST (= UTC 02:00) 실행
- * 어제 완료된 투어 고객에게 후기 요청 이메일 자동 발송
+ * 매일 ?�전 11:00 KST (= UTC 02:00) ?�행
+ * ?�제 ?�료???�어 고객?�게 ?�기 ?�청 ?�메???�동 발송
  *
- * CONTEXT: CocoTripKR 자동화 스케줄 함수
+ * CONTEXT: CocoTripKR ?�동???��?�??�수
  * SCHEDULE: 0 2 * * * (UTC) = 매일 KST 11:00
  */
 
-import { schedule } from '@netlify/functions';
+// import { schedule } from '@netlify/functions'; // DISABLED
 import { sendReviewRequest } from './send-email.js';
 import { sendMessage, sendErrorAlert } from './telegram.js';
 import { generateReviewRequestEmail } from './ai-employees.js';
 import { getYesterdayBookings } from './google-sheets.js';
 
 const retargetTask = async () => {
-  console.log('[review-scheduler] 후기 수집 스케줄 시작');
+  console.log('[review-scheduler] ?�기 ?�집 ?��?�??�작');
 
   try {
     const yesterdayRows = await getYesterdayBookings();
 
-    // 상태가 '확정' 또는 '완료'인 건만 후기 요청
+    // ?�태가 '?�정' ?�는 '?�료'??건만 ?�기 ?�청
     const completedTours = yesterdayRows.filter(row => {
       const status = row[14] || '';
-      return status === '확정' || status === '완료';
+      return status === '?�정' || status === '?�료';
     });
 
     if (completedTours.length === 0) {
-      console.log('[review-scheduler] 어제 완료 투어 없음');
+      console.log('[review-scheduler] ?�제 ?�료 ?�어 ?�음');
       return { statusCode: 200, body: 'No completed tours' };
     }
 
-    console.log(`[review-scheduler] ${completedTours.length}건 후기 요청 대상`);
+    console.log(`[review-scheduler] ${completedTours.length}�??�기 ?�청 ?�??);
     let sentCount = 0;
 
     for (const row of completedTours) {
@@ -43,7 +43,7 @@ const retargetTask = async () => {
       if (!email) continue;
 
       try {
-        // AI로 개인화된 후기 요청 이메일 생성
+        // AI�?개인?�된 ?�기 ?�청 ?�메???�성
         let emailContent;
         try {
           emailContent = await generateReviewRequestEmail({
@@ -52,31 +52,31 @@ const retargetTask = async () => {
             tourDate,
           });
         } catch (aiErr) {
-          console.warn('[review-scheduler] AI 이메일 생성 실패, 기본 템플릿 사용');
+          console.warn('[review-scheduler] AI ?�메???�성 ?�패, 기본 ?�플�??�용');
           emailContent = buildDefaultReviewEmail(name, product, tourDate);
         }
 
         await sendReviewRequest(email, emailContent);
         sentCount++;
-        console.log(`[review-scheduler] 후기 요청 발송: ${email}`);
+        console.log(`[review-scheduler] ?�기 ?�청 발송: ${email}`);
       } catch (err) {
-        console.error(`[review-scheduler] 발송 실패 (${email}):`, err.message);
+        console.error(`[review-scheduler] 발송 ?�패 (${email}):`, err.message);
       }
     }
 
-    await sendMessage(`⭐ <b>후기 요청 리포트</b>\n\n어제 완료 투어: ${completedTours.length}건\n후기 요청 발송: ${sentCount}건\n\nGoogle 리뷰 + TripAdvisor 유도 포함`);
+    await sendMessage(`�?<b>?�기 ?�청 리포??/b>\n\n?�제 ?�료 ?�어: ${completedTours.length}�?n?�기 ?�청 발송: ${sentCount}�?n\nGoogle 리뷰 + TripAdvisor ?�도 ?�함`);
     return { statusCode: 200, body: `Sent ${sentCount} review requests` };
 
   } catch (err) {
-    console.error('[review-scheduler] 오류:', err.message);
+    console.error('[review-scheduler] ?�류:', err.message);
     try { await sendErrorAlert('review-scheduler', err); } catch {}
     return { statusCode: 500, body: err.message };
   }
 };
 
-// ── 기본 후기 요청 이메일 템플릿 ─────────────────────────────────────
+// ?�?� 기본 ?�기 ?�청 ?�메???�플�??�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 function buildDefaultReviewEmail(name, product, tourDate) {
-  const subject = `How was your tour with CocoTripKR? 🇰🇷`;
+  const subject = `How was your tour with CocoTripKR? ?��?��`;
   const html = `
 <!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f3f4f6;">
@@ -91,26 +91,28 @@ function buildDefaultReviewEmail(name, product, tourDate) {
     <div style="text-align:center;margin:28px 0;">
       <a href="https://g.page/r/CocoTripKR/review" target="_blank"
          style="display:inline-block;background:#7C5CFC;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:14px 32px;border-radius:10px;">
-        ⭐ Leave a Google Review
+        �?Leave a Google Review
       </a>
     </div>
     
     <div style="text-align:center;margin:16px 0;">
       <a href="https://www.tripadvisor.com/UserReview" target="_blank"
          style="display:inline-block;background:#34e0a1;color:#1a1a2e;text-decoration:none;font-weight:bold;font-size:13px;padding:12px 28px;border-radius:10px;">
-        📝 Review on TripAdvisor
+        ?�� Review on TripAdvisor
       </a>
     </div>
     
     <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:24px;">
-      Your review means the world to us! 감사합니다 🙏
+      Your review means the world to us! 감사?�니???��
     </p>
   </div>
 </body></html>`;
 
-  const text = `Hi ${name},\n\nThank you for your ${product} tour on ${tourDate}!\nWe'd love your feedback:\n\nGoogle Review: https://g.page/r/CocoTripKR/review\nTripAdvisor: https://www.tripadvisor.com/UserReview\n\nThank you! — CocoTripKR Team`;
+  const text = `Hi ${name},\n\nThank you for your ${product} tour on ${tourDate}!\nWe'd love your feedback:\n\nGoogle Review: https://g.page/r/CocoTripKR/review\nTripAdvisor: https://www.tripadvisor.com/UserReview\n\nThank you! ??CocoTripKR Team`;
 
   return { subject, html, text };
 }
 
-export const handler = schedule('0 2 * * *', retargetTask);
+// DISABLED: 비용 최적?��? ?�해 비활?�화 (2026-04-02)
+// export const handler = schedule('0 2 * * *', retargetTask);
+export const handler = async () => ({ statusCode: 200, body: 'disabled' });

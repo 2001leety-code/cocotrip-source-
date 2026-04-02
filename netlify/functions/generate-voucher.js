@@ -1,10 +1,10 @@
 /**
- * CocoTripKR â€” PDF ë°”ìš°ì²˜ ìë™ ìƒì„±
+ * CocoTripKR ??PDF ë°”ìš°ì²??ë™ ?ì„±
  *
- * pdfkit + qrcode ì‚¬ìš© (í‘œì¤€ Helvetica í°íŠ¸, íŒŒì¼ ì‹œìŠ¤í…œ ë¶ˆí•„ìš”)
- * booking-processor.jsì—ì„œ í˜¸ì¶œë˜ëŠ” ìœ í‹¸ë¦¬í‹° (HTTP handler ì—†ìŒ)
+ * pdfkit + qrcode ?¬ìš© (?œì? Helvetica ?°íŠ¸, ?Œì¼ ?œìŠ¤??ë¶ˆí•„??
+ * booking-processor.js?ì„œ ?¸ì¶œ?˜ëŠ” ? í‹¸ë¦¬í‹° (HTTP handler ?†ìŒ)
  *
- * CONTEXT: CocoTripKR ìë™í™” ìœ í‹¸ë¦¬í‹°
+ * CONTEXT: CocoTripKR ?ë™??? í‹¸ë¦¬í‹°
  */
 
 import PDFDocument from 'pdfkit';
@@ -20,9 +20,9 @@ function safeText(str = '') {
 }
 
 /**
- * PDF ë°”ìš°ì²˜ ìƒì„±
- * @param {object} booking - ì˜ˆì•½ ë°ì´í„° (booking-processorì˜ booking ê°ì²´)
- * @returns {Promise<Buffer>} PDF ë°”ì´ë„ˆë¦¬ ë²„í¼
+ * PDF ë°”ìš°ì²??ì„±
+ * @param {object} booking - ?ˆì•½ ?°ì´??(booking-processor??booking ê°ì²´)
+ * @returns {Promise<Buffer>} PDF ë°”ì´?ˆë¦¬ ë²„í¼
  */
 export async function generateVoucherPDF(booking) {
   return new Promise(async (resolve, reject) => {
@@ -32,7 +32,7 @@ export async function generateVoucherPDF(booking) {
         size: 'A4',
         margin: 0,
         info: {
-          Title:   `CocoTripKR Voucher â€” ${booking.bookingRef || 'CT'}`,
+          Title:   `CocoTripKR Voucher ??${booking.bookingRef || 'CT'}`,
           Author:  'CocoTripKR',
           Subject: 'Korea Private Tour Voucher',
         },
@@ -44,12 +44,12 @@ export async function generateVoucherPDF(booking) {
 
       const W = doc.page.width;   // 595
       const H = doc.page.height;  // 842
-      const M = 50;               // ì¢Œìš° ì—¬ë°±
+      const M = 50;               // ì¢Œìš° ?¬ë°±
 
-      // â”€â”€ ë°°ê²½ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ë°°ê²½ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       doc.rect(0, 0, W, H).fill('#ffffff');
 
-      // â”€â”€ ìƒë‹¨ í—¤ë” ë°” â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ?ë‹¨ ?¤ë” ë°??€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       doc.rect(0, 0, W, 120).fill(BRAND_DARK);
 
       doc.fillColor(BRAND_GOLD)
@@ -72,7 +72,7 @@ export async function generateVoucherPDF(booking) {
          .fontSize(8)
          .text('cocotripkr.com', W - M - 150, 66, { width: 150, align: 'right' });
 
-      // â”€â”€ ì˜ˆì•½ ë²ˆí˜¸ ë°•ìŠ¤ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ?ˆì•½ ë²ˆí˜¸ ë°•ìŠ¤ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       const refBoxY = 140;
       doc.roundedRect(M, refBoxY, W - M * 2, 66, 8).fill('#eff6ff');
 
@@ -91,7 +91,7 @@ export async function generateVoucherPDF(booking) {
          .fontSize(8)
          .text(`Transaction: ${booking.transactionId || '-'}`, M + 18, refBoxY + 54);
 
-      // â”€â”€ ì˜ˆì•½ ì •ë³´ ì„¹ì…˜ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ?ˆì•½ ?•ë³´ ?¹ì…˜ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       const infoY = 230;
       doc.fillColor(BRAND_DARK)
          .font('Helvetica-Bold')
@@ -128,7 +128,7 @@ export async function generateVoucherPDF(booking) {
         rowY += 24;
       });
 
-      // â”€â”€ ë‹´ë‹¹ ê¸°ì‚¬ ë°•ìŠ¤ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ?´ë‹¹ ê¸°ì‚¬ ë°•ìŠ¤ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       const driverY = rowY + 20;
       doc.roundedRect(M, driverY, W - M * 2, 78, 8).fill('#f0fdf4');
 
@@ -148,10 +148,10 @@ export async function generateVoucherPDF(booking) {
          .text('WhatsApp: +82-10-8714-0611', M + 16, driverY + 46)
          .text('Email: cocotripkr@gmail.com',  M + 16, driverY + 62);
 
-      // â”€â”€ ì£¼ì˜ì‚¬í•­ + QR ì½”ë“œ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ì£¼ì˜?¬í•­ + QR ì½”ë“œ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       const notesY = driverY + 96;
 
-      // ì£¼ì˜ì‚¬í•­ (ì¢Œì¸¡)
+      // ì£¼ì˜?¬í•­ (ì¢Œì¸¡)
       doc.fillColor(BRAND_DARK)
          .font('Helvetica-Bold')
          .fontSize(11)
@@ -160,11 +160,11 @@ export async function generateVoucherPDF(booking) {
       doc.fillColor(TEXT_DARK)
          .font('Helvetica')
          .fontSize(9.5)
-         .text('â€¢ Please be ready 10 minutes before pickup time', M, notesY + 18, { width: 320 })
-         .text('â€¢ Contact driver via WhatsApp if needed',          M, notesY + 35, { width: 320 })
-         .text('â€¢ Driver will hold a sign with your name at hotel lobby', M, notesY + 52, { width: 320 });
+         .text('??Please be ready 10 minutes before pickup time', M, notesY + 18, { width: 320 })
+         .text('??Contact driver via WhatsApp if needed',          M, notesY + 35, { width: 320 })
+         .text('??Driver will hold a sign with your name at hotel lobby', M, notesY + 52, { width: 320 });
 
-      // QR ì½”ë“œ (ìš°ì¸¡)
+      // QR ì½”ë“œ (?°ì¸¡)
       try {
         const qrBuffer = await QRCode.toBuffer('https://cocotripkr.com', {
           type:   'png',
@@ -183,10 +183,10 @@ export async function generateVoucherPDF(booking) {
            .fontSize(7)
            .text('cocotripkr.com', qrX, qrY + 106, { width: 100, align: 'center' });
       } catch (qrErr) {
-        console.warn('[generate-voucher] QR ìƒì„± ì‹¤íŒ¨ (ê³„ì† ì§„í–‰):', qrErr.message);
+        console.warn('[generate-voucher] QR ?ì„± ?¤íŒ¨ (ê³„ì† ì§„í–‰):', qrErr.message);
       }
 
-      // â”€â”€ í•˜ë‹¨ êµ¬ë¶„ì„  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ?˜ë‹¨ êµ¬ë¶„???€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       const footerDivY = H - 70;
       doc.moveTo(M, footerDivY).lineTo(W - M, footerDivY).lineWidth(0.5).stroke('#e5e7eb');
 
@@ -195,7 +195,7 @@ export async function generateVoucherPDF(booking) {
          .fontSize(8)
          .text('This voucher is valid only for the service and date listed above. Non-transferable.', M, footerDivY + 8, { width: W - M * 2, align: 'center' });
 
-      // â”€â”€ í•˜ë‹¨ í‘¸í„° ë°” â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ?€?€ ?˜ë‹¨ ?¸í„° ë°??€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
       doc.rect(0, H - 44, W, 44).fill(BRAND_DARK);
 
       doc.fillColor(BRAND_GOLD)
@@ -206,14 +206,14 @@ export async function generateVoucherPDF(booking) {
       doc.fillColor('#888888')
          .font('Helvetica')
          .fontSize(7.5)
-         .text('cocotripkr.com  â€¢  cocotripkr@gmail.com  â€¢  WhatsApp +82-10-8714-0611', M, H - 18, {
+         .text('cocotripkr.com  ?? cocotripkr@gmail.com  ?? WhatsApp +82-10-8714-0611', M, H - 18, {
            width: W - M * 2,
          });
 
       doc.fillColor(BRAND_GOLD)
          .font('Helvetica-Bold')
          .fontSize(8)
-         .text('CONFIRMED âœ“', W - M - 90, H - 30, { width: 90, align: 'right' });
+         .text('CONFIRMED ??, W - M - 90, H - 30, { width: 90, align: 'right' });
 
       doc.end();
     } catch (err) {

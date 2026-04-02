@@ -1,44 +1,43 @@
 /**
- * CocoTripKR — 투어 전날 날씨 확인 (스케줄 함수)
+ * CocoTripKR ???�어 ?�날 ?�씨 ?�인 (?��?�??�수)
  *
- * 매일 오후 6:00 KST (= UTC 09:00) 실행
- * 내일 투어 예약을 확인하고 날씨 악화 시 대체 코스 제안
+ * 매일 ?�후 6:00 KST (= UTC 09:00) ?�행
+ * ?�일 ?�어 ?�약???�인?�고 ?�씨 ?�화 ???��?코스 ?�안
  *
- * 실행 내용:
- *  1. Google Sheets에서 내일 투어 목록 읽기
- *  2. Open-Meteo API로 각 투어 지역 날씨 조회
- *  3. 악천후 감지 → Gemini 4호 → 대체 코스 생성
- *  4. 텔레그램 → 태연님께 알림
+ * ?�행 ?�용:
+ *  1. Google Sheets?�서 ?�일 ?�어 목록 ?�기
+ *  2. Open-Meteo API�?�??�어 지???�씨 조회
+ *  3. ?�천??감�? ??Gemini 4?????��?코스 ?�성
+ *  4. ?�레그램 ???�연?�께 ?�림
  *
- * CONTEXT: CocoTripKR 자동화 스케줄 함수
+ * CONTEXT: CocoTripKR ?�동???��?�??�수
  * SCHEDULE: 0 9 * * * (UTC) = 매일 KST 18:00
  */
 
-import { schedule } from '@netlify/functions';
+// import { schedule } from '@netlify/functions'; // DISABLED
 import { getTomorrowTours } from './google-sheets.js';
 import { sendMessage, sendWeatherOkAlert, sendErrorAlert } from './telegram.js';
 import { generateWeatherAlert } from './ai-employees.js';
 
-// 지역별 좌표 매핑
+// 지??�� 좌표 매핑
 const REGION_COORDS = {
-  서울:    { lat: 37.5665, lon: 126.9780 },
-  부산:    { lat: 35.1796, lon: 129.0756 },
+  ?�울:    { lat: 37.5665, lon: 126.9780 },
+  부??    { lat: 35.1796, lon: 129.0756 },
   경주:    { lat: 35.8562, lon: 129.2247 },
-  제주:    { lat: 33.4996, lon: 126.5312 },
+  ?�주:    { lat: 33.4996, lon: 126.5312 },
   강릉:    { lat: 37.7519, lon: 128.8761 },
-  평창:    { lat: 37.3707, lon: 128.3906 },
-  전주:    { lat: 35.8200, lon: 127.1088 },
+  ?�창:    { lat: 37.3707, lon: 128.3906 },
+  ?�주:    { lat: 35.8200, lon: 127.1088 },
   춘천:    { lat: 37.8813, lon: 127.7298 },
-  가평:    { lat: 37.8315, lon: 127.5117 },
-  파주:    { lat: 37.7600, lon: 126.7800 },
-  인천:    { lat: 37.4563, lon: 126.7052 },
-  강화도:  { lat: 37.7472, lon: 126.4881 },
-  단양:    { lat: 36.9848, lon: 128.3659 },
+  가??    { lat: 37.8315, lon: 127.5117 },
+  ?�주:    { lat: 37.7600, lon: 126.7800 },
+  ?�천:    { lat: 37.4563, lon: 126.7052 },
+  강화??  { lat: 37.7472, lon: 126.4881 },
+  ?�양:    { lat: 36.9848, lon: 128.3659 },
 };
 
-const DEFAULT_COORDS = { lat: 37.5665, lon: 126.9780 }; // 서울 기본값
-
-// ── 지역 감지 ──────────────────────────────────────────────────────────
+const DEFAULT_COORDS = { lat: 37.5665, lon: 126.9780 }; // ?�울 기본�?
+// ?�?� 지??감�? ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 function detectRegion(tourRow) {
   const product  = (tourRow[4] || '').toLowerCase();
   const pickup   = (tourRow[6] || '').toLowerCase();
@@ -48,10 +47,10 @@ function detectRegion(tourRow) {
   for (const [region, coords] of Object.entries(REGION_COORDS)) {
     if (combined.includes(region)) return { region, coords };
   }
-  return { region: '서울', coords: DEFAULT_COORDS };
+  return { region: '?�울', coords: DEFAULT_COORDS };
 }
 
-// ── Open-Meteo API 날씨 조회 ──────────────────────────────────────────
+// ?�?� Open-Meteo API ?�씨 조회 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 async function getWeatherForecast(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max&timezone=Asia%2FSeoul&forecast_days=2`;
 
@@ -59,8 +58,7 @@ async function getWeatherForecast(lat, lon) {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     const data = await res.json();
 
-    // 내일 (index 1) 날씨 데이터
-    const tomorrowIndex = 1;
+    // ?�일 (index 1) ?�씨 ?�이??    const tomorrowIndex = 1;
     const weatherCode   = data.daily?.weathercode?.[tomorrowIndex] ?? 0;
     const tempMax       = data.daily?.temperature_2m_max?.[tomorrowIndex] ?? 0;
     const tempMin       = data.daily?.temperature_2m_min?.[tomorrowIndex] ?? 0;
@@ -76,52 +74,52 @@ async function getWeatherForecast(lat, lon) {
       isBad: isBadWeather(weatherCode, precipitation, windSpeed),
     };
   } catch (err) {
-    console.warn('[weather-check] 날씨 API 오류:', err.message);
+    console.warn('[weather-check] ?�씨 API ?�류:', err.message);
     return null;
   }
 }
 
-// WMO 날씨 코드 → 설명
+// WMO ?�씨 코드 ???�명
 function weatherCodeToDescription(code) {
-  if (code === 0)           return '맑음 ☀️';
-  if (code <= 3)            return '구름 조금 🌤';
-  if (code <= 49)           return '안개 🌫';
-  if (code <= 59)           return '이슬비 🌦';
-  if (code <= 69)           return '비 🌧';
-  if (code <= 79)           return '눈 🌨';
-  if (code <= 84)           return '소나기 ⛈';
-  if (code <= 99)           return '뇌우 ⛈';
-  return '날씨 확인 중';
+  if (code === 0)           return '맑음 ?��?;
+  if (code <= 3)            return '구름 조금 ?��';
+  if (code <= 49)           return '?�개 ?��';
+  if (code <= 59)           return '?�슬�??��';
+  if (code <= 69)           return '�??��';
+  if (code <= 79)           return '???��';
+  if (code <= 84)           return '?�나�???;
+  if (code <= 99)           return '?�우 ??;
+  return '?�씨 ?�인 �?;
 }
 
-// 악천후 판단
+// ?�천???�단
 function isBadWeather(weatherCode, precipitation, windSpeed) {
   return weatherCode >= 51 || precipitation > 10 || windSpeed > 50;
 }
 
-// ── 메인 핸들러 ──────────────────────────────────────────────────────
+// ?�?� 메인 ?�들???�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 const weatherCheckTask = async () => {
-  console.log('[weather-check] 날씨 확인 시작');
+  console.log('[weather-check] ?�씨 ?�인 ?�작');
 
   try {
     const tomorrowTours = await getTomorrowTours();
 
     if (tomorrowTours.length === 0) {
-      console.log('[weather-check] 내일 투어 없음 — 종료');
+      console.log('[weather-check] ?�일 ?�어 ?�음 ??종료');
       return { statusCode: 200, body: 'No tours tomorrow' };
     }
 
-    console.log(`[weather-check] 내일 투어 ${tomorrowTours.length}건 확인 중`);
+    console.log(`[weather-check] ?�일 ?�어 ${tomorrowTours.length}�??�인 �?);
 
     for (const tourRow of tomorrowTours) {
-      const tourName    = tourRow[4] || '투어';
+      const tourName    = tourRow[4] || '?�어';
       const customerName = tourRow[1] || 'Guest';
       const { region, coords } = detectRegion(tourRow);
 
       const weather = await getWeatherForecast(coords.lat, coords.lon);
 
       if (!weather) {
-        await sendMessage(`⚠️ <b>날씨 확인 실패</b>\n투어: ${tourName} (${customerName})\n지역: ${region}\n수동 확인 필요`);
+        await sendMessage(`?�️ <b>?�씨 ?�인 ?�패</b>\n?�어: ${tourName} (${customerName})\n지?? ${region}\n?�동 ?�인 ?�요`);
         continue;
       }
 
@@ -129,44 +127,44 @@ const weatherCheckTask = async () => {
         tourName,
         customerName,
         region,
-        tourDate: tourRow[5] || '내일',
-        originalItinerary: [tourRow[6], tourRow[7]].filter(Boolean).join(' → '),
+        tourDate: tourRow[5] || '?�일',
+        originalItinerary: [tourRow[6], tourRow[7]].filter(Boolean).join(' ??'),
       };
 
       if (weather.isBad) {
-        console.log('[weather-check] 악천후 감지:', region, weather.description);
+        console.log('[weather-check] ?�천??감�?:', region, weather.description);
 
         let alertMsg;
         try {
           alertMsg = await generateWeatherAlert(tourInfo, weather);
         } catch (aiErr) {
-          console.warn('[weather-check] AI 대체 코스 생성 실패:', aiErr.message);
-          // 기본 형식
-          alertMsg = `🌧 <b>날씨 경보: 내일 악천후 예보!</b>
+          console.warn('[weather-check] AI ?��?코스 ?�성 ?�패:', aiErr.message);
+          // 기본 ?�식
+          alertMsg = `?�� <b>?�씨 경보: ?�일 ?�천???�보!</b>
 
-투어: ${tourName}
+?�어: ${tourName}
 고객: ${customerName}
-지역: ${region}
-예보: ${weather.description} / ${weather.temperature}°C
-강수량: ${weather.precipitation}mm
-풍속: ${weather.windSpeed}km/h
+지?? ${region}
+?�보: ${weather.description} / ${weather.temperature}°C
+강수?? ${weather.precipitation}mm
+?�속: ${weather.windSpeed}km/h
 
-⚠️ 실내 대체 코스 검토 및 고객 안내 필요
-👉 태연님 확인 후 고객에게 통보해주세요`;
+?�️ ?�내 ?��?코스 검??�?고객 ?�내 ?�요
+?�� ?�연???�인 ??고객?�게 ?�보?�주?�요`;
         }
 
         await sendMessage(alertMsg);
       } else {
-        // 날씨 정상
+        // ?�씨 ?�상
         await sendWeatherOkAlert(tourInfo, weather);
       }
     }
 
-    console.log('[weather-check] 날씨 확인 완료');
+    console.log('[weather-check] ?�씨 ?�인 ?�료');
     return { statusCode: 200, body: `Checked ${tomorrowTours.length} tours` };
 
   } catch (err) {
-    console.error('[weather-check] 오류:', err.message);
+    console.error('[weather-check] ?�류:', err.message);
     try {
       await sendErrorAlert('weather-check', err);
     } catch {}
@@ -175,4 +173,6 @@ const weatherCheckTask = async () => {
 };
 
 // Netlify Scheduled Function: 매일 UTC 09:00 (KST 18:00)
-export const handler = schedule('0 9 * * *', weatherCheckTask);
+// DISABLED: 비용 최적?��? ?�해 비활?�화 (2026-04-02)
+// export const handler = schedule('0 9 * * *', weatherCheckTask);
+export const handler = async () => ({ statusCode: 200, body: 'disabled' });

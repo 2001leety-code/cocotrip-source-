@@ -14,7 +14,7 @@ const CORS_HEADERS = {
 };
 
 const PRODUCT_PRICES = {
-  // â”€â”€ ì¼ì¼ ì „ì„¸ íˆ¬ì–´ (CharterBanner + CharterPage daily) â”€â”€
+  // ?€?€ ?¼ì¼ ?„ì„¸ ?¬ì–´ (CharterBanner + CharterPage daily) ?€?€
   charter_seoul_city:            291200,
   charter_seoul_suburb:          343200,
   charter_dmz:                   343200,
@@ -22,7 +22,7 @@ const PRODUCT_PRICES = {
   charter_ski:                   416000,
   charter_gyeongju:              468000,
   charter_busan:                 572000,
-  // â”€â”€ ê³µí•­ í”½ì—…/ìƒŒë”© (CharterPage â†’ airport_{destination}) â”€â”€
+  // ?€?€ ê³µí•­ ?½ì—…/?Œë”© (CharterPage ??airport_{destination}) ?€?€
   airport_seoul_central:         124800,
   airport_seoul_gangnam:         145600,
   airport_suwon_yongin:          150000,
@@ -46,7 +46,7 @@ async function getPayPalToken() {
   const baseUrl  = mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
 
   console.log('[PayPal] Mode:', mode);
-  console.log('[PayPal] ClientID ì•8ì:', clientId?.substring(0,8));
+  console.log('[PayPal] ClientID ????', clientId?.substring(0,8));
   console.log('[PayPal] secret length:',   secret?.length);
   console.log('[PayPal] baseUrl:',         baseUrl);
 
@@ -84,18 +84,18 @@ export const handler = async (event) => {
   }
 
   const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode } = body;
-  console.log('[createPaypalOrder] ìš”ì²­ ìˆ˜ì‹ :', { productType, passengers, dateStart, dateEnd, language, promoCode });
+  console.log('[createPaypalOrder] ?”ì²­ ?˜ì‹ :', { productType, passengers, dateStart, dateEnd, language, promoCode });
 
   if (!productType) return respond(400, { error: 'productType is required' });
 
   const clientId     = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-  console.log('[createPaypalOrder] í™˜ê²½ë³€ìˆ˜ í™•ì¸:', {
-    PAYPAL_CLIENT_ID:     clientId     ? 'ì„¤ì •ë¨ (' + clientId.slice(0, 8) + '...)' : 'âŒ ë¯¸ì„¤ì •',
-    PAYPAL_CLIENT_SECRET: clientSecret ? 'ì„¤ì •ë¨' : 'âŒ ë¯¸ì„¤ì •',
+  console.log('[createPaypalOrder] ?˜ê²½ë³€???•ì¸:', {
+    PAYPAL_CLIENT_ID:     clientId     ? '?¤ì •??(' + clientId.slice(0, 8) + '...)' : '??ë¯¸ì„¤??,
+    PAYPAL_CLIENT_SECRET: clientSecret ? '?¤ì •?? : '??ë¯¸ì„¤??,
   });
 
-  // â”€â”€ 1. KRW ê¸ˆì•¡ ê³„ì‚° â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ?€?€ 1. KRW ê¸ˆì•¡ ê³„ì‚° ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
   let krwAmount;
   if (productType === 'kpop_shuttle_oneway' || productType === 'kpop_shuttle_roundtrip' || productType === 'kpop_shuttle') {
     const unitPrice = PRODUCT_PRICES[productType] || 35000;
@@ -108,38 +108,38 @@ export const handler = async (event) => {
   // Apply promo
   if (promoCode === 'EARLY50') {
     krwAmount = Math.round(krwAmount * 0.8);
-    console.log('[createPaypalOrder] í”„ë¡œëª¨ ì¹´ìš´í„° í• ì¸ ì ìš©:', krwAmount);
+    console.log('[createPaypalOrder] ?„ë¡œëª?ì¹´ìš´??? ì¸ ?ìš©:', krwAmount);
   } else {
     console.log('[createPaypalOrder] 1. KRW ê¸ˆì•¡ ê³„ì‚°:', krwAmount);
   }
 
-  // â”€â”€ 2. ì‹¤ì‹œê°„ í™˜ìœ¨ ì¡°íšŒ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  console.log('[createPaypalOrder] 2. í™˜ìœ¨ ì¡°íšŒ ì‹œì‘');
+  // ?€?€ 2. ?¤ì‹œê°??˜ìœ¨ ì¡°íšŒ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  console.log('[createPaypalOrder] 2. ?˜ìœ¨ ì¡°íšŒ ?œì‘');
   let usdToKrw = 1350;
   try {
     const rateRes  = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
     const rateData = await rateRes.json();
     usdToKrw = rateData.rates.KRW;
-    console.log('[createPaypalOrder] í™˜ìœ¨ ì¡°íšŒ ì„±ê³µ:', usdToKrw);
+    console.log('[createPaypalOrder] ?˜ìœ¨ ì¡°íšŒ ?±ê³µ:', usdToKrw);
   } catch (rateErr) {
-    console.warn('[createPaypalOrder] í™˜ìœ¨ ì¡°íšŒ ì‹¤íŒ¨ (fallback 1350):', rateErr.message);
+    console.warn('[createPaypalOrder] ?˜ìœ¨ ì¡°íšŒ ?¤íŒ¨ (fallback 1350):', rateErr.message);
   }
   const usdAmount = (krwAmount / usdToKrw).toFixed(2);
-  console.log('[createPaypalOrder] USD ë³€í™˜:', usdAmount);
+  console.log('[createPaypalOrder] USD ë³€??', usdAmount);
 
-  // â”€â”€ 3. PayPal Access Token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  console.log('[createPaypalOrder] 3. PayPal í† í° ë°œê¸‰ ì‹œì‘');
+  // ?€?€ 3. PayPal Access Token ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  console.log('[createPaypalOrder] 3. PayPal ? í° ë°œê¸‰ ?œì‘');
   let accessToken;
   try {
     accessToken = await getPayPalToken();
-    console.log('[createPaypalOrder] PayPal í† í° ë°œê¸‰ ì„±ê³µ');
+    console.log('[createPaypalOrder] PayPal ? í° ë°œê¸‰ ?±ê³µ');
   } catch (err) {
-    console.error('[createPaypalOrder] PayPal í† í° ë°œê¸‰ ì‹¤íŒ¨:', err.message);
+    console.error('[createPaypalOrder] PayPal ? í° ë°œê¸‰ ?¤íŒ¨:', err.message);
     return respond(500, { error: `PayPal auth failed: ${err.message}` });
   }
 
-  // â”€â”€ 4. PayPal Order ìƒì„± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  console.log('[createPaypalOrder] 4. ì£¼ë¬¸ ìƒì„± ì‹œì‘:', { usdAmount });
+  // ?€?€ 4. PayPal Order ?ì„± ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  console.log('[createPaypalOrder] 4. ì£¼ë¬¸ ?ì„± ?œì‘:', { usdAmount });
   let order;
   try {
     const orderRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
@@ -155,26 +155,26 @@ export const handler = async (event) => {
             currency_code: 'USD',
             value: usdAmount,
           },
-          description: `CocoTrip | ${productType} | ${dateStart}~${dateEnd} | ${passengers}ëª…`,
+          description: `CocoTrip | ${productType} | ${dateStart}~${dateEnd} | ${passengers}ëª?,
         }],
       }),
     });
     order = await orderRes.json();
-    console.log('[createPaypalOrder] ì£¼ë¬¸ ì‘ë‹µ:', JSON.stringify({ id: order.id, status: order.status, message: order.message }));
+    console.log('[createPaypalOrder] ì£¼ë¬¸ ?‘ë‹µ:', JSON.stringify({ id: order.id, status: order.status, message: order.message }));
     if (!order.id) throw new Error(order.message ?? 'Order creation failed');
   } catch (err) {
-    console.error('[createPaypalOrder] ì£¼ë¬¸ ìƒì„± ì‹¤íŒ¨:', err.message);
+    console.error('[createPaypalOrder] ì£¼ë¬¸ ?ì„± ?¤íŒ¨:', err.message);
     return respond(500, { error: `PayPal order creation failed: ${err.message}` });
   }
 
-  // â”€â”€ 5. ë°˜í™˜ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ?€?€ 5. ë°˜í™˜ ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
   console.log('[createPaypalOrder] ê²°ê³¼:', JSON.stringify({ orderID: order.id, usdAmount, krwAmount }));
   return respond(200, {
     orderID:     order.id,
     usdAmount,
     krwAmount,
     currentRate: Math.round(usdToKrw),
-    displayKRW:  krwAmount.toLocaleString('ko-KR') + 'ì›',
+    displayKRW:  krwAmount.toLocaleString('ko-KR') + '??,
     displayUSD:  '$' + usdAmount + ' USD',
   });
 };

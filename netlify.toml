@@ -33,6 +33,12 @@
 [functions."ai-planner"]
   timeout = 26
 
+[functions."ai-planner-quick"]
+  timeout = 26
+
+[functions."ai-planner-full"]
+  timeout = 300
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
