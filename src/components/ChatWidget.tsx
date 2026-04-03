@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
-import { Bot, MessageCircle, X, Send, Plus, ChevronDown } from 'lucide-react';
+import { Bot, MessageCircle, X, Send } from 'lucide-react';
 import type { Language } from '@/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
+import { TourInputSheet } from '@/components/TourInputSheet';
 
 interface Message {
   id: string;
@@ -58,45 +59,8 @@ function nowTime() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// 구조화 입력 옵션
-const QUICK_OPTIONS: Record<Language, {
-  style: string[];
-  vehicle: string[];
-  region: string[];
-  duration: string[];
-}> = {
-  en: {
-    style: ['History/Culture', 'Nature/Healing', 'Food Tour', 'K-pop/Hallyu', 'Shopping'],
-    vehicle: ['Staria (1-8 pax)', 'Sprinter (9-12 pax)', 'Large Bus (13+)'],
-    region: ['Seoul City', 'Seoul Suburb', 'Other Regions (Busan/Gyeongju)'],
-    duration: ['Half Day (4h)', 'Full Day (8h)', '2 Days+'],
-  },
-  ko: {
-    style: ['역사/문화', '자연/힐링', '맛집투어', 'K-pop/한류', '쇼핑'],
-    vehicle: ['스타리아 (1-8명)', '스프린터 (9-12명)', '대형버스 (13+명)'],
-    region: ['서울 시내', '서울 근교', '지방 (부산/경주 등)'],
-    duration: ['반나절 (4h)', '종일 (8h)', '2일+'],
-  },
-  ja: {
-    style: ['歴史/文化', '自然/癒し', 'グルメツアー', 'K-pop/韓流', 'ショッピング'],
-    vehicle: ['スタリア (1-8名)', 'スプリンター (9-12名)', '大型バス (13+名)'],
-    region: ['ソウル市内', 'ソウル近郊', '地方 (釜山/慶州等)'],
-    duration: ['半日 (4h)', '終日 (8h)', '2日以上'],
-  },
-  zh: {
-    style: ['历史/文化', '自然/治愈', '美食之旅', 'K-pop/韩流', '购物'],
-    vehicle: ['Staria (1-8人)', 'Sprinter (9-12人)', '大巴 (13+人)'],
-    region: ['首尔市区', '首尔近郊', '其他地区 (釜山/庆州)'],
-    duration: ['半天 (4h)', '全天 (8h)', '2天以上'],
-  },
-};
 
-const OPTION_LABELS: Record<Language, { style: string; vehicle: string; region: string; duration: string; pax: string; send: string; }> = {
-  en: { style: '🏛 Tour Style', vehicle: '🚐 Vehicle', region: '📍 Region', duration: '📅 Duration', pax: '👥 Passengers', send: 'Send Request' },
-  ko: { style: '🏛 관광 스타일', vehicle: '🚐 차량', region: '📍 지역', duration: '📅 일정', pax: '👥 인원', send: '요청 보내기' },
-  ja: { style: '🏛 観光スタイル', vehicle: '🚐 車両', region: '📍 地域', duration: '📅 日程', pax: '👥 人数', send: 'リクエスト送信' },
-  zh: { style: '🏛 旅游风格', vehicle: '🚐 车辆', region: '📍 地区', duration: '📅 行程', pax: '👥 人数', send: '发送请求' },
-};
+
 
 const LOGIN_CHAT_TEXT: Record<Language, { title: string; desc: string; google: string; apple: string; loading: string }> = {
   ko: { title: '로그인 후 이용 가능합니다', desc: '로그인하면 AI와 대화할 수 있어요.', google: '구글로 시작하기', apple: 'Apple로 시작하기', loading: '로그인 중...' },
@@ -119,14 +83,9 @@ export function ChatWidget({ language }: ChatWidgetProps) {
   const [quickShown, setQuickShown] = useState(true);
   const [authLoading, setAuthLoading] = useState<'google' | 'apple' | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [showStructured, setShowStructured] = useState(false);
-  const [selStyle, setSelStyle] = useState<string[]>([]);
-  const [selVehicle, setSelVehicle] = useState<string>('');
-  const [selRegion, setSelRegion] = useState<string>('');
-  const [selDuration, setSelDuration] = useState<string>('');
-  const [selPax, setSelPax] = useState<number>(2);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
 
   const handleGoogleLogin = useCallback(async () => {
     setAuthError(null);
@@ -228,6 +187,25 @@ export function ChatWidget({ language }: ChatWidgetProps) {
     },
     [loading, sessionId, language]
   );
+
+  // TourInputSheet onSubmit 핸들러 → 구조화된 메시지 생성 후 AI 전송
+  const handleTourSubmit = useCallback((sel: {
+    area: string; themes: string[]; vehicle: string;
+    duration: string; pax: number; days: number; note: string | null;
+  }) => {
+    const dLabel = sel.duration === 'half' ? 'Half Day (4h)' : sel.duration === 'multi' ? `${sel.days} Days` : 'Full Day (8h)';
+    const msg = [
+      `Area: ${sel.area}`,
+      `Themes: ${sel.themes.join(', ')}`,
+      `Vehicle: ${sel.vehicle}`,
+      `Duration: ${dLabel}`,
+      `Passengers: ${sel.pax}`,
+      sel.note ? `Note: ${sel.note}` : '',
+    ].filter(Boolean).join(' | ');
+    sendMessage(msg);
+  }, [sendMessage]);
+
+
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -509,86 +487,6 @@ export function ChatWidget({ language }: ChatWidgetProps) {
             </a>
           </div>
 
-          {/* 구조화 입력 팝업 */}
-          {showStructured && (
-            <div style={{
-              position: 'absolute', bottom: '70px', left: '12px', right: '12px',
-              background: 'rgba(20,14,40,0.98)', border: '1px solid rgba(124,92,252,0.4)',
-              borderRadius: '16px', padding: '14px', zIndex: 10,
-              backdropFilter: 'blur(12px)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-              maxHeight: '320px', overflowY: 'auto',
-            }}>
-              {/* 관광 스타일 */}
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginBottom: '6px' }}>{OPTION_LABELS[language].style}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '10px' }}>
-                {QUICK_OPTIONS[language].style.map(s => (
-                  <button key={s} onClick={() => setSelStyle(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s])}
-                    style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', border: '1px solid rgba(124,92,252,0.5)',
-                      background: selStyle.includes(s) ? 'rgba(124,92,252,0.6)' : 'rgba(255,255,255,0.05)', color: '#fff', transition: 'all 0.15s' }}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-              {/* 차량 */}
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginBottom: '6px' }}>{OPTION_LABELS[language].vehicle}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '10px' }}>
-                {QUICK_OPTIONS[language].vehicle.map(v => (
-                  <button key={v} onClick={() => setSelVehicle(v === selVehicle ? '' : v)}
-                    style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', border: '1px solid rgba(124,92,252,0.5)',
-                      background: selVehicle === v ? 'rgba(124,92,252,0.6)' : 'rgba(255,255,255,0.05)', color: '#fff', transition: 'all 0.15s' }}>
-                    {v}
-                  </button>
-                ))}
-              </div>
-              {/* 지역 */}
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginBottom: '6px' }}>{OPTION_LABELS[language].region}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '10px' }}>
-                {QUICK_OPTIONS[language].region.map(r => (
-                  <button key={r} onClick={() => setSelRegion(r === selRegion ? '' : r)}
-                    style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', border: '1px solid rgba(124,92,252,0.5)',
-                      background: selRegion === r ? 'rgba(124,92,252,0.6)' : 'rgba(255,255,255,0.05)', color: '#fff', transition: 'all 0.15s' }}>
-                    {r}
-                  </button>
-                ))}
-              </div>
-              {/* 일정 */}
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginBottom: '6px' }}>{OPTION_LABELS[language].duration}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '10px' }}>
-                {QUICK_OPTIONS[language].duration.map(d => (
-                  <button key={d} onClick={() => setSelDuration(d === selDuration ? '' : d)}
-                    style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', border: '1px solid rgba(124,92,252,0.5)',
-                      background: selDuration === d ? 'rgba(124,92,252,0.6)' : 'rgba(255,255,255,0.05)', color: '#fff', transition: 'all 0.15s' }}>
-                    {d}
-                  </button>
-                ))}
-              </div>
-              {/* 인원 */}
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginBottom: '6px' }}>{OPTION_LABELS[language].pax}: {selPax}</p>
-              <input type="range" min={1} max={20} value={selPax} onChange={e => setSelPax(Number(e.target.value))}
-                style={{ width: '100%', marginBottom: '12px', accentColor: '#7C5CFC' }} />
-              {/* 전송 */}
-              <button onClick={() => {
-                const parts = [
-                  selStyle.length ? `Style: ${selStyle.join(', ')}` : '',
-                  selVehicle ? `Vehicle: ${selVehicle}` : '',
-                  selRegion ? `Region: ${selRegion}` : '',
-                  selDuration ? `Duration: ${selDuration}` : '',
-                  `Passengers: ${selPax}`,
-                ].filter(Boolean).join(' | ');
-                if (parts) {
-                  sendMessage(parts);
-                  setShowStructured(false);
-                  setSelStyle([]); setSelVehicle(''); setSelRegion(''); setSelDuration('');
-                }
-              }} style={{
-                width: '100%', padding: '9px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', color: '#fff', fontSize: '13px', fontWeight: 600,
-              }}>
-                {OPTION_LABELS[language].send}
-              </button>
-            </div>
-          )}
-
           {/* 입력창 */}
           <div
             style={{
@@ -602,20 +500,8 @@ export function ChatWidget({ language }: ChatWidgetProps) {
               position: 'relative',
             }}
           >
-            {/* + 버튼 */}
-            <button
-              onClick={() => setShowStructured(v => !v)}
-              title="Structured Input"
-              style={{
-                width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0,
-                background: showStructured ? 'rgba(124,92,252,0.6)' : 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(124,92,252,0.4)', cursor: 'pointer',
-                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s',
-              }}
-            >
-              {showStructured ? <ChevronDown size={14} /> : <Plus size={14} />}
-            </button>
+            {/* TourInputSheet + 버튼 */}
+            <TourInputSheet onSubmit={handleTourSubmit} />
             <ChatInput
               ref={inputRef}
               type="text"
