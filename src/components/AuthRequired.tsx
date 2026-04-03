@@ -1,6 +1,6 @@
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle, handleRedirectResult } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
 
 const TEXT = {
@@ -16,6 +16,14 @@ export function AuthRequired({ children }: { children: ReactNode }) {
   const text = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [redirectChecking, setRedirectChecking] = useState(true);
+
+  // signInWithRedirect 후 돌아왔을 때 결과를 처리
+  useEffect(() => {
+    handleRedirectResult()
+      .catch(console.error)
+      .finally(() => setRedirectChecking(false));
+  }, []);
 
   const handleGoogle = useCallback(async () => {
     setError(null);
@@ -24,13 +32,15 @@ export function AuthRequired({ children }: { children: ReactNode }) {
     finally { setGoogleLoading(false); }
   }, []);
 
-  if (loading) {
+  // Firebase auth 초기화 OR redirect 처리 중엔 스피너 표시
+  if (loading || redirectChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#faf9f6]">
         <div className="w-8 h-8 border-2 border-[#0f3460] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
+
 
   if (!user) {
     return (
