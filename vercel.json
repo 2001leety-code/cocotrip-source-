@@ -16,10 +16,10 @@
   ],
   "functions": {
     "api/**/*.js": {
-      "maxDuration": 300
+      "maxDuration": 60
     },
     "api/**/*.ts": {
-      "maxDuration": 300
+      "maxDuration": 60
     }
   },
   "rewrites": [

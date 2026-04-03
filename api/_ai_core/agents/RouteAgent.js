@@ -1,5 +1,5 @@
 import axios from "axios";
-import { BaseAgent } from "./BaseAgent";
+import { BaseAgent } from "./BaseAgent.js";
 export class RouteAgent extends BaseAgent {
     constructor(apiKey) {
         super(apiKey, "route");

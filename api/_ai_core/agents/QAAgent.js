@@ -1,4 +1,4 @@
-import { BaseAgent } from "./BaseAgent";
+import { BaseAgent } from "./BaseAgent.js";
 export class QAAgent extends BaseAgent {
     constructor(apiKey) {
         super(apiKey, "qa");
