@@ -13,19 +13,25 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// Initialize Firebase Admin (lazy, once)
-if (!admin.apps.length) {
-  const privateKey = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.GOOGLE_CLIENT_EMAIL,
-      privateKey,
-    }),
-  });
+// Initialize Firebase Admin (lazy, once) — guard against missing env vars
+let db = null;
+try {
+  if (!admin.apps.length) {
+    const privateKey = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+    if (projectId && clientEmail && privateKey) {
+      admin.initializeApp({
+        credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+      });
+      db = admin.firestore();
+    }
+  } else {
+    db = admin.firestore();
+  }
+} catch (e) {
+  console.warn('[applyPromoCode] Firebase init failed:', e.message);
 }
-
-const db = admin.firestore();
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
@@ -38,6 +44,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (!db) {
+      res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Firebase not configured' }));
+    }
+
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
