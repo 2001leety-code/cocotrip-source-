@@ -16,7 +16,7 @@
   ],
   "functions": {
     "api/**/*.js": {
-      "maxDuration": 300
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -27,35 +27,35 @@
   ],
   "crons": [
     {
-      "path": "/api/daily-report",
+      "path": "/api/cron-runner?job=daily-report",
       "schedule": "0 22 * * *"
     },
     {
-      "path": "/api/traffic-alert",
+      "path": "/api/cron-runner?job=traffic-alert",
       "schedule": "0 21 * * *"
     },
     {
-      "path": "/api/content-generator",
+      "path": "/api/cron-runner?job=content-generator",
       "schedule": "0 23 * * *"
     },
     {
-      "path": "/api/competitor-monitor",
+      "path": "/api/cron-runner?job=competitor-monitor",
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/retarget-scheduler",
+      "path": "/api/cron-runner?job=retarget-scheduler",
       "schedule": "0 1 * * *"
     },
     {
-      "path": "/api/review-scheduler",
+      "path": "/api/cron-runner?job=review-scheduler",
       "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/reddit-monitor",
+      "path": "/api/cron-runner?job=reddit-monitor",
       "schedule": "0 5 * * *"
     },
     {
-      "path": "/api/weather-check",
+      "path": "/api/cron-runner?job=weather-check",
       "schedule": "0 9 * * *"
     }
   ]

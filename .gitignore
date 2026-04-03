@@ -22,3 +22,10 @@ service-account.json
 
 # Local Netlify folder
 .netlify
+
+# Cache & Logs
+.vercel
+*.log
+tmp/
+
+.vercel
