@@ -1,8 +1,8 @@
-import { TripRequest, AgentResult } from "./models";
-import { AGENT_DISPLAY_NAMES, AGENT_TASKS } from "./config";
-import { PlannerAgent, DesignerAgent, MarketingAgent, CSAgent } from "./agents/SimpleAgents";
-import { RouteAgent } from "./agents/RouteAgent";
-import { QAAgent } from "./agents/QAAgent";
+import { TripRequest, AgentResult } from "./models.js";
+import { AGENT_DISPLAY_NAMES, AGENT_TASKS } from "./config.js";
+import { PlannerAgent, DesignerAgent, MarketingAgent, CSAgent } from "./agents/SimpleAgents.js";
+import { RouteAgent } from "./agents/RouteAgent.js";
+import { QAAgent } from "./agents/QAAgent.js";
 
 export const AGENT_ORDER = ["planner", "route", "designer", "marketing", "qa", "cs"];
 

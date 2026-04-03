@@ -1,5 +1,5 @@
-import { BaseAgent } from "./BaseAgent";
-import { AgentResult } from "../models";
+import { BaseAgent } from "./BaseAgent.js";
+import { AgentResult } from "../models.js";
 
 export class QAAgent extends BaseAgent {
   constructor(apiKey: string) {
