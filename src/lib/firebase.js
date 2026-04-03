@@ -16,8 +16,8 @@ import {
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  // authDomain을 커스텀 도메인으로 설정 → "Illegal iFrame" 오류 방지
-  authDomain: 'cocotripkr.com',
+  // Firebase Hosting 도메인 필수 - 이 도메인에서 /__/auth/ 경로가 서빙됨
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, // planning-with-ai-a0801.firebaseapp.com
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
@@ -26,6 +26,7 @@ const firebaseConfig = {
 
 // Avoid duplicate app initialization during HMR / re-import.
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
@@ -62,52 +63,28 @@ async function saveUserToFirestore(user) {
   }
 }
 
-// Google 로그인: Popup 시도 → 실패 시 Redirect 폴백
+// Google 로그인: Redirect 방식 (팝업 차단/검은화면 문제 방지)
 export async function signInWithGoogle() {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    await saveUserToFirestore(result.user);
-    return result.user;
+    await signInWithRedirect(auth, googleProvider);
+    return null; // redirect 중 — 페이지 복귀 후 handleRedirectResult()가 처리
   } catch (err) {
-    // popup-blocked, cross-origin-blocked 등의 에러면 redirect로 전환
-    const code = err?.code ?? '';
-    if (
-      code === 'auth/popup-blocked' ||
-      code === 'auth/popup-closed-by-user' ||
-      code === 'auth/cancelled-popup-request' ||
-      err?.message?.includes('iFrame') ||
-      err?.message?.includes('Illegal')
-    ) {
-      // Redirect 방식으로 폴백 (페이지 이동 후 getRedirectResult로 처리)
-      await signInWithRedirect(auth, googleProvider);
-      return null; // redirect 중이므로 null 반환
-    }
     const message = err instanceof Error ? err.message : 'Google sign-in failed.';
     throw new Error(message);
   }
 }
 
-// Apple 로그인: Popup 시도 → 실패 시 Redirect 폴백
+// Apple 로그인: Redirect 방식
 export async function signInWithApple() {
   try {
-    const result = await signInWithPopup(auth, appleProvider);
-    await saveUserToFirestore(result.user);
-    return result.user;
+    await signInWithRedirect(auth, appleProvider);
+    return null;
   } catch (err) {
-    const code = err?.code ?? '';
-    if (
-      code === 'auth/popup-blocked' ||
-      code === 'auth/popup-closed-by-user' ||
-      err?.message?.includes('iFrame') ||
-      err?.message?.includes('Illegal')
-    ) {
-      await signInWithRedirect(auth, appleProvider);
-      return null;
-    }
     const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
     throw new Error(message);
   }
 }
+
 
 // 페이지 로드 시 Redirect 결과 처리 (App.tsx 등에서 호출)
 export async function handleRedirectResult() {
