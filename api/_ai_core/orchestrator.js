@@ -1,7 +1,7 @@
-import { AGENT_DISPLAY_NAMES, AGENT_TASKS } from "./config";
-import { PlannerAgent, DesignerAgent, MarketingAgent, CSAgent } from "./agents/SimpleAgents";
-import { RouteAgent } from "./agents/RouteAgent";
-import { QAAgent } from "./agents/QAAgent";
+import { AGENT_DISPLAY_NAMES, AGENT_TASKS } from "./config.js";
+import { PlannerAgent, DesignerAgent, MarketingAgent, CSAgent } from "./agents/SimpleAgents.js";
+import { RouteAgent } from "./agents/RouteAgent.js";
+import { QAAgent } from "./agents/QAAgent.js";
 export const AGENT_ORDER = ["planner", "route", "designer", "marketing", "qa", "cs"];
 export class CocoTripOrchestrator {
     agents;
@@ -41,22 +41,32 @@ export class CocoTripOrchestrator {
         lines.push(AGENT_TASKS[currentAgent]);
         return lines.join("\n");
     }
-    async *streamRun(request) {
+    // onChunk(agentKey, text): optional real-time token callback to write SSE progress chunks
+    async *streamRun(request, onChunk) {
         const results = [];
         const totalSteps = 3;
         // 1. 기획팀: AI 일정 생성
         const plannerPrompt = this._buildPrompt(request, results, "planner");
-        const plannerResult = await this.agents.planner.call(plannerPrompt);
+        const plannerResult = await this.agents.planner.call(
+            plannerPrompt,
+            onChunk ? (text) => onChunk("planner", text) : undefined
+        );
         results.push(plannerResult);
         yield { step: 1, totalSteps, agent: "planner", result: plannerResult };
         // 2. 기술팀: 네이버지도 좌표/경로 보강 (로컬 처리, 빠름)
         const routePrompt = this._buildPrompt(request, results, "route");
-        const routeResult = await this.agents.route.call(routePrompt);
+        const routeResult = await this.agents.route.call(
+            routePrompt,
+            onChunk ? (text) => onChunk("route", text) : undefined
+        );
         results.push(routeResult);
         yield { step: 2, totalSteps, agent: "route", result: routeResult };
         // 3. 검수팀: 예산 산출 및 QA (로컬 처리, 빠름)
         const qaPrompt = this._buildPrompt(request, results, "qa");
-        const qaResult = await this.agents.qa.call(qaPrompt);
+        const qaResult = await this.agents.qa.call(
+            qaPrompt,
+            onChunk ? (text) => onChunk("qa", text) : undefined
+        );
         results.push(qaResult);
         yield { step: 3, totalSteps, agent: "qa", result: qaResult };
     }

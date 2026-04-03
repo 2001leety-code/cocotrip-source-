@@ -5,7 +5,7 @@
 import { CocoTripOrchestrator } from './_ai_core/orchestrator.js';
 import nodemailer from 'nodemailer';
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 const CORS = {
@@ -53,10 +53,15 @@ export default async function handler(req, res) {
       res.write(`: heartbeat\n\n`);
     }, 5000);
 
+    // onChunk: real-time token streaming → prevents 504 by keeping Vercel response active
+    const onChunk = (agentKey, text) => {
+      try { res.write(`data: ${JSON.stringify({ type: 'token', agent: agentKey, text })}\n\n`); } catch (_) {}
+    };
+
     let finalOutput = '';
     try {
-      for await (const chunk of orchestrator.streamRun(requestData)) {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      for await (const chunk of orchestrator.streamRun(requestData, onChunk)) {
+        res.write(`data: ${JSON.stringify({ type: 'step', ...chunk })}\n\n`);
         if (chunk.step === chunk.totalSteps && chunk.result?.rawOutput) {
           finalOutput = chunk.result.rawOutput;
         }

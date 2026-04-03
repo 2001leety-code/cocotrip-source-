@@ -7,7 +7,7 @@
 
 import { CocoTripOrchestrator } from './_ai_core/orchestrator.js';
 
-export const maxDuration = 300; 
+export const maxDuration = 60; 
 
 export const config = {
   runtime: 'nodejs',
@@ -69,9 +69,14 @@ export default async function handler(req, res) {
       res.write(`: heartbeat\n\n`); // SSE 주석(빈 데이터) 전송
     }, 5000); // 5초마다
 
+    // onChunk: write each raw Gemini token to SSE immediately → Vercel sees active writes, prevents 504
+    const onChunk = (agentKey, text) => {
+      try { res.write(`data: ${JSON.stringify({ type: 'token', agent: agentKey, text })}\n\n`); } catch (_) {}
+    };
+
     try {
-      for await (const chunk of orchestrator.streamRun(requestData)) {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      for await (const chunk of orchestrator.streamRun(requestData, onChunk)) {
+        res.write(`data: ${JSON.stringify({ type: 'step', ...chunk })}\n\n`);
       }
     } finally {
       clearInterval(heartbeatInterval);

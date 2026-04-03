@@ -13,32 +13,46 @@ export class BaseAgent {
     this.systemPrompt = SYSTEM_PROMPTS[agentKey] || "";
   }
 
-  async call(userPrompt: string): Promise<AgentResult> {
+  // onChunk: optional real-time token callback for SSE streaming
+  async call(userPrompt: string, onChunk?: (text: string) => void): Promise<AgentResult> {
     const model = this.genAI.getGenerativeModel({
       model: MODEL,
       systemInstruction: this.systemPrompt,
     });
 
     try {
-      const result = await model.generateContent({
+      // generateContentStream: yields tokens immediately → prevents 504 on Vercel
+      const streamResult = await model.generateContentStream({
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         generationConfig: {
           maxOutputTokens: MAX_TOKENS,
           temperature: 0.2,
-        },
+          // Disable thinking mode — adds 30-60s latency on Gemini 2.5 Flash
+          thinkingConfig: { thinkingBudget: 0 },
+        } as any,
       });
 
-      const response = result.response;
-      let text = response.text();
-      
+      let text = "";
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      for await (const chunk of streamResult.stream) {
+        const chunkText = chunk.text();
+        if (chunkText) {
+          text += chunkText;
+          if (onChunk) onChunk(chunkText);
+        }
+      }
+
+      const finalResponse = await streamResult.response;
+      inputTokens = finalResponse.usageMetadata?.promptTokenCount || 0;
+      outputTokens = finalResponse.usageMetadata?.candidatesTokenCount || 0;
+
       // JSON 추출 강화: 마크다운 백틱 등이 포함된 경우를 대비한 정규식 추출
       const jsonMatch = text.match(/(\{.*\}|\[.*\])/s);
       if (jsonMatch) {
         text = jsonMatch[0];
       }
-
-      const inputTokens = response.usageMetadata?.promptTokenCount || 0;
-      const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
 
       return {
         agentName: this.agentKey,

@@ -1,5 +1,5 @@
 export const MODEL = "gemini-2.5-flash"; // Gemini 2.5 Flash
-export const MAX_TOKENS = 8192;
+export const MAX_TOKENS = 6000; // 8192→6000: faster responses, sufficient for itinerary JSON
 export const SYSTEM_PROMPTS = {
     planner: `당신은 코코트립의 '어린이 탐험 대장'이자 수석 여행 기획자입니다.
 한국을 방문하는 외국인 가족 여행객을 위해, 특히 '10살 아이'가 기뻐할 만한 프리미엄 여행 계획을 설계합니다.
