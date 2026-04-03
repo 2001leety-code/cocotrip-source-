@@ -21,7 +21,7 @@ import PlannerPage from '@/pages/PlannerPage';
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
 import CharterPage from '@/pages/CharterPage';
-import { ChatWidget } from '@/components/ChatWidget';
+
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
@@ -62,7 +62,7 @@ function GlobalWidgets() {
     <>
       <EarlyBirdBanner language={language} />
       <KpopConcertPopup />
-      <ChatWidget language={language} />
+
     </>
   );
 }
