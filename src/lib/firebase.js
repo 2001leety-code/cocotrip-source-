@@ -63,23 +63,36 @@ async function saveUserToFirestore(user) {
   }
 }
 
-// Google 로그인: Redirect 방식 (팝업 차단/검은화면 문제 방지)
+// Google 로그인: Popup 방식 (authDomain이 Firebase 도메인이므로 정상 작동)
 export async function signInWithGoogle() {
   try {
-    await signInWithRedirect(auth, googleProvider);
-    return null; // redirect 중 — 페이지 복귀 후 handleRedirectResult()가 처리
+    const result = await signInWithPopup(auth, googleProvider);
+    await saveUserToFirestore(result.user);
+    return result.user;
   } catch (err) {
+    const code = err?.code ?? '';
+    // 팝업이 브라우저에서 막혔을 때만 Redirect 폴백
+    if (code === 'auth/popup-blocked') {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
     const message = err instanceof Error ? err.message : 'Google sign-in failed.';
     throw new Error(message);
   }
 }
 
-// Apple 로그인: Redirect 방식
+// Apple 로그인: Popup 방식
 export async function signInWithApple() {
   try {
-    await signInWithRedirect(auth, appleProvider);
-    return null;
+    const result = await signInWithPopup(auth, appleProvider);
+    await saveUserToFirestore(result.user);
+    return result.user;
   } catch (err) {
+    const code = err?.code ?? '';
+    if (code === 'auth/popup-blocked') {
+      await signInWithRedirect(auth, appleProvider);
+      return null;
+    }
     const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
     throw new Error(message);
   }
