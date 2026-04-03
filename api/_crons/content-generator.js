@@ -43,7 +43,7 @@ function getTodayTopic() {
 async function generateContent(topic) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.5-flash-lite',
     systemInstruction: `You are a viral content creator for CocoTripKR (cocotripkr.com), a premium Korea private tour service.
 Create content that feels authentic and trendy, NOT corporate.
 

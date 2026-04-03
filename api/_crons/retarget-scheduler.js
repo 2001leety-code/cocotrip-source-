@@ -43,7 +43,7 @@ async function getAccessToken() {
 async function generateRetargetEmail(booking) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.5-flash-lite',
     systemInstruction: `You are a friendly travel consultant for CocoTripKR (cocotripkr.com).
 Write a warm follow-up email to a customer who showed interest but hasn't booked yet.
 Tone: friendly, not pushy. Mention their specific service interest.

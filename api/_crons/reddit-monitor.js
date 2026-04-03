@@ -56,7 +56,7 @@ function matchesKeywords(post) {
 async function generateReplyDraft(post) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.5-flash-lite',
     systemInstruction: `You are a helpful travel assistant who knows Korea well.
 Write a friendly, helpful Reddit comment for a traveler asking about Korea.
 - Be genuinely helpful, NOT promotional
