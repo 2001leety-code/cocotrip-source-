@@ -9,11 +9,11 @@ interface RegionsProps {
 const regions = [
   // 첫 번째 줄
   { id: 'seoul', image: '/region-seoul.jpg' },
-  { id: 'chuncheon', image: '/region-chuncheon.jpg' },
+  { id: 'chuncheon', image: '/region-chuncheon.webp' },
   { id: 'paju', image: '/region-paju.jpg' },
-  { id: 'ganghwa', image: '/region-ganghwa.jpg' },
-  { id: 'busan', image: '/region-busan.jpg' },
-  { id: 'danyang', image: '/region-danyang.jpg' },
+  { id: 'ganghwa', image: '/region-ganghwa.webp' },
+  { id: 'busan', image: '/region-busan.webp' },
+  { id: 'danyang', image: '/region-danyang.webp' },
   // 두 번째 줄
   { id: 'incheon', image: '/region-incheon.jpg' },
   { id: 'gyeongju', image: '/region-gyeongju.jpg' },
