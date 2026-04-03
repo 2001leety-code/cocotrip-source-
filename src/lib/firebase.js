@@ -15,13 +15,13 @@ import {
 } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  // Firebase Hosting 도메인 필수 - 이 도메인에서 /__/auth/ 경로가 서빙됨
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, // planning-with-ai-a0801.firebaseapp.com
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY ?? '').trim(),
+  // .trim() : Vercel 환경변수에 \r\n 이 붙어 %0D%0A iFrame 오류 방지
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? '').trim(),
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '').trim(),
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '').trim(),
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '').trim(),
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID ?? '').trim(),
 };
 
 // Avoid duplicate app initialization during HMR / re-import.
@@ -63,7 +63,14 @@ async function saveUserToFirestore(user) {
   }
 }
 
-// Google 로그인: Popup 방식 (authDomain이 Firebase 도메인이므로 정상 작동)
+// Google 로그인: Popup 방식 → 실패 시 Redirect 폴백
+const POPUP_FALLBACK_CODES = new Set([
+  'auth/popup-blocked',
+  'auth/popup-closed-by-user',
+  'auth/cancelled-popup-request',
+  'auth/operation-not-supported-in-this-environment', // 인앱브라우저
+]);
+
 export async function signInWithGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
@@ -71,10 +78,10 @@ export async function signInWithGoogle() {
     return result.user;
   } catch (err) {
     const code = err?.code ?? '';
-    // 팝업이 브라우저에서 막혔을 때만 Redirect 폴백
-    if (code === 'auth/popup-blocked') {
+    // 팝업 불가 환경(인앱브라우저, 팝업 차단 등) → Redirect 폴백
+    if (POPUP_FALLBACK_CODES.has(code)) {
       await signInWithRedirect(auth, googleProvider);
-      return null;
+      return null; // redirect 후 페이지 이동 — handleRedirectResult()가 처리
     }
     const message = err instanceof Error ? err.message : 'Google sign-in failed.';
     throw new Error(message);

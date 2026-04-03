@@ -19,8 +19,14 @@ export function AuthRequired({ children }: { children: ReactNode }) {
   const [redirectChecking, setRedirectChecking] = useState(true);
 
   // signInWithRedirect 후 돌아왔을 때 결과를 처리
+  // getRedirectResult()가 완료되면 onAuthStateChanged가 자동으로 user를 업데이트함
+  // → redirectChecking을 user가 확정된 후 해제해야 로그인 화면이 깜빡이지 않음
   useEffect(() => {
     handleRedirectResult()
+      .then((redirectUser) => {
+        // redirect 로그인 성공 시 onAuthStateChanged가 곧 발火 — 별도 처리 불필요
+        if (redirectUser) console.log('[AuthRequired] redirect login success:', redirectUser.email);
+      })
       .catch(console.error)
       .finally(() => setRedirectChecking(false));
   }, []);
