@@ -10,7 +10,7 @@
  * ENV: BLOGGER_BLOG_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_KEY
  */
 
-import { sendMessage, sendErrorAlert } from './_telegram.js';
+import { sendMessage, sendErrorAlert } from '../_telegram.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const BLOGGER_API = 'https://www.googleapis.com/blogger/v3/blogs';

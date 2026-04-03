@@ -9,7 +9,7 @@
  * SCHEDULE: 0 23 * * * (UTC) = 매일 KST 08:00
  */
 
-import { sendLongMessage, sendErrorAlert } from './_telegram.js';
+import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // ── 오늘의 트렌드 토픽 (시즌/이벤트 기반) ────────────────────────────
@@ -137,7 +137,7 @@ ${(content.blog?.outline || []).map((h, i) => `  ${i+1}. ${h}`).join('\n')}
   }
 };
 
-const originalHandler = schedule('0 23 * * *', contentTask);
+const originalHandler = contentTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {

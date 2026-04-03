@@ -8,10 +8,10 @@
  * SCHEDULE: 0 2 * * * (UTC) = 매일 KST 11:00
  */
 
-import { sendReviewRequest } from './_send-email.js';
-import { sendMessage, sendErrorAlert } from './_telegram.js';
-import { generateReviewRequestEmail } from './_ai-employees.js';
-import { getYesterdayBookings } from './_google-sheets.js';
+import { sendReviewRequest } from '../_send-email.js';
+import { sendMessage, sendErrorAlert } from '../_telegram.js';
+import { generateReviewRequestEmail } from '../_ai-employees.js';
+import { getYesterdayBookings } from '../_google-sheets.js';
 
 const retargetTask = async () => {
   console.log('[review-scheduler] 후기 수집 스케줄 시작');
@@ -112,7 +112,7 @@ function buildDefaultReviewEmail(name, product, tourDate) {
   return { subject, html, text };
 }
 
-const originalHandler = schedule('0 2 * * *', retargetTask);
+const originalHandler = retargetTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {

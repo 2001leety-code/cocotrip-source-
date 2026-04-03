@@ -8,8 +8,8 @@
  * SCHEDULE: 0 1 * * * (UTC) = 매일 KST 10:00
  */
 
-import { sendRetargetingEmail } from './_send-email.js';
-import { sendMessage, sendErrorAlert } from './_telegram.js';
+import { sendRetargetingEmail } from '../_send-email.js';
+import { sendMessage, sendErrorAlert } from '../_telegram.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const SHEETS_BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -121,7 +121,7 @@ const retargetTask = async () => {
   }
 };
 
-const originalHandler = schedule('0 1 * * *', retargetTask);
+const originalHandler = retargetTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {

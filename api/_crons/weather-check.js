@@ -14,9 +14,9 @@
  * SCHEDULE: 0 9 * * * (UTC) = 매일 KST 18:00
  */
 
-import { getTomorrowTours } from './_google-sheets.js';
-import { sendMessage, sendWeatherOkAlert, sendErrorAlert } from './_telegram.js';
-import { generateWeatherAlert } from './_ai-employees.js';
+import { getTomorrowTours } from '../_google-sheets.js';
+import { sendMessage, sendWeatherOkAlert, sendErrorAlert } from '../_telegram.js';
+import { generateWeatherAlert } from '../_ai-employees.js';
 
 // 지역별 좌표 매핑
 const REGION_COORDS = {
@@ -174,7 +174,7 @@ const weatherCheckTask = async () => {
 };
 
 // Netlify Scheduled Function: 매일 UTC 09:00 (KST 18:00)
-const originalHandler = schedule('0 9 * * *', weatherCheckTask);
+const originalHandler = weatherCheckTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {

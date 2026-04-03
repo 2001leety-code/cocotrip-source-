@@ -9,7 +9,7 @@
  * SCHEDULE: 0 0 * * * (UTC) = 매일 KST 09:00
  */
 
-import { sendLongMessage, sendErrorAlert } from './_telegram.js';
+import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
 
 // ── 경쟁사 URL 목록 (공개 페이지 스크래핑) ─────────────────────────
 const COMPETITORS = [
@@ -168,7 +168,7 @@ const competitorTask = async () => {
   }
 };
 
-const originalHandler = schedule('0 0 * * *', competitorTask);
+const originalHandler = competitorTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {

@@ -251,42 +251,33 @@ const originalHandler = async (event) => {
 
 
 
-// --- Vercel Native Wrapper ---
-export default async function vercelHandler(req, res) {
+export const maxDuration = 60;
+export const config = { runtime: 'nodejs' };
+
+// --- Vercel Native Handler ---
+export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
     return res.status(200).end();
   }
 
   const event = {
     httpMethod: req.method,
-    path: req.url.split('?')[0],
-    body: typeof req.body === 'object' ? JSON.stringify(req.body) : (req.body || ''),
-    queryStringParameters: req.query || {},
-    headers: req.headers || {}
+    body: typeof req.body === 'object' ? JSON.stringify(req.body) : (req.body || '{}'),
   };
-  
+
   try {
-    const result = await originalHandler(event, {});
-    
+    const result = await originalHandler(event);
     if (result && result.headers) {
-      for (const [key, val] of Object.entries(result.headers)) {
-        res.setHeader(key, val);
-      }
+      Object.entries(result.headers).forEach(([k, v]) => res.setHeader(k, v));
     }
-    if (result && result.statusCode) {
-      let finalBody = result.body;
-      if (typeof finalBody === 'string') {
-        try { finalBody = JSON.parse(finalBody); } catch(e) {}
-      }
-      return res.status(result.statusCode).json(finalBody);
-    }
-    return res.status(200).json(result);
+    const statusCode = result?.statusCode || 200;
+    let finalBody = result?.body;
+    if (typeof finalBody === 'string') { try { finalBody = JSON.parse(finalBody); } catch {} }
+    return res.status(statusCode).json(finalBody || result);
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('[booking-processor] Handler error:', error);
+    res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({ error: error.message });
   }
 }
-  

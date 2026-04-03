@@ -8,7 +8,7 @@
  * SCHEDULE: 0 5 * * * (UTC) = 매일 KST 14:00
  */
 
-import { sendMessage, sendLongMessage, sendErrorAlert } from './_telegram.js';
+import { sendMessage, sendLongMessage, sendErrorAlert } from '../_telegram.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const SUBREDDITS = ['korea', 'travel', 'kpop', 'koreatravel', 'seoul'];
@@ -131,7 +131,7 @@ const redditTask = async () => {
   }
 };
 
-const originalHandler = schedule('0 5 * * *', redditTask);
+const originalHandler = redditTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {

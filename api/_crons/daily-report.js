@@ -16,9 +16,9 @@
  * SCHEDULE: 0 22 * * * (UTC) = 매일 KST 07:00
  */
 
-import { getYesterdayBookings, getTodayTours, getWeekSummary } from './_google-sheets.js';
-import { sendLongMessage, sendErrorAlert } from './_telegram.js';
-import { generateDailyReport } from './_ai-employees.js';
+import { getYesterdayBookings, getTodayTours, getWeekSummary } from '../_google-sheets.js';
+import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
+import { generateDailyReport } from '../_ai-employees.js';
 
 // ── 환율 조회 ─────────────────────────────────────────────────────────
 async function getUSDKRWRate() {
@@ -157,7 +157,7 @@ USD/KRW: ₩${rate.rate} (${rate.change}%)
 };
 
 // Netlify Scheduled Function: 매일 UTC 22:00 (KST 07:00)
-const originalHandler = schedule('0 22 * * *', dailyReportTask);
+const originalHandler = dailyReportTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {

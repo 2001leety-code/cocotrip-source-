@@ -10,8 +10,8 @@
  * SCHEDULE: 0 21 * * * (UTC) = 매일 KST 06:00
  */
 
-import { getTodayTours } from './_google-sheets.js';
-import { sendMessage, sendErrorAlert } from './_telegram.js';
+import { getTodayTours } from '../_google-sheets.js';
+import { sendMessage, sendErrorAlert } from '../_telegram.js';
 
 // 지역별 기본 좌표 (출발지 → 도착지 추정)
 const LOCATION_COORDS = {
@@ -146,7 +146,7 @@ ${route.estimated ? '⚠️ (추정값 — API 미연동)' : '✅ 실시간 데�
   }
 };
 
-const originalHandler = schedule('0 21 * * *', trafficTask);
+const originalHandler = trafficTask;
 
 // --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {
