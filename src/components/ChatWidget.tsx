@@ -501,7 +501,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
             }}
           >
             {/* TourInputSheet + 버튼 */}
-            <TourInputSheet onSubmit={handleTourSubmit} />
+            <TourInputSheet onSubmit={handleTourSubmit} language={language} />
             <ChatInput
               ref={inputRef}
               type="text"
