@@ -1,5 +1,12 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+} from 'firebase/auth';
 import {
   getFirestore,
   serverTimestamp,
@@ -9,7 +16,8 @@ import {
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  // authDomain을 커스텀 도메인으로 설정 → "Illegal iFrame" 오류 방지
+  authDomain: 'cocotripkr.com',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
@@ -33,16 +41,10 @@ googleProvider.setCustomParameters({
 appleProvider.addScope('email');
 appleProvider.addScope('name');
 
-// Google 로그인 성공 시 Firestore `users/{uid}`에 자동 저장.
-export async function signInWithGoogle() {
+// 공통 Firestore 저장 함수
+async function saveUserToFirestore(user) {
+  if (!user?.uid) return;
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-
-    if (!user?.uid) {
-      throw new Error('Google sign-in did not return a user uid.');
-    }
-
     await setDoc(
       doc(db, 'users', user.uid),
       {
@@ -54,46 +56,74 @@ export async function signInWithGoogle() {
       },
       { merge: true }
     );
+  } catch (e) {
+    // Firestore 저장 실패해도 로그인 자체는 유지
+    console.warn('[firebase] Firestore save failed:', e.message);
+  }
+}
 
-    return user;
+// Google 로그인: Popup 시도 → 실패 시 Redirect 폴백
+export async function signInWithGoogle() {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    await saveUserToFirestore(result.user);
+    return result.user;
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : 'Google sign-in failed.';
+    // popup-blocked, cross-origin-blocked 등의 에러면 redirect로 전환
+    const code = err?.code ?? '';
+    if (
+      code === 'auth/popup-blocked' ||
+      code === 'auth/popup-closed-by-user' ||
+      code === 'auth/cancelled-popup-request' ||
+      err?.message?.includes('iFrame') ||
+      err?.message?.includes('Illegal')
+    ) {
+      // Redirect 방식으로 폴백 (페이지 이동 후 getRedirectResult로 처리)
+      await signInWithRedirect(auth, googleProvider);
+      return null; // redirect 중이므로 null 반환
+    }
+    const message = err instanceof Error ? err.message : 'Google sign-in failed.';
     throw new Error(message);
   }
 }
 
-// Apple 로그인 성공 시 Firestore `users/{uid}`에 자동 저장.
+// Apple 로그인: Popup 시도 → 실패 시 Redirect 폴백
 export async function signInWithApple() {
   try {
     const result = await signInWithPopup(auth, appleProvider);
-    const user = result.user;
-
-    if (!user?.uid) {
-      throw new Error('Apple sign-in did not return a user uid.');
-    }
-
-    await setDoc(
-      doc(db, 'users', user.uid),
-      {
-        uid: user.uid,
-        email: user.email ?? null,
-        name: user.displayName ?? null,
-        role: 'user',
-        createdAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    return user;
+    await saveUserToFirestore(result.user);
+    return result.user;
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : 'Apple sign-in failed.';
+    const code = err?.code ?? '';
+    if (
+      code === 'auth/popup-blocked' ||
+      code === 'auth/popup-closed-by-user' ||
+      err?.message?.includes('iFrame') ||
+      err?.message?.includes('Illegal')
+    ) {
+      await signInWithRedirect(auth, appleProvider);
+      return null;
+    }
+    const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
     throw new Error(message);
+  }
+}
+
+// 페이지 로드 시 Redirect 결과 처리 (App.tsx 등에서 호출)
+export async function handleRedirectResult() {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      await saveUserToFirestore(result.user);
+      return result.user;
+    }
+    return null;
+  } catch (err) {
+    console.error('[firebase] Redirect result error:', err);
+    return null;
   }
 }
 
 export async function signOutUser() {
   await auth.signOut();
 }
-

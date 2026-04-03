@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
@@ -23,6 +24,7 @@ import CharterPage from '@/pages/CharterPage';
 import { ChatWidget } from '@/components/ChatWidget';
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
+import { handleRedirectResult } from '@/lib/firebase';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -50,6 +52,12 @@ function HomePage() {
 
 function GlobalWidgets() {
   const { language } = useLanguage();
+
+  // Google Redirect 로그인 결과 처리 (signInWithRedirect 폴백 후 페이지 복귀 시)
+  useEffect(() => {
+    handleRedirectResult().catch(console.error);
+  }, []);
+
   return (
     <>
       <EarlyBirdBanner language={language} />
