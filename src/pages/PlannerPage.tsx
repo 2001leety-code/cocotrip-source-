@@ -13,7 +13,7 @@ import {
   Car, Bus as BusIcon, TrainFront, Footprints, MapPin, Clock, Ban, Phone, Banknote,
   Map, CreditCard, Hotel, Lightbulb, CloudRain, AlertTriangle, Search, Plane,
   Check, Calendar, Globe, Target, Ticket, Briefcase, Moon, RefreshCw, Star as StarIcon,
-  MessageSquare, Baby, RectangleHorizontal, Navigation, Sun, Sunrise, Mail
+  MessageSquare, Baby, RectangleHorizontal, Navigation, Sun, Sunrise
 } from 'lucide-react';
 import { buildAccommodationLinks, buildTourLinks, buildFlightLink, PICKUP_PRICES } from '@/config/affiliateLinks';
 
@@ -1247,8 +1247,8 @@ export default function PlannerPage() {
   const [status, setStatus] = useState<Status>('idle');
   const [resultQuick, setResultQuick] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [streamStep, setStreamStep] = useState<number>(0);
-  const [streamAgent, setStreamAgent] = useState<string>('');
+  const [streamStep] = useState<number>(0);
+  const [streamAgent] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
   const lastValues = useRef<PlannerFormValues | null>(null);
 
@@ -1288,76 +1288,6 @@ export default function PlannerPage() {
     }
   }
 
-  // 2단계 (상세 일정 생성 300초 연산 및 이메일 발송)
-  async function handleFullSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!userEmail || !userEmail.includes('@')) {
-      alert("올바른 이메일 주소를 입력해 주세요.");
-      return;
-    }
-    
-    setStatus('loadingFull');
-    setStreamStep(0);
-    setStreamAgent('');
-    
-    try {
-      const values = lastValues.current;
-      const res = await fetch('/api/ai-planner-full', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: userEmail,
-          startDate: values?.startDate,
-          endDate: values?.endDate,
-          destination: values?.regions?.join(', ') || 'Seoul',
-          preferences: values?.categories?.join(', ') || '',
-          durationDays: values?.durationDays || 3,
-          pax: values?.pax || 2,
-          vehicleType: values?.transport || 'staria',
-          language,
-        }),
-      });
-
-      if (!res.ok) throw new Error(`Server error (${res.status})`);
-      if (!res.body) throw new Error("Stream not supported");
-      
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-             const dataStr = line.replace('data: ', '');
-             try {
-               const data = JSON.parse(dataStr);
-               if (data.error) throw new Error(data.error);
-               
-               if (data.step === data.totalSteps) {
-                  setStatus('fullSuccess');
-                  setTimeout(() => {
-                    document.getElementById('funnel-success-view')?.scrollIntoView({ behavior: 'smooth' });
-                  }, 100);
-               } else {
-                  setStreamStep(data.step);
-                  setStreamAgent(data.agent);
-               }
-             } catch (err) {}
-          }
-        }
-      }
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to process full plan.');
-      setStatus('error');
-    }
-  }
 
   function handleReset() {
     setStatus('idle');
