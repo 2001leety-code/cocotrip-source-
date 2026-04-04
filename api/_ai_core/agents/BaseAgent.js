@@ -16,13 +16,12 @@ export class BaseAgent {
             systemInstruction: this.systemPrompt,
         });
         try {
-            // generateContentStream: starts yielding tokens immediately → prevents 504 on Vercel
             const streamResult = await model.generateContentStream({
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],
                 generationConfig: {
                     maxOutputTokens: MAX_TOKENS,
                     temperature: 0.2,
-                    // Disable thinking mode on Gemini 2.5 Flash — thinking adds 30-60s latency
+                    responseMimeType: "application/json",
                     thinkingConfig: { thinkingBudget: 0 },
                 },
             });
@@ -43,10 +42,26 @@ export class BaseAgent {
             inputTokens = finalResponse.usageMetadata?.promptTokenCount || 0;
             outputTokens = finalResponse.usageMetadata?.candidatesTokenCount || 0;
 
-            // JSON 추출 강화: 마크다운 백틱 등이 포함된 경우를 대비한 정규식 추출
-            const jsonMatch = text.match(/(\{.*\}|\[.*\])/s);
-            if (jsonMatch) {
-                text = jsonMatch[0];
+            // Robust JSON extraction: strip markdown fences, find outermost { }
+            text = text.replace(/^```(?:json)?\s*|```\s*$/gm, '').trim();
+            const first = text.indexOf('{');
+            const last = text.lastIndexOf('}');
+            if (first !== -1 && last > first) {
+                text = text.slice(first, last + 1);
+            }
+
+            // Validate JSON is parseable — if not, try to salvage
+            try {
+                JSON.parse(text);
+            } catch {
+                console.warn(`[${this.agentKey}] JSON parse failed, attempting salvage`);
+                // Try to find JSON in the raw output
+                const raw = text;
+                const f2 = raw.indexOf('{');
+                const l2 = raw.lastIndexOf('}');
+                if (f2 !== -1 && l2 > f2) {
+                    text = raw.slice(f2, l2 + 1);
+                }
             }
 
             return {
@@ -54,18 +69,14 @@ export class BaseAgent {
                 systemPrompt: this.systemPrompt,
                 userPrompt: userPrompt,
                 rawOutput: text,
-                thinkingSummary: `Gemini [${this.agentKey}] 생성 유효성 검증 완료`,
+                thinkingSummary: `[${this.agentKey}] completed`,
                 inputTokens,
                 outputTokens,
             };
         }
         catch (e) {
-            console.error(`[${this.agentKey} 기술적 통신 오류]`, {
-                message: e.message,
-                stack: e.stack,
-                prompt: userPrompt.substring(0, 100) + "..."
-            });
-            throw new Error(`[${this.agentKey}] 부서 응답 생성 실패: ${e.message}`);
+            console.error(`[${this.agentKey}] API error:`, e.message);
+            throw new Error(`[${this.agentKey}] generation failed: ${e.message}`);
         }
     }
 }

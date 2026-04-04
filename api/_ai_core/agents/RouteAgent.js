@@ -5,25 +5,20 @@ export class RouteAgent extends BaseAgent {
         super(apiKey, "route");
     }
     async call(userPrompt) {
-        console.log("\n[기술팀] 네이버 지도 API 팩트 분석 및 동선 체크를 수행합니다...");
-        // 1. JSON 추출
-        let jsonStr = userPrompt;
-        const matchBlock = userPrompt.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-        if (matchBlock) {
-            jsonStr = matchBlock[1];
-        }
-        else {
-            const matchBrace = userPrompt.match(/(\{[\s\S]*\})/);
-            if (matchBrace) {
-                jsonStr = matchBrace[1];
-            }
+        console.log("\n[Route] Naver Maps API enrichment...");
+        // Robust JSON extraction: strip fences, find outermost { }
+        let jsonStr = userPrompt.replace(/^```(?:json)?\s*|```\s*$/gm, '').trim();
+        const firstBrace = jsonStr.indexOf('{');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+            jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
         }
         let data;
         try {
             data = JSON.parse(jsonStr);
         }
         catch (e) {
-            console.warn("  [경고] 기획팀 출력을 JSON으로 파싱할 수 없습니다. LLM 원본 호출로 Fallback합니다.");
+            console.warn("  [Route] JSON parse failed, falling back to LLM:", e.message);
             return super.call(userPrompt);
         }
         const clientId = process.env.NAVER_CLIENT_ID || "";
@@ -123,13 +118,13 @@ export class RouteAgent extends BaseAgent {
             }
         }
         const finalJsonStr = JSON.stringify(data, null, 2);
-        console.log("  - 데이터 검증 및 팩트 교정 완료 (API 호출 대치)");
+        console.log("  [Route] enrichment complete");
         return {
             agentName: this.agentKey,
             systemPrompt: this.systemPrompt,
             userPrompt: userPrompt,
-            rawOutput: `\`\`\`json\n${finalJsonStr}\n\`\`\``,
-            thinkingSummary: "Naver Maps API 기반 정보 증강 완료 (LLM 생략)",
+            rawOutput: finalJsonStr,
+            thinkingSummary: "[route] Naver Maps API enrichment complete",
             inputTokens: 0,
             outputTokens: 0,
         };

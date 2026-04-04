@@ -37,12 +37,24 @@ const BUSINESS_CONTEXT = `
 `;
 
 // ── Gemini 클라이언트 초기화 ───────────────────────────────────────────
-function getGeminiModel(systemInstruction) {
+function getGeminiModel(systemInstruction, jsonMode = false) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  return genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction,
-  });
+  const config = { model: 'gemini-2.5-flash', systemInstruction };
+  if (jsonMode) config.generationConfig = { responseMimeType: 'application/json' };
+  return genAI.getGenerativeModel(config);
+}
+
+// Robust JSON extraction from AI response text
+function extractJSON(text) {
+  // Strip markdown fences
+  let clean = text.replace(/^```(?:json)?\s*|```\s*$/gm, '').trim();
+  // Find outermost { }
+  const first = clean.indexOf('{');
+  const last = clean.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    try { return JSON.parse(clean.slice(first, last + 1)); } catch { /* fallthrough */ }
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -156,36 +168,23 @@ ${BUSINESS_CONTEXT}
  * @returns {object} { subject, html, text }
  */
 export async function generateConfirmationEmail(booking, language = 'en') {
-  const model = getGeminiModel(CX_MANAGER_PROMPT);
+  const model = getGeminiModel(CX_MANAGER_PROMPT, true);
 
-  const langMap = { en: '영어', ko: '한국어', ja: '일본어', zh: '중국어' };
+  const langMap = { en: 'English', ko: 'Korean', ja: 'Japanese', zh: 'Chinese' };
   const prompt = `
-다음 예약 정보로 예약 확인 이메일을 ${langMap[language] || '영어'}로 작성해라.
-매뉴얼의 이메일 형식을 따를 것.
+Write a booking confirmation email in ${langMap[language] || 'English'}.
 
-예약 정보:
+Booking:
 ${JSON.stringify(booking, null, 2)}
 
-출력 형식 (JSON만):
-{
-  "subject": "이메일 제목",
-  "text": "일반 텍스트 버전",
-  "html": "HTML 버전 (인라인 스타일 사용, 모바일 친화적)"
-}
+Return JSON only: { "subject": "...", "text": "plain text version", "html": "HTML version with inline styles" }
 `;
   const result = await model.generateContent(prompt);
   const text = result.response.text().trim();
-  // JSON 파싱
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch {
-      // 파싱 실패 시 기본 반환
-    }
-  }
+  const parsed = extractJSON(text);
+  if (parsed) return parsed;
   return {
-    subject: `Your CocoTripKR Booking is Confirmed! 🎉 [${booking.bookingRef}]`,
+    subject: `Your CocoTripKR Booking is Confirmed! [${booking.bookingRef}]`,
     text,
     html: `<pre>${text}</pre>`,
   };
@@ -219,34 +218,21 @@ ${JSON.stringify(booking, null, 2)}
  * @returns {object} { subject, html, text }
  */
 export async function generateReviewRequestEmail(booking, language = 'en') {
-  const model = getGeminiModel(CX_MANAGER_PROMPT);
+  const model = getGeminiModel(CX_MANAGER_PROMPT, true);
+  const langMap = { en: 'English', ko: 'Korean', ja: 'Japanese', zh: 'Chinese' };
   const prompt = `
-투어 완료 24시간 후 보내는 후기 요청 이메일을 작성해라.
-언어: ${language}
+Write a review request email in ${langMap[language] || 'English'} for a completed tour (sent 24h after).
+Include: 5% discount coupon mention, Google review link, cocotripkr.com/planner link.
 
-예약 정보:
-${JSON.stringify(booking, null, 2)}
+Booking: ${JSON.stringify(booking, null, 2)}
 
-규칙:
-- 매뉴얼의 후기 요청 이메일 형식 따르기
-- 5% 할인 쿠폰 언급
-- Google 리뷰 링크: https://g.page/r/cocotripkr/review (예시)
-- cocotripkr.com/planner AI 플래너 링크 포함
-
-출력 형식 (JSON만):
-{
-  "subject": "이메일 제목",
-  "text": "일반 텍스트",
-  "html": "HTML 버전"
-}
+Return JSON only: { "subject": "...", "text": "...", "html": "..." }
 `;
   const result = await model.generateContent(prompt);
   const text = result.response.text().trim();
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try { return JSON.parse(jsonMatch[0]); } catch {}
-  }
-  return { subject: 'How was your CocoTripKR experience? ⭐', text, html: `<pre>${text}</pre>` };
+  const parsed = extractJSON(text);
+  if (parsed) return parsed;
+  return { subject: 'How was your CocoTripKR experience?', text, html: `<pre>${text}</pre>` };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -318,28 +304,18 @@ export async function generateTikTokScript(theme) {
  * @returns {object} { subject, html, text }
  */
 export async function generateRetargetingEmail(planner, hoursSince = 48) {
-  const model = getGeminiModel(MARKETING_MANAGER_PROMPT);
+  const model = getGeminiModel(MARKETING_MANAGER_PROMPT, true);
   const prompt = `
-AI 플래너를 사용했지만 ${hoursSince}시간이 지나도 예약하지 않은 고객에게 보낼 재타겟팅 이메일.
-매뉴얼의 재타겟팅 이메일 형식 참고.
+Write a retargeting email for a customer who used the AI planner ${hoursSince}h ago but hasn't booked.
+Planner data: ${JSON.stringify(planner, null, 2)}
 
-플래너 데이터:
-${JSON.stringify(planner, null, 2)}
-
-출력 형식 (JSON만):
-{
-  "subject": "제목",
-  "text": "텍스트",
-  "html": "HTML"
-}
+Return JSON only: { "subject": "...", "text": "...", "html": "..." }
 `;
   const result = await model.generateContent(prompt);
   const text = result.response.text().trim();
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try { return JSON.parse(jsonMatch[0]); } catch {}
-  }
-  return { subject: 'Your Korea itinerary is waiting! 🗺️', text, html: `<pre>${text}</pre>` };
+  const parsed = extractJSON(text);
+  if (parsed) return parsed;
+  return { subject: 'Your Korea itinerary is waiting!', text, html: `<pre>${text}</pre>` };
 }
 
 // ═══════════════════════════════════════════════════════════════════════

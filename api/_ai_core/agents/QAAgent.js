@@ -4,24 +4,20 @@ export class QAAgent extends BaseAgent {
         super(apiKey, "qa");
     }
     async call(userPrompt) {
-        console.log("\n[검수팀] 최종 예산 팩트체크 및 데이터 정합성 검수를 진행합니다...");
-        let jsonStr = userPrompt;
-        const matchBlock = userPrompt.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-        if (matchBlock) {
-            jsonStr = matchBlock[1];
-        }
-        else {
-            const matchBrace = userPrompt.match(/(\{[\s\S]*\})/);
-            if (matchBrace) {
-                jsonStr = matchBrace[1];
-            }
+        console.log("\n[QA] Budget calculation and data validation...");
+        // Robust JSON extraction: strip fences, find outermost { }
+        let jsonStr = userPrompt.replace(/^```(?:json)?\s*|```\s*$/gm, '').trim();
+        const firstBrace = jsonStr.indexOf('{');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+            jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
         }
         let data;
         try {
             data = JSON.parse(jsonStr);
         }
         catch (e) {
-            console.warn(`  [경고] 이전 단계 출력 파싱 불가(${e.message}). LLM에 넘깁니다.`);
+            console.warn(`  [QA] JSON parse failed (${e.message}), falling back to LLM`);
             return super.call(userPrompt);
         }
         const errors = [];
@@ -88,13 +84,13 @@ export class QAAgent extends BaseAgent {
             checkedAt: new Date().toISOString()
         };
         const finalStr = JSON.stringify(data, null, 2);
-        console.log(`  - 예산 산출 완료: 스타리아 전세 총 ${transportCost}원`);
+        console.log(`  [QA] Budget: staria total ${transportCost} KRW`);
         return {
             agentName: this.agentKey,
             systemPrompt: "",
             userPrompt: "",
-            rawOutput: `\`\`\`json\n${finalStr}\n\`\`\``,
-            thinkingSummary: "TypeScript로 정밀 예산 산출 및 정합성 검증 완료",
+            rawOutput: finalStr,
+            thinkingSummary: "[qa] budget calculation and validation complete",
             inputTokens: 0,
             outputTokens: 0
         };
