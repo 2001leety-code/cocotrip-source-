@@ -1432,13 +1432,40 @@ export default function PlannerPage() {
               </div>
             </div>
 
-            <div className="bg-[#0f111a] rounded-2xl p-8 border border-white/10 text-center shadow-xl">
-              <h3 className="text-2xl font-bold text-white mb-3">{p.fullPlanTitle}</h3>
+            {/* Premium Full Plan Purchase */}
+            <div className="bg-gradient-to-br from-[#0f111a] to-[#1a0f18] rounded-2xl p-8 border border-[#7C5CFC]/20 text-center shadow-xl relative overflow-hidden">
+              {/* Decorative glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-[#7C5CFC]/10 rounded-full blur-3xl" />
+              
+              {/* Price badge */}
+              <div className="relative inline-flex items-center gap-2 bg-gradient-to-r from-[#7C5CFC]/20 to-[#EA537E]/20 border border-[#7C5CFC]/30 rounded-full px-5 py-2 mb-5">
+                <span className="text-white/40 text-sm line-through">$9.90</span>
+                <span className="text-2xl font-extrabold text-white">$4.90</span>
+                <span className="bg-[#EA537E] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">-50%</span>
+              </div>
+              
+              <h3 className="text-2xl font-bold text-white mb-3 relative">{p.fullPlanTitle}</h3>
               <p className="text-white/50 text-sm mb-6 max-w-lg mx-auto leading-relaxed">
                 {p.fullPlanDesc}
               </p>
+
+              {/* Feature checklist */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md mx-auto mb-6 text-left">
+                {[
+                  { icon: '📋', text: language === 'ko' ? '3페이지 상세 일정표' : language === 'ja' ? '3ページ詳細スケジュール' : language === 'zh' ? '3页详细行程表' : '3-page detailed itinerary' },
+                  { icon: '🍜', text: language === 'ko' ? '현지인 맛집 리스트' : language === 'ja' ? 'ローカルグルメリスト' : language === 'zh' ? '当地美食清单' : 'Local restaurant guide' },
+                  { icon: '📸', text: language === 'ko' ? '인생샷 촬영 스팟' : language === 'ja' ? '写真スポットガイド' : language === 'zh' ? '拍照打卡点' : 'Photo spot recommendations' },
+                  { icon: '🚇', text: language === 'ko' ? '분단위 교통 동선' : language === 'ja' ? '分単位の交通ルート' : language === 'zh' ? '精确到分钟的交通路线' : 'Minute-by-minute transit routes' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm text-white/70 py-1.5">
+                    <span>{item.icon}</span>
+                    <span>{item.text}</span>
+                  </div>
+                ))}
+              </div>
               
-              <form onSubmit={handleFullSubmit} className="max-w-md mx-auto flex flex-col gap-3">
+              {/* Email + PayPal */}
+              <div className="max-w-md mx-auto flex flex-col gap-3">
                 <input 
                   type="email" 
                   value={userEmail}
@@ -1447,14 +1474,25 @@ export default function PlannerPage() {
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC] transition-all outline-none"
                   required 
                 />
-                <button 
-                  type="submit"
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] text-white font-bold text-lg hover:scale-[1.02] shadow-[0_0_15px_rgba(124,92,252,0.5)] transition-all flex items-center justify-center gap-2"
-                >
-                  <Mail className="w-5 h-5" />
-                  {p.emailSubmitBtn}
-                </button>
-              </form>
+                
+                <PayPalBookingButton
+                  productType="ai-planner-full"
+                  passengers={1}
+                  dateStart=""
+                  dateEnd=""
+                  priceKRW={6600}
+                  p={p}
+                  lang={language}
+                  memo={`Full itinerary for: ${userEmail}`}
+                  itineraryData={resultQuick}
+                />
+                
+                {/* Satisfaction guarantee */}
+                <div className="flex items-center justify-center gap-2 text-[11px] text-white/30 mt-1">
+                  <Check className="w-3 h-3" />
+                  <span>{language === 'ko' ? 'PayPal 안전결제 · 불만족 시 100% 환불' : language === 'ja' ? 'PayPal安全決済 · 不満足時100%返金' : language === 'zh' ? 'PayPal安全支付 · 不满意100%退款' : 'PayPal secure · 100% refund if unsatisfied'}</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
