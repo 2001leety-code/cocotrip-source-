@@ -246,7 +246,31 @@ const originalHandler = async (event) => {
   }
 
   console.log('[booking-processor] 예약 처리 완료:', results);
-  return respond(200, { success: true, bookingRef, steps: results.steps });
+
+  // ── 로열티 포인트 자동 적립 ──────────────────────────────────────────
+  try {
+    const amountNum = parseFloat(amount) || 0;
+    if (amountNum > 0 && body.userId) {
+      const loyaltyRes = await fetch(`https://cocotripkr.com/api/loyalty`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'earn',
+          userId: body.userId,
+          amountUSD: amountNum,
+          bookingRef,
+          description: `Booking confirmed: ${product || 'Charter'} $${amountNum}`,
+        }),
+      });
+      const loyaltyData = await loyaltyRes.json();
+      console.log('[booking-processor] 포인트 적립:', loyaltyData);
+      results.loyalty = loyaltyData;
+    }
+  } catch (loyaltyErr) {
+    console.warn('[booking-processor] 포인트 적립 실패 (비치명적):', loyaltyErr.message);
+  }
+
+  return respond(200, { success: true, bookingRef, steps: results.steps, loyalty: results.loyalty });
 };
 
 

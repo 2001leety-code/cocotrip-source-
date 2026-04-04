@@ -42,24 +42,103 @@ googleProvider.setCustomParameters({
 appleProvider.addScope('email');
 appleProvider.addScope('name');
 
-// 공통 Firestore 저장 함수
+// 공통 Firestore 저장 함수 — 신규 가입 시 등급 초기화 + 웰컴 쿠폰 + Guest 데이터 동기화
 async function saveUserToFirestore(user) {
   if (!user?.uid) return;
   try {
+    const userRef = doc(db, 'users', user.uid);
+
+    // 1. 기존 유저인지 확인
+    const { getDoc: firestoreGetDoc } = await import('firebase/firestore');
+    const snap = await firestoreGetDoc(userRef);
+    const isNewUser = !snap.exists();
+
+    // 2. 유저 프로필 저장/업데이트
     await setDoc(
-      doc(db, 'users', user.uid),
+      userRef,
       {
         uid: user.uid,
         email: user.email ?? null,
         name: user.displayName ?? null,
+        photoURL: user.photoURL ?? null,
         role: 'user',
-        createdAt: serverTimestamp(),
+        ...(isNewUser ? {
+          tier: 'Bronze',
+          tripCoins: 0,
+          totalSpentUSD: 0,
+          bookingCount: 0,
+          createdAt: serverTimestamp(),
+        } : {
+          lastLoginAt: serverTimestamp(),
+        }),
       },
       { merge: true }
     );
+
+    // 3. 신규 유저 → WELCOME5 쿠폰 (5% 가입 할인) 자동 발급
+    if (isNewUser) {
+      const { collection: firestoreCollection, addDoc } = await import('firebase/firestore');
+      const couponRef = firestoreCollection(db, 'users', user.uid, 'coupons');
+      await addDoc(couponRef, {
+        code: 'WELCOME5',
+        type: 'percent',
+        value: 5,
+        currency: 'USD',
+        label: 'Welcome 5% OFF (Sign-up Bonus)',
+        minOrderUSD: 0,
+        isUsed: false,
+        expiresAt: Date.now() + 90 * 24 * 60 * 60 * 1000, // 90일 유효
+        createdAt: Date.now(),
+      });
+      console.log('[firebase] 웰컴 쿠폰 WELCOME5 발급:', user.uid);
+    }
+
+    // 4. Guest → Login 동기화 (위시리스트 + 최근 본 상품)
+    await syncGuestDataToFirestore(user.uid);
+
   } catch (e) {
-    // Firestore 저장 실패해도 로그인 자체는 유지
     console.warn('[firebase] Firestore save failed:', e.message);
+  }
+}
+
+// Guest localStorage → Firestore 동기화
+async function syncGuestDataToFirestore(uid) {
+  try {
+    // 위시리스트 동기화
+    const wishlistRaw = localStorage.getItem('COCO_WISHLIST');
+    if (wishlistRaw) {
+      let items = [];
+      try { items = JSON.parse(wishlistRaw); } catch { items = []; }
+      for (const item of items) {
+        if (!item?.id) continue;
+        await setDoc(
+          doc(db, 'users', uid, 'wishlist', item.id),
+          { ...item, serverAddedAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
+      localStorage.removeItem('COCO_WISHLIST');
+      console.log(`[firebase] 위시리스트 ${items.length}건 동기화 완료`);
+    }
+
+    // 최근 본 상품 동기화
+    const recentRaw = localStorage.getItem('COCO_RECENTLY_VIEWED');
+    if (recentRaw) {
+      let items = [];
+      try { items = JSON.parse(recentRaw); } catch { items = []; }
+      for (const item of items) {
+        if (!item?.id) continue;
+        await setDoc(
+          doc(db, 'users', uid, 'recentlyViewed', item.id),
+          { ...item, serverViewedAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
+      localStorage.removeItem('COCO_RECENTLY_VIEWED');
+      console.log(`[firebase] 최근 본 ${items.length}건 동기화 완료`);
+    }
+  } catch (e) {
+    console.warn('[firebase] Guest sync failed:', e.message);
   }
 }
 
