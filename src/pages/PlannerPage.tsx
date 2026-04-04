@@ -185,12 +185,12 @@ function TriviaLoadingAnimation({ p, streamStep, streamAgent }: { p: any, stream
   const [visible,  setVisible]  = useState(true);
 
   const AGENT_DISPLAY_NAMES: Record<string, string> = {
-    planner: "AI 기획팀 (Travel Planner) 생성 중...",
-    route: "AI 기술팀 (Naver Fact Checker) 검증 중...",
-    designer: "AI 디자인팀 (Localization & 미션) 작성 중...",
-    marketing: "AI 홍보팀 (PR & SNS 캡션) 추가 중...",
-    qa: "AI 검수팀 (QA & Budgeting) 예산 산출 중...",
-    cs: "AI 고객만족팀 (CS & Billing 봇) 마무리 중..."
+    planner: p.agentPlanner,
+    route: p.agentRoute,
+    designer: p.agentDesigner,
+    marketing: p.agentMarketing,
+    qa: p.agentQa,
+    cs: p.agentCs,
   };
 
   useEffect(() => {
@@ -241,7 +241,7 @@ function TriviaLoadingAnimation({ p, streamStep, streamAgent }: { p: any, stream
         </div>
         <div className="flex flex-col items-center gap-1">
           <p className="text-sm font-semibold text-[#7C5CFC] tracking-wider">{currentPhaseText}</p>
-          {streamStep && <p className="text-[10px] text-white/40">{streamStep} / 6 단계 가동 중 (상세 분석 및 교정) 🚀</p>}
+          {streamStep && <p className="text-[10px] text-white/40">{(p.streamStepStatus || '').replace('{step}', String(streamStep))}</p>}
         </div>
       </div>
     </div>
@@ -251,7 +251,7 @@ function TriviaLoadingAnimation({ p, streamStep, streamAgent }: { p: any, stream
 // ────────────────────────────────────────
 // ★ 이동수단 배지 (타임라인 사이)
 // ────────────────────────────────────────
-function TransportBadge({ transport }: { transport: TransportToNext }) {
+function TransportBadge({ transport, p }: { transport: TransportToNext; p: any }) {
   const icon = TRANSPORT_ICON_MAP[transport.method] ?? TRANSPORT_ICON_MAP.default;
   const isCharter = transport.charterRecommended === 'yes';
   return (
@@ -267,7 +267,7 @@ function TransportBadge({ transport }: { transport: TransportToNext }) {
           <span className="text-[#C4956A]/80 font-medium">{transport.costKRW}</span>
           {transport.durationMin > 0 && <>
             <span className="text-white/25">·</span>
-            <span className="text-white/40">{transport.durationMin}분</span>
+            <span className="text-white/40">{transport.durationMin}{p.minuteUnit}</span>
           </>}
         </span>
         {transport.fatigueComment && (
@@ -362,7 +362,7 @@ function TimelineCard({ place, index, p }: { place: Place; index: number; p: any
         {/* 네이버지도 링크 */}
         <a href={mapUrl} target="_blank" rel="noopener noreferrer"
           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#03C75A]/30 bg-[#03C75A]/8 text-[#03C75A] text-xs font-medium hover:bg-[#03C75A]/18 transition-colors">
-          <Map className="w-3 h-3" /> {p.placeNaverMap || '네이버지도'}
+          <Map className="w-3 h-3" /> {p.placeNaverMap}
         </a>
       </div>
     </div>
@@ -377,7 +377,7 @@ function MealsSection({ meals, p, enriching }: { meals?: Meal[]; p: any; enrichi
     if (!enriching) return null;
     return (
       <div className="mt-6">
-        <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3 flex items-center gap-1"><UtensilsCrossed className="w-3.5 h-3.5" /> {p.mealsLabel ?? '식사 추천'}</p>
+        <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3 flex items-center gap-1"><UtensilsCrossed className="w-3.5 h-3.5" /> {p.mealsLabel}</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {['breakfast', 'lunch', 'dinner'].map((type) => (
             <div key={type} className="bg-white/[0.04] border border-white/[0.07] rounded-2xl p-4 animate-pulse">
@@ -398,7 +398,7 @@ function MealsSection({ meals, p, enriching }: { meals?: Meal[]; p: any; enrichi
   }
   return (
     <div className="mt-6">
-      <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3 flex items-center gap-1"><UtensilsCrossed className="w-3.5 h-3.5" /> {p.mealsLabel ?? '식사 추천'}</p>
+      <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3 flex items-center gap-1"><UtensilsCrossed className="w-3.5 h-3.5" /> {p.mealsLabel}</p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {meals.map((meal, i) => {
           const mapUrl = meal.naverMapUrl
@@ -419,7 +419,7 @@ function MealsSection({ meals, p, enriching }: { meals?: Meal[]; p: any; enrichi
               {mapUrl && (
                 <a href={mapUrl} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#03C75A]/30 bg-[#03C75A]/8 text-[#03C75A] text-xs font-medium hover:bg-[#03C75A]/18 transition-colors mt-auto w-fit">
-                  <Map className="w-3 h-3" /> {p.placeNaverMap || '네이버지도'}
+                  <Map className="w-3 h-3" /> {p.placeNaverMap}
                 </a>
               )}
             </div>
@@ -764,7 +764,7 @@ function RainyDaySection({ places, p }: { places: Place[]; p: any }) {
     <div className="mt-4 rounded-2xl border border-blue-500/15 overflow-hidden">
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3 bg-blue-500/[0.06] hover:bg-blue-500/[0.10] transition-colors">
-        <span className="text-sm text-blue-300/65 font-medium flex items-center gap-1"><CloudRain className="w-4 h-4" /> {p?.result_rainy ?? '비 오는 날엔?'}</span>
+        <span className="text-sm text-blue-300/65 font-medium flex items-center gap-1"><CloudRain className="w-4 h-4" /> {p.result_rainy}</span>
         <span className="text-white/25 text-xs">{open ? '▲' : '▶'}</span>
       </button>
       {open && (
@@ -799,7 +799,7 @@ function EnrichingBanner({ visible, p }: { visible: boolean; p: any }) {
           style={{ background: 'linear-gradient(90deg, #C4956A, #D4915C)', animation: 'indeterminate2 2.1s cubic-bezier(.5,.3,.1,.7) infinite 1.15s' }} />
       </div>
       <p className="text-xs text-[#C4956A]/80 text-center py-3 font-medium">
-        <UtensilsCrossed className="w-3.5 h-3.5 inline" /> {p.enriching_message ?? '맛집·숙소·예산 정보를 불러오고 있어요...'}
+        <UtensilsCrossed className="w-3.5 h-3.5 inline" /> {p.enriching_message}
       </p>
     </div>
   );
@@ -835,7 +835,7 @@ function AirportPickupCard({ arrivalAirport, p, lang }: { arrivalAirport?: strin
         <span className="shrink-0 text-[10px] text-[#C4956A] border border-[rgba(196,149,106,.35)] rounded-full px-2.5 py-1 font-semibold">{code}</span>
       </div>
 
-      <p className="text-xs text-white/40 mb-2">{p.airport_pickup_select ?? '목적지 선택'}</p>
+      <p className="text-xs text-white/40 mb-2">{p.airport_pickup_select}</p>
       <div className="flex flex-wrap gap-2 mb-4">
         {prices.map((row, i) => (
           <button key={i} type="button" onClick={() => setSelectedDest(row.destination)}
@@ -865,7 +865,7 @@ function AirportPickupCard({ arrivalAirport, p, lang }: { arrivalAirport?: strin
           memo={`Airport Pickup: ${code} → ${selectedDest}`}
         />
       ) : (
-        <p className="text-xs text-white/30 text-center py-2">{p.airport_pickup_select_hint ?? '위에서 목적지를 선택하면 바로 결제할 수 있습니다'}</p>
+        <p className="text-xs text-white/30 text-center py-2">{p.airport_pickup_select_hint}</p>
       )}
     </div>
   );
@@ -945,13 +945,13 @@ function FlightSearchSection({ arrivalAirport, p }: { arrivalAirport?: string; p
 // ────────────────────────────────────────
 // ★ 고객지원 & 결제 정책 (CSAgent)
 // ────────────────────────────────────────
-function CustomerSupportSection({ cs }: { cs?: CustomerSupport }) {
+function CustomerSupportSection({ cs, p }: { cs?: CustomerSupport; p: any }) {
   if (!cs) return null;
   return (
     <div className="bg-[#1A233A]/80 border border-[#C4956A]/30 rounded-2xl p-6 mt-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-bold text-white text-lg flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-[#C4956A]" /> 코코트립 예약 및 고객지원
+          <MessageSquare className="w-5 h-5 text-[#C4956A]" /> {p.csSectionTitle}
         </h3>
       </div>
       
@@ -959,22 +959,22 @@ function CustomerSupportSection({ cs }: { cs?: CustomerSupport }) {
       
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="bg-white/[0.04] rounded-xl p-4 border border-white/5">
-          <p className="text-xs text-[#C4956A] uppercase tracking-wider font-bold mb-2 flex items-center gap-1"><CreditCard className="w-4 h-4"/> 결제 정책</p>
+          <p className="text-xs text-[#C4956A] uppercase tracking-wider font-bold mb-2 flex items-center gap-1"><CreditCard className="w-4 h-4"/> {p.csPaymentPolicy}</p>
           <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{cs.paymentPolicy}</p>
         </div>
         <div className="bg-white/[0.04] rounded-xl p-4 border border-white/5">
-          <p className="text-xs text-[#C4956A] uppercase tracking-wider font-bold mb-2 flex items-center gap-1"><Ban className="w-4 h-4"/> 환불 및 취소 규정</p>
+          <p className="text-xs text-[#C4956A] uppercase tracking-wider font-bold mb-2 flex items-center gap-1"><Ban className="w-4 h-4"/> {p.csCancelPolicy}</p>
           <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{cs.cancellationPolicy}</p>
         </div>
       </div>
 
       <div className="bg-[rgba(3,199,90,0.05)] border border-[#03C75A]/20 rounded-xl p-4 mb-6">
-        <p className="text-xs text-[#03C75A] font-bold mb-2 flex items-center gap-1"><MessageSquare className="w-4 h-4" /> 🤖 고객 맞춤형 지원 봇 (FAQ)</p>
-        <p className="text-[11px] text-white/60 mb-3 block">웹 채팅 봇과 텔레그램 봇이 아래의 맞춤형 정보를 학습했습니다.</p>
+        <p className="text-xs text-[#03C75A] font-bold mb-2 flex items-center gap-1"><MessageSquare className="w-4 h-4" /> {p.csBotTitle}</p>
+        <p className="text-[11px] text-white/60 mb-3 block">{p.csBotDesc}</p>
         
         {cs.chatbotResponses && (
           <div className="mb-3 p-3 bg-white/5 rounded-lg border border-white/10">
-            <p className="text-xs text-white/40 mb-1">봇 초기 응답 (Welcome Message)</p>
+            <p className="text-xs text-white/40 mb-1">{p.csBotWelcome}</p>
             <p className="text-sm text-[#03C75A]/90">{cs.chatbotResponses.welcome}</p>
           </div>
         )}
@@ -990,7 +990,7 @@ function CustomerSupportSection({ cs }: { cs?: CustomerSupport }) {
       </div>
 
       <div className="flex flex-col gap-1 text-xs text-white/40 p-3 bg-black/20 rounded-xl">
-        <p className="flex items-center gap-1 font-semibold text-white/50"><Phone className="w-3.5 h-3.5" /> 24시간 글로벌 비상 연락망</p>
+        <p className="flex items-center gap-1 font-semibold text-white/50"><Phone className="w-3.5 h-3.5" /> {p.csEmergencyContact}</p>
         <p>{cs.contactInfo}</p>
       </div>
     </div>
@@ -1000,27 +1000,27 @@ function CustomerSupportSection({ cs }: { cs?: CustomerSupport }) {
 // ────────────────────────────────────────
 // ★ 프리미엄 콤보 할인 배너
 // ────────────────────────────────────────
-function ComboPackageBanner() {
+function ComboPackageBanner({ p }: { p: any }) {
   return (
     <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/30 rounded-2xl p-6 mt-6 relative overflow-hidden">
-      <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg shadow-lg">타사 대비 절감</div>
+      <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg shadow-lg">{p.comboSaveBadge}</div>
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
           <Ticket className="w-5 h-5 text-amber-400" />
         </div>
         <div>
-          <h3 className="font-bold text-white text-base">특가 콤보: 공항픽업 + 프라이빗 투어</h3>
-          <p className="text-xs text-amber-200/80 mt-0.5">단품 결제보다 확연히 저렴하게 예약하세요.</p>
+          <h3 className="font-bold text-white text-base">{p.comboTitle}</h3>
+          <p className="text-xs text-amber-200/80 mt-0.5">{p.comboSubtitle}</p>
         </div>
       </div>
       
       <div className="bg-black/30 rounded-xl p-4 mb-4 border border-white/5">
         <div className="flex justify-between text-xs text-white/50 mb-2">
-          <span>타 플랫폼 평균가 (픽업 + 일일투어)</span>
+          <span>{p.comboCompareLabel}</span>
           <span className="line-through">₩450,000</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-sm font-semibold text-white">코코트립 다이렉트 콤보 할인가</span>
+          <span className="text-sm font-semibold text-white">{p.comboDirectLabel}</span>
           <span className="text-lg font-bold text-amber-400">₩380,000</span>
         </div>
       </div>
@@ -1029,7 +1029,7 @@ function ComboPackageBanner() {
         <button onClick={() => alert("Redirecting to 100% Pre-payment Checkout ($280)...")}
           className="flex flex-col items-center justify-center gap-0.5 w-full py-3.5 rounded-xl text-sm font-bold shadow-2xl transition-all hover:scale-[1.02]"
           style={{ background: '#FFC439', color: '#003087', boxShadow: '0 8px 30px rgba(255,196,57,0.3)' }}>
-          <span className="flex items-center gap-2">💳 🔥 특가 콤보 확정하기 ($280 전액 선결제)</span>
+          <span className="flex items-center gap-2">{p.comboCta}</span>
         </button>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-1 text-[11px] text-white/70 font-medium">
           <span className="flex items-center gap-1">✅ 100% Safe Checkout</span>
@@ -1038,7 +1038,7 @@ function ComboPackageBanner() {
         </div>
         <div className="text-center mt-3">
           <a href="https://wa.me/821099339020" target="_blank" rel="noopener noreferrer" className="text-[11px] text-white/30 hover:text-white/50 transition-colors underline">
-            도움이 필요하신가요? WhatsApp 문의
+            {p.comboHelp}
           </a>
         </div>
       </div>
@@ -1062,7 +1062,10 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
   const nights = Math.round(
     (new Date(result.meta.endDate).getTime() - new Date(result.meta.startDate).getTime()) / 86400000
   );
-  const tripTitle = `${nights}박${nights + 1}일 ${result.meta.regions.join('·')} 여행`;
+  const tripTitle = (p.tripTitleFormat || '')
+    .replace('{nights}', String(nights))
+    .replace('{days}', String(nights + 1))
+    .replace('{regions}', result.meta.regions.join('·'));
 
   return (
     <div style={{ animation: 'fade-slide-up 0.5s ease forwards' }}>
@@ -1118,7 +1121,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
             <p className="text-sm text-white/35 mb-4 flex items-center gap-2">
               <span>{formatDate(current.date, lang)}</span>
               <span className="text-white/15">·</span>
-              <span>{current.places.length} {p.placesVisit ?? '곳'}</span>
+              <span>{current.places.length} {p.placesUnit}</span>
             </p>
 
             {/* 하루 팁 */}
@@ -1130,7 +1133,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
                 <div key={idx}>
                   <TimelineCard place={place} index={idx} p={p} />
                   {idx < current.places.length - 1 && place.transportToNext && (
-                    <TransportBadge transport={place.transportToNext} />
+                    <TransportBadge transport={place.transportToNext} p={p} />
                   )}
                 </div>
               ))}
@@ -1149,20 +1152,20 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
                 <div className="w-14 h-14 mx-auto bg-gradient-to-br from-[#C4956A] to-[#D4A574] rounded-full flex items-center justify-center mb-5 shadow-lg shadow-[#C4956A]/20">
                   <span className="text-2xl">🔒</span>
                 </div>
-                <h3 className="text-[17px] font-bold text-white mb-2 leading-tight">프리미엄 VIP 일정표 대기 중</h3>
+                <h3 className="text-[17px] font-bold text-white mb-2 leading-tight">{p.paywallTitle}</h3>
                 <p className="text-[13px] text-white/70 mb-5 leading-relaxed">
-                  현장에서 기사님과 현금으로 실랑이하지 마세요!<br/>
-                  <b>$280 콤보 100% 전액 선결제 시</b>, 2일 차 이후의 숨겨진 최고급 로컬 맛집, 상세 프라이빗 좌표, 컨펌 리포트가 내 이메일로 즉시 발송됩니다.<br/>
-                  <span className="text-[#C4956A] font-medium mt-1.5 block">모든 팁 및 톨비 100% 포함 보장!</span>
+                  {p.paywallDesc}<br/>
+                  <b>{p.paywallOffer}</b><br/>
+                  <span className="text-[#C4956A] font-medium mt-1.5 block">{p.paywallGuarantee}</span>
                 </p>
                 <div className="flex flex-col gap-2.5">
                   <button onClick={() => document.getElementById('airport-pickup-section')?.scrollIntoView({ behavior: 'smooth' })}
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-400 text-black text-[13px] font-extrabold shadow-lg hover:scale-[1.02] transition-transform">
-                    💳 공항픽업+투어 콤보 예약하고 열기 (↓)
+                    {p.paywallComboBtn}
                   </button>
                   <button onClick={() => document.getElementById('charter-banner-section')?.scrollIntoView({ behavior: 'smooth' })}
                     className="w-full py-3 rounded-xl bg-white/10 border border-white/20 text-white text-[13px] font-bold hover:bg-white/20 transition-all">
-                    단일 전세 패키지만 선결제하기
+                    {p.paywallSingleBtn}
                   </button>
                 </div>
               </div>
@@ -1224,10 +1227,10 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
       <FlightSearchSection arrivalAirport={arrivalAirport} p={p} />
 
       {/* ── 고객지원 및 환불 규정 ── */}
-      {!enriching && <CustomerSupportSection cs={result.customerSupport} />}
+      {!enriching && <CustomerSupportSection cs={result.customerSupport} p={p} />}
 
       {/* ── 예약 섹션 (맨 아래) ── */}
-      {!enriching && <ComboPackageBanner />}
+      {!enriching && <ComboPackageBanner p={p} />}
       {!enriching && <div id="charter-banner-section"><CharterBanner result={result} p={p} lang={lang} vehicleType={transport} /></div>}
       <div id="airport-pickup-section"><AirportPickupCard arrivalAirport={arrivalAirport} p={p} lang={lang} /></div>
     </div>
@@ -1328,7 +1331,7 @@ export default function PlannerPage() {
         {/* Phase 1 Loading */}
         {status === 'loadingQuick' && (
           <div className="mt-8">
-            <TriviaLoadingAnimation p={{ loading_tips: ['분석 중...'], loading_step1: '1일 차 요약본 추출 중...' }} streamStep={1} streamAgent="planner" />
+            <TriviaLoadingAnimation p={{ loading_tips: [p.loadingAnalyzing], loading_step1: p.loadingDay1Extract }} streamStep={1} streamAgent="planner" />
           </div>
         )}
 
@@ -1382,10 +1385,10 @@ export default function PlannerPage() {
               {/* Feature checklist */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md mx-auto mb-6 text-left">
                 {[
-                  { icon: '📋', text: language === 'ko' ? '3페이지 상세 일정표' : language === 'ja' ? '3ページ詳細スケジュール' : language === 'zh' ? '3页详细行程表' : '3-page detailed itinerary' },
-                  { icon: '🍜', text: language === 'ko' ? '현지인 맛집 리스트' : language === 'ja' ? 'ローカルグルメリスト' : language === 'zh' ? '当地美食清单' : 'Local restaurant guide' },
-                  { icon: '📸', text: language === 'ko' ? '인생샷 촬영 스팟' : language === 'ja' ? '写真スポットガイド' : language === 'zh' ? '拍照打卡点' : 'Photo spot recommendations' },
-                  { icon: '🚇', text: language === 'ko' ? '분단위 교통 동선' : language === 'ja' ? '分単位の交通ルート' : language === 'zh' ? '精确到分钟的交通路线' : 'Minute-by-minute transit routes' },
+                  { icon: '📋', text: p.featureItinerary },
+                  { icon: '🍜', text: p.featureRestaurant },
+                  { icon: '📸', text: p.featurePhoto },
+                  { icon: '🚇', text: p.featureTransit },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-white/70 py-1.5">
                     <span>{item.icon}</span>
@@ -1420,7 +1423,7 @@ export default function PlannerPage() {
                 {/* Satisfaction guarantee */}
                 <div className="flex items-center justify-center gap-2 text-[11px] text-white/30 mt-1">
                   <Check className="w-3 h-3" />
-                  <span>{language === 'ko' ? 'PayPal 안전결제 · 불만족 시 100% 환불' : language === 'ja' ? 'PayPal安全決済 · 不満足時100%返金' : language === 'zh' ? 'PayPal安全支付 · 不满意100%退款' : 'PayPal secure · 100% refund if unsatisfied'}</span>
+                  <span>{p.paypalSafeCheckout}</span>
                 </div>
               </div>
             </div>
@@ -1430,7 +1433,7 @@ export default function PlannerPage() {
         {/* Phase 2 Loading */}
         {status === 'loadingFull' && (
            <div className="mt-8 text-center space-y-4">
-             <TriviaLoadingAnimation p={{ loading_tips: ['잠시만 기다려주세요!'], loading_step1: p.loadingFullMsg }} streamStep={streamStep} streamAgent={streamAgent} />
+             <TriviaLoadingAnimation p={{ loading_tips: [p.loadingPleaseWait], loading_step1: p.loadingFullMsg }} streamStep={streamStep} streamAgent={streamAgent} />
              <p className="text-[#7C5CFC] text-sm animate-pulse font-bold mt-4">{p.loadingAgentMsg?.split('\n').map((line: string, i: number) => <span key={i}>{line}{i === 0 && <br/>}</span>)}</p>
            </div>
         )}

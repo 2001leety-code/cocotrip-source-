@@ -11,24 +11,24 @@ import { useLanguage } from '@/hooks/useLanguage';
 /* ═══════════════════════════════════════════════════════
    DATA
    ═══════════════════════════════════════════════════════ */
-const AIRPORT_GROUPS = [
-  { label: '수도권', airports: [
-    { code: 'ICN', name: '인천국제공항 (Incheon Intl)' },
-    { code: 'GMP', name: '김포공항 (Gimpo Intl)' },
+const AIRPORT_GROUPS_DATA = [
+  { labelKey: 'airportGroupCapital' as const, airports: [
+    { code: 'ICN', name: 'ICN – Incheon Intl' },
+    { code: 'GMP', name: 'GMP – Gimpo Intl' },
   ]},
-  { label: '경상', airports: [
-    { code: 'PUS', name: '김해국제공항 (Gimhae Intl)' },
-    { code: 'TAE', name: '대구국제공항 (Daegu Intl)' },
+  { labelKey: 'airportGroupGyeongsang' as const, airports: [
+    { code: 'PUS', name: 'PUS – Gimhae Intl' },
+    { code: 'TAE', name: 'TAE – Daegu Intl' },
   ]},
-  { label: '전라', airports: [
-    { code: 'KWJ', name: '광주공항 (Gwangju)' },
-    { code: 'MWX', name: '무안국제공항 (Muan Intl)' },
+  { labelKey: 'airportGroupJeolla' as const, airports: [
+    { code: 'KWJ', name: 'KWJ – Gwangju' },
+    { code: 'MWX', name: 'MWX – Muan Intl' },
   ]},
-  { label: '강원', airports: [
-    { code: 'YNY', name: '양양국제공항 (Yangyang Intl)' },
+  { labelKey: 'airportGroupGangwon' as const, airports: [
+    { code: 'YNY', name: 'YNY – Yangyang Intl' },
   ]},
-  { label: '제주', airports: [
-    { code: 'CJU', name: '제주국제공항 (Jeju Intl)' },
+  { labelKey: 'airportGroupJeju' as const, airports: [
+    { code: 'CJU', name: 'CJU – Jeju Intl' },
   ]},
 ];
 
@@ -47,17 +47,17 @@ const ACTIVITY_KEYS = [
   { key: 'Dmz', emoji: '⛰️' },
 ] as const;
 
-function buildSlimCards(code: string, cities: string[]) {
-  const city = cities[0] || '서울';
+function buildSlimCards(code: string, cities: string[], p: any) {
+  const city = cities[0] || 'Seoul';
   const q = encodeURIComponent(city);
   const cards: { icon: string; text: string; cta: string; url: string }[] = [];
   const pickup = (PICKUP_PRICES[code] || [])[0];
-  if (pickup) cards.push({ icon: '🚐', text: `${code} 공항 픽업 · ${pickup.price}`, cta: '예약', url: 'https://cocotripkr.com/charter' });
-  cards.push({ icon: '🏨', text: `${city} 호텔 최저가`, cta: '비교', url: `https://www.booking.com/searchresults.html?ss=${q}&no_rooms=1&group_adults=2` });
+  if (pickup) cards.push({ icon: '🚐', text: `${code} ${p.slimAirportPickup} · ${pickup.price}`, cta: p.slimBook, url: 'https://cocotripkr.com/charter' });
+  cards.push({ icon: '🏨', text: `${city} ${p.slimHotelLowest}`, cta: p.slimCompare, url: `https://www.booking.com/searchresults.html?ss=${q}&no_rooms=1&group_adults=2` });
   if (['ICN', 'GMP'].includes(code) && cities.length > 1)
-    cards.push({ icon: '🚄', text: `서울 → ${cities[cities.length - 1]} KTX`, cta: '예매', url: 'https://www.letskorail.com/ebizbf/EbizBfKrbs020a.do' });
+    cards.push({ icon: '🚄', text: `${cities[0]} → ${cities[cities.length - 1]} ${p.slimKTX}`, cta: p.slimBookKTX, url: 'https://www.letskorail.com/ebizbf/EbizBfKrbs020a.do' });
   else if (cities.length > 0)
-    cards.push({ icon: '🚗', text: `${city} 렌터카`, cta: '검색', url: `https://www.rentalcars.com/en/search/Korea/${q}/` });
+    cards.push({ icon: '🚗', text: `${city} ${p.slimRentCar}`, cta: p.slimSearch, url: `https://www.rentalcars.com/en/search/Korea/${q}/` });
   return cards;
 }
 
@@ -65,7 +65,7 @@ function buildSlimCards(code: string, cities: string[]) {
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════ */
 export function WizardForm({ onSubmit, isLoading }: any) {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const p: any = t.planner;
   const [step, setStep] = useState(0);
 
@@ -84,7 +84,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
   const effectiveAirport = airportCode || (showCustom && customAirport ? customAirport : '');
   const allCities = mainCity ? [mainCity, ...extraCities.filter(c => c !== mainCity)] : [];
-  const slimCards = effectiveAirport ? buildSlimCards(airportCode || customAirport, allCities) : [];
+  const slimCards = effectiveAirport ? buildSlimCards(airportCode || customAirport, allCities, p) : [];
 
   const durationDays = (startDate && endDate) ? Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000)) : 3;
   const pax = parseInt(paxInput) || 2;
@@ -121,7 +121,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   }
 
 
-  const STEP_TITLES = [p.wizardAirportTitle?.split('?')[0] || '입국 공항', p.wizardTitle?.split('?')[0] || '방문 도시', p.planner_step2_date || '기간 & 인원', p.planner_generate_cta?.split(' ')[0] || '플랜 생성'];
+  const STEP_TITLES = [p.wizardAirportTitle?.split('?')[0]?.split('？')[0] || p.planner_step1_airport, p.wizardTitle?.split('?')[0]?.split('？')[0] || p.planner_step1_cities, p.planner_step2_date, p.planner_generate_cta?.split(' ')[0] || 'Generate'];
 
   /* ═══════════════════════════════════════════════════════
      STEP 0: 공항 드롭다운
@@ -135,12 +135,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <select value={showCustom ? '__custom__' : airportCode} onChange={handleAirportChange}
           className="w-full appearance-none bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl pl-5 pr-12 py-4 text-base cursor-pointer focus:outline-none focus:border-[#7C5CFC]/70 transition-colors">
           <option value="" disabled className="bg-[#0f111a]">{p.wizardAirportPh}</option>
-          {AIRPORT_GROUPS.map(g => (
-            <optgroup key={g.label} label={`── ${g.label} ──`} className="bg-[#0f111a]">
-              {g.airports.map(a => <option key={a.code} value={a.code} className="bg-[#0f111a]">{a.code}  {a.name}</option>)}
+          {AIRPORT_GROUPS_DATA.map(g => (
+            <optgroup key={g.labelKey} label={`── ${(p as any)[g.labelKey] || g.labelKey} ──`} className="bg-[#0f111a]">
+              {g.airports.map(a => <option key={a.code} value={a.code} className="bg-[#0f111a]">{a.name}</option>)}
             </optgroup>
           ))}
-          <optgroup label="── 기타 ──" className="bg-[#0f111a]">
+          <optgroup label={`── ${p.airportGroupOther} ──`} className="bg-[#0f111a]">
             <option value="__custom__" className="bg-[#0f111a]">{p.wizardAirportCustom}</option>
           </optgroup>
         </select>
@@ -183,12 +183,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
       {/* 0. Quick Area Type (TourInputSheet-inspired) */}
       <div>
-        <p className="text-sm text-white/40 mb-2">{language === 'ko' ? '여행 영역' : language === 'ja' ? '旅行エリア' : language === 'zh' ? '旅行区域' : 'Trip Area'}</p>
+        <p className="text-sm text-white/40 mb-2">{p.tripAreaLabel}</p>
         <div className="grid grid-cols-3 gap-2">
           {[
-            { id: 'seoul_city', icon: '🏙', label: language === 'ko' ? '서울시내' : language === 'ja' ? 'ソウル市内' : language === 'zh' ? '首尔市内' : 'Seoul City', city: 'seoul' },
-            { id: 'seoul_day', icon: '🚐', label: language === 'ko' ? '서울근교' : language === 'ja' ? 'ソウル近郊' : language === 'zh' ? '首尔近郊' : 'Seoul Day Trip', city: 'seoul' },
-            { id: 'provincial', icon: '🗻', label: language === 'ko' ? '지방 투어' : language === 'ja' ? '地方ツアー' : language === 'zh' ? '地方游' : 'Provincial', city: 'busan' },
+            { id: 'seoul_city', icon: '🏙', label: p.tripAreaSeoulCity, city: 'seoul' },
+            { id: 'seoul_day', icon: '🚐', label: p.tripAreaSeoulDay, city: 'seoul' },
+            { id: 'provincial', icon: '🗻', label: p.tripAreaProvincial, city: 'busan' },
           ].map(area => {
             const areaCity = getCityName(area.city);
             const isSelected = mainCity === areaCity;
