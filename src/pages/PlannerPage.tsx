@@ -1419,11 +1419,11 @@ export default function PlannerPage() {
         {status === 'quickSuccess' && resultQuick && (
           <div id="planner-quick-result" className="space-y-6">
             <div className="bg-gradient-to-br from-[#1a0f14] to-[#0a1628] rounded-2xl p-6 border border-[#7C5CFC]/30 shadow-[0_0_20px_rgba(124,92,252,0.2)]">
-              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#7C5CFC]" />1일 차 핵심 하이라이트 미리보기</h2>
-              <p className="text-[#EA537E] font-bold text-sm mb-4">테마: {resultQuick.themes?.join(', ') || '힐링, 럭셔리'}</p>
+              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#7C5CFC]" />{p.quickPreviewTitle}</h2>
+              <p className="text-[#EA537E] font-bold text-sm mb-4">{p.quickPreviewTheme}: {resultQuick.themes?.join(', ') || 'Healing, Luxury'}</p>
               
               <div className="text-sm text-white/80 leading-relaxed mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
-                <strong className="text-white block mb-1">이 여행의 서사 리뷰:</strong>
+                <strong className="text-white block mb-1">{p.quickPreviewNarrative}:</strong>
                 {resultQuick.marketingNarrative}
               </div>
 
@@ -1433,9 +1433,9 @@ export default function PlannerPage() {
             </div>
 
             <div className="bg-[#0f111a] rounded-2xl p-8 border border-white/10 text-center shadow-xl">
-              <h3 className="text-2xl font-bold text-white mb-3">나머지 2~3일차 완벽 로컬 일정을 받아보시겠습니까?</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">{p.fullPlanTitle}</h3>
               <p className="text-white/50 text-sm mb-6 max-w-lg mx-auto leading-relaxed">
-                숨겨진 로컬 맛집, 비밀 인생샷 촬영 팁, 10대 검수가 완료된 시간별 정확한 동선표 등 전체 3페이지 분량의 컨펌 리포트를 이메일로 100% 무료로 발송해 드립니다.
+                {p.fullPlanDesc}
               </p>
               
               <form onSubmit={handleFullSubmit} className="max-w-md mx-auto flex flex-col gap-3">
@@ -1443,7 +1443,7 @@ export default function PlannerPage() {
                   type="email" 
                   value={userEmail}
                   onChange={e => setUserEmail(e.target.value)}
-                  placeholder="이메일 주소를 입력해주세요"
+                  placeholder={p.emailPlaceholder}
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC] transition-all outline-none"
                   required 
                 />
@@ -1452,7 +1452,7 @@ export default function PlannerPage() {
                   className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] text-white font-bold text-lg hover:scale-[1.02] shadow-[0_0_15px_rgba(124,92,252,0.5)] transition-all flex items-center justify-center gap-2"
                 >
                   <Mail className="w-5 h-5" />
-                  상세 플랜 이메일로 받기 (무료)
+                  {p.emailSubmitBtn}
                 </button>
               </form>
             </div>
@@ -1462,8 +1462,8 @@ export default function PlannerPage() {
         {/* Phase 2 Loading */}
         {status === 'loadingFull' && (
            <div className="mt-8 text-center space-y-4">
-             <TriviaLoadingAnimation p={{ loading_tips: ['잠시만 기다려주세요!'], loading_step1: '전체 플랜 검증 및 이메일 발송 준비 중...' }} streamStep={streamStep} streamAgent={streamAgent} />
-             <p className="text-[#7C5CFC] text-sm animate-pulse font-bold mt-4">에이전트들이 10대 체크리스트를 돌리며 정보를 검증 중입니다.<br/>창을 닫지 마시고 잠시만 기다려주세요. (최대 5분 소요)</p>
+             <TriviaLoadingAnimation p={{ loading_tips: ['잠시만 기다려주세요!'], loading_step1: p.loadingFullMsg }} streamStep={streamStep} streamAgent={streamAgent} />
+             <p className="text-[#7C5CFC] text-sm animate-pulse font-bold mt-4">{p.loadingAgentMsg?.split('\n').map((line: string, i: number) => <span key={i}>{line}{i === 0 && <br/>}</span>)}</p>
            </div>
         )}
 
@@ -1473,21 +1473,21 @@ export default function PlannerPage() {
             <div className="w-16 h-16 bg-gradient-to-tr from-[#7C5CFC] to-[#EA537E] rounded-full flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">성공적으로 발송되었습니다!</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">{p.successTitle}</h2>
             <p className="text-white/60 mb-8 max-w-sm mx-auto">
-              입력하신 <strong>{userEmail}</strong> 로 VVIP 상세 리포트를 전송했습니다. 지금 메일함을 확인해주세요. (스팸함도 꼭 확인 부탁드립니다!)
+              {p.successDesc?.replace('{email}', userEmail)}
             </p>
             
             <div className="bg-[#1a0f14] border border-[#7C5CFC]/20 rounded-xl p-6 text-left">
-              <h3 className="text-lg font-bold text-white mb-3">💎 공항 픽업 + 투어 패키지 (100% 선결제 보증)</h3>
-              <p className="text-sm text-white/50 mb-5">팁, 유류비, 톨게이트비가 100% 포함된 가격으로 현장에서 추가 결제가 전혀 없습니다. PayPal로 확정해보세요.</p>
+              <h3 className="text-lg font-bold text-white mb-3">{p.upsellTitle}</h3>
+              <p className="text-sm text-white/50 mb-5">{p.upsellDesc}</p>
               <button className="w-full py-3 rounded-lg bg-[#C4956A] text-black font-bold hover:bg-[#b0845a] transition-colors shadow-lg">
-                전세차량 예약 페이지로 이동 (Click)
+                {p.upsellCta}
               </button>
             </div>
             
             <button onClick={handleReset} className="mt-6 text-sm text-white/30 hover:text-white/70 underline underline-offset-4">
-              처음으로 돌아가기
+              {p.goBack}
             </button>
           </div>
         )}
