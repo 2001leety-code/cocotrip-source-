@@ -65,7 +65,7 @@ function buildSlimCards(code: string, cities: string[]) {
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════ */
 export function WizardForm({ onSubmit, isLoading }: any) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const p: any = t.planner;
   const [step, setStep] = useState(0);
 
@@ -180,6 +180,30 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const renderStepCities = () => (
     <div className="space-y-6">
       <h2 className="text-lg font-bold text-white">{p.wizardTitle}</h2>
+
+      {/* 0. Quick Area Type (TourInputSheet-inspired) */}
+      <div>
+        <p className="text-sm text-white/40 mb-2">{language === 'ko' ? '여행 영역' : language === 'ja' ? '旅行エリア' : language === 'zh' ? '旅行区域' : 'Trip Area'}</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'seoul_city', icon: '🏙', label: language === 'ko' ? '서울시내' : language === 'ja' ? 'ソウル市内' : language === 'zh' ? '首尔市内' : 'Seoul City', city: 'seoul' },
+            { id: 'seoul_day', icon: '🚐', label: language === 'ko' ? '서울근교' : language === 'ja' ? 'ソウル近郊' : language === 'zh' ? '首尔近郊' : 'Seoul Day Trip', city: 'seoul' },
+            { id: 'provincial', icon: '🗻', label: language === 'ko' ? '지방 투어' : language === 'ja' ? '地方ツアー' : language === 'zh' ? '地方游' : 'Provincial', city: 'busan' },
+          ].map(area => {
+            const areaCity = getCityName(area.city);
+            const isSelected = mainCity === areaCity;
+            return (
+              <button key={area.id} onClick={() => { setMainCity(areaCity); }}
+                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-center transition-all ${
+                  isSelected ? 'border-[#7C5CFC] bg-[#7C5CFC]/10 text-white shadow-[0_0_10px_rgba(124,92,252,0.15)]' : 'border-white/[0.1] bg-white/[0.04] text-white/55 hover:border-[#7C5CFC]/50 hover:text-white/80'
+                }`}>
+                <span className="text-xl">{area.icon}</span>
+                <span className="text-xs font-semibold">{area.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* 1. 메인 도시 드롭다운 */}
       <div>

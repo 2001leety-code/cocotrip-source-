@@ -222,24 +222,87 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     ? rateInfo.displayUSD
     : `\u2248 $${(effectiveKRW / 1350).toFixed(2)} USD`;
 
-  // ── 성공 모달 ────────────────────────────────────────────────────
+  // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   if (showSuccess && successData) {
+    const CONFIRM_LABELS: Record<string, Record<string, string>> = {
+      ko: { title: '예약이 확정되었습니다!', subtitle: '예약 확인 이메일이 발송됩니다.', orderNo: '주문 번호', payer: '예약자', amount: '결제 금액', date: '이용 날짜', next: '다음 단계', step1: '확인 이메일을 확인하세요', step2: '카카오톡/WhatsApp으로 기사 정보를 보내드립니다', step3: '이용 당일 기사가 픽업 장소에서 대기합니다', close: '확인', contact: '문의하기' },
+      en: { title: 'Booking Confirmed!', subtitle: 'A confirmation email will be sent shortly.', orderNo: 'Order No.', payer: 'Booked by', amount: 'Amount Paid', date: 'Service Date', next: 'Next Steps', step1: 'Check your confirmation email', step2: 'Driver details will be sent via KakaoTalk/WhatsApp', step3: 'Your driver will be waiting at the pickup location', close: 'Done', contact: 'Contact Us' },
+      ja: { title: '予約が確定しました！', subtitle: '確認メールが送信されます。', orderNo: '注文番号', payer: '予約者', amount: '支払金額', date: '利用日', next: '次のステップ', step1: '確認メールをご確認ください', step2: 'ドライバー情報をKakaoTalk/WhatsAppでお送りします', step3: '当日ドライバーがピックアップ場所でお待ちします', close: '確認', contact: 'お問い合わせ' },
+      zh: { title: '预订已确认！', subtitle: '确认邮件将很快发送。', orderNo: '订单号', payer: '预订人', amount: '支付金额', date: '服务日期', next: '下一步', step1: '请查收确认邮件', step2: '司机信息将通过KakaoTalk/WhatsApp发送', step3: '当天司机将在接机地点等候', close: '确认', contact: '联系我们' },
+    };
+    const cl = CONFIRM_LABELS[lang] ?? CONFIRM_LABELS.en;
+    
     return (
-      <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 text-center space-y-3">
-        <p className="text-2xl">✅</p>
-        <p className="font-bold text-green-300 text-base">{p.paypalSuccess}</p>
-        <p className="text-sm text-white/60">{p.paypalSuccessMsg}</p>
-        <div className="bg-white/5 rounded-xl p-3 text-left space-y-1 text-xs text-white/55">
-          <p><span className="text-white/35">{p.paypalOrderNo}:</span> <span className="font-mono text-white/70">{successData.orderID}</span></p>
-          {successData.payerName  && <p><span className="text-white/35">{p.paypalPayer}:</span> <span className="text-white/70">{successData.payerName}</span></p>}
-          {successData.payerEmail && <p><span className="text-white/35">Email:</span> <span className="text-white/70">{successData.payerEmail}</span></p>}
-          <p><span className="text-white/35">Amount:</span> <span className="font-semibold text-green-300">${successData.amount} USD</span></p>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
+        <div className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-[#7C5CFC]/30 shadow-[0_0_60px_rgba(124,92,252,0.15)] overflow-hidden animate-[fade-slide-up_0.4s_ease-out]">
+          {/* Header with gradient */}
+          <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: 'linear-gradient(180deg, rgba(124,92,252,0.15) 0%, transparent 100%)' }}>
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-tr from-emerald-500 to-emerald-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+              <Check className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-1">{cl.title}</h2>
+            <p className="text-sm text-white/50">{cl.subtitle}</p>
+          </div>
+          
+          {/* Booking Details */}
+          <div className="px-6 pb-4">
+            <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/40">{cl.orderNo}</span>
+                <span className="font-mono text-white/80 text-xs bg-white/5 px-2 py-1 rounded-lg">{successData.orderID}</span>
+              </div>
+              {successData.payerName && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-white/40">{cl.payer}</span>
+                  <span className="text-white/80">{successData.payerName}</span>
+                </div>
+              )}
+              {successData.payerEmail && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-white/40">Email</span>
+                  <span className="text-white/80 text-xs">{successData.payerEmail}</span>
+                </div>
+              )}
+              {dateStart && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-white/40">{cl.date}</span>
+                  <span className="text-white/80">{dateStart}{dateEnd && dateEnd !== dateStart ? ` ~ ${dateEnd}` : ''}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-sm border-t border-white/[0.06] pt-3">
+                <span className="text-white/40">{cl.amount}</span>
+                <span className="text-xl font-bold text-emerald-400">${successData.amount} USD</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Next Steps */}
+          <div className="px-6 pb-4">
+            <p className="text-[10px] uppercase tracking-widest text-white/30 font-semibold mb-3">{cl.next}</p>
+            <div className="space-y-2">
+              {[cl.step1, cl.step2, cl.step3].map((step, i) => (
+                <div key={i} className="flex items-start gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-[#7C5CFC]/20 text-[#7C5CFC] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{i + 1}</span>
+                  <span className="text-white/60 leading-relaxed">{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Actions */}
+          <div className="px-6 pb-6 flex gap-3">
+            <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+              className="flex-1 py-3 rounded-xl border border-white/10 text-white/50 text-sm font-medium text-center hover:border-white/25 hover:text-white/70 transition-all">
+              {cl.contact}
+            </a>
+            <button
+              onClick={() => { setShowSuccess(false); setSuccessData(null); setRateInfo(null); }}
+              className="flex-1 py-3 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}>
+              {cl.close}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => { setShowSuccess(false); setSuccessData(null); setRateInfo(null); }}
-          className="px-6 py-2 rounded-xl bg-green-500/20 border border-green-500/40 text-green-300 text-sm font-medium hover:bg-green-500/30 transition-colors">
-          OK
-        </button>
       </div>
     );
   }
