@@ -116,7 +116,7 @@ function BoardStop({ place, index, isFirst, isLast, p }: {
               <Clock className="w-3 h-3 text-white/30" /> {place.duration}
             </span>
           )}
-          {place.admissionFee && place.admissionFee !== 'Free' && place.admissionFee !== '무료' && (
+          {place.admissionFee && place.admissionFee.toLowerCase() !== 'free' && (
             <span className="text-[11px] text-white/45 flex items-center gap-1">
               <CreditCard className="w-3 h-3 text-white/30" /> {place.admissionFee}
             </span>

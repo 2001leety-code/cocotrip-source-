@@ -13,7 +13,8 @@ import {
   Car, Bus as BusIcon, TrainFront, Footprints, MapPin, Clock, Ban, Phone, Banknote,
   Map, CreditCard, Hotel, Lightbulb, CloudRain, AlertTriangle, Search, Plane,
   Check, Calendar, Globe, Target, Ticket, Briefcase, Moon, RefreshCw, Star as StarIcon,
-  MessageSquare, Baby, RectangleHorizontal, Navigation, Sun, Sunrise
+  MessageSquare, Baby, RectangleHorizontal, Navigation, Sun, Sunrise,
+  Lock, Camera, Train,
 } from 'lucide-react';
 import { buildAccommodationLinks, buildTourLinks, buildFlightLink, PICKUP_PRICES } from '@/config/affiliateLinks';
 
@@ -1032,9 +1033,9 @@ function ComboPackageBanner({ p }: { p: any }) {
           <span className="flex items-center gap-2">{p.comboCta}</span>
         </button>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-1 text-[11px] text-white/70 font-medium">
-          <span className="flex items-center gap-1">✅ 100% Safe Checkout</span>
-          <span className="flex items-center gap-1">✅ Driver Tip Included</span>
-          <span className="flex items-center gap-1">🚫 No Hidden Driver/Gas Fees</span>
+          <span className="flex items-center gap-1"><Check className="w-3 h-3 text-emerald-400" /> {p.checkoutSafe}</span>
+          <span className="flex items-center gap-1"><Check className="w-3 h-3 text-emerald-400" /> {p.checkoutTip1}</span>
+          <span className="flex items-center gap-1"><Ban className="w-3 h-3 text-red-400" /> {p.checkoutTip2}</span>
         </div>
         <div className="text-center mt-3">
           <a href="https://wa.me/821099339020" target="_blank" rel="noopener noreferrer" className="text-[11px] text-white/30 hover:text-white/50 transition-colors underline">
@@ -1150,7 +1151,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
             <div className="absolute inset-0 flex flex-col items-center pt-24 text-center z-10 px-4">
               <div className="bg-[#121826]/95 border border-[#C4956A]/40 rounded-3xl p-6 sm:p-8 max-w-sm backdrop-blur-xl shadow-[0_0_40px_rgba(196,149,106,0.15)] w-full">
                 <div className="w-14 h-14 mx-auto bg-gradient-to-br from-[#C4956A] to-[#D4A574] rounded-full flex items-center justify-center mb-5 shadow-lg shadow-[#C4956A]/20">
-                  <span className="text-2xl">🔒</span>
+                  <Lock className="w-7 h-7 text-white" />
                 </div>
                 <h3 className="text-[17px] font-bold text-white mb-2 leading-tight">{p.paywallTitle}</h3>
                 <p className="text-[13px] text-white/70 mb-5 leading-relaxed">
@@ -1384,14 +1385,14 @@ export default function PlannerPage() {
 
               {/* Feature checklist */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md mx-auto mb-6 text-left">
-                {[
-                  { icon: '📋', text: p.featureItinerary },
-                  { icon: '🍜', text: p.featureRestaurant },
-                  { icon: '📸', text: p.featurePhoto },
-                  { icon: '🚇', text: p.featureTransit },
-                ].map((item, i) => (
+                {([
+                  { icon: <Briefcase className="w-4 h-4 text-[#7C5CFC]" />, text: p.featureItinerary },
+                  { icon: <UtensilsCrossed className="w-4 h-4 text-[#7C5CFC]" />, text: p.featureRestaurant },
+                  { icon: <Camera className="w-4 h-4 text-[#7C5CFC]" />, text: p.featurePhoto },
+                  { icon: <Train className="w-4 h-4 text-[#7C5CFC]" />, text: p.featureTransit },
+                ] as { icon: ReactNode; text: string }[]).map((item, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-white/70 py-1.5">
-                    <span>{item.icon}</span>
+                    {item.icon}
                     <span>{item.text}</span>
                   </div>
                 ))}

@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   MapPin, Users, Calendar, Wand2,
   ArrowRight, ChevronDown,
-  ChevronRight, ChevronLeft, Check
+  ChevronRight, ChevronLeft, Check,
+  Music2, Sparkles, Shirt, UtensilsCrossed, Moon, Camera, ShoppingBag,
+  Film, Landmark, Mountain, Building2, Car, Hotel, Train,
 } from 'lucide-react';
 import type { PlannerFormValues } from './PlannerForm';
 import { PICKUP_PRICES } from '@/config/affiliateLinks';
@@ -34,30 +37,35 @@ const AIRPORT_GROUPS_DATA = [
 
 const CITY_KEYS = ['seoul','busan','gyeongju','jeonju','jeju','gangneung','incheon','yeosu','suwon','daegu'] as const;
 
+const ACTIVITY_ICON_MAP: Record<string, ReactNode> = {
+  Kpop:     <Music2 className="w-5 h-5" />,
+  Kbeauty:  <Sparkles className="w-5 h-5" />,
+  Hanbok:   <Shirt className="w-5 h-5" />,
+  Food:     <UtensilsCrossed className="w-5 h-5" />,
+  Night:    <Moon className="w-5 h-5" />,
+  Photo:    <Camera className="w-5 h-5" />,
+  Shopping: <ShoppingBag className="w-5 h-5" />,
+  Drama:    <Film className="w-5 h-5" />,
+  Temple:   <Landmark className="w-5 h-5" />,
+  Dmz:      <Mountain className="w-5 h-5" />,
+};
+
 const ACTIVITY_KEYS = [
-  { key: 'Kpop', emoji: '🎵' },
-  { key: 'Kbeauty', emoji: '💄' },
-  { key: 'Hanbok', emoji: '👘' },
-  { key: 'Food', emoji: '🍜' },
-  { key: 'Night', emoji: '🌃' },
-  { key: 'Photo', emoji: '📸' },
-  { key: 'Shopping', emoji: '🛍️' },
-  { key: 'Drama', emoji: '🎬' },
-  { key: 'Temple', emoji: '🏯' },
-  { key: 'Dmz', emoji: '⛰️' },
+  'Kpop', 'Kbeauty', 'Hanbok', 'Food', 'Night',
+  'Photo', 'Shopping', 'Drama', 'Temple', 'Dmz',
 ] as const;
 
 function buildSlimCards(code: string, cities: string[], p: any) {
   const city = cities[0] || 'Seoul';
   const q = encodeURIComponent(city);
-  const cards: { icon: string; text: string; cta: string; url: string }[] = [];
+  const cards: { icon: ReactNode; text: string; cta: string; url: string }[] = [];
   const pickup = (PICKUP_PRICES[code] || [])[0];
-  if (pickup) cards.push({ icon: '🚐', text: `${code} ${p.slimAirportPickup} · ${pickup.price}`, cta: p.slimBook, url: 'https://cocotripkr.com/charter' });
-  cards.push({ icon: '🏨', text: `${city} ${p.slimHotelLowest}`, cta: p.slimCompare, url: `https://www.booking.com/searchresults.html?ss=${q}&no_rooms=1&group_adults=2` });
+  if (pickup) cards.push({ icon: <Car className="w-4 h-4" />, text: `${code} ${p.slimAirportPickup} · ${pickup.price}`, cta: p.slimBook, url: 'https://cocotripkr.com/charter' });
+  cards.push({ icon: <Hotel className="w-4 h-4" />, text: `${city} ${p.slimHotelLowest}`, cta: p.slimCompare, url: `https://www.booking.com/searchresults.html?ss=${q}&no_rooms=1&group_adults=2` });
   if (['ICN', 'GMP'].includes(code) && cities.length > 1)
-    cards.push({ icon: '🚄', text: `${cities[0]} → ${cities[cities.length - 1]} ${p.slimKTX}`, cta: p.slimBookKTX, url: 'https://www.letskorail.com/ebizbf/EbizBfKrbs020a.do' });
+    cards.push({ icon: <Train className="w-4 h-4" />, text: `${cities[0]} → ${cities[cities.length - 1]} ${p.slimKTX}`, cta: p.slimBookKTX, url: 'https://www.letskorail.com/ebizbf/EbizBfKrbs020a.do' });
   else if (cities.length > 0)
-    cards.push({ icon: '🚗', text: `${city} ${p.slimRentCar}`, cta: p.slimSearch, url: `https://www.rentalcars.com/en/search/Korea/${q}/` });
+    cards.push({ icon: <Car className="w-4 h-4" />, text: `${city} ${p.slimRentCar}`, cta: p.slimSearch, url: `https://www.rentalcars.com/en/search/Korea/${q}/` });
   return cards;
 }
 
@@ -74,6 +82,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const [showCustom, setShowCustom]           = useState(false);
   const [customAirport, setCustomAirport]     = useState('');
   const [mainCity, setMainCity]               = useState('');
+  const [areaType, setAreaType]               = useState<'seoul_city' | 'seoul_day' | 'provincial' | ''>('');
   const [extraCities, setExtraCities]         = useState<string[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
   const [freeText, setFreeText]               = useState('');
@@ -157,7 +166,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <a href="https://cocotripkr.com/charter" target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-4 px-5 py-4 rounded-2xl border border-[#7C5CFC]/25 hover:border-[#7C5CFC]/50 transition-all group"
           style={{ background: 'rgba(124,92,252,.08)' }}>
-          <span className="text-2xl">🚐</span>
+          <Car className="w-6 h-6 text-[#7C5CFC] shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-bold text-white">{effectiveAirport} {p.wizardAirportTitle?.split('?')[0] || 'Airport Pickup'} — Staria Private</p>
             <p className="text-xs text-[#7C5CFC] mt-0.5">{(PICKUP_PRICES[airportCode] || [])[0]?.price ?? '₩124,800~'} · No Hidden Fee</p>
@@ -185,19 +194,28 @@ export function WizardForm({ onSubmit, isLoading }: any) {
       <div>
         <p className="text-sm text-white/40 mb-2">{p.tripAreaLabel}</p>
         <div className="grid grid-cols-3 gap-2">
-          {[
-            { id: 'seoul_city', icon: '🏙', label: p.tripAreaSeoulCity, city: 'seoul' },
-            { id: 'seoul_day', icon: '🚐', label: p.tripAreaSeoulDay, city: 'seoul' },
-            { id: 'provincial', icon: '🗻', label: p.tripAreaProvincial, city: 'busan' },
-          ].map(area => {
-            const areaCity = getCityName(area.city);
-            const isSelected = mainCity === areaCity;
+          {([
+            { id: 'seoul_city' as const, icon: <Building2 className="w-5 h-5" />, label: p.tripAreaSeoulCity, city: 'seoul', dayTrip: false },
+            { id: 'seoul_day'  as const, icon: <Car className="w-5 h-5" />,       label: p.tripAreaSeoulDay,  city: 'seoul', dayTrip: true  },
+            { id: 'provincial' as const, icon: <Mountain className="w-5 h-5" />,  label: p.tripAreaProvincial, city: 'busan', dayTrip: false },
+          ]).map(area => {
+            const isSelected = areaType === area.id;
             return (
-              <button key={area.id} onClick={() => { setMainCity(areaCity); }}
+              <button key={area.id} onClick={() => {
+                setAreaType(area.id);
+                setMainCity(getCityName(area.city));
+                // seoul_day: 서울 + 수원(근교) 자동 추가
+                if (area.dayTrip) {
+                  const daytripCity = getCityName('suwon');
+                  setExtraCities(prev => prev.includes(daytripCity) ? prev : [daytripCity]);
+                } else {
+                  setExtraCities([]);
+                }
+              }}
                 className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-center transition-all ${
                   isSelected ? 'border-[#7C5CFC] bg-[#7C5CFC]/10 text-white shadow-[0_0_10px_rgba(124,92,252,0.15)]' : 'border-white/[0.1] bg-white/[0.04] text-white/55 hover:border-[#7C5CFC]/50 hover:text-white/80'
                 }`}>
-                <span className="text-xl">{area.icon}</span>
+                {area.icon}
                 <span className="text-xs font-semibold">{area.label}</span>
               </button>
             );
@@ -250,7 +268,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <p className="text-sm text-white/40 mb-1">{`3. ${p.wizardActivities}`}</p>
         <p className="text-xs text-white/25 mb-3">{p.wizardActivitiesHint}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {ACTIVITY_KEYS.map(({ key, emoji }) => {
+          {ACTIVITY_KEYS.map((key) => {
             const nameKey = `act${key}` as keyof typeof p;
             const subKey = `act${key}Sub` as keyof typeof p;
             const sel = selectedActivities.includes(key);
@@ -262,7 +280,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
                     : 'border-white/[0.1] bg-white/[0.04] text-white/60 hover:border-white/25 hover:text-white'
                 }`}
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))', borderColor: 'rgba(124,92,252,.5)' } : {}}>
-                <span className="text-xl">{emoji}</span>
+                <span className="shrink-0">{ACTIVITY_ICON_MAP[key]}</span>
                 <div className="overflow-hidden">
                   <p className="text-sm font-bold truncate">{(p as any)[nameKey]}</p>
                   <p className="text-[10px] text-white/40 truncate">{(p as any)[subKey]}</p>
@@ -351,7 +369,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
             <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/[0.08] hover:border-white/20 transition-all group"
               style={{ background: 'rgba(255,255,255,.03)' }}>
-              <span className="text-sm">{c.icon}</span>
+              <span className="text-white/50 shrink-0">{c.icon}</span>
               <span className="text-xs text-white/55 flex-1 group-hover:text-white/80 transition-colors">{c.text}</span>
               <span className="text-[11px] font-bold text-[#7C5CFC] shrink-0 group-hover:text-white transition-colors">{c.cta} →</span>
             </a>

@@ -119,8 +119,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       setPaypalReady(true);
     };
     script.onerror = (err) => {
-      console.error('PayPal SDK 로딩 실패:', err);
-      setError('PayPal SDK 로딩 실패');
+      console.error('PayPal SDK load error:', err);
+      setError(p.paypalSdkError ?? 'Failed to load PayPal SDK.');
     };
     document.body.appendChild(script);
   }, []);
