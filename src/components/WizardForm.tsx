@@ -159,10 +159,10 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           style={{ background: 'rgba(124,92,252,.08)' }}>
           <span className="text-2xl">🚐</span>
           <div className="flex-1">
-            <p className="text-sm font-bold text-white">{effectiveAirport} 공항 픽업 — 스타리아 프라이빗</p>
+            <p className="text-sm font-bold text-white">{effectiveAirport} {p.wizardAirportTitle?.split('?')[0] || 'Airport Pickup'} — Staria Private</p>
             <p className="text-xs text-[#7C5CFC] mt-0.5">{(PICKUP_PRICES[airportCode] || [])[0]?.price ?? '₩124,800~'} · No Hidden Fee</p>
           </div>
-          <span className="text-xs font-bold text-white/50 group-hover:text-[#7C5CFC] shrink-0">예약 →</span>
+          <span className="text-xs font-bold text-white/50 group-hover:text-[#7C5CFC] shrink-0">{p.paypalBookBtn?.split(' ')[0] || 'Book'} →</span>
         </a>
       )}
 
@@ -293,30 +293,30 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   ═══════════════════════════════════════════════════════ */
   const renderStepDetails = () => (
     <div className="space-y-5">
-      <h2 className="text-lg font-bold text-white">여행 기간과 인원을 알려주세요</h2>
+      <h2 className="text-lg font-bold text-white">{p.planner_step2_date || 'Travel Dates & Group Size'}</h2>
 
       {/* 캘린더 날짜 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> 여행 시작일</p>
+          <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {p.startDate || 'Start Date'}</p>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl px-5 py-4 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
         </div>
         <div>
-          <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> 여행 종료일</p>
+          <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {p.endDate || 'End Date'}</p>
           <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} min={startDate}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl px-5 py-4 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
         </div>
       </div>
       {startDate && endDate && (
-        <p className="text-sm text-[#7C5CFC] font-semibold">총 {durationDays}일 여행</p>
+        <p className="text-sm text-[#7C5CFC] font-semibold">{durationDays}{p.dayCountSuffix || ' days'} {p.tripSuffix || 'trip'}</p>
       )}
 
       {/* 인원 직접 입력 */}
       <div>
-        <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Users className="w-4 h-4" /> 인원 (직접 입력)</p>
+        <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Users className="w-4 h-4" /> {p.planner_step2_adults || 'Group Size'}</p>
         <input type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
-          placeholder="인원 수를 입력하세요"
+          placeholder={p.planner_step2_adults || 'Enter number of people'}
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/30 rounded-2xl px-5 py-4 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
       </div>
 
@@ -338,12 +338,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
       <div className="flex gap-3">
         <button onClick={() => setStep(1)}
           className="px-5 py-3.5 rounded-2xl border border-white/[0.12] text-white/50 hover:text-white text-sm font-semibold flex items-center gap-1 transition-all">
-          <ChevronLeft className="w-4 h-4" /> 이전
+          <ChevronLeft className="w-4 h-4" /> {p.planner_prev || 'Back'}
         </button>
         <button onClick={() => setStep(3)}
           className="flex-1 py-3.5 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 hover:scale-[1.01] transition-all"
           style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
-          다음: 플랜 생성 <ChevronRight className="w-5 h-5" />
+          {p.planner_next || 'Next'}: {p.planner_generate_cta || 'Generate'} <ChevronRight className="w-5 h-5" />
         </button>
       </div>
     </div>
@@ -354,28 +354,28 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   ═══════════════════════════════════════════════════════ */
   const renderStepGenerate = () => (
     <div className="space-y-5">
-      <h2 className="text-lg font-bold text-white">맞춤 플랜을 생성합니다</h2>
+      <h2 className="text-lg font-bold text-white">{p.planner_generate_cta || 'Generate Your Plan'}</h2>
 
       {/* 요약 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryItem icon={<MapPin className="w-4 h-4" />} label="공항" value={effectiveAirport} />
-        <SummaryItem icon={<ArrowRight className="w-4 h-4" />} label="동선" value={allCities.join(' → ') || '-'} />
-        <SummaryItem icon={<Calendar className="w-4 h-4" />} label="기간" value={startDate && endDate ? `${durationDays}일` : '미정'} />
-        <SummaryItem icon={<Users className="w-4 h-4" />} label="인원" value={`${pax}명`} />
+        <SummaryItem icon={<MapPin className="w-4 h-4" />} label={p.planner_step1_airport || 'Airport'} value={effectiveAirport} />
+        <SummaryItem icon={<ArrowRight className="w-4 h-4" />} label={p.planner_step1_cities?.split(' ')[0] || 'Route'} value={allCities.join(' → ') || '-'} />
+        <SummaryItem icon={<Calendar className="w-4 h-4" />} label={p.planner_step2_date?.split(' ')[0] || 'Duration'} value={startDate && endDate ? `${durationDays}${p.dayCountSuffix || ' days'}` : (p.calSelectDate || 'TBD')} />
+        <SummaryItem icon={<Users className="w-4 h-4" />} label={p.planner_step2_adults || 'People'} value={`${pax}${p.kpopPassengers ? '' : ' pax'}`} />
       </div>
 
       <button onClick={handleGenerate} disabled={isLoading}
         className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-50"
         style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.4)' }}>
         <Wand2 className="w-5 h-5" />
-        {isLoading ? 'AI 6개 팀 가동 중...' : '1페이지 미리보기 즉시 생성'}
+        {isLoading ? (p.generating || 'AI generating...') : (p.planner_generate_cta || 'Generate Preview')}
       </button>
 
 
 
       <button onClick={() => setStep(2)}
         className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/40 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all">
-        <ChevronLeft className="w-4 h-4" /> 이전 단계로
+        <ChevronLeft className="w-4 h-4" /> {p.planner_prev || 'Back'}
       </button>
     </div>
   );
