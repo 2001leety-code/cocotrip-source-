@@ -49,16 +49,35 @@ export default async function handler(req, res) {
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
       systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1000, responseMimeType: 'application/json' },
     });
 
     const text = result.response.text();
+
+    // 1차: 코드블록 전체 추출 (그리디 — 첫 ``` 부터 마지막 ``` 까지)
     let finalJsonStr = text;
-    const matchBlock = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    const matchBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (matchBlock) finalJsonStr = matchBlock[1];
 
+    // 2차: 가장 바깥 { ... } 추출
+    if (!finalJsonStr.trim().startsWith('{')) {
+      const first = finalJsonStr.indexOf('{');
+      const last  = finalJsonStr.lastIndexOf('}');
+      if (first !== -1 && last > first) finalJsonStr = finalJsonStr.slice(first, last + 1);
+    }
+
     let json;
-    try { json = JSON.parse(finalJsonStr); } catch { json = { themes: [], marketingNarrative: text, day1MarkdownTable: '' }; }
+    try {
+      json = JSON.parse(finalJsonStr);
+    } catch {
+      // 3차 fallback: 텍스트에서 직접 { } 추출 시도
+      const first = text.indexOf('{');
+      const last  = text.lastIndexOf('}');
+      if (first !== -1 && last > first) {
+        try { json = JSON.parse(text.slice(first, last + 1)); } catch { /* ignore */ }
+      }
+      if (!json) json = { themes: [], marketingNarrative: text.replace(/```json?|```/g, '').trim(), day1MarkdownTable: '' };
+    }
 
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify(json));
