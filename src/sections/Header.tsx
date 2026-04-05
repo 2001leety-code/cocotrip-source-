@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, User } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import type { Language } from '@/i18n';
-import { useIsMobile } from '@/hooks/use-mobile'; // useIsMobile 훅 가져오기
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/hooks/useAuth';
+import { LoyaltyBadge } from '@/components/LoyaltyBadge';
+import { WishlistPanel } from '@/components/WishlistButton';
 
 interface HeaderProps {
   language: Language;
@@ -11,176 +14,341 @@ interface HeaderProps {
 }
 
 const languages = [
-  { code: 'ko', label: '한국어' },
-  { code: 'en', label: 'English' },
-  { code: 'ja', label: '日本語' },
-  { code: 'zh', label: '中文' },
+  { code: 'ko', label: '한국어', short: 'KO' },
+  { code: 'en', label: 'English', short: 'EN' },
+  { code: 'ja', label: '日本語', short: 'JA' },
+  { code: 'zh', label: '中文', short: 'ZH' },
 ];
 
 export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-  const isMobile = useIsMobile(); // isMobile 상태 사용
+  const isMobile = useIsMobile();
+  const { user } = useAuth();
+  const location = useLocation();
+  const langRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // 모바일 메뉴가 열렸을 때 배경 스크롤 방지
+  // Close lang menu on outside click
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
+    const handler = (e: MouseEvent) => {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setIsLangMenuOpen(false);
+      }
     };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Lock body scroll when mobile menu open
+  useEffect(() => {
+    document.body.style.overflow = isMobileMenuOpen ? 'hidden' : 'unset';
+    return () => { document.body.style.overflow = 'unset'; };
   }, [isMobileMenuOpen]);
 
   const navItems = [
-    { label: t.nav.charter   ?? '🚗 전세차량', to: '/charter' },
-    { label: t.nav.planner   ?? '🗺 AI 플래너', to: '/planner' },
-    { label: t.nav.about     ?? '소개',          to: '/about'   },
+    { label: t.nav.charter  ?? 'Charter',     to: '/charter' },
+    { label: t.nav.planner  ?? 'AI Planner',  to: '/planner' },
+    { label: t.nav.about    ?? 'About',        to: '/about'   },
   ];
 
-  const renderNavLinks = (isMobile = false) =>
-    navItems.map((item) => (
-      <Link
-        key={item.to}
-        to={item.to}
-        onClick={() => setIsMobileMenuOpen(false)}
-        className={isMobile
-            ? 'block text-2xl font-bold text-gray-800 py-4 text-center hover:bg-gray-50 transition-colors'
-            : `text-sm font-medium transition-colors hover:text-[#c0b283] ${isScrolled ? 'text-gray-700' : 'text-white'}`
-        }>
-        {item.label}
-      </Link>
-    ));
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled || isMobileMenuOpen
-          ? 'bg-white shadow-sm'
-          : 'bg-transparent'
-      }`}>
+      className="sticky top-0 z-[100] transition-all duration-300"
+      style={{
+        background: isScrolled
+          ? 'rgba(8,11,20,0.92)'
+          : 'rgba(8,11,20,0.65)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 lg:h-20">
-          {/* Logo */}
-          <a href="/" className="flex items-center gap-2 z-50">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7C5CFC] to-[#EA537E] flex items-center justify-center shadow-lg">
-              <span className="text-white font-black text-sm tracking-wider">COCO</span>
+        <div className="flex items-center h-16 lg:h-[68px]">
+
+          {/* ═══ Left: Logo ═══ */}
+          <Link to="/" className="flex items-center gap-2.5 shrink-0">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(135deg, #7C5CFC, #EA537E)',
+                boxShadow: '0 2px 12px rgba(124,92,252,0.3)',
+              }}
+            >
+              <span className="text-white font-black text-[10px] tracking-wider">COCO</span>
             </div>
             <div className="flex flex-col">
-              <span className={`font-extrabold text-lg leading-tight tracking-tight ${
-                  isScrolled || (isMobile && !isMobileMenuOpen) ? 'text-[#EA537E]' : isMobileMenuOpen ? 'text-[#EA537E]' : 'text-white'}`}>
+              <span className="font-extrabold text-[17px] leading-none tracking-tight text-white">
                 COCOTRIP
               </span>
-              <span className={`text-[10px] font-bold tracking-[0.2em] ${isScrolled || (isMobile && !isMobileMenuOpen) ? 'text-[#7C5CFC]' : isMobileMenuOpen ? 'text-[#7C5CFC]' : 'text-white/80'}`}>
+              <span className="text-[9px] font-semibold tracking-[0.2em] text-[#7C5CFC]/80 leading-none mt-0.5">
                 KOREA PRIVATE TOUR
               </span>
             </div>
-          </a>
+          </Link>
 
-          {/* Desktop Navigation */}
+          {/* ═══ Center: Desktop Navigation ═══ */}
           {!isMobile && (
-            <nav className="hidden lg:flex items-center gap-8">
-              {renderNavLinks()}
+            <nav className="hidden lg:flex items-center gap-1 mx-auto">
+              {navItems.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="relative px-5 py-2 rounded-lg text-[15px] font-medium tracking-wide transition-all duration-200 group"
+                  style={{
+                    color: isActive(item.to) ? '#fff' : 'rgba(255,255,255,0.5)',
+                  }}
+                  onMouseEnter={e => {
+                    if (!isActive(item.to)) e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive(item.to)) e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
+                  }}
+                >
+                  {item.label}
+                  {/* Active indicator */}
+                  {isActive(item.to) && (
+                    <span
+                      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-[2px] rounded-full"
+                      style={{ background: '#7C5CFC' }}
+                    />
+                  )}
+                </Link>
+              ))}
             </nav>
           )}
 
-          {/* Right Side */}
-          <div className="flex items-center gap-2 sm:gap-4 z-50">
-            {/* Language Selector */}
-            <div className="relative">
-                <button
-                    onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    isScrolled || isMobile
-                        ? 'text-gray-700 hover:bg-gray-100'
-                        : 'text-white hover:bg-white/10'
-                    }`}>
-                    <Globe className="w-4 h-4" />
-                    <span className="hidden sm:inline">
-                    {languages.find((l) => l.code === language)?.label}
-                    </span>
-                    <ChevronDown className="w-3 h-3" />
-                </button>
+          {/* ═══ Right: Utilities ═══ */}
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto lg:ml-0 shrink-0">
 
-                {isLangMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg py-1 z-50">
-                    {languages.map((lang) => (
-                        <button
-                        key={lang.code}
-                        onClick={() => {
-                            onLanguageChange(lang.code as Language);
-                            setIsLangMenuOpen(false);
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${
-                            language === lang.code
-                            ? 'text-[#0f3460] font-medium'
-                            : 'text-gray-600'
-                        }`}>
-                        {lang.label}
-                        </button>
-                    ))}
-                    </div>
-                )}
-            </div>
+            {/* Loyalty Badge (desktop, logged-in) */}
+            {user && !isMobile && <LoyaltyBadge />}
 
-            {/* WhatsApp Inquiry - 데스크톱에서만 보이도록 */}
-            {!isMobile && (
-                 <a
-                 href="https://wa.me/821087140611"
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 className="hidden md:flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-full text-sm font-medium hover:bg-[#128C7E] transition-colors"
-               >
-                 <MessageCircle className="w-4 h-4" />
-                 <span>{t.nav.inquiry}</span>
-               </a>
+            {/* Wishlist (desktop) */}
+            {!isMobile && <WishlistPanel />}
+
+            {/* MyPage (desktop, logged-in) */}
+            {user && !isMobile && (
+              <Link
+                to="/mypage"
+                className="p-2 rounded-lg transition-all duration-200 text-white/40 hover:text-white hover:bg-white/[0.06]"
+                title="My Page"
+              >
+                <User className="w-[18px] h-[18px]" />
+              </Link>
             )}
 
-            {/* Mobile Menu Button */}
+            {/* Divider */}
+            {!isMobile && (
+              <div className="w-px h-5 mx-1" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            )}
+
+            {/* Language Selector */}
+            <div className="relative" ref={langRef}>
+              <button
+                onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
+              >
+                <Globe className="w-4 h-4" />
+                <span className="text-[13px]">
+                  {languages.find((l) => l.code === language)?.short ?? 'EN'}
+                </span>
+                <ChevronDown
+                  className="w-3 h-3 transition-transform duration-200"
+                  style={{ transform: isLangMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                />
+              </button>
+
+              {isLangMenuOpen && (
+                <div
+                  className="absolute right-0 mt-2 w-36 rounded-xl py-1.5 z-50"
+                  style={{
+                    background: 'rgba(15,18,32,0.95)',
+                    backdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+                  }}
+                >
+                  {languages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        onLanguageChange(lang.code as Language);
+                        setIsLangMenuOpen(false);
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-[13px] font-medium transition-all duration-150 flex items-center justify-between"
+                      style={{
+                        color: language === lang.code ? '#7C5CFC' : 'rgba(255,255,255,0.5)',
+                        background: language === lang.code ? 'rgba(124,92,252,0.06)' : 'transparent',
+                      }}
+                      onMouseEnter={e => {
+                        if (language !== lang.code) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                      }}
+                      onMouseLeave={e => {
+                        if (language !== lang.code) e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <span>{lang.label}</span>
+                      {language === lang.code && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#7C5CFC]" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* CTA: 1:1 Inquiry (desktop) */}
+            {!isMobile && (
+              <a
+                href="https://wa.me/821087140611"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 hover:scale-[1.02]"
+                style={{
+                  background: 'rgba(124,92,252,0.12)',
+                  border: '1px solid rgba(124,92,252,0.25)',
+                  color: '#B9A4FF',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(124,92,252,0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(124,92,252,0.4)';
+                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(124,92,252,0.15)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(124,92,252,0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(124,92,252,0.25)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>{t.nav.inquiry ?? '1:1 Inquiry'}</span>
+              </a>
+            )}
+
+            {/* Mobile hamburger */}
             {isMobile && (
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className={`p-2 rounded-lg transition-colors ${
-                  isScrolled || isMobileMenuOpen
-                    ? 'text-[#1a1a2e] hover:bg-gray-100'
-                    : 'text-white hover:bg-white/10'
-                }`}>
-                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                className="p-2 rounded-lg transition-all duration-200 text-white/60 hover:text-white hover:bg-white/[0.06]"
+              >
+                {isMobileMenuOpen
+                  ? <X className="w-5 h-5" />
+                  : <Menu className="w-5 h-5" />
+                }
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu (Full Screen Overlay) */}
+      {/* ═══ Mobile Full-screen Menu ═══ */}
       {isMobile && isMobileMenuOpen && (
-        <div className="fixed inset-0 top-0 bg-white pt-20 px-4 z-40 flex flex-col shadow-xl">
-            <nav className="flex flex-col divide-y divide-gray-100">
-                {renderNavLinks(true)}
+        <div
+          className="fixed inset-0 z-40 pt-[68px] overflow-y-auto"
+          style={{
+            background: 'rgba(8,11,20,0.98)',
+            backdropFilter: 'blur(24px)',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsMobileMenuOpen(false);
+          }}
+        >
+          <div className="px-6 py-8">
+            {/* Navigation */}
+            <nav className="space-y-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center justify-between py-4 border-b transition-colors"
+                  style={{
+                    borderColor: 'rgba(255,255,255,0.06)',
+                    color: isActive(item.to) ? '#7C5CFC' : 'rgba(255,255,255,0.6)',
+                  }}
+                >
+                  <span className="text-lg font-semibold tracking-wide">{item.label}</span>
+                  {isActive(item.to) && (
+                    <span className="w-2 h-2 rounded-full bg-[#7C5CFC]" />
+                  )}
+                </Link>
+              ))}
+
+              {/* MyPage (mobile, logged-in) */}
+              {user && (
+                <Link
+                  to="/mypage"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-4 border-b text-lg font-semibold tracking-wide"
+                  style={{
+                    borderColor: 'rgba(255,255,255,0.06)',
+                    color: isActive('/mypage') ? '#7C5CFC' : 'rgba(255,255,255,0.6)',
+                  }}
+                >
+                  <User className="w-5 h-5" />
+                  <span>{t.nav.myPage ?? 'My Page'}</span>
+                </Link>
+              )}
             </nav>
-            <div className="mt-auto pb-8">
-                <a
-                    href="https://wa.me/821087140611"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-3 w-full px-4 py-4 bg-[#25D366] text-white rounded-full text-lg font-bold hover:bg-[#128C7E] transition-colors"
-                    >
-                    <MessageCircle className="w-6 h-6" />
-                    <span>{t.nav.inquiry}</span>
-                </a>
-                <p className="text-center text-xs text-gray-400 mt-4">© 2024 COCOTRIP. All rights reserved.</p>
+
+            {/* Mobile CTA */}
+            <div className="mt-10 space-y-4">
+              <a
+                href="https://wa.me/821087140611"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl text-base font-bold transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #7C5CFC, #5A3FD4)',
+                  color: '#fff',
+                  boxShadow: '0 4px 20px rgba(124,92,252,0.3)',
+                }}
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span>{t.nav.inquiry ?? '1:1 Inquiry'}</span>
+              </a>
             </div>
+
+            {/* Mobile Language Selector */}
+            <div className="mt-8">
+              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+                Language
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {languages.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => {
+                      onLanguageChange(lang.code as Language);
+                    }}
+                    className="py-2.5 rounded-xl text-center text-[13px] font-semibold transition-all"
+                    style={{
+                      background: language === lang.code ? 'rgba(124,92,252,0.12)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${language === lang.code ? 'rgba(124,92,252,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                      color: language === lang.code ? '#B9A4FF' : 'rgba(255,255,255,0.35)',
+                    }}
+                  >
+                    {lang.short}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <p className="text-center text-[11px] text-white/15 mt-12">
+              &copy; 2026 COCOTRIP. All rights reserved.
+            </p>
+          </div>
         </div>
       )}
     </header>
