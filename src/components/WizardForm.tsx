@@ -95,7 +95,8 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
   // v2 fields
   const [arrivalTerminal, setArrivalTerminal] = useState<'ICN_T1'|'ICN_T2'|'GMP'|'already_in_korea'|''>('');
-  const [departureAirport, setDepartureAirport] = useState<'same'|'ICN_T1'|'ICN_T2'|'GMP'|''>('same');
+  // 출발 공항 UI는 v3에서 추가 예정 — 현재는 도착공항과 동일
+  const departureAirport = arrivalTerminal;
   const [hotelAddress, setHotelAddress]       = useState('');
   const [mobility, setMobility]              = useState<'ok'|'limited'>('ok');
 
@@ -137,7 +138,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
       freeText: freeText || '',
       // v2 fields
       arrival_airport: arrivalTerminal,
-      departure_airport: departureAirport === 'same' ? arrivalTerminal : departureAirport,
+      departure_airport: departureAirport,
       hotel_address: hotelAddress,
       mobility,
       uid: user?.uid || null,
