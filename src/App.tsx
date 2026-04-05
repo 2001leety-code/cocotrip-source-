@@ -21,6 +21,7 @@ import PlannerPage from '@/pages/PlannerPage';
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
 import CharterPage from '@/pages/CharterPage';
+import MyPage from '@/pages/MyPage';
 
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
@@ -104,6 +105,14 @@ function App() {
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/travel-terms" element={<TravelTerms />} />
+          <Route
+            path="/mypage"
+            element={
+              <AuthRequired>
+                <MyPage />
+              </AuthRequired>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </LanguageProvider>
