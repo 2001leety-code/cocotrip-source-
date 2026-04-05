@@ -26,6 +26,8 @@ import { HeroCards } from '@/sections/HeroCards';
 const CharterPage = lazy(() => import('@/pages/CharterPage'));
 import MyPage from '@/pages/MyPage';
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
+const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
+const PlanDetailPage = lazy(() => import('@/pages/PlanDetailPage'));
 
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
@@ -129,6 +131,24 @@ function App() {
               <AuthRequired>
                 <MyPage />
               </AuthRequired>
+            }
+          />
+          <Route
+            path="/my-plans"
+            element={
+              <AuthRequired>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <MyPlansPage />
+                </Suspense>
+              </AuthRequired>
+            }
+          />
+          <Route
+            path="/my-plans/:planId"
+            element={
+              <Suspense fallback={<PlannerSkeleton />}>
+                <PlanDetailPage />
+              </Suspense>
             }
           />
         </Routes>

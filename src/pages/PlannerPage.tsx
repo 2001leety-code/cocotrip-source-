@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { detectCharterRecommendation, EXTRA_CHARGES } from '@/data/charterPricing';
 import { SEASONAL_SPOTS } from '@/data/seasonalSpots';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -1246,6 +1246,7 @@ export default function PlannerPage() {
   const { language, t, changeLanguage } = useLanguage();
   const p = t.planner;
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const preset = searchParams.get('preset') ?? undefined;
 
   usePageMeta({
@@ -1263,7 +1264,7 @@ export default function PlannerPage() {
   const [userEmail, setUserEmail] = useState<string>('');
   const lastValues = useRef<PlannerFormValues | null>(null);
 
-  // 1단계 (요약본 15초 요청)
+  // 1단계: full API 호출 → Firestore 저장 + planUrl 리다이렉트
   async function handleSubmit(values: PlannerFormValues) {
     lastValues.current = values;
     setStatus('loadingQuick');
@@ -1271,25 +1272,39 @@ export default function PlannerPage() {
     setErrorMsg(null);
     
     try {
-      const res = await fetch('/api/ai-planner-quick', {
+      const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           startDate: values.startDate,
           endDate: values.endDate,
-          destination: values.regions?.join(', ') || 'Seoul',
-          preferences: values.categories?.join(', ') || '',
+          destination: (values.regions || []).join(', ') || 'Seoul',
+          area: (values.regions || ['seoul_city'])[0],
+          preferences: (values.categories || []).join(', ') || '',
+          styles: values.categories || ['culture'],
           durationDays: values.durationDays || 3,
           pax: values.pax || 2,
           language,
+          arrival_airport: (values as any).arrival_airport || '',
+          departure_airport: (values as any).departure_airport || '',
+          hotel_address: (values as any).hotel_address || '',
+          mobility: (values as any).mobility || 'ok',
+          uid: (values as any).uid || null,
         }),
       });
 
       if (!res.ok) throw new Error(`Server error (${res.status})`);
       const data = await res.json();
+      
+      // planUrl이 있으면 리다이렉트
+      if (data.planUrl) {
+        navigate(data.planUrl);
+        return;
+      }
+      
+      // planUrl 없으면 기존 quick 결과 렌더링 펴백
       setResultQuick(data);
       setStatus('quickSuccess');
-      
       setTimeout(() => {
         document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
