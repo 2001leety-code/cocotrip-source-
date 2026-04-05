@@ -1418,7 +1418,7 @@ export default function PlannerPage() {
                 ))}
               </div>
               
-              {/* Email + PayPal */}
+              {/* Email + PayPal — 품질 검증 완료 전까지 숨김 처리 */}
               <div className="max-w-md mx-auto flex flex-col gap-3">
                 <input 
                   type="email" 
@@ -1429,6 +1429,7 @@ export default function PlannerPage() {
                   required 
                 />
                 
+                {/* TODO: PayPal 복원 — AI 플랜 품질 확인 후 주석 해제
                 <PayPalBookingButton
                   productType="ai-planner-full"
                   passengers={1}
@@ -1440,11 +1441,19 @@ export default function PlannerPage() {
                   memo={`Full itinerary for: ${userEmail}`}
                   itineraryData={resultQuick}
                 />
+                */}
+
+                <button
+                  disabled
+                  className="w-full py-3.5 rounded-xl bg-white/10 border border-white/20 text-white/40 font-bold cursor-not-allowed"
+                >
+                  🔧 서비스 업그레이드 중 · Coming Soon
+                </button>
                 
                 {/* Satisfaction guarantee */}
                 <div className="flex items-center justify-center gap-2 text-[11px] text-white/30 mt-1">
                   <Check className="w-3 h-3" />
-                  <span>{p.paypalSafeCheckout}</span>
+                  <span>더 나은 플랜을 위해 데이터를 강화하고 있습니다</span>
                 </div>
               </div>
             </div>
