@@ -1365,25 +1365,57 @@ export default function PlannerPage() {
               
               <div className="text-sm text-white/80 leading-relaxed mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
                 <strong className="text-white block mb-1">{p.quickPreviewNarrative}:</strong>
-                {typeof resultQuick.marketingNarrative === 'string'
-                  ? resultQuick.marketingNarrative
-                  : resultQuick.marketingNarrative
-                    ? JSON.stringify(resultQuick.marketingNarrative)
-                        .replace(/^\{|\}$|"/g, '')
-                        .replace(/,/g, ', ')
-                        .slice(0, 300)
-                    : '여행 일정을 생성했습니다.'}
+                {(() => {
+                  // 안전한 마케팅 서사 추출
+                  let narrative = resultQuick.marketingNarrative;
+                  if (!narrative) return '여행 일정을 생성했습니다.';
+                  // 객체인 경우 full_narrative 또는 첫번째 문자열 필드 추출
+                  if (typeof narrative === 'object') {
+                    narrative = narrative.full_narrative || narrative.text || narrative.content || narrative.summary || Object.values(narrative).find(v => typeof v === 'string' && v.length > 20) || JSON.stringify(narrative);
+                  }
+                  // 문자열이지만 JSON으로 시작하면 파싱 시도
+                  if (typeof narrative === 'string' && narrative.trim().startsWith('{')) {
+                    try {
+                      const parsed = JSON.parse(narrative);
+                      narrative = parsed.full_narrative || parsed.text || parsed.content || narrative;
+                    } catch {}
+                  }
+                  // 남은 JSON 잔해물 제거
+                  if (typeof narrative === 'string') {
+                    narrative = narrative.replace(/^\{[^}]*"(themes|marketingNarrative)"[^}]*$/g, '');
+                    narrative = narrative.replace(/[{}"\[\]]/g, '').replace(/\s*,\s*/g, ', ').trim();
+                  }
+                  return String(narrative || '여행 일정을 생성했습니다.').slice(0, 500);
+                })()}
               </div>
 
-              <div className="bg-black/40 rounded-xl p-4 overflow-x-auto text-sm text-white/80">
-                <pre style={{ whiteSpace: 'pre-wrap' }} className="font-mono text-[11px] opacity-80">{
-                  typeof resultQuick.day1MarkdownTable === 'string'
-                    ? resultQuick.day1MarkdownTable.replace(/\\n/g, '\n')
-                    : resultQuick.day1MarkdownTable
-                      ? JSON.stringify(resultQuick.day1MarkdownTable, null, 2)
-                      : ''
-                }</pre>
-              </div>
+              {(() => {
+                // 안전한 Day 1 테이블 추출
+                let table = resultQuick.day1MarkdownTable;
+                if (!table) return null;
+                if (typeof table === 'object') {
+                  table = table.content || table.table || JSON.stringify(table, null, 2);
+                }
+                // JSON 잔해물 정리
+                if (typeof table === 'string') {
+                  table = table.replace(/\\n/g, '\n');
+                  // JSON 문자열이면 파싱
+                  if (table.trim().startsWith('{') || table.trim().startsWith('[')) {
+                    try {
+                      const parsed = JSON.parse(table);
+                      table = parsed.content || parsed.table || JSON.stringify(parsed, null, 2);
+                    } catch {}
+                  }
+                }
+                if (!table || (typeof table === 'string' && table.trim().length < 10)) return null;
+                return (
+                  <div className="bg-black/40 rounded-xl p-4 overflow-x-auto text-sm text-white/80">
+                    <pre style={{ whiteSpace: 'pre-wrap' }} className="font-mono text-[11px] opacity-80">
+                      {String(table)}
+                    </pre>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Premium Full Plan Purchase */}

@@ -8454,7 +8454,16 @@
         "address": "경기 파주시 군내면 통일촌길",
         "category": "activity",
         "stayDuration": 90,
-        "tip": "Access is strictly via authorized tours only; book well in advance and bring your passport for security checks. Photography is restricted in certain areas for safety."
+        "tip": "Access is strictly via authorized tours only; book well in advance and bring your passport for security checks. Photography is restricted in certain areas for safety.",
+        "nearestStation": "DMZ 투어 버스 이용",
+        "priceRange": "80000-150000 (tour package)",
+        "hours": "투어 일정에 따라 상이 (일반적으로 09:00-17:00, 월요일 및 공휴일 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The iconic blue buildings at the Military Demarcation Line offer a powerful backdrop, best captured during the tour's designated photo stops.",
+        "waitTime": "No direct wait time, but tour booking can take weeks to months.",
+        "reservationRequired": true
       },
       {
         "name": "임진각 평화누리공원",
@@ -8462,7 +8471,17 @@
         "address": "경기 파주시 문산읍 임진각로 148-53",
         "category": "culture",
         "stayDuration": 90,
-        "tip": "Easily accessible and free to enter, this park offers memorials and art installations related to the Korean War and reunification. Allow time to explore the various monuments and enjoy the open space."
+        "tip": "Easily accessible and free to enter, this park offers memorials and art installations related to the Korean War and reunification. Allow time to explore the various monuments and enjoy the open space.",
+        "nearestStation": "문산역에서 버스 또는 택시 이용 (약 15-20분)",
+        "priceRange": "free",
+        "hours": "매일 09:00-18:00 (시설별 상이)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The colorful pinwheel garden and the vast open lawn provide a serene and symbolic backdrop, especially beautiful during sunset.",
+        "waitTime": "weekend 10-30min, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "제3땅굴",
@@ -8470,7 +8489,16 @@
         "address": "경기 파주시 군내면 산목동길 177",
         "category": "activity",
         "stayDuration": 60,
-        "tip": "Entry requires purchasing a ticket as part of a DMZ tour package. Be prepared for a steep descent and ascent; a shuttle train is available for those with mobility issues, but walking is the primary way to experience the tunnel."
+        "tip": "Entry requires purchasing a ticket as part of a DMZ tour package. Be prepared for a steep descent and ascent; a shuttle train is available for those with mobility issues, but walking is the primary way to experience the tunnel.",
+        "nearestStation": "DMZ 투어 버스 이용",
+        "priceRange": "80000-150000 (tour package)",
+        "hours": "투어 일정에 따라 상이 (일반적으로 09:00-17:00, 월요일 및 공휴일 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Photography is generally restricted inside the tunnel, but the entrance area and surrounding DMZ landscape offer unique perspectives.",
+        "waitTime": "weekend 30-60min (for shuttle/entry), weekday 10-30min",
+        "reservationRequired": true
       },
       {
         "name": "도라산 전망대",
@@ -8478,7 +8506,16 @@
         "address": "경기 파주시 장단면 노상리",
         "category": "culture",
         "stayDuration": 30,
-        "tip": "Part of most DMZ tours, it offers a rare opportunity to view North Korean territory through binoculars. The best time to visit is on a clear day for optimal visibility across the border."
+        "tip": "Part of most DMZ tours, it offers a rare opportunity to view North Korean territory through binoculars. The best time to visit is on a clear day for optimal visibility across the border.",
+        "nearestStation": "DMZ 투어 버스 이용",
+        "priceRange": "80000-150000 (tour package)",
+        "hours": "투어 일정에 따라 상이 (일반적으로 09:00-17:00, 월요일 및 공휴일 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The observation deck provides a panoramic view of North Korea, best captured on a clear day with a telephoto lens.",
+        "waitTime": "weekend 10-20min, weekday <10min",
+        "reservationRequired": true
       },
       {
         "name": "도라산역",
@@ -8486,7 +8523,16 @@
         "address": "경기 파주시 장단면 도라산리",
         "category": "culture",
         "stayDuration": 30,
-        "tip": "A symbolic station aspiring to connect the Korean peninsula to Europe, it's a poignant stop on DMZ tours. You can purchase a commemorative ticket, but active train services to North Korea are not available."
+        "tip": "A symbolic station aspiring to connect the Korean peninsula to Europe, it's a poignant stop on DMZ tours. You can purchase a commemorative ticket, but active train services to North Korea are not available.",
+        "nearestStation": "DMZ 투어 버스 이용",
+        "priceRange": "80000-150000 (tour package), commemorative ticket ~1000",
+        "hours": "투어 일정에 따라 상이 (일반적으로 09:00-17:00, 월요일 및 공휴일 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The 'South-North Korea' sign and the platform itself offer symbolic photo opportunities, especially with the 'Pyeongyang' destination sign.",
+        "waitTime": "weekend <10min, weekday <5min",
+        "reservationRequired": true
       },
       {
         "name": "통일대교",
@@ -8494,7 +8540,16 @@
         "address": "경기 파주시 문산읍 자유로 2307",
         "category": "culture",
         "stayDuration": 15,
-        "tip": "This bridge serves as the entry point into the Civilian Control Zone. You can only cross it as part of an official DMZ tour, where soldiers will check your identification."
+        "tip": "This bridge serves as the entry point into the Civilian Control Zone. You can only cross it as part of an official DMZ tour, where soldiers will check your identification.",
+        "nearestStation": "DMZ 투어 버스 이용 (개별 접근 불가)",
+        "priceRange": "included in tour fee",
+        "hours": "DMZ 투어 시간 (개별 접근 불가)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The 'Unification Bridge' sign at the entrance is the best photo spot, ideal in the morning light.",
+        "waitTime": "Varies by tour group, usually minimal for entry checks.",
+        "reservationRequired": true
       },
       {
         "name": "파주 프리미엄 아울렛",
@@ -8502,7 +8557,16 @@
         "address": "경기 파주시 탄현면 필승로 200",
         "category": "shopping",
         "stayDuration": 180,
-        "tip": "Located a short drive from the DMZ area, this large outlet mall offers a wide selection of international and local brands. It's a great option for shopping after a historical tour."
+        "tip": "Located a short drive from the DMZ area, this large outlet mall offers a wide selection of international and local brands. It's a great option for shopping after a historical tour.",
+        "nearestStation": "금촌역 버스 20분",
+        "priceRange": "varies",
+        "hours": "매일 10:30-21:00 (주말 21:00)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The main plaza with its European-style architecture and fountains is great for photos, especially during sunset.",
+        "waitTime": "weekend 10-30min (for popular stores), weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "헤이리 예술마을",
@@ -8510,7 +8574,17 @@
         "address": "경기 파주시 탄현면 헤이리마을길 70-21",
         "category": "culture",
         "stayDuration": 180,
-        "tip": "A unique village dedicated to art and culture, featuring galleries, museums, cafes, and workshops. You can easily spend half a day exploring its diverse attractions; many cafes offer unique local treats."
+        "tip": "A unique village dedicated to art and culture, featuring galleries, museums, cafes, and workshops. You can easily spend half a day exploring its diverse attractions; many cafes offer unique local treats.",
+        "nearestStation": "금촌역 버스 30분",
+        "priceRange": "free (entry), 5000-20000 (activities/cafes)",
+        "hours": "매일 10:00-18:00 (개별 상점 상이)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The diverse architectural styles and art installations throughout the village offer countless photo opportunities, best captured in the soft morning light.",
+        "waitTime": "weekend 10-20min (for popular cafes/exhibits), weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "프로방스 마을",
@@ -8518,7 +8592,18 @@
         "address": "경기 파주시 탄현면 새오리로 69",
         "category": "culture",
         "stayDuration": 120,
-        "tip": "Inspired by French villages, this colorful area is perfect for a leisurely stroll, dining at charming restaurants, or enjoying a coffee. It's especially beautiful in the evening with its lights."
+        "tip": "Inspired by French villages, this colorful area is perfect for a leisurely stroll, dining at charming restaurants, or enjoying a coffee. It's especially beautiful in the evening with its lights.",
+        "nearestStation": "금촌역 버스 25분",
+        "priceRange": "free (entry), 5000-30000 (dining/shopping)",
+        "hours": "매일 10:00-22:00 (상점별 상이)",
+        "bestSeason": [
+          "spring",
+          "autumn",
+          "winter"
+        ],
+        "photoSpot": "The colorful buildings and charming alleys are perfect for vibrant photos, especially at dusk when the lights come on.",
+        "waitTime": "weekend 15-30min (for popular restaurants), weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "오두산 통일전망대",
@@ -8526,7 +8611,16 @@
         "address": "경기 파주시 탄현면 필승로 369",
         "category": "culture",
         "stayDuration": 90,
-        "tip": "Offering panoramic views of the Han River and North Korean territory, this observatory is an alternative to Dora Observatory and is more accessible for independent visitors without a full DMZ tour."
+        "tip": "Offering panoramic views of the Han River and North Korean territory, this observatory is an alternative to Dora Observatory and is more accessible for independent visitors without a full DMZ tour.",
+        "nearestStation": "금촌역 버스 30분",
+        "priceRange": "3000 (adults)",
+        "hours": "매일 09:00-17:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The observation deck offers a clear view of North Korea across the river, best photographed on a clear day, ideally in the morning for better visibility.",
+        "waitTime": "weekend 10-20min (for entry/exhibits), weekday <10min",
+        "reservationRequired": false
       }
     ],
     "marketingCopy": "Step into a poignant chapter of history at the DMZ Panmunjom, where the echoes of division meet hopes for peace. Experience a unique journey through a divided land, offering deep insights into inter-Korean relations and a glimpse into North Korea."
@@ -8548,7 +8642,17 @@
         "address": "경기 수원시 팔달구 정조로 825",
         "category": "culture",
         "stayDuration": 180,
-        "tip": "Walk the entire 5.7km fortress wall for stunning views; the full course ticket is 1,000 KRW, allowing access to key gates and structures. Best visited in spring or autumn for pleasant weather, with the evening offering beautiful nightscapes."
+        "tip": "Walk the entire 5.7km fortress wall for stunning views; the full course ticket is 1,000 KRW, allowing access to key gates and structures. Best visited in spring or autumn for pleasant weather, with the evening offering beautiful nightscapes.",
+        "nearestStation": "수원역에서 버스 10분",
+        "priceRange": "1000",
+        "hours": "매일 09:00-18:00 (야간개장 18:00-21:00)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "Capture panoramic views of the fortress wall and city from Seojangdae (West Command Post) during sunset.",
+        "waitTime": "No significant wait time for entry, but expect crowds on weekends.",
+        "reservationRequired": false
       },
       {
         "name": "화성행궁",
@@ -8556,7 +8660,17 @@
         "address": "경기 수원시 팔달구 정조로 828",
         "category": "culture",
         "stayDuration": 90,
-        "tip": "This temporary palace for King Jeongjo costs 1,500 KRW for entry. Don't miss the daily Royal Guard Changing Ceremony (check times online) for a vibrant cultural experience."
+        "tip": "This temporary palace for King Jeongjo costs 1,500 KRW for entry. Don't miss the daily Royal Guard Changing Ceremony (check times online) for a vibrant cultural experience.",
+        "nearestStation": "팔달문 정류장 도보 3분",
+        "priceRange": "1500",
+        "hours": "매일 09:00-18:00 (입장마감 17:30)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The main courtyard during the Royal Guard Changing Ceremony offers vibrant cultural photos, or inside the main hall for traditional architecture.",
+        "waitTime": "Weekend 10-20min for entry during peak hours, weekday <5min.",
+        "reservationRequired": false
       },
       {
         "name": "연무대",
@@ -8564,7 +8678,17 @@
         "address": "경기 수원시 팔달구 창룡대로 103",
         "category": "activity",
         "stayDuration": 60,
-        "tip": "Try traditional Korean archery for 2,000 KRW for 10 arrows. It's a fun, hands-on experience and a great photo opportunity, easily accessible from Changnyongmun Gate."
+        "tip": "Try traditional Korean archery for 2,000 KRW for 10 arrows. It's a fun, hands-on experience and a great photo opportunity, easily accessible from Changnyongmun Gate.",
+        "nearestStation": "창룡문 정류장 도보 2분",
+        "priceRange": "2000",
+        "hours": "매일 09:30-17:30 (점심시간 12:00-13:00 제외)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "Capture archers in traditional attire aiming at targets, with the fortress wall providing a historic backdrop.",
+        "waitTime": "Weekend 15-30min, weekday <10min.",
+        "reservationRequired": false
       },
       {
         "name": "플라잉수원",
@@ -8572,7 +8696,16 @@
         "address": "경기 수원시 팔달구 지동 255-4",
         "category": "activity",
         "stayDuration": 30,
-        "tip": "Enjoy panoramic views of Suwon Hwaseong Fortress from above for 18,000 KRW (adults). Consider booking in advance, especially for sunset flights, to guarantee a spot."
+        "tip": "Enjoy panoramic views of Suwon Hwaseong Fortress from above for 18,000 KRW (adults). Consider booking in advance, especially for sunset flights, to guarantee a spot.",
+        "nearestStation": "창룡문 정류장 도보 5분",
+        "priceRange": "18000",
+        "hours": "매일 10:00-21:00 (기상 상황에 따라 변동)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the hot air balloon ascending with the entire Hwaseong Fortress sprawling below, especially at sunset for dramatic lighting.",
+        "waitTime": "Weekend 30-60min, weekday 10-20min (longer for sunset flights).",
+        "reservationRequired": true
       },
       {
         "name": "지동시장",
@@ -8580,7 +8713,16 @@
         "address": "경기 수원시 팔달구 팔달문로3번길 42",
         "category": "food",
         "stayDuration": 90,
-        "tip": "Explore this bustling traditional market adjacent to Paldalmun Gate. It's a fantastic spot to try various Korean street foods like tteokbokki and sundae, and find affordable local produce."
+        "tip": "Explore this bustling traditional market adjacent to Paldalmun Gate. It's a fantastic spot to try various Korean street foods like tteokbokki and sundae, and find affordable local produce.",
+        "nearestStation": "팔달문 정류장 도보 1분",
+        "priceRange": "5000-15000",
+        "hours": "매일 09:00-22:00 (점포별 상이)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the vibrant atmosphere of the market, especially the colorful food stalls and bustling crowds during evening hours.",
+        "waitTime": "No wait time for entry, but expect queues at popular food stalls on weekends.",
+        "reservationRequired": false
       },
       {
         "name": "팔달문",
@@ -8588,7 +8730,16 @@
         "address": "경기 수원시 팔달구 정조로 760",
         "category": "culture",
         "stayDuration": 30,
-        "tip": "As the southern main gate of Hwaseong Fortress, Paldalmun is a magnificent structure and a central landmark. It's particularly beautiful when illuminated at night, offering great photo opportunities."
+        "tip": "As the southern main gate of Hwaseong Fortress, Paldalmun is a magnificent structure and a central landmark. It's particularly beautiful when illuminated at night, offering great photo opportunities.",
+        "nearestStation": "수원역 (버스 10분) + 도보 2분",
+        "priceRange": "free",
+        "hours": "24시간 개방",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The gate itself, especially at night when illuminated, offers a magnificent backdrop for photos.",
+        "waitTime": "none",
+        "reservationRequired": false
       },
       {
         "name": "가보정 갈비",
@@ -8596,7 +8747,16 @@
         "address": "경기 수원시 팔달구 팔달로 189",
         "category": "food",
         "stayDuration": 90,
-        "tip": "Savor authentic Suwon galbi (marinated beef ribs), a local specialty, though it can be pricey (around 40,000-60,000 KRW per serving). Reservations are recommended for dinner, especially on weekends."
+        "tip": "Savor authentic Suwon galbi (marinated beef ribs), a local specialty, though it can be pricey (around 40,000-60,000 KRW per serving). Reservations are recommended for dinner, especially on weekends.",
+        "nearestStation": "수원역 (버스 5분) + 도보 3분",
+        "priceRange": "40000-60000",
+        "hours": "매일 11:30-22:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the generous portions of galbi sizzling on the grill, or the elegant interior of the restaurant.",
+        "waitTime": "weekend 30-60min, weekday 10-20min",
+        "reservationRequired": true
       },
       {
         "name": "수원화성박물관",
@@ -8604,7 +8764,16 @@
         "address": "경기 수원시 팔달구 창룡대로 21",
         "category": "culture",
         "stayDuration": 60,
-        "tip": "Learn about the fascinating history and construction techniques of Hwaseong Fortress for an entry fee of 2,000 KRW. It provides excellent context before or after exploring the fortress itself."
+        "tip": "Learn about the fascinating history and construction techniques of Hwaseong Fortress for an entry fee of 2,000 KRW. It provides excellent context before or after exploring the fortress itself.",
+        "nearestStation": "수원역 (버스 15분) + 도보 5분",
+        "priceRange": "2000",
+        "hours": "화~일 09:00-18:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The detailed models and historical artifacts inside provide interesting photo opportunities for history enthusiasts.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "행궁동 카페거리",
@@ -8612,7 +8781,17 @@
         "address": "경기 수원시 팔달구 신풍로 63",
         "category": "cafe",
         "stayDuration": 60,
-        "tip": "Wander through this charming street filled with unique cafes and small boutiques, many offering views of the fortress wall. It's perfect for a relaxing break and finding photogenic spots."
+        "tip": "Wander through this charming street filled with unique cafes and small boutiques, many offering views of the fortress wall. It's perfect for a relaxing break and finding photogenic spots.",
+        "nearestStation": "수원역 (버스 10분) + 도보 5분",
+        "priceRange": "5000-15000",
+        "hours": "카페별 상이 (대부분 10:00-22:00)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "Many cafes offer unique interiors and views of the fortress wall, perfect for capturing the charming atmosphere.",
+        "waitTime": "cafe dependent, weekend 10-30min for popular spots",
+        "reservationRequired": false
       },
       {
         "name": "수원전통문화관",
@@ -8620,7 +8799,16 @@
         "address": "경기 수원시 팔달구 지동 246-1",
         "category": "culture",
         "stayDuration": 60,
-        "tip": "Experience various traditional Korean cultural activities, from tea ceremonies to craft workshops (check their schedule and fees online). It's a great way to immerse yourself in local customs near the fortress."
+        "tip": "Experience various traditional Korean cultural activities, from tea ceremonies to craft workshops (check their schedule and fees online). It's a great way to immerse yourself in local customs near the fortress.",
+        "nearestStation": "수원역 (버스 15분) + 도보 3분",
+        "priceRange": "free (activities vary, 5000-20000)",
+        "hours": "화~일 09:00-18:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The traditional Korean architecture and various cultural activities provide excellent opportunities for capturing authentic Korean experiences.",
+        "waitTime": "none for entry, activity dependent",
+        "reservationRequired": true
       }
     ],
     "marketingCopy": "Step back in time at Suwon Hwaseong Fortress, a UNESCO World Heritage site showcasing Joseon Dynasty's architectural brilliance. Explore ancient palaces, enjoy traditional experiences, and savor the renowned Suwon Galbi in this vibrant historical city."
@@ -8642,7 +8830,16 @@
         "address": "인천 연수구 컨벤시아대로 160",
         "category": "activity",
         "stayDuration": 150,
-        "tip": "Enjoy a serene water taxi ride (approx. 4,000-6,000 KRW) for unique city views. Best visited in the morning or late afternoon for pleasant weather and beautiful light."
+        "tip": "Enjoy a serene water taxi ride (approx. 4,000-6,000 KRW) for unique city views. Best visited in the morning or late afternoon for pleasant weather and beautiful light.",
+        "nearestStation": "센트럴파크역 4번 출구 도보 5분",
+        "priceRange": "free",
+        "hours": "매일 24시간",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The water taxi ride offers unique city skyline views, especially at sunset, capturing the modern architecture reflected on the water.",
+        "waitTime": "Generally no wait for park entry; water taxi might have short queues on weekend afternoons.",
+        "reservationRequired": false
       },
       {
         "name": "G타워",
@@ -8650,7 +8847,16 @@
         "address": "인천 연수구 아트센터대로 175",
         "category": "culture",
         "stayDuration": 75,
-        "tip": "Head to the 33rd-floor observation deck for a free panoramic view of Songdo and the Incheon Bridge. Check the IFEZ PR Hall on the lower floors to learn about Songdo's development."
+        "tip": "Head to the 33rd-floor observation deck for a free panoramic view of Songdo and the Incheon Bridge. Check the IFEZ PR Hall on the lower floors to learn about Songdo's development.",
+        "nearestStation": "센트럴파크역 4번 출구 도보 10분",
+        "priceRange": "free",
+        "hours": "화~일 10:00-19:00 (월, 공휴일 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The 33rd-floor observation deck provides panoramic views of Songdo and the Incheon Bridge, ideal for wide-angle cityscapes, especially during clear weather.",
+        "waitTime": "Usually no wait, but elevators might have a short queue during peak hours.",
+        "reservationRequired": false
       },
       {
         "name": "트라이볼",
@@ -8658,7 +8864,16 @@
         "address": "인천 연수구 센트럴로 106",
         "category": "culture",
         "stayDuration": 45,
-        "tip": "Admire the unique 'floating' architectural design and check if there are any free art exhibitions or performances inside. It's especially beautiful when lit up at night."
+        "tip": "Admire the unique 'floating' architectural design and check if there are any free art exhibitions or performances inside. It's especially beautiful when lit up at night.",
+        "nearestStation": "센트럴파크역 4번 출구 도보 5분",
+        "priceRange": "free",
+        "hours": "화~일 10:00-18:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The unique 'floating' architectural design is best captured from the surrounding water at night when it's beautifully illuminated.",
+        "waitTime": "No wait for exterior viewing; minimal wait for interior exhibitions.",
+        "reservationRequired": false
       },
       {
         "name": "엔씨큐브 커낼워크",
@@ -8666,7 +8881,16 @@
         "address": "인천 연수구 아트센터대로 87",
         "category": "shopping",
         "stayDuration": 120,
-        "tip": "This European-style shopping street is divided into four themed sections (Spring, Summer, Autumn, Winter). Enjoy a leisurely stroll, browse boutique shops, and find many cafes and restaurants along the canal."
+        "tip": "This European-style shopping street is divided into four themed sections (Spring, Summer, Autumn, Winter). Enjoy a leisurely stroll, browse boutique shops, and find many cafes and restaurants along the canal.",
+        "nearestStation": "센트럴파크역 2번 출구 도보 10분",
+        "priceRange": "free",
+        "hours": "매일 10:30-21:00 (점포별 상이)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The European-style canal with charming bridges and boutique storefronts makes for picturesque street photography, especially in the afternoon light or during seasonal decorations.",
+        "waitTime": "No wait for entry; popular restaurants or cafes might have waits during peak meal times.",
+        "reservationRequired": false
       },
       {
         "name": "현대프리미엄아울렛 송도점",
@@ -8674,7 +8898,16 @@
         "address": "인천 연수구 송도국제대로 123",
         "category": "shopping",
         "stayDuration": 150,
-        "tip": "A large outdoor outlet mall offering a wide range of international and domestic brands with discounts. There's also a food court and various restaurants for a meal or coffee break."
+        "tip": "A large outdoor outlet mall offering a wide range of international and domestic brands with discounts. There's also a food court and various restaurants for a meal or coffee break.",
+        "nearestStation": "테크노파크역 2번 출구 도보 3분",
+        "priceRange": "free",
+        "hours": "매일 10:30-21:00 (금~일 21:00, 월~목 20:30)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The spacious outdoor mall's modern architecture and various art installations provide good backdrops for lifestyle and fashion shots, particularly during festive seasons.",
+        "waitTime": "No wait for entry; popular stores or restaurants might have waits during peak shopping hours or meal times.",
+        "reservationRequired": false
       },
       {
         "name": "미추홀공원",
@@ -8682,7 +8915,18 @@
         "address": "인천 연수구 해돋이로 51",
         "category": "activity",
         "stayDuration": 75,
-        "tip": "Explore a serene park featuring traditional Korean gardens and architecture, offering a peaceful contrast to Songdo's modern cityscape. It's a great spot for a quiet walk or picnic."
+        "tip": "Explore a serene park featuring traditional Korean gardens and architecture, offering a peaceful contrast to Songdo's modern cityscape. It's a great spot for a quiet walk or picnic.",
+        "nearestStation": "인천대입구역 4번 출구 도보 10분",
+        "priceRange": "free",
+        "hours": "매일 05:00-23:00",
+        "bestSeason": [
+          "spring",
+          "autumn",
+          "all"
+        ],
+        "photoSpot": "Capture the traditional Korean pavilions and ponds, especially beautiful during the golden hour for soft, warm lighting.",
+        "waitTime": "None",
+        "reservationRequired": false
       },
       {
         "name": "송도 컨벤시아",
@@ -8690,7 +8934,16 @@
         "address": "인천 연수구 센트럴로 123",
         "category": "culture",
         "stayDuration": 45,
-        "tip": "Appreciate the unique wave-like roof architecture, inspired by traditional Korean curves. While primarily a convention center, it's worth seeing for its design and often hosts public events."
+        "tip": "Appreciate the unique wave-like roof architecture, inspired by traditional Korean curves. While primarily a convention center, it's worth seeing for its design and often hosts public events.",
+        "nearestStation": "센트럴파크역 4번 출구 도보 5분",
+        "priceRange": "free (events vary)",
+        "hours": "매일 09:00-18:00 (행사 시 연장)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The striking wave-like roof is best photographed from the outside, especially at dusk when the building lights up.",
+        "waitTime": "None (unless for a specific event)",
+        "reservationRequired": false
       },
       {
         "name": "카페 코르소",
@@ -8698,7 +8951,16 @@
         "address": "인천 연수구 센트럴로 263 B동 1층",
         "category": "cafe",
         "stayDuration": 75,
-        "tip": "Enjoy coffee and desserts with a beautiful view of Songdo Central Park. It's a popular spot for both locals and tourists to relax and people-watch."
+        "tip": "Enjoy coffee and desserts with a beautiful view of Songdo Central Park. It's a popular spot for both locals and tourists to relax and people-watch.",
+        "nearestStation": "센트럴파크역 4번 출구 도보 7분",
+        "priceRange": "6000-15000",
+        "hours": "매일 10:00-22:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The window seats offer picturesque views of Central Park, ideal for capturing a relaxed cafe moment with a scenic backdrop.",
+        "waitTime": "weekend 10-30min, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "갈비명가 이상 송도점",
@@ -8706,7 +8968,16 @@
         "address": "인천 연수구 컨벤시아대로 126 송도밀레니엄 2층",
         "category": "food",
         "stayDuration": 100,
-        "tip": "Savor authentic Korean BBQ in a comfortable setting, specializing in delicious galbi (marinated ribs). Many restaurants in Songdo are foreigner-friendly with English menus available."
+        "tip": "Savor authentic Korean BBQ in a comfortable setting, specializing in delicious galbi (marinated ribs). Many restaurants in Songdo are foreigner-friendly with English menus available.",
+        "nearestStation": "센트럴파크역 4번 출구 도보 5분",
+        "priceRange": "25000-50000",
+        "hours": "매일 11:30-22:00 (브레이크 타임 15:00-17:00)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the sizzling galbi on the grill, or the elegant interior of the restaurant during off-peak hours.",
+        "waitTime": "weekend 20-40min, weekday <15min",
+        "reservationRequired": false
       },
       {
         "name": "아트센터 인천",
@@ -8714,7 +8985,16 @@
         "address": "인천 연수구 아트센터대로 222",
         "category": "culture",
         "stayDuration": 90,
-        "tip": "Check their schedule for world-class concerts, operas, and ballets, or simply admire the striking architecture of this performing arts complex. Guided tours might be available on specific days."
+        "tip": "Check their schedule for world-class concerts, operas, and ballets, or simply admire the striking architecture of this performing arts complex. Guided tours might be available on specific days.",
+        "nearestStation": "국제업무지구역 5번 출구 도보 10분",
+        "priceRange": "free (exhibitions/performances vary)",
+        "hours": "화~일 10:00-18:00 (월 휴무, 공연 시 연장)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The unique, modern exterior architecture is best captured from a distance, especially at night when it's beautifully illuminated.",
+        "waitTime": "None (unless for a specific event/performance)",
+        "reservationRequired": true
       }
     ],
     "marketingCopy": "Experience the future in Songdo, a master-planned smart city boasting stunning modern architecture, lush green spaces, and a vibrant international community. Enjoy unique waterfront activities, diverse shopping, and innovative cultural attractions."
@@ -8736,7 +9016,16 @@
         "address": "강원 춘천시 남이섬길 1 (Gapyeong Wharf: 경기도 가평군 가평읍 북한강변로 1024)",
         "category": "culture",
         "stayDuration": 180,
-        "tip": "Famous for K-drama 'Winter Sonata', Nami Island requires a ferry ride from Gapyeong Wharf (round-trip ferry + entrance fee: 16,000 KRW for foreigners). Visit in autumn for stunning foliage or winter for a romantic snowy landscape. Take the Gapyeong City Tour Bus or a local taxi to the wharf."
+        "tip": "Famous for K-drama 'Winter Sonata', Nami Island requires a ferry ride from Gapyeong Wharf (round-trip ferry + entrance fee: 16,000 KRW for foreigners). Visit in autumn for stunning foliage or winter for a romantic snowy landscape. Take the Gapyeong City Tour Bus or a local taxi to the wharf.",
+        "nearestStation": "가평역 (ITX 청춘) 버스/택시 10분",
+        "priceRange": "16000",
+        "hours": "매일 08:00-21:00 (페리 운행 시간)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The Metasequoia Lane and Ginkgo Tree Lane are iconic, especially beautiful during autumn foliage or a snowy winter morning.",
+        "waitTime": "weekend 10-30min for ferry, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "쁘띠프랑스",
@@ -8744,7 +9033,16 @@
         "address": "경기도 가평군 청평면 호반로 1063",
         "category": "culture",
         "stayDuration": 90,
-        "tip": "A charming French cultural village inspired by 'The Little Prince', also a filming location for 'My Love from the Star'. Entry fee is 12,000 KRW. Best visited during the day to enjoy the colorful architecture and performances. Accessible via the Gapyeong City Tour Bus."
+        "tip": "A charming French cultural village inspired by 'The Little Prince', also a filming location for 'My Love from the Star'. Entry fee is 12,000 KRW. Best visited during the day to enjoy the colorful architecture and performances. Accessible via the Gapyeong City Tour Bus.",
+        "nearestStation": "청평역 (경춘선) 시티투어버스 30분",
+        "priceRange": "12000",
+        "hours": "매일 09:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The colorful European-style buildings and 'The Little Prince' statues offer charming backdrops, best captured on a bright sunny day.",
+        "waitTime": "weekend <15min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "아침고요수목원",
@@ -8752,7 +9050,18 @@
         "address": "경기도 가평군 상면 수목원로 432",
         "category": "culture",
         "stayDuration": 120,
-        "tip": "One of Korea's most beautiful private gardens, featuring various themed sections. Entry fee is 11,000 KRW. Visit in spring for flowers, autumn for fall foliage, or winter for the dazzling Lighting Festival. The Gapyeong City Tour Bus stops here."
+        "tip": "One of Korea's most beautiful private gardens, featuring various themed sections. Entry fee is 11,000 KRW. Visit in spring for flowers, autumn for fall foliage, or winter for the dazzling Lighting Festival. The Gapyeong City Tour Bus stops here.",
+        "nearestStation": "청평역 (경춘선) 시티투어버스 40분",
+        "priceRange": "11000",
+        "hours": "매일 08:30-19:00 (계절별 변동)",
+        "bestSeason": [
+          "spring",
+          "autumn",
+          "winter"
+        ],
+        "photoSpot": "The Sunken Garden in spring bloom or the dazzling Lighting Festival at night during winter provide spectacular photo opportunities.",
+        "waitTime": "weekend <15min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "가평 레일바이크",
@@ -8760,7 +9069,18 @@
         "address": "경기도 가평군 가평읍 달전리 110-4",
         "category": "activity",
         "stayDuration": 70,
-        "tip": "Enjoy a scenic 8km ride along an old railway track, offering beautiful views of the Bukhangang River. Prices are around 35,000 KRW for a 2-seater and 45,000 KRW for a 4-seater. Booking online in advance is recommended, especially on weekends and holidays."
+        "tip": "Enjoy a scenic 8km ride along an old railway track, offering beautiful views of the Bukhangang River. Prices are around 35,000 KRW for a 2-seater and 45,000 KRW for a 4-seater. Booking online in advance is recommended, especially on weekends and holidays.",
+        "nearestStation": "가평역 (ITX 청춘) 도보 5분",
+        "priceRange": "35000-45000",
+        "hours": "매일 09:00-17:00 (운행 시간표 확인)",
+        "bestSeason": [
+          "spring",
+          "summer",
+          "autumn"
+        ],
+        "photoSpot": "Capture scenic shots along the rail track with the Bukhangang River as a backdrop, especially beautiful during sunset.",
+        "waitTime": "weekend 30-60min without reservation, weekday <15min",
+        "reservationRequired": true
       },
       {
         "name": "가평 탑랜드",
@@ -8768,7 +9088,16 @@
         "address": "경기도 가평군 가평읍 북한강변로 896",
         "category": "activity",
         "stayDuration": 120,
-        "tip": "Experience thrilling activities like the Gapyeong Zip Line (about 40,000 KRW) soaring over the Bukhangang River, or enjoy various water leisure sports such as jet skis and banana boats during warmer months. It's a great spot for adventure seekers."
+        "tip": "Experience thrilling activities like the Gapyeong Zip Line (about 40,000 KRW) soaring over the Bukhangang River, or enjoy various water leisure sports such as jet skis and banana boats during warmer months. It's a great spot for adventure seekers.",
+        "nearestStation": "가평역 (ITX 청춘) 택시 5분",
+        "priceRange": "40000-80000",
+        "hours": "매일 09:00-18:00 (계절 및 활동별 상이)",
+        "bestSeason": [
+          "summer"
+        ],
+        "photoSpot": "The zip line offers a thrilling perspective over the Bukhangang River, perfect for action shots during the ride or from the launch platform.",
+        "waitTime": "weekend 15-45min for popular activities, weekday <15min",
+        "reservationRequired": true
       },
       {
         "name": "자라섬",
@@ -8776,7 +9105,17 @@
         "address": "경기도 가평군 가평읍 달전리 1-1",
         "category": "culture",
         "stayDuration": 90,
-        "tip": "Known for hosting the annual Jara Island International Jazz Festival and offering extensive camping facilities. Entry is free unless there's a special event. It's a peaceful spot for a walk or picnic, especially beautiful in spring and autumn. Easily accessible from Gapyeong Station."
+        "tip": "Known for hosting the annual Jara Island International Jazz Festival and offering extensive camping facilities. Entry is free unless there's a special event. It's a peaceful spot for a walk or picnic, especially beautiful in spring and autumn. Easily accessible from Gapyeong Station.",
+        "nearestStation": "가평역 도보 20분",
+        "priceRange": "free",
+        "hours": "매일 00:00-24:00",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The riverside walking paths offer scenic views, especially beautiful during sunrise or sunset.",
+        "waitTime": "no wait",
+        "reservationRequired": false
       },
       {
         "name": "가평닭갈비막국수",
@@ -8784,7 +9123,16 @@
         "address": "경기도 가평군 가평읍 가화로 108",
         "category": "food",
         "stayDuration": 60,
-        "tip": "Savor authentic Chuncheon-style Dakgalbi (spicy stir-fried chicken) and Makguksu (buckwheat noodles), signature dishes of the region. Expect to pay around 15,000-20,000 KRW per person. Many restaurants are located near Gapyeong Station or along the main roads."
+        "tip": "Savor authentic Chuncheon-style Dakgalbi (spicy stir-fried chicken) and Makguksu (buckwheat noodles), signature dishes of the region. Expect to pay around 15,000-20,000 KRW per person. Many restaurants are located near Gapyeong Station or along the main roads.",
+        "nearestStation": "가평역 도보 10분",
+        "priceRange": "15000-20000",
+        "hours": "매일 10:00-22:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the vibrant Dakgalbi sizzling on the pan, best taken right after it's served.",
+        "waitTime": "weekend 10-30min, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "가평잣고을시장",
@@ -8792,7 +9140,16 @@
         "address": "경기도 가평군 가평읍 가화로 123-1",
         "category": "shopping",
         "stayDuration": 60,
-        "tip": "Explore a traditional local market where you can find fresh produce, street food, and Gapyeong's famous pine nuts. It's a great place to experience local life and pick up unique souvenirs. Visit on market days (usually 5-day intervals) for the fullest experience."
+        "tip": "Explore a traditional local market where you can find fresh produce, street food, and Gapyeong's famous pine nuts. It's a great place to experience local life and pick up unique souvenirs. Visit on market days (usually 5-day intervals) for the fullest experience.",
+        "nearestStation": "가평역 도보 15분",
+        "priceRange": "free",
+        "hours": "매일 09:00-18:00 (5일장)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The bustling market stalls filled with local produce and street food make for lively photos, especially during peak market hours.",
+        "waitTime": "no wait",
+        "reservationRequired": false
       },
       {
         "name": "더스테이 힐링파크",
@@ -8800,7 +9157,18 @@
         "address": "경기도 가평군 설악면 한양골길 73",
         "category": "activity",
         "stayDuration": 150,
-        "tip": "A comprehensive resort offering a golf course, beautiful gardens, a cafe, and various relaxation facilities. It's ideal for a luxurious and peaceful retreat. Consider staying overnight or enjoying a meal at one of their upscale restaurants. A bit further out, so a taxi or private car is recommended."
+        "tip": "A comprehensive resort offering a golf course, beautiful gardens, a cafe, and various relaxation facilities. It's ideal for a luxurious and peaceful retreat. Consider staying overnight or enjoying a meal at one of their upscale restaurants. A bit further out, so a taxi or private car is recommended.",
+        "nearestStation": "가평역 택시 20분",
+        "priceRange": "20000-50000",
+        "hours": "매일 09:00-21:00",
+        "bestSeason": [
+          "spring",
+          "summer",
+          "autumn"
+        ],
+        "photoSpot": "The beautifully landscaped gardens and architectural features provide elegant backdrops, ideal for photos in the late afternoon golden hour.",
+        "waitTime": "no wait for entry, restaurant wait may vary",
+        "reservationRequired": true
       },
       {
         "name": "북한강카페",
@@ -8808,7 +9176,16 @@
         "address": "경기도 가평군 청평면 북한강로 1547",
         "category": "cafe",
         "stayDuration": 60,
-        "tip": "Enjoy coffee and desserts with a picturesque view of the Bukhangang River. There are many such scenic cafes along the riverbanks in Gapyeong. Prices are typical for Korean cafes (5,000-8,000 KRW for a drink). Perfect for a relaxing break after sightseeing."
+        "tip": "Enjoy coffee and desserts with a picturesque view of the Bukhangang River. There are many such scenic cafes along the riverbanks in Gapyeong. Prices are typical for Korean cafes (5,000-8,000 KRW for a drink). Perfect for a relaxing break after sightseeing.",
+        "nearestStation": "청평역 택시 10분",
+        "priceRange": "5000-10000",
+        "hours": "매일 10:00-22:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the stunning river view from the outdoor terrace, especially beautiful during sunset.",
+        "waitTime": "weekend 10-20min, weekday <10min",
+        "reservationRequired": false
       }
     ],
     "marketingCopy": "Escape the bustling city to Gapyeong, a scenic haven in Gyeonggi-do, offering serene nature, iconic K-drama filming locations, and thrilling outdoor activities perfect for a refreshing getaway."
@@ -8831,7 +9208,16 @@
         "address": "서울 중구 을지로 281",
         "category": "culture",
         "stayDuration": 120,
-        "tip": "Explore this iconic futuristic landmark, a hub for design, art exhibitions, and cultural events. Check their website for current exhibitions, many of which are free or have a nominal fee."
+        "tip": "Explore this iconic futuristic landmark, a hub for design, art exhibitions, and cultural events. Check their website for current exhibitions, many of which are free or have a nominal fee.",
+        "nearestStation": "동대문역사문화공원역 1번 출구 도보 2분",
+        "priceRange": "free (exhibitions vary)",
+        "hours": "매일 10:00-20:00 (전시별 상이)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The futuristic exterior curves and the LED Rose Garden are best photographed at dusk or night for a stunning effect.",
+        "waitTime": "weekend 10-20min (for popular exhibitions), weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "두타몰",
@@ -8839,7 +9225,16 @@
         "address": "서울 중구 장충단로 275",
         "category": "shopping",
         "stayDuration": 90,
-        "tip": "One of Dongdaemun's premier fashion malls, offering a wide range of trendy clothing, accessories, and cosmetics. It's open late, making it perfect for night owls."
+        "tip": "One of Dongdaemun's premier fashion malls, offering a wide range of trendy clothing, accessories, and cosmetics. It's open late, making it perfect for night owls.",
+        "nearestStation": "동대문역사문화공원역 14번 출구 도보 2분",
+        "priceRange": "10000-100000",
+        "hours": "월~토 10:30-24:00, 일 10:30-23:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The modern facade and interior displays offer good photo opportunities, especially near the entrance or specific brand setups.",
+        "waitTime": "weekend 10-20min (for popular stores), weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "흥인지문",
@@ -8847,7 +9242,16 @@
         "address": "서울 종로구 종로 288",
         "category": "culture",
         "stayDuration": 30,
-        "tip": "Visit one of Seoul's original city gates, beautifully preserved and illuminated at night. It's a great spot for historical photos and understanding Seoul's past."
+        "tip": "Visit one of Seoul's original city gates, beautifully preserved and illuminated at night. It's a great spot for historical photos and understanding Seoul's past.",
+        "nearestStation": "동대문역 1번 출구 도보 1분",
+        "priceRange": "free",
+        "hours": "24시간 개방",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the gate from across the street, especially at night when it's beautifully illuminated, for a classic historical shot.",
+        "waitTime": "none",
+        "reservationRequired": false
       },
       {
         "name": "동대문 패션타운 (평화시장)",
@@ -8855,7 +9259,16 @@
         "address": "서울 종로구 청계천로 274",
         "category": "shopping",
         "stayDuration": 90,
-        "tip": "Experience a traditional wholesale market specializing in clothing, often open late into the night. It offers a glimpse into Seoul's bustling fashion industry and unique finds."
+        "tip": "Experience a traditional wholesale market specializing in clothing, often open late into the night. It offers a glimpse into Seoul's bustling fashion industry and unique finds.",
+        "nearestStation": "동대문역 8번 출구 도보 1분",
+        "priceRange": "5000-50000",
+        "hours": "매일 22:00-익일 18:00 (일요일 휴무, 점포별 상이)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The bustling market alleys and vibrant displays of clothing offer dynamic street photography opportunities, best captured during peak evening hours.",
+        "waitTime": "none",
+        "reservationRequired": false
       },
       {
         "name": "동대문 완구거리",
@@ -8863,7 +9276,16 @@
         "address": "서울 종로구 종로52길 36",
         "category": "shopping",
         "stayDuration": 60,
-        "tip": "A vibrant street filled with wholesale toy and stationery stores, perfect for finding unique souvenirs, gifts, or just enjoying a nostalgic stroll. Great for families and collectors."
+        "tip": "A vibrant street filled with wholesale toy and stationery stores, perfect for finding unique souvenirs, gifts, or just enjoying a nostalgic stroll. Great for families and collectors.",
+        "nearestStation": "동대문역 4번 출구 도보 5분",
+        "priceRange": "5000-50000",
+        "hours": "매일 09:00-19:00 (일요일 휴무, 점포별 상이)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The colorful storefronts packed with toys and stationery provide a lively backdrop for playful photos, especially on a sunny afternoon.",
+        "waitTime": "none",
+        "reservationRequired": false
       },
       {
         "name": "광장시장",
@@ -8871,7 +9293,16 @@
         "address": "서울 종로구 창경궁로 88",
         "category": "food",
         "stayDuration": 90,
-        "tip": "A must-visit for foodies, famous for its authentic Korean street food like Bindaetteok (mung bean pancakes) and Mayak Gimbap. Come hungry and explore the endless culinary delights."
+        "tip": "A must-visit for foodies, famous for its authentic Korean street food like Bindaetteok (mung bean pancakes) and Mayak Gimbap. Come hungry and explore the endless culinary delights.",
+        "nearestStation": "종로5가역 8번 출구 도보 1분",
+        "priceRange": "5000-20000",
+        "hours": "매일 09:00-23:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The bustling food stalls, especially the Bindaetteok and Mayak Gimbap sections, are best photographed in the late afternoon for vibrant activity.",
+        "waitTime": "weekend 10-30min for popular stalls, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "서울 성곽길 (흥인지문 구간)",
@@ -8879,7 +9310,17 @@
         "address": "서울 종로구 종로58가길 10",
         "category": "activity",
         "stayDuration": 60,
-        "tip": "Walk a preserved section of the ancient Seoul City Wall near Dongdaemun for historical insight and scenic views of the city. Best enjoyed during cooler mornings or evenings."
+        "tip": "Walk a preserved section of the ancient Seoul City Wall near Dongdaemun for historical insight and scenic views of the city. Best enjoyed during cooler mornings or evenings.",
+        "nearestStation": "동대문역 1번 출구 도보 5분",
+        "priceRange": "free",
+        "hours": "24시간",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The panoramic views of the city with the ancient wall in the foreground are stunning at sunset or sunrise.",
+        "waitTime": "<5min",
+        "reservationRequired": false
       },
       {
         "name": "카페 DDP",
@@ -8887,7 +9328,16 @@
         "address": "서울 중구 을지로 281 (DDP 내부)",
         "category": "cafe",
         "stayDuration": 45,
-        "tip": "Conveniently located inside the Dongdaemun Design Plaza, this cafe offers a pleasant spot to rest and grab a coffee or light snack while admiring the unique architecture."
+        "tip": "Conveniently located inside the Dongdaemun Design Plaza, this cafe offers a pleasant spot to rest and grab a coffee or light snack while admiring the unique architecture.",
+        "nearestStation": "동대문역사문화공원역 1번 출구 도보 2분",
+        "priceRange": "5000-8000",
+        "hours": "매일 10:00-22:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The cafe's interior with the unique DDP architecture visible through the windows makes for interesting shots, especially during the day.",
+        "waitTime": "weekend 5-15min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "동대문 닭한마리 골목",
@@ -8895,7 +9345,16 @@
         "address": "서울 종로구 종로40가길 10",
         "category": "food",
         "stayDuration": 75,
-        "tip": "Indulge in 'Dak Han Mari,' a whole chicken soup cooked at your table, a local specialty perfect for sharing. Many restaurants in this alley offer this hearty and delicious dish."
+        "tip": "Indulge in 'Dak Han Mari,' a whole chicken soup cooked at your table, a local specialty perfect for sharing. Many restaurants in this alley offer this hearty and delicious dish.",
+        "nearestStation": "동대문역 9번 출구 도보 5분",
+        "priceRange": "15000-25000",
+        "hours": "매일 10:00-23:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the bubbling Dak Han Mari pot on the table, surrounded by side dishes, best taken when the meal is just served.",
+        "waitTime": "weekend 15-45min, weekday 5-15min",
+        "reservationRequired": false
       },
       {
         "name": "롯데피트인 동대문점",
@@ -8903,7 +9362,16 @@
         "address": "서울 중구 을지로 264",
         "category": "shopping",
         "stayDuration": 90,
-        "tip": "A modern shopping mall offering a diverse range of fashion brands, cosmetics, and lifestyle products. It's a great alternative to traditional markets for a comfortable shopping experience."
+        "tip": "A modern shopping mall offering a diverse range of fashion brands, cosmetics, and lifestyle products. It's a great alternative to traditional markets for a comfortable shopping experience.",
+        "nearestStation": "동대문역사문화공원역 11번 출구 도보 1분",
+        "priceRange": "10000-100000+",
+        "hours": "매일 11:00-22:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The modern exterior of the building or the vibrant displays inside can be good photo opportunities, especially during the day.",
+        "waitTime": "<10min",
+        "reservationRequired": false
       }
     ],
     "marketingCopy": "Discover Dongdaemun, where ancient history meets futuristic design and vibrant night markets. Explore iconic architecture, shop for the latest trends, and savor delicious Korean street food around the clock."
@@ -8925,7 +9393,17 @@
         "address": "서울 종로구 이화동",
         "category": "activity",
         "stayDuration": 120,
-        "tip": "Explore the vibrant murals and installations spread throughout the village. Visit on weekday mornings to avoid crowds and get the best photos. Remember to be respectful of residents' privacy and noise levels."
+        "tip": "Explore the vibrant murals and installations spread throughout the village. Visit on weekday mornings to avoid crowds and get the best photos. Remember to be respectful of residents' privacy and noise levels.",
+        "nearestStation": "혜화역 2번 출구 도보 15분",
+        "priceRange": "free",
+        "hours": "매일 24시간 (주간 방문 권장)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The iconic fish stairs or flower stairs offer vibrant backdrops, best captured in the soft morning light.",
+        "waitTime": "None for entry, but popular mural spots may have a short wait for photos (5-10min).",
+        "reservationRequired": false
       },
       {
         "name": "낙산공원 이화동",
@@ -8933,7 +9411,18 @@
         "address": "서울 종로구 낙산길 41",
         "category": "activity",
         "stayDuration": 90,
-        "tip": "Climb to Naksan Park for breathtaking panoramic views of Seoul, especially stunning at sunset. It's a free activity and offers a great perspective of the city."
+        "tip": "Climb to Naksan Park for breathtaking panoramic views of Seoul, especially stunning at sunset. It's a free activity and offers a great perspective of the city.",
+        "nearestStation": "혜화역 2번 출구 도보 15분",
+        "priceRange": "free",
+        "hours": "매일 24시간",
+        "bestSeason": [
+          "spring",
+          "autumn",
+          "summer"
+        ],
+        "photoSpot": "The fortress wall path overlooking the city provides stunning panoramic views, especially magical during sunset.",
+        "waitTime": "None",
+        "reservationRequired": false
       },
       {
         "name": "개뿔",
@@ -8941,7 +9430,17 @@
         "address": "서울 종로구 낙산1길 2-1",
         "category": "cafe",
         "stayDuration": 60,
-        "tip": "This charming cafe is famous for its rooftop seating that provides magnificent views over Seoul. It's an ideal spot to relax with a coffee or tea after exploring the village."
+        "tip": "This charming cafe is famous for its rooftop seating that provides magnificent views over Seoul. It's an ideal spot to relax with a coffee or tea after exploring the village.",
+        "nearestStation": "혜화역 2번 출구 도보 15분",
+        "priceRange": "6000-10000",
+        "hours": "매일 11:00-22:00",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The rooftop terrace offers an unparalleled view of Seoul's skyline, perfect for sunset photos with a drink.",
+        "waitTime": "weekend 10-30min, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "이화중심",
@@ -8949,7 +9448,16 @@
         "address": "서울 종로구 이화장길 70",
         "category": "cafe",
         "stayDuration": 45,
-        "tip": "Step into this cozy cafe for a taste of traditional Korean teas and desserts. It offers a quiet, artistic ambiance perfect for a peaceful break."
+        "tip": "Step into this cozy cafe for a taste of traditional Korean teas and desserts. It offers a quiet, artistic ambiance perfect for a peaceful break.",
+        "nearestStation": "혜화역 2번 출구 도보 10분",
+        "priceRange": "5000-9000",
+        "hours": "화~일 10:00-20:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The traditional Korean interior with artistic touches provides a serene backdrop, best captured during quieter hours.",
+        "waitTime": "weekend <10min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "이화동 맛집",
@@ -8957,7 +9465,16 @@
         "address": "서울 종로구 이화동길 70",
         "category": "food",
         "stayDuration": 60,
-        "tip": "Discover authentic Korean home-style cooking at one of the small, family-run restaurants. Look for daily specials and enjoy a hearty meal at local prices."
+        "tip": "Discover authentic Korean home-style cooking at one of the small, family-run restaurants. Look for daily specials and enjoy a hearty meal at local prices.",
+        "nearestStation": "혜화역 2번 출구 도보 10분",
+        "priceRange": "8000-15000",
+        "hours": "매일 11:30-21:00 (브레이크 타임 및 요일별 상이)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The charming, rustic exteriors and home-style dishes offer an authentic glimpse into local Korean life, best photographed during off-peak meal times.",
+        "waitTime": "weekend 10-20min, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "길거리 음식 노점",
@@ -8965,7 +9482,16 @@
         "address": "서울 종로구 이화동",
         "category": "food",
         "stayDuration": 30,
-        "tip": "Indulge in popular Korean street snacks like Tteokbokki (spicy rice cakes) or Hotteok (sweet pancakes) from various vendors dotted throughout the village. Cash is often preferred."
+        "tip": "Indulge in popular Korean street snacks like Tteokbokki (spicy rice cakes) or Hotteok (sweet pancakes) from various vendors dotted throughout the village. Cash is often preferred.",
+        "nearestStation": "혜화역 2번 출구 도보 10분",
+        "priceRange": "3000-10000",
+        "hours": "매일 12:00-20:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the vibrant array of colorful snacks and bustling atmosphere, especially during the early evening.",
+        "waitTime": "weekend 10-20min, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "이화동 기념품 가게",
@@ -8973,7 +9499,16 @@
         "address": "서울 종로구 이화장길 80",
         "category": "shopping",
         "stayDuration": 45,
-        "tip": "Browse for unique, handcrafted souvenirs and art pieces that reflect the village's artistic spirit. These make perfect gifts or mementos of your visit."
+        "tip": "Browse for unique, handcrafted souvenirs and art pieces that reflect the village's artistic spirit. These make perfect gifts or mementos of your visit.",
+        "nearestStation": "혜화역 2번 출구 도보 10분",
+        "priceRange": "5000-50000",
+        "hours": "매일 10:00-19:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Photograph the unique handcrafted items and the charming shop facades, especially in the afternoon light.",
+        "waitTime": "weekend <10min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "이화동 갤러리",
@@ -8981,7 +9516,16 @@
         "address": "서울 종로구 이화동길 50",
         "category": "culture",
         "stayDuration": 45,
-        "tip": "Visit local galleries to appreciate contemporary art, often by local artists, with themes inspired by the village and its history. Entry is usually free."
+        "tip": "Visit local galleries to appreciate contemporary art, often by local artists, with themes inspired by the village and its history. Entry is usually free.",
+        "nearestStation": "혜화역 2번 출구 도보 10분",
+        "priceRange": "free",
+        "hours": "화~일 11:00-18:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the unique art pieces and the quiet, contemplative atmosphere inside, ideally in the morning for soft light.",
+        "waitTime": "weekend <10min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "문구점",
@@ -8989,7 +9533,16 @@
         "address": "서울 종로구 이화동길 15",
         "category": "shopping",
         "stayDuration": 40,
-        "tip": "Find quirky stationery, small art supplies, or unique crafts that embody the artistic vibe of Ihwa Mural Village. Great for creative gifts."
+        "tip": "Find quirky stationery, small art supplies, or unique crafts that embody the artistic vibe of Ihwa Mural Village. Great for creative gifts.",
+        "nearestStation": "혜화역 2번 출구 도보 10분",
+        "priceRange": "3000-30000",
+        "hours": "매일 10:00-19:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Focus on the quirky and colorful stationery displays, capturing the artistic vibe of the shop in the afternoon.",
+        "waitTime": "weekend <10min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "이화벽화마을 포토존",
@@ -8997,7 +9550,17 @@
         "address": "서울 종로구 이화동",
         "category": "activity",
         "stayDuration": 60,
-        "tip": "Seek out iconic photo spots like the 'Flower Stairs' or 'Fish Stairs' for memorable pictures. Be patient as these can get crowded and be mindful not to block residential entrances."
+        "tip": "Seek out iconic photo spots like the 'Flower Stairs' or 'Fish Stairs' for memorable pictures. Be patient as these can get crowded and be mindful not to block residential entrances.",
+        "nearestStation": "혜화역 2번 출구 도보 10분",
+        "priceRange": "free",
+        "hours": "매일 24시간",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The iconic 'Flower Stairs' or 'Fish Stairs' are best photographed in the early morning to avoid crowds and capture soft, even light.",
+        "waitTime": "weekend 15-30min (for popular spots), weekday <10min",
+        "reservationRequired": false
       }
     ],
     "marketingCopy": "Discover Ihwa Mural Village, a vibrant hillside neighborhood transformed into an open-air art gallery with colorful murals and sculptures. Perfect for photography enthusiasts and those seeking unique cultural experiences and stunning Seoul city views."
@@ -9019,7 +9582,16 @@
         "address": "부산 사하구 감천동 1-12",
         "category": "activity",
         "stayDuration": 20,
-        "tip": "This iconic spot often has a queue; visit early in the morning or late afternoon for fewer crowds and better lighting for photos."
+        "tip": "This iconic spot often has a queue; visit early in the morning or late afternoon for fewer crowds and better lighting for photos.",
+        "nearestStation": "토성역 6번 출구에서 마을버스 환승 후 10분",
+        "priceRange": "free",
+        "hours": "매일 09:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the iconic Little Prince and Fox statue with the colorful village houses as a backdrop, best photographed in the early morning for soft light and fewer crowds.",
+        "waitTime": "weekend 30-60min, weekday 10-30min",
+        "reservationRequired": false
       },
       {
         "name": "감천문화마을 안내센터",
@@ -9027,7 +9599,16 @@
         "address": "부산 사하구 감내2로 203",
         "category": "culture",
         "stayDuration": 30,
-        "tip": "Start your visit here to grab a village map with a stamp tour (2,000 KRW), which guides you through key attractions and offers a fun way to explore."
+        "tip": "Start your visit here to grab a village map with a stamp tour (2,000 KRW), which guides you through key attractions and offers a fun way to explore.",
+        "nearestStation": "토성역 6번 출구에서 마을버스 환승 후 10분",
+        "priceRange": "2000",
+        "hours": "매일 09:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The entrance to the information center offers a good starting point for photos of the village map and vibrant signage, ideal during opening hours.",
+        "waitTime": "<10min",
+        "reservationRequired": false
       },
       {
         "name": "하늘마루",
@@ -9035,7 +9616,16 @@
         "address": "부산 사하구 감내1로 200",
         "category": "culture",
         "stayDuration": 25,
-        "tip": "Enjoy breathtaking panoramic views of the colorful village cascading down to the sea; it's a prime spot for photography, especially during sunset."
+        "tip": "Enjoy breathtaking panoramic views of the colorful village cascading down to the sea; it's a prime spot for photography, especially during sunset.",
+        "nearestStation": "토성역 6번 출구에서 마을버스 환승 후 10분",
+        "priceRange": "free",
+        "hours": "매일 09:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the panoramic view of Gamcheon Culture Village's colorful houses cascading down to the sea, especially stunning during sunset for golden hour shots.",
+        "waitTime": "<10min",
+        "reservationRequired": false
       },
       {
         "name": "감내맛집",
@@ -9043,7 +9633,16 @@
         "address": "부산 사하구 감내2로 196",
         "category": "food",
         "stayDuration": 60,
-        "tip": "Savor authentic local Korean dishes like Bibimbap or Pajeon in this cozy restaurant, a great place to refuel after exploring the village."
+        "tip": "Savor authentic local Korean dishes like Bibimbap or Pajeon in this cozy restaurant, a great place to refuel after exploring the village.",
+        "nearestStation": "토성역 6번 출구에서 마을버스 환승 후 10분",
+        "priceRange": "8000-15000",
+        "hours": "매일 10:00-19:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Photograph the vibrant and cozy interior of the restaurant, or the beautifully presented traditional Korean dishes, best taken before the lunch or dinner rush.",
+        "waitTime": "weekend 10-20min, weekday <10min",
+        "reservationRequired": false
       },
       {
         "name": "흙집카페",
@@ -9051,7 +9650,16 @@
         "address": "부산 사하구 감천동 1-322",
         "category": "cafe",
         "stayDuration": 45,
-        "tip": "Experience a traditional Korean 'loess house' while enjoying a coffee or tea, offering a unique blend of cultural immersion and relaxation."
+        "tip": "Experience a traditional Korean 'loess house' while enjoying a coffee or tea, offering a unique blend of cultural immersion and relaxation.",
+        "nearestStation": "토성역 6번 출구에서 마을버스 환승 후 10분",
+        "priceRange": "5000-8000",
+        "hours": "매일 10:00-19:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the unique traditional 'loess house' architecture and interior, or the artistic coffee creations, ideally in the afternoon for warm, natural light.",
+        "waitTime": "weekend 5-15min, weekday <5min",
+        "reservationRequired": false
       },
       {
         "name": "감천 박물관",
@@ -9059,7 +9667,16 @@
         "address": "부산 사하구 감내2로 200",
         "category": "culture",
         "stayDuration": 40,
-        "tip": "Delve into the fascinating history of Gamcheon Culture Village, from its origins as a refugee settlement to its vibrant artistic transformation. Entry is free."
+        "tip": "Delve into the fascinating history of Gamcheon Culture Village, from its origins as a refugee settlement to its vibrant artistic transformation. Entry is free.",
+        "nearestStation": "토성역 6번 출구 버스 환승 후 도보 2분",
+        "priceRange": "free",
+        "hours": "화~일 10:00-17:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the historical exhibits and dioramas that tell the story of Gamcheon's past, especially the refugee settlement era, for a glimpse into its origins.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "물고기자리 카페",
@@ -9067,7 +9684,16 @@
         "address": "부산 사하구 감내2로 189",
         "category": "cafe",
         "stayDuration": 45,
-        "tip": "This charming cafe is known for its artistic interior and often features local artworks, providing a relaxing break with good views."
+        "tip": "This charming cafe is known for its artistic interior and often features local artworks, providing a relaxing break with good views.",
+        "nearestStation": "토성역 6번 출구 버스 환승 후 도보 3분",
+        "priceRange": "5000-10000",
+        "hours": "매일 10:00-19:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Photograph the unique artistic interior and the panoramic views of Gamcheon Culture Village from its windows, especially during sunset for warm hues.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "감천문화마을 공중목욕탕",
@@ -9075,7 +9701,16 @@
         "address": "부산 사하구 감천동 1-285",
         "category": "culture",
         "stayDuration": 30,
-        "tip": "Explore this creatively repurposed former public bathhouse, now an art exhibition space showcasing unique installations and reflecting the village's artistic spirit."
+        "tip": "Explore this creatively repurposed former public bathhouse, now an art exhibition space showcasing unique installations and reflecting the village's artistic spirit.",
+        "nearestStation": "토성역 6번 출구 버스 환승 후 도보 2분",
+        "priceRange": "free",
+        "hours": "화~일 10:00-17:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the creative installations within the repurposed bathhouse, focusing on the unique blend of historical architecture and modern art, ideally in the morning light.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "감천문화마을 기념품점",
@@ -9083,7 +9718,16 @@
         "address": "부산 사하구 감내2로 203",
         "category": "shopping",
         "stayDuration": 35,
-        "tip": "Find a wide array of handmade crafts, postcards, and quirky souvenirs created by local artists, perfect for taking a piece of Gamcheon home."
+        "tip": "Find a wide array of handmade crafts, postcards, and quirky souvenirs created by local artists, perfect for taking a piece of Gamcheon home.",
+        "nearestStation": "토성역 6번 출구 버스 환승 후 도보 3분",
+        "priceRange": "5000-30000",
+        "hours": "매일 10:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Take photos of the colorful and quirky handmade crafts and postcards, showcasing the local artistic talent and vibrant village spirit.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "아트샵",
@@ -9091,7 +9735,16 @@
         "address": "부산 사하구 감내2로 194",
         "category": "shopping",
         "stayDuration": 30,
-        "tip": "Browse a diverse collection of paintings, sculptures, and unique art pieces, directly supporting the local artists who contribute to the village's charm."
+        "tip": "Browse a diverse collection of paintings, sculptures, and unique art pieces, directly supporting the local artists who contribute to the village's charm.",
+        "nearestStation": "토성역 6번 출구 버스 환승 후 도보 3분",
+        "priceRange": "10000-100000+",
+        "hours": "매일 10:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Photograph the diverse collection of paintings and sculptures, highlighting the unique styles of Gamcheon's local artists, best captured with natural light during the day.",
+        "waitTime": "weekday <10min, weekend <10min",
+        "reservationRequired": false
       }
     ],
     "marketingCopy": "Step into a vibrant fairytale at Gamcheon Culture Village, a colorful hillside community transformed into an open-air museum. Explore whimsical street art, charming cafes, and breathtaking panoramic views that make it a photographer's paradise."
@@ -9113,7 +9766,17 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "culture",
         "stayDuration": 45,
-        "tip": "As a prime example of a noble Joseon-era house, explore its exterior and courtyard. The village itself has an entrance fee of approximately ₩4,000 for adults."
+        "tip": "As a prime example of a noble Joseon-era house, explore its exterior and courtyard. The village itself has an entrance fee of approximately ₩4,000 for adults.",
+        "nearestStation": "양동마을 정류장 도보 5분",
+        "priceRange": "4000",
+        "hours": "매일 09:00-18:00 (하절기 ~19:00)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "Capture the elegant exterior and traditional courtyard, especially beautiful in the soft morning light.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "무첨당",
@@ -9121,7 +9784,17 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "culture",
         "stayDuration": 45,
-        "tip": "This historically significant house showcases traditional Korean architecture. Respect residents' privacy as many houses are still lived in; avoid entering private sections."
+        "tip": "This historically significant house showcases traditional Korean architecture. Respect residents' privacy as many houses are still lived in; avoid entering private sections.",
+        "nearestStation": "양동마을 정류장 도보 5분",
+        "priceRange": "4000",
+        "hours": "매일 09:00-18:00 (하절기 ~19:00)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The intricate wooden details and serene surroundings of the main hall are best photographed in the early afternoon.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "향단",
@@ -9129,7 +9802,17 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "culture",
         "stayDuration": 45,
-        "tip": "Admire the grandeur and unique layout of this iconic house from the outside. Best visited in spring or autumn for comfortable weather and beautiful scenery."
+        "tip": "Admire the grandeur and unique layout of this iconic house from the outside. Best visited in spring or autumn for comfortable weather and beautiful scenery.",
+        "nearestStation": "양동마을 정류장 도보 5분",
+        "priceRange": "4000",
+        "hours": "매일 09:00-18:00 (하절기 ~19:00)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "The unique multi-level structure and grand facade offer excellent photo opportunities from the front gate, especially during golden hour.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "양동마을 산책로",
@@ -9137,7 +9820,17 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "activity",
         "stayDuration": 150,
-        "tip": "Allow 2-3 hours to fully explore the village's winding paths and various sections. Wear comfortable shoes, as there are gentle inclines and unpaved sections."
+        "tip": "Allow 2-3 hours to fully explore the village's winding paths and various sections. Wear comfortable shoes, as there are gentle inclines and unpaved sections.",
+        "nearestStation": "양동마을 정류장 도보 5분",
+        "priceRange": "4000",
+        "hours": "매일 09:00-18:00 (하절기 ~19:00)",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "Panoramic views of the entire village nestled in the valley are stunning from the higher walking paths, ideal for sunset shots.",
+        "waitTime": "weekday <10min, weekend 10-30min",
+        "reservationRequired": false
       },
       {
         "name": "양동마을 민속박물관",
@@ -9145,7 +9838,16 @@
         "address": "경상북도 경주시 강동면 양동마을길 136-16",
         "category": "culture",
         "stayDuration": 60,
-        "tip": "Start your visit here to gain insight into the village's history and culture. It provides excellent context before exploring the traditional houses."
+        "tip": "Start your visit here to gain insight into the village's history and culture. It provides excellent context before exploring the traditional houses.",
+        "nearestStation": "양동마을 정류장 도보 5분",
+        "priceRange": "4000",
+        "hours": "매일 09:00-18:00 (하절기 ~19:00)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "The traditional exhibits inside provide a glimpse into Joseon-era life, best captured with natural light from the windows.",
+        "waitTime": "weekday <10min, weekend <10min",
+        "reservationRequired": false
       },
       {
         "name": "양동마을 전통찻집",
@@ -9153,7 +9855,16 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "cafe",
         "stayDuration": 60,
-        "tip": "Enjoy a peaceful break with traditional Korean tea and snacks in a charming hanok setting. Expect prices for beverages to be around ₩5,000-₩8,000."
+        "tip": "Enjoy a peaceful break with traditional Korean tea and snacks in a charming hanok setting. Expect prices for beverages to be around ₩5,000-₩8,000.",
+        "nearestStation": "N/A (대중교통 이용 시 버스/택시 환승 필요)",
+        "priceRange": "5000-8000",
+        "hours": "매일 10:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the serene interior of the hanok tea house with its traditional tea sets, ideally in the late morning for soft natural light.",
+        "waitTime": "weekday <10min, weekend 10-20min",
+        "reservationRequired": false
       },
       {
         "name": "양동마을 기념품점",
@@ -9161,7 +9872,16 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "shopping",
         "stayDuration": 30,
-        "tip": "Discover unique handcrafted souvenirs, traditional pottery, and local goods near the village entrance. It's a great opportunity to find authentic Korean gifts."
+        "tip": "Discover unique handcrafted souvenirs, traditional pottery, and local goods near the village entrance. It's a great opportunity to find authentic Korean gifts.",
+        "nearestStation": "N/A (대중교통 이용 시 버스/택시 환승 필요)",
+        "priceRange": "5000-50000",
+        "hours": "매일 09:00-18:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Photograph the diverse array of traditional Korean crafts and pottery displayed in the shop, focusing on unique items.",
+        "waitTime": "weekday <5min, weekend <10min",
+        "reservationRequired": false
       },
       {
         "name": "양동마을 식당",
@@ -9169,7 +9889,16 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "food",
         "stayDuration": 60,
-        "tip": "Savor local Gyeongju dishes like Ssambap (rice wraps) or traditional stews at one of the eateries near the village entrance. Lunch prices typically range from ₩10,000-₩15,000 per person."
+        "tip": "Savor local Gyeongju dishes like Ssambap (rice wraps) or traditional stews at one of the eateries near the village entrance. Lunch prices typically range from ₩10,000-₩15,000 per person.",
+        "nearestStation": "N/A (대중교통 이용 시 버스/택시 환승 필요)",
+        "priceRange": "10000-15000",
+        "hours": "매일 11:00-19:00",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Capture the vibrant presentation of local Gyeongju dishes, especially Ssambap, in a traditional setting during lunchtime.",
+        "waitTime": "weekday 10-20min, weekend 20-40min",
+        "reservationRequired": false
       },
       {
         "name": "양동마을 한지공예",
@@ -9177,7 +9906,16 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "activity",
         "stayDuration": 90,
-        "tip": "Inquire about traditional craft workshops, such as Hanji (Korean paper) making, which are occasionally offered. Participation fees usually range from ₩10,000-₩20,000."
+        "tip": "Inquire about traditional craft workshops, such as Hanji (Korean paper) making, which are occasionally offered. Participation fees usually range from ₩10,000-₩20,000.",
+        "nearestStation": "N/A (대중교통 이용 시 버스/택시 환승 필요)",
+        "priceRange": "10000-20000",
+        "hours": "화~일 10:00-17:00 (월 휴무)",
+        "bestSeason": [
+          "all"
+        ],
+        "photoSpot": "Document the hands-on process of traditional Hanji paper making, focusing on the intricate details and participant engagement.",
+        "waitTime": "N/A (by appointment or scheduled class)",
+        "reservationRequired": true
       },
       {
         "name": "심수정",
@@ -9185,7 +9923,17 @@
         "address": "경상북도 경주시 강동면 양동마을길 136",
         "category": "culture",
         "stayDuration": 45,
-        "tip": "Climb to this elegant pavilion for breathtaking panoramic views of the entire village and surrounding landscape – perfect for photography, especially during sunset."
+        "tip": "Climb to this elegant pavilion for breathtaking panoramic views of the entire village and surrounding landscape – perfect for photography, especially during sunset.",
+        "nearestStation": "N/A (대중교통 이용 시 버스/택시 환승 필요)",
+        "priceRange": "free",
+        "hours": "매일 09:00-18:00",
+        "bestSeason": [
+          "spring",
+          "autumn"
+        ],
+        "photoSpot": "Capture the panoramic view of Yangdong Folk Village from the pavilion, especially during sunset for golden hour lighting.",
+        "waitTime": "weekday <5min, weekend 5-15min",
+        "reservationRequired": false
       }
     ],
     "marketingCopy": "Step back in time at Yangdong Folk Village, a living UNESCO World Heritage site where the traditions and architecture of the Joseon Dynasty are beautifully preserved amidst stunning natural scenery."
