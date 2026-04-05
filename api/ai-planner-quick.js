@@ -172,6 +172,19 @@ export default async function handler(req, res) {
       json.day1MarkdownTable = json.day1MarkdownTable.replace(/\\n/g, '\n');
     }
 
+    // ── 누락 필드 폴백 보완 ──
+    const fb = FALLBACK[lang] || FALLBACK.en;
+    if (!json.marketingNarrative || json.marketingNarrative.trim().length < 10) {
+      json.marketingNarrative = fb.marketingNarrative;
+    }
+    if (!json.day1MarkdownTable || json.day1MarkdownTable.trim().length < 20) {
+      json.day1MarkdownTable = fb.day1MarkdownTable;
+      console.log('[AI-Planner] day1MarkdownTable missing from Gemini — using fallback table');
+    }
+    if (!json.themes || json.themes.length === 0) {
+      json.themes = fb.themes;
+    }
+
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify(json));
 
