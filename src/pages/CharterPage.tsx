@@ -13,6 +13,7 @@ import {
 import { CalendarPicker } from '@/components/PlannerForm';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 // ── 타입 ──────────────────────────────────────────────
 type VehicleType = 'staria' | 'sprinter' | 'bus';
@@ -39,6 +40,12 @@ export default function CharterPage() {
   const p = t.planner;
   const c = (t as any).charterPage ?? {} as any;
   const lk = language === 'ko' ? 'ko' : 'en'; // language key for pricing data
+
+  usePageMeta({
+    title: 'Charter Vehicle — Airport Pickup & Day Tours',
+    description: 'Book private charter vehicles in Korea. Airport transfers, day tours, K-pop concert shuttles. Hyundai Staria, Sprinter, Bus available.',
+    ogImage: '/hero-seoul-real.webp',
+  });
 
   const [vehicle,     setVehicle]     = useState<VehicleType>('staria');
   const [service,     setService]     = useState<ServiceType>('airport');

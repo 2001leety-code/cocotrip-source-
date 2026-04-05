@@ -3,6 +3,7 @@
  * Rewrites from /api/ai-planner-quick
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getSpotContext } from './_spots_helper.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -44,7 +45,8 @@ export default async function handler(req, res) {
   "day1MarkdownTable": "### Day 1 일정 미리보기\\n| 시간 | 명소 | 테마 |\\n|---|---|---|\\n| 10:00 | 명소1 | 팁1 |"
 }`;
 
-    const userPrompt = `목적지: ${destination}, 성향: ${preferences}, 총 ${durationDays}일 일정 중 1일차 프리뷰를 만들어주세요. 인원: ${pax}명`;
+    const spotContext = getSpotContext(destination);
+    const userPrompt = `목적지: ${destination}, 성향: ${preferences}, 총 ${durationDays}일 일정 중 1일차 프리뷰를 만들어주세요. 인원: ${pax}명${spotContext}`;
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],

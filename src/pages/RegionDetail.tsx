@@ -3,6 +3,7 @@ import { ArrowLeft, MapPin, Phone, MessageCircle } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const regionImages: Record<string, string[]> = {
   ganghwa: [
@@ -160,6 +161,12 @@ export function RegionDetail() {
   } | undefined;
   const images = regionImages[regionId || ''] || [];
 
+  usePageMeta({
+    title: regionData?.title ? `${regionData.title} Tour` : 'Region Detail',
+    description: regionData?.description || 'Explore Korea with CocoTrip premium tours',
+    ogImage: images[0] || '/hero-seoul.webp',
+  });
+
   if (!regionData) {
     return (
       <div className="min-h-screen bg-[#faf9f6] flex items-center justify-center">
@@ -255,6 +262,7 @@ export function RegionDetail() {
                   <img
                     src={image}
                     alt={`${regionData.title} gallery ${index + 1}`}
+                    loading="lazy"
                     className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
                   />
                 </div>

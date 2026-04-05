@@ -17,6 +17,7 @@ import {
   Lock, Camera, Train,
 } from 'lucide-react';
 import { buildAccommodationLinks, buildTourLinks, buildFlightLink, PICKUP_PRICES } from '@/config/affiliateLinks';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const PAGE_STYLE = `
 @keyframes pulse-ring {
@@ -1246,6 +1247,12 @@ export default function PlannerPage() {
   const p = t.planner;
   const [searchParams] = useSearchParams();
   const preset = searchParams.get('preset') ?? undefined;
+
+  usePageMeta({
+    title: 'AI Travel Planner — Custom Korea Itinerary',
+    description: 'Create your personalized Korea travel itinerary with AI. Free, instant, multi-language support. Seoul, Busan, Jeju and more.',
+    ogImage: '/hero-seoul-real.webp',
+  });
 
   type Status = 'idle' | 'loadingQuick' | 'quickSuccess' | 'loadingFull' | 'fullSuccess' | 'error';
   const [status, setStatus] = useState<Status>('idle');

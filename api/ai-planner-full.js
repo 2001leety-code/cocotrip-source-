@@ -8,6 +8,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import nodemailer from 'nodemailer';
 import { renderBookingEmail, renderBookingEmailText } from './_email-renderer.js';
+import { getSpotContext } from './_spots_helper.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -127,6 +128,7 @@ export default async function handler(req, res) {
     });
 
     // 구조화된 유저 메시지 (체크박스 input → ~150 tokens)
+    const spotContext = getSpotContext(area, 4);
     const userMessage = JSON.stringify({
       guest_name: guestName,
       guest_count: pax,
@@ -137,7 +139,7 @@ export default async function handler(req, res) {
       duration,
       vehicle,
       special_request: specialRequest || undefined,
-    });
+    }) + spotContext;
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
@@ -9,7 +9,10 @@ import { Regions } from '@/sections/Regions';
 import { CustomerGallery } from '@/sections/CustomerGallery';
 import { GoogleReviews } from '@/sections/GoogleReviews';
 import { CTA } from '@/sections/CTA';
+import { Membership } from '@/sections/Membership';
 import { Footer } from '@/sections/Footer';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SeasonalBanner } from '@/components/SeasonalBanner';
 import { RegionDetail } from '@/pages/RegionDetail';
 import Booking from '@/pages/Booking';
 import About from '@/pages/About';
@@ -17,18 +20,26 @@ import Terms from '@/pages/Terms';
 import Privacy from '@/pages/Privacy';
 import TravelTerms from '@/pages/TravelTerms';
 import Admin from '@/pages/Admin';
-import PlannerPage from '@/pages/PlannerPage';
+const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
-import CharterPage from '@/pages/CharterPage';
+const CharterPage = lazy(() => import('@/pages/CharterPage'));
 import MyPage from '@/pages/MyPage';
+import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
+
+  usePageMeta({
+    title: 'CocoTrip — Premium Korea Travel',
+    description: 'Private tours, charter vehicles, AI travel planner for Korea. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more.',
+    ogImage: '/hero-seoul-real.webp',
+  });
 
   return (
     <div className="min-h-screen bg-[#faf9f6]">
@@ -43,7 +54,9 @@ function HomePage() {
         <CustomerGallery />
         <GoogleReviews />
         <Services t={t} />
+        <SeasonalBanner />
         <Regions t={t} />
+        <Membership t={t} />
         <CTA t={t} />
       </main>
       <Footer t={t} />
@@ -71,6 +84,7 @@ function GlobalWidgets() {
 function App() {
   return (
     <LanguageProvider>
+      <ErrorBoundary>
       <BrowserRouter>
         <GlobalWidgets />
         <Routes>
@@ -89,7 +103,9 @@ function App() {
             path="/charter"
             element={
               <AuthRequired>
-                <CharterPage />
+                <Suspense fallback={<CharterSkeleton />}>
+                  <CharterPage />
+                </Suspense>
               </AuthRequired>
             }
           />
@@ -97,7 +113,9 @@ function App() {
             path="/planner"
             element={
               <AuthRequired>
-                <PlannerPage />
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <PlannerPage />
+                </Suspense>
               </AuthRequired>
             }
           />
@@ -115,6 +133,7 @@ function App() {
           />
         </Routes>
       </BrowserRouter>
+      </ErrorBoundary>
     </LanguageProvider>
   );
 }

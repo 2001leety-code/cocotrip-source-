@@ -1,19 +1,36 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { db } from '@/lib/firebase';
-
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { toast, Toaster } from 'sonner';
+import { RefreshCw, Plus, List, ChevronDown, ChevronUp } from 'lucide-react';
+
+interface Booking {
+  id: string;
+  customerName?: string;
+  email?: string;
+  tourType?: string;
+  date?: string;
+  status?: string;
+  amount?: number;
+  createdAt?: any;
+}
 
 export default function Admin() {
   const { user, loading, error } = useAuth();
 
+  // ── Tour creation form ──
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState<number>(0);
   const [totalSeats, setTotalSeats] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ── Booking list ──
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   const canSubmit = useMemo(() => {
     return (
@@ -27,6 +44,27 @@ export default function Admin() {
       totalSeats > 0
     );
   }, [loading, user, title, description, price, totalSeats]);
+
+  const fetchBookings = async () => {
+    setLoadingBookings(true);
+    try {
+      const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(50));
+      const snap = await getDocs(q);
+      const list: Booking[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+      setBookings(list);
+    } catch (err) {
+      console.error('Failed to fetch bookings:', err);
+      toast.error('예약 목록 로딩 실패');
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && !loading) {
+      fetchBookings();
+    }
+  }, [user, loading]);
 
   const handleCreateTour = async (e: FormEvent) => {
     e.preventDefault();
@@ -83,79 +121,180 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf9f6] p-6">
+    <div className="min-h-screen bg-[#faf9f6] p-4 sm:p-6">
       <Toaster position="top-center" richColors />
-      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-6">
-        <h1 className="text-2xl font-bold text-[#1a1a2e] mb-2">Admin</h1>
-        <p className="text-sm text-gray-600 mb-6">
-          여행 상품을 등록합니다. (`tours` 컬렉션에 저장)
-        </p>
-        {error ? <p className="text-sm text-red-500 mb-4">{error}</p> : null}
-
-        <form onSubmit={handleCreateTour} className="space-y-5">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Title
-            </label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none"
-              placeholder="예: Seoul Private Tour"
-            />
+            <h1 className="text-2xl font-bold text-[#1a1a2e]">Admin Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              투어 상품 관리 · 예약 목록 조회
+            </p>
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none"
-              rows={4}
-              placeholder="상품 상세 설명"
-            />
-          </div>
+        {error ? <p className="text-sm text-red-500">{error}</p> : null}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Price
-              </label>
-              <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(parseFloat(e.target.value || '0'))}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none"
-                min={0}
-              />
+        {/* ── Bookings Table ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between p-5 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <List className="w-5 h-5 text-[#7C5CFC]" />
+              <h2 className="text-lg font-bold text-[#1a1a2e]">예약 목록</h2>
+              <span className="text-xs bg-[#7C5CFC]/10 text-[#7C5CFC] px-2 py-0.5 rounded-full font-medium">
+                {bookings.length}건
+              </span>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Total Seats
-              </label>
-              <input
-                type="number"
-                value={totalSeats}
-                onChange={(e) => setTotalSeats(parseFloat(e.target.value || '0'))}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none"
-                min={1}
-              />
-            </div>
+            <button
+              onClick={fetchBookings}
+              disabled={loadingBookings}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7C5CFC] bg-[#7C5CFC]/5 rounded-lg hover:bg-[#7C5CFC]/10 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingBookings ? 'animate-spin' : ''}`} />
+              새로고침
+            </button>
           </div>
 
+          {loadingBookings ? (
+            <div className="p-12 text-center text-gray-400 text-sm">Loading...</div>
+          ) : bookings.length === 0 ? (
+            <div className="p-12 text-center text-gray-400 text-sm">
+              등록된 예약이 없습니다
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                    <th className="text-left px-5 py-3 font-medium">고객명</th>
+                    <th className="text-left px-5 py-3 font-medium">이메일</th>
+                    <th className="text-left px-5 py-3 font-medium">투어</th>
+                    <th className="text-left px-5 py-3 font-medium">날짜</th>
+                    <th className="text-left px-5 py-3 font-medium">금액</th>
+                    <th className="text-left px-5 py-3 font-medium">상태</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {bookings.map((b) => (
+                    <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-3.5 font-medium text-[#1a1a2e]">
+                        {b.customerName || '-'}
+                      </td>
+                      <td className="px-5 py-3.5 text-gray-500">{b.email || '-'}</td>
+                      <td className="px-5 py-3.5 text-gray-600">{b.tourType || '-'}</td>
+                      <td className="px-5 py-3.5 text-gray-500">{b.date || '-'}</td>
+                      <td className="px-5 py-3.5 font-medium text-[#1a1a2e]">
+                        {b.amount ? `$${b.amount}` : '-'}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span
+                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                            b.status === 'confirmed'
+                              ? 'bg-green-100 text-green-700'
+                              : b.status === 'pending'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : b.status === 'cancelled'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {b.status || 'unknown'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ── Tour Creation Form (Collapsible) ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <button
-            type="submit"
-            disabled={!canSubmit || isSubmitting}
-            className="w-full py-3 rounded-xl bg-[#0f3460] text-white font-bold hover:bg-[#1a1a2e] transition-colors disabled:opacity-50"
+            onClick={() => setShowForm(!showForm)}
+            className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50/50 transition-colors"
           >
-            {isSubmitting ? '등록 중...' : '상품 등록'}
+            <div className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-[#7C5CFC]" />
+              <h2 className="text-lg font-bold text-[#1a1a2e]">상품 등록</h2>
+            </div>
+            {showForm ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
           </button>
-        </form>
+
+          {showForm && (
+            <div className="p-5 pt-0 border-t border-gray-100">
+              <form onSubmit={handleCreateTour} className="space-y-5 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title
+                  </label>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#7C5CFC]/20 focus:border-[#7C5CFC] transition-all"
+                    placeholder="예: Seoul Private Tour"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#7C5CFC]/20 focus:border-[#7C5CFC] transition-all"
+                    rows={4}
+                    placeholder="상품 상세 설명"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Price ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(parseFloat(e.target.value || '0'))}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#7C5CFC]/20 focus:border-[#7C5CFC] transition-all"
+                      min={0}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Total Seats
+                    </label>
+                    <input
+                      type="number"
+                      value={totalSeats}
+                      onChange={(e) => setTotalSeats(parseFloat(e.target.value || '0'))}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#7C5CFC]/20 focus:border-[#7C5CFC] transition-all"
+                      min={1}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!canSubmit || isSubmitting}
+                  className="w-full py-3 rounded-xl bg-[#7C5CFC] text-white font-bold hover:bg-[#6b4ce0] transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? '등록 중...' : '상품 등록'}
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
-
