@@ -5,11 +5,12 @@ import {
   ArrowRight, ChevronDown,
   ChevronRight, ChevronLeft, Check,
   Music2, Sparkles, Shirt, UtensilsCrossed, Moon, Camera, ShoppingBag,
-  Film, Landmark, Mountain, Building2, Car, Hotel, Train,
+  Film, Landmark, Mountain, Building2, Car, Hotel, Train, Accessibility, Plane,
 } from 'lucide-react';
 import type { PlannerFormValues } from './PlannerForm';
 import { PICKUP_PRICES } from '@/config/affiliateLinks';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAuth } from '@/hooks/useAuth';
 
 /* ═══════════════════════════════════════════════════════
    DATA
@@ -77,6 +78,8 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const p: any = t.planner;
   const [step, setStep] = useState(0);
 
+  const { user } = useAuth();
+
   // data
   const [airportCode, setAirportCode]         = useState('');
   const [showCustom, setShowCustom]           = useState(false);
@@ -89,6 +92,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const [startDate, setStartDate]             = useState('');
   const [endDate, setEndDate]                 = useState('');
   const [paxInput, setPaxInput]               = useState('2');
+
+  // v2 fields
+  const [arrivalTerminal, setArrivalTerminal] = useState<'ICN_T1'|'ICN_T2'|'GMP'|'already_in_korea'|''>('');
+  const [departureAirport, setDepartureAirport] = useState<'same'|'ICN_T1'|'ICN_T2'|'GMP'|''>('same');
+  const [hotelAddress, setHotelAddress]       = useState('');
+  const [mobility, setMobility]              = useState<'ok'|'limited'>('ok');
 
 
   const effectiveAirport = airportCode || (showCustom && customAirport ? customAirport : '');
@@ -126,6 +135,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
       regions: allCities.length > 0 ? allCities : ['Seoul'],
       categories: selectedActivities, transport: 'staria', pax, durationDays,
       freeText: freeText || '',
+      // v2 fields
+      arrival_airport: arrivalTerminal,
+      departure_airport: departureAirport === 'same' ? arrivalTerminal : departureAirport,
+      hotel_address: hotelAddress,
+      mobility,
+      uid: user?.uid || null,
     } as PlannerFormValues);
   }
 
@@ -363,6 +378,42 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <input type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
           placeholder={p.planner_step2_adults || 'Enter number of people'}
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/30 rounded-2xl px-5 py-4 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+      </div>
+
+      {/* ── v2: 도착 공항 터미널 칩 ── */}
+      <div>
+        <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Plane className="w-4 h-4" /> {p.arrival_airport_title || 'Arrival Airport'}</p>
+        <div className="grid grid-cols-2 gap-2">
+          {([['ICN_T1','ICN Terminal 1'],['ICN_T2','ICN Terminal 2'],['GMP','Gimpo Airport'],['already_in_korea','Already in Seoul']] as const).map(([val,label]) => (
+            <button key={val} onClick={() => setArrivalTerminal(arrivalTerminal === val ? '' : val as any)}
+              className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${arrivalTerminal === val ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white' : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'}`}>
+              {(p as any)[val.toLowerCase()] || label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── v2: 호텔/숙소 주소 (optional) ── */}
+      <div>
+        <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Hotel className="w-4 h-4" /> {p.hotel_address_title || 'Hotel / Accommodation'}</p>
+        <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
+          placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong, Shilla Stay Gangnam...'}
+          className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/30 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+      </div>
+
+      {/* ── v2: 이동 편의성 토글 ── */}
+      <div>
+        <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Accessibility className="w-4 h-4" /> {p.mobility_title || 'Mobility'}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setMobility('ok')}
+            className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${mobility === 'ok' ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white' : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'}`}>
+            {p.stairs_ok || 'Stairs & hills OK'}
+          </button>
+          <button onClick={() => setMobility('limited')}
+            className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${mobility === 'limited' ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white' : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'}`}>
+            {p.stairs_limited || 'Minimize stairs'}
+          </button>
+        </div>
       </div>
 
       {/* 슬림 광고 카드 */}
