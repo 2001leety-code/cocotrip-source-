@@ -37,6 +37,29 @@ function formatKRW(n) {
   return new Intl.NumberFormat('ko-KR').format(n) + '원';
 }
 
+const METHOD_ICON = { subway: '🚇', taxi: '🚕', walk: '🚶', bus: '🚌', car: '🚐', default: '➡️' };
+
+function transitArrow(transit) {
+  if (!transit) return '';
+  const icon = METHOD_ICON[transit.method] || METHOD_ICON.default;
+  const method = transit.method ? transit.method.charAt(0).toUpperCase() + transit.method.slice(1) : '';
+  const duration = transit.est_min ? `${transit.est_min} min` : '';
+  const fare = transit.est_fare_krw > 0 ? ` · ₩${new Intl.NumberFormat('ko-KR').format(transit.est_fare_krw)}` : (transit.method === 'walk' ? ' · Free' : '');
+  const instruction = transit.instruction_en || '';
+  return `
+    <tr><td style="padding:0 0 8px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="background:#fafafa;border-left:3px solid #e9d5ff;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:4px;">
+        <tr>
+          <td style="font-size:12px;color:#7c3aed;font-weight:700;">
+            ${icon} ${method}${duration ? ` · ${duration}` : ''}${fare}
+          </td>
+        </tr>
+        ${instruction ? `<tr><td style="font-size:11px;color:#888;padding-top:3px;">${instruction}</td></tr>` : ''}
+      </table>
+    </td></tr>`;
+}
+
 function buildStopsHtml(stops = []) {
   return stops.map((stop, idx) => {
     const emoji = categoryEmoji(stop.category);
@@ -45,31 +68,59 @@ function buildStopsHtml(stops = []) {
     const tip = stop.tip_en || stop.tip || '';
     const stay = stop.stay_min || stop.stayDuration || 60;
     const cat = stop.category || '';
+    const startTime = stop.start_time || '';
+    const entryFee = stop.entry_fee_krw;
+    const feeLabel = entryFee === 0 ? '🆓 Free Entry' : (entryFee > 0 ? `🎫 ₩${new Intl.NumberFormat('ko-KR').format(entryFee)}` : '');
+    const needsReservation = stop.reservation_required;
+    const reservationNote = stop.reservation_note || '';
+    const items = Array.isArray(stop.recommended_items) ? stop.recommended_items : [];
+    const naverUrl = stop.naverMapUrl || `https://map.naver.com/v5/search/${encodeURIComponent(nameKo)}`;
+    const transit = stop.transit_from_prev || null;
+
+    const itemsHtml = items.length > 0 ? `
+      <table cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0 0;background:#fff8f0;border-radius:8px;padding:10px 14px;width:100%;">
+        <tr><td style="font-size:10px;font-weight:800;color:#d97706;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:6px;">Must Try</td></tr>
+        ${items.map(item => `
+          <tr><td style="font-size:12px;color:#444;padding:2px 0;">
+            <span style="color:#d97706;font-weight:700;">·</span>
+            ${item.name}${item.price_krw > 0 ? ` <span style="color:#888;">₩${new Intl.NumberFormat('ko-KR').format(item.price_krw)}</span>` : ''}
+            ${item.note ? `<span style="color:#aaa;font-size:11px;"> — ${item.note}</span>` : ''}
+          </td></tr>`).join('')}
+      </table>` : '';
 
     return `
+      ${transitArrow(idx > 0 ? transit : null)}
       <tr>
-        <td style="padding:0 0 24px 0;">
-          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <!-- Timeline dot + line -->
-              <td width="32" valign="top" style="padding-top:4px;">
-                <div style="width:12px;height:12px;border-radius:50%;background:#a855f7;border:2px solid white;margin:0 auto;box-shadow:0 0 0 2px rgba(168,85,247,0.3);"></div>
-                ${idx < stops.length - 1 ? '<div style="width:2px;background:#f0f0f8;margin:4px auto 0;height:100%;min-height:40px;"></div>' : ''}
-              </td>
-              <!-- Stop content -->
-              <td style="padding-left:12px;">
-                <div style="display:flex;align-items:baseline;gap:8px;">
-                  <span style="font-size:11px;font-weight:700;color:#a855f7;min-width:40px;">${String(idx + 1).padStart(2, '0')}</span>
-                  <span style="font-size:15px;font-weight:800;color:#1a1a2e;">${emoji} ${nameKo}</span>
-                </div>
-                ${nameEn ? `<div style="font-size:11px;color:#aaa;margin:2px 0 6px 52px;">${nameEn}</div>` : ''}
-                ${tip ? `<div style="font-size:13px;color:#555;line-height:1.65;margin-left:52px;margin-bottom:8px;">${tip}</div>` : ''}
-                <div style="margin-left:52px;display:flex;gap:8px;flex-wrap:wrap;">
-                  ${cat ? `<span style="font-size:10px;padding:2px 10px;border-radius:20px;background:#f5f0ff;color:#7c3aed;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${cat}</span>` : ''}
-                  <span style="font-size:10px;padding:2px 10px;border-radius:20px;background:#f0f8ff;color:#0077cc;font-weight:600;">⏱ ~${stay} min</span>
-                </div>
-              </td>
-            </tr>
+        <td style="padding:0 0 20px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                 style="background:white;border-radius:12px;border:1px solid #f0f0f8;overflow:hidden;">
+            <!-- Stop header bar -->
+            <tr><td style="background:linear-gradient(90deg,#f5f0ff,#fff0f8);padding:10px 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td>
+                  ${startTime ? `<span style="font-size:13px;font-weight:900;color:#7c3aed;">${startTime}</span>
+                  <span style="color:#ddd;margin:0 6px;">|</span>` : ''}
+                  <span style="font-size:14px;font-weight:800;color:#1a1a2e;">${emoji} ${nameKo}</span>
+                  ${nameEn ? `<span style="font-size:11px;color:#aaa;margin-left:6px;">${nameEn}</span>` : ''}
+                </td>
+                <td align="right">
+                  <a href="${naverUrl}" style="font-size:10px;color:#a855f7;text-decoration:none;font-weight:700;">지도 →</a>
+                </td>
+              </tr></table>
+            </td></tr>
+            <!-- Stop body -->
+            <tr><td style="padding:12px 16px;">
+              ${tip ? `<div style="font-size:13px;color:#444;line-height:1.7;margin-bottom:10px;">${tip}</div>` : ''}
+              <!-- Tags row -->
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:${items.length ? '0' : '0'};">
+                ${cat ? `<span style="font-size:10px;padding:3px 10px;border-radius:20px;background:#f5f0ff;color:#7c3aed;font-weight:700;text-transform:uppercase;">${cat}</span>` : ''}
+                <span style="font-size:10px;padding:3px 10px;border-radius:20px;background:#f0f8ff;color:#0077cc;font-weight:600;">⏱ ${stay} min</span>
+                ${feeLabel ? `<span style="font-size:10px;padding:3px 10px;border-radius:20px;background:#f0fdf4;color:#16a34a;font-weight:700;">${feeLabel}</span>` : ''}
+                ${needsReservation ? `<span style="font-size:10px;padding:3px 10px;border-radius:20px;background:#fff7ed;color:#ea580c;font-weight:700;">📞 Reservation Needed</span>` : ''}
+              </div>
+              ${needsReservation && reservationNote ? `<div style="font-size:11px;color:#ea580c;margin-top:6px;">→ ${reservationNote}</div>` : ''}
+              ${itemsHtml}
+            </td></tr>
           </table>
         </td>
       </tr>`;

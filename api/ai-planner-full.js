@@ -9,6 +9,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import nodemailer from 'nodemailer';
 import { renderBookingEmail, renderBookingEmailText } from './_email-renderer.js';
 import { getSpotContext } from './_spots_helper.js';
+import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -19,15 +20,15 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// ── Lean System Prompt (캐시 대상) ────────────────────────────────────────
-const LEAN_SYSTEM_PROMPT = `You are CocoTrip AI, a Korea private tour planner for cocotripkr.com.
-Create itineraries for foreign tourists. Be specific with real, well-known places.
+// ── Rich System Prompt (시간 + 이동 + 비용 포함) ──────────────────────────
+const LEAN_SYSTEM_PROMPT = `You are CocoTrip AI, Korea's premium private tour planner for cocotripkr.com.
+Create a REAL, actionable itinerary — not just a location list. Include times, transit directions, entry fees, and meal recommendations.
 
 ## OUTPUT FORMAT — STRICT JSON ONLY
-Respond ONLY with valid JSON. No markdown, no extra text, no code blocks.
+No markdown. No code blocks. No extra text.
 
 {
-  "tour_title": "Personalized title in English (e.g. Sarah's K-Pop & Gangnam Food Adventure)",
+  "tour_title": "Personalized title (e.g. Sarah's K-Pop & Gangnam Food Adventure)",
   "vehicle": "staria_8 | sprinter | large_bus",
   "base_price_krw": 330000,
   "days": [
@@ -38,30 +39,61 @@ Respond ONLY with valid JSON. No markdown, no extra text, no code blocks.
       "stops": [
         {
           "order": 1,
-          "name_ko": "장소명",
-          "name_en": "Place Name in English",
+          "start_time": "09:30",
+          "name_ko": "경복궁",
+          "name_en": "Gyeongbokgung Palace",
           "category": "culture | food | shopping | nature | landmark | kpop",
-          "address": "도로명 주소 (Korean address)",
+          "address": "서울특별시 종로구 사직로 161",
           "stay_min": 90,
-          "tip_en": "1-2 sentence practical tip for first-time visitors"
+          "entry_fee_krw": 3000,
+          "reservation_required": false,
+          "reservation_note": "",
+          "tip_en": "Rent hanbok at the east gate for free entry. Changing of the guard ceremony at 10:00 and 14:00.",
+          "recommended_items": [
+            { "name": "Hanbok rental", "price_krw": 20000, "note": "Includes free palace entry" }
+          ],
+          "transit_from_prev": null
         }
       ]
     }
   ]
 }
 
+## transit_from_prev FORMAT (null for stop #1)
+"transit_from_prev": {
+  "method": "subway",
+  "instruction_en": "Line 3 (Orange) → Gyeongbokgung Stn, Exit 5. 3 min walk.",
+  "est_min": 20,
+  "est_fare_krw": 1500
+}
+- method: "subway" | "taxi" | "walk" | "bus" | "car"
+- For subway: always include LINE NAME + EXIT NUMBER
+- For walk: include street or landmark reference
+- est_fare_krw: 0 for walk, ~1500 for subway, taxi ≈ (est_min × 200 + 4800)
+
 ## RULES
-- Max stops: 4-5 per full day, 2-3 per half day
-- stay_min: realistic (museum 90min, restaurant 60min, shopping 90min)
-- tip_en: practical info, what to see/do, recommended items to buy/eat
-- All tips in ENGLISH regardless of customer language
-- Use only real, well-known places in Korea
-- Do NOT include: lat, lng, URLs, naverMapUrl, travelFromPrev, transitOptions
+- stops: 5-7 per full day (09:00–20:30 coverage), 3-4 per half day
+- start_time: realistic schedule — include 12:30 lunch break, 18:30 dinner slot
+- stay_min: honest estimates (palace 90min, restaurant 60min, market 75min, museum 120min)
+- entry_fee_krw: 0 if free, real KRW admission price otherwise
+- recommended_items: 1-3 must-try items with REAL prices in KRW
+  - Food: specific dish name + price (e.g. 삼계탕 ₩17,000)
+  - Market: what to buy + budget range
+  - Culture: specific exhibit, activity, or souvenir
+- reservation_required: true for popular restaurants — always add reservation_note
+- address: 도로명 주소 (Korean road address, required for map geocoding)
+- tip_en: 1-2 sentences, practical first-timer advice
+
+## MEAL PLANNING
+- Include 1 dedicated lunch stop and 1 dinner stop per full day
+- Use REAL restaurant names (not "a restaurant in Myeongdong")
+- Specify 2-3 signature menu items with prices in KRW
+- Mark reservation_required: true if recommended
 
 ## PRICING
 staria_8 (1-8 pax): base 330000 KRW / 8hrs
-sprinter (9-15 pax): base 450000 KRW / 8hrs  
-large_bus (16+ pax): contact for quote`;
+sprinter (9-15 pax): base 450000 KRW / 8hrs
+large_bus (16+ pax): base 650000 KRW / 8hrs`;
 
 // ── 차량 타입 결정 ─────────────────────────────────────────────────────────
 function selectVehicle(pax, requestedVehicle) {
@@ -162,8 +194,38 @@ export default async function handler(req, res) {
     } catch {
       // 폴백: 코드블록 제거 후 재시도
       const cleaned = rawText.replace(/^```(?:json)?|```$/gm, '').trim();
-      try { itinerary = JSON.parse(cleaned); } 
+      try { itinerary = JSON.parse(cleaned); }
       catch { throw new Error('Gemini returned invalid JSON: ' + rawText.substring(0, 200)); }
+    }
+
+    // ── RouteAgent: Naver Maps 좌표 + 경로 보강 ──────────────────────────
+    try {
+      const routeAgent = new RouteAgent(apiKey);
+      // RouteAgent expects itinerary.itinerary[] format — adapt
+      const wrapped = { itinerary: (itinerary.days || []).map(d => ({ ...d, places: d.stops || [] })) };
+      const enriched = await routeAgent.call(JSON.stringify(wrapped));
+      const enrichedData = JSON.parse(enriched.rawOutput);
+      // Map enriched places back onto itinerary.days[].stops
+      if (enrichedData.itinerary) {
+        enrichedData.itinerary.forEach((enrichedDay, i) => {
+          if (itinerary.days[i] && enrichedDay.places) {
+            itinerary.days[i].stops = enrichedDay.places.map((p, j) => ({
+              ...(itinerary.days[i].stops[j] || {}),
+              ...p,
+              // Keep Gemini fields that RouteAgent doesn't overwrite
+              start_time: (itinerary.days[i].stops[j] || {}).start_time,
+              entry_fee_krw: (itinerary.days[i].stops[j] || {}).entry_fee_krw,
+              reservation_required: (itinerary.days[i].stops[j] || {}).reservation_required,
+              reservation_note: (itinerary.days[i].stops[j] || {}).reservation_note,
+              recommended_items: (itinerary.days[i].stops[j] || {}).recommended_items,
+              transit_from_prev: (itinerary.days[i].stops[j] || {}).transit_from_prev,
+            }));
+          }
+        });
+      }
+      console.log('[ai-planner-full] RouteAgent enrichment complete');
+    } catch (routeErr) {
+      console.warn('[ai-planner-full] RouteAgent failed (non-fatal):', routeErr.message);
     }
 
     // ── 가격 계산 ────────────────────────────────────────────────────────
