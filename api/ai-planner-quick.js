@@ -14,6 +14,66 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+const FALLBACK = {
+  en: {
+    themes: ['Seoul Highlights'],
+    marketingNarrative: 'Your personalized Seoul itinerary is being prepared. Please try again in a moment.',
+    day1MarkdownTable: '### Day 1 Preview\n| Time | Spot | Tip |\n|---|---|---|\n| 10:00 | Gyeongbokgung Palace | Arrive early to avoid crowds |\n| 12:00 | Gwangjang Market | Try bindaetteok & mayak gimbap |\n| 14:00 | Bukchon Hanok Village | Best photo spots on the hill |\n| 16:00 | Insadong Tea Street | Traditional tea experience |\n| 18:00 | Namsan Tower | Sunset view from the top |',
+  },
+  ko: {
+    themes: ['서울 핵심 여행'],
+    marketingNarrative: '맞춤형 서울 여행 일정을 준비하고 있습니다.',
+    day1MarkdownTable: '### 1일차 미리보기\n| 시간 | 명소 | 팁 |\n|---|---|---|\n| 10:00 | 경복궁 | 오전에 방문 추천 |\n| 12:00 | 광장시장 | 빈대떡, 마약김밥 필수 |\n| 14:00 | 북촌한옥마을 | 언덕 위 포토스팟 |\n| 16:00 | 인사동 | 전통 찻집 체험 |\n| 18:00 | 남산타워 | 일몰 시간 맞춰 방문 |',
+  },
+  ja: {
+    themes: ['ソウルハイライト'],
+    marketingNarrative: 'パーソナライズされたソウル旅程を準備中です。',
+    day1MarkdownTable: '### Day 1 プレビュー\n| 時間 | スポット | ヒント |\n|---|---|---|\n| 10:00 | 景福宮 | 午前中がおすすめ |\n| 12:00 | 広蔵市場 | ビンデトッ＆麻薬キンパ |\n| 14:00 | 北村韓屋村 | 丘の上がフォトスポット |\n| 16:00 | 仁寺洞 | 伝統茶体験 |\n| 18:00 | Nソウルタワー | 夕日がベスト |',
+  },
+  zh: {
+    themes: ['首尔精华'],
+    marketingNarrative: '正在为您准备个性化首尔行程。',
+    day1MarkdownTable: '### 第1天预览\n| 时间 | 景点 | 贴士 |\n|---|---|---|\n| 10:00 | 景福宫 | 建议上午参观 |\n| 12:00 | 广藏市场 | 必尝绿豆煎饼 |\n| 14:00 | 北村韩屋村 | 山坡上拍照最佳 |\n| 16:00 | 仁寺洞 | 传统茶馆体验 |\n| 18:00 | 南山塔 | 日落时分最美 |',
+  },
+};
+
+function buildPrompt(lang, destination, preferences, durationDays, pax) {
+  if (lang === 'ko') {
+    return {
+      system: `당신은 한국 여행 전문 플래너입니다.
+외국인 관광객을 위한 매력적인 1일차 여행 프리뷰를 작성하세요.
+
+반드시 아래 JSON 형태로만 응답하세요 (다른 텍스트 없이):
+{
+  "themes": ["테마1", "테마2"],
+  "marketingNarrative": "이 여행의 매력을 3문장으로 설명",
+  "day1MarkdownTable": "| 시간 | 명소 | 팁 |\\n|---|---|---|\\n| 10:00 | 명소이름 | 실용 팁 |"
+}`,
+      user: `목적지: ${destination}, 관심사: ${preferences}, ${durationDays}일 여행 중 1일차. ${pax}명.`,
+    };
+  }
+
+  // English (default for EN, JA, ZH — all get English output for international travelers)
+  return {
+    system: `You are CocoTrip's expert Korea travel planner.
+Create an exciting Day 1 preview itinerary for international tourists.
+
+RESPOND ONLY with this exact JSON format (no other text):
+{
+  "themes": ["Theme 1", "Theme 2"],
+  "marketingNarrative": "A compelling 2-3 sentence description of why this trip is amazing",
+  "day1MarkdownTable": "| Time | Spot | Insider Tip |\\n|---|---|---|\\n| 10:00 | Spot Name | Practical tip |\\n| 12:00 | Spot Name | Practical tip |\\n| 14:00 | Spot Name | Practical tip |\\n| 16:00 | Spot Name | Practical tip |\\n| 18:00 | Spot Name | Practical tip |"
+}
+
+RULES:
+- Include 5-7 time slots from morning to evening
+- Each tip must be specific and useful (subway exit numbers, best menu items, photo angles)
+- Use real, verified places that exist in Korea
+- Make the narrative exciting and personal`,
+    user: `Destination: ${destination}, Interests: ${preferences || 'culture, food, photos'}, Trip: ${durationDays} days (Day 1 preview). Group size: ${pax}.`,
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'POST') { res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Method Not Allowed' })); }
@@ -23,6 +83,7 @@ export default async function handler(req, res) {
     if (typeof rawBody === 'string') { try { rawBody = JSON.parse(rawBody); } catch { rawBody = {}; } }
     rawBody = rawBody || {};
 
+    const lang = rawBody.language || 'en';
     const destination = rawBody.destination || (rawBody.regions && rawBody.regions[0]) || 'Seoul';
     const prefsRaw = rawBody.preferences || rawBody.theme || rawBody.categories;
     const preferences = Array.isArray(prefsRaw) ? prefsRaw.join(', ') : (prefsRaw || 'K-food, culture');
@@ -33,35 +94,27 @@ export default async function handler(req, res) {
     if (!apiKey) throw new Error('API Key configuration missing');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-    const systemPrompt = `당신은 코코트립의 마스터 요약 기획자입니다.
-15초 내에 고객을 매료시킬 1일 차 여행 프리뷰를 작성하세요.
-
-출력 형식은 반드시 아래 JSON 형태여야 합니다:
-{
-  "themes": ["핵심테마1", "핵심테마2"],
-  "marketingNarrative": "이 여행이 고객에게 줄 서사적 감동 (마케팅 문구, 3문장 이내)",
-  "day1MarkdownTable": "### Day 1 일정 미리보기\\n| 시간 | 명소 | 테마 |\\n|---|---|---|\\n| 10:00 | 명소1 | 팁1 |"
-}`;
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const spotContext = getSpotContext(destination);
-    const userPrompt = `목적지: ${destination}, 성향: ${preferences}, 총 ${durationDays}일 일정 중 1일차 프리뷰를 만들어주세요. 인원: ${pax}명${spotContext}`;
+    const { system: systemPrompt, user: userPrompt } = buildPrompt(lang, destination, preferences, durationDays, pax);
+    const fullUserPrompt = userPrompt + (spotContext ? `\n\nLocal data:\n${spotContext}` : '');
 
-    // ── Gemini 호출 + JSON 파싱 (최대 2회 재시도) ──
-    const MAX_RETRIES = 2;
+    // ── Gemini 호출 + JSON 파싱 (최대 3회 재시도) ──
+    const MAX_RETRIES = 3;
     let json = null;
     let lastError = null;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const result = await model.generateContent({
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          contents: [{ role: 'user', parts: [{ text: fullUserPrompt }] }],
           systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1000, responseMimeType: 'application/json' },
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2000, responseMimeType: 'application/json' },
         });
 
         const text = result.response.text();
+        console.log(`[AI-Planner] Attempt ${attempt + 1} response length: ${text.length}`);
 
         // 1차: 코드블록 추출
         let finalJsonStr = text;
@@ -76,25 +129,26 @@ export default async function handler(req, res) {
         }
 
         json = JSON.parse(finalJsonStr);
-        break; // 파싱 성공 → 루프 탈출
+
+        // 유효성 검증 — 최소한 marketingNarrative가 있어야 함
+        if (!json.marketingNarrative || json.marketingNarrative.length < 10) {
+          throw new Error('Response too short or missing narrative');
+        }
+        break; // 파싱 + 검증 성공
 
       } catch (parseErr) {
         lastError = parseErr;
-        console.warn(`[AI-Planner] JSON 파싱 실패 (잘림 의심). 재시도 ${attempt + 1}/${MAX_RETRIES}`);
+        console.warn(`[AI-Planner] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, parseErr.message);
         if (attempt < MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 500)); // 0.5초 대기 후 재시도
+          await new Promise(r => setTimeout(r, 800));
         }
       }
     }
 
-    // 최종 실패 시 안전 폴백
+    // 최종 실패 시 언어별 폴백
     if (!json) {
-      console.error('[AI-Planner] 재시도 소진, 폴백 반환:', lastError?.message);
-      json = {
-        themes: ['추천 여행'],
-        marketingNarrative: '특별한 한국 여행 일정을 준비 중입니다. 잠시 후 다시 시도해주세요.',
-        day1MarkdownTable: '',
-      };
+      console.error('[AI-Planner] All retries exhausted, returning fallback:', lastError?.message);
+      json = FALLBACK[lang] || FALLBACK.en;
     }
 
     // ── 타입 정규화 ──
@@ -117,6 +171,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Quick planner error:', error);
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed generating quick plan', details: error.message }));
+    res.end(JSON.stringify(FALLBACK.en));
   }
 }
