@@ -1479,13 +1479,13 @@ export default function PlannerPage() {
                   disabled
                   className="w-full py-3.5 rounded-xl bg-white/10 border border-white/20 text-white/40 font-bold cursor-not-allowed"
                 >
-                  🔧 서비스 업그레이드 중 · Coming Soon
+                  {p.comingSoonBtn}
                 </button>
-                
+
                 {/* Satisfaction guarantee */}
                 <div className="flex items-center justify-center gap-2 text-[11px] text-white/30 mt-1">
                   <Check className="w-3 h-3" />
-                  <span>더 나은 플랜을 위해 데이터를 강화하고 있습니다</span>
+                  <span>{p.upgradeNotice}</span>
                 </div>
               </div>
             </div>

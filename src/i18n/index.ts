@@ -667,6 +667,8 @@ export const translations = {
       checkoutSafe: '100% 안전 결제',
       checkoutTip1: '드라이버 팁 포함',
       checkoutTip2: '숨겨진 기사/유류비 없음',
+      comingSoonBtn: '🔧 서비스 업그레이드 중 · 곧 오픈',
+      upgradeNotice: '더 나은 플랜을 위해 데이터를 강화하고 있습니다',
     },
     charterPage: {
       backToHome: '홈으로',
@@ -1385,6 +1387,8 @@ export const translations = {
       checkoutSafe: '100% Safe Checkout',
       checkoutTip1: 'Driver Tip Included',
       checkoutTip2: 'No Hidden Driver/Gas Fees',
+      comingSoonBtn: '🔧 Service Upgrade In Progress · Coming Soon',
+      upgradeNotice: 'We\'re enhancing our data for a better plan experience',
     },
     charterPage: {
       backToHome: 'Home',
@@ -2103,6 +2107,8 @@ export const translations = {
       checkoutSafe: '100%安全決済',
       checkoutTip1: 'ドライバーチップ込み',
       checkoutTip2: '追加料金なし',
+      comingSoonBtn: '🔧 サービスアップグレード中 · 近日公開',
+      upgradeNotice: 'より良いプランのためにデータを強化中です',
     },
     charterPage: {
       backToHome: 'ホーム',
@@ -2821,6 +2827,8 @@ export const translations = {
       checkoutSafe: '100%安全结账',
       checkoutTip1: '含司机小费',
       checkoutTip2: '无隐藏费用',
+      comingSoonBtn: '🔧 服务升级中 · 即将开放',
+      upgradeNotice: '我们正在优化数据以提供更好的行程体验',
     },
     charterPage: {
       backToHome: '首页',

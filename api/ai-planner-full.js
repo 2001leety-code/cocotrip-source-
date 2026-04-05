@@ -115,7 +115,7 @@ export default async function handler(req, res) {
     const language = body.language || 'en';
 
     // ── Gemini 호출 ──────────────────────────────────────────────────────
-    const apiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '').trim();
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -142,10 +142,17 @@ export default async function handler(req, res) {
       special_request: specialRequest || undefined,
     }) + spotContext;
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-      systemInstruction: { role: 'system', parts: [{ text: LEAN_SYSTEM_PROMPT }] },
-    });
+    const fullController = new AbortController();
+    const fullTimer = setTimeout(() => fullController.abort(), 25000);
+    let result;
+    try {
+      result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+        systemInstruction: { role: 'system', parts: [{ text: LEAN_SYSTEM_PROMPT }] },
+      });
+    } finally {
+      clearTimeout(fullTimer);
+    }
 
     const rawText = result.response.text().trim();
     let itinerary;

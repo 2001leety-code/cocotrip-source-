@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     const durationDays = rawBody.durationDays || rawBody.duration || 3;
     const pax = rawBody.pax || rawBody.members || 2;
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
+    const apiKey = process.env.GEMINI_API_KEY || '';
     if (!apiKey) throw new Error('API Key configuration missing');
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -107,11 +107,18 @@ export default async function handler(req, res) {
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const result = await model.generateContent({
-          contents: [{ role: 'user', parts: [{ text: fullUserPrompt }] }],
-          systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-          generationConfig: { temperature: 0.7, maxOutputTokens: 2000, responseMimeType: 'application/json' },
-        });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 18000);
+        let result;
+        try {
+          result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: fullUserPrompt }] }],
+            systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+            generationConfig: { temperature: 0.7, maxOutputTokens: 2000, responseMimeType: 'application/json' },
+          });
+        } finally {
+          clearTimeout(timer);
+        }
 
         const text = result.response.text();
         console.log(`[AI-Planner] Attempt ${attempt + 1} response length: ${text.length}`);
