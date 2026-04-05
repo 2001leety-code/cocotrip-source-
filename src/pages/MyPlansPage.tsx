@@ -13,6 +13,10 @@ interface PlanRef {
   planId: string;
   createdAt: string;
   status: 'ready' | 'generating';
+  tourTitle?: string;
+  startDate?: string;
+  area?: string;
+  pax?: number;
 }
 
 export default function MyPlansPage() {
@@ -84,10 +88,14 @@ export default function MyPlansPage() {
                         {plan.status === 'ready' ? '✓ Ready' : '⏳ Generating'}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-white truncate">Plan #{plan.planId.slice(0, 8)}</p>
-                    <p className="text-xs text-white/30 mt-1 flex items-center gap-1">
+                    <p className="text-sm font-semibold text-white truncate">
+                      {plan.tourTitle || `Plan #${plan.planId.slice(0, 8)}`}
+                    </p>
+                    <p className="text-xs text-white/30 mt-1 flex items-center gap-1.5">
                       <Calendar className="w-3 h-3" />
-                      {new Date(plan.createdAt).toLocaleDateString()}
+                      {plan.startDate || new Date(plan.createdAt).toLocaleDateString()}
+                      {plan.area && <span>· {plan.area}</span>}
+                      {plan.pax && <span>· {plan.pax} pax</span>}
                     </p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-white/20 group-hover:text-[#7C5CFC] transition-colors" />

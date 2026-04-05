@@ -19,7 +19,7 @@ export const config = { runtime: 'nodejs' };
 // ── firebase-admin 초기화 ─────────────────────────────────────────────────
 let adminDb = null;
 try {
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || '';
+  const projectId = process.env.FIREBASE_PROJECT_ID || '';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
   const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 
@@ -366,13 +366,17 @@ export default async function handler(req, res) {
       special_request: specialRequest || undefined,
     }) + spotContext;
 
-    const timer = setTimeout(() => {}, 25000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25000);
     let result;
     try {
-      result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-        systemInstruction: { role: 'system', parts: [{ text: SYSTEM_PROMPT }] },
-      });
+      result = await model.generateContent(
+        {
+          contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+          systemInstruction: { role: 'system', parts: [{ text: SYSTEM_PROMPT }] },
+        },
+        { signal: controller.signal }
+      );
     } finally {
       clearTimeout(timer);
     }
@@ -476,7 +480,15 @@ export default async function handler(req, res) {
           await adminDb
             .collection('users').doc(uid)
             .collection('plans').doc(planId)
-            .set({ planId, createdAt: new Date().toISOString(), status: 'ready' });
+            .set({
+              planId,
+              createdAt: new Date().toISOString(),
+              status: 'ready',
+              tourTitle: itinerary.tour_title || `${guestName}'s Korea Itinerary`,
+              startDate,
+              area,
+              pax,
+            });
         }
 
         firestoreSaved = true;
