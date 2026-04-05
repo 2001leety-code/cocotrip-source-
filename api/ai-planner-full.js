@@ -67,7 +67,7 @@ Create a REAL, actionable itinerary with precise times, transit directions, entr
 ${langNote} The output language must match the user's language setting.
 
 ## OUTPUT FORMAT — STRICT JSON ONLY
-No markdown. No code blocks. No explanation. Pure JSON only.`;
+No markdown. No code blocks. No explanation. Pure JSON only.
 
 {
   "tour_title": "Personalized title (e.g. Sarah's K-Pop & Gangnam Food Adventure)",
@@ -250,6 +250,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.`;
 - staria_8 (1-8 pax): ₩330,000/8hrs
 - sprinter (9-15 pax): ₩450,000/8hrs
 - large_bus (16+): ₩650,000/8hrs`;
+}
 
 // ── 차량 타입 결정 ─────────────────────────────────────────────────────────
 function selectVehicle(pax, requestedVehicle) {
