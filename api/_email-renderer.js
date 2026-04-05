@@ -231,7 +231,7 @@ export function renderBookingEmail({ guestName, orderID, tourTitle, tourDate, ve
         <td style="font-size:12px;color:#666;line-height:1.8;">
           📞 WhatsApp: <a href="https://wa.me/821087140611" style="color:#a855f7;text-decoration:none;">+82-10-8714-0611</a><br>
           🌐 <a href="https://cocotripkr.com" style="color:#a855f7;text-decoration:none;">cocotripkr.com</a><br>
-          ✉️ <a href="mailto:info@cocotripkr.com" style="color:#a855f7;text-decoration:none;">info@cocotripkr.com</div>
+          ✉️ <a href="mailto:info@cocotripkr.com" style="color:#a855f7;text-decoration:none;">info@cocotripkr.com</a>
         </td>
       </tr>
     </table>

@@ -1365,11 +1365,24 @@ export default function PlannerPage() {
               
               <div className="text-sm text-white/80 leading-relaxed mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
                 <strong className="text-white block mb-1">{p.quickPreviewNarrative}:</strong>
-                {resultQuick.marketingNarrative}
+                {typeof resultQuick.marketingNarrative === 'string'
+                  ? resultQuick.marketingNarrative
+                  : resultQuick.marketingNarrative
+                    ? JSON.stringify(resultQuick.marketingNarrative)
+                        .replace(/^\{|\}$|"/g, '')
+                        .replace(/,/g, ', ')
+                        .slice(0, 300)
+                    : '여행 일정을 생성했습니다.'}
               </div>
 
               <div className="bg-black/40 rounded-xl p-4 overflow-x-auto text-sm text-white/80">
-                <pre style={{ whiteSpace: 'pre-wrap' }} className="font-mono text-[11px] opacity-80">{resultQuick.day1MarkdownTable}</pre>
+                <pre style={{ whiteSpace: 'pre-wrap' }} className="font-mono text-[11px] opacity-80">{
+                  typeof resultQuick.day1MarkdownTable === 'string'
+                    ? resultQuick.day1MarkdownTable.replace(/\\n/g, '\n')
+                    : resultQuick.day1MarkdownTable
+                      ? JSON.stringify(resultQuick.day1MarkdownTable, null, 2)
+                      : ''
+                }</pre>
               </div>
             </div>
 

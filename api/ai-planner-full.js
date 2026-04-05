@@ -73,7 +73,7 @@ function selectVehicle(pax, requestedVehicle) {
 
 // ── 가격 계산 ───────────────────────────────────────────────────────────────
 function calcPrice(vehicle, durationDays) {
-  const basePrices = { staria_8: 330000, sprinter: 450000, large_bus: 0 };
+  const basePrices = { staria_8: 330000, sprinter: 450000, large_bus: 650000 };
   const base = basePrices[vehicle] || 330000;
   return base * Math.max(1, durationDays);
 }
@@ -101,7 +101,8 @@ export default async function handler(req, res) {
 
     // ── 입력 파싱 (체크박스 구조화 입력 우선, 자유 텍스트 폴백) ─────────
     const guestName = body.guest_name || body.guestName || 'Guest';
-    const pax = Number(body.pax) || Number(body.guest_count) || 2;
+    const paxRaw = Number(body.pax) || Number(body.guest_count) || 2;
+    const pax = Math.max(1, Math.min(50, isFinite(paxRaw) ? paxRaw : 2));
     const styles = Array.isArray(body.styles) ? body.styles : body.preferences ? [body.preferences] : ['culture'];
     const area = body.area || body.destination || body.region || 'seoul_city';
     const duration = body.duration || 'full_day'; // half_day | full_day | multi_day
@@ -160,7 +161,7 @@ export default async function handler(req, res) {
 
     // ── 가격 계산 ────────────────────────────────────────────────────────
     const priceKRW = calcPrice(vehicle, durationDays);
-    const exchangeRate = 1380;
+    const exchangeRate = Number(process.env.KRW_USD_RATE) || 1380;
     const priceUSD = Math.round(priceKRW / exchangeRate * 100) / 100;
 
     // ── 이메일 발송 ──────────────────────────────────────────────────────
@@ -182,7 +183,7 @@ export default async function handler(req, res) {
             amountKRW: priceKRW,
             days: itinerary.days || [],
             language,
-            promoCode: 'EARLY50',
+            promoCode: process.env.PROMO_CODE || 'EARLY50',
           });
 
           const textEmail = renderBookingEmailText({

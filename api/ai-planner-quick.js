@@ -48,37 +48,67 @@ export default async function handler(req, res) {
     const spotContext = getSpotContext(destination);
     const userPrompt = `목적지: ${destination}, 성향: ${preferences}, 총 ${durationDays}일 일정 중 1일차 프리뷰를 만들어주세요. 인원: ${pax}명${spotContext}`;
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1000, responseMimeType: 'application/json' },
-    });
+    // ── Gemini 호출 + JSON 파싱 (최대 2회 재시도) ──
+    const MAX_RETRIES = 2;
+    let json = null;
+    let lastError = null;
 
-    const text = result.response.text();
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const result = await model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1000, responseMimeType: 'application/json' },
+        });
 
-    // 1차: 코드블록 전체 추출 (그리디 — 첫 ``` 부터 마지막 ``` 까지)
-    let finalJsonStr = text;
-    const matchBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (matchBlock) finalJsonStr = matchBlock[1];
+        const text = result.response.text();
 
-    // 2차: 가장 바깥 { ... } 추출
-    if (!finalJsonStr.trim().startsWith('{')) {
-      const first = finalJsonStr.indexOf('{');
-      const last  = finalJsonStr.lastIndexOf('}');
-      if (first !== -1 && last > first) finalJsonStr = finalJsonStr.slice(first, last + 1);
+        // 1차: 코드블록 추출
+        let finalJsonStr = text;
+        const matchBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (matchBlock) finalJsonStr = matchBlock[1];
+
+        // 2차: 가장 바깥 { ... } 추출
+        if (!finalJsonStr.trim().startsWith('{')) {
+          const first = finalJsonStr.indexOf('{');
+          const last  = finalJsonStr.lastIndexOf('}');
+          if (first !== -1 && last > first) finalJsonStr = finalJsonStr.slice(first, last + 1);
+        }
+
+        json = JSON.parse(finalJsonStr);
+        break; // 파싱 성공 → 루프 탈출
+
+      } catch (parseErr) {
+        lastError = parseErr;
+        console.warn(`[AI-Planner] JSON 파싱 실패 (잘림 의심). 재시도 ${attempt + 1}/${MAX_RETRIES}`);
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 500)); // 0.5초 대기 후 재시도
+        }
+      }
     }
 
-    let json;
-    try {
-      json = JSON.parse(finalJsonStr);
-    } catch {
-      // 3차 fallback: 텍스트에서 직접 { } 추출 시도
-      const first = text.indexOf('{');
-      const last  = text.lastIndexOf('}');
-      if (first !== -1 && last > first) {
-        try { json = JSON.parse(text.slice(first, last + 1)); } catch { /* ignore */ }
-      }
-      if (!json) json = { themes: [], marketingNarrative: text.replace(/```json?|```/g, '').trim(), day1MarkdownTable: '' };
+    // 최종 실패 시 안전 폴백
+    if (!json) {
+      console.error('[AI-Planner] 재시도 소진, 폴백 반환:', lastError?.message);
+      json = {
+        themes: ['추천 여행'],
+        marketingNarrative: '특별한 한국 여행 일정을 준비 중입니다. 잠시 후 다시 시도해주세요.',
+        day1MarkdownTable: '',
+      };
+    }
+
+    // ── 타입 정규화 ──
+    if (json.marketingNarrative && typeof json.marketingNarrative !== 'string') {
+      json.marketingNarrative = JSON.stringify(json.marketingNarrative);
+    }
+    if (json.day1MarkdownTable && typeof json.day1MarkdownTable !== 'string') {
+      json.day1MarkdownTable = JSON.stringify(json.day1MarkdownTable, null, 2);
+    }
+    if (!Array.isArray(json.themes)) {
+      json.themes = typeof json.themes === 'string' ? [json.themes] : [];
+    }
+    if (typeof json.day1MarkdownTable === 'string') {
+      json.day1MarkdownTable = json.day1MarkdownTable.replace(/\\n/g, '\n');
     }
 
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });

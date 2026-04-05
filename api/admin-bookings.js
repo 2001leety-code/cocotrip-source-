@@ -1,0 +1,71 @@
+/**
+ * Vercel API Route: Admin Bookings List
+ * GET /api/admin-bookings
+ *
+ * Google Sheets 'Bookings' 시트에서 최근 예약 50건을 읽어 JSON으로 반환
+ */
+export const config = { runtime: 'nodejs' };
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export default async function handler(req, res) {
+  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method !== 'GET') {
+    res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+  }
+
+  try {
+    const { google } = await import('googleapis');
+    const clientEmail = (process.env.GOOGLE_CLIENT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
+    const privateKey = (process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n').trim();
+    const sheetId = (process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '').trim();
+
+    if (!clientEmail || !privateKey || !sheetId) {
+      res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Google Sheets credentials not configured' }));
+    }
+
+    const auth = new google.auth.JWT(clientEmail, undefined, privateKey, [
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+    ]);
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Bookings 시트에서 읽기 (A:Z 전체 범위)
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: 'Bookings!A:Z',
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length < 2) {
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ bookings: [], total: 0 }));
+    }
+
+    // 첫 행 = 헤더, 나머지 = 데이터
+    const headers = rows[0].map(h => h.toString().trim().toLowerCase());
+    const dataRows = rows.slice(1);
+
+    // 최신순 정렬 (마지막 행이 최신) → 역순으로 최대 50건
+    const bookings = dataRows.slice(-50).reverse().map((row, idx) => {
+      const obj = { id: `row-${dataRows.length - idx}` };
+      headers.forEach((h, i) => {
+        obj[h] = row[i] || '';
+      });
+      return obj;
+    });
+
+    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ bookings, total: dataRows.length }));
+
+  } catch (error) {
+    console.error('[admin-bookings] Error:', error.message);
+    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch bookings', details: error.message }));
+  }
+}

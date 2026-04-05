@@ -2,19 +2,13 @@ import { useMemo, useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, serverTimestamp, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { toast, Toaster } from 'sonner';
 import { RefreshCw, Plus, List, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Booking {
   id: string;
-  customerName?: string;
-  email?: string;
-  tourType?: string;
-  date?: string;
-  status?: string;
-  amount?: number;
-  createdAt?: any;
+  [key: string]: any;
 }
 
 export default function Admin() {
@@ -27,9 +21,11 @@ export default function Admin() {
   const [totalSeats, setTotalSeats] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ── Booking list ──
+  // ── Booking list (Google Sheets) ──
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingHeaders, setBookingHeaders] = useState<string[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [totalBookings, setTotalBookings] = useState(0);
   const [showForm, setShowForm] = useState(false);
 
   const canSubmit = useMemo(() => {
@@ -48,10 +44,17 @@ export default function Admin() {
   const fetchBookings = async () => {
     setLoadingBookings(true);
     try {
-      const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(50));
-      const snap = await getDocs(q);
-      const list: Booking[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+      const resp = await fetch('/api/admin-bookings');
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      const list: Booking[] = data.bookings || [];
       setBookings(list);
+      setTotalBookings(data.total || list.length);
+      // 헤더 자동 추출 (id 제외)
+      if (list.length > 0) {
+        const keys = Object.keys(list[0]).filter(k => k !== 'id');
+        setBookingHeaders(keys.slice(0, 8)); // 최대 8컬럼
+      }
     } catch (err) {
       console.error('Failed to fetch bookings:', err);
       toast.error('예약 목록 로딩 실패');
@@ -136,14 +139,17 @@ export default function Admin() {
 
         {error ? <p className="text-sm text-red-500">{error}</p> : null}
 
-        {/* ── Bookings Table ── */}
+        {/* ── Bookings Table (Google Sheets) ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex items-center justify-between p-5 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <List className="w-5 h-5 text-[#7C5CFC]" />
               <h2 className="text-lg font-bold text-[#1a1a2e]">예약 목록</h2>
               <span className="text-xs bg-[#7C5CFC]/10 text-[#7C5CFC] px-2 py-0.5 rounded-full font-medium">
-                {bookings.length}건
+                {totalBookings}건
+              </span>
+              <span className="text-xs text-gray-400">
+                (Google Sheets)
               </span>
             </div>
             <button
@@ -167,41 +173,19 @@ export default function Admin() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-                    <th className="text-left px-5 py-3 font-medium">고객명</th>
-                    <th className="text-left px-5 py-3 font-medium">이메일</th>
-                    <th className="text-left px-5 py-3 font-medium">투어</th>
-                    <th className="text-left px-5 py-3 font-medium">날짜</th>
-                    <th className="text-left px-5 py-3 font-medium">금액</th>
-                    <th className="text-left px-5 py-3 font-medium">상태</th>
+                    {bookingHeaders.map((h) => (
+                      <th key={h} className="text-left px-5 py-3 font-medium">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {bookings.map((b) => (
                     <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-5 py-3.5 font-medium text-[#1a1a2e]">
-                        {b.customerName || '-'}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500">{b.email || '-'}</td>
-                      <td className="px-5 py-3.5 text-gray-600">{b.tourType || '-'}</td>
-                      <td className="px-5 py-3.5 text-gray-500">{b.date || '-'}</td>
-                      <td className="px-5 py-3.5 font-medium text-[#1a1a2e]">
-                        {b.amount ? `$${b.amount}` : '-'}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span
-                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
-                            b.status === 'confirmed'
-                              ? 'bg-green-100 text-green-700'
-                              : b.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : b.status === 'cancelled'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {b.status || 'unknown'}
-                        </span>
-                      </td>
+                      {bookingHeaders.map((h) => (
+                        <td key={h} className="px-5 py-3.5 text-gray-600 max-w-[200px] truncate">
+                          {String(b[h] || '-')}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
