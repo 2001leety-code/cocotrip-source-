@@ -51,11 +51,23 @@ const AIRPORT_ADDRESSES = {
 };
 
 // ── Rich System Prompt ──────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are CocoTrip AI, Korea's #1 private tour planner (cocotripkr.com).
+const LANG_INSTRUCTION = {
+  en: 'Write ALL text fields in English.',
+  ko: '모든 텍스트 필드를 한국어로 작성하세요.',
+  ja: 'すべてのテキストフィールドを日本語で記述してください。',
+  zh: '请用中文填写所有文本字段。',
+};
+
+function buildSystemPrompt(language = 'en') {
+  const langNote = LANG_INSTRUCTION[language] || LANG_INSTRUCTION.en;
+  return `You are CocoTrip AI, Korea's #1 private tour planner (cocotripkr.com).
 Create a REAL, actionable itinerary with precise times, transit directions, entry fees, meal recommendations, and budget breakdowns.
 
+## LANGUAGE — IMPORTANT
+${langNote} The output language must match the user's language setting.
+
 ## OUTPUT FORMAT — STRICT JSON ONLY
-No markdown. No code blocks. No explanation. Pure JSON only.
+No markdown. No code blocks. No explanation. Pure JSON only.`;
 
 {
   "tour_title": "Personalized title (e.g. Sarah's K-Pop & Gangnam Food Adventure)",
@@ -367,13 +379,13 @@ export default async function handler(req, res) {
     }) + spotContext;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
+    const timer = setTimeout(() => controller.abort(), 55000);
     let result;
     try {
       result = await model.generateContent(
         {
           contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-          systemInstruction: { role: 'system', parts: [{ text: SYSTEM_PROMPT }] },
+          systemInstruction: { role: 'system', parts: [{ text: buildSystemPrompt(language) }] },
         },
         { signal: controller.signal }
       );
