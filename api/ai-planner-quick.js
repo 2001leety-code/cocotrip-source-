@@ -94,7 +94,7 @@ export default async function handler(req, res) {
     if (!apiKey) throw new Error('API Key configuration missing');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const spotContext = getSpotContext(destination);
     const { system: systemPrompt, user: userPrompt } = buildPrompt(lang, destination, preferences, durationDays, pax);
