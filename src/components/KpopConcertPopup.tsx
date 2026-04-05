@@ -110,26 +110,27 @@ export function KpopConcertPopup() {
 
   return (
     <>
-      {/* ── 플로팅 트리거 버튼 ── */}
-      <div className="fixed top-20 right-4 sm:bottom-6 sm:top-auto sm:right-24 z-50 flex items-center gap-1">
+      {/* ── 플로팅 트리거 버튼 — 모바일: 하단 우측 작게 / 데스크톱: 기존 위치 ── */}
+      <div className="fixed bottom-4 right-3 sm:bottom-6 sm:top-auto sm:right-24 z-50 flex items-center gap-1">
         <button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full text-white text-xs sm:text-sm font-bold shadow-xl transition-all duration-300 hover:scale-105 active:scale-95"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 rounded-full text-white text-[10px] sm:text-sm font-bold shadow-xl transition-all duration-300 hover:scale-105 active:scale-95"
           style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 4px 20px rgba(124,92,252,0.45)' }}
         >
-          <Music className="w-4 h-4" />
-          <span>{t.trigger}</span>
-          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-white/25 text-[10px] font-black">
+          <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span className="hidden sm:inline">{t.trigger}</span>
+          <span className="sm:hidden">K-pop</span>
+          <span className="ml-0.5 px-1 py-0.5 rounded-full bg-white/25 text-[9px] sm:text-[10px] font-black">
             {concerts.length}
           </span>
         </button>
         <button
           onClick={() => setDismissed(true)}
-          className="w-5 h-5 rounded-full flex items-center justify-center text-white/80 hover:text-white transition-colors"
+          className="w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-white/80 hover:text-white transition-colors"
           style={{ background: 'rgba(0,0,0,0.4)' }}
           aria-label="Close"
         >
-          <X className="w-3 h-3" />
+          <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
         </button>
       </div>
 

@@ -29,6 +29,14 @@ interface Props {
 export function EarlyBirdBanner({ language }: Props) {
   const [dismissed, setDismissed] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  // 모바일에서 5초 딜레이 후 표시
+  useEffect(() => {
+    const isMobile = window.innerWidth < 640;
+    const timer = setTimeout(() => setVisible(true), isMobile ? 5000 : 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -39,22 +47,21 @@ export function EarlyBirdBanner({ language }: Props) {
         setRemaining(Math.max(0, 50 - used));
       },
       () => {
-        // If doc doesn't exist or error, show default
         setRemaining(50);
       }
     );
     return () => unsub();
   }, []);
 
-  if (dismissed || remaining === null || remaining <= 0) return null;
+  if (dismissed || remaining === null || remaining <= 0 || !visible) return null;
 
   const t = TEXTS[language] ?? TEXTS.en;
   const text = t.banner.replace('{remaining}', String(remaining));
 
   return (
     <div
-      className="fixed top-20 left-4 sm:bottom-6 sm:top-auto sm:left-6 p-4 text-white rounded-2xl shadow-2xl shadow-[#7C5CFC]/30 border border-white/20 transition-all z-50 hover:scale-105"
-      style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', width: 150 }}
+      className="fixed bottom-14 left-3 sm:bottom-6 sm:top-auto sm:left-6 p-3 sm:p-4 text-white rounded-2xl shadow-2xl shadow-[#7C5CFC]/30 border border-white/20 transition-all z-40 hover:scale-105"
+      style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', width: 140, maxWidth: 'calc(100vw - 24px)' }}
     >
       <div className="flex items-start justify-between mb-2">
         <Tag className="w-4 h-4 shrink-0" />

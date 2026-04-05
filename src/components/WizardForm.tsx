@@ -342,12 +342,15 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <div>
           <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {p.startDate || 'Start Date'}</p>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl px-5 py-4 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+            min={new Date().toISOString().split('T')[0]}
+            placeholder="YYYY-MM-DD"
+            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl px-5 py-3 sm:py-4 text-sm sm:text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
         </div>
         <div>
           <p className="text-sm text-white/40 mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {p.endDate || 'End Date'}</p>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} min={startDate}
-            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl px-5 py-4 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} min={startDate || new Date().toISOString().split('T')[0]}
+            placeholder="YYYY-MM-DD"
+            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl px-5 py-3 sm:py-4 text-sm sm:text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
         </div>
       </div>
       {startDate && endDate && (
@@ -398,20 +401,30 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     <div className="space-y-5">
       <h2 className="text-lg font-bold text-white">{p.planner_generate_cta || 'Generate Your Plan'}</h2>
 
-      {/* 요약 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryItem icon={<MapPin className="w-4 h-4" />} label={p.planner_step1_airport || 'Airport'} value={effectiveAirport} />
-        <SummaryItem icon={<ArrowRight className="w-4 h-4" />} label={p.planner_step1_cities?.split(' ')[0] || 'Route'} value={allCities.join(' → ') || '-'} />
-        <SummaryItem icon={<Calendar className="w-4 h-4" />} label={p.planner_step2_date?.split(' ')[0] || 'Duration'} value={startDate && endDate ? `${durationDays}${p.dayCountSuffix || ' days'}` : (p.calSelectDate || 'TBD')} />
-        <SummaryItem icon={<Users className="w-4 h-4" />} label={p.planner_step2_adults || 'People'} value={`${pax}${p.kpopPassengers ? '' : ' pax'}`} />
+      {/* 요약 — 탭하면 해당 스텝으로 이동 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <button onClick={() => setStep(0)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <SummaryItem icon={<MapPin className="w-4 h-4" />} label={p.planner_step1_airport || 'Airport'} value={effectiveAirport} />
+        </button>
+        <button onClick={() => setStep(1)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <SummaryItem icon={<ArrowRight className="w-4 h-4" />} label={p.planner_step1_cities?.split(' ')[0] || 'Route'} value={allCities.join(' → ') || '-'} />
+        </button>
+        <button onClick={() => setStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <SummaryItem icon={<Calendar className="w-4 h-4" />} label={p.planner_step2_date?.split(' ')[0] || 'Duration'} value={startDate && endDate ? `${durationDays}${p.dayCountSuffix || ' days'}` : (p.calSelectDate || 'TBD')} />
+        </button>
+        <button onClick={() => setStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+          <SummaryItem icon={<Users className="w-4 h-4" />} label={p.planner_step2_adults || 'People'} value={`${pax}${p.kpopPassengers ? '' : ' pax'}`} />
+        </button>
       </div>
+      <p className="text-[10px] text-white/25 text-center -mt-1">↑ Tap to edit</p>
 
       <button onClick={handleGenerate} disabled={isLoading}
-        className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-50"
+        className="w-full py-3.5 sm:py-4 rounded-2xl text-sm sm:text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-50"
         style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.4)' }}>
         <Wand2 className="w-5 h-5" />
         {isLoading ? (p.generating || 'AI generating...') : (p.planner_generate_cta || 'Generate Preview')}
       </button>
+      {!isLoading && <p className="text-[10px] text-white/25 text-center -mt-2">⚡ Takes about 15 seconds</p>}
 
 
 
