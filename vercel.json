@@ -1,62 +1,21 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "framework": "vite",
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cross-Origin-Opener-Policy",
-          "value": "same-origin-allow-popups"
-        }
-      ]
-    }
-  ],
   "functions": {
-    "api/**/*.js": {
-      "maxDuration": 60
+    "api/ai-planner-full.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "api/ai-planner-quick.js": {
+      "maxDuration": 60,
+      "memory": 512
+    },
+    "api/booking-processor.js": {
+      "maxDuration": 120
+    },
+    "api/cron-runner.js": {
+      "maxDuration": 120
+    },
+    "api/*.js": {
+      "maxDuration": 120
     }
-  },
-  "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron-runner?job=daily-report",
-      "schedule": "0 22 * * *"
-    },
-    {
-      "path": "/api/cron-runner?job=traffic-alert",
-      "schedule": "0 21 * * *"
-    },
-    {
-      "path": "/api/cron-runner?job=content-generator",
-      "schedule": "0 23 * * *"
-    },
-    {
-      "path": "/api/cron-runner?job=competitor-monitor",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron-runner?job=retarget-scheduler",
-      "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/cron-runner?job=review-scheduler",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron-runner?job=reddit-monitor",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron-runner?job=weather-check",
-      "schedule": "0 9 * * *"
-    }
-  ]
+  }
 }

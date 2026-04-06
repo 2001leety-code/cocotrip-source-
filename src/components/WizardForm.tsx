@@ -4,9 +4,15 @@ import {
   MapPin, Users, Calendar, Wand2,
   ChevronRight, ChevronLeft, Check,
   Music2, Sparkles, Shirt, UtensilsCrossed, Moon, Camera, ShoppingBag,
-  Film, Landmark, Mountain, Plane,
+  Film, Landmark, Mountain, Plane, Building2, Waves, TreePine, Castle, Ship, Compass, Snowflake, Palmtree,
   Wallet, Shield,
 } from 'lucide-react';
+import { DayPicker } from 'react-day-picker';
+import type { DateRange } from 'react-day-picker';
+import { differenceInCalendarDays, format } from 'date-fns';
+import type { Locale } from 'date-fns';
+import { enUS, ko, ja, zhCN } from 'date-fns/locale';
+import 'react-day-picker/style.css';
 import type { PlannerFormValues } from './PlannerForm';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,7 +21,19 @@ import { useAuth } from '@/hooks/useAuth';
    DATA
    ═══════════════════════════════════════════════════════ */
 
-// City keys for dropdown
+// City chip data — lucide icons instead of emojis
+const CITY_CHIPS: { key: string; icon: ReactNode }[] = [
+  { key: 'seoul',     icon: <Building2 className="w-5 h-5" /> },
+  { key: 'busan',     icon: <Waves className="w-5 h-5" /> },
+  { key: 'jeju',      icon: <Palmtree className="w-5 h-5" /> },
+  { key: 'gyeongju',  icon: <Landmark className="w-5 h-5" /> },
+  { key: 'jeonju',    icon: <Compass className="w-5 h-5" /> },
+  { key: 'gangneung', icon: <Snowflake className="w-5 h-5" /> },
+  { key: 'incheon',   icon: <Plane className="w-5 h-5" /> },
+  { key: 'suwon',     icon: <Castle className="w-5 h-5" /> },
+  { key: 'yeosu',     icon: <Ship className="w-5 h-5" /> },
+  { key: 'daegu',     icon: <TreePine className="w-5 h-5" /> },
+];
 
 // Dynamic airport options per city
 type AirportOption = { value: string; label: string };
@@ -80,7 +98,6 @@ const AIRPORT_OPTIONS: Record<string, AirportOption[]> = {
 const DEFAULT_AIRPORTS = AIRPORT_OPTIONS.Seoul;
 
 function getAirportOptions(cityName: string): AirportOption[] {
-  // Match by city name (may be localized)
   for (const [key, opts] of Object.entries(AIRPORT_OPTIONS)) {
     if (cityName.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cityName.toLowerCase())) {
       return opts;
@@ -89,7 +106,6 @@ function getAirportOptions(cityName: string): AirportOption[] {
   return DEFAULT_AIRPORTS;
 }
 
-// Airport display names for summary
 const AIRPORT_DISPLAY: Record<string, string> = {
   ICN_T1: 'ICN T1', ICN_T2: 'ICN T2', GMP: 'Gimpo',
   PUS: 'Gimhae (PUS)', CJU: 'Jeju (CJU)', TAE: 'Daegu (TAE)',
@@ -126,11 +142,14 @@ const WHAT_YOU_GET = [
   'PDF download',
 ];
 
+// Date-fns locale map
+const LOCALE_MAP: Record<string, Locale> = { en: enUS, ko, ja, zh: zhCN };
+
 /* ═══════════════════════════════════════════════════════
    MAIN COMPONENT — 3-Step Wizard
    ═══════════════════════════════════════════════════════ */
 export function WizardForm({ onSubmit, isLoading }: any) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const p: any = t.planner;
   const [step, setStep] = useState(0);
   const { user } = useAuth();
@@ -138,29 +157,38 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
   // Step 0: destinations
   const [mainCity, setMainCity]               = useState('');
-  // areaType removed — city chips replace Trip Area selection
   const [extraCities, setExtraCities]         = useState<string[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
   const [freeText, setFreeText]               = useState('');
 
-  // Step 1: details
-  const [startDate, setStartDate]             = useState('');
-  const [endDate, setEndDate]                 = useState('');
+  // Step 1: details — range calendar
+  const [dateRange, setDateRange]             = useState<DateRange | undefined>();
   const [paxInput, setPaxInput]               = useState('2');
   const [arrivalTerminal, setArrivalTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');
   const [mobility, setMobility]              = useState<'ok'|'limited'>('ok');
 
+  // Responsive — mobile vs desktop for calendar
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 640 : true);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
   // derived
   const allCities = mainCity ? [mainCity, ...extraCities.filter(c => c !== mainCity)] : [];
-  const durationDays = (startDate && endDate) ? Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000)) : 3;
+  const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : '';
+  const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : '';
+  const nights = dateRange?.from && dateRange?.to ? differenceInCalendarDays(dateRange.to, dateRange.from) : 0;
+  const durationDays = nights > 0 ? nights + 1 : 3;
   const pax = parseInt(paxInput) || 2;
   const departureAirport = arrivalTerminal;
 
-  // Dynamic airport options based on selected city
+  // Dynamic airport options
   const airportOptions = getAirportOptions(mainCity);
 
-  // Reset airport when mainCity changes (current selection may not be valid)
+  // Reset airport when mainCity changes
   useEffect(() => {
     const validValues = airportOptions.map(o => o.value);
     if (arrivalTerminal && !validValues.includes(arrivalTerminal)) {
@@ -168,9 +196,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     }
   }, [mainCity]);
 
+  // Calendar locale
+  const calendarLocale = LOCALE_MAP[language] || enUS;
+
   // validation
   const canGoStep1 = mainCity !== '' && selectedActivities.length > 0;
-  const canGoStep2 = startDate !== '' && endDate !== '' && new Date(endDate) >= new Date(startDate) && pax >= 1 && arrivalTerminal !== '';
+  const canGoStep2 = startDate !== '' && endDate !== '' && pax >= 1 && arrivalTerminal !== '';
 
   // city name helper
   function getCityName(key: string) {
@@ -182,6 +213,24 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
   function toggleActivity(key: string) {
     setSelectedActivities(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }
+
+  function toggleCity(cityName: string) {
+    if (mainCity === cityName) {
+      const next = extraCities[0] || '';
+      setMainCity(next);
+      setExtraCities(prev => prev.slice(1));
+    } else if (extraCities.includes(cityName)) {
+      setExtraCities(prev => prev.filter(c => c !== cityName));
+    } else if (!mainCity) {
+      setMainCity(cityName);
+    } else {
+      setExtraCities(prev => [...prev, cityName]);
+    }
+  }
+
+  function isCitySelected(cityName: string) {
+    return mainCity === cityName || extraCities.includes(cityName);
   }
 
   async function handleGenerate() {
@@ -202,7 +251,6 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         uid: user?.uid || null,
       } as PlannerFormValues);
 
-      // If onSubmit returns a response with error info
       if (res && !res.ok) {
         const data = res.data || {};
         if (data.code === 'GEMINI_TIMEOUT') {
@@ -222,52 +270,17 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     { label: 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
   ];
 
-
   /* ═══════════════════════════════════════════════════════
-     STEP 0: Plan Your Trip — Destinations & Activities
+     STEP 0: Destinations & Activities
      ═══════════════════════════════════════════════════════ */
-  const renderStep0 = () => {
-    // City chip data
-    const CITY_CHIPS = [
-      { key: 'seoul',     emoji: '🏙️' },
-      { key: 'busan',     emoji: '🌊' },
-      { key: 'jeju',      emoji: '🌋' },
-      { key: 'gyeongju',  emoji: '🏛️' },
-      { key: 'jeonju',    emoji: '🏮' },
-      { key: 'gangneung', emoji: '🎿' },
-      { key: 'incheon',   emoji: '✈️' },
-      { key: 'suwon',     emoji: '🏯' },
-      { key: 'yeosu',     emoji: '🚢' },
-      { key: 'daegu',     emoji: '🍎' },
-    ];
-
-    function toggleCity(cityName: string) {
-      if (mainCity === cityName) {
-        // deselect main → promote first extra or clear
-        const next = extraCities[0] || '';
-        setMainCity(next);
-        setExtraCities(prev => prev.slice(1));
-      } else if (extraCities.includes(cityName)) {
-        setExtraCities(prev => prev.filter(c => c !== cityName));
-      } else if (!mainCity) {
-        setMainCity(cityName);
-      } else {
-        setExtraCities(prev => [...prev, cityName]);
-      }
-    }
-
-    function isCitySelected(cityName: string) {
-      return mainCity === cityName || extraCities.includes(cityName);
-    }
-
-    return (
+  const renderStep0 = () => (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-white mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
         <p className="text-sm text-white/40">{p.wizardTitleSub || 'Tap cities to add — first selected is your main base'}</p>
       </div>
 
-      {/* City chips */}
+      {/* City chips with lucide icons */}
       <div>
         <p className="text-sm text-white/50 mb-3 font-medium">
           {p.tripAreaLabel || 'Select Cities'}
@@ -276,7 +289,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           )}
         </p>
         <div className="grid grid-cols-2 gap-2">
-          {CITY_CHIPS.map(({ key, emoji }) => {
+          {CITY_CHIPS.map(({ key, icon }) => {
             const cityName = getCityName(key);
             const sel = isCitySelected(cityName);
             const isMain = mainCity === cityName;
@@ -288,7 +301,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
                     : 'border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
                 }`}
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.2),rgba(234,83,126,.12))' } : {}}>
-                <span className="text-lg">{emoji}</span>
+                <span className={sel ? 'text-[#7C5CFC]' : 'text-white/30'}>{icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{cityName}</p>
                   {isMain && <p className="text-[10px] text-[#7C5CFC]/80 font-medium">Main base</p>}
@@ -348,18 +361,17 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 resize-none transition-colors" />
       </div>
 
-      {/* Next button */}
+      {/* Next */}
       <button onClick={() => setStep(1)} disabled={!canGoStep1}
         className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] transition-all"
         style={{ background: canGoStep1 ? 'linear-gradient(135deg,#7C5CFC,#EA537E)' : 'rgba(255,255,255,.1)' }}>
         Next: Details <ChevronRight className="w-5 h-5" />
       </button>
     </div>
-    );
-  };
+  );
 
   /* ═══════════════════════════════════════════════════════
-     STEP 1: Travel Details
+     STEP 1: Travel Details (with range calendar)
      ═══════════════════════════════════════════════════════ */
   const renderStep1 = () => (
     <div className="space-y-5">
@@ -368,25 +380,27 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <p className="text-sm text-white/40">When, who, and how you're arriving</p>
       </div>
 
-      {/* Dates */}
+      {/* Range Calendar */}
       <div>
         <p className="text-sm text-white/50 mb-2.5 font-medium">When are you visiting?</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-white/30 mb-1 block">{p.startDate || 'Start Date'}</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              lang="en" min={new Date().toISOString().split('T')[0]}
-              className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
-          </div>
-          <div>
-            <label className="text-xs text-white/30 mb-1 block">{p.endDate || 'End Date'}</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              lang="en" min={startDate || new Date().toISOString().split('T')[0]}
-              className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
-          </div>
+        <div className="cocotrip-calendar-wrap bg-white/[0.04] border border-white/[0.1] rounded-2xl p-3 sm:p-4">
+          <DayPicker
+            mode="range"
+            selected={dateRange}
+            onSelect={setDateRange}
+            locale={calendarLocale}
+            numberOfMonths={isMobile ? 1 : 2}
+            disabled={{ before: new Date() }}
+            showOutsideDays={false}
+            classNames={{
+              root: 'cocotrip-rdp',
+            }}
+          />
         </div>
-        {startDate && endDate && (
-          <p className="text-sm text-[#7C5CFC] font-semibold mt-2">{durationDays}{p.dayCountSuffix || ' days'} {p.tripSuffix || 'trip'}</p>
+        {nights > 0 && (
+          <p className="text-sm text-[#7C5CFC] font-semibold mt-2">
+            {nights} night{nights > 1 ? 's' : ''}, {nights + 1} day{nights > 0 ? 's' : ''} trip
+          </p>
         )}
       </div>
 
@@ -397,7 +411,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-5 py-3 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
       </div>
 
-      {/* Dynamic Airport Chips — based on mainCity */}
+      {/* Dynamic Airport Chips */}
       <div>
         <p className="text-sm text-white/50 mb-2.5 font-medium">
           Which airport are you arriving at?
@@ -545,7 +559,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   return (
     <>
       <div className="w-full">
-        {/* Step Indicator — 3 steps */}
+        {/* Step Indicator */}
         <div className="flex items-center justify-center gap-1 mb-8">
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center">

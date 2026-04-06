@@ -109,3 +109,126 @@ html {
   outline: 2px solid #7C5CFC;
   outline-offset: 2px;
 }
+
+/* ═══════════════════════════════════════════════════════
+   react-day-picker v9 — CocoTrip Dark Theme
+   ═══════════════════════════════════════════════════════ */
+.cocotrip-calendar-wrap {
+  overflow-x: auto;
+}
+
+.cocotrip-rdp {
+  --rdp-accent-color: #7C5CFC;
+  --rdp-accent-background-color: rgba(124, 92, 252, 0.15);
+  --rdp-day-height: 40px;
+  --rdp-day-width: 40px;
+  --rdp-day_button-height: 36px;
+  --rdp-day_button-width: 36px;
+  --rdp-day_button-border-radius: 50%;
+  --rdp-selected-border: 0;
+  --rdp-disabled-opacity: 0.3;
+  --rdp-outside-opacity: 0.2;
+  --rdp-range_start-color: #fff;
+  --rdp-range_start-background: #7C5CFC;
+  --rdp-range_start-date-background-color: #7C5CFC;
+  --rdp-range_end-color: #fff;
+  --rdp-range_end-background: rgba(124, 92, 252, 0.15);
+  --rdp-range_end-date-background-color: #7C5CFC;
+  --rdp-range_middle-background-color: rgba(124, 92, 252, 0.12);
+  --rdp-range_middle-color: #d8b4fe;
+  --rdp-range_middle-foreground: #d8b4fe;
+  color: #e5e7eb;
+  font-family: inherit;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Month caption */
+.cocotrip-rdp .rdp-month_caption,
+.cocotrip-rdp .rdp-caption_label {
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+/* Navigation arrows */
+.cocotrip-rdp .rdp-button_previous,
+.cocotrip-rdp .rdp-button_next,
+.cocotrip-rdp .rdp-nav button {
+  color: #7C5CFC;
+  border: none;
+  background: transparent;
+}
+.cocotrip-rdp .rdp-button_previous:hover,
+.cocotrip-rdp .rdp-button_next:hover,
+.cocotrip-rdp .rdp-nav button:hover {
+  color: #fff;
+  background: rgba(124, 92, 252, 0.2);
+  border-radius: 50%;
+}
+
+/* Weekday header */
+.cocotrip-rdp .rdp-weekday {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Day cells */
+.cocotrip-rdp .rdp-day {
+  color: #e5e7eb;
+}
+
+.cocotrip-rdp .rdp-day_button {
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cocotrip-rdp .rdp-day_button:hover:not([disabled]) {
+  background: rgba(124, 92, 252, 0.2);
+}
+
+/* Today */
+.cocotrip-rdp .rdp-today:not(.rdp-selected) .rdp-day_button {
+  border: 1.5px solid #7C5CFC;
+  font-weight: 700;
+}
+
+/* Selected range start/end */
+.cocotrip-rdp .rdp-range_start .rdp-day_button,
+.cocotrip-rdp .rdp-range_end .rdp-day_button {
+  background: #7C5CFC !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
+/* Range middle */
+.cocotrip-rdp .rdp-range_middle .rdp-day_button {
+  background: rgba(124, 92, 252, 0.12);
+  color: #d8b4fe;
+  border-radius: 0;
+}
+
+/* Disabled days */
+.cocotrip-rdp .rdp-disabled .rdp-day_button {
+  color: #374151 !important;
+  cursor: not-allowed;
+}
+
+/* Table layout */
+.cocotrip-rdp table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+}
+
+/* Months grid for 2-month layout */
+.cocotrip-rdp .rdp-months {
+  gap: 16px;
+  justify-content: center;
+}
+
+/* Selected font */
+.cocotrip-rdp .rdp-selected {
+  font-weight: 600;
+}

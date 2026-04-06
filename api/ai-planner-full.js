@@ -13,8 +13,13 @@ import { randomUUID } from 'crypto';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const config = { runtime: 'nodejs' };
+
+// ── 환경변수 trim — Naver API 헤더 오류 방지 (개행/공백 제거) ──────────
+['NAVER_CLIENT_ID','NAVER_CLIENT_SECRET','NCP_CLIENT_ID','NCP_CLIENT_SECRET'].forEach(k => {
+  if (process.env[k]) process.env[k] = process.env[k].trim();
+});
 
 // ── firebase-admin 초기화 ─────────────────────────────────────────────────
 let adminDb = null;
@@ -378,6 +383,18 @@ export default async function handler(req, res) {
     });
     console.log('[ai-planner-full] body keys:', Object.keys(body));
 
+    // ── SSE 스트리밍 설정 ──────────────────────────────────────────────────
+    res.writeHead(200, {
+      ...CORS,
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    function sendEvent(data) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+    sendEvent({ status: 'started', step: 1, agent: 'gemini', message: 'Crafting your itinerary...' });
+
     // ── Gemini 호출 ──────────────────────────────────────────────────────
     const apiKey = (process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
@@ -417,7 +434,7 @@ export default async function handler(req, res) {
     }) + spotContext;
 
     // ── Gemini 호출 + 45초 타임아웃 (Promise.race) ───────────────────────
-    const GEMINI_TIMEOUT_MS = 45000;
+    const GEMINI_TIMEOUT_MS = 240000;
     const geminiStart = Date.now();
 
     const geminiPromise = model.generateContent({
@@ -494,6 +511,7 @@ export default async function handler(req, res) {
       }
     }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
+    sendEvent({ status: 'gemini_done', step: 2, agent: 'route', message: 'Mapping transit routes...' });
 
     // ALREADY → arrival_guide 제거
     if (arrival_airport === 'ALREADY') {
@@ -527,6 +545,7 @@ export default async function handler(req, res) {
     } catch (routeErr) {
       console.warn('[planner] Route failed (non-fatal):', routeErr.message, '|', Date.now() - routeStart, 'ms');
     }
+    sendEvent({ status: 'routes_done', step: 3, agent: 'firestore', message: 'Saving your plan...' });
 
     // ── T-money 서버 계산 ────────────────────────────────────────────────
     const totalTransitFare = (itinerary.days || [])
@@ -607,10 +626,12 @@ export default async function handler(req, res) {
       ? `/my-plans/${planId}?token=${accessToken}`
       : `/my-plans/${planId}`;
 
-    // ── 응답 (blocking 완료 후) ──────────────────────────────────────────
-    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
+    // ── 최종 결과 SSE 전송 ──────────────────────────────────────────────
+    sendEvent({
+      status: 'complete',
+      step: 4,
+      agent: 'done',
+      message: 'Your itinerary is ready!',
       planId,
       planUrl,
       firestoreSaved,
@@ -624,7 +645,8 @@ export default async function handler(req, res) {
         priceUSD,
         currency: 'KRW',
       },
-    }));
+    });
+    res.end();
 
     console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms ===');
 
@@ -659,7 +681,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
-    // 이미 응답이 전송되었을 수 있음
     if (!res.headersSent) {
       res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 
@@ -667,6 +688,12 @@ export default async function handler(req, res) {
         details: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
       }));
+    } else {
+      // SSE already started — send error event and close
+      try {
+        res.write(`data: ${JSON.stringify({ status: 'error', error: error.message })}\n\n`);
+      } catch(_) {}
+      res.end();
     }
   }
 }

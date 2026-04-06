@@ -1277,17 +1277,19 @@ export default function PlannerPage() {
   const [status, setStatus] = useState<Status>('idle');
   const [resultQuick, setResultQuick] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [streamStep] = useState<number>(0);
-  const [streamAgent] = useState<string>('');
+  const [streamStep, setStreamStep] = useState<number>(0);
+  const [streamAgent, setStreamAgent] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
   const lastValues = useRef<PlannerFormValues | null>(null);
 
-  // 1단계: full API 호출 → Firestore 저장 + planUrl 리다이렉트
+  // 1단계: full API 호출 → SSE 스트리밍 → planUrl 리다이렉트
   async function handleSubmit(values: PlannerFormValues) {
     lastValues.current = values;
     setStatus('loadingQuick');
     setResultQuick(null);
     setErrorMsg(null);
+    setStreamStep(0);
+    setStreamAgent('');
     
     try {
       const res = await fetch('/api/ai-planner-full', {
@@ -1312,20 +1314,61 @@ export default function PlannerPage() {
       });
 
       if (!res.ok) throw new Error(`Server error (${res.status})`);
-      const data = await res.json();
-      
-      // planUrl이 있으면 리다이렉트
-      if (data.planUrl) {
-        navigate(data.planUrl);
-        return;
+
+      // Check if SSE stream or JSON
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream') && res.body) {
+        // SSE streaming mode
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // keep incomplete line
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const event = JSON.parse(line.slice(6));
+                if (event.step) setStreamStep(event.step);
+                if (event.agent) setStreamAgent(event.agent);
+                if (event.status === 'error') {
+                  throw new Error(event.error || 'Generation failed');
+                }
+                if (event.status === 'complete' && event.planUrl) {
+                  navigate(event.planUrl);
+                  return;
+                }
+              } catch (parseErr) {
+                if (parseErr instanceof Error && parseErr.message !== 'Generation failed') {
+                  console.warn('[SSE] Parse error:', parseErr);
+                } else {
+                  throw parseErr;
+                }
+              }
+            }
+          }
+        }
+        // If we get here without navigating, fallback
+        setStatus('error');
+        setErrorMsg('Stream ended without result. Please try again.');
+      } else {
+        // Fallback: JSON mode (backward compat)
+        const data = await res.json();
+        if (data.planUrl) {
+          navigate(data.planUrl);
+          return;
+        }
+        setResultQuick(data);
+        setStatus('quickSuccess');
+        setTimeout(() => {
+          document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
       }
-      
-      // planUrl 없으면 기존 quick 결과 렌더링 펴백
-      setResultQuick(data);
-      setStatus('quickSuccess');
-      setTimeout(() => {
-        document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Unknown error.');
       setStatus('error');
