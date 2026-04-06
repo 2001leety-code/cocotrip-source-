@@ -30,7 +30,7 @@ export default function PlanDetailPage() {
   const { planId } = useParams();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
   const [plan, setPlan] = useState<any>(null);
   const [error, setError] = useState<'notfound' | 'unauthorized' | null>(null);
@@ -39,6 +39,11 @@ export default function PlanDetailPage() {
 
   useEffect(() => {
     if (!planId) { setError('notfound'); setLoading(false); return; }
+    // Wait for Firebase Auth to settle — otherwise Firestore rules may deny
+    // the read before the user token is attached, surfacing as "notfound".
+    if (authLoading) return;
+    setError(null);
+    setLoading(true);
     const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
       if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
       const data = snap.data();
@@ -48,9 +53,13 @@ export default function PlanDetailPage() {
       if (!isOwner && !hasToken && !isGuestPlan) { setError('unauthorized'); setLoading(false); return; }
       setPlan(data);
       setLoading(false);
-    }, () => { setError('notfound'); setLoading(false); });
+    }, (err) => {
+      console.error('[PlanDetail] Firestore read error:', err);
+      setError('notfound');
+      setLoading(false);
+    });
     return () => unsub();
-  }, [planId, token, user]);
+  }, [planId, token, user, authLoading]);
 
   const handleDownloadPDF = async () => {
     const el = contentRef.current;
