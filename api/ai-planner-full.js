@@ -346,6 +346,14 @@ export default async function handler(req, res) {
       arrival_airport, mobility, uid: uid ? '***' : null,
     }));
 
+    // ── ENV 디버그 ──────────────────────────────────────────────────────
+    console.log('[ai-planner-full] ENV check:', {
+      gemini: !!(process.env.GEMINI_API_KEY),
+      firebase: !!adminDb,
+      gmail: !!(process.env.GMAIL_USER),
+    });
+    console.log('[ai-planner-full] body keys:', Object.keys(body));
+
     // ── Gemini 호출 ──────────────────────────────────────────────────────
     const apiKey = (process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
@@ -360,7 +368,12 @@ export default async function handler(req, res) {
       },
     });
 
-    const spotContext = getSpotContext(area, 4);
+    let spotContext = '';
+    try {
+      spotContext = getSpotContext(area, 4) || '';
+    } catch (spotErr) {
+      console.warn('[ai-planner-full] getSpotContext failed:', spotErr.message);
+    }
     const userMessage = JSON.stringify({
       guest_name: guestName,
       guest_count: pax,
@@ -379,22 +392,19 @@ export default async function handler(req, res) {
       special_request: specialRequest || undefined,
     }) + spotContext;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 55000);
+    const timer = setTimeout(() => {}, 55000);
     let result;
     try {
-      result = await model.generateContent(
-        {
-          contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-          systemInstruction: { role: 'system', parts: [{ text: buildSystemPrompt(language) }] },
-        },
-        { signal: controller.signal }
-      );
+      result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+        systemInstruction: { role: 'system', parts: [{ text: buildSystemPrompt(language) }] },
+      });
     } finally {
       clearTimeout(timer);
     }
 
     const rawText = result.response.text().trim();
+    console.log('[ai-planner-full] Gemini raw (first 200):', rawText.substring(0, 200));
     let itinerary;
     try {
       itinerary = JSON.parse(rawText);
@@ -409,6 +419,7 @@ export default async function handler(req, res) {
         throw new Error('Gemini returned non-JSON: ' + rawText.substring(0, 300));
       }
     }
+    console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
 
     // ── RouteAgent: Naver Maps 보강 (non-fatal) ─────────────────────────
     try {
@@ -565,8 +576,15 @@ export default async function handler(req, res) {
     }
 
   } catch (error) {
-    console.error('[ai-planner-full] Error:', error.message);
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Planner failed', details: error.message }));
+    console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
+    // 이미 응답이 전송되었을 수 있음
+    if (!res.headersSent) {
+      res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        error: 'Planner failed', 
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+      }));
+    }
   }
 }
