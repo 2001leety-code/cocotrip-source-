@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Tag } from 'lucide-react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 const TEXTS: Record<string, { banner: string; code: string }> = {
@@ -27,18 +27,18 @@ export function EarlyBirdBanner({ language }: Props) {
   }, []);
 
   useEffect(() => {
-    const unsub = onSnapshot(
-      doc(db, 'earlybird', 'counter'),
-      (snap) => {
+    let cancelled = false;
+    import('firebase/firestore').then(({ getDoc }) => {
+      getDoc(doc(db, 'earlybird', 'counter')).then((snap) => {
+        if (cancelled) return;
         const data = snap.data();
         const used = data?.used ?? 0;
         setRemaining(Math.max(0, 50 - used));
-      },
-      () => {
-        setRemaining(50);
-      }
-    );
-    return () => unsub();
+      }).catch(() => {
+        if (!cancelled) setRemaining(50);
+      });
+    });
+    return () => { cancelled = true; };
   }, []);
 
   if (dismissed || remaining === null || remaining <= 0 || !visible) return null;
