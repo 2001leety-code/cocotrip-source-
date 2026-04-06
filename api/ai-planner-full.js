@@ -389,19 +389,7 @@ export default async function handler(req, res) {
     });
     console.log('[ai-planner-full] body keys:', Object.keys(body));
 
-    // ── SSE 스트리밍 설정 ──────────────────────────────────────────────────
-    res.writeHead(200, {
-      ...CORS,
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',               // nginx proxy buffering 비활성화
-    });
-    function sendEvent(data) {
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-      if (res.flush) res.flush();  // Force flush for Vercel streaming
-    }
-    sendEvent({ status: 'started', step: 1, agent: 'gemini', message: 'Crafting your itinerary...' });
+    console.log('[planner] Step 1: Calling Gemini...');
 
     // ── Gemini 호출 ──────────────────────────────────────────────────────
     const apiKey = (process.env.GEMINI_API_KEY || '').trim();
@@ -450,7 +438,7 @@ export default async function handler(req, res) {
       systemInstruction: { role: 'system', parts: [{ text: buildSystemPrompt(language) }] },
     });
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Gemini API timeout after 45s')), GEMINI_TIMEOUT_MS);
+      setTimeout(() => reject(new Error('Gemini API timeout')), GEMINI_TIMEOUT_MS);
     });
 
     let result;
@@ -459,8 +447,7 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
       if (err.message.includes('timeout')) {
-        res.writeHead(504, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'AI is taking too long. Please try again.', code: 'GEMINI_TIMEOUT' }));
+        throw new Error('AI is taking too long. Please try again.');
       }
       throw err;
     }
@@ -519,7 +506,7 @@ export default async function handler(req, res) {
       }
     }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
-    sendEvent({ status: 'gemini_done', step: 2, agent: 'route', message: 'Mapping transit routes...' });
+    console.log('[planner] Step 2: Running RouteAgent...');
 
     // ALREADY → arrival_guide 제거
     if (arrival_airport === 'ALREADY') {
@@ -553,7 +540,7 @@ export default async function handler(req, res) {
     } catch (routeErr) {
       console.warn('[planner] Route failed (non-fatal):', routeErr.message, '|', Date.now() - routeStart, 'ms');
     }
-    sendEvent({ status: 'routes_done', step: 3, agent: 'firestore', message: 'Saving your plan...' });
+    console.log('[planner] Step 3: Saving to Firestore...');
 
     // ── T-money 서버 계산 ────────────────────────────────────────────────
     const totalTransitFare = (itinerary.days || [])
@@ -581,68 +568,62 @@ export default async function handler(req, res) {
     const exchangeRate = Number(process.env.KRW_USD_RATE) || 1380;
     const priceUSD = Math.round(priceKRW / exchangeRate * 100) / 100;
 
-    // ── Firestore 저장 (blocking) ────────────────────────────────────────
+    // ── Firestore 저장 (blocking — 반드시 성공해야 planUrl 전송) ──────────
+    if (!adminDb) {
+      throw new Error('Firebase not configured — cannot save plan');
+    }
+
     const planId = randomUUID();
     const accessToken = uid ? null : randomUUID();
-    let firestoreSaved = false;
 
-    if (adminDb) {
-      try {
-        await adminDb.collection('plans').doc(planId).set({
+    await adminDb.collection('plans').doc(planId).set({
+      planId,
+      status: 'ready',
+      createdAt: new Date().toISOString(),
+      uid: uid || null,
+      accessToken,
+      guestEmail: email || null,
+      input: {
+        guestName, pax, styles, area, duration, startDate,
+        vehicle, language, specialRequest,
+        arrival_airport: arrival_airport || null,
+        departure_airport: departure_airport || null,
+        hotel_address: hotel_address || null,
+        mobility: mobility || null,
+      },
+      itinerary,
+      pricing: { vehicle, priceKRW, priceUSD },
+    });
+
+    if (uid) {
+      await adminDb
+        .collection('users').doc(uid)
+        .collection('plans').doc(planId)
+        .set({
           planId,
-          status: 'ready',
           createdAt: new Date().toISOString(),
-          uid: uid || null,
-          accessToken,
-          guestEmail: email || null,
-          input: {
-            guestName, pax, styles, area, duration, startDate,
-            vehicle, language, specialRequest,
-            arrival_airport: arrival_airport || null,
-            departure_airport: departure_airport || null,
-            hotel_address: hotel_address || null,
-            mobility: mobility || null,
-          },
-          itinerary,
-          pricing: { vehicle, priceKRW, priceUSD },
+          status: 'ready',
+          tourTitle: itinerary.tour_title || `${guestName}'s Korea Itinerary`,
+          startDate,
+          area,
+          pax,
         });
-
-        if (uid) {
-          await adminDb
-            .collection('users').doc(uid)
-            .collection('plans').doc(planId)
-            .set({
-              planId,
-              createdAt: new Date().toISOString(),
-              status: 'ready',
-              tourTitle: itinerary.tour_title || `${guestName}'s Korea Itinerary`,
-              startDate,
-              area,
-              pax,
-            });
-        }
-
-        firestoreSaved = true;
-        console.log('[ai-planner-full] Firestore saved:', planId);
-      } catch (e) {
-        console.error('[ai-planner-full] Firestore save FAILED:', e.message);
-      }
     }
+
+    console.log('[ai-planner-full] Firestore saved:', planId);
 
     // ── planUrl 구성 ─────────────────────────────────────────────────────
     const planUrl = accessToken
       ? `/my-plans/${planId}?token=${accessToken}`
       : `/my-plans/${planId}`;
 
-    // ── 최종 결과 SSE 전송 ──────────────────────────────────────────────
-    sendEvent({
-      status: 'complete',
-      step: 4,
-      agent: 'done',
-      message: 'Your itinerary is ready!',
+    // ── JSON 응답 ────────────────────────────────────────────────────────
+    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
       planId,
       planUrl,
-      firestoreSaved,
+      firestoreSaved: true,
       emailSent: !!email,
       itinerary,
       pricing: {
@@ -653,8 +634,7 @@ export default async function handler(req, res) {
         priceUSD,
         currency: 'KRW',
       },
-    });
-    res.end();
+    }));
 
     console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms ===');
 
@@ -696,12 +676,6 @@ export default async function handler(req, res) {
         details: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
       }));
-    } else {
-      // SSE already started — send error event and close
-      try {
-        res.write(`data: ${JSON.stringify({ status: 'error', error: error.message })}\n\n`);
-      } catch(_) {}
-      res.end();
     }
   }
 }

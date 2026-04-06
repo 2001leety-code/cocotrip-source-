@@ -1288,8 +1288,8 @@ export default function PlannerPage() {
     setStatus('loadingQuick');
     setResultQuick(null);
     setErrorMsg(null);
-    setStreamStep(0);
-    setStreamAgent('');
+    setStreamStep(1);
+    setStreamAgent('gemini');
     
     try {
       const res = await fetch('/api/ai-planner-full', {
@@ -1313,89 +1313,30 @@ export default function PlannerPage() {
         }),
       });
 
-      if (!res.ok) throw new Error(`Server error (${res.status})`);
-
-      // Check if SSE stream or JSON
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('text/event-stream') && res.body) {
-        // SSE streaming mode
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let lastPlanUrl = '';
-        let navigated = false;
-
-        function processLine(line: string) {
-          if (!line.startsWith('data: ')) return;
-          try {
-            const event = JSON.parse(line.slice(6));
-            if (event.step) setStreamStep(event.step);
-            if (event.agent) setStreamAgent(event.agent);
-            if (event.planUrl) lastPlanUrl = event.planUrl;
-            if (event.status === 'error') {
-              throw new Error(event.error || 'Generation failed');
-            }
-            if (event.status === 'complete' && event.planUrl) {
-              navigated = true;
-              navigate(event.planUrl);
-            }
-          } catch (parseErr) {
-            if (parseErr instanceof Error && parseErr.message !== 'Generation failed') {
-              console.warn('[SSE] Parse error:', parseErr);
-            } else {
-              throw parseErr;
-            }
-          }
-        }
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // keep incomplete line
-
-          for (const line of lines) {
-            processLine(line);
-            if (navigated) return;
-          }
-        }
-
-        // Process any remaining buffer after stream ends
-        if (buffer.trim()) {
-          const remainingLines = buffer.split('\n');
-          for (const line of remainingLines) {
-            processLine(line.trim());
-            if (navigated) return;
-          }
-        }
-
-        // Fallback: if we got a planUrl from any event, navigate
-        if (lastPlanUrl) {
-          navigate(lastPlanUrl);
-          return;
-        }
-
-        // If we get here without navigating, fallback
-        setStatus('error');
-        setErrorMsg('Stream ended without result. Please try again.');
-      } else {
-        // Fallback: JSON mode (backward compat)
-        const data = await res.json();
-        if (data.planUrl) {
-          navigate(data.planUrl);
-          return;
-        }
-        setResultQuick(data);
-        setStatus('quickSuccess');
-        setTimeout(() => {
-          document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.details || errBody.error || `Server error (${res.status})`);
       }
+
+      const data = await res.json();
+      
+      if (data.planUrl) {
+        setStreamStep(4);
+        setStreamAgent('done');
+        navigate(data.planUrl);
+        return;
+      }
+      
+      setResultQuick(data);
+      setStatus('quickSuccess');
+      setTimeout(() => {
+        document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Unknown error.');
       setStatus('error');
     }
+
   }
 
 
