@@ -1242,6 +1242,24 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
 // ────────────────────────────────────────
 // 메인 페이지 (기존 구조 유지)
 // ────────────────────────────────────────
+// 도시 이름 → API area key 변환
+function cityNameToAreaKey(cityName: string): string {
+  const name = (cityName || '').toLowerCase().trim();
+  if (name.includes('seoul')) return 'seoul_city';
+  if (name.includes('busan')) return 'busan';
+  if (name.includes('jeju')) return 'jeju';
+  if (name.includes('gyeongju')) return 'gyeongju';
+  if (name.includes('incheon')) return 'incheon';
+  if (name.includes('suwon')) return 'suwon';
+  if (name.includes('jeonju')) return 'jeonju';
+  if (name.includes('gangneung') || name.includes('강릉')) return 'gangneung';
+  if (name.includes('yeosu')) return 'yeosu';
+  if (name.includes('daegu')) return 'daegu';
+  if (name.includes('daejeon')) return 'daejeon';
+  if (name.includes('gwangju')) return 'gwangju';
+  return name || 'seoul_city';
+}
+
 export default function PlannerPage() {
   const { language, t, changeLanguage } = useLanguage();
   const p = t.planner;
@@ -1279,7 +1297,7 @@ export default function PlannerPage() {
           startDate: values.startDate,
           endDate: values.endDate,
           destination: (values.regions || []).join(', ') || 'Seoul',
-          area: (values.regions || ['seoul_city'])[0],
+          area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
           preferences: (values.categories || []).join(', ') || '',
           styles: values.categories || ['culture'],
           durationDays: values.durationDays || 3,
