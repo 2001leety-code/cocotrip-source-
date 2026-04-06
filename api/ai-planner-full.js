@@ -27,26 +27,33 @@ try {
   const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
   const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
 
-  // 키 정리: Vercel 환경변수에서 발생하는 모든 문제 해결
-  let privateKey = (process.env.FIREBASE_PRIVATE_KEY || '')
+  // 키 정리: Vercel 환경변수에서 발생하는 모든 문제를 극복하기 위해
+  // PEM base64 본문을 추출 → 공백/개행/오염문자 전부 제거 → 재구성
+  let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
     .replace(/^\uFEFF/, '')           // BOM 제거
     .replace(/^["']|["']$/g, '')      // 앞뒤 따옴표 제거
     .replace(/\\n/g, '\n')            // 이스케이프된 \n → 줄바꿈
     .trim();
 
-  // PEM footer 이후의 쓰레기 바이트 제거 ("Unparsed DER bytes remain" 오류 해결)
-  const pemEndMarker = '-----END PRIVATE KEY-----';
-  const pemEndIdx = privateKey.indexOf(pemEndMarker);
-  if (pemEndIdx > 0) {
-    privateKey = privateKey.substring(0, pemEndIdx + pemEndMarker.length) + '\n';
+  let privateKey = '';
+  const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
+  if (pemMatch) {
+    // base64 본문만 추출 → 공백/개행 전부 제거 → 64자씩 줄바꿈 재구성
+    const base64Clean = pemMatch[1].replace(/\s+/g, '');
+    const lines = base64Clean.match(/.{1,64}/g) || [];
+    privateKey = '-----BEGIN PRIVATE KEY-----\n' + lines.join('\n') + '\n-----END PRIVATE KEY-----\n';
+  } else {
+    privateKey = rawKey; // fallback — 원본 그대로
   }
 
   console.log('[ai-planner-full] Key diagnostics:', {
     projectId: projectId ? projectId.substring(0, 10) + '...' : 'MISSING',
     clientEmail: clientEmail ? clientEmail.substring(0, 15) + '...' : 'MISSING',
-    keyLength: privateKey.length,
+    rawKeyLength: rawKey.length,
+    cleanKeyLength: privateKey.length,
     startsOK: privateKey.startsWith('-----BEGIN'),
-    endsOK: privateKey.trim().endsWith(pemEndMarker),
+    endsOK: privateKey.trim().endsWith('-----END PRIVATE KEY-----'),
+    pemExtracted: !!pemMatch,
   });
 
   if (projectId && clientEmail && privateKey) {
@@ -60,7 +67,7 @@ try {
   }
 } catch (e) {
   console.error('[ai-planner-full] firebase-admin init failed:', e.message);
-  console.error('[ai-planner-full] → Vercel 대시보드에서 FIREBASE_PRIVATE_KEY 확인 필요');
+  console.error('[ai-planner-full] → Vercel 대시보드에서 FIREBASE_PRIVATE_KEY를 재입력하세요');
 }
 
 const CORS = {
