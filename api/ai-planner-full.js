@@ -24,9 +24,15 @@ export const config = { runtime: 'nodejs' };
 // ── firebase-admin 초기화 ─────────────────────────────────────────────────
 let adminDb = null;
 try {
-  const projectId = process.env.FIREBASE_PROJECT_ID || '';
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
-  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
+  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+  // 키 정리: BOM 제거, 이스케이프된 \n → 실제 줄바꿈, 앞뒤 따옴표/공백 제거
+  const rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+  const privateKey = rawKey
+    .replace(/^\uFEFF/, '')           // BOM 제거
+    .replace(/^["']|["']$/g, '')      // 앞뒤 따옴표 제거
+    .replace(/\\n/g, '\n')            // 이스케이프된 \n → 줄바꿈
+    .trim();
 
   if (projectId && clientEmail && privateKey) {
     const adminApp = getApps().length ? getApps()[0] : initializeApp({
