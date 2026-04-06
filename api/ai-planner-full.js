@@ -26,25 +26,41 @@ let adminDb = null;
 try {
   const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
   const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-  // 키 정리: BOM 제거, 이스케이프된 \n → 실제 줄바꿈, 앞뒤 따옴표/공백 제거
-  const rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
-  const privateKey = rawKey
+
+  // 키 정리: Vercel 환경변수에서 발생하는 모든 문제 해결
+  let privateKey = (process.env.FIREBASE_PRIVATE_KEY || '')
     .replace(/^\uFEFF/, '')           // BOM 제거
     .replace(/^["']|["']$/g, '')      // 앞뒤 따옴표 제거
     .replace(/\\n/g, '\n')            // 이스케이프된 \n → 줄바꿈
     .trim();
+
+  // PEM footer 이후의 쓰레기 바이트 제거 ("Unparsed DER bytes remain" 오류 해결)
+  const pemEndMarker = '-----END PRIVATE KEY-----';
+  const pemEndIdx = privateKey.indexOf(pemEndMarker);
+  if (pemEndIdx > 0) {
+    privateKey = privateKey.substring(0, pemEndIdx + pemEndMarker.length) + '\n';
+  }
+
+  console.log('[ai-planner-full] Key diagnostics:', {
+    projectId: projectId ? projectId.substring(0, 10) + '...' : 'MISSING',
+    clientEmail: clientEmail ? clientEmail.substring(0, 15) + '...' : 'MISSING',
+    keyLength: privateKey.length,
+    startsOK: privateKey.startsWith('-----BEGIN'),
+    endsOK: privateKey.trim().endsWith(pemEndMarker),
+  });
 
   if (projectId && clientEmail && privateKey) {
     const adminApp = getApps().length ? getApps()[0] : initializeApp({
       credential: cert({ projectId, clientEmail, privateKey }),
     });
     adminDb = getAdminFirestore(adminApp);
-    console.log('[ai-planner-full] firebase-admin initialized');
+    console.log('[ai-planner-full] firebase-admin initialized OK');
   } else {
     console.warn('[ai-planner-full] firebase-admin keys missing — Firestore disabled');
   }
 } catch (e) {
   console.error('[ai-planner-full] firebase-admin init failed:', e.message);
+  console.error('[ai-planner-full] → Vercel 대시보드에서 FIREBASE_PRIVATE_KEY 확인 필요');
 }
 
 const CORS = {
@@ -400,7 +416,7 @@ export default async function handler(req, res) {
       model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.75,
-        maxOutputTokens: 12000,
+        maxOutputTokens: 24000,
         responseMimeType: 'application/json',
       },
     });
