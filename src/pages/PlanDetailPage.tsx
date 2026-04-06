@@ -438,7 +438,7 @@ function TransitArrow({ transit }: { transit: any }) {
 }
 
 function StopCard({ stop }: { stop: any }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const CatIcon = CAT_ICON[stop.category] || MapPin;
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -474,26 +474,62 @@ function StopCard({ stop }: { stop: any }) {
 
       {/* ── Expanded details ── */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="px-4 pb-4 pt-0 border-t border-white/[0.06]" onClick={(e) => e.stopPropagation()}>
-          {stop.name_ko && stop.name_en && <p className="text-[10px] text-white/30 mb-2">{stop.name_ko}</p>}
-          {stop.tip_en && <p className="text-xs text-white/50 mb-3">{stop.tip_en}</p>}
-          {stop.reservation_required && <p className="text-[10px] text-orange-400/70 mb-2">Reservation required</p>}
-          {stop.accessibility_note && <p className="text-[10px] text-blue-400/70 mb-2 flex items-center gap-1"><Accessibility className="w-3 h-3" /> {stop.accessibility_note}</p>}
+        <div className="px-4 pb-4 pt-3 border-t border-white/[0.06] space-y-3" onClick={(e) => e.stopPropagation()}>
+          {stop.name_ko && stop.name_en && <p className="text-[10px] text-white/30">{stop.name_ko}</p>}
+          {stop.address && (
+            <p className="text-[11px] text-white/40 flex items-center gap-1.5">
+              <MapPin className="w-3 h-3 shrink-0 text-white/25" />
+              {stop.address}
+            </p>
+          )}
+          {stop.tip_en && <p className="text-xs text-white/60 leading-relaxed">{stop.tip_en}</p>}
+          {stop.entry_fee_note && <p className="text-[10px] text-yellow-400/60">{stop.entry_fee_note}</p>}
+
+          {/* Reservation info */}
+          {stop.reservation_required && (
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
+              <p className="text-[11px] text-orange-400/80 font-semibold">Reservation required</p>
+              {stop.reservation_note && <p className="text-[10px] text-orange-400/60 mt-0.5">{stop.reservation_note}</p>}
+              <div className="flex gap-3 mt-1">
+                {stop.reservation_phone && (
+                  <a href={`tel:${stop.reservation_phone}`} className="text-[10px] text-orange-400/70 underline">{stop.reservation_phone}</a>
+                )}
+                {stop.reservation_url && (
+                  <a href={stop.reservation_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-orange-400/70 underline flex items-center gap-0.5">
+                    <ExternalLink className="w-2.5 h-2.5" /> Book online
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {stop.accessibility_note && (
+            <p className="text-[10px] text-blue-400/70 flex items-center gap-1">
+              <Accessibility className="w-3 h-3" /> {stop.accessibility_note}
+            </p>
+          )}
+
+          {/* Recommended items */}
           {stop.recommended_items?.length > 0 && (
-            <div className="mb-3">
+            <div>
               <p className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Recommended</p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-1">
                 {stop.recommended_items.map((item: any, i: number) => (
-                  <span key={i} className="inline-flex items-center gap-1 bg-white/[0.06] rounded-lg px-2.5 py-1 text-[10px]">
-                    <span className="text-white/70">{item.name}</span>
-                    {item.price_krw > 0 && <span className="text-[#7C5CFC] font-bold">{formatKRW(item.price_krw)}</span>}
-                  </span>
+                  <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] text-white/70">{item.name}</span>
+                      {item.note && <span className="text-[9px] text-white/30 ml-1.5">— {item.note}</span>}
+                    </div>
+                    {item.price_krw > 0 && <span className="text-[11px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw)}</span>}
+                  </div>
                 ))}
               </div>
             </div>
           )}
+
+          {/* Naver Map link */}
           {stop.naverMapUrl && (
-            <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-green-400/70 hover:text-green-400">
+            <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
               <ExternalLink className="w-3 h-3" /> Open in Naver Map
             </a>
           )}
