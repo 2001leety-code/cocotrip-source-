@@ -30,6 +30,7 @@ const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
 const PlanDetailPage = lazy(() => import('@/pages/PlanDetailPage'));
 
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -78,6 +79,7 @@ function GlobalWidgets() {
     <>
       <EarlyBirdBanner language={language} />
       <KpopConcertPopup />
+      <MobileBottomNav />
 
     </>
   );

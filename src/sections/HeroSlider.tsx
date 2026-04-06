@@ -76,7 +76,7 @@ export function HeroSlider({ t }: HeroSliderProps) {
   };
 
   return (
-    <section className="relative h-screen w-full overflow-hidden">
+    <section className="relative h-[52vw] min-h-[260px] md:h-screen w-full overflow-hidden">
       {/* Slides */}
       {slides.map((slide, index) => (
         <div
