@@ -1,17 +1,21 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import {
-  MapPin, Clock, Calendar, Users, ChevronDown, ChevronUp,
+  MapPin, Clock, Calendar, Users, ChevronDown,
   Download, MessageCircle, Plane, Train, Bus, Car, Footprints,
   Landmark, UtensilsCrossed, ShoppingBag, Camera, Music2, Mountain,
   CreditCard, Wallet, ExternalLink, AlertCircle, Accessibility,
 } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
+
+/* ═══════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════ */
 
 const CAT_ICON: Record<string, any> = {
   culture: Landmark, food: UtensilsCrossed, shopping: ShoppingBag,
@@ -26,6 +30,10 @@ function formatKRW(n: number) {
   return '\u20A9' + new Intl.NumberFormat('ko-KR').format(n);
 }
 
+/* ═══════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ═══════════════════════════════════════════════════════ */
+
 export default function PlanDetailPage() {
   const { planId } = useParams();
   const [searchParams] = useSearchParams();
@@ -35,12 +43,14 @@ export default function PlanDetailPage() {
   const [plan, setPlan] = useState<any>(null);
   const [error, setError] = useState<'notfound' | 'unauthorized' | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeDay, setActiveDay] = useState(0);
+  const [fadeKey, setFadeKey] = useState(0);
+  const tabBarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // ── Firestore listener ──
   useEffect(() => {
     if (!planId) { setError('notfound'); setLoading(false); return; }
-    // Wait for Firebase Auth to settle — otherwise Firestore rules may deny
-    // the read before the user token is attached, surfacing as "notfound".
     if (authLoading) return;
     setError(null);
     setLoading(true);
@@ -61,19 +71,130 @@ export default function PlanDetailPage() {
     return () => unsub();
   }, [planId, token, user, authLoading]);
 
-  const handleDownloadPDF = async () => {
-    const el = contentRef.current;
-    if (!el) return;
-    const html2pdf = (await import('html2pdf.js')).default;
-    html2pdf().set({
-      margin: [10, 10, 10, 10],
-      filename: `cocotrip-${planId?.slice(0, 8)}.pdf`,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    } as any).from(el).save();
-  };
+  // ── URL hash sync — restore active day on load ──
+  useEffect(() => {
+    const hash = window.location.hash;
+    const match = hash.match(/^#day-(\d+)$/);
+    if (match) {
+      const idx = parseInt(match[1], 10) - 1;
+      if (idx >= 0) setActiveDay(idx);
+    }
+  }, []);
 
+  // ── Tab switch handler ──
+  const handleTabSwitch = useCallback((idx: number) => {
+    setActiveDay(idx);
+    setFadeKey((k) => k + 1);
+    window.history.replaceState(null, '', `#day-${idx + 1}`);
+    // scroll active tab into view on mobile
+    if (tabBarRef.current) {
+      const btn = tabBarRef.current.children[idx] as HTMLElement;
+      btn?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, []);
+
+  // ── PDF download — hidden container approach ──
+  const handleDownloadPDF = useCallback(async () => {
+    if (!plan) return;
+    const it = plan.itinerary || {};
+    const days = it.days || [];
+    const arrival = it.arrival_guide;
+    const departure = it.departure_guide;
+    const budget = it.daily_budget_summary || [];
+    const input = plan.input || {};
+
+    // create hidden render container
+    const container = document.createElement('div');
+    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;visibility:visible;background:#0a0b14;color:white;padding:32px;font-family:system-ui,sans-serif;';
+    document.body.appendChild(container);
+
+    // build HTML content
+    let html = `<div style="text-align:center;margin-bottom:24px;">
+      <h1 style="font-size:24px;font-weight:bold;background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+        ${it.tour_title || 'Your Korea Itinerary'}
+      </h1>
+      <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:8px;">${input.startDate || ''} | ${input.pax || input.adults || '-'} pax</p>
+    </div>`;
+
+    // arrival guide
+    if (arrival) {
+      html += `<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;margin-bottom:16px;">
+        <h3 style="font-size:14px;font-weight:bold;margin-bottom:8px;">Airport Arrival Guide — ${arrival.airport || ''}</h3>`;
+      (arrival.steps || []).forEach((step: any) => {
+        html += `<p style="font-size:11px;color:rgba(255,255,255,0.6);margin:4px 0;"><strong>Step ${step.step}:</strong> ${step.title} — ${step.description || ''}</p>`;
+      });
+      html += '</div>';
+    }
+
+    // all days, all stops expanded
+    days.forEach((day: any, di: number) => {
+      html += `<div style="margin-bottom:20px;">
+        <h2 style="font-size:16px;font-weight:bold;margin-bottom:8px;">Day ${day.day || di + 1}: ${day.theme || ''}</h2>`;
+      (day.stops || []).forEach((stop: any) => {
+        html += `<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-bottom:8px;">
+          <p style="font-size:13px;font-weight:bold;">${stop.start_time || ''} — ${stop.name_en || stop.name_ko || ''}</p>
+          <p style="font-size:10px;color:rgba(255,255,255,0.4);">Stay: ${stop.stay_min || '?'}min | ${stop.entry_fee_krw > 0 ? formatKRW(stop.entry_fee_krw) : 'Free'}</p>
+          ${stop.tip_en ? `<p style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:4px;">${stop.tip_en}</p>` : ''}
+          ${stop.recommended_items?.length ? `<p style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:4px;">Recommended: ${stop.recommended_items.map((r: any) => `${r.name}${r.price_krw > 0 ? ` (${formatKRW(r.price_krw)})` : ''}`).join(', ')}</p>` : ''}
+        </div>`;
+        if (stop.transit_from_prev) {
+          html += `<p style="font-size:9px;color:rgba(124,92,252,0.7);margin:2px 0 6px 12px;">${stop.transit_from_prev.method} — ${stop.transit_from_prev.est_min}min${stop.transit_from_prev.est_fare_krw > 0 ? ` (${formatKRW(stop.transit_from_prev.est_fare_krw)})` : ''}</p>`;
+        }
+      });
+      html += '</div>';
+    });
+
+    // budget table
+    if (budget.length > 0) {
+      html += `<div style="margin-bottom:16px;">
+        <h3 style="font-size:14px;font-weight:bold;margin-bottom:8px;">Daily Budget Summary</h3>
+        <table style="width:100%;font-size:10px;border-collapse:collapse;">
+          <tr style="color:rgba(255,255,255,0.3);border-bottom:1px solid rgba(255,255,255,0.08);">
+            <th style="text-align:left;padding:4px;">Day</th><th style="text-align:right;padding:4px;">Transport</th><th style="text-align:right;padding:4px;">Entry</th><th style="text-align:right;padding:4px;">Meals</th><th style="text-align:right;padding:4px;">Total</th>
+          </tr>`;
+      budget.forEach((row: any) => {
+        html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+          <td style="padding:4px;">Day ${row.day}</td>
+          <td style="text-align:right;padding:4px;">${formatKRW(row.transport_krw)}</td>
+          <td style="text-align:right;padding:4px;">${formatKRW(row.entry_fees_krw)}</td>
+          <td style="text-align:right;padding:4px;">${formatKRW(row.meals_krw)}</td>
+          <td style="text-align:right;padding:4px;font-weight:bold;color:#7C5CFC;">${formatKRW(row.total_krw)}</td>
+        </tr>`;
+      });
+      html += '</table></div>';
+    }
+
+    // departure guide
+    if (departure) {
+      html += `<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;margin-bottom:16px;">
+        <h3 style="font-size:14px;font-weight:bold;margin-bottom:8px;">Departure Guide — ${departure.airport || ''}</h3>`;
+      if (departure.to_airport) {
+        html += `<p style="font-size:11px;color:rgba(255,255,255,0.6);">${departure.to_airport.method} — ${departure.to_airport.instruction || ''} (${departure.to_airport.duration_min}min, ${formatKRW(departure.to_airport.cost_krw)})</p>`;
+      }
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const titleSlug = (it.tour_title || 'korea-trip').replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'korea-trip';
+      const dateStr = input.startDate || 'undated';
+      await html2pdf().set({
+        margin: [10, 10, 10, 10],
+        filename: `cocotrip-${titleSlug}-${dateStr}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#0a0b14' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      } as any).from(container).save();
+    } catch (err) {
+      console.error('[PDF] generation failed:', err);
+    } finally {
+      document.body.removeChild(container);
+    }
+  }, [plan]);
+
+  // ── Loading / Error states ──
   if (loading) return (
     <div className="min-h-screen bg-[#0a0b14] text-white flex items-center justify-center">
       <div className="text-center">
@@ -120,18 +241,24 @@ export default function PlanDetailPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className="max-w-3xl mx-auto px-4 py-8 pt-24">
         <div ref={contentRef} id="plan-detail-content">
+          {/* ── Title ── */}
           <div className="text-center mb-8">
             <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg,#a78bfa,#ec4899)' }}>
               {it.tour_title || 'Your Korea Itinerary'}
             </h1>
-            <p className="text-white/40 text-sm mt-2">{input.startDate} | {input.pax} pax | {plan.pricing?.vehicleLabel || plan.pricing?.vehicle}</p>
+            <p className="text-white/40 text-sm mt-2">
+              {input.startDate} | {input.adults ? `${input.adults} adults` : `${input.pax} pax`}
+              {input.children > 0 && ` + ${input.children} children`}
+              {(plan.pricing?.vehicleLabel || plan.pricing?.vehicle) && ` | ${plan.pricing.vehicleLabel || plan.pricing.vehicle}`}
+            </p>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 mb-8">
+          {/* ── Summary stats ── */}
+          <div className="grid grid-cols-4 gap-2 mb-6">
             {[
               { icon: <Calendar className="w-4 h-4" />, label: 'Days', value: String(days.length || '-') },
               { icon: <MapPin className="w-4 h-4" />, label: 'Stops', value: String(days.reduce((s: number, d: any) => s + (d.stops?.length || 0), 0)) },
-              { icon: <Users className="w-4 h-4" />, label: 'Pax', value: String(input.pax) },
+              { icon: <Users className="w-4 h-4" />, label: 'Pax', value: String(input.adults ? (input.adults + (input.children || 0)) : input.pax) },
               { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },
             ].map((item, i) => (
               <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 text-center">
@@ -142,13 +269,48 @@ export default function PlanDetailPage() {
             ))}
           </div>
 
+          {/* ── Arrival Guide (accordion, default closed) ── */}
           {arrival && <ArrivalGuide guide={arrival} />}
-          {days.map((day: any, di: number) => <DayTimeline key={di} day={day} dayIndex={di} />)}
+
+          {/* ── Day Tab Bar ── */}
+          {days.length > 1 && (
+            <div
+              ref={tabBarRef}
+              className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide sticky top-16 z-20 bg-[#0a0b14]/95 backdrop-blur-sm py-3 -mx-4 px-4 sm:justify-center"
+            >
+              {days.map((_: any, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => handleTabSwitch(i)}
+                  className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                    activeDay === i
+                      ? 'text-white shadow-lg shadow-[#7C5CFC]/20'
+                      : 'bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white/80'
+                  }`}
+                  style={activeDay === i ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' } : undefined}
+                >
+                  Day {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Active Day Content ── */}
+          {days.length > 0 && (
+            <div key={fadeKey} className="animate-fadeIn">
+              <DayTimeline day={days[activeDay]} dayIndex={activeDay} />
+            </div>
+          )}
+
+          {/* ── Budget Table (accordion, default closed) ── */}
           {budget.length > 0 && <BudgetTable budget={budget} tMoney={it.t_money_recommended_load} />}
+
+          {/* ── Departure Guide (accordion, default closed) ── */}
           {departure && <DepartureGuide guide={departure} />}
         </div>
 
-        <div className="mt-8 space-y-3">
+        {/* ── Action buttons ── */}
+        <div className="mt-8 space-y-3 mb-24">
           <button onClick={handleDownloadPDF} className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
             <Download className="w-5 h-5" /> Download PDF
           </button>
@@ -162,11 +324,15 @@ export default function PlanDetailPage() {
   );
 }
 
+/* ═══════════════════════════════════════════════════════
+   SUB-COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+
 function ArrivalGuide({ guide }: { guide: any }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
-    <section className="mb-8">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-4 mb-3">
+    <section className="mb-6">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-4">
         <div className="flex items-center gap-3">
           <Plane className="w-5 h-5 text-[#7C5CFC]" />
           <div className="text-left">
@@ -174,9 +340,9 @@ function ArrivalGuide({ guide }: { guide: any }) {
             <p className="text-xs text-white/40">{guide.airport}</p>
           </div>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}
+        <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[2000px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
         <div className="space-y-3 pl-2">
           {(guide.steps || []).map((step: any, i: number) => (
             <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
@@ -218,7 +384,7 @@ function ArrivalGuide({ guide }: { guide: any }) {
             </div>
           ))}
         </div>
-      )}
+      </div>
     </section>
   );
 }
@@ -272,37 +438,65 @@ function TransitArrow({ transit }: { transit: any }) {
 }
 
 function StopCard({ stop }: { stop: any }) {
+  const [expanded, setExpanded] = useState(false);
   const CatIcon = CAT_ICON[stop.category] || MapPin;
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const toggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && cardRef.current) {
+      setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+    }
+  };
+
   return (
-    <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4 hover:border-white/[0.15] transition-colors">
-      <div className="flex items-start gap-3">
+    <div
+      ref={cardRef}
+      className="bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-white/[0.15] transition-colors cursor-pointer"
+      onClick={toggle}
+    >
+      {/* ── Collapsed header (always visible) ── */}
+      <div className="flex items-center gap-3 p-4">
         <div className="text-center shrink-0">
           <p className="text-xs font-bold text-[#7C5CFC]">{stop.start_time}</p>
           <CatIcon className="w-4 h-4 text-white/30 mx-auto mt-1" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-bold">{stop.name_en || stop.name_ko}</p>
-            {stop.name_ko && stop.name_en && <span className="text-[10px] text-white/30">{stop.name_ko}</span>}
-          </div>
-          <div className="flex items-center gap-3 mt-1 text-[10px] text-white/40">
+          <p className="text-sm font-bold truncate">{stop.name_en || stop.name_ko}</p>
+          <div className="flex items-center gap-3 mt-0.5 text-[10px] text-white/40">
             <span><Clock className="w-3 h-3 inline -mt-0.5" /> {stop.stay_min}min</span>
             {stop.entry_fee_krw > 0 ? <span className="text-yellow-400/70">{formatKRW(stop.entry_fee_krw)}</span> : <span className="text-green-400/70">Free</span>}
-            {stop.reservation_required && <span className="text-orange-400/70">Reservation</span>}
           </div>
-          {stop.tip_en && <p className="text-xs text-white/50 mt-2">{stop.tip_en}</p>}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-white/20 shrink-0 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+      </div>
+
+      {/* ── Expanded details ── */}
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="px-4 pb-4 pt-0 border-t border-white/[0.06]" onClick={(e) => e.stopPropagation()}>
+          {stop.name_ko && stop.name_en && <p className="text-[10px] text-white/30 mb-2">{stop.name_ko}</p>}
+          {stop.tip_en && <p className="text-xs text-white/50 mb-3">{stop.tip_en}</p>}
+          {stop.reservation_required && <p className="text-[10px] text-orange-400/70 mb-2">Reservation required</p>}
+          {stop.accessibility_note && <p className="text-[10px] text-blue-400/70 mb-2 flex items-center gap-1"><Accessibility className="w-3 h-3" /> {stop.accessibility_note}</p>}
           {stop.recommended_items?.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {stop.recommended_items.map((item: any, i: number) => (
-                <span key={i} className="inline-flex items-center gap-1 bg-white/[0.06] rounded-lg px-2.5 py-1 text-[10px]">
-                  <span className="text-white/70">{item.name}</span>
-                  {item.price_krw > 0 && <span className="text-[#7C5CFC] font-bold">{formatKRW(item.price_krw)}</span>}
-                </span>
-              ))}
+            <div className="mb-3">
+              <p className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Recommended</p>
+              <div className="flex flex-wrap gap-1.5">
+                {stop.recommended_items.map((item: any, i: number) => (
+                  <span key={i} className="inline-flex items-center gap-1 bg-white/[0.06] rounded-lg px-2.5 py-1 text-[10px]">
+                    <span className="text-white/70">{item.name}</span>
+                    {item.price_krw > 0 && <span className="text-[#7C5CFC] font-bold">{formatKRW(item.price_krw)}</span>}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
-          {stop.accessibility_note && <p className="text-[10px] text-blue-400/70 mt-1 flex items-center gap-1"><Accessibility className="w-3 h-3" /> {stop.accessibility_note}</p>}
-          {stop.naverMapUrl && <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-green-400/70 mt-1"><ExternalLink className="w-3 h-3" /> Naver Map</a>}
+          {stop.naverMapUrl && (
+            <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-green-400/70 hover:text-green-400">
+              <ExternalLink className="w-3 h-3" /> Open in Naver Map
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -310,51 +504,57 @@ function StopCard({ stop }: { stop: any }) {
 }
 
 function BudgetTable({ budget, tMoney }: { budget: any[]; tMoney: number }) {
+  const [open, setOpen] = useState(false);
   return (
-    <section className="mb-8">
-      <div className="flex items-center gap-2 mb-3">
-        <Wallet className="w-5 h-5 text-[#7C5CFC]" />
-        <h2 className="text-sm font-bold">Daily Budget Summary</h2>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-white/30 border-b border-white/[0.08]">
-              <th className="text-left py-2 px-2">Day</th>
-              <th className="text-right py-2 px-2">Transport</th>
-              <th className="text-right py-2 px-2">Entry</th>
-              <th className="text-right py-2 px-2">Meals</th>
-              <th className="text-right py-2 px-2">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {budget.map((row: any, i: number) => (
-              <tr key={i} className="border-b border-white/[0.04]">
-                <td className="py-2 px-2 font-semibold">Day {row.day}</td>
-                <td className="text-right py-2 px-2 text-white/50">{formatKRW(row.transport_krw)}</td>
-                <td className="text-right py-2 px-2 text-white/50">{formatKRW(row.entry_fees_krw)}</td>
-                <td className="text-right py-2 px-2 text-white/50">{formatKRW(row.meals_krw)}</td>
-                <td className="text-right py-2 px-2 font-bold text-[#7C5CFC]">{formatKRW(row.total_krw)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {tMoney > 0 && (
-        <div className="mt-3 bg-[#7C5CFC]/10 border border-[#7C5CFC]/20 rounded-xl px-4 py-3 flex items-center justify-between">
-          <span className="text-xs text-white/60">Recommended T-money load</span>
-          <span className="text-sm font-bold text-[#7C5CFC]">{formatKRW(tMoney)}</span>
+    <section className="mb-6">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-4">
+        <div className="flex items-center gap-3">
+          <Wallet className="w-5 h-5 text-[#7C5CFC]" />
+          <p className="text-sm font-bold">Daily Budget Summary</p>
         </div>
-      )}
+        <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-white/30 border-b border-white/[0.08]">
+                <th className="text-left py-2 px-2">Day</th>
+                <th className="text-right py-2 px-2">Transport</th>
+                <th className="text-right py-2 px-2">Entry</th>
+                <th className="text-right py-2 px-2">Meals</th>
+                <th className="text-right py-2 px-2">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {budget.map((row: any, i: number) => (
+                <tr key={i} className="border-b border-white/[0.04]">
+                  <td className="py-2 px-2 font-semibold">Day {row.day}</td>
+                  <td className="text-right py-2 px-2 text-white/50">{formatKRW(row.transport_krw)}</td>
+                  <td className="text-right py-2 px-2 text-white/50">{formatKRW(row.entry_fees_krw)}</td>
+                  <td className="text-right py-2 px-2 text-white/50">{formatKRW(row.meals_krw)}</td>
+                  <td className="text-right py-2 px-2 font-bold text-[#7C5CFC]">{formatKRW(row.total_krw)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {tMoney > 0 && (
+          <div className="mt-3 bg-[#7C5CFC]/10 border border-[#7C5CFC]/20 rounded-xl px-4 py-3 flex items-center justify-between">
+            <span className="text-xs text-white/60">Recommended T-money load</span>
+            <span className="text-sm font-bold text-[#7C5CFC]">{formatKRW(tMoney)}</span>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
 function DepartureGuide({ guide }: { guide: any }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
-    <section className="mb-8">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-4 mb-3">
+    <section className="mb-6">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-5 py-4">
         <div className="flex items-center gap-3">
           <Plane className="w-5 h-5 text-pink-400 rotate-45" />
           <div className="text-left">
@@ -362,9 +562,9 @@ function DepartureGuide({ guide }: { guide: any }) {
             <p className="text-xs text-white/40">{guide.airport}</p>
           </div>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}
+        <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
         <div className="space-y-3 pl-2">
           {guide.to_airport && (
             <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
@@ -390,7 +590,7 @@ function DepartureGuide({ guide }: { guide: any }) {
             </div>
           )}
         </div>
-      )}
+      </div>
     </section>
   );
 }
