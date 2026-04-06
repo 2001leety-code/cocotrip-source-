@@ -527,12 +527,15 @@ function StopCard({ stop }: { stop: any }) {
             </div>
           )}
 
-          {/* Naver Map link */}
-          {stop.naverMapUrl && (
-            <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
-              <ExternalLink className="w-3 h-3" /> Open in Naver Map
-            </a>
-          )}
+          {/* Naver Map link — always shown via name search fallback */}
+          {(() => {
+            const mapUrl = stop.naverMapUrl || `https://map.naver.com/v5/search/${encodeURIComponent(stop.name_ko || stop.name_en || '')}`;
+            return (
+              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+                <ExternalLink className="w-3 h-3" /> Open in Naver Map
+              </a>
+            );
+          })()}
         </div>
       </div>
     </div>
