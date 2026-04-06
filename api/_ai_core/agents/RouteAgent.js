@@ -23,14 +23,16 @@ export class RouteAgent extends BaseAgent {
         }
         const clientId = (process.env.NAVER_CLIENT_ID || "").trim();
         const clientSecret = (process.env.NAVER_CLIENT_SECRET || "").trim();
-        const itinerary = data.itinerary || [];
-        for (const dayPlan of itinerary) {
-            const places = dayPlan.places || [];
+        // Support both Gemini output formats: { itinerary: { days: [...] } } and { itinerary: [...] }
+        const rawItinerary = data.itinerary || {};
+        const daysList = Array.isArray(rawItinerary) ? rawItinerary : (rawItinerary.days || []);
+        for (const dayPlan of daysList) {
+            const places = dayPlan.stops || dayPlan.places || [];
             let prevLat = null;
             let prevLng = null;
             for (const place of places) {
                 const address = place.address || "";
-                const name = place.name || "";
+                const name = place.name_en || place.name_ko || place.name || "";
                 let lat = null;
                 let lng = null;
                 if (clientId && clientSecret && address) {
