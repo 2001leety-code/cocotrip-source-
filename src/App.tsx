@@ -27,7 +27,21 @@ const CharterPage = lazy(() => import('@/pages/CharterPage'));
 import MyPage from '@/pages/MyPage';
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
-const PlanDetailPage = lazy(() => import('@/pages/PlanDetailPage'));
+
+// Retry dynamic import — if chunk is stale after deploy, force one page reload
+function lazyRetry(importFn: () => Promise<any>) {
+  return lazy(() =>
+    importFn().catch(() => {
+      const key = 'chunk_reload';
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        window.location.reload();
+      }
+      return importFn();
+    })
+  );
+}
+const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
 
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
 import { MobileBottomNav } from '@/components/MobileBottomNav';

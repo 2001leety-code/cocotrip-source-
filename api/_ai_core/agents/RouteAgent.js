@@ -21,8 +21,8 @@ export class RouteAgent extends BaseAgent {
             console.warn("  [Route] JSON parse failed, falling back to LLM:", e.message);
             return super.call(userPrompt);
         }
-        const clientId = process.env.NAVER_CLIENT_ID || "";
-        const clientSecret = process.env.NAVER_CLIENT_SECRET || "";
+        const clientId = (process.env.NAVER_CLIENT_ID || "").trim();
+        const clientSecret = (process.env.NAVER_CLIENT_SECRET || "").trim();
         const itinerary = data.itinerary || [];
         for (const dayPlan of itinerary) {
             const places = dayPlan.places || [];
