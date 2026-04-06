@@ -4,8 +4,8 @@ import {
   MapPin, Users, Calendar, Wand2,
   ChevronDown, ChevronRight, ChevronLeft, Check,
   Music2, Sparkles, Shirt, UtensilsCrossed, Moon, Camera, ShoppingBag,
-  Film, Landmark, Mountain, Building2, Car, Hotel, Accessibility, Plane,
-  Download, MessageCircle, Wallet, Shield,
+  Film, Landmark, Mountain, Building2, Car, Plane,
+  Wallet, Shield,
 } from 'lucide-react';
 import type { PlannerFormValues } from './PlannerForm';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -117,7 +117,6 @@ export function WizardForm({ onSubmit, isLoading }: any) {
      STEP 0: Plan Your Trip — Destinations & Activities
      ═══════════════════════════════════════════════════════ */
   const renderStep0 = () => {
-    const showValidation = false; // could track attempted next
     return (
     <div className="space-y-6">
       <div>
