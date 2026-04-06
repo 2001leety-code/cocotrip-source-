@@ -387,7 +387,7 @@ export default async function handler(req, res) {
       model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.75,
-        maxOutputTokens: 6000,
+        maxOutputTokens: 12000,
         responseMimeType: 'application/json',
       },
     });
@@ -443,18 +443,54 @@ export default async function handler(req, res) {
 
     const rawText = result.response.text().trim();
     console.log('[ai-planner-full] Gemini raw (first 200):', rawText.substring(0, 200));
+    console.log('[ai-planner-full] Gemini raw length:', rawText.length);
     let itinerary;
     try {
       itinerary = JSON.parse(rawText);
-    } catch {
-      const cleaned = rawText.replace(/^```(?:json)?|```$/gm, '').trim();
+    } catch (parseErr1) {
+      console.warn('[ai-planner-full] Direct parse failed:', parseErr1.message);
+      // Step 1: strip markdown fences
+      let cleaned = rawText.replace(/^```(?:json)?|```$/gm, '').trim();
       const first = cleaned.indexOf('{');
-      const last = cleaned.lastIndexOf('}');
-      if (first !== -1 && last > first) {
-        try { itinerary = JSON.parse(cleaned.slice(first, last + 1)); }
-        catch { throw new Error('Gemini returned invalid JSON: ' + rawText.substring(0, 300)); }
-      } else {
-        throw new Error('Gemini returned non-JSON: ' + rawText.substring(0, 300));
+      if (first > 0) cleaned = cleaned.slice(first);
+
+      // Step 2: try parsing cleaned text
+      try {
+        itinerary = JSON.parse(cleaned);
+      } catch {
+        // Step 3: truncated JSON recovery — close open brackets/braces
+        console.warn('[ai-planner-full] Attempting truncated JSON repair...');
+        let repaired = cleaned;
+        // Remove any trailing incomplete string (cut off mid-value)
+        repaired = repaired.replace(/,\s*"[^"]*$/, '')        // trailing key without value
+                           .replace(/,\s*$/, '')                // trailing comma
+                           .replace(/"[^"]*$/, '"')             // cut-off string → close it
+                           .replace(/:\s*"[^"]*$/, ': ""');      // cut-off value → empty string
+
+        // Count and close open brackets/braces
+        let openBraces = 0, openBrackets = 0;
+        let inString = false;
+        for (let i = 0; i < repaired.length; i++) {
+          const ch = repaired[i];
+          if (ch === '\\' && inString) { i++; continue; }
+          if (ch === '"') { inString = !inString; continue; }
+          if (inString) continue;
+          if (ch === '{') openBraces++;
+          else if (ch === '}') openBraces--;
+          else if (ch === '[') openBrackets++;
+          else if (ch === ']') openBrackets--;
+        }
+        // Close any still-open structures
+        for (let i = 0; i < openBrackets; i++) repaired += ']';
+        for (let i = 0; i < openBraces; i++) repaired += '}';
+
+        try {
+          itinerary = JSON.parse(repaired);
+          console.log('[ai-planner-full] Truncated JSON repaired successfully');
+        } catch (parseErr3) {
+          console.error('[ai-planner-full] JSON repair also failed:', parseErr3.message);
+          throw new Error('Gemini returned invalid JSON (possibly truncated). Please try again.');
+        }
       }
     }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
