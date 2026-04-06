@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import {
   MapPin, Users, Calendar, Wand2,
-  ChevronDown, ChevronRight, ChevronLeft, Check,
+  ChevronRight, ChevronLeft, Check,
   Music2, Sparkles, Shirt, UtensilsCrossed, Moon, Camera, ShoppingBag,
-  Film, Landmark, Mountain, Building2, Car, Plane,
+  Film, Landmark, Mountain, Plane,
   Wallet, Shield,
 } from 'lucide-react';
 import type { PlannerFormValues } from './PlannerForm';
@@ -16,8 +16,6 @@ import { useAuth } from '@/hooks/useAuth';
    ═══════════════════════════════════════════════════════ */
 
 // City keys for dropdown
-const PROVINCIAL_CITY_KEYS = ['busan','jeju','gyeongju','jeonju','daegu','gangneung','yeosu','incheon','suwon'] as const;
-const ALL_CITY_KEYS = ['seoul',...PROVINCIAL_CITY_KEYS] as const;
 
 // Dynamic airport options per city
 type AirportOption = { value: string; label: string };
@@ -140,7 +138,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
   // Step 0: destinations
   const [mainCity, setMainCity]               = useState('');
-  const [areaType, setAreaType]               = useState<'seoul_city' | 'seoul_day' | 'provincial' | ''>('');
+  // areaType removed — city chips replace Trip Area selection
   const [extraCities, setExtraCities]         = useState<string[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
   const [freeText, setFreeText]               = useState('');
@@ -171,7 +169,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   }, [mainCity]);
 
   // validation
-  const canGoStep1 = areaType !== '' && mainCity !== '' && selectedActivities.length > 0;
+  const canGoStep1 = mainCity !== '' && selectedActivities.length > 0;
   const canGoStep2 = startDate !== '' && endDate !== '' && new Date(endDate) >= new Date(startDate) && pax >= 1 && arrivalTerminal !== '';
 
   // city name helper
@@ -224,112 +222,93 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     { label: 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
   ];
 
-  // City keys visible in dropdown depending on areaType
-  const visibleCityKeys = areaType === 'provincial' ? PROVINCIAL_CITY_KEYS : ALL_CITY_KEYS;
 
   /* ═══════════════════════════════════════════════════════
      STEP 0: Plan Your Trip — Destinations & Activities
      ═══════════════════════════════════════════════════════ */
-  const renderStep0 = () => (
+  const renderStep0 = () => {
+    // City chip data
+    const CITY_CHIPS = [
+      { key: 'seoul',     emoji: '🏙️' },
+      { key: 'busan',     emoji: '🌊' },
+      { key: 'jeju',      emoji: '🌋' },
+      { key: 'gyeongju',  emoji: '🏛️' },
+      { key: 'jeonju',    emoji: '🏮' },
+      { key: 'gangneung', emoji: '🎿' },
+      { key: 'incheon',   emoji: '✈️' },
+      { key: 'suwon',     emoji: '🏯' },
+      { key: 'yeosu',     emoji: '🚢' },
+      { key: 'daegu',     emoji: '🍎' },
+    ];
+
+    function toggleCity(cityName: string) {
+      if (mainCity === cityName) {
+        // deselect main → promote first extra or clear
+        const next = extraCities[0] || '';
+        setMainCity(next);
+        setExtraCities(prev => prev.slice(1));
+      } else if (extraCities.includes(cityName)) {
+        setExtraCities(prev => prev.filter(c => c !== cityName));
+      } else if (!mainCity) {
+        setMainCity(cityName);
+      } else {
+        setExtraCities(prev => [...prev, cityName]);
+      }
+    }
+
+    function isCitySelected(cityName: string) {
+      return mainCity === cityName || extraCities.includes(cityName);
+    }
+
+    return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-white mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
-        <p className="text-sm text-white/40">{p.wizardTitleSub || 'Select your destinations and interests'}</p>
+        <p className="text-sm text-white/40">{p.wizardTitleSub || 'Tap cities to add — first selected is your main base'}</p>
       </div>
 
-      {/* Trip Area */}
+      {/* City chips */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.tripAreaLabel || 'Trip Area'}</p>
-        <div className="grid grid-cols-3 gap-2">
-          {([
-            { id: 'seoul_city' as const, icon: <Building2 className="w-5 h-5" />, label: p.tripAreaSeoulCity || 'Seoul City', city: 'seoul' },
-            { id: 'seoul_day'  as const, icon: <Car className="w-5 h-5" />,       label: p.tripAreaSeoulDay || 'Seoul + Day Trip' },
-            { id: 'provincial' as const, icon: <Mountain className="w-5 h-5" />,  label: p.tripAreaProvincial || 'Provincial' },
-          ]).map(area => {
-            const isSelected = areaType === area.id;
+        <p className="text-sm text-white/50 mb-3 font-medium">
+          {p.tripAreaLabel || 'Select Cities'}
+          {allCities.length > 0 && (
+            <span className="ml-2 text-[#7C5CFC] font-bold">{allCities.length} selected</span>
+          )}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {CITY_CHIPS.map(({ key, emoji }) => {
+            const cityName = getCityName(key);
+            const sel = isCitySelected(cityName);
+            const isMain = mainCity === cityName;
             return (
-              <button key={area.id} onClick={() => {
-                setAreaType(area.id);
-                if (area.id === 'seoul_city') {
-                  setMainCity(getCityName('seoul'));
-                  setExtraCities([]);
-                } else if (area.id === 'seoul_day') {
-                  setMainCity(getCityName('seoul'));
-                  const daytripCity = getCityName('suwon');
-                  setExtraCities(prev => prev.includes(daytripCity) ? prev : [daytripCity]);
-                } else {
-                  // provincial: reset to let user pick
-                  setMainCity('');
-                  setExtraCities([]);
-                }
-              }}
-                className={`flex flex-col items-center gap-1.5 py-3.5 px-2 rounded-xl border text-center transition-all ${
-                  isSelected ? 'border-[#7C5CFC] bg-[#7C5CFC]/10 text-white shadow-[0_0_10px_rgba(124,92,252,0.15)]' : 'border-white/[0.1] bg-white/[0.04] text-white/55 hover:border-[#7C5CFC]/50 hover:text-white/80'
-                }`}>
-                {area.icon}
-                <span className="text-xs font-semibold">{area.label}</span>
+              <button key={key} onClick={() => toggleCity(cityName)}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl border text-left transition-all ${
+                  sel
+                    ? 'border-[#7C5CFC]/60 text-white'
+                    : 'border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
+                }`}
+                style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.2),rgba(234,83,126,.12))' } : {}}>
+                <span className="text-lg">{emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{cityName}</p>
+                  {isMain && <p className="text-[10px] text-[#7C5CFC]/80 font-medium">Main base</p>}
+                </div>
+                {sel && <Check className="w-4 h-4 text-[#7C5CFC] shrink-0" />}
               </button>
             );
           })}
         </div>
+        {allCities.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            <span className="text-xs text-white/30">Route:</span>
+            {allCities.map((c, i) => (
+              <span key={c} className="text-xs text-white/50">
+                {i > 0 && <span className="text-white/20 mx-1">→</span>}{c}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Main City — hidden for seoul_city (auto-set to Seoul) */}
-      {areaType !== 'seoul_city' && areaType !== '' && (
-        <div>
-          <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardMainCity || 'Main City'}</p>
-          <div className="relative">
-            <select value={mainCity} onChange={e => setMainCity(e.target.value)}
-              className="w-full appearance-none bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl pl-5 pr-12 py-4 text-base cursor-pointer focus:outline-none focus:border-[#7C5CFC]/70 transition-colors">
-              <option value="" disabled className="bg-[#0f111a]">{p.wizardMainCityPh || 'Select main city'}</option>
-              {(areaType === 'seoul_day' ? ALL_CITY_KEYS : visibleCityKeys).map(key =>
-                <option key={key} value={getCityName(key)} className="bg-[#0f111a]">{getCityName(key)}</option>
-              )}
-            </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none" />
-          </div>
-        </div>
-      )}
-
-      {/* Seoul City confirmation */}
-      {areaType === 'seoul_city' && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#7C5CFC]/30 bg-[#7C5CFC]/8">
-          <Building2 className="w-5 h-5 text-[#7C5CFC] shrink-0" />
-          <div>
-            <p className="text-sm font-bold text-white">{getCityName('seoul')}</p>
-            <p className="text-xs text-white/40">Main destination set automatically</p>
-          </div>
-        </div>
-      )}
-
-      {/* Additional Cities (show for day trip / provincial) */}
-      {(areaType === 'seoul_day' || areaType === 'provincial') && mainCity && (
-        <div>
-          <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardExtraCities || 'Additional Cities'} <span className="text-white/25">({p.wizardExtraOptional || 'optional'})</span></p>
-          <div className="relative">
-            <select value="" onChange={e => {
-              const v = e.target.value;
-              if (v && !extraCities.includes(v) && v !== mainCity) setExtraCities(prev => [...prev, v]);
-            }}
-              className="w-full appearance-none bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl pl-5 pr-12 py-4 text-base cursor-pointer focus:outline-none focus:border-[#7C5CFC]/70 transition-colors">
-              <option value="" className="bg-[#0f111a]">{p.wizardExtraCitiesPh || 'Add more cities...'}</option>
-              {ALL_CITY_KEYS.filter(key => getCityName(key) !== mainCity && !extraCities.includes(getCityName(key)))
-                .map(key => <option key={key} value={getCityName(key)} className="bg-[#0f111a]">{getCityName(key)}</option>)}
-            </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none" />
-          </div>
-          {extraCities.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {extraCities.map(city => (
-                <button key={city} onClick={() => setExtraCities(prev => prev.filter(c => c !== city))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white border border-[#EA537E]/40 bg-[#EA537E]/12 hover:bg-[#EA537E]/25 transition-all">
-                  {city} <span className="text-white/40 hover:text-white">&times;</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Activities */}
       <div>
@@ -376,7 +355,8 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         Next: Details <ChevronRight className="w-5 h-5" />
       </button>
     </div>
-  );
+    );
+  };
 
   /* ═══════════════════════════════════════════════════════
      STEP 1: Travel Details
