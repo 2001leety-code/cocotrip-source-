@@ -6,7 +6,7 @@
  * → planId + planUrl 응답 → 알림 이메일 (non-blocking)
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import nodemailer from 'nodemailer';
+// nodemailer is dynamically imported inside sendNotificationEmail
 import { getSpotContext } from './_spots_helper.js';
 import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
 import { randomUUID } from 'crypto';
@@ -309,6 +309,7 @@ async function sendNotificationEmail({ email, guestName, tourTitle, planId, plan
   </div></body></html>`;
 
   try {
+    const { default: nodemailer } = await import('nodemailer');
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: gmailUser, pass: gmailPass } });
     await transporter.sendMail({
       from: `"CocoTrip" <${gmailUser}>`,
