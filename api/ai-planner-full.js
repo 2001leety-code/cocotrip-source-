@@ -61,6 +61,7 @@ try {
       credential: cert({ projectId, clientEmail, privateKey }),
     });
     adminDb = getAdminFirestore(adminApp);
+    adminDb.settings({ ignoreUndefinedProperties: true });
     console.log('[ai-planner-full] firebase-admin initialized OK');
   } else {
     console.warn('[ai-planner-full] firebase-admin keys missing — Firestore disabled');
