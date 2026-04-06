@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import {
   MapPin, Users, Calendar, Wand2,
@@ -14,7 +14,90 @@ import { useAuth } from '@/hooks/useAuth';
 /* ═══════════════════════════════════════════════════════
    DATA
    ═══════════════════════════════════════════════════════ */
-const CITY_KEYS = ['seoul','busan','gyeongju','jeonju','jeju','gangneung','incheon','yeosu','suwon','daegu'] as const;
+
+// City keys for dropdown
+const PROVINCIAL_CITY_KEYS = ['busan','jeju','gyeongju','jeonju','daegu','gangneung','yeosu','incheon','suwon'] as const;
+const ALL_CITY_KEYS = ['seoul',...PROVINCIAL_CITY_KEYS] as const;
+
+// Dynamic airport options per city
+type AirportOption = { value: string; label: string };
+
+const AIRPORT_OPTIONS: Record<string, AirportOption[]> = {
+  Seoul: [
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ICN_T2', label: 'ICN Terminal 2' },
+    { value: 'GMP',    label: 'Gimpo Airport' },
+    { value: 'ALREADY', label: 'Already in Seoul' },
+  ],
+  Incheon: [
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ICN_T2', label: 'ICN Terminal 2' },
+    { value: 'ALREADY', label: 'Already in Incheon' },
+  ],
+  Busan: [
+    { value: 'PUS',    label: 'Gimhae Airport (PUS)' },
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ICN_T2', label: 'ICN Terminal 2' },
+    { value: 'ALREADY', label: 'Already in Busan' },
+  ],
+  Gyeongju: [
+    { value: 'PUS',    label: 'Gimhae Airport (PUS)' },
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ALREADY', label: 'Already in Korea' },
+  ],
+  Daegu: [
+    { value: 'TAE',    label: 'Daegu Airport (TAE)' },
+    { value: 'PUS',    label: 'Gimhae Airport (PUS)' },
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ALREADY', label: 'Already in Daegu' },
+  ],
+  Jeju: [
+    { value: 'CJU',    label: 'Jeju Airport (CJU)' },
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ALREADY', label: 'Already in Jeju' },
+  ],
+  Jeonju: [
+    { value: 'MWX',    label: 'Muan Airport (MWX)' },
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ALREADY', label: 'Already in Korea' },
+  ],
+  Gangneung: [
+    { value: 'YNY',    label: 'Yangyang Airport (YNY)' },
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ALREADY', label: 'Already in Korea' },
+  ],
+  Yeosu: [
+    { value: 'RSU',    label: 'Yeosu Airport (RSU)' },
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ALREADY', label: 'Already in Korea' },
+  ],
+  Suwon: [
+    { value: 'ICN_T1', label: 'ICN Terminal 1' },
+    { value: 'ICN_T2', label: 'ICN Terminal 2' },
+    { value: 'GMP',    label: 'Gimpo Airport' },
+    { value: 'ALREADY', label: 'Already in Korea' },
+  ],
+};
+
+const DEFAULT_AIRPORTS = AIRPORT_OPTIONS.Seoul;
+
+function getAirportOptions(cityName: string): AirportOption[] {
+  // Match by city name (may be localized)
+  for (const [key, opts] of Object.entries(AIRPORT_OPTIONS)) {
+    if (cityName.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cityName.toLowerCase())) {
+      return opts;
+    }
+  }
+  return DEFAULT_AIRPORTS;
+}
+
+// Airport display names for summary
+const AIRPORT_DISPLAY: Record<string, string> = {
+  ICN_T1: 'ICN T1', ICN_T2: 'ICN T2', GMP: 'Gimpo',
+  PUS: 'Gimhae (PUS)', CJU: 'Jeju (CJU)', TAE: 'Daegu (TAE)',
+  KWJ: 'Gwangju (KWJ)', MWX: 'Muan (MWX)', YNY: 'Yangyang (YNY)',
+  RSU: 'Yeosu (RSU)', ALREADY: 'Already in KR',
+};
 
 const ACTIVITY_ICON_MAP: Record<string, ReactNode> = {
   Kpop:     <Music2 className="w-5 h-5" />,
@@ -53,6 +136,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const p: any = t.planner;
   const [step, setStep] = useState(0);
   const { user } = useAuth();
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Step 0: destinations
   const [mainCity, setMainCity]               = useState('');
@@ -65,7 +149,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const [startDate, setStartDate]             = useState('');
   const [endDate, setEndDate]                 = useState('');
   const [paxInput, setPaxInput]               = useState('2');
-  const [arrivalTerminal, setArrivalTerminal] = useState<'ICN_T1'|'ICN_T2'|'GMP'|'already_in_korea'|''>('');
+  const [arrivalTerminal, setArrivalTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');
   const [mobility, setMobility]              = useState<'ok'|'limited'>('ok');
 
@@ -74,6 +158,17 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const durationDays = (startDate && endDate) ? Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000)) : 3;
   const pax = parseInt(paxInput) || 2;
   const departureAirport = arrivalTerminal;
+
+  // Dynamic airport options based on selected city
+  const airportOptions = getAirportOptions(mainCity);
+
+  // Reset airport when mainCity changes (current selection may not be valid)
+  useEffect(() => {
+    const validValues = airportOptions.map(o => o.value);
+    if (arrivalTerminal && !validValues.includes(arrivalTerminal)) {
+      setArrivalTerminal('');
+    }
+  }, [mainCity]);
 
   // validation
   const canGoStep1 = areaType !== '' && mainCity !== '' && selectedActivities.length > 0;
@@ -91,20 +186,36 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     setSelectedActivities(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
+    setErrorMsg('');
     const sd = startDate || new Date().toISOString().split('T')[0];
     const ed = endDate || new Date(Date.now() + durationDays * 86400000).toISOString().split('T')[0];
-    onSubmit({
-      startDate: sd, endDate: ed,
-      regions: allCities.length > 0 ? allCities : ['Seoul'],
-      categories: selectedActivities, transport: 'staria', pax, durationDays,
-      freeText: freeText || '',
-      arrival_airport: arrivalTerminal,
-      departure_airport: departureAirport,
-      hotel_address: hotelAddress,
-      mobility,
-      uid: user?.uid || null,
-    } as PlannerFormValues);
+
+    try {
+      const res = await onSubmit({
+        startDate: sd, endDate: ed,
+        regions: allCities.length > 0 ? allCities : ['Seoul'],
+        categories: selectedActivities, transport: 'staria', pax, durationDays,
+        freeText: freeText || '',
+        arrival_airport: arrivalTerminal,
+        departure_airport: departureAirport,
+        hotel_address: hotelAddress,
+        mobility,
+        uid: user?.uid || null,
+      } as PlannerFormValues);
+
+      // If onSubmit returns a response with error info
+      if (res && !res.ok) {
+        const data = res.data || {};
+        if (data.code === 'GEMINI_TIMEOUT') {
+          setErrorMsg('AI is taking too long. Please try again in a moment.');
+        } else {
+          setErrorMsg(data.error || 'Something went wrong. Please try again.');
+        }
+      }
+    } catch {
+      setErrorMsg('Network error. Please check your connection and try again.');
+    }
   }
 
   const STEPS = [
@@ -113,11 +224,13 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     { label: 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
   ];
 
+  // City keys visible in dropdown depending on areaType
+  const visibleCityKeys = areaType === 'provincial' ? PROVINCIAL_CITY_KEYS : ALL_CITY_KEYS;
+
   /* ═══════════════════════════════════════════════════════
      STEP 0: Plan Your Trip — Destinations & Activities
      ═══════════════════════════════════════════════════════ */
-  const renderStep0 = () => {
-    return (
+  const renderStep0 = () => (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-white mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
@@ -129,19 +242,24 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <p className="text-sm text-white/50 mb-2.5 font-medium">{p.tripAreaLabel || 'Trip Area'}</p>
         <div className="grid grid-cols-3 gap-2">
           {([
-            { id: 'seoul_city' as const, icon: <Building2 className="w-5 h-5" />, label: p.tripAreaSeoulCity || 'Seoul City', city: 'seoul', dayTrip: false },
-            { id: 'seoul_day'  as const, icon: <Car className="w-5 h-5" />,       label: p.tripAreaSeoulDay || 'Seoul Day Trip',  city: 'seoul', dayTrip: true  },
-            { id: 'provincial' as const, icon: <Mountain className="w-5 h-5" />,  label: p.tripAreaProvincial || 'Provincial', city: 'busan', dayTrip: false },
+            { id: 'seoul_city' as const, icon: <Building2 className="w-5 h-5" />, label: p.tripAreaSeoulCity || 'Seoul City', city: 'seoul' },
+            { id: 'seoul_day'  as const, icon: <Car className="w-5 h-5" />,       label: p.tripAreaSeoulDay || 'Seoul + Day Trip' },
+            { id: 'provincial' as const, icon: <Mountain className="w-5 h-5" />,  label: p.tripAreaProvincial || 'Provincial' },
           ]).map(area => {
             const isSelected = areaType === area.id;
             return (
               <button key={area.id} onClick={() => {
                 setAreaType(area.id);
-                setMainCity(getCityName(area.city));
-                if (area.dayTrip) {
+                if (area.id === 'seoul_city') {
+                  setMainCity(getCityName('seoul'));
+                  setExtraCities([]);
+                } else if (area.id === 'seoul_day') {
+                  setMainCity(getCityName('seoul'));
                   const daytripCity = getCityName('suwon');
                   setExtraCities(prev => prev.includes(daytripCity) ? prev : [daytripCity]);
                 } else {
+                  // provincial: reset to let user pick
+                  setMainCity('');
                   setExtraCities([]);
                 }
               }}
@@ -156,21 +274,36 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         </div>
       </div>
 
-      {/* Main City */}
-      <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardMainCity || 'Main City'}</p>
-        <div className="relative">
-          <select value={mainCity} onChange={e => setMainCity(e.target.value)}
-            className="w-full appearance-none bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl pl-5 pr-12 py-4 text-base cursor-pointer focus:outline-none focus:border-[#7C5CFC]/70 transition-colors">
-            <option value="" disabled className="bg-[#0f111a]">{p.wizardMainCityPh || 'Select main city'}</option>
-            {CITY_KEYS.map(key => <option key={key} value={getCityName(key)} className="bg-[#0f111a]">{getCityName(key)}</option>)}
-          </select>
-          <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none" />
+      {/* Main City — hidden for seoul_city (auto-set to Seoul) */}
+      {areaType !== 'seoul_city' && areaType !== '' && (
+        <div>
+          <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardMainCity || 'Main City'}</p>
+          <div className="relative">
+            <select value={mainCity} onChange={e => setMainCity(e.target.value)}
+              className="w-full appearance-none bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl pl-5 pr-12 py-4 text-base cursor-pointer focus:outline-none focus:border-[#7C5CFC]/70 transition-colors">
+              <option value="" disabled className="bg-[#0f111a]">{p.wizardMainCityPh || 'Select main city'}</option>
+              {(areaType === 'seoul_day' ? ALL_CITY_KEYS : visibleCityKeys).map(key =>
+                <option key={key} value={getCityName(key)} className="bg-[#0f111a]">{getCityName(key)}</option>
+              )}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none" />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Seoul City confirmation */}
+      {areaType === 'seoul_city' && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#7C5CFC]/30 bg-[#7C5CFC]/8">
+          <Building2 className="w-5 h-5 text-[#7C5CFC] shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-white">{getCityName('seoul')}</p>
+            <p className="text-xs text-white/40">Main destination set automatically</p>
+          </div>
+        </div>
+      )}
 
       {/* Additional Cities (show for day trip / provincial) */}
-      {(areaType === 'seoul_day' || areaType === 'provincial') && (
+      {(areaType === 'seoul_day' || areaType === 'provincial') && mainCity && (
         <div>
           <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardExtraCities || 'Additional Cities'} <span className="text-white/25">({p.wizardExtraOptional || 'optional'})</span></p>
           <div className="relative">
@@ -180,7 +313,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
             }}
               className="w-full appearance-none bg-white/[0.06] border border-white/[0.12] text-white rounded-2xl pl-5 pr-12 py-4 text-base cursor-pointer focus:outline-none focus:border-[#7C5CFC]/70 transition-colors">
               <option value="" className="bg-[#0f111a]">{p.wizardExtraCitiesPh || 'Add more cities...'}</option>
-              {CITY_KEYS.filter(key => getCityName(key) !== mainCity && !extraCities.includes(getCityName(key)))
+              {ALL_CITY_KEYS.filter(key => getCityName(key) !== mainCity && !extraCities.includes(getCityName(key)))
                 .map(key => <option key={key} value={getCityName(key)} className="bg-[#0f111a]">{getCityName(key)}</option>)}
             </select>
             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none" />
@@ -243,7 +376,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         Next: Details <ChevronRight className="w-5 h-5" />
       </button>
     </div>
-  )};
+  );
 
   /* ═══════════════════════════════════════════════════════
      STEP 1: Travel Details
@@ -263,7 +396,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
             <label className="text-xs text-white/30 mb-1 block">{p.startDate || 'Start Date'}</label>
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
               lang="en" min={new Date().toISOString().split('T')[0]}
-              className={`w-full bg-white/[0.06] border ${!startDate && step === 1 ? 'border-white/[0.12]' : 'border-white/[0.12]'} text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]`} />
+              className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
           </div>
           <div>
             <label className="text-xs text-white/30 mb-1 block">{p.endDate || 'End Date'}</label>
@@ -284,23 +417,21 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-5 py-3 text-base focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
       </div>
 
-      {/* Arrival Airport Chips */}
+      {/* Dynamic Airport Chips — based on mainCity */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">Which airport are you arriving at?</p>
+        <p className="text-sm text-white/50 mb-2.5 font-medium">
+          Which airport are you arriving at?
+          {mainCity && <span className="text-white/25 ml-1">({mainCity})</span>}
+        </p>
         <div className="grid grid-cols-2 gap-2">
-          {([
-            ['ICN_T1','ICN Terminal 1'] as const,
-            ['ICN_T2','ICN Terminal 2'] as const,
-            ['GMP','Gimpo Airport'] as const,
-            ['already_in_korea','Already in Korea'] as const
-          ]).map(([val,label]) => (
-            <button key={val} onClick={() => setArrivalTerminal(arrivalTerminal === val ? '' : val as any)}
+          {airportOptions.map((opt) => (
+            <button key={opt.value} onClick={() => setArrivalTerminal(arrivalTerminal === opt.value ? '' : opt.value)}
               className={`px-3.5 py-3 rounded-xl text-sm font-semibold border transition-all ${
-                arrivalTerminal === val 
-                  ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white shadow-[0_0_8px_rgba(124,92,252,0.15)]' 
+                arrivalTerminal === opt.value
+                  ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white shadow-[0_0_8px_rgba(124,92,252,0.15)]'
                   : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
               }`}>
-              {(p as any)[val.toLowerCase()] || label}
+              {opt.label}
             </button>
           ))}
         </div>
@@ -348,7 +479,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
      STEP 2: Review & Generate
      ═══════════════════════════════════════════════════════ */
   const renderStep2 = () => {
-    const airportLabel = arrivalTerminal === 'ICN_T1' ? 'ICN T1' : arrivalTerminal === 'ICN_T2' ? 'ICN T2' : arrivalTerminal === 'GMP' ? 'Gimpo' : 'In Korea';
+    const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
     return (
     <div className="space-y-6">
       <h2 className="text-lg font-bold text-white">Review Your Trip</h2>
@@ -401,6 +532,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
             <span className="text-sm text-white/30">/ &#8361;6,600</span>
           </div>
         </div>
+
+        {errorMsg && (
+          <div className="bg-red-500/15 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-300">
+            {errorMsg}
+          </div>
+        )}
 
         <button onClick={handleGenerate} disabled={isLoading}
           className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-50"

@@ -48,6 +48,26 @@ const AIRPORT_ADDRESSES = {
   ICN_T2: '인천광역시 중구 제2터미널대로 (제2여객터미널)',
   ICN: '인천광역시 중구 공항로272번길 43 (인천국제공항)',
   GMP: '서울특별시 강서구 하늘길 77',
+  PUS: '부산광역시 강서구 공항진입로 108',
+  CJU: '제주특별자치도 제주시 공항로 2',
+  TAE: '대구광역시 동구 공항로 221',
+  KWJ: '광주광역시 광산구 상무대로 420',
+  MWX: '전라남도 무안군 망운면 공항로 970-260',
+  YNY: '강원특별자치도 양양군 손양면 공항로 201',
+  ALREADY: null,
+};
+
+const AIRPORT_NAMES = {
+  ICN_T1: 'Incheon Airport Terminal 1',
+  ICN_T2: 'Incheon Airport Terminal 2',
+  GMP: 'Gimpo Airport',
+  PUS: 'Gimhae Airport (Busan)',
+  CJU: 'Jeju Airport',
+  TAE: 'Daegu Airport',
+  KWJ: 'Gwangju Airport',
+  MWX: 'Muan Airport',
+  YNY: 'Yangyang Airport',
+  ALREADY: null,
 };
 
 // ── Rich System Prompt ──────────────────────────────────────────────────
@@ -310,6 +330,9 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
   }
 
+  const handlerStart = Date.now();
+  console.log('[planner] === START ===');
+
   try {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
@@ -363,7 +386,7 @@ export default async function handler(req, res) {
       model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.75,
-        maxOutputTokens: 8000,
+        maxOutputTokens: 6000,
         responseMimeType: 'application/json',
       },
     });
@@ -392,16 +415,30 @@ export default async function handler(req, res) {
       special_request: specialRequest || undefined,
     }) + spotContext;
 
-    const timer = setTimeout(() => {}, 55000);
+    // ── Gemini 호출 + 45초 타임아웃 (Promise.race) ───────────────────────
+    const GEMINI_TIMEOUT_MS = 45000;
+    const geminiStart = Date.now();
+
+    const geminiPromise = model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+      systemInstruction: { role: 'system', parts: [{ text: buildSystemPrompt(language) }] },
+    });
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini API timeout after 45s')), GEMINI_TIMEOUT_MS);
+    });
+
     let result;
     try {
-      result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-        systemInstruction: { role: 'system', parts: [{ text: buildSystemPrompt(language) }] },
-      });
-    } finally {
-      clearTimeout(timer);
+      result = await Promise.race([geminiPromise, timeoutPromise]);
+    } catch (err) {
+      console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
+      if (err.message.includes('timeout')) {
+        res.writeHead(504, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'AI is taking too long. Please try again.', code: 'GEMINI_TIMEOUT' }));
+      }
+      throw err;
     }
+    console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
 
     const rawText = result.response.text().trim();
     console.log('[ai-planner-full] Gemini raw (first 200):', rawText.substring(0, 200));
@@ -421,7 +458,13 @@ export default async function handler(req, res) {
     }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
 
+    // ALREADY → arrival_guide 제거
+    if (arrival_airport === 'ALREADY') {
+      delete itinerary.arrival_guide;
+    }
+
     // ── RouteAgent: Naver Maps 보강 (non-fatal) ─────────────────────────
+    const routeStart = Date.now();
     try {
       const routeAgent = new RouteAgent(apiKey);
       const wrapped = { itinerary: (itinerary.days || []).map(d => ({ ...d, places: d.stops || [] })) };
@@ -443,9 +486,9 @@ export default async function handler(req, res) {
           }
         });
       }
-      console.log('[ai-planner-full] RouteAgent enrichment complete');
+      console.log('[planner] Route:', Date.now() - routeStart, 'ms');
     } catch (routeErr) {
-      console.warn('[ai-planner-full] RouteAgent failed (non-fatal):', routeErr.message);
+      console.warn('[planner] Route failed (non-fatal):', routeErr.message, '|', Date.now() - routeStart, 'ms');
     }
 
     // ── T-money 서버 계산 ────────────────────────────────────────────────
@@ -545,6 +588,8 @@ export default async function handler(req, res) {
         currency: 'KRW',
       },
     }));
+
+    console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms ===');
 
     // ── 알림 이메일 (non-blocking — 응답 후 발송) ───────────────────────
     if (email) {
