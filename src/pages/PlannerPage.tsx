@@ -1322,6 +1322,31 @@ export default function PlannerPage() {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let lastPlanUrl = '';
+        let navigated = false;
+
+        function processLine(line: string) {
+          if (!line.startsWith('data: ')) return;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.step) setStreamStep(event.step);
+            if (event.agent) setStreamAgent(event.agent);
+            if (event.planUrl) lastPlanUrl = event.planUrl;
+            if (event.status === 'error') {
+              throw new Error(event.error || 'Generation failed');
+            }
+            if (event.status === 'complete' && event.planUrl) {
+              navigated = true;
+              navigate(event.planUrl);
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message !== 'Generation failed') {
+              console.warn('[SSE] Parse error:', parseErr);
+            } else {
+              throw parseErr;
+            }
+          }
+        }
 
         while (true) {
           const { done, value } = await reader.read();
@@ -1331,28 +1356,26 @@ export default function PlannerPage() {
           buffer = lines.pop() || ''; // keep incomplete line
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const event = JSON.parse(line.slice(6));
-                if (event.step) setStreamStep(event.step);
-                if (event.agent) setStreamAgent(event.agent);
-                if (event.status === 'error') {
-                  throw new Error(event.error || 'Generation failed');
-                }
-                if (event.status === 'complete' && event.planUrl) {
-                  navigate(event.planUrl);
-                  return;
-                }
-              } catch (parseErr) {
-                if (parseErr instanceof Error && parseErr.message !== 'Generation failed') {
-                  console.warn('[SSE] Parse error:', parseErr);
-                } else {
-                  throw parseErr;
-                }
-              }
-            }
+            processLine(line);
+            if (navigated) return;
           }
         }
+
+        // Process any remaining buffer after stream ends
+        if (buffer.trim()) {
+          const remainingLines = buffer.split('\n');
+          for (const line of remainingLines) {
+            processLine(line.trim());
+            if (navigated) return;
+          }
+        }
+
+        // Fallback: if we got a planUrl from any event, navigate
+        if (lastPlanUrl) {
+          navigate(lastPlanUrl);
+          return;
+        }
+
         // If we get here without navigating, fallback
         setStatus('error');
         setErrorMsg('Stream ended without result. Please try again.');

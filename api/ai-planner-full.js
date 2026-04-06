@@ -395,9 +395,11 @@ export default async function handler(req, res) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',               // nginx proxy buffering 비활성화
     });
     function sendEvent(data) {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
+      if (res.flush) res.flush();  // Force flush for Vercel streaming
     }
     sendEvent({ status: 'started', step: 1, agent: 'gemini', message: 'Crafting your itinerary...' });
 
