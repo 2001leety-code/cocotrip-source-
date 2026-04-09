@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock } from 'lucide-react';
+import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import {
@@ -30,13 +31,14 @@ const AIRPORTS = [
 const ICN_DESTS = Object.entries(AIRPORT_TRANSFER_PRICES);
 
 // ── 스타일 상수 ─────────────────────────────────────
-const SEL  = 'border-[#7C5CFC] bg-gradient-to-br from-[#7C5CFC]/10 to-[#EA537E]/10 text-[#7C5CFC] shadow-[0_0_15px_rgba(124,92,252,0.15)]';
-const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-[#7C5CFC]/50 hover:text-white/90 hover:shadow-[0_0_10px_rgba(124,92,252,0.1)] transition-all';
+const SEL  = 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/10 text-[#B668FC] shadow-[0_0_15px_rgba(182,104,252,0.15)]';
+const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-[#B668FC]/50 hover:text-white/90 hover:shadow-[0_0_10px_rgba(182,104,252,0.1)] transition-all';
 const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/35 font-semibold mb-3';
 
 // ── 메인 컴포넌트 ────────────────────────────────────
 export default function CharterPage() {
   const { language, t, changeLanguage } = useLanguage();
+  const isMobile = useIsMobile();
   const p = t.planner;
   const c = (t as any).charterPage ?? {} as any;
   const lk = language === 'ko' ? 'ko' : 'en'; // language key for pricing data
@@ -115,30 +117,36 @@ export default function CharterPage() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: '#080b14' }}>
+    <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       {/* Hero */}
       <section className="text-white pt-24 pb-10 px-4"
-        style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
+        style={{ background: isMobile
+          ? 'linear-gradient(160deg, #0a0412 0%, #1a0a2e 60%, #0d0618 100%)'
+          : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
         <div className="max-w-2xl mx-auto">
           <Link to="/" className="inline-flex items-center gap-1.5 text-white/35 text-xs hover:text-white/60 transition-colors mb-6">
             <ArrowLeft className="w-3.5 h-3.5" />{c.backToHome ?? '홈으로'}
           </Link>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[rgba(196,149,106,.35)] bg-[rgba(196,149,106,.08)] text-[#D4A574] text-[11px] font-semibold tracking-wider uppercase mb-4">
-            <Car className="w-3.5 h-3.5" />{c.badge ?? '전세차량 견적'}
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold tracking-wider uppercase mb-4 ${
+            isMobile
+              ? 'border-[#B668FC]/35 bg-[#B668FC]/08 text-[#B668FC]'
+              : 'border-[rgba(196,149,106,.35)] bg-[rgba(196,149,106,.08)] text-[#D4A574]'
+          }`}>
+            {isMobile ? <Sparkles className="w-3.5 h-3.5" /> : <Car className="w-3.5 h-3.5" />}{c.badge ?? '전세차량 견적'}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight text-white mb-2">
+          <h1 className={`text-2xl sm:text-3xl font-bold leading-tight mb-2 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
             {c.heroTitle ?? '코코트립 전세차량 견적'}
           </h1>
           <p className="text-white/50 text-sm">{c.heroSubtitle ?? '공항 픽업 · 일일 투어 · K-pop 셔틀 · 단체 투어'}</p>
         </div>
       </section>
 
-      <main className="max-w-2xl mx-auto px-4 pb-20 space-y-6 pt-6">
+      <main className={`max-w-2xl mx-auto px-4 space-y-6 pt-6 ${isMobile ? 'pb-6' : 'pb-20'}`}>
 
         {/* ── 1. 차량 선택 ── */}
-        <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6">
+        <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6'}`}>
           <div className={`${LABEL} flex items-center gap-1.5`}><Car className="w-3 h-3" />{c.vehicleSelect ?? '차량 선택'}</div>
           <div className="grid grid-cols-3 gap-3">
             {(Object.entries(VEHICLE_TYPES) as [VehicleType, typeof VEHICLE_TYPES[VehicleType]][]).map(([key, veh]) => (
@@ -174,7 +182,7 @@ export default function CharterPage() {
         </div>
 
         {/* ── 2. 서비스 유형 ── */}
-        <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6">
+        <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6'}`} style={isMobile ? { animationDelay: '0.1s' } : undefined}>
           <p className={LABEL}>{c.serviceType ?? '서비스 유형'}</p>
           <div className="flex flex-wrap gap-2">
             {SERVICE_ITEMS.map(s => (
@@ -192,7 +200,7 @@ export default function CharterPage() {
         {/* ── 3. 상세 정보 (K-pop 아닐 때만 표시) ── */}
         {service !== 'kpop' && (
           <>
-            <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 space-y-5">
+            <div className={`${isMobile ? 'm-card m-appear p-5 space-y-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 space-y-5'}`} style={isMobile ? { animationDelay: '0.2s' } : undefined}>
               <p className={LABEL}>{c.details ?? '상세 정보'}</p>
 
           {/* 공항 픽업 */}
@@ -310,10 +318,12 @@ export default function CharterPage() {
 
             {/* ── 4. 예상 견적 패널 ── */}
             {quote && (
-              <div className="rounded-2xl border border-[rgba(196,149,106,.3)] overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.08) 0%, rgba(10,16,32,0.95) 100%)' }}>
+              <div className={`rounded-2xl border overflow-hidden ${isMobile ? 'border-[#B668FC]/30 m-appear' : 'border-[rgba(196,149,106,.3)]'}`}
+                style={{ background: isMobile
+                  ? 'linear-gradient(135deg, rgba(182,104,252,0.08) 0%, rgba(10,4,18,0.95) 100%)'
+                  : 'linear-gradient(135deg, rgba(196,149,106,0.08) 0%, rgba(10,16,32,0.95) 100%)' }}>
                 <div className="px-6 py-5">
-                  <p className="text-[10px] uppercase tracking-widest text-[#C4956A]/70 font-semibold mb-3">{c.quoteTitle ?? '예상 견적'}</p>
+                  <p className={`text-[10px] uppercase tracking-widest font-semibold mb-3 ${isMobile ? 'text-[#B668FC]/70' : 'text-[#C4956A]/70'}`}>{c.quoteTitle ?? '예상 견적'}</p>
                   <p className="font-bold text-white text-base mb-0.5">{quote.label}</p>
                   <p className="text-xs text-white/40 mb-4">
                     {VEHICLE_TYPES[vehicle].name.ko} · {startDate || (c.dateNotSelected ?? '날짜 미선택')} · {c.adults ?? '성인'} {adults}{c.vehicleMaxUnit ?? '명'}{children > 0 ? ` ${c.children ?? '어린이'} ${children}${c.vehicleMaxUnit ?? '명'}` : ''}
@@ -382,7 +392,7 @@ export default function CharterPage() {
 
             {/* 견적 없을 때 기본 문의 CTA */}
             {!quote && (
-              <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 text-center">
+              <div className={`${isMobile ? 'm-card p-5 text-center' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 text-center'}`}>
                 <p className="text-white/40 text-sm mb-4">
                   {needsCustom
                     ? (c.noQuoteCustom ?? '스프린터·버스·다일투어는 맞춤 견적이 필요합니다.')
@@ -393,7 +403,7 @@ export default function CharterPage() {
             )}
 
             {/* 추가 정보 */}
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+            <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5'}`} style={isMobile ? { animationDelay: '0.3s' } : undefined}>
               <p className="text-[10px] uppercase tracking-widest text-white/25 font-semibold mb-3">{c.includedTitle ?? '포함 사항'}</p>
               <ul className="space-y-1.5 text-xs text-white/45 leading-relaxed">
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included1 ?? '차량 1대 기준 (인원 추가 시 차량 추가)'}</span></li>
@@ -408,7 +418,7 @@ export default function CharterPage() {
         )}
       </main>
 
-      <Footer t={t} />
+      {!isMobile && <Footer t={t} />}
     </div>
   );
 }

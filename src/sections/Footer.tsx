@@ -1,11 +1,71 @@
 import { Phone, Mail, MapPin, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface FooterProps {
   t: any;
 }
 
 export function Footer({ t }: FooterProps) {
+  const isMobile = useIsMobile();
+
+  /* ═══ MOBILE FOOTER ═══ */
+  if (isMobile) {
+    return (
+      <footer
+        className="pb-20"
+        style={{
+          background: 'linear-gradient(180deg, #080210 0%, #0a0412 100%)',
+          borderTop: '1px solid rgba(182,104,252,0.1)',
+        }}
+      >
+        <div className="px-5 pt-6 pb-4">
+          {/* Brand */}
+          <div className="text-center mb-5">
+            <p className="text-base font-bold text-white">코코트립</p>
+            <p className="text-[11px] text-white/25 mt-0.5">프리미엄 한국 여행 — cocotripkr.com</p>
+          </div>
+
+          {/* Links */}
+          <div className="flex justify-center gap-4 mb-5 text-[11px]">
+            <Link to="/about" className="text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.about}</Link>
+            <span className="text-white/15">·</span>
+            <Link to="/terms" className="text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.terms}</Link>
+            <span className="text-white/15">·</span>
+            <Link to="/privacy" className="text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.privacy}</Link>
+          </div>
+
+          {/* Info - compact */}
+          <div className="m-card p-4 mb-4 space-y-2 text-[11px] text-white/30">
+            <p>{t.footer.ceo}</p>
+            <p className="flex items-start gap-1.5">
+              <MapPin className="w-3 h-3 shrink-0 mt-0.5" />{t.footer.address}
+            </p>
+            <p className="flex items-center gap-1.5">
+              <Mail className="w-3 h-3 shrink-0" />{t.footer.email}
+            </p>
+            <p>{t.footer.businessNo}</p>
+            <p>{t.footer.tourNo}</p>
+          </div>
+
+          {/* Trust badges */}
+          <div className="flex justify-center gap-4 mb-4">
+            <div className="flex items-center gap-1.5 text-[10px] text-white/25">
+              <CreditCard className="w-3 h-3" /> {t.footer.payment}
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-white/25">
+              <Phone className="w-3 h-3" /> 24h
+            </div>
+          </div>
+
+          {/* Copyright */}
+          <p className="text-center text-[10px] text-white/15">{t.footer.copyright}</p>
+        </div>
+      </footer>
+    );
+  }
+
+  /* ═══ DESKTOP FOOTER (unchanged) ═══ */
   return (
     <footer className="bg-[#1a1a2e] text-white pb-16 md:pb-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">

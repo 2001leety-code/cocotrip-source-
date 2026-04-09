@@ -1,16 +1,43 @@
 import { useLanguage } from '@/hooks/useLanguage';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 export default function About() {
   const { language, t, changeLanguage } = useLanguage();
+  const isMobile = useIsMobile();
 
   usePageMeta({
     title: 'About CocoTrip',
     description: 'CocoTrip is a premium Korea inbound travel agency offering private tours, charter vehicles, and AI-powered trip planning.',
     ogImage: '/hero-hanok-real.webp',
   });
+
+  if (isMobile) {
+    return (
+      <div className="m-page">
+        <Header language={language} t={t} onLanguageChange={changeLanguage} />
+        <main className="px-4 pt-6 pb-4">
+          <h1 className="text-2xl font-black text-center m-shimmer-text mb-6">
+            About COCOTRIP
+          </h1>
+          <div className="flex flex-col items-center gap-5">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="m-card m-appear overflow-hidden" style={{ animationDelay: `${n * 0.1}s` }}>
+                <img
+                  src={`/브랜드 상세페이지/${n}.jpeg`}
+                  alt={`Brand Story ${n}`}
+                  loading="lazy"
+                  className="w-full rounded-2xl"
+                />
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#faf9f6]">

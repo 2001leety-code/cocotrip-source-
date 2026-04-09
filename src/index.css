@@ -245,3 +245,187 @@ html {
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ═══════════════════════════════════════════════════════
+   Mobile Design System — Black-Pink-Purple Theme
+   Shared keyframes & utilities for all mobile pages
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Keyframes (global, used by mobile pages) ── */
+@keyframes m-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes m-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes m-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 80, 192, 0.4); }
+  50% { box-shadow: 0 0 20px 4px rgba(200, 80, 192, 0.15); }
+}
+@keyframes m-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes m-glow-border {
+  0%, 100% { border-color: rgba(182, 104, 252, 0.15); }
+  50% { border-color: rgba(255, 107, 157, 0.3); }
+}
+@keyframes m-sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* ── Mobile-only utility classes ── */
+@media (max-width: 768px) {
+  /* Dark page wrapper */
+  .m-page {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%);
+    padding-bottom: 80px; /* safe area for bottom nav */
+  }
+
+  /* Glass card */
+  .m-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 1rem;
+    backdrop-filter: blur(8px);
+  }
+  .m-card-glow {
+    animation: m-pulse-glow 3s ease-in-out infinite;
+  }
+
+  /* Button with spring touch feedback */
+  .m-btn {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .m-btn:active {
+    transform: scale(0.93);
+  }
+
+  /* Gradient CTA button */
+  .m-cta {
+    background: linear-gradient(135deg, #B668FC, #FF6B9D);
+    color: #fff;
+    font-weight: 700;
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgba(182,104,252,0.3);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .m-cta:active {
+    transform: scale(0.95);
+  }
+
+  /* Shimmer gradient text */
+  .m-shimmer-text {
+    background: linear-gradient(90deg, #B668FC 0%, #FF6B9D 40%, #B668FC 80%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: m-shimmer 3s linear infinite;
+  }
+
+  /* Float animation */
+  .m-float {
+    animation: m-float 3s ease-in-out infinite;
+  }
+
+  /* Slide-up appear animation */
+  .m-appear {
+    animation: m-slide-up 0.5s ease-out both;
+  }
+
+  /* Glow border animation */
+  .m-glow-border {
+    animation: m-glow-border 3s ease-in-out infinite;
+  }
+
+  /* Gradient icon container */
+  .m-icon {
+    background: linear-gradient(135deg, rgba(182,104,252,0.15), rgba(255,107,157,0.08));
+    border: 1px solid rgba(182,104,252,0.25);
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Section label */
+  .m-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255,255,255,0.25);
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Input field */
+  .m-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.8);
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .m-input:focus {
+    border-color: rgba(182,104,252,0.4);
+  }
+  .m-input::placeholder {
+    color: rgba(255,255,255,0.2);
+  }
+
+  /* Stepper button */
+  .m-stepper {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.5);
+    transition: all 0.2s;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+  .m-stepper:hover, .m-stepper:active {
+    border-color: rgba(255,107,157,0.4);
+    color: #FF6B9D;
+  }
+
+  /* Pill selected / unselected */
+  .m-pill {
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.5);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  .m-pill-active {
+    border-color: #B668FC;
+    background: linear-gradient(135deg, rgba(182,104,252,0.1), rgba(255,107,157,0.08));
+    color: #B668FC;
+    box-shadow: 0 0 15px rgba(182,104,252,0.15);
+  }
+
+  /* Quote/price highlight */
+  .m-price {
+    color: #FF6B9D;
+    font-weight: 800;
+  }
+  .m-price-sub {
+    color: rgba(255,255,255,0.35);
+    font-size: 0.75rem;
+  }
+}

@@ -37,7 +37,7 @@ export class RouteAgent extends BaseAgent {
                 let lng = null;
                 if (clientId && clientSecret && address) {
                     try {
-                        const geoUrl = "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode";
+                        const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
                         const res = await axios.get(geoUrl, {
                             params: { query: address },
                             headers: {
@@ -57,15 +57,15 @@ export class RouteAgent extends BaseAgent {
                 }
                 place.lat = lat;
                 place.lng = lng;
-                if (!place.naverMapUrl) {
-                    place.naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(name)}`;
-                }
+                // Always use Korean name for Naver Map (shows business listing with photos/reviews)
+                const nameKo = place.name_ko || place.name_en || name;
+                place.naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(nameKo)}`;
                 if (prevLat !== null && prevLng !== null && lat !== null && lng !== null) {
                     let durationMin = null;
                     let distanceKm = null;
                     if (clientId && clientSecret) {
                         try {
-                            const dirUrl = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving";
+                            const dirUrl = "https://maps.apigw.ntruss.com/map-direction/v1/driving";
                             const res = await axios.get(dirUrl, {
                                 params: {
                                     start: `${prevLng},${prevLat}`,

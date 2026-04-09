@@ -4,6 +4,8 @@ import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
 import { HeroSlider } from '@/sections/HeroSlider';
+import { MobileHome } from '@/sections/MobileHome';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Services } from '@/sections/Services';
 import { Regions } from '@/sections/Regions';
 import { CustomerGallery } from '@/sections/CustomerGallery';
@@ -48,9 +50,12 @@ import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { ChatFAB } from '@/components/ChatFAB';
+import CookieBanner from '@/components/CookieBanner';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
+  const isMobile = useIsMobile();
 
   usePageMeta({
     title: 'CocoTrip — Premium Korea Travel',
@@ -58,6 +63,19 @@ function HomePage() {
     ogImage: '/hero-seoul-real.webp',
   });
 
+  // 모바일: 앱 스타일 홈
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-[#0a0b14]">
+        <Header language={language} t={t} onLanguageChange={changeLanguage} />
+        <main className="pt-16">
+          <MobileHome t={t} />
+        </main>
+      </div>
+    );
+  }
+
+  // 데스크톱: 기존 디자인 유지
   return (
     <div className="min-h-screen bg-[#faf9f6]">
       <Header
@@ -94,7 +112,8 @@ function GlobalWidgets() {
       <EarlyBirdBanner language={language} />
       <KpopConcertPopup />
       <MobileBottomNav />
-
+      <ChatFAB />
+      <CookieBanner />
     </>
   );
 }

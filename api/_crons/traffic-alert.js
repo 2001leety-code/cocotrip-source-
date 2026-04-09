@@ -54,7 +54,7 @@ async function getRouteInfo(startCoords, endCoords) {
   }
 
   try {
-    const url = `https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving?start=${startCoords.lng},${startCoords.lat}&goal=${endCoords.lng},${endCoords.lat}&option=traoptimal`;
+    const url = `https://maps.apigw.ntruss.com/map-direction/v1/driving?start=${startCoords.lng},${startCoords.lat}&goal=${endCoords.lng},${endCoords.lat}&option=traoptimal`;
     const res = await fetch(url, {
       headers: {
         'X-NCP-APIGW-API-KEY-ID': clientId,

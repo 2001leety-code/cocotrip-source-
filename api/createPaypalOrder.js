@@ -14,12 +14,19 @@ const CORS = {
 };
 
 const PRODUCT_PRICES = {
-  charter_seoul_city: 291200, charter_seoul_suburb: 343200, charter_dmz: 343200,
+  ai_planner_full: 6600,
+  // 일일 투어 (charterPricing.ts DAILY_TOUR_PRICES 기준)
+  charter_seoul_city: 330000, charter_seoul_suburb: 343200, charter_dmz: 343200,
   charter_gangwon: 436800, charter_ski: 416000, charter_gyeongju: 468000, charter_busan: 572000,
+  // 공항 픽업 (charterPricing.ts AIRPORT_TRANSFER_PRICES 기준)
   airport_seoul_central: 124800, airport_seoul_gangnam: 145600, airport_suwon_yongin: 150000,
   airport_gapyeong_nami: 208000, airport_chuncheon: 220000, airport_pyeongchang_yongpyong: 332800,
   airport_gangneung_sokcho: 364000, airport_busan: 600000,
+  // K-pop 셔틀
   kpop_shuttle_oneway: 35000, kpop_shuttle_roundtrip: 65000,
+  // 콤보 패키지 (10% 할인)
+  combo_airport_seoul: 409320, combo_airport_nami: 421200, combo_airport_dmz: 421200,
+  combo_airport_gangwon: 505440, combo_airport_busan: 627120,
 };
 
 async function getPayPalToken() {

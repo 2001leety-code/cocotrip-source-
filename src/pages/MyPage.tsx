@@ -13,13 +13,14 @@ import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useItinerary } from '@/hooks/useItinerary';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Header } from '@/sections/Header';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
   Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
   Silver:   { color: '#C0C0C0', bg: 'from-[#C0C0C0]/15 to-[#808080]/10', border: 'border-[#C0C0C0]/20' },
   Gold:     { color: '#FFD700', bg: 'from-[#FFD700]/15 to-[#B8860B]/10', border: 'border-[#FFD700]/20' },
-  Platinum: { color: '#E5E4E2', bg: 'from-[#B668FC]/20 to-[#7C5CFC]/15', border: 'border-[#7C5CFC]/25' },
+  Platinum: { color: '#E5E4E2', bg: 'from-[#7C5CFC]/20 to-[#7C5CFC]/15', border: 'border-[#7C5CFC]/25' },
 };
 
 const TIER_EMOJI: Record<TierType, string> = {
@@ -37,6 +38,7 @@ type Tab = 'overview' | 'coupons' | 'wishlist' | 'itinerary' | 'history';
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
+  const isMobile = useIsMobile();
   const { user } = useAuth();
   const { loyalty, coupons, activeCoupons, pointHistory, coinsToUSD, loading } = useLoyalty();
   const { items: wishlistItems } = useWishlist();
@@ -52,8 +54,8 @@ export default function MyPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#080b14] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
+      <div className={isMobile ? 'm-page flex items-center justify-center' : 'min-h-screen bg-[#080b14] flex items-center justify-center'}>
+        <div className="w-8 h-8 border-2 border-[#B668FC] border-t-transparent animate-spin rounded-full" />
       </div>
     );
   }
@@ -62,17 +64,22 @@ export default function MyPage() {
   const tc = TIER_COLORS[tier];
 
   return (
-    <div className="min-h-screen bg-[#080b14]">
+    <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#080b14]'}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      <div className="max-w-4xl mx-auto px-4 pt-6 pb-20">
+      <div className={`max-w-4xl mx-auto px-4 pt-6 ${isMobile ? 'pb-4' : 'pb-20'}`}>
         {/* 뒤로 */}
         <Link to="/" className="inline-flex items-center gap-2 text-white/40 text-sm mb-6 hover:text-white/70 transition-colors">
           <ArrowLeft size={16} /> Home
         </Link>
 
         {/* 프로필 + 등급 카드 */}
-        <div className={`rounded-2xl bg-gradient-to-br ${tc.bg} border ${tc.border} p-6 mb-8`}>
+        <div className={isMobile
+          ? 'm-card m-appear m-glow-border p-5 mb-6'
+          : `rounded-2xl bg-gradient-to-br ${tc.bg} border ${tc.border} p-6 mb-8`
+        }
+          style={isMobile ? { background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.04))' } : undefined}
+        >
           <div className="flex items-start gap-4">
             {user?.photoURL ? (
               <img src={user.photoURL} alt="" className="w-14 h-14 rounded-full border-2" style={{ borderColor: tc.color }} />
@@ -117,7 +124,7 @@ export default function MyPage() {
         </div>
 
         {/* 탭 네비 */}
-        <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1 mb-8 overflow-x-auto">
+        <div className={`flex gap-1 rounded-xl p-1 overflow-x-auto scrollbar-hide ${isMobile ? 'm-card mb-5' : 'bg-white/[0.03] mb-8'}`}>
           {([
             { id: 'overview', label: 'Overview', icon: TrendingUp },
             { id: 'coupons', label: `Coupons (${activeCoupons.length})`, icon: Gift },
@@ -130,7 +137,7 @@ export default function MyPage() {
               onClick={() => setTab(id)}
               className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                 tab === id
-                  ? 'bg-[#7C5CFC] text-white'
+                  ? (isMobile ? 'bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white' : 'bg-[#7C5CFC] text-white')
                   : 'text-white/40 hover:text-white/70 hover:bg-white/5'
               }`}
             >
@@ -142,7 +149,7 @@ export default function MyPage() {
 
         {/* ── 탭: Overview ── */}
         {tab === 'overview' && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
             <StatCard label="Total Spent" value={`$${(loyalty?.totalSpentUSD || 0).toFixed(0)}`} icon={TrendingUp} />
             <StatCard label="Bookings" value={String(loyalty?.bookingCount || 0)} icon={Calendar} />
             <StatCard label="Trip Coins" value={(loyalty?.tripCoins || 0).toLocaleString()} sub={`≈ $${coinsToUSD(loyalty?.tripCoins || 0)}`} icon={Coins} />

@@ -10,8 +10,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getSpotContext } from './_spots_helper.js';
 import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
 import { randomUUID } from 'crypto';
+import { Buffer } from 'buffer';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { sendMessage, sendErrorAlert } from './_telegram.js';
 
 export const maxDuration = 300;
 export const config = { runtime: 'nodejs' };
@@ -188,6 +190,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
           "name_en": "Gyeongbokgung Palace",
           "category": "culture",
           "address": "서울특별시 종로구 사직로 161",
+          "address_en": "161, Sajik-ro, Jongno-gu, Seoul",
           "stay_min": 90,
           "entry_fee_krw": 3000,
           "entry_fee_note": "Free with hanbok",
@@ -209,6 +212,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
           "name_en": "Tosokchon Samgyetang",
           "category": "food",
           "address": "서울특별시 종로구 자하문로5길 5",
+          "address_en": "5, Jahamun-ro 5-gil, Jongno-gu, Seoul",
           "stay_min": 60,
           "entry_fee_krw": 0,
           "entry_fee_note": "",
@@ -289,11 +293,32 @@ No markdown. No code blocks. No explanation. Pure JSON only.
   - Food: specific dish name + price (e.g. 삼계탕 ₩17,000)
   - Market: what to buy + budget
 - address: Korean road address (도로명 주소) — required for geocoding
+- address_en: English romanized road address — for foreign tourists (e.g. "161, Sajik-ro, Jongno-gu, Seoul")
 - tip_en: 1-2 sentences, practical advice
 - arrival_guide: SKIP if arrival_airport is "already_in_korea"
 - t_money_recommended_load_krw: always 0 (server calculates)
 - daily_budget_summary: sum all est_fare_krw as transport, sum entry fees, sum meal items
 - accessibility_note: required when mobility is "limited"
+
+## DIVERSITY — CRITICAL
+- NEVER repeat the same itinerary twice. Each plan must feel unique.
+- Rotate restaurants: use different real restaurants each time, not always the same famous ones.
+- Mix well-known landmarks with hidden gems, local favorites, and off-the-beaten-path spots.
+- Vary the route order: don't always start from the same area.
+- Include at least 1-2 lesser-known but highly-rated places per day.
+- For food: rotate between different cuisine types (Korean BBQ, seafood, street food, traditional, fusion, cafe).
+
+## ROUTE OPTIMIZATION — CRITICAL
+- Group stops by geographic zone. NEVER zigzag across the city.
+  - Seoul zones: Jongno/Gwanghwamun → Yongsan/Itaewon → Gangnam/COEX → Hongdae/Mapo → Myeongdong/Jung-gu → Seongsu/Gwangjin
+  - Plan each half-day within 1-2 adjacent zones maximum.
+  - BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
+  - GOOD: Hongdae → Yeonnam-dong → Mapo (same zone, walkable)
+- If the user specifies must-visit places in special_request, BUILD the route AROUND those places.
+  - Place them first, then fill gaps with nearby attractions.
+  - Example: user wants "HYBE" (Yongsan) → plan Yongsan/Itaewon zone that day.
+- Transit between consecutive stops should be under 30 minutes.
+- First stop of Day 1 should be near the hotel or arrival point.
 
 ## MEAL PLANNING
 - 1 dedicated lunch + 1 dinner per full day
@@ -374,6 +399,57 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
+    // ── PayPal 결제 검증 ───────────────────────────────────────────────────
+    const paypalOrderId = body.paypalOrderId;
+
+    if (!paypalOrderId) {
+      res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Payment required', details: 'PayPal order ID is missing. Please complete payment first.' }));
+    }
+
+    // PayPal API로 결제 상태 확인
+    const ppClientId = process.env.PAYPAL_CLIENT_ID;
+    const ppSecret = process.env.PAYPAL_CLIENT_SECRET;
+    const ppMode = process.env.PAYPAL_MODE || 'live';
+    const ppBase = ppMode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+
+    const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
+    const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${ppCreds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials',
+    });
+    if (!tokenRes.ok) {
+      console.error('[planner] PayPal token fetch failed:', tokenRes.status);
+      res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Payment verification failed' }));
+    }
+    const ppToken = (await tokenRes.json()).access_token;
+
+    const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
+      headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
+    });
+    const orderData = await orderRes.json();
+    console.log('[planner] PayPal order status:', orderData.status, 'id:', paypalOrderId);
+
+    if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
+      res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Payment not completed', details: `Order status: ${orderData.status}` }));
+    }
+
+    // 중복 사용 방지 — Firestore에 사용된 orderID 확인
+    if (adminDb) {
+      const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
+      const usedDoc = await usedRef.get();
+      if (usedDoc.exists) {
+        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Order already used', details: 'This payment has already been used to generate a plan.' }));
+      }
+      await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
+    }
+
+    console.log('[planner] ✅ PayPal verification passed:', paypalOrderId);
+
     // ── 입력 파싱 ──────────────────────────────────────────────────────────
     const guestName = body.guest_name || body.guestName || 'Guest';
     const paxRaw = Number(body.pax) || Number(body.guest_count) || 2;
@@ -423,7 +499,7 @@ export default async function handler(req, res) {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
-        temperature: 0.75,
+        temperature: 0.95,
         maxOutputTokens: 24000,
         responseMimeType: 'application/json',
       },
@@ -451,7 +527,8 @@ export default async function handler(req, res) {
       hotel_address: hotel_address || undefined,
       mobility,
       special_request: specialRequest || undefined,
-    }) + spotContext;
+      variation_seed: Math.floor(Math.random() * 100) + 1,
+    }) + spotContext + `\n\n[VARIATION SEED: ${Math.floor(Math.random() * 1000)}] Create a UNIQUE itinerary — pick different restaurants and routes than usual.`;
 
     // ── Gemini 호출 + 45초 타임아웃 (Promise.race) ───────────────────────
     const GEMINI_TIMEOUT_MS = 240000;
@@ -494,35 +571,47 @@ export default async function handler(req, res) {
       try {
         itinerary = JSON.parse(cleaned);
       } catch {
-        // Step 3: truncated JSON recovery — close open brackets/braces
+        // Step 3: robust truncated JSON recovery
         console.warn('[ai-planner-full] Attempting truncated JSON repair...');
         let repaired = cleaned;
-        // Remove any trailing incomplete string (cut off mid-value)
-        repaired = repaired.replace(/,\s*"[^"]*$/, '')        // trailing key without value
-                           .replace(/,\s*$/, '')                // trailing comma
-                           .replace(/"[^"]*$/, '"')             // cut-off string → close it
-                           .replace(/:\s*"[^"]*$/, ': ""');      // cut-off value → empty string
+
+        // Walk backward to find the last "safe" cut point
+        let cutIdx = repaired.length;
+        for (let i = repaired.length - 1; i > 0; i--) {
+          const ch = repaired[i];
+          if (ch === '}' || ch === ']') { cutIdx = i + 1; break; }
+          if (ch === '"') {
+            let bs = 0;
+            for (let j = i - 1; j >= 0 && repaired[j] === '\\'; j--) bs++;
+            if (bs % 2 === 0) { cutIdx = i + 1; break; } // unescaped quote = valid end
+          }
+          if (/[0-9]/.test(ch)) { cutIdx = i + 1; break; }
+          if (i >= 3 && repaired.slice(i - 3, i + 1) === 'true') { cutIdx = i + 1; break; }
+          if (i >= 4 && repaired.slice(i - 4, i + 1) === 'false') { cutIdx = i + 1; break; }
+          if (i >= 3 && repaired.slice(i - 3, i + 1) === 'null') { cutIdx = i + 1; break; }
+        }
+        repaired = repaired.slice(0, cutIdx).replace(/,\s*$/, '');
 
         // Count and close open brackets/braces
         let openBraces = 0, openBrackets = 0;
-        let inString = false;
+        let inStr = false;
         for (let i = 0; i < repaired.length; i++) {
           const ch = repaired[i];
-          if (ch === '\\' && inString) { i++; continue; }
-          if (ch === '"') { inString = !inString; continue; }
-          if (inString) continue;
+          if (ch === '\\' && inStr) { i++; continue; }
+          if (ch === '"') { inStr = !inStr; continue; }
+          if (inStr) continue;
           if (ch === '{') openBraces++;
           else if (ch === '}') openBraces--;
           else if (ch === '[') openBrackets++;
           else if (ch === ']') openBrackets--;
         }
-        // Close any still-open structures
         for (let i = 0; i < openBrackets; i++) repaired += ']';
         for (let i = 0; i < openBraces; i++) repaired += '}';
+        console.log(`[ai-planner-full] Repair: cut at ${cutIdx}/${cleaned.length}, closing ${openBrackets}] + ${openBraces}}`);
 
         try {
           itinerary = JSON.parse(repaired);
-          console.log('[ai-planner-full] Truncated JSON repaired successfully');
+          console.log('[ai-planner-full] Truncated JSON repaired OK, days:', (itinerary.days || []).length);
         } catch (parseErr3) {
           console.error('[ai-planner-full] JSON repair also failed:', parseErr3.message);
           throw new Error('Gemini returned invalid JSON (possibly truncated). Please try again.');
@@ -532,9 +621,12 @@ export default async function handler(req, res) {
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
     console.log('[planner] Step 2: Running RouteAgent...');
 
-    // ALREADY → arrival_guide 제거
-    if (arrival_airport === 'ALREADY') {
+    // ALREADY 또는 미정(null/빈값) → arrival_guide / departure_guide 제거
+    if (!arrival_airport || arrival_airport === 'ALREADY') {
       delete itinerary.arrival_guide;
+    }
+    if (!departure_airport || departure_airport === 'ALREADY') {
+      delete itinerary.departure_guide;
     }
 
     // ── RouteAgent: Naver Maps 보강 (non-fatal) ─────────────────────────
@@ -609,6 +701,8 @@ export default async function handler(req, res) {
       guestEmail: email || null,
       input: {
         guestName, pax, styles, area, duration, startDate,
+        adults: body.adults ?? pax,
+        children: body.children ?? 0,
         vehicle, language, specialRequest,
         arrival_airport: arrival_airport || null,
         departure_airport: departure_airport || null,
@@ -691,8 +785,18 @@ export default async function handler(req, res) {
       })();
     }
 
+    // ── 텔레그램 생성 완료 알림 (non-blocking) ──────────────────────────
+    (async () => {
+      try {
+        const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        await sendMessage(`🎯 <b>AI 플랜 생성 완료</b>\n\n고객: ${guestName || '미입력'}\n이메일: ${email || '-'}\n지역: ${area}\n일수: ${durationDays}일\n인원: ${pax}명\nPlan ID: <code>${planId}</code>\n\n⏰ ${kst}`);
+      } catch (e) { console.warn('[planner] Telegram notify error:', e.message); }
+    })();
+
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
+    // 텔레그램 에러 알림
+    sendErrorAlert('ai-planner-full', error).catch(() => {});
     if (!res.headersSent) {
       res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 

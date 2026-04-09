@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { detectCharterRecommendation, EXTRA_CHARGES } from '@/data/charterPricing';
 import { SEASONAL_SPOTS } from '@/data/seasonalSpots';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
@@ -1058,6 +1059,7 @@ function ComboPackageBanner({ p }: { p: any }) {
 export function ItineraryResult({ result, onReset, p, lang, transport, enriching, arrivalAirport }: {
   result: PlannerResponse; onReset: () => void; p: any; lang: string; transport?: string; enriching?: boolean; arrivalAirport?: string;
 }) {
+  const isMobile = useIsMobile();
   const [activeDay, setActiveDay] = useState(0);
   const current = result.itinerary[activeDay];
 
@@ -1072,14 +1074,16 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
   return (
     <div style={{ animation: 'fade-slide-up 0.5s ease forwards' }}>
       {/* ── Hero 영역 ── */}
-      <div className="rounded-2xl border border-white/10 p-6 mb-5 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, rgba(196,149,106,0.10) 0%, rgba(12,18,32,0.95) 60%)' }}>
+      <div className={`rounded-2xl border p-6 mb-5 relative overflow-hidden ${isMobile ? 'border-[#B668FC]/20 m-appear' : 'border-white/10'}`}
+        style={{ background: isMobile
+          ? 'linear-gradient(135deg, rgba(182,104,252,0.10) 0%, rgba(10,4,18,0.95) 60%)'
+          : 'linear-gradient(135deg, rgba(196,149,106,0.10) 0%, rgba(12,18,32,0.95) 60%)' }}>
         <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl"
-          style={{ background: 'linear-gradient(90deg, #C4956A, #D4915C)' }} />
+          style={{ background: isMobile ? 'linear-gradient(90deg, #B668FC, #FF6B9D)' : 'linear-gradient(90deg, #C4956A, #D4915C)' }} />
         <div className="flex items-start justify-between gap-4 mb-3">
-          <h2 className="font-bold text-white text-xl leading-tight">{tripTitle}</h2>
+          <h2 className={`font-bold text-xl leading-tight ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>{tripTitle}</h2>
           <button onClick={onReset}
-            className="shrink-0 text-xs text-white/35 hover:text-[#C4956A] transition-colors border border-white/12 hover:border-[rgba(196,149,106,.4)] rounded-lg px-3 py-1.5">
+            className={`shrink-0 text-xs transition-colors border rounded-lg px-3 py-1.5 ${isMobile ? 'text-white/35 hover:text-[#B668FC] border-white/12 hover:border-[#B668FC]/40' : 'text-white/35 hover:text-[#C4956A] border-white/12 hover:border-[rgba(196,149,106,.4)]'}`}>
             {p.resetBtn}
           </button>
         </div>
@@ -1100,15 +1104,18 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
       <EnrichingBanner visible={!!enriching} p={p} />
 
       {/* ── Day 탭 ── */}
-      <div className="flex gap-1.5 mb-5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex gap-1.5 mb-5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
         {result.itinerary.map((day, idx) => (
           <button key={day.day} onClick={() => setActiveDay(idx)}
             className={`shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl border text-sm font-semibold transition-all duration-300 min-w-[72px] ${
               activeDay === idx
-                ? 'border-[rgba(196,149,106,.5)] text-[#D4A574]'
+                ? (isMobile ? 'border-[#B668FC]/50 text-[#B668FC]' : 'border-[rgba(196,149,106,.5)] text-[#D4A574]')
                 : 'border-white/10 bg-white/[0.04] text-white/40 hover:border-white/22 hover:text-white/60'
             }`}
-            style={activeDay === idx ? { background: 'rgba(196,149,106,0.10)', boxShadow: '0 0 16px rgba(196,149,106,.2)' } : {}}>
+            style={activeDay === idx ? (isMobile
+              ? { background: 'rgba(182,104,252,0.10)', boxShadow: '0 0 16px rgba(182,104,252,.2)' }
+              : { background: 'rgba(196,149,106,0.10)', boxShadow: '0 0 16px rgba(196,149,106,.2)' }
+            ) : {}}>
             <span className="text-xs font-bold">{p.dayLabel ?? 'Day'} {day.day}</span>
             <span className="text-[10px] font-normal opacity-70 mt-0.5">{day.date?.slice(5)}</span>
           </button>
@@ -1150,15 +1157,15 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
           {/* 자물쇠 오버레이 (페이월) */}
           {activeDay > 0 && (
             <div className="absolute inset-0 flex flex-col items-center pt-24 text-center z-10 px-4">
-              <div className="bg-[#121826]/95 border border-[#C4956A]/40 rounded-3xl p-6 sm:p-8 max-w-sm backdrop-blur-xl shadow-[0_0_40px_rgba(196,149,106,0.15)] w-full">
-                <div className="w-14 h-14 mx-auto bg-gradient-to-br from-[#C4956A] to-[#D4A574] rounded-full flex items-center justify-center mb-5 shadow-lg shadow-[#C4956A]/20">
+              <div className={`rounded-3xl p-6 sm:p-8 max-w-sm backdrop-blur-xl w-full ${isMobile ? 'bg-[#0a0412]/95 border border-[#B668FC]/40 shadow-[0_0_40px_rgba(182,104,252,0.15)]' : 'bg-[#121826]/95 border border-[#C4956A]/40 shadow-[0_0_40px_rgba(196,149,106,0.15)]'}`}>
+                <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-5 shadow-lg ${isMobile ? 'bg-gradient-to-br from-[#B668FC] to-[#FF6B9D] shadow-[#B668FC]/20' : 'bg-gradient-to-br from-[#C4956A] to-[#D4A574] shadow-[#C4956A]/20'}`}>
                   <Lock className="w-7 h-7 text-white" />
                 </div>
                 <h3 className="text-[17px] font-bold text-white mb-2 leading-tight">{p.paywallTitle}</h3>
                 <p className="text-[13px] text-white/70 mb-5 leading-relaxed">
                   {p.paywallDesc}<br/>
                   <b>{p.paywallOffer}</b><br/>
-                  <span className="text-[#C4956A] font-medium mt-1.5 block">{p.paywallGuarantee}</span>
+                  <span className={`font-medium mt-1.5 block ${isMobile ? 'text-[#B668FC]' : 'text-[#C4956A]'}`}>{p.paywallGuarantee}</span>
                 </p>
                 <div className="flex flex-col gap-2.5">
                   <button onClick={() => document.getElementById('airport-pickup-section')?.scrollIntoView({ behavior: 'smooth' })}
@@ -1262,6 +1269,7 @@ function cityNameToAreaKey(cityName: string): string {
 
 export default function PlannerPage() {
   const { language, t, changeLanguage } = useLanguage();
+  const isMobile = useIsMobile();
   const p = t.planner;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -1349,29 +1357,35 @@ export default function PlannerPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#080b14' }}>
+    <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
       <style>{PAGE_STYLE}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       {/* Hero */}
       <section className="text-white py-16 px-4"
-        style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
+        style={{ background: isMobile
+          ? 'linear-gradient(160deg, #0a0412 0%, #1a0a2e 60%, #0d0618 100%)'
+          : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
         <div className="max-w-2xl mx-auto text-center">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[rgba(196,149,106,.35)] bg-[rgba(196,149,106,.08)] text-[#D4A574] text-[11px] font-semibold tracking-wider uppercase mb-5"
+          <div className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[11px] font-semibold tracking-wider uppercase mb-5 ${
+            isMobile
+              ? 'border-[#B668FC]/35 bg-[#B668FC]/08 text-[#B668FC]'
+              : 'border-[rgba(196,149,106,.35)] bg-[rgba(196,149,106,.08)] text-[#D4A574]'
+          }`}
             style={{ animation: 'fade-slide-up 0.5s ease forwards' }}>
             <Sparkles className="w-3 h-3" />{p.badgeLabel}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold leading-tight text-white mb-4 whitespace-pre-line"
+          <h1 className={`text-3xl sm:text-4xl font-bold leading-tight mb-4 whitespace-pre-line ${isMobile ? 'm-shimmer-text' : 'text-white'}`}
             style={{ animation: 'fade-slide-up 0.6s ease forwards', animationDelay: '0.1s', opacity: 0 }}>{p.heroTitle}</h1>
           <p className="text-white/50 text-sm sm:text-base whitespace-pre-line"
             style={{ animation: 'fade-slide-up 0.6s ease forwards', animationDelay: '0.2s', opacity: 0 }}>{p.heroSubtitle}</p>
         </div>
       </section>
 
-      <main className="max-w-3xl mx-auto px-4 py-12 space-y-8">
+      <main className={`max-w-3xl mx-auto px-4 space-y-8 ${isMobile ? 'py-6' : 'py-12'}`}>
         {/* Wizard form — visible when idle/error/loading */}
         {(status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <div className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl">
+          <div className={isMobile ? 'm-card m-appear p-5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl'}>
             <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} t={t} lang={language} preset={preset} />
           </div>
         )}
@@ -1399,9 +1413,12 @@ export default function PlannerPage() {
         {/* Phase 1 Success: Quick Summary & Email Capture */}
         {status === 'quickSuccess' && resultQuick && (
           <div id="planner-quick-result" className="space-y-6">
-            <div className="bg-gradient-to-br from-[#1a0f14] to-[#0a1628] rounded-2xl p-6 border border-[#7C5CFC]/30 shadow-[0_0_20px_rgba(124,92,252,0.2)]">
-              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5 text-[#7C5CFC]" />{p.quickPreviewTitle}</h2>
-              <p className="text-[#EA537E] font-bold text-sm mb-4">{p.quickPreviewTheme}: {resultQuick.themes?.join(', ') || 'Healing, Luxury'}</p>
+            <div className={isMobile
+              ? 'm-card m-appear p-5 border-[#B668FC]/30 shadow-[0_0_20px_rgba(182,104,252,0.2)]'
+              : 'bg-gradient-to-br from-[#1a0f14] to-[#0a1628] rounded-2xl p-6 border border-[#7C5CFC]/30 shadow-[0_0_20px_rgba(124,92,252,0.2)]'
+            }>
+              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Sparkles className={`w-5 h-5 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />{p.quickPreviewTitle}</h2>
+              <p className={`font-bold text-sm mb-4 ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>{p.quickPreviewTheme}: {resultQuick.themes?.join(', ') || 'Healing, Luxury'}</p>
               
               <div className="text-sm text-white/80 leading-relaxed mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
                 <strong className="text-white block mb-1">{p.quickPreviewNarrative}:</strong>
@@ -1459,15 +1476,20 @@ export default function PlannerPage() {
             </div>
 
             {/* Premium Full Plan Purchase */}
-            <div className="bg-gradient-to-br from-[#0f111a] to-[#1a0f18] rounded-2xl p-8 border border-[#7C5CFC]/20 text-center shadow-xl relative overflow-hidden">
+            <div className={isMobile
+              ? 'm-card m-appear p-6 text-center relative overflow-hidden'
+              : 'bg-gradient-to-br from-[#0f111a] to-[#1a0f18] rounded-2xl p-8 border border-[#7C5CFC]/20 text-center shadow-xl relative overflow-hidden'
+            }
+              style={isMobile ? { background: 'linear-gradient(135deg, rgba(182,104,252,0.06), rgba(255,107,157,0.03), rgba(10,4,18,0.95))' } : undefined}
+            >
               {/* Decorative glow */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-[#7C5CFC]/10 rounded-full blur-3xl" />
+              <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl ${isMobile ? 'bg-[#B668FC]/10' : 'bg-[#7C5CFC]/10'}`} />
               
               {/* Price badge */}
-              <div className="relative inline-flex items-center gap-2 bg-gradient-to-r from-[#7C5CFC]/20 to-[#EA537E]/20 border border-[#7C5CFC]/30 rounded-full px-5 py-2 mb-5">
+              <div className={`relative inline-flex items-center gap-2 bg-gradient-to-r rounded-full px-5 py-2 mb-5 ${isMobile ? 'from-[#B668FC]/20 to-[#FF6B9D]/20 border border-[#B668FC]/30' : 'from-[#7C5CFC]/20 to-[#EA537E]/20 border border-[#7C5CFC]/30'}`}>
                 <span className="text-white/40 text-sm line-through">$9.90</span>
                 <span className="text-2xl font-extrabold text-white">$4.90</span>
-                <span className="bg-[#EA537E] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">-50%</span>
+                <span className={`text-white text-[10px] font-bold px-2 py-0.5 rounded-full ${isMobile ? 'bg-[#FF6B9D]' : 'bg-[#EA537E]'}`}>-50%</span>
               </div>
               
               <h3 className="text-2xl font-bold text-white mb-3 relative">{p.fullPlanTitle}</h3>
@@ -1497,7 +1519,7 @@ export default function PlannerPage() {
                   value={userEmail}
                   onChange={e => setUserEmail(e.target.value)}
                   placeholder={p.emailPlaceholder}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC] transition-all outline-none"
+                  className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 transition-all outline-none ${isMobile ? 'focus:border-[#B668FC] focus:ring-1 focus:ring-[#B668FC]' : 'focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC]'}`}
                   required 
                 />
                 
@@ -1565,7 +1587,7 @@ export default function PlannerPage() {
           </div>
         )}
       </main>
-      <Footer t={t} />
+      {!isMobile && <Footer t={t} />}
     </div>
   );
 }

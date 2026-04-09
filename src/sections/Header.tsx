@@ -6,6 +6,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
 import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';
+import { PwaInstallButton } from '@/components/PwaInstallButton';
 
 interface HeaderProps {
   language: Language;
@@ -95,6 +96,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               </span>
             </div>
           </Link>
+
+          {/* ═══ PWA Install (mobile only) ═══ */}
+          {isMobile && <PwaInstallButton t={t} />}
 
           {/* ═══ Center: Desktop Navigation ═══ */}
           {!isMobile && (

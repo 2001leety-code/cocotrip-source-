@@ -49,7 +49,7 @@ export class RouteAgent extends BaseAgent {
 
         if (clientId && clientSecret && address) {
           try {
-            const geoUrl = "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode";
+            const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
             const res = await axios.get(geoUrl, {
               params: { query: address },
               headers: {
@@ -80,7 +80,7 @@ export class RouteAgent extends BaseAgent {
 
           if (clientId && clientSecret) {
             try {
-              const dirUrl = "https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving";
+              const dirUrl = "https://maps.apigw.ntruss.com/map-direction/v1/driving";
               const res = await axios.get(dirUrl, {
                 params: {
                   start: `${prevLng},${prevLat}`,
