@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles } from 'lucide-react';
+import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles, Plane, Luggage, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -22,13 +22,25 @@ type ServiceType = 'airport' | 'daily' | 'multiday' | 'kpop' | 'other';
 
 // ── 상수 ──────────────────────────────────────────────
 const AIRPORTS = [
-  { id: 'ICN', sub: 'Incheon International' },
-  { id: 'GMP', sub: 'Gimpo International' },
-  { id: 'PUS', sub: 'Gimhae, Busan' },
-  { id: 'CJU', sub: 'Jeju International' },
+  { id: 'ICN', ko: '인천국제공항', en: 'Incheon International (ICN)' },
+  { id: 'GMP', ko: '김포국제공항', en: 'Gimpo International (GMP)' },
+  { id: 'PUS', ko: '김해국제공항 (부산)', en: 'Gimhae International, Busan (PUS)' },
+  { id: 'CJU', ko: '제주국제공항', en: 'Jeju International (CJU)' },
+  { id: 'TAE', ko: '대구국제공항', en: 'Daegu International (TAE)' },
+  { id: 'CJJ', ko: '청주국제공항', en: 'Cheongju International (CJJ)' },
+  { id: 'MWX', ko: '무안국제공항', en: 'Muan International (MWX)' },
+  { id: 'KWJ', ko: '광주공항', en: 'Gwangju Airport (KWJ)' },
+  { id: 'RSU', ko: '여수공항', en: 'Yeosu Airport (RSU)' },
+  { id: 'USN', ko: '울산공항', en: 'Ulsan Airport (USN)' },
 ];
 
 const ICN_DESTS = Object.entries(AIRPORT_TRANSFER_PRICES);
+
+const LUGGAGE_SIZES = [
+  { id: 'small', ko: '소형 (기내반입)', en: 'Small (Carry-on)' },
+  { id: 'medium', ko: '중형 (24인치)', en: 'Medium (24")' },
+  { id: 'large', ko: '대형 (28인치+)', en: 'Large (28"+)' },
+];
 
 // ── 스타일 상수 ─────────────────────────────────────
 const SEL  = 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/10 text-[#B668FC] shadow-[0_0_15px_rgba(182,104,252,0.15)]';
@@ -53,11 +65,15 @@ export default function CharterPage() {
   const [service,     setService]     = useState<ServiceType>('airport');
   const [airport,     setAirport]     = useState('ICN');
   const [destination, setDestination] = useState('');
+  const [customDest,  setCustomDest]  = useState('');
   const [tourType,    setTourType]    = useState('');
   const [startDate,   setStartDate]   = useState('');
   const [endDate,     setEndDate]     = useState('');
   const [adults,      setAdults]      = useState(2);
   const [children,    setChildren]    = useState(0);
+  const [luggageSize, setLuggageSize] = useState('medium');
+  const [luggageCount,setLuggageCount]= useState(2);
+  const [flightNo,    setFlightNo]    = useState('');
   const [notes,       setNotes]       = useState('');
 
   // ── 가격 계산 ───────────────────────────────────────
@@ -95,7 +111,7 @@ export default function CharterPage() {
   const needsCustom = vehicle === 'sprinter' || vehicle === 'bus' || service === 'multiday' || service === 'other';
 
   const waText = encodeURIComponent(
-    `[CocoTrip Charter]\nVehicle: ${VEHICLE_TYPES[vehicle].name.ko}\nService: ${service}\nDate: ${startDate}${endDate && endDate !== startDate ? ` ~ ${endDate}` : ''}\nPax: ${adults} adults${children > 0 ? ` ${children} children` : ''}\nAirport: ${airport}\n${destination ? `Dest: ${destination}\n` : ''}${notes ? `Note: ${notes}` : ''}`
+    `[CocoTrip Charter]\nVehicle: ${VEHICLE_TYPES[vehicle].name.ko}\nService: ${service}\nDate: ${startDate}${endDate && endDate !== startDate ? ` ~ ${endDate}` : ''}\nPax: ${adults} adults${children > 0 ? ` ${children} children` : ''}\nAirport: ${airport}\n${destination ? `Dest: ${destination === '__custom__' ? customDest : destination}\n` : ''}${flightNo ? `Flight: ${flightNo}\n` : ''}Luggage: ${luggageCount}x ${luggageSize}\n${notes ? `Note: ${notes}` : ''}`
   );
   const waUrl    = `https://wa.me/821087140611?text=${waText}`;
   const emailUrl = `mailto:info@cocotripkorea.com?subject=Charter Quote&body=${waText}`;
@@ -203,35 +219,57 @@ export default function CharterPage() {
             <div className={`${isMobile ? 'm-card m-appear p-5 space-y-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 space-y-5'}`} style={isMobile ? { animationDelay: '0.2s' } : undefined}>
               <p className={LABEL}>{c.details ?? '상세 정보'}</p>
 
-          {/* 공항 픽업 */}
+          {/* 공항 픽업 — 드롭다운 기반 */}
           {service === 'airport' && (
             <>
+              {/* ① 공항 드롭다운 */}
               <div>
-                <p className="text-xs text-white/40 mb-2">{c.airportSelect ?? '공항 선택'}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {AIRPORTS.map(a => (
-                    <button key={a.id} type="button" onClick={() => { setAirport(a.id); setDestination(''); }}
-                      className={`py-2.5 px-3 rounded-xl border text-left transition-all duration-200 ${airport === a.id ? SEL : UNSEL}`}>
-                      <p className="text-sm font-bold">{a.id}</p>
-                      <p className="text-[10px] opacity-55 leading-tight">{a.sub}</p>
-                    </button>
-                  ))}
+                <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.airportSelect ?? '출발/도착 공항'}</p>
+                <div className="relative">
+                  <select value={airport}
+                    onChange={e => { setAirport(e.target.value); setDestination(''); }}
+                    className="w-full appearance-none px-4 py-3.5 pr-10 rounded-xl border border-white/15 bg-white/[0.04] text-white text-sm font-medium outline-none focus:border-[#B668FC]/60 transition-all cursor-pointer">
+                    {AIRPORTS.map(a => (
+                      <option key={a.id} value={a.id} className="bg-[#1a1a2e] text-white">
+                        {a.id} — {a[lk as 'ko' | 'en']}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
                 </div>
               </div>
 
+              {/* ② 목적지 드롭다운 + 직접입력 */}
               <div>
                 <p className="text-xs text-white/40 mb-2">{c.destSelect ?? '목적지 선택'}</p>
-                <div className="space-y-1.5">
-                  {ICN_DESTS.map(([key, dest]) => (
-                    <button key={key} type="button" onClick={() => setDestination(key)}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all duration-200 ${destination === key ? SEL : UNSEL}`}>
-                      <span className="text-left font-medium">{dest[lk]}</span>
-                      <span className={`text-xs font-bold ${destination === key ? 'text-[#C4956A]' : 'text-white/30'}`}>
-                        ₩{dest.priceKRW.toLocaleString('ko-KR')}
-                      </span>
-                    </button>
-                  ))}
+                <div className="relative">
+                  <select value={destination}
+                    onChange={e => { setDestination(e.target.value); if (e.target.value !== '__custom__') setCustomDest(''); }}
+                    className="w-full appearance-none px-4 py-3.5 pr-10 rounded-xl border border-white/15 bg-white/[0.04] text-white text-sm font-medium outline-none focus:border-[#B668FC]/60 transition-all cursor-pointer">
+                    <option value="" className="bg-[#1a1a2e] text-white/50">— {c.destPlaceholder ?? '목적지를 선택하세요'} —</option>
+                    {ICN_DESTS.map(([key, dest]) => (
+                      <option key={key} value={key} className="bg-[#1a1a2e] text-white">
+                        {dest[lk]} — ₩{dest.priceKRW.toLocaleString('ko-KR')}
+                      </option>
+                    ))}
+                    <option value="__custom__" className="bg-[#1a1a2e] text-white">✏️ {c.destCustom ?? '직접 입력'}</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
                 </div>
+                {destination === '__custom__' && (
+                  <input type="text" value={customDest} onChange={e => setCustomDest(e.target.value)}
+                    placeholder={c.destCustomPlaceholder ?? '예: 서울 강남구 테헤란로 123'}
+                    className="w-full mt-2 px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40 transition-all" />
+                )}
+                {destination && destination !== '__custom__' && (() => {
+                  const d = AIRPORT_TRANSFER_PRICES[destination];
+                  return d ? (
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <Clock className="w-3 h-3 text-white/30" />
+                      <span className="text-white/40">{c.estimatedTime ?? '예상 소요'} ~{d.durationMin}{c.minutes ?? '분'}</span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </>
           )}
@@ -307,12 +345,48 @@ export default function CharterPage() {
             </div>
           </div>
 
-          {/* 추가 요청 */}
+          {/* 캐리어 */}
+          <div>
+            <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Luggage className="w-3 h-3" />{c.luggage ?? '캐리어 정보'}</p>
+            <div className="space-y-2">
+              {/* 크기 드롭다운 */}
+              <div className="relative">
+                <select value={luggageSize} onChange={e => setLuggageSize(e.target.value)}
+                  className="w-full appearance-none px-4 py-3 pr-10 rounded-xl border border-white/15 bg-white/[0.04] text-white text-sm font-medium outline-none focus:border-[#B668FC]/60 transition-all cursor-pointer">
+                  {LUGGAGE_SIZES.map(s => (
+                    <option key={s.id} value={s.id} className="bg-[#1a1a2e] text-white">{s[lk as 'ko' | 'en']}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+              </div>
+              {/* 개수 스텝퍼 */}
+              <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3">
+                <span className="text-sm text-white/65">{c.luggageCount ?? '캐리어 개수'}</span>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => setLuggageCount(Math.max(0, luggageCount - 1))}
+                    className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-white/55 hover:border-[#B668FC]/40 hover:text-[#B668FC] transition-all text-lg leading-none">−</button>
+                  <span className="text-base font-bold text-white w-6 text-center">{luggageCount}</span>
+                  <button type="button" onClick={() => setLuggageCount(Math.min(20, luggageCount + 1))}
+                    className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-white/55 hover:border-[#B668FC]/40 hover:text-[#B668FC] transition-all text-lg leading-none">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 비행기 편명 */}
+          <div>
+            <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.flightNo ?? '비행기 편명 (선택)'}</p>
+            <input type="text" value={flightNo} onChange={e => setFlightNo(e.target.value.toUpperCase())}
+              placeholder={c.flightPlaceholder ?? '예: KE001, OZ521, 7C101'}
+              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40 transition-all font-mono tracking-wider" />
+          </div>
+
+          {/* 요청사항 */}
           <div>
             <p className="text-xs text-white/40 mb-2">{c.notes ?? '추가 요청사항 (선택)'}</p>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
               placeholder={c.notesPlaceholder ?? '예: 유아카시트 필요, 한국어 기사 선호, 특정 시간 픽업...'}
-              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[rgba(196,149,106,.4)] transition-all resize-none leading-relaxed" />
+              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40 transition-all resize-none leading-relaxed" />
           </div>
             </div>
 

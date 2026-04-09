@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Download, X, Smartphone, Trash2, Share } from 'lucide-react';
 
 interface PwaInstallButtonProps {
@@ -61,10 +62,10 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
         <Download className="w-4 h-4" />
       </button>
 
-      {/* 안내 모달 */}
-      {showModal && (
+      {/* 안내 모달 (Portal로 body에 렌더) */}
+      {showModal && createPortal(
         <div
-          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center"
           onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
         >
           {/* 백드롭 */}
@@ -75,8 +76,8 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
             className="relative w-full max-w-sm mx-3 mb-3 sm:mb-0 rounded-2xl overflow-hidden animate-[slideUp_0.3s_ease-out]"
             style={{
               background: 'linear-gradient(180deg, #12152a 0%, #0a0d1a 100%)',
-              border: '1px solid rgba(124,92,252,0.15)',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(182,104,252,0.2)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(182,104,252,0.1)',
             }}
           >
             <style>{`@keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
@@ -93,7 +94,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
             <div className="pt-7 pb-4 px-6 text-center">
               <div
                 className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 4px 20px rgba(124,92,252,0.3)' }}
+                style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)', boxShadow: '0 4px 20px rgba(182,104,252,0.3)' }}
               >
                 <Smartphone className="w-7 h-7 text-white" />
               </div>
@@ -127,7 +128,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
             <div className="px-6 pb-6 space-y-2">
               {isIOS ? (
                 /* iOS: 수동 안내 */
-                <div className="px-4 py-3.5 rounded-xl text-center" style={{ background: 'rgba(124,92,252,0.08)', border: '1px solid rgba(124,92,252,0.15)' }}>
+                <div className="px-4 py-3.5 rounded-xl text-center" style={{ background: 'rgba(182,104,252,0.08)', border: '1px solid rgba(182,104,252,0.15)' }}>
                   <p className="text-[12px] text-white/60 leading-relaxed">
                     {m.iosGuide || 'Tap the Share button at the bottom of Safari, then select "Add to Home Screen"'}
                   </p>
@@ -145,8 +146,8 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
                   onClick={handleInstall}
                   className="w-full py-3.5 rounded-xl text-[14px] font-bold text-white transition-all duration-300 hover:scale-[1.02] active:scale-95"
                   style={{
-                    background: 'linear-gradient(135deg, #7C5CFC, #EA537E)',
-                    boxShadow: '0 4px 20px rgba(124,92,252,0.3)',
+                    background: 'linear-gradient(135deg, #B668FC, #FF6B9D)',
+                    boxShadow: '0 4px 20px rgba(182,104,252,0.3)',
                   }}
                 >
                   {m.addBtn || 'Add to Home Screen'}
@@ -161,7 +162,8 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
