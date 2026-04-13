@@ -221,6 +221,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productType, passengers, dateStart, dateEnd, language: lang,
+          userEmail,
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
         }),
       });

@@ -29,11 +29,16 @@ const PRODUCT_PRICES = {
   combo_airport_gangwon: 505440, combo_airport_busan: 627120,
 };
 
-async function getPayPalToken() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const secret = process.env.PAYPAL_CLIENT_SECRET;
-  const mode = process.env.PAYPAL_MODE || 'sandbox';
-  const baseUrl = mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+
+async function getPayPalToken(isSandbox = false) {
+  const clientId = isSandbox
+    ? process.env.PAYPAL_SANDBOX_CLIENT_ID
+    : process.env.PAYPAL_CLIENT_ID;
+  const secret = isSandbox
+    ? process.env.PAYPAL_SANDBOX_SECRET
+    : process.env.PAYPAL_CLIENT_SECRET;
+  const baseUrl = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
   const credentials = Buffer.from(clientId + ':' + secret).toString('base64');
   const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
     method: 'POST',
@@ -53,8 +58,11 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode } = body;
+    const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode, userEmail = '' } = body;
     if (!productType) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'productType is required' })); }
+
+    const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
+    console.log('[createPaypalOrder] mode:', isSandbox ? 'SANDBOX' : 'LIVE', '| email:', userEmail);
 
     // 하이픈/언더스코어 둘 다 허용
     const normalizedType = productType.replace(/-/g, '_');
@@ -72,8 +80,8 @@ export default async function handler(req, res) {
     try { const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW'); usdToKrw = (await r.json()).rates.KRW; } catch { /* fallback */ }
     const usdAmount = (krwAmount / usdToKrw).toFixed(2);
 
-    const accessToken = await getPayPalToken();
-    const baseUrl = (process.env.PAYPAL_MODE === 'live') ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+    const accessToken = await getPayPalToken(isSandbox);
+    const baseUrl = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
     const orderRes = await fetch(`${baseUrl}/v2/checkout/orders`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
