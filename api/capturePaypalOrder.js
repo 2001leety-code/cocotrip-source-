@@ -13,16 +13,15 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-const PAYPAL_BASE_URL = process.env.PAYPAL_MODE === 'live'
-  ? 'https://api-m.paypal.com'
-  : 'https://api-m.sandbox.paypal.com';
+const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
-async function getPaypalAccessToken() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+async function getPaypalAccessToken(isSandbox = false) {
+  const clientId     = isSandbox ? process.env.PAYPAL_SANDBOX_CLIENT_ID  : process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = isSandbox ? process.env.PAYPAL_SANDBOX_SECRET      : process.env.PAYPAL_CLIENT_SECRET;
+  const baseUrl      = isSandbox ? 'https://api-m.sandbox.paypal.com'    : 'https://api-m.paypal.com';
   if (!clientId || !clientSecret) throw new Error('PayPal credentials not configured');
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const res = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+  const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
     method: 'POST',
     headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'grant_type=client_credentials',
@@ -41,11 +40,15 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData } = body;
+    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '' } = body;
     if (!orderID) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'orderID is required' })); }
 
+    const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
+    const PAYPAL_BASE_URL = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
+    console.log('[capturePaypalOrder] mode:', isSandbox ? 'SANDBOX' : 'LIVE', '| email:', userEmail);
+
     // 1. Access Token
-    const accessToken = await getPaypalAccessToken();
+    const accessToken = await getPaypalAccessToken(isSandbox);
 
     // 2. Capture
     const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {

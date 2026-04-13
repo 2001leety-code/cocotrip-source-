@@ -18,6 +18,14 @@
       "maxDuration": 120
     }
   },
+  "redirects": [
+    {
+      "source": "/:path(.*)",
+      "has": [{ "type": "host", "value": "www.cocotripkr.com" }],
+      "destination": "https://cocotripkr.com/:path",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }

@@ -102,33 +102,47 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const effectiveKRW = discountedKRW ?? priceKRW;
 
   // ── PayPal SDK 동적 로드 ─────────────────────────────────────────
+  // isSandboxAccount가 바뀔 때마다 재실행 — 이메일 입력 후 올바른 SDK 로드 보장
   useEffect(() => {
     const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
     console.log('[PayPal SDK] VITE_PAYPAL_CLIENT_ID:', clientId ? clientId.substring(0, 8) + '...' : '❌ 없음');
-    console.log('[PayPal SDK] paypalReady:', paypalReady, '| window.paypal:', !!window.paypal);
     if (!clientId) return;
 
-    if (window.paypal) {
+    const expectedMode = isSandboxAccount ? 'sandbox' : 'live';
+    const existing = document.getElementById('paypal-sdk') as HTMLScriptElement | null;
+
+    // 기존 스크립트가 다른 모드로 로드됐으면 제거 후 재로드
+    if (existing) {
+      const loadedMode = existing.dataset.mode ?? 'live';
+      if (loadedMode !== expectedMode) {
+        console.log('[PayPal SDK] mode mismatch (was', loadedMode, '→ need', expectedMode, '), reloading SDK');
+        existing.remove();
+        delete window.paypal;
+        setPaypalReady(false);
+      } else if (window.paypal) {
+        setPaypalReady(true);
+        return;
+      } else {
+        existing.addEventListener('load', () => setPaypalReady(true));
+        return;
+      }
+    } else if (window.paypal) {
       setPaypalReady(true);
       return;
     }
-    if (document.getElementById('paypal-sdk')) {
-      const existing = document.getElementById('paypal-sdk') as HTMLScriptElement;
-      if (existing.dataset.loaded) { setPaypalReady(true); return; }
-      existing.addEventListener('load', () => setPaypalReady(true));
-      return;
-    }
+
     const script = document.createElement('script');
-    script.id  = 'paypal-sdk';
+    script.id   = 'paypal-sdk';
+    script.dataset.mode = expectedMode;
     const sandboxClientId = import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID;
     const resolvedClientId = isSandboxAccount && sandboxClientId ? sandboxClientId : clientId;
     const sdkUrl = isSandboxAccount && sandboxClientId
       ? `https://www.sandbox.paypal.com/sdk/js?client-id=${resolvedClientId}&currency=USD`
       : `https://www.paypal.com/sdk/js?client-id=${resolvedClientId}&currency=USD`;
     script.src = sdkUrl;
-    console.log('[PayPal SDK] mode:', isSandboxAccount ? 'SANDBOX (test account)' : 'LIVE');
+    console.log('[PayPal SDK] loading mode:', expectedMode, '| clientId prefix:', resolvedClientId.substring(0, 8));
     script.onload = () => {
-      (script as HTMLScriptElement).dataset.loaded = 'true';
+      script.dataset.loaded = 'true';
       setPaypalReady(true);
     };
     script.onerror = (err) => {
@@ -136,7 +150,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       setError(p.paypalSdkError ?? 'Failed to load PayPal SDK.');
     };
     document.body.appendChild(script);
-  }, []);
+  }, [isSandboxAccount]);
 
   // ── PayPal Buttons 렌더링 ────────────────────────────────────────
   useEffect(() => {
@@ -163,6 +177,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               vehicleType,
               memo,
               itineraryData:   itineraryData || null,
+              userEmail,
             }),
           });
           const result = await res.json();

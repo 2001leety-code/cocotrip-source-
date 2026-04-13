@@ -4,10 +4,42 @@ import { signInWithGoogle, handleRedirectResult } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
 
 const TEXT = {
-  ko: { title: '로그인이 필요합니다', desc: '이 서비스를 이용하려면 소셜 로그인이 필요합니다.', google: '구글로 시작하기', apple: 'Apple로 시작하기', loading: '로그인 중...' },
-  en: { title: 'Login Required', desc: 'Please sign in to use this service.', google: 'Continue with Google', apple: 'Continue with Apple', loading: 'Signing in...' },
-  ja: { title: 'ログインが必要です', desc: 'このサービスを利用するにはログインが必要です。', google: 'Googleで続ける', apple: 'Appleで続ける', loading: 'ログイン中...' },
-  zh: { title: '需要登录', desc: '请登录以使用此服务。', google: '使用Google登录', apple: '使用Apple登录', loading: '登录中...' },
+  ko: {
+    title: '로그인이 필요합니다',
+    desc: '소셜 로그인으로 간편하게 시작하세요.',
+    benefits: ['🗺️ 나만의 맞춤 여행 일정 저장', '📋 예약 내역 및 이용 기록 관리', '💬 24/7 고객 지원 이용'],
+    google: '구글로 시작하기',
+    apple: 'Apple로 시작하기',
+    loading: '로그인 중...',
+    privacy: '로그인 시 개인정보 처리방침에 동의하게 됩니다.',
+  },
+  en: {
+    title: 'Sign in to continue',
+    desc: 'Get started quickly with your social account.',
+    benefits: ['🗺️ Save your personalized itineraries', '📋 Manage bookings & travel history', '💬 Access 24/7 customer support'],
+    google: 'Continue with Google',
+    apple: 'Continue with Apple',
+    loading: 'Signing in...',
+    privacy: 'By signing in, you agree to our Privacy Policy.',
+  },
+  ja: {
+    title: 'ログインしてください',
+    desc: 'ソーシャルアカウントで簡単に始められます。',
+    benefits: ['🗺️ カスタム旅程の保存', '📋 予約履歴の管理', '💬 24時間カスタマーサポート'],
+    google: 'Googleで続ける',
+    apple: 'Appleで続ける',
+    loading: 'ログイン中...',
+    privacy: 'ログインすると、プライバシーポリシーに同意したことになります。',
+  },
+  zh: {
+    title: '请登录以继续',
+    desc: '使用社交账号快速开始。',
+    benefits: ['🗺️ 保存您的定制行程', '📋 管理预订和旅行记录', '💬 享受24/7客服支持'],
+    google: '使用Google登录',
+    apple: '使用Apple登录',
+    loading: '登录中...',
+    privacy: '登录即表示您同意我们的隐私政策。',
+  },
 };
 
 export function AuthRequired({ children }: { children: ReactNode }) {
@@ -50,19 +82,33 @@ export function AuthRequired({ children }: { children: ReactNode }) {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#faf9f6] p-6">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#0f3460]/10 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-7 h-7 text-[#0f3460]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="min-h-screen flex items-center justify-center p-6"
+        style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
+        <div className="w-full max-w-sm rounded-2xl p-8 text-center"
+          style={{ background: 'rgba(15,18,32,0.95)', border: '1px solid rgba(124,92,252,0.15)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+          {/* Icon */}
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
+            style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 4px 20px rgba(124,92,252,0.3)' }}>
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-[#1a1a2e] mb-2">{text.title}</h1>
-          <p className="text-sm text-gray-500 mb-6">{text.desc}</p>
+          <h1 className="text-xl font-bold text-white mb-1.5">{text.title}</h1>
+          <p className="text-sm text-white/50 mb-5">{text.desc}</p>
+
+          {/* Benefits */}
+          <div className="text-left space-y-2.5 mb-6 p-4 rounded-xl" style={{ background: 'rgba(124,92,252,0.06)', border: '1px solid rgba(124,92,252,0.1)' }}>
+            {text.benefits.map((b, i) => (
+              <p key={i} className="text-[13px] text-white/70 leading-snug">{b}</p>
+            ))}
+          </div>
+
+          {/* Google Button */}
           <button
             onClick={handleGoogle}
             disabled={googleLoading}
-            className="w-full py-3 rounded-xl bg-white border border-gray-200 text-[#1a1a2e] font-bold hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-3 mb-3"
+            className="w-full py-3.5 rounded-xl font-bold transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3 mb-3 hover:scale-[1.02]"
+            style={{ background: '#fff', color: '#1a1a2e', boxShadow: '0 2px 12px rgba(255,255,255,0.1)' }}
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -72,8 +118,9 @@ export function AuthRequired({ children }: { children: ReactNode }) {
             </svg>
             {googleLoading ? text.loading : text.google}
           </button>
-          {/* Apple 로그인 임시 비활성화 */}
-          {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
+
+          {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+          <p className="text-[11px] text-white/25 mt-4">{text.privacy}</p>
         </div>
       </div>
     );

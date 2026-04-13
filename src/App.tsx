@@ -149,11 +149,9 @@ function App() {
           <Route
             path="/planner"
             element={
-              <AuthRequired>
-                <Suspense fallback={<PlannerSkeleton />}>
-                  <PlannerPage />
-                </Suspense>
-              </AuthRequired>
+              <Suspense fallback={<PlannerSkeleton />}>
+                <PlannerPage />
+              </Suspense>
             }
           />
           <Route path="/about" element={<About />} />
