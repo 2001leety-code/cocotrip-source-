@@ -1,1 +1,1 @@
-{"version":"0.0.1","configurations":[{"name":"cocotrip-dev","runtimeExecutable":"npm","runtimeArgs":["run","dev"],"port":5173}]}
+{"version":"0.0.1","configurations":[{"name":"cocotrip-dev","runtimeExecutable":"C:\\Users\\dlxod\\cocotrip-dev.bat","runtimeArgs":[],"port":5173}]}

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles, Plane, Luggage, ChevronDown } from 'lucide-react';
+import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles, Plane, Luggage, ChevronDown, Timer } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -37,9 +37,9 @@ const AIRPORTS = [
 const ICN_DESTS = Object.entries(AIRPORT_TRANSFER_PRICES);
 
 const LUGGAGE_SIZES = [
-  { id: 'small', ko: '소형 (기내반입)', en: 'Small (Carry-on)' },
-  { id: 'medium', ko: '중형 (24인치)', en: 'Medium (24")' },
-  { id: 'large', ko: '대형 (28인치+)', en: 'Large (28"+)' },
+  { id: 'small', ko: '소형 (기내반입)', en: 'Small (Carry-on)', ja: '小型（機内持込）', zh: '小型（登机箱）' },
+  { id: 'medium', ko: '중형 (24인치)', en: 'Medium (24")', ja: '中型（24インチ）', zh: '中型（24寸）' },
+  { id: 'large', ko: '대형 (28인치+)', en: 'Large (28"+)', ja: '大型（28インチ+）', zh: '大型（28寸+）' },
 ];
 
 // ── 스타일 상수 ─────────────────────────────────────
@@ -54,6 +54,7 @@ export default function CharterPage() {
   const p = t.planner;
   const c = (t as any).charterPage ?? {} as any;
   const lk = language === 'ko' ? 'ko' : 'en'; // language key for pricing data
+  const llk = (['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'; // language key for luggage labels
 
   usePageMeta({
     title: 'Charter Vehicle — Airport Pickup & Day Tours',
@@ -71,10 +72,12 @@ export default function CharterPage() {
   const [endDate,     setEndDate]     = useState('');
   const [adults,      setAdults]      = useState(2);
   const [children,    setChildren]    = useState(0);
-  const [luggageSize, setLuggageSize] = useState('medium');
-  const [luggageCount,setLuggageCount]= useState(2);
-  const [flightNo,    setFlightNo]    = useState('');
-  const [notes,       setNotes]       = useState('');
+  const [luggageSmall,  setLuggageSmall]  = useState(0);
+  const [luggageMedium, setLuggageMedium] = useState(0);
+  const [luggageLarge,  setLuggageLarge]  = useState(0);
+  const [flightNo,      setFlightNo]      = useState('');
+  const [arrivalTime,   setArrivalTime]   = useState('');
+  const [notes,         setNotes]         = useState('');
 
   // ── 가격 계산 ───────────────────────────────────────
   const quote = useMemo(() => {
@@ -110,8 +113,14 @@ export default function CharterPage() {
   const canPayPal = vehicle === 'staria' && quote?.priceKRW != null && !!startDate;
   const needsCustom = vehicle === 'sprinter' || vehicle === 'bus' || service === 'multiday' || service === 'other';
 
+  const luggageParts: string[] = [];
+  if (luggageSmall > 0) luggageParts.push(`Carry-on x${luggageSmall}`);
+  if (luggageMedium > 0) luggageParts.push(`24" x${luggageMedium}`);
+  if (luggageLarge > 0) luggageParts.push(`28"+ x${luggageLarge}`);
+  const luggageSummary = luggageParts.length > 0 ? luggageParts.join(', ') : 'None';
+
   const waText = encodeURIComponent(
-    `[CocoTrip Charter]\nVehicle: ${VEHICLE_TYPES[vehicle].name.ko}\nService: ${service}\nDate: ${startDate}${endDate && endDate !== startDate ? ` ~ ${endDate}` : ''}\nPax: ${adults} adults${children > 0 ? ` ${children} children` : ''}\nAirport: ${airport}\n${destination ? `Dest: ${destination === '__custom__' ? customDest : destination}\n` : ''}${flightNo ? `Flight: ${flightNo}\n` : ''}Luggage: ${luggageCount}x ${luggageSize}\n${notes ? `Note: ${notes}` : ''}`
+    `[CocoTrip Charter]\nVehicle: ${VEHICLE_TYPES[vehicle].name.ko}\nService: ${service}\nDate: ${startDate}${endDate && endDate !== startDate ? ` ~ ${endDate}` : ''}\nPax: ${adults} adults${children > 0 ? ` ${children} children` : ''}\nAirport: ${airport}\n${destination ? `Dest: ${destination === '__custom__' ? customDest : destination}\n` : ''}${flightNo ? `Flight: ${flightNo}\n` : ''}${arrivalTime ? `Arrival Time: ${arrivalTime}\n` : ''}Luggage: ${luggageSummary}\n${notes ? `Note: ${notes}` : ''}`
   );
   const waUrl    = `https://wa.me/821087140611?text=${waText}`;
   const emailUrl = `mailto:info@cocotripkorea.com?subject=Charter Quote&body=${waText}`;
@@ -345,40 +354,44 @@ export default function CharterPage() {
             </div>
           </div>
 
-          {/* 캐리어 */}
+          {/* 캐리어 — 사이즈별 개수 */}
           <div>
             <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Luggage className="w-3 h-3" />{c.luggage ?? '캐리어 정보'}</p>
+            <p className="text-[10px] text-white/25 mb-3">{c.luggageSizeHint ?? '각 사이즈별 수량을 입력하세요'}</p>
             <div className="space-y-2">
-              {/* 크기 드롭다운 */}
-              <div className="relative">
-                <select value={luggageSize} onChange={e => setLuggageSize(e.target.value)}
-                  className="w-full appearance-none px-4 py-3 pr-10 rounded-xl border border-white/15 bg-white/[0.04] text-white text-sm font-medium outline-none focus:border-[#B668FC]/60 transition-all cursor-pointer">
-                  {LUGGAGE_SIZES.map(s => (
-                    <option key={s.id} value={s.id} className="bg-[#1a1a2e] text-white">{s[lk as 'ko' | 'en']}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-              </div>
-              {/* 개수 스텝퍼 */}
-              <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3">
-                <span className="text-sm text-white/65">{c.luggageCount ?? '캐리어 개수'}</span>
-                <div className="flex items-center gap-3">
-                  <button type="button" onClick={() => setLuggageCount(Math.max(0, luggageCount - 1))}
-                    className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-white/55 hover:border-[#B668FC]/40 hover:text-[#B668FC] transition-all text-lg leading-none">−</button>
-                  <span className="text-base font-bold text-white w-6 text-center">{luggageCount}</span>
-                  <button type="button" onClick={() => setLuggageCount(Math.min(20, luggageCount + 1))}
-                    className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-white/55 hover:border-[#B668FC]/40 hover:text-[#B668FC] transition-all text-lg leading-none">+</button>
+              {[
+                { key: 'small'  as const, label: LUGGAGE_SIZES[0][llk], val: luggageSmall,  set: setLuggageSmall },
+                { key: 'medium' as const, label: LUGGAGE_SIZES[1][llk], val: luggageMedium, set: setLuggageMedium },
+                { key: 'large'  as const, label: LUGGAGE_SIZES[2][llk], val: luggageLarge,  set: setLuggageLarge },
+              ].map(row => (
+                <div key={row.key} className="flex items-center justify-between bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3">
+                  <span className="text-sm text-white/65">{row.label}</span>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => row.set(Math.max(0, row.val - 1))}
+                      className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-white/55 hover:border-[#B668FC]/40 hover:text-[#B668FC] transition-all text-lg leading-none">−</button>
+                    <span className="text-base font-bold text-white w-6 text-center">{row.val}</span>
+                    <button type="button" onClick={() => row.set(Math.min(20, row.val + 1))}
+                      className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-white/55 hover:border-[#B668FC]/40 hover:text-[#B668FC] transition-all text-lg leading-none">+</button>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* 비행기 편명 */}
+          {/* 비행기 편명 + 도착시간 */}
           <div>
             <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.flightNo ?? '비행기 편명 (선택)'}</p>
             <input type="text" value={flightNo} onChange={e => setFlightNo(e.target.value.toUpperCase())}
               placeholder={c.flightPlaceholder ?? '예: KE001, OZ521, 7C101'}
               className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40 transition-all font-mono tracking-wider" />
+          </div>
+
+          {/* 도착 시간 */}
+          <div>
+            <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Timer className="w-3 h-3" />{c.arrivalTime ?? '도착 시간 (선택)'}</p>
+            <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm outline-none focus:border-[#B668FC]/40 transition-all [color-scheme:dark]" />
+            <p className="text-[10px] text-white/20 mt-1">{c.arrivalTimeHint ?? '비행기 도착 예정 시간을 입력하세요'}</p>
           </div>
 
           {/* 요청사항 */}

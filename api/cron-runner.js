@@ -7,28 +7,29 @@
  */
 
 import dailyReport from './_crons/daily-report.js';
-import trafficAlert from './_crons/traffic-alert.js';
-import contentGenerator from './_crons/content-generator.js';
-import competitorMonitor from './_crons/competitor-monitor.js';
-import retargetScheduler from './_crons/retarget-scheduler.js';
-import reviewScheduler from './_crons/review-scheduler.js';
-import redditMonitor from './_crons/reddit-monitor.js';
-import weatherCheck from './_crons/weather-check.js';
-import blogPublisher from './_crons/blog-publisher.js';
+// ── 비활성화된 크론 (2026-04-10) ──────────────────────
+// import trafficAlert from './_crons/traffic-alert.js';
+// import contentGenerator from './_crons/content-generator.js';
+// import competitorMonitor from './_crons/competitor-monitor.js';
+// import retargetScheduler from './_crons/retarget-scheduler.js';
+// import reviewScheduler from './_crons/review-scheduler.js';
+// import redditMonitor from './_crons/reddit-monitor.js';
+// import weatherCheck from './_crons/weather-check.js';
+// import blogPublisher from './_crons/blog-publisher.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 const JOBS = {
   'daily-report':       dailyReport,
-  'traffic-alert':      trafficAlert,
-  'content-generator':  contentGenerator,
-  'competitor-monitor': competitorMonitor,
-  'retarget-scheduler': retargetScheduler,
-  'review-scheduler':   reviewScheduler,
-  'reddit-monitor':     redditMonitor,
-  'weather-check':      weatherCheck,
-  'blog-publisher':     blogPublisher,
+  // 'traffic-alert':      trafficAlert,
+  // 'content-generator':  contentGenerator,
+  // 'competitor-monitor': competitorMonitor,
+  // 'retarget-scheduler': retargetScheduler,
+  // 'review-scheduler':   reviewScheduler,
+  // 'reddit-monitor':     redditMonitor,
+  // 'weather-check':      weatherCheck,
+  // 'blog-publisher':     blogPublisher,
 };
 
 const CORS = {

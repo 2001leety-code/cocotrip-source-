@@ -16,6 +16,10 @@ interface Props {
   memo?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   itineraryData?: any;
+  /** Called after PayPal capture succeeds — parent handles next step (e.g. AI plan generation) */
+  onPaymentSuccess?: (orderID: string) => void | Promise<void>;
+  /** 현재 사용자 이메일 — 테스트 계정 감지용 */
+  userEmail?: string;
 }
 
 interface RateInfo {
@@ -40,7 +44,10 @@ declare global {
   }
 }
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW, p, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData }: Props) {
+const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW, p, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '' }: Props) {
+  const isSandboxAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
   console.log('[PayPal Props]', { productType, passengers, dateStart, dateEnd, priceKRW });
   const [paypalReady, setPaypalReady] = useState(false);
   const [loading,     setLoading]     = useState(false);
@@ -113,7 +120,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     }
     const script = document.createElement('script');
     script.id  = 'paypal-sdk';
-    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD`;
+    const sandboxClientId = import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID;
+    const resolvedClientId = isSandboxAccount && sandboxClientId ? sandboxClientId : clientId;
+    const sdkUrl = isSandboxAccount && sandboxClientId
+      ? `https://www.sandbox.paypal.com/sdk/js?client-id=${resolvedClientId}&currency=USD`
+      : `https://www.paypal.com/sdk/js?client-id=${resolvedClientId}&currency=USD`;
+    script.src = sdkUrl;
+    console.log('[PayPal SDK] mode:', isSandboxAccount ? 'SANDBOX (test account)' : 'LIVE');
     script.onload = () => {
       (script as HTMLScriptElement).dataset.loaded = 'true';
       setPaypalReady(true);
@@ -155,6 +168,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           const result = await res.json();
           console.log('[PayPal onApprove] capture result:', JSON.stringify(result));
           if (result.success) {
+            // If parent provided a callback, delegate to it (e.g. AI plan generation)
+            if (onPaymentSuccess) {
+              setShowPaypal(false);
+              await onPaymentSuccess(data.orderID);
+              return;
+            }
+            // Default: show success modal (for charter bookings etc.)
             setSuccessData(result);
             setShowSuccess(true);
             setShowPaypal(false);

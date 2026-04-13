@@ -37,11 +37,20 @@ const FALLBACK = {
   },
 };
 
-function buildPrompt(lang, destination, preferences, durationDays, pax) {
+function buildPrompt(lang, destination, preferences, durationDays, pax, foodPrefs) {
+  const foodNote = foodPrefs ? `\nFood preferences: ${foodPrefs}` : '';
   if (lang === 'ko') {
     return {
       system: `당신은 한국 여행 전문 플래너입니다.
 외국인 관광객을 위한 매력적인 1일차 여행 프리뷰를 작성하세요.
+${foodPrefs ? `
+식사 추천 — 엄격 규칙 (절대 위반 금지):
+${foodPrefs}
+
+Halal 포함 시: 할랄 인증 식당만 추천 (예: 이태원 Eid, Murree, Yang Good). 돼지고기/비할랄 제외.
+Vegan 포함 시: 100% 식물성 식당/메뉴만 추천. 비빔밥(계란/고기 제외), 콩국수, 사찰음식. 젓갈/멸치육수 포함 메뉴 절대 제외.
+알러지 지정 시: 안전 최우선 사항. 해당 알러지 식재료 포함 메뉴 절대 금지. 팁에 "⚠️ 식당에 알러지 알리기" 추가.
+가성비 선택 시: 시장/길거리 음식 우선 (₩5,000-12,000). 고급 선택 시: 미슐랭 레스토랑 (₩50,000+).` : ''}
 
 반드시 아래 JSON 형태로만 응답하세요 (다른 텍스트 없이):
 {
@@ -49,7 +58,7 @@ function buildPrompt(lang, destination, preferences, durationDays, pax) {
   "marketingNarrative": "이 여행의 매력을 3문장으로 설명",
   "day1MarkdownTable": "| 시간 | 명소 | 팁 |\\n|---|---|---|\\n| 10:00 | 명소이름 | 실용 팁 |"
 }`,
-      user: `목적지: ${destination}, 관심사: ${preferences}, ${durationDays}일 여행 중 1일차. ${pax}명.`,
+      user: `목적지: ${destination}, 관심사: ${preferences}, ${durationDays}일 여행 중 1일차. ${pax}명.${foodNote}`,
     };
   }
 
@@ -57,6 +66,15 @@ function buildPrompt(lang, destination, preferences, durationDays, pax) {
   return {
     system: `You are CocoTrip's expert Korea travel planner.
 Create an exciting Day 1 preview itinerary for international tourists.
+${foodPrefs ? `
+MEAL PLANNING — STRICT RULES (NEVER VIOLATE):
+${foodPrefs}
+
+If Diet includes "Halal": ONLY recommend halal-certified restaurants (e.g. Eid, Murree, Yang Good in Itaewon). NEVER suggest pork or non-halal meat.
+If Diet includes "Vegan": ONLY recommend plant-based options. Korean vegan dishes: Bibimbap (no egg/meat), Kongguksu, temple food. NEVER suggest fish sauce or anchovy stock.
+If Allergies are listed: This is SAFETY-CRITICAL. NEVER recommend any dish containing the allergen. Add "⚠️ Inform restaurant of allergy" in tips.
+If Meal budget is "Budget": Prioritize street food and markets (₩5,000-12,000). If "Premium": Recommend Michelin-listed restaurants (₩50,000+).
+Reflect these preferences in ALL meal/food recommendations.` : ''}
 
 RESPOND ONLY with this exact JSON format (no other text):
 {
@@ -70,7 +88,7 @@ RULES:
 - Each tip must be specific and useful (subway exit numbers, best menu items, photo angles)
 - Use real, verified places that exist in Korea
 - Make the narrative exciting and personal`,
-    user: `Destination: ${destination}, Interests: ${preferences || 'culture, food, photos'}, Trip: ${durationDays} days (Day 1 preview). Group size: ${pax}.`,
+    user: `Destination: ${destination}, Interests: ${preferences || 'culture, food, photos'}, Trip: ${durationDays} days (Day 1 preview). Group size: ${pax}.${foodNote}`,
   };
 }
 
@@ -90,6 +108,16 @@ export default async function handler(req, res) {
     const durationDays = rawBody.durationDays || rawBody.duration || 3;
     const pax = rawBody.pax || rawBody.members || 2;
 
+    // ── Food preferences ──
+    const dietPrefs = Array.isArray(rawBody.dietPrefs) ? rawBody.dietPrefs : [];
+    const allergies = Array.isArray(rawBody.allergies) ? rawBody.allergies : [];
+    const priceRange = rawBody.priceRange || 'Any';
+    const foodPrefParts = [];
+    if (dietPrefs.length) foodPrefParts.push(`Diet: ${dietPrefs.join(', ')}`);
+    if (allergies.length) foodPrefParts.push(`Allergies/Avoid: ${allergies.join(', ')}`);
+    if (priceRange && priceRange !== 'Any') foodPrefParts.push(`Meal budget: ${priceRange}`);
+    const foodPrefs = foodPrefParts.length > 0 ? foodPrefParts.join('. ') : '';
+
     const apiKey = process.env.GEMINI_API_KEY || '';
     if (!apiKey) throw new Error('API Key configuration missing');
 
@@ -97,7 +125,7 @@ export default async function handler(req, res) {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const spotContext = getSpotContext(destination);
-    const { system: systemPrompt, user: userPrompt } = buildPrompt(lang, destination, preferences, durationDays, pax);
+    const { system: systemPrompt, user: userPrompt } = buildPrompt(lang, destination, preferences, durationDays, pax, foodPrefs);
     const fullUserPrompt = userPrompt + (spotContext ? `\n\nLocal data:\n${spotContext}` : '');
 
     // ── Gemini 호출 + JSON 파싱 (최대 3회 재시도) ──

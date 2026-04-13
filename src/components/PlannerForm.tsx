@@ -67,6 +67,9 @@ export interface PlannerFormValues {
   arrivalAirport?: string;
   pax?: number;
   durationDays?: number;
+  dietPrefs?: string[];
+  allergies?: string[];
+  priceRange?: string;
 }
 
 interface Props {

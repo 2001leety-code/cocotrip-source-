@@ -320,11 +320,35 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - Transit between consecutive stops should be under 30 minutes.
 - First stop of Day 1 should be near the hotel or arrival point.
 
-## MEAL PLANNING
+## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
 - 1 dedicated lunch + 1 dinner per full day
 - REAL restaurant names (not generic)
 - 3-5 signature menu items with KRW prices
 - reservation_required + phone for popular spots
+
+If diet_preferences includes "Halal":
+- ONLY recommend halal-certified restaurants
+- Verify the restaurant is in Korea Tourism Organization's halal restaurant list
+- NEVER recommend pork or non-halal meat dishes
+- Common Seoul halal restaurants: Eid (Itaewon), Murree (Itaewon), Yang Good (Itaewon)
+
+If diet_preferences includes "Vegan":
+- ONLY recommend 100% plant-based restaurants
+- Vegetarian-friendly Korean dishes: Bibimbap (no egg/meat), Kongguksu, Doenjang-jjigae (no fish stock)
+- NEVER recommend dishes with fish sauce or anchovy stock
+
+If food_allergies includes [allergen]:
+- Treat as a SAFETY-CRITICAL constraint
+- NEVER recommend any dish containing the allergen
+- Add a warning note in tip_en: "⚠️ Inform restaurant of [allergen] allergy"
+
+If meal_budget is "Budget":
+- Prioritize street food, market stalls, and local diners (₩5,000-12,000 per meal)
+- Examples: Gwangjang Market, Tongin Market, school cafeterias
+
+If meal_budget is "Premium":
+- Recommend Michelin-listed or high-end restaurants (₩50,000+ per meal)
+- Reservation usually required — set reservation_required: true
 
 ## VEHICLE PRICING
 - staria_8 (1-8 pax): ₩330,000/8hrs
@@ -401,17 +425,28 @@ export default async function handler(req, res) {
 
     // ── PayPal 결제 검증 ───────────────────────────────────────────────────
     const paypalOrderId = body.paypalOrderId;
+    const requestEmail = (body.email || '').toLowerCase().trim();
 
     if (!paypalOrderId) {
       res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'Payment required', details: 'PayPal order ID is missing. Please complete payment first.' }));
     }
 
-    // PayPal API로 결제 상태 확인
-    const ppClientId = process.env.PAYPAL_CLIENT_ID;
-    const ppSecret = process.env.PAYPAL_CLIENT_SECRET;
-    const ppMode = process.env.PAYPAL_MODE || 'live';
-    const ppBase = ppMode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+    // 테스트 계정은 샌드박스 API로, 일반 계정은 라이브 API로 검증
+    const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+    const isTestAccount = TEST_ACCOUNTS.includes(requestEmail);
+
+    const ppClientId = isTestAccount
+      ? process.env.PAYPAL_SANDBOX_CLIENT_ID
+      : process.env.PAYPAL_CLIENT_ID;
+    const ppSecret = isTestAccount
+      ? process.env.PAYPAL_SANDBOX_SECRET
+      : process.env.PAYPAL_CLIENT_SECRET;
+    const ppBase = isTestAccount
+      ? 'https://api-m.sandbox.paypal.com'
+      : 'https://api-m.paypal.com';
+
+    console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
 
     const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
     const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
@@ -421,7 +456,7 @@ export default async function handler(req, res) {
     });
     if (!tokenRes.ok) {
       console.error('[planner] PayPal token fetch failed:', tokenRes.status);
-      res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
+      res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'Payment verification failed' }));
     }
     const ppToken = (await tokenRes.json()).access_token;
@@ -471,6 +506,11 @@ export default async function handler(req, res) {
     const hotel_address = body.hotel_address || '';
     const mobility = body.mobility || 'ok';
     const uid = body.uid || null;
+
+    // ── 음식 취향 (v3) ────────────────────────────────────────────────────
+    const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
+    const allergies = Array.isArray(body.allergies) ? body.allergies : [];
+    const priceRange = body.priceRange || 'Any';
 
     const arrivalAddress = AIRPORT_ADDRESSES[arrival_airport] || '';
     const departureAddress = AIRPORT_ADDRESSES[departure_airport] || AIRPORT_ADDRESSES[arrival_airport] || '';
@@ -527,6 +567,9 @@ export default async function handler(req, res) {
       hotel_address: hotel_address || undefined,
       mobility,
       special_request: specialRequest || undefined,
+      diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+      food_allergies: allergies.length > 0 ? allergies : undefined,
+      meal_budget: priceRange !== 'Any' ? priceRange : undefined,
       variation_seed: Math.floor(Math.random() * 100) + 1,
     }) + spotContext + `\n\n[VARIATION SEED: ${Math.floor(Math.random() * 1000)}] Create a UNIQUE itinerary — pick different restaurants and routes than usual.`;
 

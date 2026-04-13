@@ -1,94 +1,63 @@
+const EXPEDIA_AFFCID = import.meta.env.VITE_EXPEDIA_AFFCID || '1110l29051';
+
 export const AFFILIATE_CONFIG = {
-  booking: {
-    baseUrl: 'https://www.booking.com/searchresults.html',
-    aid: import.meta.env.VITE_BOOKING_AID || '',
-  },
-  agoda: {
-    baseUrl: 'https://www.agoda.com/search',
-    cid: import.meta.env.VITE_AGODA_CID || '',
-  },
   expedia: {
-    baseUrl: 'https://www.expedia.com/Hotel-Search',
-    affcid: import.meta.env.VITE_EXPEDIA_AFFCID || '1110l29051',
-  },
-  klook: {
-    baseUrl: 'https://www.klook.com/search/',
-    aid: import.meta.env.VITE_KLOOK_AID || '',
-  },
-  viator: {
-    baseUrl: 'https://www.viator.com/search/',
-    pid: import.meta.env.VITE_VIATOR_PID || '',
-  },
-  skyscanner: {
-    baseUrl: 'https://www.skyscanner.co.kr/transport/flights/',
-    aid: import.meta.env.VITE_SKYSCANNER_AID || '',
+    hotel:    'https://www.expedia.com/Hotel-Search',
+    flight:   'https://www.expedia.com/Flights',
+    activity: 'https://www.expedia.com/things-to-do/search',
+    car:      'https://www.expedia.com/carsearch',
+    package:  'https://www.expedia.com/Vacation-Packages',
+    affcid:   EXPEDIA_AFFCID,
   },
 };
 
+/* ── Hotels ──────────────────────────────────────────── */
 export function buildAccommodationLinks(hotelName: string, region: string) {
   const query = encodeURIComponent(`${hotelName} ${region}`);
-  const links: { provider: string; label: string; url: string; color: string }[] = [];
-
-  if (AFFILIATE_CONFIG.booking.aid) {
-    links.push({
-      provider: 'booking',
-      label: 'Booking.com',
-      url: `${AFFILIATE_CONFIG.booking.baseUrl}?ss=${query}&aid=${AFFILIATE_CONFIG.booking.aid}`,
-      color: '#003580',
-    });
-  }
-  if (AFFILIATE_CONFIG.agoda.cid) {
-    links.push({
-      provider: 'agoda',
-      label: 'Agoda',
-      url: `${AFFILIATE_CONFIG.agoda.baseUrl}?q=${query}&cid=${AFFILIATE_CONFIG.agoda.cid}`,
-      color: '#5C2D91',
-    });
-  }
-  if (AFFILIATE_CONFIG.expedia.affcid) {
-    links.push({
+  return [
+    {
       provider: 'expedia',
-      label: 'Expedia',
-      url: `${AFFILIATE_CONFIG.expedia.baseUrl}?destination=${query}&AFFCID=${AFFILIATE_CONFIG.expedia.affcid}`,
+      label: 'Expedia Hotels',
+      url: `${AFFILIATE_CONFIG.expedia.hotel}?destination=${query}&AFFCID=${EXPEDIA_AFFCID}`,
       color: '#FBCE04',
-    });
-  }
-  return links;
+    },
+  ];
 }
 
+/* ── Flights ─────────────────────────────────────────── */
+export function buildFlightLink(destinationCode: string) {
+  const cityCodeMap: Record<string, string> = {
+    ICN: 'Seoul (ICN)', GMP: 'Seoul (GMP)', PUS: 'Busan (PUS)', CJU: 'Jeju (CJU)',
+    ICN_T1: 'Seoul (ICN)', ICN_T2: 'Seoul (ICN)', ALREADY: 'Seoul',
+  };
+  const dest = cityCodeMap[destinationCode] || 'Seoul (ICN)';
+  return {
+    label: 'Expedia Flights',
+    url: `${AFFILIATE_CONFIG.expedia.flight}?trip=roundtrip&leg1=to:${encodeURIComponent(dest)}&AFFCID=${EXPEDIA_AFFCID}`,
+  };
+}
+
+/* ── Activities / Tours ──────────────────────────────── */
 export function buildTourLinks(placeName: string, region: string) {
   const query = encodeURIComponent(`${placeName} ${region}`);
-  const links: { provider: string; label: string; url: string }[] = [];
-
-  if (AFFILIATE_CONFIG.klook.aid) {
-    links.push({
-      provider: 'klook',
-      label: 'Klook',
-      url: `${AFFILIATE_CONFIG.klook.baseUrl}?query=${query}&aff_adid=${AFFILIATE_CONFIG.klook.aid}`,
-    });
-  }
-  if (AFFILIATE_CONFIG.viator.pid) {
-    links.push({
-      provider: 'viator',
-      label: 'Viator',
-      url: `${AFFILIATE_CONFIG.viator.baseUrl}${query}?pid=${AFFILIATE_CONFIG.viator.pid}`,
-    });
-  }
-  return links;
+  return [
+    {
+      provider: 'expedia',
+      label: 'Expedia Activities',
+      url: `${AFFILIATE_CONFIG.expedia.activity}?location=${query}&AFFCID=${EXPEDIA_AFFCID}`,
+    },
+  ];
 }
 
-export function buildFlightLink(destinationCode: string) {
-  if (!AFFILIATE_CONFIG.skyscanner.aid) return null;
-  const cityCodeMap: Record<string, string> = {
-    ICN: 'SEL', GMP: 'SEL', PUS: 'PUS', CJU: 'CJU',
-  };
-  const cityCode = cityCodeMap[destinationCode] || 'SEL';
+/* ── Car Rentals ─────────────────────────────────────── */
+export function buildCarLink(city: string) {
   return {
-    label: 'Skyscanner',
-    url: `${AFFILIATE_CONFIG.skyscanner.baseUrl}anywhere/${cityCode}/?associateId=${AFFILIATE_CONFIG.skyscanner.aid}`,
+    label: 'Expedia Car Rental',
+    url: `${AFFILIATE_CONFIG.expedia.car}?pickUpPlace=${encodeURIComponent(city)}&AFFCID=${EXPEDIA_AFFCID}`,
   };
 }
 
+/* ── Airport Pickup Prices (own service) ─────────────── */
 export const PICKUP_PRICES: Record<string, { destination: string; price: string }[]> = {
   ICN: [
     { destination: '서울 도심', price: '₩124,800' },
