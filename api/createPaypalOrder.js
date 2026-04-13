@@ -56,11 +56,13 @@ export default async function handler(req, res) {
     const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode } = body;
     if (!productType) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'productType is required' })); }
 
+    // 하이픈/언더스코어 둘 다 허용
+    const normalizedType = productType.replace(/-/g, '_');
     let krwAmount;
-    if (productType.startsWith('kpop_shuttle')) {
-      krwAmount = (passengers || 1) * (PRODUCT_PRICES[productType] || 35000);
+    if (normalizedType.startsWith('kpop_shuttle')) {
+      krwAmount = (passengers || 1) * (PRODUCT_PRICES[normalizedType] || 35000);
     } else {
-      krwAmount = PRODUCT_PRICES[productType];
+      krwAmount = PRODUCT_PRICES[normalizedType];
       if (!krwAmount) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: `Unknown productType: ${productType}` })); }
     }
 
