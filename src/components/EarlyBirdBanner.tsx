@@ -48,8 +48,8 @@ export function EarlyBirdBanner({ language }: Props) {
 
   return (
     <div
-      className="fixed bottom-14 left-3 sm:bottom-6 sm:top-auto sm:left-6 p-3 sm:p-4 text-white rounded-2xl shadow-2xl shadow-[#7C5CFC]/30 border border-white/20 transition-all z-40 hover:scale-105"
-      style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', width: 140, maxWidth: 'calc(100vw - 24px)' }}
+      className="fixed bottom-[88px] left-3 sm:bottom-6 sm:top-auto sm:left-6 p-2.5 sm:p-4 text-white rounded-xl sm:rounded-2xl shadow-2xl shadow-[#7C5CFC]/30 border border-white/20 transition-all z-40 hover:scale-105"
+      style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', width: 130, maxWidth: 'calc(100vw - 24px)' }}
     >
       <div className="flex items-start justify-between mb-2">
         <Tag className="w-4 h-4 shrink-0" />

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { MessageCircle, X } from 'lucide-react';
 
 /**
@@ -13,7 +13,7 @@ export function ChatFAB() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-20 right-4 z-[190] md:bottom-6 flex flex-col items-end gap-2">
+    <div className="fixed bottom-24 right-4 z-[190] md:bottom-6 flex flex-col items-end gap-2">
       {/* 메뉴 팝업 */}
       {open && (
         <div className="mb-2 flex flex-col gap-2 animate-in slide-in-from-bottom-2 fade-in duration-200">

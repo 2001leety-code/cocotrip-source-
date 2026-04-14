@@ -48,7 +48,7 @@ const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
 
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
-import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -189,6 +189,7 @@ function App() {
             }
           />
         </Routes>
+        <MobileBottomSpacer />
       </BrowserRouter>
       </ErrorBoundary>
     </LanguageProvider>
