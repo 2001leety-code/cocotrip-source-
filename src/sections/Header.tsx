@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, User } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, User, FileText, Ticket, Headphones, Map } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Language } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -285,87 +285,97 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           }}
         >
           <div className="px-6 py-8">
-            {/* Navigation */}
-            <nav className="space-y-1">
+            {/* ── Main Navigation ── */}
+            <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+              Menu
+            </p>
+            <nav className="space-y-0.5">
               {navItems.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-4 border-b transition-colors"
+                  className="flex items-center justify-between py-3.5 px-3 rounded-xl transition-all"
                   style={{
-                    borderColor: 'rgba(255,255,255,0.06)',
-                    color: isActive(item.to) ? '#7C5CFC' : 'rgba(255,255,255,0.6)',
+                    color: isActive(item.to) ? '#fff' : 'rgba(255,255,255,0.55)',
+                    background: isActive(item.to) ? 'rgba(124,92,252,0.1)' : 'transparent',
                   }}
                 >
-                  <span className="text-lg font-semibold tracking-wide">{item.label}</span>
+                  <div className="flex items-center gap-3">
+                    {item.to === '/charter' && <Map className="w-5 h-5" />}
+                    {item.to === '/planner' && <FileText className="w-5 h-5" />}
+                    {item.to === '/about' && <Globe className="w-5 h-5" />}
+                    <span className="text-[16px] font-semibold">{item.label}</span>
+                  </div>
                   {isActive(item.to) && (
                     <span className="w-2 h-2 rounded-full bg-[#7C5CFC]" />
                   )}
                 </Link>
               ))}
+            </nav>
 
-              {/* MyPage (mobile, logged-in) */}
-              {user && (
+            {/* ── My Account ── */}
+            <div className="mt-6">
+              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+                My Account
+              </p>
+              <div className="space-y-0.5">
                 <Link
                   to="/mypage"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center gap-3 py-4 border-b text-lg font-semibold tracking-wide"
+                  className="flex items-center gap-3 py-3.5 px-3 rounded-xl transition-all"
                   style={{
-                    borderColor: 'rgba(255,255,255,0.06)',
-                    color: isActive('/mypage') ? '#7C5CFC' : 'rgba(255,255,255,0.6)',
+                    color: isActive('/mypage') ? '#fff' : 'rgba(255,255,255,0.55)',
+                    background: isActive('/mypage') ? 'rgba(124,92,252,0.1)' : 'transparent',
                   }}
                 >
                   <User className="w-5 h-5" />
-                  <span>{t.nav.myPage ?? 'My Page'}</span>
+                  <span className="text-[16px] font-semibold">{t.nav.myPage ?? 'My Page'}</span>
                 </Link>
-              )}
-            </nav>
+                <Link
+                  to="/my-plans"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-3.5 px-3 rounded-xl transition-all"
+                  style={{
+                    color: isActive('/my-plans') ? '#fff' : 'rgba(255,255,255,0.55)',
+                    background: isActive('/my-plans') ? 'rgba(124,92,252,0.1)' : 'transparent',
+                  }}
+                >
+                  <FileText className="w-5 h-5" />
+                  <span className="text-[16px] font-semibold">My Plans</span>
+                </Link>
+                <div
+                  className="flex items-center justify-between py-3.5 px-3 rounded-xl"
+                  style={{ color: 'rgba(255,255,255,0.35)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Ticket className="w-5 h-5" />
+                    <span className="text-[16px] font-semibold">Coupons</span>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#7C5CFC]/15 text-[#B9A4FF] font-bold">Coming Soon</span>
+                </div>
+              </div>
+            </div>
 
-            {/* Mobile CTA */}
-            <div className="mt-10 space-y-4">
+            {/* ── Support ── */}
+            <div className="mt-6">
+              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+                Support
+              </p>
               <a
                 href="https://wa.me/821087140611"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl text-base font-bold transition-all"
-                style={{
-                  background: 'linear-gradient(135deg, #7C5CFC, #5A3FD4)',
-                  color: '#fff',
-                  boxShadow: '0 4px 20px rgba(124,92,252,0.3)',
-                }}
+                className="flex items-center gap-3 py-3.5 px-3 rounded-xl transition-all"
+                style={{ color: 'rgba(255,255,255,0.55)' }}
               >
-                <MessageCircle className="w-5 h-5" />
-                <span>{t.nav.inquiry ?? '1:1 Inquiry'}</span>
+                <Headphones className="w-5 h-5" />
+                <span className="text-[16px] font-semibold">1:1 Support</span>
+                <span className="ml-auto text-[11px] text-emerald-400 font-bold">24/7</span>
               </a>
             </div>
 
-            {/* Mobile Language Selector */}
-            <div className="mt-8">
-              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
-                Language
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {languages.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => {
-                      onLanguageChange(lang.code as Language);
-                    }}
-                    className="py-2.5 rounded-xl text-center text-[13px] font-semibold transition-all"
-                    style={{
-                      background: language === lang.code ? 'rgba(124,92,252,0.12)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${language === lang.code ? 'rgba(124,92,252,0.3)' : 'rgba(255,255,255,0.06)'}`,
-                      color: language === lang.code ? '#B9A4FF' : 'rgba(255,255,255,0.35)',
-                    }}
-                  >
-                    {lang.short}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Footer */}
+            {/* ── Footer ── */}
             <p className="text-center text-[11px] text-white/15 mt-12">
               &copy; 2026 COCOTRIP. All rights reserved.
             </p>
