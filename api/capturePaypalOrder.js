@@ -16,8 +16,8 @@ const CORS = {
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
 async function getPaypalAccessToken(isSandbox = false) {
-  const clientId     = isSandbox ? process.env.PAYPAL_SANDBOX_CLIENT_ID  : process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = isSandbox ? process.env.PAYPAL_SANDBOX_SECRET      : process.env.PAYPAL_CLIENT_SECRET;
+  const clientId     = (isSandbox ? process.env.PAYPAL_SANDBOX_CLIENT_ID  : process.env.PAYPAL_CLIENT_ID || '').trim();
+  const clientSecret = (isSandbox ? process.env.PAYPAL_SANDBOX_SECRET      : process.env.PAYPAL_CLIENT_SECRET || '').trim();
   const baseUrl      = isSandbox ? 'https://api-m.sandbox.paypal.com'    : 'https://api-m.paypal.com';
   if (!clientId || !clientSecret) throw new Error('PayPal credentials not configured');
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');

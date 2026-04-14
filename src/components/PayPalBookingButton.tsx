@@ -136,9 +136,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     script.dataset.mode = expectedMode;
     const sandboxClientId = import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID;
     const resolvedClientId = isSandboxAccount && sandboxClientId ? sandboxClientId : clientId;
-    const sdkUrl = isSandboxAccount && sandboxClientId
-      ? `https://www.sandbox.paypal.com/sdk/js?client-id=${resolvedClientId}&currency=USD`
-      : `https://www.paypal.com/sdk/js?client-id=${resolvedClientId}&currency=USD`;
+    // PayPal SDK: sandbox/live 모두 같은 URL, client-id만 다름
+    const sdkUrl = `https://www.paypal.com/sdk/js?client-id=${resolvedClientId}&currency=USD`;
     script.src = sdkUrl;
     console.log('[PayPal SDK] loading mode:', expectedMode, '| clientId prefix:', resolvedClientId.substring(0, 8));
     script.onload = () => {
