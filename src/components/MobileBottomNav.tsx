@@ -18,37 +18,42 @@ export function MobileBottomNav() {
   ];
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-[200] md:hidden"
-      style={{
-        background: 'rgba(8,11,20,0.97)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid rgba(255,255,255,0.07)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}
-    >
-      <div className="flex items-center justify-around h-14">
-        {items.map((item) => {
-          const active = item.to === '/' ? location.pathname === '/' : isActive(item.to);
-          return (
-            <Link
-              key={item.to + item.label}
-              to={item.to}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all"
-              style={{ color: active ? '#7C5CFC' : 'rgba(255,255,255,0.35)' }}
-            >
-              <span style={{ color: active ? '#7C5CFC' : 'rgba(255,255,255,0.35)' }}>
-                {item.icon}
-              </span>
-              <span className="text-[9px] font-semibold tracking-wide">{item.label}</span>
-              {active && (
-                <span className="absolute bottom-0 w-8 h-[2px] rounded-full" style={{ background: '#7C5CFC' }} />
-              )}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      {/* Spacer: 하단 네비 높이만큼 콘텐츠 아래 여백 확보 */}
+      <div className="md:hidden h-[72px]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
+
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[200] md:hidden"
+        style={{
+          background: 'rgba(8,11,20,0.97)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
+        <div className="flex items-center justify-around h-14">
+          {items.map((item) => {
+            const active = item.to === '/' ? location.pathname === '/' : isActive(item.to);
+            return (
+              <Link
+                key={item.to + item.label}
+                to={item.to}
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all"
+                style={{ color: active ? '#7C5CFC' : 'rgba(255,255,255,0.35)' }}
+              >
+                <span style={{ color: active ? '#7C5CFC' : 'rgba(255,255,255,0.35)' }}>
+                  {item.icon}
+                </span>
+                <span className="text-[9px] font-semibold tracking-wide">{item.label}</span>
+                {active && (
+                  <span className="absolute bottom-0 w-8 h-[2px] rounded-full" style={{ background: '#7C5CFC' }} />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }

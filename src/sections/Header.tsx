@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, User, FileText, Ticket, Headphones, Map, Package } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, Settings, LogOut, LogIn } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Language } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
@@ -285,10 +287,43 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             if (e.target === e.currentTarget) setIsMobileMenuOpen(false);
           }}
         >
-          <div className="px-6 py-8">
+          <div className="px-6 py-6 pb-32">
+
+            {/* ── User Profile Card ── */}
+            {user ? (
+              <div className="rounded-2xl p-4 mb-6" style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.12), rgba(234,83,126,0.08))', border: '1px solid rgba(124,92,252,0.15)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white shrink-0" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+                    {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{user.displayName || 'Traveler'}</p>
+                    <p className="text-[11px] text-white/40 truncate">{user.email}</p>
+                  </div>
+                  <LoyaltyBadge />
+                </div>
+              </div>
+            ) : (
+              <Link
+                to="/planner"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-2xl p-4 mb-6 transition-all"
+                style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.15), rgba(234,83,126,0.1))', border: '1px solid rgba(124,92,252,0.2)' }}
+              >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-white/[0.06]">
+                  <LogIn className="w-5 h-5 text-[#7C5CFC]" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Sign In</p>
+                  <p className="text-[11px] text-white/40">Login to manage your trips</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-white/20 ml-auto" />
+              </Link>
+            )}
+
             {/* ── Main Navigation ── */}
             <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
-              Menu
+              Navigation
             </p>
             <nav className="space-y-0.5">
               {navItems.map((item) => (
@@ -325,27 +360,53 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <Link
                   to="/mypage"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center gap-3 py-3.5 px-3 rounded-xl transition-all"
+                  className="flex items-center justify-between py-3.5 px-3 rounded-xl transition-all"
                   style={{
                     color: isActive('/mypage') ? '#fff' : 'rgba(255,255,255,0.55)',
                     background: isActive('/mypage') ? 'rgba(124,92,252,0.1)' : 'transparent',
                   }}
                 >
-                  <User className="w-5 h-5" />
-                  <span className="text-[16px] font-semibold">{t.nav.myPage ?? 'My Page'}</span>
+                  <div className="flex items-center gap-3">
+                    <User className="w-5 h-5" />
+                    <span className="text-[16px] font-semibold">{t.nav.myPage ?? 'My Page'}</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/15" />
                 </Link>
                 <Link
                   to="/my-plans"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center gap-3 py-3.5 px-3 rounded-xl transition-all"
+                  className="flex items-center justify-between py-3.5 px-3 rounded-xl transition-all"
                   style={{
                     color: isActive('/my-plans') ? '#fff' : 'rgba(255,255,255,0.55)',
                     background: isActive('/my-plans') ? 'rgba(124,92,252,0.1)' : 'transparent',
                   }}
                 >
-                  <FileText className="w-5 h-5" />
-                  <span className="text-[16px] font-semibold">My Plans</span>
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5" />
+                    <span className="text-[16px] font-semibold">My Plans</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/15" />
                 </Link>
+                <div
+                  className="flex items-center justify-between py-3.5 px-3 rounded-xl"
+                  style={{ color: 'rgba(255,255,255,0.35)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Heart className="w-5 h-5" />
+                    <span className="text-[16px] font-semibold">Wishlist</span>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-pink-500/15 text-pink-300 font-bold">Coming Soon</span>
+                </div>
+                <div
+                  className="flex items-center justify-between py-3.5 px-3 rounded-xl"
+                  style={{ color: 'rgba(255,255,255,0.35)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <History className="w-5 h-5" />
+                    <span className="text-[16px] font-semibold">Booking History</span>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#7C5CFC]/15 text-[#B9A4FF] font-bold">Coming Soon</span>
+                </div>
                 <div
                   className="flex items-center justify-between py-3.5 px-3 rounded-xl"
                   style={{ color: 'rgba(255,255,255,0.35)' }}
@@ -355,6 +416,38 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                     <span className="text-[16px] font-semibold">Coupons</span>
                   </div>
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#7C5CFC]/15 text-[#B9A4FF] font-bold">Coming Soon</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Settings ── */}
+            <div className="mt-6">
+              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+                Settings
+              </p>
+              <div className="space-y-0.5">
+                {/* Language Selector inline */}
+                <div className="py-3.5 px-3 rounded-xl">
+                  <div className="flex items-center gap-3 mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                    <Globe className="w-5 h-5" />
+                    <span className="text-[16px] font-semibold">Language</span>
+                  </div>
+                  <div className="flex gap-2 ml-8">
+                    {languages.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => { onLanguageChange(lang.code as Language); }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                        style={{
+                          background: language === lang.code ? 'rgba(124,92,252,0.2)' : 'rgba(255,255,255,0.04)',
+                          color: language === lang.code ? '#7C5CFC' : 'rgba(255,255,255,0.4)',
+                          border: language === lang.code ? '1px solid rgba(124,92,252,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                        }}
+                      >
+                        {lang.short}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -375,12 +468,45 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <span className="text-[16px] font-semibold">1:1 Support</span>
                 <span className="ml-auto text-[11px] text-emerald-400 font-bold">24/7</span>
               </a>
+              <a
+                href="mailto:help@cocotripkr.com"
+                className="flex items-center gap-3 py-3.5 px-3 rounded-xl transition-all"
+                style={{ color: 'rgba(255,255,255,0.55)' }}
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span className="text-[16px] font-semibold">Email Support</span>
+              </a>
             </div>
 
+            {/* ── Logout ── */}
+            {user && (
+              <div className="mt-6">
+                <button
+                  onClick={async () => {
+                    await signOut(auth);
+                    setIsMobileMenuOpen(false);
+                    window.location.href = '/';
+                  }}
+                  className="w-full flex items-center gap-3 py-3.5 px-3 rounded-xl transition-all hover:bg-red-500/10"
+                  style={{ color: 'rgba(255,100,100,0.7)' }}
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="text-[16px] font-semibold">Sign Out</span>
+                </button>
+              </div>
+            )}
+
             {/* ── Footer ── */}
-            <p className="text-center text-[11px] text-white/15 mt-12">
-              &copy; 2026 COCOTRIP. All rights reserved.
-            </p>
+            <div className="mt-8 pt-6" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-center text-[11px] text-white/15">
+                &copy; 2026 COCOTRIP. All rights reserved.
+              </p>
+              <div className="flex justify-center gap-4 mt-2">
+                <Link to="/terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">Terms</Link>
+                <Link to="/privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">Privacy</Link>
+                <Link to="/travel-terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">Travel Terms</Link>
+              </div>
+            </div>
           </div>
         </div>
       )}
