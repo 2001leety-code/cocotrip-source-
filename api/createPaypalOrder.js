@@ -39,7 +39,13 @@ async function getPayPalToken(isSandbox = false) {
     ? process.env.PAYPAL_SANDBOX_SECRET
     : process.env.PAYPAL_CLIENT_SECRET;
   const baseUrl = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
-  const credentials = Buffer.from(clientId + ':' + secret).toString('base64');
+  console.log('[PayPal Auth Debug]', {
+    isSandbox,
+    clientIdPrefix: clientId ? clientId.substring(0, 10) + '...' : '❌ MISSING',
+    secretPrefix: secret ? secret.substring(0, 10) + '...' : '❌ MISSING',
+    baseUrl,
+  });
+  const credentials = Buffer.from((clientId || '') + ':' + (secret || '')).toString('base64');
   const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
     method: 'POST',
     headers: { 'Accept': 'application/json', 'Authorization': 'Basic ' + credentials, 'Content-Type': 'application/x-www-form-urlencoded' },
