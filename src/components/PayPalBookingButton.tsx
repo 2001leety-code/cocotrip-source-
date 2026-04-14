@@ -450,6 +450,32 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         </button>
       )}
 
+      {/* 🧪 Sandbox 테스트 바이패스 — TEST_ACCOUNTS만 보임 */}
+      {isSandboxAccount && onPaymentSuccess && (
+        <button
+          type="button"
+          onClick={async () => {
+            setLoading(true);
+            setError(null);
+            try {
+              await onPaymentSuccess(`TEST-${Date.now()}`);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Test payment failed');
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={loading}
+          className="w-full rounded-xl text-white font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.99] disabled:opacity-50 mt-2"
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', padding: '13px 20px' }}
+        >
+          <div className="flex items-center justify-center gap-2 text-sm">
+            <span>🧪</span>
+            <span className="font-bold">Test Mode: Skip Payment → Generate AI Plan</span>
+          </div>
+        </button>
+      )}
+
       {/* 에러 */}
       {error && (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3">
