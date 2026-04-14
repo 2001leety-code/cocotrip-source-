@@ -44,6 +44,8 @@ function lazyRetry(importFn: () => Promise<any>) {
   );
 }
 const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
+const ToursPage = lazy(() => import('@/pages/ToursPage'));
+const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
 
 import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
@@ -154,6 +156,8 @@ function App() {
               </Suspense>
             }
           />
+          <Route path="/tours" element={<Suspense fallback={<PlannerSkeleton />}><ToursPage /></Suspense>} />
+          <Route path="/tours/:slug" element={<Suspense fallback={<PlannerSkeleton />}><TourDetailPage /></Suspense>} />
           <Route path="/about" element={<About />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />

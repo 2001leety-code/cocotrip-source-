@@ -672,7 +672,7 @@ export default async function handler(req, res) {
       delete itinerary.departure_guide;
     }
 
-    // ── RouteAgent: Naver Maps 보강 (non-fatal) ─────────────────────────
+    // ── RouteAgent: Naver Maps + ODsay + Dynamic Time Stitching (non-fatal) ──
     const routeStart = Date.now();
     try {
       const routeAgent = new RouteAgent(apiKey);
@@ -682,29 +682,42 @@ export default async function handler(req, res) {
       if (enrichedData.itinerary) {
         enrichedData.itinerary.forEach((enrichedDay, i) => {
           if (itinerary.days[i] && enrichedDay.places) {
-            itinerary.days[i].stops = enrichedDay.places.map((p, j) => ({
-              ...(itinerary.days[i].stops[j] || {}),
-              ...p,
-              start_time: (itinerary.days[i].stops[j] || {}).start_time,
-              entry_fee_krw: (itinerary.days[i].stops[j] || {}).entry_fee_krw,
-              reservation_required: (itinerary.days[i].stops[j] || {}).reservation_required,
-              reservation_note: (itinerary.days[i].stops[j] || {}).reservation_note,
-              recommended_items: (itinerary.days[i].stops[j] || {}).recommended_items,
-              transit_from_prev: (itinerary.days[i].stops[j] || {}).transit_from_prev,
-            }));
+            itinerary.days[i].stops = enrichedDay.places.map((p, j) => {
+              const original = itinerary.days[i].stops[j] || {};
+              return {
+                ...original,                    // Gemini 원본 (tip_en, recommended_items 등)
+                ...p,                            // RouteAgent 보강 (lat, lng, naverMapUrl)
+                // RouteAgent가 계산한 start_time 우선 (Dynamic Time Stitching)
+                start_time: p.start_time || original.start_time,
+                // RouteAgent가 ODsay로 교체한 transit_from_prev 우선
+                transit_from_prev: p.transit_from_prev ?? original.transit_from_prev,
+                // travelFromPrev: RouteAgent가 생성 (ODsay + Naver 상세)
+                travelFromPrev: p.travelFromPrev || null,
+                // Gemini 원본 유지 필드
+                entry_fee_krw: original.entry_fee_krw,
+                reservation_required: original.reservation_required,
+                reservation_note: original.reservation_note,
+                recommended_items: original.recommended_items,
+              };
+            });
           }
         });
       }
-      console.log('[planner] Route:', Date.now() - routeStart, 'ms');
+      console.log('[planner] Route + Time Stitch:', Date.now() - routeStart, 'ms');
     } catch (routeErr) {
       console.warn('[planner] Route failed (non-fatal):', routeErr.message, '|', Date.now() - routeStart, 'ms');
     }
     console.log('[planner] Step 3: Saving to Firestore...');
 
-    // ── T-money 서버 계산 ────────────────────────────────────────────────
+    // ── T-money 서버 계산 (ODsay 요금 우선, Gemini fallback) ────────────
     const totalTransitFare = (itinerary.days || [])
       .flatMap(d => d.stops || [])
-      .reduce((sum, s) => sum + ((s.transit_from_prev?.est_fare_krw) || 0), 0);
+      .reduce((sum, s) => {
+        // ODsay 실제 요금이 있으면 우선 사용
+        const odsayFare = s.travelFromPrev?.transitOptions?.publicTransit?.fare;
+        const geminiFare = s.transit_from_prev?.est_fare_krw;
+        return sum + (odsayFare || geminiFare || 0);
+      }, 0);
 
     const arrivalTransitCost =
       itinerary.arrival_guide?.steps

@@ -138,7 +138,11 @@ export default function PlanDetailPage() {
           ${stop.recommended_items?.length ? `<p style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:4px;">Recommended: ${stop.recommended_items.map((r: any) => `${r.name}${r.price_krw > 0 ? ` (${formatKRW(r.price_krw)})` : ''}`).join(', ')}</p>` : ''}
         </div>`;
         if (stop.transit_from_prev) {
-          html += `<p style="font-size:9px;color:rgba(124,92,252,0.7);margin:2px 0 6px 12px;">${stop.transit_from_prev.method} — ${stop.transit_from_prev.est_min}min${stop.transit_from_prev.est_fare_krw > 0 ? ` (${formatKRW(stop.transit_from_prev.est_fare_krw)})` : ''}</p>`;
+          const t = stop.transit_from_prev;
+          html += `<div style="margin:4px 0 8px 12px;padding:6px 10px;background:rgba(124,92,252,0.08);border-left:2px solid rgba(124,92,252,0.3);border-radius:4px;">
+            <p style="font-size:10px;color:rgba(124,92,252,0.8);font-weight:bold;">${t.method} — ${t.est_min}min${t.est_fare_krw > 0 ? ` (${formatKRW(t.est_fare_krw)})` : ''}</p>
+            ${t.step_by_step?.length ? t.step_by_step.map((s: string) => `<p style="font-size:9px;color:rgba(255,255,255,0.4);margin:1px 0 0 8px;">· ${s}</p>`).join('') : ''}
+          </div>`;
         }
       });
       html += '</div>';
@@ -479,6 +483,9 @@ function StopCard({ stop }: { stop: any }) {
     }
   };
 
+  // ODsay 대중교통 데이터 추출
+  const publicTransit = stop.travelFromPrev?.transitOptions?.publicTransit;
+
   return (
     <div
       ref={cardRef}
@@ -553,6 +560,32 @@ function StopCard({ stop }: { stop: any }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* ── ODsay 대중교통 경로 (Real Transit Data) ── */}
+          {publicTransit && publicTransit.method !== 'walk' && (
+            <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Train className="w-3.5 h-3.5 text-blue-400" />
+                <p className="text-[11px] font-bold text-blue-400">Public Transit Route</p>
+                <span className="ml-auto text-[10px] text-white/40">{publicTransit.duration}min · {formatKRW(publicTransit.fare)}</span>
+              </div>
+              {publicTransit.steps?.length > 0 && (
+                <div className="space-y-1">
+                  {publicTransit.steps.map((step: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-[10px]">
+                      {step.mode === 'subway' && <Train className="w-3 h-3 text-blue-400/70 shrink-0" />}
+                      {step.mode === 'bus' && <Bus className="w-3 h-3 text-green-400/70 shrink-0" />}
+                      {step.mode === 'walk' && <Footprints className="w-3 h-3 text-white/30 shrink-0" />}
+                      <span className={step.mode === 'walk' ? 'text-white/30' : 'text-white/60'}>{step.description}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {publicTransit.transfers > 0 && (
+                <p className="text-[9px] text-white/25 mt-1.5">Transfers: {publicTransit.transfers}</p>
+              )}
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, User, FileText, Ticket, Headphones, Map } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, User, FileText, Ticket, Headphones, Map, Package } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Language } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -72,6 +72,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
   const navItems = [
     { label: t.nav.charter  ?? 'Charter',     to: '/charter' },
+    { label: 'Tours',                          to: '/tours'   },
     { label: t.nav.planner  ?? 'AI Planner',  to: '/planner' },
     { label: t.nav.about    ?? 'About',        to: '/about'   },
   ];
@@ -303,6 +304,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 >
                   <div className="flex items-center gap-3">
                     {item.to === '/charter' && <Map className="w-5 h-5" />}
+                    {item.to === '/tours' && <Package className="w-5 h-5" />}
                     {item.to === '/planner' && <FileText className="w-5 h-5" />}
                     {item.to === '/about' && <Globe className="w-5 h-5" />}
                     <span className="text-[16px] font-semibold">{item.label}</span>

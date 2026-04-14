@@ -41,6 +41,15 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
       subtitle: m.promoKpopSubtitle || 'Hotel ↔ Venue round-trip shuttle',
       price: '$25~', cta: m.promoKpopCta || 'Book Shuttle', link: '/charter',
     },
+    {
+      gradient: 'linear-gradient(135deg, #1a0a2e 0%, #B668FC 100%)',
+      badge: 'TOURS',
+      title: 'Korea Private Tours',
+      subtitle: 'Seoul · Busan · Gyeongju · Danyang — all inclusive',
+      price: '$208~',
+      cta: 'View Tours',
+      link: '/tours',
+    },
   ];
 
   const nextSlide = useCallback(() => setPromoIdx(p => (p + 1) % PROMO_SLIDES.length), [PROMO_SLIDES.length]);
