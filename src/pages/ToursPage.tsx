@@ -177,7 +177,7 @@ export default function ToursPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       {/* ── 페이지 헤더 ── */}
-      <header className={`px-4 pb-5 ${isMobile ? 'pt-20' : 'pt-24'}`}>
+      <header className={`max-w-6xl mx-auto px-4 sm:px-6 pb-5 ${isMobile ? 'pt-20' : 'pt-24'}`}>
         <div className="flex items-center gap-3 mb-2">
           <div
             className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
@@ -195,7 +195,7 @@ export default function ToursPage() {
       </header>
 
       {/* ── 신뢰 배지 ── */}
-      <div className="px-4 mb-5">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-5">
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {TRUST_BADGES.map(({ icon: Icon, color, label, sub }) => (
             <div
@@ -217,10 +217,10 @@ export default function ToursPage() {
       </div>
 
       {/* ── 구분선 ── */}
-      <div className="mx-4 h-px bg-white/[0.06] mb-5" />
+      <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 h-px bg-white/[0.06] mb-5" />
 
       {/* ── 지역 필터 칩 ── */}
-      <div className="px-4 mb-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
         <p className="text-[10px] uppercase tracking-[0.1em] text-white/25 font-semibold mb-2.5">
           {tl.filterLabel}
         </p>
@@ -256,7 +256,7 @@ export default function ToursPage() {
       </div>
 
       {/* ── 투어 카드 리스트 ── */}
-      <section className="px-4 space-y-4 mb-10">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 mb-10">
         {visibleTours.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div
@@ -268,9 +268,11 @@ export default function ToursPage() {
             <p className="text-[14px] text-white/30">{tl.noResults}</p>
           </div>
         ) : (
-          visibleTours.map(tour => (
-            <TourCard key={tour.id} tour={tour} language={language} />
-          ))
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {visibleTours.map(tour => (
+              <TourCard key={tour.id} tour={tour} language={language} />
+            ))}
+          </div>
         )}
       </section>
 
@@ -279,7 +281,7 @@ export default function ToursPage() {
           경쟁사(Klook) 방식: 투어 카드 인라인이 아닌 별도 섹션으로 분리
       ════════════════════════════════════════════════════════════════════ */}
       {visibleHotels.length > 0 && (
-        <section className="px-4 mb-8">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 mb-8">
           {/* 섹션 헤더 */}
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -299,7 +301,7 @@ export default function ToursPage() {
           </div>
 
           {/* 호텔 카드 가로 스크롤 */}
-          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {visibleHotels.map(hotel => {
               const loc = hotel.location[language] ?? hotel.location.en;
               const stars = Array.from({ length: hotel.stars }, (_, i) => i);
@@ -309,7 +311,7 @@ export default function ToursPage() {
                   href={hotel.affiliateUrl}
                   target="_blank"
                   rel="noopener noreferrer sponsored"
-                  className="hotel-card-hover shrink-0 w-[200px] rounded-2xl overflow-hidden flex flex-col"
+                  className="hotel-card-hover rounded-2xl overflow-hidden flex flex-col"
                   style={{
                     background: 'rgba(255,255,255,0.025)',
                     border: '1px solid rgba(255,255,255,0.07)',
@@ -415,7 +417,7 @@ export default function ToursPage() {
       )}
 
       {/* ── 맞춤 투어 문의 배너 ── */}
-      <div className="mx-4 mt-2 mb-6">
+      <div className="max-w-6xl mx-auto mx-4 sm:mx-auto sm:px-6 mt-2 mb-6">
         <Link
           to="/charter"
           className="flex items-center gap-3 px-5 py-4 rounded-2xl"

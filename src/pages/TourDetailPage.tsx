@@ -150,7 +150,7 @@ export default function TourDetailPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       {/* ── 뒤로가기 브레드크럼 ── */}
-      <div className={`flex items-center gap-2 px-4 pb-3 ${isMobile ? 'pt-20' : 'pt-24'}`}>
+      <div className={`max-w-4xl mx-auto flex items-center gap-2 px-4 sm:px-6 pb-3 ${isMobile ? 'pt-20' : 'pt-24'}`}>
         <Link
           to="/tours"
           className="flex items-center gap-1.5 text-[12px] text-white/40 hover:text-white/70 transition-colors"
@@ -166,7 +166,7 @@ export default function TourDetailPage() {
       <ImageGallery images={tour.images} title={title} region={tour.region} isNight={tour.isNightTour} />
 
       {/* ── 본문 ── */}
-      <div className="px-4 -mt-4 relative z-10">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 -mt-4 relative z-10">
 
         {/* 제목 */}
         <h1 className="text-[22px] font-black text-white leading-tight mb-1.5">{title}</h1>
@@ -258,7 +258,7 @@ export default function TourDetailPage() {
               </span>
             </div>
 
-            <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {hotels.map(hotel => {
                 const loc = hotel.location[language] ?? hotel.location.en;
                 const stars = Array.from({ length: hotel.stars });
@@ -268,7 +268,7 @@ export default function TourDetailPage() {
                     href={hotel.affiliateUrl}
                     target="_blank"
                     rel="noopener noreferrer sponsored"
-                    className="hotel-hover shrink-0 w-[190px] rounded-2xl overflow-hidden flex flex-col"
+                    className="hotel-hover rounded-2xl overflow-hidden flex flex-col"
                     style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
                   >
                     {/* 이미지 */}
@@ -344,7 +344,7 @@ export default function TourDetailPage() {
 
       {/* ── 하단 고정 CTA 바 ── */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-3"
+        className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 pb-4 md:pb-6 pt-3"
         style={{
           background: 'linear-gradient(to top, rgba(8,11,20,0.98) 0%, rgba(8,11,20,0.90) 60%, transparent 100%)',
           backdropFilter: 'blur(12px)',
@@ -419,7 +419,7 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
 
   return (
     <div
-      className="relative w-full h-[260px] overflow-hidden"
+      className="relative w-full h-[260px] md:h-[400px] lg:h-[480px] overflow-hidden"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
