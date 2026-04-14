@@ -225,12 +225,29 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     }).render(`#${containerId}`);
   }, [showPaypal, paypalReady, rateInfo]);
 
-  // ── 버튼 클릭 핸들러 — 주문 미리 생성 후 PayPal 버튼 표시 ───────
+  // ── SDK 준비 대기 헬퍼 ─────────────────────────────────────────
+  function waitForPaypalReady(timeoutMs = 10000): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (window.paypal) return resolve(true);
+      const start = Date.now();
+      const interval = setInterval(() => {
+        if (window.paypal) { clearInterval(interval); resolve(true); }
+        else if (Date.now() - start > timeoutMs) { clearInterval(interval); resolve(false); }
+      }, 200);
+    });
+  }
+
+  // ── 버튼 클릭 핸들러 — SDK 대기 + 주문 생성 + PayPal 버튼 표시 ──
   async function handleBookClick() {
     setError(null);
     setLoading(true);
     buttonsRendered.current = false;
     try {
+      // 1. SDK가 로딩 중이면 대기 (최대 10초)
+      const sdkReady = await waitForPaypalReady();
+      if (!sdkReady) throw new Error('PayPal SDK loading timeout. Please refresh and try again.');
+
+      // 2. 주문 생성
       const res = await fetch('/api/createPaypalOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -243,6 +260,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error ?? 'Order creation failed');
       setRateInfo(data);
+      setPaypalReady(true);
       setShowPaypal(true);
     } catch (err) {
       console.error('[PayPal handleBookClick] catch:', err);
@@ -388,6 +406,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       {showPaypal ? (
         <div className="rounded-xl overflow-hidden border border-white/10 p-3 bg-white/[0.03]">
           <div id={`paypal-btn-${productType}`} />
+          {!paypalReady && (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/50">
+              <div className="w-4 h-4 border-2 border-white/30 border-t-[#7C5CFC] rounded-full animate-spin" />
+              Loading PayPal...
+            </div>
+          )}
         </div>
       ) : (
         /* 초기 예약 버튼 */
