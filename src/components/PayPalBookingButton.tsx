@@ -153,14 +153,29 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // ── PayPal Buttons 렌더링 ────────────────────────────────────────
   useEffect(() => {
-    if (!showPaypal || !paypalReady || !rateInfo || buttonsRendered.current) return;
+    if (!showPaypal || !paypalReady || buttonsRendered.current) return;
     if (!window.paypal) return;
 
     const containerId = `paypal-btn-${productType}`;
     buttonsRendered.current = true;
 
     window.paypal.Buttons({
-      createOrder: () => rateInfo.orderID,
+      createOrder: async () => {
+        // PayPal 권장: 버튼 클릭 시점에 서버에서 주문 생성
+        const res = await fetch('/api/createPaypalOrder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productType, passengers, dateStart, dateEnd, language: lang,
+            userEmail,
+            ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error ?? 'Order creation failed');
+        setRateInfo(data);
+        return data.orderID;
+      },
       onApprove: async (data: { orderID: string }) => {
         try {
           const res = await fetch('/api/capturePaypalOrder', {
@@ -182,13 +197,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           const result = await res.json();
           console.log('[PayPal onApprove] capture result:', JSON.stringify(result));
           if (result.success) {
-            // If parent provided a callback, delegate to it (e.g. AI plan generation)
             if (onPaymentSuccess) {
               setShowPaypal(false);
               await onPaymentSuccess(data.orderID);
               return;
             }
-            // Default: show success modal (for charter bookings etc.)
             setSuccessData(result);
             setShowSuccess(true);
             setShowPaypal(false);
@@ -222,34 +235,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         label:  'pay',
       },
     }).render(`#${containerId}`);
-  }, [showPaypal, paypalReady, rateInfo]);
+  }, [showPaypal, paypalReady]);
 
   // ── 버튼 클릭 핸들러 ────────────────────────────────────────────
   async function handleBookClick() {
     setError(null);
-    setLoading(true);
     buttonsRendered.current = false;
-    try {
-      const res = await fetch('/api/createPaypalOrder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productType, passengers, dateStart, dateEnd, language: lang,
-          userEmail,
-          ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error ?? 'Order creation failed');
-      setRateInfo(data);
-      setShowPaypal(true);
-    } catch (err) {
-      console.error('[PayPal handleBookClick] catch:', err);
-      const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
+    // 주문 생성은 PayPal 버튼 클릭 시 createOrder 콜백에서 처리
+    setShowPaypal(true);
   }
 
   // 예상 USD (rate 없을 때 간이 계산)
