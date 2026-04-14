@@ -32,12 +32,12 @@ const PRODUCT_PRICES = {
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
 async function getPayPalToken(isSandbox = false) {
-  const clientId = isSandbox
+  const clientId = (isSandbox
     ? process.env.PAYPAL_SANDBOX_CLIENT_ID
-    : process.env.PAYPAL_CLIENT_ID;
-  const secret = isSandbox
+    : process.env.PAYPAL_CLIENT_ID || '').trim();
+  const secret = (isSandbox
     ? process.env.PAYPAL_SANDBOX_SECRET
-    : process.env.PAYPAL_CLIENT_SECRET;
+    : process.env.PAYPAL_CLIENT_SECRET || '').trim();
   const baseUrl = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
   console.log('[PayPal Auth Debug]', {
     isSandbox,
