@@ -110,10 +110,15 @@ export default function PlanDetailPage() {
     const budget = it.daily_budget_summary || [];
     const input = plan.input || {};
 
-    // create render container — visible to browser but hidden from user
-    // IMPORTANT: left:-9999px causes blank PDF because html2canvas can't capture off-screen elements
+    // create render container — MUST be fully visible for html2canvas
+    // We add a loading overlay on top to hide it from the user
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0a0e1a;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-family:system-ui;';
+    overlay.innerHTML = '<div style="text-align:center"><div style="width:40px;height:40px;border:3px solid #7C5CFC;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px"></div>Generating PDF...</div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+    document.body.appendChild(overlay);
+
     const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;opacity:0;pointer-events:none;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Segoe UI",system-ui,sans-serif;line-height:1.6;';
+    container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Segoe UI",system-ui,sans-serif;line-height:1.6;z-index:99997;';
     document.body.appendChild(container);
 
     // Color tokens for light PDF
@@ -274,6 +279,7 @@ export default function PlanDetailPage() {
       alert('PDF generation failed. Please try again or contact us via WhatsApp.');
     } finally {
       document.body.removeChild(container);
+      document.body.removeChild(overlay);
       setIsPdfGenerating(false);
     }
   }, [plan]);
@@ -723,14 +729,11 @@ function StopCard({ stop }: { stop: any }) {
             </div>
           )}
 
-          {/* Naver Map link — name_ko + address for precise search */}
+          {/* Naver Map link — name_ko only for accurate search */}
           {(() => {
-            // 네이버맵은 한국어 장소명 + 주소 조합이 가장 정확함
-            const nameKo = stop.name_ko || '';
-            const addr = stop.address || '';
-            const searchQuery = nameKo && addr
-              ? `${nameKo} ${addr}`
-              : (nameKo || addr || stop.name_en || '');
+            // 네이버맵은 장소명만으로 검색이 가장 정확 (주소 추가하면 오히려 검색 실패)
+            const nameKo = (stop.name_ko || '').replace(/\s*\(.*\)\s*/g, '').trim(); // 괄호 제거
+            const searchQuery = nameKo || stop.name_en || stop.address || '';
             const mapUrl = stop.naverMapUrl || `https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`;
             return (
               <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
