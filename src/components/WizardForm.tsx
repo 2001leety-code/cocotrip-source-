@@ -649,8 +649,8 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <div>
           <p className="text-sm text-white/50 mb-1">AI Travel Plan</p>
           <div className="flex items-center justify-center gap-2">
-            <span className="text-3xl font-bold text-white">$4.90</span>
-            <span className="text-sm text-white/30">/ &#8361;6,600</span>
+            <span className="text-3xl font-bold text-white">$9.90</span>
+            <span className="text-sm text-white/30">/ &#8361;13,300</span>
           </div>
         </div>
 

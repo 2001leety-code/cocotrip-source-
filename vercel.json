@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron-runner?job=daily-report",
+      "schedule": "0 22 * * *"
+    }
+  ],
   "functions": {
     "api/ai-planner-full.js": {
       "maxDuration": 300,

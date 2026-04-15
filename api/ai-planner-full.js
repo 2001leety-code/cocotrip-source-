@@ -12,7 +12,7 @@ import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
 import { randomUUID } from 'crypto';
 import { Buffer } from 'buffer';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import { sendMessage, sendErrorAlert } from './_telegram.js';
 
 export const maxDuration = 300;
@@ -423,11 +423,49 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    // ── PayPal 결제 검증 ───────────────────────────────────────────────────
+    // ── 재생성 모드 (Revision) ──────────────────────────────────────────────
+    const revisionOf = body.revisionOf; // 원본 planId
+    const revisionToken = body.revisionToken; // 게스트용 accessToken
+    let isRevision = false;
+
+    if (revisionOf && adminDb) {
+      console.log('[planner] Revision mode — checking credits for plan:', revisionOf);
+      const origRef = adminDb.collection('plans').doc(revisionOf);
+      const origDoc = await origRef.get();
+      if (!origDoc.exists) {
+        res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Original plan not found' }));
+      }
+      const origData = origDoc.data();
+      // 권한 확인: uid 매칭 또는 accessToken 매칭
+      const uid = body.uid || null;
+      const isOwner = uid && origData.uid === uid;
+      const hasToken = origData.accessToken && origData.accessToken === revisionToken;
+      if (!isOwner && !hasToken && origData.uid) {
+        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Unauthorized revision' }));
+      }
+      // 크레딧 확인
+      const credits = origData.revisionCredits ?? 0;
+      if (credits <= 0) {
+        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'No revision credits remaining', details: 'You have already used your free revision.' }));
+      }
+      // 크레딧 차감
+      await origRef.update({
+        revisionCredits: FieldValue.increment(-1),
+        revisionCount: FieldValue.increment(1),
+        lastRevisionAt: new Date().toISOString(),
+      });
+      isRevision = true;
+      console.log('[planner] ✅ Revision credit consumed. Remaining:', credits - 1);
+    }
+
+    // ── PayPal 결제 검증 (revision 모드가 아닐 때만) ────────────────────────
     const paypalOrderId = body.paypalOrderId;
     const requestEmail = (body.email || '').toLowerCase().trim();
 
-    if (!paypalOrderId) {
+    if (!isRevision && !paypalOrderId) {
       res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'Payment required', details: 'PayPal order ID is missing. Please complete payment first.' }));
     }
@@ -436,65 +474,67 @@ export default async function handler(req, res) {
     const TEST_ACCOUNTS = ['2001leety@gmail.com'];
     const isTestAccount = TEST_ACCOUNTS.includes(requestEmail);
 
-    // ── TEST- prefix 바이패스 (테스트 계정 전용) ──────────────────────────
-    const isTestOrderId = paypalOrderId.startsWith('TEST-');
-    if (isTestOrderId && isTestAccount) {
-      console.log('[planner] ✅ TEST MODE bypass — skipping PayPal verification for:', requestEmail);
-    } else if (isTestOrderId && !isTestAccount) {
-      res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Unauthorized test mode', details: 'Test mode is only available for authorized accounts.' }));
-    } else {
-      // 실제 PayPal 결제 검증
-      const ppClientId = isTestAccount
-        ? process.env.PAYPAL_SANDBOX_CLIENT_ID
-        : process.env.PAYPAL_CLIENT_ID;
-      const ppSecret = isTestAccount
-        ? process.env.PAYPAL_SANDBOX_SECRET
-        : process.env.PAYPAL_CLIENT_SECRET;
-      const ppBase = isTestAccount
-        ? 'https://api-m.sandbox.paypal.com'
-        : 'https://api-m.paypal.com';
-
-      console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
-
-      const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
-      const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
-        method: 'POST',
-        headers: { 'Authorization': `Basic ${ppCreds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'grant_type=client_credentials',
-      });
-      if (!tokenRes.ok) {
-        const tokenBody = await tokenRes.text().catch(() => '');
-        console.error('[planner] PayPal auth failed:', tokenRes.status, tokenBody);
+    if (!isRevision && paypalOrderId) {
+      // ── TEST- prefix 바이패스 (테스트 계정 전용) ──────────────────────────
+      const isTestOrderId = paypalOrderId.startsWith('TEST-');
+      if (isTestOrderId && isTestAccount) {
+        console.log('[planner] ✅ TEST MODE bypass — skipping PayPal verification for:', requestEmail);
+      } else if (isTestOrderId && !isTestAccount) {
         res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: `PayPal auth ${tokenRes.status}: ${tokenBody}` }));
-      }
-      const ppToken = (await tokenRes.json()).access_token;
+        return res.end(JSON.stringify({ error: 'Unauthorized test mode', details: 'Test mode is only available for authorized accounts.' }));
+      } else {
+        // 실제 PayPal 결제 검증
+        const ppClientId = isTestAccount
+          ? process.env.PAYPAL_SANDBOX_CLIENT_ID
+          : process.env.PAYPAL_CLIENT_ID;
+        const ppSecret = isTestAccount
+          ? process.env.PAYPAL_SANDBOX_SECRET
+          : process.env.PAYPAL_CLIENT_SECRET;
+        const ppBase = isTestAccount
+          ? 'https://api-m.sandbox.paypal.com'
+          : 'https://api-m.paypal.com';
 
-      const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
-        headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
-      });
-      const orderData = await orderRes.json();
-      console.log('[planner] PayPal order status:', orderData.status, 'id:', paypalOrderId);
+        console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
 
-      if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Payment not completed', details: `Order status: ${orderData.status}` }));
-      }
-
-      // 중복 사용 방지 — Firestore에 사용된 orderID 확인
-      if (adminDb) {
-        const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
-        const usedDoc = await usedRef.get();
-        if (usedDoc.exists) {
+        const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
+        const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
+          method: 'POST',
+          headers: { 'Authorization': `Basic ${ppCreds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'grant_type=client_credentials',
+        });
+        if (!tokenRes.ok) {
+          const tokenBody = await tokenRes.text().catch(() => '');
+          console.error('[planner] PayPal auth failed:', tokenRes.status, tokenBody);
           res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: 'Order already used', details: 'This payment has already been used to generate a plan.' }));
+          return res.end(JSON.stringify({ error: `PayPal auth ${tokenRes.status}: ${tokenBody}` }));
         }
-        await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
+        const ppToken = (await tokenRes.json()).access_token;
+
+        const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
+          headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
+        });
+        const orderData = await orderRes.json();
+        console.log('[planner] PayPal order status:', orderData.status, 'id:', paypalOrderId);
+
+        if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
+          res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Payment not completed', details: `Order status: ${orderData.status}` }));
+        }
+
+        // 중복 사용 방지 — Firestore에 사용된 orderID 확인
+        if (adminDb) {
+          const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
+          const usedDoc = await usedRef.get();
+          if (usedDoc.exists) {
+            res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Order already used', details: 'This payment has already been used to generate a plan.' }));
+          }
+          await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
+        }
       }
     }
 
-    console.log('[planner] ✅ Payment verification passed:', paypalOrderId);
+    console.log('[planner] ✅ Auth passed:', isRevision ? `REVISION of ${revisionOf}` : paypalOrderId);
 
     // ── 입력 파싱 ──────────────────────────────────────────────────────────
     const guestName = body.guest_name || body.guestName || 'Guest';
@@ -779,6 +819,7 @@ export default async function handler(req, res) {
       planId,
       status: 'ready',
       createdAt: new Date().toISOString(),
+      createdAtMs: Date.now(),
       uid: uid || null,
       accessToken,
       guestEmail: email || null,
@@ -794,6 +835,8 @@ export default async function handler(req, res) {
       },
       itinerary,
       pricing: { vehicle, priceKRW, priceUSD },
+      revisionCredits: 1,  // 무료 재생성 1회 (결제 시 포함)
+      revisionCount: 0,    // 현재까지 재생성 횟수
     });
 
     if (uid) {
@@ -812,6 +855,71 @@ export default async function handler(req, res) {
     }
 
     console.log('[ai-planner-full] Firestore saved:', planId);
+
+    // ── API 사용량 카운터 (non-blocking) ────────────────────────────────
+    if (adminDb) {
+      const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const monthKey = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}`;
+      const dayKey = `${monthKey}-${String(kst.getDate()).padStart(2, '0')}`;
+      const inc = FieldValue.increment(1);
+      const incRevenue = FieldValue.increment(priceUSD);
+      // 월별
+      adminDb.collection('api_stats').doc(monthKey).set(
+        { fullCount: inc, fullRevenue: incRevenue, lastUpdated: new Date().toISOString() },
+        { merge: true }
+      ).catch(e => console.warn('[full] counter error:', e.message));
+      // 일별
+      adminDb.collection('api_stats').doc(monthKey)
+        .collection('daily').doc(dayKey).set(
+          { fullCount: inc, fullRevenue: incRevenue, lastUpdated: new Date().toISOString() },
+          { merge: true }
+        ).catch(e => console.warn('[full] daily counter error:', e.message));
+    }
+
+    // ── Loyalty 포인트 적립 (non-blocking — uid가 있는 로그인 사용자만) ────
+    if (uid && adminDb) {
+      (async () => {
+        try {
+          const userRef = adminDb.collection('users').doc(uid);
+          const userSnap = await userRef.get();
+          if (userSnap.exists) {
+            const userData = userSnap.data() || {};
+            const currentCoins = userData.tripCoins || 0;
+            const newSpent = (userData.totalSpentUSD || 0) + priceUSD;
+            const newCount = (userData.bookingCount || 0) + 1;
+
+            // 등급 + 적립률 계산
+            let earnRate = 0.01, tierName = 'Bronze';
+            if (newSpent >= 1000 || newCount >= 15) { earnRate = 0.03; tierName = 'Platinum'; }
+            else if (newSpent >= 500 || newCount >= 7) { earnRate = 0.02; tierName = 'Gold'; }
+            else if (newSpent >= 200 || newCount >= 3) { earnRate = 0.015; tierName = 'Silver'; }
+
+            const earnedCoins = Math.round(priceUSD * 100 * earnRate);
+            const newBalance = currentCoins + earnedCoins;
+
+            await userRef.update({
+              tripCoins: newBalance,
+              totalSpentUSD: newSpent,
+              bookingCount: newCount,
+              tier: tierName,
+              tierUpdatedAt: new Date().toISOString(),
+            });
+
+            // 포인트 이력 기록
+            await adminDb.collection('users').doc(uid).collection('pointHistory').doc().set({
+              type: 'earn',
+              amount: earnedCoins,
+              balance: newBalance,
+              description: `AI Plan: ${itinerary.tour_title || 'Korea Itinerary'} ($${priceUSD})`,
+              bookingRef: planId,
+              createdAt: Date.now(),
+            });
+
+            console.log(`[planner] Loyalty: +${earnedCoins} coins (${tierName} ${(earnRate * 100).toFixed(1)}%) → total ${newBalance}`);
+          }
+        } catch (e) { console.warn('[planner] Loyalty earn error:', e.message); }
+      })();
+    }
 
     // ── planUrl 구성 ─────────────────────────────────────────────────────
     const planUrl = accessToken

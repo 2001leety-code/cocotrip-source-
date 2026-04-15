@@ -6,8 +6,8 @@ import { MessageCircle, X } from 'lucide-react';
  * 전 페이지 공통으로 GlobalWidgets에서 렌더링
  */
 
-const WHATSAPP_NUMBER = '821012345678'; // TODO: 실제 번호
-const KAKAO_CHANNEL = 'https://pf.kakao.com/_cocotrip'; // TODO: 실제 채널
+const WHATSAPP_NUMBER = '821087140611';
+const KAKAO_CHANNEL = 'https://pf.kakao.com/_cocotrip'; // TODO: 실제 채널 개설 후 교체
 
 export function ChatFAB() {
   const [open, setOpen] = useState(false);

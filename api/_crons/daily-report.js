@@ -1,200 +1,248 @@
 /**
- * CocoTripKR — 일일 매출 리포트 (스케줄 함수)
+ * CocoTripKR — 일일 모닝 리포트 (Vercel Cron)
  *
  * 매일 오전 7:00 KST (= UTC 22:00 전날) 실행
- * Netlify Scheduled Functions 사용
  *
- * 실행 내용:
- *  1. Google Sheets에서 어제 예약 데이터 읽기
- *  2. 이번 주 누적 매출 계산
- *  3. 오늘 투어 일정 확인
- *  4. 환율 조회
- *  5. Gemini 1호 → 리포트 메시지 생성
- *  6. 텔레그램 → 태연님께 전송
- *
- * CONTEXT: CocoTripKR 자동화 스케줄 함수
- * SCHEDULE: 0 22 * * * (UTC) = 매일 KST 07:00
+ * 데이터 소스:
+ *  - Firestore api_stats → 카운터 (배포 후부터 카운트)
+ *  - Google Sheets → 예약 매출
+ *  - Exchange Rate API → 환율
  */
 
 import { getYesterdayBookings, getTodayTours, getWeekSummary } from '../_google-sheets.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
-import { generateDailyReport } from '../_ai-employees.js';
 
-// ── 환율 조회 ─────────────────────────────────────────────────────────
+// ── API 가격 정보 (2026-04 기준) ─────────────────────────────────────
+const PRICING = {
+  gemini: {
+    freeRPD: 1500,              // 무료 한도: 1,500 requests/day
+    freeRPM: 15,                // 15 requests/분
+    inputPer1M:  0.15,          // $0.15 / 1M input tokens
+    outputPer1M: 0.60,          // $0.60 / 1M output tokens
+    thinkPer1M:  0.70,          // $0.70 / 1M thinking tokens
+    // 호출당 평균 토큰 추정
+    quickTokens: { input: 500, output: 2000, think: 0 },
+    fullTokens:  { input: 3000, output: 20000, think: 1000 },
+  },
+  naver: { note: '대표계정 무료 (월 단위)', costPerCall: 0 },
+  odsay: { note: '개인/스타트업 무료 (일 단위)', costPerCall: 0 },
+};
+
+// Gemini 호출당 비용 계산
+function geminiCostPerCall(type) {
+  const t = type === 'quick' ? PRICING.gemini.quickTokens : PRICING.gemini.fullTokens;
+  return (t.input / 1e6 * PRICING.gemini.inputPer1M) +
+         (t.output / 1e6 * PRICING.gemini.outputPer1M) +
+         (t.think / 1e6 * PRICING.gemini.thinkPer1M);
+}
+
+// ── Firebase Admin 초기화 ────────────────────────────────────────────
+async function getFirestoreAdmin() {
+  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
+  const { getFirestore } = await import('firebase-admin/firestore');
+
+  if (!getApps().length) {
+    let credential = null;
+    const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
+    const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+    let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
+      .replace(/^\uFEFF/, '').replace(/^["']|["']$/g, '').replace(/\\n/g, '\n').trim();
+
+    if (projectId && clientEmail && rawKey) {
+      const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
+      if (pemMatch) {
+        const b = pemMatch[1].replace(/\s+/g, '');
+        rawKey = '-----BEGIN PRIVATE KEY-----\n' + (b.match(/.{1,64}/g) || []).join('\n') + '\n-----END PRIVATE KEY-----\n';
+      }
+      credential = cert({ projectId, clientEmail, privateKey: rawKey });
+    } else if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      credential = cert(JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8')));
+    }
+
+    if (!credential) return null;
+    initializeApp({ credential });
+  }
+  return getFirestore();
+}
+
+// ── 환율 ─────────────────────────────────────────────────────────────
 async function getUSDKRWRate() {
   try {
-    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD', {
-      signal: AbortSignal.timeout(5000),
-    });
-    const data = await res.json();
-    const rate = data.rates?.KRW || 1380;
-    const prevRate = 1380; // 전일 기준 (실제로는 Sheets에 저장하거나 다른 API 사용)
-    return { rate, change: (((rate - prevRate) / prevRate) * 100).toFixed(2) };
-  } catch {
-    return { rate: 1380, change: '0.00' };
-  }
+    const r = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { signal: AbortSignal.timeout(5000) });
+    return { rate: (await r.json()).rates?.KRW || 1380 };
+  } catch { return { rate: 1380 }; }
 }
 
-// ── 예약 행 → 상품별 집계 ────────────────────────────────────────────
-function aggregateByProduct(rows) {
-  const byProduct = {
-    '공항 픽업':  { count: 0, totalUSD: 0 },
-    '전세차량':   { count: 0, totalUSD: 0 },
-    '셔틀':       { count: 0, totalUSD: 0 },
+// ── Firestore 카운터 읽기 ────────────────────────────────────────────
+async function getApiStats(db) {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const monthKey = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}`;
+  const yesterday = new Date(kst); yesterday.setDate(yesterday.getDate() - 1);
+  const dayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+  const s = {
+    yesterday: { quick: 0, full: 0, fullRevenue: 0, chat: 0 },
+    month:     { quick: 0, full: 0, fullRevenue: 0, chat: 0 },
+    totalUsers: 0, totalPlans: 0,
   };
 
-  rows.forEach((row) => {
-    const product = row[4] || '';
-    const amount  = parseFloat(row[10]) || 0;
+  try {
+    const mDoc = await db.collection('api_stats').doc(monthKey).get();
+    if (mDoc.exists) { const m = mDoc.data(); s.month = { quick: m.quickCount||0, full: m.fullCount||0, fullRevenue: m.fullRevenue||0, chat: m.chatCount||0 }; }
 
-    if (product.includes('픽업') || product.includes('pickup') || product.includes('Pickup')) {
-      byProduct['공항 픽업'].count += 1;
-      byProduct['공항 픽업'].totalUSD += amount;
-    } else if (product.includes('셔틀') || product.includes('shuttle') || product.includes('Shuttle')) {
-      byProduct['셔틀'].count += 1;
-      byProduct['셔틀'].totalUSD += amount;
-    } else {
-      byProduct['전세차량'].count += 1;
-      byProduct['전세차량'].totalUSD += amount;
-    }
-  });
+    const dDoc = await db.collection('api_stats').doc(monthKey).collection('daily').doc(dayKey).get();
+    if (dDoc.exists) { const d = dDoc.data(); s.yesterday = { quick: d.quickCount||0, full: d.fullCount||0, fullRevenue: d.fullRevenue||0, chat: d.chatCount||0 }; }
 
-  return byProduct;
+    try { s.totalUsers = (await db.collection('users').count().get()).data().count || 0; } catch {}
+    try { s.totalPlans = (await db.collection('plans').count().get()).data().count || 0; } catch {}
+  } catch (e) { console.warn('[daily-report] Firestore error:', e.message); }
+
+  return s;
 }
 
-// ── 핸들러 ────────────────────────────────────────────────────────────
-const dailyReportTask = async () => {
-  console.log('[daily-report] 일일 리포트 생성 시작');
+// ── 상품별 집계 ──────────────────────────────────────────────────────
+function aggregateByProduct(rows) {
+  const p = { '픽업': { c: 0, u: 0 }, '전세': { c: 0, u: 0 }, '셔틀': { c: 0, u: 0 }, 'AI': { c: 0, u: 0 } };
+  rows.forEach(r => {
+    const prod = r[4] || '', amt = parseFloat(r[10]) || 0;
+    if (prod.match(/픽업|pickup/i)) { p['픽업'].c++; p['픽업'].u += amt; }
+    else if (prod.match(/셔틀|shuttle/i)) { p['셔틀'].c++; p['셔틀'].u += amt; }
+    else if (prod.match(/planner|ai/i)) { p['AI'].c++; p['AI'].u += amt; }
+    else { p['전세'].c++; p['전세'].u += amt; }
+  });
+  return p;
+}
 
-  const now = new Date();
-  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const dateStr = kstNow.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+// ── 메인 ─────────────────────────────────────────────────────────────
+const dailyReportTask = async () => {
+  console.log('[daily-report] 모닝 리포트 시작');
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const dateStr = kst.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  const dayName = ['일','월','화','수','목','금','토'][kst.getDay()];
+  const monthStr = kst.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
 
   try {
-    // 병렬로 데이터 수집
-    const [yesterdayRows, todayTours, weekSummary, rateInfo] = await Promise.allSettled([
-      getYesterdayBookings(),
-      getTodayTours(),
-      getWeekSummary(),
-      getUSDKRWRate(),
+    const db = await getFirestoreAdmin();
+    const [yRows, tTours, wSum, rateInfo, fs] = await Promise.allSettled([
+      getYesterdayBookings(), getTodayTours(), getWeekSummary(), getUSDKRWRate(),
+      db ? getApiStats(db) : Promise.resolve(null),
     ]);
 
-    const yesterday = yesterdayRows.status === 'fulfilled' ? yesterdayRows.value : [];
-    const today     = todayTours.status    === 'fulfilled' ? todayTours.value    : [];
-    const week      = weekSummary.status   === 'fulfilled' ? weekSummary.value   : { totalUSD: 0, count: 0 };
-    const rate      = rateInfo.status      === 'fulfilled' ? rateInfo.value      : { rate: 1380, change: '0.00' };
+    const yesterday = yRows.status === 'fulfilled' ? yRows.value : [];
+    const today = tTours.status === 'fulfilled' ? tTours.value : [];
+    const week = wSum.status === 'fulfilled' ? wSum.value : { totalUSD: 0, count: 0 };
+    const rate = rateInfo.status === 'fulfilled' ? rateInfo.value : { rate: 1380 };
+    const f = fs.status === 'fulfilled' ? fs.value : null;
 
-    const totalUSD = yesterday.reduce((sum, row) => sum + (parseFloat(row[10]) || 0), 0);
+    const totalUSD = yesterday.reduce((s, r) => s + (parseFloat(r[10]) || 0), 0);
     const totalKRW = Math.round(totalUSD * rate.rate);
-    const byProduct = aggregateByProduct(yesterday);
+    const bp = aggregateByProduct(yesterday);
 
-    // 오늘 일정 텍스트 생성
-    const todayBookingsList = today.length > 0
-      ? today.map((row, i) =>
-          `  ${i + 1}. ${row[5] || '-'} | ${row[1] || '-'} | ${row[4] || '-'} | ${row[8] || '-'}명`
-        ).join('\n')
-      : '  오늘 예약 없음';
+    const todayList = today.length > 0
+      ? today.map((r, i) => `  ${i+1}. ${r[5]||'-'} | ${r[1]||'-'} | ${r[4]||'-'} | ${r[8]||'-'}명`).join('\n')
+      : '  📭 없음';
 
-    const reportData = {
-      date: dateStr,
-      yesterday: {
-        count: yesterday.length,
-        totalUSD: totalUSD.toFixed(2),
-        totalKRW: totalKRW.toLocaleString(),
-        byProduct,
-      },
-      todaySchedule: todayBookingsList,
-      rate: {
-        usdkrw: rate.rate,
-        change: rate.change,
-      },
-      weekTotal: {
-        totalUSD: week.totalUSD,
-        count: week.count,
-      },
-    };
+    // ── 메시지 조립 ──
+    let msg = `☀️ <b>코코트립 모닝 리포트</b>\n📅 ${dateStr} (${dayName}) 오전 7:00`;
 
-    // Gemini 1호로 리포트 메시지 생성
-    let reportMsg;
-    try {
-      reportMsg = await generateDailyReport(reportData);
-    } catch (aiErr) {
-      console.warn('[daily-report] AI 리포트 생성 실패, 기본 형식 사용:', aiErr.message);
-      // 기본 리포트 형식
-      reportMsg = `📊 코코트립 일일 리포트
-${dateStr} 오전 7:00
+    if (f) {
+      // ── 어제 AI 플래너 ──
+      const yTotal = f.yesterday.quick + f.yesterday.full + f.yesterday.chat;
+      msg += `\n\n━━━ 🤖 AI 플래너 (어제) ━━━`;
+      msg += `\n🆓 무료 Quick: <b>${f.yesterday.quick}회</b>`;
+      msg += `\n💰 유료 Full: <b>${f.yesterday.full}건</b> ($${f.yesterday.fullRevenue.toFixed(2)})`;
+      msg += `\n💬 채팅: <b>${f.yesterday.chat}회</b>`;
+      msg += `\n📊 Gemini 총 호출: ${yTotal}회 / 1,500회 무료한도 (${((yTotal/1500)*100).toFixed(1)}%)`;
 
-━━━ 어제 매출 ━━━
-총 예약: ${yesterday.length}건
-총 매출: $${totalUSD.toFixed(2)} USD (₩${totalKRW.toLocaleString()})
+      // ── 무료한도 경고 ──
+      if (yTotal > 1200) {
+        msg += `\n\n⚠️ <b>주의: 어제 Gemini 무료한도 ${((yTotal/1500)*100).toFixed(0)}% 소진!</b>`;
+        msg += `\n→ 1,500회 초과 시 유료 전환됩니다`;
+      }
 
-상품별:
-  공항 픽업: ${byProduct['공항 픽업'].count}건 · $${byProduct['공항 픽업'].totalUSD.toFixed(2)}
-  전세차량: ${byProduct['전세차량'].count}건 · $${byProduct['전세차량'].totalUSD.toFixed(2)}
-  셔틀: ${byProduct['셔틀'].count}건 · $${byProduct['셔틀'].totalUSD.toFixed(2)}
+      // ── 이번달 누적 ──
+      const mTotal = f.month.quick + f.month.full + f.month.chat;
+      const convRate = (f.month.quick + f.month.full) > 0 ? ((f.month.full / (f.month.quick + f.month.full)) * 100).toFixed(1) : '0.0';
 
-━━━ 오늘 일정 ━━━
-${todayBookingsList}
+      // 비용 계산: 1,500회/일 무료 → 초과분만 과금
+      const daysInMonth = new Date(kst.getFullYear(), kst.getMonth() + 1, 0).getDate();
+      const daysPassed = kst.getDate();
+      const totalFreeQuota = daysPassed * PRICING.gemini.freeRPD; // 이번달까지 총 무료 한도
+      const overQuota = Math.max(0, mTotal - totalFreeQuota);
+      
+      // 초과분 비용
+      const overCostQuick = overQuota > 0 ? Math.min(overQuota, f.month.quick) * geminiCostPerCall('quick') : 0;
+      const overCostFull = overQuota > 0 ? Math.min(overQuota, f.month.full) * geminiCostPerCall('full') : 0;
+      const geminiActualCost = overCostQuick + overCostFull;
 
-━━━ 환율 ━━━
-USD/KRW: ₩${rate.rate} (${rate.change}%)
+      // 만약 전부 무료 한도 내라면
+      const geminiEstCost = (f.month.quick * geminiCostPerCall('quick')) + (f.month.full * geminiCostPerCall('full'));
 
-━━━ 이번 주 누적 ━━━
-총 매출: $${week.totalUSD} USD (${week.count}건)`;
+      msg += `\n\n━━━ 📊 ${monthStr} 누적 ━━━`;
+      msg += `\n🆓 무료 Quick: <b>${f.month.quick}회</b>`;
+      msg += `\n💰 유료 Full: <b>${f.month.full}건</b>`;
+      msg += `\n💬 채팅: <b>${f.month.chat}회</b>`;
+      msg += `\n💵 AI 매출: <b>$${f.month.fullRevenue.toFixed(2)}</b> (₩${Math.round(f.month.fullRevenue * rate.rate).toLocaleString()})`;
+      msg += `\n📈 전환율: <b>${convRate}%</b> (무료→유료)`;
+
+      // ── API 비용 ──
+      msg += `\n\n━━━ 💸 API 비용 (${monthStr}) ━━━`;
+      msg += `\n📍 Gemini 총 호출: ${mTotal}회`;
+      msg += `\n📍 무료 한도: ${totalFreeQuota.toLocaleString()}회 (${daysPassed}일 × 1,500회/일)`;
+      
+      if (overQuota > 0) {
+        msg += `\n⚠️ <b>초과분: ${overQuota}회 → 예상 과금 $${geminiActualCost.toFixed(3)}</b>`;
+      } else {
+        msg += `\n✅ <b>무료 한도 내 (과금 $0)</b>`;
+        msg += `\n   (유료였다면 ~$${geminiEstCost.toFixed(3)})`;
+      }
+      msg += `\nNaver Maps / ODsay: 무료`;
+
+      // ── 순이익 ──
+      const profit = f.month.fullRevenue - geminiActualCost;
+      msg += `\n\n💰 <b>순이익: $${profit.toFixed(2)} (₩${Math.round(profit * rate.rate).toLocaleString()})</b>`;
+
+      // ── 호출당 단가 ──
+      msg += `\n\n📋 호출당 Gemini 비용 (유료 시):`;
+      msg += `\n  Quick: $${geminiCostPerCall('quick').toFixed(4)}/회`;
+      msg += `\n  Full: $${geminiCostPerCall('full').toFixed(4)}/회`;
+    } else {
+      msg += `\n\n⚠️ Firestore 연결 안 됨`;
     }
 
-    await sendLongMessage(reportMsg);
-    console.log('[daily-report] 리포트 전송 완료');
+    // ── 예약 매출 ──
+    msg += `\n\n━━━ 📋 어제 예약 매출 ━━━`;
+    msg += `\n건수: ${yesterday.length}건 | 매출: <b>$${totalUSD.toFixed(2)}</b> (₩${totalKRW.toLocaleString()})`;
+    msg += `\n  🚐 픽업 ${bp['픽업'].c}건 $${bp['픽업'].u.toFixed(2)}`;
+    msg += `\n  🚗 전세 ${bp['전세'].c}건 $${bp['전세'].u.toFixed(2)}`;
+    msg += `\n  🚌 셔틀 ${bp['셔틀'].c}건 $${bp['셔틀'].u.toFixed(2)}`;
+    msg += `\n  🤖 AI ${bp['AI'].c}건 $${bp['AI'].u.toFixed(2)}`;
 
-    return { statusCode: 200, body: 'Daily report sent' };
+    // ── 오늘 일정 + 주간 ──
+    msg += `\n\n━━━ 🗓 오늘 투어 ━━━\n${todayList}`;
+    msg += `\n\n💱 환율: ₩${rate.rate.toLocaleString()}`;
+    msg += `\n📈 이번주: <b>$${week.totalUSD}</b> (${week.count}건)`;
+
+    if (f) {
+      msg += `\n👥 회원: ${f.totalUsers}명 | 플랜: ${f.totalPlans}개`;
+    }
+
+    msg += `\n\n🌐 cocotripkr.com`;
+
+    await sendLongMessage(msg);
+    console.log('[daily-report] 전송 완료');
+    return { statusCode: 200, body: '모닝 리포트 전송 완료' };
   } catch (err) {
     console.error('[daily-report] 오류:', err.message);
-    try {
-      await sendErrorAlert('daily-report', err);
-    } catch {}
+    try { await sendErrorAlert('daily-report', err); } catch {}
     return { statusCode: 500, body: err.message };
   }
 };
 
-// Netlify Scheduled Function: 매일 UTC 22:00 (KST 07:00)
-const originalHandler = dailyReportTask;
-
-// --- Vercel Native Wrapper ---
 export default async function vercelHandler(req, res) {
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-    return res.status(200).end();
-  }
-
-  const event = {
-    httpMethod: req.method,
-    path: req.url.split('?')[0],
-    body: typeof req.body === 'object' ? JSON.stringify(req.body) : (req.body || ''),
-    queryStringParameters: req.query || {},
-    headers: req.headers || {}
-  };
-  
+  if (req.method === 'OPTIONS') return res.status(200).end();
   try {
-    const result = await originalHandler(event, {});
-    
-    if (result && result.headers) {
-      for (const [key, val] of Object.entries(result.headers)) {
-        res.setHeader(key, val);
-      }
-    }
-    if (result && result.statusCode) {
-      let finalBody = result.body;
-      if (typeof finalBody === 'string') {
-        try { finalBody = JSON.parse(finalBody); } catch(e) {}
-      }
-      return res.status(result.statusCode).json(finalBody);
-    }
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error('API Error:', error);
-    return res.status(500).json({ error: error.message });
-  }
+    const r = await dailyReportTask();
+    return res.status(r.statusCode || 200).json(r);
+  } catch (e) { return res.status(500).json({ error: e.message }); }
 }
-  

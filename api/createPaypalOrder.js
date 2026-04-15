@@ -14,7 +14,7 @@ const CORS = {
 };
 
 const PRODUCT_PRICES = {
-  ai_planner_full: 6600,
+  ai_planner_full: 13300,
   // 일일 투어 (charterPricing.ts DAILY_TOUR_PRICES 기준)
   charter_seoul_city: 330000, charter_seoul_suburb: 343200, charter_dmz: 343200,
   charter_gangwon: 436800, charter_ski: 416000, charter_gyeongju: 468000, charter_busan: 572000,

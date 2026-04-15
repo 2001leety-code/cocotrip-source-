@@ -1,14 +1,16 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   MapPin, Clock, Calendar, Users, ChevronDown,
   Download, MessageCircle, Plane, Train, Bus, Car, Footprints,
   Landmark, UtensilsCrossed, ShoppingBag, Camera, Music2, Mountain,
   CreditCard, Wallet, ExternalLink, AlertCircle, Accessibility, Phone,
+  RefreshCw, Sparkles,
 } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
@@ -40,6 +42,7 @@ export default function PlanDetailPage() {
   const token = searchParams.get('token');
   const { user, loading: authLoading } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
+  const isMobile = useIsMobile();
   const [plan, setPlan] = useState<any>(null);
   const [error, setError] = useState<'notfound' | 'unauthorized' | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,8 @@ export default function PlanDetailPage() {
   const [fadeKey, setFadeKey] = useState(0);
   const tabBarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
 
   // ── Firestore listener ──
   useEffect(() => {
@@ -94,8 +99,10 @@ export default function PlanDetailPage() {
   }, []);
 
   // ── PDF download — light theme for reliable rendering ──
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const handleDownloadPDF = useCallback(async () => {
     if (!plan) return;
+    setIsPdfGenerating(true);
     const it = plan.itinerary || {};
     const days = it.days || [];
     const arrival = it.arrival_guide;
@@ -176,6 +183,7 @@ export default function PlanDetailPage() {
             <span style="font-size:10px;color:${stop.entry_fee_krw > 0 ? C.pink : '#22c55e'};font-weight:600;">${stop.entry_fee_krw > 0 ? formatKRW(stop.entry_fee_krw) : 'Free'}</span>
           </div>
           <p style="font-size:10px;color:${C.muted};margin:4px 0 0;">⏱ ${stop.stay_min || '?'}min${stop.address ? ` | 📍 ${stop.address}` : ''}</p>
+          ${stop.naverMapUrl ? `<p style="font-size:10px;margin:3px 0 0;"><a href="${stop.naverMapUrl}" style="color:${C.accent};text-decoration:underline;">📍 Open in Naver Map</a></p>` : ''}
           ${stop.tip_en ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;font-style:italic;">💡 ${stop.tip_en}</p>` : ''}
           ${stop.reservation_required ? `<p style="font-size:10px;color:#f97316;margin:4px 0 0;">⚠️ Reservation required${stop.reservation_phone ? ` — ${stop.reservation_phone}` : ''}</p>` : ''}
           ${stop.recommended_items?.length ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;">🍽 ${stop.recommended_items.map((r: any) => `${r.name}${r.price_krw > 0 ? ` (${formatKRW(r.price_krw)})` : ''}`).join(', ')}</p>` : ''}
@@ -219,6 +227,9 @@ export default function PlanDetailPage() {
       if (departure.tax_refund) {
         html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;">🧾 Tax Refund: ${departure.tax_refund.location || ''} (Min. ${formatKRW(departure.tax_refund.threshold_krw || 30000)})</p>`;
       }
+      if (departure.last_minute_shopping) {
+        html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;">🛍️ ${departure.last_minute_shopping}</p>`;
+      }
       html += '</div>';
     }
 
@@ -234,18 +245,32 @@ export default function PlanDetailPage() {
       const html2pdf = (await import('html2pdf.js')).default;
       const titleSlug = (it.tour_title || 'korea-trip').replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'korea-trip';
       const dateStr = input.startDate || 'undated';
-      await html2pdf().set({
+      const filename = `cocotrip-${titleSlug}-${dateStr}.pdf`;
+
+      const worker = html2pdf().set({
         margin: [8, 8, 8, 8],
-        filename: `cocotrip-${titleSlug}-${dateStr}.pdf`,
+        filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      } as any).from(container).save();
+      } as any).from(container);
+
+      // iOS Safari: direct .save() often blocked — open blob in new tab
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        const pdf = await worker.outputPdf('blob');
+        const url = URL.createObjectURL(pdf);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        await worker.save();
+      }
     } catch (err) {
       console.error('[PDF] generation failed:', err);
+      alert('PDF generation failed. Please try again or contact us via WhatsApp.');
     } finally {
       document.body.removeChild(container);
+      setIsPdfGenerating(false);
     }
   }, [plan]);
 
@@ -292,13 +317,13 @@ export default function PlanDetailPage() {
   const input = plan.input || {};
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white">
+    <div className={`min-h-screen text-white ${isMobile ? 'bg-[#0a0412]' : 'bg-[#0a0b14]'}`}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className="max-w-3xl mx-auto px-4 py-8 pt-24">
         <div ref={contentRef} id="plan-detail-content">
           {/* ── Title ── */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg,#a78bfa,#ec4899)' }}>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#a78bfa,#ec4899)' }}>
               {it.tour_title || 'Your Korea Itinerary'}
             </h1>
             <p className="text-white/40 text-sm mt-2">
@@ -331,7 +356,7 @@ export default function PlanDetailPage() {
           {days.length > 1 && (
             <div
               ref={tabBarRef}
-              className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide sticky top-16 z-20 bg-[#0a0b14]/95 backdrop-blur-sm py-3 -mx-4 px-4 sm:justify-center"
+              className={`flex gap-2 mb-6 overflow-x-auto scrollbar-hide sticky top-16 z-20 backdrop-blur-sm py-3 -mx-4 px-4 sm:justify-center ${isMobile ? 'bg-[#0a0412]/95' : 'bg-[#0a0b14]/95'}`}
             >
               {days.map((_: any, i: number) => (
                 <button
@@ -339,10 +364,10 @@ export default function PlanDetailPage() {
                   onClick={() => handleTabSwitch(i)}
                   className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
                     activeDay === i
-                      ? 'text-white shadow-lg shadow-[#7C5CFC]/20'
+                      ? `text-white shadow-lg ${isMobile ? 'shadow-[#B668FC]/20' : 'shadow-[#7C5CFC]/20'}`
                       : 'bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white/80'
                   }`}
-                  style={activeDay === i ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' } : undefined}
+                  style={activeDay === i ? { background: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)' } : undefined}
                 >
                   Day {i + 1}
                 </button>
@@ -364,10 +389,65 @@ export default function PlanDetailPage() {
           {departure && <DepartureGuide guide={departure} />}
         </div>
 
+        {/* ── Revision / Regenerate Card ── */}
+        {plan && (plan.revisionCredits ?? 0) > 0 && !isRegenerating && (
+          <div className="mt-8 rounded-2xl overflow-hidden border border-amber-500/20"
+            style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(182,104,252,0.04))' }}>
+            <div className="px-5 py-5 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                <h3 className="text-lg font-bold text-white">Want a different vibe?</h3>
+              </div>
+              <p className="text-white/50 text-sm mb-1">
+                Not 100% satisfied? Tweak your preferences and get a brand new itinerary.
+              </p>
+              <p className="text-amber-400/80 text-xs font-semibold mb-4">
+                🎁 {plan.revisionCredits} Free Revision{plan.revisionCredits > 1 ? 's' : ''} remaining
+              </p>
+              <button
+                onClick={() => {
+                  // Navigate to planner with pre-filled input for regeneration
+                  const input = plan.input || {};
+                  const params = new URLSearchParams({
+                    revision: 'true',
+                    planId: planId || '',
+                    ...(token ? { token } : {}),
+                  });
+                  window.location.href = `/planner?${params.toString()}`;
+                }}
+                className="w-full py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.25)' }}
+              >
+                <RefreshCw className="w-4 h-4" />
+                Edit Preferences & Regenerate
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Regeneration in progress ── */}
+        {isRegenerating && (
+          <div className="mt-8 text-center py-10">
+            <div className="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white font-semibold">Regenerating your plan...</p>
+            <p className="text-white/40 text-sm mt-1">This may take up to 30 seconds</p>
+          </div>
+        )}
+
+        {regenError && (
+          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+            <p className="text-red-400 text-sm">{regenError}</p>
+          </div>
+        )}
+
         {/* ── Action buttons ── */}
         <div className="mt-8 space-y-3">
-          <button onClick={handleDownloadPDF} className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
-            <Download className="w-5 h-5" /> Download PDF
+          <button onClick={handleDownloadPDF} disabled={isPdfGenerating} className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+            {isPdfGenerating ? (
+              <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating PDF...</>
+            ) : (
+              <><Download className="w-5 h-5" /> Download PDF</>
+            )}
           </button>
           <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-colors">
             <MessageCircle className="w-5 h-5 text-green-400" /> WhatsApp Booking
@@ -742,6 +822,12 @@ function DepartureGuide({ guide }: { guide: any }) {
               <p className="text-sm font-semibold mb-1">Tax Refund</p>
               <p className="text-xs text-white/50">{guide.tax_refund.location}</p>
               <p className="text-[10px] text-[#7C5CFC] mt-1">Min. purchase: {formatKRW(guide.tax_refund.threshold_krw)}</p>
+            </div>
+          )}
+          {guide.last_minute_shopping && (
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+              <p className="text-sm font-semibold mb-1">🛍️ Last-Minute Shopping</p>
+              <p className="text-xs text-white/50">{guide.last_minute_shopping}</p>
             </div>
           )}
         </div>

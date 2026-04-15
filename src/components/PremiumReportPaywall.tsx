@@ -1,3 +1,8 @@
+/**
+ * @deprecated 이 컴포넌트는 현재 사용되지 않습니다.
+ * PlannerPage.tsx 내부 인라인 페이월이 대신 사용 중입니다.
+ * 향후 PlanDetailPage에서 Day 2+ 잠금 기능이 필요할 때 재활용 가능.
+ */
 import { useState } from 'react';
 import { Lock, Sparkles, Check, Gift, Star } from 'lucide-react';
 import { PayPalBookingButton } from './PayPalBookingButton';
@@ -15,7 +20,7 @@ const LABELS: Record<string, {
     badge: '프리미엄 리포트',
     feat1: '숨은 명소 + 로컬 맛집 + 최적 동선', feat2: '교통비·입장료 상세 예산 분석', feat3: 'PDF 일정표 + 네이버 지도 연동',
     bonus: '5% 추가 할인권 즉시 증정', bonusDesc: '전세차량 예약 시 사용 가능',
-    price: '$4.90', priceNote: '1회 결제 · 전체 일정 영구 열람',
+    price: '$9.90', priceNote: '1회 결제 · 전체 일정 영구 열람',
     preview: 'AI가 분석 중...', locked: 'Premium',
   },
   en: {
@@ -23,7 +28,7 @@ const LABELS: Record<string, {
     badge: 'PREMIUM REPORT',
     feat1: 'Hidden spots + local restaurants + optimal routes', feat2: 'Detailed budget: transport, admission, meals', feat3: 'PDF itinerary + Naver Map integration',
     bonus: 'Instant 5% off coupon', bonusDesc: 'Use on your charter booking',
-    price: '$4.90', priceNote: 'One-time payment · Lifetime access',
+    price: '$9.90', priceNote: 'One-time payment · Lifetime access',
     preview: 'AI analyzing...', locked: 'Premium itinerary',
   },
   ja: {
@@ -31,7 +36,7 @@ const LABELS: Record<string, {
     badge: 'プレミアムレポート',
     feat1: '隠れスポット + ローカルグルメ + 最適ルート', feat2: '交通費・入場料の詳細予算分析', feat3: 'PDF旅程表 + Naverマップ連携',
     bonus: '5%割引クーポンプレゼント', bonusDesc: 'チャーター車予約に使用可能',
-    price: '$4.90', priceNote: '1回払い · 全日程永久閲覧',
+    price: '$9.90', priceNote: '1回払い · 全日程永久閲覧',
     preview: 'AI分析中...', locked: 'プレミアム旅程',
   },
   zh: {
@@ -39,7 +44,7 @@ const LABELS: Record<string, {
     badge: '高级报告',
     feat1: '隐藏景点 + 本地美食 + 最优路线', feat2: '交通·门票·餐饮详细预算分析', feat3: 'PDF行程表 + Naver地图集成',
     bonus: '即送5%优惠券', bonusDesc: '可用于包车预订',
-    price: '$4.90', priceNote: '一次付款 · 永久查看',
+    price: '$9.90', priceNote: '一次付款 · 永久查看',
     preview: 'AI分析中...', locked: '高级行程',
   },
 };

@@ -4,6 +4,27 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getSpotContext } from './_spots_helper.js';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
+
+// ── Firebase Admin (카운터 전용) ──────────────────────────────────────
+let counterDb = null;
+try {
+  const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
+  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+  let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
+    .replace(/^\uFEFF/, '').replace(/^["']|["']$/g, '').replace(/\\n/g, '\n').trim();
+  if (projectId && clientEmail && rawKey) {
+    const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
+    if (pemMatch) {
+      const b64 = pemMatch[1].replace(/\s+/g, '');
+      rawKey = '-----BEGIN PRIVATE KEY-----\n' + (b64.match(/.{1,64}/g) || []).join('\n') + '\n-----END PRIVATE KEY-----\n';
+    }
+    const app = getApps().length ? getApps()[0] : initializeApp({ credential: cert({ projectId, clientEmail, privateKey: rawKey }) });
+    counterDb = getAdminFirestore(app);
+    counterDb.settings({ ignoreUndefinedProperties: true });
+  }
+} catch (e) { console.warn('[quick] counter db init failed:', e.message); }
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -215,6 +236,25 @@ export default async function handler(req, res) {
 
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify(json));
+
+    // ── 비동기 카운터 기록 (응답 후 실행 — 사용자 대기 없음) ──
+    if (counterDb) {
+      const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const monthKey = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}`;
+      const dayKey = `${monthKey}-${String(kst.getDate()).padStart(2, '0')}`;
+      const inc = FieldValue.increment(1);
+      // 월별 카운터
+      counterDb.collection('api_stats').doc(monthKey).set(
+        { quickCount: inc, lastUpdated: new Date().toISOString() },
+        { merge: true }
+      ).catch(e => console.warn('[quick] counter error:', e.message));
+      // 일별 카운터
+      counterDb.collection('api_stats').doc(monthKey)
+        .collection('daily').doc(dayKey).set(
+          { quickCount: inc, lastUpdated: new Date().toISOString() },
+          { merge: true }
+        ).catch(e => console.warn('[quick] daily counter error:', e.message));
+    }
 
   } catch (error) {
     console.error('Quick planner error:', error);

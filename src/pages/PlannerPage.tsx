@@ -1066,18 +1066,18 @@ function ComboPackageBanner({ p }: { p: any }) {
       </div>
       
       <div className="flex flex-col gap-2">
-        <button onClick={() => alert("Redirecting to 100% Pre-payment Checkout ($280)...")}
-          className="flex flex-col items-center justify-center gap-0.5 w-full py-3.5 rounded-xl text-sm font-bold shadow-2xl transition-all hover:scale-[1.02]"
+        <a href="https://wa.me/821087140611?text=Hi!%20I'm%20interested%20in%20the%20Premium%20Combo%20Package.%20Please%20send%20me%20details." target="_blank" rel="noopener noreferrer"
+          className="flex flex-col items-center justify-center gap-0.5 w-full py-3.5 rounded-xl text-sm font-bold shadow-2xl transition-all hover:scale-[1.02] cursor-pointer no-underline"
           style={{ background: '#FFC439', color: '#003087', boxShadow: '0 8px 30px rgba(255,196,57,0.3)' }}>
           <span className="flex items-center gap-2">{p.comboCta}</span>
-        </button>
+        </a>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-1 text-[11px] text-white/70 font-medium">
           <span className="flex items-center gap-1"><Check className="w-3 h-3 text-emerald-400" /> {p.checkoutSafe}</span>
           <span className="flex items-center gap-1"><Check className="w-3 h-3 text-emerald-400" /> {p.checkoutTip1}</span>
           <span className="flex items-center gap-1"><Ban className="w-3 h-3 text-red-400" /> {p.checkoutTip2}</span>
         </div>
         <div className="text-center mt-3">
-          <a href="https://wa.me/821099339020" target="_blank" rel="noopener noreferrer" className="text-[11px] text-white/30 hover:text-white/50 transition-colors underline">
+          <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="text-[11px] text-white/30 hover:text-white/50 transition-colors underline">
             {p.comboHelp}
           </a>
         </div>
@@ -1314,6 +1314,9 @@ export default function PlannerPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const preset = searchParams.get('preset') ?? undefined;
+  const revisionMode = searchParams.get('revision') === 'true';
+  const revisionPlanId = searchParams.get('planId') ?? null;
+  const revisionToken = searchParams.get('token') ?? null;
 
   usePageMeta({
     title: 'AI Travel Planner — Custom Korea Itinerary',
@@ -1443,6 +1446,59 @@ export default function PlannerPage() {
     }
   }
 
+  // 3단계: 무료 재생성 (revisionCredits 소비)
+  async function handleRevisionRegenerate(values: PlannerFormValues) {
+    if (!revisionPlanId) return;
+    setIsGeneratingPlan(true);
+    setPlanError(null);
+    setStreamStep(1);
+    setStreamAgent('gemini');
+
+    try {
+      const res = await fetch('/api/ai-planner-full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          revisionOf: revisionPlanId,
+          revisionToken: revisionToken,
+          guestName: 'Guest',
+          email: userEmail,
+          startDate: values.startDate,
+          endDate: values.endDate,
+          destination: (values.regions || []).join(', ') || 'Seoul',
+          area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
+          preferences: (values.categories || []).join(', ') || '',
+          styles: values.categories || ['culture'],
+          durationDays: values.durationDays || 3,
+          pax: values.pax || 2,
+          language,
+          arrival_airport: (values as any).arrival_airport || '',
+          departure_airport: (values as any).departure_airport || '',
+          hotel_address: (values as any).hotel_address || '',
+          mobility: (values as any).mobility || 'ok',
+          uid: (values as any).uid || null,
+          dietPrefs: values.dietPrefs || [],
+          allergies: values.allergies || [],
+          priceRange: values.priceRange || 'Any',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details || data.error || `Server error (${res.status})`);
+
+      setStreamStep(4);
+      setStreamAgent('done');
+
+      if (data.planUrl) navigate(data.planUrl);
+      else if (data.planId) navigate(`/my-plans/${data.planId}`);
+      else throw new Error('Plan created but no URL returned');
+    } catch (err: any) {
+      console.error('[PlannerPage] Revision failed:', err);
+      setPlanError(err.message || 'Revision failed. Please contact us via WhatsApp.');
+      setIsGeneratingPlan(false);
+    }
+  }
+
 
   function handleReset() {
     setStatus('idle');
@@ -1561,11 +1617,39 @@ export default function PlannerPage() {
                   }
                 }
                 if (!table || (typeof table === 'string' && table.trim().length < 10)) return null;
+                // Parse markdown table → styled HTML table
+                const tableStr = String(table);
+                const tableLines = tableStr.split('\n').filter((l: string) => l.trim().startsWith('|'));
+                const dataLines = tableLines.filter((l: string) => !l.match(/^\|[\s:\-]+\|$/));
+                if (dataLines.length < 2) {
+                  return (
+                    <div className="bg-black/40 rounded-xl p-4 overflow-x-auto text-sm text-white/80">
+                      <pre style={{ whiteSpace: 'pre-wrap' }} className="font-mono text-[11px] opacity-80">{tableStr}</pre>
+                    </div>
+                  );
+                }
+                const tHeaders = dataLines[0].split('|').filter((c: string) => c.trim()).map((c: string) => c.trim());
+                const tRows = dataLines.slice(1).map((r: string) => r.split('|').filter((c: string) => c.trim()).map((c: string) => c.trim()));
                 return (
-                  <div className="bg-black/40 rounded-xl p-4 overflow-x-auto text-sm text-white/80">
-                    <pre style={{ whiteSpace: 'pre-wrap' }} className="font-mono text-[11px] opacity-80">
-                      {String(table)}
-                    </pre>
+                  <div className="bg-black/30 rounded-xl overflow-hidden border border-white/[0.08]">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className={isMobile ? 'bg-[#B668FC]/15' : 'bg-[#7C5CFC]/15'}>
+                          {tHeaders.map((h: string, hi: number) => (
+                            <th key={hi} className="px-3 py-2.5 text-left text-[11px] font-bold text-white/70 uppercase tracking-wider">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tRows.map((row: string[], ri: number) => (
+                          <tr key={ri} className={`border-t border-white/[0.06] ${ri % 2 === 0 ? 'bg-white/[0.02]' : 'bg-white/[0.04]'} hover:bg-white/[0.07] transition-colors`}>
+                            {row.map((cell: string, ci: number) => (
+                              <td key={ci} className={`px-3 py-2.5 text-[13px] ${ci === 0 ? (isMobile ? 'font-bold text-[#FF6B9D]' : 'font-bold text-[#C4956A]') : 'text-white/70'}`}>{cell}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 );
               })()}
@@ -1584,12 +1668,12 @@ export default function PlannerPage() {
               {/* ── Phase 1: Enhanced Price Display ── */}
               <div className="relative text-center py-4 mb-4">
                 <div className="text-white/40 text-sm mb-1">
-                  <span className="line-through">$9.90</span>
+                  <span className="line-through">$19.90</span>
                   <span className="ml-2 text-[10px] uppercase tracking-wider">{p.originalPrice}</span>
                 </div>
                 <div className="flex items-baseline justify-center gap-2 mb-2">
-                  <span className="text-5xl font-black text-white" style={{ textShadow: isMobile ? '0 0 20px rgba(182,104,252,0.3)' : '0 0 20px rgba(124,92,252,0.3)' }}>$4.90</span>
-                  <span className="text-white/35 text-sm">/ ₩6,600</span>
+                  <span className="text-5xl font-black text-white" style={{ textShadow: isMobile ? '0 0 20px rgba(182,104,252,0.3)' : '0 0 20px rgba(124,92,252,0.3)' }}>$9.90</span>
+                  <span className="text-white/35 text-sm">/ ₩13,300</span>
                 </div>
                 <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border ${isMobile ? 'bg-gradient-to-r from-[#FF6B9D]/15 to-[#B668FC]/15 border-[#FF6B9D]/40' : 'bg-gradient-to-r from-[#EA537E]/15 to-[#7C5CFC]/15 border-[#EA537E]/40'}`}>
                   <span className={`text-xs font-bold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>50% OFF</span>
@@ -1631,8 +1715,8 @@ export default function PlannerPage() {
                   <div className="flex items-start justify-between mb-1.5">
                     <h4 className="text-white font-bold text-[15px]">{p.optionAtitle}</h4>
                     <div className="text-right shrink-0">
-                      <div className="text-white/30 text-[10px] line-through">$9.90</div>
-                      <div className={`font-bold text-sm ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`}>$4.90</div>
+                      <div className="text-white/30 text-[10px] line-through">$19.90</div>
+                      <div className={`font-bold text-sm ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`}>$9.90</div>
                     </div>
                   </div>
                   <p className="text-white/45 text-xs mb-2">{p.optionAdesc}</p>
@@ -1640,6 +1724,7 @@ export default function PlannerPage() {
                     <li>{p.optionAfeature1}</li>
                     <li>{p.optionAfeature2}</li>
                     <li>{p.optionAfeature3}</li>
+                    <li className={`font-semibold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>🎁 {p.optionAfeatureRevision || '1 Free Revision included'}</li>
                   </ul>
                 </button>
 
@@ -1680,13 +1765,25 @@ export default function PlannerPage() {
                         <p className="text-white font-semibold">{p.creatingItinerary || 'Creating your itinerary...'}</p>
                         <p className="text-white/40 text-sm mt-1">{p.takesAbout15Sec || 'Takes about 15 seconds'}</p>
                       </div>
+                    ) : revisionMode && revisionPlanId ? (
+                      <button
+                        onClick={() => {
+                          const values = lastValues.current;
+                          if (values) handleRevisionRegenerate(values);
+                        }}
+                        disabled={!lastValues.current}
+                        className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                        style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}
+                      >
+                        🎁 Free Regeneration — Create New Plan
+                      </button>
                     ) : (
                       <PayPalBookingButton
                         productType="ai-planner-full"
                         passengers={1}
                         dateStart=""
                         dateEnd=""
-                        priceKRW={6600}
+                        priceKRW={13300}
                         p={p}
                         lang={language}
                         memo={`Full itinerary for: ${userEmail}`}
@@ -1848,38 +1945,7 @@ export default function PlannerPage() {
           </div>
         )}
 
-        {/* Phase 2 Loading */}
-        {status === 'loadingFull' && (
-           <div className="mt-8 text-center space-y-4">
-             <TriviaLoadingAnimation p={{ loading_tips: [p.loadingPleaseWait], loading_step1: p.loadingFullMsg }} streamStep={streamStep} streamAgent={streamAgent} />
-             <p className="text-[#7C5CFC] text-sm animate-pulse font-bold mt-4">{p.loadingAgentMsg?.split('\n').map((line: string, i: number) => <span key={i}>{line}{i === 0 && <br/>}</span>)}</p>
-           </div>
-        )}
-
-        {/* Phase 2 Success */}
-        {status === 'fullSuccess' && (
-          <div id="funnel-success-view" className="text-center bg-[#0a1628] rounded-2xl p-8 border border-[#7C5CFC]/40 shadow-[0_0_30px_rgba(124,92,252,0.2)]">
-            <div className="w-16 h-16 bg-gradient-to-tr from-[#7C5CFC] to-[#EA537E] rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">{p.successTitle}</h2>
-            <p className="text-white/60 mb-8 max-w-sm mx-auto">
-              {p.successDesc?.replace('{email}', userEmail)}
-            </p>
-            
-            <div className="bg-[#1a0f14] border border-[#7C5CFC]/20 rounded-xl p-6 text-left">
-              <h3 className="text-lg font-bold text-white mb-3">{p.upsellTitle}</h3>
-              <p className="text-sm text-white/50 mb-5">{p.upsellDesc}</p>
-              <button className="w-full py-3 rounded-lg bg-[#C4956A] text-black font-bold hover:bg-[#b0845a] transition-colors shadow-lg">
-                {p.upsellCta}
-              </button>
-            </div>
-            
-            <button onClick={handleReset} className="mt-6 text-sm text-white/30 hover:text-white/70 underline underline-offset-4">
-              {p.goBack}
-            </button>
-          </div>
-        )}
+        {/* Phase 2: 결제 후 navigate(planUrl)로 바로 이동하므로 별도 성공 UI 불필요 */}
       </main>
       {!isMobile && <Footer t={t} />}
     </div>

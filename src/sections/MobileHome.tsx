@@ -27,7 +27,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
       gradient: 'linear-gradient(135deg, #B668FC 0%, #FF6B9D 50%, #C850C0 100%)',
       badge: 'AI PLANNER', title: m.promoAiTitle || 'AI Custom Itinerary',
       subtitle: m.promoAiSubtitle || 'Your perfect Korea trip plan in 15 sec',
-      price: '$4.90', cta: m.promoAiCta || 'Plan My Trip', link: '/planner',
+      price: '$9.90', cta: m.promoAiCta || 'Plan My Trip', link: '/planner',
     },
     {
       gradient: 'linear-gradient(135deg, #0f0f1a 0%, #1a0a2e 50%, #2d1b69 100%)',
@@ -167,7 +167,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         <Link to="/planner" className="flex items-center gap-3 px-4 py-4 rounded-2xl m-btn relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.12), rgba(255,107,157,0.08))', border: '1px solid rgba(182,104,252,0.15)' }}>
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}><Wand2 className="w-5 h-5 text-white" /></div>
           <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.aiBannerTitle || 'AI Itinerary Generator'}</p><p className="text-[10px] text-white/35 mt-0.5">{m.aiBannerSubtitle || 'Enter city & dates → Get minute-by-minute plan'}</p></div>
-          <span className="text-[13px] font-black text-pink-400 shrink-0 animate-pulse">$4.90</span>
+          <span className="text-[13px] font-black text-pink-400 shrink-0 animate-pulse">$9.90</span>
           <ChevronRight className="w-4 h-4 text-purple-400/30 shrink-0" />
         </Link>
       </section>

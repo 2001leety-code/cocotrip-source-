@@ -52,7 +52,7 @@ import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNa
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
-import { ChatFAB } from '@/components/ChatFAB';
+// ChatFAB 제거됨 — 텔레그램 봇으로 대체
 import CookieBanner from '@/components/CookieBanner';
 
 function HomePage() {
@@ -114,7 +114,6 @@ function GlobalWidgets() {
       <EarlyBirdBanner language={language} />
       <KpopConcertPopup />
       <MobileBottomNav />
-      <ChatFAB />
       <CookieBanner />
     </>
   );

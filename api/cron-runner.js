@@ -17,7 +17,7 @@ import dailyReport from './_crons/daily-report.js';
 // import weatherCheck from './_crons/weather-check.js';
 // import blogPublisher from './_crons/blog-publisher.js';
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 export const config = { runtime: 'nodejs' };
 
 const JOBS = {
