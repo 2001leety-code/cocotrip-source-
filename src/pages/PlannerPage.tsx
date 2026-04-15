@@ -1396,9 +1396,14 @@ export default function PlannerPage() {
     }
 
     try {
+      // 120초 타임아웃 — Vercel 함수 실패 시 무한 스피너 방지
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           paypalOrderId,
           guestName: 'Guest',
@@ -1423,7 +1428,14 @@ export default function PlannerPage() {
         }),
       });
 
-      const data = await res.json();
+      clearTimeout(timeoutId);
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server returned invalid response (${res.status}). Please contact us via WhatsApp.`);
+      }
 
       if (!res.ok) {
         throw new Error(data.details || data.error || `Server error (${res.status})`);
@@ -1441,7 +1453,10 @@ export default function PlannerPage() {
       }
     } catch (err: any) {
       console.error('[PlannerPage] Plan generation failed:', err);
-      setPlanError(err.message || 'Something went wrong. Please contact us via WhatsApp.');
+      const msg = err.name === 'AbortError'
+        ? 'Server took too long (120s). Your payment is safe — please contact us via WhatsApp to get your plan.'
+        : (err.message || 'Something went wrong. Please contact us via WhatsApp.');
+      setPlanError(msg);
       setIsGeneratingPlan(false);
     }
   }
