@@ -436,54 +436,65 @@ export default async function handler(req, res) {
     const TEST_ACCOUNTS = ['2001leety@gmail.com'];
     const isTestAccount = TEST_ACCOUNTS.includes(requestEmail);
 
-    const ppClientId = isTestAccount
-      ? process.env.PAYPAL_SANDBOX_CLIENT_ID
-      : process.env.PAYPAL_CLIENT_ID;
-    const ppSecret = isTestAccount
-      ? process.env.PAYPAL_SANDBOX_SECRET
-      : process.env.PAYPAL_CLIENT_SECRET;
-    const ppBase = isTestAccount
-      ? 'https://api-m.sandbox.paypal.com'
-      : 'https://api-m.paypal.com';
-
-    console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
-
-    const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
-    const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${ppCreds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'grant_type=client_credentials',
-    });
-    if (!tokenRes.ok) {
-      console.error('[planner] PayPal token fetch failed:', tokenRes.status);
+    // ── TEST- prefix 바이패스 (테스트 계정 전용) ──────────────────────────
+    const isTestOrderId = paypalOrderId.startsWith('TEST-');
+    if (isTestOrderId && isTestAccount) {
+      console.log('[planner] ✅ TEST MODE bypass — skipping PayPal verification for:', requestEmail);
+    } else if (isTestOrderId && !isTestAccount) {
       res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Payment verification failed' }));
-    }
-    const ppToken = (await tokenRes.json()).access_token;
+      return res.end(JSON.stringify({ error: 'Unauthorized test mode', details: 'Test mode is only available for authorized accounts.' }));
+    } else {
+      // 실제 PayPal 결제 검증
+      const ppClientId = isTestAccount
+        ? process.env.PAYPAL_SANDBOX_CLIENT_ID
+        : process.env.PAYPAL_CLIENT_ID;
+      const ppSecret = isTestAccount
+        ? process.env.PAYPAL_SANDBOX_SECRET
+        : process.env.PAYPAL_CLIENT_SECRET;
+      const ppBase = isTestAccount
+        ? 'https://api-m.sandbox.paypal.com'
+        : 'https://api-m.paypal.com';
 
-    const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
-      headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
-    });
-    const orderData = await orderRes.json();
-    console.log('[planner] PayPal order status:', orderData.status, 'id:', paypalOrderId);
+      console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
 
-    if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
-      res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Payment not completed', details: `Order status: ${orderData.status}` }));
-    }
-
-    // 중복 사용 방지 — Firestore에 사용된 orderID 확인
-    if (adminDb) {
-      const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
-      const usedDoc = await usedRef.get();
-      if (usedDoc.exists) {
+      const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
+      const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: { 'Authorization': `Basic ${ppCreds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=client_credentials',
+      });
+      if (!tokenRes.ok) {
+        const tokenBody = await tokenRes.text().catch(() => '');
+        console.error('[planner] PayPal auth failed:', tokenRes.status, tokenBody);
         res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Order already used', details: 'This payment has already been used to generate a plan.' }));
+        return res.end(JSON.stringify({ error: `PayPal auth ${tokenRes.status}: ${tokenBody}` }));
       }
-      await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
+      const ppToken = (await tokenRes.json()).access_token;
+
+      const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
+        headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
+      });
+      const orderData = await orderRes.json();
+      console.log('[planner] PayPal order status:', orderData.status, 'id:', paypalOrderId);
+
+      if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
+        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Payment not completed', details: `Order status: ${orderData.status}` }));
+      }
+
+      // 중복 사용 방지 — Firestore에 사용된 orderID 확인
+      if (adminDb) {
+        const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
+        const usedDoc = await usedRef.get();
+        if (usedDoc.exists) {
+          res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Order already used', details: 'This payment has already been used to generate a plan.' }));
+        }
+        await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
+      }
     }
 
-    console.log('[planner] ✅ PayPal verification passed:', paypalOrderId);
+    console.log('[planner] ✅ Payment verification passed:', paypalOrderId);
 
     // ── 입력 파싱 ──────────────────────────────────────────────────────────
     const guestName = body.guest_name || body.guestName || 'Guest';
