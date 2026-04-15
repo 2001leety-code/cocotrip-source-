@@ -1,8 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CocoTrip – 숙소 어필리에이트 데이터 (Expedia 전용)
-// Expedia Partner Solutions 기반 커미션 수익 구조
-// 실제 운영 시: affiliateUrl 의 YOUR_EXPEDIA_AID → 실제 Expedia Affiliate ID 교체
-// Expedia 어필리에이트 신청: https://expediapartnersolutions.com
+// CocoTrip – 숙소 어필리에이트 데이터 (Trip.com 전용)
+// Trip.com Affiliate Partner 기반 커미션 수익 구조
+// Allianceid: 4831212 / SID: 76964637
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { I18nString } from './tours';
@@ -19,12 +18,20 @@ export type HotelCard = {
   reviewCount: number;
   thumbnail: string;
   stars: number;
-  affiliateUrl: string; // Expedia 어필리에이트 링크
+  affiliateUrl: string; // Trip.com 어필리에이트 링크
   badge?: I18nString;
 };
 
+// Trip.com 어필리에이트 파라미터
+const TRIP_AFF = 'Allianceid=4831212&SID=76964637&trip_sub1=cocotrip';
+
+function tripHotelUrl(path: string): string {
+  const sep = path.includes('?') ? '&' : '?';
+  return `https://www.trip.com/hotels/${path}${sep}${TRIP_AFF}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// 숙소 데이터 (Expedia 어필리에이트 전용)
+// 숙소 데이터 (Trip.com 어필리에이트 전용)
 // 지역: 서울 / 부산 / 제주 / 경주 / 춘천 / 단양
 // ─────────────────────────────────────────────────────────────────────────────
 export const HOTELS: HotelCard[] = [
@@ -40,7 +47,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 3240,
     stars: 5,
     thumbnail: '/서울/서울 (5).jpg',
-    affiliateUrl: 'https://www.expedia.com/Seoul-Hotels-Lotte-Hotel-Seoul.h18654.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('seoul-hotel-detail-425884/lotte-hotel-seoul/'),
     badge: { ko: '명동 도보 5분', en: '5 min walk to Myeongdong', ja: '明洞まで徒歩5分', zh: '步行5分钟到明洞' },
   },
   {
@@ -53,7 +60,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 1870,
     stars: 5,
     thumbnail: '/서울/서울 (8).jpg',
-    affiliateUrl: 'https://www.expedia.com/Seoul-Hotels-Signiel-Seoul.h28837765.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('seoul-hotel-detail-6976695/signiel-seoul/'),
     badge: { ko: '롯데월드타워 내', en: 'Inside Lotte World Tower', ja: 'ロッテワールドタワー内', zh: '乐天世界塔内' },
   },
   {
@@ -66,7 +73,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 2910,
     stars: 4,
     thumbnail: '/서울/서울 (12).jpg',
-    affiliateUrl: 'https://www.expedia.com/Seoul-Hotels-Novotel-Ambassador-Seoul-Dongdaemun.h15699879.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('seoul-hotel-detail-37603417/novotel-ambassador-seoul-dongdaemun-hotels-and-residences/'),
     badge: { ko: '동대문 바로 앞', en: 'Steps from Dongdaemun', ja: '東大門すぐ前', zh: '紧邻东大门' },
   },
 
@@ -81,20 +88,20 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 2100,
     stars: 5,
     thumbnail: '/부산/부산 (1).jpg',
-    affiliateUrl: 'https://www.expedia.com/Busan-Hotels-Paradise-Hotel-Busan.h17773.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('busan-hotel-detail-435498/paradise-hotel-busan/'),
     badge: { ko: '오션뷰 객실', en: 'Ocean View Rooms', ja: 'オーシャンビュー', zh: '海景客房' },
   },
   {
     id: 'h-busan-002',
     region: 'Busan',
-    name: 'Grand Hyatt Busan',
+    name: 'Park Hyatt Busan',
     location: { ko: '해운대구 · 마린시티', en: 'Haeundae · Marine City', ja: '海雲台・マリンシティ', zh: '海云台·海洋城' },
     priceFrom: 210,
     rating: 9.0,
     reviewCount: 1650,
     stars: 5,
     thumbnail: '/부산/부산 (4).jpg',
-    affiliateUrl: 'https://www.expedia.com/Busan-Hotels-Grand-Hyatt-Busan.h17597965.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('busan-hotel-detail-2319581/park-hyatt-busan/'),
     badge: { ko: '광안대교 야경 뷰', en: 'Gwangan Bridge Night View', ja: '広安大橋の夜景', zh: '广安大桥夜景' },
   },
   {
@@ -107,7 +114,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 3350,
     stars: 5,
     thumbnail: '/부산/부산 (7).jpg',
-    affiliateUrl: 'https://www.expedia.com/Busan-Hotels-Lotte-Hotel-Busan.h17747.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('busan-hotel-detail-350702/lotte-hotel-busan/'),
     badge: { ko: '서면 롯데백화점 연결', en: 'Connected to Lotte Dept.', ja: 'ロッテ百貨店直結', zh: '连接乐天百货' },
   },
 
@@ -122,7 +129,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 2780,
     stars: 5,
     thumbnail: '/hero-danyang.webp',
-    affiliateUrl: 'https://www.expedia.com/Jeju-Hotels-Marriott-Jeju-Shinhwa-World.h26499547.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('jeju-hotel-detail-6515498/marriott-jeju-shinhwa-world/'),
     badge: { ko: '테마파크 포함', en: 'Theme Park Included', ja: 'テーマパーク込み', zh: '含主题公园' },
   },
   {
@@ -135,7 +142,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 1940,
     stars: 5,
     thumbnail: '/hero-chuncheon.webp',
-    affiliateUrl: 'https://www.expedia.com/Jeju-Hotels-Maison-Glad-Jeju.h19218044.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('jeju-hotel-detail-5765498/maison-glad-jeju/'),
     badge: { ko: '제주 공항 10분', en: '10 min from Jeju Airport', ja: '済州空港10分', zh: '距济州机场10分钟' },
   },
 
@@ -150,7 +157,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 1820,
     stars: 5,
     thumbnail: '/경주/경주 (4).jpg',
-    affiliateUrl: 'https://www.expedia.com/Gyeongju-Hotels-Hilton-Gyeongju.h12397.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('gyeongju-hotel-detail-443694/hilton-gyeongju/'),
     badge: { ko: '보문호수 전망', en: 'Bomun Lake view', ja: '普門湖の眺め', zh: '普门湖景' },
   },
   {
@@ -163,7 +170,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 1340,
     stars: 4,
     thumbnail: '/경주/경주 (8).jpg',
-    affiliateUrl: 'https://www.expedia.com/Gyeongju-Hotels-The-Suites-Hotel-Gyeongju.h3395614.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('gyeongju-hotel-detail-707498/the-suites-hotel-gyeongju/'),
     badge: { ko: '첨성대 차로 5분', en: '5 min drive to Cheomseongdae', ja: '瞻星台まで車5分', zh: '驾车5分钟到瞻星台' },
   },
 
@@ -171,14 +178,14 @@ export const HOTELS: HotelCard[] = [
   {
     id: 'h-chuncheon-001',
     region: 'Chuncheon',
-    name: 'Best Western Plus Chuncheon Hotel',
+    name: 'Best Western Premier Chuncheon',
     location: { ko: '춘천시 · 도심', en: 'Chuncheon City Center', ja: '春川市街', zh: '春川市中心' },
     priceFrom: 75,
     rating: 8.1,
     reviewCount: 980,
     stars: 4,
     thumbnail: '/춘천/춘천 (3).jpeg',
-    affiliateUrl: 'https://www.expedia.com/Chuncheon-Hotels-Best-Western-Plus-Chuncheon.h11814861.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('chuncheon-hotel-detail-2631715/best-western-premier-chuncheon/'),
     badge: { ko: '남이섬 선착장 10분', en: '10 min to Nami Island Ferry', ja: 'ナミ島乗り場10分', zh: '10分钟到南怡岛渡口' },
   },
   {
@@ -191,7 +198,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 1120,
     stars: 3,
     thumbnail: '/춘천/춘천 (5).jpeg',
-    affiliateUrl: 'https://www.expedia.com/Chuncheon-Hotels-Chuncheon-Sejong-Hotel.h505786.Hotel-Information?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('chuncheon-hotel-detail-480862/chuncheon-sejong-hotel/'),
     badge: { ko: '소양강 뷰', en: 'Soyang River view', ja: '昭陽江ビュー', zh: '昭阳江景观' },
   },
 
@@ -206,7 +213,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 650,
     stars: 3,
     thumbnail: '/단양/단양 (2).jpg',
-    affiliateUrl: 'https://www.expedia.com/Danyang-Hotels.d6073539.Travel-Guide-Hotels?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('list?city=238&keyword=Danyang+Spa+Hotel'),
     badge: { ko: '도담삼봉 차로 5분', en: '5 min to Dodamsambong', ja: '島潭三峯まで5分', zh: '5分钟到岛潭三峰' },
   },
   {
@@ -219,7 +226,7 @@ export const HOTELS: HotelCard[] = [
     reviewCount: 890,
     stars: 4,
     thumbnail: '/단양/단양 (6).jpg',
-    affiliateUrl: 'https://www.expedia.com/Danyang-Hotels.d6073539.Travel-Guide-Hotels?affid=1110l29051',
+    affiliateUrl: tripHotelUrl('list?city=238&keyword=Aqua+World+Danyang'),
     badge: { ko: '수상레저 포함', en: 'Water leisure included', ja: 'ウォータースポーツ込み', zh: '含水上娱乐' },
   },
 ];

@@ -14,7 +14,7 @@ Core offerings: AI-powered travel itinerary generation, private charter vehicles
 | State | React hooks (`useState`, `useRef`, `useContext`) — no Redux/Zustand |
 | i18n | Custom `useLanguage()` hook + single `src/i18n/index.ts` (ko/en/ja/zh) |
 | Auth | **Firebase Auth** (Google Sign-In with redirect fallback) |
-| Payments | **PayPal REST API** (sandbox/live toggle via `PAYPAL_MODE`) |
+| Payments | **PayPal REST API** (sandbox/live toggle via TEST_ACCOUNTS email matching) |
 | AI | **Google Gemini 2.5 Flash** (`@google/generative-ai`) |
 | Email | **Nodemailer** (Gmail SMTP) + **EmailJS** (client-side) |
 | Maps | Naver Maps API (client ID via env) |
@@ -33,10 +33,10 @@ Core offerings: AI-powered travel itinerary generation, private charter vehicles
 
 ## Environment Variables (Keys Only)
 **Server-side (api/):**
-`GEMINI_API_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `GOOGLE_SHEETS_SPREADSHEET_ID`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MODE`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+`GEMINI_API_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `GOOGLE_SHEETS_SPREADSHEET_ID`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_SANDBOX_CLIENT_ID`, `PAYPAL_SANDBOX_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 
 **Client-side (VITE_):**
-`VITE_FIREBASE_*` (6 keys), `VITE_PAYPAL_CLIENT_ID`, `VITE_NAVER_CLIENT_ID`, `VITE_NAVER_CLIENT_SECRET`, `VITE_ADMIN_EMAIL`
+`VITE_FIREBASE_*` (6 keys), `VITE_PAYPAL_CLIENT_ID`, `VITE_PAYPAL_SANDBOX_CLIENT_ID`, `VITE_NAVER_CLIENT_ID`, `VITE_NAVER_CLIENT_SECRET`, `VITE_ADMIN_EMAIL`
 
 ## Directory Structure
 ```
@@ -45,6 +45,7 @@ Core offerings: AI-powered travel itinerary generation, private charter vehicles
 │   ├── _ai_core/           # AI agent system prompts
 │   ├── _crons/             # 9 cron job handlers
 │   ├── _data/              # Static data for APIs
+│   ├── _shared/            # Server common helpers (PayPal, email)
 │   ├── ai-planner-*.js     # AI itinerary endpoints
 │   ├── booking-processor.js
 │   ├── capturePaypalOrder.js / createPaypalOrder.js
@@ -54,7 +55,9 @@ Core offerings: AI-powered travel itinerary generation, private charter vehicles
 ├── src/
 │   ├── components/         # Reusable UI components
 │   ├── sections/           # Landing page sections
-│   ├── pages/              # Route-level pages
+│   ├── pages/              # Route-level pages (assembly only, <200 lines)
+│   ├── features/           # Feature-split components (planner/, charter/, payment/)
+│   ├── shared/             # Common constants, types, hooks
 │   ├── hooks/              # useAuth, useLanguage, use-mobile
 │   ├── i18n/               # Single 125KB translation file
 │   ├── data/               # charterPricing, kpopConcerts, seasonalSpots
@@ -70,7 +73,7 @@ Core offerings: AI-powered travel itinerary generation, private charter vehicles
 | Path | Component | Auth |
 |------|-----------|------|
 | `/` | HomePage | None |
-| `/planner` | PlannerPage | Firebase Auth |
+| `/planner` | PlannerPage | **None** (AuthRequired 제거됨, 결제 시에만 인증) |
 | `/charter` | CharterPage | Firebase Auth |
 | `/booking` | Booking | None |
 | `/admin` | Admin | Admin only |

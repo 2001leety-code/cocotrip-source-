@@ -1,25 +1,41 @@
-const EXPEDIA_AFFCID = import.meta.env.VITE_EXPEDIA_AFFCID || '1110l29051';
+// ─────────────────────────────────────────────────────────────────────────────
+// CocoTrip – Trip.com 어필리에이트 링크 빌더
+// Allianceid: 4831212 / SID: 76964637
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TRIP_AFF = 'Allianceid=4831212&SID=76964637&trip_sub1=cocotrip';
 
 export const AFFILIATE_CONFIG = {
-  expedia: {
-    hotel:    'https://www.expedia.com/Hotel-Search',
-    flight:   'https://www.expedia.com/Flights',
-    activity: 'https://www.expedia.com/things-to-do/search',
-    car:      'https://www.expedia.com/carsearch',
-    package:  'https://www.expedia.com/Vacation-Packages',
-    affcid:   EXPEDIA_AFFCID,
+  tripcom: {
+    hotel:    'https://www.trip.com/hotels/list',
+    flight:   'https://www.trip.com/flights',
+    activity: 'https://www.trip.com/travel-guide',
+    car:      'https://www.trip.com/carhire',
+    package:  'https://www.trip.com/packages',
   },
+};
+
+// Trip.com 도시 ID 매핑
+const CITY_IDS: Record<string, number> = {
+  Seoul: 274,
+  Busan: 759,
+  Jeju: 1649,
+  Gyeongju: 3786,
+  Chuncheon: 3791,
+  Danyang: 238,
+  Incheon: 3701,
 };
 
 /* ── Hotels ──────────────────────────────────────────── */
 export function buildAccommodationLinks(hotelName: string, region: string) {
-  const query = encodeURIComponent(`${hotelName} ${region}`);
+  const cityId = CITY_IDS[region] ?? CITY_IDS.Seoul;
+  const keyword = encodeURIComponent(hotelName);
   return [
     {
-      provider: 'expedia',
-      label: 'Expedia Hotels',
-      url: `${AFFILIATE_CONFIG.expedia.hotel}?destination=${query}&AFFCID=${EXPEDIA_AFFCID}`,
-      color: '#FBCE04',
+      provider: 'tripcom',
+      label: 'Trip.com Hotels',
+      url: `${AFFILIATE_CONFIG.tripcom.hotel}?city=${cityId}&keyword=${keyword}&${TRIP_AFF}`,
+      color: '#0073E6',
     },
   ];
 }
@@ -27,13 +43,13 @@ export function buildAccommodationLinks(hotelName: string, region: string) {
 /* ── Flights ─────────────────────────────────────────── */
 export function buildFlightLink(destinationCode: string) {
   const cityCodeMap: Record<string, string> = {
-    ICN: 'Seoul (ICN)', GMP: 'Seoul (GMP)', PUS: 'Busan (PUS)', CJU: 'Jeju (CJU)',
-    ICN_T1: 'Seoul (ICN)', ICN_T2: 'Seoul (ICN)', ALREADY: 'Seoul',
+    ICN: 'Seoul', GMP: 'Seoul', PUS: 'Busan', CJU: 'Jeju',
+    ICN_T1: 'Seoul', ICN_T2: 'Seoul', ALREADY: 'Seoul',
   };
-  const dest = cityCodeMap[destinationCode] || 'Seoul (ICN)';
+  const dest = cityCodeMap[destinationCode] || 'Seoul';
   return {
-    label: 'Expedia Flights',
-    url: `${AFFILIATE_CONFIG.expedia.flight}?trip=roundtrip&leg1=to:${encodeURIComponent(dest)}&AFFCID=${EXPEDIA_AFFCID}`,
+    label: 'Trip.com Flights',
+    url: `${AFFILIATE_CONFIG.tripcom.flight}?dcity=&acity=${encodeURIComponent(dest)}&${TRIP_AFF}`,
   };
 }
 
@@ -42,9 +58,9 @@ export function buildTourLinks(placeName: string, region: string) {
   const query = encodeURIComponent(`${placeName} ${region}`);
   return [
     {
-      provider: 'expedia',
-      label: 'Expedia Activities',
-      url: `${AFFILIATE_CONFIG.expedia.activity}?location=${query}&AFFCID=${EXPEDIA_AFFCID}`,
+      provider: 'tripcom',
+      label: 'Trip.com Activities',
+      url: `${AFFILIATE_CONFIG.tripcom.activity}?keyword=${query}&${TRIP_AFF}`,
     },
   ];
 }
@@ -52,8 +68,8 @@ export function buildTourLinks(placeName: string, region: string) {
 /* ── Car Rentals ─────────────────────────────────────── */
 export function buildCarLink(city: string) {
   return {
-    label: 'Expedia Car Rental',
-    url: `${AFFILIATE_CONFIG.expedia.car}?pickUpPlace=${encodeURIComponent(city)}&AFFCID=${EXPEDIA_AFFCID}`,
+    label: 'Trip.com Car Rental',
+    url: `${AFFILIATE_CONFIG.tripcom.car}?pickup=${encodeURIComponent(city)}&${TRIP_AFF}`,
   };
 }
 

@@ -32,7 +32,7 @@ const TL = {
     hotelFrom: '최저',
     hotelNight: '/ 박',
     hotelScore: '점',
-    hotelBtn: 'Expedia에서 보기',
+    hotelBtn: 'Trip.com에서 보기',
     hotelCommission: '* 예약 완료 시 코코트립에 수수료가 지급됩니다',
     inquireTitle: '맞춤 투어가 필요하신가요?',
     inquireSub: '전세차량 페이지에서 1:1 견적 문의',
@@ -50,7 +50,7 @@ const TL = {
     hotelFrom: 'from',
     hotelNight: '/ night',
     hotelScore: '/10',
-    hotelBtn: 'View on Expedia',
+    hotelBtn: 'View on Trip.com',
     hotelCommission: '* CocoTrip earns a commission on completed bookings',
     inquireTitle: 'Need a custom tour?',
     inquireSub: 'Get a 1-on-1 quote on the Charter page',
@@ -68,7 +68,7 @@ const TL = {
     hotelFrom: 'から',
     hotelNight: '/ 泊',
     hotelScore: '/10',
-    hotelBtn: 'Expediaで見る',
+    hotelBtn: 'Trip.comで見る',
     hotelCommission: '* 予約完了時にCocoTripに手数料が支払われます',
     inquireTitle: 'カスタムツアーが必要ですか？',
     inquireSub: 'チャーターページで1対1の見積もりを',
@@ -86,7 +86,7 @@ const TL = {
     hotelFrom: '起',
     hotelNight: '/ 晚',
     hotelScore: '/10',
-    hotelBtn: '在Expedia查看',
+    hotelBtn: '在Trip.com查看',
     hotelCommission: '* 预订完成后CocoTrip将获得佣金',
     inquireTitle: '需要定制旅游？',
     inquireSub: '在包车页面获取一对一报价',
@@ -277,7 +277,7 @@ export default function ToursPage() {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════
-          추천 숙소 섹션 — Expedia 어필리에이트
+          추천 숙소 섹션 — Trip.com 어필리에이트
           경쟁사(Klook) 방식: 투어 카드 인라인이 아닌 별도 섹션으로 분리
       ════════════════════════════════════════════════════════════════════ */}
       {visibleHotels.length > 0 && (
@@ -291,12 +291,12 @@ export default function ToursPage() {
             <span
               className="text-[10px] font-bold px-2.5 py-1 rounded-full"
               style={{
-                background: 'rgba(0,168,107,0.12)',
-                border: '1px solid rgba(0,168,107,0.25)',
-                color: '#00c47e',
+                background: 'rgba(0,115,230,0.12)',
+                border: '1px solid rgba(0,115,230,0.25)',
+                color: '#2979FF',
               }}
             >
-              Booking.com
+              Trip.com
             </span>
           </div>
 
@@ -376,7 +376,7 @@ export default function ToursPage() {
                     <div className="flex items-center gap-1">
                       <span
                         className="text-[11px] font-black px-1.5 py-0.5 rounded-md"
-                        style={{ background: '#1d3d6e', color: '#fff' }}
+                        style={{ background: '#0073E6', color: '#fff' }}
                       >
                         {hotel.rating.toFixed(1)}
                       </span>
@@ -398,7 +398,7 @@ export default function ToursPage() {
                     <div
                       className="flex items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold"
                       style={{
-                        background: '#1d3d6e',
+                        background: '#0073E6',
                         color: '#fff',
                       }}
                     >

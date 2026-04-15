@@ -61,11 +61,19 @@
 - PayPal client ID만 클라이언트 노출 허용 (`VITE_PAYPAL_CLIENT_ID`)
 - CORS: Vercel 자동 처리, 추가 CORS 설정 불필요
 
-## 6. File Organization
+## 6. File Size Limits
+- **신규 파일**: 400줄(20KB) 이내로 생성
+- **기존 파일 수정 시**: 600줄 초과 파일은 수정 전 분리 제안
+- **1000줄 이상 파일**: 수정 금지 → 반드시 먼저 컴포넌트 분리
+- **목표**: 페이지 100~200줄, 컴포넌트 150~300줄, 훅 50~150줄
+
+## 7. File Organization
 ```
 src/components/   → 재사용 가능 컴포넌트
 src/sections/     → 랜딩 페이지 섹션 (Header, Footer, etc.)
-src/pages/        → 라우트 레벨 페이지
+src/pages/        → 라우트 레벨 페이지 (조립용, 200줄 이내)
+src/features/     → 기능별 분리 컴포넌트 (planner/, charter/, payment/)
+src/shared/       → 공통 상수, 타입, 훅
 src/hooks/        → Custom React hooks
 src/data/         → 정적 데이터 (가격표 등)
 src/config/       → 설정 (제휴 링크 등)
@@ -73,15 +81,19 @@ src/i18n/         → 번역 파일
 api/              → Vercel serverless functions
 api/_crons/       → Cron job handlers
 api/_ai_core/     → AI agent system prompts
+api/_shared/      → 서버 공통 헬퍼 (PayPal, 이메일 등)
 ```
 
-## 7. Build Rules
+## 8. Build Rules
 - `tsc -b` 에러 = 빌드 실패 (unused vars도 error)
 - unused import 반드시 제거
 - `// @ts-ignore` 사용 금지
-- 빌드 전 항상 `npm run build` 로컬 확인
+- **일상 검증**: `npx tsc --noEmit` (무료, 빠름)
+- **`npm run build` / `vite build`는 배포 직전 1회만** (Vercel 빌드 비용 절감)
+- 중복 상수 금지: TEST_ACCOUNTS 등 공통 값은 shared/constants에서만 관리
 
-## 8. Git Conventions
+## 9. Git Conventions
 - Commit prefix: `feat:`, `fix:`, `refactor:`, `chore:`
 - 한 커밋에 관련 변경만 포함
-- 배포 전 반드시 빌드 성공 확인 후 push
+- 배포 전 `npx tsc --noEmit` 통과 확인 후 push
+- **git push는 모든 수정 완료 후 1회만** (Vercel 빌드 비용 절감)

@@ -94,6 +94,7 @@
 | 페이지 | 인증 | 비고 |
 |--------|------|------|
 | 홈, 소개, 약관 | 불필요 | 공개 페이지 |
-| /planner (AI 플래너) | Firebase Auth | Google 로그인 |
+| /planner (AI 플래너) | **불필요** | AuthRequired 제거됨 (결제 시에만 PayPal 인증) |
 | /charter (전세차량) | Firebase Auth | Google 로그인 |
 | /admin | Admin 전용 | VITE_ADMIN_EMAIL 매칭 |
+

@@ -115,7 +115,7 @@ export default function TourDetailPage() {
   const hotelSub       = language === 'ko' ? '투어와 함께 예약하면 더 편리해요' : language === 'ja' ? 'ツアーと一緒に予約してスムーズに' : language === 'zh' ? '与旅游同时预订，出行更便捷' : 'Book together for a seamless trip';
   const hotelFrom      = language === 'ko' ? '최저' : language === 'ja' ? 'から' : language === 'zh' ? '起' : 'from';
   const hotelNight     = language === 'ko' ? '/ 박' : language === 'ja' ? '/ 泊' : language === 'zh' ? '/ 晚' : '/ night';
-  const hotelBtn       = language === 'ko' ? 'Expedia에서 보기' : language === 'ja' ? 'Expediaで見る' : language === 'zh' ? '在Expedia查看' : 'View on Expedia';
+  const hotelBtn       = language === 'ko' ? 'Trip.com에서 보기' : language === 'ja' ? 'Trip.comで見る' : language === 'zh' ? '在Trip.com查看' : 'View on Trip.com';
   const hotelDiscl     = language === 'ko' ? '* 예약 완료 시 코코트립에 수수료가 지급됩니다' : language === 'ja' ? '* 予約完了時にCocoTripに手数料が支払われます' : language === 'zh' ? '* 预订完成后CocoTrip将获得佣金' : '* CocoTrip earns a commission on completed bookings';
   const noHiddenFees   = language === 'ko' ? '팁·톨비·주차 포함' : language === 'ja' ? 'チップ·料金所·駐車込み' : language === 'zh' ? '含小费·过路费·停车费' : 'Tips · Tolls · Parking incl.';
   const paypalLabel    = language === 'ko' ? 'PayPal 안심결제' : language === 'ja' ? 'PayPal 安全決済' : language === 'zh' ? 'PayPal 安全支付' : 'PayPal Secure Pay';
@@ -252,9 +252,9 @@ export default function TourDetailPage() {
               </div>
               <span
                 className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                style={{ background: 'rgba(0,168,107,0.12)', border: '1px solid rgba(0,168,107,0.25)', color: '#00c47e' }}
+                style={{ background: 'rgba(0,115,230,0.12)', border: '1px solid rgba(0,115,230,0.25)', color: '#2979FF' }}
               >
-                Booking.com
+                Trip.com
               </span>
             </div>
 
@@ -310,7 +310,7 @@ export default function TourDetailPage() {
                       <div className="flex items-center gap-1">
                         <span
                           className="text-[11px] font-black px-1.5 py-0.5 rounded-md"
-                          style={{ background: '#1d3d6e', color: '#fff' }}
+                          style={{ background: '#0073E6', color: '#fff' }}
                         >
                           {hotel.rating.toFixed(1)}
                         </span>
@@ -327,7 +327,7 @@ export default function TourDetailPage() {
                       </div>
                       <div
                         className="flex items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-bold"
-                        style={{ background: '#1d3d6e', color: '#fff' }}
+                        style={{ background: '#0073E6', color: '#fff' }}
                       >
                         <ExternalLink className="w-3 h-3" />
                         {hotelBtn}

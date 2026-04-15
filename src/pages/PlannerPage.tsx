@@ -459,7 +459,7 @@ function AccommodationCard({ acc, p, region }: { acc: Accommodation; p: any; reg
                 {links.map((lk: any) => (
                   <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-90 active:scale-95"
-                    style={{ background: lk.provider === 'expedia' ? '#FBCE04' : lk.color, color: lk.provider === 'expedia' ? '#000' : '#fff' }}>
+                    style={{ background: lk.color || '#0073E6', color: '#fff' }}>
                     {lk.label} →
                   </a>
                 ))}
@@ -1737,13 +1737,13 @@ export default function PlannerPage() {
                           <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-1 flex items-center gap-1"><Plane className="w-3.5 h-3.5" /> {p.flight_section_title}</p>
                           <p className="text-[11px] text-white/35 mb-4">{p.flight_section_desc}</p>
                           <a
-                            href={`https://www.expedia.com/Flights?trip=roundtrip&leg1=to:${encodeURIComponent(lastValues.current?.regions?.[0] || 'Seoul')}&AFFCID=1110l29051`}
+                            href={`https://www.trip.com/flights/?dcity=&acity=${encodeURIComponent(lastValues.current?.regions?.[0] || 'Seoul')}&Allianceid=4831212&SID=76964637&trip_sub1=cocotrip`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 active:scale-95"
-                            style={{ background: '#FBCE04', color: '#000' }}
+                            style={{ background: '#0073E6', color: '#fff' }}
                           >
-                            <Search className="w-4 h-4" /> Expedia Flights →
+                            <Search className="w-4 h-4" /> Trip.com Flights →
                           </a>
                           <p className="text-[10px] text-white/20 mt-2 text-center">{p.affiliate_note}</p>
                         </div>
@@ -1775,7 +1775,7 @@ export default function PlannerPage() {
                                 {links.map((lk: any) => (
                                   <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
                                     className="flex-1 min-w-[100px] text-center py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95"
-                                    style={{ background: lk.provider === 'expedia' ? '#FBCE04' : lk.color, color: lk.provider === 'expedia' ? '#000' : '#fff' }}>
+                                    style={{ background: lk.color || '#0073E6', color: '#fff' }}>
                                     {lk.label} →
                                   </a>
                                 ))}

@@ -9,15 +9,20 @@ description: 모든 작업 완료 후 필수 품질 검수 프로세스 (빌드 
 
 ---
 
-## 1단계: 빌드 검수 5회
-// turbo-all
+## 1단계: 타입 검수
 
 ```powershell
-for ($i=1; $i -le 5; $i++) { $r = npm run build 2>&1; if ($LASTEXITCODE -ne 0) { Write-Output "BUILD $i FAILED"; $r | Select-String "error"; break } else { Write-Output "BUILD $i OK" } }; Write-Output "BUILD CHECK DONE"
+npx tsc --noEmit; if ($LASTEXITCODE -ne 0) { Write-Output "TYPE CHECK FAILED" } else { Write-Output "TYPE CHECK OK" }
 ```
 
-- 5회 모두 `Exit code: 0` 이어야 통과
-- 1회라도 실패 시 즉시 수정 후 다시 5회 반복
+- 타입 에러 0건이어야 통과
+- 실패 시 수정 후 다시 실행
+
+### (선택) 배포 직전 빌드 확인 — 1회만
+```powershell
+npm run build
+```
+> ⚠️ 빌드 비용 주의: 일상 검증은 `npx tsc --noEmit`만 사용
 
 ---
 
