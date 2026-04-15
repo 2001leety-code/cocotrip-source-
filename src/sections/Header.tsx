@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, Settings, LogOut, LogIn } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, LogOut, LogIn } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Language } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
