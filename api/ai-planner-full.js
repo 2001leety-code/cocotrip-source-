@@ -685,15 +685,29 @@ export default async function handler(req, res) {
 
     // ── RouteAgent: Naver Maps + ODsay + Dynamic Time Stitching (non-fatal) ──
     const routeStart = Date.now();
+    console.log('[planner] Step 2: Running RouteAgent... ENV:', {
+      NAVER_CLIENT_ID: process.env.NAVER_CLIENT_ID ? '✅' : '❌',
+      NAVER_CLIENT_SECRET: process.env.NAVER_CLIENT_SECRET ? '✅' : '❌',
+      ODSAY_API_KEY: process.env.ODSAY_API_KEY ? '✅' : '❌',
+    });
     try {
       const routeAgent = new RouteAgent(apiKey);
       const wrapped = { itinerary: (itinerary.days || []).map(d => ({ ...d, places: d.stops || [] })) };
+      console.log('[planner] RouteAgent input days:', wrapped.itinerary.length, '| stops/day:', wrapped.itinerary.map(d => (d.places || d.stops || []).length));
       const enriched = await routeAgent.call(JSON.stringify(wrapped));
       const enrichedData = JSON.parse(enriched.rawOutput);
+
       if (enrichedData.itinerary) {
         enrichedData.itinerary.forEach((enrichedDay, i) => {
-          if (itinerary.days[i] && enrichedDay.places) {
-            itinerary.days[i].stops = enrichedDay.places.map((p, j) => {
+          // RouteAgent modifies 'stops' (via dayPlan.stops || dayPlan.places)
+          const enrichedStops = enrichedDay.stops || enrichedDay.places || [];
+          if (itinerary.days[i] && enrichedStops.length > 0) {
+            // Log ODsay/Naver enrichment results
+            const odsayCount = enrichedStops.filter(p => p.transit_from_prev?.source === 'odsay').length;
+            const geoCount = enrichedStops.filter(p => p.lat != null).length;
+            console.log(`[planner] Day ${i + 1}: ${enrichedStops.length} stops, ${geoCount} geocoded, ${odsayCount} ODsay routes`);
+
+            itinerary.days[i].stops = enrichedStops.map((p, j) => {
               const original = itinerary.days[i].stops[j] || {};
               return {
                 ...original,                    // Gemini 원본 (tip_en, recommended_items 등)
@@ -713,10 +727,12 @@ export default async function handler(req, res) {
             });
           }
         });
+      } else {
+        console.warn('[planner] RouteAgent returned no itinerary key. Keys:', Object.keys(enrichedData));
       }
       console.log('[planner] Route + Time Stitch:', Date.now() - routeStart, 'ms');
     } catch (routeErr) {
-      console.warn('[planner] Route failed (non-fatal):', routeErr.message, '|', Date.now() - routeStart, 'ms');
+      console.error('[planner] Route FAILED:', routeErr.message, '| stack:', routeErr.stack?.split('\n').slice(0, 3).join(' | '), '|', Date.now() - routeStart, 'ms');
     }
     console.log('[planner] Step 3: Saving to Firestore...');
 
