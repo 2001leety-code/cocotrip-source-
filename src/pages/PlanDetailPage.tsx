@@ -397,11 +397,11 @@ function ArrivalGuide({ guide }: { guide: any }) {
                   )}
                   {step.transport_to_hotel && (
                     <div className="mt-2 grid grid-cols-2 gap-1.5">
-                      {Object.entries(step.transport_to_hotel).map(([key, val]: [string, any]) => (
+                      {Object.entries(step.transport_to_hotel).filter(([, val]) => val != null).map(([key, val]: [string, any]) => (
                         <div key={key} className="bg-white/[0.04] rounded-lg px-3 py-2">
                           <p className="text-[10px] text-white/40 uppercase">{key.replace(/_/g, ' ')}</p>
-                          <p className="text-xs font-bold">{formatKRW(val.price_krw || val.est_price_krw)}</p>
-                          <p className="text-[10px] text-white/30">{val.duration_min} min</p>
+                          <p className="text-xs font-bold">{formatKRW(val?.price_krw || val?.est_price_krw || 0)}</p>
+                          <p className="text-[10px] text-white/30">{val?.duration_min || '?'} min</p>
                         </div>
                       ))}
                     </div>
