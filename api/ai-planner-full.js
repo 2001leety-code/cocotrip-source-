@@ -109,10 +109,23 @@ const AIRPORT_NAMES = {
 
 // ── Rich System Prompt ──────────────────────────────────────────────────
 const LANG_INSTRUCTION = {
-  en: 'Write ALL text fields in English.',
-  ko: '모든 텍스트 필드를 한국어로 작성하세요.',
-  ja: 'すべてのテキストフィールドを日本語で記述してください。',
-  zh: '请用中文填写所有文本字段。',
+  en: 'Write ALL user-facing text fields (tour_title, theme, description, tip_en, instruction, note, recommendation, last_minute_shopping) in English. Keep name_ko in Korean for Naver Map accuracy.',
+  ko: `모든 사용자 대면 텍스트를 자연스러운 한국어로 작성하세요.
+- tour_title, theme, description, tip_en, instruction, note, recommendation, entry_fee_note, reservation_note, last_minute_shopping → 한국어
+- name_ko는 반드시 한국어 장소명 (예: 경복궁)
+- name_en은 반드시 영문 장소명 (예: Gyeongbokgung Palace) — 외국인 검색용
+- address는 반드시 한국어 도로명 주소 (예: 서울특별시 종로구 사직로 161)
+- recommended_items의 name은 한국어 (예: 삼계탕)
+- step_by_step 배열도 한국어로 (예: "경복궁역 3호선 탑승" )
+- 번역투 금지. "~하세요" 등 자연스럽고 친근한 한국어 톤 사용.`,
+  ja: `すべてのテキストフィールドを自然な日本語で記述してください。
+- name_koは韓国語のまま、name_enは英語のまま。
+- tour_title, theme, description, tip_en → 日本語。
+- addressは韓国語の道路名住所のまま。`,
+  zh: `请用自然流畅的中文填写所有文本字段。
+- name_ko保持韩文，name_en保持英文。
+- tour_title, theme, description, tip_en → 中文。
+- address保持韩文道路名地址。`,
 };
 
 function buildSystemPrompt(language = 'en') {
@@ -120,8 +133,9 @@ function buildSystemPrompt(language = 'en') {
   return `You are CocoTrip AI, Korea's #1 private tour planner (cocotripkr.com).
 Create a REAL, actionable itinerary with precise times, transit directions, entry fees, meal recommendations, and budget breakdowns.
 
-## LANGUAGE — IMPORTANT
-${langNote} The output language must match the user's language setting.
+## LANGUAGE — CRITICAL (최우선 규칙)
+${langNote}
+The output language must match the user's language setting. Do NOT mix languages in the same field.
 
 ## OUTPUT FORMAT — STRICT JSON ONLY
 No markdown. No code blocks. No explanation. Pure JSON only.
