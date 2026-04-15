@@ -107,13 +107,40 @@ API: https://cocotripkr.com/api/ai-planner-full
 
 ---
 
-## Phase 2 대기
-Phase 1 기준점(planner-report.json) 확보 완료. 이제 Phase 2 진행 가능.
+## Phase 2 — 저위험 즉시 개선 ✅
 
-### Phase 2 목표 (이슈 감소 목표)
-- unverified_restaurant: 21 → ≤ 10 (50%+ 감소)
-- bad_address_prefix: 0 유지
-- address_missing_number: 1 → 0
+### 변경 파일
+1. `api/ai-planner-full.js` — 프롬프트 슬림화 + 백엔드 DB matcher 추가
+2. `api/_food_helper.js` — 프롬프트 주입 텍스트 name_ko → name 교체
 
-### Phase 3 목표
-- language_mismatch: 10 → 0
+### 변경 내역
+- **2-1**: TRANSIT NOTE 섹션 제거, transit 중복 지시 제거 (프롬프트 -16.5%)
+- **2-2**: address optional 명시, address_en 제거, tip_en → tip 통일
+- **2-3**: RESTAURANT SELECTION 규칙 강화 + 예시 추가
+- **2-추가**: 백엔드 DB matcher — food stop을 _food_index.json과 매칭 (exact+fuzzy)
+
+### 재측정 결과 (2026-04-16 02:33 KST)
+
+| 이슈 유형 | 기준점 | Phase 2 | 변화 |
+|-----------|--------|---------|------|
+| unverified_restaurant | 21 | 9 | **-57.1%** ✅ |
+| language_mismatch | 10 | 0 | **-100%** 🎉 |
+| address_missing_number | 1 | 1 | 0% |
+| **총 이슈** | **32** | **10** | **-68.8%** ✅ |
+
+### 시나리오별 비교
+| 시나리오 | Before | After |
+|---------|--------|-------|
+| seoul-meat | 4 | **0** 🎉 |
+| busan-halal | 7 | 5 |
+| jeju-vegan | 4 | **0** 🎉 |
+| seoul-meat-rep1 | **13** | **1** 🎉 |
+| seoul-meat-rep2 | 4 | 4 |
+
+다양성: 25% (목표 <30% ✅), 평균 응답: 57.6초 (-5.6%)
+
+---
+
+## Phase 3 대기
+- language_mismatch: 이미 0건 (Phase 2에서 해결)
+- 남은 작업: name_ko/name_en → name/display_name 프론트엔드 일괄 교체 (37곳)
