@@ -8,6 +8,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 // nodemailer is dynamically imported inside sendNotificationEmail
 import { getSpotContext } from './_spots_helper.js';
+import { getFoodContext } from './_food_helper.js';
 import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
 import { randomUUID } from 'crypto';
 import { Buffer } from 'buffer';
@@ -107,33 +108,100 @@ const AIRPORT_NAMES = {
   ALREADY: null,
 };
 
+// ── 계측 함수 (Phase 1 — 기능 변경 없음, 측정만) ──────────────────────────
+function logPromptMetrics(prompt, ctx) {
+  try {
+    const chars = prompt.length;
+    const estTokens = Math.ceil(chars / 3);
+    console.log('[PROMPT_METRICS]', JSON.stringify({
+      chars,
+      estTokens,
+      injectedRestaurants: ctx.injectedRestaurants ?? 0,
+      city: ctx.city,
+      days: ctx.days,
+      diet: ctx.diet,
+      lang: ctx.lang,
+      timestamp: new Date().toISOString(),
+    }));
+  } catch { /* metrics should never break the flow */ }
+}
+
+function validateResponse(data, request, foodIndex) {
+  const issues = [];
+  const allStops = (data.days || []).flatMap(d => (d.stops || []));
+
+  for (const stop of allStops) {
+    // 주소 형식 — 시/도로 시작하는지
+    if (stop.address && !/^(서울|부산|제주|인천|경기|강원|충청|전라|경상|울산|대구|대전|광주|세종)/.test(stop.address)) {
+      issues.push({ type: 'bad_address_prefix', stop: stop.name_ko || stop.name_en, value: stop.address });
+    }
+    // food stop 주소에 건물번호(숫자) 없음
+    if (stop.category === 'food' && stop.address && !/\d/.test(stop.address)) {
+      issues.push({ type: 'address_missing_number', stop: stop.name_ko || stop.name_en });
+    }
+    // DB 매칭 (food 카테고리만)
+    if (stop.category === 'food' && Array.isArray(foodIndex) && foodIndex.length > 0) {
+      const nameToCheck = stop.name_ko || stop.name || '';
+      const inDB = foodIndex.some(r =>
+        r.name === nameToCheck || r.nameEn === (stop.name_en || '')
+      );
+      if (!inDB) issues.push({ type: 'unverified_restaurant', stop: nameToCheck });
+    }
+    // 언어 혼합 (ko 요청인데 tip이 영어만)
+    if (request.lang === 'ko' && stop.tip_en && /^[A-Za-z0-9\s.,!?'\-:()]+$/.test(stop.tip_en)) {
+      issues.push({ type: 'language_mismatch', stop: stop.name_ko || stop.name_en, field: 'tip_en' });
+    }
+    // 비현실적 stay_min
+    if (stop.stay_min != null && (stop.stay_min < 15 || stop.stay_min > 240)) {
+      issues.push({ type: 'unrealistic_stay', stop: stop.name_ko || stop.name_en, value: stop.stay_min });
+    }
+  }
+
+  console.log('[RESPONSE_VALIDATION]', JSON.stringify({
+    total_stops: allStops.length,
+    food_stops: allStops.filter(s => s.category === 'food').length,
+    issue_count: issues.length,
+    issues: issues.slice(0, 20),
+  }));
+  return issues;
+}
+
 // ── Rich System Prompt ──────────────────────────────────────────────────
 const LANG_INSTRUCTION = {
-  en: 'Write ALL user-facing text fields (tour_title, theme, description, tip_en, instruction, note, recommendation, last_minute_shopping) in English. Keep name_ko in Korean for Naver Map accuracy.',
+  en: `Write ALL narrative text fields in English.
+Field-by-field rules:
+- "name" → ALWAYS Korean (e.g. 경복궁) — used for Korean map API, never translate
+- "display_name" → English (e.g. Gyeongbokgung Palace) — shown to user
+- "tip", tour_title, theme → English
+- address → Korean road address (for geocoding)
+- recommended_items.name → user language (English)
+NEVER mix languages within a single string value.`,
   ko: `모든 사용자 대면 텍스트를 자연스러운 한국어로 작성하세요.
-- tour_title, theme, description, tip_en, instruction, note, recommendation, entry_fee_note, reservation_note, last_minute_shopping → 한국어
-- name_ko는 반드시 한국어 장소명 (예: 경복궁)
-- name_en은 반드시 영문 장소명 (예: Gyeongbokgung Palace) — 외국인 검색용
-- address는 반드시 한국어 도로명 주소 (예: 서울특별시 종로구 사직로 161)
-- recommended_items의 name은 한국어 (예: 삼계탕)
-- step_by_step 배열도 한국어로 (예: "경복궁역 3호선 탑승" )
-- 번역투 금지. "~하세요" 등 자연스럽고 친근한 한국어 톤 사용.`,
+필드별 규칙:
+- "name" → 반드시 한국어 장소명 (예: 경복궁) — 네이버맵 검색용
+- "display_name" → 한국어 (예: 경복궁)
+- "tip", tour_title, theme → 한국어
+- address → 한국어 도로명 주소
+- recommended_items.name → 한국어 (예: 삼계탕)
+- 번역투 금지. 자연스럽고 친근한 톤 사용.`,
   ja: `すべてのテキストフィールドを自然な日本語で記述してください。
-- name_koは韓国語のまま、name_enは英語のまま。
-- tour_title, theme, description, tip_en → 日本語。
-- addressは韓国語の道路名住所のまま。`,
+- "name" → 常に韓国語 (ネイバーマップ検索用)
+- "display_name" → 日本語
+- "tip" → 日本語
+- address → 韓国語の道路名住所`,
   zh: `请用自然流畅的中文填写所有文本字段。
-- name_ko保持韩文，name_en保持英文。
-- tour_title, theme, description, tip_en → 中文。
-- address保持韩文道路名地址。`,
+- "name" → 始终韩文 (用于韩国地图搜索)
+- "display_name" → 中文
+- "tip" → 中文
+- address → 韩文道路名地址`,
 };
 
 function buildSystemPrompt(language = 'en') {
   const langNote = LANG_INSTRUCTION[language] || LANG_INSTRUCTION.en;
   return `You are CocoTrip AI, Korea's #1 private tour planner (cocotripkr.com).
-Create a REAL, actionable itinerary with precise times, transit directions, entry fees, meal recommendations, and budget breakdowns.
+Create a REAL, actionable itinerary with precise times, entry fees, meal recommendations, and budget breakdowns.
 
-## LANGUAGE — CRITICAL (최우선 규칙)
+## LANGUAGE — ABSOLUTE RULE (최우선 규칙)
 ${langNote}
 The output language must match the user's language setting. Do NOT mix languages in the same field.
 
@@ -200,54 +268,36 @@ No markdown. No code blocks. No explanation. Pure JSON only.
         {
           "order": 1,
           "start_time": "09:30",
-          "name_ko": "경복궁",
-          "name_en": "Gyeongbokgung Palace",
+          "name": "경복궁",
+          "display_name": "Gyeongbokgung Palace",
           "category": "culture",
           "address": "서울특별시 종로구 사직로 161",
-          "address_en": "161, Sajik-ro, Jongno-gu, Seoul",
           "stay_min": 90,
           "entry_fee_krw": 3000,
           "entry_fee_note": "Free with hanbok",
           "reservation_required": false,
-          "reservation_note": "",
-          "reservation_url": "",
-          "reservation_phone": "",
-          "accessibility_note": "",
-          "tip_en": "Practical first-timer tip (1-2 sentences)",
+          "tip": "Practical first-timer tip (1-2 sentences)",
           "recommended_items": [
             {"name": "Hanbok rental", "price_krw": 20000, "note": "Includes free palace entry"}
-          ],
-          "transit_from_prev": null
+          ]
         },
         {
           "order": 2,
           "start_time": "12:00",
-          "name_ko": "토속촌",
-          "name_en": "Tosokchon Samgyetang",
+          "name": "토속촌",
+          "display_name": "Tosokchon Samgyetang",
           "category": "food",
           "address": "서울특별시 종로구 자하문로5길 5",
-          "address_en": "5, Jahamun-ro 5-gil, Jongno-gu, Seoul",
           "stay_min": 60,
           "entry_fee_krw": 0,
-          "entry_fee_note": "",
           "reservation_required": true,
-          "reservation_note": "Popular — arrive by 11:30 or wait 30+ min",
-          "reservation_url": "",
           "reservation_phone": "02-737-7444",
-          "accessibility_note": "",
-          "tip_en": "Order the original samgyetang (₩17,000). Cash preferred.",
+          "tip": "Order the original samgyetang (₩17,000). Cash preferred.",
           "recommended_items": [
-            {"name": "삼계탕 Samgyetang", "price_krw": 17000, "note": "Signature dish"},
-            {"name": "파전 Pajeon", "price_krw": 15000, "note": "To share"},
-            {"name": "동동주 Dongdongju", "price_krw": 10000, "note": "Traditional rice wine"}
-          ],
-          "transit_from_prev": {
-            "method": "walk",
-            "instruction_en": "Walk 10 min through Gyeongbokgung west gate → left on Jahamun-ro",
-            "step_by_step": ["Exit palace via west gate (Yeongchumun)", "Turn left on Jahamun-ro", "Walk 600m, restaurant on right"],
-            "est_min": 10,
-            "est_fare_krw": 0
-          }
+            {"name": "삼계탕", "price_krw": 17000, "note": "Signature dish"},
+            {"name": "파전", "price_krw": 15000, "note": "To share"},
+            {"name": "동동주", "price_krw": 10000, "note": "Traditional rice wine"}
+          ]
         }
       ]
     }
@@ -293,26 +343,34 @@ No markdown. No code blocks. No explanation. Pure JSON only.
   ]
 }
 
-## RULES
+## ROUTE & TIME RULES
 - stops: 5-7 per full day (09:00-20:30), 3-4 per half day
 - start_time: realistic — include 12:00-13:30 lunch, 18:30-20:00 dinner
-- stay_min: honest (palace 90, restaurant 60, market 75, museum 120)
+- stay_min: honest (palace 90, restaurant 60, market 75, museum 120, cafe 40)
 - entry_fee_krw: 0 if free, real KRW otherwise
-- transit_from_prev: null for first stop of each day
-  - method: "subway"|"taxi"|"walk"|"bus"|"car"
-  - For subway: LINE NAME + color + EXIT NUMBER always
-  - step_by_step: array of physical actions for subway transfers
-  - est_fare_krw: 0=walk, ~1500=subway, taxi=(est_min×200+4800)
-- recommended_items: 2-4 items with REAL KRW prices
+- DO NOT generate transit_from_prev — transit is generated by our backend RouteAgent via ODsay API. You only decide WHICH stops and in WHAT ORDER.
+- recommended_items: 3-5 items with REAL KRW prices
   - Food: specific dish name + price (e.g. 삼계탕 ₩17,000)
   - Market: what to buy + budget
-- address: Korean road address (도로명 주소) — required for geocoding
-- address_en: English romanized road address — for foreign tourists (e.g. "161, Sajik-ro, Jongno-gu, Seoul")
-- tip_en: 1-2 sentences, practical advice
+- address: Korean road address (도로명 주소). If 100% sure, include it. If NOT sure, OMIT entirely — backend resolves it.
+- tip: 1-2 sentences, practical advice in THE USER'S LANGUAGE
 - arrival_guide: SKIP if arrival_airport is "already_in_korea"
 - t_money_recommended_load_krw: always 0 (server calculates)
-- daily_budget_summary: sum all est_fare_krw as transport, sum entry fees, sum meal items
+- daily_budget_summary: transport estimates are filled by server, just estimate 0 for transport
 - accessibility_note: required when mobility is "limited"
+
+## ROUTE OPTIMIZATION — CRITICAL
+- Group stops by geographic zone. NEVER zigzag across the city.
+  - Seoul zones: Jongno/Gwanghwamun → Yongsan/Itaewon → Gangnam/COEX → Hongdae/Mapo → Myeongdong/Jung-gu → Seongsu/Gwangjin → Bukchon/Samcheong-dong → Euljiro/Dongdaemun
+  - Busan zones: Haeundae/Songjeong → Gwangalli/Suyeong → Seomyeon/Bujeon → Nampo-dong/BIFF → Gamcheon/Songdo → Gijang/Haedong Yonggungsa
+  - Plan each half-day within 1-2 adjacent zones maximum.
+  - BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
+  - GOOD: Hongdae → Yeonnam-dong → Hapjeong (same zone, walkable)
+- If the user specifies must-visit places in special_request, BUILD the route AROUND those places.
+  - Place them first, then fill gaps with nearby attractions.
+  - Example: user wants "HYBE" (Yongsan) → plan Yongsan/Itaewon zone that day.
+- Transit between consecutive stops should be under 30 minutes.
+- First stop of Day 1 should be near the hotel or arrival point.
 
 ## DIVERSITY — CRITICAL
 - NEVER repeat the same itinerary twice. Each plan must feel unique.
@@ -322,52 +380,107 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - Include at least 1-2 lesser-known but highly-rated places per day.
 - For food: rotate between different cuisine types (Korean BBQ, seafood, street food, traditional, fusion, cafe).
 
-## ROUTE OPTIMIZATION — CRITICAL
-- Group stops by geographic zone. NEVER zigzag across the city.
-  - Seoul zones: Jongno/Gwanghwamun → Yongsan/Itaewon → Gangnam/COEX → Hongdae/Mapo → Myeongdong/Jung-gu → Seongsu/Gwangjin
-  - Plan each half-day within 1-2 adjacent zones maximum.
-  - BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
-  - GOOD: Hongdae → Yeonnam-dong → Mapo (same zone, walkable)
-- If the user specifies must-visit places in special_request, BUILD the route AROUND those places.
-  - Place them first, then fill gaps with nearby attractions.
-  - Example: user wants "HYBE" (Yongsan) → plan Yongsan/Itaewon zone that day.
-- Transit between consecutive stops should be under 30 minutes.
-- First stop of Day 1 should be near the hotel or arrival point.
-
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
-- 1 dedicated lunch + 1 dinner per full day
-- REAL restaurant names (not generic)
+- 1 dedicated lunch + 1 dinner per full day (category: "food")
 - 3-5 signature menu items with KRW prices
 - reservation_required + phone for popular spots
 
+### ⚠️ RESTAURANT SELECTION — MANDATORY RULES (READ 3 TIMES)
+When the user message contains "VERIFIED RESTAURANT DATABASE":
+1. You MUST pick restaurants ONLY from that list. This is NOT optional.
+2. Copy the EXACT "name" from the database as your stop's "name" field
+3. Copy the EXACT "address" from the database
+4. Set "verified": true on EVERY food stop from the database
+5. Match by geographic proximity (same dong/neighborhood as nearby landmark stops)
+6. Create recommended_items with 3-5 realistic menu items + KRW prices
+7. If fewer DB restaurants than needed for the trip, REUSE a DB restaurant for a second meal before inventing one
+
+If NO "VERIFIED RESTAURANT DATABASE" appears in the message:
+- The city is not yet in our database
+- Use ONLY these nationwide chains: 본죽, 교촌치킨, bhc, 명륜진사갈비, 스타벅스, 투썸플레이스, 설빙, 파리바게뜨, 이삭토스트, 김밥천국, 맘스터치, 빽다방
+- OR use category description: "전통시장 내 분식집", "해변가 해산물 맛집"
+- Set "verified": false
+- NEVER invent specific restaurant names outside the chain list
+
+### WHAT COUNTS AS "INVENTING"? (common mistakes to avoid)
+- ❌ "명동교자 본점" — unless this EXACT name appears in the database
+- ❌ "해산물 전문점 (할랄-프렌들리)" — vague category, not a real name
+- ✅ Copying "토속촌|Tosokchon" exactly from the database → verified: true
+- ✅ "김밥천국" (nationwide chain) → verified: false
+
+### Diet preferences:
 If diet_preferences includes "Halal":
 - ONLY recommend halal-certified restaurants
-- Verify the restaurant is in Korea Tourism Organization's halal restaurant list
+- If verified halal restaurants are provided, use ONLY those
 - NEVER recommend pork or non-halal meat dishes
-- Common Seoul halal restaurants: Eid (Itaewon), Murree (Itaewon), Yang Good (Itaewon)
 
 If diet_preferences includes "Vegan":
 - ONLY recommend 100% plant-based restaurants
-- Vegetarian-friendly Korean dishes: Bibimbap (no egg/meat), Kongguksu, Doenjang-jjigae (no fish stock)
+- If verified vegan restaurants are provided, use ONLY those
 - NEVER recommend dishes with fish sauce or anchovy stock
 
-If food_allergies includes [allergen]:
-- Treat as a SAFETY-CRITICAL constraint
-- NEVER recommend any dish containing the allergen
-- Add a warning note in tip_en: "⚠️ Inform restaurant of [allergen] allergy"
+If diet_preferences includes "Seafood":
+- Prioritize seafood restaurants: 회(sashimi), 해산물(seafood), 조개구이(grilled shellfish), 새우(shrimp), 게(crab)
 
+If diet_preferences includes "Meat":
+- Prioritize Korean BBQ, 한우(Korean beef), 삼겹살(pork belly), 갈비(ribs), 고기구이(grilled meat)
+
+If diet_preferences includes "Spicy":
+- Include spicy dishes: 불닭(fire chicken), 떡볶이(tteokbokki), 매운탕(spicy stew), 마라(mala), 닭발(chicken feet)
+
+If diet_preferences includes "Street":
+- Include street food: 시장(markets), 포장마차(street stalls), 분식(snack shops), 떡볶이, 호떡, 어묵, 길거리 음식
+
+### Allergy safety:
+If food_allergies includes any allergen:
+- Treat as SAFETY-CRITICAL. NEVER recommend dishes containing the allergen.
+- Add warning in tip: "⚠️ Inform restaurant about your [allergen] allergy"
+
+### Meal price range:
 If meal_budget is "Budget":
-- Prioritize street food, market stalls, and local diners (₩5,000-12,000 per meal)
-- Examples: Gwangjang Market, Tongin Market, school cafeterias
+- Street food, markets, local diners (₩5,000-12,000 per person per meal)
+- Gwangjang Market, Tongin Market, 분식집, 백반집
+
+If meal_budget is "Moderate":
+- Mid-range restaurants (₩12,000-30,000 per person per meal)
+- Popular 맛집, well-reviewed local favorites
 
 If meal_budget is "Premium":
-- Recommend Michelin-listed or high-end restaurants (₩50,000+ per meal)
-- Reservation usually required — set reservation_required: true
+- Michelin/high-end restaurants (₩50,000+ per person per meal)
+- Set reservation_required: true
 
 ## VEHICLE PRICING
 - staria_8 (1-8 pax): ₩330,000/8hrs
 - sprinter (9-15 pax): ₩450,000/8hrs
-- large_bus (16+): ₩650,000/8hrs`;
+- large_bus (16+): ₩650,000/8hrs
+
+## ⚠️ DEFENSE RULES
+
+### ANTI-HALLUCINATION
+- NEVER invent restaurant names. Use ONLY restaurants from the VERIFIED DATABASE or nationwide chains listed above.
+- If address unknown, OMIT it. Backend resolves addresses automatically.
+- If unsure about any restaurant → pick one from the VERIFIED DATABASE instead.
+
+### ADDRESS FORMAT (when you DO include it)
+- Complete road address: "시/도 + 구/군 + 도로명 + 건물번호"
+  ✅ "서울특별시 종로구 사직로 161"
+  ❌ "서울 종로구" (too vague)
+  ❌ "서울특별시 중구 명동길" (missing number)
+
+### OUTPUT SIZE (prevent JSON truncation)
+- Keep tip to 1-2 sentences max.
+- Trips 4+ days: max 5 stops per day.
+- Be concise everywhere. Shorter = safer.
+
+### ⚠️ SAFETY-CRITICAL (OVERRIDE ALL)
+- food_allergies → NEVER recommend allergen dishes. Add "⚠️ [Allergen] allergy — inform staff" to tip.
+  Hidden: 땅콩소스(peanut), 새우젓(shrimp), 밀가루(gluten), 치즈/우유(dairy)
+- Halal → ONLY verified halal restaurants. ZERO pork/alcohol/lard.
+- Vegan → ZERO animal products. Watch: 멸치육수, 젓갈, 계란, 김치(often 젓갈)
+
+### PRICING (2026)
+- Palace: ₩3,000 (free with hanbok), N서울타워: ₩21,000
+- If price uncertain → note "가격 변동 가능" in tip`;
 }
 
 // ── 차량 타입 결정 ─────────────────────────────────────────────────────────
@@ -616,6 +729,18 @@ export default async function handler(req, res) {
     } catch (spotErr) {
       console.warn('[ai-planner-full] getSpotContext failed:', spotErr.message);
     }
+
+    // ── 맛집 DB 컨텍스트 주입 ────────────────────────────────────────────
+    let foodContext = '';
+    try {
+      foodContext = getFoodContext(area, dietPrefs, priceRange, 10) || '';
+      if (foodContext) {
+        console.log('[ai-planner-full] Food context injected:', foodContext.length, 'chars');
+      }
+    } catch (foodErr) {
+      console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);
+    }
+
     const userMessage = JSON.stringify({
       guest_name: guestName,
       guest_count: pax,
@@ -636,9 +761,19 @@ export default async function handler(req, res) {
       food_allergies: allergies.length > 0 ? allergies : undefined,
       meal_budget: priceRange !== 'Any' ? priceRange : undefined,
       variation_seed: Math.floor(Math.random() * 100) + 1,
-    }) + spotContext + `\n\n[VARIATION SEED: ${Math.floor(Math.random() * 1000)}] Create a UNIQUE itinerary — pick different restaurants and routes than usual.`;
+    }) + spotContext + foodContext + `\n\n[VARIATION SEED: ${Math.floor(Math.random() * 1000)}] Create a UNIQUE itinerary — pick different restaurants and routes than usual.`;
 
-    // ── Gemini 호출 + 45초 타임아웃 (Promise.race) ───────────────────────
+    // ── 프롬프트 계측 (Phase 1) ───────────────────────────────────────────
+    const systemPrompt = buildSystemPrompt(language);
+    logPromptMetrics(systemPrompt + userMessage, {
+      city: area,
+      days: durationDays,
+      diet: dietPrefs.join(',') || 'none',
+      lang: language,
+      injectedRestaurants: (foodContext.match(/•/g) || []).length,
+    });
+
+    // ── Gemini 호출 + 240초 타임아웃 (Promise.race) ───────────────────────
     const GEMINI_TIMEOUT_MS = 240000;
     const geminiStart = Date.now();
 
@@ -727,6 +862,58 @@ export default async function handler(req, res) {
       }
     }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
+
+    // ── 응답 품질 검증 (Phase 1) ─────────────────────────────────────────
+    let _foodIndex = [];
+    try { _foodIndex = JSON.parse((await import('fs')).readFileSync(new URL('./_food_index.json', import.meta.url), 'utf-8')); } catch { /* ok */ }
+    const _validationIssues = validateResponse(itinerary, { lang: language }, _foodIndex);
+
+    // ── Phase 2: 백엔드 DB 매칭 + Address Resolver ──────────────────────
+    // Gemini가 verified 플래그를 설정하지 않거나 DB 식당 이름을 약간 변형해도
+    // 백엔드에서 강제로 매칭하여 주소/좌표를 교정합니다.
+    if (_foodIndex.length > 0) {
+      let dbMatched = 0, dbUnmatched = 0;
+      const allStops = (itinerary.days || []).flatMap(d => d.stops || []);
+      for (const stop of allStops) {
+        if (stop.category !== 'food') continue;
+        
+        const stopName = (stop.name || stop.name_ko || '').trim();
+        if (!stopName) { dbUnmatched++; continue; }
+
+        // 1차: 정확 매칭 (name 또는 nameEn)
+        let match = _foodIndex.find(r => {
+          const dbName = (r.name || '').split('|')[0].trim();
+          const dbNameEn = (r.nameEn || '').toLowerCase();
+          return dbName === stopName || dbNameEn === (stop.name_en || stop.display_name || '').toLowerCase();
+        });
+
+        // 2차: 부분 매칭 (DB 이름이 stop 이름에 포함되거나 그 반대)
+        if (!match) {
+          match = _foodIndex.find(r => {
+            const dbName = (r.name || '').split('|')[0].trim();
+            if (!dbName || dbName.length < 2) return false;
+            return stopName.includes(dbName) || dbName.includes(stopName);
+          });
+        }
+
+        if (match) {
+          // DB 데이터로 교정
+          const dbName = (match.name || '').split('|')[0].trim();
+          if (match.address) stop.address = match.address;
+          if (match.lat) stop._dbLat = match.lat;
+          if (match.lng) stop._dbLng = match.lng;
+          if (match.googleMapsUrl) stop.googleMapsUrl = match.googleMapsUrl;
+          stop.verified = true;
+          stop._dbMatchedName = dbName;
+          dbMatched++;
+        } else {
+          stop.verified = false;
+          dbUnmatched++;
+        }
+      }
+      console.log(`[planner] DB Match: ${dbMatched} matched, ${dbUnmatched} unmatched out of ${dbMatched + dbUnmatched} food stops`);
+    }
+
     console.log('[planner] Step 2: Running RouteAgent...');
 
     // ALREADY 또는 미정(null/빈값) → arrival_guide / departure_guide 제거
