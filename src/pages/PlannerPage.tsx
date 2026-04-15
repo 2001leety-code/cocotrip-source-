@@ -1328,8 +1328,8 @@ export default function PlannerPage() {
   const [status, setStatus] = useState<Status>('idle');
   const [resultQuick, setResultQuick] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [streamStep, setStreamStep] = useState<number>(0);
-  const [streamAgent, setStreamAgent] = useState<string>('');
+  const [, setStreamStep] = useState<number>(0);
+  const [, setStreamAgent] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
   const lastValues = useRef<PlannerFormValues | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -50,8 +50,8 @@ export default function PlanDetailPage() {
   const [fadeKey, setFadeKey] = useState(0);
   const tabBarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [regenError, setRegenError] = useState<string | null>(null);
+  const [_isRegenerating] = useState(false);
+  const [_regenError] = useState<string | null>(null);
 
   // ── Firestore listener ──
   useEffect(() => {
@@ -390,7 +390,7 @@ export default function PlanDetailPage() {
         </div>
 
         {/* ── Revision / Regenerate Card ── */}
-        {plan && (plan.revisionCredits ?? 0) > 0 && !isRegenerating && (
+        {plan && (plan.revisionCredits ?? 0) > 0 && !_isRegenerating && (
           <div className="mt-8 rounded-2xl overflow-hidden border border-amber-500/20"
             style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(182,104,252,0.04))' }}>
             <div className="px-5 py-5 text-center">
@@ -407,7 +407,6 @@ export default function PlanDetailPage() {
               <button
                 onClick={() => {
                   // Navigate to planner with pre-filled input for regeneration
-                  const input = plan.input || {};
                   const params = new URLSearchParams({
                     revision: 'true',
                     planId: planId || '',
@@ -426,7 +425,7 @@ export default function PlanDetailPage() {
         )}
 
         {/* ── Regeneration in progress ── */}
-        {isRegenerating && (
+        {_isRegenerating && (
           <div className="mt-8 text-center py-10">
             <div className="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="text-white font-semibold">Regenerating your plan...</p>
@@ -434,9 +433,9 @@ export default function PlanDetailPage() {
           </div>
         )}
 
-        {regenError && (
+        {_regenError && (
           <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-            <p className="text-red-400 text-sm">{regenError}</p>
+            <p className="text-red-400 text-sm">{_regenError}</p>
           </div>
         )}
 
