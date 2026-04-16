@@ -883,6 +883,15 @@ export default async function handler(req, res) {
     }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
 
+    // ── 주소 정리 — Gemini가 "대한민국 " 접두사를 붙이는 경우 제거 ──────────
+    for (const day of (itinerary.days || [])) {
+      for (const stop of (day.stops || [])) {
+        if (stop.address) {
+          stop.address = stop.address.replace(/^대한민국\s+/, '').replace(/\bKR\s+/g, '');
+        }
+      }
+    }
+
     // ── 응답 품질 검증 (Phase 1) ─────────────────────────────────────────
     let _foodIndex = [];
     try { _foodIndex = JSON.parse((await import('fs')).readFileSync(new URL('./_food_index.json', import.meta.url), 'utf-8')); } catch { /* ok */ }
