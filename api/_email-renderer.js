@@ -63,9 +63,9 @@ function transitArrow(transit) {
 function buildStopsHtml(stops = []) {
   return stops.map((stop, idx) => {
     const emoji = categoryEmoji(stop.category);
-    const nameKo = stop.name_ko || stop.name || '';
-    const nameEn = stop.name_en || stop.nameEn || '';
-    const tip = stop.tip_en || stop.tip || '';
+    const nameKo = stop.name || stop.name_ko || '';
+    const nameEn = stop.display_name || stop.name_en || stop.nameEn || '';
+    const tip = stop.tip || stop.tip_en || '';
     const stay = stop.stay_min || stop.stayDuration || 60;
     const cat = stop.category || '';
     const startTime = stop.start_time || '';
@@ -327,8 +327,8 @@ export function renderBookingEmailText({ guestName, orderID, tourTitle, tourDate
   for (const day of days) {
     lines.push(`\nDay ${day.day || ''} — ${day.theme || ''}`);
     for (const s of (day.stops || day.places || [])) {
-      lines.push(`  ${s.order || ''}. ${s.name_ko || s.name || ''} (${s.name_en || s.nameEn || ''})`);
-      if (s.tip_en || s.tip) lines.push(`     → ${s.tip_en || s.tip}`);
+      lines.push(`  ${s.order || ''}. ${s.name || s.name_ko || ''} (${s.display_name || s.name_en || s.nameEn || ''})`);
+      if (s.tip || s.tip_en) lines.push(`     → ${s.tip || s.tip_en}`);
     }
   }
 

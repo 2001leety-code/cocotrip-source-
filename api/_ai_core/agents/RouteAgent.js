@@ -37,7 +37,7 @@ export class RouteAgent extends BaseAgent {
             // ════════════════════════════════════════════════════════
             for (const place of places) {
                 const address = place.address || "";
-                const name = place.name_en || place.name_ko || place.name || "";
+                const name = place.name || place.name_ko || place.display_name || place.name_en || "";
                 let lat = null;
                 let lng = null;
                 if (clientId && clientSecret && address) {
@@ -62,7 +62,7 @@ export class RouteAgent extends BaseAgent {
                 }
                 place.lat = lat;
                 place.lng = lng;
-                const nameKo = place.name_ko || place.name_en || name;
+                const nameKo = place.name || place.name_ko || place.display_name || place.name_en || name;
                 place.naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(nameKo)}`;
             }
 
@@ -204,7 +204,7 @@ export class RouteAgent extends BaseAgent {
         let distanceKm = 5.0;
         let drivingMin = null;
         let publicTransit = null;
-        const name = curr.name_en || curr.name_ko || `stop-${index}`;
+        const name = curr.display_name || curr.name || curr.name_en || curr.name_ko || `stop-${index}`;
 
         // Naver Driving + ODsay Transit 병렬 호출
         const [naverResult, odsayResult] = await Promise.allSettled([

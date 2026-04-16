@@ -132,28 +132,30 @@ function validateResponse(data, request, foodIndex) {
 
   for (const stop of allStops) {
     // 주소 형식 — 시/도로 시작하는지
+    const stopLabel = stop.name || stop.name_ko || stop.display_name || stop.name_en || '';
     if (stop.address && !/^(서울|부산|제주|인천|경기|강원|충청|전라|경상|울산|대구|대전|광주|세종)/.test(stop.address)) {
-      issues.push({ type: 'bad_address_prefix', stop: stop.name_ko || stop.name_en, value: stop.address });
+      issues.push({ type: 'bad_address_prefix', stop: stopLabel, value: stop.address });
     }
     // food stop 주소에 건물번호(숫자) 없음
     if (stop.category === 'food' && stop.address && !/\d/.test(stop.address)) {
-      issues.push({ type: 'address_missing_number', stop: stop.name_ko || stop.name_en });
+      issues.push({ type: 'address_missing_number', stop: stopLabel });
     }
     // DB 매칭 (food 카테고리만)
     if (stop.category === 'food' && Array.isArray(foodIndex) && foodIndex.length > 0) {
-      const nameToCheck = stop.name_ko || stop.name || '';
-      const inDB = foodIndex.some(r =>
-        r.name === nameToCheck || r.nameEn === (stop.name_en || '')
-      );
-      if (!inDB) issues.push({ type: 'unverified_restaurant', stop: nameToCheck });
+      const inDB = foodIndex.some(r => {
+        const dbName = (r.name || '').split('|')[0].trim();
+        return dbName === stopLabel || r.nameEn === (stop.display_name || stop.name_en || '');
+      });
+      if (!inDB) issues.push({ type: 'unverified_restaurant', stop: stopLabel });
     }
     // 언어 혼합 (ko 요청인데 tip이 영어만)
-    if (request.lang === 'ko' && stop.tip_en && /^[A-Za-z0-9\s.,!?'\-:()]+$/.test(stop.tip_en)) {
-      issues.push({ type: 'language_mismatch', stop: stop.name_ko || stop.name_en, field: 'tip_en' });
+    const tipText = stop.tip || stop.tip_en || '';
+    if (request.lang === 'ko' && tipText && /^[A-Za-z0-9\s.,!?'\-:()]+$/.test(tipText)) {
+      issues.push({ type: 'language_mismatch', stop: stopLabel, field: 'tip' });
     }
     // 비현실적 stay_min
     if (stop.stay_min != null && (stop.stay_min < 15 || stop.stay_min > 240)) {
-      issues.push({ type: 'unrealistic_stay', stop: stop.name_ko || stop.name_en, value: stop.stay_min });
+      issues.push({ type: 'unrealistic_stay', stop: stopLabel, value: stop.stay_min });
     }
   }
 
@@ -372,13 +374,15 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - Transit between consecutive stops should be under 30 minutes.
 - First stop of Day 1 should be near the hotel or arrival point.
 
-## DIVERSITY — CRITICAL
-- NEVER repeat the same itinerary twice. Each plan must feel unique.
-- Rotate restaurants: use different real restaurants each time, not always the same famous ones.
-- Mix well-known landmarks with hidden gems, local favorites, and off-the-beaten-path spots.
-- Vary the route order: don't always start from the same area.
-- Include at least 1-2 lesser-known but highly-rated places per day.
-- For food: rotate between different cuisine types (Korean BBQ, seafood, street food, traditional, fusion, cafe).
+## DIVERSITY — CRITICAL (THIS IS A PAID $9.90 PLAN — MAKE IT SPECIAL)
+- NEVER repeat the same itinerary. Each plan must feel personally curated and unique.
+- The variation_seed in the user message determines your creative angle. Use it to pick a DIFFERENT starting neighborhood, route direction, and restaurant mix each time.
+- Mix 60% well-known highlights + 40% hidden gems (local favorites, Instagram spots, residential area cafes, artisan shops, neighborhood parks).
+- Rotate restaurants: NEVER default to the same 3-4 famous spots. Use different DB restaurants each time.
+- Vary the starting area: if seed is odd start from a different zone than usual. Don't always begin at 경복궁 or 명동.
+- Each day needs personality: give it a vivid theme (e.g. "이태원 골목 미식 투어", "성수동 카페 & 빈티지 탐방", "종로 궁궐 & 북촌 한옥 산책").
+- For food: vary cuisine types (Korean BBQ one meal, street food next, seafood, traditional, jjigae, tteokbokki, cafe dessert).
+- Include at least ONE unexpected/delightful recommendation per day that tourists wouldn't find on their own.
 
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
 - 1 dedicated lunch + 1 dinner per full day (category: "food")
@@ -761,7 +765,23 @@ export default async function handler(req, res) {
       food_allergies: allergies.length > 0 ? allergies : undefined,
       meal_budget: priceRange !== 'Any' ? priceRange : undefined,
       variation_seed: Math.floor(Math.random() * 100) + 1,
-    }) + spotContext + foodContext + `\n\n[VARIATION SEED: ${Math.floor(Math.random() * 1000)}] Create a UNIQUE itinerary — pick different restaurants and routes than usual.`;
+    }) + spotContext + foodContext + (() => {
+      const angles = [
+        'Focus on hidden local gems and residential neighborhood charm',
+        'Emphasize street food and market culture — let food drive the route',
+        'Start from an unusual neighborhood most tourists miss',
+        'Prioritize Instagram-worthy spots and aesthetic cafes',
+        'Build the day around walking — compact zones, minimal transit',
+        'Mix old Seoul heritage with trendy new-generation spots',
+        'Focus on artisan shops, indie bookstores, and creative spaces',
+        'Emphasize nature within the city — parks, trails, river walks',
+        'Night-life oriented — evening markets, han river, rooftop views',
+        'Cultural deep-dive — museums, galleries, traditional experiences',
+      ];
+      const angle = angles[Math.floor(Math.random() * angles.length)];
+      const seed = Math.floor(Math.random() * 1000);
+      return `\n\n[VARIATION SEED: ${seed}] [ANGLE: ${angle}]\nCreate a UNIQUE, personally-curated itinerary. This is a paid premium plan — make it feel special, not generic.`;
+    })();
 
     // ── 프롬프트 계측 (Phase 1) ───────────────────────────────────────────
     const systemPrompt = buildSystemPrompt(language);
@@ -880,11 +900,13 @@ export default async function handler(req, res) {
         const stopName = (stop.name || stop.name_ko || '').trim();
         if (!stopName) { dbUnmatched++; continue; }
 
+        const stopDisplayName = (stop.display_name || stop.name_en || '').toLowerCase();
+
         // 1차: 정확 매칭 (name 또는 nameEn)
         let match = _foodIndex.find(r => {
           const dbName = (r.name || '').split('|')[0].trim();
           const dbNameEn = (r.nameEn || '').toLowerCase();
-          return dbName === stopName || dbNameEn === (stop.name_en || stop.display_name || '').toLowerCase();
+          return dbName === stopName || (stopDisplayName && dbNameEn === stopDisplayName);
         });
 
         // 2차: 부분 매칭 (DB 이름이 stop 이름에 포함되거나 그 반대)
@@ -897,11 +919,11 @@ export default async function handler(req, res) {
         }
 
         if (match) {
-          // DB 데이터로 교정
+          // DB 데이터로 교정 — 주소/좌표/URL을 실제 검증된 데이터로 덮어씌움
           const dbName = (match.name || '').split('|')[0].trim();
           if (match.address) stop.address = match.address;
-          if (match.lat) stop._dbLat = match.lat;
-          if (match.lng) stop._dbLng = match.lng;
+          if (match.lat) { stop.lat = match.lat; stop._dbLat = match.lat; }
+          if (match.lng) { stop.lng = match.lng; stop._dbLng = match.lng; }
           if (match.googleMapsUrl) stop.googleMapsUrl = match.googleMapsUrl;
           stop.verified = true;
           stop._dbMatchedName = dbName;
