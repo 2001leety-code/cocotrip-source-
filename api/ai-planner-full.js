@@ -278,6 +278,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
           "entry_fee_krw": 3000,
           "entry_fee_note": "Free with hanbok",
           "reservation_required": false,
+          "local_tag": "",
           "tip": "Practical first-timer tip (1-2 sentences)",
           "recommended_items": [
             {"name": "Hanbok rental", "price_krw": 20000, "note": "Includes free palace entry"}
@@ -386,6 +387,15 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - Each day needs personality: give it a vivid theme (e.g. "을지로 힙지로 골목 탐험", "성수동 카페 & 빈티지 탐방", "익선동 레트로 한옥 투어", "한남동 셀럽 카페 순례").
 - For food: vary cuisine types (Korean BBQ one meal, street food next, seafood, traditional, jjigae, tteokbokki, cafe dessert).
 - Include at least ONE unexpected/delightful LOCAL-ONLY recommendation per day — places that Korean friends would take you, NOT places from travel guidebooks.
+
+## LOCAL TAG — MANDATORY for every stop
+For EVERY stop in the itinerary, set the "local_tag" field:
+- "" (empty) — standard tourist attraction (Gyeongbokgung, N Seoul Tower, etc.)
+- "Local Pick" — popular among Koreans but tourists rarely visit (e.g. 익선동, 상봉동 야장, 을지로 가맥집, 한남동 카페)
+- "Hidden Gem" — truly hidden spots only locals know (e.g. 홍제유연, 인왕산 숲속쉼터, 무수천, 소금막해변)
+- "Bakery Pilgrimage" — famous bakeries Korean foodies queue for (e.g. 런던베이글뮤지엄, 태극당, 나폴레옹과자점, 김영모과자점, 리치몬드과자점, 아티스트베이커리)
+- "Blue Ribbon" — restaurants recognized by Korea's Blue Ribbon Survey (한국판 미쉐린)
+At least 40% of stops should have a non-empty local_tag. This makes our paid plans feel curated by Korean insiders, not just a generic travel guide.
 
 ## STYLE-DRIVEN PLANNING — MANDATORY (사용자 선택 스타일 반영)
 The user selected specific styles (activity preferences). You MUST tailor at least 60% of stops:

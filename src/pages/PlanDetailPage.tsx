@@ -808,7 +808,19 @@ function StopCard({ stop }: { stop: any }) {
           <CatIcon className="w-4 h-4 text-white/30 mx-auto mt-1" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold truncate">{stop.display_name || stop.name_en || stop.name || stop.name_ko}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold truncate">{stop.display_name || stop.name_en || stop.name || stop.name_ko}</p>
+            {stop.local_tag && (() => {
+              const tagConfig: Record<string, { bg: string; text: string; emoji: string }> = {
+                'Local Pick': { bg: 'bg-purple-500/20 border-purple-500/30', text: 'text-purple-300', emoji: '📍' },
+                'Hidden Gem': { bg: 'bg-emerald-500/20 border-emerald-500/30', text: 'text-emerald-300', emoji: '💎' },
+                'Bakery Pilgrimage': { bg: 'bg-amber-500/20 border-amber-500/30', text: 'text-amber-300', emoji: '🥐' },
+                'Blue Ribbon': { bg: 'bg-blue-500/20 border-blue-500/30', text: 'text-blue-300', emoji: '🏅' },
+              };
+              const cfg = tagConfig[stop.local_tag] || { bg: 'bg-white/10 border-white/20', text: 'text-white/60', emoji: '⭐' };
+              return <span className={`shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${cfg.bg} ${cfg.text}`}>{cfg.emoji} {stop.local_tag}</span>;
+            })()}
+          </div>
           <div className="flex items-center gap-3 mt-0.5 text-[10px] text-white/40">
             <span><Clock className="w-3 h-3 inline -mt-0.5" /> {stop.stay_min}min</span>
             {stop.entry_fee_krw > 0 ? <span className="text-yellow-400/70">{formatKRW(stop.entry_fee_krw)}</span> : <span className="text-green-400/70">Free</span>}
