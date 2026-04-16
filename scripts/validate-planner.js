@@ -29,8 +29,8 @@ function extractStops(data) {
   const it = data.itinerary || data;
   return (it.days || []).flatMap(d =>
     (d.stops || []).map(s => ({
-      name: s.name_ko || s.name || '',
-      name_en: s.name_en || s.display_name || '',
+      name: s.name || s.name_ko || '',
+      name_en: s.display_name || s.name_en || '',
       category: s.category || '',
       address: s.address || '',
       hasAddress: !!s.address,

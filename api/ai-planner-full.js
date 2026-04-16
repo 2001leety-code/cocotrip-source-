@@ -921,7 +921,17 @@ export default async function handler(req, res) {
         if (match) {
           // DB 데이터로 교정 — 주소/좌표/URL을 실제 검증된 데이터로 덮어씌움
           const dbName = (match.name || '').split('|')[0].trim();
-          if (match.address) stop.address = match.address;
+          if (match.address) {
+            // _food_index 주소 정리: "대한민국 " 접두사, "KR " 제거, 역순 주소 무시
+            let cleanAddr = match.address
+              .replace(/^대한민국\s+/, '')
+              .replace(/\bKR\s+/g, '');
+            // DB 주소가 한국 도시로 시작하면 덮어쓰기, 아니면 Gemini 주소 유지
+            if (/^(서울|부산|제주|인천|경기|강원|충청|전라|경상|울산|대구|대전|광주|세종)/.test(cleanAddr)) {
+              stop.address = cleanAddr;
+            }
+            // else: keep Gemini's address (usually cleaner)
+          }
           if (match.lat) { stop.lat = match.lat; stop._dbLat = match.lat; }
           if (match.lng) { stop.lng = match.lng; stop._dbLng = match.lng; }
           if (match.googleMapsUrl) stop.googleMapsUrl = match.googleMapsUrl;
