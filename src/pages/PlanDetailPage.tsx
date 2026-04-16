@@ -16,6 +16,7 @@ import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { buildAccommodationLinks, buildFlightLink, buildCarLink, PICKUP_PRICES } from '@/config/affiliateLinks';
 import { detectCharterRecommendation } from '@/data/charterPricing';
+import { getCurrentSeason, SEASONAL_SPOTS } from '@/data/seasonalSpots';
 
 /* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
    CONSTANTS
@@ -87,6 +88,45 @@ export default function PlanDetailPage() {
       if (idx >= 0) setActiveDay(idx);
     }
   }, []);
+
+  // ── Auto-translate plan when header language changes ──
+  const originalPlanRef = useRef<any>(null);
+  useEffect(() => {
+    if (!plan?.result) return;
+    // Store original plan on first load
+    if (!originalPlanRef.current) {
+      originalPlanRef.current = JSON.parse(JSON.stringify(plan.result));
+    }
+    const targetLang = language as string;
+    // Skip if already matching
+    if (targetLang === 'en') {
+      // English is the original generation language, restore
+      if (originalPlanRef.current) {
+        setPlan((prev: any) => prev ? { ...prev, result: originalPlanRef.current } : prev);
+      }
+      return;
+    }
+    // Translate to target language
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const resp = await fetch('/api/translate-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: originalPlanRef.current || plan.result, targetLang }),
+          signal: controller.signal,
+        });
+        const data = await resp.json();
+        if (data.translated) {
+          setPlan((prev: any) => prev ? { ...prev, result: data.translated } : prev);
+        }
+      } catch (e: any) {
+        if (e.name !== 'AbortError') console.error('[translate] failed:', e);
+      }
+    })();
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
 
   // ?�?� Tab switch handler ?�?�
   const handleTabSwitch = useCallback((idx: number) => {
@@ -511,6 +551,43 @@ export default function PlanDetailPage() {
             );
           })()}
         </div>
+
+        {/* ═══ Seasonal Spots Banner ═══ */}
+        {(() => {
+          const season = getCurrentSeason();
+          const sd = SEASONAL_SPOTS[season];
+          const lk = (language === 'ko' || language === 'en' || language === 'ja' || language === 'zh') ? language : 'en';
+          const SEASON_GRADIENT: Record<string, string> = {
+            spring: 'linear-gradient(135deg, rgba(248,180,217,0.15), rgba(192,132,252,0.1))',
+            summer: 'linear-gradient(135deg, rgba(96,165,250,0.15), rgba(16,185,129,0.1))',
+            autumn: 'linear-gradient(135deg, rgba(249,115,22,0.15), rgba(239,68,68,0.1))',
+            winter: 'linear-gradient(135deg, rgba(124,92,252,0.15), rgba(6,182,212,0.1))',
+          };
+          const SEASON_BORDER: Record<string, string> = {
+            spring: 'border-pink-400/20', summer: 'border-cyan-400/20', autumn: 'border-orange-400/20', winter: 'border-purple-400/20',
+          };
+          return (
+            <div className={`mt-8 rounded-2xl overflow-hidden border ${SEASON_BORDER[season]}`} style={{ background: SEASON_GRADIENT[season] }}>
+              <div className="px-5 py-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{sd.emoji}</span>
+                  <p className="font-bold text-white text-base">{sd.title[lk]}</p>
+                </div>
+                <p className="text-xs text-white/50 mb-3">{sd.subtitle[lk]}</p>
+                <div className="space-y-2">
+                  {sd.spots.slice(0, 3).map((spot, i) => (
+                    <div key={i} className="bg-white/[0.06] rounded-xl px-4 py-3 border border-white/[0.06]">
+                      <p className="text-sm font-bold text-white">{language === 'ko' ? spot.name : spot.nameEn}</p>
+                      <p className="text-[10px] text-white/40 mt-0.5">{language === 'ko' ? spot.location : spot.locationEn} · {language === 'ko' ? spot.period : spot.periodEn}</p>
+                      <p className="text-xs text-white/60 mt-1">{language === 'ko' ? spot.tip : spot.tipEn}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-white/30 text-center mt-3">{sd.urgency[lk]}</p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Revision / Regenerate Card */}
         {plan && (plan.revisionCredits ?? 0) > 0 && !_isRegenerating && (
