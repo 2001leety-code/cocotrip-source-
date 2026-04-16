@@ -7,7 +7,7 @@
  * Body: { planId: string, targetLang: 'ko' | 'en' | 'ja' | 'zh' }
  * Returns: { translated: { days: [...], arrival_guide, departure_guide } }
  */
-import { GoogleGenerativeAI } from '@google/generative-ai';
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -15,7 +15,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const TRANSLATE_FIELDS = ['display_name', 'tip', 'entry_fee_note'];
 const TRANSLATE_ITEM_FIELDS = ['name', 'note'];
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   const { plan, targetLang } = req.body;
