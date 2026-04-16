@@ -377,12 +377,15 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 ## DIVERSITY — CRITICAL (THIS IS A PAID $9.90 PLAN — MAKE IT SPECIAL)
 - NEVER repeat the same itinerary. Each plan must feel personally curated and unique.
 - The variation_seed in the user message determines your creative angle. Use it to pick a DIFFERENT starting neighborhood, route direction, and restaurant mix each time.
-- Mix 60% well-known highlights + 40% hidden gems (local favorites, Instagram spots, residential area cafes, artisan shops, neighborhood parks).
+- Mix 50% well-known highlights + 50% LOCAL HIDDEN GEMS (places Korean locals love but tourists rarely visit).
+- LOCAL HIDDEN GEM examples: 익선동 한옥 카페골목, 신당동 떡볶이타운, 상봉동 야장골목, 홍제유연 지하폭포, 을지로 가맥집, 한남동 로스터리 카페, 사직동 인왕산 숲속쉼터, 노들섬 스페이스케, 성수동 소규모 에스프레소바, 망원시장, 레레플레이 카페
+- For Busan: include 흰여울문화마을, F1963, 아홉산숲, 이기대 해안산책로 — these are Korean locals' favorites
+- For Jeju: include 구엄리 해안도로, 무수천, 소금막해변, 하효해안 산책로 — hidden spots tourists miss
 - Rotate restaurants: NEVER default to the same 3-4 famous spots. Use different DB restaurants each time.
 - Vary the starting area: if seed is odd start from a different zone than usual. Don't always begin at 경복궁 or 명동.
-- Each day needs personality: give it a vivid theme (e.g. "이태원 골목 미식 투어", "성수동 카페 & 빈티지 탐방", "종로 궁궐 & 북촌 한옥 산책").
+- Each day needs personality: give it a vivid theme (e.g. "을지로 힙지로 골목 탐험", "성수동 카페 & 빈티지 탐방", "익선동 레트로 한옥 투어", "한남동 셀럽 카페 순례").
 - For food: vary cuisine types (Korean BBQ one meal, street food next, seafood, traditional, jjigae, tteokbokki, cafe dessert).
-- Include at least ONE unexpected/delightful recommendation per day that tourists wouldn't find on their own.
+- Include at least ONE unexpected/delightful LOCAL-ONLY recommendation per day — places that Korean friends would take you, NOT places from travel guidebooks.
 
 ## STYLE-DRIVEN PLANNING — MANDATORY (사용자 선택 스타일 반영)
 The user selected specific styles (activity preferences). You MUST tailor at least 60% of stops:
@@ -747,7 +750,7 @@ export default async function handler(req, res) {
 
     let spotContext = '';
     try {
-      spotContext = getSpotContext(area, 4) || '';
+      spotContext = getSpotContext(area, 6) || '';
     } catch (spotErr) {
       console.warn('[ai-planner-full] getSpotContext failed:', spotErr.message);
     }
