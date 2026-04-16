@@ -141,6 +141,60 @@ API: https://cocotripkr.com/api/ai-planner-full
 
 ---
 
-## Phase 3 대기
-- language_mismatch: 이미 0건 (Phase 2에서 해결)
-- 남은 작업: name_ko/name_en → name/display_name 프론트엔드 일괄 교체 (37곳)
+## Phase 3 — 스키마 마이그레이션 + PDF + 주소 + 다양성 ✅
+
+### 커밋 4건 (c76c93a → 25cb0f4, 2026-04-16)
+
+#### 3-A. 필드명 마이그레이션 (5개 파일, 37곳)
+| 구 스키마 | 신 스키마 | 용도 |
+|-----------|-----------|------|
+| name_ko | name | 항상 한국어. 네이버맵 검색용 |
+| name_en | display_name | 사용자 언어. UI 표시용 |
+| tip_en | tip | 사용자 언어. 팁 텍스트 |
+
+모든 참조를 `신 || 구` 폴백 패턴으로 교체 (기존 Firestore 호환):
+- `stop.display_name || stop.name_en || stop.name || stop.name_ko`
+- `stop.name || stop.name_ko`
+- `stop.tip || stop.tip_en`
+
+변경 파일: PlanDetailPage.tsx(8곳), _email-renderer.js(4곳), RouteAgent.js(3곳), ai-planner-full.js(5곳)
+
+#### 3-B. DB Matcher 배포
+`api/_food_index.json` (1.2MB) 최초 커밋 — 이전까지 git 누락으로 dead code 상태
+
+#### 3-C. PDF 백지 수정 (PlanDetailPage.tsx L113-127)
+- `left:-9999px` → `position:absolute; left:0` + `document.fonts.ready` 대기
+
+#### 3-D. 주소 정리 (ai-planner-full.js L886-892)
+- "대한민국 " / "KR " 접두사 제거
+
+#### 3-E. 다양성 강화
+- 10가지 테마 앵글 랜덤 주입, "60% 명소 + 40% 히든젬" 비율 명시
+
+### 프로덕션 검증 결과
+
+| 지표 | Phase 1 | Phase 2 | Phase 3 | 총 변화 |
+|------|---------|---------|---------|---------|
+| 총 이슈 | 32 | 10 | 9 | **-71.9%** |
+| 미검증 식당 | 21 | 9 | 7 | -66.7% |
+| 언어 혼합 | 10 | 0 | 1 | -90% |
+| 잘못된 주소 | 0 | 0 | 0 | 유지 |
+| 다양성 중복 | 21% | 25% | 18% | **개선** |
+
+---
+
+## 주의사항 (다음 작업자 필독)
+
+1. **`api/_food_index.json` 절대 삭제 금지** — DB matcher 전체가 죽음
+2. **필드명 변경 시 `신 || 구` 폴백 유지** — Firestore 구 플랜 존재
+3. **PDF 컨테이너 `position:absolute + left:0` 변경 금지** — html2canvas 동작 조건
+4. **프롬프트: name/display_name/tip만 사용** — name_ko/name_en/tip_en 금지
+5. **제주 비건 DB 부족** — _food_index에 거의 없어서 unverified 발생
+
+---
+
+## 다음 Phase 후보
+
+- **Phase 4**: 3-pass 아키텍처 (intent → DB resolve → narrative) — 사용자 승인 필요
+- **Phase 5**: 다양성 추가 개선 (AVOID 리스트) — 중복률 18%로 이미 목표 달성
+- **Phase 6**: 제주/경주/전주 DB 보강, 네이버 Place API, 카카오맵 fallback
