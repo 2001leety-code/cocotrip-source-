@@ -110,15 +110,17 @@ export default function PlanDetailPage() {
     const budget = it.daily_budget_summary || [];
     const input = plan.input || {};
 
-    // create render container ??MUST be fully visible for html2canvas
-    // We add a loading overlay on top to hide it from the user
+    // create render container — MUST be on-screen & fully expanded for html2canvas
+    // Overlay (z-index:99998) sits on top to hide the white container from the user
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0a0e1a;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-family:system-ui;';
     overlay.innerHTML = '<div style="text-align:center"><div style="width:40px;height:40px;border:3px solid #7C5CFC;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px"></div>Generating PDF...</div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
     document.body.appendChild(overlay);
 
     const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;top:0;left:-9999px;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Segoe UI",system-ui,sans-serif;line-height:1.6;z-index:99997;visibility:visible;';
+    // position:absolute (not fixed) so container can expand beyond viewport height
+    // left:0 (not -9999px) so html2canvas can actually render the content
+    container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Segoe UI",system-ui,sans-serif;line-height:1.6;z-index:99997;';
     document.body.appendChild(container);
 
     // Color tokens for light PDF
@@ -248,10 +250,14 @@ export default function PlanDetailPage() {
     container.innerHTML = html;
 
     // Wait for browser to fully render the content (especially Korean fonts)
-    // Increase wait time to ensure fonts and layout are fully loaded
-    await new Promise(resolve => setTimeout(resolve, 800));
-    // Force layout recalculation
-    container.offsetHeight;
+    // document.fonts.ready resolves when all font faces are loaded
+    await Promise.race([
+      document.fonts?.ready || Promise.resolve(),
+      new Promise(resolve => setTimeout(resolve, 3000)),
+    ]);
+    // Additional settle time for layout recalculation
+    await new Promise(resolve => setTimeout(resolve, 500));
+    container.offsetHeight; // force reflow
 
     try {
       const html2pdf = (await import('html2pdf.js')).default;
