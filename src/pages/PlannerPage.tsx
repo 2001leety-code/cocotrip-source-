@@ -1361,6 +1361,7 @@ export default function PlannerPage() {
           dietPrefs: values.dietPrefs || [],
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
+          special_request: (values as any).freeText || '',
         }),
       });
 
@@ -1425,6 +1426,7 @@ export default function PlannerPage() {
           dietPrefs: values.dietPrefs || [],
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
+          special_request: (values as any).freeText || '',
         }),
       });
 
@@ -1495,6 +1497,7 @@ export default function PlannerPage() {
           dietPrefs: values.dietPrefs || [],
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
+          special_request: (values as any).freeText || '',
         }),
       });
 

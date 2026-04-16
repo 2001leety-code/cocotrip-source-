@@ -27,6 +27,7 @@ export class RouteAgent extends BaseAgent {
         const clientSecret = (process.env.NAVER_CLIENT_SECRET || "").trim();
         // Support both Gemini output formats
         const rawItinerary = data.itinerary || {};
+        const hotelAddress = data.hotel_address || '';
         const daysList = Array.isArray(rawItinerary) ? rawItinerary : (rawItinerary.days || []);
 
         for (const dayPlan of daysList) {
@@ -97,13 +98,56 @@ export class RouteAgent extends BaseAgent {
             let currentTime = this._parseTime(places[0]?.start_time || "09:00");
             const BUFFER_MIN = 5; // 초행길 여유 시간
 
+            // ════════════════════════════════════════════════════════
+            // Phase 2.5: 호텔 → 첫 번째 장소 경로 (hotel_address가 있는 경우)
+            // ════════════════════════════════════════════════════════
+            let hotelTransit = null;
+            if (hotelAddress && places.length > 0 && places[0].lat && places[0].lng) {
+                try {
+                    // 호텔 geocoding
+                    let hotelLat = null, hotelLng = null;
+                    if (clientId && clientSecret) {
+                        const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
+                        const geoRes = await axios.get(geoUrl, {
+                            params: { query: hotelAddress },
+                            headers: {
+                                "X-NCP-APIGW-API-KEY-ID": clientId,
+                                "X-NCP-APIGW-API-KEY": clientSecret,
+                            },
+                            timeout: 5000,
+                        });
+                        if (geoRes.status === 200 && geoRes.data.addresses?.length > 0) {
+                            hotelLng = parseFloat(geoRes.data.addresses[0].x);
+                            hotelLat = parseFloat(geoRes.data.addresses[0].y);
+                        }
+                    }
+                    if (hotelLat && hotelLng) {
+                        const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
+                        const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0);
+                        const pt = transitData.publicTransit;
+                        hotelTransit = {
+                            method: pt?.method || 'subway',
+                            instruction: pt?.summary || `Take public transit from hotel to ${places[0].name || places[0].display_name || 'first stop'}`,
+                            step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
+                            est_min: pt?.duration || transitData.durationMin || 25,
+                            est_fare_krw: pt?.fare || 0,
+                            source: 'odsay',
+                            from_label: 'Hotel',
+                        };
+                        console.log(`  - [Hotel→${places[0].name}] ${hotelTransit.est_min}min via ${hotelTransit.method}`);
+                    }
+                } catch (hotelErr) {
+                    console.warn('  - Hotel→FirstStop route failed:', hotelErr.message);
+                }
+            }
+
             for (let i = 0; i < places.length; i++) {
                 const place = places[i];
 
-                // 첫 장소: Gemini 시간 유지, 이후: 동적 계산
+                // 첫 장소: 호텔 경로 있으면 사용, 없으면 null
                 if (i === 0) {
                     place.start_time = this._formatTime(currentTime);
-                    place.transit_from_prev = null;
+                    place.transit_from_prev = hotelTransit;
                     place.travelFromPrev = null;
                 } else {
                     const transit = transitResults[i - 1];

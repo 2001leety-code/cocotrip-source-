@@ -384,6 +384,24 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - For food: vary cuisine types (Korean BBQ one meal, street food next, seafood, traditional, jjigae, tteokbokki, cafe dessert).
 - Include at least ONE unexpected/delightful recommendation per day that tourists wouldn't find on their own.
 
+## STYLE-DRIVEN PLANNING — MANDATORY (사용자 선택 스타일 반영)
+The user selected specific styles (activity preferences). You MUST tailor at least 60% of stops:
+- "Kpop": Include K-pop agency buildings (HYBE, SM, JYP), fan cafes, K-Star Road, album shops, music show venues
+- "Food": Increase food stops to 3 per day, include market tours, cooking classes, food alleys
+- "Night": Add night markets, Han River evening, rooftop bars, 야경 spots, 포장마차
+- "Shopping": Include Myeongdong, Gangnam underground, 동대문 DDP, outlet malls, 가로수길
+- "Temple": Include temple stays, major temples, meditation, Buddhist culture experiences
+- "Photo": Include Instagram-worthy cafes, 벽화마을, 감성카페, scenic viewpoints
+- "Drama": Include K-drama filming locations, drama-themed parks, filming studio tours
+- "Hanbok": Include hanbok rental zones, traditional villages, Bukchon, Jeonju Hanok Village
+- "Dmz": Reserve full day for DMZ tour — Imjingak, 제3땅굴, 도라전망대, 통일촌
+- "Kbeauty": Include beauty shops, skincare experiences, Apgujeong, Garosugil beauty street
+
+If "special_request" is present in the user message, treat it as HIGHEST PRIORITY:
+- If the user names specific places (e.g. "경복궁", "HYBE"), those places MUST appear in the itinerary
+- Build the surrounding route around those requested places
+- Do NOT ignore or substitute the user's explicit requests
+
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
 - 1 dedicated lunch + 1 dinner per full day (category: "food")
 - 3-5 signature menu items with KRW prices
@@ -974,7 +992,7 @@ export default async function handler(req, res) {
     });
     try {
       const routeAgent = new RouteAgent(apiKey);
-      const wrapped = { itinerary: (itinerary.days || []).map(d => ({ ...d, places: d.stops || [] })) };
+      const wrapped = { itinerary: (itinerary.days || []).map(d => ({ ...d, places: d.stops || [] })), hotel_address: hotel_address || '' };
       console.log('[planner] RouteAgent input days:', wrapped.itinerary.length, '| stops/day:', wrapped.itinerary.map(d => (d.places || d.stops || []).length));
       const enriched = await routeAgent.call(JSON.stringify(wrapped));
       const enrichedData = JSON.parse(enriched.rawOutput);

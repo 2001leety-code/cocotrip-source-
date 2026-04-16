@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
+import { buildAccommodationLinks, buildFlightLink, buildCarLink, PICKUP_PRICES } from '@/config/affiliateLinks';
+import { detectCharterRecommendation } from '@/data/charterPricing';
 
 /* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
    CONSTANTS
@@ -371,6 +373,36 @@ export default function PlanDetailPage() {
           {/* ?�?� Arrival Guide (accordion, default closed) ?�?� */}
           {arrival && <ArrivalGuide guide={arrival} />}
 
+          {/* Hotel Booking Banner */}
+          {(() => {
+            const region = input.destination || input.regions?.[0] || 'Seoul';
+            const links = buildAccommodationLinks(region + ' Hotel', region);
+            if (!links.length) return null;
+            return (
+              <div className="mb-6 rounded-2xl overflow-hidden border border-blue-500/20" style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(6,182,212,0.05))' }}>
+                <div className="px-5 py-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-blue-500/20 border border-blue-500/30">
+                    <MapPin className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-white text-base leading-tight">Find Your Perfect Hotel</p>
+                    <p className="text-xs text-white/50 mt-0.5">Best rates for {region} hotels</p>
+                  </div>
+                </div>
+                <div className="px-5 pb-4">
+                  {links.map((lk: any) => (
+                    <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02]"
+                      style={{ background: lk.color || '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
+                      {lk.label} &rarr;
+                    </a>
+                  ))}
+                </div>
+                <p className="text-[10px] text-white/20 text-center pb-3 px-5">Affiliate link &mdash; helps support CocoTrip.</p>
+              </div>
+            );
+          })()}
+
           {/* ?�?� Day Tab Bar ?�?� */}
           {days.length > 1 && (
             <div
@@ -404,11 +436,83 @@ export default function PlanDetailPage() {
           {/* ?�?� Budget Table (accordion, default closed) ?�?� */}
           {budget.length > 0 && <BudgetTable budget={budget} tMoney={it.t_money_recommended_load} />}
 
-          {/* ?�?� Departure Guide (accordion, default closed) ?�?� */}
+          {/* Charter Vehicle Banner */}
+          {(() => {
+            const allStops = days.flatMap((d: any) => d.stops || []);
+            const detection = detectCharterRecommendation(allStops);
+            if (!detection.recommended || !detection.pricing) return null;
+            const { pricing } = detection;
+            return (
+              <div className="mb-6 rounded-2xl overflow-hidden border border-cyan-500/25" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.08), rgba(59,130,246,0.05))' }}>
+                <div className="px-5 py-4 border-b border-cyan-500/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Car className="w-6 h-6 text-cyan-300" />
+                      <div>
+                        <p className="font-bold text-white text-base">Private Charter Vehicle</p>
+                        <p className="text-xs text-cyan-300/70 mt-0.5">Skip public transit &mdash; ride in comfort</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-cyan-300">&#8361;{pricing.priceKRW.toLocaleString()}</p>
+                      <p className="text-xs text-white/40">{pricing.hours}hrs</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-5 py-4">
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {['English driver', 'Door-to-door', 'Free WiFi', 'Luggage space'].map(f => (
+                      <span key={f} className="text-[11px] text-cyan-200/70 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-full">&check; {f}</span>
+                    ))}
+                  </div>
+                  <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+                    className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90"
+                    style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', boxShadow: '0 4px 20px rgba(6,182,212,0.3)' }}>
+                    Book via WhatsApp &rarr;
+                  </a>
+                </div>
+              </div>
+            );
+          })()}
+
           {departure && <DepartureGuide guide={departure} />}
+
+          {/* Airport Pickup Card */}
+          {(() => {
+            const airportCode = (input.arrival_airport || 'ICN').replace(/_T[12]$/, '');
+            const prices = PICKUP_PRICES[airportCode] || PICKUP_PRICES['ICN'];
+            if (!prices?.length) return null;
+            return (
+              <div className="mb-6 rounded-2xl border border-amber-500/25 p-5" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.06), rgba(10,16,32,0.95))' }}>
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                    <Plane className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-white text-base leading-tight mb-0.5">Airport Pickup Service</p>
+                    <p className="text-xs text-amber-300/80">English-speaking driver at arrivals</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-amber-400 border border-amber-500/35 rounded-full px-2.5 py-1 font-semibold">{airportCode}</span>
+                </div>
+                <div className="space-y-2 mb-4">
+                  {prices.map((row: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3">
+                      <span className="text-sm text-white/60">{row.destination}</span>
+                      <span className="text-sm font-bold text-amber-300">{row.price}</span>
+                    </div>
+                  ))}
+                </div>
+                <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+                  className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 4px 20px rgba(245,158,11,0.25)' }}>
+                  Book Airport Pickup &rarr;
+                </a>
+              </div>
+            );
+          })()}
         </div>
 
-        {/* ?�?� Revision / Regenerate Card ?�?� */}
+        {/* Revision / Regenerate Card */}
         {plan && (plan.revisionCredits ?? 0) > 0 && !_isRegenerating && (
           <div className="mt-8 rounded-2xl overflow-hidden border border-amber-500/20"
             style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.06), rgba(182,104,252,0.04))' }}>
@@ -498,6 +602,61 @@ export default function PlanDetailPage() {
           </div>
           <p className="text-[10px] text-white/20 text-center pb-3 px-5">{t.planner?.esimNote || 'Purchasing via these links helps support CocoTrip.'}</p>
         </div>
+
+        {/* ═══ Trip.com Car Rental ═══ */}
+        {(() => {
+          const region = input.destination || input.regions?.[0] || 'Seoul';
+          const carLink = buildCarLink(region);
+          return (
+            <div className="rounded-2xl overflow-hidden border border-emerald-500/20 mt-6" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.05))' }}>
+              <div className="px-5 py-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-emerald-500/20 border border-emerald-500/30">
+                  <Car className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-white text-base leading-tight">Rent a Car in Korea</p>
+                  <p className="text-xs text-white/50 mt-0.5">Explore at your own pace — international license accepted</p>
+                </div>
+              </div>
+              <div className="px-5 pb-4">
+                <a href={carLink.url} target="_blank" rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02]"
+                  style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
+                  {carLink.label} →
+                </a>
+              </div>
+              <p className="text-[10px] text-white/20 text-center pb-3 px-5">Affiliate link — helps support CocoTrip.</p>
+            </div>
+          );
+        })()}
+
+        {/* ═══ Trip.com Flight Search ═══ */}
+        {(() => {
+          const airportCode = input.arrival_airport || 'ICN';
+          const link = buildFlightLink(airportCode);
+          if (!link) return null;
+          return (
+            <div className="rounded-2xl overflow-hidden border border-indigo-500/20 mt-6" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05))' }}>
+              <div className="px-5 py-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-indigo-500/20 border border-indigo-500/30">
+                  <Plane className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-white text-base leading-tight">Search Flights to Korea</p>
+                  <p className="text-xs text-white/50 mt-0.5">Compare prices across airlines</p>
+                </div>
+              </div>
+              <div className="px-5 pb-4">
+                <a href={link.url} target="_blank" rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02]"
+                  style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
+                  {link.label} →
+                </a>
+              </div>
+              <p className="text-[10px] text-white/20 text-center pb-3 px-5">Affiliate link — helps support CocoTrip.</p>
+            </div>
+          );
+        })()}
 
         <div className="mb-24" />
       </main>
@@ -603,11 +762,12 @@ function TransitArrow({ transit }: { transit: any }) {
       <button onClick={() => transit.step_by_step?.length && setShowSteps(!showSteps)} className="flex items-center gap-2 text-[11px] text-white/40 hover:text-white/60 transition-colors">
         <div className="w-0.5 h-4 bg-[#7C5CFC]/30" />
         <Icon className="w-3.5 h-3.5 text-[#7C5CFC]" />
+        {transit.from_label && <span className="text-[#7C5CFC] font-semibold">{transit.from_label} →</span>}
         <span>{transit.method} - {transit.est_min}min</span>
         {transit.est_fare_krw > 0 && <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw)}</span>}
         {transit.step_by_step?.length > 0 && <ChevronDown className={`w-3 h-3 transition-transform ${showSteps ? 'rotate-180' : ''}`} />}
       </button>
-      {transit.instruction_en && <p className="text-[10px] text-white/25 ml-6 mt-0.5">{transit.instruction_en}</p>}
+      {(transit.instruction_en || transit.instruction) && <p className="text-[10px] text-white/25 ml-6 mt-0.5">{transit.instruction_en || transit.instruction}</p>}
       {showSteps && transit.step_by_step && (
         <div className="ml-6 mt-1 space-y-0.5">
           {transit.step_by_step.map((s: string, i: number) => (
