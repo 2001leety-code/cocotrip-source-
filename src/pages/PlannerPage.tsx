@@ -1337,7 +1337,7 @@ export default function PlannerPage() {
   const [selectedOption, setSelectedOption] = useState<'A' | 'B'>('A');
   const [optionBStep, setOptionBStep] = useState<1 | 2 | 3>(1);
 
-  // 1단계: Quick preview (무료) — ai-planner-quick 호출
+  // 1단계: Quick preview (무료) — ai-planner-quick 호출 (자동 재시도 포함)
   async function handleSubmit(values: PlannerFormValues) {
     lastValues.current = values;
     setStatus('loadingQuick');
@@ -1346,39 +1346,59 @@ export default function PlannerPage() {
     setStreamStep(1);
     setStreamAgent('gemini');
     
-    try {
-      const res = await fetch('/api/ai-planner-quick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          destination: (values.regions || []).join(', ') || 'Seoul',
-          preferences: (values.categories || []).join(', ') || '',
-          categories: values.categories || ['culture'],
-          durationDays: values.durationDays || 3,
-          pax: values.pax || 2,
-          language,
-          regions: values.regions || ['Seoul'],
-          dietPrefs: values.dietPrefs || [],
-          allergies: values.allergies || [],
-          priceRange: values.priceRange || 'Any',
-          special_request: (values as any).freeText || '',
-        }),
-      });
+    const MAX_RETRIES = 2;
+    const payload = JSON.stringify({ 
+      destination: (values.regions || []).join(', ') || 'Seoul',
+      preferences: (values.categories || []).join(', ') || '',
+      categories: values.categories || ['culture'],
+      durationDays: values.durationDays || 3,
+      pax: values.pax || 2,
+      language,
+      regions: values.regions || ['Seoul'],
+      dietPrefs: values.dietPrefs || [],
+      allergies: values.allergies || [],
+      priceRange: values.priceRange || 'Any',
+      special_request: (values as any).freeText || '',
+    });
 
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.details || errBody.error || `Server error (${res.status})`);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch('/api/ai-planner-quick', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+        });
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          const msg = errBody.details || errBody.error || `Server error (${res.status})`;
+          // 404/502/503은 Vercel cold start 가능성 → 재시도
+          if ((res.status === 404 || res.status >= 500) && attempt < MAX_RETRIES) {
+            console.warn(`[Planner] Attempt ${attempt + 1} got ${res.status}, retrying in 1.5s...`);
+            await new Promise(r => setTimeout(r, 1500));
+            continue;
+          }
+          throw new Error(msg);
+        }
+
+        const data = await res.json();
+        setResultQuick(data);
+        setStatus('quickSuccess');
+        setTimeout(() => {
+          document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+        return; // 성공 시 함수 종료
+      } catch (err) {
+        if (attempt < MAX_RETRIES && err instanceof TypeError) {
+          // 네트워크 에러 (fetch 자체 실패) → 재시도
+          console.warn(`[Planner] Network error on attempt ${attempt + 1}, retrying...`);
+          await new Promise(r => setTimeout(r, 1500));
+          continue;
+        }
+        setErrorMsg(err instanceof Error ? err.message : 'Unknown error.');
+        setStatus('error');
+        return;
       }
-
-      const data = await res.json();
-      setResultQuick(data);
-      setStatus('quickSuccess');
-      setTimeout(() => {
-        document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Unknown error.');
-      setStatus('error');
     }
   }
 
