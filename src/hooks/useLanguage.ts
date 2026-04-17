@@ -64,6 +64,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
   }, [language]);
 
+  // Cross-tab language synchronization via storage event
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue && SUPPORTED.includes(e.newValue as Language)) {
+        setLanguage(e.newValue as Language);
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
   return createElement(LanguageContext.Provider, { value: { language, t, changeLanguage } }, children);
 }
 
