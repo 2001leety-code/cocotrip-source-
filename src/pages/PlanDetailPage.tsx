@@ -90,41 +90,46 @@ export default function PlanDetailPage() {
   }, []);
 
   // ── Auto-translate plan when header language changes ──
-  const originalPlanRef = useRef<any>(null);
+  const originalItineraryRef = useRef<any>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
   useEffect(() => {
-    if (!plan?.result) return;
-    // Store original plan on first load
-    if (!originalPlanRef.current) {
-      originalPlanRef.current = JSON.parse(JSON.stringify(plan.result));
+    if (!plan?.itinerary) return;
+    // Store original itinerary on first load (never overwrite)
+    if (!originalItineraryRef.current) {
+      originalItineraryRef.current = JSON.parse(JSON.stringify(plan.itinerary));
     }
     const targetLang = language as string;
-    // Skip if already matching
-    if (targetLang === 'en') {
-      // English is the original generation language, restore
-      if (originalPlanRef.current) {
-        setPlan((prev: any) => prev ? { ...prev, result: originalPlanRef.current } : prev);
+    // The plan's original language — restore when user switches back
+    const originalLang = plan.input?.language || 'en';
+    if (targetLang === originalLang) {
+      // Restore original without API call
+      if (originalItineraryRef.current) {
+        setPlan((prev: any) => prev ? { ...prev, itinerary: originalItineraryRef.current } : prev);
       }
       return;
     }
     // Translate to target language
     const controller = new AbortController();
+    setIsTranslating(true);
     (async () => {
       try {
         const resp = await fetch('/api/translate-plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: originalPlanRef.current || plan.result, targetLang }),
+          body: JSON.stringify({ plan: originalItineraryRef.current || plan.itinerary, targetLang }),
           signal: controller.signal,
         });
         const data = await resp.json();
         if (data.translated) {
-          setPlan((prev: any) => prev ? { ...prev, result: data.translated } : prev);
+          setPlan((prev: any) => prev ? { ...prev, itinerary: data.translated } : prev);
         }
       } catch (e: any) {
         if (e.name !== 'AbortError') console.error('[translate] failed:', e);
+      } finally {
+        setIsTranslating(false);
       }
     })();
-    return () => controller.abort();
+    return () => { controller.abort(); setIsTranslating(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 
@@ -384,6 +389,12 @@ export default function PlanDetailPage() {
         <div ref={contentRef} id="plan-detail-content">
           {/* ?�?� Title ?�?� */}
           <div className="text-center mb-8">
+            {isTranslating && (
+              <div className="inline-flex items-center gap-2 bg-[#7C5CFC]/20 border border-[#7C5CFC]/30 rounded-full px-4 py-1.5 mb-3 text-xs text-[#7C5CFC]">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Translating...
+              </div>
+            )}
             <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#a78bfa,#ec4899)' }}>
               {it.tour_title || 'Your Korea Itinerary'}
             </h1>

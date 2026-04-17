@@ -29,6 +29,12 @@ module.exports = async function handler(req, res) {
     const textsToTranslate = [];
     const mapping = []; // Track where each text came from
 
+    // Tour title
+    if (plan.tour_title) {
+      textsToTranslate.push(plan.tour_title);
+      mapping.push({ section: 'root', field: 'tour_title' });
+    }
+
     // Arrival guide steps
     if (plan.arrival_guide?.steps) {
       plan.arrival_guide.steps.forEach((step, si) => {
@@ -69,6 +75,10 @@ module.exports = async function handler(req, res) {
       if (plan.departure_guide.recommended_departure_time) {
         textsToTranslate.push(plan.departure_guide.recommended_departure_time);
         mapping.push({ section: 'departure', field: 'recommended_departure_time' });
+      }
+      if (plan.departure_guide.last_minute_shopping) {
+        textsToTranslate.push(plan.departure_guide.last_minute_shopping);
+        mapping.push({ section: 'departure', field: 'last_minute_shopping' });
       }
     }
 
@@ -115,7 +125,9 @@ Output: JSON array of ${textsToTranslate.length} translated strings in ${langNam
       if (i >= mapping.length) return;
       const m = mapping[i];
       try {
-        if (m.section === 'arrival') {
+        if (m.section === 'root') {
+          result_plan[m.field] = text;
+        } else if (m.section === 'arrival') {
           result_plan.arrival_guide.steps[m.stepIdx][m.field] = text;
         } else if (m.section === 'day') {
           result_plan.days[m.dayIdx][m.field] = text;
