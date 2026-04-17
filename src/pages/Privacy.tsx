@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
-import { translations } from '@/i18n';
+import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const PageSection = ({ title, children, isMobile }: { title: string; children: ReactNode; isMobile?: boolean }) => (
@@ -14,14 +14,12 @@ const PageSection = ({ title, children, isMobile }: { title: string; children: R
 );
 
 export default function Privacy() {
-  const language = 'en';
-  const t = translations.en;
-  const noop = () => {};
+  const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
 
   return (
     <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#faf9f6]'}>
-      <Header language={language} t={t} onLanguageChange={noop} />
+      <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className={`container mx-auto px-4 ${isMobile ? 'pt-6 pb-4' : 'py-16 sm:py-24'}`}>
         <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white p-8 sm:p-12 rounded-lg shadow-lg'}>
           <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-[#1a1a2e] text-3xl sm:text-4xl sm:mb-12'}`}>Privacy Policy</h1>
