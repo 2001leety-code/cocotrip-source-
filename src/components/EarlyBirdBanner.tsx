@@ -2,19 +2,11 @@ import { useState, useEffect } from 'react';
 import { X, Tag } from 'lucide-react';
 import { doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useLanguage } from '@/hooks/useLanguage';
 
-const TEXTS: Record<string, { banner: string; code: string }> = {
-  ko: { banner: '\uC5BC\uB9AC\uBC84\uB4DC \uD2B9\uAC00 20% \uD560\uC778 \u00B7 \uC120\uCC29\uC21C 50\uD300 \uD55C\uC815 \u00B7 \uB0A8\uC740 \uC790\uB9AC: {remaining}\uD300', code: 'EARLY50' },
-  en: { banner: 'Early Bird 20% OFF \u00B7 First 50 bookings only \u00B7 {remaining} spots left', code: 'EARLY50' },
-  ja: { banner: '\u65E9\u671F\u5272\u5F15 20% OFF \u00B7 \u5148\u774050\u7D44\u9650\u5B9A \u00B7 \u6B8B\u308A{remaining}\u7D44', code: 'EARLY50' },
-  zh: { banner: '\u65E9\u9E1F\u4F18\u60E0 20% OFF \u00B7 \u4EC5\u9650\u524D50\u7EC4 \u00B7 \u5269\u4F59{remaining}\u7EC4', code: 'EARLY50' },
-};
-
-interface Props {
-  language: string;
-}
-
-export function EarlyBirdBanner({ language }: Props) {
+export function EarlyBirdBanner() {
+  const { t } = useLanguage();
+  const ad = (t as any).ads?.earlyBird ?? { banner: 'Early Bird 20% OFF · First 50 bookings only · {remaining} spots left', code: 'EARLY50' };
   const [dismissed, setDismissed] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [visible, setVisible] = useState(false);
@@ -43,8 +35,7 @@ export function EarlyBirdBanner({ language }: Props) {
 
   if (dismissed || remaining === null || remaining <= 0 || !visible) return null;
 
-  const t = TEXTS[language] ?? TEXTS.en;
-  const text = t.banner.replace('{remaining}', String(remaining));
+  const text = ad.banner.replace('{remaining}', String(remaining));
 
   return (
     <div
@@ -67,7 +58,7 @@ export function EarlyBirdBanner({ language }: Props) {
         ))}
       </p>
       <div className="px-1 py-1.5 rounded-lg bg-white/25 text-[11px] font-extrabold tracking-widest text-center shadow-inner">
-        {t.code}
+      {ad.code}
       </div>
     </div>
   );

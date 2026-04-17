@@ -111,7 +111,7 @@ function GlobalWidgets() {
 
   return (
     <>
-      <EarlyBirdBanner language={language} />
+      <EarlyBirdBanner />
       <KpopConcertPopup />
       <MobileBottomNav />
       <CookieBanner />

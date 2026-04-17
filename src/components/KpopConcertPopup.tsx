@@ -4,91 +4,12 @@ import { getUpcomingConcerts } from '@/data/kpopConcerts';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useLanguage } from '@/hooks/useLanguage';
 
-const T: Record<string, Record<string, string>> = {
-  ko: {
-    trigger: 'K-pop 셔틀',
-    modalTitle: 'K-pop 콘서트 셔틀',
-    modalSub: '코코트립 공식 셔틀 서비스 · 1인당 요금',
-    pickupPoint: '픽업 포인트',
-    oneWay: '편도',
-    roundTrip: '왕복',
-    passengers: '인원',
-    ticketNote: '셔틀은 콘서트 티켓 보유자만 이용 가능합니다',
-    soldOut: '티켓 매진',
-    shuttleAvailable: '셔틀 운행',
-    bookShuttle: '셔틀 예약',
-    selectConcert: '콘서트를 선택해 주세요',
-    total: '합계',
-    armyPick: 'ARMY PICK',
-    naverMap: '네이버 지도',
-    noUpcoming: '예정된 콘서트가 없습니다',
-    close: '닫기',
-  },
-  en: {
-    trigger: 'K-pop Shuttle',
-    modalTitle: 'K-pop Concert Shuttle',
-    modalSub: 'CocoTrip Official Shuttle · Price per person',
-    pickupPoint: 'Pickup point',
-    oneWay: 'One way',
-    roundTrip: 'Round trip',
-    passengers: 'Passengers',
-    ticketNote: 'Shuttle available for concert ticket holders only',
-    soldOut: 'Sold Out',
-    shuttleAvailable: 'Shuttle available',
-    bookShuttle: 'Book Shuttle',
-    selectConcert: 'Select a concert to book',
-    total: 'Total',
-    armyPick: 'ARMY PICK',
-    naverMap: 'Naver Map',
-    noUpcoming: 'No upcoming concerts',
-    close: 'Close',
-  },
-  ja: {
-    trigger: 'K-popシャトル',
-    modalTitle: 'K-popコンサートシャトル',
-    modalSub: 'CocoTrip公式シャトル · 1人あたりの料金',
-    pickupPoint: '乗車地点',
-    oneWay: '片道',
-    roundTrip: '往復',
-    passengers: '人数',
-    ticketNote: 'シャトルはチケット保有者のみご利用可能',
-    soldOut: '完売',
-    shuttleAvailable: 'シャトル運行',
-    bookShuttle: '予約する',
-    selectConcert: 'コンサートを選択してください',
-    total: '合計',
-    armyPick: 'ARMY PICK',
-    naverMap: 'Naver Map',
-    noUpcoming: '予定のコンサートはありません',
-    close: '閉じる',
-  },
-  zh: {
-    trigger: 'K-pop班车',
-    modalTitle: 'K-pop演唱会班车',
-    modalSub: 'CocoTrip官方班车 · 每人价格',
-    pickupPoint: '上车地点',
-    oneWay: '单程',
-    roundTrip: '往返',
-    passengers: '人数',
-    ticketNote: '班车仅供持票者乘坐',
-    soldOut: '票已售罄',
-    shuttleAvailable: '班车可用',
-    bookShuttle: '预订班车',
-    selectConcert: '请选择演唱会',
-    total: '合计',
-    armyPick: 'ARMY PICK',
-    naverMap: 'Naver Map',
-    noUpcoming: '暂无即将举行的演唱会',
-    close: '关闭',
-  },
-};
-
 const SEL  = 'border-[rgba(124,92,252,0.6)] bg-[rgba(124,92,252,0.15)] text-[#A78BFA]';
 const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-white/25 hover:text-white/80';
 
 export function KpopConcertPopup() {
   const { language, t: globalT } = useLanguage();
-  const t = T[language] ?? T.en;
+  const t = (globalT as any).ads?.kpopConcert ?? {} as Record<string, string>;
   const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // concert data: ko/en only; ja/zh → en fallback
 
   const [open, setOpen] = useState(false);

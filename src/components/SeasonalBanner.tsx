@@ -19,7 +19,8 @@ const SEASON_GRADIENT: Record<Season, string> = {
 };
 
 export function SeasonalBanner() {
-  const { language } = useLanguage();
+  const { language, t: globalT } = useLanguage();
+  const ad = (globalT as any).ads?.seasonal ?? { planCta: 'Plan this season with AI', featuredSpot: '🔥 Featured Spot' };
   const navigate = useNavigate();
   const season = useMemo(() => getCurrentSeason(), []);
   const data = SEASONAL_SPOTS[season];
@@ -58,7 +59,7 @@ export function SeasonalBanner() {
                 onClick={() => navigate('/planner')}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-full font-bold hover:bg-white/90 transition-all active:scale-95"
               >
-                {{ ko: '이 시즌 AI 일정 만들기', en: 'Plan this season with AI', ja: '今シーズンをAIで計画', zh: '用AI规划本季旅行' }[language] ?? 'Plan this season with AI'}
+                {ad.planCta}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -66,7 +67,7 @@ export function SeasonalBanner() {
             {/* Right — Featured Spot */}
             <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
               <div className="text-sm font-medium text-white/60 mb-2">
-                {{ ko: '🔥 추천 명소', en: '🔥 Featured Spot', ja: '🔥 おすすめスポット', zh: '🔥 推荐景点' }[language] ?? '🔥 Featured Spot'}
+                {ad.featuredSpot}
               </div>
               <h3 className="text-xl font-bold mb-2">{spotName}</h3>
               <p className="text-white/75 text-sm leading-relaxed mb-3">

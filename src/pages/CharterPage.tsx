@@ -220,7 +220,7 @@ export default function CharterPage() {
         </div>
 
         {/* ── K-pop 셔틀 배너 (단독 표시) ── */}
-        {service === 'kpop' && <KpopShuttleBanner language={language} p={p} />}
+        {service === 'kpop' && <KpopShuttleBanner p={p} />}
 
         {/* ── 3. 상세 정보 (K-pop 아닐 때만 표시) ── */}
         {service !== 'kpop' && (
