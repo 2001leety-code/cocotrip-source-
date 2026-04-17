@@ -588,9 +588,9 @@ export default function PlanDetailPage() {
                 <div className="space-y-2">
                   {sd.spots.slice(0, 3).map((spot, i) => (
                     <div key={i} className="bg-white/[0.06] rounded-xl px-4 py-3 border border-white/[0.06]">
-                      <p className="text-sm font-bold text-white">{language === 'ko' ? spot.name : spot.nameEn}</p>
-                      <p className="text-[10px] text-white/40 mt-0.5">{language === 'ko' ? spot.location : spot.locationEn} · {language === 'ko' ? spot.period : spot.periodEn}</p>
-                      <p className="text-xs text-white/60 mt-1">{language === 'ko' ? spot.tip : spot.tipEn}</p>
+                      <p className="text-sm font-bold text-white">{{ ko: spot.name, en: spot.nameEn, ja: spot.nameEn, zh: spot.nameEn }[language] ?? spot.nameEn}</p>
+                      <p className="text-[10px] text-white/40 mt-0.5">{{ ko: spot.location, en: spot.locationEn, ja: spot.locationEn, zh: spot.locationEn }[language] ?? spot.locationEn} · {{ ko: spot.period, en: spot.periodEn, ja: spot.periodEn, zh: spot.periodEn }[language] ?? spot.periodEn}</p>
+                      <p className="text-xs text-white/60 mt-1">{{ ko: spot.tip, en: spot.tipEn, ja: spot.tipEn, zh: spot.tipEn }[language] ?? spot.tipEn}</p>
                     </div>
                   ))}
                 </div>

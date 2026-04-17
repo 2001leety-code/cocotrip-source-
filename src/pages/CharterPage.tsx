@@ -53,7 +53,7 @@ export default function CharterPage() {
   const isMobile = useIsMobile();
   const p = t.planner;
   const c = (t as any).charterPage ?? {} as any;
-  const lk = language === 'ko' ? 'ko' : 'en'; // language key for pricing data
+  const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // pricing data: ko/en only; ja/zh → en fallback
   const llk = (['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'; // language key for luggage labels
 
   usePageMeta({

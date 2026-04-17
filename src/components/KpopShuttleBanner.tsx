@@ -82,7 +82,7 @@ const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-white/
 export function KpopShuttleBanner({ language, p }: Props) {
   const concerts = useMemo(() => getUpcomingConcerts(), []);
   const t = T[language] ?? T.en;
-  const lk = language === 'ko' ? 'ko' : 'en';
+  const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // concert data: ko/en only; ja/zh → en fallback
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickup, setPickup] = useState('');

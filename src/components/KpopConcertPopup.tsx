@@ -89,7 +89,7 @@ const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-white/
 export function KpopConcertPopup() {
   const { language, t: globalT } = useLanguage();
   const t = T[language] ?? T.en;
-  const lk = language === 'ko' ? 'ko' : 'en';
+  const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // concert data: ko/en only; ja/zh → en fallback
 
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
