@@ -24,6 +24,9 @@ if [ -n "$SCAN_FILES" ]; then
       const c = fs.readFileSync(f, "utf8");
       // Skip i18n translation file (legitimate CJK content)
       if (f.endsWith("src/i18n/index.ts")) continue;
+      // Skip docs that document mojibake patterns as examples
+      if (f.startsWith(".agent/") && f.endsWith(".md")) continue;
+      if (f.startsWith("docs/") && f.endsWith(".md")) continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);
