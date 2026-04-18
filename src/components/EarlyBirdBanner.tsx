@@ -53,7 +53,7 @@ export function EarlyBirdBanner() {
         </button>
       </div>
       <p className="text-[11px] leading-relaxed font-semibold mb-3">
-        {text.split(' \u00B7 ').map((line, i) => (
+        {text.split(' \u00B7 ').map((line: string, i: number) => (
           <span key={i} className="block pb-0.5">{line}</span>
         ))}
       </p>

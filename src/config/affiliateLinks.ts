@@ -41,15 +41,21 @@ export function buildAccommodationLinks(hotelName: string, region: string) {
 }
 
 /* ── Flights ─────────────────────────────────────────── */
-export function buildFlightLink(destinationCode: string) {
+// Default departure city by user language
+const DEFAULT_DCITY: Record<string, string> = {
+  ko: 'Seoul', ja: 'Tokyo', zh: 'Shanghai', en: 'Los Angeles',
+};
+
+export function buildFlightLink(destinationCode: string, language?: string) {
   const cityCodeMap: Record<string, string> = {
     ICN: 'Seoul', GMP: 'Seoul', PUS: 'Busan', CJU: 'Jeju',
     ICN_T1: 'Seoul', ICN_T2: 'Seoul', ALREADY: 'Seoul',
   };
   const dest = cityCodeMap[destinationCode] || 'Seoul';
+  const dcity = DEFAULT_DCITY[language || 'ko'] || 'Seoul';
   return {
     label: 'Trip.com Flights',
-    url: `${AFFILIATE_CONFIG.tripcom.flight}?dcity=&acity=${encodeURIComponent(dest)}&${TRIP_AFF}`,
+    url: `${AFFILIATE_CONFIG.tripcom.flight}?dcity=${encodeURIComponent(dcity)}&acity=${encodeURIComponent(dest)}&${TRIP_AFF}`,
   };
 }
 

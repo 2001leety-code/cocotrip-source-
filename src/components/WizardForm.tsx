@@ -136,16 +136,7 @@ const FOOD_STYLE_ICONS: Record<string, ReactNode> = {
 const ALLERGY_KEYS = ['Nuts', 'Shellfish', 'Gluten', 'Dairy', 'None'] as const;
 const PRICE_KEYS = ['Budget', 'Moderate', 'Premium', 'Any'] as const;
 
-const WHAT_YOU_GET = [
-  'Minute-by-minute daily itinerary',
-  'Airport arrival guide (SIM, T-money, transport)',
-  'Restaurant recommendations with menu & prices',
-  'Subway directions with transfer instructions',
-  'Naver Map links for every location',
-  'Daily budget breakdown',
-  'Departure guide with tax refund info',
-  'PDF download',
-];
+// WHAT_YOU_GET items now use i18n keys (wizardGetItem1..8) — see renderStep3Review
 
 // Date-fns locale map
 const LOCALE_MAP: Record<string, Locale> = { en: enUS, ko, ja, zh: zhCN };
@@ -177,6 +168,8 @@ export function WizardForm({ onSubmit, isLoading }: any) {
   const [paxInput, setPaxInput]               = useState('2');
   const [arrivalTerminal, setArrivalTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');
+  const [wantAccom, setWantAccom]             = useState(false);
+  const [accomBudget, setAccomBudget]         = useState('moderate');
   const mobility = 'ok' as const;
 
   // Responsive — mobile vs desktop for calendar
@@ -248,6 +241,8 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
   async function handleGenerate() {
     setErrorMsg('');
+    // Save last region for MobileHome weather widget
+    try { if (mainCity) localStorage.setItem('cocotrip_last_region', mainCity); } catch { /* silent */ }
     const sd = startDate || new Date().toISOString().split('T')[0];
     const ed = endDate || new Date(Date.now() + durationDays * 86400000).toISOString().split('T')[0];
 
@@ -262,6 +257,8 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         hotel_address: hotelAddress,
         mobility,
         uid: user?.uid || null,
+        wantAccom: wantAccom || undefined,
+        accomBudget: wantAccom ? accomBudget : undefined,
         dietPrefs: dietPrefs.length > 0 ? dietPrefs : undefined,
         allergies: allergies.length > 0 ? allergies : undefined,
         priceRange: priceRange !== 'Any' ? priceRange : undefined,
@@ -292,7 +289,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     { label: p.wizardTitle || 'Destinations', icon: <MapPin className="w-3.5 h-3.5" /> },
     { label: p.wizardFoodTitle || 'Food', icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
     { label: p.planner_step2_date || 'Details', icon: <Calendar className="w-3.5 h-3.5" /> },
-    { label: 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
+    { label: p.planner_generate_cta || 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
   ];
 
   /* ═══════════════════════════════════════════════════════
@@ -305,12 +302,41 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <p className="text-sm text-white/40">{p.wizardTitleSub || 'Tap cities to add — first selected is your main base'}</p>
       </div>
 
+      {/* Quick Start Presets */}
+      {!mainCity && (
+        <div>
+          <p className="text-sm text-white/50 mb-2 font-medium flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#7C5CFC]" />
+            {p.presetLabel || 'Quick Start'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: p.presetFirst || '3 Days Seoul Highlights', city: 'seoul', acts: ['Food', 'Photo', 'Shopping'] },
+              { label: p.presetSecond || 'Seoul + Busan 5 Days', city: 'seoul', extra: ['busan'], acts: ['Food', 'Photo', 'Temple'] },
+              { label: p.presetThird || 'K-pop Fan Trip', city: 'seoul', acts: ['Kpop', 'Shopping', 'Photo'] },
+              { label: p.presetFourth || 'Foodie Tour Seoul', city: 'seoul', acts: ['Food', 'Night', 'Shopping'] },
+              { label: p.presetFifth || 'Jeju Nature Healing', city: 'jeju', acts: ['Photo', 'Food', 'Temple'] },
+            ].map((preset) => (
+              <button key={preset.label} onClick={() => {
+                const cityName = getCityName(preset.city);
+                setMainCity(cityName); setMainCityKey(preset.city);
+                if (preset.extra) setExtraCities(preset.extra.map(k => getCityName(k)));
+                setSelectedActivities(preset.acts);
+              }}
+                className="px-3 py-1.5 rounded-full text-[12px] font-semibold border border-[#7C5CFC]/25 text-white/60 hover:border-[#7C5CFC]/50 hover:text-white hover:bg-[#7C5CFC]/10 transition-all">
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* City chips with lucide icons */}
       <div>
         <p className="text-sm text-white/50 mb-3 font-medium">
           {p.tripAreaLabel || 'Select Cities'}
           {allCities.length > 0 && (
-            <span className="ml-2 text-[#7C5CFC] font-bold">{allCities.length} selected</span>
+            <span className="ml-2 text-[#7C5CFC] font-bold">{allCities.length} {p.wizardCitySelected || 'selected'}</span>
           )}
         </p>
         <div className="grid grid-cols-2 gap-2">
@@ -329,7 +355,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
                 <span className={sel ? 'text-[#7C5CFC]' : 'text-white/30'}>{icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold truncate">{cityName}</p>
-                  {isMain && <p className="text-[10px] text-[#7C5CFC]/80 font-medium">Main base</p>}
+                  {isMain && <p className="text-[10px] text-[#7C5CFC]/80 font-medium">{p.wizardMainBase || 'Main base'}</p>}
                 </div>
                 {sel && <Check className="w-4 h-4 text-[#7C5CFC] shrink-0" />}
               </button>
@@ -338,7 +364,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         </div>
         {allCities.length > 1 && (
           <div className="flex flex-wrap gap-1.5 mt-3">
-            <span className="text-xs text-white/30">Route:</span>
+            <span className="text-xs text-white/30">{p.wizardRoute || 'Route'}:</span>
             {allCities.map((c, i) => (
               <span key={c} className="text-xs text-white/50">
                 {i > 0 && <span className="text-white/20 mx-1">→</span>}{c}
@@ -514,12 +540,12 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     <div className="space-y-5">
       <div>
         <h2 className="text-lg font-bold text-white mb-1">{p.planner_step2_date || 'Travel Details'}</h2>
-        <p className="text-sm text-white/40">When, who, and how you're arriving</p>
+        <p className="text-sm text-white/40">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
       </div>
 
       {/* Range Calendar */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">When are you visiting?</p>
+        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardWhenVisit || 'When are you visiting?'}</p>
         <div className="cocotrip-calendar-wrap bg-white/[0.04] border border-white/[0.1] rounded-2xl p-3 sm:p-4">
           <DayPicker
             mode="range"
@@ -536,7 +562,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         </div>
         {nights > 0 && (
           <p className="text-sm text-[#7C5CFC] font-semibold mt-2">
-            {nights} night{nights > 1 ? 's' : ''}, {nights + 1} day{nights > 0 ? 's' : ''} trip
+            {(p.wizardNightsTrip || '{n} nights, {m} days trip').replace('{n}', String(nights)).replace('{m}', String(nights + 1))}
           </p>
         )}
       </div>
@@ -551,7 +577,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
       {/* Airport Dropdown */}
       <div>
         <p className="text-sm text-white/50 mb-2.5 font-medium">
-          Which airport are you arriving at?
+          {p.wizardWhichAirport || 'Which airport are you arriving at?'}
           {mainCity && <span className="text-white/25 ml-1">({mainCity})</span>}
         </p>
         <select
@@ -561,7 +587,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
         >
           <option value="" disabled className="bg-[#1a1a2e] text-white/50">
-            -- Select airport --
+            {p.wizardSelectAirport || '-- Select airport --'}
           </option>
           {airportOptions.map((opt) => (
             <option key={opt.value} value={opt.value} className="bg-[#1a1a2e] text-white">
@@ -579,7 +605,40 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
       </div>
 
-
+      {/* Accommodation Recommendation Opt-in */}
+      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked={wantAccom} onChange={e => setWantAccom(e.target.checked)}
+            className="w-5 h-5 rounded border-white/20 bg-white/[0.06] accent-[#7C5CFC]" />
+          <div>
+            <p className="text-sm font-semibold text-white">{(p as any).accomOptIn || 'Get AI hotel recommendations'}</p>
+            <p className="text-[11px] text-white/35">{(p as any).accomOptInSub || 'AI will suggest accommodations based on your itinerary'}</p>
+          </div>
+        </label>
+        {wantAccom && (
+          <div className="mt-3 pl-8">
+            <p className="text-xs text-white/40 mb-2">{(p as any).accomBudgetLabel || 'Accommodation budget'}</p>
+            <div className="flex gap-2">
+              {(['budget', 'moderate', 'luxury'] as const).map((lvl) => {
+                const labels: Record<string, string> = {
+                  budget: (p as any).accomBudget1 || 'Budget',
+                  moderate: (p as any).accomBudget2 || 'Mid-range',
+                  luxury: (p as any).accomBudget3 || 'Luxury',
+                };
+                const sel = accomBudget === lvl;
+                return (
+                  <button key={lvl} onClick={() => setAccomBudget(lvl)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      sel ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white' : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
+                    }`}>
+                    {labels[lvl]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Nav */}
       <div className="flex gap-3 pt-2">
@@ -590,7 +649,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
         <button onClick={() => setStep(3)} disabled={!canGoStep3}
           className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] transition-all"
           style={{ background: canGoStep3 ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
-          Next: Generate <ChevronRight className="w-5 h-5" />
+          {p.wizardNextGenerate || 'Next: Generate'} <ChevronRight className="w-5 h-5" />
         </button>
       </div>
     </div>
@@ -603,39 +662,39 @@ export function WizardForm({ onSubmit, isLoading }: any) {
     const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
     return (
     <div className="space-y-6">
-      <h2 className="text-lg font-bold text-white">Review Your Trip</h2>
+      <h2 className="text-lg font-bold text-white">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
 
       {/* Summary cards */}
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 sm:p-5 space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button onClick={() => setStep(0)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
-            <SummaryCard icon={<MapPin className="w-4 h-4" />} label="Destination" value={allCities[0] || '-'} />
+            <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={allCities[0] || '-'} />
           </button>
-          <button onClick={() => setStep(1)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
-            <SummaryCard icon={<Calendar className="w-4 h-4" />} label="Dates" value={startDate && endDate ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}` : 'TBD'} />
+          <button onClick={() => setStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+            <SummaryCard icon={<Calendar className="w-4 h-4" />} label={p.wizardDates || 'Dates'} value={startDate && endDate ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}` : 'TBD'} />
           </button>
-          <button onClick={() => setStep(1)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
-            <SummaryCard icon={<Plane className="w-4 h-4" />} label="Airport" value={airportLabel} />
+          <button onClick={() => setStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+            <SummaryCard icon={<Plane className="w-4 h-4" />} label={p.wizardAirport || 'Airport'} value={airportLabel} />
           </button>
-          <button onClick={() => setStep(1)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
-            <SummaryCard icon={<Users className="w-4 h-4" />} label="Travelers" value={`${pax} pax`} />
+          <button onClick={() => setStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
+            <SummaryCard icon={<Users className="w-4 h-4" />} label={p.wizardTravelers || 'Travelers'} value={`${pax} ${p.wizardPaxUnit || 'pax'}`} />
           </button>
         </div>
 
         <div className="text-xs text-white/40 space-y-1 border-t border-white/[0.06] pt-3">
-          <p><span className="text-white/25">Activities:</span> <span className="text-white/60">{selectedActivities.map(a => (p as any)[`act${a}`] || a).join(', ') || '-'}</span></p>
-          {hotelAddress && <p><span className="text-white/25">Hotel:</span> <span className="text-white/60">{hotelAddress}</span></p>}
+          <p><span className="text-white/25">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => (p as any)[`act${a}`] || a).join(', ') || '-'}</span></p>
+          {hotelAddress && <p><span className="text-white/25">{p.wizardHotelLabel || 'Hotel'}:</span> <span className="text-white/60">{hotelAddress}</span></p>}
 
         </div>
 
-        <p className="text-[10px] text-white/20 text-center">Tap any card to edit</p>
+        <p className="text-[10px] text-white/20 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
 
       {/* What You'll Get */}
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 sm:p-5">
-        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#7C5CFC]" /> What You'll Get</h3>
+        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#7C5CFC]" /> {p.wizardWhatYouGet || "What You'll Get"}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-          {WHAT_YOU_GET.map((item, i) => (
+          {[p.wizardGetItem1, p.wizardGetItem2, p.wizardGetItem3, p.wizardGetItem4, p.wizardGetItem5, p.wizardGetItem6, p.wizardGetItem7, p.wizardGetItem8].filter(Boolean).map((item: string, i: number) => (
             <div key={i} className="flex items-start gap-2 text-xs text-white/50">
               <Check className="w-3.5 h-3.5 text-green-400/70 shrink-0 mt-0.5" />
               <span>{item}</span>
@@ -647,7 +706,7 @@ export function WizardForm({ onSubmit, isLoading }: any) {
       {/* Price + Generate */}
       <div className="bg-gradient-to-br from-[#7C5CFC]/10 to-[#EA537E]/10 border border-[#7C5CFC]/20 rounded-2xl p-5 text-center space-y-4">
         <div>
-          <p className="text-sm text-white/50 mb-1">AI Travel Plan</p>
+          <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl font-bold text-white">$9.90</span>
             <span className="text-sm text-white/30">/ &#8361;13,300</span>
@@ -664,11 +723,11 @@ export function WizardForm({ onSubmit, isLoading }: any) {
           className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-50"
           style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 28px rgba(124,92,252,.4)' }}>
           <Shield className="w-5 h-5" />
-          {isLoading ? (p.generating || 'Creating your itinerary...') : 'Generate AI Itinerary'}
+          {isLoading ? (p.generating || 'Creating your itinerary...') : (p.wizardGenerateBtn || 'Generate AI Itinerary')}
         </button>
 
         <p className="text-[10px] text-white/30 flex items-center justify-center gap-1">
-          <Wallet className="w-3 h-3" /> Takes about 15 seconds after payment
+          <Wallet className="w-3 h-3" /> {p.wizardPaymentNote || 'Takes about 15 seconds after payment'}
         </p>
       </div>
 

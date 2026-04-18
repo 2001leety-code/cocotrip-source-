@@ -52,12 +52,18 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
     },
   ];
 
+  const [paused, setPaused] = useState(false);
+
   const nextSlide = useCallback(() => setPromoIdx(p => (p + 1) % PROMO_SLIDES.length), [PROMO_SLIDES.length]);
-  useEffect(() => { const t = setInterval(nextSlide, 4500); return () => clearInterval(t); }, [nextSlide]);
+  useEffect(() => { if (paused) return; const t = setInterval(nextSlide, 7000); return () => clearInterval(t); }, [nextSlide, paused]);
   const handleTouchStart = (e: React.TouchEvent) => setTouchStartX(e.touches[0].clientX);
   const handleTouchEnd = (e: React.TouchEvent) => {
     const diff = touchStartX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) setPromoIdx(p => diff > 0 ? (p + 1) % PROMO_SLIDES.length : (p - 1 + PROMO_SLIDES.length) % PROMO_SLIDES.length);
+    if (Math.abs(diff) > 50) {
+      setPromoIdx(p => diff > 0 ? (p + 1) % PROMO_SLIDES.length : (p - 1 + PROMO_SLIDES.length) % PROMO_SLIDES.length);
+      setPaused(true);
+      setTimeout(() => setPaused(false), 10000);
+    }
   };
 
   useEffect(() => {
@@ -78,16 +84,25 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
     })();
   }, [user]);
 
+  const [weatherCity, setWeatherCity] = useState('Seoul');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('cocotrip_last_region');
+      if (saved) setWeatherCity(saved);
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('https://wttr.in/Seoul?format=j1');
+        const res = await fetch(`https://wttr.in/${encodeURIComponent(weatherCity)}?format=j1`);
         const data = await res.json();
         const cur = data.current_condition?.[0];
         if (cur) setWeather({ temp: cur.temp_C + '\u00b0C', desc: cur.weatherDesc?.[0]?.value || '', icon: Number(cur.temp_C) > 20 ? '\u2600\ufe0f' : Number(cur.temp_C) > 10 ? '\u26c5' : '\u2744\ufe0f' });
       } catch { /* silent */ }
     })();
-  }, []);
+  }, [weatherCity]);
 
   const svcButtons = [
     { icon: Car, label: m.svcCharter || 'Charter', sub: m.svcCharterSub || 'Vehicle', link: '/charter', color: '#B668FC', d: 0 },
@@ -156,7 +171,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
           <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-purple-500/10 bg-purple-500/[0.03]">
             <CloudSun className="w-5 h-5 text-purple-300/60 shrink-0" />
             <div className="flex items-center gap-1.5 flex-1">
-              <span className="text-[13px] font-bold text-white">Seoul</span>
+              <span className="text-[13px] font-bold text-white">{weatherCity}</span>
               <span className="text-[12px] font-black text-pink-400">{weather.temp}</span>
               <span className="text-[13px]">{weather.icon}</span>
               <span className="text-[11px] text-white/25">{weather.desc}</span>

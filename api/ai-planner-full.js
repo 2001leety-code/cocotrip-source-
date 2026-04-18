@@ -724,6 +724,8 @@ export default async function handler(req, res) {
     const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
     const allergies = Array.isArray(body.allergies) ? body.allergies : [];
     const priceRange = body.priceRange || 'Any';
+    const wantAccom = !!body.wantAccom;
+    const accomBudget = body.accomBudget || 'moderate';
 
     const arrivalAddress = AIRPORT_ADDRESSES[arrival_airport] || '';
     const departureAddress = AIRPORT_ADDRESSES[departure_airport] || AIRPORT_ADDRESSES[arrival_airport] || '';
@@ -796,7 +798,19 @@ export default async function handler(req, res) {
       food_allergies: allergies.length > 0 ? allergies : undefined,
       meal_budget: priceRange !== 'Any' ? priceRange : undefined,
       variation_seed: Math.floor(Math.random() * 100) + 1,
-    }) + spotContext + foodContext + (() => {
+      want_accommodation: wantAccom || undefined,
+      accommodation_budget: wantAccom ? accomBudget : undefined,
+    }) + spotContext + foodContext + (wantAccom ? `
+
+[ACCOMMODATION REQUEST]
+The user wants hotel recommendations. Budget level: ${accomBudget}.
+Add an "accommodation" object to the JSON with:
+- "name": hotel name
+- "area": neighborhood
+- "price_range": estimated nightly rate in KRW
+- "why": 1-sentence reason this hotel fits the itinerary
+- "booking_tip": practical booking advice
+Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       const angles = [
         'Focus on hidden local gems and residential neighborhood charm',
         'Emphasize street food and market culture — let food drive the route',

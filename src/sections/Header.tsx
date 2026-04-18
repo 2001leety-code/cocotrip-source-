@@ -31,6 +31,16 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const { user } = useAuth();
   const location = useLocation();
   const langRef = useRef<HTMLDivElement>(null);
+  const [langToast, setLangToast] = useState<string | null>(null);
+  const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleLangChange = (code: Language) => {
+    onLanguageChange(code);
+    const label = languages.find(l => l.code === code)?.label || code;
+    setLangToast(label);
+    if (langToastTimer.current) clearTimeout(langToastTimer.current);
+    langToastTimer.current = setTimeout(() => setLangToast(null), 2000);
+  };
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -206,7 +216,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                     <button
                       key={lang.code}
                       onClick={() => {
-                        onLanguageChange(lang.code as Language);
+                        handleLangChange(lang.code as Language);
                         setIsLangMenuOpen(false);
                       }}
                       className="w-full px-4 py-2.5 text-left text-[13px] font-medium transition-all duration-150 flex items-center justify-between"
@@ -436,7 +446,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                     {languages.map((lang) => (
                       <button
                         key={lang.code}
-                        onClick={() => { onLanguageChange(lang.code as Language); }}
+                        onClick={() => { handleLangChange(lang.code as Language); }}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                         style={{
                           background: language === lang.code ? 'rgba(124,92,252,0.2)' : 'rgba(255,255,255,0.04)',
@@ -507,6 +517,18 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 <Link to="/travel-terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">Travel Terms</Link>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Language Toast */}
+      {langToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] animate-[fadeInDown_0.3s_ease-out]"
+          style={{ animation: 'fadeInDown 0.3s ease-out' }}>
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg"
+            style={{ background: 'rgba(124,92,252,0.9)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}>
+            <Globe className="w-4 h-4" />
+            {langToast}
           </div>
         </div>
       )}

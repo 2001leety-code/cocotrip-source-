@@ -102,7 +102,7 @@ function HomePage() {
 }
 
 function GlobalWidgets() {
-  const { language } = useLanguage();
+  const { language: _language } = useLanguage();
 
   // Google Redirect 로그인 결과 처리 (signInWithRedirect 폴백 후 페이지 복귀 시)
   useEffect(() => {

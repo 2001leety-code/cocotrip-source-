@@ -9,6 +9,9 @@ interface Props {
   p: any;
 }
 
+const SEL = 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white';
+const UNSEL = 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20';
+
 export function KpopShuttleBanner({ p }: Props) {
   const { language, t: globalT } = useLanguage();
   const concerts = useMemo(() => getUpcomingConcerts(), []);
