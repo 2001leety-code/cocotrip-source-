@@ -4,6 +4,23 @@
 - **Emoji 사용 금지** — 모든 아이콘은 `lucide-react`에서 import
 - 예: `<Check />`, `<MapPin />`, `<Car />` (NOT ✅, 📍, 🚗)
 - `lucide-react` 외 아이콘 라이브러리 추가 금지
+- **특히**: 템플릿 리터럴/문자열 내부(PDF HTML, 이메일, 주석)에도 이모지 금지
+  - 과거 사고: PDF HTML에 `✈️` `📍` 사용 → 에디터 저장 중 `?�️` `??` 로 mojibake → PDF 백지 + UI에 `??` 리터럴 노출
+  - 구분자가 필요하면 ASCII: `·` `—` `|` 또는 영문 단어 사용
+
+## 1.5. Character Encoding Safety (MOJIBAKE 방지) 🆕
+- **편집기 인코딩**: UTF-8 (BOM 없음) 고정
+- **문자열 리터럴 규칙**:
+  - 코드 내부 상수/라벨/PDF HTML/이메일 템플릿 → **순수 ASCII 우선**
+  - 사용자-facing 텍스트 → 반드시 `src/i18n/index.ts` 경유 (4개 언어)
+  - 한글/일본어/중국어 하드코딩 금지 (i18n 키로)
+- **박스 주석 금지**: `// ───── XXX ─────` 형태의 유니코드 박스 주석 신규 추가 금지
+- **이미 깨진 주석은 건들지 말 것**: `// ?�?�` 형태로 이미 mojibake된 주석을 "정리"하려고 재저장하면 악화됨 → 그대로 두기
+- **매 편집 후 필수 검증**:
+  ```bash
+  node -e "const f=require('fs').readFileSync('<파일>','utf8'); console.log(/\?\?/.test(f)||/\uFFFD/.test(f) ? 'BAD' : 'CLEAN');"
+  ```
+  `BAD` 나오면 커밋 금지
 
 ## 2. Internationalization (i18n)
 - **모든 사용자-facing 텍스트는 i18n 키로 처리**
@@ -67,6 +84,21 @@
 - **1000줄 이상 파일**: 수정 금지 → 반드시 먼저 컴포넌트 분리
 - **목표**: 페이지 100~200줄, 컴포넌트 150~300줄, 훅 50~150줄
 
+## 6.1. 파일 수정 Lock (현재 적용 중) 🆕
+아래 파일은 **분리 태스크 완료 전까지 수정 금지**. 버그 발견 시 사용자에게 보고만 하고 수정하지 말 것.
+
+| 파일 | 현재 줄 수 | Lock 사유 | 해제 조건 |
+|---|---|---|---|
+| `src/pages/PlannerPage.tsx` | 1991 | P0 분리 대상, 수정 금지선 2배 초과 | 6-7파일 분리 완료 |
+| `api/ai-planner-full.js` | 1273 | P1 분리 대상 (프롬프트 튜닝만 허용) | 3-4모듈 분리 완료 |
+| `src/pages/PlanDetailPage.tsx` | 1144 | P2 분리 대상 (PDF 백지 + mojibake 사고 이력) | 4-5파일 분리 완료 |
+| `src/components/WizardForm.tsx` | 807 | P3 분리 예고 (위험 구간 진입) | 3파일 분리 완료 |
+
+**예외**: `Emergency Exception` (`antigravity-4phase.md` §🚨) 발동 시만 수정 가능.  
+Emergency 후 48시간 내 `workflow_report.md` 작성 + 분리 채무 티켓 등록 의무.
+
+세부 금지 영역은 `.agent/workflows/anti-gravity-handoff.md` 참조.
+
 ## 7. File Organization
 ```
 src/components/   → 재사용 가능 컴포넌트
@@ -89,6 +121,7 @@ api/_shared/      → 서버 공통 헬퍼 (PayPal, 이메일 등)
 - unused import 반드시 제거
 - `// @ts-ignore` 사용 금지
 - **일상 검증**: `npx tsc --noEmit` (무료, 빠름)
+- **Mojibake 스캔** (`§1.5` 참조) — 편집 후 필수, tsc만으로는 잡히지 않음
 - **`npm run build` / `vite build`는 배포 직전 1회만** (Vercel 빌드 비용 절감)
 - 중복 상수 금지: TEST_ACCOUNTS 등 공통 값은 shared/constants에서만 관리
 

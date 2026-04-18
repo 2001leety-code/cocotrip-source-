@@ -5,12 +5,16 @@ description: AI 코딩 작업의 정확도/속도/비용을 최적화하는 마�
 # 🛠️ AI 코딩 워크플로우 — 마스터 문서
 
 > **이 문서의 우선순위:**
-> 이 문서 > `.agent/rules/*` > `.agent/workflows/*` > AI의 기본 판단
+> 이 문서 ≡ `antigravity-4phase.md` > `.agent/rules/*` > `.agent/workflows/*` > AI의 기본 판단
+> (마스터 문서 2개 충돌 시 더 보수적인 쪽 채택)
 >
 > **핵심 원칙 3가지:**
 > 1. 🎯 **질문 쪼개기** — 요청을 작고 구체적으로 → 정확도 ↑
 > 2. 📁 **파일 나누기** — 컴포넌트별 400줄 이내 → 실수 ↓
 > 3. ⚡ **병렬 작업** — 독립 파일 동시 수정 → 속도 ↑
+>
+> **Antigravity 작업 위임 시 추가 준수:**
+> `.agent/workflows/antigravity-4phase.md` (Phase 0~4) + `.agent/workflows/anti-gravity-handoff.md` (수정 금지 영역)
 
 ---
 
@@ -215,11 +219,38 @@ description: AI 코딩 작업의 정확도/속도/비용을 최적화하는 마�
 
 ---
 
+## 🚨 Emergency Exception (상용화/프로덕션 장애)
+
+아래 상황에서만 **3대 원칙 일부 우회 허용**:
+1. 프로덕션 서비스 장애 (결제 안 됨, 페이지 크래시, PDF 백지 등)
+2. 유료 사용자($9.90 결제자)에게 노출된 심각한 버그
+3. 보안 이슈
+4. 상용화 윈도우 데드라인 48시간 이내
+
+### Emergency 시 허용되는 것
+- 파일 크기 Lock 파일의 **surgical edit** (50줄 이내, 단일 파일 선호)
+- Antigravity 4-Phase 일부 생략 (Phase 1/2 스킵 → 즉시 Phase 3/4)
+
+### Emergency 시에도 금지되는 것
+- `tsc --noEmit` 실패 상태 커밋
+- Mojibake 스캔 실패 상태 커밋
+- `.agent/workflows/anti-gravity-handoff.md` §절대 금지 영역 수정
+- `CLAUDE.md §B` 절대 금지 규칙 위반
+
+### Emergency 사후 48시간 내 의무
+- [ ] `workflow_report.md` 작성 (원인 + 적용 diff + 재발 방지책)
+- [ ] Phase 1 소급 계획서 작성 (후속 정식 작업용)
+- [ ] 수정된 파일이 여전히 Lock 상태면 "분리 채무" 큐에 추가
+
+---
+
 ## 📎 참조 문서
 
 | 문서 | 내용 | 언제 읽는가 |
 |------|------|-----------|
-| `coding-rules.md` | 파일 크기 제한, 디자인 시스템, i18n, 빌드/Git 규칙 | **항상** |
+| `antigravity-4phase.md` | Antigravity PM 4-Phase 워크플로우 | **Antigravity 작업 위임 시 항상** |
+| `anti-gravity-handoff.md` | 절대 수정 금지 영역 + 이모지/mojibake 정책 | **모든 편집 전** |
+| `coding-rules.md` | 파일 크기 제한, 디자인 시스템, i18n, 인코딩, 빌드/Git | **항상** |
 | `project-context.md` | 기술 스택, 환경변수, 라우트, 폴더 구조 | **항상** |
 | `business-logic.md` | 가격, 결제, 마케팅, 인증 규칙 | **결제/예약 관련 작업 시** |
 | `deploy.md` | 배포 절차 (tsc → 빌드 1회 → push) | **배포 시** |
@@ -228,4 +259,5 @@ description: AI 코딩 작업의 정확도/속도/비용을 최적화하는 마�
 | `common-mistakes.md` | AI 반복 실수 10개 카테고리 + 체크리스트 | **코드 수정 전** |
 | `parallel-departments.md` | AI 에이전트 파이프라인 병렬 규칙 | **AI 플래너 API 수정 시** |
 | `quality-check.md` | 타입 검수 + 번역 검수 + 코드 검수 | **모든 작업 완료 후** |
+| `workflow_report.md` | Auto-Stop 또는 Emergency 사후 보고서 | **규칙 위반/장애 발생 시** |
 
