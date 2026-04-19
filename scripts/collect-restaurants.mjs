@@ -41,54 +41,153 @@ const BATCH_LIMIT = 5000; // per city per day
 const DELAY_MS = 200;     // between API calls (5 req/sec)
 
 // ── City configurations ─────────────────────────────────────────────────
+// NOTE: Naver Local Search API returns max 5 results per query.
+// We must use MANY unique, specific queries to accumulate data.
+// Each query yields ~3-5 unique results after dedup.
 const CITY_CONFIG = {
   jeju: {
     target: 150,
     city: 'jeju',
     searchQueries: [
-      // 한식 (50)
-      { q: '제주시 한식 맛집', tag: 'general', category: 'hansik', target: 15 },
-      { q: '서귀포시 한식 맛집', tag: 'general', category: 'hansik', target: 15 },
-      { q: '제주 흑돼지 맛집', tag: 'general', category: 'hansik', target: 10 },
-      { q: '제주 해녀의집', tag: 'general', category: 'hansik', target: 10 },
-      // 해산물 (50)
-      { q: '제주 회 맛집', tag: 'general', category: 'seafood', target: 15 },
-      { q: '제주 해산물 맛집', tag: 'general', category: 'seafood', target: 15 },
-      { q: '서귀포 해산물 맛집', tag: 'general', category: 'seafood', target: 10 },
-      { q: '제주 전복죽 맛집', tag: 'general', category: 'seafood', target: 10 },
-      // 카페 (30)
-      { q: '제주 카페 인기', tag: 'general', category: 'cafe', target: 15 },
-      { q: '서귀포 카페 맛집', tag: 'general', category: 'cafe', target: 15 },
-      // 비건 (20+)
-      { q: '제주 비건 식당', tag: 'vegan', category: 'vegan', target: 10 },
+      // ── 한식 (지역별 세분화) ──
+      { q: '제주시 한식 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '서귀포시 한식 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 흑돼지 구이', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 돼지고기 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 고기국수 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 갈치조림 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 보말칼국수', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 몸국 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주시 국수 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '서귀포 한식 식당', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 한정식', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 백반 식당', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주시 중앙로 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 탑동 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '제주 연동 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '제주 노형동 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '제주 애월 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '제주 함덕 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '제주 성산 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '제주 중문 맛집', tag: 'general', category: 'general', target: 5 },
+      // ── 해산물 ──
+      { q: '제주 회 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '제주 해산물 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '서귀포 해산물 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '제주 전복죽 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '제주 해녀 식당', tag: 'general', category: 'seafood', target: 5 },
+      { q: '제주 성게 요리', tag: 'general', category: 'seafood', target: 5 },
+      { q: '제주 물회 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '제주 횟집 추천', tag: 'general', category: 'seafood', target: 5 },
+      { q: '서귀포 회 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '제주 해물탕 맛집', tag: 'general', category: 'seafood', target: 5 },
+      // ── 카페/디저트 ──
+      { q: '제주 카페 인기', tag: 'general', category: 'cafe', target: 5 },
+      { q: '서귀포 카페 맛집', tag: 'general', category: 'cafe', target: 5 },
+      { q: '제주 애월 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '제주 함덕 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '제주 오션뷰 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '제주 디저트 맛집', tag: 'general', category: 'cafe', target: 5 },
+      { q: '제주 베이커리 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '제주 브런치 카페', tag: 'general', category: 'cafe', target: 5 },
+      // ── 기타 요리 ──
+      { q: '제주 일식 맛집', tag: 'general', category: 'japanese', target: 5 },
+      { q: '제주 초밥 맛집', tag: 'general', category: 'japanese', target: 5 },
+      { q: '제주 라멘 맛집', tag: 'general', category: 'japanese', target: 5 },
+      { q: '제주 중식 맛집', tag: 'general', category: 'chinese', target: 5 },
+      { q: '제주 양식 맛집', tag: 'general', category: 'western', target: 5 },
+      { q: '제주 파스타 맛집', tag: 'general', category: 'western', target: 5 },
+      { q: '제주 피자 맛집', tag: 'general', category: 'western', target: 5 },
+      { q: '제주 스테이크 맛집', tag: 'general', category: 'western', target: 5 },
+      { q: '제주 버거 맛집', tag: 'general', category: 'western', target: 5 },
+      // ── 비건/할랄 ──
+      { q: '제주 비건 식당', tag: 'vegan', category: 'vegan', target: 5 },
       { q: '제주 채식 식당', tag: 'vegan', category: 'vegan', target: 5 },
       { q: '제주 비건 카페', tag: 'vegan', category: 'vegan', target: 5 },
       { q: '제주 샐러드 식당', tag: 'vegan', category: 'vegan', target: 5 },
+      { q: '제주 채식 뷔페', tag: 'vegan', category: 'vegan', target: 5 },
     ],
   },
   gyeongju: {
     target: 100,
     city: 'gyeongju',
     searchQueries: [
-      { q: '경주 한식 맛집', tag: 'general', category: 'hansik', target: 20 },
-      { q: '경주 맛집 인기', tag: 'general', category: 'general', target: 20 },
-      { q: '경주 카페 인기', tag: 'general', category: 'cafe', target: 15 },
-      { q: '경주 해산물 맛집', tag: 'general', category: 'seafood', target: 10 },
-      { q: '경주 전통음식', tag: 'general', category: 'hansik', target: 10 },
-      { q: '경주 황남빵 콩국수', tag: 'general', category: 'hansik', target: 10 },
-      { q: '경주 불국사 근처 맛집', tag: 'general', category: 'general', target: 15 },
+      // ── 한식 (지역/메뉴 세분화) ──
+      { q: '경주 한식 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주시 맛집 추천', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 한정식 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 국밥 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 찜닭 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 삼겹살 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 콩국수 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 떡갈비', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 수제비 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 손두부 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '경주 쌈밥 맛집', tag: 'general', category: 'hansik', target: 5 },
+      // ── 관광지별 ──
+      { q: '경주 불국사 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 보문단지 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 황남동 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 교동 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 대릉원 근처 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 황리단길 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 동궁과월지 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '경주 첨성대 맛집', tag: 'general', category: 'general', target: 5 },
+      // ── 해산물 ──
+      { q: '경주 해산물 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '경주 회 맛집', tag: 'general', category: 'seafood', target: 5 },
+      { q: '경주 감포 횟집', tag: 'general', category: 'seafood', target: 5 },
+      // ── 카페/디저트 ──
+      { q: '경주 카페 인기', tag: 'general', category: 'cafe', target: 5 },
+      { q: '경주 황리단길 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '경주 디저트 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '경주 한옥 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '경주 브런치 카페', tag: 'general', category: 'cafe', target: 5 },
+      // ── 기타 ──
+      { q: '경주 양식 맛집', tag: 'general', category: 'western', target: 5 },
+      { q: '경주 일식 맛집', tag: 'general', category: 'japanese', target: 5 },
+      { q: '경주 중식 맛집', tag: 'general', category: 'chinese', target: 5 },
+      { q: '경주 파스타 맛집', tag: 'general', category: 'western', target: 5 },
     ],
   },
   jeonju: {
     target: 100,
     city: 'jeonju',
     searchQueries: [
-      { q: '전주 한옥마을 맛집', tag: 'general', category: 'hansik', target: 20 },
-      { q: '전주 비빔밥 맛집', tag: 'general', category: 'hansik', target: 15 },
-      { q: '전주 맛집 인기', tag: 'general', category: 'general', target: 20 },
-      { q: '전주 카페 인기', tag: 'general', category: 'cafe', target: 15 },
-      { q: '전주 한정식 맛집', tag: 'general', category: 'hansik', target: 15 },
-      { q: '전주 콩나물국밥', tag: 'general', category: 'hansik', target: 15 },
+      // ── 대표 요리 ──
+      { q: '전주 비빔밥 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 콩나물국밥 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 한정식 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 백반 식당', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 막걸리 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 꼬막비빔밥', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 삼겹살 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 국밥 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 한식 식당', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 떡갈비 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 갈비 맛집', tag: 'general', category: 'hansik', target: 5 },
+      { q: '전주 칼국수 맛집', tag: 'general', category: 'hansik', target: 5 },
+      // ── 관광지별 ──
+      { q: '전주 한옥마을 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '전주 한옥마을 식당', tag: 'general', category: 'general', target: 5 },
+      { q: '전주 객사 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '전주 남부시장 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '전주 덕진공원 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '전주역 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '전주 풍남동 맛집', tag: 'general', category: 'general', target: 5 },
+      { q: '전주 효자동 맛집', tag: 'general', category: 'general', target: 5 },
+      // ── 카페/디저트 ──
+      { q: '전주 카페 인기', tag: 'general', category: 'cafe', target: 5 },
+      { q: '전주 한옥 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '전주 디저트 카페', tag: 'general', category: 'cafe', target: 5 },
+      { q: '전주 베이커리 맛집', tag: 'general', category: 'cafe', target: 5 },
+      { q: '전주 초코파이 가게', tag: 'general', category: 'cafe', target: 5 },
+      // ── 기타 요리 ──
+      { q: '전주 일식 맛집', tag: 'general', category: 'japanese', target: 5 },
+      { q: '전주 양식 맛집', tag: 'general', category: 'western', target: 5 },
+      { q: '전주 중식 맛집', tag: 'general', category: 'chinese', target: 5 },
+      { q: '전주 파스타 맛집', tag: 'general', category: 'western', target: 5 },
+      { q: '전주 피자 맛집', tag: 'general', category: 'western', target: 5 },
     ],
   },
 };
@@ -128,7 +227,8 @@ function parseNaverResult(item, city, tag, category) {
 
   // Validate address starts with Korean city name
   const validPrefixes = ['서울', '부산', '제주', '인천', '경기', '강원', '충청',
-    '전라', '경상', '울산', '대구', '대전', '광주', '세종', '전북', '경북'];
+    '전라', '경상', '울산', '대구', '대전', '광주', '세종', '전북', '경북',
+    '충남', '충북', '경남', '전남', '강원특별자치도', '전북특별자치도', '제주특별자치도'];
   const startsWithCity = validPrefixes.some(p => address.startsWith(p));
   if (!startsWithCity) return null;
 
@@ -197,13 +297,13 @@ async function collectForCity(cityKey) {
     console.log(`\n  🔍 "${sq.q}" (target: ${sq.target}, tag: ${sq.tag})`);
     let collected = 0;
 
-    for (let start = 1; start <= 100 && collected < sq.target; start += 5) {
-      try {
-        const data = await naverLocalSearch(sq.q, start, 5);
-        apiCalls++;
+    // Naver Local API returns max 5 unique results per query.
+    // Pagination (start > 1) returns duplicates, so we do ONE call per query.
+    try {
+      const data = await naverLocalSearch(sq.q, 1, 5);
+      apiCalls++;
 
-        if (!data.items || data.items.length === 0) break;
-
+      if (data.items && data.items.length > 0) {
         for (const item of data.items) {
           const parsed = parseNaverResult(item, config.city, sq.tag, sq.category);
           if (!parsed) continue;
@@ -216,16 +316,14 @@ async function collectForCity(cityKey) {
           allResults.push(parsed);
           collected++;
         }
-
-        // Rate limiting
-        await new Promise(r => setTimeout(r, DELAY_MS));
-
-        if (data.items.length < 5) break; // No more results
-
-      } catch (err) {
-        console.error(`  ❌ API error: ${err.message}`);
-        await new Promise(r => setTimeout(r, 1000)); // Back off on error
       }
+
+      // Rate limiting
+      await new Promise(r => setTimeout(r, DELAY_MS));
+
+    } catch (err) {
+      console.error(`  ❌ API error: ${err.message}`);
+      await new Promise(r => setTimeout(r, 1000)); // Back off on error
     }
 
     console.log(`     → collected: ${collected}`);
