@@ -44,7 +44,7 @@ export default function PlanDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [addStopDay, setAddStopDay] = useState<number | null>(null);
 
-  // Plan editor (optimistic Firestore updates)
+  // Plan editor (optimistic Firestore updates + auto transit recalc)
   const editor = usePlanEditor(planId || '', plan, setPlan);
 
   // Drag sensors with distance constraint for mobile scroll compatibility
@@ -154,7 +154,7 @@ export default function PlanDetailPage() {
                 const activeMatch = String(active.id).match(/^day-(\d+)-stop-(\d+)$/);
                 const overMatch = String(over.id).match(/^day-(\d+)-stop-(\d+)$/);
                 if (activeMatch && overMatch && activeMatch[1] === overMatch[1]) {
-                  editor.reorderStops(parseInt(activeMatch[1], 10), parseInt(activeMatch[2], 10), parseInt(overMatch[2], 10));
+                  editor.reorderStops(parseInt(activeMatch[1], 10), parseInt(activeMatch[2], 10), parseInt(overMatch[2], 10), token);
                 }
               }}
             >
@@ -162,7 +162,8 @@ export default function PlanDetailPage() {
                 day={days[dayIdx]}
                 dayIndex={dayIdx}
                 editMode={editMode}
-                onDeleteStop={(di, si) => editor.deleteStop(di, si)}
+                isRecalculating={editor.isRecalculating}
+                onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
                 onAddStop={(di) => setAddStopDay(di)}
               />
             </DndContext>
@@ -210,7 +211,7 @@ export default function PlanDetailPage() {
           onClose={() => setAddStopDay(null)}
           onAdd={(stopData) => {
             if (addStopDay !== null) {
-              editor.addStop(addStopDay, stopData);
+              editor.addStop(addStopDay, stopData, token);
               setAddStopDay(null);
             }
           }}

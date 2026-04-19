@@ -16,11 +16,12 @@ interface DayTimelineProps {
   day: any;
   dayIndex: number;
   editMode: boolean;
+  isRecalculating?: boolean;
   onDeleteStop: (dayIdx: number, stopIdx: number) => void;
   onAddStop: (dayIdx: number) => void;
 }
 
-export function DayTimeline({ day, dayIndex, editMode, onDeleteStop, onAddStop }: DayTimelineProps) {
+export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop }: DayTimelineProps) {
   const { t } = useLanguage();
   const pd = (t as any).planDetail || {};
   const ed = pd.editor || {};
@@ -43,6 +44,14 @@ export function DayTimeline({ day, dayIndex, editMode, onDeleteStop, onAddStop }
 
       {/* Charter CTA -- shown when transit is complex */}
       <CharterCTA day={day} />
+
+      {/* Transit recalculating indicator */}
+      {isRecalculating && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-[#7C5CFC]/10 border border-[#7C5CFC]/20 rounded-xl">
+          <div className="w-3 h-3 border border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
+          <span className="text-[11px] text-[#7C5CFC]/80">{ed.routeRecalculating || 'Updating routes...'}</span>
+        </div>
+      )}
 
       {editMode ? (
         <SortableContext items={stopIds} strategy={verticalListSortingStrategy}>

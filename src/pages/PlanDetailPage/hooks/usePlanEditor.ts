@@ -1,7 +1,12 @@
-// Plan editor hook — optimistic Firestore updates with rollback.
-// Level 1 scope: same-day delete / add / reorder. No transit recalculation.
+// Plan editor hook -- optimistic Firestore updates with rollback.
+// Level 2: delete / add / reorder + automatic transit recalculation.
+// After any edit, stale transits are sent to /api/recalc-transit for
+// server-side ODsay + Naver refresh. The plan auto-updates via the
+// existing Firestore onSnapshot listener in index.tsx.
+import { useState, useCallback, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 
 interface StopData {
   name: string;
@@ -20,6 +25,10 @@ export function usePlanEditor(
   plan: any,
   setPlan: (updater: (prev: any) => any) => void,
 ) {
+  const { user } = useAuth();
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Persist updated days array to Firestore
   async function commitDays(nextDays: any[], snapshot: any) {
     try {
@@ -46,7 +55,45 @@ export function usePlanEditor(
     }
   }
 
-  async function deleteStop(dayIdx: number, stopIdx: number) {
+  // Schedule transit recalculation (debounced 2s after last edit)
+  const scheduleRecalc = useCallback((dayIdx: number, token: string | null) => {
+    if (recalcTimerRef.current) {
+      clearTimeout(recalcTimerRef.current);
+    }
+    recalcTimerRef.current = setTimeout(() => {
+      recalcTransit(dayIdx, token);
+    }, 2000);
+  }, [planId, user]);
+
+  // Call /api/recalc-transit to refresh stale segments
+  const recalcTransit = useCallback(async (dayIdx: number, token: string | null) => {
+    if (!planId) return;
+    setIsRecalculating(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (user && user.uid) {
+        headers['Authorization'] = `Bearer ${user.uid}`;
+      }
+      const res = await fetch('/api/recalc-transit', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ planId, dayIndex: dayIdx, token }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('[planEditor] recalc-transit failed:', data.error);
+      } else {
+        console.log(`[planEditor] Transit recalculated: ${data.recalculated} segment(s)`);
+        // Firestore onSnapshot will auto-update the local plan state
+      }
+    } catch (e) {
+      console.error('[planEditor] recalc-transit request failed:', e);
+    } finally {
+      setIsRecalculating(false);
+    }
+  }, [planId, user]);
+
+  async function deleteStop(dayIdx: number, stopIdx: number, token?: string | null) {
     if (!plan || !plan.itinerary) return;
     const snapshot = structuredClone(plan);
     const nextDays = structuredClone(plan.itinerary.days);
@@ -65,9 +112,10 @@ export function usePlanEditor(
       lastEditedAt: Date.now(),
     }));
     await commitDays(nextDays, snapshot);
+    scheduleRecalc(dayIdx, token || null);
   }
 
-  async function addStop(dayIdx: number, stopData: Partial<StopData>) {
+  async function addStop(dayIdx: number, stopData: Partial<StopData>, token?: string | null) {
     if (!plan || !plan.itinerary) return;
     const snapshot = structuredClone(plan);
     const nextDays = structuredClone(plan.itinerary.days);
@@ -82,6 +130,13 @@ export function usePlanEditor(
       tip: '',
       order: nextDays[dayIdx].stops.length + 1,
       _userAdded: true,
+      transit_from_prev: {
+        method: 'walk',
+        est_min: 10,
+        est_fare_krw: 0,
+        _stale: true,
+        source: 'placeholder',
+      },
     };
     nextDays[dayIdx].stops.push(newStop);
 
@@ -92,9 +147,10 @@ export function usePlanEditor(
       lastEditedAt: Date.now(),
     }));
     await commitDays(nextDays, snapshot);
+    scheduleRecalc(dayIdx, token || null);
   }
 
-  async function reorderStops(dayIdx: number, oldIdx: number, newIdx: number) {
+  async function reorderStops(dayIdx: number, oldIdx: number, newIdx: number, token?: string | null) {
     if (!plan || !plan.itinerary) return;
     if (oldIdx === newIdx) return;
     const snapshot = structuredClone(plan);
@@ -120,7 +176,8 @@ export function usePlanEditor(
       lastEditedAt: Date.now(),
     }));
     await commitDays(nextDays, snapshot);
+    scheduleRecalc(dayIdx, token || null);
   }
 
-  return { deleteStop, addStop, reorderStops };
+  return { deleteStop, addStop, reorderStops, recalcTransit, isRecalculating };
 }
