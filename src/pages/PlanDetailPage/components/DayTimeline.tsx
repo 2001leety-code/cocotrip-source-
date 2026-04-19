@@ -9,6 +9,7 @@ import { TransitArrow } from './TransitArrow';
 import { SortableStopCard } from './SortableStopCard';
 import { StopCard } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
+import { CharterCTA } from './CharterCTA';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface DayTimelineProps {
@@ -39,6 +40,9 @@ export function DayTimeline({ day, dayIndex, editMode, onDeleteStop, onAddStop }
           {day.date && <p className="text-[10px] text-white/30">{day.date}</p>}
         </div>
       </div>
+
+      {/* Charter CTA -- shown when transit is complex */}
+      <CharterCTA day={day} />
 
       {editMode ? (
         <SortableContext items={stopIds} strategy={verticalListSortingStrategy}>
