@@ -18,7 +18,10 @@ const FOOD_DATA_DIR = join(ROOT, '..', '..', 'food_data');
 const OUTPUT_PATH = join(ROOT, 'api', '_food_index.json');
 
 const MIN_RATING = 4.5;
+const MIN_RATING_NEW_CITIES = 4.0; // Lower threshold for new cities (less data available)
 const MIN_REVIEWS = 50;
+const MIN_REVIEWS_NEW_CITIES = 10; // Lower for new cities
+const NEW_CITIES = ['jeju', 'gyeongju', 'jeonju'];
 
 // Fields to keep (minimize size)
 const KEEP_FIELDS = [
@@ -27,6 +30,7 @@ const KEEP_FIELDS = [
   'priceLevel', 'priceLabel', 'priceLabelKo', 'priceRange',
   'tag', 'placeId', 'googleMapsUrl',
   'city', 'dong', 'dongEn', 'district',
+  'source', 'naverLink', // for Naver-collected data traceability
 ];
 
 function loadJson(filePath) {
@@ -59,19 +63,35 @@ function main() {
   console.log('🍽️  CocoTrip — Building Food Index');
   console.log(`   Filter: rating ≥ ${MIN_RATING}, reviews ≥ ${MIN_REVIEWS}\n`);
 
-  // Load all three files
+  // Load all three base files
   const general = loadJson(join(FOOD_DATA_DIR, 'restaurants_general.json'));
   const halal   = loadJson(join(FOOD_DATA_DIR, 'restaurants_halal.json'));
   const vegan   = loadJson(join(FOOD_DATA_DIR, 'restaurants_vegan.json'));
 
+  // Load city-collected files (from collect-restaurants.mjs)
+  const jeju     = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeju_collected.json'));
+  const gyeongju = loadJson(join(FOOD_DATA_DIR, 'restaurants_gyeongju_collected.json'));
+  const jeonju   = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeonju_collected.json'));
+
   // Combine all
-  const all = [...general, ...halal, ...vegan];
+  const all = [...general, ...halal, ...vegan, ...jeju, ...gyeongju, ...jeonju];
   console.log(`\n  📊 Total raw items: ${all.length}`);
 
-  // Filter by rating & reviews
+  // Filter by rating & reviews (different thresholds for new vs established cities)
   const filtered = all.filter(r => {
     const rating = Number(r.rating) || 0;
     const reviews = Number(r.reviewCount) || 0;
+    const city = (r.city || '').toLowerCase();
+    const isNewCity = NEW_CITIES.includes(city);
+    const isNaverCollected = r.source === 'naver_local';
+
+    // Naver Local API doesn't provide ratings — include all collected items
+    if (isNaverCollected) return true;
+
+    // Different thresholds for established vs new cities
+    if (isNewCity) {
+      return rating >= MIN_RATING_NEW_CITIES && reviews >= MIN_REVIEWS_NEW_CITIES;
+    }
     return rating >= MIN_RATING && reviews >= MIN_REVIEWS;
   });
   console.log(`  ✅ After rating/review filter: ${filtered.length}`);
