@@ -130,3 +130,8 @@ api/_shared/      → 서버 공통 헬퍼 (PayPal, 이메일 등)
 - 한 커밋에 관련 변경만 포함
 - 배포 전 `npx tsc --noEmit` 통과 확인 후 push
 - **git push는 모든 수정 완료 후 1회만** (Vercel 빌드 비용 절감)
+- **push 후 배포 검증 필수**: `.agent/workflows/post-push-verification.md` 참조
+  - Vercel 빌드 Ready 확인 (브라우저로 직접)
+  - cocotripkr.com 프로덕션 페이지 로드 확인 (브라우저로 직접)
+  - 변경된 페이지 UI 정상 확인
+  - 결과를 표로 정리하여 사용자에게 보고
