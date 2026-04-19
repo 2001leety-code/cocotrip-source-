@@ -19,7 +19,7 @@
  */
 
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import axios from 'axios';
 import { searchTransitRoute, formatTransitSummary } from './_odsay_helper.js';
 
@@ -235,10 +235,15 @@ export default async function handler(req, res) {
     });
 
     console.log(`[recalc-transit] Done. Recalculated ${recalculated} segment(s)`);
+
+    // ── Stats tracking (non-blocking) ──
+    recordRecalcStat('success').catch(() => {});
+
     return res.status(200).json({ ok: true, recalculated });
 
   } catch (err) {
     console.error('[recalc-transit] Error:', err);
+    recordRecalcStat('error').catch(() => {});
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -252,4 +257,21 @@ function formatTime(totalMin) {
   const h = Math.floor(totalMin / 60) % 24;
   const m = totalMin % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// ── Firestore stats counter (non-blocking) ──────────────────────────────
+async function recordRecalcStat(outcome) {
+  try {
+    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const monthKey = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}`;
+    const dayKey = `${monthKey}-${String(kst.getDate()).padStart(2, '0')}`;
+    const field = outcome === 'success' ? 'recalcSuccess' : 'recalcError';
+    const inc = FieldValue.increment(1);
+
+    await db.collection('api_stats').doc(monthKey)
+      .collection('daily').doc(dayKey)
+      .set({ [field]: inc, lastUpdated: new Date().toISOString() }, { merge: true });
+  } catch (e) {
+    console.warn('[recalc-transit] Stats write error:', e.message);
+  }
 }
