@@ -31,11 +31,11 @@ if [ -n "$SCAN_FILES" ]; then
       // Skip docs that document mojibake patterns as examples
       if (f.startsWith(".agent/") && f.endsWith(".md")) continue;
       if (f.startsWith("docs/") && f.endsWith(".md")) continue;
-      // Skip P1 Lock file: pre-existing nullish coalescing operators at
-      // L119/L619/L1053/L1123 are legitimate ES2020, not mojibake.
-      // Prompt-tuning-only edits (per coding-rules.md 6.1) do not
-      // introduce new ?? -- manual diff review catches regressions.
+      // Skip P1 modules with legitimate ?? operators:
+      // - buildPrompt.js: injectedRestaurants ?? 0 (original L119)
+      // - planPersister.js: body.adults ?? pax, body.children ?? 0 (original L1123/1124)
       if (f.endsWith("api/ai-planner-full.js")) continue;
+      if (f.startsWith("api/_ai_core/") && f.endsWith(".js")) continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);
@@ -75,7 +75,7 @@ check_lock() {
 
 VIOLATIONS=0
 check_lock "src/pages/PlannerPage/index.tsx" 400 "P0 Released — per-file limit" || VIOLATIONS=$((VIOLATIONS+1))
-check_lock "api/ai-planner-full.js" 1350 "P1 Lock (prompt tuning only)" || VIOLATIONS=$((VIOLATIONS+1))
+check_lock "api/ai-planner-full.js" 500 "P1 Released — per-file limit" || VIOLATIONS=$((VIOLATIONS+1))
 check_lock "src/pages/PlanDetailPage.tsx" 1200 "P2 Lock (do-not-touch until split)" || VIOLATIONS=$((VIOLATIONS+1))
 check_lock "src/components/WizardForm.tsx" 900 "P3 Lock" || VIOLATIONS=$((VIOLATIONS+1))
 

@@ -90,7 +90,7 @@
 | 파일 | 현재 줄 수 | Lock 사유 | 해제 조건 |
 |---|---|---|---|
 | ~~`src/pages/PlannerPage.tsx`~~ | ~~1991~~ | **[P0 Released 2026-04-19]** -> `src/pages/PlannerPage/` 22 files (max 283L) | - |
-| `api/ai-planner-full.js` | 1273 | P1 split target (prompt tuning only) | 6-module split |
+| `api/ai-planner-full.js` | ~~1273~~ → 461 | **[P1 Released 2026-04-19]** -> `api/_ai_core/` 6 modules (max 347L) | - |
 | ~~`src/pages/PlanDetailPage.tsx`~~ | ~~1144~~ | **[해제 완료 2026-04-19]** → `src/pages/PlanDetailPage/` 10파일 분리 (max 521L) | - |
 | ~~`src/components/WizardForm.tsx`~~ | ~~807~~ | **[해제 완료 2026-04-18]** → `src/components/WizardForm/` 7파일 분리 (각 <=245L) | - |
 
