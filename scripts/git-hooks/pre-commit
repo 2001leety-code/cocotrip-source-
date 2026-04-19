@@ -1,6 +1,6 @@
 #!/bin/sh
 # CocoTrip pre-commit hook
-# Checks: mojibake in staged files, tsc --noEmit, Lock file size
+# Checks: mojibake in staged files, tsc -b --force (Vercel parity), Lock file size
 # Bypass (use only with explicit user approval): git commit --no-verify
 
 set -e
@@ -79,12 +79,14 @@ if [ "$VIOLATIONS" -gt 0 ]; then
   exit 1
 fi
 
-# 3. Type check (only if TS/TSX files staged)
+# 3. Type check -- uses tsc -b (project build mode) to match Vercel strictness.
+#    tsc --noEmit misses TS6133 (unused imports) that tsc -b catches as errors.
+#    --force ensures incremental cache doesn't skip changed files.
 TS_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx)$' || true)
 if [ -n "$TS_FILES" ]; then
-  echo "[pre-commit] Running tsc --noEmit..."
-  if ! npx --no-install tsc --noEmit > /dev/null 2>&1; then
-    echo "[pre-commit] TypeScript errors detected. Run 'npx tsc --noEmit' for details."
+  echo "[pre-commit] Running tsc -b --force..."
+  if ! npx --no-install tsc -b --force > /dev/null 2>&1; then
+    echo "[pre-commit] TypeScript build errors detected. Run 'npx tsc -b --force' for details."
     exit 1
   fi
 fi
