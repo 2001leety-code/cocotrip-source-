@@ -1,6 +1,6 @@
 // Outro slide: PDF download, WhatsApp, revision card, seasonal banner.
 // Last slide in the swipe carousel.
-import { Download, MessageCircle, RefreshCw } from 'lucide-react';
+import { Download, MessageCircle } from 'lucide-react';
 import { BudgetTable } from './BudgetTable';
 import { DepartureGuide } from './DepartureGuide';
 import { SeasonalBanner } from './SeasonalBanner';
