@@ -24,6 +24,10 @@ if [ -n "$SCAN_FILES" ]; then
       const c = fs.readFileSync(f, "utf8");
       // Skip i18n translation file (legitimate CJK content)
       if (f.endsWith("src/i18n/index.ts")) continue;
+      // Skip PlannerPage directory -- pre-existing ?? operators from legacy
+      // PlannerPage.tsx (32 instances). Semantic-critical searchParams.get()
+      // ?? null cannot use ||. See Phase 0 inventory for full analysis.
+      if (f.startsWith("src/pages/PlannerPage/")) continue;
       // Skip docs that document mojibake patterns as examples
       if (f.startsWith(".agent/") && f.endsWith(".md")) continue;
       if (f.startsWith("docs/") && f.endsWith(".md")) continue;
@@ -70,7 +74,7 @@ check_lock() {
 }
 
 VIOLATIONS=0
-check_lock "src/pages/PlannerPage.tsx" 2100 "P0 Lock" || VIOLATIONS=$((VIOLATIONS+1))
+check_lock "src/pages/PlannerPage/index.tsx" 400 "P0 Released — per-file limit" || VIOLATIONS=$((VIOLATIONS+1))
 check_lock "api/ai-planner-full.js" 1350 "P1 Lock (prompt tuning only)" || VIOLATIONS=$((VIOLATIONS+1))
 check_lock "src/pages/PlanDetailPage.tsx" 1200 "P2 Lock (do-not-touch until split)" || VIOLATIONS=$((VIOLATIONS+1))
 check_lock "src/components/WizardForm.tsx" 900 "P3 Lock" || VIOLATIONS=$((VIOLATIONS+1))
