@@ -1,0 +1,45 @@
+name: Daily Health Check
+
+on:
+  schedule:
+    # UTC 00:00 = KST 09:00 매일
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Daily Health Check
+        env:
+          # validate-planner.js uses TEST- prefix PayPal bypass
+          # No additional secrets needed for health check
+          NODE_OPTIONS: '--experimental-fetch'
+        run: node scripts/daily-health-check.mjs
+
+      - name: Upload health log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-log-${{ github.run_id }}
+          path: scripts/health-log.jsonl
+          retention-days: 90
+
+      - name: Commit health log
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scripts/health-log.jsonl scripts/planner-report.json
+          git diff --cached --quiet || git commit -m "chore: daily health check $(date -u +%Y-%m-%d)"
+          git push || echo "Push failed (likely protected branch)"

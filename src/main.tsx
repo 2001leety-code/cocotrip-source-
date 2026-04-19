@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'
 import './index.css'
 import App from './App.tsx'
+import { initGA } from './lib/analytics'
 
 // ── Sentry 에러 모니터링 (프로덕션 전용) ──
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
@@ -44,6 +45,9 @@ window.addEventListener('unhandledrejection', (e) => {
     console.warn('[Firestore] Suppressed unhandled rejection — safe to ignore');
   }
 });
+
+// ── GA4 Analytics 초기화 (VITE_GA_MEASUREMENT_ID 없으면 no-op) ──
+initGA();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

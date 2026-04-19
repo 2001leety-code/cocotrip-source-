@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
@@ -54,6 +54,7 @@ import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
 import CookieBanner from '@/components/CookieBanner';
+import { trackPageView } from '@/lib/analytics';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -111,12 +112,22 @@ function GlobalWidgets() {
 
   return (
     <>
+      <PageViewTracker />
       <EarlyBirdBanner />
       <KpopConcertPopup />
       <MobileBottomNav />
       <CookieBanner />
     </>
   );
+}
+
+// ── GA4 SPA page view tracking ──
+function PageViewTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location.pathname, location.search]);
+  return null;
 }
 
 function App() {
