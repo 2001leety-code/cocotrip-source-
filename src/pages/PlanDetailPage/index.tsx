@@ -28,6 +28,11 @@ import { ArrivalGuide } from './components/ArrivalGuide';
 import { DayTimeline } from './components/DayTimeline';
 import { BudgetTable } from './components/BudgetTable';
 import { DepartureGuide } from './components/DepartureGuide';
+import { EditModeToggle } from './components/EditModeToggle';
+import { AddStopModal } from './components/AddStopModal';
+import { usePlanEditor } from './hooks/usePlanEditor';
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 
 export default function PlanDetailPage() {
   const { planId } = useParams();
@@ -45,6 +50,17 @@ export default function PlanDetailPage() {
   const contentRef = useRef<HTMLDivElement>(null);
   const [_isRegenerating] = useState(false);
   const [_regenError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [addStopDay, setAddStopDay] = useState<number | null>(null);
+
+  // Plan editor (optimistic Firestore updates)
+  const editor = usePlanEditor(planId || '', plan, setPlan);
+
+  // Drag sensors with distance constraint for mobile scroll compatibility
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  );
 
   // Firestore listener
   useEffect(() => {
@@ -219,35 +235,74 @@ export default function PlanDetailPage() {
             );
           })()}
 
-          {/* Day Tab Bar */}
-          {days.length > 1 && (
-            <div
-              ref={tabBarRef}
-              className={`flex gap-2 mb-6 overflow-x-auto scrollbar-hide sticky top-16 z-20 backdrop-blur-sm py-3 -mx-4 px-4 sm:justify-center ${isMobile ? 'bg-[#0a0412]/95' : 'bg-[#0a0b14]/95'}`}
-            >
-              {days.map((_: any, i: number) => (
-                <button
-                  key={i}
-                  onClick={() => handleTabSwitch(i)}
-                  className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
-                    activeDay === i
-                      ? `text-white shadow-lg ${isMobile ? 'shadow-[#B668FC]/20' : 'shadow-[#7C5CFC]/20'}`
-                      : 'bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white/80'
-                  }`}
-                  style={activeDay === i ? { background: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)' } : undefined}
-                >
-                  Day {i + 1}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Day Tab Bar + Edit Toggle */}
+          <div className="flex items-center gap-2 mb-6 sticky top-16 z-20 backdrop-blur-sm py-3 -mx-4 px-4" style={{ background: isMobile ? 'rgba(10,4,18,0.95)' : 'rgba(10,11,20,0.95)' }}>
+            {days.length > 1 && (
+              <div
+                ref={tabBarRef}
+                className="flex gap-2 overflow-x-auto scrollbar-hide flex-1 sm:justify-center"
+              >
+                {days.map((_: any, i: number) => (
+                  <button
+                    key={i}
+                    onClick={() => handleTabSwitch(i)}
+                    className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                      activeDay === i
+                        ? `text-white shadow-lg ${isMobile ? 'shadow-[#B668FC]/20' : 'shadow-[#7C5CFC]/20'}`
+                        : 'bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white/80'
+                    }`}
+                    style={activeDay === i ? { background: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)' } : undefined}
+                  >
+                    Day {i + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+            <EditModeToggle editMode={editMode} onToggle={() => setEditMode(!editMode)} />
+          </div>
 
           {/* Active Day Content */}
           {days.length > 0 && (
-            <div key={fadeKey} className="animate-fadeIn">
-              <DayTimeline day={days[activeDay]} dayIndex={activeDay} />
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(event: DragEndEvent) => {
+                const { active, over } = event;
+                if (!over || active.id === over.id) return;
+                // Parse day-{dayIdx}-stop-{stopIdx} format
+                const activeMatch = String(active.id).match(/^day-(\d+)-stop-(\d+)$/);
+                const overMatch = String(over.id).match(/^day-(\d+)-stop-(\d+)$/);
+                if (activeMatch && overMatch && activeMatch[1] === overMatch[1]) {
+                  const dayIdx = parseInt(activeMatch[1], 10);
+                  const oldIdx = parseInt(activeMatch[2], 10);
+                  const newIdx = parseInt(overMatch[2], 10);
+                  editor.reorderStops(dayIdx, oldIdx, newIdx);
+                }
+              }}
+            >
+              <div key={fadeKey} className="animate-fadeIn">
+                <DayTimeline
+                  day={days[activeDay]}
+                  dayIndex={activeDay}
+                  editMode={editMode}
+                  onDeleteStop={(dayIdx, stopIdx) => editor.deleteStop(dayIdx, stopIdx)}
+                  onAddStop={(dayIdx) => setAddStopDay(dayIdx)}
+                />
+              </div>
+            </DndContext>
           )}
+
+          {/* Add Stop Modal */}
+          <AddStopModal
+            open={addStopDay !== null}
+            onClose={() => setAddStopDay(null)}
+            onAdd={(stopData) => {
+              if (addStopDay !== null) {
+                editor.addStop(addStopDay, stopData);
+                setAddStopDay(null);
+              }
+            }}
+          />
 
           {/* Budget Table */}
           {budget.length > 0 && <BudgetTable budget={budget} tMoney={it.t_money_recommended_load} />}
