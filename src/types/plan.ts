@@ -38,12 +38,16 @@ export interface Stop {
   /** 검증된 DB에서 가져왔는지 여부 */
   verified?: boolean;
 
-  // RouteAgent가 채우는 필드
+  // RouteAgent fields
   lat?: number;
   lng?: number;
   naverMapUrl?: string;
   transit_from_prev?: TransitFromPrev | null;
   travelFromPrev?: any;
+
+  // Editor + RouteAgent metadata
+  _userAdded?: boolean;
+  _geocoded?: boolean;
 }
 
 export interface RecommendedItem {
@@ -55,10 +59,15 @@ export interface RecommendedItem {
 export interface TransitFromPrev {
   method: 'subway' | 'taxi' | 'walk' | 'bus' | 'car';
   instruction?: string;
+  instruction_en?: string;
   step_by_step?: string[];
   est_min?: number;
   est_fare_krw?: number;
-  source?: 'odsay' | 'naver' | 'gemini';
+  source?: 'odsay' | 'naver' | 'gemini' | 'naver_fallback' | 'downgrade';
+  from_label?: string;
+  _downgraded_from?: string;
+  _odsay_failed?: boolean;
+  _stale?: boolean;
 }
 
 export interface Day {

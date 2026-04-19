@@ -28,6 +28,7 @@ export class RouteAgent extends BaseAgent {
         // Support both Gemini output formats
         const rawItinerary = data.itinerary || {};
         const hotelAddress = data.hotel_address || '';
+        const region = data.area || data.region || '';
         const daysList = Array.isArray(rawItinerary) ? rawItinerary : (rawItinerary.days || []);
 
         for (const dayPlan of daysList) {
@@ -41,28 +42,37 @@ export class RouteAgent extends BaseAgent {
                 const name = place.name || place.name_ko || place.display_name || place.name_en || "";
                 let lat = null;
                 let lng = null;
-                if (clientId && clientSecret && address) {
-                    try {
-                        const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
-                        const res = await axios.get(geoUrl, {
-                            params: { query: address },
-                            headers: {
-                                "X-NCP-APIGW-API-KEY-ID": clientId,
-                                "X-NCP-APIGW-API-KEY": clientSecret,
-                            },
-                            timeout: 5000,
-                        });
-                        if (res.status === 200 && res.data.addresses?.length > 0) {
-                            lng = parseFloat(res.data.addresses[0].x);
-                            lat = parseFloat(res.data.addresses[0].y);
+                // Layer 2: Geocoding multi-fallback (address -> name+region -> display_name)
+                if (clientId && clientSecret) {
+                    const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
+                    const queries = [
+                        address,
+                        name && region ? `${name} ${region}` : '',
+                        place.display_name || place.name_en || '',
+                    ].filter(Boolean);
+                    for (const query of queries) {
+                        try {
+                            const res = await axios.get(geoUrl, {
+                                params: { query },
+                                headers: {
+                                    "X-NCP-APIGW-API-KEY-ID": clientId,
+                                    "X-NCP-APIGW-API-KEY": clientSecret,
+                                },
+                                timeout: 5000,
+                            });
+                            if (res.status === 200 && res.data.addresses && res.data.addresses.length > 0) {
+                                lng = parseFloat(res.data.addresses[0].x);
+                                lat = parseFloat(res.data.addresses[0].y);
+                                break;
+                            }
+                        } catch (e) {
+                            console.error(`  - [${name}] geocoding fallback failed for "${query}": ${e.message}`);
                         }
-                    }
-                    catch (e) {
-                        console.error(`  - [${name}] 좌표 변환 실패: ${e.message}`);
                     }
                 }
                 place.lat = lat;
                 place.lng = lng;
+                place._geocoded = lat !== null;
                 const nameKo = place.name || place.name_ko || place.display_name || place.name_en || name;
                 place.naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(nameKo)}`;
             }
@@ -227,8 +237,11 @@ export class RouteAgent extends BaseAgent {
             console.log(`  [Route] Day ${dayPlan.day || '?'}: ${places.length} stops, time-stitched ${this._formatTime(this._parseTime(places[0]?.start_time || "09:00"))} ~ ${places[places.length - 1]?.start_time || '?'}`);
         }
 
+        // Layer 4: Enforce transit completeness invariant
+        this._enforceTransitCompleteness(data);
+
         const finalJsonStr = JSON.stringify(data, null, 2);
-        console.log("  [Route] enrichment complete (Naver + ODsay + Time Stitch)");
+        console.log("  [Route] enrichment complete (Naver + ODsay + Time Stitch + Completeness Gate)");
         return {
             agentName: this.agentKey,
             systemPrompt: this.systemPrompt,
@@ -265,8 +278,8 @@ export class RouteAgent extends BaseAgent {
                 },
                 timeout: 5000,
             }) : Promise.reject(new Error('no credentials')),
-            // ODsay Transit
-            searchTransitRoute(prev.lng, prev.lat, curr.lng, curr.lat),
+            // ODsay Transit (Layer 3: retry with 500ms backoff, 10s timeout)
+            this._searchOdsayWithRetry(prev.lng, prev.lat, curr.lng, curr.lat),
         ]);
 
         // Naver 결과 처리
@@ -287,6 +300,55 @@ export class RouteAgent extends BaseAgent {
         }
 
         return { index, durationMin, distanceKm, drivingMin, publicTransit };
+    }
+
+    /**
+     * Layer 3: ODsay search with 500ms backoff retry (max 2 attempts)
+     */
+    async _searchOdsayWithRetry(sx, sy, ex, ey) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const result = await searchTransitRoute(sx, sy, ex, ey);
+                return result;
+            } catch (e) {
+                if (attempt === 0) {
+                    console.warn(`  - [ODsay] attempt 1 failed, retrying in 500ms: ${e.message}`);
+                    await new Promise(r => setTimeout(r, 500));
+                } else {
+                    console.warn(`  - [ODsay] attempt 2 failed, giving up: ${e.message}`);
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Layer 4: Enforce transit completeness invariant.
+     * subway/bus without step_by_step -> downgrade to car.
+     */
+    _enforceTransitCompleteness(data) {
+        const days = (data.itinerary && data.itinerary.days) || data.days || [];
+        let downgradeCount = 0;
+        for (const day of days) {
+            for (const stop of (day.stops || [])) {
+                const t = stop.transit_from_prev;
+                if (!t) continue;
+                const needsDetail = t.method === 'subway' || t.method === 'bus';
+                const hasDetail = Array.isArray(t.step_by_step)
+                    && t.step_by_step.length > 0
+                    && (t.instruction || t.instruction_en);
+                if (needsDetail && !hasDetail) {
+                    t._downgraded_from = t.method;
+                    t.method = 'car';
+                    t.source = 'downgrade';
+                    downgradeCount++;
+                }
+            }
+        }
+        if (downgradeCount > 0) {
+            console.log(`  [Route] enforceTransitCompleteness: downgraded ${downgradeCount} transit(s)`);
+        }
     }
 
     /** "HH:MM" → 분(number) */
