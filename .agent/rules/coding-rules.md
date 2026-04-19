@@ -91,7 +91,7 @@
 |---|---|---|---|
 | `src/pages/PlannerPage.tsx` | 1991 | P0 분리 대상, 수정 금지선 2배 초과 | 6-7파일 분리 완료 |
 | `api/ai-planner-full.js` | 1273 | P1 분리 대상 (프롬프트 튜닝만 허용) | 3-4모듈 분리 완료 |
-| `src/pages/PlanDetailPage.tsx` | 1144 | P2 분리 대상 (PDF 백지 + mojibake 사고 이력) | 4-5파일 분리 완료 |
+| ~~`src/pages/PlanDetailPage.tsx`~~ | ~~1144~~ | **[해제 완료 2026-04-19]** → `src/pages/PlanDetailPage/` 10파일 분리 (max 521L) | - |
 | ~~`src/components/WizardForm.tsx`~~ | ~~807~~ | **[해제 완료 2026-04-18]** → `src/components/WizardForm/` 7파일 분리 (각 <=245L) | - |
 
 **예외**: `Emergency Exception` (`antigravity-4phase.md` §🚨) 발동 시만 수정 가능.  
