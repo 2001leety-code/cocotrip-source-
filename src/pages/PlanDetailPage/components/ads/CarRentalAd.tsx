@@ -1,0 +1,34 @@
+// Car rental affiliate banner (Trip.com).
+// Extracted from PlanDetailPage/index.tsx L515-540 (zero behavior change).
+import { Car } from 'lucide-react';
+import { buildCarLink } from '@/config/affiliateLinks';
+
+interface CarRentalAdProps {
+  region: string;
+}
+
+export function CarRentalAd({ region }: CarRentalAdProps) {
+  const carLink = buildCarLink(region);
+
+  return (
+    <div className="rounded-2xl overflow-hidden border border-emerald-500/20 mt-6" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.05))' }}>
+      <div className="px-5 py-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-emerald-500/20 border border-emerald-500/30">
+          <Car className="w-5 h-5 text-emerald-400" />
+        </div>
+        <div className="flex-1">
+          <p className="font-bold text-white text-base leading-tight">Rent a Car in Korea</p>
+          <p className="text-xs text-white/50 mt-0.5">Explore at your own pace {'\u2014'} international license accepted</p>
+        </div>
+      </div>
+      <div className="px-5 pb-4">
+        <a href={carLink.url} target="_blank" rel="noopener noreferrer"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02]"
+          style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
+          {carLink.label} {'\u2192'}
+        </a>
+      </div>
+      <p className="text-[10px] text-white/20 text-center pb-3 px-5">Affiliate link {'\u2014'} helps support CocoTrip.</p>
+    </div>
+  );
+}
