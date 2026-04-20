@@ -292,6 +292,24 @@ MyPage Coupons 탭에 **Redeem Trip Coins** 섹션 추가.
 
 ---
 
+## 작업 9. 🔧 환율 API 유틸 통합
+
+`api/_exchange-rate.js` 공통 모듈 생성 → 3곳 중복 제거
+
+| 함수 | 용도 | cap |
+|------|------|-----|
+| `getUsdToKrw()` | 쿠폰 할인 계산 | 1350 (사업자 보호) |
+| `getUsdToKrwRaw()` | 결제 KRW 환산 | 없음 (실시간) |
+
+**듀얼 API**: frankfurter.app → exchangerate-api.com → fallback 1350
+
+**변경 파일**:
+- `api/_exchange-rate.js` — **신규** 공통 유틸
+- `api/applyPromoCode.js` — 인라인 환율 코드 → `getUsdToKrw()` 호출
+- `api/booking-processor.js` — 로컬 함수 삭제 → `getUsdToKrwRaw()` 호출
+
+---
+
 # 📌 다음 단계
 
 | 우선순위 | 작업 | 상태 | 비고 |
@@ -301,5 +319,4 @@ MyPage Coupons 탭에 **Redeem Trip Coins** 섹션 추가.
 | P2 | 리뷰 v2 — 사진 업로드 | 미착수 | Firebase Storage 연동 |
 | P2 | 리뷰 v2 — 어드민 모더레이션 | 미착수 | reported 상태 리뷰 관리 |
 | ~~P3~~ | ~~번들 최적화~~ | ✅ 완료 | 1,292→512 KB (-60%) |
-| P3 | 환율 API 유틸 통합 | 미착수 | applyPromoCode + createPaypalOrder 중복 |
-
+| ~~P3~~ | ~~환율 API 유틸 통합~~ | ✅ 완료 | 3곳 중복 → 공통 모듈 |
