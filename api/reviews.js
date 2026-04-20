@@ -195,6 +195,50 @@ export default async function handler(req, res) {
     }
 
     // ════════════════════════════════════════════════════════
+    // ACTION: my-reviews — 내 리뷰 목록 (서버사이드 필터)
+    // ════════════════════════════════════════════════════════
+    if (action === 'my-reviews') {
+      const { userId } = body;
+      if (!userId) {
+        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Missing userId' }));
+      }
+
+      const snap = await db.collection('reviews')
+        .where('authorUid', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
+
+      const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ reviews, count: reviews.length }));
+    }
+
+    // ════════════════════════════════════════════════════════
+    // ACTION: admin-list — 신고된 리뷰 (어드민 전용)
+    // ════════════════════════════════════════════════════════
+    if (action === 'admin-list') {
+      const { userEmail } = body;
+      if (!ADMIN_EMAILS.includes((userEmail || '').toLowerCase())) {
+        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Admin only' }));
+      }
+
+      const snap = await db.collection('reviews')
+        .where('status', '==', 'reported')
+        .orderBy('reportedAt', 'desc')
+        .limit(50)
+        .get();
+
+      const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ reviews, count: reviews.length }));
+    }
+
+    // ════════════════════════════════════════════════════════
     // ACTION: delete — 리뷰 삭제 (작성자 or 어드민)
     // ════════════════════════════════════════════════════════
     if (action === 'delete') {

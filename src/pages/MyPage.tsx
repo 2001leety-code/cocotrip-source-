@@ -447,11 +447,10 @@ function MyReviewsTab({ userId }: { userId: string }) {
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list' }),
+        body: JSON.stringify({ action: 'my-reviews', userId }),
       });
       const data = await res.json();
-      const mine = (data.reviews || []).filter((r: MyReview) => r.authorUid === userId);
-      setReviews(mine);
+      setReviews(data.reviews || []);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [userId]);
