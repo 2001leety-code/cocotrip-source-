@@ -279,7 +279,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // 예상 USD (rate 없을 때 간이 계산)
   const estimatedUSD = rateInfo
     ? rateInfo.displayUSD
-    : `\u2248 $${(effectiveKRW / Math.min(rateInfo?.currentRate || 1350, 1350)).toFixed(2)} USD`;
+    : `\u2248 $${(effectiveKRW / 1350).toFixed(2)} USD`;
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   if (showSuccess && successData) {
