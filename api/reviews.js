@@ -19,14 +19,41 @@ const MAX_TEXT = 500;
 const MAX_PHOTOS = 3;
 const REVIEW_REWARD = 50;
 
+export const maxDuration = 15;
+export const config = { runtime: 'nodejs' };
+
 async function getFirestore() {
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore: gfs, FieldValue } = await import('firebase-admin/firestore');
+  const { getFirestore: gfs } = await import('firebase-admin/firestore');
   if (!getApps().length) {
-    const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-    initializeApp({ credential: cert(sa) });
+    let credential = null;
+
+    // 방법 1: 개별 환경변수 (loyalty.js 동일 패턴)
+    const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
+    const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+    let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
+      .replace(/^\uFEFF/, '')
+      .replace(/\\n/g, '\n')
+      .trim();
+    if (rawKey.startsWith('"')) rawKey = JSON.parse(rawKey);
+
+    if (projectId && clientEmail && rawKey) {
+      credential = cert({ projectId, clientEmail, privateKey: rawKey });
+    }
+
+    // 방법 2: base64 JSON (fallback)
+    if (!credential && process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8'));
+      credential = cert(sa);
+    }
+
+    if (credential) {
+      initializeApp({ credential });
+    } else {
+      throw new Error('No Firebase credentials found');
+    }
   }
-  return { db: gfs(), FieldValue };
+  return { db: gfs() };
 }
 
 export default async function handler(req, res) {
@@ -46,7 +73,7 @@ export default async function handler(req, res) {
     body = body || {};
 
     const { action } = body;
-    const { db, FieldValue } = await getFirestore();
+    const { db } = await getFirestore();
 
     // ════════════════════════════════════════════════════════
     // ACTION: create — 리뷰 작성
