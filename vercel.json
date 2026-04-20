@@ -6,6 +6,10 @@
     }
   ],
   "functions": {
+    "api/og-image.js": {
+      "maxDuration": 30,
+      "memory": 256
+    },
     "api/ai-planner-full.js": {
       "maxDuration": 300,
       "memory": 1024

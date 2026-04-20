@@ -5,6 +5,7 @@ import { BudgetTable } from './BudgetTable';
 import { DepartureGuide } from './DepartureGuide';
 import { SeasonalBanner } from './SeasonalBanner';
 import { RevisionCard } from './RevisionCard';
+import { ShareButton } from './ShareButton';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -14,10 +15,11 @@ interface OutroSlideProps {
   token: string | null;
   isPdfGenerating: boolean;
   isTranslating: boolean;
+  isOwner: boolean;
   onDownloadPDF: () => void;
 }
 
-export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating, onDownloadPDF }: OutroSlideProps) {
+export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating, isOwner, onDownloadPDF }: OutroSlideProps) {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
   const pd = (t as any).planDetail || {};
@@ -56,6 +58,9 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
           className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-colors">
           <MessageCircle className="w-5 h-5 text-green-400" /> WhatsApp Booking
         </a>
+
+        {/* Share */}
+        <ShareButton planId={planId} plan={plan} isOwner={isOwner} />
       </div>
 
       {/* Seasonal */}

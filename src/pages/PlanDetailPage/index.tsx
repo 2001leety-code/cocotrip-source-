@@ -10,10 +10,12 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AlertCircle } from 'lucide-react';
+import { trackEvent } from '@/lib/analytics';
 
 import { useAutoTranslate } from './useAutoTranslate';
 import { generatePDF } from './pdfGenerator';
@@ -43,6 +45,7 @@ export default function PlanDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [addStopDay, setAddStopDay] = useState<number | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
 
   // Plan editor (optimistic Firestore updates + auto transit recalc)
   const editor = usePlanEditor(planId || '', plan, setPlan);
@@ -66,10 +69,24 @@ export default function PlanDetailPage() {
     const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
       if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
       const data = snap.data();
-      const isOwner = user && data.uid === user.uid;
+      const ownerCheck = !!(user && data.uid === user.uid);
       const hasToken = data.accessToken && data.accessToken === token;
       const isGuestPlan = !data.uid;
-      if (!isOwner && !hasToken && !isGuestPlan) { setError('unauthorized'); setLoading(false); return; }
+      const isPublicShared = data.isPublic === true;
+      if (!ownerCheck && !hasToken && !isGuestPlan && !isPublicShared) { setError('unauthorized'); setLoading(false); return; }
+      // PII masking for non-owner viewing public plan
+      if (isPublicShared && !ownerCheck && !hasToken && !isGuestPlan) {
+        delete data.uid; delete data.guestEmail;
+        delete data.accessToken;
+        if (data.input) {
+          delete data.input.specialRequest;
+          delete data.input.hotel_address;
+          delete data.input.arrival_airport;
+          delete data.input.departure_airport;
+        }
+        delete data.pricing;
+      }
+      setIsOwner(ownerCheck);
       setPlan(data);
       setLoading(false);
     }, (err) => {
@@ -79,6 +96,22 @@ export default function PlanDetailPage() {
     });
     return () => unsub();
   }, [planId, token, user, authLoading]);
+
+  // share_visit tracking
+  useEffect(() => {
+    if (searchParams.get('shared') === '1' && planId) {
+      trackEvent('share_visit', { plan_id: planId });
+    }
+  }, [planId, searchParams]);
+
+  // Dynamic OG meta tags
+  const days = useMemo(() => (plan?.itinerary?.days) || [], [plan]);
+  usePageMeta({
+    title: plan?.itinerary?.tour_title || 'Travel Plan',
+    description: `${plan?.input?.area || 'Korea'} ${days.length}-day itinerary | CocoTrip`,
+    ogImage: `https://cocotripkr.com/api/og-image?planId=${planId}`,
+    ogUrl: `https://cocotripkr.com/my-plans/${planId}`,
+  });
 
   // Auto-translate (locked hook - see useAutoTranslate.ts for invariants)
   const { isTranslating } = useAutoTranslate(plan, setPlan, language);
@@ -130,13 +163,13 @@ export default function PlanDetailPage() {
 
   if (!plan) return null;
 
-  const days = (plan.itinerary && plan.itinerary.days) || [];
+  // days already defined above via useMemo
 
   // Render each slide based on type
   const slideElements = slides.map((slide, idx) => {
     switch (slide.type) {
       case 'intro':
-        return <IntroSlide key={`intro-${idx}`} plan={plan} isTranslating={isTranslating} />;
+        return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} />;
       case 'day': {
         const dayIdx = slide.dayIndex || 0;
         return (
@@ -181,6 +214,7 @@ export default function PlanDetailPage() {
             token={token}
             isPdfGenerating={isPdfGenerating}
             isTranslating={isTranslating}
+            isOwner={isOwner}
             onDownloadPDF={handleDownloadPDF}
           />
         );

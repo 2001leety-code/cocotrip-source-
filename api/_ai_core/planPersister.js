@@ -56,6 +56,7 @@ export async function persistPlan(adminDb, {
   await adminDb.collection('plans').doc(planId).set({
     planId,
     status: 'ready',
+    isPublic: false,
     createdAt: new Date().toISOString(),
     createdAtMs: Date.now(),
     uid: uid || null,

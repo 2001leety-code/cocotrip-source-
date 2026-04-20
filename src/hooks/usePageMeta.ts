@@ -4,9 +4,10 @@ interface PageMeta {
   title: string;
   description: string;
   ogImage?: string;
+  ogUrl?: string;
 }
 
-export function usePageMeta({ title, description, ogImage }: PageMeta) {
+export function usePageMeta({ title, description, ogImage, ogUrl }: PageMeta) {
   useEffect(() => {
     // Title
     document.title = title ? `${title} | CocoTrip` : 'CocoTrip — Premium Korea Travel';
@@ -48,5 +49,16 @@ export function usePageMeta({ title, description, ogImage }: PageMeta) {
       }
       ogImg.content = ogImage;
     }
-  }, [title, description, ogImage]);
+
+    // OG URL
+    if (ogUrl) {
+      let ogUrlMeta = document.querySelector('meta[property="og:url"]') as HTMLMetaElement | null;
+      if (!ogUrlMeta) {
+        ogUrlMeta = document.createElement('meta');
+        ogUrlMeta.setAttribute('property', 'og:url');
+        document.head.appendChild(ogUrlMeta);
+      }
+      ogUrlMeta.content = ogUrl;
+    }
+  }, [title, description, ogImage, ogUrl]);
 }

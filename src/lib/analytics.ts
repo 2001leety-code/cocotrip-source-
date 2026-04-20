@@ -83,7 +83,12 @@ export function trackEsimClick(provider: string) {
 
 /** Social share */
 export function trackShare(method: string, planId: string) {
-  trackEvent('share', { method, content_type: 'plan', item_id: planId });
+  trackEvent('share_click', { method, content_type: 'plan', item_id: planId });
+}
+
+/** Shared plan visit (from ?shared=1 URL) */
+export function trackShareVisit(planId: string) {
+  trackEvent('share_visit', { plan_id: planId });
 }
 
 /** Planner flow */

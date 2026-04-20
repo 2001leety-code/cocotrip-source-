@@ -2,16 +2,18 @@
 // First slide in the swipe carousel.
 import { Calendar, MapPin, Users, CreditCard } from 'lucide-react';
 import { ArrivalGuide } from './ArrivalGuide';
+import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface IntroSlideProps {
   plan: any;
+  planId: string;
   isTranslating: boolean;
 }
 
-export function IntroSlide({ plan, isTranslating }: IntroSlideProps) {
+export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
   const pd = (t as any).planDetail || {};
@@ -35,10 +37,13 @@ export function IntroSlide({ plan, isTranslating }: IntroSlideProps) {
         <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#a78bfa,#ec4899)' }}>
           {it.tour_title || sw.introTitle || 'Your Korea Trip'}
         </h1>
+        <div className="flex items-center justify-center mt-1">
+          <ShareMiniIcon planId={planId} plan={plan} />
+        </div>
         <p className="text-white/40 text-sm mt-2">
           {input.startDate} | {input.adults ? `${input.adults} adults` : `${input.pax} pax`}
           {input.children > 0 && ` + ${input.children} children`}
-          {(plan.pricing?.vehicleLabel || plan.pricing?.vehicle) && ` | ${plan.pricing.vehicleLabel || plan.pricing.vehicle}`}
+          {(plan.pricing?.vehicleLabel || plan.pricing?.vehicle) && ` | ${plan.pricing?.vehicleLabel || plan.pricing?.vehicle}`}
         </p>
       </div>
 
