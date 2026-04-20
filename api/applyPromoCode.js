@@ -9,6 +9,8 @@
  * - 합산 가능: COCO5 + WELCOME5 = 총 10% 할인
  */
 
+import { getUsdToKrw } from './_exchange-rate.js';
+
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
@@ -91,18 +93,8 @@ export default async function handler(req, res) {
 
     const { code, originalPrice, userId, codes } = body;
 
-    // 실시간 환율 조회 (createPaypalOrder.js와 동일 API)
-    // Cap: 1350 이상이면 1350 고정 (쿠폰 할인이 커져서 사업자 손해)
-    //       1350 이하면 실시간 적용 (할인 축소로 유리)
-    let usdToKrw = 1350;
-    try {
-      const rateRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW',
-        { signal: AbortSignal.timeout(3000) });
-      if (rateRes.ok) {
-        const realRate = (await rateRes.json()).rates.KRW;
-        usdToKrw = Math.min(realRate, 1350);
-      }
-    } catch { /* fallback 1350 */ }
+    // 실시간 환율 조회 (공통 유틸 — cap 1350 적용)
+    const usdToKrw = await getUsdToKrw();
 
     // ── 복수 코드 적용 (5+5% 합산) ──
     if (codes && Array.isArray(codes)) {

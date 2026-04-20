@@ -27,6 +27,7 @@ import {
 } from './_ai-employees.js';
 import { generateVoucherPDF } from './_generate-voucher.js';
 import { createWalletPass }   from './_create-wallet-pass.js';
+import { getUsdToKrwRaw } from './_exchange-rate.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -48,19 +49,7 @@ function generateBookingRef() {
   return `CT-${dateStr}-${seq}`;
 }
 
-// ── 환율 조회 (exchangerate-api.com 무료 플랜) ───────────────────────────
-async function getUSDKRWRate() {
-  try {
-    const res = await fetch(
-      'https://api.exchangerate-api.com/v4/latest/USD',
-      { signal: AbortSignal.timeout(5000) }
-    );
-    const data = await res.json();
-    return data.rates?.KRW || 1380;
-  } catch {
-    return 1380; // 기본 환율 fallback
-  }
-}
+// 환율 조회는 _exchange-rate.js 공통 유틸 사용 (getUsdToKrwRaw)
 
 // ── 고객 언어 감지 (간단 휴리스틱) ──────────────────────────────────────
 function detectLanguage(email = '', name = '') {
@@ -113,7 +102,7 @@ const originalHandler = async (event) => {
 
   // ── Step 1: 환율 조회 ────────────────────────────────────────────────
   try {
-    exchangeRate = await getUSDKRWRate();
+    exchangeRate = await getUsdToKrwRaw();
     amountKRW = Math.round(parseFloat(amount || 0) * exchangeRate);
     console.log('[booking-processor] 환율:', exchangeRate, '→ KRW:', amountKRW);
   } catch (err) {
