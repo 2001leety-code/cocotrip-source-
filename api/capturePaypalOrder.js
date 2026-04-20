@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '' } = body;
+    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId } = body;
     if (!orderID) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'orderID is required' })); }
 
     const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
@@ -61,6 +61,25 @@ export default async function handler(req, res) {
     const payerEmail = capture.payer?.email_address ?? '';
     const payerName = `${capture.payer?.name?.given_name ?? ''} ${capture.payer?.name?.surname ?? ''}`.trim();
     const amount = capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value ?? '0';
+
+    // 2.5 쿠폰 소진 처리 (Bug #2 fix — 결제 성공 후 isUsed 마킹)
+    if (couponDocId && couponUserId) {
+      try {
+        const { initializeApp, cert, getApps } = await import('firebase-admin/app');
+        const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
+        if (!getApps().length) {
+          const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
+          initializeApp({ credential: cert(sa) });
+        }
+        await getFirestore().collection('users').doc(couponUserId)
+          .collection('coupons').doc(couponDocId)
+          .update({ isUsed: true, usedAt: FieldValue.serverTimestamp(), usedOrderID: orderID });
+        console.log('[capturePaypalOrder] coupon marked used:', couponDocId);
+      } catch (couponErr) {
+        // 쿠폰 소진 실패해도 결제는 성공 처리 (사용자 경험 우선)
+        console.error('[capturePaypalOrder] coupon update failed:', couponErr.message);
+      }
+    }
 
     // 3. Fire-and-forget booking-processor
     const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';

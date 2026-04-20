@@ -311,6 +311,78 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ success: true, ...result }));
     }
 
+    // ════════════════════════════════════════════════════════
+    // ACTION: redeem-coupon — 코인 → 쿠폰 교환
+    // ════════════════════════════════════════════════════════
+    if (action === 'redeem-coupon') {
+      const { coins } = body;
+
+      // 교환 레이트 테이블 (서버 신뢰 소스 — 클라이언트 값 무시)
+      const REDEMPTION_TABLE = {
+        500:  { usdValue: 5,  label: 'Trip Coins redemption — $5 OFF' },
+        1000: { usdValue: 10, label: 'Trip Coins redemption — $10 OFF' },
+        2000: { usdValue: 25, label: 'Trip Coins redemption — $25 OFF (Bonus)' },
+      };
+
+      const plan = REDEMPTION_TABLE[coins];
+      if (!plan) {
+        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Invalid redemption tier' }));
+      }
+
+      // 쿠폰 코드 생성 (6자, crypto 기반)
+      const { randomBytes } = await import('crypto');
+      const code = 'SAVE-' + randomBytes(3).toString('hex').toUpperCase();
+
+      const result = await db.runTransaction(async (tx) => {
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists) throw new Error('User not found');
+
+        const currentCoins = userSnap.data().tripCoins || 0;
+        if (currentCoins < coins) throw new Error('Insufficient Trip Coins');
+
+        const newBalance = currentCoins - coins;
+
+        // 1) 유저 코인 차감
+        tx.update(userRef, { tripCoins: newBalance });
+
+        // 2) 쿠폰 문서 생성
+        const couponRef = db.collection('users').doc(userId).collection('coupons').doc();
+        const now = Date.now();
+        const expiresAt = now + 90 * 24 * 3600 * 1000;
+
+        tx.set(couponRef, {
+          code,
+          type: 'fixed',
+          value: plan.usdValue,
+          currency: 'USD',
+          label: plan.label,
+          minOrderUSD: 0,
+          isUsed: false,
+          expiresAt,
+          createdAt: now,
+          source: 'coin_redemption',
+          coinsSpent: coins,
+        });
+
+        // 3) 포인트 이력
+        const logRef = db.collection('users').doc(userId).collection('pointHistory').doc();
+        tx.set(logRef, {
+          type: 'spend',
+          amount: -coins,
+          balance: newBalance,
+          description: `Redeemed ${coins} coins → ${plan.label}`,
+          createdAt: now,
+        });
+
+        return { couponId: couponRef.id, code, value: plan.usdValue, expiresAt, newBalance };
+      });
+
+      console.log('[loyalty] redeem-coupon:', userId, result);
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, ...result }));
+    }
+
     // Unknown action
     res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: `Unknown action: ${action}` }));

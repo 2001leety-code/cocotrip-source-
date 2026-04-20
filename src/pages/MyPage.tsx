@@ -45,11 +45,37 @@ export default function MyPage() {
   const { itineraries } = useItinerary();
   const [tab, setTab] = useState<Tab>('overview');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [redeeming, setRedeeming] = useState<number | null>(null);
 
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const handleRedeem = async (coins: number) => {
+    if (!user?.uid) return;
+    if ((loyalty?.tripCoins ?? 0) < coins) return;
+    if (!confirm(`Redeem ${coins} coins for a coupon?`)) return;
+
+    setRedeeming(coins);
+    try {
+      const res = await fetch('/api/loyalty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'redeem-coupon', userId: user.uid, coins }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        navigator.clipboard?.writeText(data.code).catch(() => {});
+        setCopiedCode(data.code);
+        setTimeout(() => setCopiedCode(null), 5000);
+      }
+    } catch {
+      // error handled silently
+    } finally {
+      setRedeeming(null);
+    }
   };
 
   if (loading) {
@@ -159,10 +185,66 @@ export default function MyPage() {
 
         {/* ── 탭: Coupons ── */}
         {tab === 'coupons' && (
-          <div className="space-y-3">
-            {coupons.length === 0 ? (
-              <EmptyState icon={Gift} text="No coupons yet" />
-            ) : coupons.map(c => (
+          <div className="space-y-6">
+            {/* 교환 섹션 */}
+            <div className="rounded-2xl bg-gradient-to-br from-[#FFD700]/[0.08] to-[#7C5CFC]/[0.08] border border-[#FFD700]/20 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-white flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-[#FFD700]" />
+                    Redeem Trip Coins
+                  </h3>
+                  <p className="text-xs text-white/50 mt-0.5">
+                    Balance: <span className="text-[#FFD700] font-semibold">{(loyalty?.tripCoins ?? 0).toLocaleString()}</span> coins
+                  </p>
+                </div>
+              </div>
+              <div className={`grid gap-3 ${isMobile ? 'grid-cols-1' : 'grid-cols-3'}`}>
+                {[
+                  { coins: 500,  value: 5,  bonus: false },
+                  { coins: 1000, value: 10, bonus: false },
+                  { coins: 2000, value: 25, bonus: true  },
+                ].map(tier => {
+                  const enabled = (loyalty?.tripCoins ?? 0) >= tier.coins;
+                  const busy = redeeming === tier.coins;
+                  return (
+                    <button
+                      key={tier.coins}
+                      onClick={() => handleRedeem(tier.coins)}
+                      disabled={!enabled || busy}
+                      className={`relative p-4 rounded-xl border transition-all ${
+                        enabled
+                          ? 'border-[#FFD700]/30 bg-white/[0.04] hover:bg-white/[0.08] hover:border-[#FFD700]/50'
+                          : 'border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed'
+                      }`}
+                    >
+                      {tier.bonus && (
+                        <span className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#EA537E] text-white">
+                          +25% BONUS
+                        </span>
+                      )}
+                      <div className="text-white/60 text-xs">{tier.coins.toLocaleString()} coins</div>
+                      <div className="text-white text-xl font-bold mt-1">${tier.value}</div>
+                      <div className="text-white/40 text-[10px] mt-0.5">OFF coupon</div>
+                      {busy && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
+                          <div className="w-5 h-5 border-2 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-white/30 mt-3 text-center">
+                Valid for 90 days. Enter code at checkout.
+              </p>
+            </div>
+
+            {/* 기존 쿠폰 리스트 */}
+            <div className="space-y-3">
+              {coupons.length === 0 ? (
+                <EmptyState icon={Gift} text="No coupons yet" />
+              ) : coupons.map(c => (
               <div
                 key={c.id}
                 className={`p-4 rounded-xl border transition-all ${
@@ -201,6 +283,7 @@ export default function MyPage() {
                 </div>
               </div>
             ))}
+            </div>
           </div>
         )}
 

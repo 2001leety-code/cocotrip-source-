@@ -58,18 +58,14 @@ async function verifyFirestoreCoupon(userId, code) {
     // 만료 확인
     if (coupon.expiresAt && coupon.expiresAt < Date.now()) return null;
 
-    // percent: value=5 → 0.05 / fixed: value=5 → $5 할인
-    const discount = coupon.type === 'fixed'
-      ? coupon.value / (originalPrice || 1)   // 고정금액을 비율로 변환
-      : coupon.value / 100;
-
+    // raw 값 반환 — 할인 계산은 handler에서 (환율 필요)
     return {
       couponDocId: couponDoc.id,
       userId,
-      discount,
       label: coupon.label,
       type: coupon.type,
       value: coupon.value,
+      currency: coupon.currency || 'USD',
       stackable: true,
     };
   } catch (err) {
@@ -95,6 +91,19 @@ export default async function handler(req, res) {
 
     const { code, originalPrice, userId, codes } = body;
 
+    // 실시간 환율 조회 (createPaypalOrder.js와 동일 API)
+    // Cap: 1350 이상이면 1350 고정 (쿠폰 할인이 커져서 사업자 손해)
+    //       1350 이하면 실시간 적용 (할인 축소로 유리)
+    let usdToKrw = 1350;
+    try {
+      const rateRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW',
+        { signal: AbortSignal.timeout(3000) });
+      if (rateRes.ok) {
+        const realRate = (await rateRes.json()).rates.KRW;
+        usdToKrw = Math.min(realRate, 1350);
+      }
+    } catch { /* fallback 1350 */ }
+
     // ── 복수 코드 적용 (5+5% 합산) ──
     if (codes && Array.isArray(codes)) {
       let totalDiscount = 0;
@@ -117,8 +126,15 @@ export default async function handler(req, res) {
         // Firestore 개인 쿠폰 확인
         const fsCoupon = await verifyFirestoreCoupon(userId, upper);
         if (fsCoupon && fsCoupon.stackable) {
-          totalDiscount += fsCoupon.discount;
-          appliedCodes.push({ code: upper, discount: fsCoupon.discount, label: fsCoupon.label });
+          let disc;
+          if (fsCoupon.type === 'fixed' && fsCoupon.currency === 'USD') {
+            const discountKRW = fsCoupon.value * usdToKrw;
+            disc = Math.min(discountKRW, originalPrice) / originalPrice;
+          } else {
+            disc = fsCoupon.value / 100;
+          }
+          totalDiscount += disc;
+          appliedCodes.push({ code: upper, discount: disc, label: fsCoupon.label, couponDocId: fsCoupon.couponDocId });
         }
       }
 
@@ -171,20 +187,36 @@ export default async function handler(req, res) {
     // 2. Firestore 개인 쿠폰 확인
     const fsCoupon = await verifyFirestoreCoupon(userId, upper);
     if (fsCoupon) {
-      const savedAmount = Math.round(originalPrice * fsCoupon.discount * 100) / 100;
+      let savedAmount;
+      let discountRate;
+
+      if (fsCoupon.type === 'fixed' && fsCoupon.currency === 'USD') {
+        // USD 고정 금액 쿠폰 → KRW 환산 (실시간 환율)
+        const discountKRW = fsCoupon.value * usdToKrw;
+        savedAmount = Math.min(discountKRW, originalPrice); // 주문액 초과 방지
+        discountRate = savedAmount / originalPrice;
+      } else {
+        // percent 쿠폰
+        discountRate = fsCoupon.value / 100;
+        savedAmount = Math.round(originalPrice * discountRate * 100) / 100;
+      }
+
       const discountedPrice = Math.round((originalPrice - savedAmount) * 100) / 100;
-      console.log('[applyPromoCode] Firestore coupon:', { code: upper, originalPrice, discountedPrice });
+      console.log('[applyPromoCode] Firestore coupon:', { code: upper, originalPrice, discountedPrice, usdToKrw });
 
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
         valid: true,
         code: upper,
         label: fsCoupon.label,
-        discountRate: fsCoupon.discount,
+        discountRate,
         originalPrice,
         savedAmount,
         discountedPrice,
         stackable: fsCoupon.stackable,
+        couponDocId: fsCoupon.couponDocId,
+        userId: fsCoupon.userId,
+        exchangeRate: Math.round(usdToKrw),
       }));
     }
 

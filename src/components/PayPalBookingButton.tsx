@@ -65,6 +65,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [promoError,    setPromoError]    = useState<string | null>(null);
   const [discountedKRW, setDiscountedKRW] = useState<number | null>(null);
   const [savedAmount,   setSavedAmount]   = useState(0);
+  const [couponDocId,   setCouponDocId]   = useState<string | null>(null);
+  const [couponUserId,  setCouponUserId]  = useState<string | null>(null);
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
     ko: { label: '\ud504\ub85c\ubaa8\uc158 \ucf54\ub4dc', apply: '\uc801\uc6a9', success: '\ud560\uc778 \uc801\uc6a9\ub428', invalid: '\uc720\ud6a8\ud558\uc9c0 \uc54a\uc740 \ucf54\ub4dc', expired: '\ud504\ub85c\ubaa8\uc158 \uc885\ub8cc' },
@@ -89,6 +91,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         setDiscountedKRW(data.discountedPrice);
         setSavedAmount(data.savedAmount);
         setPromoApplied(true);
+        setCouponDocId(data.couponDocId || null);
+        setCouponUserId(data.userId || null);
       } else {
         setPromoError(data.error === 'promo_expired' ? pl.expired : pl.invalid);
       }
@@ -180,6 +184,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               memo,
               itineraryData:   itineraryData || null,
               userEmail,
+              ...(couponDocId ? { couponDocId, couponUserId } : {}),
             }),
           });
           const result = await res.json();
@@ -274,7 +279,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // 예상 USD (rate 없을 때 간이 계산)
   const estimatedUSD = rateInfo
     ? rateInfo.displayUSD
-    : `\u2248 $${(effectiveKRW / 1350).toFixed(2)} USD`;
+    : `\u2248 $${(effectiveKRW / Math.min(rateInfo?.currentRate || 1350, 1350)).toFixed(2)} USD`;
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   if (showSuccess && successData) {
