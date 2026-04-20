@@ -60,7 +60,7 @@
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "*",
-    "firebase-admin": "^13.7.0",
+    "firebase-admin": "^13.8.0",
     "framer-motion": "^12.38.0",
     "googleapis": "^171.4.0",
     "html2pdf.js": "^0.14.0",
