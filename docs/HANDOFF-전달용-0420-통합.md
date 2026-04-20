@@ -268,6 +268,30 @@ MyPage Coupons 탭에 **Redeem Trip Coins** 섹션 추가.
 
 ---
 
+## 작업 8. ⚡ 번들 최적화 — 메인 번들 60% 감소
+
+| 단계 | 메인 번들 | 개선 |
+|------|-----------|------|
+| Before | **1,292 KB** | — |
+| + manualChunks | 774 KB | -40% |
+| + lazy-load 전 페이지 | **512 KB** | **-60%** |
+
+**변경**:
+- `vite.config.ts` — `manualChunks` (react/firebase/ui 분리)
+- `App.tsx` — MyPage, Admin, Booking, About, Terms, Privacy, TravelTerms lazy import + Suspense
+
+**분리된 청크**:
+| 청크 | 크기 |
+|------|------|
+| vendor-react | 47 KB |
+| vendor-firebase | 451 KB |
+| vendor-ui | 155 KB |
+| MyPage | 16 KB |
+| Booking | 76 KB |
+| 기타 페이지들 | 10~35 KB |
+
+---
+
 # 📌 다음 단계
 
 | 우선순위 | 작업 | 상태 | 비고 |
@@ -276,5 +300,6 @@ MyPage Coupons 탭에 **Redeem Trip Coins** 섹션 추가.
 | P1 | eSIM (Airalo) | ⏸️ | 파트너 가입 대기 |
 | P2 | 리뷰 v2 — 사진 업로드 | 미착수 | Firebase Storage 연동 |
 | P2 | 리뷰 v2 — 어드민 모더레이션 | 미착수 | reported 상태 리뷰 관리 |
-| P3 | 번들 최적화 | 미착수 | manualChunks 설정 (vite 경고) |
+| ~~P3~~ | ~~번들 최적화~~ | ✅ 완료 | 1,292→512 KB (-60%) |
 | P3 | 환율 API 유틸 통합 | 미착수 | applyPromoCode + createPaypalOrder 중복 |
+
