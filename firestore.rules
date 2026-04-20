@@ -61,6 +61,12 @@ service cloud.firestore {
         allow read:  if isOwner(uid);
         allow write: if false;
       }
+
+      // 리뷰 리워드 기록 (reviews API가 서버에서 기록)
+      match /reviewRewards/{reviewId} {
+        allow read:  if isOwner(uid);
+        allow write: if false;
+      }
     }
 
     // ─────────────────────────────────────────────────────────
@@ -91,6 +97,23 @@ service cloud.firestore {
     match /earlybird/{docId} {
       allow read:  if true;
       allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // reviews — 사용자 리뷰 (공개 읽기, 인증 작성)
+    // ─────────────────────────────────────────────────────────
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.authorUid == request.auth.uid
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5
+                    && request.resource.data.text.size() <= 500;
+      allow update: if isSignedIn()
+                    && resource.data.authorUid == request.auth.uid
+                    && request.resource.data.authorUid == resource.data.authorUid;
+      allow delete: if isSignedIn()
+                    && (resource.data.authorUid == request.auth.uid || isAdminEmail());
     }
 
     // ─────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ import { Footer } from '@/sections/Footer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AlertCircle } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
+import { ReviewList } from '@/components/ReviewList';
 
 import { useAutoTranslate } from './useAutoTranslate';
 import { generatePDF } from './pdfGenerator';
@@ -250,6 +251,11 @@ export default function PlanDetailPage() {
             }
           }}
         />
+
+        {/* Reviews Section */}
+        <div className="max-w-4xl mx-auto px-4">
+          <ReviewList targetType="plan" targetId={planId || ''} />
+        </div>
       </main>
       <Footer t={t} />
     </div>
