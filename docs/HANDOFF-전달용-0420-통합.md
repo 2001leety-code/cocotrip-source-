@@ -323,13 +323,39 @@ MyPage Coupons 탭에 **Redeem Trip Coins** 섹션 추가.
 
 ---
 
+## 작업 11. 📸 리뷰 사진 업로드 — Firebase Storage
+
+| 항목 | 내용 |
+|------|------|
+| 인프라 | Firebase Storage 활성화 + 보안 규칙 배포 |
+| 버킷 | `gs://planning-with-ai-a0801.firebasestorage.app` |
+| 경로 | `reviews/{userId}/{timestamp}_{index}.{ext}` |
+| 제한 | 최대 3장, 5MB/장, 이미지만 허용 |
+
+**변경 파일**:
+- `src/lib/firebase.js` — `storage` export 추가
+- `src/components/ReviewWriteModal.tsx` — 사진 선택/미리보기/업로드 기능
+- `src/components/ReviewCard.tsx` — 사진 방어 코드 + 클릭 라이트박스
+- `storage.rules` — **신규** 보안 규칙
+- `firebase.json` — storage 설정 추가
+
+**보안 규칙**:
+```
+reviews/{userId}/{file}:
+  read: 공개 (리뷰 사진은 누구나 열람)
+  write: 본인만 + 5MB 이하 + image/* 타입만
+기타 경로: 완전 차단
+```
+
+---
+
 # 📌 다음 단계
 
 | 우선순위 | 작업 | 상태 | 비고 |
 |----------|------|------|------|
 | P1 | 쿠폰 E2E 실증 | ⏳ | PayPal 샌드박스 실결제 → isUsed 마킹 확인 |
 | P1 | eSIM (Airalo) | ⏸️ | 파트너 가입 대기 |
-| P2 | 리뷰 v2 — 사진 업로드 | 미착수 | Firebase Storage 연동 |
+| ~~P2~~ | ~~리뷰 사진 업로드~~ | ✅ 완료 | Firebase Storage + 라이트박스 |
 | ~~P2~~ | ~~리뷰 API 확장~~ | ✅ 완료 | my-reviews + admin-list 액션 |
 | ~~P3~~ | ~~번들 최적화~~ | ✅ 완료 | 1,292→512 KB (-60%) |
 | ~~P3~~ | ~~환율 API 유틸 통합~~ | ✅ 완료 | 3곳 중복 → 공통 모듈 |
