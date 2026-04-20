@@ -369,7 +369,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     validateResponse(itinerary, { lang: language }, _foodIndex);
 
     // ── DB 매칭 ───────────────────────────────────────────────────────────
-    applyDBMatcher(itinerary, _foodIndex);
+    applyDBMatcher(itinerary, _foodIndex, area);
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
