@@ -16,6 +16,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { getTourBySlug } from '@/data/tours';
 import { getRecommendedHotels } from '@/data/hotels';
+import { ReviewList } from '@/components/ReviewList';
 import type { I18nString } from '@/data/tours';
 import type { Language } from '@/i18n';
 
@@ -341,6 +342,11 @@ export default function TourDetailPage() {
           </section>
         )}
       </div>
+
+        {/* ── Reviews ── */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-8">
+          <ReviewList targetType="tour" targetId={slug || ''} />
+        </div>
 
       {/* ── 하단 고정 CTA 바 ── */}
       <div
