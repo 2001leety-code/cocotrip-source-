@@ -5,6 +5,7 @@ import { Share2, Link2, Globe, Lock } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { trackShare } from '@/lib/analytics';
 import { toast } from 'sonner';
@@ -15,8 +16,37 @@ interface ShareButtonProps {
   isOwner: boolean;
 }
 
+/** Fire-and-forget share reward call */
+async function claimShareReward(
+  userId: string,
+  planId: string,
+  shareMethod: string,
+  rewardLabel: string,
+) {
+  try {
+    const res = await fetch('/api/loyalty', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'earn-share',
+        userId,
+        planId,
+        shareMethod,
+      }),
+    });
+    const data = await res.json();
+    if (data.success && !data.alreadyRewarded) {
+      toast.success(rewardLabel || '+20 Trip Coins earned!');
+    }
+  } catch (e) {
+    console.warn('[ShareButton] reward error:', e);
+    // 리워드 실패해도 공유 자체는 성공 — 조용히
+  }
+}
+
 export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const pd = (t as any).planDetail || {};
   const sh = pd.share || {};
   const [isPublic, setIsPublic] = useState<boolean>(plan?.isPublic || false);
@@ -26,22 +56,32 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
 
   const handleShare = async () => {
     const title = plan?.itinerary?.tour_title || 'Korea Trip';
+    let shareMethod = '';
 
     if (navigator.share) {
       try {
         await navigator.share({ title, url: shareUrl });
         trackShare('native', planId);
+        shareMethod = 'native';
       } catch (e: any) {
         if (e.name !== 'AbortError') console.warn('[ShareButton] share error:', e);
+        return; // 사용자 취소/실패 시 포인트 지급 X
       }
     } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
         toast.success(sh.shareSuccess || 'URL copied!');
         trackShare('clipboard', planId);
+        shareMethod = 'clipboard';
       } catch {
         toast.error('Failed to copy URL');
+        return;
       }
+    }
+
+    // 리워드 지급 (fire-and-forget, 소유자만)
+    if (isOwner && user?.uid && shareMethod) {
+      claimShareReward(user.uid, planId, shareMethod, sh.shareReward);
     }
   };
 
@@ -109,23 +149,32 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
 // Mini icon for IntroSlide
 export function ShareMiniIcon({ planId, plan }: { planId: string; plan: any }) {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const sh = ((t as any).planDetail || {}).share || {};
 
   const handleShare = async () => {
     const shareUrl = `https://cocotripkr.com/my-plans/${planId}?shared=1`;
     const title = plan?.itinerary?.tour_title || 'Korea Trip';
+    let shareMethod = '';
 
     if (navigator.share) {
       try {
         await navigator.share({ title, url: shareUrl });
         trackShare('native_mini', planId);
+        shareMethod = 'native_mini';
       } catch { /* AbortError ok */ }
     } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
         toast.success(sh.shareSuccess || 'URL copied!');
         trackShare('clipboard_mini', planId);
+        shareMethod = 'clipboard_mini';
       } catch { /* ok */ }
+    }
+
+    // 리워드 지급 (소유자만 — plan.uid == user.uid)
+    if (user?.uid && plan?.uid === user.uid && shareMethod) {
+      claimShareReward(user.uid, planId, shareMethod, sh.shareReward);
     }
   };
 

@@ -234,6 +234,83 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ success: true, message: 'Coupon marked as used' }));
     }
 
+    // ════════════════════════════════════════════════════════
+    // ACTION: earn-share — 플랜 공유 시 보너스 코인 지급
+    // 중복 방지: users/{uid}/shareRewards/{planId}
+    // ════════════════════════════════════════════════════════
+    if (action === 'earn-share') {
+      const { planId, shareMethod } = body;
+      const REWARD_COINS = 20;
+
+      if (!planId) {
+        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Missing planId for earn-share' }));
+      }
+
+      // 소유 플랜인지 검증 (타인 플랜 공유로 farming 방지)
+      const planSnap = await db.collection('plans').doc(planId).get();
+      if (!planSnap.exists) {
+        res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Plan not found' }));
+      }
+      const planData = planSnap.data();
+      if (planData.uid !== userId) {
+        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Not your plan' }));
+      }
+
+      const result = await db.runTransaction(async (tx) => {
+        const rewardRef = db.collection('users').doc(userId)
+          .collection('shareRewards').doc(planId);
+        const rewardSnap = await tx.get(rewardRef);
+
+        if (rewardSnap.exists) {
+          return { alreadyRewarded: true, newBalance: null };
+        }
+
+        const userSnap = await tx.get(userRef);
+        const currentCoins = userSnap.exists ? (userSnap.data().tripCoins || 0) : 0;
+        const newBalance = currentCoins + REWARD_COINS;
+
+        // 유저 코인 증가 (유저 문서가 없으면 생성)
+        if (userSnap.exists) {
+          tx.update(userRef, { tripCoins: newBalance });
+        } else {
+          tx.set(userRef, {
+            tripCoins: REWARD_COINS,
+            tier: 'Bronze',
+            totalSpentUSD: 0,
+            bookingCount: 0,
+          });
+        }
+
+        // 중복 방지 마커 생성
+        tx.set(rewardRef, {
+          planId,
+          rewardedAt: FieldValue.serverTimestamp(),
+          coinsAwarded: REWARD_COINS,
+          shareMethod: shareMethod || 'unknown',
+        });
+
+        // 포인트 이력 기록
+        const logRef = db.collection('users').doc(userId)
+          .collection('pointHistory').doc();
+        tx.set(logRef, {
+          type: 'earn',
+          amount: REWARD_COINS,
+          balance: newBalance,
+          description: `Share bonus (plan ${planId.slice(0, 8)})`,
+          createdAt: Date.now(),
+        });
+
+        return { alreadyRewarded: false, newBalance, earnedCoins: REWARD_COINS };
+      });
+
+      console.log('[loyalty] earn-share:', userId, planId, result);
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, ...result }));
+    }
+
     // Unknown action
     res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: `Unknown action: ${action}` }));

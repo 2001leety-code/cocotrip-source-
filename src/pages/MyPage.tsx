@@ -270,20 +270,38 @@ export default function MyPage() {
 
         {/* ── 탭: Points History ── */}
         {tab === 'history' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-bold text-lg">Point History</h3>
+              <span className="text-white/40 text-sm">
+                Balance: <span className="text-[#FFD700] font-bold">{(loyalty?.tripCoins ?? 0).toLocaleString()}</span>
+              </span>
+            </div>
+
             {pointHistory.length === 0 ? (
-              <EmptyState icon={Clock} text="No points activity yet" />
-            ) : pointHistory.map(log => (
-              <div key={log.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/5">
-                <div>
-                  <p className="text-white/70 text-sm">{log.description}</p>
-                  <p className="text-white/20 text-[10px]">{new Date(log.createdAt).toLocaleString()}</p>
-                </div>
-                <span className={`font-semibold text-sm ${log.type === 'earn' ? 'text-green-400' : 'text-red-400'}`}>
-                  {log.type === 'earn' ? '+' : ''}{log.amount}
-                </span>
+              <div className="text-center py-12 text-white/30">
+                <Clock className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No point activity yet.</p>
+                <p className="text-xs mt-1 text-white/20">Share a plan to earn your first Trip Coins!</p>
               </div>
-            ))}
+            ) : (
+              pointHistory.map(log => (
+                <div key={log.id}
+                  className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.15] transition-all">
+                  <div className="flex-1">
+                    <p className="text-white/90 text-sm font-medium">{log.description}</p>
+                    <p className="text-white/40 text-xs mt-0.5">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className={`font-bold text-lg ${
+                    log.type === 'earn' ? 'text-emerald-400' : 'text-red-400'
+                  }`}>
+                    {log.type === 'earn' ? '+' : ''}{log.amount}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
