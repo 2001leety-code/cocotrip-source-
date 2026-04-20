@@ -59,6 +59,61 @@ function pickFields(item) {
   return result;
 }
 
+// ── 주소 정규화 ─────────────────────────────────────────────────────
+// Google Maps에서 수집된 주소는 역순(건물→동→구→시→대한민국)인 경우가 많음.
+// 한국 표준: "시도명 + 시군구 + 도로명 + 건물번호" 형식으로 정규화.
+const KOREAN_CITY_PREFIXES = /^(서울특별시|부산광역시|제주특별자치도|인천광역시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|울산광역시|대구광역시|대전광역시|광주광역시|세종특별자치시)/;
+
+function normalizeKoreanAddress(addr) {
+  if (!addr || typeof addr !== 'string') return addr;
+
+  // Remove leading/trailing "대한민국" or "South Korea"
+  let cleaned = addr.replace(/^\s*(대한민국|South Korea)\s+/i, '').replace(/\s*(대한민국|South Korea)\s*$/i, '').trim();
+
+  // Already starts with a Korean city → probably correct
+  if (KOREAN_CITY_PREFIXES.test(cleaned)) return cleaned;
+
+  // Detect reverse-order pattern: ends with city name
+  // e.g. "노블스카이, 9층, 9-32 광안해변로370번길 수영구 부산광역시"
+  const parts = cleaned.split(/\s+/);
+  
+  // Find the city name in the parts (from the end)
+  let cityIdx = -1;
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (KOREAN_CITY_PREFIXES.test(parts[i])) {
+      cityIdx = i;
+      break;
+    }
+  }
+
+  if (cityIdx >= 0) {
+    // Reverse: city + gu + road + building details
+    const cityAndGu = parts.slice(cityIdx).join(' ');
+    const beforeCity = parts.slice(0, cityIdx);
+    
+    // Separate gu/district from road parts
+    // Find -gu/-dong parts near the city
+    let guParts = [];
+    let roadParts = [];
+    for (let i = beforeCity.length - 1; i >= 0; i--) {
+      const p = beforeCity[i].replace(/,$/,'');
+      if (/[구군읍면동리]$/.test(p) && guParts.length < 2) {
+        guParts.unshift(p);
+      } else {
+        roadParts = beforeCity.slice(0, i + 1).map(s => s.replace(/,$/,'').trim()).filter(Boolean);
+        break;
+      }
+    }
+    
+    // Reconstruct: 시 + 구 + 도로/건물
+    const normalized = [cityAndGu, ...guParts, ...roadParts].join(' ');
+    return normalized;
+  }
+
+  // No city found — return cleaned version
+  return cleaned;
+}
+
 function main() {
   console.log('🍽️  CocoTrip — Building Food Index');
   console.log(`   Filter: rating ≥ ${MIN_RATING}, reviews ≥ ${MIN_REVIEWS}\n`);
@@ -95,6 +150,17 @@ function main() {
     return rating >= MIN_RATING && reviews >= MIN_REVIEWS;
   });
   console.log(`  ✅ After rating/review filter: ${filtered.length}`);
+
+  // Normalize addresses (fix Google Maps reverse-order format)
+  let addrFixed = 0;
+  for (const item of filtered) {
+    if (item.address) {
+      const orig = item.address;
+      item.address = normalizeKoreanAddress(orig);
+      if (item.address !== orig) addrFixed++;
+    }
+  }
+  console.log(`  🔧 Address normalized: ${addrFixed} items`);
 
   // Deduplicate by placeId (Google Maps unique ID)
   const seen = new Set();
