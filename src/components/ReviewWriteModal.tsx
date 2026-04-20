@@ -23,7 +23,9 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const rl = (t as Record<string, Record<string, string>>).reviews || {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tAny = t as any;
+  const rl = tAny?.reviews || {
     rating: 'Your rating',
     placeholder: 'Share your experience...',
     submit: 'Submit review',
@@ -50,7 +52,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
           text: text.trim(),
           authorName: user.displayName || 'Anonymous',
           authorPhotoURL: user.photoURL || null,
-          language: (t as Record<string, string>)._code || 'en',
+          language: tAny?._code || 'en',
         }),
       });
       const data = await res.json();
