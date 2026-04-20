@@ -275,6 +275,12 @@ If NO "VERIFIED RESTAURANT DATABASE" appears in the message:
 - ✅ Copying "토속촌|Tosokchon" exactly from the database → verified: true
 - ✅ "김밥천국" (nationwide chain) → verified: false
 
+### ⚠️ STREET/ALLEY NAMES ARE NOT RESTAURANTS (common mistake)
+- Do NOT use street names, alley names, or food market areas as category:"food" stops.
+- ❌ "홍대 거리 음식 골목", "길거리 음식 거리", "Hongdae Street Food Alley"
+- ❌ "명동 먹자골목", "포장마차 거리", "야시장 거리"
+- These are AREAS, not restaurants. Use a SPECIFIC restaurant name from the database or chain list instead.
+
 ### Diet preferences:
 If diet_preferences includes "Halal":
 - ONLY recommend halal-certified restaurants
