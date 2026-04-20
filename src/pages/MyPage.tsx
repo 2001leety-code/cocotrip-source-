@@ -2,9 +2,9 @@
  * MyPage — 마이페이지 (등급/포인트/쿠폰/위시리스트/일정)
  * 로그인 필수, AuthRequired 래핑
  */
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Crown, Coins, Gift, Heart, Calendar, Clock,
+  Crown, Coins, Gift, Heart, Calendar, Clock, Star,
   ArrowLeft, TrendingUp, ChevronRight, Copy, Check,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -34,7 +34,7 @@ const TIER_BENEFITS: Record<TierType, string[]> = {
   Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaоTalk support', 'Free cancellation 72h', 'Airport lounge access'],
 };
 
-type Tab = 'overview' | 'coupons' | 'wishlist' | 'itinerary' | 'history';
+type Tab = 'overview' | 'coupons' | 'wishlist' | 'itinerary' | 'reviews' | 'history';
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -156,6 +156,7 @@ export default function MyPage() {
             { id: 'coupons', label: `Coupons (${activeCoupons.length})`, icon: Gift },
             { id: 'wishlist', label: `Wishlist (${wishlistItems.length})`, icon: Heart },
             { id: 'itinerary', label: `Itinerary (${itineraries.length})`, icon: Calendar },
+            { id: 'reviews', label: 'Reviews', icon: Star },
             { id: 'history', label: 'Points', icon: Clock },
           ] as { id: Tab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
             <button
@@ -351,6 +352,11 @@ export default function MyPage() {
           </div>
         )}
 
+        {/* ── 탭: My Reviews ── */}
+        {tab === 'reviews' && (
+          <MyReviewsTab userId={user?.uid || ''} />
+        )}
+
         {/* ── 탭: Points History ── */}
         {tab === 'history' && (
           <div className="space-y-3">
@@ -415,6 +421,102 @@ function EmptyState({ icon: Icon, text, sub }: {
       <Icon size={36} className="mb-3 opacity-30" />
       <p className="text-sm">{text}</p>
       {sub && <p className="text-xs mt-1 text-white/15">{sub}</p>}
+    </div>
+  );
+}
+
+interface MyReview {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  authorPhotoURL?: string | null;
+  rating: number;
+  text: string;
+  targetType: string;
+  targetId: string;
+  createdAt: number;
+}
+
+function MyReviewsTab({ userId }: { userId: string }) {
+  const [reviews, setReviews] = useState<MyReview[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMyReviews = useCallback(async () => {
+    if (!userId) { setLoading(false); return; }
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list' }),
+      });
+      const data = await res.json();
+      const mine = (data.reviews || []).filter((r: MyReview) => r.authorUid === userId);
+      setReviews(mine);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [userId]);
+
+  useEffect(() => { fetchMyReviews(); }, [fetchMyReviews]);
+
+  const handleDelete = async (reviewId: string) => {
+    if (!confirm('Delete this review?')) return;
+    try {
+      await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', reviewId, userId }),
+      });
+      setReviews(prev => prev.filter(r => r.id !== reviewId));
+    } catch { /* silent */ }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
+      </div>
+    );
+  }
+
+  if (reviews.length === 0) {
+    return <EmptyState icon={Star} text="No reviews yet" sub="Review a trip to earn +50 Trip Coins!" />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-white font-bold text-lg">My Reviews</h3>
+        <span className="text-white/40 text-sm">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
+      </div>
+      {reviews.map(r => (
+        <div key={r.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <Star key={i} size={12} className={i <= r.rating ? 'fill-[#FFD700] text-[#FFD700]' : 'fill-transparent text-white/20'} />
+                ))}
+              </div>
+              <span className="text-white/20 text-[10px]">
+                {new Date(r.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+            <button
+              onClick={() => handleDelete(r.id)}
+              className="text-white/20 text-xs hover:text-red-400 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+          <p className="text-white/70 text-sm">{r.text}</p>
+          <Link
+            to={`/my-plans/${r.targetId}`}
+            className="inline-flex items-center gap-1 text-[#7C5CFC] text-xs mt-2 hover:underline"
+          >
+            View plan <ChevronRight size={10} />
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }
