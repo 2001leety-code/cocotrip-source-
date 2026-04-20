@@ -310,6 +310,19 @@ MyPage Coupons 탭에 **Redeem Trip Coins** 섹션 추가.
 
 ---
 
+## 작업 10. 🛡️ 리뷰 API 확장 — my-reviews + admin-list
+
+| 액션 | 용도 | 인증 |
+|------|------|------|
+| `my-reviews` | 내가 쓴 리뷰 (서버사이드 `authorUid` 필터) | userId 필수 |
+| `admin-list` | 신고된 리뷰 목록 (모더레이션) | 어드민 이메일 필수 |
+
+**개선**: MyPage Reviews 탭이 전체 목록 가져와서 클라이언트 필터 → 서버사이드 필터로 변경 (트래픽 절감)
+
+**Firestore 인덱스**: `reviews` 컬렉션에 `status`+`createdAt` 복합 인덱스 추가 생성 완료
+
+---
+
 # 📌 다음 단계
 
 | 우선순위 | 작업 | 상태 | 비고 |
@@ -317,6 +330,6 @@ MyPage Coupons 탭에 **Redeem Trip Coins** 섹션 추가.
 | P1 | 쿠폰 E2E 실증 | ⏳ | PayPal 샌드박스 실결제 → isUsed 마킹 확인 |
 | P1 | eSIM (Airalo) | ⏸️ | 파트너 가입 대기 |
 | P2 | 리뷰 v2 — 사진 업로드 | 미착수 | Firebase Storage 연동 |
-| P2 | 리뷰 v2 — 어드민 모더레이션 | 미착수 | reported 상태 리뷰 관리 |
+| ~~P2~~ | ~~리뷰 API 확장~~ | ✅ 완료 | my-reviews + admin-list 액션 |
 | ~~P3~~ | ~~번들 최적화~~ | ✅ 완료 | 1,292→512 KB (-60%) |
 | ~~P3~~ | ~~환율 API 유틸 통합~~ | ✅ 완료 | 3곳 중복 → 공통 모듈 |
