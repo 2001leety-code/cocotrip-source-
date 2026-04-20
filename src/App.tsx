@@ -16,17 +16,17 @@ import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SeasonalBanner } from '@/components/SeasonalBanner';
 import { RegionDetail } from '@/pages/RegionDetail';
-import Booking from '@/pages/Booking';
-import About from '@/pages/About';
-import Terms from '@/pages/Terms';
-import Privacy from '@/pages/Privacy';
-import TravelTerms from '@/pages/TravelTerms';
-import Admin from '@/pages/Admin';
+const Booking = lazy(() => import('@/pages/Booking'));
+const About = lazy(() => import('@/pages/About'));
+const Terms = lazy(() => import('@/pages/Terms'));
+const Privacy = lazy(() => import('@/pages/Privacy'));
+const TravelTerms = lazy(() => import('@/pages/TravelTerms'));
+const Admin = lazy(() => import('@/pages/Admin'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
 const CharterPage = lazy(() => import('@/pages/CharterPage'));
-import MyPage from '@/pages/MyPage';
+const MyPage = lazy(() => import('@/pages/MyPage'));
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
 
@@ -144,7 +144,9 @@ function App() {
             path="/admin"
             element={
               <AdminRoute>
-                <Admin />
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <Admin />
+                </Suspense>
               </AdminRoute>
             }
           />
@@ -168,15 +170,17 @@ function App() {
           />
           <Route path="/tours" element={<Suspense fallback={<PlannerSkeleton />}><ToursPage /></Suspense>} />
           <Route path="/tours/:slug" element={<Suspense fallback={<PlannerSkeleton />}><TourDetailPage /></Suspense>} />
-          <Route path="/about" element={<About />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/travel-terms" element={<TravelTerms />} />
+          <Route path="/about" element={<Suspense fallback={<PlannerSkeleton />}><About /></Suspense>} />
+          <Route path="/terms" element={<Suspense fallback={<PlannerSkeleton />}><Terms /></Suspense>} />
+          <Route path="/privacy" element={<Suspense fallback={<PlannerSkeleton />}><Privacy /></Suspense>} />
+          <Route path="/travel-terms" element={<Suspense fallback={<PlannerSkeleton />}><TravelTerms /></Suspense>} />
           <Route
             path="/mypage"
             element={
               <AuthRequired>
-                <MyPage />
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <MyPage />
+                </Suspense>
               </AuthRequired>
             }
           />
@@ -211,7 +215,9 @@ function BookingPageWrapper() {
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-black/90 relative" style={{ backgroundImage: "url('/1uA0qa_반포대교(1).jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      <Booking onClose={() => navigate(-1)} />
+      <Suspense fallback={<PlannerSkeleton />}>
+        <Booking onClose={() => navigate(-1)} />
+      </Suspense>
     </div>
   );
 }
