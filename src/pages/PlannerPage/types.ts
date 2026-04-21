@@ -66,7 +66,7 @@ export interface CustomerSupport {
 }
 
 export interface PlannerResponse {
-  meta: { categories: string[]; regions: string[]; startDate: string; endDate: string; generatedAt: string; estimatedBudget?: any };
+  meta: { categories: string[]; regions: string[]; startDate: string; endDate: string; generatedAt: string; estimatedBudget?: BudgetSummary | string };
   accommodation?: Accommodation;
   budgetSummary?: BudgetSummary;
   itinerary: DayItinerary[];

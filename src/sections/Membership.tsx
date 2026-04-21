@@ -1,7 +1,14 @@
 import { Percent, Car, Hotel, Gift, ArrowRight } from 'lucide-react';
+import type { Translations } from '@/i18n';
+
+interface MembershipBenefit {
+  icon: string;
+  title: string;
+  desc: string;
+}
 
 interface MembershipProps {
-  t: any;
+  t: Translations;
 }
 
 const iconMap: Record<string, React.ElementType> = {
@@ -41,7 +48,7 @@ export function Membership({ t }: MembershipProps) {
 
           {/* Right Content - Benefits Grid */}
           <div className="grid grid-cols-2 gap-4">
-            {t.membership.benefits.map((benefit: any, index: number) => {
+            {t.membership.benefits.map((benefit: MembershipBenefit, index: number) => {
               const Icon = iconMap[benefit.icon];
               
               return (

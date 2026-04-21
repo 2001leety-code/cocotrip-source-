@@ -5,8 +5,9 @@ import { useState } from 'react';
 import { Car, ChevronDown, Bus, Train, AlertTriangle } from 'lucide-react';
 import { TRANSIT_ICON, formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
+import type { TransitFromPrev } from '@/types/plan';
 
-export function TransitArrow({ transit }: { transit: any }) {
+export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<string, unknown> }) {
   const { t } = useLanguage();
   const pd = (t as any).planDetail || {};
   const trKeys = pd.transit || {};

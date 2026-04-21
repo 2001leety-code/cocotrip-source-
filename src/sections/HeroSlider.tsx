@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import type { Translations } from '@/i18n';
 
 interface HeroSliderProps {
-  t: any;
+  t: Translations;
 }
 
 // Add mobile-specific images

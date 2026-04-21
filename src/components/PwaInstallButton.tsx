@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, X, Smartphone, Trash2, Share } from 'lucide-react';
+import type { Translations } from '@/i18n';
 
 interface PwaInstallButtonProps {
-  t: any;
+  t: Translations;
 }
 
 export function PwaInstallButton({ t }: PwaInstallButtonProps) {

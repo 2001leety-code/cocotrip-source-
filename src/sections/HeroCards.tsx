@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bot, Car } from 'lucide-react';
+import type { Translations } from '@/i18n';
 
 interface HeroCardsProps {
-  t: any;
+  t: Translations;
 }
 
 export function HeroCards({ t }: HeroCardsProps) {

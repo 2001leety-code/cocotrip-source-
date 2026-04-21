@@ -1,9 +1,10 @@
 import { Phone, Mail, MapPin, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import type { Translations } from '@/i18n';
 
 interface FooterProps {
-  t: any;
+  t: Translations;
 }
 
 export function Footer({ t }: FooterProps) {

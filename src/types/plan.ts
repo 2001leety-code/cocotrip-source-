@@ -43,7 +43,7 @@ export interface Stop {
   lng?: number;
   naverMapUrl?: string;
   transit_from_prev?: TransitFromPrev | null;
-  travelFromPrev?: any;
+  travelFromPrev?: TransitFromPrev | null;
 
   // Editor + RouteAgent metadata
   _userAdded?: boolean;
@@ -77,18 +77,45 @@ export interface Day {
   stops: Stop[];
 }
 
+export interface ArrivalStep {
+  step: number;
+  instruction: string;
+  details?: string;
+  fare_krw?: number;
+  est_min?: number;
+}
+
 export interface ArrivalGuide {
   airport: string;
-  steps: any[];
+  steps: ArrivalStep[];
+}
+
+export interface LuggageStorage {
+  location?: string;
+  fee_krw?: number;
+  note?: string;
+}
+
+export interface ToAirport {
+  method?: string;
+  instruction?: string;
+  est_min?: number;
+  est_fare_krw?: number;
+}
+
+export interface TaxRefund {
+  eligible?: boolean;
+  min_purchase_krw?: number;
+  note?: string;
 }
 
 export interface DepartureGuide {
   airport: string;
   recommended_departure_time?: string;
   latest_leave_hotel?: string;
-  luggage_storage?: any;
-  to_airport?: any;
-  tax_refund?: any;
+  luggage_storage?: LuggageStorage;
+  to_airport?: ToAirport;
+  tax_refund?: TaxRefund;
   last_minute_shopping?: string;
 }
 

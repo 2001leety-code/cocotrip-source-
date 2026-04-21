@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Pencil, LayoutGrid, MapPin, Users, Zap, Car, Bus, Train, Calendar, AlertTriangle } from 'lucide-react';
+import type { Translations } from '@/i18n';
 
 // ── 상수 ────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -75,8 +76,7 @@ export interface PlannerFormValues {
 interface Props {
   onSubmit: (values: PlannerFormValues) => void;
   isLoading: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  t: any;
+  t: Translations;
   lang?: string;
 }
 
@@ -87,11 +87,11 @@ function isoDate(y: number, m: number, d: number) {
 function nightsBetween(s: string, e: string) {
   return Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000);
 }
-function nightsLabel(p: any, n: number) {
+function nightsLabel(p: Record<string, unknown>, n: number) {
   if (n === 0) return p.calDayTrip as string;
   return (p.calNightsTravel as string).replace('{n}', String(n)).replace('{m}', String(n + 1));
 }
-function confirmLabel(p: any, n: number) {
+function confirmLabel(p: Record<string, unknown>, n: number) {
   if (n === 0) return p.calDaySelected as string;
   return (p.calConfirmN as string).replace('{n}', String(n)).replace('{m}', String(n + 1));
 }
@@ -109,7 +109,7 @@ function SectionLabel({ icon, text }: { icon?: React.ReactNode; text: string }) 
 export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lang = 'en' }: {
   startDate: string; endDate: string;
   onDateChange: (s: string, e: string) => void;
-  p: any; lang?: string;
+  p: Record<string, unknown>; lang?: string;
 }) {
   const now = new Date();
   const todayStr = isoDate(now.getFullYear(), now.getMonth(), now.getDate());

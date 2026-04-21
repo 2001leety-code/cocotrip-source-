@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ArrowRight } from 'lucide-react';
+import type { Translations } from '@/i18n';
 
 interface RegionsProps {
-  t: any;
+  t: Translations;
 }
 
 const regions = [

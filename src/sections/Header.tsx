@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, LogOut, LogIn } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import type { Language } from '@/i18n';
+import type { Language, Translations } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
 import { auth } from '@/lib/firebase';
@@ -12,7 +12,7 @@ import { PwaInstallButton } from '@/components/PwaInstallButton';
 
 interface HeaderProps {
   language: Language;
-  t: any;
+  t: Translations;
   onLanguageChange: (lang: Language) => void;
 }
 

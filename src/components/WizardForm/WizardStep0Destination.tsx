@@ -52,7 +52,7 @@ export function WizardStep0Destination(props: Step0Props) {
               { label: p.presetThird || 'K-pop Fan Trip', city: 'seoul', acts: ['Kpop', 'Shopping', 'Photo'] },
               { label: p.presetFourth || 'Foodie Tour Seoul', city: 'seoul', acts: ['Food', 'Night', 'Shopping'] },
               { label: p.presetFifth || 'Jeju Nature Healing', city: 'jeju', acts: ['Photo', 'Food', 'Temple'] },
-            ].map((preset: any) => (
+            ].map((preset: { label: string; city: string; extra?: string[]; acts: string[] }) => (
               <button key={preset.label} onClick={() => {
                 const cityName = getCityName(preset.city);
                 setMainCity(cityName); setMainCityKey(preset.city);

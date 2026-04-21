@@ -8,9 +8,10 @@ import {
   ArrowRight, Clock, Users, Shield, Crown, Gift,
   CloudSun, Thermometer, Timer, FileText,
 } from 'lucide-react';
+import type { Translations } from '@/i18n';
 
 interface MobileHomeProps {
-  t: any;
+  t: Translations;
 }
 
 export function MobileHome({ t: _t }: MobileHomeProps) {

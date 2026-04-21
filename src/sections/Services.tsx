@@ -2,9 +2,17 @@ import { Users, Building2, Package, Palette, UtensilsCrossed, ArrowRight } from 
 import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
 import { Link } from 'react-router-dom';
+import type { Translations } from '@/i18n';
+import type { LucideIcon } from 'lucide-react';
+
+interface ServiceDef {
+  key: string;
+  icon: LucideIcon;
+  color: string;
+}
 
 interface ServicesProps {
-  t: any;
+  t: Translations;
 }
 
 const services = [
@@ -24,7 +32,7 @@ export function Services({ t }: ServicesProps) {
     active: isMobile // Activate carousel only on mobile
   });
 
-  const ServiceCard = ({ service, isMobileCard = false }: { service: any, isMobileCard?: boolean }) => {
+  const ServiceCard = ({ service, isMobileCard = false }: { service: ServiceDef, isMobileCard?: boolean }) => {
     const Icon = service.icon;
     const serviceData = t.services[service.key];
     const cardClass = isMobileCard ? 'flex-shrink-0 w-4/5 mr-4' : 'md:col-span-2 lg:col-span-1';

@@ -1,8 +1,9 @@
 import { MessageCircle } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import type { Translations } from '@/i18n';
 
 interface CTAProps {
-  t: any;
+  t: Translations;
 }
 
 export function CTA({ t }: CTAProps) {

@@ -4,7 +4,15 @@ import { useState } from 'react';
 import { Wallet, ChevronDown } from 'lucide-react';
 import { formatKRW } from '../constants';
 
-export function BudgetTable({ budget, tMoney }: { budget: any[]; tMoney: number }) {
+interface BudgetRow {
+  day: number;
+  transport_krw: number;
+  entry_fees_krw: number;
+  meals_krw: number;
+  total_krw: number;
+}
+
+export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: number }) {
   const [open, setOpen] = useState(false);
   return (
     <section className="mb-6">
@@ -28,7 +36,7 @@ export function BudgetTable({ budget, tMoney }: { budget: any[]; tMoney: number 
               </tr>
             </thead>
             <tbody>
-              {budget.map((row: any, i: number) => (
+              {budget.map((row: BudgetRow, i: number) => (
                 <tr key={i} className="border-b border-white/[0.04]">
                   <td className="py-2 px-2 font-semibold">Day {row.day}</td>
                   <td className="text-right py-2 px-2 text-white/50">{formatKRW(row.transport_krw)}</td>
