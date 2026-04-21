@@ -22,17 +22,22 @@ try {
   }
 } catch (e) { console.warn('[plan-delete] Firebase init error:', e.message); }
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'DELETE') {
-    res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+    res.writeHead(405, JSON_CORS);
+    return res.end(JSON.stringify(_err('Method Not Allowed', 'METHOD_NOT_ALLOWED')));
   }
 
   let body = req.body;
@@ -41,27 +46,27 @@ export default async function handler(req, res) {
 
   const { planId, uid } = body;
   if (!planId) {
-    res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'planId required' }));
+    res.writeHead(400, JSON_CORS);
+    return res.end(JSON.stringify(_err('planId required', 'MISSING_FIELDS')));
   }
 
   if (!adminDb) {
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Firebase not configured' }));
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err('Firebase not configured', 'CONFIG_ERROR')));
   }
 
   try {
     // Verify ownership
     const planDoc = await adminDb.collection('plans').doc(planId).get();
     if (!planDoc.exists) {
-      res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Plan not found' }));
+      res.writeHead(404, JSON_CORS);
+      return res.end(JSON.stringify(_err('Plan not found', 'NOT_FOUND')));
     }
 
     const planData = planDoc.data();
     if (uid && planData.uid !== uid) {
-      res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Permission denied' }));
+      res.writeHead(403, JSON_CORS);
+      return res.end(JSON.stringify(_err('Permission denied', 'FORBIDDEN')));
     }
 
     // Delete plan
@@ -76,10 +81,10 @@ export default async function handler(req, res) {
       }
     }
 
-    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, planId }));
+    res.writeHead(200, JSON_CORS);
+    res.end(JSON.stringify(_ok({ planId })));
   } catch (err) {
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

@@ -51,7 +51,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
           {isPdfGenerating ? (
             <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.outroPdfCta || 'Generating PDF...'}</>
           ) : isTranslating ? (
-            <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Translating... please wait</>
+            <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.translatingWait || 'Translating... please wait'}</>
           ) : (
             <><Download className="w-5 h-5" /> {sw.outroPdfCta || 'Download PDF itinerary'}</>
           )}

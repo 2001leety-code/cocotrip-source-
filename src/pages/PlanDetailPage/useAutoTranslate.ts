@@ -61,10 +61,17 @@ export function useAutoTranslate(
             if (cacheSnap.exists()) {
               const cached = cacheSnap.data();
               if (cached?.itinerary) {
-                // Cache HIT — apply immediately
-                setPlan((prev) => prev ? { ...prev, itinerary: cached.itinerary as PlanDocument['itinerary'] } : prev);
-                setIsTranslating(false);
-                return;
+                // Stale cache detection: if plan was edited after cache was written, skip cache
+                const planUpdatedAt = (plan as Record<string, unknown>).updatedAt as string | undefined;
+                const cachedAt = cached.cachedAt as string | undefined;
+                if (planUpdatedAt && cachedAt && planUpdatedAt > cachedAt) {
+                  console.info('[translate] cache stale — plan edited after cache, re-translating');
+                } else {
+                  // Cache HIT — apply immediately
+                  setPlan((prev) => prev ? { ...prev, itinerary: cached.itinerary as PlanDocument['itinerary'] } : prev);
+                  setIsTranslating(false);
+                  return;
+                }
               }
             }
           } catch (cacheErr) {
@@ -80,16 +87,17 @@ export function useAutoTranslate(
           body: JSON.stringify({ plan: originalItineraryRef.current || plan.itinerary, targetLang }),
           signal: controller.signal,
         });
-        const data = await resp.json();
-        if (data.translated) {
-          setPlan((prev) => prev ? { ...prev, itinerary: data.translated } : prev);
+        const json = await resp.json();
+        const payload = json.data;
+        if (payload.translated) {
+          setPlan((prev) => prev ? { ...prev, itinerary: payload.translated } : prev);
 
           // --- Step 3: Write to Firestore cache ---
           if (planId && planId.length > 0) {
             try {
               const cacheRef = doc(db, 'plans', planId as string, 'translations', targetLang);
               await setDoc(cacheRef, {
-                itinerary: data.translated,
+                itinerary: payload.translated,
                 cachedAt: new Date().toISOString(),
                 sourceLang: originalLang,
               });

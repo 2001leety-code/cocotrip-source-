@@ -8,11 +8,16 @@
  *   report  — 리뷰 신고
  */
 
+// ── 표준 응답 래퍼 (api/_shared/response.js와 동일 형식) ──────────
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 const ADMIN_EMAILS = ['2001leety@gmail.com'];
 const MAX_TEXT = 500;
@@ -63,8 +68,8 @@ export default async function handler(req, res) {
     return res.end();
   }
   if (req.method !== 'POST') {
-    res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'POST only' }));
+    res.writeHead(405, JSON_CORS);
+    return res.end(JSON.stringify(_err('POST only', 'METHOD_NOT_ALLOWED')));
   }
 
   try {
@@ -83,28 +88,28 @@ export default async function handler(req, res) {
 
       // 필수 필드 검증
       if (!userId || !targetType || !targetId || !rating) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing required fields' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing required fields', 'MISSING_FIELDS')));
       }
       if (rating < 1 || rating > 5) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Rating must be 1-5' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Rating must be 1-5', 'INVALID_RATING')));
       }
       if (text && text.length > MAX_TEXT) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: `Text max ${MAX_TEXT} characters` }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(`Text max ${MAX_TEXT} characters`, 'TEXT_TOO_LONG')));
       }
       if (photos && photos.length > MAX_PHOTOS) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: `Max ${MAX_PHOTOS} photos` }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(`Max ${MAX_PHOTOS} photos`, 'TOO_MANY_PHOTOS')));
       }
 
       // 소유자 작성 차단 (plan인 경우)
       if (targetType === 'plan') {
         const planSnap = await db.collection('plans').doc(targetId).get();
         if (planSnap.exists && planSnap.data().uid === userId) {
-          res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: 'Cannot review your own plan' }));
+          res.writeHead(403, JSON_CORS);
+          return res.end(JSON.stringify(_err('Cannot review your own plan', 'SELF_REVIEW')));
         }
       }
 
@@ -115,8 +120,8 @@ export default async function handler(req, res) {
         .limit(1)
         .get();
       if (!existing.empty) {
-        res.writeHead(409, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'alreadyReviewed' }));
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(_err('alreadyReviewed', 'DUPLICATE_REVIEW')));
       }
 
       // 트랜잭션: 리뷰 생성 + 리워드
@@ -167,8 +172,8 @@ export default async function handler(req, res) {
       });
 
       console.log('[reviews] created:', result.reviewId, 'by', userId);
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, ...result, reward: REVIEW_REWARD }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ ...result, reward: REVIEW_REWARD })));
     }
 
     // ════════════════════════════════════════════════════════
@@ -191,8 +196,8 @@ export default async function handler(req, res) {
       const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const nextCursor = reviews.length === pageSize ? reviews[reviews.length - 1].createdAt : null;
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ reviews, nextCursor, count: reviews.length }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ reviews, nextCursor, count: reviews.length })));
     }
 
     // ════════════════════════════════════════════════════════
@@ -201,8 +206,8 @@ export default async function handler(req, res) {
     if (action === 'my-reviews') {
       const { userId } = body;
       if (!userId) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing userId' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing userId', 'MISSING_FIELDS')));
       }
 
       const snap = await db.collection('reviews')
@@ -213,8 +218,8 @@ export default async function handler(req, res) {
 
       const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ reviews, count: reviews.length }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ reviews, count: reviews.length })));
     }
 
     // ════════════════════════════════════════════════════════
@@ -223,8 +228,8 @@ export default async function handler(req, res) {
     if (action === 'admin-list') {
       const { userEmail, filter } = body;
       if (!ADMIN_EMAILS.includes((userEmail || '').toLowerCase())) {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Admin only' }));
+        res.writeHead(403, JSON_CORS);
+        return res.end(JSON.stringify(_err('Admin only', 'FORBIDDEN')));
       }
 
       let query;
@@ -248,8 +253,8 @@ export default async function handler(req, res) {
       const snap = await query.get();
       const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ reviews, count: reviews.length }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ reviews, count: reviews.length })));
     }
 
     // ════════════════════════════════════════════════════════
@@ -258,15 +263,15 @@ export default async function handler(req, res) {
     if (action === 'delete') {
       const { reviewId, userId, userEmail } = body;
       if (!reviewId) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing reviewId' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing reviewId', 'MISSING_FIELDS')));
       }
 
       const reviewRef = db.collection('reviews').doc(reviewId);
       const reviewSnap = await reviewRef.get();
       if (!reviewSnap.exists) {
-        res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Review not found' }));
+        res.writeHead(404, JSON_CORS);
+        return res.end(JSON.stringify(_err('Review not found', 'NOT_FOUND')));
       }
 
       const review = reviewSnap.data();
@@ -274,15 +279,15 @@ export default async function handler(req, res) {
       const isAdmin = ADMIN_EMAILS.includes((userEmail || '').toLowerCase());
 
       if (!isAuthor && !isAdmin) {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Not authorized' }));
+        res.writeHead(403, JSON_CORS);
+        return res.end(JSON.stringify(_err('Not authorized', 'FORBIDDEN')));
       }
 
       await reviewRef.delete();
       console.log('[reviews] deleted:', reviewId, 'by', userId);
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, deleted: reviewId }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ deleted: reviewId })));
     }
 
     // ════════════════════════════════════════════════════════
@@ -291,8 +296,8 @@ export default async function handler(req, res) {
     if (action === 'report') {
       const { reviewId, reason, userId: reporterUid } = body;
       if (!reviewId) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing reviewId' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing reviewId', 'MISSING_FIELDS')));
       }
 
       const { FieldValue } = await import('firebase-admin/firestore');
@@ -311,8 +316,8 @@ export default async function handler(req, res) {
       });
 
       console.log('[reviews] reported:', reviewId);
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, reported: reviewId }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ reported: reviewId })));
     }
 
     // ════════════════════════════════════════════════════════
@@ -321,12 +326,12 @@ export default async function handler(req, res) {
     if (action === 'moderate') {
       const { reviewId, decision, userEmail } = body;
       if (!ADMIN_EMAILS.includes((userEmail || '').toLowerCase())) {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Admin only' }));
+        res.writeHead(403, JSON_CORS);
+        return res.end(JSON.stringify(_err('Admin only', 'FORBIDDEN')));
       }
       if (!reviewId || !['keep', 'hide', 'delete'].includes(decision)) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing reviewId or invalid decision' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing reviewId or invalid decision', 'INVALID_INPUT')));
       }
 
       const reviewRef = db.collection('reviews').doc(reviewId);
@@ -345,17 +350,17 @@ export default async function handler(req, res) {
         console.log(`[reviews] admin ${decision}:`, reviewId);
       }
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, reviewId, decision }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ reviewId, decision })));
     }
 
     // Unknown action
-    res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: `Unknown action: ${action}` }));
+    res.writeHead(400, JSON_CORS);
+    return res.end(JSON.stringify(_err(`Unknown action: ${action}`, 'UNKNOWN_ACTION')));
 
   } catch (err) {
     console.error('[reviews] Error:', err);
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

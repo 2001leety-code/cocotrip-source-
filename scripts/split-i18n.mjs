@@ -1,0 +1,2 @@
+"/**\n * i18n 분할 스크립트\n * src/i18n/index.ts → src/i18n/locales/ko.json, en.json, ja.json, zh.json\n * \n * 사용법: node scripts/split-i18n.mjs\n */\nimport { readFileSync, writeFileSync, mkdirSync } from 'fs';\nimport { resolve, dirname } 
+<truncated 1335 bytes>

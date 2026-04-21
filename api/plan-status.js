@@ -21,47 +21,52 @@ try {
   }
 } catch (e) { console.warn('[plan-status] Firebase init error:', e.message); }
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'GET') {
-    res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+    res.writeHead(405, JSON_CORS);
+    return res.end(JSON.stringify(_err('Method Not Allowed', 'METHOD_NOT_ALLOWED')));
   }
 
   const { planId } = req.query || {};
   if (!planId) {
-    res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'planId required' }));
+    res.writeHead(400, JSON_CORS);
+    return res.end(JSON.stringify(_err('planId required', 'MISSING_FIELDS')));
   }
 
   if (!adminDb) {
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Firebase not configured' }));
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err('Firebase not configured', 'CONFIG_ERROR')));
   }
 
   try {
     const doc = await adminDb.collection('plans').doc(planId).get();
     if (!doc.exists) {
-      res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Plan not found' }));
+      res.writeHead(404, JSON_CORS);
+      return res.end(JSON.stringify(_err('Plan not found', 'NOT_FOUND')));
     }
     const data = doc.data();
-    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
+    res.writeHead(200, JSON_CORS);
+    res.end(JSON.stringify(_ok({
       planId,
       status: data.status || 'unknown',
       createdAt: data.createdAt || null,
       tourTitle: data.itinerary?.tour_title || null,
       area: data.input?.area || null,
-    }));
+    })));
   } catch (err) {
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

@@ -26,7 +26,7 @@ const scenarios = [
 ];
 
 function extractStops(data) {
-  const it = data.itinerary || data;
+  const it = data?.data?.itinerary || data?.itinerary || data;
   return (it.days || []).flatMap(d =>
     (d.stops || []).map(s => ({
       name: s.name || s.name_ko || '',
@@ -151,7 +151,7 @@ async function runAll() {
       const stops = extractStops(data);
       
       // 서버 측 검증 이슈 + 클라이언트 측 추가 분석
-      const serverIssues = data._validation_issues || [];
+      const serverIssues = data?.data?._validation_issues || data._validation_issues || [];
       const clientIssues = analyzeIssues(stops, s.language);
       const allIssues = [...serverIssues, ...clientIssues];
       

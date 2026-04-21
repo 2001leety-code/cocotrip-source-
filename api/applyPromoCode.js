@@ -14,11 +14,16 @@ import { getUsdToKrw } from './_exchange-rate.js';
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 // ── 글로벌 (하드코딩) 프로모 코드 ──
 const GLOBAL_PROMOS = {
@@ -82,8 +87,8 @@ export default async function handler(req, res) {
     return res.end();
   }
   if (req.method !== 'POST') {
-    res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Method not allowed' }));
+    res.writeHead(405, JSON_CORS);
+    return res.end(JSON.stringify(_err('Method not allowed', 'METHOD_NOT_ALLOWED')));
   }
 
   try {
@@ -136,8 +141,8 @@ export default async function handler(req, res) {
       const savedAmount = Math.round(originalPrice * totalDiscount * 100) / 100;
       const discountedPrice = Math.round((originalPrice - savedAmount) * 100) / 100;
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({
         valid: true,
         stacked: true,
         appliedCodes,
@@ -145,13 +150,13 @@ export default async function handler(req, res) {
         originalPrice,
         savedAmount,
         discountedPrice,
-      }));
+      })));
     }
 
     // ── 단일 코드 적용 (기존 호환) ──
     if (!code || !originalPrice) {
-      res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Missing code or originalPrice' }));
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('Missing code or originalPrice', 'MISSING_FIELDS')));
     }
 
     const upper = code.toUpperCase();
@@ -163,8 +168,8 @@ export default async function handler(req, res) {
       const discountedPrice = Math.round((originalPrice - savedAmount) * 100) / 100;
       console.log('[applyPromoCode] Global:', { code: upper, originalPrice, discountedPrice });
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({
         valid: true,
         code: upper,
         label: promo.label,
@@ -173,7 +178,7 @@ export default async function handler(req, res) {
         savedAmount,
         discountedPrice,
         stackable: promo.stackable,
-      }));
+      })));
     }
 
     // 2. Firestore 개인 쿠폰 확인
@@ -196,8 +201,8 @@ export default async function handler(req, res) {
       const discountedPrice = Math.round((originalPrice - savedAmount) * 100) / 100;
       console.log('[applyPromoCode] Firestore coupon:', { code: upper, originalPrice, discountedPrice, usdToKrw });
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({
         valid: true,
         code: upper,
         label: fsCoupon.label,
@@ -209,16 +214,16 @@ export default async function handler(req, res) {
         couponDocId: fsCoupon.couponDocId,
         userId: fsCoupon.userId,
         exchangeRate: Math.round(usdToKrw),
-      }));
+      })));
     }
 
     // 3. 미등록 코드
-    res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ valid: false, error: 'invalid_code', message: 'Invalid promo code.' }));
+    res.writeHead(400, JSON_CORS);
+    return res.end(JSON.stringify(_err('Invalid promo code', 'INVALID_CODE')));
 
   } catch (err) {
     console.error('[applyPromoCode] Error:', err);
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

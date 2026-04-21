@@ -35,6 +35,10 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const FALLBACK = {
   en: {
     themes: ['Seoul Highlights'],
@@ -115,7 +119,7 @@ RULES:
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
-  if (req.method !== 'POST') { res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Method Not Allowed' })); }
+  if (req.method !== 'POST') { res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify(_err('Method Not Allowed', 'METHOD_NOT_ALLOWED'))); }
 
   try {
     let rawBody = req.body;
@@ -235,7 +239,7 @@ export default async function handler(req, res) {
     }
 
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(json));
+    res.end(JSON.stringify(_ok(json)));
 
     // ── 비동기 카운터 기록 (응답 후 실행 — 사용자 대기 없음) ──
     if (counterDb) {
@@ -259,6 +263,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Quick planner error:', error);
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(FALLBACK.en));
+    res.end(JSON.stringify(_ok(FALLBACK.en)));
   }
 }

@@ -23,9 +23,17 @@ import { validateResponse, repairAndParseJSON, cleanAddresses } from './_ai_core
 import { applyDBMatcher } from './_ai_core/dbMatcher.js';
 import { calculateTmoney, persistPlan } from './_ai_core/planPersister.js';
 import { sendNotificationEmail, recordLeadToSheets } from './_ai_core/emailNotifier.js';
+import { pass1Intent, pass2Resolve, pass3Enrich } from './_ai_core/threePassPipeline.js';
+
+// Feature flag: 'legacy' (default) or '3pass'
+const PLANNER_MODE = (process.env.PLANNER_MODE || 'legacy').trim();
 
 export const maxDuration = 300;
 export const config = { runtime: 'nodejs' };
+
+// ── 표준 응답 래퍼 ──────────────────────────────────────────────────────────
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR', extra) => ({ ok: false, error: msg, code, ...extra });
 
 // ── firebase-admin 초기화 ─────────────────────────────────────────────────
 let adminDb = null;
@@ -85,7 +93,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'POST') {
     res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+    return res.end(JSON.stringify(_err('Method Not Allowed', 'METHOD_NOT_ALLOWED')));
   }
 
   const handlerStart = Date.now();
@@ -107,7 +115,7 @@ export default async function handler(req, res) {
       const origDoc = await origRef.get();
       if (!origDoc.exists) {
         res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Original plan not found' }));
+        return res.end(JSON.stringify(_err('Original plan not found', 'NOT_FOUND')));
       }
       const origData = origDoc.data();
       const uid = body.uid || null;
@@ -115,12 +123,12 @@ export default async function handler(req, res) {
       const hasToken = origData.accessToken && origData.accessToken === revisionToken;
       if (!isOwner && !hasToken && origData.uid) {
         res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Unauthorized revision' }));
+        return res.end(JSON.stringify(_err('Unauthorized revision', 'FORBIDDEN')));
       }
       const credits = origData.revisionCredits ?? 0;
       if (credits <= 0) {
         res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'No revision credits remaining', details: 'You have already used your free revision.' }));
+        return res.end(JSON.stringify(_err('No revision credits remaining', 'REVISION_EXHAUSTED', { details: 'You have already used your free revision.' })));
       }
       await origRef.update({
         revisionCredits: FieldValue.increment(-1),
@@ -137,7 +145,7 @@ export default async function handler(req, res) {
 
     if (!isRevision && !paypalOrderId) {
       res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Payment required', details: 'PayPal order ID is missing. Please complete payment first.' }));
+      return res.end(JSON.stringify(_err('Payment required', 'PAYMENT_REQUIRED', { details: 'PayPal order ID is missing. Please complete payment first.' })));
     }
 
     const TEST_ACCOUNTS = ['2001leety@gmail.com'];
@@ -149,7 +157,7 @@ export default async function handler(req, res) {
         console.log('[planner] ✅ TEST MODE bypass — skipping PayPal verification for:', requestEmail);
       } else if (isTestOrderId && !isTestAccount) {
         res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Unauthorized test mode', details: 'Test mode is only available for authorized accounts.' }));
+        return res.end(JSON.stringify(_err('Unauthorized test mode', 'FORBIDDEN', { details: 'Test mode is only available for authorized accounts.' })));
       } else {
         const ppClientId = isTestAccount
           ? process.env.PAYPAL_SANDBOX_CLIENT_ID
@@ -173,7 +181,7 @@ export default async function handler(req, res) {
           const tokenBody = await tokenRes.text().catch(() => '');
           console.error('[planner] PayPal auth failed:', tokenRes.status, tokenBody);
           res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: `PayPal auth ${tokenRes.status}: ${tokenBody}` }));
+          return res.end(JSON.stringify(_err(`PayPal auth ${tokenRes.status}: ${tokenBody}`, 'PAYPAL_AUTH_ERROR')));
         }
         const ppToken = (await tokenRes.json()).access_token;
 
@@ -185,7 +193,7 @@ export default async function handler(req, res) {
 
         if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
           res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: 'Payment not completed', details: `Order status: ${orderData.status}` }));
+          return res.end(JSON.stringify(_err('Payment not completed', 'PAYMENT_INCOMPLETE', { details: `Order status: ${orderData.status}` })));
         }
 
         if (adminDb) {
@@ -193,7 +201,7 @@ export default async function handler(req, res) {
           const usedDoc = await usedRef.get();
           if (usedDoc.exists) {
             res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: 'Order already used', details: 'This payment has already been used to generate a plan.' }));
+            return res.end(JSON.stringify(_err('Order already used', 'DUPLICATE_ORDER', { details: 'This payment has already been used to generate a plan.' })));
           }
           await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
         }
@@ -318,9 +326,48 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       return `\n\n[VARIATION SEED: ${seed}] [ANGLE: ${angle}]\nCreate a UNIQUE, personally-curated itinerary. This is a paid premium plan — make it feel special, not generic.`;
     })();
 
+    // ── AVOID 리스트: 최근 플랜의 식당 중복 방지 ────────────────────────────
+    let avoidClause = '';
+    if (adminDb && (uid || requestEmail)) {
+      try {
+        // 같은 사용자/이메일의 최근 3개 플랜에서 사용된 식당 이름 추출
+        let recentQuery = adminDb.collection('plans')
+          .orderBy('createdAt', 'desc')
+          .limit(3);
+        if (uid) {
+          recentQuery = recentQuery.where('uid', '==', uid);
+        } else {
+          recentQuery = recentQuery.where('email', '==', requestEmail);
+        }
+        const recentSnap = await recentQuery.get();
+        const usedNames = new Set();
+        recentSnap.forEach(doc => {
+          const plan = doc.data();
+          const days = plan.itinerary?.days || [];
+          for (const day of days) {
+            for (const stop of (day.stops || [])) {
+              if (stop.category === 'food' && stop.name) {
+                usedNames.add(stop.name);
+              }
+            }
+          }
+        });
+        if (usedNames.size > 0) {
+          const names = [...usedNames].slice(0, 20).join(', ');
+          avoidClause = `\n\n[AVOID LIST — DO NOT USE THESE RESTAURANTS]\nThe user has already received plans with these restaurants. Pick DIFFERENT ones:\n${names}`;
+          console.log(`[planner] AVOID list: ${usedNames.size} restaurants from ${recentSnap.size} recent plans`);
+        }
+      } catch (avoidErr) {
+        // Non-critical: if AVOID query fails, just proceed without it
+        console.warn('[planner] AVOID list query failed:', avoidErr.message);
+      }
+    }
+
     // ── 프롬프트 계측 ───────────────────────────────────────────────────────
     const systemPrompt = buildSystemPrompt(language);
-    logPromptMetrics(systemPrompt + userMessage, {
+    // AVOID 리스트가 있으면 userMessage에 추가
+    const finalUserMessage = userMessage + avoidClause;
+    logPromptMetrics(systemPrompt + finalUserMessage, {
       city: area,
       days: durationDays,
       diet: dietPrefs.join(',') || 'none',
@@ -332,44 +379,95 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     const GEMINI_TIMEOUT_MS = 240000;
     const geminiStart = Date.now();
 
-    const geminiPromise = model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-      systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-    });
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Gemini API timeout')), GEMINI_TIMEOUT_MS);
-    });
-
-    let result;
-    try {
-      result = await Promise.race([geminiPromise, timeoutPromise]);
-    } catch (err) {
-      console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
-      if (err.message.includes('timeout')) {
-        throw new Error('AI is taking too long. Please try again.');
-      }
-      throw err;
-    }
-    console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
-
-    const rawText = result.response.text().trim();
-    console.log('[ai-planner-full] Gemini raw (first 200):', rawText.substring(0, 200));
-    console.log('[ai-planner-full] Gemini raw length:', rawText.length);
-
-    // ── JSON 파싱 + 복구 ──────────────────────────────────────────────────
-    const itinerary = repairAndParseJSON(rawText);
-    console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
-
-    // ── 주소 정리 ─────────────────────────────────────────────────────────
-    cleanAddresses(itinerary);
-
-    // ── 응답 품질 검증 ────────────────────────────────────────────────────
+    // ── 공통: food DB 로딩 ─────────────────────────────────────────────────
     let _foodIndex = [];
     try { _foodIndex = JSON.parse((await import('fs')).readFileSync(new URL('./_food_index.json', import.meta.url), 'utf-8')); } catch { /* ok */ }
-    validateResponse(itinerary, { lang: language }, _foodIndex);
 
-    // ── DB 매칭 ───────────────────────────────────────────────────────────
-    applyDBMatcher(itinerary, _foodIndex, area);
+    let itinerary;
+
+    if (PLANNER_MODE === '3pass') {
+      // ══════════════════════════════════════════════════════════════════════
+      // 3-PASS PIPELINE
+      // ══════════════════════════════════════════════════════════════════════
+      console.log('[planner] 🔀 3-pass mode activated');
+
+      // Pass 1: Intent generation (Gemini → food slots as intents)
+      console.log('[planner] Pass 1/3: Intent generation...');
+      const pass1Promise = pass1Intent(model, systemPrompt, finalUserMessage);
+      const timeoutPromise1 = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Gemini API timeout (pass1)')), GEMINI_TIMEOUT_MS);
+      });
+      let rawText;
+      try {
+        rawText = await Promise.race([pass1Promise, timeoutPromise1]);
+      } catch (err) {
+        console.error('[planner] Pass 1 timeout:', err.message);
+        throw new Error('AI is taking too long. Please try again.');
+      }
+      console.log('[planner] Pass 1 done:', Date.now() - geminiStart, 'ms');
+
+      itinerary = repairAndParseJSON(rawText);
+      cleanAddresses(itinerary);
+
+      // Pass 2: Resolve food intents from DB
+      console.log('[planner] Pass 2/3: DB resolution...');
+      const pass2Start = Date.now();
+      itinerary = pass2Resolve(itinerary, _foodIndex, area);
+      console.log('[planner] Pass 2 done:', Date.now() - pass2Start, 'ms');
+
+      // Pass 3: Narrative enrichment (Gemini → tips for resolved restaurants)
+      console.log('[planner] Pass 3/3: Narrative enrichment...');
+      const pass3Start = Date.now();
+      itinerary = await pass3Enrich(model, itinerary, language);
+      console.log('[planner] Pass 3 done:', Date.now() - pass3Start, 'ms');
+
+      // Validate + legacy DB matcher as fallback for any remaining unresolved
+      validateResponse(itinerary, { lang: language }, _foodIndex);
+      applyDBMatcher(itinerary, _foodIndex, area);
+
+      console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
+
+    } else {
+      // ══════════════════════════════════════════════════════════════════════
+      // LEGACY PIPELINE (default)
+      // ══════════════════════════════════════════════════════════════════════
+      const geminiPromise = model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: finalUserMessage }] }],
+        systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+      });
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Gemini API timeout')), GEMINI_TIMEOUT_MS);
+      });
+
+      let result;
+      try {
+        result = await Promise.race([geminiPromise, timeoutPromise]);
+      } catch (err) {
+        console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
+        if (err.message.includes('timeout')) {
+          throw new Error('AI is taking too long. Please try again.');
+        }
+        throw err;
+      }
+      console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
+
+      const rawText = result.response.text().trim();
+      console.log('[ai-planner-full] Gemini raw (first 200):', rawText.substring(0, 200));
+      console.log('[ai-planner-full] Gemini raw length:', rawText.length);
+
+      // ── JSON 파싱 + 복구 ──────────────────────────────────────────────────
+      itinerary = repairAndParseJSON(rawText);
+      console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
+
+      // ── 주소 정리 ─────────────────────────────────────────────────────────
+      cleanAddresses(itinerary);
+
+      // ── 응답 품질 검증 ────────────────────────────────────────────────────
+      validateResponse(itinerary, { lang: language }, _foodIndex);
+
+      // ── DB 매칭 ───────────────────────────────────────────────────────────
+      applyDBMatcher(itinerary, _foodIndex, area);
+    }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -442,8 +540,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
+    res.end(JSON.stringify(_ok({
       planId,
       planUrl,
       firestoreSaved: true,
@@ -457,7 +554,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         priceUSD,
         currency: 'KRW',
       },
-    }));
+    })));
 
     console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms ===');
 
@@ -489,11 +586,10 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     sendErrorAlert('ai-planner-full', error).catch(() => {});
     if (!res.headersSent) {
       res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ 
-        error: 'Planner failed', 
+      res.end(JSON.stringify(_err('Planner failed', 'INTERNAL_ERROR', { 
         details: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
-      }));
+      })));
     }
   }
 }

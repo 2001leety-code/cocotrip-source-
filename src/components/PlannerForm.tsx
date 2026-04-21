@@ -315,6 +315,7 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
 
 // ── Main Form ────────────────────────────────────────────────────────
 export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const p = t.planner as Record<string, any>;
 
   const [categories,        setCategories]        = useState<string[]>([]);

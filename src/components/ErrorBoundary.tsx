@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { translations, type Language } from '@/i18n';
 
 interface Props {
   children: ReactNode;
@@ -8,6 +9,15 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+}
+
+/** Detect language from localStorage (same logic as useLanguage hook) */
+function detectLang(): Language {
+  try {
+    const saved = window.localStorage.getItem('cocotrip_lang') as Language | null;
+    if (saved && ['ko', 'en', 'ja', 'zh'].includes(saved)) return saved;
+  } catch { /* ignore */ }
+  return 'en';
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -31,6 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const t = translations[detectLang()].errorBoundary;
       return (
         <div className="min-h-screen flex items-center justify-center" style={{ background: '#080b14' }}>
           <div className="max-w-md mx-auto px-6 text-center">
@@ -38,10 +49,10 @@ export class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="w-8 h-8 text-red-400" />
             </div>
             <h1 className="text-2xl font-bold text-white mb-3">
-              Something went wrong
+              {t.title}
             </h1>
             <p className="text-white/50 text-sm mb-6 leading-relaxed">
-              An unexpected error occurred. Please try refreshing the page.
+              {t.description}
             </p>
             {this.state.error && (
               <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 text-left">
@@ -56,7 +67,7 @@ export class ErrorBoundary extends Component<Props, State> {
               style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
             >
               <RefreshCw className="w-4 h-4" />
-              Go Home & Retry
+              {t.retry}
             </button>
           </div>
         </div>

@@ -1,0 +1,2 @@
+"/**\n * 시즌 스팟 데이터 검증 테스트\n * - getCurrentSeason 월별 반환 검증\n * - SEASONAL_SPOTS 데이터 무결성 검증\n */\nimport { describe, it, expect, vi, afterEach } from 'vitest';\nimport { getCurrentSeason, SEASONAL_SPOTS, ty
+<truncated 2856 bytes>

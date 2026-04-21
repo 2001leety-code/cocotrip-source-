@@ -7,11 +7,16 @@ import { Buffer } from 'buffer';
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 const PRODUCT_PRICES = {
   ai_planner_full: 13300,
@@ -51,7 +56,7 @@ async function getPayPalToken(isSandbox = false) {
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
-  if (req.method !== 'POST') { res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Method not allowed' })); }
+  if (req.method !== 'POST') { res.writeHead(405, JSON_CORS); return res.end(JSON.stringify(_err('Method not allowed', 'METHOD_NOT_ALLOWED'))); }
 
   try {
     let body = req.body;
@@ -59,7 +64,7 @@ export default async function handler(req, res) {
     body = body || {};
 
     const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode, userEmail = '' } = body;
-    if (!productType) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'productType is required' })); }
+    if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
 
     const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
     console.log('[createPaypalOrder] mode:', isSandbox ? 'SANDBOX' : 'LIVE', '| email:', userEmail);
@@ -71,7 +76,7 @@ export default async function handler(req, res) {
       krwAmount = (passengers || 1) * (PRODUCT_PRICES[normalizedType] || 35000);
     } else {
       krwAmount = PRODUCT_PRICES[normalizedType];
-      if (!krwAmount) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: `Unknown productType: ${productType}` })); }
+      if (!krwAmount) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT'))); }
     }
 
     if (promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
@@ -93,11 +98,11 @@ export default async function handler(req, res) {
     const order = await orderRes.json();
     if (!order.id) throw new Error(order.message ?? 'Order creation failed');
 
-    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ orderID: order.id, usdAmount, krwAmount, currentRate: Math.round(usdToKrw), displayKRW: krwAmount.toLocaleString('ko-KR') + '원', displayUSD: '$' + usdAmount + ' USD' }));
+    res.writeHead(200, JSON_CORS);
+    res.end(JSON.stringify(_ok({ orderID: order.id, usdAmount, krwAmount, currentRate: Math.round(usdToKrw), displayKRW: krwAmount.toLocaleString('ko-KR') + '원', displayUSD: '$' + usdAmount + ' USD' })));
   } catch (err) {
     console.error('[createPaypalOrder] Error:', err);
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

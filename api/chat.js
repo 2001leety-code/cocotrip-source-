@@ -31,11 +31,16 @@ try {
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 const SYSTEM_PROMPT = `You are "Taeo", a friendly and experienced Korean tour guide working for CocoTrip Korea. You've been guiding foreign visitors around Korea for 10 years. You're warm, knowledgeable, and genuinely excited to help people have the best Korea experience.
 
@@ -91,8 +96,8 @@ export default async function handler(req, res) {
     return res.end();
   }
   if (req.method !== 'POST') {
-    res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Method not allowed' }));
+    res.writeHead(405, JSON_CORS);
+    return res.end(JSON.stringify(_err('Method not allowed', 'METHOD_NOT_ALLOWED')));
   }
 
   let body = req.body;
@@ -101,14 +106,14 @@ export default async function handler(req, res) {
 
   const { message, messages = [], sessionId = 'anon', language = 'en' } = body;
   if (!message?.trim()) {
-    res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'message is required' }));
+    res.writeHead(400, JSON_CORS);
+    return res.end(JSON.stringify(_err('message is required', 'MISSING_FIELDS')));
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }));
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err('GEMINI_API_KEY not configured', 'CONFIG_ERROR')));
   }
 
   let aiResponse = '';
@@ -154,8 +159,8 @@ export default async function handler(req, res) {
     console.warn('[chat] Telegram failed (continuing):', err.message);
   }
 
-  res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ reply: aiResponse, sessionId }));
+  res.writeHead(200, JSON_CORS);
+  res.end(JSON.stringify(_ok({ reply: aiResponse, sessionId })));
 
   // ── 비동기 카운터 (응답 후 실행) ──
   if (counterDb) {

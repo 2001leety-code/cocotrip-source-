@@ -9,11 +9,16 @@
 export const maxDuration = 10;
 export const config = { runtime: 'nodejs' };
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 // 기본 재고 설정 (날짜별 도큐먼트가 없을 때)
 const DEFAULT_CAPACITY = {
@@ -45,8 +50,8 @@ export default async function handler(req, res) {
     const { date, vehicle } = req.query;
 
     if (!date || !vehicle) {
-      res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Missing date or vehicle parameter' }));
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('Missing date or vehicle parameter', 'MISSING_FIELDS')));
     }
 
     const db = await getFirestoreAdmin();
@@ -55,8 +60,8 @@ export default async function handler(req, res) {
 
     const capacity = DEFAULT_CAPACITY[vehicle];
     if (!capacity) {
-      res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: `Unknown vehicle type: ${vehicle}` }));
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err(`Unknown vehicle type: ${vehicle}`, 'INVALID_VEHICLE')));
     }
 
     let booked = 0;
@@ -73,8 +78,8 @@ export default async function handler(req, res) {
 
     const remaining = total - booked;
 
-    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({
+    res.writeHead(200, JSON_CORS);
+    return res.end(JSON.stringify(_ok({
       available: remaining > 0,
       remaining,
       total,
@@ -83,11 +88,11 @@ export default async function handler(req, res) {
       message: remaining > 0
         ? `${remaining} ${vehicle}(s) available`
         : `Fully booked on ${date}`,
-    }));
+    })));
 
   } catch (err) {
     console.error('[check-availability] Error:', err);
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

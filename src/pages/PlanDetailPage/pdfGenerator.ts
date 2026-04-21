@@ -57,9 +57,9 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
   const container = document.createElement('div');
   // position:absolute (not fixed) so container can expand beyond viewport height
   // left:0 (not -9999px) so html2canvas can actually render the content
-  // CJK fallback chain: Segoe UI (Latin) -> Noto Sans KR/JP/SC -> Microsoft YaHei/JhengHei -> sans-serif
-  // Required so Korean/Japanese/Chinese glyphs don't render as tofu boxes when Segoe UI lacks coverage
-  container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Segoe UI","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","Hiragino Sans","Noto Sans JP","Microsoft JhengHei","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;line-height:1.6;z-index:99997;';
+  // CJK fallback chain: Noto Sans (Google Fonts preloaded) -> OS built-in -> generic
+  // Noto Sans KR/JP/SC are preloaded in index.html for reliable CJK rendering
+  container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Noto Sans KR","Noto Sans JP","Noto Sans SC","Segoe UI","Apple SD Gothic Neo","Malgun Gothic","Hiragino Sans","Microsoft JhengHei","Microsoft YaHei",system-ui,sans-serif;line-height:1.6;z-index:99997;';
   document.body.appendChild(container);
 
   // Color tokens for light PDF
@@ -206,12 +206,33 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
 
   container.innerHTML = html;
 
+  // === 빈 콘텐츠 방지: 최소 높이/텍스트 검증 ===
+  if (container.scrollHeight < 100 || container.innerText.trim().length < 50) {
+    console.error('[PDF] Empty content detected — aborting PDF generation');
+    document.body.removeChild(container);
+    document.body.removeChild(overlay);
+    alert('PDF content is empty. Please wait for the plan to fully load.');
+    return;
+  }
+
   // Wait for browser to fully render the content (especially Korean fonts)
   // document.fonts.ready resolves when all font faces are loaded
   await Promise.race([
     document.fonts?.ready || Promise.resolve(),
     new Promise(resolve => setTimeout(resolve, 3000)),
   ]);
+
+  // === CJK 폰트 렌더 검증: 더미 문자로 실제 렌더 확인 ===
+  const fontTest = document.createElement('span');
+  fontTest.style.cssText = 'position:absolute;top:-9999px;font-size:16px;font-family:inherit;';
+  fontTest.textContent = '\uD55C\uAE00\u30C6\u30B9\u30C8\u4E2D\u6587';
+  container.appendChild(fontTest);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  if (fontTest.offsetWidth === 0) {
+    console.warn('[PDF] CJK font may not be loaded — proceeding with system fallback');
+  }
+  fontTest.remove();
+
   // Additional settle time for layout recalculation
   await new Promise(resolve => setTimeout(resolve, 500));
   void container.offsetHeight; // force reflow

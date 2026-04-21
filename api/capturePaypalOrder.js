@@ -7,11 +7,16 @@ import { Buffer } from 'buffer';
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
@@ -33,7 +38,7 @@ async function getPaypalAccessToken(isSandbox = false) {
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
-  if (req.method !== 'POST') { res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Method not allowed' })); }
+  if (req.method !== 'POST') { res.writeHead(405, JSON_CORS); return res.end(JSON.stringify(_err('Method not allowed', 'METHOD_NOT_ALLOWED'))); }
 
   try {
     let body = req.body;
@@ -41,7 +46,7 @@ export default async function handler(req, res) {
     body = body || {};
 
     const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId } = body;
-    if (!orderID) { res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'orderID is required' })); }
+    if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
     const PAYPAL_BASE_URL = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
@@ -62,8 +67,8 @@ export default async function handler(req, res) {
       const existing = await db.collection('used_paypal_orders').doc(orderID).get();
       if (existing.exists) {
         console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
-        res.writeHead(409, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ success: false, error: 'Order already processed' }));
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
       }
       // 선점 기록 (결제 캡처 전)
       await db.collection('used_paypal_orders').doc(orderID).set({
@@ -113,11 +118,11 @@ export default async function handler(req, res) {
     }).catch(err => console.error('[capturePaypalOrder] booking-processor call failed:', err.message));
 
     // 4. Respond immediately
-    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, orderID, payerEmail, payerName, amount, currency: 'USD', message: '예약이 확정되었습니다. 확인 이메일을 발송 중입니다.' }));
+    res.writeHead(200, JSON_CORS);
+    res.end(JSON.stringify(_ok({ orderID, payerEmail, payerName, amount, currency: 'USD', message: '예약이 확정되었습니다. 확인 이메일을 발송 중입니다.' })));
   } catch (err) {
     console.error('[capturePaypalOrder] Error:', err);
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

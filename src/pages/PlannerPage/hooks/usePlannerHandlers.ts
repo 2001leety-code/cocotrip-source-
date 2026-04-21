@@ -67,8 +67,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           throw new Error(msg);
         }
 
-        const data = await res.json();
-        setResultQuick(data);
+        const json = await res.json();
+        const quickData = json.data;
+        setResultQuick(quickData);
         setStatus('quickSuccess');
         setTimeout(() => {
           document.getElementById('planner-quick-result')?.scrollIntoView({ behavior: 'smooth' });
@@ -138,23 +139,25 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
 
       clearTimeout(timeoutId);
 
-      let data;
+      let json;
       try {
-        data = await res.json();
+        json = await res.json();
       } catch {
         throw new Error(`Server returned invalid response (${res.status}). Please contact us via WhatsApp.`);
       }
 
       if (!res.ok) {
-        throw new Error(data.details || data.error || `Server error (${res.status})`);
+        throw new Error(json.details || json.error || `Server error (${res.status})`);
       }
+
+      const data = json.data;
 
       setStreamStep(4);
       setStreamAgent('done');
 
-      if (data.planUrl) {
+      if (data?.planUrl) {
         navigate(data.planUrl);
-      } else if (data.planId) {
+      } else if (data?.planId) {
         navigate(`/my-plans/${data.planId}`);
       } else {
         throw new Error('Plan created but no URL returned');
@@ -207,14 +210,16 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.details || data.error || `Server error (${res.status})`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.details || json.error || `Server error (${res.status})`);
+
+      const data = json.data;
 
       setStreamStep(4);
       setStreamAgent('done');
 
-      if (data.planUrl) navigate(data.planUrl);
-      else if (data.planId) navigate(`/my-plans/${data.planId}`);
+      if (data?.planUrl) navigate(data.planUrl);
+      else if (data?.planId) navigate(`/my-plans/${data.planId}`);
       else throw new Error('Plan created but no URL returned');
     } catch (err: unknown) {
       console.error('[PlannerPage] Revision failed:', err);

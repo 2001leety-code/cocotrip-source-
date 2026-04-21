@@ -13,11 +13,16 @@
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
+// ── 표준 응답 래퍼 ──────────────────────────────────────────────────
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 // 등급 기준 & 적립률
 const TIERS = [
@@ -82,8 +87,8 @@ export default async function handler(req, res) {
     return res.end();
   }
   if (req.method !== 'POST') {
-    res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Method not allowed' }));
+    res.writeHead(405, JSON_CORS);
+    return res.end(JSON.stringify(_err('Method not allowed', 'METHOD_NOT_ALLOWED')));
   }
 
   try {
@@ -94,8 +99,8 @@ export default async function handler(req, res) {
     const { action, userId } = body;
 
     if (!action || !userId) {
-      res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Missing action or userId' }));
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('Missing action or userId', 'MISSING_FIELDS')));
     }
 
     const db = await getFirestoreAdmin();
@@ -109,8 +114,8 @@ export default async function handler(req, res) {
       const { amountUSD, bookingRef, description } = body;
 
       if (!amountUSD) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing amountUSD for earn' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing amountUSD for earn', 'MISSING_FIELDS')));
       }
 
       const result = await db.runTransaction(async (tx) => {
@@ -162,8 +167,8 @@ export default async function handler(req, res) {
       });
 
       console.log('[loyalty] earn:', result);
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, ...result }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok(result)));
     }
 
     // ════════════════════════════════════════════════════════
@@ -173,8 +178,8 @@ export default async function handler(req, res) {
       const { coins, description, couponId } = body;
 
       if (!coins || coins <= 0) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Invalid coins amount' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Invalid coins amount', 'INVALID_AMOUNT')));
       }
 
       const result = await db.runTransaction(async (tx) => {
@@ -209,8 +214,8 @@ export default async function handler(req, res) {
         return { spent: coins, newBalance };
       });
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, ...result }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok(result)));
     }
 
     // ════════════════════════════════════════════════════════
@@ -220,8 +225,8 @@ export default async function handler(req, res) {
       const { couponId } = body;
 
       if (!couponId) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing couponId' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing couponId', 'MISSING_FIELDS')));
       }
 
       const couponRef = db.collection('users').doc(userId).collection('coupons').doc(couponId);
@@ -230,8 +235,8 @@ export default async function handler(req, res) {
         usedAt: FieldValue.serverTimestamp(),
       });
 
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, message: 'Coupon marked as used' }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok({ message: 'Coupon marked as used' })));
     }
 
     // ════════════════════════════════════════════════════════
@@ -244,20 +249,20 @@ export default async function handler(req, res) {
       const DAILY_SHARE_LIMIT = 5;
 
       if (!planId) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Missing planId for earn-share' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing planId for earn-share', 'MISSING_FIELDS')));
       }
 
       // 소유 플랜인지 검증 (타인 플랜 공유로 farming 방지)
       const planSnap = await db.collection('plans').doc(planId).get();
       if (!planSnap.exists) {
-        res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Plan not found' }));
+        res.writeHead(404, JSON_CORS);
+        return res.end(JSON.stringify(_err('Plan not found', 'NOT_FOUND')));
       }
       const planData = planSnap.data();
       if (planData.uid !== userId) {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Not your plan' }));
+        res.writeHead(403, JSON_CORS);
+        return res.end(JSON.stringify(_err('Not your plan', 'FORBIDDEN')));
       }
 
       const result = await db.runTransaction(async (tx) => {
@@ -333,8 +338,8 @@ export default async function handler(req, res) {
       });
 
       console.log('[loyalty] earn-share:', userId, planId, result);
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, ...result }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok(result)));
     }
 
     // ════════════════════════════════════════════════════════
@@ -352,8 +357,8 @@ export default async function handler(req, res) {
 
       const plan = REDEMPTION_TABLE[coins];
       if (!plan) {
-        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Invalid redemption tier' }));
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Invalid redemption tier', 'INVALID_TIER')));
       }
 
       // 쿠폰 코드 생성 (6자, crypto 기반)
@@ -405,17 +410,17 @@ export default async function handler(req, res) {
       });
 
       console.log('[loyalty] redeem-coupon:', userId, result);
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ success: true, ...result }));
+      res.writeHead(200, JSON_CORS);
+      return res.end(JSON.stringify(_ok(result)));
     }
 
     // Unknown action
-    res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: `Unknown action: ${action}` }));
+    res.writeHead(400, JSON_CORS);
+    return res.end(JSON.stringify(_err(`Unknown action: ${action}`, 'UNKNOWN_ACTION')));
 
   } catch (err) {
     console.error('[loyalty] Error:', err);
-    res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: err.message }));
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
 }

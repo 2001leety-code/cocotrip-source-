@@ -36,6 +36,10 @@ const CORS_HEADERS = {
   'Content-Type': 'application/json',
 };
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 function respond(statusCode, body) {
   return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
@@ -63,13 +67,13 @@ function detectLanguage(email = '', name = '') {
 // ── 메인 핸들러 ──────────────────────────────────────────────────────────
 const originalHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return respond(200, {});
-  if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
+  if (event.httpMethod !== 'POST') return respond(405, _err('Method not allowed', 'METHOD_NOT_ALLOWED'));
 
   let body;
   try {
     body = JSON.parse(event.body ?? '{}');
   } catch {
-    return respond(400, { error: 'Invalid JSON body' });
+    return respond(400, _err('Invalid JSON body', 'INVALID_BODY'));
   }
 
   const {
@@ -91,7 +95,7 @@ const originalHandler = async (event) => {
   } = body;
 
   if (!orderID || !payerEmail) {
-    return respond(400, { error: 'orderID와 payerEmail은 필수입니다.' });
+    return respond(400, _err('orderID와 payerEmail은 필수입니다.', 'MISSING_FIELDS'));
   }
 
   console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount });
@@ -259,7 +263,7 @@ const originalHandler = async (event) => {
     console.warn('[booking-processor] 포인트 적립 실패 (비치명적):', loyaltyErr.message);
   }
 
-  return respond(200, { success: true, bookingRef, steps: results.steps, loyalty: results.loyalty });
+  return respond(200, _ok({ bookingRef, steps: results.steps, loyalty: results.loyalty }));
 };
 
 
@@ -291,6 +295,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('[booking-processor] Handler error:', error);
     res.setHeader('Content-Type', 'application/json');
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json(_err(error.message, 'INTERNAL_ERROR'));
   }
 }

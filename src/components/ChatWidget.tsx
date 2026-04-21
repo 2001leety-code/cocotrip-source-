@@ -161,13 +161,14 @@ export function ChatWidget({ language }: ChatWidgetProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: trimmed, messages: history, sessionId, language }),
         });
-        const data = await res.json();
+        const json = await res.json();
+        const payload = json.data;
         setMessages((prev) => [
           ...prev,
           {
             id: generateId(),
             role: 'ai',
-            text: data.reply ?? 'Sorry, something went wrong.',
+            text: payload?.reply ?? 'Sorry, something went wrong.',
             time: nowTime(),
           },
         ]);

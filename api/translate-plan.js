@@ -11,15 +11,19 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+// ── 표준 응답 래퍼 ──
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
+
 // Fields to translate per stop
 const TRANSLATE_FIELDS = ['display_name', 'tip', 'entry_fee_note'];
 const TRANSLATE_ITEM_FIELDS = ['name', 'note'];
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  if (req.method !== 'POST') return res.status(405).json(_err('POST only', 'METHOD_NOT_ALLOWED'));
 
   const { plan, targetLang } = req.body;
-  if (!plan || !targetLang) return res.status(400).json({ error: 'plan and targetLang required' });
+  if (!plan || !targetLang) return res.status(400).json(_err('plan and targetLang required', 'MISSING_FIELDS'));
 
   const LANG_NAMES = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Chinese (Simplified)' };
   const langName = LANG_NAMES[targetLang] || 'English';
@@ -83,7 +87,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (textsToTranslate.length === 0) {
-      return res.status(200).json({ translated: plan, message: 'Nothing to translate' });
+      return res.status(200).json(_ok({ translated: plan, message: 'Nothing to translate' }));
     }
 
     // Batch translate with Gemini Flash
@@ -110,7 +114,7 @@ Output: JSON array of ${textsToTranslate.length} translated strings in ${langNam
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
       console.error('[translate-plan] Failed to parse response:', responseText.substring(0, 200));
-      return res.status(500).json({ error: 'Translation parsing failed' });
+      return res.status(500).json(_err('Translation parsing failed', 'PARSE_ERROR'));
     }
 
     const translated = JSON.parse(jsonMatch[0]);
@@ -143,13 +147,13 @@ Output: JSON array of ${textsToTranslate.length} translated strings in ${langNam
       }
     });
 
-    return res.status(200).json({
+    return res.status(200).json(_ok({
       translated: result_plan,
       stats: { total_texts: textsToTranslate.length, translated: translated.length, target: targetLang }
-    });
+    }));
 
   } catch (err) {
     console.error('[translate-plan] Error:', err);
-    return res.status(500).json({ error: err.message || 'Translation failed' });
+    return res.status(500).json(_err(err.message || 'Translation failed', 'INTERNAL_ERROR'));
   }
 }

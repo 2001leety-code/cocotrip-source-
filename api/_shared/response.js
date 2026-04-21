@@ -1,0 +1,2 @@
+"/**\n * CocoTrip API 표준 응답 래퍼\n * \n * 모든 API가 동일한 형식으로 응답하도록 강제:\n *   { ok: true,  data: {...} }\n *   { ok: false, error: \"message\", code: \"ERROR_CODE\" }\n * \n * 사용법:\n *   const { success, fail,
+<truncated 1843 bytes>

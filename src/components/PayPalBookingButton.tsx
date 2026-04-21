@@ -1,13 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tag, Check, AlertCircle } from 'lucide-react';
 
+/** PayPal 결제 컴포넌트에서 사용하는 i18n 키 */
+interface BookingDict {
+  paypalSdkError?: string;
+  paypalError?: string;
+  paypalCancel?: string;
+  paypalLoading?: string;
+  paypalBookBtn?: string;
+  paypalRateLabel?: string;
+  paypalRetry?: string;
+  [key: string]: unknown;  // 추가 키 허용 (하위 호환)
+}
+
 interface Props {
   productType: string;
   passengers: number;
   dateStart?: string;
   dateEnd?: string;
   priceKRW: number;
-  p: Record<string, any>;
+  p: BookingDict;
   lang: string;
   pickupLocation?: string;
   dropoffLocation?: string;
@@ -85,15 +97,16 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: promoCode, productType, originalPrice: priceKRW }),
       });
-      const data = await res.json();
-      if (data.valid) {
-        setDiscountedKRW(data.discountedPrice);
-        setSavedAmount(data.savedAmount);
+      const json = await res.json();
+      const d = json.data;
+      if (d?.valid) {
+        setDiscountedKRW(d.discountedPrice);
+        setSavedAmount(d.savedAmount);
         setPromoApplied(true);
-        setCouponDocId(data.couponDocId || null);
-        setCouponUserId(data.userId || null);
+        setCouponDocId(d.couponDocId || null);
+        setCouponUserId(d.userId || null);
       } else {
-        setPromoError(data.error === 'promo_expired' ? pl.expired : pl.invalid);
+        setPromoError(json.code === 'INVALID_CODE' || d?.error === 'promo_expired' ? pl.expired : pl.invalid);
       }
     } catch {
       setPromoError(pl.invalid);
@@ -186,9 +199,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               ...(couponDocId ? { couponDocId, couponUserId } : {}),
             }),
           });
-          const result = await res.json();
-          console.log('[PayPal onApprove] capture result:', JSON.stringify(result));
-          if (result.success) {
+          const json = await res.json();
+          console.log('[PayPal onApprove] capture result:', JSON.stringify(json));
+          const isSuccess = json.ok === true;
+          const result = json.data;
+          if (isSuccess) {
             if (onPaymentSuccess) {
               setShowPaypal(false);
               await onPaymentSuccess(data.orderID);
@@ -198,7 +213,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             setShowSuccess(true);
             setShowPaypal(false);
           } else {
-            const msg = result.error ?? p.paypalError;
+            const msg = json.error ?? result?.error ?? p.paypalError;
             console.error('[PayPal onApprove] 실패:', msg);
             setError(msg);
             setShowPaypal(false);
@@ -212,7 +227,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       onCancel: () => {
         setShowPaypal(false);
         buttonsRendered.current = false;
-        setError(p.paypalCancel);
+        setError(p.paypalCancel ?? null);
       },
       onError: (err: unknown) => {
         console.error('[PayPal SDK] onError:', err);
@@ -261,9 +276,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
         }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error ?? 'Order creation failed');
-      setRateInfo(data);
+      const json = await res.json();
+      const d = json.data;
+      if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
+      setRateInfo(d);
       setPaypalReady(true);
       setShowPaypal(true);
     } catch (err) {

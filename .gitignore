@@ -32,3 +32,4 @@ tmp/
 scripts/planner-report*.json
 scripts/planner-report*.txt
 .env.admin.local
+.vercel

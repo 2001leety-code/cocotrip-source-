@@ -28,9 +28,10 @@ export function useAvailability() {
       const res = await fetch(
         `/api/check-availability?date=${date}&vehicle=${vehicleType}`
       );
-      const data = await res.json();
-      setStatus(data);
-    } catch (err) {
+      const json = await res.json();
+      const d = json.data;
+      setStatus(d);
+    } catch {
       setStatus({
         available: false,
         remaining: 0,
@@ -53,7 +54,17 @@ export function useAvailability() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date, vehicleType, userId }),
       });
-      return await res.json();
+      const json = await res.json();
+      // 표준 응답: { ok, data: { reserved, reservationId } }
+      if (json.ok) {
+        return { success: true, reservationId: json.data?.reservationId, message: json.data?.message };
+      }
+      // 에러 응답: { ok: false, error, code }
+      if (json.ok === false) {
+        return { success: false, message: json.error };
+      }
+      // 레거시 폴백
+      return json;
     } catch {
       return { success: false, message: 'Network error' };
     }

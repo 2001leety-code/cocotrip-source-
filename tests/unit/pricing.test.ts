@@ -1,0 +1,2 @@
+"/**\n * 가격 계산 로직 테스트\n * - calculateTotalPrice 함수 검증\n * - detectCharterRecommendation 장소 매칭 검증\n * - 가격 데이터 무결성 (USD > 0, KRW > 0) 검증\n */\nimport { describe, it, expect } from 'vitest';\nimport {
+<truncated 3828 bytes>
