@@ -65,11 +65,12 @@ async function getFirestoreAdmin() {
   return getFirestore();
 }
 
-// ── 환율 ─────────────────────────────────────────────────────────────
+// ── 환율 (공통 유틸 사용) ─────────────────────────────────────────────
 async function getUSDKRWRate() {
   try {
-    const r = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { signal: AbortSignal.timeout(5000) });
-    return { rate: (await r.json()).rates?.KRW || 1380 };
+    const { getUsdToKrwRaw } = await import('../_exchange-rate.js');
+    const rate = await getUsdToKrwRaw();
+    return { rate };
   } catch { return { rate: 1380 }; }
 }
 

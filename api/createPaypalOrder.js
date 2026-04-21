@@ -76,8 +76,8 @@ export default async function handler(req, res) {
 
     if (promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
 
-    let usdToKrw = 1350;
-    try { const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW'); usdToKrw = (await r.json()).rates.KRW; } catch { /* fallback */ }
+    const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
+    const usdToKrw = await getUsdToKrwRaw();
     const usdAmount = (krwAmount / usdToKrw).toFixed(2);
 
     const accessToken = await getPayPalToken(isSandbox);

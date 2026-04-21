@@ -1,7 +1,7 @@
 /**
  * _exchange-rate.js — 환율 조회 공통 유틸
  *
- * 사용처: applyPromoCode, booking-processor, daily-report
+ * 사용처: applyPromoCode, booking-processor, createPaypalOrder, daily-report
  * 비즈니스 로직:
  *   - 기본 API: frankfurter.app (무료, 안정적)
  *   - 폴백 API: exchangerate-api.com

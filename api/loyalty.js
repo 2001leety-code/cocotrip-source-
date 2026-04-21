@@ -241,6 +241,7 @@ export default async function handler(req, res) {
     if (action === 'earn-share') {
       const { planId, shareMethod } = body;
       const REWARD_COINS = 20;
+      const DAILY_SHARE_LIMIT = 5;
 
       if (!planId) {
         res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
@@ -268,19 +269,44 @@ export default async function handler(req, res) {
           return { alreadyRewarded: true, newBalance: null };
         }
 
+        // ── P2-7: 일일 상한 체크 (UTC 자정 기준) ──
+        const todayUTC = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
         const userSnap = await tx.get(userRef);
-        const currentCoins = userSnap.exists ? (userSnap.data().tripCoins || 0) : 0;
+        const userData = userSnap.exists ? userSnap.data() : {};
+        const currentCoins = userData.tripCoins || 0;
+        const shareStats = userData.shareStats || {};
+
+        // 날짜가 바뀌었으면 카운트 리셋
+        const dailyDate = shareStats.dailyDate || '';
+        const dailyCount = dailyDate === todayUTC ? (shareStats.dailyCount || 0) : 0;
+
+        if (dailyCount >= DAILY_SHARE_LIMIT) {
+          // 일일 한도 초과 — 중복 방지 마커는 생성하되 코인 0
+          tx.set(rewardRef, {
+            planId,
+            rewardedAt: FieldValue.serverTimestamp(),
+            coinsAwarded: 0,
+            shareMethod: shareMethod || 'unknown',
+            dailyLimitHit: true,
+          });
+          return { alreadyRewarded: false, newBalance: currentCoins, earnedCoins: 0, dailyLimitHit: true };
+        }
+
         const newBalance = currentCoins + REWARD_COINS;
 
-        // 유저 코인 증가 (유저 문서가 없으면 생성)
+        // 유저 코인 증가 + 일일 카운트 업데이트
         if (userSnap.exists) {
-          tx.update(userRef, { tripCoins: newBalance });
+          tx.update(userRef, {
+            tripCoins: newBalance,
+            shareStats: { dailyDate: todayUTC, dailyCount: dailyCount + 1 },
+          });
         } else {
           tx.set(userRef, {
             tripCoins: REWARD_COINS,
             tier: 'Bronze',
             totalSpentUSD: 0,
             bookingCount: 0,
+            shareStats: { dailyDate: todayUTC, dailyCount: 1 },
           });
         }
 

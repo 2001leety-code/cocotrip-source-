@@ -29,6 +29,6 @@ service-account.json
 tmp/
 
 # Planner validation reports (contain API responses, not for repo)
-scripts/planner-report.json
-scripts/planner-report-post-collect.txt
+scripts/planner-report*.json
+scripts/planner-report*.txt
 .env.admin.local
