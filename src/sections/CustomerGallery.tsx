@@ -1,5 +1,6 @@
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
+import { useLanguage } from '@/hooks/useLanguage';
 
 const customers = [
   { image: '/고객사진/KakaoTalk_20250923_114705709_11.jpg', name: 'Maria from Italy', location: 'Seoul Tour', quote: 'The best way to see Seoul! Highly recommended.' },
@@ -34,12 +35,13 @@ const customers = [
   { image: '/고객사진/KakaoTalk_20260116_120844521.jpg', name: 'Grace from France', location: 'Seoul Food', quote: 'Can not get enough of Korean BBQ!' },
 ];
 
-const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
+const CustomerCard = ({ customer, verifiedLabel }: { customer: typeof customers[0]; verifiedLabel: string }) => (
   <div className="group relative overflow-hidden rounded-2xl bg-white shadow-lg flex flex-col h-full">
     <div className="aspect-[4/5] overflow-hidden shrink-0">
       <img
         src={customer.image}
         alt={customer.name}
+        loading="lazy"
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
     </div>
@@ -58,11 +60,11 @@ const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
        <div className="flex items-center gap-3 mt-auto pt-4 border-t border-gray-100">
            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 shrink-0 border border-gray-300">
              {/* Using a placeholder avatar or the main image as avatar if user avatars aren't available */}
-               <img src={customer.image} alt={customer.name} className="w-full h-full object-cover" />
+                <img src={customer.image} alt={customer.name} loading="lazy" className="w-full h-full object-cover" />
            </div>
            <div>
                <p className="text-[#1a1a2e] font-bold text-xs">{customer.name}</p>
-               <p className="text-[#c0b283] text-[10px] uppercase tracking-wider font-semibold">Verified Traveler</p>
+                <p className="text-[#c0b283] text-[10px] uppercase tracking-wider font-semibold">{verifiedLabel}</p>
            </div>
        </div>
     </div>
@@ -70,6 +72,8 @@ const CustomerCard = ({ customer }: { customer: typeof customers[0] }) => (
 );
 
 export function CustomerGallery() {
+  const { t } = useLanguage();
+  const g = (t as any).gallery || {};
   const [emblaRef] = useEmblaCarousel({
     loop: true,
     align: 'start',
@@ -81,10 +85,10 @@ export function CustomerGallery() {
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16 px-4">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1a1a2e] mb-4">
-            Our Happy Travelers
+            {g.title || 'Our Happy Travelers'}
           </h2>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Real moments and stories from our guests exploring Korea
+            {g.subtitle || 'Real moments and stories from our guests exploring Korea'}
           </p>
           <div className="w-20 h-1 bg-[#c0b283] mx-auto rounded-full mt-6" />
         </div>
@@ -97,7 +101,7 @@ export function CustomerGallery() {
                 className="flex-grow-0 flex-shrink-0 w-[85%] sm:w-1/2 md:w-1/3 lg:w-1/4 pl-4 sm:pl-5 md:pl-6"
               >
                 <div className="h-full">
-                  <CustomerCard customer={customer} />
+                  <CustomerCard customer={customer} verifiedLabel={g.verifiedTraveler || 'Verified Traveler'} />
                 </div>
               </div>
             ))}

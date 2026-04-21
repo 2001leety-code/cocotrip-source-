@@ -45,10 +45,10 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
     {
       gradient: 'linear-gradient(135deg, #1a0a2e 0%, #B668FC 100%)',
       badge: 'TOURS',
-      title: 'Korea Private Tours',
-      subtitle: 'Seoul · Busan · Gyeongju · Danyang — all inclusive',
+      title: m.promoToursTitle || 'Korea Private Tours',
+      subtitle: m.promoToursSubtitle || 'Seoul · Busan · Gyeongju · Danyang — all inclusive',
       price: '$208~',
-      cta: 'View Tours',
+      cta: m.promoToursCta || 'View Tours',
       link: '/tours',
     },
   ];

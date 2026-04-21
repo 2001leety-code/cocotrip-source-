@@ -1,4 +1,5 @@
 import { Star, ExternalLink } from 'lucide-react';
+import { useLanguage } from '@/hooks/useLanguage';
 
 const reviews = [
   {
@@ -34,6 +35,8 @@ const reviews = [
 ];
 
 export function GoogleReviews() {
+  const { t } = useLanguage();
+  const gr = (t as any).googleReviews || {};
   return (
     <section className="py-20 bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -50,7 +53,7 @@ export function GoogleReviews() {
               <span className="text-[#EA4335]">e</span>
               <span className="text-[#1a1a2e] ml-4 font-bold">Reviews</span>
             </h2>
-            <p className="text-gray-600 text-lg">What our global guests are saying about us</p>
+            <p className="text-gray-600 text-lg">{gr.subtitle || 'What our global guests are saying about us'}</p>
           </div>
           
           <div className="bg-[#faf9f6] p-6 rounded-2xl flex items-center gap-6 shadow-sm border border-gray-100">
@@ -61,7 +64,7 @@ export function GoogleReviews() {
                   <Star key={i} className="w-5 h-5 fill-[#FBBC05] text-[#FBBC05]" />
                 ))}
               </div>
-              <div className="text-gray-500 text-sm mt-2">Based on 150+ reviews</div>
+              <div className="text-gray-500 text-sm mt-2">{gr.basedOn || 'Based on 150+ reviews'}</div>
             </div>
             <div className="w-[1px] h-16 bg-gray-200" />
             <a 
@@ -78,7 +81,7 @@ export function GoogleReviews() {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
               </div>
-              <span className="text-xs font-bold text-gray-700 uppercase tracking-tighter">Verified</span>
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-tighter">{gr.verified || 'Verified'}</span>
             </a>
           </div>
         </div>
@@ -121,7 +124,7 @@ export function GoogleReviews() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-[#1a1a2e] text-white px-8 py-4 rounded-full font-bold hover:bg-[#c0b283] hover:text-[#1a1a2e] transition-all group shadow-xl"
           >
-            See all reviews on Google
+            {gr.seeAll || 'See all reviews on Google'}
             <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </a>
         </div>
