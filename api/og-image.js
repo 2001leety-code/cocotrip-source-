@@ -51,7 +51,7 @@ const OG_TITLES = {
   zh: (area, days) => `${area} ${days}天旅行计划`,
 };
 
-const DEFAULT_OG_IMAGE = 'https://cocotripkr.com/hero-seoul-real.webp';
+const DEFAULT_OG_IMAGE = 'https://cocotripkr.com/og-image.png';
 
 export default async function handler(req, res) {
   try {

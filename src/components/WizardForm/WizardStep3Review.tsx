@@ -2,9 +2,10 @@
 import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
 import { SummaryCard, formatDateShort } from './helpers';
+import type { WizardDict } from './types';
 
 interface Step3Props {
-  p: any;
+  p: WizardDict;
   allCities: string[];
   startDate: string;
   endDate: string;
@@ -48,7 +49,7 @@ export function WizardStep3Review(props: Step3Props) {
         </div>
 
         <div className="text-xs text-white/40 space-y-1 border-t border-white/[0.06] pt-3">
-          <p><span className="text-white/25">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => (p as any)[`act${a}`] || a).join(', ') || '-'}</span></p>
+          <p><span className="text-white/25">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
           {hotelAddress && <p><span className="text-white/25">{p.wizardHotelLabel || 'Hotel'}:</span> <span className="text-white/60">{hotelAddress}</span></p>}
         </div>
 

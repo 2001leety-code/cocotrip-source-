@@ -3,6 +3,7 @@ import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 // ── 다국어 콘텐츠 ──────────────────────────────────────
 const CONTENT = {
@@ -136,6 +137,11 @@ export default function Terms() {
   const isMobile = useIsMobile();
   const content = CONTENT[language as keyof typeof CONTENT] ?? CONTENT.en;
 
+  usePageMeta({
+    title: content.pageTitle,
+    description: 'CocoTrip terms of service — booking, payment, cancellation and refund policies.',
+  });
+
   return (
     <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#faf9f6]'}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
@@ -148,9 +154,9 @@ export default function Terms() {
               {article.body.split('\n\n').map((paragraph, pIdx) => (
                 <p key={pIdx}>{paragraph}</p>
               ))}
-              {'list' in article && (article as any).list && (
+              {'list' in article && (article as ArticleData & { list?: string[] }).list && (
                 <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
-                  {((article as any).list as string[]).map((item: string, i: number) => (
+                  {((article as ArticleData & { list?: string[] }).list!).map((item: string, i: number) => (
                     <li key={i}>{item}</li>
                   ))}
                 </ul>

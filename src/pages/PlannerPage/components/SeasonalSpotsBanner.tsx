@@ -4,7 +4,7 @@ import { SEASONAL_SPOTS } from '@/data/seasonalSpots';
 import { REGION_KEYWORDS } from '../constants';
 import type { PlannerResponse } from '../types';
 
-export function SeasonalSpotsBanner({ result, lang, p }: { result: PlannerResponse; lang: string; p: any }) {
+export function SeasonalSpotsBanner({ result, lang, p }: { result: PlannerResponse; lang: string; p: PlannerDict }) {
   const season = result.currentSeason ?? 'spring';
   const data = SEASONAL_SPOTS[season];
   const title = data.title[lang as keyof typeof data.title] ?? data.title.en;

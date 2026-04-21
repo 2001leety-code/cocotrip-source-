@@ -3,6 +3,7 @@ import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 // ── 다국어 콘텐츠 ──────────────────────────────────────
 const CONTENT = {
@@ -153,6 +154,11 @@ export default function TravelTerms() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const content = CONTENT[language as keyof typeof CONTENT] ?? CONTENT.en;
+
+  usePageMeta({
+    title: content.pageTitle,
+    description: 'CocoTrip travel terms — obligations, fees, cancellation, and responsibilities for overseas travel.',
+  });
 
   return (
     <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#faf9f6]'}>

@@ -7,6 +7,7 @@ import { useState, useCallback, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
+import type { PlanDocument, PlanDay, PlanStop, SetPlanFn } from '../types';
 
 interface StopData {
   name: string;
@@ -22,15 +23,15 @@ interface StopData {
 
 export function usePlanEditor(
   planId: string,
-  plan: any,
-  setPlan: (updater: (prev: any) => any) => void,
+  plan: PlanDocument | null,
+  setPlan: SetPlanFn,
 ) {
   const { user } = useAuth();
   const [isRecalculating, setIsRecalculating] = useState(false);
   const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Persist updated days array to Firestore
-  async function commitDays(nextDays: any[], snapshot: any) {
+  async function commitDays(nextDays: PlanDay[], snapshot: PlanDocument) {
     try {
       await updateDoc(doc(db, 'plans', planId), {
         'itinerary.days': nextDays,
@@ -45,13 +46,13 @@ export function usePlanEditor(
   }
 
   // Mark transit as stale for stops adjacent to changes
-  function markStale(stops: any[], affectedIdx: number) {
+  function markStale(stops: PlanStop[], affectedIdx: number) {
     // The stop AT affectedIdx and the one AFTER it get _stale
     if (stops[affectedIdx] && stops[affectedIdx].transit_from_prev) {
-      stops[affectedIdx].transit_from_prev._stale = true;
+      stops[affectedIdx].transit_from_prev!._stale = true;
     }
     if (stops[affectedIdx + 1] && stops[affectedIdx + 1].transit_from_prev) {
-      stops[affectedIdx + 1].transit_from_prev._stale = true;
+      stops[affectedIdx + 1].transit_from_prev!._stale = true;
     }
   }
 
@@ -95,31 +96,34 @@ export function usePlanEditor(
 
   async function deleteStop(dayIdx: number, stopIdx: number, token?: string | null) {
     if (!plan || !plan.itinerary) return;
-    const snapshot = structuredClone(plan);
-    const nextDays = structuredClone(plan.itinerary.days);
-    nextDays[dayIdx].stops.splice(stopIdx, 1);
+    const snapshot = structuredClone(plan) as PlanDocument;
+    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
+    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
+    stops.splice(stopIdx, 1);
     // Mark neighbors stale
-    if (nextDays[dayIdx].stops[stopIdx]) {
-      markStale(nextDays[dayIdx].stops, stopIdx);
+    if (stops[stopIdx]) {
+      markStale(stops, stopIdx);
     }
     // Re-number orders
-    nextDays[dayIdx].stops.forEach((s: any, i: number) => { s.order = i + 1; });
+    stops.forEach((s, i) => { s.order = i + 1; });
+    nextDays[dayIdx].stops = stops;
 
-    setPlan((prev: any) => ({
+    setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
       edited: true,
       lastEditedAt: Date.now(),
-    }));
+    }) : prev);
     await commitDays(nextDays, snapshot);
     scheduleRecalc(dayIdx, token || null);
   }
 
   async function addStop(dayIdx: number, stopData: Partial<StopData>, token?: string | null) {
     if (!plan || !plan.itinerary) return;
-    const snapshot = structuredClone(plan);
-    const nextDays = structuredClone(plan.itinerary.days);
-    const newStop = {
+    const snapshot = structuredClone(plan) as PlanDocument;
+    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
+    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
+    const newStop: PlanStop = {
       name: stopData.name || '',
       display_name: stopData.display_name || stopData.name || '',
       address: stopData.address || '',
@@ -128,7 +132,7 @@ export function usePlanEditor(
       category: stopData.category || 'landmark',
       entry_fee_krw: 0,
       tip: '',
-      order: nextDays[dayIdx].stops.length + 1,
+      order: stops.length + 1,
       _userAdded: true,
       transit_from_prev: {
         method: 'walk',
@@ -138,14 +142,15 @@ export function usePlanEditor(
         source: 'placeholder',
       },
     };
-    nextDays[dayIdx].stops.push(newStop);
+    stops.push(newStop);
+    nextDays[dayIdx].stops = stops;
 
-    setPlan((prev: any) => ({
+    setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
       edited: true,
       lastEditedAt: Date.now(),
-    }));
+    }) : prev);
     await commitDays(nextDays, snapshot);
     scheduleRecalc(dayIdx, token || null);
   }
@@ -153,9 +158,9 @@ export function usePlanEditor(
   async function reorderStops(dayIdx: number, oldIdx: number, newIdx: number, token?: string | null) {
     if (!plan || !plan.itinerary) return;
     if (oldIdx === newIdx) return;
-    const snapshot = structuredClone(plan);
-    const nextDays = structuredClone(plan.itinerary.days);
-    const stops = nextDays[dayIdx].stops;
+    const snapshot = structuredClone(plan) as PlanDocument;
+    const nextDays = structuredClone(plan.itinerary.days || []) as PlanDay[];
+    const stops = (nextDays[dayIdx]?.stops || []) as PlanStop[];
     const [moved] = stops.splice(oldIdx, 1);
     stops.splice(newIdx, 0, moved);
     // Mark all affected range stale
@@ -163,18 +168,19 @@ export function usePlanEditor(
     const maxIdx = Math.max(oldIdx, newIdx);
     for (let i = minIdx; i <= maxIdx + 1 && i < stops.length; i++) {
       if (stops[i] && stops[i].transit_from_prev) {
-        stops[i].transit_from_prev._stale = true;
+        stops[i].transit_from_prev!._stale = true;
       }
     }
     // Re-number orders
-    stops.forEach((s: any, i: number) => { s.order = i + 1; });
+    stops.forEach((s, i) => { s.order = i + 1; });
+    nextDays[dayIdx].stops = stops;
 
-    setPlan((prev: any) => ({
+    setPlan((prev) => prev ? ({
       ...prev,
       itinerary: { ...prev.itinerary, days: nextDays },
       edited: true,
       lastEditedAt: Date.now(),
-    }));
+    }) : prev);
     await commitDays(nextDays, snapshot);
     scheduleRecalc(dayIdx, token || null);
   }

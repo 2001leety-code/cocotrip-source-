@@ -8,7 +8,7 @@ import { RefreshCw, Plus, List, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Booking {
   id: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export default function Admin() {

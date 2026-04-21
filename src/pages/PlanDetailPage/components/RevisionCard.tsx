@@ -1,9 +1,10 @@
 // Revision / Regenerate card.
 // Extracted from PlanDetailPage/index.tsx L424-456 (zero behavior change).
 import { RefreshCw, Sparkles } from 'lucide-react';
+import type { PlanDocument } from '../types';
 
 interface RevisionCardProps {
-  plan: any;
+  plan: PlanDocument;
   planId: string;
   token: string | null;
 }

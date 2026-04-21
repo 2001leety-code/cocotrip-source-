@@ -1,4 +1,8 @@
 // Type definitions for PlannerPage -- extracted verbatim from legacy PlannerPage.tsx.
+import type { Translations } from '@/i18n';
+
+/** i18n planner dictionary — replaces `p: any` across all planner components */
+export type PlannerDict = Translations['planner'];
 
 export interface TransportToNext {
   method: string;

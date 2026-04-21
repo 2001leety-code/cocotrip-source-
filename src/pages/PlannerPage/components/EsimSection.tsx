@@ -1,7 +1,7 @@
 // eSIM recommendation section -- extracted verbatim from legacy PlannerPage.tsx L960-992.
 import { Phone } from 'lucide-react';
 
-export function EsimSection({ p, isMobile }: { p: any; isMobile: boolean }) {
+export function EsimSection({ p, isMobile }: { p: PlannerDict; isMobile: boolean }) {
   const esimLinks = [
     { name: 'Airalo', url: 'https://www.airalo.com/south-korea', color: '#FF6B35' },
     { name: 'Yesim', url: 'https://yesim.app/', color: '#4CAF50' },

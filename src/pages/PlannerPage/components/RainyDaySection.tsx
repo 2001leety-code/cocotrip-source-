@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { CloudRain } from 'lucide-react';
 import type { Place } from '../types';
 
-export function RainyDaySection({ places, p }: { places: Place[]; p: any }) {
+export function RainyDaySection({ places, p }: { places: Place[]; p: PlannerDict }) {
   const [open, setOpen] = useState(false);
   const alts = places.filter(pl => pl.rainyAlternative);
   if (!alts.length) return null;

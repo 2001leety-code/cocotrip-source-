@@ -6,7 +6,9 @@ import { useLanguage } from '@/hooks/useLanguage';
 
 export function EarlyBirdBanner() {
   const { t } = useLanguage();
-  const ad = (t as any).ads?.earlyBird ?? { banner: 'Early Bird 20% OFF · First 50 bookings only · {remaining} spots left', code: 'EARLY50' };
+  const ad = ((t as Record<string, unknown>).ads as Record<string, string> | undefined)?.earlyBird
+    ? ((t as Record<string, unknown>).ads as Record<string, Record<string, string>>).earlyBird
+    : { banner: 'Early Bird 20% OFF · First 50 bookings only · {remaining} spots left', code: 'EARLY50' };
   const [dismissed, setDismissed] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [visible, setVisible] = useState(false);
@@ -39,7 +41,7 @@ export function EarlyBirdBanner() {
 
   return (
     <div
-      className="fixed bottom-[88px] left-3 sm:bottom-6 sm:top-auto sm:left-6 p-2.5 sm:p-4 text-white rounded-xl sm:rounded-2xl shadow-2xl shadow-[#7C5CFC]/30 border border-white/20 transition-all z-40 hover:scale-105"
+      className="early-bird-banner fixed bottom-[88px] left-3 sm:bottom-6 sm:top-auto sm:left-6 p-2.5 sm:p-4 text-white rounded-xl sm:rounded-2xl shadow-2xl shadow-[#7C5CFC]/30 border border-white/20 transition-all z-40 hover:scale-105"
       style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', width: 130, maxWidth: 'calc(100vw - 24px)' }}
     >
       <div className="flex items-start justify-between mb-2">

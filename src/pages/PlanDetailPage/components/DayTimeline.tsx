@@ -11,9 +11,11 @@ import { StopCard } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { useLanguage } from '@/hooks/useLanguage';
+import type { PlanDay, PlanStop } from '../types';
+import { getPlanDetailDict } from '../types';
 
 interface DayTimelineProps {
-  day: any;
+  day: PlanDay;
   dayIndex: number;
   editMode: boolean;
   isRecalculating?: boolean;
@@ -23,12 +25,12 @@ interface DayTimelineProps {
 
 export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop }: DayTimelineProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
 
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const stops = day.stops || [];
-  const stopIds = stops.map((_: any, i: number) => `day-${dayIndex}-stop-${i}`);
+  const stopIds = stops.map((_: PlanStop, i: number) => `day-${dayIndex}-stop-${i}`);
 
   return (
     <section className="mb-8">
@@ -57,7 +59,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         <SortableContext items={stopIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-1 pl-8">
             <AnimatePresence mode="popLayout">
-              {stops.map((stop: any, si: number) => (
+              {stops.map((stop: PlanStop, si: number) => (
                 <div key={stopIds[si]}>
                   {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev} />}
                   <SortableStopCard
@@ -82,7 +84,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         </SortableContext>
       ) : (
         <div className="space-y-1">
-          {stops.map((stop: any, si: number) => (
+          {stops.map((stop: PlanStop, si: number) => (
             <div key={si}>
               {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev} />}
               <StopCard stop={stop} />

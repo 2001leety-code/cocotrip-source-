@@ -110,6 +110,12 @@ html {
   outline-offset: 2px;
 }
 
+/* ── Mobile Menu Open: hide conflicting fixed elements ── */
+html[data-menu-open="true"] .mobile-bottom-nav,
+html[data-menu-open="true"] .early-bird-banner {
+  display: none !important;
+}
+
 /* ═══════════════════════════════════════════════════════
    react-day-picker v9 — CocoTrip Dark Theme
    ═══════════════════════════════════════════════════════ */

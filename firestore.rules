@@ -25,6 +25,14 @@ service cloud.firestore {
                  && request.resource.data.uid == resource.data.uid;
 
       allow create, delete: if false;
+
+      // Translation cache — owner can read/write, public plans allow read
+      match /translations/{lang} {
+        allow read: if request.auth != null
+                 && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid;
+        allow write: if request.auth != null
+                  && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid;
+      }
     }
 
     // ─────────────────────────────────────────────────────────
@@ -108,10 +116,17 @@ service cloud.firestore {
                     && request.resource.data.authorUid == request.auth.uid
                     && request.resource.data.rating >= 1
                     && request.resource.data.rating <= 5
-                    && request.resource.data.text.size() <= 500;
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() >= 5
+                    && request.resource.data.text.size() <= 500
+                    && request.resource.data.keys().hasAll(['authorUid', 'rating', 'text', 'tourSlug']);
       allow update: if isSignedIn()
                     && resource.data.authorUid == request.auth.uid
-                    && request.resource.data.authorUid == resource.data.authorUid;
+                    && request.resource.data.authorUid == resource.data.authorUid
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5
+                    && request.resource.data.text.size() >= 5
+                    && request.resource.data.text.size() <= 500;
       allow delete: if isSignedIn()
                     && (resource.data.authorUid == request.auth.uid || isAdminEmail());
     }

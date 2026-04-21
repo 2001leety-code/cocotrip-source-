@@ -14,7 +14,10 @@
     <meta property="og:site_name" content="CocoTrip" />
     <meta property="og:title" content="CocoTrip — Premium Korea Private Tour" />
     <meta property="og:description" content="AI-powered travel planner & private charter vehicles for Korea. Airport pickup, K-pop shuttle, day tours. No hidden fees." />
-    <meta property="og:image" content="https://cocotripkr.com/hero-seoul-real.webp" />
+    <meta property="og:image" content="https://cocotripkr.com/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:url" content="https://cocotripkr.com" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:locale:alternate" content="ko_KR" />
@@ -25,7 +28,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CocoTrip — Premium Korea Private Tour" />
     <meta name="twitter:description" content="AI travel planner & private charter vehicles for Korea. No hidden fees." />
-    <meta name="twitter:image" content="https://cocotripkr.com/hero-seoul-real.webp" />
+    <meta name="twitter:image" content="https://cocotripkr.com/og-image.png" />
 
     <!-- 추가 SEO -->
     <meta name="robots" content="index, follow" />
@@ -46,6 +49,57 @@
           script.src = 'https://emrldtp.cc/NTE2OTY3.js?t=516967';
           document.head.appendChild(script);
       })();
+    </script>
+
+    <!-- Schema.org JSON-LD: TravelAgency -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TravelAgency",
+      "name": "CocoTrip",
+      "url": "https://cocotripkr.com",
+      "logo": "https://cocotripkr.com/favicon.png",
+      "image": "https://cocotripkr.com/og-image.png",
+      "description": "Premium Korea private tours, charter vehicles, AI travel planner. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more.",
+      "telephone": "+82-10-0000-0000",
+      "email": "cocotripkr@gmail.com",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "B01, 30 Hangang-daero 81-gil",
+        "addressLocality": "Yongsan-gu",
+        "addressRegion": "Seoul",
+        "postalCode": "04377",
+        "addressCountry": "KR"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 37.5326,
+        "longitude": 126.9644
+      },
+      "priceRange": "$$",
+      "areaServed": {
+        "@type": "Country",
+        "name": "South Korea"
+      },
+      "sameAs": [
+        "https://www.instagram.com/cocotrip_kr"
+      ]
+    }
+    </script>
+
+    <!-- Schema.org JSON-LD: WebSite (sitelinks search) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "CocoTrip",
+      "url": "https://cocotripkr.com",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://cocotripkr.com/tours?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
     </script>
   </head>
   <body>

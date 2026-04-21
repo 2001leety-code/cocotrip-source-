@@ -3,7 +3,7 @@ import { UtensilsCrossed, CreditCard, Clock, Map } from 'lucide-react';
 import { MEAL_ICON_MAP } from '../constants';
 import type { Meal } from '../types';
 
-export function MealsSection({ meals, p, enriching }: { meals?: Meal[]; p: any; enriching?: boolean }) {
+export function MealsSection({ meals, p, enriching }: { meals?: Meal[]; p: PlannerDict; enriching?: boolean }) {
   if (!meals?.length) {
     if (!enriching) return null;
     return (

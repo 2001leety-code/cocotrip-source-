@@ -51,8 +51,7 @@ const LABELS: Record<string, {
 
 interface PremiumReportPaywallProps {
   lang: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  p: any;
+  p: Record<string, string | undefined>;
   totalDays: number;
   onUnlocked?: () => void;
 }

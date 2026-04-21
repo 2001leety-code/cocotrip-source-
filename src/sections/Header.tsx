@@ -59,15 +59,18 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Lock body scroll when mobile menu open (iOS 호환)
+  // Lock body scroll when mobile menu open (iOS 호환) + signal other components
   useEffect(() => {
     if (isMobileMenuOpen) {
+      const scrollY = window.scrollY;
+      document.documentElement.dataset.menuOpen = 'true';
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
-      document.body.style.top = `-${window.scrollY}px`;
+      document.body.style.top = `-${scrollY}px`;
     } else {
       const scrollY = document.body.style.top;
+      delete document.documentElement.dataset.menuOpen;
       document.body.style.overflow = '';
       document.body.style.position = '';
       document.body.style.width = '';
@@ -75,6 +78,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
       if (scrollY) window.scrollTo(0, parseInt(scrollY || '0') * -1);
     }
     return () => {
+      delete document.documentElement.dataset.menuOpen;
       document.body.style.overflow = '';
       document.body.style.position = '';
       document.body.style.width = '';
@@ -92,8 +96,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const isActive = (path: string) => location.pathname === path;
 
   return (
+    <>
     <header
-      className="sticky top-0 z-[100] transition-all duration-300"
+      className={`sticky top-0 transition-all duration-300 ${isMobileMenuOpen ? 'z-[9999]' : 'z-[100]'}`}
       style={{
         background: isScrolled
           ? 'rgba(8,11,20,0.92)'
@@ -284,11 +289,12 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           </div>
         </div>
       </div>
+    </header>
 
       {/* ═══ Mobile Full-screen Menu ═══ */}
       {isMobile && isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 pt-[68px] overflow-y-auto"
+          className="fixed inset-0 z-[9998] pt-[68px] overflow-y-auto"
           style={{
             background: 'rgba(8,11,20,0.98)',
             backdropFilter: 'blur(24px)',
@@ -532,6 +538,6 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }

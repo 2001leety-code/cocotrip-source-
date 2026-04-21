@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { getPlanDetailDict } from '../types';
 
 interface AddStopModalProps {
   open: boolean;
@@ -28,7 +29,7 @@ const CATEGORIES = [
 
 export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
 
   const [name, setName] = useState('');

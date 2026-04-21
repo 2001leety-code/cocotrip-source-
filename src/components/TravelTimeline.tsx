@@ -26,9 +26,11 @@ interface TimelinePlace {
 interface TimelineDay {
   day: number; date: string; places: TimelinePlace[];
 }
+type TimelineDict = Record<string, string | undefined>;
+
 interface TravelTimelineProps {
   itinerary: TimelineDay[];
-  p: any; lang: string; passengers: number;
+  p: TimelineDict; lang: string; passengers: number;
 }
 
 // ── 택시 요금 추정 ────────────────────────────
@@ -83,7 +85,7 @@ type TransitMode = 'public' | 'taxi' | 'cocotrip';
 
 // ── 브루마블 스톱 노드 ────────────────────────
 function BoardStop({ place, index, isFirst, isLast, p }: {
-  place: TimelinePlace; index: number; isFirst: boolean; isLast: boolean; p: any;
+  place: TimelinePlace; index: number; isFirst: boolean; isLast: boolean; p: TimelineDict;
 }) {
   const cat = getCatStyle(place.category);
   const mapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(place.address || place.name)}`;
@@ -140,7 +142,7 @@ function BoardConnector({ place, direction, mode, setMode, prevPlace, p, lang, p
   mode: TransitMode;
   setMode: (m: TransitMode) => void;
   prevPlace: TimelinePlace;
-  p: any; lang: string; passengers: number;
+  p: TimelineDict; lang: string; passengers: number;
 }) {
   const min = place.travelTimeFromPrev;
   const dist = place.travelDistanceKm;
@@ -260,7 +262,7 @@ function BoardRow({ places, startIdx, reverse, dayIdx, getMode, setMode, p, lang
   dayIdx: number;
   getMode: (dayIdx: number, placeIdx: number) => TransitMode;
   setMode: (dayIdx: number, placeIdx: number, mode: TransitMode) => void;
-  p: any; lang: string; passengers: number;
+  p: TimelineDict; lang: string; passengers: number;
 }) {
   const orderedPlaces = reverse ? [...places].reverse() : places;
   const totalPlaces = orderedPlaces.length;
@@ -476,7 +478,7 @@ export function TravelTimeline({ itinerary, p, lang, passengers }: TravelTimelin
 function CostSummary({ itinerary, activeDay, getMode, p }: {
   itinerary: TimelineDay[]; activeDay: number;
   getMode: (dayIdx: number, placeIdx: number) => TransitMode;
-  p: any;
+  p: TimelineDict;
 }) {
   let taxiTotal = 0;
   let publicNote = false;

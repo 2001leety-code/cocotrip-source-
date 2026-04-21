@@ -20,7 +20,7 @@ const SEASON_GRADIENT: Record<Season, string> = {
 
 export function SeasonalBanner() {
   const { language, t: globalT } = useLanguage();
-  const ad = (globalT as any).ads?.seasonal ?? { planCta: 'Plan this season with AI', featuredSpot: '🔥 Featured Spot' };
+  const ad = ((globalT as Record<string, unknown>).ads as Record<string, Record<string, string>> | undefined)?.seasonal ?? { planCta: 'Plan this season with AI', featuredSpot: '🔥 Featured Spot' };
   const navigate = useNavigate();
   const season = useMemo(() => getCurrentSeason(), []);
   const data = SEASONAL_SPOTS[season];

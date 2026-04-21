@@ -1,7 +1,14 @@
 // Quick preview card -- extracted from legacy PlannerPage.tsx L1613-1703.
 import { Sparkles } from 'lucide-react';
+import type { PlannerDict } from '../types';
 
-export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: any; p: any; isMobile: boolean }) {
+interface QuickPreviewData {
+  themes?: string[];
+  marketingNarrative?: string | Record<string, unknown>;
+  day1MarkdownTable?: string | Record<string, unknown>;
+}
+
+export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: QuickPreviewData; p: PlannerDict; isMobile: boolean }) {
   return (
     <div className={isMobile
       ? 'm-card m-appear p-5 border-[#B668FC]/30 shadow-[0_0_20px_rgba(182,104,252,0.2)]'

@@ -14,12 +14,12 @@ export function MobileBottomNav() {
     { to: '/tours',   icon: <Package className="w-[18px] h-[18px]" />,  label: 'Tours' },
     { to: '/charter', icon: <Car className="w-[18px] h-[18px]" />,      label: t.nav.charter ?? 'Charter' },
     { to: '/planner', icon: <Sparkles className="w-[18px] h-[18px]" />, label: t.nav.planner ?? 'AI Plan' },
-    { to: user ? '/mypage' : '/planner', icon: <User className="w-[18px] h-[18px]" />, label: user ? ((t.nav as any).myPage ?? 'My') : 'Login' },
+    { to: user ? '/mypage' : '/planner', icon: <User className="w-[18px] h-[18px]" />, label: user ? ((t.nav as Record<string, string | undefined>).myPage ?? 'My') : 'Login' },
   ];
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[200] md:hidden"
+      className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[200] md:hidden"
       style={{
         background: 'rgba(8,11,20,0.97)',
         backdropFilter: 'blur(20px)',

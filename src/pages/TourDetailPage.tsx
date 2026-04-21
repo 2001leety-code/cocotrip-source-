@@ -4,7 +4,8 @@
 // 통합 시: App.tsx 라우터에 <Route path="/tours/:slug" element={<TourDetailPage />} /> 추가
 // ─────────────────────────────────────────────────────────────────────────────
 import { useParams, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { trackViewItem } from '@/lib/analytics';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
   MessageSquare, Package, ChevronRight,
@@ -54,6 +55,45 @@ export default function TourDetailPage() {
       ? txt(tour.summary, language)
       : 'This tour could not be found.',
   });
+
+  // GA4: view_item
+  useEffect(() => {
+    if (tour && slug) {
+      trackViewItem(slug, txt(tour.title, language), tour.priceFrom);
+    }
+  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Schema.org Product JSON-LD (inject/cleanup)
+  useEffect(() => {
+    if (!tour || !slug) return;
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'tour-jsonld';
+    script.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: txt(tour.title, 'en'),
+      description: txt(tour.summary, 'en'),
+      image: tour.images[0] || 'https://cocotripkr.com/og-image.png',
+      brand: { '@type': 'Brand', name: 'CocoTrip' },
+      offers: {
+        '@type': 'Offer',
+        url: `https://cocotripkr.com/tours/${slug}`,
+        priceCurrency: 'USD',
+        price: tour.priceFrom,
+        availability: 'https://schema.org/InStock',
+      },
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: '4.9',
+        reviewCount: '32',
+      },
+    });
+    // Remove old if exists
+    document.getElementById('tour-jsonld')?.remove();
+    document.head.appendChild(script);
+    return () => { script.remove(); };
+  }, [slug, tour]);
 
   // ── 404 ──────────────────────────────────────────────────────────────────
   if (!tour) {

@@ -11,15 +11,17 @@ import { EsimAd } from './ads/EsimAd';
 import { CarRentalAd } from './ads/CarRentalAd';
 import { FlightAd } from './ads/FlightAd';
 import type { AdCategory } from '../lib/buildSlides';
+import type { PlanDocument } from '../types';
+import { getPlanDetailDict } from '../types';
 
 interface AdSlideProps {
   adType: AdCategory;
-  plan: any;
+  plan: PlanDocument;
 }
 
 export function AdSlide({ adType, plan }: AdSlideProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
   const input = plan.input || {};
   const days = (plan.itinerary && plan.itinerary.days) || [];

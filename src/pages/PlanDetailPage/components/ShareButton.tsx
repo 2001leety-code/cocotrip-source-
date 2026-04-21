@@ -9,10 +9,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { trackShare } from '@/lib/analytics';
 import { toast } from 'sonner';
+import type { PlanDocument } from '../types';
+import { getPlanDetailDict } from '../types';
 
 interface ShareButtonProps {
   planId: string;
-  plan: any;
+  plan: PlanDocument;
   isOwner: boolean;
 }
 
@@ -47,7 +49,7 @@ async function claimShareReward(
 export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const sh = pd.share || {};
   const [isPublic, setIsPublic] = useState<boolean>(plan?.isPublic || false);
   const [toggling, setToggling] = useState(false);
@@ -63,8 +65,8 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
         await navigator.share({ title, url: shareUrl });
         trackShare('native', planId);
         shareMethod = 'native';
-      } catch (e: any) {
-        if (e.name !== 'AbortError') console.warn('[ShareButton] share error:', e);
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name !== 'AbortError') console.warn('[ShareButton] share error:', e);
         return; // 사용자 취소/실패 시 포인트 지급 X
       }
     } else {
@@ -147,10 +149,10 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
 }
 
 // Mini icon for IntroSlide
-export function ShareMiniIcon({ planId, plan }: { planId: string; plan: any }) {
+export function ShareMiniIcon({ planId, plan }: { planId: string; plan: PlanDocument }) {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const sh = ((t as any).planDetail || {}).share || {};
+  const sh = (getPlanDetailDict(t).share || {}) as Record<string, string>;
 
   const handleShare = async () => {
     const shareUrl = `https://cocotripkr.com/my-plans/${planId}?shared=1`;

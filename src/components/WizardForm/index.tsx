@@ -20,9 +20,11 @@ import { WizardStep1Food } from './WizardStep1Food';
 import { WizardStep2Details } from './WizardStep2Details';
 import { WizardStep3Review } from './WizardStep3Review';
 
-export function WizardForm({ onSubmit, isLoading }: any) {
+import type { WizardDict } from './types';
+
+export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean }) {
   const { t, language } = useLanguage();
-  const p: any = t.planner;
+  const p = t.planner as unknown as WizardDict;
   const [step, setStep] = useState(0);
   const { user } = useAuth();
   const [errorMsg, setErrorMsg] = useState('');
@@ -84,9 +86,9 @@ export function WizardForm({ onSubmit, isLoading }: any) {
 
   // helpers local to the container
   function getCityName(key: string) {
-    const existing = (p as any)[`city_${key}`];
+    const existing = p[`city_${key}`];
     if (existing) return existing;
-    const fallback = (p as any)[`city${key.charAt(0).toUpperCase()}${key.slice(1)}`];
+    const fallback = p[`city${key.charAt(0).toUpperCase()}${key.slice(1)}`];
     return fallback || key.charAt(0).toUpperCase() + key.slice(1);
   }
 

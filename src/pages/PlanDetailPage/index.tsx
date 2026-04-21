@@ -31,6 +31,8 @@ import { AdSlide } from './components/AdSlide';
 import { usePlanEditor } from './hooks/usePlanEditor';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { buildSlides } from './lib/buildSlides';
+import type { PlanDocument } from './types';
+import { getPlanDetailUI } from './types';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 
@@ -41,7 +43,7 @@ export default function PlanDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
-  const [plan, setPlan] = useState<any>(null);
+  const [plan, setPlan] = useState<PlanDocument | null>(null);
   const [error, setError] = useState<'notfound' | 'unauthorized' | null>(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -69,7 +71,7 @@ export default function PlanDetailPage() {
     setLoading(true);
     const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
       if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
-      const data = snap.data();
+      const data = snap.data() as PlanDocument;
       const ownerCheck = !!(user && data.uid === user.uid);
       const hasToken = data.accessToken && data.accessToken === token;
       const isGuestPlan = !data.uid;
@@ -123,44 +125,54 @@ export default function PlanDetailPage() {
     if (!plan) return;
     setIsPdfGenerating(true);
     try {
-      await generatePDF(plan);
+      const uiDict = getPlanDetailUI(t);
+      await generatePDF(plan, uiDict);
     } finally {
       setIsPdfGenerating(false);
     }
-  }, [plan]);
+  }, [plan, t]);
 
   // Loading / Error states
-  if (loading) return (
+  if (loading) {
+    const ui = getPlanDetailUI(t);
+    return (
     <div className="min-h-screen bg-[#0a0b14] text-white flex items-center justify-center">
       <div className="text-center">
         <div className="w-10 h-10 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-white/40 text-sm">Loading your plan...</p>
+        <p className="text-white/40 text-sm">{ui.loadingPlan || 'Loading your plan...'}</p>
       </div>
     </div>
   );
+  }
 
-  if (error === 'notfound') return (
+  if (error === 'notfound') {
+    const ui = getPlanDetailUI(t);
+    return (
     <div className="min-h-screen bg-[#0a0b14] text-white">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <AlertCircle className="w-16 h-16 text-red-400/40 mb-4" />
-        <h1 className="text-xl font-bold mb-2">Plan Not Found</h1>
-        <p className="text-white/40 text-sm mb-6">This plan may have been deleted or the link is invalid.</p>
-        <Link to="/planner" className="px-6 py-3 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>Create New Plan</Link>
+        <h1 className="text-xl font-bold mb-2">{ui.planNotFound || 'Plan Not Found'}</h1>
+        <p className="text-white/40 text-sm mb-6">{ui.planNotFoundDesc || 'This plan may have been deleted or the link is invalid.'}</p>
+        <Link to="/planner" className="px-6 py-3 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>{ui.createNewPlan || 'Create New Plan'}</Link>
       </div>
     </div>
   );
+  }
 
-  if (error === 'unauthorized') return (
+  if (error === 'unauthorized') {
+    const ui = getPlanDetailUI(t);
+    return (
     <div className="min-h-screen bg-[#0a0b14] text-white">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <AlertCircle className="w-16 h-16 text-yellow-400/40 mb-4" />
-        <h1 className="text-xl font-bold mb-2">Access Denied</h1>
-        <p className="text-white/40 text-sm mb-6">You don't have permission to view this plan.</p>
+        <h1 className="text-xl font-bold mb-2">{ui.accessDenied || 'Access Denied'}</h1>
+        <p className="text-white/40 text-sm mb-6">{ui.accessDeniedDesc || "You don't have permission to view this plan."}</p>
       </div>
     </div>
   );
+  }
 
   if (!plan) return null;
 

@@ -2,7 +2,7 @@
 import { MessageSquare, CreditCard, Ban, Phone } from 'lucide-react';
 import type { CustomerSupport } from '../types';
 
-export function CustomerSupportSection({ cs, p }: { cs?: CustomerSupport; p: any }) {
+export function CustomerSupportSection({ cs, p }: { cs?: CustomerSupport; p: PlannerDict }) {
   if (!cs) return null;
   return (
     <div className="bg-[#1A233A]/80 border border-[#C4956A]/30 rounded-2xl p-6 mt-6">

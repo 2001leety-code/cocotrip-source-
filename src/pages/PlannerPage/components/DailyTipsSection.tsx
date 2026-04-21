@@ -1,7 +1,7 @@
 // Daily tips section -- extracted verbatim from legacy PlannerPage.tsx L752-766.
 import { Lightbulb } from 'lucide-react';
 
-export function DailyTipsSection({ tips, p }: { tips?: string[]; p: any }) {
+export function DailyTipsSection({ tips, p }: { tips?: string[]; p: PlannerDict }) {
   if (!tips?.length) return null;
   return (
     <div className="bg-yellow-500/[0.08] border border-yellow-500/20 rounded-2xl px-4 py-3 mb-4">

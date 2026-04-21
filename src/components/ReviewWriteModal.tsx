@@ -31,9 +31,8 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tAny = t as any;
-  const rl = tAny?.reviews || {
+  const tRec = t as Record<string, unknown>;
+  const rl = (tRec.reviews as Record<string, string> | undefined) || {
     rating: 'Your rating',
     placeholder: 'Share your experience...',
     submit: 'Submit review',

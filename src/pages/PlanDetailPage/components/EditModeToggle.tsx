@@ -1,6 +1,7 @@
 // Edit mode toggle button -- placed in PlanDetailPage header area.
 import { Pencil, Check } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { getPlanDetailDict } from '../types';
 
 interface EditModeToggleProps {
   editMode: boolean;
@@ -9,7 +10,7 @@ interface EditModeToggleProps {
 
 export function EditModeToggle({ editMode, onToggle }: EditModeToggleProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
 
   return (

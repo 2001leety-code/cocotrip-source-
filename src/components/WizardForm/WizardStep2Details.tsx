@@ -4,9 +4,10 @@ import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import type { Locale } from 'date-fns';
 import type { AirportOption } from './data';
+import type { WizardDict } from './types';
 
 interface Step2Props {
-  p: any;
+  p: WizardDict;
   isMobile: boolean;
   calendarLocale: Locale;
   dateRange: DateRange | undefined;
@@ -113,19 +114,19 @@ export function WizardStep2Details(props: Step2Props) {
           <input type="checkbox" checked={wantAccom} onChange={e => setWantAccom(e.target.checked)}
             className="w-5 h-5 rounded border-white/20 bg-white/[0.06] accent-[#7C5CFC]" />
           <div>
-            <p className="text-sm font-semibold text-white">{(p as any).accomOptIn || 'Get AI hotel recommendations'}</p>
-            <p className="text-[11px] text-white/35">{(p as any).accomOptInSub || 'AI will suggest accommodations based on your itinerary'}</p>
+            <p className="text-sm font-semibold text-white">{p.accomOptIn || 'Get AI hotel recommendations'}</p>
+            <p className="text-[11px] text-white/35">{p.accomOptInSub || 'AI will suggest accommodations based on your itinerary'}</p>
           </div>
         </label>
         {wantAccom && (
           <div className="mt-3 pl-8">
-            <p className="text-xs text-white/40 mb-2">{(p as any).accomBudgetLabel || 'Accommodation budget'}</p>
+            <p className="text-xs text-white/40 mb-2">{p.accomBudgetLabel || 'Accommodation budget'}</p>
             <div className="flex gap-2">
               {(['budget', 'moderate', 'luxury'] as const).map((lvl) => {
                 const labels: Record<string, string> = {
-                  budget: (p as any).accomBudget1 || 'Budget',
-                  moderate: (p as any).accomBudget2 || 'Mid-range',
-                  luxury: (p as any).accomBudget3 || 'Luxury',
+                  budget: p.accomBudget1 || 'Budget',
+                  moderate: p.accomBudget2 || 'Mid-range',
+                  luxury: p.accomBudget3 || 'Luxury',
                 };
                 const sel = accomBudget === lvl;
                 return (

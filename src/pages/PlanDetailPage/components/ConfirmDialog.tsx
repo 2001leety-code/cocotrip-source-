@@ -1,5 +1,6 @@
 // Generic confirm dialog overlay. Used for delete confirmations.
 import { useLanguage } from '@/hooks/useLanguage';
+import { getPlanDetailDict } from '../types';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -10,7 +11,7 @@ interface ConfirmDialogProps {
 
 export function ConfirmDialog({ open, title, onConfirm, onCancel }: ConfirmDialogProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
 
   if (!open) return null;

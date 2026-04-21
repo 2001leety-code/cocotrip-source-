@@ -8,9 +8,11 @@ import { RevisionCard } from './RevisionCard';
 import { ShareButton } from './ShareButton';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import type { PlanDocument } from '../types';
+import { getPlanDetailDict } from '../types';
 
 interface OutroSlideProps {
-  plan: any;
+  plan: PlanDocument;
   planId: string;
   token: string | null;
   isPdfGenerating: boolean;
@@ -22,7 +24,7 @@ interface OutroSlideProps {
 export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating, isOwner, onDownloadPDF }: OutroSlideProps) {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
 
   const it = plan.itinerary || {};

@@ -4,7 +4,7 @@ import { Car, Briefcase } from 'lucide-react';
 import { TRANSPORT_ICON_MAP } from '../constants';
 import type { TransportToNext } from '../types';
 
-export function TransportBadge({ transport, p }: { transport: TransportToNext; p: any }) {
+export function TransportBadge({ transport, p }: { transport: TransportToNext; p: PlannerDict }) {
   const icon = TRANSPORT_ICON_MAP[transport.method] ?? TRANSPORT_ICON_MAP.default;
   const isCharter = transport.charterRecommended === 'yes';
   return (

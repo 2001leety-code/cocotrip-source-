@@ -25,7 +25,7 @@ export function AirportPickupAd({ arrivalAirport }: AirportPickupAdProps) {
         <span className="shrink-0 text-[10px] text-amber-400 border border-amber-500/35 rounded-full px-2.5 py-1 font-semibold">{airportCode}</span>
       </div>
       <div className="space-y-2 mb-4">
-        {prices.map((row: any, i: number) => (
+        {prices.map((row: { destination: string; price: string }, i: number) => (
           <div key={i} className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3">
             <span className="text-sm text-white/60">{row.destination}</span>
             <span className="text-sm font-bold text-amber-300">{row.price}</span>

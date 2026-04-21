@@ -4,7 +4,7 @@ import { buildTourLinks } from '@/config/affiliateLinks';
 import { CAT_ICON, TOUR_CATS } from '../constants';
 import type { PlannerResponse } from '../types';
 
-export function TourRecommendationsSection({ result, p }: { result: PlannerResponse; p: any }) {
+export function TourRecommendationsSection({ result, p }: { result: PlannerResponse; p: PlannerDict }) {
   const region = result.meta.regions[0] ?? '';
   const tourPlaces = result.itinerary
     .flatMap(d => d.places)
@@ -30,7 +30,7 @@ export function TourRecommendationsSection({ result, p }: { result: PlannerRespo
               </div>
               <span className="flex-1 text-sm text-white/65 font-medium truncate">{pl.name}</span>
               <div className="flex gap-1.5 shrink-0">
-                {links.map((lk: any) => (
+                {links.map((lk: { provider: string; label: string; url: string }) => (
                   <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all hover:opacity-90 ${
                       lk.provider === 'klook'

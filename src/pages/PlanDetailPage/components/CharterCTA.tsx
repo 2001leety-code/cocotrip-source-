@@ -4,20 +4,22 @@ import { Car } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { detectCharterRecommendation } from '@/data/charterPricing';
 import { formatKRW } from '../constants';
+import type { PlanDay, PlanStop } from '../types';
+import { getPlanDetailDict } from '../types';
 
 interface CharterCTAProps {
-  day: any;
+  day: PlanDay;
 }
 
-function shouldShowCharterCTA(day: any): boolean {
+function shouldShowCharterCTA(day: PlanDay): boolean {
   const stops = day.stops || [];
-  const transitCount = stops.filter((s: any) =>
+  const transitCount = stops.filter((s: PlanStop) =>
     s.transit_from_prev && (s.transit_from_prev.method === 'subway' || s.transit_from_prev.method === 'bus')
   ).length;
-  const downgradedCount = stops.filter((s: any) =>
+  const downgradedCount = stops.filter((s: PlanStop) =>
     s.transit_from_prev && s.transit_from_prev._downgraded_from
   ).length;
-  const totalTransitMin = stops.reduce((sum: number, s: any) =>
+  const totalTransitMin = stops.reduce((sum: number, s: PlanStop) =>
     sum + ((s.transit_from_prev && s.transit_from_prev.est_min) || 0), 0
   );
   return transitCount >= 3 || downgradedCount >= 1 || totalTransitMin >= 120;
@@ -25,12 +27,12 @@ function shouldShowCharterCTA(day: any): boolean {
 
 export function CharterCTA({ day }: CharterCTAProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const ch = pd.charter || {};
 
   if (!shouldShowCharterCTA(day)) return null;
 
-  const stops = (day.stops || []).map((s: any) => ({
+  const stops = (day.stops || []).map((s: PlanStop) => ({
     name: s.name || s.display_name || '',
     nameEn: s.display_name || s.name || '',
   }));

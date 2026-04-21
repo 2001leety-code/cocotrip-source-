@@ -16,6 +16,7 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db, signInWithGoogle } from '@/lib/firebase';
 import { reserveTourSeats } from '@/services/bookingService';
 import { useAuth } from '@/hooks/useAuth';
+import { trackBeginCheckout, trackPurchase } from '@/lib/analytics';
 
 const languages: { value: Language; label: string }[] = [
   { value: 'ko', label: '한국어' },
@@ -70,7 +71,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
       (snap) => {
         const list = snap.docs.map((d) => ({
           id: d.id,
-          ...(d.data() as any),
+          ...(d.data() as Record<string, unknown>),
         }));
         setTours(list);
         setToursLoading(false);
@@ -156,6 +157,15 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
       return;
     }
 
+    // GA4: begin checkout
+    const currentTour = tours.find(x => x.id === selectedTourId);
+    trackBeginCheckout(
+      selectedTourId,
+      currentTour?.title ?? 'Unknown Tour',
+      numberOfPeople,
+      currentTour?.price ?? undefined,
+    );
+
     setIsSubmitting(true);
     try {
       await reserveTourSeats({
@@ -172,6 +182,15 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
           notes,
         },
       });
+
+      // GA4: successful booking
+      const bookedTour = tours.find(x => x.id === selectedTourId);
+      trackPurchase(
+        selectedTourId,
+        bookedTour?.title ?? 'Unknown Tour',
+        numberOfPeople,
+        bookedTour?.price ?? undefined,
+      );
 
       setIsSubmitted(true);
     } catch (err) {

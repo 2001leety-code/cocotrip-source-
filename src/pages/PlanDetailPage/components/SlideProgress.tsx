@@ -2,6 +2,7 @@
 // <=8 slides: dots with active scale
 // >8 slides: compact "{current+1} / {total}" + thin progress bar
 import { useLanguage } from '@/hooks/useLanguage';
+import { getPlanDetailDict } from '../types';
 
 interface SlideProgressProps {
   current: number;
@@ -11,7 +12,7 @@ interface SlideProgressProps {
 
 export function SlideProgress({ current, total, onDotClick }: SlideProgressProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
   const compact = total > 8;
 

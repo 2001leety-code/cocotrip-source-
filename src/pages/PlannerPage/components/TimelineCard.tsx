@@ -3,7 +3,7 @@ import { MapPin, Clock, Ban, Phone, Banknote, Map, Ticket } from 'lucide-react';
 import { CAT_BADGE, CAT_ICON } from '../constants';
 import type { Place } from '../types';
 
-export function TimelineCard({ place, index, p }: { place: Place; index: number; p: any }) {
+export function TimelineCard({ place, index, p }: { place: Place; index: number; p: PlannerDict }) {
   const badgeClass = CAT_BADGE[place.category] ?? 'bg-white/10 text-white/60 border-white/20';
   const catIcon    = CAT_ICON[place.category] ?? <MapPin className="w-3.5 h-3.5" />;
   const mapQuery = place.address || place.name || '';

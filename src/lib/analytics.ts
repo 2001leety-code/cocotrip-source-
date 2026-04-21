@@ -100,3 +100,48 @@ export function trackPlannerStep(step: string, details?: GtagEvent) {
 export function trackRecalcTransit(success: boolean, elapsedMs?: number) {
   trackEvent('recalc_transit', { success: success ? 'true' : 'false', elapsed_ms: elapsedMs });
 }
+
+// ── GA4 Ecommerce Events ────────────────────────────────────────────────
+
+/** User views a tour detail page */
+export function trackViewItem(itemId: string, itemName: string, price?: number) {
+  trackEvent('view_item', {
+    currency: 'USD',
+    value: price,
+    items_id: itemId,
+    items_name: itemName,
+  });
+}
+
+/** User opens the booking form */
+export function trackBeginCheckout(tourId: string, tourName: string, partySize: number, price?: number) {
+  trackEvent('begin_checkout', {
+    currency: 'USD',
+    value: price,
+    items_id: tourId,
+    items_name: tourName,
+    quantity: partySize,
+  });
+}
+
+/** Booking successfully submitted */
+export function trackPurchase(tourId: string, tourName: string, partySize: number, price?: number) {
+  trackEvent('purchase', {
+    currency: 'USD',
+    value: price,
+    items_id: tourId,
+    items_name: tourName,
+    quantity: partySize,
+    transaction_id: `${tourId}_${Date.now()}`,
+  });
+}
+
+/** User adds a tour to wishlist */
+export function trackAddToWishlist(itemId: string, itemName: string) {
+  trackEvent('add_to_wishlist', { items_id: itemId, items_name: itemName });
+}
+
+/** User signs up / first login */
+export function trackSignUp(method: string) {
+  trackEvent('sign_up', { method });
+}

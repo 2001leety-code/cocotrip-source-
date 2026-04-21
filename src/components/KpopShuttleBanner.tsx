@@ -5,8 +5,7 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface Props {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  p: any;
+  p: Record<string, string | undefined>;
 }
 
 const SEL = 'bg-[#7C5CFC]/20 border-[#7C5CFC]/50 text-white';
@@ -15,7 +14,7 @@ const UNSEL = 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-wh
 export function KpopShuttleBanner({ p }: Props) {
   const { language, t: globalT } = useLanguage();
   const concerts = useMemo(() => getUpcomingConcerts(), []);
-  const t = (globalT as any).ads?.kpopShuttle ?? {} as Record<string, string>;
+  const t = ((globalT as Record<string, unknown>).ads as Record<string, Record<string, string>> | undefined)?.kpopShuttle ?? {} as Record<string, string>;
   const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // concert data: ko/en only; ja/zh → en fallback
 
   const [selectedId, setSelectedId] = useState<string | null>(null);

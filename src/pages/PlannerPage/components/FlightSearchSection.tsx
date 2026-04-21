@@ -2,7 +2,7 @@
 import { Plane, Search } from 'lucide-react';
 import { buildFlightLink } from '@/config/affiliateLinks';
 
-export function FlightSearchSection({ arrivalAirport, p, lang }: { arrivalAirport?: string; p: any; lang?: string }) {
+export function FlightSearchSection({ arrivalAirport, p, lang }: { arrivalAirport?: string; p: PlannerDict; lang?: string }) {
   const link = buildFlightLink(arrivalAirport ?? 'ICN', lang);
   if (!link) return null;
   return (

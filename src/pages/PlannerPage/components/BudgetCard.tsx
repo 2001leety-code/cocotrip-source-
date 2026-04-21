@@ -2,7 +2,7 @@
 import { Bus as BusIcon, UtensilsCrossed, Ticket, Hotel, CreditCard } from 'lucide-react';
 import type { BudgetSummary } from '../types';
 
-export function BudgetCard({ budget, p }: { budget: BudgetSummary; p: any }) {
+export function BudgetCard({ budget, p }: { budget: BudgetSummary; p: PlannerDict }) {
   const items = [
     { label: p.budgetTransport,     value: budget.transport,     icon: <BusIcon className="w-4 h-4" /> },
     { label: p.budgetFood,          value: budget.food,          icon: <UtensilsCrossed className="w-4 h-4" /> },

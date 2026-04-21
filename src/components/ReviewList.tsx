@@ -61,9 +61,8 @@ export function ReviewList({ targetType, targetId }: Props) {
     fetchReviews();
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tAny = t as any;
-  const rl = tAny?.reviews || {
+  const tRec = t as Record<string, unknown>;
+  const rl = (tRec.reviews as Record<string, string> | undefined) || {
     writeButton: 'Write a review',
     empty: 'Be the first to review',
     count: '{count} reviews',

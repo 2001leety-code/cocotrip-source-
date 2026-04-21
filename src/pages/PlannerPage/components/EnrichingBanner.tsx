@@ -1,7 +1,7 @@
 // Enriching banner -- extracted verbatim from legacy PlannerPage.tsx L802-818.
 import { UtensilsCrossed } from 'lucide-react';
 
-export function EnrichingBanner({ visible, p }: { visible: boolean; p: any }) {
+export function EnrichingBanner({ visible, p }: { visible: boolean; p: PlannerDict }) {
   if (!visible) return null;
   return (
     <div className="rounded-2xl border border-[rgba(196,149,106,.25)] overflow-hidden mb-6"

@@ -32,7 +32,7 @@ import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
 
 // Retry dynamic import — if chunk is stale after deploy, force one page reload
-function lazyRetry(importFn: () => Promise<any>) {
+function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
   return lazy(() =>
     importFn().catch(() => {
       const key = 'chunk_reload';

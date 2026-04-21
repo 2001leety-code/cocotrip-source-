@@ -1,7 +1,7 @@
 // Premium combo discount CTA -- extracted verbatim from legacy PlannerPage.tsx L1052-1096.
 import { Ticket, Check, Ban } from 'lucide-react';
 
-export function ComboPackageBanner({ p }: { p: any }) {
+export function ComboPackageBanner({ p }: { p: PlannerDict }) {
   return (
     <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/30 rounded-2xl p-6 mt-6 relative overflow-hidden">
       <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg shadow-lg">{p.comboSaveBadge}</div>

@@ -7,9 +7,14 @@ interface PwaInstallButtonProps {
   t: Translations;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 export function PwaInstallButton({ t }: PwaInstallButtonProps) {
   const [showModal, setShowModal] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
@@ -29,7 +34,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
     // Android/Chrome: beforeinstallprompt 캡처
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
     window.addEventListener('beforeinstallprompt', handler);
 

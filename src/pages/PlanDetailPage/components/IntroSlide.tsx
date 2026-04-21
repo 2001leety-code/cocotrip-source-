@@ -6,9 +6,11 @@ import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import type { PlanDocument, PlanDay } from '../types';
+import { getPlanDetailDict } from '../types';
 
 interface IntroSlideProps {
-  plan: any;
+  plan: PlanDocument;
   planId: string;
   isTranslating: boolean;
 }
@@ -16,7 +18,7 @@ interface IntroSlideProps {
 export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
 
   const it = plan.itinerary || {};
@@ -51,7 +53,7 @@ export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
       <div className="grid grid-cols-4 gap-2 mb-6">
         {[
           { icon: <Calendar className="w-4 h-4" />, label: sw.introDaysLabel || 'Days', value: String(days.length || '-') },
-          { icon: <MapPin className="w-4 h-4" />, label: 'Stops', value: String(days.reduce((s: number, d: any) => s + (d.stops?.length || 0), 0)) },
+          { icon: <MapPin className="w-4 h-4" />, label: 'Stops', value: String(days.reduce((s: number, d: PlanDay) => s + (d.stops?.length || 0), 0)) },
           { icon: <Users className="w-4 h-4" />, label: 'Pax', value: String(input.adults ? (input.adults + (input.children || 0)) : input.pax) },
           { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },
         ].map((item, i) => (

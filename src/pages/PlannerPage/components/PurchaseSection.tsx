@@ -8,14 +8,21 @@ import {
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';
 import type { PlannerFormValues } from '@/components/PlannerForm';
+import type { PlannerDict } from '../types';
+
+interface QuickPreviewData {
+  themes?: string[];
+  marketingNarrative?: string | Record<string, unknown>;
+  day1MarkdownTable?: string | Record<string, unknown>;
+}
 
 interface PurchaseSectionProps {
-  p: any; isMobile: boolean; language: string;
+  p: PlannerDict; isMobile: boolean; language: string;
   userEmail: string; setUserEmail: (v: string) => void;
   selectedOption: 'A' | 'B'; setSelectedOption: (v: 'A' | 'B') => void;
   optionBStep: 1 | 2 | 3; setOptionBStep: (v: 1 | 2 | 3) => void;
   isGeneratingPlan: boolean; planError: string | null;
-  resultQuick: any;
+  resultQuick: QuickPreviewData;
   lastValues: MutableRefObject<PlannerFormValues | null>;
   revisionMode: boolean; revisionPlanId: string | null; revisionToken: string | null;
   onPaymentSuccess: (orderId: string) => void;
@@ -145,7 +152,7 @@ export function PurchaseSection({
 }
 
 // Sub-components to keep PurchaseSection readable
-function OptionAButton({ p, isMobile, selected, onSelect }: { p: any; isMobile: boolean; selected: boolean; onSelect: () => void }) {
+function OptionAButton({ p, isMobile, selected, onSelect }: { p: PlannerDict; isMobile: boolean; selected: boolean; onSelect: () => void }) {
   return (
     <button onClick={onSelect}
       className={`w-full text-left p-4 rounded-2xl border-2 transition-all duration-300 ${
@@ -171,7 +178,7 @@ function OptionAButton({ p, isMobile, selected, onSelect }: { p: any; isMobile: 
   );
 }
 
-function OptionBButton({ p, isMobile, selected, onSelect }: { p: any; isMobile: boolean; selected: boolean; onSelect: () => void }) {
+function OptionBButton({ p, isMobile, selected, onSelect }: { p: PlannerDict; isMobile: boolean; selected: boolean; onSelect: () => void }) {
   return (
     <button onClick={onSelect}
       className={`w-full text-left p-4 rounded-2xl border-2 transition-all duration-300 ${
@@ -190,7 +197,7 @@ function OptionBButton({ p, isMobile, selected, onSelect }: { p: any; isMobile: 
 }
 
 function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, userEmail, setUserEmail }: {
-  p: any; isMobile: boolean;
+  p: PlannerDict; isMobile: boolean;
   optionBStep: 1 | 2 | 3; setOptionBStep: (v: 1 | 2 | 3) => void;
   lastValues: MutableRefObject<PlannerFormValues | null>;
   userEmail: string; setUserEmail: (v: string) => void;
@@ -242,7 +249,7 @@ function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, use
                 <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-1 flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> {p.slimHotelLowest}</p>
                 <p className="text-[11px] text-white/35 mb-4">{p.optionBHotelDesc || 'Find the best hotel deals for your trip'}</p>
                 <div className="flex flex-wrap gap-2">
-                  {links.map((lk: any) => (
+                  {links.map((lk: { provider: string; label: string; url: string; color?: string }) => (
                     <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
                       className="flex-1 min-w-[100px] text-center py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95"
                       style={{ background: lk.color || '#0073E6', color: '#fff' }}>{lk.label} {'\u2192'}</a>

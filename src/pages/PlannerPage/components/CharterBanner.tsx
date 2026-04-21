@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { PlannerResponse } from '../types';
 
-export function CharterBanner({ result, p, lang, vehicleType }: { result: PlannerResponse; p: any; lang: string; vehicleType?: string }) {
+export function CharterBanner({ result, p, lang, vehicleType }: { result: PlannerResponse; p: PlannerDict; lang: string; vehicleType?: string }) {
   const [expanded, setExpanded] = useState(false);
 
   const allPlaces = result.itinerary.flatMap((d) => d.places);

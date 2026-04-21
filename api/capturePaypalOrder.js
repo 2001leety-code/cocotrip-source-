@@ -50,6 +50,29 @@ export default async function handler(req, res) {
     // 1. Access Token
     const accessToken = await getPaypalAccessToken(isSandbox);
 
+    // 1.5 Duplicate orderID guard — used_paypal_orders 중복 방지
+    {
+      const { initializeApp, cert, getApps } = await import('firebase-admin/app');
+      const { getFirestore } = await import('firebase-admin/firestore');
+      if (!getApps().length) {
+        const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
+        initializeApp({ credential: cert(sa) });
+      }
+      const db = getFirestore();
+      const existing = await db.collection('used_paypal_orders').doc(orderID).get();
+      if (existing.exists) {
+        console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
+        res.writeHead(409, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: 'Order already processed' }));
+      }
+      // 선점 기록 (결제 캡처 전)
+      await db.collection('used_paypal_orders').doc(orderID).set({
+        createdAt: new Date().toISOString(),
+        userEmail,
+        product: product || 'unknown',
+      });
+    }
+
     // 2. Capture
     const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
       method: 'POST',

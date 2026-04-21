@@ -16,7 +16,7 @@ type Status = 'idle' | 'loadingQuick' | 'quickSuccess' | 'loadingFull' | 'fullSu
 export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePlannerHandlersOptions) {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('idle');
-  const [resultQuick, setResultQuick] = useState<any>(null);
+  const [resultQuick, setResultQuick] = useState<Record<string, unknown> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [, setStreamStep] = useState<number>(0);
   const [, setStreamAgent] = useState<string>('');
@@ -45,7 +45,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       dietPrefs: values.dietPrefs || [],
       allergies: values.allergies || [],
       priceRange: values.priceRange || 'Any',
-      special_request: (values as any).freeText || '',
+      special_request: values.freeText || '',
     });
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -124,15 +124,15 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           durationDays: values.durationDays || 3,
           pax: values.pax || 2,
           language,
-          arrival_airport: (values as any).arrival_airport || '',
-          departure_airport: (values as any).departure_airport || '',
-          hotel_address: (values as any).hotel_address || '',
-          mobility: (values as any).mobility || 'ok',
-          uid: (values as any).uid || null,
+          arrival_airport: values.arrival_airport || '',
+          departure_airport: values.departure_airport || '',
+          hotel_address: values.hotel_address || '',
+          mobility: values.mobility || 'ok',
+          uid: values.uid || null,
           dietPrefs: values.dietPrefs || [],
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
-          special_request: (values as any).freeText || '',
+          special_request: values.freeText || '',
         }),
       });
 
@@ -159,11 +159,11 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       } else {
         throw new Error('Plan created but no URL returned');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[PlannerPage] Plan generation failed:', err);
-      const msg = err.name === 'AbortError'
+      const msg = err instanceof Error && err.name === 'AbortError'
         ? 'Server took too long (120s). Your payment is safe \u2014 please contact us via WhatsApp to get your plan.'
-        : (err.message || 'Something went wrong. Please contact us via WhatsApp.');
+        : (err instanceof Error ? err.message : 'Something went wrong. Please contact us via WhatsApp.');
       setPlanError(msg);
       setIsGeneratingPlan(false);
     }
@@ -195,15 +195,15 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           durationDays: values.durationDays || 3,
           pax: values.pax || 2,
           language,
-          arrival_airport: (values as any).arrival_airport || '',
-          departure_airport: (values as any).departure_airport || '',
-          hotel_address: (values as any).hotel_address || '',
-          mobility: (values as any).mobility || 'ok',
-          uid: (values as any).uid || null,
+          arrival_airport: values.arrival_airport || '',
+          departure_airport: values.departure_airport || '',
+          hotel_address: values.hotel_address || '',
+          mobility: values.mobility || 'ok',
+          uid: values.uid || null,
           dietPrefs: values.dietPrefs || [],
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
-          special_request: (values as any).freeText || '',
+          special_request: values.freeText || '',
         }),
       });
 
@@ -216,9 +216,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       if (data.planUrl) navigate(data.planUrl);
       else if (data.planId) navigate(`/my-plans/${data.planId}`);
       else throw new Error('Plan created but no URL returned');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[PlannerPage] Revision failed:', err);
-      setPlanError(err.message || 'Revision failed. Please contact us via WhatsApp.');
+      setPlanError(err instanceof Error ? err.message : 'Revision failed. Please contact us via WhatsApp.');
       setIsGeneratingPlan(false);
     }
   }

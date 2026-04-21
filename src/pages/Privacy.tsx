@@ -3,6 +3,7 @@ import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 // ── 다국어 콘텐츠 ──────────────────────────────────────
 const CONTENT = {
@@ -203,10 +204,22 @@ const PageSection = ({ title, children, isMobile }: { title: string; children: R
   </section>
 );
 
+type PrivacyArticleExt = ArticleData & {
+  list?: string[];
+  contacts?: { label: string; value: string }[];
+  footer?: string;
+  footerList?: string[];
+};
+
 export default function Privacy() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const content = CONTENT[language as keyof typeof CONTENT] ?? CONTENT.en;
+
+  usePageMeta({
+    title: content.pageTitle,
+    description: 'CocoTrip privacy policy — how we collect, use and protect your personal information.',
+  });
 
   return (
     <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#faf9f6]'}>
@@ -215,35 +228,38 @@ export default function Privacy() {
         <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white p-8 sm:p-12 rounded-lg shadow-lg'}>
           <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-[#1a1a2e] text-3xl sm:text-4xl sm:mb-12'}`}>{content.pageTitle}</h1>
           
-          {content.articles.map((article: ArticleData, idx: number) => (
-            <PageSection key={idx} title={article.title} isMobile={isMobile}>
-              <p>{article.body}</p>
-              {'list' in article && (article as any).list && (
+          {content.articles.map((article: ArticleData, idx: number) => {
+            const a = article as PrivacyArticleExt;
+            return (
+            <PageSection key={idx} title={a.title} isMobile={isMobile}>
+              <p>{a.body}</p>
+              {a.list && (
                 <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
-                  {((article as any).list as string[]).map((item: string, i: number) => (
+                  {a.list.map((item: string, i: number) => (
                     <li key={i}>{item}</li>
                   ))}
                 </ul>
               )}
-              {'contacts' in article && (article as any).contacts && (
+              {a.contacts && (
                 <ul className={`list-none space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
-                  {((article as any).contacts as { label: string; value: string }[]).map((c: { label: string; value: string }, i: number) => (
+                  {a.contacts.map((c, i: number) => (
                     <li key={i}><strong>{c.label}:</strong> {c.value}</li>
                   ))}
                 </ul>
               )}
-              {'footer' in article && (article as any).footer && (
+              {a.footer && (
                 <>
-                  <p>{(article as any).footer}</p>
+                  <p>{a.footer}</p>
                   <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
-                    {((article as any).footerList as string[]).map((item: string, i: number) => (
+                    {(a.footerList || []).map((item: string, i: number) => (
                       <li key={i}>{item}</li>
                     ))}
                   </ul>
                 </>
               )}
             </PageSection>
-          ))}
+            );
+          })}
         </div>
       </main>
       {!isMobile && <Footer t={t} />}

@@ -6,10 +6,11 @@ import { Car, ChevronDown, Bus, Train, AlertTriangle } from 'lucide-react';
 import { TRANSIT_ICON, formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { TransitFromPrev } from '@/types/plan';
+import { getPlanDetailDict } from '../types';
 
 export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<string, unknown> }) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const trKeys = pd.transit || {};
   const Icon = TRANSIT_ICON[transit.method] || Car;
   const isPublicTransit = transit.method === 'subway' || transit.method === 'bus';

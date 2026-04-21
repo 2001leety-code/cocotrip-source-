@@ -2,13 +2,14 @@
 // Extracted from PlanDetailPage/index.tsx L310-347 (zero behavior change).
 import { Car } from 'lucide-react';
 import { detectCharterRecommendation } from '@/data/charterPricing';
+import type { PlanDay } from '../../types';
 
 interface CharterBannerProps {
-  days: any[];
+  days: PlanDay[];
 }
 
 export function CharterBanner({ days }: CharterBannerProps) {
-  const allStops = days.flatMap((d: any) => d.stops || []);
+  const allStops = days.flatMap((d: PlanDay) => d.stops || []);
   const detection = detectCharterRecommendation(allStops);
   if (!detection.recommended || !detection.pricing) return null;
   const { pricing } = detection;

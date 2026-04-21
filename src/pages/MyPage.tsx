@@ -14,6 +14,7 @@ import { useWishlist } from '@/hooks/useWishlist';
 import { useItinerary } from '@/hooks/useItinerary';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
@@ -46,6 +47,11 @@ export default function MyPage() {
   const [tab, setTab] = useState<Tab>('overview');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState<number | null>(null);
+
+  usePageMeta({
+    title: 'My Page — Membership & Rewards',
+    description: 'Manage your CocoTrip membership, trip coins, coupons, wishlists and travel itineraries.',
+  });
 
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code);

@@ -1,9 +1,10 @@
 // Step 0: destination cities + activities + free-text hints.
 import { Sparkles, ChevronRight, Check } from 'lucide-react';
 import { CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP } from './data';
+import type { WizardDict } from './types';
 
 interface Step0Props {
-  p: any;
+  p: WizardDict;
   isMobile: boolean;
   mainCity: string;
   mainCityKey: string;
@@ -129,8 +130,8 @@ export function WizardStep0Destination(props: Step0Props) {
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))', borderColor: 'rgba(124,92,252,.5)' } : {}}>
                 <span className="shrink-0">{ACTIVITY_ICON_MAP[key]}</span>
                 <div className="overflow-hidden">
-                  <p className="text-[13px] font-bold truncate">{(p as any)[nameKey]}</p>
-                  <p className="text-[10px] text-white/40 truncate">{(p as any)[subKey]}</p>
+                  <p className="text-[13px] font-bold truncate">{p[nameKey]}</p>
+                  <p className="text-[10px] text-white/40 truncate">{p[subKey]}</p>
                 </div>
                 {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
               </button>

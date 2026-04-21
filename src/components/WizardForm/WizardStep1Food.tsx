@@ -1,9 +1,10 @@
 // Step 1: food preferences (diet style, allergies, price range).
 import { ChevronLeft, ChevronRight, Check, AlertTriangle as TriangleAlert } from 'lucide-react';
 import { FOOD_STYLE_KEYS, FOOD_STYLE_ICONS, ALLERGY_KEYS, PRICE_KEYS } from './data';
+import type { WizardDict } from './types';
 
 interface Step1Props {
-  p: any;
+  p: WizardDict;
   isMobile: boolean;
   dietPrefs: string[];
   allergies: string[];
@@ -50,8 +51,8 @@ export function WizardStep1Food(props: Step1Props) {
                 } : {}}>
                 <span className="shrink-0">{FOOD_STYLE_ICONS[key]}</span>
                 <div className="overflow-hidden">
-                  <p className="text-[13px] font-bold truncate">{(p as any)[nameKey] || key}</p>
-                  <p className="text-[10px] text-white/40 truncate">{(p as any)[subKey]}</p>
+                  <p className="text-[13px] font-bold truncate">{p[nameKey] || key}</p>
+                  <p className="text-[10px] text-white/40 truncate">{p[subKey]}</p>
                 </div>
                 {sel && <Check className={`w-4 h-4 ml-auto shrink-0 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />}
               </button>
@@ -68,7 +69,7 @@ export function WizardStep1Food(props: Step1Props) {
         </p>
         <div className="flex flex-wrap gap-2 mt-2">
           {ALLERGY_KEYS.map((key) => {
-            const label = (p as any)[`allergy${key}`] || key;
+            const label = p[`allergy${key}`] || key;
             const sel = key === 'None' ? allergies.length === 0 : allergies.includes(key);
             return (
               <button key={key} onClick={() => toggleAllergy(key)}
@@ -92,8 +93,8 @@ export function WizardStep1Food(props: Step1Props) {
         <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardFoodPriceLabel || 'Meal Budget'}</p>
         <div className="grid grid-cols-2 gap-2">
           {PRICE_KEYS.map((key) => {
-            const label = (p as any)[`price${key}`] || key;
-            const range = (p as any)[`price${key}Range`] || '';
+            const label = p[`price${key}`] || key;
+            const range = p[`price${key}Range`] || '';
             const sel = priceRange === key;
             return (
               <button key={key} onClick={() => setPriceRange(key)}

@@ -7,15 +7,13 @@ interface Props {
   dateStart?: string;
   dateEnd?: string;
   priceKRW: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  p: any;
+  p: Record<string, string | undefined>;
   lang: string;
   pickupLocation?: string;
   dropoffLocation?: string;
   vehicleType?: string;
   memo?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  itineraryData?: any;
+  itineraryData?: unknown;
   /** Called after PayPal capture succeeds — parent handles next step (e.g. AI plan generation) */
   onPaymentSuccess?: (orderID: string) => void | Promise<void>;
   /** 현재 사용자 이메일 — 테스트 계정 감지용 */
@@ -39,8 +37,9 @@ interface SuccessData {
 
 declare global {
   interface Window {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    paypal?: any;
+    paypal?: Record<string, unknown> & {
+      Buttons: (config: Record<string, unknown>) => { render: (selector: string) => void };
+    };
   }
 }
 

@@ -6,9 +6,11 @@ import { GripVertical, Trash2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StopCard } from './StopCard';
 import { useLanguage } from '@/hooks/useLanguage';
+import type { PlanStop } from '../types';
+import { getPlanDetailDict } from '../types';
 
 interface SortableStopCardProps {
-  stop: any;
+  stop: PlanStop;
   stopId: string;
   editMode: boolean;
   onDelete: () => void;
@@ -16,7 +18,7 @@ interface SortableStopCardProps {
 
 export function SortableStopCard({ stop, stopId, editMode, onDelete }: SortableStopCardProps) {
   const { t } = useLanguage();
-  const pd = (t as any).planDetail || {};
+  const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
 
   const {
@@ -35,7 +37,7 @@ export function SortableStopCard({ stop, stopId, editMode, onDelete }: SortableS
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 50 : 'auto' as any,
+    zIndex: isDragging ? 50 : 'auto' as string | number,
   };
 
   return (

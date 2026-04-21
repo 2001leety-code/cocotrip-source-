@@ -7,7 +7,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CAT_ICON } from '../constants';
 import { formatDate } from '../lib/formatters';
-import type { PlannerResponse } from '../types';
+import type { PlannerResponse, PlannerDict } from '../types';
 import { EnrichingBanner } from './EnrichingBanner';
 import { DailyTipsSection } from './DailyTipsSection';
 import { TimelineCard } from './TimelineCard';
@@ -26,7 +26,7 @@ import { CharterBanner } from './CharterBanner';
 import { AirportPickupCard } from './AirportPickupCard';
 
 export function ItineraryResult({ result, onReset, p, lang, transport, enriching, arrivalAirport }: {
-  result: PlannerResponse; onReset: () => void; p: any; lang: string; transport?: string; enriching?: boolean; arrivalAirport?: string;
+  result: PlannerResponse; onReset: () => void; p: PlannerDict; lang: string; transport?: string; enriching?: boolean; arrivalAirport?: string;
 }) {
   const isMobile = useIsMobile();
   const [activeDay, setActiveDay] = useState(0);

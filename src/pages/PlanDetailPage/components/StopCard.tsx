@@ -7,8 +7,13 @@ import {
   ExternalLink, Accessibility,
 } from 'lucide-react';
 import { CAT_ICON, formatKRW } from '../constants';
+import type { PlanStop } from '../types';
+import { getPlanDetailUI } from '../types';
+import { useLanguage } from '@/hooks/useLanguage';
 
-export function StopCard({ stop }: { stop: any }) {
+export function StopCard({ stop }: { stop: PlanStop }) {
+  const { t } = useLanguage();
+  const ui = getPlanDetailUI(t);
   const [expanded, setExpanded] = useState(true);
   const CatIcon = CAT_ICON[stop.category] || MapPin;
   const cardRef = useRef<HTMLDivElement>(null);
@@ -100,7 +105,7 @@ export function StopCard({ stop }: { stop: any }) {
             <div>
               <p className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Recommended</p>
               <div className="space-y-1">
-                {stop.recommended_items.map((item: any, i: number) => (
+                {stop.recommended_items.map((item: { name: string; price_krw?: number; note?: string }, i: number) => (
                   <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
                     <div className="flex-1 min-w-0">
                       <span className="text-[11px] text-white/70">{item.name}</span>
@@ -123,7 +128,7 @@ export function StopCard({ stop }: { stop: any }) {
               </div>
               {publicTransit.steps?.length > 0 && (
                 <div className="space-y-1">
-                  {publicTransit.steps.map((step: any, i: number) => (
+                  {publicTransit.steps.map((step: { mode?: string; description?: string }, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-[10px]">
                       {step.mode === 'subway' && <Train className="w-3 h-3 text-blue-400/70 shrink-0" />}
                       {step.mode === 'bus' && <Bus className="w-3 h-3 text-green-400/70 shrink-0" />}
@@ -145,7 +150,7 @@ export function StopCard({ stop }: { stop: any }) {
             if (stop.naverMapUrl) {
               return (
                 <a href={stop.naverMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
-                  <ExternalLink className="w-3 h-3" /> Open in Naver Map
+                  <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
                 </a>
               );
             }
@@ -154,7 +159,7 @@ export function StopCard({ stop }: { stop: any }) {
               const coordUrl = `https://map.naver.com/v5/search/${encodeURIComponent(stop.name || stop.name_ko || stop.display_name || stop.name_en || '')}?c=${stop.lng},${stop.lat},15,0,0,0,dh`;
               return (
                 <a href={coordUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
-                  <ExternalLink className="w-3 h-3" /> Open in Naver Map
+                  <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
                 </a>
               );
             }
@@ -167,7 +172,7 @@ export function StopCard({ stop }: { stop: any }) {
             const mapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`;
             return (
               <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-green-400/70 hover:text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
-                <ExternalLink className="w-3 h-3" /> Open in Naver Map
+                <ExternalLink className="w-3 h-3" /> {ui.openNaverMap || 'Open in Naver Map'}
               </a>
             );
           })()}

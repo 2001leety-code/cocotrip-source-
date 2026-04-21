@@ -3,7 +3,7 @@ import { Hotel, MapPin, CreditCard } from 'lucide-react';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';
 import type { Accommodation } from '../types';
 
-export function AccommodationCard({ acc, p, region }: { acc: Accommodation; p: any; region?: string }) {
+export function AccommodationCard({ acc, p, region }: { acc: Accommodation; p: PlannerDict; region?: string }) {
   const links = buildAccommodationLinks(acc.name, region ?? acc.area ?? '');
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
@@ -23,7 +23,7 @@ export function AccommodationCard({ acc, p, region }: { acc: Accommodation; p: a
             <div className="space-y-2">
               <p className="text-[10px] uppercase tracking-widest text-white/25 font-semibold">{p.online_booking}</p>
               <div className="flex flex-wrap gap-2">
-                {links.map((lk: any) => (
+                {links.map((lk: { provider: string; label: string; url: string; color?: string }) => (
                   <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:opacity-90 active:scale-95"
                     style={{ background: lk.color || '#0073E6', color: '#fff' }}>

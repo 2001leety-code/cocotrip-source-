@@ -15,8 +15,9 @@ export interface Slide {
 
 // Priority order: travel preparation sequence (book flight -> hotel -> transport -> connectivity)
 const AD_POOL: AdCategory[] = ['flight', 'hotel', 'charter', 'esim', 'carRental', 'airportPickup'];
+import type { PlanDocument } from '../types';
 
-export function buildSlides(plan: any): Slide[] {
+export function buildSlides(plan: PlanDocument): Slide[] {
   const days = (plan && plan.itinerary && plan.itinerary.days) || [];
   const slides: Slide[] = [];
 

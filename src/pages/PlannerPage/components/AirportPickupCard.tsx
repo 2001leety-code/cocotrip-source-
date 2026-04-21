@@ -5,7 +5,7 @@ import { Plane } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { PICKUP_PRICES } from '@/config/affiliateLinks';
 
-export function AirportPickupCard({ arrivalAirport, p, lang }: { arrivalAirport?: string; p: any; lang: string }) {
+export function AirportPickupCard({ arrivalAirport, p, lang }: { arrivalAirport?: string; p: PlannerDict; lang: string }) {
   const code = arrivalAirport ?? 'ICN';
   const prices: { destination: string; price: string }[] = PICKUP_PRICES[code] ?? PICKUP_PRICES['ICN'];
   const [selectedDest, setSelectedDest] = useState<string | null>(null);

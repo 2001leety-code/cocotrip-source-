@@ -7,6 +7,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { Calendar, ChevronRight, Sparkles, Plane } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 interface PlanRef {
   id: string;
@@ -22,9 +23,14 @@ interface PlanRef {
 export default function MyPlansPage() {
   const { user } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
-  const p = t.planner as any;
+  const p = t.planner as Record<string, string>;
   const [plans, setPlans] = useState<PlanRef[]>([]);
   const [loading, setLoading] = useState(true);
+
+  usePageMeta({
+    title: 'My Plans — AI Travel Itineraries',
+    description: 'View and manage your AI-generated Korea travel itineraries.',
+  });
 
   useEffect(() => {
     if (!user?.uid) return;

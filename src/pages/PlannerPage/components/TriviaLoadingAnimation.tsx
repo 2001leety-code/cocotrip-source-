@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Globe, Check } from 'lucide-react';
 
-export function TriviaLoadingAnimation({ p, streamStep }: { p: any, streamStep?: number }) {
+export function TriviaLoadingAnimation({ p, streamStep }: { p: PlannerDict; streamStep?: number }) {
   const tips: string[]   = p.loading_tips ?? [];
   const phases: string[] = [p.loading_step1, p.loading_step2, p.loading_step3, p.loading_step4];
   const [tipIdx,   setTipIdx]   = useState(0);

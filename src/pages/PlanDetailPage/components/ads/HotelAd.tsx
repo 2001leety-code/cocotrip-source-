@@ -23,7 +23,7 @@ export function HotelAd({ region }: HotelAdProps) {
         </div>
       </div>
       <div className="px-5 pb-4">
-        {links.map((lk: any) => (
+        {links.map((lk: { provider: string; url: string; label: string; color?: string }) => (
           <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02]"
             style={{ background: lk.color || '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
