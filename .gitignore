@@ -31,3 +31,4 @@ tmp/
 # Planner validation reports (contain API responses, not for repo)
 scripts/planner-report.json
 scripts/planner-report-post-collect.txt
+.env.admin.local

@@ -139,6 +139,20 @@ export default function Admin() {
 
         {error ? <p className="text-sm text-red-500">{error}</p> : null}
 
+        {/* ── Quick Links ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <a
+            href="/admin/reviews"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🛡️</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">리뷰 모더레이션</h3>
+            </div>
+            <p className="text-xs text-gray-400">신고된 리뷰 관리 · Keep / Hide / Delete</p>
+          </a>
+        </div>
+
         {/* ── Bookings Table (Google Sheets) ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex items-center justify-between p-5 border-b border-gray-100">

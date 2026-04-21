@@ -8,10 +8,32 @@
  *   node scripts/migrate-plans-public.mjs --apply      # 실제 쓰기
  *
  * 환경변수 필요: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
- * (.env 또는 export로 설정)
+ * 자동 로드 경로: .env.admin.local (gitignored), .env (fallback)
  */
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { readFileSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+// ── .env.admin.local 자동 로드 (존재하면) ───────────────────────────────────
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const envPath = resolve(__dirname, '..', '.env.admin.local');
+if (existsSync(envPath)) {
+  const content = readFileSync(envPath, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!m) continue;
+    const key = m[1];
+    let val = m[2];
+    // 양쪽 따옴표 제거 (single or double)
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = val;
+  }
+  console.log(`[env] Loaded ${envPath}`);
+}
 
 // ── 플래그 파싱 ─────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);

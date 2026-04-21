@@ -22,6 +22,7 @@ const Terms = lazy(() => import('@/pages/Terms'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
 const TravelTerms = lazy(() => import('@/pages/TravelTerms'));
 const Admin = lazy(() => import('@/pages/Admin'));
+const AdminReviews = lazy(() => import('@/pages/AdminReviews'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
@@ -146,6 +147,16 @@ function App() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <Admin />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/reviews"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminReviews />
                 </Suspense>
               </AdminRoute>
             }

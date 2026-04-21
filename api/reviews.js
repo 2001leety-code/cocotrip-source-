@@ -139,7 +139,8 @@ export default async function handler(req, res) {
           text: (text || '').slice(0, MAX_TEXT),
           photos: (photos || []).slice(0, MAX_PHOTOS),
           language: language || 'en',
-          status: 'published',
+          // 자동 필터: URL 포함 시 자동 reported (스팸 의심) §6.2
+          status: /https?:\/\/|www\./i.test(text || '') ? 'reported' : 'published',
           createdAt: now,
           updatedAt: now,
         });
@@ -220,18 +221,31 @@ export default async function handler(req, res) {
     // ACTION: admin-list — 신고된 리뷰 (어드민 전용)
     // ════════════════════════════════════════════════════════
     if (action === 'admin-list') {
-      const { userEmail } = body;
+      const { userEmail, filter } = body;
       if (!ADMIN_EMAILS.includes((userEmail || '').toLowerCase())) {
         res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: 'Admin only' }));
       }
 
-      const snap = await db.collection('reviews')
-        .where('status', '==', 'reported')
-        .orderBy('reportedAt', 'desc')
-        .limit(50)
-        .get();
+      let query;
+      if (filter === 'hidden') {
+        query = db.collection('reviews')
+          .where('status', '==', 'hidden')
+          .orderBy('updatedAt', 'desc')
+          .limit(50);
+      } else if (filter === 'all') {
+        query = db.collection('reviews')
+          .orderBy('createdAt', 'desc')
+          .limit(100);
+      } else {
+        // default: reported
+        query = db.collection('reviews')
+          .where('status', '==', 'reported')
+          .orderBy('reportedAt', 'desc')
+          .limit(50);
+      }
 
+      const snap = await query.get();
       const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
@@ -281,17 +295,58 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify({ error: 'Missing reviewId' }));
       }
 
+      const { FieldValue } = await import('firebase-admin/firestore');
       const reviewRef = db.collection('reviews').doc(reviewId);
       await reviewRef.update({
         status: 'reported',
         reportReason: reason || '',
         reportedBy: reporterUid || 'anonymous',
         reportedAt: Date.now(),
+        // 신고 사유 배열 추가 (§6.2)
+        reports: FieldValue.arrayUnion({
+          reporterUid: reporterUid || 'anonymous',
+          reason: reason || '',
+          createdAt: Date.now(),
+        }),
       });
 
       console.log('[reviews] reported:', reviewId);
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: true, reported: reviewId }));
+    }
+
+    // ════════════════════════════════════════════════════════
+    // ACTION: moderate — 어드민 모더레이션 (keep/hide/delete)
+    // ════════════════════════════════════════════════════════
+    if (action === 'moderate') {
+      const { reviewId, decision, userEmail } = body;
+      if (!ADMIN_EMAILS.includes((userEmail || '').toLowerCase())) {
+        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Admin only' }));
+      }
+      if (!reviewId || !['keep', 'hide', 'delete'].includes(decision)) {
+        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Missing reviewId or invalid decision' }));
+      }
+
+      const reviewRef = db.collection('reviews').doc(reviewId);
+
+      if (decision === 'delete') {
+        await reviewRef.delete();
+        console.log('[reviews] admin deleted:', reviewId);
+      } else {
+        const newStatus = decision === 'keep' ? 'published' : 'hidden';
+        await reviewRef.update({
+          status: newStatus,
+          moderatedBy: userEmail,
+          moderatedAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        console.log(`[reviews] admin ${decision}:`, reviewId);
+      }
+
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, reviewId, decision }));
     }
 
     // Unknown action

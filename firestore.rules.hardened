@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────────────────
+    // Helper functions
+    // ─────────────────────────────────────────────────────────
+    function isSignedIn()    { return request.auth != null; }
+    function isOwner(uid)    { return isSignedIn() && request.auth.uid == uid; }
+    function isAdminEmail()  { return isSignedIn() && request.auth.token.email == '2001leety@gmail.com'; }
+
+    // ─────────────────────────────────────────────────────────
+    // plans — AI 플래너 결과 (공개/비공개)
+    //   read:   비로그인 허용 (uid==null or isPublic==true), 로그인 소유자
+    //   update: 소유자만 (isPublic 토글, 플랜 편집). uid 변경 금지.
+    //   create/delete: 서버 전용 (Admin SDK 우회)
+    // ─────────────────────────────────────────────────────────
+    match /plans/{planId} {
+      allow read: if resource.data.uid == null
+               || resource.data.isPublic == true
+               || (request.auth != null && resource.data.uid == request.auth.uid);
+
+      allow update: if request.auth != null
+                 && resource.data.uid == request.auth.uid
+                 && request.resource.data.uid == resource.data.uid;
+
+      allow create, delete: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // users/{uid} — 본인만
+    // ─────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // 저장된 플랜 참조 (planPersister가 서버에서 생성)
+      match /plans/{planId} {
+        allow read:  if isOwner(uid);
+        allow write: if false;
+      }
+
+      // 포인트 이력 (loyalty API가 서버에서 기록)
+      match /pointHistory/{docId} {
+        allow read:  if isOwner(uid);
+        allow write: if false;
+      }
+
+      // 쿠폰 (loyalty API가 서버에서 발급/소진)
+      match /coupons/{couponId} {
+        allow read:  if isOwner(uid);
+        allow write: if false;
+      }
+
+      // 클라이언트 관리 리스트
+      match /wishlist/{itemId}        { allow read, write: if isOwner(uid); }
+      match /recentlyViewed/{itemId}  { allow read, write: if isOwner(uid); }
+      match /itineraries/{itineraryId}{ allow read, write: if isOwner(uid); }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // tours — 공개 카탈로그, 어드민 관리
+    //   read:   전체 공개 (비로그인 카탈로그 조회)
+    //   update: 로그인 사용자 (예약 트랜잭션이 currentBookings 증가)
+    //           + 어드민 (수동 편집)
+    //   create/delete: 어드민만
+    // ─────────────────────────────────────────────────────────
+    match /tours/{tourId} {
+      allow read:   if true;
+      allow update: if isSignedIn();
+      allow create, delete: if isAdminEmail();
+
+      // 예약 레코드 — 본인 것만 생성/열람
+      match /bookings/{bookingId} {
+        allow read:   if isSignedIn()
+                   && (resource.data.userId == request.auth.uid || isAdminEmail());
+        allow create: if isSignedIn()
+                   && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isAdminEmail();
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // earlybird — 공개 카운터
+    // ─────────────────────────────────────────────────────────
+    match /earlybird/{docId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // 서버 전용 컬렉션 (Admin SDK가 rules 우회)
+    //   클라이언트는 접근 불가
+    // ─────────────────────────────────────────────────────────
+    match /used_paypal_orders/{orderId} { allow read, write: if false; }
+    match /api_stats/{document=**}      { allow read, write: if false; }
+    match /availability/{date}          { allow read, write: if false; }
+    match /reservations/{id}            { allow read, write: if false; }
+
+    // ─────────────────────────────────────────────────────────
+    // 명시되지 않은 모든 경로는 기본 거부 (catch-all 제거!)
+    // ─────────────────────────────────────────────────────────
+  }
+}
