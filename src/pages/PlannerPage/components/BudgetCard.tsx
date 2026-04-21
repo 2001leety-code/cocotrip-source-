@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Budget summary card -- extracted verbatim from legacy PlannerPage.tsx L723-747.
 import { Bus as BusIcon, UtensilsCrossed, Ticket, Hotel, CreditCard } from 'lucide-react';
 import type { BudgetSummary } from '../types';

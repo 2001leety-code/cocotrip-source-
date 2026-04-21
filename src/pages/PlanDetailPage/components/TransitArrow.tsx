@@ -26,7 +26,7 @@ export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<st
         <Icon className="w-3.5 h-3.5 text-[#7C5CFC]" />
         {transit.from_label && <span className="text-[#7C5CFC] font-semibold">{transit.from_label} {'\u2192'}</span>}
         <span>{transit.method} - {transit.est_min}min</span>
-        {transit.est_fare_krw > 0 && <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw)}</span>}
+        {(transit.est_fare_krw ?? 0) > 0 && <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw ?? 0)}</span>}
         {hasSteps && <ChevronDown className={`w-3 h-3 transition-transform ${showSteps ? 'rotate-180' : ''}`} />}
       </button>
 
@@ -47,7 +47,7 @@ export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<st
       {(transit.instruction_en || transit.instruction) && <p className="text-[10px] text-white/25 ml-6 mt-0.5 whitespace-pre-line">{transit.instruction_en || transit.instruction}</p>}
       {showSteps && hasSteps && (
         <div className="ml-6 mt-1 space-y-0.5">
-          {transit.step_by_step.map((s: string, i: number) => {
+          {transit.step_by_step!.map((s: string, i: number) => {
             const StepIcon = transit.method === 'bus' ? Bus : Train;
             return (
               <div key={i} className="flex items-start gap-1.5 text-[10px] text-white/35">

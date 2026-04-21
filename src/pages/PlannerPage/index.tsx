@@ -21,7 +21,7 @@ export default function PlannerPage() {
   const isMobile = useIsMobile();
   const p = t.planner;
   const [searchParams] = useSearchParams();
-  const preset = searchParams.get('preset') ?? undefined;
+  // preset reserved for future WizardForm preset routing
   const revisionMode = searchParams.get('revision') === 'true';
   const revisionPlanId = searchParams.get('planId') ?? null;
   const revisionToken = searchParams.get('token') ?? null;
@@ -72,14 +72,14 @@ export default function PlannerPage() {
         {/* Wizard form */}
         {(status === 'idle' || status === 'error' || status === 'loadingQuick') && (
           <div className={isMobile ? 'm-card m-appear p-5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl'}>
-            <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} t={t} lang={language} preset={preset} />
+            <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} />
           </div>
         )}
 
         {/* Phase 1 Loading */}
         {status === 'loadingQuick' && (
           <div className="mt-8">
-            <TriviaLoadingAnimation p={{ loading_tips: [p.loadingAnalyzing], loading_step1: p.loadingDay1Extract }} streamStep={1} />
+            <TriviaLoadingAnimation p={{ loading_tips: [p.loadingAnalyzing], loading_step1: p.loadingDay1Extract } as any} streamStep={1} />
           </div>
         )}
 

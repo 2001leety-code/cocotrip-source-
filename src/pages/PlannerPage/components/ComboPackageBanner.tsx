@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Premium combo discount CTA -- extracted verbatim from legacy PlannerPage.tsx L1052-1096.
 import { Ticket, Check, Ban } from 'lucide-react';
 

@@ -10,7 +10,7 @@ interface CharterBannerProps {
 
 export function CharterBanner({ days }: CharterBannerProps) {
   const allStops = days.flatMap((d: PlanDay) => d.stops || []);
-  const detection = detectCharterRecommendation(allStops);
+  const detection = detectCharterRecommendation(allStops as any);
   if (!detection.recommended || !detection.pricing) return null;
   const { pricing } = detection;
 

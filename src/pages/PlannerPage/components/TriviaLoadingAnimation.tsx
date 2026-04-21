@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Trivia loading animation with 4-step progress indicator.
 // Extracted verbatim from legacy PlannerPage.tsx L183-261.
 import { useState, useEffect } from 'react';

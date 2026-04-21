@@ -29,7 +29,7 @@ export function useAutoTranslate(
   //   the user switches language. Watching plan directly would re-trigger on every Firestore
   //   update and re-translate unnecessarily.
   const planLoaded = !!plan?.itinerary;
-  const planId = plan?.id || '';
+  const planId: string = (plan as Record<string, unknown>)?.id as string || '';
 
   useEffect(() => {
     if (!planLoaded || !plan?.itinerary) return;
@@ -54,9 +54,9 @@ export function useAutoTranslate(
     (async () => {
       try {
         // --- Step 1: Check Firestore cache ---
-        if (planId) {
+        if (planId && planId.length > 0) {
           try {
-            const cacheRef = doc(db, 'plans', planId, 'translations', targetLang);
+            const cacheRef = doc(db, 'plans', planId as string, 'translations', targetLang);
             const cacheSnap = await getDoc(cacheRef);
             if (cacheSnap.exists()) {
               const cached = cacheSnap.data();
@@ -85,9 +85,9 @@ export function useAutoTranslate(
           setPlan((prev) => prev ? { ...prev, itinerary: data.translated } : prev);
 
           // --- Step 3: Write to Firestore cache ---
-          if (planId) {
+          if (planId && planId.length > 0) {
             try {
-              const cacheRef = doc(db, 'plans', planId, 'translations', targetLang);
+              const cacheRef = doc(db, 'plans', planId as string, 'translations', targetLang);
               await setDoc(cacheRef, {
                 itinerary: data.translated,
                 cachedAt: new Date().toISOString(),

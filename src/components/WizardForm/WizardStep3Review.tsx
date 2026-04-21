@@ -60,7 +60,7 @@ export function WizardStep3Review(props: Step3Props) {
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 sm:p-5">
         <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#7C5CFC]" /> {p.wizardWhatYouGet || "What You'll Get"}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-          {[p.wizardGetItem1, p.wizardGetItem2, p.wizardGetItem3, p.wizardGetItem4, p.wizardGetItem5, p.wizardGetItem6, p.wizardGetItem7, p.wizardGetItem8].filter(Boolean).map((item: string, i: number) => (
+          {([p.wizardGetItem1, p.wizardGetItem2, p.wizardGetItem3, p.wizardGetItem4, p.wizardGetItem5, p.wizardGetItem6, p.wizardGetItem7, p.wizardGetItem8].filter(Boolean) as string[]).map((item: string, i: number) => (
             <div key={i} className="flex items-start gap-2 text-xs text-white/50">
               <Check className="w-3.5 h-3.5 text-green-400/70 shrink-0 mt-0.5" />
               <span>{item}</span>

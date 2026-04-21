@@ -111,7 +111,7 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
       html += `<div style="margin:6px 0;padding:6px 0;border-bottom:1px solid ${C.border};">
         <p style="font-size:12px;color:${C.heading};margin:0;"><strong>Step ${step.step}: ${step.title}</strong></p>
         <p style="font-size:11px;color:${C.sub};margin:2px 0 0;">${step.description || ''}</p>
-        ${step.est_min > 0 ? `<p style="font-size:10px;color:${C.accent};margin:2px 0 0;">~${step.est_min} ${L.min}</p>` : ''}
+        ${(step.est_min ?? 0) > 0 ? `<p style="font-size:10px;color:${C.accent};margin:2px 0 0;">~${step.est_min} ${L.min}</p>` : ''}
       </div>`;
     });
     html += '</div>';
@@ -133,7 +133,7 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
       if (stop.transit_from_prev) {
         const t = stop.transit_from_prev;
         html += `<div style="margin:4px 0 6px 16px;padding:6px 12px;background:${C.transitBg};border-left:3px solid ${C.accent};border-radius:4px;">
-          <p style="font-size:10px;color:${C.accent};font-weight:700;margin:0;">${t.method} \u00B7 ${t.est_min || '?'}min${t.est_fare_krw > 0 ? ` (${formatKRW(t.est_fare_krw)})` : ''}${t.source === 'odsay' ? ' [live]' : ''}</p>
+          <p style="font-size:10px;color:${C.accent};font-weight:700;margin:0;">${t.method} \u00B7 ${t.est_min || '?'}min${(t.est_fare_krw ?? 0) > 0 ? ` (${formatKRW(t.est_fare_krw ?? 0)})` : ''}${t.source === 'odsay' ? ' [live]' : ''}</p>
           ${t.step_by_step?.length ? t.step_by_step.map((s: string) => `<p style="font-size:9px;color:${C.sub};margin:1px 0 0 10px;">\u00B7 ${s}</p>`).join('') : ''}
         </div>`;
       }
@@ -145,7 +145,7 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
             <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${C.accent};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
             ${(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) ? `<p style="font-size:10px;color:${C.muted};margin:2px 0 0;">${stop.name || stop.name_ko}</p>` : ''}
           </div>
-          <span style="font-size:10px;color:${stop.entry_fee_krw > 0 ? C.pink : '#22c55e'};font-weight:600;">${stop.entry_fee_krw > 0 ? formatKRW(stop.entry_fee_krw) : L.free}</span>
+          <span style="font-size:10px;color:${(stop.entry_fee_krw ?? 0) > 0 ? C.pink : '#22c55e'};font-weight:600;">${(stop.entry_fee_krw ?? 0) > 0 ? formatKRW(stop.entry_fee_krw ?? 0) : L.free}</span>
         </div>
         <p style="font-size:10px;color:${C.muted};margin:4px 0 0;">${stop.stay_min || '?'}min${stop.address ? ` | ${stop.address}` : ''}</p>
         ${stop.naverMapUrl ? `<p style="font-size:10px;margin:3px 0 0;"><a href="${stop.naverMapUrl}" style="color:${C.accent};text-decoration:underline;">${L.openNaverMap}</a></p>` : ''}
@@ -168,10 +168,10 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
     budget.forEach((row: BudgetRow, i: number) => {
       html += `<tr style="background:${i % 2 === 0 ? '#fff' : C.cardBg};border-bottom:1px solid ${C.border};">
         <td style="padding:6px 8px;font-weight:600;">${L.day} ${row.day}</td>
-        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.transport_krw)}</td>
-        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.entry_fees_krw)}</td>
-        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.meals_krw)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:700;color:${C.accent};">${formatKRW(row.total_krw)}</td>
+        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.transport_krw ?? 0)}</td>
+        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.entry_fees_krw ?? 0)}</td>
+        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.meals_krw ?? 0)}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:700;color:${C.accent};">${formatKRW(row.total_krw ?? 0)}</td>
       </tr>`;
     });
     const grandTotal = budget.reduce((s: number, r: BudgetRow) => s + (r.total_krw || 0), 0);

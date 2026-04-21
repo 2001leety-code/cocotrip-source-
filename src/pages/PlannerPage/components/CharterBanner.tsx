@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Charter vehicle CTA with pricing + PayPal booking.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L568-718.
 import { useState } from 'react';

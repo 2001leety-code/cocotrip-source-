@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Enriching banner -- extracted verbatim from legacy PlannerPage.tsx L802-818.
 import { UtensilsCrossed } from 'lucide-react';
 

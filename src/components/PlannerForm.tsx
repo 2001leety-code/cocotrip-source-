@@ -179,8 +179,8 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
     return 'normal';
   }
 
-  const wds: string[] = p.calWeekdays ?? ['S','M','T','W','T','F','S'];
-  const mons: string[] = p.calMonths ?? [];
+  const wds: string[] = Array.isArray(p.calWeekdays) ? p.calWeekdays : ['S','M','T','W','T','F','S'];
+  const mons: string[] = Array.isArray(p.calMonths) ? p.calMonths : [];
   const hdr = (p.calYearMonth as string ?? '{month} {year}')
     .replace('{year}', String(viewYear))
     .replace('{month}', mons[viewMonth] ?? String(viewMonth + 1));
@@ -196,10 +196,10 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
             className={`flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all duration-200 ${
               open ? 'border-[rgba(124,92,252,.5)] bg-[rgba(124,92,252,.06)]' : 'border-white/15 bg-white/[0.04] hover:border-white/30'
             }`}>
-            <span className="text-[10px] text-white/35 uppercase tracking-wider mb-0.5">{p[btn.lk]}</span>
+            <span className="text-[10px] text-white/35 uppercase tracking-wider mb-0.5">{String(p[btn.lk] ?? '')}</span>
             {btn.val
               ? <span className="text-sm font-semibold text-white">{btn.val}</span>
-              : <span className="text-sm text-white/25">{p.calSelectDate}</span>}
+              : <span className="text-sm text-white/25">{String(p.calSelectDate ?? '')}</span>}
           </button>
         ))}
       </div>
@@ -208,7 +208,7 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
         <div className="mt-2 flex items-center gap-2">
           <span className="text-xs text-white/45">{nightsLabel(p, nights)}</span>
           <button type="button" onClick={() => setOpen(true)}
-            className="text-xs text-[#7C5CFC] underline underline-offset-2">{p.calChange}</button>
+            className="text-xs text-[#7C5CFC] underline underline-offset-2">{String(p.calChange ?? '')}</button>
         </div>
       )}
 
@@ -218,12 +218,12 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
           {/* info bar */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-white/[0.025]">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-white/35 uppercase tracking-wider">{p.calDepart}</p>
+              <p className="text-[10px] text-white/35 uppercase tracking-wider">{String(p.calDepart ?? '')}</p>
               <p className="text-sm font-semibold text-white truncate">{tmpS || '—'}</p>
             </div>
             <div className="w-px h-8 bg-white/10 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-white/35 uppercase tracking-wider">{p.calReturn}</p>
+              <p className="text-[10px] text-white/35 uppercase tracking-wider">{String(p.calReturn ?? '')}</p>
               <p className="text-sm font-semibold text-white truncate">{tmpE || '—'}</p>
             </div>
             {tmpS && tmpE && (
@@ -242,7 +242,7 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
             ].map(q => (
               <button key={q.n} type="button" onClick={() => applyQuick(q.n)}
                 className="shrink-0 px-3 py-1.5 rounded-full text-xs border border-white/12 bg-white/[0.04] text-white/55 hover:border-[rgba(124,92,252,.4)] hover:text-[#9d7ffe] hover:bg-[rgba(124,92,252,.08)] transition-all duration-200">
-                {q.l}
+                {String(q.l ?? '')}
               </button>
             ))}
           </div>
@@ -299,12 +299,12 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
           <div className="flex gap-2 px-4 pb-4">
             <button type="button" onClick={() => { setTmpS(''); setTmpE(''); setPicking('start'); }}
               className="flex-1 py-2.5 rounded-xl border border-white/12 text-sm text-white/45 hover:border-white/25 hover:text-white/65 transition-all">
-              {p.calClear}
+              {String(p.calClear ?? '')}
             </button>
             <button type="button" onClick={confirm} disabled={!tmpS || !tmpE}
               className="flex-[2] py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-35 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
-              {tmpS && tmpE ? confirmLabel(p, nights) : p.calSelectStart}
+              {tmpS && tmpE ? confirmLabel(p, nights) : String(p.calSelectStart ?? '')}
             </button>
           </div>
         </div>
@@ -315,7 +315,7 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
 
 // ── Main Form ────────────────────────────────────────────────────────
 export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
-  const p = t.planner;
+  const p = t.planner as Record<string, any>;
 
   const [categories,        setCategories]        = useState<string[]>([]);
   const [kpopDetails,       setKpopDetails]       = useState<string[]>([]);

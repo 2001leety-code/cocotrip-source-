@@ -33,7 +33,7 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
               <p className="text-xs text-white/50">{guide.to_airport.method} - {guide.to_airport.instruction}</p>
               <div className="flex gap-4 mt-2 text-[10px] text-white/40">
                 <span>{guide.to_airport.duration_min} {ui.minUnit || 'min'}</span>
-                <span className="text-[#7C5CFC] font-bold">{formatKRW(guide.to_airport.cost_krw)}</span>
+                <span className="text-[#7C5CFC] font-bold">{formatKRW(guide.to_airport.cost_krw ?? 0)}</span>
               </div>
             </div>
           )}
@@ -47,7 +47,7 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
             <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
               <p className="text-sm font-semibold mb-1">{ui.taxRefund || 'Tax Refund'}</p>
               <p className="text-xs text-white/50">{guide.tax_refund.location}</p>
-              <p className="text-[10px] text-[#7C5CFC] mt-1">{ui.minPurchase || 'Min. purchase:'} {formatKRW(guide.tax_refund.threshold_krw)}</p>
+              <p className="text-[10px] text-[#7C5CFC] mt-1">{ui.minPurchase || 'Min. purchase:'} {formatKRW(guide.tax_refund.threshold_krw ?? 0)}</p>
             </div>
           )}
           {guide.last_minute_shopping && (

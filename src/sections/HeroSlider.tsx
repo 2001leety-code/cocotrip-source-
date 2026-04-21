@@ -73,7 +73,7 @@ export function HeroSlider({ t }: HeroSliderProps) {
 
   const getSlideContent = (slideKey: string) => {
     const keys = slideKey.split('.');
-    return t.hero[keys[0]][keys[1]];
+    return (t.hero as unknown as Record<string, Record<string, string>>)[keys[0]][keys[1]];
   };
 
   return (

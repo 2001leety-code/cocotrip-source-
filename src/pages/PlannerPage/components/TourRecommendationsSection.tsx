@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Tour recommendations -- extracted verbatim from legacy PlannerPage.tsx L889-935.
 import { MapPin, Palette } from 'lucide-react';
 import { buildTourLinks } from '@/config/affiliateLinks';

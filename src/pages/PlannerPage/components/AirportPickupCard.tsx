@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Airport pickup selection + PayPal booking.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L823-884.
 import { useState } from 'react';

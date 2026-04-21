@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Daily tips section -- extracted verbatim from legacy PlannerPage.tsx L752-766.
 import { Lightbulb } from 'lucide-react';
 

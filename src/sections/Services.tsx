@@ -34,7 +34,7 @@ export function Services({ t }: ServicesProps) {
 
   const ServiceCard = ({ service, isMobileCard = false }: { service: ServiceDef, isMobileCard?: boolean }) => {
     const Icon = service.icon;
-    const serviceData = t.services[service.key];
+    const serviceData = (t.services as unknown as Record<string, { title: string; desc: string }>)[service.key];
     const cardClass = isMobileCard ? 'flex-shrink-0 w-4/5 mr-4' : 'md:col-span-2 lg:col-span-1';
 
     return (

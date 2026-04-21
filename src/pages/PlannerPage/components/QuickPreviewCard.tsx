@@ -23,7 +23,7 @@ export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: Qu
           let narrative = resultQuick.marketingNarrative;
           if (!narrative) return '\uC5EC\uD589 \uC77C\uC815\uC744 \uC0DD\uC131\uD588\uC2B5\uB2C8\uB2E4.';
           if (typeof narrative === 'object') {
-            narrative = narrative.full_narrative || narrative.text || narrative.content || narrative.summary || Object.values(narrative).find(v => typeof v === 'string' && v.length > 20) || JSON.stringify(narrative);
+            narrative = (narrative as any).full_narrative || (narrative as any).text || (narrative as any).content || (narrative as any).summary || Object.values(narrative as Record<string, unknown>).find(v => typeof v === 'string' && (v as string).length > 20) || JSON.stringify(narrative);
           }
           if (typeof narrative === 'string' && narrative.trim().startsWith('{')) {
             try { const parsed = JSON.parse(narrative); narrative = parsed.full_narrative || parsed.text || parsed.content || narrative; } catch {}
@@ -39,7 +39,7 @@ export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: Qu
       {(() => {
         let table = resultQuick.day1MarkdownTable;
         if (!table) return null;
-        if (typeof table === 'object') { table = table.content || table.table || JSON.stringify(table, null, 2); }
+        if (typeof table === 'object') { table = (table as Record<string, unknown>).content as string || (table as Record<string, unknown>).table as string || JSON.stringify(table, null, 2); }
         if (typeof table === 'string') {
           table = table.replace(/\\n/g, '\n');
           if (table.trim().startsWith('{') || table.trim().startsWith('[')) {

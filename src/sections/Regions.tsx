@@ -63,7 +63,7 @@ export function Regions({ t }: RegionsProps) {
                 <div className="absolute inset-0">
                   <img
                     src={region.image}
-                    alt={t.regions[region.id]}
+                    alt={(t.regions as Record<string, string>)[region.id]}
                     className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
                   />
                 </div>
@@ -82,7 +82,7 @@ export function Regions({ t }: RegionsProps) {
                     </span>
                   </div>
                   <h3 className="text-white font-bold text-lg lg:text-2xl mb-2">
-                    {t.regions[region.id]}
+                    {(t.regions as Record<string, string>)[region.id]}
                   </h3>
                   
                   {/* Hover Content */}

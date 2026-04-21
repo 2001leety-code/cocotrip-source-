@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Customer support section -- extracted verbatim from legacy PlannerPage.tsx L997-1047.
 import { MessageSquare, CreditCard, Ban, Phone } from 'lucide-react';
 import type { CustomerSupport } from '../types';

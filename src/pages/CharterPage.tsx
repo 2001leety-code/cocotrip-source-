@@ -51,7 +51,7 @@ const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/35 font-semibol
 export default function CharterPage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
-  const p = t.planner;
+  const p = t.planner as any;
   const c = ((t as Record<string, unknown>).charterPage ?? {}) as Record<string, string>;
   const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // pricing data: ko/en only; ja/zh → en fallback
   const llk = (['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'; // language key for luggage labels
@@ -178,7 +178,7 @@ export default function CharterPage() {
               <button key={key} type="button" onClick={() => setVehicle(key)}
                 className={`flex flex-col items-center py-4 px-2 rounded-xl border text-center transition-all duration-200 ${vehicle === key ? SEL : UNSEL}`}>
                 <span className="mb-1.5">{key === 'staria' ? <Car className="w-5 h-5" /> : <Bus className="w-5 h-5" />}</span>
-                <p className="text-xs font-bold leading-tight">{(t.planner as Record<string, string>)?.[`vehicle${key.charAt(0).toUpperCase() + key.slice(1)}`] ?? veh.name.en}</p>
+                <p className="text-xs font-bold leading-tight">{(t.planner as unknown as Record<string, string>)?.[`vehicle${key.charAt(0).toUpperCase() + key.slice(1)}`] ?? veh.name.en}</p>
                 <p className="text-[10px] opacity-55 mt-0.5">
                   {veh.maxPassengers >= 100
                     ? (c.vehicleMaxGroup ?? '단체')

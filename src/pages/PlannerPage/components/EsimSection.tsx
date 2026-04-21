@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // eSIM recommendation section -- extracted verbatim from legacy PlannerPage.tsx L960-992.
 import { Phone } from 'lucide-react';
 

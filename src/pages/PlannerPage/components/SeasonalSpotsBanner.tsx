@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Seasonal spots banner -- extracted verbatim from legacy PlannerPage.tsx L488-558.
 import { MapPin, Clock, Lightbulb } from 'lucide-react';
 import { SEASONAL_SPOTS } from '@/data/seasonalSpots';

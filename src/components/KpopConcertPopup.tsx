@@ -233,7 +233,7 @@ export function KpopConcertPopup() {
                     dateStart={selected.dates[0]}
                     dateEnd={selected.dates[selected.dates.length - 1]}
                     priceKRW={totalPrice}
-                    p={globalT.planner}
+                    p={globalT.planner as any}
                     lang={language}
                     pickupLocation={pickup}
                     dropoffLocation={selected.venue}

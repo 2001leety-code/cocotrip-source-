@@ -10,7 +10,8 @@ interface RevisionCardProps {
 }
 
 export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
-  if (!plan || (plan.revisionCredits || 0) <= 0) return null;
+  const credits = (plan.revisionCredits as number) || 0;
+  if (!plan || credits <= 0) return null;
 
   return (
     <div className="mt-8 rounded-2xl overflow-hidden border border-amber-500/20"
@@ -24,7 +25,7 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
           Not 100% satisfied? Tweak your preferences and get a brand new itinerary.
         </p>
         <p className="text-amber-400/80 text-xs font-semibold mb-4">
-          {plan.revisionCredits} Free Revision{plan.revisionCredits > 1 ? 's' : ''} remaining
+          {credits} Free Revision{credits > 1 ? 's' : ''} remaining
         </p>
         <button
           onClick={() => {

@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Accommodation recommendation card -- extracted verbatim from legacy PlannerPage.tsx L448-483.
 import { Hotel, MapPin, CreditCard } from 'lucide-react';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';

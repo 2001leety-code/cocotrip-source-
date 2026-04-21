@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Transport method badge between timeline places.
 // Extracted verbatim from legacy PlannerPage.tsx L266-300.
 import { Car, Briefcase } from 'lucide-react';

@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // 3-column meal grid -- extracted verbatim from legacy PlannerPage.tsx L387-443.
 import { UtensilsCrossed, CreditCard, Clock, Map } from 'lucide-react';
 import { MEAL_ICON_MAP } from '../constants';

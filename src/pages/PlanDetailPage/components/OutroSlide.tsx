@@ -38,7 +38,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       </h2>
 
       {/* Budget Table */}
-      {budget.length > 0 && <BudgetTable budget={budget} tMoney={it.t_money_recommended_load} />}
+      {budget.length > 0 && <BudgetTable budget={budget as any} tMoney={(it.t_money_recommended_load as number | undefined) ?? 0} />}
 
       {/* Departure Guide */}
       {departure && <DepartureGuide guide={departure} />}

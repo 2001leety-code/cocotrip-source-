@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Flight search section -- extracted verbatim from legacy PlannerPage.tsx L940-955.
 import { Plane, Search } from 'lucide-react';
 import { buildFlightLink } from '@/config/affiliateLinks';

@@ -79,10 +79,10 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                       ))}
                     </div>
                   )}
-                  {step.t_money_recommended_load_krw > 0 && (
+                  {(step.t_money_recommended_load_krw ?? 0) > 0 && (
                     <div className="mt-2 inline-flex items-center gap-1 bg-[#7C5CFC]/15 rounded-full px-3 py-1">
                       <Wallet className="w-3 h-3 text-[#7C5CFC]" />
-                      <span className="text-xs font-bold text-[#7C5CFC]">{ui.tmoneyLoad || 'Load'} {formatKRW(step.t_money_recommended_load_krw)}</span>
+                      <span className="text-xs font-bold text-[#7C5CFC]">{ui.tmoneyLoad || 'Load'} {formatKRW(step.t_money_recommended_load_krw ?? 0)}</span>
                     </div>
                   )}
                 </div>

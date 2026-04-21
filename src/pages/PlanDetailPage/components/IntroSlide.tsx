@@ -44,8 +44,8 @@ export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
         </div>
         <p className="text-white/40 text-sm mt-2">
           {input.startDate} | {input.adults ? `${input.adults} adults` : `${input.pax} pax`}
-          {input.children > 0 && ` + ${input.children} children`}
-          {(plan.pricing?.vehicleLabel || plan.pricing?.vehicle) && ` | ${plan.pricing?.vehicleLabel || plan.pricing?.vehicle}`}
+          {Number(input.children ?? 0) > 0 && ` + ${input.children} children`}
+          {((plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle) && ` | ${(plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle}`}
         </p>
       </div>
 
@@ -54,7 +54,7 @@ export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
         {[
           { icon: <Calendar className="w-4 h-4" />, label: sw.introDaysLabel || 'Days', value: String(days.length || '-') },
           { icon: <MapPin className="w-4 h-4" />, label: 'Stops', value: String(days.reduce((s: number, d: PlanDay) => s + (d.stops?.length || 0), 0)) },
-          { icon: <Users className="w-4 h-4" />, label: 'Pax', value: String(input.adults ? (input.adults + (input.children || 0)) : input.pax) },
+          { icon: <Users className="w-4 h-4" />, label: 'Pax', value: String(input.adults ? ((input.adults as number) + ((input.children as number) || 0)) : input.pax) },
           { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },
         ].map((item, i) => (
           <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 text-center">
@@ -66,7 +66,7 @@ export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
       </div>
 
       {/* Arrival Guide */}
-      {arrival && <ArrivalGuide guide={arrival} />}
+      {arrival && <ArrivalGuide guide={arrival as any} />}
 
       {/* Swipe hint */}
       <p className="text-center text-white/20 text-xs mt-6">

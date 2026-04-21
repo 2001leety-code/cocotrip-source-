@@ -25,7 +25,7 @@ export function AdSlide({ adType, plan }: AdSlideProps) {
   const sw = pd.swipe || {};
   const input = plan.input || {};
   const days = (plan.itinerary && plan.itinerary.days) || [];
-  const region = input.destination || (input.regions && input.regions[0]) || 'Seoul';
+  const region = (input.destination as string) || ((input.regions as string[])?.[0]) || 'Seoul';
 
   // ── GA4 Impression tracking (IntersectionObserver) ──
   const containerRef = useRef<HTMLDivElement>(null);

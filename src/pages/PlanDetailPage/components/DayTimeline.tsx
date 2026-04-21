@@ -61,7 +61,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             <AnimatePresence mode="popLayout">
               {stops.map((stop: PlanStop, si: number) => (
                 <div key={stopIds[si]}>
-                  {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev} />}
+                  {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} />}
                   <SortableStopCard
                     stop={stop}
                     stopId={stopIds[si]}
@@ -86,7 +86,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         <div className="space-y-1">
           {stops.map((stop: PlanStop, si: number) => (
             <div key={si}>
-              {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev} />}
+              {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} />}
               <StopCard stop={stop} />
             </div>
           ))}

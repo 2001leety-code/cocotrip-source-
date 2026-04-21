@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Rainy day alternative accordion -- extracted verbatim from legacy PlannerPage.tsx L771-797.
 import { useState } from 'react';
 import { CloudRain } from 'lucide-react';

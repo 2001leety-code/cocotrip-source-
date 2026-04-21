@@ -1,3 +1,4 @@
+﻿import type { PlannerDict } from '../types';
 // Timeline place card -- extracted verbatim from legacy PlannerPage.tsx L305-382.
 import { MapPin, Clock, Ban, Phone, Banknote, Map, Ticket } from 'lucide-react';
 import { CAT_BADGE, CAT_ICON } from '../constants';

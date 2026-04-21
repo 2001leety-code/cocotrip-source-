@@ -113,7 +113,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
           photos: photoUrls,
           authorName: user.displayName || 'Anonymous',
           authorPhotoURL: user.photoURL || null,
-          language: tAny?._code || 'en',
+          language: (tRec as any)?._code || 'en',
         }),
       });
       const data = await res.json();

@@ -23,7 +23,7 @@ interface PlanRef {
 export default function MyPlansPage() {
   const { user } = useAuth();
   const { language, t, changeLanguage } = useLanguage();
-  const p = t.planner as Record<string, string>;
+  const p = t.planner as unknown as Record<string, string>;
   const [plans, setPlans] = useState<PlanRef[]>([]);
   const [loading, setLoading] = useState(true);
 

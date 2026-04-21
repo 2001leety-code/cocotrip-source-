@@ -7,7 +7,7 @@ interface Props {
   dateStart?: string;
   dateEnd?: string;
   priceKRW: number;
-  p: Record<string, string | undefined>;
+  p: Record<string, any>;
   lang: string;
   pickupLocation?: string;
   dropoffLocation?: string;
