@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { toast, Toaster } from 'sonner';
@@ -13,6 +14,8 @@ interface Booking {
 
 export default function Admin() {
   const { user, loading, error } = useAuth();
+  const { t } = useLanguage();
+  const ta = t.admin;
 
   // ── Tour creation form ──
   const [title, setTitle] = useState('');
@@ -57,7 +60,7 @@ export default function Admin() {
       }
     } catch (err) {
       console.error('Failed to fetch bookings:', err);
-      toast.error('예약 목록 로딩 실패');
+      toast.error(ta.toasts.bookingsLoadFailed);
     } finally {
       setLoadingBookings(false);
     }
@@ -67,24 +70,25 @@ export default function Admin() {
     if (user && !loading) {
       fetchBookings();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading]);
 
   const handleCreateTour = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) {
-      toast.error('먼저 로그인을 해주세요.');
+      toast.error(ta.toasts.loginFirst);
       return;
     }
     if (!title.trim() || !description.trim()) {
-      toast.error('제목/설명을 입력해주세요.');
+      toast.error(ta.toasts.emptyFields);
       return;
     }
     if (!Number.isFinite(price) || price < 0) {
-      toast.error('가격은 0 이상의 숫자여야 합니다.');
+      toast.error(ta.toasts.invalidPrice);
       return;
     }
     if (!Number.isFinite(totalSeats) || totalSeats <= 0) {
-      toast.error('총 정원은 1 이상의 숫자여야 합니다.');
+      toast.error(ta.toasts.invalidSeats);
       return;
     }
 
@@ -100,7 +104,7 @@ export default function Admin() {
       };
 
       await addDoc(collection(db, 'tours'), payload);
-      toast.success('상품이 등록되었습니다.');
+      toast.success(ta.toasts.tourCreated);
 
       setTitle('');
       setDescription('');
@@ -108,7 +112,7 @@ export default function Admin() {
       setTotalSeats(0);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : '상품 등록에 실패했습니다.';
+        err instanceof Error ? err.message : ta.toasts.tourCreateFailed;
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -118,7 +122,7 @@ export default function Admin() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#faf9f6] text-[#0f3460]">
-        Loading...
+        {ta.loading}
       </div>
     );
   }
@@ -130,9 +134,9 @@ export default function Admin() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-[#1a1a2e]">Admin Dashboard</h1>
+            <h1 className="text-2xl font-bold text-[#1a1a2e]">{ta.title}</h1>
             <p className="text-sm text-gray-500 mt-1">
-              투어 상품 관리 · 예약 목록 조회
+              {ta.subtitle}
             </p>
           </div>
         </div>
@@ -147,9 +151,9 @@ export default function Admin() {
           >
             <div className="flex items-center gap-3 mb-2">
               <span className="text-2xl">🛡️</span>
-              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">리뷰 모더레이션</h3>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">{ta.quickLinks.moderationTitle}</h3>
             </div>
-            <p className="text-xs text-gray-400">신고된 리뷰 관리 · Keep / Hide / Delete</p>
+            <p className="text-xs text-gray-400">{ta.quickLinks.moderationDesc}</p>
           </a>
         </div>
 
@@ -158,12 +162,12 @@ export default function Admin() {
           <div className="flex items-center justify-between p-5 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <List className="w-5 h-5 text-[#7C5CFC]" />
-              <h2 className="text-lg font-bold text-[#1a1a2e]">예약 목록</h2>
+              <h2 className="text-lg font-bold text-[#1a1a2e]">{ta.bookings.title}</h2>
               <span className="text-xs bg-[#7C5CFC]/10 text-[#7C5CFC] px-2 py-0.5 rounded-full font-medium">
-                {totalBookings}건
+                {ta.bookings.count.replace('{n}', String(totalBookings))}
               </span>
               <span className="text-xs text-gray-400">
-                (Google Sheets)
+                {ta.bookings.source}
               </span>
             </div>
             <button
@@ -172,15 +176,15 @@ export default function Admin() {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7C5CFC] bg-[#7C5CFC]/5 rounded-lg hover:bg-[#7C5CFC]/10 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingBookings ? 'animate-spin' : ''}`} />
-              새로고침
+              {ta.bookings.refresh}
             </button>
           </div>
 
           {loadingBookings ? (
-            <div className="p-12 text-center text-gray-400 text-sm">Loading...</div>
+            <div className="p-12 text-center text-gray-400 text-sm">{ta.loading}</div>
           ) : bookings.length === 0 ? (
             <div className="p-12 text-center text-gray-400 text-sm">
-              등록된 예약이 없습니다
+              {ta.bookings.empty}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -216,7 +220,7 @@ export default function Admin() {
           >
             <div className="flex items-center gap-2">
               <Plus className="w-5 h-5 text-[#7C5CFC]" />
-              <h2 className="text-lg font-bold text-[#1a1a2e]">상품 등록</h2>
+              <h2 className="text-lg font-bold text-[#1a1a2e]">{ta.tourForm.header}</h2>
             </div>
             {showForm ? (
               <ChevronUp className="w-5 h-5 text-gray-400" />
@@ -230,33 +234,33 @@ export default function Admin() {
               <form onSubmit={handleCreateTour} className="space-y-5 mt-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Title
+                    {ta.tourForm.titleLabel}
                   </label>
                   <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#7C5CFC]/20 focus:border-[#7C5CFC] transition-all"
-                    placeholder="예: Seoul Private Tour"
+                    placeholder={ta.tourForm.titlePlaceholder}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description
+                    {ta.tourForm.descriptionLabel}
                   </label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#7C5CFC]/20 focus:border-[#7C5CFC] transition-all"
                     rows={4}
-                    placeholder="상품 상세 설명"
+                    placeholder={ta.tourForm.descriptionPlaceholder}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Price ($)
+                      {ta.tourForm.priceLabel}
                     </label>
                     <input
                       type="number"
@@ -269,7 +273,7 @@ export default function Admin() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Seats
+                      {ta.tourForm.seatsLabel}
                     </label>
                     <input
                       type="number"
@@ -286,7 +290,7 @@ export default function Admin() {
                   disabled={!canSubmit || isSubmitting}
                   className="w-full py-3 rounded-xl bg-[#7C5CFC] text-white font-bold hover:bg-[#6b4ce0] transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? '등록 중...' : '상품 등록'}
+                  {isSubmitting ? ta.tourForm.submitting : ta.tourForm.submit}
                 </button>
               </form>
             </div>

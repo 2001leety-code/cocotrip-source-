@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, ArrowLeft, CheckCircle, EyeOff, Trash2, RefreshCw, AlertTriangle, MessageSquare, Star, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface ReportedReview {
   id: string;
@@ -31,6 +32,9 @@ const ADMIN_EMAILS = ['2001leety@gmail.com'];
 
 export default function AdminReviews() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const ta = t.admin;
+  const tr = ta.reviews;
   const navigate = useNavigate();
   const [reviews, setReviews] = useState<ReportedReview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,11 +90,20 @@ export default function AdminReviews() {
       const data = await res.json();
       if (data.success) {
         setReviews(prev => prev.filter(r => r.id !== reviewId));
-        const labels = { keep: 'Published', hide: 'Hidden', delete: 'Deleted' };
-        showToast(`Review ${labels[decision]}: ${reviewId.slice(0, 8)}...`);
+        const statusLabel =
+          decision === 'keep'
+            ? ta.statusLabels.kept
+            : decision === 'hide'
+            ? ta.statusLabels.hidden
+            : ta.statusLabels.deleted;
+        showToast(
+          ta.toasts.reviewAction
+            .replace('{status}', statusLabel)
+            .replace('{id}', reviewId.slice(0, 8)),
+        );
       }
     } catch {
-      showToast('Action failed');
+      showToast(ta.toasts.actionFailed);
     } finally {
       setActionLoading(null);
     }
@@ -103,6 +116,20 @@ export default function AdminReviews() {
 
   if (!isAdmin) return null;
 
+  const emptyMessage =
+    filter === 'reported'
+      ? tr.emptyReported
+      : filter === 'hidden'
+      ? tr.emptyHidden
+      : tr.emptyAll;
+
+  const statusBadgeLabel = (status: string) => {
+    if (status === 'reported') return tr.statusBadge.reported;
+    if (status === 'hidden') return tr.statusBadge.hidden;
+    if (status === 'published') return tr.statusBadge.published;
+    return status;
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white">
       {/* Header */}
@@ -113,17 +140,17 @@ export default function AdminReviews() {
               <ArrowLeft size={18} className="text-white/50" />
             </button>
             <Shield size={20} className="text-[#7C5CFC]" />
-            <h1 className="text-lg font-bold">Review Moderation</h1>
+            <h1 className="text-lg font-bold">{tr.title}</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={fetchReviews}
               className="p-2 rounded-lg hover:bg-white/5 transition-colors"
-              title="Refresh"
+              title={tr.refresh}
             >
               <RefreshCw size={16} className={`text-white/50 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <span className="text-white/30 text-xs">{reviews.length} items</span>
+            <span className="text-white/30 text-xs">{tr.itemCount.replace('{n}', String(reviews.length))}</span>
           </div>
         </div>
       </header>
@@ -141,9 +168,7 @@ export default function AdminReviews() {
                   : 'bg-white/5 text-white/50 hover:bg-white/10'
               }`}
             >
-              {f === 'reported' && '🚩 Reported'}
-              {f === 'hidden' && '👁️ Hidden'}
-              {f === 'all' && '📋 All'}
+              {tr.filters[f]}
             </button>
           ))}
         </div>
@@ -156,7 +181,7 @@ export default function AdminReviews() {
         ) : reviews.length === 0 ? (
           <div className="text-center py-20">
             <MessageSquare size={48} className="mx-auto text-white/10 mb-4" />
-            <p className="text-white/30 text-sm">No {filter} reviews</p>
+            <p className="text-white/30 text-sm">{emptyMessage}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -196,7 +221,7 @@ export default function AdminReviews() {
                     review.status === 'hidden' ? 'bg-yellow-500/20 text-yellow-400' :
                     'bg-green-500/20 text-green-400'
                   }`}>
-                    {review.status}
+                    {statusBadgeLabel(review.status)}
                   </span>
                 </div>
 
@@ -218,28 +243,28 @@ export default function AdminReviews() {
                 <div className="bg-red-500/[0.05] border border-red-500/10 rounded-xl p-3 mb-4">
                   <div className="flex items-center gap-2 mb-1">
                     <AlertTriangle size={12} className="text-red-400" />
-                    <span className="text-red-400 text-xs font-medium">Report Details</span>
+                    <span className="text-red-400 text-xs font-medium">{tr.reportDetails}</span>
                   </div>
                   {review.reports && review.reports.length > 0 ? (
                     <div className="space-y-1">
                       {review.reports.map((rpt, idx) => (
                         <p key={idx} className="text-white/40 text-xs">
-                          • {rpt.reason || 'No reason given'} — {new Date(rpt.createdAt).toLocaleString()}
+                          • {rpt.reason || tr.noReasonGiven} — {new Date(rpt.createdAt).toLocaleString()}
                         </p>
                       ))}
                     </div>
                   ) : (
                     <p className="text-white/40 text-xs">
-                      {review.reportReason || 'No reason'} — by {review.reportedBy || 'unknown'}
+                      {review.reportReason || tr.noReason} — {tr.byReporter.replace('{name}', review.reportedBy || tr.unknown)}
                     </p>
                   )}
                 </div>
 
                 {/* Meta */}
                 <div className="flex items-center gap-4 mb-4 text-white/20 text-[10px]">
-                  <span>Type: {review.targetType}</span>
-                  <span>Target: {review.targetId.slice(0, 12)}...</span>
-                  <span>Author UID: {review.authorUid.slice(0, 12)}...</span>
+                  <span>{tr.metaType.replace('{type}', review.targetType)}</span>
+                  <span>{tr.metaTarget.replace('{id}', review.targetId.slice(0, 12))}</span>
+                  <span>{tr.metaAuthor.replace('{id}', review.authorUid.slice(0, 12))}</span>
                   {review.targetType === 'plan' && (
                     <a
                       href={`/my-plans/${review.targetId}`}
@@ -247,7 +272,7 @@ export default function AdminReviews() {
                       rel="noopener"
                       className="flex items-center gap-1 text-[#7C5CFC] hover:text-[#7C5CFC]/80"
                     >
-                      <ExternalLink size={10} /> View Plan
+                      <ExternalLink size={10} /> {tr.viewPlan}
                     </a>
                   )}
                 </div>
@@ -259,21 +284,21 @@ export default function AdminReviews() {
                     disabled={actionLoading === review.id}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-500/10 text-green-400 text-xs font-medium hover:bg-green-500/20 transition-colors disabled:opacity-50"
                   >
-                    <CheckCircle size={14} /> Keep
+                    <CheckCircle size={14} /> {tr.actions.keep}
                   </button>
                   <button
                     onClick={() => handleModerate(review.id, 'hide')}
                     disabled={actionLoading === review.id}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-yellow-500/10 text-yellow-400 text-xs font-medium hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
                   >
-                    <EyeOff size={14} /> Hide
+                    <EyeOff size={14} /> {tr.actions.hide}
                   </button>
                   <button
                     onClick={() => handleModerate(review.id, 'delete')}
                     disabled={actionLoading === review.id}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500/10 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
                   >
-                    <Trash2 size={14} /> Delete
+                    <Trash2 size={14} /> {tr.actions.delete}
                   </button>
                 </div>
               </div>
