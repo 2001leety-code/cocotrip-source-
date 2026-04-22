@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, LogOut, LogIn } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, LogOut, LogIn, Check } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Link, useLocation } from 'react-router-dom';
 import type { Language, Translations } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -26,11 +32,9 @@ const languages = [
 export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const location = useLocation();
-  const langRef = useRef<HTMLDivElement>(null);
   const [langToast, setLangToast] = useState<string | null>(null);
   const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -48,16 +52,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close lang menu on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (langRef.current && !langRef.current.contains(e.target as Node)) {
-        setIsLangMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+
 
   // Lock body scroll when mobile menu open (iOS 호환) + signal other components
   useEffect(() => {
@@ -191,60 +186,39 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               <div className="w-px h-5 mx-1" style={{ background: 'rgba(255,255,255,0.08)' }} />
             )}
 
-            {/* Language Selector */}
-            <div className="relative" ref={langRef}>
-              <button
-                onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/50 hover:text-white/80 hover:bg-white/[0.06]"
-              >
-                <Globe className="w-4 h-4" />
-                <span className="text-[13px]">
-                  {languages.find((l) => l.code === language)?.short ?? 'EN'}
-                </span>
-                <ChevronDown
-                  className="w-3 h-3 transition-transform duration-200"
-                  style={{ transform: isLangMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                />
-              </button>
-
-              {isLangMenuOpen && (
-                <div
-                  className="absolute right-0 mt-2 w-36 rounded-xl py-1.5 z-50"
-                  style={{
-                    background: 'rgba(15,18,32,0.95)',
-                    backdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
-                  }}
+            {/* Language Selector — Radix DropdownMenu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/50 hover:text-white/80 hover:bg-white/[0.06] outline-none"
                 >
-                  {languages.map((lang) => (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        handleLangChange(lang.code as Language);
-                        setIsLangMenuOpen(false);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-[13px] font-medium transition-all duration-150 flex items-center justify-between"
-                      style={{
-                        color: language === lang.code ? '#7C5CFC' : 'rgba(255,255,255,0.5)',
-                        background: language === lang.code ? 'rgba(124,92,252,0.06)' : 'transparent',
-                      }}
-                      onMouseEnter={e => {
-                        if (language !== lang.code) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                      }}
-                      onMouseLeave={e => {
-                        if (language !== lang.code) e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
-                      <span>{lang.label}</span>
-                      {language === lang.code && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#7C5CFC]" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                  <Globe className="w-4 h-4" />
+                  <span className="text-[13px]">
+                    {languages.find((l) => l.code === language)?.short ?? 'EN'}
+                  </span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="w-36 rounded-xl border-white/[0.08] bg-[#0f1220]/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] p-1.5"
+              >
+                {languages.map((lang) => (
+                  <DropdownMenuItem
+                    key={lang.code}
+                    onClick={() => handleLangChange(lang.code as Language)}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-lg text-[13px] font-medium cursor-pointer transition-all focus:bg-white/[0.04]"
+                    style={{ color: language === lang.code ? '#7C5CFC' : 'rgba(255,255,255,0.5)' }}
+                  >
+                    <span>{lang.label}</span>
+                    {language === lang.code && (
+                      <Check className="w-3.5 h-3.5 text-[#7C5CFC]" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* CTA: 1:1 Inquiry (desktop) */}
             {!isMobile && (
