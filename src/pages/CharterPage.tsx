@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles, Plane, Luggage, ChevronDown, Timer } from 'lucide-react';
+import { MessageCircle, Mail, ArrowLeft, Car, Bus, AlertTriangle, Check, Clock, Sparkles, Plane, Luggage, Timer } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -15,6 +15,7 @@ import { CalendarPicker } from '@/components/PlannerForm';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 
 // ── 타입 ──────────────────────────────────────────────
 type VehicleType = 'staria' | 'sprinter' | 'bus';
@@ -234,37 +235,35 @@ export default function CharterPage() {
               {/* ① 공항 드롭다운 */}
               <div>
                 <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.airportSelect ?? '출발/도착 공항'}</p>
-                <div className="relative">
-                  <select value={airport}
-                    onChange={e => { setAirport(e.target.value); setDestination(''); }}
-                    className="w-full appearance-none px-4 py-3.5 pr-10 rounded-xl border border-white/15 bg-white/[0.04] text-white text-sm font-medium outline-none focus:border-[#B668FC]/60 transition-all cursor-pointer">
-                    {AIRPORTS.map(a => (
-                      <option key={a.id} value={a.id} className="bg-[#1a1a2e] text-white">
-                        {a.id} — {a[lk as 'ko' | 'en']}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                </div>
+                <MobileSelectDrawer
+                  value={airport}
+                  onChange={(val) => { setAirport(val); setDestination(''); }}
+                  title={c.airportSelect ?? '출발/도착 공항'}
+                  options={AIRPORTS.map(a => ({
+                    value: a.id,
+                    label: `${a.id} — ${a[lk as 'ko' | 'en']}`,
+                  }))}
+                  icon={<Plane className="w-4 h-4 text-white/30" />}
+                />
               </div>
 
               {/* ② 목적지 드롭다운 + 직접입력 */}
               <div>
                 <p className="text-xs text-white/40 mb-2">{c.destSelect ?? '목적지 선택'}</p>
-                <div className="relative">
-                  <select value={destination}
-                    onChange={e => { setDestination(e.target.value); if (e.target.value !== '__custom__') setCustomDest(''); }}
-                    className="w-full appearance-none px-4 py-3.5 pr-10 rounded-xl border border-white/15 bg-white/[0.04] text-white text-sm font-medium outline-none focus:border-[#B668FC]/60 transition-all cursor-pointer">
-                    <option value="" className="bg-[#1a1a2e] text-white/50">— {c.destPlaceholder ?? '목적지를 선택하세요'} —</option>
-                    {ICN_DESTS.map(([key, dest]) => (
-                      <option key={key} value={key} className="bg-[#1a1a2e] text-white">
-                        {dest[lk]} — ₩{dest.priceKRW.toLocaleString('ko-KR')}
-                      </option>
-                    ))}
-                    <option value="__custom__" className="bg-[#1a1a2e] text-white">✏️ {c.destCustom ?? '직접 입력'}</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                </div>
+                <MobileSelectDrawer
+                  value={destination}
+                  onChange={(val) => { setDestination(val); if (val !== '__custom__') setCustomDest(''); }}
+                  title={c.destSelect ?? '목적지 선택'}
+                  placeholder={`— ${c.destPlaceholder ?? '목적지를 선택하세요'} —`}
+                  options={[
+                    ...ICN_DESTS.map(([key, dest]) => ({
+                      value: key,
+                      label: (dest as any)[lk] || key,
+                      sub: `₩${(dest as any).priceKRW?.toLocaleString('ko-KR')}`,
+                    })),
+                    { value: '__custom__', label: `✏️ ${c.destCustom ?? '직접 입력'}` },
+                  ]}
+                />
                 {destination === '__custom__' && (
                   <input type="text" value={customDest} onChange={e => setCustomDest(e.target.value)}
                     placeholder={c.destCustomPlaceholder ?? '예: 서울 강남구 테헤란로 123'}

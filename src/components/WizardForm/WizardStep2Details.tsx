@@ -1,10 +1,11 @@
 // Step 2: travel dates, pax, airport, hotel address, accommodation opt-in.
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plane } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import type { Locale } from 'date-fns';
 import type { AirportOption } from './data';
 import type { WizardDict } from './types';
+import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 
 interface Step2Props {
   p: WizardDict;
@@ -83,21 +84,17 @@ export function WizardStep2Details(props: Step2Props) {
           {p.wizardWhichAirport || 'Which airport are you arriving at?'}
           {mainCity && <span className="text-white/25 ml-1">({mainCity})</span>}
         </p>
-        <select
+        <MobileSelectDrawer
           value={arrivalTerminal}
-          onChange={e => setArrivalTerminal(e.target.value)}
-          className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors appearance-none [color-scheme:dark]"
-          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
-        >
-          <option value="" disabled className="bg-[#1a1a2e] text-white/50">
-            {p.wizardSelectAirport || '-- Select airport --'}
-          </option>
-          {airportOptions.map((opt) => (
-            <option key={opt.value} value={opt.value} className="bg-[#1a1a2e] text-white">
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          onChange={setArrivalTerminal}
+          title={p.wizardWhichAirport || 'Which airport?'}
+          placeholder={p.wizardSelectAirport || '-- Select airport --'}
+          options={airportOptions.map(opt => ({
+            value: opt.value,
+            label: opt.label,
+          }))}
+          icon={<Plane className="w-4 h-4 text-white/30" />}
+        />
       </div>
 
       {/* Hotel */}
