@@ -392,7 +392,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               type="text"
               value={promoCode}
               onChange={e => setPromoCode(e.target.value.toUpperCase())}
-              placeholder="EARLY50"
+              placeholder={pl.label}
               className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/[0.06] border border-white/10 text-sm text-white placeholder:text-white/25 outline-none focus:border-[#7C5CFC]/50 transition-colors"
             />
           </div>

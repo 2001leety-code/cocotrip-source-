@@ -48,7 +48,7 @@ const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
 const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
 
-import { EarlyBirdBanner } from '@/components/EarlyBirdBanner';
+
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
@@ -114,7 +114,7 @@ function GlobalWidgets() {
   return (
     <>
       <PageViewTracker />
-      <EarlyBirdBanner />
+
       <KpopConcertPopup />
       <MobileBottomNav />
       <CookieBanner />
