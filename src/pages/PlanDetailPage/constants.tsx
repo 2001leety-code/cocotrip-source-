@@ -13,6 +13,7 @@ export const CAT_ICON: Record<string, LucideIcon> = {
 
 export const TRANSIT_ICON: Record<string, LucideIcon> = {
   subway: Train, taxi: Car, walk: Footprints, bus: Bus, car: Car,
+  'subway+bus': Train,
 };
 
 export function formatKRW(n: number) {

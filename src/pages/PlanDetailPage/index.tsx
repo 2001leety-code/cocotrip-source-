@@ -126,7 +126,8 @@ export default function PlanDetailPage() {
     setIsPdfGenerating(true);
     try {
       const uiDict = getPlanDetailUI(t);
-      await generatePDF(plan, uiDict);
+      const transitDict = ((t as Record<string, unknown>).planDetail as Record<string, unknown> | undefined)?.transit as Record<string, string> | undefined;
+      await generatePDF(plan, uiDict, transitDict, language);
     } finally {
       setIsPdfGenerating(false);
     }

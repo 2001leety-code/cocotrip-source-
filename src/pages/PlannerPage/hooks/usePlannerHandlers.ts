@@ -13,16 +13,51 @@ interface UsePlannerHandlersOptions {
 
 type Status = 'idle' | 'loadingQuick' | 'quickSuccess' | 'loadingFull' | 'fullSuccess' | 'error';
 
+export type PlannerErrorCode =
+  | 'GEMINI_TIMEOUT'
+  | 'GEMINI_ERROR'
+  | 'PAYMENT_REQUIRED'
+  | 'PAYMENT_INCOMPLETE'
+  | 'DUPLICATE_ORDER'
+  | 'REVISION_EXHAUSTED'
+  | 'FORBIDDEN'
+  | 'INTERNAL_ERROR'
+  | 'NETWORK_ERROR'
+  | 'ABORT_TIMEOUT'
+  | 'INVALID_RESPONSE'
+  | 'MISSING_FORM'
+  | 'NO_PLAN_URL'
+  | 'UNKNOWN_ERROR';
+
+interface ErrorPayload {
+  code: PlannerErrorCode;
+  details: string;
+}
+
 export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePlannerHandlersOptions) {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('idle');
   const [resultQuick, setResultQuick] = useState<Record<string, unknown> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<PlannerErrorCode | null>(null);
   const [, setStreamStep] = useState<number>(0);
   const [, setStreamAgent] = useState<string>('');
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [planErrorCode, setPlanErrorCode] = useState<PlannerErrorCode | null>(null);
   const lastValues = useRef<PlannerFormValues | null>(null);
+
+  function normalizeFetchError(err: unknown, codeFromServer?: string, detailsFromServer?: string): ErrorPayload {
+    if (codeFromServer) {
+      return { code: codeFromServer as PlannerErrorCode, details: detailsFromServer || '' };
+    }
+    if (err instanceof Error) {
+      if (err.name === 'AbortError') return { code: 'ABORT_TIMEOUT', details: err.message };
+      if (err instanceof TypeError) return { code: 'NETWORK_ERROR', details: err.message };
+      return { code: 'UNKNOWN_ERROR', details: err.message };
+    }
+    return { code: 'UNKNOWN_ERROR', details: 'Unknown error.' };
+  }
 
   // 1: Quick preview (free) -- ai-planner-quick call with auto-retry
   async function handleSubmit(values: PlannerFormValues) {
@@ -30,6 +65,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     setStatus('loadingQuick');
     setResultQuick(null);
     setErrorMsg(null);
+    setErrorCode(null);
     setStreamStep(1);
     setStreamAgent('gemini');
     
@@ -64,7 +100,10 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
             await new Promise(r => setTimeout(r, 1500));
             continue;
           }
-          throw new Error(msg);
+          const e = new Error(msg) as Error & { code?: string; details?: string };
+          e.code = errBody.code;
+          e.details = errBody.details;
+          throw e;
         }
 
         const json = await res.json();
@@ -81,7 +120,13 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           await new Promise(r => setTimeout(r, 1500));
           continue;
         }
-        setErrorMsg(err instanceof Error ? err.message : 'Unknown error.');
+        const payload = normalizeFetchError(
+          err,
+          (err as { code?: string }).code,
+          (err as { details?: string }).details || (err as Error).message,
+        );
+        setErrorCode(payload.code);
+        setErrorMsg(payload.details || (err instanceof Error ? err.message : 'Unknown error.'));
         setStatus('error');
         return;
       }
@@ -93,11 +138,13 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   async function handlePaymentSuccess(paypalOrderId: string) {
     setIsGeneratingPlan(true);
     setPlanError(null);
+    setPlanErrorCode(null);
     setStreamStep(1);
     setStreamAgent('gemini');
 
     const values = lastValues.current;
     if (!values) {
+      setPlanErrorCode('MISSING_FORM');
       setPlanError('Form data missing. Please try again.');
       setIsGeneratingPlan(false);
       return;
@@ -143,11 +190,16 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       try {
         json = await res.json();
       } catch {
-        throw new Error(`Server returned invalid response (${res.status}). Please contact us via WhatsApp.`);
+        const e = new Error(`Server returned invalid response (${res.status}). Please contact us via WhatsApp.`) as Error & { code?: string };
+        e.code = 'INVALID_RESPONSE';
+        throw e;
       }
 
       if (!res.ok) {
-        throw new Error(json.details || json.error || `Server error (${res.status})`);
+        const e = new Error(json.details || json.error || `Server error (${res.status})`) as Error & { code?: string; details?: string };
+        e.code = json.code;
+        e.details = json.details;
+        throw e;
       }
 
       const data = json.data;
@@ -160,14 +212,19 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       } else if (data?.planId) {
         navigate(`/my-plans/${data.planId}`);
       } else {
-        throw new Error('Plan created but no URL returned');
+        const e = new Error('Plan created but no URL returned') as Error & { code?: string };
+        e.code = 'NO_PLAN_URL';
+        throw e;
       }
     } catch (err: unknown) {
       console.error('[PlannerPage] Plan generation failed:', err);
-      const msg = err instanceof Error && err.name === 'AbortError'
-        ? 'Server took too long (120s). Your payment is safe \u2014 please contact us via WhatsApp to get your plan.'
-        : (err instanceof Error ? err.message : 'Something went wrong. Please contact us via WhatsApp.');
-      setPlanError(msg);
+      const payload = normalizeFetchError(
+        err,
+        (err as { code?: string }).code,
+        (err as { details?: string }).details || (err as Error).message,
+      );
+      setPlanErrorCode(payload.code);
+      setPlanError(payload.details || (err instanceof Error ? err.message : 'Something went wrong. Please contact us via WhatsApp.'));
       setIsGeneratingPlan(false);
     }
   }
@@ -177,6 +234,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     if (!revisionPlanId) return;
     setIsGeneratingPlan(true);
     setPlanError(null);
+    setPlanErrorCode(null);
     setStreamStep(1);
     setStreamAgent('gemini');
 
@@ -211,7 +269,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.details || json.error || `Server error (${res.status})`);
+      if (!res.ok) {
+        const e = new Error(json.details || json.error || `Server error (${res.status})`) as Error & { code?: string; details?: string };
+        e.code = json.code;
+        e.details = json.details;
+        throw e;
+      }
 
       const data = json.data;
 
@@ -220,10 +283,20 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
 
       if (data?.planUrl) navigate(data.planUrl);
       else if (data?.planId) navigate(`/my-plans/${data.planId}`);
-      else throw new Error('Plan created but no URL returned');
+      else {
+        const e = new Error('Plan created but no URL returned') as Error & { code?: string };
+        e.code = 'NO_PLAN_URL';
+        throw e;
+      }
     } catch (err: unknown) {
       console.error('[PlannerPage] Revision failed:', err);
-      setPlanError(err instanceof Error ? err.message : 'Revision failed. Please contact us via WhatsApp.');
+      const payload = normalizeFetchError(
+        err,
+        (err as { code?: string }).code,
+        (err as { details?: string }).details || (err as Error).message,
+      );
+      setPlanErrorCode(payload.code);
+      setPlanError(payload.details || (err instanceof Error ? err.message : 'Revision failed. Please contact us via WhatsApp.'));
       setIsGeneratingPlan(false);
     }
   }
@@ -232,6 +305,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     setStatus('idle');
     setResultQuick(null);
     setErrorMsg(null);
+    setErrorCode(null);
     setUserEmail('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -240,8 +314,10 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     status,
     resultQuick,
     errorMsg,
+    errorCode,
     isGeneratingPlan,
     planError,
+    planErrorCode,
     lastValues,
     handleSubmit,
     handlePaymentSuccess,

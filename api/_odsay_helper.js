@@ -6,6 +6,8 @@
  * 조회하여 환승 정보, 소요 시간, 요금, 상세 이동 단계를 제공합니다.
  */
 
+import { localizeLineName, romanizeStation } from './_transit_localization.js';
+
 const ODSAY_BASE = 'https://api.odsay.com/v1/api';
 
 /**
@@ -37,7 +39,14 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
 
   try {
     const url = `${ODSAY_BASE}/searchPubTransPathT?SX=${sx}&SY=${sy}&EX=${ex}&EY=${ey}&apiKey=${encodeURIComponent(apiKey)}&output=json`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    // ODsay Basic tier enforces a Referer whitelist per application. Vercel
+    // serverless fetches don't set Referer, so we spoof it with a registered
+    // domain — otherwise every call returns "[ApiKeyAuthFailed] ApiKey
+    // authentication failed" and the planner silently falls back to driving.
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: { Referer: 'https://cocotripkr.com' },
+    });
 
     if (!res.ok) {
       console.warn(`[ODsay] HTTP ${res.status}`);
@@ -64,6 +73,9 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
       fare: info.payment,              // 원
       transfers: (info.busTransitCount || 0) + (info.subwayTransitCount || 0),
       distance: info.totalDistance,     // 미터
+      totalWalk: info.totalWalk,        // 미터 (전체 도보 거리)
+      firstStation: info.firstStartStation,  // "강남" — 첫 승차역/정류장
+      lastStation: info.lastEndStation,      // "잠실" — 최종 하차역/정류장
       steps,
       // 대안 경로 수
       alternatives: Math.min(data.result.path.length - 1, 2),
@@ -83,27 +95,60 @@ function parseSubPath(sub) {
     if (sub.sectionTime < 1) return null;
     return {
       mode: 'walk',
+      distance: sub.distance,
       description: `도보 ${sub.distance}m`,
       duration: sub.sectionTime,
     };
   }
 
   if (sub.trafficType === 1) {
-    // 지하철
+    // 지하철 — ODsay가 출발/목적지 좌표에 가장 가까운 출구(startExitNo/endExitNo)를
+    // 이미 계산해서 준다. 별도 출구 DB 조회 불필요.
+    // Basic tier는 한국어만 → 주요 역 로마자/호선명 영문 표기를 코드에서 추가.
+    // Client가 사용자 언어에 맞게 "강남 (Gangnam)" 처럼 병기 표시 가능.
     const lineName = sub.lane?.[0]?.name || '';
+    const fromExit = sub.startExitNo || null;
+    const toExit = sub.endExitNo || null;
+    const lineKo = localizeLineName(lineName, 'ko').display;
+    const lineEn = localizeLineName(lineName, 'en').display;
+    const fromRoman = romanizeStation(sub.startName, 'en');
+    const toRoman = romanizeStation(sub.endName, 'en');
+    const wayRoman = sub.way ? romanizeStation(sub.way, 'en') : null;
+    const descParts = [
+      `${lineName}`,
+      `${sub.startName}역${fromExit ? ` ${fromExit}번출구` : ''}`,
+      `→ ${sub.endName}역${toExit ? ` ${toExit}번출구` : ''}`,
+      `(${sub.stationCount}정거장, ${sub.sectionTime}분${sub.intervalTime ? `, 배차 ${sub.intervalTime}분` : ''})`,
+    ];
     return {
       mode: 'subway',
-      line: lineName,
+      line: lineName,                             // Raw ODsay verbose form, e.g. "수도권 2호선"
+      lineKo,                                     // Korean normalized: "2호선"
+      lineEn,                                     // English: "Line 2" / "Shinbundang Line"
+      subwayCode: sub.lane?.[0]?.subwayCode,
+      fromStationID: sub.startID || null,         // ODsay stationID for subwayStationInfo lookup
+      toStationID: sub.endID || null,
       from: sub.startName,
+      fromRoman,                                  // "Gangnam" (null if not translatable)
       to: sub.endName,
+      toRoman,                                    // "Jamsil"
+      way: sub.way || null,                       // 진행 방향 (e.g., "잠실")
+      wayRoman,                                   // "Jamsil"
+      fromExit,                                   // 승차역 출구 번호
+      toExit,                                     // 하차역 출구 번호
+      fromExitCoord: (sub.startExitX && sub.startExitY) ? { x: sub.startExitX, y: sub.startExitY } : null,
+      toExitCoord: (sub.endExitX && sub.endExitY) ? { x: sub.endExitX, y: sub.endExitY } : null,
       duration: sub.sectionTime,
       stationCount: sub.stationCount,
-      description: `${lineName} ${sub.startName}역 → ${sub.endName}역 (${sub.stationCount}정거장, ${sub.sectionTime}분)`,
+      intervalMin: sub.intervalTime || null,
+      passStops: (sub.passStopList?.stations || []).map(s => s.stationName),
+      description: descParts.join(' '),
     };
   }
 
   if (sub.trafficType === 2) {
-    // 버스
+    // 버스 — 정류장명은 고유명사/동네명이 섞여 기계적 로마자 변환이 저품질.
+    // 승하차 정류장은 한국어 그대로 유지 (현장 간판과 일치하는 게 더 실용적).
     const busNo = sub.lane?.[0]?.busNo || '';
     const busType = sub.lane?.[0]?.type || 0;
     const busLabel = getBusTypeLabel(busType);
@@ -113,9 +158,15 @@ function parseSubPath(sub) {
       busType: busLabel,
       from: sub.startName,
       to: sub.endName,
+      fromArs: sub.startArsID || null,             // 서울 정류장 고유번호 5자리
+      toArs: sub.endArsID || null,
+      fromCoord: (sub.startX && sub.startY) ? { x: sub.startX, y: sub.startY } : null,
+      toCoord: (sub.endX && sub.endY) ? { x: sub.endX, y: sub.endY } : null,
       duration: sub.sectionTime,
       stationCount: sub.stationCount,
-      description: `${busLabel} ${busNo}번 ${sub.startName} → ${sub.endName} (${sub.stationCount}정거장, ${sub.sectionTime}분)`,
+      intervalMin: sub.intervalTime || null,
+      passStops: (sub.passStopList?.stations || []).map(s => s.stationName),
+      description: `${busLabel} ${busNo}번 ${sub.startName}${sub.startArsID ? `(${sub.startArsID})` : ''} → ${sub.endName}${sub.endArsID ? `(${sub.endArsID})` : ''} (${sub.stationCount}정거장, ${sub.sectionTime}분${sub.intervalTime ? `, 배차 ${sub.intervalTime}분` : ''})`,
     };
   }
 
@@ -147,18 +198,76 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
+ * Fetch subway station metadata (transfer lines, accessibility, lost&found).
+ * ODsay Basic tier gives this for free — 1 call per unique station.
+ * Uses a caller-provided cache object so one plan generation hits each
+ * station at most once even if it appears as both 승차/하차 across segments.
+ *
+ * Returns a compact shape; returns null on any failure so callers can
+ * gracefully skip enrichment without breaking transit rendering.
+ */
+export async function getSubwayStationInfo(stationID, cache = {}) {
+  if (!stationID) return null;
+  if (Object.prototype.hasOwnProperty.call(cache, stationID)) {
+    return cache[stationID];
+  }
+
+  const apiKey = (process.env.ODSAY_API_KEY || '').trim();
+  if (!apiKey) {
+    cache[stationID] = null;
+    return null;
+  }
+
+  try {
+    const url = `${ODSAY_BASE}/subwayStationInfo?stationID=${stationID}&apiKey=${encodeURIComponent(apiKey)}&output=json`;
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(6000),
+      headers: { Referer: 'https://cocotripkr.com' },
+    });
+    if (!res.ok) { cache[stationID] = null; return null; }
+    const data = await res.json();
+    const r = data.result;
+    if (!r || data.error) { cache[stationID] = null; return null; }
+
+    // Normalise transfer lines via the same helper used for primary line names
+    const transferLines = (r.exOBJ?.station || []).map(s => ({
+      lineKo: localizeLineName(s.laneName || '', 'ko').display,
+      lineEn: localizeLineName(s.laneName || '', 'en').display,
+      stationID: s.stationID,
+    }));
+
+    const compact = {
+      stationName: r.stationName,
+      transferLines,
+      address: r.defaultInfo?.new_address || r.defaultInfo?.address || null,
+      phone: r.defaultInfo?.tel || null,
+      lostCenterPhone: r.defaultInfo?.lostcenterTel || null,
+      hasElevator: (r.useInfo?.elevator || 0) > 0,
+      hasWheelchairLift: (r.useInfo?.wheelchairLift || 0) > 0,
+      hasRestroom: (r.useInfo?.restroom || 0) > 0,
+    };
+    cache[stationID] = compact;
+    return compact;
+  } catch (err) {
+    console.warn('[ODsay] subwayStationInfo failed:', err.message);
+    cache[stationID] = null;
+    return null;
+  }
+}
+
+/**
  * ODsay 경로 결과를 사람이 읽기 좋은 영문 요약으로 변환
  */
 export function formatTransitSummary(route, lang = 'en') {
   if (!route) return null;
   if (route.type === 'walk') {
-    return { method: 'walk', summary: `Walk ${route.steps[0]?.description || ''}`, duration: route.totalTime, fare: 0 };
+    return { method: 'walk', summary: `Walk ${route.steps[0]?.description || ''}`, duration: route.totalTime, fare: 0, steps: route.steps };
   }
 
   const stepsText = route.steps
     .filter(s => s.mode !== 'walk' || s.duration >= 3)
     .map(s => {
-      if (s.mode === 'subway') return `🚇 ${s.line}: ${s.from} → ${s.to} (${s.duration}min)`;
+      if (s.mode === 'subway') return `🚇 ${s.line}: ${s.from}${s.fromExit ? `(출구${s.fromExit})` : ''} → ${s.to}${s.toExit ? `(출구${s.toExit})` : ''} (${s.duration}min)`;
       if (s.mode === 'bus') return `🚌 Bus ${s.busNo}: ${s.from} → ${s.to} (${s.duration}min)`;
       return `🚶 Walk ${s.duration}min`;
     });
@@ -169,6 +278,9 @@ export function formatTransitSummary(route, lang = 'en') {
     duration: route.totalTime,
     fare: route.fare,
     transfers: route.transfers,
+    totalWalk: route.totalWalk || 0,        // 전체 도보 거리 (미터)
+    firstStation: route.firstStation,        // 첫 승차역/정류장
+    lastStation: route.lastStation,          // 최종 하차역/정류장
     steps: route.steps,
   };
 }

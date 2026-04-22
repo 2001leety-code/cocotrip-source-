@@ -56,11 +56,66 @@ export interface RecommendedItem {
   note?: string;
 }
 
+/** Compact subway station metadata from ODsay subwayStationInfo */
+export interface SubwayStationInfo {
+  stationName?: string;
+  transferLines?: { lineKo: string; lineEn: string; stationID?: number }[];
+  address?: string | null;
+  phone?: string | null;
+  lostCenterPhone?: string | null;
+  hasElevator?: boolean;
+  hasWheelchairLift?: boolean;
+  hasRestroom?: boolean;
+}
+
+/** One step of a multi-modal transit route — matches parseSubPath() in api/_odsay_helper.js */
+export interface TransitStepDetail {
+  mode: 'subway' | 'bus' | 'walk';
+  description?: string;
+  duration?: number;
+  // subway
+  line?: string;
+  lineKo?: string;                    // Normalized Korean, e.g. "2호선"
+  lineEn?: string;                    // Localized line name, e.g. "Line 2"
+  subwayCode?: number;
+  fromStationID?: number | null;
+  toStationID?: number | null;
+  fromStationInfo?: SubwayStationInfo;
+  toStationInfo?: SubwayStationInfo;
+  from?: string;
+  fromRoman?: string | null;          // Romanized station name for non-ko UIs
+  to?: string;
+  toRoman?: string | null;
+  way?: string | null;
+  wayRoman?: string | null;
+  fromExit?: string | null;
+  toExit?: string | null;
+  fromExitCoord?: { x: number; y: number } | null;
+  toExitCoord?: { x: number; y: number } | null;
+  stationCount?: number;
+  intervalMin?: number | null;
+  passStops?: string[];
+  // bus
+  busNo?: string;
+  busType?: string;
+  fromArs?: string | null;
+  toArs?: string | null;
+  fromCoord?: { x: number; y: number } | null;
+  toCoord?: { x: number; y: number } | null;
+  // walk
+  distance?: number;
+}
+
 export interface TransitFromPrev {
-  method: 'subway' | 'taxi' | 'walk' | 'bus' | 'car';
+  method: 'subway' | 'taxi' | 'walk' | 'bus' | 'car' | 'subway+bus';
   instruction?: string;
   instruction_en?: string;
   step_by_step?: string[];
+  steps_detail?: TransitStepDetail[];
+  transfers?: number;
+  total_walk_m?: number;
+  first_station?: string | null;
+  last_station?: string | null;
   est_min?: number;
   est_fare_krw?: number;
   source?: 'odsay' | 'naver' | 'gemini' | 'naver_fallback' | 'downgrade';

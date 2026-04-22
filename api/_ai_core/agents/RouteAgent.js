@@ -1,10 +1,14 @@
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
-import { searchTransitRoute, formatTransitSummary } from "../../_odsay_helper.js";
+import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo } from "../../_odsay_helper.js";
 
 export class RouteAgent extends BaseAgent {
     constructor(apiKey) {
         super(apiKey, "route");
+        // Per-agent cache: one subwayStationInfo call per unique station per plan.
+        // A typical plan touches <=20 unique subway stations, well within ODsay's
+        // 1000 calls/day Basic tier budget.
+        this._stationCache = {};
     }
     async call(userPrompt) {
         console.log("\n[Route] Naver Maps + ODsay Transit + Time Stitching...");
@@ -174,11 +178,18 @@ export class RouteAgent extends BaseAgent {
                     // ── 통합 transit_from_prev (ODsay 우선, Gemini fallback) ──
                     const pt = transit.publicTransit;
                     if (pt && pt.method !== 'walk') {
-                        // ODsay 실제 데이터로 transit_from_prev 교체
+                        // ODsay 실제 데이터로 transit_from_prev 교체.
+                        // steps_detail은 ODsay raw steps로 UI가 호선/출구/배차/중간정거장
+                        // 렌더링에 쓴다. step_by_step(텍스트 배열)은 PDF/이메일 호환용.
                         place.transit_from_prev = {
                             method: pt.method || 'subway',
                             instruction_en: pt.summary || '',
                             step_by_step: (pt.steps || []).map(s => s.description),
+                            steps_detail: pt.steps || [],
+                            transfers: pt.transfers || 0,
+                            total_walk_m: pt.totalWalk || 0,
+                            first_station: pt.firstStation || null,
+                            last_station: pt.lastStation || null,
                             est_min: pt.duration || realTransitMin,
                             est_fare_krw: pt.fare || 0,
                             source: 'odsay',
@@ -294,6 +305,22 @@ export class RouteAgent extends BaseAgent {
         if (odsayResult.status === 'fulfilled' && odsayResult.value) {
             publicTransit = formatTransitSummary(odsayResult.value);
             console.log(`  ✓ [${name}] ODsay: ${odsayResult.value.type} ${odsayResult.value.totalTime}min ₩${odsayResult.value.fare}`);
+
+            // Enrich each subway step with station metadata (transfer lines,
+            // accessibility, lost&found). Parallelised; cache prevents duplicate
+            // calls across segments that touch the same station.
+            if (publicTransit?.steps?.length) {
+                const enrichments = publicTransit.steps.map(async (step) => {
+                    if (step.mode !== 'subway') return;
+                    const [fromInfo, toInfo] = await Promise.all([
+                        getSubwayStationInfo(step.fromStationID, this._stationCache),
+                        getSubwayStationInfo(step.toStationID, this._stationCache),
+                    ]);
+                    if (fromInfo) step.fromStationInfo = fromInfo;
+                    if (toInfo) step.toStationInfo = toInfo;
+                });
+                await Promise.all(enrichments);
+            }
         } else {
             const reason = odsayResult.status === 'rejected' ? odsayResult.reason?.message : 'null result';
             console.warn(`  - [${name}] ODsay unavailable: ${reason}`);

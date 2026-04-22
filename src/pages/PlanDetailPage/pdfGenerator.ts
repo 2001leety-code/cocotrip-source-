@@ -37,7 +37,12 @@ export interface PdfUiDict {
   [key: string]: string | undefined;
 }
 
-export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promise<void> {
+export async function generatePDF(
+  plan: PlanDocument,
+  uiDict?: PdfUiDict,
+  transitDict?: Record<string, string | undefined>,
+  lang: string = 'en',
+): Promise<void> {
   if (!plan) return;
   const it = plan.itinerary || {};
   const days = it.days || [];
@@ -111,7 +116,7 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
       html += `<div style="margin:6px 0;padding:6px 0;border-bottom:1px solid ${C.border};">
         <p style="font-size:12px;color:${C.heading};margin:0;"><strong>Step ${step.step}: ${step.title}</strong></p>
         <p style="font-size:11px;color:${C.sub};margin:2px 0 0;">${step.description || ''}</p>
-        ${(step.est_min ?? 0) > 0 ? `<p style="font-size:10px;color:${C.accent};margin:2px 0 0;">~${step.est_min} ${L.min}</p>` : ''}
+        ${(step.est_min || 0) > 0 ? `<p style="font-size:10px;color:${C.accent};margin:2px 0 0;">~${step.est_min} ${L.min}</p>` : ''}
       </div>`;
     });
     html += '</div>';
@@ -129,12 +134,93 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
       </div>`;
 
     (day.stops || []).forEach((stop: PlanStop) => {
-      // Transit arrow
+      // Transit arrow (rich: uses steps_detail when available, falls back to step_by_step for legacy plans)
       if (stop.transit_from_prev) {
         const t = stop.transit_from_prev;
+        const stepsDetail = (t.steps_detail as Array<Record<string, unknown>> | undefined) || [];
+        const tr = {
+          exit: transitDict?.exit || 'Exit',
+          toward: transitDict?.toward || 'toward',
+          stops: transitDict?.stops || 'stops',
+          every: transitDict?.every || 'every',
+          transfer: transitDict?.transfer || 'transfer',
+          walk: transitDict?.walk || 'Walk',
+          totalWalk: transitDict?.totalWalk || 'Total walk',
+          min: L.min,
+        };
+        const transfers = (t as { transfers?: number }).transfers || 0;
+        const totalWalk = (t as { total_walk_m?: number }).total_walk_m || 0;
+
+        const summary = `${t.method} \u00B7 ${t.est_min || '?'}${tr.min}${(t.est_fare_krw || 0) > 0 ? ` \u00B7 ${formatKRW(t.est_fare_krw || 0)}` : ''}${transfers > 0 ? ` \u00B7 ${transfers} ${tr.transfer}` : ''}${t.source === 'odsay' ? ' [live]' : ''}`;
+
+        let stepsHtml = '';
+        if (stepsDetail.length > 0) {
+          stepsHtml = stepsDetail.map((s) => {
+            if (s.mode === 'subway') {
+              const lineLabel = lang === 'ko' ? (s.lineKo || s.line || '') : (s.lineEn || s.lineKo || s.line || '');
+              const bilang = (ko: unknown, roman: unknown) => {
+                const k = (ko as string) || '';
+                const r = roman as string | undefined;
+                return (!k) ? '' : (lang === 'ko' || !r) ? k : `${k} (${r})`;
+              };
+              const wayLabel = s.way ? bilang(s.way, s.wayRoman) : '';
+              const fromLabel = bilang(s.from, s.fromRoman);
+              const toLabel = bilang(s.to, s.toRoman);
+              const head = `<b style="color:${C.accent};">${lineLabel}</b>${wayLabel ? ` <span style="color:${C.muted};font-weight:400;">(${tr.toward} ${wayLabel})</span>` : ''}`;
+              const route = `<span style="color:#16a34a;">\u25CF ${fromLabel}${s.fromExit ? ` ${tr.exit} ${s.fromExit}` : ''}</span> \u2192 <span style="color:#db2777;">\u25CF ${toLabel}${s.toExit ? ` ${tr.exit} ${s.toExit}` : ''}</span>`;
+              const meta = [
+                s.stationCount ? `${s.stationCount} ${tr.stops}` : '',
+                s.intervalMin ? `${tr.every} ${s.intervalMin}${tr.min}` : '',
+                `${s.duration || '?'}${tr.min}`,
+              ].filter(Boolean).join(' \u00B7 ');
+              // Enrichment lines: transfer lines + accessibility + lost&found
+              const fromInfo = s.fromStationInfo as { transferLines?: { lineKo: string; lineEn: string }[] } | undefined;
+              const toInfo = s.toStationInfo as { hasElevator?: boolean; hasWheelchairLift?: boolean; lostCenterPhone?: string | null; address?: string | null } | undefined;
+              const transferList = (fromInfo?.transferLines || []).map(l => lang === 'ko' ? l.lineKo : (l.lineEn || l.lineKo)).filter(Boolean);
+              const transferHtml = transferList.length > 0
+                ? `<p style="font-size:8px;color:${C.muted};margin:2px 0 0;">\u21BB ${transitDict?.alsoTransfers || 'Also transfers'}: ${transferList.join(', ')}</p>`
+                : '';
+              const accessibleHtml = (toInfo?.hasElevator || toInfo?.hasWheelchairLift)
+                ? `<p style="font-size:8px;color:#16a34a;margin:2px 0 0;">\u267F ${transitDict?.accessibleExit || 'Accessible exit available'}</p>`
+                : '';
+              const lostHtml = toInfo?.lostCenterPhone
+                ? `<p style="font-size:8px;color:${C.muted};margin:2px 0 0;">${transitDict?.lostAndFound || 'Lost & found'}: ${toInfo.lostCenterPhone}</p>`
+                : '';
+              return `<div style="margin:3px 0 3px 8px;padding:4px 8px;background:#ffffff;border:1px solid ${C.border};border-radius:4px;">
+                <p style="font-size:10px;color:${C.heading};margin:0;">${head}</p>
+                <p style="font-size:9px;color:${C.sub};margin:1px 0 0;">${route}</p>
+                <p style="font-size:9px;color:${C.muted};margin:1px 0 0;">${meta}</p>
+                ${transferHtml}${accessibleHtml}${lostHtml}
+              </div>`;
+            }
+            if (s.mode === 'bus') {
+              const head = `<b style="color:#16a34a;">${s.busType ? `${s.busType} ` : ''}${s.busNo || ''}</b>`;
+              const route = `<span style="color:#16a34a;">\u25CF ${s.from || ''}${s.fromArs ? ` <span style="font-family:monospace;color:${C.muted};">#${s.fromArs}</span>` : ''}</span> \u2192 <span style="color:#db2777;">\u25CF ${s.to || ''}${s.toArs ? ` <span style="font-family:monospace;color:${C.muted};">#${s.toArs}</span>` : ''}</span>`;
+              const meta = [
+                s.stationCount ? `${s.stationCount} ${tr.stops}` : '',
+                s.intervalMin ? `${tr.every} ${s.intervalMin}${tr.min}` : '',
+                `${s.duration || '?'}${tr.min}`,
+              ].filter(Boolean).join(' \u00B7 ');
+              return `<div style="margin:3px 0 3px 8px;padding:4px 8px;background:#ffffff;border:1px solid ${C.border};border-radius:4px;">
+                <p style="font-size:10px;color:${C.heading};margin:0;">${head}</p>
+                <p style="font-size:9px;color:${C.sub};margin:1px 0 0;">${route}</p>
+                <p style="font-size:9px;color:${C.muted};margin:1px 0 0;">${meta}</p>
+              </div>`;
+            }
+            // walk
+            return `<p style="font-size:9px;color:${C.muted};margin:2px 0 2px 10px;">${tr.walk} ${s.duration || '?'}${tr.min}${(s.distance as number) > 0 ? ` (${s.distance}m)` : ''}</p>`;
+          }).join('');
+          if (totalWalk > 0) {
+            stepsHtml += `<p style="font-size:8px;color:${C.muted};margin:3px 0 0 10px;">${tr.totalWalk}: ${totalWalk}m</p>`;
+          }
+        } else if (t.step_by_step?.length) {
+          // Legacy plans generated before steps_detail existed — plain text fallback
+          stepsHtml = t.step_by_step.map((s: string) => `<p style="font-size:9px;color:${C.sub};margin:1px 0 0 10px;">\u00B7 ${s}</p>`).join('');
+        }
+
         html += `<div style="margin:4px 0 6px 16px;padding:6px 12px;background:${C.transitBg};border-left:3px solid ${C.accent};border-radius:4px;">
-          <p style="font-size:10px;color:${C.accent};font-weight:700;margin:0;">${t.method} \u00B7 ${t.est_min || '?'}min${(t.est_fare_krw ?? 0) > 0 ? ` (${formatKRW(t.est_fare_krw ?? 0)})` : ''}${t.source === 'odsay' ? ' [live]' : ''}</p>
-          ${t.step_by_step?.length ? t.step_by_step.map((s: string) => `<p style="font-size:9px;color:${C.sub};margin:1px 0 0 10px;">\u00B7 ${s}</p>`).join('') : ''}
+          <p style="font-size:10px;color:${C.accent};font-weight:700;margin:0;">${summary}</p>
+          ${stepsHtml}
         </div>`;
       }
 
@@ -145,13 +231,13 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
             <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${C.accent};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
             ${(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) ? `<p style="font-size:10px;color:${C.muted};margin:2px 0 0;">${stop.name || stop.name_ko}</p>` : ''}
           </div>
-          <span style="font-size:10px;color:${(stop.entry_fee_krw ?? 0) > 0 ? C.pink : '#22c55e'};font-weight:600;">${(stop.entry_fee_krw ?? 0) > 0 ? formatKRW(stop.entry_fee_krw ?? 0) : L.free}</span>
+          <span style="font-size:10px;color:${(stop.entry_fee_krw || 0) > 0 ? C.pink : '#22c55e'};font-weight:600;">${(stop.entry_fee_krw || 0) > 0 ? formatKRW(stop.entry_fee_krw || 0) : L.free}</span>
         </div>
         <p style="font-size:10px;color:${C.muted};margin:4px 0 0;">${stop.stay_min || '?'}min${stop.address ? ` | ${stop.address}` : ''}</p>
         ${stop.naverMapUrl ? `<p style="font-size:10px;margin:3px 0 0;"><a href="${stop.naverMapUrl}" style="color:${C.accent};text-decoration:underline;">${L.openNaverMap}</a></p>` : ''}
         ${(stop.tip || stop.tip_en) ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;font-style:italic;">${L.tip}: ${stop.tip || stop.tip_en}</p>` : ''}
         ${stop.reservation_required ? `<p style="font-size:10px;color:#f97316;margin:4px 0 0;">${L.reservation}${stop.reservation_phone ? ` \u00B7 ${stop.reservation_phone}` : ''}</p>` : ''}
-        ${stop.recommended_items?.length ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;">${L.recommended}: ${stop.recommended_items.map((r: { name: string; price_krw?: number }) => `${r.name}${(r.price_krw ?? 0) > 0 ? ` (${formatKRW(r.price_krw!)})` : ''}`).join(', ')}</p>` : ''}
+        ${stop.recommended_items?.length ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;">${L.recommended}: ${stop.recommended_items.map((r: { name: string; price_krw?: number }) => `${r.name}${(r.price_krw || 0) > 0 ? ` (${formatKRW(r.price_krw!)})` : ''}`).join(', ')}</p>` : ''}
       </div>`;
     });
     html += '</div>';
@@ -168,10 +254,10 @@ export async function generatePDF(plan: PlanDocument, uiDict?: PdfUiDict): Promi
     budget.forEach((row: BudgetRow, i: number) => {
       html += `<tr style="background:${i % 2 === 0 ? '#fff' : C.cardBg};border-bottom:1px solid ${C.border};">
         <td style="padding:6px 8px;font-weight:600;">${L.day} ${row.day}</td>
-        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.transport_krw ?? 0)}</td>
-        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.entry_fees_krw ?? 0)}</td>
-        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.meals_krw ?? 0)}</td>
-        <td style="text-align:right;padding:6px 8px;font-weight:700;color:${C.accent};">${formatKRW(row.total_krw ?? 0)}</td>
+        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.transport_krw || 0)}</td>
+        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.entry_fees_krw || 0)}</td>
+        <td style="text-align:right;padding:6px 8px;">${formatKRW(row.meals_krw || 0)}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:700;color:${C.accent};">${formatKRW(row.total_krw || 0)}</td>
       </tr>`;
     });
     const grandTotal = budget.reduce((s: number, r: BudgetRow) => s + (r.total_krw || 0), 0);

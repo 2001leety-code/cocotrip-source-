@@ -445,8 +445,12 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       } catch (err) {
         console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
         if (err.message.includes('timeout')) {
-          throw new Error('AI is taking too long. Please try again.');
+          const timeoutErr = new Error('AI is taking too long. Please try again.');
+          timeoutErr.code = 'GEMINI_TIMEOUT';
+          timeoutErr.statusCode = 504;
+          throw timeoutErr;
         }
+        if (!err.code) err.code = 'GEMINI_ERROR';
         throw err;
       }
       console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
@@ -585,10 +589,12 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
     sendErrorAlert('ai-planner-full', error).catch(() => {});
     if (!res.headersSent) {
-      res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(_err('Planner failed', 'INTERNAL_ERROR', { 
+      const statusCode = error.statusCode || 500;
+      const code = error.code || 'INTERNAL_ERROR';
+      res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(_err('Planner failed', code, {
         details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       })));
     }
   }

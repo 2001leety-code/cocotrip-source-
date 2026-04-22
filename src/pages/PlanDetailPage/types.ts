@@ -68,6 +68,7 @@ export interface PlanStop {
   reservation_url?: string;
   accessibility_note?: string;
   local_tag?: string;
+  verified?: boolean;
   recommended_items?: { name: string; price_krw?: number; note?: string }[];
   transit_from_prev?: TransitSegment;
   travelFromPrev?: { transitOptions?: { publicTransit?: Record<string, any> } };

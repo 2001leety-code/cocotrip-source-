@@ -4,7 +4,7 @@
 import { useRef, useState } from 'react';
 import {
   MapPin, Clock, ChevronDown, Train, Bus, Footprints,
-  ExternalLink, Accessibility,
+  ExternalLink, Accessibility, AlertTriangle,
 } from 'lucide-react';
 import { CAT_ICON, formatKRW } from '../constants';
 import type { PlanStop } from '../types';
@@ -28,6 +28,11 @@ export function StopCard({ stop }: { stop: PlanStop }) {
 
   // ODsay public-transit data (if available from RouteAgent)
   const publicTransit = stop.travelFromPrev?.transitOptions?.publicTransit;
+
+  // Show an "Unverified" warning only for food stops that the DB matcher
+  // explicitly failed to match. Non-food stops leave `verified` undefined
+  // and must not display the badge.
+  const isUnverifiedFood = stop.category === 'food' && stop.verified === false;
 
   return (
     <div
@@ -54,10 +59,18 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               const cfg = tagConfig[stop.local_tag] || { bg: 'bg-white/10 border-white/20', text: 'text-white/60', emoji: '\u2B50' };
               return <span className={`shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${cfg.bg} ${cfg.text}`}>{cfg.emoji} {stop.local_tag}</span>;
             })()}
+            {isUnverifiedFood && (
+              <span
+                title={ui.unverifiedHint || 'Not in our verified DB — double-check before visiting.'}
+                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border bg-amber-500/15 border-amber-500/35 text-amber-300"
+              >
+                <AlertTriangle className="w-2.5 h-2.5" /> {ui.unverifiedBadge || 'Unverified'}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-[10px] text-white/40">
             <span><Clock className="w-3 h-3 inline -mt-0.5" /> {stop.stay_min}min</span>
-            {(stop.entry_fee_krw ?? 0) > 0 ? <span className="text-yellow-400/70">{formatKRW(stop.entry_fee_krw ?? 0)}</span> : <span className="text-green-400/70">Free</span>}
+            {(stop.entry_fee_krw || 0) > 0 ? <span className="text-yellow-400/70">{formatKRW(stop.entry_fee_krw || 0)}</span> : <span className="text-green-400/70">Free</span>}
           </div>
         </div>
         <ChevronDown className={`w-4 h-4 text-white/20 shrink-0 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
@@ -74,6 +87,12 @@ export function StopCard({ stop }: { stop: PlanStop }) {
             </p>
           )}
           {(stop.tip || stop.tip_en) && <p className="text-xs text-white/60 leading-relaxed">{stop.tip || stop.tip_en}</p>}
+          {isUnverifiedFood && (
+            <p className="text-[10px] text-amber-300/80 flex items-start gap-1.5 bg-amber-500/5 border border-amber-500/15 rounded-lg px-2.5 py-2">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span>{ui.unverifiedHint || 'Not in our verified DB — double-check the address before visiting.'}</span>
+            </p>
+          )}
           {stop.entry_fee_note && <p className="text-[10px] text-yellow-400/60">{stop.entry_fee_note}</p>}
 
           {/* Reservation info */}
@@ -101,7 +120,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
           )}
 
           {/* Recommended items */}
-          {(stop.recommended_items?.length ?? 0) > 0 && (
+          {(stop.recommended_items?.length || 0) > 0 && (
             <div>
               <p className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Recommended</p>
               <div className="space-y-1">
@@ -111,7 +130,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
                       <span className="text-[11px] text-white/70">{item.name}</span>
                       {item.note && <span className="text-[9px] text-white/30 ml-1.5">{'\u00B7'} {item.note}</span>}
                     </div>
-                    {(item.price_krw ?? 0) > 0 && <span className="text-[11px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw ?? 0)}</span>}
+                    {(item.price_krw || 0) > 0 && <span className="text-[11px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
                   </div>
                 ))}
               </div>

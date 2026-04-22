@@ -11,6 +11,7 @@ import { WizardForm } from '@/components/WizardForm';
 import { Sparkles, AlertTriangle } from 'lucide-react';
 import { PAGE_STYLE } from './constants';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
+import { resolveErrorMessage } from './hooks/errorMessages';
 import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
 // ItineraryResult is used within PlanDetailPage, not here directly
 import { QuickPreviewCard } from './components/QuickPreviewCard';
@@ -37,10 +38,15 @@ export default function PlannerPage() {
   const [optionBStep, setOptionBStep] = useState<1 | 2 | 3>(1);
 
   const {
-    status, resultQuick, errorMsg,
-    isGeneratingPlan, planError, lastValues,
+    status, resultQuick, errorMsg, errorCode,
+    isGeneratingPlan, planError, planErrorCode, lastValues,
     handleSubmit, handlePaymentSuccess, handleRevisionRegenerate, handleReset,
   } = usePlannerHandlers({ language, userEmail, setUserEmail });
+
+  const localizedError = resolveErrorMessage(errorCode, errorMsg, (p as { errors?: Record<string, string> }).errors);
+  const localizedPlanError = planError
+    ? resolveErrorMessage(planErrorCode, planError, (p as { errors?: Record<string, string> }).errors)
+    : null;
 
   return (
     <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
@@ -88,7 +94,7 @@ export default function PlannerPage() {
           <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 text-center mt-8">
             <p className="text-3xl mb-3"><AlertTriangle className="w-10 h-10 text-red-400 mx-auto" /></p>
             <p className="font-semibold text-red-300 mb-1">{p.errorTitle}</p>
-            <p className="text-sm text-red-400/70 mb-5">{errorMsg}</p>
+            <p className="text-sm text-red-400/70 mb-5">{localizedError}</p>
             <button onClick={handleReset}
               className="px-6 py-2.5 rounded-xl border border-red-400/40 text-red-300 text-sm font-bold hover:bg-red-500/20 transition-colors">
               {p.retry}
@@ -111,7 +117,7 @@ export default function PlannerPage() {
               optionBStep={optionBStep}
               setOptionBStep={setOptionBStep}
               isGeneratingPlan={isGeneratingPlan}
-              planError={planError}
+              planError={localizedPlanError}
               resultQuick={resultQuick}
               lastValues={lastValues}
               revisionMode={revisionMode}
