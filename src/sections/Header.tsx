@@ -88,7 +88,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
   const navItems = [
     { label: t.nav.charter  ?? 'Charter',     to: '/charter' },
-    { label: 'Tours',                          to: '/tours'   },
+    { label: t.nav.tours   ?? 'Tours',          to: '/tours'   },
     { label: t.nav.planner  ?? 'AI Planner',  to: '/planner' },
     { label: t.nav.about    ?? 'About',        to: '/about'   },
   ];
@@ -330,8 +330,8 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   <LogIn className="w-5 h-5 text-[#7C5CFC]" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-white">Sign In</p>
-                  <p className="text-[11px] text-white/40">Login to manage your trips</p>
+                  <p className="text-sm font-bold text-white">{t.nav.signIn ?? 'Sign In'}</p>
+                  <p className="text-[11px] text-white/40">{t.nav.signInSub ?? 'Login to manage your trips'}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-white/20 ml-auto" />
               </Link>
@@ -339,7 +339,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
             {/* ── Main Navigation ── */}
             <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
-              Navigation
+              {t.nav.navigation ?? 'Navigation'}
             </p>
             <nav className="space-y-0.5">
               {navItems.map((item) => (
@@ -370,7 +370,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             {/* ── My Account ── */}
             <div className="mt-6">
               <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
-                My Account
+                {t.nav.myAccount ?? 'My Account'}
               </p>
               <div className="space-y-0.5">
                 <Link
@@ -399,7 +399,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 >
                   <div className="flex items-center gap-3">
                     <FileText className="w-5 h-5" />
-                    <span className="text-[16px] font-semibold">My Plans</span>
+                    <span className="text-[16px] font-semibold">{t.nav.myPlans ?? 'My Plans'}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/15" />
                 </Link>
@@ -409,9 +409,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 >
                   <div className="flex items-center gap-3">
                     <Heart className="w-5 h-5" />
-                    <span className="text-[16px] font-semibold">Wishlist</span>
+                    <span className="text-[16px] font-semibold">{t.nav.wishlist ?? 'Wishlist'}</span>
                   </div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-pink-500/15 text-pink-300 font-bold">Coming Soon</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-pink-500/15 text-pink-300 font-bold">{t.nav.comingSoon ?? 'Coming Soon'}</span>
                 </div>
                 <div
                   className="flex items-center justify-between py-3.5 px-3 rounded-xl"
@@ -419,9 +419,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 >
                   <div className="flex items-center gap-3">
                     <History className="w-5 h-5" />
-                    <span className="text-[16px] font-semibold">Booking History</span>
+                    <span className="text-[16px] font-semibold">{t.nav.bookingHistory ?? 'Booking History'}</span>
                   </div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#7C5CFC]/15 text-[#B9A4FF] font-bold">Coming Soon</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#7C5CFC]/15 text-[#B9A4FF] font-bold">{t.nav.comingSoon ?? 'Coming Soon'}</span>
                 </div>
                 <div
                   className="flex items-center justify-between py-3.5 px-3 rounded-xl"
@@ -429,9 +429,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 >
                   <div className="flex items-center gap-3">
                     <Ticket className="w-5 h-5" />
-                    <span className="text-[16px] font-semibold">Coupons</span>
+                    <span className="text-[16px] font-semibold">{t.nav.coupons ?? 'Coupons'}</span>
                   </div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#7C5CFC]/15 text-[#B9A4FF] font-bold">Coming Soon</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#7C5CFC]/15 text-[#B9A4FF] font-bold">{t.nav.comingSoon ?? 'Coming Soon'}</span>
                 </div>
               </div>
             </div>
@@ -439,14 +439,14 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             {/* ── Settings ── */}
             <div className="mt-6">
               <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
-                Settings
+                {t.nav.settings ?? 'Settings'}
               </p>
               <div className="space-y-0.5">
                 {/* Language Selector inline */}
                 <div className="py-3.5 px-3 rounded-xl">
                   <div className="flex items-center gap-3 mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>
                     <Globe className="w-5 h-5" />
-                    <span className="text-[16px] font-semibold">Language</span>
+                    <span className="text-[16px] font-semibold">{t.nav.language ?? 'Language'}</span>
                   </div>
                   <div className="flex gap-2 ml-8">
                     {languages.map((lang) => (
@@ -471,7 +471,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             {/* ── Support ── */}
             <div className="mt-6">
               <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
-                Support
+                {t.nav.support ?? 'Support'}
               </p>
               <a
                 href="https://wa.me/821087140611"
@@ -481,7 +481,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 style={{ color: 'rgba(255,255,255,0.55)' }}
               >
                 <Headphones className="w-5 h-5" />
-                <span className="text-[16px] font-semibold">1:1 Support</span>
+                <span className="text-[16px] font-semibold">{t.nav.liveSupport ?? '1:1 Support'}</span>
                 <span className="ml-auto text-[11px] text-emerald-400 font-bold">24/7</span>
               </a>
               <a
@@ -490,7 +490,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 style={{ color: 'rgba(255,255,255,0.55)' }}
               >
                 <MessageCircle className="w-5 h-5" />
-                <span className="text-[16px] font-semibold">Email Support</span>
+                <span className="text-[16px] font-semibold">{t.nav.emailSupport ?? 'Email Support'}</span>
               </a>
             </div>
 
@@ -507,7 +507,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   style={{ color: 'rgba(255,100,100,0.7)' }}
                 >
                   <LogOut className="w-5 h-5" />
-                  <span className="text-[16px] font-semibold">Sign Out</span>
+                  <span className="text-[16px] font-semibold">{t.nav.signOut ?? 'Sign Out'}</span>
                 </button>
               </div>
             )}
@@ -518,9 +518,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 &copy; 2026 COCOTRIP. All rights reserved.
               </p>
               <div className="flex justify-center gap-4 mt-2">
-                <Link to="/terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">Terms</Link>
-                <Link to="/privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">Privacy</Link>
-                <Link to="/travel-terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">Travel Terms</Link>
+                <Link to="/terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">{t.nav.terms ?? 'Terms'}</Link>
+                <Link to="/privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">{t.nav.privacy ?? 'Privacy'}</Link>
+                <Link to="/travel-terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">{t.nav.travelTerms ?? 'Travel Terms'}</Link>
               </div>
             </div>
           </div>
