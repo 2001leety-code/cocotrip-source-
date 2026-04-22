@@ -26,6 +26,8 @@ const SPECIAL_LINES = {
   '신분당선': { en: 'Shinbundang Line', ja: '新盆唐線', zh: '新盆唐线' },
   '분당선': { en: 'Bundang Line', ja: '盆唐線', zh: '盆唐线' },
   '수인분당선': { en: 'Suin-Bundang Line', ja: '水仁盆唐線', zh: '水仁盆唐线' },
+  // ODsay also returns these with a literal dot separator — keep both keys
+  '수인.분당선': { en: 'Suin-Bundang Line', ja: '水仁盆唐線', zh: '水仁盆唐线' },
   '경의중앙선': { en: 'Gyeongui-Jungang Line', ja: '京義中央線', zh: '京义中央线' },
   '경춘선': { en: 'Gyeongchun Line', ja: '京春線', zh: '京春线' },
   '공항철도': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
@@ -65,13 +67,28 @@ export function localizeLineName(rawName, lang = 'ko') {
     return { ko, display: byLang[lang] || ko };
   }
 
-  // Special lines (exact match after normalisation)
+  // Special lines — try exact match first, then strip dots/spaces and retry.
+  // ODsay variants: "수인.분당선" vs "수인분당선", "9호선(급행)" vs "9호선".
   const key = stripped.replace(/\s+/g, '');
   if (SPECIAL_LINES[key]) {
     return {
       ko: stripped,
       display: SPECIAL_LINES[key][lang] || stripped,
     };
+  }
+  const keyNoDot = key.replace(/\./g, '');
+  if (SPECIAL_LINES[keyNoDot]) {
+    return {
+      ko: stripped,
+      display: SPECIAL_LINES[keyNoDot][lang] || stripped,
+    };
+  }
+  // "9호선(급행)" → extract numeric prefix as Line 9
+  const numExpress = stripped.match(/^(\d+)호선/);
+  if (numExpress) {
+    const n = numExpress[1];
+    const byLang = { en: `Line ${n}`, ja: `${n}号線`, zh: `${n}号线`, ko: `${n}호선` };
+    return { ko: stripped, display: byLang[lang] || stripped };
   }
 
   // Unknown line — keep original

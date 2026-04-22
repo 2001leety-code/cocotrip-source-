@@ -306,6 +306,20 @@ export async function getSubwayTimetable(stationID, dayOfWeek, cache = {}) {
   const key = (process.env.SUBWAY_REALTIME_KEY || '').trim();
   if (!key) { cache[cacheKey] = null; return null; }
 
+  // Convert "HH:MM:SS" to minutes, treating 00:00-04:59 as *next-day*
+  // continuations of the previous service day. Subway timetables normally
+  // end around 24:00-25:00 (next-day 00:xx-01:xx), and the API sometimes
+  // mixes 24:46 and 00:46 notation for the same run. Without this roll-over,
+  // a naive string sort puts 00:46 *before* 05:35 and picks it as "first".
+  function toMinutes(t) {
+    if (!t) return -1;
+    const parts = t.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1] || '0', 10);
+    if (isNaN(h) || isNaN(m)) return -1;
+    return (h < 5 ? h + 24 : h) * 60 + m;
+  }
+
   async function fetchDirection(INOUT_TAG) {
     try {
       const url = `http://openapi.seoul.go.kr:8088/${key}/json/SearchSTNTimeTableByIDService/1/1000/${STATION_CD}/${WEEK_TAG}/${INOUT_TAG}`;
@@ -314,7 +328,9 @@ export async function getSubwayTimetable(stationID, dayOfWeek, cache = {}) {
       const data = await res.json();
       const rows = data?.SearchSTNTimeTableByIDService?.row;
       if (!Array.isArray(rows) || rows.length === 0) return null;
-      const sorted = [...rows].sort((a, b) => (a.ARRIVETIME || '').localeCompare(b.ARRIVETIME || ''));
+      const valid = rows.filter(r => toMinutes(r.ARRIVETIME) >= 0);
+      if (valid.length === 0) return null;
+      const sorted = [...valid].sort((a, b) => toMinutes(a.ARRIVETIME) - toMinutes(b.ARRIVETIME));
       const first = sorted[0];
       const last = sorted[sorted.length - 1];
       return {
