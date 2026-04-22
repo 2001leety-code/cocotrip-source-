@@ -23,6 +23,7 @@
  * (possibly preceded by "수도권" etc. — we strip those). Values are per-language.
  */
 const SPECIAL_LINES = {
+  // ── Seoul Metropolitan area ────────────────────────────────────────────
   '신분당선': { en: 'Shinbundang Line', ja: '新盆唐線', zh: '新盆唐线' },
   '분당선': { en: 'Bundang Line', ja: '盆唐線', zh: '盆唐线' },
   '수인분당선': { en: 'Suin-Bundang Line', ja: '水仁盆唐線', zh: '水仁盆唐线' },
@@ -30,17 +31,36 @@ const SPECIAL_LINES = {
   '수인.분당선': { en: 'Suin-Bundang Line', ja: '水仁盆唐線', zh: '水仁盆唐线' },
   '경의중앙선': { en: 'Gyeongui-Jungang Line', ja: '京義中央線', zh: '京义中央线' },
   '경춘선': { en: 'Gyeongchun Line', ja: '京春線', zh: '京春线' },
+  '경강선': { en: 'Gyeonggang Line', ja: '京江線', zh: '京江线' },
   '공항철도': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
   '인천공항철도': { en: 'Airport Railroad (AREX)', ja: '空港鉄道', zh: '机场铁道' },
   '우이신설선': { en: 'Ui-Sinseol Line', ja: '牛耳新設線', zh: '牛耳新设线' },
   '신림선': { en: 'Sillim Line', ja: '新林線', zh: '新林线' },
   '김포골드라인': { en: 'Gimpo Goldline', ja: '金浦ゴールドライン', zh: '金浦金线' },
   '서해선': { en: 'Seohae Line', ja: '西海線', zh: '西海线' },
-  '에버라인': { en: 'Everline', ja: 'エバーライン', zh: '轻轨' },
+  '에버라인': { en: 'Everline (Yongin LRT)', ja: 'エバーライン', zh: '龙仁轻轨' },
   '의정부경전철': { en: 'Uijeongbu LRT', ja: '議政府軽電鉄', zh: '议政府轻轨' },
   '인천1호선': { en: 'Incheon Line 1', ja: '仁川1号線', zh: '仁川1号线' },
   '인천2호선': { en: 'Incheon Line 2', ja: '仁川2号線', zh: '仁川2号线' },
   'GTX-A': { en: 'GTX-A', ja: 'GTX-A', zh: 'GTX-A' },
+
+  // ── Busan Metropolitan area ─────────────────────────────────────────────
+  '부산1호선': { en: 'Busan Line 1', ja: '釜山1号線', zh: '釜山1号线' },
+  '부산2호선': { en: 'Busan Line 2', ja: '釜山2号線', zh: '釜山2号线' },
+  '부산3호선': { en: 'Busan Line 3', ja: '釜山3号線', zh: '釜山3号线' },
+  '부산4호선': { en: 'Busan Line 4', ja: '釜山4号線', zh: '釜山4号线' },
+  '부산김해경전철': { en: 'Busan-Gimhae LRT', ja: '釜山金海軽電鉄', zh: '釜山金海轻轨' },
+  '동해선': { en: 'Donghae Line', ja: '東海線', zh: '东海线' },
+
+  // ── Daegu Metropolitan area ─────────────────────────────────────────────
+  '대구1호선': { en: 'Daegu Line 1', ja: '大邱1号線', zh: '大邱1号线' },
+  '대구2호선': { en: 'Daegu Line 2', ja: '大邱2号線', zh: '大邱2号线' },
+  '대구3호선': { en: 'Daegu Line 3 (Sky Rail)', ja: '大邱3号線', zh: '大邱3号线' },
+  '대경선': { en: 'Daegyeong Line', ja: '大慶線', zh: '大庆线' },
+
+  // ── Other regional metros ───────────────────────────────────────────────
+  '광주1호선': { en: 'Gwangju Line 1', ja: '光州1号線', zh: '光州1号线' },
+  '대전1호선': { en: 'Daejeon Line 1', ja: '大田1号線', zh: '大田1号线' },
 };
 
 /**
