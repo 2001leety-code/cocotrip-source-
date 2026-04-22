@@ -1047,6 +1047,9 @@
     "svcPlannerSub": "旅程作成",
     "svcKpop": "K-pop",
     "svcKpopSub": "シャトル",
+    "promoToursTitle": "プライベート韓国ツアー",
+    "promoToursSubtitle": "ソウル · 釜山 · 慶州 · 丹陽 — オールインクルーシブ",
+    "promoToursCta": "ツアーを見る",
     "aiBannerTitle": "AI旅程自動作成",
     "aiBannerSubtitle": "都市と日程を入力 → 分刻みの旅程表完成",
     "memberGrade": "ランク · クーポン · Trip Coins",
@@ -1072,11 +1075,12 @@
     "iosGuide": "Safari下部の共有ボタンをタップし、\"ホーム画面に追加\"を選択してください",
     "iosAddBtn": "\"ホーム画面に追加\""
   },
+  "errorBoundary": {
+    "title": "予期しないエラーが発生しました。",
+    "description": "申し訳ありません。ページの読み込み中に問題が発生しました。もう一度お試しください。",
+    "retry": "再試行"
+  },
   "ads": {
-    "earlyBird": {
-      "banner": "早期割引 20% OFF · 先着50組限定 · 残り{remaining}組",
-      "code": "EARLY50"
-    },
     "kpopConcert": {
       "trigger": "K-popシャトル",
       "modalTitle": "K-popコンサートシャトル",

@@ -1047,6 +1047,9 @@
     "svcPlannerSub": "行程制定",
     "svcKpop": "K-pop",
     "svcKpopSub": "接驳巴士",
+    "promoToursTitle": "韩国私人包车游",
+    "promoToursSubtitle": "首尔 · 釜山 · 庆州 · 丹阳 — 全包服务",
+    "promoToursCta": "查看行程",
     "aiBannerTitle": "AI行程自动生成",
     "aiBannerSubtitle": "输入城市和日期 → 分钟级行程表完成",
     "memberGrade": "等级 · 优惠券 · Trip Coins",
@@ -1072,11 +1075,12 @@
     "iosGuide": "点击Safari底部的分享按钮，然后选择\"添加到主屏幕\"",
     "iosAddBtn": "\"添加到主屏幕\""
   },
+  "errorBoundary": {
+    "title": "发生意外错误。",
+    "description": "抱歉，加载此页面时出现问题。请重试。",
+    "retry": "重试"
+  },
   "ads": {
-    "earlyBird": {
-      "banner": "早鸟优惠 20% OFF · 仅限前50组 · 剩余{remaining}组",
-      "code": "EARLY50"
-    },
     "kpopConcert": {
       "trigger": "K-pop班车",
       "modalTitle": "K-pop演唱会班车",

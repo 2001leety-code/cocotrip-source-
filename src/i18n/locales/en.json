@@ -1047,6 +1047,9 @@
     "svcPlannerSub": "Itinerary",
     "svcKpop": "K-pop",
     "svcKpopSub": "Shuttle",
+    "promoToursTitle": "Private Korea Tours",
+    "promoToursSubtitle": "Seoul · Busan · Gyeongju · Danyang — All-inclusive",
+    "promoToursCta": "View Tours",
     "aiBannerTitle": "AI Itinerary Generator",
     "aiBannerSubtitle": "Enter city & dates → Get minute-by-minute plan",
     "memberGrade": "Tier · Coupons · Trip Coins",
@@ -1072,11 +1075,12 @@
     "iosGuide": "Tap the Share button at the bottom of Safari, then select \"Add to Home Screen\"",
     "iosAddBtn": "\"Add to Home Screen\""
   },
+  "errorBoundary": {
+    "title": "An unexpected error occurred.",
+    "description": "We're sorry. There was a problem loading this page. Please try again.",
+    "retry": "Retry"
+  },
   "ads": {
-    "earlyBird": {
-      "banner": "Early Bird 20% OFF · First 50 bookings only · {remaining} spots left",
-      "code": "EARLY50"
-    },
     "kpopConcert": {
       "trigger": "K-pop Shuttle",
       "modalTitle": "K-pop Concert Shuttle",

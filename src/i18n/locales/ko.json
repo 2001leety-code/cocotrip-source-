@@ -989,6 +989,9 @@
     "svcPlannerSub": "Planner",
     "svcKpop": "K-pop",
     "svcKpopSub": "Shuttle",
+    "promoToursTitle": "프라이빗 한국 투어",
+    "promoToursSubtitle": "서울 · 부산 · 경주 · 단양 — 올인클루시브",
+    "promoToursCta": "투어 보기",
     "aiBannerTitle": "AI 일정 자동 생성",
     "aiBannerSubtitle": "도시·날짜만 입력 → 분 단위 일정표 완성",
     "memberGrade": "등급 · 쿠폰 · Trip Coins",
@@ -1013,6 +1016,11 @@
     "closeBtn": "다음에",
     "iosGuide": "Safari 하단의 공유 버튼을 누른 후 \"홈 화면에 추가\"를 선택하세요",
     "iosAddBtn": "\"홈 화면에 추가\""
+  },
+  "errorBoundary": {
+    "title": "예기치 않은 오류가 발생했습니다.",
+    "description": "죄송합니다. 페이지를 로드하는 동안 문제가 발생했습니다. 다시 시도해 주세요.",
+    "retry": "다시 시도"
   },
   "charterPage": {
     "backToHome": "홈으로",
@@ -1073,10 +1081,6 @@
     "emailQuote": "이메일 문의"
   },
   "ads": {
-    "earlyBird": {
-      "banner": "얼리버드 특가 20% 할인 · 선착순 50팀 한정 · 남은 자리: {remaining}팀",
-      "code": "EARLY50"
-    },
     "kpopConcert": {
       "trigger": "K-pop 셔틀",
       "modalTitle": "K-pop 콘서트 셔틀",
