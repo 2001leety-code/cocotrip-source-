@@ -9,12 +9,13 @@ export function MobileBottomNav() {
   const { t } = useLanguage();
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
+  const nav = t.nav as Record<string, string | undefined>;
   const items = [
-    { to: '/',        icon: <Home className="w-[18px] h-[18px]" />,     label: t.nav.home ?? 'Home' },
-    { to: '/tours',   icon: <Package className="w-[18px] h-[18px]" />,  label: 'Tours' },
-    { to: '/charter', icon: <Car className="w-[18px] h-[18px]" />,      label: t.nav.charter ?? 'Charter' },
-    { to: '/planner', icon: <Sparkles className="w-[18px] h-[18px]" />, label: t.nav.planner ?? 'AI Plan' },
-    { to: user ? '/mypage' : '/planner', icon: <User className="w-[18px] h-[18px]" />, label: user ? ((t.nav as Record<string, string | undefined>).myPage ?? 'My') : 'Login' },
+    { to: '/',        icon: <Home className="w-[18px] h-[18px]" />,     label: nav.home ?? '홈' },
+    { to: '/tours',   icon: <Package className="w-[18px] h-[18px]" />,  label: nav.tours ?? '투어' },
+    { to: '/charter', icon: <Car className="w-[18px] h-[18px]" />,      label: nav.charter ?? '전세차량' },
+    { to: '/planner', icon: <Sparkles className="w-[18px] h-[18px]" />, label: nav.planner ?? 'AI 플래너' },
+    { to: user ? '/mypage' : '/planner', icon: <User className="w-[18px] h-[18px]" />, label: user ? (nav.myPage ?? '마이페이지') : (nav.login ?? '로그인') },
   ];
 
   return (
