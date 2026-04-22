@@ -119,7 +119,9 @@
     "incheon": "인천",
     "paju": "파주 + DMZ",
     "dmz": "DMZ",
-    "jeonju": "전주"
+    "jeonju": "전주",
+    "viewTours": "투어 보기",
+    "viewAll": "전체 여행지 보기"
   },
   "regionDetail": {
     "backToRegions": "지역 목록으로 돌아가기",
@@ -397,7 +399,8 @@
   },
   "cta": {
     "title": "코코트립은 전문성과 진심으로\n잊지 못할 여행을 만들어 드립니다.",
-    "button": "여행 문의하기"
+    "button": "여행 문의하기",
+    "scanWhatsApp": "왓츠앱으로 대화하기"
   },
   "footer": {
     "company": "코코트립",
@@ -414,7 +417,9 @@
     "about": "회사소개",
     "terms": "이용약관",
     "privacy": "개인정보처리방침",
-    "travelTerms": "여행약관"
+    "travelTerms": "여행약관",
+    "quickLinks": "빠른 링크",
+    "tagline": "프리미엄 한국 투어"
   },
   "booking": {
     "title": "여행 예약",

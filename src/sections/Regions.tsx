@@ -90,7 +90,7 @@ export function Regions({ t }: RegionsProps) {
                     isActive ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
                   }`}>
                     <button className="flex items-center gap-2 text-[#c0b283] text-sm font-medium mt-2">
-                      <span>View Tours</span>
+                      <span>{t.regions.viewTours}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -106,7 +106,7 @@ export function Regions({ t }: RegionsProps) {
         {/* View All Button */}
         <div className="text-center mt-12">
           <button className="inline-flex items-center gap-2 px-8 py-4 bg-[#0f3460] text-white rounded-full font-medium hover:bg-[#0f3460]/90 transition-colors duration-300">
-            <span>View All Destinations</span>
+            <span>{t.regions.viewAll}</span>
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>

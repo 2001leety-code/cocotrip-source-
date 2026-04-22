@@ -30,7 +30,9 @@
     "emailSupport": "メールサポート",
     "terms": "利用規約",
     "privacy": "プライバシー",
-    "travelTerms": "旅行規約"
+    "travelTerms": "旅行規約",
+    "quickLinks": "クイックリンク",
+    "tagline": "韓国プライベートツアー"
   },
   "heroCards": {
     "heading": "韓国旅行、どのようにお手伝いしましょうか？",
@@ -119,7 +121,9 @@
     "incheon": "仁川",
     "paju": "坡州 + DMZ",
     "dmz": "DMZ",
-    "jeonju": "全州"
+    "jeonju": "全州",
+    "viewTours": "ツアーを見る",
+    "viewAll": "すべての旅行先を見る"
   },
   "regionDetail": {
     "backToRegions": "地域一覧に戻る",
@@ -397,7 +401,8 @@
   },
   "cta": {
     "title": "ココトリップは専門性と誠意で\n忘れられない旅をお届けします。",
-    "button": "お問い合わせ"
+    "button": "お問い合わせ",
+    "scanWhatsApp": "WhatsAppでチャット"
   },
   "footer": {
     "company": "ココトリップ",

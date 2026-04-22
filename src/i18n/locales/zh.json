@@ -30,7 +30,9 @@
     "emailSupport": "邮件支持",
     "terms": "条款",
     "privacy": "隐私",
-    "travelTerms": "旅行条款"
+    "travelTerms": "旅行条款",
+    "quickLinks": "快速链接",
+    "tagline": "韩国私人旅游"
   },
   "heroCards": {
     "heading": "韩国旅行，我们如何帮助您？",
@@ -119,7 +121,9 @@
     "incheon": "仁川",
     "paju": "坡州 + DMZ",
     "dmz": "DMZ",
-    "jeonju": "全州"
+    "jeonju": "全州",
+    "viewTours": "查看旅游",
+    "viewAll": "查看所有目的地"
   },
   "regionDetail": {
     "backToRegions": "返回地区列表",
@@ -397,7 +401,8 @@
   },
   "cta": {
     "title": "可可之旅以专业和诚意\n为您打造难忘的旅程。",
-    "button": "立即咨询"
+    "button": "立即咨询",
+    "scanWhatsApp": "扫码通过WhatsApp聊天"
   },
   "footer": {
     "company": "可可之旅",

@@ -33,7 +33,7 @@ export function CTA({ t }: CTAProps) {
         {!isMobile && (
           <div className="mt-12 inline-block">
             <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <p className="text-sm text-gray-500 mb-4">Scan to chat on WhatsApp</p>
+              <p className="text-sm text-gray-500 mb-4">{t.cta.scanWhatsApp}</p>
               <img
                 src="/whatsapp-qr.jpg"
                 alt="WhatsApp QR Code"

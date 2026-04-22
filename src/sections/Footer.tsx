@@ -94,7 +94,7 @@ export function Footer({ t }: FooterProps) {
               </div>
               <div>
                 <span className="font-bold text-lg">COCOTRIP</span>
-                <span className="text-[#c0b283] text-xs block">KOREA PRIVATE TOUR</span>
+                <span className="text-[#c0b283] text-xs block">{t.footer.tagline}</span>
               </div>
             </div>
             
@@ -134,7 +134,7 @@ export function Footer({ t }: FooterProps) {
 
           {/* Quick Links */}
           <div className="border-t border-white/10 pt-8 md:pt-0 md:border-t-0">
-            <h3 className="text-lg font-bold mb-6 text-[#c0b283]">Quick Links</h3>
+            <h3 className="text-lg font-bold mb-6 text-[#c0b283]">{t.footer.quickLinks}</h3>
             <nav className="space-y-3">
               <a href="#services" className="block text-gray-400 hover:text-white transition-colors">{t.nav.privateTour}</a>
               <a href="#services" className="block text-gray-400 hover:text-white transition-colors">{t.nav.groupTour}</a>

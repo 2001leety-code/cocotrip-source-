@@ -119,7 +119,9 @@
     "incheon": "Incheon",
     "paju": "Paju + DMZ",
     "dmz": "DMZ",
-    "jeonju": "Jeonju"
+    "jeonju": "Jeonju",
+    "viewTours": "View Tours",
+    "viewAll": "View All Destinations"
   },
   "regionDetail": {
     "backToRegions": "Back to Regions",
@@ -397,7 +399,8 @@
   },
   "cta": {
     "title": "COCOTRIP creates unforgettable\ntravel experiences with expertise and sincerity.",
-    "button": "Inquire Now"
+    "button": "Inquire Now",
+    "scanWhatsApp": "Scan to chat on WhatsApp"
   },
   "footer": {
     "company": "COCOTRIP",
@@ -414,7 +417,9 @@
     "about": "About Us",
     "terms": "Terms of Service",
     "privacy": "Privacy Policy",
-    "travelTerms": "Travel Terms"
+    "travelTerms": "Travel Terms",
+    "quickLinks": "Quick Links",
+    "tagline": "KOREA PRIVATE TOUR"
   },
   "booking": {
     "title": "Plan Your Trip",
