@@ -11,9 +11,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getSpotContext } from './_spots_helper.js';
 import { getFoodContext } from './_food_helper.js';
 import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
-import { Buffer } from 'buffer';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import { sendMessage, sendErrorAlert } from './_telegram.js';
 
 // ── Extracted modules ─────────────────────────────────────────────────────
@@ -24,6 +21,8 @@ import { applyDBMatcher } from './_ai_core/dbMatcher.js';
 import { calculateTmoney, persistPlan } from './_ai_core/planPersister.js';
 import { sendNotificationEmail, recordLeadToSheets } from './_ai_core/emailNotifier.js';
 import { pass1Intent, pass2Resolve, pass3Enrich } from './_ai_core/threePassPipeline.js';
+import { initAdminDb } from './_ai_core/firestoreAdmin.js';
+import { enforcePaymentAndRevision } from './_ai_core/paymentGate.js';
 
 // Feature flag: 'legacy' (default) or '3pass'
 const PLANNER_MODE = (process.env.PLANNER_MODE || 'legacy').trim();
@@ -35,43 +34,7 @@ export const config = { runtime: 'nodejs' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR', extra) => ({ ok: false, error: msg, code, ...extra });
 
-// ── firebase-admin 초기화 ─────────────────────────────────────────────────
-let adminDb = null;
-try {
-  const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
-  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-
-  let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
-    .replace(/^\uFEFF/, '')
-    .replace(/^["']|["']$/g, '')
-    .replace(/\\n/g, '\n')
-    .trim();
-
-  let privateKey = '';
-  const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
-  if (pemMatch) {
-    const base64Clean = pemMatch[1].replace(/\s+/g, '');
-    const lines = base64Clean.match(/.{1,64}/g) || [];
-    privateKey = '-----BEGIN PRIVATE KEY-----\n' + lines.join('\n') + '\n-----END PRIVATE KEY-----\n';
-  } else {
-    privateKey = rawKey;
-  }
-
-  console.log('[ai-planner-full] Key:', { projectId: projectId ? 'ok' : 'MISSING', clientEmail: clientEmail ? 'ok' : 'MISSING', keyLen: privateKey.length, pem: !!pemMatch });
-
-  if (projectId && clientEmail && privateKey) {
-    const adminApp = getApps().length ? getApps()[0] : initializeApp({
-      credential: cert({ projectId, clientEmail, privateKey }),
-    });
-    adminDb = getAdminFirestore(adminApp);
-    adminDb.settings({ ignoreUndefinedProperties: true });
-    console.log('[ai-planner-full] firebase-admin initialized OK');
-  } else {
-    console.warn('[ai-planner-full] firebase-admin keys missing — Firestore disabled');
-  }
-} catch (e) {
-  console.error('[ai-planner-full] firebase-admin init failed:', e.message);
-}
+const adminDb = initAdminDb();
 
 // ── 차량 타입 결정 ─────────────────────────────────────────────────────────
 function selectVehicle(pax, requestedVehicle) {
@@ -104,111 +67,14 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    // ── 재생성 모드 (Revision) ──────────────────────────────────────────────
-    const revisionOf = body.revisionOf;
-    const revisionToken = body.revisionToken;
-    let isRevision = false;
-
-    if (revisionOf && adminDb) {
-      console.log('[planner] Revision mode — checking credits for plan:', revisionOf);
-      const origRef = adminDb.collection('plans').doc(revisionOf);
-      const origDoc = await origRef.get();
-      if (!origDoc.exists) {
-        res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify(_err('Original plan not found', 'NOT_FOUND')));
-      }
-      const origData = origDoc.data();
-      const uid = body.uid || null;
-      const isOwner = uid && origData.uid === uid;
-      const hasToken = origData.accessToken && origData.accessToken === revisionToken;
-      if (!isOwner && !hasToken && origData.uid) {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify(_err('Unauthorized revision', 'FORBIDDEN')));
-      }
-      const credits = origData.revisionCredits ?? 0;
-      if (credits <= 0) {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify(_err('No revision credits remaining', 'REVISION_EXHAUSTED', { details: 'You have already used your free revision.' })));
-      }
-      await origRef.update({
-        revisionCredits: FieldValue.increment(-1),
-        revisionCount: FieldValue.increment(1),
-        lastRevisionAt: new Date().toISOString(),
-      });
-      isRevision = true;
-      console.log('[planner] ✅ Revision credit consumed. Remaining:', credits - 1);
+    // ── 결제 + 재생성 게이트 ────────────────────────────────────────────────
+    const gate = await enforcePaymentAndRevision(body, adminDb);
+    if (gate.rejection) {
+      const { statusCode, code, message, details } = gate.rejection;
+      res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(_err(message, code, details ? { details } : undefined)));
     }
-
-    // ── PayPal 결제 검증 (revision 모드가 아닐 때만) ────────────────────────
-    const paypalOrderId = body.paypalOrderId;
     const requestEmail = (body.email || '').toLowerCase().trim();
-
-    if (!isRevision && !paypalOrderId) {
-      res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify(_err('Payment required', 'PAYMENT_REQUIRED', { details: 'PayPal order ID is missing. Please complete payment first.' })));
-    }
-
-    const TEST_ACCOUNTS = ['2001leety@gmail.com'];
-    const isTestAccount = TEST_ACCOUNTS.includes(requestEmail);
-
-    if (!isRevision && paypalOrderId) {
-      const isTestOrderId = paypalOrderId.startsWith('TEST-');
-      if (isTestOrderId && isTestAccount) {
-        console.log('[planner] ✅ TEST MODE bypass — skipping PayPal verification for:', requestEmail);
-      } else if (isTestOrderId && !isTestAccount) {
-        res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify(_err('Unauthorized test mode', 'FORBIDDEN', { details: 'Test mode is only available for authorized accounts.' })));
-      } else {
-        const ppClientId = isTestAccount
-          ? process.env.PAYPAL_SANDBOX_CLIENT_ID
-          : process.env.PAYPAL_CLIENT_ID;
-        const ppSecret = isTestAccount
-          ? process.env.PAYPAL_SANDBOX_SECRET
-          : process.env.PAYPAL_CLIENT_SECRET;
-        const ppBase = isTestAccount
-          ? 'https://api-m.sandbox.paypal.com'
-          : 'https://api-m.paypal.com';
-
-        console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
-
-        const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
-        const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
-          method: 'POST',
-          headers: { 'Authorization': `Basic ${ppCreds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'grant_type=client_credentials',
-        });
-        if (!tokenRes.ok) {
-          const tokenBody = await tokenRes.text().catch(() => '');
-          console.error('[planner] PayPal auth failed:', tokenRes.status, tokenBody);
-          res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify(_err(`PayPal auth ${tokenRes.status}: ${tokenBody}`, 'PAYPAL_AUTH_ERROR')));
-        }
-        const ppToken = (await tokenRes.json()).access_token;
-
-        const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
-          headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
-        });
-        const orderData = await orderRes.json();
-        console.log('[planner] PayPal order status:', orderData.status, 'id:', paypalOrderId);
-
-        if (orderData.status !== 'COMPLETED' && orderData.status !== 'APPROVED') {
-          res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify(_err('Payment not completed', 'PAYMENT_INCOMPLETE', { details: `Order status: ${orderData.status}` })));
-        }
-
-        if (adminDb) {
-          const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
-          const usedDoc = await usedRef.get();
-          if (usedDoc.exists) {
-            res.writeHead(403, { ...CORS, 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(_err('Order already used', 'DUPLICATE_ORDER', { details: 'This payment has already been used to generate a plan.' })));
-          }
-          await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
-        }
-      }
-    }
-
-    console.log('[planner] ✅ Auth passed:', isRevision ? `REVISION of ${revisionOf}` : paypalOrderId);
 
     // ── 입력 파싱 ──────────────────────────────────────────────────────────
     const guestName = body.guest_name || body.guestName || 'Guest';
