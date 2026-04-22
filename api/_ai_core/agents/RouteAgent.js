@@ -2,6 +2,36 @@ import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 
+// Map the Wizard / Gemini `area` value to the matching charter product in
+// createPaypalOrder.js PRODUCT_PRICES so the "book a charter" CTA deep-links
+// to the correct regional tour instead of always offering Seoul.
+// Unknown / unpriced regions (e.g. jeju) fall back to charter_seoul_city;
+// the client side still filters out regions that don't offer a charter.
+const REGION_TO_CHARTER_PRODUCT = {
+    seoul_city: 'charter_seoul_city',
+    seoul: 'charter_seoul_city',
+    seoul_suburb: 'charter_seoul_suburb',
+    dmz: 'charter_dmz',
+    incheon: 'charter_seoul_city',
+    suwon: 'charter_seoul_suburb',
+    gangwon: 'charter_gangwon',
+    gangneung: 'charter_gangwon',
+    chuncheon: 'charter_gangwon',
+    pyeongchang: 'charter_ski',
+    ski: 'charter_ski',
+    gyeongju: 'charter_gyeongju',
+    jeonju: 'charter_gyeongju',
+    busan: 'charter_busan',
+    yeosu: 'charter_busan',
+    daegu: 'charter_busan',
+};
+
+function regionToCharterProduct(region) {
+    if (!region) return 'charter_seoul_city';
+    const key = String(region).toLowerCase();
+    return REGION_TO_CHARTER_PRODUCT[key] || 'charter_seoul_city';
+}
+
 export class RouteAgent extends BaseAgent {
     constructor(apiKey) {
         super(apiKey, "route");
@@ -37,6 +67,7 @@ export class RouteAgent extends BaseAgent {
         const rawItinerary = data.itinerary || {};
         const hotelAddress = data.hotel_address || '';
         const region = data.area || data.region || '';
+        const charterProductType = regionToCharterProduct(region);
         const daysList = Array.isArray(rawItinerary) ? rawItinerary : (rawItinerary.days || []);
 
         for (const dayPlan of daysList) {
@@ -235,7 +266,7 @@ export class RouteAgent extends BaseAgent {
                                 estimatedFare: (transit.drivingMin || transit.durationMin || 25) * 200 + 4800,
                                 disclaimer: "추정 요금",
                             },
-                            cocotrip: { available: true, productType: "charter_seoul_city" },
+                            cocotrip: { available: true, productType: charterProductType },
                             ...(pt && pt.method !== 'walk' ? { publicTransit: pt } : {}),
                         },
                     };
@@ -248,7 +279,7 @@ export class RouteAgent extends BaseAgent {
                         distanceKm: 5.0,
                         naverDirectionsUrl: place.naverMapUrl,
                         transitOptions: {
-                            cocotrip: { available: true, productType: "charter_seoul_city" },
+                            cocotrip: { available: true, productType: charterProductType },
                         },
                     };
                 }
