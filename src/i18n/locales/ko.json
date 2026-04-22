@@ -1181,7 +1181,9 @@
       "alsoTransfers": "환승 가능",
       "accessibleExit": "장애인 편의시설 있음",
       "stationInfo": "역 정보",
-      "lostAndFound": "분실물 센터"
+      "lostAndFound": "분실물 센터",
+      "firstTrain": "첫차",
+      "lastTrain": "막차"
     },
     "editor": {
       "editMode": "Edit",

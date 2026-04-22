@@ -1,6 +1,6 @@
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
-import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo } from "../../_odsay_helper.js";
+import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 
 export class RouteAgent extends BaseAgent {
     constructor(apiKey) {
@@ -9,6 +9,10 @@ export class RouteAgent extends BaseAgent {
         // A typical plan touches <=20 unique subway stations, well within ODsay's
         // 1000 calls/day Basic tier budget.
         this._stationCache = {};
+        // Separate cache for Seoul Open Data timetable API (first/last train).
+        // Key is stationID:WEEK_TAG so weekday vs weekend of same station
+        // don't collide across days.
+        this._timetableCache = {};
     }
     async call(userPrompt) {
         console.log("\n[Route] Naver Maps + ODsay Transit + Time Stitching...");
@@ -37,6 +41,11 @@ export class RouteAgent extends BaseAgent {
 
         for (const dayPlan of daysList) {
             const places = dayPlan.stops || dayPlan.places || [];
+            // Derive weekday for first/last-train lookup. Gemini writes
+            // dayPlan.date as "YYYY-MM-DD"; Date.getDay() -> 0=Sun..6=Sat
+            // which we map to WEEK_TAG inside getSubwayTimetable.
+            const dayDate = dayPlan.date ? new Date(dayPlan.date) : null;
+            const dayOfWeek = (dayDate && !isNaN(dayDate.getTime())) ? dayDate.getDay() : null;
 
             // ════════════════════════════════════════════════════════
             // Phase 1: 모든 장소의 좌표 확보 (Naver Geocoding)
@@ -90,7 +99,7 @@ export class RouteAgent extends BaseAgent {
                 const curr = places[i];
                 if (prev.lat && prev.lng && curr.lat && curr.lng) {
                     transitPromises.push(
-                        this._getTransitData(prev, curr, clientId, clientSecret, i)
+                        this._getTransitData(prev, curr, clientId, clientSecret, i, dayOfWeek)
                     );
                 } else {
                     transitPromises.push(Promise.resolve({
@@ -267,7 +276,7 @@ export class RouteAgent extends BaseAgent {
     /**
      * 단일 구간의 경로 데이터를 병렬로 가져오기 (Naver Driving + ODsay Transit)
      */
-    async _getTransitData(prev, curr, clientId, clientSecret, index) {
+    async _getTransitData(prev, curr, clientId, clientSecret, index, dayOfWeek) {
         let durationMin = 25;
         let distanceKm = 5.0;
         let drivingMin = null;
@@ -307,17 +316,24 @@ export class RouteAgent extends BaseAgent {
             console.log(`  ✓ [${name}] ODsay: ${odsayResult.value.type} ${odsayResult.value.totalTime}min ₩${odsayResult.value.fare}`);
 
             // Enrich each subway step with station metadata (transfer lines,
-            // accessibility, lost&found). Parallelised; cache prevents duplicate
-            // calls across segments that touch the same station.
+            // accessibility, lost&found) + first/last train times. All
+            // parallelised; caches prevent duplicate calls across segments
+            // that touch the same station.
             if (publicTransit?.steps?.length) {
                 const enrichments = publicTransit.steps.map(async (step) => {
                     if (step.mode !== 'subway') return;
-                    const [fromInfo, toInfo] = await Promise.all([
+                    const calls = [
                         getSubwayStationInfo(step.fromStationID, this._stationCache),
                         getSubwayStationInfo(step.toStationID, this._stationCache),
-                    ]);
+                    ];
+                    // Timetable needs weekday — only run if we have a valid day
+                    if (dayOfWeek !== null && dayOfWeek !== undefined) {
+                        calls.push(getSubwayTimetable(step.fromStationID, dayOfWeek, this._timetableCache));
+                    }
+                    const [fromInfo, toInfo, fromTimetable] = await Promise.all(calls);
                     if (fromInfo) step.fromStationInfo = fromInfo;
                     if (toInfo) step.toStationInfo = toInfo;
+                    if (fromTimetable) step.fromTimetable = fromTimetable;
                 });
                 await Promise.all(enrichments);
             }

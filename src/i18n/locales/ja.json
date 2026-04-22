@@ -1181,7 +1181,9 @@
       "alsoTransfers": "乗換可能",
       "accessibleExit": "バリアフリー設備あり",
       "stationInfo": "駅情報",
-      "lostAndFound": "遺失物センター"
+      "lostAndFound": "遺失物センター",
+      "firstTrain": "始発",
+      "lastTrain": "終電"
     },
     "editor": {
       "editMode": "Edit",

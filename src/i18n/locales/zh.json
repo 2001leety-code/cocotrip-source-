@@ -1181,7 +1181,9 @@
       "alsoTransfers": "可换乘",
       "accessibleExit": "提供无障碍设施",
       "stationInfo": "车站信息",
-      "lostAndFound": "失物招领"
+      "lostAndFound": "失物招领",
+      "firstTrain": "首班车",
+      "lastTrain": "末班车"
     },
     "editor": {
       "editMode": "Edit",

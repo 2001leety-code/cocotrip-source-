@@ -68,6 +68,18 @@ export interface SubwayStationInfo {
   hasRestroom?: boolean;
 }
 
+/** First / last train times per direction, from Seoul Open Data API */
+export interface SubwayTrainTimes {
+  first?: string | null;      // "05:35" — first departure
+  last?: string | null;        // "00:46 (+1)" — last departure (formatted with next-day marker)
+  firstDest?: string | null;   // Direction label (terminus)
+  lastDest?: string | null;
+}
+export interface SubwayTimetable {
+  up?: SubwayTrainTimes | null;    // INOUT_TAG=1
+  down?: SubwayTrainTimes | null;  // INOUT_TAG=2
+}
+
 /** One step of a multi-modal transit route — matches parseSubPath() in api/_odsay_helper.js */
 export interface TransitStepDetail {
   mode: 'subway' | 'bus' | 'walk';
@@ -82,6 +94,7 @@ export interface TransitStepDetail {
   toStationID?: number | null;
   fromStationInfo?: SubwayStationInfo;
   toStationInfo?: SubwayStationInfo;
+  fromTimetable?: SubwayTimetable;     // First/last train at the boarding station
   from?: string;
   fromRoman?: string | null;          // Romanized station name for non-ko UIs
   to?: string;

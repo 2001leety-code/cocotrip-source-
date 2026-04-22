@@ -2,7 +2,7 @@
 // line, exit numbers, headway, pass-through stations. Falls back to simple
 // text step_by_step when steps_detail is unavailable (legacy plans).
 import { useState } from 'react';
-import { Car, ChevronDown, Bus, Train, AlertTriangle, Footprints, Clock, LogOut, LogIn, Repeat, Accessibility, Phone } from 'lucide-react';
+import { Car, ChevronDown, Bus, Train, AlertTriangle, Footprints, Clock, LogOut, LogIn, Repeat, Accessibility, Phone, Sunrise, Moon } from 'lucide-react';
 import { TRANSIT_ICON, formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { TransitFromPrev, TransitStepDetail } from '@/types/plan';
@@ -71,6 +71,32 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
           ))}
         </div>
       )}
+      {step.fromTimetable && (() => {
+        // Pick the direction whose terminus matches this leg's `way`; if no
+        // overlap, fall back to whichever direction has data so travellers
+        // still see a first/last reference.
+        const tt = step.fromTimetable;
+        const matches = (t: { lastDest?: string | null } | null | undefined) =>
+          !!(t?.lastDest && step.way && (t.lastDest.includes(step.way) || step.way.includes(t.lastDest)));
+        const chosen = matches(tt.up) ? tt.up : matches(tt.down) ? tt.down : (tt.up || tt.down);
+        if (!chosen || (!chosen.first && !chosen.last)) return null;
+        return (
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[9px]">
+            {chosen.first && (
+              <span className="inline-flex items-center gap-1 text-white/50">
+                <Sunrise className="w-2.5 h-2.5" />
+                <span>{trKeys.firstTrain || 'First train'} {chosen.first}</span>
+              </span>
+            )}
+            {chosen.last && (
+              <span className="inline-flex items-center gap-1 text-pink-300 font-semibold">
+                <Moon className="w-2.5 h-2.5" />
+                <span>{trKeys.lastTrain || 'Last train'} {chosen.last}</span>
+              </span>
+            )}
+          </div>
+        );
+      })()}
       {(step.toStationInfo?.hasElevator || step.toStationInfo?.hasWheelchairLift) && (
         <div className="mt-1 flex items-center gap-1.5 text-[9px] text-emerald-400/70">
           <Accessibility className="w-2.5 h-2.5" />

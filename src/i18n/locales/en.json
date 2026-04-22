@@ -1181,7 +1181,9 @@
       "alsoTransfers": "Also transfers",
       "accessibleExit": "Accessible exit available",
       "stationInfo": "Station info",
-      "lostAndFound": "Lost & found"
+      "lostAndFound": "Lost & found",
+      "firstTrain": "First train",
+      "lastTrain": "Last train"
     },
     "editor": {
       "editMode": "Edit",

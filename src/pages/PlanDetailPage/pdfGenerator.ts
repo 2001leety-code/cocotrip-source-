@@ -186,11 +186,23 @@ export async function generatePDF(
               const lostHtml = toInfo?.lostCenterPhone
                 ? `<p style="font-size:8px;color:${C.muted};margin:2px 0 0;">${transitDict?.lostAndFound || 'Lost & found'}: ${toInfo.lostCenterPhone}</p>`
                 : '';
+              // First/last train: pick the direction matching this leg's `way`,
+              // else fall back to whichever has data.
+              const tt = s.fromTimetable as { up?: { first?: string; last?: string; lastDest?: string } | null; down?: { first?: string; last?: string; lastDest?: string } | null } | undefined;
+              let chosenTrains: { first?: string; last?: string } | null = null;
+              if (tt) {
+                const way = s.way as string | undefined;
+                const m = (t: { lastDest?: string } | null | undefined) => !!(t?.lastDest && way && (t.lastDest.includes(way) || way.includes(t.lastDest)));
+                chosenTrains = m(tt.up) ? tt.up || null : m(tt.down) ? tt.down || null : (tt.up || tt.down || null);
+              }
+              const trainHtml = chosenTrains && (chosenTrains.first || chosenTrains.last)
+                ? `<p style="font-size:8px;margin:2px 0 0;">${chosenTrains.first ? `<span style="color:${C.muted};">${transitDict?.firstTrain || 'First train'} ${chosenTrains.first}</span>` : ''}${chosenTrains.first && chosenTrains.last ? ' \u00B7 ' : ''}${chosenTrains.last ? `<span style="color:#db2777;font-weight:600;">${transitDict?.lastTrain || 'Last train'} ${chosenTrains.last}</span>` : ''}</p>`
+                : '';
               return `<div style="margin:3px 0 3px 8px;padding:4px 8px;background:#ffffff;border:1px solid ${C.border};border-radius:4px;">
                 <p style="font-size:10px;color:${C.heading};margin:0;">${head}</p>
                 <p style="font-size:9px;color:${C.sub};margin:1px 0 0;">${route}</p>
                 <p style="font-size:9px;color:${C.muted};margin:1px 0 0;">${meta}</p>
-                ${transferHtml}${accessibleHtml}${lostHtml}
+                ${trainHtml}${transferHtml}${accessibleHtml}${lostHtml}
               </div>`;
             }
             if (s.mode === 'bus') {

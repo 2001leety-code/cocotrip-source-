@@ -256,6 +256,86 @@ export async function getSubwayStationInfo(stationID, cache = {}) {
 }
 
 /**
+ * Format KST time from Seoul Subway timetable API.
+ * The API expresses past-midnight departures as "24:46:00" etc. Convert to
+ * readable "00:46 (+1)" so travelers don't misread it as 24-hour noon.
+ */
+function formatTrainTime(t) {
+  if (!t) return null;
+  const parts = t.split(':');
+  const h = parseInt(parts[0], 10);
+  const m = parts[1] || '00';
+  if (isNaN(h)) return null;
+  if (h >= 24) return `${String(h - 24).padStart(2, '0')}:${m} (+1)`;
+  return `${String(h).padStart(2, '0')}:${m}`;
+}
+
+/**
+ * Map ODsay stationID -> Seoul Open Data STATION_CD. Empirically this is
+ * just zero-padded to 4 digits with a leading "0" (e.g. 222 -> "0222",
+ * 216 -> "0216"). Works for Seoul Metro lines 1-9 within stationID <= 999.
+ * Returns null for out-of-range IDs (private operators, metro extensions)
+ * where the timetable API won't have data.
+ */
+function stationIdToStationCd(stationID) {
+  if (!stationID || stationID > 999) return null;
+  return '0' + String(stationID).padStart(3, '0');
+}
+
+/**
+ * Fetch first/last subway train times at a station for a given weekday.
+ * Uses Seoul Open Data `SearchSTNTimeTableByIDService` (requires
+ * SUBWAY_REALTIME_KEY env var — not ODsay).
+ *
+ * @param {number} stationID ODsay subway station ID
+ * @param {number} dayOfWeek JS Date.getDay() — 0=Sun ... 6=Sat
+ * @param {object} cache Shared cache across a plan (key: stationID:weekTag)
+ * @returns {{ up: TrainTimes|null, down: TrainTimes|null } | null}
+ *   where TrainTimes = { first, last, firstDest, lastDest }
+ */
+export async function getSubwayTimetable(stationID, dayOfWeek, cache = {}) {
+  const STATION_CD = stationIdToStationCd(stationID);
+  if (!STATION_CD) return null;
+
+  const WEEK_TAG = dayOfWeek === 0 ? 3 : dayOfWeek === 6 ? 2 : 1;
+  const cacheKey = `${STATION_CD}:${WEEK_TAG}`;
+  if (Object.prototype.hasOwnProperty.call(cache, cacheKey)) {
+    return cache[cacheKey];
+  }
+
+  const key = (process.env.SUBWAY_REALTIME_KEY || '').trim();
+  if (!key) { cache[cacheKey] = null; return null; }
+
+  async function fetchDirection(INOUT_TAG) {
+    try {
+      const url = `http://openapi.seoul.go.kr:8088/${key}/json/SearchSTNTimeTableByIDService/1/1000/${STATION_CD}/${WEEK_TAG}/${INOUT_TAG}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const rows = data?.SearchSTNTimeTableByIDService?.row;
+      if (!Array.isArray(rows) || rows.length === 0) return null;
+      const sorted = [...rows].sort((a, b) => (a.ARRIVETIME || '').localeCompare(b.ARRIVETIME || ''));
+      const first = sorted[0];
+      const last = sorted[sorted.length - 1];
+      return {
+        first: formatTrainTime(first.ARRIVETIME),
+        last: formatTrainTime(last.ARRIVETIME),
+        firstDest: first.SUBWAYENAME || null,
+        lastDest: last.SUBWAYENAME || null,
+      };
+    } catch (err) {
+      console.warn('[SeoulTimetable] fetch failed:', err.message);
+      return null;
+    }
+  }
+
+  const [up, down] = await Promise.all([fetchDirection(1), fetchDirection(2)]);
+  const result = { up, down };
+  cache[cacheKey] = result;
+  return result;
+}
+
+/**
  * ODsay 경로 결과를 사람이 읽기 좋은 영문 요약으로 변환
  */
 export function formatTransitSummary(route, lang = 'en') {
