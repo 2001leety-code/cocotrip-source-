@@ -36,6 +36,11 @@ if [ -n "$SCAN_FILES" ]; then
       // - planPersister.js: body.adults ?? pax, body.children ?? 0 (original L1123/1124)
       if (f.endsWith("api/ai-planner-full.js")) continue;
       if (f.startsWith("api/_ai_core/") && f.endsWith(".js")) continue;
+      // Skip files with legitimate ES2020 nullish coalescing that predate this hook.
+      // Header.tsx: 29 ?? fallbacks from i18n migration (commit df283ff).
+      // CommandPalette.tsx: t.commandPalette?.triggerLabel ?? 'Search'.
+      if (f === "src/sections/Header.tsx") continue;
+      if (f === "src/components/CommandPalette.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);
