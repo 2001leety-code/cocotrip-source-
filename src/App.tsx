@@ -50,6 +50,7 @@ const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
 
 
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
+import { CommandPaletteProvider } from '@/components/CommandPalette';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -136,6 +137,7 @@ function App() {
     <LanguageProvider>
       <ErrorBoundary>
       <BrowserRouter>
+        <CommandPaletteProvider>
         <GlobalWidgets />
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -215,6 +217,7 @@ function App() {
           />
         </Routes>
         <MobileBottomSpacer />
+        </CommandPaletteProvider>
       </BrowserRouter>
       </ErrorBoundary>
     </LanguageProvider>

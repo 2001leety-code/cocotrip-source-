@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, LogOut, LogIn, Check } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, LogOut, LogIn, Check, Search } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -15,6 +15,7 @@ import { signOut } from 'firebase/auth';
 import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
+import { useCommandPalette } from '@/components/CommandPalette';
 
 interface HeaderProps {
   language: Language;
@@ -35,6 +36,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const location = useLocation();
+  const { toggle: toggleCommandPalette } = useCommandPalette();
   const [langToast, setLangToast] = useState<string | null>(null);
   const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -163,6 +165,21 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
           {/* ═══ Right: Utilities ═══ */}
           <div className="flex items-center gap-1.5 sm:gap-2 ml-auto lg:ml-0 shrink-0">
+
+            {/* Global Search (Cmd/Ctrl+K) */}
+            <button
+              onClick={toggleCommandPalette}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 text-white/50 hover:text-white hover:bg-white/[0.06]"
+              title={`${t.commandPalette?.triggerLabel ?? 'Search'}  ⌘K`}
+              aria-label={t.commandPalette?.triggerLabel ?? 'Search'}
+            >
+              <Search className="w-[18px] h-[18px]" />
+              {!isMobile && (
+                <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-[10px] font-mono text-white/40">
+                  ⌘K
+                </kbd>
+              )}
+            </button>
 
             {/* Loyalty Badge (desktop, logged-in) */}
             {user && !isMobile && <LoyaltyBadge />}
