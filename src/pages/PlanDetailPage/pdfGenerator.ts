@@ -110,14 +110,89 @@ export async function generatePDF(
 
   // Arrival Guide
   if (arrival) {
+    const ag = arrival as Record<string, unknown>;
+    const route = ag.route_to_hotel as Record<string, unknown> | undefined;
+    const rec = route?.recommended_option as Record<string, string> | undefined;
+    const recReason = rec
+      ? ((lang === 'ko' && rec.reason_ko) || (lang === 'ja' && rec.reason_ja) || (lang === 'zh' && rec.reason_zh) || rec.reason_en || '')
+      : '';
+
     html += `<div style="background:${C.cardBg};border:1px solid ${C.border};border-radius:10px;padding:16px;margin-bottom:16px;">
       <h3 style="font-size:15px;font-weight:700;color:${C.heading};margin:0 0 10px;">${L.arrivalGuide} \u2014 ${arrival.airport || ''}</h3>`;
-    (arrival.steps || []).forEach((step: { step: number; title: string; description?: string; est_min?: number }) => {
-      html += `<div style="margin:6px 0;padding:6px 0;border-bottom:1px solid ${C.border};">
-        <p style="font-size:12px;color:${C.heading};margin:0;"><strong>Step ${step.step}: ${step.title}</strong></p>
+
+    // Hero: recommended option (charter cross-sell or transit)
+    if (rec) {
+      if (rec.key === 'cocotrip_charter') {
+        // Charter cross-sell card — branded gradient, with reason
+        html += `<div style="background:linear-gradient(135deg,rgba(124,92,252,0.12),rgba(234,83,126,0.08));border:1px solid ${C.accent};border-radius:8px;padding:12px;margin-bottom:12px;">
+          <p style="font-size:9px;font-weight:700;color:#FBBC05;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px;">★ ${uiDict?.pdfRecommended || 'Recommended'}</p>
+          <p style="font-size:13px;font-weight:700;color:${C.accent};margin:0 0 4px;">${uiDict?.charterRecTitle || 'CocoTrip Private Charter'}</p>
+          <p style="font-size:10px;color:${C.sub};margin:0 0 6px;">${uiDict?.charterRecSub || 'Door-to-door · driver loads all luggage · English-speaking'}</p>
+          <p style="font-size:10px;color:${C.heading};background:#fff;border:1px solid ${C.border};border-radius:4px;padding:6px 8px;margin:0;">⚠ ${recReason}</p>
+        </div>`;
+      } else if (route) {
+        // Transit recommendation — show summary line
+        const labels: Record<string, string> = {
+          arex_express: 'AREX Express',
+          arex_all_stop: 'AREX All Stop',
+          limousine_bus: 'Limousine Bus',
+        };
+        const recLabel = labels[rec.key] || rec.key;
+        html += `<div style="background:linear-gradient(135deg,rgba(124,92,252,0.10),rgba(234,83,126,0.06));border:1px solid ${C.accent};border-radius:8px;padding:12px;margin-bottom:12px;">
+          <p style="font-size:9px;font-weight:700;color:#FBBC05;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px;">★ ${uiDict?.pdfRecommended || 'Recommended'}</p>
+          <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0 0 2px;">${recLabel}</p>
+          <p style="font-size:10px;color:${C.muted};margin:0 0 6px;">${(route.est_min as number) || '?'}${L.min}${(route.est_fare_krw as number) ? ' \u00B7 ' + formatKRW((route.est_fare_krw as number) || 0) : ''}${(route.transfers as number) ? ' \u00B7 ' + (route.transfers as number) + ' transfer' : ''}</p>
+          ${recReason ? `<p style="font-size:10px;color:${C.sub};margin:0;">\uD83D\uDCA1 ${recReason}</p>` : ''}
+        </div>`;
+      }
+    }
+
+    (arrival.steps || []).forEach((step: { step: number; title: string; description?: string; est_min?: number; transport_to_hotel?: Record<string, { price_krw?: number; est_price_krw?: number; duration_min?: number } | null>; t_money_recommended_load_krw?: number; options?: Array<{ name: string; price_krw?: number }> }) => {
+      html += `<div style="margin:6px 0;padding:8px 0;border-bottom:1px solid ${C.border};">
+        <p style="font-size:12px;color:${C.heading};margin:0;"><strong>${uiDict?.pdfStep || 'Step'} ${step.step}: ${step.title}</strong></p>
         <p style="font-size:11px;color:${C.sub};margin:2px 0 0;">${step.description || ''}</p>
-        ${(step.est_min || 0) > 0 ? `<p style="font-size:10px;color:${C.accent};margin:2px 0 0;">~${step.est_min} ${L.min}</p>` : ''}
-      </div>`;
+        ${(step.est_min || 0) > 0 ? `<p style="font-size:10px;color:${C.accent};margin:2px 0 0;">~${step.est_min} ${L.min}</p>` : ''}`;
+
+      // Sub-options (SIM/Wi-Fi etc.)
+      if (step.options && step.options.length > 0) {
+        html += `<div style="margin-top:6px;">`;
+        step.options.forEach((opt) => {
+          html += `<p style="font-size:10px;color:${C.sub};margin:2px 0;display:flex;justify-content:space-between;"><span>\u00B7 ${opt.name}</span><strong style="color:${C.accent};">${formatKRW(opt.price_krw || 0)}</strong></p>`;
+        });
+        html += `</div>`;
+      }
+
+      // Transport-to-hotel comparison grid (Step 5)
+      if (step.transport_to_hotel) {
+        const TRANSPORT_LABELS: Record<string, string> = {
+          arex_express: 'AREX Express',
+          arex_all_stop: 'AREX All Stop',
+          limousine_bus: 'Limousine Bus',
+          taxi: 'Taxi',
+        };
+        const opts = Object.entries(step.transport_to_hotel).filter(([, v]) => v != null);
+        if (opts.length > 0) {
+          html += `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:10px;">`;
+          opts.forEach(([key, val]) => {
+            const isRec = rec?.key === key;
+            const bg = isRec ? '#fff8e0' : '#fff';
+            const labelText = TRANSPORT_LABELS[key] || key.replace(/_/g, ' ');
+            html += `<tr style="background:${bg};border-bottom:1px solid ${C.border};">
+              <td style="padding:4px 6px;${isRec ? 'font-weight:700;color:#B45309;' : 'color:' + C.heading + ';'}">${isRec ? '\u2605 ' : ''}${labelText}</td>
+              <td style="padding:4px 6px;text-align:right;color:${C.heading};font-weight:600;">${formatKRW(val?.price_krw || val?.est_price_krw || 0)}</td>
+              <td style="padding:4px 6px;text-align:right;color:${C.muted};">${val?.duration_min || '?'}${L.min}</td>
+            </tr>`;
+          });
+          html += `</table>`;
+        }
+      }
+
+      // T-money load chip
+      if ((step.t_money_recommended_load_krw ?? 0) > 0) {
+        html += `<p style="font-size:10px;color:${C.accent};margin:6px 0 0;background:rgba(124,92,252,0.08);border:1px solid ${C.accent};border-radius:4px;padding:4px 8px;display:inline-block;font-weight:700;">\uD83D\uDCB3 ${uiDict?.tmoneyLoad || 'Load'} ${formatKRW(step.t_money_recommended_load_krw ?? 0)}</p>`;
+      }
+
+      html += `</div>`;
     });
     html += '</div>';
   }
@@ -321,16 +396,41 @@ export async function generatePDF(
 
   // Departure Guide
   if (departure) {
-    html += `<div style="background:${C.cardBg};border:1px solid ${C.border};border-radius:10px;padding:16px;margin-bottom:16px;">
-      <h3 style="font-size:15px;font-weight:700;color:${C.heading};margin:0 0 10px;">${L.departureGuide} \u2014 ${departure.airport || ''}</h3>`;
-    if (departure.to_airport) {
-      html += `<p style="font-size:11px;color:${C.sub};margin:0;">${departure.to_airport.method} \u00B7 ${departure.to_airport.instruction || ''} (${departure.to_airport.duration_min || '?'}min, ${formatKRW(departure.to_airport.cost_krw || 0)})</p>`;
+    const dg = departure as Record<string, unknown>;
+    const depRoute = dg.route_to_airport as Record<string, unknown> | undefined;
+    html += `<div style="background:${C.cardBg};border:1px solid ${C.pink};border-radius:10px;padding:16px;margin-bottom:16px;">
+      <h3 style="font-size:15px;font-weight:700;color:${C.pink};margin:0 0 10px;">\u2708 ${L.departureGuide} \u2014 ${departure.airport || ''}</h3>`;
+
+    // Hero: ODsay route hotel→airport (preferred)
+    if (depRoute) {
+      html += `<div style="background:linear-gradient(135deg,rgba(234,83,126,0.10),rgba(251,146,60,0.06));border:1px solid ${C.pink};border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+        <p style="font-size:12px;font-weight:700;color:${C.pink};margin:0 0 2px;">${uiDict?.toAirport || 'To Airport'}</p>
+        <p style="font-size:10px;color:${C.muted};margin:0 0 6px;">${(depRoute.est_min as number) || '?'}${L.min}${(depRoute.est_fare_krw as number) ? ' \u00B7 ' + formatKRW((depRoute.est_fare_krw as number) || 0) : ''}${(depRoute.transfers as number) ? ' \u00B7 ' + (depRoute.transfers as number) + ' transfer' : ''}</p>`;
+      // Step-by-step (text fallback for PDF; full transit detail is on web)
+      const stepsArr = depRoute.step_by_step as string[] | undefined;
+      if (stepsArr && stepsArr.length > 0) {
+        stepsArr.forEach((s: string) => {
+          html += `<p style="font-size:10px;color:${C.sub};margin:1px 0 0 8px;">\u00B7 ${s}</p>`;
+        });
+      }
+      html += `</div>`;
+    }
+
+    // Fallback: simple to_airport line if no ODsay route
+    if (!depRoute && departure.to_airport) {
+      html += `<p style="font-size:11px;color:${C.sub};margin:0 0 6px;">${departure.to_airport.method} \u00B7 ${departure.to_airport.instruction || ''} (${departure.to_airport.duration_min || '?'}${L.min}, ${formatKRW(departure.to_airport.cost_krw || 0)})</p>`;
+    }
+
+    // Tip cards
+    const dgFull = departure as Record<string, unknown> & { luggage_storage?: { available?: boolean; location?: string } };
+    if (dgFull.luggage_storage?.available) {
+      html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;"><strong>\uD83D\uDCBC ${uiDict?.luggageStorage || 'Luggage Storage'}:</strong> ${dgFull.luggage_storage.location || ''}</p>`;
     }
     if (departure.tax_refund) {
-      html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;">${uiDict?.taxRefund || 'Tax Refund'}: ${departure.tax_refund.location || ''} (${uiDict?.minPurchase || 'Min.'} ${formatKRW(departure.tax_refund.threshold_krw || 30000)})</p>`;
+      html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;"><strong>\uD83D\uDCB0 ${uiDict?.taxRefund || 'Tax Refund'}:</strong> ${departure.tax_refund.location || ''} (${uiDict?.minPurchase || 'Min.'} ${formatKRW(departure.tax_refund.threshold_krw || 30000)})</p>`;
     }
     if (departure.last_minute_shopping) {
-      html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;">${uiDict?.lastMinuteShopping || 'Last-minute shopping'}: ${departure.last_minute_shopping}</p>`;
+      html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;"><strong>\uD83D\uDED2 ${uiDict?.lastMinuteShopping || 'Last-minute shopping'}:</strong> ${departure.last_minute_shopping}</p>`;
     }
     html += '</div>';
   }

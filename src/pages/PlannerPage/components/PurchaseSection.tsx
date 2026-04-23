@@ -1,9 +1,11 @@
-// Purchase section -- Option A/B, PayPal, email input.
+// Purchase section -- single primary CTA (Klook pattern), Option B as a
+// small "already booked flight + hotel?" upsell toggle so it doesn't compete
+// with the paid CTA for attention.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
 import type { MutableRefObject } from 'react';
 import {
   Briefcase, UtensilsCrossed, Camera, Train,
-  Plane, Hotel, Search, Check,
+  Plane, Hotel, Search, Check, Gift, ChevronDown,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';
@@ -82,21 +84,25 @@ export function PurchaseSection({
         ))}
       </div>
 
-      {/* Option A / B Selection */}
-      <div className="max-w-md mx-auto space-y-3 mb-5">
-        <OptionAButton p={p} isMobile={isMobile} selected={selectedOption === 'A'} onSelect={() => setSelectedOption('A')} />
-        <OptionBButton p={p} isMobile={isMobile} selected={selectedOption === 'B'} onSelect={() => setSelectedOption('B')} />
-      </div>
-
-      {/* Conditional Action Area */}
+      {/* PRIMARY CTA — paid plan (Klook pattern: single primary action) */}
       <div className="max-w-md mx-auto flex flex-col gap-3">
-        {selectedOption === 'A' && (
+        {/* Email input — required for both flows */}
+        <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)}
+          placeholder={p.emailPlaceholder}
+          className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 transition-all outline-none ${isMobile ? 'focus:border-[#B668FC] focus:ring-1 focus:ring-[#B668FC]' : 'focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC]'}`}
+          required />
+
+        {/* Feature recap (compact, was the OptionAButton list) */}
+        <ul className="text-white/55 text-[11px] space-y-0.5 text-left bg-white/[0.03] border border-white/[0.06] rounded-xl px-3.5 py-2.5">
+          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature1}</span></li>
+          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature2}</span></li>
+          <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{p.optionAfeature3}</span></li>
+          <li className={`flex gap-1.5 font-semibold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}><Check className="w-3 h-3 mt-0.5 shrink-0" /><span>{p.optionAfeatureRevision || '1 Free Revision included'}</span></li>
+        </ul>
+
+        {/* Primary action — paid PayPal flow */}
+        {selectedOption !== 'B' && (
           <>
-            <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)}
-              placeholder={p.emailPlaceholder}
-              className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 transition-all outline-none ${isMobile ? 'focus:border-[#B668FC] focus:ring-1 focus:ring-[#B668FC]' : 'focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC]'}`}
-              required />
-            
             {isGeneratingPlan ? (
               <div className="text-center py-6">
                 <div className="animate-spin h-10 w-10 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-3" />
@@ -121,25 +127,26 @@ export function PurchaseSection({
                 userEmail={userEmail}
               />
             )}
-
-            {planError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                <p className="text-red-400 text-sm mb-1">{planError}</p>
-                <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs underline">
-                  {p.contactWhatsApp || 'Contact us on WhatsApp'}
-                </a>
-              </div>
-            )}
           </>
         )}
 
-        {selectedOption === 'B' && (
-          <OptionBFlow
-            p={p} isMobile={isMobile}
-            optionBStep={optionBStep} setOptionBStep={setOptionBStep}
-            lastValues={lastValues} userEmail={userEmail} setUserEmail={setUserEmail}
-          />
+        {planError && (
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+            <p className="text-red-400 text-sm mb-1">{planError}</p>
+            <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs underline">
+              {p.contactWhatsApp || 'Contact us on WhatsApp'}
+            </a>
+          </div>
         )}
+
+        {/* SECONDARY: "Already booked? Get it FREE" toggle — Klook upsell pattern */}
+        <FreeBundleToggle
+          p={p} isMobile={isMobile}
+          isOpen={selectedOption === 'B'}
+          onToggle={(open) => setSelectedOption(open ? 'B' : 'A')}
+          optionBStep={optionBStep} setOptionBStep={setOptionBStep}
+          lastValues={lastValues} userEmail={userEmail} setUserEmail={setUserEmail}
+        />
 
         {/* Satisfaction guarantee */}
         <div className="flex items-center justify-center gap-2 text-[11px] text-white/30 mt-1">
@@ -151,50 +158,44 @@ export function PurchaseSection({
   );
 }
 
-// Sub-components to keep PurchaseSection readable
-function OptionAButton({ p, isMobile, selected, onSelect }: { p: PlannerDict; isMobile: boolean; selected: boolean; onSelect: () => void }) {
+// Klook-style "got a bundle?" upsell — collapsed by default, doesn't compete
+// with the primary $9.90 CTA, but keeps the free path discoverable.
+function FreeBundleToggle({
+  p, isMobile, isOpen, onToggle, optionBStep, setOptionBStep, lastValues, userEmail, setUserEmail,
+}: {
+  p: PlannerDict; isMobile: boolean; isOpen: boolean; onToggle: (open: boolean) => void;
+  optionBStep: 1 | 2 | 3; setOptionBStep: (v: 1 | 2 | 3) => void;
+  lastValues: MutableRefObject<PlannerFormValues | null>;
+  userEmail: string; setUserEmail: (v: string) => void;
+}) {
   return (
-    <button onClick={onSelect}
-      className={`w-full text-left p-4 rounded-2xl border-2 transition-all duration-300 ${
-        selected
-          ? (isMobile ? 'border-[#B668FC] bg-[#B668FC]/10 shadow-[0_0_15px_rgba(182,104,252,0.15)]' : 'border-[#7C5CFC] bg-[#7C5CFC]/10 shadow-[0_0_15px_rgba(124,92,252,0.15)]')
-          : 'border-white/10 bg-white/[0.03] hover:border-white/25'
-      }`}>
-      <div className="flex items-start justify-between mb-1.5">
-        <h4 className="text-white font-bold text-[15px]">{p.optionAtitle}</h4>
-        <div className="text-right shrink-0">
-          <div className="text-white/30 text-[10px] line-through">$19.90</div>
-          <div className={`font-bold text-sm ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`}>$9.90</div>
+    <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.04] overflow-hidden">
+      <button
+        onClick={() => onToggle(!isOpen)}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left min-h-[44px]"
+      >
+        <Gift className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-semibold text-emerald-300">{p.bundleToggleTitle || 'Already booked flight + hotel? Get this plan FREE'}</p>
         </div>
-      </div>
-      <p className="text-white/45 text-xs mb-2">{p.optionAdesc}</p>
-      <ul className="text-white/60 text-[11px] space-y-0.5">
-        <li>{p.optionAfeature1}</li>
-        <li>{p.optionAfeature2}</li>
-        <li>{p.optionAfeature3}</li>
-        <li className={`font-semibold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>{p.optionAfeatureRevision || '1 Free Revision included'}</li>
-      </ul>
-    </button>
+        <ChevronDown className={`w-4 h-4 text-emerald-400/70 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="px-3.5 pb-3.5 pt-1 border-t border-emerald-400/15">
+          <OptionBFlow
+            p={p} isMobile={isMobile}
+            optionBStep={optionBStep} setOptionBStep={setOptionBStep}
+            lastValues={lastValues} userEmail={userEmail} setUserEmail={setUserEmail}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
-function OptionBButton({ p, isMobile, selected, onSelect }: { p: PlannerDict; isMobile: boolean; selected: boolean; onSelect: () => void }) {
-  return (
-    <button onClick={onSelect}
-      className={`w-full text-left p-4 rounded-2xl border-2 transition-all duration-300 ${
-        selected
-          ? (isMobile ? 'border-[#FF6B9D] bg-[#FF6B9D]/10 shadow-[0_0_15px_rgba(255,107,157,0.15)]' : 'border-[#EA537E] bg-[#EA537E]/10 shadow-[0_0_15px_rgba(234,83,126,0.15)]')
-          : 'border-white/10 bg-white/[0.03] hover:border-white/25'
-      }`}>
-      <div className="flex items-start justify-between mb-1.5">
-        <h4 className="text-white font-bold text-[15px]">{p.optionBtitle}</h4>
-        <span className={`font-bold text-sm shrink-0 ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>FREE</span>
-      </div>
-      <p className="text-white/45 text-xs mb-1.5">{p.optionBdesc}</p>
-      <p className="text-amber-400/70 text-[11px] font-medium">{p.optionBcondition}</p>
-    </button>
-  );
-}
+// OptionAButton + OptionBButton removed in Klook-pattern redesign — single
+// primary CTA + collapsible bundle upsell instead. PayPal-side flow lives in
+// the main render; bundle-side flow lives in OptionBFlow below.
 
 function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, userEmail, setUserEmail }: {
   p: PlannerDict; isMobile: boolean;

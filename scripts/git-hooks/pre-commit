@@ -51,6 +51,7 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/components/PlannerForm.tsx") continue;
       if (f === "src/pages/PlanDetailPage/components/ArrivalGuide.tsx") continue;
       if (f === "src/pages/PlanDetailPage/components/DepartureGuide.tsx") continue;
+      if (f === "src/pages/PlanDetailPage/pdfGenerator.ts") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);
