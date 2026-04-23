@@ -19,7 +19,8 @@ function stationDisplay(
   if (!koName) return '';
   if (lang === 'ko') return koName;
   const paren = translated || roman;
-  return paren ? `${koName} (${paren})` : koName;
+  // Skip parens when paren equals Korean (Gemini sometimes returns input unchanged for short station names).
+  return paren && paren !== koName ? `${koName} (${paren})` : koName;
 }
 
 function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: Record<string, string>; lang: string }) {

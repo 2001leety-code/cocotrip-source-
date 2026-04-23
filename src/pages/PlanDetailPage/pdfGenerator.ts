@@ -180,7 +180,8 @@ export async function generatePDF(
                 if (lang === 'ko') return k;
                 const tr = pickTr(key);
                 const paren = tr || (roman as string | undefined);
-                return paren ? `${k} (${paren})` : k;
+                // Skip parens when paren equals Korean (Gemini sometimes returns input unchanged for short station names).
+                return paren && paren !== k ? `${k} (${paren})` : k;
               };
               const wayLabel = s.way ? bilang(s.way, 'way', s.wayRoman) : '';
               const fromLabel = bilang(s.from, 'from', s.fromRoman);
