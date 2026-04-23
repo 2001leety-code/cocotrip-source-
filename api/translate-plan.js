@@ -145,7 +145,7 @@ module.exports = async function handler(req, res) {
     }
 
     // ── Single Gemini call with two arrays ──
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const transitRule = isCJKTarget
       ? `Convert each Korean station/line name to its Hanja form in ${langName}. Examples: "강남" -> "${targetLang === 'ja' ? '江南' : '江南'}", "2호선" -> "${targetLang === 'ja' ? '2号線' : '2号线'}", "신분당선" -> "${targetLang === 'ja' ? '新盆唐線' : '新盆唐线'}", "잠실" -> "${targetLang === 'ja' ? '蚕室' : '蚕室'}". For Korean station names without a standard Hanja equivalent, use the most common ${langName} reading. For Korean bus type words like "일반"/"좌석"/"공항"/"마을", translate to ${langName} (e.g. "${targetLang === 'ja' ? '一般/座席/空港/村' : '普通/座席/机场/区间'}").`
