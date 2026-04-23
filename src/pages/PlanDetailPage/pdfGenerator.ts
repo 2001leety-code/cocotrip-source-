@@ -157,15 +157,34 @@ export async function generatePDF(
         if (stepsDetail.length > 0) {
           stepsHtml = stepsDetail.map((s) => {
             if (s.mode === 'subway') {
-              const lineLabel = lang === 'ko' ? (s.lineKo || s.line || '') : (s.lineEn || s.lineKo || s.line || '');
-              const bilang = (ko: unknown, roman: unknown) => {
+              // ja/zh: 한국어 + 한자 번역 병기 ("강남 (江南)", "2호선 (2号線)").
+              // 한국어 primary는 현지 직원에게 보여줄 때 실용적, 괄호 안 한자는 사용자 이해용.
+              // translate-plan API가 lineJa/lineZh/fromJa/... 를 채움. 없으면 lineEn/fromRoman으로 폴백.
+              const trSuffix = lang === 'ja' ? 'Ja' : lang === 'zh' ? 'Zh' : '';
+              const pickTr = (key: string): string | undefined =>
+                trSuffix ? ((s as Record<string, unknown>)[`${key}${trSuffix}`] as string | undefined) : undefined;
+              const lineKoStr = (s.lineKo as string) || '';
+              const lineEnStr = (s.lineEn as string) || '';
+              const lineTrStr = pickTr('line') || '';
+              const lineLabel = lang === 'ko'
+                ? (lineKoStr || (s.line as string) || '')
+                : (lang === 'ja' || lang === 'zh')
+                  ? (lineKoStr && (lineTrStr || lineEnStr) && lineKoStr !== (lineTrStr || lineEnStr)
+                      ? `${lineKoStr} (${lineTrStr || lineEnStr})`
+                      : (lineKoStr || lineTrStr || lineEnStr || (s.line as string) || ''))
+                  : (lineEnStr || lineKoStr || (s.line as string) || '');
+              // For ja/zh prefer translated Hanja; for en use roman; for ko show Korean only.
+              const bilang = (ko: unknown, key: string, roman: unknown) => {
                 const k = (ko as string) || '';
-                const r = roman as string | undefined;
-                return (!k) ? '' : (lang === 'ko' || !r) ? k : `${k} (${r})`;
+                if (!k) return '';
+                if (lang === 'ko') return k;
+                const tr = pickTr(key);
+                const paren = tr || (roman as string | undefined);
+                return paren ? `${k} (${paren})` : k;
               };
-              const wayLabel = s.way ? bilang(s.way, s.wayRoman) : '';
-              const fromLabel = bilang(s.from, s.fromRoman);
-              const toLabel = bilang(s.to, s.toRoman);
+              const wayLabel = s.way ? bilang(s.way, 'way', s.wayRoman) : '';
+              const fromLabel = bilang(s.from, 'from', s.fromRoman);
+              const toLabel = bilang(s.to, 'to', s.toRoman);
               const head = `<b style="color:${C.accent};">${lineLabel}</b>${wayLabel ? ` <span style="color:${C.muted};font-weight:400;">(${tr.toward} ${wayLabel})</span>` : ''}`;
               const route = `<span style="color:#16a34a;">\u25CF ${fromLabel}${s.fromExit ? ` ${tr.exit} ${s.fromExit}` : ''}</span> \u2192 <span style="color:#db2777;">\u25CF ${toLabel}${s.toExit ? ` ${tr.exit} ${s.toExit}` : ''}</span>`;
               const meta = [
@@ -174,9 +193,16 @@ export async function generatePDF(
                 `${s.duration || '?'}${tr.min}`,
               ].filter(Boolean).join(' \u00B7 ');
               // Enrichment lines: transfer lines + accessibility + lost&found
-              const fromInfo = s.fromStationInfo as { transferLines?: { lineKo: string; lineEn: string }[] } | undefined;
+              const fromInfo = s.fromStationInfo as { transferLines?: { lineKo: string; lineEn: string; lineKoJa?: string; lineKoZh?: string }[] } | undefined;
               const toInfo = s.toStationInfo as { hasElevator?: boolean; hasWheelchairLift?: boolean; lostCenterPhone?: string | null; address?: string | null } | undefined;
-              const transferList = (fromInfo?.transferLines || []).map(l => lang === 'ko' ? l.lineKo : (l.lineEn || l.lineKo)).filter(Boolean);
+              const transferList = (fromInfo?.transferLines || []).map(l => {
+                if (lang === 'ko') return l.lineKo;
+                const trLine = lang === 'ja' ? l.lineKoJa : lang === 'zh' ? l.lineKoZh : undefined;
+                if ((lang === 'ja' || lang === 'zh') && l.lineKo && trLine && l.lineKo !== trLine) {
+                  return `${l.lineKo} (${trLine})`;
+                }
+                return l.lineEn || l.lineKo;
+              }).filter(Boolean);
               const transferHtml = transferList.length > 0
                 ? `<p style="font-size:8px;color:${C.muted};margin:2px 0 0;">\u21BB ${transitDict?.alsoTransfers || 'Also transfers'}: ${transferList.join(', ')}</p>`
                 : '';
@@ -206,8 +232,20 @@ export async function generatePDF(
               </div>`;
             }
             if (s.mode === 'bus') {
-              const head = `<b style="color:#16a34a;">${s.busType ? `${s.busType} ` : ''}${s.busNo || ''}</b>`;
-              const route = `<span style="color:#16a34a;">\u25CF ${s.from || ''}${s.fromArs ? ` <span style="font-family:monospace;color:${C.muted};">#${s.fromArs}</span>` : ''}</span> \u2192 <span style="color:#db2777;">\u25CF ${s.to || ''}${s.toArs ? ` <span style="font-family:monospace;color:${C.muted};">#${s.toArs}</span>` : ''}</span>`;
+              // ja/zh 번역이 있으면 한국어 + 한자 병기. 없으면 한국어 그대로 (ODsay는 bus에 roman 미제공).
+              const trSuffix = lang === 'ja' ? 'Ja' : lang === 'zh' ? 'Zh' : '';
+              const sx = s as Record<string, unknown>;
+              const bilangBus = (ko: string | undefined, key: string): string => {
+                const k = ko || '';
+                if (!k || lang === 'ko' || !trSuffix) return k;
+                const tr = sx[`${key}${trSuffix}`] as string | undefined;
+                return tr && tr !== k ? `${k} (${tr})` : k;
+              };
+              const busTypeLabel = bilangBus(s.busType as string | undefined, 'busType');
+              const fromBus = bilangBus(s.from as string | undefined, 'from');
+              const toBus = bilangBus(s.to as string | undefined, 'to');
+              const head = `<b style="color:#16a34a;">${busTypeLabel ? `${busTypeLabel} ` : ''}${s.busNo || ''}</b>`;
+              const route = `<span style="color:#16a34a;">\u25CF ${fromBus}${s.fromArs ? ` <span style="font-family:monospace;color:${C.muted};">#${s.fromArs}</span>` : ''}</span> \u2192 <span style="color:#db2777;">\u25CF ${toBus}${s.toArs ? ` <span style="font-family:monospace;color:${C.muted};">#${s.toArs}</span>` : ''}</span>`;
               const meta = [
                 s.stationCount ? `${s.stationCount} ${tr.stops}` : '',
                 s.intervalMin ? `${tr.every} ${s.intervalMin}${tr.min}` : '',

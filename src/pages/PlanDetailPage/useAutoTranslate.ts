@@ -17,6 +17,12 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { PlanDocument, SetPlanFn } from './types';
 
+// Bump in lockstep with TRANSLATOR_VERSION in api/translate-plan.js. Caches with
+// a lower version are treated as stale and re-translated so users get the new
+// fields (e.g. translated subway/bus station names for ja/zh) without manual
+// invalidation. Old caches without the field count as version 1.
+const EXPECTED_TRANSLATOR_VERSION = 2;
+
 export function useAutoTranslate(
   plan: PlanDocument | null,
   setPlan: SetPlanFn,
@@ -61,11 +67,14 @@ export function useAutoTranslate(
             if (cacheSnap.exists()) {
               const cached = cacheSnap.data();
               if (cached?.itinerary) {
-                // Stale cache detection: if plan was edited after cache was written, skip cache
+                // Stale cache detection: edited plan or older translator version.
                 const planUpdatedAt = (plan as Record<string, unknown>).updatedAt as string | undefined;
                 const cachedAt = cached.cachedAt as string | undefined;
+                const cachedVersion = (cached.translatorVersion as number | undefined) || 1;
                 if (planUpdatedAt && cachedAt && planUpdatedAt > cachedAt) {
                   console.info('[translate] cache stale — plan edited after cache, re-translating');
+                } else if (cachedVersion < EXPECTED_TRANSLATOR_VERSION) {
+                  console.info(`[translate] cache stale — translator v${cachedVersion} < v${EXPECTED_TRANSLATOR_VERSION}, re-translating`);
                 } else {
                   // Cache HIT — apply immediately
                   setPlan((prev) => prev ? { ...prev, itinerary: cached.itinerary as PlanDocument['itinerary'] } : prev);
@@ -100,6 +109,7 @@ export function useAutoTranslate(
                 itinerary: payload.translated,
                 cachedAt: new Date().toISOString(),
                 sourceLang: originalLang,
+                translatorVersion: (payload.translatorVersion as number | undefined) || EXPECTED_TRANSLATOR_VERSION,
               });
             } catch (writeErr) {
               // Non-critical: cache write failure doesn't affect UX

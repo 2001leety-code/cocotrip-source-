@@ -8,17 +8,38 @@ import { useLanguage } from '@/hooks/useLanguage';
 import type { TransitFromPrev, TransitStepDetail } from '@/types/plan';
 import { getPlanDetailDict } from '../types';
 
-function stationDisplay(koName: string | undefined, roman: string | null | undefined, lang: string): string {
+// ja/zh: prefer Hanja translation populated by /api/translate-plan ("강남 (江南)"),
+// fall back to romanization ("강남 (Gangnam)") for legacy/cache-miss cases.
+function stationDisplay(
+  koName: string | undefined,
+  translated: string | null | undefined,
+  roman: string | null | undefined,
+  lang: string,
+): string {
   if (!koName) return '';
-  if (lang === 'ko' || !roman) return koName;
-  return `${koName} (${roman})`;
+  if (lang === 'ko') return koName;
+  const paren = translated || roman;
+  return paren ? `${koName} (${paren})` : koName;
 }
 
 function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: Record<string, string>; lang: string }) {
-  const lineLabel = lang === 'ko' ? (step.lineKo || step.line) : (step.lineEn || step.lineKo || step.line);
-  const wayLabel = step.way ? stationDisplay(step.way, step.wayRoman, lang) : null;
-  const fromLabel = stationDisplay(step.from, step.fromRoman, lang);
-  const toLabel = stationDisplay(step.to, step.toRoman, lang);
+  const trSuffix = lang === 'ja' ? 'Ja' : lang === 'zh' ? 'Zh' : '';
+  const sx = step as unknown as Record<string, string | undefined>;
+  const pickTr = (key: string): string | undefined => trSuffix ? sx[`${key}${trSuffix}`] : undefined;
+  // Line label: ko-only for ko; for ja/zh show "2호선 (2号線)" using translated form when available, English otherwise.
+  const lineKoStr = step.lineKo || step.line || '';
+  const lineEnStr = step.lineEn || '';
+  const lineTrStr = pickTr('line') || '';
+  const lineLabel = lang === 'ko'
+    ? lineKoStr
+    : (lang === 'ja' || lang === 'zh')
+      ? (lineKoStr && (lineTrStr || lineEnStr) && lineKoStr !== (lineTrStr || lineEnStr)
+          ? `${lineKoStr} (${lineTrStr || lineEnStr})`
+          : (lineKoStr || lineTrStr || lineEnStr))
+      : (lineEnStr || lineKoStr);
+  const wayLabel = step.way ? stationDisplay(step.way, pickTr('way'), step.wayRoman, lang) : null;
+  const fromLabel = stationDisplay(step.from, pickTr('from'), step.fromRoman, lang);
+  const toLabel = stationDisplay(step.to, pickTr('to'), step.toRoman, lang);
   return (
     <div className="rounded-lg bg-[#7C5CFC]/[0.06] border border-[#7C5CFC]/15 p-2.5">
       <div className="flex items-center gap-2 mb-1.5">
@@ -64,11 +85,20 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
         <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[9px]">
           <Repeat className="w-2.5 h-2.5 text-white/40" />
           <span className="text-white/40">{trKeys.alsoTransfers || 'Also transfers'}:</span>
-          {step.fromStationInfo!.transferLines!.map((l, i) => (
-            <span key={i} className="px-1.5 py-0.5 rounded bg-[#7C5CFC]/10 text-[#7C5CFC]/90">
-              {lang === 'ko' ? l.lineKo : (l.lineEn || l.lineKo)}
-            </span>
-          ))}
+          {step.fromStationInfo!.transferLines!.map((l, i) => {
+            let label = l.lineKo;
+            if (lang !== 'ko') {
+              const tr = lang === 'ja' ? l.lineKoJa : lang === 'zh' ? l.lineKoZh : undefined;
+              label = (lang === 'ja' || lang === 'zh') && l.lineKo && tr && l.lineKo !== tr
+                ? `${l.lineKo} (${tr})`
+                : (l.lineEn || l.lineKo);
+            }
+            return (
+              <span key={i} className="px-1.5 py-0.5 rounded bg-[#7C5CFC]/10 text-[#7C5CFC]/90">
+                {label}
+              </span>
+            );
+          })}
         </div>
       )}
       {step.fromTimetable && (() => {
@@ -123,13 +153,26 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
   );
 }
 
-function BusStep({ step, trKeys }: { step: TransitStepDetail; trKeys: Record<string, string> }) {
+function BusStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: Record<string, string>; lang: string }) {
+  // ODsay doesn't provide romanization for bus station names, so non-ja/zh users
+  // see Korean as-is. ja/zh get the translated form in parens when available.
+  const trSuffix = lang === 'ja' ? 'Ja' : lang === 'zh' ? 'Zh' : '';
+  const sx = step as unknown as Record<string, string | undefined>;
+  const bilangBus = (ko: string | undefined, key: string): string => {
+    const k = ko || '';
+    if (!k || lang === 'ko' || !trSuffix) return k;
+    const tr = sx[`${key}${trSuffix}`];
+    return tr && tr !== k ? `${k} (${tr})` : k;
+  };
+  const busTypeLabel = bilangBus(step.busType, 'busType');
+  const fromLabel = bilangBus(step.from, 'from');
+  const toLabel = bilangBus(step.to, 'to');
   return (
     <div className="rounded-lg bg-green-500/[0.06] border border-green-500/15 p-2.5">
       <div className="flex items-center gap-2 mb-1.5">
         <Bus className="w-3.5 h-3.5 text-green-400" />
         <span className="text-[11px] font-bold text-green-300">
-          {step.busType && <span className="text-green-400/70 mr-1">{step.busType}</span>}
+          {busTypeLabel && <span className="text-green-400/70 mr-1">{busTypeLabel}</span>}
           {step.busNo}
         </span>
         <span className="ml-auto text-[10px] text-white/40">{step.duration}{trKeys.minUnit || 'min'}</span>
@@ -137,12 +180,12 @@ function BusStep({ step, trKeys }: { step: TransitStepDetail; trKeys: Record<str
       <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px]">
         <LogIn className="w-3 h-3 text-emerald-400/70 mt-0.5" />
         <span className="text-white/70">
-          <span className="font-semibold text-white/90">{step.from}</span>
+          <span className="font-semibold text-white/90">{fromLabel}</span>
           {step.fromArs && <span className="ml-1 text-white/40 font-mono">#{step.fromArs}</span>}
         </span>
         <LogOut className="w-3 h-3 text-pink-400/70 mt-0.5" />
         <span className="text-white/70">
-          <span className="font-semibold text-white/90">{step.to}</span>
+          <span className="font-semibold text-white/90">{toLabel}</span>
           {step.toArs && <span className="ml-1 text-white/40 font-mono">#{step.toArs}</span>}
         </span>
         {(step.stationCount || 0) > 0 && (
@@ -230,7 +273,7 @@ export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<st
         <div className="ml-6 mt-1.5 space-y-1.5">
           {detailSteps.map((step, i) => {
             if (step.mode === 'subway') return <SubwayStep key={i} step={step} trKeys={trKeys} lang={language} />;
-            if (step.mode === 'bus') return <BusStep key={i} step={step} trKeys={trKeys} />;
+            if (step.mode === 'bus') return <BusStep key={i} step={step} trKeys={trKeys} lang={language} />;
             return <WalkStep key={i} step={step} trKeys={trKeys} />;
           })}
           {(transit.total_walk_m || 0) > 0 && (

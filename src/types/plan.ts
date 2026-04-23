@@ -59,7 +59,8 @@ export interface RecommendedItem {
 /** Compact subway station metadata from ODsay subwayStationInfo */
 export interface SubwayStationInfo {
   stationName?: string;
-  transferLines?: { lineKo: string; lineEn: string; stationID?: number }[];
+  // lineKoJa / lineKoZh are populated by /api/translate-plan for ja/zh users.
+  transferLines?: { lineKo: string; lineEn: string; lineKoJa?: string; lineKoZh?: string; stationID?: number }[];
   address?: string | null;
   phone?: string | null;
   lostCenterPhone?: string | null;
@@ -117,6 +118,18 @@ export interface TransitStepDetail {
   toCoord?: { x: number; y: number } | null;
   // walk
   distance?: number;
+  // ja/zh translations populated by /api/translate-plan (Hanja form for CJK readers).
+  // Optional — falls back to romanization (lineEn/fromRoman) when missing.
+  lineJa?: string;
+  lineZh?: string;
+  fromJa?: string;
+  fromZh?: string;
+  toJa?: string;
+  toZh?: string;
+  wayJa?: string;
+  wayZh?: string;
+  busTypeJa?: string;
+  busTypeZh?: string;
 }
 
 export interface TransitFromPrev {
