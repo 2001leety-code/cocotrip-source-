@@ -183,7 +183,7 @@ ls -lh dist/assets/*.js dist/assets/*.css | head -20
 
 ```bash
 # 5 시나리오 × Gemini 호출 (~5분)
-node scripts/validate-planner.js
+node scripts/validate-planner.cjs
 ```
 
 **기준치** (CLAUDE.md §E 기준):
@@ -532,7 +532,7 @@ AG는 끝나면 다음을 **순서대로** 사용자에게 전달:
 | `CLAUDE.md` | 프로젝트 규칙/필드 스키마/LOCKED region |
 | `scripts/test-firestore-rules.mjs` | 보안 기본 테스트 |
 | `scripts/test-firestore-rules-hardening.mjs` | 보안 강화 테스트 |
-| `scripts/validate-planner.js` | 플래너 품질 검증 |
+| `scripts/validate-planner.cjs` | 플래너 품질 검증 |
 
 ---
 

@@ -66,13 +66,15 @@ async function pingEndpoints() {
   return results;
 }
 
-// ── 2. Run validate-planner.js ──────────────────────────────────────────
+// ── 2. Run validate-planner.cjs ─────────────────────────────────────────
+// .cjs because parent package.json is "type": "module" but the script uses
+// CommonJS require(). Renaming to .cjs lets Node load it as CommonJS.
 function runValidatePlanner() {
   const reportPath = join(__dirname, 'planner-report.json');
 
   try {
-    console.log('🧪 Running validate-planner.js...');
-    execSync(`node "${join(__dirname, 'validate-planner.js')}" "${BASE}"`, {
+    console.log('🧪 Running validate-planner.cjs...');
+    execSync(`node "${join(__dirname, 'validate-planner.cjs')}" "${BASE}"`, {
       stdio: 'inherit',
       timeout: 600_000, // 10 min timeout
       env: { ...process.env },

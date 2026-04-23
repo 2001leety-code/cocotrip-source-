@@ -183,7 +183,7 @@ npx tsc -b && npx vite build
 #   - 콘솔 에러 0 확인
 
 # 5. 플래너 품질 (AI 프롬프트 수정 시만)
-node scripts/validate-planner.js
+node scripts/validate-planner.cjs
 # 기준치: 총 이슈 ≤9, bad_address_prefix=0, language_mismatch≤1
 ```
 

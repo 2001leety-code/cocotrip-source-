@@ -128,7 +128,7 @@ node -e "const f=require('fs').readFileSync(process.argv[1],'utf8'); console.log
 # → CLEAN 필수
 
 # 3. 프롬프트 수정 시
-node scripts/validate-planner.js
+node scripts/validate-planner.cjs
 # → 기준치 통과 필수
 ```
 

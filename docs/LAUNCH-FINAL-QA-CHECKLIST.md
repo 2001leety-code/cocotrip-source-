@@ -97,7 +97,7 @@
 ## 3.2 TEST 계정 바이패스
 - [ ] `2001leety@gmail.com` 로그인 시 TEST 프리픽스로 PayPal 스킵 작동
 
-## 3.3 플랜 품질 (validate-planner.js 기준)
+## 3.3 플랜 품질 (validate-planner.cjs 기준)
 - [ ] 총 이슈 9건 이하 유지
 - [ ] `bad_address_prefix` 0건
 - [ ] `language_mismatch` 1건 이하

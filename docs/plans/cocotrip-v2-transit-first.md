@@ -406,7 +406,7 @@ PILLAR C:
 | Risk | Pillar | Severity | Mitigation |
 |------|:------:|:--------:|------------|
 | ODsay retry doubles API calls on failures | A | Medium | Max 1 retry (2x worst case). Only on failure. ~5% total increase. |
-| Prompt changes alter Gemini output quality | A | Medium | Only additive rules (no existing rules removed). Run validate-planner.js. |
+| Prompt changes alter Gemini output quality | A | Medium | Only additive rules (no existing rules removed). Run validate-planner.cjs. |
 | RouteAgent.js exceeds 400L | A | Low | Currently 305L + ~60L = ~365L. Under limit. |
 | Firestore write fails after optimistic update | B | High | structuredClone rollback + error toast |
 | Drag conflicts with mobile scroll | B | Medium | dnd-kit distance:8 activation constraint |

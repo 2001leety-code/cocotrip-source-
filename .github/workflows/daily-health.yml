@@ -22,7 +22,7 @@ jobs:
 
       - name: Run Daily Health Check
         env:
-          # validate-planner.js uses TEST- prefix PayPal bypass
+          # validate-planner.cjs uses TEST- prefix PayPal bypass
           # No additional secrets needed for health check
           NODE_OPTIONS: '--experimental-fetch'
         run: node scripts/daily-health-check.mjs
@@ -40,6 +40,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add scripts/health-log.jsonl scripts/planner-report.json
+          # Stage each file separately so a missing planner-report.json (e.g. when
+          # validate-planner crashes before writing it) doesn't abort the commit step.
+          git add scripts/health-log.jsonl || true
+          if [ -f scripts/planner-report.json ]; then
+            git add scripts/planner-report.json
+          fi
           git diff --cached --quiet || git commit -m "chore: daily health check $(date -u +%Y-%m-%d)"
           git push || echo "Push failed (likely protected branch)"

@@ -84,7 +84,7 @@ stop.tip || stop.tip_en
 ### 스크립트
 | 파일 | 주요 기능 |
 |---|---|
-| `scripts/validate-planner.js` (261L) | 품질 검증 러너 (5 시나리오, Gemini 5회 호출) |
+| `scripts/validate-planner.cjs` (261L) | 품질 검증 러너 (5 시나리오, Gemini 5회 호출) |
 | `scripts/build-food-index.js` (117L) | `food_data/*.json` → `api/_food_index.json` (rating≥4.5, reviews≥50) |
 
 ---
@@ -93,7 +93,7 @@ stop.tip || stop.tip_en
 
 ```bash
 # 플래너 품질 테스트 (Gemini 5회 호출, ~5분)
-node scripts/validate-planner.js
+node scripts/validate-planner.cjs
 # 기준치: 총 이슈 9건 이하, bad_address_prefix 0, language_mismatch ≤1
 
 # TypeScript 빌드

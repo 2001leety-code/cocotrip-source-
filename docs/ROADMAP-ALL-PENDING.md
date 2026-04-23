@@ -307,7 +307,7 @@ await db.collection('earlybird').doc('counter').set({
 
 ```bash
 # 플래너 품질 (Gemini 5회, ~5분)
-node scripts/validate-planner.js
+node scripts/validate-planner.cjs
 # 기준치: 총 이슈 9건 이하
 
 # TypeScript

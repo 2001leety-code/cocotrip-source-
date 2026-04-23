@@ -54,7 +54,7 @@ Stop UI (card)    : src/pages/PlanDetailPage.tsx:616-771
 
 ### 변경 파일
 1. `api/ai-planner-full.js` — logPromptMetrics(L112-127) + validateResponse(L129-167) 이미 삽입
-2. `scripts/validate-planner.js` — 5개 시나리오 검증 러너
+2. `scripts/validate-planner.cjs` — 5개 시나리오 검증 러너
 
 ### 기준점 측정 결과 (2026-04-16 02:17 KST)
 
@@ -197,7 +197,7 @@ API: https://cocotripkr.com/api/ai-planner-full
 
 ### 주요 작업 내용 (2026-04-22)
 1. **로컬 검증 서버 구축**: `server.js`를 통해 Express 로컬 서버 구성 및 `.env.admin.local`을 이용한 Firebase Admin 권한 주입.
-2. **테스트 스크립트 수정**: 변경된 API 응답 페이로드 스키마(`{ ok: true, data: { planId, itinerary } }`)에 맞게 `validate-planner.js`의 파싱 로직 수정.
+2. **테스트 스크립트 수정**: 변경된 API 응답 페이로드 스키마(`{ ok: true, data: { planId, itinerary } }`)에 맞게 `validate-planner.cjs`의 파싱 로직 수정.
 3. **3-Pass 파이프라인 최종 검증**: 총 5개의 시나리오 테스트를 통해 품질 평가 (총 이슈 5건으로 대폭 감소, 성공률 100%).
 4. **Vercel 인프라 복구**: `id` 누락으로 인한 Vercel Link 오류를 해결하고 `npx vercel link`를 통해 프로젝트(`cocotrip-source_2026`) 정상 재연결.
 5. **상용 환경 변수 배포**: Vercel production 환경 변수로 `PLANNER_MODE=3pass` 주입. 이후 코드를 Commit & Push 하여 Github Actions를 통한 자동 배포 파이프라인 트리거.
