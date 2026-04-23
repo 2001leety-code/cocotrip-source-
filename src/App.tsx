@@ -73,7 +73,7 @@ function HomePage() {
     return (
       <div className="min-h-screen bg-[#0a0b14]">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
-        <main className="pt-16">
+        <main className="pt-14">
           <MobileHome t={t} />
         </main>
       </div>

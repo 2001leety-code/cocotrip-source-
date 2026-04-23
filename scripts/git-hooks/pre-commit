@@ -39,8 +39,10 @@ if [ -n "$SCAN_FILES" ]; then
       // Skip files with legitimate ES2020 nullish coalescing that predate this hook.
       // Header.tsx: 29 ?? fallbacks from i18n migration (commit df283ff).
       // CommandPalette.tsx: t.commandPalette?.triggerLabel ?? 'Search'.
+      // MobileBottomNav.tsx: i18n nav label fallbacks (nav.home ?? '홈' etc.).
       if (f === "src/sections/Header.tsx") continue;
       if (f === "src/components/CommandPalette.tsx") continue;
+      if (f === "src/components/MobileBottomNav.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);
