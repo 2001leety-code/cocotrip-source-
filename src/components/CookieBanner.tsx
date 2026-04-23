@@ -73,7 +73,7 @@ export default function CookieBanner() {
           <button
             onClick={dismiss}
             aria-label="Close"
-            className="min-w-[36px] min-h-[36px] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
