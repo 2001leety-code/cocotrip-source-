@@ -40,15 +40,15 @@ export function StopCard({ stop }: { stop: PlanStop }) {
       className="bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-white/[0.15] transition-colors cursor-pointer"
       onClick={toggle}
     >
-      {/* Collapsed header (always visible) */}
-      <div className="flex items-center gap-3 p-4">
+      {/* Collapsed header (always visible) — mobile padding/text trimmed for higher card density */}
+      <div className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-4">
         <div className="text-center shrink-0">
-          <p className="text-xs font-bold text-[#7C5CFC]">{stop.start_time}</p>
-          <CatIcon className="w-4 h-4 text-white/30 mx-auto mt-1" />
+          <p className="text-[11px] sm:text-xs font-bold text-[#7C5CFC]">{stop.start_time}</p>
+          <CatIcon className="w-[14px] h-[14px] sm:w-4 sm:h-4 text-white/30 mx-auto mt-1" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <p className="text-sm font-bold truncate">{stop.display_name || stop.name_en || stop.name || stop.name_ko}</p>
+            <p className="text-[13px] sm:text-sm font-bold truncate">{stop.display_name || stop.name_en || stop.name || stop.name_ko}</p>
             {stop.local_tag && (() => {
               const tagConfig: Record<string, { bg: string; text: string; emoji: string }> = {
                 'Local Pick': { bg: 'bg-purple-500/20 border-purple-500/30', text: 'text-purple-300', emoji: '\u{1F4CD}' },
@@ -78,7 +78,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
 
       {/* Expanded details */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="px-4 pb-4 pt-3 border-t border-white/[0.06] space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="px-3 pb-3 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3 border-t border-white/[0.06] space-y-2.5 sm:space-y-3" onClick={(e) => e.stopPropagation()}>
           {(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) && <p className="text-[10px] text-white/30">{stop.name || stop.name_ko}</p>}
           {stop.address && (
             <p className="text-[11px] text-white/40 flex items-center gap-1.5">
@@ -86,7 +86,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               {stop.address}
             </p>
           )}
-          {(stop.tip || stop.tip_en) && <p className="text-xs text-white/60 leading-relaxed">{stop.tip || stop.tip_en}</p>}
+          {(stop.tip || stop.tip_en) && <p className="text-[11px] sm:text-xs text-white/60 leading-relaxed">{stop.tip || stop.tip_en}</p>}
           {isUnverifiedFood && (
             <p className="text-[10px] text-amber-300/80 flex items-start gap-1.5 bg-amber-500/5 border border-amber-500/15 rounded-lg px-2.5 py-2">
               <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />

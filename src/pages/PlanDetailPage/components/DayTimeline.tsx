@@ -33,13 +33,13 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const stopIds = stops.map((_: PlanStop, i: number) => `day-${dayIndex}-stop-${i}`);
 
   return (
-    <section className="mb-8">
-      <div className="flex items-center gap-3 mb-4">
-        <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+    <section className="mb-6 sm:mb-8">
+      <div className="flex items-center gap-2.5 sm:gap-3 mb-3 sm:mb-4">
+        <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-bold" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
           {day.day || dayIndex + 1}
         </span>
         <div>
-          <p className="text-sm font-bold">{day.theme || `Day ${day.day || dayIndex + 1}`}</p>
+          <p className="text-[13px] sm:text-sm font-bold">{day.theme || `Day ${day.day || dayIndex + 1}`}</p>
           {day.date && <p className="text-[10px] text-white/30">{day.date}</p>}
         </div>
       </div>
