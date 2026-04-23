@@ -1063,6 +1063,24 @@
     "description": "죄송합니다. 페이지를 로드하는 동안 문제가 발생했습니다. 다시 시도해 주세요.",
     "retry": "다시 시도"
   },
+  "cookieBanner": {
+    "bodyBefore": "더 나은 경험을 위해 쿠키를 사용합니다. 사이트를 계속 사용하시면 ",
+    "bodyMiddle": "에 동의한 것으로 간주됩니다. 데이터 삭제 요청은 ",
+    "bodyAfter": "로 문의해주세요.",
+    "accept": "동의",
+    "dismiss": "닫기"
+  },
+  "gallery": {
+    "title": "행복한 여행자들",
+    "subtitle": "한국을 탐험한 게스트들의 진짜 순간과 이야기",
+    "verifiedTraveler": "검증된 여행자"
+  },
+  "googleReviews": {
+    "subtitle": "전 세계 게스트들이 우리에 대해 말하는 것",
+    "basedOn": "150+ 리뷰 기준",
+    "verified": "검증됨",
+    "seeAll": "Google에서 모든 리뷰 보기"
+  },
   "charterPage": {
     "backToHome": "홈으로",
     "badge": "전세차량 견적",

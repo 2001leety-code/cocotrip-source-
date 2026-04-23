@@ -30,9 +30,7 @@
     "emailSupport": "邮件支持",
     "terms": "条款",
     "privacy": "隐私",
-    "travelTerms": "旅行条款",
-    "quickLinks": "快速链接",
-    "tagline": "韩国私人旅游"
+    "travelTerms": "旅行条款"
   },
   "heroCards": {
     "heading": "韩国旅行，我们如何帮助您？",
@@ -419,7 +417,9 @@
     "about": "关于我们",
     "terms": "使用条款",
     "privacy": "隐私政策",
-    "travelTerms": "旅游条款"
+    "travelTerms": "旅游条款",
+    "quickLinks": "快速链接",
+    "tagline": "高级韩国旅游"
   },
   "booking": {
     "title": "规划您的旅行",
@@ -783,7 +783,7 @@
     "kpopTicketNote": "班车仅供持有演唱会门票者乘坐",
     "kpopSoldOut": "票已售罄",
     "kpopShuttleAvailable": "班车可用",
-    "presetLabel": "Quick Start",
+    "presetLabel": "快速开始",
     "presetFirst": "首尔3天精华游",
     "presetSecond": "首尔+釜山 5天",
     "presetThird": "K-pop粉丝之旅",
@@ -1120,6 +1120,24 @@
     "title": "发生意外错误。",
     "description": "抱歉，加载此页面时出现问题。请重试。",
     "retry": "重试"
+  },
+  "cookieBanner": {
+    "bodyBefore": "我们使用Cookie来改善您的体验。继续使用本站即表示您同意我们的",
+    "bodyMiddle": "。如需请求删除数据，请联系 ",
+    "bodyAfter": "。",
+    "accept": "同意",
+    "dismiss": "关闭"
+  },
+  "gallery": {
+    "title": "幸福的旅行者",
+    "subtitle": "探索韩国的客人们的真实瞬间和故事",
+    "verifiedTraveler": "认证旅行者"
+  },
+  "googleReviews": {
+    "subtitle": "全球客人对我们的评价",
+    "basedOn": "基于150+条评价",
+    "verified": "已认证",
+    "seeAll": "在Google查看所有评价"
   },
   "ads": {
     "kpopConcert": {

@@ -30,9 +30,7 @@
     "emailSupport": "メールサポート",
     "terms": "利用規約",
     "privacy": "プライバシー",
-    "travelTerms": "旅行規約",
-    "quickLinks": "クイックリンク",
-    "tagline": "韓国プライベートツアー"
+    "travelTerms": "旅行規約"
   },
   "heroCards": {
     "heading": "韓国旅行、どのようにお手伝いしましょうか？",
@@ -419,7 +417,9 @@
     "about": "会社概要",
     "terms": "利用規約",
     "privacy": "プライバシーポリシー",
-    "travelTerms": "旅行約款"
+    "travelTerms": "旅行約款",
+    "quickLinks": "クイックリンク",
+    "tagline": "プレミアム韓国ツアー"
   },
   "booking": {
     "title": "旅行の計画",
@@ -783,7 +783,7 @@
     "kpopTicketNote": "シャトルはコンサートチケット保有者のみご利用可能です",
     "kpopSoldOut": "チケット完売",
     "kpopShuttleAvailable": "シャトル運行中",
-    "presetLabel": "Quick Start",
+    "presetLabel": "クイックスタート",
     "presetFirst": "ソウル3日ハイライト",
     "presetSecond": "ソウル+釜山 5日間",
     "presetThird": "K-popファン旅",
@@ -1120,6 +1120,24 @@
     "title": "予期しないエラーが発生しました。",
     "description": "申し訳ありません。ページの読み込み中に問題が発生しました。もう一度お試しください。",
     "retry": "再試行"
+  },
+  "cookieBanner": {
+    "bodyBefore": "より良い体験のためクッキーを使用しています。本サイトを引き続きご利用いただく場合、",
+    "bodyMiddle": "に同意したものとみなされます。データ削除のご依頼は ",
+    "bodyAfter": " までご連絡ください。",
+    "accept": "同意する",
+    "dismiss": "閉じる"
+  },
+  "gallery": {
+    "title": "幸せな旅行者たち",
+    "subtitle": "韓国を体験したゲストの本物の瞬間とストーリー",
+    "verifiedTraveler": "認証済み旅行者"
+  },
+  "googleReviews": {
+    "subtitle": "世界中のお客様が私たちについて語っていること",
+    "basedOn": "150件以上のレビューに基づく",
+    "verified": "認証済み",
+    "seeAll": "Googleですべてのレビューを見る"
   },
   "ads": {
     "kpopConcert": {

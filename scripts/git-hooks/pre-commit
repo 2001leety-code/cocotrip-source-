@@ -40,9 +40,13 @@ if [ -n "$SCAN_FILES" ]; then
       // Header.tsx: 29 ?? fallbacks from i18n migration (commit df283ff).
       // CommandPalette.tsx: t.commandPalette?.triggerLabel ?? 'Search'.
       // MobileBottomNav.tsx: i18n nav label fallbacks (nav.home ?? '홈' etc.).
+      // CookieBanner.tsx: cb?.accept ?? 'Accept' (i18n fallback chain).
+      // ToursPage.tsx: TL[language] ?? TL.en (per-locale lookup with English fallback).
       if (f === "src/sections/Header.tsx") continue;
       if (f === "src/components/CommandPalette.tsx") continue;
       if (f === "src/components/MobileBottomNav.tsx") continue;
+      if (f === "src/components/CookieBanner.tsx") continue;
+      if (f === "src/pages/ToursPage.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

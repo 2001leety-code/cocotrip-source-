@@ -5,11 +5,16 @@
  */
 import { useState, useEffect } from 'react';
 import { Cookie, X } from 'lucide-react';
+import { useLanguage } from '@/hooks/useLanguage';
 
 const STORAGE_KEY = 'cocotrip_cookie_consent';
+const SUPPORT_EMAIL = 'cocotripkr@gmail.com';
 
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false);
+  const { t } = useLanguage();
+  const cb = (t as Record<string, unknown>).cookieBanner as Record<string, string> | undefined;
+  const footer = (t as Record<string, unknown>).footer as Record<string, string> | undefined;
 
   useEffect(() => {
     const consent = localStorage.getItem(STORAGE_KEY);
@@ -42,10 +47,11 @@ export default function CookieBanner() {
           <Cookie className="w-5 h-5 text-purple-400 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm text-white/80 leading-relaxed">
-              We use cookies to improve your experience. By continuing to use this site, you agree to our{' '}
-              <a href="/privacy" className="text-purple-400 underline hover:text-purple-300">Privacy Policy</a>.
-              To request data deletion, contact us at{' '}
-              <a href="mailto:cocotripkr@gmail.com" className="text-purple-400 underline hover:text-purple-300">cocotripkr@gmail.com</a>.
+              {cb?.bodyBefore ?? 'We use cookies to improve your experience. By continuing to use this site, you agree to our '}
+              <a href="/privacy" className="text-purple-400 underline hover:text-purple-300">{footer?.privacy ?? 'Privacy Policy'}</a>
+              {cb?.bodyMiddle ?? '. To request data deletion, contact us at '}
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">{SUPPORT_EMAIL}</a>
+              {cb?.bodyAfter ?? '.'}
             </p>
             <div className="flex items-center gap-2 mt-3">
               <button
@@ -53,13 +59,13 @@ export default function CookieBanner() {
                 className="px-4 py-1.5 text-xs font-bold text-white rounded-xl transition-all hover:scale-105"
                 style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
               >
-                Accept
+                {cb?.accept ?? 'Accept'}
               </button>
               <button
                 onClick={dismiss}
                 className="px-3 py-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"
               >
-                Dismiss
+                {cb?.dismiss ?? 'Dismiss'}
               </button>
             </div>
           </div>

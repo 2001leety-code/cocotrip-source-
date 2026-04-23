@@ -120,7 +120,10 @@ export default function ToursPage() {
     {
       icon: ShieldCheck,
       color: '#B668FC',
-      label: 'No Hidden Fees',
+      label: language === 'ko' ? '추가 비용 없음' :
+             language === 'ja' ? '追加料金なし' :
+             language === 'zh' ? '无隐藏费用' :
+             'No Hidden Fees',
       sub: language === 'ko' ? '팁·톨비·주차 포함' :
            language === 'ja' ? 'チップ·料金所·駐車込み' :
            language === 'zh' ? '含小费·过路费·停车费' :
@@ -129,7 +132,7 @@ export default function ToursPage() {
     {
       icon: CreditCard,
       color: '#FF6B9D',
-      label: 'PayPal',
+      label: 'PayPal', // brand, intentionally untranslated
       sub: language === 'ko' ? 'PayPal 안심결제' :
            language === 'ja' ? 'PayPal 安全決済' :
            language === 'zh' ? 'PayPal 安全支付' :
@@ -138,7 +141,7 @@ export default function ToursPage() {
     {
       icon: Phone,
       color: '#C850C0',
-      label: '24/7',
+      label: '24/7', // numeric, language-neutral
       sub: language === 'ko' ? '영어 지원' :
            language === 'ja' ? '英語サポート' :
            language === 'zh' ? '英语客服' :

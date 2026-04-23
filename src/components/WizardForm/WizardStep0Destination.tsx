@@ -129,8 +129,9 @@ export function WizardStep0Destination(props: Step0Props) {
                 }`}
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))', borderColor: 'rgba(124,92,252,.5)' } : {}}>
                 <span className="shrink-0">{ACTIVITY_ICON_MAP[key]}</span>
-                <div className="overflow-hidden">
-                  <p className="text-[13px] font-bold truncate">{p[nameKey]}</p>
+                <div className="overflow-hidden flex-1 min-w-0">
+                  {/* Allow 2-line wrap so longer translated labels (e.g. EN "Hanbok Experience" / "K-Drama Locations", JA "ショッピングツアー") aren't cut off mid-word. */}
+                  <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey]}</p>
                   <p className="text-[10px] text-white/40 truncate">{p[subKey]}</p>
                 </div>
                 {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
