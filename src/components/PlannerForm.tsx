@@ -76,6 +76,13 @@ export interface PlannerFormValues {
   hotel_address?: string;
   mobility?: string;
   uid?: string | null;
+  // Klook/Trip.com pattern: airport-transport personalization (all optional).
+  // Backend RouteAgent uses these to recommend the right transit option.
+  arrival_time?: string;        // "HH:MM" 24h
+  departure_time?: string;      // "HH:MM" 24h
+  luggage?: { small: number; medium: number; large: number };
+  wantAccom?: boolean;
+  accomBudget?: string;
 }
 
 interface Props {

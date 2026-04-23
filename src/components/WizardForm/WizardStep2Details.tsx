@@ -1,5 +1,5 @@
-// Step 2: travel dates, pax, airport, hotel address, accommodation opt-in.
-import { ChevronLeft, ChevronRight, Plane } from 'lucide-react';
+// Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
+import { ChevronLeft, ChevronRight, Plane, Briefcase, Minus, Plus } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import type { Locale } from 'date-fns';
@@ -22,6 +22,16 @@ interface Step2Props {
   setArrivalTerminal: (v: string) => void;
   hotelAddress: string;
   setHotelAddress: (v: string) => void;
+  arrivalTime: string;
+  setArrivalTime: (v: string) => void;
+  departureTime: string;
+  setDepartureTime: (v: string) => void;
+  luggageSmall: number;
+  setLuggageSmall: (v: number) => void;
+  luggageMedium: number;
+  setLuggageMedium: (v: number) => void;
+  luggageLarge: number;
+  setLuggageLarge: (v: number) => void;
   wantAccom: boolean;
   setWantAccom: (v: boolean) => void;
   accomBudget: string;
@@ -31,11 +41,36 @@ interface Step2Props {
   onNext: () => void;
 }
 
+function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: string; value: number; setValue: (v: number) => void }) {
+  return (
+    <div className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
+      <div>
+        <p className="text-[13px] font-semibold text-white">{label}</p>
+        <p className="text-[10px] text-white/40">{sub}</p>
+      </div>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => setValue(Math.max(0, value - 1))}
+          className="w-11 h-11 rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/60 disabled:opacity-30"
+          disabled={value === 0} aria-label="Decrease">
+          <Minus className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-6 text-center text-sm font-bold text-white">{value}</span>
+        <button type="button" onClick={() => setValue(Math.min(20, value + 1))}
+          className="w-11 h-11 rounded-full bg-[#7C5CFC]/30 hover:bg-[#7C5CFC]/50 flex items-center justify-center text-white" aria-label="Increase">
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function WizardStep2Details(props: Step2Props) {
   const {
     p, isMobile, calendarLocale, dateRange, setDateRange, nights,
     paxInput, setPaxInput, mainCity, airportOptions,
     arrivalTerminal, setArrivalTerminal, hotelAddress, setHotelAddress,
+    arrivalTime, setArrivalTime, departureTime, setDepartureTime,
+    luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     canGoStep3, onPrev, onNext,
   } = props;
@@ -99,10 +134,51 @@ export function WizardStep2Details(props: Step2Props) {
 
       {/* Hotel */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.hotel_address_title || 'Where are you staying?'} <span className="text-white/25">({p.wizardOptional || 'optional'})</span></p>
+        <p className="text-sm text-white/50 mb-2.5 font-medium">
+          {p.hotel_address_title || 'Where are you staying?'}
+          <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
+        </p>
         <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
           placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+      </div>
+
+      {/* Arrival / Departure flight time — used by RouteAgent to recommend the right transport
+          (late-night arrival → limousine bus, otherwise AREX). Both optional. */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div>
+          <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/25 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+          <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
+            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+        </div>
+        <div>
+          <p className="text-sm text-white/50 mb-2 font-medium">{p.departureTime || 'Departure time'} <span className="text-white/25 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+          <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}
+            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+        </div>
+      </div>
+
+      {/* Luggage counters — heavy bags trigger taxi recommendation in arrival_guide. */}
+      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5">
+        <div className="flex items-center gap-2 mb-2.5">
+          <Briefcase className="w-4 h-4 text-[#7C5CFC]" />
+          <p className="text-sm font-semibold text-white">{p.luggageTitle || 'Luggage'}</p>
+          <span className="text-[11px] text-white/30 ml-auto">({p.wizardOptional || 'optional'})</span>
+        </div>
+        <div className="space-y-2">
+          <LuggageCounter
+            label={p.luggageSmall || 'Carry-on / Backpack'}
+            sub={p.luggageSmallSub || 'Fits under seat'}
+            value={luggageSmall} setValue={setLuggageSmall} />
+          <LuggageCounter
+            label={p.luggageMedium || 'Medium suitcase'}
+            sub={p.luggageMediumSub || '24 inch'}
+            value={luggageMedium} setValue={setLuggageMedium} />
+          <LuggageCounter
+            label={p.luggageLarge || 'Large suitcase'}
+            sub={p.luggageLargeSub || '28 inch+'}
+            value={luggageLarge} setValue={setLuggageLarge} />
+        </div>
       </div>
 
       {/* Accommodation Recommendation Opt-in */}

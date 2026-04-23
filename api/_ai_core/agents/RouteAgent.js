@@ -1,6 +1,21 @@
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
+import { AIRPORT_COORDS } from "../constants.js";
+
+// Klook/Trip.com pattern: pick the recommended option based on context.
+//   - Late-night arrival → AREX last train ends ~23:42, recommend limousine bus
+//   - Heavy luggage (3+ large) → recommend taxi (no transit transfers with bags)
+//   - Otherwise → AREX express is fastest/cheapest for ICN
+function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount }) {
+  const hour = arrivalTimeHHMM ? parseInt(arrivalTimeHHMM.split(':')[0], 10) : null;
+  const lateNight = hour !== null && (hour >= 23 || hour < 5);
+  const totalLarge = (luggage?.large || 0);
+  const heavyLoad = totalLarge >= 3 || (paxCount >= 4 && totalLarge >= 2);
+  if (heavyLoad) return { key: 'taxi', reason_ko: '짐이 많아 환승 없는 택시를 추천합니다', reason_en: 'Taxi recommended — too many bags for transit transfers', reason_ja: '荷物が多いため、乗り換えなしのタクシーを推奨します', reason_zh: '行李较多，推荐无需换乘的出租车' };
+  if (lateNight) return { key: 'limousine_bus', reason_ko: '늦은 시각 도착 — AREX 막차 후 운행하는 리무진 버스 추천', reason_en: 'Late arrival — AREX has stopped, take limousine bus', reason_ja: '深夜到着 — AREXの終電後はリムジンバスを推奨', reason_zh: '深夜到达 — AREX末班车已结束，推荐机场巴士' };
+  return { key: 'arex_express', reason_ko: '가장 빠르고 저렴한 표준 옵션', reason_en: 'Fastest and cheapest standard option', reason_ja: '最速かつ最安の標準オプション', reason_zh: '最快最便宜的标准选择' };
+}
 
 // Map the Wizard / Gemini `area` value to the matching charter product in
 // createPaypalOrder.js PRODUCT_PRICES so the "book a charter" CTA deep-links
@@ -69,6 +84,54 @@ export class RouteAgent extends BaseAgent {
         const region = data.area || data.region || '';
         const charterProductType = regionToCharterProduct(region);
         const daysList = Array.isArray(rawItinerary) ? rawItinerary : (rawItinerary.days || []);
+
+        // ════════════════════════════════════════════════════════
+        // Trip-level: geocode hotel ONCE, route airport ↔ hotel
+        // (Phase 1 of arrival/departure guide enrichment)
+        // ════════════════════════════════════════════════════════
+        let hotelLat = null, hotelLng = null;
+        if (hotelAddress && clientId && clientSecret) {
+            try {
+                const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
+                const geoRes = await axios.get(geoUrl, {
+                    params: { query: hotelAddress },
+                    headers: { "X-NCP-APIGW-API-KEY-ID": clientId, "X-NCP-APIGW-API-KEY": clientSecret },
+                    timeout: 5000,
+                });
+                if (geoRes.status === 200 && geoRes.data.addresses?.length > 0) {
+                    hotelLng = parseFloat(geoRes.data.addresses[0].x);
+                    hotelLat = parseFloat(geoRes.data.addresses[0].y);
+                }
+            } catch (e) {
+                console.warn(`  - Hotel geocoding failed: ${e.message}`);
+            }
+        }
+
+        const arrivalAirportKey = this._normalizeAirportKey(rawItinerary.arrival_guide?.airport || data.arrival_airport);
+        const departureAirportKey = this._normalizeAirportKey(rawItinerary.departure_guide?.airport || data.departure_airport || arrivalAirportKey);
+
+        if (hotelLat && hotelLng && arrivalAirportKey && AIRPORT_COORDS[arrivalAirportKey]) {
+            const ap = AIRPORT_COORDS[arrivalAirportKey];
+            const route = await this._routeAirportHotel(ap, { lat: hotelLat, lng: hotelLng }, 'arrival');
+            if (route && rawItinerary.arrival_guide) {
+                const rec = pickRecommendedTransport({
+                    arrivalTimeHHMM: data.arrival_time,
+                    luggage: data.luggage,
+                    paxCount: data.pax || 2,
+                });
+                rawItinerary.arrival_guide.route_to_hotel = { ...route, recommended_option: rec };
+                console.log(`  - [Airport→Hotel] ${route.est_min}min via ${route.method}, recommended=${rec.key}`);
+            }
+        }
+
+        if (hotelLat && hotelLng && departureAirportKey && AIRPORT_COORDS[departureAirportKey]) {
+            const ap = AIRPORT_COORDS[departureAirportKey];
+            const route = await this._routeAirportHotel({ lat: hotelLat, lng: hotelLng }, ap, 'departure');
+            if (route && rawItinerary.departure_guide) {
+                rawItinerary.departure_guide.route_to_airport = route;
+                console.log(`  - [Hotel→Airport] ${route.est_min}min via ${route.method}`);
+            }
+        }
 
         for (const dayPlan of daysList) {
             const places = dayPlan.stops || dayPlan.places || [];
@@ -153,43 +216,25 @@ export class RouteAgent extends BaseAgent {
             const BUFFER_MIN = 5; // 초행길 여유 시간
 
             // ════════════════════════════════════════════════════════
-            // Phase 2.5: 호텔 → 첫 번째 장소 경로 (hotel_address가 있는 경우)
+            // Phase 2.5: 호텔 → 첫 번째 장소 경로 (hotelLat/hotelLng는 trip-level에서 이미 지오코딩됨)
             // ════════════════════════════════════════════════════════
             let hotelTransit = null;
-            if (hotelAddress && places.length > 0 && places[0].lat && places[0].lng) {
+            if (hotelLat && hotelLng && places.length > 0 && places[0].lat && places[0].lng) {
                 try {
-                    // 호텔 geocoding
-                    let hotelLat = null, hotelLng = null;
-                    if (clientId && clientSecret) {
-                        const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
-                        const geoRes = await axios.get(geoUrl, {
-                            params: { query: hotelAddress },
-                            headers: {
-                                "X-NCP-APIGW-API-KEY-ID": clientId,
-                                "X-NCP-APIGW-API-KEY": clientSecret,
-                            },
-                            timeout: 5000,
-                        });
-                        if (geoRes.status === 200 && geoRes.data.addresses?.length > 0) {
-                            hotelLng = parseFloat(geoRes.data.addresses[0].x);
-                            hotelLat = parseFloat(geoRes.data.addresses[0].y);
-                        }
-                    }
-                    if (hotelLat && hotelLng) {
-                        const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
-                        const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0);
-                        const pt = transitData.publicTransit;
-                        hotelTransit = {
-                            method: pt?.method || 'subway',
-                            instruction: pt?.summary || `Take public transit from hotel to ${places[0].name || places[0].display_name || 'first stop'}`,
-                            step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
-                            est_min: pt?.duration || transitData.durationMin || 25,
-                            est_fare_krw: pt?.fare || 0,
-                            source: 'odsay',
-                            from_label: 'Hotel',
-                        };
-                        console.log(`  - [Hotel→${places[0].name}] ${hotelTransit.est_min}min via ${hotelTransit.method}`);
-                    }
+                    const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
+                    const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0);
+                    const pt = transitData.publicTransit;
+                    hotelTransit = {
+                        method: pt?.method || 'subway',
+                        instruction: pt?.summary || `Take public transit from hotel to ${places[0].name || places[0].display_name || 'first stop'}`,
+                        step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
+                        steps_detail: pt?.steps || [],
+                        est_min: pt?.duration || transitData.durationMin || 25,
+                        est_fare_krw: pt?.fare || 0,
+                        source: 'odsay',
+                        from_label: 'Hotel',
+                    };
+                    console.log(`  - [Hotel→${places[0].name}] ${hotelTransit.est_min}min via ${hotelTransit.method}`);
                 } catch (hotelErr) {
                     console.warn('  - Hotel→FirstStop route failed:', hotelErr.message);
                 }
@@ -422,6 +467,54 @@ export class RouteAgent extends BaseAgent {
         }
         if (downgradeCount > 0) {
             console.log(`  [Route] enforceTransitCompleteness: downgraded ${downgradeCount} transit(s)`);
+        }
+    }
+
+    /**
+     * Normalize Gemini's "ICN T1" / "ICN T2" / "GMP" form to constants key.
+     * Returns null if unrecognized so callers can skip routing.
+     */
+    _normalizeAirportKey(raw) {
+        if (!raw) return null;
+        const k = String(raw).trim().toUpperCase().replace(/\s+/g, '_');
+        if (AIRPORT_COORDS[k]) return k;
+        if (k.startsWith('ICN_T1') || k === 'ICN1' || k === 'INCHEON_T1') return 'ICN_T1';
+        if (k.startsWith('ICN_T2') || k === 'ICN2' || k === 'INCHEON_T2') return 'ICN_T2';
+        if (k.startsWith('ICN') || k === 'INCHEON') return 'ICN_T1';
+        if (k === 'GIMPO') return 'GMP';
+        if (k === 'BUSAN' || k === 'GIMHAE') return 'PUS';
+        if (k === 'JEJU') return 'CJU';
+        return null;
+    }
+
+    /**
+     * ODsay route between airport coord and hotel coord.
+     * Returns the same TransitFromPrev shape used by stop↔stop transit so the UI
+     * can reuse the existing TransitArrow component without a special case.
+     * Direction: 'arrival' (airport→hotel) or 'departure' (hotel→airport).
+     */
+    async _routeAirportHotel(from, to, direction) {
+        try {
+            const fromPlace = { lat: from.lat, lng: from.lng, name: direction === 'arrival' ? 'Airport' : 'Hotel' };
+            const toPlace = { lat: to.lat, lng: to.lng, name: direction === 'arrival' ? 'Hotel' : 'Airport' };
+            const td = await this._getTransitData(fromPlace, toPlace, (process.env.NAVER_CLIENT_ID || '').trim(), (process.env.NAVER_CLIENT_SECRET || '').trim(), 0);
+            const pt = td.publicTransit;
+            if (!pt) return null;
+            return {
+                method: pt.method || 'subway',
+                instruction: pt.summary || '',
+                step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
+                steps_detail: pt.steps || [],
+                transfers: pt.transfers || 0,
+                total_walk_m: pt.totalWalk || 0,
+                est_min: pt.duration || td.durationMin || 0,
+                est_fare_krw: pt.fare || 0,
+                source: 'odsay',
+                direction,
+            };
+        } catch (e) {
+            console.warn(`  - Airport↔Hotel route (${direction}) failed: ${e.message}`);
+            return null;
         }
     }
 

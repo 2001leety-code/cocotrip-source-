@@ -113,6 +113,10 @@ export interface DepartureGuideBlock {
   luggage_storage?: { available?: boolean; location?: string };
   tax_refund?: { location?: string; threshold_krw?: number };
   last_minute_shopping?: string;
+  // RouteAgent attaches a TransitFromPrev-shaped ODsay route here so the
+  // departure UI can reuse the TransitArrow component for hotel→airport.
+  // Loosely typed (Record) so DepartureGuide.tsx can cast to TransitFromPrev.
+  route_to_airport?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

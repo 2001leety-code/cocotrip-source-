@@ -46,6 +46,14 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const [paxInput, setPaxInput]               = useState('2');
   const [arrivalTerminal, setArrivalTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');
+  // Klook/Trip.com pattern: collect arrival time + luggage so backend can
+  // recommend the right airport-to-hotel transport (late night → limousine,
+  // heavy bags → taxi, otherwise AREX). All optional but improves accuracy.
+  const [arrivalTime, setArrivalTime]         = useState('');     // "HH:MM" 24h
+  const [departureTime, setDepartureTime]     = useState('');     // "HH:MM" 24h
+  const [luggageSmall, setLuggageSmall]       = useState(0);
+  const [luggageMedium, setLuggageMedium]     = useState(0);
+  const [luggageLarge, setLuggageLarge]       = useState(0);
   const [wantAccom, setWantAccom]             = useState(false);
   const [accomBudget, setAccomBudget]         = useState('moderate');
   const mobility = 'ok' as const;
@@ -132,6 +140,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
     const ed = endDate || new Date(Date.now() + durationDays * 86400000).toISOString().split('T')[0];
 
     try {
+      const totalLuggage = luggageSmall + luggageMedium + luggageLarge;
       const res = await onSubmit({
         startDate: sd, endDate: ed,
         regions: allCities.length > 0 ? allCities : ['Seoul'],
@@ -147,6 +156,10 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         dietPrefs: dietPrefs.length > 0 ? dietPrefs : undefined,
         allergies: allergies.length > 0 ? allergies : undefined,
         priceRange: priceRange !== 'Any' ? priceRange : undefined,
+        // New: airport-transport context (all optional)
+        arrival_time: arrivalTime || undefined,
+        departure_time: departureTime || undefined,
+        luggage: totalLuggage > 0 ? { small: luggageSmall, medium: luggageMedium, large: luggageLarge } : undefined,
       } as PlannerFormValues);
 
       if (res && !res.ok) {
@@ -224,6 +237,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
               mainCity={mainCity} airportOptions={airportOptions}
               arrivalTerminal={arrivalTerminal} setArrivalTerminal={setArrivalTerminal}
               hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
+              arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
+              departureTime={departureTime} setDepartureTime={setDepartureTime}
+              luggageSmall={luggageSmall} setLuggageSmall={setLuggageSmall}
+              luggageMedium={luggageMedium} setLuggageMedium={setLuggageMedium}
+              luggageLarge={luggageLarge} setLuggageLarge={setLuggageLarge}
               wantAccom={wantAccom} setWantAccom={setWantAccom}
               accomBudget={accomBudget} setAccomBudget={setAccomBudget}
               canGoStep3={canGoStep3}

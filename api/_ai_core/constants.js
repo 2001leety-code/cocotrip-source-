@@ -43,6 +43,22 @@ export const AIRPORT_NAMES = {
   ALREADY: null,
 };
 
+// ── 공항 좌표 (lat/lng) — RouteAgent의 ODsay 호출용 ────────────────────────
+// 출처: 각 공항 운영사 공식 좌표. Terminal별 좌표가 다르면 도보 5분+ 차이.
+export const AIRPORT_COORDS = {
+  ICN_T1: { lat: 37.4602, lng: 126.4407 },
+  ICN_T2: { lat: 37.4583, lng: 126.4424 },
+  ICN:    { lat: 37.4602, lng: 126.4407 },
+  GMP:    { lat: 37.5587, lng: 126.7905 },
+  PUS:    { lat: 35.1795, lng: 128.9381 },
+  CJU:    { lat: 33.5113, lng: 126.4928 },
+  TAE:    { lat: 35.8941, lng: 128.6588 },
+  KWJ:    { lat: 35.1264, lng: 126.8089 },
+  MWX:    { lat: 34.9914, lng: 126.3829 },
+  YNY:    { lat: 38.0613, lng: 128.6694 },
+  ALREADY: null,
+};
+
 // ── Rich System Prompt Language Instructions ──────────────────────────────
 export const LANG_INSTRUCTION = {
   en: `Write ALL narrative text fields in English.
