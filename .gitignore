@@ -33,3 +33,6 @@ scripts/planner-report*.json
 scripts/planner-report*.txt
 .env.admin.local
 .vercel
+
+# UX audit output — regenerated locally or in CI; screenshots are large, don't bloat repo
+reports/

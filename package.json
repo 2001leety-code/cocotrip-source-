@@ -17,7 +17,10 @@
     "check:mojibake": "node -e \"const fs=require('fs');const files=process.argv.slice(1).filter(f=>f.endsWith('.tsx')||f.endsWith('.ts'));let bad=0;files.forEach(f=>{if(!fs.existsSync(f))return;const c=fs.readFileSync(f,'utf8');if(/\\\\?\\\\?/.test(c)||/\\uFFFD/.test(c)){console.error('MOJIBAKE in',f);bad++;}});process.exit(bad>0?1:0);\" src/pages/*.tsx",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "verify:all": "npm run check:types && npm run check:mojibake && npm run test:unit"
+    "verify:all": "npm run check:types && npm run check:mojibake && npm run test:unit",
+    "audit:ux": "node scripts/audit-ux.mjs http://localhost:5173",
+    "audit:ux:quick": "node scripts/audit-ux.mjs http://localhost:5173 --quick",
+    "audit:ux:prod": "node scripts/audit-ux.mjs https://cocotripkr.com"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
