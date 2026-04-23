@@ -30,8 +30,9 @@ export function SeasonalBanner() {
   const subtitle = data.subtitle[lk];
   const urgency = data.urgency[lk];
   const topSpot = data.spots[0];
-  const spotName = ({ ko: topSpot.name, en: topSpot.nameEn, ja: topSpot.nameEn, zh: topSpot.nameEn })[language] ?? topSpot.nameEn;
-  const spotHighlight = ({ ko: topSpot.highlight, en: topSpot.highlightEn, ja: topSpot.highlightEn, zh: topSpot.highlightEn })[language] ?? topSpot.highlightEn;
+  // ja/zh fall back to Korean original (hanja-recognizable) instead of English transliteration.
+  const spotName = ({ ko: topSpot.name, en: topSpot.nameEn, ja: topSpot.name, zh: topSpot.name })[language] ?? topSpot.nameEn;
+  const spotHighlight = ({ ko: topSpot.highlight, en: topSpot.highlightEn, ja: topSpot.highlight, zh: topSpot.highlight })[language] ?? topSpot.highlightEn;
 
   return (
     <section className="py-12 lg:py-16">
@@ -74,7 +75,7 @@ export function SeasonalBanner() {
                 {spotHighlight}
               </p>
               <div className="text-xs text-white/50">
-                {{ ko: topSpot.period, en: topSpot.periodEn, ja: topSpot.periodEn, zh: topSpot.periodEn }[language] ?? topSpot.periodEn}
+                {{ ko: topSpot.period, en: topSpot.periodEn, ja: topSpot.period, zh: topSpot.period }[language] ?? topSpot.periodEn}
               </div>
             </div>
           </div>

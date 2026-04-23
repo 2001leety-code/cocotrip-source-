@@ -36,11 +36,12 @@ export function SeasonalSpotsBanner({ result, lang, p }: { result: PlannerRespon
 
       <div className="flex gap-3 overflow-x-auto px-5 py-4 pb-5 -mb-1" style={{ scrollbarWidth: 'none' }}>
         {filteredSpots.map((spot, i) => {
-          const name = lang === 'en' || lang === 'ja' || lang === 'zh' ? spot.nameEn : spot.name;
-          const location = lang === 'en' || lang === 'ja' || lang === 'zh' ? spot.locationEn : spot.location;
-          const highlight = lang === 'en' || lang === 'ja' || lang === 'zh' ? spot.highlightEn : spot.highlight;
-          const period = lang === 'en' || lang === 'ja' || lang === 'zh' ? spot.periodEn : spot.period;
-          const tip = lang === 'en' || lang === 'ja' || lang === 'zh' ? spot.tipEn : spot.tip;
+          // ja/zh fall back to Korean original (hanja-recognizable + useful at the venue), only en uses the English transliteration.
+          const name = lang === 'en' ? spot.nameEn : spot.name;
+          const location = lang === 'en' ? spot.locationEn : spot.location;
+          const highlight = lang === 'en' ? spot.highlightEn : spot.highlight;
+          const period = lang === 'en' ? spot.periodEn : spot.period;
+          const tip = lang === 'en' ? spot.tipEn : spot.tip;
           return (
             <div key={i} className="shrink-0 w-64 bg-white/5 border border-white/10 rounded-xl p-3.5 flex flex-col gap-2">
               <div>

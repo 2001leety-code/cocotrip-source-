@@ -51,7 +51,7 @@ export function GoogleReviews() {
               <span className="text-[#4285F4]">g</span>
               <span className="text-[#34A853]">l</span>
               <span className="text-[#EA4335]">e</span>
-              <span className="text-[#1a1a2e] ml-4 font-bold">Reviews</span>
+              <span className="text-[#1a1a2e] ml-4 font-bold">{gr.reviewsLabel || 'Reviews'}</span>
             </h2>
             <p className="text-gray-600 text-lg">{gr.subtitle || 'What our global guests are saying about us'}</p>
           </div>

@@ -1137,7 +1137,8 @@
     "subtitle": "What our global guests are saying about us",
     "basedOn": "Based on 150+ reviews",
     "verified": "Verified",
-    "seeAll": "See all reviews on Google"
+    "seeAll": "See all reviews on Google",
+    "reviewsLabel": "Reviews"
   },
   "ads": {
     "kpopConcert": {

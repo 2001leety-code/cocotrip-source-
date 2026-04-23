@@ -457,7 +457,7 @@
     }
   },
   "planner": {
-    "heroTitle": "Your Korea.\nYour Way.",
+    "heroTitle": "당신의 한국,\n당신의 방식.",
     "heroSubtitle": "AI가 설계하는 나만의 한국 여행\n전세차량 · K-pop 셔틀 · 24시간 지원",
     "badgeLabel": "AI Travel Planner",
     "categoryLabel": "여행 테마",
@@ -1025,11 +1025,11 @@
     "promoKpopSubtitle": "호텔 ↔ 공연장 왕복 셔틀",
     "promoKpopCta": "셔틀 예약",
     "svcCharter": "전세 차량",
-    "svcCharterSub": "Charter",
+    "svcCharterSub": "차량",
     "svcPlanner": "AI 플래너",
-    "svcPlannerSub": "Planner",
+    "svcPlannerSub": "일정",
     "svcKpop": "K-pop",
-    "svcKpopSub": "Shuttle",
+    "svcKpopSub": "셔틀",
     "promoToursTitle": "프라이빗 한국 투어",
     "promoToursSubtitle": "서울 · 부산 · 경주 · 단양 — 올인클루시브",
     "promoToursCta": "투어 보기",
@@ -1079,7 +1079,8 @@
     "subtitle": "전 세계 게스트들이 우리에 대해 말하는 것",
     "basedOn": "150+ 리뷰 기준",
     "verified": "검증됨",
-    "seeAll": "Google에서 모든 리뷰 보기"
+    "seeAll": "Google에서 모든 리뷰 보기",
+    "reviewsLabel": "리뷰"
   },
   "charterPage": {
     "backToHome": "홈으로",
