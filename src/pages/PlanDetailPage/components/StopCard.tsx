@@ -37,18 +37,27 @@ export function StopCard({ stop }: { stop: PlanStop }) {
   return (
     <div
       ref={cardRef}
-      className="bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-white/[0.15] transition-colors cursor-pointer"
+      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/35 hover:bg-white/[0.06] transition-all cursor-pointer overflow-hidden"
       onClick={toggle}
     >
-      {/* Collapsed header (always visible) — mobile padding/text trimmed for higher card density */}
-      <div className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-4">
+      {/* Left accent bar — visual anchor that ties the time to the card */}
+      <span aria-hidden className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r"
+        style={{ background: 'linear-gradient(180deg,#7C5CFC,#EA537E)' }} />
+
+      {/* Collapsed header */}
+      <div className="flex items-start gap-3 sm:gap-3.5 p-3.5 sm:p-4 pl-4 sm:pl-5">
+        {/* Time + category — clearer hierarchy, time is the anchor */}
         <div className="text-center shrink-0">
-          <p className="text-[11px] sm:text-xs font-bold text-[#7C5CFC]">{stop.start_time}</p>
-          <CatIcon className="w-[14px] h-[14px] sm:w-4 sm:h-4 text-white/30 mx-auto mt-1" />
+          <p className="text-[14px] sm:text-[15px] font-extrabold text-[#B9A4FF] leading-none">{stop.start_time}</p>
+          <div className="mt-1.5 w-7 h-7 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center mx-auto">
+            <CatIcon className="w-3.5 h-3.5 text-white/55" />
+          </div>
         </div>
+
+        {/* Title + meta */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-[13px] sm:text-sm font-bold truncate">{stop.display_name || stop.name_en || stop.name || stop.name_ko}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-[15px] sm:text-base font-bold text-white leading-snug">{stop.display_name || stop.name_en || stop.name || stop.name_ko}</p>
             {stop.local_tag && (() => {
               const tagConfig: Record<string, { bg: string; text: string; emoji: string }> = {
                 'Local Pick': { bg: 'bg-purple-500/20 border-purple-500/30', text: 'text-purple-300', emoji: '\u{1F4CD}' },
@@ -68,25 +77,45 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 mt-0.5 text-[10px] text-white/40">
-            <span><Clock className="w-3 h-3 inline -mt-0.5" /> {stop.stay_min}min</span>
-            {(stop.entry_fee_krw || 0) > 0 ? <span className="text-yellow-400/70">{formatKRW(stop.entry_fee_krw || 0)}</span> : <span className="text-green-400/70">Free</span>}
+          {/* Korean name as subtle subtitle (when display_name is in another language) */}
+          {(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) && (
+            <p className="text-[11px] text-white/40 mt-0.5">{stop.name || stop.name_ko}</p>
+          )}
+          {/* Meta chips — pill-style for scannability */}
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            <span className="inline-flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-md px-1.5 py-0.5 text-[10px] text-white/65">
+              <Clock className="w-2.5 h-2.5" /> {stop.stay_min}{ui.minUnit || 'min'}
+            </span>
+            {(stop.entry_fee_krw || 0) > 0 ? (
+              <span className="inline-flex items-center gap-1 bg-yellow-400/10 border border-yellow-400/25 rounded-md px-1.5 py-0.5 text-[10px] text-yellow-200 font-semibold">
+                {formatKRW(stop.entry_fee_krw || 0)}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 bg-emerald-400/10 border border-emerald-400/25 rounded-md px-1.5 py-0.5 text-[10px] text-emerald-200 font-semibold">
+                {ui.free || 'Free'}
+              </span>
+            )}
           </div>
         </div>
-        <ChevronDown className={`w-4 h-4 text-white/20 shrink-0 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-white/30 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </div>
 
       {/* Expanded details */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="px-3 pb-3 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3 border-t border-white/[0.06] space-y-2.5 sm:space-y-3" onClick={(e) => e.stopPropagation()}>
-          {(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) && <p className="text-[10px] text-white/30">{stop.name || stop.name_ko}</p>}
+        <div className="px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5 border-t border-white/[0.06] space-y-3" onClick={(e) => e.stopPropagation()}>
+          {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
-            <p className="text-[11px] text-white/40 flex items-center gap-1.5">
-              <MapPin className="w-3 h-3 shrink-0 text-white/25" />
-              {stop.address}
+            <p className="text-[12px] text-white/55 flex items-start gap-1.5 leading-relaxed">
+              <MapPin className="w-3.5 h-3.5 shrink-0 text-[#7C5CFC]/70 mt-0.5" />
+              <span>{stop.address}</span>
             </p>
           )}
-          {(stop.tip || stop.tip_en) && <p className="text-[11px] sm:text-xs text-white/60 leading-relaxed">{stop.tip || stop.tip_en}</p>}
+          {(stop.tip || stop.tip_en) && (
+            <div className="bg-amber-400/[0.06] border border-amber-400/20 rounded-lg px-3 py-2.5">
+              <p className="text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">{ui.tip || 'Tip'}</p>
+              <p className="text-[12px] text-white/85 leading-relaxed">{stop.tip || stop.tip_en}</p>
+            </div>
+          )}
           {isUnverifiedFood && (
             <p className="text-[10px] text-amber-300/80 flex items-start gap-1.5 bg-amber-500/5 border border-amber-500/15 rounded-lg px-2.5 py-2">
               <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />

@@ -59,17 +59,24 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         <SortableContext items={stopIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-1 pl-8">
             <AnimatePresence mode="popLayout">
-              {stops.map((stop: PlanStop, si: number) => (
-                <div key={stopIds[si]}>
-                  {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} />}
-                  <SortableStopCard
-                    stop={stop}
-                    stopId={stopIds[si]}
-                    editMode={editMode}
-                    onDelete={() => setDeleteTarget(si)}
-                  />
-                </div>
-              ))}
+              {stops.map((stop: PlanStop, si: number) => {
+                const destName = (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).display_name
+                  || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name
+                  || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_ko
+                  || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_en
+                  || '';
+                return (
+                  <div key={stopIds[si]}>
+                    {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} destinationName={destName} />}
+                    <SortableStopCard
+                      stop={stop}
+                      stopId={stopIds[si]}
+                      editMode={editMode}
+                      onDelete={() => setDeleteTarget(si)}
+                    />
+                  </div>
+                );
+              })}
             </AnimatePresence>
 
             {/* Add Stop button */}
@@ -84,12 +91,19 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         </SortableContext>
       ) : (
         <div className="space-y-1">
-          {stops.map((stop: PlanStop, si: number) => (
-            <div key={si}>
-              {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} />}
-              <StopCard stop={stop} />
-            </div>
-          ))}
+          {stops.map((stop: PlanStop, si: number) => {
+            const destName = (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).display_name
+              || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name
+              || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_ko
+              || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_en
+              || '';
+            return (
+              <div key={si}>
+                {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} destinationName={destName} />}
+                <StopCard stop={stop} />
+              </div>
+            );
+          })}
         </div>
       )}
 

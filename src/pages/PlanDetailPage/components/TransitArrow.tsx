@@ -205,17 +205,21 @@ function BusStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: Reco
 
 function WalkStep({ step, trKeys }: { step: TransitStepDetail; trKeys: Record<string, string> }) {
   return (
-    <div className="flex items-center gap-2 text-[10px] text-white/40 pl-1">
-      <Footprints className="w-3 h-3 text-white/30" />
-      <span>
-        {trKeys.walk || 'Walk'} {step.duration}{trKeys.minUnit || 'min'}
-        {(step.distance || 0) > 0 && <span className="text-white/25"> ({step.distance}m)</span>}
-      </span>
+    <div className="flex items-center gap-2.5 rounded-lg bg-amber-400/[0.06] border border-amber-400/20 px-3 py-2">
+      <div className="w-7 h-7 rounded-full bg-amber-400/20 flex items-center justify-center shrink-0">
+        <Footprints className="w-3.5 h-3.5 text-amber-300" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[12px] font-semibold text-white/90">
+          {trKeys.walk || 'Walk'} {step.duration}{trKeys.minUnit || 'min'}
+          {(step.distance || 0) > 0 && <span className="text-amber-300/80 ml-1.5 font-mono">{step.distance}m</span>}
+        </p>
+      </div>
     </div>
   );
 }
 
-export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<string, unknown> }) {
+export function TransitArrow({ transit, destinationName }: { transit: TransitFromPrev & Record<string, unknown>; destinationName?: string }) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const trKeys = (pd.transit || {}) as Record<string, string>;
@@ -228,6 +232,16 @@ export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<st
   const isDowngraded = !!transit._downgraded_from;
   const isFallback = transit.source === 'naver_fallback';
   const isStale = !!transit._stale;
+
+  // Final arrival summary: pick the LAST subway/bus step's exit + the LAST walk
+  // step's distance to render a "Exit X → walk Ymin → DESTINATION" callout.
+  // This is the bit users were missing — Klook/Naver always end with this.
+  const lastTransitStep = [...detailSteps].reverse().find(s => s.mode === 'subway' || s.mode === 'bus');
+  const lastWalkStep = [...detailSteps].reverse().find(s => s.mode === 'walk');
+  const exitNum = (lastTransitStep as { toExit?: string | number } | undefined)?.toExit;
+  const walkM = (lastWalkStep?.distance as number | undefined) || transit.total_walk_m || 0;
+  const walkMin = (lastWalkStep?.duration as number | undefined) || (walkM > 0 ? Math.max(1, Math.round(walkM / 70)) : 0);
+  const showFinalArrival = !!destinationName && hasRichSteps && (exitNum || walkM > 0);
 
   return (
     <div className="ml-4 my-1">
@@ -277,7 +291,41 @@ export function TransitArrow({ transit }: { transit: TransitFromPrev & Record<st
             if (step.mode === 'bus') return <BusStep key={i} step={step} trKeys={trKeys} lang={language} />;
             return <WalkStep key={i} step={step} trKeys={trKeys} />;
           })}
-          {(transit.total_walk_m || 0) > 0 && (
+
+          {/* FINAL ARRIVAL — "Exit X → walk Ymin → DESTINATION".
+              The bit users complained was missing. Stands out with emerald
+              gradient + bold destination so it's the obvious last step. */}
+          {showFinalArrival && (
+            <div className="rounded-xl px-3 py-2.5 mt-2"
+              style={{
+                background: 'linear-gradient(135deg, rgba(52,211,153,0.15), rgba(124,92,252,0.10))',
+                border: '1px solid rgba(52,211,153,0.35)',
+              }}>
+              <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                {trKeys.finalArrival || '도착'}
+              </p>
+              <div className="flex items-center gap-1.5 flex-wrap text-[12px] text-white">
+                {exitNum && (
+                  <>
+                    <span className="font-bold">{trKeys.exit || 'Exit'} {exitNum}</span>
+                    <span className="text-white/40">→</span>
+                  </>
+                )}
+                {walkM > 0 && (
+                  <>
+                    <span className="inline-flex items-center gap-1 bg-amber-400/15 border border-amber-400/30 rounded-md px-1.5 py-0.5 text-amber-200">
+                      <Footprints className="w-3 h-3" />
+                      {trKeys.walk || 'Walk'} {walkMin}{trKeys.minUnit || 'min'} ({walkM}m)
+                    </span>
+                    <span className="text-white/40">→</span>
+                  </>
+                )}
+                <span className="font-bold text-emerald-300">{destinationName}</span>
+              </div>
+            </div>
+          )}
+
+          {(transit.total_walk_m || 0) > 0 && !showFinalArrival && (
             <p className="text-[9px] text-white/30 pl-1">
               <Footprints className="w-2.5 h-2.5 inline -mt-0.5" /> {trKeys.totalWalk || 'Total walk'}: {transit.total_walk_m}m
             </p>

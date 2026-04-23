@@ -221,6 +221,7 @@ export async function generatePDF(
           transfer: transitDict?.transfer || 'transfer',
           walk: transitDict?.walk || 'Walk',
           totalWalk: transitDict?.totalWalk || 'Total walk',
+          finalArrival: transitDict?.finalArrival || 'Arrival',
           min: L.min,
         };
         const transfers = (t as { transfers?: number }).transfers || 0;
@@ -336,7 +337,21 @@ export async function generatePDF(
             // walk
             return `<p style="font-size:9px;color:${C.muted};margin:2px 0 2px 10px;">${tr.walk} ${s.duration || '?'}${tr.min}${(s.distance as number) > 0 ? ` (${s.distance}m)` : ''}</p>`;
           }).join('');
-          if (totalWalk > 0) {
+          // Final-arrival callout — extracts last subway/bus exit + last walk distance
+          // and renders "Exit X → walk Ymin → DESTINATION" so the PDF reader knows
+          // which exit gets them closest to where they're going.
+          const lastTransit = [...stepsDetail].reverse().find(s => s.mode === 'subway' || s.mode === 'bus') as { toExit?: string | number } | undefined;
+          const lastWalk = [...stepsDetail].reverse().find(s => s.mode === 'walk') as { distance?: number; duration?: number } | undefined;
+          const arrExit = lastTransit?.toExit;
+          const arrWalkM = lastWalk?.distance || totalWalk || 0;
+          const arrWalkMin = lastWalk?.duration || (arrWalkM > 0 ? Math.max(1, Math.round(arrWalkM / 70)) : 0);
+          const destName = stop.display_name || stop.name_en || stop.name || stop.name_ko || '';
+          if (destName && (arrExit || arrWalkM > 0)) {
+            stepsHtml += `<div style="margin:6px 0 0;padding:6px 8px;border-radius:4px;background:linear-gradient(135deg,rgba(52,211,153,0.10),rgba(124,92,252,0.06));border:1px solid rgba(52,211,153,0.30);">
+              <p style="font-size:8px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:1px;margin:0 0 3px;">★ ${tr.finalArrival}</p>
+              <p style="font-size:10px;color:${C.heading};margin:0;font-weight:600;">${arrExit ? `${tr.exit} ${arrExit} → ` : ''}${arrWalkM > 0 ? `${tr.walk} ${arrWalkMin}${tr.min} (${arrWalkM}m) → ` : ''}<span style="color:#10b981;">${destName}</span></p>
+            </div>`;
+          } else if (totalWalk > 0) {
             stepsHtml += `<p style="font-size:8px;color:${C.muted};margin:3px 0 0 10px;">${tr.totalWalk}: ${totalWalk}m</p>`;
           }
         } else if (t.step_by_step?.length) {
