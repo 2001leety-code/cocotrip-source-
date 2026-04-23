@@ -17,7 +17,11 @@
  *     useful to local staff, translation in parens for the traveller.
  *     Skipped for ko (already Korean) and en (lineEn/fromRoman already exist).
  */
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+// ESM, not CommonJS — root package.json sets "type": "module" so Vercel treats
+// every api/*.js as ESM. The previous CommonJS form crashed at module-load on
+// every invocation ("FUNCTION_INVOCATION_FAILED"), masking earlier ja/zh
+// translation failures behind warm Firestore cache hits.
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -32,7 +36,7 @@ const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 const TRANSLATE_FIELDS = ['display_name', 'tip', 'entry_fee_note'];
 const TRANSLATE_ITEM_FIELDS = ['name', 'note'];
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json(_err('POST only', 'METHOD_NOT_ALLOWED'));
 
   const { plan, targetLang } = req.body;

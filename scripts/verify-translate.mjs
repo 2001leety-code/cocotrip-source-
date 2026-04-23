@@ -5,12 +5,17 @@
  * one bus leg) and asserts the output contains lineJa/fromJa/wayJa and
  * translatorVersion: 2.
  *
- * Usage: node scripts/verify-translate.cjs [ja|zh]
+ * Usage: node scripts/verify-translate.mjs [ja|zh]
  * Cost: ~$0.001 per run (1 Gemini Flash call).
+ *
+ * .mjs because the handler is now ESM (root package.json type:module).
  */
-// Minimal .env loader (no dotenv dep)
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
   for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
@@ -19,7 +24,7 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const handler = require('../api/translate-plan.js');
+const { default: handler } = await import('../api/translate-plan.js');
 
 const targetLang = process.argv[2] || 'ja';
 
