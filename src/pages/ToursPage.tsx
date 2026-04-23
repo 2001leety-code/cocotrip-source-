@@ -235,7 +235,7 @@ export default function ToursPage() {
               <button
                 key={key}
                 onClick={() => setActiveRegion(key)}
-                className="tour-chip shrink-0 text-[12px] font-bold px-4 py-2 rounded-full"
+                className="tour-chip shrink-0 text-[12px] font-bold px-4 py-2.5 min-h-[44px] rounded-full"
                 style={
                   isActive
                     ? {

@@ -132,7 +132,8 @@ export function WizardStep0Destination(props: Step0Props) {
                 <div className="overflow-hidden flex-1 min-w-0">
                   {/* Allow 2-line wrap so longer translated labels (e.g. EN "Hanbok Experience" / "K-Drama Locations", JA "ショッピングツアー") aren't cut off mid-word. */}
                   <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey]}</p>
-                  <p className="text-[10px] text-white/40 truncate">{p[subKey]}</p>
+                  {/* Sub also wraps to 2 lines — fixes "Myeongdong · Dongdaemun" being chopped on iphone-se. */}
+                  <p className="text-[10px] text-white/40 leading-tight line-clamp-2 mt-0.5">{p[subKey]}</p>
                 </div>
                 {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
               </button>

@@ -85,12 +85,12 @@ export function Regions({ t }: RegionsProps) {
                     {(t.regions as Record<string, string>)[region.id]}
                   </h3>
                   
-                  {/* Hover Content */}
+                  {/* Hover Content — CTA personalized with region name so 9 cards aren't all "View Tours" */}
                   <div className={`overflow-hidden transition-all duration-300 ${
                     isActive ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
                   }`}>
                     <button className="flex items-center gap-2 text-[#c0b283] text-sm font-medium mt-2">
-                      <span>{t.regions.viewTours}</span>
+                      <span>{(t.regions as Record<string, string>)[region.id]} {t.regions.viewTours}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>

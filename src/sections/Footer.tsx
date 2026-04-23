@@ -27,13 +27,13 @@ export function Footer({ t }: FooterProps) {
             <p className="text-[11px] text-white/25 mt-0.5">프리미엄 한국 여행 — cocotripkr.com</p>
           </div>
 
-          {/* Links */}
-          <div className="flex justify-center gap-4 mb-5 text-[11px]">
-            <Link to="/about" className="text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.about}</Link>
-            <span className="text-white/15">·</span>
-            <Link to="/terms" className="text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.terms}</Link>
-            <span className="text-white/15">·</span>
-            <Link to="/privacy" className="text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.privacy}</Link>
+          {/* Links — increased tap area to ~44px (WCAG 2.5.5) via py-3 inline-block */}
+          <div className="flex justify-center gap-3 mb-3 text-[11px]">
+            <Link to="/about" className="inline-flex items-center min-h-[44px] px-2 text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.about}</Link>
+            <span className="text-white/15 self-center">·</span>
+            <Link to="/terms" className="inline-flex items-center min-h-[44px] px-2 text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.terms}</Link>
+            <span className="text-white/15 self-center">·</span>
+            <Link to="/privacy" className="inline-flex items-center min-h-[44px] px-2 text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.privacy}</Link>
           </div>
 
           {/* Info - compact */}

@@ -53,23 +53,28 @@ export default function CookieBanner() {
               <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">{SUPPORT_EMAIL}</a>
               {cb?.bodyAfter ?? '.'}
             </p>
+            {/* Mobile-friendly tap targets — buttons hit ~44px height (WCAG 2.5.5) */}
             <div className="flex items-center gap-2 mt-3">
               <button
                 onClick={accept}
-                className="px-4 py-1.5 text-xs font-bold text-white rounded-xl transition-all hover:scale-105"
+                className="min-h-[44px] px-5 py-2.5 text-xs font-bold text-white rounded-xl transition-all hover:scale-105"
                 style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
               >
                 {cb?.accept ?? 'Accept'}
               </button>
               <button
                 onClick={dismiss}
-                className="px-3 py-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"
+                className="min-h-[44px] px-4 py-2.5 text-xs text-white/40 hover:text-white/60 transition-colors"
               >
                 {cb?.dismiss ?? 'Dismiss'}
               </button>
             </div>
           </div>
-          <button onClick={dismiss} className="text-white/20 hover:text-white/50 transition-colors">
+          <button
+            onClick={dismiss}
+            aria-label="Close"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
