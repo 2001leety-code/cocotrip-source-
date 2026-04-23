@@ -33,10 +33,10 @@ export function WizardStep0Destination(props: Step0Props) {
   } = props;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-bold text-white mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
-        <p className="text-sm text-white/40">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
+        <h2 className="text-[17px] sm:text-lg font-bold text-white mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
+        <p className="text-[13px] sm:text-sm text-white/40">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
       </div>
 
       {/* Quick Start Presets */}

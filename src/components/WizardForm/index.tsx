@@ -172,15 +172,15 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   return (
     <>
       <div className="w-full">
-        {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-1 mb-8">
+        {/* Step Indicator — mobile mb 32px -> 20px, tighter spacing while preserving tap target */}
+        <div className="flex items-center justify-center gap-1 mb-5 sm:mb-8">
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center">
               <button onClick={() => { if (i <= step) setStep(i); }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold transition-all ${
                   i === step ? 'text-white' : i < step ? 'text-[#7C5CFC] cursor-pointer hover:text-white' : 'text-white/20 cursor-default'
                 }`}>
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
+                <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold transition-all ${
                   i === step ? 'text-white shadow-lg' : i < step ? 'bg-[#7C5CFC]/25 text-[#7C5CFC]' : 'bg-white/[0.06] text-white/20'
                 }`} style={i === step ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 0 12px rgba(124,92,252,.5)' } : {}}>
                   {i < step ? <Check className="w-3 h-3" /> : i + 1}
@@ -188,7 +188,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
               {i < STEPS.length - 1 && (
-                <div className={`w-8 sm:w-14 h-0.5 rounded-full mx-1 transition-colors ${i < step ? 'bg-[#7C5CFC]/50' : 'bg-white/[0.06]'}`} />
+                <div className={`w-6 sm:w-14 h-0.5 rounded-full mx-1 transition-colors ${i < step ? 'bg-[#7C5CFC]/50' : 'bg-white/[0.06]'}`} />
               )}
             </div>
           ))}

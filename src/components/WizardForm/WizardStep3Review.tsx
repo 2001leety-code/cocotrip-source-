@@ -28,11 +28,11 @@ export function WizardStep3Review(props: Step3Props) {
   const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-lg font-bold text-white">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
+    <div className="space-y-5">
+      <h2 className="text-[17px] sm:text-lg font-bold text-white">{p.wizardReviewTitle || 'Review Your Trip'}</h2>
 
       {/* Summary cards */}
-      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 sm:p-5 space-y-4">
+      <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button onClick={() => onEditStep(0)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
             <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={allCities[0] || '-'} />

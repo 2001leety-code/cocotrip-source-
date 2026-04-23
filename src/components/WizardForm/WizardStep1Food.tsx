@@ -20,10 +20,10 @@ export function WizardStep1Food(props: Step1Props) {
   const { p, isMobile, dietPrefs, allergies, priceRange, toggleDiet, toggleAllergy, setPriceRange, onPrev, onNext } = props;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className={`text-lg font-bold mb-1 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>{p.wizardFoodTitle || 'Tell us your food preferences'}</h2>
-        <p className="text-sm text-white/40">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
+        <h2 className={`text-[17px] sm:text-lg font-bold mb-1 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>{p.wizardFoodTitle || 'Tell us your food preferences'}</h2>
+        <p className="text-[13px] sm:text-sm text-white/40">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
       </div>
 
       {/* Diet style chips */}

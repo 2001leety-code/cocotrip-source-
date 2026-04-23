@@ -53,13 +53,13 @@ export default function PlannerPage() {
       <style>{PAGE_STYLE}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
-      {/* Hero */}
-      <section className="text-white py-16 px-4"
+      {/* Hero — mobile py 64px -> 40px, h1 30px -> 24px to surface wizard above the fold */}
+      <section className="text-white py-10 sm:py-16 px-4"
         style={{ background: isMobile
           ? 'linear-gradient(160deg, #0a0412 0%, #1a0a2e 60%, #0d0618 100%)'
           : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
         <div className="max-w-2xl mx-auto text-center">
-          <div className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[11px] font-semibold tracking-wider uppercase mb-5 ${
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full border text-[10px] sm:text-[11px] font-semibold tracking-wider uppercase mb-3 sm:mb-5 ${
             isMobile
               ? 'border-[#B668FC]/35 bg-[#B668FC]/08 text-[#B668FC]'
               : 'border-[rgba(196,149,106,.35)] bg-[rgba(196,149,106,.08)] text-[#D4A574]'
@@ -67,17 +67,17 @@ export default function PlannerPage() {
             style={{ animation: 'fade-slide-up 0.5s ease forwards' }}>
             <Sparkles className="w-3 h-3" />{p.badgeLabel}
           </div>
-          <h1 className={`text-3xl sm:text-4xl font-bold leading-tight mb-4 whitespace-pre-line ${isMobile ? 'm-shimmer-text' : 'text-white'}`}
+          <h1 className={`text-2xl sm:text-4xl font-bold leading-tight mb-3 sm:mb-4 whitespace-pre-line ${isMobile ? 'm-shimmer-text' : 'text-white'}`}
             style={{ animation: 'fade-slide-up 0.6s ease forwards', animationDelay: '0.1s', opacity: 0 }}>{p.heroTitle}</h1>
-          <p className="text-white/50 text-sm sm:text-base whitespace-pre-line"
+          <p className="text-white/50 text-[13px] sm:text-base whitespace-pre-line"
             style={{ animation: 'fade-slide-up 0.6s ease forwards', animationDelay: '0.2s', opacity: 0 }}>{p.heroSubtitle}</p>
         </div>
       </section>
 
-      <main className={`max-w-3xl mx-auto px-4 space-y-8 ${isMobile ? 'py-6' : 'py-12'}`}>
+      <main className={`max-w-3xl mx-auto px-4 ${isMobile ? 'py-5 space-y-5' : 'py-12 space-y-8'}`}>
         {/* Wizard form */}
         {(status === 'idle' || status === 'error' || status === 'loadingQuick') && (
-          <div className={isMobile ? 'm-card m-appear p-5 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl'}>
+          <div className={isMobile ? 'm-card m-appear p-4 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl'}>
             <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} />
           </div>
         )}

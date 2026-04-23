@@ -41,10 +41,10 @@ export function WizardStep2Details(props: Step2Props) {
   } = props;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold text-white mb-1">{p.planner_step2_date || 'Travel Details'}</h2>
-        <p className="text-sm text-white/40">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
+        <h2 className="text-[17px] sm:text-lg font-bold text-white mb-1">{p.planner_step2_date || 'Travel Details'}</h2>
+        <p className="text-[13px] sm:text-sm text-white/40">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
       </div>
 
       {/* Range Calendar */}
