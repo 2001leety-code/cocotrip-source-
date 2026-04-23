@@ -71,7 +71,13 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* CJK fallback chain — Noto Sans KR/JP/SC are preloaded in index.html.
+       Without these, Windows users on ja/zh would see tofu boxes for Hanja
+       glyphs that Malgun Gothic doesn't cover (e.g. "江南" in JP/SC variants). */
+    font-family: 'Pretendard', 'Noto Sans KR', 'Noto Sans JP', 'Noto Sans SC',
+                 -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                 'Apple SD Gothic Neo', 'Malgun Gothic',
+                 'Hiragino Sans', 'Microsoft YaHei', Roboto, sans-serif;
   }
 }
 
