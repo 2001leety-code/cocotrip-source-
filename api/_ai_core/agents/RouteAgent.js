@@ -3,18 +3,53 @@ import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 import { AIRPORT_COORDS } from "../constants.js";
 
-// Klook/Trip.com pattern: pick the recommended option based on context.
-//   - Late-night arrival → AREX last train ends ~23:42, recommend limousine bus
-//   - Heavy luggage (3+ large) → recommend taxi (no transit transfers with bags)
-//   - Otherwise → AREX express is fastest/cheapest for ICN
+// Pick the recommended airport transport based on context.
+//   - Heavy luggage  → CocoTrip charter cross-sell. Korean taxi law restricts
+//     trunk capacity (a sedan taxi typically only takes ONE large suitcase),
+//     so a group with multiple checked bags can't physically use a taxi —
+//     they need a 8-pax Staria van or larger. We pitch our own charter here
+//     instead of recommending an option that won't actually work.
+//   - Late-night arrival (≥23:00 or <05:00) → AREX last train ~23:42, so
+//     recommend limousine bus.
+//   - Otherwise → AREX express is the fastest/cheapest standard option.
+//
+// Heavy threshold:
+//   ≥3 large bags, OR (≥2 large bags AND ≥4 pax), OR (≥2 mediums AND ≥1 large
+//   AND ≥3 pax) — anything that clearly won't fit in a sedan trunk.
 function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount }) {
   const hour = arrivalTimeHHMM ? parseInt(arrivalTimeHHMM.split(':')[0], 10) : null;
   const lateNight = hour !== null && (hour >= 23 || hour < 5);
-  const totalLarge = (luggage?.large || 0);
-  const heavyLoad = totalLarge >= 3 || (paxCount >= 4 && totalLarge >= 2);
-  if (heavyLoad) return { key: 'taxi', reason_ko: '짐이 많아 환승 없는 택시를 추천합니다', reason_en: 'Taxi recommended — too many bags for transit transfers', reason_ja: '荷物が多いため、乗り換えなしのタクシーを推奨します', reason_zh: '行李较多，推荐无需换乘的出租车' };
-  if (lateNight) return { key: 'limousine_bus', reason_ko: '늦은 시각 도착 — AREX 막차 후 운행하는 리무진 버스 추천', reason_en: 'Late arrival — AREX has stopped, take limousine bus', reason_ja: '深夜到着 — AREXの終電後はリムジンバスを推奨', reason_zh: '深夜到达 — AREX末班车已结束，推荐机场巴士' };
-  return { key: 'arex_express', reason_ko: '가장 빠르고 저렴한 표준 옵션', reason_en: 'Fastest and cheapest standard option', reason_ja: '最速かつ最安の標準オプション', reason_zh: '最快最便宜的标准选择' };
+  const large = luggage?.large || 0;
+  const medium = luggage?.medium || 0;
+  const heavyLoad = large >= 3
+    || (paxCount >= 4 && large >= 2)
+    || (paxCount >= 3 && medium >= 2 && large >= 1);
+  if (heavyLoad) {
+    return {
+      key: 'cocotrip_charter',
+      reason_ko: '한국 택시는 캐리어 1개만 가능 — 짐이 많아 코코트립 전용 차량을 추천합니다 (기사가 모든 짐 적재)',
+      reason_en: 'Korean taxis can only fit 1 suitcase — book a CocoTrip charter; your driver loads all luggage',
+      reason_ja: '韓国のタクシーはスーツケース1個のみ — 荷物が多い方は専用車両を推奨（ドライバーが全荷物を積載）',
+      reason_zh: '韩国出租车只能放1个行李箱 — 行李较多请预订CocoTrip包车（司机协助装载所有行李）',
+      cta_link: '/charter',
+    };
+  }
+  if (lateNight) {
+    return {
+      key: 'limousine_bus',
+      reason_ko: '늦은 시각 도착 — AREX 막차 후 운행하는 리무진 버스 추천',
+      reason_en: 'Late arrival — AREX has stopped, take limousine bus',
+      reason_ja: '深夜到着 — AREXの終電後はリムジンバスを推奨',
+      reason_zh: '深夜到达 — AREX末班车已结束，推荐机场巴士',
+    };
+  }
+  return {
+    key: 'arex_express',
+    reason_ko: '가장 빠르고 저렴한 표준 옵션',
+    reason_en: 'Fastest and cheapest standard option',
+    reason_ja: '最速かつ最安の標準オプション',
+    reason_zh: '最快最便宜的标准选择',
+  };
 }
 
 // Map the Wizard / Gemini `area` value to the matching charter product in
