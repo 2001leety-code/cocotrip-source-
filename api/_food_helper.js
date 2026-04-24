@@ -14,6 +14,27 @@ import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// ── P10/P7 (2026-04-24): User pref snippet for Gemini userMessage ──────
+// Allowlist-validates spice/bucket/pace keys (prompt-injection guard) and
+// returns a spreadable object. Empty fields are omitted so the Gemini
+// message only includes keys the user actually set.
+const _SPICE_OK = new Set(['none', 'mild', 'medium', 'hot']);
+const _BUCKET_OK = new Set(['kbbq', 'kfc', 'tteokbokki', 'bibimbap', 'samgyetang', 'naengmyeon', 'jokbal', 'sundubu']);
+const _PACE_OK = new Set(['half', 'short', 'full', 'action']);
+const _PACE_HOURS = { half: 4, short: 6, full: 8, action: 10 };
+export function buildFoodPrefSnippet(body) {
+  const spiceLevel = _SPICE_OK.has(body && body.spiceLevel) ? body.spiceLevel : null;
+  const bucket = Array.isArray(body && body.bucketDishes)
+    ? body.bucketDishes.filter((k) => _BUCKET_OK.has(k))
+    : [];
+  const pace = _PACE_OK.has(body && body.tourPace) ? body.tourPace : null;
+  const out = {};
+  if (spiceLevel) out.spice_tolerance = spiceLevel;
+  if (bucket.length > 0) out.bucket_list_dishes = bucket;
+  if (pace) { out.tour_pace = pace; out.daily_tour_hours = _PACE_HOURS[pace]; }
+  return out;
+}
+
 // ── Lazy-load food index ────────────────────────────────────────────────
 let _foodIndex = null;
 function getFoodIndex() {

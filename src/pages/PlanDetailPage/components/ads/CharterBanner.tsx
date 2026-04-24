@@ -1,18 +1,87 @@
 // Charter vehicle full-page banner (distinct from per-day CharterCTA inside DayTimeline).
 // Extracted from PlanDetailPage/index.tsx L310-347 (zero behavior change).
+//
+// P3-A (2026-04-24): WhatsApp prefill now carries planId + recommended tour
+// type + day-by-day theme summary so the operator answering on WhatsApp has
+// the context to quote without having to ask back.
+import { useState } from 'react';
 import { Car } from 'lucide-react';
-import { detectCharterRecommendation } from '@/data/charterPricing';
-import type { PlanDay } from '../../types';
+import { detectCharterRecommendation, AIRPORT_TRANSFER_PRICES } from '@/data/charterPricing';
+import type { PlanDay, PlanDocument } from '../../types';
+import { CharterInquireModal } from './CharterInquireModal';
 
 interface CharterBannerProps {
   days: PlanDay[];
+  plan?: PlanDocument;
 }
 
-export function CharterBanner({ days }: CharterBannerProps) {
+function getPlanIdFromUrl(): string {
+  if (typeof window === 'undefined') return '';
+  return window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '';
+}
+
+function buildWhatsappPrefill(opts: {
+  planId: string;
+  tourLabel: string;
+  pricing: { priceKRW: number; hours: number };
+  days: PlanDay[];
+  plan?: PlanDocument;
+}): string {
+  const { planId, tourLabel, pricing, days, plan } = opts;
+  const input = plan?.input || {};
+  const startDate = input.startDate || '';
+  const pax = input.adults || input.pax || '';
+  const dayCount = days.length;
+
+  // Per-day theme summary keeps it short — operator sees what trip looks like
+  // without needing to open the plan link.
+  const dayLines = days.slice(0, 7).map((d, i) => {
+    const stops = d.stops || [];
+    const themeText = d.theme || `Day ${d.day || i + 1}`;
+    const sampleStops = stops.slice(0, 3)
+      .map(s => s.display_name || s.name_en || s.name || s.name_ko || '')
+      .filter(Boolean)
+      .join(', ');
+    return `Day ${d.day || i + 1}: ${themeText}${sampleStops ? ` (${sampleStops})` : ''}`;
+  }).join('\n');
+
+  const planUrl = planId
+    ? `https://cocotripkr.com/my-plans/${planId}`
+    : '';
+
+  // Cross-reference recommended airport transfer if we know arrival airport.
+  // Picks the seoul-central baseline if region unknown.
+  const transferKey = (input.area as string)?.toLowerCase().includes('gangnam')
+    ? 'seoul-gangnam'
+    : 'seoul-central';
+  const transferPrice = AIRPORT_TRANSFER_PRICES[transferKey];
+
+  const lines = [
+    `Hi CocoTrip! I'd like to book a private charter.`,
+    ``,
+    `▸ Plan: ${planId || '(in-app)'}${startDate ? ` · Start ${startDate}` : ''}${pax ? ` · ${pax} pax` : ''}`,
+    `▸ Recommended vehicle: Hyundai Staria (8-seat) — ${tourLabel}`,
+    `▸ Quoted: ₩${pricing.priceKRW.toLocaleString()} for ${pricing.hours}h${transferPrice ? ` (+ airport transfer ₩${transferPrice.priceKRW.toLocaleString()})` : ''}`,
+    ``,
+    `Itinerary (${dayCount} day${dayCount === 1 ? '' : 's'}):`,
+    dayLines || '(see plan link)',
+  ];
+  if (planUrl) lines.push('', `Plan: ${planUrl}`);
+
+  return lines.join('\n');
+}
+
+export function CharterBanner({ days, plan }: CharterBannerProps) {
   const allStops = days.flatMap((d: PlanDay) => d.stops || []);
   const detection = detectCharterRecommendation(allStops as any);
   if (!detection.recommended || !detection.pricing) return null;
   const { pricing } = detection;
+
+  const tourLabel = detection.tourType ? pricing.en || pricing.ko || detection.tourType : 'private charter';
+  const planId = getPlanIdFromUrl();
+  const prefillText = buildWhatsappPrefill({ planId, tourLabel, pricing, days, plan });
+  const waUrl = `https://wa.me/821087140611?text=${encodeURIComponent(prefillText)}`;
+  const [inquireOpen, setInquireOpen] = useState(false);
 
   return (
     <div className="mb-6 rounded-2xl overflow-hidden border border-cyan-500/25" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.08), rgba(59,130,246,0.05))' }}>
@@ -37,12 +106,25 @@ export function CharterBanner({ days }: CharterBannerProps) {
             <span key={f} className="text-[11px] text-cyan-200/70 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-full">{'\u2713'} {f}</span>
           ))}
         </div>
-        <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
+        <button
+          type="button" onClick={() => setInquireOpen(true)}
           className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90"
           style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', boxShadow: '0 4px 20px rgba(6,182,212,0.3)' }}>
-          Book via WhatsApp {'\u2192'}
+          Request quote in-app {'\u2192'}
+        </button>
+        <a href={waUrl} target="_blank" rel="noopener noreferrer"
+          className="block w-full mt-2 py-2 text-center text-[11px] text-cyan-300/70 hover:text-cyan-200 underline">
+          Or send via WhatsApp instead
         </a>
       </div>
+      <CharterInquireModal
+        open={inquireOpen} onClose={() => setInquireOpen(false)}
+        plan={plan} days={days}
+        recommendedTour={tourLabel}
+        quotedKRW={pricing.priceKRW}
+        hours={pricing.hours}
+        planId={planId}
+      />
     </div>
   );
 }

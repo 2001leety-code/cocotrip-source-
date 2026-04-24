@@ -468,20 +468,26 @@ export async function generatePDF(
   }
 
   // Wait for browser to fully render the content (especially Korean fonts)
-  // document.fonts.ready resolves when all font faces are loaded
+  // document.fonts.ready resolves when all font faces are loaded.
+  // Bump to 5s — first-run on slow networks can miss the 3s window.
   await Promise.race([
     document.fonts?.ready || Promise.resolve(),
-    new Promise(resolve => setTimeout(resolve, 3000)),
+    new Promise(resolve => setTimeout(resolve, 5000)),
   ]);
 
-  // === CJK 폰트 렌더 검증: 더미 문자로 실제 렌더 확인 ===
+  // === CJK 폰트 렌더 검증: 더미 문자로 실제 렌더 확인 + 1회 재시도 ===
   const fontTest = document.createElement('span');
   fontTest.style.cssText = 'position:absolute;top:-9999px;font-size:16px;font-family:inherit;';
   fontTest.textContent = '\uD55C\uAE00\u30C6\u30B9\u30C8\u4E2D\u6587';
   container.appendChild(fontTest);
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await new Promise(resolve => setTimeout(resolve, 400));
   if (fontTest.offsetWidth === 0) {
-    console.warn('[PDF] CJK font may not be loaded — proceeding with system fallback');
+    // Retry once: kick the loader and give it another beat.
+    try { await (document as Document & { fonts?: { load: (s: string) => Promise<unknown> } }).fonts?.load('14px "Noto Sans KR"'); } catch (_e) { /* ignore */ }
+    await new Promise(resolve => setTimeout(resolve, 600));
+    if (fontTest.offsetWidth === 0) {
+      console.warn('[PDF] CJK font still not measurable — falling back to system fonts');
+    }
   }
   fontTest.remove();
 
@@ -489,24 +495,50 @@ export async function generatePDF(
   await new Promise(resolve => setTimeout(resolve, 500));
   void container.offsetHeight; // force reflow
 
+  // === 사이즈 진단: 너무 크면 OOM 위험 → 사용자에게 WhatsApp 폴백 안내 ===
+  // 800px width × scale × height × 4byte = canvas memory.
+  // scale 1.0 + 16000px height = ~51MB (모바일 한계선).
+  const tooTall = container.scrollHeight > 16000;
+  if (tooTall) {
+    console.warn(`[PDF] Container very tall (${container.scrollHeight}px) — memory pressure possible`);
+  }
+
+  // Build WhatsApp fallback URL once — reused on failure.
+  const planIdFromUrl = (typeof window !== 'undefined'
+    ? (window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '')
+    : '');
+  const fallbackMsg = `Hi CocoTrip! PDF download failed for my plan${planIdFromUrl ? ` (${planIdFromUrl})` : ''}. Could you send it manually?`;
+  const whatsappFallback = `https://wa.me/821087140611?text=${encodeURIComponent(fallbackMsg)}`;
+  const offerWhatsapp = (reason: string) => {
+    const proceed = confirm(`${reason}\n\nOpen WhatsApp to request manual delivery?`);
+    if (proceed) window.open(whatsappFallback, '_blank');
+  };
+
   try {
     const html2pdf = (await import('html2pdf.js')).default;
     const titleSlug = (it.tour_title || 'korea-trip').replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'korea-trip';
     const dateStr = input.startDate || 'undated';
     const filename = `cocotrip-${titleSlug}-${dateStr}.pdf`;
 
+    // scale 1.0 (was 1.5): saves ~56% canvas memory, prevents mobile OOM blank PDFs.
+    // image quality 0.92 keeps file size reasonable without visible degradation.
     const worker = html2pdf().set({
       margin: [8, 8, 8, 8],
       filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 1.5, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: 800, scrollX: 0, scrollY: 0 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      image: { type: 'jpeg', quality: 0.92 },
+      html2canvas: { scale: 1.0, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: 800, scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     } as Record<string, unknown>).from(container);
 
     // iOS Safari: direct .save() often blocked -> open blob in new tab
     if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
       const pdf = await worker.outputPdf('blob');
+      // 빈 blob (1KB 미만) 검출 — html2canvas 백지 캡처 시점
+      if (pdf.size < 1024) {
+        offerWhatsapp('PDF capture failed (empty file).');
+        return;
+      }
       const url = URL.createObjectURL(pdf);
       window.open(url, '_blank');
       setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -514,8 +546,8 @@ export async function generatePDF(
       await worker.save();
     }
   } catch (err) {
-    console.error('[PDF] generation failed:', err);
-    alert('PDF generation failed. Please try again or contact us via WhatsApp.');
+    console.error('[PDF] generation failed:', err, 'scrollHeight=', container.scrollHeight);
+    offerWhatsapp('PDF generation failed.');
   } finally {
     document.body.removeChild(container);
     document.body.removeChild(overlay);

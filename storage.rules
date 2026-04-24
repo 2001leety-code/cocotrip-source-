@@ -13,6 +13,16 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // free_claims/{emailSlug}/{filename} — "이미 예약" 무료 플랜 영수증
+    //   비로그인 게스트도 제출 가능. 어드민(2001leety@gmail.com)만 다운로드.
+    match /free_claims/{emailSlug}/{allPaths=**} {
+      allow read:  if request.auth != null
+                   && request.auth.token.email == '2001leety@gmail.com';
+      allow write: if request.resource.size < 5 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType == 'application/pdf');
+    }
+
     // 기타 모든 경로 — 차단
     match /{allPaths=**} {
       allow read, write: if false;

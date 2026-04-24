@@ -58,11 +58,11 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
         tip: '메타세쿼이아 가로수길도 함께 방문 — 드라이브 코스 최적', tipEn: 'Also visit Metasequoia Road nearby — perfect drive course',
       },
       {
-        name: '남해 독일마을 유채꽃', nameEn: 'Namhae German Village Canola Flowers',
-        location: '경남 남해군', locationEn: 'Namhae, South Gyeongsang',
-        highlight: '유럽풍 마을 + 노란 유채꽃밭의 이색적 풍경, SNS 핫스팟', highlightEn: 'European-style village + yellow canola fields — major SNS hotspot',
-        period: '3월 말 ~ 4월 중순', periodEn: 'Late March ~ Mid April',
-        tip: '꽃밭은 오전 햇빛에 가장 아름답게 촬영됨 — 오전 방문 필수', tipEn: 'Best photos in morning light — morning visit strongly recommended',
+        name: '태안 세계튤립축제', nameEn: 'Taean World Tulip Festival',
+        location: '충남 태안군 코리아플라워파크', locationEn: 'Korea Flower Park, Taean, South Chungcheong',
+        highlight: '300만 송이 튤립 군락, 서해안 일몰과 함께 즐기는 봄꽃 축제', highlightEn: '3M tulips with West Sea sunset — premier spring flower festival',
+        period: '4월 12일 ~ 5월 11일', periodEn: 'Apr 12 ~ May 11',
+        tip: '서울에서 차로 2시간 — 전세차량 당일치기 최적', tipEn: 'Only 2 hours from Seoul by car — perfect day trip with charter',
       },
       {
         name: '서울재즈페스티벌', nameEn: 'Seoul Jazz Festival',

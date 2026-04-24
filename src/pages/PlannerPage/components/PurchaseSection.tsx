@@ -11,6 +11,7 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
+import { FreeClaimForm } from './FreeClaimForm';
 
 interface QuickPreviewData {
   themes?: string[];
@@ -197,7 +198,7 @@ function FreeBundleToggle({
 // primary CTA + collapsible bundle upsell instead. PayPal-side flow lives in
 // the main render; bundle-side flow lives in OptionBFlow below.
 
-function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, userEmail, setUserEmail }: {
+function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, userEmail }: {
   p: PlannerDict; isMobile: boolean;
   optionBStep: 1 | 2 | 3; setOptionBStep: (v: 1 | 2 | 3) => void;
   lastValues: MutableRefObject<PlannerFormValues | null>;
@@ -268,21 +269,16 @@ function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, use
       )}
 
       {optionBStep === 3 && (
-        <div className="animate-fadeIn text-center">
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${isMobile ? 'bg-[#B668FC]/20' : 'bg-[#7C5CFC]/20'}`}>
-            <Check className="w-7 h-7 text-emerald-400" />
+        <div className="animate-fadeIn">
+          <div className="text-center mb-4">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${isMobile ? 'bg-[#B668FC]/20' : 'bg-[#7C5CFC]/20'}`}>
+              <Check className="w-6 h-6 text-emerald-400" />
+            </div>
+            <p className="text-white font-bold text-base mb-1">{p.optionBClaimTitle || 'Almost there!'}</p>
+            <p className="text-white/50 text-sm max-w-xs mx-auto">{p.optionBClaimDesc || 'Submit your booking proof and we\'ll unlock your full plan within 24 hours.'}</p>
           </div>
-          <p className="text-white font-bold text-base mb-2">{p.optionBClaimTitle || 'Almost there!'}</p>
-          <p className="text-white/50 text-sm mb-4 max-w-xs mx-auto">{p.optionBClaimDesc || 'Send us your booking confirmations via WhatsApp and we\'ll unlock your full plan for free.'}</p>
-          <a href={`https://wa.me/821087140611?text=${encodeURIComponent('Hi! I booked my flight and hotel through CocoTrip. Please send me my free AI plan. Email: ' + userEmail)}`}
-            target="_blank" rel="noopener noreferrer"
-            className={`inline-flex items-center justify-center gap-2 w-full py-4 rounded-2xl text-white font-bold text-[15px] transition-all hover:scale-[1.02] bg-gradient-to-r from-[#25D366] to-[#128C7E] shadow-[0_4px_20px_rgba(37,211,102,0.25)]`}>
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.637-1.467A11.932 11.932 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-2.168 0-4.183-.655-5.863-1.776l-.42-.265-2.754.872.878-2.69-.288-.44A9.776 9.776 0 012.182 12c0-5.414 4.404-9.818 9.818-9.818S21.818 6.586 21.818 12 17.414 21.818 12 21.818z"/></svg>
-            {p.optionBWhatsAppCta || 'Send booking proof via WhatsApp'}
-          </a>
-          <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} placeholder={p.emailPlaceholder}
-            className={`w-full mt-3 px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/40 transition-all outline-none ${isMobile ? 'focus:border-[#B668FC] focus:ring-1 focus:ring-[#B668FC]' : 'focus:border-[#7C5CFC] focus:ring-1 focus:ring-[#7C5CFC]'}`} />
-          <button onClick={() => setOptionBStep(2)} className="w-full mt-2 text-white/30 text-xs hover:text-white/50">{'\u2190'} {p.planner_prev}</button>
+          <FreeClaimForm p={p} isMobile={isMobile} initialEmail={userEmail} />
+          <button onClick={() => setOptionBStep(2)} className="w-full mt-3 text-white/30 text-xs hover:text-white/50">{'\u2190'} {p.planner_prev}</button>
         </div>
       )}
     </div>

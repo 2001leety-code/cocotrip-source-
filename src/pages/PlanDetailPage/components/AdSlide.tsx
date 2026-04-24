@@ -59,7 +59,7 @@ export function AdSlide({ adType, plan }: AdSlideProps) {
       case 'hotel':
         return <HotelAd region={region} />;
       case 'charter':
-        return <CharterBanner days={days} />;
+        return <CharterBanner days={days} plan={plan} />;
       case 'esim':
         return <EsimAd />;
       case 'carRental':

@@ -1,6 +1,13 @@
-// Step 0: destination cities + activities + free-text hints.
+// Step (destinations): cities + DYNAMIC activities (P9) + free-text hints.
+//
+// P9 (2026-04-24): Activity chips are now keyed off selected cities. Universal
+// chips (Food/Photo/Shopping/Night) always render; city-specific chips
+// (Jagalchi for 부산, OlleTrail for 제주, DMZ only for 서울, etc.) append.
+// Falls back to legacy ACTIVITY_KEYS when no city is selected yet so the
+// "before you pick a city" view isn't empty.
+import { useMemo } from 'react';
 import { Sparkles, ChevronRight, Check } from 'lucide-react';
-import { CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP } from './data';
+import { CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS, getActivitiesForCities } from './data';
 import type { WizardDict } from './types';
 
 interface Step0Props {
@@ -9,6 +16,7 @@ interface Step0Props {
   mainCity: string;
   mainCityKey: string;
   extraCities: string[];
+  selectedCityKeys: string[];        // P9: chip keys (e.g. ['seoul','busan'])
   selectedActivities: string[];
   freeText: string;
   setMainCity: (v: string) => void;
@@ -22,15 +30,23 @@ interface Step0Props {
   toggleActivity: (key: string) => void;
   toggleCity: (cityName: string, chipKey?: string) => void;
   isCitySelected: (cityName: string) => boolean;
+  onPrev?: () => void;               // P6: Step 0 reservation now precedes this step
   onNext: () => void;
 }
 
 export function WizardStep0Destination(props: Step0Props) {
   const {
-    p, isMobile, mainCity, selectedActivities, freeText,
+    p, isMobile, mainCity, selectedCityKeys, selectedActivities, freeText,
     setMainCity, setMainCityKey, setExtraCities, setSelectedActivities, setFreeText,
-    allCities, canGoStep1, getCityName, toggleActivity, toggleCity, isCitySelected, onNext,
+    allCities, canGoStep1, getCityName, toggleActivity, toggleCity, isCitySelected, onPrev, onNext,
   } = props;
+
+  // P9: derived activity keys — falls back to legacy full list when no city
+  // chosen so first-time visitors still see something to click.
+  const activityKeys = useMemo(
+    () => (selectedCityKeys.length > 0 ? getActivitiesForCities(selectedCityKeys) : Array.from(ACTIVITY_KEYS)),
+    [selectedCityKeys]
+  );
 
   return (
     <div className="space-y-5">
@@ -111,15 +127,23 @@ export function WizardStep0Destination(props: Step0Props) {
         )}
       </div>
 
-      {/* Activities */}
+      {/* Activities — P9: city-aware, universal chips first then city-specific */}
       <div>
         <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardActivities || 'What interests you?'}</p>
-        <p className="text-xs text-white/25 mb-3">{p.wizardActivitiesHint || 'Select all that apply'}</p>
+        <p className="text-xs text-white/25 mb-3">
+          {selectedCityKeys.length > 0
+            ? (p.wizardActivitiesHintCity || `Tailored for ${allCities.join(', ')}`)
+            : (p.wizardActivitiesHint || 'Select all that apply')}
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {ACTIVITY_KEYS.map((key) => {
+          {activityKeys.map((key) => {
             const nameKey = `act${key}` as keyof typeof p;
             const subKey = `act${key}Sub` as keyof typeof p;
             const sel = selectedActivities.includes(key);
+            const icon = ACTIVITY_ICON_MAP[key] || CITY_ACTIVITY_ICONS[key] || <Sparkles className="w-5 h-5" />;
+            // Fallback label if i18n key not yet added (lets new chips ship before
+            // full translation pass completes — readable English derived from key).
+            const labelFallback = key.replace(/([a-z])([A-Z])/g, '$1 $2');
             return (
               <button key={key} onClick={() => toggleActivity(key)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all ${
@@ -128,12 +152,10 @@ export function WizardStep0Destination(props: Step0Props) {
                     : 'border-white/[0.1] bg-white/[0.04] text-white/60 hover:border-white/25 hover:text-white'
                 }`}
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))', borderColor: 'rgba(124,92,252,.5)' } : {}}>
-                <span className="shrink-0">{ACTIVITY_ICON_MAP[key]}</span>
+                <span className="shrink-0">{icon}</span>
                 <div className="overflow-hidden flex-1 min-w-0">
-                  {/* Allow 2-line wrap so longer translated labels (e.g. EN "Hanbok Experience" / "K-Drama Locations", JA "ショッピングツアー") aren't cut off mid-word. */}
-                  <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey]}</p>
-                  {/* Sub also wraps to 2 lines — fixes "Myeongdong · Dongdaemun" being chopped on iphone-se. */}
-                  <p className="text-[10px] text-white/40 leading-tight line-clamp-2 mt-0.5">{p[subKey]}</p>
+                  <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey] || labelFallback}</p>
+                  <p className="text-[10px] text-white/40 leading-tight line-clamp-2 mt-0.5">{p[subKey] || ''}</p>
                 </div>
                 {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
               </button>
@@ -151,12 +173,20 @@ export function WizardStep0Destination(props: Step0Props) {
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 resize-none transition-colors" />
       </div>
 
-      {/* Next */}
-      <button onClick={onNext} disabled={!canGoStep1}
-        className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] transition-all"
-        style={{ background: canGoStep1 ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
-        {p.wizardFoodTitle || 'Next: Food Preferences'} <ChevronRight className="w-5 h-5" />
-      </button>
+      {/* Nav — back to reservation status if available */}
+      <div className="flex gap-3 pt-1">
+        {onPrev && (
+          <button onClick={onPrev}
+            className="px-4 py-3 rounded-xl border border-white/[0.12] text-white/50 hover:text-white text-sm font-semibold transition-all">
+            {'\u2190'}
+          </button>
+        )}
+        <button onClick={onNext} disabled={!canGoStep1}
+          className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] transition-all"
+          style={{ background: canGoStep1 ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
+          {p.wizardFoodTitle || 'Next: Food Preferences'} <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   );
 }

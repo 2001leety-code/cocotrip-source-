@@ -3,7 +3,7 @@
 // under src/components/WizardForm/* for P3 Lock release.
 import { useState, useEffect } from 'react';
 import {
-  MapPin, Calendar, Wand2, UtensilsCrossed, Check,
+  MapPin, Calendar, Wand2, UtensilsCrossed, Check, Plane,
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { differenceInCalendarDays, format } from 'date-fns';
@@ -15,10 +15,13 @@ import { useAuth } from '@/hooks/useAuth';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
+import { WizardStep0Reservation, type ReservationStatus } from './WizardStep0Reservation';
 import { WizardStep0Destination } from './WizardStep0Destination';
 import { WizardStep1Food } from './WizardStep1Food';
-import { WizardStep2Details } from './WizardStep2Details';
+import { WizardStep2Details, type TourPace } from './WizardStep2Details';
 import { WizardStep3Review } from './WizardStep3Review';
+import { FreeClaimForm } from '@/pages/PlannerPage/components/FreeClaimForm';
+import type { PlannerDict } from '@/pages/PlannerPage/types';
 
 import type { WizardDict } from './types';
 
@@ -29,7 +32,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const { user } = useAuth();
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Step 0: destinations
+  // P6 Step 0 (NEW): reservation status — captures arrival airport/time up
+  // front so RouteAgent has real data instead of guessing during preview gen.
+  const [reservationStatus, setReservationStatus] = useState<ReservationStatus | null>(null);
+
+  // Step 1 (was 0): destinations
   const [mainCity, setMainCity]               = useState('');
   const [mainCityKey, setMainCityKey]         = useState('');
   const [extraCities, setExtraCities]         = useState<string[]>([]);
@@ -40,6 +47,9 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const [dietPrefs, setDietPrefs]   = useState<string[]>([]);
   const [allergies, setAllergies]   = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState('Any');
+  // P10: spice tolerance + Korean dish bucket list (separate from style chips).
+  const [spiceLevel, setSpiceLevel] = useState<string>('medium');
+  const [bucketDishes, setBucketDishes] = useState<string[]>([]);
 
   // Step 2: travel details
   const [dateRange, setDateRange]             = useState<DateRange | undefined>();
@@ -56,6 +66,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const [luggageLarge, setLuggageLarge]       = useState(0);
   const [wantAccom, setWantAccom]             = useState(false);
   const [accomBudget, setAccomBudget]         = useState('moderate');
+  // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
+  const [tourPace, setTourPace]               = useState<TourPace>('full');
   const mobility = 'ok' as const;
 
   // Responsive — mobile vs desktop for calendar
@@ -71,7 +83,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : '';
   const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : '';
   const nights = dateRange?.from && dateRange?.to ? differenceInCalendarDays(dateRange.to, dateRange.from) : 0;
-  const durationDays = nights > 0 ? nights + 1 : 3;
+  // P8 (2026-04-24): allow 1-day plans. Same-day pick (nights=0 with both
+  // dates set) → 1 day, not the previous 3-day forced default.
+  // Only fall back to 3 when no dates picked at all.
+  const datesPicked = !!(dateRange?.from && dateRange?.to);
+  const durationDays = datesPicked ? Math.max(1, nights + 1) : 3;
   const pax = parseInt(paxInput) || 2;
   const departureAirport = arrivalTerminal;
 
@@ -156,6 +172,9 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         dietPrefs: dietPrefs.length > 0 ? dietPrefs : undefined,
         allergies: allergies.length > 0 ? allergies : undefined,
         priceRange: priceRange !== 'Any' ? priceRange : undefined,
+        spiceLevel: spiceLevel !== 'medium' ? spiceLevel : undefined,
+        bucketDishes: bucketDishes.length > 0 ? bucketDishes : undefined,
+        tourPace: tourPace !== 'full' ? tourPace : undefined,
         // New: airport-transport context (all optional)
         arrival_time: arrivalTime || undefined,
         departure_time: departureTime || undefined,
@@ -175,12 +194,30 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
     }
   }
 
-  const STEPS = [
-    { label: p.wizardTitle || 'Destinations', icon: <MapPin className="w-3.5 h-3.5" /> },
-    { label: p.wizardFoodTitle || 'Food', icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
-    { label: p.planner_step2_date || 'Details', icon: <Calendar className="w-3.5 h-3.5" /> },
-    { label: p.planner_generate_cta || 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
-  ];
+  // P6: 5-step layout starts with reservation check.
+  // When user picks "all_done" we collapse the rest of the wizard and render
+  // FreeClaimForm in step 1 instead — STEPS array is recalculated.
+  const isClaimFlow = reservationStatus === 'all_done';
+  const STEPS = isClaimFlow
+    ? [
+        { label: p.resTitle || 'Reservation', icon: <Plane className="w-3.5 h-3.5" /> },
+        { label: p.optionBClaimTitle || 'Free claim', icon: <Check className="w-3.5 h-3.5" /> },
+      ]
+    : [
+        { label: p.resTitle || 'Reservation', icon: <Plane className="w-3.5 h-3.5" /> },
+        { label: p.wizardTitle || 'Destinations', icon: <MapPin className="w-3.5 h-3.5" /> },
+        { label: p.wizardFoodTitle || 'Food', icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
+        { label: p.planner_step2_date || 'Details', icon: <Calendar className="w-3.5 h-3.5" /> },
+        { label: p.planner_generate_cta || 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
+      ];
+
+  // Build the list of currently-selected city chip keys for P9 dynamic chips.
+  const selectedCityKeys: string[] = [];
+  if (mainCityKey) selectedCityKeys.push(mainCityKey);
+  for (const en of extraCities) {
+    const k = CITY_CHIPS.find(c => getCityName(c.key) === en)?.key;
+    if (k && !selectedCityKeys.includes(k)) selectedCityKeys.push(k);
+  }
 
   return (
     <>
@@ -208,28 +245,48 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         </div>
 
         <div className="max-w-2xl mx-auto">
+          {/* Step 0: reservation status (P6) */}
           {step === 0 && (
+            <WizardStep0Reservation
+              p={p} isMobile={isMobile}
+              status={reservationStatus} setStatus={setReservationStatus}
+              arrivalAirport={arrivalTerminal} setArrivalAirport={setArrivalTerminal}
+              arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
+              mainCityKey={mainCityKey || 'seoul'}
+              onNext={() => setStep(1)}
+            />
+          )}
+          {/* Step 1: claim form (when all_done) OR destinations */}
+          {step === 1 && isClaimFlow && (
+            <FreeClaimForm p={p as unknown as PlannerDict} isMobile={isMobile} />
+          )}
+          {step === 1 && !isClaimFlow && (
             <WizardStep0Destination
               p={p} isMobile={isMobile}
               mainCity={mainCity} mainCityKey={mainCityKey}
-              extraCities={extraCities} selectedActivities={selectedActivities} freeText={freeText}
+              extraCities={extraCities}
+              selectedCityKeys={selectedCityKeys}
+              selectedActivities={selectedActivities} freeText={freeText}
               setMainCity={setMainCity} setMainCityKey={setMainCityKey}
               setExtraCities={setExtraCities} setSelectedActivities={setSelectedActivities} setFreeText={setFreeText}
               allCities={allCities} canGoStep1={canGoStep1}
               getCityName={getCityName} toggleActivity={toggleActivity}
               toggleCity={toggleCity} isCitySelected={isCitySelected}
-              onNext={() => setStep(1)}
-            />
-          )}
-          {step === 1 && (
-            <WizardStep1Food
-              p={p} isMobile={isMobile}
-              dietPrefs={dietPrefs} allergies={allergies} priceRange={priceRange}
-              toggleDiet={toggleDiet} toggleAllergy={toggleAllergy} setPriceRange={setPriceRange}
               onPrev={() => setStep(0)} onNext={() => setStep(2)}
             />
           )}
-          {step === 2 && (
+          {step === 2 && !isClaimFlow && (
+            <WizardStep1Food
+              p={p} isMobile={isMobile}
+              dietPrefs={dietPrefs} allergies={allergies} priceRange={priceRange}
+              spiceLevel={spiceLevel} bucketDishes={bucketDishes}
+              toggleDiet={toggleDiet} toggleAllergy={toggleAllergy} setPriceRange={setPriceRange}
+              setSpiceLevel={setSpiceLevel}
+              toggleBucketDish={(k: string) => setBucketDishes(prev => prev.includes(k) ? prev.filter(d => d !== k) : [...prev, k])}
+              onPrev={() => setStep(1)} onNext={() => setStep(3)}
+            />
+          )}
+          {step === 3 && !isClaimFlow && (
             <WizardStep2Details
               p={p} isMobile={isMobile} calendarLocale={calendarLocale}
               dateRange={dateRange} setDateRange={setDateRange} nights={nights}
@@ -244,11 +301,12 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
               luggageLarge={luggageLarge} setLuggageLarge={setLuggageLarge}
               wantAccom={wantAccom} setWantAccom={setWantAccom}
               accomBudget={accomBudget} setAccomBudget={setAccomBudget}
+              tourPace={tourPace} setTourPace={setTourPace}
               canGoStep3={canGoStep3}
-              onPrev={() => setStep(1)} onNext={() => setStep(3)}
+              onPrev={() => setStep(2)} onNext={() => setStep(4)}
             />
           )}
-          {step === 3 && (
+          {step === 4 && !isClaimFlow && (
             <WizardStep3Review
               p={p}
               allCities={allCities} startDate={startDate} endDate={endDate}

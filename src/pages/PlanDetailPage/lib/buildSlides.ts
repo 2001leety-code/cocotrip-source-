@@ -1,8 +1,12 @@
-// Pure function: plan data -> slide[] with Option D interleave.
-// Ad placement: one ad per gap (N+1 gaps for N days).
-// Layout: Intro -> Ad -> Day1 -> Ad -> Day2 -> Ad -> ... -> DayN -> Ad -> Outro
-// TODO: Future enhancement -- use detectCharterRecommendation(), isJeju,
-// adultsCount to weight ad priority per plan context. For now, static priority.
+// Pure function: plan data -> slide[] with context-aware ad placement.
+//
+// P2 (2026-04-24): swap legacy "static priority round-robin" for a context
+// schedule that puts each ad where it's actually useful in the journey:
+//   - eSIM right after Intro (user reads this on the plane / at boarding gate)
+//   - Charter / car-rental in mid-trip gaps (transport decisions made daily)
+//   - Hotel SKIPPED if user already provided hotel_address
+//   - Flight SKIPPED if startDate is past or near (booked already)
+//   - airportPickup just before Outro (departure prep)
 
 export type SlideType = 'intro' | 'day' | 'ad' | 'outro';
 export type AdCategory = 'flight' | 'hotel' | 'charter' | 'esim' | 'carRental' | 'airportPickup';
@@ -13,9 +17,26 @@ export interface Slide {
   adType?: AdCategory;
 }
 
-// Priority order: travel preparation sequence (book flight -> hotel -> transport -> connectivity)
-const AD_POOL: AdCategory[] = ['flight', 'hotel', 'charter', 'esim', 'carRental', 'airportPickup'];
 import type { PlanDocument } from '../types';
+
+// Whether an ad should run at all for this plan's context.
+function adApplies(category: AdCategory, plan: PlanDocument): boolean {
+  const input = plan?.input || {};
+  if (category === 'hotel') {
+    // Already booked → don't pitch hotel.
+    return !input.hotel_address;
+  }
+  if (category === 'flight') {
+    // Trip starts within 7 days → flight booking is too late.
+    const startDate = input.startDate as string | undefined;
+    if (!startDate) return true;
+    const start = Date.parse(startDate);
+    if (Number.isNaN(start)) return true;
+    const daysUntil = (start - Date.now()) / (1000 * 60 * 60 * 24);
+    return daysUntil > 7;
+  }
+  return true;
+}
 
 export function buildSlides(plan: PlanDocument): Slide[] {
   const days = (plan && plan.itinerary && plan.itinerary.days) || [];
@@ -23,19 +44,32 @@ export function buildSlides(plan: PlanDocument): Slide[] {
 
   slides.push({ type: 'intro' });
 
-  // Option D: N+1 gaps -- one before each day + one after last day
-  let adIdx = 0;
+  // 1) Pre-trip prep ads — between Intro and Day 1.
+  //    eSIM first (read on plane), then flight if still relevant.
+  const preTripAds: AdCategory[] = (['esim', 'flight'] as AdCategory[])
+    .filter(c => adApplies(c, plan));
+  preTripAds.forEach(c => slides.push({ type: 'ad', adType: c }));
+
+  // 2) Mid-trip ads — interleaved between days, but only ads that fit
+  //    "during the trip" context: hotel (if not booked) on day 1 gap,
+  //    charter/carRental on later gaps for transport decisions.
+  const midTripPool: AdCategory[] = (['hotel', 'charter', 'carRental'] as AdCategory[])
+    .filter(c => adApplies(c, plan));
+
+  let midIdx = 0;
   for (let i = 0; i < days.length; i++) {
-    // Ad before this day
-    if (adIdx < AD_POOL.length) {
-      slides.push({ type: 'ad', adType: AD_POOL[adIdx] });
-      adIdx++;
-    }
     slides.push({ type: 'day', dayIndex: i });
+    // Insert one mid-trip ad between days (skip after the last day — that's Outro prep).
+    if (i < days.length - 1 && midIdx < midTripPool.length) {
+      slides.push({ type: 'ad', adType: midTripPool[midIdx] });
+      midIdx++;
+    }
   }
-  // Ad after last day
-  if (adIdx < AD_POOL.length) {
-    slides.push({ type: 'ad', adType: AD_POOL[adIdx] });
+
+  // 3) Pre-departure ad — between last Day and Outro.
+  //    airportPickup is the actionable item right before they head home.
+  if (adApplies('airportPickup', plan)) {
+    slides.push({ type: 'ad', adType: 'airportPickup' });
   }
 
   slides.push({ type: 'outro' });

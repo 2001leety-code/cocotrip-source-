@@ -9,7 +9,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getSpotContext } from './_spots_helper.js';
-import { getFoodContext } from './_food_helper.js';
+import { getFoodContext, buildFoodPrefSnippet } from './_food_helper.js';
 import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
 import { sendMessage, sendErrorAlert } from './_telegram.js';
 
@@ -160,7 +160,7 @@ export default async function handler(req, res) {
       special_request: specialRequest || undefined,
       diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
       food_allergies: allergies.length > 0 ? allergies : undefined,
-      meal_budget: priceRange !== 'Any' ? priceRange : undefined,
+      meal_budget: priceRange !== 'Any' ? priceRange : undefined, ...buildFoodPrefSnippet(body),
       variation_seed: Math.floor(Math.random() * 100) + 1,
       want_accommodation: wantAccom || undefined,
       accommodation_budget: wantAccom ? accomBudget : undefined,
