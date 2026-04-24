@@ -58,6 +58,9 @@ export interface PlanStop {
   entry_fee_note?: string;
   tip?: string;
   tip_en?: string;
+  // P-Quality (2026-04-24): Gemini explains why this stop fits THIS user's
+  // input (e.g. "spice=hot이라 신당동 떡볶이"). Optional — old plans don't have it.
+  personalization_reasoning?: string;
   order?: number;
   naverMapUrl?: string;
   lat?: number;

@@ -6,10 +6,15 @@ import { DepartureGuide } from './DepartureGuide';
 import { SeasonalBanner } from './SeasonalBanner';
 import { RevisionCard } from './RevisionCard';
 import { ShareButton } from './ShareButton';
+import { HotelAd } from './ads/HotelAd';
+import { CharterBanner } from './ads/CharterBanner';
+import { CarRentalAd } from './ads/CarRentalAd';
+import { FlightAd } from './ads/FlightAd';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
+import { getOutroExtras } from '../lib/buildSlides';
 
 interface OutroSlideProps {
   plan: PlanDocument;
@@ -30,6 +35,11 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
   const it = plan.itinerary || {};
   const budget = it.daily_budget_summary || [];
   const departure = it.departure_guide;
+  const input = plan.input || {};
+  const region = (input.area as string) || 'Seoul';
+  const arrivalAirport = (input.arrival_airport as string) || 'ICN';
+  // D-option: ads that didn't make the slide cut surface here as a card grid.
+  const extras = getOutroExtras(plan);
 
   return (
     <div>
@@ -38,7 +48,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       </h2>
 
       {/* Budget Table */}
-      {budget.length > 0 && <BudgetTable budget={budget as any} tMoney={(it.t_money_recommended_load as number | undefined) ?? 0} />}
+      {budget.length > 0 && <BudgetTable budget={budget as any} tMoney={(it.t_money_recommended_load as number | undefined) || 0} />}
 
       {/* Departure Guide */}
       {departure && <DepartureGuide guide={departure} />}
@@ -64,6 +74,21 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
         {/* Share */}
         <ShareButton planId={planId} plan={plan} isOwner={isOwner} />
       </div>
+
+      {/* Trip Extras (D-option ad cards moved out of slides) */}
+      {extras.length > 0 && (
+        <div className="mt-8">
+          <p className="text-[11px] uppercase tracking-wider text-white/35 font-semibold mb-3">
+            {sw.outroExtrasTitle || 'Trip extras'}
+          </p>
+          <div className="space-y-3">
+            {extras.includes('hotel') && <HotelAd region={region} />}
+            {extras.includes('flight') && <FlightAd arrivalAirport={arrivalAirport} />}
+            {extras.includes('charter') && <CharterBanner days={(it.days || []) as any} plan={plan} />}
+            {extras.includes('carRental') && <CarRentalAd region={region} />}
+          </div>
+        </div>
+      )}
 
       {/* Seasonal */}
       <SeasonalBanner />

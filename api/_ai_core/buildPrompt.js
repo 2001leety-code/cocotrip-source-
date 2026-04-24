@@ -304,6 +304,81 @@ If diet_preferences includes "Spicy":
 If diet_preferences includes "Street":
 - Include street food: 시장(markets), 포장마차(street stalls), 분식(snack shops), 떡볶이, 호떡, 어묵, 길거리 음식
 
+### Spice tolerance (P10 — separate from Spicy preference):
+The user picks ONE level. Use it as a HARD CAP regardless of dish heat.
+- spice_tolerance="none": Avoid ALL spicy dishes. No 떡볶이/불닭/김치찜/마라. Mild kimchi-based banchan OK only as side.
+- spice_tolerance="mild": Allow gentle spice (김치찌개 OK, 부대찌개 OK). NO 불닭/마라/매운탕.
+- spice_tolerance="medium" (default): Standard spice tolerance. Kimchi-level OK. Light 떡볶이 OK. Avoid 엽기떡볶이/불닭.
+- spice_tolerance="hot": User wants extreme spicy. Prioritize 불닭/엽기떡볶이/마라탕/매운탕 — at least 1 stop must feature these.
+
+### Bucket list dishes (P10):
+If bucket_list_dishes is provided, the user MUST eat each dish at least once during the trip.
+Map keys to dishes:
+- kbbq → Korean BBQ (삼겹살/한우구이) — restaurant-grade, not street
+- kfc → Korean fried chicken (치킨, e.g. BHC/Kyochon/Chicken in the Kitchen)
+- tteokbokki → 떡볶이 (조정 spice_tolerance에 맞춰)
+- bibimbap → 비빔밥 (전주식 if jeonju included)
+- samgyetang → 삼계탕 (Tosokchon if seoul, or local equivalent)
+- naengmyeon → 냉면 (평양/함흥 style)
+- jokbal → 족발/보쌈
+- sundubu → 순두부찌개
+
+Place these as scheduled meals (lunch/dinner). Add personalization_reasoning explaining why this fulfills user's bucket list.
+
+### Tour pace (P7) — controls stops-per-day:
+- tour_pace="half" (4h): 1-2 stops per day. Long stays (90+ min each). Most days end by lunch or start at 2pm.
+- tour_pace="short" (6h): 3-4 stops per day. Relaxed transit gaps.
+- tour_pace="full" (8h, default): 5-6 stops per day. Standard balance.
+- tour_pace="action" (10h+): 7+ stops per day. Tight transitions. Late dinner. Pre-dawn or post-sunset stops OK if interesting (e.g. 동대문 야시장, 한강 야경).
+
+Use daily_tour_hours value as the actual budget — fit stop durations + transit so total fits.
+
+### P9 city-specific activity keys (sent in `categories`):
+The user picked cities; new activity keys are now city-aware. Map keys to scheduling cues:
+- Palace → 경복궁/창덕궁/덕수궁 (any one). Schedule near opening time (09:00) for fewer crowds.
+- Jagalchi → 자갈치 시장 (부산). Lunch slot — 회/조개구이 stalls.
+- Gamcheon → 감천문화마을 (부산). 2-hour photo stop, allow time for narrow alleys.
+- Haeundae → 해운대 해변 (부산). Sunset slot ideal.
+- BusanFood → 부산 명물 (밀면/돼지국밥/어묵). Pick one as a meal.
+- OlleTrail → 제주 올레길 (한 코스). Half-day commitment.
+- Hallasan → 한라산 (제주). Full-day — replaces other stops that day.
+- Haenyeo → 해녀 박물관 / 해녀 식당. Lunch slot.
+- JejuFood → 제주 명물 (흑돼지/갈치조림/오메기떡). Pick one.
+- Bulguksa → 불국사 (경주) + Seokguram. Half-day.
+- Anapji → 동궁과 월지. Sunset slot for 야경.
+- GyeongjuHanok → 교촌마을 한옥 산책.
+- HanokVillage → 전주 한옥마을.
+- Makgeolli → 전주 막걸리 골목 (저녁).
+- JeonjuFood → 전주 비빔밥 (가족회관 or local).
+- CoffeeStreet → 강릉 안목 커피거리.
+- GangneungBeach → 경포해변/주문진.
+- YeosuLights → 여수 밤바다 (해상케이블카 + 돌산공원).
+- CableCar → 여수/통영 케이블카.
+- Hwaseong → 수원 화성 산책 (2-3h).
+- ChinaTown → 인천 차이나타운 + 송월동 동화마을.
+- DaeguTower → 대구타워/앞산.
+
+If the user's selected city doesn't match the activity key, treat as ambiguous — use user's main city.
+
+### Reservation status hint (P6):
+The user told us at form-start what's already booked:
+- reservation_status="nothing": Treat hotel/flight as open. Output may include hotel address suggestions in tip.
+- reservation_status="flight": Hotel still open. Suggest hotel area when picking stops near hotel-friendly districts (Myeongdong/Hongdae/Gangnam if seoul).
+- reservation_status="flight_hotel": Both fixed. Honor hotel_address provided. Skip flight/hotel ad-style suggestions in tip.
+(reservation_status="all_done" routes to free-claim flow before plan generation — won't reach this prompt.)
+
+### Output: stop personalization_reasoning (REQUIRED for every stop):
+Each stop in days[].stops[] MUST include `personalization_reasoning` (string, 1 sentence, max 80 chars).
+Format: short explanation of why THIS stop fits THIS user's input.
+Examples:
+- "당신이 매운맛 'hot'을 골랐기에 신당동 즉석떡볶이 추천."
+- "버킷리스트 BBQ 항목 충족."
+- "tour_pace=action이라 새벽 동대문 야시장 추가."
+- "Jagalchi 칩 선택 → 부산 회 점심으로 배치."
+- "예산 Premium 선택 → Michelin 1성 Mingles 저녁."
+If a stop is generic (not driven by user input), use: "전반적인 ${area} 핵심 명소"
+NEVER omit this field.
+
 ### Allergy safety:
 If food_allergies includes any allergen:
 - Treat as SAFETY-CRITICAL. NEVER recommend dishes containing the allergen.

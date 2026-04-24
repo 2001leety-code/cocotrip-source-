@@ -2,12 +2,15 @@
 // Extracted from PlanDetailPage/index.tsx L542-568 (zero behavior change).
 import { Plane } from 'lucide-react';
 import { buildFlightLink } from '@/config/affiliateLinks';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface FlightAdProps {
   arrivalAirport: string;
 }
 
 export function FlightAd({ arrivalAirport }: FlightAdProps) {
+  const { t } = useLanguage();
+  const p = (t.planner as unknown as Record<string, string | undefined>) || {};
   const link = buildFlightLink(arrivalAirport || 'ICN');
   if (!link) return null;
 
@@ -18,8 +21,8 @@ export function FlightAd({ arrivalAirport }: FlightAdProps) {
           <Plane className="w-5 h-5 text-indigo-400" />
         </div>
         <div className="flex-1">
-          <p className="font-bold text-white text-base leading-tight">Search Flights to Korea</p>
-          <p className="text-xs text-white/50 mt-0.5">Compare prices across airlines</p>
+          <p className="font-bold text-white text-base leading-tight">{p.adFlightTitle || 'Search Flights to Korea'}</p>
+          <p className="text-xs text-white/50 mt-0.5">{p.adFlightSub || 'Compare prices across airlines'}</p>
         </div>
       </div>
       <div className="px-5 pb-4">
@@ -29,7 +32,7 @@ export function FlightAd({ arrivalAirport }: FlightAdProps) {
           {link.label} {'\u2192'}
         </a>
       </div>
-      <p className="text-[10px] text-white/20 text-center pb-3 px-5">Affiliate link {'\u2014'} helps support CocoTrip.</p>
+      <p className="text-[10px] text-white/20 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
     </div>
   );
 }
