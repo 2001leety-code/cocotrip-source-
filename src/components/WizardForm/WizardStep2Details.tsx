@@ -36,10 +36,24 @@ interface Step2Props {
   setWantAccom: (v: boolean) => void;
   accomBudget: string;
   setAccomBudget: (v: string) => void;
+  // P7 (2026-04-24): daily tour pace — controls Gemini's hours-per-day budget.
+  tourPace: TourPace;
+  setTourPace: (v: TourPace) => void;
   canGoStep3: boolean;
   onPrev: () => void;
   onNext: () => void;
 }
+
+export type TourPace = 'half' | 'short' | 'full' | 'action';
+const TOUR_PACE_KEYS: TourPace[] = ['half', 'short', 'full', 'action'];
+// Authoritative hours mapping lives in api/_food_helper.js (_PACE_HOURS).
+// UI shows hours via the sub-label fallback below.
+const TOUR_PACE_FALLBACK: Record<TourPace, { label: string; sub: string }> = {
+  half:   { label: 'Half-day',   sub: '4h · 1-2 stops · easy pace' },
+  short:  { label: 'Short tour', sub: '6h · 3-4 stops · breezy' },
+  full:   { label: 'Full day',   sub: '8h · 5-6 stops · standard' },
+  action: { label: 'Action-pack', sub: '10h+ · 7+ stops · intense' },
+};
 
 function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: string; value: number; setValue: (v: number) => void }) {
   return (
@@ -72,6 +86,7 @@ export function WizardStep2Details(props: Step2Props) {
     arrivalTime, setArrivalTime, departureTime, setDepartureTime,
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
+    tourPace, setTourPace,
     canGoStep3, onPrev, onNext,
   } = props;
 
@@ -111,6 +126,33 @@ export function WizardStep2Details(props: Step2Props) {
         <p className="text-sm text-white/50 mb-2.5 font-medium">{p.planner_step2_adults || 'How many travelers?'}</p>
         <input type="number" value={paxInput} onChange={e => setPaxInput(e.target.value)} min={1} max={50}
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+      </div>
+
+      {/* P7: Daily tour pace — feeds Gemini hours-per-day budget */}
+      <div>
+        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.tourPaceLabel || 'Daily tour pace'}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {TOUR_PACE_KEYS.map((key) => {
+            const fb = TOUR_PACE_FALLBACK[key];
+            const cap = key.charAt(0).toUpperCase() + key.slice(1);
+            const label = (p[`tourPace${cap}` as keyof typeof p] as string) || fb.label;
+            const sub = (p[`tourPace${cap}Sub` as keyof typeof p] as string) || fb.sub;
+            const sel = tourPace === key;
+            return (
+              <button key={key} type="button" onClick={() => setTourPace(key)}
+                className={`flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                  sel
+                    ? (isMobile
+                        ? 'bg-[#B668FC]/20 border-[#B668FC]/55 text-white'
+                        : 'bg-[#7C5CFC]/20 border-[#7C5CFC]/55 text-white')
+                    : 'bg-white/[0.04] border-white/[0.08] text-white/55 hover:border-white/20'
+                }`}>
+                <span className="text-[13px] font-bold leading-tight">{label}</span>
+                <span className="text-[10px] text-white/40 leading-tight">{sub}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Airport Dropdown */}

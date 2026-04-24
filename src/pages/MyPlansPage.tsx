@@ -8,6 +8,7 @@ import { Calendar, ChevronRight, Sparkles, Plane } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { PendingClaimsWidget } from '@/components/PendingClaimsWidget';
 
 interface PlanRef {
   id: string;
@@ -59,6 +60,8 @@ export default function MyPlansPage() {
             <p className="text-sm text-white/40">{user?.displayName || user?.email || ''}</p>
           </div>
         </div>
+
+        <PendingClaimsWidget />
 
         {loading ? (
           <div className="space-y-4">

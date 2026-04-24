@@ -18,7 +18,7 @@ import { getAirportOptions } from './helpers';
 import { WizardStep0Reservation, type ReservationStatus } from './WizardStep0Reservation';
 import { WizardStep0Destination } from './WizardStep0Destination';
 import { WizardStep1Food } from './WizardStep1Food';
-import { WizardStep2Details } from './WizardStep2Details';
+import { WizardStep2Details, type TourPace } from './WizardStep2Details';
 import { WizardStep3Review } from './WizardStep3Review';
 import { FreeClaimForm } from '@/pages/PlannerPage/components/FreeClaimForm';
 import type { PlannerDict } from '@/pages/PlannerPage/types';
@@ -66,6 +66,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const [luggageLarge, setLuggageLarge]       = useState(0);
   const [wantAccom, setWantAccom]             = useState(false);
   const [accomBudget, setAccomBudget]         = useState('moderate');
+  // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
+  const [tourPace, setTourPace]               = useState<TourPace>('full');
   const mobility = 'ok' as const;
 
   // Responsive — mobile vs desktop for calendar
@@ -172,6 +174,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         priceRange: priceRange !== 'Any' ? priceRange : undefined,
         spiceLevel: spiceLevel !== 'medium' ? spiceLevel : undefined,
         bucketDishes: bucketDishes.length > 0 ? bucketDishes : undefined,
+        tourPace: tourPace !== 'full' ? tourPace : undefined,
         // New: airport-transport context (all optional)
         arrival_time: arrivalTime || undefined,
         departure_time: departureTime || undefined,
@@ -298,6 +301,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
               luggageLarge={luggageLarge} setLuggageLarge={setLuggageLarge}
               wantAccom={wantAccom} setWantAccom={setWantAccom}
               accomBudget={accomBudget} setAccomBudget={setAccomBudget}
+              tourPace={tourPace} setTourPace={setTourPace}
               canGoStep3={canGoStep3}
               onPrev={() => setStep(2)} onNext={() => setStep(4)}
             />
