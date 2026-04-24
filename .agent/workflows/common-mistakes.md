@@ -375,6 +375,33 @@ P6 (예약 상태) + P9 (도시별 칩) 계획을 채팅에 길게 적고 즉시
 
 ---
 
+## 🔴 카테고리 20: JS template literal 안에 Markdown 백틱 미-escape
+
+> **추가일**: 2026-04-24 (PR #8 배포 직후 플래너 전면 다운)
+
+### 실수 패턴
+- 시스템 프롬프트 같은 긴 문자열을 `` `...` `` template literal에 담음
+- 그 안에 Markdown 스타일로 `` `identifier` `` (inline code) 표기
+- 내부 backtick을 `` \` `` 로 escape 안 함 → 외부 template literal이 그 지점에서 종료됨
+- 결과: `SyntaxError: Unexpected identifier '<이름>'` → module load 단계 실패 → `FUNCTION_INVOCATION_FAILED` → 프로덕션 API 완전 다운
+- 로컬 `tsc -b` / `node --check` 는 ESM loader가 다른 경로를 타는 경우 놓칠 수 있음 (Vercel의 ESM 경로에서만 즉시 폭발)
+
+### 방지 규칙
+```
+✅ JS template literal 내부에 backtick 삽입 금지. 필요 시 \` 로 escape:
+   `설명 \`categories\` 필드`   ← 정답
+   `설명 `categories` 필드`     ← SyntaxError
+✅ 대안: Markdown 포매팅이 필요한 긴 프롬프트는 일반 String 연결 또는 single-quote로 교체
+✅ 긴 template literal 작성/수정 후 `node --check <파일>` 로 즉시 syntax 검증
+✅ 배포 전 `vercel logs --environment production --search "status:500"` 1회 확인
+✅ API 런타임 에러는 SPA 빌드 성공과 무관. Vercel serverless는 module-level 에러에 취약
+```
+
+### 이번 세션 사례
+[api/_ai_core/buildPrompt.js](api/_ai_core/buildPrompt.js) L336 `` `categories` `` 와 L371 `` `personalization_reasoning` `` 가 unescaped 상태로 PR #8(a5ac5ea)에 포함되어 머지·배포됨. `cocotripkr.com/api/ai-planner-full` 이 약 10시간 동안 5/5 시나리오 HTTP 500. `validate-planner.cjs` 돌리지 않았다면 더 길게 방치됐을 것. 복구: [hotfix/buildprompt-template-literal](https://github.com/2001leety-code/cocotrip-source-/pull/new/hotfix/buildprompt-template-literal) 에서 `\`` escape 추가 → `node --check` 통과.
+
+---
+
 ## 🟡 카테고리 10: 배포 전 검증 누락
 
 ### 실수 패턴
