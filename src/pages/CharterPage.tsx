@@ -171,6 +171,16 @@ export default function CharterPage() {
 
       <main className={`max-w-2xl mx-auto px-4 space-y-6 pt-6 ${isMobile ? 'pb-6' : 'pb-20'}`}>
 
+        {/* 신규 6단계 위저드 안내 배너 (레거시 페이지에서 승격 유도) */}
+        <Link to="/charter" className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[#B668FC]/35 bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/5 hover:from-[#B668FC]/15 hover:to-[#FF6B9D]/10 transition-colors">
+          <Sparkles className="w-4 h-4 text-[#B668FC] shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-white leading-tight">✨ 신규 6단계 위저드 견적</p>
+            <p className="text-[11px] text-white/45 mt-0.5">더 쉽게 · 2분 안에 · 터미널·편명·수하물까지 한번에</p>
+          </div>
+          <span className="text-[11px] text-[#B668FC] font-bold">→</span>
+        </Link>
+
         {/* ── 1. 차량 선택 ── */}
         <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6'}`}>
           <div className={`${LABEL} flex items-center gap-1.5`}><Car className="w-3 h-3" />{c.vehicleSelect ?? '차량 선택'}</div>

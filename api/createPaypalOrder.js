@@ -1,8 +1,14 @@
 /**
  * Vercel API Route: Create PayPal Order
  * POST /api/createPaypalOrder
+ *
+ * 가격은 pricing_spec.json(SSOT)에서 해석. sync-pricing 스크립트가 복사한
+ * api/_pricing_spec.json을 런타임에 읽는다. 기존 PRODUCT_PRICES 하드코딩 제거됨.
  */
 import { Buffer } from 'buffer';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -18,21 +24,79 @@ const CORS = {
 };
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
-const PRODUCT_PRICES = {
-  ai_planner_full: 13300,
-  // 일일 투어 (charterPricing.ts DAILY_TOUR_PRICES 기준)
-  charter_seoul_city: 330000, charter_seoul_suburb: 343200, charter_dmz: 343200,
-  charter_gangwon: 436800, charter_ski: 416000, charter_gyeongju: 468000, charter_busan: 572000,
-  // 공항 픽업 (charterPricing.ts AIRPORT_TRANSFER_PRICES 기준)
-  airport_seoul_central: 124800, airport_seoul_gangnam: 145600, airport_suwon_yongin: 150000,
-  airport_gapyeong_nami: 208000, airport_chuncheon: 220000, airport_pyeongchang_yongpyong: 332800,
-  airport_gangneung_sokcho: 364000, airport_busan: 600000,
-  // K-pop 셔틀
-  kpop_shuttle_oneway: 35000, kpop_shuttle_roundtrip: 65000,
-  // 콤보 패키지 (10% 할인)
-  combo_airport_seoul: 409320, combo_airport_nami: 421200, combo_airport_dmz: 421200,
-  combo_airport_gangwon: 505440, combo_airport_busan: 627120,
+// ── pricing_spec.json 로드 (module-level, cold-start 1회) ──
+const __dirname = dirname(fileURLToPath(import.meta.url));
+let SPEC = null;
+let SPEC_LOAD_ERROR = null;
+try {
+  SPEC = JSON.parse(readFileSync(join(__dirname, '_pricing_spec.json'), 'utf-8'));
+} catch (err) {
+  SPEC_LOAD_ERROR = err.message;
+  console.error('[createPaypalOrder] spec load failed:', err.message);
+}
+
+// ── productType → 가격 해석 ──
+const CHARTER_MAP = {
+  charter_seoul_city:   'seoul-city',
+  charter_seoul_suburb: 'seoul-suburb',
+  charter_dmz:          'dmz',
+  charter_gangwon:      'gangwon',
+  charter_ski:          'ski-resort',
+  charter_gyeongju:     'gyeongju-jeonju',
+  charter_busan:        'busan-day',
 };
+
+// airport_<key>: underscore → hyphen 변환 (예: airport_seoul_central → seoul-central, airport_gapyeong_nami → gapyeong-nami)
+// 단, 'seoul_gangnam' → 'seoul-gangnam', 'pyeongchang_yongpyong' → 'pyeongchang-yongpyong'은 모두 underscore → hyphen.
+
+const COMBO_MAP = {
+  // 콤보 = (ICN→서울도심 공항픽업) + (당일투어) × 0.9 (10% 콤보 할인)
+  combo_airport_seoul:   'seoul-city',
+  combo_airport_nami:    'seoul-suburb',
+  combo_airport_dmz:     'dmz',
+  combo_airport_gangwon: 'gangwon',
+  combo_airport_busan:   'busan-day',
+};
+
+// AI 플래너 서비스는 전세 가격과 별개 상품 (유료 플래너 $9.90)
+const AI_PLANNER_FULL_KRW = 13_300;
+
+function resolveKrwAmount(productType, passengers) {
+  if (!SPEC) return null;
+  const normalized = productType.replace(/-/g, '_');
+
+  // AI 플래너
+  if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
+
+  // K-pop 셔틀 — 인원수 곱셈
+  if (normalized === 'kpop_shuttle_oneway') {
+    return (passengers || 1) * SPEC.kpop_shuttle.price_one_way;
+  }
+  if (normalized === 'kpop_shuttle_roundtrip') {
+    return (passengers || 1) * SPEC.kpop_shuttle.price_round_trip;
+  }
+
+  // 당일 전세 투어
+  if (CHARTER_MAP[normalized]) {
+    return SPEC.daily_tour_prices[CHARTER_MAP[normalized]]?.priceKRW ?? null;
+  }
+
+  // 공항 픽업
+  if (normalized.startsWith('airport_')) {
+    const key = normalized.slice('airport_'.length).replace(/_/g, '-');
+    return SPEC.airport_transfer_prices[key]?.priceKRW ?? null;
+  }
+
+  // 콤보 패키지
+  if (COMBO_MAP[normalized]) {
+    const airport = SPEC.airport_transfer_prices['seoul-central']?.priceKRW;
+    const tour    = SPEC.daily_tour_prices[COMBO_MAP[normalized]]?.priceKRW;
+    if (!airport || !tour) return null;
+    return Math.round((airport + tour) * 0.9);
+  }
+
+  return null;
+}
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
@@ -58,6 +122,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'POST') { res.writeHead(405, JSON_CORS); return res.end(JSON.stringify(_err('Method not allowed', 'METHOD_NOT_ALLOWED'))); }
 
+  if (!SPEC) {
+    res.writeHead(500, JSON_CORS);
+    return res.end(JSON.stringify(_err(`Pricing spec load failed: ${SPEC_LOAD_ERROR}`, 'SPEC_MISSING')));
+  }
+
   try {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
@@ -67,16 +136,12 @@ export default async function handler(req, res) {
     if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
 
     const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
-    console.log('[createPaypalOrder] mode:', isSandbox ? 'SANDBOX' : 'LIVE', '| email:', userEmail);
+    console.log('[createPaypalOrder] mode:', isSandbox ? 'SANDBOX' : 'LIVE', '| email:', userEmail, '| product:', productType);
 
-    // 하이픈/언더스코어 둘 다 허용
-    const normalizedType = productType.replace(/-/g, '_');
-    let krwAmount;
-    if (normalizedType.startsWith('kpop_shuttle')) {
-      krwAmount = (passengers || 1) * (PRODUCT_PRICES[normalizedType] || 35000);
-    } else {
-      krwAmount = PRODUCT_PRICES[normalizedType];
-      if (!krwAmount) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT'))); }
+    let krwAmount = resolveKrwAmount(productType, passengers);
+    if (!krwAmount) {
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT')));
     }
 
     if (promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);

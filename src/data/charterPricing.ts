@@ -1,190 +1,124 @@
 // src/data/charterPricing.ts
-// 코코트립 스타리아 전세차량 요금표 (최대 8인승)
-// 모든 요금 VAT 포함
+// 코코트립 차량/투어 가격 어댑터
+// ⚠️ 가격 값은 pricing_spec.json에서 단일 관리. 이 파일은 기존 TS 타입/모양을 유지하는 리시프(reshape) 어댑터.
+// 컴포넌트 측 import 경로(예: AIRPORT_TRANSFER_PRICES)는 그대로 유지되어 마이그레이션 충격 0.
+import spec from './pricing_spec.json';
 
+// ────────────────────────────────────────
+// 차량 기본 정보 (기존 소비: CharterPage 등)
+// ────────────────────────────────────────
 export const VEHICLE_INFO = {
-  name: '현대 스타리아',
-  maxPassengers: 8,
-  features: ['최대 8인 탑승', '대형 캐리어 수납 가능', '전좌석 프리미엄 시트', '영어 소통 가능 기사'],
+  name: spec.vehicles.staria.name_ko,
+  maxPassengers: spec.vehicles.staria.max_pax,
+  features: spec.vehicles.staria.features_ko as string[],
 };
 
 // ────────────────────────────────────────
 // 공항 픽업/샌딩 요금 (편도, 차량 1대)
 // ────────────────────────────────────────
-export const AIRPORT_TRANSFER_PRICES: Record<string, {
-  ko: string; en: string; priceKRW: number; priceUSD: number; durationMin: number;
-}> = {
-  'seoul-central': {
-    ko: '서울 도심 (명동·홍대·종로·용산)',
-    en: 'Seoul City Center (Myeongdong, Hongdae, Jongno)',
-    priceKRW: 124800,
-    priceUSD: 90,
-    durationMin: 60,
-  },
-  'seoul-gangnam': {
-    ko: '서울 강남·잠실·송파',
-    en: 'Seoul Gangnam / Jamsil / Songpa',
-    priceKRW: 145600,
-    priceUSD: 105,
-    durationMin: 80,
-  },
-  'suwon-yongin': {
-    ko: '수원·용인',
-    en: 'Suwon / Yongin',
-    priceKRW: 150000,
-    priceUSD: 115,
-    durationMin: 90,
-  },
-  'gapyeong-nami': {
-    ko: '가평·남이섬',
-    en: 'Gapyeong / Nami Island',
-    priceKRW: 208000,
-    priceUSD: 150,
-    durationMin: 110,
-  },
-  'chuncheon': {
-    ko: '춘천',
-    en: 'Chuncheon',
-    priceKRW: 220000,
-    priceUSD: 165,
-    durationMin: 120,
-  },
-  'pyeongchang-yongpyong': {
-    ko: '평창·용평·알펜시아',
-    en: 'Pyeongchang / Yongpyong / Alpensia',
-    priceKRW: 332800,
-    priceUSD: 240,
-    durationMin: 160,
-  },
-  'gangneung-sokcho': {
-    ko: '강릉·속초',
-    en: 'Gangneung / Sokcho',
-    priceKRW: 364000,
-    priceUSD: 265,
-    durationMin: 180,
-  },
-  'busan': {
-    ko: '부산 (직행)',
-    en: 'Busan (Direct)',
-    priceKRW: 600000,
-    priceUSD: 450,
-    durationMin: 270,
-  },
+type AirportTransferEntry = {
+  ko: string;
+  en: string;
+  priceKRW: number;
+  priceUSD: number;
+  durationMin: number;
 };
+
+export const AIRPORT_TRANSFER_PRICES: Record<string, AirportTransferEntry> = Object.fromEntries(
+  Object.entries(spec.airport_transfer_prices)
+    .filter(([key]) => key !== 'comment')
+    .map(([key, raw]) => {
+      const v = raw as {
+        name_ko: string; name_en: string;
+        priceKRW: number; priceUSD: number; durationMin: number;
+      };
+      return [key, {
+        ko: v.name_ko,
+        en: v.name_en,
+        priceKRW: v.priceKRW,
+        priceUSD: v.priceUSD,
+        durationMin: v.durationMin,
+      }];
+    }),
+);
 
 // ────────────────────────────────────────
 // 일일 전세 투어 요금 (서울 출발, 차량 1대)
 // ────────────────────────────────────────
-export const DAILY_TOUR_PRICES: Record<string, {
-  ko: string; en: string;
-  priceKRW: number; priceUSD: number;
+type DailyTourEntry = {
+  ko: string;
+  en: string;
+  priceKRW: number;
+  priceUSD: number;
   hours: number;
   spots: string[];
   keywords: string[];
-}> = {
-  'seoul-city': {
-    ko: '서울 시내 투어',
-    en: 'Seoul City Tour',
-    priceKRW: 330000,
-    priceUSD: 240,
-    hours: 8,
-    spots: ['경복궁', '홍대', '명동', '북촌', '인사동', '성수', '한강'],
-    keywords: ['seoul', '서울', 'gyeongbokgung', 'hongdae', 'myeongdong', 'bukchon'],
-  },
-  'seoul-suburb': {
-    ko: '서울 근교 투어 (남이섬·가평·수원)',
-    en: 'Seoul Suburb Tour (Nami Island, Gapyeong, Suwon)',
-    priceKRW: 343200,
-    priceUSD: 250,
-    hours: 8,
-    spots: ['남이섬', '가평', '알파카월드', '수원화성', '레일바이크', '쁘띠프랑스', '아침고요수목원'],
-    keywords: ['nami', '남이섬', 'alpaca', '알파카', 'suwon', '수원', 'gapyeong', '가평', 'railbike', '레일바이크'],
-  },
-  'dmz': {
-    ko: 'DMZ 투어',
-    en: 'DMZ Tour',
-    priceKRW: 343200,
-    priceUSD: 250,
-    hours: 8,
-    spots: ['DMZ', '임진각', '제3땅굴', '도라산역', '파주'],
-    keywords: ['dmz', '비무장지대', 'imjingak', '임진각', 'panmunjom', '판문점'],
-  },
-  'gangwon': {
-    ko: '강원도 당일 투어 (춘천·강릉·속초)',
-    en: 'Gangwon Day Tour (Chuncheon, Gangneung, Sokcho)',
-    priceKRW: 436800,
-    priceUSD: 315,
-    hours: 10,
-    spots: ['춘천', '강릉', '속초', '설악산', '경포대', '정동진'],
-    keywords: ['chuncheon', '춘천', 'gangneung', '강릉', 'sokcho', '속초', 'seoraksan', '설악산'],
-  },
-  'ski-resort': {
-    ko: '스키 리조트 투어 (용평·알펜시아·하이원)',
-    en: 'Ski Resort Tour (Yongpyong, Alpensia, High1)',
-    priceKRW: 416000,
-    priceUSD: 300,
-    hours: 10,
-    spots: ['용평', '알펜시아', '하이원', '비발디파크', '평창'],
-    keywords: ['yongpyong', '용평', 'alpensia', '알펜시아', 'ski', '스키', 'high1', '하이원', 'vivaldi'],
-  },
-  'gyeongju-jeonju': {
-    ko: '경주·전주 투어',
-    en: 'Gyeongju / Jeonju Tour',
-    priceKRW: 468000,
-    priceUSD: 340,
-    hours: 10,
-    spots: ['경주', '불국사', '석굴암', '전주한옥마을', '전주'],
-    keywords: ['gyeongju', '경주', 'bulguksa', '불국사', 'jeonju', '전주'],
-  },
-  'busan-day': {
-    ko: '부산 당일 투어',
-    en: 'Busan Day Tour',
-    priceKRW: 572000,
-    priceUSD: 415,
-    hours: 12,
-    spots: ['부산', '해운대', '감천문화마을', '자갈치시장', '광안리'],
-    keywords: ['busan', '부산', 'haeundae', '해운대', 'gamcheon', '감천'],
-  },
 };
 
+export const DAILY_TOUR_PRICES: Record<string, DailyTourEntry> = Object.fromEntries(
+  Object.entries(spec.daily_tour_prices)
+    .filter(([key]) => key !== 'comment')
+    .map(([key, raw]) => {
+      const v = raw as {
+        name_ko: string; name_en: string;
+        priceKRW: number; priceUSD: number;
+        hours: number; spots: string[]; keywords: string[];
+      };
+      return [key, {
+        ko: v.name_ko,
+        en: v.name_en,
+        priceKRW: v.priceKRW,
+        priceUSD: v.priceUSD,
+        hours: v.hours,
+        spots: v.spots,
+        keywords: v.keywords,
+      }];
+    }),
+);
+
 // ────────────────────────────────────────
-// 차량 타입
+// 차량 타입 (staria / sprinter / bus)
+// - 기존 스키마 보존: staria는 guideFee, sprinter/bus는 guideFeeDailyKRW (calculateTotalPrice 호환)
 // ────────────────────────────────────────
+const _staria   = spec.vehicles.staria;
+const _sprinter = spec.vehicles.sprinter;
+const _bus      = spec.vehicles.bus;
+
 export const VEHICLE_TYPES = {
   staria: {
-    name: { ko: '스타리아', en: 'Staria Van', ja: 'スターリア', zh: '星际旅行车' },
-    maxPassengers: 8,
-    guideRequired: false,
-    guideFee: 0,
+    name: { ko: _staria.name_ko, en: _staria.name_en, ja: _staria.name_ja, zh: _staria.name_zh },
+    maxPassengers: _staria.max_pax,
+    guideRequired: _staria.guide_required,
+    guideFee: _staria.guide_daily_fee,
     description: {
-      ko: '프라이빗 소그룹 (최대 8인)',
-      en: 'Private small group (up to 8)',
-      ja: 'プライベート小グループ（最大８名）',
-      zh: '私人小团（最多8人）',
+      ko: _staria.description_ko,
+      en: _staria.description_en,
+      ja: _staria.description_ja,
+      zh: _staria.description_zh,
     },
   },
   sprinter: {
-    name: { ko: '스프린터/스피너', en: 'Sprinter Van', ja: 'スプリンター', zh: '商务车' },
-    maxPassengers: 15,
-    guideRequired: true,
-    guideFeeDailyKRW: 300000,
+    name: { ko: _sprinter.name_ko, en: _sprinter.name_en, ja: _sprinter.name_ja, zh: _sprinter.name_zh },
+    maxPassengers: _sprinter.max_pax,
+    guideRequired: _sprinter.guide_required,
+    guideFeeDailyKRW: _sprinter.guide_daily_fee,
     description: {
-      ko: '중형 단체 (9~15인) · 가이드 필수',
-      en: 'Medium group (9~15) · Guide required',
-      ja: '中型グループ（9～15名）・ガイド必須',
-      zh: '中型团（9~15人）· 需要导游',
+      ko: _sprinter.description_ko,
+      en: _sprinter.description_en,
+      ja: _sprinter.description_ja,
+      zh: _sprinter.description_zh,
     },
   },
   bus: {
-    name: { ko: '대형버스', en: 'Charter Bus', ja: '大型バス', zh: '大巴' },
-    maxPassengers: 999,
-    guideRequired: true,
-    guideFeeDailyKRW: 300000,
+    name: { ko: _bus.name_ko, en: _bus.name_en, ja: _bus.name_ja, zh: _bus.name_zh },
+    maxPassengers: _bus.max_pax,
+    guideRequired: _bus.guide_required,
+    guideFeeDailyKRW: _bus.guide_daily_fee,
     description: {
-      ko: '대형 단체 (16인 이상) · 가이드 필수 · 별도 견적',
-      en: 'Large group (16+) · Guide required · Custom quote',
-      ja: '大型グループ（16名以上）・ガイド必須・別途見積',
-      zh: '大型团（16人以上）· 需要导游 · 另行报价',
+      ko: _bus.description_ko,
+      en: _bus.description_en,
+      ja: _bus.description_ja,
+      zh: _bus.description_zh,
     },
   },
 };
@@ -210,37 +144,36 @@ export const calculateTotalPrice = (
 // 추가 요금표
 // ────────────────────────────────────────
 export const EXTRA_CHARGES = {
-  overtimePerHour: 33000,
-  nightSurchargePercent: 20,
-  peakSeasonPercent: 10,
-  roundTripDiscountPercent: 10,
-  englishGuidePerDay: 80000,
-  airportPicketService: 20000,
-  childSeatPerTrip: 20000,
+  overtimePerHour: spec.extra_charges.overtime_per_hour,
+  nightSurchargePercent: spec.extra_charges.night_surcharge_percent,
+  peakSeasonPercent: spec.extra_charges.peak_season_percent,
+  roundTripDiscountPercent: spec.extra_charges.round_trip_discount_percent,
+  englishGuidePerDay: spec.extra_charges.english_guide_per_day,
+  airportPicketService: spec.extra_charges.airport_picket_service,
+  childSeatPerTrip: spec.extra_charges.child_seat_per_trip,
 };
 
 // ────────────────────────────────────────
 // K-pop 콘서트 셔틀 요금
 // ────────────────────────────────────────
 export const KPOP_SHUTTLE = {
-  priceOneWay: 35000,
-  priceRoundTrip: 65000,
-  maxPassengers: 8,
-  pricePerVehicle: 260000,
-  vehicleType: '현대 스타리아',
-  includes: ['호텔 픽업', '공연장 이동', '공연 후 귀환', '24시간 기사 대기'],
-  venues: [
-    { name: '인스파이어 아레나', nameEn: 'Inspire Arena', location: '인천 영종도', locationEn: 'Yeongdo, Incheon' },
-    { name: '잠실올림픽주경기장', nameEn: 'Jamsil Olympic Stadium', location: '서울 송파', locationEn: 'Songpa, Seoul' },
-    { name: 'KSPO돔 (체조경기장)', nameEn: 'KSPO Dome', location: '서울 송파', locationEn: 'Songpa, Seoul' },
-    { name: '고척스카이돔', nameEn: 'Gocheok Sky Dome', location: '서울 구로', locationEn: 'Guro, Seoul' },
-    { name: '수원월드컵경기장', nameEn: 'Suwon World Cup Stadium', location: '수원', locationEn: 'Suwon' },
-  ],
-  pickupPoints: ['명동', '홍대', '강남역', '동대문'],
+  priceOneWay: spec.kpop_shuttle.price_one_way,
+  priceRoundTrip: spec.kpop_shuttle.price_round_trip,
+  maxPassengers: spec.kpop_shuttle.max_passengers,
+  pricePerVehicle: spec.kpop_shuttle.price_per_vehicle,
+  vehicleType: spec.vehicles.staria.name_ko,
+  includes: spec.kpop_shuttle.includes_ko as string[],
+  venues: (spec.kpop_shuttle.venues as Array<{
+    name_ko: string; name_en: string; location_ko: string; location_en: string;
+  }>).map(v => ({
+    name: v.name_ko, nameEn: v.name_en,
+    location: v.location_ko, locationEn: v.location_en,
+  })),
+  pickupPoints: spec.kpop_shuttle.pickup_points_ko as string[],
 };
 
 // 전세차량 기본 요금 (공항 픽업 편도)
-export const CHARTER_BASE_PRICE = 160000;
+export const CHARTER_BASE_PRICE = spec.charter_base_price;
 
 // ────────────────────────────────────────
 // AI 플래너 코스 자동 감지 함수
@@ -273,3 +206,13 @@ export function detectCharterRecommendation(places: { name: string; nameEn?: str
 
   return { recommended: false, tourType: null, pricing: null, reason: '' };
 }
+
+// ────────────────────────────────────────
+// 신규 공개: Phase B·C에서 사용할 확장 데이터
+// ────────────────────────────────────────
+export const SERVICE_CONFIG = spec.service_config;
+export const AIRPORTS_CATALOG = spec.airports;
+export const CITIES_CATALOG = spec.cities;
+export const DISTANCE_MATRIX = spec.distance_matrix;
+export const ATTRACTION_FEES = spec.attraction_fees;
+export const PRICING_SPEC_VERSION = spec.version;

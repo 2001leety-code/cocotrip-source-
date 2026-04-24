@@ -28,6 +28,11 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
         <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
+        {/* 포함/별도 뱃지 — CocoTrip "No Hidden Fees" 명시 */}
+        <div className="flex flex-wrap gap-1.5 mb-2.5 text-[10px]">
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ Transport = 차량비 (톨·주차·팁 포함)</span>
+          <span className="px-2 py-0.5 rounded-full bg-white/[0.03] text-white/40 border border-white/10">× Entry/Meals = 별도 현장 결제</span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[11px] sm:text-xs">
             <thead>
