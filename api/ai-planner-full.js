@@ -119,7 +119,7 @@ export default async function handler(req, res) {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
-        temperature: 0.95,
+        temperature: 0.7, thinkingConfig: { thinkingBudget: 8000 }, // 0.95→0.7 + Flash thinking for instruction following + multi-step reasoning
         maxOutputTokens: 24000,
         responseMimeType: 'application/json',
       },

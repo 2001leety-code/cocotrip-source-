@@ -110,6 +110,12 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               <span>{stop.address}</span>
             </p>
           )}
+          {stop.personalization_reasoning && (
+            <div className="bg-[#7C5CFC]/[0.08] border border-[#7C5CFC]/25 rounded-lg px-3 py-2.5">
+              <p className="text-[10px] font-bold text-[#B668FC] uppercase tracking-wider mb-1">{ui.whyChose || 'Why this for you'}</p>
+              <p className="text-[12px] text-white/85 leading-relaxed">{stop.personalization_reasoning}</p>
+            </div>
+          )}
           {(stop.tip || stop.tip_en) && (
             <div className="bg-amber-400/[0.06] border border-amber-400/20 rounded-lg px-3 py-2.5">
               <p className="text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">{ui.tip || 'Tip'}</p>

@@ -2,12 +2,15 @@
 // Extracted from PlanDetailPage/index.tsx L515-540 (zero behavior change).
 import { Car } from 'lucide-react';
 import { buildCarLink } from '@/config/affiliateLinks';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface CarRentalAdProps {
   region: string;
 }
 
 export function CarRentalAd({ region }: CarRentalAdProps) {
+  const { t } = useLanguage();
+  const p = (t.planner as unknown as Record<string, string | undefined>) || {};
   const carLink = buildCarLink(region);
 
   return (
@@ -17,8 +20,8 @@ export function CarRentalAd({ region }: CarRentalAdProps) {
           <Car className="w-5 h-5 text-emerald-400" />
         </div>
         <div className="flex-1">
-          <p className="font-bold text-white text-base leading-tight">Rent a Car in Korea</p>
-          <p className="text-xs text-white/50 mt-0.5">Explore at your own pace {'\u2014'} international license accepted</p>
+          <p className="font-bold text-white text-base leading-tight">{p.adCarTitle || 'Rent a Car in Korea'}</p>
+          <p className="text-xs text-white/50 mt-0.5">{p.adCarSub || 'Explore at your own pace \u2014 international license accepted'}</p>
         </div>
       </div>
       <div className="px-5 pb-4">
@@ -28,7 +31,7 @@ export function CarRentalAd({ region }: CarRentalAdProps) {
           {carLink.label} {'\u2192'}
         </a>
       </div>
-      <p className="text-[10px] text-white/20 text-center pb-3 px-5">Affiliate link {'\u2014'} helps support CocoTrip.</p>
+      <p className="text-[10px] text-white/20 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
     </div>
   );
 }

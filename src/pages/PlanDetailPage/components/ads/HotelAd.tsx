@@ -1,13 +1,17 @@
 // Hotel booking affiliate banner.
-// Extracted from PlanDetailPage/index.tsx L208-236 (zero behavior change).
+// P-Quality (2026-04-24): i18n applied. Was hardcoded English now uses
+// adHotelTitle / adHotelSub / adAffiliateNote keys with English fallback.
 import { MapPin } from 'lucide-react';
 import { buildAccommodationLinks } from '@/config/affiliateLinks';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface HotelAdProps {
   region: string;
 }
 
 export function HotelAd({ region }: HotelAdProps) {
+  const { t } = useLanguage();
+  const p = (t.planner as unknown as Record<string, string | undefined>) || {};
   const links = buildAccommodationLinks(region + ' Hotel', region);
   if (!links.length) return null;
 
@@ -18,8 +22,8 @@ export function HotelAd({ region }: HotelAdProps) {
           <MapPin className="w-5 h-5 text-blue-400" />
         </div>
         <div className="flex-1">
-          <p className="font-bold text-white text-base leading-tight">Find Your Perfect Hotel</p>
-          <p className="text-xs text-white/50 mt-0.5">Best rates for {region} hotels</p>
+          <p className="font-bold text-white text-base leading-tight">{p.adHotelTitle || 'Find Your Perfect Hotel'}</p>
+          <p className="text-xs text-white/50 mt-0.5">{(p.adHotelSub || 'Best rates for {region} hotels').replace('{region}', region)}</p>
         </div>
       </div>
       <div className="px-5 pb-4">
@@ -31,7 +35,7 @@ export function HotelAd({ region }: HotelAdProps) {
           </a>
         ))}
       </div>
-      <p className="text-[10px] text-white/20 text-center pb-3 px-5">Affiliate link {'\u2014'} helps support CocoTrip.</p>
+      <p className="text-[10px] text-white/20 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
     </div>
   );
 }

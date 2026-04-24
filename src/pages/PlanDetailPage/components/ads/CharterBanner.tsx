@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { Car } from 'lucide-react';
 import { detectCharterRecommendation, AIRPORT_TRANSFER_PRICES } from '@/data/charterPricing';
+import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDay, PlanDocument } from '../../types';
 import { CharterInquireModal } from './CharterInquireModal';
 
@@ -72,6 +73,8 @@ function buildWhatsappPrefill(opts: {
 }
 
 export function CharterBanner({ days, plan }: CharterBannerProps) {
+  const { t } = useLanguage();
+  const p = (t.planner as unknown as Record<string, string | undefined>) || {};
   const allStops = days.flatMap((d: PlanDay) => d.stops || []);
   const detection = detectCharterRecommendation(allStops as any);
   if (!detection.recommended || !detection.pricing) return null;
@@ -90,8 +93,8 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
           <div className="flex items-center gap-3">
             <Car className="w-6 h-6 text-cyan-300" />
             <div>
-              <p className="font-bold text-white text-base">Private Charter Vehicle</p>
-              <p className="text-xs text-cyan-300/70 mt-0.5">Skip public transit {'\u2014'} ride in comfort</p>
+              <p className="font-bold text-white text-base">{p.adCharterTitle || 'Private Charter Vehicle'}</p>
+              <p className="text-xs text-cyan-300/70 mt-0.5">{p.adCharterSub || 'Skip public transit \u2014 ride in comfort'}</p>
             </div>
           </div>
           <div className="text-right">
@@ -102,7 +105,12 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
       </div>
       <div className="px-5 py-4">
         <div className="flex flex-wrap gap-2 mb-4">
-          {['English driver', 'Door-to-door', 'Free WiFi', 'Luggage space'].map(f => (
+          {[
+            p.adCharterFeatEnglish || 'English driver',
+            p.adCharterFeatDoor || 'Door-to-door',
+            p.adCharterFeatWifi || 'Free WiFi',
+            p.adCharterFeatLuggage || 'Luggage space',
+          ].map(f => (
             <span key={f} className="text-[11px] text-cyan-200/70 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-full">{'\u2713'} {f}</span>
           ))}
         </div>
@@ -110,11 +118,11 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
           type="button" onClick={() => setInquireOpen(true)}
           className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90"
           style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', boxShadow: '0 4px 20px rgba(6,182,212,0.3)' }}>
-          Request quote in-app {'\u2192'}
+          {p.adCharterCtaInApp || 'Request quote in-app'} {'\u2192'}
         </button>
         <a href={waUrl} target="_blank" rel="noopener noreferrer"
           className="block w-full mt-2 py-2 text-center text-[11px] text-cyan-300/70 hover:text-cyan-200 underline">
-          Or send via WhatsApp instead
+          {p.adCharterCtaWa || 'Or send via WhatsApp instead'}
         </a>
       </div>
       <CharterInquireModal
