@@ -148,7 +148,7 @@ export function TourCard({ tour, language }: TourCardProps) {
           </div>
         )}
 
-        {/* 가격 (우하단) */}
+        {/* 가격 (우하단) USD + 근사 KRW 병기 */}
         <div className="absolute bottom-3 right-3">
           <div
             className="px-3 py-1.5 rounded-xl backdrop-blur-sm"
@@ -158,6 +158,9 @@ export function TourCard({ tour, language }: TourCardProps) {
             <p className="text-[17px] font-black text-white leading-none">
               ${tour.priceFrom.toLocaleString()}
               <span className="text-[10px] text-white/35 font-medium ml-0.5">USD</span>
+            </p>
+            <p className="text-[9px] text-white/35 leading-none mt-0.5">
+              ≈ ₩{Math.round(tour.priceFrom * 1350).toLocaleString('ko-KR')}
             </p>
           </div>
         </div>
@@ -177,7 +180,7 @@ export function TourCard({ tour, language }: TourCardProps) {
         </p>
 
         {/* 메타 */}
-        <div className="flex items-center gap-2.5 mb-3">
+        <div className="flex items-center gap-2.5 mb-2">
           <span className="flex items-center gap-1 text-[11px] text-white/50">
             <Clock className="w-3 h-3 text-purple-400/60" />
             {durationLabel}
@@ -187,6 +190,19 @@ export function TourCard({ tour, language }: TourCardProps) {
             <Users className="w-3 h-3 text-pink-400/60" />
             {vehicle.label} · max {vehicle.pax}
           </span>
+        </div>
+
+        {/* 포함 뱃지 — CocoTrip "No Hidden Fees" 표시 */}
+        <div className="flex flex-wrap gap-1 mb-3">
+          {['Tolls', 'Parking', 'Tips'].map(item => (
+            <span
+              key={item}
+              className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+              style={{ background: 'rgba(16,185,129,0.10)', color: 'rgba(110,231,183,0.85)', border: '1px solid rgba(16,185,129,0.20)' }}
+            >
+              ✓ {item}
+            </span>
+          ))}
         </div>
 
         {/* 구분선 */}

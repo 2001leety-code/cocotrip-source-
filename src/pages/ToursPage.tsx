@@ -104,7 +104,15 @@ export default function ToursPage() {
   const tl = TL[language] ?? TL.en;
 
   const [activeRegion, setActiveRegion] = useState<TourRegion | 'All'>('All');
-  const visibleTours = getToursByRegion(activeRegion);
+  const [activeDuration, setActiveDuration] = useState<'All' | 'Day' | 'Short' | 'Long'>('All');
+  const regionTours = getToursByRegion(activeRegion);
+  const visibleTours = regionTours.filter(t => {
+    if (activeDuration === 'All')   return true;
+    if (activeDuration === 'Day')   return t.durationDays === 1;
+    if (activeDuration === 'Short') return t.durationDays === 2 || t.durationDays === 3;
+    if (activeDuration === 'Long')  return t.durationDays >= 4;
+    return true;
+  });
 
   // 호텔: 선택 지역 기준 / All이면 서울 기본
   const visibleHotels = HOTELS.filter(h =>
@@ -252,6 +260,32 @@ export default function ToursPage() {
                 }
               >
                 {chipLabel}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 기간 필터 (2번째 행) */}
+        <div className="flex gap-2 mt-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {([
+            { key: 'All',   label: { ko: '전체 기간',  en: 'All',        ja: '全期間',  zh: '全部' } },
+            { key: 'Day',   label: { ko: '당일',       en: 'Day',        ja: '日帰り',  zh: '当天' } },
+            { key: 'Short', label: { ko: '2~3일',      en: '2-3 Days',   ja: '2~3日',   zh: '2~3天' } },
+            { key: 'Long',  label: { ko: '4일 이상',   en: '4+ Days',    ja: '4日以上', zh: '4天+' } },
+          ] as const).map(({ key, label }) => {
+            const isActive = activeDuration === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveDuration(key)}
+                className="tour-chip shrink-0 text-[11px] font-semibold px-3.5 py-2 min-h-[36px] rounded-full"
+                style={
+                  isActive
+                    ? { background: 'rgba(182,104,252,0.15)', border: '1px solid rgba(182,104,252,0.40)', color: '#D0A8FF' }
+                    : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
+                }
+              >
+                {label[language] ?? label.en}
               </button>
             );
           })}

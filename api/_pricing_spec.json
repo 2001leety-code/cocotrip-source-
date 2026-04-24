@@ -1,0 +1,426 @@
+{
+  "$schema": "./pricing_spec.schema.json",
+  "version": "2.0.0",
+  "generatedAt": "2026-04-24",
+  "currency": "KRW",
+  "note": "CocoTripKR 가격 단일 진실 출처(SSOT). TypeScript(charterPricing.ts)와 Python(pricing.py) 양쪽에서 읽는다. 이 파일이 마스터이며, Python 쪽은 sync 스크립트로 복사된다.",
+
+  "includes": ["fuel", "tolls", "parking", "driver_gratuity"],
+  "excludes": ["meals", "attractions", "drinks", "shopping"],
+
+  "service_config": {
+    "airport_transfer": {
+      "label_ko": "공항 픽업/샌딩",
+      "label_en": "Airport Transfer",
+      "show_meals": false,
+      "show_attractions": false,
+      "default_vehicle": "staria",
+      "description_ko": "공항 ↔ 숙소 편도 이동 · 식대·입장료 해당 없음",
+      "description_en": "Airport ↔ Accommodation one-way · No meals or attractions"
+    },
+    "day_tour": {
+      "label_ko": "당일 투어",
+      "label_en": "Day Tour",
+      "show_meals": true,
+      "show_attractions": true,
+      "meals_count_default": 2,
+      "meal_per_person": 50000,
+      "default_vehicle": "staria",
+      "description_ko": "8~10시간 당일 왕복 투어 · 식대 및 입장료 별도",
+      "description_en": "8-10 hour same-day round trip · Meals & attractions separate"
+    },
+    "multi_day": {
+      "label_ko": "1박 이상 장거리",
+      "label_en": "Multi-Day Tour",
+      "show_meals": true,
+      "show_attractions": true,
+      "meals_count_default": 3,
+      "meal_per_person": 50000,
+      "default_vehicle": "staria",
+      "description_ko": "1박 이상 숙박형 장거리 투어 · 숙박료 고객 직접 예약",
+      "description_en": "Overnight long-haul tour · Lodging booked separately by customer"
+    },
+    "kpop_shuttle": {
+      "label_ko": "K-pop 콘서트 셔틀",
+      "label_en": "K-pop Concert Shuttle",
+      "show_meals": false,
+      "show_attractions": false,
+      "default_vehicle": "staria",
+      "description_ko": "공연장 왕복 셔틀 · 공연 종료까지 기사 대기",
+      "description_en": "Venue round-trip shuttle · Driver waits until show ends"
+    }
+  },
+
+  "airports": {
+    "ICN": { "name_ko": "인천국제공항", "name_en": "Incheon International", "lat": 37.460, "lng": 126.440, "popular": true,  "region": "capital" },
+    "GMP": { "name_ko": "김포국제공항", "name_en": "Gimpo International",   "lat": 37.558, "lng": 126.791, "popular": true,  "region": "capital" },
+    "PUS": { "name_ko": "김해국제공항", "name_en": "Gimhae International",  "lat": 35.180, "lng": 128.938, "popular": false, "region": "southeast" },
+    "CJU": { "name_ko": "제주국제공항", "name_en": "Jeju International",    "lat": 33.510, "lng": 126.493, "popular": false, "region": "island" },
+    "TAE": { "name_ko": "대구국제공항", "name_en": "Daegu International",   "lat": 35.898, "lng": 128.661, "popular": false, "region": "southeast" },
+    "CJJ": { "name_ko": "청주국제공항", "name_en": "Cheongju International","lat": 36.717, "lng": 127.499, "popular": false, "region": "central" },
+    "MWX": { "name_ko": "무안국제공항", "name_en": "Muan International",    "lat": 34.991, "lng": 126.383, "popular": false, "region": "southwest" },
+    "KWJ": { "name_ko": "광주공항",     "name_en": "Gwangju Airport",       "lat": 35.126, "lng": 126.809, "popular": false, "region": "southwest" },
+    "RSU": { "name_ko": "여수공항",     "name_en": "Yeosu Airport",         "lat": 34.843, "lng": 127.617, "popular": false, "region": "southwest" },
+    "USN": { "name_ko": "울산공항",     "name_en": "Ulsan Airport",         "lat": 35.593, "lng": 129.352, "popular": false, "region": "southeast" }
+  },
+
+  "cities": {
+    "SEL_METRO":  { "name_ko": "서울 시내", "name_en": "Seoul Metro",  "lat": 37.566, "lng": 126.978, "popular": true,  "metro_radius_km": 50 },
+    "BUS_METRO":  { "name_ko": "부산 시내", "name_en": "Busan Metro",  "lat": 35.180, "lng": 129.075, "popular": true,  "metro_radius_km": 30 },
+    "JEJU_METRO": { "name_ko": "제주 시내", "name_en": "Jeju Metro",   "lat": 33.499, "lng": 126.531, "popular": false, "metro_radius_km": 25 }
+  },
+
+  "vehicles": {
+    "staria": {
+      "name_ko": "현대 스타리아",
+      "name_en": "Hyundai Staria",
+      "name_ja": "スターリア",
+      "name_zh": "星际旅行车",
+      "max_pax": 8,
+      "features_ko": ["최대 8인 탑승", "대형 캐리어 수납 가능", "전좌석 프리미엄 시트", "영어 소통 가능 기사"],
+      "guide_required": false,
+      "guide_daily_fee": 0,
+      "metro_charter": {
+        "h4":  291200,
+        "h8":  330000,
+        "h12": 572000,
+        "overtime_hourly": 33000
+      },
+      "intercity": {
+        "base_fee": 50000,
+        "rate_per_km": 900,
+        "deadhead_factor": 1.8,
+        "daily_service_fee": 200000,
+        "overnight_driver_fee": 130000
+      },
+      "description_ko": "프라이빗 소그룹 (최대 8인)",
+      "description_en": "Private small group (up to 8)",
+      "description_ja": "プライベート小グループ（最大8名）",
+      "description_zh": "私人小团（最多8人）"
+    },
+    "sprinter": {
+      "name_ko": "스프린터/스피너",
+      "name_en": "Sprinter Van",
+      "name_ja": "スプリンター",
+      "name_zh": "商务车",
+      "max_pax": 15,
+      "features_ko": ["9~15인 탑승", "영어 가이드 포함", "대형 수하물 공간"],
+      "guide_required": true,
+      "guide_daily_fee": 300000,
+      "metro_charter": {
+        "h4":  422240,
+        "h8":  478500,
+        "h12": 829400,
+        "overtime_hourly": 47850
+      },
+      "intercity": {
+        "base_fee": 70000,
+        "rate_per_km": 1300,
+        "deadhead_factor": 1.8,
+        "daily_service_fee": 280000,
+        "overnight_driver_fee": 180000
+      },
+      "description_ko": "중형 단체 (9~15인) · 가이드 필수",
+      "description_en": "Medium group (9-15) · Guide required",
+      "description_ja": "中型グループ（9～15名）・ガイド必須",
+      "description_zh": "中型团（9~15人）· 需要导游"
+    },
+    "bus": {
+      "name_ko": "대형버스",
+      "name_en": "Charter Bus",
+      "name_ja": "大型バス",
+      "name_zh": "大巴",
+      "max_pax": 999,
+      "features_ko": ["16인 이상 대형 단체", "별도 견적 산출"],
+      "guide_required": true,
+      "guide_daily_fee": 300000,
+      "metro_charter": {
+        "h4":  669800,
+        "h8":  759000,
+        "h12": 1315600,
+        "overtime_hourly": 75900
+      },
+      "intercity": {
+        "base_fee": 100000,
+        "rate_per_km": 2070,
+        "deadhead_factor": 1.8,
+        "daily_service_fee": 450000,
+        "overnight_driver_fee": 290000
+      },
+      "description_ko": "대형 단체 (16인 이상) · 가이드 필수 · 별도 견적",
+      "description_en": "Large group (16+) · Guide required · Custom quote",
+      "description_ja": "大型グループ（16名以上）・ガイド必須・別途見積",
+      "description_zh": "大型团（16人以上）· 需要导游 · 另行报价"
+    }
+  },
+
+  "airport_transfer_prices": {
+    "comment": "기존 charterPricing.ts AIRPORT_TRANSFER_PRICES 그대로. 출발지는 ICN 기준. 다른 공항 출발은 distance_matrix 또는 공식 fallback.",
+    "seoul-central":        { "name_ko": "서울 도심 (명동·홍대·종로·용산)", "name_en": "Seoul City Center (Myeongdong, Hongdae, Jongno)", "priceKRW": 124800, "priceUSD": 90,  "durationMin": 60  },
+    "seoul-gangnam":        { "name_ko": "서울 강남·잠실·송파",           "name_en": "Seoul Gangnam / Jamsil / Songpa",                "priceKRW": 145600, "priceUSD": 105, "durationMin": 80  },
+    "suwon-yongin":         { "name_ko": "수원·용인",                     "name_en": "Suwon / Yongin",                                 "priceKRW": 150000, "priceUSD": 115, "durationMin": 90  },
+    "gapyeong-nami":        { "name_ko": "가평·남이섬",                   "name_en": "Gapyeong / Nami Island",                         "priceKRW": 208000, "priceUSD": 150, "durationMin": 110 },
+    "chuncheon":            { "name_ko": "춘천",                          "name_en": "Chuncheon",                                      "priceKRW": 220000, "priceUSD": 165, "durationMin": 120 },
+    "pyeongchang-yongpyong":{ "name_ko": "평창·용평·알펜시아",            "name_en": "Pyeongchang / Yongpyong / Alpensia",             "priceKRW": 332800, "priceUSD": 240, "durationMin": 160 },
+    "gangneung-sokcho":     { "name_ko": "강릉·속초",                     "name_en": "Gangneung / Sokcho",                             "priceKRW": 364000, "priceUSD": 265, "durationMin": 180 },
+    "busan":                { "name_ko": "부산 (직행)",                   "name_en": "Busan (Direct)",                                 "priceKRW": 600000, "priceUSD": 450, "durationMin": 270 }
+  },
+
+  "daily_tour_prices": {
+    "comment": "기존 charterPricing.ts DAILY_TOUR_PRICES 그대로. 패키지 차량비 하드코딩 우선, 커스텀 일정은 공식 fallback.",
+    "seoul-city": {
+      "name_ko": "서울 시내 투어", "name_en": "Seoul City Tour",
+      "priceKRW": 330000, "priceUSD": 240, "hours": 8,
+      "spots": ["경복궁", "홍대", "명동", "북촌", "인사동", "성수", "한강"],
+      "keywords": ["seoul", "서울", "gyeongbokgung", "hongdae", "myeongdong", "bukchon"]
+    },
+    "seoul-suburb": {
+      "name_ko": "서울 근교 투어 (남이섬·가평·수원)", "name_en": "Seoul Suburb Tour (Nami Island, Gapyeong, Suwon)",
+      "priceKRW": 343200, "priceUSD": 250, "hours": 8,
+      "spots": ["남이섬", "가평", "알파카월드", "수원화성", "레일바이크", "쁘띠프랑스", "아침고요수목원"],
+      "keywords": ["nami", "남이섬", "alpaca", "알파카", "suwon", "수원", "gapyeong", "가평", "railbike", "레일바이크"]
+    },
+    "dmz": {
+      "name_ko": "DMZ 투어", "name_en": "DMZ Tour",
+      "priceKRW": 343200, "priceUSD": 250, "hours": 8,
+      "spots": ["DMZ", "임진각", "제3땅굴", "도라산역", "파주"],
+      "keywords": ["dmz", "비무장지대", "imjingak", "임진각", "panmunjom", "판문점"]
+    },
+    "gangwon": {
+      "name_ko": "강원도 당일 투어 (춘천·강릉·속초)", "name_en": "Gangwon Day Tour (Chuncheon, Gangneung, Sokcho)",
+      "priceKRW": 436800, "priceUSD": 315, "hours": 10,
+      "spots": ["춘천", "강릉", "속초", "설악산", "경포대", "정동진"],
+      "keywords": ["chuncheon", "춘천", "gangneung", "강릉", "sokcho", "속초", "seoraksan", "설악산"]
+    },
+    "ski-resort": {
+      "name_ko": "스키 리조트 투어 (용평·알펜시아·하이원)", "name_en": "Ski Resort Tour (Yongpyong, Alpensia, High1)",
+      "priceKRW": 416000, "priceUSD": 300, "hours": 10,
+      "spots": ["용평", "알펜시아", "하이원", "비발디파크", "평창"],
+      "keywords": ["yongpyong", "용평", "alpensia", "알펜시아", "ski", "스키", "high1", "하이원", "vivaldi"]
+    },
+    "gyeongju-jeonju": {
+      "name_ko": "경주·전주 투어", "name_en": "Gyeongju / Jeonju Tour",
+      "priceKRW": 468000, "priceUSD": 340, "hours": 10,
+      "spots": ["경주", "불국사", "석굴암", "전주한옥마을", "전주"],
+      "keywords": ["gyeongju", "경주", "bulguksa", "불국사", "jeonju", "전주"]
+    },
+    "busan-day": {
+      "name_ko": "부산 당일 투어", "name_en": "Busan Day Tour",
+      "priceKRW": 572000, "priceUSD": 415, "hours": 12,
+      "spots": ["부산", "해운대", "감천문화마을", "자갈치시장", "광안리"],
+      "keywords": ["busan", "부산", "haeundae", "해운대", "gamcheon", "감천"]
+    }
+  },
+
+  "kpop_shuttle": {
+    "price_one_way": 35000,
+    "price_round_trip": 65000,
+    "max_passengers": 8,
+    "price_per_vehicle": 260000,
+    "vehicle_type": "staria",
+    "includes_ko": ["호텔 픽업", "공연장 이동", "공연 후 귀환", "24시간 기사 대기"],
+    "includes_en": ["Hotel pickup", "Venue transfer", "Post-show return", "24h driver standby"],
+    "venues": [
+      { "name_ko": "인스파이어 아레나",   "name_en": "Inspire Arena",          "location_ko": "인천 영종도", "location_en": "Yeongjong, Incheon" },
+      { "name_ko": "잠실올림픽주경기장",  "name_en": "Jamsil Olympic Stadium", "location_ko": "서울 송파",   "location_en": "Songpa, Seoul" },
+      { "name_ko": "KSPO돔 (체조경기장)", "name_en": "KSPO Dome",              "location_ko": "서울 송파",   "location_en": "Songpa, Seoul" },
+      { "name_ko": "고척스카이돔",        "name_en": "Gocheok Sky Dome",       "location_ko": "서울 구로",   "location_en": "Guro, Seoul" },
+      { "name_ko": "수원월드컵경기장",    "name_en": "Suwon World Cup Stadium","location_ko": "수원",        "location_en": "Suwon" }
+    ],
+    "pickup_points_ko": ["명동", "홍대", "강남역", "동대문"],
+    "pickup_points_en": ["Myeongdong", "Hongdae", "Gangnam Stn.", "Dongdaemun"]
+  },
+
+  "extra_charges": {
+    "overtime_per_hour": 33000,
+    "night_surcharge_percent": 20,
+    "peak_season_percent": 10,
+    "round_trip_discount_percent": 10,
+    "english_guide_per_day": 80000,
+    "airport_picket_service": 20000,
+    "child_seat_per_trip": 20000
+  },
+
+  "charter_base_price": 160000,
+
+  "distance_matrix": {
+    "comment": "출발지→목적지 편도 거리(km)와 예상 소요시간(hours). priceKRW/source가 있으면 하드코딩 가격 우선, 없으면 pricing.calculate_intercity() 공식 적용. 총 80+쌍.",
+
+    "ICN→SEL_METRO":        { "km": 52,  "hours": 1.0,  "priceKRW": 124800, "source": "airport_transfer" },
+    "ICN→SEL_GANGNAM":      { "km": 65,  "hours": 1.3,  "priceKRW": 145600, "source": "airport_transfer" },
+    "ICN→SUWON":            { "km": 75,  "hours": 1.5,  "priceKRW": 150000, "source": "airport_transfer" },
+    "ICN→GAPYEONG":         { "km": 90,  "hours": 1.8,  "priceKRW": 208000, "source": "airport_transfer" },
+    "ICN→CHUNCHEON":        { "km": 120, "hours": 2.0,  "priceKRW": 220000, "source": "airport_transfer" },
+    "ICN→PYEONGCHANG":      { "km": 230, "hours": 2.7,  "priceKRW": 332800, "source": "airport_transfer" },
+    "ICN→GANGNEUNG":        { "km": 280, "hours": 3.2,  "priceKRW": 364000, "source": "airport_transfer" },
+    "ICN→SOKCHO":           { "km": 260, "hours": 3.0 },
+    "ICN→BUSAN":            { "km": 450, "hours": 5.0,  "priceKRW": 600000, "source": "airport_transfer" },
+    "ICN→GYEONGJU":         { "km": 420, "hours": 4.5 },
+    "ICN→JEONJU":           { "km": 260, "hours": 3.0 },
+    "ICN→ANDONG":           { "km": 310, "hours": 3.5 },
+    "ICN→YEOSU":            { "km": 415, "hours": 5.0 },
+    "ICN→DAMYANG":          { "km": 335, "hours": 4.0 },
+    "ICN→DAEGU":            { "km": 300, "hours": 3.3 },
+
+    "GMP→SEL_METRO":        { "km": 25,  "hours": 0.7 },
+    "GMP→SEL_GANGNAM":      { "km": 30,  "hours": 0.8 },
+    "GMP→SUWON":            { "km": 45,  "hours": 1.1 },
+    "GMP→GAPYEONG":         { "km": 85,  "hours": 1.7 },
+    "GMP→CHUNCHEON":        { "km": 115, "hours": 2.0 },
+    "GMP→PYEONGCHANG":      { "km": 190, "hours": 2.4 },
+    "GMP→GANGNEUNG":        { "km": 240, "hours": 2.9 },
+    "GMP→SOKCHO":           { "km": 220, "hours": 2.7 },
+    "GMP→BUSAN":            { "km": 410, "hours": 4.5 },
+    "GMP→GYEONGJU":         { "km": 380, "hours": 4.2 },
+    "GMP→JEONJU":            { "km": 220, "hours": 2.7 },
+    "GMP→ANDONG":           { "km": 280, "hours": 3.2 },
+
+    "PUS→BUS_METRO":        { "km": 30,  "hours": 0.7 },
+    "PUS→SEL_METRO":        { "km": 410, "hours": 4.5 },
+    "PUS→GYEONGJU":         { "km": 85,  "hours": 1.0 },
+    "PUS→ANDONG":           { "km": 140, "hours": 1.8 },
+    "PUS→DAEGU":            { "km": 100, "hours": 1.2 },
+    "PUS→YEOSU":            { "km": 210, "hours": 2.5 },
+    "PUS→JEONJU":           { "km": 250, "hours": 2.8 },
+    "PUS→GANGNEUNG":        { "km": 350, "hours": 3.8 },
+
+    "CJU→JEJU_METRO":       { "km": 15,  "hours": 0.4 },
+    "CJU→SEOGWIPO":         { "km": 40,  "hours": 0.7 },
+    "CJU→SEONGSAN":         { "km": 60,  "hours": 1.0 },
+    "CJU→HALLASAN":         { "km": 30,  "hours": 0.6 },
+
+    "TAE→SEL_METRO":        { "km": 240, "hours": 2.7 },
+    "TAE→GYEONGJU":         { "km": 80,  "hours": 1.0 },
+    "TAE→ANDONG":           { "km": 75,  "hours": 1.1 },
+    "TAE→BUSAN":            { "km": 120, "hours": 1.5 },
+
+    "CJJ→SEL_METRO":        { "km": 120, "hours": 1.5 },
+    "CJJ→GAPYEONG":         { "km": 150, "hours": 2.0 },
+    "CJJ→DAEJEON":          { "km": 50,  "hours": 0.7 },
+    "CJJ→GYEONGJU":         { "km": 220, "hours": 2.8 },
+
+    "MWX→DAMYANG":          { "km": 45,  "hours": 0.8 },
+    "MWX→JEONJU":           { "km": 110, "hours": 1.5 },
+    "MWX→YEOSU":            { "km": 150, "hours": 2.0 },
+    "MWX→BUSAN":            { "km": 230, "hours": 2.7 },
+
+    "KWJ→DAMYANG":          { "km": 40,  "hours": 0.7 },
+    "KWJ→JEONJU":           { "km": 100, "hours": 1.4 },
+    "KWJ→YEOSU":            { "km": 170, "hours": 2.2 },
+
+    "RSU→JEONJU":           { "km": 140, "hours": 1.7 },
+    "RSU→BUSAN":            { "km": 200, "hours": 2.5 },
+    "RSU→DAMYANG":          { "km": 180, "hours": 2.3 },
+
+    "USN→BUSAN":            { "km": 60,  "hours": 0.7 },
+    "USN→GYEONGJU":         { "km": 40,  "hours": 0.6 },
+    "USN→DAEGU":            { "km": 100, "hours": 1.3 },
+
+    "SEL_METRO→GANGNEUNG":  { "km": 230, "hours": 2.75 },
+    "SEL_METRO→SOKCHO":     { "km": 210, "hours": 2.5 },
+    "SEL_METRO→PYEONGCHANG":{ "km": 180, "hours": 2.3 },
+    "SEL_METRO→BUSAN":      { "km": 400, "hours": 4.3 },
+    "SEL_METRO→GYEONGJU":   { "km": 370, "hours": 4.0 },
+    "SEL_METRO→JEONJU":     { "km": 210, "hours": 2.5 },
+    "SEL_METRO→ANDONG":     { "km": 270, "hours": 3.0 },
+    "SEL_METRO→YEOSU":      { "km": 370, "hours": 4.0 },
+    "SEL_METRO→DAMYANG":    { "km": 300, "hours": 3.5 },
+    "SEL_METRO→DAEGU":      { "km": 280, "hours": 3.0 },
+    "SEL_METRO→GAPYEONG":   { "km": 60,  "hours": 1.3 },
+    "SEL_METRO→CHUNCHEON":  { "km": 85,  "hours": 1.5 },
+
+    "BUS_METRO→GYEONGJU":   { "km": 90,  "hours": 1.0 },
+    "BUS_METRO→ANDONG":     { "km": 130, "hours": 1.7 },
+    "BUS_METRO→JEONJU":     { "km": 230, "hours": 2.7 },
+    "BUS_METRO→YEOSU":      { "km": 200, "hours": 2.3 },
+    "BUS_METRO→DAMYANG":    { "km": 230, "hours": 2.8 },
+    "BUS_METRO→GANGNEUNG":  { "km": 350, "hours": 3.8 },
+    "BUS_METRO→SEL_METRO":  { "km": 400, "hours": 4.3 },
+    "BUS_METRO→DAEGU":      { "km": 100, "hours": 1.2 }
+  },
+
+  "attraction_fees": {
+    "comment": "성인 1인 기준 원화. 4인 세트·왕복 운임 등 별도 단위는 key에 명시. 무료(0)인 장소도 포함해 운영 인지용.",
+
+    "경복궁": 3000,
+    "창덕궁_후원": 8000,
+    "덕수궁": 1000,
+    "창경궁": 1000,
+    "종묘": 1000,
+    "N서울타워": 21000,
+    "서울스카이": 27000,
+    "롯데월드_종일권": 66000,
+    "롯데월드_아쿠아리움": 35000,
+    "동대문디자인플라자": 0,
+    "남산공원": 0,
+    "이태원_경리단길": 0,
+
+    "에버랜드_종일권": 69000,
+    "한국민속촌": 22000,
+    "수원화성_행궁": 1500,
+
+    "남이섬": 17000,
+    "가평레일바이크_4인세트": 40000,
+    "쁘띠프랑스": 15000,
+    "가평_아침고요수목원": 11000,
+    "가평_에델바이스스위스마을": 7000,
+    "가평_자라섬": 0,
+
+    "도라전망대": 3000,
+    "제3땅굴": 4000,
+    "임진각_평화곤돌라": 12000,
+
+    "포천아트밸리": 5000,
+    "허브아일랜드": 10000,
+    "허브아일랜드_야간조명": 18000,
+
+    "설악산케이블카": 15000,
+    "속초_낙산사": 4000,
+    "양양_서피비치": 0,
+
+    "평창_대관령양떼목장": 7000,
+    "평창_오대산월정사": 0,
+
+    "불국사": 6000,
+    "석굴암": 6000,
+    "경주_동궁과월지": 3000,
+    "경주_첨성대": 0,
+    "경주_대릉원": 0,
+
+    "안동_하회마을": 5000,
+    "안동_병산서원": 0,
+
+    "전주_한옥마을": 0,
+    "전주_경기전": 3000,
+
+    "담양_죽녹원": 3000,
+    "담양_메타세쿼이아길": 2000,
+    "보성_녹차밭": 5000,
+    "순천만_습지": 8000,
+
+    "여수_오동도": 0,
+    "여수_해상케이블카": 20000,
+
+    "감천문화마을": 0,
+    "해동용궁사": 0,
+    "부산_태종대_다누비열차": 4000,
+    "부산_광안대교전망대": 0,
+    "부산_오륙도_스카이워크": 0,
+
+    "성산일출봉": 5000,
+    "한라산_성판악": 0,
+    "제주_오설록티뮤지엄": 0,
+    "제주_우도_배편": 8500,
+    "제주_에코랜드": 14000,
+    "제주_테디베어뮤지엄": 11000
+  },
+
+  "metadata": {
+    "master_staff_manual_alignment": "MASTER_STAFF_MANUAL.md 표준 가격 정책과 일치",
+    "last_modified_by": "pricing unification phase A1",
+    "consumers": {
+      "typescript": "src/data/charterPricing.ts (import adapter)",
+      "python": "pricing.py (auto-synced copy via scripts/sync-pricing.js)"
+    }
+  }
+}

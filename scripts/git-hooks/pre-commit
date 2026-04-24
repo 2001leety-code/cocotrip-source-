@@ -52,6 +52,27 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/pages/PlanDetailPage/components/ArrivalGuide.tsx") continue;
       if (f === "src/pages/PlanDetailPage/components/DepartureGuide.tsx") continue;
       if (f === "src/pages/PlanDetailPage/pdfGenerator.ts") continue;
+      // Charter V2 batch (2026-04-24): wizard + calc + pricing SSOT.
+      // All ?? are legitimate nullish coalescing (e.g., pax ?? 1, option ?? false).
+      if (f.startsWith("src/components/charter/")) continue;
+      if (f === "src/pages/CharterNewPage.tsx") continue;
+      if (f === "src/pages/CharterPage.tsx") continue;
+      if (f === "src/hooks/useQuoteCalculator.ts") continue;
+      if (f === "src/data/charterPricing.ts") continue;
+      if (f === "src/components/tours/TourCard.tsx") continue;
+      if (f === "api/createPaypalOrder.js") continue;
+      if (f === "api/capturePaypalOrder.js") continue;
+      // Booking-management batch (2026-04-24): cancel/modify/my-bookings + airport pickup.
+      // ?? used for optional payload fields (luggage.small ?? 0, body.airport ?? null).
+      if (f === "src/components/MyBookingsTab.tsx") continue;
+      if (f === "src/components/PayPalBookingButton.tsx") continue;
+      if (f === "src/pages/MyPage.tsx") continue;
+      if (f === "api/booking-processor.js") continue;
+      if (f === "api/_telegram.js") continue;
+      if (f === "api/_booking-templates.js") continue;
+      if (f === "api/cancelBooking.js") continue;
+      if (f === "api/modifyBooking.js") continue;
+      if (f === "api/my-bookings.js") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

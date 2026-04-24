@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
@@ -28,6 +28,7 @@ const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
 const CharterPage = lazy(() => import('@/pages/CharterPage'));
+const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
@@ -176,6 +177,20 @@ function App() {
           />
           <Route
             path="/charter"
+            element={
+              <AuthRequired>
+                <Suspense fallback={<CharterSkeleton />}>
+                  <CharterNewPage />
+                </Suspense>
+              </AuthRequired>
+            }
+          />
+          <Route
+            path="/charter-new"
+            element={<Navigate to="/charter" replace />}
+          />
+          <Route
+            path="/charter-legacy"
             element={
               <AuthRequired>
                 <Suspense fallback={<CharterSkeleton />}>
