@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import {
   Music2, Sparkles, Shirt, UtensilsCrossed, Moon, Camera, ShoppingBag,
   Film, Landmark, Mountain, Plane, Building2, Waves, TreePine, Castle, Ship, Compass, Snowflake, Palmtree,
-  Fish, Beef,
+  Fish, Beef, Coffee, Wine, Anchor, Flag, FerrisWheel, Tent,
 } from 'lucide-react';
 import type { Locale } from 'date-fns';
 import { enUS, ko, ja, zhCN } from 'date-fns/locale';
@@ -103,6 +103,69 @@ export const ACTIVITY_KEYS = [
   'Kpop', 'Kbeauty', 'Hanbok', 'Food', 'Night',
   'Photo', 'Shopping', 'Drama', 'Temple', 'Dmz',
 ] as const;
+
+// P9 (2026-04-24): per-city activity chip mapping. Universal chips (Food/
+// Photo/Shopping/Night) always render; city-specific chips append below.
+// DMZ tour only meaningful when 서울 selected, 깡통시장 only for 부산, etc.
+//
+// Multi-city plan: takes UNION of all selected cities' chips so a Seoul+Busan
+// trip shows DMZ + Jagalchi together. Universal 4 are deduplicated.
+export const UNIVERSAL_ACTIVITIES = ['Food', 'Photo', 'Shopping', 'Night'] as const;
+
+export const CITY_ACTIVITIES: Record<string, readonly string[]> = {
+  seoul:     ['Kpop', 'Kbeauty', 'Hanbok', 'Drama', 'Temple', 'Dmz', 'Palace'],
+  busan:     ['Jagalchi', 'Gamcheon', 'Haeundae', 'BusanFood'],
+  jeju:      ['OlleTrail', 'Hallasan', 'Haenyeo', 'JejuFood'],
+  gyeongju:  ['Bulguksa', 'Anapji', 'GyeongjuHanok'],
+  jeonju:    ['HanokVillage', 'Makgeolli', 'JeonjuFood'],
+  gangneung: ['CoffeeStreet', 'GangneungBeach'],
+  yeosu:     ['YeosuLights', 'CableCar'],
+  suwon:     ['Hwaseong'],
+  incheon:   ['ChinaTown'],
+  daegu:     ['DaeguTower'],
+};
+
+// Resolve mainCityKey + extraCityKeys → ordered list of activity keys,
+// universal first then city-specific (deduped, preserves first-seen order).
+export function getActivitiesForCities(cityKeys: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const k of UNIVERSAL_ACTIVITIES) { seen.add(k); out.push(k); }
+  for (const ck of cityKeys) {
+    const list = CITY_ACTIVITIES[ck] || [];
+    for (const a of list) {
+      if (!seen.has(a)) { seen.add(a); out.push(a); }
+    }
+  }
+  return out;
+}
+
+// Icons for new city-specific chips. Existing icons in ACTIVITY_ICON_MAP
+// remain for the 10 universal/seoul-original chips.
+export const CITY_ACTIVITY_ICONS: Record<string, ReactNode> = {
+  Palace:        <Castle className="w-5 h-5" />,
+  Jagalchi:      <Fish className="w-5 h-5" />,
+  Gamcheon:      <Camera className="w-5 h-5" />,
+  Haeundae:      <Waves className="w-5 h-5" />,
+  BusanFood:     <UtensilsCrossed className="w-5 h-5" />,
+  OlleTrail:     <TreePine className="w-5 h-5" />,
+  Hallasan:      <Mountain className="w-5 h-5" />,
+  Haenyeo:       <Anchor className="w-5 h-5" />,
+  JejuFood:      <Fish className="w-5 h-5" />,
+  Bulguksa:      <Landmark className="w-5 h-5" />,
+  Anapji:        <Sparkles className="w-5 h-5" />,
+  GyeongjuHanok: <Tent className="w-5 h-5" />,
+  HanokVillage:  <Tent className="w-5 h-5" />,
+  Makgeolli:     <Wine className="w-5 h-5" />,
+  JeonjuFood:    <UtensilsCrossed className="w-5 h-5" />,
+  CoffeeStreet:  <Coffee className="w-5 h-5" />,
+  GangneungBeach:<Waves className="w-5 h-5" />,
+  YeosuLights:   <Sparkles className="w-5 h-5" />,
+  CableCar:      <FerrisWheel className="w-5 h-5" />,
+  Hwaseong:      <Castle className="w-5 h-5" />,
+  ChinaTown:     <Flag className="w-5 h-5" />,
+  DaeguTower:    <Building2 className="w-5 h-5" />,
+};
 
 // P10 (2026-04-24): 'Halal' moved out of style preferences into ALLERGY_KEYS
 // (renamed "Dietary Restrictions") because it is a religious obligation, not
