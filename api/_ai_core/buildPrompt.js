@@ -376,7 +376,7 @@ Examples:
 - "tour_pace=action이라 새벽 동대문 야시장 추가."
 - "Jagalchi 칩 선택 → 부산 회 점심으로 배치."
 - "예산 Premium 선택 → Michelin 1성 Mingles 저녁."
-If a stop is generic (not driven by user input), use: "전반적인 ${area} 핵심 명소"
+If a stop is generic (not driven by user input), use: "전반적인 \${area} 핵심 명소"
 NEVER omit this field.
 
 ### Allergy safety:
