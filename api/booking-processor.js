@@ -92,6 +92,7 @@ const originalHandler = async (event) => {
     couponApplied,
     memo,
     itineraryData,
+    airport,
   } = body;
 
   if (!orderID || !payerEmail) {
@@ -113,6 +114,20 @@ const originalHandler = async (event) => {
     console.warn('[booking-processor] 환율 조회 실패, 기본값 사용:', err.message);
   }
 
+  // 공항 픽업 정보를 memo에 합쳐 Google Sheets에 노출 (별도 컬럼 추가 없이 태연님 가시성 확보)
+  const airportMemoLine = (() => {
+    if (!airport || typeof airport !== 'object') return '';
+    const { terminal, flightNumber, luggage } = airport;
+    const lug = luggage || {};
+    const total = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
+    const parts = [];
+    if (terminal) parts.push(`터미널 ${terminal}`);
+    if (flightNumber) parts.push(`편명 ${flightNumber}`);
+    if (total > 0) parts.push(`수하물 ${total}개(S${lug.small ?? 0}·M${lug.medium ?? 0}·L${lug.large ?? 0})`);
+    return parts.length ? `✈ ${parts.join(' · ')}` : '';
+  })();
+  const enhancedMemo = [airportMemoLine, memo].filter(Boolean).join(' | ');
+
   const booking = {
     bookingRef,
     transactionId: orderID,
@@ -129,7 +144,8 @@ const originalHandler = async (event) => {
     amountKRW,
     exchangeRate,
     couponApplied: couponApplied || '없음',
-    memo: memo || '',
+    memo: enhancedMemo,
+    airport: airport || null,
   };
 
   const language = detectLanguage(payerEmail, payerName);

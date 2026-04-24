@@ -16,6 +16,8 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
+import { MyBookingsTab } from '@/components/MyBookingsTab';
+import { Package } from 'lucide-react';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
   Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
@@ -35,7 +37,7 @@ const TIER_BENEFITS: Record<TierType, string[]> = {
   Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaоTalk support', 'Free cancellation 72h', 'Airport lounge access'],
 };
 
-type Tab = 'overview' | 'coupons' | 'wishlist' | 'itinerary' | 'reviews' | 'history';
+type Tab = 'overview' | 'bookings' | 'coupons' | 'wishlist' | 'itinerary' | 'reviews' | 'history';
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -159,6 +161,7 @@ export default function MyPage() {
         <div className={`flex gap-1 rounded-xl p-1 overflow-x-auto scrollbar-hide ${isMobile ? 'm-card mb-5' : 'bg-white/[0.03] mb-8'}`}>
           {([
             { id: 'overview', label: 'Overview', icon: TrendingUp },
+            { id: 'bookings', label: 'My Bookings', icon: Package },
             { id: 'coupons', label: `Coupons (${activeCoupons.length})`, icon: Gift },
             { id: 'wishlist', label: `Wishlist (${wishlistItems.length})`, icon: Heart },
             { id: 'itinerary', label: `Itinerary (${itineraries.length})`, icon: Calendar },
@@ -188,6 +191,12 @@ export default function MyPage() {
             <StatCard label="Trip Coins" value={(loyalty?.tripCoins || 0).toLocaleString()} sub={`≈ $${coinsToUSD(loyalty?.tripCoins || 0)}`} icon={Coins} />
             <StatCard label="Earn Rate" value={`${((loyalty?.earnRate || 0.01) * 100).toFixed(1)}%`} icon={Crown} />
           </div>
+        )}
+
+        {/* ── 탭: My Bookings ── */}
+        {tab === 'bookings' && (
+          <MyBookingsTab userEmail={user?.email ?? ''} tier={tier}
+            language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko'|'en'|'ja'|'zh'} />
         )}
 
         {/* ── 탭: Coupons ── */}

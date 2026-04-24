@@ -13,6 +13,13 @@ interface BookingDict {
   [key: string]: unknown;  // 추가 키 허용 (하위 호환)
 }
 
+/** 공항 픽업 부가 정보 — 터미널/편명/수하물. */
+export interface AirportBookingInfo {
+  terminal?: 'T1' | 'T2';
+  flightNumber?: string;
+  luggage?: { small?: number; medium?: number; large?: number };
+}
+
 interface Props {
   productType: string;
   passengers: number;
@@ -30,6 +37,8 @@ interface Props {
   onPaymentSuccess?: (orderID: string) => void | Promise<void>;
   /** 현재 사용자 이메일 — 테스트 계정 감지용 */
   userEmail?: string;
+  /** 공항 픽업 전용 부가 정보 (터미널/편명/수하물) */
+  airport?: AirportBookingInfo;
 }
 
 interface RateInfo {
@@ -57,7 +66,7 @@ declare global {
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW, p, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '' }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW, p, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport }: Props) {
   const isSandboxAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
   console.log('[PayPal Props]', { productType, passengers, dateStart, dateEnd, priceKRW });
   const [paypalReady, setPaypalReady] = useState(false);
@@ -196,6 +205,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               memo,
               itineraryData:   itineraryData || null,
               userEmail,
+              ...(airport ? { airport } : {}),
               ...(couponDocId ? { couponDocId, couponUserId } : {}),
             }),
           });
