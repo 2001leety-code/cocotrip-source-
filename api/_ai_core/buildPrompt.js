@@ -333,7 +333,7 @@ Place these as scheduled meals (lunch/dinner). Add personalization_reasoning exp
 
 Use daily_tour_hours value as the actual budget — fit stop durations + transit so total fits.
 
-### P9 city-specific activity keys (sent in `categories`):
+### P9 city-specific activity keys (sent in \`categories\`):
 The user picked cities; new activity keys are now city-aware. Map keys to scheduling cues:
 - Palace → 경복궁/창덕궁/덕수궁 (any one). Schedule near opening time (09:00) for fewer crowds.
 - Jagalchi → 자갈치 시장 (부산). Lunch slot — 회/조개구이 stalls.
@@ -368,7 +368,7 @@ The user told us at form-start what's already booked:
 (reservation_status="all_done" routes to free-claim flow before plan generation — won't reach this prompt.)
 
 ### Output: stop personalization_reasoning (REQUIRED for every stop):
-Each stop in days[].stops[] MUST include `personalization_reasoning` (string, 1 sentence, max 80 chars).
+Each stop in days[].stops[] MUST include \`personalization_reasoning\` (string, 1 sentence, max 80 chars).
 Format: short explanation of why THIS stop fits THIS user's input.
 Examples:
 - "당신이 매운맛 'hot'을 골랐기에 신당동 즉석떡볶이 추천."
