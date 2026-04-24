@@ -69,6 +69,30 @@ export async function sendLongMessage(text) {
 }
 
 /**
+ * 공항 픽업 정보 Telegram HTML 섹션 — 터미널/편명/수하물.
+ * booking.airport가 없으면 빈 문자열 반환. 기존 호출부는 concat만 추가하면 됨.
+ * @param {object} airport - { terminal?, flightNumber?, luggage?: { small?, medium?, large? } }
+ */
+export function airportSectionHtml(airport) {
+  if (!airport || typeof airport !== 'object') return '';
+  const { terminal, flightNumber, luggage } = airport;
+  const lug = luggage || {};
+  const lugTotal = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
+  const hasAny = terminal || flightNumber || lugTotal > 0;
+  if (!hasAny) return '';
+
+  const lines = [];
+  if (terminal) lines.push(`터미널: <b>${terminal}</b>`);
+  if (flightNumber) lines.push(`편명: <b>${flightNumber}</b>`);
+  if (lugTotal > 0) {
+    lines.push(
+      `수하물: <b>${lugTotal}개</b> (S${lug.small ?? 0}·M${lug.medium ?? 0}·L${lug.large ?? 0})`
+    );
+  }
+  return `\n\n✈️ <b>공항 픽업</b>\n━━━━━━━━━━━━━━━\n${lines.join('\n')}`;
+}
+
+/**
  * 새 예약 알림 (빠른 구조화 버전 — Gemini 없이)
  * @param {object} booking
  */
@@ -85,7 +109,7 @@ export async function sendBookingAlert(booking) {
 이메일: ${booking.customerEmail || '-'}
 상품: ${booking.product || '-'}
 날짜: ${booking.tourDate || '-'}
-인원: ${booking.paxCount || '-'}명
+인원: ${booking.paxCount || '-'}명${airportSectionHtml(booking.airport)}
 
 💰 <b>결제 정보</b>
 ━━━━━━━━━━━━━━━
@@ -142,6 +166,7 @@ export default {
   sendMessage,
   sendLongMessage,
   sendBookingAlert,
+  airportSectionHtml,
   sendErrorAlert,
   sendWeatherOkAlert,
 };

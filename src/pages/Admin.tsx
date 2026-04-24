@@ -53,10 +53,13 @@ export default function Admin() {
       const list: Booking[] = data.bookings || [];
       setBookings(list);
       setTotalBookings(data.total || list.length);
-      // 헤더 자동 추출 (id 제외)
+      // 헤더 자동 추출 (id 제외). airport 정보가 담긴 '메모/memo' 열을 항상 포함시킨다.
       if (list.length > 0) {
         const keys = Object.keys(list[0]).filter(k => k !== 'id');
-        setBookingHeaders(keys.slice(0, 8)); // 최대 8컬럼
+        const memoKey = keys.find(k => /memo|메모/i.test(k));
+        const sliced = keys.slice(0, 8);
+        const withMemo = memoKey && !sliced.includes(memoKey) ? [...sliced, memoKey] : sliced;
+        setBookingHeaders(withMemo);
       }
     } catch (err) {
       console.error('Failed to fetch bookings:', err);

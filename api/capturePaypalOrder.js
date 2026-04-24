@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId } = body;
+    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
@@ -89,6 +89,45 @@ export default async function handler(req, res) {
     const payerEmail = capture.payer?.email_address ?? '';
     const payerName = `${capture.payer?.name?.given_name ?? ''} ${capture.payer?.name?.surname ?? ''}`.trim();
     const amount = capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value ?? '0';
+    const captureID = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id ?? '';
+
+    // 2.4 bookings/{orderID} 정식 레코드 생성 — cancel/modify/my-bookings API가 조회.
+    // captureID는 취소 시 PayPal Refund 호출에 필수.
+    try {
+      const { initializeApp, cert, getApps } = await import('firebase-admin/app');
+      const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
+      if (!getApps().length) {
+        const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
+        initializeApp({ credential: cert(sa) });
+      }
+      await getFirestore().collection('bookings').doc(orderID).set({
+        bookingRef: orderID,
+        orderID,
+        captureID,
+        userEmail: (userEmail || '').toLowerCase(),
+        payerEmail,
+        payerName,
+        status: 'CONFIRMED',
+        productType: product || '',
+        tourDate: tourDate || '',
+        pickupLocation: pickupLocation || '',
+        dropoffLocation: dropoffLocation || '',
+        paxCount: paxCount || 0,
+        vehicleType: vehicleType || '',
+        customerPhone: customerPhone || '',
+        couponApplied: !!couponApplied,
+        memo: memo || '',
+        airport: airport || null,
+        amountUSD: amount,
+        currency: 'USD',
+        isSandbox,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (bookingErr) {
+      // 예약 레코드 저장 실패해도 결제는 통과 (booking-processor가 sheets에 기록)
+      console.error('[capturePaypalOrder] bookings doc write failed:', bookingErr.message);
+    }
 
     // 2.5 쿠폰 소진 처리 (Bug #2 fix — 결제 성공 후 isUsed 마킹)
     if (couponDocId && couponUserId) {
@@ -114,7 +153,7 @@ export default async function handler(req, res) {
     fetch(`${siteUrl}/api/booking-processor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData }),
+      body: JSON.stringify({ orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, airport }),
     }).catch(err => console.error('[capturePaypalOrder] booking-processor call failed:', err.message));
 
     // 4. Respond immediately

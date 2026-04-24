@@ -91,6 +91,12 @@ export async function generateBookingAlert(booking) {
 예약 정보:
 ${JSON.stringify(booking, null, 2)}
 
+특별 지시 — 공항 픽업 예약:
+- airport 필드가 있으면 메시지에 별도 줄로 강조 (터미널·편명·수하물 개수)
+- 수하물은 총 개수 + S/M/L 분해 형식 (예: "수하물 3개 (S0·M2·L1)")
+- 편명 앞에는 ✈ 이모지 사용
+- 터미널이 T2면 "⚠ T2 주의"라고 한 번 더 강조 (배차 지시용)
+
 출력: 텔레그램 메시지 텍스트만 (설명 없이)
 `;
   const result = await model.generateContent(prompt);
@@ -177,6 +183,14 @@ Write a booking confirmation email in ${langMap[language] || 'English'}.
 Booking:
 ${JSON.stringify(booking, null, 2)}
 
+IMPORTANT — Airport pickup bookings:
+- If "airport" field exists, include a dedicated "Flight & Luggage" section highlighting:
+  - Terminal (e.g. "Terminal T1" or "Terminal T2")
+  - Flight Number (e.g. "KE085")
+  - Total luggage count with S/M/L breakdown (e.g. "3 bags total — Small:0, Medium:2, Large:1")
+- For ICN Terminal 2 specifically, add a friendly note: "Our driver will meet you at the ICN T2 arrivals gate with your name on a sign."
+- The customer MUST see the flight number and terminal at a glance — don't bury them in paragraphs.
+
 Return JSON only: { "subject": "...", "text": "plain text version", "html": "HTML version with inline styles" }
 `;
   const result = await model.generateContent(prompt);
@@ -204,6 +218,11 @@ export async function generateVoucherText(booking) {
 
 예약 정보:
 ${JSON.stringify(booking, null, 2)}
+
+AIRPORT PICKUP — if booking.airport exists, include these lines near the top of the voucher:
+  FLIGHT: <flightNumber>     TERMINAL: <terminal>
+  LUGGAGE: <total> pcs (S:<small> M:<medium> L:<large>)
+The driver will scan this voucher, so these fields MUST be present and unambiguous.
 
 출력: 바우처 텍스트만
 `;
