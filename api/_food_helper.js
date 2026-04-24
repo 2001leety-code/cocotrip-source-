@@ -14,6 +14,23 @@ import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// ── P10 (2026-04-24): User food-pref snippet for Gemini userMessage ────
+// Allowlist-validates spice/bucket keys (prompt-injection guard) and returns
+// a spreadable object. Empty fields are omitted so the Gemini message only
+// includes keys the user actually set.
+const _SPICE_OK = new Set(['none', 'mild', 'medium', 'hot']);
+const _BUCKET_OK = new Set(['kbbq', 'kfc', 'tteokbokki', 'bibimbap', 'samgyetang', 'naengmyeon', 'jokbal', 'sundubu']);
+export function buildFoodPrefSnippet(body) {
+  const spiceLevel = _SPICE_OK.has(body && body.spiceLevel) ? body.spiceLevel : null;
+  const bucket = Array.isArray(body && body.bucketDishes)
+    ? body.bucketDishes.filter((k) => _BUCKET_OK.has(k))
+    : [];
+  const out = {};
+  if (spiceLevel) out.spice_tolerance = spiceLevel;
+  if (bucket.length > 0) out.bucket_list_dishes = bucket;
+  return out;
+}
+
 // ── Lazy-load food index ────────────────────────────────────────────────
 let _foodIndex = null;
 function getFoodIndex() {

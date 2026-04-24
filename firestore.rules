@@ -132,6 +132,40 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // charter_inquiries — Plan 페이지에서 "전세차량 견적 요청" (인앱)
+    //   create: 누구나 (이메일+요청정보 제출)
+    //   read:   본인(이메일 매칭) 또는 어드민
+    //   update/delete: 어드민만
+    // ─────────────────────────────────────────────────────────
+    match /charter_inquiries/{inquiryId} {
+      allow create: if request.resource.data.keys().hasAll(['email', 'status', 'createdAt'])
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() >= 5
+                    && request.resource.data.email.size() <= 200;
+      allow read:   if isAdminEmail()
+                    || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // pending_free_claims — "이미 예약했어요 → 무료 플랜" 신청
+    //   create: 누구나 (이메일+예약정보 제출)
+    //   read:   본인(이메일 매칭) 또는 어드민
+    //   update/delete: 어드민만 (승인/거부)
+    // ─────────────────────────────────────────────────────────
+    match /pending_free_claims/{claimId} {
+      allow create: if request.resource.data.keys().hasAll(['email', 'status', 'createdAt'])
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() >= 5
+                    && request.resource.data.email.size() <= 200;
+      allow read:   if isAdminEmail()
+                    || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // 서버 전용 컬렉션 (Admin SDK가 rules 우회)
     //   클라이언트는 접근 불가
     // ─────────────────────────────────────────────────────────

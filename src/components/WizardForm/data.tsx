@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import {
   Music2, Sparkles, Shirt, UtensilsCrossed, Moon, Camera, ShoppingBag,
   Film, Landmark, Mountain, Plane, Building2, Waves, TreePine, Castle, Ship, Compass, Snowflake, Palmtree,
-  Leaf, Flame, Fish, Beef,
+  Fish, Beef,
 } from 'lucide-react';
 import type { Locale } from 'date-fns';
 import { enUS, ko, ja, zhCN } from 'date-fns/locale';
@@ -104,18 +104,34 @@ export const ACTIVITY_KEYS = [
   'Photo', 'Shopping', 'Drama', 'Temple', 'Dmz',
 ] as const;
 
-export const FOOD_STYLE_KEYS = ['Vegan', 'Halal', 'Seafood', 'Meat', 'Spicy', 'Street'] as const;
+// P10 (2026-04-24): 'Halal' moved out of style preferences into ALLERGY_KEYS
+// (renamed "Dietary Restrictions") because it is a religious obligation, not
+// a flavor preference. Same reasoning for 'Vegan' — it's a hard restriction
+// when chosen, not a flavor.
+export const FOOD_STYLE_KEYS = ['Seafood', 'Meat', 'Street'] as const;
 
 export const FOOD_STYLE_ICONS: Record<string, ReactNode> = {
-  Vegan: <Leaf className="w-5 h-5" />,
-  Halal: <Moon className="w-5 h-5" />,
   Seafood: <Fish className="w-5 h-5" />,
   Meat: <Beef className="w-5 h-5" />,
-  Spicy: <Flame className="w-5 h-5" />,
   Street: <ShoppingBag className="w-5 h-5" />,
 };
 
-export const ALLERGY_KEYS = ['Nuts', 'Shellfish', 'Gluten', 'Dairy', 'None'] as const;
+// 'None' must remain LAST — Step1Food's toggle treats it as the "clear all"
+// option (selected when allergies array is empty).
+export const ALLERGY_KEYS = ['Halal', 'Vegan', 'Nuts', 'Shellfish', 'Gluten', 'Dairy', 'None'] as const;
 export const PRICE_KEYS = ['Budget', 'Moderate', 'Premium', 'Any'] as const;
+
+// P10 매운맛 4단계 슬라이더 (Step1Food에서 사용).
+// none = 안 매운 음식만, mild = 가벼운 매콤, medium = 김치 정도, hot = 불닭/엽기떡볶이.
+export const SPICE_LEVEL_KEYS = ['none', 'mild', 'medium', 'hot'] as const;
+export type SpiceLevel = typeof SPICE_LEVEL_KEYS[number];
+
+// P10 한식 버킷리스트 — Step1Food에서 multi-select.
+// 외국인 인지도 높은 메뉴 위주로 8개. Gemini 프롬프트에 inject되어
+// 일정에 자연스럽게 배치되도록 함.
+export const KOREAN_BUCKET_LIST = [
+  'kbbq', 'kfc', 'tteokbokki', 'bibimbap', 'samgyetang', 'naengmyeon', 'jokbal', 'sundubu',
+] as const;
+export type BucketDish = typeof KOREAN_BUCKET_LIST[number];
 
 export const LOCALE_MAP: Record<string, Locale> = { en: enUS, ko, ja, zh: zhCN };

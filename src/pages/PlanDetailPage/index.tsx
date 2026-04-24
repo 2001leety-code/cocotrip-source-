@@ -25,6 +25,7 @@ import { EditModeToggle } from './components/EditModeToggle';
 import { AddStopModal } from './components/AddStopModal';
 import { SwipeContainer } from './components/SwipeContainer';
 import { SlideProgress } from './components/SlideProgress';
+import { SectionTabs } from './components/SectionTabs';
 import { IntroSlide } from './components/IntroSlide';
 import { OutroSlide } from './components/OutroSlide';
 import { AdSlide } from './components/AdSlide';
@@ -240,8 +241,11 @@ export default function PlanDetailPage() {
   return (
     <div className={`min-h-screen text-white ${isMobile ? 'bg-[#0a0412]' : 'bg-[#0a0b14]'}`}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
-      <main className="max-w-3xl mx-auto pt-20 pb-4">
-        {/* Slide progress */}
+      <main className="max-w-3xl mx-auto pt-20 pb-4 px-4">
+        {/* Section tabs (Option A hybrid): jump between Intro / Day N / Outro */}
+        <SectionTabs slides={slides} current={current} onJump={goToSlide} />
+
+        {/* Fine-grained slide dots */}
         <SlideProgress current={current} total={slides.length} onDotClick={goToSlide} />
 
         {/* Swipe carousel */}

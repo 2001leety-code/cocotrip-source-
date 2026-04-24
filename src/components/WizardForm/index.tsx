@@ -40,6 +40,9 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const [dietPrefs, setDietPrefs]   = useState<string[]>([]);
   const [allergies, setAllergies]   = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState('Any');
+  // P10: spice tolerance + Korean dish bucket list (separate from style chips).
+  const [spiceLevel, setSpiceLevel] = useState<string>('medium');
+  const [bucketDishes, setBucketDishes] = useState<string[]>([]);
 
   // Step 2: travel details
   const [dateRange, setDateRange]             = useState<DateRange | undefined>();
@@ -71,7 +74,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : '';
   const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : '';
   const nights = dateRange?.from && dateRange?.to ? differenceInCalendarDays(dateRange.to, dateRange.from) : 0;
-  const durationDays = nights > 0 ? nights + 1 : 3;
+  // P8 (2026-04-24): allow 1-day plans. Same-day pick (nights=0 with both
+  // dates set) → 1 day, not the previous 3-day forced default.
+  // Only fall back to 3 when no dates picked at all.
+  const datesPicked = !!(dateRange?.from && dateRange?.to);
+  const durationDays = datesPicked ? Math.max(1, nights + 1) : 3;
   const pax = parseInt(paxInput) || 2;
   const departureAirport = arrivalTerminal;
 
@@ -156,6 +163,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         dietPrefs: dietPrefs.length > 0 ? dietPrefs : undefined,
         allergies: allergies.length > 0 ? allergies : undefined,
         priceRange: priceRange !== 'Any' ? priceRange : undefined,
+        spiceLevel: spiceLevel !== 'medium' ? spiceLevel : undefined,
+        bucketDishes: bucketDishes.length > 0 ? bucketDishes : undefined,
         // New: airport-transport context (all optional)
         arrival_time: arrivalTime || undefined,
         departure_time: departureTime || undefined,
@@ -225,7 +234,10 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
             <WizardStep1Food
               p={p} isMobile={isMobile}
               dietPrefs={dietPrefs} allergies={allergies} priceRange={priceRange}
+              spiceLevel={spiceLevel} bucketDishes={bucketDishes}
               toggleDiet={toggleDiet} toggleAllergy={toggleAllergy} setPriceRange={setPriceRange}
+              setSpiceLevel={setSpiceLevel}
+              toggleBucketDish={(k: string) => setBucketDishes(prev => prev.includes(k) ? prev.filter(d => d !== k) : [...prev, k])}
               onPrev={() => setStep(0)} onNext={() => setStep(2)}
             />
           )}

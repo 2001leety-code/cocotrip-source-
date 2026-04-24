@@ -388,11 +388,23 @@ export class RouteAgent extends BaseAgent {
      * 단일 구간의 경로 데이터를 병렬로 가져오기 (Naver Driving + ODsay Transit)
      */
     async _getTransitData(prev, curr, clientId, clientSecret, index, dayOfWeek) {
-        let durationMin = 25;
-        let distanceKm = 5.0;
+        // Haversine baseline — used to (a) prefer walking for <1.5km legs, and
+        // (b) replace the legacy 25min/5km blind fallback when both APIs fail
+        // but coordinates are known. Pedestrian pace 70m/min (~4.2km/h).
+        const havKm = (prev?.lat != null && prev?.lng != null && curr?.lat != null && curr?.lng != null)
+            ? this._haversineKm(prev.lat, prev.lng, curr.lat, curr.lng)
+            : null;
+        const havWalkMin = havKm != null ? Math.max(3, Math.round(havKm * 1000 / 70)) : null;
+        // Coarse car estimate from straight-line distance: assume ~25km/h average
+        // in dense urban areas (covers traffic + signals). Only used when no
+        // routing API answers — better than a flat 25min.
+        const havCarMin = havKm != null ? Math.max(5, Math.round((havKm / 25) * 60)) : null;
+        let durationMin = havCarMin != null ? havCarMin : 25;
+        let distanceKm = havKm != null ? Math.round(havKm * 10) / 10 : 5.0;
         let drivingMin = null;
         let publicTransit = null;
         const name = curr.display_name || curr.name || curr.name_en || curr.name_ko || `stop-${index}`;
+        const fromName = prev?.display_name || prev?.name || prev?.name_en || prev?.name_ko || 'previous stop';
 
         // Naver Driving + ODsay Transit 병렬 호출
         const [naverResult, odsayResult] = await Promise.allSettled([
@@ -453,7 +465,49 @@ export class RouteAgent extends BaseAgent {
             console.warn(`  - [${name}] ODsay unavailable: ${reason}`);
         }
 
+        // Walk-first override for short legs: if straight-line distance is
+        // under 1.5km, walking is almost always faster door-to-door than
+        // taxi/transit (waiting + boarding + alighting). Replaces the
+        // "북촌→인사동 차로 25분" symptom where ODsay returned a transit
+        // option for what is really a 12-min walk.
+        const SHORT_LEG_KM = 1.5;
+        if (havKm != null && havKm < SHORT_LEG_KM) {
+            const walkM = Math.round(havKm * 1000);
+            const walkMin = havWalkMin || Math.max(3, Math.round(walkM / 70));
+            // Only override when ODsay didn't already say "walk".
+            if (!publicTransit || publicTransit.method !== 'walk') {
+                publicTransit = {
+                    method: 'walk',
+                    duration: walkMin,
+                    summary: `Walk ${walkMin}min (${walkM}m)`,
+                    steps: [
+                        { mode: 'walk', duration: walkMin, distance: walkM, from: fromName, to: name }
+                    ],
+                    fare: 0,
+                    transfers: 0,
+                    totalWalk: walkM,
+                };
+                console.log(`  ↪ [${fromName}→${name}] short leg ${havKm.toFixed(2)}km → walk ${walkMin}min`);
+            }
+            durationMin = walkMin;
+            drivingMin = walkMin;
+        }
+
         return { index, durationMin, distanceKm, drivingMin, publicTransit };
+    }
+
+    /**
+     * Great-circle distance in km between two lat/lng points.
+     * Used as a baseline so we never claim a flat 25min for adjacent stops.
+     */
+    _haversineKm(lat1, lng1, lat2, lng2) {
+        const R = 6371;
+        const toRad = (x) => (x * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat / 2) ** 2
+            + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     /**
