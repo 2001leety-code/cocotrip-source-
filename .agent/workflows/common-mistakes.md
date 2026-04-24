@@ -283,6 +283,98 @@ PR #6에 Vercel + Netlify 둘 다 자동 배포됨 (Netlify는 잊혀진 통합)
 
 ---
 
+## 🔴 카테고리 16: 프로젝트 git 컨벤션과 샌드박스 룰 불일치
+
+> **추가일**: 2026-04-24 (Phase 4 batch 1 배포 시도 중 발생)
+
+### 실수 패턴
+- `deploy.md`에는 `git push origin main` 가능하다고 적혀있어서 그대로 시도
+- 실제로는 샌드박스가 "Pushing directly to the default branch" 차단
+- "deploy.md 따라했는데 막힌다" 혼란 → PR 우회 → 시간 손실
+
+### 방지 규칙
+```
+✅ 첫 push 시도 전: 작업 브랜치 먼저 생성 (`git checkout -b feat/<topic>`)
+✅ "큰 변경" 정의(cat 14) 해당 시 무조건 PR 경유 — main 직접 push 시도 금지
+✅ deploy.md 등 가이드 문서가 샌드박스 룰과 충돌 시 → 샌드박스가 우선 (실행 가능한 게 진실)
+✅ 첫 commit을 main에 만들지 말 것 — 항상 branch 위에서 시작 (cat 17 회피)
+```
+
+### 이번 세션 사례
+P0-P10 commit을 local main에 만들었음 → push to main 차단 → branch 생성 → push → PR. local main과 origin/main이 분기되는 부수 문제 발생 (cat 17).
+
+---
+
+## 🔴 카테고리 17: Squash merge 후 로컬 main 분기
+
+> **추가일**: 2026-04-24 (PR #6 머지 후 발견)
+
+### 실수 패턴
+- local main에 commit A 만들고 → branch 생성하여 push → PR 만들고 squash merge
+- squash 결과 origin/main = commit B (새 SHA), local main = 여전히 commit A
+- `git fetch` 시 "have 1 and 1 different commits each" 분기 메시지
+- 모르고 다음 작업 시작하면 working tree가 옛날 파일 (commit A 시점) 보여줘서 혼란
+
+### 방지 규칙
+```
+✅ PR 머지 직후: `git checkout main && git fetch origin && git reset --hard origin/main`
+✅ 처음부터 local main 만지지 말기 — 작업 시작 시점에 `git checkout -b feat/...`로 브랜치부터
+✅ 머지 후 phase 브랜치 정리: `git branch -d <branch>` (원격 삭제는 GitHub UI에서)
+✅ `git status`에 "ahead of origin/main" 보이면 즉시 원인 파악
+```
+
+### 이번 세션 사례
+e67276c를 local main에 직접 commit → phase4-batch1 branch 생성 후 push → 추가 4개 commit 누적 → squash merge로 origin/main에 2667cce 생김. local main은 e67276c에 머물러 있어서 `git checkout main` 시 working tree가 P0-P10 1차 batch만 반영된 상태로 됨. 다음 작업 진행 시 위 상태에서 시작했으면 P6/P7/P9 등 후속 작업이 사라진 것으로 보였을 것.
+
+---
+
+## 🟡 카테고리 18: GitHub App / 외부 통합 사전 확인 누락
+
+> **추가일**: 2026-04-24 (Netlify 통합 발견 시)
+
+### 실수 패턴
+- 프로젝트 README/`.agent/rules/project-context.md`만 보고 "Vercel만 배포" 단정
+- 실제로는 GitHub repo에 Netlify App도 연결되어 PR마다 deploy preview 생성 중
+- 사용자도 인지 못한 상태에서 내가 "Netlify preview에서 테스트해보세요"로 안내 → 정정 사이클
+
+### 방지 규칙
+```
+✅ 작업 시작 시 1회: `ls .netlify .vercel .github 2>&1 | head` + `cat .vercel/project.json 2>&1`
+✅ PR에 봇 코멘트가 달리면: 어떤 봇인지 확인 (vercel[bot] / netlify[bot] / cloudflare-pages[bot] 등)
+✅ "어떤 배포 플랫폼 쓰세요?" 모르면 추측 말고 사용자에게 1번 묻기
+✅ 외부 통합 발견 시 → 사용자에게 알리고 "필요/제거 여부" 확인
+```
+
+### 이번 세션 사례
+`.netlify/state.json` (siteId `2927512e-...`) 존재 + Netlify GitHub App 작동. 사용자: "우리 Netlify 안 쓰는데?". 결국 로컬 `.netlify/` 삭제 + 사용자 액션(대시보드 사이트 삭제 + GitHub App 권한 회수)으로 정리.
+
+---
+
+## 🟡 카테고리 19: 계획서를 채팅에만 작성 (Phase 1 산출물 누락)
+
+> **추가일**: 2026-04-24 (P6/P9 계획 작성 시)
+
+### 실수 패턴
+- 사용자가 "계획서 작성하고 승인받고 진행해" 명령
+- 계획을 채팅 메시지로만 길게 작성 → 사용자가 답하면 즉시 실행
+- `antigravity-4phase.md` Phase 1 산출물 `docs/plans/<feature>-implementation-plan.md` 미작성
+- 결과: 계획 ↔ 실제 구현 diff 추적 불가, 다음 세션이 계획 못 봄
+
+### 방지 규칙
+```
+✅ "계획서" 명시 요청 시 → docs/plans/<feature>.md 파일로 작성 + 채팅엔 요약만
+✅ Phase 1 템플릿 (antigravity-4phase.md §Phase 1) 재사용:
+   - 1. 목표 / 2. 영향 범위 / 3. 파일 크기 사전 체크
+   - 4. 아키텍처 다이어그램 / 5. 리스크 / 6. 승인 체크박스
+✅ 계획 파일 commit → "docs(plans): <feature>" 메시지로 별도 commit
+✅ 구현 후 계획서에 "Done" 마크 + 실제 변경 diff 링크
+```
+
+### 이번 세션 사례
+P6 (예약 상태) + P9 (도시별 칩) 계획을 채팅에 길게 적고 즉시 실행. 다음 세션이 본 메모리(`project_cocotrip_phase4_plan.md`)는 사후 기록일 뿐, 사전 설계 문서는 부재. P3-B 풀스택 / PayPal 자동화 같은 후속 작업도 같은 패턴으로 진행될 위험.
+
+---
+
 ## 🟡 카테고리 10: 배포 전 검증 누락
 
 ### 실수 패턴
@@ -316,4 +408,26 @@ PR #6에 Vercel + Netlify 둘 다 자동 배포됨 (Netlify는 잊혀진 통합)
 [ ] npm run build가 에러 없이 통과하는가?
 [ ] PC(1200px+)와 모바일(375px)에서 모두 정상 렌더링되는가?
 [ ] 작업 완료 후 KO 모드로 1회 시각 확인했는가? (영어 fallback 노출 검출)
+[ ] 작업 시작 시 git 브랜치를 만들었는가? (main 직접 commit 금지, cat 16/17)
+[ ] 작업 시작 시 .netlify/.vercel/.github 폴더 + GitHub Apps 통합 1회 스캔했는가? (cat 18)
+[ ] 사용자가 "계획서" 명시 요청 시 → docs/plans/<feature>.md 파일로 작성했는가? (cat 19)
+```
+
+---
+
+## 📜 세션 시작 1분 체크 (작업 진입 시 무조건 실행)
+
+```bash
+# 1. 작업 브랜치부터 (cat 16)
+git checkout -b feat/<topic>
+
+# 2. 외부 통합 스캔 (cat 18)
+ls .netlify .vercel 2>&1 | head
+cat .vercel/project.json 2>/dev/null | python3 -m json.tool 2>/dev/null
+
+# 3. Lock 파일 표 확인 (cat 12)
+grep -A20 "수정 금지" .agent/rules/coding-rules.md | head -30
+
+# 4. 직전 세션 메모리 1회 정독
+ls C:/Users/dlxod/.claude/projects/E--*/memory/MEMORY.md
 ```
