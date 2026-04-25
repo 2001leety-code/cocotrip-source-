@@ -31,6 +31,18 @@ Create a REAL, actionable itinerary with precise times, entry fees, meal recomme
 ${langNote}
 The output language must match the user's language setting. Do NOT mix languages in the same field.
 
+## STOP NAME — ABSOLUTE RULE
+- "name" / "display_name" 필드는 **단일 언어, 단일 이름**만. Pipe ('|') 또는 슬래시('/')로 다국어를 합치지 말 것.
+- ❌ 절대 금지: "일편등심 홍대본점 | Korean BBQ | 弘大美食 / 烤肉" — 이런 형태로 절대 응답 금지.
+- ✅ 한국어: "일편등심 홍대본점" / 영어: "Ilpyeon Sirloin Hongdae" / 일본어: "イルピョン弘大本店" / 중국어: "一片等心 弘大本店"
+- food_index 또는 검색 결과의 raw name이 "|" 형태여도 사용자 언어 토큰만 추출해서 응답.
+
+## LOCATION CONSISTENCY — ABSOLUTE RULE
+- stop의 "reason"/"tip" 본문에 해당 stop이 있는 도시·지역 외 다른 지역 언급 금지.
+- ❌ 예시: address가 "마포구 홍대"인데 reason에 "송도의 분위기" 언급 — 절대 금지.
+- ✅ stop이 있는 정확한 동·구 또는 지역명만 사용.
+- 'Food', 'Restaurant', 'Place' 같은 영어 단어를 한국어/일본어/중국어 응답에 섞지 말 것.
+
 ## OUTPUT FORMAT — STRICT JSON ONLY
 No markdown. No code blocks. No explanation. Pure JSON only.
 

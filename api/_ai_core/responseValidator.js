@@ -34,6 +34,26 @@ export function validateResponse(data, request, foodIndex) {
     if (stop.stay_min != null && (stop.stay_min < 15 || stop.stay_min > 240)) {
       issues.push({ type: 'unrealistic_stay', stop: stopLabel, value: stop.stay_min });
     }
+
+    // 다국어 합친 name/display_name pattern (e.g., "한국어 | English | 中文")
+    for (const f of ['name', 'display_name', 'name_ko', 'name_en']) {
+      if (typeof stop[f] === 'string' && stop[f].includes(' | ')) {
+        issues.push({ type: 'pipe_in_name', stop: stopLabel, field: f, value: stop[f] });
+      }
+    }
+
+    // reason/tip에 stop.address와 다른 도시 언급 (송도 vs 마포구 같은 hallucination)
+    const reasonText = `${stop.reason || ''} ${stop.tip || ''}`;
+    if (stop.address && reasonText) {
+      const cities = ['송도', '인천', '강남', '홍대', '명동', '이태원', '마포', '종로', '용산', '서초', '부산', '제주', '경주', '대구', '대전', '광주', '울산'];
+      const addrCity = cities.find((c) => stop.address.includes(c));
+      if (addrCity) {
+        const otherCities = cities.filter((c) => c !== addrCity && reasonText.includes(c));
+        if (otherCities.length > 0) {
+          issues.push({ type: 'wrong_city_in_reason', stop: stopLabel, addrCity, mentioned: otherCities });
+        }
+      }
+    }
   }
 
   console.log('[RESPONSE_VALIDATION]', JSON.stringify({
