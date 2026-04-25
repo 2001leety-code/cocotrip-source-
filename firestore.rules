@@ -166,6 +166,23 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // tour_availability — 운영자 가용성 관리 (관리자 페이지 /admin/availability)
+    //   read: 누구나 (예약 모달 캘린더에서 fetchMonthAvailability 호출)
+    //   write: 어드민만 (setAvailability via /admin/availability page)
+    //   구조: tour_availability/{tourId}/dates/{YYYY-MM-DD}
+    //         doc 데이터: { tourId, date, status, note?, updatedAt }
+    //         status: 'available' (default, doc 미생성) | 'fully_booked' | 'blackout'
+    // ─────────────────────────────────────────────────────────
+    match /tour_availability/{tourId}/dates/{dateId} {
+      allow read:           if true;
+      allow create, update: if isAdminEmail()
+                            && request.resource.data.tourId is string
+                            && request.resource.data.date is string
+                            && request.resource.data.status in ['fully_booked', 'blackout'];
+      allow delete:         if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // 서버 전용 컬렉션 (Admin SDK가 rules 우회)
     //   클라이언트는 접근 불가
     // ─────────────────────────────────────────────────────────
