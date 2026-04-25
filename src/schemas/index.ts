@@ -54,7 +54,8 @@ export const PlaceSchema = z.object({
   entry_fee_krw: z.number().default(0),
   tip: z.string().optional(),
   description: z.string().optional(),
-  recommended_items: z.array(RecommendedItemSchema).optional(),
+  // Gemini는 문자열 배열 또는 객체 배열 둘 다 반환 — 둘 다 허용
+  recommended_items: z.array(z.union([z.string(), RecommendedItemSchema])).optional(),
   verified: z.boolean().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
@@ -66,7 +67,7 @@ export const MealSchema = z.object({
   name: z.string(),
   category: z.literal('food'),
   address: z.string().optional(),
-  recommended_items: z.array(RecommendedItemSchema).optional(),
+  recommended_items: z.array(z.union([z.string(), RecommendedItemSchema])).optional(),
   tip: z.string().optional(),
 });
 

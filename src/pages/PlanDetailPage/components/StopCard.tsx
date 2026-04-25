@@ -9,6 +9,7 @@ import {
 import { CAT_ICON, formatKRW } from '../constants';
 import type { PlanStop } from '../types';
 import { getPlanDetailUI } from '../types';
+import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
 
 export function StopCard({ stop }: { stop: PlanStop }) {
@@ -159,15 +160,19 @@ export function StopCard({ stop }: { stop: PlanStop }) {
             <div>
               <p className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Recommended</p>
               <div className="space-y-1">
-                {stop.recommended_items!.map((item: { name: string; price_krw?: number; note?: string }, i: number) => (
-                  <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[11px] text-white/70">{item.name}</span>
-                      {item.note && <span className="text-[9px] text-white/30 ml-1.5">{'\u00B7'} {item.note}</span>}
+                {stop.recommended_items!.map((rawItem, i: number) => {
+                  const item = normalizeRecommendedItem(rawItem);
+                  if (!item.name) return null;
+                  return (
+                    <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[11px] text-white/70">{item.name}</span>
+                        {item.note && <span className="text-[9px] text-white/30 ml-1.5">{'\u00B7'} {item.note}</span>}
+                      </div>
+                      {(item.price_krw || 0) > 0 && <span className="text-[11px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
                     </div>
-                    {(item.price_krw || 0) > 0 && <span className="text-[11px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
