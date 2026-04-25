@@ -568,7 +568,7 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
 
   return (
     <div
-      className="relative w-full h-[260px] md:h-[400px] lg:h-[480px] overflow-hidden"
+      className="relative w-full h-[300px] md:h-[380px] lg:h-[440px] overflow-hidden"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
