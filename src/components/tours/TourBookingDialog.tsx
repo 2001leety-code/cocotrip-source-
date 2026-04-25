@@ -1,14 +1,15 @@
-// TourBookingDialog — 투어 상세 CTA 클릭 시 인원수·날짜·언어·addon 선택.
-// 제출 시 /charter 페이지로 prefilled URL redirect (PayPal 직진입은 별도 PR).
+// TourBookingDialog — 투어 상세 CTA 클릭 시 인원수·날짜·언어·addon 선택 + PayPal 직진입.
+// productType 매핑 있으면 (대부분) PayPalBookingButton, 없으면 (multicity-3d) charter 페이지 redirect.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Calendar, Users, Languages, Plus, Minus, Check } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
+import { getTourProductType, getTourPriceKRW } from '@/data/tours';
+import { PayPalBookingButton } from '@/components/PayPalBookingButton';
+import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
-
-const KRW_PER_USD = 1350;
 
 type AddonItem = {
   id: string;
@@ -68,6 +69,8 @@ interface Props {
 
 export function TourBookingDialog({ tour, language, trigger }: Props) {
   const labels = I18N[language] || I18N.en;
+  const auth = useAuth();
+  const userEmail = auth?.user?.email || '';
   const availableLangs: DriverLanguage[] = (tour.driverLanguages && tour.driverLanguages.length > 0)
     ? tour.driverLanguages
     : (['en'] as DriverLanguage[]);
@@ -87,9 +90,13 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
     return next;
   }, [selectedAddons, driverLang]);
 
-  const baseKRW = tour.priceFrom * KRW_PER_USD;
+  // SSOT 기반 가격 — pricing_spec.json daily_tour_prices 우선, 없으면 priceFrom × KRW
+  const baseKRW = useMemo(() => getTourPriceKRW(tour.id, tour.priceFrom), [tour.id, tour.priceFrom]);
   const addonKRW = computeAddonTotal(effectiveAddons, pax, days);
   const totalKRW = baseKRW + addonKRW;
+
+  const productType = useMemo(() => getTourProductType(tour.id), [tour.id]);
+  const canCheckoutDirectly = productType !== null && totalKRW > 0 && !!date;
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   const visibleAddons = ADDONS.filter(a =>
@@ -275,14 +282,41 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           </div>
         </div>
 
-        <DialogFooter className="gap-2 mt-3">
-          <Link
-            to={submitUrl}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white"
-            style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-          >
-            {labels.submit}
-          </Link>
+        <DialogFooter className="gap-2 mt-3 flex-col">
+          {canCheckoutDirectly && productType ? (
+            <div className="w-full">
+              {/* PayPal 직진입 — 인원수·날짜·언어·addon 포함 가격으로 결제 */}
+              <PayPalBookingButton
+                productType={productType}
+                passengers={pax}
+                dateStart={date}
+                dateEnd={date}
+                priceKRW={totalKRW}
+                p={{}}
+                lang={language}
+                pickupLocation={tour.defaultPickup ? (tour.defaultPickup[language] || tour.defaultPickup.en) : ''}
+                vehicleType={tour.vehicleType.toLowerCase()}
+                memo={`Tour: ${tour.title.en} | ${pax} pax | ${driverLang.toUpperCase()} driver | Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`}
+                userEmail={userEmail}
+              />
+            </div>
+          ) : (
+            <Link
+              to={submitUrl}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white"
+              style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+            >
+              {labels.submit}
+            </Link>
+          )}
+          {!date && productType && (
+            <p className="text-[10px] text-white/30 text-center mt-1">
+              {language === 'ko' ? '날짜를 선택하면 결제로 진행할 수 있습니다.' :
+               language === 'ja' ? '日付を選択すると決済へ進めます。' :
+               language === 'zh' ? '选择日期后可继续付款。' :
+               'Select a date to proceed to payment.'}
+            </p>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
