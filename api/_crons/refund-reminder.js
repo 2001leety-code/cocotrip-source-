@@ -18,13 +18,30 @@
 import { Buffer } from 'buffer';
 import { sendEmail } from '../_send-email.js';
 
-// ── Firebase Admin 초기화 (cancelBooking.js 패턴) ────────────────────
+// ── Firebase Admin 초기화 (daily-report.js 패턴 — FIREBASE_* / GOOGLE_SERVICE_ACCOUNT_KEY fallback) ──
 async function getDb() {
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
   if (!getApps().length) {
-    const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-    initializeApp({ credential: cert(sa) });
+    let credential = null;
+    const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
+    const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+    let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
+      .replace(/^﻿/, '').replace(/^["']|["']$/g, '').replace(/\\n/g, '\n').trim();
+
+    if (projectId && clientEmail && rawKey) {
+      const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
+      if (pemMatch) {
+        const b = pemMatch[1].replace(/\s+/g, '');
+        rawKey = '-----BEGIN PRIVATE KEY-----\n' + (b.match(/.{1,64}/g) || []).join('\n') + '\n-----END PRIVATE KEY-----\n';
+      }
+      credential = cert({ projectId, clientEmail, privateKey: rawKey });
+    } else if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8'));
+      credential = cert(sa);
+    }
+    if (!credential) throw new Error('Firebase admin credentials not configured (FIREBASE_* or GOOGLE_SERVICE_ACCOUNT_KEY)');
+    initializeApp({ credential });
   }
   return { db: getFirestore(), FieldValue };
 }
