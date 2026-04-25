@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package, ShieldCheck, CreditCard, Phone,
-  Star, ExternalLink, ChevronRight,
+  Star, ExternalLink, ChevronRight, Languages, ArrowUpDown,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -16,8 +16,10 @@ import { Header } from '@/sections/Header';
 import { TourCard } from '@/components/tours/TourCard';
 import { TOUR_REGIONS, getToursByRegion } from '@/data/tours';
 import { HOTELS } from '@/data/hotels';
-import type { TourRegion } from '@/data/tours';
+import type { TourRegion, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
+
+type SortKey = 'default' | 'rating-desc' | 'price-asc' | 'price-desc';
 
 // ── 로컬 i18n ─────────────────────────────────────────────────────────────────
 // 통합 시 이 객체를 src/i18n/index.ts 의 translations.*.tours 로 이전하고
@@ -105,14 +107,37 @@ export default function ToursPage() {
 
   const [activeRegion, setActiveRegion] = useState<TourRegion | 'All'>('All');
   const [activeDuration, setActiveDuration] = useState<'All' | 'Day' | 'Short' | 'Long'>('All');
+  const [activeLangs, setActiveLangs] = useState<Set<DriverLanguage>>(new Set());
+  const [sortBy, setSortBy] = useState<SortKey>('default');
+
+  const toggleLang = (lang: DriverLanguage) => {
+    setActiveLangs(prev => {
+      const next = new Set(prev);
+      if (next.has(lang)) next.delete(lang); else next.add(lang);
+      return next;
+    });
+  };
+
   const regionTours = getToursByRegion(activeRegion);
-  const visibleTours = regionTours.filter(t => {
-    if (activeDuration === 'All')   return true;
-    if (activeDuration === 'Day')   return t.durationDays === 1;
-    if (activeDuration === 'Short') return t.durationDays === 2 || t.durationDays === 3;
-    if (activeDuration === 'Long')  return t.durationDays >= 4;
+  const filteredTours = regionTours.filter(t => {
+    if (activeDuration === 'Day'   && t.durationDays !== 1)  return false;
+    if (activeDuration === 'Short' && !(t.durationDays === 2 || t.durationDays === 3)) return false;
+    if (activeDuration === 'Long'  && t.durationDays < 4)    return false;
+    if (activeLangs.size > 0) {
+      const langs = (t.driverLanguages && t.driverLanguages.length > 0) ? t.driverLanguages : (['en'] as DriverLanguage[]);
+      const hasAll = Array.from(activeLangs).every(l => langs.includes(l));
+      if (!hasAll) return false;
+    }
     return true;
   });
+
+  const visibleTours = (() => {
+    const arr = [...filteredTours];
+    if (sortBy === 'rating-desc') arr.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    else if (sortBy === 'price-asc')  arr.sort((a, b) => a.priceFrom - b.priceFrom);
+    else if (sortBy === 'price-desc') arr.sort((a, b) => b.priceFrom - a.priceFrom);
+    return arr;
+  })();
 
   // 호텔: 선택 지역 기준 / All이면 서울 기본
   const visibleHotels = HOTELS.filter(h =>
@@ -289,6 +314,48 @@ export default function ToursPage() {
               </button>
             );
           })}
+        </div>
+
+        {/* 언어·정렬 필터 (3번째 행) */}
+        <div className="flex flex-wrap items-center gap-2 mt-2.5">
+          <Languages className="w-3.5 h-3.5 text-white/30" />
+          {([
+            { key: 'en' as DriverLanguage, label: { ko: '영어 기사', en: 'English driver',  ja: '英語ドライバー',  zh: '英语司机' } },
+            { key: 'ja' as DriverLanguage, label: { ko: '일본어 기사', en: 'Japanese driver', ja: '日本語ドライバー', zh: '日语司机' } },
+            { key: 'zh' as DriverLanguage, label: { ko: '중국어 기사', en: 'Chinese driver',  ja: '中国語ドライバー', zh: '中文司机' } },
+          ]).map(({ key, label }) => {
+            const isActive = activeLangs.has(key);
+            return (
+              <button
+                key={key}
+                onClick={() => toggleLang(key)}
+                className="tour-chip text-[11px] font-semibold px-3 py-1.5 min-h-[32px] rounded-full"
+                style={
+                  isActive
+                    ? { background: 'rgba(140,200,255,0.15)', border: '1px solid rgba(140,200,255,0.45)', color: '#A0CBFF' }
+                    : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }
+                }
+                title={label[language] ?? label.en}
+              >
+                {label[language] ?? label.en}
+              </button>
+            );
+          })}
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <ArrowUpDown className="w-3.5 h-3.5 text-white/30" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortKey)}
+              className="text-[11px] font-semibold px-3 py-1.5 rounded-full cursor-pointer focus:outline-none"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.65)' }}
+            >
+              <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
+              <option value="rating-desc">{language === 'ko' ? '평점 높은순' : language === 'ja' ? '評価順' : language === 'zh' ? '评分排序' : 'Rating'}</option>
+              <option value="price-asc">{language === 'ko' ? '가격 낮은순' : language === 'ja' ? '価格安い順' : language === 'zh' ? '价格升序' : 'Price ↑'}</option>
+              <option value="price-desc">{language === 'ko' ? '가격 높은순' : language === 'ja' ? '価格高い順' : language === 'zh' ? '价格降序' : 'Price ↓'}</option>
+            </select>
+          </div>
         </div>
       </div>
 
