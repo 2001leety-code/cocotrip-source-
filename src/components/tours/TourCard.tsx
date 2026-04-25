@@ -3,9 +3,11 @@
 // 기존 디자인 토큰(다크 네이비 + 퍼플/핑크 그라데이션) 재사용
 // ─────────────────────────────────────────────────────────────────────────────
 import { Link } from 'react-router-dom';
-import { Clock, Users, ChevronRight, Star, Moon, Images } from 'lucide-react';
-import type { Tour, I18nString } from '@/data/tours';
+import { Clock, Users, ChevronRight, Star, Moon, Images, Languages } from 'lucide-react';
+import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
+
+const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 
 interface TourCardProps {
   tour: Tour;
@@ -210,10 +212,29 @@ export function TourCard({ tour, language }: TourCardProps) {
 
         {/* 하단 행 */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-            <span className="text-[11px] text-white/50">4.9</span>
-            <span className="text-[11px] text-white/25">(32)</span>
+          <div className="flex items-center gap-2">
+            {tour.rating && tour.rating > 0 && (
+              <div className="flex items-center gap-1">
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                <span className="text-[11px] text-white/50">{tour.rating.toFixed(1)}</span>
+                {tour.reviewCount && tour.reviewCount > 0 && (
+                  <span className="text-[11px] text-white/25">({tour.reviewCount})</span>
+                )}
+              </div>
+            )}
+            {(() => {
+              const langs = (tour.driverLanguages && tour.driverLanguages.length > 0) ? tour.driverLanguages : (['en'] as DriverLanguage[]);
+              return (
+                <span
+                  className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(140,200,255,0.08)', border: '1px solid rgba(140,200,255,0.20)', color: '#A0CBFF' }}
+                  title="Driver languages"
+                >
+                  <Languages className="w-2.5 h-2.5" />
+                  {langs.map(l => DRIVER_LANG_LABEL[l]).join('·')}
+                </span>
+              );
+            })()}
           </div>
           <div
             className="flex items-center gap-1 text-[12px] font-bold px-3.5 py-1.5 rounded-full"

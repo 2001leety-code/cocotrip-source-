@@ -73,10 +73,11 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "api/cancelBooking.js") continue;
       if (f === "api/modifyBooking.js") continue;
       if (f === "api/my-bookings.js") continue;
-      // Tours UI batch (2026-04-25): tour detail page + stop list.
+      // Tours UI batch (2026-04-25): tour detail page + stop list + card.
       // ?? in field[lang] ?? field.en (i18n fallback chain).
       if (f === "src/pages/TourDetailPage.tsx") continue;
       if (f === "src/components/tours/TourStopList.tsx") continue;
+      if (f === "src/components/tours/TourCard.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);
