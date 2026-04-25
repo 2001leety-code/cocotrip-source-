@@ -6,7 +6,7 @@
  * Google Sheets 'Bookings' 시트에서 최근 예약 50건을 읽어 JSON으로 반환.
  * 인증: Firebase ID token (verifyIdToken) + ADMIN_EMAIL 검증.
  */
-import { success, fail } from './_shared/response.js';
+import { _ok, _err } from './_shared/response.js';
 import { verifyAdminToken } from './_shared/admin-auth.js';
 
 export const config = { runtime: 'nodejs' };
@@ -25,7 +25,7 @@ function json(res, status, body) {
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'GET') {
-    return json(res, 405, fail('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
+    return json(res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
   }
 
   const tokenAuth = await verifyAdminToken(req);
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const sheetId = (process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '').trim();
 
     if (!clientEmail || !privateKey || !sheetId) {
-      return json(res, 500, fail('Google Sheets credentials not configured', 'CREDENTIALS_MISSING'));
+      return json(res, 500, _err('Google Sheets credentials not configured', 'CREDENTIALS_MISSING'));
     }
 
     const sheetsAuth = new google.auth.JWT(clientEmail, undefined, privateKey, [
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
 
     const rows = response.data.values || [];
     if (rows.length < 2) {
-      return json(res, 200, success({ bookings: [], total: 0 }));
+      return json(res, 200, _ok({ bookings: [], total: 0 }));
     }
 
     // 첫 행 = 헤더, 나머지 = 데이터
@@ -72,10 +72,10 @@ export default async function handler(req, res) {
       return obj;
     });
 
-    return json(res, 200, success({ bookings, total: dataRows.length }));
+    return json(res, 200, _ok({ bookings, total: dataRows.length }));
 
   } catch (error) {
     console.error('[admin-bookings] Error:', error.message);
-    return json(res, 500, fail('Failed to fetch bookings', 'FETCH_ERROR'));
+    return json(res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
   }
 }

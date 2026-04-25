@@ -116,11 +116,15 @@ export default async function handler(req, res) {
 
   try {
     const db = await getDb();
+    const { Timestamp } = await import('firebase-admin/firestore');
 
-    // 충분한 윈도우로 한 번에 가져온 뒤 메모리에서 집계 (booking 수 적어 안전, <10k)
+    // 1년치만 fetch — Firestore where 인덱스로 booking 수 무관하게 안전.
+    // capturePaypalOrder.js가 createdAt: serverTimestamp() 저장하므로 Timestamp 타입.
     const sinceCutoff = new Date(todayKST());
-    sinceCutoff.setUTCDate(sinceCutoff.getUTCDate() - 365);  // 1년치
-    const snap = await db.collection('bookings').get();
+    sinceCutoff.setUTCDate(sinceCutoff.getUTCDate() - 365);
+    const snap = await db.collection('bookings')
+      .where('createdAt', '>=', Timestamp.fromDate(sinceCutoff))
+      .get();
 
     const all = [];
     snap.forEach((doc) => {
