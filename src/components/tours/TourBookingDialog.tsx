@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Calendar, Users, Languages, Plus, Minus, Check } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
+import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
@@ -96,7 +97,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const totalKRW = baseKRW + addonKRW;
 
   const productType = useMemo(() => getTourProductType(tour.id), [tour.id]);
-  const canCheckoutDirectly = productType !== null && totalKRW > 0 && !!date;
+  const availability = useMemo(() => checkAvailability(tour.id, date), [tour.id, date]);
+  const langKey = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
+  const availabilityMsg = availability.reason ? REASON_LABELS[availability.reason][langKey] : '';
+  const canCheckoutDirectly = productType !== null && totalKRW > 0 && !!date && availability.available;
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   const visibleAddons = ADDONS.filter(a =>
@@ -178,9 +182,20 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="w-full px-3 py-2 rounded-xl text-[13px] focus:outline-none"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'white' }}
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: date && !availability.available
+                  ? '1px solid rgba(248,113,113,0.45)'
+                  : '1px solid rgba(255,255,255,0.10)',
+                color: 'white',
+              }}
               placeholder={labels.pickDate}
             />
+            {date && !availability.available && (
+              <p className="text-[10px] mt-1.5" style={{ color: '#FCA5A5' }}>
+                {availabilityMsg}
+              </p>
+            )}
           </div>
 
           {/* Driver language */}
