@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Calendar, Users, Languages, Plus, Minus, Check } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
@@ -11,6 +13,19 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
+
+function isoFromDate(d: Date | undefined): string {
+  if (!d) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function dateFromIso(iso: string): Date | undefined {
+  if (!iso) return undefined;
+  return new Date(iso + 'T00:00:00');
+}
 
 type AddonItem = {
   id: string;
@@ -119,9 +134,6 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
     return `/charter?${params.toString()}`;
   }, [tour.slug, pax, date, driverLang, effectiveAddons]);
 
-  const today = new Date();
-  const minDate = today.toISOString().slice(0, 10);
-
   const toggleAddon = (id: string) => {
     setSelectedAddons(prev => {
       const next = new Set(prev);
@@ -171,26 +183,42 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             </div>
           </div>
 
-          {/* Date picker */}
+          {/* Date picker — Popover + Calendar with disabled-date highlighting */}
           <div>
             <label className="flex items-center gap-1.5 text-[11px] text-white/40 uppercase tracking-wider mb-1.5">
               <Calendar className="w-3.5 h-3.5" />{labels.date}
             </label>
-            <input
-              type="date"
-              min={minDate}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl text-[13px] focus:outline-none"
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: date && !availability.available
-                  ? '1px solid rgba(248,113,113,0.45)'
-                  : '1px solid rgba(255,255,255,0.10)',
-                color: 'white',
-              }}
-              placeholder={labels.pickDate}
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 rounded-xl text-[13px] text-left focus:outline-none flex items-center justify-between"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: date && !availability.available
+                      ? '1px solid rgba(248,113,113,0.45)'
+                      : '1px solid rgba(255,255,255,0.10)',
+                    color: date ? 'white' : 'rgba(255,255,255,0.40)',
+                  }}
+                >
+                  <span>{date || labels.pickDate}</span>
+                  <Calendar className="w-4 h-4 text-white/35" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="p-0 w-auto"
+                align="start"
+                style={{ background: '#0f0820', border: '1px solid rgba(182,104,252,0.25)' }}
+              >
+                <CalendarPicker
+                  mode="single"
+                  selected={dateFromIso(date)}
+                  onSelect={(d) => setDate(isoFromDate(d))}
+                  disabled={(d) => !checkAvailability(tour.id, isoFromDate(d)).available}
+                  fromDate={new Date()}
+                />
+              </PopoverContent>
+            </Popover>
             {date && !availability.available && (
               <p className="text-[10px] mt-1.5" style={{ color: '#FCA5A5' }}>
                 {availabilityMsg}
