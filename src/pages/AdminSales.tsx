@@ -206,12 +206,14 @@ export default function AdminSales() {
   const [days, setDays] = useState(30);
 
   const reload = useMemo(() => async () => {
-    if (!user?.email) return;
+    if (!user) return;
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/admin-sales?email=${encodeURIComponent(user.email)}&days=${days}`;
-      const res = await fetch(url);
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin-sales?days=${days}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -223,7 +225,7 @@ export default function AdminSales() {
     } finally {
       setLoading(false);
     }
-  }, [user?.email, days]);
+  }, [user, days]);
 
   useEffect(() => { reload(); }, [reload]);
 

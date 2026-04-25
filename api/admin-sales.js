@@ -1,9 +1,10 @@
 /**
  * Vercel API Route: Admin Sales Dashboard
- * GET /api/admin-sales?email=<admin-email>&days=30
+ * GET /api/admin-sales?days=30
+ * Headers: Authorization: Bearer <Firebase-ID-token>
  *
  * Firestore `bookings` 컬렉션을 SSOT로 KPI/일별/상품별/최근 집계.
- * 인증: ADMIN_EMAIL 환경변수와 query.email 일치. (admin-bookings.js와 동일 수준 — 별도 PR로 ID token 검증 강화 예정)
+ * 인증: Firebase ID token (verifyIdToken) + ADMIN_EMAIL 검증.
  *
  * Returns:
  *   {
@@ -16,6 +17,7 @@
  *   }
  */
 import { Buffer } from 'buffer';
+import { verifyAdminToken } from './_shared/admin-auth.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -105,13 +107,9 @@ export default async function handler(req, res) {
     return json(res, 405, { error: 'Method Not Allowed' });
   }
 
-  const email = (req.query?.email || '').toString().toLowerCase().trim();
-  const adminEmail = (process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-  if (!adminEmail) {
-    return json(res, 500, { error: 'ADMIN_EMAIL not configured' });
-  }
-  if (email !== adminEmail) {
-    return json(res, 403, { error: 'Forbidden' });
+  const auth = await verifyAdminToken(req);
+  if (!auth.ok) {
+    return json(res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
   }
 
   const days = Math.min(Math.max(parseInt(req.query?.days || '30', 10), 7), 90);
