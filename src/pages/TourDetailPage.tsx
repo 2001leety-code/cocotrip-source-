@@ -22,6 +22,7 @@ import { TourStopList } from '@/components/tours/TourStopList';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
+import { DriverShowcase } from '@/components/tours/DriverShowcase';
 import type { I18nString, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
 
@@ -294,6 +295,13 @@ export default function TourDetailPage() {
         {/* 포함 / 별도 (Included / Not included) */}
         <section className="mb-5">
           <IncludedExcluded language={language} includedExtra={tour.included} excludedExtra={tour.excluded} />
+        </section>
+
+        <div className="h-px bg-white/[0.06] mb-5" />
+
+        {/* 추천 운전기사 (P2-D) */}
+        <section className="mb-5">
+          <DriverShowcase language={language} preferredLanguages={tour.driverLanguages || ['en']} limit={3} />
         </section>
 
         <div className="h-px bg-white/[0.06] mb-5" />
