@@ -99,11 +99,13 @@ export async function generatePDF(
     meals: uiDict?.budgetMeals || 'Meals',
     total: uiDict?.budgetTotal || 'Total',
     min: uiDict?.minUnit || 'min',
+    adults: uiDict?.adultsLabel || 'adults',
+    pax: uiDict?.paxLabel || 'pax',
   };
   let html = `<div style="text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid ${C.accent};">
     <h1 style="font-size:26px;font-weight:800;color:${C.accent};margin:0 0 6px;">${it.tour_title || L.defaultTitle}</h1>
     <p style="color:${C.muted};font-size:13px;margin:0;">
-      ${input.startDate || ''} | ${input.adults ? `${input.adults} adults` : `${input.pax || '-'} pax`}
+      ${input.startDate || ''} | ${input.adults ? `${input.adults} ${L.adults}` : `${input.pax || '-'} ${L.pax}`}
       ${it.t_money_recommended_load ? ` | T-money: ${formatKRW(it.t_money_recommended_load)}` : ''}
     </p>
     <p style="color:${C.muted};font-size:10px;margin:4px 0 0;">${L.generatedBy} \u00B7 cocotripkr.com</p>

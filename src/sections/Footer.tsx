@@ -23,8 +23,8 @@ export function Footer({ t }: FooterProps) {
         <div className="px-5 pt-6 pb-4">
           {/* Brand */}
           <div className="text-center mb-5">
-            <p className="text-base font-bold text-white">코코트립</p>
-            <p className="text-[11px] text-white/25 mt-0.5">프리미엄 한국 여행 — cocotripkr.com</p>
+            <p className="text-base font-bold text-white">{t.footer.brandName || 'CocoTrip'}</p>
+            <p className="text-[11px] text-white/25 mt-0.5">{t.footer.tagline || 'Premium Korea Travel'} — cocotripkr.com</p>
           </div>
 
           {/* Links — increased tap area to ~44px (WCAG 2.5.5) via py-3 inline-block */}
@@ -55,7 +55,7 @@ export function Footer({ t }: FooterProps) {
               <CreditCard className="w-3 h-3" /> {t.footer.payment}
             </div>
             <div className="flex items-center gap-1.5 text-[10px] text-white/25">
-              <Phone className="w-3 h-3" /> 24h
+              <Phone className="w-3 h-3" /> {t.footer.support24h || '24h'}
             </div>
           </div>
 

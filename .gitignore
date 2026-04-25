@@ -36,3 +36,4 @@ scripts/planner-report*.txt
 
 # UX audit output — regenerated locally or in CI; screenshots are large, don't bloat repo
 reports/
+audit_*.json
