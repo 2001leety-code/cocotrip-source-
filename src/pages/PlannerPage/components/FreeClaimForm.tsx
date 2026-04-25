@@ -47,7 +47,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
     const picked = Array.from(e.target.files || []);
     const oversize = picked.find(f => f.size > MAX_FILE_BYTES);
     if (oversize) {
-      setError(`File "${oversize.name}" exceeds 5MB.`);
+      setError((p.optionBClaimErrorFile || 'File "{name}" exceeds 5MB.').replace('{name}', oversize.name));
       return;
     }
     const next = [...files, ...picked].slice(0, MAX_FILES);
@@ -60,11 +60,11 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes('@')) {
-      setError('Please enter a valid email.');
+      setError(p.optionBClaimErrorEmail || 'Please enter a valid email.');
       return;
     }
     if (!flightRef.trim() && !hotelRef.trim() && files.length === 0) {
-      setError('Please provide at least one booking reference or receipt.');
+      setError(p.optionBClaimErrorMissing || 'Please provide at least one booking reference or receipt.');
       return;
     }
     setSubmitting(true);
@@ -91,7 +91,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
       });
       setSubmitted(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Submission failed';
+      const message = err instanceof Error ? err.message : (p.optionBClaimErrorSubmit || 'Submission failed');
       setError(message);
     } finally {
       setSubmitting(false);
@@ -118,7 +118,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
   return (
     <form onSubmit={handleSubmit} className="text-left space-y-3">
       <div>
-        <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Email *</label>
+        <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimEmailLabel || 'Email *'}</label>
         <input
           type="email" required value={email} onChange={e => setEmail(e.target.value)}
           placeholder={p.emailPlaceholder}
@@ -128,35 +128,35 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Flight PNR</label>
+          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimFlightPnr || 'Flight PNR'}</label>
           <input
             type="text" value={flightRef} onChange={e => setFlightRef(e.target.value)}
-            placeholder="e.g. ABC123"
+            placeholder={p.optionBClaimFlightPnrPh || 'e.g. ABC123'}
             className={`w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/30 text-sm outline-none transition-all ${focusRing}`}
           />
         </div>
         <div>
-          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Hotel ref</label>
+          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimHotelRef || 'Hotel ref'}</label>
           <input
             type="text" value={hotelRef} onChange={e => setHotelRef(e.target.value)}
-            placeholder="Booking #"
+            placeholder={p.optionBClaimHotelRefPh || 'Booking #'}
             className={`w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/30 text-sm outline-none transition-all ${focusRing}`}
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Trip dates</label>
+        <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimTripDates || 'Trip dates'}</label>
         <input
           type="text" value={tripDates} onChange={e => setTripDates(e.target.value)}
-          placeholder="e.g. 2026-05-12 ~ 2026-05-18"
+          placeholder={p.optionBClaimTripDatesPh || 'e.g. 2026-05-12 ~ 2026-05-18'}
           className={`w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/20 text-white placeholder-white/30 text-sm outline-none transition-all ${focusRing}`}
         />
       </div>
 
       <div>
         <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">
-          Receipt screenshots (max {MAX_FILES}, 5MB each)
+          {p.optionBClaimReceipts || `Receipt screenshots (max ${MAX_FILES}, 5MB each)`}
         </label>
         <input
           ref={fileInputRef}
@@ -170,7 +170,9 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
           className="w-full py-3 rounded-xl border border-dashed border-white/25 text-white/60 text-sm hover:bg-white/5 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
         >
           <Upload className="w-4 h-4" />
-          {files.length === 0 ? 'Upload receipts' : `Add more (${files.length}/${MAX_FILES})`}
+          {files.length === 0
+            ? (p.optionBClaimUpload || 'Upload receipts')
+            : (p.optionBClaimUploadMore || 'Add more ({n}/{m})').replace('{n}', String(files.length)).replace('{m}', String(MAX_FILES))}
         </button>
         {files.length > 0 && (
           <ul className="mt-2 space-y-1">
@@ -196,7 +198,9 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
         className="w-full py-3.5 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
         style={{ background: `linear-gradient(135deg, ${accentColor}, #EA537E)` }}
       >
-        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : 'Submit claim'}
+        {submitting
+          ? <><Loader2 className="w-4 h-4 animate-spin" /> {p.optionBClaimSubmitting || 'Submitting…'}</>
+          : (p.optionBClaimSubmit || 'Submit claim')}
       </button>
 
       <a
@@ -204,7 +208,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
         className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-white/50 text-xs hover:text-white/80 transition-all border border-white/10"
       >
         <MessageCircle className="w-3.5 h-3.5" />
-        Or send via WhatsApp instead
+        {p.optionBClaimWhatsAppFallback || 'Or send via WhatsApp instead'}
       </a>
     </form>
   );
