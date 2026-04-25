@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { trackViewItem } from '@/lib/analytics';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
-  MessageSquare, Package, ChevronRight,
+  MessageSquare, Package, ChevronRight, Languages,
   ShieldCheck, CreditCard, ExternalLink, ChevronLeft, Moon,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -18,8 +18,15 @@ import { Header } from '@/sections/Header';
 import { getTourBySlug } from '@/data/tours';
 import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
-import type { I18nString } from '@/data/tours';
+import { TourStopList } from '@/components/tours/TourStopList';
+import type { I18nString, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
+
+const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = {
+  en: 'EN',
+  ja: 'JA',
+  zh: 'ZH',
+};
 
 function txt(field: I18nString, lang: Language): string {
   return field[lang] ?? field.en;
@@ -234,6 +241,21 @@ export default function TourDetailPage() {
             <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
             4.9 (32)
           </span>
+          {(() => {
+            const langs = (tour.driverLanguages && tour.driverLanguages.length > 0)
+              ? tour.driverLanguages
+              : (['en'] as DriverLanguage[]);
+            return (
+              <span
+                className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
+                style={{ background: 'rgba(140,200,255,0.08)', border: '1px solid rgba(140,200,255,0.20)', color: '#A0CBFF' }}
+                title={language === 'ko' ? '기사 가능 언어' : language === 'ja' ? 'ドライバー対応言語' : language === 'zh' ? '司机语言' : 'Driver languages'}
+              >
+                <Languages className="w-3 h-3" />
+                {langs.map(l => DRIVER_LANG_LABEL[l]).join(' · ')}
+              </span>
+            );
+          })()}
         </div>
 
         <div className="h-px bg-white/[0.06] mb-5" />
@@ -261,24 +283,28 @@ export default function TourDetailPage() {
 
         <div className="h-px bg-white/[0.06] mb-5" />
 
-        {/* 세부 일정 플레이스홀더 */}
+        {/* 세부 일정 — stops 데이터 있으면 timeline, 없으면 폴백 placeholder */}
         <section className="mb-8">
           <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/30 mb-3">{itineraryTitle}</h2>
-          <div
-            className="flex items-center gap-3 px-4 py-4 rounded-2xl"
-            style={{
-              background: 'rgba(182,104,252,0.04)',
-              border: '1px dashed rgba(182,104,252,0.18)',
-            }}
-          >
+          {tour.stops && tour.stops.length > 0 ? (
+            <TourStopList stops={tour.stops} language={language} />
+          ) : (
             <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: 'rgba(182,104,252,0.10)', border: '1px solid rgba(182,104,252,0.20)' }}
+              className="flex items-center gap-3 px-4 py-4 rounded-2xl"
+              style={{
+                background: 'rgba(182,104,252,0.04)',
+                border: '1px dashed rgba(182,104,252,0.18)',
+              }}
             >
-              <Package className="w-4 h-4" style={{ color: 'rgba(182,104,252,0.6)' }} />
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: 'rgba(182,104,252,0.10)', border: '1px solid rgba(182,104,252,0.20)' }}
+              >
+                <Package className="w-4 h-4" style={{ color: 'rgba(182,104,252,0.6)' }} />
+              </div>
+              <p className="text-[12px] text-white/25 italic">{comingSoon}</p>
             </div>
-            <p className="text-[12px] text-white/25 italic">{comingSoon}</p>
-          </div>
+          )}
         </section>
 
         {/* ══════════════════════════════════════════════════════════════════
