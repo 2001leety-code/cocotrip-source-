@@ -76,7 +76,71 @@ type Tour = {
 | U4 | "What's included" 아이콘 + 한 줄 설명 | ✓ | highlights에 일부 |
 | U5 | 모바일 sticky CTA (bottom bar) | ✓ | 일반 버튼 |
 
+## 3.4 🔴 결정적 갭 (v2 amendment, 2026-04-25 사용자 지적)
+
+원본 분석은 정적 정보 위주였고 **예약 흐름·라우트 디테일** 누락. 코드 재확인 후 추가:
+
+| # | 항목 | 현재 상태 | 영향 | 출처 |
+|---|---|---|---|---|
+| **C1** | **"예약하기" 버튼이 결제 X, charter 문의 페이지로 redirect 만** | [TourDetailPage.tsx:428-435](src/pages/TourDetailPage.tsx) `<Link to="/charter">` + 메시지 아이콘 | 결제 진입까지 추가 wizard 단계 → 이탈 ↑↑ | 코드 확인 |
+| **C2** | **인원수 선택 UI 자체 부재** | charter wizard 가서 단계 채워야 입력. Tour 페이지엔 슬라이더/select 없음 | 가격 즉시 비교 불가 | UI 확인 |
+| **C3** | **투어 루트(들리는 곳) 시간순 stops 정보 없음** | 상세 §일정에 `comingSoon` placeholder만. 실제 어디 들르는지 description 1-2줄에만 언급 | 가장 큰 결정 차단 — "이 투어가 뭘 보여주는지 모름" | [TourDetailPage.tsx:264-282](src/pages/TourDetailPage.tsx) |
+| **C4** | **각 stop의 디테일(이름·사진·머문시간·입장료·설명) 없음** | description에 "경복궁의 고즈넉한 아침" 한 줄. 명소 사진/머문시간/입장료 분리 없음 | AI 플래너 결과의 디테일 수준에 한참 못 미침 | 데이터 모델 |
+| **C5** | **stop 간 이동 방법(차/도보/지하철) 표시 없음** | PlanDetailPage엔 TransitArrow 인터리브 렌더 있지만 Tour엔 미적용 | 이동 시간 가늠 불가 | 코드 비교 |
+
+> **C1-C5는 Tours 전환율의 직접 천장**. P0보다 더 위 우선순위 (P0-가).
+
 ## 4. 우선순위 + 구상 계획 (P0-P3)
+
+### P0-가 [신규] — Booking Flow + Route Detail (최우선, 결정적 갭)
+
+#### P0-가1: 예약 흐름 직접화 [C1]
+- **현재:** [TourDetailPage.tsx:428](src/pages/TourDetailPage.tsx) `<Link to="/charter">` 우회
+- **방향:**
+  - 버튼을 `<Link>` → 모달 `<TourBookingDialog>` 로 교체. 모달에서 인원수·날짜·픽업 위치 직접 입력 → PayPal 결제 직진입
+  - 기존 [PayPalBookingButton.tsx](src/components/PayPalBookingButton.tsx) 재사용 (booking-mgmt 머지됨)
+  - 옵션: 기존 charter wizard 진입을 원하는 경우 secondary 버튼 ("Custom request")
+  - 차터 wizard 우회 = `/tour-direct-checkout?tour=<slug>&pax=<N>&date=<YYYY-MM-DD>`로 단축
+- **파일:** [src/pages/TourDetailPage.tsx](src/pages/TourDetailPage.tsx), 신규 `TourBookingDialog.tsx`, `api/createPaypalOrder.js` (productType=`tour-{slug}` 추가, pricing_spec.json 동기화)
+- **의존:** charter-v2 PR #11 의 pricing SSOT 그대로 활용
+
+#### P0-가2: 인원수·날짜 인라인 선택 [C2]
+- **방향:**
+  - TourDetailPage 가격 영역에 인원수 (-/+ 1~maxPax), 날짜 picker (DayPicker 사용 가능, 의존성 있음)
+  - 가격이 인원수에 따라 즉시 변경 (vehicleType 변경 자동 — 8인 초과 시 Sprinter)
+  - 모바일 sticky CTA 바와 sync (P1-B와 동시 진행)
+- **파일:** [src/pages/TourDetailPage.tsx](src/pages/TourDetailPage.tsx), [src/lib/tourPricing.ts](src/lib/tourPricing.ts) 신규 (P1-A로 분리됐던 가격 분해 helper와 통합)
+
+#### P0-가3: 투어 stops 데이터 + 시간순 timeline [C3, C4]
+- **현재:** [TourDetailPage.tsx:264-282](src/pages/TourDetailPage.tsx) `coming soon` placeholder
+- **방향:**
+  - `Tour` 데이터에 `stops: TourStop[]` 추가:
+    ```ts
+    type TourStop = {
+      time: string;          // "09:30"
+      name: I18nString;      // "경복궁"
+      stay_min: number;      // 90
+      photo?: string;        // /public 기준
+      description: I18nString;  // "조선 5대 궁궐의 정전, 수문장 교대식 09:30/11:00/13:00"
+      entry_fee_krw?: number;
+      naver_map_url?: string;
+      tip?: I18nString;
+    };
+    ```
+  - PlanDetailPage의 [DayTimeline.tsx](src/pages/PlanDetailPage/components/DayTimeline.tsx) + [StopCard.tsx](src/pages/PlanDetailPage/components/StopCard.tsx) 패턴 그대로 재사용 (decompose 불요 — 신규 `TourStopList.tsx` 가 비슷한 카드 + 인터리브)
+  - 시간순 stops 4-7개 (투어당), 각 카드에 사진/이름/머문시간/입장료/팁
+- **파일:** [src/data/tours.ts](src/data/tours.ts), 신규 `TourStopList.tsx` + `TourStopCard.tsx`
+- **데이터 입력 분량:** 8개 투어 × 평균 6 stops = 48 stops × 4언어 ≈ 약 2-3시간 한정 (사용자 협업 필요 — 기존 영업 자료에서 추출)
+
+#### P0-가4: stop 간 이동 방법 인터리브 [C5]
+- **방향:**
+  - PlanDetailPage의 [TransitArrow.tsx](src/pages/PlanDetailPage/components/TransitArrow.tsx) 그대로 import해서 stops 사이에 렌더
+  - Tour 데이터 신규: `Tour.stops[i].transit_from_prev?: { method: 'walk'|'car'|'transit'; minutes: number; distance_km?: number }`
+  - 정적 입력 (RouteAgent 호출 X — 결제 전에는 Naver/ODsay 호출 비용 절약). 영업가이드가 입력
+  - 향후 P2에서 가용성 캘린더 + 실시간 RouteAgent 호출 옵션
+- **파일:** [src/data/tours.ts](src/data/tours.ts), [src/pages/TourDetailPage.tsx](src/pages/TourDetailPage.tsx), TransitArrow 재사용
+
+
 
 ### P0 — 즉시 (이주일 내, 사용자 신뢰·전환율 직격)
 
@@ -179,16 +243,22 @@ type Tour = {
 #### P3-C: 위시리스트 / 비교 / 공유 [F3, F9]
 - Firestore `user_wishlist`, URL 공유 + 추천 코드
 
-## 5. 구현 순서 (Roadmap)
+## 5. 구현 순서 (Roadmap, v2 amendment 반영)
 
 ```
 Phase 0 (이번 PR — 계획서만):  this document
-Phase 1 (P0 4건):           1-2주, frontend only, 정적 데이터
-  → P0-A → P0-C → P0-D → P0-B 순서 권장 (의존성 적은 것부터)
-Phase 2 (P1 5건):           3-4주, frontend + 약간 데이터 모델
-Phase 3 (P2 4건):           2-3개월, Firestore + admin 작업
-Phase 4 (P3 3건):           장기
+Phase 1-가 (P0-가 4건, 결정적 갭):     1-2주, frontend + 데이터 모델 + 결제 직진입
+  순서: P0-가3 (stops 데이터 모델) → P0-가4 (transit 인터리브)
+       → P0-가2 (인원수·날짜 인라인) → P0-가1 (예약 모달 + PayPal 직진입)
+       (데이터 → UI → 결제 순)
+Phase 1-나 (P0 4건, 정보 디테일):     1-2주, frontend only
+  순서: P0-A → P0-C → P0-D(가3에 포함됨, 합치기) → P0-B
+Phase 2 (P1 5건):                    3-4주
+Phase 3 (P2 4건):                    2-3개월, Firestore + admin
+Phase 4 (P3 3건):                    장기
 ```
+
+**주의:** P0-D (시간표 placeholder 채우기)는 P0-가3 (stops 데이터 + timeline)에 흡수. 중복 제거.
 
 ## 6. 리스크 & 완화
 
@@ -209,12 +279,26 @@ Phase 4 (P3 3건):           장기
 - FAQ 도입 후 지원 문의 수 ↓ (P1-E A/B)
 - 상세 페이지 평균 체류 시간 (P0-D 시간표 도입 후 ↑)
 
-## 8. 사용자 결정 필요
+## 8. 사용자 결정 필요 (v2 갱신)
 
-- [ ] P0 4건 모두 진행? 아니면 일부만?
-- [ ] 리뷰 데이터 — 단기 정적(P0-A short) vs 장기 Firestore(P2-B)? 둘 다 진행?
-- [ ] FAQ 항목 8개 카피 — Claude가 작성 vs 사용자 직접 작성?
-- [ ] 미팅 포인트 — 호텔 픽업 표준화 vs 공공 미팅포인트 7개 미리 정의?
-- [ ] 캘린더 — 운영 부담 감안 시 P2 진행 결정 시점?
+### 결정적 갭 (P0-가, 신규 최우선)
+- [ ] **P0-가1 예약 모달 + PayPal 직진입** — `/charter` 우회 끊고 Tour 페이지에서 결제 끝까지? (charter wizard도 secondary로 유지?)
+- [ ] **P0-가2 인원수·날짜 인라인** — DayPicker 사용 OK? (이미 의존성 있음)
+- [ ] **P0-가3 stops 데이터 입력** — 8투어 × 6 stops × 4언어. 누가 입력?
+  - (a) 사용자가 영업가이드 자료 줌 → Claude가 i18n 4언어 번역 + 데이터 구조 채움
+  - (b) Claude가 검색해서 초안 작성 → 사용자 검수 (시간 더 듦)
+- [ ] **P0-가4 transit 인터리브** — 정적 데이터로 충분? (실시간 RouteAgent 호출은 결제 후로 미루기)
 
-이 문서 승인되면 Phase 1 (P0) 별도 PR로 즉시 착수.
+### 정보 갭 (기존 P0)
+- [ ] P0-A 리뷰 — 단기 정적 + 장기 Firestore 병행?
+- [ ] P0-B 취소정책 모달 — refundPolicy.js 룰 그대로 노출?
+- [ ] P0-C 포함/불포함 — 글로벌 default 카피로 충분 (각 투어 override)?
+- [ ] FAQ 8개 카피 — Claude 초안 vs 사용자 작성?
+- [ ] 미팅 포인트 — 호텔 픽업 표준 vs 공공 7곳?
+- [ ] 캘린더(P2) 운영 부담 감안 시점?
+
+### 우선순위 결정
+- [ ] **결정적 갭(P0-가) 먼저 + 정보 갭(P0) 병렬?** vs **P0-가만 먼저 끝내고 P0?**
+- [ ] PayPal direct checkout으로 productType 신규 (`tour-{slug}`) — pricing_spec.json 갱신 시 charter-v2 머지된 SSOT 그대로 재사용 OK?
+
+승인 받으면 P0-가 4건부터 별도 PR로 즉시 착수 (각 PR 독립 머지 가능, 상호 의존 적게 설계).
