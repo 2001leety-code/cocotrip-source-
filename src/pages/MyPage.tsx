@@ -41,6 +41,7 @@ type Tab = 'overview' | 'bookings' | 'coupons' | 'wishlist' | 'itinerary' | 'rev
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
+  const mp = (t as { mypage?: Record<string, string> }).mypage || {};
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const { loyalty, coupons, activeCoupons, pointHistory, coinsToUSD, loading } = useLoyalty();
@@ -104,7 +105,7 @@ export default function MyPage() {
       <div className={`max-w-4xl mx-auto px-4 pt-6 ${isMobile ? 'pb-4' : 'pb-20'}`}>
         {/* 뒤로 */}
         <Link to="/" className="inline-flex items-center gap-2 text-white/40 text-sm mb-6 hover:text-white/70 transition-colors">
-          <ArrowLeft size={16} /> Home
+          <ArrowLeft size={16} /> {mp.home || 'Home'}
         </Link>
 
         {/* 프로필 + 등급 카드 */}
@@ -123,7 +124,7 @@ export default function MyPage() {
               </div>
             )}
             <div className="flex-1">
-              <h1 className="text-white text-xl font-bold">{user?.displayName || 'Traveler'}</h1>
+              <h1 className="text-white text-xl font-bold">{user?.displayName || mp.traveler || 'Traveler'}</h1>
               <p className="text-white/40 text-sm">{user?.email}</p>
               <div className="flex items-center gap-3 mt-3">
                 <span className="text-sm font-semibold px-3 py-1 rounded-full" style={{
@@ -136,7 +137,7 @@ export default function MyPage() {
                 <span className="flex items-center gap-1.5 text-sm">
                   <Coins size={14} className="text-[#C4956A]" />
                   <span className="text-[#C4956A] font-bold">{(loyalty?.tripCoins || 0).toLocaleString()}</span>
-                  <span className="text-white/30 text-xs">coins</span>
+                  <span className="text-white/30 text-xs">{mp.coinsLabel || 'coins'}</span>
                 </span>
               </div>
             </div>
@@ -145,7 +146,7 @@ export default function MyPage() {
           {/* 등급 혜택 */}
           <div className="mt-5 pt-4 border-t border-white/5">
             <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">
-              {tier} Benefits
+              {(mp.tierBenefits || '{tier} Benefits').replace('{tier}', tier)}
             </p>
             <div className="flex flex-wrap gap-2">
               {TIER_BENEFITS[tier].map((b, i) => (
@@ -160,13 +161,13 @@ export default function MyPage() {
         {/* 탭 네비 */}
         <div className={`flex gap-1 rounded-xl p-1 overflow-x-auto scrollbar-hide ${isMobile ? 'm-card mb-5' : 'bg-white/[0.03] mb-8'}`}>
           {([
-            { id: 'overview', label: 'Overview', icon: TrendingUp },
-            { id: 'bookings', label: 'My Bookings', icon: Package },
-            { id: 'coupons', label: `Coupons (${activeCoupons.length})`, icon: Gift },
-            { id: 'wishlist', label: `Wishlist (${wishlistItems.length})`, icon: Heart },
-            { id: 'itinerary', label: `Itinerary (${itineraries.length})`, icon: Calendar },
-            { id: 'reviews', label: 'Reviews', icon: Star },
-            { id: 'history', label: 'Points', icon: Clock },
+            { id: 'overview', label: mp.tabOverview || 'Overview', icon: TrendingUp },
+            { id: 'bookings', label: mp.tabBookings || 'My Bookings', icon: Package },
+            { id: 'coupons', label: (mp.tabCoupons || 'Coupons ({n})').replace('{n}', String(activeCoupons.length)), icon: Gift },
+            { id: 'wishlist', label: (mp.tabWishlist || 'Wishlist ({n})').replace('{n}', String(wishlistItems.length)), icon: Heart },
+            { id: 'itinerary', label: (mp.tabItinerary || 'Itinerary ({n})').replace('{n}', String(itineraries.length)), icon: Calendar },
+            { id: 'reviews', label: mp.tabReviews || 'Reviews', icon: Star },
+            { id: 'history', label: mp.tabPoints || 'Points', icon: Clock },
           ] as { id: Tab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -186,10 +187,10 @@ export default function MyPage() {
         {/* ── 탭: Overview ── */}
         {tab === 'overview' && (
           <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
-            <StatCard label="Total Spent" value={`$${(loyalty?.totalSpentUSD || 0).toFixed(0)}`} icon={TrendingUp} />
-            <StatCard label="Bookings" value={String(loyalty?.bookingCount || 0)} icon={Calendar} />
-            <StatCard label="Trip Coins" value={(loyalty?.tripCoins || 0).toLocaleString()} sub={`≈ $${coinsToUSD(loyalty?.tripCoins || 0)}`} icon={Coins} />
-            <StatCard label="Earn Rate" value={`${((loyalty?.earnRate || 0.01) * 100).toFixed(1)}%`} icon={Crown} />
+            <StatCard label={mp.statTotalSpent || 'Total Spent'} value={`$${(loyalty?.totalSpentUSD || 0).toFixed(0)}`} icon={TrendingUp} />
+            <StatCard label={mp.statBookings || 'Bookings'} value={String(loyalty?.bookingCount || 0)} icon={Calendar} />
+            <StatCard label={mp.statTripCoins || 'Trip Coins'} value={(loyalty?.tripCoins || 0).toLocaleString()} sub={`≈ $${coinsToUSD(loyalty?.tripCoins || 0)}`} icon={Coins} />
+            <StatCard label={mp.statEarnRate || 'Earn Rate'} value={`${((loyalty?.earnRate || 0.01) * 100).toFixed(1)}%`} icon={Crown} />
           </div>
         )}
 
