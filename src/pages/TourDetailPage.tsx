@@ -19,6 +19,9 @@ import { getTourBySlug } from '@/data/tours';
 import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
+import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
+import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
+import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
 import type { I18nString, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
 
@@ -283,6 +286,13 @@ export default function TourDetailPage() {
 
         <div className="h-px bg-white/[0.06] mb-5" />
 
+        {/* 포함 / 별도 (Included / Not included) */}
+        <section className="mb-5">
+          <IncludedExcluded language={language} includedExtra={tour.included} excludedExtra={tour.excluded} />
+        </section>
+
+        <div className="h-px bg-white/[0.06] mb-5" />
+
         {/* 세부 일정 — stops 데이터 있으면 timeline, 없으면 폴백 placeholder */}
         <section className="mb-8">
           <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/30 mb-3">{itineraryTitle}</h2>
@@ -450,15 +460,29 @@ export default function TourDetailPage() {
               ${tour.priceFrom.toLocaleString()}
               <span className="text-[11px] text-white/35 font-medium ml-1">USD</span>
             </p>
+            <RefundPolicyModal
+              language={language}
+              trigger={
+                <button className="text-[10px] text-white/40 hover:text-white/70 underline-offset-2 hover:underline mt-1 text-left">
+                  {language === 'ko' ? '취소·환불 정책' : language === 'ja' ? 'キャンセル・返金' : language === 'zh' ? '取消政策' : 'Cancellation policy'}
+                </button>
+              }
+            />
           </div>
-          <Link
-            to="/charter"
-            className="flex items-center gap-2 px-5 py-4 rounded-2xl font-bold text-[14px] text-white"
-            style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-          >
-            <MessageSquare className="w-4 h-4" />
-            {bookLabel}
-          </Link>
+          <TourBookingDialog
+            tour={tour}
+            language={language}
+            trigger={
+              <button
+                type="button"
+                className="flex items-center gap-2 px-5 py-4 rounded-2xl font-bold text-[14px] text-white"
+                style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+              >
+                <MessageSquare className="w-4 h-4" />
+                {bookLabel}
+              </button>
+            }
+          />
         </div>
       </div>
     </div>
