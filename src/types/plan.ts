@@ -50,10 +50,35 @@ export interface Stop {
   _geocoded?: boolean;
 }
 
-export interface RecommendedItem {
+/**
+ * Gemini는 recommended_items를 (a) 문자열 배열 `["한우 갈비탕"]`
+ * (b) 객체 배열 `[{ name, price_krw?, note? }]` 두 형태로 반환함.
+ * 렌더러는 반드시 normalizeRecommendedItem으로 통일 후 사용.
+ */
+export type RecommendedItem =
+  | string
+  | {
+      name: string;
+      price_krw?: number;
+      note?: string;
+    };
+
+/** Gemini 응답의 recommended_items 항목을 일관된 객체 shape으로 정규화 */
+export function normalizeRecommendedItem(raw: unknown): {
   name: string;
-  price_krw: number;
+  price_krw?: number;
   note?: string;
+} {
+  if (typeof raw === 'string') return { name: raw };
+  if (raw && typeof raw === 'object' && 'name' in raw) {
+    const r = raw as { name?: unknown; price_krw?: unknown; note?: unknown };
+    return {
+      name: typeof r.name === 'string' ? r.name : String(r.name || ''),
+      price_krw: typeof r.price_krw === 'number' ? r.price_krw : undefined,
+      note: typeof r.note === 'string' ? r.note : undefined,
+    };
+  }
+  return { name: raw === null || raw === undefined ? '' : String(raw) };
 }
 
 /** Compact subway station metadata from ODsay subwayStationInfo */

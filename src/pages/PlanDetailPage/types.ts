@@ -72,7 +72,9 @@ export interface PlanStop {
   accessibility_note?: string;
   local_tag?: string;
   verified?: boolean;
-  recommended_items?: { name: string; price_krw?: number; note?: string }[];
+  // Gemini가 문자열 배열 ["한우 갈비탕"] 또는 객체 배열 둘 다 반환.
+  // 렌더 전에 normalizeRecommendedItem로 통일할 것.
+  recommended_items?: (string | { name: string; price_krw?: number; note?: string })[];
   transit_from_prev?: TransitSegment;
   travelFromPrev?: { transitOptions?: { publicTransit?: Record<string, any> } };
   _userAdded?: boolean;

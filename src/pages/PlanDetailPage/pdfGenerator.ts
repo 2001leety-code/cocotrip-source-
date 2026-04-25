@@ -13,6 +13,7 @@
 //   5. iOS Safari path opens a blob in a new tab (worker.save() is often blocked).
 //   6. Template literals stay ASCII-only — do not re-introduce emoji that could mojibake.
 import { formatKRW } from './constants';
+import { normalizeRecommendedItem } from '@/types/plan';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 
 /** Optional i18n labels for PDF — pass planDetail.ui dict for current language */
@@ -378,7 +379,13 @@ export async function generatePDF(
         ${stop.naverMapUrl ? `<p style="font-size:10px;margin:3px 0 0;"><a href="${stop.naverMapUrl}" style="color:${C.accent};text-decoration:underline;">${L.openNaverMap}</a></p>` : ''}
         ${(stop.tip || stop.tip_en) ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;font-style:italic;">${L.tip}: ${stop.tip || stop.tip_en}</p>` : ''}
         ${stop.reservation_required ? `<p style="font-size:10px;color:#f97316;margin:4px 0 0;">${L.reservation}${stop.reservation_phone ? ` \u00B7 ${stop.reservation_phone}` : ''}</p>` : ''}
-        ${stop.recommended_items?.length ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;">${L.recommended}: ${stop.recommended_items.map((r: { name: string; price_krw?: number }) => `${r.name}${(r.price_krw || 0) > 0 ? ` (${formatKRW(r.price_krw!)})` : ''}`).join(', ')}</p>` : ''}
+        ${stop.recommended_items?.length ? (() => {
+          const parts = stop.recommended_items
+            .map((raw: unknown) => normalizeRecommendedItem(raw))
+            .filter((item) => !!item.name)
+            .map((item) => `${item.name}${(item.price_krw || 0) > 0 ? ` (${formatKRW(item.price_krw!)})` : ''}`);
+          return parts.length ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;">${L.recommended}: ${parts.join(', ')}</p>` : '';
+        })() : ''}
       </div>`;
     });
     html += '</div>';
