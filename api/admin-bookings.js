@@ -6,8 +6,12 @@
  * Google Sheets 'Bookings' 시트에서 최근 예약 50건을 읽어 JSON으로 반환.
  * 인증: Firebase ID token (verifyIdToken) + ADMIN_EMAIL 검증.
  */
-import { _ok, _err } from './_shared/response.js';
 import { verifyAdminToken } from './_shared/admin-auth.js';
+
+// response.js는 CommonJS(module.exports) — Vercel ESM 런타임에서 named import 실패 사례 있어
+// 단순 wrapper는 inline 정의로 의존 제거.
+const _ok  = (data) => ({ ok: true, data });
+const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
 export const config = { runtime: 'nodejs' };
 
