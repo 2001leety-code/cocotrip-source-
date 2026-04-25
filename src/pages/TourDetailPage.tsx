@@ -426,6 +426,54 @@ export default function TourDetailPage() {
 
         {/* ── Reviews ── */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-8">
+          {tour.rating && tour.reviewCount && (
+            <div
+              className="rounded-2xl p-4 mb-4 flex items-center gap-3"
+              style={{ background: 'rgba(255,200,80,0.04)', border: '1px solid rgba(255,200,80,0.15)' }}
+            >
+              <Star className="w-5 h-5 fill-yellow-400 text-yellow-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-[18px] font-black text-white">{tour.rating.toFixed(1)}</span>
+                  <span className="text-[12px] text-white/45">
+                    {language === 'ko' ? `${tour.reviewCount}개 리뷰` :
+                     language === 'ja' ? `${tour.reviewCount}件のレビュー` :
+                     language === 'zh' ? `${tour.reviewCount}条评论` :
+                     `${tour.reviewCount} reviews`}
+                  </span>
+                  <span
+                    className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
+                    style={{
+                      background: tour.reviewSource === 'tripadvisor' ? 'rgba(0,170,108,0.15)' :
+                                  tour.reviewSource === 'google' ? 'rgba(66,133,244,0.15)' :
+                                  'rgba(255,255,255,0.06)',
+                      color: tour.reviewSource === 'tripadvisor' ? '#34D399' :
+                             tour.reviewSource === 'google' ? '#8AB4F8' :
+                             'rgba(255,255,255,0.55)',
+                      border: tour.reviewSource === 'tripadvisor' ? '1px solid rgba(52,211,153,0.30)' :
+                              tour.reviewSource === 'google' ? '1px solid rgba(138,180,248,0.30)' :
+                              '1px solid rgba(255,255,255,0.12)',
+                    }}
+                  >
+                    {tour.reviewSource === 'tripadvisor' ? 'Tripadvisor' :
+                     tour.reviewSource === 'google' ? 'Google' :
+                     (language === 'ko' ? '자체 집계' : language === 'ja' ? '自社集計' : language === 'zh' ? '内部统计' : 'Internal')}
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/30 mt-1">
+                  {tour.reviewSource === 'internal' || !tour.reviewSource
+                    ? (language === 'ko' ? '결제 완료 고객의 후기 기반 · Tripadvisor/Google 검증 연동 예정' :
+                       language === 'ja' ? '決済完了顧客のレビューに基づく · Tripadvisor/Google検証は今後対応' :
+                       language === 'zh' ? '基于已付款客户的评价 · Tripadvisor/Google 验证后续接入' :
+                       'Based on completed-booking reviews · Tripadvisor/Google verification coming soon')
+                    : (language === 'ko' ? '외부 검증된 평점' :
+                       language === 'ja' ? '外部認証評価' :
+                       language === 'zh' ? '外部验证评分' :
+                       'Externally verified rating')}
+                </p>
+              </div>
+            </div>
+          )}
           <ReviewList targetType="tour" targetId={slug || ''} />
         </div>
 
