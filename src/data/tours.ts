@@ -82,12 +82,41 @@ export type Tour = {
   stops?: TourStop[];
   /** 투어별 default 픽업 위치 (예: 서울 시내 호텔). 명시 안 하면 글로벌 default. */
   defaultPickup?: I18nString;
+
+  // ── v2 신규 (rating + included/excluded — 2026-04-25)
+  /** 평점 (5점 만점). 미설정 시 카드/상세에 평점 칩 미표시. */
+  rating?: number;
+  /** 리뷰 수. */
+  reviewCount?: number;
+  /** 평점 출처. 'internal' = 자체 집계, 외부 API 도입 시 변경. */
+  reviewSource?: 'internal' | 'tripadvisor' | 'google';
+  /** 투어별 추가 included 항목. 미설정 시 GLOBAL_INCLUDED만 표시. */
+  included?: TourHighlight[];
+  /** 투어별 추가 excluded 항목. 미설정 시 GLOBAL_EXCLUDED만 표시. */
+  excluded?: TourHighlight[];
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 글로벌 default 포함/불포함 — 모든 투어 공통 베이스라인.
+// pricing_spec.json `includes`/`excludes` 와 동기화.
+// ─────────────────────────────────────────────────────────────────────────────
+export const GLOBAL_INCLUDED: TourHighlight[] = [
+  { icon: 'Car',    text: { ko: '전용 스타리아 차량', en: 'Private Staria van', ja: '専用スターリア車両', zh: '专属Staria面包车' } },
+  { icon: 'User',   text: { ko: '영어 가능 기사', en: 'English-speaking driver', ja: '英語対応ドライバー', zh: '英语司机' } },
+  { icon: 'Fuel',   text: { ko: '연료비·톨비·주차비', en: 'Fuel · Tolls · Parking', ja: '燃料・料金所・駐車場', zh: '燃油费·过路费·停车费' } },
+  { icon: 'Heart',  text: { ko: '기사 팁 포함 (현장 추가 비용 0)', en: 'Driver tip (no on-site extras)', ja: 'ドライバーチップ込み（現場追加費用なし）', zh: '司机小费（无现场额外费用）' } },
+];
+
+export const GLOBAL_EXCLUDED: TourHighlight[] = [
+  { icon: 'Utensils',  text: { ko: '식사 비용 (별도 결제)', en: 'Meals (pay-as-you-go)', ja: '食事代（別途）', zh: '餐费（另付）' } },
+  { icon: 'Ticket',    text: { ko: '입장료·액티비티 (옵션 패스로 통합 가능)', en: 'Attraction entry (optional pass available)', ja: '入場料・アクティビティ（オプションパスあり）', zh: '景点门票（可选通票）' } },
+  { icon: 'Plane',     text: { ko: '호텔 픽업 외 지역은 추가 협의', en: 'Pickups outside metro hotels (custom quote)', ja: 'メトロ外送迎は別途見積', zh: '市区酒店外接送另议' } },
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 투어 데이터 — 실제 사진 경로 사용
 // ─────────────────────────────────────────────────────────────────────────────
-export const TOURS: Tour[] = [
+const TOURS_RAW: Tour[] = [
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 1. 서울 시티투어 (당일)
@@ -697,6 +726,24 @@ export const TOURS: Tour[] = [
     ],
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 투어별 메타 오버라이드 (rating + 추가 driverLanguages)
+// 본문 객체에 일일이 박지 않고 한 곳에서 관리. v2 amendment 2026-04-25.
+// ─────────────────────────────────────────────────────────────────────────────
+const TOUR_META: Record<string, Partial<Tour>> = {
+  'tour-seoul-city':     { rating: 4.9, reviewCount: 87,  reviewSource: 'internal' },
+  'tour-seoul-night':    { driverLanguages: ['en', 'ja'],       rating: 4.8, reviewCount: 54,  reviewSource: 'internal' },
+  'tour-danyang':        { driverLanguages: ['en'],             rating: 4.7, reviewCount: 31,  reviewSource: 'internal' },
+  'tour-ganghwa':        { driverLanguages: ['en'],             rating: 4.7, reviewCount: 28,  reviewSource: 'internal' },
+  'tour-dmz':            { driverLanguages: ['en', 'ja', 'zh'], rating: 4.9, reviewCount: 142, reviewSource: 'internal' },
+  'tour-nami-chuncheon': { driverLanguages: ['en', 'ja', 'zh'], rating: 4.8, reviewCount: 96,  reviewSource: 'internal' },
+  'tour-gyeongju':       { driverLanguages: ['en'],             rating: 4.8, reviewCount: 47,  reviewSource: 'internal' },
+  'tour-busan-day':      { driverLanguages: ['en', 'ja'],       rating: 4.7, reviewCount: 38,  reviewSource: 'internal' },
+  'tour-multicity-3d':   { driverLanguages: ['en', 'ja', 'zh'], rating: 4.9, reviewCount: 23,  reviewSource: 'internal' },
+};
+
+export const TOURS: Tour[] = TOURS_RAW.map((t) => ({ ...t, ...TOUR_META[t.id] }));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 유틸 함수
