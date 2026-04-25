@@ -1,8 +1,43 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CocoTrip – Tour Product Data
 // 이미지: public/ 폴더 기준 경로 사용 (RegionDetail.tsx 방식 동일)
-// 가격: MASTER_STAFF_MANUAL 표준가 기준 (스타리아 ₩291,200~ → $208~)
+// 가격: pricing_spec.json (SSOT) 의 daily_tour_prices 에서 자동 산출.
+// TOURS_RAW 의 priceFrom 은 spec 매핑 없을 때 (multicity 등) fallback.
 // ─────────────────────────────────────────────────────────────────────────────
+import pricingSpec from './pricing_spec.json';
+
+const KRW_PER_USD = 1350;
+
+/** Tour ID → pricing_spec.daily_tour_prices key. null이면 spec에 없음 (fallback 사용). */
+const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {
+  'tour-seoul-city':     'seoul-city',
+  'tour-seoul-night':    'seoul-city',     // 야간 surcharge는 결제 시 addon 또는 별도 정책
+  'tour-danyang':        'seoul-suburb',   // 단양은 서울 근교 인터시티 기준
+  'tour-ganghwa':        'seoul-suburb',
+  'tour-dmz':            'dmz',
+  'tour-nami-chuncheon': 'seoul-suburb',
+  'tour-gyeongju':       'gyeongju-jeonju',
+  'tour-busan-day':      'busan-day',
+  'tour-multicity-3d':   null,             // 멀티데이는 spec daily 가격 없음 → priceFrom fallback
+};
+
+/** Tour 가격(KRW) — pricing_spec.json SSOT 우선, 없으면 priceFrom × KRW_PER_USD. */
+export function getTourPriceKRW(tourId: string, fallbackPriceFromUSD = 0): number {
+  const key = TOUR_TO_CHARTER_KEY[tourId];
+  if (key) {
+    const spec = (pricingSpec as { daily_tour_prices?: Record<string, { priceKRW?: number }> }).daily_tour_prices;
+    const krw = spec?.[key]?.priceKRW;
+    if (typeof krw === 'number') return krw;
+  }
+  return fallbackPriceFromUSD * KRW_PER_USD;
+}
+
+/** PayPal createPaypalOrder.js productType 형식. tour-{slug} → charter_{key}. */
+export function getTourProductType(tourId: string): string | null {
+  const key = TOUR_TO_CHARTER_KEY[tourId];
+  if (!key) return null;
+  return `charter_${key.replace(/-/g, '_')}`;
+}
 
 export type VehicleType = 'Staria' | 'Sprinter' | 'SprinterMid' | 'Bus';
 export type TourTag = 'Popular' | 'AI-Curated' | 'Best Value' | 'New' | 'Multi-City' | 'Night Tour' | 'Nature' | 'History';
@@ -933,12 +968,20 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
   ],
 };
 
-export const TOURS: Tour[] = TOURS_RAW.map((t) => ({
-  ...t,
-  ...TOUR_META[t.id],
-  // raw에 stops 있으면 우선, 없으면 ID 매핑 사용
-  stops: t.stops || TOUR_STOPS_BY_ID[t.id],
-}));
+export const TOURS: Tour[] = TOURS_RAW.map((t) => {
+  const priceKRW = getTourPriceKRW(t.id, t.priceFrom);
+  // priceFrom (USD) 도 spec 기반으로 자동 갱신. spec 없으면 raw priceFrom 유지.
+  const priceFromUSD = TOUR_TO_CHARTER_KEY[t.id]
+    ? Math.round(priceKRW / KRW_PER_USD)
+    : t.priceFrom;
+  return {
+    ...t,
+    ...TOUR_META[t.id],
+    // raw에 stops 있으면 우선, 없으면 ID 매핑 사용
+    stops: t.stops || TOUR_STOPS_BY_ID[t.id],
+    priceFrom: priceFromUSD,
+  };
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 유틸 함수
