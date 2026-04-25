@@ -402,6 +402,37 @@ P6 (예약 상태) + P9 (도시별 칩) 계획을 채팅에 길게 적고 즉시
 
 ---
 
+## 🟡 카테고리 21: Gemini 응답 필드 shape 비결정성 (같은 필드 다른 형태)
+
+> **추가일**: 2026-04-25 (PR #14 hotfix 배포 시)
+
+### 실수 패턴
+- Gemini 프롬프트에 `recommended_items: [{name, price_krw, note}]` 같은 예시 한 가지만 제시
+- 실제 응답은 컨텍스트에 따라 두 shape 혼용:
+  - food 카테고리 → 문자열 배열 `["한우 갈비탕", "생갈비"]`
+  - cafe/activity → 객체 배열 `[{name, price_krw, note}]`
+- TypeScript/Zod 스키마는 한 shape만 가정. 프론트 렌더러가 `item.name` 참조 → string case에 `undefined`
+- 결과: UI에 빈 row, PDF에 `"undefined"` 출력. 최악의 경우 `{String(item)}` → `[object Object]` 노출
+- 빌드·테스트 통과해도 **live data 실제 확인** 전엔 안 드러남
+
+### 방지 규칙
+```
+✅ Gemini 출력이 들어가는 모든 배열 필드는 `string | object` union으로 타입 선언
+✅ 렌더 전에 normalize 헬퍼로 shape 통일 (typeof check + fallback)
+✅ Zod 스키마에 z.union([z.string(), ObjectSchema]) 허용
+✅ 빈 name/value는 skip (return null)
+✅ 백엔드도 Firestore 저장 전 정규화하면 더 안전 (구 plan도 포함되게)
+✅ 정기적으로 API 응답 샘플을 덤프해 실제 shape 다양성 확인
+```
+
+### 이번 세션 사례
+seoul-meat 시나리오 plan에서 식당(한식왕비집 등) 4곳은 문자열 배열 반환, 카페(땡스네이처/카페콤마/익선동) 3곳은 객체 배열 반환. [src/pages/PlanDetailPage/components/StopCard.tsx](src/pages/PlanDetailPage/components/StopCard.tsx) 와 [src/pages/PlanDetailPage/pdfGenerator.ts](src/pages/PlanDetailPage/pdfGenerator.ts) 가 모두 `item.name` 직접 참조 → 문자열 case에 `undefined` 렌더링. 라이브 plan data 텍스트 덤프에서 `[object Object]`가 Node의 String coercion으로 드러나면서 발견. 수정: [src/types/plan.ts](src/types/plan.ts) 에 `normalizeRecommendedItem` 헬퍼 + union 타입 + 렌더러 양쪽 모두 normalize 호출. PR [#14](https://github.com/2001leety-code/cocotrip-source-/pull/14).
+
+### 카테고리 20과의 관계
+둘 다 JS template literal 쪽이 아니지만 근본 원인은 같음: "형식 일관성 가정" 실패. cat 20은 JS 레이어(template literal 파싱), cat 21은 LLM 레이어(Gemini 응답 shape). 둘 다 "tsc/build는 통과하지만 런타임/렌더에서 터짐" 유형.
+
+---
+
 ## 🟡 카테고리 10: 배포 전 검증 누락
 
 ### 실수 패턴
