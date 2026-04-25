@@ -204,7 +204,7 @@ KRW: ₩{amountKRW}
 | 2 | KakaoTalk 알림채널 | ⏳ 비즈니스 계정 발급 대기 (외국인 전용 — 우선순위 낮음) |
 | 3 | 운전기사 자동 매칭 | ⏸ 보류 (driver pool 미존재) |
 | 4 | 자유 취소 데드라인 reminder (D-4 자동 발송) | ✅ **완료** (PR #39 — 4언어, freeCancelReminderSent 마킹, dryRun 옵션) |
-| 5 | Tripadvisor/Google API 통합 | ⏳ 사용자 API 키 발급 대기 |
+| 5 | Google Places API 통합 | ⏳ Google Place ID 매핑 채우기 (키 등록됨, Tripadvisor는 가입 부담 대비 효과 약해 스킵 결정) |
 | 6 | 매출 대시보드 (월/주/일) | ✅ **완료** (PR #40 — `/admin/sales` Firestore SSOT, KPI/일별/상품별/최근) |
 
 ### 환불 정책 안내 (refund-reminder 발송 기준)

@@ -52,7 +52,7 @@ export default function TourDetailPage() {
   const tour = slug ? getTourBySlug(slug) : undefined;
   const hotels = tour ? getRecommendedHotels(tour.region, 3) : [];
 
-  // P2-B: 외부 리뷰 fetch (env 키 있으면 Tripadvisor/Google, 없으면 internal fallback)
+  // P2-B: 외부 리뷰 fetch (env 키 있으면 Google Places, 없으면 internal fallback)
   const resolvedRating = useTourRating(tour?.id || '', {
     rating: tour?.rating,
     reviewCount: tour?.reviewCount,
@@ -456,46 +456,33 @@ export default function TourDetailPage() {
                       rel="noopener noreferrer"
                       className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full underline-offset-2 hover:underline"
                       style={{
-                        background: resolvedRating.reviewSource === 'tripadvisor' ? 'rgba(0,170,108,0.15)' :
-                                    resolvedRating.reviewSource === 'google' ? 'rgba(66,133,244,0.15)' :
-                                    'rgba(255,255,255,0.06)',
-                        color: resolvedRating.reviewSource === 'tripadvisor' ? '#34D399' :
-                               resolvedRating.reviewSource === 'google' ? '#8AB4F8' :
-                               'rgba(255,255,255,0.55)',
-                        border: resolvedRating.reviewSource === 'tripadvisor' ? '1px solid rgba(52,211,153,0.30)' :
-                                resolvedRating.reviewSource === 'google' ? '1px solid rgba(138,180,248,0.30)' :
-                                '1px solid rgba(255,255,255,0.12)',
+                        background: resolvedRating.reviewSource === 'google' ? 'rgba(66,133,244,0.15)' : 'rgba(255,255,255,0.06)',
+                        color: resolvedRating.reviewSource === 'google' ? '#8AB4F8' : 'rgba(255,255,255,0.55)',
+                        border: resolvedRating.reviewSource === 'google' ? '1px solid rgba(138,180,248,0.30)' : '1px solid rgba(255,255,255,0.12)',
                       }}
                     >
-                      {resolvedRating.reviewSource === 'tripadvisor' ? 'Tripadvisor ↗' : 'Google ↗'}
+                      Google ↗
                     </a>
                   ) : (
                     <span
                       className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
                       style={{
-                        background: resolvedRating.reviewSource === 'tripadvisor' ? 'rgba(0,170,108,0.15)' :
-                                    resolvedRating.reviewSource === 'google' ? 'rgba(66,133,244,0.15)' :
-                                    'rgba(255,255,255,0.06)',
-                        color: resolvedRating.reviewSource === 'tripadvisor' ? '#34D399' :
-                               resolvedRating.reviewSource === 'google' ? '#8AB4F8' :
-                               'rgba(255,255,255,0.55)',
-                        border: resolvedRating.reviewSource === 'tripadvisor' ? '1px solid rgba(52,211,153,0.30)' :
-                                resolvedRating.reviewSource === 'google' ? '1px solid rgba(138,180,248,0.30)' :
-                                '1px solid rgba(255,255,255,0.12)',
+                        background: resolvedRating.reviewSource === 'google' ? 'rgba(66,133,244,0.15)' : 'rgba(255,255,255,0.06)',
+                        color: resolvedRating.reviewSource === 'google' ? '#8AB4F8' : 'rgba(255,255,255,0.55)',
+                        border: resolvedRating.reviewSource === 'google' ? '1px solid rgba(138,180,248,0.30)' : '1px solid rgba(255,255,255,0.12)',
                       }}
                     >
-                      {resolvedRating.reviewSource === 'tripadvisor' ? 'Tripadvisor' :
-                       resolvedRating.reviewSource === 'google' ? 'Google' :
-                       (language === 'ko' ? '자체 집계' : language === 'ja' ? '自社集計' : language === 'zh' ? '内部统计' : 'Internal')}
+                      {resolvedRating.reviewSource === 'google' ? 'Google'
+                        : (language === 'ko' ? '자체 집계' : language === 'ja' ? '自社集計' : language === 'zh' ? '内部统计' : 'Internal')}
                     </span>
                   )}
                 </div>
                 <p className="text-[10px] text-white/30 mt-1">
                   {resolvedRating.reviewSource === 'internal' || !resolvedRating.reviewSource
-                    ? (language === 'ko' ? '결제 완료 고객의 후기 기반 · Tripadvisor/Google 검증 연동 예정' :
-                       language === 'ja' ? '決済完了顧客のレビューに基づく · Tripadvisor/Google検証は今後対応' :
-                       language === 'zh' ? '基于已付款客户的评价 · Tripadvisor/Google 验证后续接入' :
-                       'Based on completed-booking reviews · Tripadvisor/Google verification coming soon')
+                    ? (language === 'ko' ? '결제 완료 고객의 후기 기반 · Google 검증 연동 예정' :
+                       language === 'ja' ? '決済完了顧客のレビューに基づく · Google検証は今後対応' :
+                       language === 'zh' ? '基于已付款客户的评价 · Google 验证后续接入' :
+                       'Based on completed-booking reviews · Google verification coming soon')
                     : (language === 'ko' ? '외부 검증된 평점' :
                        language === 'ja' ? '外部認証評価' :
                        language === 'zh' ? '外部验证评分' :

@@ -124,7 +124,7 @@ export type Tour = {
   /** 리뷰 수. */
   reviewCount?: number;
   /** 평점 출처. 'internal' = 자체 집계, 외부 API 도입 시 변경. */
-  reviewSource?: 'internal' | 'tripadvisor' | 'google';
+  reviewSource?: 'internal' | 'google';
   /** 투어별 추가 included 항목. 미설정 시 GLOBAL_INCLUDED만 표시. */
   included?: TourHighlight[];
   /** 투어별 추가 excluded 항목. 미설정 시 GLOBAL_EXCLUDED만 표시. */
