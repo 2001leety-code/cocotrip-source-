@@ -289,7 +289,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
 
       // Validate + legacy DB matcher as fallback for any remaining unresolved
       validateResponse(itinerary, { lang: language }, _foodIndex);
-      applyDBMatcher(itinerary, _foodIndex, area);
+      applyDBMatcher(itinerary, _foodIndex, area, language);
 
       console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
 
@@ -336,7 +336,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       validateResponse(itinerary, { lang: language }, _foodIndex);
 
       // ── DB 매칭 ───────────────────────────────────────────────────────────
-      applyDBMatcher(itinerary, _foodIndex, area);
+      applyDBMatcher(itinerary, _foodIndex, area, language);
     }
 
     console.log('[planner] Step 2: Running RouteAgent...');

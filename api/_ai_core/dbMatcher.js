@@ -32,8 +32,56 @@ function brandsMatch(a, b) {
   return al === bl || al.startsWith(bl) || bl.startsWith(al);
 }
 
-export function applyDBMatcher(itinerary, foodIndex, city) {
-  if (!foodIndex || foodIndex.length === 0) return;
+// Sanitize SEO 키워드 합친 name "한국어 | English | 中文 | 日本語" → 사용자 언어 토큰만.
+// food_index의 raw name 또는 Gemini hallucination이 여러 언어 합친 string을 반환할 때 정리.
+function pickLangToken(name, lang = 'ko') {
+  if (!name || typeof name !== 'string') return name;
+  const trimmed = name.trim();
+  if (!trimmed.includes('|')) return trimmed;
+  const tokens = trimmed.split('|').map((t) => t.trim()).filter(Boolean);
+  if (tokens.length === 0) return trimmed;
+
+  const HANGUL = /[가-힣]/;
+  const HIRAKATA = /[぀-ヿ]/;
+  const HANZI = /[一-鿿]/;  // CJK unified — note: 한자 vs 중국어 구분 어려움
+  const ASCII = /^[A-Za-z0-9\s.,'\-:&()/]+$/;
+
+  // 사용자 언어에 맞는 첫 토큰 선택
+  const pickers = {
+    ko: (t) => HANGUL.test(t),
+    en: (t) => ASCII.test(t),
+    ja: (t) => HIRAKATA.test(t),
+    zh: (t) => HANZI.test(t) && !HIRAKATA.test(t) && !HANGUL.test(t),
+  };
+  const picker = pickers[lang] || pickers.ko;
+  const matched = tokens.find(picker);
+  if (matched) return matched;
+
+  // fallback: 첫 토큰
+  return tokens[0];
+}
+
+// 다국어 split 패턴 정리 — name + display_name + tip + reason 모두 적용 가능
+export function sanitizeStopNames(stop, lang = 'ko') {
+  if (!stop || typeof stop !== 'object') return;
+  const fields = ['name', 'display_name', 'name_ko', 'name_en', 'tip', 'tip_en', 'reason'];
+  for (const f of fields) {
+    if (typeof stop[f] === 'string' && stop[f].includes('|')) {
+      const fixed = pickLangToken(stop[f], f === 'name' || f === 'name_ko' ? 'ko' : (f === 'name_en' || f === 'tip_en' ? 'en' : lang));
+      if (fixed && fixed !== stop[f]) {
+        stop[f] = fixed;
+      }
+    }
+  }
+}
+
+export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
+  if (!foodIndex || foodIndex.length === 0) {
+    // foodIndex 없어도 다국어 sanitize는 수행
+    const allStops = (itinerary.days || []).flatMap(d => d.stops || []);
+    for (const stop of allStops) sanitizeStopNames(stop, lang);
+    return;
+  }
 
   // Normalize city name for matching (e.g., "seoul_city" → "seoul")
   const matchCity = (city || '').replace(/_.*$/, '').toLowerCase();
@@ -41,8 +89,11 @@ export function applyDBMatcher(itinerary, foodIndex, city) {
   let dbMatched = 0, dbUnmatched = 0;
   const allStops = (itinerary.days || []).flatMap(d => d.stops || []);
   for (const stop of allStops) {
+    // 모든 stop에 sanitize 적용 (food 카테고리 외에도 hallucination 가능)
+    sanitizeStopNames(stop, lang);
+
     if (stop.category !== 'food') continue;
-    
+
     const stopName = (stop.name || stop.name_ko || '').trim();
     if (!stopName) { dbUnmatched++; continue; }
 
