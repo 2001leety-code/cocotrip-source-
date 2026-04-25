@@ -86,7 +86,7 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
       }}
     >
       {stop.photo && (
-        <div className="w-20 h-20 md:w-24 md:h-24 shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
+        <div className="w-28 h-28 md:w-36 md:h-36 shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
           <img src={stop.photo} alt={name} className="w-full h-full object-cover" loading="lazy" />
         </div>
       )}
