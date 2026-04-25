@@ -45,14 +45,19 @@ export default function Admin() {
   }, [loading, user, title, description, price, totalSeats]);
 
   const fetchBookings = async () => {
+    if (!user) return;
     setLoadingBookings(true);
     try {
-      const resp = await fetch('/api/admin-bookings');
+      const idToken = await user.getIdToken();
+      const resp = await fetch('/api/admin-bookings', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       const data = await resp.json();
       if (data.error) throw new Error(data.error);
-      const list: Booking[] = data.bookings || [];
+      const payload = data.data || data;
+      const list: Booking[] = payload.bookings || data.bookings || [];
       setBookings(list);
-      setTotalBookings(data.total || list.length);
+      setTotalBookings(payload.total || data.total || list.length);
       // 헤더 자동 추출 (id 제외). airport 정보가 담긴 '메모/memo' 열을 항상 포함시킨다.
       if (list.length > 0) {
         const keys = Object.keys(list[0]).filter(k => k !== 'id');
