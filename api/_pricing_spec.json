@@ -241,6 +241,76 @@
     "child_seat_per_trip": 20000
   },
 
+  "addons": {
+    "comment": "결제 직전 강제 노출 옵션 (Tours-gap V3 전략). priceKRW = 그룹 단위 또는 인당. unit 명시.",
+    "items": [
+      {
+        "id": "japanese_driver",
+        "labels": { "ko": "일본어 가능 기사", "en": "Japanese-speaking driver", "ja": "日本語ドライバー", "zh": "日语司机" },
+        "priceKRW": 80000,
+        "unit": "per_trip",
+        "applies_to": ["tour", "charter", "airport_transfer"],
+        "description_ko": "기본은 영어 기사. 일본어 가능 기사 매칭 시 추가 (가용성에 따라)."
+      },
+      {
+        "id": "chinese_driver",
+        "labels": { "ko": "중국어 가능 기사", "en": "Chinese-speaking driver", "ja": "中国語ドライバー", "zh": "中文司机" },
+        "priceKRW": 80000,
+        "unit": "per_trip",
+        "applies_to": ["tour", "charter", "airport_transfer"],
+        "description_ko": "기본은 영어 기사. 중국어 가능 기사 매칭 시 추가."
+      },
+      {
+        "id": "hanbok_rental",
+        "labels": { "ko": "한복 대여", "en": "Hanbok rental", "ja": "韓服レンタル", "zh": "韩服租赁" },
+        "priceKRW": 30000,
+        "unit": "per_person",
+        "applies_to": ["tour"],
+        "description_ko": "경복궁/북촌 방문 투어 추천. 4시간 대여, 경복궁 무료 입장 효과."
+      },
+      {
+        "id": "attraction_pass",
+        "labels": { "ko": "주요 입장료 패스", "en": "Attraction entry pass", "ja": "入場料パス", "zh": "景点入场通票" },
+        "priceKRW": 50000,
+        "unit": "per_person",
+        "applies_to": ["tour"],
+        "description_ko": "경복궁·N서울타워·롯데월드 등 주요 입장료 통합 패스 (투어 일정에 따라 자동 매칭)."
+      },
+      {
+        "id": "professional_photographer",
+        "labels": { "ko": "전문 사진사 동행", "en": "Professional photographer", "ja": "プロカメラマン", "zh": "专业摄影师" },
+        "priceKRW": 150000,
+        "unit": "per_trip",
+        "applies_to": ["tour", "charter"],
+        "description_ko": "투어 시간 동안 동행, 보정본 50장+ 클라우드 전달 (3-5일 후)."
+      },
+      {
+        "id": "michelin_lunch",
+        "labels": { "ko": "미슐랭 추천 점심", "en": "Michelin-recommended lunch", "ja": "ミシュラン推薦ランチ", "zh": "米其林推荐午餐" },
+        "priceKRW": 100000,
+        "unit": "per_person",
+        "applies_to": ["tour", "charter"],
+        "description_ko": "투어 일정 중 미슐랭 가이드 추천 점심 (예약 대행)."
+      },
+      {
+        "id": "private_guide",
+        "labels": { "ko": "전문 가이드 동행", "en": "Licensed tour guide", "ja": "公認ツアーガイド", "zh": "持证导游" },
+        "priceKRW": 300000,
+        "unit": "per_day",
+        "applies_to": ["tour", "charter"],
+        "description_ko": "한국관광공사 인증 가이드. 영어/일본어/중국어 선택 가능."
+      },
+      {
+        "id": "child_booster_seat",
+        "labels": { "ko": "유아용 부스터 시트", "en": "Child booster seat", "ja": "チャイルドシート", "zh": "儿童增高座椅" },
+        "priceKRW": 20000,
+        "unit": "per_trip",
+        "applies_to": ["tour", "charter", "airport_transfer"],
+        "description_ko": "유아 동반 시 안전을 위해 권장."
+      }
+    ]
+  },
+
   "charter_base_price": 160000,
 
   "distance_matrix": {

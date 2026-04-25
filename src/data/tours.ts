@@ -20,6 +20,42 @@ export type TourHighlight = {
   text: I18nString;
 };
 
+/** 운전기사 가능 언어. 영업 정책상 일본어/중국어는 추가 요금일 수 있음 (pricing_spec.json `addons` 참조). */
+export type DriverLanguage = 'en' | 'ja' | 'zh';
+
+/** 투어 stop 간 이동 정보. 정적 데이터 — 영업가이드 기준. */
+export type TourTransit = {
+  method: 'walk' | 'car' | 'transit';
+  /** 분 단위 추정 시간. */
+  minutes: number;
+  /** km 단위. 도보 시 생략. */
+  distance_km?: number;
+  /** "지하철 4호선 + 도보" 같은 보조 안내 (i18n optional). */
+  note?: I18nString;
+};
+
+/** 투어 일정의 한 stop. 시간순 배열로 Tour.stops 에 저장. */
+export type TourStop = {
+  /** "09:30" 24시간 형식 */
+  time: string;
+  /** stop 이름 (한국어 = naver map 검색용 정식 명칭, 다른 언어 = 표시용) */
+  name: I18nString;
+  /** 머무는 시간 (분) */
+  stay_min: number;
+  /** /public 기준 사진 경로 (선택). 없으면 카드에 placeholder. */
+  photo?: string;
+  /** 무엇을 보고/하는지 1-2문장 설명 */
+  description: I18nString;
+  /** 입장료 (KRW). 0 또는 생략 시 무료. */
+  entry_fee_krw?: number;
+  /** 현지 팁 — 추천 메뉴, 포토 스팟, 시간대 주의 등 */
+  tip?: I18nString;
+  /** 네이버 지도 직링크 (없으면 PlanDetailPage 패턴으로 자동 생성 가능) */
+  naver_map_url?: string;
+  /** 이전 stop에서 여기로 오는 방법. 첫 stop은 생략. */
+  transit_from_prev?: TourTransit;
+};
+
 export type Tour = {
   id: string;
   slug: string;
@@ -38,6 +74,14 @@ export type Tour = {
   images: string[];        // /public 기준 갤러리 사진들
   tags: TourTag[];
   highlights: TourHighlight[];
+
+  // ── v1 신규 (Tour data model — 2026-04-25)
+  /** 기본 운전기사 가능 언어. 미설정 시 ['en'] 가정. */
+  driverLanguages?: DriverLanguage[];
+  /** 시간순 stops 배열 (P0-가3). 미설정 시 상세에 "coming soon" 폴백. */
+  stops?: TourStop[];
+  /** 투어별 default 픽업 위치 (예: 서울 시내 호텔). 명시 안 하면 글로벌 default. */
+  defaultPickup?: I18nString;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -92,6 +136,154 @@ export const TOURS: Tour[] = [
       { icon: 'ShoppingBag', text: { ko: '명동 쇼핑·먹거리 탐방', en: 'Myeongdong shopping & street food', ja: '明洞ショッピング＆屋台', zh: '明洞购物及街头美食' } },
       { icon: 'Sunset', text: { ko: '한강공원 일몰 감상', en: 'Han River park sunset', ja: '漢江公園の夕日', zh: '汉江公园日落' } },
       { icon: 'Shield', text: { ko: '팁·톨비·주차비 전부 포함', en: 'Tips · Tolls · Parking — all included', ja: 'チップ・料金所・駐車場 全込み', zh: '小费·过路费·停车费全含' } },
+    ],
+    driverLanguages: ['en', 'ja'],
+    defaultPickup: {
+      ko: '서울 시내 호텔 (명동·강남·홍대·종로 권역)',
+      en: 'Seoul metro hotels (Myeongdong, Gangnam, Hongdae, Jongno)',
+      ja: 'ソウル都心ホテル（明洞・江南・弘大・鍾路）',
+      zh: '首尔市区酒店（明洞·江南·弘大·钟路）',
+    },
+    stops: [
+      {
+        time: '09:30',
+        name: { ko: '경복궁', en: 'Gyeongbokgung Palace', ja: '景福宮', zh: '景福宫' },
+        stay_min: 90,
+        photo: '/JnR5Ie_경복궁(1).webp',
+        description: {
+          ko: '조선 5대 궁궐 중 가장 큰 정궁. 수문장 교대식과 한복 무료 입장이 핵심.',
+          en: 'The grandest of Joseon\'s five palaces. Watch the changing of the guard and enter free if wearing hanbok.',
+          ja: '朝鮮5大宮殿の最大規模。守門将交代式と韓服無料入場が見どころ。',
+          zh: '朝鲜5大宫殿中规模最大。可观看守门将交代仪式，着韩服可免费入场。',
+        },
+        entry_fee_krw: 3000,
+        tip: {
+          ko: '수문장 교대식 09:30·11:00·13:00·14:00·15:00. 한복 대여 ₩15,000부터 (Add-on 가능).',
+          en: 'Guard ceremonies at 09:30, 11:00, 13:00, 14:00, 15:00. Hanbok rental from ₩15,000 (available as add-on).',
+          ja: '守門将交代式は09:30/11:00/13:00/14:00/15:00。韓服レンタル₩15,000～（オプション追加可）。',
+          zh: '守门将交代式 09:30·11:00·13:00·14:00·15:00。韩服租赁 ₩15,000 起（可作为附加选项）。',
+        },
+      },
+      {
+        time: '11:00',
+        name: { ko: '북촌한옥마을', en: 'Bukchon Hanok Village', ja: '北村韓屋村', zh: '北村韩屋村' },
+        stay_min: 60,
+        photo: '/3Xgcka_북촌한옥마을(1).webp',
+        description: {
+          ko: '600년 역사의 한옥 거리. 가회동 31번지가 대표 포토 스팟이며 주민이 실거주하니 정숙 관람 필수.',
+          en: 'A 600-year-old hanok district. Gahoe-dong 31 is the iconic photo spot — residents still live here, so quiet visiting is essential.',
+          ja: '600年の歴史を持つ韓屋街。嘉会洞31番地が代表フォトスポット。住民が居住しているため静粛にご見学を。',
+          zh: '600年历史的韩屋街道。嘉会洞31番地为标志性拍照点，居民实际居住，请保持安静。',
+        },
+        entry_fee_krw: 0,
+        tip: {
+          ko: '11~13시 사이 가장 한적. 평일 방문 권장.',
+          en: 'Quietest between 11 AM-1 PM. Weekday visits recommended.',
+          ja: '11時～13時が最も空いています。平日の訪問がおすすめ。',
+          zh: '11时至13时人最少，建议工作日参观。',
+        },
+        transit_from_prev: { method: 'walk', minutes: 12, distance_km: 0.9 },
+      },
+      {
+        time: '12:00',
+        name: { ko: '인사동·익선동 점심', en: 'Insadong / Ikseondong Lunch', ja: '仁寺洞・益善洞ランチ', zh: '仁寺洞·益善洞午餐' },
+        stay_min: 75,
+        photo: '/서울/서울 (1).jpg',
+        description: {
+          ko: '전통 공예·갤러리·찻집의 골목. 익선동 한옥 카페골목과 함께 도보 이동, 한정식 또는 비빔밥 추천.',
+          en: 'Traditional crafts, galleries, and tea houses. Walk to Ikseondong hanok cafe alley — try Korean set menu or bibimbap.',
+          ja: '伝統工芸・ギャラリー・茶屋の路地。益善洞韓屋カフェ通りも徒歩圏内。韓定食やビビンバがおすすめ。',
+          zh: '传统工艺·画廊·茶屋的小巷。可步行至益善洞韩屋咖啡街，推荐韩定食或拌饭。',
+        },
+        entry_fee_krw: 0,
+        tip: {
+          ko: '추천 식당 — 한식왕비집(한우갈비탕), 토속촌(삼계탕). 점심 1인 ₩15,000~25,000.',
+          en: 'Recommended — Hansik Wangbi (hanwoo galbitang), Tosokchon (samgyetang). Lunch ₩15,000-25,000 per person.',
+          ja: 'おすすめ — 한식왕비집（韓牛カルビ湯）、토속촌（参鶏湯）。ランチ1人₩15,000～25,000。',
+          zh: '推荐餐厅 — 한식왕비집（韩牛排骨汤）、토속촌（参鸡汤）。午餐人均 ₩15,000-25,000。',
+        },
+        transit_from_prev: { method: 'walk', minutes: 8, distance_km: 0.6 },
+      },
+      {
+        time: '13:30',
+        name: { ko: '명동 쇼핑', en: 'Myeongdong Shopping', ja: '明洞ショッピング', zh: '明洞购物' },
+        stay_min: 90,
+        photo: '/서울/서울 (3).jpg',
+        description: {
+          ko: '서울 최대 쇼핑 거리. K-뷰티(올리브영·시코르), 길거리 음식, 면세점 밀집.',
+          en: 'Seoul\'s biggest shopping street. K-beauty (Olive Young, Sikkor), street food, and duty-free shops.',
+          ja: 'ソウル最大のショッピングストリート。K-ビューティー（オリーブヤング・シコル）、屋台、免税店が集中。',
+          zh: '首尔最大购物街。K-美妆（Olive Young、Sikkor）、街头小吃、免税店云集。',
+        },
+        entry_fee_krw: 0,
+        tip: {
+          ko: '오후 4시 이후 길거리 음식 매대가 본격 오픈. 부가세 환급은 즉시 환급 매장 확인.',
+          en: 'Street food stalls open in earnest after 4 PM. Look for instant tax-refund stores.',
+          ja: '16時以降に屋台が本格オープン。即時免税店の表示を確認。',
+          zh: '下午4点后街头小吃摊位正式营业。请确认即时退税店标示。',
+        },
+        transit_from_prev: { method: 'car', minutes: 12, distance_km: 3.5 },
+      },
+      {
+        time: '15:00',
+        name: { ko: 'N서울타워 (남산)', en: 'N Seoul Tower (Namsan)', ja: 'Nソウルタワー（南山）', zh: 'N首尔塔（南山）' },
+        stay_min: 90,
+        photo: '/서울/서울 (7).jpg',
+        description: {
+          ko: '서울 360도 전망대. 케이블카 또는 차량으로 정상까지. 사랑의 자물쇠와 야경 촬영지.',
+          en: '360° Seoul panorama. Cable car or shuttle to the top. Famous for love locks and skyline photos.',
+          ja: 'ソウル360°展望台。ケーブルカーまたは車で頂上へ。愛のロックと夜景撮影スポット。',
+          zh: '首尔360°观景台。可搭缆车或车辆上山。情侣锁和夜景拍摄热点。',
+        },
+        entry_fee_krw: 16000,
+        tip: {
+          ko: '케이블카 왕복 ₩14,000 + 전망대 입장 ₩16,000. 차량은 정상 주차 불가, 도서관 환승 필요.',
+          en: 'Cable car round-trip ₩14,000 + observatory ₩16,000. Vehicle parking only at base — transfer to shuttle.',
+          ja: 'ケーブルカー往復₩14,000＋展望台入場₩16,000。車両は山頂駐車不可、図書館で乗り換え。',
+          zh: '缆车往返 ₩14,000 + 观景台入场 ₩16,000。车辆仅可停山下，需换乘班车。',
+        },
+        transit_from_prev: { method: 'car', minutes: 10, distance_km: 2.0 },
+      },
+      {
+        time: '16:45',
+        name: { ko: '광장시장', en: 'Gwangjang Market', ja: '広蔵市場', zh: '广藏市场' },
+        stay_min: 60,
+        photo: '/서울/서울 (10).jpg',
+        description: {
+          ko: '100년 전통 재래시장. 빈대떡, 마약김밥, 육회, 칼국수가 명물.',
+          en: '100-year-old traditional market. Famed for bindae-tteok (mung bean pancake), mayak gimbap, raw beef tartare, kalguksu.',
+          ja: '100年伝統の伝統市場。ビンデトック（緑豆チヂミ）、麻薬キンパ、ユッケ、カルグクスが名物。',
+          zh: '百年传统市场。绿豆煎饼、麻药饭卷、生牛肉、刀削面是招牌。',
+        },
+        entry_fee_krw: 0,
+        tip: {
+          ko: '빈대떡 1장 ₩6,000, 마약김밥 1줄 ₩3,000. 17시 이후 더 활기참.',
+          en: 'Bindae-tteok ₩6,000/piece, mayak gimbap ₩3,000/roll. Livelier after 5 PM.',
+          ja: 'ビンデトック1枚₩6,000、麻薬キンパ1本₩3,000。17時以降がより賑わう。',
+          zh: '绿豆煎饼 ₩6,000/张，麻药饭卷 ₩3,000/条。下午5点后更热闹。',
+        },
+        transit_from_prev: { method: 'car', minutes: 15, distance_km: 4.5 },
+      },
+      {
+        time: '18:00',
+        name: { ko: '한강공원 (반포 무지개분수)', en: 'Han River Park (Banpo Rainbow Fountain)', ja: '漢江公園（盤浦虹噴水）', zh: '汉江公园（盘浦彩虹喷泉）' },
+        stay_min: 60,
+        photo: '/1uA0qa_반포대교(1).webp',
+        description: {
+          ko: '한강 일몰과 반포대교 무지개분수 쇼. 4-10월 운영, 1일 4-6회 분수 가동.',
+          en: 'Han River sunset and Banpo Bridge Rainbow Fountain show. Apr-Oct, 4-6 shows daily.',
+          ja: '漢江の夕日と盤浦大橋の虹の噴水ショー。4-10月運営、1日4-6回。',
+          zh: '汉江日落和盘浦大桥彩虹喷泉表演。4-10月运营，每日4-6场。',
+        },
+        entry_fee_krw: 0,
+        tip: {
+          ko: '분수 시간표는 시즌마다 변경 — 영업가이드에 미리 확인. 도시락 또는 치맥 추천.',
+          en: 'Fountain schedule varies by season — confirm with our concierge. BYO picnic or chimaek recommended.',
+          ja: '噴水スケジュールは季節により変動 — コンシェルジュに事前確認。お弁当やチメク推奨。',
+          zh: '喷泉时间随季节变化 — 请提前向礼宾确认。建议自备便当或炸鸡啤酒。',
+        },
+        transit_from_prev: { method: 'car', minutes: 25, distance_km: 9.0 },
+      },
     ],
   },
 
