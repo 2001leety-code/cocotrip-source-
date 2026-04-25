@@ -1,6 +1,6 @@
 // TourBookingDialog — 투어 상세 CTA 클릭 시 인원수·날짜·언어·addon 선택 + PayPal 직진입.
 // productType 매핑 있으면 (대부분) PayPalBookingButton, 없으면 (multicity-3d) charter 페이지 redirect.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -9,6 +9,7 @@ import { Calendar, Users, Languages, Plus, Minus, Check } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
+import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
@@ -96,6 +97,29 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const [driverLang, setDriverLang] = useState<DriverLanguage>(availableLangs[0]);
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
 
+  // Firestore tour_availability cache (월별). 비어있으면 mock fallback.
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [firestoreCache, setFirestoreCache] = useState<Map<string, AvailabilityEntry>>(new Map());
+
+  useEffect(() => {
+    const ym = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}`;
+    let cancelled = false;
+    fetchMonthAvailability(tour.id, ym)
+      .then((map) => { if (!cancelled) setFirestoreCache(map); })
+      .catch(() => { /* silent — mock fallback이 처리 */ });
+    return () => { cancelled = true; };
+  }, [tour.id, calendarMonth]);
+
+  /** Firestore 우선, mock fallback 결합한 단일 일자 검사. */
+  function isDateBlocked(iso: string): boolean {
+    if (!iso) return false;
+    const fsEntry = firestoreCache.get(iso);
+    if (fsEntry && (fsEntry.status === 'fully_booked' || fsEntry.status === 'blackout')) {
+      return true;
+    }
+    return !checkAvailability(tour.id, iso).available;
+  }
+
   const days = Math.max(1, tour.durationDays);
 
   // 비-영어 기사는 자동으로 해당 addon 추가
@@ -112,7 +136,14 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const totalKRW = baseKRW + addonKRW;
 
   const productType = useMemo(() => getTourProductType(tour.id), [tour.id]);
-  const availability = useMemo(() => checkAvailability(tour.id, date), [tour.id, date]);
+  const availability = useMemo(() => {
+    if (!date) return { available: true } as const;
+    const fsEntry = firestoreCache.get(date);
+    if (fsEntry && (fsEntry.status === 'fully_booked' || fsEntry.status === 'blackout')) {
+      return { available: false, reason: fsEntry.status } as const;
+    }
+    return checkAvailability(tour.id, date);
+  }, [tour.id, date, firestoreCache]);
   const langKey = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
   const availabilityMsg = availability.reason ? REASON_LABELS[availability.reason][langKey] : '';
   const canCheckoutDirectly = productType !== null && totalKRW > 0 && !!date && availability.available;
@@ -214,7 +245,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   mode="single"
                   selected={dateFromIso(date)}
                   onSelect={(d) => setDate(isoFromDate(d))}
-                  disabled={(d) => !checkAvailability(tour.id, isoFromDate(d)).available}
+                  onMonthChange={setCalendarMonth}
+                  disabled={(d) => isDateBlocked(isoFromDate(d))}
                   fromDate={new Date()}
                 />
               </PopoverContent>
