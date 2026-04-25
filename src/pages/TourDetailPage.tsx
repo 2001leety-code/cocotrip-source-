@@ -237,13 +237,18 @@ export default function TourDetailPage() {
           >
             <Users className="w-3 h-3" />{VEHICLE_LABEL[tour.vehicleType]}
           </span>
-          <span
-            className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(255,200,80,0.08)', border: '1px solid rgba(255,200,80,0.20)', color: '#FFD250' }}
-          >
-            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-            4.9 (32)
-          </span>
+          {tour.rating && tour.rating > 0 && (
+            <span
+              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
+              style={{ background: 'rgba(255,200,80,0.08)', border: '1px solid rgba(255,200,80,0.20)', color: '#FFD250' }}
+            >
+              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+              {tour.rating.toFixed(1)}
+              {tour.reviewCount && tour.reviewCount > 0 && (
+                <span className="text-[10px] opacity-60">({tour.reviewCount})</span>
+              )}
+            </span>
+          )}
           {(() => {
             const langs = (tour.driverLanguages && tour.driverLanguages.length > 0)
               ? tour.driverLanguages
