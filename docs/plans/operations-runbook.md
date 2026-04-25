@@ -190,19 +190,39 @@ KRW: ₩{amountKRW}
 이번 세션 다른 사람이 이어서 일할 때 알아야 할 것:
 - main 최신 커밋 + 모든 PR (메모리 [project_cocotrip_phase4_plan.md](project_cocotrip_phase4_plan.md) + 본 런북)
 - 환경 변수: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GMAIL_USER`, `GMAIL_PASS`, `GOOGLE_SERVICE_ACCOUNT_KEY`, `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `(VITE_TRIPADVISOR_API_KEY, VITE_GOOGLE_PLACES_API_KEY)` — 후 2개 옵션
-- Firestore 컬렉션: `bookings`, `pending_free_claims`, `charter_inquiries`, (향후) `tour_availability`
-- 관리자 페이지: `/admin`, `/admin/claims`
-- 아직 미구현: tour_availability 백엔드, /admin/tours, /admin/availability
+- Firestore 컬렉션: `bookings`, `pending_free_claims`, `charter_inquiries`, `tour_availability` (✅ 구현 완료)
+- 관리자 페이지: `/admin`, `/admin/claims`, `/admin/availability`, `/admin/sales` (PR #40 머지 후)
+- 자동화 cron: `daily-report` (07:00 KST), `refund-reminder` (08:00 KST, PR #39 머지 후)
 
 ---
 
 ## 8. 향후 자동화 우선순위
 
-| # | 항목 | 이유 |
+| # | 항목 | 상태 |
 |---|---|---|
-| 1 | tour_availability Firestore 컬렉션 + admin 캘린더 | 가용성 mock 졸업 |
-| 2 | KakaoTalk 알림채널 | 한국어 고객 응대 (Telegram 외) |
-| 3 | 운전기사 자동 매칭 (driver pool 생기면) | 배차 수동 결정 자동화 |
-| 4 | 환불 정책 자동 알림 (취소 7일 전 reminder) | 무환불 데드라인 안내 |
-| 5 | Tripadvisor/Google API 통합 | 외부 검증 평점 노출 |
-| 6 | 매출 대시보드 (월/주/일) | Sheets 의존 졸업 |
+| 1 | tour_availability Firestore + admin 캘린더 | ✅ **완료** (PR #36/#37/#38, firebase deploy) |
+| 2 | KakaoTalk 알림채널 | ⏳ 비즈니스 계정 발급 대기 (외국인 전용 — 우선순위 낮음) |
+| 3 | 운전기사 자동 매칭 | ⏸ 보류 (driver pool 미존재) |
+| 4 | 자유 취소 데드라인 reminder (D-4 자동 발송) | ✅ **완료** (PR #39 — 4언어, freeCancelReminderSent 마킹, dryRun 옵션) |
+| 5 | Tripadvisor/Google API 통합 | ⏳ 사용자 API 키 발급 대기 |
+| 6 | 매출 대시보드 (월/주/일) | ✅ **완료** (PR #40 — `/admin/sales` Firestore SSOT, KPI/일별/상품별/최근) |
+
+### 환불 정책 안내 (refund-reminder 발송 기준)
+
+기존 런북에 적힌 "취소 7일 전 reminder"는 stale. 실제 정책은 **시간 단위 (Bronze 등급 기준)**:
+
+| 투어 출발 전 시간 | 환불율 (일반) | 환불율 (Gold) | 환불율 (Platinum) |
+|---|---|---|---|
+| ≥72h | 100% | 100% | 100% |
+| 48~72h | 80% | 100% | 100% |
+| 24~48h | 50% | 80% | 100% |
+| 12~24h | 0% | 50% | 80% |
+| <12h / no-show | 0% | 0% | 0% |
+
+자유취소(100% 환불) 마감은 **출발 72h 전 (Bronze 기준)**. cron은 **D-4(투어 4일 전)**에 reminder 이메일 자동 발송 → 고객에게 24h 결정 시간 제공.
+
+코드: [api/_refund-policy.js](../../api/_refund-policy.js) (정책 SSOT), [api/_crons/refund-reminder.js](../../api/_crons/refund-reminder.js) (D-4 cron)
+
+### 후속 보안 강화 (PR #40에 통합됨)
+- `api/_shared/admin-auth.js` — `verifyAdminToken(req)` 헬퍼
+- admin-bookings + admin-sales 둘 다 Firebase ID token + ADMIN_EMAIL 검증 적용
