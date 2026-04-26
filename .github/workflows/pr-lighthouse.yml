@@ -1,0 +1,41 @@
+name: PR Lighthouse (Vercel Preview)
+
+# Runs Lighthouse against the per-PR Vercel preview URL when it's ready.
+# Asserts accessibility ≥ 0.85 (error). Performance/SEO/best-practices are
+# warn-level so they don't block PRs but surface in the report.
+
+on:
+  deployment_status:
+
+jobs:
+  lighthouse:
+    if: |
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Preview' &&
+      github.event.deployment.creator.login == 'vercel[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR head (use deployment ref)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          urls: |
+            ${{ github.event.deployment_status.target_url }}/
+            ${{ github.event.deployment_status.target_url }}/tours
+            ${{ github.event.deployment_status.target_url }}/charter
+          configPath: ./.lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+        continue-on-error: true
