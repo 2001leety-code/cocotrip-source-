@@ -41,8 +41,18 @@ export function StopCard({ stop }: { stop: PlanStop }) {
   return (
     <div
       ref={cardRef}
-      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`${stop.display_name || stop.name_en || stop.name || stop.name_ko}, ${stop.start_time}`}
+      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5CFC] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0412] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
       onClick={toggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle();
+        }
+      }}
     >
       {/* Left accent bar — visual anchor that ties the time to the card */}
       <span aria-hidden className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r"
