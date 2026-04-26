@@ -27,9 +27,12 @@ export function useAutoTranslate(
   plan: PlanDocument | null,
   setPlan: SetPlanFn,
   language: string,
-): { isTranslating: boolean } {
+): { isTranslating: boolean; translationError: string | null } {
   const originalItineraryRef = useRef<PlanDocument['itinerary'] | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  // Surfaces in IntroSlide/OutroSlide as a yellow chip when non-null. Previously
+  // failures were silently logged → user saw English text without knowing why.
+  const [translationError, setTranslationError] = useState<string | null>(null);
   // NOTE: we watch `planLoaded` (boolean) instead of `plan` object identity so this effect
   //   fires exactly once when the Firestore snapshot first lands, and thereafter only when
   //   the user switches language. Watching plan directly would re-trigger on every Firestore
@@ -51,12 +54,14 @@ export function useAutoTranslate(
       if (originalItineraryRef.current) {
         setPlan((prev) => prev ? { ...prev, itinerary: originalItineraryRef.current! } : prev);
       }
+      setTranslationError(null);
       return;
     }
 
     // Translate to target language (with Firestore cache)
     const controller = new AbortController();
     setIsTranslating(true);
+    setTranslationError(null);
     (async () => {
       try {
         // --- Step 1: Check Firestore cache ---
@@ -118,7 +123,10 @@ export function useAutoTranslate(
           }
         }
       } catch (e: unknown) {
-        if (e instanceof Error && e.name !== 'AbortError') console.error('[translate] failed:', e);
+        if (e instanceof Error && e.name !== 'AbortError') {
+          console.error('[translate] failed:', e);
+          setTranslationError(e.message || 'Translation failed');
+        }
       } finally {
         setIsTranslating(false);
       }
@@ -127,5 +135,5 @@ export function useAutoTranslate(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, planLoaded]);
 
-  return { isTranslating };
+  return { isTranslating, translationError };
 }

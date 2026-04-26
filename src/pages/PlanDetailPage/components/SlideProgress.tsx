@@ -1,17 +1,21 @@
 // Slide progress indicator.
-// <=8 slides: dots with active scale
+// <=8 slides: dots with active scale (ad slides shown smaller / dimmer
+//             so users can distinguish "content" vs "ad" before swiping)
 // >8 slides: compact "{current+1} / {total}" + thin progress bar
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
 import { BRAND } from '@/lib/design-tokens';
+import type { Slide } from '../lib/buildSlides';
 
 interface SlideProgressProps {
   current: number;
   total: number;
   onDotClick: (idx: number) => void;
+  /** Optional — when provided, ad slides render as smaller / dimmer dots. */
+  slides?: Slide[];
 }
 
-export function SlideProgress({ current, total, onDotClick }: SlideProgressProps) {
+export function SlideProgress({ current, total, onDotClick, slides }: SlideProgressProps) {
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
@@ -41,23 +45,34 @@ export function SlideProgress({ current, total, onDotClick }: SlideProgressProps
 
   return (
     <div className="flex items-center justify-center gap-1.5 py-3">
-      {Array.from({ length: total }).map((_, i) => (
-        <button
-          key={i}
-          onClick={() => onDotClick(i)}
-          className="transition-all duration-200"
-          style={{
-            width: current === i ? 20 : 6,
-            height: 6,
-            borderRadius: 3,
-            background: current === i
-              ? BRAND.gradient.primaryHorizontal
-              : 'rgba(255,255,255,0.15)',
-            transform: current === i ? 'scale(1)' : 'scale(0.85)',
-          }}
-          aria-label={`${t.a11y?.goToSlide ||'Go to slide'} ${i + 1}`}
-        />
-      ))}
+      {Array.from({ length: total }).map((_, i) => {
+        const isActive = current === i;
+        const isAd = slides?.[i]?.type === 'ad';
+        // Ad slides: 4px square (vs 6px for content) + dimmer so users can
+        // see at a glance "this slot is sponsored" before tapping into it.
+        const dotWidth = isActive ? 20 : isAd ? 4 : 6;
+        const dotHeight = isActive ? 6 : isAd ? 4 : 6;
+        const dotBg = isActive
+          ? BRAND.gradient.primaryHorizontal
+          : isAd
+            ? 'rgba(255,255,255,0.20)'
+            : 'rgba(255,255,255,0.35)';
+        return (
+          <button
+            key={i}
+            onClick={() => onDotClick(i)}
+            className="transition-all duration-200"
+            style={{
+              width: dotWidth,
+              height: dotHeight,
+              borderRadius: 3,
+              background: dotBg,
+              transform: isActive ? 'scale(1)' : 'scale(0.85)',
+            }}
+            aria-label={`${t.a11y?.goToSlide ||'Go to slide'} ${i + 1}${isAd ? ' (sponsored)' : ''}`}
+          />
+        );
+      })}
     </div>
   );
 }

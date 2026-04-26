@@ -119,7 +119,7 @@ export default function PlanDetailPage() {
   });
 
   // Auto-translate (locked hook - see useAutoTranslate.ts for invariants)
-  const { isTranslating } = useAutoTranslate(plan, setPlan, language);
+  const { isTranslating, translationError } = useAutoTranslate(plan, setPlan, language);
 
   // PDF download (locked module - see pdfGenerator.ts for invariants)
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
@@ -185,7 +185,7 @@ export default function PlanDetailPage() {
   const slideElements = slides.map((slide, idx) => {
     switch (slide.type) {
       case 'intro':
-        return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} />;
+        return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} />;
       case 'day': {
         const dayIdx = slide.dayIndex || 0;
         return (
@@ -247,7 +247,7 @@ export default function PlanDetailPage() {
         <SectionTabs slides={slides} current={current} onJump={goToSlide} />
 
         {/* Fine-grained slide dots */}
-        <SlideProgress current={current} total={slides.length} onDotClick={goToSlide} />
+        <SlideProgress current={current} total={slides.length} onDotClick={goToSlide} slides={slides} />
 
         {/* Swipe carousel */}
         <SwipeContainer
