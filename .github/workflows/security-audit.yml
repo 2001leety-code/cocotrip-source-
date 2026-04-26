@@ -1,0 +1,45 @@
+name: Security Audit
+
+# Weekly npm audit + manual trigger. Reports high/critical vulnerabilities
+# even when Dependabot hasn't yet opened a fix PR (registry advisory lag).
+
+on:
+  schedule:
+    # Mondays 03:00 UTC (after Dependabot's 02:00 KST = UTC 17:00 Sun batch)
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: npm audit (high + critical only)
+        # Production deps must be clean. Dev deps allowed to have findings
+        # if upstream hasn't released a fix yet — surfaced via Dependabot PRs.
+        run: |
+          set +e
+          npm audit --audit-level=high --omit=dev
+          PROD_EXIT=$?
+          echo "---"
+          echo "Dev deps (informational, not blocking):"
+          npm audit --audit-level=high --include=dev || true
+          if [ $PROD_EXIT -ne 0 ]; then
+            echo "::error::High/critical vulnerabilities in production dependencies"
+            exit 1
+          fi
