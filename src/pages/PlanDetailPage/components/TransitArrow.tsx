@@ -136,7 +136,7 @@ function SubwayStep({ step, trKeys, lang }: { step: TransitStepDetail; trKeys: R
       )}
       {step.toStationInfo?.lostCenterPhone && (
         <details className="mt-1">
-          <summary className="text-[9px] text-white/55 cursor-pointer hover:text-white/45 list-none flex items-center gap-1">
+          <summary className="text-[9px] text-white/55 cursor-pointer hover:text-white/55 list-none flex items-center gap-1">
             <Phone className="w-2.5 h-2.5" /> {trKeys.stationInfo || 'Station info'}
           </summary>
           <div className="mt-1 pl-4 text-[9px] text-white/55 space-y-0.5">

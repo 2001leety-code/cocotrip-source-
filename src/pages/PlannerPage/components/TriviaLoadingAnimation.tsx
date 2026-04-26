@@ -72,7 +72,7 @@ export function TriviaLoadingAnimation({ p, streamStep }: { p: PlannerDict; stre
 
         {/* Trivia Tip */}
         <div className="text-center min-h-[40px] flex items-center mt-1">
-          <p className="text-[11px] text-white/45 leading-relaxed max-w-xs"
+          <p className="text-[11px] text-white/55 leading-relaxed max-w-xs"
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(6px)', transition: 'opacity 0.35s ease, transform 0.35s ease' }}>
             {tips[tipIdx]}
           </p>

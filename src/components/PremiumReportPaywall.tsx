@@ -116,7 +116,7 @@ export function PremiumReportPaywall({ lang, p, totalDays, onUnlocked }: Premium
       {/* Title & subtitle */}
       <div className="px-5 pt-3 pb-4">
         <h3 className="text-lg font-bold text-white mb-1">{l.title}</h3>
-        <p className="text-sm text-white/45">{l.subtitle}</p>
+        <p className="text-sm text-white/55">{l.subtitle}</p>
       </div>
 
       {/* Features */}

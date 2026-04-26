@@ -176,7 +176,7 @@ export default function CharterPage() {
           <Sparkles className="w-4 h-4 text-[#B668FC] shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold text-white leading-tight">✨ 신규 6단계 위저드 견적</p>
-            <p className="text-[11px] text-white/45 mt-0.5">더 쉽게 · 2분 안에 · 터미널·편명·수하물까지 한번에</p>
+            <p className="text-[11px] text-white/55 mt-0.5">더 쉽게 · 2분 안에 · 터미널·편명·수하물까지 한번에</p>
           </div>
           <span className="text-[11px] text-[#B668FC] font-bold">→</span>
         </Link>
@@ -317,7 +317,7 @@ export default function CharterPage() {
 
           {/* 다일 / 기타 안내 */}
           {(service === 'multiday' || service === 'other') && (
-            <div className="bg-white/[0.03] rounded-xl px-4 py-3 text-xs text-white/45 leading-relaxed">
+            <div className="bg-white/[0.03] rounded-xl px-4 py-3 text-xs text-white/55 leading-relaxed">
               {c.multidayNote ?? '다일 투어 및 기타 문의는 일정 · 도시 · 인원을 아래 추가 요청사항에 적어주시면 WhatsApp 또는 이메일로 정확한 견적을 보내드립니다.'}
             </div>
           )}
@@ -501,7 +501,7 @@ export default function CharterPage() {
             {/* 추가 정보 */}
             <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5'}`} style={isMobile ? { animationDelay: '0.3s' } : undefined}>
               <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold mb-3">{c.includedTitle ?? '포함 사항'}</p>
-              <ul className="space-y-1.5 text-xs text-white/45 leading-relaxed">
+              <ul className="space-y-1.5 text-xs text-white/55 leading-relaxed">
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included1 ?? '차량 1대 기준 (인원 추가 시 차량 추가)'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included2 ?? '영어 소통 가능 기사 · 24시간 지원'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included3 ?? '대형 캐리어 수납 가능'}</span></li>

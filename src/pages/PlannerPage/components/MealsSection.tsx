@@ -47,7 +47,7 @@ export function MealsSection({ meals, p, enriching }: { meals?: Meal[]; p: Plann
                 <span className="inline-flex items-center gap-0.5"><CreditCard className="w-3 h-3" /> {meal.costPerPerson}</span>
                 {meal.waitTime && <span className="inline-flex items-center gap-0.5"><Clock className="w-3 h-3" /> {meal.waitTime}</span>}
               </div>
-              {meal.tip && <p className="text-xs text-white/45 leading-relaxed flex-1">{meal.tip}</p>}
+              {meal.tip && <p className="text-xs text-white/55 leading-relaxed flex-1">{meal.tip}</p>}
               {mapUrl && (
                 <a href={mapUrl} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#03C75A]/30 bg-[#03C75A]/8 text-[#03C75A] text-xs font-medium hover:bg-[#03C75A]/18 transition-colors mt-auto w-fit">

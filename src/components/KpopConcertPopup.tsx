@@ -130,14 +130,14 @@ export function KpopConcertPopup() {
                           )}
                         </div>
                         {/* 투어명 */}
-                        <p className="text-xs text-white/45 leading-snug mb-2">{concert.tourName}</p>
+                        <p className="text-xs text-white/55 leading-snug mb-2">{concert.tourName}</p>
                         {/* 날짜 + 장소 */}
                         <div className="flex flex-wrap gap-x-4 gap-y-1">
                           <div className="flex items-center gap-1.5 text-xs text-white/55">
                             <Calendar className="w-3 h-3 shrink-0 text-[#7C5CFC]" />
                             <span>{lk === 'ko' ? concert.dateDisplayKo : concert.dateDisplay}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-white/45">
+                          <div className="flex items-center gap-1.5 text-xs text-white/55">
                             <MapPin className="w-3 h-3 shrink-0 text-[#EA537E]" />
                             <span>{lk === 'ko' ? concert.venueKo : concert.venue}</span>
                           </div>

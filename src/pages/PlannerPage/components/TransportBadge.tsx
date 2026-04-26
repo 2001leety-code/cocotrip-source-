@@ -14,7 +14,7 @@ export function TransportBadge({ transport, p }: { transport: TransportToNext; p
         {[0,1,2,3].map(i => <div key={i} className="w-px h-1.5 bg-white/15 my-px" />)}
       </div>
       <div className="flex flex-col gap-1.5 flex-1">
-        <span className="inline-flex items-center gap-1.5 text-xs text-white/45 bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 rounded-full w-fit">
+        <span className="inline-flex items-center gap-1.5 text-xs text-white/55 bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 rounded-full w-fit">
           {icon}
           <span>{transport.detail}</span>
           <span className="text-white/55">·</span>

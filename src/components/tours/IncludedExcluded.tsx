@@ -65,7 +65,7 @@ export function IncludedExcluded({ language, includedExtra = [], excludedExtra =
         </div>
         <ul className="space-y-1.5">
           {excluded.map((h, i) => (
-            <li key={i} className="flex items-start gap-2 text-[12px] text-white/45 leading-snug">
+            <li key={i} className="flex items-start gap-2 text-[12px] text-white/55 leading-snug">
               <span className="mt-1 w-1 h-1 rounded-full shrink-0 bg-white/30" />
               <span>{txt(h.text, language)}</span>
             </li>

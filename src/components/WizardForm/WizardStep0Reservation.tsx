@@ -82,7 +82,7 @@ export function WizardStep0Reservation({
               } : {}}>
               <span className={sel ? 'text-white' : 'text-white/55'}>{q.icon}</span>
               <p className="text-[13px] font-bold leading-tight">{title}</p>
-              <p className="text-[10px] text-white/45 leading-tight">{sub}</p>
+              <p className="text-[10px] text-white/55 leading-tight">{sub}</p>
             </button>
           );
         })}

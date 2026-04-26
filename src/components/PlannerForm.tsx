@@ -216,7 +216,7 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
 
       {hasSelection && !open && (
         <div className="mt-2 flex items-center gap-2">
-          <span className="text-xs text-white/45">{nightsLabel(p, nights)}</span>
+          <span className="text-xs text-white/55">{nightsLabel(p, nights)}</span>
           <button type="button" onClick={() => setOpen(true)}
             className="text-xs text-[#7C5CFC] underline underline-offset-2">{String(p.calChange ?? '')}</button>
         </div>
@@ -260,10 +260,10 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
           {/* month nav */}
           <div className="flex items-center justify-between px-4 pb-1">
             <button type="button" onClick={() => viewMonth === 0 ? (setViewYear(y => y-1), setViewMonth(11)) : setViewMonth(m => m-1)}
-              className="w-8 h-8 rounded-full border border-white/12 text-white/45 hover:text-white hover:border-white/30 flex items-center justify-center transition-all">‹</button>
+              className="w-8 h-8 rounded-full border border-white/12 text-white/55 hover:text-white hover:border-white/30 flex items-center justify-center transition-all">‹</button>
             <p className="text-sm font-semibold text-white">{hdr}</p>
             <button type="button" onClick={() => viewMonth === 11 ? (setViewYear(y => y+1), setViewMonth(0)) : setViewMonth(m => m+1)}
-              className="w-8 h-8 rounded-full border border-white/12 text-white/45 hover:text-white hover:border-white/30 flex items-center justify-center transition-all">›</button>
+              className="w-8 h-8 rounded-full border border-white/12 text-white/55 hover:text-white hover:border-white/30 flex items-center justify-center transition-all">›</button>
           </div>
 
           {/* weekday headers */}
@@ -308,7 +308,7 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
           {/* actions */}
           <div className="flex gap-2 px-4 pb-4">
             <button type="button" onClick={() => { setTmpS(''); setTmpE(''); setPicking('start'); }}
-              className="flex-1 py-2.5 rounded-xl border border-white/12 text-sm text-white/45 hover:border-white/25 hover:text-white/65 transition-all">
+              className="flex-1 py-2.5 rounded-xl border border-white/12 text-sm text-white/55 hover:border-white/25 hover:text-white/65 transition-all">
               {String(p.calClear ?? '')}
             </button>
             <button type="button" onClick={confirm} disabled={!tmpS || !tmpE}
@@ -378,7 +378,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
   const chipSel  = 'bg-[rgba(124,92,252,.12)] border-[rgba(124,92,252,.5)] text-[#9d7ffe]';
   const chipBase = 'border-white/12 bg-white/[0.04] text-white/55 hover:border-white/25 hover:text-white/75';
   const subSel   = 'bg-[rgba(234,83,126,.10)] border-[rgba(234,83,126,.4)] text-[#EA537E]';
-  const subBase  = 'border-white/10 bg-white/[0.03] text-white/45 hover:border-white/20 hover:text-white/65';
+  const subBase  = 'border-white/10 bg-white/[0.03] text-white/55 hover:border-white/20 hover:text-white/65';
   const btnSel   = 'bg-[rgba(124,92,252,.10)] border-[rgba(124,92,252,.45)] text-[#9d7ffe]';
   const btnBase  = 'border-white/10 bg-white/[0.04] text-white/50 hover:border-white/22 hover:text-white/70';
 
@@ -505,7 +505,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
             <Car className="w-5 h-5 shrink-0 mt-0.5" />
             <div className="text-left">
               <p className="font-semibold">{p.vehicleStaria}</p>
-              <p className="text-[11px] text-white/45 font-normal mt-0.5">{p.transportCharter}</p>
+              <p className="text-[11px] text-white/55 font-normal mt-0.5">{p.transportCharter}</p>
             </div>
           </button>
           {/* 스프린터 */}

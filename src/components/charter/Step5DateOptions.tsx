@@ -143,7 +143,7 @@ function Label({ children }: { children: React.ReactNode }) {
 function LuggageCounter({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] text-white/45 truncate">{label}</span>
+      <span className="text-[10px] text-white/55 truncate">{label}</span>
       <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-white/10 bg-white/[0.03]">
         <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-white/60 hover:text-white w-5 h-5">−</button>
         <span className="text-sm font-bold text-white">{value}</span>
