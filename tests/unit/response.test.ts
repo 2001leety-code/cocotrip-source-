@@ -1,9 +1,7 @@
 // Coverage for api/_shared/response.js — the standard JSON response wrappers.
 // Verifies success/fail/methodGuard contracts with a minimal Vercel-shaped res mock.
-import { describe, it, expect, vi } from 'vitest';
-// CommonJS module — Vitest auto-interops via require() at runtime.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { success, fail, methodGuard, _ok, _err } = require('../../api/_shared/response.js');
+import { describe, it, expect } from 'vitest';
+import { success, fail, methodGuard, _ok, _err } from '../../api/_shared/response.js';
 
 interface MockRes {
   statusCode?: number;
