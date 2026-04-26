@@ -8,7 +8,7 @@ import {
 } from '@/data/charterPricing';
 import type { WizardState } from './types';
 import { getWizardI18n } from './wizard-i18n';
-import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
+import { normalizeDestinationToMatrixKey, getDestinationSuggestions } from './destinationKeyMap';
 
 interface DestinationOption {
   key: string;
@@ -107,8 +107,16 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
           value={state.destinationCustom ?? ''}
           onChange={e => patch({ destinationKey: undefined, destinationCustom: e.target.value })}
           placeholder={i18n.destCustomPlaceholder}
+          list="charter-dest-suggestions"
+          autoComplete="off"
           className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/85 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
         />
+        {/* 자동완성 datalist — 'dan' 입력 시 단양/Damyang 제안 */}
+        <datalist id="charter-dest-suggestions">
+          {getDestinationSuggestions(state.destinationCustom).map((s, i) => (
+            <option key={`${s.value}-${i}`} value={s.value}>{s.display}</option>
+          ))}
+        </datalist>
         {state.destinationCustom && state.destinationCustom.length >= 2 && (
           (() => {
             const matched = normalizeDestinationToMatrixKey(state.destinationCustom);

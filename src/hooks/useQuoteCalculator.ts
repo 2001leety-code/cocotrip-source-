@@ -12,7 +12,7 @@ import {
   ATTRACTION_FEES,
 } from '@/data/charterPricing';
 import type { WizardState, QuoteBreakdown, QuoteAddon, VehicleType } from '@/components/charter/types';
-import { normalizeDestinationToMatrixKey } from '@/components/charter/destinationKeyMap';
+import { normalizeDestinationToMatrixKey, getMatrixKeyAlternatives } from '@/components/charter/destinationKeyMap';
 
 // 차종별 배수 (스타리아 = 1.0 기준)
 const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
@@ -22,10 +22,16 @@ const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
 };
 
 function matrixLookup(origin: string, destination: string): { km?: number; hours?: number; priceKRW?: number } | null {
-  const key = `${origin}→${destination}`;
-  const entry = (DISTANCE_MATRIX as unknown as Record<string, unknown>)[key];
-  if (!entry || typeof entry !== 'object') return null;
-  return entry as { km?: number; hours?: number; priceKRW?: number };
+  // METRO ↔ city 키 fallback — 부산/BUS_METRO 같은 동의 키 자동 시도
+  const candidates = getMatrixKeyAlternatives(destination);
+  for (const dest of candidates) {
+    const key = `${origin}→${dest}`;
+    const entry = (DISTANCE_MATRIX as unknown as Record<string, unknown>)[key];
+    if (entry && typeof entry === 'object') {
+      return entry as { km?: number; hours?: number; priceKRW?: number };
+    }
+  }
+  return null;
 }
 
 // destinationCustom (한글 자유입력) → 매트릭스 영문 키 매핑 시도
