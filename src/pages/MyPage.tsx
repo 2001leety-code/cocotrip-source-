@@ -52,8 +52,8 @@ export default function MyPage() {
   const [redeeming, setRedeeming] = useState<number | null>(null);
 
   usePageMeta({
-    title: 'My Page — Membership & Rewards',
-    description: 'Manage your CocoTrip membership, trip coins, coupons, wishlists and travel itineraries.',
+    title: t.pageMeta?.myPage?.title ?? 'My Page — Membership & Rewards',
+    description: t.pageMeta?.myPage?.description ?? 'Manage your CocoTrip membership, trip coins, coupons, wishlists and travel itineraries.',
   });
 
   const handleCopy = (code: string) => {

@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Heart, X, Calendar, Trash2, ShoppingBag } from 'lucide-react';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 
 // ── 하트 토글 버튼 (상품 카드에 삽입) ──
 export function WishlistToggle({
@@ -24,6 +25,7 @@ export function WishlistToggle({
   size?: number;
 }) {
   const { toggle, isWishlisted } = useWishlist();
+  const { t } = useLanguage();
   const wishlisted = isWishlisted(productId);
   const [animating, setAnimating] = useState(false);
 
@@ -39,7 +41,7 @@ export function WishlistToggle({
     <button
       onClick={handleClick}
       className="group relative p-2 rounded-full transition-all duration-200 hover:bg-white/10"
-      aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+      aria-label={wishlisted ? (t.a11y?.removeFromWishlist ||'Remove from wishlist') : (t.a11y?.addToWishlist ||'Add to wishlist')}
     >
       <Heart
         size={size}
@@ -57,6 +59,7 @@ export function WishlistToggle({
 export function WishlistPanel() {
   const { items, toggle, loading } = useWishlist();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +80,7 @@ export function WishlistPanel() {
       <button
         onClick={() => setIsOpen(true)}
         className="relative p-2 rounded-full hover:bg-white/10 transition-colors"
-        aria-label="Wishlist"
+        aria-label={t.a11y?.wishlist ||'Wishlist'}
       >
         <Heart size={20} className="text-white/70 hover:text-white" />
         {items.length > 0 && (

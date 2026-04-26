@@ -26,8 +26,8 @@ export default function CharterNewPage() {
   const [completedState, setCompletedState] = useState<WizardState | null>(null);
 
   usePageMeta({
-    title: 'Charter Quote — Private Car in Korea',
-    description: 'Private chauffeur for airport transfer, day tours, and multi-day intercity. 6-step instant quote.',
+    title: t.pageMeta?.charterNew?.title ?? 'Charter Quote — Private Car in Korea',
+    description: t.pageMeta?.charterNew?.description ?? 'Private chauffeur for airport transfer, day tours, and multi-day intercity. 6-step instant quote.',
     ogImage: '/hero-seoul-real.webp',
   });
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { Bot, MessageCircle, X, Send } from 'lucide-react';
-import type { Language } from '@/i18n';
+import { translations, type Language } from '@/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { TourInputSheet } from '@/components/TourInputSheet';
@@ -168,7 +168,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
           {
             id: generateId(),
             role: 'ai',
-            text: payload?.reply ?? 'Sorry, something went wrong.',
+            text: payload?.reply ||'Sorry, something went wrong.',
             time: nowTime(),
           },
         ]);
@@ -552,7 +552,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
       {/* ── 토글 버튼 ─────────────────────────────────────────── */}
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label="Open chat"
+        aria-label={translations[language].a11y?.openChat ||'Open chat'}
         style={{
           position: 'fixed',
           bottom: '24px',

@@ -57,7 +57,7 @@ export function SortableStopCard({ stop, stopId, editMode, onDelete }: SortableS
             {...attributes}
             {...listeners}
             className="p-1 rounded-md bg-white/5 hover:bg-white/10 cursor-grab active:cursor-grabbing transition-colors touch-none"
-            title="Drag to reorder"
+            title={t.a11y?.dragToReorder ||'Drag to reorder'}
           >
             <GripVertical className="w-4 h-4 text-white/30" />
           </button>

@@ -54,7 +54,7 @@ export function SlideProgress({ current, total, onDotClick }: SlideProgressProps
               : 'rgba(255,255,255,0.15)',
             transform: current === i ? 'scale(1)' : 'scale(0.85)',
           }}
-          aria-label={`Go to slide ${i + 1}`}
+          aria-label={`${t.a11y?.goToSlide ||'Go to slide'} ${i + 1}`}
         />
       ))}
     </div>

@@ -29,8 +29,8 @@ export default function MyPlansPage() {
   const [loading, setLoading] = useState(true);
 
   usePageMeta({
-    title: 'My Plans — AI Travel Itineraries',
-    description: 'View and manage your AI-generated Korea travel itineraries.',
+    title: t.pageMeta?.myPlans?.title ||'My Plans — AI Travel Itineraries',
+    description: t.pageMeta?.myPlans?.description ||'View and manage your AI-generated Korea travel itineraries.',
   });
 
   useEffect(() => {

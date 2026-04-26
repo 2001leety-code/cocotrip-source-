@@ -184,7 +184,7 @@ export function ShareMiniIcon({ planId, plan }: { planId: string; plan: PlanDocu
     <button
       onClick={handleShare}
       className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors ml-2"
-      aria-label="Share"
+      aria-label={t.a11y?.share ||'Share'}
     >
       <Link2 className="w-4 h-4 text-white/50" />
     </button>

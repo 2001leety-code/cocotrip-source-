@@ -9,8 +9,8 @@ const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-white/
 
 export function KpopConcertPopup() {
   const { language, t: globalT } = useLanguage();
-  const t = ((globalT as Record<string, unknown>).ads as Record<string, Record<string, string>> | undefined)?.kpopConcert ?? {} as Record<string, string>;
-  const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ?? 'en'; // concert data: ko/en only; ja/zh → en fallback
+  const t = ((globalT as Record<string, unknown>).ads as Record<string, Record<string, string>> | undefined)?.kpopConcert ||{} as Record<string, string>;
+  const lk = ({ ko: 'ko', en: 'en', ja: 'en', zh: 'en' } as const)[language] ||'en'; // concert data: ko/en only; ja/zh → en fallback
 
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -20,10 +20,10 @@ export function KpopConcertPopup() {
   const [pax, setPax] = useState(2);
 
   const concerts = useMemo(() => getUpcomingConcerts(), []);
-  const selected = concerts.find(c => c.id === selectedId) ?? null;
+  const selected = concerts.find(c => c.id === selectedId) ||null;
   const unitPrice = tripType === 'oneway'
-    ? (selected?.oneWayPrice ?? 35000)
-    : (selected?.roundTripPrice ?? 65000);
+    ? (selected?.oneWayPrice ||35000)
+    : (selected?.roundTripPrice ||65000);
   const totalPrice = unitPrice * pax;
   const canBook = selected && pickup && pax > 0;
 
@@ -49,7 +49,7 @@ export function KpopConcertPopup() {
           onClick={() => setDismissed(true)}
           className="w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-white/80 hover:text-white transition-colors"
           style={{ background: 'rgba(0,0,0,0.4)' }}
-          aria-label="Close"
+          aria-label={globalT.a11y?.close ||'Close'}
         >
           <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
         </button>

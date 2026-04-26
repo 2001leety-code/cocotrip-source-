@@ -13,7 +13,7 @@ import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-avail
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
-import type { Language } from '@/i18n';
+import { translations, type Language } from '@/i18n';
 
 function isoFromDate(d: Date | undefined): string {
   if (!d) return '';
@@ -196,7 +196,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 onClick={() => setPax(p => Math.max(1, p - 1))}
                 className="w-8 h-8 rounded-full flex items-center justify-center"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)' }}
-                aria-label="Decrease pax"
+                aria-label={translations[language].a11y?.decreasePax ||'Decrease passengers'}
               >
                 <Minus className="w-4 h-4 text-white/70" />
               </button>
@@ -206,7 +206,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 onClick={() => setPax(p => Math.min(tour.maxPax, p + 1))}
                 className="w-8 h-8 rounded-full flex items-center justify-center"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)' }}
-                aria-label="Increase pax"
+                aria-label={translations[language].a11y?.increasePax ||'Increase passengers'}
               >
                 <Plus className="w-4 h-4 text-white/70" />
               </button>

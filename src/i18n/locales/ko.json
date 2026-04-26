@@ -1603,5 +1603,71 @@
       "privacy": "개인정보",
       "travelTerms": "여행약관"
     }
+  },
+  "a11y": {
+    "openChat": "채팅 열기",
+    "previousImage": "이전 이미지",
+    "nextImage": "다음 이미지",
+    "goToImage": "이미지로 이동",
+    "goToSlide": "슬라이드로 이동",
+    "close": "닫기",
+    "decrease": "감소",
+    "increase": "증가",
+    "removeFromWishlist": "위시리스트에서 제거",
+    "addToWishlist": "위시리스트에 추가",
+    "wishlist": "위시리스트",
+    "decreasePax": "인원 감소",
+    "increasePax": "인원 증가",
+    "share": "공유",
+    "loading": "로딩 중",
+    "dragToReorder": "드래그하여 순서 변경",
+    "driverLanguages": "기사 가능 언어"
+  },
+  "pageMeta": {
+    "home": {
+      "title": "CocoTrip — 프리미엄 한국 여행",
+      "description": "한국 프라이빗 투어, 전세 차량, AI 여행 플래너. 공항 픽업, K-pop 셔틀, 서울·부산·경주 데이 투어."
+    },
+    "about": {
+      "title": "CocoTrip 소개",
+      "description": "CocoTrip은 프라이빗 투어, 전세 차량, AI 여행 플래너를 제공하는 한국 인바운드 프리미엄 여행사입니다."
+    },
+    "charterNew": {
+      "title": "전세 견적 — 한국 프라이빗 차량",
+      "description": "공항 픽업, 데이 투어, 다일 시내 전세 운전기사. 6단계 즉시 견적."
+    },
+    "charter": {
+      "title": "전세 차량 — 공항 픽업 & 데이 투어",
+      "description": "한국 프라이빗 전세 차량 예약. 공항 픽업, 데이 투어, K-pop 콘서트 셔틀. 현대 스타리아, 스프린터, 버스 이용 가능."
+    },
+    "myPage": {
+      "title": "마이페이지 — 멤버십 & 리워드",
+      "description": "CocoTrip 멤버십, 트립 코인, 쿠폰, 위시리스트, 여행 일정을 관리하세요."
+    },
+    "myPlans": {
+      "title": "내 여행 — AI 여행 일정",
+      "description": "AI가 생성한 한국 여행 일정을 보고 관리하세요."
+    },
+    "planner": {
+      "title": "AI 여행 플래너 — 맞춤 한국 일정",
+      "description": "AI로 맞춤형 한국 여행 일정을 만드세요. 무료, 즉시, 다국어 지원. 서울, 부산, 제주 및 더 많은 곳."
+    },
+    "privacy": {
+      "description": "CocoTrip 개인정보처리방침 — 개인정보 수집, 이용, 보호 방법."
+    },
+    "terms": {
+      "description": "CocoTrip 서비스 이용약관 — 예약, 결제, 취소, 환불 정책."
+    },
+    "travelTerms": {
+      "description": "CocoTrip 여행약관 — 해외 여행의 의무, 요금, 취소, 책임."
+    }
+  },
+  "adminSales": {
+    "kpi": {
+      "today": "오늘",
+      "week": "이번 주",
+      "month": "이번 달",
+      "ytd": "연 누적"
+    }
   }
 }
