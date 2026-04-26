@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Main bundle (eager — first paint critical, all index-* chunks)",
+    "path": "dist/assets/index-*.js",
+    "limit": "320 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor: Firebase (eager — auth/firestore on every page)",
+    "path": "dist/assets/vendor-firebase-*.js",
+    "limit": "150 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor: React (eager)",
+    "path": "dist/assets/vendor-react-*.js",
+    "limit": "20 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor: UI (lucide-react + framer-motion)",
+    "path": "dist/assets/vendor-ui-*.js",
+    "limit": "60 KB",
+    "gzip": true
+  },
+  {
+    "name": "html2pdf (lazy — PDF download only)",
+    "path": "dist/assets/html2pdf-*.js",
+    "limit": "300 KB",
+    "gzip": true
+  }
+]
