@@ -116,7 +116,7 @@ export function PurchaseSection({
                 disabled={!lastValues.current}
                 className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}>
-                Free Regeneration {'\u2014'} Create New Plan
+                {p.freeRegeneration || 'Free Regeneration'} {'\u2014'} {p.createNewPlan || 'Create New Plan'}
               </button>
             ) : (
               <PayPalBookingButton

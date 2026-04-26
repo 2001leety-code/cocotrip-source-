@@ -126,6 +126,17 @@
   "regionDetail": {
     "backToRegions": "Back to Regions",
     "bookNow": "Book Now",
+    "notFound": "Region not found",
+    "goHome": "Go Home",
+    "aboutHeading": "About",
+    "mustVisit": "Must-Visit",
+    "mustVisitAttractions": "Must-Visit Attractions",
+    "gallery": "Gallery",
+    "photoGallery": "Photo Gallery",
+    "planTrip": "Plan Your Trip to",
+    "planTripDesc": "Let COCOTRIP create a personalized tour experience just for you.",
+    "aiPlannerCta": "AI Planner",
+    "whatsappCta": "WhatsApp",
     "seoul": {
       "title": "Seoul",
       "subtitle": "The Capital Where Tradition Meets Modernity",
@@ -1669,5 +1680,14 @@
       "month": "This Month",
       "ytd": "Year to Date"
     }
+  },
+  "vehicle": {
+    "staria": "Staria (max 8 pax)",
+    "sprinter": "Sprinter (max 10 pax)",
+    "sprinterMid": "Sprinter Mid (max 8 pax)",
+    "bus": "Bus (max 30 pax)"
+  },
+  "about": {
+    "heading": "About COCOTRIP"
   }
 }

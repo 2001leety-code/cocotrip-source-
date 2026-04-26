@@ -36,7 +36,14 @@ function txt(field: I18nString, lang: Language): string {
   return field[lang] ?? field.en;
 }
 
-const VEHICLE_LABEL: Record<string, string> = {
+const VEHICLE_KEY: Record<string, 'staria' | 'sprinter' | 'sprinterMid' | 'bus'> = {
+  Staria:     'staria',
+  Sprinter:   'sprinter',
+  SprinterMid:'sprinterMid',
+  Bus:        'bus',
+};
+
+const VEHICLE_FALLBACK: Record<string, string> = {
   Staria:     'Staria (max 8 pax)',
   Sprinter:   'Sprinter (max 10 pax)',
   SprinterMid:'Sprinter Mid (max 8 pax)',
@@ -243,7 +250,7 @@ export default function TourDetailPage() {
             className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full"
             style={{ background: 'rgba(255,107,157,0.08)', border: '1px solid rgba(255,107,157,0.20)', color: '#FF9EC2' }}
           >
-            <Users className="w-3 h-3" />{VEHICLE_LABEL[tour.vehicleType]}
+            <Users className="w-3 h-3" />{t.vehicle?.[VEHICLE_KEY[tour.vehicleType]] || VEHICLE_FALLBACK[tour.vehicleType]}
           </span>
           {resolvedRating.rating && resolvedRating.rating > 0 && (
             <span

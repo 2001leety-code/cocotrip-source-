@@ -126,6 +126,17 @@
   "regionDetail": {
     "backToRegions": "返回地区列表",
     "bookNow": "立即预订",
+    "notFound": "未找到地区",
+    "goHome": "返回首页",
+    "aboutHeading": "关于",
+    "mustVisit": "必游",
+    "mustVisitAttractions": "必游景点",
+    "gallery": "图库",
+    "photoGallery": "照片图库",
+    "planTrip": "规划您的旅程:",
+    "planTripDesc": "让 COCOTRIP 为您创建个性化旅游体验。",
+    "aiPlannerCta": "AI 规划师",
+    "whatsappCta": "WhatsApp",
     "seoul": {
       "title": "首尔",
       "subtitle": "传统与现代共存的首都",
@@ -1669,5 +1680,14 @@
       "month": "本月",
       "ytd": "年累计"
     }
+  },
+  "vehicle": {
+    "staria": "Staria（最多8人）",
+    "sprinter": "Sprinter（最多10人）",
+    "sprinterMid": "Sprinter Mid（最多8人）",
+    "bus": "巴士（最多30人）"
+  },
+  "about": {
+    "heading": "关于 COCOTRIP"
   }
 }
