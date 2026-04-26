@@ -15,7 +15,7 @@ import { Buffer } from 'buffer';
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { getPaypalAccessToken } from './_shared/paypal.js';
 
-export const maxDuration = 60;
+export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
 const CORS = {

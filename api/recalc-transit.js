@@ -23,6 +23,9 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import axios from 'axios';
 import { searchTransitRoute, formatTransitSummary } from './_odsay_helper.js';
 
+export const maxDuration = 60;
+export const config = { runtime: 'nodejs' };
+
 // ── Firebase Admin (reuse singleton) ──
 if (!getApps().length) {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
