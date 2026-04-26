@@ -13,6 +13,7 @@
  */
 import { Buffer } from 'buffer';
 import { evaluateRefundPolicy } from './_refund-policy.js';
+import { getPaypalAccessToken } from './_shared/paypal.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -39,19 +40,8 @@ async function getDb() {
   return { db: getFirestore(), FieldValue: (await import('firebase-admin/firestore')).FieldValue };
 }
 
-async function getPaypalToken(isSandbox) {
-  const clientId = (isSandbox ? process.env.PAYPAL_SANDBOX_CLIENT_ID : process.env.PAYPAL_CLIENT_ID || '').trim();
-  const secret   = (isSandbox ? process.env.PAYPAL_SANDBOX_SECRET    : process.env.PAYPAL_CLIENT_SECRET || '').trim();
-  const baseUrl  = isSandbox  ? 'https://api-m.sandbox.paypal.com'   : 'https://api-m.paypal.com';
-  const credentials = Buffer.from(`${clientId}:${secret}`).toString('base64');
-  const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=client_credentials',
-  });
-  if (!res.ok) throw new Error(`PayPal auth ${res.status}`);
-  return (await res.json()).access_token;
-}
+// PayPal token + baseUrl resolution moved to api/_shared/paypal.js
+// (shared with capturePaypalOrder.js + createPaypalOrder.js).
 
 function airportPlainLine(airport) {
   if (!airport || typeof airport !== 'object') return '';
@@ -142,8 +132,7 @@ export default async function handler(req, res) {
     const refundKRW = Math.round((booking.amountKRW || 0) * policy.refundRatio);
 
     // 3. PayPal Refund 호출
-    const token = await getPaypalToken(isSandbox);
-    const baseUrl = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
+    const { accessToken: token, baseUrl } = await getPaypalAccessToken(isSandbox);
     const refundRes = await fetch(`${baseUrl}/v2/payments/captures/${booking.captureID}/refund`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
