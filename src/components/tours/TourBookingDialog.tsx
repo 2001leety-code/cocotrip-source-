@@ -339,12 +339,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
 
           {/* Price summary */}
           <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <div className="flex justify-between text-[11px] text-white/45 mb-1">
+            <div className="flex justify-between text-[11px] text-white/55 mb-1">
               <span>{labels.priceBase}</span>
               <span>{formatKRW(baseKRW)}</span>
             </div>
             {addonKRW > 0 && (
-              <div className="flex justify-between text-[11px] text-white/45 mb-1">
+              <div className="flex justify-between text-[11px] text-white/55 mb-1">
                 <span>{labels.priceAddons}</span>
                 <span>+{formatKRW(addonKRW)}</span>
               </div>

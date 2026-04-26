@@ -114,12 +114,12 @@ function BoardStop({ place, index, isFirst, isLast, p }: {
         {/* 체류시간 + 입장료 */}
         <div className="flex flex-wrap gap-3 mt-2.5">
           {place.duration && (
-            <span className="text-[11px] text-white/45 flex items-center gap-1">
+            <span className="text-[11px] text-white/55 flex items-center gap-1">
               <Clock className="w-3 h-3 text-white/55" /> {place.duration}
             </span>
           )}
           {place.admissionFee && place.admissionFee.toLowerCase() !== 'free' && (
-            <span className="text-[11px] text-white/45 flex items-center gap-1">
+            <span className="text-[11px] text-white/55 flex items-center gap-1">
               <CreditCard className="w-3 h-3 text-white/55" /> {place.admissionFee}
             </span>
           )}

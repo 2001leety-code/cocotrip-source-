@@ -450,7 +450,7 @@ export default function TourDetailPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span className="text-[18px] font-black text-white">{resolvedRating.rating.toFixed(1)}</span>
-                  <span className="text-[12px] text-white/45">
+                  <span className="text-[12px] text-white/55">
                     {language === 'ko' ? `${resolvedRating.reviewCount}개 리뷰` :
                      language === 'ja' ? `${resolvedRating.reviewCount}件のレビュー` :
                      language === 'zh' ? `${resolvedRating.reviewCount}条评论` :

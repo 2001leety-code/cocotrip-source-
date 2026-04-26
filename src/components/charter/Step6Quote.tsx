@@ -38,7 +38,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
           {ap?.flightNumber && <span>{i18n.flightNo} <b className="text-white">{ap.flightNumber}</b></span>}
           {lugTotal > 0 && (
             <span>{i18n.luggage.replace(/\s*\([^)]*\)/, '')} <b className="text-white">{lugTotal}{unitPcs}</b>
-              <span className="text-white/45 ml-1">(S{lug?.small ?? 0}·M{lug?.medium ?? 0}·L{lug?.large ?? 0})</span>
+              <span className="text-white/55 ml-1">(S{lug?.small ?? 0}·M{lug?.medium ?? 0}·L{lug?.large ?? 0})</span>
             </span>
           )}
           {state?.startDate && <span>{state.startDate} {state.startTime ?? ''}</span>}

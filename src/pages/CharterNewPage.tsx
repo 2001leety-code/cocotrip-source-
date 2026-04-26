@@ -208,7 +208,7 @@ function PaymentPanel({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between text-sm">
-      <span className="text-white/45 text-xs uppercase tracking-wider">{label}</span>
+      <span className="text-white/55 text-xs uppercase tracking-wider">{label}</span>
       <span className="text-white/85">{value}</span>
     </div>
   );
