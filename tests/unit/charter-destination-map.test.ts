@@ -40,16 +40,19 @@ describe('normalizeDestinationToMatrixKey', () => {
   });
 
   it('부분 매칭 — 라벨 포함', () => {
-    // "danyang" 일부만 입력
-    expect(normalizeDestinationToMatrixKey('단')).toBeNull(); // 1자는 매칭 X (오감지 방지)
-    expect(normalizeDestinationToMatrixKey('dan')).toBe('DAMYANG'); // 3자 이상 부분 매칭
-    expect(normalizeDestinationToMatrixKey('gyeong')).toBe('GYEONGJU');
+    // 1자는 오감지 방지로 null
+    expect(normalizeDestinationToMatrixKey('단')).toBeNull();
+    // 3자 이상 부분 매칭 (단, 모호한 prefix는 결과 비결정적이라 datalist가 가이드)
+    expect(normalizeDestinationToMatrixKey('dan')).toBe('DAMYANG');
+    expect(normalizeDestinationToMatrixKey('gyeongju')).toBe('GYEONGJU'); // 6자 명확
   });
 
   it('매트릭스 미존재 지역은 null 반환 (별도견적 분기)', () => {
+    // 신규: 한국 시·군 전체 등록 — 광주/포항/창원도 라벨에는 있지만 matrixKey: null
     expect(normalizeDestinationToMatrixKey('광주')).toBeNull();
     expect(normalizeDestinationToMatrixKey('포항')).toBeNull();
     expect(normalizeDestinationToMatrixKey('창원')).toBeNull();
+    expect(normalizeDestinationToMatrixKey('울릉도')).toBeNull();
     expect(normalizeDestinationToMatrixKey('알수없는지역')).toBeNull();
   });
 
@@ -72,10 +75,10 @@ describe('getMatrixKeyAlternatives — METRO ↔ city 키 fallback', () => {
 });
 
 describe('getDestinationSuggestions — 자동완성 후보', () => {
-  it('빈 입력은 상위 30개 반환', () => {
+  it('빈 입력은 상위 50개 반환 (전체 시·군 사전 등록 기준)', () => {
     const all = getDestinationSuggestions('');
     expect(all.length).toBeGreaterThan(0);
-    expect(all.length).toBeLessThanOrEqual(30);
+    expect(all.length).toBeLessThanOrEqual(50);
   });
 
   it('"dan" 입력 시 단양/Damyang 포함', () => {
@@ -88,6 +91,12 @@ describe('getDestinationSuggestions — 자동완성 후보', () => {
     const suggestions = getDestinationSuggestions('부');
     const matrixKeys = suggestions.map(s => s.matrixKey);
     expect(matrixKeys).toContain('BUSAN');
+  });
+
+  it('매트릭스 없는 도시도 자동완성에 포함 — 별도견적 안내', () => {
+    const suggestions = getDestinationSuggestions('포항');
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions.some(s => s.matrixKey === null && s.display.includes('Pohang'))).toBe(true);
   });
 
   it('매칭 없으면 빈 배열', () => {
