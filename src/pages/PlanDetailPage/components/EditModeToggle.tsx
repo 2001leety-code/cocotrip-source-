@@ -16,10 +16,10 @@ export function EditModeToggle({ editMode, onToggle }: EditModeToggleProps) {
   return (
     <button
       onClick={onToggle}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors duration-200 border ${
         editMode
-          ? 'bg-[#7C5CFC] text-white shadow-lg shadow-[#7C5CFC]/25'
-          : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70'
+          ? 'bg-[#7C5CFC] text-white shadow-lg shadow-[#7C5CFC]/25 border-transparent'
+          : 'bg-white/[0.10] text-white/75 border-white/15 hover:bg-white/[0.15] hover:text-white hover:border-white/25'
       }`}
     >
       {editMode ? (
