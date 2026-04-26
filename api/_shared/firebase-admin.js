@@ -40,10 +40,24 @@ export function initAdminDb(tag = 'firebase-admin') {
       pem: !!pemMatch,
     });
 
+    let credential = null;
     if (projectId && clientEmail && privateKey) {
-      const adminApp = getApps().length ? getApps()[0] : initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey }),
-      });
+      credential = cert({ projectId, clientEmail, privateKey });
+    } else if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      // Fallback: base64-encoded service account JSON (used by loyalty/admin routes)
+      try {
+        const sa = JSON.parse(
+          Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8')
+        );
+        credential = cert(sa);
+        logger.debug(`[${tag}] Firebase admin using GOOGLE_SERVICE_ACCOUNT_KEY fallback`);
+      } catch (e) {
+        logger.warn(`[${tag}] GOOGLE_SERVICE_ACCOUNT_KEY parse failed:`, e.message);
+      }
+    }
+
+    if (credential) {
+      const adminApp = getApps().length ? getApps()[0] : initializeApp({ credential });
       const adminDb = getAdminFirestore(adminApp);
       adminDb.settings({ ignoreUndefinedProperties: true });
       logger.debug(`[${tag}] firebase-admin initialized OK`);
