@@ -1,0 +1,50 @@
+name: PR i18n Smoke (Vercel Preview)
+
+# Triggered when Vercel finishes deploying a preview. Runs the same i18n
+# locale smoke as the weekly job, but against the per-PR preview URL so
+# regressions surface during review instead of waiting for Monday.
+
+on:
+  deployment_status:
+
+jobs:
+  smoke:
+    # Only run on successful Vercel preview deployments (not Production, not
+    # other vendors). Vercel's preview env is named "Preview".
+    if: |
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Preview' &&
+      github.event.deployment.creator.login == 'vercel[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR head (use deployment ref)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run i18n locale smoke against preview URL
+        env:
+          BASE_URL: ${{ github.event.deployment_status.target_url }}
+        run: npx playwright test tests/e2e/i18n-locale-smoke.spec.ts --project='Desktop Chrome'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-pr-${{ github.run_id }}
+          path: tests/report
+          retention-days: 14
