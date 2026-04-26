@@ -8,8 +8,8 @@
  *   { rejection: { statusCode, code, message, details? } }  // caller writes response
  *   { isRevision: boolean }                                 // caller proceeds
  */
-import { Buffer } from 'buffer';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getPaypalAccessToken } from '../_shared/paypal.js';
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
@@ -65,24 +65,17 @@ export async function enforcePaymentAndRevision(body, adminDb) {
     } else if (isTestOrderId && !isTestAccount) {
       return reject(403, 'FORBIDDEN', 'Unauthorized test mode', 'Test mode is only available for authorized accounts.');
     } else {
-      const ppClientId = isTestAccount ? process.env.PAYPAL_SANDBOX_CLIENT_ID : process.env.PAYPAL_CLIENT_ID;
-      const ppSecret = isTestAccount ? process.env.PAYPAL_SANDBOX_SECRET : process.env.PAYPAL_CLIENT_SECRET;
-      const ppBase = isTestAccount ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
-
       console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
 
-      const ppCreds = Buffer.from(`${ppClientId}:${ppSecret}`).toString('base64');
-      const tokenRes = await fetch(`${ppBase}/v1/oauth2/token`, {
-        method: 'POST',
-        headers: { 'Authorization': `Basic ${ppCreds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'grant_type=client_credentials',
-      });
-      if (!tokenRes.ok) {
-        const tokenBody = await tokenRes.text().catch(() => '');
-        console.error('[planner] PayPal auth failed:', tokenRes.status, tokenBody);
-        return reject(403, 'PAYPAL_AUTH_ERROR', `PayPal auth ${tokenRes.status}: ${tokenBody}`);
+      let ppToken, ppBase;
+      try {
+        const auth = await getPaypalAccessToken(isTestAccount);
+        ppToken = auth.accessToken;
+        ppBase = auth.baseUrl;
+      } catch (e) {
+        console.error('[planner] PayPal auth failed:', e.message);
+        return reject(403, 'PAYPAL_AUTH_ERROR', e.message);
       }
-      const ppToken = (await tokenRes.json()).access_token;
 
       const orderRes = await fetch(`${ppBase}/v2/checkout/orders/${paypalOrderId}`, {
         headers: { 'Authorization': `Bearer ${ppToken}`, 'Content-Type': 'application/json' },
