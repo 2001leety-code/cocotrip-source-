@@ -27,6 +27,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Check i18n key parity (4 locales aligned to ko.json)
+        run: npm run check:i18n
+
       - name: Run i18n locale smoke test
         env:
           BASE_URL: https://cocotripkr.com
