@@ -1,0 +1,41 @@
+name: Weekly i18n Audit
+
+on:
+  schedule:
+    # Mondays 02:00 UTC = KST 11:00 — early enough to catch issues before the week
+    - cron: '0 2 * * 1'
+  workflow_dispatch: # manual trigger
+
+jobs:
+  i18n-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run i18n locale smoke test
+        env:
+          BASE_URL: https://cocotripkr.com
+        run: npx playwright test tests/e2e/i18n-locale-smoke.spec.ts --project='Desktop Chrome'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: tests/report
+          retention-days: 14
