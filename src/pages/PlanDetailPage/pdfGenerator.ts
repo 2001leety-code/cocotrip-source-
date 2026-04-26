@@ -12,6 +12,7 @@
 //      font loading (esp. Korean).
 //   5. iOS Safari path opens a blob in a new tab (worker.save() is often blocked).
 //   6. Template literals stay ASCII-only — do not re-introduce emoji that could mojibake.
+import { toast } from 'sonner';
 import { formatKRW } from './constants';
 import { normalizeRecommendedItem } from '@/types/plan';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
@@ -472,15 +473,28 @@ export async function generatePDF(
     console.error('[PDF] Empty content detected — aborting PDF generation');
     document.body.removeChild(container);
     document.body.removeChild(overlay);
-    alert('PDF content is empty. Please wait for the plan to fully load.');
+    toast.error('PDF content is empty. Please wait for the plan to fully load.');
     return;
   }
 
-  // Wait for browser to fully render the content (especially Korean fonts)
-  // document.fonts.ready resolves when all font faces are loaded.
-  // Bump to 5s — first-run on slow networks can miss the 3s window.
+  // === Explicit font preload — kick the loader BEFORE waiting on fonts.ready ===
+  // Without explicit load(), fonts.ready may resolve with 0 CJK faces loaded
+  // (Noto Sans KR/JP/SC are CSS-declared but not network-requested until first
+  // glyph render). First-run fail mode: ready resolves, layout uses tofu boxes.
+  const fontsApi = (document as Document & {
+    fonts?: { ready?: Promise<unknown>; load?: (s: string) => Promise<unknown> };
+  }).fonts;
+  if (fontsApi?.load) {
+    await Promise.allSettled([
+      fontsApi.load('14px "Noto Sans KR"'),
+      fontsApi.load('14px "Noto Sans JP"'),
+      fontsApi.load('14px "Noto Sans SC"'),
+    ]);
+  }
+
+  // After explicit load, fonts.ready is reliable. 5s cap as safety net.
   await Promise.race([
-    document.fonts?.ready || Promise.resolve(),
+    fontsApi?.ready || Promise.resolve(),
     new Promise(resolve => setTimeout(resolve, 5000)),
   ]);
 
@@ -489,11 +503,10 @@ export async function generatePDF(
   fontTest.style.cssText = 'position:absolute;top:-9999px;font-size:16px;font-family:inherit;';
   fontTest.textContent = '\uD55C\uAE00\u30C6\u30B9\u30C8\u4E2D\u6587';
   container.appendChild(fontTest);
-  await new Promise(resolve => setTimeout(resolve, 400));
+  await new Promise(resolve => setTimeout(resolve, 200));
   if (fontTest.offsetWidth === 0) {
-    // Retry once: kick the loader and give it another beat.
-    try { await (document as Document & { fonts?: { load: (s: string) => Promise<unknown> } }).fonts?.load('14px "Noto Sans KR"'); } catch (_e) { /* ignore */ }
-    await new Promise(resolve => setTimeout(resolve, 600));
+    // After explicit preload, single retry should be enough; Safari sometimes slow.
+    await new Promise(resolve => setTimeout(resolve, 400));
     if (fontTest.offsetWidth === 0) {
       console.warn('[PDF] CJK font still not measurable — falling back to system fonts');
     }
@@ -501,15 +514,26 @@ export async function generatePDF(
   fontTest.remove();
 
   // Additional settle time for layout recalculation
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 300));
   void container.offsetHeight; // force reflow
 
-  // === 사이즈 진단: 너무 크면 OOM 위험 → 사용자에게 WhatsApp 폴백 안내 ===
-  // 800px width × scale × height × 4byte = canvas memory.
-  // scale 1.0 + 16000px height = ~51MB (모바일 한계선).
-  const tooTall = container.scrollHeight > 16000;
-  if (tooTall) {
-    console.warn(`[PDF] Container very tall (${container.scrollHeight}px) — memory pressure possible`);
+  // === 사이즈 가드: 12000px 초과 시 toast + WhatsApp 안내, 즉시 abort ===
+  // 800px × 1.0 × 12000px × 4byte ≈ 38MB. iOS Safari OOM 한계.
+  // 이전: 16000px 에서 console.warn 만 → 빈 PDF 받고 사용자 답답.
+  if (container.scrollHeight > 12000) {
+    const tooLongPlanId = (typeof window !== 'undefined'
+      ? (window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '')
+      : '');
+    const tooLongMsg = `Hi CocoTrip! My plan${tooLongPlanId ? ` (${tooLongPlanId})` : ''} is too long for in-browser PDF (${container.scrollHeight}px). Could you send it manually?`;
+    const tooLongUrl = `https://wa.me/821087140611?text=${encodeURIComponent(tooLongMsg)}`;
+    document.body.removeChild(container);
+    document.body.removeChild(overlay);
+    toast.warning('Itinerary too long for in-browser PDF', {
+      description: 'Long plans (8+ days) hit mobile memory limits. We can send a manually-rendered PDF via WhatsApp.',
+      action: { label: 'Request via WhatsApp', onClick: () => window.open(tooLongUrl, '_blank') },
+      duration: 12000,
+    });
+    return;
   }
 
   // Build WhatsApp fallback URL once — reused on failure.
@@ -518,9 +542,14 @@ export async function generatePDF(
     : '');
   const fallbackMsg = `Hi CocoTrip! PDF download failed for my plan${planIdFromUrl ? ` (${planIdFromUrl})` : ''}. Could you send it manually?`;
   const whatsappFallback = `https://wa.me/821087140611?text=${encodeURIComponent(fallbackMsg)}`;
+  // Replaces blocking confirm() — sonner toast with action button feels modern
+  // and doesn't yank focus / require modal dismissal.
   const offerWhatsapp = (reason: string) => {
-    const proceed = confirm(`${reason}\n\nOpen WhatsApp to request manual delivery?`);
-    if (proceed) window.open(whatsappFallback, '_blank');
+    toast.error(reason, {
+      description: 'We can send the PDF manually via WhatsApp.',
+      action: { label: 'Open WhatsApp', onClick: () => window.open(whatsappFallback, '_blank') },
+      duration: 10000,
+    });
   };
 
   try {
