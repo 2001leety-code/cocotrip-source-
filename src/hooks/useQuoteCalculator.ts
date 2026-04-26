@@ -12,6 +12,7 @@ import {
   ATTRACTION_FEES,
 } from '@/data/charterPricing';
 import type { WizardState, QuoteBreakdown, QuoteAddon, VehicleType } from '@/components/charter/types';
+import { normalizeDestinationToMatrixKey } from '@/components/charter/destinationKeyMap';
 
 // 차종별 배수 (스타리아 = 1.0 기준)
 const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
@@ -25,6 +26,14 @@ function matrixLookup(origin: string, destination: string): { km?: number; hours
   const entry = (DISTANCE_MATRIX as unknown as Record<string, unknown>)[key];
   if (!entry || typeof entry !== 'object') return null;
   return entry as { km?: number; hours?: number; priceKRW?: number };
+}
+
+// destinationCustom (한글 자유입력) → 매트릭스 영문 키 매핑 시도
+// 매칭되면 매트릭스 lookup 가능, 안 되면 needsCustomQuote 플래그로 Step6/Payment 분기
+function tryResolveCustomDestination(state: WizardState): string | null {
+  if (state.destinationKey) return state.destinationKey;
+  if (!state.destinationCustom) return null;
+  return normalizeDestinationToMatrixKey(state.destinationCustom);
 }
 
 function calcIntercityFormula(vehicle: VehicleType, km: number): number {
@@ -55,6 +64,13 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
     const includes = ['fuel', 'tolls', 'parking', 'driver_gratuity'];
     const excludes = ['meals', 'attractions', 'drinks', 'shopping'];
 
+    // destinationKey가 비어있고 destinationCustom만 있는 경우 KR→EN 매핑 시도
+    const resolvedDest = tryResolveCustomDestination(state);
+    let needsCustomQuote = false;
+    if (!state.destinationKey && state.destinationCustom && !resolvedDest) {
+      needsCustomQuote = true;  // 자유 입력 + 매트릭스 키 매칭 실패 → 별도견적 필요
+    }
+
     let vehicleChargeKRW = 0;
     let source: QuoteBreakdown['source'] = 'formula';
     let distanceKm: number | undefined;
@@ -69,28 +85,33 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
         vehicleChargeKRW = Math.round(AIRPORT_TRANSFER_PRICES[state.destinationKey].priceKRW * VEHICLE_MULTIPLIER[vehicle]);
         distanceKm = undefined;
         source = 'matrix';
-      } else if (state.origin && state.destinationKey) {
-        const m = matrixLookup(state.origin, state.destinationKey);
+      } else if (state.origin && resolvedDest) {
+        const m = matrixLookup(state.origin, resolvedDest);
         if (m?.priceKRW) {
           vehicleChargeKRW = Math.round(m.priceKRW * VEHICLE_MULTIPLIER[vehicle]);
           distanceKm = m.km; durationHours = m.hours; source = 'matrix';
         } else if (m?.km) {
           vehicleChargeKRW = calcIntercityFormula(vehicle, m.km);
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
-        } else {
-          warnings.push('매트릭스에 없는 공항→목적지 조합 — 거리 미상');
+        } else if (state.destinationCustom) {
+          needsCustomQuote = true;
+          warnings.push('매트릭스에 없는 공항→목적지 조합 — 별도견적');
         }
       }
     } else if (mode === 'day_tour') {
       if (state.destinationKey && DAILY_TOUR_PRICES[state.destinationKey]) {
         vehicleChargeKRW = Math.round(DAILY_TOUR_PRICES[state.destinationKey].priceKRW * VEHICLE_MULTIPLIER[vehicle]);
         source = 'package';
-      } else if (state.origin && state.destinationKey) {
-        const m = matrixLookup(state.origin, state.destinationKey);
+      } else if (state.origin && resolvedDest) {
+        const m = matrixLookup(state.origin, resolvedDest);
         if (m?.km) {
           vehicleChargeKRW = calcIntercityFormula(vehicle, m.km);
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
+        } else if (state.destinationCustom) {
+          needsCustomQuote = true;
         }
+      } else if (state.destinationCustom) {
+        needsCustomQuote = true;
       }
     } else if (mode === 'multi_day') {
       // 1박2일 이상: 매트릭스 기반, 일당 서비스 피 + 숙박 일수 × 드라이버 숙식비
@@ -102,27 +123,31 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
       const nights = Math.max(0, tourDays - 1);
       void staria;
 
-      if (state.origin && state.destinationKey) {
-        const m = matrixLookup(state.origin, state.destinationKey);
+      if (state.origin && resolvedDest) {
+        const m = matrixLookup(state.origin, resolvedDest);
         if (m?.km) {
           const intercity = calcIntercityFormula(vehicle, m.km);
           vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
+        } else if (state.destinationCustom) {
+          needsCustomQuote = true;
         }
+      } else if (state.destinationCustom) {
+        needsCustomQuote = true;
       }
     }
 
-    if (vehicleChargeKRW === 0) {
+    if (vehicleChargeKRW === 0 && !needsCustomQuote) {
       warnings.push('견적을 산출하기에 입력이 부족합니다.');
     }
 
     // ── 추가 옵션 ──
     const addons: QuoteAddon[] = [];
-    if (state.options?.englishGuide)  addons.push({ key: 'english_guide',  label: '영어 가이드',     amountKRW: EXTRA_CHARGES.englishGuidePerDay });
-    if (state.options?.airportPicket) addons.push({ key: 'airport_picket', label: '공항 픽켓 서비스', amountKRW: EXTRA_CHARGES.airportPicketService });
-    if (state.options?.childSeat)     addons.push({ key: 'child_seat',     label: '카시트',           amountKRW: EXTRA_CHARGES.childSeatPerTrip });
+    if (state.options?.licensedGuide) addons.push({ key: 'licensed_guide', label: '면허 가이드 (영/일/중)', amountKRW: EXTRA_CHARGES.englishGuidePerDay });
+    if (state.options?.airportPicket) addons.push({ key: 'airport_picket', label: '공항 픽켓 서비스',         amountKRW: EXTRA_CHARGES.airportPicketService });
+    if (state.options?.childSeat)     addons.push({ key: 'child_seat',     label: '카시트',                   amountKRW: EXTRA_CHARGES.childSeatPerTrip });
 
-    // sprinter/bus는 가이드 필수료 자동 가산
+    // sprinter/bus는 가이드 필수료 자동 가산 (staria + licensedGuide 옵션과 별도)
     if (vehicle === 'sprinter' || vehicle === 'bus') {
       const v = VEHICLE_TYPES[vehicle] as unknown as { guideFeeDailyKRW?: number };
       const fee = v.guideFeeDailyKRW ?? 300_000;
@@ -136,10 +161,25 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
     const surchargeKRW = surchargeForNight(vehicleChargeKRW + addonsSum, isNight);
     const surchargePercent = isNight ? EXTRA_CHARGES.nightSurchargePercent : 0;
 
-    // ── 왕복 할인 (multi_day 왕복형 자동 적용) ──
-    const roundTripDiscountKRW = 0;  // MVP: 할인 비활성. UI 플래그로 확장 예정.
+    // ── multi-day 할인 (-10%) ──
+    let multiDayDiscountKRW = 0;
+    let multiDayDiscountPercent = 0;
+    if (mode === 'multi_day') {
+      const tourDays = state.startDate && state.endDate
+        ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
+        : 0;
+      if (tourDays >= 1) {
+        const pct = (EXTRA_CHARGES as Record<string, number | undefined>).multiDayDiscountPercent ?? 10;
+        multiDayDiscountPercent = pct;
+        multiDayDiscountKRW = Math.round((vehicleChargeKRW + addonsSum + surchargeKRW) * (pct / 100));
+      }
+    }
 
-    const subtotalKRW = vehicleChargeKRW + addonsSum + surchargeKRW - roundTripDiscountKRW;
+    const subtotalKRW = vehicleChargeKRW + addonsSum + surchargeKRW - multiDayDiscountKRW;
+
+    // VAT 정보 (현재는 표기만, subtotal에 가산하지 않음)
+    const vatExcluded = (EXTRA_CHARGES as Record<string, unknown>).vatExcluded === true;
+    const vatPercent = ((EXTRA_CHARGES as Record<string, unknown>).vatPercent as number) ?? 10;
 
     // ── 별도 고지 항목 ──
     const showMeals = svcCfg?.show_meals ?? false;
@@ -170,7 +210,10 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
       subtotalKRW,
       surchargeKRW,
       surchargePercent,
-      roundTripDiscountKRW,
+      multiDayDiscountKRW,
+      multiDayDiscountPercent,
+      vatExcluded,
+      vatPercent,
       estimatedMealsKRW,
       estimatedAttractionsKRW,
       showMeals,
@@ -180,6 +223,7 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
       distanceKm,
       durationHours,
       warnings,
+      needsCustomQuote,
     };
   }, [state]);
 }

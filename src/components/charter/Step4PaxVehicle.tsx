@@ -1,4 +1,4 @@
-// Step 4: 인원 + 차종 자동 추천 · i18n
+// Step 4: 인원 (어른/아이) + 차종 자동 추천 · i18n
 import { Car, Bus, AlertTriangle, Minus, Plus } from 'lucide-react';
 import { VEHICLE_TYPES } from '@/data/charterPricing';
 import type { WizardState, VehicleType } from './types';
@@ -10,6 +10,13 @@ function recommendVehicle(pax: number): VehicleType {
   return 'bus';
 }
 
+// 차종별 인원 범위 표기
+function vehiclePaxRangeLabel(v: VehicleType, lang: 'ko' | 'en'): string {
+  if (v === 'staria') return lang === 'ko' ? '1~8인' : '1-8 pax';
+  if (v === 'sprinter') return lang === 'ko' ? '9~15인' : '9-15 pax';
+  return lang === 'ko' ? '16인 이상' : '16+ pax';
+}
+
 interface Props {
   state: WizardState;
   patch: (p: Partial<WizardState>) => void;
@@ -19,28 +26,60 @@ interface Props {
 export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
   const lang = language === 'ko' ? 'ko' : 'en';
   const i18n = getWizardI18n(language);
-  const pax = state.paxCount ?? 2;
+
+  // 어른/아이 분리 — paxCount는 derived (어른+아이)
+  const adult = state.adultCount ?? state.paxCount ?? 2;
+  const child = state.childCount ?? 0;
+  const pax = adult + child;
   const recommended = recommendVehicle(pax);
   const vehicle = state.vehicle ?? recommended;
-
   const paxCap = vehicle === 'staria' ? 8 : vehicle === 'sprinter' ? 15 : 45;
+
+  // patch wrapper — paxCount를 항상 동기화
+  const setAdult = (n: number) => {
+    const next = Math.max(1, Math.min(paxCap - child, n));
+    patch({ adultCount: next, paxCount: next + child });
+  };
+  const setChild = (n: number) => {
+    const next = Math.max(0, Math.min(paxCap - adult, n));
+    patch({ childCount: next, paxCount: adult + next });
+  };
 
   return (
     <div className="space-y-5">
+      {/* 어른 카운터 */}
       <div>
-        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-2">{i18n.paxLabel}</label>
+        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-2">{i18n.adultLabel}</label>
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => patch({ paxCount: Math.max(1, pax - 1) })}
+          <button type="button" onClick={() => setAdult(adult - 1)}
             className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/70 flex items-center justify-center">
             <Minus className="w-4 h-4" />
           </button>
-          <div className="flex-1 text-center text-2xl font-bold text-white">{pax}</div>
-          <button type="button" onClick={() => patch({ paxCount: Math.min(paxCap, pax + 1) })}
+          <div className="flex-1 text-center text-2xl font-bold text-white">{adult}</div>
+          <button type="button" onClick={() => setAdult(adult + 1)}
             className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/70 flex items-center justify-center">
             <Plus className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-[11px] text-white/55 mt-2">{i18n.maxCapacityNote(vehicle, paxCap)}</p>
+      </div>
+
+      {/* 아이 카운터 */}
+      <div>
+        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-2">{i18n.childLabel}</label>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => setChild(child - 1)}
+            className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/70 flex items-center justify-center">
+            <Minus className="w-4 h-4" />
+          </button>
+          <div className="flex-1 text-center text-2xl font-bold text-white">{child}</div>
+          <button type="button" onClick={() => setChild(child + 1)}
+            className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/70 flex items-center justify-center">
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-[11px] text-white/55 mt-2">
+          {i18n.totalPaxNote(pax, paxCap)}
+        </p>
       </div>
 
       <div>
@@ -62,9 +101,7 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
               >
                 {v === 'staria' ? <Car className="w-5 h-5 mx-auto mb-1" /> : <Bus className="w-5 h-5 mx-auto mb-1" />}
                 <p className="text-xs font-semibold">{info.name[lang]}</p>
-                <p className="text-[10px] text-white/55 mt-1">
-                  {info.maxPassengers >= 100 ? i18n.groupLabel : `${info.maxPassengers}${i18n.maxUnit}`}
-                </p>
+                <p className="text-[10px] text-white/55 mt-1">{vehiclePaxRangeLabel(v, lang)}</p>
               </button>
             );
           })}

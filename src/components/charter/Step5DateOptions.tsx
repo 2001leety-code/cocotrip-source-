@@ -1,5 +1,5 @@
-// Step 5: 날짜·시간 + 공항/일정 필수 필드 (컴팩트 · i18n)
-import type { WizardState } from './types';
+// Step 5: 날짜·시간(직접 입력) + 이름/연락처 + 공항/일정 필수 필드 (컴팩트 · i18n)
+import type { WizardState, LodgingLocation } from './types';
 import { EXTRA_CHARGES } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
 
@@ -28,8 +28,44 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
   const patchLuggage = (p: Partial<NonNullable<NonNullable<WizardState['airport']>['luggage']>>) =>
     patchAirport({ luggage: { ...lug, ...p } });
 
+  // 시간 직접 입력 — HTML5 type="time" + 야간 자동 계산
+  const handleTimeChange = (t: string) => {
+    if (!t) {
+      patch({ startTime: undefined, options: { ...state.options, night: false } });
+      return;
+    }
+    const h = Number(t.slice(0, 2));
+    patch({ startTime: t, options: { ...state.options, night: h >= 18 || h < 6 } });
+  };
+
   return (
     <div className="space-y-3 text-sm">
+      {/* 이름 + 연락처 */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label>{i18n.customerName}</Label>
+          <input
+            type="text"
+            value={state.customerName ?? ''}
+            onChange={e => patch({ customerName: e.target.value })}
+            placeholder={i18n.customerNamePlaceholder}
+            className={inputCls}
+            maxLength={40}
+          />
+        </div>
+        <div>
+          <Label>{i18n.customerPhone}</Label>
+          <input
+            type="tel"
+            value={state.customerPhone ?? ''}
+            onChange={e => patch({ customerPhone: e.target.value })}
+            placeholder={i18n.customerPhonePlaceholder}
+            className={inputCls}
+            maxLength={24}
+          />
+        </div>
+      </div>
+
       {/* 날짜 + 시간 한 줄 */}
       <div className="grid grid-cols-5 gap-2 items-end">
         <div className="col-span-2">
@@ -41,26 +77,41 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         </div>
         <div className="col-span-3">
           <Label>{i18n.time}</Label>
-          <div className="grid grid-cols-4 gap-1">
-            {['08:00', '10:00', '14:00', '18:00'].map(t => (
-              <button key={t} type="button"
-                onClick={() => patch({ startTime: t, options: { ...state.options, night: Number(t.slice(0,2)) >= 18 || Number(t.slice(0,2)) < 6 } })}
-                className={`py-2 rounded-lg text-[11px] font-medium border ${state.startTime === t ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/60'}`}>
-                {t}
-              </button>
-            ))}
-          </div>
+          <input
+            type="time"
+            value={state.startTime ?? ''}
+            onChange={e => handleTimeChange(e.target.value)}
+            className={inputCls}
+            step={300}
+          />
         </div>
       </div>
 
       {isMulti && (
-        <div>
-          <Label>{i18n.returnDate}</Label>
-          <input type="date" min={state.startDate ?? today}
-            value={state.endDate ?? ''}
-            onChange={e => patch({ endDate: e.target.value })}
-            className={inputCls} />
-        </div>
+        <>
+          <div>
+            <Label>{i18n.returnDate}</Label>
+            <input type="date" min={state.startDate ?? today}
+              value={state.endDate ?? ''}
+              onChange={e => patch({ endDate: e.target.value })}
+              className={inputCls} />
+          </div>
+
+          {/* multi_day 숙소 위치 */}
+          <div>
+            <Label>{i18n.lodgingLabel}</Label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['seoul', 'local', 'daily_return'] as LodgingLocation[]).map(loc => (
+                <button key={loc} type="button"
+                  onClick={() => patch({ lodgingLocation: loc })}
+                  className={`py-2 px-2 rounded-lg text-[11px] font-medium border ${state.lodgingLocation === loc ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/60'}`}>
+                  {loc === 'seoul' ? i18n.lodgingSeoul : loc === 'local' ? i18n.lodgingLocal : i18n.lodgingDailyReturn}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-white/55 mt-1.5">{i18n.lodgingNote}</p>
+          </div>
+        </>
       )}
 
       {/* 공항 전용 필수 섹션 */}
@@ -111,8 +162,8 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
       <div className="pt-2 border-t border-white/[0.06]">
         <Label>{i18n.addons}</Label>
         <div className="flex flex-wrap gap-1.5">
-          <OptionPill label={i18n.englishGuide} sub={`+₩${EXTRA_CHARGES.englishGuidePerDay.toLocaleString('ko-KR')}`}
-            checked={!!state.options?.englishGuide} onChange={v => patch({ options: { ...state.options, englishGuide: v } })} />
+          <OptionPill label={i18n.licensedGuide} sub={`+₩${EXTRA_CHARGES.englishGuidePerDay.toLocaleString('ko-KR')}`}
+            checked={!!state.options?.licensedGuide} onChange={v => patch({ options: { ...state.options, licensedGuide: v } })} />
           <OptionPill label={i18n.picket} sub={`+₩${EXTRA_CHARGES.airportPicketService.toLocaleString('ko-KR')}`}
             checked={!!state.options?.airportPicket} onChange={v => patch({ options: { ...state.options, airportPicket: v } })} />
           <OptionPill label={i18n.childSeat} sub={`+₩${EXTRA_CHARGES.childSeatPerTrip.toLocaleString('ko-KR')}`}

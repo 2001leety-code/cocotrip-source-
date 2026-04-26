@@ -8,6 +8,7 @@ import {
 } from '@/data/charterPricing';
 import type { WizardState } from './types';
 import { getWizardI18n } from './wizard-i18n';
+import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 
 interface DestinationOption {
   key: string;
@@ -108,6 +109,23 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
           placeholder={i18n.destCustomPlaceholder}
           className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
         />
+        {state.destinationCustom && state.destinationCustom.length >= 2 && (
+          (() => {
+            const matched = normalizeDestinationToMatrixKey(state.destinationCustom);
+            if (matched) {
+              return (
+                <p className="mt-2 text-[11px] text-emerald-300">
+                  ✓ {i18n.destCustomMatched(matched)}
+                </p>
+              );
+            }
+            return (
+              <p className="mt-2 text-[11px] text-amber-300">
+                ⚠ {i18n.destCustomUnmatched}
+              </p>
+            );
+          })()
+        )}
       </div>
     </div>
   );

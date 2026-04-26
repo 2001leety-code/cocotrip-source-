@@ -1,4 +1,4 @@
-// Step 6: 최종 견적 — 차량비·할증·별도 고지 3단 분해 + 공항/일정 요약
+// Step 6: 최종 견적 — 차량비·할증·할인·VAT 표기 + 공항/일정 요약 + needsCustomQuote 분기
 import type { QuoteBreakdown, WizardState } from './types';
 import { getWizardI18n } from './wizard-i18n';
 
@@ -19,6 +19,17 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
           : language === 'ja' ? '前のステップが未完了です。'
           : language === 'zh' ? '上一步信息不完整。'
           : 'Previous steps incomplete.'}
+      </div>
+    );
+  }
+
+  // 자유입력 + 매트릭스 미매칭 — 별도견적 안내로 분기
+  if (quote.needsCustomQuote) {
+    return (
+      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-5 text-center">
+        <p className="text-base text-amber-100 font-bold mb-2">{i18n.customQuoteTitle}</p>
+        <p className="text-sm text-white/70 mb-3 leading-relaxed">{i18n.customQuoteBody}</p>
+        <p className="text-[11px] text-white/55">{i18n.customQuoteSub}</p>
       </div>
     );
   }
@@ -56,14 +67,17 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
           {quote.surchargeKRW > 0 && (
             <Row label={i18n.nightSurcharge(quote.surchargePercent)} value={KRW(quote.surchargeKRW)} warn />
           )}
-          {quote.roundTripDiscountKRW > 0 && (
-            <Row label={i18n.roundTripDiscount} value={`-${KRW(quote.roundTripDiscountKRW)}`} good />
+          {quote.multiDayDiscountKRW > 0 && (
+            <Row label={i18n.multiDayDiscount(quote.multiDayDiscountPercent)} value={`-${KRW(quote.multiDayDiscountKRW)}`} good />
           )}
         </div>
         <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
           <span className="text-sm text-white/60">{i18n.paySubtotal}</span>
           <span className="text-xl font-bold text-white">{KRW(quote.subtotalKRW)}</span>
         </div>
+        {quote.vatExcluded && (
+          <p className="mt-2 text-right text-[10px] text-amber-300/80">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
+        )}
       </div>
 
       {/* 별도 고지 박스 (항상 보여주되 해당 모드만) */}

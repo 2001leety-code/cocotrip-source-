@@ -132,14 +132,22 @@ function PaymentPanel({
   const resolved = resolveProductType(state);
   const KRW = (n: number | null | undefined) => n == null ? '—' : `₩${n.toLocaleString('ko-KR')}`;
 
-  // WhatsApp 견적 요청 본문 (airport 정보 포함)
+  // WhatsApp 견적 요청 본문 (이름/연락처/airport/숙소 정보 포함)
+  const adultPart = state.adultCount != null ? `어른${state.adultCount}` : '';
+  const childPart = state.childCount != null && state.childCount > 0 ? `+아이${state.childCount}` : '';
+  const paxStr = adultPart || childPart ? `${adultPart}${childPart}` : `${state.paxCount ?? '-'}인`;
+  const lodgingMap: Record<string, string> = {
+    seoul: '서울 숙박', local: '현지 숙박', daily_return: '매일 서울 귀가', custom: '맞춤',
+  };
   const waText = encodeURIComponent(
     `[CocoTrip Charter — Wizard]\n` +
+    `이름: ${state.customerName ?? '-'} / 연락처: ${state.customerPhone ?? '-'}\n` +
     `출발: ${state.origin ?? state.originCustom ?? '-'}\n` +
     `서비스: ${state.service ?? '-'}\n` +
     `목적지: ${state.destinationKey ?? state.destinationCustom ?? '-'}\n` +
-    `차종/인원: ${state.vehicle}/${state.paxCount}\n` +
+    `차종/인원: ${state.vehicle}/${paxStr}\n` +
     `날짜: ${state.startDate ?? '-'}${state.endDate ? ` ~ ${state.endDate}` : ''} ${state.startTime ?? ''}\n` +
+    (state.service === 'multi_day' && state.lodgingLocation ? `숙소: ${lodgingMap[state.lodgingLocation] ?? state.lodgingLocation}\n` : '') +
     (state.airport ? (
       `터미널: ${state.airport.terminal ?? '-'} / 편명: ${state.airport.flightNumber ?? '-'}\n` +
       `수하물: S${state.airport.luggage?.small ?? 0} M${state.airport.luggage?.medium ?? 0} L${state.airport.luggage?.large ?? 0}\n`
