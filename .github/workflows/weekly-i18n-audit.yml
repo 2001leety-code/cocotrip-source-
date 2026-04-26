@@ -30,10 +30,14 @@ jobs:
       - name: Check i18n key parity (4 locales aligned to ko.json)
         run: npm run check:i18n
 
-      - name: Run i18n locale smoke test
+      - name: Run i18n locale smoke test (3 viewports)
         env:
           BASE_URL: https://cocotripkr.com
-        run: npx playwright test tests/e2e/i18n-locale-smoke.spec.ts --project='Desktop Chrome'
+        run: |
+          npx playwright test tests/e2e/i18n-locale-smoke.spec.ts \
+            --project='Desktop Chrome' \
+            --project='Pixel 5' \
+            --project='iPhone 14 Pro'
 
       - name: Upload Playwright report
         if: always()
