@@ -378,14 +378,14 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                 id="location" 
                 required 
                 placeholder={t.booking.locationPlaceholder}
-                className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" 
+                className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/55 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" 
               />
             </div>
 
             <div className="flex gap-4">
               <div className="flex-1">
                 <label htmlFor="from_name" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.name}</label>
-                <input type="text" name="from_name" id="from_name" placeholder="e.g., Hong Gildong" required className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" />
+                <input type="text" name="from_name" id="from_name" placeholder="e.g., Hong Gildong" required className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/55 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" />
               </div>
               <div className="flex-1">
                  <label htmlFor="user_email" className="block text-sm font-medium text-white/70 mb-3">{t.booking.form.email}</label>
@@ -397,7 +397,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                   defaultValue={user?.email ?? ''}
                   required
                   readOnly
-                  className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base"
+                  className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/55 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base"
                 />
               </div>
             </div>
@@ -411,7 +411,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                   id="contact_number" 
                   placeholder="+82 10-1234-5678"
                   required 
-                  className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" 
+                  className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/55 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base" 
                 />
               </div>
             </div>
@@ -421,7 +421,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
               <textarea
                 name="message" id="message" rows={3}
                 placeholder={t.booking.form.notesPlaceholder}
-                className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base resize-none"
+                className="w-full py-4 px-3 border border-white/20 bg-white/10 rounded-xl text-white placeholder:text-white/55 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none text-sm sm:text-base resize-none"
               ></textarea>
             </div>
 

@@ -74,7 +74,7 @@ export function KpopConcertPopup() {
                   <Music className="w-5 h-5 text-[#7C5CFC]" />
                   <h2 className="text-lg font-bold text-white">{t.modalTitle}</h2>
                 </div>
-                <p className="text-xs text-white/40 ml-7 mt-0.5">{t.modalSub}</p>
+                <p className="text-xs text-white/55 ml-7 mt-0.5">{t.modalSub}</p>
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -87,7 +87,7 @@ export function KpopConcertPopup() {
             {/* 콘서트 목록 */}
             <div className="px-5 py-4 space-y-3">
               {concerts.length === 0 && (
-                <p className="text-center text-white/40 py-8 text-sm">{t.noUpcoming}</p>
+                <p className="text-center text-white/55 py-8 text-sm">{t.noUpcoming}</p>
               )}
               {concerts.map(concert => {
                 const isSelected = selectedId === concert.id;
@@ -145,7 +145,7 @@ export function KpopConcertPopup() {
                       </div>
                       {/* 가격 + 지도 */}
                       <div className="shrink-0 text-right">
-                        <p className="text-xs text-white/40 mb-0.5">{t.oneWay}</p>
+                        <p className="text-xs text-white/55 mb-0.5">{t.oneWay}</p>
                         <p className="text-sm font-bold text-[#A78BFA]">₩{concert.oneWayPrice.toLocaleString('ko-KR')}</p>
                         <a
                           href={concert.naverMapUrl}
@@ -169,7 +169,7 @@ export function KpopConcertPopup() {
               <div className="px-5 pb-6 space-y-4 border-t border-white/[0.06] pt-4">
                 {/* 픽업 */}
                 <div>
-                  <p className="text-xs text-white/40 mb-2">{t.pickupPoint}</p>
+                  <p className="text-xs text-white/55 mb-2">{t.pickupPoint}</p>
                   <div className="flex flex-wrap gap-2">
                     {(lk === 'ko' ? selected.pickupPointsKo : selected.pickupPoints).map((point, idx) => (
                       <button
@@ -243,7 +243,7 @@ export function KpopConcertPopup() {
                 )}
 
                 {/* 안내 */}
-                <div className="flex items-start gap-2 text-[11px] text-white/35 leading-relaxed">
+                <div className="flex items-start gap-2 text-[11px] text-white/55 leading-relaxed">
                   <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>{t.ticketNote}</span>
                 </div>
@@ -252,7 +252,7 @@ export function KpopConcertPopup() {
 
             {/* 선택 안내 */}
             {!selected && concerts.length > 0 && (
-              <div className="px-5 pb-5 flex items-center gap-2 text-xs text-white/30">
+              <div className="px-5 pb-5 flex items-center gap-2 text-xs text-white/55">
                 <ArrowRight className="w-3.5 h-3.5" />
                 {t.selectConcert}
               </div>

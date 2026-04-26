@@ -176,7 +176,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             >
               <Search className="w-4 h-4 md:w-[18px] md:h-[18px]" />
               {!isMobile && (
-                <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-[10px] font-mono text-white/40">
+                <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-[10px] font-mono text-white/55">
                   ⌘K
                 </kbd>
               )}
@@ -192,7 +192,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             {user && !isMobile && (
               <Link
                 to="/mypage"
-                className="p-2 rounded-lg transition-all duration-200 text-white/40 hover:text-white hover:bg-white/[0.06]"
+                className="p-2 rounded-lg transition-all duration-200 text-white/55 hover:text-white hover:bg-white/[0.06]"
                 title="My Page"
               >
                 <User className="w-[18px] h-[18px]" />
@@ -306,7 +306,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-bold text-white truncate">{user.displayName || 'Traveler'}</p>
-                    <p className="text-[11px] text-white/40 truncate">{user.email}</p>
+                    <p className="text-[11px] text-white/55 truncate">{user.email}</p>
                   </div>
                   <LoyaltyBadge />
                 </div>
@@ -323,14 +323,14 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 </div>
                 <div>
                   <p className="text-[13px] font-bold text-white">{t.nav.signIn ?? 'Sign In'}</p>
-                  <p className="text-[11px] text-white/40">{t.nav.signInSub ?? 'Login to manage your trips'}</p>
+                  <p className="text-[11px] text-white/55">{t.nav.signInSub ?? 'Login to manage your trips'}</p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-white/20 ml-auto" />
+                <ChevronRight className="w-4 h-4 text-white/55 ml-auto" />
               </Link>
             )}
 
             {/* ── Main Navigation ── */}
-            <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-2.5">
+            <p className="text-[10px] uppercase tracking-[3px] text-white/55 font-semibold mb-2.5">
               {t.nav.navigation ?? 'Navigation'}
             </p>
             <nav className="space-y-0.5">
@@ -361,7 +361,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
             {/* ── My Account ── */}
             <div className="mt-6">
-              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+              <p className="text-[10px] uppercase tracking-[3px] text-white/55 font-semibold mb-3">
                 {t.nav.myAccount ?? 'My Account'}
               </p>
               <div className="space-y-0.5">
@@ -430,7 +430,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
             {/* ── Settings ── */}
             <div className="mt-6">
-              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+              <p className="text-[10px] uppercase tracking-[3px] text-white/55 font-semibold mb-3">
                 {t.nav.settings ?? 'Settings'}
               </p>
               <div className="space-y-0.5">
@@ -462,7 +462,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
             {/* ── Support ── */}
             <div className="mt-6">
-              <p className="text-[10px] uppercase tracking-[3px] text-white/25 font-semibold mb-3">
+              <p className="text-[10px] uppercase tracking-[3px] text-white/55 font-semibold mb-3">
                 {t.nav.support ?? 'Support'}
               </p>
               <a
@@ -510,9 +510,9 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 &copy; 2026 COCOTRIP. All rights reserved.
               </p>
               <div className="flex justify-center gap-4 mt-2">
-                <Link to="/terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">{t.nav.terms ?? 'Terms'}</Link>
-                <Link to="/privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">{t.nav.privacy ?? 'Privacy'}</Link>
-                <Link to="/travel-terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/20 hover:text-white/40">{t.nav.travelTerms ?? 'Travel Terms'}</Link>
+                <Link to="/terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/55 hover:text-white/55">{t.nav.terms ?? 'Terms'}</Link>
+                <Link to="/privacy" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/55 hover:text-white/55">{t.nav.privacy ?? 'Privacy'}</Link>
+                <Link to="/travel-terms" onClick={() => setIsMobileMenuOpen(false)} className="text-[10px] text-white/55 hover:text-white/55">{t.nav.travelTerms ?? 'Travel Terms'}</Link>
               </div>
             </div>
           </div>

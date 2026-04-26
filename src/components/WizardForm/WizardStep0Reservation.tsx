@@ -58,7 +58,7 @@ export function WizardStep0Reservation({
         <h2 className={`text-[17px] sm:text-lg font-bold mb-1 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>
           {p.resTitle || 'Where are you in your trip planning?'}
         </h2>
-        <p className="text-[13px] sm:text-sm text-white/40">
+        <p className="text-[13px] sm:text-sm text-white/55">
           {p.resSub || "We'll tailor the rest of the form based on what you've already booked"}
         </p>
       </div>
@@ -80,7 +80,7 @@ export function WizardStep0Reservation({
                 background: 'linear-gradient(135deg,rgba(124,92,252,.30),rgba(234,83,126,.20))',
                 borderColor: `${accent}90`,
               } : {}}>
-              <span className={sel ? 'text-white' : 'text-white/40'}>{q.icon}</span>
+              <span className={sel ? 'text-white' : 'text-white/55'}>{q.icon}</span>
               <p className="text-[13px] font-bold leading-tight">{title}</p>
               <p className="text-[10px] text-white/45 leading-tight">{sub}</p>
             </button>
@@ -91,7 +91,7 @@ export function WizardStep0Reservation({
       {/* Mini-form revealed when user has flight info */}
       {showAirportForm && (
         <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 space-y-3 animate-fadeIn">
-          <p className="text-[11px] uppercase tracking-wider text-white/40 font-semibold">
+          <p className="text-[11px] uppercase tracking-wider text-white/55 font-semibold">
             {p.resFlightDetails || 'Flight details (helps us recommend the right airport transit)'}
           </p>
           <div className="grid grid-cols-2 gap-2">

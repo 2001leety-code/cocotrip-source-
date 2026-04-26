@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CocoTripKR — GDPR Cookie Consent Banner
  * Minimal EU-compliant cookie notice
  * Shows once, stores consent in localStorage
@@ -64,7 +64,7 @@ export default function CookieBanner() {
               </button>
               <button
                 onClick={dismiss}
-                className="min-h-[44px] px-4 py-2.5 text-xs text-white/40 hover:text-white/60 transition-colors"
+                className="min-h-[44px] px-4 py-2.5 text-xs text-white/55 hover:text-white/60 transition-colors"
               >
                 {cb?.dismiss ?? 'Dismiss'}
               </button>
@@ -73,7 +73,7 @@ export default function CookieBanner() {
           <button
             onClick={dismiss}
             aria-label={t.a11y?.close ?? cb?.dismiss ?? 'Close'}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-white/55 hover:text-white/50 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

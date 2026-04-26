@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Seasonal spots banner -- extracted verbatim from legacy PlannerPage.tsx L488-558.
 import { MapPin, Clock, Lightbulb } from 'lucide-react';
 import { SEASONAL_SPOTS } from '@/data/seasonalSpots';
@@ -46,11 +46,11 @@ export function SeasonalSpotsBanner({ result, lang, p }: { result: PlannerRespon
             <div key={i} className="shrink-0 w-64 bg-white/5 border border-white/10 rounded-xl p-3.5 flex flex-col gap-2">
               <div>
                 <p className="font-semibold text-white text-sm leading-snug">{name}</p>
-                <p className="text-[11px] text-white/40 mt-0.5 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5 shrink-0" /> {location}</p>
+                <p className="text-[11px] text-white/55 mt-0.5 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5 shrink-0" /> {location}</p>
               </div>
               <p className="text-xs text-emerald-200/80 leading-relaxed flex-1">{highlight}</p>
               <div className="space-y-1">
-                <p className="text-[11px] text-white/40 flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> {p.seasonalSpotsPeriod}: <span className="text-white/60">{period}</span></p>
+                <p className="text-[11px] text-white/55 flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> {p.seasonalSpotsPeriod}: <span className="text-white/60">{period}</span></p>
                 <p className="text-[11px] text-amber-200/70 flex items-center gap-0.5"><Lightbulb className="w-2.5 h-2.5" /> {p.seasonalSpotsTip}: {tip}</p>
               </div>
             </div>

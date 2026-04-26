@@ -74,7 +74,7 @@ function DailyBarChart({ daily, rate }: { daily: DailyEntry[]; rate: number }) {
     <div className="rounded-2xl p-5" style={cardStyle}>
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-[14px] font-bold text-white">일별 매출 (최근 {daily.length}일)</h2>
-        <p className="text-[11px] text-white/40">최대 {fmtUSD(max)}</p>
+        <p className="text-[11px] text-white/55">최대 {fmtUSD(max)}</p>
       </div>
       <div className="overflow-x-auto">
         <svg width={chartW} height={chartH + 24} style={{ display: 'block' }}>
@@ -111,7 +111,7 @@ function DailyBarChart({ daily, rate }: { daily: DailyEntry[]; rate: number }) {
           })}
         </svg>
       </div>
-      <p className="text-[11px] text-white/40 mt-2">
+      <p className="text-[11px] text-white/55 mt-2">
         총 {fmtUSD(daily.reduce((s, d) => s + d.usd, 0))} ({fmtKRW(daily.reduce((s, d) => s + d.usd, 0) * rate)})
       </p>
     </div>
@@ -127,7 +127,7 @@ function ProductDistribution({ byProduct, rate }: { byProduct: Record<string, Bu
     <div className="rounded-2xl p-5" style={cardStyle}>
       <h2 className="text-[14px] font-bold text-white mb-4">상품별 분포 (이번달)</h2>
       {entries.length === 0 ? (
-        <p className="text-[12px] text-white/40">데이터 없음</p>
+        <p className="text-[12px] text-white/55">데이터 없음</p>
       ) : (
         <div className="space-y-3">
           {entries.map(([name, b]) => {
@@ -150,7 +150,7 @@ function ProductDistribution({ byProduct, rate }: { byProduct: Record<string, Bu
               </div>
             );
           })}
-          <p className="text-[11px] text-white/40 pt-2 border-t border-white/10">
+          <p className="text-[11px] text-white/55 pt-2 border-t border-white/10">
             합계 {fmtUSD(total)} ({fmtKRW(total * rate)})
           </p>
         </div>
@@ -164,7 +164,7 @@ function RecentBookingsTable({ recent }: { recent: RecentEntry[] }) {
     <div className="rounded-2xl p-5 overflow-x-auto" style={cardStyle}>
       <h2 className="text-[14px] font-bold text-white mb-3">최근 예약 ({recent.length}건)</h2>
       {recent.length === 0 ? (
-        <p className="text-[12px] text-white/40">예약 없음</p>
+        <p className="text-[12px] text-white/55">예약 없음</p>
       ) : (
         <table className="w-full text-[12px]">
           <thead>
@@ -240,7 +240,7 @@ export default function AdminSales() {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
             <h1 className="text-[22px] font-black text-white mb-1">매출 대시보드</h1>
-            <p className="text-[12px] text-white/40">
+            <p className="text-[12px] text-white/55">
               운영자 전용 — Firestore bookings 기준 (취소 제외).
               {data?.generatedAt && ` 갱신: ${new Date(data.generatedAt).toLocaleString('ko-KR')}`}
             </p>
@@ -306,7 +306,7 @@ export default function AdminSales() {
             {/* 최근 예약 */}
             <RecentBookingsTable recent={data.recent} />
 
-            <p className="text-[11px] text-white/30 text-center mt-6">
+            <p className="text-[11px] text-white/55 text-center mt-6">
               전체 예약 수: {data.totalBookings.toLocaleString()}건 · 환율: ₩{data.exchangeRate.toLocaleString()}/USD
             </p>
           </>

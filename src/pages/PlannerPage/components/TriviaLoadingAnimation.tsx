@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Trivia loading animation with 4-step progress indicator.
 // Extracted verbatim from legacy PlannerPage.tsx L183-261.
 import { useState, useEffect } from 'react';
@@ -52,7 +52,7 @@ export function TriviaLoadingAnimation({ p, streamStep }: { p: PlannerDict; stre
                 active ? 'bg-[#7C5CFC]/10 border border-[#7C5CFC]/25' : done ? 'bg-emerald-500/5 border border-emerald-500/15' : 'border border-transparent'
               }`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${
-                  done ? 'bg-emerald-500/20 text-emerald-400' : active ? 'bg-[#7C5CFC]/20 text-[#7C5CFC]' : 'bg-white/5 text-white/20'
+                  done ? 'bg-emerald-500/20 text-emerald-400' : active ? 'bg-[#7C5CFC]/20 text-[#7C5CFC]' : 'bg-white/5 text-white/55'
                 }`}>
                   {done ? (
                     <Check className="w-3.5 h-3.5" />
@@ -63,7 +63,7 @@ export function TriviaLoadingAnimation({ p, streamStep }: { p: PlannerDict; stre
                   )}
                 </div>
                 <span className={`text-xs font-medium transition-all duration-500 ${
-                  done ? 'text-emerald-400/70' : active ? 'text-white/80' : 'text-white/25'
+                  done ? 'text-emerald-400/70' : active ? 'text-white/80' : 'text-white/55'
                 }`}>{phase}</span>
               </div>
             );
@@ -78,7 +78,7 @@ export function TriviaLoadingAnimation({ p, streamStep }: { p: PlannerDict; stre
           </p>
         </div>
 
-        {streamStep && <p className="text-[10px] text-white/30">{(p.streamStepStatus || '').replace('{step}', String(streamStep))}</p>}
+        {streamStep && <p className="text-[10px] text-white/55">{(p.streamStepStatus || '').replace('{step}', String(streamStep))}</p>}
       </div>
     </div>
   );

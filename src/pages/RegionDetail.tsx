@@ -152,7 +152,7 @@ export function RegionDetail() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-[14px] font-bold text-white">{attraction.name}</h3>
-                    <p className="text-[12px] text-white/40 mt-0.5 leading-relaxed">{attraction.desc}</p>
+                    <p className="text-[12px] text-white/55 mt-0.5 leading-relaxed">{attraction.desc}</p>
                   </div>
                 </div>
               ))}
@@ -183,7 +183,7 @@ export function RegionDetail() {
             <h2 className="text-lg font-bold text-white mb-2">
               {t.regionDetail?.planTrip || 'Plan Your Trip to'} {regionData.title}
             </h2>
-            <p className="text-white/40 text-xs mb-4">
+            <p className="text-white/55 text-xs mb-4">
               {t.regionDetail?.planTripDesc || 'Let COCOTRIP create a personalized tour experience just for you.'}
             </p>
             <div className="space-y-2.5">

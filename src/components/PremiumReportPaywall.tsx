@@ -145,7 +145,7 @@ export function PremiumReportPaywall({ lang, p, totalDays, onUnlocked }: Premium
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-white">{l.price}</span>
-            <span className="text-xs text-white/30">{l.priceNote}</span>
+            <span className="text-xs text-white/55">{l.priceNote}</span>
           </div>
           <div className="flex items-center gap-0.5">
             {[1,2,3,4,5].map(i => <Star key={i} className="w-3 h-3 text-amber-400 fill-amber-400" />)}

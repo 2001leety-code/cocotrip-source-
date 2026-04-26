@@ -31,7 +31,7 @@ export function CarRentalAd({ region }: CarRentalAdProps) {
           {carLink.label} {'\u2192'}
         </a>
       </div>
-      <p className="text-[10px] text-white/20 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
+      <p className="text-[10px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
     </div>
   );
 }

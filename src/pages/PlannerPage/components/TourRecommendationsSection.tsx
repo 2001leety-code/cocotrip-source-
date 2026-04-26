@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Tour recommendations -- extracted verbatim from legacy PlannerPage.tsx L889-935.
 import { MapPin, Palette } from 'lucide-react';
 import { buildTourLinks } from '@/config/affiliateLinks';
@@ -18,8 +18,8 @@ export function TourRecommendationsSection({ result, p }: { result: PlannerRespo
 
   return (
     <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5 mt-6">
-      <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-1 flex items-center gap-1"><Palette className="w-3.5 h-3.5" /> {p.tour_section_title}</p>
-      <p className="text-[11px] text-white/35 mb-4">{p.tour_section_desc}</p>
+      <p className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-1 flex items-center gap-1"><Palette className="w-3.5 h-3.5" /> {p.tour_section_title}</p>
+      <p className="text-[11px] text-white/55 mb-4">{p.tour_section_desc}</p>
       <div className="space-y-3">
         {tourPlaces.map((pl, i) => {
           const links = buildTourLinks(pl.name, region);
@@ -46,7 +46,7 @@ export function TourRecommendationsSection({ result, p }: { result: PlannerRespo
           );
         })}
       </div>
-      <p className="text-[10px] text-white/20 mt-3 leading-relaxed">{p.affiliate_note}</p>
+      <p className="text-[10px] text-white/55 mt-3 leading-relaxed">{p.affiliate_note}</p>
     </div>
   );
 }

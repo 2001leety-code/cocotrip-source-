@@ -137,7 +137,7 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
 const inputCls = 'w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-white/85 text-xs outline-none focus:border-[#B668FC]/50';
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1 font-semibold">{children}</p>;
+  return <p className="text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">{children}</p>;
 }
 
 function LuggageCounter({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
@@ -166,7 +166,7 @@ function OptionPill({ label, sub, checked, onChange }: { label: string; sub: str
         {checked && <span className="w-1 h-1 rounded-sm bg-white" />}
       </span>
       <span>{label}</span>
-      <span className="text-white/35 text-[10px]">{sub}</span>
+      <span className="text-white/55 text-[10px]">{sub}</span>
     </button>
   );
 }

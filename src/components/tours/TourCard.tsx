@@ -156,12 +156,12 @@ export function TourCard({ tour, language }: TourCardProps) {
             className="px-3 py-1.5 rounded-xl backdrop-blur-sm"
             style={{ background: 'rgba(8,4,18,0.82)', border: '1px solid rgba(182,104,252,0.28)' }}
           >
-            <p className="text-[9px] text-white/40 uppercase tracking-wider leading-none mb-0.5">{fromLabel}</p>
+            <p className="text-[9px] text-white/55 uppercase tracking-wider leading-none mb-0.5">{fromLabel}</p>
             <p className="text-[17px] font-black text-white leading-none">
               ${tour.priceFrom.toLocaleString()}
-              <span className="text-[10px] text-white/35 font-medium ml-0.5">USD</span>
+              <span className="text-[10px] text-white/55 font-medium ml-0.5">USD</span>
             </p>
-            <p className="text-[9px] text-white/35 leading-none mt-0.5">
+            <p className="text-[9px] text-white/55 leading-none mt-0.5">
               ≈ ₩{Math.round(tour.priceFrom * 1350).toLocaleString('ko-KR')}
             </p>
           </div>
@@ -218,7 +218,7 @@ export function TourCard({ tour, language }: TourCardProps) {
                 <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                 <span className="text-[11px] text-white/50">{tour.rating.toFixed(1)}</span>
                 {tour.reviewCount && tour.reviewCount > 0 && (
-                  <span className="text-[11px] text-white/25">({tour.reviewCount})</span>
+                  <span className="text-[11px] text-white/55">({tour.reviewCount})</span>
                 )}
               </div>
             )}

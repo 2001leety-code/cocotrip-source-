@@ -104,7 +104,7 @@ export default function MyPage() {
 
       <div className={`max-w-4xl mx-auto px-4 pt-6 ${isMobile ? 'pb-4' : 'pb-20'}`}>
         {/* 뒤로 */}
-        <Link to="/" className="inline-flex items-center gap-2 text-white/40 text-sm mb-6 hover:text-white/70 transition-colors">
+        <Link to="/" className="inline-flex items-center gap-2 text-white/55 text-sm mb-6 hover:text-white/70 transition-colors">
           <ArrowLeft size={16} /> {mp.home || 'Home'}
         </Link>
 
@@ -125,7 +125,7 @@ export default function MyPage() {
             )}
             <div className="flex-1">
               <h1 className="text-white text-xl font-bold">{user?.displayName || mp.traveler || 'Traveler'}</h1>
-              <p className="text-white/40 text-sm">{user?.email}</p>
+              <p className="text-white/55 text-sm">{user?.email}</p>
               <div className="flex items-center gap-3 mt-3">
                 <span className="text-sm font-semibold px-3 py-1 rounded-full" style={{
                   color: tc.color,
@@ -137,7 +137,7 @@ export default function MyPage() {
                 <span className="flex items-center gap-1.5 text-sm">
                   <Coins size={14} className="text-[#C4956A]" />
                   <span className="text-[#C4956A] font-bold">{(loyalty?.tripCoins || 0).toLocaleString()}</span>
-                  <span className="text-white/30 text-xs">{mp.coinsLabel || 'coins'}</span>
+                  <span className="text-white/55 text-xs">{mp.coinsLabel || 'coins'}</span>
                 </span>
               </div>
             </div>
@@ -145,7 +145,7 @@ export default function MyPage() {
 
           {/* 등급 혜택 */}
           <div className="mt-5 pt-4 border-t border-white/5">
-            <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">
+            <p className="text-[10px] uppercase tracking-widest text-white/55 mb-2">
               {(mp.tierBenefits || '{tier} Benefits').replace('{tier}', tier)}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -175,7 +175,7 @@ export default function MyPage() {
               className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                 tab === id
                   ? (isMobile ? 'bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white' : 'bg-[#7C5CFC] text-white')
-                  : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                  : 'text-white/55 hover:text-white/70 hover:bg-white/5'
               }`}
             >
               <Icon size={14} />
@@ -242,7 +242,7 @@ export default function MyPage() {
                       )}
                       <div className="text-white/60 text-xs">{tier.coins.toLocaleString()} coins</div>
                       <div className="text-white text-xl font-bold mt-1">${tier.value}</div>
-                      <div className="text-white/40 text-[10px] mt-0.5">OFF coupon</div>
+                      <div className="text-white/55 text-[10px] mt-0.5">OFF coupon</div>
                       {busy && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
                           <div className="w-5 h-5 border-2 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
@@ -252,7 +252,7 @@ export default function MyPage() {
                   );
                 })}
               </div>
-              <p className="text-[10px] text-white/30 mt-3 text-center">
+              <p className="text-[10px] text-white/55 mt-3 text-center">
                 Valid for 90 days. Enter code at checkout.
               </p>
             </div>
@@ -273,7 +273,7 @@ export default function MyPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-white font-semibold text-sm">{c.label}</p>
-                    <p className="text-white/30 text-xs mt-1">
+                    <p className="text-white/55 text-xs mt-1">
                       Expires: {new Date(c.expiresAt).toLocaleDateString()}
                     </p>
                   </div>
@@ -288,7 +288,7 @@ export default function MyPage() {
                       >
                         {copiedCode === c.code
                           ? <Check size={14} className="text-green-400" />
-                          : <Copy size={14} className="text-white/40" />
+                          : <Copy size={14} className="text-white/55" />
                         }
                       </button>
                     )}
@@ -314,7 +314,7 @@ export default function MyPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-white text-sm font-medium">{item.name}</p>
-                    <p className="text-white/30 text-xs mt-1">{item.productType}</p>
+                    <p className="text-white/55 text-xs mt-1">{item.productType}</p>
                   </div>
                   {item.priceUSD && (
                     <span className="text-[#C4956A] font-semibold">${item.priceUSD}</span>
@@ -334,7 +334,7 @@ export default function MyPage() {
               <div key={it.id} className="p-5 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#7C5CFC]/20 transition-all">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-white font-semibold">{it.title}</h3>
-                  <span className="text-xs text-white/30">
+                  <span className="text-xs text-white/55">
                     {it.startDate} → {it.endDate}
                   </span>
                 </div>
@@ -348,12 +348,12 @@ export default function MyPage() {
                         {di < it.days.length - 1 && <div className="w-px flex-1 bg-white/10 my-1" />}
                       </div>
                       <div className="flex-1 pb-3">
-                        <p className="text-white/40 text-xs mb-1">{day.date}</p>
+                        <p className="text-white/55 text-xs mb-1">{day.date}</p>
                         {day.slots.length === 0 ? (
                           <p className="text-white/15 text-xs italic">Empty</p>
                         ) : day.slots.map(s => (
                           <div key={s.slotId} className="flex items-center gap-2 text-sm text-white/70">
-                            <span className="text-white/25">{s.timeStart || '—'}</span>
+                            <span className="text-white/55">{s.timeStart || '—'}</span>
                             <ChevronRight size={10} className="text-white/15" />
                             <span>{s.name}</span>
                             {s.priceUSD && <span className="text-[#C4956A] text-xs">${s.priceUSD}</span>}
@@ -378,16 +378,16 @@ export default function MyPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-bold text-lg">Point History</h3>
-              <span className="text-white/40 text-sm">
+              <span className="text-white/55 text-sm">
                 Balance: <span className="text-[#FFD700] font-bold">{(loyalty?.tripCoins ?? 0).toLocaleString()}</span>
               </span>
             </div>
 
             {pointHistory.length === 0 ? (
-              <div className="text-center py-12 text-white/30">
+              <div className="text-center py-12 text-white/55">
                 <Clock className="w-8 h-8 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">No point activity yet.</p>
-                <p className="text-xs mt-1 text-white/20">Share a plan to earn your first Trip Coins!</p>
+                <p className="text-xs mt-1 text-white/55">Share a plan to earn your first Trip Coins!</p>
               </div>
             ) : (
               pointHistory.map(log => (
@@ -395,7 +395,7 @@ export default function MyPage() {
                   className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.15] transition-all">
                   <div className="flex-1">
                     <p className="text-white/90 text-sm font-medium">{log.description}</p>
-                    <p className="text-white/40 text-xs mt-0.5">
+                    <p className="text-white/55 text-xs mt-0.5">
                       {new Date(log.createdAt).toLocaleString()}
                     </p>
                   </div>
@@ -420,11 +420,11 @@ function StatCard({ label, value, sub, icon: Icon }: {
   return (
     <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
       <div className="flex items-center gap-2 mb-2">
-        <Icon size={14} className="text-white/25" />
-        <p className="text-white/30 text-[10px] uppercase tracking-wider">{label}</p>
+        <Icon size={14} className="text-white/55" />
+        <p className="text-white/55 text-[10px] uppercase tracking-wider">{label}</p>
       </div>
       <p className="text-white font-bold text-xl">{value}</p>
-      {sub && <p className="text-white/25 text-[10px] mt-0.5">{sub}</p>}
+      {sub && <p className="text-white/55 text-[10px] mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -433,7 +433,7 @@ function EmptyState({ icon: Icon, text, sub }: {
   icon: React.ElementType; text: string; sub?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-white/20">
+    <div className="flex flex-col items-center justify-center py-16 text-white/55">
       <Icon size={36} className="mb-3 opacity-30" />
       <p className="text-sm">{text}</p>
       {sub && <p className="text-xs mt-1 text-white/15">{sub}</p>}
@@ -501,7 +501,7 @@ function MyReviewsTab({ userId }: { userId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-bold text-lg">My Reviews</h3>
-        <span className="text-white/40 text-sm">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
+        <span className="text-white/55 text-sm">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
       </div>
       {reviews.map(r => (
         <div key={r.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all">
@@ -509,16 +509,16 @@ function MyReviewsTab({ userId }: { userId: string }) {
             <div className="flex items-center gap-2">
               <div className="flex gap-0.5">
                 {[1, 2, 3, 4, 5].map(i => (
-                  <Star key={i} size={12} className={i <= r.rating ? 'fill-[#FFD700] text-[#FFD700]' : 'fill-transparent text-white/20'} />
+                  <Star key={i} size={12} className={i <= r.rating ? 'fill-[#FFD700] text-[#FFD700]' : 'fill-transparent text-white/55'} />
                 ))}
               </div>
-              <span className="text-white/20 text-[10px]">
+              <span className="text-white/55 text-[10px]">
                 {new Date(r.createdAt).toLocaleDateString()}
               </span>
             </div>
             <button
               onClick={() => handleDelete(r.id)}
-              className="text-white/20 text-xs hover:text-red-400 transition-colors"
+              className="text-white/55 text-xs hover:text-red-400 transition-colors"
             >
               Delete
             </button>

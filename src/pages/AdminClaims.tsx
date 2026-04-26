@@ -108,7 +108,7 @@ export default function AdminClaims() {
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white">
       <div className="max-w-5xl mx-auto px-4 py-10">
-        <Link to="/admin" className="inline-flex items-center gap-1.5 text-white/40 text-sm hover:text-white/70 mb-6">
+        <Link to="/admin" className="inline-flex items-center gap-1.5 text-white/55 text-sm hover:text-white/70 mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> Admin home
         </Link>
 
@@ -116,7 +116,7 @@ export default function AdminClaims() {
           <Shield className="w-7 h-7 text-amber-400" />
           <div>
             <h1 className="text-2xl font-bold">Claims & Charter Inquiries</h1>
-            <p className="text-sm text-white/40">Approve or reject pending requests</p>
+            <p className="text-sm text-white/55">Approve or reject pending requests</p>
           </div>
         </div>
 
@@ -125,11 +125,11 @@ export default function AdminClaims() {
           {(['claims', 'inquiries'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                tab === t ? 'border-[#7C5CFC] text-white' : 'border-transparent text-white/40 hover:text-white/70'
+                tab === t ? 'border-[#7C5CFC] text-white' : 'border-transparent text-white/55 hover:text-white/70'
               }`}>
               {t === 'claims' ? <FileCheck className="w-4 h-4" /> : <Car className="w-4 h-4" />}
               {t === 'claims' ? 'Free claims' : 'Charter inquiries'}
-              <span className="ml-1 text-[11px] text-white/40">
+              <span className="ml-1 text-[11px] text-white/55">
                 ({(t === 'claims' ? claims : inquiries).filter(r => r.status === 'pending').length} pending)
               </span>
             </button>
@@ -141,7 +141,7 @@ export default function AdminClaims() {
           {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors ${
-                filter === f ? 'bg-[#7C5CFC]/30 text-white' : 'bg-white/[0.05] text-white/40 hover:text-white/70'
+                filter === f ? 'bg-[#7C5CFC]/30 text-white' : 'bg-white/[0.05] text-white/55 hover:text-white/70'
               }`}>
               {f}
             </button>
@@ -149,9 +149,9 @@ export default function AdminClaims() {
         </div>
 
         {loading ? (
-          <p className="text-white/40 text-sm">Loading…</p>
+          <p className="text-white/55 text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <p className="text-white/40 text-sm">No {filter === 'all' ? '' : filter} {tab}.</p>
+          <p className="text-white/55 text-sm">No {filter === 'all' ? '' : filter} {tab}.</p>
         ) : (
           <div className="space-y-3">
             {filtered.map(row => (
@@ -167,7 +167,7 @@ export default function AdminClaims() {
                       }`}>
                         {row.status}
                       </span>
-                      <span className="text-[10px] text-white/30">{formatTs(row.createdAt)}</span>
+                      <span className="text-[10px] text-white/55">{formatTs(row.createdAt)}</span>
                     </div>
 
                     {tab === 'claims' && (
@@ -177,7 +177,7 @@ export default function AdminClaims() {
                         {row.tripDates && <p>Dates: <span className="text-white/80">{row.tripDates}</span></p>}
                         {row.receipts && row.receipts.length > 0 && (
                           <div className="mt-1">
-                            <p className="text-[11px] text-white/40 mb-1">Receipts ({row.receipts.length}):</p>
+                            <p className="text-[11px] text-white/55 mb-1">Receipts ({row.receipts.length}):</p>
                             <div className="flex flex-wrap gap-1.5">
                               {row.receipts.map((r, i) => (
                                 <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"

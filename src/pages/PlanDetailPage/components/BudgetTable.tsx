@@ -25,18 +25,18 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
           <Wallet className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#7C5CFC]" />
           <p className="text-[13px] sm:text-sm font-bold">{ui.budgetSummary || 'Daily Budget Summary'}</p>
         </div>
-        <ChevronDown className={`w-4 h-4 text-white/30 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
         {/* 포함/별도 뱃지 — CocoTrip "No Hidden Fees" 명시 */}
         <div className="flex flex-wrap gap-1.5 mb-2.5 text-[10px]">
           <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ Transport = 차량비 (톨·주차·팁 포함)</span>
-          <span className="px-2 py-0.5 rounded-full bg-white/[0.03] text-white/40 border border-white/10">× Entry/Meals = 별도 현장 결제</span>
+          <span className="px-2 py-0.5 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× Entry/Meals = 별도 현장 결제</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[11px] sm:text-xs">
             <thead>
-              <tr className="text-white/30 border-b border-white/[0.08]">
+              <tr className="text-white/55 border-b border-white/[0.08]">
                 <th className="text-left py-1.5 px-1.5 sm:py-2 sm:px-2">{ui.budgetDay || 'Day'}</th>
                 <th className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2">{ui.budgetTransport || 'Transport'}</th>
                 <th className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2">{ui.budgetEntry || 'Entry'}</th>

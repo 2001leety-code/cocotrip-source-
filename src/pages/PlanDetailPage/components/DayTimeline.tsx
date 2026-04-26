@@ -41,7 +41,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         </span>
         <div>
           <p className="text-[13px] sm:text-sm font-bold">{day.theme || `Day ${day.day || dayIndex + 1}`}</p>
-          {day.date && <p className="text-[10px] text-white/30">{day.date}</p>}
+          {day.date && <p className="text-[10px] text-white/55">{day.date}</p>}
         </div>
       </div>
 
@@ -83,7 +83,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             {/* Add Stop button */}
             <button
               onClick={() => onAddStop(dayIndex)}
-              className="w-full mt-3 py-2.5 rounded-xl border border-dashed border-white/10 text-white/30 text-xs font-medium flex items-center justify-center gap-1.5 hover:border-[#7C5CFC]/30 hover:text-[#7C5CFC]/60 transition-colors"
+              className="w-full mt-3 py-2.5 rounded-xl border border-dashed border-white/10 text-white/55 text-xs font-medium flex items-center justify-center gap-1.5 hover:border-[#7C5CFC]/30 hover:text-[#7C5CFC]/60 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               {ed.addStop || 'Add Stop'}

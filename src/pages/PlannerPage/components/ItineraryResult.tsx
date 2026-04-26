@@ -52,7 +52,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
         <div className="flex items-start justify-between gap-4 mb-3">
           <h2 className={`font-bold text-xl leading-tight ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>{tripTitle}</h2>
           <button onClick={onReset}
-            className={`shrink-0 text-xs transition-colors border rounded-lg px-3 py-1.5 ${isMobile ? 'text-white/35 hover:text-[#B668FC] border-white/12 hover:border-[#B668FC]/40' : 'text-white/35 hover:text-[#C4956A] border-white/12 hover:border-[rgba(196,149,106,.4)]'}`}>
+            className={`shrink-0 text-xs transition-colors border rounded-lg px-3 py-1.5 ${isMobile ? 'text-white/55 hover:text-[#B668FC] border-white/12 hover:border-[#B668FC]/40' : 'text-white/55 hover:text-[#C4956A] border-white/12 hover:border-[rgba(196,149,106,.4)]'}`}>
             {p.resetBtn}
           </button>
         </div>
@@ -79,7 +79,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
             className={`shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl border text-sm font-semibold transition-all duration-300 min-w-[72px] ${
               activeDay === idx
                 ? (isMobile ? 'border-[#B668FC]/50 text-[#B668FC]' : 'border-[rgba(196,149,106,.5)] text-[#D4A574]')
-                : 'border-white/10 bg-white/[0.04] text-white/40 hover:border-white/22 hover:text-white/60'
+                : 'border-white/10 bg-white/[0.04] text-white/55 hover:border-white/22 hover:text-white/60'
             }`}
             style={activeDay === idx ? (isMobile
               ? { background: 'rgba(182,104,252,0.10)', boxShadow: '0 0 16px rgba(182,104,252,.2)' }
@@ -95,7 +95,7 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
       {current && (
         <div key={activeDay} className="relative" style={{ animation: 'day-fade-in 0.3s ease forwards' }}>
           <div className={`transition-all duration-500 ${activeDay > 0 ? 'blur-md pointer-events-none opacity-40' : ''}`}>
-            <p className="text-sm text-white/35 mb-4 flex items-center gap-2">
+            <p className="text-sm text-white/55 mb-4 flex items-center gap-2">
               <span>{formatDate(current.date, lang)}</span>
               <span className="text-white/15">{'\u00B7'}</span>
               <span>{current.places.length} {p.placesUnit}</span>

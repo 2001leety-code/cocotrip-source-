@@ -142,7 +142,7 @@ export default function PlanDetailPage() {
     <div className="min-h-screen bg-[#0a0b14] text-white flex items-center justify-center">
       <div className="text-center">
         <div className="w-10 h-10 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-white/40 text-sm">{ui.loadingPlan || 'Loading your plan...'}</p>
+        <p className="text-white/55 text-sm">{ui.loadingPlan || 'Loading your plan...'}</p>
       </div>
     </div>
   );
@@ -156,7 +156,7 @@ export default function PlanDetailPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <AlertCircle className="w-16 h-16 text-red-400/40 mb-4" />
         <h1 className="text-xl font-bold mb-2">{ui.planNotFound || 'Plan Not Found'}</h1>
-        <p className="text-white/40 text-sm mb-6">{ui.planNotFoundDesc || 'This plan may have been deleted or the link is invalid.'}</p>
+        <p className="text-white/55 text-sm mb-6">{ui.planNotFoundDesc || 'This plan may have been deleted or the link is invalid.'}</p>
         <Link to="/planner" className="px-6 py-3 rounded-xl text-sm font-bold text-white" style={{ background: BRAND.gradient.primary }}>{ui.createNewPlan || 'Create New Plan'}</Link>
       </div>
     </div>
@@ -171,7 +171,7 @@ export default function PlanDetailPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <AlertCircle className="w-16 h-16 text-yellow-400/40 mb-4" />
         <h1 className="text-xl font-bold mb-2">{ui.accessDenied || 'Access Denied'}</h1>
-        <p className="text-white/40 text-sm mb-6">{ui.accessDeniedDesc || "You don't have permission to view this plan."}</p>
+        <p className="text-white/55 text-sm mb-6">{ui.accessDeniedDesc || "You don't have permission to view this plan."}</p>
       </div>
     </div>
   );

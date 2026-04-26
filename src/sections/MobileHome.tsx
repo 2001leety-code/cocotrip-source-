@@ -141,7 +141,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
               <p className="text-[12px] text-white/60 mt-1">{s.subtitle}</p>
             </div>
             <div className="relative z-10 flex items-end justify-between">
-              <div><p className="text-[10px] text-white/40 uppercase tracking-wider">from</p><p className="text-[28px] font-black text-white leading-none">{s.price}</p></div>
+              <div><p className="text-[10px] text-white/55 uppercase tracking-wider">from</p><p className="text-[28px] font-black text-white leading-none">{s.price}</p></div>
               <span className="text-[12px] font-bold text-white bg-white/20 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10 m-btn">{s.cta} →</span>
             </div>
           </Link>
@@ -160,7 +160,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center m-float" style={{ background: `linear-gradient(135deg, ${svc.color}20, ${svc.color}08)`, border: `1px solid ${svc.color}30`, animationDelay: `${svc.d}s` }}>
                 <Icon className="w-5 h-5" style={{ color: svc.color }} />
               </div>
-              <div className="text-center"><p className="text-[13px] font-bold text-white">{svc.label}</p><p className="text-[10px] text-white/25 mt-0.5">{svc.sub}</p></div>
+              <div className="text-center"><p className="text-[13px] font-bold text-white">{svc.label}</p><p className="text-[10px] text-white/55 mt-0.5">{svc.sub}</p></div>
             </Link>
           );
         })}
@@ -175,14 +175,14 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
               <span className="text-[13px] font-bold text-white">{weatherCity}</span>
               <span className="text-[12px] font-black text-pink-400">{weather.temp}</span>
               <span className="text-[13px]">{weather.icon}</span>
-              <span className="text-[11px] text-white/25">{weather.desc}</span>
+              <span className="text-[11px] text-white/55">{weather.desc}</span>
             </div>
             <Thermometer className="w-3.5 h-3.5 text-white/10 shrink-0" />
           </div>
         )}
         <Link to="/planner" className="flex items-center gap-3 px-4 py-4 rounded-2xl m-btn relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.12), rgba(255,107,157,0.08))', border: '1px solid rgba(182,104,252,0.15)' }}>
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}><Wand2 className="w-5 h-5 text-white" /></div>
-          <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.aiBannerTitle || 'AI Itinerary Generator'}</p><p className="text-[10px] text-white/35 mt-0.5">{m.aiBannerSubtitle || 'Enter city & dates → Get minute-by-minute plan'}</p></div>
+          <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.aiBannerTitle || 'AI Itinerary Generator'}</p><p className="text-[10px] text-white/55 mt-0.5">{m.aiBannerSubtitle || 'Enter city & dates → Get minute-by-minute plan'}</p></div>
           <span className="text-[13px] font-black text-pink-400 shrink-0 animate-pulse">$9.90</span>
           <ChevronRight className="w-4 h-4 text-purple-400/30 shrink-0" />
         </Link>
@@ -195,7 +195,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
             <div className="w-12 h-12 rounded-xl flex flex-col items-center justify-center" style={{ background: 'linear-gradient(135deg, #FF6B9D, #C850C0)' }}>
               <Timer className="w-3.5 h-3.5 text-white mb-0.5" /><span className="text-[14px] font-black text-white leading-none">{nextTrip.dday === 0 ? 'D-0' : `D-${nextTrip.dday}`}</span>
             </div>
-            <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white truncate">{nextTrip.title}</p><p className="text-[10px] text-white/25 mt-0.5">{nextTrip.date}</p></div>
+            <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white truncate">{nextTrip.title}</p><p className="text-[10px] text-white/55 mt-0.5">{nextTrip.date}</p></div>
             <ChevronRight className="w-4 h-4 text-pink-400/20 shrink-0" />
           </Link>
         </section>
@@ -206,18 +206,18 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         {user ? (<>
           <Link to="/mypage" className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-white/[0.05] bg-white/[0.02] m-btn">
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}><Crown className="w-4 h-4 text-white" /></div>
-            <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white truncate">{user.displayName || user.email?.split('@')[0] || 'Member'}</p><p className="text-[10px] text-white/25 mt-0.5">{m.memberGrade || 'Tier · Coupons · Trip Coins'}</p></div>
+            <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white truncate">{user.displayName || user.email?.split('@')[0] || 'Member'}</p><p className="text-[10px] text-white/55 mt-0.5">{m.memberGrade || 'Tier · Coupons · Trip Coins'}</p></div>
             <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
           </Link>
           <Link to="/my-plans" className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-white/[0.05] bg-white/[0.02] m-btn">
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center"><FileText className="w-4 h-4 text-purple-400/70" /></div>
-            <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.myPlans || 'My Travel Plans'}</p><p className="text-[10px] text-white/25 mt-0.5">{m.myPlansSub || 'Saved itineraries · PDF download'}</p></div>
+            <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.myPlans || 'My Travel Plans'}</p><p className="text-[10px] text-white/55 mt-0.5">{m.myPlansSub || 'Saved itineraries · PDF download'}</p></div>
             <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
           </Link>
         </>) : (
           <Link to="/planner" className="flex items-center gap-3 px-4 py-4 rounded-2xl border border-pink-500/15 m-btn" style={{ background: 'linear-gradient(135deg, rgba(182,104,252,0.06), rgba(255,107,157,0.04))' }}>
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #C850C0, #FF6B9D)' }}><Gift className="w-4 h-4 text-white" /></div>
-            <div className="flex-1"><p className="text-[13px] font-bold text-white">{m.loginCta || 'Sign in with Google'}</p><p className="text-[10px] text-white/35 mt-0.5">{(m.loginBenefit || '{n}% off first booking + Trip Coins').replace('{n}', '5')}</p></div>
+            <div className="flex-1"><p className="text-[13px] font-bold text-white">{m.loginCta || 'Sign in with Google'}</p><p className="text-[10px] text-white/55 mt-0.5">{(m.loginBenefit || '{n}% off first booking + Trip Coins').replace('{n}', '5')}</p></div>
             <ArrowRight className="w-4 h-4 text-pink-400/30 shrink-0" />
           </Link>
         )}
@@ -236,7 +236,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
       <section className="mx-3 mt-7">
         <div className="grid grid-cols-3 gap-2 mb-6">
           {trustBadges.map((b) => {
-            const I = b.icon; return (<div key={b.label} className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/[0.02] border border-white/[0.04]"><I className="w-4 h-4" style={{ color: b.color }} /><p className="text-[10px] text-white/25 text-center whitespace-pre-line leading-tight font-medium">{b.label}</p></div>);
+            const I = b.icon; return (<div key={b.label} className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/[0.02] border border-white/[0.04]"><I className="w-4 h-4" style={{ color: b.color }} /><p className="text-[10px] text-white/55 text-center whitespace-pre-line leading-tight font-medium">{b.label}</p></div>);
           })}
         </div>
         <div className="text-center pb-4">

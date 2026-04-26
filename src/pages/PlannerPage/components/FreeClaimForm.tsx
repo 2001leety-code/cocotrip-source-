@@ -118,7 +118,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
   return (
     <form onSubmit={handleSubmit} className="text-left space-y-3">
       <div>
-        <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimEmailLabel || 'Email *'}</label>
+        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">{p.optionBClaimEmailLabel || 'Email *'}</label>
         <input
           type="email" required value={email} onChange={e => setEmail(e.target.value)}
           placeholder={p.emailPlaceholder}
@@ -128,7 +128,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimFlightPnr || 'Flight PNR'}</label>
+          <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">{p.optionBClaimFlightPnr || 'Flight PNR'}</label>
           <input
             type="text" value={flightRef} onChange={e => setFlightRef(e.target.value)}
             placeholder={p.optionBClaimFlightPnrPh || 'e.g. ABC123'}
@@ -136,7 +136,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
           />
         </div>
         <div>
-          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimHotelRef || 'Hotel ref'}</label>
+          <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">{p.optionBClaimHotelRef || 'Hotel ref'}</label>
           <input
             type="text" value={hotelRef} onChange={e => setHotelRef(e.target.value)}
             placeholder={p.optionBClaimHotelRefPh || 'Booking #'}
@@ -146,7 +146,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
       </div>
 
       <div>
-        <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">{p.optionBClaimTripDates || 'Trip dates'}</label>
+        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">{p.optionBClaimTripDates || 'Trip dates'}</label>
         <input
           type="text" value={tripDates} onChange={e => setTripDates(e.target.value)}
           placeholder={p.optionBClaimTripDatesPh || 'e.g. 2026-05-12 ~ 2026-05-18'}
@@ -155,7 +155,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
       </div>
 
       <div>
-        <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">
+        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">
           {p.optionBClaimReceipts || `Receipt screenshots (max ${MAX_FILES}, 5MB each)`}
         </label>
         <input
@@ -179,7 +179,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
             {files.map((f, i) => (
               <li key={i} className="text-[11px] text-white/50 flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5">
                 <span className="truncate">{f.name}</span>
-                <button type="button" onClick={() => removeFile(i)} className="text-white/30 hover:text-white/60 ml-2">×</button>
+                <button type="button" onClick={() => removeFile(i)} className="text-white/55 hover:text-white/60 ml-2">×</button>
               </li>
             ))}
           </ul>

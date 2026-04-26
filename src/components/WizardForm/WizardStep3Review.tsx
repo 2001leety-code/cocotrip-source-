@@ -48,12 +48,12 @@ export function WizardStep3Review(props: Step3Props) {
           </button>
         </div>
 
-        <div className="text-xs text-white/40 space-y-1 border-t border-white/[0.06] pt-3">
-          <p><span className="text-white/25">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
-          {hotelAddress && <p><span className="text-white/25">{p.wizardHotelLabel || 'Hotel'}:</span> <span className="text-white/60">{hotelAddress}</span></p>}
+        <div className="text-xs text-white/55 space-y-1 border-t border-white/[0.06] pt-3">
+          <p><span className="text-white/55">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
+          {hotelAddress && <p><span className="text-white/55">{p.wizardHotelLabel || 'Hotel'}:</span> <span className="text-white/60">{hotelAddress}</span></p>}
         </div>
 
-        <p className="text-[10px] text-white/20 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
+        <p className="text-[10px] text-white/55 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>
       </div>
 
       {/* What You'll Get */}
@@ -75,7 +75,7 @@ export function WizardStep3Review(props: Step3Props) {
           <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl font-bold text-white">$9.90</span>
-            <span className="text-sm text-white/30">/ &#8361;13,300</span>
+            <span className="text-sm text-white/55">/ &#8361;13,300</span>
           </div>
         </div>
 
@@ -92,14 +92,14 @@ export function WizardStep3Review(props: Step3Props) {
           {isLoading ? (p.generating || 'Creating your itinerary...') : (p.wizardGenerateBtn || 'Generate AI Itinerary')}
         </button>
 
-        <p className="text-[10px] text-white/30 flex items-center justify-center gap-1">
+        <p className="text-[10px] text-white/55 flex items-center justify-center gap-1">
           <Wallet className="w-3 h-3" /> {p.wizardPaymentNote || 'Takes about 15 seconds after payment'}
         </p>
       </div>
 
       {/* Back */}
       <button onClick={() => onEditStep(2)}
-        className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/40 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all">
+        className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/55 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all">
         <ChevronLeft className="w-4 h-4" /> {p.planner_step2_date || 'Back to Details'}
       </button>
     </div>

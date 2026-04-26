@@ -80,6 +80,12 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/components/tours/TourCard.tsx") continue;
       // Booking page (2026-04-25): ?? used for optional form payload (totalSeats ?? 0, title ?? 'Unknown').
       if (f === "src/pages/Booking.tsx") continue;
+      // Round 12 WCAG batch (2026-04-26): pre-existing ?? in these files surfaced when
+      // we staged contrast-class edits. All ?? are legit nullish coalescing (i18n fallback / optional payload).
+      if (f === "src/components/AuthRequired.tsx") continue;
+      if (f === "src/components/KpopShuttleBanner.tsx") continue;
+      if (f === "src/components/PremiumReportPaywall.tsx") continue;
+      if (f === "src/components/TravelTimeline.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

@@ -34,12 +34,12 @@ export function SeasonalBanner() {
             <div key={i} className="bg-white/[0.06] rounded-xl px-4 py-3 border border-white/[0.06]">
               {/* ja/zh fall back to Korean original (hanja-recognizable to Asian readers, more useful at the venue) rather than English transliteration. */}
               <p className="text-sm font-bold text-white">{pickLang({ ko: spot.name, en: spot.nameEn, ja: spot.name, zh: spot.name })}</p>
-              <p className="text-[10px] text-white/40 mt-0.5">{pickLang({ ko: spot.location, en: spot.locationEn, ja: spot.location, zh: spot.location })} {'\u00B7'} {pickLang({ ko: spot.period, en: spot.periodEn, ja: spot.period, zh: spot.period })}</p>
+              <p className="text-[10px] text-white/55 mt-0.5">{pickLang({ ko: spot.location, en: spot.locationEn, ja: spot.location, zh: spot.location })} {'\u00B7'} {pickLang({ ko: spot.period, en: spot.periodEn, ja: spot.period, zh: spot.period })}</p>
               <p className="text-xs text-white/60 mt-1">{pickLang({ ko: spot.tip, en: spot.tipEn, ja: spot.tip, zh: spot.tip })}</p>
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-white/30 text-center mt-3">{sd.urgency[lk]}</p>
+        <p className="text-[10px] text-white/55 text-center mt-3">{sd.urgency[lk]}</p>
       </div>
     </div>
   );

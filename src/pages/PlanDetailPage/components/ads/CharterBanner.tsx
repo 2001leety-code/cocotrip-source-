@@ -99,7 +99,7 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
           </div>
           <div className="text-right">
             <p className="text-lg font-bold text-cyan-300">{'\u20A9'}{pricing.priceKRW.toLocaleString()}</p>
-            <p className="text-xs text-white/40">{pricing.hours}hrs</p>
+            <p className="text-xs text-white/55">{pricing.hours}hrs</p>
           </div>
         </div>
       </div>

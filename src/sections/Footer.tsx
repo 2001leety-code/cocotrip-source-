@@ -24,20 +24,20 @@ export function Footer({ t }: FooterProps) {
           {/* Brand */}
           <div className="text-center mb-5">
             <p className="text-base font-bold text-white">{t.footer.brandName || 'CocoTrip'}</p>
-            <p className="text-[11px] text-white/25 mt-0.5">{t.footer.tagline || 'Premium Korea Travel'} — cocotripkr.com</p>
+            <p className="text-[11px] text-white/55 mt-0.5">{t.footer.tagline || 'Premium Korea Travel'} — cocotripkr.com</p>
           </div>
 
           {/* Links — increased tap area to ~44px (WCAG 2.5.5) via py-3 inline-block */}
           <div className="flex justify-center gap-3 mb-3 text-[11px]">
-            <Link to="/about" className="inline-flex items-center min-h-[44px] px-2 text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.about}</Link>
+            <Link to="/about" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.about}</Link>
             <span className="text-white/15 self-center">·</span>
-            <Link to="/terms" className="inline-flex items-center min-h-[44px] px-2 text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.terms}</Link>
+            <Link to="/terms" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.terms}</Link>
             <span className="text-white/15 self-center">·</span>
-            <Link to="/privacy" className="inline-flex items-center min-h-[44px] px-2 text-white/35 hover:text-[#B668FC] transition-colors">{t.footer.privacy}</Link>
+            <Link to="/privacy" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.privacy}</Link>
           </div>
 
           {/* Info - compact */}
-          <div className="m-card p-4 mb-4 space-y-2 text-[11px] text-white/30">
+          <div className="m-card p-4 mb-4 space-y-2 text-[11px] text-white/55">
             <p>{t.footer.ceo}</p>
             <p className="flex items-start gap-1.5">
               <MapPin className="w-3 h-3 shrink-0 mt-0.5" />{t.footer.address}
@@ -51,10 +51,10 @@ export function Footer({ t }: FooterProps) {
 
           {/* Trust badges */}
           <div className="flex justify-center gap-4 mb-4">
-            <div className="flex items-center gap-1.5 text-[10px] text-white/25">
+            <div className="flex items-center gap-1.5 text-[10px] text-white/55">
               <CreditCard className="w-3 h-3" /> {t.footer.payment}
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-white/25">
+            <div className="flex items-center gap-1.5 text-[10px] text-white/55">
               <Phone className="w-3 h-3" /> {t.footer.support24h || '24h'}
             </div>
           </div>
@@ -75,11 +75,11 @@ export function Footer({ t }: FooterProps) {
         <div className="border-b border-white/10 pb-6 mb-8">
           <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-6 gap-y-2">
             <Link to="/about" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.about}</Link>
-            <span className="text-white/30">|</span>
+            <span className="text-white/55">|</span>
             <Link to="/terms" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.terms}</Link>
-            <span className="text-white/30">|</span>
+            <span className="text-white/55">|</span>
             <Link to="/privacy" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.privacy}</Link>
-            <span className="text-white/30">|</span>
+            <span className="text-white/55">|</span>
             <Link to="/travel-terms" className="text-white/60 hover:text-white text-sm transition-colors">{t.footer.travelTerms}</Link>
           </div>
         </div>

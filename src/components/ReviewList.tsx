@@ -95,7 +95,7 @@ export function ReviewList({ targetType, targetId }: Props) {
           </button>
         )}
         {user && hasReviewed && (
-          <span className="text-white/30 text-xs">{rl.alreadyReviewed}</span>
+          <span className="text-white/55 text-xs">{rl.alreadyReviewed}</span>
         )}
       </div>
 
@@ -105,7 +105,7 @@ export function ReviewList({ targetType, targetId }: Props) {
           <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
         </div>
       ) : reviews.length === 0 ? (
-        <div className="text-center py-10 text-white/30 text-sm">
+        <div className="text-center py-10 text-white/55 text-sm">
           {rl.empty}
         </div>
       ) : (

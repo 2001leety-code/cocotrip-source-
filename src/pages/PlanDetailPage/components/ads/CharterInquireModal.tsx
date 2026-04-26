@@ -78,9 +78,9 @@ export function CharterInquireModal({ open, onClose, plan, days, recommendedTour
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] sticky top-0 bg-[#0f1117] z-10">
           <div>
             <p className="text-white font-bold">Charter Quote Request</p>
-            <p className="text-[11px] text-white/40 mt-0.5">{recommendedTour} · ₩{quotedKRW.toLocaleString()} / {hours}h</p>
+            <p className="text-[11px] text-white/55 mt-0.5">{recommendedTour} · ₩{quotedKRW.toLocaleString()} / {hours}h</p>
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white/80"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/55 hover:text-white/80"><X className="w-5 h-5" /></button>
         </div>
 
         {submitted ? (
@@ -95,7 +95,7 @@ export function CharterInquireModal({ open, onClose, plan, days, recommendedTour
         ) : (
           <form onSubmit={handleSubmit} className="p-5 space-y-3">
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Email *</label>
+              <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">Email *</label>
               <input
                 type="email" required value={email} onChange={e => setEmail(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-sm outline-none focus:border-cyan-400"
@@ -103,14 +103,14 @@ export function CharterInquireModal({ open, onClose, plan, days, recommendedTour
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Name</label>
+                <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">Name</label>
                 <input
                   type="text" value={name} onChange={e => setName(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-sm outline-none focus:border-cyan-400"
                 />
               </div>
               <div>
-                <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Phone / WhatsApp</label>
+                <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">Phone / WhatsApp</label>
                 <input
                   type="tel" value={phone} onChange={e => setPhone(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-sm outline-none focus:border-cyan-400"
@@ -118,14 +118,14 @@ export function CharterInquireModal({ open, onClose, plan, days, recommendedTour
               </div>
             </div>
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1">Notes (pickup point, special requests)</label>
+              <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-1">Notes (pickup point, special requests)</label>
               <textarea
                 rows={3} value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="e.g. pickup from Lotte Hotel at 8:30, baby seat needed"
                 className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-sm outline-none focus:border-cyan-400 resize-none"
               />
             </div>
-            <div className="text-[11px] text-white/40 bg-white/[0.03] border border-white/[0.06] rounded-lg p-3">
+            <div className="text-[11px] text-white/55 bg-white/[0.03] border border-white/[0.06] rounded-lg p-3">
               Your trip context (planId · {dayCount} day{dayCount === 1 ? '' : 's'} · start {input.startDate || '—'} · {input.adults || input.pax || '?'} pax)
               will be sent automatically so we can quote without back-and-forth.
             </div>

@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Customer support section -- extracted verbatim from legacy PlannerPage.tsx L997-1047.
 import { MessageSquare, CreditCard, Ban, Phone } from 'lucide-react';
 import type { CustomerSupport } from '../types';
@@ -32,7 +32,7 @@ export function CustomerSupportSection({ cs, p }: { cs?: CustomerSupport; p: Pla
         
         {cs.chatbotResponses && (
           <div className="mb-3 p-3 bg-white/5 rounded-lg border border-white/10">
-            <p className="text-xs text-white/40 mb-1">{p.csBotWelcome}</p>
+            <p className="text-xs text-white/55 mb-1">{p.csBotWelcome}</p>
             <p className="text-sm text-[#03C75A]/90">{cs.chatbotResponses.welcome}</p>
           </div>
         )}
@@ -47,7 +47,7 @@ export function CustomerSupportSection({ cs, p }: { cs?: CustomerSupport; p: Pla
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 text-xs text-white/40 p-3 bg-black/20 rounded-xl">
+      <div className="flex flex-col gap-1 text-xs text-white/55 p-3 bg-black/20 rounded-xl">
         <p className="flex items-center gap-1 font-semibold text-white/50"><Phone className="w-3.5 h-3.5" /> {p.csEmergencyContact}</p>
         <p>{cs.contactInfo}</p>
       </div>

@@ -225,7 +225,7 @@ export default function ToursPage() {
             {tl.pageTitle}
           </h1>
         </div>
-        <p className="text-[13px] text-white/35 ml-[52px] leading-relaxed">
+        <p className="text-[13px] text-white/55 ml-[52px] leading-relaxed">
           {tl.pageSubtitle}
         </p>
       </header>
@@ -257,7 +257,7 @@ export default function ToursPage() {
 
       {/* ── 지역 필터 칩 ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-white/25 font-semibold mb-2.5">
+        <p className="text-[10px] uppercase tracking-[0.1em] text-white/55 font-semibold mb-2.5">
           {tl.filterLabel}
         </p>
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
@@ -318,7 +318,7 @@ export default function ToursPage() {
 
         {/* 언어·정렬 필터 (3번째 행) */}
         <div className="flex flex-wrap items-center gap-2 mt-2.5">
-          <Languages className="w-3.5 h-3.5 text-white/30" />
+          <Languages className="w-3.5 h-3.5 text-white/55" />
           {([
             { key: 'en' as DriverLanguage, label: { ko: '영어 기사', en: 'English driver',  ja: '英語ドライバー',  zh: '英语司机' } },
             { key: 'ja' as DriverLanguage, label: { ko: '일본어 기사', en: 'Japanese driver', ja: '日本語ドライバー', zh: '日语司机' } },
@@ -343,7 +343,7 @@ export default function ToursPage() {
           })}
 
           <div className="ml-auto flex items-center gap-1.5">
-            <ArrowUpDown className="w-3.5 h-3.5 text-white/30" />
+            <ArrowUpDown className="w-3.5 h-3.5 text-white/55" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortKey)}
@@ -369,7 +369,7 @@ export default function ToursPage() {
             >
               <Package className="w-7 h-7" style={{ color: 'rgba(182,104,252,0.5)' }} />
             </div>
-            <p className="text-[14px] text-white/30">{tl.noResults}</p>
+            <p className="text-[14px] text-white/55">{tl.noResults}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -390,7 +390,7 @@ export default function ToursPage() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h2 className="text-[15px] font-black text-white">{tl.hotelTitle}</h2>
-              <p className="text-[11px] text-white/30 mt-0.5">{tl.hotelSubtitle}</p>
+              <p className="text-[11px] text-white/55 mt-0.5">{tl.hotelSubtitle}</p>
             </div>
             <span
               className="text-[10px] font-bold px-2.5 py-1 rounded-full"
@@ -467,7 +467,7 @@ export default function ToursPage() {
                     <p className="text-[12px] font-bold text-white leading-tight line-clamp-2">
                       {hotel.name}
                     </p>
-                    <p className="text-[10px] text-white/35">{loc}</p>
+                    <p className="text-[10px] text-white/55">{loc}</p>
 
                     {/* 별 등급 */}
                     <div className="flex gap-0.5">
@@ -484,17 +484,17 @@ export default function ToursPage() {
                       >
                         {hotel.rating.toFixed(1)}
                       </span>
-                      <span className="text-[10px] text-white/30">
+                      <span className="text-[10px] text-white/55">
                         {tl.hotelScore} · {hotel.reviewCount.toLocaleString()}
                       </span>
                     </div>
 
                     {/* 가격 */}
                     <div className="mt-auto pt-1.5 border-t border-white/[0.05]">
-                      <p className="text-[10px] text-white/30">{tl.hotelFrom}</p>
+                      <p className="text-[10px] text-white/55">{tl.hotelFrom}</p>
                       <p className="text-[14px] font-black text-white">
                         ${hotel.priceFrom}
-                        <span className="text-[10px] text-white/30 font-normal ml-0.5">{tl.hotelNight}</span>
+                        <span className="text-[10px] text-white/55 font-normal ml-0.5">{tl.hotelNight}</span>
                       </p>
                     </div>
 
@@ -516,7 +516,7 @@ export default function ToursPage() {
           </div>
 
           {/* 어필리에이트 공시 */}
-          <p className="text-[9px] text-white/20 mt-2 text-center">{tl.hotelCommission}</p>
+          <p className="text-[9px] text-white/55 mt-2 text-center">{tl.hotelCommission}</p>
         </section>
       )}
 
@@ -538,7 +538,7 @@ export default function ToursPage() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-bold text-white">{tl.inquireTitle}</p>
-            <p className="text-[11px] text-white/30 mt-0.5">{tl.inquireSub}</p>
+            <p className="text-[11px] text-white/55 mt-0.5">{tl.inquireSub}</p>
           </div>
           <span
             className="flex items-center gap-1 text-[12px] font-bold px-3.5 py-1.5 rounded-full shrink-0"

@@ -103,7 +103,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
             <p className="text-[11px] text-white/55 mt-0.5">{guide.airport} {route ? `· ${route.est_min}${ui.minUnit || 'min'} → ${ui.toHotel || 'Hotel'}` : ''}</p>
           </div>
         </div>
-        <ChevronDown className={`w-4 h-4 text-white/40 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[5000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
@@ -195,7 +195,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                       <div className="flex items-baseline gap-2">
                         <span className="text-[10px] font-bold text-[#7C5CFC]/80 tracking-wider">STEP {step.step}</span>
                         {step.est_min > 0 && (
-                          <span className="text-[10px] text-white/35">~{step.est_min}{ui.minUnit || 'min'}</span>
+                          <span className="text-[10px] text-white/55">~{step.est_min}{ui.minUnit || 'min'}</span>
                         )}
                       </div>
                       <p className="text-[14px] font-bold text-white mt-0.5">{step.title}</p>
@@ -216,7 +216,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                       {/* Transport-to-hotel comparison grid (Step 5 — only as a comparison; actual route is in HERO above) */}
                       {isHotelStep && step.transport_to_hotel && (
                         <div className="mt-3">
-                          <p className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">{ui.allOptions || 'All options'}</p>
+                          <p className="text-[10px] text-white/55 uppercase tracking-wider mb-1.5">{ui.allOptions || 'All options'}</p>
                           <div className="grid grid-cols-2 gap-1.5">
                             {Object.entries(step.transport_to_hotel)
                               .filter(([, val]) => val != null)
@@ -237,7 +237,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                                       <p className="text-[10px] font-semibold text-white/70 uppercase">{meta?.label || key.replace(/_/g, ' ')}</p>
                                     </div>
                                     <p className="text-[13px] font-bold text-white">{formatKRW(val?.price_krw || val?.est_price_krw || 0)}</p>
-                                    <p className="text-[10px] text-white/40">{val?.duration_min || '?'}{ui.minUnit || 'min'}</p>
+                                    <p className="text-[10px] text-white/55">{val?.duration_min || '?'}{ui.minUnit || 'min'}</p>
                                   </div>
                                 );
                               })}

@@ -234,14 +234,14 @@ export default function Privacy() {
             <PageSection key={idx} title={a.title} isMobile={isMobile}>
               <p>{a.body}</p>
               {a.list && (
-                <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
+                <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
                   {a.list.map((item: string, i: number) => (
                     <li key={i}>{item}</li>
                   ))}
                 </ul>
               )}
               {a.contacts && (
-                <ul className={`list-none space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
+                <ul className={`list-none space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
                   {a.contacts.map((c, i: number) => (
                     <li key={i}><strong>{c.label}:</strong> {c.value}</li>
                   ))}
@@ -250,7 +250,7 @@ export default function Privacy() {
               {a.footer && (
                 <>
                   <p>{a.footer}</p>
-                  <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
+                  <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
                     {(a.footerList || []).map((item: string, i: number) => (
                       <li key={i}>{item}</li>
                     ))}

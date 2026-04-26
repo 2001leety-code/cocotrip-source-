@@ -30,7 +30,7 @@ export function EsimAd() {
           Yesim {'\u2192'}
         </a>
       </div>
-      <p className="text-[10px] text-white/20 text-center pb-3 px-5">{t.planner?.esimNote || 'Purchasing via these links helps support CocoTrip.'}</p>
+      <p className="text-[10px] text-white/55 text-center pb-3 px-5">{t.planner?.esimNote || 'Purchasing via these links helps support CocoTrip.'}</p>
     </div>
   );
 }

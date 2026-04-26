@@ -95,7 +95,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
               placeholder="e.g. Gyeongbokgung"
               onFocus={() => setKeyboardOpen(true)}
               onBlur={() => setKeyboardOpen(false)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/55 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
               autoFocus
               required
             />
@@ -110,7 +110,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
               onChange={(e) => setAddress(e.target.value)}
               onFocus={() => setKeyboardOpen(true)}
               onBlur={() => setKeyboardOpen(false)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/55 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
             />
           </div>
 
@@ -155,7 +155,7 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     category === cat.value
                       ? 'bg-[#7C5CFC] text-white'
-                      : 'bg-white/5 text-white/40 hover:bg-white/10'
+                      : 'bg-white/5 text-white/55 hover:bg-white/10'
                   }`}
                 >
                   {cat.labelKey}

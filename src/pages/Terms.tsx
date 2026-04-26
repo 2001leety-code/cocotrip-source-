@@ -155,7 +155,7 @@ export default function Terms() {
                 <p key={pIdx}>{paragraph}</p>
               ))}
               {'list' in article && (article as ArticleData & { list?: string[] }).list && (
-                <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/40' : ''}`}>
+                <ul className={`list-disc list-inside space-y-2 ${isMobile ? 'text-white/55' : ''}`}>
                   {((article as ArticleData & { list?: string[] }).list!).map((item: string, i: number) => (
                     <li key={i}>{item}</li>
                   ))}

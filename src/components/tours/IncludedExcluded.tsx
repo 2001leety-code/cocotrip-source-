@@ -58,8 +58,8 @@ export function IncludedExcluded({ language, includedExtra = [], excludedExtra =
         style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
       >
         <div className="flex items-center gap-1.5 mb-2.5">
-          <XCircle className="w-4 h-4 text-white/40" />
-          <p className="text-[11px] font-black uppercase tracking-wider text-white/40">
+          <XCircle className="w-4 h-4 text-white/55" />
+          <p className="text-[11px] font-black uppercase tracking-wider text-white/55">
             {labels.excluded}
           </p>
         </div>

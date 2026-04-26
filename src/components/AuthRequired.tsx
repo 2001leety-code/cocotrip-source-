@@ -120,7 +120,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
           </button>
 
           {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
-          <p className="text-[11px] text-white/25 mt-4">{text.privacy}</p>
+          <p className="text-[11px] text-white/55 mt-4">{text.privacy}</p>
         </div>
       </div>
     );

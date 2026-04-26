@@ -48,13 +48,13 @@ export function WizardStep1Food(props: Step1Props) {
     <div className="space-y-5">
       <div>
         <h2 className={`text-[17px] sm:text-lg font-bold mb-1 ${isMobile ? 'm-shimmer-text' : 'text-white'}`}>{p.wizardFoodTitle || 'Tell us your food preferences'}</h2>
-        <p className="text-[13px] sm:text-sm text-white/40">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
+        <p className="text-[13px] sm:text-sm text-white/55">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
       </div>
 
       {/* Diet style chips */}
       <div>
         <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardFoodStyleLabel || 'Food Preferences'}</p>
-        <p className="text-xs text-white/25 mb-3">{p.wizardActivitiesHint || 'Select all that apply'}</p>
+        <p className="text-xs text-white/55 mb-3">{p.wizardActivitiesHint || 'Select all that apply'}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {FOOD_STYLE_KEYS.map((key) => {
             const nameKey = `food${key}` as keyof typeof p;
@@ -77,7 +77,7 @@ export function WizardStep1Food(props: Step1Props) {
                 <span className="shrink-0">{FOOD_STYLE_ICONS[key]}</span>
                 <div className="overflow-hidden">
                   <p className="text-[13px] font-bold truncate">{p[nameKey] || key}</p>
-                  <p className="text-[10px] text-white/40 truncate">{p[subKey]}</p>
+                  <p className="text-[10px] text-white/55 truncate">{p[subKey]}</p>
                 </div>
                 {sel && <Check className={`w-4 h-4 ml-auto shrink-0 ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />}
               </button>
@@ -135,7 +135,7 @@ export function WizardStep1Food(props: Step1Props) {
                     : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
                 }`}>
                 <span>{label}</span>
-                <span className="text-[9px] text-white/30 font-normal text-center leading-tight">{sub}</span>
+                <span className="text-[9px] text-white/55 font-normal text-center leading-tight">{sub}</span>
               </button>
             );
           })}
@@ -145,7 +145,7 @@ export function WizardStep1Food(props: Step1Props) {
       {/* Korean dish bucket list (P10) */}
       <div>
         <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardFoodBucketLabel || 'Korean bucket list'}</p>
-        <p className="text-xs text-white/25 mb-3">{p.wizardFoodBucketHint || 'Iconic dishes you must try (we’ll fit them in)'}</p>
+        <p className="text-xs text-white/55 mb-3">{p.wizardFoodBucketHint || 'Iconic dishes you must try (we’ll fit them in)'}</p>
         <div className="flex flex-wrap gap-2">
           {KOREAN_BUCKET_LIST.map((key) => {
             const label = (p[`bucket${key.charAt(0).toUpperCase()}${key.slice(1)}`] as string) || BUCKET_LABELS_FALLBACK[key] || key;
@@ -185,7 +185,7 @@ export function WizardStep1Food(props: Step1Props) {
                     : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
                 }`}>
                 <span>{label}</span>
-                {range && <span className="text-[10px] text-white/30 font-normal">{range}</span>}
+                {range && <span className="text-[10px] text-white/55 font-normal">{range}</span>}
               </button>
             );
           })}

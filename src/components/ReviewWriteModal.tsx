@@ -135,7 +135,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md bg-[#12152a] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Close */}
-        <button onClick={onClose} className="absolute top-4 right-4 text-white/30 hover:text-white/60 transition-colors">
+        <button onClick={onClose} className="absolute top-4 right-4 text-white/55 hover:text-white/60 transition-colors">
           <X size={18} />
         </button>
 
@@ -145,7 +145,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
               <Coins className="w-7 h-7 text-[#FFD700]" />
             </div>
             <p className="text-white font-bold text-lg">{rl.rewardToast}</p>
-            <p className="text-white/40 text-sm mt-2">Your review has been published</p>
+            <p className="text-white/55 text-sm mt-2">Your review has been published</p>
           </div>
         ) : (
           <>
@@ -166,7 +166,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
                 rows={4}
                 className="w-full bg-white/[0.04] border border-white/10 rounded-xl p-3 text-white text-sm placeholder-white/20 focus:border-[#7C5CFC]/50 focus:outline-none resize-none"
               />
-              <div className="text-right text-white/20 text-[10px] mt-1">
+              <div className="text-right text-white/55 text-[10px] mt-1">
                 {rl.charLimit?.replace('{used}', String(text.length)) || `${text.length}/500`}
               </div>
             </div>
@@ -193,8 +193,8 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
                     onClick={() => fileInputRef.current?.click()}
                     className="w-20 h-20 rounded-xl border-2 border-dashed border-white/15 hover:border-[#7C5CFC]/40 flex flex-col items-center justify-center gap-1 transition-colors"
                   >
-                    <Camera size={18} className="text-white/30" />
-                    <span className="text-white/20 text-[9px]">Add</span>
+                    <Camera size={18} className="text-white/55" />
+                    <span className="text-white/55 text-[9px]">Add</span>
                   </button>
                 )}
               </div>

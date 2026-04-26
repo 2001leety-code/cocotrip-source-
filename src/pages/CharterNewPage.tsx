@@ -74,7 +74,7 @@ export default function CharterNewPage() {
 
       <section className="text-white pt-24 pb-8 px-4" style={{ background: 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
         <div className="max-w-2xl mx-auto">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-white/35 text-xs hover:text-white/60 transition-colors mb-5">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-white/55 text-xs hover:text-white/60 transition-colors mb-5">
             <ArrowLeft className="w-3.5 h-3.5" />Home
           </Link>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#B668FC]/35 bg-[#B668FC]/08 text-[#B668FC] text-[11px] font-semibold tracking-wider uppercase mb-4">
@@ -107,7 +107,7 @@ export default function CharterNewPage() {
 
         {!completedState && (
           <div className="mt-8 text-center">
-            <Link to="/charter-legacy" className="text-xs text-white/30 hover:text-white/60 underline">
+            <Link to="/charter-legacy" className="text-xs text-white/55 hover:text-white/60 underline">
               {i18n.payGoToLegacy}
             </Link>
           </div>
@@ -197,7 +197,7 @@ function PaymentPanel({
       )}
 
       {resolved.payable && (
-        <p className="mt-3 text-center text-xs text-white/30">
+        <p className="mt-3 text-center text-xs text-white/55">
           <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>
         </p>
       )}

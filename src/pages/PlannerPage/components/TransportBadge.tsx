@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Transport method badge between timeline places.
 // Extracted verbatim from legacy PlannerPage.tsx L266-300.
 import { Car, Briefcase } from 'lucide-react';
@@ -17,11 +17,11 @@ export function TransportBadge({ transport, p }: { transport: TransportToNext; p
         <span className="inline-flex items-center gap-1.5 text-xs text-white/45 bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 rounded-full w-fit">
           {icon}
           <span>{transport.detail}</span>
-          <span className="text-white/25">·</span>
+          <span className="text-white/55">·</span>
           <span className="text-[#C4956A]/80 font-medium">{transport.costKRW}</span>
           {transport.durationMin > 0 && <>
-            <span className="text-white/25">·</span>
-            <span className="text-white/40">{transport.durationMin}{p.minuteUnit}</span>
+            <span className="text-white/55">·</span>
+            <span className="text-white/55">{transport.durationMin}{p.minuteUnit}</span>
           </>}
         </span>
         {transport.fatigueComment && (

@@ -48,7 +48,7 @@ export function WishlistToggle({
         className={`transition-all duration-300 ${animating ? 'scale-125' : 'scale-100'} ${
           wishlisted
             ? 'fill-[#EA537E] text-[#EA537E]'
-            : 'fill-none text-white/40 group-hover:text-white/70'
+            : 'fill-none text-white/55 group-hover:text-white/70'
         }`}
       />
     </button>
@@ -102,7 +102,7 @@ export function WishlistPanel() {
               <div className="flex items-center gap-2">
                 <Heart size={18} className="text-[#EA537E]" />
                 <h2 className="text-white font-semibold text-lg">Wishlist</h2>
-                <span className="text-white/40 text-sm">({items.length})</span>
+                <span className="text-white/55 text-sm">({items.length})</span>
               </div>
               <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10">
                 <X size={18} className="text-white/50" />
@@ -124,10 +124,10 @@ export function WishlistPanel() {
                 <div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" />
               </div>
             ) : items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-white/30">
+              <div className="flex flex-col items-center justify-center py-20 text-white/55">
                 <ShoppingBag size={40} className="mb-3 opacity-30" />
                 <p className="text-sm">No items in wishlist</p>
-                <p className="text-xs mt-1 text-white/20">Tap ❤️ to save tours you love</p>
+                <p className="text-xs mt-1 text-white/55">Tap ❤️ to save tours you love</p>
               </div>
             ) : (
               <div className="p-4 space-y-3">
@@ -145,7 +145,7 @@ export function WishlistPanel() {
                               ${item.priceUSD}
                             </span>
                           )}
-                          <span className="text-white/20 text-[10px] uppercase tracking-wider">
+                          <span className="text-white/55 text-[10px] uppercase tracking-wider">
                             {item.productType}
                           </span>
                         </div>
@@ -162,7 +162,7 @@ export function WishlistPanel() {
                         <Trash2 size={14} className="text-red-400/60" />
                       </button>
                     </div>
-                    <div className="mt-2 flex items-center gap-1.5 text-white/20 text-[10px]">
+                    <div className="mt-2 flex items-center gap-1.5 text-white/55 text-[10px]">
                       <Calendar size={10} />
                       <span>{new Date(item.addedAt).toLocaleDateString()}</span>
                     </div>

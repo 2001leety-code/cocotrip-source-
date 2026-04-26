@@ -75,7 +75,7 @@ export function ReviewCard({ review, onDelete }: Props) {
               <p className="text-white text-sm font-medium">{review.authorName}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <StarRating rating={review.rating} size={12} readonly />
-                <span className="text-white/30 text-[10px]">
+                <span className="text-white/55 text-[10px]">
                   {new Date(review.createdAt).toLocaleDateString()}
                 </span>
               </div>
@@ -88,7 +88,7 @@ export function ReviewCard({ review, onDelete }: Props) {
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="p-1 rounded hover:bg-white/5 transition-colors"
               >
-                <MoreHorizontal size={14} className="text-white/30" />
+                <MoreHorizontal size={14} className="text-white/55" />
               </button>
               {menuOpen && (
                 <div className="absolute right-0 top-7 bg-[#1a1d2e] border border-white/10 rounded-lg shadow-xl z-10 min-w-[140px] overflow-hidden">

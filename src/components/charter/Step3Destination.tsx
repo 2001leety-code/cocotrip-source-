@@ -78,7 +78,7 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
   return (
     <div className="space-y-3">
       {options.length === 0 && (
-        <p className="text-sm text-white/40 py-4">{i18n.selectOriginFirst}</p>
+        <p className="text-sm text-white/55 py-4">{i18n.selectOriginFirst}</p>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[360px] overflow-y-auto">
         {options.map(opt => {
@@ -93,20 +93,20 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
               }`}
             >
               <p className="text-sm text-white/90 font-medium truncate">{opt.title}</p>
-              {opt.sub && <p className="text-[11px] text-white/40 mt-0.5">{opt.sub}</p>}
+              {opt.sub && <p className="text-[11px] text-white/55 mt-0.5">{opt.sub}</p>}
             </button>
           );
         })}
       </div>
 
       <div className="pt-2">
-        <label className="block text-[11px] uppercase tracking-wider text-white/30 mb-2">{i18n.destCustomLabel}</label>
+        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-2">{i18n.destCustomLabel}</label>
         <input
           type="text"
           value={state.destinationCustom ?? ''}
           onChange={e => patch({ destinationKey: undefined, destinationCustom: e.target.value })}
           placeholder={i18n.destCustomPlaceholder}
-          className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40"
+          className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
         />
       </div>
     </div>

@@ -60,7 +60,7 @@ export function MobileSelectDrawer({
         {displayText}
       </span>
       <ChevronDown
-        className="w-4 h-4 text-white/30 shrink-0 transition-transform"
+        className="w-4 h-4 text-white/55 shrink-0 transition-transform"
         style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
       />
     </button>
@@ -93,7 +93,7 @@ export function MobileSelectDrawer({
                     <div className="flex flex-col items-start gap-0.5">
                       <span className="font-medium">{opt.label}</span>
                       {opt.sub && (
-                        <span className="text-xs text-white/30">{opt.sub}</span>
+                        <span className="text-xs text-white/55">{opt.sub}</span>
                       )}
                     </div>
                     {value === opt.value && (
@@ -142,7 +142,7 @@ export function MobileSelectDrawer({
                 <div className="flex flex-col items-start gap-0.5">
                   <span className="font-medium">{opt.label}</span>
                   {opt.sub && (
-                    <span className="text-xs text-white/25">{opt.sub}</span>
+                    <span className="text-xs text-white/55">{opt.sub}</span>
                   )}
                 </div>
                 {value === opt.value && (
