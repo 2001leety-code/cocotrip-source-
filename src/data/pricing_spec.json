@@ -88,7 +88,7 @@
       },
       "intercity": {
         "base_fee": 50000,
-        "rate_per_km": 900,
+        "rate_per_km": 1000,
         "deadhead_factor": 1.8,
         "daily_service_fee": 200000,
         "overnight_driver_fee": 130000

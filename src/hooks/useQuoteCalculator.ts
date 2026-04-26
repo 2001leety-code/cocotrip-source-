@@ -12,7 +12,13 @@ import {
   ATTRACTION_FEES,
 } from '@/data/charterPricing';
 import type { WizardState, QuoteBreakdown, QuoteAddon, VehicleType } from '@/components/charter/types';
-import { normalizeDestinationToMatrixKey, getMatrixKeyAlternatives } from '@/components/charter/destinationKeyMap';
+import {
+  normalizeDestinationToMatrixKey,
+  getMatrixKeyAlternatives,
+  getZoneForInput,
+  getZoneForMatrixKey,
+  ZONE_DEFAULTS,
+} from '@/components/charter/destinationKeyMap';
 
 // 차종별 배수 (스타리아 = 1.0 기준)
 const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
@@ -20,6 +26,13 @@ const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
   sprinter: 1.45,
   bus: 2.3,
 };
+
+// pricing_spec.json의 staria.intercity 값과 동기화 (rate_per_km: 1000)
+const STARIA_BASE_FEE = 50_000;
+const STARIA_RATE_PER_KM = 1000;
+
+// 권역 fallback이 적용되는 출발지 (서울/인천/김포 출발 기준)
+const ZONE_FALLBACK_ORIGINS = new Set(['SEL_METRO', 'ICN', 'GMP']);
 
 function matrixLookup(origin: string, destination: string): { km?: number; hours?: number; priceKRW?: number } | null {
   // METRO ↔ city 키 fallback — 부산/BUS_METRO 같은 동의 키 자동 시도
@@ -34,18 +47,36 @@ function matrixLookup(origin: string, destination: string): { km?: number; hours
   return null;
 }
 
+// 매트릭스 미존재 + 출발지 SEL/ICN/GMP일 때 권역 평균 km로 fallback
+function zoneLookup(origin: string, input: string | undefined): { km: number; hours: number } | null {
+  if (!input) return null;
+  if (!ZONE_FALLBACK_ORIGINS.has(origin)) return null;
+  const zone = getZoneForInput(input);
+  if (!zone) return null;
+  if (zone === 'jeju') return null; // 제주는 multi_day local 전용 — 별도 분기
+  const z = ZONE_DEFAULTS[zone];
+  if (z.km === 0) return null;
+  return { km: z.km, hours: z.hours };
+}
+
 // destinationCustom (한글 자유입력) → 매트릭스 영문 키 매핑 시도
-// 매칭되면 매트릭스 lookup 가능, 안 되면 needsCustomQuote 플래그로 Step6/Payment 분기
 function tryResolveCustomDestination(state: WizardState): string | null {
   if (state.destinationKey) return state.destinationKey;
   if (!state.destinationCustom) return null;
   return normalizeDestinationToMatrixKey(state.destinationCustom);
 }
 
+// destinationKey가 매트릭스 키일 때만 zone 직접 반환, custom이면 입력 → zone
+function getZoneForState(state: WizardState): string | null {
+  if (state.destinationKey) return getZoneForMatrixKey(state.destinationKey);
+  if (state.destinationCustom) return getZoneForInput(state.destinationCustom);
+  return null;
+}
+
 function calcIntercityFormula(vehicle: VehicleType, km: number): number {
   // 공식: base_fee + (km × 2) × rate_per_km × vehicle_multiplier
-  // pricing_spec.json의 staria.intercity 값 기준(=50,000 + 900*2) × 차종배수
-  const staria = 50_000 + km * 2 * 900;
+  // pricing_spec.json staria.intercity 기준 (rate_per_km: 1000)
+  const staria = STARIA_BASE_FEE + km * 2 * STARIA_RATE_PER_KM;
   return Math.round(staria * VEHICLE_MULTIPLIER[vehicle]);
 }
 
@@ -99,9 +130,16 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
         } else if (m?.km) {
           vehicleChargeKRW = calcIntercityFormula(vehicle, m.km);
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
-        } else if (state.destinationCustom) {
-          needsCustomQuote = true;
-          warnings.push('매트릭스에 없는 공항→목적지 조합 — 별도견적');
+        } else {
+          // 매트릭스 miss — 권역 fallback 시도 (출발지 SEL/ICN/GMP만)
+          const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
+          if (zoneFallback) {
+            vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
+            distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
+            warnings.push('권역 평균 거리 기준 추정가 — 정확한 견적은 WhatsApp 문의');
+          } else if (state.destinationCustom) {
+            needsCustomQuote = true;
+          }
         }
       }
     } else if (mode === 'day_tour') {
@@ -113,33 +151,70 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
         if (m?.km) {
           vehicleChargeKRW = calcIntercityFormula(vehicle, m.km);
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
-        } else if (state.destinationCustom) {
-          needsCustomQuote = true;
+        } else {
+          // 매트릭스 miss — 권역 fallback (제주 제외)
+          const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
+          if (zoneFallback) {
+            vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
+            distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
+            warnings.push('권역 평균 거리 기준 추정가');
+          } else if (state.destinationCustom) {
+            needsCustomQuote = true;
+          }
         }
       } else if (state.destinationCustom) {
-        needsCustomQuote = true;
+        // origin 없는데 custom 입력만 있으면 별도견적
+        const zoneFallback = zoneLookup(state.origin ?? 'SEL_METRO', state.destinationCustom);
+        if (zoneFallback) {
+          vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
+          distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
+          warnings.push('권역 평균 거리 기준 추정가');
+        } else {
+          needsCustomQuote = true;
+        }
       }
     } else if (mode === 'multi_day') {
-      // 1박2일 이상: 매트릭스 기반, 일당 서비스 피 + 숙박 일수 × 드라이버 숙식비
+      // 1박2일 이상: 매트릭스 또는 권역 fallback 기반 + 일당 운영비 + 숙박비
       const staria = VEHICLE_TYPES.staria as unknown as Record<string, unknown>;
-      const daily = 200_000;      // pricing_spec의 staria.intercity.daily_service_fee와 동기화 필요 (향후 리팩토링)
+      const daily = 200_000;
       const overnight = 130_000;
       const tourDays = Math.max(1, state.startDate && state.endDate ?
         Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000) : 1);
       const nights = Math.max(0, tourDays - 1);
       void staria;
 
-      if (state.origin && resolvedDest) {
+      // 제주는 multi_day + lodgingLocation='local'만 허용 — 그 외 needsCustomQuote
+      const dstZone = getZoneForState(state);
+      if (dstZone === 'jeju' && state.lodgingLocation !== 'local') {
+        needsCustomQuote = true;
+        warnings.push('제주는 현지 숙박 투어만 진행 — 항공편 별도');
+      } else if (state.origin && resolvedDest) {
         const m = matrixLookup(state.origin, resolvedDest);
         if (m?.km) {
           const intercity = calcIntercityFormula(vehicle, m.km);
           vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
-        } else if (state.destinationCustom) {
-          needsCustomQuote = true;
+        } else {
+          const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
+          if (zoneFallback) {
+            const intercity = calcIntercityFormula(vehicle, zoneFallback.km);
+            vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
+            distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
+            warnings.push('권역 평균 거리 기준 추정가');
+          } else if (state.destinationCustom) {
+            needsCustomQuote = true;
+          }
         }
       } else if (state.destinationCustom) {
-        needsCustomQuote = true;
+        const zoneFallback = zoneLookup(state.origin ?? 'SEL_METRO', state.destinationCustom);
+        if (zoneFallback) {
+          const intercity = calcIntercityFormula(vehicle, zoneFallback.km);
+          vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
+          distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
+          warnings.push('권역 평균 거리 기준 추정가');
+        } else {
+          needsCustomQuote = true;
+        }
       }
     }
 
