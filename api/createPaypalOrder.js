@@ -11,7 +11,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { getPaypalAccessToken } from './_shared/paypal.js';
 
-export const maxDuration = 60;
+export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
 // ── 표준 응답 래퍼 ──

@@ -23,6 +23,9 @@
 // translation failures behind warm Firestore cache hits.
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+export const maxDuration = 60;
+export const config = { runtime: 'nodejs' };
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Bumped when the translator emits new fields; useAutoTranslate compares this

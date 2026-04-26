@@ -16,20 +16,20 @@
     },
     "api/ai-planner-full.js": {
       "maxDuration": 300,
-      "memory": 1024
+      "memory": 768
     },
     "api/ai-planner-quick.js": {
       "maxDuration": 60,
       "memory": 512
     },
     "api/booking-processor.js": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "api/cron-runner.js": {
-      "maxDuration": 120
+      "maxDuration": 60
     },
     "api/*.js": {
-      "maxDuration": 120
+      "maxDuration": 30
     }
   },
   "redirects": [

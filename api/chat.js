@@ -12,7 +12,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
 const counterDb = initAdminDb('chat');
 
-export const maxDuration = 60;
+export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
 // ── 표준 응답 래퍼 ──
