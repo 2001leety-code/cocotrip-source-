@@ -425,6 +425,37 @@
     "tagline": "高级韩国旅游"
   },
   "booking": {
+    "error": {
+      "googleLoginFailed": "谷歌登录失败。",
+      "checkingAuthState": "正在检查登录状态，请稍候。",
+      "requireGoogleLogin": "请使用谷歌登录后继续预订。",
+      "selectTour": "请选择一个旅游产品。",
+      "reservationFailed": "预订处理失败。",
+      "noToursAvailable": "没有可用的旅游产品。"
+    },
+    "validation": {
+      "nameRequired": "请输入您的名字。",
+      "emailRequired": "请输入您的邮箱。",
+      "phoneRequired": "请输入您的联系电话。",
+      "locationRequired": "请输入地点。",
+      "date": "请选择您的旅游日期。",
+      "failed": "发送预订请求失败。 请再试一次。"
+    },
+    "auth": {
+      "heading": "登录后预订",
+      "subtitle": "使用社交账户登录后可以完成预订。",
+      "signingIn": "登录中...",
+      "startGoogle": "用谷歌登录"
+    },
+    "loading": {
+      "tours": "加载中...",
+      "toursDetail": "正在加载旅游产品..."
+    },
+    "tour": {
+      "priceLabel": "价格:",
+      "seatsLabel": "剩余座位:"
+    },
+    "successAutoClosing": "正在自动关闭...",
     "title": "规划您的旅行",
     "subtitle": "填写表格以申请预订。 我们会尽快回复您确认和详细信息。",
     "tourType": "旅游类型",
@@ -453,10 +484,6 @@
       "title": "谢谢！",
       "message": "您的预订请求已收到。 我们会尽快与您联系。",
       "newBooking": "重新预订"
-    },
-    "validation": {
-      "date": "请选择您的旅游日期。",
-      "failed": "发送预订请求失败。 请再试一次。"
     }
   },
   "planner": {

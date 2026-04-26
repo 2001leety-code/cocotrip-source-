@@ -425,6 +425,37 @@
     "tagline": "KOREA PRIVATE TOUR"
   },
   "booking": {
+    "error": {
+      "googleLoginFailed": "Google sign-in failed.",
+      "checkingAuthState": "Checking sign-in status. Please wait.",
+      "requireGoogleLogin": "Please sign in with Google to proceed with booking.",
+      "selectTour": "Please select a tour.",
+      "reservationFailed": "Failed to process reservation.",
+      "noToursAvailable": "No tours available."
+    },
+    "validation": {
+      "nameRequired": "Please enter your name.",
+      "emailRequired": "Please enter your email.",
+      "phoneRequired": "Please enter your contact number.",
+      "locationRequired": "Please enter a location.",
+      "date": "Please select a date for your tour.",
+      "failed": "Failed to send booking request. Please try again."
+    },
+    "auth": {
+      "heading": "Sign in to book",
+      "subtitle": "Complete your reservation after signing in with your social account.",
+      "signingIn": "Signing in...",
+      "startGoogle": "Start with Google"
+    },
+    "loading": {
+      "tours": "Loading...",
+      "toursDetail": "Loading tours..."
+    },
+    "tour": {
+      "priceLabel": "Price:",
+      "seatsLabel": "Remaining seats:"
+    },
+    "successAutoClosing": "Closing automatically...",
     "title": "Plan Your Trip",
     "subtitle": "Fill out the form to request a booking. We'll get back to you with a confirmation and details.",
     "tourType": "Tour Type",
@@ -453,10 +484,6 @@
       "title": "Thank You!",
       "message": "Your booking request has been received. We will contact you shortly.",
       "newBooking": "Make Another Booking"
-    },
-    "validation": {
-      "date": "Please select a date for your tour.",
-      "failed": "Failed to send booking request. Please try again."
     }
   },
   "planner": {

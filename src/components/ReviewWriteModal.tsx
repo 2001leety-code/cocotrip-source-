@@ -179,7 +179,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
               <div className="flex gap-2 flex-wrap">
                 {photos.map((photo, idx) => (
                   <div key={idx} className="relative w-20 h-20 rounded-xl overflow-hidden group">
-                    <img src={photo.preview} alt="" className="w-full h-full object-cover" />
+                    <img src={photo.preview} alt={`Preview photo ${idx + 1}`} className="w-full h-full object-cover" />
                     <button
                       onClick={() => removePhoto(idx)}
                       className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"

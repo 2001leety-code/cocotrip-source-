@@ -194,7 +194,7 @@ export default function AdminReviews() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     {review.authorPhotoURL ? (
-                      <img src={review.authorPhotoURL} alt="" className="w-8 h-8 rounded-full" />
+                      <img src={review.authorPhotoURL} alt={review.authorName || 'Reviewer'} className="w-8 h-8 rounded-full" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7C5CFC] to-[#EA537E] flex items-center justify-center text-white text-xs font-bold">
                         {(review.authorName || 'A')[0].toUpperCase()}
@@ -234,7 +234,7 @@ export default function AdminReviews() {
                 {review.photos && review.photos.length > 0 && (
                   <div className="flex gap-2 mb-3">
                     {review.photos.map((url, i) => (
-                      <img key={i} src={url} alt="" className="w-16 h-16 rounded-lg object-cover border border-white/5" />
+                      <img key={i} src={url} alt={`Review attachment ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-white/5" />
                     ))}
                   </div>
                 )}

@@ -65,7 +65,7 @@ export function ReviewCard({ review, onDelete }: Props) {
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             {review.authorPhotoURL ? (
-              <img src={review.authorPhotoURL} alt="" className="w-8 h-8 rounded-full" />
+              <img src={review.authorPhotoURL} alt={review.authorName || 'Reviewer'} className="w-8 h-8 rounded-full" />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7C5CFC] to-[#EA537E] flex items-center justify-center text-white text-xs font-bold">
                 {(review.authorName || 'A')[0].toUpperCase()}
@@ -127,7 +127,7 @@ export function ReviewCard({ review, onDelete }: Props) {
               >
                 <img
                   src={url}
-                  alt=""
+                  alt={`Review photo ${i + 1}`}
                   className="w-20 h-20 rounded-lg object-cover border border-white/5 group-hover:border-[#7C5CFC]/40 transition-colors"
                 />
               </button>
@@ -147,7 +147,7 @@ export function ReviewCard({ review, onDelete }: Props) {
           </button>
           <img
             src={lightbox}
-            alt=""
+            alt="Review attachment"
             className="max-w-full max-h-[85vh] rounded-xl object-contain"
             onClick={e => e.stopPropagation()}
           />

@@ -100,7 +100,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
       await signInWithGoogle();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : '구글 로그인에 실패했습니다.';
+        err instanceof Error ? err.message : (t.booking.error?.googleLoginFailed || 'Google sign-in failed.');
       toast.error(message);
     } finally {
       setIsSigningIn(false);
@@ -116,17 +116,17 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
     }
 
     if (authLoading) {
-      toast.error('로그인 상태를 확인하는 중입니다. 잠시만 기다려주세요.');
+      toast.error(t.booking.error?.checkingAuthState || 'Checking sign-in status.');
       return;
     }
 
     if (!user) {
-      toast.error('구글 로그인 후 예약을 진행해주세요.');
+      toast.error(t.booking.error?.requireGoogleLogin || 'Please sign in with Google.');
       return;
     }
 
     if (!selectedTourId) {
-      toast.error('투어를 선택해주세요.');
+      toast.error(t.booking.error?.selectTour || 'Please select a tour.');
       return;
     }
 
@@ -141,19 +141,19 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
     const notes = String(fd.get('message') ?? '').trim();
 
     if (!fromName) {
-      toast.error('이름을 입력해주세요.');
+      toast.error(t.booking.validation?.nameRequired || 'Please enter your name.');
       return;
     }
     if (!customerEmail) {
-      toast.error('이메일을 입력해주세요.');
+      toast.error(t.booking.validation?.emailRequired || 'Please enter your email.');
       return;
     }
     if (!phone) {
-      toast.error('연락처를 입력해주세요.');
+      toast.error(t.booking.validation?.phoneRequired || 'Please enter your phone.');
       return;
     }
     if (!location) {
-      toast.error('로케이션을 입력해주세요.');
+      toast.error(t.booking.validation?.locationRequired || 'Please enter location.');
       return;
     }
 
@@ -195,7 +195,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
       setIsSubmitted(true);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : '예약 처리에 실패했습니다.';
+        err instanceof Error ? err.message : (t.booking.error?.reservationFailed || 'Reservation failed.');
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -233,7 +233,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
           <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-6" />
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">{t.booking.success.title}</h1>
           <p className="text-sm sm:text-base mb-8">{t.booking.success.message}</p>
-          <p className="text-sm text-gray-400 mb-4">Closing automatically...</p>
+          <p className="text-sm text-gray-400 mb-4">{t.booking.successAutoClosing || 'Closing automatically...'}</p>
           <Button onClick={handleNewBooking} className="rounded-xl w-full py-4 text-base bg-[#0f3460] text-white hover:bg-[#1a1a2e] font-bold border border-white/10 transition-colors">
             {t.booking.success.newBooking}
           </Button>
@@ -244,12 +244,12 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
           <p className="mb-6 text-white/70 text-sm">{t.booking.subtitle}</p>
 
           {authLoading ? (
-            <div className="mt-6 text-sm text-white/70">Loading...</div>
+            <div className="mt-6 text-sm text-white/70">{t.booking.loading?.tours || 'Loading...'}</div>
           ) : !user ? (
             <div className="mt-6 space-y-4">
-              <h2 className="text-xl font-bold">로그인 후 예약하기</h2>
+              <h2 className="text-xl font-bold">{t.booking.auth?.heading || 'Sign in to book'}</h2>
               <p className="text-sm text-white/70">
-                소셜 로그인 후 예약을 진행할 수 있습니다.
+                {t.booking.auth?.subtitle || 'Complete your reservation after signing in.'}
               </p>
               <Button
                 onClick={handleGoogleLogin}
@@ -262,7 +262,7 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                {isSigningIn ? '로그인 중...' : '구글로 시작하기'}
+                {isSigningIn ? (t.booking.auth?.signingIn || 'Signing in...') : (t.booking.auth?.startGoogle || 'Start with Google')}
               </Button>
               {/* Apple 로그인 임시 비활성화 */}
               {authError ? (
@@ -293,11 +293,11 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
             <div>
               <label className="block text-sm font-medium text-white/70 mb-3">{t.booking.tourType}</label>
               {toursLoading ? (
-                <p className="text-xs text-white/60">Loading tours...</p>
+                <p className="text-xs text-white/60">{t.booking.loading?.toursDetail || 'Loading tours...'}</p>
               ) : toursError ? (
                 <p className="text-xs text-red-300">{toursError}</p>
               ) : tours.length === 0 ? (
-                <p className="text-xs text-white/60">등록된 상품이 없습니다.</p>
+                <p className="text-xs text-white/60">{t.booking.error?.noToursAvailable || 'No tours available.'}</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {tours.map((tour) => {
@@ -324,10 +324,10 @@ export default function Booking({ onClose }: { onClose?: () => void }) {
                           {tour.title ?? 'Untitled'}
                         </div>
                         <div className="text-xs opacity-80 mt-2">
-                          가격: {tour.price != null ? `${tour.price}` : '-'}
+                          {t.booking.tour?.priceLabel || 'Price:'} {tour.price != null ? `${tour.price}` : '-'}
                         </div>
                         <div className="text-[10px] opacity-80 mt-1">
-                          잔여석: {remaining} / {total}
+                          {t.booking.tour?.seatsLabel || 'Seats:'} {remaining} / {total}
                         </div>
                       </button>
                     );
