@@ -16,7 +16,14 @@ export default defineConfig({
       // Scope coverage to backend helpers + schemas — frontend components are
       // covered by Playwright e2e (tests/e2e/), not vitest. Adding more files
       // here without tests would just lower the score and force noisy thresholds.
-      include: ['src/schemas/**', 'api/_shared/log.js', 'api/_shared/paypal.js'],
+      include: [
+        'src/schemas/**',
+        'api/_shared/log.js',
+        'api/_shared/paypal.js',
+        'api/_shared/response.js',
+        'api/_shared/admin-auth.js',
+        'api/_shared/firebase-admin.js',
+      ],
       exclude: ['**/*.test.ts', '**/*.d.ts'],
       reporter: ['text', 'json-summary'],
       thresholds: {
