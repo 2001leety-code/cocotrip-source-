@@ -425,6 +425,37 @@
     "tagline": "プレミアム韓国ツアー"
   },
   "booking": {
+    "error": {
+      "googleLoginFailed": "Googleログインに失敗しました。",
+      "checkingAuthState": "ログイン状態を確認中です。しばらくお待ちください。",
+      "requireGoogleLogin": "Googleでログインしてから予約してください。",
+      "selectTour": "ツアーを選択してください。",
+      "reservationFailed": "予約処理に失敗しました。",
+      "noToursAvailable": "登録されたツアーがありません。"
+    },
+    "validation": {
+      "nameRequired": "お名前を入力してください。",
+      "emailRequired": "メールアドレスを入力してください。",
+      "phoneRequired": "連絡先を入力してください。",
+      "locationRequired": "位置情報を入力してください。",
+      "date": "ツアーの日付を選択してください。",
+      "failed": "予約リクエストの送信に失敗しました。もう一度お試しください。"
+    },
+    "auth": {
+      "heading": "ログイン後に予約する",
+      "subtitle": "ソーシャルログイン後に予約を進めることができます。",
+      "signingIn": "ログイン中...",
+      "startGoogle": "Googleで始める"
+    },
+    "loading": {
+      "tours": "ロード中...",
+      "toursDetail": "ツアーを読み込み中..."
+    },
+    "tour": {
+      "priceLabel": "価格:",
+      "seatsLabel": "残り席:"
+    },
+    "successAutoClosing": "自動で閉じます...",
     "title": "旅行の計画",
     "subtitle": "予約をリクエストするには、フォームにご記入ください。確認と詳細をご連絡します。",
     "tourType": "ツアータイプ",
@@ -453,10 +484,6 @@
       "title": "ありがとうございます！",
       "message": "ご予約のリクエストを受け付けました。後ほどご連絡いたします。",
       "newBooking": "別の予約をする"
-    },
-    "validation": {
-      "date": "ツアーの日付を選択してください。",
-      "failed": "予約リクエストの送信に失敗しました。もう一度お試しください。"
     }
   },
   "planner": {

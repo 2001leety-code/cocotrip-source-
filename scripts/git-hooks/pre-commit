@@ -78,6 +78,8 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/pages/TourDetailPage.tsx") continue;
       if (f === "src/components/tours/TourStopList.tsx") continue;
       if (f === "src/components/tours/TourCard.tsx") continue;
+      // Booking page (2026-04-25): ?? used for optional form payload (totalSeats ?? 0, title ?? 'Unknown').
+      if (f === "src/pages/Booking.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

@@ -425,6 +425,37 @@
     "tagline": "프리미엄 한국 투어"
   },
   "booking": {
+    "error": {
+      "googleLoginFailed": "구글 로그인에 실패했습니다.",
+      "checkingAuthState": "로그인 상태를 확인하는 중입니다. 잠시만 기다려주세요.",
+      "requireGoogleLogin": "구글 로그인 후 예약을 진행해주세요.",
+      "selectTour": "투어를 선택해주세요.",
+      "reservationFailed": "예약 처리에 실패했습니다.",
+      "noToursAvailable": "등록된 상품이 없습니다."
+    },
+    "validation": {
+      "nameRequired": "이름을 입력해주세요.",
+      "emailRequired": "이메일을 입력해주세요.",
+      "phoneRequired": "연락처를 입력해주세요.",
+      "locationRequired": "로케이션을 입력해주세요.",
+      "date": "투어 날짜를 선택해주세요.",
+      "failed": "예약 요청 전송에 실패했습니다. 다시 시도해주세요."
+    },
+    "auth": {
+      "heading": "로그인 후 예약하기",
+      "subtitle": "소셜 로그인 후 예약을 진행할 수 있습니다.",
+      "signingIn": "로그인 중...",
+      "startGoogle": "구글로 시작하기"
+    },
+    "loading": {
+      "tours": "로딩 중...",
+      "toursDetail": "투어를 로딩 중입니다..."
+    },
+    "tour": {
+      "priceLabel": "가격:",
+      "seatsLabel": "잔여석:"
+    },
+    "successAutoClosing": "자동으로 닫힙니다...",
     "title": "여행 예약",
     "subtitle": "아래 정보를 입력하여 예약 요청을 보내주세요. 확인 후 신속하게 연락드리겠습니다.",
     "tourType": "투어 타입",
@@ -453,10 +484,6 @@
       "title": "감사합니다!",
       "message": "예약 요청이 접수되었습니다. 곧 연락드리겠습니다.",
       "newBooking": "새 예약하기"
-    },
-    "validation": {
-      "date": "투어 날짜를 선택해주세요.",
-      "failed": "예약 요청 전송에 실패했습니다. 다시 시도해주세요."
     }
   },
   "planner": {

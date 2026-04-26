@@ -117,7 +117,7 @@ export default function MyPage() {
         >
           <div className="flex items-start gap-4">
             {user?.photoURL ? (
-              <img src={user.photoURL} alt="" className="w-14 h-14 rounded-full border-2" style={{ borderColor: tc.color }} />
+              <img src={user.photoURL} alt={user.displayName || 'Profile'} className="w-14 h-14 rounded-full border-2" style={{ borderColor: tc.color }} />
             ) : (
               <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-2xl">
                 {TIER_EMOJI[tier]}
