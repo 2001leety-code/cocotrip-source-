@@ -11,6 +11,7 @@ import type { PlanStop } from '../types';
 import { getPlanDetailUI } from '../types';
 import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
+import { BRAND } from '@/lib/design-tokens';
 
 export function StopCard({ stop }: { stop: PlanStop }) {
   const { t } = useLanguage();
@@ -43,7 +44,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
     >
       {/* Left accent bar — visual anchor that ties the time to the card */}
       <span aria-hidden className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r"
-        style={{ background: 'linear-gradient(180deg,#7C5CFC,#EA537E)' }} />
+        style={{ background: BRAND.gradient.primaryVertical }} />
 
       {/* Collapsed header */}
       <div className="flex items-start gap-3 sm:gap-3.5 p-3.5 sm:p-4 pl-4 sm:pl-5">

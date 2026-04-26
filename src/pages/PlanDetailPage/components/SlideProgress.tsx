@@ -3,6 +3,7 @@
 // >8 slides: compact "{current+1} / {total}" + thin progress bar
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
+import { BRAND } from '@/lib/design-tokens';
 
 interface SlideProgressProps {
   current: number;
@@ -30,7 +31,7 @@ export function SlideProgress({ current, total, onDotClick }: SlideProgressProps
             className="h-full rounded-full transition-all duration-300 ease-out"
             style={{
               width: `${pct}%`,
-              background: 'linear-gradient(90deg, #7C5CFC, #EA537E)',
+              background: BRAND.gradient.primaryHorizontal,
             }}
           />
         </div>
@@ -50,7 +51,7 @@ export function SlideProgress({ current, total, onDotClick }: SlideProgressProps
             height: 6,
             borderRadius: 3,
             background: current === i
-              ? 'linear-gradient(90deg, #7C5CFC, #EA537E)'
+              ? BRAND.gradient.primaryHorizontal
               : 'rgba(255,255,255,0.15)',
             transform: current === i ? 'scale(1)' : 'scale(0.85)',
           }}

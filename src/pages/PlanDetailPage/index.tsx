@@ -36,6 +36,7 @@ import type { PlanDocument } from './types';
 import { getPlanDetailUI } from './types';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
+import { BRAND } from '@/lib/design-tokens';
 
 export default function PlanDetailPage() {
   const { planId } = useParams();
@@ -156,7 +157,7 @@ export default function PlanDetailPage() {
         <AlertCircle className="w-16 h-16 text-red-400/40 mb-4" />
         <h1 className="text-xl font-bold mb-2">{ui.planNotFound || 'Plan Not Found'}</h1>
         <p className="text-white/40 text-sm mb-6">{ui.planNotFoundDesc || 'This plan may have been deleted or the link is invalid.'}</p>
-        <Link to="/planner" className="px-6 py-3 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>{ui.createNewPlan || 'Create New Plan'}</Link>
+        <Link to="/planner" className="px-6 py-3 rounded-xl text-sm font-bold text-white" style={{ background: BRAND.gradient.primary }}>{ui.createNewPlan || 'Create New Plan'}</Link>
       </div>
     </div>
   );

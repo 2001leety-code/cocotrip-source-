@@ -5,7 +5,7 @@ import { ArrivalGuide } from './ArrivalGuide';
 import { ShareMiniIcon } from './ShareButton';
 import { formatKRW } from '../constants';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { BRAND } from '@/lib/design-tokens';
 import type { PlanDocument, PlanDay } from '../types';
 import { getPlanDetailDict } from '../types';
 
@@ -17,7 +17,6 @@ interface IntroSlideProps {
 
 export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
   const { t } = useLanguage();
-  const isMobile = useIsMobile();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
 
@@ -36,7 +35,7 @@ export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
             Translating...
           </div>
         )}
-        <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#a78bfa,#ec4899)' }}>
+        <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
           {it.tour_title || sw.introTitle || 'Your Korea Trip'}
         </h1>
         <div className="flex items-center justify-center mt-1">
@@ -44,7 +43,7 @@ export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
         </div>
         <p className="text-white/40 text-sm mt-2">
           {input.startDate} | {input.adults ? `${input.adults} adults` : `${input.pax} pax`}
-          {Number(input.children ?? 0) > 0 && ` + ${input.children} children`}
+          {Number(input.children || 0) > 0 && ` + ${input.children} children`}
           {((plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle) && ` | ${(plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle}`}
         </p>
       </div>
