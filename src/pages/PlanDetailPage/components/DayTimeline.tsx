@@ -13,6 +13,7 @@ import { CharterCTA } from './CharterCTA';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDay, PlanStop } from '../types';
 import { getPlanDetailDict } from '../types';
+import { BRAND } from '@/lib/design-tokens';
 
 interface DayTimelineProps {
   day: PlanDay;
@@ -35,7 +36,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   return (
     <section className="mb-6 sm:mb-8">
       <div className="flex items-center gap-2.5 sm:gap-3 mb-3 sm:mb-4">
-        <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-bold" style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+        <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-bold" style={{ background: BRAND.gradient.primary }}>
           {day.day || dayIndex + 1}
         </span>
         <div>

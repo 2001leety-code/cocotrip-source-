@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
 import type { Slide } from '../lib/buildSlides';
+import { BRAND } from '@/lib/design-tokens';
 
 interface SectionTabsProps {
   slides: Slide[];
@@ -71,7 +72,7 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
               className="shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-all whitespace-nowrap"
               style={{
                 background: active
-                  ? 'linear-gradient(135deg,#7C5CFC,#EA537E)'
+                  ? BRAND.gradient.primary
                   : 'rgba(255,255,255,0.06)',
                 color: active ? 'white' : 'rgba(255,255,255,0.55)',
                 border: active ? '1px solid transparent' : '1px solid rgba(255,255,255,0.08)',

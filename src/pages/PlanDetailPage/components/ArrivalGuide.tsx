@@ -12,6 +12,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailUI } from '../types';
 import { TransitArrow } from './TransitArrow';
 import type { TransitFromPrev } from '@/types/plan';
+import { BRAND } from '@/lib/design-tokens';
 
 interface ArrivalOption {
   name: string;
@@ -94,7 +95,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
         }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+            style={{ background: BRAND.gradient.primary }}>
             <Plane className="w-5 h-5 text-white" />
           </div>
           <div className="text-left">
@@ -117,7 +118,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
               </div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
-                  style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+                  style={{ background: BRAND.gradient.primary }}>
                   <Car className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -133,7 +134,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
               <Link
                 to={rec.cta_link || '/charter'}
                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-[13px] font-bold text-white transition-all hover:scale-[1.01] min-h-[44px]"
-                style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 4px 16px rgba(124,92,252,0.35)' }}
+                style={{ background: BRAND.gradient.primary, boxShadow: '0 4px 16px rgba(124,92,252,0.35)' }}
               >
                 {ui.bookCharter || 'Book Charter'} <ArrowRight className="w-4 h-4" />
               </Link>
@@ -187,7 +188,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                 <div key={i} className="relative bg-white/[0.04] border border-white/[0.07] rounded-xl p-3.5">
                   <div className="flex items-start gap-3">
                     <div className="relative z-10 w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-lg"
-                      style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+                      style={{ background: BRAND.gradient.primary }}>
                       <Icon className="w-[18px] h-[18px] text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -245,10 +246,10 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                       )}
 
                       {/* T-money load chip */}
-                      {(step.t_money_recommended_load_krw ?? 0) > 0 && (
+                      {(step.t_money_recommended_load_krw || 0) > 0 && (
                         <div className="mt-2.5 inline-flex items-center gap-1.5 bg-[#7C5CFC]/15 border border-[#7C5CFC]/25 rounded-full px-3 py-1.5">
                           <Wallet className="w-3 h-3 text-[#7C5CFC]" />
-                          <span className="text-[11px] font-bold text-[#7C5CFC]">{ui.tmoneyLoad || 'Load'} {formatKRW(step.t_money_recommended_load_krw ?? 0)}</span>
+                          <span className="text-[11px] font-bold text-[#7C5CFC]">{ui.tmoneyLoad || 'Load'} {formatKRW(step.t_money_recommended_load_krw || 0)}</span>
                         </div>
                       )}
                     </div>

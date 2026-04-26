@@ -11,7 +11,7 @@ import { CharterBanner } from './ads/CharterBanner';
 import { CarRentalAd } from './ads/CarRentalAd';
 import { FlightAd } from './ads/FlightAd';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { BRAND } from '@/lib/design-tokens';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
 import { getOutroExtras } from '../lib/buildSlides';
@@ -28,7 +28,6 @@ interface OutroSlideProps {
 
 export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating, isOwner, onDownloadPDF }: OutroSlideProps) {
   const { t } = useLanguage();
-  const isMobile = useIsMobile();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
 
@@ -43,7 +42,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+      <h2 className="text-xl font-bold text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
         {sw.outroTitle || 'Ready to go!'}
       </h2>
 
@@ -57,7 +56,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       <div className="mt-8 space-y-3">
         <button onClick={onDownloadPDF} disabled={isPdfGenerating || isTranslating}
           className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+          style={{ background: BRAND.gradient.primary }}>
           {isPdfGenerating ? (
             <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.outroPdfCta || 'Generating PDF...'}</>
           ) : isTranslating ? (
