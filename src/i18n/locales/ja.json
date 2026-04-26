@@ -1603,5 +1603,71 @@
       "privacy": "プライバシー",
       "travelTerms": "旅行規約"
     }
+  },
+  "a11y": {
+    "openChat": "チャットを開く",
+    "previousImage": "前の画像",
+    "nextImage": "次の画像",
+    "goToImage": "画像へ移動",
+    "goToSlide": "スライドへ移動",
+    "close": "閉じる",
+    "decrease": "減らす",
+    "increase": "増やす",
+    "removeFromWishlist": "ウィッシュリストから削除",
+    "addToWishlist": "ウィッシュリストに追加",
+    "wishlist": "ウィッシュリスト",
+    "decreasePax": "人数を減らす",
+    "increasePax": "人数を増やす",
+    "share": "共有",
+    "loading": "読み込み中",
+    "dragToReorder": "ドラッグして並び替え",
+    "driverLanguages": "ドライバー対応言語"
+  },
+  "pageMeta": {
+    "home": {
+      "title": "CocoTrip — プレミアム韓国旅行",
+      "description": "韓国のプライベートツアー、チャーター車、AI旅行プランナー。空港送迎、K-popシャトル、ソウル・釜山・慶州デイツアー。"
+    },
+    "about": {
+      "title": "CocoTrip について",
+      "description": "CocoTripは、プライベートツアー、チャーター車両、AI旅行プランニングを提供する韓国インバウンドのプレミアム旅行会社です。"
+    },
+    "charterNew": {
+      "title": "チャーター見積もり — 韓国のプライベート車",
+      "description": "空港送迎、デイツアー、多日市内のプライベート運転手。6ステップ即時見積もり。"
+    },
+    "charter": {
+      "title": "チャーター車両 — 空港送迎 & デイツアー",
+      "description": "韓国でプライベートチャーター車両を予約。空港送迎、デイツアー、K-popコンサートシャトル。ヒョンデ・スタリア、スプリンター、バスが利用可能。"
+    },
+    "myPage": {
+      "title": "マイページ — メンバーシップ & リワード",
+      "description": "CocoTripメンバーシップ、トリップコイン、クーポン、ウィッシュリスト、旅行日程を管理。"
+    },
+    "myPlans": {
+      "title": "マイ旅行 — AI旅行日程",
+      "description": "AIが生成した韓国旅行日程を表示・管理。"
+    },
+    "planner": {
+      "title": "AI旅行プランナー — カスタム韓国日程",
+      "description": "AIで個別化された韓国旅行日程を作成。無料、即時、多言語対応。ソウル、釜山、済州など。"
+    },
+    "privacy": {
+      "description": "CocoTrip プライバシーポリシー — 個人情報の収集、利用、保護について。"
+    },
+    "terms": {
+      "description": "CocoTrip 利用規約 — 予約、支払い、キャンセル、返金ポリシー。"
+    },
+    "travelTerms": {
+      "description": "CocoTrip 旅行規約 — 海外旅行の義務、料金、キャンセル、責任について。"
+    }
+  },
+  "adminSales": {
+    "kpi": {
+      "today": "今日",
+      "week": "今週",
+      "month": "今月",
+      "ytd": "年累計"
+    }
   }
 }

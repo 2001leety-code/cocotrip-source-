@@ -6,6 +6,7 @@ import type { Locale } from 'date-fns';
 import type { AirportOption } from './data';
 import type { WizardDict } from './types';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface Step2Props {
   p: WizardDict;
@@ -56,6 +57,7 @@ const TOUR_PACE_FALLBACK: Record<TourPace, { label: string; sub: string }> = {
 };
 
 function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: string; value: number; setValue: (v: number) => void }) {
+  const { t } = useLanguage();
   return (
     <div className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
       <div>
@@ -65,12 +67,12 @@ function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: s
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => setValue(Math.max(0, value - 1))}
           className="w-11 h-11 rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/60 disabled:opacity-30"
-          disabled={value === 0} aria-label="Decrease">
+          disabled={value === 0} aria-label={t.a11y?.decrease ||'Decrease'}>
           <Minus className="w-3.5 h-3.5" />
         </button>
         <span className="w-6 text-center text-sm font-bold text-white">{value}</span>
         <button type="button" onClick={() => setValue(Math.min(20, value + 1))}
-          className="w-11 h-11 rounded-full bg-[#7C5CFC]/30 hover:bg-[#7C5CFC]/50 flex items-center justify-center text-white" aria-label="Increase">
+          className="w-11 h-11 rounded-full bg-[#7C5CFC]/30 hover:bg-[#7C5CFC]/50 flex items-center justify-center text-white" aria-label={t.a11y?.increase ||'Increase'}>
           <Plus className="w-3.5 h-3.5" />
         </button>
       </div>

@@ -135,11 +135,11 @@ const PageSection = ({ title, children, isMobile }: { title: string; children: R
 export default function Terms() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
-  const content = CONTENT[language as keyof typeof CONTENT] ?? CONTENT.en;
+  const content = CONTENT[language as keyof typeof CONTENT] ||CONTENT.en;
 
   usePageMeta({
     title: content.pageTitle,
-    description: 'CocoTrip terms of service — booking, payment, cancellation and refund policies.',
+    description: t.pageMeta?.terms?.description ||'CocoTrip terms of service — booking, payment, cancellation and refund policies.',
   });
 
   return (

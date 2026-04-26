@@ -58,8 +58,8 @@ export default function CharterPage() {
   const llk = (['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'; // language key for luggage labels
 
   usePageMeta({
-    title: 'Charter Vehicle — Airport Pickup & Day Tours',
-    description: 'Book private charter vehicles in Korea. Airport transfers, day tours, K-pop concert shuttles. Hyundai Staria, Sprinter, Bus available.',
+    title: t.pageMeta?.charter?.title ?? 'Charter Vehicle — Airport Pickup & Day Tours',
+    description: t.pageMeta?.charter?.description ?? 'Book private charter vehicles in Korea. Airport transfers, day tours, K-pop concert shuttles. Hyundai Staria, Sprinter, Bus available.',
     ogImage: '/hero-seoul-real.webp',
   });
 

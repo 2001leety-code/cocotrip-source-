@@ -9,8 +9,8 @@ export default function About() {
   const isMobile = useIsMobile();
 
   usePageMeta({
-    title: 'About CocoTrip',
-    description: 'CocoTrip is a premium Korea inbound travel agency offering private tours, charter vehicles, and AI-powered trip planning.',
+    title: t.pageMeta?.about?.title ||'About CocoTrip',
+    description: t.pageMeta?.about?.description ||'CocoTrip is a premium Korea inbound travel agency offering private tours, charter vehicles, and AI-powered trip planning.',
     ogImage: '/hero-hanok-real.webp',
   });
 

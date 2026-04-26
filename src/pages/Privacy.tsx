@@ -214,11 +214,11 @@ type PrivacyArticleExt = ArticleData & {
 export default function Privacy() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
-  const content = CONTENT[language as keyof typeof CONTENT] ?? CONTENT.en;
+  const content = CONTENT[language as keyof typeof CONTENT] ||CONTENT.en;
 
   usePageMeta({
     title: content.pageTitle,
-    description: 'CocoTrip privacy policy — how we collect, use and protect your personal information.',
+    description: t.pageMeta?.privacy?.description ||'CocoTrip privacy policy — how we collect, use and protect your personal information.',
   });
 
   return (

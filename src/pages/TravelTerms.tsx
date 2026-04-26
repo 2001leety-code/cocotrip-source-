@@ -153,11 +153,11 @@ const PageSection = ({ title, children, isMobile }: { title: string; children: R
 export default function TravelTerms() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
-  const content = CONTENT[language as keyof typeof CONTENT] ?? CONTENT.en;
+  const content = CONTENT[language as keyof typeof CONTENT] ||CONTENT.en;
 
   usePageMeta({
     title: content.pageTitle,
-    description: 'CocoTrip travel terms — obligations, fees, cancellation, and responsibilities for overseas travel.',
+    description: t.pageMeta?.travelTerms?.description ||'CocoTrip travel terms — obligations, fees, cancellation, and responsibilities for overseas travel.',
   });
 
   return (

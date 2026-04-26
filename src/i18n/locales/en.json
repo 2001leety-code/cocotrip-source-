@@ -1603,5 +1603,71 @@
       "privacy": "Privacy",
       "travelTerms": "Travel Terms"
     }
+  },
+  "a11y": {
+    "openChat": "Open chat",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "goToImage": "Go to image",
+    "goToSlide": "Go to slide",
+    "close": "Close",
+    "decrease": "Decrease",
+    "increase": "Increase",
+    "removeFromWishlist": "Remove from wishlist",
+    "addToWishlist": "Add to wishlist",
+    "wishlist": "Wishlist",
+    "decreasePax": "Decrease passengers",
+    "increasePax": "Increase passengers",
+    "share": "Share",
+    "loading": "Loading",
+    "dragToReorder": "Drag to reorder",
+    "driverLanguages": "Driver languages"
+  },
+  "pageMeta": {
+    "home": {
+      "title": "CocoTrip — Premium Korea Travel",
+      "description": "Private tours, charter vehicles, AI travel planner for Korea. Airport pickup, K-pop shuttle, day tours across Seoul, Busan, Gyeongju & more."
+    },
+    "about": {
+      "title": "About CocoTrip",
+      "description": "CocoTrip is a premium Korea inbound travel agency offering private tours, charter vehicles, and AI-powered trip planning."
+    },
+    "charterNew": {
+      "title": "Charter Quote — Private Car in Korea",
+      "description": "Private chauffeur for airport transfer, day tours, and multi-day intercity. 6-step instant quote."
+    },
+    "charter": {
+      "title": "Charter Vehicle — Airport Pickup & Day Tours",
+      "description": "Book private charter vehicles in Korea. Airport transfers, day tours, K-pop concert shuttles. Hyundai Staria, Sprinter, Bus available."
+    },
+    "myPage": {
+      "title": "My Page — Membership & Rewards",
+      "description": "Manage your CocoTrip membership, trip coins, coupons, wishlists and travel itineraries."
+    },
+    "myPlans": {
+      "title": "My Plans — AI Travel Itineraries",
+      "description": "View and manage your AI-generated Korea travel itineraries."
+    },
+    "planner": {
+      "title": "AI Travel Planner — Custom Korea Itinerary",
+      "description": "Create your personalized Korea travel itinerary with AI. Free, instant, multi-language support. Seoul, Busan, Jeju and more."
+    },
+    "privacy": {
+      "description": "CocoTrip privacy policy — how we collect, use and protect your personal information."
+    },
+    "terms": {
+      "description": "CocoTrip terms of service — booking, payment, cancellation and refund policies."
+    },
+    "travelTerms": {
+      "description": "CocoTrip travel terms — obligations, fees, cancellation, and responsibilities for overseas travel."
+    }
+  },
+  "adminSales": {
+    "kpi": {
+      "today": "Today",
+      "week": "This Week",
+      "month": "This Month",
+      "ytd": "Year to Date"
+    }
   }
 }

@@ -570,6 +570,7 @@ interface ImageGalleryProps {
 }
 
 function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
+  const { t } = useLanguage();
   const [current, setCurrent] = useState(0);
   const [touchStartX, setTouchStartX] = useState(0);
   const total = images.length;
@@ -637,7 +638,7 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
             onClick={prev}
             className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center"
             style={{ background: 'rgba(8,4,18,0.70)', border: '1px solid rgba(255,255,255,0.15)' }}
-            aria-label="Previous image"
+            aria-label={t.a11y?.previousImage ?? 'Previous image'}
           >
             <ChevronLeft className="w-4 h-4 text-white/80" />
           </button>
@@ -645,7 +646,7 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
             onClick={next}
             className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center"
             style={{ background: 'rgba(8,4,18,0.70)', border: '1px solid rgba(255,255,255,0.15)' }}
-            aria-label="Next image"
+            aria-label={t.a11y?.nextImage ?? 'Next image'}
           >
             <ChevronRight className="w-4 h-4 text-white/80" />
           </button>
@@ -664,7 +665,7 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
                     ? 'linear-gradient(90deg, #B668FC, #FF6B9D)'
                     : 'rgba(255,255,255,0.25)',
                 }}
-                aria-label={`Go to image ${i + 1}`}
+                aria-label={`${t.a11y?.goToImage ?? 'Go to image'} ${i + 1}`}
               />
             ))}
           </div>

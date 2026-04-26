@@ -5,7 +5,7 @@
 import { Link } from 'react-router-dom';
 import { Clock, Users, ChevronRight, Star, Moon, Images, Languages } from 'lucide-react';
 import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
-import type { Language } from '@/i18n';
+import { translations, type Language } from '@/i18n';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 
@@ -228,7 +228,7 @@ export function TourCard({ tour, language }: TourCardProps) {
                 <span
                   className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                   style={{ background: 'rgba(140,200,255,0.08)', border: '1px solid rgba(140,200,255,0.20)', color: '#A0CBFF' }}
-                  title="Driver languages"
+                  title={translations[language].a11y?.driverLanguages ?? 'Driver languages'}
                 >
                   <Languages className="w-2.5 h-2.5" />
                   {langs.map(l => DRIVER_LANG_LABEL[l]).join('·')}

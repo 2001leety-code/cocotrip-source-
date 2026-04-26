@@ -287,10 +287,10 @@ export default function AdminSales() {
           <>
             {/* KPI 카드 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-              <KpiCard title="오늘" bucket={data.kpi.today} rate={data.exchangeRate} />
-              <KpiCard title="이번 주" bucket={data.kpi.week} rate={data.exchangeRate} />
-              <KpiCard title="이번 달" bucket={data.kpi.month} rate={data.exchangeRate} />
-              <KpiCard title="연 누적" bucket={data.kpi.ytd} rate={data.exchangeRate} />
+              <KpiCard title={t.adminSales?.kpi?.today ||'오늘'} bucket={data.kpi.today} rate={data.exchangeRate} />
+              <KpiCard title={t.adminSales?.kpi?.week ||'이번 주'} bucket={data.kpi.week} rate={data.exchangeRate} />
+              <KpiCard title={t.adminSales?.kpi?.month ||'이번 달'} bucket={data.kpi.month} rate={data.exchangeRate} />
+              <KpiCard title={t.adminSales?.kpi?.ytd ||'연 누적'} bucket={data.kpi.ytd} rate={data.exchangeRate} />
             </div>
 
             {/* 일별 차트 */}

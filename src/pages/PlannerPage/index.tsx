@@ -28,8 +28,8 @@ export default function PlannerPage() {
   const revisionToken = searchParams.get('token') ?? null;
 
   usePageMeta({
-    title: 'AI Travel Planner \u2014 Custom Korea Itinerary',
-    description: 'Create your personalized Korea travel itinerary with AI. Free, instant, multi-language support. Seoul, Busan, Jeju and more.',
+    title: t.pageMeta?.planner?.title ?? 'AI Travel Planner \u2014 Custom Korea Itinerary',
+    description: t.pageMeta?.planner?.description ?? 'Create your personalized Korea travel itinerary with AI. Free, instant, multi-language support. Seoul, Busan, Jeju and more.',
     ogImage: '/hero-seoul-real.webp',
   });
 
