@@ -20,7 +20,7 @@ export default function About() {
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <main className="px-4 pt-6 pb-4">
           <h1 className="text-2xl font-black text-center m-shimmer-text mb-6">
-            About COCOTRIP
+            {t.about?.heading || 'About COCOTRIP'}
           </h1>
           <div className="flex flex-col items-center gap-5">
             {[1, 2, 3, 4].map((n) => (
@@ -47,7 +47,7 @@ export default function About() {
         onLanguageChange={changeLanguage}
       />
       <main className="container mx-auto px-4 py-16">
-        <h1 className="text-4xl font-bold text-center text-[#1a1a2e] mb-12">About COCOTRIP</h1>
+        <h1 className="text-4xl font-bold text-center text-[#1a1a2e] mb-12">{t.about?.heading || 'About COCOTRIP'}</h1>
         <div className="flex flex-col items-center gap-16 py-8">
           <img src="/브랜드 상세페이지/1.jpeg" alt="Brand Story 1" loading="lazy" className="w-full max-w-3xl mx-auto rounded-2xl shadow-xl object-cover" />
           <img src="/브랜드 상세페이지/2.jpeg" alt="Brand Story 2" loading="lazy" className="w-full max-w-3xl mx-auto rounded-2xl shadow-xl object-cover" />

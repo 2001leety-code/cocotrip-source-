@@ -26,7 +26,7 @@ export function EarlyBirdBanner() {
       getDoc(doc(db, 'earlybird', 'counter')).then((snap) => {
         if (cancelled) return;
         const data = snap.data();
-        const used = data?.used ?? 0;
+        const used = data?.used ||0;
         setRemaining(Math.max(0, 50 - used));
       }).catch(() => {
         if (!cancelled) setRemaining(50);
@@ -49,7 +49,7 @@ export function EarlyBirdBanner() {
         <button
           onClick={() => setDismissed(true)}
           className="p-1.5 -mr-2 -mt-2 bg-black/10 text-white rounded-full hover:bg-black/30 transition-colors"
-          aria-label="Close"
+          aria-label={t.a11y?.close || 'Close'}
         >
           <X className="w-3 h-3" />
         </button>

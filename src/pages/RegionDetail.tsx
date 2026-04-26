@@ -94,12 +94,12 @@ export function RegionDetail() {
     return (
       <div className={isMobile ? 'm-page flex items-center justify-center' : 'min-h-screen bg-[#faf9f6] flex items-center justify-center'}>
         <div className="text-center">
-          <h1 className={`text-2xl font-bold mb-4 ${isMobile ? 'text-white' : 'text-[#1a1a2e]'}`}>Region not found</h1>
+          <h1 className={`text-2xl font-bold mb-4 ${isMobile ? 'text-white' : 'text-[#1a1a2e]'}`}>{t.regionDetail?.notFound || 'Region not found'}</h1>
           <button
             onClick={() => navigate('/')}
             className={isMobile ? 'm-cta px-6 py-3' : 'px-6 py-3 bg-[#0f3460] text-white rounded-full'}
           >
-            Go Home
+            {t.regionDetail?.goHome || 'Go Home'}
           </button>
         </div>
       </div>
@@ -143,7 +143,7 @@ export function RegionDetail() {
 
           {/* Attractions */}
           <div className="m-appear" style={{ animationDelay: '0.1s' }}>
-            <p className="m-label">Must-Visit</p>
+            <p className="m-label">{t.regionDetail?.mustVisit || 'Must-Visit'}</p>
             <div className="space-y-2.5">
               {regionData.attractions.map((attraction: { name: string; desc: string }, index: number) => (
                 <div key={index} className="m-card m-btn p-4 flex items-start gap-3">
@@ -162,7 +162,7 @@ export function RegionDetail() {
           {/* Photo Gallery */}
           {images.length > 1 && (
             <div className="m-appear" style={{ animationDelay: '0.2s' }}>
-              <p className="m-label">Gallery</p>
+              <p className="m-label">{t.regionDetail?.gallery || 'Gallery'}</p>
               <div className="grid grid-cols-2 gap-2">
                 {images.slice(1, 9).map((image, index) => (
                   <div key={index} className="aspect-square rounded-xl overflow-hidden m-card-glow" style={{ animationDelay: `${index * 0.5}s` }}>
@@ -181,10 +181,10 @@ export function RegionDetail() {
           {/* CTA */}
           <div className="m-card m-appear p-5 text-center" style={{ animationDelay: '0.3s', background: 'linear-gradient(135deg, rgba(182,104,252,0.08), rgba(255,107,157,0.04))' }}>
             <h2 className="text-lg font-bold text-white mb-2">
-              Plan Your Trip to {regionData.title}
+              {t.regionDetail?.planTrip || 'Plan Your Trip to'} {regionData.title}
             </h2>
             <p className="text-white/40 text-xs mb-4">
-              Let COCOTRIP create a personalized tour experience just for you.
+              {t.regionDetail?.planTripDesc || 'Let COCOTRIP create a personalized tour experience just for you.'}
             </p>
             <div className="space-y-2.5">
               <button
@@ -192,7 +192,7 @@ export function RegionDetail() {
                 className="m-cta m-btn w-full py-3.5 text-[14px] flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                AI Planner
+                {t.regionDetail?.aiPlannerCta || 'AI Planner'}
               </button>
               <a
                 href="https://wa.me/821087140611"
@@ -202,7 +202,7 @@ export function RegionDetail() {
                 style={{ background: '#25D366' }}
               >
                 <MessageCircle className="w-4 h-4" />
-                WhatsApp
+                {t.regionDetail?.whatsappCta || 'WhatsApp'}
               </a>
             </div>
           </div>
@@ -246,7 +246,7 @@ export function RegionDetail() {
         {/* Description */}
         <div className="mb-16">
           <h2 className="text-2xl lg:text-3xl font-bold text-[#1a1a2e] mb-6">
-            About {regionData.title}
+            {t.regionDetail?.aboutHeading || 'About'} {regionData.title}
           </h2>
           <p className="text-lg text-gray-600 leading-relaxed max-w-3xl">
             {regionData.description}
@@ -256,7 +256,7 @@ export function RegionDetail() {
         {/* Attractions */}
         <div className="mb-16">
           <h2 className="text-2xl lg:text-3xl font-bold text-[#1a1a2e] mb-8">
-            Must-Visit Attractions
+            {t.regionDetail?.mustVisitAttractions || 'Must-Visit Attractions'}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {regionData.attractions.map((attraction: { name: string; desc: string }, index: number) => (
@@ -280,7 +280,7 @@ export function RegionDetail() {
         {images.length > 1 && (
           <div className="mb-16">
             <h2 className="text-2xl lg:text-3xl font-bold text-[#1a1a2e] mb-8">
-              Photo Gallery
+              {t.regionDetail?.photoGallery || 'Photo Gallery'}
             </h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {images.slice(1).map((image, index) => (
@@ -303,10 +303,10 @@ export function RegionDetail() {
         {/* CTA Section */}
         <div className="bg-[#0f3460] rounded-3xl p-8 lg:p-12 text-center">
           <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
-            Plan Your Trip to {regionData.title}
+            {t.regionDetail?.planTrip || 'Plan Your Trip to'} {regionData.title}
           </h2>
           <p className="text-white/80 mb-8 max-w-2xl mx-auto">
-            Let COCOTRIP create a personalized tour experience just for you.
+            {t.regionDetail?.planTripDesc || 'Let COCOTRIP create a personalized tour experience just for you.'}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button

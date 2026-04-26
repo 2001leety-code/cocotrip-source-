@@ -126,6 +126,17 @@
   "regionDetail": {
     "backToRegions": "地域一覧に戻る",
     "bookNow": "今すぐ予約",
+    "notFound": "地域が見つかりません",
+    "goHome": "ホームへ",
+    "aboutHeading": "について:",
+    "mustVisit": "必訪",
+    "mustVisitAttractions": "必訪スポット",
+    "gallery": "ギャラリー",
+    "photoGallery": "フォトギャラリー",
+    "planTrip": "への旅行を計画:",
+    "planTripDesc": "COCOTRIPが個人にカスタマイズされたツアー体験を作ります。",
+    "aiPlannerCta": "AIプランナー",
+    "whatsappCta": "WhatsApp",
     "seoul": {
       "title": "ソウル",
       "subtitle": "伝統と現代が共存する首都",
@@ -1669,5 +1680,14 @@
       "month": "今月",
       "ytd": "年累計"
     }
+  },
+  "vehicle": {
+    "staria": "スタリア（最大8人）",
+    "sprinter": "スプリンター（最大10人）",
+    "sprinterMid": "スプリンターミド（最大8人）",
+    "bus": "バス（最大30人）"
+  },
+  "about": {
+    "heading": "COCOTRIPについて"
   }
 }
