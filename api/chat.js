@@ -6,27 +6,11 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sendMessage } from './_telegram.js';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
-// ── Firebase Admin (카운터 전용) ──────────────────────────────────────
-let counterDb = null;
-try {
-  const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
-  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-  let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
-    .replace(/^\uFEFF/, '').replace(/^["']|["']$/g, '').replace(/\\n/g, '\n').trim();
-  if (projectId && clientEmail && rawKey) {
-    const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
-    if (pemMatch) {
-      const b64 = pemMatch[1].replace(/\s+/g, '');
-      rawKey = '-----BEGIN PRIVATE KEY-----\n' + (b64.match(/.{1,64}/g) || []).join('\n') + '\n-----END PRIVATE KEY-----\n';
-    }
-    const app = getApps().length ? getApps()[0] : initializeApp({ credential: cert({ projectId, clientEmail, privateKey: rawKey }) });
-    counterDb = getAdminFirestore(app);
-    counterDb.settings({ ignoreUndefinedProperties: true });
-  }
-} catch (e) { console.warn('[chat] counter db init failed:', e.message); }
+// ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
+const counterDb = initAdminDb('chat');
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
