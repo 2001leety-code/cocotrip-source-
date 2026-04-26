@@ -12,19 +12,31 @@ export type VehicleType = 'staria' | 'sprinter' | 'bus';
 
 export type DestinationKind = 'package' | 'matrix' | 'custom';
 
+// multi_day 숙소 위치 — 운영 안내용 (가격 분기는 추후)
+export type LodgingLocation = 'seoul' | 'local' | 'daily_return' | 'custom';
+
 export interface WizardState {
   origin?: OriginCode;
   originCustom?: string;        // origin = 'CUSTOM' 일 때 자유 입력
   service?: ServiceMode;
   destinationKey?: string;      // 매트릭스 키(예: 'SEL_METRO'), 패키지 id(예: 'dmz'), 또는 'CUSTOM'
   destinationCustom?: string;
-  paxCount?: number;
+  destinationCustomMatched?: string;  // KR→EN 정규화 결과 (있으면 매트릭스 lookup 가능)
+  paxCount?: number;             // = adultCount + childCount (자동 계산, 백엔드 호환용 유지)
+  adultCount?: number;
+  childCount?: number;
   vehicle?: VehicleType;
   startDate?: string;            // YYYY-MM-DD
   endDate?: string;              // 1박 이상일 때만
   startTime?: string;            // HH:mm
+  // 고객 정보 (Step 5에서 수집)
+  customerName?: string;
+  customerPhone?: string;
+  // multi_day 전용 — 숙소 위치 (운영 정보)
+  lodgingLocation?: LodgingLocation;
+  lodgingCustom?: string;        // lodgingLocation = 'custom' 일 때
   options: {
-    englishGuide?: boolean;
+    licensedGuide?: boolean;     // 면허 가이드 (300k/일) — staria 옵션. sprinter/bus는 자동 가산이라 무의미
     airportPicket?: boolean;
     childSeat?: boolean;
     night?: boolean;             // 18:00 이후 야간 할증
@@ -54,10 +66,14 @@ export interface QuoteBreakdown {
   vehicle: VehicleType;
   vehicleChargeKRW: number;
   addons: QuoteAddon[];
-  subtotalKRW: number;            // 선결제 대상 (vehicle + addons + 할증)
+  subtotalKRW: number;            // 선결제 대상 (vehicle + addons + 할증 - 할인)
   surchargeKRW: number;           // 야간/성수기 합
   surchargePercent: number;
-  roundTripDiscountKRW: number;
+  multiDayDiscountKRW: number;    // 1박 이상 multi-day 시 -10%
+  multiDayDiscountPercent: number;
+  // VAT (현재는 표기만, 가산 X)
+  vatExcluded: boolean;
+  vatPercent: number;
   // 별도 고지 (선결제 아님)
   estimatedMealsKRW: number;
   estimatedAttractionsKRW: number;
@@ -69,10 +85,14 @@ export interface QuoteBreakdown {
   distanceKm?: number;
   durationHours?: number;
   warnings: string[];
+  // destinationCustom 미매칭 시 별도견적 안내
+  needsCustomQuote: boolean;
 }
 
 export const INITIAL_WIZARD_STATE: WizardState = {
   paxCount: 2,
+  adultCount: 2,
+  childCount: 0,
   vehicle: 'staria',
   options: {},
 };

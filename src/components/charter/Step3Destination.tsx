@@ -8,6 +8,7 @@ import {
 } from '@/data/charterPricing';
 import type { WizardState } from './types';
 import { getWizardI18n } from './wizard-i18n';
+import { normalizeDestinationToMatrixKey, getDestinationSuggestions } from './destinationKeyMap';
 
 interface DestinationOption {
   key: string;
@@ -76,11 +77,11 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
   }, [state.service, state.origin, lang, i18n.minutesUnit]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {options.length === 0 && (
         <p className="text-sm text-white/55 py-4">{i18n.selectOriginFirst}</p>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[360px] overflow-y-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {options.map(opt => {
           const selected = state.destinationKey === opt.key;
           return (
@@ -88,26 +89,51 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
               key={opt.key}
               type="button"
               onClick={() => patch({ destinationKey: opt.key, destinationCustom: undefined })}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-4 rounded-xl border text-left transition-all ${
                 selected ? 'border-[#B668FC] bg-[#B668FC]/10' : 'border-white/10 bg-white/[0.03] hover:border-[#B668FC]/40'
               }`}
             >
               <p className="text-sm text-white/90 font-medium truncate">{opt.title}</p>
-              {opt.sub && <p className="text-[11px] text-white/55 mt-0.5">{opt.sub}</p>}
+              {opt.sub && <p className="text-xs text-white/55 mt-1">{opt.sub}</p>}
             </button>
           );
         })}
       </div>
 
-      <div className="pt-2">
-        <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-2">{i18n.destCustomLabel}</label>
+      <div className="pt-4 border-t border-white/[0.06]">
+        <label className="block text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{i18n.destCustomLabel}</label>
         <input
           type="text"
           value={state.destinationCustom ?? ''}
           onChange={e => patch({ destinationKey: undefined, destinationCustom: e.target.value })}
           placeholder={i18n.destCustomPlaceholder}
-          className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
+          list="charter-dest-suggestions"
+          autoComplete="off"
+          className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/85 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
         />
+        {/* 자동완성 datalist — 'dan' 입력 시 단양/Damyang 제안 */}
+        <datalist id="charter-dest-suggestions">
+          {getDestinationSuggestions(state.destinationCustom).map((s, i) => (
+            <option key={`${s.value}-${i}`} value={s.value}>{s.display}</option>
+          ))}
+        </datalist>
+        {state.destinationCustom && state.destinationCustom.length >= 2 && (
+          (() => {
+            const matched = normalizeDestinationToMatrixKey(state.destinationCustom);
+            if (matched) {
+              return (
+                <p className="mt-3 text-xs text-emerald-300">
+                  ✓ {i18n.destCustomMatched(matched)}
+                </p>
+              );
+            }
+            return (
+              <p className="mt-3 text-xs text-amber-300">
+                ⚠ {i18n.destCustomUnmatched}
+              </p>
+            );
+          })()
+        )}
       </div>
     </div>
   );

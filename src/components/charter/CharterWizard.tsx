@@ -39,19 +39,33 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       case 1: return !!state.origin || !!state.originCustom;
       case 2: return !!state.service;
       case 3: return !!state.destinationKey || !!state.destinationCustom;
-      case 4: return !!state.paxCount && !!state.vehicle;
+      case 4: return !!state.paxCount && state.paxCount >= 1 && !!state.vehicle;
       case 5: {
         if (!state.startDate) return false;
+        if (!state.startTime) return false;
+        // 이름·연락처 필수
+        if (!state.customerName || state.customerName.trim().length < 2) return false;
+        const phoneDigits = (state.customerPhone ?? '').replace(/\D/g, '');
+        if (phoneDigits.length < 7) return false;
         // 공항 픽업: 편명 필수, ICN이면 터미널도 필수
         if (state.service === 'airport_transfer') {
           if (!state.airport?.flightNumber || state.airport.flightNumber.length < 3) return false;
           if (state.origin === 'ICN' && !state.airport?.terminal) return false;
         }
-        // 다일 투어: endDate 필요
-        if (state.service === 'multi_day' && !state.endDate) return false;
+        // 다일 투어: endDate + 숙소 위치 필요
+        if (state.service === 'multi_day') {
+          if (!state.endDate) return false;
+          if (!state.lodgingLocation) return false;
+        }
         return true;
       }
-      case 6: return !!quote && quote.subtotalKRW > 0;
+      // Step 6 — needsCustomQuote는 결제 불가 (PaymentPanel 측 WhatsApp 분기)
+      // 일반 견적은 subtotal>0이어야 결제 진행
+      case 6: {
+        if (!quote) return false;
+        if (quote.needsCustomQuote) return true;  // PaymentPanel에서 WhatsApp 안내로 분기
+        return quote.subtotalKRW > 0;
+      }
       default: return false;
     }
   }, [currentStep, state, quote]);
@@ -85,13 +99,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         })}
       </div>
 
-      <h2 className="text-xl font-bold text-white mb-1">
+      <h2 className="text-2xl font-bold text-white mb-2">
         {STEP_LABELS[currentStep - 1]}
       </h2>
-      <p className="text-sm text-white/55 mb-6">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
+      <p className="text-sm text-white/55 mb-8">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
 
-      {/* 스텝 슬롯 */}
-      <div className="min-h-[280px] bg-white/[0.04] border border-white/10 rounded-2xl p-6 mb-6">
+      {/* 스텝 슬롯 — 자연 스크롤, 고정 min-h 제거 */}
+      <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 sm:p-8 mb-8">
         {currentStep === 1 && <Step1Origin      state={state} patch={patch} language={language} />}
         {currentStep === 2 && <Step2Service     state={state} patch={patch} language={language} />}
         {currentStep === 3 && <Step3Destination state={state} patch={patch} language={language} />}

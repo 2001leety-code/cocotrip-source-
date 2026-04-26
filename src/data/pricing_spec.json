@@ -88,7 +88,7 @@
       },
       "intercity": {
         "base_fee": 50000,
-        "rate_per_km": 900,
+        "rate_per_km": 1000,
         "deadhead_factor": 1.8,
         "daily_service_fee": 200000,
         "overnight_driver_fee": 130000
@@ -200,7 +200,7 @@
     },
     "gyeongju-jeonju": {
       "name_ko": "경주·전주 투어", "name_en": "Gyeongju / Jeonju Tour",
-      "priceKRW": 468000, "priceUSD": 340, "hours": 10,
+      "priceKRW": 600000, "priceUSD": 437, "hours": 10,
       "spots": ["경주", "불국사", "석굴암", "전주한옥마을", "전주"],
       "keywords": ["gyeongju", "경주", "bulguksa", "불국사", "jeonju", "전주"]
     },
@@ -236,9 +236,13 @@
     "night_surcharge_percent": 20,
     "peak_season_percent": 10,
     "round_trip_discount_percent": 10,
-    "english_guide_per_day": 80000,
+    "multi_day_discount_percent": 10,
+    "licensed_guide_per_day": 300000,
+    "english_guide_per_day": 300000,
     "airport_picket_service": 20000,
-    "child_seat_per_trip": 20000
+    "child_seat_per_trip": 20000,
+    "vat_excluded": true,
+    "vat_percent": 10
   },
 
   "addons": {
