@@ -1,0 +1,33 @@
+{
+  "ci": {
+    "collect": {
+      "numberOfRuns": 1,
+      "settings": {
+        "preset": "desktop",
+        "skipAudits": ["uses-http2"]
+      }
+    },
+    "assert": {
+      "preset": "lighthouse:recommended",
+      "assertions": {
+        "categories:performance": ["warn", { "minScore": 0.5 }],
+        "categories:accessibility": ["error", { "minScore": 0.85 }],
+        "categories:best-practices": ["warn", { "minScore": 0.8 }],
+        "categories:seo": ["warn", { "minScore": 0.85 }],
+        "first-contentful-paint": ["warn", { "maxNumericValue": 3000 }],
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 4000 }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.15 }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 600 }],
+        "uses-rel-preconnect": "off",
+        "uses-text-compression": "off",
+        "csp-xss": "off",
+        "bf-cache": "off",
+        "third-party-cookies": "off",
+        "is-crawlable": "warn"
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
