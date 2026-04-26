@@ -8,40 +8,10 @@
  * PII WHITELIST: Only tour_title, area, days are used. No other fields.
  */
 import { ImageResponse } from '@vercel/og';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
-// ── firebase-admin 초기화 (ai-planner-full.js 패턴 재사용) ────────────────
-let adminDb = null;
-try {
-  const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
-  const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-  let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
-    .replace(/^\uFEFF/, '')
-    .replace(/^["']|["']$/g, '')
-    .replace(/\\n/g, '\n')
-    .trim();
-
-  let privateKey = '';
-  const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
-  if (pemMatch) {
-    const base64Clean = pemMatch[1].replace(/\s+/g, '');
-    const lines = base64Clean.match(/.{1,64}/g) || [];
-    privateKey = '-----BEGIN PRIVATE KEY-----\n' + lines.join('\n') + '\n-----END PRIVATE KEY-----\n';
-  } else {
-    privateKey = rawKey;
-  }
-
-  if (projectId && clientEmail && privateKey) {
-    const adminApp = getApps().length ? getApps()[0] : initializeApp({
-      credential: cert({ projectId, clientEmail, privateKey }),
-    });
-    adminDb = getFirestore(adminApp);
-    adminDb.settings({ ignoreUndefinedProperties: true });
-  }
-} catch (e) {
-  console.error('[og-image] firebase-admin init failed:', e.message);
-}
+// ── firebase-admin 초기화 (api/_shared/firebase-admin.js 재사용) ────────
+const adminDb = initAdminDb('og-image');
 
 // ── OG 타이틀 다국어 템플릿 ──────────────────────────────────────────────
 const OG_TITLES = {
