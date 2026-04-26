@@ -40,50 +40,65 @@ export function SortableStopCard({ stop, stopId, editMode, onDelete }: SortableS
     zIndex: isDragging ? 50 : 'auto' as string | number,
   };
 
+  // Outer wrapper: dnd-kit OWNS transform/opacity/zIndex (drag positioning).
+  // Inner motion.div: framer-motion OWNS layout/enter/exit (list animations).
+  // Splitting prevents the two libraries from fighting over the same element's
+  // transform — previously caused 30fps drag jank on mobile (PR #76 analysis).
   return (
-    <motion.div
-      ref={setNodeRef}
-      style={style}
-      layout
-      initial={stop._userAdded ? { opacity: 0, y: -10 } : false}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20, height: 0, marginBottom: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="relative group"
-    >
-      {editMode && (
-        <div className="absolute -left-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10">
+    <div ref={setNodeRef} style={style} className="relative group">
+      <motion.div
+        layout
+        initial={stop._userAdded ? { opacity: 0, y: -10 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, x: -20, height: 0, marginBottom: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+      >
+        {editMode && (
+          <div className="absolute -left-8 top-1/2 -translate-y-1/2 hidden sm:flex flex-col items-center gap-1 z-10">
+            <button
+              {...attributes}
+              {...listeners}
+              className="p-1 rounded-md bg-white/5 hover:bg-white/10 cursor-grab active:cursor-grabbing transition-colors touch-none"
+              title={t.a11y?.dragToReorder ||'Drag to reorder'}
+            >
+              <GripVertical className="w-4 h-4 text-white/30" />
+            </button>
+          </div>
+        )}
+
+        {/* Mobile drag handle — top-left, on-card (off-screen -left-8 didn't work on narrow viewports) */}
+        {editMode && (
           <button
             {...attributes}
             {...listeners}
-            className="p-1 rounded-md bg-white/5 hover:bg-white/10 cursor-grab active:cursor-grabbing transition-colors touch-none"
+            className="sm:hidden absolute left-2 top-2 z-10 p-1.5 rounded-md bg-white/8 hover:bg-white/15 cursor-grab active:cursor-grabbing transition-colors touch-none"
             title={t.a11y?.dragToReorder ||'Drag to reorder'}
           >
-            <GripVertical className="w-4 h-4 text-white/30" />
+            <GripVertical className="w-4 h-4 text-white/50" />
           </button>
+        )}
+
+        {editMode && (
+          <button
+            onClick={onDelete}
+            className="absolute -right-2 -top-2 z-10 p-1.5 rounded-full bg-red-500/80 hover:bg-red-500 text-white shadow-lg transition-all hover:scale-110"
+            title={ed.deleteButton || 'Remove'}
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
+
+        {stop._userAdded && (
+          <div className="absolute -right-1 top-8 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7C5CFC]/20 border border-[#7C5CFC]/30">
+            <Sparkles className="w-2.5 h-2.5 text-[#7C5CFC]" />
+            <span className="text-[9px] text-[#7C5CFC] font-medium">{ed.userAdded || 'Added by you'}</span>
+          </div>
+        )}
+
+        <div className={editMode ? 'border border-dashed border-white/10 rounded-xl transition-colors' : ''}>
+          <StopCard stop={stop} />
         </div>
-      )}
-
-      {editMode && (
-        <button
-          onClick={onDelete}
-          className="absolute -right-2 -top-2 z-10 p-1.5 rounded-full bg-red-500/80 hover:bg-red-500 text-white shadow-lg transition-all hover:scale-110"
-          title={ed.deleteButton || 'Remove'}
-        >
-          <Trash2 className="w-3 h-3" />
-        </button>
-      )}
-
-      {stop._userAdded && (
-        <div className="absolute -right-1 top-8 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7C5CFC]/20 border border-[#7C5CFC]/30">
-          <Sparkles className="w-2.5 h-2.5 text-[#7C5CFC]" />
-          <span className="text-[9px] text-[#7C5CFC] font-medium">{ed.userAdded || 'Added by you'}</span>
-        </div>
-      )}
-
-      <div className={editMode ? 'border border-dashed border-white/10 rounded-xl transition-colors' : ''}>
-        <StopCard stop={stop} />
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }
