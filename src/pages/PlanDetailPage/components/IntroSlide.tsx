@@ -13,9 +13,10 @@ interface IntroSlideProps {
   plan: PlanDocument;
   planId: string;
   isTranslating: boolean;
+  translationError?: string | null;
 }
 
-export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
+export function IntroSlide({ plan, planId, isTranslating, translationError }: IntroSlideProps) {
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
@@ -33,6 +34,12 @@ export function IntroSlide({ plan, planId, isTranslating }: IntroSlideProps) {
           <div className="inline-flex items-center gap-2 bg-[#7C5CFC]/20 border border-[#7C5CFC]/30 rounded-full px-4 py-1.5 mb-3 text-xs text-[#7C5CFC]">
             <div className="w-3 h-3 border border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
             Translating...
+          </div>
+        )}
+        {!isTranslating && translationError && (
+          <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-3 text-xs text-amber-200">
+            <span aria-hidden>⚠</span>
+            <span>{sw.translationFailedShowingOriginal || 'Translation unavailable — showing original'}</span>
           </div>
         )}
         <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
