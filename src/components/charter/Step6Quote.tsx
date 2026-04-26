@@ -26,10 +26,10 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   // 자유입력 + 매트릭스 미매칭 — 별도견적 안내로 분기
   if (quote.needsCustomQuote) {
     return (
-      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-5 text-center">
-        <p className="text-base text-amber-100 font-bold mb-2">{i18n.customQuoteTitle}</p>
-        <p className="text-sm text-white/70 mb-3 leading-relaxed">{i18n.customQuoteBody}</p>
-        <p className="text-[11px] text-white/55">{i18n.customQuoteSub}</p>
+      <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-7 text-center">
+        <p className="text-lg text-amber-100 font-bold mb-3">{i18n.customQuoteTitle}</p>
+        <p className="text-sm text-white/70 mb-4 leading-relaxed">{i18n.customQuoteBody}</p>
+        <p className="text-xs text-white/55">{i18n.customQuoteSub}</p>
       </div>
     );
   }
@@ -42,9 +42,9 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const unitPcs = language === 'ko' ? '개' : language === 'ja' ? '個' : language === 'zh' ? '件' : 'pcs';
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {hasAirportInfo && (
-        <div className="rounded-xl border border-[#B668FC]/25 bg-[#B668FC]/5 px-3 py-2 text-[11px] text-white/70 flex flex-wrap gap-x-3 gap-y-1">
+        <div className="rounded-xl border border-[#B668FC]/25 bg-[#B668FC]/5 px-4 py-3 text-xs text-white/70 flex flex-wrap gap-x-4 gap-y-1.5">
           {ap?.terminal && <span>✈ {i18n.terminal} <b className="text-white">{ap.terminal}</b></span>}
           {ap?.flightNumber && <span>{i18n.flightNo} <b className="text-white">{ap.flightNumber}</b></span>}
           {lugTotal > 0 && (
@@ -57,9 +57,9 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
       )}
 
       {/* 선결제 박스 */}
-      <div className="rounded-xl border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/10 to-transparent p-4">
-        <p className="text-[10px] uppercase tracking-wider text-white/55 mb-3">{i18n.payBlock}</p>
-        <div className="space-y-1.5 text-sm">
+      <div className="rounded-2xl border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/10 to-transparent p-6">
+        <p className="text-xs uppercase tracking-wider text-white/55 mb-4 font-semibold">{i18n.payBlock}</p>
+        <div className="space-y-2.5 text-sm">
           <Row label={i18n.payVehicleLine} value={KRW(quote.vehicleChargeKRW)} />
           {quote.addons.map(a => (
             <Row key={a.key} label={`+ ${a.label}`} value={KRW(a.amountKRW)} muted />
@@ -71,20 +71,20 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
             <Row label={i18n.multiDayDiscount(quote.multiDayDiscountPercent)} value={`-${KRW(quote.multiDayDiscountKRW)}`} good />
           )}
         </div>
-        <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
-          <span className="text-sm text-white/60">{i18n.paySubtotal}</span>
-          <span className="text-xl font-bold text-white">{KRW(quote.subtotalKRW)}</span>
+        <div className="mt-5 pt-5 border-t border-white/10 flex items-center justify-between">
+          <span className="text-base text-white/70">{i18n.paySubtotal}</span>
+          <span className="text-2xl font-bold text-white">{KRW(quote.subtotalKRW)}</span>
         </div>
         {quote.vatExcluded && (
-          <p className="mt-2 text-right text-[10px] text-amber-300/80">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
+          <p className="mt-3 text-right text-xs text-amber-300/80">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
         )}
       </div>
 
       {/* 별도 고지 박스 (항상 보여주되 해당 모드만) */}
       {(quote.showMeals || quote.showAttractions) && (
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-[10px] uppercase tracking-wider text-white/55 mb-3">{i18n.separateBlock}</p>
-          <div className="space-y-1.5 text-sm text-white/60">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+          <p className="text-xs uppercase tracking-wider text-white/55 mb-4 font-semibold">{i18n.separateBlock}</p>
+          <div className="space-y-2.5 text-sm text-white/65">
             {quote.showMeals && <Row label={i18n.estMeals} value={KRW(quote.estimatedMealsKRW)} muted />}
             {quote.showAttractions && <Row label={i18n.estAttractions} value={KRW(quote.estimatedAttractionsKRW)} muted />}
           </div>
@@ -92,21 +92,21 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
       )}
 
       {/* 포함/제외 뱃지 */}
-      <div className="flex flex-wrap gap-1.5 text-[11px]">
+      <div className="flex flex-wrap gap-2 text-xs">
         {quote.includes.map(i => (
-          <span key={i} className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {i}</span>
+          <span key={i} className="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {i}</span>
         ))}
         {quote.excludes.map(e => (
-          <span key={e} className="px-2 py-1 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× {e}</span>
+          <span key={e} className="px-3 py-1.5 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× {e}</span>
         ))}
       </div>
 
       {quote.warnings.length > 0 && (
-        <div className="text-xs text-amber-300">⚠ {quote.warnings.join(' · ')}</div>
+        <div className="text-sm text-amber-300">⚠ {quote.warnings.join(' · ')}</div>
       )}
 
       {quote.distanceKm && (
-        <p className="text-[10px] text-white/55">
+        <p className="text-xs text-white/55">
           {i18n.onewayLabel}: {quote.distanceKm}km · ~{quote.durationHours}h · source: {quote.source}
         </p>
       )}

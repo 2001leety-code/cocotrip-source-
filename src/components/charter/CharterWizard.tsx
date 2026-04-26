@@ -99,13 +99,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         })}
       </div>
 
-      <h2 className="text-xl font-bold text-white mb-1">
+      <h2 className="text-2xl font-bold text-white mb-2">
         {STEP_LABELS[currentStep - 1]}
       </h2>
-      <p className="text-sm text-white/55 mb-6">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
+      <p className="text-sm text-white/55 mb-8">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
 
-      {/* 스텝 슬롯 */}
-      <div className="min-h-[280px] bg-white/[0.04] border border-white/10 rounded-2xl p-6 mb-6">
+      {/* 스텝 슬롯 — 자연 스크롤, 고정 min-h 제거 */}
+      <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 sm:p-8 mb-8">
         {currentStep === 1 && <Step1Origin      state={state} patch={patch} language={language} />}
         {currentStep === 2 && <Step2Service     state={state} patch={patch} language={language} />}
         {currentStep === 3 && <Step3Destination state={state} patch={patch} language={language} />}
