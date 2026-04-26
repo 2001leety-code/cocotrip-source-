@@ -37,5 +37,11 @@ updates:
       interval: 'weekly'
       day: 'monday'
     open-pull-requests-limit: 3
+    ignore:
+      # Major bumps require manual review (workflow may break: deprecated inputs,
+      # output renaming, runtime image changes). Round 9d v1 missed this — PRs
+      # #67-#69 opened actions/checkout v4→v6, setup-node v4→v6, upload-artifact v4→v7.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: 'chore(actions)'
