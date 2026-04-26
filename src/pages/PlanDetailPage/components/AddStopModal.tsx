@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { BRAND } from '@/lib/design-tokens';
 import { getPlanDetailDict } from '../types';
 
 interface AddStopModalProps {
@@ -37,6 +38,9 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   const [startTime, setStartTime] = useState('12:00');
   const [stayMin, setStayMin] = useState(60);
   const [category, setCategory] = useState('landmark');
+  // Mobile keyboard detection: when an input has focus the on-screen keyboard
+  // pushes ~350px up. Shrink modal max-h so the form + sticky submit stay visible.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   if (!open) return null;
 
@@ -61,10 +65,14 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative bg-[#1a1a2e] border border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl"
+        className={`relative bg-[#1a1a2e] border border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-y-auto shadow-2xl transition-[max-height] duration-200 ${keyboardOpen ? 'max-h-[55vh]' : 'max-h-[85vh]'} sm:max-h-[85vh]`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -85,6 +93,8 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Gyeongbokgung"
+              onFocus={() => setKeyboardOpen(true)}
+              onBlur={() => setKeyboardOpen(false)}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
               autoFocus
               required
@@ -98,6 +108,8 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
+              onFocus={() => setKeyboardOpen(true)}
+              onBlur={() => setKeyboardOpen(false)}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/20 focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
             />
           </div>
@@ -110,6 +122,8 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
+                onFocus={() => setKeyboardOpen(true)}
+                onBlur={() => setKeyboardOpen(false)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
               />
             </div>
@@ -122,6 +136,8 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
                 min={15}
                 max={240}
                 step={15}
+                onFocus={() => setKeyboardOpen(true)}
+                onBlur={() => setKeyboardOpen(false)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#7C5CFC]/50 transition-colors"
               />
             </div>
@@ -148,14 +164,17 @@ export function AddStopModal({ open, onClose, onAdd }: AddStopModalProps) {
             </div>
           </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={!name.trim()}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-[#7C5CFC] to-[#a855f7] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-30 transition-opacity"
-          >
-            {ed.addBtn || 'Add'}
-          </button>
+          {/* Submit — sticky bottom so keyboard doesn't hide it */}
+          <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-2 bg-[#1a1a2e] border-t border-white/[0.06]">
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              style={{ background: BRAND.gradient.primary }}
+              className="w-full py-3 rounded-xl text-white font-semibold text-sm hover:opacity-90 disabled:opacity-30 transition-opacity"
+            >
+              {ed.addBtn || 'Add'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
