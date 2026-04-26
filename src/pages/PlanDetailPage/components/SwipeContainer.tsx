@@ -74,10 +74,12 @@ export function SwipeContainer({ children, current, onSlideChange, editMode }: S
             style={{ width: '100%', minWidth: '100%' }}
           >
             <div
-              className="overflow-y-auto px-4 pb-8"
-              // 100dvh handles iOS Safari address-bar collapse; vh fallback for old browsers.
-              // 200px on mobile (more chrome: nav + tabs + progress) vs 220px on desktop.
-              style={{ maxHeight: 'min(calc(100dvh - 200px), calc(100vh - 200px))' }}
+              // dvh: iOS Safari address-bar collapse aware. vh fallback via min() for old browsers.
+              // Buffer values cover: header(56) + section tabs(40) + slide progress(40) + page padding.
+              //   portrait mobile (default): 200px (Safari address bar visible)
+              //   landscape mobile         : 140px (no address bar — more height)
+              //   sm+ desktop              : 220px (header taller, more padding)
+              className="overflow-y-auto px-4 pb-8 max-h-[min(calc(100dvh-200px),calc(100vh-200px))] landscape:max-h-[min(calc(100dvh-140px),calc(100vh-140px))] sm:max-h-[min(calc(100dvh-220px),calc(100vh-220px))]"
             >
               {child}
             </div>
