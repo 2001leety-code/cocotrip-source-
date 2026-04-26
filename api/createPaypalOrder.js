@@ -9,6 +9,7 @@ import { Buffer } from 'buffer';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { getPaypalAccessToken } from './_shared/paypal.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -100,23 +101,8 @@ function resolveKrwAmount(productType, passengers) {
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
-async function getPayPalToken(isSandbox = false) {
-  const clientId = (isSandbox
-    ? process.env.PAYPAL_SANDBOX_CLIENT_ID
-    : process.env.PAYPAL_CLIENT_ID || '').trim();
-  const secret = (isSandbox
-    ? process.env.PAYPAL_SANDBOX_SECRET
-    : process.env.PAYPAL_CLIENT_SECRET || '').trim();
-  const baseUrl = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
-  const credentials = Buffer.from(clientId + ':' + secret).toString('base64');
-  const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: { 'Accept': 'application/json', 'Authorization': 'Basic ' + credentials, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=client_credentials',
-  });
-  if (!res.ok) { const t = await res.text(); throw new Error(`PayPal auth ${res.status}: ${t}`); }
-  return (await res.json()).access_token;
-}
+// PayPal token + baseUrl resolution moved to api/_shared/paypal.js
+// (shared with cancelBooking.js + capturePaypalOrder.js).
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
@@ -150,8 +136,7 @@ export default async function handler(req, res) {
     const usdToKrw = await getUsdToKrwRaw();
     const usdAmount = (krwAmount / usdToKrw).toFixed(2);
 
-    const accessToken = await getPayPalToken(isSandbox);
-    const baseUrl = isSandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
+    const { accessToken, baseUrl } = await getPaypalAccessToken(isSandbox);
     const orderRes = await fetch(`${baseUrl}/v2/checkout/orders`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
