@@ -13,7 +13,9 @@ interface SwipeContainerProps {
 }
 
 const SPRING = { type: 'spring' as const, stiffness: 300, damping: 30 };
-const DRAG_THRESHOLD = 50;
+// 80px (was 50): a tap on StopCard with slight finger drift no longer triggers
+// a slide change. Velocity check (500 px/s) still catches deliberate swipes.
+const DRAG_THRESHOLD = 80;
 
 export function SwipeContainer({ children, current, onSlideChange, editMode }: SwipeContainerProps) {
   const controls = useAnimation();
@@ -73,7 +75,9 @@ export function SwipeContainer({ children, current, onSlideChange, editMode }: S
           >
             <div
               className="overflow-y-auto px-4 pb-8"
-              style={{ maxHeight: 'calc(100vh - 180px)' }}
+              // 100dvh handles iOS Safari address-bar collapse; vh fallback for old browsers.
+              // 200px on mobile (more chrome: nav + tabs + progress) vs 220px on desktop.
+              style={{ maxHeight: 'min(calc(100dvh - 200px), calc(100vh - 200px))' }}
             >
               {child}
             </div>

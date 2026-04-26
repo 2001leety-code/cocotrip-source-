@@ -101,8 +101,8 @@ export function StopCard({ stop }: { stop: PlanStop }) {
         <ChevronDown className={`w-4 h-4 text-white/30 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </div>
 
-      {/* Expanded details */}
-      <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+      {/* Expanded details — mobile capped at 480px so the next card stays in view (iPhone 14 Pro 393×852: ~70% of usable area) */}
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[480px] sm:max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5 border-t border-white/[0.06] space-y-3" onClick={(e) => e.stopPropagation()}>
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
