@@ -16,7 +16,9 @@ import { BRAND } from '@/lib/design-tokens';
 export function StopCard({ stop }: { stop: PlanStop }) {
   const { t } = useLanguage();
   const ui = getPlanDetailUI(t);
-  const [expanded, setExpanded] = useState(true);
+  // Collapsed default — mobile users see more stops at a glance instead of
+  // having one giant card fill the viewport (PR #76 mobile-first analysis).
+  const [expanded, setExpanded] = useState(false);
   const CatIcon = CAT_ICON[stop.category || ''] || MapPin;
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +41,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
   return (
     <div
       ref={cardRef}
-      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/35 hover:bg-white/[0.06] transition-all cursor-pointer overflow-hidden"
+      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
       onClick={toggle}
     >
       {/* Left accent bar — visual anchor that ties the time to the card */}
