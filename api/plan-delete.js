@@ -3,24 +3,12 @@
  * Body: { planId, uid }
  * Deletes plans/{planId} and users/{uid}/plans/{planId} if uid matches
  */
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
-let adminDb = null;
-try {
-  const projectId = process.env.FIREBASE_PROJECT_ID || '';
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
-  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-  if (projectId && clientEmail && privateKey) {
-    const adminApp = getApps().length ? getApps()[0] : initializeApp({
-      credential: cert({ projectId, clientEmail, privateKey }),
-    });
-    adminDb = getAdminFirestore(adminApp);
-  }
-} catch (e) { console.warn('[plan-delete] Firebase init error:', e.message); }
+const adminDb = initAdminDb('plan-delete');
 
 // ── 표준 응답 래퍼 ──
 const _ok  = (data) => ({ ok: true, data });

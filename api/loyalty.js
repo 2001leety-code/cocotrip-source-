@@ -9,6 +9,7 @@
  *
  * Firestore Transaction으로 포인트 정합성 보장
  */
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -42,43 +43,9 @@ function calculateTier(totalSpentUSD, bookingCount) {
 }
 
 async function getFirestoreAdmin() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-
-  if (!getApps().length) {
-    let credential = null;
-
-    // 방법 1: ai-planner-full.js와 동일한 개별 환경변수 (권장)
-    const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
-    const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-    let rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
-      .replace(/^\uFEFF/, '')
-      .replace(/^["']|["']$/g, '')
-      .replace(/\\n/g, '\n')
-      .trim();
-
-    if (projectId && clientEmail && rawKey) {
-      // PEM 키 정리 (ai-planner-full.js와 동일)
-      const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
-      if (pemMatch) {
-        const base64Clean = pemMatch[1].replace(/\s+/g, '');
-        const lines = base64Clean.match(/.{1,64}/g) || [];
-        rawKey = '-----BEGIN PRIVATE KEY-----\n' + lines.join('\n') + '\n-----END PRIVATE KEY-----\n';
-      }
-      credential = cert({ projectId, clientEmail, privateKey: rawKey });
-    }
-    // 방법 2: base64 인코딩된 서비스 계정 JSON (폴백)
-    else if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(
-        Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8')
-      );
-      credential = cert(serviceAccount);
-    }
-
-    if (!credential) throw new Error('No Firebase credentials found');
-    initializeApp({ credential });
-  }
-  return getFirestore();
+  const db = initAdminDb('loyalty');
+  if (!db) throw new Error('No Firebase credentials found');
+  return db;
 }
 
 export default async function handler(req, res) {
