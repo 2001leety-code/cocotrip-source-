@@ -7,6 +7,7 @@
  */
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { logger } from '../_shared/log.js';
 
 export function initAdminDb() {
   try {
@@ -29,7 +30,7 @@ export function initAdminDb() {
       privateKey = rawKey;
     }
 
-    console.log('[ai-planner-full] Key:', {
+    logger.debug('[firestoreAdmin] Key:', {
       projectId: projectId ? 'ok' : 'MISSING',
       clientEmail: clientEmail ? 'ok' : 'MISSING',
       keyLen: privateKey.length,
@@ -42,14 +43,14 @@ export function initAdminDb() {
       });
       const adminDb = getAdminFirestore(adminApp);
       adminDb.settings({ ignoreUndefinedProperties: true });
-      console.log('[ai-planner-full] firebase-admin initialized OK');
+      logger.debug('[firestoreAdmin] firebase-admin initialized OK');
       return adminDb;
     }
 
-    console.warn('[ai-planner-full] firebase-admin keys missing — Firestore disabled');
+    logger.warn('[firestoreAdmin] firebase-admin keys missing — Firestore disabled');
     return null;
   } catch (e) {
-    console.error('[ai-planner-full] firebase-admin init failed:', e.message);
+    logger.error('[firestoreAdmin] firebase-admin init failed:', e.message);
     return null;
   }
 }
