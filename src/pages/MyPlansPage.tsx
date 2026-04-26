@@ -57,7 +57,7 @@ export default function MyPlansPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">{p.my_plans || 'My Plans'}</h1>
-            <p className="text-sm text-white/40">{user?.displayName || user?.email || ''}</p>
+            <p className="text-sm text-white/55">{user?.displayName || user?.email || ''}</p>
           </div>
         </div>
 
@@ -76,7 +76,7 @@ export default function MyPlansPage() {
           <div className="text-center py-20">
             <Sparkles className="w-12 h-12 text-[#7C5CFC]/40 mx-auto mb-4" />
             <p className="text-lg font-semibold text-white/60 mb-2">No plans yet</p>
-            <p className="text-sm text-white/30 mb-6">Create your first AI-powered Korea itinerary</p>
+            <p className="text-sm text-white/55 mb-6">Create your first AI-powered Korea itinerary</p>
             <Link to="/planner"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white"
               style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
@@ -100,14 +100,14 @@ export default function MyPlansPage() {
                     <p className="text-sm font-semibold text-white truncate">
                       {plan.tourTitle || `Plan #${plan.planId.slice(0, 8)}`}
                     </p>
-                    <p className="text-xs text-white/30 mt-1 flex items-center gap-1.5">
+                    <p className="text-xs text-white/55 mt-1 flex items-center gap-1.5">
                       <Calendar className="w-3 h-3" />
                       {plan.startDate || new Date(plan.createdAt).toLocaleDateString()}
                       {plan.area && <span>· {plan.area}</span>}
                       {plan.pax && <span>· {plan.pax} pax</span>}
                     </p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-white/20 group-hover:text-[#7C5CFC] transition-colors" />
+                  <ChevronRight className="w-5 h-5 text-white/55 group-hover:text-[#7C5CFC] transition-colors" />
                 </div>
               </Link>
             ))}

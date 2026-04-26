@@ -29,7 +29,7 @@ export function SlideProgress({ current, total, onDotClick, slides }: SlideProgr
 
     return (
       <div className="flex items-center gap-3 px-4 py-2">
-        <p className="text-[11px] text-white/40 font-medium shrink-0">{label}</p>
+        <p className="text-[11px] text-white/55 font-medium shrink-0">{label}</p>
         <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-300 ease-out"

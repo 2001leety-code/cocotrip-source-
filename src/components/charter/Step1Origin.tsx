@@ -79,7 +79,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
             {SECONDARY.map(card)}
           </div>
           <div>
-            <label className="block text-[11px] uppercase tracking-wider text-white/30 mb-2">
+            <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-2">
               {i18n.customAddress}
             </label>
             <input
@@ -87,7 +87,7 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
               value={state.originCustom ?? ''}
               onChange={e => patch({ origin: 'CUSTOM', originCustom: e.target.value })}
               placeholder={customHintPlaceholder}
-              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40"
+              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
             />
           </div>
         </>

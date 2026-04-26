@@ -43,7 +43,7 @@ export function KpopShuttleBanner({ p }: Props) {
           <Music className="w-5 h-5 text-[#7C5CFC]" />
           <h3 className="text-lg font-bold text-white">{t.title}</h3>
         </div>
-        <p className="text-xs text-white/40 ml-7">{t.subtitle}</p>
+        <p className="text-xs text-white/55 ml-7">{t.subtitle}</p>
       </div>
 
       {/* Concert Cards - Horizontal Scroll */}
@@ -129,7 +129,7 @@ export function KpopShuttleBanner({ p }: Props) {
         <div className="px-5 pb-5 space-y-4 border-t border-white/[0.06] pt-4">
           {/* Pickup Points */}
           <div>
-            <p className="text-xs text-white/40 mb-2">{t.pickupPoint}</p>
+            <p className="text-xs text-white/55 mb-2">{t.pickupPoint}</p>
             <div className="flex flex-wrap gap-2">
               {(lk === 'ko' ? selected.pickupPointsKo : selected.pickupPoints).map((point, idx) => (
                 <button
@@ -216,7 +216,7 @@ export function KpopShuttleBanner({ p }: Props) {
           )}
 
           {/* Ticket Note */}
-          <div className="flex items-start gap-2 text-[11px] text-white/35 leading-relaxed">
+          <div className="flex items-start gap-2 text-[11px] text-white/55 leading-relaxed">
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>{t.ticketNote}</span>
           </div>
@@ -225,7 +225,7 @@ export function KpopShuttleBanner({ p }: Props) {
 
       {/* No selection prompt */}
       {!selected && (
-        <div className="px-5 pb-4 flex items-center gap-2 text-xs text-white/30">
+        <div className="px-5 pb-4 flex items-center gap-2 text-xs text-white/55">
           <ArrowRight className="w-3.5 h-3.5" />
           {t.selectConcert}
         </div>

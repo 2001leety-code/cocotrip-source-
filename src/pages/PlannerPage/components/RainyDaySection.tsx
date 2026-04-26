@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Rainy day alternative accordion -- extracted verbatim from legacy PlannerPage.tsx L771-797.
 import { useState } from 'react';
 import { CloudRain } from 'lucide-react';
@@ -13,7 +13,7 @@ export function RainyDaySection({ places, p }: { places: Place[]; p: PlannerDict
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3 bg-blue-500/[0.06] hover:bg-blue-500/[0.10] transition-colors">
         <span className="text-sm text-blue-300/65 font-medium flex items-center gap-1"><CloudRain className="w-4 h-4" /> {p.result_rainy}</span>
-        <span className="text-white/25 text-xs">{open ? '\u25B2' : '\u25B6'}</span>
+        <span className="text-white/55 text-xs">{open ? '\u25B2' : '\u25B6'}</span>
       </button>
       {open && (
         <div className="px-4 py-3 space-y-3 border-t border-blue-500/10">

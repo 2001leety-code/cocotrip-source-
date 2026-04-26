@@ -75,7 +75,7 @@ export function PendingClaimsWidget() {
 
   return (
     <div className="mb-6 bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5">
-      <p className="text-[11px] uppercase tracking-wider text-white/40 font-semibold mb-3">
+      <p className="text-[11px] uppercase tracking-wider text-white/55 font-semibold mb-3">
         Your requests
       </p>
       <div className="space-y-2">
@@ -94,7 +94,7 @@ export function PendingClaimsWidget() {
               <Icon className="w-4 h-4 text-white/50 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-semibold text-white/90 truncate">{title}</p>
-                <p className="text-[11px] text-white/40">{sub}</p>
+                <p className="text-[11px] text-white/55">{sub}</p>
               </div>
               <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${badge.bg} ${badge.color} shrink-0`}>
                 <badge.Icon className="w-3 h-3" />

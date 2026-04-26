@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Premium combo discount CTA -- extracted verbatim from legacy PlannerPage.tsx L1052-1096.
 import { Ticket, Check, Ban } from 'lucide-react';
 
@@ -39,7 +39,7 @@ export function ComboPackageBanner({ p }: { p: PlannerDict }) {
           <span className="flex items-center gap-1"><Ban className="w-3 h-3 text-red-400" /> {p.checkoutTip2}</span>
         </div>
         <div className="text-center mt-3">
-          <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="text-[11px] text-white/30 hover:text-white/50 transition-colors underline">
+          <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer" className="text-[11px] text-white/55 hover:text-white/50 transition-colors underline">
             {p.comboHelp}
           </a>
         </div>

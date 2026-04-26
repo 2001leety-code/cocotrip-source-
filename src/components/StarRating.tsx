@@ -31,7 +31,7 @@ export function StarRating({ rating, onChange, size = 20, readonly = false }: Pr
             className={`transition-colors ${
               i <= (hover || rating)
                 ? 'fill-[#FFD700] text-[#FFD700]'
-                : 'fill-transparent text-white/20'
+                : 'fill-transparent text-white/55'
             }`}
           />
         </button>

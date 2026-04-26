@@ -82,7 +82,7 @@ export function RefundPolicyModal({ language, trigger }: { language: Language; t
 
         <table className="w-full text-[11px] mt-2">
           <thead>
-            <tr className="text-white/40 border-b border-white/[0.08]">
+            <tr className="text-white/55 border-b border-white/[0.08]">
               <th className="text-left py-2 font-semibold">{headers.col0}</th>
               <th className="text-center py-2 font-semibold">{headers.gen}</th>
               <th className="text-center py-2 font-semibold">{headers.gold}</th>
@@ -103,7 +103,7 @@ export function RefundPolicyModal({ language, trigger }: { language: Language; t
           </tbody>
         </table>
 
-        <ul className="mt-3 space-y-1 text-[10px] text-white/35">
+        <ul className="mt-3 space-y-1 text-[10px] text-white/55">
           {notes.map((n, i) => (
             <li key={i} className="leading-relaxed">· {n}</li>
           ))}

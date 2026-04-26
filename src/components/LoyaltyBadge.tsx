@@ -34,7 +34,7 @@ export function LoyaltyBadge() {
         <span className="text-xs font-semibold" style={{ color: config.color }}>
           {loyalty.tier}
         </span>
-        <span className="text-white/30 text-[9px]">|</span>
+        <span className="text-white/55 text-[9px]">|</span>
         <div className="flex items-center gap-1">
           <Coins size={12} className="text-[#C4956A]" />
           <span className="text-xs text-[#C4956A] font-medium">
@@ -43,7 +43,7 @@ export function LoyaltyBadge() {
         </div>
         <ChevronRight
           size={12}
-          className={`text-white/30 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          className={`text-white/55 transition-transform ${expanded ? 'rotate-90' : ''}`}
         />
       </button>
 
@@ -54,13 +54,13 @@ export function LoyaltyBadge() {
           <div className={`p-4 bg-gradient-to-r ${config.bg} border-b border-white/5`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-white/40 uppercase tracking-wider">Membership Tier</p>
+                <p className="text-xs text-white/55 uppercase tracking-wider">Membership Tier</p>
                 <p className="text-lg font-bold mt-0.5" style={{ color: config.color }}>
                   {config.icon} {loyalty.tier}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-white/40">Earn Rate</p>
+                <p className="text-xs text-white/55">Earn Rate</p>
                 <p className="text-[#C4956A] font-semibold">
                   {(loyalty.earnRate * 100).toFixed(1)}%
                 </p>
@@ -79,7 +79,7 @@ export function LoyaltyBadge() {
                 <p className="text-[#C4956A] font-bold text-lg">
                   {loyalty.tripCoins.toLocaleString()}
                 </p>
-                <p className="text-white/30 text-[10px]">
+                <p className="text-white/55 text-[10px]">
                   ≈ ${coinsToUSD(loyalty.tripCoins)}
                 </p>
               </div>
@@ -114,13 +114,13 @@ export function LoyaltyBadge() {
           {/* 통계 */}
           <div className="p-4 grid grid-cols-2 gap-3">
             <div className="text-center">
-              <p className="text-white/30 text-[10px] uppercase">Total Spent</p>
+              <p className="text-white/55 text-[10px] uppercase">Total Spent</p>
               <p className="text-white/80 font-semibold text-sm">
                 ${loyalty.totalSpentUSD.toFixed(0)}
               </p>
             </div>
             <div className="text-center">
-              <p className="text-white/30 text-[10px] uppercase">Bookings</p>
+              <p className="text-white/55 text-[10px] uppercase">Bookings</p>
               <p className="text-white/80 font-semibold text-sm">{loyalty.bookingCount}</p>
             </div>
           </div>

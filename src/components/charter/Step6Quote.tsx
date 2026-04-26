@@ -14,7 +14,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);
   if (!quote) {
     return (
-      <div className="text-white/40 text-sm">
+      <div className="text-white/55 text-sm">
         {language === 'ko' ? '이전 단계 정보가 부족합니다.'
           : language === 'ja' ? '前のステップが未完了です。'
           : language === 'zh' ? '上一步信息不完整。'
@@ -47,7 +47,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
 
       {/* 선결제 박스 */}
       <div className="rounded-xl border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/10 to-transparent p-4">
-        <p className="text-[10px] uppercase tracking-wider text-white/40 mb-3">{i18n.payBlock}</p>
+        <p className="text-[10px] uppercase tracking-wider text-white/55 mb-3">{i18n.payBlock}</p>
         <div className="space-y-1.5 text-sm">
           <Row label={i18n.payVehicleLine} value={KRW(quote.vehicleChargeKRW)} />
           {quote.addons.map(a => (
@@ -69,7 +69,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
       {/* 별도 고지 박스 (항상 보여주되 해당 모드만) */}
       {(quote.showMeals || quote.showAttractions) && (
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-[10px] uppercase tracking-wider text-white/40 mb-3">{i18n.separateBlock}</p>
+          <p className="text-[10px] uppercase tracking-wider text-white/55 mb-3">{i18n.separateBlock}</p>
           <div className="space-y-1.5 text-sm text-white/60">
             {quote.showMeals && <Row label={i18n.estMeals} value={KRW(quote.estimatedMealsKRW)} muted />}
             {quote.showAttractions && <Row label={i18n.estAttractions} value={KRW(quote.estimatedAttractionsKRW)} muted />}
@@ -83,7 +83,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
           <span key={i} className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ {i}</span>
         ))}
         {quote.excludes.map(e => (
-          <span key={e} className="px-2 py-1 rounded-full bg-white/[0.03] text-white/35 border border-white/10">× {e}</span>
+          <span key={e} className="px-2 py-1 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× {e}</span>
         ))}
       </div>
 
@@ -92,7 +92,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
       )}
 
       {quote.distanceKm && (
-        <p className="text-[10px] text-white/30">
+        <p className="text-[10px] text-white/55">
           {i18n.onewayLabel}: {quote.distanceKm}km · ~{quote.durationHours}h · source: {quote.source}
         </p>
       )}

@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Airport pickup selection + PayPal booking.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L823-884.
 import { useState } from 'react';
@@ -28,12 +28,12 @@ export function AirportPickupCard({ arrivalAirport, p, lang }: { arrivalAirport?
         <div className="flex-1">
           <p className="font-bold text-white text-base leading-tight mb-0.5">{p.airport_pickup_title}</p>
           <p className="text-xs text-[#D4A574]/80 font-medium">{p.airport_pickup_desc}</p>
-          <p className="text-[11px] text-white/40 mt-1">{p.airport_pickup_driver}</p>
+          <p className="text-[11px] text-white/55 mt-1">{p.airport_pickup_driver}</p>
         </div>
         <span className="shrink-0 text-[10px] text-[#C4956A] border border-[rgba(196,149,106,.35)] rounded-full px-2.5 py-1 font-semibold">{code}</span>
       </div>
 
-      <p className="text-xs text-white/40 mb-2">{p.airport_pickup_select}</p>
+      <p className="text-xs text-white/55 mb-2">{p.airport_pickup_select}</p>
       <div className="flex flex-wrap gap-2 mb-4">
         {prices.map((row, i) => (
           <button key={i} type="button" onClick={() => setSelectedDest(row.destination)}
@@ -63,7 +63,7 @@ export function AirportPickupCard({ arrivalAirport, p, lang }: { arrivalAirport?
           memo={`Airport Pickup: ${code} → ${selectedDest}`}
         />
       ) : (
-        <p className="text-xs text-white/30 text-center py-2">{p.airport_pickup_select_hint}</p>
+        <p className="text-xs text-white/55 text-center py-2">{p.airport_pickup_select_hint}</p>
       )}
     </div>
   );

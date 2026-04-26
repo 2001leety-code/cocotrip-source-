@@ -51,7 +51,7 @@ export function CharterCTA({ day }: CharterCTAProps) {
           <p className="text-white text-sm font-semibold leading-tight">
             {ch.suggestHeader || 'This day has many transit transfers'}
           </p>
-          <p className="text-white/40 text-xs mt-1">
+          <p className="text-white/55 text-xs mt-1">
             {ch.suggestBody || 'Skip the hassle -- ride in comfort with a private driver'}
           </p>
           {pricing && (

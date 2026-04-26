@@ -219,13 +219,13 @@ export default function TourDetailPage() {
       <div className={`max-w-4xl mx-auto flex items-center gap-2 px-4 sm:px-6 pb-3 ${isMobile ? 'pt-20' : 'pt-24'}`}>
         <Link
           to="/tours"
-          className="flex items-center gap-1.5 text-[12px] text-white/40 hover:text-white/70 transition-colors"
+          className="flex items-center gap-1.5 text-[12px] text-white/55 hover:text-white/70 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           {backLabel}
         </Link>
-        <ChevronRight className="w-3 h-3 text-white/20" />
-        <span className="text-[12px] text-white/20 truncate max-w-[160px]">{title}</span>
+        <ChevronRight className="w-3 h-3 text-white/55" />
+        <span className="text-[12px] text-white/55 truncate max-w-[160px]">{title}</span>
       </div>
 
       {/* ── 이미지 갤러리 슬라이더 ── */}
@@ -236,7 +236,7 @@ export default function TourDetailPage() {
 
         {/* 제목 */}
         <h1 className="text-[22px] font-black text-white leading-tight mb-1.5">{title}</h1>
-        <p className="text-[13px] text-white/40 mb-4 leading-relaxed">{summary}</p>
+        <p className="text-[13px] text-white/55 mb-4 leading-relaxed">{summary}</p>
 
         {/* 메타 칩 */}
         <div className="flex flex-wrap gap-2 mb-5">
@@ -285,7 +285,7 @@ export default function TourDetailPage() {
 
         {/* 포함 사항 */}
         <section className="mb-5">
-          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/30 mb-3">{highlightTitle}</h2>
+          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{highlightTitle}</h2>
           <ul className="space-y-2.5">
             {tour.highlights.map((h, i) => (
               <li key={i} className="flex items-start gap-2.5">
@@ -300,7 +300,7 @@ export default function TourDetailPage() {
 
         {/* 상품 설명 */}
         <section className="mb-5">
-          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/30 mb-3">{overviewTitle}</h2>
+          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{overviewTitle}</h2>
           <p className="text-[13px] text-white/55 leading-relaxed">{description}</p>
         </section>
 
@@ -315,7 +315,7 @@ export default function TourDetailPage() {
 
         {/* 세부 일정 — stops 데이터 있으면 timeline, 없으면 폴백 placeholder */}
         <section className="mb-8">
-          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/30 mb-3">{itineraryTitle}</h2>
+          <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{itineraryTitle}</h2>
           {tour.stops && tour.stops.length > 0 ? (
             <TourStopList stops={tour.stops} language={language} />
           ) : (
@@ -332,7 +332,7 @@ export default function TourDetailPage() {
               >
                 <Package className="w-4 h-4" style={{ color: 'rgba(182,104,252,0.6)' }} />
               </div>
-              <p className="text-[12px] text-white/25 italic">{comingSoon}</p>
+              <p className="text-[12px] text-white/55 italic">{comingSoon}</p>
             </div>
           )}
         </section>
@@ -345,7 +345,7 @@ export default function TourDetailPage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h2 className="text-[15px] font-black text-white">{hotelTitle}</h2>
-                <p className="text-[11px] text-white/30 mt-0.5">{hotelSub}</p>
+                <p className="text-[11px] text-white/55 mt-0.5">{hotelSub}</p>
               </div>
               <span
                 className="text-[10px] font-bold px-2.5 py-1 rounded-full"
@@ -398,7 +398,7 @@ export default function TourDetailPage() {
                     {/* 정보 */}
                     <div className="p-3 flex flex-col gap-1.5 flex-1">
                       <p className="text-[11px] font-bold text-white leading-tight line-clamp-2">{hotel.name}</p>
-                      <p className="text-[10px] text-white/35">{loc}</p>
+                      <p className="text-[10px] text-white/55">{loc}</p>
                       <div className="flex gap-0.5">
                         {stars.map((_, i) => (
                           <Star key={i} className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
@@ -411,15 +411,15 @@ export default function TourDetailPage() {
                         >
                           {hotel.rating.toFixed(1)}
                         </span>
-                        <span className="text-[10px] text-white/25">
+                        <span className="text-[10px] text-white/55">
                           /10 · {hotel.reviewCount.toLocaleString()}
                         </span>
                       </div>
                       <div className="mt-auto pt-1.5 border-t border-white/[0.05]">
-                        <p className="text-[10px] text-white/30">{hotelFrom}</p>
+                        <p className="text-[10px] text-white/55">{hotelFrom}</p>
                         <p className="text-[13px] font-black text-white">
                           ${hotel.priceFrom}
-                          <span className="text-[10px] text-white/30 font-normal ml-0.5">{hotelNight}</span>
+                          <span className="text-[10px] text-white/55 font-normal ml-0.5">{hotelNight}</span>
                         </p>
                       </div>
                       <div
@@ -434,7 +434,7 @@ export default function TourDetailPage() {
                 );
               })}
             </div>
-            <p className="text-[9px] text-white/20 mt-2 text-center">{hotelDiscl}</p>
+            <p className="text-[9px] text-white/55 mt-2 text-center">{hotelDiscl}</p>
           </section>
         )}
       </div>
@@ -484,7 +484,7 @@ export default function TourDetailPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-white/30 mt-1">
+                <p className="text-[10px] text-white/55 mt-1">
                   {resolvedRating.reviewSource === 'internal' || !resolvedRating.reviewSource
                     ? (language === 'ko' ? '결제 완료 고객의 후기 기반 · Google 검증 연동 예정' :
                        language === 'ja' ? '決済完了顧客のレビューに基づく · Google検証は今後対応' :
@@ -532,15 +532,15 @@ export default function TourDetailPage() {
             className="flex-1 px-4 py-3 rounded-2xl"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
           >
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">{fromLabel}</p>
+            <p className="text-[10px] text-white/55 uppercase tracking-wider mb-0.5">{fromLabel}</p>
             <p className="text-[20px] font-black text-white leading-none">
               ${tour.priceFrom.toLocaleString()}
-              <span className="text-[11px] text-white/35 font-medium ml-1">USD</span>
+              <span className="text-[11px] text-white/55 font-medium ml-1">USD</span>
             </p>
             <RefundPolicyModal
               language={language}
               trigger={
-                <button className="text-[10px] text-white/40 hover:text-white/70 underline-offset-2 hover:underline mt-1 text-left">
+                <button className="text-[10px] text-white/55 hover:text-white/70 underline-offset-2 hover:underline mt-1 text-left">
                   {language === 'ko' ? '취소·환불 정책' : language === 'ja' ? 'キャンセル・返金' : language === 'zh' ? '取消政策' : 'Cancellation policy'}
                 </button>
               }

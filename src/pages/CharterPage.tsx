@@ -46,7 +46,7 @@ const LUGGAGE_SIZES = [
 // ── 스타일 상수 ─────────────────────────────────────
 const SEL  = 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/10 to-[#FF6B9D]/10 text-[#B668FC] shadow-[0_0_15px_rgba(182,104,252,0.15)]';
 const UNSEL = 'border-white/10 bg-white/[0.04] text-white/55 hover:border-[#B668FC]/50 hover:text-white/90 hover:shadow-[0_0_10px_rgba(182,104,252,0.1)] transition-all';
-const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/35 font-semibold mb-3';
+const LABEL = 'text-[11px] uppercase tracking-[.07em] text-white/55 font-semibold mb-3';
 
 // ── 메인 컴포넌트 ────────────────────────────────────
 export default function CharterPage() {
@@ -152,7 +152,7 @@ export default function CharterPage() {
           ? 'linear-gradient(160deg, #0a0412 0%, #1a0a2e 60%, #0d0618 100%)'
           : 'linear-gradient(160deg, #0c1220 0%, #0f2244 60%, #0a1628 100%)' }}>
         <div className="max-w-2xl mx-auto">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-white/35 text-xs hover:text-white/60 transition-colors mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-white/55 text-xs hover:text-white/60 transition-colors mb-6">
             <ArrowLeft className="w-3.5 h-3.5" />{c.backToHome ?? '홈으로'}
           </Link>
           <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold tracking-wider uppercase mb-4 ${
@@ -199,7 +199,7 @@ export default function CharterPage() {
                   <p className="text-[10px] text-[#C4956A] mt-1">{c.vehicleFromPrice ?? '₩291,200~'}</p>
                 )}
                 {(key === 'sprinter' || key === 'bus') && (
-                  <p className="text-[10px] text-white/35 mt-1">{c.vehicleCustomQuote ?? '별도 견적'}</p>
+                  <p className="text-[10px] text-white/55 mt-1">{c.vehicleCustomQuote ?? '별도 견적'}</p>
                 )}
               </button>
             ))}
@@ -244,7 +244,7 @@ export default function CharterPage() {
             <>
               {/* ① 공항 드롭다운 */}
               <div>
-                <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.airportSelect ?? '출발/도착 공항'}</p>
+                <p className="text-xs text-white/55 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.airportSelect ?? '출발/도착 공항'}</p>
                 <MobileSelectDrawer
                   value={airport}
                   onChange={(val) => { setAirport(val); setDestination(''); }}
@@ -253,13 +253,13 @@ export default function CharterPage() {
                     value: a.id,
                     label: `${a.id} — ${a[lk as 'ko' | 'en']}`,
                   }))}
-                  icon={<Plane className="w-4 h-4 text-white/30" />}
+                  icon={<Plane className="w-4 h-4 text-white/55" />}
                 />
               </div>
 
               {/* ② 목적지 드롭다운 + 직접입력 */}
               <div>
-                <p className="text-xs text-white/40 mb-2">{c.destSelect ?? '목적지 선택'}</p>
+                <p className="text-xs text-white/55 mb-2">{c.destSelect ?? '목적지 선택'}</p>
                 <MobileSelectDrawer
                   value={destination}
                   onChange={(val) => { setDestination(val); if (val !== '__custom__') setCustomDest(''); }}
@@ -277,14 +277,14 @@ export default function CharterPage() {
                 {destination === '__custom__' && (
                   <input type="text" value={customDest} onChange={e => setCustomDest(e.target.value)}
                     placeholder={c.destCustomPlaceholder ?? '예: 서울 강남구 테헤란로 123'}
-                    className="w-full mt-2 px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40 transition-all" />
+                    className="w-full mt-2 px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40 transition-all" />
                 )}
                 {destination && destination !== '__custom__' && (() => {
                   const d = AIRPORT_TRANSFER_PRICES[destination];
                   return d ? (
                     <div className="mt-2 flex items-center gap-2 text-xs">
-                      <Clock className="w-3 h-3 text-white/30" />
-                      <span className="text-white/40">{c.estimatedTime ?? '예상 소요'} ~{d.durationMin}{c.minutes ?? '분'}</span>
+                      <Clock className="w-3 h-3 text-white/55" />
+                      <span className="text-white/55">{c.estimatedTime ?? '예상 소요'} ~{d.durationMin}{c.minutes ?? '분'}</span>
                     </div>
                   ) : null;
                 })()}
@@ -295,7 +295,7 @@ export default function CharterPage() {
           {/* 일일 투어 */}
           {service === 'daily' && (
             <div>
-              <p className="text-xs text-white/40 mb-2">{c.tourSelect ?? '투어 코스 선택'}</p>
+              <p className="text-xs text-white/55 mb-2">{c.tourSelect ?? '투어 코스 선택'}</p>
               <div className="space-y-1.5">
                 {Object.entries(DAILY_TOUR_PRICES).map(([key, tour]) => (
                   <button key={key} type="button" onClick={() => setTourType(key)}
@@ -304,7 +304,7 @@ export default function CharterPage() {
                       <p className="font-medium">{tour[lk]}</p>
                       <p className="text-[10px] opacity-55 mt-0.5">{tour.hours}h · {tour.spots.slice(0, 3).join(' · ')}</p>
                     </div>
-                    <span className={`text-xs font-bold shrink-0 ml-3 ${tourType === key ? 'text-[#C4956A]' : 'text-white/30'}`}>
+                    <span className={`text-xs font-bold shrink-0 ml-3 ${tourType === key ? 'text-[#C4956A]' : 'text-white/55'}`}>
                       ₩{tour.priceKRW.toLocaleString('ko-KR')}
                     </span>
                   </button>
@@ -324,7 +324,7 @@ export default function CharterPage() {
 
           {/* 날짜 선택 */}
           <div>
-            <p className="text-xs text-white/40 mb-2">
+            <p className="text-xs text-white/55 mb-2">
               {service === 'multiday' ? (c.dateRange ?? '여행 날짜 범위') : (c.dateSelect ?? '날짜 선택')}
             </p>
             <CalendarPicker
@@ -343,7 +343,7 @@ export default function CharterPage() {
 
           {/* 인원 */}
           <div>
-            <p className="text-xs text-white/40 mb-2">{c.people ?? '인원'}</p>
+            <p className="text-xs text-white/55 mb-2">{c.people ?? '인원'}</p>
             <div className="space-y-2">
               {[
                 { key: 'adults'   as const, label: c.adults ?? '성인', min: 1, max: 20, val: adults,   set: setAdults },
@@ -365,8 +365,8 @@ export default function CharterPage() {
 
           {/* 캐리어 — 사이즈별 개수 */}
           <div>
-            <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Luggage className="w-3 h-3" />{c.luggage ?? '캐리어 정보'}</p>
-            <p className="text-[10px] text-white/25 mb-3">{c.luggageSizeHint ?? '각 사이즈별 수량을 입력하세요'}</p>
+            <p className="text-xs text-white/55 mb-2 flex items-center gap-1"><Luggage className="w-3 h-3" />{c.luggage ?? '캐리어 정보'}</p>
+            <p className="text-[10px] text-white/55 mb-3">{c.luggageSizeHint ?? '각 사이즈별 수량을 입력하세요'}</p>
             <div className="space-y-2">
               {[
                 { key: 'small'  as const, label: LUGGAGE_SIZES[0][llk], val: luggageSmall,  set: setLuggageSmall },
@@ -389,26 +389,26 @@ export default function CharterPage() {
 
           {/* 비행기 편명 + 도착시간 */}
           <div>
-            <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.flightNo ?? '비행기 편명 (선택)'}</p>
+            <p className="text-xs text-white/55 mb-2 flex items-center gap-1"><Plane className="w-3 h-3" />{c.flightNo ?? '비행기 편명 (선택)'}</p>
             <input type="text" value={flightNo} onChange={e => setFlightNo(e.target.value.toUpperCase())}
               placeholder={c.flightPlaceholder ?? '예: KE001, OZ521, 7C101'}
-              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40 transition-all font-mono tracking-wider" />
+              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40 transition-all font-mono tracking-wider" />
           </div>
 
           {/* 도착 시간 */}
           <div>
-            <p className="text-xs text-white/40 mb-2 flex items-center gap-1"><Timer className="w-3 h-3" />{c.arrivalTime ?? '도착 시간 (선택)'}</p>
+            <p className="text-xs text-white/55 mb-2 flex items-center gap-1"><Timer className="w-3 h-3" />{c.arrivalTime ?? '도착 시간 (선택)'}</p>
             <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm outline-none focus:border-[#B668FC]/40 transition-all [color-scheme:dark]" />
-            <p className="text-[10px] text-white/20 mt-1">{c.arrivalTimeHint ?? '비행기 도착 예정 시간을 입력하세요'}</p>
+            <p className="text-[10px] text-white/55 mt-1">{c.arrivalTimeHint ?? '비행기 도착 예정 시간을 입력하세요'}</p>
           </div>
 
           {/* 요청사항 */}
           <div>
-            <p className="text-xs text-white/40 mb-2">{c.notes ?? '추가 요청사항 (선택)'}</p>
+            <p className="text-xs text-white/55 mb-2">{c.notes ?? '추가 요청사항 (선택)'}</p>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
               placeholder={c.notesPlaceholder ?? '예: 유아카시트 필요, 한국어 기사 선호, 특정 시간 픽업...'}
-              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/20 outline-none focus:border-[#B668FC]/40 transition-all resize-none leading-relaxed" />
+              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40 transition-all resize-none leading-relaxed" />
           </div>
             </div>
 
@@ -421,7 +421,7 @@ export default function CharterPage() {
                 <div className="px-6 py-5">
                   <p className={`text-[10px] uppercase tracking-widest font-semibold mb-3 ${isMobile ? 'text-[#B668FC]/70' : 'text-[#C4956A]/70'}`}>{c.quoteTitle ?? '예상 견적'}</p>
                   <p className="font-bold text-white text-base mb-0.5">{quote.label}</p>
-                  <p className="text-xs text-white/40 mb-4">
+                  <p className="text-xs text-white/55 mb-4">
                     {VEHICLE_TYPES[vehicle].name.ko} · {startDate || (c.dateNotSelected ?? '날짜 미선택')} · {c.adults ?? '성인'} {adults}{c.vehicleMaxUnit ?? '명'}{children > 0 ? ` ${c.children ?? '어린이'} ${children}${c.vehicleMaxUnit ?? '명'}` : ''}
                   </p>
 
@@ -429,7 +429,7 @@ export default function CharterPage() {
                     <>
                       <div className="flex items-baseline gap-3 mb-1">
                         <span className="text-3xl font-bold text-white">₩{quote.priceKRW.toLocaleString('ko-KR')}</span>
-                        <span className="text-sm text-white/40">≈ ${quote.priceUSD} USD</span>
+                        <span className="text-sm text-white/55">≈ ${quote.priceUSD} USD</span>
                       </div>
                       {EXTRA_CHARGES.roundTripDiscountPercent > 0 && service === 'airport' && (
                         <p className="text-[11px] text-[#C4956A]/70 mb-4">
@@ -489,7 +489,7 @@ export default function CharterPage() {
             {/* 견적 없을 때 기본 문의 CTA */}
             {!quote && (
               <div className={`${isMobile ? 'm-card p-5 text-center' : 'bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 text-center'}`}>
-                <p className="text-white/40 text-sm mb-4">
+                <p className="text-white/55 text-sm mb-4">
                   {needsCustom
                     ? (c.noQuoteCustom ?? '스프린터·버스·다일투어는 맞춤 견적이 필요합니다.')
                     : (c.noQuoteDefault ?? '위에서 서비스 유형과 목적지를 선택하면 예상 금액이 표시됩니다.')}
@@ -500,14 +500,14 @@ export default function CharterPage() {
 
             {/* 추가 정보 */}
             <div className={`${isMobile ? 'm-card m-appear p-5' : 'bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5'}`} style={isMobile ? { animationDelay: '0.3s' } : undefined}>
-              <p className="text-[10px] uppercase tracking-widest text-white/25 font-semibold mb-3">{c.includedTitle ?? '포함 사항'}</p>
+              <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold mb-3">{c.includedTitle ?? '포함 사항'}</p>
               <ul className="space-y-1.5 text-xs text-white/45 leading-relaxed">
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included1 ?? '차량 1대 기준 (인원 추가 시 차량 추가)'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included2 ?? '영어 소통 가능 기사 · 24시간 지원'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included3 ?? '대형 캐리어 수납 가능'}</span></li>
                 <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500/70" /><span>{c.included4 ?? '픽업 안내 서비스 (공항 픽업 ₩20,000 추가)'}</span></li>
-                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/35" /><span>{(c.overtime ?? '초과 시간 ₩{n}/시간').replace('{n}', EXTRA_CHARGES.overtimePerHour.toLocaleString('ko-KR'))}</span></li>
-                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/35" /><span>{(c.nightSurcharge ?? '심야 할증 (00:00–06:00) {n}% 추가').replace('{n}', String(EXTRA_CHARGES.nightSurchargePercent))}</span></li>
+                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.overtime ?? '초과 시간 ₩{n}/시간').replace('{n}', EXTRA_CHARGES.overtimePerHour.toLocaleString('ko-KR'))}</span></li>
+                <li className="flex items-start gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/55" /><span>{(c.nightSurcharge ?? '심야 할증 (00:00–06:00) {n}% 추가').replace('{n}', String(EXTRA_CHARGES.nightSurchargePercent))}</span></li>
               </ul>
             </div>
           </>

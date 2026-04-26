@@ -93,7 +93,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
           </div>
           {/* Korean name as subtle subtitle (when display_name is in another language) */}
           {(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) && (
-            <p className="text-[11px] text-white/40 mt-0.5">{stop.name || stop.name_ko}</p>
+            <p className="text-[11px] text-white/55 mt-0.5">{stop.name || stop.name_ko}</p>
           )}
           {/* Meta chips — pill-style for scannability */}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -111,7 +111,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
             )}
           </div>
         </div>
-        <ChevronDown className={`w-4 h-4 text-white/30 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-white/55 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </div>
 
       {/* Expanded details — mobile capped at 480px so the next card stays in view (iPhone 14 Pro 393×852: ~70% of usable area) */}
@@ -171,7 +171,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
           {/* Recommended items */}
           {(stop.recommended_items?.length || 0) > 0 && (
             <div>
-              <p className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Recommended</p>
+              <p className="text-[10px] text-white/55 mb-1.5 uppercase tracking-wider">Recommended</p>
               <div className="space-y-1">
                 {stop.recommended_items!.map((rawItem, i: number) => {
                   const item = normalizeRecommendedItem(rawItem);
@@ -180,7 +180,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
                     <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
                       <div className="flex-1 min-w-0">
                         <span className="text-[11px] text-white/70">{item.name}</span>
-                        {item.note && <span className="text-[9px] text-white/30 ml-1.5">{'\u00B7'} {item.note}</span>}
+                        {item.note && <span className="text-[9px] text-white/55 ml-1.5">{'\u00B7'} {item.note}</span>}
                       </div>
                       {(item.price_krw || 0) > 0 && <span className="text-[11px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
                     </div>
@@ -196,7 +196,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               <div className="flex items-center gap-2 mb-2">
                 <Train className="w-3.5 h-3.5 text-blue-400" />
                 <p className="text-[11px] font-bold text-blue-400">Public Transit Route</p>
-                <span className="ml-auto text-[10px] text-white/40">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
+                <span className="ml-auto text-[10px] text-white/55">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
               </div>
               {publicTransit.steps?.length > 0 && (
                 <div className="space-y-1">
@@ -204,14 +204,14 @@ export function StopCard({ stop }: { stop: PlanStop }) {
                     <div key={i} className="flex items-center gap-2 text-[10px]">
                       {step.mode === 'subway' && <Train className="w-3 h-3 text-blue-400/70 shrink-0" />}
                       {step.mode === 'bus' && <Bus className="w-3 h-3 text-green-400/70 shrink-0" />}
-                      {step.mode === 'walk' && <Footprints className="w-3 h-3 text-white/30 shrink-0" />}
-                      <span className={step.mode === 'walk' ? 'text-white/30' : 'text-white/60'}>{step.description}</span>
+                      {step.mode === 'walk' && <Footprints className="w-3 h-3 text-white/55 shrink-0" />}
+                      <span className={step.mode === 'walk' ? 'text-white/55' : 'text-white/60'}>{step.description}</span>
                     </div>
                   ))}
                 </div>
               )}
               {publicTransit.transfers > 0 && (
-                <p className="text-[9px] text-white/25 mt-1.5">Transfers: {publicTransit.transfers}</p>
+                <p className="text-[9px] text-white/55 mt-1.5">Transfers: {publicTransit.transfers}</p>
               )}
             </div>
           )}

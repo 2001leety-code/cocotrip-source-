@@ -71,7 +71,7 @@ export default function AdminTourAvailability() {
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-24">
         <h1 className="text-[22px] font-black text-white mb-1">투어 가용성 관리</h1>
-        <p className="text-[12px] text-white/40 mb-5">
+        <p className="text-[12px] text-white/55 mb-5">
           운영자 전용 — 일자 클릭으로 가능/만석/휴업 순환. 빈 셀 = 가능 (default).
         </p>
 
@@ -132,7 +132,7 @@ export default function AdminTourAvailability() {
         {/* 캘린더 그리드 7열 */}
         <div className="grid grid-cols-7 gap-1.5">
           {['일', '월', '화', '수', '목', '금', '토'].map(d => (
-            <div key={d} className="text-[10px] font-bold text-white/30 text-center py-1">{d}</div>
+            <div key={d} className="text-[10px] font-bold text-white/55 text-center py-1">{d}</div>
           ))}
           {/* 첫째 날의 요일만큼 빈 셀 */}
           {Array.from({ length: new Date(year, month, 1).getDay() }, (_, i) => (
@@ -173,7 +173,7 @@ export default function AdminTourAvailability() {
           })}
         </div>
 
-        <p className="text-[10px] text-white/25 mt-4">
+        <p className="text-[10px] text-white/55 mt-4">
           저장 위치: Firestore <code>tour_availability/&lt;tourId&gt;/dates/&lt;YYYY-MM-DD&gt;</code>.
           빈 셀(default available)은 doc 미생성으로 표현.
         </p>

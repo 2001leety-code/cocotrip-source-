@@ -34,7 +34,7 @@ export function Step2Service({ state, patch, language = 'en' }: Props) {
           >
             <opt.Icon className={`w-5 h-5 mb-2 ${selected ? 'text-[#B668FC]' : 'text-white/50'}`} />
             <p className={`text-sm font-semibold ${selected ? 'text-white' : 'text-white/80'}`}>{opt.title}</p>
-            <p className="text-[11px] text-white/40 mt-1 leading-snug">{opt.desc}</p>
+            <p className="text-[11px] text-white/55 mt-1 leading-snug">{opt.desc}</p>
           </button>
         );
       })}

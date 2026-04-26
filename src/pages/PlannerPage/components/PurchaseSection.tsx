@@ -51,17 +51,17 @@ export function PurchaseSection({
 
       {/* Price display */}
       <div className="relative text-center py-4 mb-4">
-        <div className="text-white/40 text-sm mb-1">
+        <div className="text-white/55 text-sm mb-1">
           <span className="line-through">$19.90</span>
           <span className="ml-2 text-[10px] uppercase tracking-wider">{p.originalPrice}</span>
         </div>
         <div className="flex items-baseline justify-center gap-2 mb-2">
           <span className="text-5xl font-black text-white" style={{ textShadow: isMobile ? '0 0 20px rgba(182,104,252,0.3)' : '0 0 20px rgba(124,92,252,0.3)' }}>$9.90</span>
-          <span className="text-white/35 text-sm">/ {'\u20A9'}13,300</span>
+          <span className="text-white/55 text-sm">/ {'\u20A9'}13,300</span>
         </div>
         <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border ${isMobile ? 'bg-gradient-to-r from-[#FF6B9D]/15 to-[#B668FC]/15 border-[#FF6B9D]/40' : 'bg-gradient-to-r from-[#EA537E]/15 to-[#7C5CFC]/15 border-[#EA537E]/40'}`}>
           <span className={`text-xs font-bold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>50% OFF</span>
-          <span className="text-white/20">{'\u00B7'}</span>
+          <span className="text-white/55">{'\u00B7'}</span>
           <span className="text-white/60 text-xs">{p.launchPrice}</span>
         </div>
         <p className="text-amber-400/80 text-[11px] mt-3 font-medium">{p.limitedTimeOffer}</p>
@@ -108,7 +108,7 @@ export function PurchaseSection({
               <div className="text-center py-6">
                 <div className="animate-spin h-10 w-10 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-3" />
                 <p className="text-white font-semibold">{p.creatingItinerary || 'Creating your itinerary...'}</p>
-                <p className="text-white/40 text-sm mt-1">{p.takesAbout15Sec || 'Takes about 15 seconds'}</p>
+                <p className="text-white/55 text-sm mt-1">{p.takesAbout15Sec || 'Takes about 15 seconds'}</p>
               </div>
             ) : revisionMode && revisionPlanId ? (
               <button
@@ -150,7 +150,7 @@ export function PurchaseSection({
         />
 
         {/* Satisfaction guarantee */}
-        <div className="flex items-center justify-center gap-2 text-[11px] text-white/30 mt-1">
+        <div className="flex items-center justify-center gap-2 text-[11px] text-white/55 mt-1">
           <Check className="w-3 h-3" />
           <span>{p.upgradeNotice}</span>
         </div>
@@ -212,7 +212,7 @@ function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, use
           <div key={s} className={`flex items-center gap-2 ${s <= optionBStep ? 'opacity-100' : 'opacity-30'}`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
               s < optionBStep ? (isMobile ? 'bg-[#B668FC] text-white' : 'bg-[#7C5CFC] text-white')
-                : s === optionBStep ? 'border-2 border-white/60 text-white' : 'border border-white/20 text-white/30'
+                : s === optionBStep ? 'border-2 border-white/60 text-white' : 'border border-white/20 text-white/55'
             }`}>{s < optionBStep ? '\u2713' : s}</div>
             {s < 3 && <div className={`w-8 h-0.5 ${s < optionBStep ? (isMobile ? 'bg-[#B668FC]/60' : 'bg-[#7C5CFC]/60') : 'bg-white/10'}`} />}
           </div>
@@ -223,15 +223,15 @@ function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, use
         <div className="animate-fadeIn">
           <p className="text-white font-bold text-sm mb-4 flex items-center gap-2"><Plane className="w-4 h-4" /> {p.optionBFlightTitle || 'Step 1: Book your flight'}</p>
           <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5">
-            <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-1 flex items-center gap-1"><Plane className="w-3.5 h-3.5" /> {p.flight_section_title}</p>
-            <p className="text-[11px] text-white/35 mb-4">{p.flight_section_desc}</p>
+            <p className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-1 flex items-center gap-1"><Plane className="w-3.5 h-3.5" /> {p.flight_section_title}</p>
+            <p className="text-[11px] text-white/55 mb-4">{p.flight_section_desc}</p>
             <a href={`https://www.trip.com/flights/?dcity=&acity=${encodeURIComponent(lastValues.current?.regions?.[0] || 'Seoul')}&Allianceid=4831212&SID=76964637&trip_sub1=cocotrip`}
               target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 active:scale-95"
               style={{ background: '#0073E6', color: '#fff' }}>
               <Search className="w-4 h-4" /> Trip.com Flights {'\u2192'}
             </a>
-            <p className="text-[10px] text-white/20 mt-2 text-center">{p.affiliate_note}</p>
+            <p className="text-[10px] text-white/55 mt-2 text-center">{p.affiliate_note}</p>
           </div>
           <button onClick={() => setOptionBStep(2)}
             className="w-full mt-4 py-3.5 rounded-xl border border-white/15 text-white/60 text-sm font-medium hover:bg-white/5 transition-all">
@@ -248,8 +248,8 @@ function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, use
             const links = buildAccommodationLinks(region, region);
             return (
               <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-1 flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> {p.slimHotelLowest}</p>
-                <p className="text-[11px] text-white/35 mb-4">{p.optionBHotelDesc || 'Find the best hotel deals for your trip'}</p>
+                <p className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-1 flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> {p.slimHotelLowest}</p>
+                <p className="text-[11px] text-white/55 mb-4">{p.optionBHotelDesc || 'Find the best hotel deals for your trip'}</p>
                 <div className="flex flex-wrap gap-2">
                   {links.map((lk: { provider: string; label: string; url: string; color?: string }) => (
                     <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
@@ -257,14 +257,14 @@ function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, use
                       style={{ background: lk.color || '#0073E6', color: '#fff' }}>{lk.label} {'\u2192'}</a>
                   ))}
                 </div>
-                <p className="text-[10px] text-white/20 mt-2 text-center">{p.affiliate_note}</p>
+                <p className="text-[10px] text-white/55 mt-2 text-center">{p.affiliate_note}</p>
               </div>
             );
           })()}
           <button onClick={() => setOptionBStep(3)} className="w-full mt-3 py-3 rounded-xl border border-white/15 text-white/60 text-sm font-medium hover:bg-white/5 transition-all">
             {p.alreadyBookedHotel || 'Already booked \u2192 Get free plan'}
           </button>
-          <button onClick={() => setOptionBStep(1)} className="w-full mt-1 text-white/30 text-xs hover:text-white/50">{'\u2190'} {p.planner_prev}</button>
+          <button onClick={() => setOptionBStep(1)} className="w-full mt-1 text-white/55 text-xs hover:text-white/50">{'\u2190'} {p.planner_prev}</button>
         </div>
       )}
 
@@ -278,7 +278,7 @@ function OptionBFlow({ p, isMobile, optionBStep, setOptionBStep, lastValues, use
             <p className="text-white/50 text-sm max-w-xs mx-auto">{p.optionBClaimDesc || 'Submit your booking proof and we\'ll unlock your full plan within 24 hours.'}</p>
           </div>
           <FreeClaimForm p={p} isMobile={isMobile} initialEmail={userEmail} />
-          <button onClick={() => setOptionBStep(2)} className="w-full mt-3 text-white/30 text-xs hover:text-white/50">{'\u2190'} {p.planner_prev}</button>
+          <button onClick={() => setOptionBStep(2)} className="w-full mt-3 text-white/55 text-xs hover:text-white/50">{'\u2190'} {p.planner_prev}</button>
         </div>
       )}
     </div>

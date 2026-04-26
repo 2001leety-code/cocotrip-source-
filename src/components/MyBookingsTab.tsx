@@ -106,7 +106,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
 
   if (bookings.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-white/20">
+      <div className="flex flex-col items-center justify-center py-16 text-white/55">
         <Package size={36} className="mb-3 opacity-30" />
         <p className="text-sm">{i18n.mbEmpty}</p>
         <p className="text-xs mt-1 text-white/15">{i18n.mbEmptySub}</p>
@@ -118,7 +118,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-white font-bold text-lg">{i18n.mbHeader}</h3>
-        <span className="text-white/40 text-sm">{bookings.length}</span>
+        <span className="text-white/55 text-sm">{bookings.length}</span>
       </div>
       {bookings.map(b => (
         <div key={b.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#7C5CFC]/20 transition-all">
@@ -126,7 +126,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <StatusBadge status={b.status} i18n={i18n} />
-                <span className="text-[11px] text-white/30 font-mono">{b.bookingRef}</span>
+                <span className="text-[11px] text-white/55 font-mono">{b.bookingRef}</span>
               </div>
               <p className="text-white text-sm font-medium">{b.productType}</p>
               <p className="text-white/50 text-xs mt-0.5">
@@ -136,21 +136,21 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
                 <p className="text-[#B668FC]/80 text-[11px] mt-0.5">{airportSummary(b.airport)}</p>
               )}
               {b.hoursUntilTour != null && b.status === 'CONFIRMED' && (
-                <p className="text-white/40 text-[11px] mt-1.5 flex items-center gap-1">
+                <p className="text-white/55 text-[11px] mt-1.5 flex items-center gap-1">
                   <Clock size={10} />
                   {b.hoursUntilTour >= 24 ? i18n.mbDaysAway(Math.round(b.hoursUntilTour / 24)) : i18n.mbHoursAway(b.hoursUntilTour)}
                   {b.canRefund && <span className="text-emerald-400/70 ml-1">{i18n.mbRefundBadge(b.refundPercent)}</span>}
                 </p>
               )}
               {b.status === 'CANCELED' && b.refundedAmount > 0 && (
-                <p className="text-white/40 text-[11px] mt-1.5">
+                <p className="text-white/55 text-[11px] mt-1.5">
                   {i18n.mbRefundedAmount} ₩{b.refundedAmount.toLocaleString('ko-KR')}
                 </p>
               )}
             </div>
             <div className="shrink-0 text-right">
               <p className="text-white font-bold text-sm">${b.amountUSD}</p>
-              <p className="text-white/40 text-[10px]">₩{b.amountKRW.toLocaleString('ko-KR')}</p>
+              <p className="text-white/55 text-[10px]">₩{b.amountKRW.toLocaleString('ko-KR')}</p>
             </div>
           </div>
 
@@ -242,7 +242,7 @@ function ModifyModal({ booking, userEmail, tier, language, onClose, onSaved }: {
       <div className="w-full max-w-md bg-[#0f1628] rounded-2xl border border-[#7C5CFC]/30 overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="text-white font-bold">{i18n.modifyModalTitle} · {booking.bookingRef}</h3>
-          <button onClick={onClose} className="text-white/40 hover:text-white"><X size={18} /></button>
+          <button onClick={onClose} className="text-white/55 hover:text-white"><X size={18} /></button>
         </div>
         <div className="p-5 space-y-3 text-sm">
           <Field label={i18n.modifyFieldDate}>
@@ -295,7 +295,7 @@ const modalInput = 'w-full px-3 py-2 rounded-lg border border-white/10 bg-white/
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1 font-semibold">{label}</p>
+      <p className="text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">{label}</p>
       {children}
     </div>
   );

@@ -170,7 +170,7 @@ export default function TravelTerms() {
           {content.articles.map((article, idx) => (
             <PageSection key={idx} title={article.title} isMobile={isMobile}>
               {article.body.split('\n\n').map((paragraph, pIdx) => (
-                <p key={pIdx} className={paragraph.startsWith('•') ? `pl-4 text-xs ${isMobile ? 'text-white/30' : 'text-gray-600'}` : undefined}>
+                <p key={pIdx} className={paragraph.startsWith('•') ? `pl-4 text-xs ${isMobile ? 'text-white/55' : 'text-gray-600'}` : undefined}>
                   {paragraph}
                 </p>
               ))}

@@ -187,7 +187,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
         <div className="space-y-4 mt-2">
           {/* Pax stepper */}
           <div>
-            <label className="flex items-center gap-1.5 text-[11px] text-white/40 uppercase tracking-wider mb-1.5">
+            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
               <Users className="w-3.5 h-3.5" />{labels.pax}
             </label>
             <div className="flex items-center gap-3">
@@ -210,13 +210,13 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               >
                 <Plus className="w-4 h-4 text-white/70" />
               </button>
-              <span className="text-[10px] text-white/30">max {tour.maxPax}</span>
+              <span className="text-[10px] text-white/55">max {tour.maxPax}</span>
             </div>
           </div>
 
           {/* Date picker — Popover + Calendar with disabled-date highlighting */}
           <div>
-            <label className="flex items-center gap-1.5 text-[11px] text-white/40 uppercase tracking-wider mb-1.5">
+            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
               <Calendar className="w-3.5 h-3.5" />{labels.date}
             </label>
             <Popover>
@@ -233,7 +233,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   }}
                 >
                   <span>{date || labels.pickDate}</span>
-                  <Calendar className="w-4 h-4 text-white/35" />
+                  <Calendar className="w-4 h-4 text-white/55" />
                 </button>
               </PopoverTrigger>
               <PopoverContent
@@ -260,7 +260,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
 
           {/* Driver language */}
           <div>
-            <label className="flex items-center gap-1.5 text-[11px] text-white/40 uppercase tracking-wider mb-1.5">
+            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
               <Languages className="w-3.5 h-3.5" />{labels.lang}
             </label>
             <div className="flex gap-1.5">
@@ -284,7 +284,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   >
                     {DRIVER_LANG_LABELS[l][language]}
                     {l !== 'en' && isAvailable && (
-                      <span className="text-[9px] text-white/30 ml-1">+₩80k</span>
+                      <span className="text-[9px] text-white/55 ml-1">+₩80k</span>
                     )}
                   </button>
                 );
@@ -294,7 +294,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
 
           {/* Add-ons */}
           <div>
-            <p className="text-[11px] text-white/40 uppercase tracking-wider mb-1.5">{labels.addons}</p>
+            <p className="text-[11px] text-white/55 uppercase tracking-wider mb-1.5">{labels.addons}</p>
             <div className="space-y-1.5">
               {visibleAddons.map(a => {
                 const checked = selectedAddons.has(a.id);
@@ -385,7 +385,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             </Link>
           )}
           {!date && productType && (
-            <p className="text-[10px] text-white/30 text-center mt-1">
+            <p className="text-[10px] text-white/55 text-center mt-1">
               {language === 'ko' ? '날짜를 선택하면 결제로 진행할 수 있습니다.' :
                language === 'ja' ? '日付を選択すると決済へ進めます。' :
                language === 'zh' ? '选择日期后可继续付款。' :

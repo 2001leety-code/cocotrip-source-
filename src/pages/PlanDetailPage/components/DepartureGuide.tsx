@@ -39,7 +39,7 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
             </p>
           </div>
         </div>
-        <ChevronDown className={`w-4 h-4 text-white/40 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[3000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
@@ -76,7 +76,7 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
             </div>
             <p className="text-xs text-white/55 leading-relaxed">{guide.to_airport.method} {guide.to_airport.instruction ? `· ${guide.to_airport.instruction}` : ''}</p>
             <div className="flex gap-3 mt-2 text-[11px]">
-              <span className="text-white/40">{guide.to_airport.duration_min} {ui.minUnit || 'min'}</span>
+              <span className="text-white/55">{guide.to_airport.duration_min} {ui.minUnit || 'min'}</span>
               <span className="text-pink-300 font-bold">{formatKRW(guide.to_airport.cost_krw ?? 0)}</span>
             </div>
           </div>

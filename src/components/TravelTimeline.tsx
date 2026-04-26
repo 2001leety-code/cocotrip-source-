@@ -107,7 +107,7 @@ function BoardStop({ place, index, isFirst, isLast, p }: {
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-bold text-white text-sm leading-snug truncate">{place.name}</h4>
-            <p className="text-[11px] text-white/30 truncate">{place.nameEn}</p>
+            <p className="text-[11px] text-white/55 truncate">{place.nameEn}</p>
           </div>
         </div>
 
@@ -115,12 +115,12 @@ function BoardStop({ place, index, isFirst, isLast, p }: {
         <div className="flex flex-wrap gap-3 mt-2.5">
           {place.duration && (
             <span className="text-[11px] text-white/45 flex items-center gap-1">
-              <Clock className="w-3 h-3 text-white/30" /> {place.duration}
+              <Clock className="w-3 h-3 text-white/55" /> {place.duration}
             </span>
           )}
           {place.admissionFee && place.admissionFee.toLowerCase() !== 'free' && (
             <span className="text-[11px] text-white/45 flex items-center gap-1">
-              <CreditCard className="w-3 h-3 text-white/30" /> {place.admissionFee}
+              <CreditCard className="w-3 h-3 text-white/55" /> {place.admissionFee}
             </span>
           )}
         </div>
@@ -186,7 +186,7 @@ function BoardConnector({ place, direction, mode, setMode, prevPlace, p, lang, p
           className="text-center cursor-pointer hover:scale-105 transition-transform"
         >
           <p className="text-[10px] font-bold text-white/50">{min}min</p>
-          {dist != null && <p className="text-[9px] text-white/25">{dist}km</p>}
+          {dist != null && <p className="text-[9px] text-white/55">{dist}km</p>}
         </button>
       )}
 
@@ -194,7 +194,7 @@ function BoardConnector({ place, direction, mode, setMode, prevPlace, p, lang, p
       {expanded && (
         <div className="absolute z-20 mt-1 bg-[#1a1a2e] border border-white/15 rounded-xl p-3 shadow-2xl min-w-[200px]"
           style={{ top: '100%' }}>
-          <p className="text-[10px] text-white/40 mb-2 font-semibold">{p.transitSelect ?? 'Transport'}</p>
+          <p className="text-[10px] text-white/55 mb-2 font-semibold">{p.transitSelect ?? 'Transport'}</p>
           <div className="space-y-1.5">
             {/* 대중교통 */}
             <button onClick={() => { setMode('public'); setExpanded(false); }}
@@ -343,7 +343,7 @@ export function TravelTimeline({ itinerary, p, lang, passengers }: TravelTimelin
         </div>
         <div>
           <p className="text-sm font-bold text-white">{p.timelineTitle ?? 'Travel Route'}</p>
-          <p className="text-[10px] text-white/30">{p.timelineSub ?? 'Tap transit icons for transport options'}</p>
+          <p className="text-[10px] text-white/55">{p.timelineSub ?? 'Tap transit icons for transport options'}</p>
         </div>
       </div>
 
@@ -355,7 +355,7 @@ export function TravelTimeline({ itinerary, p, lang, passengers }: TravelTimelin
               className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                 activeDay === i
                   ? 'text-white bg-[#7C5CFC] shadow-lg shadow-[#7C5CFC]/30'
-                  : 'text-white/35 bg-[rgba(255,255,255,0.04)] border border-white/8 hover:text-white/55'
+                  : 'text-white/55 bg-[rgba(255,255,255,0.04)] border border-white/8 hover:text-white/55'
               }`}>
               {p.dayLabel ?? 'Day'} {day.day}
               <span className="block text-[9px] font-normal opacity-60 mt-0.5">{day.date}</span>
@@ -413,16 +413,16 @@ export function TravelTimeline({ itinerary, p, lang, passengers }: TravelTimelin
                         <div className="flex items-center gap-2 py-2 pl-4">
                           <div className="w-[2px] h-full bg-gradient-to-b from-[#7C5CFC]/30 to-[#EA537E]/30 shrink-0" />
                           <div className="flex items-center gap-2 flex-1">
-                            <div className="w-6 h-6 rounded-full bg-[rgba(255,255,255,0.06)] border border-white/10 flex items-center justify-center text-white/40">
+                            <div className="w-6 h-6 rounded-full bg-[rgba(255,255,255,0.06)] border border-white/10 flex items-center justify-center text-white/55">
                               {getTransportIcon(place)}
                             </div>
                             {place.travelTimeFromPrev != null && (
-                              <span className="text-[11px] text-white/40 font-medium">
+                              <span className="text-[11px] text-white/55 font-medium">
                                 {place.travelTimeFromPrev}min
-                                {place.travelDistanceKm != null && <span className="text-white/20 ml-1">{place.travelDistanceKm}km</span>}
+                                {place.travelDistanceKm != null && <span className="text-white/55 ml-1">{place.travelDistanceKm}km</span>}
                               </span>
                             )}
-                            <span className="text-[10px] text-white/25">{getTransportLabel(place)}</span>
+                            <span className="text-[10px] text-white/55">{getTransportLabel(place)}</span>
                           </div>
                         </div>
                       )}
@@ -459,11 +459,11 @@ export function TravelTimeline({ itinerary, p, lang, passengers }: TravelTimelin
       <div className="flex items-center justify-between mt-5 px-1">
         <div className="flex items-center gap-2 text-xs">
           <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-[9px] font-black text-white">1</div>
-          <span className="text-white/40">Start</span>
+          <span className="text-white/55">Start</span>
         </div>
         <div className="h-[1px] flex-1 mx-3 bg-gradient-to-r from-emerald-500/30 via-[#7C5CFC]/30 to-rose-500/30" />
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-white/40">End</span>
+          <span className="text-white/55">End</span>
           <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center text-[9px] font-black text-white">{places.length}</div>
         </div>
       </div>
@@ -501,12 +501,12 @@ function CostSummary({ itinerary, activeDay, getMode, p }: {
 
   return (
     <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-2xl p-4 mt-5">
-      <p className="text-[10px] uppercase tracking-widest text-white/25 font-semibold mb-3 flex items-center gap-1">
+      <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold mb-3 flex items-center gap-1">
         <DollarSign className="w-3 h-3" /> {p.totalCostSummary ?? 'Estimated Transport Cost'}
       </p>
       <div className="space-y-2 text-xs">
         {publicNote && (
-          <div className="flex justify-between text-white/40">
+          <div className="flex justify-between text-white/55">
             <span className="flex items-center gap-1"><Train className="w-3 h-3" /> {p.transitSubway ?? 'Transit'}</span>
             <a href="https://map.naver.com" target="_blank" rel="noopener noreferrer" className="text-[#03C75A] text-[10px]">{p.checkNaverMap ?? 'Naver Map'}</a>
           </div>

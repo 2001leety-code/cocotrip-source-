@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // eSIM recommendation section -- extracted verbatim from legacy PlannerPage.tsx L960-992.
 import { Phone } from 'lucide-react';
 
@@ -31,7 +31,7 @@ export function EsimSection({ p, isMobile }: { p: PlannerDict; isMobile: boolean
           </a>
         ))}
       </div>
-      <p className="text-[10px] text-white/20 text-center pb-3 px-5">{p.esimNote || 'Purchasing via these links helps support CocoTrip.'}</p>
+      <p className="text-[10px] text-white/55 text-center pb-3 px-5">{p.esimNote || 'Purchasing via these links helps support CocoTrip.'}</p>
     </div>
   );
 }

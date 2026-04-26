@@ -73,7 +73,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                 id < currentStep ? 'bg-emerald-500 text-white' :
                 id === currentStep ? 'bg-[#B668FC] text-white' :
-                'bg-white/10 text-white/40'
+                'bg-white/10 text-white/55'
               }`}>
                 {id < currentStep ? <Check className="w-4 h-4" /> : id}
               </div>
@@ -88,7 +88,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       <h2 className="text-xl font-bold text-white mb-1">
         {STEP_LABELS[currentStep - 1]}
       </h2>
-      <p className="text-sm text-white/40 mb-6">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
+      <p className="text-sm text-white/55 mb-6">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
 
       {/* 스텝 슬롯 */}
       <div className="min-h-[280px] bg-white/[0.04] border border-white/10 rounded-2xl p-6 mb-6">

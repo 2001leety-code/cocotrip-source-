@@ -63,11 +63,11 @@ export function TourStopList({ stops, language }: TourStopListProps) {
 function TransitArrow({ transit, language }: { transit: TourTransit; language: Language }) {
   const Icon = transitMethodIcon(transit.method);
   return (
-    <div className="flex items-center gap-2 pl-5 py-2 text-[11px] text-white/35">
+    <div className="flex items-center gap-2 pl-5 py-2 text-[11px] text-white/55">
       <div className="w-px h-3 bg-white/15" />
       <Icon className="w-3.5 h-3.5" />
       <span>{transitLabel(transit, language)}</span>
-      {transit.note && <span className="text-white/25">· {txt(transit.note, language)}</span>}
+      {transit.note && <span className="text-white/55">· {txt(transit.note, language)}</span>}
     </div>
   );
 }
@@ -99,7 +99,7 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
           <h3 className="text-[14px] font-black text-white truncate">{name}</h3>
         </div>
 
-        <div className="flex items-center gap-3 text-[10px] text-white/35 mb-1.5">
+        <div className="flex items-center gap-3 text-[10px] text-white/55 mb-1.5">
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {stayLabel(stop.stay_min, language)}
@@ -113,7 +113,7 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
         <p className="text-[12px] text-white/55 leading-snug mb-1.5">{description}</p>
 
         {tip && (
-          <p className="text-[11px] text-white/40 italic leading-snug">
+          <p className="text-[11px] text-white/55 italic leading-snug">
             {language === 'ko' ? '팁: ' : language === 'ja' ? 'ヒント: ' : language === 'zh' ? '小贴士：' : 'Tip: '}
             {tip}
           </p>
@@ -124,7 +124,7 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
             href={stop.naver_map_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-2 text-[10px] text-white/40 hover:text-white/70"
+            className="inline-flex items-center gap-1 mt-2 text-[10px] text-white/55 hover:text-white/70"
           >
             <ExternalLink className="w-3 h-3" />
             {language === 'ko' ? '네이버 지도' : language === 'ja' ? 'Naverマップ' : language === 'zh' ? 'Naver地图' : 'Naver Map'}

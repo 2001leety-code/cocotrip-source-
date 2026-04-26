@@ -150,7 +150,7 @@ export default function AdminReviews() {
             >
               <RefreshCw size={16} className={`text-white/50 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <span className="text-white/30 text-xs">{tr.itemCount.replace('{n}', String(reviews.length))}</span>
+            <span className="text-white/55 text-xs">{tr.itemCount.replace('{n}', String(reviews.length))}</span>
           </div>
         </div>
       </header>
@@ -181,7 +181,7 @@ export default function AdminReviews() {
         ) : reviews.length === 0 ? (
           <div className="text-center py-20">
             <MessageSquare size={48} className="mx-auto text-white/10 mb-4" />
-            <p className="text-white/30 text-sm">{emptyMessage}</p>
+            <p className="text-white/55 text-sm">{emptyMessage}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -208,7 +208,7 @@ export default function AdminReviews() {
                             <Star key={i} size={10} className={i < review.rating ? 'text-[#FFD700] fill-[#FFD700]' : 'text-white/10'} />
                           ))}
                         </div>
-                        <span className="text-white/20 text-[10px]">
+                        <span className="text-white/55 text-[10px]">
                           {new Date(review.createdAt).toLocaleDateString()}
                         </span>
                       </div>
@@ -248,20 +248,20 @@ export default function AdminReviews() {
                   {review.reports && review.reports.length > 0 ? (
                     <div className="space-y-1">
                       {review.reports.map((rpt, idx) => (
-                        <p key={idx} className="text-white/40 text-xs">
+                        <p key={idx} className="text-white/55 text-xs">
                           • {rpt.reason || tr.noReasonGiven} — {new Date(rpt.createdAt).toLocaleString()}
                         </p>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-white/40 text-xs">
+                    <p className="text-white/55 text-xs">
                       {review.reportReason || tr.noReason} — {tr.byReporter.replace('{name}', review.reportedBy || tr.unknown)}
                     </p>
                   )}
                 </div>
 
                 {/* Meta */}
-                <div className="flex items-center gap-4 mb-4 text-white/20 text-[10px]">
+                <div className="flex items-center gap-4 mb-4 text-white/55 text-[10px]">
                   <span>{tr.metaType.replace('{type}', review.targetType)}</span>
                   <span>{tr.metaTarget.replace('{id}', review.targetId.slice(0, 12))}</span>
                   <span>{tr.metaAuthor.replace('{id}', review.authorUid.slice(0, 12))}</span>

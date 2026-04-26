@@ -77,7 +77,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       {/* Trip Extras (D-option ad cards moved out of slides) */}
       {extras.length > 0 && (
         <div className="mt-8">
-          <p className="text-[11px] uppercase tracking-wider text-white/35 font-semibold mb-3">
+          <p className="text-[11px] uppercase tracking-wider text-white/55 font-semibold mb-3">
             {sw.outroExtrasTitle || 'Trip extras'}
           </p>
           <div className="space-y-3">

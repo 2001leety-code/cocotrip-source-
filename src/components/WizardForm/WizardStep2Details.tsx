@@ -62,7 +62,7 @@ function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: s
     <div className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
       <div>
         <p className="text-[13px] font-semibold text-white">{label}</p>
-        <p className="text-[10px] text-white/40">{sub}</p>
+        <p className="text-[10px] text-white/55">{sub}</p>
       </div>
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => setValue(Math.max(0, value - 1))}
@@ -96,7 +96,7 @@ export function WizardStep2Details(props: Step2Props) {
     <div className="space-y-4">
       <div>
         <h2 className="text-[17px] sm:text-lg font-bold text-white mb-1">{p.planner_step2_date || 'Travel Details'}</h2>
-        <p className="text-[13px] sm:text-sm text-white/40">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
+        <p className="text-[13px] sm:text-sm text-white/55">{p.wizardDetailsSub || "When, who, and how you're arriving"}</p>
       </div>
 
       {/* Range Calendar */}
@@ -150,7 +150,7 @@ export function WizardStep2Details(props: Step2Props) {
                     : 'bg-white/[0.04] border-white/[0.08] text-white/55 hover:border-white/20'
                 }`}>
                 <span className="text-[13px] font-bold leading-tight">{label}</span>
-                <span className="text-[10px] text-white/40 leading-tight">{sub}</span>
+                <span className="text-[10px] text-white/55 leading-tight">{sub}</span>
               </button>
             );
           })}
@@ -161,7 +161,7 @@ export function WizardStep2Details(props: Step2Props) {
       <div>
         <p className="text-sm text-white/50 mb-2.5 font-medium">
           {p.wizardWhichAirport || 'Which airport are you arriving at?'}
-          {mainCity && <span className="text-white/25 ml-1">({mainCity})</span>}
+          {mainCity && <span className="text-white/55 ml-1">({mainCity})</span>}
         </p>
         <MobileSelectDrawer
           value={arrivalTerminal}
@@ -172,7 +172,7 @@ export function WizardStep2Details(props: Step2Props) {
             value: opt.value,
             label: opt.label,
           }))}
-          icon={<Plane className="w-4 h-4 text-white/30" />}
+          icon={<Plane className="w-4 h-4 text-white/55" />}
         />
       </div>
 
@@ -191,12 +191,12 @@ export function WizardStep2Details(props: Step2Props) {
           (late-night arrival → limousine bus, otherwise AREX). Both optional. */}
       <div className="grid grid-cols-2 gap-2.5">
         <div>
-          <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/25 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+          <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
           <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
         </div>
         <div>
-          <p className="text-sm text-white/50 mb-2 font-medium">{p.departureTime || 'Departure time'} <span className="text-white/25 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+          <p className="text-sm text-white/50 mb-2 font-medium">{p.departureTime || 'Departure time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
           <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
         </div>
@@ -207,7 +207,7 @@ export function WizardStep2Details(props: Step2Props) {
         <div className="flex items-center gap-2 mb-2.5">
           <Briefcase className="w-4 h-4 text-[#7C5CFC]" />
           <p className="text-sm font-semibold text-white">{p.luggageTitle || 'Luggage'}</p>
-          <span className="text-[11px] text-white/30 ml-auto">({p.wizardOptional || 'optional'})</span>
+          <span className="text-[11px] text-white/55 ml-auto">({p.wizardOptional || 'optional'})</span>
         </div>
         <div className="space-y-2">
           <LuggageCounter
@@ -232,12 +232,12 @@ export function WizardStep2Details(props: Step2Props) {
             className="w-5 h-5 rounded border-white/20 bg-white/[0.06] accent-[#7C5CFC]" />
           <div>
             <p className="text-sm font-semibold text-white">{p.accomOptIn || 'Get AI hotel recommendations'}</p>
-            <p className="text-[11px] text-white/35">{p.accomOptInSub || 'AI will suggest accommodations based on your itinerary'}</p>
+            <p className="text-[11px] text-white/55">{p.accomOptInSub || 'AI will suggest accommodations based on your itinerary'}</p>
           </div>
         </label>
         {wantAccom && (
           <div className="mt-3 pl-8">
-            <p className="text-xs text-white/40 mb-2">{p.accomBudgetLabel || 'Accommodation budget'}</p>
+            <p className="text-xs text-white/55 mb-2">{p.accomBudgetLabel || 'Accommodation budget'}</p>
             <div className="flex gap-2">
               {(['budget', 'moderate', 'luxury'] as const).map((lvl) => {
                 const labels: Record<string, string> = {

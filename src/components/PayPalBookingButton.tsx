@@ -332,29 +332,29 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           <div className="px-6 pb-4">
             <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 space-y-3">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-white/40">{cl.orderNo}</span>
+                <span className="text-white/55">{cl.orderNo}</span>
                 <span className="font-mono text-white/80 text-xs bg-white/5 px-2 py-1 rounded-lg">{successData.orderID}</span>
               </div>
               {successData.payerName && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-white/40">{cl.payer}</span>
+                  <span className="text-white/55">{cl.payer}</span>
                   <span className="text-white/80">{successData.payerName}</span>
                 </div>
               )}
               {successData.payerEmail && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-white/40">Email</span>
+                  <span className="text-white/55">Email</span>
                   <span className="text-white/80 text-xs">{successData.payerEmail}</span>
                 </div>
               )}
               {dateStart && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-white/40">{cl.date}</span>
+                  <span className="text-white/55">{cl.date}</span>
                   <span className="text-white/80">{dateStart}{dateEnd && dateEnd !== dateStart ? ` ~ ${dateEnd}` : ''}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-sm border-t border-white/[0.06] pt-3">
-                <span className="text-white/40">{cl.amount}</span>
+                <span className="text-white/55">{cl.amount}</span>
                 <span className="text-xl font-bold text-emerald-400">${successData.amount} USD</span>
               </div>
             </div>
@@ -362,7 +362,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           
           {/* Next Steps */}
           <div className="px-6 pb-4">
-            <p className="text-[10px] uppercase tracking-widest text-white/30 font-semibold mb-3">{cl.next}</p>
+            <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold mb-3">{cl.next}</p>
             <div className="space-y-2">
               {[cl.step1, cl.step2, cl.step3].map((step, i) => (
                 <div key={i} className="flex items-start gap-3 text-sm">
@@ -397,13 +397,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       {!showPaypal && !promoApplied && (
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/55" />
             <input
               type="text"
               value={promoCode}
               onChange={e => setPromoCode(e.target.value.toUpperCase())}
               placeholder={pl.label}
-              className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/[0.06] border border-white/10 text-sm text-white placeholder:text-white/25 outline-none focus:border-[#7C5CFC]/50 transition-colors"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/[0.06] border border-white/10 text-sm text-white placeholder:text-white/55 outline-none focus:border-[#7C5CFC]/50 transition-colors"
             />
           </div>
           <button
@@ -462,7 +462,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               <div className="flex items-center gap-2">
                 {promoApplied ? (
                   <>
-                    <span className="text-[13px] text-white/40 line-through">\u20A9{priceKRW.toLocaleString('ko-KR')}</span>
+                    <span className="text-[13px] text-white/55 line-through">\u20A9{priceKRW.toLocaleString('ko-KR')}</span>
                     <span className="text-[15px] font-bold text-emerald-300">\u20A9{effectiveKRW.toLocaleString('ko-KR')}</span>
                   </>
                 ) : (

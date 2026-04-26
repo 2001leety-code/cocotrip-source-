@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Charter vehicle CTA with pricing + PayPal booking.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L568-718.
 import { useState } from 'react';
@@ -43,7 +43,7 @@ export function CharterBanner({ result, p, lang, vehicleType }: { result: Planne
           </div>
           <div className="text-right">
             <p className="text-lg font-bold text-cyan-300">{'\u20A9'}{pricing.priceKRW.toLocaleString()}</p>
-            <p className="text-xs text-white/40">(≈ ${pricing.priceUSD} USD)</p>
+            <p className="text-xs text-white/55">(≈ ${pricing.priceUSD} USD)</p>
           </div>
         </div>
       </div>
@@ -66,7 +66,7 @@ export function CharterBanner({ result, p, lang, vehicleType }: { result: Planne
 
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-white/5 rounded-xl p-3 text-center">
-            <p className="text-xs text-white/40 mb-1">{p.charterBasePrice}</p>
+            <p className="text-xs text-white/55 mb-1">{p.charterBasePrice}</p>
             {isBus ? (
               <p className="text-sm font-bold text-white">{p.vehicleCustomQuote}</p>
             ) : (
@@ -75,23 +75,23 @@ export function CharterBanner({ result, p, lang, vehicleType }: { result: Planne
                 {needsGuide && <p className="text-[10px] text-amber-300/70">+{'\u20A9'}{guideFeeTotal.toLocaleString()} {p.vehicleGuideRequired}</p>}
               </>
             )}
-            <p className="text-[10px] text-white/30">{pricing.hours}{p.charterHourUnit}</p>
+            <p className="text-[10px] text-white/55">{pricing.hours}{p.charterHourUnit}</p>
           </div>
           <div className="bg-white/5 rounded-xl p-3 text-center">
-            <p className="text-xs text-white/40 mb-1">{p.charterPerPerson}</p>
+            <p className="text-xs text-white/55 mb-1">{p.charterPerPerson}</p>
             {isBus ? (
               <p className="text-sm font-bold text-white">-</p>
             ) : (
               <>
                 <p className="text-sm font-bold text-cyan-300">{'\u20A9'}{perPersonKRW!.toLocaleString()}</p>
-                <p className="text-[10px] text-white/30">≈ ${perPersonUSD}</p>
+                <p className="text-[10px] text-white/55">≈ ${perPersonUSD}</p>
               </>
             )}
           </div>
           <div className="bg-white/5 rounded-xl p-3 text-center">
-            <p className="text-xs text-white/40 mb-1">{p.charterOvertime}</p>
+            <p className="text-xs text-white/55 mb-1">{p.charterOvertime}</p>
             <p className="text-sm font-bold text-white">{'\u20A9'}{EXTRA_CHARGES.overtimePerHour.toLocaleString()}</p>
-            <p className="text-[10px] text-white/30">{p.charterOvertimeUnit}</p>
+            <p className="text-[10px] text-white/55">{p.charterOvertimeUnit}</p>
           </div>
         </div>
 
@@ -105,7 +105,7 @@ export function CharterBanner({ result, p, lang, vehicleType }: { result: Planne
 
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-white/40 hover:text-cyan-400 transition-colors flex items-center gap-1 mb-3">
+          className="text-xs text-white/55 hover:text-cyan-400 transition-colors flex items-center gap-1 mb-3">
           {expanded ? p.charterExtraToggleOpen : p.charterExtraToggleClose}
         </button>
 

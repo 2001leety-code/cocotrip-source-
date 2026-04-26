@@ -1,4 +1,4 @@
-﻿import type { PlannerDict } from '../types';
+import type { PlannerDict } from '../types';
 // Timeline place card -- extracted verbatim from legacy PlannerPage.tsx L305-382.
 import { MapPin, Clock, Ban, Phone, Banknote, Map, Ticket } from 'lucide-react';
 import { CAT_BADGE, CAT_ICON } from '../constants';
@@ -31,13 +31,13 @@ export function TimelineCard({ place, index, p }: { place: Place; index: number;
           </div>
           {(place.duration || place.admissionFee) && (
             <div className="flex gap-2 shrink-0">
-              {place.duration    && <span className="text-[11px] text-white/35 inline-flex items-center gap-0.5"><Clock className="w-3 h-3" /> {place.duration}</span>}
-              {place.admissionFee && <span className="text-[11px] text-white/35 inline-flex items-center gap-0.5"><Ticket className="w-3 h-3" /> {place.admissionFee}</span>}
+              {place.duration    && <span className="text-[11px] text-white/55 inline-flex items-center gap-0.5"><Clock className="w-3 h-3" /> {place.duration}</span>}
+              {place.admissionFee && <span className="text-[11px] text-white/55 inline-flex items-center gap-0.5"><Ticket className="w-3 h-3" /> {place.admissionFee}</span>}
             </div>
           )}
         </div>
 
-        <p className="text-xs text-white/30 mb-1">{place.nameEn}</p>
+        <p className="text-xs text-white/55 mb-1">{place.nameEn}</p>
         <p className="text-xs text-white/45 mb-3 flex items-start gap-1">
           <MapPin className="w-3 h-3 shrink-0 mt-0.5" />{place.address}
         </p>
@@ -45,9 +45,9 @@ export function TimelineCard({ place, index, p }: { place: Place; index: number;
         {/* Operating info */}
         {(place.openingHours || (place.closedDays && place.closedDays !== 'None' && place.closedDays !== 'none')) && (
           <div className="flex flex-wrap gap-x-4 gap-y-0.5 mb-3">
-            {place.openingHours && <span className="text-[11px] text-white/35 inline-flex items-center gap-0.5"><Clock className="w-3 h-3" /> {place.openingHours}</span>}
+            {place.openingHours && <span className="text-[11px] text-white/55 inline-flex items-center gap-0.5"><Clock className="w-3 h-3" /> {place.openingHours}</span>}
             {place.closedDays && place.closedDays !== 'None' && place.closedDays !== 'none' &&
-              <span className="text-[11px] text-white/35 inline-flex items-center gap-0.5"><Ban className="w-3 h-3" /> {p.placeClosed}: {place.closedDays}</span>}
+              <span className="text-[11px] text-white/55 inline-flex items-center gap-0.5"><Ban className="w-3 h-3" /> {p.placeClosed}: {place.closedDays}</span>}
           </div>
         )}
 

@@ -62,7 +62,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
       {/* 다운로드 아이콘 버튼 */}
       <button
         onClick={() => setShowModal(true)}
-        className="p-1.5 rounded-lg transition-all duration-200 text-white/40 hover:text-white/80 hover:bg-white/[0.06] ml-1"
+        className="p-1.5 rounded-lg transition-all duration-200 text-white/55 hover:text-white/80 hover:bg-white/[0.06] ml-1"
         title={m.modalTitle || 'Add to Home Screen'}
       >
         <Download className="w-4 h-4" />
@@ -91,7 +91,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
             {/* 닫기 */}
             <button
               onClick={() => setShowModal(false)}
-              className="absolute top-3 right-3 p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all z-10"
+              className="absolute top-3 right-3 p-1.5 rounded-lg text-white/55 hover:text-white/60 hover:bg-white/[0.06] transition-all z-10"
             >
               <X className="w-4 h-4" />
             </button>
@@ -107,7 +107,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
               <h3 className="text-[18px] font-black text-white">
                 {m.modalTitle || 'Add CocoTrip Shortcut'}
               </h3>
-              <p className="text-[13px] text-white/40 mt-1.5 leading-relaxed">
+              <p className="text-[13px] text-white/55 mt-1.5 leading-relaxed">
                 {m.modalDesc || 'Add a shortcut to your home screen for quick access like an app.'}
               </p>
             </div>
@@ -162,7 +162,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
 
               <button
                 onClick={() => setShowModal(false)}
-                className="w-full py-2.5 text-[13px] font-medium text-white/25 hover:text-white/40 transition-colors"
+                className="w-full py-2.5 text-[13px] font-medium text-white/55 hover:text-white/55 transition-colors"
               >
                 {m.closeBtn || 'Not now'}
               </button>

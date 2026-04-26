@@ -48,7 +48,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError }: In
         <div className="flex items-center justify-center mt-1">
           <ShareMiniIcon planId={planId} plan={plan} />
         </div>
-        <p className="text-white/40 text-sm mt-2">
+        <p className="text-white/55 text-sm mt-2">
           {input.startDate} | {input.adults ? `${input.adults} adults` : `${input.pax} pax`}
           {Number(input.children || 0) > 0 && ` + ${input.children} children`}
           {((plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle) && ` | ${(plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle}`}
@@ -64,8 +64,8 @@ export function IntroSlide({ plan, planId, isTranslating, translationError }: In
           { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },
         ].map((item, i) => (
           <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 text-center">
-            <span className="text-white/30 flex justify-center mb-1">{item.icon}</span>
-            <p className="text-xs text-white/40">{item.label}</p>
+            <span className="text-white/55 flex justify-center mb-1">{item.icon}</span>
+            <p className="text-xs text-white/55">{item.label}</p>
             <p className="text-sm font-bold">{item.value}</p>
           </div>
         ))}
@@ -75,7 +75,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError }: In
       {arrival && <ArrivalGuide guide={arrival as any} />}
 
       {/* Swipe hint */}
-      <p className="text-center text-white/20 text-xs mt-6">
+      <p className="text-center text-white/55 text-xs mt-6">
         {sw.swipeHint || 'Swipe left/right to navigate'} {'\u2192'}
       </p>
     </div>

@@ -113,13 +113,13 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
           <div className="flex items-center gap-3">
             {isPublic
               ? <Globe className="w-5 h-5 text-[#7C5CFC]" />
-              : <Lock className="w-5 h-5 text-white/40" />
+              : <Lock className="w-5 h-5 text-white/55" />
             }
             <div>
               <p className="text-sm font-semibold">
                 {isPublic ? (sh.sharePublic || 'Public') : (sh.sharePrivate || 'Private')}
               </p>
-              <p className="text-xs text-white/40">
+              <p className="text-xs text-white/55">
                 {isPublic
                   ? (sh.togglePublicConfirm || 'Anyone with the link can view')
                   : (sh.privateNotice || 'Only you can view this plan')

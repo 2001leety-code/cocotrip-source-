@@ -52,7 +52,7 @@ export function WizardStep0Destination(props: Step0Props) {
     <div className="space-y-5">
       <div>
         <h2 className="text-[17px] sm:text-lg font-bold text-white mb-1">{p.wizardTitle || 'Where would you like to visit?'}</h2>
-        <p className="text-[13px] sm:text-sm text-white/40">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
+        <p className="text-[13px] sm:text-sm text-white/55">{p.wizardTitleSub || 'Tap cities to add - first selected is your main base'}</p>
       </div>
 
       {/* Quick Start Presets */}
@@ -105,7 +105,7 @@ export function WizardStep0Destination(props: Step0Props) {
                     : 'border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
                 }`}
                 style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.2),rgba(234,83,126,.12))' } : {}}>
-                <span className={sel ? 'text-[#7C5CFC]' : 'text-white/30'}>{icon}</span>
+                <span className={sel ? 'text-[#7C5CFC]' : 'text-white/55'}>{icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold truncate">{cityName}</p>
                   {isMain && <p className="text-[10px] text-[#7C5CFC]/80 font-medium">{p.wizardMainBase || 'Main base'}</p>}
@@ -117,10 +117,10 @@ export function WizardStep0Destination(props: Step0Props) {
         </div>
         {allCities.length > 1 && (
           <div className="flex flex-wrap gap-1.5 mt-3">
-            <span className="text-xs text-white/30">{p.wizardRoute || 'Route'}:</span>
+            <span className="text-xs text-white/55">{p.wizardRoute || 'Route'}:</span>
             {allCities.map((c, i) => (
               <span key={c} className="text-xs text-white/50">
-                {i > 0 && <span className="text-white/20 mx-1">-&gt;</span>}{c}
+                {i > 0 && <span className="text-white/55 mx-1">-&gt;</span>}{c}
               </span>
             ))}
           </div>
@@ -130,7 +130,7 @@ export function WizardStep0Destination(props: Step0Props) {
       {/* Activities — P9: city-aware, universal chips first then city-specific */}
       <div>
         <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardActivities || 'What interests you?'}</p>
-        <p className="text-xs text-white/25 mb-3">
+        <p className="text-xs text-white/55 mb-3">
           {selectedCityKeys.length > 0
             ? (p.wizardActivitiesHintCity || `Tailored for ${allCities.join(', ')}`)
             : (p.wizardActivitiesHint || 'Select all that apply')}
@@ -155,7 +155,7 @@ export function WizardStep0Destination(props: Step0Props) {
                 <span className="shrink-0">{icon}</span>
                 <div className="overflow-hidden flex-1 min-w-0">
                   <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey] || labelFallback}</p>
-                  <p className="text-[10px] text-white/40 leading-tight line-clamp-2 mt-0.5">{p[subKey] || ''}</p>
+                  <p className="text-[10px] text-white/55 leading-tight line-clamp-2 mt-0.5">{p[subKey] || ''}</p>
                 </div>
                 {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
               </button>
@@ -166,7 +166,7 @@ export function WizardStep0Destination(props: Step0Props) {
 
       {/* Free text */}
       <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardFreeInput || 'Specific places?'} <span className="text-white/25">({p.wizardOptional || 'optional'})</span></p>
+        <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardFreeInput || 'Specific places?'} <span className="text-white/55">({p.wizardOptional || 'optional'})</span></p>
         <textarea value={freeText} onChange={e => setFreeText(e.target.value)}
           placeholder={p.wizardFreeInputPh || 'e.g. Gyeongbokgung Palace, Myeongdong...'}
           rows={2}

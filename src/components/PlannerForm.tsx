@@ -114,7 +114,7 @@ function confirmLabel(p: Record<string, unknown>, n: number) {
 // ── SectionLabel ──────────────────────────────────────────────────────
 function SectionLabel({ icon, text }: { icon?: React.ReactNode; text: string }) {
   return (
-    <p className="text-[11px] uppercase tracking-[.06em] text-white/40 font-semibold mb-3 flex items-center gap-1.5">
+    <p className="text-[11px] uppercase tracking-[.06em] text-white/55 font-semibold mb-3 flex items-center gap-1.5">
       {icon}{text}
     </p>
   );
@@ -206,10 +206,10 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
             className={`flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all duration-200 ${
               open ? 'border-[rgba(124,92,252,.5)] bg-[rgba(124,92,252,.06)]' : 'border-white/15 bg-white/[0.04] hover:border-white/30'
             }`}>
-            <span className="text-[10px] text-white/35 uppercase tracking-wider mb-0.5">{String(p[btn.lk] ?? '')}</span>
+            <span className="text-[10px] text-white/55 uppercase tracking-wider mb-0.5">{String(p[btn.lk] ?? '')}</span>
             {btn.val
               ? <span className="text-sm font-semibold text-white">{btn.val}</span>
-              : <span className="text-sm text-white/25">{String(p.calSelectDate ?? '')}</span>}
+              : <span className="text-sm text-white/55">{String(p.calSelectDate ?? '')}</span>}
           </button>
         ))}
       </div>
@@ -228,12 +228,12 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
           {/* info bar */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-white/[0.025]">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-white/35 uppercase tracking-wider">{String(p.calDepart ?? '')}</p>
+              <p className="text-[10px] text-white/55 uppercase tracking-wider">{String(p.calDepart ?? '')}</p>
               <p className="text-sm font-semibold text-white truncate">{tmpS || '—'}</p>
             </div>
             <div className="w-px h-8 bg-white/10 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-white/35 uppercase tracking-wider">{String(p.calReturn ?? '')}</p>
+              <p className="text-[10px] text-white/55 uppercase tracking-wider">{String(p.calReturn ?? '')}</p>
               <p className="text-sm font-semibold text-white truncate">{tmpE || '—'}</p>
             </div>
             {tmpS && tmpE && (
@@ -412,7 +412,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
 
         {kpopSelected && (
           <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.025] p-3">
-            <p className="text-[10px] text-white/30 uppercase tracking-widest mb-2.5 font-semibold">{p.kpopDetailsLabel}</p>
+            <p className="text-[10px] text-white/55 uppercase tracking-widest mb-2.5 font-semibold">{p.kpopDetailsLabel}</p>
             <div className="flex flex-wrap gap-1.5">
               {KPOP_DETAILS.map(d => {
                 const active = kpopDetails.includes(d);
@@ -477,7 +477,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 ${active ? btnSel : btnBase}`}>
                     <div className="text-left min-w-0">
                       <p className="text-xs font-semibold leading-tight">{p[pace.labelKey]}</p>
-                      <p className="text-[10px] text-white/30 leading-tight">{p[pace.descKey]}</p>
+                      <p className="text-[10px] text-white/55 leading-tight">{p[pace.descKey]}</p>
                     </div>
                   </button>
                 );
@@ -498,7 +498,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
             <span>{p.transportPublic}</span>
           </button>
           {/* 차량 선택 헤더 */}
-          <p className="text-[10px] uppercase tracking-[.06em] text-white/35 font-semibold mt-1 mb-0.5 px-1">{p.vehicleSelectType}</p>
+          <p className="text-[10px] uppercase tracking-[.06em] text-white/55 font-semibold mt-1 mb-0.5 px-1">{p.vehicleSelectType}</p>
           {/* 스타리아 */}
           <button type="button" onClick={() => setTransport(transport === 'staria' ? '' : 'staria')}
             className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${transport === 'staria' ? btnSel : btnBase}`}>
@@ -555,7 +555,7 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
       <div className="mt-7">
         <button type="submit" disabled={!canSubmit}
           style={canSubmit ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' } : {}}
-          className="w-full py-3.5 rounded-xl text-white text-[15px] font-medium transition-all duration-300 disabled:bg-white/10 disabled:text-white/30 disabled:cursor-not-allowed hover:opacity-88 flex items-center justify-center gap-2">
+          className="w-full py-3.5 rounded-xl text-white text-[15px] font-medium transition-all duration-300 disabled:bg-white/10 disabled:text-white/55 disabled:cursor-not-allowed hover:opacity-88 flex items-center justify-center gap-2">
           {isLoading
             ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{p.generating}</>
             : p.generateBtn}
