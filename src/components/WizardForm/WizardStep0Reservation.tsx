@@ -30,6 +30,9 @@ interface Step0ResProps {
   setArrivalAirport: (v: string) => void;
   arrivalTime: string;
   setArrivalTime: (v: string) => void;
+  // P2 dedup: 호텔도 예약된 경우 (flight_hotel) Step0에서 호텔 주소 같이 받음.
+  hotelAddress: string;
+  setHotelAddress: (v: string) => void;
   mainCityKey: string;  // for airport options narrowing (defaults to seoul)
   onNext: () => void;
 }
@@ -44,9 +47,11 @@ const QUADS: { key: ReservationStatus; icon: React.ReactNode; titleKey: string; 
 export function WizardStep0Reservation({
   p, isMobile, status, setStatus,
   arrivalAirport, setArrivalAirport, arrivalTime, setArrivalTime,
+  hotelAddress, setHotelAddress,
   mainCityKey, onNext,
 }: Step0ResProps) {
   const showAirportForm = status === 'flight' || status === 'flight_hotel';
+  const showHotelForm = status === 'flight_hotel';
   const canContinue = status !== null && (
     !showAirportForm || (!!arrivalAirport && !!arrivalTime)
   );
@@ -109,6 +114,19 @@ export function WizardStep0Reservation({
                 className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-sm outline-none focus:border-[#7C5CFC]" />
             </div>
           </div>
+          {/* P2 dedup: 호텔도 예약된 경우 (flight_hotel) 호텔 주소도 함께 받음.
+              여기서 받으면 Step3에서 칩으로 보여 두 번 안 묻게 됨. */}
+          {showHotelForm && (
+            <div>
+              <label className="block text-[11px] text-white/50 mb-1">
+                {p.resHotelAddress || 'Hotel address'}
+                <span className="text-white/40 ml-1">({p.wizardOptional || 'optional'})</span>
+              </label>
+              <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
+                placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white placeholder-white/25 text-sm outline-none focus:border-[#7C5CFC]" />
+            </div>
+          )}
         </div>
       )}
 

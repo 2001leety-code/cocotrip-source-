@@ -717,6 +717,8 @@
     "planner_step1_custom_ph": "例：春川、统营、丽水...",
     "planner_step2_date": "旅行日期",
     "flightInfoFromStep0Label": "航班信息（第1步已填）",
+    "hotelInfoFromStep0Label": "酒店信息（第1步已填）",
+    "resHotelAddress": "酒店地址",
     "editLabel": "修改",
     "planner_step2_adults": "成人",
     "planner_step2_children": "儿童",

@@ -252,6 +252,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
               status={reservationStatus} setStatus={setReservationStatus}
               arrivalAirport={arrivalTerminal} setArrivalAirport={setArrivalTerminal}
               arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
+              hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
               mainCityKey={mainCityKey || 'seoul'}
               onNext={() => setStep(1)}
             />
@@ -304,7 +305,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
               tourPace={tourPace} setTourPace={setTourPace}
               canGoStep3={canGoStep3}
               onPrev={() => setStep(2)} onNext={() => setStep(4)}
-              onEditFlightInfo={() => setStep(0)}
+              onEditStep0={() => setStep(0)}
             />
           )}
           {step === 4 && !isClaimFlow && (
