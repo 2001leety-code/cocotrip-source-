@@ -1286,7 +1286,12 @@
     "addBtn": "ホーム画面に追加",
     "closeBtn": "今はいい",
     "iosGuide": "Safari下部の共有ボタンをタップし、\"ホーム画面に追加\"を選択してください",
-    "iosAddBtn": "\"ホーム画面に追加\""
+    "iosAddBtn": "\"ホーム画面に追加\"",
+    "pushTitle": "通知を受け取る",
+    "pushEnabledTitle": "通知ON",
+    "pushSub": "旅程の完成、予約更新、返金通知",
+    "pushDenied": "ブラウザでブロック中 — サイト設定で許可してください",
+    "pushIosHint": "iPhoneの場合：先にホーム画面に追加し、アプリ内で通知を有効にしてください"
   },
   "errorBoundary": {
     "title": "予期しないエラーが発生しました。",
