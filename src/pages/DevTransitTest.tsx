@@ -57,16 +57,31 @@ export default function DevTransitTest() {
   const [pdfStatus, setPdfStatus] = useState<string>('idle');
   const [pdfError, setPdfError] = useState<string>('');
 
+  const [canvasPreview, setCanvasPreview] = useState<string>('');
+
   const onTestPdf = async () => {
     setPdfStatus('generating');
     setPdfError('');
+    setCanvasPreview('');
     try {
       let downloadTriggered = false;
+      let capturedCanvas: HTMLCanvasElement | null = null;
       const observer = new MutationObserver((mutations) => {
         for (const m of mutations) {
           for (const node of m.addedNodes) {
             if (node instanceof HTMLAnchorElement && node.hasAttribute('download')) {
               downloadTriggered = true;
+            }
+            // generatePDF 내부에서 만드는 container 자체 캡쳐 (z-index:99997)
+            if (node instanceof HTMLDivElement && node.style.zIndex === '99997' && !capturedCanvas) {
+              // container 출현 시점부터 폴링해서 html2canvas 결과 캡쳐
+              const grabCanvas = () => {
+                // window에 expose된 디버그 canvas가 있으면 사용
+                const dbg = (window as unknown as { __pdfDebugCanvas?: HTMLCanvasElement }).__pdfDebugCanvas;
+                if (dbg) capturedCanvas = dbg;
+              };
+              const itv = setInterval(grabCanvas, 200);
+              setTimeout(() => clearInterval(itv), 12000);
             }
           }
         }
@@ -74,7 +89,18 @@ export default function DevTransitTest() {
       observer.observe(document.body, { childList: true });
       await generatePDF(MOCK_PLAN);
       observer.disconnect();
-      setPdfStatus(downloadTriggered ? 'download triggered ✅' : 'completed (no download trigger detected)');
+      // canvas dataURL 미리보기
+      const dbgCanvas = (window as unknown as { __pdfDebugCanvas?: HTMLCanvasElement }).__pdfDebugCanvas;
+      if (dbgCanvas) {
+        try {
+          setCanvasPreview(dbgCanvas.toDataURL('image/png'));
+        } catch {
+          setCanvasPreview('');
+        }
+      } else if (capturedCanvas) {
+        setCanvasPreview((capturedCanvas as HTMLCanvasElement).toDataURL('image/png'));
+      }
+      setPdfStatus(downloadTriggered ? 'download triggered ✅' : 'completed (no download trigger)');
     } catch (e) {
       setPdfStatus('error');
       setPdfError(e instanceof Error ? e.message : String(e));
@@ -205,6 +231,12 @@ export default function DevTransitTest() {
           status: <span className="text-amber-300 font-mono">{pdfStatus}</span>
         </p>
         {pdfError && <p className="text-[12px] text-red-400 mt-1 font-mono">{pdfError}</p>}
+        {canvasPreview && (
+          <div className="mt-3">
+            <p className="text-[11px] text-white/55 mb-1">html2canvas 결과 미리보기 (실제 PDF에 들어갈 이미지):</p>
+            <img src={canvasPreview} alt="canvas preview" className="max-w-full border border-amber-300/30" />
+          </div>
+        )}
       </div>
 
       <h2 className="text-base font-bold mb-3">TransitArrow 케이스</h2>

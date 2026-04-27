@@ -505,10 +505,35 @@ export async function generatePDF(
   container.appendChild(fontTest);
   await new Promise(resolve => setTimeout(resolve, 200));
   if (fontTest.offsetWidth === 0) {
-    // After explicit preload, single retry should be enough; Safari sometimes slow.
+    // 1차 재시도: Safari 등 느린 환경 대응
     await new Promise(resolve => setTimeout(resolve, 400));
+    if (fontTest.offsetWidth === 0 && fontsApi?.load) {
+      // 2차 재시도: explicit fontsApi.load 다시 호출 + 더 긴 대기
+      await Promise.allSettled([
+        fontsApi.load('14px "Noto Sans KR"'),
+        fontsApi.load('14px "Noto Sans JP"'),
+        fontsApi.load('14px "Noto Sans SC"'),
+      ]);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
     if (fontTest.offsetWidth === 0) {
-      console.warn('[PDF] CJK font still not measurable — falling back to system fonts');
+      // 3회 실패 — system font fallback 시 tofu 박스 가능. abort + toast.
+      // Phase 1 (2026-04-27): 이전엔 silent warn → 그대로 진행해 백지/tofu PDF 다운로드.
+      console.error('[PDF] CJK font load failed after 3 retries — aborting to prevent tofu-box PDF');
+      fontTest.remove();
+      document.body.removeChild(container);
+      document.body.removeChild(overlay);
+      const fontPlanId = (typeof window !== 'undefined'
+        ? (window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '')
+        : '');
+      const fontFailMsg = `Hi CocoTrip! Korean font failed to load for my PDF${fontPlanId ? ` (plan ${fontPlanId})` : ''}. Could you send it manually?`;
+      const fontFailUrl = `https://wa.me/821087140611?text=${encodeURIComponent(fontFailMsg)}`;
+      toast.error('PDF font load failed', {
+        description: 'Korean fonts did not load in time. Try again in a moment, or request a manual PDF via WhatsApp.',
+        action: { label: 'Open WhatsApp', onClick: () => window.open(fontFailUrl, '_blank') },
+        duration: 12000,
+      });
+      return;
     }
   }
   fontTest.remove();
@@ -516,6 +541,25 @@ export async function generatePDF(
   // Additional settle time for layout recalculation
   await new Promise(resolve => setTimeout(resolve, 300));
   void container.offsetHeight; // force reflow
+
+  // === 백지 root cause fix (2026-04-27): explicit height 명시 ===
+  // 사용자 신고 → empty canvas h=0 진단. html2canvas/html2pdf는 element clone 시
+  // measurement를 다시 하는데, position:absolute 컨테이너의 height 측정에 실패하면
+  // 0px canvas 생성 → 백지 PDF. scrollHeight를 explicit height로 박아서 확실히 측정되게 함.
+  const measuredHeight = container.scrollHeight;
+  if (measuredHeight > 0) {
+    container.style.height = `${measuredHeight}px`;
+    container.style.minHeight = `${measuredHeight}px`;
+  } else {
+    console.error('[PDF] container.scrollHeight=0 — content not rendered. Aborting.');
+    document.body.removeChild(container);
+    document.body.removeChild(overlay);
+    toast.error('PDF content failed to render', {
+      description: 'Try refreshing the page and download again.',
+      duration: 8000,
+    });
+    return;
+  }
 
   // === 사이즈 가드: 12000px 초과 시 toast + WhatsApp 안내, 즉시 abort ===
   // 800px × 1.0 × 12000px × 4byte ≈ 38MB. iOS Safari OOM 한계.
@@ -558,23 +602,65 @@ export async function generatePDF(
     const dateStr = input.startDate || 'undated';
     const filename = `cocotrip-${titleSlug}-${dateStr}.pdf`;
 
-    // scale 1.0 (was 1.5): saves ~56% canvas memory, prevents mobile OOM blank PDFs.
-    // image quality 0.92 keeps file size reasonable without visible degradation.
+    // 2026-04-27 사용자 신고: 빈 PDF (3KB, /XObject 없음) → scale 0.7 시도가 실패.
+    // 백지 PDF는 html2canvas가 빈 canvas 반환 OR html2pdf의 jpeg embed 실패 시 발생.
+    // 즉시 안전 기본값 복구 (scale 1.0, jpeg 0.92), pagebreak 단순화.
+    // windowHeight 명시 — html2canvas가 cloned element를 측정할 때 viewport 추정에 사용.
+    // 안 주면 일부 환경(특히 dev preview)에서 0으로 떨어짐.
     const worker = html2pdf().set({
       margin: [8, 8, 8, 8],
       filename,
       image: { type: 'jpeg', quality: 0.92 },
-      html2canvas: { scale: 1.0, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: 800, scrollX: 0, scrollY: 0 },
+      html2canvas: {
+        scale: 1.0,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 800,
+        windowHeight: measuredHeight,
+        height: measuredHeight,
+        width: 800,
+        scrollX: 0,
+        scrollY: 0,
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      pagebreak: { mode: ['css', 'legacy'] },
     } as Record<string, unknown>).from(container);
 
-    // 모든 플랫폼 — 일단 blob으로 받아서 1KB 미만(=html2canvas 백지) 검출.
-    // 안드로이드/데스크톱 Chrome도 백지 PDF가 그대로 저장되던 이슈 해결.
-    // 사이즈 OK일 때만 iOS=open in new tab / 그 외=다운로드 트리거.
+    // === 캔버스 픽셀 검사: blob 크기 가드만으론 못 잡음 (3KB 백지 PDF 발생 사례) ===
+    // html2pdf 파이프라인을 toCanvas 단계에서 일시 중단해 canvas pixel 샘플링.
+    // 픽셀이 99% 이상 흰색(R=G=B=255)이면 백지로 판정 → toast + abort.
+    const canvas: HTMLCanvasElement = await worker.toCanvas().get('canvas');
+    // DEV-only debug: expose canvas to window for /dev/transit-test 미리보기
+    if (import.meta.env.DEV) {
+      (window as unknown as { __pdfDebugCanvas?: HTMLCanvasElement }).__pdfDebugCanvas = canvas;
+    }
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+      console.error('[PDF] empty canvas — w=', canvas?.width, 'h=', canvas?.height);
+      offerWhatsapp('PDF capture failed (empty canvas).');
+      return;
+    }
+    // 캔버스 9개 점(코너 4개 + 변 중앙 4개 + 정중앙)에서 픽셀 샘플링
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const W = canvas.width, H = canvas.height;
+      const points = [[0,0],[W-1,0],[0,H-1],[W-1,H-1],[W>>1,0],[W>>1,H-1],[0,H>>1],[W-1,H>>1],[W>>1,H>>1]];
+      let nonWhite = 0;
+      for (const [x, y] of points) {
+        const d = ctx.getImageData(x, y, 1, 1).data;
+        // R=G=B=255 (white) 또는 alpha=0(투명)이 아니면 콘텐츠 픽셀
+        if (!(d[0] === 255 && d[1] === 255 && d[2] === 255) && d[3] !== 0) nonWhite++;
+      }
+      if (nonWhite === 0) {
+        console.error('[PDF] all-white canvas detected — w=', W, 'h=', H, 'samples=', points.length);
+        offerWhatsapp('PDF capture failed (blank canvas).');
+        return;
+      }
+    }
+    // 캔버스 검증 통과 → PDF blob 생성
     const pdf = await worker.outputPdf('blob');
     if (pdf.size < 1024) {
-      console.error('[PDF] blank capture detected, blob size =', pdf.size, 'scrollHeight =', container.scrollHeight);
+      console.error('[PDF] blank blob detected, size =', pdf.size, 'scrollHeight =', container.scrollHeight);
       offerWhatsapp('PDF capture failed (empty file).');
       return;
     }
