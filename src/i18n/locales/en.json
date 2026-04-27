@@ -1286,7 +1286,12 @@
     "addBtn": "Add to Home Screen",
     "closeBtn": "Not now",
     "iosGuide": "Tap the Share button at the bottom of Safari, then select \"Add to Home Screen\"",
-    "iosAddBtn": "\"Add to Home Screen\""
+    "iosAddBtn": "\"Add to Home Screen\"",
+    "pushTitle": "Get notified",
+    "pushEnabledTitle": "Notifications on",
+    "pushSub": "Plan ready, booking updates, refunds",
+    "pushDenied": "Blocked by browser — enable in site settings",
+    "pushIosHint": "On iPhone: add to Home Screen first, then enable notifications inside the app"
   },
   "errorBoundary": {
     "title": "An unexpected error occurred.",

@@ -11,7 +11,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getSpotContext } from './_spots_helper.js';
 import { getFoodContext, buildFoodPrefSnippet } from './_food_helper.js';
 import { RouteAgent } from './_ai_core/agents/RouteAgent.js';
-import { sendMessage, sendErrorAlert } from './_telegram.js';
+import { sendErrorAlert } from './_telegram.js';
 
 // ── Extracted modules ─────────────────────────────────────────────────────
 import { CORS, AIRPORT_ADDRESSES } from './_ai_core/constants.js';
@@ -476,13 +476,11 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         .catch(e => console.warn('[planner] Sheets error:', e.message));
     }
 
-    // ── 텔레그램 알림 (non-blocking) ──────────────────────────────────
-    (async () => {
-      try {
-        const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-        await sendMessage(`🎯 <b>AI 플랜 생성 완료</b>\n\n고객: ${guestName || '미입력'}\n이메일: ${email || '-'}\n지역: ${area}\n일수: ${durationDays}일\n인원: ${pax}명\nPlan ID: <code>${planId}</code>\n\n⏰ ${kst}`);
-      } catch (e) { console.warn('[planner] Telegram notify error:', e.message); }
-    })();
+    // ── Telegram + Web Push 알림 (non-blocking) ─────────────────────
+    import('./_plan-ready-push.js').then(({ sendPlanCreatedTelegram, sendPlanReadyPush }) => {
+      sendPlanCreatedTelegram({ guestName, email, area, durationDays, pax, planId });
+      if (uid) sendPlanReadyPush(adminDb, uid, { planId, planUrl, tourTitle: itinerary.tour_title, language });
+    });
 
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);

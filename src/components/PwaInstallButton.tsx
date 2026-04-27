@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, X, Smartphone, Trash2, Share } from 'lucide-react';
+import { Download, X, Smartphone, Trash2, Share, Bell, BellOff } from 'lucide-react';
 import type { Translations } from '@/i18n';
+import { usePushSubscription } from '@/hooks/usePushSubscription';
 
 interface PwaInstallButtonProps {
   t: Translations;
@@ -17,6 +18,16 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const push = usePushSubscription();
+  const [pushOn, setPushOn] = useState(false);
+
+  // 모달 열 때 현재 push 상태 확인
+  useEffect(() => {
+    if (showModal && push.state === 'granted') {
+      push.isEnabled().then(setPushOn);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, push.state]);
 
   const m = t.pwaInstall || {};
 
@@ -113,7 +124,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
             </div>
 
             {/* 안내 항목들 */}
-            <div className="px-6 pb-5 space-y-2">
+            <div className="px-6 pb-3 space-y-2">
               {[
                 { icon: Smartphone, text: m.featureNoInstall || 'No separate app install required' },
                 { icon: Trash2, text: m.featureNoStorage || 'Does not take up storage space' },
@@ -129,6 +140,50 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
                 );
               })}
             </div>
+
+            {/* 알림 받기 토글 — push 지원 환경에서만 노출 */}
+            {push.state !== 'unsupported' && (
+              <div className="px-6 pb-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (pushOn) { const ok = await push.disable(); if (ok) setPushOn(false); }
+                    else { const ok = await push.enable(); if (ok) setPushOn(true); }
+                  }}
+                  disabled={push.busy || push.state === 'denied'}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition-all disabled:opacity-50"
+                  style={{
+                    background: pushOn ? 'rgba(124,92,252,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: pushOn ? '1px solid rgba(124,92,252,0.35)' : '1px solid rgba(255,255,255,0.08)',
+                  }}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {pushOn ? <Bell className="w-4 h-4 text-[#B668FC]" /> : <BellOff className="w-4 h-4 text-white/55" />}
+                    <div className="text-left">
+                      <p className="text-[13px] font-bold text-white">
+                        {pushOn ? (m.pushEnabledTitle || 'Notifications on') : (m.pushTitle || 'Get notified')}
+                      </p>
+                      <p className="text-[10px] text-white/55 leading-tight">
+                        {push.state === 'denied'
+                          ? (m.pushDenied || 'Blocked by browser — enable in site settings')
+                          : (m.pushSub || 'Plan ready, booking updates, refunds')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`w-9 h-5 rounded-full transition-colors ${pushOn ? 'bg-[#B668FC]' : 'bg-white/10'}`}>
+                    <div
+                      className="w-4 h-4 rounded-full bg-white shadow transition-transform mt-0.5"
+                      style={{ transform: pushOn ? 'translateX(18px)' : 'translateX(2px)' }}
+                    />
+                  </div>
+                </button>
+                {isIOS && !isInstalled && (
+                  <p className="text-[10px] text-amber-300/80 mt-2 text-center">
+                    {m.pushIosHint || 'On iPhone: add to Home Screen first, then enable notifications inside the app'}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* CTA 버튼 */}
             <div className="px-6 pb-6 space-y-2">

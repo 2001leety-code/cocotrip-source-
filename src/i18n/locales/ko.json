@@ -1228,7 +1228,12 @@
     "addBtn": "홈 화면에 추가하기",
     "closeBtn": "다음에",
     "iosGuide": "Safari 하단의 공유 버튼을 누른 후 \"홈 화면에 추가\"를 선택하세요",
-    "iosAddBtn": "\"홈 화면에 추가\""
+    "iosAddBtn": "\"홈 화면에 추가\"",
+    "pushTitle": "알림 받기",
+    "pushEnabledTitle": "알림 켜짐",
+    "pushSub": "일정 준비 완료, 예약 업데이트, 환불 알림",
+    "pushDenied": "브라우저에서 차단됨 — 사이트 설정에서 허용",
+    "pushIosHint": "iPhone: 먼저 홈 화면에 추가한 뒤, 앱 안에서 알림을 켜주세요"
   },
   "errorBoundary": {
     "title": "예기치 않은 오류가 발생했습니다.",

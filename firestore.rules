@@ -36,6 +36,17 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // push_subscriptions/{uid}_{subId} — Web Push subscription
+    //   read/write: 본인 uid가 prefix로 일치할 때만
+    //   서버(admin SDK)는 룰 우회로 자유 접근
+    // ─────────────────────────────────────────────────────────
+    match /push_subscriptions/{docId} {
+      allow read, write, delete: if isSignedIn()
+                              && docId.matches(request.auth.uid + '_.*')
+                              && (!('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid);
+    }
+
+    // ─────────────────────────────────────────────────────────
     // users/{uid} — 본인만
     // ─────────────────────────────────────────────────────────
     match /users/{uid} {

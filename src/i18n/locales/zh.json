@@ -1286,7 +1286,12 @@
     "addBtn": "添加到主屏幕",
     "closeBtn": "下次再说",
     "iosGuide": "点击Safari底部的分享按钮，然后选择\"添加到主屏幕\"",
-    "iosAddBtn": "\"添加到主屏幕\""
+    "iosAddBtn": "\"添加到主屏幕\"",
+    "pushTitle": "接收通知",
+    "pushEnabledTitle": "通知已开启",
+    "pushSub": "行程准备完成、预订更新、退款通知",
+    "pushDenied": "浏览器已阻止 — 请在站点设置中开启",
+    "pushIosHint": "iPhone：请先添加到主屏幕，然后在应用内启用通知"
   },
   "errorBoundary": {
     "title": "发生意外错误。",
