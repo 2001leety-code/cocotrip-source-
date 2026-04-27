@@ -44,9 +44,9 @@ const VEHICLE_KEY: Record<string, 'staria' | 'sprinter' | 'sprinterMid' | 'bus'>
 };
 
 const VEHICLE_FALLBACK: Record<string, string> = {
-  Staria:     'Staria (max 8 pax)',
+  Staria:     'Staria (max 7 pax)',
   Sprinter:   'Sprinter (max 10 pax)',
-  SprinterMid:'Sprinter Mid (max 8 pax)',
+  SprinterMid:'Sprinter Mid (max 7 pax)',
   Bus:        'Bus (max 30 pax)',
 };
 
@@ -536,6 +536,11 @@ export default function TourDetailPage() {
             <p className="text-[20px] font-black text-white leading-none">
               ${tour.priceFrom.toLocaleString()}
               <span className="text-[11px] text-white/55 font-medium ml-1">USD</span>
+              {tour.priceUnit === 'per_person' && (
+                <span className="text-[11px] text-white/70 font-medium ml-1">
+                  {language === 'ko' ? '/인' : language === 'ja' ? '/人' : language === 'zh' ? '/人' : '/person'}
+                </span>
+              )}
             </p>
             <RefundPolicyModal
               language={language}

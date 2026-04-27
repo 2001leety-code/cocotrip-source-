@@ -21,8 +21,12 @@ const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {
   'tour-multicity-3d':   null,             // 멀티데이는 spec daily 가격 없음 → priceFrom fallback
 };
 
-/** Tour 가격(KRW) — pricing_spec.json SSOT 우선, 없으면 priceFrom × KRW_PER_USD. */
-export function getTourPriceKRW(tourId: string, fallbackPriceFromUSD = 0): number {
+/** Tour 가격(KRW) — pricing_spec.json SSOT 우선, 없으면 priceFrom × KRW_PER_USD.
+ *  priceUnit='per_person' 투어는 spec 매핑 무시하고 priceFrom × KRW만 사용 (1인당 가격). */
+export function getTourPriceKRW(tourId: string, fallbackPriceFromUSD = 0, priceUnit: 'group' | 'per_person' = 'group'): number {
+  if (priceUnit === 'per_person') {
+    return fallbackPriceFromUSD * KRW_PER_USD;
+  }
   const key = TOUR_TO_CHARTER_KEY[tourId];
   if (key) {
     const spec = (pricingSpec as { daily_tour_prices?: Record<string, { priceKRW?: number }> }).daily_tour_prices;
@@ -98,7 +102,9 @@ export type Tour = {
   title: I18nString;
   summary: I18nString;
   description: I18nString;
-  priceFrom: number;   // USD, per group (vehicle)
+  priceFrom: number;   // USD. priceUnit='group'(default) → 차량 1대 그룹가, 'per_person' → 1인당
+  /** 가격 단위. 미지정 시 'group' (전세 차량 1대 기준). 'per_person' 투어는 결제 시 priceFrom × pax. */
+  priceUnit?: 'group' | 'per_person';
   currency: 'USD';
   durationDays: number;
   durationHours?: number; // 당일 투어 시 시간 단위
@@ -183,7 +189,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 9,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/JnR5Ie_경복궁(1).webp',
     images: [
       '/JnR5Ie_경복궁(1).webp',
@@ -377,12 +383,13 @@ const TOURS_RAW: Tour[] = [
       ja: '専用スタリアでソウルの夜景を快適にお楽しみください。盤浦大橋レインボー噴水、漢江夜景ドライブ、広蔵市場夜市、Nソウルタワー夜景まで。18時出発、約4〜5時間コース。',
       zh: '乘坐专属Staria，舒适享受首尔夜景。盘浦大桥彩虹喷泉、汉江夜景驾车、广藏市场夜市小吃、N首尔塔夜景。18:00出发，约4-5小时行程。',
     },
-    priceFrom: 180,
+    priceFrom: 49,
+    priceUnit: 'per_person',
     currency: 'USD',
     durationDays: 1,
     durationHours: 5,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/J7FqPa_서울 밤도깨비 야시장(1).webp',
     images: [
       '/J7FqPa_서울 밤도깨비 야시장(1).webp',
@@ -432,7 +439,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 11,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
     images: [
       '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
@@ -484,7 +491,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 9,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/region-ganghwa.webp',
     images: [
       '/region-ganghwa.webp',
@@ -536,7 +543,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 9,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/region-dmz.webp',
     images: [
       '/region-dmz.webp',
@@ -588,7 +595,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 10,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg',
     images: [
       '/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg',
@@ -639,7 +646,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 11,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_불국사_두드림_z0WAPa.jpg',
     images: [
       '/Type1_불국사_두드림_z0WAPa.jpg',
@@ -691,7 +698,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 10,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
     images: [
       '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
@@ -969,9 +976,10 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 };
 
 export const TOURS: Tour[] = TOURS_RAW.map((t) => {
-  const priceKRW = getTourPriceKRW(t.id, t.priceFrom);
+  const priceKRW = getTourPriceKRW(t.id, t.priceFrom, t.priceUnit);
   // priceFrom (USD) 도 spec 기반으로 자동 갱신. spec 없으면 raw priceFrom 유지.
-  const priceFromUSD = TOUR_TO_CHARTER_KEY[t.id]
+  // priceUnit='per_person' 투어는 spec 무시하고 raw priceFrom (USD) 그대로 사용.
+  const priceFromUSD = (t.priceUnit !== 'per_person' && TOUR_TO_CHARTER_KEY[t.id])
     ? Math.round(priceKRW / KRW_PER_USD)
     : t.priceFrom;
   return {

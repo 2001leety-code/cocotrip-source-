@@ -19,10 +19,17 @@ function txt(field: I18nString, lang: Language): string {
 }
 
 const VEHICLE_LABEL: Record<Tour['vehicleType'], { label: string; pax: number }> = {
-  Staria:     { label: 'Staria',       pax: 8  },
+  Staria:     { label: 'Staria',       pax: 7  },
   Sprinter:   { label: 'Sprinter',     pax: 10 },
-  SprinterMid:{ label: 'Sprinter Mid', pax: 8  },
+  SprinterMid:{ label: 'Sprinter Mid', pax: 7  },
   Bus:        { label: 'Bus',          pax: 30 },
+};
+
+const PER_PERSON_LABEL: Record<Language, string> = {
+  ko: '/인',
+  en: '/person',
+  ja: '/人',
+  zh: '/人',
 };
 
 const TAG_STYLE: Record<string, { bg: string; color: string }> = {
@@ -160,9 +167,12 @@ export function TourCard({ tour, language }: TourCardProps) {
             <p className="text-[17px] font-black text-white leading-none">
               ${tour.priceFrom.toLocaleString()}
               <span className="text-[10px] text-white/55 font-medium ml-0.5">USD</span>
+              {tour.priceUnit === 'per_person' && (
+                <span className="text-[10px] text-white/70 font-medium ml-0.5">{PER_PERSON_LABEL[language]}</span>
+              )}
             </p>
             <p className="text-[9px] text-white/55 leading-none mt-0.5">
-              ≈ ₩{Math.round(tour.priceFrom * 1350).toLocaleString('ko-KR')}
+              ≈ ₩{Math.round(tour.priceFrom * 1350).toLocaleString('ko-KR')}{tour.priceUnit === 'per_person' ? PER_PERSON_LABEL[language] : ''}
             </p>
           </div>
         </div>
