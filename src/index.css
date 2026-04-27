@@ -317,6 +317,32 @@ html[data-menu-open="true"] .early-bird-banner {
   50% { opacity: 1; transform: scale(1.2); }
 }
 
+/* ── Cross-device utility classes ── (P2 UI: 데스크톱 hover 강화 2026-04-27)
+   shimmer/pulse-glow/slide-up은 데스크톱에도 적합 — 미디어 쿼리 밖으로 이동 */
+.m-shimmer-text {
+  background: linear-gradient(90deg, #B668FC 0%, #FF6B9D 40%, #B668FC 80%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: m-shimmer 3s linear infinite;
+}
+.m-pulse-glow {
+  animation: m-pulse-glow 3s ease-in-out infinite;
+}
+.m-appear {
+  animation: m-slide-up 0.5s ease-out both;
+}
+/* 데스크톱 hover-only 강화 — gradient CTA에 추가 glow */
+@media (hover: hover) and (pointer: fine) {
+  .m-cta-hover:hover,
+  button[style*="linear-gradient(135deg, #B668FC"]:hover,
+  button[style*="linear-gradient(135deg,#B668FC"]:hover {
+    box-shadow: 0 6px 28px rgba(182, 104, 252, 0.42);
+    transform: translateY(-1px);
+  }
+}
+
 /* ── Mobile-only utility classes ── */
 @media (max-width: 768px) {
   /* Dark page wrapper */
