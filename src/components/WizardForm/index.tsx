@@ -2,9 +2,11 @@
 // Previously src/components/WizardForm.tsx (798L) — split into step components
 // under src/components/WizardForm/* for P3 Lock release.
 import { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   MapPin, Calendar, Wand2, UtensilsCrossed, Check, Plane,
 } from 'lucide-react';
+
 import type { DateRange } from 'react-day-picker';
 import { differenceInCalendarDays, format } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -245,79 +247,91 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         </div>
 
         <div className="max-w-2xl mx-auto">
-          {/* Step 0: reservation status (P6) */}
-          {step === 0 && (
-            <WizardStep0Reservation
-              p={p} isMobile={isMobile}
-              status={reservationStatus} setStatus={setReservationStatus}
-              arrivalAirport={arrivalTerminal} setArrivalAirport={setArrivalTerminal}
-              arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
-              hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
-              mainCityKey={mainCityKey || 'seoul'}
-              onNext={() => setStep(1)}
-            />
-          )}
-          {/* Step 1: claim form (when all_done) OR destinations */}
-          {step === 1 && isClaimFlow && (
-            <FreeClaimForm p={p as unknown as PlannerDict} isMobile={isMobile} />
-          )}
-          {step === 1 && !isClaimFlow && (
-            <WizardStep0Destination
-              p={p} isMobile={isMobile}
-              mainCity={mainCity} mainCityKey={mainCityKey}
-              extraCities={extraCities}
-              selectedCityKeys={selectedCityKeys}
-              selectedActivities={selectedActivities} freeText={freeText}
-              setMainCity={setMainCity} setMainCityKey={setMainCityKey}
-              setExtraCities={setExtraCities} setSelectedActivities={setSelectedActivities} setFreeText={setFreeText}
-              allCities={allCities} canGoStep1={canGoStep1}
-              getCityName={getCityName} toggleActivity={toggleActivity}
-              toggleCity={toggleCity} isCitySelected={isCitySelected}
-              onPrev={() => setStep(0)} onNext={() => setStep(2)}
-            />
-          )}
-          {step === 2 && !isClaimFlow && (
-            <WizardStep1Food
-              p={p} isMobile={isMobile}
-              dietPrefs={dietPrefs} allergies={allergies} priceRange={priceRange}
-              spiceLevel={spiceLevel} bucketDishes={bucketDishes}
-              toggleDiet={toggleDiet} toggleAllergy={toggleAllergy} setPriceRange={setPriceRange}
-              setSpiceLevel={setSpiceLevel}
-              toggleBucketDish={(k: string) => setBucketDishes(prev => prev.includes(k) ? prev.filter(d => d !== k) : [...prev, k])}
-              onPrev={() => setStep(1)} onNext={() => setStep(3)}
-            />
-          )}
-          {step === 3 && !isClaimFlow && (
-            <WizardStep2Details
-              p={p} isMobile={isMobile} calendarLocale={calendarLocale}
-              dateRange={dateRange} setDateRange={setDateRange} nights={nights}
-              paxInput={paxInput} setPaxInput={setPaxInput}
-              mainCity={mainCity} airportOptions={airportOptions}
-              arrivalTerminal={arrivalTerminal} setArrivalTerminal={setArrivalTerminal}
-              hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
-              arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
-              departureTime={departureTime} setDepartureTime={setDepartureTime}
-              luggageSmall={luggageSmall} setLuggageSmall={setLuggageSmall}
-              luggageMedium={luggageMedium} setLuggageMedium={setLuggageMedium}
-              luggageLarge={luggageLarge} setLuggageLarge={setLuggageLarge}
-              wantAccom={wantAccom} setWantAccom={setWantAccom}
-              accomBudget={accomBudget} setAccomBudget={setAccomBudget}
-              tourPace={tourPace} setTourPace={setTourPace}
-              canGoStep3={canGoStep3}
-              onPrev={() => setStep(2)} onNext={() => setStep(4)}
-              onEditStep0={() => setStep(0)}
-            />
-          )}
-          {step === 4 && !isClaimFlow && (
-            <WizardStep3Review
-              p={p}
-              allCities={allCities} startDate={startDate} endDate={endDate}
-              arrivalTerminal={arrivalTerminal} pax={pax}
-              selectedActivities={selectedActivities} hotelAddress={hotelAddress}
-              isLoading={isLoading} errorMsg={errorMsg}
-              onEditStep={(s) => setStep(s)} onGenerate={handleGenerate}
-            />
-          )}
+          {/* AnimatePresence + motion.div로 step 전환 시 슬라이드/페이드.
+              key={step}로 React가 unmount/mount 인식 → exit 애니 발동. */}
+          <AnimatePresence initial={false}>
+            <motion.div
+              key={`step-${step}-${isClaimFlow ? 'claim' : 'normal'}`}
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={{ duration: 0.25 }}
+            >
+              {/* Step 0: reservation status (P6) */}
+              {step === 0 && (
+                <WizardStep0Reservation
+                  p={p} isMobile={isMobile}
+                  status={reservationStatus} setStatus={setReservationStatus}
+                  arrivalAirport={arrivalTerminal} setArrivalAirport={setArrivalTerminal}
+                  arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
+                  hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
+                  mainCityKey={mainCityKey || 'seoul'}
+                  onNext={() => setStep(1)}
+                />
+              )}
+              {/* Step 1: claim form (when all_done) OR destinations */}
+              {step === 1 && isClaimFlow && (
+                <FreeClaimForm p={p as unknown as PlannerDict} isMobile={isMobile} />
+              )}
+              {step === 1 && !isClaimFlow && (
+                <WizardStep0Destination
+                  p={p} isMobile={isMobile}
+                  mainCity={mainCity} mainCityKey={mainCityKey}
+                  extraCities={extraCities}
+                  selectedCityKeys={selectedCityKeys}
+                  selectedActivities={selectedActivities} freeText={freeText}
+                  setMainCity={setMainCity} setMainCityKey={setMainCityKey}
+                  setExtraCities={setExtraCities} setSelectedActivities={setSelectedActivities} setFreeText={setFreeText}
+                  allCities={allCities} canGoStep1={canGoStep1}
+                  getCityName={getCityName} toggleActivity={toggleActivity}
+                  toggleCity={toggleCity} isCitySelected={isCitySelected}
+                  onPrev={() => setStep(0)} onNext={() => setStep(2)}
+                />
+              )}
+              {step === 2 && !isClaimFlow && (
+                <WizardStep1Food
+                  p={p} isMobile={isMobile}
+                  dietPrefs={dietPrefs} allergies={allergies} priceRange={priceRange}
+                  spiceLevel={spiceLevel} bucketDishes={bucketDishes}
+                  toggleDiet={toggleDiet} toggleAllergy={toggleAllergy} setPriceRange={setPriceRange}
+                  setSpiceLevel={setSpiceLevel}
+                  toggleBucketDish={(k: string) => setBucketDishes(prev => prev.includes(k) ? prev.filter(d => d !== k) : [...prev, k])}
+                  onPrev={() => setStep(1)} onNext={() => setStep(3)}
+                />
+              )}
+              {step === 3 && !isClaimFlow && (
+                <WizardStep2Details
+                  p={p} isMobile={isMobile} calendarLocale={calendarLocale}
+                  dateRange={dateRange} setDateRange={setDateRange} nights={nights}
+                  paxInput={paxInput} setPaxInput={setPaxInput}
+                  mainCity={mainCity} airportOptions={airportOptions}
+                  arrivalTerminal={arrivalTerminal} setArrivalTerminal={setArrivalTerminal}
+                  hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
+                  arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
+                  departureTime={departureTime} setDepartureTime={setDepartureTime}
+                  luggageSmall={luggageSmall} setLuggageSmall={setLuggageSmall}
+                  luggageMedium={luggageMedium} setLuggageMedium={setLuggageMedium}
+                  luggageLarge={luggageLarge} setLuggageLarge={setLuggageLarge}
+                  wantAccom={wantAccom} setWantAccom={setWantAccom}
+                  accomBudget={accomBudget} setAccomBudget={setAccomBudget}
+                  tourPace={tourPace} setTourPace={setTourPace}
+                  canGoStep3={canGoStep3}
+                  onPrev={() => setStep(2)} onNext={() => setStep(4)}
+                  onEditStep0={() => setStep(0)}
+                />
+              )}
+              {step === 4 && !isClaimFlow && (
+                <WizardStep3Review
+                  p={p}
+                  allCities={allCities} startDate={startDate} endDate={endDate}
+                  arrivalTerminal={arrivalTerminal} pax={pax}
+                  selectedActivities={selectedActivities} hotelAddress={hotelAddress}
+                  isLoading={isLoading} errorMsg={errorMsg}
+                  onEditStep={(s) => setStep(s)} onGenerate={handleGenerate}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </>
