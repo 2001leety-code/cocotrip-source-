@@ -84,10 +84,10 @@ function surchargeForNight(baseKRW: number, isNight: boolean): number {
   return isNight ? Math.round(baseKRW * (EXTRA_CHARGES.nightSurchargePercent / 100)) : 0;
 }
 
-export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
-  return useMemo(() => {
-    const warnings: string[] = [];
-    if (!state.service || !state.vehicle) return null;
+// 순수 함수 — 테스트 가능. useQuoteCalculator는 이 함수를 useMemo로 감싼 래퍼.
+export function calculateQuote(state: WizardState): QuoteBreakdown | null {
+  const warnings: string[] = [];
+  if (!state.service || !state.vehicle) return null;
 
     const mode = state.service;
     const vehicle = state.vehicle;
@@ -102,11 +102,9 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
     const excludes = ['meals', 'attractions', 'drinks', 'shopping'];
 
     // destinationKey가 비어있고 destinationCustom만 있는 경우 KR→EN 매핑 시도
+    // needsCustomQuote는 모드별 분기에서 zone fallback도 실패했을 때만 true.
     const resolvedDest = tryResolveCustomDestination(state);
     let needsCustomQuote = false;
-    if (!state.destinationKey && state.destinationCustom && !resolvedDest) {
-      needsCustomQuote = true;  // 자유 입력 + 매트릭스 키 매칭 실패 → 별도견적 필요
-    }
 
     let vehicleChargeKRW = 0;
     let source: QuoteBreakdown['source'] = 'formula';
@@ -130,16 +128,17 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
         } else if (m?.km) {
           vehicleChargeKRW = calcIntercityFormula(vehicle, m.km);
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
+        }
+      }
+      // resolvedDest 없거나 매트릭스 miss인 경우 — 권역 fallback 시도
+      if (vehicleChargeKRW === 0 && state.origin && state.destinationCustom) {
+        const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
+        if (zoneFallback) {
+          vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
+          distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
+          warnings.push('권역 평균 거리 기준 추정가 — 정확한 견적은 WhatsApp 문의');
         } else {
-          // 매트릭스 miss — 권역 fallback 시도 (출발지 SEL/ICN/GMP만)
-          const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
-          if (zoneFallback) {
-            vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
-            distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
-            warnings.push('권역 평균 거리 기준 추정가 — 정확한 견적은 WhatsApp 문의');
-          } else if (state.destinationCustom) {
-            needsCustomQuote = true;
-          }
+          needsCustomQuote = true;
         }
       }
     } else if (mode === 'day_tour') {
@@ -175,11 +174,14 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
       }
     } else if (mode === 'multi_day') {
       // 1박2일 이상: 매트릭스 또는 권역 fallback 기반 + 일당 운영비 + 숙박비
+      // endDate는 "돌아오는 날" (포함). 1박2일 = startDate~endDate diff 1일 = 2일 일정.
       const staria = VEHICLE_TYPES.staria as unknown as Record<string, unknown>;
       const daily = 200_000;
       const overnight = 130_000;
-      const tourDays = Math.max(1, state.startDate && state.endDate ?
-        Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000) : 1);
+      const dayDiff = state.startDate && state.endDate
+        ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
+        : 0;
+      const tourDays = Math.max(1, dayDiff + 1); // endDate 포함 → diff+1일
       const nights = Math.max(0, tourDays - 1);
       void staria;
 
@@ -242,15 +244,16 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
     const surchargeKRW = surchargeForNight(vehicleChargeKRW + addonsSum, isNight);
     const surchargePercent = isNight ? EXTRA_CHARGES.nightSurchargePercent : 0;
 
-    // ── multi-day 할인 (-10%) ──
+    // ── multi-day 할인 (-10% / 1박 이상) ──
     let multiDayDiscountKRW = 0;
     let multiDayDiscountPercent = 0;
     if (mode === 'multi_day') {
-      const tourDays = state.startDate && state.endDate
+      const dayDiff = state.startDate && state.endDate
         ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
         : 0;
-      if (tourDays >= 1) {
-        const pct = (EXTRA_CHARGES as Record<string, number | undefined>).multiDayDiscountPercent ?? 10;
+      // dayDiff >= 1 → 최소 1박 (예: 4/29 → 4/30 = 1박2일)
+      if (dayDiff >= 1) {
+        const pct = EXTRA_CHARGES.multiDayDiscountPercent ?? 10;
         multiDayDiscountPercent = pct;
         multiDayDiscountKRW = Math.round((vehicleChargeKRW + addonsSum + surchargeKRW) * (pct / 100));
       }
@@ -282,29 +285,33 @@ export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
       }
     }
 
-    return {
-      mode,
-      source,
-      vehicle,
-      vehicleChargeKRW,
-      addons,
-      subtotalKRW,
-      surchargeKRW,
-      surchargePercent,
-      multiDayDiscountKRW,
-      multiDayDiscountPercent,
-      vatExcluded,
-      vatPercent,
-      estimatedMealsKRW,
-      estimatedAttractionsKRW,
-      showMeals,
-      showAttractions,
-      includes,
-      excludes,
-      distanceKm,
-      durationHours,
-      warnings,
-      needsCustomQuote,
-    };
-  }, [state]);
+  return {
+    mode,
+    source,
+    vehicle,
+    vehicleChargeKRW,
+    addons,
+    subtotalKRW,
+    surchargeKRW,
+    surchargePercent,
+    multiDayDiscountKRW,
+    multiDayDiscountPercent,
+    vatExcluded,
+    vatPercent,
+    estimatedMealsKRW,
+    estimatedAttractionsKRW,
+    showMeals,
+    showAttractions,
+    includes,
+    excludes,
+    distanceKm,
+    durationHours,
+    warnings,
+    needsCustomQuote,
+  };
+}
+
+// React 훅 래퍼 — 메모이제이션으로 리렌더 최소화. CharterWizard 등 React 컴포넌트에서 사용.
+export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
+  return useMemo(() => calculateQuote(state), [state]);
 }
