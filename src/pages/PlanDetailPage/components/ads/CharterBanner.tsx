@@ -1,6 +1,11 @@
 // Charter vehicle full-page banner (distinct from per-day CharterCTA inside DayTimeline).
 // Extracted from PlanDetailPage/index.tsx L310-347 (zero behavior change).
 //
+// P4 audit (2026-04-27): 두 개의 CharterBanner 분리 유지 결정 — 의도적 분리.
+// • PlanDetailPage 변종(이 파일): plan 상세에서 WhatsApp 문의 modal — 컨시어지 견적 funnel
+// • PlannerPage 변종(pages/PlannerPage/components/CharterBanner.tsx):
+//   결과 페이지에서 PayPal 직결제 — 차터 단독 구매 funnel
+//
 // P3-A (2026-04-24): WhatsApp prefill now carries planId + recommended tour
 // type + day-by-day theme summary so the operator answering on WhatsApp has
 // the context to quote without having to ask back.
