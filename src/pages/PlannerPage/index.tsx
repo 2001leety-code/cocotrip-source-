@@ -82,10 +82,10 @@ export default function PlannerPage() {
           </div>
         )}
 
-        {/* Phase 1 Loading */}
+        {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}
         {status === 'loadingQuick' && (
           <div className="mt-8">
-            <TriviaLoadingAnimation p={{ loading_tips: [p.loadingAnalyzing], loading_step1: p.loadingDay1Extract } as any} streamStep={1} />
+            <TriviaLoadingAnimation p={p as unknown as Parameters<typeof TriviaLoadingAnimation>[0]['p']} streamStep={1} />
           </div>
         )}
 

@@ -12,6 +12,8 @@ import { buildAccommodationLinks } from '@/config/affiliateLinks';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { FreeClaimForm } from './FreeClaimForm';
+import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
+import { Mail } from 'lucide-react';
 
 interface QuickPreviewData {
   themes?: string[];
@@ -105,10 +107,18 @@ export function PurchaseSection({
         {selectedOption !== 'B' && (
           <>
             {isGeneratingPlan ? (
-              <div className="text-center py-6">
-                <div className="animate-spin h-10 w-10 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-3" />
-                <p className="text-white font-semibold">{p.creatingItinerary || 'Creating your itinerary...'}</p>
-                <p className="text-white/55 text-sm mt-1">{p.takesAbout15Sec || 'Takes about 15 seconds'}</p>
+              <div className="space-y-3 py-2">
+                {/* 4-step 진행 + 한국 여행 꿀팁 회전 노출 */}
+                <TriviaLoadingAnimation p={p} />
+                {/* 안심 메시지 — 이메일로도 발송됨을 명시 (booking confirmation 이미 발송) */}
+                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border"
+                  style={{ background: 'rgba(124,92,252,0.06)', borderColor: 'rgba(124,92,252,0.20)' }}>
+                  <Mail className="w-4 h-4 text-[#B8A0FF] shrink-0 mt-0.5" />
+                  <div className="text-[12px] text-white/75 leading-relaxed">
+                    <p className="font-semibold text-white">{p.planReadyEmailTitle || "준비되면 이메일로도 보내드려요"}</p>
+                    <p className="text-white/55 mt-0.5">{p.planReadyEmailSub || "잠시 페이지를 닫지 말아주세요. 보통 15-30초 정도 걸려요."}</p>
+                  </div>
+                </div>
               </div>
             ) : revisionMode && revisionPlanId ? (
               <button
