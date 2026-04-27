@@ -10,7 +10,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/unit/**/*.test.ts'],
+    // Component tests (.test.tsx) override env via `// @vitest-environment jsdom` 헤더.
+    // Pure function tests stay on node for speed.
+    include: ['tests/unit/**/*.test.{ts,tsx}'],
+    setupFiles: ['./tests/unit/setup.ts'],
     coverage: {
       provider: 'v8',
       // Scope coverage to backend helpers + schemas — frontend components are

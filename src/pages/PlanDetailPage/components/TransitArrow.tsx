@@ -1,6 +1,27 @@
 // Transit segment between two stops. Rich rendering of ODsay subway/bus data:
 // line, exit numbers, headway, pass-through stations. Falls back to simple
 // text step_by_step when steps_detail is unavailable (legacy plans).
+
+/** 대중교통 모드(지하철·버스) 여부 — fallback 경고 노출 가드용. */
+export function isPublicTransitMethod(method: string | undefined): boolean {
+  return method === 'subway' || method === 'bus' || method === 'subway+bus';
+}
+
+/**
+ * "예상 이동 시간 — 실시간 교통 정보 없음" 경고 노출 여부.
+ * - source==='naver_fallback' AND 대중교통 모드일 때만 true.
+ * - 개인 차량(car) 모드는 ODsay 대상이 아니라 'naver_fallback'이 정상 경로 → 경고 X.
+ * - downgrade(public→walk 등)는 별도 isDowngraded 분기에서 처리.
+ */
+export function shouldShowFallbackWarning(
+  transit: { source?: string; method?: string; _downgraded_from?: unknown } | null | undefined,
+): boolean {
+  if (!transit) return false;
+  if (transit._downgraded_from) return false;
+  if (transit.source !== 'naver_fallback') return false;
+  return isPublicTransitMethod(transit.method);
+}
+
 import { useState } from 'react';
 import { Car, ChevronDown, Bus, Train, AlertTriangle, Footprints, Clock, LogOut, LogIn, Repeat, Accessibility, Phone, Sunrise, Moon } from 'lucide-react';
 import { TRANSIT_ICON, formatKRW } from '../constants';
@@ -224,13 +245,15 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
   const pd = getPlanDetailDict(t);
   const trKeys = (pd.transit || {}) as Record<string, string>;
   const Icon = TRANSIT_ICON[transit.method] || Car;
-  const isPublicTransit = transit.method === 'subway' || transit.method === 'bus' || transit.method === 'subway+bus';
+  const isPublicTransit = isPublicTransitMethod(transit.method);
   const detailSteps = transit.steps_detail || [];
   const hasRichSteps = detailSteps.length > 0;
   const hasLegacySteps = !hasRichSteps && Array.isArray(transit.step_by_step) && transit.step_by_step.length > 0;
   const [showSteps, setShowSteps] = useState(isPublicTransit);
   const isDowngraded = !!transit._downgraded_from;
-  const isFallback = transit.source === 'naver_fallback';
+  // car/private vehicle 모드는 ODsay 대상이 아니라서 'naver_fallback' source가 정상 경로.
+  // shouldShowFallbackWarning이 모드/downgrade 가드까지 처리. 단위 테스트로 회귀 방지.
+  const isFallback = shouldShowFallbackWarning(transit);
   const isStale = !!transit._stale;
 
   // Final arrival summary: pick the LAST subway/bus step's exit + the LAST walk
