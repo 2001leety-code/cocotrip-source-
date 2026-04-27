@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bot, Car, Hotel, Plane, Map } from 'lucide-react';
 import type { Translations } from '@/i18n';
+import { buildAccommodationLinks, buildFlightLink } from '@/config/affiliateLinks';
 
 interface HeroCardsProps {
   t: Translations;
@@ -8,6 +9,10 @@ interface HeroCardsProps {
 
 export function HeroCards({ t }: HeroCardsProps) {
   const hc = t.heroCards || {};
+  // Trip.com 어필리에이트 통일 (2026-04-27): 홈 카드 Hotel/Flight도 affiliateLinks SSOT 사용.
+  // 이전: Booking.com (aid=8133498) / Skyscanner.co.kr (어필리 없음).
+  const hotelLink = buildAccommodationLinks('Seoul Hotel', 'Seoul')[0]?.url || 'https://www.trip.com/hotels/list';
+  const flightLink = buildFlightLink('ICN').url;
 
   return (
     <section className="bg-[#faf9f6] py-16 lg:py-24 px-4">
@@ -26,9 +31,9 @@ export function HeroCards({ t }: HeroCardsProps) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6 mb-4 lg:mb-6">
           {/* Hotel */}
           <a
-            href="https://www.booking.com/index.html?aid=8133498"
+            href={hotelLink}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener noreferrer sponsored"
             className="group relative bg-gradient-to-br from-[#1a365d] to-[#2d3748] rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden flex flex-col"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
@@ -47,9 +52,9 @@ export function HeroCards({ t }: HeroCardsProps) {
 
           {/* Flight */}
           <a
-            href="https://www.skyscanner.co.kr/"
+            href={flightLink}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener noreferrer sponsored"
             className="group relative bg-gradient-to-br from-[#1e3a5f] to-[#0c4a6e] rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden flex flex-col"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
