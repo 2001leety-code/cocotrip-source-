@@ -7,7 +7,7 @@ import {
   Crown, Coins, Gift, Heart, Calendar, Clock, Star,
   ArrowLeft, TrendingUp, ChevronRight, Copy, Check,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -47,7 +47,21 @@ export default function MyPage() {
   const { loyalty, coupons, activeCoupons, pointHistory, coinsToUSD, loading } = useLoyalty();
   const { items: wishlistItems } = useWishlist();
   const { itineraries } = useItinerary();
-  const [tab, setTab] = useState<Tab>('overview');
+  // Deep-link 지원: ?tab=wishlist 등으로 특정 탭 직진입 (햄버거 메뉴와 sync).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const VALID_TABS: Tab[] = ['overview', 'bookings', 'coupons', 'wishlist', 'itinerary', 'reviews', 'history'];
+  const initialTab = (() => {
+    const q = searchParams.get('tab') as Tab | null;
+    return q && VALID_TABS.includes(q) ? q : 'overview';
+  })();
+  const [tab, setTabState] = useState<Tab>(initialTab);
+  // 탭 변경 시 URL ?tab= 동기화 (브라우저 뒤로가기/공유 가능)
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    const sp = new URLSearchParams(searchParams);
+    if (next === 'overview') sp.delete('tab'); else sp.set('tab', next);
+    setSearchParams(sp, { replace: true });
+  };
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState<number | null>(null);
 
