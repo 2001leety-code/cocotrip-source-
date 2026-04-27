@@ -561,24 +561,33 @@ export async function generatePDF(
     return;
   }
 
-  // === 사이즈 가드: 12000px 초과 시 toast + WhatsApp 안내, 즉시 abort ===
-  // 800px × 1.0 × 12000px × 4byte ≈ 38MB. iOS Safari OOM 한계.
-  // 이전: 16000px 에서 console.warn 만 → 빈 PDF 받고 사용자 답답.
-  if (container.scrollHeight > 12000) {
+  // === Phase 2 (2026-04-27): adaptive scale로 긴 일정도 PDF 가능 ===
+  // 메모리 = 800 × scrollHeight × scale^2 × 4byte. iOS OOM 한계 ~50MB.
+  // 이전: > 12000px abort. 이제: scale 자동 하향으로 더 긴 일정도 처리.
+  //   ≤ 12000px: scale 1.0 (메모리 ~38MB)
+  //   12000-18000px: scale 0.85 (메모리 ~41MB, 품질 조금 저하)
+  //   18000-24000px: scale 0.7 (메모리 ~38MB, 품질 저하 인지 가능)
+  //   > 24000px: 진짜 너무 김 → abort + WhatsApp 안내
+  const scrollH = container.scrollHeight;
+  let pdfScale = 1.0;
+  if (scrollH > 12000 && scrollH <= 18000) pdfScale = 0.85;
+  else if (scrollH > 18000 && scrollH <= 24000) pdfScale = 0.7;
+  else if (scrollH > 24000) {
     const tooLongPlanId = (typeof window !== 'undefined'
       ? (window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '')
       : '');
-    const tooLongMsg = `Hi CocoTrip! My plan${tooLongPlanId ? ` (${tooLongPlanId})` : ''} is too long for in-browser PDF (${container.scrollHeight}px). Could you send it manually?`;
+    const tooLongMsg = `Hi CocoTrip! My plan${tooLongPlanId ? ` (${tooLongPlanId})` : ''} is too long for in-browser PDF (${scrollH}px). Could you send it manually?`;
     const tooLongUrl = `https://wa.me/821087140611?text=${encodeURIComponent(tooLongMsg)}`;
     document.body.removeChild(container);
     document.body.removeChild(overlay);
     toast.warning('Itinerary too long for in-browser PDF', {
-      description: 'Long plans (8+ days) hit mobile memory limits. We can send a manually-rendered PDF via WhatsApp.',
+      description: 'Very long plans (15+ days) hit mobile memory limits. We can send a manually-rendered PDF via WhatsApp.',
       action: { label: 'Request via WhatsApp', onClick: () => window.open(tooLongUrl, '_blank') },
       duration: 12000,
     });
     return;
   }
+  console.log('[PDF] adaptive scale:', pdfScale, 'for scrollHeight:', scrollH);
 
   // Build WhatsApp fallback URL once — reused on failure.
   const planIdFromUrl = (typeof window !== 'undefined'
@@ -612,7 +621,7 @@ export async function generatePDF(
       filename,
       image: { type: 'jpeg', quality: 0.92 },
       html2canvas: {
-        scale: 1.0,
+        scale: pdfScale,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
