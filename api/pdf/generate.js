@@ -15,8 +15,9 @@ import { initAdminDb } from '../_shared/firebase-admin.js';
 import { verifyIdToken } from '../_shared/admin-auth.js';
 
 export const config = {
-  maxDuration: 60,        // Vercel Pro: 최대 60초. cold start 5-10s + render 10-30s + output 5s
-  memory: 1024,           // Chromium에 충분 (기본 1024MB)
+  // Vercel Pro: 최대 60초. cold start 5-10s + render 10-30s + output 5s
+  maxDuration: 60,
+  // memory 설정은 Active CPU billing에서 무시됨 (Vercel 2025 변경) — 자동 할당.
 };
 
 export default async function handler(req, res) {
