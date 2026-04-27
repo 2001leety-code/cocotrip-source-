@@ -3,7 +3,18 @@
 // B8: Added SortableContext for drag-reorder, conditional edit UI, and + Add Stop button.
 import { useState } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+
+// Day stops 등장 stagger — 각 stop이 0.05s씩 늦춰서 폭포처럼 등장.
+// prefers-reduced-motion 가드는 CSS @media에서 자동으로 duration 0.01ms로 줄임.
+const stopVariants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.05, duration: 0.3, ease: [0.22, 1, 0.36, 1] as const },
+  }),
+};
 import { Plus } from 'lucide-react';
 import { TransitArrow } from './TransitArrow';
 import { SortableStopCard } from './SortableStopCard';
@@ -99,10 +110,16 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
               || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_en
               || '';
             return (
-              <div key={si}>
+              <motion.div
+                key={si}
+                custom={si}
+                variants={stopVariants}
+                initial="hidden"
+                animate="visible"
+              >
                 {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} destinationName={destName} />}
                 <StopCard stop={stop} />
-              </div>
+              </motion.div>
             );
           })}
         </div>
