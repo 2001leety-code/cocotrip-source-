@@ -1,5 +1,5 @@
 // Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
-import { Plane, Briefcase, Minus, Plus } from 'lucide-react';
+import { Plane, Briefcase, Minus, Plus, Pencil } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
@@ -44,6 +44,10 @@ interface Step2Props {
   canGoStep3: boolean;
   onPrev: () => void;
   onNext: () => void;
+  /** P0/P2 dedup: Step0(Reservation)에서 항공편/호텔을 이미 입력했으면
+   *  입력칸 대신 칩으로 보여주고 이 콜백으로 Step0으로 점프해 수정하게 함.
+   *  미지정 시 기존 동작 유지 (입력칸 항상 노출). */
+  onEditStep0?: () => void;
 }
 
 export type TourPace = 'half' | 'short' | 'full' | 'action';
@@ -90,8 +94,13 @@ export function WizardStep2Details(props: Step2Props) {
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
-    canGoStep3, onPrev, onNext,
+    canGoStep3, onPrev, onNext, onEditStep0,
   } = props;
+
+  // P0 dedup: 항공편 정보가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
+  const flightInfoFromStep0 = !!onEditStep0 && !!arrivalTerminal;
+  // P2 dedup: 호텔 주소가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
+  const hotelInfoFromStep0 = !!onEditStep0 && !!hotelAddress;
 
   return (
     <div className="space-y-4">
@@ -158,44 +167,95 @@ export function WizardStep2Details(props: Step2Props) {
         </div>
       </div>
 
-      {/* Airport Dropdown */}
-      <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">
-          {p.wizardWhichAirport || 'Which airport are you arriving at?'}
-          {mainCity && <span className="text-white/55 ml-1">({mainCity})</span>}
-        </p>
-        <MobileSelectDrawer
-          value={arrivalTerminal}
-          onChange={setArrivalTerminal}
-          title={p.wizardWhichAirport || 'Which airport?'}
-          placeholder={p.wizardSelectAirport || '-- Select airport --'}
-          options={airportOptions.map(opt => ({
-            value: opt.value,
-            label: opt.label,
-          }))}
-          icon={<Plane className="w-4 h-4 text-white/55" />}
-        />
-      </div>
+      {/* Airport Dropdown — Step0에서 이미 입력한 경우 칩으로 대체 (P0 dedup) */}
+      {flightInfoFromStep0 ? (
+        <button
+          type="button"
+          onClick={onEditStep0}
+          className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.10] hover:border-[#7C5CFC]/50 rounded-2xl px-4 py-3 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Plane className="w-4 h-4 text-[#7C5CFC] shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[11px] text-white/50 font-medium">
+                {p.flightInfoFromStep0Label || 'Flight info (from Step 1)'}
+              </p>
+              <p className="text-sm font-semibold text-white truncate">
+                {airportOptions.find(o => o.value === arrivalTerminal)?.label || arrivalTerminal}
+                {arrivalTime && <span className="text-white/55 font-normal ml-2">· {arrivalTime}</span>}
+              </p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 text-[11px] text-[#C99FFF] font-semibold shrink-0">
+            <Pencil className="w-3 h-3" />
+            {p.editLabel || 'Edit'}
+          </span>
+        </button>
+      ) : (
+        <div>
+          <p className="text-sm text-white/50 mb-2.5 font-medium">
+            {p.wizardWhichAirport || 'Which airport are you arriving at?'}
+            {mainCity && <span className="text-white/55 ml-1">({mainCity})</span>}
+          </p>
+          <MobileSelectDrawer
+            value={arrivalTerminal}
+            onChange={setArrivalTerminal}
+            title={p.wizardWhichAirport || 'Which airport?'}
+            placeholder={p.wizardSelectAirport || '-- Select airport --'}
+            options={airportOptions.map(opt => ({
+              value: opt.value,
+              label: opt.label,
+            }))}
+            icon={<Plane className="w-4 h-4 text-white/55" />}
+          />
+        </div>
+      )}
 
-      {/* Hotel */}
-      <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">
-          {p.hotel_address_title || 'Where are you staying?'}
-          <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
-        </p>
-        <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
-          placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
-          className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
-      </div>
+      {/* Hotel — P1: AI 추천 토글 시 주소 입력칸 자동 숨김 (mutual exclusion).
+          P2: Step0에서 이미 호텔 주소 받은 경우 칩으로 대체. */}
+      {hotelInfoFromStep0 ? (
+        <button
+          type="button"
+          onClick={onEditStep0}
+          className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.10] hover:border-[#7C5CFC]/50 rounded-2xl px-4 py-3 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-base shrink-0">🏨</span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-white/50 font-medium">
+                {p.hotelInfoFromStep0Label || 'Hotel (from Step 1)'}
+              </p>
+              <p className="text-sm font-semibold text-white truncate">{hotelAddress}</p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 text-[11px] text-[#C99FFF] font-semibold shrink-0">
+            <Pencil className="w-3 h-3" />
+            {p.editLabel || 'Edit'}
+          </span>
+        </button>
+      ) : !wantAccom ? (
+        <div>
+          <p className="text-sm text-white/50 mb-2.5 font-medium">
+            {p.hotel_address_title || 'Where are you staying?'}
+            <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
+          </p>
+          <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
+            placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+            className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+        </div>
+      ) : null}
 
       {/* Arrival / Departure flight time — used by RouteAgent to recommend the right transport
-          (late-night arrival → limousine bus, otherwise AREX). Both optional. */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div>
-          <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
-          <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
-            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
-        </div>
+          (late-night arrival → limousine bus, otherwise AREX). Both optional.
+          P0 dedup: 도착 시각이 Step0에서 이미 입력됐으면 입력칸 숨김 (위 칩에 같이 표시됨). */}
+      <div className={flightInfoFromStep0 ? 'grid grid-cols-1 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
+        {!flightInfoFromStep0 && (
+          <div>
+            <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+            <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
+              className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+          </div>
+        )}
         <div>
           <p className="text-sm text-white/50 mb-2 font-medium">{p.departureTime || 'Departure time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
           <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}
@@ -226,10 +286,17 @@ export function WizardStep2Details(props: Step2Props) {
         </div>
       </div>
 
-      {/* Accommodation Recommendation Opt-in */}
+      {/* Accommodation Recommendation Opt-in.
+          P1: Step0에서 이미 호텔이 확정된 경우(hotelInfoFromStep0) 토글 자체를 숨김 — 충돌 방지. */}
+      {!hotelInfoFromStep0 && (
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4">
         <label className="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" checked={wantAccom} onChange={e => setWantAccom(e.target.checked)}
+          <input type="checkbox" checked={wantAccom} onChange={e => {
+            const next = e.target.checked;
+            setWantAccom(next);
+            // P1 mutual exclusion: AI 추천 켜면 사용자 입력 호텔 주소 클리어 (혼란 방지)
+            if (next && hotelAddress) setHotelAddress('');
+          }}
             className="w-5 h-5 rounded border-white/20 bg-white/[0.06] accent-[#7C5CFC]" />
           <div>
             <p className="text-sm font-semibold text-white">{p.accomOptIn || 'Get AI hotel recommendations'}</p>
@@ -260,6 +327,7 @@ export function WizardStep2Details(props: Step2Props) {
           </div>
         )}
       </div>
+      )}
 
       {/* Nav */}
       <WizardNav
