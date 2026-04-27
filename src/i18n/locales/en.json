@@ -759,7 +759,12 @@
       "Free Wi-Fi is available everywhere in Korea",
       "Korean taxis start at ₩4,800, about $3.50!",
       "Over 50,000 convenience stores open 24/7!",
-      "Free entry to Gyeongbokgung Palace in hanbok!"
+      "Free entry to Gyeongbokgung Palace in hanbok!",
+      "Cash speeds up payments at Gwangjang Market food stalls",
+      "Late-night taxis charge a 20% surcharge from midnight to 4 AM",
+      "Myeongdong's exchange booths often beat bank rates",
+      "Cooking ramyeon by the Han River is a local rite of passage!",
+      "Subway 'priority seats' are reserved for the elderly and pregnant"
     ],
     "result_rainy": "Rainy Day Alternatives",
     "naver_map": "Naver Map",
@@ -1080,6 +1085,8 @@
     "comingSoonBtn": "🔧 Service Upgrade In Progress · Coming Soon",
     "creatingItinerary": "Creating your personalized itinerary...",
     "takesAbout15Sec": "Takes about 15-30 seconds",
+    "planReadyEmailTitle": "We'll email it to you when ready",
+    "planReadyEmailSub": "Please don't close this page — usually 15-30 seconds.",
     "contactWhatsApp": "Contact us on WhatsApp",
     "upgradeNotice": "We're enhancing our data for a better plan experience",
     "arrival_airport_title": "Arrival Airport",
