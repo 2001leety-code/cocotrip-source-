@@ -133,7 +133,7 @@ export function CharterBanner({ result, p, lang, vehicleType }: { result: Planne
             href="https://wa.me/821099339020"
             target="_blank"
             rel="noopener noreferrer"
-            className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all duration-300 hover:opacity-90 hover:scale-[1.01]"
+            className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all duration-300 hover:opacity-90 hover:scale-[1.03]"
             style={{ background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', boxShadow: '0 4px 20px rgba(59,130,246,0.35)' }}>
             <BusIcon className="w-4 h-4 inline" /> {p.vehicleCustomQuote}
           </a>

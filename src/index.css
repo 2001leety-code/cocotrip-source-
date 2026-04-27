@@ -259,6 +259,34 @@ html[data-menu-open="true"] .early-bird-banner {
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ═══════════════════════════════════════════════════════
+   접근성: 사용자가 OS 레벨에서 prefers-reduced-motion 활성화 시
+   모든 비필수 애니메이션 비활성화 (멀미·저성능기기·배터리절약 사용자 배려).
+   ═══════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* shimmer/pulse-glow/float/sparkle 같은 background-position infinite 애니는
+     duration override만으론 시각적 깜빡임 발생 → 명시적으로 none. */
+  .m-shimmer-text {
+    animation: none !important;
+    background-position: 0 0 !important;
+  }
+  .m-card-glow,
+  .m-float,
+  .m-glow-border {
+    animation: none !important;
+  }
+  .m-btn:active,
+  .m-cta:active {
+    transform: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    Mobile Design System — Black-Pink-Purple Theme
    Shared keyframes & utilities for all mobile pages
    ═══════════════════════════════════════════════════════ */
