@@ -1,5 +1,12 @@
 import type { PlannerDict } from '../types';
 // Charter vehicle CTA with pricing + PayPal booking.
+//
+// P4 audit (2026-04-27): 두 개의 CharterBanner 분리 유지 결정 — 의도적 분리.
+// • PlannerPage 변종(이 파일): 결과 페이지에서 PayPal 직결제 가능 — 차터 단독 구매 funnel
+// • PlanDetailPage 변종(pages/PlanDetailPage/components/ads/CharterBanner.tsx):
+//   plan 상세에서 WhatsApp 문의 modal — 컨시어지 견적 funnel
+// 통합 시 두 funnel이 한 컴포넌트에 섞여 가독성 ↓. 별도 유지하되 이름은 동일.
+//
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L568-718.
 import { useState } from 'react';
 import { detectCharterRecommendation, EXTRA_CHARGES } from '@/data/charterPricing';

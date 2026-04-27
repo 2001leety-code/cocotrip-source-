@@ -338,7 +338,7 @@ export default function TourDetailPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════════
-            추천 숙소 — Booking.com 어필리에이트
+            추천 숙소 — Trip.com 어필리에이트 (Allianceid=4831212)
         ══════════════════════════════════════════════════════════════════ */}
         {hotels.length > 0 && (
           <section className="mb-8">

@@ -39,6 +39,13 @@ export function adApplies(category: AdCategory, plan: PlanDocument): boolean {
     const daysUntil = (start - Date.now()) / (1000 * 60 * 60 * 24);
     return daysUntil > 7;
   }
+  if (category === 'charter') {
+    // P2 audit (2026-04-27): 차터 이미 예약/문의한 사용자에겐 광고 스킵.
+    // input.charter_booked = true (예: 차터 PayPal 결제 후 백엔드 set)
+    // 또는 charter_inquiry_id 있으면 (CharterInquireModal 제출 후 set)
+    // → 둘 중 하나라도 있으면 광고 스킵.
+    if (input.charter_booked === true || input.charter_inquiry_id) return false;
+  }
   return true;
 }
 
