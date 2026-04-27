@@ -11,12 +11,32 @@
 
 import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
+import { Buffer } from 'buffer';
 import { initAdminDb } from '../_shared/firebase-admin.js';
-import { verifyIdToken } from '../_shared/admin-auth.js';
+
+// 일반 사용자 ID token 검증 (admin 비교 X — 본인 plan 소유자만 통과)
+async function verifyUserToken(req) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
+  const m = /^Bearer\s+(.+)$/.exec(authHeader);
+  if (!m) return { ok: false, status: 401, error: 'Bearer token required' };
+  try {
+    const { initializeApp, cert, getApps } = await import('firebase-admin/app');
+    const { getAuth } = await import('firebase-admin/auth');
+    if (!getApps().length) {
+      const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
+      initializeApp({ credential: cert(sa) });
+    }
+    const decoded = await getAuth().verifyIdToken(m[1], true);
+    return { ok: true, uid: decoded.uid, email: decoded.email };
+  } catch (err) {
+    return { ok: false, status: 401, error: `Token verification failed: ${err.code || err.message}` };
+  }
+}
 
 export const config = {
-  maxDuration: 60,        // Vercel Pro: 최대 60초. cold start 5-10s + render 10-30s + output 5s
-  memory: 1024,           // Chromium에 충분 (기본 1024MB)
+  // Vercel Pro: 최대 60초. cold start 5-10s + render 10-30s + output 5s
+  maxDuration: 60,
+  // memory 설정은 Active CPU billing에서 무시됨 (Vercel 2025 변경) — 자동 할당.
 };
 
 export default async function handler(req, res) {
@@ -25,18 +45,11 @@ export default async function handler(req, res) {
   }
 
   // === Auth: Firebase ID token으로 사용자 식별 ===
-  const authHeader = req.headers.authorization || '';
-  const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  if (!idToken) {
-    return res.status(401).json({ error: 'unauthorized', detail: 'Missing Bearer token' });
+  const auth = await verifyUserToken(req);
+  if (!auth.ok) {
+    return res.status(auth.status || 401).json({ error: 'unauthorized', detail: auth.error });
   }
-  let uid;
-  try {
-    const decoded = await verifyIdToken(idToken);
-    uid = decoded.uid;
-  } catch (e) {
-    return res.status(401).json({ error: 'unauthorized', detail: e.message });
-  }
+  const uid = auth.uid;
 
   // === Plan ID 검증 ===
   const { planId } = req.body || {};
