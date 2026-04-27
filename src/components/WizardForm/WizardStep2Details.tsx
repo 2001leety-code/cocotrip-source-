@@ -1,5 +1,6 @@
 // Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
-import { ChevronLeft, ChevronRight, Plane, Briefcase, Minus, Plus } from 'lucide-react';
+import { Plane, Briefcase, Minus, Plus } from 'lucide-react';
+import { WizardNav } from './WizardNav';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import type { Locale } from 'date-fns';
@@ -261,17 +262,14 @@ export function WizardStep2Details(props: Step2Props) {
       </div>
 
       {/* Nav */}
-      <div className="flex gap-3 pt-2">
-        <button onClick={onPrev}
-          className="px-4 py-3 rounded-xl border border-white/[0.12] text-white/50 hover:text-white text-sm font-semibold flex items-center gap-1 transition-all">
-          <ChevronLeft className="w-4 h-4" /> {p.wizardFoodTitle || 'Back'}
-        </button>
-        <button onClick={onNext} disabled={!canGoStep3}
-          className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] transition-all"
-          style={{ background: canGoStep3 ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
-          {p.wizardNextGenerate || 'Next: Generate'} <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
+      <WizardNav
+        onPrev={onPrev}
+        onNext={onNext}
+        prevLabel={p.planner_prev || 'Back'}
+        nextLabel={p.wizardNextGenerate || 'Next: Generate'}
+        disabled={!canGoStep3}
+        isMobile={isMobile}
+      />
     </div>
   );
 }

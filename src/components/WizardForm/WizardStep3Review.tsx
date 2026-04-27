@@ -99,8 +99,9 @@ export function WizardStep3Review(props: Step3Props) {
 
       {/* Back */}
       <button onClick={() => onEditStep(2)}
-        className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/55 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all">
-        <ChevronLeft className="w-4 h-4" /> {p.planner_step2_date || 'Back to Details'}
+        aria-label={p.planner_prev || 'Back'}
+        className="w-full py-3 rounded-2xl border border-white/[0.1] text-white/55 hover:text-white text-sm font-semibold flex items-center justify-center gap-1 transition-all whitespace-nowrap">
+        <ChevronLeft className="w-4 h-4" /> {p.planner_prev || 'Back'}
       </button>
     </div>
   );
