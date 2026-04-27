@@ -51,6 +51,11 @@ function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
 const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
 const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
+// DEV-only test harness — prod 빌드에서 chunk 자체가 emit되지 않도록 lazy 호출을 조건부로.
+// import.meta.env.DEV 가 false일 때 import('@/pages/DevTransitTest') 호출 자체가 코드에서 사라짐 → tree-shake 성공.
+const DevTransitTest = import.meta.env.DEV
+  ? lazy(() => import('@/pages/DevTransitTest'))
+  : null;
 
 
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
@@ -263,6 +268,16 @@ function App() {
               </Suspense>
             }
           />
+          {import.meta.env.DEV && DevTransitTest && (
+            <Route
+              path="/dev/transit-test"
+              element={
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <DevTransitTest />
+                </Suspense>
+              }
+            />
+          )}
         </Routes>
         <MobileBottomSpacer />
         </CommandPaletteProvider>
