@@ -5,7 +5,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { toast, Toaster } from 'sonner';
-import { RefreshCw, Plus, List, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, Plus, List, ChevronDown, ChevronUp, Bell } from 'lucide-react';
 
 interface Booking {
   id: string;
@@ -30,6 +30,28 @@ export default function Admin() {
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [totalBookings, setTotalBookings] = useState(0);
   const [showForm, setShowForm] = useState(false);
+  const [pushTesting, setPushTesting] = useState(false);
+
+  const handleTestPush = async () => {
+    if (!user) return;
+    setPushTesting(true);
+    try {
+      const idToken = await user.getIdToken();
+      const resp = await fetch('/api/admin-test-push', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || 'send failed');
+      const r = data.data;
+      toast.success(`Push 발송: ${r.sent}/${r.total} 성공${r.expired ? ` (${r.expired} 만료 정리됨)` : ''}`);
+    } catch (err) {
+      toast.error('Push 실패: ' + (err instanceof Error ? err.message : 'unknown'));
+    } finally {
+      setPushTesting(false);
+    }
+  };
 
   const canSubmit = useMemo(() => {
     return (
@@ -188,14 +210,25 @@ export default function Admin() {
                 {ta.bookings.source}
               </span>
             </div>
-            <button
-              onClick={fetchBookings}
-              disabled={loadingBookings}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7C5CFC] bg-[#7C5CFC]/5 rounded-lg hover:bg-[#7C5CFC]/10 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingBookings ? 'animate-spin' : ''}`} />
-              {ta.bookings.refresh}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleTestPush}
+                disabled={pushTesting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#B668FC] bg-[#B668FC]/5 rounded-lg hover:bg-[#B668FC]/10 transition-colors disabled:opacity-50"
+                title="본인의 등록된 모든 디바이스에 테스트 푸시 발송"
+              >
+                <Bell className={`w-3.5 h-3.5 ${pushTesting ? 'animate-pulse' : ''}`} />
+                {pushTesting ? '발송 중...' : '🔔 Test Push'}
+              </button>
+              <button
+                onClick={fetchBookings}
+                disabled={loadingBookings}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7C5CFC] bg-[#7C5CFC]/5 rounded-lg hover:bg-[#7C5CFC]/10 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingBookings ? 'animate-spin' : ''}`} />
+                {ta.bookings.refresh}
+              </button>
+            </div>
           </div>
 
           {loadingBookings ? (
