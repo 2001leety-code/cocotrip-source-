@@ -716,6 +716,8 @@
     "planner_step1_custom": "他の都市を入力 (任意)",
     "planner_step1_custom_ph": "例：春川、統営、麗水...",
     "planner_step2_date": "旅行日程",
+    "flightInfoFromStep0Label": "フライト情報（ステップ1で入力）",
+    "editLabel": "編集",
     "planner_step2_adults": "大人",
     "planner_step2_children": "子供",
     "planner_step3_interests": "興味を選んでください",

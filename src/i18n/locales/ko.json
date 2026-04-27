@@ -716,6 +716,8 @@
     "planner_step1_custom": "다른 도시를 직접 입력 (선택)",
     "planner_step1_custom_ph": "예: 춘천, 통영, 여수...",
     "planner_step2_date": "여행 날짜",
+    "flightInfoFromStep0Label": "항공편 정보 (1단계에서 입력)",
+    "editLabel": "수정",
     "planner_step2_adults": "성인",
     "planner_step2_children": "어린이",
     "planner_step3_interests": "관심사를 골라주세요 (복수 선택)",

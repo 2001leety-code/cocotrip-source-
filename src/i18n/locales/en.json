@@ -716,6 +716,8 @@
     "planner_step1_custom": "Enter other cities (optional)",
     "planner_step1_custom_ph": "e.g. Chuncheon, Tongyeong, Yeosu...",
     "planner_step2_date": "Travel Dates",
+    "flightInfoFromStep0Label": "Flight info (from Step 1)",
+    "editLabel": "Edit",
     "planner_step2_adults": "Adults",
     "planner_step2_children": "Children",
     "planner_step3_interests": "Choose your interests",

@@ -1,5 +1,5 @@
 // Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
-import { Plane, Briefcase, Minus, Plus } from 'lucide-react';
+import { Plane, Briefcase, Minus, Plus, Pencil } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
@@ -44,6 +44,9 @@ interface Step2Props {
   canGoStep3: boolean;
   onPrev: () => void;
   onNext: () => void;
+  /** P0 dedup: Step0(Reservation)에서 입력한 항공편 정보가 있으면 입력칸 대신 칩으로 보여주고
+   *  이 콜백으로 Step0으로 점프해 수정하게 함. 미지정 시 기존 동작 유지 (입력칸 항상 노출). */
+  onEditFlightInfo?: () => void;
 }
 
 export type TourPace = 'half' | 'short' | 'full' | 'action';
@@ -90,8 +93,11 @@ export function WizardStep2Details(props: Step2Props) {
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
-    canGoStep3, onPrev, onNext,
+    canGoStep3, onPrev, onNext, onEditFlightInfo,
   } = props;
+
+  // P0 dedup: 항공편 정보가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
+  const flightInfoFromStep0 = !!onEditFlightInfo && !!arrivalTerminal;
 
   return (
     <div className="space-y-4">
@@ -158,24 +164,49 @@ export function WizardStep2Details(props: Step2Props) {
         </div>
       </div>
 
-      {/* Airport Dropdown */}
-      <div>
-        <p className="text-sm text-white/50 mb-2.5 font-medium">
-          {p.wizardWhichAirport || 'Which airport are you arriving at?'}
-          {mainCity && <span className="text-white/55 ml-1">({mainCity})</span>}
-        </p>
-        <MobileSelectDrawer
-          value={arrivalTerminal}
-          onChange={setArrivalTerminal}
-          title={p.wizardWhichAirport || 'Which airport?'}
-          placeholder={p.wizardSelectAirport || '-- Select airport --'}
-          options={airportOptions.map(opt => ({
-            value: opt.value,
-            label: opt.label,
-          }))}
-          icon={<Plane className="w-4 h-4 text-white/55" />}
-        />
-      </div>
+      {/* Airport Dropdown — Step0에서 이미 입력한 경우 칩으로 대체 (P0 dedup) */}
+      {flightInfoFromStep0 ? (
+        <button
+          type="button"
+          onClick={onEditFlightInfo}
+          className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.10] hover:border-[#7C5CFC]/50 rounded-2xl px-4 py-3 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Plane className="w-4 h-4 text-[#7C5CFC] shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[11px] text-white/50 font-medium">
+                {p.flightInfoFromStep0Label || 'Flight info (from Step 1)'}
+              </p>
+              <p className="text-sm font-semibold text-white truncate">
+                {airportOptions.find(o => o.value === arrivalTerminal)?.label || arrivalTerminal}
+                {arrivalTime && <span className="text-white/55 font-normal ml-2">· {arrivalTime}</span>}
+              </p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 text-[11px] text-[#C99FFF] font-semibold shrink-0">
+            <Pencil className="w-3 h-3" />
+            {p.editLabel || 'Edit'}
+          </span>
+        </button>
+      ) : (
+        <div>
+          <p className="text-sm text-white/50 mb-2.5 font-medium">
+            {p.wizardWhichAirport || 'Which airport are you arriving at?'}
+            {mainCity && <span className="text-white/55 ml-1">({mainCity})</span>}
+          </p>
+          <MobileSelectDrawer
+            value={arrivalTerminal}
+            onChange={setArrivalTerminal}
+            title={p.wizardWhichAirport || 'Which airport?'}
+            placeholder={p.wizardSelectAirport || '-- Select airport --'}
+            options={airportOptions.map(opt => ({
+              value: opt.value,
+              label: opt.label,
+            }))}
+            icon={<Plane className="w-4 h-4 text-white/55" />}
+          />
+        </div>
+      )}
 
       {/* Hotel */}
       <div>
@@ -189,13 +220,16 @@ export function WizardStep2Details(props: Step2Props) {
       </div>
 
       {/* Arrival / Departure flight time — used by RouteAgent to recommend the right transport
-          (late-night arrival → limousine bus, otherwise AREX). Both optional. */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div>
-          <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
-          <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
-            className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
-        </div>
+          (late-night arrival → limousine bus, otherwise AREX). Both optional.
+          P0 dedup: 도착 시각이 Step0에서 이미 입력됐으면 입력칸 숨김 (위 칩에 같이 표시됨). */}
+      <div className={flightInfoFromStep0 ? 'grid grid-cols-1 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
+        {!flightInfoFromStep0 && (
+          <div>
+            <p className="text-sm text-white/50 mb-2 font-medium">{p.arrivalTime || 'Arrival time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
+            <input type="time" value={arrivalTime} onChange={e => setArrivalTime(e.target.value)}
+              className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
+          </div>
+        )}
         <div>
           <p className="text-sm text-white/50 mb-2 font-medium">{p.departureTime || 'Departure time'} <span className="text-white/55 text-[11px]">({p.wizardOptional || 'optional'})</span></p>
           <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}

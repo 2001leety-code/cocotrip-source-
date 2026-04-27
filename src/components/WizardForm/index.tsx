@@ -304,6 +304,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
               tourPace={tourPace} setTourPace={setTourPace}
               canGoStep3={canGoStep3}
               onPrev={() => setStep(2)} onNext={() => setStep(4)}
+              onEditFlightInfo={() => setStep(0)}
             />
           )}
           {step === 4 && !isClaimFlow && (
