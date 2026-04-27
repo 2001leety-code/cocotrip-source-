@@ -7,6 +7,24 @@ export function isPublicTransitMethod(method: string | undefined): boolean {
   return method === 'subway' || method === 'bus' || method === 'subway+bus';
 }
 
+/** 이동 수단 i18n 라벨. raw 'car'/'bus'/'subway' 그대로 노출하면 한국어 사용자에 어색.
+ *  trKeys.method{Car,Bus,Subway,Taxi,Train,Walk,Ferry,SubwayBus} 키 우선, fallback raw.
+ */
+export function methodLabel(method: string | undefined, trKeys: Record<string, string>): string {
+  if (!method) return '';
+  const map: Record<string, string | undefined> = {
+    car: trKeys.methodCar,
+    bus: trKeys.methodBus,
+    subway: trKeys.methodSubway,
+    'subway+bus': trKeys.methodSubwayBus,
+    taxi: trKeys.methodTaxi,
+    train: trKeys.methodTrain,
+    walk: trKeys.walk,
+    ferry: trKeys.methodFerry,
+  };
+  return map[method] || method;
+}
+
 /**
  * "예상 이동 시간 — 실시간 교통 정보 없음" 경고 노출 여부.
  * - source==='naver_fallback' AND 대중교통 모드일 때만 true.
@@ -275,12 +293,22 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
         <div className="w-0.5 h-4 bg-[#7C5CFC]/30" />
         <Icon className="w-3.5 h-3.5 text-[#7C5CFC]" />
         {transit.from_label && <span className="text-[#7C5CFC] font-semibold">{transit.from_label} {'\u2192'}</span>}
-        <span className="font-semibold">{transit.method}</span>
+        <span className="font-semibold">{methodLabel(transit.method, trKeys)}</span>
         <span className="text-white/50">{transit.est_min}{trKeys.minUnit || 'min'}</span>
         {(transit.est_fare_krw || 0) > 0 && <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw || 0)}</span>}
         {(transit.transfers || 0) > 0 && <span className="text-white/55">· {transit.transfers} {trKeys.transfer || 'transfer'}</span>}
+        {/* 2026-04-27 이동 안내: 다음 목적지 명시. "차량 25분 → K-스타 로드" 형태로 사용자가 어디로 이동하는지 즉시 파악. */}
+        {destinationName && !transit.from_label && (
+          <span className="text-white/70 truncate max-w-[180px]">{'→'} {destinationName}</span>
+        )}
         {(hasRichSteps || hasLegacySteps) && <ChevronDown className={`w-3 h-3 transition-transform ${showSteps ? 'rotate-180' : ''}`} />}
       </button>
+      {/* 인라인 이동 안내: instruction 있으면 collapsed 상태에서도 항상 표시. */}
+      {!hasRichSteps && !hasLegacySteps && (transit.instruction_en || transit.instruction) && (
+        <p className="text-[10px] text-white/45 ml-6 mt-0.5 whitespace-pre-line">
+          {transit.instruction_en || transit.instruction}
+        </p>
+      )}
 
       {isDowngraded && (
         <div className="ml-6 mt-1 flex items-center gap-1.5 text-[10px] text-amber-400/80">
