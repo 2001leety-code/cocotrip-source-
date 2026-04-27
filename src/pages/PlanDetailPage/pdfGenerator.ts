@@ -505,10 +505,35 @@ export async function generatePDF(
   container.appendChild(fontTest);
   await new Promise(resolve => setTimeout(resolve, 200));
   if (fontTest.offsetWidth === 0) {
-    // After explicit preload, single retry should be enough; Safari sometimes slow.
+    // 1차 재시도: Safari 등 느린 환경 대응
     await new Promise(resolve => setTimeout(resolve, 400));
+    if (fontTest.offsetWidth === 0 && fontsApi?.load) {
+      // 2차 재시도: explicit fontsApi.load 다시 호출 + 더 긴 대기
+      await Promise.allSettled([
+        fontsApi.load('14px "Noto Sans KR"'),
+        fontsApi.load('14px "Noto Sans JP"'),
+        fontsApi.load('14px "Noto Sans SC"'),
+      ]);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
     if (fontTest.offsetWidth === 0) {
-      console.warn('[PDF] CJK font still not measurable — falling back to system fonts');
+      // 3회 실패 — system font fallback 시 tofu 박스 가능. abort + toast.
+      // Phase 1 (2026-04-27): 이전엔 silent warn → 그대로 진행해 백지/tofu PDF 다운로드.
+      console.error('[PDF] CJK font load failed after 3 retries — aborting to prevent tofu-box PDF');
+      fontTest.remove();
+      document.body.removeChild(container);
+      document.body.removeChild(overlay);
+      const fontPlanId = (typeof window !== 'undefined'
+        ? (window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '')
+        : '');
+      const fontFailMsg = `Hi CocoTrip! Korean font failed to load for my PDF${fontPlanId ? ` (plan ${fontPlanId})` : ''}. Could you send it manually?`;
+      const fontFailUrl = `https://wa.me/821087140611?text=${encodeURIComponent(fontFailMsg)}`;
+      toast.error('PDF font load failed', {
+        description: 'Korean fonts did not load in time. Try again in a moment, or request a manual PDF via WhatsApp.',
+        action: { label: 'Open WhatsApp', onClick: () => window.open(fontFailUrl, '_blank') },
+        duration: 12000,
+      });
+      return;
     }
   }
   fontTest.remove();
@@ -558,13 +583,14 @@ export async function generatePDF(
     const dateStr = input.startDate || 'undated';
     const filename = `cocotrip-${titleSlug}-${dateStr}.pdf`;
 
-    // scale 1.0 (was 1.5): saves ~56% canvas memory, prevents mobile OOM blank PDFs.
-    // image quality 0.92 keeps file size reasonable without visible degradation.
+    // Phase 1 (2026-04-27): scale 1.0 → 0.7 + jpeg 0.92 → 0.85
+    //   추가 ~50% 메모리 절약 (1.0 기준 800×12000×4byte=38MB → 0.7 기준 19MB).
+    //   저사양 모바일 OOM 백지 발생률 감소. 품질 저하는 텍스트 위주 PDF에 무시 가능.
     const worker = html2pdf().set({
       margin: [8, 8, 8, 8],
       filename,
-      image: { type: 'jpeg', quality: 0.92 },
-      html2canvas: { scale: 1.0, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: 800, scrollX: 0, scrollY: 0 },
+      image: { type: 'jpeg', quality: 0.85 },
+      html2canvas: { scale: 0.7, useCORS: true, logging: false, backgroundColor: '#ffffff', windowWidth: 800, scrollX: 0, scrollY: 0 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     } as Record<string, unknown>).from(container);
