@@ -106,7 +106,8 @@ export default function CharterNewPage() {
           />
         )}
 
-        {!completedState && (
+        {/* legacy 링크는 admin/dev에서만 노출. 일반 사용자에게 혼란 주는 운영용 링크. */}
+        {!completedState && import.meta.env.DEV && (
           <div className="mt-8 text-center">
             <Link to="/charter-legacy" className="text-xs text-white/55 hover:text-white/60 underline">
               {i18n.payGoToLegacy}

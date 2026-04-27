@@ -30,22 +30,23 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
 
   const sections = useMemo<Section[]>(() => {
     const out: Section[] = [];
-    // Walk slides in order; ad slides attach to the *next* meaningful section.
-    let pendingAdStart: number | null = null;
+    // 2026-04-27 fix: ad slide는 *직전* section에 attach (이전 동작은 next에 attach
+    // → eSIM(idx=1)이 Day 1 section에 묶여서 "Day 1" 탭 활성인데 eSIM 카드만 보이는 혼란).
+    // 이제 eSIM은 Intro와 같은 그룹, airportPickup은 마지막 Day와 같은 그룹.
     slides.forEach((s, idx) => {
       if (s.type === 'ad') {
-        if (pendingAdStart === null) pendingAdStart = idx;
+        // 직전 section의 endIndex를 이 ad slide까지로 확장
+        const last = out[out.length - 1];
+        if (last) last.endIndex = idx;
         return;
       }
-      const start = pendingAdStart !== null ? pendingAdStart : idx;
-      pendingAdStart = null;
       const key = s.type === 'day' ? `day-${s.dayIndex}` : s.type;
       const label = s.type === 'intro'
         ? (sw.tabIntro || 'Intro')
         : s.type === 'outro'
           ? (sw.tabOutro || 'Wrap-up')
           : `${sw.tabDay || 'Day'} ${(typeof s.dayIndex === 'number' ? s.dayIndex : 0) + 1}`;
-      out.push({ key, label, slideIndex: start, endIndex: idx });
+      out.push({ key, label, slideIndex: idx, endIndex: idx });
     });
     return out;
   }, [slides, sw.tabIntro, sw.tabOutro, sw.tabDay]);
