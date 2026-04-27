@@ -188,14 +188,16 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
         )
       }
 
+      {/* 광고 노출 순서 (2026-04-27): 정보 → 자체 상품 → 외부 어필리에이트 → 마지막 안전망.
+          자체 수익(차터·공항픽업·투어·콤보)을 외부 어필리(Trip.com·eSIM)보다 우선 노출. */}
       <SeasonalSpotsBanner result={result} lang={lang} p={p} />
       <TourRecommendationsSection result={result} p={p} />
-      <FlightSearchSection arrivalAirport={arrivalAirport} p={p} lang={lang} />
-      <EsimSection p={p} isMobile={isMobile} />
-      {!enriching && <CustomerSupportSection cs={result.customerSupport} p={p} />}
-      {!enriching && <ComboPackageBanner p={p} />}
       {!enriching && <div id="charter-banner-section"><CharterBanner result={result} p={p} lang={lang} vehicleType={transport} /></div>}
       <div id="airport-pickup-section"><AirportPickupCard arrivalAirport={arrivalAirport} p={p} lang={lang} /></div>
+      <FlightSearchSection arrivalAirport={arrivalAirport} p={p} lang={lang} />
+      <EsimSection p={p} isMobile={isMobile} />
+      {!enriching && <ComboPackageBanner p={p} />}
+      {!enriching && <CustomerSupportSection cs={result.customerSupport} p={p} />}
     </div>
   );
 }
