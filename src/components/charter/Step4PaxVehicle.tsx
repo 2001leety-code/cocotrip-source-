@@ -12,8 +12,8 @@ function recommendVehicle(pax: number): VehicleType {
 
 // 차종별 인원 범위 표기
 function vehiclePaxRangeLabel(v: VehicleType, lang: 'ko' | 'en'): string {
-  if (v === 'staria') return lang === 'ko' ? '1~8인' : '1-8 pax';
-  if (v === 'sprinter') return lang === 'ko' ? '9~15인' : '9-15 pax';
+  if (v === 'staria') return lang === 'ko' ? '1~7인' : '1-7 pax';
+  if (v === 'sprinter') return lang === 'ko' ? '8~15인' : '8-15 pax';
   return lang === 'ko' ? '16인 이상' : '16+ pax';
 }
 

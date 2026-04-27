@@ -21,8 +21,12 @@ const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {
   'tour-multicity-3d':   null,             // 멀티데이는 spec daily 가격 없음 → priceFrom fallback
 };
 
-/** Tour 가격(KRW) — pricing_spec.json SSOT 우선, 없으면 priceFrom × KRW_PER_USD. */
-export function getTourPriceKRW(tourId: string, fallbackPriceFromUSD = 0): number {
+/** Tour 가격(KRW) — pricing_spec.json SSOT 우선, 없으면 priceFrom × KRW_PER_USD.
+ *  priceUnit='per_person' 투어는 spec 매핑 무시하고 priceFrom × KRW만 사용 (1인당 가격). */
+export function getTourPriceKRW(tourId: string, fallbackPriceFromUSD = 0, priceUnit: 'group' | 'per_person' = 'group'): number {
+  if (priceUnit === 'per_person') {
+    return fallbackPriceFromUSD * KRW_PER_USD;
+  }
   const key = TOUR_TO_CHARTER_KEY[tourId];
   if (key) {
     const spec = (pricingSpec as { daily_tour_prices?: Record<string, { priceKRW?: number }> }).daily_tour_prices;
@@ -98,7 +102,9 @@ export type Tour = {
   title: I18nString;
   summary: I18nString;
   description: I18nString;
-  priceFrom: number;   // USD, per group (vehicle)
+  priceFrom: number;   // USD. priceUnit='group'(default) → 차량 1대 그룹가, 'per_person' → 1인당
+  /** 가격 단위. 미지정 시 'group' (전세 차량 1대 기준). 'per_person' 투어는 결제 시 priceFrom × pax. */
+  priceUnit?: 'group' | 'per_person';
   currency: 'USD';
   durationDays: number;
   durationHours?: number; // 당일 투어 시 시간 단위
@@ -183,7 +189,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 9,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/JnR5Ie_경복궁(1).webp',
     images: [
       '/JnR5Ie_경복궁(1).webp',
@@ -366,23 +372,24 @@ const TOURS_RAW: Tour[] = [
       zh: '首尔夜游',
     },
     summary: {
-      ko: '반포대교 달빛무지개분수·한강·광장시장 야시장 — 서울의 밤을 전세 차량으로',
-      en: 'Banpo Rainbow Fountain · Han River · Gwangjang Night Market — Seoul after dark',
-      ja: '盤浦大橋レインボー噴水・漢江・広蔵市場夜市 — 夜のソウルを専用車で',
-      zh: '盘浦大桥彩虹喷泉·汉江·广藏市场夜市 — 专属车游首尔夜景',
+      ko: '명동 집합 → 북악스카이웨이 → 반포대교 무지개분수 → 해방촌 → 명동 드랍',
+      en: 'Myeongdong meet · Bukak Skyway · Banpo Rainbow Fountain · Haebangchon · Myeongdong drop-off',
+      ja: '明洞集合・北岳スカイウェイ・盤浦大橋虹噴水・解放村・明洞ドロップオフ',
+      zh: '明洞集合·北岳天路·盘浦大桥彩虹喷泉·解放村·明洞下车',
     },
     description: {
-      ko: '서울의 화려한 야경을 전용 차량으로 편하게 즐기세요. 반포대교 달빛무지개분수 야경, 한강 야경 드라이브, 광장시장 야시장 체험, 남산타워 야경까지. 오후 6시 출발 기준 약 4~5시간 코스.',
-      en: "Enjoy Seoul's brilliant night scenery from a private Staria. Banpo Rainbow Fountain show, Han River night drive, Gwangjang Market night food stalls, N Seoul Tower lights. ~4-5 hours from 6 PM.",
-      ja: '専用スタリアでソウルの夜景を快適にお楽しみください。盤浦大橋レインボー噴水、漢江夜景ドライブ、広蔵市場夜市、Nソウルタワー夜景まで。18時出発、約4〜5時間コース。',
-      zh: '乘坐专属Staria，舒适享受首尔夜景。盘浦大桥彩虹喷泉、汉江夜景驾车、广藏市场夜市小吃、N首尔塔夜景。18:00出发，约4-5小时行程。',
+      ko: '오후 6시 명동역 3번 출구 작은 공원에서 모임 → 북악스카이웨이 야경 드라이브 (40분) → 반포대교 달빛무지개분수 (2시간) → 해방촌 골목 산책 (1시간) → 다시 명동 드랍. 약 5시간 코스.',
+      en: 'Meet 6 PM at the small park by Myeongdong Station Exit 3 → Bukak Skyway night drive (40 min) → Banpo Rainbow Fountain (2 h) → Haebangchon stroll (1 h) → drop-off back at Myeongdong. ~5-hour itinerary.',
+      ja: '18時に明洞駅3番出口の小さな公園に集合 → 北岳スカイウェイ夜景ドライブ（40分）→ 盤浦大橋月光虹噴水（2時間）→ 解放村散策（1時間）→ 明洞ドロップオフ。約5時間コース。',
+      zh: '18:00在明洞站3号出口的小公园集合 → 北岳天路夜景驾车（40分钟）→ 盘浦大桥月光彩虹喷泉（2小时）→ 解放村漫步（1小时）→ 返回明洞下车。约5小时行程。',
     },
-    priceFrom: 180,
+    priceFrom: 49,
+    priceUnit: 'per_person',
     currency: 'USD',
     durationDays: 1,
     durationHours: 5,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/J7FqPa_서울 밤도깨비 야시장(1).webp',
     images: [
       '/J7FqPa_서울 밤도깨비 야시장(1).webp',
@@ -395,9 +402,9 @@ const TOURS_RAW: Tour[] = [
     ],
     tags: ['Popular', 'Night Tour'],
     highlights: [
-      { icon: 'Sparkles', text: { ko: '반포대교 달빛무지개분수 야경', en: 'Banpo Rainbow Fountain night show', ja: '盤浦大橋レインボー噴水', zh: '盘浦大桥彩虹喷泉夜景' } },
-      { icon: 'Utensils', text: { ko: '광장시장 야시장 먹방 투어', en: 'Gwangjang Market night food tour', ja: '広蔵市場夜市グルメ', zh: '广藏市场夜市美食之旅' } },
-      { icon: 'Mountain', text: { ko: '남산타워 야경 (선택)', en: 'N Seoul Tower view (optional)', ja: 'Nソウルタワー夜景（任意）', zh: 'N首尔塔夜景（可选）' } },
+      { icon: 'Mountain', text: { ko: '북악스카이웨이 야경 드라이브 (40분)', en: 'Bukak Skyway night drive (40 min)', ja: '北岳スカイウェイ夜景ドライブ（40分）', zh: '北岳天路夜景驾车（40分钟）' } },
+      { icon: 'Sparkles', text: { ko: '반포대교 달빛무지개분수 (2시간)', en: 'Banpo Rainbow Fountain (2 h)', ja: '盤浦大橋月光虹噴水（2時間）', zh: '盘浦大桥月光彩虹喷泉（2小时）' } },
+      { icon: 'Utensils', text: { ko: '해방촌 골목 산책 (1시간)', en: 'Haebangchon alley stroll (1 h)', ja: '解放村路地散策（1時間）', zh: '解放村漫步（1小时）' } },
       { icon: 'Shield', text: { ko: '팁·톨비·주차비 전부 포함', en: 'Tips · Tolls · Parking — all included', ja: 'チップ・料金所・駐車場 全込み', zh: '小费·过路费·停车费全含' } },
     ],
   },
@@ -432,7 +439,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 11,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
     images: [
       '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
@@ -484,7 +491,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 9,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/region-ganghwa.webp',
     images: [
       '/region-ganghwa.webp',
@@ -536,7 +543,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 9,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/region-dmz.webp',
     images: [
       '/region-dmz.webp',
@@ -588,7 +595,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 10,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg',
     images: [
       '/Type1_남이섬_라이브스튜디오 김학리_nAXeHa(2).jpg',
@@ -639,7 +646,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 11,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_불국사_두드림_z0WAPa.jpg',
     images: [
       '/Type1_불국사_두드림_z0WAPa.jpg',
@@ -691,7 +698,7 @@ const TOURS_RAW: Tour[] = [
     durationDays: 1,
     durationHours: 10,
     vehicleType: 'Staria',
-    maxPax: 8,
+    maxPax: 7,
     thumbnail: '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
     images: [
       '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
@@ -786,40 +793,48 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
   'tour-seoul-night': [
     {
       time: '18:00',
-      name: { ko: '광장시장 야시장', en: 'Gwangjang Night Market', ja: '広蔵市場ナイトマーケット', zh: '广藏市场夜市' },
-      stay_min: 60, photo: '/Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg',
+      name: { ko: '명동역 3번출구 작은 공원 (집합)', en: 'Myeongdong Station Exit 3 Small Park (Meeting Point)', ja: '明洞駅3番出口の小さな公園（集合）', zh: '明洞站3号出口的小公园（集合）' },
+      stay_min: 10,
       description: {
-        ko: '저녁 시간대 활기 가득한 재래시장. 빈대떡·마약김밥·육회를 현장에서 먹어보세요.',
-        en: 'Bustling traditional market at dinner hour. Try bindae-tteok, mayak gimbap, and yukhoe on the spot.',
-        ja: '夕方のにぎやかな伝統市場。ビンデトック、麻薬キンパ、ユッケをその場で。',
-        zh: '傍晚热闹的传统市场。当场品尝绿豆煎饼、麻药饭卷、生牛肉。',
+        ko: '저녁 6시 정각 명동역 3번 출구 옆 작은 공원에서 가이드와 만나 출발. 전용 스타리아 차량 픽업.',
+        en: 'Meet your guide at 6 PM sharp at the small park beside Myeongdong Station Exit 3. Private Staria pickup.',
+        ja: '18時ちょうどに明洞駅3番出口横の小さな公園でガイドと合流。専用スタリアでピックアップ。',
+        zh: '18:00在明洞站3号出口旁的小公园与导游会合，专属Staria车辆接送出发。',
       },
       entry_fee_krw: 0,
-      tip: { ko: '빈대떡 1장 ₩6,000, 마약김밥 ₩3,000. 현금 지참 권장.', en: 'Bindae-tteok ₩6,000, mayak gimbap ₩3,000. Cash recommended.', ja: 'ビンデトック₩6,000、麻薬キンパ₩3,000。現金推奨。', zh: '绿豆煎饼₩6,000，麻药饭卷₩3,000。建议带现金。' },
+      tip: { ko: '명동역 3번 출구는 명동성당 방향. 시간 엄수 — 차량 정차 가능 시간 짧음.', en: 'Exit 3 faces Myeongdong Cathedral. Be on time — limited vehicle wait window.', ja: '3番出口は明洞聖堂方面。車の停車時間が短いため時間厳守。', zh: '3号出口朝明洞圣堂方向。请准时—车辆停靠时间有限。' },
     },
     {
-      time: '19:30', name: { ko: 'N서울타워 야경', en: 'N Seoul Tower Night View', ja: 'Nソウルタワー夜景', zh: 'N首尔塔夜景' },
-      stay_min: 90, photo: '/서울/서울 (15).jpg',
-      description: { ko: '서울 360° 야경 명소. 사랑의 자물쇠와 도시 야경 사진 필수 코스.', en: '360° Seoul night skyline. Love locks and iconic night photos.', ja: 'ソウル360°夜景の名所。愛のロックと夜景フォト。', zh: '首尔360°夜景。情侣锁和城市夜景拍照。' },
-      entry_fee_krw: 16000,
-      tip: { ko: '케이블카 왕복 ₩14,000 + 전망대 ₩16,000. 정상 주차 불가.', en: 'Cable car ₩14,000 + observatory ₩16,000. No top parking.', ja: 'ケーブルカー₩14,000＋展望台₩16,000。山頂駐車不可。', zh: '缆车₩14,000+观景台₩16,000。山顶不可停车。' },
-      transit_from_prev: { method: 'car', minutes: 15, distance_km: 4.0 },
-    },
-    {
-      time: '21:15', name: { ko: '반포대교 무지개분수', en: 'Banpo Bridge Rainbow Fountain', ja: '盤浦大橋虹噴水', zh: '盘浦大桥彩虹喷泉' },
-      stay_min: 45, photo: '/1uA0qa_반포대교(1).webp',
-      description: { ko: '4-10월 한정 야간 분수쇼. 색조명과 음악이 어우러진 한강의 명물.', en: 'April-October night fountain show. Music and colored lights over the Han River.', ja: '4-10月限定の夜の噴水ショー。音楽とライトが漢江を彩る。', zh: '4-10月限定夜间喷泉表演。音乐与彩灯映照汉江。' },
+      time: '18:25', name: { ko: '북악스카이웨이', en: 'Bukak Skyway', ja: '北岳スカイウェイ', zh: '北岳天路' },
+      stay_min: 40, photo: '/서울/서울 (14).jpg',
+      description: { ko: '북악산 능선을 따라 이어지는 야경 드라이브 코스. 팔각정 전망대에서 서울 도심 야경 한눈에.', en: 'Scenic ridgeline drive on Bukak Mountain. Stop at Palgakjeong Pavilion for a panoramic Seoul night skyline.', ja: '北岳山の稜線をたどる夜景ドライブ。八角亭展望台からソウル都心の夜景を一望。', zh: '沿北岳山山脊的夜景驾车路线，在八角亭观景台俯瞰首尔市区夜景。' },
       entry_fee_krw: 0,
-      tip: { ko: '쇼 시간표는 시즌별 변동. 영업가이드에 미리 확인.', en: 'Show schedule varies by season — confirm with concierge.', ja: 'スケジュールは季節変動。事前確認推奨。', zh: '时间表随季节变化，请提前确认。' },
-      transit_from_prev: { method: 'car', minutes: 18, distance_km: 7.5 },
+      tip: { ko: '팔각정 무료 전망. 차량에서 짧게 내려 사진 촬영 가능.', en: 'Palgakjeong viewpoint is free. Quick photo stops by car.', ja: '八角亭は無料展望。車を停めて短時間撮影可能。', zh: '八角亭免费观景，可短暂停车拍照。' },
+      transit_from_prev: { method: 'car', minutes: 15, distance_km: 8.0 },
     },
     {
-      time: '22:15', name: { ko: '동대문 야시장 (선택)', en: 'Dongdaemun Night Market (optional)', ja: '東大門ナイトマーケット（任意）', zh: '东大门夜市（可选）' },
-      stay_min: 60,
-      description: { ko: '24시간 쇼핑 거리. DDP, 쇼핑몰, 노점이 늦은 시간까지.', en: 'Round-the-clock shopping district with DDP, malls, street stalls.', ja: '24時間ショッピング街。DDP、モール、屋台。', zh: '24小时购物街。DDP、商场、摊位。' },
+      time: '19:35', name: { ko: '반포대교 달빛무지개분수', en: 'Banpo Bridge Rainbow Fountain', ja: '盤浦大橋月光虹噴水', zh: '盘浦大桥月光彩虹喷泉' },
+      stay_min: 120, photo: '/1uA0qa_반포대교(1).webp',
+      description: { ko: '4-10월 한정 야간 분수쇼와 한강 야경. 분수쇼 관람 + 한강공원 산책 + 야식 포장마차까지 2시간 여유롭게.', en: 'April-October night fountain show + Han River views. 2 hours: fountain show, riverside stroll, and street-food stalls.', ja: '4-10月限定の夜の噴水ショー＋漢江夜景。ショー観賞、漢江公園散策、屋台まで2時間ゆったり。', zh: '4-10月限定夜间喷泉表演＋汉江夜景。2小时含喷泉表演、江边漫步、夜宵摊位。' },
       entry_fee_krw: 0,
-      tip: { ko: '시간 여유 시 추가. 자정 이후 차량 픽업 추가요금 가능.', en: 'Optional add-on; post-midnight pickup may incur surcharge.', ja: '時間に余裕があれば追加。深夜送迎は追加料金の場合あり。', zh: '时间充裕时可加。午夜后接送可能加价。' },
-      transit_from_prev: { method: 'car', minutes: 12, distance_km: 4.5 },
+      tip: { ko: '쇼 시간표 시즌별 변동 (보통 20:00·20:30·21:00). 가이드가 현장 안내. 11-3월은 분수 비운영.', en: 'Show times vary seasonally (typically 8/8:30/9 PM). Guide will brief on site. Fountain off Nov-Mar.', ja: 'ショー時間は季節変動（通常20:00·20:30·21:00）。11-3月は噴水休止。', zh: '表演时间随季节变化（通常20:00/20:30/21:00）。11-3月喷泉停运。' },
+      transit_from_prev: { method: 'car', minutes: 25, distance_km: 14.0 },
+    },
+    {
+      time: '22:00', name: { ko: '해방촌', en: 'Haebangchon', ja: '解放村', zh: '解放村' },
+      stay_min: 60, photo: '/서울/서울 (18).jpg',
+      description: { ko: '남산 자락 옛 달동네에 자리잡은 핫플 골목. 루프탑 바, 빈티지 카페, 외국인 친화 펍이 모인 야경 산책 코스.', en: "Trendy hillside neighborhood under Namsan — rooftop bars, vintage cafés, expat-friendly pubs lit up at night.", ja: '南山の麓、レトロな路地に若者文化が集う街。ルーフトップバーやヴィンテージカフェの夜景散策。', zh: '南山脚下的潮人街区，云集天台酒吧、复古咖啡馆、外国人友好酒馆的夜景漫步路线。' },
+      entry_fee_krw: 0,
+      tip: { ko: '신흥시장·해방촌 오거리 추천. 카페/바 1잔 별도 결제. 가이드가 추천 코스 안내.', en: 'Sinheung Market and HBC 5-way junction recommended. Drinks paid separately. Guide will suggest spots.', ja: '新興市場・解放村五差路がおすすめ。カフェ・バー代は別途。', zh: '推荐新兴市场和解放村五路口。饮品另付。导游会推荐路线。' },
+      transit_from_prev: { method: 'car', minutes: 20, distance_km: 7.5 },
+    },
+    {
+      time: '23:05', name: { ko: '명동 드랍오프', en: 'Drop-off at Myeongdong', ja: '明洞ドロップオフ', zh: '明洞下车' },
+      stay_min: 0,
+      description: { ko: '명동역 3번 출구 인근 안전 지점에 도착 후 투어 종료. 호텔이 명동권이면 호텔 앞 추가 드랍 가능 (사전 협의).', en: 'Tour ends near Myeongdong Station Exit 3. Hotel drop-off available within Myeongdong area (request in advance).', ja: '明洞駅3番出口付近で解散。明洞圏のホテルは事前依頼で前まで送迎可。', zh: '在明洞站3号出口附近结束行程。明洞区酒店可提前申请送至门口。' },
+      entry_fee_krw: 0,
+      tip: { ko: '늦은 시간이라 명동 식당가 일부 영업 종료. 야식 원하면 해방촌에서 미리.', en: 'Many Myeongdong restaurants closed at this hour — eat in Haebangchon if hungry.', ja: '明洞の飲食店は閉店多数。夜食は解放村で済ませて。', zh: '明洞餐厅此时多已打烊，宵夜请在解放村解决。' },
+      transit_from_prev: { method: 'car', minutes: 10, distance_km: 3.5 },
     },
   ],
 
@@ -969,9 +984,10 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
 };
 
 export const TOURS: Tour[] = TOURS_RAW.map((t) => {
-  const priceKRW = getTourPriceKRW(t.id, t.priceFrom);
+  const priceKRW = getTourPriceKRW(t.id, t.priceFrom, t.priceUnit);
   // priceFrom (USD) 도 spec 기반으로 자동 갱신. spec 없으면 raw priceFrom 유지.
-  const priceFromUSD = TOUR_TO_CHARTER_KEY[t.id]
+  // priceUnit='per_person' 투어는 spec 무시하고 raw priceFrom (USD) 그대로 사용.
+  const priceFromUSD = (t.priceUnit !== 'per_person' && TOUR_TO_CHARTER_KEY[t.id])
     ? Math.round(priceKRW / KRW_PER_USD)
     : t.priceFrom;
   return {

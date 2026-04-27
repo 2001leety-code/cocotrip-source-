@@ -76,8 +76,8 @@
       "name_en": "Hyundai Staria",
       "name_ja": "スターリア",
       "name_zh": "星际旅行车",
-      "max_pax": 8,
-      "features_ko": ["최대 8인 탑승", "대형 캐리어 수납 가능", "전좌석 프리미엄 시트", "영어 소통 가능 기사"],
+      "max_pax": 7,
+      "features_ko": ["1~7인 탑승 (운전자 제외)", "대형 캐리어 수납 가능", "전좌석 프리미엄 시트", "영어 소통 가능 기사"],
       "guide_required": false,
       "guide_daily_fee": 0,
       "metro_charter": {
@@ -93,10 +93,10 @@
         "daily_service_fee": 200000,
         "overnight_driver_fee": 130000
       },
-      "description_ko": "프라이빗 소그룹 (최대 8인)",
-      "description_en": "Private small group (up to 8)",
-      "description_ja": "プライベート小グループ（最大8名）",
-      "description_zh": "私人小团（最多8人）"
+      "description_ko": "프라이빗 소그룹 (최대 7인)",
+      "description_en": "Private small group (up to 7)",
+      "description_ja": "プライベート小グループ（最大7名）",
+      "description_zh": "私人小团（最多7人）"
     },
     "sprinter": {
       "name_ko": "스프린터/스피너",
@@ -282,11 +282,11 @@
       },
       {
         "id": "professional_photographer",
-        "labels": { "ko": "전문 사진사 동행", "en": "Professional photographer", "ja": "プロカメラマン", "zh": "专业摄影师" },
-        "priceKRW": 150000,
+        "labels": { "ko": "전문 사진사 동행 (2시간 촬영)", "en": "Professional photographer (2-hour shoot)", "ja": "プロカメラマン同行（2時間撮影）", "zh": "专业摄影师陪同（2小时拍摄）" },
+        "priceKRW": 300000,
         "unit": "per_trip",
         "applies_to": ["tour", "charter"],
-        "description_ko": "투어 시간 동안 동행, 보정본 50장+ 클라우드 전달 (3-5일 후)."
+        "description_ko": "투어 중 2시간 촬영 동행, 보정본 50장+ 클라우드 전달 (3-5일 후)."
       },
       {
         "id": "michelin_lunch",

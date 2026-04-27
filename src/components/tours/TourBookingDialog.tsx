@@ -131,7 +131,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   }, [selectedAddons, driverLang]);
 
   // SSOT 기반 가격 — pricing_spec.json daily_tour_prices 우선, 없으면 priceFrom × KRW
-  const baseKRW = useMemo(() => getTourPriceKRW(tour.id, tour.priceFrom), [tour.id, tour.priceFrom]);
+  // priceUnit='per_person' 투어는 인당 가격 × pax (예: 나이트 투어 $49/인)
+  const unitPriceKRW = useMemo(() => getTourPriceKRW(tour.id, tour.priceFrom, tour.priceUnit), [tour.id, tour.priceFrom, tour.priceUnit]);
+  const baseKRW = tour.priceUnit === 'per_person' ? unitPriceKRW * pax : unitPriceKRW;
   const addonKRW = computeAddonTotal(effectiveAddons, pax, days);
   const totalKRW = baseKRW + addonKRW;
 
@@ -340,7 +342,14 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           {/* Price summary */}
           <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex justify-between text-[11px] text-white/55 mb-1">
-              <span>{labels.priceBase}</span>
+              <span>
+                {labels.priceBase}
+                {tour.priceUnit === 'per_person' && (
+                  <span className="text-white/40 ml-1">
+                    ({formatKRW(unitPriceKRW)} × {pax})
+                  </span>
+                )}
+              </span>
               <span>{formatKRW(baseKRW)}</span>
             </div>
             {addonKRW > 0 && (
