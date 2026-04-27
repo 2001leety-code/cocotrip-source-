@@ -230,7 +230,10 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
   const hasLegacySteps = !hasRichSteps && Array.isArray(transit.step_by_step) && transit.step_by_step.length > 0;
   const [showSteps, setShowSteps] = useState(isPublicTransit);
   const isDowngraded = !!transit._downgraded_from;
-  const isFallback = transit.source === 'naver_fallback';
+  // car/private vehicle 모드는 ODsay 대상이 아니라서 'naver_fallback' source가 정상 경로.
+  // 사용자에게 "실시간 교통 정보 없음" 경고를 노출할 이유 없음 (개인 차량은 traffic API 자체가 무관).
+  // 대중교통(subway/bus/transit) 모드에서만 fallback 경고 표시.
+  const isFallback = transit.source === 'naver_fallback' && isPublicTransit;
   const isStale = !!transit._stale;
 
   // Final arrival summary: pick the LAST subway/bus step's exit + the LAST walk

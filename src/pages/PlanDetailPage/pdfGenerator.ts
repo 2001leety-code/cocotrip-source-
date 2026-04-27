@@ -569,19 +569,30 @@ export async function generatePDF(
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     } as Record<string, unknown>).from(container);
 
-    // iOS Safari: direct .save() often blocked -> open blob in new tab
+    // 모든 플랫폼 — 일단 blob으로 받아서 1KB 미만(=html2canvas 백지) 검출.
+    // 안드로이드/데스크톱 Chrome도 백지 PDF가 그대로 저장되던 이슈 해결.
+    // 사이즈 OK일 때만 iOS=open in new tab / 그 외=다운로드 트리거.
+    const pdf = await worker.outputPdf('blob');
+    if (pdf.size < 1024) {
+      console.error('[PDF] blank capture detected, blob size =', pdf.size, 'scrollHeight =', container.scrollHeight);
+      offerWhatsapp('PDF capture failed (empty file).');
+      return;
+    }
     if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      const pdf = await worker.outputPdf('blob');
-      // 빈 blob (1KB 미만) 검출 — html2canvas 백지 캡처 시점
-      if (pdf.size < 1024) {
-        offerWhatsapp('PDF capture failed (empty file).');
-        return;
-      }
+      // iOS Safari: direct .save() often blocked -> open blob in new tab
       const url = URL.createObjectURL(pdf);
       window.open(url, '_blank');
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } else {
-      await worker.save();
+      // 안드로이드 / 데스크톱: blob을 a[download] 트리거로 저장 (worker.save() 우회)
+      const url = URL.createObjectURL(pdf);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
   } catch (err) {
     console.error('[PDF] generation failed:', err, 'scrollHeight=', container.scrollHeight);
