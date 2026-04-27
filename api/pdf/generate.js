@@ -15,17 +15,21 @@ import { Buffer } from 'buffer';
 import { initAdminDb } from '../_shared/firebase-admin.js';
 
 // 일반 사용자 ID token 검증 (admin 비교 X — 본인 plan 소유자만 통과)
+// firebase-admin.js의 initAdminDb를 재사용해 multi-source env credential 지원:
+//   - FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY (개별)
+//   - GOOGLE_SERVICE_ACCOUNT_KEY (base64 encoded JSON, fallback)
+// 한 가지만 설정돼 있어도 Firebase Admin SDK 초기화 가능.
 async function verifyUserToken(req) {
   const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
   const m = /^Bearer\s+(.+)$/.exec(authHeader);
   if (!m) return { ok: false, status: 401, error: 'Bearer token required' };
   try {
-    const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-    const { getAuth } = await import('firebase-admin/auth');
-    if (!getApps().length) {
-      const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-      initializeApp({ credential: cert(sa) });
+    // initAdminDb 호출로 firebase-admin app init (Firestore + Auth 공유)
+    const db = initAdminDb('pdf-auth');
+    if (!db) {
+      return { ok: false, status: 500, error: 'Firebase Admin SDK init failed — check FIREBASE_* / GOOGLE_SERVICE_ACCOUNT_KEY env vars' };
     }
+    const { getAuth } = await import('firebase-admin/auth');
     const decoded = await getAuth().verifyIdToken(m[1], true);
     return { ok: true, uid: decoded.uid, email: decoded.email };
   } catch (err) {
