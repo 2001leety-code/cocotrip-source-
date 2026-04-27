@@ -51,6 +51,7 @@ function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
 const PlanDetailPage = lazyRetry(() => import('@/pages/PlanDetailPage'));
 const ToursPage = lazy(() => import('@/pages/ToursPage'));
 const TourDetailPage = lazy(() => import('@/pages/TourDetailPage'));
+const DevTransitTest = lazy(() => import('@/pages/DevTransitTest'));
 
 
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
@@ -263,6 +264,16 @@ function App() {
               </Suspense>
             }
           />
+          {import.meta.env.DEV && (
+            <Route
+              path="/dev/transit-test"
+              element={
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <DevTransitTest />
+                </Suspense>
+              }
+            />
+          )}
         </Routes>
         <MobileBottomSpacer />
         </CommandPaletteProvider>
