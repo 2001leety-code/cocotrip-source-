@@ -137,7 +137,7 @@ export function WizardStep0Reservation({
       )}
 
       <button onClick={onNext} disabled={!canContinue}
-        className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] transition-all"
+        className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.03] transition-all"
         style={{ background: canContinue ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
         {status === 'all_done' ? (p.resGoClaim || 'Continue to free claim form') : (p.resNext || 'Continue')} <ChevronRight className="w-5 h-5" />
       </button>

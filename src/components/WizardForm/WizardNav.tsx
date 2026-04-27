@@ -56,7 +56,7 @@ export function WizardNav({
         onClick={onNext}
         disabled={disabled}
         aria-label={nextLabel}
-        className="flex-1 min-w-0 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] whitespace-nowrap transition-all"
+        className="flex-1 min-w-0 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.03] whitespace-nowrap transition-all"
         style={{ background: nextBg }}
       >
         <span className="truncate">{nextLabel}</span>
