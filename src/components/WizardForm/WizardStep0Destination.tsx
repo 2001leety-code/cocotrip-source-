@@ -6,7 +6,8 @@
 // Falls back to legacy ACTIVITY_KEYS when no city is selected yet so the
 // "before you pick a city" view isn't empty.
 import { useMemo } from 'react';
-import { Sparkles, ChevronRight, Check } from 'lucide-react';
+import { Sparkles, Check } from 'lucide-react';
+import { WizardNav } from './WizardNav';
 import { CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS, getActivitiesForCities } from './data';
 import type { WizardDict } from './types';
 
@@ -174,19 +175,14 @@ export function WizardStep0Destination(props: Step0Props) {
       </div>
 
       {/* Nav — back to reservation status if available */}
-      <div className="flex gap-3 pt-1">
-        {onPrev && (
-          <button onClick={onPrev}
-            className="px-4 py-3 rounded-xl border border-white/[0.12] text-white/50 hover:text-white text-sm font-semibold transition-all">
-            {'\u2190'}
-          </button>
-        )}
-        <button onClick={onNext} disabled={!canGoStep1}
-          className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.01] transition-all"
-          style={{ background: canGoStep1 ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
-          {p.wizardFoodTitle || 'Next: Food Preferences'} <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
+      <WizardNav
+        onPrev={onPrev}
+        onNext={onNext}
+        prevLabel={p.planner_prev || 'Back'}
+        nextLabel={p.wizardFoodTitle || 'Next: Food Preferences'}
+        disabled={!canGoStep1}
+        isMobile={isMobile}
+      />
     </div>
   );
 }

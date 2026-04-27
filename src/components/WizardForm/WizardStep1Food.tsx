@@ -5,7 +5,8 @@
 //   - Spice tolerance is now a 4-step slider, not a chip
 //   - Korean dish "bucket list" multi-select added so the AI knows
 //     which iconic dishes the user really wants to try
-import { ChevronLeft, ChevronRight, Check, AlertTriangle as TriangleAlert, Flame } from 'lucide-react';
+import { Check, AlertTriangle as TriangleAlert, Flame } from 'lucide-react';
+import { WizardNav } from './WizardNav';
 import { FOOD_STYLE_KEYS, FOOD_STYLE_ICONS, ALLERGY_KEYS, PRICE_KEYS, SPICE_LEVEL_KEYS, KOREAN_BUCKET_LIST } from './data';
 import type { WizardDict } from './types';
 
@@ -193,17 +194,13 @@ export function WizardStep1Food(props: Step1Props) {
       </div>
 
       {/* Nav */}
-      <div className="flex gap-3 pt-2">
-        <button onClick={onPrev}
-          className="px-4 py-3 rounded-xl border border-white/[0.12] text-white/50 hover:text-white text-sm font-semibold flex items-center gap-1 transition-all">
-          <ChevronLeft className="w-4 h-4" /> {p.wizardTitle || 'Back'}
-        </button>
-        <button onClick={onNext}
-          className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:scale-[1.01] transition-all"
-          style={{ background: isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
-          {p.planner_step2_date || 'Next: Details'} <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
+      <WizardNav
+        onPrev={onPrev}
+        onNext={onNext}
+        prevLabel={p.planner_prev || 'Back'}
+        nextLabel={p.planner_step2_date || 'Next: Details'}
+        isMobile={isMobile}
+      />
     </div>
   );
 }
