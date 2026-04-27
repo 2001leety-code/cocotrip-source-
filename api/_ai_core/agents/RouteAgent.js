@@ -285,9 +285,20 @@ export class RouteAgent extends BaseAgent {
                     place.travelFromPrev = null;
                 } else {
                     const transit = transitResults[i - 1];
+                    // 2026-04-27 사용자 신고: 모든 transit이 "car · 25분"으로 동일 →
+                    // root cause = prev/curr 좌표 없을 때 blind 25 fallback.
+                    // 개선: 좌표 없을 때 Gemini가 plan에 넣은 est_min 우선 사용.
+                    // Gemini는 보통 거리감 기반 예상치를 제공 (예: 명동→홍대 30분).
+                    const geminiOriginal = places[i].transit_from_prev || {};
                     const realTransitMin = transit.publicTransit?.duration
-                        || transit.durationMin
+                        || transit.drivingMin
+                        || transit.durationMin  // havCarMin if coords exist
+                        || geminiOriginal.est_min  // Gemini plan estimate
                         || 25;
+                    // Diagnostic: log when fall through to last fallback (좌표 + Gemini 모두 없음)
+                    if (!transit.publicTransit?.duration && !transit.drivingMin && !transit.durationMin && !geminiOriginal.est_min) {
+                        console.warn(`  ⚠ [transit ${i}] no coords + no Gemini est_min → using flat 25min fallback. Check NAVER_CLIENT_ID / Gemini prompt.`);
+                    }
 
                     // 이전 장소 체류 후 이동 시간 + 버퍼
                     const prevStayMin = places[i - 1].stay_min || 60;
