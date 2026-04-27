@@ -148,9 +148,13 @@ export const EXTRA_CHARGES = {
   nightSurchargePercent: spec.extra_charges.night_surcharge_percent,
   peakSeasonPercent: spec.extra_charges.peak_season_percent,
   roundTripDiscountPercent: spec.extra_charges.round_trip_discount_percent,
+  multiDayDiscountPercent: (spec.extra_charges as Record<string, unknown>).multi_day_discount_percent as number | undefined,
   englishGuidePerDay: spec.extra_charges.english_guide_per_day,
+  licensedGuidePerDay: (spec.extra_charges as Record<string, unknown>).licensed_guide_per_day as number | undefined,
   airportPicketService: spec.extra_charges.airport_picket_service,
   childSeatPerTrip: spec.extra_charges.child_seat_per_trip,
+  vatExcluded: (spec.extra_charges as Record<string, unknown>).vat_excluded as boolean | undefined,
+  vatPercent: (spec.extra_charges as Record<string, unknown>).vat_percent as number | undefined,
 };
 
 // ────────────────────────────────────────

@@ -13,6 +13,7 @@ import { CharterWizard } from '@/components/charter/CharterWizard';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
+import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import type { WizardState, OriginCode, ServiceMode } from '@/components/charter/types';
 
 const VALID_ORIGINS: OriginCode[] = ['ICN','GMP','PUS','CJU','TAE','CJJ','MWX','KWJ','RSU','USN','SEL_METRO','BUS_METRO','CUSTOM'];
@@ -130,7 +131,13 @@ function PaymentPanel({
 }) {
   const i18n = getWizardI18n(language);
   const resolved = resolveProductType(state);
+  const quote = useQuoteCalculator(state);
   const KRW = (n: number | null | undefined) => n == null ? '—' : `₩${n.toLocaleString('ko-KR')}`;
+
+  // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback
+  const estimateKRW = quote && !quote.needsCustomQuote && quote.subtotalKRW > 0 ? quote.subtotalKRW : null;
+  const displayKRW = resolved.priceKRW ?? estimateKRW;
+  const isEstimateOnly = !resolved.payable && estimateKRW != null;
 
   // WhatsApp 견적 요청 본문 (이름/연락처/airport/숙소 정보 포함)
   const adultPart = state.adultCount != null ? `어른${state.adultCount}` : '';
@@ -173,8 +180,13 @@ function PaymentPanel({
         {state.airport?.flightNumber && <Row label={i18n.payField_flight} value={state.airport.flightNumber} />}
         <div className="border-t border-white/10 pt-2 mt-2 flex items-center justify-between">
           <span className="text-white/60">{i18n.payPrepayAmount}</span>
-          <span className="text-lg font-bold text-white">{KRW(resolved.priceKRW)}</span>
+          <span className="text-lg font-bold text-white">{KRW(displayKRW)}</span>
         </div>
+        {isEstimateOnly && (
+          <p className="text-xs text-amber-300 mt-2 text-right">
+            ⚠ {i18n.estimateOnlyNote}
+          </p>
+        )}
       </div>
 
       {/* 결제 가능한 경우 — PayPal 버튼 */}
@@ -196,7 +208,9 @@ function PaymentPanel({
         />
       ) : (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <p className="text-sm text-amber-200 mb-2">{resolved.reason ?? i18n.payCustomQuoteMsg}</p>
+          <p className="text-sm text-amber-200 mb-2">
+            {isEstimateOnly ? i18n.estimateConfirmMsg : (resolved.reason ?? i18n.payCustomQuoteMsg)}
+          </p>
           <a href={waUrl} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:opacity-90">
             <MessageCircle className="w-4 h-4" /> {i18n.payWhatsappBtn}

@@ -79,6 +79,8 @@ export interface WizardI18n {
   payField_terminal: string; payField_flight: string;
   payPrepayAmount: string;
   payCustomQuoteMsg: string;
+  estimateOnlyNote: string;
+  estimateConfirmMsg: string;
   payWhatsappBtn: string; payWhatsappAlt: string;
   payGoToLegacy: string;
 
@@ -164,6 +166,8 @@ const base: Record<WizardLang, WizardI18n> = {
     payField_vehiclePax: '차종/인원', payField_date: '날짜', payField_terminal: '터미널', payField_flight: '편명',
     payPrepayAmount: '선결제 금액',
     payCustomQuoteMsg: '이 조합은 맞춤 견적이 필요합니다.',
+    estimateOnlyNote: '권역 평균 추정가 — WhatsApp으로 확정',
+    estimateConfirmMsg: '권역 평균 기준 추정가입니다. 정확한 가격·결제는 WhatsApp으로 확정해주세요.',
     payWhatsappBtn: 'WhatsApp 견적 요청', payWhatsappAlt: '또는 WhatsApp 문의',
     payGoToLegacy: '기존 차터 페이지로 가기',
     heroBadgeNew: '신규 6단계 견적', heroBadgePayment: '결제',
@@ -241,6 +245,8 @@ const base: Record<WizardLang, WizardI18n> = {
     payField_vehiclePax: 'Vehicle / Pax', payField_date: 'Date', payField_terminal: 'Terminal', payField_flight: 'Flight',
     payPrepayAmount: 'Pre-pay amount',
     payCustomQuoteMsg: 'This combination needs a custom quote.',
+    estimateOnlyNote: 'Regional estimate — confirm via WhatsApp',
+    estimateConfirmMsg: 'Regional average estimate. Confirm exact price and payment via WhatsApp.',
     payWhatsappBtn: 'Request via WhatsApp', payWhatsappAlt: 'Or inquire via WhatsApp',
     payGoToLegacy: 'Go to legacy charter page',
     heroBadgeNew: 'New 6-Step Quote', heroBadgePayment: 'Payment',
@@ -318,6 +324,8 @@ const base: Record<WizardLang, WizardI18n> = {
     payField_vehiclePax: '車種/人数', payField_date: '日付', payField_terminal: 'ターミナル', payField_flight: '便名',
     payPrepayAmount: '事前決済金額',
     payCustomQuoteMsg: 'この組み合わせはカスタム見積もりが必要です。',
+    estimateOnlyNote: '広域平均の概算 — WhatsAppで確定',
+    estimateConfirmMsg: '広域平均ベースの概算です。正確な価格・決済はWhatsAppで確定してください。',
     payWhatsappBtn: 'WhatsAppで見積依頼', payWhatsappAlt: 'またはWhatsAppで問い合わせ',
     payGoToLegacy: '従来のチャーターページへ',
     heroBadgeNew: '新6ステップ見積', heroBadgePayment: '決済',
@@ -395,6 +403,8 @@ const base: Record<WizardLang, WizardI18n> = {
     payField_vehiclePax: '车型/人数', payField_date: '日期', payField_terminal: '航站楼', payField_flight: '航班号',
     payPrepayAmount: '预付金额',
     payCustomQuoteMsg: '此组合需要定制报价。',
+    estimateOnlyNote: '区域平均估算 — 通过WhatsApp确认',
+    estimateConfirmMsg: '区域平均估算价格。准确价格和付款请通过WhatsApp确认。',
     payWhatsappBtn: '通过WhatsApp询价', payWhatsappAlt: '或通过WhatsApp咨询',
     payGoToLegacy: '前往原包车页面',
     heroBadgeNew: '全新6步报价', heroBadgePayment: '支付',
