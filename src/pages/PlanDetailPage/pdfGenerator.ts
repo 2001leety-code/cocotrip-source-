@@ -538,6 +538,38 @@ export async function generatePDF(
   }
   fontTest.remove();
 
+  // === Phase 2 (2026-04-27): 이미지 base64 inline preload ===
+  // html2canvas는 CORS 실패한 이미지를 빈 영역으로 렌더 → 부분 백지 PDF.
+  // container 내 모든 <img>를 fetch + FileReader로 base64 변환해 inline.
+  // 안전장치: 5초 timeout, fail 시 해당 이미지만 포기 (전체 abort X).
+  const imgs = Array.from(container.querySelectorAll('img'));
+  if (imgs.length > 0) {
+    await Promise.allSettled(imgs.map(async (img) => {
+      const src = img.src;
+      // 이미 data: URL이면 스킵
+      if (!src || src.startsWith('data:')) return;
+      try {
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 5000);
+        const res = await fetch(src, { signal: ctrl.signal, mode: 'cors' });
+        clearTimeout(timeoutId);
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result as string);
+          r.onerror = reject;
+          r.readAsDataURL(blob);
+        });
+        img.src = dataUrl;
+      } catch (e) {
+        console.warn('[PDF] image preload failed for', src, e);
+      }
+    }));
+    // 이미지 src 변경 후 layout settle 대기
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+
   // Additional settle time for layout recalculation
   await new Promise(resolve => setTimeout(resolve, 300));
   void container.offsetHeight; // force reflow
