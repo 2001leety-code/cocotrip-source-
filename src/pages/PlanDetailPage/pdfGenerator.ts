@@ -39,6 +39,44 @@ export interface PdfUiDict {
   [key: string]: string | undefined;
 }
 
+/**
+ * Phase 3 (2026-04-27): server-side Puppeteer PDF 시도 → 실패 시 client html2pdf fallback.
+ * `VITE_USE_SERVER_PDF=true` env로 활성화. plan에 `id` 필요.
+ * Firebase ID token으로 인증, plan 소유자만 다운로드 가능.
+ */
+async function tryServerPdf(plan: PlanDocument): Promise<Blob | null> {
+  if (import.meta.env.VITE_USE_SERVER_PDF !== 'true') return null;
+  const planId = (plan as { id?: string }).id;
+  if (!planId) return null;
+  try {
+    const { auth } = await import('@/lib/firebase');
+    const user = auth.currentUser;
+    if (!user) return null;
+    const idToken = await user.getIdToken();
+    const res = await fetch('/api/pdf/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ planId }),
+    });
+    if (!res.ok) {
+      console.warn('[PDF] server endpoint returned', res.status, '— falling back to client');
+      return null;
+    }
+    const blob = await res.blob();
+    if (blob.size < 1024) {
+      console.warn('[PDF] server returned blob <1KB — falling back to client');
+      return null;
+    }
+    return blob;
+  } catch (e) {
+    console.warn('[PDF] server request failed — falling back to client:', e);
+    return null;
+  }
+}
+
 export async function generatePDF(
   plan: PlanDocument,
   uiDict?: PdfUiDict,
@@ -46,6 +84,28 @@ export async function generatePDF(
   lang: string = 'en',
 ): Promise<void> {
   if (!plan) return;
+
+  // Phase 3: server-side PDF 우선 시도 (활성화 시). 실패하면 기존 클라이언트 경로로.
+  const serverPdf = await tryServerPdf(plan);
+  if (serverPdf) {
+    const url = URL.createObjectURL(serverPdf);
+    const titleSlug = ((plan.itinerary?.tour_title as string) || 'korea-trip')
+      .replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'korea-trip';
+    const filename = `cocotrip-${titleSlug}-${plan.input?.startDate || 'undated'}.pdf`;
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      window.open(url, '_blank');
+    } else {
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    console.log('[PDF] server-side generation succeeded');
+    return;
+  }
+
   const it = plan.itinerary || {};
   const days = it.days || [];
   const arrival = it.arrival_guide;
