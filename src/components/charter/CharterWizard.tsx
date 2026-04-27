@@ -1,6 +1,7 @@
 // CharterWizard — 6단계 스테퍼 (B2 Step 컴포넌트 실물 연결 완료)
 import { useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
@@ -86,10 +87,24 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             <div key={id} className="flex items-center flex-1">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                 id < currentStep ? 'bg-emerald-500 text-white' :
-                id === currentStep ? 'bg-[#B668FC] text-white' :
+                id === currentStep ? 'bg-[#B668FC] text-white m-pulse-glow' :
                 'bg-white/10 text-white/55'
               }`}>
-                {id < currentStep ? <Check className="w-4 h-4" /> : id}
+                {id < currentStep ? (
+                  // SVG stroke 애니 — step 완료 시 체크 마크가 그려짐
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <motion.path
+                      d="M3.5 8.5 L7 12 L13 4.5"
+                      stroke="white"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
+                    />
+                  </svg>
+                ) : id}
               </div>
               {idx < STEP_LABELS.length - 1 && (
                 <div className={`flex-1 h-0.5 ${id < currentStep ? 'bg-emerald-500' : 'bg-white/10'}`} />
