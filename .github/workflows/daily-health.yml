@@ -42,11 +42,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Stage each file separately so a missing planner-report.json (e.g. when
-          # validate-planner crashes before writing it) doesn't abort the commit step.
+          # health-log.jsonl만 commit. planner-report.json은 .gitignore에 등록돼
+          # 있어 commit 불가 (이미 actions/upload-artifact로 90일 보존 중이라
+          # repo에 둘 필요 없음). 모든 git 명령에 || true 붙여 step 실패 방지.
           git add scripts/health-log.jsonl || true
-          if [ -f scripts/planner-report.json ]; then
-            git add scripts/planner-report.json
-          fi
-          git diff --cached --quiet || git commit -m "chore: daily health check $(date -u +%Y-%m-%d)"
-          git push || echo "Push failed (likely protected branch)"
+          git diff --cached --quiet || git commit -m "chore: daily health check $(date -u +%Y-%m-%d)" || true
+          git push || echo "Push failed (likely protected branch or no changes)"
