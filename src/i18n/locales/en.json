@@ -1113,7 +1113,7 @@
     "stairs_limited": "Minimize stairs",
     "hotel_placeholder": "e.g. Lotte Hotel Myeongdong, Shilla Stay Gangnam...",
     "zoneRecommendTitle": "Need a zone recommendation?",
-    "zoneRecommendSubtitle": "Pick a Seoul district and the AI will hub stops near it.",
+    "zoneRecommendSubtitle": "Pick a district and the AI will hub stops near it.",
     "zoneRecommendPicked": "AI will plan around this zone. You can still type a specific hotel above to override.",
     "originalPrice": "Regular",
     "launchPrice": "Launch Price",

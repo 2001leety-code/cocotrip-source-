@@ -148,7 +148,7 @@ export default async function handler(req, res) {
     }) + spotContext + foodContext + (!hotel_address && recommendedZone ? `
 
 [LODGING ZONE PREFERENCE]
-The user has not booked a hotel and chose "${recommendedZone}" as their preferred Seoul district.
+The user has not booked a hotel and chose "${recommendedZone}" as their preferred district within ${area}.
 Treat this zone as the hub: Day 1 starts there, Day N ends there, food stops within ~2km radius when possible.
 This is a soft anchor — you may suggest stops outside the zone if they fit the user's interests.` : '') + (wantAccom ? `
 

@@ -57,7 +57,7 @@ export function ZoneRecommender({
             {labelTitle || 'Need a zone recommendation?'}
           </p>
           <p className="text-[11px] text-white/55 leading-snug mt-0.5">
-            {labelSubtitle || 'Pick a Seoul district and the AI will hub stops near it.'}
+            {labelSubtitle || 'Pick a district and the AI will hub stops near it.'}
           </p>
         </div>
       </div>
