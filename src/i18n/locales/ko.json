@@ -1194,6 +1194,14 @@
     "my_plans": "내 플랜"
   },
   "mobileHome": {
+    "heroBadge": "PREMIUM KOREA TRAVEL",
+    "heroHeadline1": "당신만의 한국 여행,",
+    "heroHeadline2": "60초 안에 완성",
+    "heroSubtitle": "AI가 일정을 짜고, 프라이빗 차량과 24/7 영어 지원까지",
+    "heroCta": "지금 시작하기",
+    "heroProofReviews": "5.0 Google",
+    "heroProofSupport": "24/7 영어 지원",
+    "heroProofLicensed": "관광 등록 사업자",
     "promoAiTitle": "AI 맞춤 여행 일정",
     "promoAiSubtitle": "15초 만에 완벽한 한국 여행 플랜",
     "promoAiCta": "일정 만들기",
