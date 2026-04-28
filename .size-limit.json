@@ -6,9 +6,15 @@
     "gzip": true
   },
   {
-    "name": "Vendor: Firebase (eager — auth/firestore on every page)",
-    "path": "dist/assets/vendor-firebase-*.js",
-    "limit": "150 KB",
+    "name": "Vendor: Firebase Core (auth)",
+    "path": "dist/assets/vendor-firebase-core-*.js",
+    "limit": "40 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor: Firebase Firestore",
+    "path": "dist/assets/vendor-firebase-firestore-*.js",
+    "limit": "115 KB",
     "gzip": true
   },
   {
@@ -18,9 +24,15 @@
     "gzip": true
   },
   {
-    "name": "Vendor: UI (lucide-react + framer-motion)",
-    "path": "dist/assets/vendor-ui-*.js",
-    "limit": "60 KB",
+    "name": "Vendor: Icons (lucide-react)",
+    "path": "dist/assets/vendor-icons-*.js",
+    "limit": "20 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor: Motion (framer-motion)",
+    "path": "dist/assets/vendor-motion-*.js",
+    "limit": "55 KB",
     "gzip": true
   },
   {

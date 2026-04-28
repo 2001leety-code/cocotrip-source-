@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
@@ -141,14 +142,22 @@ function PageViewTracker() {
   return null;
 }
 
-function App() {
+// 페이지 전환 애니메이션 — 라우팅 시 부드러운 fade (모바일 앱 느낌의 마지막 퍼즐).
+// opacity만 사용 (transform/x 추가 시 모바일 가로 스크롤 위험). 0.18s 짧게.
+// initial={false}: 첫 페이지 로드 시 애니메이션 생략 (이미 있는 콘텐츠 깜빡임 방지).
+// mode="wait": 이전 페이지 exit 완료 후 새 페이지 mount → Suspense fallback과 잘 어울림.
+function AnimatedRoutes() {
+  const location = useLocation();
   return (
-    <LanguageProvider>
-      <ErrorBoundary>
-      <BrowserRouter>
-        <CommandPaletteProvider>
-        <GlobalWidgets />
-        <Routes>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+      >
+        <Routes location={location}>
           <Route path="/" element={<HomePage />} />
           <Route path="/region/:regionId" element={<RegionDetail />} />
           <Route path="/booking" element={<BookingPageWrapper />} />
@@ -279,6 +288,19 @@ function App() {
             />
           )}
         </Routes>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function App() {
+  return (
+    <LanguageProvider>
+      <ErrorBoundary>
+      <BrowserRouter>
+        <CommandPaletteProvider>
+        <GlobalWidgets />
+        <AnimatedRoutes />
         <MobileBottomSpacer />
         </CommandPaletteProvider>
       </BrowserRouter>
