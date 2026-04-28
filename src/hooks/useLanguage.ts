@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, createElement, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { translations, type Language } from '@/i18n';
+import { track } from '@/lib/posthog';
 
 type LanguageContextValue = {
   language: Language;
@@ -49,7 +50,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const t = translations[language];
 
   const changeLanguage = useCallback((lang: Language) => {
-    setLanguage(lang);
+    setLanguage((prev) => {
+      // Sprint 2 #7: language_switched event — fire only on actual change.
+      // Reading prev inside the setter avoids a stale-closure dep on `language`.
+      if (prev !== lang) {
+        void track('language_switched', { from: prev, to: lang });
+      }
+      return lang;
+    });
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(STORAGE_KEY, lang);

@@ -15,6 +15,7 @@
 import { toast } from 'sonner';
 import { formatKRW } from './constants';
 import { normalizeRecommendedItem } from '@/types/plan';
+import { track as posthogTrack } from '@/lib/posthog';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
@@ -101,6 +102,9 @@ export async function generatePDF(
 ): Promise<void> {
   if (!plan) return;
 
+  const pdfStartTs = Date.now();
+  const planIdForTrack = (plan as { id?: string }).id;
+
   // Phase 3: server-side PDF 우선 시도 (활성화 시). 실패하면 기존 클라이언트 경로로.
   const serverPdf = await tryServerPdf(plan);
   if (serverPdf) {
@@ -119,6 +123,11 @@ export async function generatePDF(
     }
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     console.log('[PDF] server-side generation succeeded');
+    void posthogTrack('plan_downloaded', {
+      planId: planIdForTrack,
+      format: 'pdf-server',
+      durationMs: Date.now() - pdfStartTs,
+    });
     return;
   }
 
@@ -909,6 +918,11 @@ export async function generatePDF(
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
+    void posthogTrack('plan_downloaded', {
+      planId: planIdForTrack,
+      format: 'pdf-client',
+      durationMs: Date.now() - pdfStartTs,
+    });
   } catch (err) {
     console.error('[PDF] generation failed:', err, 'scrollHeight=', container.scrollHeight);
     offerWhatsapp('PDF generation failed.');
