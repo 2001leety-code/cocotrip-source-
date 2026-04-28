@@ -206,18 +206,24 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - daily_budget_summary: transport estimates are filled by server, just estimate 0 for transport
 - accessibility_note: required when mobility is "limited"
 
-## ROUTE OPTIMIZATION — CRITICAL
+## ROUTE OPTIMIZATION — CRITICAL (HUB-AND-SPOKE)
+- **HUB-AND-SPOKE 강제**: 매일은 숙소(또는 숙소 근처 지하철역)에서 시작 → 그 zone 내 stops 순회 → 다시 숙소 근처로 복귀.
+  - First stop of EVERY day: near hotel or arrival point
+  - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
+  - 사용자가 짐 들고 도시 횡단하지 않도록 — peace of mind
 - Group stops by geographic zone. NEVER zigzag across the city.
   - Seoul zones: Jongno/Gwanghwamun → Yongsan/Itaewon → Gangnam/COEX → Hongdae/Mapo → Myeongdong/Jung-gu → Seongsu/Gwangjin → Bukchon/Samcheong-dong → Euljiro/Dongdaemun
   - Busan zones: Haeundae/Songjeong → Gwangalli/Suyeong → Seomyeon/Bujeon → Nampo-dong/BIFF → Gamcheon/Songdo → Gijang/Haedong Yonggungsa
-  - Plan each half-day within 1-2 adjacent zones maximum.
-  - BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
-  - GOOD: Hongdae → Yeonnam-dong → Hapjeong (same zone, walkable)
+- **INTENSITY-AWARE 구역 제약** (input의 \`pace\` 필드 기준):
+  - \`pace="relaxed"\` (느긋): 하루 stops 모두 **단일 zone 내**. 3 stops/day max. 점심 + 저녁은 같은 zone.
+  - \`pace="standard"\` (표준): 하루 **2개 인접 zone**까지. 4-5 stops/day. (기본값)
+  - \`pace="packed"\` (빡빡): 자유 이동 OK. 5-7 stops/day. zigzag 회피만 유지.
 - If the user specifies must-visit places in special_request, BUILD the route AROUND those places.
   - Place them first, then fill gaps with nearby attractions.
   - Example: user wants "HYBE" (Yongsan) → plan Yongsan/Itaewon zone that day.
 - Transit between consecutive stops should be under 30 minutes.
-- First stop of Day 1 should be near the hotel or arrival point.
+- BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
+- GOOD: Hongdae → Yeonnam-dong → Hapjeong → Mangwon (same zone, walkable, hub-and-spoke)
 
 ## DIVERSITY — CRITICAL (THIS IS A PAID $9.90 PLAN — MAKE IT SPECIAL)
 - NEVER repeat the same itinerary. Each plan must feel personally curated and unique.
