@@ -25,7 +25,8 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        # iPhone 14 Pro 프로젝트가 webkit 엔진을 쓰므로 chromium + webkit 둘 다 설치.
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Check i18n key parity (4 locales aligned to ko.json)
         run: npm run check:i18n
