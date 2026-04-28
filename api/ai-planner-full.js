@@ -102,6 +102,10 @@ export default async function handler(req, res) {
     const priceRange = body.priceRange || 'Any';
     const wantAccom = !!body.wantAccom;
     const accomBudget = body.accomBudget || 'moderate';
+    // 이동 강도 — 명시 pace 우선, 없으면 기존 tourPace에서 derive (UI 변경 최소화).
+    const pace = ['relaxed', 'standard', 'packed'].includes(body.pace) ? body.pace
+      : (body.tourPace === 'half' || body.tourPace === 'short') ? 'relaxed'
+      : (body.tourPace === 'action') ? 'packed' : 'standard';
 
     const arrivalAddress = AIRPORT_ADDRESSES[arrival_airport] || '';
     const departureAddress = AIRPORT_ADDRESSES[departure_airport] || AIRPORT_ADDRESSES[arrival_airport] || '';
@@ -116,11 +120,14 @@ export default async function handler(req, res) {
     if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
     const genAI = new GoogleGenerativeAI(apiKey);
+    // 2026-04-28 Flash → Pro: instruction following + JSON schema 압도적, thinking budget 8K→32K.
+    // Plan당 비용 ~$0.02 → ~$0.10 (결제 $9.90 대비 1%). "car · 25분" 일관성 없는 결과 줄임.
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-pro',
       generationConfig: {
-        temperature: 0.7, thinkingConfig: { thinkingBudget: 8000 }, // 0.95→0.7 + Flash thinking for instruction following + multi-step reasoning
-        maxOutputTokens: 24000,
+        temperature: 0.7,
+        thinkingConfig: { thinkingBudget: 32000 },
+        maxOutputTokens: 32000,
         responseMimeType: 'application/json',
       },
     });
@@ -161,6 +168,7 @@ export default async function handler(req, res) {
       diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
       food_allergies: allergies.length > 0 ? allergies : undefined,
       meal_budget: priceRange !== 'Any' ? priceRange : undefined, ...buildFoodPrefSnippet(body),
+      pace, // relaxed: 단일 zone / standard: 2 인접 zone / packed: 자유
       variation_seed: Math.floor(Math.random() * 100) + 1,
       want_accommodation: wantAccom || undefined,
       accommodation_budget: wantAccom ? accomBudget : undefined,

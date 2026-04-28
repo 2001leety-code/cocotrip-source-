@@ -212,6 +212,26 @@ export class RouteAgent extends BaseAgent {
                         }
                     }
                 }
+                // Layer 2.5: Google Places fallback — Naver Geocoding은 도로명/지번에 강하지만
+                // 관광지명 ("인사동 문화의 거리", "광화문 광장" 등)에 약함. Naver 모두 실패 시
+                // Google Places Text Search로 시도. 키 없으면 skip.
+                if (lat === null && process.env.GOOGLE_PLACES_API_KEY) {
+                    try {
+                        const placeQuery = name + (region ? ` ${region}` : '');
+                        const gRes = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
+                            params: { query: placeQuery, key: process.env.GOOGLE_PLACES_API_KEY, language: 'ko' },
+                            timeout: 5000,
+                        });
+                        const first = gRes.data?.results?.[0];
+                        if (first?.geometry?.location) {
+                            lat = first.geometry.location.lat;
+                            lng = first.geometry.location.lng;
+                            console.log(`  ✓ [${name}] Google Places fallback geocoded: ${lat},${lng}`);
+                        }
+                    } catch (gErr) {
+                        console.warn(`  - [${name}] Google Places fallback failed: ${gErr.message}`);
+                    }
+                }
                 place.lat = lat;
                 place.lng = lng;
                 place._geocoded = lat !== null;
