@@ -1115,6 +1115,8 @@
     "zoneRecommendTitle": "需要住宿区域推荐吗?",
     "zoneRecommendSubtitle": "选择一个区域，AI 会以该区域为中心安排行程。",
     "zoneRecommendPicked": "行程将围绕此区域规划。在上方直接输入酒店名称可覆盖此设置。",
+    "zoneHotelCta": "在 Trip.com 上查看{zone}酒店",
+    "zoneHotelSponsored": "广告 · Trip.com",
     "originalPrice": "原价",
     "launchPrice": "发布特惠",
     "limitedTimeOffer": "⏰ 限时 — 前100名顾客",

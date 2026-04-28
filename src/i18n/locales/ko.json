@@ -1115,6 +1115,8 @@
     "zoneRecommendTitle": "숙소 지역 추천이 필요하신가요?",
     "zoneRecommendSubtitle": "구역을 선택하면 AI가 그 근처를 거점으로 일정을 짭니다.",
     "zoneRecommendPicked": "이 지역 기준으로 일정이 만들어집니다. 위에 호텔을 직접 입력하면 그 주소가 우선 적용됩니다.",
+    "zoneHotelCta": "Trip.com에서 {zone} 호텔 찾기",
+    "zoneHotelSponsored": "광고 · Trip.com",
     "originalPrice": "정가",
     "launchPrice": "런칭 특가",
     "limitedTimeOffer": "⏰ 한정 기간 — 첫 100명 한정",

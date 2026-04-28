@@ -12,8 +12,11 @@
 // Skip when:
 //   - user already typed a hotel address (collision avoidance)
 //   - mainCity has no zone data (Seoul-only for now — Busan/Jeju to come)
-import { Sparkles, Check } from 'lucide-react';
+import { Sparkles, Check, ExternalLink } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { getZonesForCity, type Zone } from './zoneData';
+import { buildZoneHotelLink } from '@/config/affiliateLinks';
+import { trackAdImpression, trackAdClick } from '@/lib/analytics';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -28,6 +31,8 @@ interface Props {
   labelTitle?: string;
   labelSubtitle?: string;
   labelPick?: string;
+  labelHotelCta?: string;
+  labelHotelSponsored?: string;
 }
 
 export function ZoneRecommender({
@@ -40,8 +45,23 @@ export function ZoneRecommender({
   labelTitle,
   labelSubtitle,
   labelPick,
+  labelHotelCta,
+  labelHotelSponsored,
 }: Props) {
   const zones = getZonesForCity(cityKey);
+  const selectedZone = zones.find(z => z.key === recommendedZone);
+
+  // Fire ad_impression once per zone selection — placement names the surface
+  // so PostHog can split CTR by ZoneRecommender vs PlanDetailPage HotelAd.
+  const lastImpressionKey = useRef<string>('');
+  useEffect(() => {
+    if (!selectedZone) return;
+    const key = `${cityKey}|${selectedZone.key}`;
+    if (lastImpressionKey.current === key) return;
+    lastImpressionKey.current = key;
+    trackAdImpression('hotel', `wizard_zone:${cityKey}:${selectedZone.key}`);
+  }, [selectedZone, cityKey]);
+
   // Hide entirely when (a) hotel typed, (b) no zones for this city.
   if (hotelAddress.trim().length > 0) return null;
   if (zones.length === 0) return null;
@@ -101,6 +121,39 @@ export function ZoneRecommender({
         <p className="text-[11px] text-white/65 mt-2.5 italic">
           {labelPick || 'AI will plan around this zone. You can still type a specific hotel above to override.'}
         </p>
+      )}
+
+      {/* Trip.com sponsored hotel CTA — shown only after zone is picked, so the
+          keyword is meaningful and the user has signaled intent. The Korean
+          district name (z.name.ko) goes to Trip.com regardless of UI language
+          since Trip.com matches Korean keywords better on Korean cities. */}
+      {selectedZone && (
+        <div className="mt-3 pt-3 border-t border-white/[0.08]">
+          <a
+            href={buildZoneHotelLink(selectedZone.name.ko, cityKey)}
+            target="_blank"
+            rel="sponsored noopener noreferrer"
+            onClick={() => trackAdClick(
+              'hotel',
+              `wizard_zone:${cityKey}:${selectedZone.key}`,
+              buildZoneHotelLink(selectedZone.name.ko, cityKey),
+            )}
+            className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-[#0073E6]/10 border border-[#0073E6]/30 hover:bg-[#0073E6]/15 hover:border-[#0073E6]/50 transition-all active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[14px]">🏨</span>
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold text-white leading-tight truncate">
+                  {(labelHotelCta || 'Browse {zone} hotels on Trip.com').replace('{zone}', selectedZone.name[language] || selectedZone.name.en)}
+                </p>
+                <p className="text-[10px] text-white/45 leading-tight mt-0.5">
+                  {labelHotelSponsored || 'Sponsored · Trip.com'}
+                </p>
+              </div>
+            </div>
+            <ExternalLink className="w-3.5 h-3.5 text-[#4DA8FF] shrink-0" />
+          </a>
+        </div>
       )}
     </div>
   );
