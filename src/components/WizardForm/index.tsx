@@ -68,6 +68,9 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const [luggageLarge, setLuggageLarge]       = useState(0);
   const [wantAccom, setWantAccom]             = useState(false);
   const [accomBudget, setAccomBudget]         = useState('moderate');
+  // Sprint 2 #5: when user has no booked hotel, they can pick a Seoul zone
+  // and the AI hubs stops near it. Empty string = no recommendation chosen.
+  const [recommendedZone, setRecommendedZone] = useState('');
   // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
   const [tourPace, setTourPace]               = useState<TourPace>('full');
   const mobility = 'ok' as const;
@@ -181,6 +184,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         arrival_time: arrivalTime || undefined,
         departure_time: departureTime || undefined,
         luggage: totalLuggage > 0 ? { small: luggageSmall, medium: luggageMedium, large: luggageLarge } : undefined,
+        // Sprint 2 #5: zone hint when no hotel typed (string key like 'myeongdong').
+        recommended_zone: !hotelAddress && recommendedZone ? recommendedZone : undefined,
       } as PlannerFormValues);
 
       if (res && !res.ok) {
@@ -315,6 +320,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   wantAccom={wantAccom} setWantAccom={setWantAccom}
                   accomBudget={accomBudget} setAccomBudget={setAccomBudget}
                   tourPace={tourPace} setTourPace={setTourPace}
+                  recommendedZone={recommendedZone} setRecommendedZone={setRecommendedZone}
+                  mainCityKey={mainCityKey || 'seoul'}
                   canGoStep3={canGoStep3}
                   onPrev={() => setStep(2)} onNext={() => setStep(4)}
                   onEditStep0={() => setStep(0)}

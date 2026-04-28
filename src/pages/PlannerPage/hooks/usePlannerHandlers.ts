@@ -181,6 +181,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
           special_request: values.freeText || '',
+          // Sprint 2 #5: undecided-hotel zone hint forwarded to backend.
+          recommended_zone: values.recommended_zone || '',
         }),
       });
 

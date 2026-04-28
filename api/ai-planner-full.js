@@ -81,6 +81,10 @@ export default async function handler(req, res) {
     const hotel_address = body.hotel_address || '';
     const mobility = body.mobility || 'ok';
     const uid = body.uid || null;
+    // Sprint 2 #5: zone hint (string key like 'myeongdong'). Used as a soft
+    // anchor for hub-and-spoke when no hotel_address provided. Ignored when
+    // hotel_address present (hotel coords win).
+    const recommendedZone = body.recommended_zone || '';
 
     const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
     const allergies = Array.isArray(body.allergies) ? body.allergies : [];
@@ -130,6 +134,8 @@ export default async function handler(req, res) {
       arrival_address: arrivalAddress || undefined,
       departure_address: departureAddress || undefined,
       hotel_address: hotel_address || undefined,
+      // Sprint 2 #5: zone hint passed only when hotel_address absent.
+      recommended_zone: !hotel_address && recommendedZone ? recommendedZone : undefined,
       mobility,
       special_request: specialRequest || undefined,
       diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
@@ -139,7 +145,12 @@ export default async function handler(req, res) {
       variation_seed: Math.floor(Math.random() * 100) + 1,
       want_accommodation: wantAccom || undefined,
       accommodation_budget: wantAccom ? accomBudget : undefined,
-    }) + spotContext + foodContext + (wantAccom ? `
+    }) + spotContext + foodContext + (!hotel_address && recommendedZone ? `
+
+[LODGING ZONE PREFERENCE]
+The user has not booked a hotel and chose "${recommendedZone}" as their preferred Seoul district.
+Treat this zone as the hub: Day 1 starts there, Day N ends there, food stops within ~2km radius when possible.
+This is a soft anchor — you may suggest stops outside the zone if they fit the user's interests.` : '') + (wantAccom ? `
 
 [ACCOMMODATION REQUEST]
 The user wants hotel recommendations. Budget level: ${accomBudget}.
