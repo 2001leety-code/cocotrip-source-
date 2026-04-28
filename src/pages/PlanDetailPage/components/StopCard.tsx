@@ -12,6 +12,7 @@ import { getPlanDetailUI } from '../types';
 import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
 import { sanitizeStopName } from '@/lib/sanitizeName';
+import { track as posthogTrack } from '@/lib/posthog';
 
 export function StopCard({ stop }: { stop: PlanStop }) {
   const { t, language } = useLanguage();
@@ -31,6 +32,16 @@ export function StopCard({ stop }: { stop: PlanStop }) {
     setExpanded(next);
     if (next && cardRef.current) {
       setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+    }
+    // Sprint 2 #7: transit_clicked PostHog event — fire on expand only
+    // (collapse is uninteresting). Captures the method/duration so we can
+    // tell whether users actually consume transit details.
+    if (next && stop.transit_from_prev) {
+      void posthogTrack('transit_clicked', {
+        method: stop.transit_from_prev.method,
+        estMin: stop.transit_from_prev.est_min,
+        source: stop.transit_from_prev.source,
+      });
     }
   };
 

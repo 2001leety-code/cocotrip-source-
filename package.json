@@ -59,6 +59,7 @@
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.577.0",
     "nodemailer": "^8.0.6",
+    "posthog-js": "^1.372.3",
     "puppeteer-core": "^24.42.0",
     "react": "^19.2.5",
     "react-day-picker": "^9.14.0",

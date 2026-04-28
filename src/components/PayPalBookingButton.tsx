@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tag, Check, AlertCircle } from 'lucide-react';
+import { track as posthogTrack } from '@/lib/posthog';
 
 /** PayPal 결제 컴포넌트에서 사용하는 i18n 키 */
 interface BookingDict {
@@ -214,6 +215,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           const isSuccess = json.ok === true;
           const result = json.data;
           if (isSuccess) {
+            void posthogTrack('payment_completed', {
+              planType: productType,
+              amount: priceKRW,
+              currency: 'KRW',
+              planId: (result && typeof result === 'object' && 'planId' in result) ? (result as { planId?: string }).planId : undefined,
+            });
             if (onPaymentSuccess) {
               setShowPaypal(false);
               await onPaymentSuccess(data.orderID);
@@ -225,11 +232,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           } else {
             const msg = json.error ?? result?.error ?? p.paypalError;
             console.error('[PayPal onApprove] 실패:', msg);
+            void posthogTrack('payment_failed', { planType: productType, reason: 'capture_rejected' });
             setError(msg);
             setShowPaypal(false);
           }
         } catch (captureErr) {
           console.error('[PayPal onApprove] catch:', captureErr);
+          void posthogTrack('payment_failed', { planType: productType, reason: 'capture_exception' });
           setError(captureErr instanceof Error ? captureErr.message : JSON.stringify(captureErr));
           setShowPaypal(false);
         }
@@ -241,6 +250,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       },
       onError: (err: unknown) => {
         console.error('[PayPal SDK] onError:', err);
+        void posthogTrack('payment_failed', { planType: productType, reason: 'sdk_error' });
         setError(err instanceof Error ? err.message : JSON.stringify(err));
         setShowPaypal(false);
         buttonsRendered.current = false;
@@ -271,6 +281,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     setError(null);
     setLoading(true);
     buttonsRendered.current = false;
+    // Sprint 2 #7: payment_started — fired when user commits to checkout
+    // (CTA click), before PayPal SDK opens. amount=USD price (priceKRW÷~1300).
+    void posthogTrack('payment_started', {
+      planType: productType,
+      amount: priceKRW,
+      currency: 'KRW',
+    });
     try {
       // 1. SDK가 로딩 중이면 대기 (최대 10초)
       const sdkReady = await waitForPaypalReady();
