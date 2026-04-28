@@ -1,0 +1,50 @@
+name: Vercel Cost Audit
+
+# Vercel Pro의 build-minute 폭주를 자동 감지.
+# 매주 월 09:00 KST (UTC 00:00) 실행 + 수동 트리거 가능.
+# 중복 Vercel 프로젝트 빌드를 발견하면 fail (exit 1) → 알림.
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Window size in days (default 30)'
+        required: false
+        default: '30'
+
+permissions:
+  contents: read
+  # gh deployments API 만 읽음 — write 권한 불필요.
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run cost audit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          AUDIT_REPORT_PATH: ${{ github.workspace }}/vercel-cost-audit.md
+        run: |
+          DAYS="${{ github.event.inputs.days || '30' }}"
+          # exit code 1 = duplicate projects detected (intentional signal).
+          # continue-on-error 안 씀 — fail 시 GitHub UI에 빨간 X 떠야 알림 효과.
+          node scripts/vercel-cost-audit.mjs --days "$DAYS"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vercel-cost-audit
+          path: vercel-cost-audit.md
+          retention-days: 90
