@@ -136,3 +136,47 @@ npx tsc -b && npx vite build
 - Phase 4: 3-pass 아키텍처 — 사용자 명시적 승인 후만 시작
 - Phase 5: 다양성 개선 — 현재 18%, 목표 달성 상태
 - Phase 6: 제주/경주/전주 DB 수집
+
+---
+
+## H. 빌드 비용 절감 워크플로우 (2026-04-28 도입)
+
+**배경**: 04-05~04-27 cycle에 Vercel $158 + GitHub Actions ~3,200 min 사용. 푸시 빈도 폭증이 주 원인.
+
+### 커밋 메시지 규칙 — 4단계 운용
+
+| 상황 | 커밋 메시지 패턴 | 빌드 동작 |
+|---|---|---|
+| **작업 중간 저장** | `git commit -m "WIP: 정리 중"` | ❌ 빌드 스킵 |
+| **임시 푸시** | `git commit -m "fix: foo [skip ci]"` | ❌ 빌드 스킵 |
+| **문서/테스트만 변경** | (일반 메시지) | ❌ 자동 스킵 (`docs/`, `tests/`, `*.md`, `.github/`, `.agent/`) |
+| **Draft PR 단계** | (일반 메시지) | ❌ PR Tests/Bundle Size 스킵 |
+| **정식 검증** | `git commit -m "feat: ..."` | ✅ 정상 빌드 + 테스트 |
+
+### 스킵 트리거 키워드 (vercel.json `ignoreCommand`)
+
+- 커밋 메시지에 `[skip ci]`, `[skip vercel]`, `[no deploy]` 또는 `WIP` 접두 → Vercel 빌드 스킵
+- 변경 파일이 `docs/`, `.github/`, `.agent/`, `tests/`, `*.md`만이면 → 자동 스킵
+
+### Draft PR 활용
+
+```bash
+gh pr create --draft  # PR Tests/Bundle Size 안 돎
+# ... 작업 진행 중 푸시 자유롭게
+gh pr ready           # "Ready for review" 시점부터 검증 시작
+```
+
+### 워크플로우 최적화 (이미 적용됨)
+
+- 모든 PR 워크플로우에 `concurrency.cancel-in-progress: true` 적용 → 같은 PR 새 푸시 시 이전 run 즉시 취소
+- daily-health: 매일 → 월/수/금 (주3회)
+
+### Vercel 프로젝트 1개 원칙
+
+- canonical 본진: **`cocotrip-source_2026`** (cocotripkr.com 연결)
+- 이외 중복 프로젝트 생성 금지 — 매 푸시마다 N배 빌드 비용 발생
+
+### 모니터링 위치
+
+- Vercel Dashboard → Usage → Build Minutes
+- GitHub → Settings → Billing → Plans and usage
