@@ -13,6 +13,7 @@ import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 import { Buffer } from 'buffer';
 import { initAdminDb } from '../_shared/firebase-admin.js';
+import { sendErrorAlert } from '../_telegram.js';
 
 // 일반 사용자 ID token 검증 (admin 비교 X — 본인 plan 소유자만 통과)
 // firebase-admin.js의 initAdminDb를 재사용해 multi-source env credential 지원:
@@ -75,6 +76,7 @@ export default async function handler(req, res) {
     }
   } catch (e) {
     console.error('[PDF] Firestore fetch failed:', e);
+    sendErrorAlert('pdf-generate (firestore)', e).catch(() => {});
     return res.status(500).json({ error: 'firestore_error', detail: e.message });
   }
 
@@ -119,6 +121,7 @@ export default async function handler(req, res) {
     return res.status(200).send(pdfBuffer);
   } catch (e) {
     console.error('[PDF] generation failed:', e);
+    sendErrorAlert('pdf-generate (puppeteer)', e).catch(() => {});
     if (browser) {
       try { await browser.close(); } catch { /* ignore */ }
     }

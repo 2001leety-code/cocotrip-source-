@@ -142,3 +142,22 @@ status: Emergency Exception 적용됨 (상용화 이번 주 데드라인)
 - [ ] 재발 방지책 우선순위 논의 후 Phase 1 진입
 
 **서명**: (사용자 확인 후 기입)
+
+---
+
+## Emergency Exception 로그
+
+### 2026-04-28 — `api/ai-planner-full.js` 500줄 한도 초과 (504줄)
+
+**상황**: 상용화 D-3 모니터링 강화 PR. Gemini quota exhausted 감지 + 즉시 telegram alert
++ 503 응답 코드 추가. 핵심 4줄 추가로 499→504줄.
+
+**예외 사유**:
+- 운영 안전망 (사용자 트래픽 폭증 시 무성 장애 차단) 즉시 필요
+- Gemini API 한도 도달 시 서비스 전체 멈춤 → 즉시 인지가 필수
+- 파일 분해 (validateResponse / buildSystemPrompt 분리)는 별도 PR로 진행 예정
+
+**채무 큐 추가**: `api/ai-planner-full.js` 분해 (504→<400줄 목표)
+- buildSystemPrompt (L171-488) 별도 모듈 추출
+- validateResponse (L129-169) 별도 모듈 추출
+- 예상: 1-2일 작업, 상용화 후 진행

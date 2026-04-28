@@ -15,21 +15,25 @@ const STORAGE_KEY = 'cocotrip_lang';
 
 // Representative strings the user *must* see when locale is set.
 // Keys mirror src/i18n/locales/<locale>.json paths so updates stay traceable.
-const EXPECTATIONS: Record<Locale, { homeNav: string[]; aboutHeading: string; charterTitle: string }> = {
+//
+// charterTitle uses regex with optional whitespace because the actual UI
+// renders "전세차량 예약" (no space) while nav uses "전세 차량" (with space).
+// We accept either form so the test isn't brittle to typography choices.
+const EXPECTATIONS: Record<Locale, { homeNav: string[]; aboutHeading: string; charterTitle: RegExp }> = {
   ko: {
     homeNav: ['홈', '투어', '전세차량', 'AI 플래너'],
     aboutHeading: 'COCOTRIP 소개',
-    charterTitle: '전세 차량',
+    charterTitle: /전세\s*차량/,
   },
   ja: {
     homeNav: ['ホーム', 'ツアー', 'チャーター車両', 'AIプランナー'],
     aboutHeading: 'COCOTRIPについて',
-    charterTitle: 'チャーター車両',
+    charterTitle: /チャーター\s*車両/,
   },
   zh: {
     homeNav: ['首页', '旅游', '包车', 'AI 规划师'],
     aboutHeading: '关于 COCOTRIP',
-    charterTitle: '包车',
+    charterTitle: /包车/,
   },
 };
 
