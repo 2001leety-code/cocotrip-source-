@@ -102,8 +102,10 @@ export default async function handler(req, res) {
     const priceRange = body.priceRange || 'Any';
     const wantAccom = !!body.wantAccom;
     const accomBudget = body.accomBudget || 'moderate';
-    // 이동 강도 (Wizard intensity 옵션) — relaxed/standard/packed
-    const pace = ['relaxed', 'standard', 'packed'].includes(body.pace) ? body.pace : 'standard';
+    // 이동 강도 — 명시 pace 우선, 없으면 기존 tourPace에서 derive (UI 변경 최소화).
+    const pace = ['relaxed', 'standard', 'packed'].includes(body.pace) ? body.pace
+      : (body.tourPace === 'half' || body.tourPace === 'short') ? 'relaxed'
+      : (body.tourPace === 'action') ? 'packed' : 'standard';
 
     const arrivalAddress = AIRPORT_ADDRESSES[arrival_airport] || '';
     const departureAddress = AIRPORT_ADDRESSES[departure_airport] || AIRPORT_ADDRESSES[arrival_airport] || '';
