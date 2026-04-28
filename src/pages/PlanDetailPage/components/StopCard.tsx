@@ -6,12 +6,11 @@ import {
   MapPin, Clock, ChevronDown, Train, Bus, Footprints,
   ExternalLink, Accessibility, AlertTriangle,
 } from 'lucide-react';
-import { CAT_ICON, formatKRW } from '../constants';
+import { CAT_ICON, formatKRW, getCatColors } from '../constants';
 import type { PlanStop } from '../types';
 import { getPlanDetailUI } from '../types';
 import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND } from '@/lib/design-tokens';
 import { sanitizeStopName } from '@/lib/sanitizeName';
 
 export function StopCard({ stop }: { stop: PlanStop }) {
@@ -42,6 +41,8 @@ export function StopCard({ stop }: { stop: PlanStop }) {
   // explicitly failed to match. Non-food stops leave `verified` undefined
   // and must not display the badge.
   const isUnverifiedFood = stop.category === 'food' && stop.verified === false;
+  // Sprint 1 Step 1: 카테고리별 색 토큰 (UI 시각 차별화).
+  const catColors = getCatColors(stop.category);
 
   return (
     <div
@@ -59,17 +60,17 @@ export function StopCard({ stop }: { stop: PlanStop }) {
         }
       }}
     >
-      {/* Left accent bar — visual anchor that ties the time to the card */}
+      {/* Left accent bar — 카테고리별 색 (Sprint 1 Step 1) */}
       <span aria-hidden className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r"
-        style={{ background: BRAND.gradient.primaryVertical }} />
+        style={{ background: catColors.bar }} />
 
       {/* Collapsed header */}
       <div className="flex items-start gap-3 sm:gap-3.5 p-3.5 sm:p-4 pl-4 sm:pl-5">
         {/* Time + category — clearer hierarchy, time is the anchor */}
         <div className="text-center shrink-0">
           <p className="text-[14px] sm:text-[15px] font-extrabold text-[#B9A4FF] leading-none">{stop.start_time}</p>
-          <div className="mt-1.5 w-7 h-7 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center mx-auto">
-            <CatIcon className="w-3.5 h-3.5 text-white/55" />
+          <div className={`mt-1.5 w-7 h-7 rounded-full ${catColors.bg} border ${catColors.ring} flex items-center justify-center mx-auto transition-colors`}>
+            <CatIcon className={`w-3.5 h-3.5 ${catColors.icon}`} />
           </div>
         </div>
 
