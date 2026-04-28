@@ -40,11 +40,16 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        # iPhone 14 Pro 프로젝트가 webkit 엔진을 쓰므로 chromium + webkit 둘 다 설치.
+        # 이전엔 chromium만 설치 → iPhone 14 Pro 케이스 3ms 즉시 실패 (Executable not found at webkit-XXX/pw_run.sh).
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Run i18n locale smoke against preview URL (3 viewports)
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
+          # Vercel Pro Deployment Protection bypass — preview URLs return 401
+          # without this. See playwright.config.ts for the header wiring.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           npx playwright test tests/e2e/i18n-locale-smoke.spec.ts \
             --project='Desktop Chrome' \
