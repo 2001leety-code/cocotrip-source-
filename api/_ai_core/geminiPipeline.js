@@ -35,7 +35,9 @@ function buildModel(apiKey) {
   });
 }
 
-async function loadFoodIndex() {
+// Exported so the handler can reuse it for recommendedRestaurants — avoids
+// reading the 1.27MB JSON twice per request.
+export async function loadFoodIndex() {
   try {
     const fs = await import('fs');
     return JSON.parse(fs.readFileSync(new URL('../_food_index.json', import.meta.url), 'utf-8'));

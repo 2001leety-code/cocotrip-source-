@@ -16,6 +16,8 @@ import { sendErrorAlert } from './_telegram.js';
 import { CORS, AIRPORT_ADDRESSES } from './_ai_core/constants.js';
 import { buildSystemPrompt, logPromptMetrics } from './_ai_core/buildPrompt.js';
 import { calculateTmoney, persistPlan } from './_ai_core/planPersister.js';
+import { pickRecommendedRestaurants } from './_ai_core/recommendedRestaurants.js';
+import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { sendNotificationEmail, recordLeadToSheets } from './_ai_core/emailNotifier.js';
 import { initAdminDb } from './_ai_core/firestoreAdmin.js';
 import { enforcePaymentAndRevision } from './_ai_core/paymentGate.js';
@@ -222,6 +224,19 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
 
     // ── T-money 서버 계산 ─────────────────────────────────────────────────
     calculateTmoney(itinerary);
+
+    // ── Must-visit 맛집 추천 (DB 기반 — Gemini 미경유) ─────────────────────
+    // 동선 5km 이내 + tag='general' + plan 미포함 식당 중 rating × log(reviews)
+    // 상위 10개. halal/vegan은 제외 (니치 다이어트라 일반 사용자에 부적합).
+    try {
+      const foodIndex = await loadFoodIndex();
+      itinerary.recommended_restaurants = pickRecommendedRestaurants(foodIndex, itinerary, area);
+      console.log('[planner] recommended_restaurants:', itinerary.recommended_restaurants.length);
+    } catch (recErr) {
+      // Non-critical — plan still ships if recommendation fails.
+      console.warn('[planner] recommended_restaurants failed:', recErr.message);
+      itinerary.recommended_restaurants = [];
+    }
 
     // ── 가격 계산 ────────────────────────────────────────────────────────
     const priceKRW = calcPrice(vehicle, durationDays);
