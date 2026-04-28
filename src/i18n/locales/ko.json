@@ -1363,6 +1363,7 @@
       "publicTransitUnavailable": "대중교통 이용 불가",
       "transitDowngraded": "자동차 경로로 전환됨",
       "transitEstimated": "예상 이동 시간 — 실시간 교통 정보 없음",
+      "walkFasterNote": "🚶 이 거리는 지하철보다 도보가 빠릅니다 (대기·환승 포함)",
       "realTimeRoute": "실시간 교통 경로",
       "stepsLabel": "이동 단계",
       "exit": "출구",

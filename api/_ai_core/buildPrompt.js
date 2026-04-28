@@ -225,6 +225,16 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
 - GOOD: Hongdae → Yeonnam-dong → Hapjeong → Mangwon (same zone, walkable, hub-and-spoke)
 
+## TRANSIT DIVERSITY — CRITICAL (사용자 신고 — 모든 segment가 walk면 plan이 빈약해 보임)
+- 사용자가 \`tour_pace\` 기본값(standard) 또는 packed 일 때:
+  - **매일 최소 1 segment는 zone 간 이동 (>2km, 지하철/버스 필요)**.
+  - 같은 동네 내부에서만 stops 묶지 말 것 — 적어도 한 번은 다른 zone으로 이동.
+  - 예: 명동 zone 3곳 → 종로 zone 1곳 (점심 후 지하철 이동) → 명동 1곳 (저녁 복귀).
+- 'tour_pace=relaxed' (느긋, 1-2 stops/day)는 예외 — 한 동네 OK.
+- 사용자 체감: 지하철/버스 1-2 segment = "여행 같다", all-walk = "AI가 게으른 plan".
+- BAD: Day all walks (사용자 신고 사례)
+- GOOD: Day 명동 walks → 지하철 한 정거장 종로 → 명동 복귀 walk
+
 ## DIVERSITY — CRITICAL (THIS IS A PAID $9.90 PLAN — MAKE IT SPECIAL)
 - NEVER repeat the same itinerary. Each plan must feel personally curated and unique.
 - The variation_seed in the user message determines your creative angle. Use it to pick a DIFFERENT starting neighborhood, route direction, and restaurant mix each time.
