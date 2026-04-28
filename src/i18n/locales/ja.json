@@ -1714,5 +1714,9 @@
   },
   "about": {
     "heading": "COCOTRIPについて"
+  },
+  "pwa": {
+    "updateAvailable": "新しいバージョンがあります",
+    "refresh": "更新"
   }
 }

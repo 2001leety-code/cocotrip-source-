@@ -1714,5 +1714,9 @@
   },
   "about": {
     "heading": "About COCOTRIP"
+  },
+  "pwa": {
+    "updateAvailable": "A new version is available",
+    "refresh": "Refresh"
   }
 }
