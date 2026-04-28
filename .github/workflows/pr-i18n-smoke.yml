@@ -7,6 +7,12 @@ name: PR i18n Smoke (Vercel Preview)
 on:
   deployment_status:
 
+# Cancel old runs when a newer preview lands. Each Playwright run is ~9min
+# with 3 viewports — saves big when an active PR gets pushed multiple times.
+concurrency:
+  group: pr-i18n-smoke-${{ github.event.deployment.ref }}
+  cancel-in-progress: true
+
 jobs:
   smoke:
     # Only run on successful Vercel preview deployments (not Production, not
