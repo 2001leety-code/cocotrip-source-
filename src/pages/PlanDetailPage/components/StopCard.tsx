@@ -1,10 +1,12 @@
 // Per-stop card: collapsed header + expandable details (address, tip, reservation,
 // ODsay public-transit route, Naver Map link). Largest leaf of PlanDetailPage.
 // Extracted verbatim from src/pages/PlanDetailPage.tsx (L879-1046) during P2 Lock release.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   MapPin, Clock, ChevronDown, Train, Bus, Footprints,
-  ExternalLink, Accessibility, AlertTriangle,
+  ExternalLink, Accessibility, AlertTriangle, Heart, Share2, Navigation,
 } from 'lucide-react';
 import { CAT_ICON, formatKRW, getCatColors } from '../constants';
 import type { PlanStop } from '../types';
@@ -12,6 +14,49 @@ import { getPlanDetailUI } from '../types';
 import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
 import { sanitizeStopName } from '@/lib/sanitizeName';
+
+// Sprint 1 Step 5: Action UX — 즐겨찾기 / 공유 / 길찾기.
+// localStorage 키: `cocotrip:fav:<planId>` → JSON Record<stopKey, true>.
+// stopKey: order(숫자, 0 포함) 우선, 없으면 start_time → name → display_name 순.
+const FAV_STORE_KEY = (planId: string) => `cocotrip:fav:${planId}`;
+
+function makeStopKey(stop: PlanStop): string {
+  // stop.order 는 0이 valid 값이라 `||` 폴백 못 쓰고, nullish coalescing 은 mojibake 가드 차단.
+  if (stop.order !== undefined && stop.order !== null) return String(stop.order);
+  return String(stop.start_time || stop.name || stop.display_name || '');
+}
+
+function readFavSet(planId: string): Record<string, true> {
+  if (!planId || typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(FAV_STORE_KEY(planId));
+    return raw ? (JSON.parse(raw) as Record<string, true>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeFavSet(planId: string, set: Record<string, true>) {
+  if (!planId || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FAV_STORE_KEY(planId), JSON.stringify(set));
+  } catch {
+    // localStorage quota / private mode 등은 silent — 사용자 흐름 깨지 않게
+  }
+}
+
+function buildNaverMapUrl(stop: PlanStop): string {
+  if (stop.naverMapUrl) return stop.naverMapUrl;
+  if (stop.lat && stop.lng) {
+    const q = stop.name || stop.name_ko || stop.display_name || stop.name_en || '';
+    return `https://map.naver.com/v5/search/${encodeURIComponent(q)}?c=${stop.lng},${stop.lat},15,0,0,0,dh`;
+  }
+  const nameKo = (stop.name || stop.name_ko || '').replace(/\s*\(.*\)\s*/g, '').trim();
+  const addrMatch = (stop.address || '').match(/([가-힣]+구)/);
+  const district = addrMatch ? addrMatch[1] : '';
+  const q = district ? `${district} ${nameKo}` : (nameKo || stop.display_name || stop.name_en || '');
+  return `https://map.naver.com/v5/search/${encodeURIComponent(q)}`;
+}
 
 export function StopCard({ stop }: { stop: PlanStop }) {
   const { t, language } = useLanguage();
@@ -25,6 +70,60 @@ export function StopCard({ stop }: { stop: PlanStop }) {
   const [expanded, setExpanded] = useState(false);
   const CatIcon = CAT_ICON[stop.category || ''] || MapPin;
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Sprint 1 Step 5: 즐겨찾기 — 페이지 plan id + stop key로 localStorage 영속.
+  const { planId } = useParams();
+  const stopKey = makeStopKey(stop);
+  const [isFav, setIsFav] = useState(false);
+  useEffect(() => {
+    if (!planId) return;
+    const set = readFavSet(planId);
+    setIsFav(!!set[stopKey]);
+  }, [planId, stopKey]);
+
+  const toggleFav: React.MouseEventHandler = (e) => {
+    e.stopPropagation();
+    if (!planId) return;
+    const set = readFavSet(planId);
+    if (set[stopKey]) {
+      delete set[stopKey];
+      setIsFav(false);
+      toast(ui.favoriteRemoved || 'Removed from favorites');
+    } else {
+      set[stopKey] = true;
+      setIsFav(true);
+      toast.success(ui.favoriteAdded || 'Added to favorites');
+    }
+    writeFavSet(planId, set);
+  };
+
+  const handleShare: React.MouseEventHandler = async (e) => {
+    e.stopPropagation();
+    const shareUrl = planId ? `https://cocotripkr.com/my-plans/${planId}` : window.location.href;
+    const shareText = `${cleanDisplayName} – CocoTrip`;
+    const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
+    if (nav.share) {
+      try {
+        await nav.share({ title: shareText, url: shareUrl });
+        return;
+      } catch (err) {
+        // user cancelled — silent
+        if ((err as Error)?.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success(ui.linkCopied || 'Link copied');
+    } catch {
+      toast.error(ui.shareFailed || 'Share unavailable');
+    }
+  };
+
+  const handleDirections: React.MouseEventHandler = (e) => {
+    e.stopPropagation();
+    const url = buildNaverMapUrl(stop);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   const toggle = () => {
     const next = !expanded;
@@ -117,6 +216,9 @@ export function StopCard({ stop }: { stop: PlanStop }) {
             )}
           </div>
         </div>
+        {isFav && (
+          <Heart aria-hidden className="w-3.5 h-3.5 text-pink-400 fill-current shrink-0 mt-1" />
+        )}
         <ChevronDown className={`w-4 h-4 text-white/55 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </div>
 
@@ -237,6 +339,41 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               )}
             </div>
           )}
+
+          {/* Sprint 1 Step 5: Action row — favorite, share, directions */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={toggleFav}
+              aria-pressed={isFav}
+              aria-label={isFav ? (ui.favoriteRemove || 'Remove from favorites') : (ui.favoriteAdd || 'Add to favorites')}
+              className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border transition-colors active:scale-[0.98]
+                ${isFav
+                  ? 'bg-pink-500/15 border-pink-500/40 text-pink-300 hover:bg-pink-500/20'
+                  : 'bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85'}`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
+              {isFav ? (ui.favoriteSaved || 'Saved') : (ui.favoriteLabel || 'Favorite')}
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              aria-label={ui.shareLabel || 'Share'}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border bg-white/[0.04] border-white/10 text-white/65 hover:bg-white/[0.07] hover:text-white/85 transition-colors active:scale-[0.98]"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              {ui.shareLabel || 'Share'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDirections}
+              aria-label={ui.directionsLabel || 'Directions'}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/15 transition-colors active:scale-[0.98]"
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              {ui.directionsLabel || 'Directions'}
+            </button>
+          </div>
 
           {/* Naver Map link - coordinate-based URL preferred for accuracy */}
           {(() => {
