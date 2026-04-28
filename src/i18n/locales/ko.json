@@ -1546,6 +1546,11 @@
   "mypage": {
     "home": "홈",
     "tierBenefits": "{tier} 등급 혜택",
+    "dashNextTrip": "다가오는 여행",
+    "dashRecentPlans": "최근 플랜",
+    "dashViewAll": "전체 보기",
+    "dashExplore": "둘러보기",
+    "dashAccount": "내 계정",
     "tabOverview": "개요",
     "tabBookings": "내 예약",
     "tabCoupons": "쿠폰 ({n})",

@@ -6,8 +6,11 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Crown, Coins, Gift, Heart, Calendar, Clock, Star,
   ArrowLeft, TrendingUp, ChevronRight, Copy, Check,
+  Map as MapIcon, FileText, History, Globe, Ticket, Timer, CloudSun, Sparkles,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -17,6 +20,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { MyBookingsTab } from '@/components/MyBookingsTab';
+import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
@@ -64,6 +68,65 @@ export default function MyPage() {
   };
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState<number | null>(null);
+
+  // Travel-dashboard data — D-day to next trip + recent plans + weather.
+  // Mirrors what MobileHome does so the dashboard reflects the same state
+  // without a re-prompt. All effects are no-ops when user isn't signed in.
+  const [nextTrip, setNextTrip] = useState<{ title: string; dday: number; date: string } | null>(null);
+  const [recentPlans, setRecentPlans] = useState<{ id: string; title: string; date: string; cover?: string }[]>([]);
+  const [weather, setWeather] = useState<{ temp: string; desc: string; icon: string; city: string } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const q = query(collection(db, 'plans'), where('uid', '==', user.uid));
+        const snap = await getDocs(q);
+        const now = Date.now();
+        let nearest: { title: string; dday: number; date: string } | null = null;
+        const plans: { id: string; title: string; date: string; cover?: string; sortKey: number }[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          const sd = data.input?.startDate || '';
+          const title = data.itinerary?.tour_title || 'Korea Trip';
+          const cover = data.itinerary?.cover_image || data.itinerary?.days?.[0]?.stops?.[0]?.photo_ref;
+          plans.push({ id: d.id, title, date: sd, cover, sortKey: data.createdAt?.toMillis?.() || 0 });
+          if (sd) {
+            const diff = Math.ceil((new Date(sd).getTime() - now) / 86400000);
+            if (diff >= 0 && (!nearest || diff < nearest.dday)) {
+              nearest = { title, dday: diff, date: sd };
+            }
+          }
+        });
+        plans.sort((a, b) => b.sortKey - a.sortKey);
+        setRecentPlans(plans.slice(0, 3).map(({ sortKey: _s, ...rest }) => rest));
+        setNextTrip(nearest);
+      } catch {
+        /* silent */
+      }
+    })();
+  }, [user]);
+
+  useEffect(() => {
+    let city = 'Seoul';
+    try {
+      const saved = localStorage.getItem('cocotrip_last_region');
+      if (saved) city = saved;
+    } catch { /* silent */ }
+    (async () => {
+      try {
+        const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+        const data = await res.json();
+        const cur = data.current_condition?.[0];
+        if (cur) setWeather({
+          temp: cur.temp_C + '°C',
+          desc: cur.weatherDesc?.[0]?.value || '',
+          icon: Number(cur.temp_C) > 20 ? '☀️' : Number(cur.temp_C) > 10 ? '⛅' : '❄️',
+          city,
+        });
+      } catch { /* silent */ }
+    })();
+  }, []);
 
   usePageMeta({
     title: t.pageMeta?.myPage?.title ?? 'My Page — Membership & Rewards',
@@ -198,13 +261,151 @@ export default function MyPage() {
           ))}
         </div>
 
-        {/* ── 탭: Overview ── */}
+        {/* ── 탭: Overview — Travel dashboard + nav (Option D, 2026-04-29) ──
+            Replaces the previous 4-stat grid with: D-day card → compact stats
+            → recent plans → category nav. The nav mirrors the hamburger menu
+            so users can stay on /mypage after deep-linking. */}
         {tab === 'overview' && (
-          <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
-            <StatCard label={mp.statTotalSpent || 'Total Spent'} value={`$${(loyalty?.totalSpentUSD || 0).toFixed(0)}`} icon={TrendingUp} />
-            <StatCard label={mp.statBookings || 'Bookings'} value={String(loyalty?.bookingCount || 0)} icon={Calendar} />
-            <StatCard label={mp.statTripCoins || 'Trip Coins'} value={(loyalty?.tripCoins || 0).toLocaleString()} sub={`≈ $${coinsToUSD(loyalty?.tripCoins || 0)}`} icon={Coins} />
-            <StatCard label={mp.statEarnRate || 'Earn Rate'} value={`${((loyalty?.earnRate || 0.01) * 100).toFixed(1)}%`} icon={Crown} />
+          <div className="space-y-4">
+            {/* Next-trip D-day + weather */}
+            {nextTrip && (
+              <Link
+                to="/my-plans"
+                onClick={() => haptic('tap')}
+                className="block rounded-2xl px-4 py-4 border border-pink-500/15 transition-all hover:border-pink-400/30 active:scale-[0.99]"
+                style={{ background: 'linear-gradient(135deg, rgba(255,107,157,0.10), rgba(182,104,252,0.06))' }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #FF6B9D, #C850C0)' }}>
+                    <Timer className="w-3.5 h-3.5 text-white mb-0.5" />
+                    <span className="text-[15px] font-black text-white leading-none">{nextTrip.dday === 0 ? 'D-0' : `D-${nextTrip.dday}`}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase tracking-widest text-white/55 font-semibold">{mp.dashNextTrip || 'Next Trip'}</p>
+                    <p className="text-[14px] font-bold text-white truncate mt-0.5">{nextTrip.title}</p>
+                    <p className="text-[11px] text-white/55 mt-0.5">{nextTrip.date}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/25 shrink-0" />
+                </div>
+                {weather && (
+                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2">
+                    <CloudSun className="w-4 h-4 text-purple-300/60 shrink-0" />
+                    <span className="text-[12px] text-white/65">{weather.city}</span>
+                    <span className="text-[12px] font-black text-pink-400">{weather.temp}</span>
+                    <span className="text-[13px]">{weather.icon}</span>
+                    <span className="text-[11px] text-white/45 truncate">{weather.desc}</span>
+                  </div>
+                )}
+              </Link>
+            )}
+
+            {/* Compact 2×2 stats */}
+            <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
+              <StatCard label={mp.statTotalSpent || 'Total Spent'} value={`$${(loyalty?.totalSpentUSD || 0).toFixed(0)}`} icon={TrendingUp} />
+              <StatCard label={mp.statBookings || 'Bookings'} value={String(loyalty?.bookingCount || 0)} icon={Calendar} />
+              <StatCard label={mp.statTripCoins || 'Trip Coins'} value={(loyalty?.tripCoins || 0).toLocaleString()} sub={`≈ $${coinsToUSD(loyalty?.tripCoins || 0)}`} icon={Coins} />
+              <StatCard label={mp.statEarnRate || 'Earn Rate'} value={`${((loyalty?.earnRate || 0.01) * 100).toFixed(1)}%`} icon={Crown} />
+            </div>
+
+            {/* Recent plans — horizontal scroll, 3 most recent */}
+            {recentPlans.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[12px] font-semibold text-white/65">{mp.dashRecentPlans || 'Recent Plans'}</p>
+                  <Link to="/my-plans" onClick={() => haptic('tap')} className="text-[11px] text-[#B668FC] font-semibold flex items-center gap-0.5">
+                    {mp.dashViewAll || 'View all'}
+                    <ChevronRight className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+                  {recentPlans.map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/my-plans/${p.id}`}
+                      onClick={() => haptic('tap')}
+                      className="shrink-0 w-[160px] rounded-xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] transition-all overflow-hidden block"
+                    >
+                      <div className="h-20 bg-gradient-to-br from-[#7C5CFC]/20 to-[#FF6B9D]/15 flex items-center justify-center">
+                        {p.cover && p.cover.startsWith('http') ? (
+                          <img src={p.cover} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <Sparkles className="w-6 h-6 text-white/35" />
+                        )}
+                      </div>
+                      <div className="px-2.5 py-2">
+                        <p className="text-[12px] font-bold text-white truncate">{p.title}</p>
+                        <p className="text-[10px] text-white/45 mt-0.5">{p.date || '—'}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Category nav — mirrors hamburger so users don't need to re-open it */}
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-white/55 font-semibold pt-2">{mp.dashExplore || 'Explore'}</p>
+              <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] overflow-hidden">
+                {[
+                  { to: '/charter', icon: MapIcon, label: t.nav.charter ?? 'Charter' },
+                  { to: '/tours', icon: Package, label: t.nav.tours ?? 'Tours' },
+                  { to: '/planner', icon: Sparkles, label: t.nav.planner ?? 'AI Planner' },
+                  { to: '/about', icon: Globe, label: t.nav.about ?? 'About' },
+                ].map(({ to, icon: Icon, label }, i) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    onClick={() => haptic('tap')}
+                    className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03] ${i > 0 ? 'border-t border-white/[0.04]' : ''}`}
+                  >
+                    <Icon className="w-[18px] h-[18px] text-white/55" />
+                    <span className="text-[14px] font-semibold text-white flex-1">{label}</span>
+                    <ChevronRight className="w-4 h-4 text-white/15" />
+                  </Link>
+                ))}
+              </div>
+
+              <p className="text-[10px] uppercase tracking-[0.2em] text-white/55 font-semibold pt-2">{mp.dashAccount || 'My Account'}</p>
+              <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] overflow-hidden">
+                {(() => {
+                  type AccountItem =
+                    | { kind: 'link'; to: string; icon: React.ElementType; label: string }
+                    | { kind: 'tab'; tab: Tab; icon: React.ElementType; label: string };
+                  const items: AccountItem[] = [
+                    { kind: 'link', to: '/my-plans', icon: FileText, label: t.nav.myPlans ?? 'My Plans' },
+                    { kind: 'tab', tab: 'wishlist', icon: Heart, label: t.nav.wishlist ?? 'Wishlist' },
+                    { kind: 'tab', tab: 'bookings', icon: History, label: t.nav.bookingHistory ?? 'Booking History' },
+                    { kind: 'tab', tab: 'coupons', icon: Ticket, label: t.nav.coupons ?? 'Coupons' },
+                    { kind: 'tab', tab: 'reviews', icon: Star, label: t.nav.reviews ?? 'Reviews' },
+                  ];
+                  const baseCls = 'flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03] cursor-pointer w-full text-left';
+                  return items.map((it, i) => {
+                    const Icon = it.icon;
+                    const cls = `${baseCls} ${i > 0 ? 'border-t border-white/[0.04]' : ''}`;
+                    if (it.kind === 'tab') {
+                      return (
+                        <button
+                          key={it.tab}
+                          onClick={() => { haptic('tap'); setTab(it.tab); }}
+                          className={cls}
+                        >
+                          <Icon className="w-[18px] h-[18px] text-white/55" />
+                          <span className="text-[14px] font-semibold text-white flex-1">{it.label}</span>
+                          <ChevronRight className="w-4 h-4 text-white/15" />
+                        </button>
+                      );
+                    }
+                    return (
+                      <Link key={it.to} to={it.to} onClick={() => haptic('tap')} className={cls}>
+                        <Icon className="w-[18px] h-[18px] text-white/55" />
+                        <span className="text-[14px] font-semibold text-white flex-1">{it.label}</span>
+                        <ChevronRight className="w-4 h-4 text-white/15" />
+                      </Link>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
           </div>
         )}
 

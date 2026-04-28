@@ -1546,6 +1546,11 @@
   "mypage": {
     "home": "首页",
     "tierBenefits": "{tier} 会员权益",
+    "dashNextTrip": "下一次旅行",
+    "dashRecentPlans": "最近的行程",
+    "dashViewAll": "查看全部",
+    "dashExplore": "浏览",
+    "dashAccount": "我的账户",
     "tabOverview": "概览",
     "tabBookings": "我的预订",
     "tabCoupons": "优惠券 ({n})",

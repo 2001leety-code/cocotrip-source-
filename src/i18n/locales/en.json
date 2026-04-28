@@ -1546,6 +1546,11 @@
   "mypage": {
     "home": "Home",
     "tierBenefits": "{tier} Benefits",
+    "dashNextTrip": "Next Trip",
+    "dashRecentPlans": "Recent Plans",
+    "dashViewAll": "View all",
+    "dashExplore": "Explore",
+    "dashAccount": "My Account",
     "tabOverview": "Overview",
     "tabBookings": "My Bookings",
     "tabCoupons": "Coupons ({n})",
