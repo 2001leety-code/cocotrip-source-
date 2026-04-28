@@ -16,6 +16,7 @@ import { Footer } from '@/sections/Footer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AlertCircle } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
+import { track as posthogTrack } from '@/lib/posthog';
 import { ReviewList } from '@/components/ReviewList';
 
 import { useAutoTranslate } from './useAutoTranslate';
@@ -108,6 +109,29 @@ export default function PlanDetailPage() {
       trackEvent('share_visit', { plan_id: planId });
     }
   }, [planId, searchParams]);
+
+  // Sprint 2 #7: plan_generated PostHog event — fire once per planId/session.
+  // We can't tap the AI generation moment from the frontend (it happens
+  // server-side after PayPal capture), so we proxy "plan exists + reached
+  // detail page" as the generation event. sessionStorage guard prevents
+  // refire on translation updates, snapshot patches, or component remount
+  // within the same browser session.
+  useEffect(() => {
+    if (!planId || !plan) return;
+    const sessionKey = `posthog:plan_generated:${planId}`;
+    try {
+      if (window.sessionStorage.getItem(sessionKey)) return;
+      window.sessionStorage.setItem(sessionKey, '1');
+    } catch { /* private mode — fall through and fire (worst case: dupe) */ }
+    void posthogTrack('plan_generated', {
+      planId,
+      area: plan.input?.area,
+      pace: plan.input?.pace as string | undefined,
+      durationDays: (plan.itinerary?.days || []).length || undefined,
+      pax: plan.input?.adults || plan.input?.pax,
+      language: plan.input?.language,
+    });
+  }, [planId, plan]);
 
   // Dynamic OG meta tags
   const days = useMemo(() => (plan?.itinerary?.days) || [], [plan]);

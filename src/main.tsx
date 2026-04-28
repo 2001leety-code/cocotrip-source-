@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { initGA } from './lib/analytics'
+import { bootPostHog } from './lib/posthog'
 import { initSentry } from './lib/sentry'
 
 // ── Sentry 에러 모니터링 (프로덕션 전용) ──
@@ -28,6 +29,10 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // ── GA4 Analytics 초기화 (VITE_GA_MEASUREMENT_ID 없으면 no-op) ──
 initGA();
+
+// ── PostHog product analytics 초기화 (VITE_POSTHOG_KEY 없으면 no-op) ──
+// SDK는 dynamic import — 키 없으면 번들에 들어가지 않음.
+bootPostHog();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
