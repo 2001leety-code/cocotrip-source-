@@ -90,9 +90,108 @@ export const SEOUL_ZONES: Zone[] = [
   },
 ];
 
-/** Map of cityKey → zone list. Currently Seoul only; falls back to [] for others. */
+export const BUSAN_ZONES: Zone[] = [
+  {
+    key: 'haeundae',
+    name: { ko: '해운대', en: 'Haeundae', ja: '海雲台', zh: '海云台' },
+    desc: {
+      ko: '해변 + 럭셔리 호텔 + K-드라마 촬영지',
+      en: 'Beachfront, luxury hotels, K-drama filming spots',
+      ja: 'ビーチフロント・高級ホテル・韓ドラ撮影地',
+      zh: '海滨·豪华酒店·韩剧取景地',
+    },
+    nightlyKRW: '₩150k-380k',
+    icon: '🏖️',
+    bestFor: { ko: '바다·휴양', en: 'Beach + resort', ja: 'ビーチ・リゾート', zh: '海滩·度假' },
+  },
+  {
+    key: 'gwangalli',
+    name: { ko: '광안리', en: 'Gwangalli', ja: '広安里', zh: '广安里' },
+    desc: {
+      ko: '광안대교 야경·파인 다이닝·SNS 핫플',
+      en: 'Gwangan bridge night view, fine dining, IG hotspots',
+      ja: '広安大橋の夜景・ファインダイニング・SNS人気',
+      zh: '广安大桥夜景·精致餐饮·网红打卡地',
+    },
+    nightlyKRW: '₩100k-220k',
+    icon: '🌉',
+    bestFor: { ko: '야경·미식', en: 'Nightlife + food', ja: '夜景・グルメ', zh: '夜景·美食' },
+  },
+  {
+    key: 'seomyeon',
+    name: { ko: '서면', en: 'Seomyeon', ja: '西面', zh: '西面' },
+    desc: {
+      ko: '부산 도심 교통 허브·쇼핑·중급 호텔 다수',
+      en: 'Busan downtown transit hub, shopping, plenty of mid-range hotels',
+      ja: '釜山都心の交通ハブ・ショッピング・中価格ホテル多数',
+      zh: '釜山市中心交通枢纽·购物·众多中档酒店',
+    },
+    nightlyKRW: '₩90k-160k',
+    icon: '🚆',
+    bestFor: { ko: '교통·접근성', en: 'Transit hub', ja: '交通至便', zh: '交通便利' },
+  },
+  {
+    key: 'nampo',
+    name: { ko: '남포동', en: 'Nampo', ja: '南浦洞', zh: '南浦洞' },
+    desc: {
+      ko: '자갈치시장·국제시장·전통 부산',
+      en: 'Jagalchi seafood market, Gukje market, traditional Busan',
+      ja: 'チャガルチ市場・国際市場・伝統的な釜山',
+      zh: '札嘎其市场·国际市场·传统釜山',
+    },
+    nightlyKRW: '₩80k-140k',
+    icon: '🐟',
+    bestFor: { ko: '시장·전통', en: 'Markets + heritage', ja: '市場・伝統', zh: '市场·传统' },
+  },
+];
+
+export const JEJU_ZONES: Zone[] = [
+  {
+    key: 'jeju_city',
+    name: { ko: '제주시', en: 'Jeju City', ja: '済州市', zh: '济州市' },
+    desc: {
+      ko: '공항 인접·면세점·동문시장 — 첫 도착 거점',
+      en: 'Near airport, duty-free, Dongmun market — first-arrival hub',
+      ja: '空港至近・免税店・東門市場 — 初到着の拠点',
+      zh: '邻近机场·免税店·东门市场 — 首站枢纽',
+    },
+    nightlyKRW: '₩80k-180k',
+    icon: '✈️',
+    bestFor: { ko: '공항 가까이', en: 'Near airport', ja: '空港近く', zh: '邻近机场' },
+  },
+  {
+    key: 'seogwipo',
+    name: { ko: '서귀포', en: 'Seogwipo', ja: '西帰浦', zh: '西归浦' },
+    desc: {
+      ko: '천지연 폭포·중문 리조트·해녀 문화',
+      en: 'Cheonjiyeon falls, Jungmun resorts, haenyeo (sea-women) culture',
+      ja: '天地淵滝・中文リゾート・海女文化',
+      zh: '天地渊瀑布·中文度假区·海女文化',
+    },
+    nightlyKRW: '₩140k-380k',
+    icon: '🌊',
+    bestFor: { ko: '리조트·자연', en: 'Resorts + nature', ja: 'リゾート・自然', zh: '度假·自然' },
+  },
+  {
+    key: 'aewol',
+    name: { ko: '애월', en: 'Aewol', ja: '涯月', zh: '涯月' },
+    desc: {
+      ko: '서쪽 해안·감성 카페·SNS 핫플 (드라이브 추천)',
+      en: 'West coast, mood cafés, IG hotspots (drive-friendly)',
+      ja: '西海岸・雰囲気カフェ・SNS人気 (ドライブ推奨)',
+      zh: '西海岸·氛围咖啡馆·网红地 (推荐自驾)',
+    },
+    nightlyKRW: '₩100k-260k',
+    icon: '☕',
+    bestFor: { ko: '카페·드라이브', en: 'Cafés + drives', ja: 'カフェ・ドライブ', zh: '咖啡·自驾' },
+  },
+];
+
+/** Map of cityKey → zone list. Falls back to [] for unsupported cities. */
 export const ZONES_BY_CITY: Record<string, Zone[]> = {
   seoul: SEOUL_ZONES,
+  busan: BUSAN_ZONES,
+  jeju: JEJU_ZONES,
 };
 
 export function getZonesForCity(cityKey: string | undefined): Zone[] {

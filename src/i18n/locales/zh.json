@@ -1113,7 +1113,7 @@
     "stairs_limited": "尽量避免楼梯",
     "hotel_placeholder": "例如: 乐天酒店明洞、新罗Stay江南...",
     "zoneRecommendTitle": "需要住宿区域推荐吗?",
-    "zoneRecommendSubtitle": "选择首尔的一个区域，AI 会以该区域为中心安排行程。",
+    "zoneRecommendSubtitle": "选择一个区域，AI 会以该区域为中心安排行程。",
     "zoneRecommendPicked": "行程将围绕此区域规划。在上方直接输入酒店名称可覆盖此设置。",
     "originalPrice": "原价",
     "launchPrice": "发布特惠",
