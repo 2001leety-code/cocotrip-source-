@@ -15,7 +15,7 @@ const stopVariants = {
     transition: { delay: i * 0.05, duration: 0.3, ease: [0.22, 1, 0.36, 1] as const },
   }),
 };
-import { Plus } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin } from 'lucide-react';
 import { TransitArrow } from './TransitArrow';
 import { SortableStopCard } from './SortableStopCard';
 import { StopCard } from './StopCard';
@@ -24,7 +24,6 @@ import { CharterCTA } from './CharterCTA';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDay, PlanStop } from '../types';
 import { getPlanDetailDict } from '../types';
-import { BRAND } from '@/lib/design-tokens';
 
 interface DayTimelineProps {
   day: PlanDay;
@@ -44,15 +43,62 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const stops = day.stops || [];
   const stopIds = stops.map((_: PlanStop, i: number) => `day-${dayIndex}-stop-${i}`);
 
+  // Sprint 1 Step 2: 풍부한 day 헤더 메타 (사용자 신고 "UI 개선 심각")
+  // 첫/마지막 stop 시간 → 일정 범위 표시
+  const firstTime = stops[0]?.start_time;
+  const lastTime = stops[stops.length - 1]?.start_time;
+  const timeRange = firstTime && lastTime ? `${firstTime} – ${lastTime}` : firstTime || lastTime || '';
+  // 'placesUnit' (곳/places) 사용 — pd.transit.stops 는 지하철 정거장 의미라 부적절
+  const stopCountLabel = (pd as { placesUnit?: string }).placesUnit || 'places';
+
   return (
     <section className="mb-6 sm:mb-8">
-      <div className="flex items-center gap-2.5 sm:gap-3 mb-3 sm:mb-4">
-        <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-bold" style={{ background: BRAND.gradient.primary }}>
+      {/* Sprint 1 Step 2: Day 헤더 — 풍부한 gradient 카드. 일자/테마/시간/stops 한눈에. */}
+      <div
+        className="relative overflow-hidden rounded-2xl mb-4 sm:mb-5 px-4 py-3.5 sm:px-5 sm:py-4 border border-white/[0.08]"
+        style={{
+          background: 'linear-gradient(135deg, rgba(124,92,252,0.18) 0%, rgba(234,83,126,0.12) 60%, rgba(10,4,18,0.85) 100%)',
+        }}
+      >
+        {/* 우상단 데코 — 큰 일자 번호 (배경에 묽게) */}
+        <span aria-hidden className="absolute -top-1 -right-2 text-[80px] sm:text-[100px] font-black text-white/[0.04] leading-none select-none">
           {day.day || dayIndex + 1}
         </span>
-        <div>
-          <p className="text-[13px] sm:text-sm font-bold">{day.theme || `Day ${day.day || dayIndex + 1}`}</p>
-          {day.date && <p className="text-[10px] text-white/55">{day.date}</p>}
+
+        <div className="relative">
+          {/* DAY 라벨 + 일자 번호 */}
+          <div className="flex items-baseline gap-2 mb-1.5">
+            <span className="text-[10px] font-extrabold tracking-[0.18em] uppercase bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] bg-clip-text text-transparent">
+              {pd.dayLabel || 'Day'}
+            </span>
+            <span className="text-[18px] sm:text-[20px] font-black text-white leading-none">
+              {day.day || dayIndex + 1}
+            </span>
+          </div>
+
+          {/* Theme — 큰 글씨 강조 */}
+          <h3 className="text-[15px] sm:text-base font-bold text-white leading-snug mb-2">
+            {day.theme || `Day ${day.day || dayIndex + 1}`}
+          </h3>
+
+          {/* Meta chips: 일자 / 시간 / stops 수 */}
+          <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] sm:text-[11px]">
+            {day.date && (
+              <span className="inline-flex items-center gap-1 bg-white/[0.06] border border-white/[0.08] rounded-md px-2 py-0.5 text-white/65">
+                <Calendar className="w-2.5 h-2.5" /> {day.date}
+              </span>
+            )}
+            {timeRange && (
+              <span className="inline-flex items-center gap-1 bg-white/[0.06] border border-white/[0.08] rounded-md px-2 py-0.5 text-white/65">
+                <Clock className="w-2.5 h-2.5" /> {timeRange}
+              </span>
+            )}
+            {stops.length > 0 && (
+              <span className="inline-flex items-center gap-1 bg-[#7C5CFC]/[0.12] border border-[#7C5CFC]/25 rounded-md px-2 py-0.5 text-[#B9A4FF] font-semibold">
+                <MapPin className="w-2.5 h-2.5" /> {stops.length} {stopCountLabel}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
