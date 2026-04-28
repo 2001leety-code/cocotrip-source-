@@ -2,6 +2,99 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════
+   📱 모바일 앱 느낌 글로벌 최적화 (2026-04-28)
+   "버벅거림 없이 앱처럼" — CSS-only 무위험 변경.
+   순서: 터치 → 스크롤 → 렌더링 → 피드백
+   ═══════════════════════════════════════════════════════ */
+
+/* 1. 터치 — 파란 highlight 제거 + 300ms 더블탭 줌 지연 제거 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, [role="button"], [role="tab"], [role="link"], input[type="checkbox"], input[type="radio"], select, summary {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* 더블탭 zoom 지연 제거 (300ms) */
+}
+
+/* 2. 스크롤 — iOS 모멘텀 + 부모 페이지 끌려가기 방지 */
+html {
+  /* iOS Safari address bar 흔들림 완화 — 100dvh 기반 components와 함께 작동 */
+  overscroll-behavior-y: none; /* 고무줄 효과 차단 (PWA 풀스크린 시 앱 느낌 ↑) */
+}
+body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  /* 텍스트 선택 가능하되, 일반 영역 long-press 컨텍스트 메뉴 완화 */
+  -webkit-touch-callout: none;
+}
+/* p, span, h1-6, article 등 본문은 선택 가능 유지 */
+p, span, h1, h2, h3, h4, h5, h6, li, td, th, article, [contenteditable] {
+  -webkit-touch-callout: default;
+}
+/* overflow:auto/scroll 컨테이너 — 모멘텀 + 격리 */
+.scrollbar-hide,
+[class*="overflow-y-auto"],
+[class*="overflow-x-auto"],
+[class*="overflow-auto"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain; /* 부모 페이지로 스크롤 전파 차단 */
+}
+
+/* 3. 렌더링 품질 — 한글/영문 anti-aliasing */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 모바일 가로 회전 시 폰트 자동 확대 방지 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 4. 터치 피드백 — 모든 버튼/링크에 즉시 반응 (100ms 안에 시각 피드백) */
+@media (hover: none) and (pointer: coarse) {
+  /* 모바일 전용 — 데스크톱 hover 효과 안 건드림 */
+  button:not(:disabled):active,
+  a:active,
+  [role="button"]:active,
+  [role="tab"]:active {
+    transform: scale(0.97);
+    transition: transform 0.08s ease-out;
+  }
+}
+
+/* 5. 입력 필드 — iOS 자동 zoom 방지 (font-size < 16px 시 zoom 발생) */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+textarea,
+select {
+  font-size: max(16px, 1rem); /* 16px 이상 강제로 zoom 방지 */
+}
+
+/* 6. iOS safe area — 노치/하단 인디케이터 영역 자동 처리 */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* 7. 이미지 드래그 방지 — long-press save 메뉴는 유지하되, 일반 드래그 차단 */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* ═══════════════════════════════════════════════════════ */
+
+
 @layer base {
   :root {
     --background: 0 0% 100%;
