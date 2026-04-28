@@ -14,6 +14,7 @@ import 'react-day-picker/style.css';
 import type { PlannerFormValues } from '../PlannerForm';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
+import { haptic } from '@/lib/haptic';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
@@ -122,10 +123,12 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   }
 
   function toggleActivity(key: string) {
+    haptic('select');
     setSelectedActivities(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   }
 
   function toggleCity(cityName: string, chipKey?: string) {
+    haptic('select');
     if (mainCity === cityName) {
       const next = extraCities[0] || '';
       setMainCity(next);
@@ -146,15 +149,18 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   }
 
   function toggleDiet(key: string) {
+    haptic('select');
     setDietPrefs(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   }
 
   function toggleAllergy(key: string) {
+    haptic('select');
     if (key === 'None') { setAllergies([]); return; }
     setAllergies(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev.filter(k => k !== 'None'), key]);
   }
 
   async function handleGenerate() {
+    haptic('select');
     setErrorMsg('');
     try { if (mainCity) localStorage.setItem('cocotrip_last_region', mainCity); } catch { /* silent */ }
     const sd = startDate || new Date().toISOString().split('T')[0];
@@ -226,6 +232,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
     if (k && !selectedCityKeys.includes(k)) selectedCityKeys.push(k);
   }
 
+  function goToStep(i: number) {
+    haptic('tap');
+    setStep(i);
+  }
+
   return (
     <>
       <div className="w-full">
@@ -233,7 +244,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         <div className="flex items-center justify-center gap-1 mb-5 sm:mb-8">
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center">
-              <button onClick={() => { if (i <= step) setStep(i); }}
+              <button onClick={() => { if (i <= step) goToStep(i); }}
                 className={`flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold transition-all ${
                   i === step ? 'text-white' : i < step ? 'text-[#7C5CFC] cursor-pointer hover:text-white' : 'text-white/55 cursor-default'
                 }`}>
@@ -271,7 +282,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
                   hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
                   mainCityKey={mainCityKey || 'seoul'}
-                  onNext={() => setStep(1)}
+                  onNext={() => goToStep(1)}
                 />
               )}
               {/* Step 1: claim form (when all_done) OR destinations */}
@@ -290,7 +301,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   allCities={allCities} canGoStep1={canGoStep1}
                   getCityName={getCityName} toggleActivity={toggleActivity}
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
-                  onPrev={() => setStep(0)} onNext={() => setStep(2)}
+                  onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
                 />
               )}
               {step === 2 && !isClaimFlow && (
@@ -301,7 +312,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   toggleDiet={toggleDiet} toggleAllergy={toggleAllergy} setPriceRange={setPriceRange}
                   setSpiceLevel={setSpiceLevel}
                   toggleBucketDish={(k: string) => setBucketDishes(prev => prev.includes(k) ? prev.filter(d => d !== k) : [...prev, k])}
-                  onPrev={() => setStep(1)} onNext={() => setStep(3)}
+                  onPrev={() => goToStep(1)} onNext={() => goToStep(3)}
                 />
               )}
               {step === 3 && !isClaimFlow && (
@@ -323,8 +334,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   recommendedZone={recommendedZone} setRecommendedZone={setRecommendedZone}
                   mainCityKey={mainCityKey || 'seoul'}
                   canGoStep3={canGoStep3}
-                  onPrev={() => setStep(2)} onNext={() => setStep(4)}
-                  onEditStep0={() => setStep(0)}
+                  onPrev={() => goToStep(2)} onNext={() => goToStep(4)}
+                  onEditStep0={() => goToStep(0)}
                 />
               )}
               {step === 4 && !isClaimFlow && (
@@ -334,7 +345,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   arrivalTerminal={arrivalTerminal} pax={pax}
                   selectedActivities={selectedActivities} hotelAddress={hotelAddress}
                   isLoading={isLoading} errorMsg={errorMsg}
-                  onEditStep={(s) => setStep(s)} onGenerate={handleGenerate}
+                  onEditStep={(s) => goToStep(s)} onGenerate={handleGenerate}
                 />
               )}
             </motion.div>

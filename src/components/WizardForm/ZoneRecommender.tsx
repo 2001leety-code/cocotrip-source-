@@ -17,6 +17,7 @@ import { useEffect, useRef } from 'react';
 import { getZonesForCity, type Zone } from './zoneData';
 import { buildZoneHotelLink } from '@/config/affiliateLinks';
 import { trackAdImpression, trackAdClick } from '@/lib/analytics';
+import { haptic } from '@/lib/haptic';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -92,7 +93,7 @@ export function ZoneRecommender({
             <button
               key={z.key}
               type="button"
-              onClick={() => setRecommendedZone(sel ? '' : z.key)}
+              onClick={() => { haptic('select'); setRecommendedZone(sel ? '' : z.key); }}
               aria-pressed={sel}
               className={`text-left rounded-lg border p-2.5 transition-all active:scale-[0.98] ${
                 sel
@@ -133,11 +134,14 @@ export function ZoneRecommender({
             href={buildZoneHotelLink(selectedZone.name.ko, cityKey)}
             target="_blank"
             rel="sponsored noopener noreferrer"
-            onClick={() => trackAdClick(
-              'hotel',
-              `wizard_zone:${cityKey}:${selectedZone.key}`,
-              buildZoneHotelLink(selectedZone.name.ko, cityKey),
-            )}
+            onClick={() => {
+              haptic('tap');
+              trackAdClick(
+                'hotel',
+                `wizard_zone:${cityKey}:${selectedZone.key}`,
+                buildZoneHotelLink(selectedZone.name.ko, cityKey),
+              );
+            }}
             className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-[#0073E6]/10 border border-[#0073E6]/30 hover:bg-[#0073E6]/15 hover:border-[#0073E6]/50 transition-all active:scale-[0.99]"
           >
             <div className="flex items-center gap-2 min-w-0">
