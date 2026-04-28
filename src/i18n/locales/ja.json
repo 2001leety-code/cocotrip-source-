@@ -1546,6 +1546,11 @@
   "mypage": {
     "home": "ホーム",
     "tierBenefits": "{tier} ランク特典",
+    "dashNextTrip": "次の旅行",
+    "dashRecentPlans": "最近のプラン",
+    "dashViewAll": "すべて見る",
+    "dashExplore": "メニュー",
+    "dashAccount": "マイアカウント",
     "tabOverview": "概要",
     "tabBookings": "予約一覧",
     "tabCoupons": "クーポン ({n})",
