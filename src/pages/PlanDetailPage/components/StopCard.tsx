@@ -12,10 +12,15 @@ import { getPlanDetailUI } from '../types';
 import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
 import { BRAND } from '@/lib/design-tokens';
+import { sanitizeStopName } from '@/lib/sanitizeName';
 
 export function StopCard({ stop }: { stop: PlanStop }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const ui = getPlanDetailUI(t);
+  // 다국어 concat 누수 안전망 (사용자 PDF 보고). 백엔드 sanitize 누락 시 display-time fix.
+  const lng = (language as 'ko'|'en'|'ja'|'zh') || 'ko';
+  const cleanDisplayName = sanitizeStopName(stop.display_name || stop.name_en || stop.name || stop.name_ko || '', lng);
+  const cleanKoName = sanitizeStopName(stop.name || stop.name_ko || '', 'ko');
   // Collapsed default — mobile users see more stops at a glance instead of
   // having one giant card fill the viewport (PR #76 mobile-first analysis).
   const [expanded, setExpanded] = useState(false);
@@ -44,7 +49,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
       role="button"
       tabIndex={0}
       aria-expanded={expanded}
-      aria-label={`${stop.display_name || stop.name_en || stop.name || stop.name_ko}, ${stop.start_time}`}
+      aria-label={`${cleanDisplayName}, ${stop.start_time}`}
       className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5CFC] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0412] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
       onClick={toggle}
       onKeyDown={(e) => {
@@ -71,7 +76,7 @@ export function StopCard({ stop }: { stop: PlanStop }) {
         {/* Title + meta */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-[15px] sm:text-base font-bold text-white leading-snug">{stop.display_name || stop.name_en || stop.name || stop.name_ko}</p>
+            <p className="text-[15px] sm:text-base font-bold text-white leading-snug">{cleanDisplayName}</p>
             {stop.local_tag && (() => {
               const tagConfig: Record<string, { bg: string; text: string; emoji: string }> = {
                 'Local Pick': { bg: 'bg-purple-500/20 border-purple-500/30', text: 'text-purple-300', emoji: '\u{1F4CD}' },
@@ -92,8 +97,8 @@ export function StopCard({ stop }: { stop: PlanStop }) {
             )}
           </div>
           {/* Korean name as subtle subtitle (when display_name is in another language) */}
-          {(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) && (
-            <p className="text-[11px] text-white/55 mt-0.5">{stop.name || stop.name_ko}</p>
+          {cleanKoName && cleanKoName !== cleanDisplayName && (
+            <p className="text-[11px] text-white/55 mt-0.5">{cleanKoName}</p>
           )}
           {/* Meta chips — pill-style for scannability */}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">

@@ -252,6 +252,19 @@ ${JSON.stringify({ descriptive: descTexts, transit: transitTexts })}`;
       });
     }
 
+    // 다국어 concat sanitization — 번역 출력에 이전 언어 token 누수 방지.
+    // 사용자 PDF 보고: "고기굽는놈(Korean BBQ) / The Guy ... / 烤肉的家伙 ... / 肉を焼く奴" 같은 패턴.
+    try {
+      const { sanitizeStopName } = await import('./_ai_core/sanitizeName.js');
+      for (const day of (result_plan.days || [])) {
+        for (const stop of (day.stops || [])) {
+          for (const f of ['name', 'display_name']) {
+            if (typeof stop[f] === 'string') stop[f] = sanitizeStopName(stop[f], targetLang);
+          }
+        }
+      }
+    } catch (e) { console.warn('[translate-plan] sanitize fail:', e.message); }
+
     return res.status(200).json(_ok({
       translated: result_plan,
       translatorVersion: TRANSLATOR_VERSION,

@@ -16,7 +16,7 @@ import { sendErrorAlert } from './_telegram.js';
 // ── Extracted modules ─────────────────────────────────────────────────────
 import { CORS, AIRPORT_ADDRESSES } from './_ai_core/constants.js';
 import { buildSystemPrompt, logPromptMetrics } from './_ai_core/buildPrompt.js';
-import { validateResponse, repairAndParseJSON, cleanAddresses } from './_ai_core/responseValidator.js';
+import { validateResponse, repairAndParseJSON, cleanAddresses, sanitizeStops } from './_ai_core/responseValidator.js';
 import { applyDBMatcher } from './_ai_core/dbMatcher.js';
 import { calculateTmoney, persistPlan } from './_ai_core/planPersister.js';
 import { sendNotificationEmail, recordLeadToSheets } from './_ai_core/emailNotifier.js';
@@ -282,6 +282,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
 
       itinerary = repairAndParseJSON(rawText);
       cleanAddresses(itinerary);
+      sanitizeStops(itinerary, language); // 다국어 concat 정리
 
       // Pass 2: Resolve food intents from DB
       console.log('[planner] Pass 2/3: DB resolution...');
@@ -345,6 +346,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
 
       // ── 주소 정리 ─────────────────────────────────────────────────────────
       cleanAddresses(itinerary);
+      sanitizeStops(itinerary, language); // 다국어 concat 정리
 
       // ── 응답 품질 검증 ────────────────────────────────────────────────────
       validateResponse(itinerary, { lang: language }, _foodIndex);

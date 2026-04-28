@@ -106,6 +106,21 @@ export async function generatePDF(
     return;
   }
 
+  // 다국어 concat sanitization — 백엔드 누락 시 display-time 안전망.
+  // 사용자 PDF 보고: "Pig Co... 강남 돼지상회 ... 明洞..." 같은 3+ language 누수.
+  try {
+    const { sanitizeStopName } = await import('@/lib/sanitizeName');
+    const lng = (lang as 'ko'|'en'|'ja'|'zh') || 'ko';
+    const days = (plan.itinerary?.days as Array<{stops?: Array<Record<string, unknown>>}>) || [];
+    for (const day of days) {
+      for (const stop of (day.stops || [])) {
+        for (const f of ['name', 'display_name']) {
+          if (typeof stop[f] === 'string') stop[f] = sanitizeStopName(stop[f] as string, lng);
+        }
+      }
+    }
+  } catch (e) { console.warn('[PDF] sanitize fail:', (e as Error).message); }
+
   const it = plan.itinerary || {};
   const days = it.days || [];
   const arrival = it.arrival_guide;
