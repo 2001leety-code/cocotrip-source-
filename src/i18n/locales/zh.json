@@ -1714,5 +1714,9 @@
   },
   "about": {
     "heading": "关于 COCOTRIP"
+  },
+  "pwa": {
+    "updateAvailable": "有新版本",
+    "refresh": "刷新"
   }
 }

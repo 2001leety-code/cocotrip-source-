@@ -62,6 +62,7 @@ const DevTransitTest = import.meta.env.DEV
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { CommandPaletteProvider } from '@/components/CommandPalette';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
+import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
@@ -129,6 +130,7 @@ function GlobalWidgets() {
       <KpopConcertPopup />
       <MobileBottomNav />
       <CookieBanner />
+      <PWAUpdatePrompt />
     </>
   );
 }

@@ -1714,5 +1714,9 @@
   },
   "about": {
     "heading": "COCOTRIP 소개"
+  },
+  "pwa": {
+    "updateAvailable": "새 버전이 있어요",
+    "refresh": "새로고침"
   }
 }
