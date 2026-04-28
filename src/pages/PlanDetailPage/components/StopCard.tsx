@@ -15,6 +15,8 @@ import { normalizeRecommendedItem } from '@/types/plan';
 import { useLanguage } from '@/hooks/useLanguage';
 import { sanitizeStopName } from '@/lib/sanitizeName';
 import { track as posthogTrack } from '@/lib/posthog';
+import { haptic } from '@/lib/haptic';
+import { Lightbox } from './Lightbox';
 
 // Sprint 1 Step 5: Action UX — 즐겨찾기 / 공유 / 길찾기.
 // localStorage 키: `cocotrip:fav:<planId>` → JSON Record<stopKey, true>.
@@ -69,6 +71,8 @@ export function StopCard({ stop }: { stop: PlanStop }) {
   // Collapsed default — mobile users see more stops at a glance instead of
   // having one giant card fill the viewport (PR #76 mobile-first analysis).
   const [expanded, setExpanded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const CatIcon = CAT_ICON[stop.category || ''] || MapPin;
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -243,13 +247,38 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               expanded 상태에서만 fetch — collapsed 카드 다수 시 비용 절감.
               loading="lazy" + decoding="async" — 모바일 첫 렌더 우선순위 보호. */}
           {stop.photo_ref && (
-            <img
-              src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=600`}
+            <button
+              type="button"
+              onClick={() => { haptic('tap'); setLightboxOpen(true); }}
+              className="w-full block group focus:outline-none focus:ring-2 focus:ring-[#7C5CFC]/60 rounded-lg"
+              aria-label={`Open ${cleanDisplayName} photo`}
+            >
+              <div className="relative w-full h-44 sm:h-52 rounded-lg overflow-hidden border border-white/[0.06] bg-white/[0.04]">
+                {/* Subtle shimmer placeholder while loading — fades out under the img. */}
+                {!imageLoaded && (
+                  <div
+                    className="absolute inset-0 animate-pulse"
+                    style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%)' }}
+                  />
+                )}
+                <img
+                  src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=600`}
+                  alt={cleanDisplayName}
+                  loading="lazy"
+                  decoding="async"
+                  className={`w-full h-full object-cover transition-opacity duration-300 group-hover:scale-[1.02] group-active:scale-[0.99] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  style={{ transitionProperty: 'opacity, transform' }}
+                  onLoad={() => setImageLoaded(true)}
+                  onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                />
+              </div>
+            </button>
+          )}
+          {lightboxOpen && stop.photo_ref && (
+            <Lightbox
+              src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=1600`}
               alt={cleanDisplayName}
-              loading="lazy"
-              decoding="async"
-              className="w-full h-44 sm:h-52 rounded-lg object-cover border border-white/[0.06]"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              onClose={() => setLightboxOpen(false)}
             />
           )}
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
