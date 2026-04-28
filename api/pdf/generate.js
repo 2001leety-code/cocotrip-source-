@@ -144,9 +144,10 @@ function buildPlanHtml(plan) {
     h2 { font-size: 18px; color: #1a1a2e; margin: 16px 0 8px; }
     .header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #7C5CFC; margin-bottom: 28px; }
     .meta { color: #888; font-size: 13px; }
-    .day { margin-bottom: 24px; page-break-inside: avoid; }
-    .day-title { background: #f0edff; padding: 10px 14px; border-radius: 8px; font-weight: 700; font-size: 16px; color: #7C5CFC; }
-    .stop { padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-top: 8px; background: #f8f9fc; }
+    .day { margin-bottom: 24px; }
+    .day-title { background: #f0edff; padding: 10px 14px; border-radius: 8px; font-weight: 700; font-size: 16px; color: #7C5CFC; page-break-inside: avoid; break-inside: avoid; }
+    /* 2026-04-28: stop card 페이지 중간 분할 차단 (사용자 신고: 17:43 카드 잘림). */
+    .stop { padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-top: 8px; background: #f8f9fc; page-break-inside: avoid; break-inside: avoid; }
     .stop-time { font-weight: 700; color: #7C5CFC; font-size: 14px; }
     .stop-name { font-weight: 700; font-size: 15px; margin: 2px 0; }
     .stop-desc { font-size: 13px; color: #555; }
