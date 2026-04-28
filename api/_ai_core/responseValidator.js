@@ -2,6 +2,30 @@
  * Response validation + JSON repair helpers.
  * Extracted verbatim from api/ai-planner-full.js L129-169, L877-946.
  */
+import { sanitizeStopName } from './sanitizeName.js';
+
+/**
+ * 모든 stop의 name/display_name 다국어 concat 정리. 사용자 PDF 보고로 발견된
+ * 패턴 (e.g. "Pig Co. ... 강남 돼지상회 ... 明洞..." 또는 "/" 구분자)을
+ * 사용자 lang 토큰만 남김. validateResponse 호출 전 데이터 변형.
+ */
+export function sanitizeStops(data, lang = 'ko') {
+  const days = (data.itinerary?.days) || data.days || [];
+  let cleaned = 0;
+  for (const day of days) {
+    for (const stop of (day.stops || [])) {
+      for (const f of ['name', 'display_name']) {
+        const orig = stop[f];
+        if (typeof orig === 'string') {
+          const fixed = sanitizeStopName(orig, lang);
+          if (fixed !== orig) { stop[f] = fixed; cleaned++; }
+        }
+      }
+    }
+  }
+  if (cleaned > 0) console.log(`[sanitizeStops] cleaned ${cleaned} multilingual concats (lang=${lang})`);
+  return data;
+}
 
 export function validateResponse(data, request, foodIndex) {
   const issues = [];

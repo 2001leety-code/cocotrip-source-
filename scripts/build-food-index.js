@@ -11,6 +11,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { sanitizeStopName } from '../api/_ai_core/sanitizeName.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -161,6 +162,23 @@ function main() {
     }
   }
   console.log(`  🔧 Address normalized: ${addrFixed} items`);
+
+  // Sanitize multilingual concat names (사용자 PDF 보고로 발견 — 542/2595 식당 영향).
+  // name 필드: 한국어 토큰만, nameEn 필드: 영어 토큰만 추출.
+  let nameClean = 0, enClean = 0;
+  for (const item of filtered) {
+    if (item.name) {
+      const orig = item.name;
+      item.name = sanitizeStopName(orig, 'ko');
+      if (item.name !== orig) nameClean++;
+    }
+    if (item.nameEn) {
+      const orig = item.nameEn;
+      item.nameEn = sanitizeStopName(orig, 'en');
+      if (item.nameEn !== orig) enClean++;
+    }
+  }
+  console.log(`  🌐 Multilang sanitized: name=${nameClean}, nameEn=${enClean}`);
 
   // Deduplicate by placeId (Google Maps unique ID)
   const seen = new Set();
