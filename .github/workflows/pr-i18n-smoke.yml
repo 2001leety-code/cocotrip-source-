@@ -45,6 +45,9 @@ jobs:
       - name: Run i18n locale smoke against preview URL (3 viewports)
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
+          # Vercel Pro Deployment Protection bypass — preview URLs return 401
+          # without this. See playwright.config.ts for the header wiring.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           npx playwright test tests/e2e/i18n-locale-smoke.spec.ts \
             --project='Desktop Chrome' \

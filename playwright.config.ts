@@ -22,6 +22,16 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    // Vercel Deployment Protection bypass (Pro plan).
+    // Preview URL (cocotrip-source2026-*.vercel.app) returns 401 + SSO redirect
+    // unless this header is sent. Token is created in:
+    //   Vercel → Project → Settings → Deployment Protection
+    //     → Protection Bypass for Automation → Generate.
+    // Stored as GH repo secret `VERCEL_AUTOMATION_BYPASS_SECRET`.
+    // Docs: https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection
+    extraHTTPHeaders: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+      ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+      : undefined,
   },
   projects: [
     { name: 'Desktop Chrome', use: { ...devices['Desktop Chrome'] } },
