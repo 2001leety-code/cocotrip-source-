@@ -310,6 +310,12 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         result = await Promise.race([geminiPromise, timeoutPromise]);
       } catch (err) {
         console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
+        // Quota 감지 → 즉시 telegram + 503 (사용자도 막힘, 외부 catch보다 빨리)
+        const em = String(err.message || err.code || '');
+        if (em.includes('RESOURCE_EXHAUSTED') || em.includes('429') || /quota/i.test(em)) {
+          sendErrorAlert('🚨 GEMINI QUOTA EXCEEDED', err).catch(() => {});
+          const e = new Error('AI service at capacity. Try again shortly.'); e.code = 'GEMINI_QUOTA'; e.statusCode = 503; throw e;
+        }
         if (err.message.includes('timeout')) {
           const timeoutErr = new Error('AI is taking too long. Please try again.');
           timeoutErr.code = 'GEMINI_TIMEOUT';
