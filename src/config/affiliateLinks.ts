@@ -26,9 +26,20 @@ const CITY_IDS: Record<string, number> = {
   Incheon: 3701,
 };
 
+// Wizard cityKey (lowercase) → CITY_IDS key. Wizard sends 'seoul'/'busan'/etc.
+const CITY_KEY_TO_REGION: Record<string, string> = {
+  seoul: 'Seoul',
+  busan: 'Busan',
+  jeju: 'Jeju',
+  gyeongju: 'Gyeongju',
+  incheon: 'Incheon',
+  chuncheon: 'Chuncheon',
+  danyang: 'Danyang',
+};
+
 /* ── Hotels ──────────────────────────────────────────── */
 export function buildAccommodationLinks(hotelName: string, region: string) {
-  const cityId = CITY_IDS[region] ?? CITY_IDS.Seoul;
+  const cityId = CITY_IDS[region] != null ? CITY_IDS[region] : CITY_IDS.Seoul;
   const keyword = encodeURIComponent(hotelName);
   return [
     {
@@ -38,6 +49,23 @@ export function buildAccommodationLinks(hotelName: string, region: string) {
       color: '#0073E6',
     },
   ];
+}
+
+/**
+ * Build a Trip.com hotel-search link pre-filtered to a specific zone (district).
+ * Used by WizardForm/ZoneRecommender so users without a booked hotel can browse
+ * deals in their selected zone before submitting the AI plan.
+ *
+ * @param zoneKoName  Korean district name (e.g. "명동", "홍대"). Trip.com matches
+ *                    Korean keywords on Korean cities cleanly — passing the en
+ *                    name often returns mixed-city results.
+ * @param cityKey     Wizard cityKey, lowercase (e.g. "seoul", "busan").
+ */
+export function buildZoneHotelLink(zoneKoName: string, cityKey: string): string {
+  const region = CITY_KEY_TO_REGION[cityKey] || 'Seoul';
+  const cityId = CITY_IDS[region] != null ? CITY_IDS[region] : CITY_IDS.Seoul;
+  const keyword = encodeURIComponent(zoneKoName);
+  return `${AFFILIATE_CONFIG.tripcom.hotel}?city=${cityId}&keyword=${keyword}&${TRIP_AFF}`;
 }
 
 /* ── Flights ─────────────────────────────────────────── */

@@ -264,6 +264,8 @@ export function WizardStep2Details(props: Step2Props) {
             labelTitle={p.zoneRecommendTitle}
             labelSubtitle={p.zoneRecommendSubtitle}
             labelPick={p.zoneRecommendPicked}
+            labelHotelCta={p.zoneHotelCta}
+            labelHotelSponsored={p.zoneHotelSponsored}
           />
         </div>
       ) : null}
