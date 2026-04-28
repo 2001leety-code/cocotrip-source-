@@ -37,6 +37,25 @@ const CITY_KEY_TO_REGION: Record<string, string> = {
   danyang: 'Danyang',
 };
 
+// Korean city names — used as the keyword fallback when we don't have a
+// Trip.com numeric city ID. Trip.com's keyword search resolves "전주 한옥마을"
+// to Jeonju + the requested district even without city=…, so this keeps the
+// CTA usable for cities outside CITY_IDS.
+const CITY_KEY_TO_KO: Record<string, string> = {
+  seoul: '서울',
+  busan: '부산',
+  jeju: '제주',
+  gyeongju: '경주',
+  jeonju: '전주',
+  gangneung: '강릉',
+  incheon: '인천',
+  suwon: '수원',
+  yeosu: '여수',
+  daegu: '대구',
+  chuncheon: '춘천',
+  danyang: '단양',
+};
+
 /* ── Hotels ──────────────────────────────────────────── */
 export function buildAccommodationLinks(hotelName: string, region: string) {
   const cityId = CITY_IDS[region] != null ? CITY_IDS[region] : CITY_IDS.Seoul;
@@ -56,16 +75,28 @@ export function buildAccommodationLinks(hotelName: string, region: string) {
  * Used by WizardForm/ZoneRecommender so users without a booked hotel can browse
  * deals in their selected zone before submitting the AI plan.
  *
+ * For cities with a known numeric `city=` ID (Seoul/Busan/Jeju/Gyeongju/Incheon),
+ * we narrow by city + keyword. For cities without an ID (Jeonju/Gangneung/Suwon/
+ * Yeosu/Daegu), we fall back to a keyword-only search prefixed with the Korean
+ * city name, which Trip.com resolves correctly to that city.
+ *
  * @param zoneKoName  Korean district name (e.g. "명동", "홍대"). Trip.com matches
  *                    Korean keywords on Korean cities cleanly — passing the en
  *                    name often returns mixed-city results.
  * @param cityKey     Wizard cityKey, lowercase (e.g. "seoul", "busan").
  */
 export function buildZoneHotelLink(zoneKoName: string, cityKey: string): string {
-  const region = CITY_KEY_TO_REGION[cityKey] || 'Seoul';
-  const cityId = CITY_IDS[region] != null ? CITY_IDS[region] : CITY_IDS.Seoul;
-  const keyword = encodeURIComponent(zoneKoName);
-  return `${AFFILIATE_CONFIG.tripcom.hotel}?city=${cityId}&keyword=${keyword}&${TRIP_AFF}`;
+  const region = CITY_KEY_TO_REGION[cityKey];
+  const cityId = region != null ? CITY_IDS[region] : undefined;
+  if (cityId != null) {
+    const keyword = encodeURIComponent(zoneKoName);
+    return `${AFFILIATE_CONFIG.tripcom.hotel}?city=${cityId}&keyword=${keyword}&${TRIP_AFF}`;
+  }
+  // Keyword-only fallback: prefix with Korean city name so Trip.com resolves
+  // the right city. e.g. "전주 한옥마을" → Jeonju Hanok Village hotels.
+  const cityKo = CITY_KEY_TO_KO[cityKey] || '';
+  const keyword = encodeURIComponent(`${cityKo} ${zoneKoName}`.trim());
+  return `${AFFILIATE_CONFIG.tripcom.hotel}?keyword=${keyword}&${TRIP_AFF}`;
 }
 
 /* ── Flights ─────────────────────────────────────────── */

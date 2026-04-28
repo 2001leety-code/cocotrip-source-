@@ -1,11 +1,11 @@
-// Sprint 2 #5 — recommended Seoul lodging zones for users without a booked hotel.
+// Sprint 2 #5 — recommended lodging zones for users without a booked hotel.
 // Each zone includes localized name + description + nightly price band so the
 // wizard can render rich cards. Keep the data inline (not in i18n.json) since
 // these are tied to specific physical zones and don't need parity validation.
 //
-// Currently Seoul-only — Busan/Jeju get added once we have validated zones for
-// each. The wizard falls back to "skip recommendation" when mainCity is not
-// in this map.
+// Coverage: seoul, busan, jeju, gyeongju, jeonju, gangneung, incheon, suwon,
+// yeosu, daegu. The wizard falls back to "skip recommendation" when mainCity
+// is not in this map.
 
 export type Zone = {
   /** Stable key used in form state + backend prompt injection. */
@@ -200,11 +200,312 @@ export const JEJU_ZONES: Zone[] = [
   },
 ];
 
+export const GYEONGJU_ZONES: Zone[] = [
+  {
+    key: 'bomun',
+    name: { ko: '보문관광단지', en: 'Bomun Resort', ja: '普門観光団地', zh: '普门观光区' },
+    desc: {
+      ko: '경주 호수 리조트 단지·특급 호텔·보문호 야경',
+      en: 'Lakeside resort cluster — premium hotels, Bomun Lake at night',
+      ja: '湖畔リゾート群・高級ホテル・普門湖の夜景',
+      zh: '湖畔度假区·高级酒店·普门湖夜景',
+    },
+    nightlyKRW: '₩140k-380k',
+    icon: '🏞️',
+    bestFor: { ko: '리조트', en: 'Resort', ja: 'リゾート', zh: '度假' },
+  },
+  {
+    key: 'hwangnidan',
+    name: { ko: '황리단길', en: 'Hwangnidan-gil', ja: '皇理団キル', zh: '皇理团街' },
+    desc: {
+      ko: '대릉원 옆 한옥 게스트하우스·SNS 카페 거리',
+      en: 'Hanok guesthouses next to Daereungwon — Insta café strip',
+      ja: '大陵苑横の韓屋ゲストハウス・SNSカフェ通り',
+      zh: '大陵苑旁韩屋民宿·网红咖啡街',
+    },
+    nightlyKRW: '₩90k-180k',
+    icon: '🏯',
+    bestFor: { ko: '한옥·SNS', en: 'Hanok + IG', ja: '韓屋・SNS', zh: '韩屋·网红' },
+  },
+  {
+    key: 'gyeongju_downtown',
+    name: { ko: '경주 시내', en: 'Gyeongju Downtown', ja: '慶州市内', zh: '庆州市区' },
+    desc: {
+      ko: '경주역·고속버스터미널 인근 — 가성비 비즈니스 호텔',
+      en: 'Near Gyeongju station + bus terminal — budget business hotels',
+      ja: '慶州駅・高速バスターミナル付近 — コスパビジネスホテル',
+      zh: '庆州站·客运站附近 — 性价比商务酒店',
+    },
+    nightlyKRW: '₩70k-130k',
+    icon: '🚉',
+    bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+  },
+];
+
+export const JEONJU_ZONES: Zone[] = [
+  {
+    key: 'hanok_village',
+    name: { ko: '한옥마을', en: 'Hanok Village', ja: '韓屋村', zh: '韩屋村' },
+    desc: {
+      ko: '700채 한옥·한복 체험·전통 음식 — 전주의 핵심',
+      en: '700 hanok homes, hanbok rentals, traditional food — Jeonju core',
+      ja: '700軒の韓屋・韓服体験・伝統料理 — 全州の中心',
+      zh: '700座韩屋·韩服体验·传统美食 — 全州核心',
+    },
+    nightlyKRW: '₩90k-220k',
+    icon: '🏯',
+    bestFor: { ko: '전통·체험', en: 'Heritage stay', ja: '伝統・体験', zh: '传统·体验' },
+  },
+  {
+    key: 'gaengnidan',
+    name: { ko: '객리단길', en: 'Gaengnidan-gil', ja: 'カンニダンギル', zh: '客里团街' },
+    desc: {
+      ko: '한옥마을 옆 트렌디 카페·바·맛집 거리',
+      en: 'Trendy café/bar/eatery street next to Hanok Village',
+      ja: '韓屋村横のトレンディカフェ・バー・グルメ街',
+      zh: '韩屋村旁潮流咖啡·酒吧·美食街',
+    },
+    nightlyKRW: '₩80k-160k',
+    icon: '☕',
+    bestFor: { ko: '카페·미식', en: 'Café + food', ja: 'カフェ・グルメ', zh: '咖啡·美食' },
+  },
+  {
+    key: 'jeonju_station',
+    name: { ko: '전주역', en: 'Jeonju Station', ja: '全州駅', zh: '全州站' },
+    desc: {
+      ko: 'KTX 환승 거점·신시가지·비즈니스 호텔',
+      en: 'KTX hub, new commercial district, business hotels',
+      ja: 'KTXハブ・新市街・ビジネスホテル',
+      zh: 'KTX枢纽·新市区·商务酒店',
+    },
+    nightlyKRW: '₩70k-120k',
+    icon: '🚄',
+    bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+  },
+];
+
+export const GANGNEUNG_ZONES: Zone[] = [
+  {
+    key: 'gyeongpo',
+    name: { ko: '경포·강문해변', en: 'Gyeongpo Beach', ja: '鏡浦・江門海岸', zh: '镜浦·江门海滩' },
+    desc: {
+      ko: '강릉 대표 해변·해변 펜션·일출 명소',
+      en: "Gangneung's signature beach — pensions + sunrise viewpoint",
+      ja: '江陵を代表するビーチ・海辺ペンション・日の出名所',
+      zh: '江陵代表海滩·海边民宿·日出胜地',
+    },
+    nightlyKRW: '₩100k-260k',
+    icon: '🌅',
+    bestFor: { ko: '해변·일출', en: 'Beach + sunrise', ja: 'ビーチ・日の出', zh: '海滩·日出' },
+  },
+  {
+    key: 'anmok_coffee',
+    name: { ko: '안목해변 카페거리', en: 'Anmok Coffee Street', ja: '安木海岸カフェ通り', zh: '安木海滩咖啡街' },
+    desc: {
+      ko: '바다뷰 카페 거리·강릉 커피 문화의 발상지',
+      en: 'Sea-view café strip — birthplace of Gangneung coffee culture',
+      ja: '海ビューカフェ通り・江陵コーヒー文化の発祥地',
+      zh: '海景咖啡街·江陵咖啡文化发源地',
+    },
+    nightlyKRW: '₩90k-200k',
+    icon: '☕',
+    bestFor: { ko: '카페·바다', en: 'Café + sea', ja: 'カフェ・海', zh: '咖啡·海景' },
+  },
+  {
+    key: 'gangneung_station',
+    name: { ko: 'KTX 강릉역', en: 'KTX Gangneung Station', ja: 'KTX江陵駅', zh: 'KTX江陵站' },
+    desc: {
+      ko: 'KTX 종착역 인근·중앙시장·도심 비즈니스 호텔',
+      en: 'KTX terminus, Jungang Market, downtown business hotels',
+      ja: 'KTX終着駅近く・中央市場・市街ビジネスホテル',
+      zh: 'KTX终点站附近·中央市场·市区商务酒店',
+    },
+    nightlyKRW: '₩70k-130k',
+    icon: '🚄',
+    bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+  },
+];
+
+export const INCHEON_ZONES: Zone[] = [
+  {
+    key: 'songdo',
+    name: { ko: '송도', en: 'Songdo', ja: '松島', zh: '松岛' },
+    desc: {
+      ko: '국제도시·센트럴파크·럭셔리 호텔·트라이볼 야경',
+      en: 'International city, Central Park, luxury hotels, Tri-bowl skyline',
+      ja: '国際都市・セントラルパーク・高級ホテル・トライボウル夜景',
+      zh: '国际新城·中央公园·豪华酒店·Tri-bowl夜景',
+    },
+    nightlyKRW: '₩140k-320k',
+    icon: '🌆',
+    bestFor: { ko: '럭셔리·신도시', en: 'Luxury + new city', ja: '高級・新都市', zh: '奢华·新城' },
+  },
+  {
+    key: 'chinatown_wolmi',
+    name: { ko: '차이나타운·월미도', en: 'Chinatown · Wolmido', ja: 'チャイナタウン・月尾島', zh: '中华街·月尾岛' },
+    desc: {
+      ko: '한국 유일 차이나타운·해안 산책로·테마파크',
+      en: "Korea's only Chinatown, coastal promenade, retro theme park",
+      ja: '韓国唯一のチャイナタウン・海岸遊歩道・レトロテーマパーク',
+      zh: '韩国唯一中华街·海岸步道·复古游乐园',
+    },
+    nightlyKRW: '₩70k-150k',
+    icon: '🏮',
+    bestFor: { ko: '관광·먹거리', en: 'Sightseeing + food', ja: '観光・グルメ', zh: '观光·美食' },
+  },
+  {
+    key: 'yeongjong_airport',
+    name: { ko: '영종도·공항 인근', en: 'Yeongjong / Airport', ja: '永宗島・空港近く', zh: '永宗岛·机场附近' },
+    desc: {
+      ko: '인천공항 셔틀·환승 호텔·파라다이스시티',
+      en: 'Incheon airport shuttle, transit hotels, Paradise City resort',
+      ja: '仁川空港シャトル・乗り継ぎホテル・パラダイスシティ',
+      zh: '仁川机场班车·过境酒店·百乐达斯城',
+    },
+    nightlyKRW: '₩100k-280k',
+    icon: '✈️',
+    bestFor: { ko: '공항·환승', en: 'Airport / layover', ja: '空港・乗継', zh: '机场·中转' },
+  },
+];
+
+export const SUWON_ZONES: Zone[] = [
+  {
+    key: 'haenggung',
+    name: { ko: '행궁동', en: 'Haenggung-dong', ja: '行宮洞', zh: '行宫洞' },
+    desc: {
+      ko: '수원화성·행궁 옆·전통 거리·게스트하우스',
+      en: 'Next to Hwaseong Fortress + Haenggung — heritage + guesthouses',
+      ja: '水原華城・行宮横・伝統通り・ゲストハウス',
+      zh: '水原华城·行宫旁·传统街区·民宿',
+    },
+    nightlyKRW: '₩70k-150k',
+    icon: '🏯',
+    bestFor: { ko: '전통·문화', en: 'Heritage', ja: '伝統・文化', zh: '传统·文化' },
+  },
+  {
+    key: 'suwon_station',
+    name: { ko: '수원역·인계동', en: 'Suwon Station / Ingye', ja: '水原駅・仁渓洞', zh: '水原站·仁溪洞' },
+    desc: {
+      ko: '도심 교통 허브·중급 비즈니스 호텔·맛집',
+      en: 'Downtown transit hub, mid-range business hotels, restaurants',
+      ja: '都心交通ハブ・中価格ビジネスホテル・グルメ',
+      zh: '市区交通枢纽·中档商务酒店·美食',
+    },
+    nightlyKRW: '₩80k-160k',
+    icon: '🚆',
+    bestFor: { ko: '교통·미식', en: 'Transit + food', ja: '交通・グルメ', zh: '交通·美食' },
+  },
+  {
+    key: 'gwanggyo',
+    name: { ko: '광교', en: 'Gwanggyo', ja: '光教', zh: '光教' },
+    desc: {
+      ko: '신도시·컨벤션센터·호수공원·고급 호텔',
+      en: 'New city, convention center, lake park, upscale hotels',
+      ja: '新都市・コンベンションセンター・湖公園・高級ホテル',
+      zh: '新城·会展中心·湖公园·高档酒店',
+    },
+    nightlyKRW: '₩120k-260k',
+    icon: '🌆',
+    bestFor: { ko: '비즈니스', en: 'Business', ja: 'ビジネス', zh: '商务' },
+  },
+];
+
+export const YEOSU_ZONES: Zone[] = [
+  {
+    key: 'dolsan',
+    name: { ko: '돌산·여수밤바다', en: 'Dolsan / Yeosu Night Sea', ja: '突山・麗水夜の海', zh: '突山·丽水夜海' },
+    desc: {
+      ko: '돌산대교 야경·해상 케이블카·바다 펜션',
+      en: 'Dolsan Bridge night view, ocean cable car, sea-view pensions',
+      ja: '突山大橋の夜景・海上ケーブルカー・海ビューペンション',
+      zh: '突山大桥夜景·海上缆车·海景民宿',
+    },
+    nightlyKRW: '₩100k-260k',
+    icon: '🌉',
+    bestFor: { ko: '야경·바다', en: 'Night view + sea', ja: '夜景・海', zh: '夜景·海景' },
+  },
+  {
+    key: 'yeosu_expo',
+    name: { ko: '여수엑스포역', en: 'Yeosu Expo Station', ja: '麗水EXPO駅', zh: '丽水世博站' },
+    desc: {
+      ko: 'KTX 종착역·엑스포 단지·해양 리조트',
+      en: 'KTX terminus, Expo grounds, marine resorts',
+      ja: 'KTX終着駅・EXPO団地・マリンリゾート',
+      zh: 'KTX终点站·世博园区·海洋度假',
+    },
+    nightlyKRW: '₩110k-280k',
+    icon: '🚄',
+    bestFor: { ko: '교통·리조트', en: 'Transit + resort', ja: '交通・リゾート', zh: '交通·度假' },
+  },
+  {
+    key: 'jungang_dong',
+    name: { ko: '시내·이순신광장', en: 'Downtown / Yi Sun-sin Sq', ja: '市内・李舜臣広場', zh: '市区·李舜臣广场' },
+    desc: {
+      ko: '낭만포차거리·전통시장·중저가 호텔',
+      en: 'Romantic pojangmacha alley, traditional market, budget hotels',
+      ja: 'ロマンチック屋台通り・伝統市場・中低価格ホテル',
+      zh: '浪漫路边摊街·传统市场·中低价酒店',
+    },
+    nightlyKRW: '₩70k-130k',
+    icon: '🍻',
+    bestFor: { ko: '도심·먹거리', en: 'Downtown + food', ja: '市内・グルメ', zh: '市区·美食' },
+  },
+];
+
+export const DAEGU_ZONES: Zone[] = [
+  {
+    key: 'dongseongro',
+    name: { ko: '동성로', en: 'Dongseong-ro', ja: '東城路', zh: '东城路' },
+    desc: {
+      ko: '대구 최대 번화가·쇼핑·맛집·중구 도심',
+      en: "Daegu's main shopping street — food, retail, central Jung-gu",
+      ja: '大邱最大の繁華街・ショッピング・グルメ・中区都心',
+      zh: '大邱最大繁华街·购物·美食·中区市中心',
+    },
+    nightlyKRW: '₩80k-180k',
+    icon: '🛍️',
+    bestFor: { ko: '도심·쇼핑', en: 'Downtown + shopping', ja: '都心・買い物', zh: '市区·购物' },
+  },
+  {
+    key: 'suseong',
+    name: { ko: '수성구', en: 'Suseong-gu', ja: '寿城区', zh: '寿城区' },
+    desc: {
+      ko: '수성못·고급 주거지·조용한 카페·범어동',
+      en: 'Suseong Lake, upscale residential, quiet cafés, Beomeo-dong',
+      ja: '寿城池・高級住宅地・静かなカフェ・凡魚洞',
+      zh: '寿城湖·高档住宅区·静谧咖啡馆·凡鱼洞',
+    },
+    nightlyKRW: '₩100k-220k',
+    icon: '🏞️',
+    bestFor: { ko: '조용함', en: 'Quiet', ja: '静か', zh: '静谧' },
+  },
+  {
+    key: 'dongdaegu',
+    name: { ko: '동대구역', en: 'Dongdaegu Station', ja: '東大邱駅', zh: '东大邱站' },
+    desc: {
+      ko: 'KTX·SRT 환승 허브·신세계백화점·비즈니스 호텔',
+      en: 'KTX/SRT transit hub, Shinsegae dept store, business hotels',
+      ja: 'KTX・SRT乗換ハブ・新世界百貨店・ビジネスホテル',
+      zh: 'KTX·SRT换乘枢纽·新世界百货·商务酒店',
+    },
+    nightlyKRW: '₩80k-160k',
+    icon: '🚄',
+    bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+  },
+];
+
 /** Map of cityKey → zone list. Falls back to [] for unsupported cities. */
 export const ZONES_BY_CITY: Record<string, Zone[]> = {
   seoul: SEOUL_ZONES,
   busan: BUSAN_ZONES,
   jeju: JEJU_ZONES,
+  gyeongju: GYEONGJU_ZONES,
+  jeonju: JEONJU_ZONES,
+  gangneung: GANGNEUNG_ZONES,
+  incheon: INCHEON_ZONES,
+  suwon: SUWON_ZONES,
+  yeosu: YEOSU_ZONES,
+  daegu: DAEGU_ZONES,
 };
 
 export function getZonesForCity(cityKey: string | undefined): Zone[] {
