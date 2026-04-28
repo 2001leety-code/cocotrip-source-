@@ -262,9 +262,12 @@ export async function generatePDF(
   }
 
   // All days
+  // 2026-04-28: page-break-inside:avoid 를 day 전체에서 제거.
+  // 7 stops/day는 한 페이지 안 들어감 → 브라우저가 무시하고 임의 위치에서 split (사용자 보고).
+  // 대신 각 stop card + transit block 단위로 break-inside:avoid 적용 (아래).
   days.forEach((day: PlanDay, di: number) => {
-    html += `<div style="margin-bottom:24px;page-break-inside:avoid;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    html += `<div style="margin-bottom:24px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;">
         <div style="width:32px;height:32px;border-radius:50%;background:${C.accent};color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">${day.day || di + 1}</div>
         <div>
           <h2 style="font-size:16px;font-weight:700;color:${C.heading};margin:0;">${day.theme || `Day ${day.day || di + 1}`}</h2>
@@ -423,14 +426,15 @@ export async function generatePDF(
           stepsHtml = t.step_by_step.map((s: string) => `<p style="font-size:9px;color:${C.sub};margin:1px 0 0 10px;">\u00B7 ${s}</p>`).join('');
         }
 
-        html += `<div style="margin:4px 0 6px 16px;padding:6px 12px;background:${C.transitBg};border-left:3px solid ${C.accent};border-radius:4px;">
+        html += `<div class="pdf-transit-block" style="margin:4px 0 6px 16px;padding:6px 12px;background:${C.transitBg};border-left:3px solid ${C.accent};border-radius:4px;page-break-inside:avoid;break-inside:avoid;">
           <p style="font-size:10px;color:${C.accent};font-weight:700;margin:0;">${summary}</p>
           ${stepsHtml}
         </div>`;
       }
 
-      // Stop card
-      html += `<div style="background:${C.cardBg};border:1px solid ${C.border};border-radius:8px;padding:12px;margin-bottom:6px;">
+      // Stop card — 페이지 중간에서 절대 잘리지 않게 break-inside:avoid (사용자 신고: 17:43 문제제빵 카드가 페이지 경계에서 분할).
+      // class="pdf-stop-card"는 html2pdf의 pagebreak.avoid selector 와 짝.
+      html += `<div class="pdf-stop-card" style="background:${C.cardBg};border:1px solid ${C.border};border-radius:8px;padding:12px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
           <div>
             <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${C.accent};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
@@ -725,7 +729,12 @@ export async function generatePDF(
         scrollY: 0,
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['css', 'legacy'] },
+      // 'avoid-all' 추가: 모든 element의 page-break-inside:avoid 우선 존중.
+      // avoid selector: stop card / transit block 절대 분할 금지 (사용자 신고 fix).
+      pagebreak: {
+        mode: ['avoid-all', 'css', 'legacy'],
+        avoid: ['.pdf-stop-card', '.pdf-transit-block'],
+      },
     } as Record<string, unknown>).from(container);
 
     // === 캔버스 픽셀 검사: blob 크기 가드만으론 못 잡음 (3KB 백지 PDF 발생 사례) ===
