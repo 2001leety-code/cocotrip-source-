@@ -29,6 +29,23 @@ jobs:
           NODE_OPTIONS: '--experimental-fetch'
         run: node scripts/daily-health-check.mjs
 
+      # E2E PROD smoke — 결제→플랜→번역→PDF 7-step 자동 검증.
+      # 사용자 100번 사이클 차단 게이트 (Test 3: blind "car·25분" 0건).
+      # daily-health 와 같은 일정으로 실행 (월/수/금) — 비용 ~$0.10/run × 13/월 = $1.30/월.
+      # validate-planner 실패해도 진행 (continue-on-error) — E2E는 독립적으로 prod 검증.
+      - name: Install dependencies (for Playwright)
+        if: always()
+        run: npm ci
+      - name: Install Playwright Chromium
+        if: always()
+        run: npx playwright install --with-deps chromium
+      - name: E2E PROD smoke (Plan + Translation + PDF)
+        if: always()
+        env:
+          BASE_URL: https://cocotripkr.com
+        run: npx playwright test full-plan-translation-pdf --project='Desktop Chrome' --reporter=list
+        continue-on-error: true # E2E 실패해도 health-log commit 단계 실행
+
       - name: Upload health log
         if: always()
         uses: actions/upload-artifact@v4
