@@ -24,6 +24,7 @@ import { generatePDF } from './pdfGenerator';
 import { DayTimeline } from './components/DayTimeline';
 import { EditModeToggle } from './components/EditModeToggle';
 import { AddStopModal } from './components/AddStopModal';
+import { RecommendedRestaurants } from './components/RecommendedRestaurants';
 import { SwipeContainer } from './components/SwipeContainer';
 import { SlideProgress } from './components/SlideProgress';
 import { SectionTabs } from './components/SectionTabs';
@@ -293,6 +294,25 @@ export default function PlanDetailPage() {
             }
           }}
         />
+
+        {/* Must-visit restaurants (DB-derived, backend `pickRecommendedRestaurants`) */}
+        {plan?.itinerary?.recommended_restaurants && plan.itinerary.recommended_restaurants.length > 0 && (() => {
+          const ui = getPlanDetailUI(t);
+          const lng = (language as 'ko' | 'en' | 'ja' | 'zh') || 'en';
+          return (
+            <div className="max-w-4xl mx-auto px-4 mt-4">
+              <RecommendedRestaurants
+                items={plan.itinerary.recommended_restaurants}
+                language={lng}
+                labelTitle={ui.recommendedRestaurantsTitle}
+                labelSubtitle={ui.recommendedRestaurantsSubtitle}
+                labelReviews={ui.reviews}
+                labelOpenMap={ui.openMap}
+                labelKmAway={ui.kmAway}
+              />
+            </div>
+          );
+        })()}
 
         {/* Reviews Section */}
         <div className="max-w-4xl mx-auto px-4">

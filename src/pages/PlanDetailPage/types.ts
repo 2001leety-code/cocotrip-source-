@@ -29,6 +29,8 @@ export interface PlanDocument {
     arrival_guide?: ArrivalGuideBlock;
     departure_guide?: DepartureGuideBlock;
     daily_budget_summary?: BudgetRow[];
+    /** Sprint 2 후속: 동선 5km 내 top-rated 맛집 — backend `pickRecommendedRestaurants` 산출. */
+    recommended_restaurants?: RecommendedRestaurant[];
     [key: string]: unknown;
   };
   customerSupport?: Record<string, unknown>;
@@ -97,6 +99,28 @@ export interface ArrivalGuideBlock {
   airport?: string;
   steps?: { step: number; title: string; description?: string; est_min?: number }[];
   [key: string]: unknown;
+}
+
+/** "꼭 가보면 좋은 곳" — backend pickRecommendedRestaurants 출력 형식. */
+export interface RecommendedRestaurant {
+  name: string;
+  nameEn?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  rating?: number;
+  reviewCount?: number;
+  cuisine?: string;
+  cuisineKo?: string;
+  priceLabel?: string;
+  priceLabelKo?: string;
+  placeId?: string;
+  googleMapsUrl?: string;
+  dong?: string;
+  dongEn?: string;
+  district?: string;
+  /** Distance km from the nearest plan stop. */
+  nearestStopKm?: number;
 }
 
 export interface BudgetRow {
