@@ -86,6 +86,9 @@ export interface PlannerFormValues {
   luggage?: { small: number; medium: number; large: number };
   wantAccom?: boolean;
   accomBudget?: string;
+  // Sprint 2 #5: zone recommendation when user has no booked hotel.
+  // Backend uses this as a "soft anchor" — Gemini hubs stops near this zone.
+  recommended_zone?: string;
 }
 
 interface Props {

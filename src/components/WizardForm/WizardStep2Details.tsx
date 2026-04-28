@@ -8,6 +8,7 @@ import type { AirportOption } from './data';
 import type { WizardDict } from './types';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 import { useLanguage } from '@/hooks/useLanguage';
+import { ZoneRecommender } from './ZoneRecommender';
 
 interface Step2Props {
   p: WizardDict;
@@ -41,6 +42,11 @@ interface Step2Props {
   // P7 (2026-04-24): daily tour pace — controls Gemini's hours-per-day budget.
   tourPace: TourPace;
   setTourPace: (v: TourPace) => void;
+  // Sprint 2 #5: recommended Seoul zone (when hotel undecided) + city key
+  // for picker scoping.
+  recommendedZone: string;
+  setRecommendedZone: (v: string) => void;
+  mainCityKey: string;
   canGoStep3: boolean;
   onPrev: () => void;
   onNext: () => void;
@@ -96,8 +102,11 @@ export function WizardStep2Details(props: Step2Props) {
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
+    recommendedZone, setRecommendedZone, mainCityKey,
     canGoStep3, onPrev, onNext, onEditStep0,
   } = props;
+  const { language } = useLanguage();
+  const lang = (language as 'ko' | 'en' | 'ja' | 'zh') || 'en';
 
   // P0 dedup: 항공편 정보가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
   const flightInfoFromStep0 = !!onEditStep0 && !!arrivalTerminal;
@@ -244,6 +253,18 @@ export function WizardStep2Details(props: Step2Props) {
           <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
             placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+          {/* Sprint 2 #5: zone-pick fallback when hotel address empty. */}
+          <ZoneRecommender
+            language={lang}
+            isMobile={isMobile}
+            cityKey={mainCityKey}
+            hotelAddress={hotelAddress}
+            recommendedZone={recommendedZone}
+            setRecommendedZone={setRecommendedZone}
+            labelTitle={p.zoneRecommendTitle}
+            labelSubtitle={p.zoneRecommendSubtitle}
+            labelPick={p.zoneRecommendPicked}
+          />
         </div>
       ) : null}
 
