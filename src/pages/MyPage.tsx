@@ -475,7 +475,28 @@ export default function MyPage() {
             {/* 기존 쿠폰 리스트 */}
             <div className="space-y-3">
               {coupons.length === 0 ? (
-                <EmptyState icon={Gift} text="No coupons yet" />
+                /* AI-planner ad — same copy as PayPal checkout picker. */
+                <Link
+                  to="/planner"
+                  onClick={() => haptic('tap')}
+                  className="block rounded-xl border border-[#7C5CFC]/25 p-4 hover:border-[#7C5CFC]/45 transition-all"
+                  style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(255,107,157,0.06))' }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}>
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold text-white leading-tight">{mp.couponAdTitle || '1 AI plan = 1× 5% coupon'}</p>
+                      <p className="text-[11.5px] text-white/65 leading-snug mt-1">{mp.couponAdBody || 'Book a ₩124,000 charter ≈ ₩6,200 saved. The planner ($9.90) pays for itself.'}</p>
+                      <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#B668FC]">
+                        {mp.couponAdCta || 'Make AI plan'}
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
               ) : coupons.map(c => (
               <div
                 key={c.id}
