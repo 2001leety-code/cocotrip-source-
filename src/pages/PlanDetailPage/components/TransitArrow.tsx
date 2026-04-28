@@ -303,6 +303,13 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
         )}
         {(hasRichSteps || hasLegacySteps) && <ChevronDown className={`w-3 h-3 transition-transform ${showSteps ? 'rotate-180' : ''}`} />}
       </button>
+      {/* Walk 정당화 라벨 — 사용자 신고 "왜 다 걷어?" 대응. 짧은 거리는 도보가 지하철보다
+          빠르다는 사실을 명시. 신뢰 회복 + AI 게으른 plan 인상 차단. */}
+      {transit.method === 'walk' && (transit.est_min || 0) <= 15 && (
+        <p className="text-[9px] text-emerald-400/65 ml-6 mt-0.5 italic">
+          {trKeys.walkFasterNote || '🚶 이 거리는 지하철보다 도보가 빠릅니다 (대기·환승 시간 포함)'}
+        </p>
+      )}
       {/* 인라인 이동 안내: instruction 있으면 collapsed 상태에서도 항상 표시. */}
       {!hasRichSteps && !hasLegacySteps && (transit.instruction_en || transit.instruction) && (
         <p className="text-[10px] text-white/45 ml-6 mt-0.5 whitespace-pre-line">
