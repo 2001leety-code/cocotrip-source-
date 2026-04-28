@@ -1,8 +1,10 @@
 // PlannerPage main entry -- assembled from legacy PlannerPage.tsx.
 // All components extracted to ./components/, handlers to ./hooks/.
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
+import { notify } from '@/lib/notify';
+import { haptic } from '@/lib/haptic';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
@@ -47,6 +49,27 @@ export default function PlannerPage() {
   const localizedPlanError = planError
     ? resolveErrorMessage(planErrorCode, planError, (p as { errors?: Record<string, string> }).errors)
     : null;
+
+  // Notify-on-ready: fire OS notification + haptic when generation finishes.
+  // Track previous status so we only fire once per transition (not on every
+  // re-render where status === 'quickSuccess').
+  const prevStatus = useRef(status);
+  useEffect(() => {
+    if (prevStatus.current === 'loadingQuick' && status === 'quickSuccess') {
+      haptic('success');
+      const notifP = (p as { notifyPlanReadyTitle?: string; notifyPlanReadyBody?: string });
+      notify({
+        title: notifP.notifyPlanReadyTitle || '여행 일정이 준비됐어요!',
+        body: notifP.notifyPlanReadyBody || 'AI가 만든 코스를 확인하세요',
+        onlyIfHidden: true,  // skip OS notif when user is already looking
+        onClick: () => {
+          const el = document.getElementById('planner-quick-result');
+          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        },
+      });
+    }
+    prevStatus.current = status;
+  }, [status, p]);
 
   return (
     <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>

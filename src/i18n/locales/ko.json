@@ -503,6 +503,8 @@
     "heroTitle": "당신의 한국,\n당신의 방식.",
     "heroSubtitle": "AI가 설계하는 나만의 한국 여행\n전세차량 · K-pop 셔틀 · 24시간 지원",
     "badgeLabel": "AI Travel Planner",
+    "notifyPlanReadyTitle": "여행 일정이 준비됐어요!",
+    "notifyPlanReadyBody": "AI가 만든 코스를 확인하세요",
     "categoryLabel": "여행 테마",
     "categoryHint": "관심 있는 테마를 모두 선택하세요",
     "kpopDesc": "아이돌 · 공연 · 팬샵",

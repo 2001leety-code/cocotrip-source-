@@ -503,6 +503,8 @@
     "heroTitle": "专属韩国\n定制之旅",
     "heroSubtitle": "AI为您量身定制的韩国之旅\n包车服务·K-pop接驳·24小时支持",
     "badgeLabel": "AI Travel Planner",
+    "notifyPlanReadyTitle": "您的行程已准备好!",
+    "notifyPlanReadyBody": "查看 AI 为您生成的行程",
     "categoryLabel": "旅行主题",
     "categoryHint": "请选择您感兴趣的所有主题",
     "kpopDesc": "偶像 · 演唱会 · 粉丝商店",
