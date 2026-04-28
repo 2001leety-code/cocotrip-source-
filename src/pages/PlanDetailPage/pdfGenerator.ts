@@ -18,6 +18,22 @@ import { normalizeRecommendedItem } from '@/types/plan';
 import { track as posthogTrack } from '@/lib/posthog';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 
+// Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
+// PDF는 dark theme 토큰을 못 쓰므로 web bar gradient의 진한 쪽 hex 만 추출.
+const PDF_CATEGORY_BAR: Record<string, string> = {
+  food: '#EA580C',
+  culture: '#6366F1',
+  shopping: '#EC4899',
+  nature: '#059669',
+  landmark: '#3B82F6',
+  kpop: '#C026D3',
+  default: '#7C5CFC',
+};
+
+function pdfCategoryBar(category: string | undefined): string {
+  return PDF_CATEGORY_BAR[category || 'default'] || PDF_CATEGORY_BAR.default;
+}
+
 /** Optional i18n labels for PDF — pass planDetail.ui dict for current language */
 export interface PdfUiDict {
   generatingPdf?: string;
@@ -137,6 +153,24 @@ export async function generatePDF(
   const budget = it.daily_budget_summary || [];
   const input = plan.input || {};
 
+  // === Sprint 1 Step 4: header QR — 사용자가 모바일로 plan 재방문할 수 있게 ===
+  // route: /my-plans/:planId.  plan.id가 없으면 (드물지만 legacy) QR skip.
+  // qrcode lib는 dataURL 반환 → <img> 로 그대로 박을 수 있다.
+  const planIdForQr = (plan as { id?: string }).id;
+  let headerQrDataUrl = '';
+  if (planIdForQr) {
+    try {
+      const QR = (await import('qrcode')).default;
+      headerQrDataUrl = await QR.toDataURL(`https://cocotripkr.com/my-plans/${planIdForQr}`, {
+        margin: 1,
+        width: 200,
+        color: { dark: '#1a1a2e', light: '#ffffff' },
+      });
+    } catch (e) {
+      console.warn('[PDF] QR generation failed:', (e as Error).message);
+    }
+  }
+
   // create render container - MUST be on-screen & fully expanded for html2canvas
   // Overlay (z-index:99998) sits on top to hide the white container from the user
   const overlay = document.createElement('div');
@@ -195,6 +229,19 @@ export async function generatePDF(
     </p>
     <p style="color:${C.muted};font-size:10px;margin:4px 0 0;">${L.generatedBy} \u00B7 cocotripkr.com</p>
   </div>`;
+
+  // === Sprint 1 Step 4: QR header overlay ===
+  // text-align:center인 header div 위에 우측 QR을 absolute 박스로 overlay.
+  if (headerQrDataUrl) {
+    const qrLabel = uiDict?.pdfQrLabel || 'Scan to open on mobile';
+    html = `<div style="position:relative;">
+      <div style="position:absolute;top:0;right:0;text-align:center;z-index:1;">
+        <img src="${headerQrDataUrl}" style="width:72px;height:72px;display:block;" alt="QR" />
+        <p style="font-size:8px;color:${C.muted};margin:2px 0 0;line-height:1.2;width:72px;">${qrLabel}</p>
+      </div>
+      ${html}
+    </div>`;
+  }
 
   // Arrival Guide
   if (arrival) {
@@ -298,6 +345,56 @@ export async function generatePDF(
           ${day.date ? `<p style="font-size:10px;color:${C.muted};margin:0;">${day.date}</p>` : ''}
         </div>
       </div>`;
+
+    // === Sprint 1 Step 4: 일별 요약 박스 ===
+    // 사용자 요청: 총 거리, 추정 비용, 추천 photo.
+    //  - totalWalkM: 모든 stops의 transit_from_prev.total_walk_m 합 (없으면 skip).
+    //  - totalTransitMin: 모든 stops의 transit_from_prev.est_min 합 (이동 시간).
+    //  - totalStayMin: 모든 stops의 stay_min 합 (관광 시간).
+    //  - dayCostKRW: daily_budget_summary[day-1].total_krw (있으면).
+    //  - heroPhoto: 첫 stop의 photo_ref → /api/place-photo proxy.
+    const stopsArr = day.stops || [];
+    const dayNum = day.day || di + 1;
+    let totalWalkM = 0;
+    let totalTransitMin = 0;
+    let totalStayMin = 0;
+    for (const s of stopsArr) {
+      const tprev = s.transit_from_prev as { total_walk_m?: number; est_min?: number } | undefined;
+      if (tprev?.total_walk_m) totalWalkM += tprev.total_walk_m;
+      if (tprev?.est_min) totalTransitMin += tprev.est_min;
+      if (s.stay_min) totalStayMin += s.stay_min;
+    }
+    const dayBudget = budget.find((b: BudgetRow) => b.day === dayNum);
+    const dayCost = dayBudget?.total_krw || 0;
+    const heroPhotoRef = stopsArr.find((s) => s.photo_ref)?.photo_ref;
+    const heroPhotoUrl = heroPhotoRef
+      ? `/api/place-photo?ref=${encodeURIComponent(heroPhotoRef)}&w=400`
+      : '';
+
+    const summaryLabels = {
+      walk: uiDict?.pdfDailyWalk || 'Walking',
+      transit: uiDict?.pdfDailyTransit || 'Transit',
+      stay: uiDict?.pdfDailyStay || 'Sightseeing',
+      cost: uiDict?.pdfDailyCost || 'Est. cost',
+    };
+    const km = totalWalkM > 0 ? (totalWalkM / 1000).toFixed(1) + ' km' : '—';
+    const transitTxt = totalTransitMin > 0 ? `${totalTransitMin}${L.min}` : '—';
+    const stayTxt = totalStayMin > 0 ? `${(totalStayMin / 60).toFixed(1)} h` : '—';
+    const costTxt = dayCost > 0 ? formatKRW(dayCost) : '—';
+
+    const photoHtml = heroPhotoUrl
+      ? `<img src="${heroPhotoUrl}" style="width:90px;height:60px;object-fit:cover;border-radius:4px;flex-shrink:0;" alt="" />`
+      : '';
+
+    html += `<div style="display:flex;gap:10px;align-items:stretch;background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${C.accent};border-radius:6px;padding:10px;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;">
+      ${photoHtml}
+      <div style="flex:1;display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;">
+        <div><strong style="color:${C.heading};">${summaryLabels.walk}</strong>: <span style="color:${C.accent};font-weight:600;">${km}</span></div>
+        <div><strong style="color:${C.heading};">${summaryLabels.transit}</strong>: <span style="color:${C.accent};font-weight:600;">${transitTxt}</span></div>
+        <div><strong style="color:${C.heading};">${summaryLabels.stay}</strong>: <span style="color:${C.accent};font-weight:600;">${stayTxt}</span></div>
+        <div><strong style="color:${C.heading};">${summaryLabels.cost}</strong>: <span style="color:${C.accent};font-weight:700;">${costTxt}</span></div>
+      </div>
+    </div>`;
 
     (day.stops || []).forEach((stop: PlanStop) => {
       // Transit arrow (rich: uses steps_detail when available, falls back to step_by_step for legacy plans)
@@ -463,10 +560,12 @@ export async function generatePDF(
 
       // Stop card — 페이지 중간에서 절대 잘리지 않게 break-inside:avoid (사용자 신고: 17:43 문제제빵 카드가 페이지 경계에서 분할).
       // class="pdf-stop-card"는 html2pdf의 pagebreak.avoid selector 와 짝.
-      html += `<div class="pdf-stop-card" style="background:${C.cardBg};border:1px solid ${C.border};border-radius:8px;padding:12px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">
+      // Sprint 1 Step 4: 카테고리별 좌측 accent bar (web #136 parity).
+      const catBar = pdfCategoryBar(stop.category);
+      html += `<div class="pdf-stop-card" style="background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${catBar};border-radius:8px;padding:12px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
           <div>
-            <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${C.accent};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
+            <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${catBar};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
             ${(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) ? `<p style="font-size:10px;color:${C.muted};margin:2px 0 0;">${stop.name || stop.name_ko}</p>` : ''}
           </div>
           <span style="font-size:10px;color:${(stop.entry_fee_krw || 0) > 0 ? C.pink : '#22c55e'};font-weight:600;">${(stop.entry_fee_krw || 0) > 0 ? formatKRW(stop.entry_fee_krw || 0) : L.free}</span>
