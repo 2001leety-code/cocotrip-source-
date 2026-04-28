@@ -54,11 +54,13 @@ export type TourPace = 'half' | 'short' | 'full' | 'action';
 const TOUR_PACE_KEYS: TourPace[] = ['half', 'short', 'full', 'action'];
 // Authoritative hours mapping lives in api/_food_helper.js (_PACE_HOURS).
 // UI shows hours via the sub-label fallback below.
+// 2026-04-28: zone-aware 설명 추가. 사용자 신고: "하루에 3군데씩 서울구를 옮겨다니면 너무 힘들다".
+// Backend pace 매핑: half/short → relaxed (단일 zone), full → standard (2 zones), action → packed (free).
 const TOUR_PACE_FALLBACK: Record<TourPace, { label: string; sub: string }> = {
-  half:   { label: 'Half-day',   sub: '4h · 1-2 stops · easy pace' },
-  short:  { label: 'Short tour', sub: '6h · 3-4 stops · breezy' },
-  full:   { label: 'Full day',   sub: '8h · 5-6 stops · standard' },
-  action: { label: 'Action-pack', sub: '10h+ · 7+ stops · intense' },
+  half:   { label: 'Half-day',    sub: '4h · 1-2 stops · 한 동네 집중' },
+  short:  { label: 'Short tour',  sub: '6h · 3-4 stops · 한 구역 위주' },
+  full:   { label: 'Full day',    sub: '8h · 5-6 stops · 인접 2구역 (표준)' },
+  action: { label: 'Action-pack', sub: '10h+ · 7+ stops · 자유 이동' },
 };
 
 function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: string; value: number; setValue: (v: number) => void }) {
