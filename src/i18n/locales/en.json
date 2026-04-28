@@ -1252,6 +1252,14 @@
     "emailQuote": "Email Inquiry"
   },
   "mobileHome": {
+    "heroBadge": "PREMIUM KOREA TRAVEL",
+    "heroHeadline1": "Your Korea trip,",
+    "heroHeadline2": "planned in 60 seconds",
+    "heroSubtitle": "AI plans the days. Private chauffeur + 24/7 English support included.",
+    "heroCta": "Get Started",
+    "heroProofReviews": "5.0 Google",
+    "heroProofSupport": "24/7 English",
+    "heroProofLicensed": "Licensed Operator",
     "promoAiTitle": "AI Custom Itinerary",
     "promoAiSubtitle": "Your perfect Korea trip plan in 15 sec",
     "promoAiCta": "Plan My Trip",

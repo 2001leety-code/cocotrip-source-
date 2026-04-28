@@ -1252,6 +1252,14 @@
     "emailQuote": "メールお問い合わせ"
   },
   "mobileHome": {
+    "heroBadge": "PREMIUM KOREA TRAVEL",
+    "heroHeadline1": "あなただけの韓国旅行を",
+    "heroHeadline2": "60秒で完成",
+    "heroSubtitle": "AIが日程を組み、プライベートカーと24時間英語サポートも",
+    "heroCta": "今すぐ始める",
+    "heroProofReviews": "5.0 Google",
+    "heroProofSupport": "24時間サポート",
+    "heroProofLicensed": "観光登録業者",
     "promoAiTitle": "AIカスタム旅行プラン",
     "promoAiSubtitle": "15秒で完璧な韓国旅行プランを作成",
     "promoAiCta": "プラン作成",

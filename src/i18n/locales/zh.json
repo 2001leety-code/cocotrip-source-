@@ -1252,6 +1252,14 @@
     "emailQuote": "邮件咨询"
   },
   "mobileHome": {
+    "heroBadge": "PREMIUM KOREA TRAVEL",
+    "heroHeadline1": "您的韩国之旅,",
+    "heroHeadline2": "60秒内完成",
+    "heroSubtitle": "AI 规划行程，私人包车和24小时英文支持全包",
+    "heroCta": "立即开始",
+    "heroProofReviews": "5.0 Google",
+    "heroProofSupport": "24小时支持",
+    "heroProofLicensed": "观光登记业者",
     "promoAiTitle": "AI定制旅行行程",
     "promoAiSubtitle": "15秒制定完美韩国旅行计划",
     "promoAiCta": "制定行程",

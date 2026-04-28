@@ -6,8 +6,9 @@ import { db } from '@/lib/firebase';
 import {
   Car, Sparkles, Music2, Wand2, ChevronRight, Star,
   ArrowRight, Clock, Users, Shield, Crown, Gift,
-  CloudSun, Thermometer, Timer, FileText,
+  CloudSun, Thermometer, Timer, FileText, ShieldCheck,
 } from 'lucide-react';
+import { haptic } from '@/lib/haptic';
 import type { Translations } from '@/i18n';
 
 interface MobileHomeProps {
@@ -106,9 +107,9 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
   }, [weatherCity]);
 
   const svcButtons = [
-    { icon: Car, label: m.svcCharter || 'Charter', sub: m.svcCharterSub || 'Vehicle', link: '/charter', color: '#B668FC', d: 0 },
-    { icon: Sparkles, label: m.svcPlanner || 'AI Planner', sub: m.svcPlannerSub || 'Itinerary', link: '/planner', color: '#FF6B9D', d: 0.5 },
-    { icon: Music2, label: m.svcKpop || 'K-pop', sub: m.svcKpopSub || 'Shuttle', link: '/charter', color: '#C850C0', d: 1 },
+    { icon: Car, label: m.svcCharter || 'Charter', sub: m.svcCharterSub || 'Vehicle', link: '/charter', color: '#B668FC' },
+    { icon: Sparkles, label: m.svcPlanner || 'AI Planner', sub: m.svcPlannerSub || 'Itinerary', link: '/planner', color: '#FF6B9D' },
+    { icon: Music2, label: m.svcKpop || 'K-pop', sub: m.svcKpopSub || 'Shuttle', link: '/charter', color: '#C850C0' },
   ];
 
   const trustBadges = [
@@ -121,17 +122,63 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
     <div className="min-h-screen pb-24" style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}>
       <style>{`
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
-        @keyframes pulse-pink { 0%, 100% { box-shadow: 0 0 0 0 rgba(200, 80, 192, 0.4); } 50% { box-shadow: 0 0 20px 4px rgba(200, 80, 192, 0.15); } }
+        @keyframes hero-orb { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; } 50% { transform: translate(8px, -10px) scale(1.05); opacity: 0.7; } }
+        @keyframes hero-orb-2 { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; } 50% { transform: translate(-10px, 8px) scale(1.08); opacity: 0.6; } }
+        @keyframes hero-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .m-btn { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .m-btn:active { transform: scale(0.93); }
         .m-shimmer { background: linear-gradient(90deg, #B668FC 0%, #FF6B9D 40%, #B668FC 80%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; }
-        .m-glow { animation: pulse-pink 3s ease-in-out infinite; }
-        .m-float { animation: float 3s ease-in-out infinite; }
+        .m-hero-fade { animation: hero-fade 0.5s ease-out forwards; opacity: 0; }
       `}</style>
 
+      {/* HERO — Claude.ai-inspired confident headline + single primary CTA.
+          Aurora orbs for warmth, restrained accents, generous whitespace.
+          Above-the-fold target: ≤320px tall on a 380×740 viewport. */}
+      <section className="relative px-5 pt-7 pb-7 overflow-hidden">
+        {/* Aurora orbs — soft purple/pink, behind text. */}
+        <div aria-hidden className="absolute -top-10 -left-10 w-56 h-56 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(182,104,252,0.45) 0%, rgba(182,104,252,0) 70%)', animation: 'hero-orb 9s ease-in-out infinite' }} />
+        <div aria-hidden className="absolute top-10 -right-12 w-48 h-48 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(255,107,157,0.4) 0%, rgba(255,107,157,0) 70%)', animation: 'hero-orb-2 11s ease-in-out infinite' }} />
+
+        <div className="relative">
+          <span className="m-hero-fade inline-block text-[10px] font-bold tracking-[0.2em] text-white/55 px-2.5 py-1 rounded-full border border-white/[0.08] bg-white/[0.03]">
+            {m.heroBadge || 'PREMIUM KOREA TRAVEL'}
+          </span>
+          <h1 className="m-hero-fade mt-3 text-[28px] sm:text-[32px] leading-[1.15] font-black text-white" style={{ animationDelay: '0.05s' }}>
+            {m.heroHeadline1 || 'Your Korea trip,'}
+            <br />
+            <span className="m-shimmer">{m.heroHeadline2 || 'planned in 60 seconds'}</span>
+          </h1>
+          <p className="m-hero-fade mt-2.5 text-[13px] text-white/55 leading-relaxed" style={{ animationDelay: '0.1s' }}>
+            {m.heroSubtitle || 'AI plans the days. Private chauffeur + 24/7 English support included.'}
+          </p>
+          <Link
+            to="/planner"
+            onClick={() => haptic('select')}
+            className="m-hero-fade m-btn mt-5 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-[14px] font-bold text-white shadow-lg"
+            style={{
+              background: 'linear-gradient(135deg, #B668FC 0%, #FF6B9D 100%)',
+              boxShadow: '0 10px 32px rgba(182,104,252,0.35)',
+              animationDelay: '0.18s',
+            }}
+          >
+            <Wand2 className="w-4 h-4" />
+            {m.heroCta || 'Get Started'}
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+          <div className="m-hero-fade mt-3.5 flex items-center justify-center gap-3 text-[10.5px] text-white/45" style={{ animationDelay: '0.25s' }}>
+            <span className="flex items-center gap-1"><Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />{m.heroProofReviews || '5.0 Google'}</span>
+            <span className="text-white/15">·</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{m.heroProofSupport || '24/7 English'}</span>
+            <span className="text-white/15">·</span>
+            <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3" />{m.heroProofLicensed || 'Licensed Operator'}</span>
+          </div>
+        </div>
+      </section>
+
       {/* PROMO */}
-      <section className="relative mx-3 mt-3 h-[185px] rounded-2xl overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <section className="relative mx-3 h-[185px] rounded-2xl overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {PROMO_SLIDES.map((s, i) => (
           <Link key={i} to={s.link} className={`absolute inset-0 p-5 flex flex-col justify-between transition-all duration-[600ms] ease-out ${i === promoIdx ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} style={{ background: s.gradient }}>
             <div className="absolute top-4 right-4 w-20 h-20 rounded-full bg-white/[0.06] blur-xl" />
@@ -151,13 +198,19 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         </div>
       </section>
 
-      {/* SERVICE BUTTONS */}
+      {/* SERVICE BUTTONS — taller cards, calmer (no float/glow), better
+          touch target. Hover-only subtle border highlight. */}
       <section className="grid grid-cols-3 gap-3 px-4 mt-5">
         {svcButtons.map((svc) => {
           const Icon = svc.icon;
           return (
-            <Link key={svc.label} to={svc.link} className="flex flex-col items-center gap-2.5 py-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] m-btn m-glow relative overflow-hidden group">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center m-float" style={{ background: `linear-gradient(135deg, ${svc.color}20, ${svc.color}08)`, border: `1px solid ${svc.color}30`, animationDelay: `${svc.d}s` }}>
+            <Link
+              key={svc.label}
+              to={svc.link}
+              onClick={() => haptic('tap')}
+              className="flex flex-col items-center gap-2.5 py-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] m-btn relative overflow-hidden hover:border-white/[0.12] hover:bg-white/[0.04]"
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${svc.color}20, ${svc.color}08)`, border: `1px solid ${svc.color}30` }}>
                 <Icon className="w-5 h-5" style={{ color: svc.color }} />
               </div>
               <div className="text-center"><p className="text-[13px] font-bold text-white">{svc.label}</p><p className="text-[10px] text-white/55 mt-0.5">{svc.sub}</p></div>
