@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Tag, Check, AlertCircle } from 'lucide-react';
+import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
+import { useLoyalty } from '@/hooks/useLoyalty';
+import { haptic } from '@/lib/haptic';
 
 /** PayPal 결제 컴포넌트에서 사용하는 i18n 키 */
 interface BookingDict {
@@ -88,24 +91,64 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [savedAmount,   setSavedAmount]   = useState(0);
   const [couponDocId,   setCouponDocId]   = useState<string | null>(null);
   const [couponUserId,  setCouponUserId]  = useState<string | null>(null);
+  const [pickerOpen,    setPickerOpen]    = useState(false);
+
+  // \ubcf4\uc720 \ucfe0\ud3f0 \u2014 \ubbf8\ub85c\uadf8\uc778 \uc2dc hook\uc740 \uc548\uc804 (loyalty=null, coupons=[]).
+  const { activeCoupons } = useLoyalty();
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
-    ko: { label: '\ud504\ub85c\ubaa8\uc158 \ucf54\ub4dc', apply: '\uc801\uc6a9', success: '\ud560\uc778 \uc801\uc6a9\ub428', invalid: '\uc720\ud6a8\ud558\uc9c0 \uc54a\uc740 \ucf54\ub4dc', expired: '\ud504\ub85c\ubaa8\uc158 \uc885\ub8cc' },
-    en: { label: 'Promo code', apply: 'Apply', success: 'Discount applied', invalid: 'Invalid promo code', expired: 'Promotion ended' },
-    ja: { label: '\u30d7\u30ed\u30e2\u30b3\u30fc\u30c9', apply: '\u9069\u7528', success: '\u5272\u5f15\u9069\u7528', invalid: '\u7121\u52b9\u306a\u30b3\u30fc\u30c9', expired: '\u30d7\u30ed\u30e2\u7d42\u4e86' },
-    zh: { label: '\u4fc3\u9500\u7801', apply: '\u5e94\u7528', success: '\u6298\u6263\u5df2\u5e94\u7528', invalid: '\u65e0\u6548\u4fc3\u9500\u7801', expired: '\u4fc3\u9500\u5df2\u7ed3\u675f' },
+    ko: {
+      label: '\ucfe0\ud3f0 \ucf54\ub4dc', apply: '\uc801\uc6a9', success: '\ud560\uc778 \uc801\uc6a9\ub428',
+      invalid: '\uc720\ud6a8\ud558\uc9c0 \uc54a\uc740 \ucf54\ub4dc', expired: '\ud504\ub85c\ubaa8\uc158 \uc885\ub8cc',
+      pickerOpen: '\ucfe0\ud3f0 \uc0ac\uc6a9\ud558\uae30',
+      pickerEmpty: '\uc0ac\uc6a9 \uac00\ub2a5\ud55c \ucfe0\ud3f0\uc774 \uc5c6\uc5b4\uc694',
+      adTitle: 'AI \ud50c\ub798\ub108 1\ud68c = 5% \ucfe0\ud3f0 1\uc7a5',
+      adBody: '124,000\uc6d0 \ucc28\ub7c9 \uc608\uc57d = \uc57d 6,200\uc6d0 \uc808\uc57d. \ud50c\ub798\ub108($9.90) \uac70\uc758 \ubb34\ub8cc!',
+      adCta: 'AI \ud50c\ub798\ub108 \ub9cc\ub4e4\uae30',
+      saved: '\uc808\uc57d', expires: '\ub9cc\ub8cc',
+    },
+    en: {
+      label: 'Promo code', apply: 'Apply', success: 'Discount applied',
+      invalid: 'Invalid code', expired: 'Promotion ended',
+      pickerOpen: 'Use a coupon',
+      pickerEmpty: 'No coupons yet',
+      adTitle: '1 AI plan = 1\u00d7 5% coupon',
+      adBody: 'Book a \u20a9124,000 charter \u2248 \u20a96,200 saved. The planner ($9.90) pays for itself.',
+      adCta: 'Make AI plan',
+      saved: 'Saved', expires: 'Expires',
+    },
+    ja: {
+      label: '\u30af\u30fc\u30dd\u30f3\u30b3\u30fc\u30c9', apply: '\u9069\u7528', success: '\u5272\u5f15\u9069\u7528',
+      invalid: '\u7121\u52b9\u306a\u30b3\u30fc\u30c9', expired: '\u30d7\u30ed\u30e2\u7d42\u4e86',
+      pickerOpen: '\u30af\u30fc\u30dd\u30f3\u3092\u4f7f\u3046',
+      pickerEmpty: '\u4f7f\u3048\u308b\u30af\u30fc\u30dd\u30f3\u304c\u3042\u308a\u307e\u305b\u3093',
+      adTitle: 'AI\u30d7\u30e9\u30f31\u56de = 5%\u30af\u30fc\u30dd\u30f3',
+      adBody: '\u20a9124,000\u306e\u30c1\u30e3\u30fc\u30bf\u30fc\u4e88\u7d04 \u2245 \u20a96,200\u306e\u7bc0\u7d04\u3002\u30d7\u30e9\u30f3($9.90)\u306f\u307b\u307c\u7121\u6599\uff01',
+      adCta: 'AI\u30d7\u30e9\u30f3\u4f5c\u6210',
+      saved: '\u7bc0\u7d04', expires: '\u6709\u52b9\u671f\u9650',
+    },
+    zh: {
+      label: '\u4f18\u60e0\u5238\u7801', apply: '\u5e94\u7528', success: '\u6298\u6263\u5df2\u5e94\u7528',
+      invalid: '\u65e0\u6548\u4ee3\u7801', expired: '\u4fc3\u9500\u5df2\u7ed3\u675f',
+      pickerOpen: '\u4f7f\u7528\u4f18\u60e0\u5238',
+      pickerEmpty: '\u6682\u65e0\u53ef\u7528\u4f18\u60e0\u5238',
+      adTitle: 'AI \u884c\u7a0b 1 \u6b21 = 5% \u4f18\u60e0\u5238',
+      adBody: '\u9884\u8ba2 \u20a9124,000 \u5305\u8f66 \u2248 \u8282\u7701 \u20a96,200\uff0c\u884c\u7a0b($9.90)\u51e0\u4e4e\u514d\u8d39\uff01',
+      adCta: '\u5236\u4f5c AI \u884c\u7a0b',
+      saved: '\u8282\u7701', expires: '\u5230\u671f',
+    },
   };
   const pl = PROMO_LABELS[lang] ?? PROMO_LABELS.en;
 
-  async function handleApplyPromo() {
-    if (!promoCode.trim()) return;
+  async function applyCouponCode(code: string) {
+    if (!code.trim()) return;
     setPromoLoading(true);
     setPromoError(null);
     try {
       const res = await fetch('/api/applyPromoCode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: promoCode, productType, originalPrice: priceKRW }),
+        body: JSON.stringify({ code, productType, originalPrice: priceKRW }),
       });
       const json = await res.json();
       const d = json.data;
@@ -115,6 +158,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         setPromoApplied(true);
         setCouponDocId(d.couponDocId || null);
         setCouponUserId(d.userId || null);
+        setPromoCode(code);
+        setPickerOpen(false);
+        haptic('success');
       } else {
         setPromoError(json.code === 'INVALID_CODE' || d?.error === 'promo_expired' ? pl.expired : pl.invalid);
       }
@@ -124,6 +170,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       setPromoLoading(false);
     }
   }
+
 
   const effectiveKRW = discountedKRW ?? priceKRW;
 
@@ -410,27 +457,98 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   return (
     <div className="space-y-3">
-      {/* Promo Code Input */}
+      {/* Coupon picker — replaces the legacy text-input. Closed: a single
+          row "Use a coupon ▼". Open: list of the user's owned coupons; an
+          empty state shows the AI-planner ad copy. Picking a card calls
+          the existing /api/applyPromoCode with the coupon's code, so the
+          backend stays unchanged. The legacy promoCode state is still
+          populated downstream for purchase metadata back-compat. */}
       {!showPaypal && !promoApplied && (
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/55" />
-            <input
-              type="text"
-              value={promoCode}
-              onChange={e => setPromoCode(e.target.value.toUpperCase())}
-              placeholder={pl.label}
-              className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/[0.06] border border-white/10 text-sm text-white placeholder:text-white/55 outline-none focus:border-[#7C5CFC]/50 transition-colors"
-            />
-          </div>
+        <div>
           <button
             type="button"
-            onClick={handleApplyPromo}
-            disabled={promoLoading || !promoCode.trim()}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold text-white border border-[#7C5CFC]/40 bg-[#7C5CFC]/15 hover:bg-[#7C5CFC]/25 disabled:opacity-40 transition-all"
+            onClick={() => { haptic('tap'); setPickerOpen(o => !o); }}
+            aria-expanded={pickerOpen}
+            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-white/[0.06] border border-white/10 hover:border-[#7C5CFC]/40 hover:bg-white/[0.08] transition-all"
           >
-            {promoLoading ? '...' : pl.apply}
+            <span className="flex items-center gap-2">
+              <Ticket className="w-4 h-4 text-[#B668FC]" />
+              <span className="text-sm font-semibold text-white">{pl.pickerOpen}</span>
+              {activeCoupons.length > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#B668FC]/20 text-[#B668FC] border border-[#B668FC]/25">
+                  {activeCoupons.length}
+                </span>
+              )}
+            </span>
+            {pickerOpen ? <ChevronUp className="w-4 h-4 text-white/50" /> : <ChevronDown className="w-4 h-4 text-white/50" />}
           </button>
+
+          {pickerOpen && (
+            <div
+              className="mt-2 space-y-2 overflow-hidden"
+              style={{ animation: 'coupon-picker-in 0.25s ease-out' }}
+            >
+              <style>{`
+                @keyframes coupon-picker-in {
+                  from { opacity: 0; transform: translateY(-4px); }
+                  to { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
+              {activeCoupons.length === 0 ? (
+                /* Ad: AI planner → 5% coupon. Math is per user spec. */
+                <div className="rounded-xl border border-[#7C5CFC]/25 p-3.5"
+                  style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(255,107,157,0.06))' }}>
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}>
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12.5px] font-bold text-white leading-tight">{pl.adTitle}</p>
+                      <p className="text-[11px] text-white/65 leading-snug mt-1">{pl.adBody}</p>
+                      <Link
+                        to="/planner"
+                        onClick={() => haptic('tap')}
+                        className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#B668FC] hover:text-[#FF6B9D] transition-colors"
+                      >
+                        {pl.adCta}
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-white/35 mt-2.5 pt-2.5 border-t border-white/[0.05]">
+                    {pl.pickerEmpty}
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {activeCoupons.map(c => {
+                    const valueLabel = c.type === 'percent' ? `${c.value}%` : (c.currency === 'KRW' ? `₩${c.value.toLocaleString()}` : `$${c.value}`);
+                    const expDate = new Date(c.expiresAt).toLocaleDateString();
+                    return (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => applyCouponCode(c.code)}
+                          disabled={promoLoading}
+                          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:border-[#7C5CFC]/40 hover:bg-white/[0.07] transition-all text-left disabled:opacity-50"
+                        >
+                          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-[#7C5CFC]/15 border border-[#7C5CFC]/25">
+                            <Tag className="w-3.5 h-3.5 text-[#B668FC]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-bold text-white truncate">{c.label}</p>
+                            <p className="text-[10.5px] text-white/45 mt-0.5">{pl.expires}: {expDate}</p>
+                          </div>
+                          <span className="text-[14px] font-black text-[#B668FC] shrink-0">{valueLabel}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       )}
       {promoError && (
