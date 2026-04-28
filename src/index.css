@@ -317,6 +317,22 @@ html[data-menu-open="true"] .early-bird-banner {
   50% { opacity: 1; transform: scale(1.2); }
 }
 
+/* ── Plan result page animations (PlannerPage / PlanDetailPage) ──
+   누락되어 있던 3개 keyframes — 결제 후 플랜 결과 첫 화면의 진입 효과
+   및 Gemini 호출 중 로딩 환 애니메이션. 미정의 상태로 무효 처리되고 있었음. */
+@keyframes pulse-ring {
+  from { box-shadow: 0 0 0 0 rgba(124, 92, 252, 0.6); }
+  to   { box-shadow: 0 0 0 15px rgba(124, 92, 252, 0); }
+}
+@keyframes fade-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes day-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* ── Cross-device utility classes ── (P2 UI: 데스크톱 hover 강화 2026-04-27)
    shimmer/pulse-glow/slide-up은 데스크톱에도 적합 — 미디어 쿼리 밖으로 이동 */
 .m-shimmer-text {
@@ -326,6 +342,12 @@ html[data-menu-open="true"] .early-bird-banner {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: m-shimmer 3s linear infinite;
+}
+/* 모바일: 3s → 2s. 좁은 뷰포트에서 오랜 shimmer는 시선 분산. */
+@media (max-width: 768px) {
+  .m-shimmer-text {
+    animation-duration: 2s;
+  }
 }
 .m-pulse-glow {
   animation: m-pulse-glow 3s ease-in-out infinite;

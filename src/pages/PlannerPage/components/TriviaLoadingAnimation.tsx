@@ -13,16 +13,18 @@ export function TriviaLoadingAnimation({ p, streamStep }: { p: PlannerDict; stre
 
   useEffect(() => {
     if (!tips.length) return;
+    const tipsLen = tips.length;
+    const phasesLen = phases.length;
     const tipTimer = setInterval(() => {
       setVisible(false);
-      setTimeout(() => { setTipIdx(i => (i + 1) % tips.length); setVisible(true); }, 400);
+      setTimeout(() => { setTipIdx(i => (i + 1) % tipsLen); setVisible(true); }, 400);
     }, 3400);
     const phaseTimer = setInterval(() => {
-      setPhaseIdx(i => Math.min(i + 1, phases.length - 1));
+      setPhaseIdx(i => Math.min(i + 1, phasesLen - 1));
     }, 4000);
     return () => { clearInterval(tipTimer); clearInterval(phaseTimer); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // tips/phases 길이가 바뀌면 타이머 재설정 (locale 변경 등)
+  }, [tips.length, phases.length]);
 
   const progressPercent = streamStep ? Math.round((streamStep / 6) * 100) : Math.round(((phaseIdx + 1) / phases.length) * 100);
 
