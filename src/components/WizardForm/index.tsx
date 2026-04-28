@@ -15,6 +15,7 @@ import type { PlannerFormValues } from '../PlannerForm';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
+import { requestNotifyPermission } from '@/lib/notify';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
@@ -162,6 +163,10 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   async function handleGenerate() {
     haptic('select');
     setErrorMsg('');
+    // Ask for notification permission at submit time — generation runs 30-90s
+    // and users often switch tabs. Permission is fire-and-forget; if denied
+    // or unsupported the rest of the flow is unaffected.
+    void requestNotifyPermission();
     try { if (mainCity) localStorage.setItem('cocotrip_last_region', mainCity); } catch { /* silent */ }
     const sd = startDate || new Date().toISOString().split('T')[0];
     const ed = endDate || new Date(Date.now() + durationDays * 86400000).toISOString().split('T')[0];

@@ -503,6 +503,8 @@
     "heroTitle": "Your Korea.\nYour Way.",
     "heroSubtitle": "Your personalized Korea trip, designed by AI\nPrivate Charter · K-pop Shuttle · 24/7 Support",
     "badgeLabel": "AI Travel Planner",
+    "notifyPlanReadyTitle": "Your trip plan is ready!",
+    "notifyPlanReadyBody": "Tap to see the AI-generated itinerary",
     "categoryLabel": "Travel Theme",
     "categoryHint": "Select all themes that interest you",
     "kpopDesc": "Idols · Concerts · Fan Shops",

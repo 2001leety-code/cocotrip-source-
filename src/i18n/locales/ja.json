@@ -503,6 +503,8 @@
     "heroTitle": "あなただけの\n韓国旅行",
     "heroSubtitle": "AIが設計するあなただけの韓国旅行\nチャーター車・K-POPシャトル　24時間サポート",
     "badgeLabel": "AI Travel Planner",
+    "notifyPlanReadyTitle": "旅行プランが完成しました!",
+    "notifyPlanReadyBody": "AIが作成した旅程を確認してください",
     "categoryLabel": "旅行テーマ",
     "categoryHint": "興味のあるテーマをすべて選んでください",
     "kpopDesc": "アイドル · コンサート · ファンショップ",
