@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -9,6 +10,7 @@ import {
   CloudSun, Thermometer, Timer, FileText, ShieldCheck,
 } from 'lucide-react';
 import { haptic } from '@/lib/haptic';
+import { TOURS, getTourPriceKRW } from '@/data/tours';
 import type { Translations } from '@/i18n';
 
 interface MobileHomeProps {
@@ -17,55 +19,23 @@ interface MobileHomeProps {
 
 export function MobileHome({ t: _t }: MobileHomeProps) {
   const { user } = useAuth();
-  const [promoIdx, setPromoIdx] = useState(0);
-  const [touchStartX, setTouchStartX] = useState(0);
+  const { language } = useLanguage();
   const [nextTrip, setNextTrip] = useState<{ title: string; dday: number; date: string } | null>(null);
   const [weather, setWeather] = useState<{ temp: string; desc: string; icon: string } | null>(null);
 
   const m = _t.mobileHome || {};
 
-  const PROMO_SLIDES = [
-    {
-      gradient: 'linear-gradient(135deg, #B668FC 0%, #FF6B9D 50%, #C850C0 100%)',
-      badge: 'AI PLANNER', title: m.promoAiTitle || 'AI Custom Itinerary',
-      subtitle: m.promoAiSubtitle || 'Your perfect Korea trip plan in 15 sec',
-      price: '$9.90', cta: m.promoAiCta || 'Plan My Trip', link: '/planner',
-    },
-    {
-      gradient: 'linear-gradient(135deg, #0f0f1a 0%, #1a0a2e 50%, #2d1b69 100%)',
-      badge: 'PRIVATE CHARTER', title: m.promoCharterTitle || 'Private Vehicle',
-      subtitle: m.promoCharterSubtitle || 'English driver · Tips/Tolls all inclusive',
-      price: '$90~', cta: m.promoCharterCta || 'Get Quote', link: '/charter',
-    },
-    {
-      gradient: 'linear-gradient(135deg, #FF6B9D 0%, #C850C0 50%, #4158D0 100%)',
-      badge: 'K-POP SHUTTLE', title: m.promoKpopTitle || 'K-pop Concert Shuttle',
-      subtitle: m.promoKpopSubtitle || 'Hotel ↔ Venue round-trip shuttle',
-      price: '$25~', cta: m.promoKpopCta || 'Book Shuttle', link: '/charter',
-    },
-    {
-      gradient: 'linear-gradient(135deg, #1a0a2e 0%, #B668FC 100%)',
-      badge: 'TOURS',
-      title: m.promoToursTitle || 'Korea Private Tours',
-      subtitle: m.promoToursSubtitle || 'Seoul · Busan · Gyeongju · Danyang — all inclusive',
-      price: '$208~',
-      cta: m.promoToursCta || 'View Tours',
-      link: '/tours',
-    },
-  ];
-
-  const [paused, setPaused] = useState(false);
-
-  const nextSlide = useCallback(() => setPromoIdx(p => (p + 1) % PROMO_SLIDES.length), [PROMO_SLIDES.length]);
-  useEffect(() => { if (paused) return; const t = setInterval(nextSlide, 7000); return () => clearInterval(t); }, [nextSlide, paused]);
-  const handleTouchStart = (e: React.TouchEvent) => setTouchStartX(e.touches[0].clientX);
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const diff = touchStartX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
-      setPromoIdx(p => diff > 0 ? (p + 1) % PROMO_SLIDES.length : (p - 1 + PROMO_SLIDES.length) % PROMO_SLIDES.length);
-      setPaused(true);
-      setTimeout(() => setPaused(false), 10000);
-    }
+  // Tour marquee — show 8 featured tours (alternating regions for visual variety).
+  // Memoized to keep the duplicated array stable across rerenders so the CSS
+  // animation doesn't reset every time React rerenders the parent.
+  const featuredTours = TOURS.slice(0, 8);
+  // Duplicate the list so the css translateX(-50%) loop is seamless.
+  const marqueeItems = [...featuredTours, ...featuredTours];
+  const [marqueePaused, setMarqueePaused] = useState(false);
+  const marqueeRef = useRef<HTMLDivElement | null>(null);
+  const formatPriceKRW = (priceKRW: number) => {
+    if (priceKRW >= 10000) return `${Math.round(priceKRW / 10000)}만원~`;
+    return `₩${priceKRW.toLocaleString()}~`;
   };
 
   useEffect(() => {
@@ -125,10 +95,14 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         @keyframes hero-orb { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; } 50% { transform: translate(8px, -10px) scale(1.05); opacity: 0.7; } }
         @keyframes hero-orb-2 { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; } 50% { transform: translate(-10px, 8px) scale(1.08); opacity: 0.6; } }
         @keyframes hero-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .m-btn { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .m-btn:active { transform: scale(0.93); }
         .m-shimmer { background: linear-gradient(90deg, #B668FC 0%, #FF6B9D 40%, #B668FC 80%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; }
         .m-hero-fade { animation: hero-fade 0.5s ease-out forwards; opacity: 0; }
+        @media (prefers-reduced-motion: reduce) {
+          .m-shimmer, [style*="hero-orb"], [style*="marquee"] { animation: none !important; }
+        }
       `}</style>
 
       {/* HERO — Claude.ai-inspired confident headline + single primary CTA.
@@ -177,24 +151,68 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         </div>
       </section>
 
-      {/* PROMO */}
-      <section className="relative mx-3 h-[185px] rounded-2xl overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        {PROMO_SLIDES.map((s, i) => (
-          <Link key={i} to={s.link} className={`absolute inset-0 p-5 flex flex-col justify-between transition-all duration-[600ms] ease-out ${i === promoIdx ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} style={{ background: s.gradient }}>
-            <div className="absolute top-4 right-4 w-20 h-20 rounded-full bg-white/[0.06] blur-xl" />
-            <div className="relative z-10">
-              <span className="inline-block text-[9px] font-black tracking-[0.15em] text-white/90 bg-white/15 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{s.badge}</span>
-              <h2 className="text-[22px] font-black text-white mt-2 leading-tight drop-shadow-lg">{s.title}</h2>
-              <p className="text-[12px] text-white/60 mt-1">{s.subtitle}</p>
-            </div>
-            <div className="relative z-10 flex items-end justify-between">
-              <div><p className="text-[10px] text-white/55 uppercase tracking-wider">from</p><p className="text-[28px] font-black text-white leading-none">{s.price}</p></div>
-              <span className="text-[12px] font-bold text-white bg-white/20 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10 m-btn">{s.cta} →</span>
-            </div>
+      {/* TOUR MARQUEE — replaces the old promo carousel. Tour photos drift
+          left→right at a slow walking pace (40s for one full loop). Touch
+          on the strip pauses the animation so users can read; lifting the
+          finger resumes after a beat. Each card is a Link to the tour
+          detail with haptic feedback. */}
+      <section className="relative">
+        <div className="flex items-center justify-between px-5 mb-2.5">
+          <p className="text-[12px] font-semibold text-white/65">
+            {m.tourMarqueeTitle || 'Featured Tours'}
+          </p>
+          <Link to="/tours" onClick={() => haptic('tap')} className="text-[11px] text-[#B668FC] font-semibold flex items-center gap-0.5">
+            {m.tourMarqueeMore || 'View all'}
+            <ChevronRight className="w-3 h-3" />
           </Link>
-        ))}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-          {PROMO_SLIDES.map((_, i) => (<button key={i} onClick={() => setPromoIdx(i)} className={`rounded-full transition-all duration-[400ms] ${i === promoIdx ? 'w-6 h-[5px] bg-pink-400 shadow-[0_0_10px_rgba(255,107,157,0.6)]' : 'w-[5px] h-[5px] bg-white/20'}`} />))}
+        </div>
+        <div
+          ref={marqueeRef}
+          className="overflow-hidden"
+          onTouchStart={() => setMarqueePaused(true)}
+          onTouchEnd={() => setTimeout(() => setMarqueePaused(false), 1500)}
+        >
+          <div
+            className="flex gap-3 will-change-transform"
+            style={{
+              animation: 'marquee 40s linear infinite',
+              animationPlayState: marqueePaused ? 'paused' : 'running',
+              width: 'max-content',
+            }}
+          >
+            {marqueeItems.map((tour, i) => {
+              const title = tour.title[language] || tour.title.en;
+              const priceKRW = getTourPriceKRW(tour.id, tour.priceFrom, tour.priceUnit);
+              return (
+                <Link
+                  key={`${tour.id}-${i}`}
+                  to={`/tours/${tour.slug}`}
+                  onClick={() => haptic('tap')}
+                  className="m-btn shrink-0 w-[140px] h-[185px] rounded-2xl overflow-hidden relative bg-white/[0.04] border border-white/[0.06] block"
+                  aria-label={title}
+                >
+                  <img
+                    src={tour.thumbnail}
+                    alt={title}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  {/* Bottom gradient + price chip + title */}
+                  <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black/85 via-black/50 to-transparent" />
+                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/10">
+                    <span className="text-[9.5px] font-bold text-white">{formatPriceKRW(priceKRW)}</span>
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
+                    <p className="text-[12px] font-bold text-white leading-tight line-clamp-2 drop-shadow-md">
+                      {title}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </section>
 
