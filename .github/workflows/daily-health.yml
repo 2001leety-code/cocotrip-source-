@@ -2,8 +2,10 @@ name: Daily Health Check
 
 on:
   schedule:
-    # UTC 00:00 = KST 09:00 매일
-    - cron: '0 0 * * *'
+    # UTC 00:00 = KST 09:00, 월/수/금만 (주 3회).
+    # 매일 → 월수금 변경: GitHub Actions minutes 절감 (validate-planner.cjs는
+    # Gemini 5회 호출이라 cold path에서 5-10분 소요).
+    - cron: '0 0 * * 1,3,5'
   workflow_dispatch: # 수동 실행 가능
 
 jobs:

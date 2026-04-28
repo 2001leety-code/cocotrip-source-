@@ -7,9 +7,21 @@ name: PR Tests
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '.agent/**'
+      - '**/*.md'
+
+# Cancel previous runs when a new push comes in. Active branches push often;
+# only the latest commit needs validation.
+concurrency:
+  group: pr-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   unit:
+    # Skip draft PRs — devs flip to "Ready for review" when validation matters.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

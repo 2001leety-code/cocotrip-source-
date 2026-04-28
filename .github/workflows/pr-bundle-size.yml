@@ -14,8 +14,13 @@ on:
       - 'vite.config.ts'
       - '.size-limit.json'
 
+concurrency:
+  group: pr-bundle-size-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   bundle-size:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
