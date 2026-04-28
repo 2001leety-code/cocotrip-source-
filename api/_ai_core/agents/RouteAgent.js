@@ -215,21 +215,26 @@ export class RouteAgent extends BaseAgent {
                 // Layer 2.5: Google Places fallback — Naver Geocoding은 도로명/지번에 강하지만
                 // 관광지명 ("인사동 문화의 거리", "광화문 광장" 등)에 약함. Naver 모두 실패 시
                 // Google Places Text Search로 시도. 키 없으면 skip.
-                if (lat === null && process.env.GOOGLE_PLACES_API_KEY) {
+                // Sprint 1 Step 3: Google Places로 좌표 + photo_reference 동시 fetch.
+                // 좌표가 이미 있어도 photo는 fetch (시각 강화). 키 없으면 skip.
+                if (process.env.GOOGLE_PLACES_API_KEY && (lat === null || !place.photo_ref)) {
                     try {
                         const placeQuery = name + (region ? ` ${region}` : '');
                         const gRes = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
                             params: { query: placeQuery, key: process.env.GOOGLE_PLACES_API_KEY, language: 'ko' },
-                            timeout: 5000,
+                            timeout: 4000,
                         });
                         const first = gRes.data?.results?.[0];
-                        if (first?.geometry?.location) {
+                        if (first?.geometry?.location && lat === null) {
                             lat = first.geometry.location.lat;
                             lng = first.geometry.location.lng;
-                            console.log(`  ✓ [${name}] Google Places fallback geocoded: ${lat},${lng}`);
+                            console.log(`  ✓ [${name}] Google Places geocoded: ${lat},${lng}`);
+                        }
+                        if (first?.photos?.[0]?.photo_reference && !place.photo_ref) {
+                            place.photo_ref = first.photos[0].photo_reference;
                         }
                     } catch (gErr) {
-                        console.warn(`  - [${name}] Google Places fallback failed: ${gErr.message}`);
+                        console.warn(`  - [${name}] Google Places call failed: ${gErr.message}`);
                     }
                 }
                 place.lat = lat;

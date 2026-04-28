@@ -126,6 +126,19 @@ export function StopCard({ stop }: { stop: PlanStop }) {
           내부 div가 overflow-y-auto이므로 max-h를 넘으면 스크롤. */}
       <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[calc(100dvh-320px)] sm:max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5 border-t border-white/[0.06] space-y-3" onClick={(e) => e.stopPropagation()}>
+          {/* Sprint 1 Step 3: Photo preview (Google Places). photo_ref 있으면 thumbnail 렌더.
+              expanded 상태에서만 fetch — collapsed 카드 다수 시 비용 절감.
+              loading="lazy" + decoding="async" — 모바일 첫 렌더 우선순위 보호. */}
+          {stop.photo_ref && (
+            <img
+              src={`/api/place-photo?ref=${encodeURIComponent(stop.photo_ref)}&w=600`}
+              alt={cleanDisplayName}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-44 sm:h-52 rounded-lg object-cover border border-white/[0.06]"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
             <p className="text-[12px] text-white/55 flex items-start gap-1.5 leading-relaxed">
