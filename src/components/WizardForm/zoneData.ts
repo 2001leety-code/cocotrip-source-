@@ -88,6 +88,19 @@ export const SEOUL_ZONES: Zone[] = [
     icon: '🏯',
     bestFor: { ko: '전통/문화', en: 'Heritage', ja: '伝統・文化', zh: '传统文化' },
   },
+  {
+    key: 'jamsil',
+    name: { ko: '잠실', en: 'Jamsil', ja: '蚕室', zh: '蚕室' },
+    desc: {
+      ko: '롯데월드·롯데타워·석촌호수 — 가족 여행 / 야경',
+      en: 'Lotte World, Lotte Tower, Seokchon Lake — family + skyline',
+      ja: 'ロッテワールド・ロッテタワー・石村湖 — 家族旅行・夜景',
+      zh: '乐天世界·乐天塔·石村湖 — 亲子游·夜景',
+    },
+    nightlyKRW: '₩140k-300k',
+    icon: '🎢',
+    bestFor: { ko: '가족·테마파크', en: 'Family + theme park', ja: '家族・テーマパーク', zh: '亲子·主题乐园' },
+  },
 ];
 
 export const BUSAN_ZONES: Zone[] = [
