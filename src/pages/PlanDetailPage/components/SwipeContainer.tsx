@@ -70,8 +70,9 @@ export function SwipeContainer({ children, current, onSlideChange, editMode }: S
         {children.map((child, i) => (
           <div
             key={i}
+            // w-full + flex-shrink-0 만으로 충분 — 인라인 width:100%/minWidth:100% 제거
+            // (Tailwind 클래스와 중복 + style 우선순위 충돌 가능성).
             className="w-full flex-shrink-0"
-            style={{ width: '100%', minWidth: '100%' }}
           >
             <div
               // dvh: iOS Safari address-bar collapse aware. vh fallback via min() for old browsers.

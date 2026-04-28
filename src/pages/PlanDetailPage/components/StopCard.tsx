@@ -114,8 +114,11 @@ export function StopCard({ stop }: { stop: PlanStop }) {
         <ChevronDown className={`w-4 h-4 text-white/55 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </div>
 
-      {/* Expanded details — mobile capped at 480px so the next card stays in view (iPhone 14 Pro 393×852: ~70% of usable area) */}
-      <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[480px] sm:max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+      {/* Expanded details — mobile: viewport-based 동적 cap (콘텐츠 잘림 방지).
+          기존 480px 고정은 personalization_reasoning + tip + photos 다 있을 때 잘림 발생.
+          calc(100dvh - 320px): header(56) + tabs(40) + slide progress(40) + collapsed card header(~140) + 여유(44).
+          내부 div가 overflow-y-auto이므로 max-h를 넘으면 스크롤. */}
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded ? 'max-h-[calc(100dvh-320px)] sm:max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="px-3.5 pb-3.5 pt-3 sm:px-5 sm:pb-4 sm:pt-3.5 border-t border-white/[0.06] space-y-3" onClick={(e) => e.stopPropagation()}>
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (

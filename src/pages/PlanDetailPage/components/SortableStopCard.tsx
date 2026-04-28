@@ -50,7 +50,9 @@ export function SortableStopCard({ stop, stopId, editMode, onDelete }: SortableS
         layout
         initial={stop._userAdded ? { opacity: 0, y: -10 } : false}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, x: -20, height: 0, marginBottom: 0 }}
+        // height/marginBottom 애니메이션 제거 — repaint 유발 (60fps 깨짐).
+        // layout prop이 부모 reflow를 자동 처리하므로 transform 기반 exit만으로 충분.
+        exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
       >
         {editMode && (
