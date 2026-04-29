@@ -1551,6 +1551,8 @@
     "dashViewAll": "전체 보기",
     "dashExplore": "둘러보기",
     "dashAccount": "내 계정",
+    "wlEmptyTitle": "위시리스트가 비어 있어요",
+    "wlEmptySub": "투어 사진의 ❤ 버튼을 눌러 저장하세요",
     "couponAdTitle": "AI 플래너 1회 = 5% 쿠폰 1장",
     "couponAdBody": "124,000원 차량 예약 시 약 6,200원 절약. 플래너($9.90) 거의 무료!",
     "couponAdCta": "AI 플래너 만들기",
@@ -1680,6 +1682,12 @@
       "privacy": "개인정보",
       "travelTerms": "여행약관"
     }
+  },
+  "wishlist": {
+    "title": "위시리스트",
+    "empty": "위시리스트가 비어 있어요",
+    "tapToSave": "투어 사진의 ❤ 버튼을 눌러 저장하세요",
+    "signInHint": "💡 로그인하면 기기 간 위시리스트가 동기화됩니다"
   },
   "a11y": {
     "openChat": "채팅 열기",

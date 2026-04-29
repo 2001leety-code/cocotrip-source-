@@ -1551,6 +1551,8 @@
     "dashViewAll": "すべて見る",
     "dashExplore": "メニュー",
     "dashAccount": "マイアカウント",
+    "wlEmptyTitle": "ウィッシュリストは空です",
+    "wlEmptySub": "ツアー写真の ❤ ボタンで保存できます",
     "couponAdTitle": "AIプラン1回 = 5%クーポン",
     "couponAdBody": "₩124,000のチャーター予約 ≅ ₩6,200の節約。プラン($9.90)はほぼ無料！",
     "couponAdCta": "AIプラン作成",
@@ -1680,6 +1682,12 @@
       "privacy": "プライバシー",
       "travelTerms": "旅行規約"
     }
+  },
+  "wishlist": {
+    "title": "ウィッシュリスト",
+    "empty": "ウィッシュリストは空です",
+    "tapToSave": "ツアー写真の ❤ ボタンを押して保存できます",
+    "signInHint": "💡 ログインすると端末間で同期されます"
   },
   "a11y": {
     "openChat": "チャットを開く",

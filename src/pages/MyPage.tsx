@@ -542,22 +542,45 @@ export default function MyPage() {
 
         {/* ── 탭: Wishlist ── */}
         {tab === 'wishlist' && (
-          <div className="space-y-3">
+          <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3'}`}>
             {wishlistItems.length === 0 ? (
-              <EmptyState icon={Heart} text="No wishlisted items" />
-            ) : wishlistItems.map(item => (
-              <div key={item.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#EA537E]/20 transition-all">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white text-sm font-medium">{item.name}</p>
-                    <p className="text-white/55 text-xs mt-1">{item.productType}</p>
-                  </div>
-                  {item.priceUSD && (
-                    <span className="text-[#C4956A] font-semibold">${item.priceUSD}</span>
-                  )}
-                </div>
+              <div className="col-span-full">
+                <EmptyState icon={Heart} text={mp.wlEmptyTitle || 'No wishlisted items'} sub={mp.wlEmptySub || 'Tap ❤ on any tour to save it here'} />
               </div>
-            ))}
+            ) : wishlistItems.map(item => {
+              // tours have a slug-based detail; for non-tour types we fall back
+              // to /tours (better than dead link).
+              const href = item.productType === 'tour'
+                ? `/tours/${item.id.replace(/^tour-/, '')}`
+                : '/tours';
+              return (
+                <Link
+                  key={item.id}
+                  to={href}
+                  onClick={() => haptic('tap')}
+                  className="group rounded-xl overflow-hidden bg-white/[0.03] border border-white/5 hover:border-[#EA537E]/35 transition-all"
+                >
+                  <div className="relative w-full h-24 sm:h-28 bg-gradient-to-br from-[#7C5CFC]/15 to-[#EA537E]/10 overflow-hidden">
+                    {item.thumbnailUrl ? (
+                      <img src={item.thumbnailUrl} alt={item.name} loading="lazy" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Heart className="w-6 h-6 text-white/25" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-3 py-2.5">
+                    <p className="text-[12.5px] font-bold text-white truncate">{item.name}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-white/45 uppercase tracking-wider">{item.productType}</span>
+                      {item.priceUSD ? (
+                        <span className="text-[#C4956A] font-bold text-[12px]">${item.priceUSD}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
 
