@@ -1683,6 +1683,22 @@
       "travelTerms": "旅行条款"
     }
   },
+  "reviews": {
+    "title": "撰写评价",
+    "starsLabel": "您的评分",
+    "textLabel": "本次旅行如何?",
+    "textPlaceholder": "司机很友善，路线也很完美...",
+    "rewardNote": "🪙 评价发布后将获得 +50 Trip Coins。",
+    "submit": "提交评价",
+    "submitting": "提交中...",
+    "errSubmit": "提交失败",
+    "errNetwork": "网络错误",
+    "s1": "失望",
+    "s2": "低于平均",
+    "s3": "一般",
+    "s4": "良好",
+    "s5": "极佳"
+  },
   "wishlist": {
     "title": "心愿单",
     "empty": "心愿单是空的",

@@ -1683,6 +1683,22 @@
       "travelTerms": "旅行規約"
     }
   },
+  "reviews": {
+    "title": "レビューを書く",
+    "starsLabel": "評価",
+    "textLabel": "ご旅行はいかがでしたか?",
+    "textPlaceholder": "ドライバーが親切で、ルートも最高でした...",
+    "rewardNote": "🪙 レビュー投稿で +50 Trip Coins が付与されます。",
+    "submit": "投稿する",
+    "submitting": "送信中...",
+    "errSubmit": "投稿に失敗しました",
+    "errNetwork": "ネットワークエラー",
+    "s1": "残念",
+    "s2": "やや不満",
+    "s3": "普通",
+    "s4": "良い",
+    "s5": "最高"
+  },
   "wishlist": {
     "title": "ウィッシュリスト",
     "empty": "ウィッシュリストは空です",

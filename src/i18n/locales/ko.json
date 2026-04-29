@@ -1683,6 +1683,22 @@
       "travelTerms": "여행약관"
     }
   },
+  "reviews": {
+    "title": "리뷰 작성",
+    "starsLabel": "별점",
+    "textLabel": "어떠셨나요?",
+    "textPlaceholder": "기사님이 친절했고 동선이 좋았어요...",
+    "rewardNote": "🪙 리뷰 게시 시 +50 Trip Coins 적립됩니다.",
+    "submit": "리뷰 등록",
+    "submitting": "등록 중...",
+    "errSubmit": "등록 실패",
+    "errNetwork": "네트워크 오류",
+    "s1": "아쉬움",
+    "s2": "보통 이하",
+    "s3": "보통",
+    "s4": "좋음",
+    "s5": "최고"
+  },
   "wishlist": {
     "title": "위시리스트",
     "empty": "위시리스트가 비어 있어요",
