@@ -305,30 +305,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       },
     };
 
-    // 표준 PayPal 버튼
+    // layout:'vertical' → enable-funding=googlepay,applepay 로 활성화된
+    // Google Pay / Apple Pay 를 자동으로 PayPal 버튼 아래 스택으로 표시.
+    // 별도 fundingSource 렌더를 추가하면 중복 표시되므로 하나의 Buttons() 호출로 통합.
     window.paypal.Buttons({
       ...sharedConfig,
       style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay' },
     }).render(`#paypal-btn-${productType}`);
-
-    // Google Pay — Chrome에서 자동 표시 (isEligible=false면 렌더 스킵)
-    const gpBtn = window.paypal.Buttons({
-      ...sharedConfig,
-      fundingSource: window.paypal.FUNDING['GOOGLEPAY'],
-    });
-    if (gpBtn.isEligible()) {
-      gpBtn.render(`#googlepay-btn-${productType}`);
-    }
-
-    // Apple Pay — Safari + Apple Pay 설정된 기기에서만 표시
-    // 전제조건: /.well-known/apple-developer-merchantid-domain-association 배포 필요
-    const apBtn = window.paypal.Buttons({
-      ...sharedConfig,
-      fundingSource: window.paypal.FUNDING['APPLEPAY'],
-    });
-    if (apBtn.isEligible()) {
-      apBtn.render(`#applepay-btn-${productType}`);
-    }
   }, [showPaypal, paypalReady, rateInfo]);
 
   // ── SDK 준비 대기 헬퍼 ─────────────────────────────────────────
@@ -589,10 +572,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
       {/* PayPal 버튼 패널 */}
       {showPaypal ? (
-        <div className="rounded-xl overflow-hidden border border-white/10 p-3 bg-white/[0.03] space-y-2">
+        <div className="rounded-xl overflow-hidden border border-white/10 p-3 bg-white/[0.03]">
           <div id={`paypal-btn-${productType}`} />
-          <div id={`googlepay-btn-${productType}`} />
-          <div id={`applepay-btn-${productType}`} />
           {!paypalReady && (
             <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/50">
               <div className="w-4 h-4 border-2 border-white/30 border-t-[#7C5CFC] rounded-full animate-spin" />
