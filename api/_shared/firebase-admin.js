@@ -36,16 +36,7 @@ export function initAdminDb(tag = 'firebase-admin') {
       try {
         credential = cert({ projectId, clientEmail, privateKey });
       } catch (e) {
-        logger.warn(`[${tag}] cert() with FIREBASE_* failed: ${e.message} \u2014 trying PEM reformat fallback`);
-        // \uB77C\uC2A4\uD2B8 fallback: PEM \uC7AC\uC870\uB9BD (\n \uAE68\uC84C\uAC70\uB098 base64 only\uC778 \uCF00\uC774\uC2A4)
-        const pemMatch = privateKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
-        if (pemMatch) {
-          const base64Clean = pemMatch[1].replace(/\s+/g, '');
-          const lines = base64Clean.match(/.{1,64}/g) || [];
-          const reformatted = '-----BEGIN PRIVATE KEY-----\n' + lines.join('\n') + '\n-----END PRIVATE KEY-----\n';
-          try { credential = cert({ projectId, clientEmail, privateKey: reformatted }); }
-          catch (e2) { logger.warn(`[${tag}] PEM reformat also failed: ${e2.message}`); }
-        }
+        logger.warn(`[${tag}] cert() with FIREBASE_* failed: ${e.message}`);
       }
     }
     if (!credential && process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
