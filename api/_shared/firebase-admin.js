@@ -14,16 +14,12 @@ import { logger } from './log.js';
 
 export function initAdminDb(tag = 'firebase-admin') {
   try {
-    const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
-    const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-
-    // plan-status.js \uD328\uD134\uACFC \uB3D9\uC77C\uD558\uAC8C \uB2E8\uC21C \uBCC0\uD658\uB9CC \uC0AC\uC6A9. \uCD94\uAC00 PEM reformat\uC740 \uC77C\uBD80
-    // \uD658\uACBD\uC5D0\uC11C cert() invalid \uC720\uBC1C (Vercel prod 2026-04-29 launch D-1 \uBC1C\uACAC).
-    const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '')
-      .replace(/^\uFEFF/, '')
-      .replace(/^["']|["']$/g, '')
-      .replace(/\\n/g, '\n')
-      .trim();
+    // plan-status.js \uD328\uD134\uACFC \uC815\uD655\uD788 \uB3D9\uC77C\uD558\uAC8C. trim() / \uB530\uC634\uD45C \uC81C\uAC70 / BOM \uC81C\uAC70 \uBAA8\uB450
+    // \uBE7C\uBC84\uB9B0\uB2E4 \u2014 trim() \uC774 PEM \uB05D \n \uAE4C\uC9C0 \uC81C\uAC70\uD574 cert() invalid (2026-04-29 launch
+    // D-1 \uBC1C\uACAC). prod \uC5D0\uC11C \uAC80\uC99D\uB41C \uD615\uD0DC\uB294 \uB2E8\uC21C \\n\u2192\n replace \uD55C \uBC88\uBFD0.
+    const projectId = process.env.FIREBASE_PROJECT_ID || '';
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
+    const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 
     logger.debug(`[${tag}] Firebase admin key check:`, {
       projectId: projectId ? 'ok' : 'MISSING',
