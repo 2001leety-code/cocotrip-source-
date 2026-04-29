@@ -111,6 +111,8 @@ export function TourCard({ tour, language }: TourCardProps) {
         <img
           src={tour.thumbnail}
           alt={title}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
 
