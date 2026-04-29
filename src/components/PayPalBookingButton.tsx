@@ -62,9 +62,10 @@ interface SuccessData {
 
 declare global {
   interface Window {
-    paypal?: Record<string, unknown> & {
-      Buttons: (config: Record<string, unknown>) => { render: (selector: string) => void };
-    };
+    paypal?: {
+      Buttons: (config: Record<string, unknown>) => { render: (selector: string) => void; isEligible: () => boolean };
+      FUNDING: Record<string, string>;
+    } & Record<string, unknown>;
   }
 }
 
@@ -213,7 +214,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     const sdkBase = isSandboxAccount && sandboxClientId
       ? 'https://www.sandbox.paypal.com/sdk/js'
       : 'https://www.paypal.com/sdk/js';
-    const sdkUrl = `${sdkBase}?client-id=${resolvedClientId}&currency=USD&intent=capture&components=buttons`;
+    const sdkUrl = `${sdkBase}?client-id=${resolvedClientId}&currency=USD&intent=capture&components=buttons&enable-funding=googlepay,applepay`;
     script.src = sdkUrl;
     console.log('[PayPal SDK] loading mode:', expectedMode, '| clientId prefix:', resolvedClientId.substring(0, 8));
     script.onload = () => {
@@ -232,10 +233,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     if (!showPaypal || !paypalReady || !rateInfo || buttonsRendered.current) return;
     if (!window.paypal) return;
 
-    const containerId = `paypal-btn-${productType}`;
     buttonsRendered.current = true;
 
-    window.paypal.Buttons({
+    const sharedConfig = {
       // 모바일 호환: 주문은 미리 생성됨 → ID만 동기 반환 (async 금지 — 모바일 팝업 차단 방지)
       createOrder: () => rateInfo.orderID,
       onApprove: async (data: { orderID: string }) => {
@@ -303,13 +303,32 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         setShowPaypal(false);
         buttonsRendered.current = false;
       },
-      style: {
-        layout: 'vertical',
-        color:  'blue',
-        shape:  'rect',
-        label:  'pay',
-      },
-    }).render(`#${containerId}`);
+    };
+
+    // 표준 PayPal 버튼
+    window.paypal.Buttons({
+      ...sharedConfig,
+      style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay' },
+    }).render(`#paypal-btn-${productType}`);
+
+    // Google Pay — Chrome에서 자동 표시 (isEligible=false면 렌더 스킵)
+    const gpBtn = window.paypal.Buttons({
+      ...sharedConfig,
+      fundingSource: window.paypal.FUNDING['GOOGLEPAY'],
+    });
+    if (gpBtn.isEligible()) {
+      gpBtn.render(`#googlepay-btn-${productType}`);
+    }
+
+    // Apple Pay — Safari + Apple Pay 설정된 기기에서만 표시
+    // 전제조건: /.well-known/apple-developer-merchantid-domain-association 배포 필요
+    const apBtn = window.paypal.Buttons({
+      ...sharedConfig,
+      fundingSource: window.paypal.FUNDING['APPLEPAY'],
+    });
+    if (apBtn.isEligible()) {
+      apBtn.render(`#applepay-btn-${productType}`);
+    }
   }, [showPaypal, paypalReady, rateInfo]);
 
   // ── SDK 준비 대기 헬퍼 ─────────────────────────────────────────
@@ -570,8 +589,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
       {/* PayPal 버튼 패널 */}
       {showPaypal ? (
-        <div className="rounded-xl overflow-hidden border border-white/10 p-3 bg-white/[0.03]">
+        <div className="rounded-xl overflow-hidden border border-white/10 p-3 bg-white/[0.03] space-y-2">
           <div id={`paypal-btn-${productType}`} />
+          <div id={`googlepay-btn-${productType}`} />
+          <div id={`applepay-btn-${productType}`} />
           {!paypalReady && (
             <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/50">
               <div className="w-4 h-4 border-2 border-white/30 border-t-[#7C5CFC] rounded-full animate-spin" />
