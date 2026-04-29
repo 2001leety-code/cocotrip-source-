@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
-import { Calendar, Users, Languages, Plus, Minus, Check } from 'lucide-react';
+import { Calendar, Users, Languages, Plus, Minus, Check, Phone, MapPin, MessageCircle, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
@@ -14,6 +14,40 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
+
+/** Reusable text input row used in Step 2. Keeps the dialog body lean and
+ *  ensures every field has the same focus/error treatment + label style. */
+function ContactField({
+  icon, label, placeholder, value, onChange, type = 'text', compact = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div>
+      <label className={`flex items-center gap-1.5 text-[${compact ? 10 : 11}px] text-white/55 uppercase tracking-wider mb-1.5`}>
+        {icon}{label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full px-3 py-2 rounded-xl text-[${compact ? 12 : 13}px] focus:outline-none`}
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          color: 'white',
+        }}
+      />
+    </div>
+  );
+}
 
 function isoFromDate(d: Date | undefined): string {
   if (!d) return '';
@@ -57,19 +91,60 @@ const I18N: Record<Language, {
   title: string; pax: string; date: string; lang: string; addons: string;
   priceBase: string; priceAddons: string; priceTotal: string;
   cancel: string; submit: string; pickDate: string;
+  // Step 2 contact fields
+  step1Title: string; step2Title: string;
+  next: string; back: string;
+  phone: string; phonePh: string;
+  pickup: string; pickupPh: string;
+  whatsapp: string; whatsappPh: string;
+  line: string; linePh: string;
+  memo: string; memoPh: string;
+  required: string; missingFields: string;
 }> = {
   ko: { title: '투어 예약', pax: '인원수', date: '투어 날짜', lang: '기사 언어', addons: '추가 옵션',
         priceBase: '기본', priceAddons: '추가옵션', priceTotal: '총액 (예상)',
-        cancel: '취소', submit: '결제 페이지로 이동', pickDate: '날짜 선택' },
+        cancel: '취소', submit: '결제 페이지로 이동', pickDate: '날짜 선택',
+        step1Title: '1단계 — 옵션 선택', step2Title: '2단계 — 연락처·픽업',
+        next: '다음', back: '이전',
+        phone: '휴대폰 번호', phonePh: '예: +82 10 1234 5678',
+        pickup: '픽업 호텔/주소', pickupPh: '예: 명동 롯데호텔, 종로구 ○○○',
+        whatsapp: 'WhatsApp ID', whatsappPh: '+82 10 1234 5678',
+        line: 'LINE ID', linePh: 'cocotrip_user',
+        memo: '특별 요청 / 메모', memoPh: '알레르기, 아동 동반, 접근성 등',
+        required: '필수', missingFields: '필수 항목을 모두 입력해주세요' },
   en: { title: 'Book This Tour', pax: 'Passengers', date: 'Tour date', lang: 'Driver language', addons: 'Add-ons',
         priceBase: 'Base', priceAddons: 'Add-ons', priceTotal: 'Estimated total',
-        cancel: 'Cancel', submit: 'Continue to payment', pickDate: 'Select date' },
+        cancel: 'Cancel', submit: 'Continue to payment', pickDate: 'Select date',
+        step1Title: 'Step 1 — Options', step2Title: 'Step 2 — Contact & Pickup',
+        next: 'Next', back: 'Back',
+        phone: 'Mobile number', phonePh: 'e.g. +1 555 123 4567',
+        pickup: 'Pickup hotel / address', pickupPh: 'e.g. Lotte Hotel Myeongdong',
+        whatsapp: 'WhatsApp ID', whatsappPh: '+1 555 123 4567',
+        line: 'LINE ID', linePh: 'cocotrip_user',
+        memo: 'Special requests / notes', memoPh: 'Allergies, kids, accessibility, etc.',
+        required: 'required', missingFields: 'Please fill in all required fields' },
   ja: { title: 'ツアー予約', pax: '人数', date: 'ツアー日', lang: 'ドライバー言語', addons: '追加オプション',
         priceBase: '基本', priceAddons: 'オプション', priceTotal: '合計（予想）',
-        cancel: 'キャンセル', submit: '決済ページへ', pickDate: '日付を選択' },
+        cancel: 'キャンセル', submit: '決済ページへ', pickDate: '日付を選択',
+        step1Title: 'ステップ 1 — オプション', step2Title: 'ステップ 2 — 連絡先・ピックアップ',
+        next: '次へ', back: '戻る',
+        phone: '携帯番号', phonePh: '例: +81 90 1234 5678',
+        pickup: 'ピックアップホテル / 住所', pickupPh: '例: 明洞ロッテホテル',
+        whatsapp: 'WhatsApp ID', whatsappPh: '+81 90 1234 5678',
+        line: 'LINE ID', linePh: 'cocotrip_user',
+        memo: '特別なリクエスト / メモ', memoPh: 'アレルギー、お子様連れ、バリアフリーなど',
+        required: '必須', missingFields: '必須項目をすべて入力してください' },
   zh: { title: '预订旅游', pax: '人数', date: '旅游日期', lang: '司机语言', addons: '附加选项',
         priceBase: '基本', priceAddons: '附加选项', priceTotal: '估计总额',
-        cancel: '取消', submit: '继续到付款页', pickDate: '选择日期' },
+        cancel: '取消', submit: '继续到付款页', pickDate: '选择日期',
+        step1Title: '第 1 步 — 选项', step2Title: '第 2 步 — 联系方式·接送',
+        next: '下一步', back: '上一步',
+        phone: '手机号码', phonePh: '例: +86 138 1234 5678',
+        pickup: '接送酒店 / 地址', pickupPh: '例: 明洞乐天酒店',
+        whatsapp: 'WhatsApp ID', whatsappPh: '+86 138 1234 5678',
+        line: 'LINE ID', linePh: 'cocotrip_user',
+        memo: '特别要求 / 备注', memoPh: '过敏、儿童同行、无障碍需求等',
+        required: '必填', missingFields: '请填写所有必填项' },
 };
 
 const DRIVER_LANG_LABELS: Record<DriverLanguage, Record<Language, string>> = {
@@ -96,6 +171,15 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const [date, setDate] = useState<string>('');
   const [driverLang, setDriverLang] = useState<DriverLanguage>(availableLangs[0]);
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
+
+  // Step 2 — contact + pickup. All fields below are required for submission;
+  // backend captures them in PayPalBookingButton's `memo` arg (no API change).
+  const [step, setStep] = useState<1 | 2>(1);
+  const [phone, setPhone] = useState<string>('');
+  const [pickupAddress, setPickupAddress] = useState<string>('');
+  const [whatsappId, setWhatsappId] = useState<string>('');
+  const [lineId, setLineId] = useState<string>('');
+  const [memoText, setMemoText] = useState<string>('');
 
   // Firestore tour_availability cache (월별). 비어있으면 mock fallback.
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
@@ -148,7 +232,34 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   }, [tour.id, date, firestoreCache]);
   const langKey = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
   const availabilityMsg = availability.reason ? REASON_LABELS[availability.reason][langKey] : '';
-  const canCheckoutDirectly = productType !== null && totalKRW > 0 && !!date && availability.available;
+
+  // Step 1 → 2 gate: must have a date + availability before showing contact form.
+  const canAdvanceStep1 = productType !== null && totalKRW > 0 && !!date && availability.available;
+  // Step 2 → checkout gate: all four contact fields populated (whatsapp/line both,
+  // phone, pickup). Memo is required per spec ("둘다 메모 필수"). Trim ensures the
+  // user actually typed something rather than just spaces.
+  const step2Complete = (
+    phone.trim().length > 0 &&
+    pickupAddress.trim().length > 0 &&
+    whatsappId.trim().length > 0 &&
+    lineId.trim().length > 0 &&
+    memoText.trim().length > 0
+  );
+
+  // Bundled memo payload — backend's PayPalBookingButton accepts `memo` and
+  // logs/persists the full string. No API contract change required.
+  const fullMemo = useMemo(() => {
+    const lines = [
+      `Tour: ${tour.title.en} | ${pax} pax | ${driverLang.toUpperCase()} driver`,
+      `Phone: ${phone}`,
+      `Pickup: ${pickupAddress}`,
+      `WhatsApp: ${whatsappId}`,
+      `LINE: ${lineId}`,
+      `Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`,
+      `Notes: ${memoText}`,
+    ];
+    return lines.join(' | ');
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, whatsappId, lineId, effectiveAddons, memoText]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   const visibleAddons = ADDONS.filter(a =>
@@ -184,8 +295,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       >
         <DialogHeader>
           <DialogTitle className="text-[15px] font-black">{labels.title}</DialogTitle>
+          <p className="text-[10px] text-white/45 uppercase tracking-widest mt-1">
+            {step === 1 ? labels.step1Title : labels.step2Title}
+          </p>
         </DialogHeader>
 
+        {step === 1 && (
         <div className="space-y-4 mt-2">
           {/* Pax stepper */}
           <div>
@@ -365,41 +480,145 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             </div>
           </div>
         </div>
+        )}
+
+        {/* Step 2 — Contact + Pickup. All fields required. */}
+        {step === 2 && (
+        <div className="space-y-3 mt-2">
+          <ContactField
+            icon={<Phone className="w-3.5 h-3.5" />}
+            label={`${labels.phone} *`}
+            placeholder={labels.phonePh}
+            value={phone}
+            onChange={setPhone}
+            type="tel"
+          />
+          <ContactField
+            icon={<MapPin className="w-3.5 h-3.5" />}
+            label={`${labels.pickup} *`}
+            placeholder={labels.pickupPh}
+            value={pickupAddress}
+            onChange={setPickupAddress}
+          />
+          <div className="grid grid-cols-2 gap-2.5">
+            <ContactField
+              icon={<MessageCircle className="w-3.5 h-3.5" />}
+              label={`${labels.whatsapp} *`}
+              placeholder={labels.whatsappPh}
+              value={whatsappId}
+              onChange={setWhatsappId}
+              compact
+            />
+            <ContactField
+              icon={<MessageCircle className="w-3.5 h-3.5" />}
+              label={`${labels.line} *`}
+              placeholder={labels.linePh}
+              value={lineId}
+              onChange={setLineId}
+              compact
+            />
+          </div>
+          <div>
+            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
+              <FileText className="w-3.5 h-3.5" />{labels.memo} *
+            </label>
+            <textarea
+              rows={3}
+              value={memoText}
+              onChange={e => setMemoText(e.target.value)}
+              placeholder={labels.memoPh}
+              className="w-full px-3 py-2 rounded-xl text-[13px] focus:outline-none resize-none"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: 'white',
+              }}
+            />
+          </div>
+
+          {/* Tiny price tag carry-over */}
+          <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <span className="text-[12px] text-white/55">{labels.priceTotal}</span>
+            <span className="text-[14px] font-black" style={{ color: '#C99FFF' }}>{formatKRW(totalKRW)}</span>
+          </div>
+        </div>
+        )}
 
         <DialogFooter className="gap-2 mt-3 flex-col">
-          {canCheckoutDirectly && productType ? (
-            <div className="w-full">
-              {/* PayPal 직진입 — 인원수·날짜·언어·addon 포함 가격으로 결제 */}
-              <PayPalBookingButton
-                productType={productType}
-                passengers={pax}
-                dateStart={date}
-                dateEnd={date}
-                priceKRW={totalKRW}
-                p={{}}
-                lang={language}
-                pickupLocation={tour.defaultPickup ? (tour.defaultPickup[language] || tour.defaultPickup.en) : ''}
-                vehicleType={tour.vehicleType.toLowerCase()}
-                memo={`Tour: ${tour.title.en} | ${pax} pax | ${driverLang.toUpperCase()} driver | Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`}
-                userEmail={userEmail}
-              />
-            </div>
-          ) : (
-            <Link
-              to={submitUrl}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white"
-              style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
-            >
-              {labels.submit}
-            </Link>
+          {step === 1 && (
+            canAdvanceStep1 ? (
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white transition-all hover:opacity-95 active:scale-[0.99]"
+                style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+              >
+                {labels.next}
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : productType ? (
+              <Link
+                to={submitUrl}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white"
+                style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+              >
+                {labels.submit}
+              </Link>
+            ) : (
+              <Link
+                to={submitUrl}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white"
+                style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+              >
+                {labels.submit}
+              </Link>
+            )
           )}
-          {!date && productType && (
+          {step === 1 && !date && productType && (
             <p className="text-[10px] text-white/55 text-center mt-1">
-              {language === 'ko' ? '날짜를 선택하면 결제로 진행할 수 있습니다.' :
-               language === 'ja' ? '日付を選択すると決済へ進めます。' :
-               language === 'zh' ? '选择日期后可继续付款。' :
-               'Select a date to proceed to payment.'}
+              {language === 'ko' ? '날짜를 선택하면 다음 단계로 진행할 수 있습니다.' :
+               language === 'ja' ? '日付を選択すると次へ進めます。' :
+               language === 'zh' ? '选择日期后可进入下一步。' :
+               'Select a date to proceed to the next step.'}
             </p>
+          )}
+
+          {step === 2 && productType && (
+            <div className="w-full space-y-2">
+              {/* PayPal direct — bundled memo carries phone/pickup/WA/LINE/notes */}
+              {step2Complete ? (
+                <PayPalBookingButton
+                  productType={productType}
+                  passengers={pax}
+                  dateStart={date}
+                  dateEnd={date}
+                  priceKRW={totalKRW}
+                  p={{}}
+                  lang={language}
+                  pickupLocation={pickupAddress}
+                  vehicleType={tour.vehicleType.toLowerCase()}
+                  memo={fullMemo}
+                  userEmail={userEmail}
+                />
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3 rounded-xl font-bold text-[14px] text-white/40 cursor-not-allowed"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  {labels.missingFields}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[12px] font-semibold text-white/55 hover:text-white/80 hover:bg-white/[0.03] transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                {labels.back}
+              </button>
+            </div>
           )}
         </DialogFooter>
       </DialogContent>
