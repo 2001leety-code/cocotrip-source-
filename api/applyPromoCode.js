@@ -10,6 +10,7 @@
  */
 
 import { getUsdToKrw } from './_exchange-rate.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -37,17 +38,8 @@ async function verifyFirestoreCoupon(userId, code) {
   if (!userId) return null;
 
   try {
-    // Dynamic import — Vercel serverless에서 Firebase Admin 대신 REST API 사용
-    const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-    const { getFirestore } = await import('firebase-admin/firestore');
-
-    if (!getApps().length) {
-      const serviceAccount = JSON.parse(
-        Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8')
-      );
-      initializeApp({ credential: cert(serviceAccount) });
-    }
-    const db = getFirestore();
+    const db = initAdminDb('applyPromoCode');
+    if (!db) return null;
 
     // 유저의 쿠폰 중 code가 일치하고 미사용인 것 검색
     const snap = await db.collection('users').doc(userId)

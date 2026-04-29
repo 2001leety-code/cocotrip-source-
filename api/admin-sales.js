@@ -16,8 +16,8 @@
  *     generatedAt: ISO,
  *   }
  */
-import { Buffer } from 'buffer';
 import { verifyAdminToken } from './_shared/admin-auth.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -34,14 +34,10 @@ function json(res, status, body) {
   return res.end(JSON.stringify(body));
 }
 
-async function getDb() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-    initializeApp({ credential: cert(sa) });
-  }
-  return getFirestore();
+function getDb() {
+  const db = initAdminDb('admin-sales');
+  if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
+  return db;
 }
 
 function todayKST() {
@@ -115,7 +111,7 @@ export default async function handler(req, res) {
   const days = Math.min(Math.max(parseInt(req.query?.days || '30', 10), 7), 90);
 
   try {
-    const db = await getDb();
+    const db = getDb();
     const { Timestamp } = await import('firebase-admin/firestore');
 
     // 1년치만 fetch — Firestore where 인덱스로 booking 수 무관하게 안전.

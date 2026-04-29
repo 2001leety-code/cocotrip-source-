@@ -6,6 +6,8 @@
  * 없으면 기본 재고로 응답 (가용)
  */
 
+import { initAdminDb } from './_shared/firebase-admin.js';
+
 export const maxDuration = 10;
 export const config = { runtime: 'nodejs' };
 
@@ -27,17 +29,10 @@ const DEFAULT_CAPACITY = {
   bus:      { total: 1 },
 };
 
-async function getFirestoreAdmin() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-
-  if (!getApps().length) {
-    const serviceAccount = JSON.parse(
-      Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8')
-    );
-    initializeApp({ credential: cert(serviceAccount) });
-  }
-  return getFirestore();
+function getFirestoreAdmin() {
+  const db = initAdminDb('check-availability');
+  if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
+  return db;
 }
 
 export default async function handler(req, res) {
@@ -54,7 +49,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Missing date or vehicle parameter', 'MISSING_FIELDS')));
     }
 
-    const db = await getFirestoreAdmin();
+    const db = getFirestoreAdmin();
     const docRef = db.collection('availability').doc(date);
     const snap = await docRef.get();
 

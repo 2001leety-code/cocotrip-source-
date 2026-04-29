@@ -8,8 +8,9 @@
  *
  * 가격 재계산/차액 결제는 사용자가 charter 페이지에서 재예약하거나 WhatsApp으로 진행.
  */
-import { Buffer } from 'buffer';
 import { evaluateRefundPolicy } from './_refund-policy.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const config = { runtime: 'nodejs' };
 
@@ -37,14 +38,10 @@ function airportPlainLine(airport) {
   return parts.length ? `\n공항: ${parts.join(' · ')}` : '';
 }
 
-async function getDb() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-    initializeApp({ credential: cert(sa) });
-  }
-  return { db: getFirestore(), FieldValue };
+function getDb() {
+  const db = initAdminDb('modifyBooking');
+  if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
+  return db;
 }
 
 async function notifyTelegram(msg) {
@@ -92,7 +89,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('No valid changes provided', 'NO_CHANGES')));
     }
 
-    const { db, FieldValue } = await getDb();
+    const db = getDb();
 
     const ref = db.collection('bookings').doc(bookingID);
     const doc = await ref.get();

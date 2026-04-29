@@ -8,6 +8,8 @@
  * 3. 없으면 거부
  */
 
+import { initAdminDb } from './_shared/firebase-admin.js';
+
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
@@ -30,17 +32,10 @@ const DEFAULT_CAPACITY = {
 
 const LOCK_TTL_MS = 5 * 60 * 1000; // 5분
 
-async function getFirestoreAdmin() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-
-  if (!getApps().length) {
-    const serviceAccount = JSON.parse(
-      Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8')
-    );
-    initializeApp({ credential: cert(serviceAccount) });
-  }
-  return getFirestore();
+function getFirestoreAdmin() {
+  const db = initAdminDb('reserve-slot');
+  if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
+  return db;
 }
 
 export default async function handler(req, res) {
@@ -71,7 +66,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`Unknown vehicle: ${vehicleType}`, 'INVALID_VEHICLE')));
     }
 
-    const db = await getFirestoreAdmin();
+    const db = getFirestoreAdmin();
     const { FieldValue } = await import('firebase-admin/firestore');
     const availRef = db.collection('availability').doc(date);
     const reservationId = `RSV-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
