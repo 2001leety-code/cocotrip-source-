@@ -20,7 +20,8 @@ const CORS = {
 };
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
-const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+// Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
+const TEST_ACCOUNTS = [];
 
 // PayPal token + baseUrl resolution moved to api/_shared/paypal.js
 // (shared with cancelBooking.js + createPaypalOrder.js).
