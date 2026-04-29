@@ -5,8 +5,8 @@
  * 로그인한 고객의 예약 목록을 Firestore `bookings` 컬렉션에서 조회.
  * 각 레코드에 취소/변경 가능 여부(canRefund, canModify, refundPercent) 계산 포함.
  */
-import { Buffer } from 'buffer';
 import { evaluateRefundPolicy } from './_refund-policy.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -20,14 +20,10 @@ const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (error, code = 'UNKNOWN_ERROR') => ({ ok: false, error, code });
 
-async function getDb() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-    initializeApp({ credential: cert(sa) });
-  }
-  return getFirestore();
+function getDb() {
+  const db = initAdminDb('my-bookings');
+  if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
+  return db;
 }
 
 export default async function handler(req, res) {
@@ -47,7 +43,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('userEmail is required', 'MISSING_FIELDS')));
     }
 
-    const db = await getDb();
+    const db = getDb();
     const snap = await db.collection('bookings')
       .where('userEmail', '==', userEmail)
       .orderBy('createdAt', 'desc')

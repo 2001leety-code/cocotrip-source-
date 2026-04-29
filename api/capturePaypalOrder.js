@@ -2,8 +2,9 @@
  * Vercel API Route: Capture PayPal Order + trigger booking-processor
  * POST /api/capturePaypalOrder
  */
-import { Buffer } from 'buffer';
 import { getPaypalAccessToken } from './_shared/paypal.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -44,13 +45,8 @@ export default async function handler(req, res) {
 
     // 1.5 Duplicate orderID guard — used_paypal_orders 중복 방지
     {
-      const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-      const { getFirestore } = await import('firebase-admin/firestore');
-      if (!getApps().length) {
-        const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-        initializeApp({ credential: cert(sa) });
-      }
-      const db = getFirestore();
+      const db = initAdminDb('capturePaypalOrder');
+      if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
       const existing = await db.collection('used_paypal_orders').doc(orderID).get();
       if (existing.exists) {
         console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
@@ -81,13 +77,9 @@ export default async function handler(req, res) {
     // 2.4 bookings/{orderID} 정식 레코드 생성 — cancel/modify/my-bookings API가 조회.
     // captureID는 취소 시 PayPal Refund 호출에 필수.
     try {
-      const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-      const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
-      if (!getApps().length) {
-        const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-        initializeApp({ credential: cert(sa) });
-      }
-      await getFirestore().collection('bookings').doc(orderID).set({
+      const db = initAdminDb('capturePaypalOrder');
+      if (!db) throw new Error('Firestore unavailable');
+      await db.collection('bookings').doc(orderID).set({
         bookingRef: orderID,
         orderID,
         captureID,
@@ -119,13 +111,9 @@ export default async function handler(req, res) {
     // 2.5 쿠폰 소진 처리 (Bug #2 fix — 결제 성공 후 isUsed 마킹)
     if (couponDocId && couponUserId) {
       try {
-        const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-        const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
-        if (!getApps().length) {
-          const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-          initializeApp({ credential: cert(sa) });
-        }
-        await getFirestore().collection('users').doc(couponUserId)
+        const db = initAdminDb('capturePaypalOrder');
+        if (!db) throw new Error('Firestore unavailable');
+        await db.collection('users').doc(couponUserId)
           .collection('coupons').doc(couponDocId)
           .update({ isUsed: true, usedAt: FieldValue.serverTimestamp(), usedOrderID: orderID });
         console.log('[capturePaypalOrder] coupon marked used:', couponDocId);

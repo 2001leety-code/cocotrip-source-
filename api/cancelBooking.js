@@ -11,9 +11,10 @@
  *   5. Google Sheets 상태 업데이트 (best-effort)
  *   6. Telegram 알림 (태연님)
  */
-import { Buffer } from 'buffer';
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { getPaypalAccessToken } from './_shared/paypal.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -30,14 +31,10 @@ const _err = (error, code = 'UNKNOWN_ERROR') => ({ ok: false, error, code });
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
-async function getDb() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-    initializeApp({ credential: cert(sa) });
-  }
-  return { db: getFirestore(), FieldValue: (await import('firebase-admin/firestore')).FieldValue };
+function getDb() {
+  const db = initAdminDb('cancelBooking');
+  if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
+  return db;
 }
 
 // PayPal token + baseUrl resolution moved to api/_shared/paypal.js
@@ -97,7 +94,7 @@ export default async function handler(req, res) {
     }
 
     const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
-    const { db, FieldValue } = await getDb();
+    const db = getDb();
 
     // 1. 예약 조회 + 소유자 검증
     const ref = db.collection('bookings').doc(bookingID);
