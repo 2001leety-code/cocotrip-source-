@@ -68,7 +68,8 @@ declare global {
   }
 }
 
-const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+// Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
+const TEST_ACCOUNTS: string[] = [];
 
 export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW, p, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport }: Props) {
   const isSandboxAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());

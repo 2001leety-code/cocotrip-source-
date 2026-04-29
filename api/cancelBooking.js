@@ -29,7 +29,8 @@ const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (error, code = 'UNKNOWN_ERROR') => ({ ok: false, error, code });
 
-const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+// Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
+const TEST_ACCOUNTS = [];
 
 function getDb() {
   const db = initAdminDb('cancelBooking');
