@@ -1551,6 +1551,8 @@
     "dashViewAll": "View all",
     "dashExplore": "Explore",
     "dashAccount": "My Account",
+    "wlEmptyTitle": "No wishlisted items",
+    "wlEmptySub": "Tap ❤ on any tour photo to save it here",
     "couponAdTitle": "1 AI plan = 1× 5% coupon",
     "couponAdBody": "Book a ₩124,000 charter ≈ ₩6,200 saved. The planner ($9.90) pays for itself.",
     "couponAdCta": "Make AI plan",
@@ -1680,6 +1682,12 @@
       "privacy": "Privacy",
       "travelTerms": "Travel Terms"
     }
+  },
+  "wishlist": {
+    "title": "Wishlist",
+    "empty": "No items in wishlist",
+    "tapToSave": "Tap the ❤ on any tour photo to save it here",
+    "signInHint": "💡 Sign in to sync your wishlist across devices"
   },
   "a11y": {
     "openChat": "Open chat",

@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { Clock, Users, ChevronRight, Star, Moon, Images, Languages } from 'lucide-react';
 import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
+import { WishlistToggle } from '@/components/WishlistButton';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 
@@ -146,16 +147,32 @@ export function TourCard({ tour, language }: TourCardProps) {
           </span>
         </div>
 
-        {/* 이미지 갯수 표시 (우상단) */}
-        {tour.images.length > 1 && (
+        {/* 이미지 갯수 표시 + 위시리스트 하트 (우상단) — 두 칩 가로 배치.
+            WishlistToggle 자체가 e.stopPropagation 처리하므로 부모 Link 클릭 영향 없음. */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          {tour.images.length > 1 && (
+            <div
+              className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm"
+              style={{ background: 'rgba(8,4,18,0.65)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.70)' }}
+            >
+              <Images className="w-3 h-3" />
+              {tour.images.length}
+            </div>
+          )}
           <div
-            className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm"
-            style={{ background: 'rgba(8,4,18,0.65)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.70)' }}
+            className="rounded-full backdrop-blur-sm"
+            style={{ background: 'rgba(8,4,18,0.65)', border: '1px solid rgba(255,255,255,0.12)' }}
           >
-            <Images className="w-3 h-3" />
-            {tour.images.length}
+            <WishlistToggle
+              productId={tour.id}
+              productType="tour"
+              name={txt(tour.title, language)}
+              priceUSD={tour.priceFrom}
+              thumbnailUrl={tour.thumbnail}
+              size={16}
+            />
           </div>
-        )}
+        </div>
 
         {/* 가격 (우하단) USD + 근사 KRW 병기 */}
         <div className="absolute bottom-3 right-3">

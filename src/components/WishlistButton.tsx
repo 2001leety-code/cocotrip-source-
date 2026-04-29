@@ -60,6 +60,7 @@ export function WishlistPanel() {
   const { items, toggle, loading } = useWishlist();
   const { user } = useAuth();
   const { t } = useLanguage();
+  const wl = (t as { wishlist?: Record<string, string> }).wishlist || {};
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -101,7 +102,7 @@ export function WishlistPanel() {
             <div className="sticky top-0 bg-[#0c1220]/95 backdrop-blur-sm border-b border-white/10 p-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Heart size={18} className="text-[#EA537E]" />
-                <h2 className="text-white font-semibold text-lg">Wishlist</h2>
+                <h2 className="text-white font-semibold text-lg">{wl.title || 'Wishlist'}</h2>
                 <span className="text-white/55 text-sm">({items.length})</span>
               </div>
               <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10">
@@ -113,7 +114,7 @@ export function WishlistPanel() {
             {!user && (
               <div className="mx-4 mt-4 p-3 rounded-lg bg-[#7C5CFC]/10 border border-[#7C5CFC]/20">
                 <p className="text-xs text-[#7C5CFC]">
-                  💡 Sign in to sync your wishlist across devices
+                  {wl.signInHint || '💡 Sign in to sync your wishlist across devices'}
                 </p>
               </div>
             )}
@@ -126,8 +127,8 @@ export function WishlistPanel() {
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-white/55">
                 <ShoppingBag size={40} className="mb-3 opacity-30" />
-                <p className="text-sm">No items in wishlist</p>
-                <p className="text-xs mt-1 text-white/55">Tap ❤️ to save tours you love</p>
+                <p className="text-sm">{wl.empty || 'No items in wishlist'}</p>
+                <p className="text-xs mt-1 text-white/55">{wl.tapToSave || 'Tap ❤️ to save tours you love'}</p>
               </div>
             ) : (
               <div className="p-4 space-y-3">

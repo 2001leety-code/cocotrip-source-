@@ -200,8 +200,10 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             {/* Loyalty Badge (desktop, logged-in) */}
             {user && !isMobile && <LoyaltyBadge />}
 
-            {/* Wishlist (desktop) */}
-            {!isMobile && <WishlistPanel />}
+            {/* Wishlist (desktop + mobile) — both surfaces now exposed
+                so mobile users have a parity entry point. The panel itself
+                handles its own slide-in animation + outside-click dismiss. */}
+            <WishlistPanel />
 
             {/* MyPage (desktop, logged-in) */}
             {user && !isMobile && (
