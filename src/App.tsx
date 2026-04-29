@@ -62,6 +62,7 @@ const DevTransitTest = import.meta.env.DEV
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { CommandPaletteProvider } from '@/components/CommandPalette';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
+import { ChatWidget } from '@/components/ChatWidget';
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -116,7 +117,7 @@ function HomePage() {
 }
 
 function GlobalWidgets() {
-  const { language: _language } = useLanguage();
+  const { language } = useLanguage();
 
   // Google Redirect 로그인 결과 처리 (signInWithRedirect 폴백 후 페이지 복귀 시)
   useEffect(() => {
@@ -131,6 +132,7 @@ function GlobalWidgets() {
       <MobileBottomNav />
       <CookieBanner />
       <PWAUpdatePrompt />
+      <ChatWidget language={language} />
     </>
   );
 }

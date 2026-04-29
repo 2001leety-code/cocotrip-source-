@@ -14,7 +14,6 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
 import { useWishlist } from '@/hooks/useWishlist';
-import { useItinerary } from '@/hooks/useItinerary';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -41,7 +40,10 @@ const TIER_BENEFITS: Record<TierType, string[]> = {
   Platinum: ['3% Trip Coins earn', '$20 season coupon', 'VIP KakaоTalk support', 'Free cancellation 72h', 'Airport lounge access'],
 };
 
-type Tab = 'overview' | 'bookings' | 'coupons' | 'wishlist' | 'itinerary' | 'reviews' | 'history';
+// Itinerary 탭 제거 (2026-04-29) — `useItinerary().createItinerary` 호출 UI가
+// 어디에도 없어 사용자가 일정을 만들 수 없는 상태였음. 백엔드 hook은 유지하되
+// 빈 탭은 노출하지 않음.
+type Tab = 'overview' | 'bookings' | 'coupons' | 'wishlist' | 'reviews' | 'history';
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -50,10 +52,9 @@ export default function MyPage() {
   const { user } = useAuth();
   const { loyalty, coupons, activeCoupons, pointHistory, coinsToUSD, loading } = useLoyalty();
   const { items: wishlistItems } = useWishlist();
-  const { itineraries } = useItinerary();
   // Deep-link 지원: ?tab=wishlist 등으로 특정 탭 직진입 (햄버거 메뉴와 sync).
   const [searchParams, setSearchParams] = useSearchParams();
-  const VALID_TABS: Tab[] = ['overview', 'bookings', 'coupons', 'wishlist', 'itinerary', 'reviews', 'history'];
+  const VALID_TABS: Tab[] = ['overview', 'bookings', 'coupons', 'wishlist', 'reviews', 'history'];
   const initialTab = (() => {
     const q = searchParams.get('tab') as Tab | null;
     return q && VALID_TABS.includes(q) ? q : 'overview';
@@ -242,7 +243,6 @@ export default function MyPage() {
             { id: 'bookings', label: mp.tabBookings || 'My Bookings', icon: Package },
             { id: 'coupons', label: (mp.tabCoupons || 'Coupons ({n})').replace('{n}', String(activeCoupons.length)), icon: Gift },
             { id: 'wishlist', label: (mp.tabWishlist || 'Wishlist ({n})').replace('{n}', String(wishlistItems.length)), icon: Heart },
-            { id: 'itinerary', label: (mp.tabItinerary || 'Itinerary ({n})').replace('{n}', String(itineraries.length)), icon: Calendar },
             { id: 'reviews', label: mp.tabReviews || 'Reviews', icon: Star },
             { id: 'history', label: mp.tabPoints || 'Points', icon: Clock },
           ] as { id: Tab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
@@ -581,49 +581,6 @@ export default function MyPage() {
                 </Link>
               );
             })}
-          </div>
-        )}
-
-        {/* ── 탭: Itinerary ── */}
-        {tab === 'itinerary' && (
-          <div className="space-y-4">
-            {itineraries.length === 0 ? (
-              <EmptyState icon={Calendar} text="No itineraries yet" sub="Create your dream trip plan!" />
-            ) : itineraries.map(it => (
-              <div key={it.id} className="p-5 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#7C5CFC]/20 transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-semibold">{it.title}</h3>
-                  <span className="text-xs text-white/55">
-                    {it.startDate} → {it.endDate}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {it.days.map((day, di) => (
-                    <div key={di} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className="w-6 h-6 rounded-full bg-[#7C5CFC]/20 text-[#7C5CFC] text-[10px] font-bold flex items-center justify-center">
-                          {day.dayNumber}
-                        </div>
-                        {di < it.days.length - 1 && <div className="w-px flex-1 bg-white/10 my-1" />}
-                      </div>
-                      <div className="flex-1 pb-3">
-                        <p className="text-white/55 text-xs mb-1">{day.date}</p>
-                        {day.slots.length === 0 ? (
-                          <p className="text-white/15 text-xs italic">Empty</p>
-                        ) : day.slots.map(s => (
-                          <div key={s.slotId} className="flex items-center gap-2 text-sm text-white/70">
-                            <span className="text-white/55">{s.timeStart || '—'}</span>
-                            <ChevronRight size={10} className="text-white/15" />
-                            <span>{s.name}</span>
-                            {s.priceUSD && <span className="text-[#C4956A] text-xs">${s.priceUSD}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
           </div>
         )}
 

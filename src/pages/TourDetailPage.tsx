@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { trackViewItem } from '@/lib/analytics';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
-  MessageSquare, Package, ChevronRight, Languages,
+  CalendarCheck, Package, ChevronRight, Languages,
   ShieldCheck, CreditCard, ExternalLink, ChevronLeft, Moon,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -172,7 +172,7 @@ export default function TourDetailPage() {
   })();
 
   const fromLabel = language === 'ko' ? '최저가' : language === 'ja' ? '最低価格' : language === 'zh' ? '起价' : 'From';
-  const bookLabel = language === 'ko' ? '문의 / 예약하기' : language === 'ja' ? 'お問い合わせ・予約' : language === 'zh' ? '咨询/预订' : 'Inquire & Book';
+  const bookLabel = language === 'ko' ? '지금 예약하기' : language === 'ja' ? '今すぐ予約' : language === 'zh' ? '立即预订' : 'Book Now';
   const highlightTitle = language === 'ko' ? '포함 사항' : language === 'ja' ? '含まれるもの' : language === 'zh' ? '包含内容' : 'Highlights';
   const overviewTitle  = language === 'ko' ? '상품 설명' : language === 'ja' ? '商品説明' : language === 'zh' ? '产品说明' : 'Overview';
   const itineraryTitle = language === 'ko' ? '세부 일정' : language === 'ja' ? '詳細スケジュール' : language === 'zh' ? '详细行程' : 'Itinerary';
@@ -560,7 +560,7 @@ export default function TourDetailPage() {
                 className="flex items-center gap-2 px-5 py-4 rounded-2xl font-bold text-[14px] text-white"
                 style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
               >
-                <MessageSquare className="w-4 h-4" />
+                <CalendarCheck className="w-4 h-4" />
                 {bookLabel}
               </button>
             }
