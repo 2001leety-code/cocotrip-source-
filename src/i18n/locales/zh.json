@@ -1306,9 +1306,10 @@
     "iosAddBtn": "\"添加到主屏幕\"",
     "pushTitle": "接收通知",
     "pushEnabledTitle": "通知已开启",
-    "pushSub": "行程准备完成、预订更新、退款通知",
+    "pushSub": "AI行程准备完成时通知您",
     "pushDenied": "浏览器已阻止 — 请在站点设置中开启",
-    "pushIosHint": "iPhone：请先添加到主屏幕，然后在应用内启用通知"
+    "pushIosHint": "iPhone：请先添加到主屏幕，然后在应用内启用通知",
+    "pushSignInRequired": "登录后即可接收通知"
   },
   "errorBoundary": {
     "title": "发生意外错误。",

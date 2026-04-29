@@ -1306,9 +1306,10 @@
     "iosAddBtn": "\"ホーム画面に追加\"",
     "pushTitle": "通知を受け取る",
     "pushEnabledTitle": "通知ON",
-    "pushSub": "旅程の完成、予約更新、返金通知",
+    "pushSub": "AI旅程が完成したらお知らせします",
     "pushDenied": "ブラウザでブロック中 — サイト設定で許可してください",
-    "pushIosHint": "iPhoneの場合：先にホーム画面に追加し、アプリ内で通知を有効にしてください"
+    "pushIosHint": "iPhoneの場合：先にホーム画面に追加し、アプリ内で通知を有効にしてください",
+    "pushSignInRequired": "ログインすると通知を受け取れます"
   },
   "errorBoundary": {
     "title": "予期しないエラーが発生しました。",

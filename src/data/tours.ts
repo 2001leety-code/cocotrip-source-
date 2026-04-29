@@ -207,7 +207,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Sunset', text: { ko: '한강공원 일몰 감상', en: 'Han River park sunset', ja: '漢江公園の夕日', zh: '汉江公园日落' } },
       { icon: 'Shield', text: { ko: '팁·톨비·주차비 전부 포함', en: 'Tips · Tolls · Parking — all included', ja: 'チップ・料金所・駐車場 全込み', zh: '小费·过路费·停车费全含' } },
     ],
-    driverLanguages: ['en', 'ja'],
+    driverLanguages: ['en', 'ja', 'zh'],
     defaultPickup: {
       ko: '서울 시내 호텔 (명동·강남·홍대·종로 권역)',
       en: 'Seoul metro hotels (Myeongdong, Gangnam, Hongdae, Jongno)',
@@ -775,13 +775,13 @@ const TOURS_RAW: Tour[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 const TOUR_META: Record<string, Partial<Tour>> = {
   'tour-seoul-city':     { rating: 4.9, reviewCount: 87,  reviewSource: 'internal' },
-  'tour-seoul-night':    { driverLanguages: ['en', 'ja'],       rating: 4.8, reviewCount: 54,  reviewSource: 'internal' },
-  'tour-danyang':        { driverLanguages: ['en'],             rating: 4.7, reviewCount: 31,  reviewSource: 'internal' },
-  'tour-ganghwa':        { driverLanguages: ['en'],             rating: 4.7, reviewCount: 28,  reviewSource: 'internal' },
+  'tour-seoul-night':    { driverLanguages: ['en', 'ja', 'zh'], rating: 4.8, reviewCount: 54,  reviewSource: 'internal' },
+  'tour-danyang':        { driverLanguages: ['en', 'ja', 'zh'], rating: 4.7, reviewCount: 31,  reviewSource: 'internal' },
+  'tour-ganghwa':        { driverLanguages: ['en', 'ja', 'zh'], rating: 4.7, reviewCount: 28,  reviewSource: 'internal' },
   'tour-dmz':            { driverLanguages: ['en', 'ja', 'zh'], rating: 4.9, reviewCount: 142, reviewSource: 'internal' },
   'tour-nami-chuncheon': { driverLanguages: ['en', 'ja', 'zh'], rating: 4.8, reviewCount: 96,  reviewSource: 'internal' },
-  'tour-gyeongju':       { driverLanguages: ['en'],             rating: 4.8, reviewCount: 47,  reviewSource: 'internal' },
-  'tour-busan-day':      { driverLanguages: ['en', 'ja'],       rating: 4.7, reviewCount: 38,  reviewSource: 'internal' },
+  'tour-gyeongju':       { driverLanguages: ['en', 'ja', 'zh'], rating: 4.8, reviewCount: 47,  reviewSource: 'internal' },
+  'tour-busan-day':      { driverLanguages: ['en', 'ja', 'zh'], rating: 4.7, reviewCount: 38,  reviewSource: 'internal' },
   'tour-multicity-3d':   { driverLanguages: ['en', 'ja', 'zh'], rating: 4.9, reviewCount: 23,  reviewSource: 'internal' },
 };
 
