@@ -97,7 +97,7 @@ export interface WizardI18n {
   mbDaysAway: (d: number) => string;
   mbRefundBadge: (pct: number) => string;
   mbRefundedAmount: string;  // "환불액"
-  mbModifyBtn: string; mbCancelBtn: string;
+  mbModifyBtn: string; mbCancelBtn: string; mbReviewBtn?: string;
   mbProcessing: string;
   mbCancelReasonPrompt: string;
   mbCancelConfirm: (pct: number, amountKRW: string) => string;
@@ -181,7 +181,7 @@ const base: Record<WizardLang, WizardI18n> = {
     mbDaysAway: (d) => `${d}일 후`,
     mbRefundBadge: (pct) => `· 환불 ${pct}%`,
     mbRefundedAmount: '환불액',
-    mbModifyBtn: '변경', mbCancelBtn: '취소', mbProcessing: '처리중...',
+    mbModifyBtn: '변경', mbCancelBtn: '취소', mbReviewBtn: '리뷰 쓰기 · +50 코인', mbProcessing: '처리중...',
     mbCancelReasonPrompt: '취소 사유 (선택):',
     mbCancelConfirm: (pct, amt) => `예약을 취소하시겠어요?\n환불 ${pct}% · 약 ₩${amt}\nPayPal로 3~5영업일 내 환불됩니다.`,
     modifyModalTitle: '예약 변경',
@@ -260,7 +260,7 @@ const base: Record<WizardLang, WizardI18n> = {
     mbDaysAway: (d) => `in ${d} day${d === 1 ? '' : 's'}`,
     mbRefundBadge: (pct) => `· Refund ${pct}%`,
     mbRefundedAmount: 'Refunded',
-    mbModifyBtn: 'Modify', mbCancelBtn: 'Cancel', mbProcessing: 'Processing...',
+    mbModifyBtn: 'Modify', mbCancelBtn: 'Cancel', mbReviewBtn: 'Write a review · +50 coins', mbProcessing: 'Processing...',
     mbCancelReasonPrompt: 'Cancellation reason (optional):',
     mbCancelConfirm: (pct, amt) => `Cancel this booking?\nRefund ${pct}% · approx ₩${amt}\nRefund via PayPal in 3-5 business days.`,
     modifyModalTitle: 'Modify Booking',
@@ -339,7 +339,7 @@ const base: Record<WizardLang, WizardI18n> = {
     mbDaysAway: (d) => `あと${d}日`,
     mbRefundBadge: (pct) => `· 返金 ${pct}%`,
     mbRefundedAmount: '返金額',
-    mbModifyBtn: '変更', mbCancelBtn: 'キャンセル', mbProcessing: '処理中...',
+    mbModifyBtn: '変更', mbCancelBtn: 'キャンセル', mbReviewBtn: 'レビューを書く · +50コイン', mbProcessing: '処理中...',
     mbCancelReasonPrompt: 'キャンセル理由（任意）:',
     mbCancelConfirm: (pct, amt) => `この予約をキャンセルしますか？\n返金 ${pct}% · 約 ₩${amt}\nPayPalで3〜5営業日以内に返金されます。`,
     modifyModalTitle: '予約変更',
@@ -418,7 +418,7 @@ const base: Record<WizardLang, WizardI18n> = {
     mbDaysAway: (d) => `${d}天后`,
     mbRefundBadge: (pct) => `· 退款 ${pct}%`,
     mbRefundedAmount: '退款额',
-    mbModifyBtn: '修改', mbCancelBtn: '取消', mbProcessing: '处理中...',
+    mbModifyBtn: '修改', mbCancelBtn: '取消', mbReviewBtn: '写评价 · +50 金币', mbProcessing: '处理中...',
     mbCancelReasonPrompt: '取消原因（选填）:',
     mbCancelConfirm: (pct, amt) => `确定取消此预订？\n退款 ${pct}% · 约 ₩${amt}\n将在3-5个工作日内通过PayPal退款。`,
     modifyModalTitle: '修改预订',

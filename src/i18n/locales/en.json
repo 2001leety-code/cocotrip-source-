@@ -1683,6 +1683,22 @@
       "travelTerms": "Travel Terms"
     }
   },
+  "reviews": {
+    "title": "Write a review",
+    "starsLabel": "Your rating",
+    "textLabel": "How was your trip?",
+    "textPlaceholder": "Driver was friendly, route was perfect...",
+    "rewardNote": "🪙 Earn +50 Trip Coins when your review is posted.",
+    "submit": "Submit review",
+    "submitting": "Submitting...",
+    "errSubmit": "Submission failed",
+    "errNetwork": "Network error",
+    "s1": "Disappointing",
+    "s2": "Below average",
+    "s3": "OK",
+    "s4": "Good",
+    "s5": "Excellent"
+  },
   "wishlist": {
     "title": "Wishlist",
     "empty": "No items in wishlist",

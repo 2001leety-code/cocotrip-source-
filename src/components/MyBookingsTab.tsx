@@ -1,7 +1,9 @@
 // MyBookingsTab — MyPage의 "My Bookings" 탭 콘텐츠 · i18n
 import { useState, useEffect, useCallback } from 'react';
-import { Package, Clock, XCircle, Edit, Check, X } from 'lucide-react';
+import { Package, Clock, XCircle, Edit, Check, X, Star } from 'lucide-react';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
+import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Booking {
   id: string;
@@ -48,11 +50,14 @@ interface Props {
 
 export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: Props) {
   const i18n = getWizardI18n(language);
+  const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [modifyTarget, setModifyTarget] = useState<Booking | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
+  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -177,6 +182,21 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               )}
             </div>
           )}
+
+          {/* Review CTA — only for completed bookings, hidden once submitted
+              this session. Server enforces one-review-per-product so the
+              client-side guard is just UX. */}
+          {b.status === 'COMPLETED' && user?.uid && !reviewedBookingIds.has(b.id) && (
+            <div className="flex gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => setReviewTarget(b)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-yellow-500/25 text-yellow-200 text-[11px] hover:bg-yellow-500/10 transition-colors"
+              >
+                <Star size={12} className="fill-yellow-400 text-yellow-400" /> {i18n.mbReviewBtn || 'Write a review · +50 coins'}
+              </button>
+            </div>
+          )}
         </div>
       ))}
 
@@ -188,6 +208,22 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           language={language}
           onClose={() => setModifyTarget(null)}
           onSaved={async () => { setModifyTarget(null); await load(); }}
+        />
+      )}
+
+      {reviewTarget && user?.uid && (
+        <ReviewSubmitModal
+          open={true}
+          onClose={() => setReviewTarget(null)}
+          userId={user.uid}
+          authorName={user.displayName || ''}
+          authorPhotoURL={user.photoURL || ''}
+          targetType={reviewTarget.productType.startsWith('charter') ? 'charter' : 'tour'}
+          targetId={reviewTarget.productType}
+          productLabel={`${reviewTarget.productType} · ${reviewTarget.tourDate}`}
+          onSuccess={() => {
+            setReviewedBookingIds(prev => new Set(prev).add(reviewTarget.id));
+          }}
         />
       )}
     </div>
