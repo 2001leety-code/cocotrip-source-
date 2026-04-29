@@ -1,0 +1,11 @@
+PLACEHOLDER — Replace with real content from PayPal Dashboard.
+
+Steps to activate Apple Pay:
+1. Log in to PayPal Business Dashboard → Account Settings → Website Payments → Apple Pay
+2. Click "Register Domain" → enter cocotripkr.com
+3. Download the verification file PayPal provides
+4. Replace this file with the downloaded file content (no extension, plain text)
+5. Redeploy to Vercel — PayPal will verify /.well-known/apple-developer-merchantid-domain-association
+
+Until replaced, Apple Pay buttons will not appear (isEligible() returns false).
+Google Pay does not require this file and works immediately on Chrome.
