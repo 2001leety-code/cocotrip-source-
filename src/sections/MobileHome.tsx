@@ -34,7 +34,11 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
   const [marqueePaused, setMarqueePaused] = useState(false);
   const marqueeRef = useRef<HTMLDivElement | null>(null);
   const formatPriceKRW = (priceKRW: number) => {
-    if (priceKRW >= 10000) return `${Math.round(priceKRW / 10000)}만원~`;
+    if (language === 'ko') {
+      if (priceKRW >= 10000) return `${Math.round(priceKRW / 10000)}만원~`;
+      return `₩${priceKRW.toLocaleString()}~`;
+    }
+    if (priceKRW >= 10000) return `₩${Math.round(priceKRW / 1000)}k~`;
     return `₩${priceKRW.toLocaleString()}~`;
   };
 

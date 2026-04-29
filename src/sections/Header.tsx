@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Ticket, Headphones, Map, Package, Heart, History, LogOut, LogIn, Check, Search, Star, Coins } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Headphones, Map, Package, LogOut, LogIn, Check, Search } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -412,68 +412,8 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/15" />
                 </Link>
-                {/* Audit (2026-04-27): Wishlist/BookingHistory/Coupons는 MyPage에서 active.
-                    햄버거에서도 deep link로 직진입. Reviews/Points 추가. */}
-                <Link
-                  to="/mypage?tab=wishlist"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                  style={{ color: 'rgba(255,255,255,0.55)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <Heart className="w-[18px] h-[18px]" />
-                    <span className="text-[15px] font-semibold">{t.nav.wishlist ?? 'Wishlist'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/15" />
-                </Link>
-                <Link
-                  to="/mypage?tab=bookings"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                  style={{ color: 'rgba(255,255,255,0.55)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <History className="w-[18px] h-[18px]" />
-                    <span className="text-[15px] font-semibold">{t.nav.bookingHistory ?? 'Booking History'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/15" />
-                </Link>
-                <Link
-                  to="/mypage?tab=coupons"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                  style={{ color: 'rgba(255,255,255,0.55)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <Ticket className="w-[18px] h-[18px]" />
-                    <span className="text-[15px] font-semibold">{t.nav.coupons ?? 'Coupons'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/15" />
-                </Link>
-                <Link
-                  to="/mypage?tab=reviews"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                  style={{ color: 'rgba(255,255,255,0.55)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <Star className="w-[18px] h-[18px]" />
-                    <span className="text-[15px] font-semibold">{t.nav.reviews ?? 'Reviews'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/15" />
-                </Link>
-                <Link
-                  to="/mypage?tab=history"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
-                  style={{ color: 'rgba(255,255,255,0.55)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <Coins className="w-[18px] h-[18px]" />
-                    <span className="text-[15px] font-semibold">{t.nav.points ?? 'Points'}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/15" />
-                </Link>
+                {/* 위시리스트/예약내역/쿠폰/리뷰/포인트 deep link는 마이페이지 본체의
+                    카테고리 nav에서 처리. 역할 분리: 햄버거 = 사이트 nav, 마이페이지 = 개인 영역. */}
               </div>
             </div>
 

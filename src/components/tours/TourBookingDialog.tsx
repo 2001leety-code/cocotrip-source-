@@ -400,9 +400,6 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     }
                   >
                     {DRIVER_LANG_LABELS[l][language]}
-                    {l !== 'en' && isAvailable && (
-                      <span className="text-[9px] text-white/55 ml-1">+₩80k</span>
-                    )}
                   </button>
                 );
               })}

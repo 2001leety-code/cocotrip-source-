@@ -1248,9 +1248,10 @@
     "iosAddBtn": "\"홈 화면에 추가\"",
     "pushTitle": "알림 받기",
     "pushEnabledTitle": "알림 켜짐",
-    "pushSub": "일정 준비 완료, 예약 업데이트, 환불 알림",
+    "pushSub": "AI 여행 일정 준비 완료 알림",
     "pushDenied": "브라우저에서 차단됨 — 사이트 설정에서 허용",
-    "pushIosHint": "iPhone: 먼저 홈 화면에 추가한 뒤, 앱 안에서 알림을 켜주세요"
+    "pushIosHint": "iPhone: 먼저 홈 화면에 추가한 뒤, 앱 안에서 알림을 켜주세요",
+    "pushSignInRequired": "로그인 후 알림을 받을 수 있어요"
   },
   "errorBoundary": {
     "title": "예기치 않은 오류가 발생했습니다.",

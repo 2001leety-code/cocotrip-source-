@@ -251,18 +251,18 @@
       {
         "id": "japanese_driver",
         "labels": { "ko": "일본어 가능 기사", "en": "Japanese-speaking driver", "ja": "日本語ドライバー", "zh": "日语司机" },
-        "priceKRW": 80000,
+        "priceKRW": 0,
         "unit": "per_trip",
         "applies_to": ["tour", "charter", "airport_transfer"],
-        "description_ko": "기본은 영어 기사. 일본어 가능 기사 매칭 시 추가 (가용성에 따라)."
+        "description_ko": "영어/일본어/중국어 기사 모두 무료. 가용성에 따라 매칭."
       },
       {
         "id": "chinese_driver",
         "labels": { "ko": "중국어 가능 기사", "en": "Chinese-speaking driver", "ja": "中国語ドライバー", "zh": "中文司机" },
-        "priceKRW": 80000,
+        "priceKRW": 0,
         "unit": "per_trip",
         "applies_to": ["tour", "charter", "airport_transfer"],
-        "description_ko": "기본은 영어 기사. 중국어 가능 기사 매칭 시 추가."
+        "description_ko": "영어/일본어/중국어 기사 모두 무료. 가용성에 따라 매칭."
       },
       {
         "id": "hanbok_rental",

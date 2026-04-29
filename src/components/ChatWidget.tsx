@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { Bot, MessageCircle, X, Send } from 'lucide-react';
 import { translations, type Language } from '@/i18n';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { signInWithGoogle } from '@/lib/firebase';
 import { TourInputSheet } from '@/components/TourInputSheet';
 
@@ -75,6 +76,11 @@ const ChatInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInp
 
 export function ChatWidget({ language }: ChatWidgetProps) {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  // 모바일에선 bottom-nav(높이 ~62px)와 겹치지 않도록 위로 띄우고 살짝 작게.
+  const togglePos = isMobile ? { bottom: '76px', right: '14px', size: '52px' } : { bottom: '24px', right: '24px', size: '60px' };
+  const popupBottom = isMobile ? '140px' : '88px';
+  const popupRight = isMobile ? '14px' : '24px';
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -222,8 +228,8 @@ export function ChatWidget({ language }: ChatWidgetProps) {
         <div
           style={{
             position: 'fixed',
-            bottom: '88px',
-            right: '24px',
+            bottom: popupBottom,
+            right: popupRight,
             width: '320px',
             borderRadius: '16px',
             background: '#1a1a2e',
@@ -269,8 +275,8 @@ export function ChatWidget({ language }: ChatWidgetProps) {
         <div
           style={{
             position: 'fixed',
-            bottom: '88px',
-            right: '24px',
+            bottom: popupBottom,
+            right: popupRight,
             width: '360px',
             height: '500px',
             borderRadius: '16px',
@@ -555,10 +561,10 @@ export function ChatWidget({ language }: ChatWidgetProps) {
         aria-label={translations[language].a11y?.openChat ||'Open chat'}
         style={{
           position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          width: '60px',
-          height: '60px',
+          bottom: togglePos.bottom,
+          right: togglePos.right,
+          width: togglePos.size,
+          height: togglePos.size,
           borderRadius: '50%',
           background: 'linear-gradient(135deg, #7C5CFC, #EA537E)',
           border: 'none',

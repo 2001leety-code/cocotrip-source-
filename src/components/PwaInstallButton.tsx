@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Download, X, Smartphone, Trash2, Share, Bell, BellOff } from 'lucide-react';
 import type { Translations } from '@/i18n';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PwaInstallButtonProps {
   t: Translations;
@@ -19,6 +20,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const push = usePushSubscription();
+  const { user } = useAuth();
   const [pushOn, setPushOn] = useState(false);
 
   // 모달 열 때 현재 push 상태 확인
@@ -150,7 +152,7 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
                     if (pushOn) { const ok = await push.disable(); if (ok) setPushOn(false); }
                     else { const ok = await push.enable(); if (ok) setPushOn(true); }
                   }}
-                  disabled={push.busy || push.state === 'denied'}
+                  disabled={push.busy || push.state === 'denied' || !user}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition-all disabled:opacity-50"
                   style={{
                     background: pushOn ? 'rgba(124,92,252,0.12)' : 'rgba(255,255,255,0.04)',
@@ -164,7 +166,9 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
                         {pushOn ? (m.pushEnabledTitle || 'Notifications on') : (m.pushTitle || 'Get notified')}
                       </p>
                       <p className="text-[10px] text-white/55 leading-tight">
-                        {push.state === 'denied'
+                        {!user
+                          ? (m.pushSignInRequired || 'Sign in to receive notifications')
+                          : push.state === 'denied'
                           ? (m.pushDenied || 'Blocked by browser — enable in site settings')
                           : (m.pushSub || 'Plan ready, booking updates, refunds')}
                       </p>

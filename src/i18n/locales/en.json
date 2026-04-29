@@ -1306,9 +1306,10 @@
     "iosAddBtn": "\"Add to Home Screen\"",
     "pushTitle": "Get notified",
     "pushEnabledTitle": "Notifications on",
-    "pushSub": "Plan ready, booking updates, refunds",
+    "pushSub": "Notification when your AI itinerary is ready",
     "pushDenied": "Blocked by browser — enable in site settings",
-    "pushIosHint": "On iPhone: add to Home Screen first, then enable notifications inside the app"
+    "pushIosHint": "On iPhone: add to Home Screen first, then enable notifications inside the app",
+    "pushSignInRequired": "Sign in to receive notifications"
   },
   "errorBoundary": {
     "title": "An unexpected error occurred.",
