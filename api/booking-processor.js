@@ -18,7 +18,8 @@
  */
 
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
-import { sendBookingAlert, sendErrorAlert, sendMessage } from './_telegram.js';
+import { sendBookingAlert, sendErrorAlert } from './_telegram.js';
+import { notify } from './_shared/notify.js';
 import { sendBookingConfirmation, buildDefaultConfirmationEmail } from './_send-email.js';
 import {
   generateBookingAlert,
@@ -93,6 +94,8 @@ const originalHandler = async (event) => {
     memo,
     itineraryData,
     airport,
+    userEmail,          // 이슈#1 fix: 로열티 적립 등에 활용
+    bookingRef: externalBookingRef,  // 이슈#2 fix: capturePaypalOrder에서 생성한 CT- 번호
   } = body;
 
   if (!orderID || !payerEmail) {
@@ -101,7 +104,8 @@ const originalHandler = async (event) => {
 
   console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount });
 
-  const bookingRef = generateBookingRef();
+  // capturePaypalOrder에서 전달된 bookingRef가 있으면 그대로 사용 (Firestore↔Sheets 일관성)
+  const bookingRef = externalBookingRef || generateBookingRef();
   let exchangeRate = 1380;
   let amountKRW = 0;
 
@@ -152,10 +156,12 @@ const originalHandler = async (event) => {
   const results = { bookingRef, steps: {} };
 
   // ── Step 2: Google Sheets 예약 기록 추가 ────────────────────────────
+  let sheetsRowHint = null;
   try {
-    await appendBooking(booking);
+    const sheetsResult = await appendBooking(booking);
+    sheetsRowHint = sheetsResult.appendedRow || null;
     results.steps.sheets = 'ok';
-    console.log('[booking-processor] Sheets 기록 완료');
+    console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
   } catch (err) {
     results.steps.sheets = `error: ${err.message}`;
     console.error('[booking-processor] Sheets 기록 실패:', err.message);
@@ -174,7 +180,7 @@ const originalHandler = async (event) => {
     }
 
     if (telegramMsg) {
-      await sendMessage(telegramMsg);
+      await notify('booking', telegramMsg);
     } else {
       await sendBookingAlert(booking);
     }
@@ -231,9 +237,9 @@ const originalHandler = async (event) => {
     console.error('[booking-processor] 이메일 발송 실패:', err.message);
   }
 
-  // ── Step 7: Google Sheets 상태 '확정'으로 업데이트 ──────────────────
+  // ── Step 7: Google Sheets 상태 '확정'으로 업데이트 (이슈#3 fix: rowHint로 전체 스캔 회피) ──
   try {
-    await updateBookingStatus(orderID, '확정');
+    await updateBookingStatus(orderID, '확정', sheetsRowHint);
     results.steps.sheetsUpdate = 'ok';
   } catch (err) {
     results.steps.sheetsUpdate = `error: ${err.message}`;

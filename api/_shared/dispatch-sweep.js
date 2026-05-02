@@ -21,6 +21,7 @@
 import { initAdminDb } from './firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { callBot } from './telegram-bot.js';
+import { notify } from './notify.js';
 
 const TIMEOUT_MS = 10 * 60 * 1000; // 10분
 
@@ -87,17 +88,12 @@ export async function sweepExpiredDispatches(opts = {}) {
         }
       }
 
-      // 4. 어드민 알림
-      if (adminBotToken && adminChatId) {
-        try {
-          await callBot(adminBotToken, 'sendMessage', {
-            chat_id: adminChatId,
-            text: `⏰ 배차 만료\n${d.orderID} ← ${d.driverName || d.driverChatId}\n10분 무응답으로 자동 취소. 재배차 필요.`,
-            parse_mode: 'HTML',
-          });
-        } catch (err) {
-          console.warn('[dispatch-sweep] admin notify 실패:', err.message);
-        }
+      // 4. 어드민 알림 — dispatch 채널 (TELEGRAM_DISPATCH_BOT_TOKEN 또는 폴백)
+      try {
+        await notify('dispatch',
+          `⏰ 배차 만료\n${d.orderID} ← ${d.driverName || d.driverChatId}\n10분 무응답으로 자동 취소. 재배차 필요.`);
+      } catch (err) {
+        console.warn('[dispatch-sweep] dispatch notify 실패:', err.message);
       }
 
       swept++;

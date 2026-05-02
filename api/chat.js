@@ -5,7 +5,7 @@
  * ENV: GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { sendMessage } from './_telegram.js';
+import { notify } from './_shared/notify.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 
@@ -138,7 +138,8 @@ export default async function handler(req, res) {
   try {
     const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     const telegramMsg = `💬 <b>웹 채팅 문의</b>\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${language}\n\n<b>고객:</b> ${message}\n<b>AI답변:</b> ${aiResponse}\n\n⏰ ${kst}`;
-    await sendMessage(telegramMsg);
+    // 채널: inquiry (TELEGRAM_INQUIRY_BOT_TOKEN 또는 폴백)
+    await notify('inquiry', telegramMsg);
   } catch (err) {
     console.warn('[chat] Telegram failed (continuing):', err.message);
   }

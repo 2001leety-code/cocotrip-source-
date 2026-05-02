@@ -19,6 +19,7 @@ import { callBot, sendBotMessage, verifyWebhookSecret, parseUpdate } from './_sh
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { sweepExpiredDispatches } from './_shared/dispatch-sweep.js';
+import { notify } from './_shared/notify.js';
 
 export const maxDuration = 10;
 export const config = { runtime: 'nodejs' };
@@ -223,19 +224,11 @@ async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) {
     }
   }
 
-  // 4. 어드민에게 알림 (외부 _telegram.js 모듈 — 별도 outbound bot)
+  // 4. 어드민에게 알림 — dispatch 채널로 라우팅
   try {
-    const adminToken = process.env.TELEGRAM_BOT_TOKEN;
-    const adminChat = process.env.TELEGRAM_CHAT_ID;
-    if (adminToken && adminChat) {
-      await callBot(adminToken, 'sendMessage', {
-        chat_id: adminChat,
-        text: `✓ 배차 수락\n${orderID} → ${dispatch.driverName}`,
-        parse_mode: 'HTML',
-      });
-    }
+    await notify('dispatch', `✓ 배차 수락\n${orderID} → ${dispatch.driverName}`);
   } catch (err) {
-    console.warn('[driver-webhook] admin notify 실패:', err.message);
+    console.warn('[driver-webhook] dispatch notify 실패:', err.message);
   }
 }
 
@@ -266,18 +259,10 @@ async function handleReject(botToken, p, dispatchRef, dispatch, orderID) {
     }
   }
 
-  // 4. 어드민에게 알림
+  // 4. 어드민에게 알림 — dispatch 채널로 라우팅
   try {
-    const adminToken = process.env.TELEGRAM_BOT_TOKEN;
-    const adminChat = process.env.TELEGRAM_CHAT_ID;
-    if (adminToken && adminChat) {
-      await callBot(adminToken, 'sendMessage', {
-        chat_id: adminChat,
-        text: `✗ 배차 거절\n${orderID} ← ${dispatch.driverName}\n다른 기사에게 재배차 필요`,
-        parse_mode: 'HTML',
-      });
-    }
+    await notify('dispatch', `✗ 배차 거절\n${orderID} ← ${dispatch.driverName}\n다른 기사에게 재배차 필요`);
   } catch (err) {
-    console.warn('[driver-webhook] admin notify 실패:', err.message);
+    console.warn('[driver-webhook] dispatch notify 실패:', err.message);
   }
 }
