@@ -32,45 +32,41 @@ const BOT_TAG = 'admin';
 
 const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 
+<i>모든 명령은 영문 슬래시 또는 한글 단어로 사용 가능 (인자도 한글 OK)</i>
+
 <b>기본</b>
 /start  /help  /id  /status
+한글:  시작  도움말  아이디  상태
 
 <b>기사 관리</b>
-/drivers
-  → 등록된 기사 목록
-/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle]
-  → 새 기사 등록 (vehicle 생략 가능)
-/driver_remove &lt;chatId&gt;
-  → 기사 등록 해제
-/driver_off &lt;chatId&gt;
-  → 기사 비활성화 (active=false, 명단엔 남음)
-/driver_on &lt;chatId&gt;
-  → 기사 재활성화
+/drivers — <b>기사</b>, 기사목록
+/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle] — <b>기사추가 ...</b>
+/driver_remove &lt;chatId&gt; — <b>기사삭제 ...</b>
+/driver_off &lt;chatId&gt; — <b>기사휴무 ...</b>
+/driver_on &lt;chatId&gt; — <b>기사출근 ...</b>
+/whois &lt;chatId&gt; — <b>누구 ...</b> (기사 정보 + 최근 7일 배차)
 
 <b>배차</b>
-/dispatch &lt;orderID&gt; &lt;driverChatId&gt;
-  → 해당 예약을 기사에게 배차 발송 (인라인 키보드)
+/dispatch &lt;orderID&gt; &lt;driverChatId&gt; — <b>배차 ...</b>
 
 <b>조회</b>
-/bookings [YYYY-MM-DD]
-  → 특정 일자의 예약 목록 (생략 시 오늘 KST)
-/sales [YYYY-MM]
-  → 월별 매출 요약 (생략 시 이번 달)
+/bookings [YYYY-MM-DD] — <b>예약</b> 또는 예약 2026-05-15
+/sales [YYYY-MM] — <b>매출</b> 또는 매출 2026-05
 
 <b>CS 티켓</b>
-/cs_list [open|in_progress|resolved|all]
-  → CS 티켓 목록 (기본: open)
-/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt;
-  → 새 CS 티켓 생성 (priority: low|medium|high|critical)
-/cs_resolve &lt;ticketId&gt;
-  → 티켓 해결 처리
+/cs_list [open|in_progress|resolved|all] — <b>이슈</b> 또는 이슈 open
+/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt; — <b>이슈추가 ...</b>
+/cs_resolve &lt;ticketId&gt; — <b>이슈해결 ...</b> (또는 해결)
 
-<b>예시</b>
-<code>/driver_add 1234567890 김기사 스타리아1호</code>
-<code>/dispatch CT-20260502-123 1234567890</code>
-<code>/bookings 2026-05-15</code>
-<code>/sales 2026-05</code>
-<code>/cs_add CT-20260502-123 high 픽업 30분 지연</code>`;
+<b>한글 사용 예시</b>
+<code>예약</code> → 오늘 예약 목록
+<code>매출</code> → 이번 달 매출
+<code>기사</code> → 등록 기사 목록
+<code>기사추가 1234567890 김기사 스타리아1호</code>
+<code>배차 CT-20260502-123 1234567890</code>
+<code>이슈추가 CT-20260502-123 high 픽업 30분 지연</code>
+<code>해결 abc123def456</code>
+<code>누구 1234567890</code>`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -155,6 +151,55 @@ export default async function handler(req, res) {
   }
 }
 
+// 한글 텍스트 → 슬래시 명령 매핑
+// 명령 자체는 영문/숫자만 허용되지만 (Telegram 제약), 일반 텍스트로
+// 한글 단어를 보내면 동일 명령으로 라우팅. argGroup = 인자가 들어있는
+// 캡쳐 그룹 인덱스 (-1이면 인자 없음). null이면 매칭 실패 케이스.
+const KOREAN_ALIASES = [
+  // 기본 (인자 없음)
+  { re: /^(시작|스타트)$/, cmd: '/start', argGroup: -1 },
+  { re: /^(도움|도움말|헬프|명령|명령어)$/, cmd: '/help', argGroup: -1 },
+  { re: /^(내아이디|아이디|내 아이디)$/, cmd: '/id', argGroup: -1 },
+  { re: /^(상태|시스템상태)$/, cmd: '/status', argGroup: -1 },
+  { re: /^(기사목록|기사|기사명단)$/, cmd: '/drivers', argGroup: -1 },
+
+  // 기사 관리 (인자 필수)
+  { re: /^(기사추가|기사 추가|기사등록|기사 등록)\s+(.+)$/, cmd: '/driver_add', argGroup: 2 },
+  { re: /^(기사삭제|기사 삭제|기사제거|기사 제거)\s+(.+)$/, cmd: '/driver_remove', argGroup: 2 },
+  { re: /^(기사휴무|기사 휴무|기사비활성|기사 비활성|기사오프|기사 오프)\s+(.+)$/, cmd: '/driver_off', argGroup: 2 },
+  { re: /^(기사출근|기사 출근|기사활성|기사 활성|기사온|기사 온)\s+(.+)$/, cmd: '/driver_on', argGroup: 2 },
+
+  // 배차 (인자 필수)
+  { re: /^(배차|배차발송|배차 발송)\s+(.+)$/, cmd: '/dispatch', argGroup: 2 },
+
+  // 조회 (인자 선택 — 생략 시 오늘/이번달)
+  { re: /^(예약목록|예약|오늘예약|오늘 예약)(?:\s+(.+))?$/, cmd: '/bookings', argGroup: 2 },
+  { re: /^(매출|매출요약|매출 요약)(?:\s+(.+))?$/, cmd: '/sales', argGroup: 2 },
+
+  // CS 티켓 (인자 선택)
+  { re: /^(이슈|이슈목록|씨에스|cs)(?:\s+(.+))?$/i, cmd: '/cs_list', argGroup: 2 },
+  { re: /^(이슈추가|이슈 추가|cs추가|cs 추가)\s+(.+)$/i, cmd: '/cs_add', argGroup: 2 },
+  { re: /^(이슈해결|이슈 해결|cs해결|cs 해결|해결)\s+(.+)$/i, cmd: '/cs_resolve', argGroup: 2 },
+
+  // 누구 (whois)
+  { re: /^(누구|whois)\s+(\d+)$/i, cmd: '/whois', argGroup: 2 },
+];
+
+function resolveKoreanAlias(p) {
+  if (p.command) return p;
+  if (!p.text) return p;
+  const trimmed = p.text.trim();
+  for (const { re, cmd, argGroup } of KOREAN_ALIASES) {
+    const m = trimmed.match(re);
+    if (m) {
+      const argStr = argGroup > 0 ? m[argGroup] : null;
+      const args = argStr ? argStr.trim().split(/\s+/).filter(Boolean) : [];
+      return { ...p, command: cmd, args };
+    }
+  }
+  return p;
+}
+
 async function routeCommand(botToken, p) {
   if (p.isCallback) {
     await callBot(botToken, 'answerCallbackQuery', {
@@ -163,6 +208,9 @@ async function routeCommand(botToken, p) {
     });
     return;
   }
+
+  // 한글 별칭 변환 (슬래시 명령 없을 때만)
+  p = resolveKoreanAlias(p);
 
   switch (p.command) {
     case '/start':
@@ -230,6 +278,10 @@ async function routeCommand(botToken, p) {
 
     case '/cs_resolve':
       await handleCsResolve(botToken, p);
+      break;
+
+    case '/whois':
+      await handleWhois(botToken, p);
       break;
 
     default:
@@ -682,6 +734,57 @@ async function handleCsAdd(botToken, p) {
     `예약: <code>${orderID}</code>\n` +
     `우선순위: <b>${priorityLower}</b>\n` +
     `이슈: ${issue}`);
+}
+
+// /whois <chatId> — 빠른 기사 조회
+async function handleWhois(botToken, p) {
+  if (p.args.length < 1) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>/whois &lt;chatId&gt;</code>\n` +
+      `한글: <code>누구 1234567890</code>`);
+    return;
+  }
+  const [chatId] = p.args;
+  if (!/^\d+$/.test(chatId)) {
+    await sendBotMessage(botToken, p.chatId, `chatId는 숫자만 가능: <code>${chatId}</code>`);
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const driverDoc = await db.collection('drivers').doc(chatId).get();
+  if (!driverDoc.exists) {
+    await sendBotMessage(botToken, p.chatId,
+      `<code>${chatId}</code> 등록 안 됨.\n\n` +
+      `등록: <code>/driver_add ${chatId} 이름 차량</code>`);
+    return;
+  }
+  const d = driverDoc.data();
+
+  // 최근 1주일 배차 이력
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const dispatches = await db.collection('dispatch_messages')
+    .where('driverChatId', '==', Number(chatId))
+    .where('sentAt', '>=', weekAgo)
+    .get();
+
+  const stats = { sent: 0, accepted: 0, rejected: 0, expired: 0 };
+  dispatches.forEach((doc) => {
+    const s = doc.data().status || 'sent';
+    if (stats[s] !== undefined) stats[s]++;
+  });
+
+  await sendBotMessage(botToken, p.chatId,
+    `<b>${d.name || '?'}</b>\n` +
+    `chatId: <code>${chatId}</code>\n` +
+    `차량: ${d.vehicle || '-'}\n` +
+    `상태: ${d.active === false ? '⏸ 비활성' : '✓ 활성'}\n` +
+    `\n<b>최근 7일 배차</b>\n` +
+    `발송: ${stats.sent}건\n` +
+    `수락: ${stats.accepted}건\n` +
+    `거절: ${stats.rejected}건\n` +
+    `만료: ${stats.expired}건`);
 }
 
 // /cs_resolve <ticketId>
