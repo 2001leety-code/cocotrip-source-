@@ -417,7 +417,7 @@
   },
   "footer": {
     "brandName": "ココトリップ",
-    "tagline": "プレミアム韓国旅行",
+    "tagline": "プレミアム韓国ツアー",
     "support24h": "24時間対応",
     "company": "ココトリップ",
     "ceo": "代表: キム・ヘミ",
@@ -434,8 +434,7 @@
     "terms": "利用規約",
     "privacy": "プライバシーポリシー",
     "travelTerms": "旅行約款",
-    "quickLinks": "クイックリンク",
-    "tagline": "プレミアム韓国ツアー"
+    "quickLinks": "クイックリンク"
   },
   "booking": {
     "error": {
@@ -1086,7 +1085,6 @@
     "checkoutSafe": "100%安全決済",
     "checkoutTip1": "ドライバーチップ込み",
     "checkoutTip2": "追加料金なし",
-    "comingSoonBtn": "🔧 サービスアップグレード中 · 近日公開",
     "creatingItinerary": "AIがカスタム旅程を作成中...",
     "takesAbout15Sec": "約15〜30秒かかります",
     "planReadyEmailTitle": "完成したらメールでもお届けします",

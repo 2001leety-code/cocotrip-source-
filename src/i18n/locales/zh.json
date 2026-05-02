@@ -417,7 +417,7 @@
   },
   "footer": {
     "brandName": "可可之旅",
-    "tagline": "高端韩国旅行",
+    "tagline": "高级韩国旅游",
     "support24h": "24小时支持",
     "company": "可可之旅",
     "ceo": "代表: 金惠美",
@@ -434,8 +434,7 @@
     "terms": "使用条款",
     "privacy": "隐私政策",
     "travelTerms": "旅游条款",
-    "quickLinks": "快速链接",
-    "tagline": "高级韩国旅游"
+    "quickLinks": "快速链接"
   },
   "booking": {
     "error": {
@@ -1086,7 +1085,6 @@
     "checkoutSafe": "100%安全结账",
     "checkoutTip1": "含司机小费",
     "checkoutTip2": "无隐藏费用",
-    "comingSoonBtn": "🔧 服务升级中 · 即将开放",
     "creatingItinerary": "AI正在生成您的专属行程...",
     "takesAbout15Sec": "约需15-30秒",
     "planReadyEmailTitle": "完成后也会发到您的邮箱",

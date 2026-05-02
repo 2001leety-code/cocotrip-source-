@@ -417,7 +417,7 @@
   },
   "footer": {
     "brandName": "CocoTrip",
-    "tagline": "Premium Korea Travel",
+    "tagline": "KOREA PRIVATE TOUR",
     "support24h": "24h support",
     "company": "COCOTRIP",
     "ceo": "CEO: Kim Hyemi",
@@ -434,8 +434,7 @@
     "terms": "Terms of Service",
     "privacy": "Privacy Policy",
     "travelTerms": "Travel Terms",
-    "quickLinks": "Quick Links",
-    "tagline": "KOREA PRIVATE TOUR"
+    "quickLinks": "Quick Links"
   },
   "booking": {
     "error": {
@@ -1086,7 +1085,6 @@
     "checkoutSafe": "100% Safe Checkout",
     "checkoutTip1": "Driver Tip Included",
     "checkoutTip2": "No Hidden Driver/Gas Fees",
-    "comingSoonBtn": "🔧 Service Upgrade In Progress · Coming Soon",
     "creatingItinerary": "Creating your personalized itinerary...",
     "takesAbout15Sec": "Takes about 15-30 seconds",
     "planReadyEmailTitle": "We'll email it to you when ready",

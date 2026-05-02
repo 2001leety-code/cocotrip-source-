@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
-import { Bot, MessageCircle, X, Send } from 'lucide-react';
+import { Bot, MessageCircle, X, Send, Plus } from 'lucide-react';
 import { translations, type Language } from '@/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { signInWithGoogle } from '@/lib/firebase';
-import { TourInputSheet } from '@/components/TourInputSheet';
 
 interface Message {
   id: string;
@@ -69,6 +68,68 @@ const LOGIN_CHAT_TEXT: Record<Language, { title: string; desc: string; google: s
   en: { title: 'Sign in to chat', desc: 'Login to start chatting with our AI.', google: 'Continue with Google', apple: 'Continue with Apple', loading: 'Signing in...' },
   ja: { title: 'ログインして利用', desc: 'AIとチャットするにはログインが必要です。', google: 'Googleで続ける', apple: 'Appleで続ける', loading: 'ログイン中...' },
   zh: { title: '登录后使用', desc: '登录后即可与AI对话。', google: '使用Google登录', apple: '使用Apple登录', loading: '登录中...' },
+};
+
+// FAQ Quick Reply — "+" 버튼 클릭 시 펼치는 자주 묻는 질문 패널.
+// 각 질문 클릭 시 sendMessage()로 전송 → AI가 SYSTEM_PROMPT(FAQ 지식 + 라우팅)에
+// 따라 답변. 카테고리는 booking/info/escalate 라우팅에 자연스럽게 매핑됨.
+const FAQ_QUICK_REPLIES: Record<Language, { id: string; label: string; q: string }[]> = {
+  ko: [
+    { id: 'price', label: '💰 투어 가격', q: '투어 가격 알려주세요' },
+    { id: 'airport', label: '✈️ 공항 픽업', q: '공항 픽업 가능한가요?' },
+    { id: 'kpop', label: '🎤 K-pop 셔틀', q: 'K-pop 콘서트 셔틀 정보 알려주세요' },
+    { id: 'refund', label: '💵 환불 정책', q: '환불 정책이 어떻게 되나요?' },
+    { id: 'planner', label: '🗺️ AI 플래너', q: 'AI 플래너 무엇이고 가격이 얼마인가요?' },
+    { id: 'food', label: '🍽️ 할랄/비건', q: '할랄/비건 식당 안내해 주시나요?' },
+    { id: 'tip', label: '💁 팁 문화', q: '한국에서 팁 줘야 하나요?' },
+    { id: 'visa', label: '📘 비자', q: '한국 입국 비자 필요한가요?' },
+    { id: 'esim', label: '📶 eSIM', q: 'eSIM 추천해 주세요' },
+    { id: 'group', label: '👥 단체 9인+', q: '10명 단체 견적 부탁드려요' },
+    { id: 'book', label: '📅 예약 방법', q: '어디서 예약하나요?' },
+    { id: 'safe', label: '🛡️ 보험·안전', q: '여행자 보험·안전 안내해 주세요' },
+  ],
+  en: [
+    { id: 'price', label: '💰 Tour prices', q: 'How much are your tours?' },
+    { id: 'airport', label: '✈️ Airport pickup', q: 'Do you offer airport pickup?' },
+    { id: 'kpop', label: '🎤 K-pop shuttle', q: 'Tell me about K-pop concert shuttles' },
+    { id: 'refund', label: '💵 Refund policy', q: 'What is your refund policy?' },
+    { id: 'planner', label: '🗺️ AI Planner', q: 'What is the AI Planner and how much?' },
+    { id: 'food', label: '🍽️ Halal/vegan', q: 'Do you support halal or vegan options?' },
+    { id: 'tip', label: '💁 Tipping', q: 'Should I tip in Korea?' },
+    { id: 'visa', label: '📘 Visa', q: 'Do I need a visa for Korea?' },
+    { id: 'esim', label: '📶 eSIM', q: 'Can you recommend an eSIM?' },
+    { id: 'group', label: '👥 Group 9+', q: 'Quote for a group of 10 please' },
+    { id: 'book', label: '📅 How to book', q: 'How do I book a tour?' },
+    { id: 'safe', label: '🛡️ Insurance', q: 'Tell me about insurance and safety' },
+  ],
+  ja: [
+    { id: 'price', label: '💰 ツアー料金', q: 'ツアーの料金を教えてください' },
+    { id: 'airport', label: '✈️ 空港送迎', q: '空港送迎は可能ですか？' },
+    { id: 'kpop', label: '🎤 K-popシャトル', q: 'K-popコンサートシャトルの情報を教えて' },
+    { id: 'refund', label: '💵 返金規定', q: '返金規定はどうなっていますか？' },
+    { id: 'planner', label: '🗺️ AIプランナー', q: 'AIプランナーとは？料金は？' },
+    { id: 'food', label: '🍽️ ハラール/ビーガン', q: 'ハラールやビーガンに対応していますか？' },
+    { id: 'tip', label: '💁 チップ', q: '韓国でチップは必要ですか？' },
+    { id: 'visa', label: '📘 ビザ', q: '韓国入国にビザは必要ですか？' },
+    { id: 'esim', label: '📶 eSIM', q: 'eSIMのおすすめを教えてください' },
+    { id: 'group', label: '👥 10名以上', q: '10名のグループ見積りお願いします' },
+    { id: 'book', label: '📅 予約方法', q: 'どうやって予約しますか？' },
+    { id: 'safe', label: '🛡️ 保険', q: '保険と安全について教えてください' },
+  ],
+  zh: [
+    { id: 'price', label: '💰 旅游价格', q: '请告诉我旅游价格' },
+    { id: 'airport', label: '✈️ 机场接送', q: '可以提供机场接送吗？' },
+    { id: 'kpop', label: '🎤 K-pop班车', q: '请告诉我K-pop演唱会班车信息' },
+    { id: 'refund', label: '💵 退款政策', q: '退款政策是什么？' },
+    { id: 'planner', label: '🗺️ AI规划师', q: 'AI规划师是什么？价格多少？' },
+    { id: 'food', label: '🍽️ 清真/素食', q: '是否支持清真或素食？' },
+    { id: 'tip', label: '💁 小费', q: '在韩国需要给小费吗？' },
+    { id: 'visa', label: '📘 签证', q: '入境韩国需要签证吗？' },
+    { id: 'esim', label: '📶 eSIM', q: '请推荐eSIM' },
+    { id: 'group', label: '👥 10人+', q: '10人团体报价请' },
+    { id: 'book', label: '📅 如何预订', q: '如何预订旅游？' },
+    { id: 'safe', label: '🛡️ 保险', q: '请告诉我保险和安全相关信息' },
+  ],
 };
 
 // 429/401 오류 메시지 다국어
@@ -281,21 +342,12 @@ export function ChatWidget({ language }: ChatWidgetProps) {
     [loading, sessionId, language]
   );
 
-  // TourInputSheet onSubmit 핸들러 → 구조화된 메시지 생성 후 AI 전송
-  const handleTourSubmit = useCallback((sel: {
-    area: string; themes: string[]; vehicle: string;
-    duration: string; pax: number; days: number; note: string | null;
-  }) => {
-    const dLabel = sel.duration === 'half' ? 'Half Day (4h)' : sel.duration === 'multi' ? `${sel.days} Days` : 'Full Day (8h)';
-    const msg = [
-      `Area: ${sel.area}`,
-      `Themes: ${sel.themes.join(', ')}`,
-      `Vehicle: ${sel.vehicle}`,
-      `Duration: ${dLabel}`,
-      `Passengers: ${sel.pax}`,
-      sel.note ? `Note: ${sel.note}` : '',
-    ].filter(Boolean).join(' | ');
-    sendMessage(msg);
+  // FAQ Quick Reply 패널 토글 — "+" 버튼으로 펼침/접힘
+  const [showFaqPanel, setShowFaqPanel] = useState(false);
+
+  const handleFaqClick = useCallback((q: string) => {
+    setShowFaqPanel(false);
+    sendMessage(q);
   }, [sendMessage]);
 
 
@@ -601,8 +653,79 @@ export function ChatWidget({ language }: ChatWidgetProps) {
               position: 'relative',
             }}
           >
-            {/* TourInputSheet + 버튼 */}
-            <TourInputSheet onSubmit={handleTourSubmit} language={language} />
+            {/* FAQ Quick Reply 패널 — + 버튼 클릭 시 펼침 */}
+            {showFaqPanel && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 6px)',
+                  left: '8px',
+                  right: '8px',
+                  background: 'rgba(20,20,30,0.98)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '14px',
+                  padding: '10px',
+                  maxHeight: '260px',
+                  overflowY: 'auto',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  zIndex: 10,
+                }}
+              >
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginBottom: '8px', paddingLeft: '4px' }}>
+                  {language === 'ko' ? '자주 묻는 질문' : language === 'ja' ? 'よくある質問' : language === 'zh' ? '常见问题' : 'Frequently Asked'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  {FAQ_QUICK_REPLIES[language].map((faq) => (
+                    <button
+                      key={faq.id}
+                      onClick={() => handleFaqClick(faq.q)}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        borderRadius: '10px',
+                        padding: '8px 10px',
+                        color: '#fff',
+                        fontSize: '12px',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(124,92,252,0.15)';
+                        e.currentTarget.style.borderColor = 'rgba(124,92,252,0.35)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                      }}
+                    >
+                      {faq.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => setShowFaqPanel((v) => !v)}
+              aria-label={language === 'ko' ? '자주 묻는 질문 열기' : 'Open FAQ'}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: showFaqPanel ? 'rgba(124,92,252,0.25)' : 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.2s',
+                transform: showFaqPanel ? 'rotate(45deg)' : 'rotate(0)',
+              }}
+            >
+              <Plus size={18} />
+            </button>
             <ChatInput
               ref={inputRef}
               type="text"

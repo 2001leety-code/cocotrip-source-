@@ -37,8 +37,9 @@ export function Membership({ t }: MembershipProps) {
             <p className="text-white/70 text-lg mb-8">
               {t.membership.subtitle}
             </p>
+            {/* 멤버십 가입 흐름 미구축 — 우선 차터 페이지로 안내 (CTA 데드링크 방지) */}
             <a
-              href="#"
+              href="/charter"
               className="inline-flex items-center gap-2 px-8 py-4 bg-[#c0b283] text-[#0f3460] rounded-full font-bold hover:bg-white transition-colors duration-300"
             >
               <span>{t.membership.cta}</span>
