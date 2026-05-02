@@ -66,26 +66,59 @@ stop.tip || stop.tip_en
 
 ## D. 핵심 파일 맵
 
-### AI 플래너 백엔드
-| 파일 | 주요 기능 | 핵심 라인 |
-|---|---|---|
-| `api/ai-planner-full.js` (1243L) | Gemini 호출 + DB matcher + 주소 정리 + Firestore | L112-127: logPromptMetrics, L129-169: validateResponse, L171-488: buildSystemPrompt, L800-803: Gemini call, L900-956: DB matcher, L1057-1082: Firestore save |
-| `api/_food_index.json` (1.2MB) | 검증된 식당 DB | ⚠️ 삭제 금지. `build-food-index.js`로 재생성 |
-| `api/_food_helper.js` (229L) | 식당 DB → 프롬프트 주입 | L19-31: getFoodIndex (lazy load), L141-228: getFoodContext, L227: 프롬프트 형식 |
-| `api/_email-renderer.js` (344L) | 확인 이메일 HTML + 텍스트 | L66-68: name/display_name/tip 폴백, L178-306: renderBookingEmail |
-| `api/_ai_core/agents/RouteAgent.js` (261L) | Naver Geocoding + ODsay Transit | L38-67: Phase 1 Geocoding (L40,65: name 폴백), L72-91: Phase 2 ODsay+Naver, L96-184: Phase 3 Time Stitching |
+### AI 플래너 백엔드 (PR #144 이후 모듈 분해됨)
+`api/ai-planner-full.js` (307L)는 request shaping + 응답 작성 + post-response side-effect만 남기고 핵심 로직은 `api/_ai_core/` 18개 모듈로 추출됨. **줄 번호 참조 대신 모듈명으로 탐색.**
 
-### 프론트엔드
-| 파일 | 주요 기능 | 핵심 라인 |
-|---|---|---|
-| `src/pages/PlanDetailPage.tsx` (876L) | UI 카드 + PDF 렌더 | L103-294: handleDownloadPDF, L113-124: PDF 컨테이너 (position:absolute left:0), L254-260: font.ready 대기, L651: display_name 폴백, L670: tip 폴백, L753: Naver map URL |
-| `src/types/plan.ts` (106L) | Stop/Day/Plan 타입 정의 | L10-47: Stop interface (name, display_name, tip) |
+| 모듈 | 주요 기능 |
+|---|---|
+| `api/ai-planner-full.js` (307L) | 핸들러 진입점, `maxDuration = 300` (Vercel Pro 5분), PLANNER_MODE 분기 |
+| `api/_ai_core/buildPrompt.js` | Gemini system prompt 조립, logPromptMetrics |
+| `api/_ai_core/responseValidator.js` | validateResponse — 식이제한·언어·필드 검증 |
+| `api/_ai_core/dbMatcher.js` | Gemini 응답 → `_food_index.json` 매칭 |
+| `api/_ai_core/sanitizeName.js` | "대한민국 "/"KR " 주소 prefix 제거 |
+| `api/_ai_core/geminiPipeline.js` | Gemini 호출 + 파싱 + 수리 (legacy 1-pass) |
+| `api/_ai_core/threePassPipeline.js` | 3-pass 아키텍처 (PLANNER_MODE='3pass' 시) |
+| `api/_ai_core/routeEnrichment.js` | RouteAgent 호출 (Naver Geocoding + ODsay Transit) |
+| `api/_ai_core/planPersister.js` | T-money 계산 + Firestore 저장 |
+| `api/_ai_core/paymentGate.js` | PayPal 검증 + revision 횟수 체크 |
+| `api/_ai_core/vehicleAndPrice.js` | selectVehicle, calcPrice, VEHICLE_LABELS |
+| `api/_ai_core/recommendedRestaurants.js` | pickRecommendedRestaurants |
+| `api/_ai_core/avoidListQuery.js` | buildAvoidClause — 사용자 회피 목록 |
+| `api/_ai_core/emailNotifier.js` | sendNotificationEmail, recordLeadToSheets |
+| `api/_ai_core/firestoreAdmin.js` | initAdminDb (singleton) |
+| `api/_food_index.json` (1.2MB) | ⚠️ 삭제 금지. `build-food-index.js`로 재생성 |
+| `api/_food_helper.js` | 식당 DB → 프롬프트 주입. getFoodIndex (lazy), getFoodContext |
+| `api/_email-renderer.js` | 확인 이메일 HTML + 텍스트. name/display_name/tip 폴백 |
+| `api/_ai_core/agents/RouteAgent.js` | Naver Geocoding + ODsay Transit + Time Stitching |
+
+### 프론트엔드 (PlanDetailPage 폴더 분해됨)
+`src/pages/PlanDetailPage.tsx`는 폴더 (`PlanDetailPage/`)로 분해되어 `index.tsx` (325L) + components/ + lib/ + pdfGenerator.ts (933L) 구성. 총 5400L+
+
+| 파일 | 주요 기능 |
+|---|---|
+| `src/pages/PlanDetailPage/index.tsx` (325L) | UI 진입점, 상태 관리, 라우팅 |
+| `src/pages/PlanDetailPage/pdfGenerator.ts` (933L) | PDF 렌더 (position:absolute left:0, font.ready 대기, html2pdf 동적 import) |
+| `src/pages/PlanDetailPage/components/` | StopCard / DayTimeline / Lightbox / 광고 슬라이드 등 |
+| `src/pages/PlanDetailPage/lib/buildSlides.ts` | 광고 삽입 순서 (eSIM after Intro, airportPickup before Outro) |
+| `src/types/plan.ts` (106L) | Stop/Day/Plan 타입 정의 (name, display_name, tip) |
 
 ### 스크립트
 | 파일 | 주요 기능 |
 |---|---|
 | `scripts/validate-planner.cjs` (261L) | 품질 검증 러너 (5 시나리오, Gemini 5회 호출) |
 | `scripts/build-food-index.js` (117L) | `food_data/*.json` → `api/_food_index.json` (rating≥4.5, reviews≥50) |
+
+### 코드베이스 검색 (qmd)
+- 컬렉션 이름: `cocotrip` (이미 등록됨, 440 파일 인덱싱 완료)
+- BM25 키워드 검색: `qmd search "PayPal orderId"` (즉시, 모델 불필요)
+- 벡터/하이브리드는 임베딩 필요: `qmd embed --chunk-strategy auto` (모델 다운로드 후) → `qmd vsearch` / `qmd query`
+- 인덱스 갱신: `qmd update`
+- MCP 서버 (Claude 에이전트용): `claude mcp add qmd -- qmd mcp` (사용자 본인이 1회 등록)
+
+### Vercel 플랜 정보
+- **Pro 사용 중** — `maxDuration` 최대 300초 (5분)까지 가능
+- ai-planner-full.js: `maxDuration = 300` 사용 중 (Gemini 호출 + 다중 단계 처리)
+- 일반 endpoint: `maxDuration = 15`로 통일 권장 (cold start 비용 + 무한 루프 방지)
 
 ---
 
