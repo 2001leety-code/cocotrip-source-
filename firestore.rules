@@ -225,6 +225,17 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // cs_tickets — 고객 서비스 이슈 트래커 (ReviewManagement CS 칸반)
+    //   schema: { bookingId, customer, issue, priority, status, notes, createdAt, resolvedAt }
+    //   priority: 'low' | 'medium' | 'high' | 'critical'
+    //   status:   'open' | 'in_progress' | 'resolved'
+    //   read/write: 어드민만
+    // ─────────────────────────────────────────────────────────
+    match /cs_tickets/{ticketId} {
+      allow read, create, update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // drivers — 등록된 기사 명단 (Telegram chat_id를 doc ID로 사용)
     //   read/write: 어드민만 (콘솔 또는 봇으로 등록)
     // ─────────────────────────────────────────────────────────

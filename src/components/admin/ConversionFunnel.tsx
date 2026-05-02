@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, AlertTriangle, TrendingUp, TrendingDown, Activity, Loader2, Info } from 'lucide-react';
 import { collection, query, where, getDocs, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 
 interface FunnelStep {
   label: string;
@@ -22,7 +23,11 @@ function prevMonthRange(now = new Date()) {
   return { start, end };
 }
 
+interface PostHogStep { id: string; label: string; count: number }
+
 export default function ConversionFunnel() {
+  const [posthogSteps, setPosthogSteps] = useState<PostHogStep[] | null>(null);
+  const [posthogError, setPosthogError] = useState<string | null>(null);
   const [thisPlans, setThisPlans] = useState(0);
   const [prevPlans, setPrevPlans] = useState(0);
   const [thisBookings, setThisBookings] = useState(0);
@@ -31,6 +36,33 @@ export default function ConversionFunnel() {
   const [prevCompleted, setPrevCompleted] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // PostHog 4단계 funnel 시도 (configured 시) — 1회 fetch
+  useEffect(() => {
+    const loadPosthog = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch('/api/admin-posthog-funnel?days=30', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.status === 503) {
+          // PostHog 미설정 — Firestore-only 폴백
+          setPosthogSteps(null);
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        setPosthogSteps(json?.data?.steps || null);
+      } catch (err) {
+        console.warn('[ConversionFunnel] PostHog fetch failed, using Firestore only:', err);
+        setPosthogError(err instanceof Error ? err.message : 'unknown');
+        setPosthogSteps(null);
+      }
+    };
+    loadPosthog();
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -93,35 +125,26 @@ export default function ConversionFunnel() {
     load();
   }, []);
 
-  const steps: FunnelStep[] = useMemo(() => [
-    {
-      label: '플래너 페이지 진입',
-      count: 0,
-      prevCount: 0,
-      source: 'posthog',
-    },
-    {
-      label: 'AI 일정 생성 완료',
-      count: thisPlans,
-      prevCount: prevPlans,
-      source: 'firestore',
-    },
-    {
-      label: '예약/결제창 진입',
-      count: thisBookings,
-      prevCount: prevBookings,
-      source: 'firestore',
-    },
-    {
-      label: '결제 완료',
-      count: thisCompleted,
-      prevCount: prevCompleted,
-      source: 'firestore',
-    },
-  ], [thisPlans, prevPlans, thisBookings, prevBookings, thisCompleted, prevCompleted]);
+  const steps: FunnelStep[] = useMemo(() => {
+    // PostHog 데이터가 있으면 그것 우선 — 4단계 모두 PostHog로 통일 (이번 달 30일)
+    if (posthogSteps && posthogSteps.length === 4) {
+      return posthogSteps.map((s) => ({
+        label: s.label,
+        count: s.count,
+        source: 'posthog' as const,
+      }));
+    }
+    // 폴백: Firestore 기반 3단계 (페이지 진입 0)
+    return [
+      { label: '플래너 페이지 진입', count: 0, prevCount: 0, source: 'posthog' },
+      { label: 'AI 일정 생성 완료', count: thisPlans, prevCount: prevPlans, source: 'firestore' },
+      { label: '예약/결제창 진입', count: thisBookings, prevCount: prevBookings, source: 'firestore' },
+      { label: '결제 완료', count: thisCompleted, prevCount: prevCompleted, source: 'firestore' },
+    ];
+  }, [posthogSteps, thisPlans, prevPlans, thisBookings, prevBookings, thisCompleted, prevCompleted]);
 
-  // 페이지 진입 데이터가 없으면 (PostHog 미연동) AI 일정부터 시작하는 3단계 funnel로
-  const visibleSteps = steps[0].count === 0 ? steps.slice(1) : steps;
+  // PostHog 4단계가 있으면 그대로, 없으면 페이지 진입(0) 제거하고 3단계
+  const visibleSteps = posthogSteps && posthogSteps.length === 4 ? steps : steps.slice(1);
   const maxCount = Math.max(1, ...visibleSteps.map((s) => s.count));
 
   let worstDropIdx = 0;
@@ -163,12 +186,22 @@ export default function ConversionFunnel() {
         </div>
       </div>
 
-      {steps[0].count === 0 && (
+      {!posthogSteps && (
         <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 flex items-start gap-2">
           <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
           <p className="text-xs text-gray-400">
-            <b className="text-blue-300">"플래너 페이지 진입"</b> 단계는 PostHog 이벤트 연동 후 표시됩니다.
-            현재는 Firestore 데이터만 기반으로 3단계 퍼널 표시.
+            <b className="text-blue-300">"플래너 페이지 진입"</b> 단계는 PostHog 연동 후 표시됩니다.
+            Vercel 환경변수에 <code className="bg-gray-800 px-1 rounded">POSTHOG_PERSONAL_API_KEY</code> +
+            {' '}<code className="bg-gray-800 px-1 rounded">POSTHOG_PROJECT_ID</code> 추가 후 활성화.
+            {posthogError && <span className="text-red-400 block mt-1">PostHog 오류: {posthogError}</span>}
+          </p>
+        </div>
+      )}
+      {posthogSteps && (
+        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 flex items-start gap-2">
+          <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-400">
+            PostHog 실시간 데이터 (지난 30일). $pageview /planner → plan_generated → payment_started → payment_completed
           </p>
         </div>
       )}

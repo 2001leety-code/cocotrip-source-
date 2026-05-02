@@ -84,7 +84,7 @@ export default async function handler(req, res) {
     // ACTION: create — 리뷰 작성
     // ════════════════════════════════════════════════════════
     if (action === 'create') {
-      const { userId, targetType, targetId, rating, text, photos, authorName, authorPhotoURL, language } = body;
+      const { userId, targetType, targetId, rating, text, photos, authorName, authorPhotoURL, language, driverChatId, driverName, bookingId } = body;
 
       // 필수 필드 검증
       if (!userId || !targetType || !targetId || !rating) {
@@ -134,6 +134,8 @@ export default async function handler(req, res) {
         const currentCoins = userSnap.exists ? (userSnap.data().tripCoins || 0) : 0;
 
         // 리뷰 생성
+        // driverChatId / driverName / bookingId: 선택 필드 — 기사별 평점 집계용
+        // (배차 → 운행 → 리뷰 요청 흐름에서 booking-processor가 채워서 전달)
         tx.set(reviewRef, {
           authorUid: userId,
           authorName: authorName || 'Anonymous',
@@ -144,6 +146,9 @@ export default async function handler(req, res) {
           text: (text || '').slice(0, MAX_TEXT),
           photos: (photos || []).slice(0, MAX_PHOTOS),
           language: language || 'en',
+          ...(driverChatId ? { driverChatId: Number(driverChatId) } : {}),
+          ...(driverName ? { driverName } : {}),
+          ...(bookingId ? { bookingId } : {}),
           // 자동 필터: URL 포함 시 자동 reported (스팸 의심) §6.2
           status: /https?:\/\/|www\./i.test(text || '') ? 'reported' : 'published',
           createdAt: now,
