@@ -57,11 +57,20 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 /sales [YYYY-MM]
   → 월별 매출 요약 (생략 시 이번 달)
 
+<b>CS 티켓</b>
+/cs_list [open|in_progress|resolved|all]
+  → CS 티켓 목록 (기본: open)
+/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt;
+  → 새 CS 티켓 생성 (priority: low|medium|high|critical)
+/cs_resolve &lt;ticketId&gt;
+  → 티켓 해결 처리
+
 <b>예시</b>
 <code>/driver_add 1234567890 김기사 스타리아1호</code>
 <code>/dispatch CT-20260502-123 1234567890</code>
 <code>/bookings 2026-05-15</code>
-<code>/sales 2026-05</code>`;
+<code>/sales 2026-05</code>
+<code>/cs_add CT-20260502-123 high 픽업 30분 지연</code>`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -209,6 +218,18 @@ async function routeCommand(botToken, p) {
 
     case '/sales':
       await handleSalesCommand(botToken, p);
+      break;
+
+    case '/cs_list':
+      await handleCsList(botToken, p);
+      break;
+
+    case '/cs_add':
+      await handleCsAdd(botToken, p);
+      break;
+
+    case '/cs_resolve':
+      await handleCsResolve(botToken, p);
       break;
 
     default:
@@ -570,4 +591,139 @@ async function handleSalesCommand(botToken, p) {
   });
 
   await sendBotMessage(botToken, p.chatId, lines.join('\n'));
+}
+
+const VALID_CS_PRIORITIES = ['low', 'medium', 'high', 'critical'];
+const VALID_CS_STATUSES = ['open', 'in_progress', 'resolved'];
+
+// /cs_list [status] — open 기본
+async function handleCsList(botToken, p) {
+  const filter = (p.args[0] || 'open').toLowerCase();
+  if (filter !== 'all' && !VALID_CS_STATUSES.includes(filter)) {
+    await sendBotMessage(botToken, p.chatId,
+      `상태 오류. 가능: <code>open</code>, <code>in_progress</code>, <code>resolved</code>, <code>all</code>`);
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  let q = db.collection('cs_tickets').orderBy('createdAt', 'desc').limit(20);
+  if (filter !== 'all') q = q.where('status', '==', filter);
+
+  // where + orderBy 조합 시 인덱스 필요해 query 재구성
+  const snap = filter === 'all'
+    ? await db.collection('cs_tickets').orderBy('createdAt', 'desc').limit(20).get()
+    : await db.collection('cs_tickets').where('status', '==', filter).limit(20).get();
+
+  if (snap.empty) {
+    await sendBotMessage(botToken, p.chatId, `<b>CS 티켓 (${filter})</b>\n등록된 티켓 없음.`);
+    return;
+  }
+
+  const lines = [`<b>CS 티켓 (${filter}, ${snap.size}건)</b>\n`];
+  snap.forEach((doc) => {
+    const t = doc.data();
+    const icon = t.priority === 'critical' ? '🔴' : t.priority === 'high' ? '🟠' : t.priority === 'medium' ? '🟡' : '⚪';
+    const stIcon = t.status === 'open' ? '○' : t.status === 'in_progress' ? '◐' : '●';
+    lines.push(
+      `${stIcon} ${icon} <code>${doc.id.slice(0, 12)}</code>\n` +
+      `  ${t.bookingId || '-'} · ${t.customer || '-'}\n` +
+      `  ${(t.issue || '').slice(0, 80)}`
+    );
+  });
+  await sendBotMessage(botToken, p.chatId, lines.join('\n'));
+}
+
+// /cs_add <orderID> <priority> <issue...>
+async function handleCsAdd(botToken, p) {
+  if (p.args.length < 3) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt;</code>\n` +
+      `priority: <code>low</code> | <code>medium</code> | <code>high</code> | <code>critical</code>\n` +
+      `예: <code>/cs_add CT-20260502-123 high 픽업 30분 지연</code>`);
+    return;
+  }
+
+  const [orderID, priority, ...issueParts] = p.args;
+  const priorityLower = priority.toLowerCase();
+  if (!VALID_CS_PRIORITIES.includes(priorityLower)) {
+    await sendBotMessage(botToken, p.chatId,
+      `priority 오류. 가능: ${VALID_CS_PRIORITIES.join(', ')}`);
+    return;
+  }
+  const issue = issueParts.join(' ').trim();
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  // booking 정보 자동 채움
+  let customer = '';
+  try {
+    const bookingDoc = await db.collection('bookings').doc(orderID).get();
+    if (bookingDoc.exists) {
+      const b = bookingDoc.data();
+      customer = b.payerName || b.userEmail || '';
+    }
+  } catch {}
+
+  const ref = await db.collection('cs_tickets').add({
+    bookingId: orderID,
+    customer: customer || '-',
+    issue,
+    priority: priorityLower,
+    status: 'open',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  await sendBotMessage(botToken, p.chatId,
+    `✓ CS 티켓 생성\n` +
+    `ID: <code>${ref.id.slice(0, 12)}</code>\n` +
+    `예약: <code>${orderID}</code>\n` +
+    `우선순위: <b>${priorityLower}</b>\n` +
+    `이슈: ${issue}`);
+}
+
+// /cs_resolve <ticketId>
+async function handleCsResolve(botToken, p) {
+  if (p.args.length < 1) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>/cs_resolve &lt;ticketId&gt;</code>\n` +
+      `ticketId는 <code>/cs_list</code>로 확인 (앞 12자리만 입력 가능 — fullId 우선)`);
+    return;
+  }
+
+  const [ticketIdInput] = p.args;
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  // 정확 일치 우선, 없으면 prefix 매칭 (12자리)
+  let ref = db.collection('cs_tickets').doc(ticketIdInput);
+  let snap = await ref.get();
+
+  if (!snap.exists) {
+    // prefix 매칭
+    const all = await db.collection('cs_tickets').where('status', 'in', ['open', 'in_progress']).get();
+    let matched = null;
+    all.forEach((d) => {
+      if (d.id.startsWith(ticketIdInput)) matched = d;
+    });
+    if (!matched) {
+      await sendBotMessage(botToken, p.chatId, `티켓을 찾을 수 없음: <code>${ticketIdInput}</code>`);
+      return;
+    }
+    ref = matched.ref;
+    snap = matched;
+  }
+
+  await ref.update({
+    status: 'resolved',
+    resolvedAt: FieldValue.serverTimestamp(),
+  });
+
+  const data = snap.data();
+  await sendBotMessage(botToken, p.chatId,
+    `✓ 해결 처리 완료\n` +
+    `<code>${snap.id.slice(0, 12)}</code> · ${data.bookingId || '-'}\n` +
+    `이슈: ${data.issue || '-'}`);
 }
