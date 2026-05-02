@@ -417,7 +417,7 @@
   },
   "footer": {
     "brandName": "코코트립",
-    "tagline": "프리미엄 한국 여행",
+    "tagline": "프리미엄 한국 투어",
     "support24h": "24시간",
     "company": "코코트립",
     "ceo": "대표: 김혜미",
@@ -434,8 +434,7 @@
     "terms": "이용약관",
     "privacy": "개인정보처리방침",
     "travelTerms": "여행약관",
-    "quickLinks": "빠른 링크",
-    "tagline": "프리미엄 한국 투어"
+    "quickLinks": "빠른 링크"
   },
   "booking": {
     "error": {
@@ -1086,7 +1085,6 @@
     "checkoutSafe": "100% 안전 결제",
     "checkoutTip1": "드라이버 팁 포함",
     "checkoutTip2": "숨겨진 기사/유류비 없음",
-    "comingSoonBtn": "🔧 서비스 업그레이드 중 · 곧 오픈",
     "creatingItinerary": "AI가 맞춤 일정을 만들고 있어요...",
     "takesAbout15Sec": "약 15~30초 소요됩니다",
     "planReadyEmailTitle": "준비되면 이메일로도 보내드려요",
