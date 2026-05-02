@@ -1,0 +1,75 @@
+name: Lv2 — Auto-issue on health check failure
+
+# Lv2 자동 감지 — api-health workflow 실패 시 GH issue 자동 생성.
+# 실패 로그 + run URL을 issue body에 포함해 사람이 `@claude fix해줘` 한마디로
+# Claude Code Integration이 자동 fix PR 생성하도록 한다.
+#
+# Lv3 (완전 자동 fix+머지)은 비추천 — 잘못된 fix 위험.
+
+on:
+  workflow_run:
+    workflows: ['API Health Check']
+    types: [completed]
+
+permissions:
+  issues: write
+  actions: read
+
+jobs:
+  open-issue:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Open or update tracking issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const runUrl = run.html_url;
+            const sha = run.head_sha.slice(0, 7);
+            const ranAt = new Date(run.run_started_at).toISOString();
+
+            const title = '[health] API health check failed';
+            const body = [
+              '> Lv2 자동 생성 — api-health workflow가 실패했어. fix가 필요하면 이 issue에 `@claude fix해줘` 라고 답글로 호출해.',
+              '',
+              `- run: ${runUrl}`,
+              `- sha: \`${sha}\``,
+              `- ran at: ${ranAt}`,
+              `- attempt: ${run.run_attempt}`,
+              '',
+              '## 다음 액션',
+              '1. run 로그 확인 — 어떤 endpoint가 fail했는지',
+              '2. silent fail이면 Vercel env / Firestore rules 점검',
+              '3. fix PR 머지 후 이 issue 닫기',
+            ].join('\n');
+
+            // 같은 제목의 open issue가 있으면 코멘트만 추가
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'auto-health',
+              per_page: 20,
+            });
+            const hit = existing.data.find(i => i.title === title);
+
+            if (hit) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: hit.number,
+                body: `또 실패했어. 새 run: ${runUrl} (sha \`${sha}\`, attempt ${run.run_attempt})`,
+              });
+              core.notice(`Updated existing issue #${hit.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['auto-health', 'priority:high'],
+              });
+              core.notice(`Opened issue #${created.data.number}`);
+            }
