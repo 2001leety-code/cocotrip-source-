@@ -205,19 +205,32 @@ export function ChatWidget({ language }: ChatWidgetProps) {
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: trimmed, messages: history, sessionId, language }),
+          body: JSON.stringify({ message: trimmed, messages: history, sessionId, language, userId: user?.uid }),
         });
         const json = await res.json();
         const payload = json.data;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: generateId(),
-            role: 'ai',
-            text: payload?.reply ||'Sorry, something went wrong.',
-            time: nowTime(),
-          },
-        ]);
+        // 429 / 401은 사용자에게 명확히 안내 (그냥 generic 에러 메시지면 혼란)
+        if (!res.ok) {
+          const code = json.code || '';
+          let msg = json.error || 'Sorry, something went wrong.';
+          if (code === 'RATE_LIMIT_USER') msg = 'You are sending messages too quickly. Please wait a few minutes.';
+          else if (code === 'RATE_LIMIT_IP') msg = 'Daily limit reached. Please contact us via WhatsApp: +82-10-8714-0611';
+          else if (code === 'AUTH_REQUIRED') msg = 'Please sign in to continue chatting.';
+          setMessages((prev) => [
+            ...prev,
+            { id: generateId(), role: 'ai', text: msg, time: nowTime() },
+          ]);
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: generateId(),
+              role: 'ai',
+              text: payload?.reply ||'Sorry, something went wrong.',
+              time: nowTime(),
+            },
+          ]);
+        }
       } catch {
         setMessages((prev) => [
           ...prev,

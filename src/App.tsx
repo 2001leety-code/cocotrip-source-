@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
@@ -18,7 +18,8 @@ import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SeasonalBanner } from '@/components/SeasonalBanner';
 const RegionDetail = lazy(() => import('@/pages/RegionDetail').then(m => ({ default: m.RegionDetail })));
-const Booking = lazy(() => import('@/pages/Booking'));
+// Booking 레거시 페이지 — /booking 라우트는 /tours로 redirect (북마크 호환).
+// BookingPageWrapper + Booking lazy import는 PR #197에서 제거됨.
 const About = lazy(() => import('@/pages/About'));
 const Terms = lazy(() => import('@/pages/Terms'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
@@ -177,7 +178,7 @@ function AnimatedRoutes() {
         <Routes location={location}>
           <Route path="/" element={<HomePage />} />
           <Route path="/region/:regionId" element={<Suspense fallback={<PlannerSkeleton />}><RegionDetail /></Suspense>} />
-          <Route path="/booking" element={<BookingPageWrapper />} />
+          <Route path="/booking" element={<Navigate to="/tours" replace />} />
           <Route
             path="/admin"
             element={
@@ -353,18 +354,6 @@ function App() {
       </BrowserRouter>
       </ErrorBoundary>
     </LanguageProvider>
-  );
-}
-
-// Wrapper to handle the close action of the booking modal when accessed via route
-function BookingPageWrapper() {
-  const navigate = useNavigate();
-  return (
-    <div className="min-h-screen bg-black/90 relative" style={{ backgroundImage: "url('/1uA0qa_반포대교(1).jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      <Suspense fallback={<PlannerSkeleton />}>
-        <Booking onClose={() => navigate(-1)} />
-      </Suspense>
-    </div>
   );
 }
 
