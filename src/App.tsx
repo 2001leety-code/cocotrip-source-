@@ -9,14 +9,15 @@ import { MobileHome } from '@/sections/MobileHome';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Services } from '@/sections/Services';
 import { Regions } from '@/sections/Regions';
-import { CustomerGallery } from '@/sections/CustomerGallery';
-import { GoogleReviews } from '@/sections/GoogleReviews';
-import { CTA } from '@/sections/CTA';
-import { Membership } from '@/sections/Membership';
+// below-the-fold sections — first paint은 Header+Hero만 보이므로 lazy로 분리.
+const CustomerGallery = lazy(() => import('@/sections/CustomerGallery').then(m => ({ default: m.CustomerGallery })));
+const GoogleReviews = lazy(() => import('@/sections/GoogleReviews').then(m => ({ default: m.GoogleReviews })));
+const CTA = lazy(() => import('@/sections/CTA').then(m => ({ default: m.CTA })));
+const Membership = lazy(() => import('@/sections/Membership').then(m => ({ default: m.Membership })));
 import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SeasonalBanner } from '@/components/SeasonalBanner';
-import { RegionDetail } from '@/pages/RegionDetail';
+const RegionDetail = lazy(() => import('@/pages/RegionDetail').then(m => ({ default: m.RegionDetail })));
 const Booking = lazy(() => import('@/pages/Booking'));
 const About = lazy(() => import('@/pages/About'));
 const Terms = lazy(() => import('@/pages/Terms'));
@@ -64,13 +65,14 @@ const DevTransitTest = import.meta.env.DEV
 
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { CommandPaletteProvider } from '@/components/CommandPalette';
-import { KpopConcertPopup } from '@/components/KpopConcertPopup';
-import { ChatWidget } from '@/components/ChatWidget';
-import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt';
+// 비-critical UI는 lazy로 분리해서 first paint 줄임 (Suspense fallback=null 허용 — popup/toast는 보이지 않다가 로드 완료되면 등장).
+const KpopConcertPopup = lazy(() => import('@/components/KpopConcertPopup').then(m => ({ default: m.KpopConcertPopup })));
+const ChatWidget = lazy(() => import('@/components/ChatWidget').then(m => ({ default: m.ChatWidget })));
+const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m => ({ default: m.PWAUpdatePrompt })));
+const CookieBanner = lazy(() => import('@/components/CookieBanner'));
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
-import CookieBanner from '@/components/CookieBanner';
 import { trackPageView } from '@/lib/analytics';
 
 function HomePage() {
@@ -106,13 +108,17 @@ function HomePage() {
       <main>
         <HeroSlider t={t} />
         <HeroCards t={t} />
-        <CustomerGallery />
-        <GoogleReviews />
+        <Suspense fallback={null}>
+          <CustomerGallery />
+          <GoogleReviews />
+        </Suspense>
         <Services t={t} />
         <SeasonalBanner />
         <Regions t={t} />
-        <Membership t={t} />
-        <CTA t={t} />
+        <Suspense fallback={null}>
+          <Membership t={t} />
+          <CTA t={t} />
+        </Suspense>
       </main>
       <Footer t={t} />
     </div>
@@ -131,11 +137,15 @@ function GlobalWidgets() {
     <>
       <PageViewTracker />
 
-      <KpopConcertPopup />
+      <Suspense fallback={null}>
+        <KpopConcertPopup />
+      </Suspense>
       <MobileBottomNav />
-      <CookieBanner />
-      <PWAUpdatePrompt />
-      <ChatWidget language={language} />
+      <Suspense fallback={null}>
+        <CookieBanner />
+        <PWAUpdatePrompt />
+        <ChatWidget language={language} />
+      </Suspense>
     </>
   );
 }
@@ -166,7 +176,7 @@ function AnimatedRoutes() {
       >
         <Routes location={location}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/region/:regionId" element={<RegionDetail />} />
+          <Route path="/region/:regionId" element={<Suspense fallback={<PlannerSkeleton />}><RegionDetail /></Suspense>} />
           <Route path="/booking" element={<BookingPageWrapper />} />
           <Route
             path="/admin"
