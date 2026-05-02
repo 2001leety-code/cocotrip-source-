@@ -84,7 +84,27 @@ export default async function handler(req, res) {
     // ACTION: create — 리뷰 작성
     // ════════════════════════════════════════════════════════
     if (action === 'create') {
-      const { userId, targetType, targetId, rating, text, photos, authorName, authorPhotoURL, language, driverChatId, driverName, bookingId } = body;
+      const { userId, targetType, targetId, rating, text, photos, authorName, authorPhotoURL, language, bookingId } = body;
+      let { driverChatId, driverName } = body;
+
+      // bookingId만 있고 driver 정보가 없으면 booking 문서에서 자동 채움.
+      // 이유: 클라이언트가 항상 driver 정보를 들고 있지 않음 (이메일 → 후기 링크
+      // 흐름에서는 bookingId만 query string으로 전달). booking-processor가 배차
+      // 수락 시점에 bookings/{orderID}.driver / driverChatId 를 채워두므로 여기서
+      // lookup 가능. lookup 실패는 무시 (선택 필드이므로 리뷰 생성 자체를
+      // 막지 않음).
+      if (bookingId && (!driverChatId || !driverName)) {
+        try {
+          const bSnap = await db.collection('bookings').doc(String(bookingId)).get();
+          if (bSnap.exists) {
+            const b = bSnap.data() || {};
+            if (!driverChatId && b.driverChatId) driverChatId = b.driverChatId;
+            if (!driverName && b.driver) driverName = b.driver;
+          }
+        } catch (e) {
+          console.warn('[reviews] driver lookup 실패 (무시):', e.message);
+        }
+      }
 
       // 필수 필드 검증
       if (!userId || !targetType || !targetId || !rating) {
