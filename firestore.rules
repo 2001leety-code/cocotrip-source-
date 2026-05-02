@@ -216,6 +216,15 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // booking_costs/{bookingId} — 어드민 입력 비용 (ProfitSettlement)
+    //   driverFee / fuelCost / tollCost / parkingCost / mealCost / otherCost / overtimeKRW
+    //   read/write: 어드민만
+    // ─────────────────────────────────────────────────────────
+    match /booking_costs/{bookingId} {
+      allow read, create, update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // drivers — 등록된 기사 명단 (Telegram chat_id를 doc ID로 사용)
     //   read/write: 어드민만 (콘솔 또는 봇으로 등록)
     // ─────────────────────────────────────────────────────────
