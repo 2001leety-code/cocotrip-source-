@@ -27,6 +27,9 @@ const AdminReviews = lazy(() => import('@/pages/AdminReviews'));
 const AdminClaims = lazy(() => import('@/pages/AdminClaims'));
 const AdminTourAvailability = lazy(() => import('@/pages/AdminTourAvailability'));
 const AdminSales = lazy(() => import('@/pages/AdminSales'));
+const AdminCalendar = lazy(() => import('@/pages/AdminCalendar'));
+const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
+const AdminOpsHub = lazy(() => import('@/pages/AdminOpsHub'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
@@ -62,8 +65,7 @@ const DevTransitTest = import.meta.env.DEV
 import { MobileBottomNav, MobileBottomSpacer } from '@/components/MobileBottomNav';
 import { CommandPaletteProvider } from '@/components/CommandPalette';
 import { KpopConcertPopup } from '@/components/KpopConcertPopup';
-// ChatWidget 임시 숨김 — UX/위치 정리 후 재활성. 복원 시 import + GlobalWidgets 의 mount 라인 함께 풀기.
-// import { ChatWidget } from '@/components/ChatWidget';
+import { ChatWidget } from '@/components/ChatWidget';
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt';
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -118,8 +120,7 @@ function HomePage() {
 }
 
 function GlobalWidgets() {
-  // language는 ChatWidget 재활성 시 다시 사용. 현재는 상위에서 i18n 적용 중이라 여기서 unused.
-  // const { language } = useLanguage();
+  const { language } = useLanguage();
 
   // Google Redirect 로그인 결과 처리 (signInWithRedirect 폴백 후 페이지 복귀 시)
   useEffect(() => {
@@ -134,8 +135,7 @@ function GlobalWidgets() {
       <MobileBottomNav />
       <CookieBanner />
       <PWAUpdatePrompt />
-      {/* ChatWidget 임시 숨김 — UX/위치 정리 후 재활성. import는 보존. */}
-      {/* <ChatWidget language={language} /> */}
+      <ChatWidget language={language} />
     </>
   );
 }
@@ -214,6 +214,36 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminSales />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/calendar"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminCalendar />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/analytics"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminAnalytics />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/ops"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminOpsHub />
                 </Suspense>
               </AdminRoute>
             }
