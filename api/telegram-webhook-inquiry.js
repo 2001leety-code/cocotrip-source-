@@ -131,13 +131,16 @@ export default async function handler(req, res) {
       return;
     }
 
-    // 그 외 — 도움말 안내 (간단 안내 + /설명 안내)
+    // 그 외 — Reply 미사용 경고 (실수 방지가 핵심)
     if (parsed.text) {
       await sendBotMessage(botToken, parsed.chatId,
-        `<b>인쿼리 봇</b>\n` +
-        `이 봇은 고객 채팅 문의 알림 + 답장 릴레이 전용입니다.\n` +
-        `자세한 가이드: <code>/설명</code>\n` +
-        `관리 명령은 <b>관리자 봇</b>으로 사용해 주세요.`);
+        `⚠️ <b>이 메시지는 어느 고객에게도 전달되지 않았습니다.</b>\n\n` +
+        `고객에게 답장하려면:\n` +
+        `1. 답하고 싶은 고객 메시지를 <b>길게 누름</b> (모바일) 또는 <b>우클릭</b> (데스크탑)\n` +
+        `2. <b>답장 (Reply)</b> 선택\n` +
+        `3. 답변 입력 후 전송\n\n` +
+        `→ 그래야 그 고객에게만 메시지가 전달됩니다.\n\n` +
+        `자세한 가이드: <code>/설명</code>`);
     }
     res.status(200).json({ ok: true });
   } catch (err) {
