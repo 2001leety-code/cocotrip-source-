@@ -194,6 +194,28 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // bookings — 톱레벨 예약 컬렉션 (capturePaypalOrder.js가 서버에서 생성)
+    //   read:   본인(userEmail 매칭) 또는 어드민
+    //   update/delete: 어드민만 (AdminCalendar에서 status/vehicle/driver 편집)
+    //   create: 서버 전용 (Admin SDK 우회) — 어드민 수동 예약은 status='blocked' 또는 manualBooking 마킹
+    // ─────────────────────────────────────────────────────────
+    match /bookings/{bookingId} {
+      allow read:   if isAdminEmail()
+                    || (isSignedIn() && resource.data.userEmail == request.auth.token.email);
+      allow create: if isAdminEmail()
+                    && request.resource.data.createdBy == 'admin';
+      allow update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // calendar_blocks — 어드민 일정 블록 (휴무/정비/마감)
+    //   read/write: 어드민만
+    // ─────────────────────────────────────────────────────────
+    match /calendar_blocks/{blockId} {
+      allow read, create, update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // 서버 전용 컬렉션 (Admin SDK가 rules 우회)
     //   클라이언트는 접근 불가
     // ─────────────────────────────────────────────────────────
