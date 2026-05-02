@@ -26,7 +26,9 @@ import { EditModeToggle } from './components/EditModeToggle';
 import { AddStopModal } from './components/AddStopModal';
 import { RecommendedRestaurants } from './components/RecommendedRestaurants';
 import { SwipeContainer } from './components/SwipeContainer';
-import { SlideProgress } from './components/SlideProgress';
+// SlideProgress 제거됨 (2026-05-03) — 탭만으로 네비게이션 일원화.
+// import { SlideProgress } from './components/SlideProgress';
+import { PreTripSlide } from './components/PreTripSlide';
 import { SectionTabs } from './components/SectionTabs';
 import { IntroSlide } from './components/IntroSlide';
 import { OutroSlide } from './components/OutroSlide';
@@ -209,6 +211,8 @@ export default function PlanDetailPage() {
   // Render each slide based on type
   const slideElements = slides.map((slide, idx) => {
     switch (slide.type) {
+      case 'preTrip':
+        return <PreTripSlide key={`preTrip-${idx}`} plan={plan} />;
       case 'intro':
         return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} />;
       case 'day': {
@@ -268,11 +272,8 @@ export default function PlanDetailPage() {
     <div className={`min-h-screen text-white ${isMobile ? 'bg-[#0a0412]' : 'bg-[#0a0b14]'}`}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className="max-w-3xl mx-auto pt-20 pb-4 px-4">
-        {/* Section tabs (Option A hybrid): jump between Intro / Day N / Outro */}
+        {/* Section tabs (2026-05-03 사용자 결정: 탭만으로 네비게이션, dots/swipe 제거) */}
         <SectionTabs slides={slides} current={current} onJump={goToSlide} />
-
-        {/* Fine-grained slide dots */}
-        <SlideProgress current={current} total={slides.length} onDotClick={goToSlide} slides={slides} />
 
         {/* Swipe carousel */}
         <SwipeContainer

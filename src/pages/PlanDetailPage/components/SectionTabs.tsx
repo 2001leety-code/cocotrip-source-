@@ -1,9 +1,13 @@
-// Sticky section tab strip — Option A "tabs + sections" hybrid.
-// Sits above SlideProgress and groups slides into top-level sections so the
-// user can jump from Day 3 → Outro without swiping past 4 ad slides.
+// Sticky section tab strip — 2026-05-03 사용자 결정으로 "슬라이드별 1탭" 구조 도입.
+// 좌우 스와이프와 SlideProgress dots가 모두 제거되어, 본 탭 스트립이 유일한 네비게이션.
 //
-// Slide-level dots stay below for fine-grained navigation; this tab strip
-// is for "skip to a section" intent.
+// 슬라이드 1개당 1 탭:
+//   - preTrip → "여행 준비"
+//   - intro   → "Intro"
+//   - day N   → "Day N"
+//   - outro   → "Wrap-up"
+//
+// 광고 ad slide는 별도로 안 만듬 (PreTrip slide에 통합됨, 2026-05-03 기준).
 import { useMemo } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
@@ -20,7 +24,6 @@ interface Section {
   key: string;
   label: string;
   slideIndex: number;
-  endIndex: number;
 }
 
 export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
@@ -29,32 +32,41 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
   const sw = pd.swipe || {};
 
   const sections = useMemo<Section[]>(() => {
-    const out: Section[] = [];
-    // 2026-04-27 fix: ad slide는 *직전* section에 attach (이전 동작은 next에 attach
-    // → eSIM(idx=1)이 Day 1 section에 묶여서 "Day 1" 탭 활성인데 eSIM 카드만 보이는 혼란).
-    // 이제 eSIM은 Intro와 같은 그룹, airportPickup은 마지막 Day와 같은 그룹.
-    slides.forEach((s, idx) => {
-      if (s.type === 'ad') {
-        // 직전 section의 endIndex를 이 ad slide까지로 확장
-        const last = out[out.length - 1];
-        if (last) last.endIndex = idx;
-        return;
+    return slides.map((s, idx) => {
+      let key: string;
+      let label: string;
+      switch (s.type) {
+        case 'preTrip':
+          key = 'preTrip';
+          label = (sw as Record<string, string | undefined>).tabPreTrip || 'Pre-Trip';
+          break;
+        case 'intro':
+          key = 'intro';
+          label = sw.tabIntro || 'Intro';
+          break;
+        case 'day':
+          key = `day-${s.dayIndex}`;
+          label = `${sw.tabDay || 'Day'} ${(typeof s.dayIndex === 'number' ? s.dayIndex : 0) + 1}`;
+          break;
+        case 'outro':
+          key = 'outro';
+          label = sw.tabOutro || 'Wrap-up';
+          break;
+        case 'ad':
+          // 레거시 ad slide (현재 buildSlides에서 더 이상 생성 안 됨, 안전장치)
+          key = `ad-${idx}`;
+          label = String(s.adType || 'Ad');
+          break;
+        default:
+          key = `slide-${idx}`;
+          label = `Slide ${idx + 1}`;
       }
-      const key = s.type === 'day' ? `day-${s.dayIndex}` : s.type;
-      const label = s.type === 'intro'
-        ? (sw.tabIntro || 'Intro')
-        : s.type === 'outro'
-          ? (sw.tabOutro || 'Wrap-up')
-          : `${sw.tabDay || 'Day'} ${(typeof s.dayIndex === 'number' ? s.dayIndex : 0) + 1}`;
-      out.push({ key, label, slideIndex: idx, endIndex: idx });
+      return { key, label, slideIndex: idx };
     });
-    return out;
-  }, [slides, sw.tabIntro, sw.tabOutro, sw.tabDay]);
+  }, [slides, sw]);
 
   const activeKey = useMemo(() => {
-    // The active tab is the section whose [slideIndex, endIndex] range contains `current`.
-    const hit = sections.find(s => current >= s.slideIndex && current <= s.endIndex);
-    return hit?.key || sections[0]?.key;
+    return sections[current]?.key || sections[0]?.key;
   }, [sections, current]);
 
   if (sections.length <= 1) return null;

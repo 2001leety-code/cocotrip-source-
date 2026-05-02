@@ -47,7 +47,9 @@ export function SwipeContainer({ children, current, onSlideChange, editMode }: S
       <motion.div
         className="flex"
         animate={controls}
-        drag={editMode ? false : 'x'}
+        // 2026-05-03 사용자 결정: 좌우 드래그 제거, 탭 클릭만으로 네비게이션.
+        // 키보드 ←/→ 화살표 useEffect는 그대로 유지 (a11y).
+        drag={false}
         dragElastic={0.2}
         dragConstraints={{ left: 0, right: 0 }}
         dragDirectionLock
