@@ -6,6 +6,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { notify } from './_shared/notify.js';
+import { recordInquiryMessage, saveChatMessage } from './_shared/chat-relay.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 
@@ -134,12 +135,25 @@ export default async function handler(req, res) {
     aiResponse = "I'm sorry, I'm having trouble right now. Please contact us via WhatsApp: +82-10-8714-0611";
   }
 
-  // Telegram notification (fire-and-forget)
+  // 1. Firestore에 고객 + AI 메시지 저장 (양방향 채팅 이력)
+  try {
+    await Promise.all([
+      saveChatMessage({ sessionId, from: 'customer', text: message }),
+      saveChatMessage({ sessionId, from: 'ai', text: aiResponse }),
+    ]);
+  } catch (err) {
+    console.warn('[chat] saveChatMessage failed (continuing):', err.message);
+  }
+
+  // 2. Telegram inquiry 채널로 발송 + message_id 매핑 저장
+  //    관리자가 텔레그램 "Reply" 기능으로 답장하면 chat-poll로 고객에 전달됨
   try {
     const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    const telegramMsg = `💬 <b>웹 채팅 문의</b>\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${language}\n\n<b>고객:</b> ${message}\n<b>AI답변:</b> ${aiResponse}\n\n⏰ ${kst}`;
-    // 채널: inquiry (TELEGRAM_INQUIRY_BOT_TOKEN 또는 폴백)
-    await notify('inquiry', telegramMsg);
+    const telegramMsg = `💬 <b>웹 채팅 문의</b>\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${language}\n\n<b>고객:</b> ${message}\n<b>AI답변:</b> ${aiResponse}\n\n⏰ ${kst}\n\n💡 이 메시지에 "답장(Reply)" 하면 고객에게 직접 전달됩니다.`;
+    const result = await notify('inquiry', telegramMsg);
+    if (result.ok && result.messageId) {
+      await recordInquiryMessage({ telegramMessageId: result.messageId, sessionId, language });
+    }
   } catch (err) {
     console.warn('[chat] Telegram failed (continuing):', err.message);
   }

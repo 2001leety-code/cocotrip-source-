@@ -233,6 +233,26 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // chat_sessions — 양방향 고객 채팅 세션 + 메시지
+    //   read/write: 어드민만 (서버 SDK는 rules 우회)
+    //   고객 ChatWidget은 /api/chat-poll 통해 폴링 — Firestore 직접 접근 안 함
+    // ─────────────────────────────────────────────────────────
+    match /chat_sessions/{sessionId} {
+      allow read, write: if isAdminEmail();
+      match /messages/{msgId} {
+        allow read, write: if isAdminEmail();
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // inquiry_messages — Telegram message_id ↔ chat_sessions sessionId 매핑
+    //   서버 전용 (Admin SDK)
+    // ─────────────────────────────────────────────────────────
+    match /inquiry_messages/{msgId} {
+      allow read, write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // 서버 전용 컬렉션 (Admin SDK가 rules 우회)
     //   클라이언트는 접근 불가
     // ─────────────────────────────────────────────────────────

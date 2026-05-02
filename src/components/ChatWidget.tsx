@@ -8,9 +8,10 @@ import { TourInputSheet } from '@/components/TourInputSheet';
 
 interface Message {
   id: string;
-  role: 'user' | 'ai';
+  role: 'user' | 'ai' | 'admin';
   text: string;
   time: string;
+  adminName?: string;
 }
 
 interface ChatWidgetProps {
@@ -86,6 +87,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionId] = useState(() => `sess_${generateId()}`);
+  const [lastPollTs, setLastPollTs] = useState(0);
   const [quickShown, setQuickShown] = useState(true);
   const [authLoading, setAuthLoading] = useState<'google' | 'apple' | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -128,6 +130,44 @@ export function ChatWidget({ language }: ChatWidgetProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  // 관리자 답장 폴링 — 위젯 열린 동안 + 사용자가 1번 이상 메시지 보낸 후
+  useEffect(() => {
+    if (!open) return;
+    const userHasSent = messages.some((m) => m.role === 'user');
+    if (!userHasSent) return;
+
+    const POLL_INTERVAL = 8000;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/chat-poll?sessionId=${encodeURIComponent(sessionId)}&since=${lastPollTs}`);
+        const json = await res.json();
+        if (cancelled) return;
+        const adminMessages = json?.data?.messages || [];
+        if (adminMessages.length > 0) {
+          const newest = Math.max(...adminMessages.map((m: { ts: number }) => m.ts));
+          setLastPollTs(newest);
+          setMessages((prev) => [
+            ...prev,
+            ...adminMessages.map((m: { id: string; text: string; ts: number; adminName?: string }) => ({
+              id: m.id,
+              role: 'admin' as const,
+              text: m.text,
+              time: new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              adminName: m.adminName,
+            })),
+          ]);
+        }
+      } catch (err) {
+        console.warn('[chat-poll] failed (continuing):', err);
+      }
+    };
+
+    const interval = setInterval(poll, POLL_INTERVAL);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [open, sessionId, lastPollTs, messages]);
 
   useEffect(() => {
     if (open) {
@@ -372,14 +412,22 @@ export function ChatWidget({ language }: ChatWidgetProps) {
                       background:
                         msg.role === 'user'
                           ? 'linear-gradient(135deg, #7C5CFC, #EA537E)'
+                          : msg.role === 'admin'
+                          ? 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(251,191,36,0.08))'
                           : 'rgba(255,255,255,0.1)',
                       color: '#fff',
                       fontSize: '13px',
                       lineHeight: '1.5',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
+                      border: msg.role === 'admin' ? '1px solid rgba(251,191,36,0.35)' : 'none',
                     }}
                   >
+                    {msg.role === 'admin' && (
+                      <div style={{ fontSize: '10px', color: '#FBBF24', fontWeight: 700, marginBottom: '3px', letterSpacing: '0.4px' }}>
+                        {msg.adminName ? `${msg.adminName} (CocoTrip)` : 'CocoTrip 직원'}
+                      </div>
+                    )}
                     {msg.text}
                   </div>
                 </div>
