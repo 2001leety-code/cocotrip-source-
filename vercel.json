@@ -8,6 +8,10 @@
     {
       "path": "/api/cron-runner?job=refund-reminder",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron-runner?job=dispatch-timeout-sweep",
+      "schedule": "*/5 * * * *"
     }
   ],
   "functions": {

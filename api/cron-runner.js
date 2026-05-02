@@ -8,6 +8,7 @@
 
 import dailyReport from './_crons/daily-report.js';
 import refundReminder from './_crons/refund-reminder.js';
+import dispatchTimeoutSweep from './_crons/dispatch-timeout-sweep.js';
 // ── 비활성화된 크론 (2026-04-10) ──────────────────────
 // import trafficAlert from './_crons/traffic-alert.js';
 // import contentGenerator from './_crons/content-generator.js';
@@ -22,8 +23,9 @@ export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 const JOBS = {
-  'daily-report':       dailyReport,
-  'refund-reminder':    refundReminder,
+  'daily-report':           dailyReport,
+  'refund-reminder':        refundReminder,
+  'dispatch-timeout-sweep': dispatchTimeoutSweep,
   // 'traffic-alert':      trafficAlert,
   // 'content-generator':  contentGenerator,
   // 'competitor-monitor': competitorMonitor,
