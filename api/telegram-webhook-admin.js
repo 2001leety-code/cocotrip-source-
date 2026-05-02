@@ -22,6 +22,7 @@
 import { callBot, sendBotMessage, verifyWebhookSecret, parseUpdate } from './_shared/telegram-bot.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { sweepExpiredDispatches, computeExpiryDate } from './_shared/dispatch-sweep.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -80,6 +81,18 @@ export default async function handler(req, res) {
   }
 
   console.log(`[${BOT_TAG}-webhook] cmd:`, parsed.command, '| text:', parsed.text?.slice(0, 60));
+
+  // Lazy expiry: 매 어드민 활동마다 만료된 dispatch_messages 정리
+  // (Vercel Hobby cron 1일 1회 제약 회피).
+  try {
+    await sweepExpiredDispatches({
+      driverBotToken: process.env.TELEGRAM_DRIVER_BOT_TOKEN,
+      adminBotToken: botToken,
+      adminChatId: parsed.chatId,
+    });
+  } catch (err) {
+    console.warn(`[${BOT_TAG}-webhook] sweep 실패 (무시):`, err.message);
+  }
 
   try {
     await routeCommand(botToken, parsed);
@@ -236,6 +249,7 @@ async function handleDispatchCommand(botToken, p) {
 
   // 4. dispatch_messages 로그 기록
   const msgId = `${orderID}_${driverChatId}`;
+  const sentAt = new Date();
   await db.collection('dispatch_messages').doc(msgId).set({
     orderID,
     driverChatId: Number(driverChatId),
@@ -244,7 +258,7 @@ async function handleDispatchCommand(botToken, p) {
     status: 'sent',
     telegramMessageId: sent.result?.message_id || null,
     sentAt: FieldValue.serverTimestamp(),
-    expiresAt: FieldValue.serverTimestamp(),  // Phase 3에서 cron이 +10분 만료 처리
+    expiresAt: computeExpiryDate(sentAt),  // sentAt + 10분
   });
 
   // 5. bookings에 dispatch 기록 (아직 accepted는 아님)
