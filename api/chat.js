@@ -9,6 +9,7 @@ import { notify } from './_shared/notify.js';
 import { recordInquiryMessage, saveChatMessage } from './_shared/chat-relay.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { wrapHandler, captureError } from './_shared/sentry.js';
 
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
 const counterDb = initAdminDb('chat');
@@ -118,7 +119,7 @@ FOR GROUPS 9+:
 REMEMBER:
 You're not a chatbot. You're Taeo — someone who genuinely loves Korea and wants every visitor to have an amazing time. 🇰🇷`;
 
-export default async function handler(req, res) {
+export default wrapHandler(async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(200, CORS);
     return res.end();
@@ -195,6 +196,7 @@ export default async function handler(req, res) {
       "I'm sorry, I couldn't process your request. Please contact us via WhatsApp: +82-10-8714-0611";
   } catch (err) {
     console.error('[chat] Gemini error:', err.message);
+    await captureError(err, { route: '/api/chat', userId, language });
     aiResponse = "I'm sorry, I'm having trouble right now. Please contact us via WhatsApp: +82-10-8714-0611";
   }
 
@@ -238,4 +240,4 @@ export default async function handler(req, res) {
         { chatCount: inc, lastUpdated: new Date().toISOString() }, { merge: true }
       ).catch(e => console.warn('[chat] daily counter error:', e.message));
   }
-}
+});
