@@ -20,6 +20,49 @@ export const config = { runtime: 'nodejs' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
+// ── Rate limit (Gemini abuse 방어) ──────────────────────────────────
+// 정책: 로그인 필수 + sessionId 5분당 5건 + IP 일 50건 (defense-in-depth)
+// 미들웨어가 아니라 인라인으로 둔 이유: counterDb 없으면 silent skip해야 하는데
+// 미들웨어로 감쌌다가 카운터 다운되면 채팅 자체가 막힘. graceful degrade가 우선.
+const RATE_USER_WINDOW_MS = 5 * 60 * 1000;
+const RATE_USER_MAX = 5;
+const RATE_IP_DAILY_MAX = 50;
+
+async function checkRateLimit(userId, ip) {
+  if (!counterDb) return { allowed: true }; // graceful skip if Firestore down
+  const now = Date.now();
+
+  // 1. user 슬라이딩 윈도우 5min
+  const userRef = counterDb.collection('chat_rate_limits').doc(`u:${userId}`);
+  const userSnap = await userRef.get();
+  const stamps = userSnap.exists ? (userSnap.data().t || []) : [];
+  const fresh = stamps.filter((t) => now - t < RATE_USER_WINDOW_MS);
+  if (fresh.length >= RATE_USER_MAX) {
+    const oldest = Math.min(...fresh);
+    const retry = Math.ceil((RATE_USER_WINDOW_MS - (now - oldest)) / 1000);
+    return { allowed: false, code: 'RATE_LIMIT_USER', retryAfter: retry };
+  }
+
+  // 2. IP daily cap (KST 기준)
+  const kst = new Date(now + 9 * 60 * 60 * 1000);
+  const dayKey = kst.toISOString().slice(0, 10);
+  const ipRef = counterDb.collection('chat_rate_limits').doc(`ip:${ip}:${dayKey}`);
+  const ipSnap = await ipRef.get();
+  const ipCount = ipSnap.exists ? (ipSnap.data().c || 0) : 0;
+  if (ipCount >= RATE_IP_DAILY_MAX) {
+    return { allowed: false, code: 'RATE_LIMIT_IP', retryAfter: 3600 };
+  }
+
+  // 기록 (await 안 함 — 응답 지연 최소화. fail은 무시 가능, 다음 호출에서 다시 측정됨)
+  fresh.push(now);
+  Promise.all([
+    userRef.set({ t: fresh, updatedAt: now }, { merge: true }),
+    ipRef.set({ c: FieldValue.increment(1), lastUpdated: now }, { merge: true }),
+  ]).catch((e) => console.warn('[chat] rate-limit write failed:', e.message));
+
+  return { allowed: true };
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -89,10 +132,30 @@ export default async function handler(req, res) {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
   body = body || {};
 
-  const { message, messages = [], sessionId = 'anon', language = 'en' } = body;
+  const { message, messages = [], sessionId = 'anon', language = 'en', userId } = body;
   if (!message?.trim()) {
     res.writeHead(400, JSON_CORS);
     return res.end(JSON.stringify(_err('message is required', 'MISSING_FIELDS')));
+  }
+
+  // Auth gate — UI에 이미 로그인 게이트 있지만 (ChatWidget L267), API 직접 호출 차단
+  if (!userId || typeof userId !== 'string' || userId.length < 4) {
+    res.writeHead(401, JSON_CORS);
+    return res.end(JSON.stringify(_err('Login required', 'AUTH_REQUIRED')));
+  }
+
+  // Rate limit — Gemini 메시지당 ~₩0.13. abuse 방어 (5/5min user + 50/day IP)
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+    || req.socket?.remoteAddress
+    || 'unknown';
+  try {
+    const rl = await checkRateLimit(userId, ip);
+    if (!rl.allowed) {
+      res.writeHead(429, { ...JSON_CORS, 'Retry-After': String(rl.retryAfter) });
+      return res.end(JSON.stringify(_err('Too many requests. Please wait.', rl.code)));
+    }
+  } catch (e) {
+    console.warn('[chat] rate-limit check error (allowing):', e.message);
   }
 
   const apiKey = process.env.GEMINI_API_KEY;

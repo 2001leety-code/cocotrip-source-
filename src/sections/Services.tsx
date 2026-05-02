@@ -38,7 +38,7 @@ export function Services({ t }: ServicesProps) {
     const cardClass = isMobileCard ? 'flex-shrink-0 w-4/5 mr-4' : 'md:col-span-2 lg:col-span-1';
 
     return (
-      <Link to="/booking" className={`group relative bg-white rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden ${cardClass}`}>
+      <Link to="/tours" className={`group relative bg-white rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden ${cardClass}`}>
         {/* Hover Background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0f3460] to-[#0f3460]/90 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         

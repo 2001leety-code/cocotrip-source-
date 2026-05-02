@@ -310,7 +310,7 @@ export function RegionDetail() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
-               onClick={() => navigate('/booking')}
+               onClick={() => navigate('/tours')}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#25D366] text-white rounded-full font-bold hover:bg-[#128C7E] transition-colors"
             >
               <MessageCircle className="w-5 h-5" />
