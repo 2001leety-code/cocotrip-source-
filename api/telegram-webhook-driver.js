@@ -28,11 +28,14 @@ const BOT_TAG = 'driver';
 
 const HELP_TEXT = `<b>CocoTrip 기사용 봇</b>
 
+<i>📖 처음이면: <code>/설명</code> 입력 (역할 + 등록 절차 + 배차 흐름)</i>
+
 이 봇은 배차 요청 수락/거절을 위해 사용됩니다.
 
 <b>명령어 (영문 또는 한글)</b>
 /start    또는  시작
 /help     또는  도움말 / 도움 / 사용법
+/explain  또는  설명 / 가이드 / 매뉴얼
 /id       또는  내아이디 / 아이디
 
 <b>배차 흐름</b>
@@ -106,8 +109,38 @@ export default async function handler(req, res) {
 const DRIVER_KOREAN_ALIASES = [
   { re: /^(시작|스타트)$/, cmd: '/start' },
   { re: /^(도움|도움말|헬프|명령|명령어|사용법)$/, cmd: '/help' },
+  { re: /^(설명|가이드|매뉴얼|운영가이드|운영 가이드|역할)$/, cmd: '/explain' },
   { re: /^(내아이디|아이디|내 아이디|내id|내ID)$/, cmd: '/id' },
 ];
+
+// 기사봇 역할 설명 — 운영 가이드 다시 보려면 /설명
+const DRIVER_EXPLAIN_TEXT = `<b>📖 Driver_Chat 봇 가이드</b>
+
+<b>1. 이 봇의 역할</b>
+🚗 CocoTrip 기사 전용 봇입니다.
+배차 요청을 [✓ 수락] / [✗ 거절] 버튼으로 응답하는 곳.
+
+<b>2. 등록 절차 (최초 1회)</b>
+1) 이 봇에서 <code>아이디</code> 또는 <code>/id</code> 입력
+2) 봇이 내 chat_id를 알려줌 (예: 1234567890)
+3) 그 chat_id를 관리자(태연님)에게 카톡/문자로 전달
+4) 관리자가 등록하면 배차 메시지 받기 시작
+
+<b>3. 배차 받기 흐름</b>
+1) 관리자가 배차 발송 → 이 봇에 메시지 도착
+2) [✓ 수락] / [✗ 거절] 버튼 클릭
+3) <b>10분 무응답 시 자동 거절</b> + 정보 자동 삭제
+4) 수락 시 → 관리자에게 즉시 알림, 본인 일정 확정
+
+<b>4. 자주 쓰는 명령</b>
+<code>/start</code> 또는 <code>시작</code>
+<code>/help</code> 또는 <code>도움말</code>
+<code>/id</code> 또는 <code>아이디</code>
+<code>/설명</code> 또는 <code>설명</code> (이 가이드)
+
+<b>5. 일반 문의는 어디로?</b>
+이 봇은 배차 응답 전용입니다.
+일반 문의·일정 조정은 카톡/전화로 관리자에게 직접 연락하세요.`;
 
 function resolveDriverAlias(p) {
   if (p.command) return p;
@@ -136,6 +169,10 @@ async function routeCommand(botToken, p) {
 
     case '/help':
       await sendBotMessage(botToken, p.chatId, HELP_TEXT);
+      break;
+
+    case '/explain':
+      await sendBotMessage(botToken, p.chatId, DRIVER_EXPLAIN_TEXT);
       break;
 
     case '/id':

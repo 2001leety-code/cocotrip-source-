@@ -30,34 +30,28 @@ export const config = { runtime: 'nodejs' };
 
 const BOT_TAG = 'admin';
 
-// 운영 가이드 — 봇 구조와 자주 헷갈리는 흐름 정리
-// 새 PR/명령 추가 시 본 텍스트도 함께 갱신할 것
-const EXPLAIN_TEXT = `<b>📖 CocoTrip 봇 운영 가이드</b>
+// 운영 가이드 — admin 봇 역할 + 자주 헷갈리는 배차 흐름
+// driver/inquiry 봇에도 각자 자기 역할 가이드(/설명) 있음
+const EXPLAIN_TEXT = `<b>📖 COCOTRIPKR (메인) 봇 가이드</b>
 
-<b>1. 봇 3개 구조 (각자 역할 다름)</b>
+<b>1. 이 봇의 역할</b>
+🤖 어드민 통합 봇입니다. 다음 3가지를 처리:
+• 어드민 명령어 입력·실행
+• 새 예약 알림 (PayPal 결제 후 자동)
+• 일일 매출/AI 비용 cron (오전 7시)
+• 시스템 에러 알림 (API 실패 시)
 
-🤖 <b>COCOTRIPKR (메인)</b> = 지금 이 봇
-  • 어드민 명령어 입력하는 곳
-  • 새 예약 알림, 일일 매출 cron, 시스템 에러 수신
-  • 사용자가 명령 입력 → 봇이 응답
+<b>2. 다른 봇과의 차이</b>
+🚗 Driver_Chat — 기사용 (배차 [수락/거절])
+💬 InquiryCHAT_BOT — 고객 채팅 위젯 답장 릴레이
+각 봇에서 <code>/설명</code> 입력하면 자기 역할 가이드 나옴.
 
-🚗 <b>Driver_Chat</b> = 기사용 봇
-  • 기사가 [수락/거절] 버튼 누르는 곳
-  • <b>여기에 명령 쓰면 응답 안 함</b>
-  • 어드민이 직접 채팅 X (기사한테만 발송됨)
+<b>3. 배차 3단계 (자주 헷갈림)</b>
 
-💬 <b>InquiryCHAT_BOT</b> = 고객 채팅 알림
-  • 사이트 채팅 위젯 메시지 알림
-  • 메시지에 <b>reply</b>하면 사이트 채팅창에 답이 표시됨
+❌ 안 됨: Driver_Chat에 "11/2 남이섬 배차해줘"
+   → 자연어 안 받음, Driver봇은 어드민 입력 받지 않음
 
-━━━━━━━━━━━━━━━━━━━━━━━
-
-<b>2. 배차 흐름 (자주 헷갈리는 부분)</b>
-
-❌ <b>안 됨</b>: Driver_Chat에 "11/2 남이섬 김기사 배차해줘"
-  → 자연어 안 받음, Driver봇은 어드민 입력 받지 않음
-
-✅ <b>맞음</b>: 메인 봇(여기)에서 3단계로 입력
+✅ 메인 봇(여기)에서 3단계:
 
   STEP 1 — 예약 ID 찾기
   <code>예약 2026-11-02</code>
@@ -66,38 +60,25 @@ const EXPLAIN_TEXT = `<b>📖 CocoTrip 봇 운영 가이드</b>
   STEP 2 — 기사 chat_id 찾기
   <code>기사</code>
   → 등록된 기사 + 각 chat_id 표시
-  (미등록 기사면 → 기사가 Driver_Chat에 <code>아이디</code> 입력 → 받은 chat_id로
-   <code>기사추가 1234567890 김기사 스타리아</code>)
+
+  미등록 기사면:
+  • 기사가 Driver_Chat에 <code>아이디</code> 입력 → chat_id 받음
+  • 그 chat_id로 <code>기사추가 1234567890 김기사 스타리아</code>
 
   STEP 3 — 배차 발송
   <code>배차 CT-20261102-XXX 1234567890</code>
-  → Driver_Chat이 그 기사한테 [✓ 수락][✗ 거절] 버튼 발송
-  → 10분 무응답 시 자동 거절 + 정보 파기
+  → Driver_Chat에 [✓ 수락][✗ 거절] 버튼 발송
+  → 10분 무응답 시 자동 거절
 
-━━━━━━━━━━━━━━━━━━━━━━━
-
-<b>3. 자주 쓰는 명령 (한글)</b>
-
+<b>4. 자주 쓰는 명령 (한글)</b>
 조회: <code>예약</code> · <code>예약 2026-11-02</code> · <code>매출</code>
 기사: <code>기사</code> · <code>기사추가 ...</code> · <code>누구 1234567890</code>
 배차: <code>배차 CT-... 1234567890</code>
 CS:   <code>이슈</code> · <code>이슈추가 ...</code> · <code>해결 ...</code>
+전체: <code>/help</code> 또는 <code>도움말</code>
 
-전체 명령은 /help 로 확인.
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-<b>4. 자동 알림 (이 봇으로 옴)</b>
-
-📢 새 예약 — PayPal 결제 후 자동
-🚨 시스템 에러 — API 실패 시
-📊 일일 cron — 매일 오전 7시 매출/AI 비용 요약
-
-채팅 위젯 알림은 InquiryCHAT_BOT으로 감.
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-이 가이드 다시 보려면: <code>/설명</code> 또는 <code>설명</code>`;
+<b>5. 다시 보려면</b>
+<code>/설명</code> 또는 <code>설명</code>`;
 
 const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 
