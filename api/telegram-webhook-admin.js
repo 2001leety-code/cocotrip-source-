@@ -34,13 +34,24 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 <b>기본</b>
 /start  /help  /id  /status
 
-<b>운영</b>
+<b>기사 관리</b>
 /drivers
   → 등록된 기사 목록
+/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle]
+  → 새 기사 등록 (vehicle 생략 가능)
+/driver_remove &lt;chatId&gt;
+  → 기사 등록 해제
+/driver_off &lt;chatId&gt;
+  → 기사 비활성화 (active=false, 명단엔 남음)
+/driver_on &lt;chatId&gt;
+  → 기사 재활성화
+
+<b>배차</b>
 /dispatch &lt;orderID&gt; &lt;driverChatId&gt;
   → 해당 예약을 기사에게 배차 발송 (인라인 키보드)
 
 <b>예시</b>
+<code>/driver_add 1234567890 김기사 스타리아1호</code>
 <code>/dispatch CT-20260502-123 1234567890</code>`;
 
 export default async function handler(req, res) {
@@ -144,6 +155,22 @@ async function routeCommand(botToken, p) {
       await handleDriversCommand(botToken, p);
       break;
 
+    case '/driver_add':
+      await handleDriverAdd(botToken, p);
+      break;
+
+    case '/driver_remove':
+      await handleDriverRemove(botToken, p);
+      break;
+
+    case '/driver_off':
+      await handleDriverActive(botToken, p, false);
+      break;
+
+    case '/driver_on':
+      await handleDriverActive(botToken, p, true);
+      break;
+
     case '/dispatch':
       await handleDispatchCommand(botToken, p);
       break;
@@ -166,8 +193,7 @@ async function handleDriversCommand(botToken, p) {
       `등록된 기사 없음.\n\n` +
       `등록 방법:\n` +
       `1. 기사가 기사봇에 /id 입력 후 chat_id 확인\n` +
-      `2. Firestore Console → drivers/{chatId} 도큐먼트 생성\n` +
-      `   { name, vehicle, active: true }`);
+      `2. <code>/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle]</code>`);
     return;
   }
 
@@ -178,6 +204,103 @@ async function handleDriversCommand(botToken, p) {
     lines.push(`<code>${doc.id}</code> · ${d.name || '?'} · ${d.vehicle || '?'} · ${status}`);
   });
   await sendBotMessage(botToken, p.chatId, lines.join('\n'));
+}
+
+// /driver_add <chatId> <name> [vehicle...]
+async function handleDriverAdd(botToken, p) {
+  if (p.args.length < 2) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle]</code>\n` +
+      `예: <code>/driver_add 1234567890 김기사 스타리아1호</code>`);
+    return;
+  }
+
+  const [chatId, name, ...vehicleParts] = p.args;
+  if (!/^\d+$/.test(chatId)) {
+    await sendBotMessage(botToken, p.chatId, `chatId는 숫자만 가능합니다: <code>${chatId}</code>`);
+    return;
+  }
+  const vehicle = vehicleParts.join(' ').trim();
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const ref = db.collection('drivers').doc(chatId);
+  const existing = await ref.get();
+  if (existing.exists) {
+    await sendBotMessage(botToken, p.chatId,
+      `이미 등록된 기사입니다: <code>${chatId}</code>\n` +
+      `정보 수정은 <code>/driver_remove</code> 후 다시 등록 또는 Firestore Console에서 직접.`);
+    return;
+  }
+
+  await ref.set({
+    chatId: Number(chatId),
+    name,
+    vehicle: vehicle || '',
+    active: true,
+    registeredAt: new Date(),
+  });
+
+  await sendBotMessage(botToken, p.chatId,
+    `✓ 기사 등록 완료\n` +
+    `chatId: <code>${chatId}</code>\n` +
+    `이름: ${name}\n` +
+    (vehicle ? `차량: ${vehicle}\n` : '') +
+    `\n이제 기사봇으로 배차 메시지를 받을 수 있습니다.`);
+}
+
+// /driver_remove <chatId>
+async function handleDriverRemove(botToken, p) {
+  if (p.args.length < 1) {
+    await sendBotMessage(botToken, p.chatId, `사용법: <code>/driver_remove &lt;chatId&gt;</code>`);
+    return;
+  }
+
+  const [chatId] = p.args;
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const ref = db.collection('drivers').doc(chatId);
+  const doc = await ref.get();
+  if (!doc.exists) {
+    await sendBotMessage(botToken, p.chatId, `등록되지 않은 chatId: <code>${chatId}</code>`);
+    return;
+  }
+
+  const data = doc.data();
+  await ref.delete();
+
+  await sendBotMessage(botToken, p.chatId,
+    `✓ 기사 삭제 완료\n` +
+    `<code>${chatId}</code> · ${data?.name || '?'}`);
+}
+
+// /driver_off <chatId> 또는 /driver_on <chatId>
+async function handleDriverActive(botToken, p, active) {
+  if (p.args.length < 1) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>${active ? '/driver_on' : '/driver_off'} &lt;chatId&gt;</code>`);
+    return;
+  }
+
+  const [chatId] = p.args;
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const ref = db.collection('drivers').doc(chatId);
+  const doc = await ref.get();
+  if (!doc.exists) {
+    await sendBotMessage(botToken, p.chatId, `등록되지 않은 chatId: <code>${chatId}</code>`);
+    return;
+  }
+
+  await ref.update({ active });
+
+  const data = doc.data();
+  await sendBotMessage(botToken, p.chatId,
+    `${active ? '✓ 활성화' : '⏸ 비활성화'} 완료\n` +
+    `<code>${chatId}</code> · ${data?.name || '?'}`);
 }
 
 async function handleDispatchCommand(botToken, p) {
