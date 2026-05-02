@@ -30,13 +30,84 @@ export const config = { runtime: 'nodejs' };
 
 const BOT_TAG = 'admin';
 
+// 운영 가이드 — 봇 구조와 자주 헷갈리는 흐름 정리
+// 새 PR/명령 추가 시 본 텍스트도 함께 갱신할 것
+const EXPLAIN_TEXT = `<b>📖 CocoTrip 봇 운영 가이드</b>
+
+<b>1. 봇 3개 구조 (각자 역할 다름)</b>
+
+🤖 <b>COCOTRIPKR (메인)</b> = 지금 이 봇
+  • 어드민 명령어 입력하는 곳
+  • 새 예약 알림, 일일 매출 cron, 시스템 에러 수신
+  • 사용자가 명령 입력 → 봇이 응답
+
+🚗 <b>Driver_Chat</b> = 기사용 봇
+  • 기사가 [수락/거절] 버튼 누르는 곳
+  • <b>여기에 명령 쓰면 응답 안 함</b>
+  • 어드민이 직접 채팅 X (기사한테만 발송됨)
+
+💬 <b>InquiryCHAT_BOT</b> = 고객 채팅 알림
+  • 사이트 채팅 위젯 메시지 알림
+  • 메시지에 <b>reply</b>하면 사이트 채팅창에 답이 표시됨
+
+━━━━━━━━━━━━━━━━━━━━━━━
+
+<b>2. 배차 흐름 (자주 헷갈리는 부분)</b>
+
+❌ <b>안 됨</b>: Driver_Chat에 "11/2 남이섬 김기사 배차해줘"
+  → 자연어 안 받음, Driver봇은 어드민 입력 받지 않음
+
+✅ <b>맞음</b>: 메인 봇(여기)에서 3단계로 입력
+
+  STEP 1 — 예약 ID 찾기
+  <code>예약 2026-11-02</code>
+  → 그날 예약 + <code>CT-...</code> ID 표시
+
+  STEP 2 — 기사 chat_id 찾기
+  <code>기사</code>
+  → 등록된 기사 + 각 chat_id 표시
+  (미등록 기사면 → 기사가 Driver_Chat에 <code>아이디</code> 입력 → 받은 chat_id로
+   <code>기사추가 1234567890 김기사 스타리아</code>)
+
+  STEP 3 — 배차 발송
+  <code>배차 CT-20261102-XXX 1234567890</code>
+  → Driver_Chat이 그 기사한테 [✓ 수락][✗ 거절] 버튼 발송
+  → 10분 무응답 시 자동 거절 + 정보 파기
+
+━━━━━━━━━━━━━━━━━━━━━━━
+
+<b>3. 자주 쓰는 명령 (한글)</b>
+
+조회: <code>예약</code> · <code>예약 2026-11-02</code> · <code>매출</code>
+기사: <code>기사</code> · <code>기사추가 ...</code> · <code>누구 1234567890</code>
+배차: <code>배차 CT-... 1234567890</code>
+CS:   <code>이슈</code> · <code>이슈추가 ...</code> · <code>해결 ...</code>
+
+전체 명령은 /help 로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+
+<b>4. 자동 알림 (이 봇으로 옴)</b>
+
+📢 새 예약 — PayPal 결제 후 자동
+🚨 시스템 에러 — API 실패 시
+📊 일일 cron — 매일 오전 7시 매출/AI 비용 요약
+
+채팅 위젯 알림은 InquiryCHAT_BOT으로 감.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+
+이 가이드 다시 보려면: <code>/설명</code> 또는 <code>설명</code>`;
+
 const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
+
+<i>📖 처음이거나 헷갈리면: <code>/설명</code> 입력 (전체 운영 가이드)</i>
 
 <i>모든 명령은 영문 슬래시 또는 한글 단어로 사용 가능 (인자도 한글 OK)</i>
 
 <b>기본</b>
-/start  /help  /id  /status
-한글:  시작  도움말  아이디  상태
+/start  /help  /explain  /id  /status
+한글:  시작  도움말  설명  아이디  상태
 
 <b>기사 관리</b>
 /drivers — <b>기사</b>, 기사목록
@@ -159,6 +230,7 @@ const KOREAN_ALIASES = [
   // 기본 (인자 없음)
   { re: /^(시작|스타트)$/, cmd: '/start', argGroup: -1 },
   { re: /^(도움|도움말|헬프|명령|명령어)$/, cmd: '/help', argGroup: -1 },
+  { re: /^(설명|가이드|매뉴얼|사용법|운영가이드|운영 가이드)$/, cmd: '/explain', argGroup: -1 },
   { re: /^(내아이디|아이디|내 아이디)$/, cmd: '/id', argGroup: -1 },
   { re: /^(상태|시스템상태)$/, cmd: '/status', argGroup: -1 },
   { re: /^(기사목록|기사|기사명단)$/, cmd: '/drivers', argGroup: -1 },
@@ -221,6 +293,10 @@ async function routeCommand(botToken, p) {
 
     case '/help':
       await sendBotMessage(botToken, p.chatId, HELP_TEXT);
+      break;
+
+    case '/explain':
+      await sendBotMessage(botToken, p.chatId, EXPLAIN_TEXT);
       break;
 
     case '/id':
