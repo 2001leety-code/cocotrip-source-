@@ -1189,7 +1189,8 @@
     "wizardAiPlan": "AI Travel Plan",
     "wizardGenerateBtn": "Generate AI Itinerary",
     "wizardPaymentNote": "Takes about 15 seconds after payment",
-    "my_plans": "My Plans"
+    "my_plans": "My Plans",
+    "paypalSdkTimeout": "PayPal SDK loading timeout. If you use an ad blocker (uBlock, Brave shields, etc.), please allow this site and refresh."
   },
   "charterPage": {
     "backToHome": "Back to Home",

@@ -1189,7 +1189,8 @@
     "wizardAiPlan": "AI 여행 플랜",
     "wizardGenerateBtn": "AI 맞춤 일정 생성하기",
     "wizardPaymentNote": "결제 후 약 15초 소요",
-    "my_plans": "내 플랜"
+    "my_plans": "내 플랜",
+    "paypalSdkTimeout": "PayPal 로딩이 지연되고 있어요. 광고 차단기(uBlock 등)를 사용 중이시면 이 사이트만 허용 후 새로고침해 주세요."
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
