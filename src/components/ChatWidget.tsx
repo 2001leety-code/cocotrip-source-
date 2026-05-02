@@ -71,6 +71,38 @@ const LOGIN_CHAT_TEXT: Record<Language, { title: string; desc: string; google: s
   zh: { title: '登录后使用', desc: '登录后即可与AI对话。', google: '使用Google登录', apple: '使用Apple登录', loading: '登录中...' },
 };
 
+// 429/401 오류 메시지 다국어
+const CHAT_ERROR_TEXT: Record<Language, { rateLimitUser: string; rateLimitIp: string; authRequired: string; connectionError: string; generic: string }> = {
+  ko: {
+    rateLimitUser: '메시지를 너무 빠르게 보내고 있어요. 잠시 후 다시 시도해 주세요.',
+    rateLimitIp: '오늘 문의 한도에 도달했습니다. WhatsApp으로 연락해 주세요: +82-10-8714-0611',
+    authRequired: '로그인 후 채팅을 이용하실 수 있습니다.',
+    connectionError: '연결 오류가 발생했습니다. WhatsApp으로 문의해 주세요: +82-10-8714-0611',
+    generic: '일시적인 오류가 발생했습니다. 다시 시도해 주세요.',
+  },
+  en: {
+    rateLimitUser: 'You are sending messages too quickly. Please wait a few minutes.',
+    rateLimitIp: 'Daily limit reached. Please contact us via WhatsApp: +82-10-8714-0611',
+    authRequired: 'Please sign in to continue chatting.',
+    connectionError: 'Connection error. Please try WhatsApp: +82-10-8714-0611',
+    generic: 'Sorry, something went wrong. Please try again.',
+  },
+  ja: {
+    rateLimitUser: 'メッセージの送信が速すぎます。少し待ってから再試行してください。',
+    rateLimitIp: '本日の問い合わせ上限に達しました。WhatsAppでご連絡ください: +82-10-8714-0611',
+    authRequired: 'チャットを利用するにはログインが必要です。',
+    connectionError: '接続エラーが発生しました。WhatsAppでお問い合わせください: +82-10-8714-0611',
+    generic: '一時的なエラーが発生しました。もう一度お試しください。',
+  },
+  zh: {
+    rateLimitUser: '您发送消息太快了，请稍候再试。',
+    rateLimitIp: '今日咨询次数已达上限，请通过WhatsApp联系我们: +82-10-8714-0611',
+    authRequired: '请登录后使用聊天功能。',
+    connectionError: '连接错误，请通过WhatsApp联系我们: +82-10-8714-0611',
+    generic: '发生了临时错误，请重试。',
+  },
+};
+
 const ChatInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>((props, ref) => (
   <input ref={ref} {...props} />
 ));
@@ -212,10 +244,11 @@ export function ChatWidget({ language }: ChatWidgetProps) {
         // 429 / 401은 사용자에게 명확히 안내 (그냥 generic 에러 메시지면 혼란)
         if (!res.ok) {
           const code = json.code || '';
-          let msg = json.error || 'Sorry, something went wrong.';
-          if (code === 'RATE_LIMIT_USER') msg = 'You are sending messages too quickly. Please wait a few minutes.';
-          else if (code === 'RATE_LIMIT_IP') msg = 'Daily limit reached. Please contact us via WhatsApp: +82-10-8714-0611';
-          else if (code === 'AUTH_REQUIRED') msg = 'Please sign in to continue chatting.';
+          const errT = CHAT_ERROR_TEXT[language];
+          let msg = errT.generic;
+          if (code === 'RATE_LIMIT_USER') msg = errT.rateLimitUser;
+          else if (code === 'RATE_LIMIT_IP') msg = errT.rateLimitIp;
+          else if (code === 'AUTH_REQUIRED') msg = errT.authRequired;
           setMessages((prev) => [
             ...prev,
             { id: generateId(), role: 'ai', text: msg, time: nowTime() },
@@ -237,7 +270,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
           {
             id: generateId(),
             role: 'ai',
-            text: 'Connection error. Please try WhatsApp: +82-10-8714-0611',
+            text: CHAT_ERROR_TEXT[language].connectionError,
             time: nowTime(),
           },
         ]);
