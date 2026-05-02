@@ -75,7 +75,15 @@ export function WizardStep0Reservation({
           const title = (p[q.titleKey as keyof typeof p] as string) || q.titleFb;
           const sub = (p[q.subKey as keyof typeof p] as string) || q.subFb;
           return (
-            <button key={q.key} type="button" onClick={() => setStatus(q.key)}
+            // 2026-05-03 fix: 사용자가 'flight_hotel' 선택 후 호텔 입력했다가 다른 상태로 바꿀 때
+            // hotelAddress 잔존 → Step2에서 "수정" 버튼만 노출되어 입력 불가 버그 방지.
+            // status가 flight_hotel이 아닌 값으로 변경되면 hotelAddress 즉시 클리어.
+            <button key={q.key} type="button" onClick={() => {
+              setStatus(q.key);
+              if (q.key !== 'flight_hotel' && hotelAddress) {
+                setHotelAddress('');
+              }
+            }}
               className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
                 sel
                   ? 'border-transparent text-white shadow-lg'

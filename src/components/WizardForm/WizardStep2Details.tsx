@@ -111,7 +111,9 @@ export function WizardStep2Details(props: Step2Props) {
   // P0 dedup: 항공편 정보가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
   const flightInfoFromStep0 = !!onEditStep0 && !!arrivalTerminal;
   // P2 dedup: 호텔 주소가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
-  const hotelInfoFromStep0 = !!onEditStep0 && !!hotelAddress;
+  // 2026-05-03 fix: hotelAddress가 공백/whitespace만 들어있을 때도 truthy로 평가되어
+  // 입력칸 대신 "수정" 버튼이 잘못 노출되던 버그 → trim() 후 빈 문자열 체크.
+  const hotelInfoFromStep0 = !!onEditStep0 && !!hotelAddress && hotelAddress.trim().length > 0;
 
   return (
     <div className="space-y-4">
