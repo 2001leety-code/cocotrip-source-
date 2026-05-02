@@ -1189,7 +1189,8 @@
     "wizardAiPlan": "AI旅行计划",
     "wizardGenerateBtn": "生成AI行程",
     "wizardPaymentNote": "支付后约15秒完成",
-    "my_plans": "我的计划"
+    "my_plans": "我的计划",
+    "paypalSdkTimeout": "PayPal加载超时。若使用广告拦截器(uBlock等)，请将本站列入白名单后刷新。"
   },
   "charterPage": {
     "backToHome": "返回首页",

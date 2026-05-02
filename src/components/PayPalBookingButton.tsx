@@ -315,7 +315,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   }, [showPaypal, paypalReady, rateInfo]);
 
   // ── SDK 준비 대기 헬퍼 ─────────────────────────────────────────
-  function waitForPaypalReady(timeoutMs = 10000): Promise<boolean> {
+  // 2026-05-03: 사용자 prod에서 SDK timeout 발생 — 10s가 모바일/저속망에서 부족.
+  // 20초로 확대 (preconnect 추가로 평균 로드 시간 단축, 단 abuse 방어용 한계는 유지).
+  function waitForPaypalReady(timeoutMs = 20000): Promise<boolean> {
     return new Promise((resolve) => {
       if (window.paypal) return resolve(true);
       const start = Date.now();
@@ -341,7 +343,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     try {
       // 1. SDK가 로딩 중이면 대기 (최대 10초)
       const sdkReady = await waitForPaypalReady();
-      if (!sdkReady) throw new Error('PayPal SDK loading timeout. Please refresh and try again.');
+      if (!sdkReady) {
+        const sdkTimeoutMsg = (p as unknown as Record<string, string | undefined>).paypalSdkTimeout
+          || 'PayPal SDK loading timeout. If you use an ad blocker (uBlock, Brave shields), please allow this site and refresh.';
+        throw new Error(sdkTimeoutMsg);
+      }
 
       // 2. 주문 생성
       const res = await fetch('/api/createPaypalOrder', {

@@ -1189,7 +1189,8 @@
     "wizardAiPlan": "AI旅行プラン",
     "wizardGenerateBtn": "AI旅程を生成する",
     "wizardPaymentNote": "お支払い後約15秒で完了",
-    "my_plans": "マイプラン"
+    "my_plans": "マイプラン",
+    "paypalSdkTimeout": "PayPalの読み込みが遅延しています。広告ブロッカー(uBlock等)をご利用の場合、本サイトを許可後に再読み込みしてください。"
   },
   "charterPage": {
     "backToHome": "ホームに戻る",
