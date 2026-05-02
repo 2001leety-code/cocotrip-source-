@@ -180,3 +180,53 @@ gh pr ready           # "Ready for review" 시점부터 검증 시작
 
 - Vercel Dashboard → Usage → Build Minutes
 - GitHub → Settings → Billing → Plans and usage
+
+---
+
+## I. 환경변수 안전 규칙 (CRITICAL — 어기면 prod 인증 사망)
+
+### `FIREBASE_PRIVATE_KEY` — Vercel Dashboard에서 직접 입력만
+- **CLI(`vercel env add`)로 설정 금지** — 줄바꿈/특수문자 손상으로 cert() invalid → Firebase 인증 전체 401
+- 기존 사고: PR #171/#172/#173 — helper에서 `.trim()`/PEM reformat 한 줄 잘못 건드려서 prod 다운
+- 정답 패턴: `(process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n')` (trim 금지)
+
+### `NCP_CLIENT_ID` (Naver Maps NCP 키)
+- **`process.env.NCP_CLIENT_ID.trim()` 필수** — 보이지 않는 개행문자(`\n`)로 401 발생
+- 키 종류 혼용 금지: NCP 키와 Naver Developers 키는 다른 시스템
+
+### 일반 원칙
+- 23개 env 키 모두 Vercel Dashboard에서만 관리 (Git 저장 금지)
+- 신규 키 추가 시 모든 환경(production/preview/development)에 동시 등록 — preview만 빠지면 PR 빌드 silent fail
+- 시크릿 rotation 권장: PayPal 90일, Firebase 키 1년
+
+---
+
+## J. SAFETY-CRITICAL — 음식 선호도 데이터 (Halal / Vegan / 알레르기)
+
+식이제한·알레르기 데이터는 **잘못 처리되면 고객 건강 위험** 등급. 다른 어떤 필드보다 우선.
+
+### 데이터 흐름 — 매 변경마다 전체 체인 검증
+```
+WizardStep1Food (UI 입력)
+  → WizardForm state
+  → PlannerPage (요청 페이로드)
+  → /api/ai-planner-full (백엔드 진입)
+  → _food_helper.js (allowlist 검증)
+  → Gemini prompt (system instruction에 명시)
+  → 응답 검증 (validateResponse)
+  → Firestore 저장
+```
+
+### 절대 규칙
+- ❌ `dietary || []` / nullish-coalescing fallback — 빈 배열 폴백 금지. **누락 자체가 에러**여야 함
+- ❌ silent drop — 검증 실패 시 명시적 throw, 절대 무시 금지
+- ❌ "기본값으로 처리" — 알레르기 미입력 ≠ 알레르기 없음
+- ✅ 변경 시 5개 지점 모두 grep해서 일관성 확인: `grep -rn "halal\|vegan\|allergy\|dietary" src api`
+
+### 변경 PR 체크리스트
+- [ ] WizardStep1Food → WizardForm state 전달 라인 검증
+- [ ] PlannerPage → API 페이로드에 포함 검증
+- [ ] _food_helper.js allowlist에 새 값 추가됨
+- [ ] Gemini prompt instruction에 반영됨
+- [ ] validateResponse가 응답에서 식이제한 위반 검출함
+- [ ] i18n 4-lang (ko/en/ja/zh) 동시 업데이트
