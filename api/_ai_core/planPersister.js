@@ -74,7 +74,7 @@ export async function persistPlan(adminDb, {
     },
     itinerary,
     pricing: { vehicle, priceKRW, priceUSD },
-    revisionCredits: 1,  // 무료 재생성 1회 (결제 시 포함)
+    revisionCredits: 2,  // 무료 재생성 2회 (결제 시 포함)
     revisionCount: 0,    // 현재까지 재생성 횟수
   });
 
