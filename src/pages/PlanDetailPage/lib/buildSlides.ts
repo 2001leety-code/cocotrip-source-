@@ -12,7 +12,7 @@
 // Earlier P2 (2026-04-24, same day) version interleaved mid-trip ads
 // between Day slides — superseded.
 
-export type SlideType = 'intro' | 'day' | 'ad' | 'outro';
+export type SlideType = 'preTrip' | 'intro' | 'day' | 'ad' | 'outro';
 export type AdCategory = 'flight' | 'hotel' | 'charter' | 'esim' | 'carRental' | 'airportPickup';
 
 export interface Slide {
@@ -53,19 +53,20 @@ export function buildSlides(plan: PlanDocument): Slide[] {
   const days = (plan && plan.itinerary && plan.itinerary.days) || [];
   const slides: Slide[] = [];
 
+  // 2026-05-03 사용자 결정: "광고 1페이지 그다음 인트로 데이 1 2 3 이렇게만"
+  // 흩어져 있던 eSIM / airportPickup / hotel / flight 광고를 단일 PreTrip slide로 통합.
+  // PreTrip은 항상 노출 (eSIM·airportPickup은 무조건 표시, hotel/flight는 adApplies 적용).
+  slides.push({ type: 'preTrip' });
+
+  // Slide 2: Intro
   slides.push({ type: 'intro' });
 
-  // Slide 2: eSIM (always, unless hotel already includes — currently no skip rule)
-  slides.push({ type: 'ad', adType: 'esim' });
-
-  // Day slides — no ad interleaving anymore (D-option)
+  // Day slides
   for (let i = 0; i < days.length; i++) {
     slides.push({ type: 'day', dayIndex: i });
   }
 
-  // Pre-departure: airportPickup right before Outro
-  slides.push({ type: 'ad', adType: 'airportPickup' });
-
+  // Outro (share, PDF, revision card, Trip Extras)
   slides.push({ type: 'outro' });
   return slides;
 }

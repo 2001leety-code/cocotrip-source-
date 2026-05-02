@@ -1446,7 +1446,10 @@
       "adCharterCta": "차량 옵션 보기",
       "adEsimTitle": "통신 연결 유지",
       "adEsimCta": "eSIM 구매",
-      "whatsappBooking": "WhatsApp 예약"
+      "whatsappBooking": "WhatsApp 예약",
+      "tabPreTrip": "여행 준비",
+      "preTripTitle": "여행 준비 안내",
+      "preTripSubtitle": "도착 전 확인하시면 한국 여행이 더 매끄러워져요"
     },
     "share": {
       "shareButton": "공유하기",
