@@ -71,6 +71,35 @@ const CORS = {
 };
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
+// Escalation 처리: AI가 답할 수 없는 질문은 담당자에게 전달
+// AI는 응답 맨 앞에 [ESCALATE] 마커를 붙임 → 백엔드가 마커 감지 후
+// 1) 마커 제거 + 친절한 placeholder로 customer-facing 답변 교체
+// 2) 텔레그램 인쿼리 알림은 🚨 우선순위 표시 (담당자가 즉시 인지)
+const ESCALATION_MARKER = '[ESCALATE]';
+
+const ESCALATION_PLACEHOLDER = {
+  ko: '안녕하세요! 좀 더 정확한 답변을 위해 담당자가 직접 확인 후 곧 답변드릴게요. 잠시만 기다려주세요! 🙏',
+  en: "Hi! For the most accurate answer, our team will check and get back to you shortly. Thanks for your patience! 🙏",
+  ja: 'こんにちは！正確なご回答のため、担当者が確認後すぐにお返事いたします。少々お待ちください！🙏',
+  zh: '您好！为了给您准确答复，专员将很快回复您。请稍候！🙏',
+};
+
+/**
+ * AI 응답에서 [ESCALATE] 마커 감지 및 정리.
+ * @returns {{ escalate: boolean, customerReply: string, internalReply: string }}
+ */
+function processEscalation(aiResponse, language) {
+  const trimmed = (aiResponse || '').trim();
+  const escalate = trimmed.startsWith(ESCALATION_MARKER);
+  if (!escalate) {
+    return { escalate: false, customerReply: trimmed, internalReply: trimmed };
+  }
+  // AI가 마커 뒤에 추가 설명을 적었어도 그건 내부용으로만 보관, 고객에겐 표준 placeholder
+  const internalReply = trimmed.slice(ESCALATION_MARKER.length).trim();
+  const placeholder = ESCALATION_PLACEHOLDER[language] || ESCALATION_PLACEHOLDER.en;
+  return { escalate: true, customerReply: placeholder, internalReply };
+}
+
 const SYSTEM_PROMPT = `You are "Taeo", a friendly and experienced Korean tour guide working for CocoTrip Korea. You've been guiding foreign visitors around Korea for 10 years. You're warm, knowledgeable, and genuinely excited to help people have the best Korea experience.
 
 ═══ PERSONALITY ═══
@@ -186,7 +215,24 @@ CALCULATION EXAMPLES:
 - Always offer next step: book / WhatsApp / website link
 - If the question is unclear, ASK rather than guess
 - For pricing, NEVER hallucinate; only use values listed above
-- For dates / availability, NEVER claim — say "let me check via WhatsApp"
+
+═══ 🚨 ESCALATION RULES (MOST IMPORTANT) ═══
+You MUST escalate to the human admin (don't try to answer) when:
+1. Customer asks about a SPECIFIC date / availability ("Is Dec 15 available?")
+2. Customer requests CUSTOM itinerary changes ("Can we add stop at X?")
+3. Customer has a COMPLAINT or refund dispute
+4. Customer asks something OUTSIDE the topics listed above (booking/cancellation/vehicles/airport/food/k-pop/practical/safety/AI Planner)
+5. Customer asks for personal info (driver name, phone, real-time GPS)
+6. Customer wants emergency help (medical, accident, lost item recovery)
+7. You are UNCERTAIN of the correct answer
+
+When escalating, your reply MUST:
+- Start with the literal marker: [ESCALATE]
+- Then a brief acknowledgment in customer's language (e.g., "Let me check with our team — they'll respond shortly!")
+- Do NOT make up answers; do NOT guess pricing/dates/availability
+- The marker [ESCALATE] is INVISIBLE to customer (system strips it before sending)
+
+When you CAN confidently answer (FAQ-covered topic) — just answer normally without [ESCALATE].
 
 REMEMBER:
 You're not a chatbot. You're Taeo — someone who genuinely loves Korea and wants every visitor to have an amazing time. 🇰🇷`;
@@ -272,21 +318,31 @@ export default wrapHandler(async function handler(req, res) {
     aiResponse = "I'm sorry, I'm having trouble right now. Please contact us via WhatsApp: +82-10-8714-0611";
   }
 
+  // Escalation 분기: AI가 [ESCALATE] 붙였으면 customer-facing 응답을 placeholder로 교체
+  const { escalate, customerReply, internalReply } = processEscalation(aiResponse, language);
+
   // 1. Firestore에 고객 + AI 메시지 저장 (양방향 채팅 이력)
+  //    AI 메시지는 customer가 실제로 본 텍스트를 저장 (escalate 시 placeholder)
   try {
     await Promise.all([
       saveChatMessage({ sessionId, from: 'customer', text: message }),
-      saveChatMessage({ sessionId, from: 'ai', text: aiResponse }),
+      saveChatMessage({ sessionId, from: 'ai', text: customerReply }),
     ]);
   } catch (err) {
     console.warn('[chat] saveChatMessage failed (continuing):', err.message);
   }
 
   // 2. Telegram inquiry 채널로 발송 + message_id 매핑 저장
-  //    관리자가 텔레그램 "Reply" 기능으로 답장하면 chat-poll로 고객에 전달됨
+  //    escalate=true면 🚨 헤더 + 우선순위 강조. 담당자가 reply하면 고객에 전달됨
   try {
     const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    const telegramMsg = `💬 <b>웹 채팅 문의</b>\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${language}\n\n<b>고객:</b> ${message}\n<b>AI답변:</b> ${aiResponse}\n\n⏰ ${kst}\n\n💡 이 메시지에 "답장(Reply)" 하면 고객에게 직접 전달됩니다.`;
+    const header = escalate
+      ? `🚨 <b>긴급 — AI 미답변 (담당자 응답 필요)</b>`
+      : `💬 <b>웹 채팅 문의</b>`;
+    const aiSection = escalate
+      ? `<b>AI 판단:</b> 답변 불가 — 다음과 같이 자동 안내됨\n<i>${customerReply}</i>${internalReply ? `\n<b>AI 노트:</b> ${internalReply}` : ''}`
+      : `<b>AI답변:</b> ${customerReply}`;
+    const telegramMsg = `${header}\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${language}\n\n<b>고객:</b> ${message}\n${aiSection}\n\n⏰ ${kst}\n\n💡 이 메시지에 "답장(Reply)" 하면 고객에게 직접 전달됩니다.`;
     const result = await notify('inquiry', telegramMsg);
     if (result.ok && result.messageId) {
       await recordInquiryMessage({ telegramMessageId: result.messageId, sessionId, language });
@@ -296,7 +352,7 @@ export default wrapHandler(async function handler(req, res) {
   }
 
   res.writeHead(200, JSON_CORS);
-  res.end(JSON.stringify(_ok({ reply: aiResponse, sessionId })));
+  res.end(JSON.stringify(_ok({ reply: customerReply, sessionId, escalated: escalate })));
 
   // ── 비동기 카운터 (응답 후 실행) ──
   if (counterDb) {
