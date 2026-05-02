@@ -51,9 +51,17 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 /dispatch &lt;orderID&gt; &lt;driverChatId&gt;
   → 해당 예약을 기사에게 배차 발송 (인라인 키보드)
 
+<b>조회</b>
+/bookings [YYYY-MM-DD]
+  → 특정 일자의 예약 목록 (생략 시 오늘 KST)
+/sales [YYYY-MM]
+  → 월별 매출 요약 (생략 시 이번 달)
+
 <b>예시</b>
 <code>/driver_add 1234567890 김기사 스타리아1호</code>
-<code>/dispatch CT-20260502-123 1234567890</code>`;
+<code>/dispatch CT-20260502-123 1234567890</code>
+<code>/bookings 2026-05-15</code>
+<code>/sales 2026-05</code>`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -193,6 +201,14 @@ async function routeCommand(botToken, p) {
 
     case '/dispatch':
       await handleDispatchCommand(botToken, p);
+      break;
+
+    case '/bookings':
+      await handleBookingsCommand(botToken, p);
+      break;
+
+    case '/sales':
+      await handleSalesCommand(botToken, p);
       break;
 
     default:
@@ -417,4 +433,141 @@ async function handleDispatchCommand(botToken, p) {
     `기사: ${driver.name} (${driver.vehicle || '-'})\n` +
     `메시지ID: ${sent.result?.message_id || '-'}\n\n` +
     `기사 응답을 기다리는 중...`);
+}
+
+// 오늘 KST 날짜 (YYYY-MM-DD)
+function todayKstDate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 10);
+}
+
+// 이번 달 KST (YYYY-MM)
+function thisMonthKst() {
+  return todayKstDate().slice(0, 7);
+}
+
+// /bookings [YYYY-MM-DD] — 특정 일자 예약 목록
+async function handleBookingsCommand(botToken, p) {
+  const date = p.args[0] || todayKstDate();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    await sendBotMessage(botToken, p.chatId,
+      `날짜 형식 오류. <code>YYYY-MM-DD</code> 형태로 입력.\n예: <code>/bookings 2026-05-15</code>`);
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const snap = await db.collection('bookings')
+    .where('tourDate', '==', date)
+    .orderBy('createdAt', 'desc')
+    .get();
+
+  if (snap.empty) {
+    await sendBotMessage(botToken, p.chatId, `<b>${date}</b> 예약 없음.`);
+    return;
+  }
+
+  const lines = [`<b>${date} 예약 (${snap.size}건)</b>\n`];
+  let totalUSD = 0;
+  let cancelledCnt = 0;
+
+  snap.forEach((doc) => {
+    const b = doc.data();
+    const status = (b.adminStatus || b.status || '').toLowerCase();
+    const isCancel = status === 'canceled' || status === 'cancelled';
+    if (isCancel) cancelledCnt++;
+    else totalUSD += parseFloat(String(b.amountUSD || 0));
+
+    const statusIcon = isCancel ? '✗'
+      : status === 'completed' ? '✓'
+      : status === 'pending' ? '⏳'
+      : '●';
+    const driverInfo = b.driver ? ` | ${b.driver}` : ' | 미배정';
+
+    lines.push(
+      `${statusIcon} <code>${doc.id.slice(0, 18)}</code>\n` +
+      `  ${b.productType || '-'} · ${b.paxCount || '?'}명${driverInfo}\n` +
+      `  ${b.payerName || b.userEmail || '-'} · $${b.amountUSD || '0'}`
+    );
+  });
+
+  lines.push(``);
+  lines.push(`매출: <b>$${totalUSD.toFixed(2)}</b>${cancelledCnt > 0 ? ` (취소 ${cancelledCnt}건 제외)` : ''}`);
+
+  // 4096자 초과 방지
+  const text = lines.join('\n');
+  await sendBotMessage(botToken, p.chatId, text.length > 3900 ? text.slice(0, 3900) + '\n...(잘림)' : text);
+}
+
+// /sales [YYYY-MM] — 월별 매출 요약
+async function handleSalesCommand(botToken, p) {
+  const month = p.args[0] || thisMonthKst();
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    await sendBotMessage(botToken, p.chatId,
+      `형식 오류. <code>YYYY-MM</code> 형태로 입력.\n예: <code>/sales 2026-05</code>`);
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  // tourDate prefix 매칭으로 월별 조회
+  const monthStart = `${month}-01`;
+  const [year, mo] = month.split('-').map(Number);
+  const nextMonth = mo === 12 ? `${year + 1}-01-01` : `${year}-${String(mo + 1).padStart(2, '0')}-01`;
+
+  const snap = await db.collection('bookings')
+    .where('tourDate', '>=', monthStart)
+    .where('tourDate', '<', nextMonth)
+    .get();
+
+  if (snap.empty) {
+    await sendBotMessage(botToken, p.chatId, `<b>${month}</b> 예약 없음.`);
+    return;
+  }
+
+  let totalUSD = 0;
+  let count = 0;
+  let cancelledCnt = 0;
+  let pax = 0;
+  const byProduct = new Map();
+
+  snap.forEach((doc) => {
+    const b = doc.data();
+    const status = (b.adminStatus || b.status || '').toLowerCase();
+    if (status === 'canceled' || status === 'cancelled') {
+      cancelledCnt++;
+      return;
+    }
+    count++;
+    const usd = parseFloat(String(b.amountUSD || 0));
+    totalUSD += usd;
+    pax += Number(b.paxCount || 0);
+    const pt = b.productType || '기타';
+    const prev = byProduct.get(pt) || { count: 0, usd: 0 };
+    byProduct.set(pt, { count: prev.count + 1, usd: prev.usd + usd });
+  });
+
+  const krwRate = 1380;
+  const totalKRW = Math.round(totalUSD * krwRate);
+
+  const lines = [
+    `<b>${month} 매출 요약</b>`,
+    ``,
+    `유효 예약: <b>${count}건</b> (취소 ${cancelledCnt}건 별도)`,
+    `총 인원: <b>${pax}명</b>`,
+    `매출: <b>$${totalUSD.toFixed(2)}</b> ≈ <b>₩${totalKRW.toLocaleString()}</b>`,
+    `평균 단가: $${count > 0 ? (totalUSD / count).toFixed(2) : '0'}`,
+    ``,
+    `<b>상품별</b>`,
+  ];
+
+  const sortedProducts = Array.from(byProduct.entries()).sort((a, b) => b[1].usd - a[1].usd);
+  sortedProducts.slice(0, 10).forEach(([pt, v]) => {
+    lines.push(`• ${pt}: ${v.count}건 · $${v.usd.toFixed(0)}`);
+  });
+
+  await sendBotMessage(botToken, p.chatId, lines.join('\n'));
 }
