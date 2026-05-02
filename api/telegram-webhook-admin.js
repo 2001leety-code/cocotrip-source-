@@ -23,6 +23,7 @@ import { callBot, sendBotMessage, verifyWebhookSecret, parseUpdate } from './_sh
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { sweepExpiredDispatches, computeExpiryDate } from './_shared/dispatch-sweep.js';
+import { relayAdminReply } from './_shared/chat-relay.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -103,6 +104,25 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.warn(`[${BOT_TAG}-webhook] sweep 실패 (무시):`, err.message);
+  }
+
+  // 인쿼리 메시지에 reply한 경우 → 고객 ChatWidget으로 릴레이
+  if (parsed.replyToMessageId && parsed.text && !parsed.command) {
+    try {
+      const result = await relayAdminReply({
+        replyToMessageId: parsed.replyToMessageId,
+        text: parsed.text,
+        adminName: parsed.fromName || '관리자',
+      });
+      if (result.relayed) {
+        await sendBotMessage(botToken, parsed.chatId,
+          `✓ 고객에게 전달 완료\n세션: <code>${result.sessionId}</code>`);
+        res.status(200).json({ ok: true });
+        return;
+      }
+    } catch (err) {
+      console.warn(`[${BOT_TAG}-webhook] relay 실패:`, err.message);
+    }
   }
 
   try {

@@ -82,7 +82,8 @@ export async function notify(channel, text, options = {}) {
       console.error(`[notify:${channel}] Telegram error:`, data.description);
       return { ok: false, channel, error: data.description };
     }
-    return { ok: true, channel, fallback: isFallback };
+    // result.message_id를 호출자가 알 수 있어야 추후 reply_to_message 매핑 가능
+    return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id };
   } catch (err) {
     console.error(`[notify:${channel}] fetch failed:`, err.message);
     return { ok: false, channel, error: err.message };

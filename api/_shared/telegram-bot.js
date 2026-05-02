@@ -94,5 +94,10 @@ export function parseUpdate(update) {
     callbackId: update.callback_query?.id,
     callbackData: update.callback_query?.data,
     messageId: msg.message_id,
+    // Telegram "Reply" 기능으로 답장한 경우 — 원본 메시지 id (chat-relay 매핑용)
+    replyToMessageId: update.message?.reply_to_message?.message_id || null,
+    fromName: (update.message?.from || update.callback_query?.from)
+      ? `${update.message?.from?.first_name || update.callback_query?.from?.first_name || ''}`.trim()
+      : '',
   };
 }

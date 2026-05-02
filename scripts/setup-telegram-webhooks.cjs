@@ -25,6 +25,7 @@
 const BASE = process.env.WEBHOOK_BASE_URL || 'https://cocotripkr.com';
 const DRIVER_TOKEN = process.env.TELEGRAM_DRIVER_BOT_TOKEN;
 const ADMIN_TOKEN = process.env.TELEGRAM_ADMIN_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+const INQUIRY_TOKEN = process.env.TELEGRAM_INQUIRY_BOT_TOKEN;
 const SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
 const isDelete = process.argv.includes('--delete');
@@ -79,6 +80,12 @@ async function main() {
     await setWebhook(ADMIN_TOKEN, 'admin', '/api/telegram-webhook-admin');
   } else {
     console.warn('TELEGRAM_ADMIN_BOT_TOKEN 미설정 — 어드민봇 스킵');
+  }
+
+  if (INQUIRY_TOKEN) {
+    await setWebhook(INQUIRY_TOKEN, 'inquiry', '/api/telegram-webhook-inquiry');
+  } else {
+    console.warn('TELEGRAM_INQUIRY_BOT_TOKEN 미설정 — 인쿼리봇 스킵 (단일봇 사용 시 정상)');
   }
 
   console.log('\n완료. Telegram에서 봇에게 /start 메시지 보내서 동작 확인.');
