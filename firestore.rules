@@ -216,6 +216,23 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // drivers — 등록된 기사 명단 (Telegram chat_id를 doc ID로 사용)
+    //   read/write: 어드민만 (콘솔 또는 봇으로 등록)
+    // ─────────────────────────────────────────────────────────
+    match /drivers/{chatId} {
+      allow read, create, update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // dispatch_messages — 배차 메시지 감사 로그
+    //   서버(Telegram webhook + Admin SDK)가 작성. 클라이언트는 read만.
+    // ─────────────────────────────────────────────────────────
+    match /dispatch_messages/{msgId} {
+      allow read: if isAdminEmail();
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // 서버 전용 컬렉션 (Admin SDK가 rules 우회)
     //   클라이언트는 접근 불가
     // ─────────────────────────────────────────────────────────
