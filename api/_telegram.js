@@ -7,6 +7,8 @@
  * CONTEXT: CocoTripKR 자동화 유틸리티
  */
 
+import { notify } from './_shared/notify.js';
+
 const TELEGRAM_API = 'https://api.telegram.org';
 
 /**
@@ -125,11 +127,12 @@ PayPal 거래ID: <code>${booking.transactionId || '-'}</code>
 
 ⏰ ${kst}`;
 
-  return sendMessage(msg);
+  // 채널: booking (TELEGRAM_BOOKING_BOT_TOKEN 또는 폴백)
+  return notify('booking', msg);
 }
 
 /**
- * 에러 알림
+ * 에러 알림 → error 채널
  * @param {string} funcName - 함수명
  * @param {Error} error
  */
@@ -143,13 +146,11 @@ export async function sendErrorAlert(funcName, error) {
 
 수동 확인이 필요합니다.`;
 
-  return sendMessage(msg);
+  return notify('error', msg);
 }
 
 /**
- * 날씨 정상 알림
- * @param {object} tourInfo
- * @param {object} weather
+ * 날씨 정상 알림 → report 채널
  */
 export async function sendWeatherOkAlert(tourInfo, weather) {
   const msg = `☀️ <b>내일 날씨 OK</b>
@@ -159,7 +160,7 @@ export async function sendWeatherOkAlert(tourInfo, weather) {
 날씨: ${weather.description || '-'} / ${weather.temperature || '-'}°C
 특이사항: 없음`;
 
-  return sendMessage(msg);
+  return notify('report', msg);
 }
 
 export default {

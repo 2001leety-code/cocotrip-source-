@@ -15,6 +15,7 @@ import { evaluateRefundPolicy } from './_refund-policy.js';
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { notify } from './_shared/notify.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -54,26 +55,16 @@ function airportPlainLine(airport) {
 }
 
 async function sendRefundTelegram({ bookingRef, productType, paxCount, tourDate, userEmail, refundUSD, refundPercent, reason, airport }) {
-  try {
-    const token  = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (!token || !chatId) return;
-    const msg =
-      `🔴 [예약 취소·환불 처리]\n` +
-      `${bookingRef}\n` +
-      `상품: ${productType} · ${paxCount}명 · ${tourDate}\n` +
-      `고객: ${userEmail}\n` +
-      `환불액: $${refundUSD} (${refundPercent}%)\n` +
-      `사유: ${reason || '-'}` +
-      airportPlainLine(airport);
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: msg }),
-    });
-  } catch (err) {
-    console.error('[cancelBooking] telegram skipped:', err.message);
-  }
+  const msg =
+    `🔴 [예약 취소·환불 처리]\n` +
+    `${bookingRef}\n` +
+    `상품: ${productType} · ${paxCount}명 · ${tourDate}\n` +
+    `고객: ${userEmail}\n` +
+    `환불액: $${refundUSD} (${refundPercent}%)\n` +
+    `사유: ${reason || '-'}` +
+    airportPlainLine(airport);
+  // 채널: booking (TELEGRAM_BOOKING_BOT_TOKEN 또는 폴백)
+  await notify('booking', msg, { parseMode: undefined });
 }
 
 export default async function handler(req, res) {
