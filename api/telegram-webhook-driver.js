@@ -30,15 +30,20 @@ const HELP_TEXT = `<b>CocoTrip 기사용 봇</b>
 
 이 봇은 배차 요청 수락/거절을 위해 사용됩니다.
 
-<b>명령어</b>
-/start  — 봇 사용 시작
-/help   — 도움말
-/id     — 내 chat_id 확인 (관리자 등록 시 필요)
+<b>명령어 (영문 또는 한글)</b>
+/start    또는  시작
+/help     또는  도움말 / 도움 / 사용법
+/id       또는  내아이디 / 아이디
 
 <b>배차 흐름</b>
 1. 관리자가 배차 메시지 발송
-2. [수락] / [거절] 버튼 클릭
-3. 10분 무응답 시 자동 거절 + 정보 파기 (예정)`;
+2. [✓ 수락] / [✗ 거절] 버튼 클릭
+3. 10분 무응답 시 자동 거절 + 정보 파기
+
+<b>최초 등록</b>
+1. <code>아이디</code> 또는 /id 입력
+2. 표시되는 chat_id를 관리자(태연님)에게 전달
+3. 등록 완료 후 배차 메시지 수신 가능`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -97,14 +102,36 @@ export default async function handler(req, res) {
   }
 }
 
+// 한글 텍스트 → 슬래시 명령 매핑 (기사봇 — 한국 기사 다수)
+const DRIVER_KOREAN_ALIASES = [
+  { re: /^(시작|스타트)$/, cmd: '/start' },
+  { re: /^(도움|도움말|헬프|명령|명령어|사용법)$/, cmd: '/help' },
+  { re: /^(내아이디|아이디|내 아이디|내id|내ID)$/, cmd: '/id' },
+];
+
+function resolveDriverAlias(p) {
+  if (p.command) return p;
+  if (!p.text) return p;
+  const trimmed = p.text.trim();
+  for (const { re, cmd } of DRIVER_KOREAN_ALIASES) {
+    if (re.test(trimmed)) {
+      return { ...p, command: cmd, args: [] };
+    }
+  }
+  return p;
+}
+
 async function routeCommand(botToken, p) {
+  // 한글 별칭 변환
+  p = resolveDriverAlias(p);
+
   switch (p.command) {
     case '/start':
       await sendBotMessage(botToken, p.chatId,
         `안녕하세요, CocoTrip 기사용 봇입니다.\n` +
-        `<code>/id</code> 로 본인 chat_id 확인 후\n` +
-        `관리자에게 등록을 요청해 주세요.\n\n` +
-        `자세한 사용법: /help`);
+        `<b>아이디</b> 또는 <code>/id</code> 입력 → 본인 chat_id 확인 후\n` +
+        `관리자(태연님)에게 등록을 요청해 주세요.\n\n` +
+        `사용법: <b>도움말</b> 또는 /help`);
       break;
 
     case '/help':
