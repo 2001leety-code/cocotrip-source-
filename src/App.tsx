@@ -27,6 +27,8 @@ const TravelTerms = lazy(() => import('@/pages/TravelTerms'));
 const Admin = lazy(() => import('@/pages/Admin'));
 const AdminReviews = lazy(() => import('@/pages/AdminReviews'));
 const AdminClaims = lazy(() => import('@/pages/AdminClaims'));
+const AdminReconciliation = lazy(() => import('@/pages/AdminReconciliation'));
+const AdminPlans = lazy(() => import('@/pages/AdminPlans'));
 const AdminTourAvailability = lazy(() => import('@/pages/AdminTourAvailability'));
 const AdminSales = lazy(() => import('@/pages/AdminSales'));
 const AdminCalendar = lazy(() => import('@/pages/AdminCalendar'));
@@ -205,6 +207,26 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminClaims />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/reconciliation"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminReconciliation />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/plans"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminPlans />
                 </Suspense>
               </AdminRoute>
             }

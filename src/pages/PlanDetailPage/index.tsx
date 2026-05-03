@@ -14,7 +14,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Flag } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';
 import { ReviewList } from '@/components/ReviewList';
@@ -24,6 +24,7 @@ import { generatePDF } from './pdfGenerator';
 import { DayTimeline } from './components/DayTimeline';
 import { EditModeToggle } from './components/EditModeToggle';
 import { AddStopModal } from './components/AddStopModal';
+import { ReportPlanModal } from './components/ReportPlanModal';
 import { RecommendedRestaurants } from './components/RecommendedRestaurants';
 import { SwipeContainer } from './components/SwipeContainer';
 // SlideProgress 제거됨 (2026-05-03) — 탭만으로 네비게이션 일원화.
@@ -55,6 +56,7 @@ export default function PlanDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [addStopDay, setAddStopDay] = useState<number | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   // Plan editor (optimistic Firestore updates + auto transit recalc)
   const editor = usePlanEditor(planId || '', plan, setPlan);
@@ -296,6 +298,15 @@ export default function PlanDetailPage() {
           }}
         />
 
+        {/* 2026-05-04 학습 루프 Tier 1-A 신고 모달 */}
+        <ReportPlanModal
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          planId={planId || ''}
+          userEmail={user?.email || ''}
+          language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'}
+        />
+
         {/* Must-visit restaurants (DB-derived, backend `pickRecommendedRestaurants`) */}
         {plan?.itinerary?.recommended_restaurants && plan.itinerary.recommended_restaurants.length > 0 && (() => {
           const ui = getPlanDetailUI(t);
@@ -318,6 +329,21 @@ export default function PlanDetailPage() {
         {/* Reviews Section */}
         <div className="max-w-4xl mx-auto px-4">
           <ReviewList targetType="plan" targetId={planId || ''} />
+        </div>
+
+        {/* 2026-05-04: 플랜 신고 버튼 (Tier 1-A 학습 루프). 인라인 — floating 보다 덜 방해적. */}
+        <div className="max-w-4xl mx-auto px-4 mt-8 mb-4 text-center">
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/[0.04] border border-white/10 text-white/55 text-xs hover:bg-white/[0.08] hover:text-white/80 transition-all"
+          >
+            <Flag className="w-3.5 h-3.5" />
+            {language === 'ko' ? '플랜에 문제가 있나요?' :
+             language === 'ja' ? 'プランに問題がありますか？' :
+             language === 'zh' ? '行程有问题？' :
+             'Report an issue with this plan'}
+          </button>
         </div>
       </main>
       <Footer t={t} />

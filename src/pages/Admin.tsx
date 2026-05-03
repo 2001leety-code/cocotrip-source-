@@ -195,6 +195,26 @@ export default function Admin() {
             </div>
             <p className="text-xs text-gray-400">Approve free-plan claims and charter quote requests</p>
           </a>
+          <a
+            href="/admin/reconciliation"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-amber-400/40 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-amber-600 transition-colors">정산 · 복구</h3>
+            </div>
+            <p className="text-xs text-gray-400">추정가 결제 정산 + 알림 누락 booking 일괄 복구</p>
+          </a>
+          <a
+            href="/admin/plans"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">📑</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">AI 플랜 검색</h3>
+            </div>
+            <p className="text-xs text-gray-400">사용자 이메일·planId 로 플랜 lookup + revisionCredits 조정</p>
+          </a>
         </div>
 
         {/* ── Bookings Table (Google Sheets) ── */}
