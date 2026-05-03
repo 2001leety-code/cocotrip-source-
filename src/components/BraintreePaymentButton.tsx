@@ -19,12 +19,93 @@
  *   client token은 server 발급 — frontend env 변수 X
  */
 import { useState, useEffect, useRef } from 'react';
-import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2, Mail, Home, Calendar } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
+
+// 2026-05-04: 결제 성공 모달 + 에러 메시지 4-lang. 이전엔 영어 only ("Payment Confirmed!")
+// + raw Braintree 에러 메시지 ("tourDate is not defined" 같은 ReferenceError 노출).
+// 사용자 요청: 한국어 안내 + 이메일 안내 + redirect 옵션.
+const PAYMENT_MODAL_LABELS: Record<string, {
+  successTitle: string;
+  successBody: (email: string) => string;
+  txLabel: string;
+  amountPaid: string;
+  viewBookingsBtn: string;
+  homeBtn: string;
+  emailReminder: string;
+  errorNonceExpired: string;
+  errorNetwork: string;
+  errorSystem: string;
+  errorGeneric: string;
+}> = {
+  ko: {
+    successTitle: '결제가 완료되었습니다',
+    successBody: (email) => email ? `예약 확인 + 영수증을 ${email} 로 발송했습니다.` : '예약 확인 + 영수증 메일을 발송했습니다.',
+    txLabel: '거래번호',
+    amountPaid: '결제 금액',
+    viewBookingsBtn: '내 예약 보기',
+    homeBtn: '홈으로',
+    emailReminder: '메일이 도착하지 않으면 스팸함도 확인해주세요.',
+    errorNonceExpired: '결제 정보가 만료되었습니다. 결제 수단을 다시 선택해주세요.',
+    errorNetwork: '네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.',
+    errorSystem: '일시적 시스템 오류가 발생했습니다. 잠시 후 다시 시도하시거나 카카오 채널로 문의해주세요.',
+    errorGeneric: '결제 처리 중 오류가 발생했습니다. 다시 시도해주세요.',
+  },
+  en: {
+    successTitle: 'Payment Confirmed',
+    successBody: (email) => email ? `We've sent a confirmation + receipt to ${email}.` : "We've sent a confirmation + receipt to your email.",
+    txLabel: 'Transaction',
+    amountPaid: 'Amount paid',
+    viewBookingsBtn: 'View My Bookings',
+    homeBtn: 'Home',
+    emailReminder: "If you don't see it, please check your spam folder.",
+    errorNonceExpired: 'Your payment session expired. Please re-select a payment method.',
+    errorNetwork: 'Network unstable. Please try again in a moment.',
+    errorSystem: 'A temporary system error occurred. Please retry or contact us on KakaoTalk.',
+    errorGeneric: 'Payment failed. Please try again.',
+  },
+  ja: {
+    successTitle: '決済が完了しました',
+    successBody: (email) => email ? `予約確認と領収書を ${email} に送信しました。` : '予約確認と領収書をメールで送信しました。',
+    txLabel: '取引番号',
+    amountPaid: '決済金額',
+    viewBookingsBtn: '予約を見る',
+    homeBtn: 'ホーム',
+    emailReminder: 'メールが届かない場合は迷惑メールフォルダもご確認ください。',
+    errorNonceExpired: '決済情報の有効期限が切れました。決済方法を再選択してください。',
+    errorNetwork: 'ネットワーク接続が不安定です。少し待ってから再試行してください。',
+    errorSystem: '一時的なシステムエラーが発生しました。しばらくしてから再試行してください。',
+    errorGeneric: '決済処理中にエラーが発生しました。もう一度お試しください。',
+  },
+  zh: {
+    successTitle: '支付已完成',
+    successBody: (email) => email ? `预订确认和收据已发送至 ${email}。` : '预订确认和收据已发送到您的邮箱。',
+    txLabel: '交易号',
+    amountPaid: '支付金额',
+    viewBookingsBtn: '查看我的预订',
+    homeBtn: '首页',
+    emailReminder: '如未收到邮件，请检查垃圾邮件文件夹。',
+    errorNonceExpired: '支付会话已过期，请重新选择支付方式。',
+    errorNetwork: '网络不稳定，请稍后重试。',
+    errorSystem: '系统暂时出错，请稍后重试或通过 KakaoTalk 联系我们。',
+    errorGeneric: '支付处理中出错，请重试。',
+  },
+};
+
+function friendlyPaymentError(rawMsg: string, lang: string): string {
+  const labels = PAYMENT_MODAL_LABELS[lang] || PAYMENT_MODAL_LABELS.en;
+  const lower = (rawMsg || '').toLowerCase();
+  if (lower.includes('cannot use') && lower.includes('nonce') && lower.includes('more than once')) return labels.errorNonceExpired;
+  if (lower.includes('not defined') || lower.includes('referenceerror') || lower.includes('typeerror')) return labels.errorSystem;
+  if (lower.includes('network') || lower.includes('failed to fetch') || lower.includes('timeout')) return labels.errorNetwork;
+  if (lower.includes('payment processing failed')) return labels.errorGeneric;
+  // 알 수 없는 에러 — generic. raw 메시지는 console.error 로 이미 남음.
+  return labels.errorGeneric;
+}
 
 interface BookingDict {
   paypalSdkError?: string;
@@ -90,6 +171,8 @@ export function BraintreePaymentButton({
   customAmountKRW,
 }: Props) {
   const isTestAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
+  const navigate = useNavigate();
+  const modalLabels = PAYMENT_MODAL_LABELS[lang] || PAYMENT_MODAL_LABELS.en;
 
   const [clientToken, setClientToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -304,7 +387,11 @@ export function BraintreePaymentButton({
     } catch (err) {
       console.error('[Braintree] payment failed:', err);
       void posthogTrack('payment_failed', { planType: productType, reason: 'braintree_checkout_error' });
-      setPaymentError(err instanceof Error ? err.message : 'Payment failed');
+      // 2026-05-04: raw error.message (e.g. "tourDate is not defined", "Cannot use
+      // payment_method_nonce more than once") 그대로 노출하지 않음 — 사용자 친화 메시지
+      // 매핑 (4-lang). raw 는 console.error 로만 남김.
+      const rawMsg = err instanceof Error ? err.message : 'Payment failed';
+      setPaymentError(friendlyPaymentError(rawMsg, lang));
       // 실패한 nonce 는 burn 됐을 가능성 높음 → 다음 클릭은 새 nonce 필요. 인스턴스 재생성.
       void recreateDropinAfterFailure();
     } finally {
@@ -317,7 +404,7 @@ export function BraintreePaymentButton({
     setPaymentError(null);
   }
 
-  // ── Success 모달 (PayPalBookingButton의 confirm overlay 단순화) ───────
+  // ── Success 모달 (2026-05-04: 4-lang + KRW + redirect 버튼 + 이메일 안내) ───
   if (showSuccess && successData) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
@@ -325,13 +412,46 @@ export function BraintreePaymentButton({
           <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-emerald-500 flex items-center justify-center">
             <Check className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Payment Confirmed!</h2>
-          <p className="text-sm text-white/60 mb-4">Transaction: {successData.transactionId.slice(0, 16)}...</p>
-          <p className="text-2xl font-bold text-emerald-400 mb-4">${successData.amount} USD</p>
-          <button onClick={() => { setShowSuccess(false); setSuccessData(null); }}
-            className="w-full py-3 rounded-xl text-white font-bold text-sm" style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}>
-            Done
-          </button>
+          <h2 className="text-xl font-bold text-white mb-2">{modalLabels.successTitle}</h2>
+
+          {/* 결제 금액 — KRW 와 USD 모두 표시 (이전 USD only) */}
+          <div className="my-4">
+            <p className="text-3xl font-bold text-emerald-400">₩{effectiveKRW.toLocaleString('ko-KR')}</p>
+            <p className="text-sm text-white/55 mt-1">≈ ${successData.amount} USD</p>
+          </div>
+
+          {/* 이메일 안내 — 사용자 요청 핵심 메시지 */}
+          <div className="bg-white/[0.04] rounded-xl p-4 mb-4 border border-white/10">
+            <Mail className="w-5 h-5 mx-auto mb-2 text-[#B668FC]" />
+            <p className="text-sm text-white/80 leading-relaxed">{modalLabels.successBody(userEmail)}</p>
+            <p className="text-xs text-white/45 mt-2">{modalLabels.emailReminder}</p>
+          </div>
+
+          {/* Transaction ID — fold 안에 (사용자 본 다음 닫기) */}
+          <p className="text-[11px] text-white/40 font-mono mb-5">
+            {modalLabels.txLabel}: {successData.transactionId.slice(0, 20)}…
+          </p>
+
+          {/* 버튼 2개: 내 예약 보기 + 홈으로 */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowSuccess(false); setSuccessData(null); navigate('/my-bookings'); }}
+              className="py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-1.5"
+              style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
+            >
+              <Calendar className="w-4 h-4" />
+              {modalLabels.viewBookingsBtn}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowSuccess(false); setSuccessData(null); navigate('/'); }}
+              className="py-3 rounded-xl text-white/80 font-semibold text-sm flex items-center justify-center gap-1.5 border border-white/15 hover:bg-white/[0.05]"
+            >
+              <Home className="w-4 h-4" />
+              {modalLabels.homeBtn}
+            </button>
+          </div>
         </div>
       </div>
     );

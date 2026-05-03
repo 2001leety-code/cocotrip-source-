@@ -255,6 +255,22 @@ export function buildDefaultConfirmationEmail(booking, walletUrl = null, itinera
       <p style="color:#9ca3af;font-size:11px;margin-top:8px;">Shows on your lock screen automatically on tour day</p>
     </div>` : '';
 
+  // 2026-05-04: 추정가 결제 (charter_custom_estimate) booking 의 정산 약관 안내.
+  // 부산/대구/광주 등 zone fallback 결제는 wizard 가 권역 평균으로 가격을 산출하므로
+  // 실제 운행 시 거리/소요시간 차이가 ±10% 이상이면 추가청구 또는 부분환불 발생.
+  // 사용자가 결제 전 wizard 화면에서 동일 약관을 봤지만, 이메일에도 명시해야 사후
+  // 분쟁 시 근거가 됨.
+  const reconciliationNotice = booking.requiresReconciliation ? `
+    <div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:8px;padding:18px;margin:20px 0;">
+      <h3 style="color:#92400e;margin:0 0 8px;font-size:14px;">⚠️ Estimate-Based Pricing — Reconciliation Notice</h3>
+      <p style="margin:0;color:#78350f;font-size:13px;line-height:1.6;">
+        Your booking was priced using a <strong>regional-average estimate</strong> (your destination is outside our pre-priced matrix).
+        If the actual distance / driving duration differs from the estimate by <strong>more than ±10%</strong>,
+        we will reconcile (additional charge or partial refund) within <strong>1 business day</strong> after the trip.
+        You'll receive an itemized statement before any adjustment.
+      </p>
+    </div>` : '';
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -288,6 +304,8 @@ export function buildDefaultConfirmationEmail(booking, walletUrl = null, itinera
         <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Booking Ref</td><td style="padding:7px 8px;font-family:monospace;font-size:13px;">${booking.bookingRef || '-'}</td></tr>
       </table>
     </div>
+
+    ${reconciliationNotice}
 
     ${walletSection}
 
@@ -339,7 +357,13 @@ Amount Paid:  $${booking.amountUSD || '0'} USD
 Your Driver: Taeo
 WhatsApp: +82-10-8714-0611
 Email: cocotripkr@gmail.com
-
+${booking.requiresReconciliation ? `
+ESTIMATE-BASED PRICING:
+This booking was priced using a regional-average estimate. If actual
+distance / driving duration differs from the estimate by more than ±10%,
+we'll reconcile (additional charge or partial refund) within 1 business
+day after the trip. Itemized statement will be sent before any adjustment.
+` : ''}
 IMPORTANT:
 - Please be ready 10 minutes before pickup time
 - Driver will hold a name sign at hotel lobby

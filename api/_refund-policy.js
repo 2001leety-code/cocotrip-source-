@@ -36,7 +36,23 @@ function tierKey(tier) {
  * @returns {{ hoursUntilTour: number, refundPercent: number, refundRatio: number, canRefund: boolean, canModify: boolean, freeCancelUntil: string, finalCancelUntil: string, tierApplied: TierType }}
  */
 export function evaluateRefundPolicy({ tourDate, tourTime = '00:00', tier = 'Bronze', now = new Date() }) {
-  if (!tourDate) throw new Error('tourDate required');
+  // 2026-05-04: tourDate 가 비어있는 booking (예: charter_custom_estimate 의 추정가 결제
+  // 시 wizard 가 dateStart 미설정 케이스, 또는 AI 플래너 처럼 tourDate 가 의미 없는 디지털
+  // 상품) 에 대해 throw 대신 graceful 한 환불 정책 기본값 반환. cancelBooking handler 의
+  // 500 응답 + Telegram 누락 사고 방지.
+  if (!tourDate) {
+    return {
+      hoursUntilTour: 0,
+      refundPercent: 0,
+      refundRatio: 0,
+      canRefund: false,
+      canModify: false,
+      freeCancelUntil: '',
+      finalCancelUntil: '',
+      tierApplied: tier,
+      reason: 'tourDate missing — cannot evaluate window-based refund. Manual review required.',
+    };
+  }
 
   // 투어일/시간은 항상 KST(+09:00) 기준. Vercel Lambda가 UTC에서 돌아도 안전하게 파싱.
   const iso = `${tourDate}T${tourTime}:00+09:00`;

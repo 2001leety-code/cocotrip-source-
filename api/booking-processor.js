@@ -96,6 +96,7 @@ const originalHandler = async (event) => {
     airport,
     userEmail,          // 이슈#1 fix: 로열티 적립 등에 활용
     bookingRef: externalBookingRef,  // 이슈#2 fix: capturePaypalOrder에서 생성한 CT- 번호
+    requiresReconciliation,  // 2026-05-04: charter_custom_estimate booking 표식
   } = body;
 
   if (!orderID || !payerEmail) {
@@ -150,6 +151,7 @@ const originalHandler = async (event) => {
     couponApplied: couponApplied || '없음',
     memo: enhancedMemo,
     airport: airport || null,
+    requiresReconciliation: !!requiresReconciliation,
   };
 
   const language = detectLanguage(payerEmail, payerName);
