@@ -23,6 +23,7 @@ import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, Arro
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
 import { useLoyalty } from '@/hooks/useLoyalty';
+import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
 
 interface BookingDict {
@@ -107,6 +108,10 @@ export function BraintreePaymentButton({
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const { activeCoupons } = useLoyalty();
+  // 2026-05-03 P0-2 fix: applyPromoCode 가 user-specific 쿠폰 (Firestore users/{uid}/coupons)
+  // 검증하려면 userId 필요. 이전엔 안 보내서 본인 쿠폰 4개 보유해도 모두 "유효하지 않음"
+  // 처리됐음. 미로그인 사용자는 user.uid undefined → applyPromoCode가 글로벌 코드만 검증.
+  const { user } = useAuth();
 
   const dropinContainerRef = useRef<HTMLDivElement | null>(null);
   const dropinInstanceRef = useRef<DropinInstance | null>(null);
@@ -192,7 +197,10 @@ export function BraintreePaymentButton({
       const res = await fetch('/api/applyPromoCode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, productType, originalPrice: priceKRW }),
+        body: JSON.stringify({
+          code, productType, originalPrice: priceKRW,
+          userId: user?.uid || undefined,  // user-specific 쿠폰 검증용
+        }),
       });
       const json = await res.json();
       const d = json.data;
