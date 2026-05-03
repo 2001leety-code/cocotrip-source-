@@ -101,6 +101,9 @@ export interface WizardI18n {
   mbProcessing: string;
   // 2026-05-03: AI 플래너 같은 디지털 상품 라벨 — 환불 불가 명시
   mbDigitalNoRefund?: string;
+  // 2026-05-03 P1: AI 플래너 booking → /my-plans 이동 + 환불 시간 지남 안내
+  mbViewPlanBtn?: string;
+  mbRefundWindowClosed?: string;
   mbCancelReasonPrompt: string;
   mbCancelConfirm: (pct: number, amountKRW: string) => string;
 
@@ -185,6 +188,8 @@ const base: Record<WizardLang, WizardI18n> = {
     mbRefundedAmount: '환불액',
     mbModifyBtn: '변경', mbCancelBtn: '취소', mbReviewBtn: '리뷰 쓰기 · +50 코인', mbProcessing: '처리중...',
     mbDigitalNoRefund: '디지털 상품 · 환불 불가',
+    mbViewPlanBtn: '플랜 보기',
+    mbRefundWindowClosed: '환불·변경 가능 시간 지남',
     mbCancelReasonPrompt: '취소 사유 (선택):',
     mbCancelConfirm: (pct, amt) => `예약을 취소하시겠어요?\n환불 ${pct}% · 약 ₩${amt}\nPayPal로 3~5영업일 내 환불됩니다.`,
     modifyModalTitle: '예약 변경',
@@ -265,6 +270,8 @@ const base: Record<WizardLang, WizardI18n> = {
     mbRefundedAmount: 'Refunded',
     mbModifyBtn: 'Modify', mbCancelBtn: 'Cancel', mbReviewBtn: 'Write a review · +50 coins', mbProcessing: 'Processing...',
     mbDigitalNoRefund: 'Digital product · non-refundable',
+    mbViewPlanBtn: 'View Plan',
+    mbRefundWindowClosed: 'Refund/modify window closed',
     mbCancelReasonPrompt: 'Cancellation reason (optional):',
     mbCancelConfirm: (pct, amt) => `Cancel this booking?\nRefund ${pct}% · approx ₩${amt}\nRefund via PayPal in 3-5 business days.`,
     modifyModalTitle: 'Modify Booking',
@@ -345,6 +352,8 @@ const base: Record<WizardLang, WizardI18n> = {
     mbRefundedAmount: '返金額',
     mbModifyBtn: '変更', mbCancelBtn: 'キャンセル', mbReviewBtn: 'レビューを書く · +50コイン', mbProcessing: '処理中...',
     mbDigitalNoRefund: 'デジタル商品 · 返金不可',
+    mbViewPlanBtn: 'プランを見る',
+    mbRefundWindowClosed: '返金・変更可能時間を過ぎました',
     mbCancelReasonPrompt: 'キャンセル理由（任意）:',
     mbCancelConfirm: (pct, amt) => `この予約をキャンセルしますか？\n返金 ${pct}% · 約 ₩${amt}\nPayPalで3〜5営業日以内に返金されます。`,
     modifyModalTitle: '予約変更',
@@ -425,6 +434,8 @@ const base: Record<WizardLang, WizardI18n> = {
     mbRefundedAmount: '退款额',
     mbModifyBtn: '修改', mbCancelBtn: '取消', mbReviewBtn: '写评价 · +50 金币', mbProcessing: '处理中...',
     mbDigitalNoRefund: '数字产品 · 不可退款',
+    mbViewPlanBtn: '查看行程',
+    mbRefundWindowClosed: '退款·修改时限已过',
     mbCancelReasonPrompt: '取消原因（选填）:',
     mbCancelConfirm: (pct, amt) => `确定取消此预订？\n退款 ${pct}% · 约 ₩${amt}\n将在3-5个工作日内通过PayPal退款。`,
     modifyModalTitle: '修改预订',

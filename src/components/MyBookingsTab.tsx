@@ -1,6 +1,7 @@
 // MyBookingsTab — MyPage의 "My Bookings" 탭 콘텐츠 · i18n
 import { useState, useEffect, useCallback } from 'react';
-import { Package, Clock, XCircle, Edit, Check, X, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Package, Clock, XCircle, Edit, Check, X, Star, ExternalLink } from 'lucide-react';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -166,7 +167,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           </div>
 
           {b.status === 'CONFIRMED' && (
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-3 items-center flex-wrap">
               {b.canModify && (
                 <button
                   type="button"
@@ -185,6 +186,26 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
                 >
                   {cancelingId === b.id ? i18n.mbProcessing : <><XCircle size={12} /> {i18n.mbCancelBtn}</>}
                 </button>
+              )}
+
+              {/* 2026-05-03 P1 fix: AI 플래너 booking은 환불 X — 대신 /my-plans 링크 노출.
+                  사용자 신고: "어떤 예약 했는지 들어가볼 수도 없음". */}
+              {(b.productType || '').toString().startsWith('ai-planner') && (
+                <Link
+                  to="/my-plans"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#7C5CFC]/40 text-[#B668FC] text-[11px] hover:bg-[#7C5CFC]/10"
+                >
+                  <ExternalLink size={12} /> {i18n.mbViewPlanBtn || 'View Plan'}
+                </Link>
+              )}
+
+              {/* 2026-05-03 P1 fix: 환불 가능 시간 지났을 때 명확한 안내. canRefund=false
+                  + canModify=false 조합인데 status=CONFIRMED 면 정책상 거부. AI 플래너는
+                  위에서 라벨 따로 노출되므로 제외. */}
+              {!b.canRefund && !b.canModify && !(b.productType || '').toString().startsWith('ai-planner') && (
+                <span className="text-[10px] text-white/45 italic">
+                  {i18n.mbRefundWindowClosed || 'Refund/modify window closed'}
+                </span>
               )}
             </div>
           )}
