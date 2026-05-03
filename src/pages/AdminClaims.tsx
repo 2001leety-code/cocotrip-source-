@@ -74,15 +74,15 @@ export default function AdminClaims() {
   }, [isAdmin]);
 
   // 2026-05-03: confirm() prompt before destructive ops + optional reject reason.
-  // Direct-fire was risky (one mis-click made approval/rejection irreversible).
+  // 2026-05-04: 한국어 운영 — admin 본인이 한국 사용자라 영문 prompt/confirm 가독성 떨어짐.
   const handleAction = useCallback(async (collectionName: string, id: string, email: string, status: Status) => {
     let rejectReason: string | null = null;
     if (status === 'rejected') {
-      const reason = window.prompt(`Reject claim from ${email}?\n\nOptional reason (shown in audit log; leave blank to skip):`, '');
+      const reason = window.prompt(`${email} 의 신청을 거절하시겠습니까?\n\n거절 사유 (audit log 에 저장됨, 비워도 됨):`, '');
       if (reason === null) return; // cancelled
       rejectReason = reason.trim() || null;
     } else {
-      const ok = window.confirm(`Approve claim from ${email}?\n\nThis marks the claim as approved. Send the actual plan/token via the existing follow-up process.`);
+      const ok = window.confirm(`${email} 의 신청을 승인하시겠습니까?\n\n승인 처리됩니다. 실제 플랜·토큰 발송은 기존 follow-up 프로세스로 진행하세요.`);
       if (!ok) return;
     }
     setBusyId(id);
@@ -94,7 +94,7 @@ export default function AdminClaims() {
         ...(rejectReason ? { rejectReason } : {}),
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Action failed';
+      const msg = err instanceof Error ? err.message : '처리 실패';
       alert(msg);
     } finally {
       setBusyId(null);
@@ -112,24 +112,41 @@ export default function AdminClaims() {
       <div className="min-h-screen bg-[#0a0b14] text-white flex items-center justify-center">
         <div className="text-center">
           <Shield className="w-12 h-12 text-rose-400/40 mx-auto mb-3" />
-          <p className="text-lg font-bold">Admin only</p>
+          <p className="text-lg font-bold">관리자 전용</p>
         </div>
       </div>
     );
   }
 
+  // 2026-05-04: 한국어 라벨 매핑 (사용자 본인이 한국인이라 영문 표시 가독성 ↓)
+  const STATUS_LABELS: Record<Status, string> = {
+    pending: '대기',
+    approved: '승인',
+    rejected: '거절',
+  };
+  const FILTER_LABELS: Record<Status | 'all', string> = {
+    pending: '대기',
+    approved: '승인',
+    rejected: '거절',
+    all: '전체',
+  };
+  const TAB_LABELS: Record<Tab, string> = {
+    claims: '무료 신청',
+    inquiries: '차터 문의',
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white">
       <div className="max-w-5xl mx-auto px-4 py-10">
         <Link to="/admin" className="inline-flex items-center gap-1.5 text-white/55 text-sm hover:text-white/70 mb-6">
-          <ArrowLeft className="w-3.5 h-3.5" /> Admin home
+          <ArrowLeft className="w-3.5 h-3.5" /> 관리자 홈
         </Link>
 
         <div className="flex items-center gap-3 mb-6">
           <Shield className="w-7 h-7 text-amber-400" />
           <div>
-            <h1 className="text-2xl font-bold">Claims & Charter Inquiries</h1>
-            <p className="text-sm text-white/55">Approve or reject pending requests</p>
+            <h1 className="text-2xl font-bold">신청·문의 관리</h1>
+            <p className="text-sm text-white/55">대기 중인 무료 플랜 신청 및 차터 문의를 승인 또는 거절</p>
           </div>
         </div>
 
@@ -141,9 +158,9 @@ export default function AdminClaims() {
                 tab === t ? 'border-[#7C5CFC] text-white' : 'border-transparent text-white/55 hover:text-white/70'
               }`}>
               {t === 'claims' ? <FileCheck className="w-4 h-4" /> : <Car className="w-4 h-4" />}
-              {t === 'claims' ? 'Free claims' : 'Charter inquiries'}
+              {TAB_LABELS[t]}
               <span className="ml-1 text-[11px] text-white/55">
-                ({(t === 'claims' ? claims : inquiries).filter(r => r.status === 'pending').length} pending)
+                (대기 {(t === 'claims' ? claims : inquiries).filter(r => r.status === 'pending').length}건)
               </span>
             </button>
           ))}
@@ -156,15 +173,15 @@ export default function AdminClaims() {
               className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors ${
                 filter === f ? 'bg-[#7C5CFC]/30 text-white' : 'bg-white/[0.05] text-white/55 hover:text-white/70'
               }`}>
-              {f}
+              {FILTER_LABELS[f]}
             </button>
           ))}
         </div>
 
         {loading ? (
-          <p className="text-white/55 text-sm">Loading…</p>
+          <p className="text-white/55 text-sm">불러오는 중…</p>
         ) : filtered.length === 0 ? (
-          <p className="text-white/55 text-sm">No {filter === 'all' ? '' : filter} {tab}.</p>
+          <p className="text-white/55 text-sm">{filter === 'all' ? '' : `${FILTER_LABELS[filter]} 상태의 `}{TAB_LABELS[tab]} 항목이 없습니다.</p>
         ) : (
           <div className="space-y-3">
             {filtered.map(row => (
@@ -178,23 +195,23 @@ export default function AdminClaims() {
                         : row.status === 'approved' ? 'bg-emerald-500/15 text-emerald-400'
                         : 'bg-rose-500/15 text-rose-400'
                       }`}>
-                        {row.status}
+                        {STATUS_LABELS[row.status] || row.status}
                       </span>
                       <span className="text-[10px] text-white/55">{formatTs(row.createdAt)}</span>
                     </div>
 
                     {row.status === 'rejected' && row.rejectReason && (
-                      <p className="text-[11px] text-rose-300/80 italic mb-1">Reason: {row.rejectReason}</p>
+                      <p className="text-[11px] text-rose-300/80 italic mb-1">거절 사유: {row.rejectReason}</p>
                     )}
 
                     {tab === 'claims' && (
                       <div className="text-[12px] text-white/60 space-y-0.5">
-                        {row.flightRef && <p>Flight PNR: <span className="text-white/80">{row.flightRef}</span></p>}
-                        {row.hotelRef && <p>Hotel ref: <span className="text-white/80">{row.hotelRef}</span></p>}
-                        {row.tripDates && <p>Dates: <span className="text-white/80">{row.tripDates}</span></p>}
+                        {row.flightRef && <p>항공 PNR: <span className="text-white/80">{row.flightRef}</span></p>}
+                        {row.hotelRef && <p>호텔 예약번호: <span className="text-white/80">{row.hotelRef}</span></p>}
+                        {row.tripDates && <p>여행 일정: <span className="text-white/80">{row.tripDates}</span></p>}
                         {row.receipts && row.receipts.length > 0 && (
                           <div className="mt-1">
-                            <p className="text-[11px] text-white/55 mb-1">Receipts ({row.receipts.length}):</p>
+                            <p className="text-[11px] text-white/55 mb-1">영수증 ({row.receipts.length}건):</p>
                             <div className="flex flex-wrap gap-1.5">
                               {row.receipts.map((r, i) => (
                                 <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
@@ -210,12 +227,12 @@ export default function AdminClaims() {
 
                     {tab === 'inquiries' && (
                       <div className="text-[12px] text-white/60 space-y-0.5">
-                        {row.recommendedTour && <p>Tour: <span className="text-white/80">{row.recommendedTour}</span> · ₩{(row.quotedKRW || 0).toLocaleString()} / {row.hours}h</p>}
-                        {row.name && <p>Name: <span className="text-white/80">{row.name}</span> {row.phone && `· ${row.phone}`}</p>}
-                        {row.startDate && <p>Trip: <span className="text-white/80">{row.startDate}</span> · {row.pax} pax · {row.dayCount} days</p>}
-                        {row.notes && <p className="text-white/50">Notes: {row.notes}</p>}
+                        {row.recommendedTour && <p>투어: <span className="text-white/80">{row.recommendedTour}</span> · ₩{(row.quotedKRW || 0).toLocaleString()} / {row.hours}시간</p>}
+                        {row.name && <p>성함: <span className="text-white/80">{row.name}</span> {row.phone && `· ${row.phone}`}</p>}
+                        {row.startDate && <p>일정: <span className="text-white/80">{row.startDate}</span> · {row.pax}명 · {row.dayCount}일</p>}
+                        {row.notes && <p className="text-white/50">메모: {row.notes}</p>}
                         {row.planId && (
-                          <p>Plan: <a href={`/my-plans/${row.planId}`} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">{row.planId}</a></p>
+                          <p>플랜: <a href={`/my-plans/${row.planId}`} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">{row.planId}</a></p>
                         )}
                       </div>
                     )}
@@ -227,12 +244,12 @@ export default function AdminClaims() {
                         onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'approved')}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[12px] font-semibold disabled:opacity-40">
                         {busyId === row.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                        Approve
+                        승인
                       </button>
                       <button disabled={busyId === row.id}
                         onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'rejected')}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[12px] font-semibold disabled:opacity-40">
-                        <XCircle className="w-3.5 h-3.5" /> Reject
+                        <XCircle className="w-3.5 h-3.5" /> 거절
                       </button>
                     </div>
                   )}

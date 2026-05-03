@@ -191,9 +191,9 @@ export default function Admin() {
           >
             <div className="flex items-center gap-3 mb-2">
               <span className="text-2xl">📋</span>
-              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">Claims & Inquiries</h3>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">신청·문의 관리</h3>
             </div>
-            <p className="text-xs text-gray-400">Approve free-plan claims and charter quote requests</p>
+            <p className="text-xs text-gray-400">무료 플랜 신청 및 차터 문의 승인·거절</p>
           </a>
           <a
             href="/admin/reconciliation"
