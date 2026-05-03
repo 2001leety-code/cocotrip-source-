@@ -225,6 +225,13 @@ export function BraintreePaymentButton({
       setPaymentError('Payment session not ready, please wait a moment.');
       return;
     }
+    // 2026-05-03 fix: 이메일 미입력 시 결제 차단. 이전엔 빈 이메일로 결제 진행되어
+    // emailNotifier가 silent return → AI 플랜 만들어졌지만 확인 메일 안 옴.
+    const emailTrimmed = (userEmail || '').trim();
+    if (!emailTrimmed || !emailTrimmed.includes('@')) {
+      setPaymentError('Please enter your email above before payment — confirmation will be sent there.');
+      return;
+    }
     void posthogTrack('payment_started', { planType: productType, amount: priceKRW, currency: 'KRW' });
     setShowDropin(true);
   }
