@@ -149,10 +149,18 @@ export default async function handler(req, res) {
       accommodation_budget: wantAccom ? accomBudget : undefined,
     }) + spotContext + foodContext + (!hotel_address && recommendedZone ? `
 
-[LODGING ZONE PREFERENCE]
-The user has not booked a hotel and chose "${recommendedZone}" as their preferred district within ${area}.
-Treat this zone as the hub: Day 1 starts there, Day N ends there, food stops within ~2km radius when possible.
-This is a soft anchor — you may suggest stops outside the zone if they fit the user's interests.` : '') + (wantAccom ? `
+[LODGING ZONE PREFERENCE — STRICT]
+The user has not booked a hotel and chose "${recommendedZone}" as their preferred lodging district within ${area}.
+This is a HARD anchor — assume they will sleep in or near "${recommendedZone}" every night.
+
+REQUIREMENTS:
+- 80%+ of all stops MUST be within 3km of "${recommendedZone}" centroid.
+- Day 1: first stop MUST be in "${recommendedZone}" (arrival convenience).
+- Day N (last day): last stop MUST be in "${recommendedZone}" (departure convenience).
+- Food stops (lunch/dinner): 90%+ within 3km of "${recommendedZone}".
+- Outside-zone stops: maximum 20% per day, AND only if the spot is genuinely iconic (major palace, must-see landmark, signature experience that cannot be substituted nearby).
+- DO NOT scatter stops across multiple distant districts — that defeats the purpose of choosing a base zone.
+- If "${recommendedZone}" lacks options for a category, prefer the closest adjacent neighborhood over a distant one.` : '') + (wantAccom ? `
 
 [ACCOMMODATION REQUEST]
 The user wants hotel recommendations. Budget level: ${accomBudget}.

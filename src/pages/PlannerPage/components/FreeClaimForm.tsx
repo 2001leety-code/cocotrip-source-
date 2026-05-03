@@ -79,7 +79,7 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
         const url = await getDownloadURL(r);
         uploaded.push({ name: file.name, url, size: file.size });
       }
-      await addDoc(collection(db, 'pending_free_claims'), {
+      const newDoc = await addDoc(collection(db, 'pending_free_claims'), {
         email: email.trim(),
         flightRef: flightRef.trim() || null,
         hotelRef: hotelRef.trim() || null,
@@ -89,6 +89,24 @@ export function FreeClaimForm({ p, isMobile, initialEmail = '' }: Props) {
         source: 'planner_option_b',
         createdAt: serverTimestamp(),
       });
+
+      // 2026-05-03 옵션 B: 어드민 텔레그램에 즉시 알림 + [✓승인][✗거부] 버튼.
+      // fire-and-forget — 실패해도 사용자 흐름은 영향 없음.
+      try {
+        void fetch('/api/notify-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            claimId: newDoc.id,
+            email: email.trim(),
+            flightRef: flightRef.trim() || null,
+            hotelRef: hotelRef.trim() || null,
+            tripDates: tripDates.trim() || null,
+            receipts: uploaded,
+          }),
+        }).catch(() => { /* silent */ });
+      } catch { /* silent */ }
+
       setSubmitted(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : (p.optionBClaimErrorSubmit || 'Submission failed');

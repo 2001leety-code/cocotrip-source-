@@ -307,6 +307,10 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   getCityName={getCityName} toggleActivity={toggleActivity}
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
                   onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
+                  language={language}
+                  hotelAddress={hotelAddress}
+                  recommendedZone={recommendedZone}
+                  setRecommendedZone={setRecommendedZone}
                 />
               )}
               {step === 2 && !isClaimFlow && (
