@@ -129,14 +129,22 @@ export function PurchaseSection({
                 {p.freeRegeneration || 'Free Regeneration'} {'\u2014'} {p.createNewPlan || 'Create New Plan'}
               </button>
             ) : (
-              <PayPalBookingButton
-                productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
-                priceKRW={13300} p={p} lang={language}
-                memo={`Full itinerary for: ${userEmail}`}
-                itineraryData={resultQuick}
-                onPaymentSuccess={onPaymentSuccess}
-                userEmail={userEmail}
-              />
+              <>
+                <PayPalBookingButton
+                  productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
+                  priceKRW={13300} p={p} lang={language}
+                  memo={`Full itinerary for: ${userEmail}`}
+                  itineraryData={resultQuick}
+                  onPaymentSuccess={onPaymentSuccess}
+                  userEmail={userEmail}
+                />
+                {/* 2026-05-03: AI 플랜은 디지털 상품(즉시 다운로드 가능)이라 환불 불가.
+                    소비자 사전 고지 의무 + 클레임 예방 차원에서 결제 직전 명시. */}
+                <p className="text-[11px] text-amber-300/80 italic text-center px-2 leading-relaxed">
+                  {(p as { aiPlanNoRefundNotice?: string }).aiPlanNoRefundNotice
+                    || '⚠️ AI Plans are digital products delivered immediately and are non-refundable. Charter and tour bookings follow our standard refund policy.'}
+                </p>
+              </>
             )}
           </>
         )}

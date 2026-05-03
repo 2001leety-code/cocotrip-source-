@@ -1015,6 +1015,7 @@
     "fullPlanTitle": "Want to get the full 2-3 day local itinerary?",
     "fullPlanDesc": "We'll send you a complete 3-page confirmed report including hidden local restaurants, secret photo spot tips, and precisely timed routes — 100% free via email.",
     "emailPlaceholder": "Enter your email address",
+    "aiPlanNoRefundNotice": "⚠️ AI Plans are digital products delivered immediately upon payment and are non-refundable. Charter and tour bookings follow our standard refund policy.",
     "emailSubmitBtn": "Get Full Plan via Email (Free)",
     "loadingFullMsg": "Verifying full plan and preparing email...",
     "loadingAgentMsg": "Our agents are running a 10-point checklist to verify all information.\nPlease don't close this window. (Up to 5 minutes)",
