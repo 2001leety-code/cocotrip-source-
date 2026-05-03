@@ -18,11 +18,11 @@
  */
 
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
-import { sendBookingAlert, sendErrorAlert } from './_telegram.js';
-import { notify } from './_shared/notify.js';
+// 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
+// 직접 호출은 미사용. _telegram.js / _ai-employees.js 의 export 는 다른 파일이 사용하므로 유지.
+import { sendDispatchAlert, sendBookingPaymentAlert, sendErrorAlert } from './_telegram.js';
 import { sendBookingConfirmation, buildDefaultConfirmationEmail } from './_send-email.js';
 import {
-  generateBookingAlert,
   generateConfirmationEmail,
   generateVoucherText,
 } from './_ai-employees.js';
@@ -168,24 +168,23 @@ const originalHandler = async (event) => {
     // 비치명적 오류 — 계속 진행
   }
 
-  // ── Step 3: 텔레그램 알림 전송 ─────────────────────────────────────
+  // ── Step 3: 텔레그램 알림 전송 (2026-05-04: 2-채널 분리) ─────────────
+  // 사용자 정책: "정보는 텔레그램 드라이버로 보내고 결제내역은 코코트립 봇한테".
+  //   - dispatch 채널 (driver bot): 픽업·드롭·시간·차종·인원·공항·메모 등 운행 정보
+  //   - booking  채널 (cocotrip bot): USD/KRW 결제 금액·환율·쿠폰·transactionId 등 영수증
+  // Gemini 합본 알림은 사용 중지 — 채널별 deterministic 포맷이 일관성 있고 빠름.
+  // generateBookingAlert / sendBookingAlert 는 호환을 위해 export 유지하되 미호출.
   try {
-    // Gemini로 알림 메시지 생성 시도, 실패 시 기본 형식 사용
-    let telegramMsg;
-    try {
-      telegramMsg = await generateBookingAlert(booking);
-    } catch (aiErr) {
-      console.warn('[booking-processor] AI 알림 생성 실패, 기본 형식 사용:', aiErr.message);
-      telegramMsg = null;
-    }
-
-    if (telegramMsg) {
-      await notify('booking', telegramMsg);
-    } else {
-      await sendBookingAlert(booking);
-    }
-    results.steps.telegram = 'ok';
-    console.log('[booking-processor] 텔레그램 알림 전송 완료');
+    const [dispatchRes, paymentRes] = await Promise.allSettled([
+      sendDispatchAlert(booking),
+      sendBookingPaymentAlert(booking),
+    ]);
+    const okDispatch = dispatchRes.status === 'fulfilled' && dispatchRes.value?.ok;
+    const okPayment  = paymentRes.status  === 'fulfilled' && paymentRes.value?.ok;
+    results.steps.telegram = okDispatch && okPayment
+      ? 'ok'
+      : `partial: dispatch=${okDispatch} payment=${okPayment}`;
+    console.log('[booking-processor] 텔레그램 알림: dispatch=', okDispatch, 'payment=', okPayment);
   } catch (err) {
     results.steps.telegram = `error: ${err.message}`;
     console.error('[booking-processor] 텔레그램 전송 실패:', err.message);

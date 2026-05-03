@@ -53,6 +53,37 @@ const COMBO_MAP = {
 
 const AI_PLANNER_FULL_KRW = 13_300;
 
+// 2026-05-04 URGENT-1 fix: zone fallback 추정가 결제용 productType. 매트릭스에 없는
+// 장거리(부산 등)나 ICN 외 공항 출발도 wizard quote가 산출됐으면 결제 가능하게 함.
+// 가격은 productType 하드코딩이 아니라 client가 전달한 customAmountKRW 사용 —
+// 호출처(braintreeCheckout / createPaypalOrder)에서 sanity range 체크 후 적용.
+export const CUSTOM_ESTIMATE_PRODUCT = 'charter_custom_estimate';
+export const CUSTOM_ESTIMATE_MIN_KRW = 30_000;     // 최소 결제 가드 (사기성 1원 결제 차단)
+export const CUSTOM_ESTIMATE_MAX_KRW = 10_000_000; // 차량 투어 1회 상한 (관리자 검토 임계치)
+
+export function isCustomEstimateProduct(productType) {
+  if (!productType) return false;
+  return String(productType).replace(/-/g, '_') === CUSTOM_ESTIMATE_PRODUCT;
+}
+
+/**
+ * 사용자/어드민에게 표시되는 productType 라벨. 이메일·텔레그램·바우처 등 사람이 읽는
+ * 표면에서 raw productType 키 (charter_custom_estimate 등) 대신 친화적 문구를 노출.
+ *
+ * 2026-05-04: charter_custom_estimate 만 우선 매핑 (오늘 신규 도입). 나머지 productType
+ * 의 raw 키 노출은 기존 wart — 별도 PR 에서 일괄 정리 권장.
+ *
+ * @param {string|undefined} productType
+ * @returns {string} 사람이 읽는 라벨
+ */
+export function productDisplayLabel(productType) {
+  if (!productType) return 'CocoTrip Service';
+  if (isCustomEstimateProduct(productType)) {
+    return 'Custom Charter (Estimate — pending reconciliation)';
+  }
+  return String(productType);
+}
+
 /**
  * @param {string} productType
  * @param {number} passengers
@@ -64,6 +95,10 @@ export function resolveKrwAmount(productType, passengers) {
   const normalized = productType.replace(/-/g, '_');
 
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
+
+  // charter_custom_estimate — body의 customAmountKRW 사용. 호출처가 직접 처리하므로
+  // 여기선 null 반환 (호출처가 isCustomEstimateProduct로 분기 후 별도 처리).
+  if (normalized === CUSTOM_ESTIMATE_PRODUCT) return null;
 
   // K-pop 셔틀 — 인원수 곱셈
   if (normalized === 'kpop_shuttle_oneway') {
