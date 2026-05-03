@@ -76,10 +76,15 @@ export default async function handler(req, res) {
         canceledAt: data.canceledAt || null,
         refundedAmount: data.refundedAmount || 0,
         // 실시간 정책 평가
-        canRefund: policy?.canRefund ?? false,
-        canModify: policy?.canModify ?? false,
-        refundPercent: policy?.refundPercent ?? 0,
+        canRefund: policy?.canRefund || false,
+        canModify: policy?.canModify || false,
+        refundPercent: policy?.refundPercent || 0,
         hoursUntilTour: policy?.hoursUntilTour ?? null,
+        // 2026-05-03 P1 fix: 공항 픽업 정보 (T1/편명/수하물) — UI airportSummary에서
+        // 사용. 이전엔 응답에 누락돼 항상 null 반환됐음.
+        airport: data.airport || null,
+        // 2026-05-03 P1 fix: AI 플래너 booking은 tourDate 없음 — UI에서 분기 표시용
+        provider: data.provider || 'paypal',
       };
     });
 
