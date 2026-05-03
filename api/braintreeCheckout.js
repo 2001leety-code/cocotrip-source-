@@ -185,10 +185,13 @@ export default async function handler(req, res) {
     }
 
     // 2026-05-03 P0-1 fix: AI 플래너 외 상품 (차터/공항픽업/투어)은 booking-processor가
-    // 이메일+텔레그램+PDF 영수증+Wallet pass+Sheets 기록 처리. PR #216 마이그레이션 시
-    // 누락됐던 부분 — 차터 고객이 결제 후 확인 메일도 못 받던 원인. AI 플래너는 자체
-    // emailNotifier가 처리하므로 booking-processor 호출 불필요.
+    // 이메일+텔레그램+PDF 영수증+Wallet pass+Sheets 기록 처리.
+    // 2026-05-04: 격리된 try/catch — body 객체 리터럴 평가 시 ReferenceError 가 outer
+    // 로 빠져 결제 응답을 500 으로 만드는 사고 (오답노트 P20) 재발 방지. 결제는 이미
+    // capture 됐고 Firestore booking 도 저장됐으니 사용자에겐 200 응답해야 함. 알림
+    // 누락 booking 은 admin-replay-booking-notifications 로 사후 복구 가능.
     if (!productType.startsWith('ai-planner')) {
+      try {
       const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
       fetch(`${siteUrl}/api/booking-processor`, {
         method: 'POST',
@@ -214,6 +217,11 @@ export default async function handler(req, res) {
           requiresReconciliation: isCustomEstimateProduct(productType),
         }),
       }).catch((err) => console.error('[braintreeCheckout] booking-processor call failed:', err.message));
+      } catch (procErr) {
+        // ReferenceError / TypeError / JSON.stringify 동기 throw 도 잡음.
+        // 결제는 이미 성공 + Firestore booking 도 저장됐으니 절대 throw 하지 않음.
+        console.error('[braintreeCheckout] booking-processor body construction failed (booking saved, replay available):', procErr.message);
+      }
     }
 
     res.writeHead(200, JSON_HEADERS);
