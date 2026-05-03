@@ -137,6 +137,10 @@ PayPal 거래ID: <code>${booking.transactionId || '-'}</code>
  * 사용자 요청 ("정보는 텔레그램 드라이버로 보내고 결제내역은 코코트립 봇한테").
  * 픽업·드롭·시간·공항·차종·인원·메모 등 운행에 필요한 정보만. 결제 금액·USD·환율·
  * transactionId 같은 재무 정보는 sendBookingPaymentAlert 로 분리.
+ *
+ * 2026-05-04 fix: booking.product 가 raw productType 키 (e.g. `charter_custom_estimate`)
+ * 인 경우 가독성이 떨어져 productDisplayLabel 적용. 호출처 (booking-processor) 가 이미
+ * label-converted 값을 넘기는 경우는 그대로 통과.
  * @param {object} booking
  */
 export async function sendDispatchAlert(booking) {

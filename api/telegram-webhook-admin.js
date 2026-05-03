@@ -23,6 +23,7 @@ import { callBot, sendBotMessage, verifyWebhookSecret, parseUpdate } from './_sh
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { sweepExpiredDispatches, computeExpiryDate } from './_shared/dispatch-sweep.js';
+import { productDisplayLabel } from './_shared/pricing.js';
 import { relayAdminReply } from './_shared/chat-relay.js';
 import { sendEmail } from './_send-email.js';
 
@@ -524,7 +525,7 @@ async function handleDispatchCommand(botToken, p) {
   const dispatchText =
     `<b>새 배차 요청</b>\n` +
     `예약번호: <code>${orderID}</code>\n` +
-    `상품: ${booking.productType || '-'}\n` +
+    `상품: ${productDisplayLabel(booking.productType)}\n` +
     `날짜: ${booking.tourDate || '-'}\n` +
     `인원: ${booking.paxCount || '?'}명\n` +
     `픽업: ${booking.pickupLocation || '-'}\n` +

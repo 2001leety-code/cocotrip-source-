@@ -209,6 +209,9 @@ export default async function handler(req, res) {
           paxCount: passengers,
           vehicleType, customerPhone: undefined, couponApplied: !!couponDocId,
           memo, itineraryData, airport,
+          // 2026-05-04: 정산 필요 booking 인지 booking-processor 까지 전파 → 이메일·바우처
+          // 가 약관 문구를 포함할 수 있도록.
+          requiresReconciliation: isCustomEstimateProduct(productType),
         }),
       }).catch((err) => console.error('[braintreeCheckout] booking-processor call failed:', err.message));
     }
