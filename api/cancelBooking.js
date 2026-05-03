@@ -113,6 +113,17 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('captureID missing — PayPal refund impossible', 'NO_CAPTURE_ID')));
     }
 
+    // 2026-05-03: AI 플래너 ($9.90)는 디지털 상품 — 결제 즉시 itinerary + PDF
+    // 다운로드 가능 (캡쳐 가능). 환불해주면 사업자만 손해. 명시적 거부.
+    // 차터/투어/공항픽업은 시간 기반 환불 정책 적용 (evaluateRefundPolicy).
+    if ((booking.productType || '').toString().startsWith('ai-planner')) {
+      res.writeHead(403, JSON_CORS);
+      return res.end(JSON.stringify(_err(
+        'AI Plans are digital products delivered immediately and are non-refundable.',
+        'NO_REFUND_DIGITAL',
+      )));
+    }
+
     // 2. 환불 정책 평가
     const policy = evaluateRefundPolicy({ tourDate: booking.tourDate, tier });
     if (!policy.canRefund) {

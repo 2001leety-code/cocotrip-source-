@@ -137,6 +137,12 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               <p className="text-white/50 text-xs mt-0.5">
                 {b.tourDate} · {b.paxCount}{i18n.maxUnit} · {b.vehicleType}
               </p>
+              {/* 2026-05-03: AI 플래너는 디지털 상품 — 환불 불가 명시 (사용자 혼동 방지) */}
+              {(b.productType || '').toString().startsWith('ai-planner') && (
+                <p className="text-amber-300/70 text-[10px] mt-1 italic">
+                  {i18n.mbDigitalNoRefund || 'Digital product · non-refundable'}
+                </p>
+              )}
               {airportSummary(b.airport) && (
                 <p className="text-[#B668FC]/80 text-[11px] mt-0.5">{airportSummary(b.airport)}</p>
               )}
