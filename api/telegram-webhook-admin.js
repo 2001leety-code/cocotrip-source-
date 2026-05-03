@@ -24,6 +24,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { sweepExpiredDispatches, computeExpiryDate } from './_shared/dispatch-sweep.js';
 import { relayAdminReply } from './_shared/chat-relay.js';
+import { sendEmail } from './_send-email.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -255,9 +256,16 @@ function resolveKoreanAlias(p) {
 
 async function routeCommand(botToken, p) {
   if (p.isCallback) {
+    // 2026-05-03: claim_approve:ID / claim_reject:ID 콜백 처리.
+    // 기타 콜백은 거부 (실수로 옛 메시지 클릭 시 이슈 방지).
+    const data = p.callbackData || '';
+    if (data.startsWith('claim_approve:') || data.startsWith('claim_reject:')) {
+      await handleClaimCallback(botToken, p);
+      return;
+    }
     await callBot(botToken, 'answerCallbackQuery', {
       callback_query_id: p.callbackId,
-      text: '관리자봇은 콜백 사용 안 함',
+      text: '관리자봇은 일반 콜백 사용 안 함',
     });
     return;
   }
@@ -886,4 +894,206 @@ async function handleCsResolve(botToken, p) {
     `✓ 해결 처리 완료\n` +
     `<code>${snap.id.slice(0, 12)}</code> · ${data.bookingId || '-'}\n` +
     `이슈: ${data.issue || '-'}`);
+}
+
+// 2026-05-03: 옵션 B — 무료 클레임 텔레그램 1-click 승인/거부.
+// notify-claim.js 가 발송한 메시지의 [✓승인][✗거부] 버튼 콜백 핸들러.
+async function handleClaimCallback(botToken, p) {
+  const data = p.callbackData || '';
+  const isApprove = data.startsWith('claim_approve:');
+  const claimId = data.split(':')[1];
+
+  if (!claimId) {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId, text: '잘못된 클레임 ID', show_alert: true,
+    });
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin-claim');
+  if (!db) {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId, text: 'Firestore 연결 실패', show_alert: true,
+    });
+    return;
+  }
+
+  const ref = db.collection('pending_free_claims').doc(claimId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId, text: '클레임을 찾을 수 없음', show_alert: true,
+    });
+    return;
+  }
+
+  const claim = snap.data() || {};
+
+  // 이미 처리된 클레임은 재처리 거부 (중복 클릭 보호).
+  if (claim.status && claim.status !== 'pending') {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId,
+      text: `이미 ${claim.status} 처리됨`,
+      show_alert: true,
+    });
+    return;
+  }
+
+  const newStatus = isApprove ? 'approved' : 'rejected';
+  const customerEmail = claim.email || '';
+  const rejectReason = isApprove ? null
+    : '예약 정보 검증 실패 — 영수증/PNR 정보를 다시 확인해 회신해 주세요.';
+
+  await ref.update({
+    status: newStatus,
+    reviewedAt: FieldValue.serverTimestamp(),
+    reviewedBy: 'telegram_admin',
+    ...(rejectReason ? { rejectReason } : {}),
+  });
+
+  // 사용자 이메일 발송 — 실패해도 전체 흐름은 진행 (admin이 수동 follow-up 가능).
+  let emailNote = '';
+  if (customerEmail) {
+    try {
+      if (isApprove) {
+        await sendEmail({
+          to: customerEmail,
+          subject: '[CocoTrip] 무료 AI 플랜 신청이 승인되었습니다',
+          html: buildApproveEmailHtml(),
+          text: buildApproveEmailText(),
+        });
+        emailNote = '✉️ 승인 이메일 발송 완료';
+      } else {
+        await sendEmail({
+          to: customerEmail,
+          subject: '[CocoTrip] 무료 AI 플랜 신청 검토 결과',
+          html: buildRejectEmailHtml(rejectReason),
+          text: buildRejectEmailText(rejectReason),
+        });
+        emailNote = '✉️ 거부 안내 이메일 발송 완료';
+      }
+    } catch (err) {
+      console.error('[claim-callback] email send failed:', err);
+      emailNote = `⚠️ 이메일 발송 실패: ${err.message}`;
+    }
+  } else {
+    emailNote = '⚠️ 이메일 주소 없음 — 수동 연락 필요';
+  }
+
+  const statusLine = isApprove ? '✅ <b>승인 처리 완료</b>' : '❌ <b>거부 처리 완료</b>';
+  const updatedText =
+    `${statusLine}\n` +
+    `이메일: <code>${escapeHtmlLocal(customerEmail || '-')}</code>\n` +
+    `클레임: <code>${escapeHtmlLocal(claimId)}</code>\n` +
+    (rejectReason ? `사유: ${escapeHtmlLocal(rejectReason)}\n` : '') +
+    `${emailNote}\n\n` +
+    `<i>${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</i>`;
+
+  // 원본 메시지 갱신 (버튼 제거 + 처리 결과 표시).
+  if (p.messageId) {
+    try {
+      await callBot(botToken, 'editMessageText', {
+        chat_id: p.chatId,
+        message_id: p.messageId,
+        text: updatedText,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+      });
+    } catch (err) {
+      console.warn('[claim-callback] editMessageText 실패:', err.message);
+    }
+  }
+
+  await callBot(botToken, 'answerCallbackQuery', {
+    callback_query_id: p.callbackId,
+    text: isApprove ? '승인 처리 완료' : '거부 처리 완료',
+  });
+}
+
+function escapeHtmlLocal(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function buildApproveEmailHtml() {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f3f4f6;">
+  <div style="background:#1a1a2e;border-radius:12px 12px 0 0;padding:24px 28px;text-align:center;">
+    <h1 style="color:#C4956A;margin:0;font-size:22px;letter-spacing:2px;">COCOTRIPKR</h1>
+  </div>
+  <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;">
+    <h2 style="color:#059669;margin-top:0;font-size:18px;">✅ Free AI Plan Approved!</h2>
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      Great news — we verified your CocoTrip booking. Your <strong>free AI travel plan</strong> is on the way.
+    </p>
+    <div style="background:#f0fdf4;border-left:4px solid #10b981;padding:14px 18px;margin:20px 0;border-radius:6px;">
+      <p style="margin:0;color:#065f46;font-size:13px;">
+        Our team will deliver your full itinerary by email <strong>within 24 hours</strong>.
+        You don't need to do anything else.
+      </p>
+    </div>
+    <p style="color:#6b7280;font-size:12px;margin-top:24px;">
+      Questions? Reply to this email or message us via the chat widget at
+      <a href="https://cocotripkr.com" style="color:#C4956A;">cocotripkr.com</a>.
+    </p>
+  </div>
+</body></html>`;
+}
+
+function buildApproveEmailText() {
+  return `Free AI Plan Approved!
+
+Great news — we verified your CocoTrip booking. Your free AI travel plan is on the way.
+
+Our team will deliver your full itinerary by email within 24 hours. You don't need to do anything else.
+
+Questions? Reply to this email or message us at cocotripkr.com.
+
+— CocoTripKR`;
+}
+
+function buildRejectEmailHtml(reason) {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f3f4f6;">
+  <div style="background:#1a1a2e;border-radius:12px 12px 0 0;padding:24px 28px;text-align:center;">
+    <h1 style="color:#C4956A;margin:0;font-size:22px;letter-spacing:2px;">COCOTRIPKR</h1>
+  </div>
+  <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;">
+    <h2 style="color:#374151;margin-top:0;font-size:18px;">Free Plan Claim — More Info Needed</h2>
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      We reviewed your free AI plan request but couldn't verify your booking yet.
+    </p>
+    <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:14px 18px;margin:20px 0;border-radius:6px;">
+      <p style="margin:0;color:#92400e;font-size:13px;">
+        ${escapeHtmlLocal(reason || 'Please reply with additional booking proof.')}
+      </p>
+    </div>
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      You can simply reply to this email with screenshots/PDFs of your flight + hotel booking
+      confirmations, or resubmit at
+      <a href="https://cocotripkr.com/planner" style="color:#C4956A;">cocotripkr.com/planner</a>.
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin-top:24px;">
+      Sorry for the extra step — this protects the program for genuine CocoTrip customers.
+    </p>
+  </div>
+</body></html>`;
+}
+
+function buildRejectEmailText(reason) {
+  return `Free Plan Claim — More Info Needed
+
+We reviewed your free AI plan request but couldn't verify your booking yet.
+
+${reason || 'Please reply with additional booking proof.'}
+
+You can simply reply to this email with screenshots/PDFs of your flight + hotel booking confirmations, or resubmit at cocotripkr.com/planner.
+
+Sorry for the extra step — this protects the program for genuine CocoTrip customers.
+
+— CocoTripKR`;
 }

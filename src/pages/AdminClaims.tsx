@@ -40,6 +40,7 @@ interface ClaimRow {
   pax?: number | null;
   dayCount?: number;
   itinerarySummary?: { day: number; theme: string; stopCount: number }[];
+  rejectReason?: string;
 }
 
 function formatTs(ts?: { toMillis(): number }): string {
@@ -72,13 +73,25 @@ export default function AdminClaims() {
     return () => { u1(); u2(); };
   }, [isAdmin]);
 
-  const handleAction = useCallback(async (collectionName: string, id: string, status: Status) => {
+  // 2026-05-03: confirm() prompt before destructive ops + optional reject reason.
+  // Direct-fire was risky (one mis-click made approval/rejection irreversible).
+  const handleAction = useCallback(async (collectionName: string, id: string, email: string, status: Status) => {
+    let rejectReason: string | null = null;
+    if (status === 'rejected') {
+      const reason = window.prompt(`Reject claim from ${email}?\n\nOptional reason (shown in audit log; leave blank to skip):`, '');
+      if (reason === null) return; // cancelled
+      rejectReason = reason.trim() || null;
+    } else {
+      const ok = window.confirm(`Approve claim from ${email}?\n\nThis marks the claim as approved. Send the actual plan/token via the existing follow-up process.`);
+      if (!ok) return;
+    }
     setBusyId(id);
     try {
       await updateDoc(doc(db, collectionName, id), {
         status,
         reviewedAt: serverTimestamp(),
         reviewedBy: user?.email || 'admin',
+        ...(rejectReason ? { rejectReason } : {}),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Action failed';
@@ -170,6 +183,10 @@ export default function AdminClaims() {
                       <span className="text-[10px] text-white/55">{formatTs(row.createdAt)}</span>
                     </div>
 
+                    {row.status === 'rejected' && row.rejectReason && (
+                      <p className="text-[11px] text-rose-300/80 italic mb-1">Reason: {row.rejectReason}</p>
+                    )}
+
                     {tab === 'claims' && (
                       <div className="text-[12px] text-white/60 space-y-0.5">
                         {row.flightRef && <p>Flight PNR: <span className="text-white/80">{row.flightRef}</span></p>}
@@ -207,13 +224,13 @@ export default function AdminClaims() {
                   {row.status === 'pending' && (
                     <div className="flex flex-col gap-1.5 shrink-0">
                       <button disabled={busyId === row.id}
-                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, 'approved')}
+                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'approved')}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[12px] font-semibold disabled:opacity-40">
                         {busyId === row.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                         Approve
                       </button>
                       <button disabled={busyId === row.id}
-                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, 'rejected')}
+                        onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'rejected')}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[12px] font-semibold disabled:opacity-40">
                         <XCircle className="w-3.5 h-3.5" /> Reject
                       </button>

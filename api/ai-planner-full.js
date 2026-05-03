@@ -87,6 +87,13 @@ export default async function handler(req, res) {
     // anchor for hub-and-spoke when no hotel_address provided. Ignored when
     // hotel_address present (hotel coords win).
     const recommendedZone = body.recommended_zone || '';
+    // 2026-05-03: zone의 대표 주소 (예: "서울 마포구 홍익대학교"). RouteAgent에는
+    // hotel_address fallback으로 사용 (공항↔zone 환승 경로 계산). Firestore 저장 시
+    // 사용자가 입력한 hotel_address는 빈 문자열 그대로 유지 — "호텔 미정" 의미.
+    const recommendedZoneAddress = body.recommended_zone_address || '';
+    // RouteAgent용 effective hotel address: 사용자가 호텔 직접 입력하면 그것 우선,
+    // 안 했으면 zone anchor 사용. 둘 다 없으면 빈 문자열 (route_to_hotel 생성 안 됨).
+    const routeHotelAddress = hotel_address || recommendedZoneAddress;
 
     const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
     const allergies = Array.isArray(body.allergies) ? body.allergies : [];
@@ -149,10 +156,18 @@ export default async function handler(req, res) {
       accommodation_budget: wantAccom ? accomBudget : undefined,
     }) + spotContext + foodContext + (!hotel_address && recommendedZone ? `
 
-[LODGING ZONE PREFERENCE]
-The user has not booked a hotel and chose "${recommendedZone}" as their preferred district within ${area}.
-Treat this zone as the hub: Day 1 starts there, Day N ends there, food stops within ~2km radius when possible.
-This is a soft anchor — you may suggest stops outside the zone if they fit the user's interests.` : '') + (wantAccom ? `
+[LODGING ZONE PREFERENCE — STRICT]
+The user has not booked a hotel and chose "${recommendedZone}" as their preferred lodging district within ${area}.
+This is a HARD anchor — assume they will sleep in or near "${recommendedZone}" every night.
+
+REQUIREMENTS:
+- 80%+ of all stops MUST be within 3km of "${recommendedZone}" centroid.
+- Day 1: first stop MUST be in "${recommendedZone}" (arrival convenience).
+- Day N (last day): last stop MUST be in "${recommendedZone}" (departure convenience).
+- Food stops (lunch/dinner): 90%+ within 3km of "${recommendedZone}".
+- Outside-zone stops: maximum 20% per day, AND only if the spot is genuinely iconic (major palace, must-see landmark, signature experience that cannot be substituted nearby).
+- DO NOT scatter stops across multiple distant districts — that defeats the purpose of choosing a base zone.
+- If "${recommendedZone}" lacks options for a category, prefer the closest adjacent neighborhood over a distant one.` : '') + (wantAccom ? `
 
 [ACCOMMODATION REQUEST]
 The user wants hotel recommendations. Budget level: ${accomBudget}.
@@ -211,14 +226,29 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     if (!departure_airport || departure_airport === 'ALREADY') delete itinerary.departure_guide;
 
     // ── RouteAgent enrichment (mutates itinerary in place) ────────────────
+    // 2026-05-03: routeHotelAddress = hotel_address || zone anchor. zone만 골랐어도
+    // 공항↔zone 환승 경로(arrival_guide.route_to_hotel)가 정상 계산됨. 사용자가
+    // Firestore에서 보는 hotel_address 필드는 그대로 빈 값 유지.
     await enrichItineraryWithRoute(itinerary, {
       apiKey,
       body,
-      hotel_address,
+      hotel_address: routeHotelAddress,
       arrival_airport,
       departure_airport,
       pax,
     });
+    // arrival_guide / departure_guide의 route_to_hotel에 zone fallback이 적용됐음을
+    // 표시 — UI가 "Lotte Hotel 기준" 대신 "홍대 지역 기준"으로 라벨링할 수 있게.
+    if (!hotel_address && recommendedZoneAddress) {
+      if (itinerary.arrival_guide?.route_to_hotel) {
+        itinerary.arrival_guide.route_to_hotel.anchor_label = recommendedZone;
+        itinerary.arrival_guide.route_to_hotel.anchor_address = recommendedZoneAddress;
+      }
+      if (itinerary.departure_guide?.route_to_airport) {
+        itinerary.departure_guide.route_to_airport.anchor_label = recommendedZone;
+        itinerary.departure_guide.route_to_airport.anchor_address = recommendedZoneAddress;
+      }
+    }
 
     console.log('[planner] Step 3: Saving to Firestore...');
 

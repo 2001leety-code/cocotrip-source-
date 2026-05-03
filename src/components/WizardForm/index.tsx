@@ -19,6 +19,7 @@ import { requestNotifyPermission } from '@/lib/notify';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
+import { getZonesForCity } from './zoneData';
 import { WizardStep0Reservation, type ReservationStatus } from './WizardStep0Reservation';
 import { WizardStep0Destination } from './WizardStep0Destination';
 import { WizardStep1Food } from './WizardStep1Food';
@@ -73,6 +74,15 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   // Sprint 2 #5: when user has no booked hotel, they can pick a Seoul zone
   // and the AI hubs stops near it. Empty string = no recommendation chosen.
   const [recommendedZone, setRecommendedZone] = useState('');
+  // 2026-05-03 fix: 사용자가 Step 3 자체 input에서 호텔/공항을 만진 적 있으면
+  // "from Step 1" chip으로 swap 안 함 (한 글자 칠 때마다 input이 chip으로 바뀌고
+  // Edit 버튼이 Step 0으로 점프시키던 버그). reservationStatus가 바뀌면 reset.
+  const [hotelTouchedInStep3, setHotelTouchedInStep3] = useState(false);
+  const [airportTouchedInStep3, setAirportTouchedInStep3] = useState(false);
+  useEffect(() => {
+    setHotelTouchedInStep3(false);
+    setAirportTouchedInStep3(false);
+  }, [reservationStatus]);
   // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
   const [tourPace, setTourPace]               = useState<TourPace>('full');
   const mobility = 'ok' as const;
@@ -173,6 +183,13 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
 
     try {
       const totalLuggage = luggageSmall + luggageMedium + luggageLarge;
+      // 2026-05-03: 사용자가 호텔 안 정하고 zone만 골랐을 때, zone의 anchorAddress
+      // (대표 주소)를 백엔드에 같이 전달 → RouteAgent가 공항↔zone 단계별 환승
+      // 경로 계산 가능. hotel_address는 그대로 빈 문자열 유지 (Firestore 저장 시
+      // "호텔 안 정함" 의미).
+      const zoneAnchor = (!hotelAddress && recommendedZone)
+        ? getZonesForCity(mainCityKey || 'seoul').find(z => z.key === recommendedZone)?.anchorAddress
+        : undefined;
       const res = await onSubmit({
         startDate: sd, endDate: ed,
         regions: allCities.length > 0 ? allCities : ['Seoul'],
@@ -197,6 +214,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         luggage: totalLuggage > 0 ? { small: luggageSmall, medium: luggageMedium, large: luggageLarge } : undefined,
         // Sprint 2 #5: zone hint when no hotel typed (string key like 'myeongdong').
         recommended_zone: !hotelAddress && recommendedZone ? recommendedZone : undefined,
+        // 2026-05-03: zone의 대표 주소 (RouteAgent가 공항↔zone 환승 경로 계산용).
+        recommended_zone_address: zoneAnchor,
       } as PlannerFormValues);
 
       if (res && !res.ok) {
@@ -307,6 +326,10 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   getCityName={getCityName} toggleActivity={toggleActivity}
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
                   onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
+                  language={language}
+                  hotelAddress={hotelAddress}
+                  recommendedZone={recommendedZone}
+                  setRecommendedZone={setRecommendedZone}
                 />
               )}
               {step === 2 && !isClaimFlow && (
@@ -341,6 +364,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   canGoStep3={canGoStep3}
                   onPrev={() => goToStep(2)} onNext={() => goToStep(4)}
                   onEditStep0={() => goToStep(0)}
+                  reservationStatus={reservationStatus}
+                  hotelTouchedInStep3={hotelTouchedInStep3}
+                  setHotelTouchedInStep3={setHotelTouchedInStep3}
+                  airportTouchedInStep3={airportTouchedInStep3}
+                  setAirportTouchedInStep3={setAirportTouchedInStep3}
                 />
               )}
               {step === 4 && !isClaimFlow && (

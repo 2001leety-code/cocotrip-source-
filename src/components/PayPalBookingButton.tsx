@@ -70,7 +70,9 @@ declare global {
 }
 
 // Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
-const TEST_ACCOUNTS: string[] = [];
+// 2026-05-03: 운영자(태연) 본인 결제+환불 end-to-end 테스트용. sandbox PayPal +
+// 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
+const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
 export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW, p, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport }: Props) {
   const isSandboxAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
@@ -177,23 +179,29 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const effectiveKRW = discountedKRW ?? priceKRW;
 
   // ── PayPal SDK 동적 로드 ─────────────────────────────────────────
-  // isSandboxAccount가 바뀔 때마다 재실행 — 이메일 입력 후 올바른 SDK 로드 보장
-  useEffect(() => {
+  // 2026-05-03 사용자 신고: prod에서 SDK timeout 발생 + "다시 시도" 버튼이 실제로
+  // 재로드를 안 함 → 같은 timeout 재발. loadPaypalSdk를 함수로 추출해 force=true
+  // 모드 추가 (script element 강제 제거 후 재생성).
+  function loadPaypalSdk(force = false) {
     const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
-    console.log('[PayPal SDK] VITE_PAYPAL_CLIENT_ID:', clientId ? clientId.substring(0, 8) + '...' : '❌ 없음');
-    if (!clientId) return;
+    console.log('[PayPal SDK] VITE_PAYPAL_CLIENT_ID:', clientId ? clientId.substring(0, 8) + '...' : '❌ 없음', '| force:', force);
+    if (!clientId) {
+      setError(p.paypalSdkError ?? 'PayPal client ID not configured.');
+      return;
+    }
 
     const expectedMode = isSandboxAccount ? 'sandbox' : 'live';
-    const existing = document.getElementById('paypal-sdk') as HTMLScriptElement | null;
+    let existing = document.getElementById('paypal-sdk') as HTMLScriptElement | null;
 
-    // 기존 스크립트가 다른 모드로 로드됐으면 제거 후 재로드
     if (existing) {
       const loadedMode = existing.dataset.mode ?? 'live';
-      if (loadedMode !== expectedMode) {
-        console.log('[PayPal SDK] mode mismatch (was', loadedMode, '→ need', expectedMode, '), reloading SDK');
+      const mismatched = loadedMode !== expectedMode;
+      if (force || mismatched) {
+        console.log('[PayPal SDK] removing existing script (force:', force, '| mismatch:', mismatched, ')');
         existing.remove();
-        delete window.paypal;
+        try { delete window.paypal; } catch { /* ignore */ }
         setPaypalReady(false);
+        existing = null;
       } else if (window.paypal) {
         setPaypalReady(true);
         return;
@@ -201,7 +209,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         existing.addEventListener('load', () => setPaypalReady(true));
         return;
       }
-    } else if (window.paypal) {
+    } else if (!force && window.paypal) {
       setPaypalReady(true);
       return;
     }
@@ -209,12 +217,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     const script = document.createElement('script');
     script.id   = 'paypal-sdk';
     script.dataset.mode = expectedMode;
+    script.async = true;
     const sandboxClientId = import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID;
     const resolvedClientId = isSandboxAccount && sandboxClientId ? sandboxClientId : clientId;
     const sdkBase = isSandboxAccount && sandboxClientId
       ? 'https://www.sandbox.paypal.com/sdk/js'
       : 'https://www.paypal.com/sdk/js';
-    const sdkUrl = `${sdkBase}?client-id=${resolvedClientId}&currency=USD&intent=capture&components=buttons&enable-funding=googlepay,applepay`;
+    // force=true 시 cache-buster 추가 (브라우저가 실패한 응답을 캐시한 경우 회피).
+    const cacheBust = force ? `&_t=${Date.now()}` : '';
+    const sdkUrl = `${sdkBase}?client-id=${resolvedClientId}&currency=USD&intent=capture&components=buttons&enable-funding=googlepay,applepay${cacheBust}`;
     script.src = sdkUrl;
     console.log('[PayPal SDK] loading mode:', expectedMode, '| clientId prefix:', resolvedClientId.substring(0, 8));
     script.onload = () => {
@@ -223,9 +234,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     };
     script.onerror = (err) => {
       console.error('PayPal SDK load error:', err);
-      setError(p.paypalSdkError ?? 'Failed to load PayPal SDK.');
+      setError(p.paypalSdkError ?? 'Failed to load PayPal SDK. Disable ad blocker for this site and retry.');
     };
     document.body.appendChild(script);
+  }
+
+  // isSandboxAccount가 바뀔 때마다 재실행 — 이메일 입력 후 올바른 SDK 로드 보장
+  useEffect(() => {
+    loadPaypalSdk(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSandboxAccount]);
 
   // ── PayPal Buttons 렌더링 ────────────────────────────────────────
@@ -650,13 +667,20 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         </button>
       )}
 
-      {/* 에러 */}
+      {/* 에러 — 2026-05-03 fix: SDK timeout인 경우 단순 state reset이 아니라
+           실제로 script element 강제 재로드. 이전 동작은 같은 timeout 무한 재발 */}
       {error && (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3">
           <p className="text-sm text-red-300">{error}</p>
           <button
             type="button"
-            onClick={() => { setError(null); setShowPaypal(false); buttonsRendered.current = false; }}
+            onClick={() => {
+              setError(null);
+              setShowPaypal(false);
+              buttonsRendered.current = false;
+              // SDK 재로드 (캐시 무효화 + script 재생성). 로드되면 paypalReady=true.
+              loadPaypalSdk(true);
+            }}
             className="shrink-0 text-xs text-red-400 border border-red-500/40 px-3 py-1.5 rounded-lg hover:bg-red-500/20 transition-colors">
             {p.paypalRetry}
           </button>

@@ -183,6 +183,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           special_request: values.freeText || '',
           // Sprint 2 #5: undecided-hotel zone hint forwarded to backend.
           recommended_zone: values.recommended_zone || '',
+          // 2026-05-03: zone 대표 주소 (RouteAgent가 공항↔zone 경로 계산용 fallback).
+          recommended_zone_address: values.recommended_zone_address || '',
         }),
       });
 
