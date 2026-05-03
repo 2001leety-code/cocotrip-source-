@@ -21,10 +21,12 @@ import {
 } from '@/components/charter/destinationKeyMap';
 
 // 차종별 배수 (스타리아 = 1.0 기준)
+// 2026-05-03 사용자 정책 변경: sprinter 1.45→2.0, bus 2.3→3.0
+// (가이드 의무·연료·기사인건비 반영). resolveProductType.ts와 동일 값 유지 필수.
 const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
   staria: 1.0,
-  sprinter: 1.45,
-  bus: 2.3,
+  sprinter: 2.0,
+  bus: 3.0,
 };
 
 // pricing_spec.json의 staria.intercity 값과 동기화 (rate_per_km: 1000)
