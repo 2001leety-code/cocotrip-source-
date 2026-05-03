@@ -20,6 +20,11 @@ export type Zone = {
   icon: string;
   /** "Best for" tag, max 2-3 words. */
   bestFor: { ko: string; en: string; ja: string; zh: string };
+  /** 2026-05-03: zone hub로 사용할 한국어 주소 (Naver geocoding 친화적). 사용자가
+   *  특정 호텔을 안 정하고 zone만 골랐을 때, 백엔드 RouteAgent가 이 주소를
+   *  hotel_address fallback으로 사용해서 공항↔zone 단계별 환승 경로를 계산함.
+   *  실제 호텔이 아니므로 UI는 "<zone> 지역 (<address> 기준)" 식으로 표기. */
+  anchorAddress: string;
 };
 
 export const SEOUL_ZONES: Zone[] = [
@@ -35,6 +40,7 @@ export const SEOUL_ZONES: Zone[] = [
     nightlyKRW: '₩120k-220k',
     icon: '🛍️',
     bestFor: { ko: '첫 방문', en: 'First visit', ja: '初訪問', zh: '初次访问' },
+    anchorAddress: '서울 중구 명동역',
   },
   {
     key: 'hongdae',
@@ -48,6 +54,7 @@ export const SEOUL_ZONES: Zone[] = [
     nightlyKRW: '₩80k-150k',
     icon: '🎸',
     bestFor: { ko: '20-30대', en: '20s-30s', ja: '20-30代', zh: '20-30岁' },
+    anchorAddress: '서울 마포구 홍익대학교',
   },
   {
     key: 'gangnam',
@@ -61,6 +68,7 @@ export const SEOUL_ZONES: Zone[] = [
     nightlyKRW: '₩200k-450k',
     icon: '✨',
     bestFor: { ko: '럭셔리', en: 'Luxury', ja: 'ラグジュアリー', zh: '奢华' },
+    anchorAddress: '서울 강남구 강남역',
   },
   {
     key: 'itaewon',
@@ -74,6 +82,7 @@ export const SEOUL_ZONES: Zone[] = [
     nightlyKRW: '₩120k-200k',
     icon: '🌍',
     bestFor: { ko: '미식·바', en: 'Food + bars', ja: 'グルメ・バー', zh: '美食·酒吧' },
+    anchorAddress: '서울 용산구 이태원역',
   },
   {
     key: 'jongno',
@@ -87,6 +96,7 @@ export const SEOUL_ZONES: Zone[] = [
     nightlyKRW: '₩100k-180k',
     icon: '🏯',
     bestFor: { ko: '전통/문화', en: 'Heritage', ja: '伝統・文化', zh: '传统文化' },
+    anchorAddress: '서울 종로구 종각역',
   },
   {
     key: 'jamsil',
@@ -100,6 +110,7 @@ export const SEOUL_ZONES: Zone[] = [
     nightlyKRW: '₩140k-300k',
     icon: '🎢',
     bestFor: { ko: '가족·테마파크', en: 'Family + theme park', ja: '家族・テーマパーク', zh: '亲子·主题乐园' },
+    anchorAddress: '서울 송파구 잠실역',
   },
 ];
 
@@ -116,6 +127,7 @@ export const BUSAN_ZONES: Zone[] = [
     nightlyKRW: '₩150k-380k',
     icon: '🏖️',
     bestFor: { ko: '바다·휴양', en: 'Beach + resort', ja: 'ビーチ・リゾート', zh: '海滩·度假' },
+    anchorAddress: '부산 해운대구 해운대역',
   },
   {
     key: 'gwangalli',
@@ -129,6 +141,7 @@ export const BUSAN_ZONES: Zone[] = [
     nightlyKRW: '₩100k-220k',
     icon: '🌉',
     bestFor: { ko: '야경·미식', en: 'Nightlife + food', ja: '夜景・グルメ', zh: '夜景·美食' },
+    anchorAddress: '부산 수영구 광안리해수욕장',
   },
   {
     key: 'seomyeon',
@@ -142,6 +155,7 @@ export const BUSAN_ZONES: Zone[] = [
     nightlyKRW: '₩90k-160k',
     icon: '🚆',
     bestFor: { ko: '교통·접근성', en: 'Transit hub', ja: '交通至便', zh: '交通便利' },
+    anchorAddress: '부산 부산진구 서면역',
   },
   {
     key: 'nampo',
@@ -155,6 +169,7 @@ export const BUSAN_ZONES: Zone[] = [
     nightlyKRW: '₩80k-140k',
     icon: '🐟',
     bestFor: { ko: '시장·전통', en: 'Markets + heritage', ja: '市場・伝統', zh: '市场·传统' },
+    anchorAddress: '부산 중구 남포역',
   },
 ];
 
@@ -171,6 +186,7 @@ export const JEJU_ZONES: Zone[] = [
     nightlyKRW: '₩80k-180k',
     icon: '✈️',
     bestFor: { ko: '공항 가까이', en: 'Near airport', ja: '空港近く', zh: '邻近机场' },
+    anchorAddress: '제주 제주시 제주국제공항',
   },
   {
     key: 'seogwipo',
@@ -184,6 +200,7 @@ export const JEJU_ZONES: Zone[] = [
     nightlyKRW: '₩140k-380k',
     icon: '🌊',
     bestFor: { ko: '리조트·자연', en: 'Resorts + nature', ja: 'リゾート・自然', zh: '度假·自然' },
+    anchorAddress: '제주 서귀포시 중문관광단지',
   },
   {
     key: 'aewol',
@@ -197,6 +214,7 @@ export const JEJU_ZONES: Zone[] = [
     nightlyKRW: '₩100k-260k',
     icon: '☕',
     bestFor: { ko: '카페·드라이브', en: 'Cafés + drives', ja: 'カフェ・ドライブ', zh: '咖啡·自驾' },
+    anchorAddress: '제주 제주시 애월읍',
   },
 ];
 
@@ -213,6 +231,7 @@ export const GYEONGJU_ZONES: Zone[] = [
     nightlyKRW: '₩140k-380k',
     icon: '🏞️',
     bestFor: { ko: '리조트', en: 'Resort', ja: 'リゾート', zh: '度假' },
+    anchorAddress: '경주시 보문관광단지',
   },
   {
     key: 'hwangnidan',
@@ -226,6 +245,7 @@ export const GYEONGJU_ZONES: Zone[] = [
     nightlyKRW: '₩90k-180k',
     icon: '🏯',
     bestFor: { ko: '한옥·SNS', en: 'Hanok + IG', ja: '韓屋・SNS', zh: '韩屋·网红' },
+    anchorAddress: '경주시 황리단길',
   },
   {
     key: 'gyeongju_downtown',
@@ -239,6 +259,7 @@ export const GYEONGJU_ZONES: Zone[] = [
     nightlyKRW: '₩70k-130k',
     icon: '🚉',
     bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+    anchorAddress: '경주시 경주역',
   },
 ];
 
@@ -255,6 +276,7 @@ export const JEONJU_ZONES: Zone[] = [
     nightlyKRW: '₩90k-220k',
     icon: '🏯',
     bestFor: { ko: '전통·체험', en: 'Heritage stay', ja: '伝統・体験', zh: '传统·体验' },
+    anchorAddress: '전주시 완산구 한옥마을',
   },
   {
     key: 'gaengnidan',
@@ -268,6 +290,7 @@ export const JEONJU_ZONES: Zone[] = [
     nightlyKRW: '₩80k-160k',
     icon: '☕',
     bestFor: { ko: '카페·미식', en: 'Café + food', ja: 'カフェ・グルメ', zh: '咖啡·美食' },
+    anchorAddress: '전주시 완산구 객리단길',
   },
   {
     key: 'jeonju_station',
@@ -281,6 +304,7 @@ export const JEONJU_ZONES: Zone[] = [
     nightlyKRW: '₩70k-120k',
     icon: '🚄',
     bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+    anchorAddress: '전주시 덕진구 전주역',
   },
 ];
 
@@ -297,6 +321,7 @@ export const GANGNEUNG_ZONES: Zone[] = [
     nightlyKRW: '₩100k-260k',
     icon: '🌅',
     bestFor: { ko: '해변·일출', en: 'Beach + sunrise', ja: 'ビーチ・日の出', zh: '海滩·日出' },
+    anchorAddress: '강릉시 경포해변',
   },
   {
     key: 'anmok_coffee',
@@ -310,6 +335,7 @@ export const GANGNEUNG_ZONES: Zone[] = [
     nightlyKRW: '₩90k-200k',
     icon: '☕',
     bestFor: { ko: '카페·바다', en: 'Café + sea', ja: 'カフェ・海', zh: '咖啡·海景' },
+    anchorAddress: '강릉시 안목해변',
   },
   {
     key: 'gangneung_station',
@@ -323,6 +349,7 @@ export const GANGNEUNG_ZONES: Zone[] = [
     nightlyKRW: '₩70k-130k',
     icon: '🚄',
     bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+    anchorAddress: '강릉시 강릉역',
   },
 ];
 
@@ -339,6 +366,7 @@ export const INCHEON_ZONES: Zone[] = [
     nightlyKRW: '₩140k-320k',
     icon: '🌆',
     bestFor: { ko: '럭셔리·신도시', en: 'Luxury + new city', ja: '高級・新都市', zh: '奢华·新城' },
+    anchorAddress: '인천 연수구 송도국제도시',
   },
   {
     key: 'chinatown_wolmi',
@@ -352,6 +380,7 @@ export const INCHEON_ZONES: Zone[] = [
     nightlyKRW: '₩70k-150k',
     icon: '🏮',
     bestFor: { ko: '관광·먹거리', en: 'Sightseeing + food', ja: '観光・グルメ', zh: '观光·美食' },
+    anchorAddress: '인천 중구 차이나타운',
   },
   {
     key: 'yeongjong_airport',
@@ -365,6 +394,7 @@ export const INCHEON_ZONES: Zone[] = [
     nightlyKRW: '₩100k-280k',
     icon: '✈️',
     bestFor: { ko: '공항·환승', en: 'Airport / layover', ja: '空港・乗継', zh: '机场·中转' },
+    anchorAddress: '인천 중구 영종도',
   },
 ];
 
@@ -381,6 +411,7 @@ export const SUWON_ZONES: Zone[] = [
     nightlyKRW: '₩70k-150k',
     icon: '🏯',
     bestFor: { ko: '전통·문화', en: 'Heritage', ja: '伝統・文化', zh: '传统·文化' },
+    anchorAddress: '수원시 팔달구 행궁동',
   },
   {
     key: 'suwon_station',
@@ -394,6 +425,7 @@ export const SUWON_ZONES: Zone[] = [
     nightlyKRW: '₩80k-160k',
     icon: '🚆',
     bestFor: { ko: '교통·미식', en: 'Transit + food', ja: '交通・グルメ', zh: '交通·美食' },
+    anchorAddress: '수원시 팔달구 수원역',
   },
   {
     key: 'gwanggyo',
@@ -407,6 +439,7 @@ export const SUWON_ZONES: Zone[] = [
     nightlyKRW: '₩120k-260k',
     icon: '🌆',
     bestFor: { ko: '비즈니스', en: 'Business', ja: 'ビジネス', zh: '商务' },
+    anchorAddress: '수원시 영통구 광교',
   },
 ];
 
@@ -423,6 +456,7 @@ export const YEOSU_ZONES: Zone[] = [
     nightlyKRW: '₩100k-260k',
     icon: '🌉',
     bestFor: { ko: '야경·바다', en: 'Night view + sea', ja: '夜景・海', zh: '夜景·海景' },
+    anchorAddress: '여수시 돌산읍',
   },
   {
     key: 'yeosu_expo',
@@ -436,6 +470,7 @@ export const YEOSU_ZONES: Zone[] = [
     nightlyKRW: '₩110k-280k',
     icon: '🚄',
     bestFor: { ko: '교통·리조트', en: 'Transit + resort', ja: '交通・リゾート', zh: '交通·度假' },
+    anchorAddress: '여수시 엑스포역',
   },
   {
     key: 'jungang_dong',
@@ -449,6 +484,7 @@ export const YEOSU_ZONES: Zone[] = [
     nightlyKRW: '₩70k-130k',
     icon: '🍻',
     bestFor: { ko: '도심·먹거리', en: 'Downtown + food', ja: '市内・グルメ', zh: '市区·美食' },
+    anchorAddress: '여수시 중앙동',
   },
 ];
 
@@ -465,6 +501,7 @@ export const DAEGU_ZONES: Zone[] = [
     nightlyKRW: '₩80k-180k',
     icon: '🛍️',
     bestFor: { ko: '도심·쇼핑', en: 'Downtown + shopping', ja: '都心・買い物', zh: '市区·购物' },
+    anchorAddress: '대구 중구 동성로',
   },
   {
     key: 'suseong',
@@ -478,6 +515,7 @@ export const DAEGU_ZONES: Zone[] = [
     nightlyKRW: '₩100k-220k',
     icon: '🏞️',
     bestFor: { ko: '조용함', en: 'Quiet', ja: '静か', zh: '静谧' },
+    anchorAddress: '대구 수성구 수성못',
   },
   {
     key: 'dongdaegu',
@@ -491,6 +529,7 @@ export const DAEGU_ZONES: Zone[] = [
     nightlyKRW: '₩80k-160k',
     icon: '🚄',
     bestFor: { ko: '교통', en: 'Transit', ja: '交通', zh: '交通' },
+    anchorAddress: '대구 동구 동대구역',
   },
 ];
 

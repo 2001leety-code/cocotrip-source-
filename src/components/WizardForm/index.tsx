@@ -19,6 +19,7 @@ import { requestNotifyPermission } from '@/lib/notify';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
+import { getZonesForCity } from './zoneData';
 import { WizardStep0Reservation, type ReservationStatus } from './WizardStep0Reservation';
 import { WizardStep0Destination } from './WizardStep0Destination';
 import { WizardStep1Food } from './WizardStep1Food';
@@ -182,6 +183,13 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
 
     try {
       const totalLuggage = luggageSmall + luggageMedium + luggageLarge;
+      // 2026-05-03: 사용자가 호텔 안 정하고 zone만 골랐을 때, zone의 anchorAddress
+      // (대표 주소)를 백엔드에 같이 전달 → RouteAgent가 공항↔zone 단계별 환승
+      // 경로 계산 가능. hotel_address는 그대로 빈 문자열 유지 (Firestore 저장 시
+      // "호텔 안 정함" 의미).
+      const zoneAnchor = (!hotelAddress && recommendedZone)
+        ? getZonesForCity(mainCityKey || 'seoul').find(z => z.key === recommendedZone)?.anchorAddress
+        : undefined;
       const res = await onSubmit({
         startDate: sd, endDate: ed,
         regions: allCities.length > 0 ? allCities : ['Seoul'],
@@ -206,6 +214,8 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
         luggage: totalLuggage > 0 ? { small: luggageSmall, medium: luggageMedium, large: luggageLarge } : undefined,
         // Sprint 2 #5: zone hint when no hotel typed (string key like 'myeongdong').
         recommended_zone: !hotelAddress && recommendedZone ? recommendedZone : undefined,
+        // 2026-05-03: zone의 대표 주소 (RouteAgent가 공항↔zone 환승 경로 계산용).
+        recommended_zone_address: zoneAnchor,
       } as PlannerFormValues);
 
       if (res && !res.ok) {

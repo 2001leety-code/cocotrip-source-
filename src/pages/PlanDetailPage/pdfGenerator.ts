@@ -857,10 +857,15 @@ export async function generatePDF(
         scrollY: 0,
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      // 'avoid-all' 추가: 모든 element의 page-break-inside:avoid 우선 존중.
-      // avoid selector: stop card / transit block 절대 분할 금지 (사용자 신고 fix).
+      // 2026-05-03 사용자 신고: PDF 페이지 사이 큰 빈 공간 (Day 2→Day 3 사이).
+      // 원인: 'avoid-all' 모드가 ALL element에 page-break-inside:avoid를 강제로
+      // 적용 → day wrapper 같은 큰 div도 분할 금지 → 한 페이지에 다음 day 전체가
+      // 안 들어가면 통째로 다음 페이지로 밀림 (CSS에서 day wrapper의 page-break를
+      // 명시적으로 제거했지만 'avoid-all'이 무시함).
+      // 'css' + 'legacy'만 유지 — 명시적 .pdf-stop-card / .pdf-transit-block만
+      // 분할 금지, 그 외는 자연스러운 페이지 흐름.
       pagebreak: {
-        mode: ['avoid-all', 'css', 'legacy'],
+        mode: ['css', 'legacy'],
         avoid: ['.pdf-stop-card', '.pdf-transit-block'],
       },
     } as Record<string, unknown>).from(container);

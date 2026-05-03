@@ -89,6 +89,9 @@ export interface PlannerFormValues {
   // Sprint 2 #5: zone recommendation when user has no booked hotel.
   // Backend uses this as a "soft anchor" — Gemini hubs stops near this zone.
   recommended_zone?: string;
+  // 2026-05-03: zone의 대표 주소 (예: "서울 마포구 홍익대학교"). 백엔드 RouteAgent가
+  // hotel_address가 비었지만 이 값이 있으면 공항↔zone 환승 경로 계산용으로 사용.
+  recommended_zone_address?: string;
 }
 
 interface Props {
