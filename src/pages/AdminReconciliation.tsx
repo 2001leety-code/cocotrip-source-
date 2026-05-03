@@ -31,10 +31,14 @@ export default function AdminReconciliation() {
   const [scanned, setScanned] = useState(0);
   const [rangeSince, setRangeSince] = useState<string>('');
   const [rangeUntil, setRangeUntil] = useState<string>('');
+  // 2026-05-04: 쿼리 실패 (FAILED_PRECONDITION 인덱스 빌드 중 등) 와 정상 0건 결과를 UI 에서 구분.
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanSucceeded, setScanSucceeded] = useState(false);
 
   const fetchCandidates = useCallback(async () => {
     if (!user) return;
     setScanLoading(true);
+    setScanError(null);
     try {
       const idToken = await user.getIdToken();
       const res = await fetch('/api/admin-scan-suspect-bookings', {
@@ -46,8 +50,18 @@ export default function AdminReconciliation() {
       setScanned(json.data.scanned || 0);
       setRangeSince(json.data.rangeSince || '');
       setRangeUntil(json.data.rangeUntil || '');
+      setScanSucceeded(true);
     } catch (err) {
-      toast.error('스캔 실패: ' + (err instanceof Error ? err.message : 'unknown'));
+      const rawMsg = err instanceof Error ? err.message : 'unknown';
+      // FAILED_PRECONDITION 은 인덱스 빌드 중일 때 발생. 친화 메시지로 매핑.
+      const friendlyMsg = rawMsg.includes('FAILED_PRECONDITION') || rawMsg.includes('index is currently building')
+        ? 'Firestore 인덱스 빌드 중입니다. 1~3분 후 새로고침 해주세요.'
+        : rawMsg.includes('requires an index')
+        ? 'Firestore 인덱스 미생성. firebase deploy --only firestore:indexes 실행 또는 에러 메시지의 URL 클릭으로 자동 생성.'
+        : rawMsg;
+      setScanError(friendlyMsg);
+      setScanSucceeded(false);
+      toast.error('스캔 실패: ' + friendlyMsg);
     } finally {
       setScanLoading(false);
     }
@@ -167,6 +181,17 @@ export default function AdminReconciliation() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {scanLoading ? (
             <div className="p-12 text-center text-gray-400 text-sm">스캔 중...</div>
+          ) : scanError ? (
+            // 2026-05-04: 쿼리 실패 — 빈 결과 메시지 대신 명시적 에러 + 새로고침 가이드.
+            <div className="p-12 text-center">
+              <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+              <p className="text-sm text-amber-700 font-bold mb-1">스캔 실패</p>
+              <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">{scanError}</p>
+            </div>
+          ) : !scanSucceeded ? (
+            <div className="p-12 text-center text-gray-400 text-sm">
+              "새로고침" 버튼을 눌러 스캔을 시작하세요.
+            </div>
           ) : candidates.length === 0 ? (
             <div className="p-12 text-center text-gray-400 text-sm">
               현재 의심 booking 없음 — 모든 알림이 정상 전송됨
