@@ -41,6 +41,8 @@ interface Props {
   onPaymentSuccess?: (orderID: string) => void | Promise<void>;
   userEmail?: string;
   airport?: AirportBookingInfo;
+  // 2026-05-04 URGENT-1: charter_custom_estimate 결제용 — backend로 전달.
+  customAmountKRW?: number;
 }
 
 export function PayPalBookingButton(props: Props) {

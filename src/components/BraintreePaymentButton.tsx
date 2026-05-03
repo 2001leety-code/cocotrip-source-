@@ -59,6 +59,9 @@ interface Props {
   onPaymentSuccess?: (transactionId: string) => void | Promise<void>;
   userEmail?: string;
   airport?: AirportBookingInfo;
+  // 2026-05-04 URGENT-1: charter_custom_estimate 결제 시 backend로 전달.
+  // productType이 charter_custom_estimate일 때만 의미 있음. 그 외는 무시됨.
+  customAmountKRW?: number;
 }
 
 // Braintree Drop-in 인스턴스 타입 (braintree-web-drop-in 모듈에서 동적 import).
@@ -84,6 +87,7 @@ export function BraintreePaymentButton({
   priceKRW, p, lang,
   pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '',
   itineraryData, onPaymentSuccess, userEmail = '', airport,
+  customAmountKRW,
 }: Props) {
   const isTestAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
 
@@ -95,6 +99,9 @@ export function BraintreePaymentButton({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successData, setSuccessData] = useState<{ transactionId: string; amount: string } | null>(null);
+  // 2026-05-04 URGENT-2: 결제 실패 후 Drop-in 인스턴스를 강제로 re-mount 하기 위한 키.
+  // 같은 nonce 재사용 차단 (Braintree 의 nonce 1회용 정책).
+  const [dropinResetKey, setDropinResetKey] = useState(0);
 
   // Promo code (PayPalBookingButton과 동일)
   const [promoCode, setPromoCode] = useState('');
@@ -187,7 +194,7 @@ export function BraintreePaymentButton({
         dropinInstanceRef.current = null;
       }
     };
-  }, [showDropin, clientToken, effectiveKRW]);
+  }, [showDropin, clientToken, effectiveKRW, dropinResetKey]);
 
   async function applyCouponCode(code: string) {
     if (!code.trim()) return;
@@ -244,6 +251,19 @@ export function BraintreePaymentButton({
     setShowDropin(true);
   }
 
+  // 2026-05-04 URGENT-2 fix: Drop-in 의 requestPaymentMethod() 가 반환한 nonce는 1회용
+  // (Braintree 서버가 transaction.sale 호출 시 burn). 첫 시도가 실패해서 사용자가 같은
+  // Drop-in 인스턴스로 재시도하면 같은 nonce 반환 → "Cannot use payment_method_nonce
+  // more than once" 에러. 결제 실패 시 인스턴스를 teardown 하고 dropinResetKey 를 증가
+  // 시켜 useEffect 가 새 인스턴스를 mount → 사용자가 결제 수단을 다시 선택해서 새 nonce 생성.
+  async function recreateDropinAfterFailure() {
+    if (dropinInstanceRef.current) {
+      await dropinInstanceRef.current.teardown().catch(() => {});
+      dropinInstanceRef.current = null;
+    }
+    setDropinResetKey(k => k + 1);
+  }
+
   async function handleSubmitPayment() {
     if (!dropinInstanceRef.current) return;
     setSubmitting(true);
@@ -263,6 +283,7 @@ export function BraintreePaymentButton({
           itineraryData: itineraryData || null,
           ...(airport ? { airport } : {}),
           ...(couponDocId ? { couponDocId, couponUserId } : {}),
+          ...(typeof customAmountKRW === 'number' ? { customAmountKRW } : {}),
         }),
       });
       const json = await res.json();
@@ -284,6 +305,8 @@ export function BraintreePaymentButton({
       console.error('[Braintree] payment failed:', err);
       void posthogTrack('payment_failed', { planType: productType, reason: 'braintree_checkout_error' });
       setPaymentError(err instanceof Error ? err.message : 'Payment failed');
+      // 실패한 nonce 는 burn 됐을 가능성 높음 → 다음 클릭은 새 nonce 필요. 인스턴스 재생성.
+      void recreateDropinAfterFailure();
     } finally {
       setSubmitting(false);
     }

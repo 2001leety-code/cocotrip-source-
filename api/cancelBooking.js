@@ -17,6 +17,7 @@ import { refundTransaction as braintreeRefund } from './_shared/braintree.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
+import { productDisplayLabel } from './_shared/pricing.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -181,9 +182,12 @@ export default async function handler(req, res) {
     });
 
     // 5. Telegram 알림 (best-effort)
+    // 2026-05-04: 어드민 텔레그램에는 친화적 라벨로 표시 (charter_custom_estimate →
+    // "Custom Charter (Estimate — pending reconciliation)"). 어드민 검색은 booking 의
+    // raw productType 필드로 가능.
     sendRefundTelegram({
       bookingRef: booking.bookingRef || bookingID,
-      productType: booking.productType,
+      productType: productDisplayLabel(booking.productType),
       paxCount: booking.paxCount,
       tourDate: booking.tourDate,
       userEmail,

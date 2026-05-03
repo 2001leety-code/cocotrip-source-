@@ -21,7 +21,13 @@
 import { createTransaction } from './_shared/braintree.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { resolveKrwAmount } from './_shared/pricing.js';
+import {
+  resolveKrwAmount,
+  isCustomEstimateProduct,
+  productDisplayLabel,
+  CUSTOM_ESTIMATE_MIN_KRW,
+  CUSTOM_ESTIMATE_MAX_KRW,
+} from './_shared/pricing.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -71,6 +77,7 @@ export default async function handler(req, res) {
       airport,
       couponDocId,
       couponUserId,
+      customAmountKRW,
     } = body;
 
     if (!nonce) {
@@ -82,10 +89,27 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'productType is required', code: 'MISSING_PRODUCT' }));
     }
 
-    let krwAmount = resolveKrwAmount(productType, passengers);
-    if (!krwAmount) {
-      res.writeHead(400, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: false, error: `Unknown productType: ${productType}`, code: 'INVALID_PRODUCT' }));
+    let krwAmount;
+    if (isCustomEstimateProduct(productType)) {
+      // 추정가 결제 — client가 보낸 customAmountKRW를 sanity range 내에서 신뢰.
+      // 부산 등 zone fallback 견적, ICN 외 공항 픽업 등 매트릭스에 없는 케이스 결제용.
+      // 위변조 위험은 sanity range + Firestore에 wizard state 저장으로 admin 검토 가능.
+      const customKrw = Number(customAmountKRW);
+      if (!Number.isFinite(customKrw) || customKrw < CUSTOM_ESTIMATE_MIN_KRW || customKrw > CUSTOM_ESTIMATE_MAX_KRW) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify({
+          ok: false,
+          error: `customAmountKRW out of allowed range (${CUSTOM_ESTIMATE_MIN_KRW.toLocaleString()}–${CUSTOM_ESTIMATE_MAX_KRW.toLocaleString()})`,
+          code: 'INVALID_CUSTOM_AMOUNT',
+        }));
+      }
+      krwAmount = Math.round(customKrw);
+    } else {
+      krwAmount = resolveKrwAmount(productType, passengers);
+      if (!krwAmount) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify({ ok: false, error: `Unknown productType: ${productType}`, code: 'INVALID_PRODUCT' }));
+      }
     }
 
     // 프로모 코드 — 단순화 (createPaypalOrder.js의 EARLY50 동일 로직)
@@ -146,6 +170,9 @@ export default async function handler(req, res) {
           pickupLocation, dropoffLocation, vehicleType, memo,
           ...(airport ? { airport } : {}),
           ...(couponDocId ? { couponDocId, couponUserId } : {}),
+          // 2026-05-04: 추정가 결제는 어드민 사후 정산 필요 — 별도 플래그로 필터링 가능.
+          // productType 이 변경돼도 데이터 레이크 쿼리는 이 boolean 으로 안정적으로 유지.
+          ...(isCustomEstimateProduct(productType) ? { requiresReconciliation: true } : {}),
           itineraryData: itineraryData || null,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -171,8 +198,14 @@ export default async function handler(req, res) {
           payerEmail: effectiveEmail,
           payerName: customerName,
           amount: transaction.amount,
-          product: productType,
-          tourDate, pickupLocation, dropoffLocation,
+          // 2026-05-04: 사람이 읽는 표면 (이메일·텔레그램·바우처) 에는 친화적 라벨 사용.
+          // 내부 productType 키는 Firestore booking 의 productType 필드에 그대로 저장됨.
+          product: productDisplayLabel(productType),
+          // 2026-05-04 fix: 이전엔 destructure 안 된 `tourDate` 참조 → ReferenceError →
+          // 500. 차터 결제 후 확인 메일·텔레그램 알림 누락 원인. body destructure 의
+          // dateStart 를 사용해야 함 (Firestore booking 저장 라인과 동일 패턴).
+          tourDate: dateStart || '',
+          pickupLocation, dropoffLocation,
           paxCount: passengers,
           vehicleType, customerPhone: undefined, couponApplied: !!couponDocId,
           memo, itineraryData, airport,

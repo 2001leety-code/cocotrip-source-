@@ -190,7 +190,7 @@ function PaymentPanel({
         )}
       </div>
 
-      {/* 결제 가능한 경우 — PayPal 버튼 */}
+      {/* 결제 가능한 경우 — PayPal/Braintree 버튼 (확정 가격) */}
       {resolved.payable && resolved.productType && resolved.priceKRW ? (
         <PayPalBookingButton
           productType={resolved.productType}
@@ -207,10 +207,38 @@ function PaymentPanel({
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}
         />
+      ) : isEstimateOnly && estimateKRW != null ? (
+        // 2026-05-04 URGENT-1: quote 가 산출됐으면 바로 결제 가능. 약관 체크박스 단계 제거 —
+        // 사용자 요청: "요금 자동 책정해서 바로 결제하면 되잖아". 부산/대구/광주 등 zone
+        // fallback, sprinter/bus, ICN 외 공항 모두 동일. 추정가 안내는 짧게 한 줄만.
+        // backend(braintreeCheckout)는 customAmountKRW sanity range + Firestore wizard state 저장.
+        <div className="space-y-3">
+          <p className="text-xs text-amber-300/80 px-1">⚠ {i18n.estimateOnlyNote}</p>
+          <PayPalBookingButton
+            productType="charter_custom_estimate"
+            passengers={resolved.passengers}
+            dateStart={state.startDate ?? ''}
+            dateEnd={state.endDate ?? ''}
+            priceKRW={estimateKRW}
+            customAmountKRW={estimateKRW}
+            p={{}}
+            lang={language}
+            pickupLocation={state.origin ?? state.originCustom ?? ''}
+            dropoffLocation={state.destinationKey ?? state.destinationCustom ?? ''}
+            vehicleType={state.vehicle ?? 'staria'}
+            memo={state.notes ?? ''}
+            itineraryData={{ wizard: state, airport: state.airport ?? null, estimateBreakdown: quote }}
+            userEmail={userEmail}
+          />
+          <p className="text-center text-xs text-white/55">
+            <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>
+          </p>
+        </div>
       ) : (
+        // payable 도 아니고 estimate 도 없는 케이스 (custom destination 매트릭스/zone 모두 미매칭)
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
           <p className="text-sm text-amber-200 mb-2">
-            {isEstimateOnly ? i18n.estimateConfirmMsg : (resolved.reason ?? i18n.payCustomQuoteMsg)}
+            {resolved.reason ?? i18n.payCustomQuoteMsg}
           </p>
           <a href={waUrl} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:opacity-90">
