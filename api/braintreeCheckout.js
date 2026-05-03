@@ -157,6 +157,29 @@ export default async function handler(req, res) {
       // booking 데이터 잃은 건 별도 수기 보정.
     }
 
+    // 2026-05-03 P0-1 fix: AI 플래너 외 상품 (차터/공항픽업/투어)은 booking-processor가
+    // 이메일+텔레그램+PDF 영수증+Wallet pass+Sheets 기록 처리. PR #216 마이그레이션 시
+    // 누락됐던 부분 — 차터 고객이 결제 후 확인 메일도 못 받던 원인. AI 플래너는 자체
+    // emailNotifier가 처리하므로 booking-processor 호출 불필요.
+    if (!productType.startsWith('ai-planner')) {
+      const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
+      fetch(`${siteUrl}/api/booking-processor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderID: transaction.id,
+          payerEmail: effectiveEmail,
+          payerName: customerName,
+          amount: transaction.amount,
+          product: productType,
+          tourDate, pickupLocation, dropoffLocation,
+          paxCount: passengers,
+          vehicleType, customerPhone: undefined, couponApplied: !!couponDocId,
+          memo, itineraryData, airport,
+        }),
+      }).catch((err) => console.error('[braintreeCheckout] booking-processor call failed:', err.message));
+    }
+
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({
       ok: true,
