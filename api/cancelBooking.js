@@ -85,7 +85,10 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('bookingID and userEmail required', 'MISSING_FIELDS')));
     }
 
-    const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
+    // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행되므로 (createPaypalOrder
+    // 변경) refund도 항상 LIVE. sandbox PayPal 환불 호출 케이스 자체가 없음.
+    const isSandbox = false;
+    void TEST_ACCOUNTS;
     const db = getDb();
 
     // 1. 예약 조회 + 소유자 검증

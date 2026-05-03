@@ -67,9 +67,11 @@ export async function enforcePaymentAndRevision(body, adminDb) {
     } else {
       console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
 
+      // 2026-05-03: TEST 계정이어도 실제 PayPal order는 LIVE로 생성되므로 (createPaypalOrder
+       // 변경) 검증도 항상 LIVE. TEST_ 우회 케이스는 위에서 이미 short-circuit 됨.
       let ppToken, ppBase;
       try {
-        const auth = await getPaypalAccessToken(isTestAccount);
+        const auth = await getPaypalAccessToken(false);
         ppToken = auth.accessToken;
         ppBase = auth.baseUrl;
       } catch (e) {
