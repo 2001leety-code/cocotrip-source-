@@ -70,7 +70,9 @@ declare global {
 }
 
 // Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
-const TEST_ACCOUNTS: string[] = [];
+// 2026-05-03: 운영자(태연) 본인 결제+환불 end-to-end 테스트용. sandbox PayPal +
+// 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
+const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
 export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW, p, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport }: Props) {
   const isSandboxAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
