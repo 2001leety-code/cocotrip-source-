@@ -21,6 +21,7 @@
 import { createTransaction } from './_shared/braintree.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { resolveKrwAmount } from './_shared/pricing.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -34,13 +35,9 @@ const JSON_HEADERS = {
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
 
-// productType → KRW 가격 (createPaypalOrder.js와 동일 로직 — SSOT 미흡, 추후 통합 권장)
-function resolveKrwAmount(productType, passengers) {
-  if (productType === 'ai-planner-full') return 13_300;
-  // 나머지는 createPaypalOrder.js의 resolveKrwAmount() 참조 — 본 PR에서는 ai-planner만 우선 처리
-  // (charter / airport_transfer는 후속 PR에서 동일 패턴 추가)
-  return null;
-}
+// 2026-05-03: productType → KRW 가격은 api/_shared/pricing.js (SSOT) 사용. 기존 inline
+// 함수가 ai-planner-full 만 지원해서 차터/공항픽업 결제 시 "Unknown productType" 400.
+// 사용자 신고 (airport_seoul_central 결제 시도) 후 fix.
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
