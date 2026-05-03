@@ -15,10 +15,12 @@ const DAY_TOUR_PRODUCT_MAP: Record<string, string> = {
 };
 
 // 차종 배수 (useQuoteCalculator와 동일)
+// 2026-05-03 사용자 정책 변경: sprinter 1.45→2.0, bus 2.3→3.0.
+// useQuoteCalculator.ts와 항상 동기화 필수 (PayPal 결제 금액 = 견적 화면 금액).
 const VEHICLE_MULTIPLIER: Record<string, number> = {
   staria: 1.0,
-  sprinter: 1.45,
-  bus: 2.3,
+  sprinter: 2.0,
+  bus: 3.0,
 };
 
 export interface ResolvedPayment {
