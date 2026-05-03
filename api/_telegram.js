@@ -95,7 +95,8 @@ export function airportSectionHtml(airport) {
 }
 
 /**
- * 새 예약 알림 (빠른 구조화 버전 — Gemini 없이)
+ * 새 예약 알림 (legacy — booking + dispatch 합본). 호환을 위해 유지하되 신규 호출처는
+ * sendDispatchAlert + sendBookingPaymentAlert 두 개를 분리 호출 권장.
  * @param {object} booking
  */
 export async function sendBookingAlert(booking) {
@@ -128,6 +129,63 @@ PayPal 거래ID: <code>${booking.transactionId || '-'}</code>
 ⏰ ${kst}`;
 
   // 채널: booking (TELEGRAM_BOOKING_BOT_TOKEN 또는 폴백)
+  return notify('booking', msg);
+}
+
+/**
+ * 2026-05-04: 배차용 정보 — driver bot (dispatch 채널) 으로 송신.
+ * 사용자 요청 ("정보는 텔레그램 드라이버로 보내고 결제내역은 코코트립 봇한테").
+ * 픽업·드롭·시간·공항·차종·인원·메모 등 운행에 필요한 정보만. 결제 금액·USD·환율·
+ * transactionId 같은 재무 정보는 sendBookingPaymentAlert 로 분리.
+ * @param {object} booking
+ */
+export async function sendDispatchAlert(booking) {
+  const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+  const route = [booking.pickupLocation, booking.dropoffLocation].filter(Boolean).join(' → ') || '-';
+
+  const msg = `🚐 <b>신규 배차 요청</b>
+
+예약번호: <code>${booking.bookingRef || '-'}</code>
+━━━━━━━━━━━━━━━
+고객: ${booking.customerName || '-'}
+연락처: ${booking.customerPhone || '-'}
+상품: ${booking.product || '-'}
+날짜: <b>${booking.tourDate || '-'}</b>
+인원: ${booking.paxCount || '-'}명
+차종: ${booking.vehicleType || '-'}
+경로: ${route}${airportSectionHtml(booking.airport)}${booking.memo ? `\n\n📝 메모\n${booking.memo}` : ''}
+
+⏰ ${kst}`;
+
+  return notify('dispatch', msg);
+}
+
+/**
+ * 2026-05-04: 결제 영수증 — cocotrip bot (booking 채널) 으로 송신.
+ * USD/KRW 결제 금액·환율·쿠폰·transactionId 등 재무 정보. 배차 정보 (픽업/드롭/시간)는
+ * sendDispatchAlert 로 분리.
+ * @param {object} booking
+ */
+export async function sendBookingPaymentAlert(booking) {
+  const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+  const rate = booking.exchangeRate || 1380;
+  const amountKRW = booking.amountKRW || Math.round(parseFloat(booking.amountUSD || 0) * rate);
+
+  const msg = `💳 <b>결제 완료</b>
+
+예약번호: <code>${booking.bookingRef || '-'}</code>
+━━━━━━━━━━━━━━━
+고객: ${booking.customerName || '-'}
+이메일: ${booking.customerEmail || '-'}
+상품: ${booking.product || '-'}
+
+💰 결제 금액: <b>$${booking.amountUSD || '0'} USD</b>
+원화 환산: ₩${amountKRW.toLocaleString()} (환율 ${rate})
+쿠폰 적용: ${booking.couponApplied || '없음'}
+거래ID: <code>${booking.transactionId || '-'}</code>
+
+⏰ ${kst}`;
+
   return notify('booking', msg);
 }
 
@@ -167,6 +225,8 @@ export default {
   sendMessage,
   sendLongMessage,
   sendBookingAlert,
+  sendDispatchAlert,
+  sendBookingPaymentAlert,
   airportSectionHtml,
   sendErrorAlert,
   sendWeatherOkAlert,

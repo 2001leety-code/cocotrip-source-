@@ -56,17 +56,32 @@ function airportPlainLine(airport) {
   return parts.length ? `\n공항: ${parts.join(' · ')}` : '';
 }
 
-async function sendRefundTelegram({ bookingRef, productType, paxCount, tourDate, userEmail, refundUSD, refundPercent, reason, airport }) {
-  const msg =
+// 2026-05-04: 2-채널 분리. 환불 영수증은 booking 채널 (cocotrip bot), 배차 취소는
+// dispatch 채널 (driver bot) — 사용자 정책 ("정보는 driver, 결제내역은 cocotrip").
+async function sendRefundTelegram({ bookingRef, productType, paxCount, tourDate, userEmail, refundUSD, refundPercent, reason, airport, pickupLocation, dropoffLocation }) {
+  // (1) booking 채널 — 환불 재무 영수증
+  const refundMsg =
     `🔴 [예약 취소·환불 처리]\n` +
     `${bookingRef}\n` +
     `상품: ${productType} · ${paxCount}명 · ${tourDate}\n` +
     `고객: ${userEmail}\n` +
     `환불액: $${refundUSD} (${refundPercent}%)\n` +
+    `사유: ${reason || '-'}`;
+  // (2) dispatch 채널 — 배차에서 빼라는 알림 (운행 정보 포함)
+  const route = [pickupLocation, dropoffLocation].filter(Boolean).join(' → ') || '-';
+  const dispatchMsg =
+    `❌ [배차 취소]\n` +
+    `${bookingRef}\n` +
+    `상품: ${productType} · ${paxCount}명\n` +
+    `날짜: ${tourDate}\n` +
+    `경로: ${route}\n` +
     `사유: ${reason || '-'}` +
     airportPlainLine(airport);
-  // 채널: booking (TELEGRAM_BOOKING_BOT_TOKEN 또는 폴백)
-  await notify('booking', msg, { parseMode: undefined });
+
+  await Promise.allSettled([
+    notify('booking',  refundMsg,  { parseMode: undefined }),
+    notify('dispatch', dispatchMsg, { parseMode: undefined }),
+  ]);
 }
 
 export default async function handler(req, res) {
@@ -195,6 +210,8 @@ export default async function handler(req, res) {
       refundPercent: policy.refundPercent,
       reason,
       airport: booking.airport,
+      pickupLocation: booking.pickupLocation,
+      dropoffLocation: booking.dropoffLocation,
     });
 
     res.writeHead(200, JSON_CORS);
