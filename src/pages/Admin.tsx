@@ -215,6 +215,56 @@ export default function Admin() {
             </div>
             <p className="text-xs text-gray-400">사용자 이메일·planId 로 플랜 lookup + revisionCredits 조정</p>
           </a>
+          <a
+            href="/admin/calendar"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">📅</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">캘린더</h3>
+            </div>
+            <p className="text-xs text-gray-400">월별 예약 + 투어 일정 한눈에 보기</p>
+          </a>
+          <a
+            href="/admin/sales"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">💰</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">매출</h3>
+            </div>
+            <p className="text-xs text-gray-400">기간별 매출 · 환불 · 정산 요약</p>
+          </a>
+          <a
+            href="/admin/analytics"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">📊</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">분석</h3>
+            </div>
+            <p className="text-xs text-gray-400">PostHog 퍼널 · 전환 · 사용자 행동</p>
+          </a>
+          <a
+            href="/admin/ops"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🛠️</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">운영 허브</h3>
+            </div>
+            <p className="text-xs text-gray-400">기사 배차 · 텔레그램 봇 · 시스템 상태</p>
+          </a>
+          <a
+            href="/admin/availability"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🚐</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">투어 가용성</h3>
+            </div>
+            <p className="text-xs text-gray-400">일자별 투어 운영 가능 여부 관리</p>
+          </a>
         </div>
 
         {/* ── Bookings Table (Google Sheets) ── */}
