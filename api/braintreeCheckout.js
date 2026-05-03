@@ -116,6 +116,17 @@ export default async function handler(req, res) {
       },
     });
 
+    // 2026-05-03 fix: 사용자가 결제 폼에서 이메일 미입력했지만 PayPal 결제 흐름에서
+    // PayPal 계정 이메일이 transaction에 자동 첨부되는 경우 있음. 빈 userEmail 보다
+    // Braintree가 받은 이메일(고객 PayPal/카드 명의 이메일) 우선 사용.
+    const effectiveEmail = (userEmail && userEmail.trim())
+      || transaction.customer?.email
+      || transaction.paypalAccount?.payerEmail
+      || '';
+    if (effectiveEmail !== userEmail) {
+      console.log('[braintreeCheckout] email fallback used:', effectiveEmail.slice(0, 4) + '...');
+    }
+
     // Firestore booking 저장 (capturePaypalOrder.js와 동일 스키마)
     try {
       const adminDb = initAdminDb('braintreeCheckout');
@@ -129,7 +140,7 @@ export default async function handler(req, res) {
           amountUSD: transaction.amount,
           amountKRW: krwAmount,
           exchangeRate: usdToKrw,
-          userEmail,
+          userEmail: effectiveEmail,
           payerName: customerName || null,
           productType: productType,
           tourDate: dateStart || '',
@@ -157,7 +168,7 @@ export default async function handler(req, res) {
         amount: transaction.amount,
         currency: transaction.currencyIsoCode || 'USD',
         status: transaction.status,
-        payerEmail: userEmail,
+        payerEmail: effectiveEmail,  // fallback 적용된 값 — frontend가 ai-planner-full 호출 시 사용
         payerName: customerName || null,
       },
     }));
