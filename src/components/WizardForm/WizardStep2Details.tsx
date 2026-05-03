@@ -54,6 +54,15 @@ interface Step2Props {
    *  입력칸 대신 칩으로 보여주고 이 콜백으로 Step0으로 점프해 수정하게 함.
    *  미지정 시 기존 동작 유지 (입력칸 항상 노출). */
   onEditStep0?: () => void;
+  /** 2026-05-03 fix: Step 3에서 호텔/공항을 직접 편집 중이면 "from Step 1" chip으로
+   *  swap하면 안 됨 (한 글자 칠 때마다 input이 chip으로 바뀌어 입력 불가 + Edit
+   *  버튼이 Step 0으로 보내버리는 버그). reservationStatus + 사용자가 Step 3에서
+   *  실제로 만진 적 있는지 (touched) 두 가지를 합쳐서 판정. */
+  reservationStatus?: 'nothing' | 'flight' | 'flight_hotel' | 'all_done' | null;
+  hotelTouchedInStep3: boolean;
+  setHotelTouchedInStep3: (v: boolean) => void;
+  airportTouchedInStep3: boolean;
+  setAirportTouchedInStep3: (v: boolean) => void;
 }
 
 export type TourPace = 'half' | 'short' | 'full' | 'action';
@@ -104,16 +113,28 @@ export function WizardStep2Details(props: Step2Props) {
     tourPace, setTourPace,
     recommendedZone, setRecommendedZone, mainCityKey,
     canGoStep3, onPrev, onNext, onEditStep0,
+    reservationStatus, hotelTouchedInStep3, setHotelTouchedInStep3,
+    airportTouchedInStep3, setAirportTouchedInStep3,
   } = props;
   const { language } = useLanguage();
   const lang = (language as 'ko' | 'en' | 'ja' | 'zh') || 'en';
 
-  // P0 dedup: 항공편 정보가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
-  const flightInfoFromStep0 = !!onEditStep0 && !!arrivalTerminal;
-  // P2 dedup: 호텔 주소가 Step0에서 이미 채워져 있으면 입력칸 숨기고 칩으로 표시.
-  // 2026-05-03 fix: hotelAddress가 공백/whitespace만 들어있을 때도 truthy로 평가되어
-  // 입력칸 대신 "수정" 버튼이 잘못 노출되던 버그 → trim() 후 빈 문자열 체크.
-  const hotelInfoFromStep0 = !!onEditStep0 && !!hotelAddress && hotelAddress.trim().length > 0;
+  // 2026-05-03 fix (사용자 신고): Step 3에서 호텔/공항 직접 입력하면 한 글자 칠
+  // 때마다 input이 "from Step 1" chip으로 swap → 입력 끊김 + Edit 버튼이 Step 0으로
+  // 점프시켜 사용자가 "지우면 뒤로 가져" 라고 신고. 진짜로 Step 0에서 입력한
+  // 경우(=reservationStatus가 flight/flight_hotel + 사용자가 Step 3에서 만진 적
+  // 없음)에만 chip 모드로 표시.
+  const flightInfoFromStep0 =
+    !!onEditStep0
+    && (reservationStatus === 'flight' || reservationStatus === 'flight_hotel')
+    && !!arrivalTerminal
+    && !airportTouchedInStep3;
+  const hotelInfoFromStep0 =
+    !!onEditStep0
+    && reservationStatus === 'flight_hotel'
+    && !!hotelAddress
+    && hotelAddress.trim().length > 0
+    && !hotelTouchedInStep3;
 
   return (
     <div className="space-y-4">
@@ -212,7 +233,7 @@ export function WizardStep2Details(props: Step2Props) {
           </p>
           <MobileSelectDrawer
             value={arrivalTerminal}
-            onChange={setArrivalTerminal}
+            onChange={(v) => { setArrivalTerminal(v); setAirportTouchedInStep3(true); }}
             title={p.wizardWhichAirport || 'Which airport?'}
             placeholder={p.wizardSelectAirport || '-- Select airport --'}
             options={airportOptions.map(opt => ({
@@ -252,7 +273,8 @@ export function WizardStep2Details(props: Step2Props) {
             {p.hotel_address_title || 'Where are you staying?'}
             <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
           </p>
-          <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
+          <input type="text" value={hotelAddress}
+            onChange={e => { setHotelAddress(e.target.value); setHotelTouchedInStep3(true); }}
             placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
           {/* Sprint 2 #5: zone-pick fallback when hotel address empty. */}

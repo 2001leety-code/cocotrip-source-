@@ -73,6 +73,15 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   // Sprint 2 #5: when user has no booked hotel, they can pick a Seoul zone
   // and the AI hubs stops near it. Empty string = no recommendation chosen.
   const [recommendedZone, setRecommendedZone] = useState('');
+  // 2026-05-03 fix: 사용자가 Step 3 자체 input에서 호텔/공항을 만진 적 있으면
+  // "from Step 1" chip으로 swap 안 함 (한 글자 칠 때마다 input이 chip으로 바뀌고
+  // Edit 버튼이 Step 0으로 점프시키던 버그). reservationStatus가 바뀌면 reset.
+  const [hotelTouchedInStep3, setHotelTouchedInStep3] = useState(false);
+  const [airportTouchedInStep3, setAirportTouchedInStep3] = useState(false);
+  useEffect(() => {
+    setHotelTouchedInStep3(false);
+    setAirportTouchedInStep3(false);
+  }, [reservationStatus]);
   // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
   const [tourPace, setTourPace]               = useState<TourPace>('full');
   const mobility = 'ok' as const;
@@ -345,6 +354,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   canGoStep3={canGoStep3}
                   onPrev={() => goToStep(2)} onNext={() => goToStep(4)}
                   onEditStep0={() => goToStep(0)}
+                  reservationStatus={reservationStatus}
+                  hotelTouchedInStep3={hotelTouchedInStep3}
+                  setHotelTouchedInStep3={setHotelTouchedInStep3}
+                  airportTouchedInStep3={airportTouchedInStep3}
+                  setAirportTouchedInStep3={setAirportTouchedInStep3}
                 />
               )}
               {step === 4 && !isClaimFlow && (
