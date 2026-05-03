@@ -230,6 +230,15 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     console.log('[PayPal SDK] loading mode:', expectedMode, '| clientId prefix:', resolvedClientId.substring(0, 8));
     script.onload = () => {
       script.dataset.loaded = 'true';
+      // 2026-05-03 사용자 신고: ad blocker (uBlock 등)가 PayPal CDN을 200 stub
+      // 응답으로 가로챌 수 있음 → script.onload는 fire되지만 실제 SDK 코드는
+      // 실행 안 됨 → window.paypal undefined. 명시적 가드 + 친절한 메시지.
+      if (typeof window.paypal === 'undefined') {
+        console.error('[PayPal SDK] script onload fired but window.paypal undefined — likely ad blocker stub');
+        setError(p.paypalSdkError ?? 'PayPal blocked by ad blocker / browser shields. Please disable for this site and reload.');
+        return;
+      }
+      console.log('[PayPal SDK] loaded successfully, window.paypal ready');
       setPaypalReady(true);
     };
     script.onerror = (err) => {

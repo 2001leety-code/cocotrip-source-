@@ -151,9 +151,18 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     }
 
     try {
-      // 120s timeout -- prevents infinite spinner on Vercel function failure
+      // 2026-05-03: timeout 120s → 300s. 백엔드 ai-planner-full.js는
+      // maxDuration=300 (Vercel Pro 5분)인데 client가 2분만 기다려서 정상
+      // 응답 전에 abort → "signal is aborted without reason" UX 망가짐.
+      // 5분으로 매칭 + 의미있는 reason 전달 (DOMException name='AbortError'
+      // 유지해서 catch 블록의 err.name === 'AbortError' 체크 호환).
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      const timeoutId = setTimeout(() => {
+        controller.abort(new DOMException(
+          'AI 플랜 생성이 5분 이상 걸려 중단했습니다. 잠시 후 다시 시도하거나 WhatsApp으로 문의주세요.',
+          'AbortError'
+        ));
+      }, 300000);
 
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
@@ -243,9 +252,20 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
     setStreamAgent('gemini');
 
     try {
+      // 2026-05-03: revision도 동일한 ai-planner-full endpoint 호출 — 같은 5분
+      // 타임아웃 적용 (이전엔 timeout 자체가 없어서 무한 spinner 위험).
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort(new DOMException(
+          'AI 재생성이 5분 이상 걸려 중단했습니다. 잠시 후 다시 시도하거나 WhatsApp으로 문의주세요.',
+          'AbortError'
+        ));
+      }, 300000);
+
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           revisionOf: revisionPlanId,
           revisionToken: revisionToken,
@@ -271,6 +291,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           special_request: values.freeText || '',
         }),
       });
+
+      clearTimeout(timeoutId);
 
       const json = await res.json();
       if (!res.ok) {
