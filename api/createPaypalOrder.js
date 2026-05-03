@@ -122,8 +122,13 @@ export default async function handler(req, res) {
     const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode, userEmail = '' } = body;
     if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
 
-    const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
-    console.log('[createPaypalOrder] mode:', isSandbox ? 'SANDBOX' : 'LIVE', '| email:', userEmail, '| product:', productType);
+    // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행 (sandbox 분기 제거).
+    // TEST 우회는 frontend의 🧪 Test Mode 버튼이 'TEST-' prefix orderId를 직접 보내며,
+    // ai-planner-full의 paymentGate가 그걸 받아 PayPal 검증 자체를 skip.
+    // 여기서는 sandbox 사용 안 함 — 항상 LIVE order 생성.
+    const isSandbox = false;
+    void TEST_ACCOUNTS; void userEmail; // 의도적 무시 (PayPal API 호출은 항상 LIVE)
+    console.log('[createPaypalOrder] mode: LIVE (always) | email:', userEmail, '| product:', productType);
 
     let krwAmount = resolveKrwAmount(productType, passengers);
     if (!krwAmount) {

@@ -190,7 +190,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       return;
     }
 
-    const expectedMode = isSandboxAccount ? 'sandbox' : 'live';
+    // 2026-05-03 사용자 정책: TEST 계정도 SDK는 항상 LIVE 사용 (sandbox 분기 제거).
+    // 이유: sandbox SDK 키 미설정/오설정 시 SDK 자체 로딩 실패 → 결제 테스트 불가.
+    // TEST 계정은 별도 🧪 Test Mode 버튼으로 결제 우회 (SDK 무관). 실제 PayPal 결제는
+    // 항상 LIVE → backend도 LIVE 검증.
+    void isSandboxAccount; // 의도적으로 무시 (Test Mode 버튼 노출 분기에만 사용)
+    const expectedMode = 'live';
     let existing = document.getElementById('paypal-sdk') as HTMLScriptElement | null;
 
     if (existing) {
@@ -218,11 +223,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     script.id   = 'paypal-sdk';
     script.dataset.mode = expectedMode;
     script.async = true;
-    const sandboxClientId = import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID;
-    const resolvedClientId = isSandboxAccount && sandboxClientId ? sandboxClientId : clientId;
-    const sdkBase = isSandboxAccount && sandboxClientId
-      ? 'https://www.sandbox.paypal.com/sdk/js'
-      : 'https://www.paypal.com/sdk/js';
+    // 2026-05-03: sandbox 분기 제거 — 항상 LIVE clientId + LIVE URL.
+    // TEST 계정도 실제 결제는 LIVE로 진행하고, Test Mode 버튼만 별도 SDK 우회 경로.
+    const resolvedClientId = clientId;
+    const sdkBase = 'https://www.paypal.com/sdk/js';
     // force=true 시 cache-buster 추가 (브라우저가 실패한 응답을 캐시한 경우 회피).
     const cacheBust = force ? `&_t=${Date.now()}` : '';
     const sdkUrl = `${sdkBase}?client-id=${resolvedClientId}&currency=USD&intent=capture&components=buttons&enable-funding=googlepay,applepay${cacheBust}`;
