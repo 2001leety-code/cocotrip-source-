@@ -10,8 +10,22 @@
  */
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken } from '../_shared/paypal.js';
+import { findTransaction as findBraintreeTransaction } from '../_shared/braintree.js';
 
 const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+
+// 2026-05-03: Braintree 통합 추가. transaction ID 패턴으로 provider 자동 판별.
+// PayPal order ID: 17자 alphanumeric (예: 5O190127TN364715T)
+// Braintree transaction ID: 8자 alphanumeric (예: bz4j8q3x) — 짧고 lowercase 위주
+// TEST orderId: 'TEST-' prefix
+function detectProvider(orderId) {
+  if (!orderId) return null;
+  if (orderId.startsWith('TEST-')) return 'test';
+  // PayPal orderId는 보통 17자 대문자+숫자. Braintree는 그보다 짧음 + 소문자 포함.
+  // 정확한 판별은 Firestore에 provider 필드 저장이 더 안전 — 본 함수는 1차 추정.
+  if (/^[A-Z0-9]{17,20}$/.test(orderId)) return 'paypal';
+  return 'braintree';
+}
 
 function reject(statusCode, code, message, details) {
   return { rejection: { statusCode, code, message, ...(details ? { details } : {}) } };
@@ -59,16 +73,42 @@ export async function enforcePaymentAndRevision(body, adminDb) {
   const isTestAccount = TEST_ACCOUNTS.includes(requestEmail);
 
   if (!isRevision && paypalOrderId) {
-    const isTestOrderId = paypalOrderId.startsWith('TEST-');
-    if (isTestOrderId && isTestAccount) {
-      console.log('[planner] ✅ TEST MODE bypass — skipping PayPal verification for:', requestEmail);
-    } else if (isTestOrderId && !isTestAccount) {
-      return reject(403, 'FORBIDDEN', 'Unauthorized test mode', 'Test mode is only available for authorized accounts.');
-    } else {
-      console.log('[planner] PayPal mode:', isTestAccount ? 'SANDBOX' : 'LIVE', '| email:', requestEmail);
+    const provider = detectProvider(paypalOrderId);
 
-      // 2026-05-03: TEST 계정이어도 실제 PayPal order는 LIVE로 생성되므로 (createPaypalOrder
-       // 변경) 검증도 항상 LIVE. TEST_ 우회 케이스는 위에서 이미 short-circuit 됨.
+    if (provider === 'test') {
+      if (isTestAccount) {
+        console.log('[planner] ✅ TEST MODE bypass — skipping payment verification for:', requestEmail);
+      } else {
+        return reject(403, 'FORBIDDEN', 'Unauthorized test mode', 'Test mode is only available for authorized accounts.');
+      }
+    } else if (provider === 'braintree') {
+      // 2026-05-03: Braintree transaction 검증. braintreeCheckout.js가 이미 transaction
+      // 생성 시 Firestore bookings에 저장 → 여기서는 status만 sanity check.
+      console.log('[planner] Braintree mode | transactionId:', paypalOrderId);
+      try {
+        const tx = await findBraintreeTransaction(paypalOrderId);
+        const acceptableStatuses = new Set([
+          'submitted_for_settlement', 'settling', 'settlement_pending', 'settled', 'authorized',
+        ]);
+        if (!acceptableStatuses.has(tx.status)) {
+          return reject(403, 'PAYMENT_INCOMPLETE', 'Payment not completed', `Braintree transaction status: ${tx.status}`);
+        }
+        if (adminDb) {
+          const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
+          const usedDoc = await usedRef.get();
+          if (usedDoc.exists) {
+            return reject(403, 'DUPLICATE_ORDER', 'Order already used', 'This payment has already been used to generate a plan.');
+          }
+          await usedRef.set({ usedAt: new Date().toISOString(), status: tx.status, provider: 'braintree' });
+        }
+      } catch (e) {
+        console.error('[planner] Braintree verify failed:', e.message);
+        return reject(403, 'PAYMENT_VERIFY_ERROR', e.message);
+      }
+    } else {
+      // Legacy PayPal direct API path (한국 계정에서는 작동 X — 기존 booking 호환용 유지)
+      console.log('[planner] PayPal direct mode (legacy) | email:', requestEmail);
+
       let ppToken, ppBase;
       try {
         const auth = await getPaypalAccessToken(false);
@@ -95,7 +135,7 @@ export async function enforcePaymentAndRevision(body, adminDb) {
         if (usedDoc.exists) {
           return reject(403, 'DUPLICATE_ORDER', 'Order already used', 'This payment has already been used to generate a plan.');
         }
-        await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status });
+        await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status, provider: 'paypal' });
       }
     }
   }

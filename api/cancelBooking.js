@@ -13,6 +13,7 @@
  */
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { getPaypalAccessToken } from './_shared/paypal.js';
+import { refundTransaction as braintreeRefund } from './_shared/braintree.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
@@ -123,22 +124,36 @@ export default async function handler(req, res) {
     const refundUSD = (originalUSD * policy.refundRatio).toFixed(2);
     const refundKRW = Math.round((booking.amountKRW || 0) * policy.refundRatio);
 
-    // 3. PayPal Refund 호출
-    const { accessToken: token, baseUrl } = await getPaypalAccessToken(isSandbox);
-    const refundRes = await fetch(`${baseUrl}/v2/payments/captures/${booking.captureID}/refund`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(policy.refundRatio < 1.0 ? {
-        amount: { value: refundUSD, currency_code: 'USD' },
-        note_to_payer: `CocoTrip cancellation: ${policy.refundPercent}% refund`,
-      } : {
-        note_to_payer: 'CocoTrip cancellation: full refund',
-      }),
-    });
-    const refundData = await refundRes.json();
-    if (refundData.status !== 'COMPLETED' && refundData.status !== 'PENDING') {
-      res.writeHead(502, JSON_CORS);
-      return res.end(JSON.stringify(_err(`PayPal refund ${refundData.status}: ${refundData.message || ''}`, 'REFUND_FAILED')));
+    // 3. Refund — provider별 분기 (2026-05-03: Braintree 통합 추가)
+    const isBraintree = booking.provider === 'braintree';
+    let refundData;
+    if (isBraintree) {
+      try {
+        const tx = policy.refundRatio < 1.0
+          ? await braintreeRefund(booking.captureID, refundUSD)
+          : await braintreeRefund(booking.captureID);
+        refundData = { id: tx.id, status: tx.status === 'submitted_for_settlement' ? 'PENDING' : 'COMPLETED' };
+      } catch (err) {
+        res.writeHead(502, JSON_CORS);
+        return res.end(JSON.stringify(_err(`Braintree refund failed: ${err.message}`, 'REFUND_FAILED')));
+      }
+    } else {
+      const { accessToken: token, baseUrl } = await getPaypalAccessToken(isSandbox);
+      const refundRes = await fetch(`${baseUrl}/v2/payments/captures/${booking.captureID}/refund`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(policy.refundRatio < 1.0 ? {
+          amount: { value: refundUSD, currency_code: 'USD' },
+          note_to_payer: `CocoTrip cancellation: ${policy.refundPercent}% refund`,
+        } : {
+          note_to_payer: 'CocoTrip cancellation: full refund',
+        }),
+      });
+      refundData = await refundRes.json();
+      if (refundData.status !== 'COMPLETED' && refundData.status !== 'PENDING') {
+        res.writeHead(502, JSON_CORS);
+        return res.end(JSON.stringify(_err(`PayPal refund ${refundData.status}: ${refundData.message || ''}`, 'REFUND_FAILED')));
+      }
     }
 
     // 4. Firestore 업데이트
