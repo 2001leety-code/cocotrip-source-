@@ -1950,6 +1950,7 @@
     "mbDetailContact": "联系方式: KakaoTalk 或 cocotripkr@gmail.com",
     "mbDetailCanceledNote": "此预订已取消。",
     "mbDetailCompletedNote": "行程已完成。希望您玩得开心！",
+    "mbDetailDownloadVoucher": "下载凭证",
     "mbCancelReasonPrompt": "取消原因（选填）:",
     "mbCancelConfirm": "确定取消此预订？\\n退款 {pct}% · 约 ₩{amt}\\n将在3-5个工作日内通过PayPal退款。",
     "modifyModalTitle": "修改预订",

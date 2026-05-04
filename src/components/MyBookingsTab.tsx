@@ -1,7 +1,7 @@
 // MyBookingsTab — MyPage의 "My Bookings" 탭 콘텐츠 · i18n
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Clock, XCircle, Edit, Check, X, Star, ExternalLink } from 'lucide-react';
+import { Package, Clock, XCircle, Edit, Check, X, Star, ExternalLink, Download } from 'lucide-react';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -453,6 +453,11 @@ function BookingDetailModal({
   const showCancelBtn = booking.status === 'CONFIRMED' && booking.canRefund;
   const showRefundClosedNote = booking.status === 'CONFIRMED' && !booking.canRefund && !booking.canModify
     && !(booking.productType || '').toString().startsWith('ai-planner');
+  // 2026-05-04: voucher PDF 다운로드 — 취소된 booking + AI 플래너 (디지털 상품, voucher 없음)
+  // 은 hide. CONFIRMED / MODIFIED / COMPLETED 모두 발급 가능 (백엔드 api/voucher.js 동일 정책).
+  const isAiPlanner = (booking.productType || '').toString().startsWith('ai-planner');
+  const showVoucherBtn = !isCanceled && !isAiPlanner;
+  const voucherUrl = `/api/voucher?bookingID=${encodeURIComponent(booking.id)}&userEmail=${encodeURIComponent(userEmail)}`;
 
   const fallback = {
     title: i18n.mbDetailTitle || 'Booking Details',
@@ -557,6 +562,19 @@ function BookingDetailModal({
               </p>
             )}
           </div>
+
+          {/* Voucher PDF 다운로드 — bookingID + userEmail 매칭 후 백엔드에서 PDF 스트리밍.
+              api/voucher.js 가 booking-processor 와 동일 _generate-voucher.js 사용. */}
+          {showVoucherBtn && (
+            <a
+              href={voucherUrl}
+              download={`voucher_${booking.bookingRef}.pdf`}
+              className="mt-3 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#C4956A]/40 text-[#C4956A] text-xs font-semibold hover:bg-[#C4956A]/10 transition-colors"
+            >
+              <Download size={13} />
+              {i18n.mbDetailDownloadVoucher || 'Download Voucher'}
+            </a>
+          )}
 
           {/* 문의 안내 — 환불 정책에 막힌 사용자에게 사람과 연결 가능한 채널 안내. */}
           <p className="text-[11px] text-white/45 pt-2">{fallback.contact}</p>

@@ -1950,6 +1950,7 @@
     "mbDetailContact": "Support: KakaoTalk channel or cocotripkr@gmail.com",
     "mbDetailCanceledNote": "This booking has been canceled.",
     "mbDetailCompletedNote": "Tour completed. Hope you enjoyed it!",
+    "mbDetailDownloadVoucher": "Download Voucher",
     "mbCancelReasonPrompt": "Cancellation reason (optional):",
     "mbCancelConfirm": "Cancel this booking?\\nRefund {pct}% · approx ₩{amt}\\nRefund via PayPal in 3-5 business days.",
     "modifyModalTitle": "Modify Booking",

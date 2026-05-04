@@ -136,6 +136,8 @@ export interface WizardI18n {
   mbDetailContact?: string;
   mbDetailCanceledNote?: string;
   mbDetailCompletedNote?: string;
+  // 2026-05-04: BookingDetailModal voucher PDF 다운로드 버튼 (api/voucher.js)
+  mbDetailDownloadVoucher?: string;
   mbCancelReasonPrompt: string;
   mbCancelConfirm: (pct: number, amountKRW: string) => string;
 
@@ -314,6 +316,7 @@ export function getWizardI18n(language: string): WizardI18n {
     mbDetailContact: get('mbDetailContact'),
     mbDetailCanceledNote: get('mbDetailCanceledNote'),
     mbDetailCompletedNote: get('mbDetailCompletedNote'),
+    mbDetailDownloadVoucher: get('mbDetailDownloadVoucher'),
     mbCancelReasonPrompt: get('mbCancelReasonPrompt'),
     mbCancelConfirm: (pct, amt) => fmt(get('mbCancelConfirm'), { pct, amt }),
 
