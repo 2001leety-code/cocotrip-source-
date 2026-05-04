@@ -109,7 +109,7 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 
 <b>CS 티켓</b>
 /cs_list [open|in_progress|resolved|all] — <b>이슈</b> 또는 이슈 open
-/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt; — <b>이슈추가 ...</b>
+/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt; [plan:&lt;planId&gt;] — <b>이슈추가 ...</b>
 /cs_resolve &lt;ticketId&gt; — <b>이슈해결 ...</b> (또는 해결)
 
 <b>한글 사용 예시</b>
@@ -119,6 +119,7 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 <code>기사추가 1234567890 김기사 스타리아1호</code>
 <code>배차 CT-20260502-123 1234567890</code>
 <code>이슈추가 CT-20260502-123 high 픽업 30분 지연</code>
+<code>이슈추가 CT-20260502-123 high plan:abc123 음식 알레르기 누락</code>
 <code>해결 abc123def456</code>
 <code>누구 1234567890</code>`;
 
@@ -744,9 +745,10 @@ async function handleCsList(botToken, p) {
     const t = doc.data();
     const icon = t.priority === 'critical' ? '🔴' : t.priority === 'high' ? '🟠' : t.priority === 'medium' ? '🟡' : '⚪';
     const stIcon = t.status === 'open' ? '○' : t.status === 'in_progress' ? '◐' : '●';
+    const planTag = t.planId ? ` · plan:<code>${String(t.planId).slice(0, 12)}</code>` : '';
     lines.push(
       `${stIcon} ${icon} <code>${doc.id.slice(0, 12)}</code>\n` +
-      `  ${t.bookingId || '-'} · ${t.customer || '-'}\n` +
+      `  ${t.bookingId || '-'} · ${t.customer || '-'}${planTag}\n` +
       `  ${(t.issue || '').slice(0, 80)}`
     );
   });
@@ -754,16 +756,39 @@ async function handleCsList(botToken, p) {
 }
 
 // /cs_add <orderID> <priority> <issue...>
+//        [plan:<planId>] 토큰 어느 위치에든 들어가면 추출 → cs_tickets.planId 저장
+//        - planId 형식: alphanumeric + hyphen/underscore, 최소 4자 (Firestore doc id 호환)
+//        - 누락 시 planId=null (학습 루프 집계 시 obvious-null 처리)
 async function handleCsAdd(botToken, p) {
   if (p.args.length < 3) {
     await sendBotMessage(botToken, p.chatId,
-      `사용법: <code>/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt;</code>\n` +
+      `사용법: <code>/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt; [plan:&lt;planId&gt;]</code>\n` +
       `priority: <code>low</code> | <code>medium</code> | <code>high</code> | <code>critical</code>\n` +
-      `예: <code>/cs_add CT-20260502-123 high 픽업 30분 지연</code>`);
+      `예: <code>/cs_add CT-20260502-123 high 픽업 30분 지연</code>\n` +
+      `예: <code>/cs_add CT-20260502-123 high plan:abc123 음식 알레르기 누락</code>`);
     return;
   }
 
-  const [orderID, priority, ...issueParts] = p.args;
+  // plan:<id> 토큰 추출 (어디 위치하든 OK; 첫 매칭만 사용)
+  const PLAN_TOKEN_RE = /^plan:([A-Za-z0-9_-]{4,})$/;
+  let planId = null;
+  const filteredArgs = [];
+  for (const tok of p.args) {
+    if (planId === null) {
+      const m = tok.match(PLAN_TOKEN_RE);
+      if (m) { planId = m[1]; continue; }
+    }
+    filteredArgs.push(tok);
+  }
+
+  if (filteredArgs.length < 3) {
+    await sendBotMessage(botToken, p.chatId,
+      `인자 부족 (orderID priority issue 필요).\n` +
+      `예: <code>/cs_add CT-20260502-123 high plan:abc123 픽업 지연</code>`);
+    return;
+  }
+
+  const [orderID, priority, ...issueParts] = filteredArgs;
   const priorityLower = priority.toLowerCase();
   if (!VALID_CS_PRIORITIES.includes(priorityLower)) {
     await sendBotMessage(botToken, p.chatId,
@@ -785,8 +810,20 @@ async function handleCsAdd(botToken, p) {
     }
   } catch {}
 
+  // planId 미지정 시 booking.planId 자동 추론 (있으면)
+  if (!planId) {
+    try {
+      const bookingDoc = await db.collection('bookings').doc(orderID).get();
+      if (bookingDoc.exists) {
+        const b = bookingDoc.data();
+        if (b.planId && typeof b.planId === 'string') planId = b.planId;
+      }
+    } catch {}
+  }
+
   const ref = await db.collection('cs_tickets').add({
     bookingId: orderID,
+    planId: planId || null,
     customer: customer || '-',
     issue,
     priority: priorityLower,
@@ -798,6 +835,7 @@ async function handleCsAdd(botToken, p) {
     `✓ CS 티켓 생성\n` +
     `ID: <code>${ref.id.slice(0, 12)}</code>\n` +
     `예약: <code>${orderID}</code>\n` +
+    (planId ? `플랜: <code>${planId}</code>\n` : '') +
     `우선순위: <b>${priorityLower}</b>\n` +
     `이슈: ${issue}`);
 }
