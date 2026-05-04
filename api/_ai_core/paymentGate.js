@@ -11,8 +11,13 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken } from '../_shared/paypal.js';
 import { findTransaction as findBraintreeTransaction } from '../_shared/braintree.js';
+import { captureError } from '../_shared/sentry.js';
 
-const TEST_ACCOUNTS = ['2001leety@gmail.com'];
+// Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
+// 정책: BRAINTREE_ENV='production' → TEST- prefix order ID 전면 reject.
+// BRAINTREE_ENV='sandbox' (또는 미설정 dev) → TEST- 허용 (E2E 테스트용).
+// 인증: caller (ai-planner-full.js) 에서 verifyUserToken 으로 검증된 email 을 authenticatedEmail
+// 로 전달해야 함. body.email 신뢰 종료.
 
 // 2026-05-03: Braintree 통합 추가. transaction ID 패턴으로 provider 자동 판별.
 // PayPal order ID: 17자 alphanumeric (예: 5O190127TN364715T)
@@ -31,7 +36,7 @@ function reject(statusCode, code, message, details) {
   return { rejection: { statusCode, code, message, ...(details ? { details } : {}) } };
 }
 
-export async function enforcePaymentAndRevision(body, adminDb) {
+export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail) {
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
   let isRevision = false;
@@ -64,23 +69,25 @@ export async function enforcePaymentAndRevision(body, adminDb) {
   }
 
   const paypalOrderId = body.paypalOrderId;
-  const requestEmail = (body.email || '').toLowerCase().trim();
+  // Audit P0-#2: requestEmail 은 인증된 email 사용 (caller 에서 verifyUserToken 으로 결정).
+  // body.email 신뢰 종료 — 이전 버전에서 admin email 위장으로 TEST mode bypass 가능했음.
+  const requestEmail = (authenticatedEmail || '').toLowerCase().trim();
 
   if (!isRevision && !paypalOrderId) {
     return reject(403, 'PAYMENT_REQUIRED', 'Payment required', 'PayPal order ID is missing. Please complete payment first.');
   }
 
-  const isTestAccount = TEST_ACCOUNTS.includes(requestEmail);
-
   if (!isRevision && paypalOrderId) {
     const provider = detectProvider(paypalOrderId);
 
     if (provider === 'test') {
-      if (isTestAccount) {
-        console.log('[planner] ✅ TEST MODE bypass — skipping payment verification for:', requestEmail);
-      } else {
-        return reject(403, 'FORBIDDEN', 'Unauthorized test mode', 'Test mode is only available for authorized accounts.');
+      // Audit P0-#2: production 환경에서는 TEST- 절대 reject. sandbox/dev 만 허용.
+      // 이전 버전: TEST_ACCOUNTS hardcoded admin email + body.email 신뢰 → 무한 free plan exploit.
+      const env = (process.env.BRAINTREE_ENV || '').toLowerCase();
+      if (env === 'production') {
+        return reject(403, 'FORBIDDEN', 'Test mode not allowed in production', 'TEST- prefix order IDs are rejected on production.');
       }
+      console.log('[planner] ✅ TEST MODE accepted (sandbox/dev env) — skipping payment verification for:', requestEmail || 'anonymous');
     } else if (provider === 'braintree') {
       // 2026-05-03: Braintree transaction 검증. braintreeCheckout.js가 이미 transaction
       // 생성 시 Firestore bookings에 저장 → 여기서는 status만 sanity check.
@@ -103,6 +110,7 @@ export async function enforcePaymentAndRevision(body, adminDb) {
         }
       } catch (e) {
         console.error('[planner] Braintree verify failed:', e.message);
+        await captureError(e, { route: 'paymentGate', step: 'braintree_verify', orderId: paypalOrderId });
         return reject(403, 'PAYMENT_VERIFY_ERROR', e.message);
       }
     } else {
@@ -116,6 +124,7 @@ export async function enforcePaymentAndRevision(body, adminDb) {
         ppBase = auth.baseUrl;
       } catch (e) {
         console.error('[planner] PayPal auth failed:', e.message);
+        await captureError(e, { route: 'paymentGate', step: 'paypal_auth', orderId: paypalOrderId });
         return reject(403, 'PAYPAL_AUTH_ERROR', e.message);
       }
 
