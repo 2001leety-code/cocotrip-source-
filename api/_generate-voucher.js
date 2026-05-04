@@ -128,6 +128,35 @@ export async function generateVoucherPDF(booking) {
         rowY += 24;
       });
 
+      // ── 추정가 정산 안내 (charter_custom_estimate) ──────────────
+      // 2026-05-04: zone-fallback 차터(권역 평균 가격)인 경우 ±10% 정산 약관을 명시.
+      // 고객이 voucher PDF만 보고 운행 들어가도 사후 분쟁 시 근거가 됨.
+      // PDF 폰트는 표준 Helvetica(라틴 only) 이므로 본 PDF에서는 영문 단일 표기.
+      // ko/ja/zh 동일 약관은 confirmation email 및 Wallet pass 의 translatedValues 로 제공.
+      const showReconciliation = !!booking.requiresReconciliation;
+      if (showReconciliation) {
+        const noteY = rowY + 14;
+        const noteH = 78;
+        doc.roundedRect(M, noteY, W - M * 2, noteH, 8).fillAndStroke('#fffbeb', '#f59e0b');
+
+        doc.fillColor('#92400e')
+           .font('Helvetica-Bold')
+           .fontSize(10)
+           .text('Estimate-Based Pricing — Reconciliation Notice (+/-10%)', M + 14, noteY + 10);
+
+        doc.fillColor('#78350f')
+           .font('Helvetica')
+           .fontSize(8.5)
+           .text(
+             'Your booking was priced using a regional-average estimate (destination outside our pre-priced matrix). '
+             + 'If the actual distance / driving duration differs from the estimate by more than +/-10%, we will '
+             + 'reconcile (additional charge or partial refund) within 1 business day after the trip. An itemized '
+             + 'statement will be sent before any adjustment. (See your confirmation email for KO/JA/ZH translations.)',
+             M + 14, noteY + 28, { width: W - M * 2 - 28, lineGap: 1.5 }
+           );
+        rowY = noteY + noteH;
+      }
+
       // ── 담당 기사 박스 ─────────────────────────────────────
       const driverY = rowY + 20;
       doc.roundedRect(M, driverY, W - M * 2, 78, 8).fill('#f0fdf4');

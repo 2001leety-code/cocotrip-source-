@@ -1587,7 +1587,23 @@
     "deleteBtn": "删除",
     "coinsLabel": "币",
     "traveler": "旅行者",
-    "internal": "内部统计"
+    "internal": "内部统计",
+    "estimateBadge": "区域平均估算 — 行程后 ±10% 差异时结算",
+    "airportPrefix": "机场 → ",
+    "comboPackage": "组合套餐",
+    "productLabels": {
+      "charter_custom_estimate": "定制包车 (待结算)",
+      "charter_seoul_city": "首尔市区包车",
+      "charter_seoul_suburb": "首尔近郊包车",
+      "charter_dmz": "DMZ 包车",
+      "charter_gangwon": "江原包车",
+      "charter_ski": "滑雪场包车",
+      "charter_gyeongju": "庆州·全州包车",
+      "charter_busan": "釜山一日包车",
+      "kpop_shuttle_oneway": "K-pop班车 (单程)",
+      "kpop_shuttle_roundtrip": "K-pop班车 (往返)",
+      "ai_planner_full": "AI 行程 ($9.90)"
+    }
   },
   "admin": {
     "title": "管理员控制台",

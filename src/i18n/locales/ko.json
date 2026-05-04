@@ -1587,7 +1587,23 @@
     "deleteBtn": "삭제",
     "coinsLabel": "코인",
     "traveler": "여행자",
-    "internal": "자체 집계"
+    "internal": "자체 집계",
+    "estimateBadge": "권역 평균 추정가 — 운행 후 ±10% 차이 시 정산",
+    "airportPrefix": "공항 → ",
+    "comboPackage": "콤보 패키지",
+    "productLabels": {
+      "charter_custom_estimate": "맞춤 차터 (정산 대기)",
+      "charter_seoul_city": "서울 시티 차터",
+      "charter_seoul_suburb": "서울 근교 차터",
+      "charter_dmz": "DMZ 차터",
+      "charter_gangwon": "강원 차터",
+      "charter_ski": "스키 리조트 차터",
+      "charter_gyeongju": "경주·전주 차터",
+      "charter_busan": "부산 데이 차터",
+      "kpop_shuttle_oneway": "K-pop 셔틀 (편도)",
+      "kpop_shuttle_roundtrip": "K-pop 셔틀 (왕복)",
+      "ai_planner_full": "AI 플래너 ($9.90)"
+    }
   },
   "admin": {
     "title": "관리자 대시보드",
