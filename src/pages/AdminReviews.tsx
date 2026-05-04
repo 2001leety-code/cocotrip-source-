@@ -28,7 +28,7 @@ interface ReportedReview {
   createdAt: number;
 }
 
-const ADMIN_EMAILS = ['2001leety@gmail.com'];
+const ADMIN_EMAILS = [import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com'];
 
 export default function AdminReviews() {
   const { user } = useAuth();

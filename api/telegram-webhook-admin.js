@@ -26,6 +26,7 @@ import { sweepExpiredDispatches, computeExpiryDate } from './_shared/dispatch-sw
 import { productDisplayLabel } from './_shared/pricing.js';
 import { relayAdminReply } from './_shared/chat-relay.js';
 import { sendEmail } from './_send-email.js';
+import { USD_TO_KRW } from './_shared/exchange-rate.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -690,7 +691,7 @@ async function handleSalesCommand(botToken, p) {
     byProduct.set(pt, { count: prev.count + 1, usd: prev.usd + usd });
   });
 
-  const krwRate = 1380;
+  const krwRate = USD_TO_KRW;
   const totalKRW = Math.round(totalUSD * krwRate);
 
   const lines = [
