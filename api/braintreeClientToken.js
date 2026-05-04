@@ -7,6 +7,7 @@
  * Response: { ok: true, clientToken: "..." }
  */
 import { generateClientToken } from './_shared/braintree.js';
+import { captureError } from './_shared/sentry.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -36,6 +37,7 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: true, clientToken }));
   } catch (err) {
     console.error('[braintreeClientToken] failed:', err.message);
+    await captureError(err, { route: '/api/braintreeClientToken', method: req.method });
     res.writeHead(500, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: err.message, code: 'CLIENT_TOKEN_ERROR' }));
   }

@@ -12,6 +12,7 @@
  * ENV: TELEGRAM_BOT_TOKEN (또는 TELEGRAM_ADMIN_BOT_TOKEN), TELEGRAM_CHAT_ID
  */
 import { callBot } from './_shared/telegram-bot.js';
+import { captureError } from './_shared/sentry.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -73,6 +74,7 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error('[notify-claim] telegram send failed:', err);
+    await captureError(err, { route: '/api/notify-claim', method: req.method });
     res.status(200).json({ ok: false, error: err.message });
   }
 }

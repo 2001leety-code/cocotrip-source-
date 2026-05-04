@@ -248,6 +248,20 @@ export default function AdminCalendar() {
       blocked: 'blocked',
     };
     const nextStatus = nextMap[currentStatus];
+
+    // Destructive transitions — confirm before applying. 실수 클릭으로 데이터 손실
+    // (운행종료된 건이 갑자기 취소 처리되거나, 취소 건이 다시 대기로 돌아가는 케이스) 방지.
+    const DESTRUCTIVE: Array<[BookingStatus, BookingStatus]> = [
+      ['completed', 'cancelled'],
+      ['cancelled', 'pending'],
+    ];
+    const isDestructive = DESTRUCTIVE.some(([f, t]) => f === currentStatus && t === nextStatus);
+    if (isDestructive) {
+      const fromLabel = STATUS_LABELS[currentStatus];
+      const toLabel = STATUS_LABELS[nextStatus];
+      if (!confirm(`정말 [${fromLabel}]에서 [${toLabel}]로 변경하시겠습니까?`)) return;
+    }
+
     try {
       await updateDoc(doc(db, 'bookings', bookingId), {
         adminStatus: nextStatus,

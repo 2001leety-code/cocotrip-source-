@@ -7,6 +7,7 @@
  * 인증: Firebase ID token (verifyIdToken) + ADMIN_EMAIL 검증.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
+import { captureError } from './_shared/sentry.js';
 
 // response.js는 CommonJS(module.exports) — Vercel ESM 런타임에서 named import 실패 사례 있어
 // 단순 wrapper는 inline 정의로 의존 제거.
@@ -80,6 +81,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('[admin-bookings] Error:', error.message);
+    await captureError(error, { route: '/api/admin-bookings', method: req.method });
     return json(res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
   }
 }

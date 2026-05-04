@@ -17,6 +17,7 @@
 
 import { initAdminDb } from './_ai_core/firestoreAdmin.js';
 import { generateVoucherPDF } from './_generate-voucher.js';
+import { captureError } from './_shared/sentry.js';
 
 export const config = { maxDuration: 15 };
 
@@ -102,6 +103,7 @@ export default async function handler(req, res) {
     pdfBuffer = await generateVoucherPDF(booking);
   } catch (err) {
     console.error('[voucher] PDF 생성 실패:', err.message);
+    await captureError(err, { route: '/api/voucher', method: req.method });
     return jsonErr(res, 500, 'PDF generation failed', 'PDF_ERROR');
   }
 
