@@ -5,6 +5,7 @@ import { Package, Clock, XCircle, Edit, Check, X, Star, ExternalLink } from 'luc
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
 import { useAuth } from '@/hooks/useAuth';
+import { translations, type Language } from '@/i18n';
 
 interface Booking {
   id: string;
@@ -34,50 +35,25 @@ interface Booking {
   };
 }
 
-// 2026-05-04: productType 키 → 사용자 친화 라벨 4-lang. raw 키 (charter_seoul_city,
-// airport_seoul_central, charter_custom_estimate 등) 가 그대로 노출되던 wart 정리.
-const PRODUCT_LABELS: Record<string, Record<string, string>> = {
-  charter_custom_estimate: {
-    ko: '맞춤 차터 (정산 대기)', en: 'Custom Charter (Estimate)',
-    ja: 'カスタムチャーター (精算待ち)', zh: '定制包车 (待结算)',
-  },
-  charter_seoul_city:   { ko: '서울 시티 차터', en: 'Seoul City Charter', ja: 'ソウル市内チャーター', zh: '首尔市区包车' },
-  charter_seoul_suburb: { ko: '서울 근교 차터', en: 'Seoul Suburb Charter', ja: 'ソウル近郊チャーター', zh: '首尔近郊包车' },
-  charter_dmz:          { ko: 'DMZ 차터', en: 'DMZ Charter', ja: 'DMZチャーター', zh: 'DMZ 包车' },
-  charter_gangwon:      { ko: '강원 차터', en: 'Gangwon Charter', ja: '江原チャーター', zh: '江原包车' },
-  charter_ski:          { ko: '스키 리조트 차터', en: 'Ski Resort Charter', ja: 'スキーリゾートチャーター', zh: '滑雪场包车' },
-  charter_gyeongju:     { ko: '경주·전주 차터', en: 'Gyeongju · Jeonju Charter', ja: '慶州・全州チャーター', zh: '庆州·全州包车' },
-  charter_busan:        { ko: '부산 데이 차터', en: 'Busan Day Charter', ja: '釜山デイチャーター', zh: '釜山一日包车' },
-  kpop_shuttle_oneway:  { ko: 'K-pop 셔틀 (편도)', en: 'K-pop Shuttle (One-way)', ja: 'K-popシャトル(片道)', zh: 'K-pop班车 (单程)' },
-  kpop_shuttle_roundtrip: { ko: 'K-pop 셔틀 (왕복)', en: 'K-pop Shuttle (Round-trip)', ja: 'K-popシャトル(往復)', zh: 'K-pop班车 (往返)' },
-  ai_planner_full:      { ko: 'AI 플래너 ($9.90)', en: 'AI Planner ($9.90)', ja: 'AIプランナー($9.90)', zh: 'AI 行程 ($9.90)' },
-};
-
-function prettyProductLabel(productType: string | undefined, lang: string): string {
+// 2026-05-04: productType 키 → 사용자 친화 라벨. 4-lang 사전은 i18n 중앙(`mypage.productLabels`)
+// 으로 이전됨 (refactor C3, 2026-05-04). raw 키가 그대로 노출되던 wart 정리.
+function prettyProductLabel(productType: string | undefined, lang: Language): string {
   if (!productType) return '-';
   const norm = String(productType).replace(/-/g, '_');
-  const entry = PRODUCT_LABELS[norm];
-  if (entry) return entry[lang] || entry.en || productType;
+  const t = translations[lang].mypage;
+  const enLabels = translations.en.mypage.productLabels as Record<string, string>;
+  const labels = t.productLabels as Record<string, string>;
+  if (labels[norm]) return labels[norm] || enLabels[norm] || productType;
   // airport_<key> 같은 동적 키는 일반화
   if (norm.startsWith('airport_')) {
     const dest = norm.slice(8).replace(/_/g, ' ');
-    return lang === 'ko' ? `공항 → ${dest}`
-      : lang === 'ja' ? `空港 → ${dest}`
-      : lang === 'zh' ? `机场 → ${dest}`
-      : `Airport → ${dest}`;
+    return `${t.airportPrefix}${dest}`;
   }
   if (norm.startsWith('combo_')) {
-    return lang === 'ko' ? `콤보 패키지` : 'Combo Package';
+    return t.comboPackage;
   }
   return productType;
 }
-
-const ESTIMATE_BADGE_LABEL: Record<string, string> = {
-  ko: '권역 평균 추정가 — 운행 후 ±10% 차이 시 정산',
-  en: 'Regional estimate — reconciles ±10% post-trip',
-  ja: '広域平均の概算 — 運行後 ±10% 差で精算',
-  zh: '区域平均估算 — 行程后 ±10% 差异时结算',
-};
 
 function airportSummary(airport?: Booking['airport']): string | null {
   if (!airport) return null;
@@ -194,7 +170,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               {/* 2026-05-04: charter_custom_estimate booking — 추정가 정산 대기 배지 */}
               {b.requiresReconciliation && (
                 <p className="text-amber-300/70 text-[10px] mt-1 italic">
-                  ⚠ {ESTIMATE_BADGE_LABEL[language] || ESTIMATE_BADGE_LABEL.en}
+                  ⚠ {translations[language].mypage.estimateBadge || translations.en.mypage.estimateBadge}
                 </p>
               )}
               {airportSummary(b.airport) && (

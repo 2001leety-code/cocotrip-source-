@@ -47,7 +47,7 @@ type Tab = 'overview' | 'bookings' | 'coupons' | 'wishlist' | 'reviews' | 'histo
 
 export default function MyPage() {
   const { language, t, changeLanguage } = useLanguage();
-  const mp = (t as { mypage?: Record<string, string> }).mypage || {};
+  const mp = ((t as unknown) as { mypage?: Record<string, string> }).mypage || {};
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const { loyalty, coupons, activeCoupons, pointHistory, coinsToUSD, loading } = useLoyalty();

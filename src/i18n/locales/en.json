@@ -1587,7 +1587,23 @@
     "deleteBtn": "Delete",
     "coinsLabel": "coins",
     "traveler": "Traveler",
-    "internal": "Internal"
+    "internal": "Internal",
+    "estimateBadge": "Regional estimate — reconciles ±10% post-trip",
+    "airportPrefix": "Airport → ",
+    "comboPackage": "Combo Package",
+    "productLabels": {
+      "charter_custom_estimate": "Custom Charter (Estimate)",
+      "charter_seoul_city": "Seoul City Charter",
+      "charter_seoul_suburb": "Seoul Suburb Charter",
+      "charter_dmz": "DMZ Charter",
+      "charter_gangwon": "Gangwon Charter",
+      "charter_ski": "Ski Resort Charter",
+      "charter_gyeongju": "Gyeongju · Jeonju Charter",
+      "charter_busan": "Busan Day Charter",
+      "kpop_shuttle_oneway": "K-pop Shuttle (One-way)",
+      "kpop_shuttle_roundtrip": "K-pop Shuttle (Round-trip)",
+      "ai_planner_full": "AI Planner ($9.90)"
+    }
   },
   "admin": {
     "title": "Admin Dashboard",

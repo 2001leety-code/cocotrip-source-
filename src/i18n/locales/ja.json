@@ -1587,7 +1587,23 @@
     "deleteBtn": "削除",
     "coinsLabel": "コイン",
     "traveler": "旅行者",
-    "internal": "自社集計"
+    "internal": "自社集計",
+    "estimateBadge": "広域平均の概算 — 運行後 ±10% 差で精算",
+    "airportPrefix": "空港 → ",
+    "comboPackage": "コンボパッケージ",
+    "productLabels": {
+      "charter_custom_estimate": "カスタムチャーター (精算待ち)",
+      "charter_seoul_city": "ソウル市内チャーター",
+      "charter_seoul_suburb": "ソウル近郊チャーター",
+      "charter_dmz": "DMZチャーター",
+      "charter_gangwon": "江原チャーター",
+      "charter_ski": "スキーリゾートチャーター",
+      "charter_gyeongju": "慶州・全州チャーター",
+      "charter_busan": "釜山デイチャーター",
+      "kpop_shuttle_oneway": "K-popシャトル(片道)",
+      "kpop_shuttle_roundtrip": "K-popシャトル(往復)",
+      "ai_planner_full": "AIプランナー($9.90)"
+    }
   },
   "admin": {
     "title": "管理ダッシュボード",
