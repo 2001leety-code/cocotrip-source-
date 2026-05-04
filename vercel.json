@@ -1,5 +1,5 @@
 {
-  "ignoreCommand": "git log -1 --pretty=%B | grep -qiE '\\[skip ci\\]|\\[skip vercel\\]|\\[no deploy\\]|^WIP' && exit 0 || (git diff --name-only ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD | grep -qvE '^(docs/|\\.github/|\\.agent/|\\.claude/|\\.idx/|\\.vscode/|tests/|scripts/|reports/|outputs/|food_data/|preview/|deploys\\.txt$|error\\.log$|\\.gitignore$|\\.gitattributes$|\\.editorconfig$|\\.claudeignore$|.+\\.md$|.+\\.(png|jpe?g|webp|svg|gif|ico|bmp|tiff?)$|.+\\.(txt|log)$)' && exit 1 || exit 0)",
+  "ignoreCommand": "bash scripts/vercel-ignore.sh",
   "crons": [
     {
       "path": "/api/cron-runner?job=daily-report",
