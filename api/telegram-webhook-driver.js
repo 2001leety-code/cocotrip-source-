@@ -257,10 +257,14 @@ async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) {
   });
 
   // 2. bookings에 기사 배정 확정
+  // 2026-05-04 (C2): dispatchStatus / dispatchedDriverId 추가 — broadcast 시
+  // 어떤 기사가 first-to-accept 인지 어드민 대시보드에서 즉시 식별 가능하게.
   await db.collection('bookings').doc(orderID).update({
     driver: dispatch.driverName,
     driverChatId: dispatch.driverChatId,
     vehicleType: dispatch.driverVehicle || null,
+    dispatchStatus: 'accepted',
+    dispatchedDriverId: Number(p.chatId),
     acceptedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -297,11 +301,31 @@ async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) {
 }
 
 async function handleReject(botToken, p, dispatchRef, dispatch, orderID) {
+  const db = initAdminDb('telegram-driver');
+
   // 1. dispatch_messages 상태 갱신
   await dispatchRef.update({
     status: 'rejected',
     respondedAt: FieldValue.serverTimestamp(),
   });
+
+  // 1.5 bookings.dispatchStatus 갱신 — 단, 다른 기사가 이미 수락한 경우는 건너뜀
+  // (broadcast 시 first-to-accept wins 정책 — accepted 가 reject 로 덮어씌워지면 안 됨)
+  if (db) {
+    try {
+      const bookingRef = db.collection('bookings').doc(orderID);
+      const bookingSnap = await bookingRef.get();
+      const existing = bookingSnap.exists ? bookingSnap.data() : null;
+      if (existing && existing.dispatchStatus !== 'accepted') {
+        await bookingRef.update({
+          dispatchStatus: 'rejected',
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      console.warn('[driver-webhook] bookings dispatchStatus 갱신 실패 (무시):', err.message);
+    }
+  }
 
   // 2. 콜백 응답
   await callBot(botToken, 'answerCallbackQuery', {
@@ -323,7 +347,29 @@ async function handleReject(botToken, p, dispatchRef, dispatch, orderID) {
     }
   }
 
-  // 4. 어드민에게 알림 — dispatch 채널로 라우팅
+  // 4. 어드민에게 fallback 알림 — admin 봇 + dispatch 채널 둘 다 시도
+  // (task C2: "send fallback alert to admin bot" — 거절은 수동 재배차 액션이 필요해
+  // 어드민이 즉시 인지해야 함)
+  const adminAlertText =
+    `⚠️ <b>기사 거절 — 수동 재배차 필요</b>\n` +
+    `예약번호: <code>${orderID}</code>\n` +
+    `거절 기사: ${dispatch.driverName || '-'}\n\n` +
+    `<code>/drivers</code> 로 다른 기사 확인 후\n` +
+    `<code>/dispatch ${orderID} &lt;driverChatId&gt;</code> 실행`;
+
+  // admin 봇 직접 발송 (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
+  try {
+    const adminBotToken = process.env.TELEGRAM_BOT_TOKEN;
+    const adminChatId = process.env.TELEGRAM_CHAT_ID;
+    if (adminBotToken && adminChatId) {
+      const { sendBotMessage } = await import('./_shared/telegram-bot.js');
+      await sendBotMessage(adminBotToken, adminChatId, adminAlertText);
+    }
+  } catch (err) {
+    console.warn('[driver-webhook] admin bot 직접 알림 실패:', err.message);
+  }
+
+  // dispatch 채널 보조 (다른 봇/채팅으로 분리한 경우)
   try {
     await notify('dispatch', `✗ 배차 거절\n${orderID} ← ${dispatch.driverName}\n다른 기사에게 재배차 필요`);
   } catch (err) {
