@@ -81,6 +81,9 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [modifyTarget, setModifyTarget] = useState<Booking | null>(null);
   const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
+  // 2026-05-04 P0 fix: 예약 카드 클릭 시 상세 모달 표시. 이전엔 카드 클릭 시 아무 동작도 없어
+  // 사용자가 PNR/세부 정보를 볼 수 없었음 (사용자 신고: "들어가볼 수도 없음").
+  const [detailTarget, setDetailTarget] = useState<Booking | null>(null);
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -150,7 +153,14 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
         <span className="text-white/55 text-sm">{bookings.length}</span>
       </div>
       {bookings.map(b => (
-        <div key={b.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#7C5CFC]/20 transition-all">
+        <div
+          key={b.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => setDetailTarget(b)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailTarget(b); } }}
+          className="p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#7C5CFC]/20 transition-all cursor-pointer focus:outline-none focus:border-[#7C5CFC]/50"
+        >
           <div className="flex items-start justify-between gap-3 mb-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -196,11 +206,11 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           </div>
 
           {b.status === 'CONFIRMED' && (
-            <div className="flex gap-2 mt-3 items-center flex-wrap">
+            <div className="flex gap-2 mt-3 items-center flex-wrap" onClick={(e) => e.stopPropagation()}>
               {b.canModify && (
                 <button
                   type="button"
-                  onClick={() => setModifyTarget(b)}
+                  onClick={(e) => { e.stopPropagation(); setModifyTarget(b); }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-[11px] hover:bg-white/5"
                 >
                   <Edit size={12} /> {i18n.mbModifyBtn}
@@ -210,7 +220,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
                 <button
                   type="button"
                   disabled={cancelingId === b.id}
-                  onClick={() => handleCancel(b)}
+                  onClick={(e) => { e.stopPropagation(); handleCancel(b); }}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-500/25 text-red-300 text-[11px] hover:bg-red-500/10 disabled:opacity-40"
                 >
                   {cancelingId === b.id ? i18n.mbProcessing : <><XCircle size={12} /> {i18n.mbCancelBtn}</>}
@@ -222,6 +232,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               {(b.productType || '').toString().startsWith('ai-planner') && (
                 <Link
                   to="/my-plans"
+                  onClick={(e) => e.stopPropagation()}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#7C5CFC]/40 text-[#B668FC] text-[11px] hover:bg-[#7C5CFC]/10"
                 >
                   <ExternalLink size={12} /> {i18n.mbViewPlanBtn || 'View Plan'}
@@ -243,10 +254,10 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
               this session. Server enforces one-review-per-product so the
               client-side guard is just UX. */}
           {b.status === 'COMPLETED' && user?.uid && !reviewedBookingIds.has(b.id) && (
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                onClick={() => setReviewTarget(b)}
+                onClick={(e) => { e.stopPropagation(); setReviewTarget(b); }}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-yellow-500/25 text-yellow-200 text-[11px] hover:bg-yellow-500/10 transition-colors"
               >
                 <Star size={12} className="fill-yellow-400 text-yellow-400" /> {i18n.mbReviewBtn || 'Write a review · +50 coins'}
@@ -255,6 +266,25 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
           )}
         </div>
       ))}
+
+      {detailTarget && (
+        <BookingDetailModal
+          booking={detailTarget}
+          language={language}
+          userEmail={userEmail}
+          onClose={() => setDetailTarget(null)}
+          onCancel={async () => {
+            const b = detailTarget;
+            setDetailTarget(null);
+            await handleCancel(b);
+          }}
+          onModify={() => {
+            setModifyTarget(detailTarget);
+            setDetailTarget(null);
+          }}
+          cancelingId={cancelingId}
+        />
+      )}
 
       {modifyTarget && (
         <ModifyModal
@@ -389,6 +419,187 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <p className="text-[10px] uppercase tracking-wider text-white/55 mb-1 font-semibold">{label}</p>
       {children}
+    </div>
+  );
+}
+
+// 2026-05-04 P0 fix: 예약 상세 모달. 사용자 신고 — 카드 클릭 시 아무 일도 안 일어났음.
+// 이 모달은 booking 데이터 (서비스/날짜/차량/인원/금액/이메일/항공편/수하물 등) + 환불 가능 여부 +
+// CTA (취소 가능시 취소 버튼 / 불가시 약관 링크 + 문의 안내) 노출. 백엔드 추가 호출 없음 —
+// 기존 my-bookings 응답으로 모두 표시.
+function BookingDetailModal({
+  booking, language, userEmail, onClose, onCancel, onModify, cancelingId,
+}: {
+  booking: Booking;
+  language: 'ko' | 'en' | 'ja' | 'zh';
+  userEmail: string;
+  onClose: () => void;
+  onCancel: () => void | Promise<void>;
+  onModify: () => void;
+  cancelingId: string | null;
+}) {
+  const i18n = getWizardI18n(language);
+  const lug = booking.airport?.luggage || {};
+  const luggageStr = (() => {
+    const parts: string[] = [];
+    if (lug.small) parts.push(`S:${lug.small}`);
+    if (lug.medium) parts.push(`M:${lug.medium}`);
+    if (lug.large) parts.push(`L:${lug.large}`);
+    return parts.length ? parts.join(' · ') : '-';
+  })();
+
+  const isCanceled = booking.status === 'CANCELED';
+  const isCompleted = booking.status === 'COMPLETED';
+  const showCancelBtn = booking.status === 'CONFIRMED' && booking.canRefund;
+  const showRefundClosedNote = booking.status === 'CONFIRMED' && !booking.canRefund && !booking.canModify
+    && !(booking.productType || '').toString().startsWith('ai-planner');
+
+  const fallback = {
+    title: i18n.mbDetailTitle || 'Booking Details',
+    bookingRef: i18n.mbDetailBookingRef || 'Booking Ref',
+    service: i18n.mbDetailService || 'Service',
+    date: i18n.mbDetailDate || 'Tour Date',
+    pickup: i18n.mbDetailPickup || 'Pickup',
+    dropoff: i18n.mbDetailDropoff || 'Drop-off',
+    vehicle: i18n.mbDetailVehicle || 'Vehicle',
+    pax: i18n.mbDetailPax || 'Passengers',
+    amount: i18n.mbDetailAmount || 'Amount Paid',
+    email: i18n.mbDetailEmail || 'Email',
+    flight: i18n.mbDetailFlight || 'Flight',
+    terminal: i18n.mbDetailTerminal || 'Terminal',
+    luggage: i18n.mbDetailLuggage || 'Luggage',
+    refundEligible: i18n.mbDetailRefundEligible || 'This booking is eligible for refund.',
+    refundClosed: i18n.mbDetailRefundClosed || 'Refund window has passed. See terms for our policy.',
+    viewTerms: i18n.mbDetailViewTerms || 'View travel terms',
+    close: i18n.mbDetailClose || 'Close',
+    contact: i18n.mbDetailContact || 'Support: KakaoTalk channel or cocotripkr@gmail.com',
+    canceledNote: i18n.mbDetailCanceledNote || 'This booking has been canceled.',
+    completedNote: i18n.mbDetailCompletedNote || 'Tour completed. Hope you enjoyed it!',
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-md bg-[#0f1628] rounded-2xl border border-[#7C5CFC]/30 overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <h3 className="text-white font-bold flex items-center gap-2">
+            <Package size={16} className="text-[#B668FC]" />
+            {fallback.title}
+          </h3>
+          <button onClick={onClose} className="text-white/55 hover:text-white" aria-label={fallback.close}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-2.5 text-sm overflow-y-auto">
+          <DetailRow label={fallback.bookingRef} value={<code className="text-[#C4956A] font-mono text-xs">{booking.bookingRef}</code>} />
+          <DetailRow label="Status" value={<StatusBadge status={booking.status} i18n={i18n} />} />
+          <DetailRow label={fallback.service} value={prettyProductLabel(booking.productType, language)} />
+          <DetailRow label={fallback.date} value={booking.tourDate || '-'} />
+          {booking.pickupLocation && <DetailRow label={fallback.pickup} value={booking.pickupLocation} />}
+          {booking.dropoffLocation && <DetailRow label={fallback.dropoff} value={booking.dropoffLocation} />}
+          {booking.vehicleType && <DetailRow label={fallback.vehicle} value={booking.vehicleType} />}
+          <DetailRow label={fallback.pax} value={`${booking.paxCount}${i18n.maxUnit || ''}`} />
+          <DetailRow
+            label={fallback.amount}
+            value={
+              <span className="text-white">
+                <span className="font-bold">${booking.amountUSD}</span>
+                <span className="text-white/55 text-xs"> · ₩{booking.amountKRW.toLocaleString('ko-KR')}</span>
+              </span>
+            }
+          />
+          {userEmail && <DetailRow label={fallback.email} value={<span className="text-white/80 text-xs break-all">{userEmail}</span>} />}
+          {booking.airport?.terminal && <DetailRow label={fallback.terminal} value={booking.airport.terminal} />}
+          {booking.airport?.flightNumber && <DetailRow label={fallback.flight} value={booking.airport.flightNumber} />}
+          {booking.airport && (lug.small || lug.medium || lug.large) && <DetailRow label={fallback.luggage} value={luggageStr} />}
+          {booking.status === 'CANCELED' && booking.refundedAmount > 0 && (
+            <DetailRow label={i18n.mbRefundedAmount} value={`₩${booking.refundedAmount.toLocaleString('ko-KR')}`} />
+          )}
+
+          {/* 환불 정책 메시지 */}
+          <div className="pt-3 mt-2 border-t border-white/5">
+            {isCanceled && (
+              <p className="text-red-300/80 text-xs">{fallback.canceledNote}</p>
+            )}
+            {isCompleted && (
+              <p className="text-emerald-300/80 text-xs">{fallback.completedNote}</p>
+            )}
+            {showCancelBtn && (
+              <p className="text-emerald-300/80 text-xs">
+                {fallback.refundEligible}
+                {' '}
+                <span className="text-emerald-400 font-semibold">{i18n.mbRefundBadge(booking.refundPercent)}</span>
+              </p>
+            )}
+            {showRefundClosedNote && (
+              <div className="space-y-1.5">
+                <p className="text-amber-300/80 text-xs italic">{fallback.refundClosed}</p>
+                <Link
+                  to="/travel-terms"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1 text-[11px] text-[#B668FC] hover:text-[#FF6B9D] underline"
+                >
+                  <ExternalLink size={11} /> {fallback.viewTerms}
+                </Link>
+              </div>
+            )}
+            {(booking.productType || '').toString().startsWith('ai-planner') && (
+              <p className="text-amber-300/70 text-[11px] italic mt-1">
+                {i18n.mbDigitalNoRefund || 'Digital product · non-refundable'}
+              </p>
+            )}
+          </div>
+
+          {/* 문의 안내 — 환불 정책에 막힌 사용자에게 사람과 연결 가능한 채널 안내. */}
+          <p className="text-[11px] text-white/45 pt-2">{fallback.contact}</p>
+        </div>
+
+        <div className="px-5 py-4 border-t border-white/5 flex gap-2 flex-wrap">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/60 text-sm hover:bg-white/[0.05]"
+          >
+            {fallback.close}
+          </button>
+          {booking.status === 'CONFIRMED' && booking.canModify && (
+            <button
+              onClick={onModify}
+              className="flex-1 py-2.5 rounded-xl border border-[#7C5CFC]/40 text-[#B668FC] text-sm font-semibold hover:bg-[#7C5CFC]/10 flex items-center justify-center gap-1.5"
+            >
+              <Edit size={14} /> {i18n.mbModifyBtn}
+            </button>
+          )}
+          {showCancelBtn && (
+            <button
+              onClick={onCancel}
+              disabled={cancelingId === booking.id}
+              className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-1.5"
+              style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+            >
+              {cancelingId === booking.id
+                ? i18n.mbProcessing
+                : <><XCircle size={14} /> {i18n.mbCancelBtn}</>}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-[11px] uppercase tracking-wider text-white/45 font-semibold shrink-0 pt-0.5">{label}</span>
+      <span className="text-sm text-white/85 text-right break-words min-w-0">{value}</span>
     </div>
   );
 }
