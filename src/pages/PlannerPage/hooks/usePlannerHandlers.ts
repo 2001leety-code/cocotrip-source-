@@ -4,6 +4,21 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import { cityNameToAreaKey } from '../lib/formatters';
+import { auth as firebaseAuth } from '@/lib/firebase';
+
+// Audit P0-#2 (2026-05-04): /api/ai-planner-full 가 Authorization: Bearer <idToken>
+// 필수. 패턴 출처: src/pages/AdminReconciliation.tsx:43-45 (`await user.getIdToken();
+// headers: { Authorization: \`Bearer ${idToken}\` }`).
+async function getAuthHeader(): Promise<Record<string, string>> {
+  const user = firebaseAuth.currentUser;
+  if (!user) return {};
+  try {
+    const idToken = await user.getIdToken();
+    return { Authorization: `Bearer ${idToken}` };
+  } catch {
+    return {};
+  }
+}
 
 interface UsePlannerHandlersOptions {
   language: string;
@@ -164,9 +179,16 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         ));
       }, 300000);
 
+      const authHeaders = await getAuthHeader();
+      if (!authHeaders.Authorization) {
+        clearTimeout(timeoutId);
+        const e = new Error('Sign-in required to generate AI plan. Please sign in and try again.') as Error & { code?: string };
+        e.code = 'AUTH_REQUIRED';
+        throw e;
+      }
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         signal: controller.signal,
         body: JSON.stringify({
           paypalOrderId,
@@ -262,9 +284,17 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         ));
       }, 300000);
 
+      // Audit P0-#2: revision 도 인증 필수.
+      const authHeaders = await getAuthHeader();
+      if (!authHeaders.Authorization) {
+        clearTimeout(timeoutId);
+        const e = new Error('Sign-in required to regenerate AI plan. Please sign in and try again.') as Error & { code?: string };
+        e.code = 'AUTH_REQUIRED';
+        throw e;
+      }
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         signal: controller.signal,
         body: JSON.stringify({
           revisionOf: revisionPlanId,

@@ -113,13 +113,82 @@ export default async function handler(req, res) {
       }
     }
 
-    // 프로모 코드 — 단순화 (createPaypalOrder.js의 EARLY50 동일 로직)
-    if (promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
-
-    // KRW → USD 환율 변환 (Braintree는 머천트 기본 통화로 정산. 한국 머천트는 보통 USD/KRW
-    // 둘 다 enable. 본 PR은 USD 우선, KRW multi-currency 활성 후 currency 분기 가능).
+    // KRW → USD 환율 (다음 promoCode 적용에서도 fixed-USD 쿠폰 환산용으로 필요).
     const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
     const usdToKrw = await getUsdToKrwRaw();
+
+    // ── Audit P0-#1 (2026-05-04): server-side coupon discount application ────
+    // 이전 버전은 EARLY50 만 hardcoded (`krwAmount * 0.8`) 했고 COCO5/COCO10/WELCOME5/
+    // fixed-USD 쿠폰은 server에서 무시 → UI는 할인 표시, transaction은 full price
+    // (silent overcharge). PR #245 에서 라벨 표시는 고쳤지만 실 적용은 누락.
+    //
+    // 정책:
+    //   - GLOBAL_PROMOS (EARLY50/COCO5/COCO10): hardcoded percent 적용
+    //   - couponDocId + couponUserId 함께 오면 Firestore 쿠폰 검증 후 적용
+    //   - fixed-USD 쿠폰: discountKRW = value * usdToKrw, cap=krwAmount
+    //   - percent 쿠폰: krwAmount * (1 - value/100)
+    //   - 최대 누적 cap: 30%
+    //
+    // 신규 booking 필드 (Q1 승인): couponDiscountKRW, promoCodeApplied. 다른 곳 write X.
+    const GLOBAL_PROMOS = {
+      EARLY50: { discount: 0.20, label: 'Early Bird 20% OFF', stackable: false },
+      COCO5:   { discount: 0.05, label: 'Base 5% OFF',          stackable: true  },
+      COCO10:  { discount: 0.10, label: '10% OFF',              stackable: false },
+    };
+
+    let totalDiscountRate = 0;
+    let totalDiscountKRW = 0;
+    let appliedLabel = null;
+
+    if (promoCode) {
+      const upper = String(promoCode).toUpperCase().trim();
+      const globalPromo = GLOBAL_PROMOS[upper];
+      if (globalPromo) {
+        totalDiscountRate += globalPromo.discount;
+        appliedLabel = globalPromo.label;
+      } else if (couponDocId && couponUserId) {
+        // Firestore 개인 쿠폰 검증 — applyPromoCode 와 동일한 doc lookup
+        try {
+          const adminDb = initAdminDb('braintreeCheckout-coupon');
+          if (adminDb) {
+            const couponRef = adminDb.collection('users').doc(couponUserId).collection('coupons').doc(couponDocId);
+            const couponDoc = await couponRef.get();
+            if (couponDoc.exists) {
+              const c = couponDoc.data();
+              const codeMatches = (c.code || '').toUpperCase() === upper;
+              const notUsed = c.isUsed === false;
+              const notExpired = !c.expiresAt || c.expiresAt > Date.now();
+              if (codeMatches && notUsed && notExpired) {
+                if (c.type === 'fixed' && c.currency === 'USD') {
+                  const discountKRW = Math.round(Number(c.value) * usdToKrw);
+                  totalDiscountKRW += Math.min(discountKRW, krwAmount);
+                } else if (c.type === 'percent') {
+                  totalDiscountRate += Number(c.value) / 100;
+                }
+                appliedLabel = c.label || upper;
+              } else {
+                console.warn('[braintreeCheckout] coupon failed validation:', { codeMatches, notUsed, notExpired });
+              }
+            }
+          }
+        } catch (couponErr) {
+          console.error('[braintreeCheckout] coupon lookup failed:', couponErr.message);
+          await captureError(couponErr, { route: 'braintreeCheckout', step: 'coupon_lookup', couponDocId });
+          // coupon 검증 실패 시 무할인으로 진행 (transaction 자체는 막지 않음 — 사용자 결제 흐름 보장).
+        }
+      }
+    }
+
+    // 누적 cap: 30% (applyPromoCode 와 동일).
+    totalDiscountRate = Math.min(totalDiscountRate, 0.30);
+    const percentDiscountKRW = Math.round(krwAmount * totalDiscountRate);
+    const couponDiscountKRW = percentDiscountKRW + totalDiscountKRW;
+    if (couponDiscountKRW > 0) {
+      krwAmount = Math.max(0, krwAmount - couponDiscountKRW);
+      console.log('[braintreeCheckout] coupon applied:', { promoCode, appliedLabel, percentDiscountKRW, fixedDiscountKRW: totalDiscountKRW, totalKRW: couponDiscountKRW, finalKRW: krwAmount });
+    }
+    // ── Audit P0-#1 end ──────────────────────────────────────────────────────
+
     const usdAmount = (krwAmount / usdToKrw).toFixed(2);
 
     const isTestAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
@@ -171,6 +240,10 @@ export default async function handler(req, res) {
           pickupLocation, dropoffLocation, vehicleType, memo,
           ...(airport ? { airport } : {}),
           ...(couponDocId ? { couponDocId, couponUserId } : {}),
+          // Audit P0-#1 (2026-05-04): server 가 실 적용한 쿠폰 메타.
+          // null = 미적용 (consumer 는 `|| 0` / `|| '없음'` 패턴으로 처리).
+          couponDiscountKRW: couponDiscountKRW > 0 ? couponDiscountKRW : null,
+          promoCodeApplied: appliedLabel,
           // 2026-05-04: 추정가 결제는 어드민 사후 정산 필요 — 별도 플래그로 필터링 가능.
           // productType 이 변경돼도 데이터 레이크 쿼리는 이 boolean 으로 안정적으로 유지.
           ...(isCustomEstimateProduct(productType) ? { requiresReconciliation: true } : {}),

@@ -19,9 +19,31 @@ if git log -1 --pretty=%B | grep -qiE '\[skip ci\]|\[skip vercel\]|\[no deploy\]
   exit 0
 fi
 
-# 2) 변경 파일 diff base — Vercel 멀티커밋 푸시 정확도
-BASE="${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}"
-CHANGED=$(git diff --name-only "$BASE" HEAD 2>/dev/null || git diff --name-only HEAD^ HEAD)
+# 2) 변경 파일 diff base — Vercel 멀티커밋 푸시 + 신규 PR 정확도.
+# Preference order:
+#   a) VERCEL_GIT_PREVIOUS_SHA (Vercel 이 직전 deploy 기준 비교용으로 제공)
+#   b) origin/main 머지 base (신규 PR — 전체 PR diff 평가)
+#   c) HEAD^ (단일 커밋 fallback)
+if [ -n "$VERCEL_GIT_PREVIOUS_SHA" ]; then
+  BASE="$VERCEL_GIT_PREVIOUS_SHA"
+elif git rev-parse origin/main >/dev/null 2>&1; then
+  BASE=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD^)
+else
+  BASE=$(git rev-parse HEAD^ 2>/dev/null || echo "")
+fi
+
+if [ -z "$BASE" ]; then
+  echo "[ignore] no diff base resolvable → build (fail-safe)"
+  exit 1
+fi
+
+CHANGED=$(git diff --name-only "$BASE" HEAD 2>/dev/null)
+
+# 빈 diff → 빌드 (fail-safe). HEAD == BASE 이거나 mode-only change 등.
+if [ -z "$CHANGED" ]; then
+  echo "[ignore] empty diff vs base → build (fail-safe)"
+  exit 1
+fi
 
 # 빌드 무관 패턴 (모든 변경이 이 패턴이면 스킵)
 IGNORE_RE='^(docs/|\.github/|\.agent/|\.claude/|\.idx/|\.vscode/|tests/|scripts/|reports/|outputs/|food_data/|preview/)'

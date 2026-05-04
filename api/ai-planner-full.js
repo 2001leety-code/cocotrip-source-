@@ -10,6 +10,7 @@
  * request shaping, response writing, and post-response side effects.
  */
 import { captureError } from './_shared/sentry.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 import { getSpotContext } from './_spots_helper.js';
 import { getFoodContext, buildFoodPrefSnippet } from './_food_helper.js';
 import { sendErrorAlert } from './_telegram.js';
@@ -55,14 +56,25 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    // ── 결제 + 재생성 게이트 ────────────────────────────────────────────────
-    const gate = await enforcePaymentAndRevision(body, adminDb);
+    // ── Audit P0-#2 (2026-05-04): Firebase ID token 검증 ─────────────────────
+    // body.email 신뢰 종료 — 이전 버전에서 admin email 위장으로 TEST mode bypass 가능.
+    // 클라이언트는 Authorization: Bearer <idToken> 필수 (api/_shared/admin-auth.js 패턴 동일).
+    const auth = await verifyUserToken(req);
+    if (!auth.ok) {
+      res.writeHead(auth.status, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
+    }
+    const authenticatedEmail = auth.email;
+
+    // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
+    const gate = await enforcePaymentAndRevision(body, adminDb, authenticatedEmail);
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(_err(message, code, details ? { details } : undefined)));
     }
-    const requestEmail = (body.email || '').toLowerCase().trim();
+    // 인증된 email 사용 — body.email 무시 (downstream consumers 의 단일 source of truth).
+    const requestEmail = authenticatedEmail;
 
     // ── 입력 파싱 ──────────────────────────────────────────────────────────
     const guestName = body.guest_name || body.guestName || 'Guest';
@@ -73,7 +85,8 @@ export default async function handler(req, res) {
     const duration = body.duration || 'full_day';
     const durationDays = body.durationDays || (duration === 'multi_day' ? 2 : 1);
     const startDate = body.date || body.startDate || new Date().toISOString().split('T')[0];
-    const email = body.email || '';
+    // Audit P0-#2: email은 인증된 값 (authenticatedEmail). body.email 무시.
+    const email = authenticatedEmail;
     const specialRequest = body.special_request || body.message || '';
     const vehicleOverride = body.vehicle || 'auto';
     const vehicle = selectVehicle(pax, vehicleOverride);
