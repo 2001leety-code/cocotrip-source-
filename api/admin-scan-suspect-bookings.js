@@ -29,6 +29,7 @@ import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
+import { captureError } from './_shared/sentry.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -197,6 +198,7 @@ export default async function handler(req, res) {
     }));
   } catch (err) {
     console.error('[admin-scan-suspect-bookings]', err);
+    await captureError(err, { route: '/api/admin-scan-suspect-bookings', method: req.method });
     return json(res, 500, _err(err.message, 'INTERNAL_ERROR'));
   }
 }

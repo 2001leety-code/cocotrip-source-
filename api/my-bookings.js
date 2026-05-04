@@ -7,6 +7,7 @@
  */
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { captureError } from './_shared/sentry.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -92,6 +93,7 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify(_ok({ bookings, total: bookings.length })));
   } catch (err) {
     console.error('[my-bookings] Error:', err);
+    await captureError(err, { route: '/api/my-bookings', method: req.method });
     res.writeHead(500, JSON_CORS);
     return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }

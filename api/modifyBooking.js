@@ -11,6 +11,7 @@
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { captureError } from './_shared/sentry.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -151,6 +152,7 @@ export default async function handler(req, res) {
     })));
   } catch (err) {
     console.error('[modifyBooking] Error:', err);
+    await captureError(err, { route: '/api/modifyBooking', method: req.method });
     res.writeHead(500, JSON_CORS);
     return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }

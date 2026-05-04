@@ -11,6 +11,7 @@
 
 import { getUsdToKrw } from './_exchange-rate.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { captureError } from './_shared/sentry.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -215,6 +216,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('[applyPromoCode] Error:', err);
+    await captureError(err, { route: '/api/applyPromoCode', method: req.method });
     res.writeHead(500, JSON_CORS);
     return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }
