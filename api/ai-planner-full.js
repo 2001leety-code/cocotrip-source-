@@ -9,6 +9,7 @@
  * P1 lock target: ≤ 500 lines. Inline logic kept here is now limited to
  * request shaping, response writing, and post-response side effects.
  */
+import { captureError } from './_shared/sentry.js';
 import { getSpotContext } from './_spots_helper.js';
 import { getFoodContext, buildFoodPrefSnippet } from './_food_helper.js';
 import { sendErrorAlert } from './_telegram.js';
@@ -324,6 +325,11 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
     sendErrorAlert('ai-planner-full', error).catch(() => {});
+    await captureError(error, {
+      route: '/api/ai-planner-full',
+      method: req.method,
+      planner_mode: PLANNER_MODE,
+    });
     if (!res.headersSent) {
       const statusCode = error.statusCode || 500;
       const code = error.code || 'INTERNAL_ERROR';

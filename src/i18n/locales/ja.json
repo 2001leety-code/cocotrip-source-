@@ -1950,6 +1950,7 @@
     "mbDetailContact": "お問い合わせ: KakaoTalk または cocotripkr@gmail.com",
     "mbDetailCanceledNote": "この予約はキャンセルされました。",
     "mbDetailCompletedNote": "ツアーが完了しました。お楽しみいただけたら幸いです！",
+    "mbDetailDownloadVoucher": "バウチャーをダウンロード",
     "mbCancelReasonPrompt": "キャンセル理由（任意）:",
     "mbCancelConfirm": "この予約をキャンセルしますか？\\n返金 {pct}% · 約 ₩{amt}\\nPayPalで3〜5営業日以内に返金されます。",
     "modifyModalTitle": "予約変更",

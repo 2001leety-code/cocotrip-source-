@@ -11,6 +11,7 @@
  *   5. Google Sheets 상태 업데이트 (best-effort)
  *   6. Telegram 알림 (태연님)
  */
+import { captureError } from './_shared/sentry.js';
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { refundTransaction as braintreeRefund } from './_shared/braintree.js';
@@ -226,6 +227,10 @@ export default async function handler(req, res) {
     })));
   } catch (err) {
     console.error('[cancelBooking] Error:', err);
+    await captureError(err, {
+      route: '/api/cancelBooking',
+      method: req.method,
+    });
     res.writeHead(500, JSON_CORS);
     return res.end(JSON.stringify(_err(err.message, 'INTERNAL_ERROR')));
   }

@@ -1950,6 +1950,7 @@
     "mbDetailContact": "문의: 카카오 채널 또는 cocotripkr@gmail.com",
     "mbDetailCanceledNote": "이 예약은 취소되었습니다.",
     "mbDetailCompletedNote": "투어가 완료되었습니다. 즐거운 여행 되셨길!",
+    "mbDetailDownloadVoucher": "Voucher 다운로드",
     "mbCancelReasonPrompt": "취소 사유 (선택):",
     "mbCancelConfirm": "예약을 취소하시겠어요?\\n환불 {pct}% · 약 ₩{amt}\\nPayPal로 3~5영업일 내 환불됩니다.",
     "modifyModalTitle": "예약 변경",
