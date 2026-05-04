@@ -46,10 +46,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap" />
 
-    <!-- PayPal SDK preconnect — DNS+TLS 미리 협상해서 SDK 로드 시간 단축 (200-500ms 절감).
-         실 SDK 스크립트는 PayPalBookingButton.useEffect에서 동적 주입. -->
-    <link rel="preconnect" href="https://www.paypal.com" crossorigin />
-    <link rel="preconnect" href="https://www.paypalobjects.com" crossorigin />
+    <!-- 2026-05-04: PayPal SDK preconnect 제거. PR #216 이후 결제 흐름은 Braintree
+         drop-in 으로 일원화됨 (api/braintreeCheckout.js). PayPal SDK 직접 로드 없음. -->
 
     <!-- Travelpayouts affiliate tracking -->
     <script>
