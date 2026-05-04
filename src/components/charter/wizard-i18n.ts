@@ -115,6 +115,27 @@ export interface WizardI18n {
   // 2026-05-03 P1: AI 플래너 booking → /my-plans 이동 + 환불 시간 지남 안내
   mbViewPlanBtn?: string;
   mbRefundWindowClosed?: string;
+  // 2026-05-04 P0 fix: 예약 카드 클릭 → 상세 모달. 사용자 신고 ("들어가볼 수도 없음")
+  mbDetailTitle?: string;
+  mbDetailBookingRef?: string;
+  mbDetailService?: string;
+  mbDetailDate?: string;
+  mbDetailPickup?: string;
+  mbDetailDropoff?: string;
+  mbDetailVehicle?: string;
+  mbDetailPax?: string;
+  mbDetailAmount?: string;
+  mbDetailEmail?: string;
+  mbDetailFlight?: string;
+  mbDetailTerminal?: string;
+  mbDetailLuggage?: string;
+  mbDetailRefundEligible?: string;
+  mbDetailRefundClosed?: string;
+  mbDetailViewTerms?: string;
+  mbDetailClose?: string;
+  mbDetailContact?: string;
+  mbDetailCanceledNote?: string;
+  mbDetailCompletedNote?: string;
   mbCancelReasonPrompt: string;
   mbCancelConfirm: (pct: number, amountKRW: string) => string;
 
@@ -273,6 +294,26 @@ export function getWizardI18n(language: string): WizardI18n {
     mbDigitalNoRefund: get('mbDigitalNoRefund'),
     mbViewPlanBtn: get('mbViewPlanBtn'),
     mbRefundWindowClosed: get('mbRefundWindowClosed'),
+    mbDetailTitle: get('mbDetailTitle'),
+    mbDetailBookingRef: get('mbDetailBookingRef'),
+    mbDetailService: get('mbDetailService'),
+    mbDetailDate: get('mbDetailDate'),
+    mbDetailPickup: get('mbDetailPickup'),
+    mbDetailDropoff: get('mbDetailDropoff'),
+    mbDetailVehicle: get('mbDetailVehicle'),
+    mbDetailPax: get('mbDetailPax'),
+    mbDetailAmount: get('mbDetailAmount'),
+    mbDetailEmail: get('mbDetailEmail'),
+    mbDetailFlight: get('mbDetailFlight'),
+    mbDetailTerminal: get('mbDetailTerminal'),
+    mbDetailLuggage: get('mbDetailLuggage'),
+    mbDetailRefundEligible: get('mbDetailRefundEligible'),
+    mbDetailRefundClosed: get('mbDetailRefundClosed'),
+    mbDetailViewTerms: get('mbDetailViewTerms'),
+    mbDetailClose: get('mbDetailClose'),
+    mbDetailContact: get('mbDetailContact'),
+    mbDetailCanceledNote: get('mbDetailCanceledNote'),
+    mbDetailCompletedNote: get('mbDetailCompletedNote'),
     mbCancelReasonPrompt: get('mbCancelReasonPrompt'),
     mbCancelConfirm: (pct, amt) => fmt(get('mbCancelConfirm'), { pct, amt }),
 

@@ -436,7 +436,7 @@ export function BraintreePaymentButton({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => { setShowSuccess(false); setSuccessData(null); navigate('/my-bookings'); }}
+              onClick={() => { setShowSuccess(false); setSuccessData(null); navigate('/mypage?tab=bookings'); }}
               className="py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-1.5"
               style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}
             >
