@@ -188,8 +188,10 @@ export function BraintreePaymentButton({
 
   // Promo code (PayPalBookingButton과 동일)
   const [promoCode, setPromoCode] = useState('');
+  // setAppliedLabel referenced below; declared with promoApplied state above
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoApplied, setPromoApplied] = useState(false);
+  const [appliedLabel, setAppliedLabel] = useState<string>(''); // 2026-05-04: 사용자 신고 — fixed USD 쿠폰을 5%로 오해 발생
   const [promoError, setPromoError] = useState<string | null>(null);
   const [discountedKRW, setDiscountedKRW] = useState<number | null>(null);
   const [savedAmount, setSavedAmount] = useState(0);
@@ -298,6 +300,7 @@ export function BraintreePaymentButton({
         setDiscountedKRW(d.discountedPrice);
         setSavedAmount(d.savedAmount);
         setPromoApplied(true);
+        setAppliedLabel(d.label || code); // 라벨 보존 — UI에서 type 명확히 표시
         setCouponDocId(d.couponDocId || null);
         setCouponUserId(d.userId || null);
         setPromoCode(code);
@@ -524,11 +527,14 @@ export function BraintreePaymentButton({
         </div>
       )}
       {promoApplied && (
-        <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2">
-          <span className="flex items-center gap-1.5 text-xs text-emerald-300">
-            <Check className="w-3.5 h-3.5" /> {pl.success}
+        <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2 gap-2">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-300 min-w-0">
+            <Check className="w-3.5 h-3.5 shrink-0" />
+            {/* 2026-05-04 사용자 신고: 'fixed USD' 쿠폰을 percent 로 오해 (60만원의 5%=3만원
+                기대 → 6,750원 받음). 라벨을 명시적으로 표시해서 type 혼동 방지. */}
+            <span className="truncate" title={appliedLabel}>{appliedLabel || pl.success}</span>
           </span>
-          <span className="text-xs font-bold text-emerald-300">-₩{savedAmount.toLocaleString('ko-KR')}</span>
+          <span className="text-xs font-bold text-emerald-300 shrink-0">-₩{savedAmount.toLocaleString('ko-KR')}</span>
         </div>
       )}
 
