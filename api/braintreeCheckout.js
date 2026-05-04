@@ -18,6 +18,7 @@
  *     실제 카드 결제 X — Braintree sandbox 카드 (4111 1111 1111 1111 등) 사용.
  *   - 그 외는 production transaction.
  */
+import { captureError } from './_shared/sentry.js';
 import { createTransaction } from './_shared/braintree.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -238,6 +239,10 @@ export default async function handler(req, res) {
     }));
   } catch (err) {
     console.error('[braintreeCheckout] failed:', err.message);
+    await captureError(err, {
+      route: '/api/braintreeCheckout',
+      method: req.method,
+    });
     res.writeHead(500, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: err.message, code: 'CHECKOUT_ERROR' }));
   }

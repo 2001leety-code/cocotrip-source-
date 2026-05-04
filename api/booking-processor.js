@@ -17,6 +17,7 @@
  * ENV: 모든 관련 환경변수 필요
  */
 
+import { captureError } from './_shared/sentry.js';
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
 // 직접 호출은 미사용. _telegram.js / _ai-employees.js 의 export 는 다른 파일이 사용하므로 유지.
@@ -342,6 +343,10 @@ export default async function handler(req, res) {
     return res.status(statusCode).json(finalBody || result);
   } catch (error) {
     console.error('[booking-processor] Handler error:', error);
+    await captureError(error, {
+      route: '/api/booking-processor',
+      method: req.method,
+    });
     res.setHeader('Content-Type', 'application/json');
     return res.status(500).json(_err(error.message, 'INTERNAL_ERROR'));
   }
