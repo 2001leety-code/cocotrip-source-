@@ -192,6 +192,31 @@ const originalHandler = async (event) => {
     console.error('[booking-processor] 텔레그램 전송 실패:', err.message);
   }
 
+  // ── Step 3.5: (옵션) 자동 driver 배차 broadcast ─────────────────────
+  // C2 (2026-05-04): driver bot 으로 [✓ 수락]/[✗ 거절] 인라인 키보드 메시지를
+  // 활성 기사 전원에게 broadcast — first-to-accept wins. 어드민 /dispatch 명령
+  // 없이도 결제 직후 즉시 기사들에게 배차 알림 도달.
+  //
+  // ENV 게이트: AUTO_DISPATCH_BROADCAST=1 일 때만 활성. prod 도입 전 단계적 롤아웃.
+  // booking.bookingRef 가 곧 bookings 도큐먼트 ID (booking-processor 호출처 보장).
+  if (process.env.AUTO_DISPATCH_BROADCAST === '1') {
+    try {
+      const orderID = booking.bookingRef;
+      if (!orderID) {
+        results.steps.dispatchBroadcast = 'skip: no bookingRef';
+      } else {
+        const { broadcastDispatchToDrivers } = await import('./_shared/dispatch-helpers.js');
+        const r = await broadcastDispatchToDrivers({ orderID, booking });
+        results.steps.dispatchBroadcast =
+          r.ok ? `sent=${r.sent} failed=${r.failed}` : `none: ${r.errors.join('; ')}`;
+        console.log('[booking-processor] driver broadcast:', results.steps.dispatchBroadcast);
+      }
+    } catch (err) {
+      results.steps.dispatchBroadcast = `error: ${err.message}`;
+      console.error('[booking-processor] driver broadcast 실패:', err.message);
+    }
+  }
+
   // ── Step 4: PDF 바우처 생성 ─────────────────────────────────────────
   let pdfBuffer = null;
   try {
