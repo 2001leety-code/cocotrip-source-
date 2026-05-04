@@ -54,20 +54,21 @@ initializeApp({
 const db = getFirestore();
 
 async function countTestPrefix(collection, field, prefix = 'TEST-') {
-  // Firestore range query trick: prefix == [prefix, prefix + '']
+  // Firestore range query trick: prefix == [prefix, prefix + '￿']
   const snap = await db.collection(collection)
     .where(field, '>=', prefix)
-    .where(field, '<', prefix + '')
+    .where(field, '<', prefix + '￿')
     .get();
   return snap;
 }
 
 async function countTestDocIds(collection, prefix = 'TEST-') {
-  const snap = await db.collection(collection)
-    .where('__name__', '>=', `${collection}/${prefix}`)
-    .where('__name__', '<', `${collection}/${prefix}`)
-    .get();
-  return snap;
+  // Firestore __name__ range query needs DocumentReference, not string path.
+  // 안전한 방식: 컬렉션 전체 스캔 후 in-memory 필터.
+  // used_paypal_orders 는 일반적으로 100s 수준이라 부담 없음.
+  const snap = await db.collection(collection).get();
+  const matched = snap.docs.filter(d => d.id.startsWith(prefix));
+  return { size: matched.length, docs: matched, total: snap.size };
 }
 
 (async () => {
@@ -105,11 +106,12 @@ async function countTestDocIds(collection, prefix = 'TEST-') {
     results.bookings_paypalOrderId = { error: e.message };
   }
 
-  // 3. used_paypal_orders sentinel (paymentGate.js)
+  // 3. used_paypal_orders sentinel (paymentGate.js) — TEST- doc ID 검색
   try {
     const snap = await countTestDocIds('used_paypal_orders');
     results.used_paypal_orders = {
       count: snap.size,
+      total_in_collection: snap.total,
       samples: snap.docs.slice(0, 5).map(d => ({
         orderId: d.id,
         usedAt: d.data().usedAt,
