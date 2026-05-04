@@ -1,3 +1,0 @@
-"require('dotenv').config();\nrequire('dotenv').config({ path: '.env.admin.local' });\nconst express = require('express');"
-"const PORT = 3001;\napp.listen(PORT, () => {\n  console.log(`Test server running on port ${PORT} with PLANNER_MODE=${process.env.PLANNER_MODE}`);"
-"const express = require('express');\nconsole.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID);\nconst app = express();"

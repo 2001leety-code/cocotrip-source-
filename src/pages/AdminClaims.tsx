@@ -57,7 +57,7 @@ export default function AdminClaims() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const isAdmin = user?.email === '2001leety@gmail.com';
+  const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
 
   useEffect(() => {
     if (!isAdmin) { setLoading(false); return; }

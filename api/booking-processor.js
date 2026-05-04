@@ -30,6 +30,7 @@ import {
 import { generateVoucherPDF } from './_generate-voucher.js';
 import { createWalletPass }   from './_create-wallet-pass.js';
 import { getUsdToKrwRaw } from './_exchange-rate.js';
+import { USD_TO_KRW } from './_shared/exchange-rate.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -108,7 +109,7 @@ const originalHandler = async (event) => {
 
   // capturePaypalOrder에서 전달된 bookingRef가 있으면 그대로 사용 (Firestore↔Sheets 일관성)
   const bookingRef = externalBookingRef || generateBookingRef();
-  let exchangeRate = 1380;
+  let exchangeRate = USD_TO_KRW;
   let amountKRW = 0;
 
   // ── Step 1: 환율 조회 ────────────────────────────────────────────────

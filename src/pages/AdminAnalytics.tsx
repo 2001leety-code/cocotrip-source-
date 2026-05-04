@@ -4,9 +4,9 @@ import { BarChart3, TrendingUp, Users, Calendar, Map as MapIcon, ArrowUpRight, A
 import { Link } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { USD_TO_KRW } from '@/lib/exchange-rate';
 
 // 환율 — booking-processor.js와 동일 기본값. 실시간 환율은 별도 API 호출 비용이 있어 평균값 사용.
-const USD_TO_KRW = 1380;
 
 interface BookingDoc {
   tourDate?: string;        // YYYY-MM-DD
