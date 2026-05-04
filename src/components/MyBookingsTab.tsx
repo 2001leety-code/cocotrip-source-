@@ -477,7 +477,7 @@ function BookingDetailModal({
     refundClosed: i18n.mbDetailRefundClosed || 'Refund window has passed. See terms for our policy.',
     viewTerms: i18n.mbDetailViewTerms || 'View travel terms',
     close: i18n.mbDetailClose || 'Close',
-    contact: i18n.mbDetailContact || 'Support: KakaoTalk channel or cocotripkr@gmail.com',
+    contact: i18n.mbDetailContact || 'Support: cocotripkr@gmail.com or use 1:1 chat (top-right)',
     canceledNote: i18n.mbDetailCanceledNote || 'This booking has been canceled.',
     completedNote: i18n.mbDetailCompletedNote || 'Tour completed. Hope you enjoyed it!',
   };
@@ -605,6 +605,19 @@ function BookingDetailModal({
               {cancelingId === booking.id
                 ? i18n.mbProcessing
                 : <><XCircle size={14} /> {i18n.mbCancelBtn}</>}
+            </button>
+          )}
+          {/* 2026-05-04 사용자 신고: 환불 윈도우 지난 booking에서 [취소] 버튼이 아예 사라져 있어
+              "환불 버튼이 어디 있냐"는 혼란 발생. disabled 버튼으로 명시적으로 보여주되 클릭 시
+              사유 안내 + 약관 링크 유도. AI 플래너는 디지털 상품이라 별도 처리. */}
+          {showRefundClosedNote && (
+            <button
+              type="button"
+              onClick={() => alert(`${fallback.refundClosed}\n\n${fallback.contact}`)}
+              className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/35 text-sm font-semibold cursor-not-allowed flex items-center justify-center gap-1.5"
+              title={fallback.refundClosed}
+            >
+              <XCircle size={14} /> {i18n.mbCancelBtn}
             </button>
           )}
         </div>
