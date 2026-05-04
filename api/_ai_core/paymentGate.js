@@ -81,13 +81,23 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
     const provider = detectProvider(paypalOrderId);
 
     if (provider === 'test') {
-      // Audit P0-#2: production 환경에서는 TEST- 절대 reject. sandbox/dev 만 허용.
-      // 이전 버전: TEST_ACCOUNTS hardcoded admin email + body.email 신뢰 → 무한 free plan exploit.
-      const env = (process.env.BRAINTREE_ENV || '').toLowerCase();
-      if (env === 'production') {
-        return reject(403, 'FORBIDDEN', 'Test mode not allowed in production', 'TEST- prefix order IDs are rejected on production.');
+      // Audit P1-A (2026-05-05): fail-closed — TEST- prefix는 BRAINTREE_ENV가 정확히
+      // {sandbox, development, dev} 중 하나일 때만 허용. 빈 문자열/production/오타/미설정
+      // 전부 reject. 이전 P0-#2 fix는 'production' strict equal 만 reject 했고 빈 문자열은
+      // 통과 → 운영자가 prod 에 BRAINTREE_ENV='' 로 둔 상태에서 인증 토큰만 가지면 무한
+      // TEST- 우회 가능했음. 이제 운영자가 prod 에 의도적으로 'sandbox' 명시해야만 동작.
+      // dev 로컬은 .env 로 'development' 또는 'dev' 자유 선택 가능.
+      const ALLOWED_TEST_ENVS = new Set(['sandbox', 'development', 'dev']);
+      const env = (process.env.BRAINTREE_ENV || '').toLowerCase().trim();
+      if (!ALLOWED_TEST_ENVS.has(env)) {
+        return reject(
+          403,
+          'FORBIDDEN',
+          'Test mode not allowed',
+          `TEST- prefix only allowed when BRAINTREE_ENV ∈ {sandbox, development, dev}; got "${env || '(unset)'}"`
+        );
       }
-      console.log('[planner] ✅ TEST MODE accepted (sandbox/dev env) — skipping payment verification for:', requestEmail || 'anonymous');
+      console.log('[planner] ✅ TEST MODE accepted (env=' + env + ') — skipping payment verification for:', requestEmail || 'anonymous');
     } else if (provider === 'braintree') {
       // 2026-05-03: Braintree transaction 검증. braintreeCheckout.js가 이미 transaction
       // 생성 시 Firestore bookings에 저장 → 여기서는 status만 sanity check.
