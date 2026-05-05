@@ -1,0 +1,260 @@
+/**
+ * Vercel API Route: Admin Quality Summary (Tier 2-D follow-up)
+ * GET /api/admin-quality-summary?days=30&limit=100
+ * Headers: Authorization: Bearer <Firebase-ID-token>
+ *
+ * PR #261 (ff0bf14) 가 plan 마다 9-metric qualityScore 를 측정해
+ * `plans/{id}.qualityScore = { metrics, score, computedAt }` 로 저장한다.
+ * 본 endpoint 는 최근 N 일 / N 건의 plan 을 집계해 area / zone 별 약점,
+ * DB 보강 우선순위, worst-plan top 10 을 admin 대시보드용으로 노출한다.
+ *
+ * 응답 스키마 (admin-only):
+ *   {
+ *     window: { days, limit, sinceISO, scannedTotal, scoredCount },
+ *     overall: { avgScore, minScore, maxScore },
+ *     metricFrequency: {
+ *       <metric_key>: { stops: <total>, violations: <count>, avgRate: <0..1> },
+ *       ...
+ *     },
+ *     byArea: {
+ *       <area>: {
+ *         count, avgScore,
+ *         worstMetric: <metric_key>|null,
+ *         worstMetricCount: <int>,
+ *       }, ...
+ *     },
+ *     worstPlans: [
+ *       {
+ *         id, score, area, createdAt,
+ *         topMetrics: [{ metric, count, total }, ...] // 상위 3
+ *       }, ...
+ *     ],
+ *     generatedAt,
+ *   }
+ *
+ * 호환성:
+ *   - qualityScore 가 없는 기존 plan 은 자동 제외 (`if (p.qualityScore?.metrics)`).
+ *   - admin 인증: 기존 verifyAdminToken 패턴 재사용 (admin-sales.js 와 동일).
+ *   - Sentry: 핸들러 throw 시 wrapHandler 가 captureError + 500 응답.
+ *
+ * 사용자 미노출 — 한국어 admin 정책 준수, i18n 키 없음.
+ */
+import { verifyAdminToken } from './_shared/admin-auth.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { wrapHandler, captureError } from './_shared/sentry.js';
+
+export const maxDuration = 30;
+export const config = { runtime: 'nodejs' };
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
+
+const METRIC_KEYS = [
+  'dietary_violation',
+  'unverified_restaurant',
+  'field_completeness',
+  'route_failure',
+  'bad_address_prefix',
+  'language_mismatch',
+  'duplicate_stops',
+  'tight_schedule',
+  'loose_schedule',
+];
+
+function json(res, status, body) {
+  res.writeHead(status, JSON_CORS);
+  return res.end(JSON.stringify(body));
+}
+
+function planCreatedMs(p) {
+  if (typeof p.createdAtMs === 'number') return p.createdAtMs;
+  if (p.createdAt && typeof p.createdAt.toDate === 'function') return p.createdAt.toDate().getTime();
+  if (typeof p.createdAt === 'string') {
+    const t = Date.parse(p.createdAt);
+    return Number.isFinite(t) ? t : null;
+  }
+  if (p.createdAt?._seconds) return p.createdAt._seconds * 1000;
+  return null;
+}
+
+function planArea(p) {
+  return (p.input?.area || p.area || 'unknown').toString().toLowerCase().trim() || 'unknown';
+}
+
+function topMetrics(metrics, n = 3) {
+  const list = [];
+  for (const key of METRIC_KEYS) {
+    const m = metrics?.[key];
+    if (!m) continue;
+    if ((m.count || 0) > 0) {
+      list.push({ metric: key, count: m.count, total: m.total || 0 });
+    }
+  }
+  list.sort((a, b) => b.count - a.count);
+  return list.slice(0, n);
+}
+
+async function handler(req, res) {
+  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method !== 'GET') {
+    return json(res, 405, { error: 'Method Not Allowed' });
+  }
+
+  const auth = await verifyAdminToken(req);
+  if (!auth.ok) {
+    return json(res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
+  }
+
+  const days  = Math.min(Math.max(parseInt(req.query?.days  || '30',  10), 1), 365);
+  const limit = Math.min(Math.max(parseInt(req.query?.limit || '100', 10), 1), 500);
+
+  const db = initAdminDb('admin-quality-summary');
+  if (!db) {
+    return json(res, 500, { error: 'Firestore unavailable — check FIREBASE_* env vars' });
+  }
+
+  const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
+  const sinceISO = new Date(sinceMs).toISOString();
+
+  try {
+    // createdAtMs (number) 가 모든 plan 에 있으므로 단순 where + orderBy.
+    // 인덱스 누락 시 catch 에서 fallback (sub-set fetch + 클라이언트 정렬).
+    let snap;
+    try {
+      snap = await db.collection('plans')
+        .where('createdAtMs', '>=', sinceMs)
+        .orderBy('createdAtMs', 'desc')
+        .limit(limit)
+        .get();
+    } catch (idxErr) {
+      // 인덱스가 아직 빌드 안 됐을 때 fallback — 최근 limit*3 만 fetch 후 필터.
+      console.warn('[admin-quality-summary] indexed query failed, using fallback:', idxErr.message);
+      const fallback = await db.collection('plans')
+        .orderBy('createdAtMs', 'desc')
+        .limit(Math.min(limit * 3, 1000))
+        .get();
+      snap = fallback;
+    }
+
+    const all = [];
+    snap.forEach((doc) => {
+      const p = doc.data();
+      all.push({ id: doc.id, ...p });
+    });
+
+    // qualityScore 보유 + window 안의 plan 만 집계.
+    const scored = all.filter((p) => {
+      const ms = planCreatedMs(p);
+      if (ms == null || ms < sinceMs) return false;
+      return p.qualityScore && p.qualityScore.metrics && typeof p.qualityScore.score === 'number';
+    });
+
+    // ── overall ─────────────────────────────────────────────────────────
+    let sum = 0, min = Infinity, max = -Infinity;
+    for (const p of scored) {
+      const s = p.qualityScore.score;
+      sum += s;
+      if (s < min) min = s;
+      if (s > max) max = s;
+    }
+    const overall = scored.length
+      ? {
+        avgScore: Math.round((sum / scored.length) * 10) / 10,
+        minScore: min,
+        maxScore: max,
+      }
+      : { avgScore: null, minScore: null, maxScore: null };
+
+    // ── metricFrequency ─────────────────────────────────────────────────
+    const metricFrequency = {};
+    for (const key of METRIC_KEYS) {
+      metricFrequency[key] = { stops: 0, violations: 0, avgRate: 0 };
+    }
+    for (const p of scored) {
+      const m = p.qualityScore.metrics;
+      for (const key of METRIC_KEYS) {
+        const cell = m[key];
+        if (!cell) continue;
+        metricFrequency[key].stops      += cell.total || 0;
+        metricFrequency[key].violations += cell.count || 0;
+      }
+    }
+    for (const key of METRIC_KEYS) {
+      const f = metricFrequency[key];
+      f.avgRate = f.stops > 0 ? Math.round((f.violations / f.stops) * 1000) / 1000 : 0;
+    }
+
+    // ── byArea ──────────────────────────────────────────────────────────
+    const areaAgg = new Map(); // area → { count, sumScore, perMetricViolations: {} }
+    for (const p of scored) {
+      const area = planArea(p);
+      let agg = areaAgg.get(area);
+      if (!agg) {
+        agg = { count: 0, sumScore: 0, perMetric: {} };
+        for (const key of METRIC_KEYS) agg.perMetric[key] = 0;
+        areaAgg.set(area, agg);
+      }
+      agg.count += 1;
+      agg.sumScore += p.qualityScore.score;
+      for (const key of METRIC_KEYS) {
+        agg.perMetric[key] += p.qualityScore.metrics[key]?.count || 0;
+      }
+    }
+    const byArea = {};
+    for (const [area, agg] of areaAgg.entries()) {
+      let worstMetric = null;
+      let worstMetricCount = 0;
+      for (const key of METRIC_KEYS) {
+        const c = agg.perMetric[key];
+        if (c > worstMetricCount) {
+          worstMetric = key;
+          worstMetricCount = c;
+        }
+      }
+      byArea[area] = {
+        count: agg.count,
+        avgScore: Math.round((agg.sumScore / agg.count) * 10) / 10,
+        worstMetric,
+        worstMetricCount,
+      };
+    }
+
+    // ── worstPlans (top 10, 점수 낮은 순) ────────────────────────────────
+    const worstPlans = scored
+      .slice()
+      .sort((a, b) => a.qualityScore.score - b.qualityScore.score)
+      .slice(0, 10)
+      .map((p) => ({
+        id: p.id,
+        score: p.qualityScore.score,
+        area: planArea(p),
+        createdAt: p.createdAt || (planCreatedMs(p) ? new Date(planCreatedMs(p)).toISOString() : null),
+        topMetrics: topMetrics(p.qualityScore.metrics, 3),
+      }));
+
+    return json(res, 200, {
+      window: {
+        days,
+        limit,
+        sinceISO,
+        scannedTotal: all.length,
+        scoredCount: scored.length,
+      },
+      overall,
+      metricFrequency,
+      byArea,
+      worstPlans,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    await captureError(err, { route: '/api/admin-quality-summary', method: 'GET' });
+    console.error('[admin-quality-summary] error:', err);
+    return json(res, 500, { error: err.message, code: 'QUALITY_SUMMARY_FAILED' });
+  }
+}
+
+export default wrapHandler(handler);
