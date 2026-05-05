@@ -59,6 +59,29 @@ export const AIRPORT_COORDS = {
   ALREADY: null,
 };
 
+// ── 도시 중심 좌표 (Hotel/Zone 좌표 모두 없을 때 fallback) ─────────────────
+// 호텔→공항 경로를 무조건 표시하기 위한 last-resort fallback. 정확하진 않지만
+// "공항 가는 길" 카드를 끝까지 비우지 않도록 ODsay 호출은 가능하게 한다.
+// 사용자에게는 "도시 중심 기준 추정"이라고 안내한다 (CITY_CENTER source 표시).
+export const CITY_CENTER_COORDS = {
+  seoul: { lat: 37.5665, lng: 126.9780, label: 'Seoul City Center' },
+  seoul_city: { lat: 37.5665, lng: 126.9780, label: 'Seoul City Center' },
+  seoul_suburb: { lat: 37.5665, lng: 126.9780, label: 'Seoul City Center' },
+  incheon: { lat: 37.4563, lng: 126.7052, label: 'Incheon City Center' },
+  busan: { lat: 35.1796, lng: 129.0756, label: 'Busan City Center' },
+  yeosu: { lat: 34.7604, lng: 127.6622, label: 'Yeosu City Center' },
+  daegu: { lat: 35.8714, lng: 128.6014, label: 'Daegu City Center' },
+  jeju: { lat: 33.4996, lng: 126.5312, label: 'Jeju City Center' },
+  gyeongju: { lat: 35.8562, lng: 129.2247, label: 'Gyeongju City Center' },
+  jeonju: { lat: 35.8242, lng: 127.1480, label: 'Jeonju City Center' },
+  gangneung: { lat: 37.7519, lng: 128.8761, label: 'Gangneung City Center' },
+  chuncheon: { lat: 37.8813, lng: 127.7298, label: 'Chuncheon City Center' },
+  gangwon: { lat: 37.8228, lng: 128.1555, label: 'Gangwon Region' },
+  pyeongchang: { lat: 37.3705, lng: 128.3902, label: 'Pyeongchang' },
+  suwon: { lat: 37.2636, lng: 127.0286, label: 'Suwon City Center' },
+  dmz: { lat: 37.9558, lng: 126.6748, label: 'DMZ Imjingak' },
+};
+
 // ── Rich System Prompt Language Instructions ──────────────────────────────
 export const LANG_INSTRUCTION = {
   en: `Write ALL narrative text fields in English.

@@ -43,12 +43,19 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
     // serverless fetches don't set Referer, so we spoof it with a registered
     // domain — otherwise every call returns "[ApiKeyAuthFailed] ApiKey
     // authentication failed" and the planner silently falls back to driving.
+    // Timeout: 8s → 12s (호텔→공항 fallback chain 추가로 호출 횟수 늘어, 가끔
+    // 첫 호출 cold start 5-7s → timeout 빈발). 12s는 Vercel 300s budget 대비 안전.
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(12000),
       headers: { Referer: 'https://cocotripkr.com' },
     });
 
     if (!res.ok) {
+      // 5xx는 일시 장애로 throw → 호출자가 retry 결정. 4xx는 그대로 null
+      // (인증/쿼리 오류는 retry 무의미).
+      if (res.status >= 500) {
+        throw new Error(`ODsay HTTP ${res.status}`);
+      }
       console.warn(`[ODsay] HTTP ${res.status}`);
       return null;
     }
@@ -81,7 +88,15 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
       alternatives: Math.min(data.result.path.length - 1, 2),
     };
   } catch (err) {
-    console.warn('[ODsay] API error:', err.message);
+    // Timeout (AbortError) + 5xx + network error 모두 throw — 호출자가 retry 결정.
+    // 사실 ODsay searchTransitRoute는 RouteAgent의 _searchOdsayWithRetry 또는
+    // _routeAirportHotel가 try/catch로 감싸므로 throw해도 plan 실패는 안 남.
+    const isTransient = err.name === 'AbortError'
+      || err.name === 'TimeoutError'
+      || /HTTP 5\d\d/.test(err.message || '')
+      || /fetch failed|ECONNRESET|ENETUNREACH|EAI_AGAIN/i.test(err.message || '');
+    console.warn(`[ODsay] API error (${isTransient ? 'transient' : 'fatal'}):`, err.message);
+    if (isTransient) throw err;
     return null;
   }
 }
