@@ -5,6 +5,7 @@
  */
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
+import { computeQualityScore } from './qualityMetrics.js';
 
 /**
  * Calculate T-money recommended load from ODsay fares + arrival/departure costs.
@@ -45,6 +46,7 @@ export async function persistPlan(adminDb, {
   guestName, pax, styles, area, duration, startDate, email,
   specialRequest, arrival_airport, departure_airport,
   hotel_address, mobility, language,
+  dietary, foodIndex,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
@@ -52,6 +54,28 @@ export async function persistPlan(adminDb, {
 
   const planId = randomUUID();
   const accessToken = uid ? null : randomUUID();
+
+  // ── Tier 2-D: 9-metric quality score (admin-only, not user-visible) ────
+  let qualityScore = null;
+  try {
+    qualityScore = computeQualityScore(
+      itinerary,
+      dietary || body?.dietPrefs || body?.dietary || [],
+      area,
+      foodIndex || [],
+      { lang: language || 'ko' },
+    );
+    console.log(
+      `[planner] qualityScore: ${qualityScore.score}/100 ` +
+      `(diet=${qualityScore.metrics.dietary_violation.count}, ` +
+      `unv=${qualityScore.metrics.unverified_restaurant.count}, ` +
+      `lang=${qualityScore.metrics.language_mismatch.count}, ` +
+      `route=${qualityScore.metrics.route_failure.count})`,
+    );
+  } catch (e) {
+    // Non-blocking — never fail plan persist on metric computation error.
+    console.warn('[planner] qualityScore compute failed:', e.message);
+  }
 
   await adminDb.collection('plans').doc(planId).set({
     planId,
@@ -76,6 +100,7 @@ export async function persistPlan(adminDb, {
     pricing: { vehicle, priceKRW, priceUSD },
     revisionCredits: 2,  // 무료 재생성 2회 (결제 시 포함)
     revisionCount: 0,    // 현재까지 재생성 횟수
+    ...(qualityScore ? { qualityScore } : {}),
   });
 
   if (uid) {

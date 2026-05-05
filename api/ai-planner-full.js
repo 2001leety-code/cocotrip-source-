@@ -274,8 +274,10 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     // dietPrefs 기준 per-style bucket: { general, vegan?, halal? } — 섞지 않음.
     // 2026-05-05 regression fix: 이전엔 general만 노출 → vegan/halal 사용자도
     // 일반 식당만 봤음. SAFETY-CRITICAL (CLAUDE.md J).
+    let foodIndexForQuality = [];
     try {
       const foodIndex = await loadFoodIndex();
+      foodIndexForQuality = foodIndex;
       itinerary.recommended_restaurants = pickRecommendedRestaurantsByStyle(
         foodIndex, itinerary, area, dietPrefs,
       );
@@ -299,6 +301,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       guestName, pax, styles, area, duration, startDate, email,
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,
+      dietary: dietPrefs, foodIndex: foodIndexForQuality,
     });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
