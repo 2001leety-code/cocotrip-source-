@@ -316,11 +316,14 @@ export default async function handler(req, res) {
     if (action === 'redeem-coupon') {
       const { coins } = body;
 
-      // 교환 레이트 테이블 (서버 신뢰 소스 — 클라이언트 값 무시)
+      // 2026-05-05 (운영자 정책): 모든 쿠폰 = percent type. AI 플래너 적용 거부
+      // (digital product, braintreeCheckout 의 isAiPlanner 가드).
+      // Charter / Tour 만 적용 가능 — productScope 별 1장씩 발행.
+      // 기존 fixed-USD 쿠폰 (legacy) 은 그대로 사용 가능 (호환성 유지).
       const REDEMPTION_TABLE = {
-        500:  { usdValue: 5,  label: 'Trip Coins redemption — $5 OFF' },
-        1000: { usdValue: 10, label: 'Trip Coins redemption — $10 OFF' },
-        2000: { usdValue: 25, label: 'Trip Coins redemption — $25 OFF (Bonus)' },
+        500:  { percent: 5,  label: 'Trip Coins redemption — 5% OFF' },
+        1000: { percent: 10, label: 'Trip Coins redemption — 10% OFF' },
+        2000: { percent: 15, label: 'Trip Coins redemption — 15% OFF (Bonus)' },
       };
 
       const plan = REDEMPTION_TABLE[coins];
@@ -345,16 +348,16 @@ export default async function handler(req, res) {
         // 1) 유저 코인 차감
         tx.update(userRef, { tripCoins: newBalance });
 
-        // 2) 쿠폰 문서 생성
+        // 2) 쿠폰 문서 생성 — percent type, productScope 미지정(차터/투어 모두 가능)
+        //    AI 플래너 결제는 server isAiPlanner 가드로 모든 쿠폰 reject.
         const couponRef = db.collection('users').doc(userId).collection('coupons').doc();
         const now = Date.now();
         const expiresAt = now + 90 * 24 * 3600 * 1000;
 
         tx.set(couponRef, {
           code,
-          type: 'fixed',
-          value: plan.usdValue,
-          currency: 'USD',
+          type: 'percent',
+          value: plan.percent,
           label: plan.label,
           minOrderUSD: 0,
           isUsed: false,
