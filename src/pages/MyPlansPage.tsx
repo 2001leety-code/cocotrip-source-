@@ -8,7 +8,8 @@ import { Calendar, ChevronRight, Sparkles, Plane } from 'lucide-react';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { usePageMeta } from '@/hooks/usePageMeta';
-import { PendingClaimsWidget } from '@/components/PendingClaimsWidget';
+// 2026-05-05: PendingClaimsWidget 제거 — free-claim funnel 폐기에 따라.
+// charter_inquiries 표시는 추후 재도입 시 별도 widget으로 분리.
 
 interface PlanRef {
   id: string;
@@ -60,8 +61,6 @@ export default function MyPlansPage() {
             <p className="text-sm text-white/55">{user?.displayName || user?.email || ''}</p>
           </div>
         </div>
-
-        <PendingClaimsWidget />
 
         {loading ? (
           <div className="space-y-4">

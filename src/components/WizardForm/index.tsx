@@ -25,8 +25,6 @@ import { WizardStep0Destination } from './WizardStep0Destination';
 import { WizardStep1Food } from './WizardStep1Food';
 import { WizardStep2Details, type TourPace } from './WizardStep2Details';
 import { WizardStep3Review } from './WizardStep3Review';
-import { FreeClaimForm } from '@/pages/PlannerPage/components/FreeClaimForm';
-import type { PlannerDict } from '@/pages/PlannerPage/types';
 
 import type { WizardDict } from './types';
 
@@ -74,13 +72,12 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   // Sprint 2 #5: when user has no booked hotel, they can pick a Seoul zone
   // and the AI hubs stops near it. Empty string = no recommendation chosen.
   const [recommendedZone, setRecommendedZone] = useState('');
-  // 2026-05-03 fix: 사용자가 Step 3 자체 input에서 호텔/공항을 만진 적 있으면
+  // 2026-05-03 fix: 사용자가 Step 3 자체 input에서 공항을 만진 적 있으면
   // "from Step 1" chip으로 swap 안 함 (한 글자 칠 때마다 input이 chip으로 바뀌고
   // Edit 버튼이 Step 0으로 점프시키던 버그). reservationStatus가 바뀌면 reset.
-  const [hotelTouchedInStep3, setHotelTouchedInStep3] = useState(false);
+  // 2026-05-05: 호텔 chip 분기 제거 (free-claim funnel 폐기) — airport touch만 추적.
   const [airportTouchedInStep3, setAirportTouchedInStep3] = useState(false);
   useEffect(() => {
-    setHotelTouchedInStep3(false);
     setAirportTouchedInStep3(false);
   }, [reservationStatus]);
   // P7: daily tour pace ('half'|'short'|'full'|'action') — defaults to full day.
@@ -232,21 +229,14 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   }
 
   // P6: 5-step layout starts with reservation check.
-  // When user picks "all_done" we collapse the rest of the wizard and render
-  // FreeClaimForm in step 1 instead — STEPS array is recalculated.
-  const isClaimFlow = reservationStatus === 'all_done';
-  const STEPS = isClaimFlow
-    ? [
-        { label: p.resTitle || 'Reservation', icon: <Plane className="w-3.5 h-3.5" /> },
-        { label: p.optionBClaimTitle || 'Free claim', icon: <Check className="w-3.5 h-3.5" /> },
-      ]
-    : [
-        { label: p.resTitle || 'Reservation', icon: <Plane className="w-3.5 h-3.5" /> },
-        { label: p.wizardTitle || 'Destinations', icon: <MapPin className="w-3.5 h-3.5" /> },
-        { label: p.wizardFoodTitle || 'Food', icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
-        { label: p.planner_step2_date || 'Details', icon: <Calendar className="w-3.5 h-3.5" /> },
-        { label: p.planner_generate_cta || 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
-      ];
+  // 2026-05-05: free-claim funnel(`all_done`) 제거에 따라 isClaimFlow 분기 삭제.
+  const STEPS = [
+    { label: p.resTitle || 'Reservation', icon: <Plane className="w-3.5 h-3.5" /> },
+    { label: p.wizardTitle || 'Destinations', icon: <MapPin className="w-3.5 h-3.5" /> },
+    { label: p.wizardFoodTitle || 'Food', icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
+    { label: p.planner_step2_date || 'Details', icon: <Calendar className="w-3.5 h-3.5" /> },
+    { label: p.planner_generate_cta || 'Generate', icon: <Wand2 className="w-3.5 h-3.5" /> },
+  ];
 
   // Build the list of currently-selected city chip keys for P9 dynamic chips.
   const selectedCityKeys: string[] = [];
@@ -291,7 +281,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
               key={step}로 React가 unmount/mount 인식 → exit 애니 발동. */}
           <AnimatePresence initial={false}>
             <motion.div
-              key={`step-${step}-${isClaimFlow ? 'claim' : 'normal'}`}
+              key={`step-${step}`}
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -16 }}
@@ -304,16 +294,12 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   status={reservationStatus} setStatus={setReservationStatus}
                   arrivalAirport={arrivalTerminal} setArrivalAirport={setArrivalTerminal}
                   arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
-                  hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
                   mainCityKey={mainCityKey || 'seoul'}
                   onNext={() => goToStep(1)}
                 />
               )}
-              {/* Step 1: claim form (when all_done) OR destinations */}
-              {step === 1 && isClaimFlow && (
-                <FreeClaimForm p={p as unknown as PlannerDict} isMobile={isMobile} />
-              )}
-              {step === 1 && !isClaimFlow && (
+              {/* Step 1: destinations */}
+              {step === 1 && (
                 <WizardStep0Destination
                   p={p} isMobile={isMobile}
                   mainCity={mainCity} mainCityKey={mainCityKey}
@@ -332,7 +318,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   setRecommendedZone={setRecommendedZone}
                 />
               )}
-              {step === 2 && !isClaimFlow && (
+              {step === 2 && (
                 <WizardStep1Food
                   p={p} isMobile={isMobile}
                   dietPrefs={dietPrefs} allergies={allergies} priceRange={priceRange}
@@ -343,7 +329,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   onPrev={() => goToStep(1)} onNext={() => goToStep(3)}
                 />
               )}
-              {step === 3 && !isClaimFlow && (
+              {step === 3 && (
                 <WizardStep2Details
                   p={p} isMobile={isMobile} calendarLocale={calendarLocale}
                   dateRange={dateRange} setDateRange={setDateRange} nights={nights}
@@ -365,13 +351,11 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   onPrev={() => goToStep(2)} onNext={() => goToStep(4)}
                   onEditStep0={() => goToStep(0)}
                   reservationStatus={reservationStatus}
-                  hotelTouchedInStep3={hotelTouchedInStep3}
-                  setHotelTouchedInStep3={setHotelTouchedInStep3}
                   airportTouchedInStep3={airportTouchedInStep3}
                   setAirportTouchedInStep3={setAirportTouchedInStep3}
                 />
               )}
-              {step === 4 && !isClaimFlow && (
+              {step === 4 && (
                 <WizardStep3Review
                   p={p}
                   allCities={allCities} startDate={startDate} endDate={endDate}
