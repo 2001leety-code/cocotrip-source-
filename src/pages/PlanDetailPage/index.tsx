@@ -307,20 +307,36 @@ export default function PlanDetailPage() {
           language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'}
         />
 
-        {/* Must-visit restaurants (DB-derived, backend `pickRecommendedRestaurants`) */}
-        {plan?.itinerary?.recommended_restaurants && plan.itinerary.recommended_restaurants.length > 0 && (() => {
+        {/* Must-visit restaurants (DB-derived, backend `pickRecommendedRestaurantsByStyle`).
+           Accepts both legacy array shape and new per-style map { general, vegan?, halal? }. */}
+        {plan?.itinerary?.recommended_restaurants && (() => {
+          const recs = plan.itinerary.recommended_restaurants;
+          const isArr = Array.isArray(recs);
+          const isMap = !isArr && recs && typeof recs === 'object';
+          const hasContent = isArr
+            ? recs.length > 0
+            : isMap
+              ? Object.values(recs as Record<string, unknown>).some(
+                  (v) => Array.isArray(v) && v.length > 0,
+                )
+              : false;
+          if (!hasContent) return null;
           const ui = getPlanDetailUI(t);
           const lng = (language as 'ko' | 'en' | 'ja' | 'zh') || 'en';
           return (
             <div className="max-w-4xl mx-auto px-4 mt-4">
               <RecommendedRestaurants
-                items={plan.itinerary.recommended_restaurants}
+                items={recs}
                 language={lng}
                 labelTitle={ui.recommendedRestaurantsTitle}
                 labelSubtitle={ui.recommendedRestaurantsSubtitle}
                 labelReviews={ui.reviews}
                 labelOpenMap={ui.openMap}
                 labelKmAway={ui.kmAway}
+                labelGeneralSection={ui.recRestaurantsGeneral}
+                labelVeganSection={ui.recRestaurantsVegan}
+                labelHalalSection={ui.recRestaurantsHalal}
+                labelEmptyBucket={ui.recRestaurantsEmpty}
               />
             </div>
           );
