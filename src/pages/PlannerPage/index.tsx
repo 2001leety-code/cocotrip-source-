@@ -36,8 +36,7 @@ export default function PlannerPage() {
   });
 
   const [userEmail, setUserEmail] = useState<string>('');
-  const [selectedOption, setSelectedOption] = useState<'A' | 'B'>('A');
-  const [optionBStep, setOptionBStep] = useState<1 | 2 | 3>(1);
+  // 2026-05-05: free-claim funnel 제거 — selectedOption / optionBStep 상태 폐기.
 
   const {
     status, resultQuick, errorMsg, errorCode,
@@ -135,10 +134,6 @@ export default function PlannerPage() {
               language={language}
               userEmail={userEmail}
               setUserEmail={setUserEmail}
-              selectedOption={selectedOption}
-              setSelectedOption={setSelectedOption}
-              optionBStep={optionBStep}
-              setOptionBStep={setOptionBStep}
               isGeneratingPlan={isGeneratingPlan}
               planError={localizedPlanError}
               resultQuick={resultQuick}

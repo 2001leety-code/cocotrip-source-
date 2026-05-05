@@ -50,17 +50,16 @@ interface Step2Props {
   canGoStep3: boolean;
   onPrev: () => void;
   onNext: () => void;
-  /** P0/P2 dedup: Step0(Reservation)에서 항공편/호텔을 이미 입력했으면
-   *  입력칸 대신 칩으로 보여주고 이 콜백으로 Step0으로 점프해 수정하게 함.
+  /** P0 dedup: Step0(Reservation)에서 항공편을 이미 입력했으면 입력칸 대신
+   *  칩으로 보여주고 이 콜백으로 Step0으로 점프해 수정하게 함.
    *  미지정 시 기존 동작 유지 (입력칸 항상 노출). */
   onEditStep0?: () => void;
-  /** 2026-05-03 fix: Step 3에서 호텔/공항을 직접 편집 중이면 "from Step 1" chip으로
+  /** 2026-05-03 fix: Step 3에서 공항을 직접 편집 중이면 "from Step 1" chip으로
    *  swap하면 안 됨 (한 글자 칠 때마다 input이 chip으로 바뀌어 입력 불가 + Edit
    *  버튼이 Step 0으로 보내버리는 버그). reservationStatus + 사용자가 Step 3에서
-   *  실제로 만진 적 있는지 (touched) 두 가지를 합쳐서 판정. */
-  reservationStatus?: 'nothing' | 'flight' | 'flight_hotel' | 'all_done' | null;
-  hotelTouchedInStep3: boolean;
-  setHotelTouchedInStep3: (v: boolean) => void;
+   *  실제로 만진 적 있는지 (touched) 두 가지를 합쳐서 판정.
+   *  2026-05-05: free-claim funnel 제거에 따라 status는 nothing | flight 만 남음. */
+  reservationStatus?: 'nothing' | 'flight' | null;
   airportTouchedInStep3: boolean;
   setAirportTouchedInStep3: (v: boolean) => void;
 }
@@ -113,28 +112,23 @@ export function WizardStep2Details(props: Step2Props) {
     tourPace, setTourPace,
     recommendedZone, setRecommendedZone, mainCityKey,
     canGoStep3, onPrev, onNext, onEditStep0,
-    reservationStatus, hotelTouchedInStep3, setHotelTouchedInStep3,
+    reservationStatus,
     airportTouchedInStep3, setAirportTouchedInStep3,
   } = props;
   const { language } = useLanguage();
   const lang = (language as 'ko' | 'en' | 'ja' | 'zh') || 'en';
 
-  // 2026-05-03 fix (사용자 신고): Step 3에서 호텔/공항 직접 입력하면 한 글자 칠
+  // 2026-05-03 fix (사용자 신고): Step 3에서 공항 직접 입력하면 한 글자 칠
   // 때마다 input이 "from Step 1" chip으로 swap → 입력 끊김 + Edit 버튼이 Step 0으로
   // 점프시켜 사용자가 "지우면 뒤로 가져" 라고 신고. 진짜로 Step 0에서 입력한
-  // 경우(=reservationStatus가 flight/flight_hotel + 사용자가 Step 3에서 만진 적
-  // 없음)에만 chip 모드로 표시.
+  // 경우(=reservationStatus가 flight + 사용자가 Step 3에서 만진 적 없음)에만
+  // chip 모드로 표시.
+  // 2026-05-05: 호텔 chip 분기 제거 — Step 0에서 호텔을 묻지 않으므로 항상 input 노출.
   const flightInfoFromStep0 =
     !!onEditStep0
-    && (reservationStatus === 'flight' || reservationStatus === 'flight_hotel')
+    && reservationStatus === 'flight'
     && !!arrivalTerminal
     && !airportTouchedInStep3;
-  const hotelInfoFromStep0 =
-    !!onEditStep0
-    && reservationStatus === 'flight_hotel'
-    && !!hotelAddress
-    && hotelAddress.trim().length > 0
-    && !hotelTouchedInStep3;
 
   return (
     <div className="space-y-4">
@@ -246,35 +240,16 @@ export function WizardStep2Details(props: Step2Props) {
       )}
 
       {/* Hotel — P1: AI 추천 토글 시 주소 입력칸 자동 숨김 (mutual exclusion).
-          P2: Step0에서 이미 호텔 주소 받은 경우 칩으로 대체. */}
-      {hotelInfoFromStep0 ? (
-        <button
-          type="button"
-          onClick={onEditStep0}
-          className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.10] hover:border-[#7C5CFC]/50 rounded-2xl px-4 py-3 transition-colors text-left"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-base shrink-0">🏨</span>
-            <div className="min-w-0">
-              <p className="text-[11px] text-white/50 font-medium">
-                {p.hotelInfoFromStep0Label || 'Hotel (from Step 1)'}
-              </p>
-              <p className="text-sm font-semibold text-white truncate">{hotelAddress}</p>
-            </div>
-          </div>
-          <span className="flex items-center gap-1 text-[11px] text-[#C99FFF] font-semibold shrink-0">
-            <Pencil className="w-3 h-3" />
-            {p.editLabel || 'Edit'}
-          </span>
-        </button>
-      ) : !wantAccom ? (
+          2026-05-05: free-claim funnel 제거 — Step 0의 호텔 chip 분기 삭제,
+          호텔 입력은 항상 이 step에서. */}
+      {!wantAccom ? (
         <div>
           <p className="text-sm text-white/50 mb-2.5 font-medium">
             {p.hotel_address_title || 'Where are you staying?'}
             <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
           </p>
           <input type="text" value={hotelAddress}
-            onChange={e => { setHotelAddress(e.target.value); setHotelTouchedInStep3(true); }}
+            onChange={e => { setHotelAddress(e.target.value); }}
             placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
           {/* Sprint 2 #5: zone-pick fallback when hotel address empty. */}
@@ -336,8 +311,7 @@ export function WizardStep2Details(props: Step2Props) {
       </div>
 
       {/* Accommodation Recommendation Opt-in.
-          P1: Step0에서 이미 호텔이 확정된 경우(hotelInfoFromStep0) 토글 자체를 숨김 — 충돌 방지. */}
-      {!hotelInfoFromStep0 && (
+          2026-05-05: Step 0에서 호텔을 안 묻는 단순화로 전환 — chip 분기 제거되어 항상 노출. */}
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4">
         <label className="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={wantAccom} onChange={e => {
@@ -376,7 +350,6 @@ export function WizardStep2Details(props: Step2Props) {
           </div>
         )}
       </div>
-      )}
 
       {/* Nav */}
       <WizardNav
