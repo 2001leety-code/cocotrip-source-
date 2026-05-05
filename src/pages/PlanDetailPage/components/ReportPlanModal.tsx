@@ -1,8 +1,10 @@
 // ReportPlanModal — 플랜 신고 (Tier 1-A 학습 루프).
 // 2026-05-04: PlanDetailPage 우하단 floating 버튼 → 본 모달 → submit → /api/submit-plan-complaint.
 // 5개 reason 라디오 + optional detail textarea + 4-lang.
+// 2026-05-05: 인라인 LABELS dict → 중앙 i18n (planDetail.report) 이전 (Tier 1-A polish).
 import { useState } from 'react';
 import { X, AlertTriangle, Check, Loader2 } from 'lucide-react';
+import { translations, type Language } from '@/i18n';
 
 type Reason = 'wrong_address' | 'closed_restaurant' | 'inefficient_route' | 'wrong_timing' | 'other';
 
@@ -11,117 +13,23 @@ interface Props {
   onClose: () => void;
   planId: string;
   userEmail?: string;
-  language: 'ko' | 'en' | 'ja' | 'zh';
+  language: Language;
 }
 
-const LABELS: Record<string, {
-  title: string;
-  subtitle: string;
-  reasonLabel: string;
-  reasons: Record<Reason, string>;
-  detailLabel: string;
-  detailPlaceholder: string;
-  submitBtn: string;
-  submitting: string;
-  cancelBtn: string;
-  successTitle: string;
-  successBody: string;
-  closeBtn: string;
-  errorPrefix: string;
-  duplicateError: string;
-}> = {
-  ko: {
-    title: '플랜 문제 신고',
-    subtitle: '잘못된 정보·동선·식당 폐업 등을 알려주세요. 플랜 품질 개선에 사용됩니다.',
-    reasonLabel: '문제 유형',
-    reasons: {
-      wrong_address: '주소가 잘못됨',
-      closed_restaurant: '식당/장소 폐업',
-      inefficient_route: '동선이 비효율적',
-      wrong_timing: '시간 정보 부정확',
-      other: '기타',
-    },
-    detailLabel: '상세 (선택)',
-    detailPlaceholder: '예: 2일차 점심 식당이 1년 전 폐업했어요',
-    submitBtn: '신고하기',
-    submitting: '전송 중...',
-    cancelBtn: '취소',
-    successTitle: '신고 접수 완료',
-    successBody: '소중한 의견 감사합니다. 검토 후 플랜 개선에 반영하겠습니다.',
-    closeBtn: '닫기',
-    errorPrefix: '오류',
-    duplicateError: '이미 24시간 이내에 같은 플랜을 신고하셨어요.',
-  },
-  en: {
-    title: 'Report Plan Issue',
-    subtitle: 'Let us know about incorrect info, inefficient route, or closed restaurants. Helps us improve plan quality.',
-    reasonLabel: 'Issue type',
-    reasons: {
-      wrong_address: 'Wrong address',
-      closed_restaurant: 'Restaurant/place closed',
-      inefficient_route: 'Inefficient route',
-      wrong_timing: 'Inaccurate timing',
-      other: 'Other',
-    },
-    detailLabel: 'Details (optional)',
-    detailPlaceholder: 'e.g. Day 2 lunch restaurant closed a year ago',
-    submitBtn: 'Submit',
-    submitting: 'Submitting...',
-    cancelBtn: 'Cancel',
-    successTitle: 'Report received',
-    successBody: 'Thanks for your feedback. We will review and improve.',
-    closeBtn: 'Close',
-    errorPrefix: 'Error',
-    duplicateError: "You've already reported this plan within the last 24 hours.",
-  },
-  ja: {
-    title: 'プラン問題を報告',
-    subtitle: '誤った情報・非効率な動線・閉店した店などをお知らせください。プラン品質改善に使われます。',
-    reasonLabel: '問題の種類',
-    reasons: {
-      wrong_address: '住所が間違っている',
-      closed_restaurant: '店舗/場所が閉店',
-      inefficient_route: '動線が非効率',
-      wrong_timing: '時間情報が不正確',
-      other: 'その他',
-    },
-    detailLabel: '詳細 (任意)',
-    detailPlaceholder: '例: 2日目のランチのお店は1年前に閉店しました',
-    submitBtn: '送信',
-    submitting: '送信中...',
-    cancelBtn: 'キャンセル',
-    successTitle: '報告を受け付けました',
-    successBody: 'ご意見ありがとうございます。確認してプラン改善に反映します。',
-    closeBtn: '閉じる',
-    errorPrefix: 'エラー',
-    duplicateError: '24時間以内に同じプランを既に報告されました。',
-  },
-  zh: {
-    title: '报告行程问题',
-    subtitle: '请告诉我们错误信息、低效路线或已关闭的餐厅。有助于改进行程质量。',
-    reasonLabel: '问题类型',
-    reasons: {
-      wrong_address: '地址错误',
-      closed_restaurant: '餐厅/地点已关闭',
-      inefficient_route: '路线低效',
-      wrong_timing: '时间信息不准确',
-      other: '其他',
-    },
-    detailLabel: '详细信息 (可选)',
-    detailPlaceholder: '例: 第2天午餐餐厅一年前已关闭',
-    submitBtn: '提交',
-    submitting: '提交中...',
-    cancelBtn: '取消',
-    successTitle: '报告已接收',
-    successBody: '感谢您的反馈。我们将审核并改进。',
-    closeBtn: '关闭',
-    errorPrefix: '错误',
-    duplicateError: '您已在 24 小时内报告过此行程。',
-  },
+const REASON_KEY: Record<Reason, 'reasonWrongAddress' | 'reasonClosedRestaurant' | 'reasonInefficientRoute' | 'reasonWrongTiming' | 'reasonOther'> = {
+  wrong_address: 'reasonWrongAddress',
+  closed_restaurant: 'reasonClosedRestaurant',
+  inefficient_route: 'reasonInefficientRoute',
+  wrong_timing: 'reasonWrongTiming',
+  other: 'reasonOther',
 };
 
+const REASONS: Reason[] = ['wrong_address', 'closed_restaurant', 'inefficient_route', 'wrong_timing', 'other'];
+
 export function ReportPlanModal({ open, onClose, planId, userEmail = '', language }: Props) {
-  const labels = LABELS[language] || LABELS.en;
+  const safeLang: Language = (['ko', 'en', 'ja', 'zh'] as Language[]).includes(language) ? language : 'en';
+  // planDetail.report은 ReportPlanModal 인라인 LABELS 이전 namespace (PR 2026-05-05).
+  const labels = translations[safeLang].planDetail.report;
 
   const [reason, setReason] = useState<Reason | null>(null);
   const [detail, setDetail] = useState('');
@@ -200,7 +108,7 @@ export function ReportPlanModal({ open, onClose, planId, userEmail = '', languag
             <div className="mb-4">
               <p className="text-xs font-semibold text-white/70 mb-2 uppercase tracking-wider">{labels.reasonLabel}</p>
               <div className="space-y-1.5">
-                {(Object.keys(labels.reasons) as Reason[]).map((r) => (
+                {REASONS.map((r) => (
                   <label
                     key={r}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
@@ -215,7 +123,7 @@ export function ReportPlanModal({ open, onClose, planId, userEmail = '', languag
                       onChange={() => setReason(r)}
                       className="accent-[#7C5CFC]"
                     />
-                    <span className="text-sm text-white/85">{labels.reasons[r]}</span>
+                    <span className="text-sm text-white/85">{labels[REASON_KEY[r]]}</span>
                   </label>
                 ))}
               </div>

@@ -1448,6 +1448,26 @@
       "photoMax": "Maximum 3 photos",
       "photoSize": "Photos must be under 5MB"
     },
+    "report": {
+      "title": "Report Plan Issue",
+      "subtitle": "Let us know about incorrect info, inefficient route, or closed restaurants. Helps us improve plan quality.",
+      "reasonLabel": "Issue type",
+      "reasonWrongAddress": "Wrong address",
+      "reasonClosedRestaurant": "Restaurant/place closed",
+      "reasonInefficientRoute": "Inefficient route",
+      "reasonWrongTiming": "Inaccurate timing",
+      "reasonOther": "Other",
+      "detailLabel": "Details (optional)",
+      "detailPlaceholder": "e.g. Day 2 lunch restaurant closed a year ago",
+      "submitBtn": "Submit",
+      "submitting": "Submitting...",
+      "cancelBtn": "Cancel",
+      "successTitle": "Report received",
+      "successBody": "Thanks for your feedback. We will review and improve.",
+      "closeBtn": "Close",
+      "errorPrefix": "Error",
+      "duplicateError": "You've already reported this plan within the last 24 hours."
+    },
     "ui": {
       "whyChose": "Why this for you",
       "loadingPlan": "Loading your plan...",

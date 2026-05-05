@@ -1448,6 +1448,26 @@
       "photoMax": "最大3枚まで",
       "photoSize": "写真は5MB以下にしてください"
     },
+    "report": {
+      "title": "プラン問題を報告",
+      "subtitle": "誤った情報・非効率な動線・閉店した店などをお知らせください。プラン品質改善に使われます。",
+      "reasonLabel": "問題の種類",
+      "reasonWrongAddress": "住所が間違っている",
+      "reasonClosedRestaurant": "店舗/場所が閉店",
+      "reasonInefficientRoute": "動線が非効率",
+      "reasonWrongTiming": "時間情報が不正確",
+      "reasonOther": "その他",
+      "detailLabel": "詳細 (任意)",
+      "detailPlaceholder": "例: 2日目のランチのお店は1年前に閉店しました",
+      "submitBtn": "送信",
+      "submitting": "送信中...",
+      "cancelBtn": "キャンセル",
+      "successTitle": "報告を受け付けました",
+      "successBody": "ご意見ありがとうございます。確認してプラン改善に反映します。",
+      "closeBtn": "閉じる",
+      "errorPrefix": "エラー",
+      "duplicateError": "24時間以内に同じプランを既に報告されました。"
+    },
     "ui": {
       "whyChose": "なぜここを選んだか",
       "loadingPlan": "プランを読み込み中...",
