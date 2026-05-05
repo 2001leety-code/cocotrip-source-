@@ -26,10 +26,16 @@
 //   4. Braintree 결제 완료 → 성공 모달 (BraintreePaymentButton 가 자체 처리)
 //   5. Firestore booking 저장 + booking-processor 가 텔레그램 driver bot 알림
 
-import { useState } from 'react';
-import { Calendar, Users, Check, ChevronRight } from 'lucide-react';
-import { BraintreePaymentButton } from '@/components/BraintreePaymentButton';
+import { useState, lazy, Suspense } from 'react';
+import { Calendar, Users, Check, ChevronRight, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+
+// Lazy import — BraintreePaymentButton + Drop-in 모듈은 결제 클릭 시점에만 로드.
+// PreTripSlide 가 항상 마운트되므로 eager import 시 첫 paint 번들에 포함되어
+// bundle-size budget (365kB) 초과. 실제 결제는 사용자가 클릭한 후에만 일어남.
+const BraintreePaymentButton = lazy(() =>
+  import('@/components/BraintreePaymentButton').then(m => ({ default: m.BraintreePaymentButton })),
+);
 
 export interface InlineBookingOption {
   productType: string;       // braintreeCheckout 가 받는 키 (e.g. airport_seoul_central)
@@ -267,21 +273,31 @@ export function InlineBookingCard({
         </button>
       )}
 
-      {/* Drop-in payment (BraintreePaymentButton 자체에 결제 UI + 성공 모달 포함) */}
+      {/* Drop-in payment (BraintreePaymentButton 자체에 결제 UI + 성공 모달 포함).
+          Lazy-loaded — 결제 클릭 시점에만 chunk 다운로드 (번들 budget 보호). */}
       {selected && showPayment && (
         <div className="mt-2">
-          <BraintreePaymentButton
-            productType={selected.productType}
-            passengers={pax}
-            dateStart={date}
-            dateEnd={date}
-            priceKRW={selected.priceKRW}
-            p={{}}
-            lang={lang}
-            pickupLocation={selected.label}
-            memo={`Inline booking from plan ${planId || ''} — ${title}`}
-            userEmail={userEmail}
-          />
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading payment options...
+              </div>
+            }
+          >
+            <BraintreePaymentButton
+              productType={selected.productType}
+              passengers={pax}
+              dateStart={date}
+              dateEnd={date}
+              priceKRW={selected.priceKRW}
+              p={{}}
+              lang={lang}
+              pickupLocation={selected.label}
+              memo={`Inline booking from plan ${planId || ''} — ${title}`}
+              userEmail={userEmail}
+            />
+          </Suspense>
         </div>
       )}
     </div>

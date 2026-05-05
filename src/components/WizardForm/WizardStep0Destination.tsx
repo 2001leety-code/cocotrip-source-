@@ -41,7 +41,7 @@ interface Step0Props {
 
 export function WizardStep0Destination(props: Step0Props) {
   const {
-    p, isMobile, mainCity, mainCityKey, selectedCityKeys, selectedActivities, freeText,
+    p, isMobile, mainCity, selectedCityKeys, selectedActivities, freeText,
     setMainCity, setMainCityKey, setExtraCities, setSelectedActivities, setFreeText,
     allCities, canGoStep1, getCityName, toggleActivity, toggleCity, isCitySelected, onPrev, onNext,
   } = props;

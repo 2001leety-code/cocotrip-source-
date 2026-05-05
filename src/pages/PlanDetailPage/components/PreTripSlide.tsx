@@ -4,18 +4,42 @@
 //
 // 각 카드는 adApplies()로 컨텍스트 검증 후 조건부 렌더링.
 // 노출 추적은 IntersectionObserver — 슬라이드가 화면에 보일 때 한 번만 trackAdImpression.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, lazy, Suspense } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { trackAdImpression } from '@/lib/analytics';
 import { adApplies } from '../lib/buildSlides';
 import { EsimAd } from './ads/EsimAd';
 import { HotelAd } from './ads/HotelAd';
 import { FlightAd } from './ads/FlightAd';
-import { AirportPickupAd } from './ads/AirportPickupAd';
-import { CharterInlineAd } from './ads/CharterInlineAd';
-import { TourPackageInlineAd } from './ads/TourPackageInlineAd';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
+
+// 인라인 예약 카드 (T-5/6/7) 는 BraintreePaymentButton 을 트랜지티브로 가져오므로
+// 메인 번들이 budget (365kB) 을 넘는다. PreTripSlide 가 항상 마운트되긴 하지만
+// 인라인 카드들은 사용자가 결제까지 갈 때만 의미 있으므로 lazy 로 분리.
+const AirportPickupAd = lazy(() =>
+  import('./ads/AirportPickupAd').then(m => ({ default: m.AirportPickupAd })),
+);
+const CharterInlineAd = lazy(() =>
+  import('./ads/CharterInlineAd').then(m => ({ default: m.CharterInlineAd })),
+);
+const TourPackageInlineAd = lazy(() =>
+  import('./ads/TourPackageInlineAd').then(m => ({ default: m.TourPackageInlineAd })),
+);
+
+// Lazy 카드 placeholder — 카드 1개 정도 높이의 골격, 깜빡임 최소화.
+function InlineCardSkeleton() {
+  return (
+    <div className="mb-6 rounded-2xl p-5 bg-white/[0.03] border border-white/[0.06] animate-pulse">
+      <div className="h-5 w-1/2 bg-white/10 rounded mb-3" />
+      <div className="space-y-2">
+        <div className="h-12 bg-white/[0.05] rounded-xl" />
+        <div className="h-12 bg-white/[0.05] rounded-xl" />
+        <div className="h-12 bg-white/[0.05] rounded-xl" />
+      </div>
+    </div>
+  );
+}
 
 interface PreTripSlideProps {
   plan: PlanDocument;
@@ -92,42 +116,39 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
         {/* 카드 1: eSIM (항상 노출) */}
         <EsimAd />
 
-        {/* 카드 2: 공항 픽업 인라인 예약 (항상 노출 — 도착 시 안내).
-            2026-05-05: 외부 링크 → InlineBookingCard 로 교체, wrap-up 안에서 결제까지. */}
-        <div className="mt-4">
-          <AirportPickupAd
-            arrivalAirport={arrivalAirport}
-            defaultDate={startDate}
-            defaultPax={pax}
-            planId={planId}
-          />
-        </div>
-
-        {/* 카드 3: 전용 전세 차량 인라인 예약 (사용자 main city 기준 차터 옵션).
-            2026-05-05: 외부 페이지 (cocotripkr.com/charter) → 인라인 결제. */}
-        {showCharter && (
+        {/* 카드 2-4: 인라인 예약 카드들 — Suspense 로 묶어서 한 번에 lazy chunk 로드.
+            2026-05-05: BraintreePaymentButton 트랜지티브 의존 → 메인 번들 budget 보호. */}
+        <Suspense fallback={<div className="mt-4"><InlineCardSkeleton /></div>}>
           <div className="mt-4">
-            <CharterInlineAd
-              region={region}
-              defaultDate={startDate}
-              defaultPax={pax}
-              planId={planId}
-            />
-          </div>
-        )}
-
-        {/* 카드 4: 추천 투어 패키지 (공항 픽업 + 1일 투어 콤보, 10% 할인). */}
-        {showCharter && (
-          <div className="mt-4">
-            <TourPackageInlineAd
-              region={region}
+            <AirportPickupAd
               arrivalAirport={arrivalAirport}
               defaultDate={startDate}
               defaultPax={pax}
               planId={planId}
             />
           </div>
-        )}
+          {showCharter && (
+            <div className="mt-4">
+              <CharterInlineAd
+                region={region}
+                defaultDate={startDate}
+                defaultPax={pax}
+                planId={planId}
+              />
+            </div>
+          )}
+          {showCharter && (
+            <div className="mt-4">
+              <TourPackageInlineAd
+                region={region}
+                arrivalAirport={arrivalAirport}
+                defaultDate={startDate}
+                defaultPax={pax}
+                planId={planId}
+              />
+            </div>
+          )}
+        </Suspense>
 
         {/* 카드 5: 호텔 (미예약 시) */}
         {showHotel && (
