@@ -330,11 +330,16 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               </div>
             ) : (
               <Link
-                to="/planner"
+                to="/mypage"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="flex items-center gap-3 rounded-2xl p-3.5 mb-5 transition-all"
                 style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.15), rgba(234,83,126,0.1))', border: '1px solid rgba(124,92,252,0.2)' }}
               >
+                {/* 2026-05-05: 기존 to="/planner" 가 wizard 시작 페이지로 이동시켜
+                    사용자가 sign-in 의도로 클릭해도 결제 step 에서 401 까지 가야
+                    sign-in modal 봄. /mypage 는 AuthRequired 로 보호된 라우트 →
+                    sign-in 안 된 사용자에게 즉시 Google/Apple sign-in modal 노출.
+                    회원가입 (첫 sign-in) 시 PR #253 onboarding-coupons 5% × 2 자동 발급. */}
                 <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white/[0.06]">
                   <LogIn className="w-[18px] h-[18px] text-[#7C5CFC]" />
                 </div>
