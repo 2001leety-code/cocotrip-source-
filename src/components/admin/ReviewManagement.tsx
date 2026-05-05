@@ -14,6 +14,12 @@ interface CSTicket {
   priority: CSPriority;
   status: CSTicketStatus;
   notes?: string;
+  /**
+   * 연관 플랜 ID — Telegram `이슈추가 plan:<planId> ...` syntax 또는
+   * booking.planId 자동 폴백으로 채워짐 (PR #237 백엔드).
+   * 기존 ticket 호환을 위해 옵셔널.
+   */
+  planId?: string;
   createdAt?: number;
   resolvedAt?: number;
 }
@@ -158,6 +164,7 @@ export default function ReviewManagement() {
             priority: (data.priority || 'medium') as CSPriority,
             status: (data.status || 'open') as CSTicketStatus,
             notes: data.notes,
+            planId: (data as { planId?: string }).planId || undefined,
             createdAt: tsToMs(data.createdAt),
             resolvedAt: tsToMs(data.resolvedAt),
           });
@@ -434,12 +441,34 @@ export default function ReviewManagement() {
                     <span className="text-[10px] text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">{tickets.length}</span>
                   </div>
                   {tickets.map((t) => (
-                    <div key={t.id} className="p-3 bg-[#0a0b14] rounded-lg border border-gray-800/50">
+                    <div
+                      key={t.id}
+                      className={`p-3 bg-[#0a0b14] rounded-lg border ${
+                        t.planId ? 'border-cyan-500/30' : 'border-gray-800/50'
+                      }`}
+                    >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">{t.bookingId}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded border ${PRIORITY_STYLE[t.priority]}`}>{t.priority.toUpperCase()}</span>
                       </div>
                       <p className="text-xs text-gray-200 font-medium mb-1">{t.issue}</p>
+                      {/* PR #237 후속 — 플랜 ID 가시성 (Tier 1-C UI). 기존 ticket 호환 위해 옵셔널 */}
+                      <div className="text-[10px] mb-1">
+                        <span className="text-gray-600">플랜 ID: </span>
+                        {t.planId ? (
+                          <a
+                            href={`/my-plans/${t.planId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-300 hover:text-cyan-200 underline font-mono"
+                            title="플랜 상세 페이지 열기"
+                          >
+                            {t.planId}
+                          </a>
+                        ) : (
+                          <span className="text-gray-700">—</span>
+                        )}
+                      </div>
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-gray-600">{t.customer}</span>
                         {t.status !== 'resolved' && (
