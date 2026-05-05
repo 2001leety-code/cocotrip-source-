@@ -145,7 +145,11 @@ export default async function handler(req, res) {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 18000);
+        // 2026-05-05 (P2 fix): cold start + Gemini SDK init + API round-trip 합산이
+        // 18s 초과 가능 → 첫 attempt 만 30s, 이후 attempt 는 warm 가정 18s.
+        // 진단: response length 843→692→122 패턴이 timeout 시점 단축 시사.
+        const timeoutMs = attempt === 0 ? 30000 : 18000;
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
         let result;
         try {
           result = await model.generateContent({
