@@ -1279,8 +1279,9 @@
   },
   "errorBoundary": {
     "title": "发生意外错误。",
-    "description": "抱歉，加载此页面时出现问题。请重试。",
-    "retry": "重试"
+    "description": "抱歉，加载此页面时出现问题。请刷新页面或联系我们的客服团队。",
+    "retry": "刷新",
+    "contact": "WhatsApp咨询"
   },
   "cookieBanner": {
     "bodyBefore": "我们使用Cookie来改善您的体验。继续使用本站即表示您同意我们的",

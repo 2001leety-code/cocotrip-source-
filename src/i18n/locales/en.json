@@ -1279,8 +1279,9 @@
   },
   "errorBoundary": {
     "title": "An unexpected error occurred.",
-    "description": "We're sorry. There was a problem loading this page. Please try again.",
-    "retry": "Retry"
+    "description": "We're sorry — something went wrong while loading this page. Please refresh or contact our support team.",
+    "retry": "Refresh",
+    "contact": "Contact via WhatsApp"
   },
   "cookieBanner": {
     "bodyBefore": "We use cookies to improve your experience. By continuing to use this site, you agree to our ",
@@ -1447,6 +1448,26 @@
       "photoFailed": "Upload failed — review will be submitted without photos",
       "photoMax": "Maximum 3 photos",
       "photoSize": "Photos must be under 5MB"
+    },
+    "report": {
+      "title": "Report Plan Issue",
+      "subtitle": "Let us know about incorrect info, inefficient route, or closed restaurants. Helps us improve plan quality.",
+      "reasonLabel": "Issue type",
+      "reasonWrongAddress": "Wrong address",
+      "reasonClosedRestaurant": "Restaurant/place closed",
+      "reasonInefficientRoute": "Inefficient route",
+      "reasonWrongTiming": "Inaccurate timing",
+      "reasonOther": "Other",
+      "detailLabel": "Details (optional)",
+      "detailPlaceholder": "e.g. Day 2 lunch restaurant closed a year ago",
+      "submitBtn": "Submit",
+      "submitting": "Submitting...",
+      "cancelBtn": "Cancel",
+      "successTitle": "Report received",
+      "successBody": "Thanks for your feedback. We will review and improve.",
+      "closeBtn": "Close",
+      "errorPrefix": "Error",
+      "duplicateError": "You've already reported this plan within the last 24 hours."
     },
     "ui": {
       "whyChose": "Why this for you",
