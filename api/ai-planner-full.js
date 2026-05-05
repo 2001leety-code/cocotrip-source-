@@ -14,6 +14,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { getSpotContext } from './_spots_helper.js';
 import { getFoodContext, buildFoodPrefSnippet } from './_food_helper.js';
 import { sendErrorAlert } from './_telegram.js';
+import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 import { CORS, AIRPORT_ADDRESSES } from './_ai_core/constants.js';
 import { buildSystemPrompt, logPromptMetrics } from './_ai_core/buildPrompt.js';
@@ -346,7 +347,14 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
 
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
-    sendErrorAlert('ai-planner-full', error).catch(() => {});
+    // K Tier 2-E (PR #266) — throttled. 동일 unhandled 패턴 5분 윈도우 내 dedup.
+    throttledTelegramAlert({
+      key: 'ai-planner-unhandled',
+      channel: 'error',
+      message: `🔴 [ai-planner-full] ${error.message || 'unknown error'}`,
+      severity: 'high',
+      context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
+    }).catch(() => {});
     await captureError(error, {
       route: '/api/ai-planner-full',
       method: req.method,
