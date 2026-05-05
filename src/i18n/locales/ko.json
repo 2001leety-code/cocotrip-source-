@@ -1448,6 +1448,26 @@
       "photoMax": "최대 3장까지 가능합니다",
       "photoSize": "사진은 5MB 이하여야 합니다"
     },
+    "report": {
+      "title": "플랜 문제 신고",
+      "subtitle": "잘못된 정보·동선·식당 폐업 등을 알려주세요. 플랜 품질 개선에 사용됩니다.",
+      "reasonLabel": "문제 유형",
+      "reasonWrongAddress": "주소가 잘못됨",
+      "reasonClosedRestaurant": "식당/장소 폐업",
+      "reasonInefficientRoute": "동선이 비효율적",
+      "reasonWrongTiming": "시간 정보 부정확",
+      "reasonOther": "기타",
+      "detailLabel": "상세 (선택)",
+      "detailPlaceholder": "예: 2일차 점심 식당이 1년 전 폐업했어요",
+      "submitBtn": "신고하기",
+      "submitting": "전송 중...",
+      "cancelBtn": "취소",
+      "successTitle": "신고 접수 완료",
+      "successBody": "소중한 의견 감사합니다. 검토 후 플랜 개선에 반영하겠습니다.",
+      "closeBtn": "닫기",
+      "errorPrefix": "오류",
+      "duplicateError": "이미 24시간 이내에 같은 플랜을 신고하셨어요."
+    },
     "ui": {
       "whyChose": "왜 이 곳을 추천했나요",
       "loadingPlan": "플랜을 불러오는 중...",

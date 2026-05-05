@@ -1448,6 +1448,26 @@
       "photoMax": "最多3张照片",
       "photoSize": "照片须小于5MB"
     },
+    "report": {
+      "title": "报告行程问题",
+      "subtitle": "请告诉我们错误信息、低效路线或已关闭的餐厅。有助于改进行程质量。",
+      "reasonLabel": "问题类型",
+      "reasonWrongAddress": "地址错误",
+      "reasonClosedRestaurant": "餐厅/地点已关闭",
+      "reasonInefficientRoute": "路线低效",
+      "reasonWrongTiming": "时间信息不准确",
+      "reasonOther": "其他",
+      "detailLabel": "详细信息 (可选)",
+      "detailPlaceholder": "例: 第2天午餐餐厅一年前已关闭",
+      "submitBtn": "提交",
+      "submitting": "提交中...",
+      "cancelBtn": "取消",
+      "successTitle": "报告已接收",
+      "successBody": "感谢您的反馈。我们将审核并改进。",
+      "closeBtn": "关闭",
+      "errorPrefix": "错误",
+      "duplicateError": "您已在 24 小时内报告过此行程。"
+    },
     "ui": {
       "whyChose": "为什么推荐这里",
       "loadingPlan": "正在加载您的计划...",
