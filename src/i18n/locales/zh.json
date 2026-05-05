@@ -1548,6 +1548,8 @@
     }
   },
   "mypage": {
+    "welcomeCouponsTitle": "欢迎！",
+    "welcomeCouponsBody": "注册完成 — 已发放 2 张 5% 优惠券",
     "home": "首页",
     "tierBenefits": "{tier} 会员权益",
     "dashNextTrip": "下一次旅行",

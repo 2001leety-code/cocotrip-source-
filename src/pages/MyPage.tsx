@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
@@ -107,6 +108,20 @@ export default function MyPage() {
       }
     })();
   }, [user]);
+
+  // 회원가입 직후 환영 토스트 (firebase.js 가 sessionStorage 에 flag 저장)
+  useEffect(() => {
+    try {
+      const flag = sessionStorage.getItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED');
+      if (flag && Number(flag) > 0) {
+        sessionStorage.removeItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED');
+        toast.success(
+          mp.welcomeCouponsTitle || 'Welcome!',
+          { description: mp.welcomeCouponsBody || 'Sign-up complete — 2 × 5% coupons issued' }
+        );
+      }
+    } catch { /* SSR / private mode silent */ }
+  }, [mp.welcomeCouponsTitle, mp.welcomeCouponsBody]);
 
   useEffect(() => {
     let city = 'Seoul';

@@ -140,11 +140,22 @@ export default async function handler(req, res) {
     let totalDiscountKRW = 0;
     let appliedLabel = null;
 
+    // 2026-05-05: AI Plan 50% Launch Promo (자동 적용, 사용자 쿠폰 cap 무시)
+    //   - productType='ai-planner-full' 만 적용
+    //   - 30% cap 별도 — 사용자 쿠폰 누적 cap 후에 추가됨
+    //   - 기간 미정 (운영자 정책) → 코드 한 줄로 ON/OFF 제어
+    let aiPlanLaunchDiscountRate = 0;
+    if (productType === 'ai-planner-full') {
+      aiPlanLaunchDiscountRate = 0.5;
+      appliedLabel = 'AI Plan Launch 50% OFF';
+    }
+
     if (promoCode) {
       const upper = String(promoCode).toUpperCase().trim();
       const globalPromo = GLOBAL_PROMOS[upper];
       if (globalPromo) {
         totalDiscountRate += globalPromo.discount;
+        // launch promo 와 결합 시 라벨 합치기 (아래 cap 처리 후 최종 결정)
         appliedLabel = globalPromo.label;
       } else if (couponDocId && couponUserId) {
         // Firestore 개인 쿠폰 검증 — applyPromoCode 와 동일한 doc lookup
@@ -158,7 +169,13 @@ export default async function handler(req, res) {
               const codeMatches = (c.code || '').toUpperCase() === upper;
               const notUsed = c.isUsed === false;
               const notExpired = !c.expiresAt || c.expiresAt > Date.now();
-              if (codeMatches && notUsed && notExpired) {
+              // 2026-05-05: productScope 검증 — onboarding 쿠폰 등 상품 한정 쿠폰을
+              // 다른 productType 결제에서 사용 시도 시 silent drop (무할인 진행).
+              // productScope 없는 기존 쿠폰은 모든 productType 적용 (현 동작 유지).
+              const scopeMatches = !c.productScope || c.productScope === productType
+                || (c.productScope === 'tour-package' && String(productType).startsWith('tour'))
+                || (c.productScope === 'charter' && String(productType).startsWith('charter'));
+              if (codeMatches && notUsed && notExpired && scopeMatches) {
                 if (c.type === 'fixed' && c.currency === 'USD') {
                   const discountKRW = Math.round(Number(c.value) * usdToKrw);
                   totalDiscountKRW += Math.min(discountKRW, krwAmount);
@@ -166,6 +183,9 @@ export default async function handler(req, res) {
                   totalDiscountRate += Number(c.value) / 100;
                 }
                 appliedLabel = c.label || upper;
+              } else if (codeMatches && notUsed && notExpired && !scopeMatches) {
+                console.warn('[braintreeCheckout] coupon productScope mismatch:', c.productScope, '!=', productType);
+                // 무할인 진행
               } else {
                 console.warn('[braintreeCheckout] coupon failed validation:', { codeMatches, notUsed, notExpired });
               }
@@ -179,13 +199,32 @@ export default async function handler(req, res) {
       }
     }
 
-    // 누적 cap: 30% (applyPromoCode 와 동일).
+    // 사용자 쿠폰만 30% cap (applyPromoCode 와 동일).
     totalDiscountRate = Math.min(totalDiscountRate, 0.30);
+    // launch promo 는 cap 후 추가 (운영자 정책: AI Plan 50% 는 항상 풀로 적용).
+    const userCouponRate = totalDiscountRate;
+    totalDiscountRate += aiPlanLaunchDiscountRate;
+
     const percentDiscountKRW = Math.round(krwAmount * totalDiscountRate);
     const couponDiscountKRW = percentDiscountKRW + totalDiscountKRW;
+
+    // launch + 사용자 쿠폰 둘 다 적용된 경우 라벨 결합
+    if (aiPlanLaunchDiscountRate > 0 && (userCouponRate > 0 || totalDiscountKRW > 0)) {
+      // appliedLabel 은 위에서 사용자 쿠폰 라벨로 덮였을 수 있음 → 결합 라벨 재구성
+      const userLabel = appliedLabel && appliedLabel !== 'AI Plan Launch 50% OFF' ? appliedLabel : '';
+      appliedLabel = userLabel
+        ? `AI Plan Launch 50% OFF + ${userLabel}`
+        : 'AI Plan Launch 50% OFF';
+    }
+
     if (couponDiscountKRW > 0) {
       krwAmount = Math.max(0, krwAmount - couponDiscountKRW);
-      console.log('[braintreeCheckout] coupon applied:', { promoCode, appliedLabel, percentDiscountKRW, fixedDiscountKRW: totalDiscountKRW, totalKRW: couponDiscountKRW, finalKRW: krwAmount });
+      console.log('[braintreeCheckout] coupon applied:', {
+        promoCode, appliedLabel,
+        userCouponRate, aiPlanLaunchDiscountRate,
+        percentDiscountKRW, fixedDiscountKRW: totalDiscountKRW,
+        totalKRW: couponDiscountKRW, finalKRW: krwAmount,
+      });
     }
     // ── Audit P0-#1 end ──────────────────────────────────────────────────────
 

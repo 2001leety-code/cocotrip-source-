@@ -1548,6 +1548,8 @@
     }
   },
   "mypage": {
+    "welcomeCouponsTitle": "ようこそ！",
+    "welcomeCouponsBody": "会員登録完了 — 5%クーポンを2枚発行しました",
     "home": "ホーム",
     "tierBenefits": "{tier} ランク特典",
     "dashNextTrip": "次の旅行",

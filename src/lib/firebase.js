@@ -77,22 +77,29 @@ async function saveUserToFirestore(user) {
       { merge: true }
     );
 
-    // 3. 신규 유저 → WELCOME5 쿠폰 (5% 가입 할인) 자동 발급
+    // 3. 신규 유저 → 서버 endpoint 호출해 쿠폰 2장 발급 (Charter + Tour, 각 5%)
+    //    멱등성은 서버에서 onboardingCouponsIssued flag 로 보장.
+    //    클라이언트 직접 addDoc은 Firestore rules `users/{uid}/coupons write:false`
+    //    로 거부되므로 절대 사용 금지.
     if (isNewUser) {
-      const { collection: firestoreCollection, addDoc } = await import('firebase/firestore');
-      const couponRef = firestoreCollection(db, 'users', user.uid, 'coupons');
-      await addDoc(couponRef, {
-        code: 'WELCOME5',
-        type: 'percent',
-        value: 5,
-        currency: 'USD',
-        label: 'Welcome 5% OFF (Sign-up Bonus)',
-        minOrderUSD: 0,
-        isUsed: false,
-        expiresAt: Date.now() + 90 * 24 * 60 * 60 * 1000, // 90일 유효
-        createdAt: Date.now(),
-      });
-      console.log('[firebase] 웰컴 쿠폰 WELCOME5 발급:', user.uid);
+      try {
+        const idToken = await user.getIdToken();
+        const resp = await fetch('/api/onboarding-coupons', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (json?.ok && json.issued > 0) {
+          // MyPage / Header 가 sessionStorage 를 감지해 환영 토스트 노출
+          try {
+            sessionStorage.setItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED', String(json.issued));
+          } catch { /* SSR / 시크릿 모드 등 silent */ }
+        }
+        console.log('[firebase] onboarding coupons response:', json);
+      } catch (couponErr) {
+        console.warn('[firebase] onboarding coupon request failed:', couponErr?.message);
+        // 쿠폰 발급 실패해도 sign-in 은 계속 진행 — 사용자가 첫 결제에서만 영향.
+      }
     }
 
     // 4. Guest → Login 동기화 (위시리스트 + 최근 본 상품)

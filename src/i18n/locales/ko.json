@@ -1548,6 +1548,8 @@
     }
   },
   "mypage": {
+    "welcomeCouponsTitle": "환영합니다!",
+    "welcomeCouponsBody": "회원가입 완료 — 5% 쿠폰 2장 발행되었어요",
     "home": "홈",
     "tierBenefits": "{tier} 등급 혜택",
     "dashNextTrip": "다가오는 여행",
