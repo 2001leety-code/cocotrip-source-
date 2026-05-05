@@ -140,17 +140,13 @@ export default async function handler(req, res) {
     let totalDiscountKRW = 0;
     let appliedLabel = null;
 
-    // 2026-05-05: AI Plan 50% Launch Promo (자동 적용, 사용자 쿠폰 cap 무시)
-    //   - productType='ai-planner-full' 만 적용
-    //   - 30% cap 별도 — 사용자 쿠폰 누적 cap 후에 추가됨
-    //   - 기간 미정 (운영자 정책) → 코드 한 줄로 ON/OFF 제어
-    let aiPlanLaunchDiscountRate = 0;
-    if (productType === 'ai-planner-full') {
-      aiPlanLaunchDiscountRate = 0.5;
-      appliedLabel = 'AI Plan Launch 50% OFF';
-    }
+    // 2026-05-05 (운영자 확정 정책): AI 플래너 = 디지털 상품 → 모든 쿠폰 적용 거부.
+    //   - 정가 $9.90 / ₩13,300 (마케팅 "정가 $19.90 → 50% OFF" 비교 표시는 UI 카피)
+    //   - 5% 쿠폰 (charter/tour 용) 도 ai-planner-full 결제에 적용 안 됨
+    //   - server-side 가드: ai-planner-full 이면 promoCode/couponDocId 무시하고 무할인 진행
+    const isAiPlanner = String(productType || '').startsWith('ai-planner');
 
-    if (promoCode) {
+    if (promoCode && !isAiPlanner) {
       const upper = String(promoCode).toUpperCase().trim();
       const globalPromo = GLOBAL_PROMOS[upper];
       if (globalPromo) {
@@ -199,29 +195,17 @@ export default async function handler(req, res) {
       }
     }
 
-    // 사용자 쿠폰만 30% cap (applyPromoCode 와 동일).
+    // 사용자 쿠폰만 30% cap (applyPromoCode 와 동일). AI 플래너는 위에서 isAiPlanner
+    // 가드로 totalDiscountRate=0 유지되므로 영향 없음.
     totalDiscountRate = Math.min(totalDiscountRate, 0.30);
-    // launch promo 는 cap 후 추가 (운영자 정책: AI Plan 50% 는 항상 풀로 적용).
-    const userCouponRate = totalDiscountRate;
-    totalDiscountRate += aiPlanLaunchDiscountRate;
 
     const percentDiscountKRW = Math.round(krwAmount * totalDiscountRate);
     const couponDiscountKRW = percentDiscountKRW + totalDiscountKRW;
-
-    // launch + 사용자 쿠폰 둘 다 적용된 경우 라벨 결합
-    if (aiPlanLaunchDiscountRate > 0 && (userCouponRate > 0 || totalDiscountKRW > 0)) {
-      // appliedLabel 은 위에서 사용자 쿠폰 라벨로 덮였을 수 있음 → 결합 라벨 재구성
-      const userLabel = appliedLabel && appliedLabel !== 'AI Plan Launch 50% OFF' ? appliedLabel : '';
-      appliedLabel = userLabel
-        ? `AI Plan Launch 50% OFF + ${userLabel}`
-        : 'AI Plan Launch 50% OFF';
-    }
 
     if (couponDiscountKRW > 0) {
       krwAmount = Math.max(0, krwAmount - couponDiscountKRW);
       console.log('[braintreeCheckout] coupon applied:', {
         promoCode, appliedLabel,
-        userCouponRate, aiPlanLaunchDiscountRate,
         percentDiscountKRW, fixedDiscountKRW: totalDiscountKRW,
         totalKRW: couponDiscountKRW, finalKRW: krwAmount,
       });
