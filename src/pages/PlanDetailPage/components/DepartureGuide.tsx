@@ -2,8 +2,10 @@
 //   - Hero "How to get to the airport" card with ODsay step-by-step (reuses TransitArrow).
 //   - Tax refund / luggage storage / last-minute shopping shown as compact tip cards.
 //   - Pink accent (vs Arrival's purple) so users instantly tell them apart.
+//   - 2026-05-05: 호텔→공항 경로 무조건 표시 정책. ODsay 실패하거나 호텔 좌표
+//     없을 때도 graceful 메시지 + Gemini fallback instruction을 보여준다.
 import { useState } from 'react';
-import { Plane, ChevronDown, Wallet, ShoppingBag, Briefcase } from 'lucide-react';
+import { Plane, ChevronDown, Wallet, ShoppingBag, Briefcase, AlertTriangle } from 'lucide-react';
 import { formatKRW } from '../constants';
 import type { DepartureGuideBlock } from '../types';
 import { getPlanDetailUI } from '../types';
@@ -11,13 +13,31 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { TransitArrow } from './TransitArrow';
 import type { TransitFromPrev } from '@/types/plan';
 
+// Route 객체 shape — RouteAgent 가 셋하는 모든 변형 포함.
+// TransitArrow 가 `TransitFromPrev & Record<string, unknown>` 을 받으므로 동일하게 맞춰준다.
+type DepartureRoute = (TransitFromPrev & Record<string, unknown> & {
+  _failed?: boolean;
+  fallbackReason?: string;
+  fallback_origin?: 'arrival_guide' | 'zone_anchor' | 'city_center' | 'hotel';
+  fallback_label?: string | null;
+}) | undefined;
+
 export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
   const { t } = useLanguage();
   const ui = getPlanDetailUI(t);
   const [open, setOpen] = useState(false);
 
-  const route = guide.route_to_airport as (TransitFromPrev & Record<string, unknown>) | undefined;
-  const routeMin = (route?.est_min as number | undefined) || guide.to_airport?.duration_min;
+  const route = guide.route_to_airport as DepartureRoute;
+  // _failed=true → ODsay 데이터 누락. 그 외에는 정상 ODsay 데이터.
+  const odsayFailed = route?._failed === true;
+  const hasOdsayData = !!route && !odsayFailed && Array.isArray(route.step_by_step) && (route.step_by_step?.length ?? 0) > 0;
+  // Gemini high-level fallback (백엔드가 덮어쓰지 못했을 때 남는 원본).
+  const geminiInstruction = guide.to_airport?.instruction || '';
+  const geminiMethod = guide.to_airport?.method || '';
+  const geminiDuration = guide.to_airport?.duration_min;
+  const geminiCost = guide.to_airport?.cost_krw;
+
+  const routeMin = (route?.est_min as number | undefined) || geminiDuration;
 
   return (
     <section className="mb-6">
@@ -33,7 +53,7 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
             <Plane className="w-5 h-5 text-white rotate-45" />
           </div>
           <div className="text-left">
-            <p className="text-[15px] font-bold text-white">{ui.departureGuide || 'Departure Guide'}</p>
+            <p className="text-[15px] font-bold text-white">{ui.departureGuide || ui.departureGuideTitle || 'Departure Guide'}</p>
             <p className="text-[11px] text-white/55 mt-0.5">
               {guide.airport}{routeMin ? ` · ${routeMin}${ui.minUnit || 'min'}` : ''}
             </p>
@@ -43,8 +63,8 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
       </button>
 
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[3000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
-        {/* HERO: ODsay route hotel→airport */}
-        {route && (
+        {/* HERO 1: ODsay 정상 데이터 → 항상 우선 표시 */}
+        {hasOdsayData && route && (
           <div className="mb-4 rounded-2xl overflow-hidden"
             style={{ background: 'linear-gradient(135deg, rgba(234,83,126,0.10), rgba(251,146,60,0.06))', border: '1px solid rgba(234,83,126,0.25)' }}>
             <div className="px-4 pt-4 pb-2">
@@ -58,6 +78,13 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
                     {route.est_min as number}{ui.minUnit || 'min'}
                     {((route.est_fare_krw as number) || 0) > 0 ? ` · ${formatKRW((route.est_fare_krw as number) || 0)}` : ''}
                   </p>
+                  {/* Fallback origin 안내 — 호텔 좌표 없어서 zone/city center 기준일 때 */}
+                  {route.fallback_origin && route.fallback_origin !== 'hotel' && (
+                    <p className="text-[10px] text-amber-300/85 mt-1">
+                      {ui.departureRouteApproximate || 'Estimated route from'}
+                      {route.fallback_label ? ` · ${route.fallback_label}` : ''}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -67,17 +94,85 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
           </div>
         )}
 
-        {/* Fallback: simple to_airport card if no ODsay route */}
-        {!route && guide.to_airport && (
-          <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4 mb-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Plane className="w-4 h-4 text-pink-400 rotate-45" />
-              <p className="text-sm font-semibold">{ui.toAirport || 'To Airport'}</p>
+        {/* HERO 2: ODsay 실패 → graceful 메시지 + Gemini fallback instruction */}
+        {odsayFailed && (
+          <div className="mb-4 rounded-2xl overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, rgba(234,83,126,0.10), rgba(251,146,60,0.06))', border: '1px solid rgba(251,146,60,0.30)' }}>
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-amber-400/25">
+                  <AlertTriangle className="w-5 h-5 text-amber-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-bold text-white">{ui.toAirport || 'To Airport'}</p>
+                  <p className="text-[12px] text-amber-200/90 mt-0.5 font-medium">
+                    {ui.departureRouteFailed || 'Departure route data temporarily unavailable'}
+                  </p>
+                  <p className="text-[11px] text-white/55 mt-1.5">
+                    {ui.departureRouteFallback || 'Operations team is checking — fallback guidance below.'}
+                  </p>
+                  {(geminiMethod || geminiInstruction) && (
+                    <div className="mt-3 p-3 rounded-lg bg-white/[0.04] border border-white/[0.07]">
+                      {geminiMethod && (
+                        <p className="text-[12px] font-semibold text-white">{geminiMethod}</p>
+                      )}
+                      {geminiInstruction && (
+                        <p className="text-[11px] text-white/60 mt-1 leading-relaxed">{geminiInstruction}</p>
+                      )}
+                      <div className="flex gap-3 mt-2 text-[11px]">
+                        {typeof geminiDuration === 'number' && geminiDuration > 0 && (
+                          <span className="text-white/55">{geminiDuration} {ui.minUnit || 'min'}</span>
+                        )}
+                        {typeof geminiCost === 'number' && geminiCost > 0 && (
+                          <span className="text-pink-300 font-bold">{formatKRW(geminiCost)}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-white/55 leading-relaxed">{guide.to_airport.method} {guide.to_airport.instruction ? `· ${guide.to_airport.instruction}` : ''}</p>
-            <div className="flex gap-3 mt-2 text-[11px]">
-              <span className="text-white/55">{guide.to_airport.duration_min} {ui.minUnit || 'min'}</span>
-              <span className="text-pink-300 font-bold">{formatKRW(guide.to_airport.cost_krw ?? 0)}</span>
+          </div>
+        )}
+
+        {/* HERO 3: route 객체 자체 없음 (구 plan / Gemini만) → Gemini text 또는 안내 */}
+        {!route && (
+          <div className="mb-4 rounded-2xl overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, rgba(234,83,126,0.10), rgba(251,146,60,0.06))', border: '1px solid rgba(234,83,126,0.25)' }}>
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-pink-400/25">
+                  <Plane className="w-5 h-5 text-pink-300 rotate-45" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-bold text-white">{ui.toAirport || 'To Airport'}</p>
+                  {(geminiMethod || geminiInstruction) ? (
+                    <>
+                      {geminiMethod && (
+                        <p className="text-[12px] text-white/80 mt-1 font-medium">{geminiMethod}</p>
+                      )}
+                      {geminiInstruction && (
+                        <p className="text-[11px] text-white/55 mt-1 leading-relaxed">{geminiInstruction}</p>
+                      )}
+                      <div className="flex gap-3 mt-2 text-[11px]">
+                        {typeof geminiDuration === 'number' && geminiDuration > 0 && (
+                          <span className="text-white/55">{geminiDuration} {ui.minUnit || 'min'}</span>
+                        )}
+                        {typeof geminiCost === 'number' && geminiCost > 0 && (
+                          <span className="text-pink-300 font-bold">{formatKRW(geminiCost)}</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-amber-300/80 mt-2">
+                        {ui.departureRouteFallback || 'Operations team is checking — detailed route to follow.'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-white/55 mt-1 leading-relaxed">
+                      {ui.departureRouteFallback || 'Operations team is checking — detailed route to follow.'}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

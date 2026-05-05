@@ -1,7 +1,20 @@
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
-import { AIRPORT_COORDS } from "../constants.js";
+import { AIRPORT_COORDS, CITY_CENTER_COORDS } from "../constants.js";
+
+// Sentry import은 dynamic — `_shared/sentry.js`의 captureError가 SENTRY_DSN
+// 없으면 no-op이라 안전. 실패해도 import 자체로 plan 깨지지 않게 try/catch.
+let _captureError = null;
+async function reportError(err, ctx) {
+  try {
+    if (_captureError === null) {
+      const mod = await import('../../_shared/sentry.js');
+      _captureError = mod.captureError || (() => {});
+    }
+    await _captureError(err, ctx);
+  } catch { /* swallow — 알림 실패가 plan을 깨면 안 됨 */ }
+}
 
 // Pick the recommended airport transport based on context.
 //   - Heavy luggage  → CocoTrip charter cross-sell. Korean taxi law restricts
@@ -159,12 +172,67 @@ export class RouteAgent extends BaseAgent {
             }
         }
 
-        if (hotelLat && hotelLng && departureAirportKey && AIRPORT_COORDS[departureAirportKey]) {
+        // ════════════════════════════════════════════════════════
+        // Hotel→Airport: 호텔→공항 경로 무조건 표시 정책 (2026-05-05)
+        // ════════════════════════════════════════════════════════
+        // 운영자 요청: "공항에서 숙소 가는 경로처럼, 숙소 → 공항도 무조건 표시".
+        // Fallback 체인: hotel 좌표 → arrival_guide.address geocode → zone anchor
+        // geocode → 도시 중심 좌표. 모두 실패해도 _failed=true 객체를 셋해서
+        // 프론트가 graceful 메시지를 띄울 수 있게 한다.
+        if (departureAirportKey && AIRPORT_COORDS[departureAirportKey] && rawItinerary.departure_guide) {
             const ap = AIRPORT_COORDS[departureAirportKey];
-            const route = await this._routeAirportHotel({ lat: hotelLat, lng: hotelLng }, ap, 'departure');
-            if (route && rawItinerary.departure_guide) {
-                rawItinerary.departure_guide.route_to_airport = route;
-                console.log(`  - [Hotel→Airport] ${route.est_min}min via ${route.method}`);
+            const { coord: depFromCoord, source: depFromSource, label: depFromLabel } = await this._resolveHotelOrFallback({
+                hotelLat,
+                hotelLng,
+                hotelAddress,
+                arrivalGuide: rawItinerary.arrival_guide,
+                recommendedZone: data.recommended_zone,
+                region,
+                clientId,
+                clientSecret,
+            });
+
+            if (depFromCoord) {
+                const route = await this._routeAirportHotel(depFromCoord, ap, 'departure');
+                if (route) {
+                    if (depFromSource !== 'hotel') {
+                        route.fallback_origin = depFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
+                        route.fallback_label = depFromLabel || null;
+                    }
+                    rawItinerary.departure_guide.route_to_airport = route;
+                    console.log(`  - [Hotel→Airport] ${route.est_min}min via ${route.method} (origin=${depFromSource})`);
+                } else {
+                    // ODsay 끝까지 실패 — _failed 마커로 graceful 표시.
+                    rawItinerary.departure_guide.route_to_airport = {
+                        _failed: true,
+                        _odsay_failed: true,
+                        fallbackReason: 'odsay_unavailable',
+                        fallback_origin: depFromSource,
+                        fallback_label: depFromLabel || null,
+                        method: 'unknown',
+                        source: 'failed',
+                        direction: 'departure',
+                    };
+                    console.warn('  - [Hotel→Airport] ODsay all attempts failed → _failed=true');
+                    await reportError(new Error('ODsay departure route failed'), {
+                        route: 'RouteAgent.routeToAirport',
+                        airport: departureAirportKey,
+                        origin: depFromSource,
+                        region,
+                    });
+                }
+            } else {
+                // 좌표 자체를 못 잡음 (도시 중심도 미정의된 region) — 그래도 _failed
+                // 객체를 두면 UI는 Gemini instruction fallback을 보여줄 수 있다.
+                rawItinerary.departure_guide.route_to_airport = {
+                    _failed: true,
+                    _odsay_failed: false,
+                    fallbackReason: 'no_origin_coord',
+                    method: 'unknown',
+                    source: 'failed',
+                    direction: 'departure',
+                };
+                console.warn('  - [Hotel→Airport] no origin coord (region/zone fallback unmapped)');
             }
         }
 
@@ -613,34 +681,112 @@ export class RouteAgent extends BaseAgent {
     }
 
     /**
+     * Resolve hotel-side coordinate for hotel↔airport routing with fallback chain.
+     * Order:
+     *   1. hotelLat/hotelLng (already geocoded from hotel_address)
+     *   2. arrival_guide.address geocode (rare — Gemini's per-stop transport address)
+     *   3. recommended_zone string anchor geocode
+     *   4. CITY_CENTER_COORDS[region] — last resort, "도시 중심 기준"
+     * Returns { coord, source, label } where source indicates which fallback was used.
+     */
+    async _resolveHotelOrFallback({ hotelLat, hotelLng, hotelAddress, arrivalGuide, recommendedZone, region, clientId, clientSecret }) {
+        // 1) primary
+        if (hotelLat && hotelLng) {
+            return { coord: { lat: hotelLat, lng: hotelLng }, source: 'hotel', label: hotelAddress || null };
+        }
+        const tryGeocode = async (q) => {
+            if (!q || !clientId || !clientSecret) return null;
+            try {
+                const res = await axios.get('https://maps.apigw.ntruss.com/map-geocode/v2/geocode', {
+                    params: { query: q },
+                    headers: { 'X-NCP-APIGW-API-KEY-ID': clientId, 'X-NCP-APIGW-API-KEY': clientSecret },
+                    timeout: 5000,
+                });
+                if (res.status === 200 && res.data.addresses?.length > 0) {
+                    return { lat: parseFloat(res.data.addresses[0].y), lng: parseFloat(res.data.addresses[0].x) };
+                }
+            } catch (e) {
+                console.warn(`  - fallback geocode "${q}" failed: ${e.message}`);
+            }
+            return null;
+        };
+        // 2) arrival_guide address (Gemini가 가끔 to_hotel 안내에 호텔 주소를 적어둠)
+        const arrivalGuideAddr = arrivalGuide?.address || arrivalGuide?.hotel_address;
+        if (arrivalGuideAddr) {
+            const c = await tryGeocode(arrivalGuideAddr);
+            if (c) return { coord: c, source: 'arrival_guide', label: arrivalGuideAddr };
+        }
+        // 3) recommended_zone (string key like 'myeongdong' or address — geocode 시도)
+        if (recommendedZone) {
+            const c = await tryGeocode(String(recommendedZone));
+            if (c) return { coord: c, source: 'zone_anchor', label: String(recommendedZone) };
+        }
+        // 4) city center
+        const regionKey = String(region || '').toLowerCase().trim();
+        const cc = CITY_CENTER_COORDS[regionKey];
+        if (cc) {
+            return { coord: { lat: cc.lat, lng: cc.lng }, source: 'city_center', label: cc.label };
+        }
+        return { coord: null, source: 'none', label: null };
+    }
+
+    /**
      * ODsay route between airport coord and hotel coord.
      * Returns the same TransitFromPrev shape used by stop↔stop transit so the UI
      * can reuse the existing TransitArrow component without a special case.
      * Direction: 'arrival' (airport→hotel) or 'departure' (hotel→airport).
+     *
+     * Retry policy: 1 retry with 1s backoff on transient failure (network/timeout/5xx).
+     * `_searchOdsayWithRetry` inside `_getTransitData` already does its own 500ms
+     * retry, so this outer retry covers cases where _getTransitData itself throws
+     * (e.g. axios network error before any ODsay call).
      */
     async _routeAirportHotel(from, to, direction) {
-        try {
-            const fromPlace = { lat: from.lat, lng: from.lng, name: direction === 'arrival' ? 'Airport' : 'Hotel' };
-            const toPlace = { lat: to.lat, lng: to.lng, name: direction === 'arrival' ? 'Hotel' : 'Airport' };
-            const td = await this._getTransitData(fromPlace, toPlace, (process.env.NAVER_CLIENT_ID || '').trim(), (process.env.NAVER_CLIENT_SECRET || '').trim(), 0);
-            const pt = td.publicTransit;
-            if (!pt) return null;
-            return {
-                method: pt.method || 'subway',
-                instruction: pt.summary || '',
-                step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
-                steps_detail: pt.steps || [],
-                transfers: pt.transfers || 0,
-                total_walk_m: pt.totalWalk || 0,
-                est_min: pt.duration || td.durationMin || 0,
-                est_fare_krw: pt.fare || 0,
-                source: 'odsay',
-                direction,
-            };
-        } catch (e) {
-            console.warn(`  - Airport↔Hotel route (${direction}) failed: ${e.message}`);
-            return null;
+        const fromPlace = { lat: from.lat, lng: from.lng, name: direction === 'arrival' ? 'Airport' : 'Hotel' };
+        const toPlace = { lat: to.lat, lng: to.lng, name: direction === 'arrival' ? 'Hotel' : 'Airport' };
+        const cid = (process.env.NAVER_CLIENT_ID || '').trim();
+        const csec = (process.env.NAVER_CLIENT_SECRET || '').trim();
+        const MAX_ATTEMPTS = 2; // 1 try + 1 retry
+        let lastErr = null;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            try {
+                const td = await this._getTransitData(fromPlace, toPlace, cid, csec, 0);
+                const pt = td.publicTransit;
+                if (!pt) {
+                    // No transit → 다음 attempt에서 같은 결과일 가능성 높지만,
+                    // _getTransitData가 호출 중 transient 실패 시 null로 fallthrough할
+                    // 수도 있어서 한 번 더 시도해본다.
+                    if (attempt + 1 < MAX_ATTEMPTS) {
+                        console.warn(`  - Airport↔Hotel (${direction}) attempt ${attempt + 1}: no publicTransit, retrying in 1s`);
+                        await new Promise(r => setTimeout(r, 1000));
+                        continue;
+                    }
+                    return null;
+                }
+                return {
+                    method: pt.method || 'subway',
+                    instruction: pt.summary || '',
+                    step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
+                    steps_detail: pt.steps || [],
+                    transfers: pt.transfers || 0,
+                    total_walk_m: pt.totalWalk || 0,
+                    est_min: pt.duration || td.durationMin || 0,
+                    est_fare_krw: pt.fare || 0,
+                    source: 'odsay',
+                    direction,
+                };
+            } catch (e) {
+                lastErr = e;
+                console.warn(`  - Airport↔Hotel (${direction}) attempt ${attempt + 1} failed: ${e.message}`);
+                if (attempt + 1 < MAX_ATTEMPTS) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
         }
+        if (lastErr) {
+            await reportError(lastErr, { route: 'RouteAgent._routeAirportHotel', direction });
+        }
+        return null;
     }
 
     /** "HH:MM" → 분(number) */

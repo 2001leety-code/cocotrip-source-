@@ -157,7 +157,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
     },
     "to_airport": {
       "method": "AREX Express",
-      "instruction": "Detailed transit instruction",
+      "instruction": "Detailed transit instruction (high-level only — backend RouteAgent will overwrite with ODsay step-by-step)",
       "cost_krw": 11000,
       "duration_min": 43
     },
@@ -168,6 +168,13 @@ No markdown. No code blocks. No explanation. Pure JSON only.
     },
     "last_minute_shopping": "Duty-free shopping tips"
   },
+
+## DEPARTURE GUIDE — REQUIRED (절대 누락 금지)
+- \`departure_guide\` 필드는 **반드시** 응답에 포함. 출국 정보 미상이면 hotel checkout 11:00 + 항공편 3시간 전 가정으로 작성.
+- \`departure_guide.to_airport.instruction\`은 백엔드 RouteAgent가 ODsay 실제 step-by-step으로 덮어쓴다 → Gemini는 1-2 문장 high-level만 (예: "Take AREX Express from Hongik Univ. Station to Incheon Airport").
+- airport 필드는 \`departure_airport\`(없으면 \`arrival_airport\`)를 그대로 사용.
+- arrival_airport가 "already_in_korea"이면 departure_guide 작성하되 airport는 "GMP" 또는 "ICN T1" 합리적 가정.
+
 
   "daily_budget_summary": [
     {
