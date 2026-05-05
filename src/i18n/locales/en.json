@@ -1279,8 +1279,9 @@
   },
   "errorBoundary": {
     "title": "An unexpected error occurred.",
-    "description": "We're sorry. There was a problem loading this page. Please try again.",
-    "retry": "Retry"
+    "description": "We're sorry — something went wrong while loading this page. Please refresh or contact our support team.",
+    "retry": "Refresh",
+    "contact": "Contact via WhatsApp"
   },
   "cookieBanner": {
     "bodyBefore": "We use cookies to improve your experience. By continuing to use this site, you agree to our ",

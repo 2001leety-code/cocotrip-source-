@@ -36,4 +36,23 @@ export function initSentry() {
   });
 }
 
+/**
+ * 컴포넌트 에러 수동 보고용 helper.
+ *
+ * `initSentry()` 가 미호출되었거나 DSN 미설정인 경우(개발/preview)
+ * `Sentry.captureException`은 no-op이므로 안전하게 호출 가능.
+ *
+ * 사용처: ErrorBoundary.componentDidCatch, async 핸들러 catch 블록 등
+ */
+export function captureException(
+  error: unknown,
+  context?: Record<string, unknown>
+): void {
+  try {
+    Sentry.captureException(error, context ? { extra: context } : undefined);
+  } catch {
+    // Sentry SDK 자체가 throw하면 무시 — 에러 보고가 앱을 죽이면 안 됨
+  }
+}
+
 export { Sentry };
