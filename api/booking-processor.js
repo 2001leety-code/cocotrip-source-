@@ -22,6 +22,7 @@ import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
 // 직접 호출은 미사용. _telegram.js / _ai-employees.js 의 export 는 다른 파일이 사용하므로 유지.
 import { sendDispatchAlert, sendBookingPaymentAlert, sendErrorAlert } from './_telegram.js';
+import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { sendBookingConfirmation, buildDefaultConfirmationEmail } from './_send-email.js';
 import {
   generateConfirmationEmail,
@@ -280,12 +281,15 @@ const originalHandler = async (event) => {
     .map(([k, v]) => `${k}: ${v}`);
 
   if (failedSteps.length > 0) {
-    try {
-      await sendErrorAlert(
-        'booking-processor',
-        new Error(`일부 단계 실패:\n${failedSteps.join('\n')}`)
-      );
-    } catch {}
+    // K Tier 2-E: 동일 step 실패 burst 시 dedup. key 는 단계 기반으로 묶어 동일 원인 묶이게.
+    const failedKeySig = failedSteps.map(s => s.split(':')[0]).sort().join(',') || 'unknown';
+    throttledTelegramAlert({
+      key: `booking-processor-fail:${failedKeySig}`,
+      channel: 'error',
+      severity: 'high',
+      message: `⚠️ <b>booking-processor 일부 단계 실패</b>\n\n예약: <code>${bookingRef || '-'}</code>\n실패:\n${failedSteps.join('\n')}`,
+      context: { bookingRef, orderID, step: failedKeySig },
+    }).catch(() => {});
   }
 
   console.log('[booking-processor] 예약 처리 완료:', results);

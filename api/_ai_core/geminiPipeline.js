@@ -17,6 +17,7 @@ import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse } f
 import { applyDBMatcher } from './dbMatcher.js';
 import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
 import { sendErrorAlert } from '../_telegram.js';
+import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 const GEMINI_TIMEOUT_MS = 240000;
 
@@ -57,7 +58,14 @@ function mapGeminiError(err, geminiStart) {
   console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
   const em = String(err.message || err.code || '');
   if (em.includes('RESOURCE_EXHAUSTED') || em.includes('429') || /quota/i.test(em)) {
-    sendErrorAlert('🚨 GEMINI QUOTA EXCEEDED', err).catch(() => {});
+    // K Tier 2-E: dedup — quota burst 시 5분 윈도우로 묶어 1번만 발송.
+    throttledTelegramAlert({
+      key: 'gemini-quota-exceeded',
+      channel: 'error',
+      severity: 'high',
+      message: `⚠️ <b>GEMINI QUOTA EXCEEDED</b>\n\n오류: ${err.message}\n\n수동 확인 필요.`,
+      context: { errorCode: err.code || 'unknown', step: 'gemini-call' },
+    }).catch(() => {});
     const e = new Error('AI service at capacity. Try again shortly.');
     e.code = 'GEMINI_QUOTA';
     e.statusCode = 503;
