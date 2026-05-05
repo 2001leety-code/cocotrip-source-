@@ -39,7 +39,10 @@ async function ensureInit() {
       dsn,
       environment: process.env.VERCEL_ENV || process.env.NODE_ENV || 'development',
       release: process.env.VERCEL_GIT_COMMIT_SHA || undefined,
-      tracesSampleRate: 0,
+      // 2026-05-05: PR #237/#241 로 backend 12 endpoint 통합 후 1주 모니터 완료.
+      // 5% 샘플링 활성화 — performance trace + error correlation 가능. 비용 미미.
+      // 운영자가 SENTRY_TRACES_SAMPLE_RATE env 로 동적 조정 가능.
+      tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.05'),
       // PII는 보내지 않음. user 정보는 명시적으로 setUser 호출 시에만.
       sendDefaultPii: false,
     });
