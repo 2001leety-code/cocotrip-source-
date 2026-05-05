@@ -281,6 +281,9 @@ service cloud.firestore {
     match /availability/{date}          { allow read, write: if false; }
     match /reservations/{id}            { allow read, write: if false; }
     match /chat_rate_limits/{key}       { allow read, write: if false; }
+    // K Tier 2-E: 텔레그램 에러 dedup + 집계 (Admin SDK 만 접근, 사용자 미노출)
+    match /error_log/{logId}            { allow read, write: if false; }
+    match /telegram_throttle/{key}      { allow read, write: if false; }
 
     // ─────────────────────────────────────────────────────────
     // 명시되지 않은 모든 경로는 기본 거부 (catch-all 제거!)
