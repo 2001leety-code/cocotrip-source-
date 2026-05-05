@@ -28,6 +28,9 @@ import {
   productDisplayLabel,
   CUSTOM_ESTIMATE_MIN_KRW,
   CUSTOM_ESTIMATE_MAX_KRW,
+  AI_PLANNER_FULL_ORIGINAL_KRW,
+  AI_PLANNER_LAUNCH_DISCOUNT_RATE,
+  AI_PLANNER_LAUNCH_LABEL,
 } from './_shared/pricing.js';
 
 export const maxDuration = 15;
@@ -141,10 +144,16 @@ export default async function handler(req, res) {
     let appliedLabel = null;
 
     // 2026-05-05 (운영자 확정 정책): AI 플래너 = 디지털 상품 → 모든 쿠폰 적용 거부.
-    //   - 정가 $9.90 / ₩13,300 (마케팅 "정가 $19.90 → 50% OFF" 비교 표시는 UI 카피)
+    //   - 정가 (originalKRW): ₩26,600 / $19.90
+    //   - Launch promo 50% OFF: -₩13,300 (server-side 영구 적용, "첫 100명 한정" 카피 광고용)
+    //   - 최종 결제 (finalKRW): ₩13,300 / $9.90
     //   - 5% 쿠폰 (charter/tour 용) 도 ai-planner-full 결제에 적용 안 됨
-    //   - server-side 가드: ai-planner-full 이면 promoCode/couponDocId 무시하고 무할인 진행
+    //   - server-side 가드: ai-planner-full 이면 promoCode/couponDocId 무시
     const isAiPlanner = String(productType || '').startsWith('ai-planner');
+    const aiPlannerOriginalKRW = isAiPlanner ? AI_PLANNER_FULL_ORIGINAL_KRW : null;
+    const aiPlannerLaunchDiscountKRW = isAiPlanner
+      ? Math.round(AI_PLANNER_FULL_ORIGINAL_KRW * AI_PLANNER_LAUNCH_DISCOUNT_RATE)
+      : 0;
 
     if (promoCode && !isAiPlanner) {
       const upper = String(promoCode).toUpperCase().trim();
@@ -266,7 +275,15 @@ export default async function handler(req, res) {
           // Audit P0-#1 (2026-05-04): server 가 실 적용한 쿠폰 메타.
           // null = 미적용 (consumer 는 `|| 0` / `|| '없음'` 패턴으로 처리).
           couponDiscountKRW: couponDiscountKRW > 0 ? couponDiscountKRW : null,
-          promoCodeApplied: appliedLabel,
+          promoCodeApplied: isAiPlanner ? AI_PLANNER_LAUNCH_LABEL : appliedLabel,
+          // 2026-05-05 (운영자 정책 Option B): AI 플래너 정가/할인 분리 기록.
+          // 영수증·어드민 리포트에서 "₩26,600 → -₩13,300 launch → ₩13,300" 분리 표시.
+          // 다른 상품은 null (charter/tour 는 사용자 쿠폰만 적용, launch promo 없음).
+          ...(isAiPlanner ? {
+            originalAmountKRW: aiPlannerOriginalKRW,
+            launchDiscountKRW: aiPlannerLaunchDiscountKRW,
+            launchPromoLabel: AI_PLANNER_LAUNCH_LABEL,
+          } : {}),
           // 2026-05-04: 추정가 결제는 어드민 사후 정산 필요 — 별도 플래그로 필터링 가능.
           // productType 이 변경돼도 데이터 레이크 쿼리는 이 boolean 으로 안정적으로 유지.
           ...(isCustomEstimateProduct(productType) ? { requiresReconciliation: true } : {}),

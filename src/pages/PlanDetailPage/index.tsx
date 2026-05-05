@@ -214,7 +214,7 @@ export default function PlanDetailPage() {
   const slideElements = slides.map((slide, idx) => {
     switch (slide.type) {
       case 'preTrip':
-        return <PreTripSlide key={`preTrip-${idx}`} plan={plan} />;
+        return <PreTripSlide key={`preTrip-${idx}`} plan={plan} planId={planId || ''} />;
       case 'intro':
         return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} />;
       case 'day': {

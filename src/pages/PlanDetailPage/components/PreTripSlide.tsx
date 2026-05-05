@@ -12,23 +12,30 @@ import { EsimAd } from './ads/EsimAd';
 import { HotelAd } from './ads/HotelAd';
 import { FlightAd } from './ads/FlightAd';
 import { AirportPickupAd } from './ads/AirportPickupAd';
+import { CharterInlineAd } from './ads/CharterInlineAd';
+import { TourPackageInlineAd } from './ads/TourPackageInlineAd';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
 
 interface PreTripSlideProps {
   plan: PlanDocument;
+  /** 결제 메모 + 어드민 트래킹용. PlanDetailPage 가 useParams 로 받은 planId. */
+  planId?: string;
 }
 
-export function PreTripSlide({ plan }: PreTripSlideProps) {
+export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
   const input = plan.input || {};
   const region = (input.destination as string) || ((input.regions as string[])?.[0]) || 'Seoul';
   const arrivalAirport = (input.arrival_airport as string) || 'ICN';
+  const startDate = (input.startDate as string) || '';
+  const pax = (input.pax as number) || (input.adults as number) || 2;
 
   const showHotel = adApplies('hotel', plan);
   const showFlight = adApplies('flight', plan);
+  const showCharter = adApplies('charter', plan);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const impressionTracked = useRef(false);
@@ -42,6 +49,7 @@ export function PreTripSlide({ plan }: PreTripSlideProps) {
           impressionTracked.current = true;
           trackAdImpression('esim', 'preTrip');
           trackAdImpression('airportPickup', 'preTrip');
+          if (showCharter) trackAdImpression('charter', 'preTrip');
           if (showHotel) trackAdImpression('hotel', 'preTrip');
           if (showFlight) trackAdImpression('flight', 'preTrip');
           observer.disconnect();
@@ -51,7 +59,7 @@ export function PreTripSlide({ plan }: PreTripSlideProps) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [showHotel, showFlight]);
+  }, [showHotel, showFlight, showCharter]);
 
   // 4-lang 헤더 텍스트 (i18n dict의 swipe 섹션 또는 fallback)
   const headerTitle = (sw as Record<string, string | undefined>).preTripTitle ||
@@ -84,19 +92,51 @@ export function PreTripSlide({ plan }: PreTripSlideProps) {
         {/* 카드 1: eSIM (항상 노출) */}
         <EsimAd />
 
-        {/* 카드 2: 공항 픽업 (항상 노출 — 도착 시 안내) */}
+        {/* 카드 2: 공항 픽업 인라인 예약 (항상 노출 — 도착 시 안내).
+            2026-05-05: 외부 링크 → InlineBookingCard 로 교체, wrap-up 안에서 결제까지. */}
         <div className="mt-4">
-          <AirportPickupAd arrivalAirport={arrivalAirport} />
+          <AirportPickupAd
+            arrivalAirport={arrivalAirport}
+            defaultDate={startDate}
+            defaultPax={pax}
+            planId={planId}
+          />
         </div>
 
-        {/* 카드 3: 호텔 (미예약 시) */}
+        {/* 카드 3: 전용 전세 차량 인라인 예약 (사용자 main city 기준 차터 옵션).
+            2026-05-05: 외부 페이지 (cocotripkr.com/charter) → 인라인 결제. */}
+        {showCharter && (
+          <div className="mt-4">
+            <CharterInlineAd
+              region={region}
+              defaultDate={startDate}
+              defaultPax={pax}
+              planId={planId}
+            />
+          </div>
+        )}
+
+        {/* 카드 4: 추천 투어 패키지 (공항 픽업 + 1일 투어 콤보, 10% 할인). */}
+        {showCharter && (
+          <div className="mt-4">
+            <TourPackageInlineAd
+              region={region}
+              arrivalAirport={arrivalAirport}
+              defaultDate={startDate}
+              defaultPax={pax}
+              planId={planId}
+            />
+          </div>
+        )}
+
+        {/* 카드 5: 호텔 (미예약 시) */}
         {showHotel && (
           <div className="mt-4">
             <HotelAd region={region} />
           </div>
         )}
 
-        {/* 카드 4: 항공권 (출발 7일 이상 남았을 때) */}
+        {/* 카드 6: 항공권 (출발 7일 이상 남았을 때) */}
         {showFlight && (
           <div className="mt-4">
             <FlightAd arrivalAirport={arrivalAirport} />

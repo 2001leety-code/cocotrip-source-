@@ -1,44 +1,75 @@
-// Airport pickup card. P-Quality (2026-04-24): i18n applied.
+// 공항 픽업 인라인 예약 카드.
+// 2026-05-05 (운영자 요청): 외부 링크 (WhatsApp) 대신 wrap-up 안에서 바로 결제까지.
+// InlineBookingCard 재사용 — productType 키는 api/_shared/pricing.js 의 airport_*
+// 매핑과 동일해야 한다 (`airport_seoul-central` → `seoul-central` 키 lookup).
 import { Plane } from 'lucide-react';
-import { PICKUP_PRICES } from '@/config/affiliateLinks';
+import { InlineBookingCard, type InlineBookingOption } from './InlineBookingCard';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface AirportPickupAdProps {
   arrivalAirport: string;
+  /** Plan 의 startDate (YYYY-MM-DD) — 기본값으로 미리 채움 */
+  defaultDate?: string;
+  defaultPax?: number;
+  /** PlanDocument planId — booking memo 에 포함 (어드민 매칭용) */
+  planId?: string;
 }
 
-export function AirportPickupAd({ arrivalAirport }: AirportPickupAdProps) {
-  const { t } = useLanguage();
-  const p = (t.planner as unknown as Record<string, string | undefined>) || {};
+// 공항별 노선 + 가격 — api/_pricing_spec.json 의 airport_transfer_prices 와 동기.
+// productType: airport_<key> (key 는 dash 구분 → braintreeCheckout 가 underscore 변환).
+const PICKUP_OPTIONS_BY_AIRPORT: Record<string, { ko: string; en: string; ja: string; zh: string; key: string; priceKRW: number }[]> = {
+  ICN: [
+    { key: 'seoul-central', priceKRW: 124800, ko: '서울 도심 (명동·홍대·종로)', en: 'Seoul City Center (Myeongdong, Hongdae, Jongno)', ja: 'ソウル都心 (明洞·弘大·鍾路)', zh: '首尔市中心 (明洞·弘大·钟路)' },
+    { key: 'seoul-gangnam', priceKRW: 145600, ko: '강남·잠실·송파', en: 'Gangnam / Jamsil / Songpa', ja: '江南·蚕室·松坡', zh: '江南·蚕室·松坡' },
+    { key: 'gapyeong-nami', priceKRW: 208000, ko: '가평·남이섬', en: 'Gapyeong / Nami Island', ja: '加平·南怡島', zh: '加平·南怡岛' },
+    { key: 'suwon-yongin', priceKRW: 150000, ko: '수원·용인', en: 'Suwon / Yongin', ja: '水原·龍仁', zh: '水原·龙仁' },
+    { key: 'chuncheon', priceKRW: 220000, ko: '춘천', en: 'Chuncheon', ja: '春川', zh: '春川' },
+  ],
+  GMP: [
+    { key: 'seoul-central', priceKRW: 83200, ko: '서울 도심', en: 'Seoul City Center', ja: 'ソウル都心', zh: '首尔市中心' },
+    { key: 'seoul-gangnam', priceKRW: 93600, ko: '강남·잠실', en: 'Gangnam / Jamsil', ja: '江南·蚕室', zh: '江南·蚕室' },
+  ],
+  PUS: [{ key: 'busan', priceKRW: 600000, ko: '부산 시내', en: 'Busan City', ja: '釜山市内', zh: '釜山市区' }],
+  CJU: [{ key: 'jeju-city', priceKRW: 72800, ko: '제주 시내', en: 'Jeju City', ja: '済州市内', zh: '济州市区' }],
+};
+
+const HEADER: Record<string, { title: string; subtitle: string }> = {
+  ko: { title: '공항 픽업 서비스', subtitle: '영어 가능 기사가 도착장에서 대기' },
+  en: { title: 'Airport Pickup Service', subtitle: 'English-speaking driver at arrivals' },
+  ja: { title: '空港ピックアップ', subtitle: '英語対応のドライバーが到着ロビーでお待ちします' },
+  zh: { title: '机场接送服务', subtitle: '英文司机在到达大厅等候' },
+};
+
+export function AirportPickupAd({ arrivalAirport, defaultDate, defaultPax, planId }: AirportPickupAdProps) {
+  const { user } = useAuth();
+  const { language } = useLanguage();
+  const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
+
   const airportCode = (arrivalAirport || 'ICN').replace(/_T[12]$/, '');
-  const prices = PICKUP_PRICES[airportCode] || PICKUP_PRICES['ICN'];
-  if (!prices || !prices.length) return null;
+  const rows = PICKUP_OPTIONS_BY_AIRPORT[airportCode] || PICKUP_OPTIONS_BY_AIRPORT['ICN'];
+  if (!rows || !rows.length) return null;
+
+  const options: InlineBookingOption[] = rows.map((r) => ({
+    productType: `airport_${r.key.replace(/-/g, '_')}`,
+    label: r[lang],
+    priceKRW: r.priceKRW,
+  }));
+
+  const h = HEADER[lang];
 
   return (
-    <div className="mb-6 rounded-2xl border border-amber-500/25 p-5" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.06), rgba(10,16,32,0.95))' }}>
-      <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-          <Plane className="w-6 h-6 text-amber-400" />
-        </div>
-        <div className="flex-1">
-          <p className="font-bold text-white text-base leading-tight mb-0.5">{p.adPickupTitle || 'Airport Pickup Service'}</p>
-          <p className="text-xs text-amber-300/80">{p.adPickupSub || 'English-speaking driver at arrivals'}</p>
-        </div>
-        <span className="shrink-0 text-[10px] text-amber-400 border border-amber-500/35 rounded-full px-2.5 py-1 font-semibold">{airportCode}</span>
-      </div>
-      <div className="space-y-2 mb-4">
-        {prices.map((row: { destination: string; price: string }, i: number) => (
-          <div key={i} className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3">
-            <span className="text-sm text-white/60">{row.destination}</span>
-            <span className="text-sm font-bold text-amber-300">{row.price}</span>
-          </div>
-        ))}
-      </div>
-      <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
-        className="block w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90"
-        style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 4px 20px rgba(245,158,11,0.25)' }}>
-        {p.adPickupCta || 'Book Airport Pickup'} {'\u2192'}
-      </a>
-    </div>
+    <InlineBookingCard
+      title={h.title}
+      subtitle={h.subtitle}
+      icon={<Plane className="w-6 h-6 text-amber-400" />}
+      accent="amber"
+      badge={airportCode}
+      options={options}
+      defaultDate={defaultDate}
+      defaultPax={defaultPax}
+      userEmail={user?.email || ''}
+      planId={planId}
+    />
   );
 }

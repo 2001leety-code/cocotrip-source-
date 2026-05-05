@@ -51,7 +51,21 @@ const COMBO_MAP = {
   combo_airport_busan:   'busan-day',
 };
 
+// AI 플래너 가격 정책 (2026-05-05 운영자 확정 — Option B):
+//   정가 (originalKRW)     : ₩26,600 / $19.90
+//   Launch promo (-50%)    : -₩13,300
+//   최종 결제 (finalKRW)    : ₩13,300 / $9.90
+//
+// 마케팅 카피 "첫 100명 한정 50% OFF" 는 광고용 — 실제 카운트 enforcement 없음
+// (계속 50% 할인 적용). 정가/할인 분리 기록은 Firestore booking 의
+// originalAmountKRW + launchDiscountKRW 에 저장 (영수증·어드민 리포트용).
+//
+// AI 플래너는 디지털 상품 = 사용자 쿠폰/Trip Coins 모두 reject (PR #269 정책).
+// 이 launch promo 와 사용자 쿠폰 결합 안 됨.
 const AI_PLANNER_FULL_KRW = 13_300;
+export const AI_PLANNER_FULL_ORIGINAL_KRW = 26_600;
+export const AI_PLANNER_LAUNCH_DISCOUNT_RATE = 0.50;
+export const AI_PLANNER_LAUNCH_LABEL = 'Launch Special — 첫 100명 한정 50% OFF';
 
 // 2026-05-04 URGENT-1 fix: zone fallback 추정가 결제용 productType. 매트릭스에 없는
 // 장거리(부산 등)나 ICN 외 공항 출발도 wizard quote가 산출됐으면 결제 가능하게 함.
