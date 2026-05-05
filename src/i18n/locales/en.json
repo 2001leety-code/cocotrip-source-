@@ -1518,6 +1518,8 @@
     }
   },
   "mypage": {
+    "welcomeCouponsTitle": "Welcome!",
+    "welcomeCouponsBody": "Sign-up complete — 2 × 5% coupons issued",
     "home": "Home",
     "tierBenefits": "{tier} Benefits",
     "dashNextTrip": "Next Trip",
