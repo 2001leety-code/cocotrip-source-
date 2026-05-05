@@ -29,8 +29,9 @@ export interface PlanDocument {
     arrival_guide?: ArrivalGuideBlock;
     departure_guide?: DepartureGuideBlock;
     daily_budget_summary?: BudgetRow[];
-    /** Sprint 2 후속: 동선 5km 내 top-rated 맛집 — backend `pickRecommendedRestaurants` 산출. */
-    recommended_restaurants?: RecommendedRestaurant[];
+    /** Sprint 2 후속: 동선 5km 내 top-rated 맛집 — backend `pickRecommendedRestaurantsByStyle` 산출.
+     *  Legacy plans: array. New plans (2026-05-05+): per-style map { general, vegan?, halal? }. */
+    recommended_restaurants?: RecommendedRestaurant[] | RecommendedRestaurantsByStyle;
     [key: string]: unknown;
   };
   customerSupport?: Record<string, unknown>;
@@ -99,6 +100,15 @@ export interface ArrivalGuideBlock {
   airport?: string;
   steps?: { step: number; title: string; description?: string; est_min?: number }[];
   [key: string]: unknown;
+}
+
+/** Per-style buckets — backend `pickRecommendedRestaurantsByStyle` 출력. */
+export interface RecommendedRestaurantsByStyle {
+  general: RecommendedRestaurant[];
+  vegan?: RecommendedRestaurant[];
+  halal?: RecommendedRestaurant[];
+  // Future tags (halal-friendly etc.) added explicitly when DB gains them.
+  [key: string]: RecommendedRestaurant[] | undefined;
 }
 
 /** "꼭 가보면 좋은 곳" — backend pickRecommendedRestaurants 출력 형식. */

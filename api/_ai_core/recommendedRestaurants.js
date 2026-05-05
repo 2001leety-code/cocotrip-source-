@@ -6,18 +6,18 @@
  *   - keeps ai-planner-full.js handler under the P1 lock
  *   - small enough to unit-test independently when we add coverage
  *
- * Selection rules (per user spec 2026-04-28):
- *   - 10 entries
- *   - tag === 'general' only — halal-only / vegan-only are niche audiences,
- *     skipped to keep the list broadly useful
- *   - Same `city` as the plan's mainCity (seoul / busan / jeju / etc.)
- *   - Excluded if name matches any stop already in the plan (avoid duplicates)
- *   - Within 5km of any plan stop (so the user can detour easily)
- *   - Sorted by rating × log10(reviewCount + 10) — higher both = better, but
- *     log on reviewCount tames the long tail (a 5,000-review place doesn't
- *     dominate a 200-review place 25× over).
- *   - User's diet/cuisine preference NOT applied — this is a "discover more"
- *     widget that broadens beyond what the AI already picked.
+ * Selection rules (regression fix 2026-05-05 — per-style buckets):
+ *   - Always 10 `general` entries (city + 5km + plan-deduped + rating sort)
+ *   - When user selects dietary (vegan/halal), add a separate 10-entry bucket
+ *     per dietary so each tag is surfaced independently (vegan stays vegan,
+ *     halal stays halal — never collapsed into a single mixed list).
+ *   - Each bucket: same city, same 5km, same rating sort, same dedupe.
+ *   - Output shape:
+ *       pickRecommendedRestaurants — Array<RecRestaurant>  (legacy, general only)
+ *       pickRecommendedRestaurantsByStyle — { general: [...], vegan?: [...], halal?: [...] }
+ *   - SAFETY-CRITICAL (CLAUDE.md J): we DO NOT mix tags. vegan bucket only ever
+ *     contains entries with `tag === 'vegan'`. No fallback to general inside
+ *     a dietary bucket — empty vegan = empty bucket (UI hides).
  */
 
 const KEEP_FIELDS = [
@@ -66,32 +66,40 @@ function pickFields(entry) {
   return out;
 }
 
-/**
- * @param {Array} foodIndex   loaded _food_index.json
- * @param {object} itinerary  the plan being persisted (has days[].stops[])
- * @param {string} area       body.area — mapped to a `city` key in the index
- * @returns {Array} up to TARGET_COUNT entries with KEEP_FIELDS + nearestStopKm
- */
-export function pickRecommendedRestaurants(foodIndex, itinerary, area) {
-  if (!Array.isArray(foodIndex) || foodIndex.length === 0) return [];
-  const cityKey = AREA_TO_CITY[area] || area;
+// Map UI dietPref tokens (WizardForm: 'Vegan', 'Halal') to food_index `tag` values.
+// SAFETY-CRITICAL (CLAUDE.md J): allowlist only — anything not listed is ignored
+// (rather than silently bucketed as general). Add new tokens explicitly when DB
+// gains new tags.
+const DIET_PREF_TO_TAG = {
+  Vegan: 'vegan',
+  vegan: 'vegan',
+  Halal: 'halal',
+  halal: 'halal',
+};
 
-  // Collect plan stop coords + names (for distance + dedupe).
-  const planNames = new Set();
-  const planCoords = [];
-  for (const day of itinerary?.days || []) {
-    for (const stop of day.stops || []) {
-      if (stop.name) planNames.add(stop.name);
-      if (stop.nameEn) planNames.add(stop.nameEn);
-      if (stop.lat && stop.lng) planCoords.push({ lat: stop.lat, lng: stop.lng });
+function dietPrefsToTags(dietPrefs) {
+  if (!Array.isArray(dietPrefs)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const p of dietPrefs) {
+    const tag = DIET_PREF_TO_TAG[p];
+    if (tag && !seen.has(tag)) {
+      seen.add(tag);
+      out.push(tag);
     }
   }
-  if (planCoords.length === 0) return [];
+  return out;
+}
 
+/**
+ * Internal bucket builder — given a fixed `tag`, return up to TARGET_COUNT
+ * entries (city + 5km + plan-dedupe + rating sort).
+ */
+function pickBucket(foodIndex, cityKey, tag, planNames, planCoords) {
   const candidates = [];
   for (const entry of foodIndex) {
     if (entry.city !== cityKey) continue;
-    if (entry.tag !== 'general') continue; // skip vegan-only / halal-only
+    if (entry.tag !== tag) continue;
     if (!entry.lat || !entry.lng) continue;
     if (planNames.has(entry.name) || planNames.has(entry.nameEn)) continue;
 
@@ -111,4 +119,72 @@ export function pickRecommendedRestaurants(foodIndex, itinerary, area) {
     ...pickFields(entry),
     nearestStopKm: Math.round(nearest * 10) / 10,
   }));
+}
+
+/**
+ * Legacy single-list picker — kept for backward compat (callers that don't
+ * pass dietary). Returns the `general` bucket only.
+ *
+ * @param {Array} foodIndex   loaded _food_index.json
+ * @param {object} itinerary  the plan being persisted (has days[].stops[])
+ * @param {string} area       body.area — mapped to a `city` key in the index
+ * @returns {Array} up to TARGET_COUNT entries with KEEP_FIELDS + nearestStopKm
+ */
+export function pickRecommendedRestaurants(foodIndex, itinerary, area) {
+  if (!Array.isArray(foodIndex) || foodIndex.length === 0) return [];
+  const cityKey = AREA_TO_CITY[area] || area;
+
+  const planNames = new Set();
+  const planCoords = [];
+  for (const day of itinerary?.days || []) {
+    for (const stop of day.stops || []) {
+      if (stop.name) planNames.add(stop.name);
+      if (stop.nameEn) planNames.add(stop.nameEn);
+      if (stop.lat && stop.lng) planCoords.push({ lat: stop.lat, lng: stop.lng });
+    }
+  }
+  if (planCoords.length === 0) return [];
+
+  return pickBucket(foodIndex, cityKey, 'general', planNames, planCoords);
+}
+
+/**
+ * Per-style picker — returns a map keyed by tag. `general` is always present
+ * (may be empty array). Each dietPref the user selected adds a matching bucket
+ * (vegan/halal) — never mixed with general.
+ *
+ * @param {Array}  foodIndex
+ * @param {object} itinerary
+ * @param {string} area
+ * @param {string[]} dietPrefs  e.g. ['Vegan'], ['Halal','Vegan'], or []
+ * @returns {{ general: Array, vegan?: Array, halal?: Array }}
+ */
+export function pickRecommendedRestaurantsByStyle(foodIndex, itinerary, area, dietPrefs) {
+  if (!Array.isArray(foodIndex) || foodIndex.length === 0) {
+    return { general: [] };
+  }
+  const cityKey = AREA_TO_CITY[area] || area;
+
+  const planNames = new Set();
+  const planCoords = [];
+  for (const day of itinerary?.days || []) {
+    for (const stop of day.stops || []) {
+      if (stop.name) planNames.add(stop.name);
+      if (stop.nameEn) planNames.add(stop.nameEn);
+      if (stop.lat && stop.lng) planCoords.push({ lat: stop.lat, lng: stop.lng });
+    }
+  }
+  if (planCoords.length === 0) {
+    return { general: [] };
+  }
+
+  const result = {
+    general: pickBucket(foodIndex, cityKey, 'general', planNames, planCoords),
+  };
+
+  for (const tag of dietPrefsToTags(dietPrefs)) {
+    result[tag] = pickBucket(foodIndex, cityKey, tag, planNames, planCoords);
+  }
+
+  return result;
 }
