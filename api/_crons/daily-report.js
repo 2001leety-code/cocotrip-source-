@@ -11,6 +11,7 @@
 
 import { getYesterdayBookings, getTodayTours, getWeekSummary } from '../_google-sheets.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
+import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 // ── API 가격 정보 (2026-04 기준) ─────────────────────────────────────
 const PRICING = {
@@ -235,7 +236,14 @@ const dailyReportTask = async () => {
     return { statusCode: 200, body: '모닝 리포트 전송 완료' };
   } catch (err) {
     console.error('[daily-report] 오류:', err.message);
-    try { await sendErrorAlert('daily-report', err); } catch {}
+    // K Tier 2-E (PR #266) — throttled. cron 반복 실패 시 dedup.
+    throttledTelegramAlert({
+      key: 'daily-report-fail',
+      channel: 'error',
+      message: `🔴 [daily-report] cron 실패: ${err.message || 'unknown'}`,
+      severity: 'medium',
+      context: { errorMessage: (err.message || '').slice(0, 200) },
+    }).catch(() => {});
     return { statusCode: 500, body: err.message };
   }
 };
