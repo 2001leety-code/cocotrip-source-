@@ -11,6 +11,14 @@
 const fs = require('fs');
 const path = require('path');
 
+// Tier 2-D: shared 9-metric scorer. Lazy ESM import (this file is .cjs).
+let _qualityMod = null;
+async function loadQualityMetrics() {
+  if (_qualityMod) return _qualityMod;
+  _qualityMod = await import('../api/_ai_core/qualityMetrics.js');
+  return _qualityMod;
+}
+
 const BASE = process.argv[2] || 'https://cocotripkr.com';
 const API_URL = `${BASE}/api/ai-planner-full`;
 
@@ -149,7 +157,17 @@ async function runAll() {
 
       const data = await resp.json();
       const stops = extractStops(data);
-      
+
+      // Tier 2-D: shared 9-metric scorer applied to itinerary directly.
+      const itin = data?.data?.itinerary || data?.itinerary || data;
+      let qualityScore = null;
+      try {
+        const { computeQualityScore } = await loadQualityMetrics();
+        qualityScore = computeQualityScore(itin, s.dietPrefs, s.area, [], { lang: s.language });
+      } catch (qErr) {
+        console.warn(`   ⚠ qualityMetrics failed for ${s.id}:`, qErr.message);
+      }
+
       // 서버 측 검증 이슈 + 클라이언트 측 추가 분석
       const serverIssues = data?.data?._validation_issues || data._validation_issues || [];
       const clientIssues = analyzeIssues(stops, s.language);
@@ -175,6 +193,7 @@ async function runAll() {
         verified_food: stops.filter(s => s.category === 'food' && s.verified).length,
         issues: dedupedIssues,
         issue_count: dedupedIssues.length,
+        qualityScore,
         stops,
       });
 
