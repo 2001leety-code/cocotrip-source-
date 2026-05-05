@@ -184,24 +184,9 @@ export function WizardStep0Destination(props: Step0Props) {
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 resize-none transition-colors" />
       </div>
 
-      {/* Zone recommendation — 2026-05-03: 노출 강화. 호텔 미예약 사용자가
-          여기서 일찍 zone을 정하고 Trip.com 제휴 hotel CTA도 일찍 보게 됨.
-          mainCity 선택된 후에만 노출. ZoneRecommender 자체가 hotelAddress 비어있을 때만 렌더 */}
-      {mainCity && (
-        <ZoneRecommender
-          language={language}
-          isMobile={isMobile}
-          cityKey={mainCityKey || 'seoul'}
-          hotelAddress={hotelAddress}
-          recommendedZone={recommendedZone}
-          setRecommendedZone={setRecommendedZone}
-          labelTitle={p.zoneRecommendTitle}
-          labelSubtitle={p.zoneRecommendSubtitle}
-          labelPick={p.zoneRecommendPicked}
-          labelHotelCta={p.zoneHotelCta}
-          labelHotelSponsored={p.zoneHotelSponsored}
-        />
-      )}
+      {/* 2026-05-05 (운영자 신고): ZoneRecommender 가 Destination + Details 두 페이지에
+          중복 노출되어 호텔 질문 2번 받는 느낌 → Destination 에서 제거. Step 2 Details
+          의 호텔 인풋 옆에서만 zone 추천 (호텔 미예약 사용자 fallback). */}
 
       {/* Nav — back to reservation status if available */}
       <WizardNav

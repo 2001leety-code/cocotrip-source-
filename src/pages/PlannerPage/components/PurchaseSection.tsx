@@ -44,7 +44,8 @@ export function PurchaseSection({
       {/* Decorative glow */}
       <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl ${isMobile ? 'bg-[#B668FC]/10' : 'bg-[#7C5CFC]/10'}`} />
 
-      {/* Price display */}
+      {/* Price display — 마케팅 정가 비교: $19.90 → $9.90 (50% OFF). AI 플래너는
+          쿠폰 미적용 정책 (디지털 상품) — 모든 사용자 동일 가격. */}
       <div className="relative text-center py-4 mb-4">
         <div className="text-white/55 text-sm mb-1">
           <span className="line-through">$19.90</span>
