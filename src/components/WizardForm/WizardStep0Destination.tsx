@@ -9,10 +9,7 @@ import { useMemo } from 'react';
 import { Sparkles, Check } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS, getActivitiesForCities } from './data';
-import { ZoneRecommender } from './ZoneRecommender';
 import type { WizardDict } from './types';
-
-type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
 interface Step0Props {
   p: WizardDict;
@@ -36,20 +33,17 @@ interface Step0Props {
   isCitySelected: (cityName: string) => boolean;
   onPrev?: () => void;               // P6: Step 0 reservation now precedes this step
   onNext: () => void;
-  // 2026-05-03: ZoneRecommender 노출 강화 — Step 1에 추가하여 호텔 미예약 사용자가
-  // 일찍 zone을 정하고 Trip.com 제휴 링크도 일찍 노출. (기존 Step 3 위치는 유지)
-  language: Lang;
-  hotelAddress: string;
-  recommendedZone: string;
-  setRecommendedZone: (v: string) => void;
+  // 2026-05-05 (운영자 신고 후속): ZoneRecommender 가 Destination 페이지에 있어
+  // 호텔/숙소 질문이 Step 2 와 함께 2번 받는 인상 → Destination 에서 완전 제거,
+  // 관련 props (language/hotelAddress/recommendedZone/setRecommendedZone) 도
+  // 더이상 사용 안 함. Step 2 Details 가 호텔 인풋 + ZoneRecommender 단일 노출.
 }
 
 export function WizardStep0Destination(props: Step0Props) {
   const {
-    p, isMobile, mainCity, mainCityKey, selectedCityKeys, selectedActivities, freeText,
+    p, isMobile, mainCity, selectedCityKeys, selectedActivities, freeText,
     setMainCity, setMainCityKey, setExtraCities, setSelectedActivities, setFreeText,
     allCities, canGoStep1, getCityName, toggleActivity, toggleCity, isCitySelected, onPrev, onNext,
-    language, hotelAddress, recommendedZone, setRecommendedZone,
   } = props;
 
   // P9: derived activity keys — falls back to legacy full list when no city
@@ -183,10 +177,6 @@ export function WizardStep0Destination(props: Step0Props) {
           rows={2}
           className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-[#7C5CFC]/70 resize-none transition-colors" />
       </div>
-
-      {/* 2026-05-05 (운영자 신고): ZoneRecommender 가 Destination + Details 두 페이지에
-          중복 노출되어 호텔 질문 2번 받는 느낌 → Destination 에서 제거. Step 2 Details
-          의 호텔 인풋 옆에서만 zone 추천 (호텔 미예약 사용자 fallback). */}
 
       {/* Nav — back to reservation status if available */}
       <WizardNav

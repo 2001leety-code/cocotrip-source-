@@ -240,6 +240,15 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     if (!arrival_airport || arrival_airport === 'ALREADY') delete itinerary.arrival_guide;
     if (!departure_airport || departure_airport === 'ALREADY') delete itinerary.departure_guide;
 
+    // 2026-05-05 (운영자 요청): 숙소→공항 경로 무조건 표시 정책 강화.
+    // Gemini 가 departure_guide 자체를 생성 안 한 케이스에 대비해 빈 객체라도
+    // 만들어 둔다. 그래야 RouteAgent 가 route_to_airport 를 attach 할 수 있고,
+    // 프론트엔드는 호텔/zone fallback 좌표로 출국 경로 카드를 항상 노출함.
+    if (departure_airport && departure_airport !== 'ALREADY' && !itinerary.departure_guide) {
+      itinerary.departure_guide = { airport: departure_airport };
+      console.log('[planner] departure_guide synthesized (airport=', departure_airport, ')');
+    }
+
     // ── RouteAgent enrichment (mutates itinerary in place) ────────────────
     // 2026-05-03: routeHotelAddress = hotel_address || zone anchor. zone만 골랐어도
     // 공항↔zone 환승 경로(arrival_guide.route_to_hotel)가 정상 계산됨. 사용자가

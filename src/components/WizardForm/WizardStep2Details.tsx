@@ -252,20 +252,24 @@ export function WizardStep2Details(props: Step2Props) {
             onChange={e => { setHotelAddress(e.target.value); }}
             placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
-          {/* Sprint 2 #5: zone-pick fallback when hotel address empty. */}
-          <ZoneRecommender
-            language={lang}
-            isMobile={isMobile}
-            cityKey={mainCityKey}
-            hotelAddress={hotelAddress}
-            recommendedZone={recommendedZone}
-            setRecommendedZone={setRecommendedZone}
-            labelTitle={p.zoneRecommendTitle}
-            labelSubtitle={p.zoneRecommendSubtitle}
-            labelPick={p.zoneRecommendPicked}
-            labelHotelCta={p.zoneHotelCta}
-            labelHotelSponsored={p.zoneHotelSponsored}
-          />
+          {/* 2026-05-05 (운영자 신고 후속): hotelAddress 비어있을 때만 ZoneRecommender 노출 →
+              호텔 입력 즉시 자동 collapse 되어 "1번만 묻는다" 시각적으로 명확.
+              호텔 미입력 사용자 fallback (zone 으로 routing 가능) 만 유지. */}
+          {hotelAddress.trim().length === 0 && (
+            <ZoneRecommender
+              language={lang}
+              isMobile={isMobile}
+              cityKey={mainCityKey}
+              hotelAddress={hotelAddress}
+              recommendedZone={recommendedZone}
+              setRecommendedZone={setRecommendedZone}
+              labelTitle={p.zoneRecommendTitle}
+              labelSubtitle={p.zoneRecommendSubtitle}
+              labelPick={p.zoneRecommendPicked}
+              labelHotelCta={p.zoneHotelCta}
+              labelHotelSponsored={p.zoneHotelSponsored}
+            />
+          )}
         </div>
       ) : null}
 

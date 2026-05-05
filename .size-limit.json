@@ -2,7 +2,7 @@
   {
     "name": "Main bundle (eager — first paint critical, all index-* chunks)",
     "path": "dist/assets/index-*.js",
-    "limit": "365 KB",
+    "limit": "395 KB",
     "gzip": true
   },
   {

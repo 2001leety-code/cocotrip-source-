@@ -36,6 +36,12 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
       arrival_time: body.arrival_time || '',
       luggage: body.luggage || null,
       pax,
+      // 2026-05-05: area + recommended_zone 누락 → RouteAgent 의 hotel→airport
+      // fallback 체인 (zone anchor / city center) 동작 안 함 → 출국 경로 표시 누락.
+      // ai-planner-full handler 에서 계산한 area / 사용자 zone 선택을 전달.
+      area: body.area || body.region || '',
+      region: body.area || body.region || '',
+      recommended_zone: body.recommendedZone || body.recommended_zone || '',
     };
     console.log('[planner] RouteAgent input days:', wrapped.itinerary.days.length, '| stops/day:', wrapped.itinerary.days.map((d) => (d.places || d.stops || []).length));
     const enriched = await routeAgent.call(JSON.stringify(wrapped));
