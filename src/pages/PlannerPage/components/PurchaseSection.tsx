@@ -52,6 +52,104 @@ export function PurchaseSection({
   const [showGuide, setShowGuide] = useState(false);
   const fbLang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
   const triggerL = TRIGGER_LABELS[fbLang];
+
+  // Tier 1-B (운영 학습 루프): 무료 재생성 시 사유 묻기. 선택사항 — skip 가능.
+  // 5 카테고리 chip + 자유 텍스트 (100자). 결과는 plans/{id}.revisionReasons 에 push.
+  const [revisionReason, setRevisionReason] = useState<string | null>(null);
+  const [revisionFreeText, setRevisionFreeText] = useState('');
+  const REVISION_LABELS: Record<string, {
+    title: string; sub: string;
+    chips: { key: string; label: string }[];
+    freeText: string; skip: string; submit: string;
+  }> = {
+    ko: {
+      title: '왜 다시 만드시나요?',
+      sub: '선택사항 — 기록은 익명으로 저장되어 품질 개선에 사용돼요',
+      chips: [
+        { key: 'restaurant', label: '식당이 별로' },
+        { key: 'route', label: '동선이 어색' },
+        { key: 'schedule', label: '일정 안 맞음' },
+        { key: 'language', label: '언어 이상' },
+        { key: 'other', label: '기타' },
+      ],
+      freeText: '한 줄 더 (선택)',
+      skip: '건너뛰고 재생성',
+      submit: '재생성 시작',
+    },
+    en: {
+      title: 'Why regenerate?',
+      sub: 'Optional — anonymous, helps improve quality',
+      chips: [
+        { key: 'restaurant', label: 'Restaurants' },
+        { key: 'route', label: 'Route' },
+        { key: 'schedule', label: 'Schedule' },
+        { key: 'language', label: 'Language' },
+        { key: 'other', label: 'Other' },
+      ],
+      freeText: 'One more line (optional)',
+      skip: 'Skip & regenerate',
+      submit: 'Regenerate',
+    },
+    ja: {
+      title: 'なぜ再生成?',
+      sub: '任意 — 匿名で記録、品質改善に活用',
+      chips: [
+        { key: 'restaurant', label: 'レストラン' },
+        { key: 'route', label: 'ルート' },
+        { key: 'schedule', label: 'スケジュール' },
+        { key: 'language', label: '言語' },
+        { key: 'other', label: 'その他' },
+      ],
+      freeText: '一言追加 (任意)',
+      skip: 'スキップして再生成',
+      submit: '再生成',
+    },
+    zh: {
+      title: '为何重新生成?',
+      sub: '可选 — 匿名记录,用于质量改进',
+      chips: [
+        { key: 'restaurant', label: '餐厅' },
+        { key: 'route', label: '路线' },
+        { key: 'schedule', label: '行程' },
+        { key: 'language', label: '语言' },
+        { key: 'other', label: '其他' },
+      ],
+      freeText: '补充一行 (可选)',
+      skip: '跳过并重新生成',
+      submit: '开始重新生成',
+    },
+  };
+  const rL = REVISION_LABELS[fbLang];
+
+  async function logRevisionReason(planId: string, reason: string, freeText: string) {
+    try {
+      const { auth } = await import('@/lib/firebase');
+      const user = auth.currentUser;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (user) {
+        const idToken = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
+      await fetch('/api/log-revision-reason', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ planId, reason, freeText, language: fbLang }),
+      });
+    } catch (e) {
+      // 로깅 실패해도 재생성은 진행 — silent
+      console.warn('[revision-reason] log failed:', (e as Error).message);
+    }
+  }
+
+  function handleRegenerateClick() {
+    const v = lastValues.current;
+    if (!v || !revisionPlanId) return;
+    // 사유 선택됐으면 fire-and-forget 로깅 → 즉시 재생성 트리거
+    if (revisionReason) {
+      logRevisionReason(revisionPlanId, revisionReason, revisionFreeText);
+    }
+    onRevisionRegenerate(v, revisionPlanId, revisionToken);
+  }
   return (
     <div className={isMobile
       ? 'm-card m-appear p-6 text-center relative overflow-hidden'
@@ -132,13 +230,44 @@ export function PurchaseSection({
             </div>
           </div>
         ) : revisionMode && revisionPlanId ? (
-          <button
-            onClick={() => { const v = lastValues.current; if (v) onRevisionRegenerate(v, revisionPlanId, revisionToken); }}
-            disabled={!lastValues.current}
-            className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}>
-            {p.freeRegeneration || 'Free Regeneration'} {'—'} {p.createNewPlan || 'Create New Plan'}
-          </button>
+          <div className="space-y-3">
+            {/* Tier 1-B 사유 묻기 — 선택사항. chip 1개 선택 시 로깅 + 재생성. skip 가능. */}
+            <div className="rounded-xl p-4 border" style={{ background: 'rgba(124,92,252,0.04)', borderColor: 'rgba(124,92,252,0.18)' }}>
+              <p className="text-sm font-bold text-white mb-1">{rL.title}</p>
+              <p className="text-[11px] text-white/55 mb-3">{rL.sub}</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {rL.chips.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setRevisionReason(revisionReason === c.key ? null : c.key)}
+                    className={`text-[12px] px-3 py-1.5 rounded-full border transition-colors ${
+                      revisionReason === c.key
+                        ? 'bg-[#7C5CFC]/25 border-[#7C5CFC]/60 text-white'
+                        : 'bg-white/[0.04] border-white/[0.12] text-white/65 hover:bg-white/[0.07]'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={revisionFreeText}
+                onChange={(e) => setRevisionFreeText(e.target.value.slice(0, 100))}
+                placeholder={rL.freeText}
+                className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.10] text-white text-[13px] placeholder-white/35 focus:outline-none focus:border-[#7C5CFC]/50"
+                disabled={!revisionReason}
+              />
+            </div>
+            <button
+              onClick={handleRegenerateClick}
+              disabled={!lastValues.current}
+              className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}>
+              {revisionReason ? rL.submit : rL.skip}
+            </button>
+          </div>
         ) : (
           <>
             <PayPalBookingButton
