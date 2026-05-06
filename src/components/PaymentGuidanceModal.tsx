@@ -103,7 +103,7 @@ const LABELS: Record<string, ModalLabels> = {
   },
 };
 
-export function PaymentGuidanceModal({ onClose, onUseFallback }: Props) {
+export function PaymentGuidanceModal({ onClose }: Props) {
   const { language } = useLanguage();
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
   const L = LABELS[lang];
