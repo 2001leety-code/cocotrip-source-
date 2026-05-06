@@ -4,28 +4,23 @@
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
 import { useState, lazy, Suspense, type MutableRefObject } from 'react';
 import {
-  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, Loader2, Info,
+  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, Info,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 
-// PayPal.Me QR fallback — 결제 실패 / SDK 차단 케이스. PaymentGuidanceModal 에서 진입 가능.
-const PayPalQrPanel = lazy(() =>
-  import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
-);
-
 // 결제 전 안내 모달 — 한국 거주 외국인용 네트워크/VPN/3DS 사전 안내. 사용자가 명시적 클릭 시에만.
 const PaymentGuidanceModal = lazy(() =>
   import('@/components/PaymentGuidanceModal').then(m => ({ default: m.PaymentGuidanceModal })),
 );
 
-const TRIGGER_LABELS: Record<string, { guide: string; back: string }> = {
-  ko: { guide: '한국에서 결제하시나요? 결제 전 안내 보기', back: '← 기본 결제로 돌아가기' },
-  en: { guide: 'Paying from Korea? Read tips before payment', back: '← Back to default payment' },
-  ja: { guide: '韓国から決済? お支払い前のご案内', back: '← 通常の決済に戻る' },
-  zh: { guide: '在韩国支付? 支付前请先阅读', back: '← 返回默认支付' },
+const TRIGGER_LABELS: Record<string, { guide: string }> = {
+  ko: { guide: '한국에서 결제하시나요? 결제 전 안내 보기' },
+  en: { guide: 'Paying from Korea? Read tips before payment' },
+  ja: { guide: '韓国から決済? お支払い前のご案内' },
+  zh: { guide: '在韩国支付? 支付前请先阅读' },
 };
 
 interface QuickPreviewData {
@@ -51,11 +46,9 @@ export function PurchaseSection({
   revisionMode, revisionPlanId, revisionToken,
   onPaymentSuccess, onRevisionRegenerate,
 }: PurchaseSectionProps) {
-  // 기본 = Braintree (PayPal/카드 통합). 한국 네트워크 결제 어려움 우려되는 사용자는
-  // "결제 전 안내" 모달 → 모달에서 fallback (paypal.me QR) 진입 가능.
-  // PR #275 의 "위치 게이트 (한국에 계신가요?)" 강제 분기는 제거 — PayPal 정책상
-  // 위치 기반 분기는 부정확 (계정 등록국 기준이 본사 정책, IP 는 Risk Engine 영향만).
-  const [showFallback, setShowFallback] = useState(false);
+  // 5/6 변경: Braintree LIVE 한국 미가입 확정 → 단일 결제 흐름 (paypal.me QR via
+  // PayPalBookingButton wrapper). 위치 게이트 / Braintree↔QR 토글 모두 제거.
+  // 한국 결제 우려 사용자는 PaymentGuidanceModal 안내만 받음.
   const [showGuide, setShowGuide] = useState(false);
   const fbLang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
   const triggerL = TRIGGER_LABELS[fbLang];
@@ -148,57 +141,28 @@ export function PurchaseSection({
           </button>
         ) : (
           <>
-            {!showFallback ? (
-              <>
-                <PayPalBookingButton
-                  productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
-                  priceKRW={13300} p={p} lang={language}
-                  memo={`Full itinerary for: ${userEmail}`}
-                  itineraryData={resultQuick}
-                  onPaymentSuccess={onPaymentSuccess}
-                  userEmail={userEmail}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowGuide(true)}
-                  className="inline-flex items-center justify-center gap-1.5 text-[11px] text-white/55 hover:text-white/85 underline underline-offset-2 transition-colors"
-                >
-                  <Info className="w-3 h-3" />
-                  {triggerL.guide}
-                </button>
-              </>
-            ) : (
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading alternative payment...
-                  </div>
-                }
-              >
-                <PayPalQrPanel
-                  productType="ai-planner-full"
-                  passengers={1}
-                  priceKRW={13300}
-                  itineraryData={resultQuick}
-                  customerEmail={userEmail}
-                  onBack={() => setShowFallback(false)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowFallback(false)}
-                  className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors"
-                >
-                  {triggerL.back}
-                </button>
-              </Suspense>
-            )}
+            <PayPalBookingButton
+              productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
+              priceKRW={13300} p={p} lang={language}
+              memo={`Full itinerary for: ${userEmail}`}
+              itineraryData={resultQuick}
+              onPaymentSuccess={onPaymentSuccess}
+              userEmail={userEmail}
+            />
+            <button
+              type="button"
+              onClick={() => setShowGuide(true)}
+              className="inline-flex items-center justify-center gap-1.5 text-[11px] text-white/55 hover:text-white/85 underline underline-offset-2 transition-colors"
+            >
+              <Info className="w-3 h-3" />
+              {triggerL.guide}
+            </button>
 
             {showGuide && (
               <Suspense fallback={null}>
                 <PaymentGuidanceModal
                   onClose={() => setShowGuide(false)}
-                  onUseFallback={() => { setShowGuide(false); setShowFallback(true); }}
+                  onUseFallback={() => setShowGuide(false)}
                 />
               </Suspense>
             )}

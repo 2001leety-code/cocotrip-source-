@@ -19,8 +19,9 @@ import { useLanguage } from '@/hooks/useLanguage';
 
 interface Props {
   onClose: () => void;
-  /** 사용자가 "결제 안 됨, fallback 사용" 선택 시 호출 — 부모가 paypal.me QR 패널 노출 */
-  onUseFallback: () => void;
+  /** 레거시 — 5/6 변경: paypal.me QR 이 메인 흐름이라 별도 fallback 진입점 불필요. 호출
+   *  처가 미설정 시 onClose alias 처럼 동작. */
+  onUseFallback?: () => void;
 }
 
 interface ModalLabels {
@@ -161,8 +162,9 @@ export function PaymentGuidanceModal({ onClose, onUseFallback }: Props) {
             </Section>
           </div>
 
-          {/* CTAs */}
-          <div className="mt-5 space-y-2">
+          {/* CTA — 단일 버튼. 5/6 변경: paypal.me QR 이 메인 흐름 (PayPalBookingButton
+              wrapper) 이라 별도 fallback CTA 불필요. */}
+          <div className="mt-5">
             <button
               type="button"
               onClick={onClose}
@@ -174,13 +176,6 @@ export function PaymentGuidanceModal({ onClose, onUseFallback }: Props) {
             >
               {L.proceed}
               <ArrowRight className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={onUseFallback}
-              className="w-full py-2.5 rounded-xl text-[13px] font-medium text-white/75 hover:text-white border border-white/15 hover:border-white/25 hover:bg-white/[0.04] transition-all"
-            >
-              {L.fallbackCta}
             </button>
           </div>
         </div>
