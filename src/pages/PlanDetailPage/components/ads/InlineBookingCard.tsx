@@ -29,7 +29,6 @@
 import { useState, lazy, Suspense } from 'react';
 import { Calendar, Users, Check, ChevronRight, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { KrPresenceGate, type PaymentRoute } from '@/components/KrPresenceGate';
 
 // Lazy import — BraintreePaymentButton + Drop-in 모듈은 결제 클릭 시점에만 로드.
 // PreTripSlide 가 항상 마운트되므로 eager import 시 첫 paint 번들에 포함되어
@@ -38,10 +37,18 @@ const BraintreePaymentButton = lazy(() =>
   import('@/components/BraintreePaymentButton').then(m => ({ default: m.BraintreePaymentButton })),
 );
 
-// 한국 체류 외국인용 PayPal QR 패널 — 동일하게 lazy.
+// PayPal.Me QR fallback — 결제 실패 / 한국 wifi SDK 차단 등 예외 케이스용.
+// 기본 흐름 = Braintree, 토글 클릭 시에만 노출.
 const PayPalQrPanel = lazy(() =>
   import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
 );
+
+const FALLBACK_LABELS: Record<string, { trigger: string; back: string }> = {
+  ko: { trigger: '결제가 안 되시나요? 다른 방법으로 결제', back: '← 기본 결제로 돌아가기' },
+  en: { trigger: "Payment not working? Try alternative method", back: '← Back to default payment' },
+  ja: { trigger: 'お支払いができない場合は他の方法で', back: '← 通常の決済に戻る' },
+  zh: { trigger: '无法支付?试试其他方式', back: '← 返回默认支付' },
+};
 
 export interface InlineBookingOption {
   productType: string;       // braintreeCheckout 가 받는 키 (e.g. airport_seoul_central)
@@ -151,7 +158,9 @@ export function InlineBookingCard({
   const [showPayment, setShowPayment] = useState(false);
   // 2026-05-06: 결제 라우트 — null=게이트 표시 / 'foreign'=Braintree / 'kr-bank'=PayPal QR.
   // 옵션 변경 시 reset 되어 사용자가 매번 선택하도록.
-  const [paymentRoute, setPaymentRoute] = useState<PaymentRoute | null>(null);
+  const [showFallback, setShowFallback] = useState(false);
+  const fbLang = (['ko', 'en', 'ja', 'zh'].includes(lang) ? lang : 'en') as 'ko' | 'en' | 'ja' | 'zh';
+  const fbL = FALLBACK_LABELS[fbLang];
 
   const selected = options.find((o) => o.productType === selectedKey);
   const canProceed = !!selected && !!date && !!userEmail;
@@ -261,7 +270,7 @@ export function InlineBookingCard({
       {selected && !showPayment && (
         <button
           type="button"
-          onClick={() => { setShowPayment(true); setPaymentRoute(null); }}
+          onClick={() => { setShowPayment(true); setShowFallback(false); }}
           disabled={!canProceed}
           className="w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
           style={{
@@ -282,19 +291,11 @@ export function InlineBookingCard({
         </button>
       )}
 
-      {/* 2026-05-06: 결제 진행 → KrPresenceGate (한국 체류 여부) → 라우팅. */}
-      {selected && showPayment && paymentRoute === null && (
-        <div className="mt-2 rounded-xl bg-white/[0.02] border border-white/[0.06] p-4">
-          <KrPresenceGate
-            onChoose={setPaymentRoute}
-            priceKRW={selected.priceKRW}
-          />
-        </div>
-      )}
-
-      {/* NO 흐름 — 해외 사용자: 기존 Braintree Drop-in (lazy chunk). */}
-      {selected && showPayment && paymentRoute === 'foreign' && (
-        <div className="mt-2">
+      {/* 결제 진행 — 기본 = Braintree (PayPal/카드 통합 Drop-in).
+          토글 클릭 시 PayPal.Me QR fallback 노출 (결제 실패/네트워크 차단 케이스).
+          위치/체류 여부 게이트 없음 (PayPal 정책 = 계정 등록국 기준, 위치 무관). */}
+      {selected && showPayment && !showFallback && (
+        <div className="mt-2 flex flex-col gap-2">
           <Suspense
             fallback={
               <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
@@ -316,17 +317,23 @@ export function InlineBookingCard({
               userEmail={userEmail}
             />
           </Suspense>
+          <button
+            type="button"
+            onClick={() => setShowFallback(true)}
+            className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors self-center"
+          >
+            {fbL.trigger}
+          </button>
         </div>
       )}
 
-      {/* YES 흐름 — 한국 체류: PayPal.Me QR 패널 (lazy). */}
-      {selected && showPayment && paymentRoute === 'kr-bank' && (
-        <div className="mt-2">
+      {selected && showPayment && showFallback && (
+        <div className="mt-2 flex flex-col gap-2">
           <Suspense
             fallback={
               <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Loading QR payment...
+                Loading alternative payment...
               </div>
             }
           >
@@ -339,9 +346,16 @@ export function InlineBookingCard({
               pickupLocation={selected.label}
               memo={`Inline booking from plan ${planId || ''} — ${title}`}
               customerEmail={userEmail}
-              onBack={() => setPaymentRoute(null)}
+              onBack={() => setShowFallback(false)}
             />
           </Suspense>
+          <button
+            type="button"
+            onClick={() => setShowFallback(false)}
+            className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors self-center"
+          >
+            {fbL.back}
+          </button>
         </div>
       )}
     </div>
