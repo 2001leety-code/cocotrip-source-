@@ -4,24 +4,28 @@
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
 import { useState, lazy, Suspense, type MutableRefObject } from 'react';
 import {
-  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, Loader2,
+  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, Loader2, Info,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 
-// PayPal.Me QR fallback — 사용자 결제 실패 / 한국 wifi SDK CDN 차단 등 예외 케이스용.
-// 기본은 Braintree (PayPalBookingButton), 토글 클릭 시에만 노출. lazy 로 첫 paint 영향 0.
+// PayPal.Me QR fallback — 결제 실패 / SDK 차단 케이스. PaymentGuidanceModal 에서 진입 가능.
 const PayPalQrPanel = lazy(() =>
   import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
 );
 
-const FALLBACK_LABELS: Record<string, { trigger: string; back: string }> = {
-  ko: { trigger: '결제가 안 되시나요? 다른 방법으로 결제', back: '← 기본 결제로 돌아가기' },
-  en: { trigger: "Payment not working? Try alternative method", back: '← Back to default payment' },
-  ja: { trigger: 'お支払いができない場合は他の方法で', back: '← 通常の決済に戻る' },
-  zh: { trigger: '无法支付?试试其他方式', back: '← 返回默认支付' },
+// 결제 전 안내 모달 — 한국 거주 외국인용 네트워크/VPN/3DS 사전 안내. 사용자가 명시적 클릭 시에만.
+const PaymentGuidanceModal = lazy(() =>
+  import('@/components/PaymentGuidanceModal').then(m => ({ default: m.PaymentGuidanceModal })),
+);
+
+const TRIGGER_LABELS: Record<string, { guide: string; back: string }> = {
+  ko: { guide: '한국에서 결제하시나요? 결제 전 안내 보기', back: '← 기본 결제로 돌아가기' },
+  en: { guide: 'Paying from Korea? Read tips before payment', back: '← Back to default payment' },
+  ja: { guide: '韓国から決済? お支払い前のご案内', back: '← 通常の決済に戻る' },
+  zh: { guide: '在韩国支付? 支付前请先阅读', back: '← 返回默认支付' },
 };
 
 interface QuickPreviewData {
@@ -47,12 +51,14 @@ export function PurchaseSection({
   revisionMode, revisionPlanId, revisionToken,
   onPaymentSuccess, onRevisionRegenerate,
 }: PurchaseSectionProps) {
-  // 기본 = Braintree (PayPal/카드 통합). 사용자가 결제 안 될 때만 fallback 토글
-  // 클릭 → PayPalQrPanel 노출. 위치/계정국 묻는 게이트 없음 (PayPal 정책상 외국인
-  // 계정은 위치 무관 결제 가능 — 정책 차단은 한국↔한국 등록 계정만 적용).
+  // 기본 = Braintree (PayPal/카드 통합). 한국 네트워크 결제 어려움 우려되는 사용자는
+  // "결제 전 안내" 모달 → 모달에서 fallback (paypal.me QR) 진입 가능.
+  // PR #275 의 "위치 게이트 (한국에 계신가요?)" 강제 분기는 제거 — PayPal 정책상
+  // 위치 기반 분기는 부정확 (계정 등록국 기준이 본사 정책, IP 는 Risk Engine 영향만).
   const [showFallback, setShowFallback] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const fbLang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
-  const fbL = FALLBACK_LABELS[fbLang];
+  const triggerL = TRIGGER_LABELS[fbLang];
   return (
     <div className={isMobile
       ? 'm-card m-appear p-6 text-center relative overflow-hidden'
@@ -154,10 +160,11 @@ export function PurchaseSection({
                 />
                 <button
                   type="button"
-                  onClick={() => setShowFallback(true)}
-                  className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors"
+                  onClick={() => setShowGuide(true)}
+                  className="inline-flex items-center justify-center gap-1.5 text-[11px] text-white/55 hover:text-white/85 underline underline-offset-2 transition-colors"
                 >
-                  {fbL.trigger}
+                  <Info className="w-3 h-3" />
+                  {triggerL.guide}
                 </button>
               </>
             ) : (
@@ -182,8 +189,17 @@ export function PurchaseSection({
                   onClick={() => setShowFallback(false)}
                   className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors"
                 >
-                  {fbL.back}
+                  {triggerL.back}
                 </button>
+              </Suspense>
+            )}
+
+            {showGuide && (
+              <Suspense fallback={null}>
+                <PaymentGuidanceModal
+                  onClose={() => setShowGuide(false)}
+                  onUseFallback={() => { setShowGuide(false); setShowFallback(true); }}
+                />
               </Suspense>
             )}
 

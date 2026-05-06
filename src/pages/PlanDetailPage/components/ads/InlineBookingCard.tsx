@@ -27,7 +27,7 @@
 //   5. Firestore booking 저장 + booking-processor 가 텔레그램 driver bot 알림
 
 import { useState, lazy, Suspense } from 'react';
-import { Calendar, Users, Check, ChevronRight, Loader2 } from 'lucide-react';
+import { Calendar, Users, Check, ChevronRight, Loader2, Info } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 
 // Lazy import — BraintreePaymentButton + Drop-in 모듈은 결제 클릭 시점에만 로드.
@@ -37,17 +37,21 @@ const BraintreePaymentButton = lazy(() =>
   import('@/components/BraintreePaymentButton').then(m => ({ default: m.BraintreePaymentButton })),
 );
 
-// PayPal.Me QR fallback — 결제 실패 / 한국 wifi SDK 차단 등 예외 케이스용.
-// 기본 흐름 = Braintree, 토글 클릭 시에만 노출.
+// PayPal.Me QR fallback — 결제 실패 / SDK 차단 케이스. PaymentGuidanceModal 에서 진입.
 const PayPalQrPanel = lazy(() =>
   import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
 );
 
-const FALLBACK_LABELS: Record<string, { trigger: string; back: string }> = {
-  ko: { trigger: '결제가 안 되시나요? 다른 방법으로 결제', back: '← 기본 결제로 돌아가기' },
-  en: { trigger: "Payment not working? Try alternative method", back: '← Back to default payment' },
-  ja: { trigger: 'お支払いができない場合は他の方法で', back: '← 通常の決済に戻る' },
-  zh: { trigger: '无法支付?试试其他方式', back: '← 返回默认支付' },
+// 결제 전 안내 모달 — 한국 거주 외국인용 사전 안내 (네트워크/VPN/3DS).
+const PaymentGuidanceModal = lazy(() =>
+  import('@/components/PaymentGuidanceModal').then(m => ({ default: m.PaymentGuidanceModal })),
+);
+
+const TRIGGER_LABELS: Record<string, { guide: string; back: string }> = {
+  ko: { guide: '한국에서 결제하시나요? 결제 전 안내 보기', back: '← 기본 결제로 돌아가기' },
+  en: { guide: 'Paying from Korea? Read tips before payment', back: '← Back to default payment' },
+  ja: { guide: '韓国から決済? お支払い前のご案内', back: '← 通常の決済に戻る' },
+  zh: { guide: '在韩国支付? 支付前请先阅读', back: '← 返回默认支付' },
 };
 
 export interface InlineBookingOption {
@@ -156,11 +160,13 @@ export function InlineBookingCard({
   const [time, setTime] = useState<string>('10:00');
   const [pax, setPax] = useState<number>(defaultPax);
   const [showPayment, setShowPayment] = useState(false);
-  // 2026-05-06: 결제 라우트 — null=게이트 표시 / 'foreign'=Braintree / 'kr-bank'=PayPal QR.
-  // 옵션 변경 시 reset 되어 사용자가 매번 선택하도록.
+  // 기본 = Braintree. 한국 결제 어려움 우려 사용자는 "결제 전 안내" 모달 → 모달에서
+  // 필요 시 fallback (paypal.me QR) 진입. PR #275 의 위치 게이트 (한국 체류 여부) 강제
+  // 분기는 제거 — PayPal 정책상 분기 의미 부정확.
   const [showFallback, setShowFallback] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const fbLang = (['ko', 'en', 'ja', 'zh'].includes(lang) ? lang : 'en') as 'ko' | 'en' | 'ja' | 'zh';
-  const fbL = FALLBACK_LABELS[fbLang];
+  const triggerL = TRIGGER_LABELS[fbLang];
 
   const selected = options.find((o) => o.productType === selectedKey);
   const canProceed = !!selected && !!date && !!userEmail;
@@ -319,10 +325,11 @@ export function InlineBookingCard({
           </Suspense>
           <button
             type="button"
-            onClick={() => setShowFallback(true)}
-            className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors self-center"
+            onClick={() => setShowGuide(true)}
+            className="inline-flex items-center justify-center gap-1.5 text-[11px] text-white/55 hover:text-white/85 underline underline-offset-2 transition-colors self-center"
           >
-            {fbL.trigger}
+            <Info className="w-3 h-3" />
+            {triggerL.guide}
           </button>
         </div>
       )}
@@ -354,9 +361,18 @@ export function InlineBookingCard({
             onClick={() => setShowFallback(false)}
             className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors self-center"
           >
-            {fbL.back}
+            {triggerL.back}
           </button>
         </div>
+      )}
+
+      {showGuide && (
+        <Suspense fallback={null}>
+          <PaymentGuidanceModal
+            onClose={() => setShowGuide(false)}
+            onUseFallback={() => { setShowGuide(false); setShowFallback(true); }}
+          />
+        </Suspense>
       )}
     </div>
   );
