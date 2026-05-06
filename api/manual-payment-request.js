@@ -30,6 +30,7 @@ import { captureError } from './_shared/sentry.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
+import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 
 export const config = { runtime: 'nodejs' };
 export const maxDuration = 15;
@@ -107,8 +108,10 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`priceKRW out of range (${MIN_KRW}~${MAX_KRW})`, 'INVALID_PRICE')));
     }
 
-    // 옵션 인증 — Bearer 토큰이 있으면 verify 해서 uid 추가, 없어도 신청 허용
+    // 옵션 인증 — Bearer 토큰이 있으면 verify 해서 uid + email 추출.
+    // 토큰 미인증 사용자도 신청 허용 (로그인 우회 케이스).
     let userId = null;
+    let authenticatedEmail = null;
     const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
     const tokenMatch = String(authHeader).match(/^Bearer\s+(.+)$/i);
     if (tokenMatch) {
@@ -118,12 +121,19 @@ export default async function handler(req, res) {
         if (getApps().length > 0) {
           const decoded = await getAuth().verifyIdToken(tokenMatch[1]);
           userId = decoded.uid;
+          authenticatedEmail = (decoded.email || '').toLowerCase().trim() || null;
         }
       } catch (e) {
         // 토큰 검증 실패해도 신청은 허용 (로그인 우회 케이스 — 이메일만 받음)
         console.warn('[manual-payment-request] token verify failed:', e.message);
       }
     }
+
+    // Admin TEST 모드 — 인증된 email 이 ADMIN_EMAIL 과 일치 시 결제 단계 우회 후
+    // 즉시 confirm 처리. 위변조 방지를 위해 body.customerEmail 가 아니라 토큰의
+    // authenticatedEmail 만 사용 (body.customerEmail 는 신뢰 X).
+    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+    const isAdminTestRequest = !!(adminEmail && authenticatedEmail && authenticatedEmail === adminEmail);
 
     // Firestore admin 초기화 + 멱등 저장
     const adminDb = initAdminDb('manual-payment-request');
@@ -164,7 +174,49 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // 텔레그램 booking 채널 알림 — 운영자에게 PayPal 거래내역 확인 요청
+    // Admin TEST 모드 — 결제 단계 우회 후 즉시 confirm.
+    // confirmBookingAsPaid 가 status='CONFIRMED' 전환 + bookings mirror + AI/booking-processor
+    // 자동 트리거 + 텔레그램 #2 + 사용자 confirm 이메일 처리.
+    if (isAdminTestRequest) {
+      console.log('[manual-payment-request] 🧪 ADMIN TEST MODE — auto-confirm:', bookingRef, 'admin:', authenticatedEmail);
+      try {
+        const result = await confirmBookingAsPaid({
+          db: adminDb,
+          bookingRef,
+          paypalTransactionId: `TEST-${bookingRef}`,
+          source: 'admin',
+          adminUid: userId,
+          adminEmail: authenticatedEmail,
+        });
+        if (!result.ok) {
+          console.error('[manual-payment-request] admin auto-confirm failed:', result.error);
+          // 일반 흐름으로 폴백 — pending_bookings 는 이미 저장됨, admin 이 UI 에서 수동 confirm 가능
+        } else {
+          // 텔레그램 booking 채널 #1 별도 알림 (운영자 본인 테스트임 표시)
+          notify('booking', [
+            '🧪 <b>ADMIN TEST 모드 — 자동 confirm</b>',
+            '',
+            `<b>예약번호:</b> <code>${bookingRef}</code>`,
+            `<b>상품:</b> ${productType}`,
+            `<b>금액:</b> ₩${krw.toLocaleString('ko-KR')}`,
+            `<b>관리자:</b> ${authenticatedEmail}`,
+            '',
+            '<i>admin UI 매칭 단계 우회 — 결제 흐름 E2E 테스트용</i>',
+          ].join('\n')).catch(() => {});
+
+          res.writeHead(200, JSON_HEADERS);
+          return res.end(JSON.stringify({
+            ok: true,
+            data: { bookingRef, status: 'CONFIRMED', adminTest: true, bookingId: result.bookingId },
+          }));
+        }
+      } catch (testErr) {
+        console.error('[manual-payment-request] admin test auto-confirm exception:', testErr.message);
+        // 폴백: 일반 흐름 진행
+      }
+    }
+
+    // 일반 사용자 흐름 — 텔레그램 booking 채널 알림 (운영자에게 PayPal 거래내역 확인 요청)
     try {
       const text = [
         '🏦 <b>새 PayPal QR 결제 신고</b>',
