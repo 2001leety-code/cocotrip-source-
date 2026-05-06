@@ -29,12 +29,18 @@
 import { useState, lazy, Suspense } from 'react';
 import { Calendar, Users, Check, ChevronRight, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { KrPresenceGate, type PaymentRoute } from '@/components/KrPresenceGate';
 
 // Lazy import — BraintreePaymentButton + Drop-in 모듈은 결제 클릭 시점에만 로드.
 // PreTripSlide 가 항상 마운트되므로 eager import 시 첫 paint 번들에 포함되어
 // bundle-size budget (365kB) 초과. 실제 결제는 사용자가 클릭한 후에만 일어남.
 const BraintreePaymentButton = lazy(() =>
   import('@/components/BraintreePaymentButton').then(m => ({ default: m.BraintreePaymentButton })),
+);
+
+// 한국 체류 외국인용 PayPal QR 패널 — 동일하게 lazy.
+const PayPalQrPanel = lazy(() =>
+  import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
 );
 
 export interface InlineBookingOption {
@@ -143,6 +149,9 @@ export function InlineBookingCard({
   const [time, setTime] = useState<string>('10:00');
   const [pax, setPax] = useState<number>(defaultPax);
   const [showPayment, setShowPayment] = useState(false);
+  // 2026-05-06: 결제 라우트 — null=게이트 표시 / 'foreign'=Braintree / 'kr-bank'=PayPal QR.
+  // 옵션 변경 시 reset 되어 사용자가 매번 선택하도록.
+  const [paymentRoute, setPaymentRoute] = useState<PaymentRoute | null>(null);
 
   const selected = options.find((o) => o.productType === selectedKey);
   const canProceed = !!selected && !!date && !!userEmail;
@@ -248,11 +257,11 @@ export function InlineBookingCard({
         </div>
       )}
 
-      {/* Action: show "Proceed" button until clicked, then mount Drop-in inline */}
+      {/* Action: show "Proceed" button until clicked, then mount payment route gate */}
       {selected && !showPayment && (
         <button
           type="button"
-          onClick={() => setShowPayment(true)}
+          onClick={() => { setShowPayment(true); setPaymentRoute(null); }}
           disabled={!canProceed}
           className="w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
           style={{
@@ -273,9 +282,18 @@ export function InlineBookingCard({
         </button>
       )}
 
-      {/* Drop-in payment (BraintreePaymentButton 자체에 결제 UI + 성공 모달 포함).
-          Lazy-loaded — 결제 클릭 시점에만 chunk 다운로드 (번들 budget 보호). */}
-      {selected && showPayment && (
+      {/* 2026-05-06: 결제 진행 → KrPresenceGate (한국 체류 여부) → 라우팅. */}
+      {selected && showPayment && paymentRoute === null && (
+        <div className="mt-2 rounded-xl bg-white/[0.02] border border-white/[0.06] p-4">
+          <KrPresenceGate
+            onChoose={setPaymentRoute}
+            priceKRW={selected.priceKRW}
+          />
+        </div>
+      )}
+
+      {/* NO 흐름 — 해외 사용자: 기존 Braintree Drop-in (lazy chunk). */}
+      {selected && showPayment && paymentRoute === 'foreign' && (
         <div className="mt-2">
           <Suspense
             fallback={
@@ -296,6 +314,32 @@ export function InlineBookingCard({
               pickupLocation={selected.label}
               memo={`Inline booking from plan ${planId || ''} — ${title}`}
               userEmail={userEmail}
+            />
+          </Suspense>
+        </div>
+      )}
+
+      {/* YES 흐름 — 한국 체류: PayPal.Me QR 패널 (lazy). */}
+      {selected && showPayment && paymentRoute === 'kr-bank' && (
+        <div className="mt-2">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading QR payment...
+              </div>
+            }
+          >
+            <PayPalQrPanel
+              productType={selected.productType}
+              passengers={pax}
+              dateStart={date}
+              dateEnd={date}
+              priceKRW={selected.priceKRW}
+              pickupLocation={selected.label}
+              memo={`Inline booking from plan ${planId || ''} — ${title}`}
+              customerEmail={userEmail}
+              onBack={() => setPaymentRoute(null)}
             />
           </Suspense>
         </div>

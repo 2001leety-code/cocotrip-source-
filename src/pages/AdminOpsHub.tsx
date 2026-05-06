@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Calendar, BarChart3, Truck, MessageSquare, DollarSign, Filter, Star } from 'lucide-react';
+import { Calendar, BarChart3, Truck, MessageSquare, DollarSign, Filter, Star, Wallet } from 'lucide-react';
 import DispatchTimeline from '@/components/admin/DispatchTimeline';
 import TelegramLogs from '@/components/admin/TelegramLogs';
 import ProfitSettlement from '@/components/admin/ProfitSettlement';
@@ -33,7 +33,10 @@ export default function AdminOpsHub() {
             </h1>
             <p className="text-gray-400 text-sm mt-1">배차, 정산, 리뷰, CS를 한곳에서 관리하세요.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            <Link to="/admin/payments" className="px-4 py-2 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-lg text-sm font-medium transition-colors text-amber-200 flex items-center gap-2">
+              <Wallet className="w-4 h-4" /> PayPal 결제
+            </Link>
             <Link to="/admin/calendar" className="px-4 py-2 bg-[#1a1b26] hover:bg-gray-800 border border-gray-800 rounded-lg text-sm font-medium transition-colors text-gray-300 flex items-center gap-2">
               <Calendar className="w-4 h-4" /> 캘린더
             </Link>

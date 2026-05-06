@@ -2,14 +2,20 @@
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
-import type { MutableRefObject } from 'react';
+import { useState, lazy, Suspense, type MutableRefObject } from 'react';
 import {
-  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail,
+  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, Loader2,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
+import { KrPresenceGate, type PaymentRoute } from '@/components/KrPresenceGate';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
+
+// PayPal QR (한국 체류 외국인용) — lazy 로 분리해 EN 사용자 첫 paint 영향 0.
+const PayPalQrPanel = lazy(() =>
+  import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
+);
 
 interface QuickPreviewData {
   themes?: string[];
@@ -34,6 +40,9 @@ export function PurchaseSection({
   revisionMode, revisionPlanId, revisionToken,
   onPaymentSuccess, onRevisionRegenerate,
 }: PurchaseSectionProps) {
+  // 2026-05-06: 한국 체류 외국인 우회 결제 라우팅. null=게이트 / 'foreign'=Braintree
+  // (PayPalBookingButton) / 'kr-bank'=PayPal QR.
+  const [paymentRoute, setPaymentRoute] = useState<PaymentRoute | null>(null);
   return (
     <div className={isMobile
       ? 'm-card m-appear p-6 text-center relative overflow-hidden'
@@ -123,16 +132,49 @@ export function PurchaseSection({
           </button>
         ) : (
           <>
-            <PayPalBookingButton
-              productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
-              priceKRW={13300} p={p} lang={language}
-              memo={`Full itinerary for: ${userEmail}`}
-              itineraryData={resultQuick}
-              onPaymentSuccess={onPaymentSuccess}
-              userEmail={userEmail}
-            />
+            {/* 2026-05-06: 결제 진입 시 한국 체류 여부 게이트.
+                NO=foreign → 기존 Braintree (PayPalBookingButton).
+                YES=kr-bank → PayPal QR 패널 (한국 wifi 차단 우회). */}
+            {paymentRoute === null && (
+              <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-4">
+                <KrPresenceGate onChoose={setPaymentRoute} priceKRW={13300} />
+              </div>
+            )}
+
+            {paymentRoute === 'foreign' && (
+              <PayPalBookingButton
+                productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
+                priceKRW={13300} p={p} lang={language}
+                memo={`Full itinerary for: ${userEmail}`}
+                itineraryData={resultQuick}
+                onPaymentSuccess={onPaymentSuccess}
+                userEmail={userEmail}
+              />
+            )}
+
+            {paymentRoute === 'kr-bank' && (
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading QR payment...
+                  </div>
+                }
+              >
+                <PayPalQrPanel
+                  productType="ai-planner-full"
+                  passengers={1}
+                  priceKRW={13300}
+                  itineraryData={resultQuick}
+                  customerEmail={userEmail}
+                  onBack={() => setPaymentRoute(null)}
+                />
+              </Suspense>
+            )}
+
             {/* 2026-05-03: AI 플랜은 디지털 상품(즉시 다운로드 가능)이라 환불 불가.
-                소비자 사전 고지 의무 + 클레임 예방 차원에서 결제 직전 명시. */}
+                소비자 사전 고지 의무 + 클레임 예방 차원에서 결제 직전 명시.
+                2026-05-06 한국 체류 사용자는 운영자 매칭 후 발송 — 환불 가능 (수동). */}
             <p className="text-[11px] text-amber-300/80 italic text-center px-2 leading-relaxed">
               {(p as { aiPlanNoRefundNotice?: string }).aiPlanNoRefundNotice
                 || '⚠️ AI Plans are digital products delivered immediately and are non-refundable. Charter and tour bookings follow our standard refund policy.'}
