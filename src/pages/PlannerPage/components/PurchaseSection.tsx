@@ -7,15 +7,22 @@ import {
   Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, Loader2,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
-import { KrPresenceGate, type PaymentRoute } from '@/components/KrPresenceGate';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 
-// PayPal QR (한국 체류 외국인용) — lazy 로 분리해 EN 사용자 첫 paint 영향 0.
+// PayPal.Me QR fallback — 사용자 결제 실패 / 한국 wifi SDK CDN 차단 등 예외 케이스용.
+// 기본은 Braintree (PayPalBookingButton), 토글 클릭 시에만 노출. lazy 로 첫 paint 영향 0.
 const PayPalQrPanel = lazy(() =>
   import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
 );
+
+const FALLBACK_LABELS: Record<string, { trigger: string; back: string }> = {
+  ko: { trigger: '결제가 안 되시나요? 다른 방법으로 결제', back: '← 기본 결제로 돌아가기' },
+  en: { trigger: "Payment not working? Try alternative method", back: '← Back to default payment' },
+  ja: { trigger: 'お支払いができない場合は他の方法で', back: '← 通常の決済に戻る' },
+  zh: { trigger: '无法支付?试试其他方式', back: '← 返回默认支付' },
+};
 
 interface QuickPreviewData {
   themes?: string[];
@@ -40,9 +47,12 @@ export function PurchaseSection({
   revisionMode, revisionPlanId, revisionToken,
   onPaymentSuccess, onRevisionRegenerate,
 }: PurchaseSectionProps) {
-  // 2026-05-06: 한국 체류 외국인 우회 결제 라우팅. null=게이트 / 'foreign'=Braintree
-  // (PayPalBookingButton) / 'kr-bank'=PayPal QR.
-  const [paymentRoute, setPaymentRoute] = useState<PaymentRoute | null>(null);
+  // 기본 = Braintree (PayPal/카드 통합). 사용자가 결제 안 될 때만 fallback 토글
+  // 클릭 → PayPalQrPanel 노출. 위치/계정국 묻는 게이트 없음 (PayPal 정책상 외국인
+  // 계정은 위치 무관 결제 가능 — 정책 차단은 한국↔한국 등록 계정만 적용).
+  const [showFallback, setShowFallback] = useState(false);
+  const fbLang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
+  const fbL = FALLBACK_LABELS[fbLang];
   return (
     <div className={isMobile
       ? 'm-card m-appear p-6 text-center relative overflow-hidden'
@@ -132,32 +142,30 @@ export function PurchaseSection({
           </button>
         ) : (
           <>
-            {/* 2026-05-06: 결제 진입 시 한국 체류 여부 게이트.
-                NO=foreign → 기존 Braintree (PayPalBookingButton).
-                YES=kr-bank → PayPal QR 패널 (한국 wifi 차단 우회). */}
-            {paymentRoute === null && (
-              <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-4">
-                <KrPresenceGate onChoose={setPaymentRoute} priceKRW={13300} />
-              </div>
-            )}
-
-            {paymentRoute === 'foreign' && (
-              <PayPalBookingButton
-                productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
-                priceKRW={13300} p={p} lang={language}
-                memo={`Full itinerary for: ${userEmail}`}
-                itineraryData={resultQuick}
-                onPaymentSuccess={onPaymentSuccess}
-                userEmail={userEmail}
-              />
-            )}
-
-            {paymentRoute === 'kr-bank' && (
+            {!showFallback ? (
+              <>
+                <PayPalBookingButton
+                  productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
+                  priceKRW={13300} p={p} lang={language}
+                  memo={`Full itinerary for: ${userEmail}`}
+                  itineraryData={resultQuick}
+                  onPaymentSuccess={onPaymentSuccess}
+                  userEmail={userEmail}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowFallback(true)}
+                  className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors"
+                >
+                  {fbL.trigger}
+                </button>
+              </>
+            ) : (
               <Suspense
                 fallback={
                   <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading QR payment...
+                    Loading alternative payment...
                   </div>
                 }
               >
@@ -167,14 +175,19 @@ export function PurchaseSection({
                   priceKRW={13300}
                   itineraryData={resultQuick}
                   customerEmail={userEmail}
-                  onBack={() => setPaymentRoute(null)}
+                  onBack={() => setShowFallback(false)}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowFallback(false)}
+                  className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors"
+                >
+                  {fbL.back}
+                </button>
               </Suspense>
             )}
 
-            {/* 2026-05-03: AI 플랜은 디지털 상품(즉시 다운로드 가능)이라 환불 불가.
-                소비자 사전 고지 의무 + 클레임 예방 차원에서 결제 직전 명시.
-                2026-05-06 한국 체류 사용자는 운영자 매칭 후 발송 — 환불 가능 (수동). */}
+            {/* AI 플랜은 디지털 상품(즉시 다운로드)이라 환불 불가 — 소비자 사전 고지. */}
             <p className="text-[11px] text-amber-300/80 italic text-center px-2 leading-relaxed">
               {(p as { aiPlanNoRefundNotice?: string }).aiPlanNoRefundNotice
                 || '⚠️ AI Plans are digital products delivered immediately and are non-refundable. Charter and tour bookings follow our standard refund policy.'}
