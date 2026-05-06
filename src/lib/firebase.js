@@ -35,6 +35,20 @@ export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
 
+// LINE Login (OIDC). 외국인 VIP 타겟 — 일본·대만·태국·인도네시아 사용자 대상.
+// Firebase Console: Authentication → Sign-in method → Add new provider →
+// OpenID Connect → Provider ID 는 반드시 `oidc.line` (소문자, prefix 'oidc.' 강제)
+// → Client ID = LINE Channel ID, Client Secret = LINE Channel Secret
+// → Issuer URL = https://access.line.me
+// LINE Developers Console (https://developers.line.biz):
+// Provider 생성 → "LINE Login" channel 발급 → Callback URL 에
+// `https://<firebase-auth-domain>/__/auth/handler` 추가.
+// scopes: openid email profile (LINE 정책상 email scope 는 채널 검토 후 활성)
+export const lineProvider = new OAuthProvider('oidc.line');
+lineProvider.addScope('openid');
+lineProvider.addScope('email');
+lineProvider.addScope('profile');
+
 // UX: ensure Google account selection screen appears.
 googleProvider.setCustomParameters({
   prompt: 'select_account',
@@ -189,6 +203,25 @@ export async function signInWithApple() {
       return null;
     }
     const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
+    throw new Error(message);
+  }
+}
+
+// LINE 로그인: Popup 방식 (Firebase OIDC custom provider).
+// Firebase Console 에 Provider ID `oidc.line` 등록되지 않았으면
+// `auth/operation-not-allowed` 발생 — UI 에서 graceful 메시지로 안내.
+export async function signInWithLine() {
+  try {
+    const result = await signInWithPopup(auth, lineProvider);
+    await saveUserToFirestore(result.user);
+    return result.user;
+  } catch (err) {
+    const code = err?.code ?? '';
+    if (POPUP_FALLBACK_CODES.has(code)) {
+      await signInWithRedirect(auth, lineProvider);
+      return null;
+    }
+    const message = err instanceof Error ? err.message : 'LINE sign-in failed.';
     throw new Error(message);
   }
 }
