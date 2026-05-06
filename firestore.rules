@@ -303,6 +303,10 @@ service cloud.firestore {
     }
     match /admin_actions/{actionId}     { allow read: if isAdminEmail(); allow write: if false; }
 
+    // 2026-05-06: PayPal Webhook 자동 매칭 audit log (transmission-id keyed)
+    //   서버 전용 (Admin SDK), admin 만 읽기
+    match /paypal_webhook_log/{eventId} { allow read: if isAdminEmail(); allow write: if false; }
+
     // ─────────────────────────────────────────────────────────
     // 명시되지 않은 모든 경로는 기본 거부 (catch-all 제거!)
     // ─────────────────────────────────────────────────────────

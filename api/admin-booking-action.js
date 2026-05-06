@@ -36,6 +36,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
+import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 
 // 이메일 발송 헬퍼 — 실패해도 admin action 자체는 성공해야 (booking 상태 갱신은
 // 이미 끝났고, 이메일 누락은 admin 이 수동 재발송 가능).
@@ -135,119 +136,30 @@ export default async function handler(req, res) {
 
     // ──────── Action 1: mark-paid ────────────────────────────────────
     if (action === 'mark-paid') {
-      // 1. pending_bookings status 갱신
-      await pendingRef.update({
-        status: 'CONFIRMED',
-        paypalTransactionId: paypalTransactionId || null,
-        confirmedAt: FieldValue.serverTimestamp(),
-        confirmedByUid: adminUid,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      // 2. bookings 정식 컬렉션에 mirror — 사용자 MyPage / 어드민 통합 view 와 호환
-      const bookingId = paypalTransactionId || bookingRef;
-      await adminDb.collection('bookings').doc(bookingId).set({
-        captureID: bookingId,
+      // 공통 confirm 로직은 _shared/booking-confirm.js 로 추출 (paypal-webhook 과 공유)
+      const result = await confirmBookingAsPaid({
+        db: adminDb,
         bookingRef,
-        provider: 'paypal-manual',
-        status: 'CONFIRMED',
-        paymentStatus: 'manual_confirmed',
-        amountKRW: pending.priceKRW,
-        amountUSD: pending.priceUSD || null,
-        userEmail: pending.customerEmail,
-        customerPhone: pending.customerPhone || null,
-        productType: pending.productType,
-        tourDate: pending.dateStart || '',
-        tourEndDate: pending.dateEnd || '',
-        paxCount: pending.passengers || 1,
-        pickupLocation: pending.pickupLocation || '',
-        dropoffLocation: pending.dropoffLocation || '',
-        vehicleType: pending.vehicleType || '',
-        memo: pending.memo || '',
-        airport: pending.airport || null,
-        itineraryData: pending.itineraryData || null,
-        paymentMethod: pending.paymentMethod || 'paypal-me-qr',
-        paypalMeUrl: pending.paypalMeUrl || null,
-        confirmedByAdminUid: adminUid,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-
-      // 3. AI 플래너 자동 트리거 / booking-processor 호출 (이메일·바우처·텔레그램)
-      try {
-        const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
-        const isAiPlanner = String(pending.productType || '').startsWith('ai-planner');
-
-        if (isAiPlanner) {
-          // 2026-05-06: AI 플래너 server-side 자동 생성. paymentGate 의 manual provider
-          // 가 pending_bookings 의 status='CONFIRMED' 매칭으로 인증 → ai-planner-full
-          // 호출 → Firestore plans 저장 + 이메일 발송 + PDF 생성. 사용자에게 plan URL
-          // 포함된 confirm 이메일이 자동 발송됨.
-          if (pending.itineraryData && pending.itineraryData.regions) {
-            const aiPayload = {
-              ...pending.itineraryData,
-              paypalOrderId: `MANUAL-${bookingRef}`,
-              email: pending.customerEmail,
-              language: pending.language || 'en',
-              uid: pending.userId || null,
-            };
-            console.log('[admin-booking-action] triggering AI planner for', bookingRef);
-            // fire-and-forget — ai-planner-full 은 Vercel 5min 타임아웃이라 await 하면
-            // admin endpoint 자체 timeout. 결과는 사용자 이메일/MyPage 로 전달.
-            fetch(`${siteUrl}/api/ai-planner-full`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(aiPayload),
-            }).catch((e) => console.warn('[admin-booking-action] ai-planner-full failed:', e.message));
-          } else {
-            console.warn('[admin-booking-action] AI planner requested but itineraryData missing — admin must trigger manually');
-          }
-        } else {
-          // 차터/투어 — booking-processor 가 이메일/PDF 바우처/텔레그램 driver 알림
-          fetch(`${siteUrl}/api/booking-processor`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              orderID: bookingId,
-              payerEmail: pending.customerEmail,
-              payerName: (pending.customerEmail || '').split('@')[0],
-              amount: pending.priceUSD || (Number(pending.priceKRW) / 1380).toFixed(2),
-              product: pending.productType,
-              tourDate: pending.dateStart || '',
-              pickupLocation: pending.pickupLocation || '',
-              dropoffLocation: pending.dropoffLocation || '',
-              paxCount: pending.passengers || 1,
-              vehicleType: pending.vehicleType || '',
-              memo: pending.memo || '',
-              itineraryData: pending.itineraryData || null,
-              airport: pending.airport || null,
-            }),
-          }).catch((e) => console.warn('[admin-booking-action] booking-processor failed:', e.message));
-        }
-      } catch (procErr) {
-        console.warn('[admin-booking-action] downstream effects failed:', procErr.message);
+        paypalTransactionId,
+        source: 'admin',
+        adminUid,
+        adminEmail,
+      });
+      if (!result.ok) {
+        const status = result.code === 'NOT_FOUND' ? 404 : 400;
+        res.writeHead(status, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(result.error, result.code)));
       }
-
-      // 4. 텔레그램 booking #2 알림
-      const telText = [
-        '✅ <b>입금 확인 완료 (PayPal 매칭)</b>',
-        '',
-        `<b>예약번호:</b> <code>${bookingRef}</code>`,
-        `<b>상품:</b> ${pending.productType}`,
-        `<b>금액:</b> ₩${pending.priceKRW.toLocaleString('ko-KR')}`,
-        `<b>이메일:</b> ${pending.customerEmail}`,
-        paypalTransactionId ? `<b>PayPal TX:</b> <code>${paypalTransactionId}</code>` : null,
-        '',
-        '📩 <i>고객에게 결제 확정 안내 이메일 자동 발송 처리 중</i>',
-      ].filter(Boolean).join('\n');
-      notify('booking', telText).catch(() => {});
-
-      // 5. 사용자 4-lang 이메일 발송 (booking-processor 가 영수증 발송하지만,
-      //    AI 플래너 등 booking-processor 미경유 케이스 대비 명시적 confirm 메일).
-      sendCustomerNotification('confirmed', pending).catch(() => {});
-
       res.writeHead(200, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: true, data: { bookingRef, status: 'CONFIRMED', bookingId } }));
+      return res.end(JSON.stringify({
+        ok: true,
+        data: {
+          bookingRef,
+          status: 'CONFIRMED',
+          bookingId: result.bookingId,
+          ...(result.alreadyConfirmed ? { alreadyConfirmed: true } : {}),
+        },
+      }));
     }
 
     // ──────── Action 2: mark-refunded ────────────────────────────────
