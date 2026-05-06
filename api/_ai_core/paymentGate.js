@@ -23,9 +23,14 @@ import { captureError } from '../_shared/sentry.js';
 // PayPal order ID: 17자 alphanumeric (예: 5O190127TN364715T)
 // Braintree transaction ID: 8자 alphanumeric (예: bz4j8q3x) — 짧고 lowercase 위주
 // TEST orderId: 'TEST-' prefix
+// 2026-05-06: MANUAL- prefix — admin-booking-action 이 PayPal QR 결제 [입금 확인]
+//   클릭 시 server-side 로 ai-planner-full 트리거할 때 사용. orderId 형식:
+//   `MANUAL-${bookingRef}` (예: MANUAL-CT-20260506-XXX). pending_bookings doc 의
+//   status='CONFIRMED' 와 매칭으로 인증 — 위변조 시 매칭 실패로 reject.
 function detectProvider(orderId) {
   if (!orderId) return null;
   if (orderId.startsWith('TEST-')) return 'test';
+  if (orderId.startsWith('MANUAL-')) return 'manual';
   // PayPal orderId는 보통 17자 대문자+숫자. Braintree는 그보다 짧음 + 소문자 포함.
   // 정확한 판별은 Firestore에 provider 필드 저장이 더 안전 — 본 함수는 1차 추정.
   if (/^[A-Z0-9]{17,20}$/.test(orderId)) return 'paypal';
@@ -98,6 +103,36 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         );
       }
       console.log('[planner] ✅ TEST MODE accepted (env=' + env + ') — skipping payment verification for:', requestEmail || 'anonymous');
+    } else if (provider === 'manual') {
+      // 2026-05-06: PayPal QR 수동 결제 — admin 이 mark-paid 클릭 시 server-side 트리거.
+      // orderId 형식: `MANUAL-${bookingRef}` — pending_bookings 에서 status='CONFIRMED'
+      // 인 경우만 통과. 위변조 시 매칭 실패 + status mismatch 로 reject.
+      console.log('[planner] Manual PayPal QR mode | orderId:', paypalOrderId);
+      const bookingRef = paypalOrderId.replace(/^MANUAL-/, '');
+      if (!adminDb) {
+        return reject(500, 'FIRESTORE_UNAVAILABLE', 'Manual mode requires Firestore admin');
+      }
+      try {
+        const pendingDoc = await adminDb.collection('pending_bookings').doc(bookingRef).get();
+        if (!pendingDoc.exists) {
+          return reject(404, 'PENDING_NOT_FOUND', `pending_bookings/${bookingRef} not found`);
+        }
+        const pending = pendingDoc.data();
+        if (pending.status !== 'CONFIRMED') {
+          return reject(403, 'PAYMENT_NOT_CONFIRMED', `pending_bookings status: ${pending.status} (expected CONFIRMED)`);
+        }
+        // 멱등성: 같은 bookingRef 로 ai-planner-full 두 번 호출 차단
+        const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
+        const usedDoc = await usedRef.get();
+        if (usedDoc.exists) {
+          return reject(403, 'DUPLICATE_ORDER', 'AI plan already generated for this booking');
+        }
+        await usedRef.set({ usedAt: new Date().toISOString(), status: 'CONFIRMED', provider: 'manual', bookingRef });
+      } catch (e) {
+        console.error('[planner] Manual mode verify failed:', e.message);
+        await captureError(e, { route: 'paymentGate', step: 'manual_verify', orderId: paypalOrderId });
+        return reject(403, 'MANUAL_VERIFY_ERROR', e.message);
+      }
     } else if (provider === 'braintree') {
       // 2026-05-03: Braintree transaction 검증. braintreeCheckout.js가 이미 transaction
       // 생성 시 Firestore bookings에 저장 → 여기서는 status만 sanity check.

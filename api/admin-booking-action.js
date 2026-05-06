@@ -175,10 +175,35 @@ export default async function handler(req, res) {
 
       // 3. AI 플래너 자동 트리거 / booking-processor 호출 (이메일·바우처·텔레그램)
       try {
+        const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
         const isAiPlanner = String(pending.productType || '').startsWith('ai-planner');
-        if (!isAiPlanner) {
+
+        if (isAiPlanner) {
+          // 2026-05-06: AI 플래너 server-side 자동 생성. paymentGate 의 manual provider
+          // 가 pending_bookings 의 status='CONFIRMED' 매칭으로 인증 → ai-planner-full
+          // 호출 → Firestore plans 저장 + 이메일 발송 + PDF 생성. 사용자에게 plan URL
+          // 포함된 confirm 이메일이 자동 발송됨.
+          if (pending.itineraryData && pending.itineraryData.regions) {
+            const aiPayload = {
+              ...pending.itineraryData,
+              paypalOrderId: `MANUAL-${bookingRef}`,
+              email: pending.customerEmail,
+              language: pending.language || 'en',
+              uid: pending.userId || null,
+            };
+            console.log('[admin-booking-action] triggering AI planner for', bookingRef);
+            // fire-and-forget — ai-planner-full 은 Vercel 5min 타임아웃이라 await 하면
+            // admin endpoint 자체 timeout. 결과는 사용자 이메일/MyPage 로 전달.
+            fetch(`${siteUrl}/api/ai-planner-full`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(aiPayload),
+            }).catch((e) => console.warn('[admin-booking-action] ai-planner-full failed:', e.message));
+          } else {
+            console.warn('[admin-booking-action] AI planner requested but itineraryData missing — admin must trigger manually');
+          }
+        } else {
           // 차터/투어 — booking-processor 가 이메일/PDF 바우처/텔레그램 driver 알림
-          const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
           fetch(`${siteUrl}/api/booking-processor`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -199,9 +224,6 @@ export default async function handler(req, res) {
             }),
           }).catch((e) => console.warn('[admin-booking-action] booking-processor failed:', e.message));
         }
-        // AI 플래너의 경우: 별도 사용자 액션으로 ai-planner-full 호출 트리거 필요.
-        // 현재 흐름에선 운영자가 이메일에 "다음 24시간 내 플랜 발송" 안내 후 수동 처리.
-        // 향후: AI 플래너 itineraryData 활용해 server-side 자동 생성 가능 (별도 PR).
       } catch (procErr) {
         console.warn('[admin-booking-action] downstream effects failed:', procErr.message);
       }
