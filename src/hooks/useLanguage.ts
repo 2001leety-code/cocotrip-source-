@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, useCallback, createElement, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { translations, type Language } from '@/i18n';
+import { translations, loadLocale, getLocaleSync, type Language, type Translations } from '@/i18n';
 import { track } from '@/lib/posthog';
 
 type LanguageContextValue = {
   language: Language;
-  t: (typeof translations)[Language];
+  t: Translations;
   changeLanguage: (lang: Language) => void;
 };
 
@@ -47,7 +47,18 @@ function detectInitialLanguage(): Language {
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>(() => detectInitialLanguage());
-  const t = translations[language];
+  // 2026-05-06 번들 다이어트: locale 비동기 로드. 첫 paint 시엔 캐시 또는 EN fallback,
+  // 비-EN 사용자는 ~100ms 후 chunk 도착하면 setT 로 정확한 locale 적용.
+  const [t, setT] = useState<Translations>(() => getLocaleSync(language));
+
+  // language 변경 / 첫 진입 시 chunk 로드 → 캐시에 저장 + state 갱신
+  useEffect(() => {
+    let cancelled = false;
+    loadLocale(language).then((loaded) => {
+      if (!cancelled) setT(loaded);
+    });
+    return () => { cancelled = true; };
+  }, [language]);
 
   const changeLanguage = useCallback((lang: Language) => {
     setLanguage((prev) => {
