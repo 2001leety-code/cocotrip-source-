@@ -34,6 +34,24 @@ import { captureError } from './_shared/sentry.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
+import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
+import { sendEmail } from './_send-email.js';
+
+// 이메일 발송 헬퍼 — 실패해도 admin action 자체는 성공해야 (booking 상태 갱신은
+// 이미 끝났고, 이메일 누락은 admin 이 수동 재발송 가능).
+async function sendCustomerNotification(kind, booking) {
+  try {
+    if (!booking?.customerEmail) {
+      console.warn('[admin-booking-action] no customerEmail — skip email');
+      return;
+    }
+    const { subject, html, text } = buildManualPaymentEmail(kind, booking);
+    await sendEmail({ to: booking.customerEmail, subject, html, text });
+    console.log(`[admin-booking-action] customer email sent (${kind}):`, booking.customerEmail);
+  } catch (e) {
+    console.error(`[admin-booking-action] customer email (${kind}) failed:`, e.message);
+  }
+}
 
 export const config = { runtime: 'nodejs' };
 export const maxDuration = 30;
@@ -198,9 +216,13 @@ export default async function handler(req, res) {
         `<b>이메일:</b> ${pending.customerEmail}`,
         paypalTransactionId ? `<b>PayPal TX:</b> <code>${paypalTransactionId}</code>` : null,
         '',
-        '📩 <i>고객에게 영수증/플랜 자동 발송 처리 중</i>',
+        '📩 <i>고객에게 결제 확정 안내 이메일 자동 발송 처리 중</i>',
       ].filter(Boolean).join('\n');
       notify('booking', telText).catch(() => {});
+
+      // 5. 사용자 4-lang 이메일 발송 (booking-processor 가 영수증 발송하지만,
+      //    AI 플래너 등 booking-processor 미경유 케이스 대비 명시적 confirm 메일).
+      sendCustomerNotification('confirmed', pending).catch(() => {});
 
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: true, data: { bookingRef, status: 'CONFIRMED', bookingId } }));
@@ -245,6 +267,13 @@ export default async function handler(req, res) {
       ].filter(Boolean).join('\n');
       notify('booking', telText).catch(() => {});
 
+      // 사용자 4-lang 환불 안내 이메일
+      sendCustomerNotification('refunded', {
+        ...pending,
+        refundedKRW: refundKrw,
+        refundReason: reason || null,
+      }).catch(() => {});
+
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: true, data: { bookingRef, status: 'REFUNDED', refundedKRW: refundKrw } }));
     }
@@ -267,6 +296,12 @@ export default async function handler(req, res) {
         reason ? `<b>사유:</b> ${reason}` : null,
       ].filter(Boolean).join('\n');
       notify('booking', telText).catch(() => {});
+
+      // 사용자 4-lang 취소 안내 이메일
+      sendCustomerNotification('canceled', {
+        ...pending,
+        cancelReason: reason || null,
+      }).catch(() => {});
 
       res.writeHead(200, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: true, data: { bookingRef, status: 'CANCELED' } }));
