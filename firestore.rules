@@ -286,6 +286,24 @@ service cloud.firestore {
     match /telegram_throttle/{key}      { allow read, write: if false; }
 
     // ─────────────────────────────────────────────────────────
+    // 2026-05-06: PayPal Manual QR 결제 시스템
+    // pending_bookings — 한국 체류 외국인 사용자가 PayPal QR 결제 후 신고
+    //   read:   본인 customerEmail 일치 또는 admin
+    //   create: 서버 전용 (/api/manual-payment-request, Admin SDK 우회)
+    //   update: 서버 전용 (/api/admin-booking-action)
+    //   delete: admin 만
+    // admin_actions — 운영자 액션 audit log
+    //   서버 전용 (Admin SDK)
+    // ─────────────────────────────────────────────────────────
+    match /pending_bookings/{bookingRef} {
+      allow read: if isAdminEmail()
+                  || (isSignedIn() && resource.data.customerEmail == request.auth.token.email);
+      allow create, update: if false;
+      allow delete: if isAdminEmail();
+    }
+    match /admin_actions/{actionId}     { allow read: if isAdminEmail(); allow write: if false; }
+
+    // ─────────────────────────────────────────────────────────
     // 명시되지 않은 모든 경로는 기본 거부 (catch-all 제거!)
     // ─────────────────────────────────────────────────────────
   }

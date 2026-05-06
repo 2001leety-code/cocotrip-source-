@@ -1,0 +1,203 @@
+/**
+ * POST /api/manual-payment-request
+ *
+ * 한국 체류 외국인 사용자가 PayPal QR 로 결제 후 [결제 완료 신고] 누를 때 호출.
+ * Firestore `pending_bookings/{bookingRef}` 에 저장 + 텔레그램 booking 채널 알림.
+ *
+ * 운영자가 PayPal 알림 받고 거래내역 확인 후 admin UI 의 [입금 확인] 버튼 클릭하면
+ * /api/admin-booking-action 이 status='CONFIRMED' 로 전환 + AI 플랜 자동 생성 + 영수증.
+ *
+ * Body:
+ *   {
+ *     bookingRef,            // 'CT-YYYYMMDD-XXX' (frontend 생성)
+ *     productType,           // 'ai-planner-full' / 'charter_seoul_city' / ...
+ *     passengers, dateStart, dateEnd,
+ *     priceKRW, priceUSD,
+ *     customerEmail,         // 필수
+ *     customerPhone,         // 옵션
+ *     pickupLocation, dropoffLocation, vehicleType, memo,
+ *     itineraryData,         // AI 플래너 input 일 때 wizard preview (PDF/플랜 생성용)
+ *     airport,
+ *     paymentMethod: 'paypal-me-qr',
+ *     paypalMeUrl,
+ *     language               // 'ko' | 'en' | 'ja' | 'zh'
+ *   }
+ *
+ * Auth: optional (Bearer Firebase token). 비로그인 사용자도 신청 가능 — admin 이
+ * customerEmail 만으로 매칭 가능.
+ */
+import { captureError } from './_shared/sentry.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import { notify } from './_shared/notify.js';
+
+export const config = { runtime: 'nodejs' };
+export const maxDuration = 15;
+
+const JSON_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// 가격 sanity range (KRW) — 사기성 1원 결제 / 비정상 거대 금액 차단.
+const MIN_KRW = 5_000;
+const MAX_KRW = 50_000_000;
+
+const BOOKING_REF_PATTERN = /^CT-\d{8}-\d{3}$/;
+
+function _err(error, code = 'UNKNOWN_ERROR') {
+  return { ok: false, error, code };
+}
+
+export default async function handler(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200, JSON_HEADERS);
+    return res.end();
+  }
+  if (req.method !== 'POST') {
+    res.writeHead(405, JSON_HEADERS);
+    return res.end(JSON.stringify(_err('POST only', 'METHOD_NOT_ALLOWED')));
+  }
+
+  try {
+    let body = req.body;
+    if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
+    body = body || {};
+
+    const {
+      bookingRef,
+      productType,
+      passengers,
+      dateStart = '',
+      dateEnd = '',
+      priceKRW,
+      priceUSD,
+      customerEmail,
+      customerPhone,
+      pickupLocation = '',
+      dropoffLocation = '',
+      vehicleType = '',
+      memo = '',
+      itineraryData,
+      airport,
+      paymentMethod = 'paypal-me-qr',
+      paypalMeUrl,
+      language = 'en',
+    } = body;
+
+    // 필수 필드 검증
+    if (!bookingRef || !BOOKING_REF_PATTERN.test(String(bookingRef))) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify(_err('Invalid bookingRef format', 'INVALID_BOOKING_REF')));
+    }
+    if (!productType) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify(_err('productType required', 'MISSING_PRODUCT')));
+    }
+    if (!customerEmail || !String(customerEmail).includes('@')) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify(_err('customerEmail required', 'MISSING_EMAIL')));
+    }
+    const krw = Number(priceKRW);
+    if (!Number.isFinite(krw) || krw < MIN_KRW || krw > MAX_KRW) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify(_err(`priceKRW out of range (${MIN_KRW}~${MAX_KRW})`, 'INVALID_PRICE')));
+    }
+
+    // 옵션 인증 — Bearer 토큰이 있으면 verify 해서 uid 추가, 없어도 신청 허용
+    let userId = null;
+    const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
+    const tokenMatch = String(authHeader).match(/^Bearer\s+(.+)$/i);
+    if (tokenMatch) {
+      try {
+        const { getAuth } = await import('firebase-admin/auth');
+        const { getApps } = await import('firebase-admin/app');
+        if (getApps().length > 0) {
+          const decoded = await getAuth().verifyIdToken(tokenMatch[1]);
+          userId = decoded.uid;
+        }
+      } catch (e) {
+        // 토큰 검증 실패해도 신청은 허용 (로그인 우회 케이스 — 이메일만 받음)
+        console.warn('[manual-payment-request] token verify failed:', e.message);
+      }
+    }
+
+    // Firestore admin 초기화 + 멱등 저장
+    const adminDb = initAdminDb('manual-payment-request');
+    if (!adminDb) {
+      console.error('[manual-payment-request] Firestore admin unavailable');
+      res.writeHead(500, JSON_HEADERS);
+      return res.end(JSON.stringify(_err('Firestore unavailable', 'FIRESTORE_UNAVAILABLE')));
+    }
+
+    const docRef = adminDb.collection('pending_bookings').doc(bookingRef);
+    const existing = await docRef.get();
+
+    if (existing.exists) {
+      // 이미 신청된 booking — idempotent 응답 (사용자가 [신고] 두 번 눌러도 안전)
+      console.log('[manual-payment-request] idempotent — already exists:', bookingRef);
+      res.writeHead(200, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: true, data: { bookingRef, idempotent: true } }));
+    }
+
+    await docRef.set({
+      bookingRef,
+      productType,
+      passengers: Number(passengers) || 1,
+      dateStart, dateEnd,
+      priceKRW: krw,
+      priceUSD: priceUSD || null,
+      customerEmail: String(customerEmail).trim().toLowerCase(),
+      customerPhone: customerPhone ? String(customerPhone).trim() : null,
+      pickupLocation, dropoffLocation, vehicleType, memo,
+      itineraryData: itineraryData || null,
+      airport: airport || null,
+      paymentMethod,
+      paypalMeUrl: paypalMeUrl || null,
+      language,
+      userId,
+      status: 'AWAITING_VERIFICATION',
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 텔레그램 booking 채널 알림 — 운영자에게 PayPal 거래내역 확인 요청
+    try {
+      const text = [
+        '🏦 <b>새 PayPal QR 결제 신고</b>',
+        '',
+        `<b>예약번호:</b> <code>${bookingRef}</code>`,
+        `<b>상품:</b> ${productType}`,
+        `<b>금액:</b> ₩${krw.toLocaleString('ko-KR')} ($${priceUSD || (krw / 1380).toFixed(2)} USD)`,
+        `<b>인원:</b> ${Number(passengers) || 1}명`,
+        dateStart ? `<b>날짜:</b> ${dateStart}${dateEnd && dateEnd !== dateStart ? ` ~ ${dateEnd}` : ''}` : null,
+        `<b>이메일:</b> ${customerEmail}`,
+        customerPhone ? `<b>연락처:</b> ${customerPhone}` : null,
+        '',
+        '🔍 <i>PayPal 거래내역에서 <code>' + bookingRef + '</code> 메모 또는 ' + (customerEmail) + ' 이메일로 매칭 후</i>',
+        '✅ <i>admin UI 에서 [입금 확인] 클릭하세요</i>',
+      ].filter(Boolean).join('\n');
+
+      await notify('booking', text);
+    } catch (notifyErr) {
+      // 알림 실패해도 booking 저장은 성공 — silent log
+      console.warn('[manual-payment-request] telegram notify failed:', notifyErr.message);
+    }
+
+    console.log('[manual-payment-request] saved:', bookingRef, 'product:', productType, 'amount:', krw);
+
+    res.writeHead(200, JSON_HEADERS);
+    return res.end(JSON.stringify({
+      ok: true,
+      data: { bookingRef, status: 'AWAITING_VERIFICATION' },
+    }));
+  } catch (err) {
+    console.error('[manual-payment-request] failed:', err.message);
+    await captureError(err, { route: '/api/manual-payment-request', method: req.method });
+    res.writeHead(500, JSON_HEADERS);
+    return res.end(JSON.stringify(_err(err.message || 'internal error', 'INTERNAL_ERROR')));
+  }
+}
