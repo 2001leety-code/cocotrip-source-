@@ -23,31 +23,31 @@
 //   1. 옵션 카드 클릭 → 선택 표시
 //   2. 날짜·시간·pax 입력
 //   3. "결제 진행" 버튼 클릭 → Drop-in UI 펼침
-//   4. Braintree 결제 완료 → 성공 모달 (BraintreePaymentButton 가 자체 처리)
-//   5. Firestore booking 저장 + booking-processor 가 텔레그램 driver bot 알림
+//   4. paypal.me QR 결제 완료 → 사용자가 [결제 완료 신고] 클릭 (PayPalBookingButton
+//      = paypal.me wrapper, 5/6 Braintree LIVE 한국 미가입 확정 후 변경)
+//   5. /api/manual-payment-request → Firestore pending_bookings + 텔레그램 booking #1
+//      → 운영자 admin 매칭 또는 PayPal Webhook 자동 매칭 (PR #276)
 
 import { useState, lazy, Suspense } from 'react';
-import { Calendar, Users, Check, ChevronRight, Loader2 } from 'lucide-react';
+import { Calendar, Users, Check, ChevronRight, Loader2, Info } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 
-// Lazy import — BraintreePaymentButton + Drop-in 모듈은 결제 클릭 시점에만 로드.
-// PreTripSlide 가 항상 마운트되므로 eager import 시 첫 paint 번들에 포함되어
-// bundle-size budget (365kB) 초과. 실제 결제는 사용자가 클릭한 후에만 일어남.
-const BraintreePaymentButton = lazy(() =>
-  import('@/components/BraintreePaymentButton').then(m => ({ default: m.BraintreePaymentButton })),
+// 결제 — PayPalBookingButton 은 paypal.me QR 패널 wrapper (5/6 변경, Braintree LIVE
+// 한국 미가입 확정 후 Braintree 경유 흐름 전부 폐기). 클릭 시점에만 lazy 로드.
+const PayPalBookingButton = lazy(() =>
+  import('@/components/PayPalBookingButton').then(m => ({ default: m.PayPalBookingButton })),
 );
 
-// PayPal.Me QR fallback — 결제 실패 / 한국 wifi SDK 차단 등 예외 케이스용.
-// 기본 흐름 = Braintree, 토글 클릭 시에만 노출.
-const PayPalQrPanel = lazy(() =>
-  import('@/components/PayPalQrPanel').then(m => ({ default: m.PayPalQrPanel })),
+// 결제 전 안내 모달 — 한국 거주 외국인용 사전 안내 (네트워크/VPN/3DS).
+const PaymentGuidanceModal = lazy(() =>
+  import('@/components/PaymentGuidanceModal').then(m => ({ default: m.PaymentGuidanceModal })),
 );
 
-const FALLBACK_LABELS: Record<string, { trigger: string; back: string }> = {
-  ko: { trigger: '결제가 안 되시나요? 다른 방법으로 결제', back: '← 기본 결제로 돌아가기' },
-  en: { trigger: "Payment not working? Try alternative method", back: '← Back to default payment' },
-  ja: { trigger: 'お支払いができない場合は他の方法で', back: '← 通常の決済に戻る' },
-  zh: { trigger: '无法支付?试试其他方式', back: '← 返回默认支付' },
+const TRIGGER_LABELS: Record<string, { guide: string }> = {
+  ko: { guide: '한국에서 결제하시나요? 결제 전 안내 보기' },
+  en: { guide: 'Paying from Korea? Read tips before payment' },
+  ja: { guide: '韓国から決済? お支払い前のご案内' },
+  zh: { guide: '在韩国支付? 支付前请先阅读' },
 };
 
 export interface InlineBookingOption {
@@ -156,11 +156,12 @@ export function InlineBookingCard({
   const [time, setTime] = useState<string>('10:00');
   const [pax, setPax] = useState<number>(defaultPax);
   const [showPayment, setShowPayment] = useState(false);
-  // 2026-05-06: 결제 라우트 — null=게이트 표시 / 'foreign'=Braintree / 'kr-bank'=PayPal QR.
-  // 옵션 변경 시 reset 되어 사용자가 매번 선택하도록.
-  const [showFallback, setShowFallback] = useState(false);
+  // 5/6 변경: Braintree LIVE 한국 미가입 확정 → 단일 결제 흐름 (paypal.me QR via
+  // PayPalBookingButton wrapper). 위치 게이트 / Braintree↔QR 토글 모두 제거.
+  // 한국 결제 우려 사용자는 "결제 전 안내" 모달 (PaymentGuidanceModal) 자체 안내만 받음.
+  const [showGuide, setShowGuide] = useState(false);
   const fbLang = (['ko', 'en', 'ja', 'zh'].includes(lang) ? lang : 'en') as 'ko' | 'en' | 'ja' | 'zh';
-  const fbL = FALLBACK_LABELS[fbLang];
+  const triggerL = TRIGGER_LABELS[fbLang];
 
   const selected = options.find((o) => o.productType === selectedKey);
   const canProceed = !!selected && !!date && !!userEmail;
@@ -270,7 +271,7 @@ export function InlineBookingCard({
       {selected && !showPayment && (
         <button
           type="button"
-          onClick={() => { setShowPayment(true); setShowFallback(false); }}
+          onClick={() => { setShowPayment(true); }}
           disabled={!canProceed}
           className="w-full py-3.5 rounded-xl text-center text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
           style={{
@@ -291,26 +292,24 @@ export function InlineBookingCard({
         </button>
       )}
 
-      {/* 결제 진행 — 기본 = Braintree (PayPal/카드 통합 Drop-in).
-          토글 클릭 시 PayPal.Me QR fallback 노출 (결제 실패/네트워크 차단 케이스).
-          위치/체류 여부 게이트 없음 (PayPal 정책 = 계정 등록국 기준, 위치 무관). */}
-      {selected && showPayment && !showFallback && (
+      {/* 결제 진행 — paypal.me QR 단일 흐름 (PayPalBookingButton wrapper). 위치 게이트
+          / Braintree↔QR 토글 모두 제거 (5/6 Braintree LIVE 한국 미가입 확정 후). */}
+      {selected && showPayment && (
         <div className="mt-2 flex flex-col gap-2">
           <Suspense
             fallback={
               <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Loading payment options...
+                Loading payment...
               </div>
             }
           >
-            <BraintreePaymentButton
+            <PayPalBookingButton
               productType={selected.productType}
               passengers={pax}
               dateStart={date}
               dateEnd={date}
               priceKRW={selected.priceKRW}
-              p={{}}
               lang={lang}
               pickupLocation={selected.label}
               memo={`Inline booking from plan ${planId || ''} — ${title}`}
@@ -319,44 +318,22 @@ export function InlineBookingCard({
           </Suspense>
           <button
             type="button"
-            onClick={() => setShowFallback(true)}
-            className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors self-center"
+            onClick={() => setShowGuide(true)}
+            className="inline-flex items-center justify-center gap-1.5 text-[11px] text-white/55 hover:text-white/85 underline underline-offset-2 transition-colors self-center"
           >
-            {fbL.trigger}
+            <Info className="w-3 h-3" />
+            {triggerL.guide}
           </button>
         </div>
       )}
 
-      {selected && showPayment && showFallback && (
-        <div className="mt-2 flex flex-col gap-2">
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center gap-2 py-4 text-sm text-white/55">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading alternative payment...
-              </div>
-            }
-          >
-            <PayPalQrPanel
-              productType={selected.productType}
-              passengers={pax}
-              dateStart={date}
-              dateEnd={date}
-              priceKRW={selected.priceKRW}
-              pickupLocation={selected.label}
-              memo={`Inline booking from plan ${planId || ''} — ${title}`}
-              customerEmail={userEmail}
-              onBack={() => setShowFallback(false)}
-            />
-          </Suspense>
-          <button
-            type="button"
-            onClick={() => setShowFallback(false)}
-            className="text-[11px] text-white/45 hover:text-white/70 underline underline-offset-2 transition-colors self-center"
-          >
-            {fbL.back}
-          </button>
-        </div>
+      {showGuide && (
+        <Suspense fallback={null}>
+          <PaymentGuidanceModal
+            onClose={() => setShowGuide(false)}
+            onUseFallback={() => setShowGuide(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
