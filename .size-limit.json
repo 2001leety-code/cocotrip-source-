@@ -2,7 +2,7 @@
   {
     "name": "Main bundle (eager — first paint critical, all index-* chunks)",
     "path": "dist/assets/index-*.js",
-    "limit": "395 KB",
+    "limit": "260 KB",
     "gzip": true
   },
   {
@@ -18,9 +18,9 @@
     "gzip": true
   },
   {
-    "name": "Vendor: React (eager)",
+    "name": "Vendor: React (eager — react + react-dom + react-router-dom)",
     "path": "dist/assets/vendor-react-*.js",
-    "limit": "20 KB",
+    "limit": "80 KB",
     "gzip": true
   },
   {

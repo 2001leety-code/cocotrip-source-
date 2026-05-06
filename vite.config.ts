@@ -64,15 +64,23 @@ export default defineConfig({
       output: {
         // 모바일 첫 로드 속도 최적화 — vendor를 작은 단위로 쪼개 병렬 다운로드.
         // 라우트별 lazy chunk와 함께 캐싱 효율 향상 (firebase 업데이트 시 react는 캐시 hit).
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-firebase-core': ['firebase/app', 'firebase/auth'],
-          'vendor-firebase-firestore': ['firebase/firestore'], // 가장 무거움 → 분리
-          'vendor-firebase-storage': ['firebase/storage'],
-          'vendor-icons': ['lucide-react'],          // ~60KB gz, 자주 안 바뀜
-          'vendor-motion': ['framer-motion'],        // ~70KB gz, 페이지 전환에 필수
-          'vendor-pdf': ['html2canvas'],             // 결제 후 PDF 페이지에서만 필요
-          'vendor-sonner': ['sonner'],
+        // 2026-05-06: i18n locale chunk 파일명 명시화 (i18n-ko / i18n-ja / i18n-zh) —
+        // 디버깅 용이성 + CDN 모니터링.
+        manualChunks(id) {
+          if (id.includes('src/i18n/locales/ko.json')) return 'i18n-ko';
+          if (id.includes('src/i18n/locales/ja.json')) return 'i18n-ja';
+          if (id.includes('src/i18n/locales/zh.json')) return 'i18n-zh';
+          if (id.includes('node_modules/react-router-dom')) return 'vendor-react';
+          if (id.includes('node_modules/react-dom')) return 'vendor-react';
+          if (/node_modules\/react\//.test(id) || /node_modules\/react$/.test(id)) return 'vendor-react';
+          if (id.includes('node_modules/firebase/firestore')) return 'vendor-firebase-firestore';
+          if (id.includes('node_modules/firebase/storage')) return 'vendor-firebase-storage';
+          if (id.includes('node_modules/firebase/app') || id.includes('node_modules/firebase/auth')) return 'vendor-firebase-core';
+          if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
+          if (id.includes('node_modules/framer-motion')) return 'vendor-motion';
+          if (id.includes('node_modules/html2canvas')) return 'vendor-pdf';
+          if (id.includes('node_modules/sonner')) return 'vendor-sonner';
+          return undefined;
         },
       },
     },
