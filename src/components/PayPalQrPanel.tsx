@@ -210,6 +210,12 @@ export function PayPalQrPanel({
   const username = (import.meta.env.VITE_PAYPAL_ME_USERNAME as string | undefined)?.trim() || '';
   const usdRate = Number((import.meta.env.VITE_USD_KRW_RATE as string | undefined) || '1380');
 
+  // Admin TEST 모드 — 로그인한 사용자 email 이 ADMIN_EMAIL 과 일치 시 결제 우회 + 즉시
+  // confirm. 백엔드 (api/manual-payment-request) 가 토큰의 authenticatedEmail 검증해서
+  // 위변조 차단 — 프론트는 UI 표시만 담당. body.customerEmail 위장 시도해도 백엔드가 거부.
+  const adminEmailEnv = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined)?.trim().toLowerCase() || '';
+  const isAdminTest = !!(adminEmailEnv && user?.email && user.email.toLowerCase() === adminEmailEnv);
+
   // KRW → USD 환산 (정수, 소수 둘째 자리). PayPal.Me 는 USD 권장 — KRW 직접 미지원.
   const usdAmount = (priceKRW / usdRate).toFixed(2);
   const paypalUrl = username ? `https://paypal.me/${username}/${usdAmount}USD` : '';
@@ -311,6 +317,21 @@ export function PayPalQrPanel({
 
   return (
     <div className="space-y-5">
+      {/* Admin TEST 모드 배너 — 일반 사용자 무영향 */}
+      {isAdminTest && (
+        <div className="rounded-xl p-3.5 border" style={{
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(234,83,126,0.06))',
+          borderColor: 'rgba(245,158,11,0.40)',
+        }}>
+          <p className="text-[12px] font-bold text-amber-200 mb-0.5">🧪 ADMIN TEST 모드</p>
+          <p className="text-[11px] text-white/75 leading-relaxed">
+            {lang === 'ko'
+              ? '결제 단계 우회 — [결제 완료 신고] 클릭 시 즉시 confirm + AI 플래너/booking-processor 자동 트리거됩니다. paypal.me QR 스캔 불필요.'
+              : '[Admin] Payment step bypassed — clicking "Report Payment" triggers immediate confirm + downstream effects without real charge.'}
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-[#0070BA]/15 border border-[#0070BA]/30 flex items-center justify-center shrink-0">
           <Smartphone className="w-5 h-5 text-[#3CB6FF]" />
