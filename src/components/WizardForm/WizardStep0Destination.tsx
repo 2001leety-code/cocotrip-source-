@@ -5,7 +5,7 @@
 // (Jagalchi for 부산, OlleTrail for 제주, DMZ only for 서울, etc.) append.
 // Falls back to legacy ACTIVITY_KEYS when no city is selected yet so the
 // "before you pick a city" view isn't empty.
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Sparkles, Check } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS, getActivitiesForCities } from './data';
@@ -45,6 +45,17 @@ export function WizardStep0Destination(props: Step0Props) {
     setMainCity, setMainCityKey, setExtraCities, setSelectedActivities, setFreeText,
     allCities, canGoStep1, getCityName, toggleActivity, toggleCity, isCitySelected, onPrev, onNext,
   } = props;
+
+  // 입력 가드: 사용자가 Next를 한 번 눌러야 오류 표시 (첫 진입 시 빨간 테두리 없음)
+  const [showErrors, setShowErrors] = useState(false);
+
+  function handleNext() {
+    if (!canGoStep1) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
+  }
 
   // P9: derived activity keys — falls back to legacy full list when no city
   // chosen so first-time visitors still see something to click.
@@ -97,6 +108,9 @@ export function WizardStep0Destination(props: Step0Props) {
             <span className="ml-2 text-[#7C5CFC] font-bold">{allCities.length} {p.wizardCitySelected || 'selected'}</span>
           )}
         </p>
+        {showErrors && !mainCity && (
+          <p className="text-[11px] text-red-400 mb-2">{(p as Record<string, string>).wizardFillRequired || 'Please select a city'}</p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {CITY_CHIPS.map(({ key, icon }) => {
             const cityName = getCityName(key);
@@ -135,6 +149,9 @@ export function WizardStep0Destination(props: Step0Props) {
       {/* Activities — P9: city-aware, universal chips first then city-specific */}
       <div>
         <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardActivities || 'What interests you?'}</p>
+        {showErrors && selectedActivities.length === 0 && (
+          <p className="text-[11px] text-red-400 mb-1">{(p as Record<string, string>).wizardCheckRequired || 'Please select at least one activity'}</p>
+        )}
         <p className="text-xs text-white/55 mb-3">
           {selectedCityKeys.length > 0
             ? (p.wizardActivitiesHintCity || `Tailored for ${allCities.join(', ')}`)
@@ -181,10 +198,9 @@ export function WizardStep0Destination(props: Step0Props) {
       {/* Nav — back to reservation status if available */}
       <WizardNav
         onPrev={onPrev}
-        onNext={onNext}
+        onNext={handleNext}
         prevLabel={p.planner_prev || 'Back'}
         nextLabel={p.wizardFoodTitle || 'Next: Food Preferences'}
-        disabled={!canGoStep1}
         isMobile={isMobile}
       />
     </div>

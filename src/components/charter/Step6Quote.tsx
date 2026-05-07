@@ -174,9 +174,9 @@ function CutoffNotice({ state, i18n }: { state?: WizardState; i18n: ReturnType<t
       <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>
     );
   }
-  // multi_day → 48h, 외 → 24h
-  const cutoffHours = state.service === 'multi_day' ? 48 : 24;
-  const pickupTime = state.pickupTime ?? '09:00';
+  // 2026-05-07: 모든 케이스 12h 통일 (이전: 일반 24h / multi_day 48h).
+  const cutoffHours = 12;
+  const pickupTime = state.pickupTime ?? state.startTime ?? '09:00';
   const departureMs = new Date(`${state.startDate}T${pickupTime}:00+09:00`).getTime();
   if (isNaN(departureMs)) {
     return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>;

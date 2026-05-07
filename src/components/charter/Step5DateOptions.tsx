@@ -3,6 +3,16 @@ import type { WizardState, LodgingLocation } from './types';
 import { EXTRA_CHARGES } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
 
+/** 날짜+시각이 12h cutoff 이내인지 클라이언트에서 검사 (KST +09:00 기준). */
+function isWithin12hCutoff(date: string, time: string): boolean {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const t = time && /^\d{2}:\d{2}$/.test(time) ? time : '09:00';
+  const departure = new Date(`${date}T${t}:00+09:00`);
+  if (isNaN(departure.getTime())) return false;
+  const hoursLeft = (departure.getTime() - Date.now()) / 3_600_000;
+  return hoursLeft <= 12 && hoursLeft > -1; // -1 은 이미 지난 경우 (서버에서 차단)
+}
+
 interface Props {
   state: WizardState;
   patch: (p: Partial<WizardState>) => void;
@@ -86,6 +96,14 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
           />
         </div>
       </div>
+
+      {/* 12h cutoff 임박 경고 — 날짜+시간 선택 후 12h 이내이면 amber 배너 */}
+      {isWithin12hCutoff(state.startDate ?? '', state.startTime ?? '') && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 flex items-start gap-2">
+          <span className="text-base leading-none">⚠️</span>
+          <span>{i18n.bookingClosedMessage}</span>
+        </div>
+      )}
 
       {isMulti && (
         <>

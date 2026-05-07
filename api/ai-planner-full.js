@@ -77,6 +77,29 @@ export default async function handler(req, res) {
     // 인증된 email 사용 — body.email 무시 (downstream consumers 의 단일 source of truth).
     const requestEmail = authenticatedEmail;
 
+    // ── AI 플래너 출발일 검증: day1 = 오늘 불가 (내일 이후만) ─────────────────
+    // 정책 (2026-05-07 운영자 확정): AI 플래너는 디지털 상품이지만
+    //   오늘 날짜 시작은 부적절 — Gemini가 한국 로컬 정보를 기반으로 플랜 생성 시
+    //   최소 익일 출발을 전제로 설계됨. 12h cutoff 적용 대신 "오늘 = 불가" 단순 정책.
+    // 재생성(revision) 은 이미 결제된 플랜 → 날짜 변경 없으므로 체크 skip.
+    if (!gate.isRevision) {
+      const reqStartDate = body.date || body.startDate || '';
+      if (reqStartDate && /^\d{4}-\d{2}-\d{2}$/.test(reqStartDate)) {
+        // KST(+09:00) 오늘 날짜 계산
+        const nowKST = new Date(Date.now() + 9 * 3600 * 1000);
+        const todayKST = nowKST.toISOString().slice(0, 10); // YYYY-MM-DD
+        if (reqStartDate <= todayKST) {
+          console.warn('[ai-planner-full] day1 today rejected:', reqStartDate, 'today KST:', todayKST);
+          res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify(_err(
+            'Start date must be tomorrow or later. Today\'s trips cannot be planned via AI Planner.',
+            'PLANNER_DATE_TOO_SOON',
+            { details: `Requested: ${reqStartDate}, today KST: ${todayKST}` }
+          )));
+        }
+      }
+    }
+
     // ── 입력 파싱 ──────────────────────────────────────────────────────────
     const guestName = body.guest_name || body.guestName || 'Guest';
     const paxRaw = Number(body.pax) || Number(body.guest_count) || 2;

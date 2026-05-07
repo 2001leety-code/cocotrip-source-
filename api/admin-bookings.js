@@ -3,17 +3,27 @@
  * GET /api/admin-bookings
  * Headers: Authorization: Bearer <Firebase-ID-token>
  *
- * Google Sheets 'Bookings' 시트에서 최근 예약 50건을 읽어 JSON으로 반환.
+ * Firestore `bookings` 컬렉션에서 최근 예약 50건을 createdAt desc 로 읽어 JSON 으로 반환.
  * 인증: Firebase ID token (verifyIdToken) + ADMIN_EMAIL 검증.
+ *
+ * 2026-05-07: Google Sheets → Firestore 이관 (W3).
+ *   - 기존 admin-bookings.js 는 'Bookings' 시트 A:Z 를 읽어 헤더 자동 추출했으나
+ *     5/2 batch 의 "어드민 5탭 실데이터 100% Firestore" 정책과 모순되어 prod 에서
+ *     "예약 목록 로딩에 실패했습니다" 배너를 띄우는 구조적 문제 발생.
+ *   - admin-sales.js 와 동일한 Firestore 패턴 (initAdminDb + bookings 컬렉션) 으로 통일.
+ *   - Admin.tsx fetchBookings() 응답 호환: { ok: true, data: { bookings, total } }
+ *     bookings 는 한국어 키를 가진 평탄한 객체로, Admin.tsx 가 Object.keys 로 헤더를
+ *     자동 추출하므로 키 이름이 그대로 컬럼 헤더가 된다.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 
-// response.js는 CommonJS(module.exports) — Vercel ESM 런타임에서 named import 실패 사례 있어
-// 단순 wrapper는 inline 정의로 의존 제거.
+// response.js 는 CommonJS — Vercel ESM 런타임 named import 불안정해서 inline 정의.
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
+export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 const CORS = {
@@ -25,6 +35,71 @@ const CORS = {
 function json(res, status, body) {
   res.writeHead(status, { ...CORS, 'Content-Type': 'application/json' });
   return res.end(JSON.stringify(body));
+}
+
+// Firestore Timestamp | Date string | epoch | seconds-obj → ISO string ('' if none)
+function toIsoString(v) {
+  if (!v) return '';
+  try {
+    if (typeof v === 'string') return v;
+    if (typeof v.toDate === 'function') return v.toDate().toISOString();
+    if (typeof v._seconds === 'number') return new Date(v._seconds * 1000).toISOString();
+    if (v instanceof Date) return v.toISOString();
+    if (typeof v === 'number') return new Date(v).toISOString();
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+// 한국 운영자 보기 기준으로 핵심 필드만 평탄화.
+// Admin.tsx 가 Object.keys(list[0]) 로 헤더 자동 추출 → 키 이름이 컬럼 헤더가 된다.
+// 단, Admin.tsx 는 처음 8개 키만 표시하고 'memo|메모' 키만 추가로 끼워넣으므로
+// 우선순위 높은 8개를 앞쪽에 배치.
+function flattenBooking(id, b) {
+  const tourDate = b.tourDate || '';
+  const status = b.status || '';
+  const product = b.productType || '';
+  const email = b.userEmail || b.payerEmail || '';
+  const pax = b.paxCount || 0;
+  const amountUSD = parseFloat(b.amountUSD || '0') || 0;
+  const phone = b.customerPhone || '';
+  const vehicle = b.vehicleType || '';
+  const memo = b.memo || '';
+  const airportLabel = (() => {
+    if (!b.airport) return '';
+    if (typeof b.airport === 'string') return b.airport;
+    // airport 가 객체면 주요 필드 펼침 (terminal/flightNo/arrivalTime 등)
+    try {
+      const parts = [];
+      if (b.airport.terminal) parts.push(`T${b.airport.terminal}`);
+      if (b.airport.flightNo) parts.push(b.airport.flightNo);
+      if (b.airport.arrivalTime) parts.push(b.airport.arrivalTime);
+      return parts.join(' ');
+    } catch {
+      return '';
+    }
+  })();
+
+  return {
+    id,
+    bookingRef: b.bookingRef || id,
+    status,
+    productType: product,
+    tourDate,
+    paxCount: pax,
+    amountUSD,
+    email,
+    phone,
+    vehicle,
+    pickupLocation: b.pickupLocation || '',
+    dropoffLocation: b.dropoffLocation || '',
+    paymentMethod: b.paymentMethod || '',
+    couponApplied: b.couponApplied ? 'Y' : '',
+    driverAssigned: b.driverAssigned ? 'Y' : '',
+    createdAt: toIsoString(b.createdAt),
+    memo: airportLabel ? `${memo} | ${airportLabel}`.trim().replace(/^\|\s*/, '') : memo,
+  };
 }
 
 export default async function handler(req, res) {
@@ -39,49 +114,45 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { google } = await import('googleapis');
-    const clientEmail = (process.env.GOOGLE_CLIENT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
-    const privateKey = (process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n').trim();
-    const sheetId = (process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '').trim();
-
-    if (!clientEmail || !privateKey || !sheetId) {
-      return json(res, 500, _err('Google Sheets credentials not configured', 'CREDENTIALS_MISSING'));
+    const db = initAdminDb('admin-bookings');
+    if (!db) {
+      return json(res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
     }
 
-    const sheetsAuth = new google.auth.JWT(clientEmail, undefined, privateKey, [
-      'https://www.googleapis.com/auth/spreadsheets.readonly',
-    ]);
-    const sheets = google.sheets({ version: 'v4', auth: sheetsAuth });
+    // createdAt desc + limit 50 — 단일 필드 인덱스(자동 생성)로 충분.
+    // composite index 불필요 (where 조건 없음).
+    const snap = await db.collection('bookings')
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
 
-    // Bookings 시트에서 읽기 (A:Z 전체 범위)
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: 'Bookings!A:Z',
-    });
-
-    const rows = response.data.values || [];
-    if (rows.length < 2) {
+    if (snap.empty) {
       return json(res, 200, _ok({ bookings: [], total: 0 }));
     }
 
-    // 첫 행 = 헤더, 나머지 = 데이터
-    const headers = rows[0].map(h => h.toString().trim().toLowerCase());
-    const dataRows = rows.slice(1);
-
-    // 최신순 정렬 (마지막 행이 최신) → 역순으로 최대 50건
-    const bookings = dataRows.slice(-50).reverse().map((row, idx) => {
-      const obj = { id: `row-${dataRows.length - idx}` };
-      headers.forEach((h, i) => {
-        obj[h] = row[i] || '';
-      });
-      return obj;
+    const bookings = [];
+    snap.forEach((doc) => {
+      bookings.push(flattenBooking(doc.id, doc.data()));
     });
 
-    return json(res, 200, _ok({ bookings, total: dataRows.length }));
+    return json(res, 200, _ok({ bookings, total: bookings.length }));
 
   } catch (error) {
     console.error('[admin-bookings] Error:', error.message);
     await captureError(error, { route: '/api/admin-bookings', method: req.method });
-    return json(res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
+    // createdAt 필드가 없는 legacy 문서 때문에 orderBy 가 빈 결과를 줄 수 있다 —
+    // 단순 query 로 fallback (운영 안정성 우선).
+    try {
+      const db = initAdminDb('admin-bookings-fallback');
+      if (!db) {
+        return json(res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
+      }
+      const snap = await db.collection('bookings').limit(50).get();
+      const bookings = [];
+      snap.forEach((doc) => bookings.push(flattenBooking(doc.id, doc.data())));
+      return json(res, 200, _ok({ bookings, total: bookings.length }));
+    } catch {
+      return json(res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
+    }
   }
 }

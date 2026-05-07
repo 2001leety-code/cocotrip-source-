@@ -133,8 +133,9 @@ export default function AdminPlans() {
       <Toaster position="top-center" richColors />
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
-          <Link to="/admin" className="text-sm text-gray-500 hover:text-[#7C5CFC] flex items-center gap-1">
-            <ArrowLeft className="w-4 h-4" /> Admin
+          <Link to="/admin" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 hover:border-amber-500/50 text-sm font-medium transition-all duration-200 min-h-[44px]">
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <span>어드민 홈으로</span>
           </Link>
         </div>
 

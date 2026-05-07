@@ -853,6 +853,9 @@
     "wizardFreeInput": "가고 싶은 곳 직접 입력",
     "wizardFreeInputPh": "예) 서울에서 경복궁, 명동 꼭 가고 싶어요...",
     "wizardOptional": "선택사항",
+    "wizardFieldRequired": "필수 입력 항목입니다",
+    "wizardCheckRequired": "체크해주세요",
+    "wizardFillRequired": "여기 작성해주세요",
     "wizardAirportTitle": "어느 공항으로 입국하시나요?",
     "wizardAirportHint": "도착 공항을 선택하면 맞춤 픽업 서비스를 안내합니다.",
     "wizardAirportPh": "공항을 선택하세요",
@@ -1105,6 +1108,7 @@
     "luggageMediumSub": "24인치 정도",
     "luggageLarge": "대형 캐리어",
     "luggageLargeSub": "28인치 이상",
+    "luggageMaxNote": "캐리어 최대 7개까지 실을 수 있습니다 (기내 + 중형 + 대형 합계)",
     "mobility_title": "이동 편의성",
     "icn_t1": "ICN 제1터미널",
     "icn_t2": "ICN 제2터미널",
@@ -1332,7 +1336,11 @@
     "charterIntroChatBody": "12시간 이내 출발이 필요하신 경우 위자드 대신 화면 오른쪽 하단의 채팅창으로 문의 주세요. 운영자가 직접 응대해 드립니다.",
     "charterIntroDeadline": "예약 마감: 출발 24시간 전(국내) / 48시간 전(국제)",
     "charterIntroDontShow": "다시 보지 않기",
-    "charterIntroClose": "확인했어요"
+    "charterIntroClose": "확인했어요",
+    "todayConfirmTitle": "오늘 날짜로 시작하시나요?",
+    "todayConfirmBody": "오늘 날짜를 선택하셨습니다. 출발 시각이 임박하면 채팅으로 문의 주세요.",
+    "todayConfirmYes": "예, 오늘 시작",
+    "todayConfirmNo": "아니요, 다른 날짜"
   },
   "ads": {
     "kpopConcert": {
@@ -1644,6 +1652,7 @@
     }
   },
   "admin": {
+    "backToHome": "어드민 홈으로",
     "title": "관리자 대시보드",
     "subtitle": "투어 상품 관리 · 예약 목록 조회",
     "loading": "불러오는 중...",
@@ -1670,7 +1679,7 @@
     "bookings": {
       "title": "예약 목록",
       "count": "{n}건",
-      "source": "(Google Sheets)",
+      "source": "(Firestore)",
       "refresh": "새로고침",
       "empty": "등록된 예약이 없습니다"
     },
@@ -2010,7 +2019,7 @@
     "modifySaving": "저장 중...",
     "modifyNetworkError": "네트워크 오류",
     "bookingPickupTimeLabel": "픽업 시각",
-    "bookingCutoffNote": "예약 마감: 출발 24시간 전 (멀티데이는 48시간)",
+    "bookingCutoffNote": "예약 마감: 출발 12시간 전",
     "bookingCutoffImminent": "예약 마감 임박 ({N}시간 남음)",
     "bookingClosedTitle": "예약 마감",
     "bookingClosedMessage": "예약 마감 시간이 지났습니다. 빠른 예약은 챗 상담을 이용해주세요.",

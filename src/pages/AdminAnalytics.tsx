@@ -1,6 +1,6 @@
 // AdminAnalytics — 통계 대시보드 (Firestore 실데이터)
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, TrendingUp, Users, Calendar, Map as MapIcon, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Calendar, Map as MapIcon, ArrowUpRight, ArrowDownRight, Activity, Loader2, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -269,6 +269,14 @@ export default function AdminAnalytics() {
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white pt-20 px-4 pb-12 lg:px-8 font-sans">
       <div className="max-w-7xl mx-auto">
+
+        {/* 어드민 홈 링크 */}
+        <div className="mb-4">
+          <Link to="/admin" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500/50 text-sm font-medium transition-all duration-200 min-h-[44px]">
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <span>어드민 홈으로</span>
+          </Link>
+        </div>
 
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">

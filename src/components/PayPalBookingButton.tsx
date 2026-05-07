@@ -3,6 +3,7 @@ import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, Arro
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
 import { useLoyalty } from '@/hooks/useLoyalty';
+import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
@@ -117,6 +118,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // \ubcf4\uc720 \ucfe0\ud3f0 \u2014 \ubbf8\ub85c\uadf8\uc778 \uc2dc hook\uc740 \uc548\uc804 (loyalty=null, coupons=[]).
   const { activeCoupons } = useLoyalty();
+  // \uc774\uc288 18: userId \ud544\uc694 \u2014 Firestore \uac1c\uc778 \ucfe0\ud3f0 \uac80\uc99d \uc2dc backend\uc5d0 \uc804\ub2ec.
+  const { user: authUser } = useAuth();
+  const authUserId = authUser?.uid ?? null;
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
     ko: {
@@ -170,7 +174,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       const res = await fetch('/api/applyPromoCode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, productType, originalPrice: priceKRW }),
+        // 이슈 18 fix: userId 추가 — Firestore 개인 쿠폰(Trip Coins 5% 등) 검증에 필수.
+        // userId 없으면 backend verifyFirestoreCoupon()이 null 반환 → INVALID_CODE.
+        body: JSON.stringify({ code, productType, originalPrice: priceKRW, userId: authUserId }),
       });
       const json = await res.json();
       const d = json.data;
@@ -179,12 +185,16 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         setSavedAmount(d.savedAmount);
         setPromoApplied(true);
         setCouponDocId(d.couponDocId || null);
-        setCouponUserId(d.userId || null);
+        // 이슈 18 fix: userId는 authUserId로 직접 설정 (d.userId가 없을 경우 fallback).
+        setCouponUserId(d.userId || authUserId);
         setPromoCode(code);
         setPickerOpen(false);
         haptic('success');
       } else {
-        setPromoError(json.code === 'INVALID_CODE' || d?.error === 'promo_expired' ? pl.expired : pl.invalid);
+        // 이슈 19 fix: INVALID_CODE는 '미등록/만료된 코드' 가 아닌 '유효하지 않은 코드'.
+        // promo_expired / PROMO_LIMIT_REACHED 일 때만 pl.expired("Promotion ended") 표시.
+        const isExpired = json.code === 'PROMO_LIMIT_REACHED' || d?.error === 'promo_expired';
+        setPromoError(isExpired ? pl.expired : pl.invalid);
       }
     } catch {
       setPromoError(pl.invalid);
@@ -741,7 +751,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         </button>
       )}
 
-      {/* 🧪 Sandbox 테스트 바이패스 — TEST_ACCOUNTS만 보임 */}
+      {/* 🧪 어드민 결제 우회 — TEST_ACCOUNTS(운영자 본인)만 보임.
+           이슈 17 fix (2026-05-07): TEST- prefix → prod BRAINTREE_ENV 미설정 시 reject.
+           ADMIN-BYPASS- prefix 사용 — paymentGate.js가 Firebase ID token + admin email
+           이중 인증 후 허용. 클라이언트는 로그인된 상태(handlePaymentSuccess에서 authHeader
+           전달)이므로 추가 처리 불필요. */}
       {isSandboxAccount && onPaymentSuccess && (
         <button
           type="button"
@@ -749,9 +763,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             setLoading(true);
             setError(null);
             try {
-              await onPaymentSuccess(`TEST-${Date.now()}`);
+              await onPaymentSuccess(`ADMIN-BYPASS-${Date.now()}`);
             } catch (err) {
-              setError(err instanceof Error ? err.message : 'Test payment failed');
+              setError(err instanceof Error ? err.message : 'Admin bypass failed');
             } finally {
               setLoading(false);
             }
