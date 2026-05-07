@@ -2,26 +2,14 @@
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
-import { useState, lazy, Suspense, type MutableRefObject } from 'react';
+import { type MutableRefObject } from 'react';
 import {
-  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, Info,
+  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
-
-// 결제 전 안내 모달 — 한국 거주 외국인용 네트워크/VPN/3DS 사전 안내. 사용자가 명시적 클릭 시에만.
-const PaymentGuidanceModal = lazy(() =>
-  import('@/components/PaymentGuidanceModal').then(m => ({ default: m.PaymentGuidanceModal })),
-);
-
-const TRIGGER_LABELS: Record<string, { guide: string }> = {
-  ko: { guide: '한국에서 결제하시나요? 결제 전 안내 보기' },
-  en: { guide: 'Paying from Korea? Read tips before payment' },
-  ja: { guide: '韓国から決済? お支払い前のご案内' },
-  zh: { guide: '在韩国支付? 支付前请先阅读' },
-};
 
 interface QuickPreviewData {
   themes?: string[];
@@ -46,12 +34,8 @@ export function PurchaseSection({
   revisionMode, revisionPlanId, revisionToken,
   onPaymentSuccess, onRevisionRegenerate,
 }: PurchaseSectionProps) {
-  // 5/6 변경: Braintree LIVE 한국 미가입 확정 → 단일 결제 흐름 (paypal.me QR via
-  // PayPalBookingButton wrapper). 위치 게이트 / Braintree↔QR 토글 모두 제거.
-  // 한국 결제 우려 사용자는 PaymentGuidanceModal 안내만 받음.
-  const [showGuide, setShowGuide] = useState(false);
-  const fbLang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
-  const triggerL = TRIGGER_LABELS[fbLang];
+  // 5/7 변경: PayPalBookingButton 이 PayPal Smart Buttons (live) + SDK 차단 시 paypal.me QR
+  // fallback 통합. PurchaseSection 은 단순히 button 렌더만.
   return (
     <div className={isMobile
       ? 'm-card m-appear p-6 text-center relative overflow-hidden'
@@ -149,23 +133,6 @@ export function PurchaseSection({
               onPaymentSuccess={onPaymentSuccess}
               userEmail={userEmail}
             />
-            <button
-              type="button"
-              onClick={() => setShowGuide(true)}
-              className="inline-flex items-center justify-center gap-1.5 text-[11px] text-white/55 hover:text-white/85 underline underline-offset-2 transition-colors"
-            >
-              <Info className="w-3 h-3" />
-              {triggerL.guide}
-            </button>
-
-            {showGuide && (
-              <Suspense fallback={null}>
-                <PaymentGuidanceModal
-                  onClose={() => setShowGuide(false)}
-                  onUseFallback={() => setShowGuide(false)}
-                />
-              </Suspense>
-            )}
 
             {/* AI 플랜은 디지털 상품(즉시 다운로드)이라 환불 불가 — 소비자 사전 고지. */}
             <p className="text-[11px] text-amber-300/80 italic text-center px-2 leading-relaxed">

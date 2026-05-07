@@ -52,6 +52,23 @@ export function WizardStep1Food(props: Step1Props) {
         <p className="text-[13px] sm:text-sm text-white/55">{p.wizardFoodSub || "We'll recommend restaurants just for you"}</p>
       </div>
 
+      {/* 5/7 추가 — 할랄/비건 명시 안내 (사용자 요구사항). 식이제한 사용자가 누락하면
+          unverified_restaurant 위험 + 건강 안전 이슈 → 명시적 강조. */}
+      <div
+        className="flex items-start gap-2.5 px-4 py-3 rounded-xl border"
+        style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.25)' }}
+      >
+        <TriangleAlert className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+        <div className="text-[12px] text-white/80 leading-relaxed">
+          <p className="font-semibold text-amber-200 mb-0.5">
+            {p.wizardFoodDietaryHighlight || '⚠️ Halal / Vegan / Allergies — please select if applicable'}
+          </p>
+          <p className="text-white/65">
+            {p.wizardFoodDietaryHint || 'Selecting these helps us recommend restaurants matching your dietary needs along your route. Missing this can lead to unverified suggestions.'}
+          </p>
+        </div>
+      </div>
+
       {/* Diet style chips */}
       <div>
         <p className="text-sm text-white/50 mb-1 font-medium">{p.wizardFoodStyleLabel || 'Food Preferences'}</p>

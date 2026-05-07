@@ -3,23 +3,22 @@
 // Why first: backend RouteAgent quality jumps when arrival_time + airport are
 // known up front (recommends limousine vs AREX based on real arrival hour).
 // Previously we only collected this in step 3, by which time Gemini already
-// guessed during preview generation.
+// guessed during preview generation. Asking up front also lets us short-circuit
+// users who already booked everything → free-plan flow (P4 FreeClaimForm).
 //
-// 2026-05-05: simplified from 4 quadrants → 2 options. The free-claim
-// (`all_done`) and `flight_hotel` paths are removed since the free-claim
-// funnel was retired. Hotel address is collected only in Step 2.
+// 4 quadrant cards:
+//   nothing       — flight + hotel both not booked yet
+//   flight        — flight booked, hotel not
+//   flight_hotel  — both booked, AI plan still wanted
+//   all_done      — both booked AND user wants free claim flow (handoff to P4)
 //
-// 2 options:
-//   nothing — flight (and hotel) not booked yet
-//   flight  — flight booked, hotel may or may not be booked
-//
-// "flight" reveals a mini-form (airport + arrival HH:MM) so real airport/
-// time data is captured early. Hotel address is collected in step 2.
-import { Plane, X, ChevronRight } from 'lucide-react';
+// "flight" / "flight_hotel" reveal a mini-form (airport + arrival HH:MM) so
+// real airport/time data is captured early. Hotel address still goes in step 3.
+import { Plane, Hotel, CheckCheck, X, ChevronRight } from 'lucide-react';
 import type { WizardDict } from './types';
 import { getAirportOptions } from './helpers';
 
-export type ReservationStatus = 'nothing' | 'flight';
+export type ReservationStatus = 'nothing' | 'flight' | 'flight_hotel' | 'all_done';
 
 interface Step0ResProps {
   p: WizardDict;
@@ -31,21 +30,28 @@ interface Step0ResProps {
   setArrivalAirport: (v: string) => void;
   arrivalTime: string;
   setArrivalTime: (v: string) => void;
+  // P2 dedup: 호텔도 예약된 경우 (flight_hotel) Step0에서 호텔 주소 같이 받음.
+  hotelAddress: string;
+  setHotelAddress: (v: string) => void;
   mainCityKey: string;  // for airport options narrowing (defaults to seoul)
   onNext: () => void;
 }
 
-const QUESTIONS: { key: ReservationStatus; icon: React.ReactNode; titleKey: string; titleFb: string; subKey: string; subFb: string }[] = [
-  { key: 'nothing', icon: <X className="w-5 h-5" />,     titleKey: 'resNothingTitle', titleFb: 'Nothing booked yet', subKey: 'resNothingSub', subFb: 'Just exploring options' },
-  { key: 'flight',  icon: <Plane className="w-5 h-5" />, titleKey: 'resFlightTitle',  titleFb: 'Flight booked',      subKey: 'resFlightSub',  subFb: 'Need plan + (optionally) hotel' },
+const QUADS: { key: ReservationStatus; icon: React.ReactNode; titleKey: string; titleFb: string; subKey: string; subFb: string }[] = [
+  { key: 'nothing',      icon: <X className="w-5 h-5" />,          titleKey: 'resNothingTitle',     titleFb: 'Nothing booked yet',           subKey: 'resNothingSub',     subFb: 'Just exploring options' },
+  { key: 'flight',       icon: <Plane className="w-5 h-5" />,      titleKey: 'resFlightTitle',      titleFb: 'Flight booked',                subKey: 'resFlightSub',      subFb: 'Need hotel + plan' },
+  { key: 'flight_hotel', icon: <Hotel className="w-5 h-5" />,      titleKey: 'resFlightHotelTitle', titleFb: 'Flight + hotel booked',        subKey: 'resFlightHotelSub', subFb: 'Just need AI itinerary' },
+  { key: 'all_done',     icon: <CheckCheck className="w-5 h-5" />, titleKey: 'resAllDoneTitle',     titleFb: 'All booked through CocoTrip',  subKey: 'resAllDoneSub',     subFb: 'Just need the AI itinerary' },
 ];
 
 export function WizardStep0Reservation({
   p, isMobile, status, setStatus,
   arrivalAirport, setArrivalAirport, arrivalTime, setArrivalTime,
+  hotelAddress, setHotelAddress,
   mainCityKey, onNext,
 }: Step0ResProps) {
-  const showAirportForm = status === 'flight';
+  const showAirportForm = status === 'flight' || status === 'flight_hotel';
+  const showHotelForm = status === 'flight_hotel';
   const canContinue = status !== null && (
     !showAirportForm || (!!arrivalAirport && !!arrivalTime)
   );
@@ -63,13 +69,21 @@ export function WizardStep0Reservation({
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        {QUESTIONS.map(q => {
+        {QUADS.map(q => {
           const sel = status === q.key;
           const accent = isMobile ? '#B668FC' : '#7C5CFC';
           const title = (p[q.titleKey as keyof typeof p] as string) || q.titleFb;
           const sub = (p[q.subKey as keyof typeof p] as string) || q.subFb;
           return (
-            <button key={q.key} type="button" onClick={() => setStatus(q.key)}
+            // 2026-05-03 fix: 사용자가 'flight_hotel' 선택 후 호텔 입력했다가 다른 상태로 바꿀 때
+            // hotelAddress 잔존 → Step2에서 "수정" 버튼만 노출되어 입력 불가 버그 방지.
+            // status가 flight_hotel이 아닌 값으로 변경되면 hotelAddress 즉시 클리어.
+            <button key={q.key} type="button" onClick={() => {
+              setStatus(q.key);
+              if (q.key !== 'flight_hotel' && hotelAddress) {
+                setHotelAddress('');
+              }
+            }}
               className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
                 sel
                   ? 'border-transparent text-white shadow-lg'
@@ -108,13 +122,32 @@ export function WizardStep0Reservation({
                 className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-sm outline-none focus:border-[#7C5CFC]" />
             </div>
           </div>
+          {/* P2 dedup: 호텔도 예약된 경우 (flight_hotel) 호텔 주소도 함께 받음.
+              여기서 받으면 Step3에서 칩으로 보여 두 번 안 묻게 됨. */}
+          {showHotelForm && (
+            <div>
+              <label className="block text-[11px] text-white/50 mb-1">
+                {p.resHotelAddress || 'Hotel address'}
+                <span className="text-white/40 ml-1">({p.wizardOptional || 'optional'})</span>
+              </label>
+              <input type="text" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)}
+                placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/15 text-white placeholder-white/25 text-sm outline-none focus:border-[#7C5CFC]" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {status === 'all_done' && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-sm text-white/80 leading-relaxed">
+          {p.resAllDoneNote || "Great — you'll be redirected to the free-plan claim form on the next step. Upload your booking proof and we'll send your full itinerary within 24 hours."}
         </div>
       )}
 
       <button onClick={onNext} disabled={!canContinue}
         className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.03] transition-all"
         style={{ background: canContinue ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
-        {p.resNext || 'Continue'} <ChevronRight className="w-5 h-5" />
+        {status === 'all_done' ? (p.resGoClaim || 'Continue to free claim form') : (p.resNext || 'Continue')} <ChevronRight className="w-5 h-5" />
       </button>
     </div>
   );

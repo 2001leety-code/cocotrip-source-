@@ -29,26 +29,14 @@
 //      → 운영자 admin 매칭 또는 PayPal Webhook 자동 매칭 (PR #276)
 
 import { useState, lazy, Suspense } from 'react';
-import { Calendar, Users, Check, ChevronRight, Loader2, Info } from 'lucide-react';
+import { Calendar, Users, Check, ChevronRight, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 
-// 결제 — PayPalBookingButton 은 paypal.me QR 패널 wrapper (5/6 변경, Braintree LIVE
-// 한국 미가입 확정 후 Braintree 경유 흐름 전부 폐기). 클릭 시점에만 lazy 로드.
+// 결제 — PayPalBookingButton (PayPal Smart Buttons) + SDK 차단 시 paypal.me QR fallback 통합 (5/7 복구).
+// 클릭 시점에만 lazy 로드.
 const PayPalBookingButton = lazy(() =>
   import('@/components/PayPalBookingButton').then(m => ({ default: m.PayPalBookingButton })),
 );
-
-// 결제 전 안내 모달 — 한국 거주 외국인용 사전 안내 (네트워크/VPN/3DS).
-const PaymentGuidanceModal = lazy(() =>
-  import('@/components/PaymentGuidanceModal').then(m => ({ default: m.PaymentGuidanceModal })),
-);
-
-const TRIGGER_LABELS: Record<string, { guide: string }> = {
-  ko: { guide: '한국에서 결제하시나요? 결제 전 안내 보기' },
-  en: { guide: 'Paying from Korea? Read tips before payment' },
-  ja: { guide: '韓国から決済? お支払い前のご案内' },
-  zh: { guide: '在韩国支付? 支付前请先阅读' },
-};
 
 export interface InlineBookingOption {
   productType: string;       // braintreeCheckout 가 받는 키 (e.g. airport_seoul_central)
@@ -156,12 +144,8 @@ export function InlineBookingCard({
   const [time, setTime] = useState<string>('10:00');
   const [pax, setPax] = useState<number>(defaultPax);
   const [showPayment, setShowPayment] = useState(false);
-  // 5/6 변경: Braintree LIVE 한국 미가입 확정 → 단일 결제 흐름 (paypal.me QR via
-  // PayPalBookingButton wrapper). 위치 게이트 / Braintree↔QR 토글 모두 제거.
-  // 한국 결제 우려 사용자는 "결제 전 안내" 모달 (PaymentGuidanceModal) 자체 안내만 받음.
-  const [showGuide, setShowGuide] = useState(false);
-  const fbLang = (['ko', 'en', 'ja', 'zh'].includes(lang) ? lang : 'en') as 'ko' | 'en' | 'ja' | 'zh';
-  const triggerL = TRIGGER_LABELS[fbLang];
+  // 5/7 복구: PayPalBookingButton 이 PayPal Smart Buttons (live) + SDK 차단 시 paypal.me QR
+  // fallback 통합. 위치 게이트 / 안내 모달 / 외부 토글 모두 제거 — 단순 button 렌더만.
 
   const selected = options.find((o) => o.productType === selectedKey);
   const canProceed = !!selected && !!date && !!userEmail;
@@ -183,7 +167,7 @@ export function InlineBookingCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-base leading-tight mb-0.5">{title}</p>
-          <p className={`text-xs ${a.text}/80`}>{subtitle}</p>
+          <p className={`text-xs ${a.text}/80 whitespace-pre-line leading-relaxed`}>{subtitle}</p>
         </div>
         {badge && (
           <span className={`shrink-0 text-[10px] ${a.text} border ${a.border} rounded-full px-2.5 py-1 font-semibold`}
@@ -316,24 +300,7 @@ export function InlineBookingCard({
               userEmail={userEmail}
             />
           </Suspense>
-          <button
-            type="button"
-            onClick={() => setShowGuide(true)}
-            className="inline-flex items-center justify-center gap-1.5 text-[11px] text-white/55 hover:text-white/85 underline underline-offset-2 transition-colors self-center"
-          >
-            <Info className="w-3 h-3" />
-            {triggerL.guide}
-          </button>
         </div>
-      )}
-
-      {showGuide && (
-        <Suspense fallback={null}>
-          <PaymentGuidanceModal
-            onClose={() => setShowGuide(false)}
-            onUseFallback={() => setShowGuide(false)}
-          />
-        </Suspense>
       )}
     </div>
   );
