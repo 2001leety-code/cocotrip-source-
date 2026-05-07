@@ -34,160 +34,29 @@
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
 import { captureError } from '../_shared/sentry.js';
+import {
+  collectQualityCounts,
+  aggregateSummary,
+  hasSufficientDataForLLM,
+  llmFallbackText,
+} from '../_shared/quality-summary-helper.js';
+
+// PR-D (2026-05-07): 컬렉션 fetch + 집계 + 임계값 가드는 _shared/quality-summary-helper.js
+// 로 추출. admin-quality-summary 와 동일 spec 으로 단일 진실 원천 유지.
+
+// 본 파일은 cron flow 만 담당:
+//   1. helper.collectQualityCounts(db, sinceMs)  — 4 collection fetch + missing 표기
+//   2. helper.aggregateSummary({...})            — 요약 객체
+//   3. hasSufficientDataForLLM(summary)          — Gemini 호출 임계값 가드 (PR-D)
+//   4. callGemini(prompt) 또는 llmFallbackText() — LLM or 정적
+//   5. formatTelegramReport()                    — Telegram HTML
+//   6. Firestore weekly_quality_reports 보관
 
 // ── 상수 ──────────────────────────────────────────────────────────────
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-const REASON_LABELS_KO = {
-  wrong_address:     '주소 오류',
-  closed_restaurant: '폐업·운영 종료',
-  inefficient_route: '동선 비효율',
-  wrong_timing:      '시간 부정확',
-  other:             '기타',
-};
-
-const METRIC_KEYS = [
-  'dietary_violation',
-  'unverified_restaurant',
-  'field_completeness',
-  'route_failure',
-  'bad_address_prefix',
-  'language_mismatch',
-  'duplicate_stops',
-  'tight_schedule',
-  'loose_schedule',
-];
-
-const METRIC_LABELS_KO = {
-  dietary_violation:     '식이제한 위반',
-  unverified_restaurant: '미검증 식당',
-  field_completeness:    '필드 누락',
-  route_failure:         '경로 실패',
-  bad_address_prefix:    '주소 prefix 오류',
-  language_mismatch:     '언어 불일치',
-  duplicate_stops:       '중복 stop',
-  tight_schedule:        '빡빡한 일정',
-  loose_schedule:        '느슨한 일정',
-};
-
-// ── 유틸: createdAt → ms 변환 (Timestamp / number / string 모두 대응) ──
-function toMs(ts) {
-  if (typeof ts === 'number') return ts;
-  if (ts && typeof ts.toDate === 'function') return ts.toDate().getTime();
-  if (ts && typeof ts._seconds === 'number') return ts._seconds * 1000;
-  if (typeof ts === 'string') {
-    const t = Date.parse(ts);
-    return Number.isFinite(t) ? t : null;
-  }
-  return null;
-}
-
-// ── 집계 헬퍼 ────────────────────────────────────────────────────────
-function computeTopReasons(complaints) {
-  const counts = {};
-  for (const c of complaints) {
-    const key = c.reason || 'other';
-    counts[key] = (counts[key] || 0) + 1;
-  }
-  return Object.entries(counts)
-    .map(([reason, count]) => ({ reason, label: REASON_LABELS_KO[reason] || reason, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
-}
-
-function computeTopErrors(errors) {
-  const counts = {};
-  for (const e of errors) {
-    const key = e.errorKey || e.code || e.route || 'unknown';
-    counts[key] = (counts[key] || 0) + 1;
-  }
-  return Object.entries(counts)
-    .map(([key, count]) => ({ key, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
-}
-
-function computeTopMetrics(plans) {
-  const counts = {};
-  for (const key of METRIC_KEYS) counts[key] = 0;
-  for (const p of plans) {
-    const m = p.qualityScore?.metrics || {};
-    for (const key of METRIC_KEYS) {
-      counts[key] += (m[key]?.count || 0);
-    }
-  }
-  return Object.entries(counts)
-    .filter(([, count]) => count > 0)
-    .map(([metric, count]) => ({ metric, label: METRIC_LABELS_KO[metric] || metric, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
-}
-
-function planArea(p) {
-  return (p.input?.area || p.area || 'unknown').toString().toLowerCase().trim() || 'unknown';
-}
-
-function computeWorstAreas(plans) {
-  const agg = new Map(); // area → { count, sumScore, perMetric }
-  for (const p of plans) {
-    const area = planArea(p);
-    let cur = agg.get(area);
-    if (!cur) {
-      cur = { count: 0, sumScore: 0, perMetric: {} };
-      for (const k of METRIC_KEYS) cur.perMetric[k] = 0;
-      agg.set(area, cur);
-    }
-    cur.count += 1;
-    cur.sumScore += p.qualityScore?.score || 0;
-    const m = p.qualityScore?.metrics || {};
-    for (const k of METRIC_KEYS) {
-      cur.perMetric[k] += (m[k]?.count || 0);
-    }
-  }
-  const out = [];
-  for (const [area, cur] of agg.entries()) {
-    let worstMetric = null;
-    let worstCount = 0;
-    for (const k of METRIC_KEYS) {
-      if (cur.perMetric[k] > worstCount) {
-        worstCount = cur.perMetric[k];
-        worstMetric = k;
-      }
-    }
-    out.push({
-      area,
-      count: cur.count,
-      avgScore: Math.round((cur.sumScore / cur.count) * 10) / 10,
-      worstMetric,
-      worstMetricLabel: worstMetric ? METRIC_LABELS_KO[worstMetric] : null,
-      worstMetricCount: worstCount,
-    });
-  }
-  // 평균 score 낮은 순 (3개 이상인 area 만), 동률은 worstMetricCount 큰 순
-  return out
-    .filter((a) => a.count >= 1)
-    .sort((a, b) => a.avgScore - b.avgScore || b.worstMetricCount - a.worstMetricCount)
-    .slice(0, 3);
-}
-
-// ── 메인 집계 ───────────────────────────────────────────────────────
-export function aggregateSummary({ complaints, tickets, errors, plans }) {
-  const avgQualityScore = plans.length > 0
-    ? Math.round(plans.reduce((s, p) => s + (p.qualityScore?.score || 0), 0) / plans.length * 10) / 10
-    : 0;
-
-  return {
-    totalComplaints: complaints.length,
-    totalTickets: tickets.length,
-    totalErrors: errors.length,
-    plansGenerated: plans.length,
-    avgQualityScore,
-    topComplaintReasons: computeTopReasons(complaints),
-    topErrorKeys: computeTopErrors(errors),
-    topMetrics: computeTopMetrics(plans),
-    worstAreas: computeWorstAreas(plans),
-  };
-}
+// helper 에 동일 keys/labels 가 있지만 로컬 코드 호환 위해 export 유지.
+export { aggregateSummary };
 
 // ── Gemini 프롬프트 ──────────────────────────────────────────────────
 export function buildGeminiPrompt(summary) {
@@ -226,7 +95,10 @@ export function buildGeminiPrompt(summary) {
 }
 
 // ── Telegram 메시지 조립 ─────────────────────────────────────────────
-export function formatTelegramReport({ summary, geminiSummary, sinceMs, untilMs }) {
+export function formatTelegramReport({
+  summary, geminiSummary, sinceMs, untilMs,
+  collectionMissing = [],
+}) {
   const sinceDate = new Date(sinceMs);
   const untilDate = new Date(untilMs);
   const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
@@ -240,6 +112,11 @@ export function formatTelegramReport({ summary, geminiSummary, sinceMs, untilMs 
   const areaLine = summary.worstAreas.length > 0
     ? summary.worstAreas.map((a) => `${a.area}(${a.avgScore})`).join(', ')
     : '없음';
+
+  // PR-D: 수집 미작동 컬렉션이 있으면 메시지 상단에 명시 (운영자 즉시 인지)
+  const missingPrefix = (collectionMissing && collectionMissing.length > 0)
+    ? `⚠️ <b>수집 미작동 컬렉션</b>: ${collectionMissing.join(', ')}\n  → 데이터 수집 경로 점검 필요\n\n`
+    : '';
 
   const stats = [
     `📊 <b>주간 Quality 리포트</b> (${fmt(sinceDate)} ~ ${fmt(untilDate)})`,
@@ -259,7 +136,7 @@ export function formatTelegramReport({ summary, geminiSummary, sinceMs, untilMs 
     ? geminiSummary.trim()
     : '(Gemini 요약 실패 — Vercel 로그 확인)';
 
-  return `${stats}━━━ 🤖 AI 요약 ━━━\n${ai}\n\n🌐 cocotripkr.com/admin`;
+  return `${missingPrefix}${stats}━━━ 🤖 AI 요약 ━━━\n${ai}\n\n🌐 cocotripkr.com/admin`;
 }
 
 // ── Gemini 호출 (lazy import + failsafe) ─────────────────────────────
@@ -281,72 +158,6 @@ async function callGemini(prompt) {
   }
 }
 
-// ── Firestore 데이터 fetch ───────────────────────────────────────────
-async function fetchWeekData(db, sinceMs) {
-  const sinceDate = new Date(sinceMs);
-
-  // plan_complaints — createdAt 은 serverTimestamp (Firestore Timestamp)
-  const complaintsP = db.collection('plan_complaints')
-    .where('createdAt', '>=', sinceDate)
-    .get()
-    .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    .catch((e) => { console.warn('[weekly-quality] plan_complaints query failed:', e.message); return []; });
-
-  // cs_tickets — createdAt 은 serverTimestamp
-  const ticketsP = db.collection('cs_tickets')
-    .where('createdAt', '>=', sinceDate)
-    .get()
-    .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    .catch((e) => { console.warn('[weekly-quality] cs_tickets query failed:', e.message); return []; });
-
-  // error_log — Tier 2-E 머지 후 활성. 컬렉션 없거나 인덱스 없으면 빈 배열.
-  const errorsP = db.collection('error_log')
-    .where('createdAt', '>=', sinceDate)
-    .get()
-    .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    .catch((e) => {
-      console.warn('[weekly-quality] error_log query failed (Tier 2-E 미머지?):', e.message);
-      return [];
-    });
-
-  // plans — createdAtMs (number) 인덱스 사용 (admin-quality-summary 와 동일 패턴).
-  // 인덱스 누락 시 fallback: 최근 limit fetch 후 클라이언트 필터.
-  const plansP = (async () => {
-    try {
-      const snap = await db.collection('plans')
-        .where('createdAtMs', '>=', sinceMs)
-        .orderBy('createdAtMs', 'desc')
-        .limit(500)
-        .get();
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    } catch (e) {
-      console.warn('[weekly-quality] plans indexed query failed, using fallback:', e.message);
-      try {
-        const snap = await db.collection('plans')
-          .orderBy('createdAtMs', 'desc')
-          .limit(500)
-          .get();
-        return snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((p) => {
-            const ms = toMs(p.createdAtMs ?? p.createdAt);
-            return ms != null && ms >= sinceMs;
-          });
-      } catch (e2) {
-        console.warn('[weekly-quality] plans fallback also failed:', e2.message);
-        return [];
-      }
-    }
-  })();
-
-  const [complaints, tickets, errors, plansAll] = await Promise.all([complaintsP, ticketsP, errorsP, plansP]);
-
-  // qualityScore 보유 plan 만 집계 대상
-  const plans = plansAll.filter((p) => p.qualityScore && p.qualityScore.metrics && typeof p.qualityScore.score === 'number');
-
-  return { complaints, tickets, errors, plans };
-}
-
 // ── Vercel handler ───────────────────────────────────────────────────
 const weeklyQualityReportTask = async () => {
   console.log('[weekly-quality-report] 주간 리포트 시작');
@@ -362,17 +173,46 @@ const weeklyQualityReportTask = async () => {
   }
 
   try {
-    const { complaints, tickets, errors, plans } = await fetchWeekData(db, sinceMs);
-    console.log(`[weekly-quality-report] fetched: complaints=${complaints.length} tickets=${tickets.length} errors=${errors.length} plans=${plans.length}`);
+    // PR-D: helper 로 fetch + missing 감지 (silent fail 금지)
+    const {
+      complaints, tickets, errors, plans,
+      _collectionMissing, _collectionErrors,
+    } = await collectQualityCounts(db, sinceMs);
+    console.log(
+      `[weekly-quality-report] fetched: complaints=${complaints.length} tickets=${tickets.length} ` +
+      `errors=${errors.length} plans=${plans.length} missing=[${(_collectionMissing || []).join(',')}]`,
+    );
 
     const summary = aggregateSummary({ complaints, tickets, errors, plans });
 
-    // Gemini 요약 (failsafe)
-    const prompt = buildGeminiPrompt(summary);
-    const geminiSummary = await callGemini(prompt);
+    // PR-D 임계값 가드 — plans>=5 AND signals>=3 일 때만 Gemini 호출.
+    // 미달 시 정적 fallback 사용 (비용 + hallucination 방지).
+    let geminiSummary = '';
+    let geminiSkipReason = null;
+    if (hasSufficientDataForLLM(summary)) {
+      const prompt = buildGeminiPrompt(summary);
+      geminiSummary = await callGemini(prompt);
+      if (!geminiSummary) {
+        geminiSkipReason = 'gemini_failed';
+        geminiSummary = '(Gemini 요약 실패 — Vercel 로그 확인)';
+      }
+    } else {
+      geminiSkipReason = 'insufficient_data';
+      geminiSummary = llmFallbackText(summary, 'ko');
+      console.log('[weekly-quality-report] LLM 임계값 미달 → 정적 fallback 사용', {
+        plans: summary.plansGenerated,
+        signals: summary.totalTickets + summary.totalErrors + summary.totalComplaints,
+      });
+    }
 
-    // Telegram 발송
-    const telegramMsg = formatTelegramReport({ summary, geminiSummary, sinceMs, untilMs: now });
+    // Telegram 발송 (missing 알림 prefix 추가 — 운영자 수집 미작동 인지)
+    const telegramMsg = formatTelegramReport({
+      summary,
+      geminiSummary,
+      sinceMs,
+      untilMs: now,
+      collectionMissing: _collectionMissing,
+    });
     try {
       await sendLongMessage(telegramMsg);
     } catch (e) {
@@ -380,13 +220,16 @@ const weeklyQualityReportTask = async () => {
       await captureError(e, { route: 'cron/weekly-quality-report', step: 'telegram' });
     }
 
-    // Firestore 보관
+    // Firestore 보관 (missing 정보 + skip reason 함께 저장)
     try {
       await db.collection('weekly_quality_reports').add({
         generatedAt: now,
         window: { sinceMs, untilMs: now },
         summary,
         geminiSummary: geminiSummary || null,
+        geminiSkipReason: geminiSkipReason || null,
+        collectionMissing: _collectionMissing || [],
+        collectionErrors: _collectionErrors || {},
       });
     } catch (e) {
       console.warn('[weekly-quality-report] weekly_quality_reports save failed:', e.message);
@@ -399,6 +242,8 @@ const weeklyQualityReportTask = async () => {
         ok: true,
         summary,
         geminiSummaryLength: geminiSummary.length,
+        geminiSkipReason,
+        collectionMissing: _collectionMissing,
         window: { sinceMs, untilMs: now },
       },
     };
