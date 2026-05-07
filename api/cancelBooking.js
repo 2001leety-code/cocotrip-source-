@@ -14,7 +14,6 @@
 import { captureError } from './_shared/sentry.js';
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { getPaypalAccessToken } from './_shared/paypal.js';
-import { refundTransaction as braintreeRefund } from './_shared/braintree.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
@@ -165,20 +164,19 @@ export default async function handler(req, res) {
     const refundUSD = (originalUSD * policy.refundRatio).toFixed(2);
     const refundKRW = Math.round((booking.amountKRW || 0) * policy.refundRatio);
 
-    // 3. Refund — provider별 분기 (2026-05-03: Braintree 통합 추가)
-    const isBraintree = booking.provider === 'braintree';
+    // 3. PayPal Refund (2026-05-07: Braintree 통합 제거 — PayPal 단일).
+    // 잔여 booking 중 provider='braintree' 인 레거시 도큐먼트는 captureID 가
+    // Braintree transaction id 형식이라 PayPal /captures/{id}/refund 가 404 가 남.
+    // 운영자가 admin-payments UI 에서 manual refund 처리해야 함.
+    if (booking.provider === 'braintree') {
+      res.writeHead(409, JSON_CORS);
+      return res.end(JSON.stringify(_err(
+        'Legacy Braintree booking — manual refund required via admin-payments console.',
+        'LEGACY_BRAINTREE_BOOKING',
+      )));
+    }
     let refundData;
-    if (isBraintree) {
-      try {
-        const tx = policy.refundRatio < 1.0
-          ? await braintreeRefund(booking.captureID, refundUSD)
-          : await braintreeRefund(booking.captureID);
-        refundData = { id: tx.id, status: tx.status === 'submitted_for_settlement' ? 'PENDING' : 'COMPLETED' };
-      } catch (err) {
-        res.writeHead(502, JSON_CORS);
-        return res.end(JSON.stringify(_err(`Braintree refund failed: ${err.message}`, 'REFUND_FAILED')));
-      }
-    } else {
+    {
       const { accessToken: token, baseUrl } = await getPaypalAccessToken(isSandbox);
       const refundRes = await fetch(`${baseUrl}/v2/payments/captures/${booking.captureID}/refund`, {
         method: 'POST',

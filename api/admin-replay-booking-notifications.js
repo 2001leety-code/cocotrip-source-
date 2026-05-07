@@ -4,9 +4,10 @@
  * Headers: Authorization: Bearer <Firebase-ID-token>
  * Body:    { bookingId: string }
  *
- * 2026-05-04: braintreeCheckout 의 booking-processor 호출이 ReferenceError (tourDate
- * undefined) 로 죽으면서 Firestore 에는 booking 이 저장됐지만 텔레그램·이메일·Sheets·
- * PDF·Wallet 알림이 누락된 booking 들을 사후 복구하기 위한 admin 엔드포인트.
+ * 2026-05-04 ~ 2026-05-07: capturePaypalOrder 의 booking-processor fire-and-forget 호출이
+ * 네트워크 장애 등으로 죽으면서 Firestore 에는 booking 이 저장됐지만 텔레그램·이메일·
+ * Sheets·PDF·Wallet 알림이 누락된 booking 들을 사후 복구하기 위한 admin 엔드포인트.
+ * (원래 PR #221~PR #223 Braintree 통합 시점 ReferenceError 사고 대응으로 도입.)
  *
  * 동작:
  *   1. ADMIN_EMAIL 인증
@@ -72,7 +73,7 @@ export default async function handler(req, res) {
     const booking = doc.data();
 
     // booking-processor 가 기대하는 페이로드 형태로 재구성
-    // (braintreeCheckout 의 fetch body 와 동일 키)
+    // (capturePaypalOrder 의 fetch body 와 동일 키)
     const payload = {
       orderID: booking.captureID || bookingId,
       payerEmail: booking.userEmail || '',

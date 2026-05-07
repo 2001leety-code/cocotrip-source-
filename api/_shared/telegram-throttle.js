@@ -3,7 +3,7 @@
  *
  * 배경
  *   기존 sendErrorAlert / notify('error', ...) 호출은 매 에러마다 즉시 텔레그램 API 호출.
- *   동일 원인 (예: Gemini quota / Braintree 인증) 으로 5분 안에 100건 발생하면
+ *   동일 원인 (예: Gemini quota / PayPal 인증) 으로 5분 안에 100건 발생하면
  *   채팅창이 폭주해 운영자가 의미 있는 알림을 놓침.
  *
  * 동작

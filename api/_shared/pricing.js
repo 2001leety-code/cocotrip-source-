@@ -1,11 +1,10 @@
 /**
  * 가격 해석 SSOT — productType → KRW.
  *
- * 2026-05-03: createPaypalOrder.js 와 braintreeCheckout.js 두 곳에서 동일 로직
- * 사용하도록 추출. 이전엔 createPaypalOrder.js 내부 함수만 있어서 Braintree
- * 마이그레이션 PR #216 에서 ai-planner-full 외 다른 productType (charter,
- * airport_transfer, kpop_shuttle, combo) 지원이 빠져 있었음 — 결과: 차터 결제
- * 시도 시 "Unknown productType: airport_seoul_central" 400 에러.
+ * 2026-05-03: createPaypalOrder.js 와 (legacy) braintreeCheckout.js 두 곳에서 동일
+ * 로직 사용하도록 추출. 이전엔 createPaypalOrder.js 내부 함수만 있어서 ai-planner-full
+ * 외 다른 productType (charter, airport_transfer, kpop_shuttle, combo) 지원이 빠져
+ * 있었음. 2026-05-07 Braintree 제거 후엔 createPaypalOrder.js 단일 호출자.
  *
  * 데이터 출처: api/_pricing_spec.json (sync-pricing 스크립트가 src/data/pricing_spec.json
  * 에서 복사). 변경 시 양쪽 동기화 필요.
@@ -70,7 +69,7 @@ export const AI_PLANNER_LAUNCH_LABEL = 'Launch Special — 첫 100명 한정 50%
 // 2026-05-04 URGENT-1 fix: zone fallback 추정가 결제용 productType. 매트릭스에 없는
 // 장거리(부산 등)나 ICN 외 공항 출발도 wizard quote가 산출됐으면 결제 가능하게 함.
 // 가격은 productType 하드코딩이 아니라 client가 전달한 customAmountKRW 사용 —
-// 호출처(braintreeCheckout / createPaypalOrder)에서 sanity range 체크 후 적용.
+// 호출처(createPaypalOrder)에서 sanity range 체크 후 적용.
 export const CUSTOM_ESTIMATE_PRODUCT = 'charter_custom_estimate';
 export const CUSTOM_ESTIMATE_MIN_KRW = 30_000;     // 최소 결제 가드 (사기성 1원 결제 차단)
 export const CUSTOM_ESTIMATE_MAX_KRW = 10_000_000; // 차량 투어 1회 상한 (관리자 검토 임계치)
