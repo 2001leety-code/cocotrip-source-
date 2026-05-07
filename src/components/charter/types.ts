@@ -42,7 +42,10 @@ export interface WizardState {
   vehicle?: VehicleType;
   startDate?: string;            // YYYY-MM-DD
   endDate?: string;              // 1박 이상일 때만
-  startTime?: string;            // HH:mm
+  startTime?: string;            // HH:mm (Step5 — legacy, 옵션·야간 자동계산 입력)
+  // PR-R (2026-05-08): 픽업 시각. 예약 마감 정책 (24h/48h) 검증 기준.
+  // Step3 에서 30분 단위 select 로 입력. 비어 있으면 createPaypalOrder 가 09:00 으로 fallback.
+  pickupTime?: string;           // HH:mm — 픽업 시각 (KST). 마감 검증 기준.
   // 고객 정보 (Step 5에서 수집)
   customerName?: string;
   customerPhone?: string;
@@ -116,5 +119,6 @@ export const INITIAL_WIZARD_STATE: WizardState = {
   adultCount: 2,
   childCount: 0,
   vehicle: 'staria',
+  pickupTime: '09:00',  // PR-R: 마감 검증 기본값. Step3 select 로 사용자 변경 가능.
   options: {},
 };

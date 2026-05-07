@@ -1975,7 +1975,13 @@
     "modifySaveBtn": "保存更改",
     "modifyCancelBtn": "取消",
     "modifySaving": "保存中...",
-    "modifyNetworkError": "网络错误"
+    "modifyNetworkError": "网络错误",
+    "bookingPickupTimeLabel": "接送时间",
+    "bookingCutoffNote": "预订截止：出发前24小时（多日游：48小时）",
+    "bookingCutoffImminent": "预订即将截止（剩余{N}小时）",
+    "bookingClosedTitle": "预订已截止",
+    "bookingClosedMessage": "预订已截止。如需紧急预订，请使用聊天咨询。",
+    "bookingChatCta": "开始聊天"
   },
   "tourDetail": {
     "includedTitle": "包含",

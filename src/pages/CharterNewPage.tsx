@@ -210,6 +210,11 @@ function PaymentPanel({
           memo={state.notes ?? ''}
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}
+          // PR-R (2026-05-08): 마감 검증용 픽업 시각 + 멀티데이 일수
+          pickupTime={state.pickupTime ?? '09:00'}
+          durationDays={state.service === 'multi_day' && state.endDate && state.startDate
+            ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86400000) + 1)
+            : 1}
         />
       ) : isEstimateOnly && estimateKRW != null ? (
         // 2026-05-04 URGENT-1: quote 가 산출됐으면 바로 결제 가능. 약관 체크박스 단계 제거 —
@@ -233,6 +238,11 @@ function PaymentPanel({
             memo={state.notes ?? ''}
             itineraryData={{ wizard: state, airport: state.airport ?? null, estimateBreakdown: quote }}
             userEmail={userEmail}
+            // PR-R (2026-05-08): 마감 검증용 픽업 시각 + 멀티데이 일수
+            pickupTime={state.pickupTime ?? '09:00'}
+            durationDays={state.service === 'multi_day' && state.endDate && state.startDate
+              ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86400000) + 1)
+              : 1}
           />
           <p className="text-center text-xs text-white/55">
             <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>

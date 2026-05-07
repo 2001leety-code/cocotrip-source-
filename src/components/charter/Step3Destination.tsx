@@ -168,6 +168,36 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
           </p>
         )}
       </div>
+
+      {/* PR-R (2026-05-08): 픽업 시각 select. 예약 마감 정책 (24h/48h) 검증 기준.
+          30분 단위 06:00–22:00 (총 33개). 기본값 09:00. */}
+      <div className="pt-2 space-y-2">
+        <label htmlFor="charter-pickup-time" className="block text-xs uppercase tracking-wider text-white/55 font-semibold">
+          {i18n.bookingPickupTimeLabel}
+        </label>
+        <select
+          id="charter-pickup-time"
+          value={state.pickupTime ?? '09:00'}
+          onChange={(e) => patch({ pickupTime: e.target.value })}
+          className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-white/90 text-sm focus:border-[#B668FC]/50 focus:outline-none"
+        >
+          {PICKUP_TIME_OPTIONS.map(opt => (
+            <option key={opt} value={opt} className="bg-[#0f1628]">{opt}</option>
+          ))}
+        </select>
+        <p className="text-[11px] text-white/45 leading-snug">{i18n.bookingCutoffNote}</p>
+      </div>
     </div>
   );
 }
+
+// 30분 단위 06:00–22:00 — 33개 옵션
+const PICKUP_TIME_OPTIONS: string[] = (() => {
+  const out: string[] = [];
+  for (let h = 6; h <= 22; h++) {
+    const hh = h.toString().padStart(2, '0');
+    out.push(`${hh}:00`);
+    if (h < 22) out.push(`${hh}:30`);
+  }
+  return out;
+})();

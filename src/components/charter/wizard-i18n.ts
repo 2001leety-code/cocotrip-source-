@@ -157,6 +157,14 @@ export interface WizardI18n {
   modifyNoChanges: string;
   modifySaveBtn: string; modifyCancelBtn: string; modifySaving: string;
   modifyNetworkError: string;
+
+  // PR-R (2026-05-08): 예약 마감 정책 (24h/48h) + 픽업 시각 입력
+  bookingPickupTimeLabel: string;
+  bookingCutoffNote: string;                       // 영수증/Step3 안내문 (always-on)
+  bookingCutoffImminent: (hours: number) => string;// 마감 24h 미만 — amber 배너
+  bookingClosedTitle: string;
+  bookingClosedMessage: string;
+  bookingChatCta: string;
 }
 
 /** {key} 형태 placeholder 를 vars 로 치환. 누락된 키는 그대로 둔다. */
@@ -346,5 +354,13 @@ export function getWizardI18n(language: string): WizardI18n {
     modifyCancelBtn: get('modifyCancelBtn'),
     modifySaving: get('modifySaving'),
     modifyNetworkError: get('modifyNetworkError'),
+
+    // PR-R (2026-05-08): 예약 마감 정책 (24h/48h)
+    bookingPickupTimeLabel: get('bookingPickupTimeLabel'),
+    bookingCutoffNote: get('bookingCutoffNote'),
+    bookingCutoffImminent: (hours) => fmt(get('bookingCutoffImminent'), { N: hours }),
+    bookingClosedTitle: get('bookingClosedTitle'),
+    bookingClosedMessage: get('bookingClosedMessage'),
+    bookingChatCta: get('bookingChatCta'),
   };
 }

@@ -1975,7 +1975,13 @@
     "modifySaveBtn": "Save Changes",
     "modifyCancelBtn": "Cancel",
     "modifySaving": "Saving...",
-    "modifyNetworkError": "Network error"
+    "modifyNetworkError": "Network error",
+    "bookingPickupTimeLabel": "Pickup time",
+    "bookingCutoffNote": "Booking closes 24h before departure (multi-day: 48h)",
+    "bookingCutoffImminent": "Booking closing soon ({N}h left)",
+    "bookingClosedTitle": "Booking Closed",
+    "bookingClosedMessage": "Booking is closed. For urgent bookings, please contact us via chat.",
+    "bookingChatCta": "Open Chat"
   },
   "tourDetail": {
     "includedTitle": "Included",
