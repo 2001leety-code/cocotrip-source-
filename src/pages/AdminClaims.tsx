@@ -173,60 +173,60 @@ export default function AdminClaims() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white">
-      <div className="max-w-5xl mx-auto px-4 py-10">
-        <Link to="/admin" className="inline-flex items-center gap-1.5 text-white/55 text-sm hover:text-white/70 mb-6">
+    <div className="min-h-screen bg-[#0a0b14] text-white overflow-x-hidden">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
+        <Link to="/admin" className="inline-flex items-center gap-1.5 text-white/55 text-sm hover:text-white/70 mb-4 sm:mb-6 min-h-[44px]">
           <ArrowLeft className="w-3.5 h-3.5" /> 관리자 홈
         </Link>
 
-        <div className="flex items-center gap-3 mb-6">
-          <Shield className="w-7 h-7 text-amber-400" />
+        <div className="flex items-center gap-3 mb-5 sm:mb-6">
+          <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-amber-400 shrink-0" />
           <div>
-            <h1 className="text-2xl font-bold">신청·문의 관리</h1>
-            <p className="text-sm text-white/55">대기 중인 무료 플랜 신청 및 차터 문의를 승인 또는 거절</p>
+            <h1 className="text-xl sm:text-2xl font-bold">신청 · 문의 관리</h1>
+            <p className="text-xs sm:text-sm text-white/55">대기 중인 무료 플랜 신청 및 차터 문의 승인/거절</p>
           </div>
         </div>
 
-        {/* 회원가입 쿠폰 0건 회원 보정 (PR #253 silent fail 사후) */}
-        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 mb-6">
+        {/* 회원가입 쿠폰 0건 회원 보정 (PR #253 silent fail 사후) — 모바일 큰 입력/버튼 */}
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3 sm:p-4 mb-5 sm:mb-6">
           <div className="flex items-center gap-2 mb-2">
             <Gift className="w-4 h-4 text-emerald-400" />
             <h2 className="text-sm font-bold">회원가입 쿠폰 보정</h2>
           </div>
-          <p className="text-[11px] text-white/55 mb-3">
-            가입 후 5% 쿠폰 2장(차터·투어)이 발급되지 않은 회원을 1-click 보정. uid 또는 이메일 입력. 멱등(이미 발급됐으면 재발급 X).
+          <p className="text-xs sm:text-[11px] text-white/55 mb-3">
+            가입 후 5% 쿠폰 2장(차터·투어)이 발급되지 않은 회원을 1-click 보정. uid 또는 이메일 입력. 멱등 처리 (이미 발급됐으면 재발급 X).
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={couponFixInput}
               onChange={e => setCouponFixInput(e.target.value)}
               placeholder="uid 또는 이메일"
               disabled={couponFixBusy}
-              className="flex-1 px-3 py-2 bg-white/[0.05] border border-white/[0.08] rounded-lg text-sm text-white placeholder:text-white/30 outline-none focus:border-emerald-400/40 disabled:opacity-40"
+              className="flex-1 px-3 py-2 bg-white/[0.05] border border-white/[0.08] rounded-lg text-sm text-white placeholder:text-white/30 outline-none focus:border-emerald-400/40 disabled:opacity-40 min-h-[44px]"
               onKeyDown={e => { if (e.key === 'Enter') handleCouponFix(); }}
             />
             <button
               onClick={handleCouponFix}
               disabled={couponFixBusy || !couponFixInput.trim()}
-              className="px-4 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm font-semibold disabled:opacity-40 flex items-center gap-1.5"
+              className="px-4 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1.5 min-h-[44px]"
             >
               {couponFixBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gift className="w-3.5 h-3.5" />}
               발급
             </button>
           </div>
           {couponFixResult && (
-            <p className={`mt-2 text-[12px] ${couponFixResult.kind === 'ok' ? 'text-emerald-300' : 'text-rose-300'}`}>
-              {couponFixResult.kind === 'ok' ? '✓ ' : '✗ 에러: '}{couponFixResult.msg}
+            <p className={`mt-2 text-[12px] break-words ${couponFixResult.kind === 'ok' ? 'text-emerald-300' : 'text-rose-300'}`}>
+              {couponFixResult.kind === 'ok' ? '성공: ' : '에러: '}{couponFixResult.msg}
             </p>
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-4 border-b border-white/[0.08]">
+        {/* Tabs — 모바일 가로 스크롤 가능 */}
+        <div className="flex gap-2 mb-4 border-b border-white/[0.08] overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 flex-nowrap">
           {(['claims', 'inquiries'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors min-h-[44px] shrink-0 whitespace-nowrap ${
                 tab === t ? 'border-[#7C5CFC] text-white' : 'border-transparent text-white/55 hover:text-white/70'
               }`}>
               {t === 'claims' ? <FileCheck className="w-4 h-4" /> : <Car className="w-4 h-4" />}
@@ -238,11 +238,11 @@ export default function AdminClaims() {
           ))}
         </div>
 
-        {/* Filter pills */}
-        <div className="flex gap-2 mb-4">
+        {/* Filter pills — 모바일 가로 스크롤 가능 */}
+        <div className="flex gap-2 mb-4 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 flex-nowrap pb-1">
           {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-xs sm:text-[11px] font-bold transition-colors shrink-0 min-h-[44px] whitespace-nowrap ${
                 filter === f ? 'bg-[#7C5CFC]/30 text-white' : 'bg-white/[0.05] text-white/55 hover:text-white/70'
               }`}>
               {FILTER_LABELS[f]}
@@ -257,29 +257,30 @@ export default function AdminClaims() {
         ) : (
           <div className="space-y-3">
             {filtered.map(row => (
-              <div key={row.id} className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4">
-                <div className="flex items-start justify-between gap-4">
+              <div key={row.id} className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3 sm:p-4">
+                {/* 모바일: 수직 스택 / 데스크톱: 가로 정렬 */}
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-white truncate">{row.email}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <p className="text-sm font-bold text-white break-all flex-1 min-w-0">{row.email}</p>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                         row.status === 'pending' ? 'bg-amber-500/15 text-amber-400'
                         : row.status === 'approved' ? 'bg-emerald-500/15 text-emerald-400'
                         : 'bg-rose-500/15 text-rose-400'
                       }`}>
                         {STATUS_LABELS[row.status] || row.status}
                       </span>
-                      <span className="text-[10px] text-white/55">{formatTs(row.createdAt)}</span>
+                      <span className="text-[10px] text-white/55 shrink-0">{formatTs(row.createdAt)}</span>
                     </div>
 
                     {row.status === 'rejected' && row.rejectReason && (
-                      <p className="text-[11px] text-rose-300/80 italic mb-1">거절 사유: {row.rejectReason}</p>
+                      <p className="text-[11px] text-rose-300/80 italic mb-1 break-words">거절 사유: {row.rejectReason}</p>
                     )}
 
                     {tab === 'claims' && (
-                      <div className="text-[12px] text-white/60 space-y-0.5">
-                        {row.flightRef && <p>항공 PNR: <span className="text-white/80">{row.flightRef}</span></p>}
-                        {row.hotelRef && <p>호텔 예약번호: <span className="text-white/80">{row.hotelRef}</span></p>}
+                      <div className="text-sm sm:text-[12px] text-white/60 space-y-1 sm:space-y-0.5">
+                        {row.flightRef && <p className="break-all">항공 PNR: <span className="text-white/80">{row.flightRef}</span></p>}
+                        {row.hotelRef && <p className="break-all">호텔 예약번호: <span className="text-white/80">{row.hotelRef}</span></p>}
                         {row.tripDates && <p>여행 일정: <span className="text-white/80">{row.tripDates}</span></p>}
                         {row.receipts && row.receipts.length > 0 && (
                           <div className="mt-1">
@@ -287,8 +288,8 @@ export default function AdminClaims() {
                             <div className="flex flex-wrap gap-1.5">
                               {row.receipts.map((r, i) => (
                                 <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 rounded-lg text-[11px] text-cyan-300 hover:bg-white/10">
-                                  <ExternalLink className="w-3 h-3" /> {r.name}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white/5 rounded-lg text-[11px] text-cyan-300 hover:bg-white/10 min-h-[44px] sm:min-h-0 break-all">
+                                  <ExternalLink className="w-3 h-3 shrink-0" /> {r.name}
                                 </a>
                               ))}
                             </div>
@@ -298,29 +299,29 @@ export default function AdminClaims() {
                     )}
 
                     {tab === 'inquiries' && (
-                      <div className="text-[12px] text-white/60 space-y-0.5">
-                        {row.recommendedTour && <p>투어: <span className="text-white/80">{row.recommendedTour}</span> · ₩{(row.quotedKRW || 0).toLocaleString()} / {row.hours}시간</p>}
-                        {row.name && <p>성함: <span className="text-white/80">{row.name}</span> {row.phone && `· ${row.phone}`}</p>}
+                      <div className="text-sm sm:text-[12px] text-white/60 space-y-1 sm:space-y-0.5">
+                        {row.recommendedTour && <p className="break-words">투어: <span className="text-white/80">{row.recommendedTour}</span> · ₩{(row.quotedKRW || 0).toLocaleString()} / {row.hours}시간</p>}
+                        {row.name && <p className="break-words">성함: <span className="text-white/80">{row.name}</span> {row.phone && `· ${row.phone}`}</p>}
                         {row.startDate && <p>일정: <span className="text-white/80">{row.startDate}</span> · {row.pax}명 · {row.dayCount}일</p>}
-                        {row.notes && <p className="text-white/50">메모: {row.notes}</p>}
+                        {row.notes && <p className="text-white/50 break-words">메모: {row.notes}</p>}
                         {row.planId && (
-                          <p>플랜: <a href={`/my-plans/${row.planId}`} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">{row.planId}</a></p>
+                          <p className="break-all">플랜: <a href={`/my-plans/${row.planId}`} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">{row.planId}</a></p>
                         )}
                       </div>
                     )}
                   </div>
 
                   {row.status === 'pending' && (
-                    <div className="flex flex-col gap-1.5 shrink-0">
+                    <div className="flex flex-row sm:flex-col gap-2 sm:gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/[0.08]">
                       <button disabled={busyId === row.id}
                         onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'approved')}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[12px] font-semibold disabled:opacity-40">
+                        className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm sm:text-[12px] font-semibold disabled:opacity-40 min-h-[44px] flex-1 sm:flex-none">
                         {busyId === row.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                         승인
                       </button>
                       <button disabled={busyId === row.id}
                         onClick={() => handleAction(tab === 'claims' ? 'pending_free_claims' : 'charter_inquiries', row.id, row.email, 'rejected')}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[12px] font-semibold disabled:opacity-40">
+                        className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-sm sm:text-[12px] font-semibold disabled:opacity-40 min-h-[44px] flex-1 sm:flex-none">
                         <XCircle className="w-3.5 h-3.5" /> 거절
                       </button>
                     </div>
