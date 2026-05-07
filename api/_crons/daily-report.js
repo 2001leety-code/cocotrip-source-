@@ -66,13 +66,33 @@ async function getFirestoreAdmin() {
   return getFirestore();
 }
 
-// ── 환율 (공통 유틸 사용) ─────────────────────────────────────────────
+// ── 환율 (공통 유틸 사용 — 메타데이터 포함) ──────────────────────────
 async function getUSDKRWRate() {
   try {
-    const { getUsdToKrwRaw } = await import('../_exchange-rate.js');
-    const rate = await getUsdToKrwRaw();
-    return { rate };
-  } catch { return { rate: 1380 }; }
+    const { getExchangeRate } = await import('../_exchange-rate.js');
+    const info = await getExchangeRate();
+    return {
+      rate: info.krwPerUsd,
+      source: info.source,
+      fetchedAt: info.fetchedAt,
+    };
+  } catch (e) {
+    console.warn('[daily-report] exchange rate fetch failed:', e.message);
+    return { rate: 1380, source: 'fallback-hardcoded', fetchedAt: new Date() };
+  }
+}
+
+// 환율 갱신 시각 → 한국어 상대 표현 ("6시간 전", "방금 전")
+function describeFetchedAge(fetchedAt) {
+  if (!fetchedAt) return '시각 미상';
+  const diffMs = Date.now() - new Date(fetchedAt).getTime();
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 1) return '방금 전 갱신';
+  if (diffMin < 60) return `${diffMin}분 전 갱신`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}시간 전 갱신`;
+  const diffDay = Math.round(diffHr / 24);
+  return `${diffDay}일 전 갱신`;
 }
 
 // ── Firestore 카운터 읽기 ────────────────────────────────────────────
@@ -133,7 +153,7 @@ const dailyReportTask = async () => {
     const yesterday = yRows.status === 'fulfilled' ? yRows.value : [];
     const today = tTours.status === 'fulfilled' ? tTours.value : [];
     const week = wSum.status === 'fulfilled' ? wSum.value : { totalUSD: 0, count: 0 };
-    const rate = rateInfo.status === 'fulfilled' ? rateInfo.value : { rate: 1380 };
+    const rate = rateInfo.status === 'fulfilled' ? rateInfo.value : { rate: 1380, source: 'fallback-hardcoded', fetchedAt: new Date() };
     const f = fs.status === 'fulfilled' ? fs.value : null;
 
     const totalUSD = yesterday.reduce((s, r) => s + (parseFloat(r[10]) || 0), 0);
@@ -222,7 +242,7 @@ const dailyReportTask = async () => {
 
     // ── 오늘 일정 + 주간 ──
     msg += `\n\n━━━ 🗓 오늘 투어 ━━━\n${todayList}`;
-    msg += `\n\n💱 환율: ₩${rate.rate.toLocaleString()}`;
+    msg += `\n\n💱 환율: ₩${Math.round(rate.rate).toLocaleString()} / $1 (출처: ${rate.source} · ${describeFetchedAge(rate.fetchedAt)})`;
     msg += `\n📈 이번주: <b>$${week.totalUSD}</b> (${week.count}건)`;
 
     if (f) {
