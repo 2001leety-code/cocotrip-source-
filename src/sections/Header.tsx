@@ -433,6 +433,24 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/15" />
                 </Link>
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center justify-between py-3 px-3 rounded-xl transition-all"
+                    style={{
+                      color: isActive('/admin') ? '#fbbf24' : 'rgba(251,191,36,0.85)',
+                      background: isActive('/admin') ? 'rgba(251,191,36,0.12)' : 'rgba(251,191,36,0.05)',
+                      border: '1px solid rgba(251,191,36,0.18)',
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck className="w-[18px] h-[18px]" />
+                      <span className="text-[15px] font-semibold">{t.nav.adminHome ?? 'Admin Home'}</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-amber-400/40" />
+                  </Link>
+                )}
                 {/* 위시리스트/예약내역/쿠폰/리뷰/포인트 deep link는 마이페이지 본체의
                     카테고리 nav에서 처리. 역할 분리: 햄버거 = 사이트 nav, 마이페이지 = 개인 영역. */}
               </div>
