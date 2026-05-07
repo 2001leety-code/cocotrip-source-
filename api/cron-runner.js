@@ -10,15 +10,19 @@ import dailyReport from './_crons/daily-report.js';
 import refundReminder from './_crons/refund-reminder.js';
 import dispatchTimeoutSweep from './_crons/dispatch-timeout-sweep.js';
 import weeklyQualityReport from './_crons/weekly-quality-report.js';
+import dispatchReminder from './_crons/dispatch-reminder.js';
+import operatorTodoReminder from './_crons/operator-todo-reminder.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
 const JOBS = {
-  'daily-report':           dailyReport,
-  'refund-reminder':        refundReminder,
-  'dispatch-timeout-sweep': dispatchTimeoutSweep,
-  'weekly-quality-report':  weeklyQualityReport,
+  'daily-report':            dailyReport,
+  'refund-reminder':         refundReminder,
+  'dispatch-timeout-sweep':  dispatchTimeoutSweep,
+  'weekly-quality-report':   weeklyQualityReport,
+  'dispatch-reminder':       dispatchReminder,
+  'operator-todo-reminder':  operatorTodoReminder,
 };
 
 const CORS = {
