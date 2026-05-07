@@ -753,12 +753,13 @@ function classifyProductForStats(productTypeOrService) {
   return { label: '기타', icon: '🧾', prefix: 'misc' };
 }
 
-// KRW 금액 추출 — pricePaidKRW 또는 totalKRW 우선, 없으면 amountUSD × USD_TO_KRW 폴백.
-function extractKrwAmount(b) {
+// KRW 금액 추출 — pricePaidKRW 또는 totalKRW 우선, 없으면 amountUSD × rate 폴백.
+// rate: 실시간 환율 (기본 USD_TO_KRW = 1380 fallback)
+function extractKrwAmount(b, rate = USD_TO_KRW) {
   const direct = Number(b.pricePaidKRW || b.totalKRW || b.priceKRW || 0);
   if (direct > 0) return Math.round(direct);
   const usd = parseFloat(String(b.amountUSD || 0)) || 0;
-  return Math.round(usd * USD_TO_KRW);
+  return Math.round(usd * rate);
 }
 
 /**
@@ -791,6 +792,20 @@ async function buildStatsReport(yearMonth) {
   const monthEndDate = new Date(year, mo, 0);  // mo는 1-12, Date의 month는 0-indexed → mo로 넣으면 다음달 -1일 = 이번달 마지막날
   const monthEnd = monthEndDate.toISOString().slice(0, 10);
 
+  // 실시간 환율 조회 (Firestore 6h 캐시 자동 적용 — 실패 시 1380 fallback)
+  let liveRate = USD_TO_KRW;
+  let rateSource = 'fallback-hardcoded';
+  try {
+    const { getExchangeRate } = await import('./_exchange-rate.js');
+    const rateInfo = await getExchangeRate();
+    if (rateInfo && rateInfo.krwPerUsd > 0) {
+      liveRate = rateInfo.krwPerUsd;
+      rateSource = rateInfo.source || 'live';
+    }
+  } catch (e) {
+    console.warn('[stats] 환율 조회 실패, fallback 1380 사용:', e.message);
+  }
+
   const snap = await db.collection('bookings')
     .where('tourDate', '>=', monthStart)
     .where('tourDate', '<', nextMonth)
@@ -817,7 +832,7 @@ async function buildStatsReport(yearMonth) {
     // CANCELED 는 어디에도 카운트 안 됨
     if (status === 'CANCELED' || status === 'CANCELLED') return;
 
-    const krw = extractKrwAmount(b);
+    const krw = extractKrwAmount(b, liveRate);
 
     // REFUNDED 는 별도 집계만
     if (status === 'REFUNDED') {
@@ -857,7 +872,11 @@ async function buildStatsReport(yearMonth) {
     return `<b>📊 통계 — ${yearMonth}</b>\n\n이번 달 유효 데이터 없음 (모두 취소).\n\n기간: ${monthStart} ~ ${monthEnd}`;
   }
 
-  const lines = [`<b>📊 통계 — ${yearMonth}</b>`, ''];
+  const isFallbackRate = rateSource === 'fallback-hardcoded';
+  const rateLabel = isFallbackRate
+    ? `₩${Math.round(liveRate).toLocaleString()}/$ — 폴백(고정)`
+    : `₩${Math.round(liveRate).toLocaleString()}/$ — ${rateSource}`;
+  const lines = [`<b>📊 통계 — ${yearMonth}</b>`, `환율: ${rateLabel}`, ''];
 
   // 기사별 (count desc) — 0건 entry 는 자동 제외 (count++ 한 entry만 byDriver 에 들어감)
   if (byDriver.size > 0) {

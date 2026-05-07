@@ -32,7 +32,8 @@
     "emailSupport": "이메일 지원",
     "terms": "이용약관",
     "privacy": "개인정보",
-    "travelTerms": "여행약관"
+    "travelTerms": "여행약관",
+    "adminHome": "어드민 홈"
   },
   "heroCards": {
     "heading": "한국 여행, 어떻게 도와드릴까요?",
@@ -1163,7 +1164,17 @@
     "wizardGenerateBtn": "AI 맞춤 일정 생성하기",
     "wizardPaymentNote": "결제 후 약 15초 소요",
     "my_plans": "내 플랜",
-    "paypalSdkTimeout": "PayPal 로딩이 지연되고 있어요. 광고 차단기(uBlock 등)를 사용 중이시면 이 사이트만 허용 후 새로고침해 주세요."
+    "paypalSdkTimeout": "PayPal 로딩이 지연되고 있어요. 광고 차단기(uBlock 등)를 사용 중이시면 이 사이트만 허용 후 새로고침해 주세요.",
+    "aiIntroTitle": "AI 여행 플래너에 오신 것을 환영합니다",
+    "aiIntroSubtitle": "단 몇 분이면 나만의 한국 여행 일정이 완성돼요",
+    "aiIntroStep1Title": "1. 여행 정보 입력",
+    "aiIntroStep1Body": "방문 지역, 날짜, 인원, 식이 제한 등을 위자드에서 차근차근 알려주세요.",
+    "aiIntroStep2Title": "2. AI 일정 생성",
+    "aiIntroStep2Body": "Gemini AI가 동선·맛집·교통편을 분석해 1분 안에 맞춤 일정을 제안합니다.",
+    "aiIntroStep3Title": "3. PDF 다운로드 & 공유",
+    "aiIntroStep3Body": "결제 완료 후 4개 언어 PDF 일정표를 다운로드하고 동행자와 공유하세요.",
+    "aiIntroDontShow": "다시 보지 않기",
+    "aiIntroClose": "시작하기"
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
@@ -1308,7 +1319,20 @@
     "overtime": "초과 시간 ₩{n}/시간 (그룹당)",
     "nightSurcharge": "심야 할증 (00:00–06:00) {n}% 추가",
     "waQuote": "WhatsApp 견적 문의",
-    "emailQuote": "이메일 문의"
+    "emailQuote": "이메일 문의",
+    "charterIntroTitle": "전세차량 예약 안내",
+    "charterIntroSubtitle": "공항 픽업·일일 투어·다일 투어 6단계 견적",
+    "charterIntroStep1Title": "1. 출발지·서비스 선택",
+    "charterIntroStep1Body": "공항 또는 도심 출발지와 원하시는 서비스(공항 픽업·일일 투어 등)를 선택하세요.",
+    "charterIntroStep2Title": "2. 일정·인원·차량 입력",
+    "charterIntroStep2Body": "여행 날짜, 탑승 인원, 캐리어 수량과 차량 종류(스타리아·스프린터·버스)를 알려주세요.",
+    "charterIntroStep3Title": "3. 견적 확인 후 예약",
+    "charterIntroStep3Body": "실시간 견적이 즉시 표시됩니다. PayPal 결제 또는 WhatsApp 문의로 진행해 주세요.",
+    "charterIntroChatTitle": "급하실 때는 채팅으로 바로 문의",
+    "charterIntroChatBody": "12시간 이내 출발이 필요하신 경우 위자드 대신 화면 오른쪽 하단의 채팅창으로 문의 주세요. 운영자가 직접 응대해 드립니다.",
+    "charterIntroDeadline": "예약 마감: 출발 24시간 전(국내) / 48시간 전(국제)",
+    "charterIntroDontShow": "다시 보지 않기",
+    "charterIntroClose": "확인했어요"
   },
   "ads": {
     "kpopConcert": {
@@ -1553,6 +1577,15 @@
   "mypage": {
     "welcomeCouponsTitle": "환영합니다!",
     "welcomeCouponsBody": "회원가입 완료 — 5% 쿠폰 2장 발행되었어요",
+    "welcomeModalTitle": "CocoTrip에 오신 것을 환영합니다!",
+    "welcomeModalSubtitle": "회원가입이 완료되었어요.",
+    "welcomeModalCouponHeading": "환영 쿠폰 2장 발급 완료",
+    "welcomeModalCoupon1": "차터 5% 할인",
+    "welcomeModalCoupon2": "투어 패키지 5% 할인",
+    "welcomeModalExpiry": "발급일로부터 90일 유효",
+    "welcomeModalBody": "차터 또는 투어 패키지 결제 시 사용하세요.",
+    "welcomeModalCta": "내 쿠폰 보기",
+    "welcomeModalClose": "확인",
     "home": "홈",
     "tierBenefits": "{tier} 등급 혜택",
     "dashNextTrip": "다가오는 여행",

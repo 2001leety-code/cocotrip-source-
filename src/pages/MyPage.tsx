@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoyalty, type TierType } from '@/hooks/useLoyalty';
@@ -109,19 +108,9 @@ export default function MyPage() {
     })();
   }, [user]);
 
-  // 회원가입 직후 환영 토스트 (firebase.js 가 sessionStorage 에 flag 저장)
-  useEffect(() => {
-    try {
-      const flag = sessionStorage.getItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED');
-      if (flag && Number(flag) > 0) {
-        sessionStorage.removeItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED');
-        toast.success(
-          mp.welcomeCouponsTitle || 'Welcome!',
-          { description: mp.welcomeCouponsBody || 'Sign-up complete — 2 × 5% coupons issued' }
-        );
-      }
-    } catch { /* SSR / private mode silent */ }
-  }, [mp.welcomeCouponsTitle, mp.welcomeCouponsBody]);
+  // 회원가입 직후 웰컴 모달은 App.tsx GlobalWidgets 의 OnboardingCouponModal 이
+  // sessionStorage 플래그를 감지해 전역 노출. MyPage 에서 중복 토스트 제거 (2026-05-07).
+  // toast / mp.welcomeCoupons* i18n 키는 하위 호환 보존용으로 남겨둠.
 
   useEffect(() => {
     let city = 'Seoul';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Headphones, Map, Package, LogOut, LogIn, Check, Search } from 'lucide-react';
+import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Headphones, Map, Package, LogOut, LogIn, Check, Search, ShieldCheck } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -30,11 +30,14 @@ const languages = [
   { code: 'zh', label: '中文', short: 'ZH' },
 ];
 
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL ?? '').trim().toLowerCase();
+
 export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const isAdmin = !!(user?.email && ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL);
   const location = useLocation();
   const navigate = useNavigate();
   const { toggle: toggleCommandPalette } = useCommandPalette();
@@ -205,6 +208,18 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 so mobile users have a parity entry point. The panel itself
                 handles its own slide-in animation + outside-click dismiss. */}
             <WishlistPanel />
+
+            {/* Admin Home (desktop, admin only) */}
+            {isAdmin && !isMobile && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all duration-200 text-amber-400/80 hover:text-amber-300 hover:bg-amber-400/[0.08]"
+                title={t.nav.adminHome ?? 'Admin Home'}
+              >
+                <ShieldCheck className="w-[16px] h-[16px]" />
+                <span className="text-[12px] font-semibold hidden xl:inline">{t.nav.adminHome ?? 'Admin Home'}</span>
+              </Link>
+            )}
 
             {/* MyPage (desktop, logged-in) */}
             {user && !isMobile && (

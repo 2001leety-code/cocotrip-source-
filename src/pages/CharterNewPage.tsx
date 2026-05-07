@@ -10,6 +10,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { CharterWizard } from '@/components/charter/CharterWizard';
+import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
@@ -117,6 +118,8 @@ export default function CharterNewPage() {
       </main>
 
       <Footer t={t} />
+      {/* 첫 진입 시 1회 노출되는 차터 사용 흐름 + 12h 마감 안내 모달 */}
+      <CharterIntroModal />
     </div>
   );
 }

@@ -6,6 +6,34 @@ import { getPaypalAccessToken } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
+import { notify } from './_shared/notify.js';
+
+// ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
+// ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
+// 없으면 하드코딩 fallback. body.userEmail 신뢰 종료 — Firebase token 검증값 사용.
+const HARDCODED_ADMIN_EMAILS = ['2001leety@gmail.com'];
+function getAdminBypassEmails() {
+  const raw = (process.env.ADMIN_BYPASS_EMAILS || '').trim();
+  if (raw) return raw.split(',').map(e => e.toLowerCase().trim()).filter(Boolean);
+  const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  if (adminEmail) return [adminEmail, ...HARDCODED_ADMIN_EMAILS];
+  return HARDCODED_ADMIN_EMAILS;
+}
+
+// Firebase ID token에서 email 추출 (보안 가드 — body.userEmail 위장 차단)
+async function verifyTokenEmail(authHeader) {
+  const m = /^Bearer\s+(.+)$/.exec(authHeader || '');
+  if (!m) return null;
+  try {
+    const { getAuth } = await import('firebase-admin/auth');
+    const { getApps } = await import('firebase-admin/app');
+    if (!getApps().length) return null;
+    const decoded = await getAuth().verifyIdToken(m[1], true);
+    return (decoded.email || '').toLowerCase().trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };

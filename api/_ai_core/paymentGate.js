@@ -21,12 +21,29 @@ import { captureError } from '../_shared/sentry.js';
 // PayPal 단일 (5/3 Braintree 제거 + 5/7 PayPal Smart Buttons 복구).
 // PayPal order ID: 17자 alphanumeric (예: 5O190127TN364715T)
 // TEST orderId: 'TEST-' prefix (BRAINTREE_ENV ∈ {sandbox,dev} 일 때만 허용)
+// ADMIN-BYPASS- prefix: LIVE 모드에서 어드민 이메일로 인증된 사용자가 결제 없이
+//   즉시 예약/플랜 생성. ADMIN_EMAIL env var + Firebase ID token 서버 검증 이중 인증.
+//   body.email 신뢰 종료 — authenticatedEmail(토큰에서 추출) 만 사용.
 // MANUAL- prefix: admin-booking-action 이 PayPal QR 결제 [입금 확인] 클릭 시 server-side 로
 //   ai-planner-full 트리거할 때 사용. orderId 형식 `MANUAL-${bookingRef}` — pending_bookings
 //   doc 의 status='CONFIRMED' 와 매칭으로 인증 (위변조 시 매칭 실패로 reject).
+
+// 어드민 bypass 허용 이메일 목록 (env var 우선, 없으면 하드코딩 fallback).
+// ADMIN_BYPASS_EMAILS: 쉼표 구분 이메일 목록 (예: "a@b.com,c@d.com").
+// 운영자 1명이므로 하드코딩 OK — env var로 재정의 가능.
+const HARDCODED_ADMIN_EMAILS = ['2001leety@gmail.com'];
+function getAdminBypassEmails() {
+  const raw = (process.env.ADMIN_BYPASS_EMAILS || '').trim();
+  if (raw) return raw.split(',').map(e => e.toLowerCase().trim()).filter(Boolean);
+  const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  if (adminEmail) return [adminEmail, ...HARDCODED_ADMIN_EMAILS];
+  return HARDCODED_ADMIN_EMAILS;
+}
+
 function detectProvider(orderId) {
   if (!orderId) return null;
   if (orderId.startsWith('TEST-')) return 'test';
+  if (orderId.startsWith('ADMIN-BYPASS-')) return 'admin-bypass';
   if (orderId.startsWith('MANUAL-')) return 'manual';
   return 'paypal';
 }
@@ -79,7 +96,32 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   if (!isRevision && paypalOrderId) {
     const provider = detectProvider(paypalOrderId);
 
-    if (provider === 'test') {
+    if (provider === 'admin-bypass') {
+      // 2026-05-07: LIVE 모드 어드민 결제 우회.
+      // 보안 가드:
+      //   1. Firebase ID token 서버 검증 (authenticatedEmail) — body.email 신뢰 종료.
+      //   2. authenticatedEmail 이 ADMIN_BYPASS_EMAILS 목록에 있어야만 통과.
+      //   3. 두 조건 모두 실패 시 403 FORBIDDEN (일반 사용자 ADMIN-BYPASS- prefix 위조 차단).
+      // Firestore 감사 기록: admin_bypass_audit 컬렉션에 이메일·시각·orderId 저장.
+      if (!requestEmail) {
+        return reject(403, 'FORBIDDEN', 'Admin bypass requires authenticated email');
+      }
+      const allowedEmails = getAdminBypassEmails();
+      if (!allowedEmails.includes(requestEmail)) {
+        console.warn('[planner] ADMIN-BYPASS- rejected for non-admin email:', requestEmail);
+        return reject(403, 'FORBIDDEN', 'Admin bypass not allowed for this account');
+      }
+      console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | admin:', requestEmail, '| orderId:', paypalOrderId);
+      // 감사 기록 (비치명적 — 실패해도 bypass 허용)
+      if (adminDb) {
+        adminDb.collection('admin_bypass_audit').add({
+          adminEmail: requestEmail,
+          orderId: paypalOrderId,
+          route: 'ai-planner-full',
+          bypassedAt: new Date().toISOString(),
+        }).catch((e) => console.warn('[planner] admin_bypass_audit write failed:', e.message));
+      }
+    } else if (provider === 'test') {
       // Audit P1-A (2026-05-05): fail-closed — TEST- prefix는 BRAINTREE_ENV가 정확히
       // {sandbox, development, dev} 중 하나일 때만 허용. 빈 문자열/production/오타/미설정
       // 전부 reject. 이전 P0-#2 fix는 'production' strict equal 만 reject 했고 빈 문자열은

@@ -1,29 +1,26 @@
 /**
- * Booking cutoff policy (PR-R, 2026-05-08).
+ * Booking cutoff policy (2026-05-07 통일).
  *
  * 정책 (사용자 확정):
- *  - airport_pickup / charter / day_tour / kpop_shuttle: 출발 24시간 전 마감
- *  - multi_day (durationDays >= 2): 출발 48시간 전 마감
+ *  - 모든 일반 차터 케이스: 출발 12시간 전 마감 (24h/48h → 12h 통일)
  *  - bus / vip (협의 폼): 검증 X — InquiryForm 별도 endpoint
+ *  - AI 플래너: 검증 X — 디지털 상품, 출발 일정 무관
  *
- * 기준: KST timezone, 픽업 시각 정확히 -24h (또는 -48h).
- *  예: 2026-05-15 18:00 KST 출발 → 2026-05-14 18:00 KST 마감.
+ * 기준: KST timezone, 픽업 시각 정확히 -12h.
+ *  예: 2026-05-15 09:00 KST 출발 → 2026-05-14 21:00 KST 마감.
  *
  * 의도적으로 luxon/dayjs 도입 X — Date + +09:00 offset 직접 처리.
  */
 
 /**
  * 마감 시간 (시간 단위) 결정.
- * @param {string} productType  PayPal product key — 'airport_*' / 'charter_*' / 'kpop_shuttle_*' / 'tour_*' 등
- * @param {number} [durationDays]  투어 일수. multi_day 판정용. 미전달 시 productType 만 본다.
- * @returns {number} 24 또는 48
+ * @param {string} _productType  (reserved — 현재 정책은 모든 타입 12h 통일)
+ * @param {number} [_durationDays]  (reserved — multi_day 구분 폐기, 12h 통일)
+ * @returns {number} 12
  */
-export function getCutoffHours(productType, durationDays) {
-  // multi_day 명시적 구분: durationDays >= 2 또는 productType에 multi_day 패턴.
-  const pt = String(productType || '').toLowerCase();
-  if (typeof durationDays === 'number' && durationDays >= 2) return 48;
-  if (pt.includes('multi_day') || pt.includes('multi-day') || pt.includes('multiday')) return 48;
-  return 24;
+export function getCutoffHours(_productType, _durationDays) {
+  // 2026-05-07: 모든 차터 케이스 12h 통일 (이전: 일반 24h / multi_day 48h).
+  return 12;
 }
 
 /**

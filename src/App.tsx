@@ -77,6 +77,7 @@ const KpopConcertPopup = lazy(() => import('@/components/KpopConcertPopup').then
 const ChatWidget = lazy(() => import('@/components/ChatWidget').then(m => ({ default: m.ChatWidget })));
 const PWAUpdatePrompt = lazy(() => import('@/components/PWAUpdatePrompt').then(m => ({ default: m.PWAUpdatePrompt })));
 const CookieBanner = lazy(() => import('@/components/CookieBanner'));
+const OnboardingCouponModal = lazy(() => import('@/components/OnboardingCouponModal').then(m => ({ default: m.OnboardingCouponModal })));
 import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
@@ -152,6 +153,8 @@ function GlobalWidgets() {
         <CookieBanner />
         <PWAUpdatePrompt />
         <ChatWidget language={language} />
+        {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
+        <OnboardingCouponModal />
       </Suspense>
     </>
   );

@@ -10,6 +10,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
+import { AIIntroModal } from '@/components/AIIntroModal';
 import { Sparkles, AlertTriangle } from 'lucide-react';
 import { PAGE_STYLE } from './constants';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
@@ -148,6 +149,8 @@ export default function PlannerPage() {
         )}
       </main>
       {!isMobile && <Footer t={t} />}
+      {/* 첫 진입 시 1회 노출되는 사용 흐름 안내 모달 (localStorage flag) */}
+      <AIIntroModal />
     </div>
   );
 }

@@ -32,7 +32,8 @@
     "emailSupport": "Email Support",
     "terms": "Terms",
     "privacy": "Privacy",
-    "travelTerms": "Travel Terms"
+    "travelTerms": "Travel Terms",
+    "adminHome": "Admin Home"
   },
   "heroCards": {
     "heading": "How can we help with your Korea trip?",
@@ -1163,7 +1164,17 @@
     "wizardGenerateBtn": "Generate AI Itinerary",
     "wizardPaymentNote": "Takes about 15 seconds after payment",
     "my_plans": "My Plans",
-    "paypalSdkTimeout": "PayPal SDK loading timeout. If you use an ad blocker (uBlock, Brave shields, etc.), please allow this site and refresh."
+    "paypalSdkTimeout": "PayPal SDK loading timeout. If you use an ad blocker (uBlock, Brave shields, etc.), please allow this site and refresh.",
+    "aiIntroTitle": "Welcome to the AI Travel Planner",
+    "aiIntroSubtitle": "Build your custom Korea itinerary in just a few minutes.",
+    "aiIntroStep1Title": "1. Tell us about your trip",
+    "aiIntroStep1Body": "Walk through the wizard to share your destinations, dates, group size, and dietary preferences.",
+    "aiIntroStep2Title": "2. AI builds your itinerary",
+    "aiIntroStep2Body": "Gemini AI analyzes routing, restaurants, and transit to propose a tailored plan in under a minute.",
+    "aiIntroStep3Title": "3. Download & share the PDF",
+    "aiIntroStep3Body": "After checkout, download a polished PDF itinerary in your language and share it with your travel companions.",
+    "aiIntroDontShow": "Don't show again",
+    "aiIntroClose": "Get started"
   },
   "charterPage": {
     "backToHome": "Back to Home",
@@ -1223,7 +1234,20 @@
     "overtime": "Overtime ₩{n}/hour (per group)",
     "nightSurcharge": "Late-night surcharge (00:00–06:00) {n}% extra",
     "waQuote": "WhatsApp Quote",
-    "emailQuote": "Email Inquiry"
+    "emailQuote": "Email Inquiry",
+    "charterIntroTitle": "How charter booking works",
+    "charterIntroSubtitle": "Airport transfers, day tours, and multi-day charters in 6 quick steps.",
+    "charterIntroStep1Title": "1. Choose origin & service",
+    "charterIntroStep1Body": "Pick your departure airport or city, then select the service you need (airport pickup, day tour, etc.).",
+    "charterIntroStep2Title": "2. Enter dates, passengers & vehicle",
+    "charterIntroStep2Body": "Share your travel dates, party size, luggage count, and preferred vehicle (Staria, Sprinter, or Bus).",
+    "charterIntroStep3Title": "3. Review the quote and book",
+    "charterIntroStep3Body": "An instant quote appears on screen. Pay securely via PayPal, or request a tailored quote on WhatsApp.",
+    "charterIntroChatTitle": "Need it urgently? Chat with us instead",
+    "charterIntroChatBody": "If you're departing within 12 hours, please skip the wizard and message us via the chat window in the bottom-right corner. A live agent will reply right away.",
+    "charterIntroDeadline": "Booking cutoff: 24 hours before domestic departure / 48 hours before international.",
+    "charterIntroDontShow": "Don't show again",
+    "charterIntroClose": "Got it"
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
@@ -1553,6 +1577,15 @@
   "mypage": {
     "welcomeCouponsTitle": "Welcome!",
     "welcomeCouponsBody": "Sign-up complete — 2 × 5% coupons issued",
+    "welcomeModalTitle": "Welcome to CocoTrip!",
+    "welcomeModalSubtitle": "Your sign-up is complete.",
+    "welcomeModalCouponHeading": "2 welcome coupons issued",
+    "welcomeModalCoupon1": "Charter 5% OFF",
+    "welcomeModalCoupon2": "Tour Package 5% OFF",
+    "welcomeModalExpiry": "Valid for 90 days",
+    "welcomeModalBody": "Use them at checkout when booking a charter or tour package.",
+    "welcomeModalCta": "View My Coupons",
+    "welcomeModalClose": "Got it",
     "home": "Home",
     "tierBenefits": "{tier} Benefits",
     "dashNextTrip": "Next Trip",

@@ -32,6 +32,19 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 
+// ── 어드민 bypass 허용 이메일 목록 ──────────────────────────────────────
+// paymentGate.js / capturePaypalOrder.js 와 동일 패턴.
+// ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
+// 없으면 하드코딩 fallback. body.customerEmail 신뢰 종료 — Firebase token 검증값 사용.
+const HARDCODED_ADMIN_EMAILS = ['2001leety@gmail.com'];
+function getAdminBypassEmails() {
+  const raw = (process.env.ADMIN_BYPASS_EMAILS || '').trim();
+  if (raw) return raw.split(',').map(e => e.toLowerCase().trim()).filter(Boolean);
+  const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  if (adminEmail) return [adminEmail, ...HARDCODED_ADMIN_EMAILS];
+  return HARDCODED_ADMIN_EMAILS;
+}
+
 export const config = { runtime: 'nodejs' };
 export const maxDuration = 15;
 
@@ -129,11 +142,10 @@ export default async function handler(req, res) {
       }
     }
 
-    // Admin TEST 모드 — 인증된 email 이 ADMIN_EMAIL 과 일치 시 결제 단계 우회 후
-    // 즉시 confirm 처리. 위변조 방지를 위해 body.customerEmail 가 아니라 토큰의
-    // authenticatedEmail 만 사용 (body.customerEmail 는 신뢰 X).
-    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-    const isAdminTestRequest = !!(adminEmail && authenticatedEmail && authenticatedEmail === adminEmail);
+    // Admin TEST 모드 — 인증된 email 이 getAdminBypassEmails() 목록에 있으면 결제 단계
+    // 우회 후 즉시 confirm 처리. paymentGate.js / capturePaypalOrder.js 와 동일 패턴.
+    // 위변조 방지: body.customerEmail 신뢰 종료 — Firebase token 의 authenticatedEmail 만 사용.
+    const isAdminTestRequest = !!(authenticatedEmail && getAdminBypassEmails().includes(authenticatedEmail));
 
     // Firestore admin 초기화 + 멱등 저장
     const adminDb = initAdminDb('manual-payment-request');
@@ -174,44 +186,57 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // Admin TEST 모드 — 결제 단계 우회 후 즉시 confirm.
+    // Admin Bypass 모드 — 결제 단계 우회 후 즉시 confirmed 상태로 처리.
     // confirmBookingAsPaid 가 status='CONFIRMED' 전환 + bookings mirror + AI/booking-processor
     // 자동 트리거 + 텔레그램 #2 + 사용자 confirm 이메일 처리.
+    // paymentGate.js / capturePaypalOrder.js / booking-processor.js 와 동일 bypass 패턴.
     if (isAdminTestRequest) {
-      console.log('[manual-payment-request] 🧪 ADMIN TEST MODE — auto-confirm:', bookingRef, 'admin:', authenticatedEmail);
+      console.log('[manual-payment-request] 🟢 ADMIN BYPASS — auto-confirm:', bookingRef, 'admin:', authenticatedEmail);
+
+      // pending_bookings 도큐먼트에 bypass 메타데이터 추가 기록 (감사 추적)
+      try {
+        await docRef.set({
+          paymentMethod: 'admin-bypass',
+          bypassReason: 'admin-test',
+          paymentVerifiedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (bypassMetaErr) {
+        console.warn('[manual-payment-request] bypass 메타데이터 기록 실패:', bypassMetaErr.message);
+      }
+
       try {
         const result = await confirmBookingAsPaid({
           db: adminDb,
           bookingRef,
-          paypalTransactionId: `TEST-${bookingRef}`,
+          paypalTransactionId: `ADMIN-BYPASS-${bookingRef}`,
           source: 'admin',
           adminUid: userId,
           adminEmail: authenticatedEmail,
         });
         if (!result.ok) {
-          console.error('[manual-payment-request] admin auto-confirm failed:', result.error);
+          console.error('[manual-payment-request] admin bypass auto-confirm failed:', result.error);
           // 일반 흐름으로 폴백 — pending_bookings 는 이미 저장됨, admin 이 UI 에서 수동 confirm 가능
         } else {
-          // 텔레그램 booking 채널 #1 별도 알림 (운영자 본인 테스트임 표시)
+          // 텔레그램 booking 채널 알림 (운영자 본인 bypass 임 표시)
           notify('booking', [
-            '🧪 <b>ADMIN TEST 모드 — 자동 confirm</b>',
+            '🟢 <b>어드민 테스트 예약 생성 (결제 우회)</b>',
             '',
             `<b>예약번호:</b> <code>${bookingRef}</code>`,
             `<b>상품:</b> ${productType}`,
             `<b>금액:</b> ₩${krw.toLocaleString('ko-KR')}`,
             `<b>관리자:</b> ${authenticatedEmail}`,
             '',
-            '<i>admin UI 매칭 단계 우회 — 결제 흐름 E2E 테스트용</i>',
+            '<i>admin-bypass — 실제 결제 없이 수동 결제 흐름 E2E 테스트용</i>',
           ].join('\n')).catch(() => {});
 
           res.writeHead(200, JSON_HEADERS);
           return res.end(JSON.stringify({
             ok: true,
-            data: { bookingRef, status: 'CONFIRMED', adminTest: true, bookingId: result.bookingId },
+            data: { bookingRef, status: 'CONFIRMED', adminBypass: true, bookingId: result.bookingId },
           }));
         }
       } catch (testErr) {
-        console.error('[manual-payment-request] admin test auto-confirm exception:', testErr.message);
+        console.error('[manual-payment-request] admin bypass auto-confirm exception:', testErr.message);
         // 폴백: 일반 흐름 진행
       }
     }

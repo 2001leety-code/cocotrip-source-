@@ -32,7 +32,8 @@
     "emailSupport": "メールサポート",
     "terms": "利用規約",
     "privacy": "プライバシー",
-    "travelTerms": "旅行規約"
+    "travelTerms": "旅行規約",
+    "adminHome": "管理者ホーム"
   },
   "heroCards": {
     "heading": "韓国旅行、どのようにお手伝いしましょうか？",
@@ -1163,7 +1164,17 @@
     "wizardGenerateBtn": "AI旅程を生成する",
     "wizardPaymentNote": "お支払い後約15秒で完了",
     "my_plans": "マイプラン",
-    "paypalSdkTimeout": "PayPalの読み込みが遅延しています。広告ブロッカー(uBlock等)をご利用の場合、本サイトを許可後に再読み込みしてください。"
+    "paypalSdkTimeout": "PayPalの読み込みが遅延しています。広告ブロッカー(uBlock等)をご利用の場合、本サイトを許可後に再読み込みしてください。",
+    "aiIntroTitle": "AI旅行プランナーへようこそ",
+    "aiIntroSubtitle": "数分であなただけの韓国旅行プランが完成します。",
+    "aiIntroStep1Title": "1. 旅行情報の入力",
+    "aiIntroStep1Body": "訪問エリア、日程、人数、食事制限などをウィザードに沿ってお知らせください。",
+    "aiIntroStep2Title": "2. AIが旅程を作成",
+    "aiIntroStep2Body": "Gemini AIが移動経路・グルメ・交通を分析し、1分以内にあなた専用のプランをご提案します。",
+    "aiIntroStep3Title": "3. PDFのダウンロードと共有",
+    "aiIntroStep3Body": "決済完了後、お好きな言語のPDF旅程表をダウンロードして同行者と共有できます。",
+    "aiIntroDontShow": "次回から表示しない",
+    "aiIntroClose": "はじめる"
   },
   "charterPage": {
     "backToHome": "ホームに戻る",
@@ -1223,7 +1234,20 @@
     "overtime": "超過時間 ₩{n}/時間（1グループあたり）",
     "nightSurcharge": "深夜割増（00:00–06:00）{n}%追加",
     "waQuote": "WhatsApp見積依頼",
-    "emailQuote": "メールお問い合わせ"
+    "emailQuote": "メールお問い合わせ",
+    "charterIntroTitle": "チャーター予約のご案内",
+    "charterIntroSubtitle": "空港送迎・日帰りツアー・複数日チャーターを6ステップでお見積り。",
+    "charterIntroStep1Title": "1. 出発地とサービスを選択",
+    "charterIntroStep1Body": "出発空港または市内出発地と、ご希望のサービス(空港送迎・日帰りツアーなど)をお選びください。",
+    "charterIntroStep2Title": "2. 日程・人数・車種を入力",
+    "charterIntroStep2Body": "ご旅行日程、人数、スーツケース数、車両タイプ(スタリア・スプリンター・バス)をご入力ください。",
+    "charterIntroStep3Title": "3. お見積りを確認して予約",
+    "charterIntroStep3Body": "即時見積りが表示されます。PayPal決済、またはWhatsAppでカスタム見積りをご依頼いただけます。",
+    "charterIntroChatTitle": "お急ぎの方はチャットでお問い合わせください",
+    "charterIntroChatBody": "12時間以内にご出発の場合は、ウィザードではなく画面右下のチャットウィンドウからご連絡ください。担当者が直接対応いたします。",
+    "charterIntroDeadline": "予約締切：国内出発24時間前 / 国際出発48時間前",
+    "charterIntroDontShow": "次回から表示しない",
+    "charterIntroClose": "確認しました"
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
@@ -1553,6 +1577,15 @@
   "mypage": {
     "welcomeCouponsTitle": "ようこそ！",
     "welcomeCouponsBody": "会員登録完了 — 5%クーポンを2枚発行しました",
+    "welcomeModalTitle": "CocoTripへようこそ！",
+    "welcomeModalSubtitle": "会員登録が完了しました。",
+    "welcomeModalCouponHeading": "ウェルカムクーポン2枚発行済み",
+    "welcomeModalCoupon1": "チャーター 5% OFF",
+    "welcomeModalCoupon2": "ツアーパッケージ 5% OFF",
+    "welcomeModalExpiry": "発行日から90日間有効",
+    "welcomeModalBody": "チャーターまたはツアーパッケージのご予約時にご利用ください。",
+    "welcomeModalCta": "クーポンを見る",
+    "welcomeModalClose": "確認",
     "home": "ホーム",
     "tierBenefits": "{tier} ランク特典",
     "dashNextTrip": "次の旅行",

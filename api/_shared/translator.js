@@ -266,50 +266,89 @@ export function applyMappingTable(originalText, lang) {
  * 중국어 = 간체 + 음역
  *   - 롯데호텔 → 乐天酒店
  *   - 명동 → 明洞
+ *
+ * 혼합 입력 처리 (Layer 3 부분 치환 후 Gemini fallthrough 케이스):
+ *   - Layer 3 매핑 테이블이 일부 한글만 치환하고 나머지 한글이 남은 경우,
+ *     applyMappingTable()이 null을 반환하여 여기로 fallthrough.
+ *   - 원문이 완전 한글인 경우도 동일 prompt 처리.
+ *   - 주의: Layer 3가 미리 치환한 결과(한글+영문 혼합)는 이 함수에 도달하지 않음.
+ *     (applyMappingTable은 완전 치환 성공 시만 반환, 실패 시 원문 그대로 넘김)
+ *     → 따라서 text는 항상 "완전 한글" 또는 "부분 한글 잔존 혼합"이 가능.
  */
 function buildPlaceNamePrompt(text, targetLang) {
   if (targetLang === 'en') {
     return `You are translating a Korean place name (business, landmark, neighborhood, station, district) to English for a foreign tourist booking service.
+
+MIXED INPUT HANDLING:
+- The input may contain mixed Korean and English/Romanized text — some parts may already be partially translated by a mapping table.
+- Translate ONLY the remaining Korean fragments while preserving already-translated English/Romanized parts AS-IS.
+- If the input is fully Korean, translate the entire text.
+- If the input is already fully in English, return it unchanged.
+
+Examples of mixed input:
+- Input: "Lotte Hotel 강남"  → Output: "Lotte Hotel Gangnam"
+- Input: "Seoul Tower 남산"  → Output: "Seoul Tower Namsan"
+- Input: "롯데호텔 강남"      → Output: "Lotte Hotel Gangnam"
+- Input: "Haeundae Beach 해수욕장" → Output: "Haeundae Beach"
 
 STRICT RULES:
 - Use Korean Government Revised Romanization of Korean (2000 standard).
 - Examples: 명동 → "Myeongdong", 강남 → "Gangnam", 이태원 → "Itaewon", 광안리 → "Gwangalli", 해운대 → "Haeundae".
 - Hyphens ONLY for administrative suffixes: 구 (-gu), 동 (-dong), 로 (-ro), 길 (-gil). Example: 을지로 → "Eulji-ro", 강남구 → "Gangnam-gu".
 - For well-known international brands, use their English brand name: 롯데호텔 → "Lotte Hotel", 스타벅스 → "Starbucks".
-- Output ONLY the translation. No explanation, no quotes, no labels, no romanization parenthetical.
+- Output ONLY the final result. No explanation, no quotes, no labels, no romanization parenthetical.
 - Use consistent capitalization (Title Case for proper nouns).
-- If the input is already in English, output it unchanged.
 - Preserve numbers, branch indicators ("점" → branch), unit suffixes naturally.
 
-Korean place name:
+Place name:
 ${text}`;
   }
   if (targetLang === 'ja') {
     return `You are translating a Korean place name to Japanese for a Japanese tourist booking service.
 
+MIXED INPUT HANDLING:
+- The input may contain mixed Korean and Japanese/Kanji/Katakana text — some parts may already be partially translated.
+- Translate ONLY the remaining Korean fragments (Hangul: 가-힣) while preserving already-translated Japanese parts AS-IS.
+- If the input is fully Korean (Hangul only), translate the entire text.
+- If the input is already fully in Japanese, return it unchanged.
+
+Examples of mixed input:
+- Input: "ロッテホテル 강남"       → Output: "ロッテホテル 江南"
+- Input: "明洞 롯데호텔"           → Output: "明洞 ロッテホテル"
+- Input: "롯데호텔 명동"           → Output: "ロッテホテル 明洞"
+
 STRICT RULES:
-- Use Hanja (kanji) form when the place name has a clear Sino-Korean reading: 명동 → 明洞, 江南, 仁寺洞, 漢江, 景福宮.
-- Use Katakana for Western brand names: 롯데호텔 → ロッテホテル, スターバックス, JWマリオット.
-- Use Katakana phonetic transcription for native Korean words without standard kanji: 광안리 → 広安里 (kanji), 해운대 → 海雲台 (kanji).
-- Output ONLY the translation. No explanation, no quotes, no labels, no romanization.
-- If the input is already in Japanese, output it unchanged.
+- Use Hanja (kanji) form when the place name has a clear Sino-Korean reading: 명동 → 明洞, 강남 → 江南, 인사동 → 仁寺洞, 한강 → 漢江, 경복궁 → 景福宮.
+- Use Katakana for Western brand names: 롯데호텔 → ロッテホテル, 스타벅스 → スターバックス, JW매리어트 → JWマリオット.
+- Use kanji phonetic form where available for native Korean words: 광안리 → 広安里, 해운대 → 海雲台.
+- Output ONLY the final result. No explanation, no quotes, no labels, no romanization.
 - Preserve numbers and branch indicators (점 → 店).
 
-Korean place name:
+Place name:
 ${text}`;
   }
   if (targetLang === 'zh') {
     return `You are translating a Korean place name to Simplified Chinese for a Chinese tourist booking service.
 
+MIXED INPUT HANDLING:
+- The input may contain mixed Korean and Chinese/Simplified characters — some parts may already be partially translated.
+- Translate ONLY the remaining Korean fragments (Hangul: 가-힣) while preserving already-translated Chinese parts AS-IS.
+- If the input is fully Korean (Hangul only), translate the entire text.
+- If the input is already fully in Chinese, return it unchanged.
+
+Examples of mixed input:
+- Input: "乐天酒店 강남"   → Output: "乐天酒店 江南"
+- Input: "明洞 롯데호텔"   → Output: "明洞 乐天酒店"
+- Input: "롯데호텔 명동"   → Output: "乐天酒店 明洞"
+
 STRICT RULES:
 - Use Simplified Chinese characters (简体中文).
 - Use Hanja-equivalent Chinese form when available: 명동 → 明洞, 강남 → 江南, 한강 → 汉江, 경복궁 → 景福宫.
 - Use established Chinese brand names: 롯데호텔 → 乐天酒店, 신라호텔 → 新罗酒店, 스타벅스 → 星巴克.
-- Output ONLY the translation. No explanation, no quotes, no labels, no pinyin.
-- If the input is already in Chinese, output it unchanged.
+- Output ONLY the final result. No explanation, no quotes, no labels, no pinyin.
 - Preserve numbers and branch indicators (점 → 店).
 
-Korean place name:
+Place name:
 ${text}`;
   }
   // ko fallback (caller usually short-circuits)
@@ -318,6 +357,12 @@ ${text}`;
 
 /**
  * Layer 1: Gemini 호출 — 강화된 prompt, temperature=0.1 (확정적).
+ *
+ * 응답 검증:
+ *   - Gemini가 한글을 여전히 포함한 응답을 반환하면 console.warn 후 null 반환.
+ *   - caller(translatePlaceName)는 null 수신 시 원문(source='fallback') 반환.
+ *   - targetLang='ja'/'zh'는 한자/한글 구분이 필요하므로 Hangul 전용 체크만 수행.
+ *
  * @returns {Promise<string|null>}
  */
 async function geminiTranslatePlaceName(text, targetLang) {
@@ -340,6 +385,18 @@ async function geminiTranslatePlaceName(text, targetLang) {
     // Gemini 가 quotes 또는 explanation 을 반환하면 정리
     out = out.replace(/^["'`]+|["'`]+$/g, '').trim();
     if (!out) return null;
+
+    // 응답 검증: 한글 잔존 체크 (Hangul syllable/jamo)
+    // targetLang='en'의 경우 한글이 남아있으면 번역 실패로 간주.
+    // targetLang='ja'/'zh'의 경우 한자(CJK)는 정상이지만 Hangul은 여전히 비정상.
+    if (HANGUL_RE.test(out)) {
+      console.warn(
+        `[translator.geminiTranslatePlaceName] Hangul remains in ${targetLang} output — falling back to original.`,
+        { input: text, output: out }
+      );
+      return null;
+    }
+
     return out;
   } catch (err) {
     console.error('[translator.geminiTranslatePlaceName] gemini failed:', err.message);
