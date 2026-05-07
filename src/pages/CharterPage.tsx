@@ -199,7 +199,11 @@ export default function CharterPage() {
                   <p className="text-[10px] text-[#C4956A] mt-1">{c.vehicleFromPrice ?? '₩291,200~'}</p>
                 )}
                 {(key === 'sprinter' || key === 'bus') && (
-                  <p className="text-[10px] text-white/55 mt-1">{c.vehicleCustomQuote ?? '별도 견적'}</p>
+                  <>
+                    <p className="text-[10px] text-white/55 mt-1">{c.vehicleCustomQuote ?? '별도 견적'}</p>
+                    {/* 가이드비 사전 표시 — 사용자 결제 단계 깜짝 비용 방지 */}
+                    <p className="text-[10px] text-amber-300/80 mt-0.5">{c.vehicleGuideFeeNote ?? '+₩300,000/일 가이드비'}</p>
+                  </>
                 )}
               </button>
             ))}

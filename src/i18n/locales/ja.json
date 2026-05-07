@@ -1177,6 +1177,8 @@
     "vehicleCustomQuote": "別途見積",
     "vehicleGuideWarning": "韓国の法律上、10人以上の車両にはガイドの同行が必要です。",
     "vehicleGuideCost": "ガイド費用 ₩300,000/日が追加されます。",
+    "vehicleGuideFeeNote": "+₩300,000/日 ガイド料",
+    "tourExcludeAirportPickup": "空港送迎（別途見積）",
     "serviceType": "サービス種類",
     "serviceAirport": "空港送迎",
     "serviceDaily": "日帰りツアー",

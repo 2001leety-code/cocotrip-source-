@@ -1177,6 +1177,8 @@
     "vehicleCustomQuote": "Custom Quote",
     "vehicleGuideWarning": "Korean law requires a licensed guide for vehicles with 10+ seats.",
     "vehicleGuideCost": "Guide fee ₩300,000/day will be added.",
+    "vehicleGuideFeeNote": "+₩300,000/day guide fee",
+    "tourExcludeAirportPickup": "Airport pickup (separate quote)",
     "serviceType": "Service Type",
     "serviceAirport": "Airport Pickup/Drop-off",
     "serviceDaily": "Day Tour",

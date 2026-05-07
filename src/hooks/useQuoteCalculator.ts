@@ -93,7 +93,8 @@ export function calculateQuote(state: WizardState): QuoteBreakdown | null {
 
     const mode = state.service;
     const vehicle = state.vehicle;
-    const svcCfg = (SERVICE_CONFIG as Record<string, {
+    // unknown 우회 — service_config에 mode-별 설정 외 글로벌 키(excludes_extra)가 섞여 있음
+    const svcCfg = (SERVICE_CONFIG as unknown as Record<string, {
       show_meals: boolean;
       show_attractions: boolean;
       meals_count_default?: number;

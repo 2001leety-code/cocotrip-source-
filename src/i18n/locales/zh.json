@@ -1177,6 +1177,8 @@
     "vehicleCustomQuote": "另行报价",
     "vehicleGuideWarning": "根据韩国法律，10座以上车辆需持证导游陪同。",
     "vehicleGuideCost": "导游费用 ₩300,000/天将另行收取。",
+    "vehicleGuideFeeNote": "+₩300,000/天 导游费",
+    "tourExcludeAirportPickup": "机场接送（另议）",
     "serviceType": "服务类型",
     "serviceAirport": "机场接送",
     "serviceDaily": "一日游",
