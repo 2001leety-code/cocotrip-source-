@@ -32,7 +32,8 @@
     "emailSupport": "邮件支持",
     "terms": "条款",
     "privacy": "隐私",
-    "travelTerms": "旅行条款"
+    "travelTerms": "旅行条款",
+    "adminHome": "管理后台"
   },
   "heroCards": {
     "heading": "韩国旅行，我们如何帮助您？",
@@ -1163,7 +1164,17 @@
     "wizardGenerateBtn": "生成AI行程",
     "wizardPaymentNote": "支付后约15秒完成",
     "my_plans": "我的计划",
-    "paypalSdkTimeout": "PayPal加载超时。若使用广告拦截器(uBlock等)，请将本站列入白名单后刷新。"
+    "paypalSdkTimeout": "PayPal加载超时。若使用广告拦截器(uBlock等)，请将本站列入白名单后刷新。",
+    "aiIntroTitle": "欢迎使用AI旅行规划",
+    "aiIntroSubtitle": "几分钟即可生成您的专属韩国行程。",
+    "aiIntroStep1Title": "1. 填写旅行信息",
+    "aiIntroStep1Body": "通过向导依次告诉我们您的目的地、日期、人数和饮食偏好。",
+    "aiIntroStep2Title": "2. AI生成行程",
+    "aiIntroStep2Body": "Gemini AI将分析路线、美食和交通，1分钟内为您定制专属计划。",
+    "aiIntroStep3Title": "3. 下载并分享PDF",
+    "aiIntroStep3Body": "支付完成后，可下载多语言PDF行程表并与同行者分享。",
+    "aiIntroDontShow": "不再显示",
+    "aiIntroClose": "开始"
   },
   "charterPage": {
     "backToHome": "返回首页",
@@ -1223,7 +1234,20 @@
     "overtime": "超时费用 ₩{n}/小时（每团）",
     "nightSurcharge": "深夜附加费（00:00–06:00）{n}%额外",
     "waQuote": "WhatsApp报价咨询",
-    "emailQuote": "邮件咨询"
+    "emailQuote": "邮件咨询",
+    "charterIntroTitle": "包车预订流程说明",
+    "charterIntroSubtitle": "机场接送·一日游·多日包车，6步获取报价。",
+    "charterIntroStep1Title": "1. 选择出发地与服务",
+    "charterIntroStep1Body": "选择出发机场或城市，并选择您需要的服务(机场接机、一日游等)。",
+    "charterIntroStep2Title": "2. 输入日期、人数与车型",
+    "charterIntroStep2Body": "请填写旅行日期、乘车人数、行李数量及车型(Staria、Sprinter或大巴)。",
+    "charterIntroStep3Title": "3. 确认报价并预订",
+    "charterIntroStep3Body": "即时报价立即显示。可通过PayPal安全支付，或在WhatsApp上申请定制报价。",
+    "charterIntroChatTitle": "急需用车？请通过聊天直接咨询",
+    "charterIntroChatBody": "如果您将在12小时内出发，请勿使用向导，直接通过页面右下角的聊天窗口联系我们。客服人员将立即回复。",
+    "charterIntroDeadline": "预订截止：国内出发前24小时 / 国际出发前48小时",
+    "charterIntroDontShow": "不再显示",
+    "charterIntroClose": "我知道了"
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
@@ -1553,6 +1577,15 @@
   "mypage": {
     "welcomeCouponsTitle": "欢迎！",
     "welcomeCouponsBody": "注册完成 — 已发放 2 张 5% 优惠券",
+    "welcomeModalTitle": "欢迎来到 CocoTrip！",
+    "welcomeModalSubtitle": "注册已完成。",
+    "welcomeModalCouponHeading": "已发放 2 张欢迎优惠券",
+    "welcomeModalCoupon1": "包车 5% OFF",
+    "welcomeModalCoupon2": "旅游套餐 5% OFF",
+    "welcomeModalExpiry": "自发放之日起 90 天内有效",
+    "welcomeModalBody": "预订包车或旅游套餐时可使用。",
+    "welcomeModalCta": "查看我的优惠券",
+    "welcomeModalClose": "知道了",
     "home": "首页",
     "tierBenefits": "{tier} 会员权益",
     "dashNextTrip": "下一次旅行",

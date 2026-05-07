@@ -14,6 +14,7 @@ import {
 import { CalendarPicker } from '@/components/PlannerForm';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
+import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 
@@ -519,6 +520,8 @@ export default function CharterPage() {
       </main>
 
       {!isMobile && <Footer t={t} />}
+      {/* 첫 진입 시 1회 노출되는 차터 사용 흐름 + 12h 마감 안내 모달 */}
+      <CharterIntroModal />
     </div>
   );
 }

@@ -96,7 +96,7 @@ export function evaluateRefundPolicy({ tourDate, tourTime = '00:00', tier = 'Bro
     refundPercent: Math.round(ratio * 100),
     refundRatio: ratio,
     canRefund: ratio > 0,
-    canModify: hoursUntilTour >= 24,  // 변경은 24h 이전까지만
+    canModify: hoursUntilTour >= 12,  // 변경은 12h 이전까지만 (2026-05-07 통일)
     freeCancelUntil: new Date(freeCancelUntilTs).toISOString(),
     finalCancelUntil: new Date(finalCancelUntilTs).toISOString(),
     tierApplied: tier,

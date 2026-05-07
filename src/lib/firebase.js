@@ -83,24 +83,48 @@ async function saveUserToFirestore(user) {
     //    멱등성은 서버에서 onboardingCouponsIssued flag 로 보장.
     //    클라이언트 직접 addDoc은 Firestore rules `users/{uid}/coupons write:false`
     //    로 거부되므로 절대 사용 금지.
+    //    재시도: 최대 2회 (초기 1회 + 1회 retry, 1초 대기) — 네트워크 일시 장애 대비.
     if (isNewUser) {
-      try {
-        const idToken = await user.getIdToken();
-        const resp = await fetch('/api/onboarding-coupons', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (json?.ok && json.issued > 0) {
-          // MyPage / Header 가 sessionStorage 를 감지해 환영 토스트 노출
-          try {
-            sessionStorage.setItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED', String(json.issued));
-          } catch { /* SSR / 시크릿 모드 등 silent */ }
+      const MAX_ATTEMPTS = 2;
+      let lastErr = null;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          const idToken = await user.getIdToken(/* forceRefresh */ attempt > 1);
+          const resp = await fetch('/api/onboarding-coupons', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${idToken}` },
+          });
+          const json = await resp.json().catch(() => ({}));
+          console.log(`[firebase] onboarding coupons attempt ${attempt}:`, json);
+
+          if (json?.ok) {
+            if (json.issued > 0) {
+              // OnboardingCouponModal (App.tsx) 이 sessionStorage 를 감지해 모달 노출
+              try {
+                sessionStorage.setItem('COCO_ONBOARDING_COUPONS_JUST_ISSUED', String(json.issued));
+              } catch { /* SSR / 시크릿 모드 등 silent */ }
+            }
+            // ok=true 면 alreadyIssued 포함 모든 성공 케이스 → loop 종료
+            lastErr = null;
+            break;
+          } else {
+            lastErr = new Error(json?.error ?? `HTTP ${resp.status}`);
+            if (attempt < MAX_ATTEMPTS) {
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+          }
+        } catch (couponErr) {
+          lastErr = couponErr;
+          console.warn(`[firebase] onboarding coupon attempt ${attempt} failed:`, couponErr?.message);
+          if (attempt < MAX_ATTEMPTS) {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
         }
-        console.log('[firebase] onboarding coupons response:', json);
-      } catch (couponErr) {
-        console.warn('[firebase] onboarding coupon request failed:', couponErr?.message);
-        // 쿠폰 발급 실패해도 sign-in 은 계속 진행 — 사용자가 첫 결제에서만 영향.
+      }
+      if (lastErr) {
+        // 최종 실패 — sign-in 은 계속 진행하되 Sentry 에 수동 기록 가능
+        console.error('[firebase] onboarding coupons FAILED after retries:', lastErr?.message);
+        // 운영자 보정: api/admin-issue-onboarding-coupons 참고
       }
     }
 

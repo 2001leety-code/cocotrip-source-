@@ -24,6 +24,14 @@ import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 직접 호출은 미사용. _telegram.js / _ai-employees.js 의 export 는 다른 파일이 사용하므로 유지.
 import { sendDispatchAlert, sendBookingPaymentAlert, sendErrorAlert } from './_telegram.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
+import { notify } from './_shared/notify.js';
+
+// ── 어드민 bypass 감지 ───────────────────────────────────────────────────
+// capturePaypalOrder → booking-processor 호출 시 orderID 에 ADMIN-BYPASS- prefix 가
+// 붙어 있으면 결제 우회 예약으로 간주. paymentGate.js 와 동일 prefix 규약 사용.
+function isAdminBypassOrder(orderID) {
+  return typeof orderID === 'string' && orderID.startsWith('ADMIN-BYPASS-');
+}
 import { sendBookingConfirmation, buildDefaultConfirmationEmail } from './_send-email.js';
 import {
   generateConfirmationEmail,
@@ -105,6 +113,42 @@ const originalHandler = async (event) => {
 
   if (!orderID || !payerEmail) {
     return respond(400, _err('orderID와 payerEmail은 필수입니다.', 'MISSING_FIELDS'));
+  }
+
+  // ── 어드민 결제 우회 감지 + Firestore 기록 ─────────────────────────────
+  // paymentGate.js 에서 ADMIN-BYPASS- prefix 허용 시 capturePaypalOrder 가 orderID
+  // 그대로 booking-processor 로 전달. 여기서 감지해 bypass 메타데이터를 기록하고
+  // 텔레그램 admin(booking) 채널에 알림 전송.
+  const adminBypass = isAdminBypassOrder(orderID);
+  if (adminBypass) {
+    console.log('[booking-processor] 🟢 ADMIN BYPASS 예약 감지 | orderID:', orderID, '| email:', payerEmail);
+    try {
+      const db = initAdminDb('booking-processor');
+      if (db) {
+        const { FieldValue } = await import('firebase-admin/firestore');
+        await db.collection('bookings').doc(orderID).set({
+          paymentMethod: 'admin-bypass',
+          bypassReason: 'admin-test',
+          paymentVerifiedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        console.log('[booking-processor] 어드민 bypass 메타데이터 기록 완료');
+      }
+    } catch (bypassDbErr) {
+      // 비치명적 — 기록 실패해도 예약 처리는 계속
+      console.warn('[booking-processor] bypass 메타데이터 기록 실패:', bypassDbErr.message);
+    }
+    // 텔레그램 booking 채널 알림 (비치명적)
+    notify('booking', [
+      '🟢 <b>어드민 테스트 예약 생성 (결제 우회)</b>',
+      '',
+      `<b>orderID:</b> <code>${orderID}</code>`,
+      `<b>상품:</b> ${product || '(미지정)'}`,
+      `<b>날짜:</b> ${tourDate || '(미지정)'}`,
+      `<b>결제자:</b> ${payerEmail}`,
+      '',
+      '<i>ADMIN-BYPASS- prefix — 실제 결제 없이 예약 흐름 E2E 테스트용</i>',
+    ].join('\n')).catch((e) => console.warn('[booking-processor] bypass telegram notify 실패:', e.message));
   }
 
   console.log('[booking-processor] 예약 처리 시작:', { orderID, payerEmail, amount });
