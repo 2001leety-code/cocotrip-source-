@@ -52,6 +52,14 @@ interface PendingBooking {
   refundedKRW?: number;
   refundReason?: string;
   cancelReason?: string;
+  // Smart Buttons capture 응답 일부 (capturePaypalOrder.js 가 동일 doc 에 머지 시 노출).
+  rawCapturePayload?: {
+    payer?: { email_address?: string };
+    amount?: { value?: string; currency_code?: string };
+    captureID?: string;
+    status?: string;
+    create_time?: string;
+  };
 }
 
 function formatTs(ts?: { toMillis(): number }): string {
@@ -310,6 +318,15 @@ export default function AdminPayments() {
                 {b.status === 'CONFIRMED' && (
                   <div className="text-[11px] text-emerald-300/80 mb-3 bg-emerald-500/[0.04] border border-emerald-500/20 rounded-lg px-3 py-2">
                     확정: {formatTs(b.confirmedAt)}{b.paypalTransactionId ? ` · PayPal TX: ${b.paypalTransactionId}` : ''}
+                  </div>
+                )}
+                {/* PayPal Smart Buttons capture 응답 (있을 때만 — 디버깅용 작은 글자) */}
+                {b.rawCapturePayload && (
+                  <div className="text-[10px] text-white/45 mb-3 bg-white/[0.02] border border-white/[0.06] rounded-lg px-3 py-2 font-mono leading-relaxed">
+                    <span className="text-white/55">capture:</span>{' '}
+                    {b.rawCapturePayload.payer?.email_address || '—'}
+                    {b.rawCapturePayload.amount?.value ? ` · $${b.rawCapturePayload.amount.value}` : ''}
+                    {b.rawCapturePayload.captureID ? ` · ${b.rawCapturePayload.captureID}` : ''}
                   </div>
                 )}
                 {b.status === 'REFUNDED' && (
