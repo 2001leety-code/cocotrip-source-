@@ -1,9 +1,10 @@
 // AdminQualityDashboard — /api/admin-quality-summary 응답 시각화.
 // Tier 2-D 학습 루프: area/지표/worst plans 빠른 진단으로 약점 영역 식별.
 // 한국어 admin 정책 (5/4 세션) — i18n 키 X, 인라인 한국어.
+// PR-D (2026-05-07): 수집 단위 라벨, AI 요약 fallback UI, _collectionMissing 배너.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface MetricCell {
@@ -49,7 +50,35 @@ interface QualitySummary {
   metricFrequency: Record<string, MetricCell>;
   byArea: Record<string, AreaCell>;
   worstPlans: WorstPlan[];
+  // PR-D 신규
+  csTicketCount?: number;
+  errorLogCount?: number;
+  userReportCount?: number;
+  _collectionMissing?: string[];
+  _collectionErrors?: Record<string, string>;
   generatedAt: string;
+}
+
+// PR-D: 약점 카운트 측정 단위 라벨 (docs/quality-metrics.md 와 동기화)
+const METRIC_UNIT_LABELS: Record<string, string> = {
+  dietary_violation:     '(per stop)',
+  unverified_restaurant: '(per stop)',
+  field_completeness:    '(per stop)',
+  route_failure:         '(per stop)',
+  bad_address_prefix:    '(per stop)',
+  language_mismatch:     '(per stop)',
+  duplicate_stops:       '(per duplicate)',
+  tight_schedule:        '(per segment)',
+  loose_schedule:        '(per segment)',
+};
+
+// PR-D: LLM 임계값 가드 (helper 와 동일 — plans>=5 AND signals>=3)
+const LLM_MIN_PLANS = 5;
+const LLM_MIN_SIGNALS = 3;
+function hasSufficientData(d: QualitySummary): boolean {
+  const plans = d.window?.scoredCount ?? 0;
+  const signals = (d.csTicketCount ?? 0) + (d.errorLogCount ?? 0) + (d.userReportCount ?? 0);
+  return plans >= LLM_MIN_PLANS && signals >= LLM_MIN_SIGNALS;
 }
 
 function formatScore(v: number | null | undefined): string {
@@ -139,6 +168,24 @@ function QualityDashboard() {
 
       <h1 className="text-2xl font-bold">AI 플래너 Quality 대시보드</h1>
 
+      {/* PR-D: 수집 미작동 컬렉션 배너 (silent fail 금지 — 운영자 즉시 인지) */}
+      {data._collectionMissing && data._collectionMissing.length > 0 && (
+        <section className="bg-red-500/15 border border-red-500/40 rounded-2xl p-4 flex gap-3 items-start">
+          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 text-sm">
+            <p className="text-red-300 font-semibold">
+              수집 미작동 컬렉션: <span className="font-mono">{data._collectionMissing.join(', ')}</span>
+            </p>
+            <p className="text-red-200/80 text-xs mt-1">
+              해당 컬렉션이 비어있거나 미존재합니다. 데이터 수집 경로를 점검하세요.
+              ({Object.keys(data._collectionErrors || {}).length > 0
+                ? `에러: ${Object.entries(data._collectionErrors || {}).map(([k, v]) => `${k}: ${v}`).join('; ')}`
+                : '에러 없음 — 빈 컬렉션'})
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* 필터 */}
       <div className="flex flex-wrap gap-4 items-center">
         <label className="flex items-center gap-2 text-sm">
@@ -203,7 +250,12 @@ function QualityDashboard() {
               <tbody>
                 {sortedMetrics.map(([metric, m]) => (
                   <tr key={metric} className="border-t border-white/10">
-                    <td className="py-2 pr-4 font-mono">{metric}</td>
+                    <td className="py-2 pr-4 font-mono">
+                      {metric}
+                      <span className="ml-2 text-[10px] text-white/40 font-sans">
+                        {METRIC_UNIT_LABELS[metric] || ''}
+                      </span>
+                    </td>
                     <td className="py-2 pr-4">{m?.violations ?? 0}</td>
                     <td className="py-2 pr-4">{m?.stops ?? 0}</td>
                     <td className="py-2 pr-4">{((m?.avgRate ?? 0) * 100).toFixed(1)}%</td>
@@ -306,6 +358,48 @@ function QualityDashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      {/* PR-D: 추가 신호 카운트 (cs_tickets / error_log / plan_complaints) */}
+      <section className="bg-white/[0.04] rounded-2xl p-4 border border-white/10">
+        <h2 className="text-lg font-semibold mb-3">추가 품질 신호</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Stat label="사용자 신고 (plan_complaints)" value={data.userReportCount ?? null} />
+          <Stat label="CS 티켓 (cs_tickets)" value={data.csTicketCount ?? null} />
+          <Stat label="에러 로그 (error_log)" value={data.errorLogCount ?? null} />
+        </div>
+        <p className="text-xs text-white/55 mt-3">
+          기간: 최근 {data.window?.days}일.
+          신고/티켓/에러는 <span className="font-mono text-white/70">createdAt</span> 기준 카운트
+          (per record).
+        </p>
+      </section>
+
+      {/* PR-D: AI 요약 상태 카드 (실제 Gemini 호출은 주간 cron 만 — 여기는 임계값 안내) */}
+      <section className="bg-white/[0.04] rounded-2xl p-4 border border-white/10">
+        <h2 className="text-lg font-semibold mb-3">AI 요약 (주간 리포트)</h2>
+        {hasSufficientData(data) ? (
+          <div className="text-sm text-white/70 space-y-2">
+            <p className="text-emerald-300">
+              데이터 충분 — 주간 cron 이 Gemini 요약을 생성합니다.
+            </p>
+            <p className="text-xs text-white/50">
+              매주 월요일 KST 09:00 에 텔레그램 admin 채널 + Firestore
+              <span className="font-mono mx-1">weekly_quality_reports</span> 보관.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 text-sm">
+            <p className="text-white/70">
+              이번 주 데이터가 부족해 트렌드 분석이 어렵습니다 (plans: {data.window?.scoredCount ?? 0}건,
+              신호: {(data.csTicketCount ?? 0) + (data.errorLogCount ?? 0) + (data.userReportCount ?? 0)}건).
+            </p>
+            <p className="text-white/55 text-xs mt-2">
+              임계값: plans ≥ {LLM_MIN_PLANS} AND (cs+error+report) ≥ {LLM_MIN_SIGNALS}.
+              미달 시 LLM 호출 스킵 (비용 + hallucination 방지). 수집 경로 점검 권장.
+            </p>
           </div>
         )}
       </section>

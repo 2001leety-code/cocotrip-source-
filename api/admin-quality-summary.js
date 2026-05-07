@@ -8,6 +8,10 @@
  * 본 endpoint 는 최근 N 일 / N 건의 plan 을 집계해 area / zone 별 약점,
  * DB 보강 우선순위, worst-plan top 10 을 admin 대시보드용으로 노출한다.
  *
+ * PR-D (2026-05-07): plans 외 3개 카운트 컬렉션 추가 — `plan_complaints`,
+ * `cs_tickets`, `error_log`. 컬렉션 미존재 시 `_collectionMissing` 배열에
+ * 명시적 노출 (silent fail 금지 — 운영자가 수집 미작동 즉시 인지).
+ *
  * 응답 스키마 (admin-only):
  *   {
  *     window: { days, limit, sinceISO, scannedTotal, scoredCount },
@@ -29,6 +33,12 @@
  *         topMetrics: [{ metric, count, total }, ...] // 상위 3
  *       }, ...
  *     ],
+ *     // PR-D 신규
+ *     csTicketCount,
+ *     errorLogCount,
+ *     userReportCount,        // = plan_complaints 컬렉션 카운트
+ *     _collectionMissing: ['error_log', ...],
+ *     _collectionErrors: { error_log: '...', ... },
  *     generatedAt,
  *   }
  *
@@ -42,6 +52,7 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
+import { collectQualityCounts } from './_shared/quality-summary-helper.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -236,6 +247,18 @@ async function handler(req, res) {
         topMetrics: topMetrics(p.qualityScore.metrics, 3),
       }));
 
+    // ── PR-D: 추가 컬렉션 카운트 (plan_complaints / cs_tickets / error_log) ──
+    // helper 에서 plans 도 같이 fetch 하지만 우리는 위에서 days/limit 커스텀으로
+    // 이미 처리했으니 counts 만 사용. _collectionMissing 도 plan 미포함 (이미 fetch 성공).
+    const counts = await collectQualityCounts(db, sinceMs);
+    const csTicketCount   = counts.tickets.length;
+    const errorLogCount   = counts.errors.length;
+    const userReportCount = counts.complaints.length;
+    // plans 는 이미 위에서 처리했으므로 helper 의 plans 미존재 표기는 제외
+    const _collectionMissing = (counts._collectionMissing || []).filter((c) => c !== 'plans');
+    const _collectionErrors  = { ...(counts._collectionErrors || {}) };
+    delete _collectionErrors.plans;
+
     return json(res, 200, {
       window: {
         days,
@@ -248,6 +271,12 @@ async function handler(req, res) {
       metricFrequency,
       byArea,
       worstPlans,
+      // PR-D 신규
+      csTicketCount,
+      errorLogCount,
+      userReportCount,
+      _collectionMissing,
+      _collectionErrors,
       generatedAt: new Date().toISOString(),
     });
   } catch (err) {
