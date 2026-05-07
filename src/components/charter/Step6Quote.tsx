@@ -117,6 +117,10 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
         <span>{i18n.driverDispatchNote}</span>
       </div>
 
+      {/* PR-R (2026-05-08): 예약 마감 정책 안내 + 임박 시 amber 배너 */}
+      <CutoffNotice state={state} i18n={i18n} />
+
+
       {/* 별도 고지 박스 (always render for relevant modes) */}
       {(quote.showMeals || quote.showAttractions) && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
@@ -159,4 +163,47 @@ function Row({ label, value, muted, warn, good }: { label: string; value: string
       <span>{value}</span>
     </div>
   );
+}
+
+// PR-R (2026-05-08): 예약 마감 안내 컴포넌트.
+// - always-on note 줄: "예약 마감: 출발 24h 전 (멀티데이 48h)"
+// - 임박 시 (출발까지 cutoffHours 미만 + 0보다 큰 경우) amber 배너로 강조
+function CutoffNotice({ state, i18n }: { state?: WizardState; i18n: ReturnType<typeof getWizardI18n> }) {
+  if (!state?.startDate) {
+    return (
+      <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>
+    );
+  }
+  // multi_day → 48h, 외 → 24h
+  const cutoffHours = state.service === 'multi_day' ? 48 : 24;
+  const pickupTime = state.pickupTime ?? '09:00';
+  const departureMs = new Date(`${state.startDate}T${pickupTime}:00+09:00`).getTime();
+  if (isNaN(departureMs)) {
+    return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>;
+  }
+  const hoursLeft = (departureMs - Date.now()) / 3600000;
+  const remainingUntilCutoff = hoursLeft - cutoffHours;
+  // 출발까지 cutoff 보다 적게 남음 + 출발 자체는 미래 → 임박 배너.
+  const imminent = hoursLeft > 0 && remainingUntilCutoff < 0;
+  // 마감 지남 — 별도 처리 (PayPal 시도 시 차단됨)
+  const closed = hoursLeft <= 0 || remainingUntilCutoff <= -cutoffHours;
+
+  if (closed) {
+    return (
+      <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200 flex items-start gap-2">
+        <span className="text-base leading-none">⛔</span>
+        <span>{i18n.bookingClosedMessage}</span>
+      </div>
+    );
+  }
+  if (imminent) {
+    const left = Math.max(1, Math.round(hoursLeft));
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 flex items-start gap-2">
+        <span className="text-base leading-none">⚠️</span>
+        <span>{i18n.bookingCutoffImminent(left)}</span>
+      </div>
+    );
+  }
+  return <p className="text-[11px] text-white/45 px-1">📅 {i18n.bookingCutoffNote}</p>;
 }

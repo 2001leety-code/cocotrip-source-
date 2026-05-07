@@ -596,6 +596,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   vehicleType={tour.vehicleType.toLowerCase()}
                   memo={fullMemo}
                   userEmail={userEmail}
+                  // PR-R (2026-05-08): 마감 검증 — 투어는 별도 시간 입력 X, 09:00 기본
+                  // durationDays >= 2 면 multi_day cutoff (48h) 자동 적용.
+                  pickupTime="09:00"
+                  durationDays={days}
                 />
               ) : (
                 <button

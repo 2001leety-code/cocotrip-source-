@@ -268,6 +268,15 @@ export function ChatWidget({ language }: ChatWidgetProps) {
     }
   }, [open]);
 
+  // PR-R (2026-05-08): 글로벌 이벤트 'cocotrip:open-chat' listen → ChatWidget 자동 오픈.
+  // PayPalBookingButton 이 BOOKING_CLOSED 응답 시 dispatch 함. 다른 컴포넌트도
+  // 같은 이벤트 dispatch 로 챗 상담 유도 가능.
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('cocotrip:open-chat', handler);
+    return () => window.removeEventListener('cocotrip:open-chat', handler);
+  }, []);
+
   // Restore focus automatically when loading completes
   useEffect(() => {
     if (!loading && open) {

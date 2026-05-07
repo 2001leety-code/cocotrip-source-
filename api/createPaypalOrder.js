@@ -10,6 +10,7 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { getPaypalAccessToken } from './_shared/paypal.js';
+import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -119,7 +120,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode, userEmail = '', couponDocId } = body;
+    const { productType, passengers = 1, dateStart = '', dateEnd = '', pickupTime = '', durationDays, language = 'en', promoCode, userEmail = '', couponDocId } = body;
     if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
 
     // AI 플래너 = 디지털 상품 — 모든 쿠폰/프로모 reject (운영자 정책 2026-05-05).
@@ -128,6 +129,32 @@ export default async function handler(req, res) {
       console.warn('[createPaypalOrder] AI Planner coupon rejected:', { productType, promoCode, couponDocId });
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err('AI Planner does not accept coupons', 'AI_PLANNER_NO_COUPON')));
+    }
+
+    // PR-R (2026-05-08): 예약 마감 정책 검증.
+    // - airport / charter / day_tour / kpop_shuttle / tour: 출발 24시간 전 마감
+    // - multi_day (durationDays >= 2): 출발 48시간 전 마감
+    // - AI 플래너 = 디지털 상품 — 마감 검증 X (즉시 생성, 출발 일정 무관)
+    // - charter_custom_estimate: dateStart + pickupTime 있으면 검증 (없으면 skip — 협의 폼)
+    if (!normalizedProduct.startsWith('ai_planner') && dateStart) {
+      try {
+        if (isPastCutoff(dateStart, pickupTime, productType, durationDays)) {
+          const cutoffHours = getCutoffHours(productType, durationDays);
+          console.warn('[createPaypalOrder] Booking past cutoff:', { productType, dateStart, pickupTime, durationDays, cutoffHours });
+          res.writeHead(400, JSON_CORS);
+          return res.end(JSON.stringify({
+            ok: false,
+            error: '예약 마감 시간이 지났습니다. 빠른 예약은 챗 상담을 이용해주세요.',
+            code: 'BOOKING_CLOSED',
+            cutoffHours,
+          }));
+        }
+      } catch (cutoffErr) {
+        // 잘못된 날짜 포맷 등 — 명시적 400 (silent fail 금지).
+        console.error('[createPaypalOrder] cutoff check failed:', cutoffErr.message);
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(`Invalid date/time: ${cutoffErr.message}`, 'INVALID_DATE')));
+      }
     }
 
     // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행 (sandbox 분기 제거).

@@ -1975,7 +1975,13 @@
     "modifySaveBtn": "変更を保存",
     "modifyCancelBtn": "キャンセル",
     "modifySaving": "保存中...",
-    "modifyNetworkError": "ネットワークエラー"
+    "modifyNetworkError": "ネットワークエラー",
+    "bookingPickupTimeLabel": "ピックアップ時刻",
+    "bookingCutoffNote": "予約締切: 出発24時間前（マルチデー: 48時間）",
+    "bookingCutoffImminent": "予約締切間近（残り{N}時間）",
+    "bookingClosedTitle": "予約締切",
+    "bookingClosedMessage": "予約締切時間を過ぎました。お急ぎの方はチャットでご相談ください。",
+    "bookingChatCta": "チャット相談"
   },
   "tourDetail": {
     "includedTitle": "含まれる",

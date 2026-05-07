@@ -52,6 +52,10 @@ interface Props {
   airport?: AirportBookingInfo;
   /** charter_custom_estimate 결제용 — backend로 전달, priceKRW override */
   customAmountKRW?: number;
+  /** PR-R (2026-05-08): 픽업 시각 (HH:mm KST). 서버 마감 검증 기준. */
+  pickupTime?: string;
+  /** PR-R (2026-05-08): 투어 일수. >= 2 일 때 multi_day cutoff (48h) 적용. */
+  durationDays?: number;
 }
 
 interface RateInfo {
@@ -83,7 +87,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays }: Props) {
   const isSandboxAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
   // customAmountKRW (charter_custom_estimate) 가 있으면 priceKRW override — 5/4 추가
   const priceKRW = customAmountKRW != null && customAmountKRW > 0 ? customAmountKRW : rawPriceKRW;
@@ -410,11 +414,32 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         body: JSON.stringify({
           productType, passengers, dateStart, dateEnd, language: lang,
           userEmail,
+          // PR-R (2026-05-08): 마감 검증용 — pickupTime + durationDays
+          ...(pickupTime ? { pickupTime } : {}),
+          ...(typeof durationDays === 'number' ? { durationDays } : {}),
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
         }),
       });
       const json = await res.json();
       const d = json.data;
+      // PR-R (2026-05-08): BOOKING_CLOSED → 토스트 + ChatWidget 자동 오픈
+      if (!res.ok && json.code === 'BOOKING_CLOSED') {
+        const msg = json.error ??
+          (lang === 'ko' ? '예약 마감 시간이 지났습니다. 빠른 예약은 챗 상담을 이용해주세요.'
+          : lang === 'ja' ? '予約締切時間を過ぎました。お急ぎの方はチャットでご相談ください。'
+          : lang === 'zh' ? '预订已截止。如需紧急预订，请使用聊天咨询。'
+          : 'Booking is closed. For urgent bookings, please contact us via chat.');
+        setError(msg);
+        // 글로벌 이벤트 dispatch — ChatWidget이 listen 후 자동 오픈.
+        try {
+          window.dispatchEvent(new CustomEvent('cocotrip:open-chat', {
+            detail: { reason: 'booking_closed', productType, dateStart, pickupTime },
+          }));
+        } catch (dispatchErr) {
+          console.warn('[PayPal] open-chat dispatch failed:', dispatchErr);
+        }
+        return;
+      }
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
       setRateInfo(d);
       setPaypalReady(true);
