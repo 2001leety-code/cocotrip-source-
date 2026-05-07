@@ -363,61 +363,62 @@ export default function AdminCalendar() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white pt-20 px-4 pb-12 lg:px-8 font-sans">
+    <div className="min-h-screen bg-[#0a0b14] text-white pt-16 sm:pt-20 px-3 sm:px-4 pb-8 sm:pb-12 lg:px-8 font-sans overflow-x-hidden">
       <div className="max-w-7xl mx-auto">
 
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        {/* Header — 모바일 수직 스택 */}
+        <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center mb-5 sm:mb-8 gap-3 md:gap-4">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <CalendarIcon className="w-6 h-6 text-[#FBBF24]" />
-              예약 캘린더 대시보드
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-[#FBBF24]" />
+              예약 캘린더
               {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
             </h1>
-            <p className="text-gray-400 text-sm mt-1">
-              {error ? <span className="text-red-400">⚠ {error}</span> : '예약 현황과 차량 배정을 한눈에 관리하세요. (Firestore 실시간 연동)'}
+            <p className="text-gray-400 text-xs sm:text-sm mt-1">
+              {error ? <span className="text-red-400">{error}</span> : '예약 현황과 차량 배정 (Firestore 실시간)'}
             </p>
           </div>
 
-          <div className="flex items-center gap-6 bg-[#12131C] p-2 rounded-xl border border-gray-800">
-            <button onClick={prevMonth} className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+          <div className="flex items-center justify-between md:justify-center gap-3 md:gap-6 bg-[#12131C] p-2 rounded-xl border border-gray-800">
+            <button onClick={prevMonth} className="p-2 hover:bg-gray-800 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="이전 달">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <span className="text-lg font-semibold min-w-[120px] text-center">
+            <span className="text-base sm:text-lg font-semibold min-w-[100px] sm:min-w-[120px] text-center">
               {year}년 {month + 1}월
             </span>
-            <button onClick={nextMonth} className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+            <button onClick={nextMonth} className="p-2 hover:bg-gray-800 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="다음 달">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="flex gap-3">
-            <Link to="/admin/analytics" className="hidden md:flex px-4 py-2 bg-[#1a1b26] hover:bg-gray-800 border border-gray-800 rounded-lg text-sm font-medium transition-colors text-gray-300 items-center gap-2">
+          {/* 모바일에서 가로 스크롤 가능, 데스크톱 가로 정렬 */}
+          <div className="flex gap-2 sm:gap-3 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Link to="/admin/analytics" className="hidden md:flex px-4 py-2 bg-[#1a1b26] hover:bg-gray-800 border border-gray-800 rounded-lg text-sm font-medium transition-colors text-gray-300 items-center gap-2 min-h-[44px]">
               <BarChart3 className="w-4 h-4" /> 통계
             </Link>
-            <Link to="/admin/ops" className="hidden md:flex px-4 py-2 bg-[#1a1b26] hover:bg-gray-800 border border-gray-800 rounded-lg text-sm font-medium transition-colors text-gray-300 items-center gap-2">
+            <Link to="/admin/ops" className="hidden md:flex px-4 py-2 bg-[#1a1b26] hover:bg-gray-800 border border-gray-800 rounded-lg text-sm font-medium transition-colors text-gray-300 items-center gap-2 min-h-[44px]">
               <Truck className="w-4 h-4" /> 운영 허브
             </Link>
-            <button onClick={() => openAddModal('block')} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors border border-gray-700 flex items-center gap-2">
+            <button onClick={() => openAddModal('block')} className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors border border-gray-700 flex items-center gap-2 min-h-[44px] shrink-0 whitespace-nowrap flex-1 md:flex-none justify-center">
               <ShieldAlert className="w-4 h-4" /> 일정 블록
             </button>
-            <button onClick={() => openAddModal('booking')} className="px-4 py-2 bg-[#FBBF24] hover:bg-[#FBBF24]/90 text-black rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
+            <button onClick={() => openAddModal('booking')} className="px-3 sm:px-4 py-2 bg-[#FBBF24] hover:bg-[#FBBF24]/90 text-black rounded-lg text-sm font-bold transition-colors flex items-center gap-2 min-h-[44px] shrink-0 whitespace-nowrap flex-1 md:flex-none justify-center">
               <Plus className="w-4 h-4" /> 예약 추가
             </button>
           </div>
         </div>
 
-        {/* Calendar Grid */}
+        {/* Calendar Grid — 모바일에서는 셀 작아짐, 점만 표시 / 데스크톱은 풀텍스트 */}
         <div className="bg-[#12131C] border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="grid grid-cols-7 border-b border-gray-800 bg-[#1a1b26]">
             {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-              <div key={d} className={`p-3 text-center text-sm font-semibold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-300'}`}>
+              <div key={d} className={`p-2 sm:p-3 text-center text-xs sm:text-sm font-semibold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-300'}`}>
                 {d}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 auto-rows-[120px]">
+          <div className="grid grid-cols-7 auto-rows-[64px] sm:auto-rows-[120px]">
             {days.map((day, index) => {
               if (day === null) {
                 return <div key={`empty-${index}`} className="border-r border-b border-gray-800/50 bg-[#0a0b14]/50" />;
@@ -431,15 +432,29 @@ export default function AdminCalendar() {
                 <div
                   key={day}
                   onClick={() => handleDateClick(dateStr)}
-                  className={`border-r border-b border-gray-800/50 p-2 relative cursor-pointer hover:bg-gray-800/30 transition-colors group ${isToday ? 'bg-[#FBBF24]/5' : ''}`}
+                  className={`border-r border-b border-gray-800/50 p-1 sm:p-2 relative cursor-pointer hover:bg-gray-800/30 transition-colors group ${isToday ? 'bg-[#FBBF24]/5' : ''}`}
                 >
-                  <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1 ${
+                  <span className={`text-xs sm:text-sm font-medium w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full mb-0.5 sm:mb-1 ${
                     isToday ? 'bg-[#FBBF24] text-black' : 'text-gray-400 group-hover:text-white'
                   }`}>
                     {day}
                   </span>
 
-                  <div className="flex flex-col gap-1 overflow-hidden h-[80px]">
+                  {/* 모바일: 점 indicator만 / 데스크톱: 카드 리스트 */}
+                  <div className="sm:hidden flex flex-wrap gap-0.5 mt-0.5">
+                    {dayBookings.slice(0, 4).map(booking => (
+                      <span
+                        key={booking.id}
+                        className={`w-2 h-2 rounded-full ${STATUS_COLORS[booking.status].split(' ')[0]}`}
+                        title={`${booking.tourName} (${booking.customer})`}
+                      />
+                    ))}
+                    {dayBookings.length > 4 && (
+                      <span className="text-[9px] text-gray-500 leading-none">+{dayBookings.length - 4}</span>
+                    )}
+                  </div>
+
+                  <div className="hidden sm:flex flex-col gap-1 overflow-hidden h-[80px]">
                     {dayBookings.slice(0, 3).map(booking => (
                       <div
                         key={booking.id}
@@ -461,13 +476,13 @@ export default function AdminCalendar() {
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex gap-4 mt-6 text-sm text-gray-400 justify-end flex-wrap">
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"></span> 대기</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"></span> 확정</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-blue-500/20 border border-blue-500/50"></span> 운행종료</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></span> 취소</div>
-          <div className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-800 border border-gray-600"></span> 블록</div>
+        {/* Legend — 모바일에서 wrap, 작게 */}
+        <div className="flex gap-3 sm:gap-4 mt-4 sm:mt-6 text-xs sm:text-sm text-gray-400 justify-start sm:justify-end flex-wrap">
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"></span> 대기</div>
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"></span> 확정</div>
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500/20 border border-blue-500/50"></span> 운행종료</div>
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></span> 취소</div>
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-gray-800 border border-gray-600"></span> 블록</div>
         </div>
       </div>
 
@@ -483,35 +498,35 @@ export default function AdminCalendar() {
             <motion.div
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
-              className="fixed top-0 right-0 h-full w-full max-w-md bg-[#12131C] border-l border-gray-800 shadow-2xl z-50 flex flex-col"
+              className="fixed top-0 right-0 h-full w-full sm:max-w-md bg-[#12131C] border-l border-gray-800 shadow-2xl z-50 flex flex-col"
             >
-              <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-[#0a0b14]">
+              <div className="p-4 sm:p-6 border-b border-gray-800 flex justify-between items-center bg-[#0a0b14]">
                 <div>
-                  <h2 className="text-xl font-bold text-white">{selectedDate} 일정</h2>
-                  <p className="text-gray-400 text-sm mt-1">총 {allItems.filter(b => b.date === selectedDate).length}건</p>
+                  <h2 className="text-lg sm:text-xl font-bold text-white">{selectedDate} 일정</h2>
+                  <p className="text-gray-400 text-xs sm:text-sm mt-1">총 {allItems.filter(b => b.date === selectedDate).length}건</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => openAddModal('booking', selectedDate!)} className="p-2 hover:bg-[#FBBF24]/20 text-[#FBBF24] rounded-lg transition-colors">
+                  <button onClick={() => openAddModal('booking', selectedDate!)} className="p-2 hover:bg-[#FBBF24]/20 text-[#FBBF24] rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="예약 추가">
                     <Plus className="w-5 h-5" />
                   </button>
-                  <button onClick={() => setIsDrawerOpen(false)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 transition-colors">
+                  <button onClick={() => setIsDrawerOpen(false)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="닫기">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                 {allItems.filter(b => b.date === selectedDate).length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
                     <CalendarIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                    <p>이 날짜에 일정이 없습니다.</p>
+                    <p className="text-sm">이 날짜에 일정이 없습니다.</p>
                   </div>
                 ) : (
                   allItems.filter(b => b.date === selectedDate).map((booking) => (
-                    <div key={booking.id} className="bg-[#1a1b26] border border-gray-800 rounded-xl p-4 shadow-lg">
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-bold text-lg text-white">{booking.tourName}</h3>
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[booking.status].split(' ')[0]} ${STATUS_COLORS[booking.status].split(' ')[1]}`}>
+                    <div key={booking.id} className="bg-[#1a1b26] border border-gray-800 rounded-xl p-3 sm:p-4 shadow-lg">
+                      <div className="flex justify-between items-start mb-3 gap-2">
+                        <h3 className="font-bold text-base sm:text-lg text-white break-words flex-1 min-w-0">{booking.tourName}</h3>
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${STATUS_COLORS[booking.status].split(' ')[0]} ${STATUS_COLORS[booking.status].split(' ')[1]}`}>
                           {STATUS_LABELS[booking.status]}
                         </span>
                       </div>
@@ -606,14 +621,14 @@ export default function AdminCalendar() {
                         {booking.status !== 'blocked' && (
                           <button
                             onClick={() => handleStatusChange(booking.id, booking.status)}
-                            className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors text-white"
+                            className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors text-white min-h-[44px]"
                           >
                             상태 변경
                           </button>
                         )}
                         <button
                           onClick={() => handleDelete(booking)}
-                          className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors border border-red-500/20"
+                          className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors border border-red-500/20 min-h-[44px]"
                         >
                           일정 삭제
                         </button>
@@ -626,22 +641,22 @@ export default function AdminCalendar() {
           </>
         )}
 
-        {/* Add/Block Modal */}
+        {/* Add/Block Modal — 모바일 풀스크린 / 데스크톱 중앙 */}
         {isAddModalOpen && (
           <>
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-stretch sm:items-center justify-center sm:p-4"
             >
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[#12131C] border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl"
+                className="bg-[#12131C] border border-gray-800 sm:rounded-2xl p-4 sm:p-6 w-full sm:max-w-md shadow-2xl overflow-y-auto max-h-screen"
               >
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-white">
-                    {modalMode === 'block' ? '일정 블록(마감)' : '수동 예약 추가'}
+                <div className="flex justify-between items-center mb-5 sm:mb-6 sticky top-0 bg-[#12131C] -mt-1 pt-1 z-10">
+                  <h2 className="text-lg sm:text-xl font-bold text-white">
+                    {modalMode === 'block' ? '일정 블록 (마감)' : '수동 예약 추가'}
                   </h2>
-                  <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-white">
+                  <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="닫기">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -649,41 +664,41 @@ export default function AdminCalendar() {
                 <form onSubmit={handleAddSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-400 mb-1">날짜</label>
-                    <input type="date" required value={formData.date || ''} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]" />
+                    <input type="date" required value={formData.date || ''} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]" />
                   </div>
 
                   {modalMode === 'booking' && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">투어/차량 이름</label>
-                        <input type="text" required placeholder="ex) DMZ 프라이빗 투어" value={formData.tourName || ''} onChange={e => setFormData({...formData, tourName: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]" />
+                        <label className="block text-sm font-medium text-gray-400 mb-1">투어 / 차량 이름</label>
+                        <input type="text" required placeholder="예: DMZ 프라이빗 투어" value={formData.tourName || ''} onChange={e => setFormData({...formData, tourName: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]" />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">고객명</label>
-                          <input type="text" required value={formData.customer || ''} onChange={e => setFormData({...formData, customer: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]" />
+                          <input type="text" required value={formData.customer || ''} onChange={e => setFormData({...formData, customer: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]" />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1">인원 수</label>
-                          <input type="number" min="1" required value={formData.pax || 2} onChange={e => setFormData({...formData, pax: parseInt(e.target.value)})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]" />
+                          <label className="block text-sm font-medium text-gray-400 mb-1">인원</label>
+                          <input type="number" min="1" required value={formData.pax || 2} onChange={e => setFormData({...formData, pax: parseInt(e.target.value)})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]" />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1">기준 시간(H)</label>
-                          <input type="number" min="1" placeholder="ex) 10" value={formData.tourDuration || ''} onChange={e => setFormData({...formData, tourDuration: parseInt(e.target.value)})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]" />
+                          <label className="block text-sm font-medium text-gray-400 mb-1">기준 시간 (H)</label>
+                          <input type="number" min="1" placeholder="예: 10" value={formData.tourDuration || ''} onChange={e => setFormData({...formData, tourDuration: parseInt(e.target.value)})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]" />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1">초과 30분당 요금(원)</label>
-                          <input type="number" min="0" step="1000" placeholder="ex) 30000" value={formData.extraCharge || ''} onChange={e => setFormData({...formData, extraCharge: parseInt(e.target.value)})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]" />
+                          <label className="block text-sm font-medium text-gray-400 mb-1">초과 30분당 요금 (원)</label>
+                          <input type="number" min="0" step="1000" placeholder="예: 30000" value={formData.extraCharge || ''} onChange={e => setFormData({...formData, extraCharge: parseInt(e.target.value)})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]" />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">배정 차량</label>
-                          <select value={formData.vehicle || ''} onChange={e => setFormData({...formData, vehicle: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]">
+                          <select value={formData.vehicle || ''} onChange={e => setFormData({...formData, vehicle: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]">
                             <option value="">미지정</option>
                             <option value="스타리아 1호">스타리아 1호</option>
                             <option value="스타리아 2호">스타리아 2호</option>
@@ -693,7 +708,7 @@ export default function AdminCalendar() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">담당 기사</label>
-                          <select value={formData.driver || ''} onChange={e => setFormData({...formData, driver: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]">
+                          <select value={formData.driver || ''} onChange={e => setFormData({...formData, driver: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]">
                             <option value="">미지정</option>
                             <option value="김기사">김기사</option>
                             <option value="이기사">이기사</option>
@@ -705,25 +720,25 @@ export default function AdminCalendar() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-400 mb-1">픽업 장소</label>
-                        <input type="text" placeholder="ex) 인천공항 T1 / 명동 L7 호텔" value={formData.pickup || ''} onChange={e => setFormData({...formData, pickup: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24]" />
+                        <input type="text" placeholder="예: 인천공항 T1 / 명동 L7 호텔" value={formData.pickup || ''} onChange={e => setFormData({...formData, pickup: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]" />
                       </div>
 
-                      <div className="flex gap-6 p-3 bg-[#0a0b14] border border-gray-800 rounded-lg">
-                        <label className="flex items-center gap-2 cursor-pointer">
+                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 p-3 bg-[#0a0b14] border border-gray-800 rounded-lg">
+                        <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
                           <input
                             type="checkbox"
                             checked={formData.requireCarSeat || false}
                             onChange={e => setFormData({...formData, requireCarSeat: e.target.checked})}
-                            className="w-4 h-4 accent-[#FBBF24] bg-gray-800 border-gray-700 rounded"
+                            className="w-5 h-5 accent-[#FBBF24] bg-gray-800 border-gray-700 rounded"
                           />
                           <span className="text-sm font-medium text-gray-300">카시트 장착</span>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
+                        <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
                           <input
                             type="checkbox"
                             checked={formData.requirePicket || false}
                             onChange={e => setFormData({...formData, requirePicket: e.target.checked})}
-                            className="w-4 h-4 accent-[#FBBF24] bg-gray-800 border-gray-700 rounded"
+                            className="w-5 h-5 accent-[#FBBF24] bg-gray-800 border-gray-700 rounded"
                           />
                           <span className="text-sm font-medium text-gray-300">공항 피켓 서비스</span>
                         </label>
@@ -732,17 +747,17 @@ export default function AdminCalendar() {
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">메모사항</label>
-                    <textarea rows={3} placeholder={modalMode === 'block' ? "차량 정비, 휴무 등 사유 입력" : "카시트 필요, 특정 식당 요청 등"} value={formData.memo || ''} onChange={e => setFormData({...formData, memo: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] resize-none" />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">메모</label>
+                    <textarea rows={3} placeholder={modalMode === 'block' ? "차량 정비, 휴무 등 사유" : "카시트 필요, 특정 식당 요청 등"} value={formData.memo || ''} onChange={e => setFormData({...formData, memo: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] resize-none" />
                   </div>
 
-                  <button type="submit" disabled={submitting} className={`w-full py-3 rounded-lg font-bold mt-2 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
+                  <button type="submit" disabled={submitting} className={`w-full py-3 rounded-lg font-bold mt-2 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] ${
                     modalMode === 'block'
                       ? 'bg-red-500 hover:bg-red-600 text-white'
                       : 'bg-[#FBBF24] hover:bg-[#FBBF24]/90 text-black'
                   }`}>
                     {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                    {modalMode === 'block' ? '해당 날짜 블록하기' : '예약 추가하기'}
+                    {modalMode === 'block' ? '해당 날짜 블록' : '예약 추가'}
                   </button>
                 </form>
               </motion.div>
