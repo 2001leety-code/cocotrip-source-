@@ -1,11 +1,17 @@
 /**
- * GET /api/place-search?query=롯데호텔&limit=10
+ * GET /api/place-search?query=롯데호텔&limit=10&lang=en
  *
  * Naver Local Search API proxy — 사용자 자유 입력 → 비즈니스/장소 후보 반환.
  * 사용처: src/components/charter/AddressAutocomplete.tsx — 차터 위저드의 출발/도착 주소 자동완성.
  *
  * 정확도 우선 — Naver Local Search 는 한국 비즈니스 색인이 가장 풍부하다 (구글/카카오 대비).
  * 응답 좌표는 TM128 (KATEC) 형식 — WGS84 (lat/lng) 로 변환해서 클라이언트에 전달한다.
+ *
+ * PR-S — 외국인 자동완성 정확도 4-layer:
+ *   `?lang=en|ja|zh` 파라미터 전달 시 name/address/category 를 해당 언어로 번역.
+ *   - originalText 별도 필드로 보존 (운영자 어드민 + 백엔드 추적용)
+ *   - lang=ko 또는 미지정 → 한글 그대로
+ *   - 번역 흐름: Firestore 캐시 → 매핑 테이블 → Gemini → 원문 fallback
  *
  * 환경변수 fallback (운영자가 어떤 키로 등록했는지 모르므로 모두 시도):
  *   1. NAVER_LOCAL_SEARCH_CLIENT_ID + NAVER_LOCAL_SEARCH_SECRET
@@ -15,11 +21,15 @@
  *      Developers Local Search 키는 시스템이 다르므로 401 가능; 그래도 fallback 시도).
  *
  * 출력:
- *   { items: [ { name, address, roadAddress, category, lat, lng, tel } ] }
+ *   { items: [ { name, address, roadAddress, category, lat, lng, tel,
+ *                originalName?, originalAddress?, originalRoadAddress?, originalCategory?,
+ *                translationSource? } ],
+ *     lang: 'ko'|'en'|'ja'|'zh' }
  *   에러: 4xx/5xx + { error: 'CODE', detail?: string }
  */
 
 import axios from 'axios';
+import { translatePlaceName } from './_shared/translator.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -128,6 +138,10 @@ export default async function handler(req, res) {
   const limitRaw = parseInt((req.query?.limit ?? '10').toString(), 10);
   const limit = Math.min(15, Math.max(1, isNaN(limitRaw) ? 10 : limitRaw));
 
+  // PR-S: 사용자 언어 — 한국어 사용자 (운영자 본인 포함) 는 한글 그대로.
+  const langRaw = (req.query?.lang ?? '').toString().trim().toLowerCase();
+  const lang = ['en', 'ja', 'zh'].includes(langRaw) ? langRaw : 'ko';
+
   if (!queryRaw || queryRaw.length < 2) {
     res.writeHead(400, JSON_CORS);
     return res.end(JSON.stringify({ error: 'QUERY_TOO_SHORT', detail: 'min 2 chars' }));
@@ -177,11 +191,11 @@ export default async function handler(req, res) {
     }
 
     const items = Array.isArray(upstream.data?.items) ? upstream.data.items : [];
-    const out = [];
+    const rawOut = [];
     for (const it of items) {
       const coord = tm128ToWgs84(it.mapx, it.mapy);
       if (!coord) continue; // 좌표 변환 실패한 항목은 사용자 픽 불가 — drop
-      out.push({
+      rawOut.push({
         name: stripTags(it.title),
         address: stripTags(it.address),
         roadAddress: stripTags(it.roadAddress),
@@ -192,12 +206,56 @@ export default async function handler(req, res) {
       });
     }
 
+    // PR-S: lang='en'/'ja'/'zh' 면 name/address/roadAddress/category 일괄 번역.
+    // 한국어 사용자 (lang='ko') 는 원문 그대로 — 운영자 본인 검수 + 한국어 외국인.
+    let out = rawOut;
+    if (lang !== 'ko') {
+      out = await Promise.all(
+        rawOut.map(async (it) => {
+          // 원문 보존 (운영자 어드민 + 백엔드 추적용)
+          const original = {
+            originalName: it.name,
+            originalAddress: it.address,
+            originalRoadAddress: it.roadAddress,
+            originalCategory: it.category,
+          };
+          // 4개 필드 병렬 번역
+          const [n, a, ra, c] = await Promise.all([
+            translatePlaceName(it.name, lang),
+            translatePlaceName(it.address, lang),
+            translatePlaceName(it.roadAddress, lang),
+            translatePlaceName(it.category, lang),
+          ]);
+          // 번역 source 종합 — 하나라도 'fallback' 이면 클라이언트에 노출
+          const sources = [n.source, a.source, ra.source, c.source];
+          const translationSource = sources.includes('fallback')
+            ? 'partial_fallback'
+            : sources.includes('gemini')
+              ? 'gemini'
+              : sources.includes('mapping')
+                ? 'mapping'
+                : sources.includes('cache')
+                  ? 'cache'
+                  : 'original';
+          return {
+            ...it,
+            name: n.text || it.name,
+            address: a.text || it.address,
+            roadAddress: ra.text || it.roadAddress,
+            category: c.text || it.category,
+            ...original,
+            translationSource,
+          };
+        })
+      );
+    }
+
     res.writeHead(200, {
       ...JSON_CORS,
       // 동일 query 5분 cache — 사용자 재입력 비용 절감
       'Cache-Control': 'public, max-age=300',
     });
-    return res.end(JSON.stringify({ items: out }));
+    return res.end(JSON.stringify({ items: out, lang }));
   } catch (e) {
     console.error('[place-search] fetch error:', e?.message || e);
     res.writeHead(502, JSON_CORS);

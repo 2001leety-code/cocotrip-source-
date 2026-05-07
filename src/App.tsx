@@ -36,6 +36,7 @@ const AdminCalendar = lazy(() => import('@/pages/AdminCalendar'));
 const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
 const AdminOpsHub = lazy(() => import('@/pages/AdminOpsHub'));
 const AdminQualityDashboard = lazy(() => import('@/pages/AdminQualityDashboard'));
+const AdminTranslations = lazy(() => import('@/pages/AdminTranslations'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
@@ -300,6 +301,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminQualityDashboard />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/translations"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminTranslations />
                 </Suspense>
               </AdminRoute>
             }
