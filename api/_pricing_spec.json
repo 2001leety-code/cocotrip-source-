@@ -9,6 +9,14 @@
   "excludes": ["meals", "attractions", "drinks", "shopping"],
 
   "service_config": {
+    "excludes_extra": {
+      "airport_transfer": {
+        "label_ko": "공항 픽업 (별도 견적)",
+        "label_en": "Airport pickup (separate quote)",
+        "label_ja": "空港送迎（別途見積）",
+        "label_zh": "机场接送（另议）"
+      }
+    },
     "airport_transfer": {
       "label_ko": "공항 픽업/샌딩",
       "label_en": "Airport Transfer",
@@ -88,7 +96,7 @@
       },
       "intercity": {
         "base_fee": 50000,
-        "rate_per_km": 900,
+        "rate_per_km": 1000,
         "deadhead_factor": 1.8,
         "daily_service_fee": 200000,
         "overnight_driver_fee": 130000
@@ -200,7 +208,7 @@
     },
     "gyeongju-jeonju": {
       "name_ko": "경주·전주 투어", "name_en": "Gyeongju / Jeonju Tour",
-      "priceKRW": 468000, "priceUSD": 340, "hours": 10,
+      "priceKRW": 600000, "priceUSD": 437, "hours": 10,
       "spots": ["경주", "불국사", "석굴암", "전주한옥마을", "전주"],
       "keywords": ["gyeongju", "경주", "bulguksa", "불국사", "jeonju", "전주"]
     },
@@ -236,9 +244,13 @@
     "night_surcharge_percent": 20,
     "peak_season_percent": 10,
     "round_trip_discount_percent": 10,
-    "english_guide_per_day": 80000,
+    "multi_day_discount_percent": 10,
+    "licensed_guide_per_day": 300000,
+    "english_guide_per_day": 300000,
     "airport_picket_service": 20000,
-    "child_seat_per_trip": 20000
+    "child_seat_per_trip": 20000,
+    "vat_excluded": true,
+    "vat_percent": 10
   },
 
   "addons": {
@@ -247,18 +259,18 @@
       {
         "id": "japanese_driver",
         "labels": { "ko": "일본어 가능 기사", "en": "Japanese-speaking driver", "ja": "日本語ドライバー", "zh": "日语司机" },
-        "priceKRW": 80000,
+        "priceKRW": 0,
         "unit": "per_trip",
         "applies_to": ["tour", "charter", "airport_transfer"],
-        "description_ko": "기본은 영어 기사. 일본어 가능 기사 매칭 시 추가 (가용성에 따라)."
+        "description_ko": "영어/일본어/중국어 기사 모두 무료. 가용성에 따라 매칭."
       },
       {
         "id": "chinese_driver",
         "labels": { "ko": "중국어 가능 기사", "en": "Chinese-speaking driver", "ja": "中国語ドライバー", "zh": "中文司机" },
-        "priceKRW": 80000,
+        "priceKRW": 0,
         "unit": "per_trip",
         "applies_to": ["tour", "charter", "airport_transfer"],
-        "description_ko": "기본은 영어 기사. 중국어 가능 기사 매칭 시 추가."
+        "description_ko": "영어/일본어/중국어 기사 모두 무료. 가용성에 따라 매칭."
       },
       {
         "id": "hanbok_rental",

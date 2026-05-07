@@ -9,6 +9,14 @@
   "excludes": ["meals", "attractions", "drinks", "shopping"],
 
   "service_config": {
+    "excludes_extra": {
+      "airport_transfer": {
+        "label_ko": "공항 픽업 (별도 견적)",
+        "label_en": "Airport pickup (separate quote)",
+        "label_ja": "空港送迎（別途見積）",
+        "label_zh": "机场接送（另议）"
+      }
+    },
     "airport_transfer": {
       "label_ko": "공항 픽업/샌딩",
       "label_en": "Airport Transfer",

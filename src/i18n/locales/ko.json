@@ -1262,6 +1262,8 @@
     "vehicleCustomQuote": "별도 견적",
     "vehicleGuideWarning": "한국 법률상 10인승 이상 차량은 면허 가이드 동행이 필수입니다.",
     "vehicleGuideCost": "가이드 비용 ₩300,000/일이 추가됩니다.",
+    "vehicleGuideFeeNote": "+₩300,000/일 가이드비",
+    "tourExcludeAirportPickup": "공항 픽업 (별도 견적)",
     "serviceType": "서비스 유형",
     "serviceAirport": "공항 픽업/샌딩",
     "serviceDaily": "일일 투어",

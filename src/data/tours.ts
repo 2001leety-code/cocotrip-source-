@@ -6,7 +6,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import pricingSpec from './pricing_spec.json';
 
-const KRW_PER_USD = 1350;
+// 환경변수로 USD→KRW 환율 오버라이드 가능 (default 1350). 출발지 명확화 — 환율 변동 대응.
+const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD ?? 1350);
 
 /** Tour ID → pricing_spec.daily_tour_prices key. null이면 spec에 없음 (fallback 사용). */
 const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {
@@ -693,10 +694,10 @@ const TOURS_RAW: Tour[] = [
       ja: '釜山のビーチと文化を1日でギュッと詰め込みます。夜明けの海雲台散歩、ユニークな甘川文化村、鮮魚のチャガルチ市場、広安大橋が望める広安里ビーチ、雄大な太宗台の断崖まで。',
       zh: '一天压缩感受釜山的海滩与文化。黎明时分漫步海云台、色彩斑斓的甘川文化村、新鲜海鲜的札嘎其市场、可欣赏广安大桥的广安里海滩，以及壮观的太宗台悬崖。',
     },
-    priceFrom: 280,
+    priceFrom: 415, // from spec.daily_tour_prices.busan-day.priceUSD — SSOT 일치
     currency: 'USD',
     durationDays: 1,
-    durationHours: 10,
+    durationHours: 12, // spec.daily_tour_prices.busan-day.hours 일치
     vehicleType: 'Staria',
     maxPax: 7,
     thumbnail: '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
@@ -715,7 +716,8 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Waves', text: { ko: '해운대·광안리 해변', en: 'Haeundae & Gwangalli Beach', ja: '海雲台・広安里ビーチ', zh: '海云台·广安里海滩' } },
       { icon: 'Camera', text: { ko: '감천문화마을 포토스팟', en: 'Gamcheon Culture Village photo spots', ja: '甘川文化村フォトスポット', zh: '甘川文化村拍照打卡' } },
       { icon: 'Fish', text: { ko: '자갈치시장 해산물 (선택)', en: 'Jagalchi Market fresh seafood (optional)', ja: 'チャガルチ市場の鮮魚（任意）', zh: '札嘎其市场新鲜海鲜（可选）' } },
-      { icon: 'Shield', text: { ko: '서울↔부산 왕복 · 팁·톨비 포함', en: 'Seoul↔Busan round trip · Tips & Tolls incl.', ja: 'ソウル↔釜山往復 · チップ・料金所込み', zh: '首尔↔釜山往返 · 含小费·过路费' } },
+      // 출발지 명확화 — 사용자 가격 의문 해소 (서울↔부산 왕복 라벨이 부정확했음)
+      { icon: 'Shield', text: { ko: '부산 권역 1일 · 출발지 협의 · 팁·톨비 포함', en: 'Busan region 1-day · Pickup location TBA · Tips & Tolls incl.', ja: '釜山エリア1日 · 出発地別途相談 · チップ・料金所込み', zh: '釜山地区一日 · 出发地另议 · 含小费·过路费' } },
     ],
   },
 
