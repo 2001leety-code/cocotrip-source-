@@ -119,8 +119,16 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode, userEmail = '' } = body;
+    const { productType, passengers = 1, dateStart = '', dateEnd = '', language = 'en', promoCode, userEmail = '', couponDocId } = body;
     if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
+
+    // AI 플래너 = 디지털 상품 — 모든 쿠폰/프로모 reject (운영자 정책 2026-05-05).
+    const normalizedProduct = productType.replace(/-/g, '_');
+    if (normalizedProduct.startsWith('ai_planner') && (promoCode || couponDocId)) {
+      console.warn('[createPaypalOrder] AI Planner coupon rejected:', { productType, promoCode, couponDocId });
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err('AI Planner does not accept coupons', 'AI_PLANNER_NO_COUPON')));
+    }
 
     // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행 (sandbox 분기 제거).
     // TEST 우회는 frontend의 🧪 Test Mode 버튼이 'TEST-' prefix orderId를 직접 보내며,

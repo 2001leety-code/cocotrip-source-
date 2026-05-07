@@ -28,11 +28,52 @@ const CORS = {
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 // ── 글로벌 (하드코딩) 프로모 코드 ──
+// limit 기본값은 환경변수 / Firestore admin doc 으로 override 가능 (getGlobalPromoLimit 참조).
+// 실 사용량 카운트는 Firestore global_promo_usage/{code} 에서 추적 (capturePaypalOrder 가 increment).
 const GLOBAL_PROMOS = {
   'EARLY50': { discount: 0.20, label: 'Early Bird 20% OFF', limit: 50, stackable: false },
-  'COCO5':   { discount: 0.05, label: 'Base 5% OFF', limit: 99999, stackable: true },
-  'COCO10':  { discount: 0.10, label: '10% OFF', limit: 99999, stackable: false },
+  'COCO5':   { discount: 0.05, label: 'Base 5% OFF', limit: 9999, stackable: true },
+  'COCO10':  { discount: 0.10, label: '10% OFF', limit: 9999, stackable: false },
 };
+
+// 글로벌 프로모 maxUses override — Firestore admin/global_promo_limits doc 또는 env var.
+// env: GLOBAL_PROMO_LIMIT_COCO5=20000 → COCO5 limit 20000 으로 override.
+async function getGlobalPromoLimit(db, code) {
+  const upper = code.toUpperCase();
+  const envKey = `GLOBAL_PROMO_LIMIT_${upper}`;
+  const envVal = process.env[envKey];
+  if (envVal && Number.isFinite(Number(envVal))) return Number(envVal);
+
+  if (db) {
+    try {
+      const doc = await db.collection('admin').doc('global_promo_limits').get();
+      if (doc.exists) {
+        const v = doc.data()?.[upper];
+        if (Number.isFinite(Number(v))) return Number(v);
+      }
+    } catch (err) {
+      console.warn('[applyPromoCode] admin/global_promo_limits read failed:', err.message);
+    }
+  }
+
+  return GLOBAL_PROMOS[upper]?.limit ?? 9999;
+}
+
+// global_promo_usage/{code}.usedCount < maxUses 검증 (read-only). 실제 increment 는
+// capturePaypalOrder 의 트랜잭션 내에서 수행 — 여기는 사용자 UX gate.
+async function checkGlobalPromoLimit(db, code) {
+  const upper = code.toUpperCase();
+  const maxUses = await getGlobalPromoLimit(db, upper);
+  if (!db) return { ok: true, usedCount: 0, maxUses };
+  try {
+    const doc = await db.collection('global_promo_usage').doc(upper).get();
+    const usedCount = doc.exists ? Number(doc.data()?.usedCount || 0) : 0;
+    return { ok: usedCount < maxUses, usedCount, maxUses };
+  } catch (err) {
+    console.warn('[applyPromoCode] global_promo_usage read failed:', err.message);
+    return { ok: true, usedCount: 0, maxUses }; // soft fail — read 에러 시 통과
+  }
+}
 
 // ── Firestore 쿠폰 검증 (WELCOME5 등 개인 쿠폰) ──
 async function verifyFirestoreCoupon(userId, code) {
@@ -94,6 +135,9 @@ export default async function handler(req, res) {
     // 실시간 환율 조회 (공통 유틸 — cap 1350 적용)
     const usdToKrw = await getUsdToKrw();
 
+    // Firestore admin db (글로벌 프로모 사용량 검증용 — 실패해도 soft fail)
+    const db = initAdminDb('applyPromoCode');
+
     // ── 복수 코드 적용 (5+5% 합산) ──
     if (codes && Array.isArray(codes)) {
       let totalDiscount = 0;
@@ -105,9 +149,14 @@ export default async function handler(req, res) {
         if (seenCodes.has(upper)) continue; // 같은 코드 중복 적용 방지
         seenCodes.add(upper);
 
-        // 글로벌 프로모 확인
+        // 글로벌 프로모 확인 (limit 도달 시 skip)
         const globalPromo = GLOBAL_PROMOS[upper];
         if (globalPromo && globalPromo.stackable) {
+          const limitGate = await checkGlobalPromoLimit(db, upper);
+          if (!limitGate.ok) {
+            console.warn('[applyPromoCode] global promo limit reached:', upper, limitGate);
+            continue; // limit 초과 — 적용하지 않음
+          }
           totalDiscount += globalPromo.discount;
           appliedCodes.push({ code: upper, discount: globalPromo.discount, label: globalPromo.label });
           continue;
@@ -154,12 +203,19 @@ export default async function handler(req, res) {
 
     const upper = code.toUpperCase();
 
-    // 1. 글로벌 프로모 확인
+    // 1. 글로벌 프로모 확인 (limit 도달 시 reject)
     const promo = GLOBAL_PROMOS[upper];
     if (promo) {
+      const limitGate = await checkGlobalPromoLimit(db, upper);
+      if (!limitGate.ok) {
+        console.warn('[applyPromoCode] global promo limit reached:', upper, limitGate);
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err(`Promo code limit reached (${limitGate.usedCount}/${limitGate.maxUses})`, 'PROMO_LIMIT_REACHED')));
+      }
+
       const savedAmount = Math.round(originalPrice * promo.discount * 100) / 100;
       const discountedPrice = Math.round((originalPrice - savedAmount) * 100) / 100;
-      console.log('[applyPromoCode] Global:', { code: upper, originalPrice, discountedPrice });
+      console.log('[applyPromoCode] Global:', { code: upper, originalPrice, discountedPrice, usedCount: limitGate.usedCount, maxUses: limitGate.maxUses });
 
       res.writeHead(200, JSON_CORS);
       return res.end(JSON.stringify(_ok({

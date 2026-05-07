@@ -11,7 +11,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { Shield, ArrowLeft, FileCheck, Car, CheckCircle2, XCircle, Loader2, ExternalLink } from 'lucide-react';
+import { Shield, ArrowLeft, FileCheck, Car, CheckCircle2, XCircle, Loader2, ExternalLink, Gift } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -57,6 +57,11 @@ export default function AdminClaims() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // 회원가입 쿠폰 0건 회원 보정 (PR #253 silent fail 사후)
+  const [couponFixInput, setCouponFixInput] = useState('');
+  const [couponFixBusy, setCouponFixBusy] = useState(false);
+  const [couponFixResult, setCouponFixResult] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+
   const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
 
   useEffect(() => {
@@ -100,6 +105,38 @@ export default function AdminClaims() {
       setBusyId(null);
     }
   }, [user?.email]);
+
+  // 회원가입 쿠폰 0건 회원 보정 — uid 또는 email 입력 → /api/admin-coupon-fix 호출
+  const handleCouponFix = useCallback(async () => {
+    const input = couponFixInput.trim();
+    if (!input) return;
+    setCouponFixBusy(true);
+    setCouponFixResult(null);
+    try {
+      const idToken = await user?.getIdToken();
+      if (!idToken) throw new Error('admin token unavailable');
+      // @ 포함 → email, 그렇지 않으면 uid
+      const payload = input.includes('@') ? { email: input } : { uid: input };
+      const resp = await fetch('/api/admin-coupon-fix', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      const r = data.data;
+      const msg = r.alreadyIssued
+        ? `이미 발급됨 (uid: ${r.uid})`
+        : `${r.issued}장 발급 완료 (uid: ${r.uid})`;
+      setCouponFixResult({ kind: 'ok', msg });
+      setCouponFixInput('');
+    } catch (err) {
+      const m = err instanceof Error ? err.message : 'unknown error';
+      setCouponFixResult({ kind: 'err', msg: m });
+    } finally {
+      setCouponFixBusy(false);
+    }
+  }, [couponFixInput, user]);
 
   const list = tab === 'claims' ? claims : inquiries;
   const filtered = useMemo(
@@ -148,6 +185,41 @@ export default function AdminClaims() {
             <h1 className="text-2xl font-bold">신청·문의 관리</h1>
             <p className="text-sm text-white/55">대기 중인 무료 플랜 신청 및 차터 문의를 승인 또는 거절</p>
           </div>
+        </div>
+
+        {/* 회원가입 쿠폰 0건 회원 보정 (PR #253 silent fail 사후) */}
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Gift className="w-4 h-4 text-emerald-400" />
+            <h2 className="text-sm font-bold">회원가입 쿠폰 보정</h2>
+          </div>
+          <p className="text-[11px] text-white/55 mb-3">
+            가입 후 5% 쿠폰 2장(차터·투어)이 발급되지 않은 회원을 1-click 보정. uid 또는 이메일 입력. 멱등(이미 발급됐으면 재발급 X).
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={couponFixInput}
+              onChange={e => setCouponFixInput(e.target.value)}
+              placeholder="uid 또는 이메일"
+              disabled={couponFixBusy}
+              className="flex-1 px-3 py-2 bg-white/[0.05] border border-white/[0.08] rounded-lg text-sm text-white placeholder:text-white/30 outline-none focus:border-emerald-400/40 disabled:opacity-40"
+              onKeyDown={e => { if (e.key === 'Enter') handleCouponFix(); }}
+            />
+            <button
+              onClick={handleCouponFix}
+              disabled={couponFixBusy || !couponFixInput.trim()}
+              className="px-4 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-sm font-semibold disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {couponFixBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gift className="w-3.5 h-3.5" />}
+              발급
+            </button>
+          </div>
+          {couponFixResult && (
+            <p className={`mt-2 text-[12px] ${couponFixResult.kind === 'ok' ? 'text-emerald-300' : 'text-rose-300'}`}>
+              {couponFixResult.kind === 'ok' ? '✓ ' : '✗ 에러: '}{couponFixResult.msg}
+            </p>
+          )}
         </div>
 
         {/* Tabs */}
