@@ -8,7 +8,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 
 export function BackToAdminHome() {
   const { t } = useLanguage();
-  const label = (t.admin as Record<string, string>)?.backToHome ?? '어드민 홈으로';
+  const label = (t.admin as unknown as { backToHome?: string })?.backToHome ?? '어드민 홈으로';
 
   return (
     <Link
