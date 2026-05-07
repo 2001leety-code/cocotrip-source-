@@ -303,7 +303,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             }),
           });
           const json = await res.json();
-          console.log('[PayPal onApprove] capture result:', JSON.stringify(json));
+          if (import.meta.env.DEV) {
+            console.log('[PayPal onApprove] capture result:', JSON.stringify(json));
+          }
           const isSuccess = json.ok === true;
           const result = json.data;
           if (isSuccess) {

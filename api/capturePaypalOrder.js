@@ -20,11 +20,9 @@ const CORS = {
 };
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
-// Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
-const TEST_ACCOUNTS = [];
-
 // PayPal token + baseUrl resolution moved to api/_shared/paypal.js
 // (shared with cancelBooking.js + createPaypalOrder.js).
+// Launch (2026-04-30) 이후 live only — sandbox 분기 제거 (dead code 정리).
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
@@ -38,11 +36,10 @@ export default async function handler(req, res) {
     const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
-    const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
-    console.log('[capturePaypalOrder] mode:', isSandbox ? 'SANDBOX' : 'LIVE', '| email:', userEmail);
+    console.log('[capturePaypalOrder] LIVE mode | email:', userEmail);
 
-    // 1. Access Token + baseUrl from shared helper
-    const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(isSandbox);
+    // 1. Access Token + baseUrl from shared helper (live only)
+    const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(false);
 
     // 1.5 Duplicate orderID guard — used_paypal_orders 중복 방지
     {
@@ -70,10 +67,27 @@ export default async function handler(req, res) {
     const capture = await captureRes.json();
     if (capture.status !== 'COMPLETED') throw new Error(`Capture status: ${capture.status ?? 'unknown'}`);
 
+    // 필드 추출 + 누락 시 명시 로그 (LIVE 응답 누락이 admin 로그 미노출의 첫 번째 원인 후보).
+    const captureNode = capture.purchase_units?.[0]?.payments?.captures?.[0];
     const payerEmail = capture.payer?.email_address ?? '';
     const payerName = `${capture.payer?.name?.given_name ?? ''} ${capture.payer?.name?.surname ?? ''}`.trim();
-    const amount = capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value ?? '0';
-    const captureID = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id ?? '';
+    const amount = captureNode?.amount?.value ?? '';
+    const captureID = captureNode?.id ?? '';
+    const hasPayer = !!payerEmail;
+    const hasCapture = !!captureID;
+    const hasAmount = !!amount;
+    if (!hasPayer || !hasCapture || !hasAmount) {
+      console.error('[capturePaypalOrder] field missing:', { hasPayer, hasCapture, hasAmount, orderID });
+    }
+
+    // PayPal capture 응답에서 민감정보 없는 필드만 추려서 Firestore에 보존 (디버깅 + 운영자 매칭용).
+    const rawCapturePayload = {
+      payer: { email_address: payerEmail },
+      amount: captureNode?.amount ?? null,
+      captureID,
+      status: capture.status ?? '',
+      create_time: captureNode?.create_time ?? capture.create_time ?? '',
+    };
 
     // 2.4 bookings/{orderID} 정식 레코드 생성 — cancel/modify/my-bookings API가 조회.
     // captureID는 취소 시 PayPal Refund 호출에 필수.
@@ -100,7 +114,7 @@ export default async function handler(req, res) {
         airport: airport || null,
         amountUSD: amount,
         currency: 'USD',
-        isSandbox,
+        rawCapturePayload,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });

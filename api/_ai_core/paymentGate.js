@@ -10,7 +10,6 @@
  */
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken } from '../_shared/paypal.js';
-import { findTransaction as findBraintreeTransaction } from '../_shared/braintree.js';
 import { captureError } from '../_shared/sentry.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
@@ -19,22 +18,17 @@ import { captureError } from '../_shared/sentry.js';
 // 인증: caller (ai-planner-full.js) 에서 verifyUserToken 으로 검증된 email 을 authenticatedEmail
 // 로 전달해야 함. body.email 신뢰 종료.
 
-// 2026-05-03: Braintree 통합 추가. transaction ID 패턴으로 provider 자동 판별.
+// PayPal 단일 (5/3 Braintree 제거 + 5/7 PayPal Smart Buttons 복구).
 // PayPal order ID: 17자 alphanumeric (예: 5O190127TN364715T)
-// Braintree transaction ID: 8자 alphanumeric (예: bz4j8q3x) — 짧고 lowercase 위주
-// TEST orderId: 'TEST-' prefix
-// 2026-05-06: MANUAL- prefix — admin-booking-action 이 PayPal QR 결제 [입금 확인]
-//   클릭 시 server-side 로 ai-planner-full 트리거할 때 사용. orderId 형식:
-//   `MANUAL-${bookingRef}` (예: MANUAL-CT-20260506-XXX). pending_bookings doc 의
-//   status='CONFIRMED' 와 매칭으로 인증 — 위변조 시 매칭 실패로 reject.
+// TEST orderId: 'TEST-' prefix (BRAINTREE_ENV ∈ {sandbox,dev} 일 때만 허용)
+// MANUAL- prefix: admin-booking-action 이 PayPal QR 결제 [입금 확인] 클릭 시 server-side 로
+//   ai-planner-full 트리거할 때 사용. orderId 형식 `MANUAL-${bookingRef}` — pending_bookings
+//   doc 의 status='CONFIRMED' 와 매칭으로 인증 (위변조 시 매칭 실패로 reject).
 function detectProvider(orderId) {
   if (!orderId) return null;
   if (orderId.startsWith('TEST-')) return 'test';
   if (orderId.startsWith('MANUAL-')) return 'manual';
-  // PayPal orderId는 보통 17자 대문자+숫자. Braintree는 그보다 짧음 + 소문자 포함.
-  // 정확한 판별은 Firestore에 provider 필드 저장이 더 안전 — 본 함수는 1차 추정.
-  if (/^[A-Z0-9]{17,20}$/.test(orderId)) return 'paypal';
-  return 'braintree';
+  return 'paypal';
 }
 
 function reject(statusCode, code, message, details) {
@@ -133,34 +127,10 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
         await captureError(e, { route: 'paymentGate', step: 'manual_verify', orderId: paypalOrderId });
         return reject(403, 'MANUAL_VERIFY_ERROR', e.message);
       }
-    } else if (provider === 'braintree') {
-      // 2026-05-03: Braintree transaction 검증. braintreeCheckout.js가 이미 transaction
-      // 생성 시 Firestore bookings에 저장 → 여기서는 status만 sanity check.
-      console.log('[planner] Braintree mode | transactionId:', paypalOrderId);
-      try {
-        const tx = await findBraintreeTransaction(paypalOrderId);
-        const acceptableStatuses = new Set([
-          'submitted_for_settlement', 'settling', 'settlement_pending', 'settled', 'authorized',
-        ]);
-        if (!acceptableStatuses.has(tx.status)) {
-          return reject(403, 'PAYMENT_INCOMPLETE', 'Payment not completed', `Braintree transaction status: ${tx.status}`);
-        }
-        if (adminDb) {
-          const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
-          const usedDoc = await usedRef.get();
-          if (usedDoc.exists) {
-            return reject(403, 'DUPLICATE_ORDER', 'Order already used', 'This payment has already been used to generate a plan.');
-          }
-          await usedRef.set({ usedAt: new Date().toISOString(), status: tx.status, provider: 'braintree' });
-        }
-      } catch (e) {
-        console.error('[planner] Braintree verify failed:', e.message);
-        await captureError(e, { route: 'paymentGate', step: 'braintree_verify', orderId: paypalOrderId });
-        return reject(403, 'PAYMENT_VERIFY_ERROR', e.message);
-      }
     } else {
-      // Legacy PayPal direct API path (한국 계정에서는 작동 X — 기존 booking 호환용 유지)
-      console.log('[planner] PayPal direct mode (legacy) | email:', requestEmail);
+      // PayPal Smart Buttons (5/7 복구) — order capture 이미 capturePaypalOrder.js 에서 완료.
+      // 여기서는 PayPal API 로 status sanity check + used_paypal_orders 멱등 가드.
+      console.log('[planner] PayPal mode | email:', requestEmail);
 
       let ppToken, ppBase;
       try {
