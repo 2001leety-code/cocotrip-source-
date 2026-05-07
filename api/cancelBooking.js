@@ -18,6 +18,7 @@ import { refundTransaction as braintreeRefund } from './_shared/braintree.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
+import { notifyOperator } from './_shared/operator-alerts.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 
 export const maxDuration = 30;
@@ -79,9 +80,21 @@ async function sendRefundTelegram({ bookingRef, productType, paxCount, tourDate,
     `사유: ${reason || '-'}` +
     airportPlainLine(airport);
 
+  // (3) operator A 채널 — admin 본인 즉시 가시성 (PR-G). booking 봇 분리 운영 중에도 메인 봇으로
+  // 환불은 무조건 들어와야 함 (사용자 정책).
+  const operatorMsg =
+    `💸 환불 처리 — <code>${bookingRef}</code>\n` +
+    `${userEmail}\n` +
+    `$${refundUSD} (${refundPercent}%)\n` +
+    `사유: ${reason || '-'}\n` +
+    `→ /admin/refunds 에서 확인`;
+
   await Promise.allSettled([
     notify('booking',  refundMsg,  { parseMode: undefined }),
     notify('dispatch', dispatchMsg, { parseMode: undefined }),
+    notifyOperator('refund', operatorMsg).catch((err) =>
+      console.error('[cancelBooking] notifyOperator failed (silent fail 방지):', err.message)
+    ),
   ]);
 }
 

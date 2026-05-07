@@ -5,6 +5,7 @@
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { notifyOperator } from './_shared/operator-alerts.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -161,6 +162,10 @@ export default async function handler(req, res) {
             } catch (warnErr) {
               console.error('[capturePaypalOrder] couponWarning write failed:', warnErr.message);
             }
+            // PR-G: 운영자 즉시 알림 — 수동 환불 필요. silent fail 금지.
+            notifyOperator('coupon-warning',
+              `<code>${orderID}</code>\n사유: ${code}\n쿠폰: ${couponDocId} (uid ${couponUserId.slice(0, 8)})\n→ 수동 환불 필요`
+            ).catch((alertErr) => console.error('[capturePaypalOrder] operator alert failed:', alertErr.message));
           }
         }
       }
