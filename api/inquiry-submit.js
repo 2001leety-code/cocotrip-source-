@@ -25,6 +25,7 @@
 import { captureError } from './_shared/sentry.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
+import { detectAndTranslate } from './_shared/translator.js';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
@@ -215,10 +216,33 @@ export default async function handler(req, res) {
 
     // 텔레그램 InquiryCHAT_BOT 채널 알림 — 운영자 본인 채널과 분리.
     // 메시지 포맷 (PR-F): 행사 일자 / 인원 / 차량 (Bus 또는 VIP) / 행사 내용 / 연락처 / 이메일 / 제출 시각
+    //
+    // 번역(PR-Q): 행사 내용이 한국어가 아니면 Gemini로 한글 번역 추가 (운영자 가독성).
+    // 번역 실패는 silent — 원문은 항상 유지.
     try {
       const vehicleLabel = vehicle === 'vip' ? '의전 차량 (VIP)' : '대형버스 (Bus)';
       const submittedAt = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-      const text = [
+
+      // 행사 내용 한글 번역 시도.
+      let detailsKo = null;
+      let detailsLang = lang;
+      let translateFailed = false;
+      try {
+        const det = await detectAndTranslate(trimmedDetails, 'ko');
+        detailsLang = det.sourceLang || lang;
+        if (!det.isOriginal) {
+          if (det.translation === null) translateFailed = true;
+          else detailsKo = det.translation;
+        }
+      } catch (e) {
+        console.warn('[inquiry-submit] translate failed:', e.message);
+        translateFailed = true;
+      }
+
+      const detailsTrunc = trimmedDetails.length > 500 ? trimmedDetails.slice(0, 500) + '…' : trimmedDetails;
+      const detailsKoTrunc = detailsKo && detailsKo.length > 500 ? detailsKo.slice(0, 500) + '…' : detailsKo;
+
+      const lines = [
         '📨 <b>새 차터 상담 문의</b>',
         '',
         `<b>문의번호:</b> <code>${inquiryId}</code>`,
@@ -226,15 +250,21 @@ export default async function handler(req, res) {
         `<b>인원:</b> ${paxNum}명`,
         `<b>차량:</b> ${vehicleLabel}`,
         '',
-        '<b>행사 내용:</b>',
-        trimmedDetails.length > 500 ? trimmedDetails.slice(0, 500) + '…' : trimmedDetails,
+        detailsKo ? `<b>📨 행사 내용 (${detailsLang}):</b>` : `<b>행사 내용:</b>${translateFailed ? ' ⚠️ 번역 실패' : ''}`,
+        detailsTrunc,
+      ];
+      if (detailsKoTrunc) {
+        lines.push('', '<b>🇰🇷 한글 번역:</b>', detailsKoTrunc);
+      }
+      lines.push(
         '',
         phone ? `<b>연락처:</b> ${phone}` : '<b>연락처:</b> (미입력)',
         `<b>이메일:</b> ${trimmedEmail}`,
         `<b>이름:</b> ${trimmedName}`,
-        `<b>언어:</b> ${lang}`,
+        `<b>언어:</b> ${detailsLang}`,
         `<b>제출 시각:</b> ${submittedAt}`,
-      ].join('\n');
+      );
+      const text = lines.join('\n');
 
       await notifyInquiry(text);
     } catch (notifyErr) {
