@@ -107,6 +107,7 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 <b>조회</b>
 /bookings [YYYY-MM-DD] — <b>예약</b> 또는 예약 2026-05-15
 /sales [YYYY-MM] — <b>매출</b> 또는 매출 2026-05
+/stats [YYYY-MM] — <b>통계</b> 또는 통계 2026-05 (기사별/상품별 분해)
 
 <b>CS 티켓</b>
 /cs_list [open|in_progress|resolved|all] — <b>이슈</b> 또는 이슈 open
@@ -232,6 +233,7 @@ const KOREAN_ALIASES = [
   // 조회 (인자 선택 — 생략 시 오늘/이번달)
   { re: /^(예약목록|예약|오늘예약|오늘 예약)(?:\s+(.+))?$/, cmd: '/bookings', argGroup: 2 },
   { re: /^(매출|매출요약|매출 요약)(?:\s+(.+))?$/, cmd: '/sales', argGroup: 2 },
+  { re: /^(통계|월간통계|월간 통계)(?:\s+(.+))?$/, cmd: '/stats', argGroup: 2 },
 
   // CS 티켓 (인자 선택)
   { re: /^(이슈|이슈목록|씨에스|cs)(?:\s+(.+))?$/i, cmd: '/cs_list', argGroup: 2 },
@@ -334,6 +336,10 @@ async function routeCommand(botToken, p) {
 
     case '/sales':
       await handleSalesCommand(botToken, p);
+      break;
+
+    case '/stats':
+      await handleStatsCommand(botToken, p);
       break;
 
     case '/cs_list':
@@ -711,6 +717,180 @@ async function handleSalesCommand(botToken, p) {
   });
 
   await sendBotMessage(botToken, p.chatId, lines.join('\n'));
+}
+
+// 월간 통계 분류용 — productType prefix → 한글 라벨 + 이모지.
+// 매칭 순서 중요: 가장 구체적인 prefix 먼저.
+const PRODUCT_CATEGORY_RULES = [
+  { prefix: 'charter',  label: '차터',   icon: '🚗', match: (pt) => /^charter[_-]/i.test(pt) || /charter/i.test(pt) },
+  { prefix: 'tour',     label: '투어',   icon: '🚙', match: (pt) => /^tour[_-]/i.test(pt) || /tour/i.test(pt) },
+  { prefix: 'airport',  label: '공항',   icon: '✈️', match: (pt) => /^airport[_-]/i.test(pt) || /airport/i.test(pt) || /pickup/i.test(pt) },
+  { prefix: 'shuttle',  label: '셔틀',   icon: '🚌', match: (pt) => /shuttle/i.test(pt) },
+  { prefix: 'kpop',     label: 'K-POP', icon: '🎤', match: (pt) => /kpop/i.test(pt) },
+  { prefix: 'planner',  label: 'AI 플래너', icon: '🤖', match: (pt) => /planner|ai/i.test(pt) },
+];
+
+function classifyProductForStats(productTypeOrService) {
+  const pt = String(productTypeOrService || '').toLowerCase();
+  if (!pt) return { label: '기타', icon: '🧾', prefix: 'misc' };
+  for (const rule of PRODUCT_CATEGORY_RULES) {
+    if (rule.match(pt)) return { label: rule.label, icon: rule.icon, prefix: rule.prefix };
+  }
+  return { label: '기타', icon: '🧾', prefix: 'misc' };
+}
+
+// KRW 금액 추출 — pricePaidKRW 또는 totalKRW 우선, 없으면 amountUSD × USD_TO_KRW 폴백.
+function extractKrwAmount(b) {
+  const direct = Number(b.pricePaidKRW || b.totalKRW || b.priceKRW || 0);
+  if (direct > 0) return Math.round(direct);
+  const usd = parseFloat(String(b.amountUSD || 0)) || 0;
+  return Math.round(usd * USD_TO_KRW);
+}
+
+/**
+ * /stats 의 메인 집계 함수. month=YYYY-MM 입력받아 해당 월 bookings 를 모두 fetch한 뒤
+ * 기사별/상품별로 분해한 한글 리포트를 반환.
+ *
+ * 데이터 소스: bookings 컬렉션 where tourDate prefix = YYYY-MM
+ * - status='CONFIRMED' 만 매출 집계 (status 비어있어도 dispatchStatus='accepted'면 포함)
+ * - status='REFUNDED' 는 별도 카운트
+ * - status='CANCELED' 는 제외 (어디에도 카운트 안 됨)
+ *
+ * 필드 폴백:
+ *   기사명: driver | driverName | (없으면 '미배정')
+ *   기사 chatId: driverChatId
+ *   차량: vehicleType | driverVehicle (PR-N 신규 필드, 미반영 가능)
+ *   금액(KRW): pricePaidKRW | totalKRW | priceKRW > amountUSD × 1380
+ *   상품: productType | serviceType
+ *
+ * @param {string} yearMonth — 'YYYY-MM' 형식
+ * @returns {Promise<string>} 텔레그램 HTML 메시지 본문
+ */
+async function buildStatsReport(yearMonth) {
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const monthStart = `${yearMonth}-01`;
+  const [year, mo] = yearMonth.split('-').map(Number);
+  const nextMonth = mo === 12 ? `${year + 1}-01-01` : `${year}-${String(mo + 1).padStart(2, '0')}-01`;
+  // 표시용 월말 (자정 - 1일 = 해당월 마지막 날). YYYY-MM-DD 형식 만들기.
+  const monthEndDate = new Date(year, mo, 0);  // mo는 1-12, Date의 month는 0-indexed → mo로 넣으면 다음달 -1일 = 이번달 마지막날
+  const monthEnd = monthEndDate.toISOString().slice(0, 10);
+
+  const snap = await db.collection('bookings')
+    .where('tourDate', '>=', monthStart)
+    .where('tourDate', '<', nextMonth)
+    .get();
+
+  if (snap.empty) {
+    return `<b>📊 통계 — ${yearMonth}</b>\n\n이번 달 데이터 없음.\n\n기간: ${monthStart} ~ ${monthEnd}`;
+  }
+
+  // driverChatId 별: { count, krw, name, vehicle }
+  const byDriver = new Map();
+  // category prefix 별: { count, krw, label, icon }
+  const byCategory = new Map();
+
+  let totalCount = 0;
+  let totalKRW = 0;
+  let refundCount = 0;
+  let refundKRW = 0;
+
+  snap.forEach((doc) => {
+    const b = doc.data();
+    const status = String(b.status || b.adminStatus || '').toUpperCase();
+
+    // CANCELED 는 어디에도 카운트 안 됨
+    if (status === 'CANCELED' || status === 'CANCELLED') return;
+
+    const krw = extractKrwAmount(b);
+
+    // REFUNDED 는 별도 집계만
+    if (status === 'REFUNDED') {
+      refundCount++;
+      refundKRW += krw;
+      return;
+    }
+
+    // 매출 집계 — CONFIRMED 또는 (status 비어있고 acceptedAt 있는 레거시 docs) 포함
+    // status='CONFIRMED' 가 표준이지만, 레거시 booking 중 status 누락된 경우 필터 제외 방지
+    if (status && status !== 'CONFIRMED') return;
+
+    totalCount++;
+    totalKRW += krw;
+
+    // 기사별 — driverChatId 가 키. 미배정은 '0' 키.
+    const driverKey = b.driverChatId != null ? String(b.driverChatId) : '0';
+    const driverName = b.driver || b.driverName || (driverKey === '0' ? '미배정' : '?');
+    const driverVehicle = b.vehicleType || b.driverVehicle || '';
+    const dPrev = byDriver.get(driverKey) || { count: 0, krw: 0, name: driverName, vehicle: driverVehicle };
+    dPrev.count++;
+    dPrev.krw += krw;
+    // 이름/차량은 첫 등장 정보 유지하되 비어있으면 갱신
+    if (!dPrev.name || dPrev.name === '?') dPrev.name = driverName;
+    if (!dPrev.vehicle && driverVehicle) dPrev.vehicle = driverVehicle;
+    byDriver.set(driverKey, dPrev);
+
+    // 상품별 — productType 우선, 없으면 serviceType
+    const cat = classifyProductForStats(b.productType || b.serviceType);
+    const cPrev = byCategory.get(cat.prefix) || { count: 0, krw: 0, label: cat.label, icon: cat.icon };
+    cPrev.count++;
+    cPrev.krw += krw;
+    byCategory.set(cat.prefix, cPrev);
+  });
+
+  if (totalCount === 0 && refundCount === 0) {
+    return `<b>📊 통계 — ${yearMonth}</b>\n\n이번 달 유효 데이터 없음 (모두 취소).\n\n기간: ${monthStart} ~ ${monthEnd}`;
+  }
+
+  const lines = [`<b>📊 통계 — ${yearMonth}</b>`, ''];
+
+  // 기사별 (count desc) — 0건 entry 는 자동 제외 (count++ 한 entry만 byDriver 에 들어감)
+  if (byDriver.size > 0) {
+    lines.push(`<b>기사별 배차:</b>`);
+    const driversSorted = Array.from(byDriver.values()).sort((a, b) => b.count - a.count);
+    for (const d of driversSorted) {
+      const veh = d.vehicle ? ` (${d.vehicle})` : '';
+      lines.push(` 🚗 ${d.name}${veh}: ${d.count}건 / ₩${d.krw.toLocaleString()}`);
+    }
+    lines.push(` <b>합계: ${totalCount}건 / ₩${totalKRW.toLocaleString()}</b>`);
+    lines.push('');
+  }
+
+  // 상품별 (krw desc) — 0건 entry 는 자동 제외
+  if (byCategory.size > 0) {
+    lines.push(`<b>상품별 매출:</b>`);
+    const catsSorted = Array.from(byCategory.values()).sort((a, b) => b.krw - a.krw);
+    for (const c of catsSorted) {
+      lines.push(` ${c.icon} ${c.label}: ${c.count}건 / ₩${c.krw.toLocaleString()}`);
+    }
+    lines.push(` <b>합계: ${totalCount}건 / ₩${totalKRW.toLocaleString()}</b>`);
+    lines.push('');
+  }
+
+  const avgPrice = totalCount > 0 ? Math.round(totalKRW / totalCount) : 0;
+  lines.push(`평균 단가: ₩${avgPrice.toLocaleString()}`);
+  if (refundCount > 0) {
+    lines.push(`환불 건수: ${refundCount}건 / ₩${refundKRW.toLocaleString()}`);
+  }
+  lines.push('');
+  lines.push(`기간: ${monthStart} ~ ${monthEnd}`);
+
+  return lines.join('\n');
+}
+
+// /stats [YYYY-MM] — 월간 통계 (기사별 + 상품별 분해)
+async function handleStatsCommand(botToken, p) {
+  const month = p.args[0] || thisMonthKst();
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    await sendBotMessage(botToken, p.chatId,
+      `형식 오류. <code>YYYY-MM</code> 형태로 입력.\n예: <code>/stats 2026-05</code>`);
+    return;
+  }
+
+  const text = await buildStatsReport(month);
+  // 4096자 초과 방지 (기사 50명 + 상품 10개 = 약 70라인 → 안전)
+  await sendBotMessage(botToken, p.chatId, text.length > 3900 ? text.slice(0, 3900) + '\n...(잘림)' : text);
 }
 
 const VALID_CS_PRIORITIES = ['low', 'medium', 'high', 'critical'];
