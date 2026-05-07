@@ -7,6 +7,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { notify } from './_shared/notify.js';
 import { recordInquiryMessage, saveChatMessage } from './_shared/chat-relay.js';
+import { detectAndTranslate } from './_shared/translator.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
@@ -384,18 +385,56 @@ export default wrapHandler(async function handler(req, res) {
 
   // 2. Telegram inquiry 채널로 발송 + message_id 매핑 저장
   //    escalate=true면 🚨 헤더 + 우선순위 강조. 담당자가 reply하면 고객에 전달됨
+  //
+  //    번역(PR-Q): 고객 메시지가 한국어가 아니면 Gemini로 한글 번역 추가.
+  //    AI답변도 한국어가 아니면 운영자 가독성 위해 한글로 함께 표시.
+  //    inquiry_messages 매핑에 detected language 저장 → 운영자 reply 시 그 언어로 자동 번역.
   try {
     const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     const header = escalate
       ? `🚨 <b>긴급 — AI 미답변 (담당자 응답 필요)</b>`
       : `💬 <b>웹 채팅 문의</b>`;
+
+    // 고객 메시지 번역 (Korean target).
+    let customerKo = null;
+    let detectedLang = language;
+    let translateFailedTag = '';
+    try {
+      const det = await detectAndTranslate(message, 'ko');
+      detectedLang = det.sourceLang || language;
+      if (!det.isOriginal) {
+        customerKo = det.translation;
+        if (customerKo === null) translateFailedTag = ' ⚠️ 번역 실패';
+      }
+    } catch (e) {
+      console.warn('[chat] customer translate failed:', e.message);
+      translateFailedTag = ' ⚠️ 번역 실패';
+    }
+
+    // AI 답변(고객 노출용)도 한글이 아니면 운영자용 한글 추가.
+    let aiKo = null;
+    if (!escalate) {
+      try {
+        const det = await detectAndTranslate(customerReply, 'ko');
+        if (!det.isOriginal && det.translation) aiKo = det.translation;
+      } catch (e) {
+        console.warn('[chat] ai translate failed:', e.message);
+      }
+    }
+
+    const customerSection = customerKo
+      ? `<b>📨 고객 (${detectedLang}):</b> ${message}\n<b>🇰🇷 번역:</b> ${customerKo}`
+      : `<b>고객${translateFailedTag}:</b> ${message}`;
     const aiSection = escalate
       ? `<b>AI 판단:</b> 답변 불가 — 다음과 같이 자동 안내됨\n<i>${customerReply}</i>${internalReply ? `\n<b>AI 노트:</b> ${internalReply}` : ''}`
-      : `<b>AI답변:</b> ${customerReply}`;
-    const telegramMsg = `${header}\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${language}\n\n<b>고객:</b> ${message}\n${aiSection}\n\n⏰ ${kst}\n\n💡 이 메시지에 "답장(Reply)" 하면 고객에게 직접 전달됩니다.`;
+      : aiKo
+        ? `<b>AI답변:</b> ${customerReply}\n<b>🇰🇷 번역:</b> ${aiKo}`
+        : `<b>AI답변:</b> ${customerReply}`;
+    const telegramMsg = `${header}\n\n👤 세션: <code>${sessionId}</code>\n🌐 언어: ${detectedLang}\n\n${customerSection}\n${aiSection}\n\n⏰ ${kst}\n\n💡 이 메시지에 "답장(Reply)" 하면 고객에게 직접 전달됩니다.`;
     const result = await notify('inquiry', telegramMsg);
     if (result.ok && result.messageId) {
-      await recordInquiryMessage({ telegramMessageId: result.messageId, sessionId, language });
+      // 운영자 reply 시 detectedLang으로 번역 → 정확한 언어 매핑이 중요.
+      await recordInquiryMessage({ telegramMessageId: result.messageId, sessionId, language: detectedLang });
     }
   } catch (err) {
     console.warn('[chat] Telegram failed (continuing):', err.message);
