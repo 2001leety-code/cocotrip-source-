@@ -1977,6 +1977,11 @@
     "modifySaving": "保存中...",
     "modifyNetworkError": "ネットワークエラー"
   },
+  "tourDetail": {
+    "includedTitle": "含まれる",
+    "excludedTitle": "別途（現地支払）",
+    "airportPickup": "空港送迎（別途見積）"
+  },
   "signup": {
     "signupOnboardingTitle": "ようこそ！いくつか教えてください",
     "signupOnboardingSub": "より良いサービスのために必要な情報のみお伺いします。",

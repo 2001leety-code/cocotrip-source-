@@ -1977,6 +1977,11 @@
     "modifySaving": "저장 중...",
     "modifyNetworkError": "네트워크 오류"
   },
+  "tourDetail": {
+    "includedTitle": "포함",
+    "excludedTitle": "별도 (현장 결제)",
+    "airportPickup": "공항 픽업 (별도 견적)"
+  },
   "signup": {
     "signupOnboardingTitle": "환영합니다! 몇 가지만 알려주세요",
     "signupOnboardingSub": "꼭 필요한 정보만 받아 더 나은 서비스를 제공해 드립니다.",

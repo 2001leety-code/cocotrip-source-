@@ -1977,6 +1977,11 @@
     "modifySaving": "Saving...",
     "modifyNetworkError": "Network error"
   },
+  "tourDetail": {
+    "includedTitle": "Included",
+    "excludedTitle": "Not included",
+    "airportPickup": "Airport pickup (separate quote)"
+  },
   "signup": {
     "signupOnboardingTitle": "Welcome! Just a few details",
     "signupOnboardingSub": "We collect only what's essential to serve you better.",
