@@ -46,6 +46,62 @@ function randomSuffix(len = 6) {
   return out;
 }
 
+/**
+ * 회원가입 쿠폰 2장 발급 (멱등). admin-coupon-fix.js 가 재사용.
+ * @returns {Promise<{issued:number, alreadyIssued:boolean}>}
+ */
+export async function issueOnboardingCouponsForUid(db, uid) {
+  if (!db || !uid) throw new Error('db and uid required');
+  const userRef = db.collection('users').doc(uid);
+
+  return db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const data = userSnap.exists ? userSnap.data() : {};
+
+    if (data.onboardingCouponsIssued === true) {
+      return { issued: 0, alreadyIssued: true };
+    }
+
+    const now = Date.now();
+    const expiresAt = now + COUPON_VALIDITY_MS;
+
+    const couponsRef = userRef.collection('coupons');
+    const charterCoupon = couponsRef.doc();
+    const tourCoupon = couponsRef.doc();
+
+    tx.set(charterCoupon, {
+      code: `WELCOME-CHARTER-${randomSuffix(6)}`,
+      type: 'percent',
+      value: 5,
+      label: 'Welcome 5% off Charter',
+      productScope: 'charter',
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'onboarding',
+    });
+
+    tx.set(tourCoupon, {
+      code: `WELCOME-TOUR-${randomSuffix(6)}`,
+      type: 'percent',
+      value: 5,
+      label: 'Welcome 5% off Tour',
+      productScope: 'tour-package',
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'onboarding',
+    });
+
+    tx.set(userRef, {
+      onboardingCouponsIssued: true,
+      onboardingAt: now,
+    }, { merge: true });
+
+    return { issued: 2, alreadyIssued: false };
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(200, JSON_HEADERS);
@@ -70,56 +126,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'Firestore unavailable' }));
     }
 
-    const userRef = db.collection('users').doc(uid);
-
-    // 트랜잭션: flag 체크 + 쿠폰 2장 add + flag set 원자적 처리
-    const result = await db.runTransaction(async (tx) => {
-      const userSnap = await tx.get(userRef);
-      const data = userSnap.exists ? userSnap.data() : {};
-
-      if (data.onboardingCouponsIssued === true) {
-        return { issued: 0, alreadyIssued: true };
-      }
-
-      const now = Date.now();
-      const expiresAt = now + COUPON_VALIDITY_MS;
-
-      const couponsRef = userRef.collection('coupons');
-      const charterCoupon = couponsRef.doc();
-      const tourCoupon = couponsRef.doc();
-
-      tx.set(charterCoupon, {
-        code: `WELCOME-CHARTER-${randomSuffix(6)}`,
-        type: 'percent',
-        value: 5,
-        label: 'Welcome 5% off Charter',
-        productScope: 'charter',
-        isUsed: false,
-        expiresAt,
-        createdAt: now,
-        source: 'onboarding',
-      });
-
-      tx.set(tourCoupon, {
-        code: `WELCOME-TOUR-${randomSuffix(6)}`,
-        type: 'percent',
-        value: 5,
-        label: 'Welcome 5% off Tour',
-        productScope: 'tour-package',
-        isUsed: false,
-        expiresAt,
-        createdAt: now,
-        source: 'onboarding',
-      });
-
-      tx.set(userRef, {
-        onboardingCouponsIssued: true,
-        onboardingAt: now,
-      }, { merge: true });
-
-      return { issued: 2, alreadyIssued: false };
-    });
-
+    const result = await issueOnboardingCouponsForUid(db, uid);
     console.log('[onboarding-coupons] uid=', uid, 'result=', result);
 
     res.writeHead(200, JSON_HEADERS);

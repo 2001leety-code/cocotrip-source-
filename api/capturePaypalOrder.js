@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport } = body;
+    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     const isSandbox = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
@@ -109,18 +109,68 @@ export default async function handler(req, res) {
       console.error('[capturePaypalOrder] bookings doc write failed:', bookingErr.message);
     }
 
-    // 2.5 쿠폰 소진 처리 (Bug #2 fix — 결제 성공 후 isUsed 마킹)
+    // 2.5 쿠폰 소진 처리 — runTransaction 으로 race condition 차단.
+    // 검증(applyPromoCode)과 차감이 분리되어 있어 동일 쿠폰 동시 적용 시 둘 다 통과 가능했음.
+    // 결제 capture 는 이미 성공했으므로 COUPON_ALREADY_USED 발생해도 결제 취소 불가 →
+    // bookings/{orderID}.couponWarning 에 기록 (운영자 수동 환불 대상).
     if (couponDocId && couponUserId) {
-      try {
-        const db = initAdminDb('capturePaypalOrder');
-        if (!db) throw new Error('Firestore unavailable');
-        await db.collection('users').doc(couponUserId)
-          .collection('coupons').doc(couponDocId)
-          .update({ isUsed: true, usedAt: FieldValue.serverTimestamp(), usedOrderID: orderID });
-        console.log('[capturePaypalOrder] coupon marked used:', couponDocId);
-      } catch (couponErr) {
-        // 쿠폰 소진 실패해도 결제는 성공 처리 (사용자 경험 우선)
-        console.error('[capturePaypalOrder] coupon update failed:', couponErr.message);
+      const db = initAdminDb('capturePaypalOrder');
+      if (!db) {
+        console.error('[capturePaypalOrder] coupon mark skipped: Firestore unavailable');
+      } else {
+        const couponRef = db.collection('users').doc(couponUserId)
+          .collection('coupons').doc(couponDocId);
+        try {
+          await db.runTransaction(async (tx) => {
+            const snap = await tx.get(couponRef);
+            if (!snap.exists) throw new Error('COUPON_NOT_FOUND');
+            const data = snap.data() || {};
+            if (data.isUsed === true) throw new Error('COUPON_ALREADY_USED');
+            tx.update(couponRef, {
+              isUsed: true,
+              usedAt: FieldValue.serverTimestamp(),
+              usedOrderID: orderID,
+            });
+          });
+          console.log('[capturePaypalOrder] coupon marked used:', couponDocId);
+        } catch (couponErr) {
+          const code = couponErr.message || 'UNKNOWN';
+          console.error('[capturePaypalOrder] coupon update failed:', code, '| orderID:', orderID);
+          if (code === 'COUPON_ALREADY_USED' || code === 'COUPON_NOT_FOUND') {
+            try {
+              await db.collection('bookings').doc(orderID).set({
+                couponWarning: code,
+                couponWarningAt: FieldValue.serverTimestamp(),
+                couponDocId,
+                couponUserId,
+              }, { merge: true });
+            } catch (warnErr) {
+              console.error('[capturePaypalOrder] couponWarning write failed:', warnErr.message);
+            }
+          }
+        }
+      }
+    }
+
+    // 2.6 글로벌 프로모 사용량 증가 (COCO5/COCO10/EARLY50). 트랜잭션으로 race-safe.
+    // applyPromoCode 의 limit gate 가 read-only 이므로 여기서 실제 increment.
+    if (promoCode && typeof promoCode === 'string') {
+      const upper = promoCode.toUpperCase();
+      const KNOWN_GLOBAL = ['COCO5', 'COCO10', 'EARLY50'];
+      if (KNOWN_GLOBAL.includes(upper)) {
+        try {
+          const db = initAdminDb('capturePaypalOrder');
+          if (db) {
+            await db.runTransaction(async (tx) => {
+              const ref = db.collection('global_promo_usage').doc(upper);
+              const snap = await tx.get(ref);
+              const cur = snap.exists ? Number(snap.data()?.usedCount || 0) : 0;
+              tx.set(ref, { usedCount: cur + 1, lastUsedAt: FieldValue.serverTimestamp() }, { merge: true });
+            });
+          }
+        } catch (promoErr) {
+          console.error('[capturePaypalOrder] global_promo_usage increment failed:', promoErr.message);
+        }
       }
     }
 
