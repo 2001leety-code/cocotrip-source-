@@ -71,9 +71,19 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
 
   const canAdvance = useCallback(() => {
     switch (currentStep) {
-      case 1: return !!state.origin || !!state.originCustom;
+      case 1: {
+        // 'CUSTOM' 출발지 — AddressAutocomplete 가 좌표 확정해야 advance 가능 (자유 입력 폐기).
+        if (state.origin === 'CUSTOM') {
+          return typeof state.originLat === 'number' && typeof state.originLng === 'number';
+        }
+        return !!state.origin;
+      }
       case 2: return !!state.service;
-      case 3: return !!state.destinationKey || !!state.destinationCustom;
+      case 3: {
+        // destinationKey (권역 카드) 또는 confirmed 좌표 — 자유 텍스트만 있는 경우는 차단 (자유 입력 폐기).
+        if (state.destinationKey) return true;
+        return typeof state.destLat === 'number' && typeof state.destLng === 'number';
+      }
       case 4: return !!state.paxCount && state.paxCount >= 1 && !!state.vehicle;
       case 5: {
         if (!state.startDate) return false;

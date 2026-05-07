@@ -1,4 +1,5 @@
 // Step 3: 목적지 선택 — Step1(출발)+Step2(서비스)에 따라 동적 옵션 · i18n
+// PR-H: 자유 입력 → AddressAutocomplete (Naver Local Search + 미니 지도 확인 카드).
 import { useMemo } from 'react';
 import {
   AIRPORT_TRANSFER_PRICES,
@@ -8,7 +9,9 @@ import {
 } from '@/data/charterPricing';
 import type { WizardState } from './types';
 import { getWizardI18n } from './wizard-i18n';
-import { normalizeDestinationToMatrixKey, getDestinationSuggestions } from './destinationKeyMap';
+import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
+import { AddressAutocomplete, type AddressResult } from './AddressAutocomplete';
+import { translations } from '@/i18n';
 
 interface DestinationOption {
   key: string;
@@ -25,6 +28,21 @@ interface Props {
 export function Step3Destination({ state, patch, language = 'en' }: Props) {
   const lang: 'ko' | 'en' = language === 'ko' ? 'ko' : 'en';
   const i18n = getWizardI18n(language);
+  // PR-H: AddressAutocomplete i18n
+  const aacText = (translations[language] as unknown as {
+    addressAutocomplete?: { destinationLabel: string; placeholderHint: string };
+  }).addressAutocomplete ?? { destinationLabel: 'Destination', placeholderHint: 'Try: Lotte Hotel Myeongdong' };
+
+  const confirmedDest: AddressResult | undefined =
+    typeof state.destLat === 'number' && typeof state.destLng === 'number' && state.destName
+      ? {
+          name: state.destName,
+          address: state.destAddress ?? '',
+          lat: state.destLat,
+          lng: state.destLng,
+          category: state.destCategory,
+        }
+      : undefined;
 
   const options: DestinationOption[] = useMemo(() => {
     const list: DestinationOption[] = [];
@@ -88,7 +106,13 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
             <button
               key={opt.key}
               type="button"
-              onClick={() => patch({ destinationKey: opt.key, destinationCustom: undefined })}
+              onClick={() => patch({
+                destinationKey: opt.key,
+                destinationCustom: undefined,
+                // 권역 카드 선택 시 자유입력 좌표 reset.
+                destLat: undefined, destLng: undefined,
+                destAddress: undefined, destName: undefined, destCategory: undefined,
+              })}
               className={`p-4 rounded-xl border text-left transition-all ${
                 selected ? 'border-[#B668FC] bg-[#B668FC]/10' : 'border-white/10 bg-white/[0.03] hover:border-[#B668FC]/40'
               }`}
@@ -100,39 +124,48 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
         })}
       </div>
 
-      <div className="pt-4 border-t border-white/[0.06]">
-        <label className="block text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{i18n.destCustomLabel}</label>
-        <input
-          type="text"
-          value={state.destinationCustom ?? ''}
-          onChange={e => patch({ destinationKey: undefined, destinationCustom: e.target.value })}
-          placeholder={i18n.destCustomPlaceholder}
-          list="charter-dest-suggestions"
-          autoComplete="off"
-          className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/85 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
-        />
-        {/* 자동완성 datalist — 'dan' 입력 시 단양/Damyang 제안 */}
-        <datalist id="charter-dest-suggestions">
-          {getDestinationSuggestions(state.destinationCustom).map((s, i) => (
-            <option key={`${s.value}-${i}`} value={s.value}>{s.display}</option>
-          ))}
-        </datalist>
-        {state.destinationCustom && state.destinationCustom.length >= 2 && (
-          (() => {
-            const matched = normalizeDestinationToMatrixKey(state.destinationCustom);
-            if (matched) {
-              return (
-                <p className="mt-3 text-xs text-emerald-300">
-                  ✓ {i18n.destCustomMatched(matched)}
-                </p>
-              );
+      <div className="pt-4 border-t border-white/[0.06] space-y-3">
+        {/* PR-H: 자유 입력 → AddressAutocomplete. 자동완성 클릭한 결과만 허용 — 좌표 보유. */}
+        <AddressAutocomplete
+          id="charter-dest-autocomplete"
+          label={i18n.destCustomLabel || aacText.destinationLabel}
+          placeholder={aacText.placeholderHint}
+          language={language}
+          value={confirmedDest}
+          onChange={(coord) => {
+            if (!coord) {
+              patch({
+                destLat: undefined, destLng: undefined,
+                destAddress: undefined, destName: undefined, destCategory: undefined,
+                destinationKey: undefined, destinationCustom: undefined,
+              });
+              return;
             }
-            return (
-              <p className="mt-3 text-xs text-amber-300">
-                ⚠ {i18n.destCustomUnmatched}
-              </p>
-            );
-          })()
+            // 매트릭스 매핑 시도 — 좌표는 유지하되 destinationKey 도 채워서 권역 가격 적용 가능.
+            const matched = normalizeDestinationToMatrixKey(coord.name) ||
+              normalizeDestinationToMatrixKey(coord.address);
+            patch({
+              destinationKey: matched ?? undefined,
+              destinationCustom: coord.address || coord.name,
+              destinationCustomMatched: matched ?? undefined,
+              destLat: coord.lat,
+              destLng: coord.lng,
+              destAddress: coord.address,
+              destName: coord.name,
+              destCategory: coord.category,
+            });
+          }}
+        />
+        {/* 자동완성 매칭 시 — 권역 가격 적용 안내 */}
+        {confirmedDest && state.destinationCustomMatched && (
+          <p className="text-xs text-emerald-300">
+            ✓ {i18n.destCustomMatched(state.destinationCustomMatched)}
+          </p>
+        )}
+        {confirmedDest && !state.destinationCustomMatched && (
+          <p className="text-xs text-amber-300">
+            ⚠ {i18n.destCustomUnmatched}
+          </p>
         )}
       </div>
     </div>

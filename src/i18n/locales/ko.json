@@ -1977,6 +1977,20 @@
     "modifySaving": "저장 중...",
     "modifyNetworkError": "네트워크 오류"
   },
+  "addressAutocomplete": {
+    "originLabel": "출발지",
+    "destinationLabel": "도착지",
+    "placeholderHint": "예: 롯데호텔 명동점",
+    "searching": "검색 중...",
+    "noResults": "검색 결과 없음. 다시 입력해보세요.",
+    "confirmTitle": "이 주소가 맞나요?",
+    "confirmYes": "맞음",
+    "confirmNo": "다시 입력",
+    "changeButton": "변경",
+    "errorMessage": "검색 실패. 잠시 후 다시 시도하세요.",
+    "mapUnavailable": "미니 지도를 불러올 수 없습니다",
+    "selectedLabel": "선택됨"
+  },
   "signup": {
     "signupOnboardingTitle": "환영합니다! 몇 가지만 알려주세요",
     "signupOnboardingSub": "꼭 필요한 정보만 받아 더 나은 서비스를 제공해 드립니다.",

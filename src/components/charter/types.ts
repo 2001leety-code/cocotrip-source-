@@ -19,10 +19,23 @@ export type LodgingLocation = 'seoul' | 'local' | 'daily_return' | 'custom';
 export interface WizardState {
   origin?: OriginCode;
   originCustom?: string;        // origin = 'CUSTOM' 일 때 자유 입력
+  // PR-H: AddressAutocomplete 가 채우는 출발/도착 좌표 + 메타.
+  // 자동완성으로 확정한 경우만 채워지며, 두 좌표 모두 보유 시 useQuoteCalculator 가
+  // Geocoding 우회하고 Haversine × 1.3 직접 산출.
+  originLat?: number;
+  originLng?: number;
+  originAddress?: string;       // road address (확정 시)
+  originName?: string;          // business name (확정 시)
+  originCategory?: string;      // 카테고리 (호텔/식당/관광 등)
   service?: ServiceMode;
   destinationKey?: string;      // 매트릭스 키(예: 'SEL_METRO'), 패키지 id(예: 'dmz'), 또는 'CUSTOM'
   destinationCustom?: string;
   destinationCustomMatched?: string;  // KR→EN 정규화 결과 (있으면 매트릭스 lookup 가능)
+  destLat?: number;
+  destLng?: number;
+  destAddress?: string;
+  destName?: string;
+  destCategory?: string;
   paxCount?: number;             // = adultCount + childCount (자동 계산, 백엔드 호환용 유지)
   adultCount?: number;
   childCount?: number;

@@ -1977,6 +1977,20 @@
     "modifySaving": "Saving...",
     "modifyNetworkError": "Network error"
   },
+  "addressAutocomplete": {
+    "originLabel": "Origin",
+    "destinationLabel": "Destination",
+    "placeholderHint": "Try: Lotte Hotel Myeongdong",
+    "searching": "Searching...",
+    "noResults": "No results. Try different keywords.",
+    "confirmTitle": "Is this the right address?",
+    "confirmYes": "Yes",
+    "confirmNo": "Re-enter",
+    "changeButton": "Change",
+    "errorMessage": "Search failed. Please try again.",
+    "mapUnavailable": "Mini map unavailable",
+    "selectedLabel": "Selected"
+  },
   "signup": {
     "signupOnboardingTitle": "Welcome! Just a few details",
     "signupOnboardingSub": "We collect only what's essential to serve you better.",
