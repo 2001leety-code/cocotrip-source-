@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Language, Translations } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
@@ -36,6 +36,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { toggle: toggleCommandPalette } = useCommandPalette();
   const [langToast, setLangToast] = useState<string | null>(null);
   const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -487,7 +488,8 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                   onClick={async () => {
                     await signOut(auth);
                     setIsMobileMenuOpen(false);
-                    window.location.href = '/';
+                    // PR-E: SPA 라우팅 — full-page reload 회피 (이전: window.location.href = '/')
+                    navigate('/');
                   }}
                   className="w-full flex items-center gap-3 py-3 px-3 rounded-xl transition-all hover:bg-red-500/10"
                   style={{ color: 'rgba(255,100,100,0.7)' }}
