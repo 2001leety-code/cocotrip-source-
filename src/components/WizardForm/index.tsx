@@ -54,8 +54,12 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
   const [spiceLevel, setSpiceLevel] = useState<string>('medium');
   const [bucketDishes, setBucketDishes] = useState<string[]>([]);
 
-  // Step 2: travel details
-  const [dateRange, setDateRange]             = useState<DateRange | undefined>();
+  // Step 2: travel details — default start = tomorrow (Option A: 기본값 내일)
+  const [dateRange, setDateRange]             = useState<DateRange | undefined>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { from: tomorrow, to: undefined };
+  });
   const [paxInput, setPaxInput]               = useState('2');
   const [arrivalTerminal, setArrivalTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');

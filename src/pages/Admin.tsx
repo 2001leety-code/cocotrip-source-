@@ -24,7 +24,7 @@ export default function Admin() {
   const [totalSeats, setTotalSeats] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ── Booking list (Google Sheets) ──
+  // ── Booking list (Firestore) ──
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingHeaders, setBookingHeaders] = useState<string[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -267,7 +267,7 @@ export default function Admin() {
           </a>
         </div>
 
-        {/* ── Bookings Table (Google Sheets) ── */}
+        {/* ── Bookings Table (Firestore) ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex items-center justify-between p-5 border-b border-gray-100">
             <div className="flex items-center gap-2">

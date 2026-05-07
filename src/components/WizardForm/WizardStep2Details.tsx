@@ -1,4 +1,5 @@
 // Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
+import { useState } from 'react';
 import { Plane, Briefcase, Minus, Plus, Pencil } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { DayPicker } from 'react-day-picker';
@@ -77,8 +78,9 @@ const TOUR_PACE_FALLBACK: Record<TourPace, { label: string; sub: string }> = {
   action: { label: 'Action-pack', sub: '10h+ · 7+ stops · 자유 이동' },
 };
 
-function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: string; value: number; setValue: (v: number) => void }) {
+function LuggageCounter({ label, sub, value, setValue, maxReached }: { label: string; sub: string; value: number; setValue: (v: number) => void; maxReached?: boolean }) {
   const { t } = useLanguage();
+  const plusDisabled = maxReached && value > 0 ? true : maxReached;
   return (
     <div className="flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5">
       <div>
@@ -88,12 +90,13 @@ function LuggageCounter({ label, sub, value, setValue }: { label: string; sub: s
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => setValue(Math.max(0, value - 1))}
           className="w-11 h-11 rounded-full bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/60 disabled:opacity-30"
-          disabled={value === 0} aria-label={t.a11y?.decrease ||'Decrease'}>
+          disabled={value === 0} aria-label={t.a11y?.decrease || 'Decrease'}>
           <Minus className="w-3.5 h-3.5" />
         </button>
         <span className="w-6 text-center text-sm font-bold text-white">{value}</span>
-        <button type="button" onClick={() => setValue(Math.min(20, value + 1))}
-          className="w-11 h-11 rounded-full bg-[#7C5CFC]/30 hover:bg-[#7C5CFC]/50 flex items-center justify-center text-white" aria-label={t.a11y?.increase ||'Increase'}>
+        <button type="button" onClick={() => setValue(value + 1)}
+          className="w-11 h-11 rounded-full bg-[#7C5CFC]/30 hover:bg-[#7C5CFC]/50 flex items-center justify-center text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          disabled={plusDisabled} aria-label={t.a11y?.increase || 'Increase'}>
           <Plus className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -130,6 +133,23 @@ export function WizardStep2Details(props: Step2Props) {
     && !!arrivalTerminal
     && !airportTouchedInStep3;
 
+  // 수화물 합계 제한 (Carry-on + Medium + Large ≤ 7)
+  const luggageTotal = luggageSmall + luggageMedium + luggageLarge;
+  const luggageMaxReached = luggageTotal >= 7;
+
+  // 입력 가드: 사용자가 Next를 눌러야 오류 표시
+  const [showErrors, setShowErrors] = useState(false);
+  const dateOk = !!(dateRange?.from && dateRange?.to);
+  const airportOk = !!arrivalTerminal || flightInfoFromStep0;
+
+  function handleNext() {
+    if (!canGoStep3) {
+      setShowErrors(true);
+      return;
+    }
+    onNext();
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -140,14 +160,25 @@ export function WizardStep2Details(props: Step2Props) {
       {/* Range Calendar */}
       <div>
         <p className="text-sm text-white/50 mb-2.5 font-medium">{p.wizardWhenVisit || 'When are you visiting?'}</p>
-        <div className="cocotrip-calendar-wrap bg-white/[0.04] border border-white/[0.1] rounded-2xl p-3 sm:p-4">
+        {showErrors && !dateOk && (
+          <p className="text-[11px] text-red-400 mb-2">{(p as Record<string, string>).wizardFillRequired || 'Please select travel dates'}</p>
+        )}
+        <div className={`cocotrip-calendar-wrap bg-white/[0.04] border rounded-2xl p-3 sm:p-4 ${showErrors && !dateOk ? 'border-red-400/60' : 'border-white/[0.1]'}`}>
           <DayPicker
             mode="range"
             selected={dateRange}
             onSelect={setDateRange}
             locale={calendarLocale}
             numberOfMonths={isMobile ? 1 : 2}
-            disabled={{ before: new Date() }}
+            disabled={(d) => {
+              // AI 플래너 정책: 오늘 시작 불가 (day1 = today 차단).
+              // 내일 이후만 선택 가능. 서버와 정책 일치.
+              const todayMidnight = new Date();
+              todayMidnight.setHours(0, 0, 0, 0);
+              const tomorrow = new Date(todayMidnight);
+              tomorrow.setDate(todayMidnight.getDate() + 1);
+              return d < tomorrow;
+            }}
             showOutsideDays={false}
             classNames={{
               root: 'cocotrip-rdp',
@@ -159,6 +190,13 @@ export function WizardStep2Details(props: Step2Props) {
             {(p.wizardNightsTrip || '{n} nights, {m} days trip').replace('{n}', String(nights)).replace('{m}', String(nights + 1))}
           </p>
         )}
+        {/* AI 플래너: 내일 이후만 가능 안내 (달력 아래 항상 노출) */}
+        <p className="text-[11px] text-white/45 mt-1.5 px-1">
+          {lang === 'ko' ? '📅 AI 플래너는 내일 이후 출발만 예약 가능합니다.' :
+           lang === 'ja' ? '📅 AIプランナーは明日以降の出発のみ予約可能です。' :
+           lang === 'zh' ? '📅 AI规划师仅支持明天以后出发的行程。' :
+           '📅 AI Planner only accepts trips starting tomorrow or later.'}
+        </p>
       </div>
 
       {/* Travelers */}
@@ -225,6 +263,9 @@ export function WizardStep2Details(props: Step2Props) {
             {p.wizardWhichAirport || 'Which airport are you arriving at?'}
             {mainCity && <span className="text-white/55 ml-1">({mainCity})</span>}
           </p>
+          {showErrors && !airportOk && (
+            <p className="text-[11px] text-red-400 mb-2">{(p as Record<string, string>).wizardFillRequired || 'Please select an airport'}</p>
+          )}
           <MobileSelectDrawer
             value={arrivalTerminal}
             onChange={(v) => { setArrivalTerminal(v); setAirportTouchedInStep3(true); }}
@@ -291,7 +332,8 @@ export function WizardStep2Details(props: Step2Props) {
         </div>
       </div>
 
-      {/* Luggage counters — heavy bags trigger taxi recommendation in arrival_guide. */}
+      {/* Luggage counters — heavy bags trigger taxi recommendation in arrival_guide.
+          합계 7개 제한: Carry-on + Medium + Large ≤ 7 */}
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5">
         <div className="flex items-center gap-2 mb-2.5">
           <Briefcase className="w-4 h-4 text-[#7C5CFC]" />
@@ -302,16 +344,24 @@ export function WizardStep2Details(props: Step2Props) {
           <LuggageCounter
             label={p.luggageSmall || 'Carry-on / Backpack'}
             sub={p.luggageSmallSub || 'Fits under seat'}
-            value={luggageSmall} setValue={setLuggageSmall} />
+            value={luggageSmall} setValue={setLuggageSmall}
+            maxReached={luggageMaxReached} />
           <LuggageCounter
             label={p.luggageMedium || 'Medium suitcase'}
             sub={p.luggageMediumSub || '24 inch'}
-            value={luggageMedium} setValue={setLuggageMedium} />
+            value={luggageMedium} setValue={setLuggageMedium}
+            maxReached={luggageMaxReached} />
           <LuggageCounter
             label={p.luggageLarge || 'Large suitcase'}
             sub={p.luggageLargeSub || '28 inch+'}
-            value={luggageLarge} setValue={setLuggageLarge} />
+            value={luggageLarge} setValue={setLuggageLarge}
+            maxReached={luggageMaxReached} />
         </div>
+        {luggageMaxReached && (
+          <p className="text-[11px] text-amber-300/80 mt-2 text-center">
+            {(p as Record<string, string>).luggageMaxNote || 'Max 7 large bags total (carry-on + medium + large)'}
+          </p>
+        )}
       </div>
 
       {/* Accommodation Recommendation Opt-in.
@@ -358,10 +408,9 @@ export function WizardStep2Details(props: Step2Props) {
       {/* Nav */}
       <WizardNav
         onPrev={onPrev}
-        onNext={onNext}
+        onNext={handleNext}
         prevLabel={p.planner_prev || 'Back'}
         nextLabel={p.wizardNextGenerate || 'Next: Generate'}
-        disabled={!canGoStep3}
         isMobile={isMobile}
       />
     </div>

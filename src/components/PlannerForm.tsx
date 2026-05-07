@@ -134,17 +134,23 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
 }) {
   const now = new Date();
   const todayStr = isoDate(now.getFullYear(), now.getMonth(), now.getDate());
+  // Option A: 기본 뷰는 내일부터 (tomorrow)
+  const tomorrowDate = new Date(); tomorrowDate.setDate(now.getDate() + 1);
+  const tomorrowStr = isoDate(tomorrowDate.getFullYear(), tomorrowDate.getMonth(), tomorrowDate.getDate());
 
   const [open, setOpen]           = useState(false);
   const [hoverDate, setHoverDate] = useState<string | null>(null);
   const [viewYear, setViewYear]   = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [picking, setPicking]     = useState<'start' | 'end'>('start');
-  const [tmpS, setTmpS]           = useState(startDate);
+  const [tmpS, setTmpS]           = useState(startDate || tomorrowStr);
   const [tmpE, setTmpE]           = useState(endDate);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setTmpS(startDate); setTmpE(endDate); }, [startDate, endDate]);
+  // Option B: 오늘 날짜 선택 시 확인 팝업
+  const [todayConfirmPending, setTodayConfirmPending] = useState<{ s: string; e: string } | null>(null);
+
+  useEffect(() => { setTmpS(startDate || tomorrowStr); setTmpE(endDate); }, [startDate, endDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -158,14 +164,24 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
   const nights = tmpS && tmpE ? nightsBetween(tmpS, tmpE) : 0;
 
   function applyQuick(n: number) {
-    const s = todayStr;
-    const d = new Date(); d.setDate(d.getDate() + n);
-    const e = isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+    const s = n === 0 ? todayStr : tomorrowStr;
+    const base = new Date(); base.setDate(base.getDate() + n);
+    const e = isoDate(base.getFullYear(), base.getMonth(), base.getDate());
+    if (n === 0) {
+      // "Day trip" quick chip = 오늘 → confirm 팝업
+      setTodayConfirmPending({ s, e });
+      return;
+    }
     setTmpS(s); setTmpE(e); setPicking('start');
   }
 
   function handleDay(d: string) {
     if (d < todayStr) return;
+    if (d === todayStr && picking === 'start') {
+      // 오늘 선택 시 confirm 팝업 (Option B)
+      setTodayConfirmPending({ s: d, e: '' });
+      return;
+    }
     if (picking === 'start') { setTmpS(d); setTmpE(''); setPicking('end'); }
     else {
       if (d < tmpS) { setTmpE(tmpS); setTmpS(d); } else setTmpE(d);
@@ -175,6 +191,18 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
 
   function confirm() {
     if (tmpS && tmpE) { onDateChange(tmpS, tmpE); setOpen(false); }
+  }
+
+  function confirmTodayYes() {
+    if (!todayConfirmPending) return;
+    setTmpS(todayConfirmPending.s);
+    setTmpE(todayConfirmPending.e);
+    setPicking('end');
+    setTodayConfirmPending(null);
+  }
+
+  function confirmTodayNo() {
+    setTodayConfirmPending(null);
   }
 
   const firstDow = new Date(viewYear, viewMonth, 1).getDay();
@@ -203,8 +231,48 @@ export function CalendarPicker({ startDate, endDate, onDateChange, p, lang: _lan
 
   const hasSelection = startDate && endDate;
 
+  // i18n 키 — p 객체에서 읽거나 fallback 사용
+  const todayConfirmTitle = String(p.todayConfirmTitle ?? (
+    _lang === 'ko' ? '오늘 날짜로 시작하시는 거 맞으실까요?' :
+    _lang === 'ja' ? '今日から出発しますか？' :
+    _lang === 'zh' ? '从今天开始出发？' :
+    'Start today?'
+  ));
+  const todayConfirmBody = String(p.todayConfirmBody ?? (
+    _lang === 'ko' ? `오늘 (${todayStr})부터 시작하시는 거 맞으실까요? 출발 시각이 임박하면 채팅으로 문의 주세요.` :
+    _lang === 'ja' ? `今日 (${todayStr}) から出発しますか？出発時刻が迫っている場合はチャットでご連絡ください。` :
+    _lang === 'zh' ? `您选择了今天 (${todayStr})。如果出发时间临近，请通过聊天联系我们。` :
+    `You've selected today (${todayStr}). If your departure is imminent, please contact us via chat.`
+  ));
+  const todayConfirmYes = String(p.todayConfirmYes ?? (
+    _lang === 'ko' ? '예, 오늘 시작' : _lang === 'ja' ? 'はい、今日から' : _lang === 'zh' ? '是，今天出发' : 'Yes, start today'
+  ));
+  const todayConfirmNo = String(p.todayConfirmNo ?? (
+    _lang === 'ko' ? '아니요, 다른 날짜' : _lang === 'ja' ? 'いいえ、別の日' : _lang === 'zh' ? '不，选择其他日期' : 'Choose another date'
+  ));
+
   return (
     <div ref={ref} className="relative">
+      {/* Option B: 오늘 날짜 선택 확인 모달 */}
+      {todayConfirmPending && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 rounded-2xl">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-white/15 bg-[#0d1526] p-5 shadow-2xl">
+            <p className="text-sm font-bold text-white mb-2">{todayConfirmTitle}</p>
+            <p className="text-xs text-white/65 leading-relaxed mb-5">{todayConfirmBody}</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={confirmTodayNo}
+                className="flex-1 py-2.5 rounded-xl border border-white/12 text-sm text-white/55 hover:text-white hover:border-white/25 transition-all">
+                {todayConfirmNo}
+              </button>
+              <button type="button" onClick={confirmTodayYes}
+                className="flex-[2] py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+                style={{ background: 'linear-gradient(135deg,#7C5CFC,#EA537E)' }}>
+                {todayConfirmYes}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2">
         {[{ lk: 'calCheckIn', val: startDate }, { lk: 'calCheckOut', val: endDate }].map((btn, i) => (
           <button key={i} type="button"
@@ -340,7 +408,11 @@ export function PlannerForm({ onSubmit, isLoading, t, lang = 'en' }: Props) {
   const [companion,         setCompanion]         = useState('');
   const [travelPace,        setTravelPace]        = useState('');
   const [transport,         setTransport]         = useState<'public'|'staria'|'sprinter'|'bus'|''>('');
-  const [startDate,         setStartDate]         = useState('');
+  // Option A: 기본값 = 내일
+  const [startDate,         setStartDate]         = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+  });
   const [endDate,           setEndDate]           = useState('');
   const [freeText,          setFreeText]          = useState('');
   const [error,             setError]             = useState<string | null>(null);

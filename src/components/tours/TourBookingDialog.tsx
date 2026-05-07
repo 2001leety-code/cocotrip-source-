@@ -57,6 +57,18 @@ function isoFromDate(d: Date | undefined): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * 투어 날짜가 12h cutoff 이내인지 검사 (픽업 시각 09:00 KST 기본).
+ * 오늘 날짜를 포함해 12h 이내 출발은 서버에서 차단되므로 UI에서도 비활성.
+ */
+function isTourDateClosed(iso: string): boolean {
+  if (!iso) return false;
+  const departure = new Date(`${iso}T09:00:00+09:00`);
+  if (isNaN(departure.getTime())) return false;
+  const hoursLeft = (departure.getTime() - Date.now()) / 3_600_000;
+  return hoursLeft <= 12;
+}
+
 function dateFromIso(iso: string): Date | undefined {
   if (!iso) return undefined;
   return new Date(iso + 'T00:00:00');
@@ -363,7 +375,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                   selected={dateFromIso(date)}
                   onSelect={(d) => setDate(isoFromDate(d))}
                   onMonthChange={setCalendarMonth}
-                  disabled={(d) => isDateBlocked(isoFromDate(d))}
+                  disabled={(d) => {
+                    const iso = isoFromDate(d);
+                    // 12h cutoff 이내 날짜는 선택 불가 (서버와 정책 일치)
+                    if (isTourDateClosed(iso)) return true;
+                    return isDateBlocked(iso);
+                  }}
                   fromDate={new Date()}
                 />
               </PopoverContent>

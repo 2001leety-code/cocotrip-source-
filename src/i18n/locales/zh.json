@@ -853,6 +853,9 @@
     "wizardFreeInput": "想去的地方",
     "wizardFreeInputPh": "例如：想去景福宫和明洞...",
     "wizardOptional": "可选",
+    "wizardFieldRequired": "此项为必填项",
+    "wizardCheckRequired": "请勾选此项",
+    "wizardFillRequired": "请填写此项",
     "wizardAirportTitle": "您从哪个机场入境？",
     "wizardAirportHint": "选择到达机场，为您推荐接机服务。",
     "wizardAirportPh": "请选择机场",
@@ -1105,6 +1108,7 @@
     "luggageMediumSub": "24英寸",
     "luggageLarge": "大型行李箱",
     "luggageLargeSub": "28英寸以上",
+    "luggageMaxNote": "大件行李最多7件（随身行李＋中型＋大型合计）",
     "mobility_title": "出行便利性",
     "icn_t1": "ICN 1号航站楼",
     "icn_t2": "ICN 2号航站楼",
@@ -1247,7 +1251,11 @@
     "charterIntroChatBody": "如果您将在12小时内出发，请勿使用向导，直接通过页面右下角的聊天窗口联系我们。客服人员将立即回复。",
     "charterIntroDeadline": "预订截止：国内出发前24小时 / 国际出发前48小时",
     "charterIntroDontShow": "不再显示",
-    "charterIntroClose": "我知道了"
+    "charterIntroClose": "我知道了",
+    "todayConfirmTitle": "从今天开始出发？",
+    "todayConfirmBody": "您选择了今天的日期。如果出发时间临近，请通过聊天联系我们。",
+    "todayConfirmYes": "是的，今天出发",
+    "todayConfirmNo": "不，选择其他日期"
   },
   "mobileHome": {
     "heroBadge": "PREMIUM KOREA TRAVEL",
@@ -1644,6 +1652,7 @@
     }
   },
   "admin": {
+    "backToHome": "返回管理后台",
     "title": "管理员控制台",
     "subtitle": "套餐管理 · 预订列表",
     "loading": "加载中...",
@@ -1670,7 +1679,7 @@
     "bookings": {
       "title": "预订列表",
       "count": "{n}",
-      "source": "(Google Sheets)",
+      "source": "(Firestore)",
       "refresh": "刷新",
       "empty": "暂无预订"
     },
@@ -2010,7 +2019,7 @@
     "modifySaving": "保存中...",
     "modifyNetworkError": "网络错误",
     "bookingPickupTimeLabel": "接送时间",
-    "bookingCutoffNote": "预订截止：出发前24小时（多日游：48小时）",
+    "bookingCutoffNote": "预订截止：出发前12小时",
     "bookingCutoffImminent": "预订即将截止（剩余{N}小时）",
     "bookingClosedTitle": "预订已截止",
     "bookingClosedMessage": "预订已截止。如需紧急预订，请使用聊天咨询。",
