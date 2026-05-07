@@ -284,6 +284,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       createOrder: () => rateInfo.orderID,
       onApprove: async (data: { orderID: string }) => {
         try {
+          // PR-J fix: 글로벌 프로모 코드 (COCO5/COCO10/EARLY50) 사용량 increment 는
+          // capturePaypalOrder runTransaction (L176-194) 가 처리. 여기서 promoCode 를
+          // 누락하면 backend 가 받지 못해 카운트가 0 으로 남음. 사용자 쿠폰 (couponDocId/
+          // couponUserId) 와는 별개 — 둘 다 적용 가능 (예: 사용자 쿠폰 없이 EARLY50 만).
+          if (promoApplied && !promoCode) {
+            console.warn('[PayPal onApprove] promoApplied=true but promoCode empty — global promo increment will be skipped');
+          }
           const res = await fetch('/api/capturePaypalOrder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -300,6 +307,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               userEmail,
               ...(airport ? { airport } : {}),
               ...(couponDocId ? { couponDocId, couponUserId } : {}),
+              ...(promoApplied && promoCode ? { promoCode } : {}),
             }),
           });
           const json = await res.json();

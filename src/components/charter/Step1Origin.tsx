@@ -1,9 +1,13 @@
 // Step 1: 출발지 선택 — 주요 4개 + 펼치기 9개 + 기타
+// PR-H: 자유 입력 → AddressAutocomplete (Naver Local Search + 미니 지도 확인 카드).
+// 자동완성 결과만 허용 — 좌표를 보유해야 정확한 거리 산출 가능.
 import { useState } from 'react';
 import { Plane, Hotel, Car, ChevronDown, MapPin } from 'lucide-react';
 import type { WizardState, OriginCode } from './types';
 import { AIRPORTS_CATALOG, CITIES_CATALOG } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
+import { AddressAutocomplete, type AddressResult } from './AddressAutocomplete';
+import { translations } from '@/i18n';
 
 const PRIMARY: OriginCode[] = ['ICN', 'GMP', 'SEL_METRO', 'BUS_METRO'];
 const SECONDARY: OriginCode[] = ['PUS', 'CJU', 'TAE', 'CJJ', 'MWX', 'KWJ', 'RSU', 'USN'];
@@ -33,9 +37,22 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
   const [expanded, setExpanded] = useState(false);
   const lang = language === 'ko' ? 'ko' : 'en';
   const i18n = getWizardI18n(language);
-  const customHintPlaceholder = language === 'ko' ? '예: 서울 강남구 테헤란로 123'
-    : language === 'ja' ? '例: ソウル江南区テヘラン路123'
-    : language === 'zh' ? '例: 首尔江南区德黑兰路123' : 'e.g. Lotte Hotel Seoul';
+  // PR-H: 자유 입력 → AddressAutocomplete. 자동완성 i18n 은 addressAutocomplete namespace.
+  const aacText = (translations[language] as unknown as {
+    addressAutocomplete?: { originLabel: string; placeholderHint: string };
+  }).addressAutocomplete ?? { originLabel: 'Origin', placeholderHint: 'Try: Lotte Hotel Myeongdong' };
+
+  // confirmed origin coord — state.originLat/Lng 있으면 read-only 모드.
+  const confirmedOrigin: AddressResult | undefined =
+    typeof state.originLat === 'number' && typeof state.originLng === 'number' && state.originName
+      ? {
+          name: state.originName,
+          address: state.originAddress ?? '',
+          lat: state.originLat,
+          lng: state.originLng,
+          category: state.originCategory,
+        }
+      : undefined;
 
   const card = (code: OriginCode) => {
     const { title, sub, Icon } = labelFor(code, lang);
@@ -44,7 +61,13 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
       <button
         key={code}
         type="button"
-        onClick={() => patch({ origin: code, originCustom: undefined })}
+        onClick={() => patch({
+          origin: code,
+          originCustom: undefined,
+          // 미리 정의된 origin 코드 선택 시 자유입력 좌표 reset.
+          originLat: undefined, originLng: undefined,
+          originAddress: undefined, originName: undefined, originCategory: undefined,
+        })}
         className={`flex flex-col items-center justify-center py-4 px-3 rounded-xl border text-center transition-all ${
           selected
             ? 'border-[#B668FC] bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10 text-white'
@@ -78,18 +101,34 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
           <div className="grid grid-cols-2 gap-3">
             {SECONDARY.map(card)}
           </div>
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider text-white/55 mb-2">
-              {i18n.customAddress}
-            </label>
-            <input
-              type="text"
-              value={state.originCustom ?? ''}
-              onChange={e => patch({ origin: 'CUSTOM', originCustom: e.target.value })}
-              placeholder={customHintPlaceholder}
-              className="w-full px-4 py-3 rounded-xl border border-white/12 bg-white/[0.03] text-white/80 text-sm placeholder:text-white/55 outline-none focus:border-[#B668FC]/40"
-            />
-          </div>
+          {/* PR-H: 자유 입력 → AddressAutocomplete (자동완성 + 미니지도 확인). */}
+          <AddressAutocomplete
+            id="charter-origin-autocomplete"
+            label={i18n.customAddress || aacText.originLabel}
+            placeholder={aacText.placeholderHint}
+            language={language}
+            value={confirmedOrigin}
+            onChange={(coord) => {
+              if (!coord) {
+                // 사용자가 "변경" 클릭 — 좌표 초기화. origin 도 풀어서 다시 카드 선택 가능하게.
+                patch({
+                  originLat: undefined, originLng: undefined,
+                  originAddress: undefined, originName: undefined, originCategory: undefined,
+                  origin: undefined, originCustom: undefined,
+                });
+                return;
+              }
+              patch({
+                origin: 'CUSTOM',
+                originCustom: coord.address || coord.name,
+                originLat: coord.lat,
+                originLng: coord.lng,
+                originAddress: coord.address,
+                originName: coord.name,
+                originCategory: coord.category,
+              });
+            }}
+          />
         </>
       )}
     </div>

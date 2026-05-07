@@ -317,7 +317,7 @@ export default async function handler(req, res) {
       const { coins } = body;
 
       // 2026-05-05 (운영자 정책): 모든 쿠폰 = percent type. AI 플래너 적용 거부
-      // (digital product, braintreeCheckout 의 isAiPlanner 가드).
+      // (digital product, applyPromoCode 의 productScope 가드).
       // Charter / Tour 만 적용 가능 — productScope 별 1장씩 발행.
       // 기존 fixed-USD 쿠폰 (legacy) 은 그대로 사용 가능 (호환성 유지).
       const REDEMPTION_TABLE = {
@@ -349,7 +349,7 @@ export default async function handler(req, res) {
         tx.update(userRef, { tripCoins: newBalance });
 
         // 2) 쿠폰 문서 생성 — percent type, productScope 미지정(차터/투어 모두 가능)
-        //    AI 플래너 결제는 server isAiPlanner 가드로 모든 쿠폰 reject.
+        //    AI 플래너 결제는 applyPromoCode 의 productScope 가드로 reject.
         const couponRef = db.collection('users').doc(userId).collection('coupons').doc();
         const now = Date.now();
         const expiresAt = now + 90 * 24 * 3600 * 1000;
@@ -377,7 +377,7 @@ export default async function handler(req, res) {
           createdAt: now,
         });
 
-        return { couponId: couponRef.id, code, value: plan.usdValue, expiresAt, newBalance };
+        return { couponId: couponRef.id, code, percent: plan.percent, label: plan.label, expiresAt, newBalance };
       });
 
       console.log('[loyalty] redeem-coupon:', userId, result);

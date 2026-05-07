@@ -39,6 +39,16 @@ interface Booking {
   actualEndTime?: string;
   overtimeCost?: number;
   totalCollected?: number;
+  // PR-J: PayPal Smart Buttons capture 응답 일부 (capturePaypalOrder.js L85-91 가
+  // bookings/{orderID} 에 머지). 운영자 디버깅용 — manual QR 흐름은 pending_bookings
+  // 에 별도 저장되며 본 컬럼은 비어있음.
+  rawCapturePayload?: {
+    payer?: { email_address?: string };
+    amount?: { value?: string; currency_code?: string };
+    captureID?: string;
+    status?: string;
+    create_time?: string;
+  };
 }
 
 // --- Helpers ---
@@ -80,6 +90,15 @@ interface FirestoreBooking {
   totalCollected?: number;
   tourDuration?: number;
   extraCharge?: number;
+  // PR-J: PayPal capture 디버깅 페이로드. capturePaypalOrder.js 가 bookings/{orderID}
+  // 에 merge 저장. manual QR 흐름은 pending_bookings 에 저장되어 본 필드 없음.
+  rawCapturePayload?: {
+    payer?: { email_address?: string };
+    amount?: { value?: string; currency_code?: string };
+    captureID?: string;
+    status?: string;
+    create_time?: string;
+  };
 }
 
 function mapFirestoreToBooking(id: string, data: FirestoreBooking): Booking {
@@ -106,6 +125,7 @@ function mapFirestoreToBooking(id: string, data: FirestoreBooking): Booking {
     totalCollected: data.totalCollected || 0,
     tourDuration: data.tourDuration,
     extraCharge: data.extraCharge,
+    rawCapturePayload: data.rawCapturePayload,
   };
 }
 

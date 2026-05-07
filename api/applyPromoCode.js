@@ -75,8 +75,57 @@ async function checkGlobalPromoLimit(db, code) {
   }
 }
 
+// productType (예: charter_seoul_city, charter_busan, charter_custom_estimate,
+// tour-package_X, ai_planner_full, ai-planner-quick, airport_seoul_central,
+// kpop_shuttle_oneway, combo_airport_seoul) → coupon.productScope (예: 'charter',
+// 'tour-package', 'ai_planner', 'both') 매칭.
+//
+// 정책 (2026-05-05):
+//  - productScope 미지정 (legacy 쿠폰) → 모든 productType 허용 (backward compat)
+//  - productScope='both' → charter + tour-package 허용 (AI 플래너 reject)
+//  - productScope='charter' → charter_*, combo_airport_*, kpop_shuttle_*, airport_*
+//    중 charter / 차터 호환 productType 만 허용
+//  - productScope='tour-package' → tour-package_* 만 허용
+//  - productScope='ai_planner' → ai_planner_*, ai-planner-* 만 허용
+//
+// AI 플래너는 디지털 상품 — 운영자 정책상 모든 사용자 쿠폰 reject (productScope
+// 미설정 legacy 쿠폰도). 이는 별도 isAiPlanner 가드로 호출처에서 처리.
+function couponMatchesProduct(productScope, productType) {
+  if (!productScope) return true; // legacy 쿠폰 — 모든 productType 허용
+  if (!productType) return true; // productType 미전달 — backward compat (소비처가 전달하지 않으면 적용)
+
+  const pt = String(productType).toLowerCase().replace(/-/g, '_');
+  const scope = String(productScope).toLowerCase();
+
+  if (scope === 'both') {
+    return pt.startsWith('charter_') ||
+           pt.startsWith('combo_airport_') ||
+           pt.startsWith('airport_') ||
+           pt.startsWith('kpop_shuttle_') ||
+           pt.startsWith('tour_package');
+  }
+  if (scope === 'charter') {
+    return pt.startsWith('charter_') ||
+           pt.startsWith('combo_airport_') ||
+           pt.startsWith('airport_') ||
+           pt.startsWith('kpop_shuttle_');
+  }
+  if (scope === 'tour_package' || scope === 'tour-package') {
+    return pt.startsWith('tour_package');
+  }
+  if (scope === 'ai_planner') {
+    return pt.startsWith('ai_planner');
+  }
+  // 알 수 없는 scope 값 — 보수적으로 reject
+  return false;
+}
+
 // ── Firestore 쿠폰 검증 (WELCOME5 등 개인 쿠폰) ──
-async function verifyFirestoreCoupon(userId, code) {
+// 반환값:
+//   null            — 쿠폰 없음 / 만료됨
+//   { ...coupon }   — 정상 쿠폰
+//   { error, code } — 매치 실패 (productScope mismatch)
+async function verifyFirestoreCoupon(userId, code, productType) {
   if (!userId) return null;
 
   try {
@@ -99,6 +148,17 @@ async function verifyFirestoreCoupon(userId, code) {
     // 만료 확인
     if (coupon.expiresAt && coupon.expiresAt < Date.now()) return null;
 
+    // productScope 가드 (2026-05-07): charter ↔ tour 쿠폰 혼용 차단.
+    // productScope 미지정 (legacy) 쿠폰은 backward compat 으로 모든 productType 허용.
+    if (!couponMatchesProduct(coupon.productScope, productType)) {
+      return {
+        error: 'COUPON_PRODUCT_SCOPE_MISMATCH',
+        productScope: coupon.productScope,
+        productType: productType || null,
+        label: coupon.label,
+      };
+    }
+
     // raw 값 반환 — 할인 계산은 handler에서 (환율 필요)
     return {
       couponDocId: couponDoc.id,
@@ -107,6 +167,7 @@ async function verifyFirestoreCoupon(userId, code) {
       type: coupon.type,
       value: coupon.value,
       currency: coupon.currency || 'USD',
+      productScope: coupon.productScope || null,
       stackable: true,
     };
   } catch (err) {
@@ -130,7 +191,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { code, originalPrice, userId, codes } = body;
+    const { code, originalPrice, userId, codes, productType } = body;
 
     // 실시간 환율 조회 (공통 유틸 — cap 1350 적용)
     const usdToKrw = await getUsdToKrw();
@@ -162,8 +223,21 @@ export default async function handler(req, res) {
           continue;
         }
 
-        // Firestore 개인 쿠폰 확인
-        const fsCoupon = await verifyFirestoreCoupon(userId, upper);
+        // Firestore 개인 쿠폰 확인 (productScope 가드 포함)
+        const fsCoupon = await verifyFirestoreCoupon(userId, upper, productType);
+        // productScope mismatch — 합산 path 에선 silent skip (다른 코드 적용은 계속)
+        // + UX 가시성 위해 응답에 reject 항목 포함.
+        if (fsCoupon && fsCoupon.error === 'COUPON_PRODUCT_SCOPE_MISMATCH') {
+          console.warn('[applyPromoCode] coupon scope mismatch (multi):', upper, fsCoupon.productScope, '≠', productType);
+          appliedCodes.push({
+            code: upper,
+            discount: 0,
+            label: fsCoupon.label,
+            rejected: true,
+            rejectCode: 'COUPON_PRODUCT_SCOPE_MISMATCH',
+          });
+          continue;
+        }
         if (fsCoupon && fsCoupon.stackable) {
           let disc;
           if (fsCoupon.type === 'fixed' && fsCoupon.currency === 'USD') {
@@ -230,8 +304,18 @@ export default async function handler(req, res) {
       })));
     }
 
-    // 2. Firestore 개인 쿠폰 확인
-    const fsCoupon = await verifyFirestoreCoupon(userId, upper);
+    // 2. Firestore 개인 쿠폰 확인 (productScope 가드 포함)
+    const fsCoupon = await verifyFirestoreCoupon(userId, upper, productType);
+    // productScope mismatch — 단일 코드 path 에선 명시적 400 반환 (사용자 UX:
+    // "이 쿠폰은 ___ 상품에만 사용 가능합니다" 메시지로 변환 가능).
+    if (fsCoupon && fsCoupon.error === 'COUPON_PRODUCT_SCOPE_MISMATCH') {
+      console.warn('[applyPromoCode] coupon scope mismatch:', upper, fsCoupon.productScope, '≠', productType);
+      res.writeHead(400, JSON_CORS);
+      return res.end(JSON.stringify(_err(
+        `Coupon "${fsCoupon.label || upper}" is restricted to ${fsCoupon.productScope} products and cannot be applied to ${productType || 'this product'}.`,
+        'COUPON_PRODUCT_SCOPE_MISMATCH',
+      )));
+    }
     if (fsCoupon) {
       let savedAmount;
       let discountRate;

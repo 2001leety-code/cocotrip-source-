@@ -12,9 +12,9 @@
     "gzip": true
   },
   {
-    "name": "Vendor: Firebase Firestore",
+    "name": "Vendor: Firebase Firestore (2026-05 PR-F charter wizard 추가로 115→120 KB, 안전 마진 3 kB)",
     "path": "dist/assets/vendor-firebase-firestore-*.js",
-    "limit": "115 KB",
+    "limit": "120 KB",
     "gzip": true
   },
   {

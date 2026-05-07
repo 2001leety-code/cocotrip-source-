@@ -1982,6 +1982,20 @@
     "excludedTitle": "別途（現地支払）",
     "airportPickup": "空港送迎（別途見積）"
   },
+  "addressAutocomplete": {
+    "originLabel": "出発地",
+    "destinationLabel": "目的地",
+    "placeholderHint": "例: ロッテホテル明洞",
+    "searching": "検索中...",
+    "noResults": "検索結果なし。別のキーワードをお試しください。",
+    "confirmTitle": "この住所で正しいですか？",
+    "confirmYes": "はい",
+    "confirmNo": "再入力",
+    "changeButton": "変更",
+    "errorMessage": "検索失敗。しばらくしてから再度お試しください。",
+    "mapUnavailable": "ミニマップを読み込めません",
+    "selectedLabel": "選択済み"
+  },
   "signup": {
     "signupOnboardingTitle": "ようこそ！いくつか教えてください",
     "signupOnboardingSub": "より良いサービスのために必要な情報のみお伺いします。",

@@ -4,10 +4,11 @@
  * POST /api/admin-scan-suspect-bookings  (list + batch replay if dryRun=false)
  * Headers: Authorization: Bearer <Firebase-ID-token>
  *
- * 2026-05-04: PR #221 (2026-05-03 11:51Z 머지) 부터 PR #223 (2026-05-04 머지) 까지
- * 약 24시간 동안 braintreeCheckout 의 booking-processor 호출이 ReferenceError 로 죽으면서
- * Firestore 에는 booking 이 저장됐지만 텔레그램·이메일·Sheets 알림이 누락된 booking 들을
- * 일괄 식별 + (옵션으로) 일괄 복구.
+ * 2026-05-04 ~ 2026-05-07: 알림 누락 booking 일괄 복구 도구. 원래 PR #221~PR #223
+ * 사이 (Braintree 통합 시점) booking-processor 호출이 ReferenceError 로 죽어 Firestore
+ * 에는 booking 이 저장됐지만 텔레그램·이메일·Sheets 알림이 빠진 booking 을 식별하기 위해
+ * 도입. 2026-05-07 Braintree 제거 후에도 PayPal capture 직후 booking-processor 호출이
+ * fire-and-forget 이라 동일 패턴 (네트워크 장애 등) 의 누락 가능성이 있어 유지.
  *
  * GET  → 후보 목록만 반환 (dryRun)
  * POST → 후보 목록 + Optional 일괄 replay (body.dryRun=false 일 때만 실 발송)
@@ -16,7 +17,7 @@
  *   {
  *     since?:  ISO 8601 (default: 2026-05-03T11:51:00Z = PR #221 머지 시점)
  *     until?:  ISO 8601 (default: now)
- *     provider?: 'braintree' | 'paypal' | undefined (default: 'braintree')
+ *     provider?: 'paypal' | 'braintree' | null (default: null = 모든 provider)
  *     dryRun?: boolean (default: true) — true 면 list 만, false 면 booking-processor 재호출
  *     limit?:  number (default: 50, max 100)
  *   }
@@ -70,7 +71,9 @@ export default async function handler(req, res) {
   const dryRun = req.method === 'GET' ? true : (body.dryRun !== false);
   const since = new Date(body.since || DEFAULT_SINCE);
   const until = new Date(body.until || Date.now());
-  const provider = body.provider !== undefined ? body.provider : 'braintree';
+  // 2026-05-07: Braintree 제거 후 default = null (모든 provider 검색).
+  // 호출자가 명시적으로 'paypal' / 'braintree' (legacy) 지정 가능.
+  const provider = body.provider !== undefined ? body.provider : null;
   const limit = Math.min(100, Math.max(1, Number(body.limit) || 50));
 
   if (Number.isNaN(since.getTime()) || Number.isNaN(until.getTime())) {
