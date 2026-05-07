@@ -311,20 +311,10 @@ export default function TourDetailPage() {
           <IncludedExcluded
             language={language}
             includedExtra={tour.included}
-            excludedExtra={(() => {
-              // day_tour 카테고리(당일 투어)는 공항 픽업 별도 명시 — 사용자 가격 의문 해소
-              if (tour.durationDays !== 1) return tour.excluded;
-              const airportPickup = {
-                icon: 'Plane',
-                text: {
-                  ko: '공항 픽업 (별도 견적)',
-                  en: 'Airport pickup (separate quote)',
-                  ja: '空港送迎（別途見積）',
-                  zh: '机场接送（另议）',
-                },
-              };
-              return [airportPickup, ...(tour.excluded ?? [])];
-            })()}
+            excludedExtra={tour.excluded}
+            // PR-L: 인라인 4-lang I18nString 제거 — 단일 source (locale JSON `tourDetail.airportPickup`).
+            // day_tour 카테고리만 공항 픽업 별도 명시 (사용자 가격 의문 해소).
+            excludedExtraKeys={tour.durationDays === 1 ? ['tourDetail.airportPickup'] : []}
           />
         </section>
 

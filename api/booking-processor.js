@@ -18,6 +18,7 @@
  */
 
 import { captureError } from './_shared/sentry.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 // 2026-05-04: telegram 2-채널 분리 후 sendBookingAlert / generateBookingAlert / notify
 // 직접 호출은 미사용. _telegram.js / _ai-employees.js 의 export 는 다른 파일이 사용하므로 유지.
@@ -243,6 +244,12 @@ const originalHandler = async (event) => {
   }
 
   // ── Step 6: 고객 확인 이메일 발송 (PDF 첨부 + Wallet 링크) ───────────
+  // PR-L: voucher 첨부 이메일 발송 성공/실패를 bookings/{orderID} 도큐먼트에 기록.
+  //   - 성공: voucherSentAt = serverTimestamp()
+  //   - 실패: voucherFailedAt = serverTimestamp() + voucherError
+  // operator-todo-reminder 가 이 필드로 미발송 booking 정확 검출 (bookingRef proxy 한계 보완).
+  let voucherEmailOk = false;
+  let voucherEmailErr = null;
   try {
     let emailContent;
     let voucherText = '';
@@ -260,10 +267,36 @@ const originalHandler = async (event) => {
 
     await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
     results.steps.email = 'ok';
+    voucherEmailOk = true;
     console.log('[booking-processor] 고객 이메일 발송 완료:', payerEmail);
   } catch (err) {
     results.steps.email = `error: ${err.message}`;
+    voucherEmailErr = err.message || 'unknown';
     console.error('[booking-processor] 이메일 발송 실패:', err.message);
+  }
+
+  // ── Step 6.5: voucher 발송 결과를 Firestore booking 도큐먼트에 기록 ──
+  // PR-L: operator-todo-reminder 가 voucherSentAt 빈 booking 검출용. 부분 실패도
+  // 포함 (voucherFailedAt + voucherError) — 어드민이 명시적으로 인지 가능.
+  // 비치명적 — Firestore unavailable 이어도 전체 처리는 계속.
+  try {
+    const db = initAdminDb('booking-processor');
+    if (db && orderID) {
+      const { FieldValue } = await import('firebase-admin/firestore');
+      const patch = voucherEmailOk
+        ? { voucherSentAt: FieldValue.serverTimestamp() }
+        : {
+            voucherFailedAt: FieldValue.serverTimestamp(),
+            voucherError: String(voucherEmailErr || 'unknown').slice(0, 500),
+          };
+      await db.collection('bookings').doc(orderID).set(patch, { merge: true });
+      results.steps.voucherStatus = voucherEmailOk ? 'ok' : 'failed-recorded';
+    } else {
+      results.steps.voucherStatus = 'skip: firestore unavailable';
+    }
+  } catch (statusErr) {
+    results.steps.voucherStatus = `error: ${statusErr.message}`;
+    console.error('[booking-processor] voucherStatus 기록 실패:', statusErr.message);
   }
 
   // ── Step 7: Google Sheets 상태 '확정'으로 업데이트 (이슈#3 fix: rowHint로 전체 스캔 회피) ──

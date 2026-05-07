@@ -1977,6 +1977,11 @@
     "modifySaving": "保存中...",
     "modifyNetworkError": "网络错误"
   },
+  "tourDetail": {
+    "includedTitle": "包含",
+    "excludedTitle": "不包含（现场支付）",
+    "airportPickup": "机场接送（另议）"
+  },
   "addressAutocomplete": {
     "originLabel": "出发地",
     "destinationLabel": "目的地",

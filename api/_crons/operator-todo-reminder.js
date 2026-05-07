@@ -9,9 +9,10 @@
  *   b) cs_tickets.status='open' AND createdAt > 24h 경과 — 미답변 CS
  *   c) plan_complaints.status='open' AND createdAt > 24h — 미응답 신고
  *   d) users 가입 후 1h+ AND coupons 0건 AND onboardingCouponsIssued≠true — 가입 쿠폰 0건
- *   e) bookings status='CONFIRMED' AND createdAt > 24h AND bookingRef 비어있음 — booking-processor
- *      처리 누락 (voucher/email 미발송 가능성). 실제 voucherPdfUrl 필드는 저장 안 되므로
- *      bookingRef 누락을 proxy 시그널로 사용.
+ *   e) bookings status='CONFIRMED' AND createdAt > 24h AND voucher 미발송 — booking-processor
+ *      처리 누락 (voucher/email 미발송). 1차 시그널: `voucherSentAt` 비어있음 (PR-L 도입).
+ *      2차 fallback: 기존 booking (PR-L 이전) 은 `voucherSentAt` 미보유 → `bookingRef`
+ *      누락을 backward-compat proxy 로 병행 검출. 둘 다 비면 미발송으로 분류.
  *   f) bookings status='CANCELED' OR 'REFUNDED' AND refundRequestedAt > 24h AND refundedAt 비어있음
  *      — 환불 요청 후 미처리. 현재 자동 환불이라 거의 0건이지만 manual-payment / 결제 누락
  *      케이스 cover.
@@ -180,6 +181,9 @@ async function fetchUsersMissingOnboardingCoupons(db) {
 }
 
 // ── (e) booking-processor 처리 누락 (24h+) ─────────────────────────
+// PR-L: 1차 시그널은 `voucherSentAt` 빈 booking. PR-L 이전 booking 은 해당 필드
+// 미존재 → `bookingRef` 누락 backward-compat proxy 병행. 둘 중 하나라도 채워져
+// 있으면 정상 처리된 booking 으로 간주 (false positive 방지).
 async function fetchUnprocessedBookings(db) {
   try {
     const cutoffMs = Date.now() - DAY_MS;
@@ -192,7 +196,11 @@ async function fetchUnprocessedBookings(db) {
       const b = doc.data();
       const createdMs = tsToMs(b.createdAt);
       if (!createdMs || createdMs > cutoffMs) return;
-      // bookingRef 가 없거나 'CT-' prefix 없으면 booking-processor 가 안 돌았을 가능성
+      // 1차: voucherSentAt 가 채워져 있으면 정상 처리된 booking
+      const hasVoucherSent = !!b.voucherSentAt;
+      if (hasVoucherSent) return;
+      // 2차 (backward-compat): PR-L 이전 booking 은 voucherSentAt 미존재.
+      // bookingRef 가 채워져 있으면 booking-processor 가 돌았다고 간주.
       const hasBookingRef = !!(b.bookingRef && String(b.bookingRef).trim());
       if (hasBookingRef) return;
       items.push({
@@ -200,6 +208,8 @@ async function fetchUnprocessedBookings(db) {
         userEmail: b.userEmail || b.payerEmail || '-',
         amountUSD: b.amountUSD || '-',
         ageHours: Math.round((Date.now() - createdMs) / HOUR_MS),
+        // 진단용 — 운영자가 voucherFailedAt 조회 시 원인 파악
+        voucherError: b.voucherError ? String(b.voucherError).slice(0, 80) : null,
       });
     });
     return { items };
@@ -305,7 +315,8 @@ function buildMessage({
   if (unprocessedBookings && unprocessedBookings.length > 0) {
     lines.push(`📄 booking-processor 처리 누락 (24h+): ${unprocessedBookings.length}건`);
     unprocessedBookings.slice(0, 10).forEach((b) => {
-      lines.push(` - <code>${b.orderID}</code> ${b.userEmail} $${b.amountUSD} (${b.ageHours}h)`);
+      const errSuffix = b.voucherError ? ` err=${b.voucherError}` : '';
+      lines.push(` - <code>${b.orderID}</code> ${b.userEmail} $${b.amountUSD} (${b.ageHours}h)${errSuffix}`);
     });
     if (unprocessedBookings.length > 10) lines.push(` ... 외 ${unprocessedBookings.length - 10}건`);
     lines.push('  → /api/admin-replay-booking-notifications 재실행 가능');

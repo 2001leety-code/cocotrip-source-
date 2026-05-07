@@ -1977,6 +1977,11 @@
     "modifySaving": "저장 중...",
     "modifyNetworkError": "네트워크 오류"
   },
+  "tourDetail": {
+    "includedTitle": "포함",
+    "excludedTitle": "별도 (현장 결제)",
+    "airportPickup": "공항 픽업 (별도 견적)"
+  },
   "addressAutocomplete": {
     "originLabel": "출발지",
     "destinationLabel": "도착지",

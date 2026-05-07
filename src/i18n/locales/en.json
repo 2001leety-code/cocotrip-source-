@@ -1977,6 +1977,11 @@
     "modifySaving": "Saving...",
     "modifyNetworkError": "Network error"
   },
+  "tourDetail": {
+    "includedTitle": "Included",
+    "excludedTitle": "Not included",
+    "airportPickup": "Airport pickup (separate quote)"
+  },
   "addressAutocomplete": {
     "originLabel": "Origin",
     "destinationLabel": "Destination",
