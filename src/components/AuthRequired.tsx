@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle, handleRedirectResult } from '@/lib/firebase';
+import { signInWithGoogle, handleRedirectResult, db } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
 
 const TEXT = {
@@ -45,10 +47,13 @@ const TEXT = {
 export function AuthRequired({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const { language } = useLanguage();
+  const location = useLocation();
   const text = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [redirectChecking, setRedirectChecking] = useState(true);
+  // PR-E: 신규 가입자 needsOnboarding 체크 — null=미확인, false=완료, true=리다이렉트 필요
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
 
   // signInWithRedirect 후 돌아왔을 때 결과를 처리
   // getRedirectResult()가 완료되면 onAuthStateChanged가 자동으로 user를 업데이트함
@@ -69,6 +74,33 @@ export function AuthRequired({ children }: { children: ReactNode }) {
     try { await signInWithGoogle(); } catch (e) { setError(e instanceof Error ? e.message : 'Login failed'); }
     finally { setGoogleLoading(false); }
   }, []);
+
+  // PR-E: 로그인 직후 users/{uid}.needsOnboarding 1회 fetch — true면 /onboarding 리다이렉트
+  // 단, 이미 /onboarding 에 있으면 무한 루프 방지를 위해 skip
+  useEffect(() => {
+    if (!user?.uid) {
+      setNeedsOnboarding(null);
+      return;
+    }
+    if (location.pathname === '/onboarding') {
+      setNeedsOnboarding(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (cancelled) return;
+        const flag = snap.exists() && snap.data()?.needsOnboarding === true;
+        setNeedsOnboarding(flag);
+      } catch (e) {
+        // 네트워크 오류 시 안전하게 false 처리 — 정상 진입 허용 (기존 회원 영향 없음)
+        if (!cancelled) setNeedsOnboarding(false);
+        console.warn('[AuthRequired] onboarding flag check failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.uid, location.pathname]);
 
   // Firebase auth 초기화 OR redirect 처리 중엔 스피너 표시
   if (loading || redirectChecking) {
@@ -124,6 +156,19 @@ export function AuthRequired({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  // PR-E: needsOnboarding 체크 미완료(null) — 짧은 스피너 (보통 ~수십 ms)
+  if (needsOnboarding === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#faf9f6]">
+        <div className="w-8 h-8 border-2 border-[#0f3460] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  // PR-E: needsOnboarding=true → /onboarding 으로 리다이렉트 (신규 가입자만)
+  if (needsOnboarding) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;

@@ -70,6 +70,8 @@ async function saveUserToFirestore(user) {
           totalSpentUSD: 0,
           bookingCount: 0,
           createdAt: serverTimestamp(),
+          // PR-E: 신규 가입자만 1-step 온보딩 (닉네임/휴대폰/약관) — 기존 회원은 영향 없음
+          needsOnboarding: true,
         } : {
           lastLoginAt: serverTimestamp(),
         }),

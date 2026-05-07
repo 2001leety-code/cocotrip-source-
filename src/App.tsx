@@ -44,6 +44,7 @@ const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
+const SignupOnboarding = lazy(() => import('@/pages/SignupOnboarding'));
 
 // Retry dynamic import — if chunk is stale after deploy, force one page reload
 function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
@@ -341,6 +342,16 @@ function AnimatedRoutes() {
           <Route path="/terms" element={<Suspense fallback={<PlannerSkeleton />}><Terms /></Suspense>} />
           <Route path="/privacy" element={<Suspense fallback={<PlannerSkeleton />}><Privacy /></Suspense>} />
           <Route path="/travel-terms" element={<Suspense fallback={<PlannerSkeleton />}><TravelTerms /></Suspense>} />
+          <Route
+            path="/onboarding"
+            element={
+              <AuthRequired>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <SignupOnboarding />
+                </Suspense>
+              </AuthRequired>
+            }
+          />
           <Route
             path="/mypage"
             element={
