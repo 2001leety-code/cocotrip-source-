@@ -1,6 +1,11 @@
-// Step 6: 최종 견적 — 차량비·할증·할인·VAT 표기 + 공항/일정 요약 + needsCustomQuote 분기
+// Step 6: 최종 견적 — 영수증 스타일 가격 카드 (PR-F).
+// 정책 (2026-05-08 사용자 확정):
+//   - formula 견적: 기본료 / 거리 요금 (km만 표기, 단가 X) / 톨비 (약) / 합계 (부가세 포함)
+//   - package/matrix priceKRW 견적: 단일 패키지 행 + 톨비 안내 + 배차 안내 박스
+//   - 항상 하단에 "예약 후 출발 3일 전에 전담 기사가 배차됩니다" 박스
 import type { QuoteBreakdown, WizardState } from './types';
 import { getWizardI18n } from './wizard-i18n';
+import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 
 interface Props {
   quote: QuoteBreakdown | null;
@@ -9,6 +14,7 @@ interface Props {
 }
 
 const KRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
+const USD = (krw: number) => `≈ $${Math.round(krw / CALCULATOR_KRW_PER_USD).toLocaleString('en-US')}`;
 
 export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);
@@ -41,6 +47,11 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const hasAirportInfo = quote.mode === 'airport_transfer' && (ap?.flightNumber || ap?.terminal || lugTotal > 0);
   const unitPcs = language === 'ko' ? '개' : language === 'ja' ? '個' : language === 'zh' ? '件' : 'pcs';
 
+  // 영수증 분해 — formula 견적이면 base/distance/toll 노출, 그 외 단일 패키지 행
+  const r = quote.receipt;
+  const useFormulaRows = !!r && r.baseFeeKRW != null && r.distanceFeeKRW != null && !r.isPackage;
+  const km = quote.distanceKm ?? 0;
+
   return (
     <div className="space-y-5">
       {hasAirportInfo && (
@@ -56,11 +67,25 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
         </div>
       )}
 
-      {/* 선결제 박스 */}
+      {/* 영수증 카드 — 항상 노출. */}
       <div className="rounded-2xl border border-[#B668FC]/30 bg-gradient-to-br from-[#B668FC]/10 to-transparent p-6">
-        <p className="text-xs uppercase tracking-wider text-white/55 mb-4 font-semibold">{i18n.payBlock}</p>
-        <div className="space-y-2.5 text-sm">
-          <Row label={i18n.payVehicleLine} value={KRW(quote.vehicleChargeKRW)} />
+        <p className="text-xs uppercase tracking-wider text-white/55 mb-1 font-semibold">{i18n.payBlock}</p>
+        <p className="text-base font-bold text-white/85 mb-4">{i18n.receiptTitle}</p>
+
+        <div className="space-y-2.5 text-sm border-t border-white/10 pt-3">
+          {useFormulaRows ? (
+            <>
+              <Row label={i18n.receiptBaseFee}              value={KRW(r!.baseFeeKRW!)} />
+              <Row label={i18n.receiptDistance(Math.round(km))} value={KRW(r!.distanceFeeKRW!)} />
+              {r?.tollFeeKRW != null && r.tollFeeKRW > 0 && (
+                <Row label={i18n.receiptToll} value={KRW(r.tollFeeKRW)} muted />
+              )}
+            </>
+          ) : (
+            <Row label={i18n.packageRowLabel} value={KRW(quote.vehicleChargeKRW)} />
+          )}
+
+          {/* 옵션/할증/할인 */}
           {quote.addons.map(a => (
             <Row key={a.key} label={`+ ${a.label}`} value={KRW(a.amountKRW)} muted />
           ))}
@@ -71,16 +96,28 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
             <Row label={i18n.multiDayDiscount(quote.multiDayDiscountPercent)} value={`-${KRW(quote.multiDayDiscountKRW)}`} good />
           )}
         </div>
-        <div className="mt-5 pt-5 border-t border-white/10 flex items-center justify-between">
-          <span className="text-base text-white/70">{i18n.paySubtotal}</span>
-          <span className="text-2xl font-bold text-white">{KRW(quote.subtotalKRW)}</span>
+
+        {/* 합계 행 */}
+        <div className="mt-5 pt-5 border-t border-white/10 flex items-end justify-between">
+          <span className="text-base text-white/70">{i18n.receiptTotal}</span>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-white">{KRW(quote.subtotalKRW)}</div>
+            <div className="text-xs text-white/55 mt-1">{USD(quote.subtotalKRW)}</div>
+          </div>
         </div>
+
         {quote.vatExcluded && (
           <p className="mt-3 text-right text-xs text-amber-300/80">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
         )}
       </div>
 
-      {/* 별도 고지 박스 (항상 보여주되 해당 모드만) */}
+      {/* 배차 안내 박스 — 영수증 하단 항상 노출 */}
+      <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-100/85 flex items-start gap-2">
+        <span className="text-base leading-none">ℹ️</span>
+        <span>{i18n.driverDispatchNote}</span>
+      </div>
+
+      {/* 별도 고지 박스 (always render for relevant modes) */}
       {(quote.showMeals || quote.showAttractions) && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <p className="text-xs uppercase tracking-wider text-white/55 mb-4 font-semibold">{i18n.separateBlock}</p>

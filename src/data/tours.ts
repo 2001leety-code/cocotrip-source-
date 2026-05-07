@@ -146,7 +146,7 @@ export const GLOBAL_INCLUDED: TourHighlight[] = [
   { icon: 'Car',    text: { ko: '전용 스타리아 차량', en: 'Private Staria van', ja: '専用スターリア車両', zh: '专属Staria面包车' } },
   { icon: 'User',   text: { ko: '영어 가능 기사', en: 'English-speaking driver', ja: '英語対応ドライバー', zh: '英语司机' } },
   { icon: 'Fuel',   text: { ko: '연료비·톨비·주차비', en: 'Fuel · Tolls · Parking', ja: '燃料・料金所・駐車場', zh: '燃油费·过路费·停车费' } },
-  { icon: 'Heart',  text: { ko: '기사 팁 포함 (현장 추가 비용 0)', en: 'Driver tip (no on-site extras)', ja: 'ドライバーチップ込み（現場追加費用なし）', zh: '司机小费（无现场额外费用）' } },
+  { icon: 'Heart',  text: { ko: '톨비 포함 (현장 추가 비용 0)', en: 'Tolls included (no on-site extras)', ja: '通行料込み（現場追加費用なし）', zh: '含过路费（无现场额外费用）' } },
 ];
 
 export const GLOBAL_EXCLUDED: TourHighlight[] = [
@@ -174,16 +174,16 @@ const TOURS_RAW: Tour[] = [
       zh: '首尔城市一日游',
     },
     summary: {
-      ko: '경복궁·북촌·명동·한강 — 서울 핵심 명소를 하루에 · 팁·톨비 포함',
-      en: 'Gyeongbokgung · Bukchon · Myeongdong · Han River — tips & tolls included',
-      ja: '景福宮・北村・明洞・漢江 — チップ・料金所込み',
-      zh: '景福宫·北村·明洞·汉江 — 含小费·过路费',
+      ko: '경복궁·북촌·명동·한강 — 서울 핵심 명소를 하루에 · 톨비 포함',
+      en: 'Gyeongbokgung · Bukchon · Myeongdong · Han River — tolls included',
+      ja: '景福宮・北村・明洞・漢江 — 通行料込み',
+      zh: '景福宫·北村·明洞·汉江 — 含过路费',
     },
     description: {
-      ko: '전용 스타리아 차량과 영어 기사님과 함께 서울의 핵심 명소를 알차게 둘러봅니다. 경복궁의 고즈넉한 아침, 북촌한옥마을의 골목길, 명동 쇼핑, 한강 공원 일몰까지. 기사 팁·톨비·주차비 전부 포함 — 현장 추가 비용 제로.',
-      en: "Explore Seoul's top landmarks in a private Staria van with an English-speaking driver. Gyeongbokgung's morning calm, Bukchon Hanok Village alleyways, Myeongdong shopping, Han River sunset. Driver tip, tolls, parking all included.",
-      ja: 'スタリア専用車両と英語対応ドライバーでソウルの名所を巡ります。景福宮の静かな朝、北村韓屋村の路地、明洞ショッピング、漢江の夕日まで。チップ・料金所・駐車場がすべて込み。',
-      zh: '乘坐专属Staria面包车，配备英语司机，游览首尔主要景点。景福宫清晨、北村韩屋村小巷、明洞购物、汉江日落。司机小费·过路费·停车费全含。',
+      ko: '전용 스타리아 차량과 영어 기사님과 함께 서울의 핵심 명소를 알차게 둘러봅니다. 경복궁의 고즈넉한 아침, 북촌한옥마을의 골목길, 명동 쇼핑, 한강 공원 일몰까지. 톨비·주차비 전부 포함 — 현장 추가 비용 제로.',
+      en: "Explore Seoul's top landmarks in a private Staria van with an English-speaking driver. Gyeongbokgung's morning calm, Bukchon Hanok Village alleyways, Myeongdong shopping, Han River sunset. Tolls and parking all included.",
+      ja: 'スタリア専用車両と英語対応ドライバーでソウルの名所を巡ります。景福宮の静かな朝、北村韓屋村の路地、明洞ショッピング、漢江の夕日まで。通行料・駐車場がすべて込み。',
+      zh: '乘坐专属Staria面包车，配备英语司机，游览首尔主要景点。景福宫清晨、北村韩屋村小巷、明洞购物、汉江日落。过路费·停车费全含。',
     },
     priceFrom: 208,
     currency: 'USD',
@@ -206,7 +206,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Landmark', text: { ko: '경복궁·북촌한옥마을 포함', en: 'Gyeongbokgung · Bukchon Hanok Village', ja: '景福宮・北村韓屋村', zh: '景福宫·北村韩屋村' } },
       { icon: 'ShoppingBag', text: { ko: '명동 쇼핑·먹거리 탐방', en: 'Myeongdong shopping & street food', ja: '明洞ショッピング＆屋台', zh: '明洞购物及街头美食' } },
       { icon: 'Sunset', text: { ko: '한강공원 일몰 감상', en: 'Han River park sunset', ja: '漢江公園の夕日', zh: '汉江公园日落' } },
-      { icon: 'Shield', text: { ko: '팁·톨비·주차비 전부 포함', en: 'Tips · Tolls · Parking — all included', ja: 'チップ・料金所・駐車場 全込み', zh: '小费·过路费·停车费全含' } },
+      { icon: 'Shield', text: { ko: '톨비·주차비 전부 포함', en: 'Tolls · Parking — all included', ja: '通行料・駐車場 全込み', zh: '过路费·停车费全含' } },
     ],
     driverLanguages: ['en', 'ja', 'zh'],
     defaultPickup: {
@@ -406,7 +406,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Mountain', text: { ko: '북악스카이웨이 야경 드라이브 (40분)', en: 'Bukak Skyway night drive (40 min)', ja: '北岳スカイウェイ夜景ドライブ（40分）', zh: '北岳天路夜景驾车（40分钟）' } },
       { icon: 'Sparkles', text: { ko: '반포대교 달빛무지개분수 (2시간)', en: 'Banpo Rainbow Fountain (2 h)', ja: '盤浦大橋月光虹噴水（2時間）', zh: '盘浦大桥月光彩虹喷泉（2小时）' } },
       { icon: 'Utensils', text: { ko: '해방촌 골목 산책 (1시간)', en: 'Haebangchon alley stroll (1 h)', ja: '解放村路地散策（1時間）', zh: '解放村漫步（1小时）' } },
-      { icon: 'Shield', text: { ko: '팁·톨비·주차비 전부 포함', en: 'Tips · Tolls · Parking — all included', ja: 'チップ・料金所・駐車場 全込み', zh: '小费·过路费·停车费全含' } },
+      { icon: 'Shield', text: { ko: '톨비·주차비 전부 포함', en: 'Tolls · Parking — all included', ja: '通行料・駐車場 全込み', zh: '过路费·停车费全含' } },
     ],
   },
 
@@ -458,7 +458,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Mountain', text: { ko: '도담삼봉 — 단양 8경 1위', en: 'Dodamsambong — Danyang No.1 Scenic Spot', ja: '島潭三峯 — 丹陽八景1位', zh: '岛潭三峰 — 丹阳八景第一' } },
       { icon: 'Wind', text: { ko: '만천하스카이워크 (스릴 보장)', en: 'Mancheonha Skywalk (vertigo guaranteed)', ja: '万天下スカイウォーク（スリル保証）', zh: '万天河天空走廊（刺激保证）' } },
       { icon: 'Layers', text: { ko: '고수동굴 탐험', en: 'Gosu Cave exploration', ja: '高首洞窟探検', zh: '高首洞窟探险' } },
-      { icon: 'Shield', text: { ko: '서울↔단양 왕복 · 팁·톨비 포함', en: 'Seoul↔Danyang round trip · Tips & Tolls incl.', ja: 'ソウル↔丹陽往復 · チップ・料金所込み', zh: '首尔↔丹阳往返 · 含小费·过路费' } },
+      { icon: 'Shield', text: { ko: '서울↔단양 왕복 · 톨비 포함', en: 'Seoul↔Danyang round trip · Tolls incl.', ja: 'ソウル↔丹陽往復 · 通行料込み', zh: '首尔↔丹阳往返 · 含过路费' } },
     ],
   },
 
@@ -510,7 +510,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Landmark', text: { ko: '마니산 참성단 (단군 성지)', en: 'Manisan — sacred Dangun altar', ja: '摩尼山参聖壇（檀君聖地）', zh: '摩尼山参圣坛（檀君圣地）' } },
       { icon: 'Church', text: { ko: '전등사 — 한국 최고 사찰 중 하나', en: 'Jeondeungsa — one of Korea\'s oldest temples', ja: '伝灯寺 — 韓国最古の寺院のひとつ', zh: '传灯寺 — 韩国最古老寺院之一' } },
       { icon: 'Waves', text: { ko: '강화 갯벌 체험 (선택)', en: 'Ganghwa tidal flat experience (optional)', ja: '江華干潟体験（任意）', zh: '江华滩涂体验（可选）' } },
-      { icon: 'Shield', text: { ko: '서울↔강화도 왕복 · 팁·톨비 포함', en: 'Seoul↔Ganghwa round trip · Tips & Tolls incl.', ja: 'ソウル↔江華島往復 · チップ・料金所込み', zh: '首尔↔江华岛往返 · 含小费·过路费' } },
+      { icon: 'Shield', text: { ko: '서울↔강화도 왕복 · 톨비 포함', en: 'Seoul↔Ganghwa round trip · Tolls incl.', ja: 'ソウル↔江華島往復 · 通行料込み', zh: '首尔↔江华岛往返 · 含过路费' } },
     ],
   },
 
@@ -562,7 +562,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Flag', text: { ko: '판문점 JSA 공동경비구역 견학', en: 'Panmunjom JSA — Joint Security Area visit', ja: '板門店JSA共同警備区域見学', zh: '板门店联合安全区参观' } },
       { icon: 'ArrowDown', text: { ko: '제3땅굴 내부 투어', en: '3rd Infiltration Tunnel interior tour', ja: '第3トンネル内部ツアー', zh: '第三地道内部参观' } },
       { icon: 'Train', text: { ko: '도라산역 — 북쪽 방면 마지막 역', en: 'Dorasan Station — last stop before North Korea', ja: '都羅山駅 — 北朝鮮前最後の駅', zh: '都罗山站 — 前往朝鲜前的最后一站' } },
-      { icon: 'Shield', text: { ko: '서울↔파주 왕복 · 팁·톨비 포함', en: 'Seoul↔Paju round trip · Tips & Tolls incl.', ja: 'ソウル↔坡州往復 · チップ・料金所込み', zh: '首尔↔坡州往返 · 含小费·过路费' } },
+      { icon: 'Shield', text: { ko: '서울↔파주 왕복 · 톨비 포함', en: 'Seoul↔Paju round trip · Tolls incl.', ja: 'ソウル↔坡州往復 · 通行料込み', zh: '首尔↔坡州往返 · 含过路费' } },
     ],
   },
 
@@ -613,7 +613,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Boat', text: { ko: '남이섬 배편 포함 입도', en: 'Nami Island ferry tickets included', ja: 'ナミ島フェリー乗船券込み', zh: '含南怡岛渡轮票' } },
       { icon: 'Trees', text: { ko: '메타세쿼이아 길 산책', en: 'Metasequoia-lined path walk', ja: 'メタセコイア並木の散歩', zh: '水杉小路漫步' } },
       { icon: 'Utensils', text: { ko: '춘천 정통 닭갈비 맛집 (선택)', en: 'Authentic Chuncheon Dakgalbi (optional)', ja: '本場春川タッカルビ（任意）', zh: '正宗春川辣炒鸡（可选）' } },
-      { icon: 'Shield', text: { ko: '서울↔춘천 왕복 · 팁·톨비 포함', en: 'Seoul↔Chuncheon round trip · Tips & Tolls incl.', ja: 'ソウル↔春川往復 · チップ・料金所込み', zh: '首尔↔春川往返 · 含小费·过路费' } },
+      { icon: 'Shield', text: { ko: '서울↔춘천 왕복 · 톨비 포함', en: 'Seoul↔Chuncheon round trip · Tolls incl.', ja: 'ソウル↔春川往復 · 通行料込み', zh: '首尔↔春川往返 · 含过路费' } },
     ],
   },
 
@@ -665,7 +665,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Church', text: { ko: '불국사·석굴암 — 유네스코 세계유산', en: 'Bulguksa & Seokguram — UNESCO World Heritage', ja: '仏国寺・石窟庵 — ユネスコ世界遺産', zh: '佛国寺·石窟庵 — 联合国教科文组织世界遗产' } },
       { icon: 'Star', text: { ko: '첨성대 — 동양 최고(最古) 천문대', en: 'Cheomseongdae — Asia\'s oldest observatory', ja: '瞻星台 — 東洋最古の天文台', zh: '瞻星台 — 亚洲最古老天文台' } },
       { icon: 'Landmark', text: { ko: '대릉원·황리단길 포함', en: 'Daereungwon Tumuli & Hwangridangil', ja: '大陵苑・黄理団キル', zh: '大陵苑·皇理团街' } },
-      { icon: 'Shield', text: { ko: '서울↔경주 왕복 · 팁·톨비 포함', en: 'Seoul↔Gyeongju round trip · Tips & Tolls incl.', ja: 'ソウル↔慶州往復 · チップ・料金所込み', zh: '首尔↔庆州往返 · 含小费·过路费' } },
+      { icon: 'Shield', text: { ko: '서울↔경주 왕복 · 톨비 포함', en: 'Seoul↔Gyeongju round trip · Tolls incl.', ja: 'ソウル↔慶州往復 · 通行料込み', zh: '首尔↔庆州往返 · 含过路费' } },
     ],
   },
 
@@ -717,7 +717,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'Camera', text: { ko: '감천문화마을 포토스팟', en: 'Gamcheon Culture Village photo spots', ja: '甘川文化村フォトスポット', zh: '甘川文化村拍照打卡' } },
       { icon: 'Fish', text: { ko: '자갈치시장 해산물 (선택)', en: 'Jagalchi Market fresh seafood (optional)', ja: 'チャガルチ市場の鮮魚（任意）', zh: '札嘎其市场新鲜海鲜（可选）' } },
       // 출발지 명확화 — 사용자 가격 의문 해소 (서울↔부산 왕복 라벨이 부정확했음)
-      { icon: 'Shield', text: { ko: '부산 권역 1일 · 출발지 협의 · 팁·톨비 포함', en: 'Busan region 1-day · Pickup location TBA · Tips & Tolls incl.', ja: '釜山エリア1日 · 出発地別途相談 · チップ・料金所込み', zh: '釜山地区一日 · 出发地另议 · 含小费·过路费' } },
+      { icon: 'Shield', text: { ko: '부산 권역 1일 · 출발지 협의 · 톨비 포함', en: 'Busan region 1-day · Pickup location TBA · Tolls incl.', ja: '釜山エリア1日 · 出発地別途相談 · 通行料込み', zh: '釜山地区一日 · 出发地另议 · 含过路费' } },
     ],
   },
 
@@ -766,7 +766,7 @@ const TOURS_RAW: Tour[] = [
       { icon: 'MapPin', text: { ko: '서울·경주·부산 3도시', en: 'Seoul · Gyeongju · Busan — 3 cities', ja: 'ソウル・慶州・釜山 3都市', zh: '首尔·庆州·釜山三城市' } },
       { icon: 'Hotel', text: { ko: '호텔 2박 포함', en: '2 nights hotel included', ja: 'ホテル2泊込み', zh: '含2晚酒店' } },
       { icon: 'Car', text: { ko: '스프린터 전용 차량 (10인 이하)', en: 'Private Sprinter van (up to 10 pax)', ja: 'スプリンター専用車両（10名以下）', zh: '专属Sprinter面包车（最多10人）' } },
-      { icon: 'Shield', text: { ko: '팁·톨비·주차비 전부 포함', en: 'Tips · Tolls · Parking — all included', ja: 'チップ・料金所・駐車場 全込み', zh: '小费·过路费·停车费全含' } },
+      { icon: 'Shield', text: { ko: '톨비·주차비 전부 포함', en: 'Tolls · Parking — all included', ja: '通行料・駐車場 全込み', zh: '过路费·停车费全含' } },
     ],
   },
 ];

@@ -57,7 +57,7 @@ Return the complete validated JSON only.`,
     cs: `You are CocoTrip's customer service lead.
 Add a customerPolicy object to the root JSON with:
 - paymentPolicy: 100% prepayment via PayPal
-- noHiddenFees: all costs included (driver tip, fuel, parking)
+- noHiddenFees: all costs included (fuel, tolls, parking)
 - cancellationPolicy: full refund if cancelled 48h+ before
 Return the complete JSON only.`,
 };

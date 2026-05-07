@@ -12,7 +12,7 @@ status: draft (구현 전 사용자 승인 필수)
 
 `cocotripkr.com/tours` (목록) + `/tours/{slug}` (상세) 페이지를 Klook/Viator/Trazy/Creatrip/MyRealTrip 기준으로 평가하고, **외국인 VIP 프라이빗 차량 투어**라는 차별 가치는 유지한 채 부족한 정보·기능을 채우는 단계별 계획.
 
-> 차별점 보존: 1팀 전용, AI 플래너 통합, 팁·톨·주차 포함 가격, PayPal 안심결제, 4언어.
+> 차별점 보존: 1팀 전용, AI 플래너 통합, 톨·주차 포함 가격, PayPal 안심결제, 4언어.
 
 ## 2. 현재 상태 인벤토리 (2026-04-25 main 기준)
 

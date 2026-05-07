@@ -5,7 +5,7 @@
   "currency": "KRW",
   "note": "CocoTripKR 가격 단일 진실 출처(SSOT). TypeScript(charterPricing.ts)와 Python(pricing.py) 양쪽에서 읽는다. 이 파일이 마스터이며, Python 쪽은 sync 스크립트로 복사된다.",
 
-  "includes": ["fuel", "tolls", "parking", "driver_gratuity"],
+  "includes": ["fuel", "tolls", "parking"],
   "excludes": ["meals", "attractions", "drinks", "shopping"],
 
   "service_config": {
@@ -249,7 +249,7 @@
     "english_guide_per_day": 300000,
     "airport_picket_service": 20000,
     "child_seat_per_trip": 20000,
-    "vat_excluded": true,
+    "vat_excluded": false,
     "vat_percent": 10
   },
 

@@ -183,7 +183,7 @@ export default function TourDetailPage() {
   const hotelNight     = language === 'ko' ? '/ 박' : language === 'ja' ? '/ 泊' : language === 'zh' ? '/ 晚' : '/ night';
   const hotelBtn       = language === 'ko' ? 'Trip.com에서 보기' : language === 'ja' ? 'Trip.comで見る' : language === 'zh' ? '在Trip.com查看' : 'View on Trip.com';
   const hotelDiscl     = language === 'ko' ? '* 예약 완료 시 코코트립에 수수료가 지급됩니다' : language === 'ja' ? '* 予約完了時にCocoTripに手数料が支払われます' : language === 'zh' ? '* 预订完成后CocoTrip将获得佣金' : '* CocoTrip earns a commission on completed bookings';
-  const noHiddenFees   = language === 'ko' ? '팁·톨비·주차 포함' : language === 'ja' ? 'チップ·料金所·駐車込み' : language === 'zh' ? '含小费·过路费·停车费' : 'Tips · Tolls · Parking incl.';
+  const noHiddenFees   = language === 'ko' ? '톨비·주차 포함' : language === 'ja' ? '通行料·駐車込み' : language === 'zh' ? '含过路费·停车费' : 'Tolls · Parking incl.';
   const paypalLabel    = language === 'ko' ? 'PayPal 안심결제' : language === 'ja' ? 'PayPal 安全決済' : language === 'zh' ? 'PayPal 安全支付' : 'PayPal Secure Pay';
 
   // ─────────────────────────────────────────────────────────────────────────

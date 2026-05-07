@@ -8,7 +8,8 @@ export type OriginCode =
 
 export type ServiceMode = 'airport_transfer' | 'day_tour' | 'multi_day' | 'kpop_shuttle';
 
-export type VehicleType = 'staria' | 'sprinter' | 'bus';
+// 'vip' = 의전 차량 (행사 픽업 전용, 항상 협의 — Bus와 동일하게 결제 비활성).
+export type VehicleType = 'staria' | 'sprinter' | 'bus' | 'vip';
 
 export type DestinationKind = 'package' | 'matrix' | 'custom';
 
@@ -87,6 +88,14 @@ export interface QuoteBreakdown {
   warnings: string[];
   // destinationCustom 미매칭 시 별도견적 안내
   needsCustomQuote: boolean;
+  // PR-F 영수증 표기 (선택). source = 'formula' 일 때 채워지고, 'package'/'matrix' 일 때는
+  // 단일 패키지 행으로 표시 (이 필드 비어 있음 또는 0).
+  receipt?: {
+    baseFeeKRW?: number;     // 차량 기본료 (Staria 50k / Sprinter 100k)
+    distanceFeeKRW?: number; // km × perKmRate (단가 표기 X — km 만 노출)
+    tollFeeKRW?: number;     // 톨비 추정 (≈)
+    isPackage?: boolean;     // package/matrix priceKRW 단일 행 — 영수증에 단일 패키지로 노출
+  };
 }
 
 export const INITIAL_WIZARD_STATE: WizardState = {
