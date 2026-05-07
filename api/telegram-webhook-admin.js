@@ -108,6 +108,7 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 /bookings [YYYY-MM-DD] — <b>예약</b> 또는 예약 2026-05-15
 /sales [YYYY-MM] — <b>매출</b> 또는 매출 2026-05
 /stats [YYYY-MM] — <b>통계</b> 또는 통계 2026-05 (기사별/상품별 분해)
+/rate — <b>환율</b> (USD↔KRW 즉시 조회)
 
 <b>CS 티켓</b>
 /cs_list [open|in_progress|resolved|all] — <b>이슈</b> 또는 이슈 open
@@ -248,6 +249,9 @@ const KOREAN_ALIASES = [
 
   // 누구 (whois)
   { re: /^(누구|whois)\s+(\d+)$/i, cmd: '/whois', argGroup: 2 },
+
+  // 환율 — 인자 없음
+  { re: /^(환율|레이트|환율조회|환율 조회)$/i, cmd: '/rate', argGroup: -1 },
 ];
 
 function resolveKoreanAlias(p) {
@@ -362,6 +366,10 @@ async function routeCommand(botToken, p) {
 
     case '/whois':
       await handleWhois(botToken, p);
+      break;
+
+    case '/rate':
+      await handleRateCommand(botToken, p);
       break;
 
     default:
@@ -1120,6 +1128,49 @@ async function handleCsResolve(botToken, p) {
     `✓ 해결 처리 완료\n` +
     `<code>${snap.id.slice(0, 12)}</code> · ${data.bookingId || '-'}\n` +
     `이슈: ${data.issue || '-'}`);
+}
+
+// /rate (한글: 환율) — 즉시 환율 조회 (Firestore 6h 캐시 — 만료 시 외부 API 갱신)
+async function handleRateCommand(botToken, p) {
+  try {
+    const { getExchangeRate } = await import('./_exchange-rate.js');
+    const info = await getExchangeRate();
+
+    const krwPerUsd = Number(info.krwPerUsd) || 0;
+    const fetchedKst = info.fetchedAt
+      ? new Date(info.fetchedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+      : '-';
+
+    const ageMs = info.fetchedAt ? (Date.now() - new Date(info.fetchedAt).getTime()) : 0;
+    const ageMin = Math.round(ageMs / 60000);
+    let ageLabel;
+    if (ageMin < 1) ageLabel = '방금 전';
+    else if (ageMin < 60) ageLabel = `${ageMin}분 전`;
+    else if (ageMin < 60 * 24) ageLabel = `${Math.round(ageMin / 60)}시간 전`;
+    else ageLabel = `${Math.round(ageMin / (60 * 24))}일 전`;
+
+    const sourceLabel = info.source || '-';
+    const isFallback = sourceLabel === 'fallback-hardcoded';
+    const warning = isFallback
+      ? `\n\n⚠️ 외부 API 모두 실패 → 폴백 환율 사용 중. 운영자 점검 필요.`
+      : '';
+
+    const msg =
+      `<b>💱 USD → KRW 환율</b>\n` +
+      `\n` +
+      `₩${Math.round(krwPerUsd).toLocaleString()} / $1\n` +
+      `1 KRW ≈ $${(1 / krwPerUsd).toFixed(6)}\n` +
+      `\n` +
+      `<b>출처:</b> ${escapeHtmlLocal(sourceLabel)}\n` +
+      `<b>갱신:</b> ${fetchedKst} KST (${ageLabel})\n` +
+      `<b>캐시 TTL:</b> 6시간 (Firestore <code>system/exchange_rate</code>)` +
+      warning;
+
+    await sendBotMessage(botToken, p.chatId, msg);
+  } catch (e) {
+    console.error('[admin-webhook] /rate 오류:', e);
+    await sendBotMessage(botToken, p.chatId, `환율 조회 실패: ${e.message}`);
+  }
 }
 
 // 2026-05-03: 옵션 B — 무료 클레임 텔레그램 1-click 승인/거부.
