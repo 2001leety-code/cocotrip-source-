@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, MapPin, X, Plus, Info, ShieldAlert, Car, Contact, BarChart3, Truck, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, MapPin, X, Plus, Info, ShieldAlert, Car, Contact, BarChart3, Truck, Loader2, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   collection,
@@ -12,12 +12,21 @@ import {
   deleteDoc,
   addDoc,
   setDoc,
+  getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 
 // --- Types ---
 type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'blocked';
+
+interface Driver {
+  chatId: string;       // Firestore doc id (= chat_id)
+  name: string;
+  vehicle: string;
+  active: boolean;
+}
 
 interface Booking {
   id: string;          // Firestore doc id (orderID for paid bookings, auto-id for blocks/manual)
@@ -32,6 +41,11 @@ interface Booking {
   price?: number;
   vehicle?: string;
   driver?: string;
+  driverChatId?: number;
+  driverName?: string;
+  driverVehicle?: string;
+  dispatchMemo?: string;
+  extraCost?: number;
   memo?: string;
   pickup?: string;
   requireCarSeat?: boolean;
@@ -80,6 +94,11 @@ interface FirestoreBooking {
   pickupLocation?: string;
   vehicleType?: string;
   driver?: string;
+  driverChatId?: number;
+  driverName?: string;
+  driverVehicle?: string;
+  dispatchMemo?: string;
+  extraCost?: number;
   memo?: string;
   amountUSD?: string | number;
   exchangeRate?: number;
@@ -115,8 +134,13 @@ function mapFirestoreToBooking(id: string, data: FirestoreBooking): Booking {
     status,
     pickup: data.pickupLocation || '',
     price: priceUSD || 0,
-    vehicle: data.vehicleType || '',
-    driver: data.driver || '',
+    vehicle: data.driverVehicle || data.vehicleType || '',
+    driver: data.driverName || data.driver || '',
+    driverChatId: data.driverChatId,
+    driverName: data.driverName || '',
+    driverVehicle: data.driverVehicle || '',
+    dispatchMemo: data.dispatchMemo || '',
+    extraCost: data.extraCost || 0,
     memo: data.memo || '',
     requireCarSeat: !!data.requireCarSeat,
     requirePicket: !!data.requirePicket,
@@ -168,6 +192,7 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
 };
 
 export default function AdminCalendar() {
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -184,6 +209,19 @@ export default function AdminCalendar() {
   const [modalMode, setModalMode] = useState<'booking' | 'block'>('booking');
   const [formData, setFormData] = useState<Partial<Booking>>({ status: 'confirmed' });
   const [submitting, setSubmitting] = useState(false);
+
+  // Dispatch Modal States — 예약 카드 → 배차 상세 입력
+  const [dispatchBooking, setDispatchBooking] = useState<Booking | null>(null);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const [dispatchForm, setDispatchForm] = useState({
+    driverChatId: '',
+    dispatchMemo: '',
+    actualEndAt: '',
+    extraCost: '',
+  });
+  const [dispatchSubmitting, setDispatchSubmitting] = useState(false);
+  const [dispatchToast, setDispatchToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -359,6 +397,99 @@ export default function AdminCalendar() {
     } catch (err) {
       console.error('[AdminCalendar] delete failed:', err);
       alert('삭제 실패: ' + (err instanceof Error ? err.message : 'unknown'));
+    }
+  };
+
+  // 배차 모달 오픈 — 기사 목록 fetch + 기존 값 prefill
+  const openDispatchModal = async (booking: Booking) => {
+    if (booking.collectionName !== 'bookings') return;
+    setDispatchBooking(booking);
+    setDispatchForm({
+      driverChatId: booking.driverChatId ? String(booking.driverChatId) : '',
+      dispatchMemo: booking.dispatchMemo || '',
+      actualEndAt: booking.actualEndTime || '',
+      extraCost: booking.extraCost ? String(booking.extraCost) : '',
+    });
+    setDispatchToast(null);
+    setIsDrawerOpen(false); // 드로어 닫고 모달 열기
+
+    // active=true 기사 목록 fetch (간단한 1회 fetch — 기사 변경 빈도 낮음)
+    setDriversLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'drivers'));
+      const list: Driver[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.active === false) return; // active=false 제외
+        list.push({
+          chatId: d.id,
+          name: data.name || '',
+          vehicle: data.vehicle || '',
+          active: data.active !== false,
+        });
+      });
+      setDrivers(list);
+    } catch (err) {
+      console.error('[AdminCalendar] drivers fetch failed:', err);
+      setDrivers([]);
+    } finally {
+      setDriversLoading(false);
+    }
+  };
+
+  const closeDispatchModal = () => {
+    setDispatchBooking(null);
+    setDispatchForm({ driverChatId: '', dispatchMemo: '', actualEndAt: '', extraCost: '' });
+    setDispatchToast(null);
+  };
+
+  // 배차 저장 — POST /api/admin-update-booking
+  const handleDispatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dispatchBooking || !user) return;
+    if (!dispatchForm.driverChatId) {
+      setDispatchToast({ kind: 'error', message: '기사를 선택해 주세요.' });
+      return;
+    }
+
+    setDispatchSubmitting(true);
+    setDispatchToast(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin-update-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          orderID: dispatchBooking.id,
+          action: 'dispatch',
+          driverChatId: dispatchForm.driverChatId,
+          dispatchMemo: dispatchForm.dispatchMemo || undefined,
+          actualEndAt: dispatchForm.actualEndAt || undefined,
+          extraCost: dispatchForm.extraCost ? Number(dispatchForm.extraCost) : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        const msg = json.error || `배차 저장 실패 (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
+
+      // 부분 성공 — Firestore 업데이트는 됐지만 텔레그램 발송 실패
+      if (json.partial) {
+        setDispatchToast({ kind: 'error', message: `⚠ ${json.warning || '텔레그램 발송 실패 — 어드민 채널 확인'}` });
+      } else {
+        setDispatchToast({ kind: 'success', message: '✓ 배차 완료 (기사봇 발송됨)' });
+        // 1.5초 후 모달 닫기
+        setTimeout(() => closeDispatchModal(), 1500);
+      }
+    } catch (err) {
+      console.error('[AdminCalendar] dispatch failed:', err);
+      setDispatchToast({
+        kind: 'error',
+        message: `❌ 저장 실패: ${err instanceof Error ? err.message : 'unknown'}`,
+      });
+    } finally {
+      setDispatchSubmitting(false);
     }
   };
 
@@ -602,21 +733,32 @@ export default function AdminCalendar() {
                         </div>
                       )}
 
-                      <div className="mt-4 pt-4 border-t border-gray-800 flex gap-2">
-                        {booking.status !== 'blocked' && (
+                      <div className="mt-4 pt-4 border-t border-gray-800 flex flex-col gap-2">
+                        {booking.collectionName === 'bookings' && booking.status !== 'cancelled' && (
                           <button
-                            onClick={() => handleStatusChange(booking.id, booking.status)}
-                            className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors text-white"
+                            onClick={() => openDispatchModal(booking)}
+                            className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-lg text-sm font-medium transition-colors border border-emerald-500/30 flex items-center justify-center gap-2"
                           >
-                            상태 변경
+                            <Send className="w-4 h-4" />
+                            {booking.driverChatId ? '배차 수정' : '배차 입력'}
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDelete(booking)}
-                          className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors border border-red-500/20"
-                        >
-                          일정 삭제
-                        </button>
+                        <div className="flex gap-2">
+                          {booking.status !== 'blocked' && (
+                            <button
+                              onClick={() => handleStatusChange(booking.id, booking.status)}
+                              className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors text-white"
+                            >
+                              상태 변경
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDelete(booking)}
+                            className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors border border-red-500/20"
+                          >
+                            일정 삭제
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -744,6 +886,146 @@ export default function AdminCalendar() {
                     {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                     {modalMode === 'block' ? '해당 날짜 블록하기' : '예약 추가하기'}
                   </button>
+                </form>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+
+        {/* Dispatch Modal — 배차 상세 입력 */}
+        {dispatchBooking && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end md:items-center justify-center md:p-4"
+            >
+              <motion.div
+                initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+                className="bg-[#12131C] border border-gray-800 md:rounded-2xl rounded-t-2xl p-5 md:p-6 w-full md:max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto"
+              >
+                <div className="flex justify-between items-start mb-5">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Send className="w-5 h-5 text-emerald-400" />
+                      배차 상세 입력
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-1">
+                      <code className="bg-[#0a0b14] px-1.5 py-0.5 rounded">{dispatchBooking.id}</code>
+                      {' · '}{dispatchBooking.tourName}{' · '}{dispatchBooking.date}
+                    </p>
+                  </div>
+                  <button onClick={closeDispatchModal} className="text-gray-400 hover:text-white p-1">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleDispatchSubmit} className="space-y-4">
+                  {/* 기사 선택 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                      기사 선택 <span className="text-red-400">*</span>
+                    </label>
+                    {driversLoading ? (
+                      <div className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-gray-500 text-sm flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        기사 목록 로드 중...
+                      </div>
+                    ) : drivers.length === 0 ? (
+                      <div className="w-full bg-[#0a0b14] border border-amber-500/30 rounded-lg p-3 text-amber-400 text-sm">
+                        등록된 활성 기사가 없습니다. 텔레그램에서 <code className="bg-[#12131C] px-1.5 py-0.5 rounded">기사추가 ...</code> 명령으로 먼저 등록하세요.
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={dispatchForm.driverChatId}
+                        onChange={(e) => setDispatchForm({ ...dispatchForm, driverChatId: e.target.value })}
+                        className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white text-base focus:outline-none focus:border-emerald-400"
+                      >
+                        <option value="">— 기사를 선택하세요 —</option>
+                        {drivers.map((d) => (
+                          <option key={d.chatId} value={d.chatId}>
+                            {d.name || '(이름 없음)'} {d.vehicle ? `· ${d.vehicle}` : ''} (chat_id: {d.chatId})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* 배차 메모 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                      배차 메모 <span className="text-gray-500 text-xs">(선택)</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="픽업 위치 추가 안내, 특이사항 등"
+                      value={dispatchForm.dispatchMemo}
+                      onChange={(e) => setDispatchForm({ ...dispatchForm, dispatchMemo: e.target.value })}
+                      className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white text-base focus:outline-none focus:border-emerald-400 resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 실제 종료 시간 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                        실제 종료 시간 <span className="text-gray-500 text-xs">(운영 후)</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={dispatchForm.actualEndAt}
+                        onChange={(e) => setDispatchForm({ ...dispatchForm, actualEndAt: e.target.value })}
+                        className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white text-base focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
+
+                    {/* 초과 비용 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                        초과 비용 <span className="text-gray-500 text-xs">(원)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        placeholder="톨비, 야간할증 등"
+                        value={dispatchForm.extraCost}
+                        onChange={(e) => setDispatchForm({ ...dispatchForm, extraCost: e.target.value })}
+                        className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white text-base focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Toast */}
+                  {dispatchToast && (
+                    <div className={`text-sm p-3 rounded-lg border ${
+                      dispatchToast.kind === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-red-500/10 border-red-500/30 text-red-300'
+                    }`}>
+                      {dispatchToast.message}
+                    </div>
+                  )}
+
+                  {/* 버튼 그룹 */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={closeDispatchModal}
+                      disabled={dispatchSubmitting}
+                      className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded-lg text-white font-medium transition-colors"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={dispatchSubmitting || drivers.length === 0}
+                      className="flex-[2] py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white font-bold transition-colors flex items-center justify-center gap-2"
+                    >
+                      {dispatchSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      배차 저장
+                    </button>
+                  </div>
                 </form>
               </motion.div>
             </motion.div>
