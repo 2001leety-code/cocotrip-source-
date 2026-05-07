@@ -294,6 +294,7 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
                   status={reservationStatus} setStatus={setReservationStatus}
                   arrivalAirport={arrivalTerminal} setArrivalAirport={setArrivalTerminal}
                   arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
+                  hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
                   mainCityKey={mainCityKey || 'seoul'}
                   onNext={() => goToStep(1)}
                 />

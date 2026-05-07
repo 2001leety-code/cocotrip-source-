@@ -167,7 +167,7 @@ export function InlineBookingCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-base leading-tight mb-0.5">{title}</p>
-          <p className={`text-xs ${a.text}/80`}>{subtitle}</p>
+          <p className={`text-xs ${a.text}/80 whitespace-pre-line leading-relaxed`}>{subtitle}</p>
         </div>
         {badge && (
           <span className={`shrink-0 text-[10px] ${a.text} border ${a.border} rounded-full px-2.5 py-1 font-semibold`}

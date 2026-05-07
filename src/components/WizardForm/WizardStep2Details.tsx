@@ -58,8 +58,8 @@ interface Step2Props {
    *  swap하면 안 됨 (한 글자 칠 때마다 input이 chip으로 바뀌어 입력 불가 + Edit
    *  버튼이 Step 0으로 보내버리는 버그). reservationStatus + 사용자가 Step 3에서
    *  실제로 만진 적 있는지 (touched) 두 가지를 합쳐서 판정.
-   *  2026-05-05: free-claim funnel 제거에 따라 status는 nothing | flight 만 남음. */
-  reservationStatus?: 'nothing' | 'flight' | null;
+   *  2026-05-07: 4 옵션 복구 — 'nothing' | 'flight' | 'flight_hotel' | 'all_done'. */
+  reservationStatus?: 'nothing' | 'flight' | 'flight_hotel' | 'all_done' | null;
   airportTouchedInStep3: boolean;
   setAirportTouchedInStep3: (v: boolean) => void;
 }
