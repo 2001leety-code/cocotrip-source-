@@ -185,8 +185,14 @@ export default async function handler(req, res) {
         adminName: parsed.fromName || '관리자',
       });
       if (result.relayed) {
+        const langTag = result.targetLang && result.targetLang !== 'ko' ? ` (${result.targetLang})` : '';
+        const transTag = result.translationFailed
+          ? '\n⚠️ 번역 실패 — 한국어 원문 그대로 전달됨'
+          : result.translated
+            ? `\n🌐 자동 번역 적용 (한글 → ${result.targetLang})`
+            : '';
         await sendBotMessage(botToken, parsed.chatId,
-          `✓ 고객에게 전달 완료\n세션: <code>${result.sessionId}</code>`);
+          `✓ 고객에게 전달 완료${langTag}\n세션: <code>${result.sessionId}</code>${transTag}`);
         res.status(200).json({ ok: true });
         return;
       }
