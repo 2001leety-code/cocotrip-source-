@@ -64,6 +64,14 @@ export interface WizardI18n {
 
   // Step 6 — 결제/별도
   payBlock: string; payVehicleLine: string; paySubtotal: string;
+  // 영수증 표기 (PR-F 추가) — 4-lang. distance 는 km 치환.
+  receiptTitle: string;
+  receiptBaseFee: string;
+  receiptDistance: (km: number) => string;
+  receiptToll: string;
+  receiptTotal: string;
+  packageRowLabel: string;
+  driverDispatchNote: string;
   separateBlock: string; estMeals: string; estAttractions: string;
   nightSurcharge: (pct: number) => string;
   roundTripDiscount: string;
@@ -231,6 +239,13 @@ export function getWizardI18n(language: string): WizardI18n {
     payBlock: get('payBlock'),
     payVehicleLine: get('payVehicleLine'),
     paySubtotal: get('paySubtotal'),
+    receiptTitle: get('receiptTitle'),
+    receiptBaseFee: get('receiptBaseFee'),
+    receiptDistance: (km) => fmt(get('receiptDistance'), { km }),
+    receiptToll: get('receiptToll'),
+    receiptTotal: get('receiptTotal'),
+    packageRowLabel: get('packageRowLabel'),
+    driverDispatchNote: get('driverDispatchNote'),
     separateBlock: get('separateBlock'),
     estMeals: get('estMeals'),
     estAttractions: get('estAttractions'),

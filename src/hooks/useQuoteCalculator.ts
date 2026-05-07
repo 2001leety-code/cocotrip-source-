@@ -1,6 +1,13 @@
 // useQuoteCalculator — pricing_spec.json SSOT 기반 실시간 견적 훅
-// CharterWizard의 Step 6 최종 견적에서 호출. 메모이제이션으로 리렌더 최소화.
-import { useMemo } from 'react';
+// 정책 B (2026-05-07 사용자 확정):
+//   1. spec.daily_tour_prices key 매칭 → 기존 가격
+//   2. distance_matrix lookup → entry.priceKRW
+//   3. matrix miss → Geocoding API → calcSimpleByVehicle (km × 차량별 단순 공식)
+//   4. Geocoding 실패 → null (사용자 manual km 입력 toggle)
+// zone fallback 폐기 — 충청권 평균 200km로 모든 도시 균일 가격이 비현실적.
+//
+// async 처리 — Geocoding은 fetch이므로 useEffect + useState 패턴.
+import { useEffect, useState } from 'react';
 import {
   AIRPORT_TRANSFER_PRICES,
   DAILY_TOUR_PRICES,
@@ -15,29 +22,30 @@ import type { WizardState, QuoteBreakdown, QuoteAddon, VehicleType } from '@/com
 import {
   normalizeDestinationToMatrixKey,
   getMatrixKeyAlternatives,
-  getZoneForInput,
-  getZoneForMatrixKey,
-  ZONE_DEFAULTS,
 } from '@/components/charter/destinationKeyMap';
+import { resolveKm } from '@/lib/calculatorDistance';
+import { calcSimpleByVehicle } from '@/lib/calculator';
 
-// 차종별 배수 (스타리아 = 1.0 기준)
-// 2026-05-03 사용자 정책 변경: sprinter 1.45→2.0, bus 2.3→3.0
-// (가이드 의무·연료·기사인건비 반영). resolveProductType.ts와 동일 값 유지 필수.
+// 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
+// 2026-05-03 사용자 정책: sprinter 1.45→2.0, bus 2.3→3.0. resolveProductType.ts와 동기화.
+// vip 는 매트릭스 가격에 곱해야 할 일이 없음 (협의 → null 반환). 안전상 1.0.
 const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
   staria: 1.0,
   sprinter: 2.0,
   bus: 3.0,
+  vip: 1.0,
 };
 
-// pricing_spec.json의 staria.intercity 값과 동기화 (rate_per_km: 1000)
+// pricing_spec.json staria.intercity 기준 (rate_per_km: 1000) — 매트릭스 km만 알 때 사용.
 const STARIA_BASE_FEE = 50_000;
 const STARIA_RATE_PER_KM = 1000;
 
-// 권역 fallback이 적용되는 출발지 (서울/인천/김포 출발 기준)
-const ZONE_FALLBACK_ORIGINS = new Set(['SEL_METRO', 'ICN', 'GMP']);
+// Bus/VIP는 결제 불가 — 항상 협의(상담 폼) 신호.
+function isInquiryOnly(vehicle: VehicleType): boolean {
+  return vehicle === 'bus' || vehicle === 'vip';
+}
 
 function matrixLookup(origin: string, destination: string): { km?: number; hours?: number; priceKRW?: number } | null {
-  // METRO ↔ city 키 fallback — 부산/BUS_METRO 같은 동의 키 자동 시도
   const candidates = getMatrixKeyAlternatives(destination);
   for (const dest of candidates) {
     const key = `${origin}→${dest}`;
@@ -49,35 +57,14 @@ function matrixLookup(origin: string, destination: string): { km?: number; hours
   return null;
 }
 
-// 매트릭스 미존재 + 출발지 SEL/ICN/GMP일 때 권역 평균 km로 fallback
-function zoneLookup(origin: string, input: string | undefined): { km: number; hours: number } | null {
-  if (!input) return null;
-  if (!ZONE_FALLBACK_ORIGINS.has(origin)) return null;
-  const zone = getZoneForInput(input);
-  if (!zone) return null;
-  if (zone === 'jeju') return null; // 제주는 multi_day local 전용 — 별도 분기
-  const z = ZONE_DEFAULTS[zone];
-  if (z.km === 0) return null;
-  return { km: z.km, hours: z.hours };
-}
-
-// destinationCustom (한글 자유입력) → 매트릭스 영문 키 매핑 시도
 function tryResolveCustomDestination(state: WizardState): string | null {
   if (state.destinationKey) return state.destinationKey;
   if (!state.destinationCustom) return null;
   return normalizeDestinationToMatrixKey(state.destinationCustom);
 }
 
-// destinationKey가 매트릭스 키일 때만 zone 직접 반환, custom이면 입력 → zone
-function getZoneForState(state: WizardState): string | null {
-  if (state.destinationKey) return getZoneForMatrixKey(state.destinationKey);
-  if (state.destinationCustom) return getZoneForInput(state.destinationCustom);
-  return null;
-}
-
+// 매트릭스 km만 있을 때 — staria 공식 × 차종 배수.
 function calcIntercityFormula(vehicle: VehicleType, km: number): number {
-  // 공식: base_fee + (km × 2) × rate_per_km × vehicle_multiplier
-  // pricing_spec.json staria.intercity 기준 (rate_per_km: 1000)
   const staria = STARIA_BASE_FEE + km * 2 * STARIA_RATE_PER_KM;
   return Math.round(staria * VEHICLE_MULTIPLIER[vehicle]);
 }
@@ -86,207 +73,212 @@ function surchargeForNight(baseKRW: number, isNight: boolean): number {
   return isNight ? Math.round(baseKRW * (EXTRA_CHARGES.nightSurchargePercent / 100)) : 0;
 }
 
-// 순수 함수 — 테스트 가능. useQuoteCalculator는 이 함수를 useMemo로 감싼 래퍼.
-export function calculateQuote(state: WizardState): QuoteBreakdown | null {
+// 외부 거리 입력 (Geocoding 결과 또는 manual km). 동기 함수 — useEffect에서 호출.
+function calculateQuoteWithKm(state: WizardState, externalKm: number | null): QuoteBreakdown | null {
   const warnings: string[] = [];
   if (!state.service || !state.vehicle) return null;
 
-    const mode = state.service;
-    const vehicle = state.vehicle;
-    // unknown 우회 — service_config에 mode-별 설정 외 글로벌 키(excludes_extra)가 섞여 있음
-    const svcCfg = (SERVICE_CONFIG as unknown as Record<string, {
-      show_meals: boolean;
-      show_attractions: boolean;
-      meals_count_default?: number;
-      meal_per_person?: number;
-    }>)[mode];
+  const mode = state.service;
+  const vehicle = state.vehicle;
+  const svcCfg = (SERVICE_CONFIG as unknown as Record<string, {
+    show_meals: boolean;
+    show_attractions: boolean;
+    meals_count_default?: number;
+    meal_per_person?: number;
+  }>)[mode];
 
-    const includes = ['fuel', 'tolls', 'parking', 'driver_gratuity'];
-    const excludes = ['meals', 'attractions', 'drinks', 'shopping'];
+  const includes = ['fuel', 'tolls', 'parking'];
+  const excludes = ['meals', 'attractions', 'drinks', 'shopping'];
 
-    // destinationKey가 비어있고 destinationCustom만 있는 경우 KR→EN 매핑 시도
-    // needsCustomQuote는 모드별 분기에서 zone fallback도 실패했을 때만 true.
-    const resolvedDest = tryResolveCustomDestination(state);
-    let needsCustomQuote = false;
+  const resolvedDest = tryResolveCustomDestination(state);
+  let needsCustomQuote = false;
 
-    let vehicleChargeKRW = 0;
-    let source: QuoteBreakdown['source'] = 'formula';
-    let distanceKm: number | undefined;
-    let durationHours: number | undefined;
+  // Bus/VIP는 즉시 needsCustomQuote — 결제 불가 신호.
+  if (isInquiryOnly(vehicle)) {
+    needsCustomQuote = true;
+  }
 
-    // ── 모드별 차량비 산출 ──
+  let vehicleChargeKRW = 0;
+  let source: QuoteBreakdown['source'] = 'formula';
+  let distanceKm: number | undefined;
+  let durationHours: number | undefined;
+  // 영수증 분해 (PR-F) — formula 일 때 base/distance/toll 채움. package/matrix 일 때 isPackage=true.
+  let receiptBase: number | undefined;
+  let receiptDistance: number | undefined;
+  let receiptToll: number | undefined;
+  let receiptIsPackage = false;
+
+  if (!isInquiryOnly(vehicle)) {
     if (mode === 'kpop_shuttle') {
       vehicleChargeKRW = KPOP_SHUTTLE.pricePerVehicle;
       source = 'package';
+      receiptIsPackage = true;
     } else if (mode === 'airport_transfer') {
+      // 1. 권역 정의 (AIRPORT_TRANSFER_PRICES) 우선
       if (state.destinationKey && AIRPORT_TRANSFER_PRICES[state.destinationKey]) {
         vehicleChargeKRW = Math.round(AIRPORT_TRANSFER_PRICES[state.destinationKey].priceKRW * VEHICLE_MULTIPLIER[vehicle]);
-        distanceKm = undefined;
         source = 'matrix';
+        receiptIsPackage = true;
       } else if (state.origin && resolvedDest) {
+        // 2. matrix lookup
         const m = matrixLookup(state.origin, resolvedDest);
         if (m?.priceKRW) {
           vehicleChargeKRW = Math.round(m.priceKRW * VEHICLE_MULTIPLIER[vehicle]);
           distanceKm = m.km; durationHours = m.hours; source = 'matrix';
+          receiptIsPackage = true;
         } else if (m?.km) {
           vehicleChargeKRW = calcIntercityFormula(vehicle, m.km);
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
+          // calcIntercityFormula 는 base + km × perKm × 2 (왕복) 모델 — 톨비 별도 가산 안 됨.
+          // 영수증에는 근사 분해로 노출 (km*100~150 정도 자동 톨비 포함 안 됨; "패키지" 행으로 단순화).
+          receiptIsPackage = true;
         }
       }
-      // resolvedDest 없거나 매트릭스 miss인 경우 — 권역 fallback 시도
-      if (vehicleChargeKRW === 0 && state.origin && state.destinationCustom) {
-        const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
-        if (zoneFallback) {
-          vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
-          distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
-          warnings.push('권역 평균 거리 기준 추정가 — 정확한 견적은 WhatsApp 문의');
-        } else {
-          needsCustomQuote = true;
+      // 3. matrix miss + externalKm (Geocoding 또는 manual) → 차량별 단순 공식
+      if (vehicleChargeKRW === 0 && externalKm != null && externalKm > 0) {
+        const simple = calcSimpleByVehicle(vehicle, externalKm);
+        if (simple) {
+          vehicleChargeKRW = simple.krw;
+          distanceKm = externalKm; source = 'formula';
+          receiptBase = simple.breakdown.base;
+          receiptDistance = simple.breakdown.perKm;
+          receiptToll = simple.toll;
         }
+      }
+      // 4. Geocoding fail / km 없음 → needsCustomQuote
+      if (vehicleChargeKRW === 0 && state.destinationCustom) {
+        needsCustomQuote = true;
       }
     } else if (mode === 'day_tour') {
+      // 1. 권역 정의 (DAILY_TOUR_PRICES) 우선
       if (state.destinationKey && DAILY_TOUR_PRICES[state.destinationKey]) {
         vehicleChargeKRW = Math.round(DAILY_TOUR_PRICES[state.destinationKey].priceKRW * VEHICLE_MULTIPLIER[vehicle]);
         source = 'package';
+        receiptIsPackage = true;
       } else if (state.origin && resolvedDest) {
+        // 2. matrix lookup
         const m = matrixLookup(state.origin, resolvedDest);
         if (m?.km) {
           vehicleChargeKRW = calcIntercityFormula(vehicle, m.km);
           distanceKm = m.km; durationHours = m.hours; source = 'formula';
-        } else {
-          // 매트릭스 miss — 권역 fallback (제주 제외)
-          const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
-          if (zoneFallback) {
-            vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
-            distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
-            warnings.push('권역 평균 거리 기준 추정가');
-          } else if (state.destinationCustom) {
-            needsCustomQuote = true;
-          }
-        }
-      } else if (state.destinationCustom) {
-        // origin 없는데 custom 입력만 있으면 별도견적
-        const zoneFallback = zoneLookup(state.origin ?? 'SEL_METRO', state.destinationCustom);
-        if (zoneFallback) {
-          vehicleChargeKRW = calcIntercityFormula(vehicle, zoneFallback.km);
-          distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
-          warnings.push('권역 평균 거리 기준 추정가');
-        } else {
-          needsCustomQuote = true;
+          receiptIsPackage = true;
         }
       }
+      // 3. matrix miss + externalKm → 단순 공식
+      if (vehicleChargeKRW === 0 && externalKm != null && externalKm > 0) {
+        const simple = calcSimpleByVehicle(vehicle, externalKm);
+        if (simple) {
+          vehicleChargeKRW = simple.krw;
+          distanceKm = externalKm; source = 'formula';
+          receiptBase = simple.breakdown.base;
+          receiptDistance = simple.breakdown.perKm;
+          receiptToll = simple.toll;
+        }
+      }
+      if (vehicleChargeKRW === 0 && state.destinationCustom) {
+        needsCustomQuote = true;
+      }
     } else if (mode === 'multi_day') {
-      // 1박2일 이상: 매트릭스 또는 권역 fallback 기반 + 일당 운영비 + 숙박비
-      // endDate는 "돌아오는 날" (포함). 1박2일 = startDate~endDate diff 1일 = 2일 일정.
-      const staria = VEHICLE_TYPES.staria as unknown as Record<string, unknown>;
+      // 1박 이상: 매트릭스 또는 externalKm 기반 + 일당 운영비 + 숙박비
       const daily = 200_000;
       const overnight = 130_000;
       const dayDiff = state.startDate && state.endDate
         ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
         : 0;
-      const tourDays = Math.max(1, dayDiff + 1); // endDate 포함 → diff+1일
+      const tourDays = Math.max(1, dayDiff + 1);
       const nights = Math.max(0, tourDays - 1);
-      void staria;
 
-      // 제주는 multi_day + lodgingLocation='local'만 허용 — 그 외 needsCustomQuote
-      const dstZone = getZoneForState(state);
-      if (dstZone === 'jeju' && state.lodgingLocation !== 'local') {
-        needsCustomQuote = true;
-        warnings.push('제주는 현지 숙박 투어만 진행 — 항공편 별도');
-      } else if (state.origin && resolvedDest) {
+      let kmForFormula: number | null = null;
+      if (state.origin && resolvedDest) {
         const m = matrixLookup(state.origin, resolvedDest);
         if (m?.km) {
-          const intercity = calcIntercityFormula(vehicle, m.km);
-          vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
-          distanceKm = m.km; durationHours = m.hours; source = 'formula';
-        } else {
-          const zoneFallback = zoneLookup(state.origin, state.destinationCustom);
-          if (zoneFallback) {
-            const intercity = calcIntercityFormula(vehicle, zoneFallback.km);
-            vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
-            distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
-            warnings.push('권역 평균 거리 기준 추정가');
-          } else if (state.destinationCustom) {
-            needsCustomQuote = true;
-          }
-        }
-      } else if (state.destinationCustom) {
-        const zoneFallback = zoneLookup(state.origin ?? 'SEL_METRO', state.destinationCustom);
-        if (zoneFallback) {
-          const intercity = calcIntercityFormula(vehicle, zoneFallback.km);
-          vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
-          distanceKm = zoneFallback.km; durationHours = zoneFallback.hours; source = 'formula';
-          warnings.push('권역 평균 거리 기준 추정가');
-        } else {
-          needsCustomQuote = true;
+          kmForFormula = m.km; distanceKm = m.km; durationHours = m.hours; source = 'matrix';
         }
       }
+      if (kmForFormula == null && externalKm != null && externalKm > 0) {
+        kmForFormula = externalKm; distanceKm = externalKm; source = 'formula';
+      }
+      if (kmForFormula != null) {
+        const intercity = calcIntercityFormula(vehicle, kmForFormula);
+        vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
+        receiptIsPackage = true;
+      } else if (state.destinationCustom) {
+        needsCustomQuote = true;
+      }
     }
+  }
 
-    if (vehicleChargeKRW === 0 && !needsCustomQuote) {
-      warnings.push('견적을 산출하기에 입력이 부족합니다.');
-    }
+  if (vehicleChargeKRW === 0 && !needsCustomQuote) {
+    warnings.push('견적을 산출하기에 입력이 부족합니다.');
+  }
 
-    // ── 추가 옵션 ──
-    const addons: QuoteAddon[] = [];
+  // ── 추가 옵션 ──
+  const addons: QuoteAddon[] = [];
+  if (!isInquiryOnly(vehicle)) {
     if (state.options?.licensedGuide) addons.push({ key: 'licensed_guide', label: '면허 가이드 (영/일/중)', amountKRW: EXTRA_CHARGES.englishGuidePerDay });
     if (state.options?.airportPicket) addons.push({ key: 'airport_picket', label: '공항 픽켓 서비스',         amountKRW: EXTRA_CHARGES.airportPicketService });
     if (state.options?.childSeat)     addons.push({ key: 'child_seat',     label: '카시트',                   amountKRW: EXTRA_CHARGES.childSeatPerTrip });
 
-    // sprinter/bus는 가이드 필수료 자동 가산 (staria + licensedGuide 옵션과 별도)
-    if (vehicle === 'sprinter' || vehicle === 'bus') {
+    // sprinter는 가이드 필수료 자동 가산. bus/vip는 needsCustomQuote 분기로 빠지므로 도달 안 함.
+    if (vehicle === 'sprinter') {
       const v = VEHICLE_TYPES[vehicle] as unknown as { guideFeeDailyKRW?: number };
       const fee = v.guideFeeDailyKRW ?? 300_000;
       addons.push({ key: 'guide_required', label: `면허 가이드 동행 (${vehicle}, 법적 필수)`, amountKRW: fee });
     }
+  }
 
-    const addonsSum = addons.reduce((s, a) => s + a.amountKRW, 0);
+  const addonsSum = addons.reduce((s, a) => s + a.amountKRW, 0);
 
-    // ── 야간 할증 ──
-    const isNight = state.options?.night ?? false;
-    const surchargeKRW = surchargeForNight(vehicleChargeKRW + addonsSum, isNight);
-    const surchargePercent = isNight ? EXTRA_CHARGES.nightSurchargePercent : 0;
+  const isNight = state.options?.night ?? false;
+  const surchargeKRW = surchargeForNight(vehicleChargeKRW + addonsSum, isNight);
+  const surchargePercent = isNight ? EXTRA_CHARGES.nightSurchargePercent : 0;
 
-    // ── multi-day 할인 (-10% / 1박 이상) ──
-    let multiDayDiscountKRW = 0;
-    let multiDayDiscountPercent = 0;
-    if (mode === 'multi_day') {
-      const dayDiff = state.startDate && state.endDate
-        ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
-        : 0;
-      // dayDiff >= 1 → 최소 1박 (예: 4/29 → 4/30 = 1박2일)
-      if (dayDiff >= 1) {
-        const pct = EXTRA_CHARGES.multiDayDiscountPercent ?? 10;
-        multiDayDiscountPercent = pct;
-        multiDayDiscountKRW = Math.round((vehicleChargeKRW + addonsSum + surchargeKRW) * (pct / 100));
-      }
+  let multiDayDiscountKRW = 0;
+  let multiDayDiscountPercent = 0;
+  if (mode === 'multi_day') {
+    const dayDiff = state.startDate && state.endDate
+      ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
+      : 0;
+    if (dayDiff >= 1) {
+      const pct = EXTRA_CHARGES.multiDayDiscountPercent ?? 10;
+      multiDayDiscountPercent = pct;
+      multiDayDiscountKRW = Math.round((vehicleChargeKRW + addonsSum + surchargeKRW) * (pct / 100));
     }
+  }
 
-    const subtotalKRW = vehicleChargeKRW + addonsSum + surchargeKRW - multiDayDiscountKRW;
+  const subtotalKRW = vehicleChargeKRW + addonsSum + surchargeKRW - multiDayDiscountKRW;
 
-    // VAT 정보 (현재는 표기만, subtotal에 가산하지 않음)
-    const vatExcluded = (EXTRA_CHARGES as Record<string, unknown>).vatExcluded === true;
-    const vatPercent = ((EXTRA_CHARGES as Record<string, unknown>).vatPercent as number) ?? 10;
+  // VAT 정보 — pricing_spec.json 의 vat_excluded 가 false 로 바뀌면 가산 처리. 현재는 부가세 포함 표기.
+  const vatExcluded = (EXTRA_CHARGES as Record<string, unknown>).vatExcluded === true;
+  const vatPercent = ((EXTRA_CHARGES as Record<string, unknown>).vatPercent as number) ?? 10;
 
-    // ── 별도 고지 항목 ──
-    const showMeals = svcCfg?.show_meals ?? false;
-    const showAttractions = svcCfg?.show_attractions ?? false;
-    const pax = state.paxCount ?? 1;
-    const days = Math.max(1, state.startDate && state.endDate ?
-      Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000) : 1);
-    const mealPerMeal = svcCfg?.meal_per_person ?? 0;
-    const mealsCount = svcCfg?.meals_count_default ?? 0;
-    const estimatedMealsKRW = showMeals ? pax * mealPerMeal * mealsCount * days : 0;
+  const showMeals = svcCfg?.show_meals ?? false;
+  const showAttractions = svcCfg?.show_attractions ?? false;
+  const pax = state.paxCount ?? 1;
+  const days = Math.max(1, state.startDate && state.endDate ?
+    Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000) : 1);
+  const mealPerMeal = svcCfg?.meal_per_person ?? 0;
+  const mealsCount = svcCfg?.meals_count_default ?? 0;
+  const estimatedMealsKRW = showMeals ? pax * mealPerMeal * mealsCount * days : 0;
 
-    // attractions: 패키지/매트릭스에서 spots 있을 때만. MVP에선 0 처리.
-    let estimatedAttractionsKRW = 0;
-    if (showAttractions && state.destinationKey && DAILY_TOUR_PRICES[state.destinationKey]) {
-      const spots = DAILY_TOUR_PRICES[state.destinationKey].spots ?? [];
-      for (const spot of spots) {
-        const fee = (ATTRACTION_FEES as unknown as Record<string, number>)[spot];
-        if (typeof fee === 'number') estimatedAttractionsKRW += fee * pax;
-      }
+  let estimatedAttractionsKRW = 0;
+  if (showAttractions && state.destinationKey && DAILY_TOUR_PRICES[state.destinationKey]) {
+    const spots = DAILY_TOUR_PRICES[state.destinationKey].spots ?? [];
+    for (const spot of spots) {
+      const fee = (ATTRACTION_FEES as unknown as Record<string, number>)[spot];
+      if (typeof fee === 'number') estimatedAttractionsKRW += fee * pax;
     }
+  }
+
+  // 영수증 분해 정보 — formula 일 때만 base/distance/toll 채움. 그 외 isPackage=true.
+  const receipt = (receiptBase != null || receiptDistance != null || receiptToll != null || receiptIsPackage)
+    ? {
+        baseFeeKRW: receiptBase,
+        distanceFeeKRW: receiptDistance,
+        tollFeeKRW: receiptToll,
+        isPackage: receiptIsPackage,
+      }
+    : undefined;
 
   return {
     mode,
@@ -311,10 +303,111 @@ export function calculateQuote(state: WizardState): QuoteBreakdown | null {
     durationHours,
     warnings,
     needsCustomQuote,
+    receipt,
   };
 }
 
-// React 훅 래퍼 — 메모이제이션으로 리렌더 최소화. CharterWizard 등 React 컴포넌트에서 사용.
-export function useQuoteCalculator(state: WizardState): QuoteBreakdown | null {
-  return useMemo(() => calculateQuote(state), [state]);
+export type DistanceSourceLabel = 'matrix' | 'geocoding' | 'manual' | null;
+
+export interface QuoteCalculatorResult {
+  quote: QuoteBreakdown | null;
+  loading: boolean;
+  geocodingFailed: boolean;     // 자동 거리 계산 실패 — manual km 입력 toggle 노출
+  distanceSource: DistanceSourceLabel;
+}
+
+// 권역 정의(AIRPORT_TRANSFER_PRICES / DAILY_TOUR_PRICES) 또는 matrix priceKRW 가 hit 인지 사전 체크 —
+// 사전에 결정 가능한 케이스에서는 Geocoding 호출을 건너뛴다.
+function hasSpecOrMatrixPrice(state: WizardState): boolean {
+  if (!state.service) return false;
+  const vehicle = state.vehicle;
+  if (!vehicle || isInquiryOnly(vehicle)) return false;
+  if (state.service === 'kpop_shuttle') return true;
+  if (state.service === 'airport_transfer' && state.destinationKey && AIRPORT_TRANSFER_PRICES[state.destinationKey]) return true;
+  if (state.service === 'day_tour' && state.destinationKey && DAILY_TOUR_PRICES[state.destinationKey]) return true;
+  if (state.origin) {
+    const dest = tryResolveCustomDestination(state);
+    if (dest && matrixLookup(state.origin, dest)) return true;
+  }
+  return false;
+}
+
+// React 훅 — Geocoding 호출 캐시 + 로딩/실패 상태 노출. CharterWizard Step 6 에서 manual km override 가능.
+export function useQuoteCalculator(state: WizardState, manualKm?: number | null): QuoteCalculatorResult {
+  const [externalKm, setExternalKm] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [geocodingFailed, setGeocodingFailed] = useState(false);
+  const [distanceSource, setDistanceSource] = useState<DistanceSourceLabel>(null);
+
+  // origin / destination / service / vehicle 변경 시 Geocoding 시도. matrix hit 이면 skip.
+  useEffect(() => {
+    let cancelled = false;
+    setGeocodingFailed(false);
+
+    if (!state.service || !state.vehicle) {
+      setExternalKm(null); setDistanceSource(null); return;
+    }
+    if (isInquiryOnly(state.vehicle)) {
+      setExternalKm(null); setDistanceSource(null); return;
+    }
+
+    if (hasSpecOrMatrixPrice(state)) {
+      // 매트릭스/권역 hit — Geocoding 불필요. distanceSource는 quote.source 기반.
+      setExternalKm(null);
+      setDistanceSource('matrix');
+      return;
+    }
+
+    // origin / destination 둘 다 있어야 Geocoding 시도 가능.
+    const originLabel = state.origin ?? state.originCustom;
+    const destLabel = state.destinationKey ?? state.destinationCustom;
+    if (!originLabel || !destLabel) {
+      setExternalKm(null); setDistanceSource(null); return;
+    }
+
+    setLoading(true);
+    resolveKm(String(originLabel), String(destLabel))
+      .then(result => {
+        if (cancelled) return;
+        if (result) {
+          setExternalKm(result.km);
+          setDistanceSource(result.source === 'matrix' ? 'matrix' : 'geocoding');
+        } else {
+          setExternalKm(null);
+          setDistanceSource(null);
+          setGeocodingFailed(true);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setExternalKm(null);
+        setDistanceSource(null);
+        setGeocodingFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [
+    state.service, state.vehicle, state.origin, state.originCustom,
+    state.destinationKey, state.destinationCustom,
+  ]);
+
+  // manualKm > geocoding km — 사용자가 직접 입력했으면 우선.
+  const effectiveKm = manualKm != null && manualKm > 0 ? manualKm : externalKm;
+  const effectiveSource: DistanceSourceLabel = manualKm != null && manualKm > 0 ? 'manual' : distanceSource;
+
+  const quote = calculateQuoteWithKm(state, effectiveKm);
+  return {
+    quote,
+    loading,
+    geocodingFailed: geocodingFailed && (manualKm == null || manualKm <= 0),
+    distanceSource: effectiveSource,
+  };
+}
+
+// 순수 동기 함수 — 매트릭스/권역 hit 케이스만 즉시 산출. 외부 km 없을 땐 호출 측에서 useQuoteCalculator 사용.
+export function calculateQuote(state: WizardState): QuoteBreakdown | null {
+  return calculateQuoteWithKm(state, null);
 }

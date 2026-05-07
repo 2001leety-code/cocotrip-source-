@@ -40,7 +40,7 @@ const TL = {
     inquireSub: '차터 페이지에서 1:1 견적 받아보세요',
     inquireBtn: '견적 받기',
     seoTitle: 'CocoTrip 투어 — 한국 프라이빗 투어',
-    seoDesc: '서울·부산·제주 전세차량 투어. 팁·톨비·주차비 포함, PayPal 안심결제.',
+    seoDesc: '서울·부산·제주 전세차량 투어. 톨비·주차비 포함, PayPal 안심결제.',
     noResults: '해당 지역 투어 상품이 없습니다',
   },
   en: {
@@ -58,7 +58,7 @@ const TL = {
     inquireSub: 'Get a 1-on-1 quote on the Charter page',
     inquireBtn: 'Get Quote',
     seoTitle: 'CocoTrip Tours — Korea Private Tours',
-    seoDesc: 'Seoul, Busan & Jeju private van tours. Tips, tolls & parking included. PayPal secure.',
+    seoDesc: 'Seoul, Busan & Jeju private van tours. Tolls and parking included. PayPal secure.',
     noResults: 'No tours available for this region',
   },
   ja: {
@@ -76,7 +76,7 @@ const TL = {
     inquireSub: 'チャーターページで1対1の見積もりを',
     inquireBtn: '見積もりを取る',
     seoTitle: 'CocoTrip ツアー — 韓国プライベートツアー',
-    seoDesc: 'ソウル・釜山・済州の専用バンツアー。チップ・料金所・駐車場込み。PayPal安全決済。',
+    seoDesc: 'ソウル・釜山・済州の専用バンツアー。通行料・駐車場込み。PayPal安全決済。',
     noResults: 'このエリアのツアーはありません',
   },
   zh: {
@@ -94,7 +94,7 @@ const TL = {
     inquireSub: '在包车页面获取一对一报价',
     inquireBtn: '获取报价',
     seoTitle: 'CocoTrip 旅游 — 韩国私人包车游',
-    seoDesc: '首尔、釜山和济州私人包车游览，含小费·过路费·停车费，PayPal安全支付。',
+    seoDesc: '首尔、釜山和济州私人包车游览，含过路费·停车费，PayPal安全支付。',
     noResults: '该地区暂无旅游产品',
   },
 } satisfies Record<Language, Record<string, string>>;
@@ -157,10 +157,10 @@ export default function ToursPage() {
              language === 'ja' ? '追加料金なし' :
              language === 'zh' ? '无隐藏费用' :
              'No Hidden Fees',
-      sub: language === 'ko' ? '팁·톨비·주차 포함' :
-           language === 'ja' ? 'チップ·料金所·駐車込み' :
-           language === 'zh' ? '含小费·过路费·停车费' :
-           'Tips · Tolls · Parking incl.',
+      sub: language === 'ko' ? '톨비·주차 포함' :
+           language === 'ja' ? '通行料·駐車込み' :
+           language === 'zh' ? '含过路费·停车费' :
+           'Tolls · Parking incl.',
     },
     {
       icon: CreditCard,

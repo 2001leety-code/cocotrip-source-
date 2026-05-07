@@ -132,7 +132,11 @@ function PaymentPanel({
 }) {
   const i18n = getWizardI18n(language);
   const resolved = resolveProductType(state);
-  const quote = useQuoteCalculator(state);
+  // 2026-05-07: useQuoteCalculator 반환 shape 변경 — { quote, loading, geocodingFailed, distanceSource }.
+  // CharterWizard 내부에서 manual km 보정한 결과는 이 페이지에서 다시 계산되지 않음 (Wizard onComplete
+  // 시점에 state 만 넘기므로). PaymentPanel 진입 시점에 권역/매트릭스 hit 인 경우만 doable — 그 외엔
+  // resolved.priceKRW 또는 quote.subtotalKRW 0 → estimateOnlyNote 분기로 빠져 WhatsApp 요청.
+  const { quote } = useQuoteCalculator(state);
   const KRW = (n: number | null | undefined) => n == null ? '—' : `₩${n.toLocaleString('ko-KR')}`;
 
   // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback

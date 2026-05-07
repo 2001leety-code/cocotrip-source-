@@ -1,7 +1,8 @@
-// CharterWizard — 6단계 스테퍼 (B2 Step 컴포넌트 실물 연결 완료)
+// CharterWizard — 6단계 스테퍼.
+// 2026-05-07 정책 B: matrix miss → Geocoding 우선. Bus/VIP 차량은 가격 카드 대신 InquiryForm.
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
@@ -11,6 +12,7 @@ import { Step3Destination } from './Step3Destination';
 import { Step4PaxVehicle } from './Step4PaxVehicle';
 import { Step5DateOptions } from './Step5DateOptions';
 import { Step6Quote } from './Step6Quote';
+import { InquiryForm } from './InquiryForm';
 import { getWizardI18n } from './wizard-i18n';
 
 type CharterWizardProps = {
@@ -19,21 +21,53 @@ type CharterWizardProps = {
   language?: 'ko' | 'en' | 'ja' | 'zh';
 };
 
+// distanceSource 라벨 — 사용자에게 거리 출처 투명하게 노출.
+function distanceSourceLabel(source: 'matrix' | 'geocoding' | 'manual' | null, lang: string): string {
+  if (source === 'matrix') {
+    return lang === 'ko' ? '매트릭스 직접' : lang === 'ja' ? 'マトリクス' : lang === 'zh' ? '矩阵查询' : 'Matrix lookup';
+  }
+  if (source === 'geocoding') {
+    return lang === 'ko' ? '지도 추정' : lang === 'ja' ? '地図推定' : lang === 'zh' ? '地图估算' : 'Map estimate';
+  }
+  if (source === 'manual') {
+    return lang === 'ko' ? '직접 입력' : lang === 'ja' ? '直接入力' : lang === 'zh' ? '手动输入' : 'Manual';
+  }
+  return '';
+}
+
+function geocodingFailedLabel(lang: string): string {
+  if (lang === 'ko') return '자동 거리 계산 실패. km 직접 입력해주세요.';
+  if (lang === 'ja') return '自動距離計算失敗。kmを直接入力してください。';
+  if (lang === 'zh') return '自动距离计算失败。请手动输入公里数。';
+  return 'Auto distance failed. Please enter km manually.';
+}
+
+function manualKmLabel(lang: string): string {
+  if (lang === 'ko') return '거리 직접 입력 (km)';
+  if (lang === 'ja') return '距離直接入力 (km)';
+  if (lang === 'zh') return '手动输入距离 (km)';
+  return 'Enter distance (km)';
+}
+
 export function CharterWizard({ initialState, onComplete, language = 'en' }: CharterWizardProps) {
   const [state, setState] = useState<WizardState>(() => {
-    // initialState의 undefined 값은 INITIAL 기본값을 덮어쓰지 않도록 필터
     const filtered = Object.fromEntries(
       Object.entries(initialState ?? {}).filter(([, v]) => v !== undefined),
     );
     return { ...INITIAL_WIZARD_STATE, ...filtered };
   });
   const [currentStep, setCurrentStep] = useState(1);
+  // 사용자 manual km override — Geocoding 실패 또는 직접 보정.
+  const [manualKm, setManualKm] = useState<number | null>(null);
 
-  const quote = useQuoteCalculator(state);
+  const { quote, loading, geocodingFailed, distanceSource } = useQuoteCalculator(state, manualKm);
 
   const patch = useCallback((p: Partial<WizardState>) => {
     setState(prev => ({ ...prev, ...p }));
   }, []);
+
+  // Bus/VIP 는 InquiryForm 진행 — wizard 내 결제 X.
+  const isInquiryVehicle = state.vehicle === 'bus' || state.vehicle === 'vip';
 
   const canAdvance = useCallback(() => {
     switch (currentStep) {
@@ -44,32 +78,28 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       case 5: {
         if (!state.startDate) return false;
         if (!state.startTime) return false;
-        // 이름·연락처 필수
         if (!state.customerName || state.customerName.trim().length < 2) return false;
         const phoneDigits = (state.customerPhone ?? '').replace(/\D/g, '');
         if (phoneDigits.length < 7) return false;
-        // 공항 픽업: 편명 필수, ICN이면 터미널도 필수
         if (state.service === 'airport_transfer') {
           if (!state.airport?.flightNumber || state.airport.flightNumber.length < 3) return false;
           if (state.origin === 'ICN' && !state.airport?.terminal) return false;
         }
-        // 다일 투어: endDate + 숙소 위치 필요
         if (state.service === 'multi_day') {
           if (!state.endDate) return false;
           if (!state.lodgingLocation) return false;
         }
         return true;
       }
-      // Step 6 — needsCustomQuote는 결제 불가 (PaymentPanel 측 WhatsApp 분기)
-      // 일반 견적은 subtotal>0이어야 결제 진행
       case 6: {
+        if (isInquiryVehicle) return false; // InquiryForm 자체에 submit CTA — wizard nav 결제 비활성.
         if (!quote) return false;
-        if (quote.needsCustomQuote) return true;  // PaymentPanel에서 WhatsApp 안내로 분기
+        if (quote.needsCustomQuote) return true;
         return quote.subtotalKRW > 0;
       }
       default: return false;
     }
-  }, [currentStep, state, quote]);
+  }, [currentStep, state, quote, isInquiryVehicle]);
 
   const goNext = () => setCurrentStep(s => Math.min(6, s + 1));
   const goPrev = () => setCurrentStep(s => Math.max(1, s - 1));
@@ -79,7 +109,6 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
-      {/* 진행 표시 */}
       <div className="flex items-center justify-between mb-8">
         {STEP_LABELS.map((_, idx) => {
           const id = idx + 1;
@@ -91,7 +120,6 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 'bg-white/10 text-white/55'
               }`}>
                 {id < currentStep ? (
-                  // SVG stroke 애니 — step 완료 시 체크 마크가 그려짐
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <motion.path
                       d="M3.5 8.5 L7 12 L13 4.5"
@@ -119,17 +147,55 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       </h2>
       <p className="text-sm text-white/55 mb-8">{i18n.stepOf} {currentStep} / {STEP_LABELS.length}</p>
 
-      {/* 스텝 슬롯 — 자연 스크롤, 고정 min-h 제거 */}
       <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 sm:p-8 mb-8">
         {currentStep === 1 && <Step1Origin      state={state} patch={patch} language={language} />}
         {currentStep === 2 && <Step2Service     state={state} patch={patch} language={language} />}
         {currentStep === 3 && <Step3Destination state={state} patch={patch} language={language} />}
         {currentStep === 4 && <Step4PaxVehicle  state={state} patch={patch} language={language} />}
         {currentStep === 5 && <Step5DateOptions state={state} patch={patch} language={language} />}
-        {currentStep === 6 && <Step6Quote       quote={quote} state={state}      language={language} />}
+        {currentStep === 6 && (
+          isInquiryVehicle ? (
+            // Bus / VIP — 가격 카드 대신 상담 폼.
+            <InquiryForm
+              vehicle={state.vehicle as 'bus' | 'vip'}
+              state={state}
+              language={language}
+            />
+          ) : (
+            <div className="space-y-4">
+              {loading && (
+                <div className="flex items-center gap-2 text-sm text-white/55">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Geocoding...
+                </div>
+              )}
+              {distanceSource && !loading && (
+                <p className="text-xs text-white/55">
+                  {language === 'ko' ? '거리 출처' : language === 'ja' ? '距離ソース' : language === 'zh' ? '距离来源' : 'Distance source'}:{' '}
+                  <span className="text-white/85">{distanceSourceLabel(distanceSource, language)}</span>
+                </p>
+              )}
+              <Step6Quote quote={quote} state={state} language={language} />
+              {geocodingFailed && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+                  <p className="text-sm text-amber-200/85 mb-2">⚠ {geocodingFailedLabel(language)}</p>
+                  <label className="block text-xs text-white/60 mb-1">{manualKmLabel(language)}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={manualKm ?? ''}
+                    onChange={e => {
+                      const n = Number(e.target.value);
+                      setManualKm(Number.isFinite(n) && n > 0 ? n : null);
+                    }}
+                    className="w-32 px-3 py-2 rounded-lg border border-white/15 bg-white/[0.04] text-white/85 text-sm outline-none focus:border-[#B668FC]/40"
+                  />
+                </div>
+              )}
+            </div>
+          )
+        )}
       </div>
 
-      {/* 네비게이션 */}
       <div className="flex gap-3">
         {currentStep > 1 && (
           <button
@@ -151,7 +217,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             {i18n.next} <ChevronRight className="w-4 h-4" />
           </button>
         )}
-        {currentStep === 6 && onComplete && (
+        {currentStep === 6 && onComplete && !isInquiryVehicle && (
           <button
             type="button"
             onClick={() => onComplete(state)}
