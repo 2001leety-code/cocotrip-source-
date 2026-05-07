@@ -8,6 +8,12 @@
  *      → relayAdminReply (via chat-relay.js) before saveChatMessage
  *   3. InquiryForm details (en/ja/zh) → Korean (for operator on Telegram)
  *      → inquiry-submit.js
+ *   4. PR-S — Foreigner place-name autocomplete (place-search.js)
+ *      → translatePlaceName() with 4-layer accuracy stack:
+ *        Layer 1 = Gemini (Korean Romanization standard prompt)
+ *        Layer 2 = Firestore `place_translations` cache (manual override 보호)
+ *        Layer 3 = chain mapping table `place-name-map.json` (substring match)
+ *        Layer 4 = AdminTranslations.tsx 운영자 검수 UI
  *
  * Design:
  *   - Single Gemini API call (model gemini-2.5-flash, low temperature for fidelity)
@@ -21,6 +27,15 @@
  * Env: reuses GEMINI_API_KEY (already set in production for ai-planner-full / chat).
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import {
+  getCachedTranslation,
+  setCachedTranslation,
+} from './place-translation-cache.js';
+
+const GEMINI_VERSION = 'gemini-2.5-flash';
 
 // ── Internal: lazy genAI client ──
 let _genAI = null;
@@ -179,3 +194,223 @@ export async function detectAndTranslate(text, targetLang) {
 /** For tests / debug */
 export function _clearCache() { _cache.clear(); }
 export function _cacheSize() { return _cache.size; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PR-S — Place-name translation (4-layer accuracy stack)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Layer 3: chain mapping table (loaded once)
+let _placeNameMap = null;
+function loadPlaceNameMap() {
+  if (_placeNameMap) return _placeNameMap;
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const mapPath = join(__dirname, 'place-name-map.json');
+    const raw = readFileSync(mapPath, 'utf8');
+    _placeNameMap = JSON.parse(raw);
+    return _placeNameMap;
+  } catch (err) {
+    console.warn('[translator.loadPlaceNameMap] failed:', err.message);
+    _placeNameMap = {};
+    return _placeNameMap;
+  }
+}
+
+/**
+ * Layer 3 substring matching — 입력에서 매핑 테이블의 키를 찾아 치환.
+ * 예: "롯데호텔 명동점" + lang='en' → "Lotte Hotel Myeongdong" (롯데호텔, 명동 둘 다 매칭)
+ *
+ * 알고리즘:
+ *   1. 매핑 테이블 키를 길이 내림차순 정렬 (긴 키 먼저 → 부분 매칭 충돌 방지)
+ *   2. 입력에서 발견되는 키마다 해당 언어 번역으로 치환
+ *   3. 매칭 0건이면 null 반환 (Gemini fallback 신호)
+ *   4. 매칭 1+건이면 한글 잔존 여부 검사 — 100% 치환됐으면 'mapping' source 반환,
+ *      일부 한글 남아있으면 Gemini 보정 필요 → null 반환
+ *
+ * @param {string} originalText
+ * @param {'en'|'ja'|'zh'} lang
+ * @returns {string|null} 완전 치환된 결과 또는 null
+ */
+export function applyMappingTable(originalText, lang) {
+  if (!originalText || !['en', 'ja', 'zh'].includes(lang)) return null;
+  const map = loadPlaceNameMap();
+  const keys = Object.keys(map).sort((a, b) => b.length - a.length);
+  let result = originalText;
+  let matched = false;
+  for (const key of keys) {
+    if (result.includes(key)) {
+      const repl = map[key]?.[lang];
+      if (typeof repl === 'string' && repl) {
+        result = result.split(key).join(repl);
+        matched = true;
+      }
+    }
+  }
+  if (!matched) return null;
+  // 한글 잔존 확인 — 일부만 매칭됐으면 Gemini 보정 필요
+  if (HANGUL_RE.test(result)) return null;
+  return result;
+}
+
+/**
+ * Layer 1: 강화된 Gemini system prompt (한국 표준 로마자/외래어 표기법).
+ *
+ * 영어 = Revised Romanization (한국 정부 공식 — 2000년 고시)
+ *   - 명동 → "Myeongdong" (X "Myeong-dong")
+ *   - 을지로 → "Eulji-ro" (-ro / -gil 같은 행정 단위만 hyphen)
+ *   - ㅇ + 모음 → 모음만 (이태원 → "Itaewon" not "Yitaewon")
+ * 일본어 = 외래어 카타카나 + 한자 (가능 시 한자 우선)
+ *   - 롯데호텔 → ロッテホテル (외래어)
+ *   - 명동 → 明洞 (한자 가능)
+ * 중국어 = 간체 + 음역
+ *   - 롯데호텔 → 乐天酒店
+ *   - 명동 → 明洞
+ */
+function buildPlaceNamePrompt(text, targetLang) {
+  if (targetLang === 'en') {
+    return `You are translating a Korean place name (business, landmark, neighborhood, station, district) to English for a foreign tourist booking service.
+
+STRICT RULES:
+- Use Korean Government Revised Romanization of Korean (2000 standard).
+- Examples: 명동 → "Myeongdong", 강남 → "Gangnam", 이태원 → "Itaewon", 광안리 → "Gwangalli", 해운대 → "Haeundae".
+- Hyphens ONLY for administrative suffixes: 구 (-gu), 동 (-dong), 로 (-ro), 길 (-gil). Example: 을지로 → "Eulji-ro", 강남구 → "Gangnam-gu".
+- For well-known international brands, use their English brand name: 롯데호텔 → "Lotte Hotel", 스타벅스 → "Starbucks".
+- Output ONLY the translation. No explanation, no quotes, no labels, no romanization parenthetical.
+- Use consistent capitalization (Title Case for proper nouns).
+- If the input is already in English, output it unchanged.
+- Preserve numbers, branch indicators ("점" → branch), unit suffixes naturally.
+
+Korean place name:
+${text}`;
+  }
+  if (targetLang === 'ja') {
+    return `You are translating a Korean place name to Japanese for a Japanese tourist booking service.
+
+STRICT RULES:
+- Use Hanja (kanji) form when the place name has a clear Sino-Korean reading: 명동 → 明洞, 江南, 仁寺洞, 漢江, 景福宮.
+- Use Katakana for Western brand names: 롯데호텔 → ロッテホテル, スターバックス, JWマリオット.
+- Use Katakana phonetic transcription for native Korean words without standard kanji: 광안리 → 広安里 (kanji), 해운대 → 海雲台 (kanji).
+- Output ONLY the translation. No explanation, no quotes, no labels, no romanization.
+- If the input is already in Japanese, output it unchanged.
+- Preserve numbers and branch indicators (점 → 店).
+
+Korean place name:
+${text}`;
+  }
+  if (targetLang === 'zh') {
+    return `You are translating a Korean place name to Simplified Chinese for a Chinese tourist booking service.
+
+STRICT RULES:
+- Use Simplified Chinese characters (简体中文).
+- Use Hanja-equivalent Chinese form when available: 명동 → 明洞, 강남 → 江南, 한강 → 汉江, 경복궁 → 景福宫.
+- Use established Chinese brand names: 롯데호텔 → 乐天酒店, 신라호텔 → 新罗酒店, 스타벅스 → 星巴克.
+- Output ONLY the translation. No explanation, no quotes, no labels, no pinyin.
+- If the input is already in Chinese, output it unchanged.
+- Preserve numbers and branch indicators (점 → 店).
+
+Korean place name:
+${text}`;
+  }
+  // ko fallback (caller usually short-circuits)
+  return text;
+}
+
+/**
+ * Layer 1: Gemini 호출 — 강화된 prompt, temperature=0.1 (확정적).
+ * @returns {Promise<string|null>}
+ */
+async function geminiTranslatePlaceName(text, targetLang) {
+  const client = getClient();
+  if (!client) {
+    console.warn('[translator.geminiTranslatePlaceName] GEMINI_API_KEY not set');
+    return null;
+  }
+  try {
+    const model = client.getGenerativeModel({
+      model: GEMINI_VERSION,
+      generationConfig: {
+        temperature: 0.1, // 확정적 (place name 일관성)
+        maxOutputTokens: 128,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+    const r = await model.generateContent(buildPlaceNamePrompt(text, targetLang));
+    let out = (r.response.text() || '').trim();
+    // Gemini 가 quotes 또는 explanation 을 반환하면 정리
+    out = out.replace(/^["'`]+|["'`]+$/g, '').trim();
+    if (!out) return null;
+    return out;
+  } catch (err) {
+    console.error('[translator.geminiTranslatePlaceName] gemini failed:', err.message);
+    return null;
+  }
+}
+
+/**
+ * 4-Layer 통합 — 외국인 사용자용 한국 장소명 번역.
+ *
+ * 흐름:
+ *   1. lang='ko' → 원문 그대로 (한국어 사용자는 한글 보존)
+ *   2. Layer 2: Firestore 캐시 조회 (있으면 즉시 반환, manual 우선)
+ *   3. Layer 3: 매핑 테이블 substring 매칭 (전체 치환 성공 시 캐시 후 반환)
+ *   4. Layer 1: Gemini 호출 (실패 시 원문 fallback, 성공 시 캐시)
+ *
+ * @param {string} originalText  한글 원문 (예: "롯데호텔 명동점")
+ * @param {'ko'|'en'|'ja'|'zh'} lang
+ * @returns {Promise<{text: string, source: 'original'|'cache'|'mapping'|'gemini'|'fallback'}>}
+ */
+export async function translatePlaceName(originalText, lang) {
+  const s = String(originalText || '').trim();
+  if (!s) return { text: '', source: 'original' };
+
+  // 한국어 사용자 → 한글 그대로 (어드민 본인 테스트, 한국어 사용 외국인)
+  if (lang === 'ko') return { text: s, source: 'original' };
+  if (!['en', 'ja', 'zh'].includes(lang)) return { text: s, source: 'original' };
+
+  // 한글 미포함 (이미 영문/일문/중문) → 그대로 반환
+  if (!HANGUL_RE.test(s)) return { text: s, source: 'original' };
+
+  // Layer 2: Firestore 캐시
+  const cached = await getCachedTranslation(s, lang);
+  if (cached?.translatedText) {
+    return { text: cached.translatedText, source: 'cache' };
+  }
+
+  // Layer 3: 매핑 테이블 substring 매칭
+  const mapped = applyMappingTable(s, lang);
+  if (mapped) {
+    // 캐시에 저장 (백그라운드 — 응답 지연 방지)
+    setCachedTranslation(s, lang, mapped, 'mapping', { geminiVersion: null }).catch(() => {});
+    return { text: mapped, source: 'mapping' };
+  }
+
+  // Layer 1: Gemini 호출
+  const gemini = await geminiTranslatePlaceName(s, lang);
+  if (gemini) {
+    setCachedTranslation(s, lang, gemini, 'gemini', { geminiVersion: GEMINI_VERSION }).catch(() => {});
+    return { text: gemini, source: 'gemini' };
+  }
+
+  // Gemini 실패 → 원문 그대로 (silent fail X — caller 가 source 로 인지 가능)
+  return { text: s, source: 'fallback' };
+}
+
+/**
+ * 다중 텍스트 번역 — place-search.js 의 items 배열 일괄 처리용.
+ * 동일 lang 으로 N개 항목을 병렬 번역. 실패는 원문 fallback.
+ *
+ * @param {string[]} texts
+ * @param {'ko'|'en'|'ja'|'zh'} lang
+ * @returns {Promise<Array<{text: string, source: string, original: string}>>}
+ */
+export async function translatePlaceNames(texts, lang) {
+  if (!Array.isArray(texts) || texts.length === 0) return [];
+  const results = await Promise.all(
+    texts.map(async (t) => {
+      const r = await translatePlaceName(t, lang);
+      return { text: r.text, source: r.source, original: String(t || '') };
+    })
+  );
+  return results;
+}

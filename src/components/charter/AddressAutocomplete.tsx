@@ -96,6 +96,15 @@ function asLang(s: string): Lang {
   return 'en';
 }
 
+// PR-S — 사용자 입력 텍스트로 언어 감지 (regex 기반).
+// Hangul 포함 → 한국어 사용자로 간주 (운영자 본인 검수 + 한국어 외국인) → 한글 결과 그대로.
+// 그 외 → 사용자 prop 의 language 따라 백엔드에 lang 전달 (en/ja/zh).
+const HANGUL_TYPED_RE = /[가-힯ᄀ-ᇿ]/;
+function detectQueryLang(query: string, userLang: Lang): Lang {
+  if (HANGUL_TYPED_RE.test(query)) return 'ko';
+  return userLang;
+}
+
 // ── Naver Maps SDK 동적 로드 (싱글톤) ─────────────────────────────────────
 let sdkLoadPromise: Promise<boolean> | null = null;
 
@@ -136,11 +145,15 @@ function loadNaverMapsSdk(): Promise<boolean> {
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
 export interface AddressResult {
-  name: string;
-  address: string;
+  name: string;       // 사용자 언어 (외국인) 또는 한글 (한국어 사용자)
+  address: string;    // 사용자 언어
   lat: number;
   lng: number;
   category?: string;
+  // PR-S: 백엔드 라우트 / 네이버맵 검색은 한글이 필요. 외국인 사용자에게 보이는 텍스트와
+  // 별개로, 항상 한글 원문을 보존한다 (silent fail X — 운영자 추적 가능).
+  originalName?: string;
+  originalAddress?: string;
 }
 
 export interface AddressAutocompleteProps {
@@ -163,6 +176,12 @@ interface ApiItem {
   tel: string;
   lat: number;
   lng: number;
+  // PR-S: 외국인 사용자에게 번역된 결과가 노출되어도, 백엔드 매칭 / 운영자 검수용으로 한글 원문을 항상 보존.
+  originalName?: string;
+  originalAddress?: string;
+  originalRoadAddress?: string;
+  originalCategory?: string;
+  translationSource?: 'cache' | 'mapping' | 'gemini' | 'partial_fallback' | 'original';
 }
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────
@@ -212,7 +231,9 @@ export function AddressAutocomplete({
       setLoading(true);
       setError(null);
       try {
-        const url = `/api/place-search?query=${encodeURIComponent(query.trim())}&limit=10`;
+        // PR-S: 사용자가 한글 입력 시 → lang='ko' (한글 결과) / 그 외 → userLang (번역 결과)
+        const queryLang = detectQueryLang(query.trim(), lang);
+        const url = `/api/place-search?query=${encodeURIComponent(query.trim())}&limit=10&lang=${queryLang}`;
         const res = await fetch(url);
         if (!res.ok) {
           const txt = await res.text().catch(() => '');
@@ -332,6 +353,10 @@ export function AddressAutocomplete({
       lat: selected.lat,
       lng: selected.lng,
       category: selected.category || undefined,
+      // PR-S: 한글 원문 보존 (백엔드 라우트 / 네이버맵 검색용). 한국어 사용자 (lang='ko')
+      // 의 경우 originalName 미존재 — 그 때는 name 자체가 이미 한글.
+      originalName: selected.originalName || selected.name,
+      originalAddress: selected.originalRoadAddress || selected.originalAddress || (selected.roadAddress || selected.address),
     });
   }, [selected, onChange]);
 
