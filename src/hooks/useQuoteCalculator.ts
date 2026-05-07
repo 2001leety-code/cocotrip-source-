@@ -23,7 +23,7 @@ import {
   normalizeDestinationToMatrixKey,
   getMatrixKeyAlternatives,
 } from '@/components/charter/destinationKeyMap';
-import { resolveKm } from '@/lib/calculatorDistance';
+import { resolveKm, resolveKmFromCoords } from '@/lib/calculatorDistance';
 import { calcSimpleByVehicle } from '@/lib/calculator';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
@@ -358,6 +358,19 @@ export function useQuoteCalculator(state: WizardState, manualKm?: number | null)
       return;
     }
 
+    // PR-H: AddressAutocomplete 가 좌표 두 개 모두 확정해줬으면 — Geocoding 우회.
+    if (
+      typeof state.originLat === 'number' && typeof state.originLng === 'number' &&
+      typeof state.destLat === 'number' && typeof state.destLng === 'number'
+    ) {
+      const r = resolveKmFromCoords(state.originLat, state.originLng, state.destLat, state.destLng);
+      if (r) {
+        setExternalKm(r.km);
+        setDistanceSource('geocoding'); // 'coords' 도 사실상 좌표 기반 추정 — 사용자에겐 동일 라벨.
+        return;
+      }
+    }
+
     // origin / destination 둘 다 있어야 Geocoding 시도 가능.
     const originLabel = state.origin ?? state.originCustom;
     const destLabel = state.destinationKey ?? state.destinationCustom;
@@ -392,6 +405,7 @@ export function useQuoteCalculator(state: WizardState, manualKm?: number | null)
   }, [
     state.service, state.vehicle, state.origin, state.originCustom,
     state.destinationKey, state.destinationCustom,
+    state.originLat, state.originLng, state.destLat, state.destLng,
   ]);
 
   // manualKm > geocoding km — 사용자가 직접 입력했으면 우선.

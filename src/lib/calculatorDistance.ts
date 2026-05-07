@@ -67,6 +67,35 @@ function matrixLookup(originKey: string, destKey: string): number | null {
   return null;
 }
 
+/**
+ * 좌표 기반 즉시 산출 — AddressAutocomplete 가 두 좌표를 모두 확보한 경우 호출.
+ * Geocoding 호출 우회. Haversine × 1.3 (한국 평균 직선:도로 비율).
+ */
+export function resolveKmFromCoords(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): { km: number; source: 'coords' } | null {
+  if (
+    !Number.isFinite(lat1) || !Number.isFinite(lng1) ||
+    !Number.isFinite(lat2) || !Number.isFinite(lng2)
+  ) return null;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371; // Earth radius km
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const straightKm = R * c;
+  // 도로 보정 ×1.3 — calculator-distance.js 와 동일.
+  const km = Math.round(straightKm * 1.3 * 10) / 10;
+  if (km <= 0) return null;
+  return { km, source: 'coords' };
+}
+
 export async function resolveKm(
   origin: string,
   destination: string,

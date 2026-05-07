@@ -1977,6 +1977,20 @@
     "modifySaving": "保存中...",
     "modifyNetworkError": "网络错误"
   },
+  "addressAutocomplete": {
+    "originLabel": "出发地",
+    "destinationLabel": "目的地",
+    "placeholderHint": "例如：明洞乐天酒店",
+    "searching": "搜索中...",
+    "noResults": "没有搜索结果。请尝试其他关键词。",
+    "confirmTitle": "这个地址对吗？",
+    "confirmYes": "是",
+    "confirmNo": "重新输入",
+    "changeButton": "更改",
+    "errorMessage": "搜索失败。请稍后再试。",
+    "mapUnavailable": "迷你地图无法加载",
+    "selectedLabel": "已选择"
+  },
   "signup": {
     "signupOnboardingTitle": "欢迎！请告诉我们几个细节",
     "signupOnboardingSub": "我们仅收集必要信息以提供更好的服务。",
