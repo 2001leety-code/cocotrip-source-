@@ -225,7 +225,13 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       try {
         json = await res.json();
       } catch {
-        const e = new Error(`Server returned invalid response (${res.status}). Please contact us via WhatsApp.`) as Error & { code?: string };
+        // batch 9 fix (B9-6): JSON parse 실패 시 raw body 콘솔 dump + 메시지에 status 포함.
+        // 502/504/HTML error page 케이스 진단 위해 운영자가 DevTools 콘솔에서 정확한
+        // 원인 즉시 확인 가능. body는 200자까지만 (HTML 에러 페이지의 핵심만).
+        let rawBody = '';
+        try { rawBody = await res.text(); } catch { /* already consumed */ }
+        console.error('[handlePaymentSuccess] Non-JSON response | status:', res.status, '| body[:200]:', rawBody.slice(0, 200));
+        const e = new Error(`Server returned non-JSON response (HTTP ${res.status}). Check DevTools console for raw body. Please contact us via WhatsApp.`) as Error & { code?: string };
         e.code = 'INVALID_RESPONSE';
         throw e;
       }
