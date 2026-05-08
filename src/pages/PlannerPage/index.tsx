@@ -29,6 +29,10 @@ export default function PlannerPage() {
   const revisionMode = searchParams.get('revision') === 'true';
   const revisionPlanId = searchParams.get('planId') ?? null;
   const revisionToken = searchParams.get('token') ?? null;
+  // W4: 사유 + avoidList URL params (RevisionCard → RevisionReasonModal → here)
+  const revisionReason = searchParams.get('revisionReason') ?? null;
+  const revisionNote = searchParams.get('revisionNote') ?? null;
+  const avoidList = searchParams.get('avoidList') ?? null;
 
   usePageMeta({
     title: t.pageMeta?.planner?.title ?? 'AI Travel Planner \u2014 Custom Korea Itinerary',
@@ -142,6 +146,9 @@ export default function PlannerPage() {
               revisionMode={revisionMode}
               revisionPlanId={revisionPlanId}
               revisionToken={revisionToken}
+              revisionReason={revisionReason}
+              revisionNote={revisionNote}
+              avoidList={avoidList}
               onPaymentSuccess={handlePaymentSuccess}
               onRevisionRegenerate={handleRevisionRegenerate}
             />

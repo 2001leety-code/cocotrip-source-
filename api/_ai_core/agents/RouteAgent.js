@@ -367,6 +367,47 @@ export class RouteAgent extends BaseAgent {
                     console.warn('  - Hotel→FirstStop route failed:', hotelErr.message);
                 }
             }
+            // day-level mirror — UI 의 LodgingBookend 컴포넌트가 day.lodging_to_first 로 직접 접근
+            if (hotelTransit) {
+                dayPlan.lodging_to_first = hotelTransit;
+            }
+
+            // ════════════════════════════════════════════════════════
+            // Phase 2.6 (2026-05-08 신규): 마지막 장소 → 숙소 복귀 경로
+            // ════════════════════════════════════════════════════════
+            // 사용자 신고: "Day 마지막에 숙소 복귀 경로 안 나옴 → 저녁 식사 후 어디로?"
+            // 호텔/zone anchor 좌표가 있고, 마지막 stop 이 호텔과 다른 곳이면 ODsay 로 계산.
+            if (hotelLat && hotelLng && places.length > 0) {
+                const lastPlace = places[places.length - 1];
+                if (lastPlace.lat && lastPlace.lng) {
+                    // 호텔과 같은 좌표(50m 이내) 이면 의미 없음 — skip
+                    const sameAsHotel = Math.abs(lastPlace.lat - hotelLat) < 0.0005
+                        && Math.abs(lastPlace.lng - hotelLng) < 0.0005;
+                    if (!sameAsHotel) {
+                        try {
+                            const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
+                            const lastTransit = await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek);
+                            const pt = lastTransit.publicTransit;
+                            const returnTransit = {
+                                method: pt?.method || 'subway',
+                                instruction: pt?.summary || `Return to hotel from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
+                                step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
+                                steps_detail: pt?.steps || [],
+                                est_min: pt?.duration || lastTransit.durationMin || 25,
+                                est_fare_krw: pt?.fare || 0,
+                                source: 'odsay',
+                                from_label: lastPlace.display_name || lastPlace.name || 'last stop',
+                                to_label: 'Hotel',
+                                _isLodgingReturn: true,
+                            };
+                            dayPlan.last_to_lodging = returnTransit;
+                            console.log(`  - [${lastPlace.name}→Hotel] ${returnTransit.est_min}min via ${returnTransit.method} (return)`);
+                        } catch (retErr) {
+                            console.warn('  - LastStop→Hotel route failed:', retErr.message);
+                        }
+                    }
+                }
+            }
 
             for (let i = 0; i < places.length; i++) {
                 const place = places[i];

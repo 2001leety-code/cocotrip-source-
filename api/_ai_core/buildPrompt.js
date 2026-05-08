@@ -1,8 +1,62 @@
 /**
  * System prompt builder + prompt metrics logging.
  * Extracted verbatim from api/ai-planner-full.js L112-527.
+ *
+ * 2026-05-08 (W4): buildRevisionInstruction — user's revision reason chips → extra Gemini instructions.
  */
 import { LANG_INSTRUCTION } from './constants.js';
+
+/**
+ * Build an additional instruction block appended to the user message when the user
+ * provided a revision reason via RevisionReasonModal.
+ *
+ * @param {string|undefined} revisionReason - comma-joined reason chips (e.g. "too_packed,food_not_match")
+ * @param {string|undefined} revisionNote   - free-text note from the user (max 300 chars)
+ * @param {string|undefined} avoidList      - comma-joined stop names from the previous plan
+ * @returns {string} extra instruction block, or '' if nothing to add
+ */
+export function buildRevisionInstruction(revisionReason, revisionNote, avoidList) {
+  const lines = [];
+
+  if (revisionReason) {
+    const reasons = revisionReason.split(',').map((r) => r.trim()).filter(Boolean);
+    const instructionMap = {
+      food_not_match:  "Diversify cuisine. Avoid restaurants from the previous plan. Strengthen adherence to the user's dietary preferences.",
+      too_packed:      'Reduce to 3-4 places per day maximum. Add 20-30 min leisure breaks between stops. Prefer quality over quantity.',
+      too_loose:       'Increase to 5-6 places per day. Tighten transitions. Fill gaps with nearby hidden gems.',
+      places_dislike:  'Avoid places from the previous plan entirely. Suggest a completely different mix of attractions and categories.',
+      region_change:   'Move the itinerary focus to a different city district or zone. Do NOT reuse the same base neighborhood from the previous plan.',
+      budget_adjust:   'Recalibrate entry fees and restaurant price tier — prefer more affordable options unless Premium budget is set.',
+      // 'other' is handled via revisionNote free text
+    };
+    const extraLines = reasons.map((r) => instructionMap[r]).filter(Boolean);
+    if (extraLines.length > 0) {
+      lines.push('[REVISION INSTRUCTIONS — FOLLOW STRICTLY]');
+      extraLines.forEach((line) => lines.push(`- ${line}`));
+    }
+  }
+
+  if (revisionNote && revisionNote.trim().length > 0) {
+    lines.push(
+      `[USER REVISION NOTE]\n"${revisionNote.trim().slice(0, 300)}"\n` +
+      'Treat the above note as an additional personalization instruction with HIGH priority.'
+    );
+  }
+
+  if (avoidList) {
+    const names = avoidList.split(',').map((n) => n.trim()).filter(Boolean);
+    if (names.length > 0) {
+      lines.push(
+        '[MUST AVOID — ALL STOPS FROM PREVIOUS PLAN]\n' +
+        'Do NOT reuse any of these places (restaurants AND attractions):\n' +
+        names.join(', ')
+      );
+    }
+  }
+
+  if (lines.length === 0) return '';
+  return '\n\n' + lines.join('\n\n');
+}
 
 // ── 계측 함수 (Phase 1 — 기능 변경 없음, 측정만) ──────────────────────────
 export function logPromptMetrics(prompt, ctx) {
@@ -213,10 +267,12 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - daily_budget_summary: transport estimates are filled by server, just estimate 0 for transport
 - accessibility_note: required when mobility is "limited"
 
-## ROUTE OPTIMIZATION — CRITICAL (HUB-AND-SPOKE)
+## ROUTE OPTIMIZATION — CRITICAL (HUB-AND-SPOKE + LODGING BOOKEND)
 - **HUB-AND-SPOKE 강제**: 매일은 숙소(또는 숙소 근처 지하철역)에서 시작 → 그 zone 내 stops 순회 → 다시 숙소 근처로 복귀.
-  - First stop of EVERY day: near hotel or arrival point
+  - **LODGING BOOKEND (2026-05-08 신규 강제 규칙):** 사용자가 hotel_address 또는 recommended_zone을 지정한 경우, 매 Day는 반드시 **숙소에서 출발(첫 stop 직전 숙소→첫 stop transit)** + **숙소로 복귀(마지막 stop 직후 마지막 stop→숙소 transit)** 한다. 백엔드 RouteAgent 가 ODsay 로 실제 환승 경로 계산해서 day.lodging_to_first / day.last_to_lodging 필드에 attach 한다 — Gemini 는 stops 만 정하면 됨.
+  - First stop of EVERY day: near hotel or arrival point. 첫 stop은 숙소에서 30분 이내 이동 가능한 곳이어야 함.
   - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
+  - 마지막 stop 종료 후 숙소까지 도보/지하철 30분 이상 걸리면 → 더 가까운 stop 으로 교체
   - 사용자가 짐 들고 도시 횡단하지 않도록 — peace of mind
 - Group stops by geographic zone. NEVER zigzag across the city.
   - Seoul zones: Jongno/Gwanghwamun → Yongsan/Itaewon → Gangnam/COEX → Hongdae/Mapo → Myeongdong/Jung-gu → Seongsu/Gwangjin → Bukchon/Samcheong-dong → Euljiro/Dongdaemun
@@ -247,7 +303,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - The variation_seed in the user message determines your creative angle. Use it to pick a DIFFERENT starting neighborhood, route direction, and restaurant mix each time.
 - Mix 50% well-known highlights + 50% LOCAL HIDDEN GEMS (places Korean locals love but tourists rarely visit).
 - LOCAL HIDDEN GEM examples: 익선동 한옥 카페골목, 신당동 떡볶이타운, 상봉동 야장골목, 홍제유연 지하폭포, 을지로 가맥집, 한남동 로스터리 카페, 사직동 인왕산 숲속쉼터, 노들섬 스페이스케, 성수동 소규모 에스프레소바, 망원시장, 레레플레이 카페
-- For Busan: include 흰여울문화마을, F1963, 아홉산숲, 이기대 해안산책로 — these are Korean locals' favorites
+- For Busan: include 흰여울문화마을, F1963, 아홉산숲, 이기대 해안산책로, 달맞이길 카페, 전포 카페거리, 기장 대게 — these are Korean locals' favorites; use busan_*.json DB for restaurant matching
 - For Jeju: include 구엄리 해안도로, 무수천, 소금막해변, 하효해안 산책로 — hidden spots tourists miss
 - Rotate restaurants: NEVER default to the same 3-4 famous spots. Use different DB restaurants each time.
 - Vary the starting area: if seed is odd start from a different zone than usual. Don't always begin at 경복궁 or 명동.
@@ -286,6 +342,20 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - 1 dedicated lunch + 1 dinner per full day (category: "food")
 - 3-5 signature menu items with KRW prices
 - reservation_required + phone for popular spots
+
+### BUSAN SIGNATURE DISHES — MANDATORY (부산 일정 시 필수)
+When the destination includes Busan:
+- Recommend at least ONE Busan signature dish per day from:
+  밀면 (Milmyeon, ₩8,000-12,000) / 돼지국밥 (Pork soup rice, ₩8,000-11,000) /
+  자갈치 회 (Sashimi at Jagalchi market) / 어묵 (Fish cake, Nampo street) /
+  씨앗호떡 (Seed hotteok, ₩2,000) / 기장 대게 (Snow crab, Gijang, ₩30,000+) /
+  광안리 해산물 (Gwangalli seafood) / 해운대 조개구이 (Grilled shellfish)
+- Top Busan attractions (use VERIFIED DATABASE when available):
+  해운대 해수욕장 / 광안리 해수욕장 / 감천문화마을 / 송도해상케이블카 / 태종대 /
+  자갈치시장 / BIFF광장 / 흰여울문화마을 / 이기대 해안산책로 / 해동용궁사 /
+  F1963(수영구) / 달맞이길 / 전포 카페거리 / 더베이101
+- Busan zone routing: Haeundae/Songjeong ↔ Gwangalli/Suyeong ↔ Seomyeon/Jeonpo ↔
+  Nampo-dong/BIFF/Jagalchi ↔ Gamcheon/Songdo ↔ Gijang/Haedong (do NOT zigzag)
 
 ### ⚠️ RESTAURANT SELECTION — MANDATORY RULES (READ 3 TIMES)
 When the user message contains "VERIFIED RESTAURANT DATABASE":

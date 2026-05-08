@@ -27,6 +27,8 @@ import { productDisplayLabel } from './_shared/pricing.js';
 import { relayAdminReply } from './_shared/chat-relay.js';
 import { sendEmail } from './_send-email.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
+import { translate } from './_shared/translator.js';
+import { sendDispatchToDriver } from './_shared/dispatch-helpers.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -109,6 +111,9 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 /sales [YYYY-MM] — <b>매출</b> 또는 매출 2026-05
 /stats [YYYY-MM] — <b>통계</b> 또는 통계 2026-05 (기사별/상품별 분해)
 /rate — <b>환율</b> (USD↔KRW 즉시 조회)
+
+<b>빠른 예약</b>
+/quick_book — <b>빠른예약</b> (양식 출력 → 채워서 전송)
 
 <b>CS 티켓</b>
 /cs_list [open|in_progress|resolved|all] — <b>이슈</b> 또는 이슈 open
@@ -252,6 +257,9 @@ const KOREAN_ALIASES = [
 
   // 환율 — 인자 없음
   { re: /^(환율|레이트|환율조회|환율 조회)$/i, cmd: '/rate', argGroup: -1 },
+
+  // 빠른 예약
+  { re: /^(빠른예약|빠른 예약|퀵예약|퀵북|quick_book)$/i, cmd: '/quick_book', argGroup: -1 },
 ];
 
 function resolveKoreanAlias(p) {
@@ -271,11 +279,13 @@ function resolveKoreanAlias(p) {
 
 async function routeCommand(botToken, p) {
   if (p.isCallback) {
-    // 2026-05-03: claim_approve:ID / claim_reject:ID 콜백 처리.
-    // 기타 콜백은 거부 (실수로 옛 메시지 클릭 시 이슈 방지).
     const data = p.callbackData || '';
     if (data.startsWith('claim_approve:') || data.startsWith('claim_reject:')) {
       await handleClaimCallback(botToken, p);
+      return;
+    }
+    if (data.startsWith('qb_confirm:') || data.startsWith('qb_cancel:') || data.startsWith('qb_dispatch:')) {
+      await handleQuickBookCallback(botToken, p);
       return;
     }
     await callBot(botToken, 'answerCallbackQuery', {
@@ -372,7 +382,16 @@ async function routeCommand(botToken, p) {
       await handleRateCommand(botToken, p);
       break;
 
+    case '/quick_book':
+      await handleQuickBook(botToken, p);
+      break;
+
     default:
+      // 빠른 예약 양식 응답 처리 — "예약:" 접두어로 시작하는 텍스트
+      if (p.text && p.text.trimStart().startsWith('예약:')) {
+        await handleQuickBookInput(botToken, p, p.text);
+        return;
+      }
       if (p.text) {
         await sendBotMessage(botToken, p.chatId,
           `Echo: ${p.text}\n\n명령어를 사용하시려면 /help`);
@@ -1305,6 +1324,527 @@ async function handleClaimCallback(botToken, p) {
     text: isApprove ? '승인 처리 완료' : '거부 처리 완료',
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// W6 — /quick_book 빠른 예약 등록
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Step 1: 양식 출력
+ */
+async function handleQuickBook(botToken, p) {
+  const formText =
+    `📋 <b>빠른 예약 등록 — 양식 복사해서 채워주세요</b>\n` +
+    `\n` +
+    `예약:\n` +
+    `[필수]\n` +
+    `서비스: airport_transfer    ← day_tour/multi_day/kpop_shuttle\n` +
+    `차종: staria                ← sprinter/bus/vip\n` +
+    `출발: 명동\n` +
+    `도착: 인천공항\n` +
+    `날짜: 2026-07-08\n` +
+    `시각: 18:00\n` +
+    `성인: 2 / 아동: 0\n` +
+    `손님: 혜미\n` +
+    `연락처: 010-\n` +
+    `\n` +
+    `[공항픽업만]\n` +
+    `터미널: T1\n` +
+    `편명: KE085\n` +
+    `캐리어: S 2 / M 1 / L 0\n` +
+    `\n` +
+    `[선택]\n` +
+    `옵션:                       ← guide/picket/childseat/night\n` +
+    `숙소(다일):\n` +
+    `메모:\n` +
+    `\n` +
+    `또는 자연어로 한 줄:\n` +
+    `<code>예약: 7월 8일 18시 혜미 명동→인천공항 T1 KE085 성인 2 캐리어 S2 M1</code>`;
+  await sendBotMessage(botToken, p.chatId, formText);
+}
+
+/**
+ * Step 2: 운영자 입력 수신 → Gemini 파싱 → 검증 → 확인 keyboard 발송
+ *
+ * 진입 조건: 텍스트가 "예약:" 로 시작
+ */
+async function handleQuickBookInput(botToken, p, rawText) {
+  await sendBotMessage(botToken, p.chatId, '⏳ 예약 정보 파싱 중...');
+
+  let parsed;
+  try {
+    parsed = await geminiParseBookingInput(rawText);
+  } catch (err) {
+    await sendBotMessage(botToken, p.chatId, `❌ 파싱 실패: ${escapeHtmlLocal(err.message)}\n\n입력 형식을 확인해 주세요.`);
+    return;
+  }
+
+  // 필수 필드 검증
+  const missing = validateQuickBookFields(parsed);
+  if (missing.length > 0) {
+    await sendBotMessage(botToken, p.chatId,
+      `⚠️ 필수 정보 누락:\n• ${missing.join('\n• ')}\n\n` +
+      `다시 채워서 <code>예약:</code> 로 시작하는 텍스트를 보내주세요.`);
+    return;
+  }
+
+  // 캐리어 7개 가드 (batch 6 W5 정책)
+  const luggage = parsed.luggage || {};
+  const totalLuggage = (luggage.small || 0) + (luggage.medium || 0) + (luggage.large || 0);
+  if (totalLuggage > 7) {
+    await sendBotMessage(botToken, p.chatId,
+      `⚠️ 캐리어 총 ${totalLuggage}개 — 최대 7개까지 가능합니다.\n` +
+      `S:${luggage.small || 0} + M:${luggage.medium || 0} + L:${luggage.large || 0} = ${totalLuggage}개`);
+    return;
+  }
+
+  // 12h cutoff 검증
+  if (parsed.date && parsed.time) {
+    const { isPastCutoff } = await import('./_shared/booking-cutoff.js');
+    const past = isPastCutoff(parsed.date, parsed.time, parsed.service || 'airport_transfer', 1);
+    if (past) {
+      await sendBotMessage(botToken, p.chatId,
+        `⚠️ 마감 경고: ${parsed.date} ${parsed.time} KST 출발은 12시간 이내입니다.\n` +
+        `긴급 배차가 필요하면 계속 진행하세요. [확인] 버튼으로 강제 등록 가능.`);
+      // 경고만 — 등록 자체는 허용 (어드민 직접 등록이므로)
+    }
+  }
+
+  // 이름 한글 → 영문 자동 변환
+  let nameEn = null;
+  const customerName = parsed.customerName || '';
+  if (customerName && /[가-힯]/.test(customerName)) {
+    try {
+      const translated = await translate(customerName, 'en');
+      if (translated && translated !== customerName) nameEn = translated;
+    } catch { /* silent — 원문 유지 */ }
+  }
+
+  // 견적 계산
+  const estimate = calcQuickBookEstimate(parsed);
+
+  // 확인 메시지 조립
+  const dayOfWeek = getDayOfWeek(parsed.date);
+  const confirmText = buildConfirmText(parsed, nameEn, estimate, dayOfWeek, totalLuggage);
+
+  // 임시 pending 데이터를 Firestore에 저장 (callback 시 조회)
+  const db = initAdminDb('quick-book');
+  if (!db) {
+    await sendBotMessage(botToken, p.chatId, '❌ Firestore 연결 실패');
+    return;
+  }
+
+  const pendingRef = db.collection('quick_book_pending').doc();
+  await pendingRef.set({
+    parsedData: parsed,
+    nameEn: nameEn || null,
+    estimate,
+    rawText,
+    createdAt: FieldValue.serverTimestamp(),
+    chatId: p.chatId,
+  });
+
+  const pendingId = pendingRef.id;
+
+  await callBot(botToken, 'sendMessage', {
+    chat_id: p.chatId,
+    text: confirmText,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    reply_markup: {
+      inline_keyboard: [[
+        { text: '✅ 확인 + 배차', callback_data: `qb_confirm:${pendingId}` },
+        { text: '✏️ 수정', callback_data: `qb_cancel:edit` },
+        { text: '❌ 취소', callback_data: `qb_cancel:abort` },
+      ]],
+    },
+  });
+}
+
+/**
+ * Gemini로 자연어/양식 → JSON 파싱
+ */
+async function geminiParseBookingInput(rawText) {
+  const { GoogleGenerativeAI } = await import('@google/generative-ai');
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY 미설정');
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 512,
+      thinkingConfig: { thinkingBudget: 0 },
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const today = todayKstDate();
+  const prompt = `You are a Korean tour booking assistant. Extract booking information from this operator input.
+
+Input (Korean or mixed):
+${rawText}
+
+Extract and return EXACTLY this JSON (no explanation, no markdown):
+{
+  "service": "airport_transfer",
+  "vehicle": "staria",
+  "from": "",
+  "to": "",
+  "date": "YYYY-MM-DD",
+  "time": "HH:mm",
+  "adultCount": 1,
+  "childCount": 0,
+  "customerName": "",
+  "customerPhone": "",
+  "terminal": "",
+  "flightNumber": "",
+  "luggage": { "small": 0, "medium": 0, "large": 0 },
+  "options": [],
+  "hotelAddress": "",
+  "notes": ""
+}
+
+Rules:
+- service: one of airport_transfer / day_tour / multi_day / kpop_shuttle. Default: airport_transfer.
+- vehicle: one of staria / sprinter / bus / vip. Default: staria.
+- date: absolute YYYY-MM-DD. Today is ${today}. "7월 8일" = "2026-07-08".
+- time: 24h HH:mm. "오후 6시" = "18:00", "18시" = "18:00".
+- customerPhone: preserve as-is (010-...).
+- terminal: T1 or T2 (Incheon default), or as given.
+- luggage: S=small M=medium L=large. "S2 M1" → {"small":2,"medium":1,"large":0}.
+- options: list from [guide, picket, childseat, night].
+- If a field is not mentioned, use default value (empty string or 0 or []).
+- ONLY return valid JSON. No explanation.`;
+
+  const result = await model.generateContent(prompt);
+  const text = (result.response.text() || '').trim();
+  // Strip markdown code fences if any
+  const clean = text.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch {
+    // 두 번째 시도: JSON 블록 추출
+    const m = clean.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error(`Gemini 응답 파싱 불가: ${clean.slice(0, 200)}`);
+    parsed = JSON.parse(m[0]);
+  }
+  return parsed;
+}
+
+/**
+ * 필수 필드 검증 → 누락 목록 반환
+ */
+function validateQuickBookFields(parsed) {
+  const missing = [];
+  if (!parsed.from) missing.push('출발지 (from)');
+  if (!parsed.to) missing.push('도착지 (to)');
+  if (!parsed.date || !/^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) missing.push('날짜 (YYYY-MM-DD)');
+  if (!parsed.time || !/^\d{2}:\d{2}$/.test(parsed.time)) missing.push('시각 (HH:mm)');
+  if (!parsed.customerName) missing.push('손님 이름');
+  return missing;
+}
+
+/**
+ * 견적 계산 (charter pricing 준용)
+ * Staria: 기본 50,000 + km×2,000 / Sprinter: 100,000 + km×4,000 / Bus/VIP: 협의
+ * 공항 고정 견적: staria 150,000 / sprinter 250,000
+ */
+function calcQuickBookEstimate(parsed) {
+  const service = (parsed.service || '').toLowerCase();
+  const vehicle = (parsed.vehicle || 'staria').toLowerCase();
+  const pax = (parsed.adultCount || 1) + (parsed.childCount || 0);
+
+  // 공항 픽업/드롭 — 고정 요금
+  if (service === 'airport_transfer' || /공항/.test(parsed.from || '') || /공항/.test(parsed.to || '')) {
+    if (vehicle === 'staria') return 150_000;
+    if (vehicle === 'sprinter') return 250_000;
+    return null; // bus/vip → 협의
+  }
+
+  // 당일 투어 — vehicleAndPrice 기준 단가
+  if (service === 'day_tour' || service === 'multi_day') {
+    if (vehicle === 'staria') return pax <= 8 ? 330_000 : 450_000;
+    if (vehicle === 'sprinter') return 450_000;
+    return null;
+  }
+
+  // K-pop 셔틀
+  if (service === 'kpop_shuttle') return pax * 45_000;
+
+  // fallback
+  if (vehicle === 'staria') return 150_000;
+  if (vehicle === 'sprinter') return 250_000;
+  return null;
+}
+
+/**
+ * 요일 문자열 (한국어)
+ */
+function getDayOfWeek(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '';
+  const days = ['(일)', '(월)', '(화)', '(수)', '(목)', '(금)', '(토)'];
+  const d = new Date(`${dateStr}T12:00:00+09:00`);
+  if (isNaN(d.getTime())) return '';
+  return days[d.getDay()];
+}
+
+/**
+ * 확인 메시지 텍스트 조립
+ */
+function buildConfirmText(parsed, nameEn, estimate, dayOfWeek, totalLuggage) {
+  const luggage = parsed.luggage || {};
+  const pax = (parsed.adultCount || 1) + (parsed.childCount || 0);
+  const nameLine = nameEn
+    ? `${escapeHtmlLocal(parsed.customerName)} (${escapeHtmlLocal(nameEn)})`
+    : escapeHtmlLocal(parsed.customerName || '-');
+  const vehicleLabel = {
+    staria: 'Staria', sprinter: 'Sprinter', bus: '버스', vip: 'VIP 리무진',
+  }[parsed.vehicle?.toLowerCase()] || parsed.vehicle || 'Staria';
+  const luggageLine = totalLuggage > 0
+    ? `S${luggage.small || 0} M${luggage.medium || 0} L${luggage.large || 0} (총 ${totalLuggage}개)`
+    : '없음';
+  const estimateLine = estimate != null
+    ? `₩${estimate.toLocaleString('ko-KR')}`
+    : '협의 (bus/vip)';
+  const terminalLine = parsed.terminal ? ` ${parsed.terminal}` : '';
+  const flightLine = parsed.flightNumber ? ` ${parsed.flightNumber}` : '';
+  const optionsLine = parsed.options?.length ? parsed.options.join(', ') : '-';
+  const notesLine = parsed.notes ? `\n📝 메모: ${escapeHtmlLocal(parsed.notes)}` : '';
+
+  return (
+    `📋 <b>예약 확인</b>\n\n` +
+    `📅 ${parsed.date} ${dayOfWeek} ${parsed.time}\n` +
+    `👤 ${nameLine}  ${escapeHtmlLocal(parsed.customerPhone || '')}\n` +
+    `📍 ${escapeHtmlLocal(parsed.from || '-')} → ${escapeHtmlLocal(parsed.to || '-')}${terminalLine}${flightLine}\n` +
+    `👥 성인 ${parsed.adultCount || 1}명` + (parsed.childCount ? ` / 아동 ${parsed.childCount}명` : '') + `\n` +
+    `🧳 캐리어: ${luggageLine}\n` +
+    `🚐 ${vehicleLabel}\n` +
+    (parsed.options?.length ? `✨ 옵션: ${optionsLine}\n` : '') +
+    `💰 견적: ${estimateLine}` +
+    notesLine + `\n\n` +
+    `<i>어드민 등록 시 자동 confirmed 처리됩니다.</i>`
+  );
+}
+
+/**
+ * Step 3: 콜백 처리 (확인/취소/배차)
+ */
+async function handleQuickBookCallback(botToken, p) {
+  const data = p.callbackData || '';
+
+  // 취소 (수정 or 중단)
+  if (data.startsWith('qb_cancel:')) {
+    const reason = data === 'qb_cancel:edit' ? '✏️ 수정 요청' : '❌ 예약 취소됨';
+    if (p.messageId) {
+      try {
+        await callBot(botToken, 'editMessageText', {
+          chat_id: p.chatId,
+          message_id: p.messageId,
+          text: `${reason}\n\n<code>/quick_book</code> 으로 다시 시작하세요.`,
+          parse_mode: 'HTML',
+        });
+      } catch {}
+    }
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId,
+      text: reason,
+    });
+    return;
+  }
+
+  // 배차 선택
+  if (data.startsWith('qb_dispatch:')) {
+    const parts = data.split(':'); // qb_dispatch:{bookingId}:{driverChatId}
+    const bookingId = parts[1];
+    const driverChatId = parts[2];
+
+    if (!bookingId || !driverChatId || driverChatId === 'later') {
+      await callBot(botToken, 'answerCallbackQuery', {
+        callback_query_id: p.callbackId,
+        text: driverChatId === 'later' ? '⏭️ 배차를 나중에 처리합니다.' : '잘못된 데이터',
+      });
+      return;
+    }
+
+    const db = initAdminDb('quick-book-dispatch');
+    if (!db) {
+      await callBot(botToken, 'answerCallbackQuery', {
+        callback_query_id: p.callbackId, text: 'Firestore 오류', show_alert: true,
+      });
+      return;
+    }
+
+    const bookingSnap = await db.collection('bookings').doc(bookingId).get();
+    if (!bookingSnap.exists) {
+      await callBot(botToken, 'answerCallbackQuery', {
+        callback_query_id: p.callbackId, text: '예약을 찾을 수 없음', show_alert: true,
+      });
+      return;
+    }
+
+    const result = await sendDispatchToDriver({
+      orderID: bookingId,
+      booking: bookingSnap.data(),
+      driverChatId,
+    });
+
+    if (result.ok) {
+      await callBot(botToken, 'answerCallbackQuery', { callback_query_id: p.callbackId, text: '✅ 배차 발송 완료' });
+      if (p.messageId) {
+        const driverSnap = await db.collection('drivers').doc(String(driverChatId)).get();
+        const driverName = driverSnap.exists ? (driverSnap.data()?.name || driverChatId) : driverChatId;
+        try {
+          await callBot(botToken, 'editMessageText', {
+            chat_id: p.chatId,
+            message_id: p.messageId,
+            text: `✅ 배차 발송 완료\n예약: <code>${bookingId}</code>\n기사: ${escapeHtmlLocal(driverName)}`,
+            parse_mode: 'HTML',
+          });
+        } catch {}
+      }
+    } else {
+      await callBot(botToken, 'answerCallbackQuery', {
+        callback_query_id: p.callbackId,
+        text: `배차 실패: ${result.error}`,
+        show_alert: true,
+      });
+    }
+    return;
+  }
+
+  // 확인 (qb_confirm:{pendingId})
+  if (data.startsWith('qb_confirm:')) {
+    const pendingId = data.split(':')[1];
+
+    const db = initAdminDb('quick-book-confirm');
+    if (!db) {
+      await callBot(botToken, 'answerCallbackQuery', {
+        callback_query_id: p.callbackId, text: 'Firestore 오류', show_alert: true,
+      });
+      return;
+    }
+
+    const pendingSnap = await db.collection('quick_book_pending').doc(pendingId).get();
+    if (!pendingSnap.exists) {
+      await callBot(botToken, 'answerCallbackQuery', {
+        callback_query_id: p.callbackId, text: '만료된 요청 (5분 초과 또는 이미 처리됨)', show_alert: true,
+      });
+      return;
+    }
+
+    const { parsedData, nameEn, estimate } = pendingSnap.data() || {};
+    const pd = parsedData || {};
+
+    // Firestore 예약 생성
+    const timestamp = Date.now();
+    const bookingRef = `ADMIN-QUICK-${timestamp}`;
+    const luggage = pd.luggage || {};
+    const totalLuggage = (luggage.small || 0) + (luggage.medium || 0) + (luggage.large || 0);
+    const pax = (pd.adultCount || 1) + (pd.childCount || 0);
+
+    const bookingData = {
+      bookingRef,
+      status: 'confirmed',
+      adminStatus: 'CONFIRMED',
+      paymentMethod: 'admin-quick-book',
+      productType: pd.service || 'airport_transfer',
+      vehicleType: pd.vehicle || 'staria',
+      tourDate: pd.date || '',
+      pickupTime: pd.time || '',
+      pickupLocation: pd.from || '',
+      dropoffLocation: pd.to || '',
+      paxCount: pax,
+      adultCount: pd.adultCount || 1,
+      childCount: pd.childCount || 0,
+      customerName: pd.customerName || '',
+      customerNameEn: nameEn || null,
+      customerPhone: pd.customerPhone || '',
+      terminal: pd.terminal || null,
+      flightNumber: pd.flightNumber || null,
+      luggageSmall: luggage.small || 0,
+      luggageMedium: luggage.medium || 0,
+      luggageLarge: luggage.large || 0,
+      luggageTotal: totalLuggage,
+      options: pd.options || [],
+      hotelAddress: pd.hotelAddress || null,
+      memo: pd.notes || null,
+      estimateKRW: estimate || null,
+      amountUSD: estimate ? Math.ceil(estimate / (USD_TO_KRW || 1380) * 100) / 100 : null,
+      source: 'admin-quick-book',
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    const newBookingRef = db.collection('bookings').doc(bookingRef);
+    await newBookingRef.set(bookingData);
+
+    // pending 정리
+    await pendingSnap.ref.delete().catch(() => {});
+
+    // 메시지 업데이트
+    if (p.messageId) {
+      try {
+        await callBot(botToken, 'editMessageText', {
+          chat_id: p.chatId,
+          message_id: p.messageId,
+          text: `✅ <b>예약 등록 완료</b>\n<code>${bookingRef}</code>`,
+          parse_mode: 'HTML',
+        });
+      } catch {}
+    }
+
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId,
+      text: '✅ 예약 등록 완료',
+    });
+
+    // 배차 prompt — 기사 목록 조회
+    let dispatchKeyboard;
+    try {
+      const driversSnap = await db.collection('drivers').where('active', '==', true).get();
+      // active 필드 없는 레거시 호환 — 전체 fetch
+      let driverDocs = driversSnap.empty
+        ? (await db.collection('drivers').get()).docs.filter((d) => d.data().active !== false)
+        : driversSnap.docs;
+
+      // 최대 4명만 버튼 (telegram inline_keyboard row 제한)
+      driverDocs = driverDocs.slice(0, 4);
+
+      if (driverDocs.length > 0) {
+        const buttons = driverDocs.map((d) => ({
+          text: `🚗 ${d.data().name || d.id}`,
+          callback_data: `qb_dispatch:${bookingRef}:${d.id}`,
+        }));
+        buttons.push({ text: '⏭️ 나중에', callback_data: `qb_dispatch:${bookingRef}:later` });
+        dispatchKeyboard = {
+          inline_keyboard: [buttons.slice(0, 3), buttons.slice(3)].filter((r) => r.length > 0),
+        };
+      }
+    } catch (e) {
+      console.warn('[quick_book] driver fetch failed:', e.message);
+    }
+
+    await callBot(botToken, 'sendMessage', {
+      chat_id: p.chatId,
+      text:
+        `✅ <b>예약 등록 완료</b> (<code>${bookingRef}</code>)\n\n배차할까요?`,
+      parse_mode: 'HTML',
+      reply_markup: dispatchKeyboard || {
+        inline_keyboard: [[
+          { text: '⏭️ 나중에', callback_data: `qb_dispatch:${bookingRef}:later` },
+        ]],
+      },
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// (end W6)
+// ─────────────────────────────────────────────────────────────────────────────
 
 function escapeHtmlLocal(s) {
   return String(s)

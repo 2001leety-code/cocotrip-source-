@@ -17,7 +17,7 @@ import { sendErrorAlert } from './_telegram.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 import { CORS, AIRPORT_ADDRESSES } from './_ai_core/constants.js';
-import { buildSystemPrompt, logPromptMetrics } from './_ai_core/buildPrompt.js';
+import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './_ai_core/buildPrompt.js';
 import { calculateTmoney, persistPlan } from './_ai_core/planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './_ai_core/recommendedRestaurants.js';
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
@@ -136,6 +136,10 @@ export default async function handler(req, res) {
     const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
     const allergies = Array.isArray(body.allergies) ? body.allergies : [];
     const priceRange = body.priceRange || 'Any';
+    // W4 (2026-05-08): revision reason chips + free note + previous plan stop names
+    const revisionReason = typeof body.revisionReason === 'string' ? body.revisionReason.slice(0, 200) : '';
+    const revisionNote   = typeof body.revisionNote   === 'string' ? body.revisionNote.slice(0, 300)   : '';
+    const avoidListBody  = typeof body.avoidList      === 'string' ? body.avoidList.slice(0, 1000)     : '';
     const wantAccom = !!body.wantAccom;
     const accomBudget = body.accomBudget || 'moderate';
     // 이동 강도 — 명시 pace 우선, 없으면 기존 tourPace에서 derive (UI 변경 최소화).
@@ -236,9 +240,18 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
     const avoidClause = await buildAvoidClause(adminDb, { uid, requestEmail });
 
+    // ── W4 revision instruction (사유 → Gemini 추가 지시) ────────────────────
+    // gate.isRevision이 true일 때만 revision instruction 추가 (일반 신규 플랜 불필요).
+    const revisionInstruction = gate.isRevision
+      ? buildRevisionInstruction(revisionReason, revisionNote, avoidListBody)
+      : '';
+    if (revisionInstruction) {
+      console.log('[planner] W4 revisionInstruction injected:', revisionReason, '| note:', revisionNote?.slice(0, 50), '| avoidList:', avoidListBody.split(',').length, 'items');
+    }
+
     // ── 프롬프트 계측 ───────────────────────────────────────────────────────
     const systemPrompt = buildSystemPrompt(language);
-    const finalUserMessage = userMessage + avoidClause;
+    const finalUserMessage = userMessage + avoidClause + revisionInstruction;
     logPromptMetrics(systemPrompt + finalUserMessage, {
       city: area,
       days: durationDays,

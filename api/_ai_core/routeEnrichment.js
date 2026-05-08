@@ -73,6 +73,16 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
               recommended_items: original.recommended_items,
             };
           });
+          // 2026-05-08 신규: lodging bookend 필드 day-level merge.
+          // RouteAgent (Phase 2.5/2.6) 가 enrichedDay 에 attach 한 lodging_to_first /
+          // last_to_lodging 를 itinerary.days[i] 로 그대로 옮긴다. 호텔/zone anchor
+          // 좌표가 없어서 RouteAgent 가 attach 안 한 케이스는 undefined → UI 자동 미노출.
+          if (enrichedDay.lodging_to_first) {
+            itinerary.days[i].lodging_to_first = enrichedDay.lodging_to_first;
+          }
+          if (enrichedDay.last_to_lodging) {
+            itinerary.days[i].last_to_lodging = enrichedDay.last_to_lodging;
+          }
         }
       });
     } else {

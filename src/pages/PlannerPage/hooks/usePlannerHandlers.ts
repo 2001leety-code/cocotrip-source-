@@ -265,7 +265,15 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
   }
 
   // 3: Free revision regeneration (consumes revisionCredits)
-  async function handleRevisionRegenerate(values: PlannerFormValues, revisionPlanId: string, revisionToken: string | null) {
+  // W4: accepts revisionReason (comma-joined chips), revisionNote (free text), avoidList (stop names)
+  async function handleRevisionRegenerate(
+    values: PlannerFormValues,
+    revisionPlanId: string,
+    revisionToken: string | null,
+    revisionReason?: string | null,
+    revisionNote?: string | null,
+    avoidList?: string | null,
+  ) {
     if (!revisionPlanId) return;
     setIsGeneratingPlan(true);
     setPlanError(null);
@@ -319,6 +327,10 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
           special_request: values.freeText || '',
+          // W4: revision reason → server buildRevisionInstruction
+          ...(revisionReason ? { revisionReason } : {}),
+          ...(revisionNote   ? { revisionNote }   : {}),
+          ...(avoidList      ? { avoidList }       : {}),
         }),
       });
 

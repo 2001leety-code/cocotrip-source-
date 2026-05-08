@@ -11,6 +11,7 @@ import { adApplies } from '../lib/buildSlides';
 import { EsimAd } from './ads/EsimAd';
 import { HotelAd } from './ads/HotelAd';
 import { FlightAd } from './ads/FlightAd';
+import { AirportToLodgingGuide } from './AirportToLodgingGuide';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
 
@@ -115,6 +116,14 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
 
         {/* 카드 1: eSIM (항상 노출) */}
         <EsimAd />
+
+        {/* 2026-05-08 신규: 차터 미예약 사용자한테 공항→숙소 4-옵션 안내.
+            Charter 예약자는 자동 미노출 (AirportToLodgingGuide 내부에서 분기).
+            한국어 사용자는 단순화된 1줄 안내 + 캐리어 많을 때만 차터 CTA 노출.
+            영어/일본어/중국어 사용자는 4 옵션 (공항철도/공항버스/택시/차터) + 자동 추천. */}
+        <div className="mt-4">
+          <AirportToLodgingGuide plan={plan} />
+        </div>
 
         {/* 카드 2-4: 인라인 예약 카드들 — Suspense 로 묶어서 한 번에 lazy chunk 로드.
             2026-05-05: BraintreePaymentButton 트랜지티브 의존 → 메인 번들 budget 보호. */}
