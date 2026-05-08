@@ -5,6 +5,10 @@
  * - users/{uid} → tier, tripCoins, totalSpentUSD, bookingCount
  * - users/{uid}/coupons → 보유 쿠폰 목록
  * - users/{uid}/pointHistory → 적립/사용 내역
+ *
+ * batch 9 fix (B9-3, 2026-05-09): 어드민 본인은 isUsed 쿠폰도 active 로 노출.
+ *   백엔드(api/loyalty.js)에서도 admin email 일 때 isUsed 마킹 skip 처리.
+ *   결과: 운영자가 같은 쿠폰을 반복 사용해서 5%/$5 결제 흐름 무제한 테스트 가능.
  */
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
@@ -12,6 +16,7 @@ import {
   doc, onSnapshot, collection, query, orderBy, limit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { isAdminEmail } from '@/lib/admin';
 
 export type TierType = 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
 
@@ -125,8 +130,10 @@ export function useLoyalty() {
   }, [user?.uid]);
 
   // ── 사용 가능한 쿠폰만 필터 ──
+  // batch 9 fix (B9-3): 어드민은 isUsed 무시 — 같은 쿠폰 반복 사용 가능.
+  const isAdmin = isAdminEmail(user?.email);
   const activeCoupons = coupons.filter(
-    c => !c.isUsed && c.expiresAt > Date.now()
+    c => (isAdmin || !c.isUsed) && c.expiresAt > Date.now()
   );
 
   // ── Trip Coins → USD 환산 ──

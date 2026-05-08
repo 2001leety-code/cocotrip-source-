@@ -43,6 +43,19 @@ function calculateTier(totalSpentUSD, bookingCount) {
   return TIERS[TIERS.length - 1];
 }
 
+// batch 9 fix (B9-3, 2026-05-09): 어드민 본인 매칭 — 쿠폰 무제한 사용 분기.
+// ADMIN_BYPASS_EMAILS env 우선 (paymentGate.js 와 동일 source), 미설정 시 hardcoded fallback.
+const HARDCODED_ADMIN_EMAILS = ['2001leety@gmail.com'];
+function isAdminUser(userSnap) {
+  const email = ((userSnap?.data?.()?.email) || '').toLowerCase().trim();
+  if (!email) return false;
+  const raw = (process.env.ADMIN_BYPASS_EMAILS || '').trim();
+  const allowed = raw
+    ? raw.split(',').map(e => e.toLowerCase().trim()).filter(Boolean)
+    : HARDCODED_ADMIN_EMAILS;
+  return allowed.includes(email);
+}
+
 async function getFirestoreAdmin() {
   const db = initAdminDb('loyalty');
   if (!db) throw new Error('No Firebase credentials found');
@@ -154,6 +167,10 @@ export default async function handler(req, res) {
         const userSnap = await tx.get(userRef);
         if (!userSnap.exists) throw new Error('User not found');
 
+        // batch 9 fix (B9-3): 어드민 본인은 쿠폰 isUsed 마킹 skip — 같은 쿠폰 무제한 재사용.
+        // tripCoins 차감은 그대로 (쿠폰만 무제한, 포인트는 정상 차감).
+        const isAdmin = isAdminUser(userSnap);
+
         const currentCoins = userSnap.data().tripCoins || 0;
         if (currentCoins < coins) throw new Error('Insufficient Trip Coins');
 
@@ -161,8 +178,8 @@ export default async function handler(req, res) {
 
         tx.update(userRef, { tripCoins: newBalance });
 
-        // 쿠폰 ID가 함께 전달된 경우 isUsed 처리
-        if (couponId) {
+        // 쿠폰 ID가 함께 전달된 경우 isUsed 처리 — admin 은 skip.
+        if (couponId && !isAdmin) {
           const couponRef = db.collection('users').doc(userId).collection('coupons').doc(couponId);
           tx.update(couponRef, {
             isUsed: true,
@@ -175,11 +192,11 @@ export default async function handler(req, res) {
           type: 'spend',
           amount: -coins,
           balance: newBalance,
-          description: description || `Used ${coins} Trip Coins`,
+          description: description || `Used ${coins} Trip Coins${isAdmin ? ' (admin, coupon kept active)' : ''}`,
           createdAt: Date.now(),
         });
 
-        return { spent: coins, newBalance };
+        return { spent: coins, newBalance, adminCouponKept: isAdmin };
       });
 
       res.writeHead(200, JSON_CORS);
@@ -195,6 +212,23 @@ export default async function handler(req, res) {
       if (!couponId) {
         res.writeHead(400, JSON_CORS);
         return res.end(JSON.stringify(_err('Missing couponId', 'MISSING_FIELDS')));
+      }
+
+      // batch 9 fix (B9-3): 어드민은 isUsed 마킹 skip + 감사 기록.
+      const userSnap = await userRef.get();
+      if (isAdminUser(userSnap)) {
+        const adminEmail = (userSnap.data()?.email || '').toLowerCase().trim();
+        console.log('[loyalty] ADMIN coupon use — isUsed skipped:', adminEmail, '| coupon:', couponId);
+        // 비치명적 — 실패해도 200 OK
+        db.collection('admin_coupon_audit').add({
+          adminEmail,
+          userId,
+          couponId,
+          action: 'use-coupon',
+          usedAt: new Date().toISOString(),
+        }).catch((e) => console.warn('[loyalty] admin_coupon_audit write failed:', e.message));
+        res.writeHead(200, JSON_CORS);
+        return res.end(JSON.stringify(_ok({ message: 'Admin coupon — isUsed not marked', admin: true })));
       }
 
       const couponRef = db.collection('users').doc(userId).collection('coupons').doc(couponId);
