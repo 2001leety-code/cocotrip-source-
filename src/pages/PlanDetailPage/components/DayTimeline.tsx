@@ -39,15 +39,20 @@ interface DayTimelineProps {
 }
 
 /** Pull the user-friendly lodging label from PlanDocument input.
- *  Priority: input.hotel_address (literal) > input.recommended_zone (zone key
- *  passed through, UI 가 그냥 표시) > undefined. */
+ *  Priority: input.hotel_address (literal) > input.recommended_zone_address >
+ *  input.recommended_zone (zone key) > input.recommendedZone (camelCase legacy) >
+ *  undefined. legacy plans 은 recommended_zone 자체가 없을 수 있어 모든 fallback 검사. */
 function getLodgingLabel(plan: PlanDocument | undefined): string | undefined {
   if (!plan) return undefined;
-  const input = plan.input || {};
+  const input = (plan.input || {}) as Record<string, unknown>;
   const hotelAddr = (input.hotel_address as string) || '';
-  if (hotelAddr.trim().length > 0) return hotelAddr;
-  const zone = (input.recommended_zone as string) || '';
-  if (zone) return zone;
+  if (typeof hotelAddr === 'string' && hotelAddr.trim().length > 0) return hotelAddr;
+  const zoneAddr = (input.recommended_zone_address as string) || '';
+  if (typeof zoneAddr === 'string' && zoneAddr.trim().length > 0) return zoneAddr;
+  const zone = (input.recommended_zone as string)
+    || (input.recommendedZone as string)
+    || '';
+  if (typeof zone === 'string' && zone.trim().length > 0) return zone;
   return undefined;
 }
 

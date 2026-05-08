@@ -161,7 +161,7 @@ function PaymentPanel({
     `서비스: ${state.service ?? '-'}\n` +
     `목적지: ${state.destinationKey ?? state.destinationCustom ?? '-'}\n` +
     `차종/인원: ${state.vehicle}/${paxStr}\n` +
-    `날짜: ${state.startDate ?? '-'}${state.endDate ? ` ~ ${state.endDate}` : ''} ${state.startTime ?? ''}\n` +
+    `날짜: ${state.startDate ?? '-'}${state.endDate ? ` ~ ${state.endDate}` : ''} ${state.pickupTime ?? state.startTime ?? ''}\n` +
     (state.service === 'multi_day' && state.lodgingLocation ? `숙소: ${lodgingMap[state.lodgingLocation] ?? state.lodgingLocation}\n` : '') +
     (state.airport ? (
       `터미널: ${state.airport.terminal ?? '-'} / 편명: ${state.airport.flightNumber ?? '-'}\n` +
@@ -183,7 +183,7 @@ function PaymentPanel({
         <Row label={i18n.payField_origin} value={state.origin ?? state.originCustom ?? '-'} />
         <Row label={i18n.payField_destination} value={state.destinationKey ?? state.destinationCustom ?? '-'} />
         <Row label={i18n.payField_vehiclePax} value={`${state.vehicle} · ${state.paxCount}${i18n.maxUnit}`} />
-        <Row label={i18n.payField_date} value={`${state.startDate ?? '-'} ${state.startTime ?? ''}`} />
+        <Row label={i18n.payField_date} value={`${state.startDate ?? '-'} ${state.pickupTime ?? state.startTime ?? ''}`} />
         {state.airport?.terminal && <Row label={i18n.payField_terminal} value={state.airport.terminal} />}
         {state.airport?.flightNumber && <Row label={i18n.payField_flight} value={state.airport.flightNumber} />}
         <div className="border-t border-white/10 pt-2 mt-2 flex items-center justify-between">

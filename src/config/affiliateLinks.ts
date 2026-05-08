@@ -1,9 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CocoTrip – Trip.com 어필리에이트 링크 빌더
-// Allianceid: 4831212 / SID: 76964637
+// 기본 Allianceid: 4831212 / SID: 76964637 (운영자 본 계정 — 5/8 시점)
+//
+// 2026-05-08: env-based override 추가.
+//   - VITE_TRIPCOM_AFFILIATE_ID  → Allianceid (필수, 미설정 시 기존 4831212 사용)
+//   - VITE_TRIPCOM_SID           → SID (선택)
+//   - VITE_TRIPCOM_SUB1          → trip_sub1 트래킹 (선택, 기본 'cocotrip')
+//
+// 어필리에이트 ID 변경 시 (예: 새 Trip.com 계정으로 마이그레이션) Vercel env 만 변경 후 재배포.
+//
+// 운영자 액션 필요:
+//   1. https://www.trip.com/partners/affiliate Trip.com Affiliate Partners 가입
+//   2. Allianceid + SID 발급
+//   3. Vercel Dashboard → Project Settings → Environment Variables 등록
+//   4. 재배포
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRIP_AFF = 'Allianceid=4831212&SID=76964637&trip_sub1=cocotrip';
+function buildTripAff(): string {
+  const env = import.meta.env;
+  const allianceId = ((env.VITE_TRIPCOM_AFFILIATE_ID as string | undefined)?.trim()) || '4831212';
+  const sid = ((env.VITE_TRIPCOM_SID as string | undefined)?.trim()) || '76964637';
+  const sub1 = ((env.VITE_TRIPCOM_SUB1 as string | undefined)?.trim()) || 'cocotrip';
+  return `Allianceid=${encodeURIComponent(allianceId)}&SID=${encodeURIComponent(sid)}&trip_sub1=${encodeURIComponent(sub1)}`;
+}
+
+const TRIP_AFF = buildTripAff();
 
 export const AFFILIATE_CONFIG = {
   tripcom: {

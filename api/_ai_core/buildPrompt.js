@@ -269,7 +269,19 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 
 ## ROUTE OPTIMIZATION — CRITICAL (HUB-AND-SPOKE + LODGING BOOKEND)
 - **HUB-AND-SPOKE 강제**: 매일은 숙소(또는 숙소 근처 지하철역)에서 시작 → 그 zone 내 stops 순회 → 다시 숙소 근처로 복귀.
-  - **LODGING BOOKEND (2026-05-08 신규 강제 규칙):** 사용자가 hotel_address 또는 recommended_zone을 지정한 경우, 매 Day는 반드시 **숙소에서 출발(첫 stop 직전 숙소→첫 stop transit)** + **숙소로 복귀(마지막 stop 직후 마지막 stop→숙소 transit)** 한다. 백엔드 RouteAgent 가 ODsay 로 실제 환승 경로 계산해서 day.lodging_to_first / day.last_to_lodging 필드에 attach 한다 — Gemini 는 stops 만 정하면 됨.
+  - **🔴 LODGING BOOKEND — ABSOLUTE MUST (2026-05-08, 위반 시 사용자 환불 사유)**:
+    사용자 input 에 `hotel_address` 또는 `recommended_zone` 둘 중 하나라도 있으면,
+    **모든 Day** 의 모든 stops 배치는 다음 두 규칙을 동시에 만족해야 한다:
+    1. **첫 stop**: 숙소(hotel_address 또는 recommended_zone 좌표) 로부터 **반경 5km 이내**
+       이고 도보/지하철 환승 30분 이내. 멀리 있는 명소를 첫 stop 으로 두지 말 것.
+    2. **마지막 stop**: 위 동일 조건을 만족. 저녁 식사 후 숙소 복귀가 30분 이상 걸리면
+       반드시 **더 가까운 stop 으로 교체**. 짐 들고 1시간씩 이동하면 환불 사유.
+    - 백엔드 RouteAgent (Phase 2.5/2.6) 가 ODsay 로 실제 환승 경로 계산해서
+      day.lodging_to_first (첫 stop 직전) / day.last_to_lodging (마지막 stop 직후)
+      필드에 attach 한다. Gemini 는 stops 만 위 규칙대로 배치하면 RouteAgent 가
+      나머지를 처리. **stops 가 잘못 배치되면 RouteAgent 도 의미 없는 경로 생성.**
+    - NEVER 첫 stop 을 숙소에서 1시간 떨어진 곳으로 시작. NEVER 마지막 stop 을
+      숙소에서 1시간 떨어진 곳에서 끝냄. 짐+피로 누적 = 사용자 불만 1순위.
   - First stop of EVERY day: near hotel or arrival point. 첫 stop은 숙소에서 30분 이내 이동 가능한 곳이어야 함.
   - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
   - 마지막 stop 종료 후 숙소까지 도보/지하철 30분 이상 걸리면 → 더 가까운 stop 으로 교체

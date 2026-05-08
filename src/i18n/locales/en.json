@@ -1252,7 +1252,7 @@
     "charterIntroStep3Body": "An instant quote appears on screen. Pay securely via PayPal, or request a tailored quote on WhatsApp.",
     "charterIntroChatTitle": "Need it urgently? Chat with us instead",
     "charterIntroChatBody": "If you're departing within 12 hours, please skip the wizard and message us via the chat window in the bottom-right corner. A live agent will reply right away.",
-    "charterIntroDeadline": "Booking cutoff: 24 hours before domestic departure / 48 hours before international.",
+    "charterIntroDeadline": "Booking cutoff: 12 hours before departure.",
     "charterIntroDontShow": "Don't show again",
     "charterIntroClose": "Got it",
     "todayConfirmTitle": "Start today?",

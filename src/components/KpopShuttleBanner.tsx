@@ -153,14 +153,14 @@ export function KpopShuttleBanner({ p }: Props) {
               onClick={() => setTripType('oneway')}
               className={`py-2.5 rounded-xl border text-sm font-bold text-center transition-all duration-200 ${tripType === 'oneway' ? SEL : UNSEL}`}
             >
-              {t.oneWay} - \u20A9{selected.oneWayPrice.toLocaleString('ko-KR')}
+              {t.oneWay} - {'\u20A9'}{selected.oneWayPrice.toLocaleString('ko-KR')}
             </button>
             <button
               type="button"
               onClick={() => setTripType('roundtrip')}
               className={`py-2.5 rounded-xl border text-sm font-bold text-center transition-all duration-200 ${tripType === 'roundtrip' ? SEL : UNSEL}`}
             >
-              {t.roundTrip} - \u20A9{selected.roundTripPrice.toLocaleString('ko-KR')}
+              {t.roundTrip} - {'\u20A9'}{selected.roundTripPrice.toLocaleString('ko-KR')}
             </button>
           </div>
 
@@ -190,10 +190,10 @@ export function KpopShuttleBanner({ p }: Props) {
           <div className="bg-white/[0.04] rounded-xl px-4 py-3">
             <div className="flex items-center justify-between text-xs text-white/50">
               <span>
-                {tripType === 'oneway' ? t.oneWay : t.roundTrip}: \u20A9{unitPrice.toLocaleString('ko-KR')} x {pax}
+                {tripType === 'oneway' ? t.oneWay : t.roundTrip}: {'\u20A9'}{unitPrice.toLocaleString('ko-KR')} x {pax}
               </span>
               <span className="text-sm font-bold text-white">
-                {t.total} \u20A9{totalPrice.toLocaleString('ko-KR')}
+                {t.total} {'\u20A9'}{totalPrice.toLocaleString('ko-KR')}
               </span>
             </div>
           </div>

@@ -1,13 +1,33 @@
 // Seasonal spots banner.
-// Extracted from PlanDetailPage/index.tsx L386-422 (zero behavior change).
-import { getCurrentSeason, SEASONAL_SPOTS } from '@/data/seasonalSpots';
+// Extracted from PlanDetailPage/index.tsx L386-422.
+// 2026-05-08: 사용자 main city 기반 region 필터 추가 — 무관 추천 (서울 사용자에게
+// 황매산 철쭉제 290km 등) 제거.
+import { getCurrentSeason, SEASONAL_SPOTS, regionToCityKey, filterSpotsByCity } from '@/data/seasonalSpots';
 import { useLanguage } from '@/hooks/useLanguage';
+import type { PlanDocument } from '../types';
 
-export function SeasonalBanner() {
+interface SeasonalBannerProps {
+  /** 사용자 main city 식별용. 미전달 시 모든 spot 노출 (legacy/fallback). */
+  plan?: PlanDocument;
+}
+
+export function SeasonalBanner({ plan }: SeasonalBannerProps = {}) {
   const { language } = useLanguage();
   const season = getCurrentSeason();
   const sd = SEASONAL_SPOTS[season];
   const lk = (language === 'ko' || language === 'en' || language === 'ja' || language === 'zh') ? language : 'en';
+
+  // 사용자 main city 추출 — input.area / input.destination / input.regions[0] 순.
+  const input = plan?.input || {};
+  const rawRegion =
+    (input.area as string) ||
+    (input.destination as string) ||
+    ((input.regions as string[] | undefined)?.[0]) ||
+    '';
+  const cityKey = regionToCityKey(rawRegion);
+  const filteredSpots = plan ? filterSpotsByCity(sd.spots, cityKey) : sd.spots;
+  const visibleSpots = filteredSpots.slice(0, 3);
+  if (visibleSpots.length === 0) return null;
 
   const SEASON_GRADIENT: Record<string, string> = {
     spring: 'linear-gradient(135deg, rgba(248,180,217,0.15), rgba(192,132,252,0.1))',
@@ -30,7 +50,7 @@ export function SeasonalBanner() {
         </div>
         <p className="text-xs text-white/50 mb-3">{sd.subtitle[lk]}</p>
         <div className="space-y-2">
-          {sd.spots.slice(0, 3).map((spot, i) => (
+          {visibleSpots.map((spot, i) => (
             <div key={i} className="bg-white/[0.06] rounded-xl px-4 py-3 border border-white/[0.06]">
               {/* ja/zh fall back to Korean original (hanja-recognizable to Asian readers, more useful at the venue) rather than English transliteration. */}
               <p className="text-sm font-bold text-white">{pickLang({ ko: spot.name, en: spot.nameEn, ja: spot.name, zh: spot.name })}</p>

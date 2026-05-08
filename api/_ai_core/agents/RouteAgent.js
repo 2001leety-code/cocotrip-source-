@@ -350,7 +350,7 @@ export class RouteAgent extends BaseAgent {
             if (hotelLat && hotelLng && places.length > 0 && places[0].lat && places[0].lng) {
                 try {
                     const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
-                    const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0);
+                    const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
                     const pt = transitData.publicTransit;
                     hotelTransit = {
                         method: pt?.method || 'subway',

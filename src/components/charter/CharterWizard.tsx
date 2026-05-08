@@ -87,7 +87,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       case 4: return !!state.paxCount && state.paxCount >= 1 && !!state.vehicle;
       case 5: {
         if (!state.startDate) return false;
-        if (!state.startTime) return false;
+        // PR-W4 (이슈 35): 픽업 시각은 Step 3 select 입력. INITIAL_WIZARD_STATE 가 09:00 기본값.
+        if (!state.pickupTime && !state.startTime) return false;
         if (!state.customerName || state.customerName.trim().length < 2) return false;
         const phoneDigits = (state.customerPhone ?? '').replace(/\D/g, '');
         if (phoneDigits.length < 7) return false;

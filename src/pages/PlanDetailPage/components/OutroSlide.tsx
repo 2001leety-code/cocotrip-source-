@@ -89,8 +89,9 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
         </div>
       )}
 
-      {/* Seasonal */}
-      <SeasonalBanner />
+      {/* Seasonal — 2026-05-08: plan 을 전달해야 main city 기반 region 필터링이 작동.
+          미전달 시 (예: 다른 곳에서 사용) 모든 spot 노출 (legacy fallback). */}
+      <SeasonalBanner plan={plan} />
 
       {/* Revision */}
       <RevisionCard plan={plan} planId={planId} token={token} />
