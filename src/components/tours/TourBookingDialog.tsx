@@ -382,6 +382,19 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     return isDateBlocked(iso);
                   }}
                   fromDate={new Date()}
+                  // batch 9 fix (B9-4, 2026-05-09): 다크 popover 배경 위 가독성 확보.
+                  // 기본 react-day-picker 색상이 light 테마 기준이라 다크 배경에서 거의
+                  // 안 보임. day text/weekday/today/disabled 모두 명시 색상.
+                  className="text-white"
+                  classNames={{
+                    day_button: 'text-white/90 hover:bg-white/10 hover:text-white',
+                    weekday: 'text-white/55',
+                    caption_label: 'text-white font-semibold',
+                    nav_button: 'text-white/70 hover:text-white',
+                    today: 'bg-[#B668FC]/20 text-white rounded-md font-bold',
+                    disabled: 'text-white/20',
+                    outside: 'text-white/30',
+                  }}
                 />
               </PopoverContent>
             </Popover>
