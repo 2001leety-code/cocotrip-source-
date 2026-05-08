@@ -1,6 +1,7 @@
 // Step 5: 날짜 + 이름/연락처 + 공항/일정 필수 필드 · i18n
-// 2026-05-08 (PR-W4 이슈 35): 픽업 시각 입력은 Step 3 (pickupTime select) 에서만 받는다.
-// Step 5의 type="time" 입력은 Step 3과 중복 → 제거. 야간 할증 계산도 pickupTime 기준.
+// 2026-05-09 (batch 9 fix B9-1+B9-2): 픽업 시각 입력을 Step 3 select 에서
+//   Step 5 날짜 아래 type="time" 자유 입력으로 이동. 30분 단위 제약 해제.
+//   야간 할증 자동 계산도 여기 onChange 에서 처리.
 // 2026-05-08 (PR-W4 이슈 36): 차종(staria/sprinter/bus/vip)별 캐리어 합계 캡 적용.
 //   Staria 6 (LPG 트렁크) / Sprinter 10 / Bus·VIP 무제한.
 import type { WizardState, LodgingLocation, VehicleType } from './types';
@@ -63,8 +64,8 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
   const isMulti   = state.service === 'multi_day';
   const isICN     = state.origin === 'ICN';
 
-  // 픽업 시각은 Step 3 select 에서 입력 (pickupTime). Step 5에는 입력 없음.
-  // 야간 할증 (18:00 이후 또는 06:00 이전) 표시도 pickupTime 기준.
+  // batch 9 fix (B9-1+B9-2): 픽업 시각은 Step 5 type="time" 직접 입력 (날짜 아래).
+  // 야간 할증 (18:00 이후 또는 06:00 이전) 자동 계산은 onChange 에서 처리.
   const pickup = state.pickupTime ?? state.startTime ?? '';
   const hour = pickup ? Number(pickup.slice(0, 2)) : -1;
   const isNight = hour >= 18 || (hour >= 0 && hour < 6);
@@ -113,18 +114,33 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         />
       </div>
 
-      {/* 날짜 (시간은 Step 3 픽업 시각 select 에서 단일 입력) */}
+      {/* 날짜 */}
       <div>
         <Label>{i18n.date}</Label>
         <input type="date" min={today}
           value={state.startDate ?? ''}
           onChange={e => patch({ startDate: e.target.value })}
-          className={inputCls} />
-        {pickup && (
-          <p className="text-[11px] text-white/45 mt-2 px-1">
-            {i18n.bookingPickupTimeLabel}: <span className="text-white/70">{pickup}</span>
-          </p>
-        )}
+          className={inputCls}
+          style={{ colorScheme: 'dark' }} />
+      </div>
+
+      {/* batch 9 fix (B9-1+B9-2): 픽업 시각 직접 입력 — Step 3 select 에서 이동.
+          type="time" 으로 30분 단위 제약 없이 자유 입력. 야간 할증 자동 계산. */}
+      <div>
+        <Label>{i18n.bookingPickupTimeLabel}</Label>
+        <input
+          type="time"
+          value={pickup}
+          onChange={e => {
+            const t = e.target.value;
+            const h = t && /^\d{2}:\d{2}$/.test(t) ? Number(t.slice(0, 2)) : -1;
+            const night = h >= 18 || (h >= 0 && h < 6);
+            patch({ pickupTime: t, options: { ...state.options, night } });
+          }}
+          placeholder="HH:mm"
+          className={inputCls}
+          style={{ colorScheme: 'dark' }} />
+        <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">{i18n.bookingCutoffNote}</p>
       </div>
 
       {/* 12h cutoff 임박 경고 — 날짜+픽업시각 선택 후 12h 이내이면 amber 배너 */}
