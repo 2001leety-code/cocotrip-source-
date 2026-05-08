@@ -88,9 +88,11 @@ function formatKRW(n: number): string {
   return `₩${Math.round(n).toLocaleString('ko-KR')}`;
 }
 
-function computeAddonTotal(selectedIds: Set<string>, pax: number, days: number): number {
+// batch 9 fix (B9-5, 2026-05-09): addon 가격이 투어별로 다르게 계산될 수 있도록
+// addons 인자 받음. attraction_pass 는 tour.stops 합산값으로 동적 override.
+function computeAddonTotal(selectedIds: Set<string>, pax: number, days: number, addons: AddonItem[]): number {
   let total = 0;
-  for (const a of ADDONS) {
+  for (const a of addons) {
     if (!selectedIds.has(a.id)) continue;
     if (a.unit === 'per_person') total += a.priceKRW * pax;
     else if (a.unit === 'per_day') total += a.priceKRW * days;
@@ -230,7 +232,19 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   // priceUnit='per_person' 투어는 인당 가격 × pax (예: 나이트 투어 $49/인)
   const unitPriceKRW = useMemo(() => getTourPriceKRW(tour.id, tour.priceFrom, tour.priceUnit), [tour.id, tour.priceFrom, tour.priceUnit]);
   const baseKRW = tour.priceUnit === 'per_person' ? unitPriceKRW * pax : unitPriceKRW;
-  const addonKRW = computeAddonTotal(effectiveAddons, pax, days);
+
+  // batch 9 fix (B9-5): 투어별 stops 입장료 합산 → attraction_pass addon 가격 동적 override.
+  // 마진 0 정책: tour.stops[].entry_fee_krw 합계를 그대로 사용. 합계가 0 이면 옵션 미노출.
+  const tourAdmissionTotal = useMemo(() => {
+    return tour.stops?.reduce((sum, s) => sum + (s.entry_fee_krw ?? 0), 0) ?? 0;
+  }, [tour.stops]);
+  const dynamicAddons: AddonItem[] = useMemo(() => {
+    return ADDONS.map(a =>
+      a.id === 'attraction_pass' ? { ...a, priceKRW: tourAdmissionTotal } : a
+    );
+  }, [tourAdmissionTotal]);
+
+  const addonKRW = computeAddonTotal(effectiveAddons, pax, days, dynamicAddons);
   const totalKRW = baseKRW + addonKRW;
 
   const productType = useMemo(() => getTourProductType(tour.id), [tour.id]);
@@ -274,8 +288,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   }, [tour.title.en, pax, driverLang, phone, pickupAddress, whatsappId, lineId, effectiveAddons, memoText]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
-  const visibleAddons = ADDONS.filter(a =>
-    a.applies_to.includes('tour') && !['japanese_driver', 'chinese_driver'].includes(a.id)
+  // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
+  // (입장료 데이터가 없는 투어에 ₩0 옵션을 노출하면 혼란).
+  const visibleAddons = dynamicAddons.filter(a =>
+    a.applies_to.includes('tour') &&
+    !['japanese_driver', 'chinese_driver'].includes(a.id) &&
+    !(a.id === 'attraction_pass' && tourAdmissionTotal <= 0)
   );
 
   const submitUrl = useMemo(() => {
