@@ -22,8 +22,13 @@ export type HotelCard = {
   badge?: I18nString;
 };
 
-// Trip.com 어필리에이트 파라미터
-const TRIP_AFF = 'Allianceid=4831212&SID=76964637&trip_sub1=cocotrip';
+// Trip.com 어필리에이트 파라미터.
+// 2026-05-08: env-based override — VITE_TRIPCOM_AFFILIATE_ID / VITE_TRIPCOM_SID / VITE_TRIPCOM_SUB1.
+// 운영자 액션 필요: src/config/affiliateLinks.ts 와 동일 env 키 (단일 source of truth).
+const TRIP_ALLIANCE_ID = ((import.meta.env.VITE_TRIPCOM_AFFILIATE_ID as string | undefined)?.trim()) || '4831212';
+const TRIP_SID = ((import.meta.env.VITE_TRIPCOM_SID as string | undefined)?.trim()) || '76964637';
+const TRIP_SUB1 = ((import.meta.env.VITE_TRIPCOM_SUB1 as string | undefined)?.trim()) || 'cocotrip';
+const TRIP_AFF = `Allianceid=${encodeURIComponent(TRIP_ALLIANCE_ID)}&SID=${encodeURIComponent(TRIP_SID)}&trip_sub1=${encodeURIComponent(TRIP_SUB1)}`;
 
 function tripHotelUrl(path: string): string {
   const sep = path.includes('?') ? '&' : '?';

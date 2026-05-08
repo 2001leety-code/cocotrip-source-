@@ -1252,7 +1252,7 @@
     "charterIntroStep3Body": "即时报价立即显示。可通过PayPal安全支付，或在WhatsApp上申请定制报价。",
     "charterIntroChatTitle": "急需用车？请通过聊天直接咨询",
     "charterIntroChatBody": "如果您将在12小时内出发，请勿使用向导，直接通过页面右下角的聊天窗口联系我们。客服人员将立即回复。",
-    "charterIntroDeadline": "预订截止：国内出发前24小时 / 国际出发前48小时",
+    "charterIntroDeadline": "预订截止：出发前12小时",
     "charterIntroDontShow": "不再显示",
     "charterIntroClose": "我知道了",
     "todayConfirmTitle": "从今天开始出发？",

@@ -63,7 +63,7 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
               <span className="text-white/55 ml-1">(S{lug?.small ?? 0}·M{lug?.medium ?? 0}·L{lug?.large ?? 0})</span>
             </span>
           )}
-          {state?.startDate && <span>{state.startDate} {state.startTime ?? ''}</span>}
+          {state?.startDate && <span>{state.startDate} {state.pickupTime ?? state.startTime ?? ''}</span>}
         </div>
       )}
 

@@ -169,8 +169,9 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
         )}
       </div>
 
-      {/* PR-R (2026-05-08): 픽업 시각 select. 예약 마감 정책 (24h/48h) 검증 기준.
-          30분 단위 06:00–22:00 (총 33개). 기본값 09:00. */}
+      {/* PR-R (2026-05-08): 픽업 시각 select. 예약 마감 정책 (12h) 검증 기준.
+          30분 단위 06:00–22:00 (총 33개). 기본값 09:00.
+          PR-W4 (2026-05-08): Step5 type="time" 중복 제거 — 야간 할증 자동 계산도 여기서. */}
       <div className="pt-2 space-y-2">
         <label htmlFor="charter-pickup-time" className="block text-xs uppercase tracking-wider text-white/55 font-semibold">
           {i18n.bookingPickupTimeLabel}
@@ -178,7 +179,13 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
         <select
           id="charter-pickup-time"
           value={state.pickupTime ?? '09:00'}
-          onChange={(e) => patch({ pickupTime: e.target.value })}
+          onChange={(e) => {
+            const t = e.target.value;
+            const h = Number(t.slice(0, 2));
+            const isNight = h >= 18 || h < 6;
+            // pickupTime 단일 입력으로 야간 할증 자동 계산 (Step5 startTime 중복 제거).
+            patch({ pickupTime: t, options: { ...state.options, night: isNight } });
+          }}
           className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-white/90 text-sm focus:border-[#B668FC]/50 focus:outline-none"
         >
           {PICKUP_TIME_OPTIONS.map(opt => (

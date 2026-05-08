@@ -19,6 +19,22 @@ interface SeasonalSpot {
   highlight: string; highlightEn: string;
   period: string; periodEn: string;
   tip: string; tipEn: string;
+  /**
+   * 추천 가능한 메인 도시 키 (lowercase). 사용자 main city 가 이 배열에 들어 있을
+   * 때만 노출. 거리(당일치기 / 1박) 기준으로 분류한다.
+   * 2026-05-08 신규 — 기존엔 모든 시즌 spot 이 모든 도시에 노출되어
+   * "서울 사용자한테 황매산 철쭉제 (290km)" 같은 무관 추천이 발생.
+   *
+   * 분류 가이드:
+   *   - 수도권 권역 (서울 사용자 당일/1박): seoul, incheon, gyeonggi, gangwon (영서)
+   *   - 강원 권역 (강릉/속초): gangneung, sokcho, chuncheon, gangwon
+   *   - 충청 권역: daejeon, taean, boryeong, danyang
+   *   - 호남 권역 (전남/광주/전북): gwangju, jeonju, gokseong, damyang, naejangsan
+   *   - 영남 권역 (부산/경주/대구): busan, gyeongju, daegu, hwangmae
+   *   - 제주: jeju
+   * 메인 도시 (사용자 입력) 와 매칭되는 권역의 spot 만 표시.
+   */
+  regions: string[];
 }
 
 interface SeasonData {
@@ -27,6 +43,45 @@ interface SeasonData {
   emoji: string;
   urgency: LangMap;
   spots: SeasonalSpot[];
+}
+
+/**
+ * 사용자 main city 입력값(영/한/일/중 혼재) → spot.regions 배열 매칭용 lowercase city key.
+ * 2026-05-08 신규 — wrap-up SeasonalBanner 의 지역 필터링용.
+ *
+ * 예: "Seoul" / "서울" / "ソウル" / "首尔" → 'seoul'
+ *     "Busan" / "부산" / "釜山" → 'busan'
+ *
+ * 매칭 실패 (zone-only 등 식별 불가) → 'seoul' 으로 폴백 (기본 안전).
+ */
+export function regionToCityKey(region: string | undefined | null): string {
+  const r = String(region || '').toLowerCase().trim();
+  if (!r) return 'seoul';
+  if (r.includes('busan') || r.includes('부산') || r.includes('釜山')) return 'busan';
+  if (r.includes('jeju') || r.includes('제주')) return 'jeju';
+  if (r.includes('gyeongju') || r.includes('경주')) return 'gyeongju';
+  if (r.includes('jeonju') || r.includes('전주')) return 'jeonju';
+  if (r.includes('gangneung') || r.includes('강릉')) return 'gangneung';
+  if (r.includes('sokcho') || r.includes('속초')) return 'sokcho';
+  if (r.includes('chuncheon') || r.includes('춘천')) return 'chuncheon';
+  if (r.includes('daegu') || r.includes('대구')) return 'daegu';
+  if (r.includes('daejeon') || r.includes('대전')) return 'daejeon';
+  if (r.includes('gwangju') || r.includes('광주')) return 'gwangju';
+  if (r.includes('yeosu') || r.includes('여수')) return 'yeosu';
+  if (r.includes('suwon') || r.includes('수원')) return 'suwon';
+  if (r.includes('incheon') || r.includes('인천')) return 'incheon';
+  // 서울 / Seoul / ソウル / 首尔 — 기본
+  return 'seoul';
+}
+
+/**
+ * 시즌 spot 리스트를 사용자 main city 로 필터링.
+ * spot.regions 에 사용자 city key 가 포함된 spot 만 반환.
+ * 매칭 0건이면 (예: 잘못된 city key) — 안전망: 모든 spot 반환 (기존 동작 유지)
+ */
+export function filterSpotsByCity(spots: SeasonalSpot[], cityKey: string): SeasonalSpot[] {
+  const filtered = spots.filter(s => Array.isArray(s.regions) && s.regions.includes(cityKey));
+  return filtered.length > 0 ? filtered : spots;
 }
 
 export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
@@ -42,6 +97,7 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
         highlight: '해발 1,108m 산 정상 철쭉 군락지, 핑크빛 융단 장관', highlightEn: 'Pink azalea carpet at 1,108m summit — breathtaking mountain scenery',
         period: '5월 1일 ~ 5월 10일', periodEn: 'May 1 ~ May 10',
         tip: '주말 주차 대란 — 전세차량 이용 시 VIP 주차장 접근 가능', tipEn: 'Weekend parking chaos — charter car allows VIP parking access',
+        regions: ['busan', 'daegu', 'gyeongju'],
       },
       {
         name: '곡성 세계장미축제', nameEn: 'Gokseong World Rose Festival',
@@ -49,6 +105,7 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
         highlight: '1,004종 장미 정원, 기차마을과 함께 즐기는 로맨틱 여행지', highlightEn: '1,004 rose varieties in a romantic garden with a heritage train village',
         period: '5월 22일 ~ 5월 31일', periodEn: 'May 22 ~ May 31',
         tip: '섬진강 레일바이크와 세트로 즐기면 완벽한 하루', tipEn: 'Combine with Seomjingang rail bike for a perfect day trip',
+        regions: ['gwangju', 'jeonju', 'yeosu'],
       },
       {
         name: '담양 대나무축제', nameEn: 'Damyang Bamboo Festival',
@@ -56,6 +113,7 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
         highlight: '죽녹원 대나무 숲 산책, 시원한 초록 힐링', highlightEn: 'Juknokwon bamboo forest walk — refreshing green healing',
         period: '5월 1일 ~ 5월 5일', periodEn: 'May 1 ~ May 5',
         tip: '메타세쿼이아 가로수길도 함께 방문 — 드라이브 코스 최적', tipEn: 'Also visit Metasequoia Road nearby — perfect drive course',
+        regions: ['gwangju', 'jeonju', 'yeosu'],
       },
       {
         name: '태안 세계튤립축제', nameEn: 'Taean World Tulip Festival',
@@ -63,6 +121,7 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
         highlight: '300만 송이 튤립 군락, 서해안 일몰과 함께 즐기는 봄꽃 축제', highlightEn: '3M tulips with West Sea sunset — premier spring flower festival',
         period: '4월 12일 ~ 5월 11일', periodEn: 'Apr 12 ~ May 11',
         tip: '서울에서 차로 2시간 — 전세차량 당일치기 최적', tipEn: 'Only 2 hours from Seoul by car — perfect day trip with charter',
+        regions: ['seoul', 'incheon', 'suwon'],
       },
       {
         name: '서울재즈페스티벌', nameEn: 'Seoul Jazz Festival',
@@ -70,6 +129,7 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
         highlight: '아시아 최대 재즈 페스티벌, 세계적 아티스트 라인업', highlightEn: "Asia's largest jazz festival with world-class artist lineup",
         period: '5월 22일 ~ 5월 24일', periodEn: 'May 22 ~ May 24',
         tip: '공연 후 대중교통 혼잡 — 코코트립 전세차량으로 편하게 귀환', tipEn: 'Public transport crowded after show — CocoTrip charter for easy return',
+        regions: ['seoul', 'incheon', 'suwon'],
       },
     ],
   },
@@ -79,11 +139,11 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
     emoji: '🌊',
     urgency: { ko: '⚡ 여름 축제 시즌 시작! 지금 예약하세요', en: '⚡ Summer festival season starts! Book now', ja: '⚡ 夏フェスシーズン開始！今すぐ予約', zh: '⚡ 夏季音乐节开始！立即预订' },
     spots: [
-      { name: '워터밤 서울 2026', nameEn: 'WATERBOMB Seoul 2026', location: '경기도 일산 킨텍스', locationEn: 'KINTEX, Ilsan, Gyeonggi-do', highlight: '한국 최대 여름 워터 페스티벌 + K-pop 공연, 3일간', highlightEn: "Korea's biggest summer water festival with K-pop — 3 days", period: '7월 24일 ~ 7월 26일', periodEn: 'Jul 24 ~ Jul 26', tip: '공연 후 대중교통 마비 — 코코트립 전세차량 강력 추천', tipEn: 'Public transport paralyzed after show — CocoTrip charter essential' },
-      { name: '인천 펜타포트 락 페스티벌', nameEn: 'Incheon Pentaport Rock Festival', location: '인천 송도 달빛축제공원', locationEn: 'Songdo Moonlight Park, Incheon', highlight: '한국 대표 록 페스티벌, 3일간 라이브 공연', highlightEn: "Korea's premier rock festival — 3 days of live music", period: '7월 31일 ~ 8월 2일', periodEn: 'Jul 31 ~ Aug 2', tip: '캠핑존 조기 마감 — 서울 숙소 + 전세차량 왕복이 효율적', tipEn: 'Camping zone fills fast — Seoul hotel + charter car roundtrip is efficient' },
-      { name: '부산 해운대 해수욕장', nameEn: 'Haeundae Beach, Busan', location: '부산 해운대구', locationEn: 'Haeundae, Busan', highlight: '한국 최고의 해변, 연간 방문객 1,500만 명', highlightEn: "Korea's top beach — 15M annual visitors", period: '7월~8월 성수기', periodEn: 'July~August peak season', tip: '아침 7시 이전 방문 시 한산하게 즐길 수 있음', tipEn: 'Arrive before 7AM for a peaceful experience' },
-      { name: '강릉 경포해변', nameEn: 'Gyeongpo Beach, Gangneung', location: '강원도 강릉시', locationEn: 'Gangneung, Gangwon', highlight: '동해안 최대 해수욕장, 강릉 카페거리와 함께', highlightEn: "East Coast's largest beach with famous café street", period: '7월~8월', periodEn: 'July~August', tip: '해변 근처 안목해변 커피거리 필수 방문', tipEn: 'Must visit Anmok Beach coffee street nearby' },
-      { name: '보령 머드축제', nameEn: 'Boryeong Mud Festival', location: '충남 보령시', locationEn: 'Boryeong, South Chungcheong', highlight: '세계적으로 유명한 외국인 최애 여름 축제', highlightEn: "World-famous summer festival — foreigners' top pick", period: '7월 중순 2주간', periodEn: 'Mid-July, 2 weeks', tip: '외국인 비율 70% 이상 — 전세차량으로 편하게 이동 추천', tipEn: 'Over 70% foreign visitors — charter car highly recommended' },
+      { name: '워터밤 서울 2026', nameEn: 'WATERBOMB Seoul 2026', location: '경기도 일산 킨텍스', locationEn: 'KINTEX, Ilsan, Gyeonggi-do', highlight: '한국 최대 여름 워터 페스티벌 + K-pop 공연, 3일간', highlightEn: "Korea's biggest summer water festival with K-pop — 3 days", period: '7월 24일 ~ 7월 26일', periodEn: 'Jul 24 ~ Jul 26', tip: '공연 후 대중교통 마비 — 코코트립 전세차량 강력 추천', tipEn: 'Public transport paralyzed after show — CocoTrip charter essential', regions: ['seoul', 'incheon', 'suwon'] },
+      { name: '인천 펜타포트 락 페스티벌', nameEn: 'Incheon Pentaport Rock Festival', location: '인천 송도 달빛축제공원', locationEn: 'Songdo Moonlight Park, Incheon', highlight: '한국 대표 록 페스티벌, 3일간 라이브 공연', highlightEn: "Korea's premier rock festival — 3 days of live music", period: '7월 31일 ~ 8월 2일', periodEn: 'Jul 31 ~ Aug 2', tip: '캠핑존 조기 마감 — 서울 숙소 + 전세차량 왕복이 효율적', tipEn: 'Camping zone fills fast — Seoul hotel + charter car roundtrip is efficient', regions: ['seoul', 'incheon', 'suwon'] },
+      { name: '부산 해운대 해수욕장', nameEn: 'Haeundae Beach, Busan', location: '부산 해운대구', locationEn: 'Haeundae, Busan', highlight: '한국 최고의 해변, 연간 방문객 1,500만 명', highlightEn: "Korea's top beach — 15M annual visitors", period: '7월~8월 성수기', periodEn: 'July~August peak season', tip: '아침 7시 이전 방문 시 한산하게 즐길 수 있음', tipEn: 'Arrive before 7AM for a peaceful experience', regions: ['busan', 'gyeongju', 'daegu'] },
+      { name: '강릉 경포해변', nameEn: 'Gyeongpo Beach, Gangneung', location: '강원도 강릉시', locationEn: 'Gangneung, Gangwon', highlight: '동해안 최대 해수욕장, 강릉 카페거리와 함께', highlightEn: "East Coast's largest beach with famous café street", period: '7월~8월', periodEn: 'July~August', tip: '해변 근처 안목해변 커피거리 필수 방문', tipEn: 'Must visit Anmok Beach coffee street nearby', regions: ['gangneung', 'sokcho', 'chuncheon', 'seoul'] },
+      { name: '보령 머드축제', nameEn: 'Boryeong Mud Festival', location: '충남 보령시', locationEn: 'Boryeong, South Chungcheong', highlight: '세계적으로 유명한 외국인 최애 여름 축제', highlightEn: "World-famous summer festival — foreigners' top pick", period: '7월 중순 2주간', periodEn: 'Mid-July, 2 weeks', tip: '외국인 비율 70% 이상 — 전세차량으로 편하게 이동 추천', tipEn: 'Over 70% foreign visitors — charter car highly recommended', regions: ['seoul', 'incheon', 'suwon', 'daejeon'] },
     ],
   },
   autumn: {
@@ -92,11 +152,11 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
     emoji: '🍁',
     urgency: { ko: '⚡ 단풍 절정! 이번 주가 하이라이트', en: '⚡ Peak foliage! This week is the highlight', ja: '⚡ 紅葉ピーク！今週がハイライト', zh: '⚡ 红叶顶峰！本周是高光时刻' },
     spots: [
-      { name: '설악산 국립공원', nameEn: 'Seoraksan National Park', location: '강원도 속초·인제', locationEn: 'Sokcho/Inje, Gangwon', highlight: '한국 최고의 단풍 명소, 케이블카로 정상 조망', highlightEn: "Korea's top autumn foliage spot with cable car to summit", period: '10월 초~중순', periodEn: 'Early~Mid October', tip: '권금성 케이블카 현장 대기 2~3시간 — 온라인 사전 예약 필수', tipEn: 'Cable car wait 2-3hrs on site — online advance booking required' },
-      { name: '내장산 국립공원', nameEn: 'Naejangsan National Park', location: '전북 정읍', locationEn: 'Jeongeup, North Jeolla', highlight: '단풍 색이 가장 진한 곳, 터널 모양 단풍길', highlightEn: 'Deepest autumn colors in Korea with tunnel-shaped foliage path', period: '10월 말~11월 초', periodEn: 'Late Oct~Early Nov', tip: '주말 극심한 혼잡 — 반드시 전세차량 이용 권장', tipEn: 'Extremely crowded weekends — charter car strongly recommended' },
-      { name: '남이섬 은행나무길', nameEn: 'Nami Island Ginkgo Tree Road', location: '강원도 춘천 가평', locationEn: 'Gapyeong, Gangwon', highlight: '노란 은행나무 터널, 사계절 명소이나 가을이 최고조', highlightEn: 'Yellow ginkgo tunnel — year-round attraction at its autumn peak', period: '10월 중순~11월 초', periodEn: 'Mid Oct~Early Nov', tip: '아침 일찍 방문 시 안개와 단풍의 환상적 조합 가능', tipEn: 'Early morning visit = stunning mist + autumn leaves combo' },
-      { name: '한라산 단풍', nameEn: 'Hallasan Mountain Autumn Foliage', location: '제주도', locationEn: 'Jeju Island', highlight: '한국 최고봉의 단풍, 영실코스 철쭉과 단풍의 조화', highlightEn: "Korea's highest peak with stunning foliage on Yeongsil Trail", period: '10월 중순~11월 초', periodEn: 'Mid Oct~Early Nov', tip: '성판악·관음사 코스는 편도 4~5시간 — 체력 준비 필수', tipEn: 'Seongpanak/Gwaneumsa trails take 4-5hrs one way — prepare physically' },
-      { name: '경주 불국사·석굴암', nameEn: 'Gyeongju Bulguksa & Seokguram', location: '경북 경주시', locationEn: 'Gyeongju, North Gyeongsang', highlight: 'UNESCO 세계문화유산 + 단풍의 조화, 가을이 가장 아름다운 시기', highlightEn: 'UNESCO World Heritage + autumn foliage — most beautiful in fall', period: '10월 말~11월 초', periodEn: 'Late Oct~Early Nov', tip: '석굴암은 오전 일찍 방문 — 인파 피해 조용하게 감상 가능', tipEn: 'Visit Seokguram early morning to enjoy it quietly without crowds' },
+      { name: '설악산 국립공원', nameEn: 'Seoraksan National Park', location: '강원도 속초·인제', locationEn: 'Sokcho/Inje, Gangwon', highlight: '한국 최고의 단풍 명소, 케이블카로 정상 조망', highlightEn: "Korea's top autumn foliage spot with cable car to summit", period: '10월 초~중순', periodEn: 'Early~Mid October', tip: '권금성 케이블카 현장 대기 2~3시간 — 온라인 사전 예약 필수', tipEn: 'Cable car wait 2-3hrs on site — online advance booking required', regions: ['seoul', 'incheon', 'gangneung', 'sokcho', 'chuncheon'] },
+      { name: '내장산 국립공원', nameEn: 'Naejangsan National Park', location: '전북 정읍', locationEn: 'Jeongeup, North Jeolla', highlight: '단풍 색이 가장 진한 곳, 터널 모양 단풍길', highlightEn: 'Deepest autumn colors in Korea with tunnel-shaped foliage path', period: '10월 말~11월 초', periodEn: 'Late Oct~Early Nov', tip: '주말 극심한 혼잡 — 반드시 전세차량 이용 권장', tipEn: 'Extremely crowded weekends — charter car strongly recommended', regions: ['gwangju', 'jeonju', 'yeosu'] },
+      { name: '남이섬 은행나무길', nameEn: 'Nami Island Ginkgo Tree Road', location: '강원도 춘천 가평', locationEn: 'Gapyeong, Gangwon', highlight: '노란 은행나무 터널, 사계절 명소이나 가을이 최고조', highlightEn: 'Yellow ginkgo tunnel — year-round attraction at its autumn peak', period: '10월 중순~11월 초', periodEn: 'Mid Oct~Early Nov', tip: '아침 일찍 방문 시 안개와 단풍의 환상적 조합 가능', tipEn: 'Early morning visit = stunning mist + autumn leaves combo', regions: ['seoul', 'incheon', 'suwon', 'chuncheon'] },
+      { name: '한라산 단풍', nameEn: 'Hallasan Mountain Autumn Foliage', location: '제주도', locationEn: 'Jeju Island', highlight: '한국 최고봉의 단풍, 영실코스 철쭉과 단풍의 조화', highlightEn: "Korea's highest peak with stunning foliage on Yeongsil Trail", period: '10월 중순~11월 초', periodEn: 'Mid Oct~Early Nov', tip: '성판악·관음사 코스는 편도 4~5시간 — 체력 준비 필수', tipEn: 'Seongpanak/Gwaneumsa trails take 4-5hrs one way — prepare physically', regions: ['jeju'] },
+      { name: '경주 불국사·석굴암', nameEn: 'Gyeongju Bulguksa & Seokguram', location: '경북 경주시', locationEn: 'Gyeongju, North Gyeongsang', highlight: 'UNESCO 세계문화유산 + 단풍의 조화, 가을이 가장 아름다운 시기', highlightEn: 'UNESCO World Heritage + autumn foliage — most beautiful in fall', period: '10월 말~11월 초', periodEn: 'Late Oct~Early Nov', tip: '석굴암은 오전 일찍 방문 — 인파 피해 조용하게 감상 가능', tipEn: 'Visit Seokguram early morning to enjoy it quietly without crowds', regions: ['busan', 'daegu', 'gyeongju'] },
     ],
   },
   winter: {
@@ -105,11 +165,11 @@ export const SEASONAL_SPOTS: Record<Season, SeasonData> = {
     emoji: '⛷️',
     urgency: { ko: '⚡ 스키 시즌 막바지 + K-pop 시상식 출동!', en: '⚡ Ski season finale + K-pop award shows!', ja: '⚡ スキーシーズン終盤＋K-POP授賞式！', zh: '⚡ 滑雪季尾声 + K-pop颁奖典礼！' },
     spots: [
-      { name: '용평 스키리조트', nameEn: 'Yongpyong Ski Resort', location: '강원도 평창', locationEn: 'Pyeongchang, Gangwon', highlight: '2018 동계올림픽 개최지, 한국 최대 스키 리조트', highlightEn: "2018 Winter Olympics venue — Korea's largest ski resort", period: '12월~3월', periodEn: 'December~March', tip: '드라마 겨울연가 촬영지 — K-drama 팬에게도 필수 방문지', tipEn: 'Filming location of Winter Sonata — a must for K-drama fans too' },
-      { name: '태백산 눈꽃축제', nameEn: 'Taebaeksan Snow Flower Festival', location: '강원도 태백시', locationEn: 'Taebaek, Gangwon', highlight: '눈꽃 군락지와 얼음 분수, 겨울 동화 속 풍경', highlightEn: 'Snow flower clusters & ice fountains — a winter fairytale landscape', period: '1월 말~2월 초', periodEn: 'Late January~Early February', tip: '기온이 -15도 이하 — 방한용품 철저히 준비', tipEn: 'Temperatures drop to -15°C — prepare thorough cold weather gear' },
-      { name: '인스파이어 아레나 K-pop 시상식', nameEn: 'Inspire Arena K-pop Award Shows', location: '인천 영종도', locationEn: 'Yeongdo, Incheon', highlight: 'SBS 가요대전·MMA·MAMA 등 연말 K-pop 시상식 집결지', highlightEn: 'Venue for SBS Gayo Daejeon, MMA, MAMA year-end K-pop shows', period: '11월~12월', periodEn: 'November~December', tip: '공연 후 대중교통 귀환 어려움 — 코코트립 셔틀 예약 필수!', tipEn: 'Public transport extremely difficult after show — Cocotrip shuttle is essential!' },
-      { name: '남이섬 겨울 설경', nameEn: 'Nami Island Winter Snow Scenery', location: '강원도 가평', locationEn: 'Gapyeong, Gangwon', highlight: '눈 덮인 메타세쿼이아길, 드라마 겨울연가 배경지', highlightEn: 'Snow-covered metasequoia road — backdrop of Winter Sonata K-drama', period: '12월~2월', periodEn: 'December~February', tip: '눈 온 다음날 방문 시 최고의 설경 — 기상 확인 필수', tipEn: 'Best visited day after snowfall — always check weather forecast' },
-      { name: '강릉 정동진 해돋이', nameEn: 'Jeongdongjin Sunrise, Gangneung', location: '강원도 강릉시', locationEn: 'Gangneung, Gangwon', highlight: '한국에서 가장 유명한 새해 해돋이 명소', highlightEn: "Korea's most famous New Year sunrise spot", period: '12월 31일~1월 1일', periodEn: 'Dec 31~Jan 1', tip: '1월 1일 전날부터 수십만 명 몰림 — 반드시 전세차량 사전 예약', tipEn: 'Hundreds of thousands arrive Dec 31 — charter car advance booking essential' },
+      { name: '용평 스키리조트', nameEn: 'Yongpyong Ski Resort', location: '강원도 평창', locationEn: 'Pyeongchang, Gangwon', highlight: '2018 동계올림픽 개최지, 한국 최대 스키 리조트', highlightEn: "2018 Winter Olympics venue — Korea's largest ski resort", period: '12월~3월', periodEn: 'December~March', tip: '드라마 겨울연가 촬영지 — K-drama 팬에게도 필수 방문지', tipEn: 'Filming location of Winter Sonata — a must for K-drama fans too', regions: ['seoul', 'incheon', 'gangneung', 'sokcho', 'chuncheon'] },
+      { name: '태백산 눈꽃축제', nameEn: 'Taebaeksan Snow Flower Festival', location: '강원도 태백시', locationEn: 'Taebaek, Gangwon', highlight: '눈꽃 군락지와 얼음 분수, 겨울 동화 속 풍경', highlightEn: 'Snow flower clusters & ice fountains — a winter fairytale landscape', period: '1월 말~2월 초', periodEn: 'Late January~Early February', tip: '기온이 -15도 이하 — 방한용품 철저히 준비', tipEn: 'Temperatures drop to -15°C — prepare thorough cold weather gear', regions: ['gangneung', 'sokcho', 'chuncheon'] },
+      { name: '인스파이어 아레나 K-pop 시상식', nameEn: 'Inspire Arena K-pop Award Shows', location: '인천 영종도', locationEn: 'Yeongdo, Incheon', highlight: 'SBS 가요대전·MMA·MAMA 등 연말 K-pop 시상식 집결지', highlightEn: 'Venue for SBS Gayo Daejeon, MMA, MAMA year-end K-pop shows', period: '11월~12월', periodEn: 'November~December', tip: '공연 후 대중교통 귀환 어려움 — 코코트립 셔틀 예약 필수!', tipEn: 'Public transport extremely difficult after show — Cocotrip shuttle is essential!', regions: ['seoul', 'incheon', 'suwon'] },
+      { name: '남이섬 겨울 설경', nameEn: 'Nami Island Winter Snow Scenery', location: '강원도 가평', locationEn: 'Gapyeong, Gangwon', highlight: '눈 덮인 메타세쿼이아길, 드라마 겨울연가 배경지', highlightEn: 'Snow-covered metasequoia road — backdrop of Winter Sonata K-drama', period: '12월~2월', periodEn: 'December~February', tip: '눈 온 다음날 방문 시 최고의 설경 — 기상 확인 필수', tipEn: 'Best visited day after snowfall — always check weather forecast', regions: ['seoul', 'incheon', 'suwon', 'chuncheon'] },
+      { name: '강릉 정동진 해돋이', nameEn: 'Jeongdongjin Sunrise, Gangneung', location: '강원도 강릉시', locationEn: 'Gangneung, Gangwon', highlight: '한국에서 가장 유명한 새해 해돋이 명소', highlightEn: "Korea's most famous New Year sunrise spot", period: '12월 31일~1월 1일', periodEn: 'Dec 31~Jan 1', tip: '1월 1일 전날부터 수십만 명 몰림 — 반드시 전세차량 사전 예약', tipEn: 'Hundreds of thousands arrive Dec 31 — charter car advance booking essential', regions: ['gangneung', 'sokcho', 'chuncheon', 'seoul'] },
     ],
   },
 };

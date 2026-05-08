@@ -8,7 +8,7 @@
  * 안내 항목:
  *   - 차터 예약 6단계 흐름 요약
  *   - 12시간 이내 출발은 채팅창 사용 (오른쪽 하단 ChatWidget)
- *   - 예약 마감 정책 (24h/48h)
+ *   - 예약 마감 정책 (12h, 2026-05-08 통일)
  *
  * 디자인은 OnboardingCouponModal / AIIntroModal 과 일관 유지.
  */
@@ -165,7 +165,7 @@ export function CharterIntroModal() {
         <div className="mx-6 mt-3 flex items-center gap-2 text-[11px] text-amber-300/85">
           <AlertTriangle className="shrink-0" size={14} />
           <span className="leading-snug">
-            {c.charterIntroDeadline ?? 'Booking cutoff: 24 hours before domestic departure / 48 hours before international.'}
+            {c.charterIntroDeadline ?? 'Booking cutoff: 12 hours before departure.'}
           </span>
         </div>
 

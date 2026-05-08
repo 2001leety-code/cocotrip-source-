@@ -1,8 +1,16 @@
 name: PR Tests
 
-# Fast PR-time checks: TypeScript build + Vitest unit tests with coverage.
+# Fast PR-time checks: Vitest unit tests with coverage + i18n key parity.
 # Lighthouse + Playwright e2e run on Vercel preview separately (see
 # pr-i18n-smoke.yml + pr-lighthouse.yml).
+#
+# Type-check 의도적 제거 (2026-05-08): Vercel preview 빌드가 매 PR마다
+# `tsc -b && vite build`를 실행하므로 GitHub Actions에서 tsc를 중복 실행할
+# 필요 없음. 같은 코드를 2번 type-check 하면서 Build CPU 비용만 두 배.
+# Vercel preview가 타입 오류를 catch — fail 시 PR 머지 차단됨.
+# (또한 vitest는 esbuild로 ts를 직접 처리 → tsc 출력에 의존하지 않음.
+#  tsconfig.app.json + tsconfig.node.json 둘 다 noEmit:true 라서 어차피
+#  artifact 도 안 나옴.)
 
 on:
   pull_request:
@@ -38,8 +46,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript build (Vercel parity)
-        run: npx tsc -b --force
+      # NOTE: tsc -b 단계 의도적 제거. Vercel preview 가 동일 작업 수행 →
+      # 이중 빌드 회피 (Build CPU 시간 대폭 절감, 5/1~5/8 244h → 추정 50%↓).
+      # 타입 오류 시 Vercel preview deployment가 fail → PR Bundle Size 도
+      # 후속으로 fail 하므로 머지 차단됨.
 
       - name: Vitest unit tests with coverage
         # Per-file thresholds enforced in vitest.config.ts (lines 75 / branches 60 /

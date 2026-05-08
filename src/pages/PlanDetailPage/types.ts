@@ -20,6 +20,11 @@ export interface PlanDocument {
     hotel_address?: string;
     arrival_airport?: string;
     departure_airport?: string;
+    /** 2026-05-08: zone-only 사용자 (호텔 미정 + zone 만 선택) 의 zone 키 / 대표 주소.
+     *  LodgingBookend 라벨 fallback 체인에서 사용. 신규 plan 만 채워짐 — legacy
+     *  plan 은 undefined 라 자동으로 다음 fallback. */
+    recommended_zone?: string | null;
+    recommended_zone_address?: string | null;
     [key: string]: unknown;
   };
   itinerary?: {

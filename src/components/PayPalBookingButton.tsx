@@ -112,6 +112,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const [promoError,    setPromoError]    = useState<string | null>(null);
   const [discountedKRW, setDiscountedKRW] = useState<number | null>(null);
   const [savedAmount,   setSavedAmount]   = useState(0);
+  // 이슈 37 fix (2026-05-08): 적용된 쿠폰 종류/할인율 추적 — fixed-amount(USD)
+  // 쿠폰을 (-20%) 처럼 percent로 잘못 표시하던 버그 해결.
+  const [discountRate,  setDiscountRate]  = useState<number | null>(null);
   const [couponDocId,   setCouponDocId]   = useState<string | null>(null);
   const [couponUserId,  setCouponUserId]  = useState<string | null>(null);
   const [pickerOpen,    setPickerOpen]    = useState(false);
@@ -183,6 +186,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       if (d?.valid) {
         setDiscountedKRW(d.discountedPrice);
         setSavedAmount(d.savedAmount);
+        // 이슈 37 fix: backend의 discountRate (0.05 = 5%) 보존. fixed-amount(USD)
+        // 쿠폰은 환율에 따라 다른 비율이 나오므로 percent 표시는 비활성화.
+        setDiscountRate(typeof d.discountRate === 'number' ? d.discountRate : null);
         setPromoApplied(true);
         setCouponDocId(d.couponDocId || null);
         // 이슈 18 fix: userId는 authUserId로 직접 설정 (d.userId가 없을 경우 fallback).
@@ -697,9 +703,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
         <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2">
           <div className="flex items-center gap-1.5 text-xs text-emerald-300">
             <Check className="w-3.5 h-3.5" />
-            {pl.success} (-20%)
+            {/* \uC774\uC288 37 fix: percent \uCFE0\uD3F0\uC77C \uB54C\uB9CC (-N%) \uD45C\uC2DC, fixed-amount\uB294 \uC6B0\uCE21 \u20A9\uCC28\uAC10\uC561\uC73C\uB85C \uCDA9\uBD84.
+                discountRate\uAC00 \uAE54\uB054\uD55C percent (5/10/20%)\uC77C \uB54C\uB9CC percent \uD45C\uAE30 \u2014 \uD658\uC728 \uD658\uC0B0\uB41C
+                fixed-amount\uB294 5.4% \uAC19\uC740 \uC5B4\uC0C9\uD55C \uC218\uCE58\uAC00 \uB098\uC624\uBBC0\uB85C \uC0DD\uB7B5. */}
+            {pl.success}{discountRate != null && Number.isInteger(discountRate * 100) && discountRate > 0 ? ` (-${Math.round(discountRate * 100)}%)` : ''}
           </div>
-          <span className="text-xs font-bold text-emerald-300">-\u20A9{savedAmount.toLocaleString('ko-KR')}</span>
+          <span className="text-xs font-bold text-emerald-300">{'-\u20A9'}{savedAmount.toLocaleString('ko-KR')}</span>
         </div>
       )}
 
@@ -733,8 +742,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               <div className="flex items-center gap-2">
                 {promoApplied ? (
                   <>
-                    <span className="text-[13px] text-white/55 line-through">\u20A9{priceKRW.toLocaleString('ko-KR')}</span>
-                    <span className="text-[15px] font-bold text-emerald-300">\u20A9{effectiveKRW.toLocaleString('ko-KR')}</span>
+                    {/* \uC774\uC288 38 fix: JSX text \uC548 \u20A9 (6\uC790 \uADF8\uB300\uB85C \uCD9C\uB825) \u2192 JS string literal \uC548\uC5D0\uC11C escape \uD480\uB9BC */}
+                    <span className="text-[13px] text-white/55 line-through">{'\u20A9'}{priceKRW.toLocaleString('ko-KR')}</span>
+                    <span className="text-[15px] font-bold text-emerald-300">{'\u20A9'}{effectiveKRW.toLocaleString('ko-KR')}</span>
                   </>
                 ) : (
                   <span className="text-[15px] font-bold">{rateInfo?.displayKRW ?? `\u20A9${priceKRW.toLocaleString('ko-KR')}`}</span>
@@ -743,7 +753,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               </div>
               {rateInfo && (
                 <span className="text-[11px] text-white/50 mt-0.5">
-                  {p.paypalRateLabel} 1 USD = \u20A9{rateInfo.currentRate.toLocaleString('ko-KR')}
+                  {/* \uC774\uC288 38 fix: JSX text \uC548 \u20A9 \u2192 JS string literal\uB85C escape \uD480\uAE30 */}
+                  {p.paypalRateLabel} 1 USD = {'\u20A9'}{rateInfo.currentRate.toLocaleString('ko-KR')}
                 </span>
               )}
             </div>

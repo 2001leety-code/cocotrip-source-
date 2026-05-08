@@ -95,6 +95,11 @@ export async function persistPlan(adminDb, {
       departure_airport: departure_airport || null,
       hotel_address: hotel_address || null,
       mobility: mobility || null,
+      // 2026-05-08: zone-only 사용자도 PlanDetailPage 가 라벨링할 수 있도록 보존.
+      // hotel_address 가 null/빈 값인데 zone 만 골랐을 때, LodgingBookend 가
+      // "Stay" 가 아니라 zone 명("명동" 등) 을 보여주려면 이 필드가 필수.
+      recommended_zone: body.recommended_zone || null,
+      recommended_zone_address: body.recommended_zone_address || null,
     },
     itinerary,
     pricing: { vehicle, priceKRW, priceUSD },

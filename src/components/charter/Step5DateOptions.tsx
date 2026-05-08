@@ -1,9 +1,44 @@
-// Step 5: 날짜·시간(직접 입력) + 이름/연락처 + 공항/일정 필수 필드 · i18n
-import type { WizardState, LodgingLocation } from './types';
+// Step 5: 날짜 + 이름/연락처 + 공항/일정 필수 필드 · i18n
+// 2026-05-08 (PR-W4 이슈 35): 픽업 시각 입력은 Step 3 (pickupTime select) 에서만 받는다.
+// Step 5의 type="time" 입력은 Step 3과 중복 → 제거. 야간 할증 계산도 pickupTime 기준.
+// 2026-05-08 (PR-W4 이슈 36): 차종(staria/sprinter/bus/vip)별 캐리어 합계 캡 적용.
+//   Staria 6 (LPG 트렁크) / Sprinter 10 / Bus·VIP 무제한.
+import type { WizardState, LodgingLocation, VehicleType } from './types';
 import { EXTRA_CHARGES } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
 
-/** 날짜+시각이 12h cutoff 이내인지 클라이언트에서 검사 (KST +09:00 기준). */
+/**
+ * 차종별 캐리어 합계 최대치. Bus/VIP 는 협의 — 99 (사실상 무제한).
+ * Staria LPG 트렁크 한계로 6개. Sprinter 는 좌석 뒤 + 트렁크 합쳐 10개.
+ */
+function vehicleLuggageMax(vehicle: VehicleType | undefined): number {
+  switch (vehicle) {
+    case 'staria': return 6;
+    case 'sprinter': return 10;
+    case 'bus':
+    case 'vip':
+    default: return 99;
+  }
+}
+
+/** 차종별 안내 문구 i18n. luggageVehicleMax 키 (ko/en/ja/zh) — vehicleLuggageMax 값으로 치환. */
+function vehicleLuggageNote(vehicle: VehicleType | undefined, max: number, lang: 'ko' | 'en' | 'ja' | 'zh'): string {
+  if (vehicle === 'bus' || vehicle === 'vip') {
+    if (lang === 'ko') return '버스/의전 차량은 캐리어 적재 협의 가능합니다.';
+    if (lang === 'ja') return 'バス／VIP車両は積載数を相談できます。';
+    if (lang === 'zh') return '巴士／礼宾车的行李数量可协商。';
+    return 'Bus/VIP vehicles: luggage count negotiable.';
+  }
+  const vlabel =
+    vehicle === 'staria' ? 'Staria' :
+    vehicle === 'sprinter' ? 'Sprinter' : '';
+  if (lang === 'ko') return `${vlabel}는 캐리어 최대 ${max}개까지 실을 수 있습니다 (기내 + 중형 + 대형 합계).`;
+  if (lang === 'ja') return `${vlabel}は荷物最大${max}個まで（機内＋中型＋大型の合計）。`;
+  if (lang === 'zh') return `${vlabel}最多可载行李${max}件（随身＋中型＋大型合计）。`;
+  return `${vlabel} fits up to ${max} bags total (carry-on + medium + large).`;
+}
+
+/** 날짜+픽업시각이 12h cutoff 이내인지 클라이언트에서 검사 (KST +09:00 기준). */
 function isWithin12hCutoff(date: string, time: string): boolean {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const t = time && /^\d{2}:\d{2}$/.test(time) ? time : '09:00';
@@ -28,7 +63,10 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
   const isMulti   = state.service === 'multi_day';
   const isICN     = state.origin === 'ICN';
 
-  const hour = state.startTime ? Number(state.startTime.slice(0, 2)) : -1;
+  // 픽업 시각은 Step 3 select 에서 입력 (pickupTime). Step 5에는 입력 없음.
+  // 야간 할증 (18:00 이후 또는 06:00 이전) 표시도 pickupTime 기준.
+  const pickup = state.pickupTime ?? state.startTime ?? '';
+  const hour = pickup ? Number(pickup.slice(0, 2)) : -1;
   const isNight = hour >= 18 || (hour >= 0 && hour < 6);
 
   const airport = state.airport ?? {};
@@ -38,15 +76,14 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
   const patchLuggage = (p: Partial<NonNullable<NonNullable<WizardState['airport']>['luggage']>>) =>
     patchAirport({ luggage: { ...lug, ...p } });
 
-  // 시간 직접 입력 — HTML5 type="time" + 야간 자동 계산
-  const handleTimeChange = (t: string) => {
-    if (!t) {
-      patch({ startTime: undefined, options: { ...state.options, night: false } });
-      return;
-    }
-    const h = Number(t.slice(0, 2));
-    patch({ startTime: t, options: { ...state.options, night: h >= 18 || h < 6 } });
-  };
+  // PR-W4 이슈 36: 차종별 캐리어 합계 캡. + 버튼 disabled + amber 안내.
+  const luggageTotal = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
+  const luggageCap = vehicleLuggageMax(state.vehicle);
+  const luggageMaxReached = luggageTotal >= luggageCap;
+  const langCode: 'ko' | 'en' | 'ja' | 'zh' =
+    language === 'ko' ? 'ko' : language === 'ja' ? 'ja' : language === 'zh' ? 'zh' : 'en';
+  const luggageVehicleNote = vehicleLuggageNote(state.vehicle, luggageCap, langCode);
+  const isInquiryVehicle = state.vehicle === 'bus' || state.vehicle === 'vip';
 
   return (
     <div className="space-y-6">
@@ -76,29 +113,22 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         />
       </div>
 
-      {/* 날짜 + 시간 (50/50) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <Label>{i18n.date}</Label>
-          <input type="date" min={today}
-            value={state.startDate ?? ''}
-            onChange={e => patch({ startDate: e.target.value })}
-            className={inputCls} />
-        </div>
-        <div>
-          <Label>{i18n.time}</Label>
-          <input
-            type="time"
-            value={state.startTime ?? ''}
-            onChange={e => handleTimeChange(e.target.value)}
-            className={inputCls}
-            step={300}
-          />
-        </div>
+      {/* 날짜 (시간은 Step 3 픽업 시각 select 에서 단일 입력) */}
+      <div>
+        <Label>{i18n.date}</Label>
+        <input type="date" min={today}
+          value={state.startDate ?? ''}
+          onChange={e => patch({ startDate: e.target.value })}
+          className={inputCls} />
+        {pickup && (
+          <p className="text-[11px] text-white/45 mt-2 px-1">
+            {i18n.bookingPickupTimeLabel}: <span className="text-white/70">{pickup}</span>
+          </p>
+        )}
       </div>
 
-      {/* 12h cutoff 임박 경고 — 날짜+시간 선택 후 12h 이내이면 amber 배너 */}
-      {isWithin12hCutoff(state.startDate ?? '', state.startTime ?? '') && (
+      {/* 12h cutoff 임박 경고 — 날짜+픽업시각 선택 후 12h 이내이면 amber 배너 */}
+      {isWithin12hCutoff(state.startDate ?? '', pickup) && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 flex items-start gap-2">
           <span className="text-base leading-none">⚠️</span>
           <span>{i18n.bookingClosedMessage}</span>
@@ -172,10 +202,19 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
           <div>
             <Label>{i18n.luggage}</Label>
             <div className="grid grid-cols-3 gap-3">
-              <LuggageCounter label={i18n.luggageSmall}  value={lug.small ?? 0}  onChange={v => patchLuggage({ small: v })} />
-              <LuggageCounter label={i18n.luggageMedium} value={lug.medium ?? 0} onChange={v => patchLuggage({ medium: v })} />
-              <LuggageCounter label={i18n.luggageLarge}  value={lug.large ?? 0}  onChange={v => patchLuggage({ large: v })} />
+              <LuggageCounter label={i18n.luggageSmall}  value={lug.small ?? 0}  onChange={v => patchLuggage({ small: v })}  maxReached={luggageMaxReached} />
+              <LuggageCounter label={i18n.luggageMedium} value={lug.medium ?? 0} onChange={v => patchLuggage({ medium: v })} maxReached={luggageMaxReached} />
+              <LuggageCounter label={i18n.luggageLarge}  value={lug.large ?? 0}  onChange={v => patchLuggage({ large: v })}  maxReached={luggageMaxReached} />
             </div>
+            {/* 차종별 캐리어 한계 안내 — Bus/VIP 는 무제한 협의, 그 외는 cap 도달 시 amber */}
+            {!isInquiryVehicle && (
+              <p className={`text-[11px] mt-2 px-1 leading-snug ${luggageMaxReached ? 'text-amber-300' : 'text-white/45'}`}>
+                {luggageMaxReached ? '⚠ ' : ''}{luggageVehicleNote}
+              </p>
+            )}
+            {isInquiryVehicle && (
+              <p className="text-[11px] text-white/45 mt-2 px-1 leading-snug">{luggageVehicleNote}</p>
+            )}
           </div>
         </div>
       )}
@@ -217,14 +256,21 @@ function Label({ children }: { children: React.ReactNode }) {
   return <p className="text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{children}</p>;
 }
 
-function LuggageCounter({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function LuggageCounter({ label, value, onChange, maxReached }: { label: string; value: number; onChange: (v: number) => void; maxReached?: boolean }) {
+  // PR-W4 이슈 36: 합계 cap 도달 시 + 버튼 disabled (- 는 항상 활성).
+  const plusDisabled = !!maxReached;
   return (
     <div className="flex flex-col gap-2">
       <span className="text-xs text-white/55 truncate">{label}</span>
       <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/10 bg-white/[0.03]">
-        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-white/70 hover:text-white w-6 h-6 text-base">−</button>
+        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-white/70 hover:text-white w-6 h-6 text-base disabled:opacity-30" disabled={value === 0}>−</button>
         <span className="text-base font-bold text-white">{value}</span>
-        <button type="button" onClick={() => onChange(Math.min(20, value + 1))} className="text-white/70 hover:text-white w-6 h-6 text-base">+</button>
+        <button
+          type="button"
+          onClick={() => { if (!plusDisabled) onChange(Math.min(20, value + 1)); }}
+          disabled={plusDisabled}
+          className="text-white/70 hover:text-white w-6 h-6 text-base disabled:opacity-30 disabled:cursor-not-allowed"
+        >+</button>
       </div>
     </div>
   );
