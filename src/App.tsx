@@ -37,6 +37,7 @@ const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
 const AdminOpsHub = lazy(() => import('@/pages/AdminOpsHub'));
 const AdminQualityDashboard = lazy(() => import('@/pages/AdminQualityDashboard'));
 const AdminTranslations = lazy(() => import('@/pages/AdminTranslations'));
+const AdminCoupons = lazy(() => import('@/pages/AdminCoupons'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
@@ -314,6 +315,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminTranslations />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/coupons"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminCoupons />
                 </Suspense>
               </AdminRoute>
             }
