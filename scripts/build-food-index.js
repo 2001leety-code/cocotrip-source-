@@ -20,6 +20,7 @@ const OUTPUT_PATH = join(ROOT, 'api', '_food_index.json');
 
 const MIN_RATING = 4.5;
 const MIN_RATING_NEW_CITIES = 4.0; // Lower threshold for new cities (less data available)
+const MIN_RATING_BUSAN = 4.6;      // Phase 6: Busan uses higher threshold (4.6)
 const MIN_REVIEWS = 50;
 const MIN_REVIEWS_NEW_CITIES = 10; // Lower for new cities
 const NEW_CITIES = ['jeju', 'gyeongju', 'jeonju'];
@@ -32,6 +33,9 @@ const KEEP_FIELDS = [
   'tag', 'placeId', 'googleMapsUrl',
   'city', 'dong', 'dongEn', 'district',
   'source', 'naverLink', // for Naver-collected data traceability
+  // Phase 6 (Busan) — foreigner-friendly meta
+  'hasEnglishMenu', 'wheelchairAccessible',
+  'area', // collection zone meta (e.g. haeundae, gwangalli)
 ];
 
 function loadJson(filePath) {
@@ -129,19 +133,39 @@ function main() {
   const gyeongju = loadJson(join(FOOD_DATA_DIR, 'restaurants_gyeongju_collected.json'));
   const jeonju   = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeonju_collected.json'));
 
+  // Load Busan Phase 6 files (from collect-busan.mjs + enrich-busan.mjs)
+  // These files are already rating-filtered (≥4.6) by enrich-busan.mjs
+  const busanSeafood    = loadJson(join(FOOD_DATA_DIR, 'busan_seafood.json'));
+  const busanCafe       = loadJson(join(FOOD_DATA_DIR, 'busan_cafe.json'));
+  const busanRestaurant = loadJson(join(FOOD_DATA_DIR, 'busan_restaurant.json'));
+  const busanAttraction = loadJson(join(FOOD_DATA_DIR, 'busan_attraction.json'));
+
   // Combine all
-  const all = [...general, ...halal, ...vegan, ...jeju, ...gyeongju, ...jeonju];
+  const all = [
+    ...general, ...halal, ...vegan,
+    ...jeju, ...gyeongju, ...jeonju,
+    ...busanSeafood, ...busanCafe, ...busanRestaurant, ...busanAttraction,
+  ];
   console.log(`\n  📊 Total raw items: ${all.length}`);
 
-  // Filter by rating & reviews (different thresholds for new vs established cities)
+  // Filter by rating & reviews (different thresholds per city/source)
   const filtered = all.filter(r => {
-    const rating = Number(r.rating) || 0;
+    const rating  = Number(r.rating) || 0;
     const reviews = Number(r.reviewCount) || 0;
-    const city = (r.city || '').toLowerCase();
-    const isNewCity = NEW_CITIES.includes(city);
+    const city    = (r.city || '').toLowerCase();
+    const isNewCity       = NEW_CITIES.includes(city);
     const isNaverCollected = r.source === 'naver_local';
+    const isBusan         = city === 'busan';
 
-    // Naver Local API doesn't provide ratings — include all collected items
+    // Busan Phase 6: enrich-busan.mjs already filters at 4.6.
+    // Secondary guard here for any items that slipped through.
+    if (isBusan) {
+      // Naver-only (no Google enrichment yet) → include with relaxed filter
+      if (isNaverCollected && !r.placeId) return true;
+      return rating >= MIN_RATING_BUSAN && reviews >= MIN_REVIEWS;
+    }
+
+    // Naver Local API (non-Busan) doesn't provide ratings — include all
     if (isNaverCollected) return true;
 
     // Different thresholds for established vs new cities

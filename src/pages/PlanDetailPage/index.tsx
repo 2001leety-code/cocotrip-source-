@@ -245,6 +245,7 @@ export default function PlanDetailPage() {
                 isRecalculating={editor.isRecalculating}
                 onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
                 onAddStop={(di) => setAddStopDay(di)}
+                plan={plan}
               />
             </DndContext>
           </div>

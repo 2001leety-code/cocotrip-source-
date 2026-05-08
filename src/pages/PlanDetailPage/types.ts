@@ -45,6 +45,11 @@ export interface PlanDay {
   date?: string;
   theme?: string;
   stops?: PlanStop[];
+  /** Lodging bookend transits (2026-05-08): 숙소→첫 stop / 마지막 stop→숙소.
+   *  RouteAgent 가 호텔/zone anchor 좌표가 있을 때만 채움. UI는 Day 첫/끝에
+   *  "🏨 숙소 출발/복귀" 카드를 렌더. legacy 플랜은 undefined → 자연스럽게 미노출. */
+  lodging_to_first?: TransitSegment | null;
+  last_to_lodging?: TransitSegment | null;
   [key: string]: unknown;
 }
 

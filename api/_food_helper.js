@@ -238,12 +238,23 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
 
   // ── Format output ─────────────────────────────────────────────────────
   const dietLabel = dietPrefs.length > 0 ? dietPrefs.join(' & ') : 'Korean';
+  // Phase 6: Busan DB uses 4.6 threshold; others use 4.5
+  const ratingThresholdLabel = cityCode === 'busan' ? '4.6' : '4.5';
   const lines = final.map(r => {
     const priceInfo = r.priceRange ? ` ${r.priceRange}` : '';
-    return `  • ${r.name.split('|')[0].trim()} (${r.nameEn}) ⭐${r.rating} (${r.reviewCount} reviews)${priceInfo}\n    📍 ${r.address}\n    🗺️ ${r.googleMapsUrl}`;
+    const priceLevel = r.priceLevel != null ? ` 💴${r.priceLevel}` : '';
+    const englishMenu = r.hasEnglishMenu === true ? ' 🌐EN' : '';
+    const wheelchair = r.wheelchairAccessible === true ? ' ♿' : '';
+    return (
+      `  • ${r.name.split('|')[0].trim()} (${r.nameEn || ''}) ` +
+      `⭐${r.rating} (${r.reviewCount} reviews)${priceInfo}${priceLevel}${englishMenu}${wheelchair}\n` +
+      `    📍 ${r.address}\n` +
+      `    🗺️ ${r.googleMapsUrl || ''}`
+    );
   });
 
-  const header = `## Recommended ${dietLabel} Restaurants in ${cityCode.charAt(0).toUpperCase() + cityCode.slice(1)} (Rating ≥ 4.5)`;
+  const cityLabel = cityCode.charAt(0).toUpperCase() + cityCode.slice(1);
+  const header = `## Recommended ${dietLabel} Restaurants in ${cityLabel} (Rating ≥ ${ratingThresholdLabel})`;
 
   return `\n\n--- VERIFIED RESTAURANT DATABASE (MUST use restaurants from this list for meals) ---\n${header}\n${lines.join('\n\n')}\n\nIMPORTANT: Use the EXACT name and address from the above list. Set "verified": true on each food stop from this list.\n---`;
 }

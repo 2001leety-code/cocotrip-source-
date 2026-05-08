@@ -292,7 +292,9 @@ export async function generatePDF(
       if (step.options && step.options.length > 0) {
         html += `<div style="margin-top:6px;">`;
         step.options.forEach((opt) => {
-          html += `<p style="font-size:10px;color:${C.sub};margin:2px 0;display:flex;justify-content:space-between;"><span>\u00B7 ${opt.name}</span><strong style="color:${C.accent};">${formatKRW(opt.price_krw || 0)}</strong></p>`;
+          // display:flex on <p> \uAE68\uC9D0 \uBC29\uC9C0 \u2014 html2canvas flex \uB0B4 <p> \uB808\uC774\uC544\uC6C3 \uBD88\uC548\uC815.
+          // <table> 1-row \uB85C \uAD50\uCCB4 (html2canvas table \uC9C0\uC6D0\uC774 \uB354 \uC548\uC815\uC801).
+          html += `<table style="width:100%;font-size:10px;color:${C.sub};margin:2px 0;"><tr><td>\u00B7 ${opt.name}</td><td style="text-align:right;"><strong style="color:${C.accent};">${formatKRW(opt.price_krw || 0)}</strong></td></tr></table>`;
         });
         html += `</div>`;
       }
@@ -339,7 +341,7 @@ export async function generatePDF(
   days.forEach((day: PlanDay, di: number) => {
     html += `<div style="margin-bottom:24px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;">
-        <div style="width:32px;height:32px;border-radius:50%;background:${C.accent};color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">${day.day || di + 1}</div>
+        <div style="width:32px;height:32px;border-radius:50%;background:${C.accent};color:white;text-align:center;line-height:32px;font-size:14px;font-weight:700;flex-shrink:0;">${day.day || di + 1}</div>
         <div>
           <h2 style="font-size:16px;font-weight:700;color:${C.heading};margin:0;">${day.theme || `Day ${day.day || di + 1}`}</h2>
           ${day.date ? `<p style="font-size:10px;color:${C.muted};margin:0;">${day.date}</p>` : ''}
@@ -386,15 +388,24 @@ export async function generatePDF(
       ? `<img src="${heroPhotoUrl}" style="width:90px;height:60px;object-fit:cover;border-radius:4px;flex-shrink:0;" alt="" />`
       : '';
 
-    html += `<div style="display:flex;gap:10px;align-items:stretch;background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${C.accent};border-radius:6px;padding:10px;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;">
-      ${photoHtml}
-      <div style="flex:1;display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;">
-        <div><strong style="color:${C.heading};">${summaryLabels.walk}</strong>: <span style="color:${C.accent};font-weight:600;">${km}</span></div>
-        <div><strong style="color:${C.heading};">${summaryLabels.transit}</strong>: <span style="color:${C.accent};font-weight:600;">${transitTxt}</span></div>
-        <div><strong style="color:${C.heading};">${summaryLabels.stay}</strong>: <span style="color:${C.accent};font-weight:600;">${stayTxt}</span></div>
-        <div><strong style="color:${C.heading};">${summaryLabels.cost}</strong>: <span style="color:${C.accent};font-weight:700;">${costTxt}</span></div>
-      </div>
-    </div>`;
+    // display:flex → table 레이아웃으로 교체. html2canvas flex 내 stretch/wrap 불안정.
+    html += `<table style="width:100%;background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${C.accent};border-radius:6px;padding:0;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;border-collapse:collapse;">
+      <tr>
+        ${photoHtml ? `<td style="width:90px;padding:10px 6px 10px 10px;vertical-align:middle;">${photoHtml}</td>` : ''}
+        <td style="padding:10px;vertical-align:middle;">
+          <table style="width:100%;font-size:11px;border-collapse:collapse;">
+            <tr>
+              <td style="padding:2px 8px 2px 0;"><strong style="color:${C.heading};">${summaryLabels.walk}</strong>: <span style="color:${C.accent};font-weight:600;">${km}</span></td>
+              <td style="padding:2px 8px 2px 0;"><strong style="color:${C.heading};">${summaryLabels.transit}</strong>: <span style="color:${C.accent};font-weight:600;">${transitTxt}</span></td>
+            </tr>
+            <tr>
+              <td style="padding:2px 8px 2px 0;"><strong style="color:${C.heading};">${summaryLabels.stay}</strong>: <span style="color:${C.accent};font-weight:600;">${stayTxt}</span></td>
+              <td style="padding:2px 0;"><strong style="color:${C.heading};">${summaryLabels.cost}</strong>: <span style="color:${C.accent};font-weight:700;">${costTxt}</span></td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>`;
 
     (day.stops || []).forEach((stop: PlanStop) => {
       // Transit arrow (rich: uses steps_detail when available, falls back to step_by_step for legacy plans)
@@ -562,14 +573,20 @@ export async function generatePDF(
       // class="pdf-stop-card"는 html2pdf의 pagebreak.avoid selector 와 짝.
       // Sprint 1 Step 4: 카테고리별 좌측 accent bar (web #136 parity).
       const catBar = pdfCategoryBar(stop.category);
+      // display:flex justify-content:space-between \u2192 table \uB808\uC774\uC544\uC6C3\uC73C\uB85C \uAD50\uCCB4.
+      // html2canvas flex space-between\uC774 \uC77C\uBD80 \uD658\uACBD\uC5D0\uC11C \uC624\uB978\uCABD \uC694\uC18C\uB97C \uC798\uB77C\uB0C4.
       html += `<div class="pdf-stop-card" style="background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${catBar};border-radius:8px;padding:12px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${catBar};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
-            ${(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) ? `<p style="font-size:10px;color:${C.muted};margin:2px 0 0;">${stop.name || stop.name_ko}</p>` : ''}
-          </div>
-          <span style="font-size:10px;color:${(stop.entry_fee_krw || 0) > 0 ? C.pink : '#22c55e'};font-weight:600;">${(stop.entry_fee_krw || 0) > 0 ? formatKRW(stop.entry_fee_krw || 0) : L.free}</span>
-        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="vertical-align:top;padding:0;">
+              <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;"><span style="color:${catBar};font-size:12px;">${stop.start_time || ''}</span> \u00B7 ${stop.display_name || stop.name_en || stop.name || stop.name_ko || ''}</p>
+              ${(stop.name || stop.name_ko) && (stop.display_name || stop.name_en) && (stop.name || stop.name_ko) !== (stop.display_name || stop.name_en) ? `<p style="font-size:10px;color:${C.muted};margin:2px 0 0;">${stop.name || stop.name_ko}</p>` : ''}
+            </td>
+            <td style="vertical-align:top;text-align:right;padding:0 0 0 8px;white-space:nowrap;">
+              <span style="font-size:10px;color:${(stop.entry_fee_krw || 0) > 0 ? C.pink : '#22c55e'};font-weight:600;">${(stop.entry_fee_krw || 0) > 0 ? formatKRW(stop.entry_fee_krw || 0) : L.free}</span>
+            </td>
+          </tr>
+        </table>
         <p style="font-size:10px;color:${C.muted};margin:4px 0 0;">${stop.stay_min || '?'}min${stop.address ? ` | ${stop.address}` : ''}</p>
         ${stop.naverMapUrl ? `<p style="font-size:10px;margin:3px 0 0;"><a href="${stop.naverMapUrl}" style="color:${C.accent};text-decoration:underline;">${L.openNaverMap}</a></p>` : ''}
         ${(stop.tip || stop.tip_en) ? `<p style="font-size:10px;color:${C.sub};margin:4px 0 0;font-style:italic;">${L.tip}: ${stop.tip || stop.tip_en}</p>` : ''}
@@ -785,15 +802,19 @@ export async function generatePDF(
     return;
   }
 
-  // === Phase 2 (2026-04-27): adaptive scale로 긴 일정도 PDF 가능 ===
+  // === Phase 2 (2026-04-27, rev 2026-05-08): adaptive scale로 긴 일정도 PDF 가능 ===
   // 메모리 = 800 × scrollHeight × scale^2 × 4byte. iOS OOM 한계 ~50MB.
-  // 이전: > 12000px abort. 이제: scale 자동 하향으로 더 긴 일정도 처리.
-  //   ≤ 12000px: scale 1.0 (메모리 ~38MB)
-  //   12000-18000px: scale 0.85 (메모리 ~41MB, 품질 조금 저하)
-  //   18000-24000px: scale 0.7 (메모리 ~38MB, 품질 저하 인지 가능)
-  //   > 24000px: 진짜 너무 김 → abort + WhatsApp 안내
+  // 2026-05-08 개선: 기본 scale 1.5 (레티나 디스플레이 선명도 개선, 텍스트 흐림 해결).
+  //   devicePixelRatio를 직접 쓰지 않는 이유: 3배 레티나(iPhone)에서 scale=3이면 OOM.
+  //   대신 1.5 고정으로 선명도 vs 메모리 균형 유지.
+  //   메모리 기준(1.5): 800 × H × 2.25 × 4byte
+  //   ≤ 8000px: scale 1.5 (~43MB)
+  //   8000-12000px: scale 1.0 (~38MB)
+  //   12000-18000px: scale 0.85 (~41MB)
+  //   18000-24000px: scale 0.7 (~38MB)
+  //   > 24000px: abort + WhatsApp 안내
   const scrollH = container.scrollHeight;
-  let pdfScale = 1.0;
+  let pdfScale = scrollH <= 8000 ? 1.5 : 1.0;
   if (scrollH > 12000 && scrollH <= 18000) pdfScale = 0.85;
   else if (scrollH > 18000 && scrollH <= 24000) pdfScale = 0.7;
   else if (scrollH > 24000) {

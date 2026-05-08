@@ -21,9 +21,11 @@ import { SortableStopCard } from './SortableStopCard';
 import { StopCard } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
+import { LodgingBookend } from './LodgingBookend';
 import { useLanguage } from '@/hooks/useLanguage';
-import type { PlanDay, PlanStop } from '../types';
+import type { PlanDay, PlanStop, PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
+import type { TransitFromPrev } from '@/types/plan';
 
 interface DayTimelineProps {
   day: PlanDay;
@@ -32,9 +34,24 @@ interface DayTimelineProps {
   isRecalculating?: boolean;
   onDeleteStop: (dayIdx: number, stopIdx: number) => void;
   onAddStop: (dayIdx: number) => void;
+  /** 2026-05-08: 숙소 라벨 source — input.hotel_address 또는 zone 키. */
+  plan?: PlanDocument;
 }
 
-export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop }: DayTimelineProps) {
+/** Pull the user-friendly lodging label from PlanDocument input.
+ *  Priority: input.hotel_address (literal) > input.recommended_zone (zone key
+ *  passed through, UI 가 그냥 표시) > undefined. */
+function getLodgingLabel(plan: PlanDocument | undefined): string | undefined {
+  if (!plan) return undefined;
+  const input = plan.input || {};
+  const hotelAddr = (input.hotel_address as string) || '';
+  if (hotelAddr.trim().length > 0) return hotelAddr;
+  const zone = (input.recommended_zone as string) || '';
+  if (zone) return zone;
+  return undefined;
+}
+
+export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, plan }: DayTimelineProps) {
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -113,6 +130,20 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         </div>
       )}
 
+      {/* 2026-05-08: 숙소 출발 카드 — RouteAgent 가 day.lodging_to_first 에 ODsay
+          데이터를 채운 경우에만 노출. 첫 stop 의 transit_from_prev 와 동일 데이터를
+          쓸 수도 있지만, day-level 에 별도로 두면 호텔 라벨 + 시각 강조 가능. */}
+      {day.lodging_to_first && stops.length > 0 && (
+        <LodgingBookend
+          transit={day.lodging_to_first as TransitFromPrev}
+          variant="depart"
+          lodgingLabel={getLodgingLabel(plan)}
+          otherLabel={(stops[0] as { display_name?: string; name?: string }).display_name
+            || (stops[0] as { display_name?: string; name?: string }).name
+            || ''}
+        />
+      )}
+
       {editMode ? (
         <SortableContext items={stopIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-1 pl-8">
@@ -123,9 +154,12 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                   || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_ko
                   || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_en
                   || '';
+                // 첫 stop 의 transit_from_prev 가 lodging_to_first 와 동일하면
+                // 위 LodgingBookend 가 이미 보여 줬으므로 중복 렌더 방지.
+                const skipFirstTransit = si === 0 && !!day.lodging_to_first;
                 return (
                   <div key={stopIds[si]}>
-                    {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} destinationName={destName} />}
+                    {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
                     <SortableStopCard
                       stop={stop}
                       stopId={stopIds[si]}
@@ -155,6 +189,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
               || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_ko
               || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_en
               || '';
+            const skipFirstTransit = si === 0 && !!day.lodging_to_first;
             return (
               <motion.div
                 key={si}
@@ -163,12 +198,25 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 initial="hidden"
                 animate="visible"
               >
-                {stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as any} destinationName={destName} />}
+                {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
                 <StopCard stop={stop} />
               </motion.div>
             );
           })}
         </div>
+      )}
+
+      {/* 2026-05-08: 숙소 복귀 카드 — RouteAgent Phase 2.6 가 day.last_to_lodging 에
+          ODsay 데이터를 채운 경우만. 마지막 stop 카드 바로 아래. */}
+      {day.last_to_lodging && stops.length > 0 && (
+        <LodgingBookend
+          transit={day.last_to_lodging as TransitFromPrev}
+          variant="return"
+          lodgingLabel={getLodgingLabel(plan)}
+          otherLabel={(stops[stops.length - 1] as { display_name?: string; name?: string }).display_name
+            || (stops[stops.length - 1] as { display_name?: string; name?: string }).name
+            || ''}
+        />
       )}
 
       {/* Delete confirmation */}

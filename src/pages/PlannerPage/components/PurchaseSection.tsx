@@ -24,14 +24,19 @@ interface PurchaseSectionProps {
   resultQuick: QuickPreviewData;
   lastValues: MutableRefObject<PlannerFormValues | null>;
   revisionMode: boolean; revisionPlanId: string | null; revisionToken: string | null;
+  /** W4: revision reason chips (comma-joined), free text, and previous stop names */
+  revisionReason?: string | null;
+  revisionNote?: string | null;
+  avoidList?: string | null;
   onPaymentSuccess: (orderId: string) => void;
-  onRevisionRegenerate: (values: PlannerFormValues, planId: string, token: string | null) => void;
+  onRevisionRegenerate: (values: PlannerFormValues, planId: string, token: string | null, revisionReason?: string | null, revisionNote?: string | null, avoidList?: string | null) => void;
 }
 
 export function PurchaseSection({
   p, isMobile, language, userEmail, setUserEmail,
   isGeneratingPlan, planError, resultQuick, lastValues,
   revisionMode, revisionPlanId, revisionToken,
+  revisionReason, revisionNote, avoidList,
   onPaymentSuccess, onRevisionRegenerate,
 }: PurchaseSectionProps) {
   // 5/7 변경: PayPalBookingButton 이 PayPal Smart Buttons (live) + SDK 차단 시 paypal.me QR
@@ -63,6 +68,17 @@ export function PurchaseSection({
           <span className="text-white/60 text-xs">{p.launchPrice}</span>
         </div>
         <p className="text-amber-400/80 text-[11px] mt-3 font-medium">{p.limitedTimeOffer}</p>
+
+        {/* W4: 가치 강조 배너 — "1회 결제 = 총 3개 버전 일정" */}
+        <div className="mt-3 mx-auto max-w-xs px-3.5 py-2.5 rounded-xl border border-amber-400/30"
+          style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(182,104,252,0.08))' }}>
+          <p className="text-amber-300 text-xs font-bold leading-snug">
+            {(p as { valueBannerMain?: string }).valueBannerMain || '$9.90 — 3 itineraries total!'}
+          </p>
+          <p className="text-white/55 text-[11px] mt-0.5 leading-snug">
+            {(p as { valueBannerSub?: string }).valueBannerSub || '1 purchase + 2 Free Revisions = 3 completely different versions'}
+          </p>
+        </div>
       </div>
 
       <h3 className="text-xl font-bold text-white mb-2 relative">{p.fullPlanTitle}</h3>
@@ -103,21 +119,21 @@ export function PurchaseSection({
             2026-05-05: bundle toggle "Already booked? Get free" CTA 분기 제거. */}
         {isGeneratingPlan ? (
           <div className="space-y-3 py-2">
-            {/* 4-step 진행 + 한국 여행 꿀팁 회전 노출 */}
-            <TriviaLoadingAnimation p={p} />
+            {/* 4-step 진행 + 꿀팁 슬라이드 (en/ja/zh: 한국 여행 꿀팁 10개, ko: 기존 한국어 팁) */}
+            <TriviaLoadingAnimation p={p} lang={language} />
             {/* 안심 메시지 — 이메일로도 발송됨을 명시 (booking confirmation 이미 발송) */}
             <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border"
               style={{ background: 'rgba(124,92,252,0.06)', borderColor: 'rgba(124,92,252,0.20)' }}>
               <Mail className="w-4 h-4 text-[#B8A0FF] shrink-0 mt-0.5" />
               <div className="text-[12px] text-white/75 leading-relaxed">
                 <p className="font-semibold text-white">{p.planReadyEmailTitle || "준비되면 이메일로도 보내드려요"}</p>
-                <p className="text-white/55 mt-0.5">{p.planReadyEmailSub || "잠시 페이지를 닫지 말아주세요. 보통 15-30초 정도 걸려요."}</p>
+                <p className="text-white/55 mt-0.5">{p.planReadyEmailSub || "잠시 페이지를 닫지 말아주세요. 보통 1~2분 정도 걸려요."}</p>
               </div>
             </div>
           </div>
         ) : revisionMode && revisionPlanId ? (
           <button
-            onClick={() => { const v = lastValues.current; if (v) onRevisionRegenerate(v, revisionPlanId, revisionToken); }}
+            onClick={() => { const v = lastValues.current; if (v) onRevisionRegenerate(v, revisionPlanId, revisionToken, revisionReason, revisionNote, avoidList); }}
             disabled={!lastValues.current}
             className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}>

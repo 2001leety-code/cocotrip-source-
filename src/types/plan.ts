@@ -183,6 +183,14 @@ export interface Day {
   date: string;
   theme: string;
   stops: Stop[];
+  /** RouteAgent: 숙소 → 첫 stop 이동 (Phase 2.5). 호텔/zone anchor 좌표가
+   *  있을 때만 채워짐. UI는 이 데이터로 첫 stop 위에 "🏨 숙소 출발 N분" 표시.
+   *  stops[0].transit_from_prev로도 같은 데이터가 들어가지만, 일부 legacy 플랜
+   *  호환을 위해 day 레벨에도 별도 보존. */
+  lodging_to_first?: TransitFromPrev | null;
+  /** RouteAgent: 마지막 stop → 숙소 복귀 이동 (2026-05-08 신규). 호텔/zone anchor
+   *  좌표가 있을 때만 채워짐. UI는 마지막 stop 아래 "🏨 숙소 복귀 N분" 표시. */
+  last_to_lodging?: TransitFromPrev | null;
 }
 
 export interface ArrivalStep {
