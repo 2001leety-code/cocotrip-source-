@@ -773,9 +773,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           onClick={async () => {
             setLoading(true);
             setError(null);
+            // batch 9 fix (B9-6): Test Mode 클릭 진단 로그.
+            // userEmail 이 admin 매칭되어야 server-side ADMIN-BYPASS 통과 가능.
+            const orderId = `ADMIN-BYPASS-${Date.now()}`;
+            console.log('[Test Mode] click | userEmail:', userEmail, '| orderId:', orderId);
             try {
-              await onPaymentSuccess(`ADMIN-BYPASS-${Date.now()}`);
+              await onPaymentSuccess(orderId);
             } catch (err) {
+              console.error('[Test Mode] onPaymentSuccess failed:', err);
               setError(err instanceof Error ? err.message : 'Admin bypass failed');
             } finally {
               setLoading(false);

@@ -104,12 +104,16 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       //   3. 두 조건 모두 실패 시 403 FORBIDDEN (일반 사용자 ADMIN-BYPASS- prefix 위조 차단).
       // Firestore 감사 기록: admin_bypass_audit 컬렉션에 이메일·시각·orderId 저장.
       if (!requestEmail) {
-        return reject(403, 'FORBIDDEN', 'Admin bypass requires authenticated email');
+        return reject(403, 'FORBIDDEN', 'Admin bypass requires authenticated email',
+          'No email returned from Firebase ID token verification. Sign out + sign in again.');
       }
       const allowedEmails = getAdminBypassEmails();
       if (!allowedEmails.includes(requestEmail)) {
-        console.warn('[planner] ADMIN-BYPASS- rejected for non-admin email:', requestEmail);
-        return reject(403, 'FORBIDDEN', 'Admin bypass not allowed for this account');
+        // batch 9 fix (B9-6): reject 메시지에 정확한 디버깅 정보 — 운영자가 prod 에서
+        // 즉시 원인 식별 가능. 이메일 노출은 본인이라 OK.
+        console.warn('[planner] ADMIN-BYPASS- rejected for non-admin email:', requestEmail, '| allowed:', allowedEmails);
+        return reject(403, 'FORBIDDEN', 'Admin bypass not allowed for this account',
+          `Authenticated as "${requestEmail}" but not in admin allowlist. Allowed: [${allowedEmails.join(', ')}]. Configure ADMIN_BYPASS_EMAILS env var or sign in with the admin account.`);
       }
       console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | admin:', requestEmail, '| orderId:', paypalOrderId);
       // 감사 기록 (비치명적 — 실패해도 bypass 허용)
