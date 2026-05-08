@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   MapPin, Clock, ChevronDown, Train, Bus, Footprints,
-  ExternalLink, Accessibility, AlertTriangle, Heart, Share2, Navigation,
+  ExternalLink, Accessibility, AlertTriangle, Heart, Share2, Navigation, Ticket,
 } from 'lucide-react';
 import { CAT_ICON, formatKRW, getCatColors } from '../constants';
 import type { PlanStop } from '../types';
@@ -16,6 +16,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { sanitizeStopName } from '@/lib/sanitizeName';
 import { track as posthogTrack } from '@/lib/posthog';
 import { haptic } from '@/lib/haptic';
+import { buildAttractionLink } from '@/config/affiliateLinks';
 import { Lightbox } from './Lightbox';
 
 // Sprint 1 Step 5: Action UX — 즐겨찾기 / 공유 / 길찾기.
@@ -46,6 +47,40 @@ function writeFavSet(planId: string, set: Record<string, true>) {
   } catch {
     // localStorage quota / private mode 등은 silent — 사용자 흐름 깨지 않게
   }
+}
+
+// batch 9 (2026-05-09): stop.address 에서 wizard cityKey 추론.
+// buildAttractionLink 가 cityKey 로 도시명을 검색 키워드 prefix 에 추가 → 정확도 ↑.
+// address 없거나 매칭 안 되면 undefined 반환 → buildAttractionLink 가 keyword 만으로 검색.
+function inferCityKey(address: string | undefined): string | undefined {
+  if (!address) return undefined;
+  if (/서울특별시|서울시|Seoul/i.test(address)) return 'seoul';
+  if (/부산광역시|부산시|Busan/i.test(address)) return 'busan';
+  if (/제주특별자치도|제주시|Jeju/i.test(address)) return 'jeju';
+  if (/경주시|Gyeongju/i.test(address)) return 'gyeongju';
+  if (/전주시|Jeonju/i.test(address)) return 'jeonju';
+  if (/강릉시|Gangneung/i.test(address)) return 'gangneung';
+  if (/대구광역시|대구시|Daegu/i.test(address)) return 'daegu';
+  if (/여수시|Yeosu/i.test(address)) return 'yeosu';
+  if (/수원시|Suwon/i.test(address)) return 'suwon';
+  if (/춘천시|Chuncheon/i.test(address)) return 'chuncheon';
+  if (/단양군|Danyang/i.test(address)) return 'danyang';
+  if (/인천광역시|인천시|Incheon/i.test(address)) return 'incheon';
+  return undefined;
+}
+
+// batch 9: Trip.com Activities (입장권/체험) 검색 링크 노출 조건.
+// - 입장료 있는 stop (entry_fee_krw > 0) → 입장권 검색 직결 (경복궁, 창덕궁 등)
+// - 또는 culture/landmark/kpop/nature 카테고리 (무료여도 가이드 투어 가능)
+// - food/cafe/shopping 은 명시 제외 (Trip.com Activities 와 무관)
+const ATTRACTION_CATEGORIES = ['culture', 'landmark', 'kpop', 'nature'];
+const ATTRACTION_SKIP_CATEGORIES = ['food', 'cafe', 'shopping'];
+
+function shouldShowAttractionLink(stop: PlanStop): boolean {
+  const category = (stop.category || '').toLowerCase();
+  if (ATTRACTION_SKIP_CATEGORIES.includes(category)) return false;
+  if ((stop.entry_fee_krw || 0) > 0) return true;
+  return ATTRACTION_CATEGORIES.includes(category);
 }
 
 function buildNaverMapUrl(stop: PlanStop): string {
@@ -414,6 +449,26 @@ export function StopCard({ stop }: { stop: PlanStop }) {
               {ui.directionsLabel || 'Directions'}
             </button>
           </div>
+
+          {/* batch 9 (2026-05-09): Trip.com Activities 입장권/체험 검색 링크.
+              culture/landmark/kpop/nature 카테고리 또는 입장료 있는 stop 에 노출.
+              cityKey 는 address 에서 자동 추론 — 다른 도시 동명 명소 매칭률 ↓. */}
+          {shouldShowAttractionLink(stop) && (() => {
+            const placeName = cleanDisplayName || cleanKoName;
+            if (!placeName) return null;
+            const cityKey = inferCityKey(stop.address);
+            const url = buildAttractionLink(placeName, cityKey);
+            return (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
+              >
+                <Ticket className="w-3 h-3" /> {ui.searchTickets || 'Search tickets on Trip.com'}
+              </a>
+            );
+          })()}
 
           {/* Naver Map link - coordinate-based URL preferred for accuracy */}
           {(() => {

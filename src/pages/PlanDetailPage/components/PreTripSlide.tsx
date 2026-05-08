@@ -11,6 +11,7 @@ import { adApplies } from '../lib/buildSlides';
 import { EsimAd } from './ads/EsimAd';
 import { HotelAd } from './ads/HotelAd';
 import { FlightAd } from './ads/FlightAd';
+import { TrainsAd } from './ads/TrainsAd';
 import { AirportToLodgingGuide } from './AirportToLodgingGuide';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
@@ -61,6 +62,10 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
   const showHotel = adApplies('hotel', plan);
   const showFlight = adApplies('flight', plan);
   const showCharter = adApplies('charter', plan);
+  const showTrain = adApplies('train', plan);
+  const regions = ((input.regions as unknown as string[]) || []).filter(Boolean);
+  const trainFromCity = regions[0];
+  const trainToCity = regions[1];
 
   const containerRef = useRef<HTMLDivElement>(null);
   const impressionTracked = useRef(false);
@@ -77,6 +82,7 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
           if (showCharter) trackAdImpression('charter', 'preTrip');
           if (showHotel) trackAdImpression('hotel', 'preTrip');
           if (showFlight) trackAdImpression('flight', 'preTrip');
+          if (showTrain) trackAdImpression('train', 'preTrip');
           observer.disconnect();
         }
       },
@@ -84,7 +90,7 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [showHotel, showFlight, showCharter]);
+  }, [showHotel, showFlight, showCharter, showTrain]);
 
   // 4-lang 헤더 텍스트 (i18n dict의 swipe 섹션 또는 fallback)
   const headerTitle = (sw as Record<string, string | undefined>).preTripTitle ||
@@ -170,6 +176,13 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
         {showFlight && (
           <div className="mt-4">
             <FlightAd arrivalAirport={arrivalAirport} />
+          </div>
+        )}
+
+        {/* 카드 7: KTX/SRT (다도시 plan 시) — batch 9 (2026-05-09) */}
+        {showTrain && (
+          <div className="mt-4">
+            <TrainsAd fromCityKey={trainFromCity} toCityKey={trainToCity} />
           </div>
         )}
       </div>

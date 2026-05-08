@@ -13,7 +13,7 @@
 // between Day slides — superseded.
 
 export type SlideType = 'preTrip' | 'intro' | 'day' | 'ad' | 'outro';
-export type AdCategory = 'flight' | 'hotel' | 'charter' | 'esim' | 'carRental' | 'airportPickup';
+export type AdCategory = 'flight' | 'hotel' | 'charter' | 'esim' | 'carRental' | 'airportPickup' | 'train';
 
 export interface Slide {
   type: SlideType;
@@ -45,6 +45,12 @@ export function adApplies(category: AdCategory, plan: PlanDocument): boolean {
     // 또는 charter_inquiry_id 있으면 (CharterInquireModal 제출 후 set)
     // → 둘 중 하나라도 있으면 광고 스킵.
     if (input.charter_booked === true || input.charter_inquiry_id) return false;
+  }
+  if (category === 'train') {
+    // batch 9 (2026-05-09): 다도시 plan(서울→부산 등)에서 KTX/SRT 추천.
+    // 1개 도시 plan 에 광고하면 노이즈 — regions ≥ 2 일 때만 노출.
+    const regions = (input.regions as unknown as string[]) || [];
+    return Array.isArray(regions) && regions.length >= 2;
   }
   return true;
 }

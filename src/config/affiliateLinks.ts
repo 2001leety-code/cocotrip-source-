@@ -31,6 +31,10 @@ export const AFFILIATE_CONFIG = {
     hotel:    'https://www.trip.com/hotels/list',
     flight:   'https://www.trip.com/flights',
     activity: 'https://www.trip.com/travel-guide',
+    // 2026-05-09 batch 9: Trip.com 카테고리 확장 (eSIM/Activities/Trains).
+    attraction: 'https://www.trip.com/things-to-do/list',  // 입장권·체험 (Activities)
+    sim:      'https://www.trip.com/sim-cards/list',       // eSIM
+    train:    'https://www.trip.com/trains/list',          // KTX/SRT
     car:      'https://www.trip.com/carhire',
     package:  'https://www.trip.com/packages',
   },
@@ -149,6 +153,64 @@ export function buildTourLinks(placeName: string, region: string) {
       url: `${AFFILIATE_CONFIG.tripcom.activity}?keyword=${query}&${TRIP_AFF}`,
     },
   ];
+}
+
+/* ── Attractions / Tickets (입장권·체험) ───────────────── */
+/**
+ * Trip.com 입장권/체험(things-to-do) 검색 링크.
+ * AI 플랜의 culture / landmark / kpop 카테고리 stop 카드에서 활용.
+ *
+ * @param placeName  사용자 언어 표시명 (e.g. "Gyeongbokgung Palace", "경복궁")
+ *                   한국어 stop 의 경우 한국어명 그대로 사용 — Trip.com 영문/한글 모두 인식.
+ * @param cityKey    Wizard cityKey (lowercase, e.g. "seoul"). 도시명을 키워드 prefix 로 추가해
+ *                   다른 도시 동명 명소 매칭률 ↓.
+ */
+export function buildAttractionLink(placeName: string, cityKey?: string): string {
+  const cityKo = cityKey ? (CITY_KEY_TO_KO[cityKey] || '') : '';
+  const keyword = encodeURIComponent(cityKo ? `${cityKo} ${placeName}`.trim() : placeName);
+  return `${AFFILIATE_CONFIG.tripcom.attraction}?keyword=${keyword}&${TRIP_AFF}`;
+}
+
+/* ── eSIM (Trip.com 단일) ─────────────────────────────── */
+/**
+ * Trip.com eSIM 검색 링크 — Korea destination 고정.
+ * batch 9: Airalo/Yesim 별도 가입 회피 → Trip.com 단일화.
+ */
+export function buildEsimLink(): string {
+  return `${AFFILIATE_CONFIG.tripcom.sim}?keyword=${encodeURIComponent('Korea')}&${TRIP_AFF}`;
+}
+
+/* ── Trains (KTX/SRT) ─────────────────────────────────── */
+// Trip.com Trains 도시명 매핑 — Trip.com Trains 검색은 영문 도시명 키워드 인식.
+const CITY_KEY_TO_TRAIN_EN: Record<string, string> = {
+  seoul: 'Seoul',
+  busan: 'Busan',
+  jeju: 'Jeju',
+  gyeongju: 'Gyeongju',
+  jeonju: 'Jeonju',
+  gangneung: 'Gangneung',
+  daegu: 'Daegu',
+  yeosu: 'Yeosu',
+  suwon: 'Suwon',
+  chuncheon: 'Chuncheon',
+  danyang: 'Danyang',
+  incheon: 'Incheon',
+};
+
+/**
+ * Trip.com 기차(KTX/SRT) 검색 링크.
+ * 출발/도착 도시가 명확하면 dcity/acity, 1개 도시뿐이면 keyword=Korea KTX fallback.
+ *
+ * @param fromCityKey  출발 도시 (lowercase wizard cityKey)
+ * @param toCityKey    도착 도시 (선택)
+ */
+export function buildTrainLink(fromCityKey?: string, toCityKey?: string): string {
+  const dcity = fromCityKey ? CITY_KEY_TO_TRAIN_EN[fromCityKey] : '';
+  const acity = toCityKey ? CITY_KEY_TO_TRAIN_EN[toCityKey] : '';
+  if (dcity && acity && dcity !== acity) {
+    return `${AFFILIATE_CONFIG.tripcom.train}?dcity=${encodeURIComponent(dcity)}&acity=${encodeURIComponent(acity)}&${TRIP_AFF}`;
+  }
+  return `${AFFILIATE_CONFIG.tripcom.train}?keyword=${encodeURIComponent('Korea KTX')}&${TRIP_AFF}`;
 }
 
 /* ── Car Rentals ─────────────────────────────────────── */
