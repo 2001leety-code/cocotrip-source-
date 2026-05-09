@@ -42,9 +42,15 @@
     <meta name="apple-mobile-web-app-title" content="CocoTrip" />
 
     <!-- CJK 웹폰트 프리로드 — PDF 렌더 시 한국어/일본어/중국어 글자 깨짐 방지 -->
+    <!-- 2026-05-09 (B9-30): display=swap → display=block 변경.
+         이유: swap은 fallback 폰트로 즉시 그리고 → Noto 다운로드 완료 후 swap.
+         html2canvas가 swap 직전에 캡처하면 system 폰트 (Apple SD Gothic Neo / Malgun Gothic)
+         로 PDF 렌더 → 일부 글리프 누락(tofu) 또는 글자 폭 불일치로 layout 깨짐.
+         block은 폰트 준비될 때까지 invisible (3초) — LCP 손해 있지만 PDF 안정성 우선.
+         body 텍스트는 일반 system-ui/Inter 사용중이므로 LCP 영향 미미. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=block" />
 
     <!-- 2026-05-04: PayPal SDK preconnect 제거. PR #216 이후 결제 흐름은 Braintree
          drop-in 으로 일원화됨 (api/braintreeCheckout.js). PayPal SDK 직접 로드 없음. -->

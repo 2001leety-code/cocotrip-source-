@@ -184,7 +184,9 @@ export async function generatePDF(
   // left:0 (not -9999px) so html2canvas can actually render the content
   // CJK fallback chain: Noto Sans (Google Fonts preloaded) -> OS built-in -> generic
   // Noto Sans KR/JP/SC are preloaded in index.html for reliable CJK rendering
-  container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Noto Sans KR","Noto Sans JP","Noto Sans SC","Segoe UI","Apple SD Gothic Neo","Malgun Gothic","Hiragino Sans","Microsoft JhengHei","Microsoft YaHei",system-ui,sans-serif;line-height:1.6;z-index:99997;';
+  // 2026-05-09 (B9-30): font-display:block 인라인 강제 — index.html 의 stylesheet
+  // 가 lazy chunk 로 분리될 가능성 대비. PDF 컨테이너 한정으로 swap 차단.
+  container.style.cssText = 'position:absolute;top:0;left:0;width:800px;background:#ffffff;color:#1a1a2e;padding:40px;font-family:"Noto Sans KR","Noto Sans JP","Noto Sans SC","Apple SD Gothic Neo","Malgun Gothic","맑은 고딕","Hiragino Sans","Yu Gothic","Microsoft JhengHei","Microsoft YaHei","Segoe UI",system-ui,sans-serif;font-display:block;line-height:1.6;z-index:99997;';
   document.body.appendChild(container);
 
   // Color tokens for light PDF
@@ -701,10 +703,12 @@ export async function generatePDF(
     ]);
   }
 
-  // After explicit load, fonts.ready is reliable. 5s cap as safety net.
+  // After explicit load, fonts.ready is reliable. 8s cap as safety net.
+  // 2026-05-09 (B9-30): 5s → 8s. 모바일 4G 환경에서 Noto Sans KR (~120KB) 다운로드 + 파싱
+  // 5s 안에 못 끝내는 사례 보고됨. block display 변경과 함께 첫 방문자 안정성 강화.
   await Promise.race([
     fontsApi?.ready || Promise.resolve(),
-    new Promise(resolve => setTimeout(resolve, 5000)),
+    new Promise(resolve => setTimeout(resolve, 8000)),
   ]);
 
   // === CJK 폰트 렌더 검증: 더미 문자로 실제 렌더 확인 + 1회 재시도 ===
@@ -870,6 +874,13 @@ export async function generatePDF(
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
+        // 2026-05-09 (B9-30) 한글 깨짐 방지 강화:
+        // - letterRendering: true → 글자별 렌더링 (느리지만 폭/메트릭 정확)
+        // - foreignObjectRendering: false → SVG-foreignObject 비활성 (Safari iOS 깨짐 보고)
+        // - allowTaint: false → 취약한 이미지 차단 (CORS 우회 안전성)
+        letterRendering: true,
+        foreignObjectRendering: false,
+        allowTaint: false,
         windowWidth: 800,
         windowHeight: measuredHeight,
         height: measuredHeight,
