@@ -13,6 +13,7 @@ import { HotelAd } from './ads/HotelAd';
 import { CharterInlineAd } from './ads/CharterInlineAd';
 import { CarRentalAd } from './ads/CarRentalAd';
 import { FlightAd } from './ads/FlightAd';
+import { AccommodationRecommendation } from './AccommodationRecommendation';
 import { useLanguage } from '@/hooks/useLanguage';
 import { BRAND } from '@/lib/design-tokens';
 import type { PlanDocument } from '../types';
@@ -91,6 +92,27 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
         {/* Share */}
         <ShareButton planId={planId} plan={plan} isOwner={isOwner} />
       </div>
+
+      {/* B9-20 (2026-05-09 round 4): AI 호텔 추천 카드.
+          위치: Gemini 응답 JSON 의 root → persistPlan 이 itinerary 통째로 저장 →
+          Firestore plan.itinerary.accommodation. legacy plan 은 root level 에 있을
+          수 있어 두 위치 모두 fallback. 어필리에이트 HotelAd 광고와는 별개 — 이건
+          itinerary 분석 후 "이 플랜에 딱 맞는 한 채" 의 server-curated 추천. */}
+      {(() => {
+        const acc = (it.accommodation as Record<string, unknown> | undefined)
+          || (plan.accommodation as Record<string, unknown> | undefined);
+        if (!acc || typeof acc !== 'object' || Object.keys(acc).length === 0) return null;
+        return (
+          <AccommodationRecommendation
+            acc={acc}
+            region={region}
+            labelTitle={sw.accomRecTitle}
+            labelWhy={sw.accomRecWhy}
+            labelTip={sw.accomRecTip}
+            labelAffiliateNote={sw.accomRecAffiliateNote}
+          />
+        );
+      })()}
 
       {/* Trip Extras (D-option ad cards moved out of slides) */}
       {extras.length > 0 && (
