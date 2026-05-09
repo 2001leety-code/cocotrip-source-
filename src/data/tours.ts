@@ -694,10 +694,10 @@ const TOURS_RAW: Tour[] = [
       ja: '釜山のビーチと文化を1日でギュッと詰め込みます。夜明けの海雲台散歩、ユニークな甘川文化村、鮮魚のチャガルチ市場、広安大橋が望める広安里ビーチ、雄大な太宗台の断崖まで。',
       zh: '一天压缩感受釜山的海滩与文化。黎明时分漫步海云台、色彩斑斓的甘川文化村、新鲜海鲜的札嘎其市场、可欣赏广安大桥的广安里海滩，以及壮观的太宗台悬崖。',
     },
-    priceFrom: 415, // from spec.daily_tour_prices.busan-day.priceUSD — SSOT 일치
+    priceFrom: 327, // from spec.daily_tour_prices.busan-day.priceUSD — SSOT 일치 (B9-38: $415→$327, ₩572K→₩450K 시장 평균)
     currency: 'USD',
     durationDays: 1,
-    durationHours: 12, // spec.daily_tour_prices.busan-day.hours 일치
+    durationHours: 10, // spec.daily_tour_prices.busan-day.hours 일치 (B9-38: 12→10, 시장 평균 KKday/Klook/KoreaTravelEasy 9-10h)
     vehicleType: 'Staria',
     maxPax: 7,
     thumbnail: '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',

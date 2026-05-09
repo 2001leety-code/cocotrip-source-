@@ -109,7 +109,9 @@ function getOptions(lang: Lang, luggageCount: number, paxCount: number): Transpo
       icon: Car,
       iconColor: '#fb923c',
       durationMin: 60,
-      priceKRW: 75000,
+      // 2026-05-09 (B9-24 미세 조정): 사용자 받아적기 메모 "일반 택시 60분 ₩60,000~"
+      // 일치하도록 ₩75K → ₩60K. 시장 평균 ICN→서울 일반 택시 ~₩60-80K 범위 내.
+      priceKRW: 60000,
       noteKey: 'taxi_note',
       emphasis: heavyLoad ? 'avoid' : undefined,
     },

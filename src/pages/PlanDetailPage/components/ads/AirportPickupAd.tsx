@@ -26,6 +26,8 @@ interface AirportPickupAdProps {
 //   src/config/affiliateLinks.ts L235 PICKUP_PRICES.PUS 는 ₩83,200 으로 표기되어 있어
 //   데이터 불일치. 운영자 검토 후 합리적 값(₩100,000) 으로 임시 조정 + PR 본문에 명시.
 //   장거리 비용·기사 회송비 반영이 필요하면 운영자가 다시 상향 가능.
+// 2026-05-09 (B9-38 PUS): 시장 평균 비교 — Klook US$49 (~₩68K), Welcome Pickups
+//   ~₩70-95K. ₩100K → ₩70K 로 조정 (시장 평균 일치, 가격 경쟁력 확보).
 const PICKUP_OPTIONS_BY_AIRPORT: Record<string, { ko: string; en: string; ja: string; zh: string; key: string; priceKRW: number }[]> = {
   ICN: [
     { key: 'seoul-central', priceKRW: 124800, ko: '서울 도심 (명동·홍대·종로)', en: 'Seoul City Center (Myeongdong, Hongdae, Jongno)', ja: 'ソウル都心 (明洞·弘大·鍾路)', zh: '首尔市中心 (明洞·弘大·钟路)' },
@@ -38,7 +40,7 @@ const PICKUP_OPTIONS_BY_AIRPORT: Record<string, { ko: string; en: string; ja: st
     { key: 'seoul-central', priceKRW: 90000, ko: '서울 도심', en: 'Seoul City Center', ja: 'ソウル都心', zh: '首尔市中心' },
     { key: 'seoul-gangnam', priceKRW: 100000, ko: '강남·잠실', en: 'Gangnam / Jamsil', ja: '江南·蚕室', zh: '江南·蚕室' },
   ],
-  PUS: [{ key: 'busan', priceKRW: 100000, ko: '부산 시내', en: 'Busan City', ja: '釜山市内', zh: '釜山市区' }],
+  PUS: [{ key: 'busan', priceKRW: 70000, ko: '부산 시내', en: 'Busan City', ja: '釜山市内', zh: '釜山市区' }],
   CJU: [{ key: 'jeju-city', priceKRW: 72800, ko: '제주 시내', en: 'Jeju City', ja: '済州市内', zh: '济州市区' }],
 };
 

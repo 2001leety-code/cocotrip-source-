@@ -214,7 +214,7 @@
     },
     "busan-day": {
       "name_ko": "부산 당일 투어", "name_en": "Busan Day Tour",
-      "priceKRW": 572000, "priceUSD": 415, "hours": 12,
+      "priceKRW": 450000, "priceUSD": 327, "hours": 10,
       "spots": ["부산", "해운대", "감천문화마을", "자갈치시장", "광안리"],
       "keywords": ["busan", "부산", "haeundae", "해운대", "gamcheon", "감천"]
     }
