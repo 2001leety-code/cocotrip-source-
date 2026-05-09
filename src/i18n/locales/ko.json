@@ -1113,6 +1113,7 @@
     "luggageLarge": "대형 캐리어",
     "luggageLargeSub": "28인치 이상",
     "luggageMaxNote": "캐리어 최대 7개까지 실을 수 있습니다 (기내 + 중형 + 대형 합계)",
+    "luggageOver7Note": "7개 이상 — 차터 / 봉고차 권장 (대형 차량 추천)",
     "mobility_title": "이동 편의성",
     "icn_t1": "ICN 제1터미널",
     "icn_t2": "ICN 제2터미널",
