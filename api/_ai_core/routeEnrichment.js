@@ -96,6 +96,12 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
       area: body.area || body.region || '',
       region: body.area || body.region || '',
       recommended_zone: body.recommendedZone || body.recommended_zone || '',
+      // 2026-05-10 (P0-1 launch blocker): regions array — RouteAgent.js
+      // _enrichMultiCityDays() 가 regions.length>=2 시 작동. 누락 시 PR #331 다도시
+      // fix 가 backend 에서 dead code (audit A 발견).
+      regions: Array.isArray(body.regions) && body.regions.length > 0
+        ? body.regions
+        : (body.area ? [body.area] : []),
     };
     console.log('[planner] RouteAgent input days:', wrapped.itinerary.days.length, '| stops/day:', wrapped.itinerary.days.map((d) => (d.places || d.stops || []).length));
     const enriched = await routeAgent.call(JSON.stringify(wrapped));

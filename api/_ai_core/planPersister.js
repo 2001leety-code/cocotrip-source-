@@ -77,7 +77,11 @@ export async function persistPlan(adminDb, {
     console.warn('[planner] qualityScore compute failed:', e.message);
   }
 
-  await adminDb.collection('plans').doc(planId).set({
+  // 2026-05-10 (P1): WizardForm 의 추가 필드들도 Firestore input 에 보존.
+  // PlanDetailPage 의 region 인식 (PR #323 PreTripSlide regions[0] 우선) +
+  // AirportToLodgingGuide luggage 분기 (heavyLoad 자동 추천) + revision prefill
+  // (PR #323) 모두 input.* 필드 의존. 누락 시 silent UX 저하 (audit P1).
+  const docToSave = {
     planId,
     status: 'ready',
     isPublic: false,
@@ -88,6 +92,10 @@ export async function persistPlan(adminDb, {
     guestEmail: email || null,
     input: {
       guestName, pax, styles, area, duration, startDate,
+      // 2026-05-10 (P0-1): regions array 보존 — PlanDetailPage 다도시 인식.
+      regions: Array.isArray(body.regions) && body.regions.length > 0
+        ? body.regions
+        : (area ? [area] : []),
       adults: body.adults ?? pax,
       children: body.children ?? 0,
       vehicle, language, specialRequest,
@@ -95,6 +103,15 @@ export async function persistPlan(adminDb, {
       departure_airport: departure_airport || null,
       hotel_address: hotel_address || null,
       mobility: mobility || null,
+      // 2026-05-10 (P1): 도착/출발 시각 — PlanDetailPage 시각 분기 + revision prefill.
+      arrival_time: body.arrivalTime || null,
+      departure_time: body.departureTime || null,
+      // 2026-05-10 (P1): luggage — AirportToLodgingGuide heavyLoad 자동 추천 핵심.
+      luggage: (body.luggage && typeof body.luggage === 'object') ? body.luggage : null,
+      // 2026-05-10 (P1): 매운맛 / bucket 음식 — 식당 추천 정확도.
+      spice_level: body.spiceLevel || null,
+      bucket_dishes: Array.isArray(body.bucketDishes) ? body.bucketDishes : null,
+      tour_pace: body.tourPace || null,
       // 2026-05-08: zone-only 사용자도 PlanDetailPage 가 라벨링할 수 있도록 보존.
       // hotel_address 가 null/빈 값인데 zone 만 골랐을 때, LodgingBookend 가
       // "Stay" 가 아니라 zone 명("명동" 등) 을 보여주려면 이 필드가 필수.
@@ -106,7 +123,35 @@ export async function persistPlan(adminDb, {
     revisionCredits: 2,  // 무료 재생성 2회 (결제 시 포함)
     revisionCount: 0,    // 현재까지 재생성 횟수
     ...(qualityScore ? { qualityScore } : {}),
-  });
+  };
+
+  // 2026-05-10 (P0-5 launch blocker): Firestore 1MB doc size 가드.
+  // 14+ 일 다도시 plan 시 itinerary 가 1MB 초과 → set() throw → 사용자 결제 후
+  // 데이터 loss. pre-check 후 day 마지막부터 truncate (Sentry alert + 운영자 수동
+  // 복구 가능). 사용자에게는 plan 일부 손실 — 보수적으로 truncate 표시 stop 추가.
+  const SIZE_LIMIT_BYTES = 900_000; // Firestore 한계 1,048,576 의 안전 margin
+  let docSize = Buffer.byteLength(JSON.stringify(docToSave), 'utf8');
+  if (docSize > SIZE_LIMIT_BYTES) {
+    console.error(`[planPersister] Document size ${docSize}B exceeds ${SIZE_LIMIT_BYTES}B — truncating days`);
+    let truncatedCount = 0;
+    while (docSize > SIZE_LIMIT_BYTES && docToSave.itinerary?.days?.length > 1) {
+      docToSave.itinerary.days.pop();
+      truncatedCount += 1;
+      docSize = Buffer.byteLength(JSON.stringify(docToSave), 'utf8');
+    }
+    docToSave.itinerary._truncated_days = truncatedCount;
+    docToSave.itinerary._truncation_note = 'Plan size exceeded Firestore limit — last days removed for safety. Contact support for full plan.';
+    console.warn(`[planPersister] Truncated ${truncatedCount} days. Final size: ${docSize}B`);
+  }
+
+  try {
+    await adminDb.collection('plans').doc(planId).set(docToSave);
+  } catch (saveErr) {
+    // Firestore set() 실패 시 마지막 안전망 — 사용자 결제 후 plan loss 회피.
+    // throw 시 ai-planner-full handler 가 catch 해서 사용자에게 명확한 에러 + 환불 안내.
+    console.error('[planPersister] Firestore set failed:', saveErr.message);
+    throw new Error(`Plan save failed (${saveErr.code || saveErr.name}). Contact WhatsApp for refund.`);
+  }
 
   if (uid) {
     await adminDb
