@@ -34,6 +34,22 @@ export default function PlannerPage() {
   const revisionNote = searchParams.get('revisionNote') ?? null;
   const avoidList = searchParams.get('avoidList') ?? null;
 
+  // 2026-05-09 (B9-37): RevisionCard 가 직렬화한 plan.input 핵심 필드 → WizardForm
+  // initialValues 로 전달. 사용자 신고 "다시 만들기 시 form 데이터 prefill 안 됨
+  // (비행기/시간/날짜 매번 재입력)" 대응.
+  const prefillValues = revisionMode ? {
+    startDate: searchParams.get('prefillStartDate') || '',
+    endDate: searchParams.get('prefillEndDate') || '',
+    regions: (searchParams.get('prefillRegions') || '').split(',').filter(Boolean),
+    categories: (searchParams.get('prefillCategories') || '').split(',').filter(Boolean),
+    pax: parseInt(searchParams.get('prefillPax') || '0', 10) || undefined,
+    arrivalAirport: searchParams.get('prefillArrival') || '',
+    hotelAddress: searchParams.get('prefillHotel') || '',
+    dietary: (searchParams.get('prefillDiet') || '').split(',').filter(Boolean),
+    allergies: (searchParams.get('prefillAllergies') || '').split(',').filter(Boolean),
+    freeText: searchParams.get('prefillFreeText') || '',
+  } : undefined;
+
   usePageMeta({
     title: t.pageMeta?.planner?.title ?? 'AI Travel Planner \u2014 Custom Korea Itinerary',
     description: t.pageMeta?.planner?.description ?? 'Create your personalized Korea travel itinerary with AI. Free, instant, multi-language support. Seoul, Busan, Jeju and more.',
@@ -105,7 +121,7 @@ export default function PlannerPage() {
         {/* Wizard form */}
         {(status === 'idle' || status === 'error' || status === 'loadingQuick') && (
           <div className={isMobile ? 'm-card m-appear p-4 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl'}>
-            <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} />
+            <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
           </div>
         )}
 

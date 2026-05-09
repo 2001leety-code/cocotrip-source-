@@ -54,7 +54,12 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
   const input = plan.input || {};
-  const region = (input.destination as string) || ((input.regions as string[])?.[0]) || 'Seoul';
+  // 2026-05-09 (B9-36): region 추출 우선순위 변경 — 사용자 신고 "부산 plan 인데
+  // TRIP EXTRAS 가 서울 옵션". 원인: input.destination 이 generic fallback 값
+  // ('Korea' / 'Seoul') 인 경우 regions[0]='busan' 을 무시하고 'Seoul' 로 분기됨.
+  // Fix: regions[0] (사용자가 wizard 에서 1순위로 고른 mainCity) 를 최우선.
+  const regions0 = ((input.regions as string[])?.[0] || '').trim();
+  const region = regions0 || (input.destination as string) || 'Seoul';
   const arrivalAirport = (input.arrival_airport as string) || 'ICN';
   const startDate = (input.startDate as string) || '';
   const pax = (input.pax as number) || (input.adults as number) || 2;

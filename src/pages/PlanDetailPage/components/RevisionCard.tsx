@@ -142,6 +142,39 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
 
     const reasonParam = payload?.reasons?.join(',') || '';
     const noteParam = payload?.customNote || '';
+
+    // 2026-05-09 (B9-37): plan.input 핵심 필드를 URL prefill 로 직렬화 — 사용자
+    // 신고 "다시 만들기 시 form 데이터 prefill 안 됨 (비행기/시간/날짜 매번 재입력)".
+    // PlannerPage 가 useSearchParams 에서 추출 → WizardForm initialValues 로 주입.
+    // 미직렬 필드 (luggage 개수 등) 는 사용자가 그대로 두면 기본값 유지.
+    const inp = plan.input || {};
+    const prefillEntries: Record<string, string> = {};
+    const setIfStr = (k: string, v: unknown) => {
+      if (typeof v === 'string' && v.trim()) prefillEntries[k] = v;
+    };
+    const setIfNum = (k: string, v: unknown) => {
+      if (typeof v === 'number' && Number.isFinite(v)) prefillEntries[k] = String(v);
+    };
+    const setIfArr = (k: string, v: unknown) => {
+      if (Array.isArray(v) && v.length > 0) {
+        const flat = v.filter((x): x is string => typeof x === 'string' && !!x).join(',');
+        if (flat) prefillEntries[k] = flat;
+      }
+    };
+    setIfStr('prefillStartDate', inp.startDate);
+    setIfStr('prefillEndDate', (inp as { endDate?: unknown }).endDate);
+    setIfArr('prefillRegions', (inp as { regions?: unknown }).regions);
+    setIfArr('prefillCategories', (inp as { categories?: unknown }).categories);
+    setIfNum('prefillPax', inp.pax ?? inp.adults);
+    setIfStr('prefillArrival', inp.arrival_airport);
+    setIfStr('prefillHotel', inp.hotel_address);
+    setIfArr('prefillDiet', (inp as { dietary?: unknown }).dietary ?? (inp as { dietPrefs?: unknown }).dietPrefs);
+    setIfArr('prefillAllergies', (inp as { allergies?: unknown }).allergies);
+    const freeTxt = (inp as { freeText?: unknown }).freeText;
+    if (typeof freeTxt === 'string' && freeTxt.trim()) {
+      prefillEntries['prefillFreeText'] = freeTxt.slice(0, 200);
+    }
+
     const params = new URLSearchParams({
       revision: 'true',
       planId: planId || '',
@@ -149,6 +182,7 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
       ...(reasonParam ? { revisionReason: reasonParam } : {}),
       ...(noteParam ? { revisionNote: noteParam } : {}),
       ...(avoidListStr ? { avoidList: avoidListStr } : {}),
+      ...prefillEntries,
     });
     window.location.href = `/planner?${params.toString()}`;
   };
