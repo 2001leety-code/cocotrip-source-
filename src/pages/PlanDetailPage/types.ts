@@ -37,6 +37,10 @@ export interface PlanDocument {
     /** Sprint 2 후속: 동선 5km 내 top-rated 맛집 — backend `pickRecommendedRestaurantsByStyle` 산출.
      *  Legacy plans: array. New plans (2026-05-05+): per-style map { general, vegan?, halal? }. */
     recommended_restaurants?: RecommendedRestaurant[] | RecommendedRestaurantsByStyle;
+    /** B9-20 (2026-05-09 round 4): wantAccom=true 시 Gemini 가 채우는 호텔 추천.
+     *  필드명은 비결정적 — name/hotel_name, area/neighborhood, why/reason, booking_tip/tip 등.
+     *  AccommodationRecommendation 컴포넌트에서 fallback 체인으로 추출. */
+    accommodation?: Record<string, unknown>;
     [key: string]: unknown;
   };
   customerSupport?: Record<string, unknown>;

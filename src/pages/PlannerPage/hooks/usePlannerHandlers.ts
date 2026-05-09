@@ -216,6 +216,10 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           recommended_zone: values.recommended_zone || '',
           // 2026-05-03: zone 대표 주소 (RouteAgent가 공항↔zone 경로 계산용 fallback).
           recommended_zone_address: values.recommended_zone_address || '',
+          // B9-20 (2026-05-09 round 4): WizardForm 에서 받은 wantAccom/accomBudget
+          // 을 backend 로 forward. 누락 시 ai-planner-full 의 [ACCOMMODATION REQUEST]
+          // 프롬프트 분기가 작동 안 함 → Gemini 가 호텔 추천 자체를 생성 안 함.
+          ...(values.wantAccom ? { wantAccom: true, accomBudget: values.accomBudget || 'moderate' } : {}),
         }),
       });
 
@@ -337,6 +341,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           ...(revisionReason ? { revisionReason } : {}),
           ...(revisionNote   ? { revisionNote }   : {}),
           ...(avoidList      ? { avoidList }       : {}),
+          // B9-20 (2026-05-09 round 4): revision 에서도 wantAccom forward.
+          ...(values.wantAccom ? { wantAccom: true, accomBudget: values.accomBudget || 'moderate' } : {}),
         }),
       });
 
