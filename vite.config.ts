@@ -2,12 +2,22 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
+import { visualizer } from "rollup-plugin-visualizer"
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
   plugins: [
     react(),
+    // 2026-05-10 Bundle analyzer — `npm run build` 시 dist/stats.html 자동 생성.
+    // dist/ 자체가 .gitignore 라 repo 오염 X. Main bundle 의존성 트리 시각화 →
+    // 정확한 lazy-split 후보 식별 (post-launch 작업 데이터 인프라).
+    visualizer({
+      filename: 'dist/stats.html',
+      template: 'treemap',
+      gzipSize: true,
+      brotliSize: false,
+    }),
     // PWA — 홈 화면에 추가 + 오프라인 캐싱 + 자동 업데이트.
     // 기존 public/sw.js + index.html 수동 등록 코드 대체.
     VitePWA({
