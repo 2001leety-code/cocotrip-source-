@@ -2,9 +2,14 @@
 // 2026-05-04: RevisionCard "Edit Preferences & Regenerate" 클릭 → 본 모달 → reason 선택 또는 skip
 //   → /planner?revision=true 로 이동.
 // 2026-05-08 (W4): 7개 사유 체크박스 + 자유 입력 + plan_complaints 저장 강화.
+// 2026-05-09 (B9-18): createPortal(document.body) 적용 — RevisionCard 가 SwipeContainer 의
+//   framer-motion transform 컨테이너 내부에 있어서 position:fixed 가 viewport 가 아닌
+//   transformed ancestor 기준으로 배치됨 (CSS 스펙). 그 결과 모달이 가끔 안 뜨거나 늦게 뜨거나
+//   클릭이 안 받혀짐. AddStopModal/ReportPlanModal 은 SwipeContainer 형제로 렌더되어 무영향.
 // reason 은 best-effort 로 Firestore plans/{id}.revisionReasons 에 arrayUnion (실패해도 재생성은 진행).
 // 4-lang inline labels — ReportPlanModal (Tier 1-A) 패턴과 동일.
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, RefreshCw } from 'lucide-react';
 
 export type ReasonChip =
@@ -121,7 +126,28 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
   const [selected, setSelected] = useState<Set<ReasonChip>>(new Set());
   const [customNote, setCustomNote] = useState('');
 
+  // 진단 로그: 모달 open prop 변화를 운영자가 추적할 수 있게 함.
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.log('[RevisionReasonModal] open prop changed:', open);
+    }
+  }, [open]);
+
+  // ESC 키로 닫기 — UX 개선 (a11y).
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
   if (!open) return null;
+  if (typeof document === 'undefined') return null;
 
   const reset = () => {
     setSelected(new Set());
@@ -154,11 +180,17 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
     onClose();
   };
 
-  return (
+  // createPortal: SwipeContainer 의 motion.div transform 컨테이너 + overflow-y-auto 클립을 모두 우회.
+  // 사용자 신고 ("안 눌림", "잘 안 뜸", "늦게 뜸") 의 root cause 가 transformed ancestor 였음.
+  // z-50 → z-[60] 으로 상향 (다른 floating 요소 충돌 방지).
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
       onClick={handleClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="revision-reason-modal-title"
     >
       <div
         className="w-full max-w-md bg-gradient-to-b from-[#0f1628] to-[#0a0f1a] rounded-3xl border border-white/10 shadow-2xl p-6"
@@ -167,7 +199,7 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
             <RefreshCw className="w-5 h-5 text-amber-400" />
-            <h2 className="text-lg font-bold text-white">{labels.title}</h2>
+            <h2 id="revision-reason-modal-title" className="text-lg font-bold text-white">{labels.title}</h2>
           </div>
           <button type="button" onClick={handleClose} className="text-white/40 hover:text-white/80" aria-label="Close">
             <X className="w-5 h-5" />
@@ -225,6 +257,7 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
