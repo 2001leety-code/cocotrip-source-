@@ -1,8 +1,8 @@
 [
   {
-    "name": "Main bundle (eager — first paint critical, all index-* chunks)",
+    "name": "Main bundle (eager — first paint critical, all index-* chunks). 2026-05-09 launch blocker fix: 260→270 KB (PR #332-#335 autosave/ResumeWizardModal/12 활동 chips/dietary validator 누적 6.4 kB). Post-launch: lazy-split candidates 검토.",
     "path": "dist/assets/index-*.js",
-    "limit": "260 KB",
+    "limit": "270 KB",
     "gzip": true
   },
   {
