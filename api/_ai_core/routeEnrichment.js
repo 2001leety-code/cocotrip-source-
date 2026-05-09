@@ -139,6 +139,14 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
           }
         }
       });
+      // B9-15 (2026-05-09): LodgingBookend 미노출 진단 — 모든 day 가 lodging_to_first
+      // 비어 있으면 anchor 좌표 잡기 실패. 운영자 분석용 telemetry.
+      const dayWithBookend = enrichedDays.filter((d) => d.lodging_to_first || d.last_to_lodging).length;
+      if (dayWithBookend === 0 && enrichedDays.length > 0) {
+        console.warn('[planner] LodgingBookend missing on ALL days — RouteAgent anchor coord 잡기 실패. hotelAddress="' + (hotel_address || '') + '" recommended_zone="' + (body?.recommendedZone || body?.recommended_zone || '') + '"');
+      } else {
+        console.log(`[planner] LodgingBookend attached: ${dayWithBookend}/${enrichedDays.length} days`);
+      }
     } else {
       console.warn('[planner] RouteAgent returned no itinerary days. Keys:', Object.keys(enrichedData));
     }
@@ -158,16 +166,18 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
 
     // batch 9 fix (B9-15 PR-I, 2026-05-09): LODGING BOOKEND post-validator.
     // RouteAgent 가 stops 좌표 채운 후 첫/마지막 stop 이 hotel/zone 5km 이내인지 검증.
-    // arrival_guide.route_to_hotel.anchor_lat/lng 또는 RouteAgent 가 enriched 에 보관한
-    // hotel coord 사용. 좌표 모르면 skip (정상 — zone-only 사용자는 RouteAgent 가
-    // anchor 채워줌).
+    // arrival_guide.route_to_hotel.anchor_lat/lng 우선, 없으면 departure_guide
+    // .route_to_airport.anchor_lat/lng (대체 — 출발편만 있는 케이스). 둘 다 없으면 skip.
     let anchorCoord = null;
     if (enrichedItin && !Array.isArray(enrichedItin)) {
       const ah = enrichedItin.arrival_guide?.route_to_hotel;
+      const dh = enrichedItin.departure_guide?.route_to_airport;
       if (ah?.anchor_lat != null && ah?.anchor_lng != null) {
         anchorCoord = { lat: ah.anchor_lat, lng: ah.anchor_lng, label: ah.anchor_label || hotel_address || 'lodging' };
       } else if (ah?.hotel_lat != null && ah?.hotel_lng != null) {
         anchorCoord = { lat: ah.hotel_lat, lng: ah.hotel_lng, label: hotel_address || 'lodging' };
+      } else if (dh?.anchor_lat != null && dh?.anchor_lng != null) {
+        anchorCoord = { lat: dh.anchor_lat, lng: dh.anchor_lng, label: dh.anchor_label || hotel_address || 'lodging' };
       }
     }
     validateLodgingBookend(itinerary, anchorCoord);
