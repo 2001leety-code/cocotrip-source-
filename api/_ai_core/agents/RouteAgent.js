@@ -1,7 +1,7 @@
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
-import { AIRPORT_COORDS, CITY_CENTER_COORDS } from "../constants.js";
+import { AIRPORT_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
 
 // Sentry import은 dynamic — `_shared/sentry.js`의 captureError가 SENTRY_DSN
 // 없으면 no-op이라 안전. 실패해도 import 자체로 plan 깨지지 않게 try/catch.
@@ -137,7 +137,13 @@ export class RouteAgent extends BaseAgent {
         // Trip-level: geocode hotel ONCE, route airport ↔ hotel
         // (Phase 1 of arrival/departure guide enrichment)
         // ════════════════════════════════════════════════════════
-        let hotelLat = null, hotelLng = null;
+        // Resolve order (B9-15/16/25, 2026-05-09):
+        //   1. Naver Geocoding(hotelAddress) — 도로명/호텔명 정확도 최고
+        //   2. lookupZoneCoord(hotelAddress) — substring 매칭 ("명동 롯데호텔" → 명동)
+        //   3. lookupZoneCoord(recommended_zone key/한글)
+        // 모두 실패 시 hotelLat/Lng 는 null 로 남고 후속 fallback (city center) 진입.
+        // anchorSource 는 어느 단계에서 좌표를 잡았는지 기록 — 분석/UI 라벨용.
+        let hotelLat = null, hotelLng = null, anchorSource = null, anchorLabel = null;
         if (hotelAddress && clientId && clientSecret) {
             try {
                 const geoUrl = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
@@ -149,10 +155,39 @@ export class RouteAgent extends BaseAgent {
                 if (geoRes.status === 200 && geoRes.data.addresses?.length > 0) {
                     hotelLng = parseFloat(geoRes.data.addresses[0].x);
                     hotelLat = parseFloat(geoRes.data.addresses[0].y);
+                    anchorSource = 'naver_geocode';
+                    anchorLabel = hotelAddress;
                 }
             } catch (e) {
                 console.warn(`  - Hotel geocoding failed: ${e.message}`);
             }
+        }
+        // Fallback chain step 2: zone substring/exact match on hotelAddress.
+        // 호텔 주소에 등록된 zone 명이 들어 있으면 좌표 즉시 잡음. NCP 키 fail 또는
+        // 단일 동 명("명동")인 경우의 보호 장치.
+        if ((hotelLat == null || hotelLng == null) && hotelAddress) {
+            const z = lookupZoneCoord(hotelAddress);
+            if (z) {
+                hotelLat = z.lat;
+                hotelLng = z.lng;
+                anchorSource = 'zone_lookup';
+                anchorLabel = z.label;
+                console.log(`  ✓ [hotel-coord] zone substring match: "${hotelAddress}" → ${z.label} (${z.lat}, ${z.lng})`);
+            }
+        }
+        // Fallback chain step 3: explicit recommended_zone key/Korean 한국어 명.
+        if ((hotelLat == null || hotelLng == null) && data.recommended_zone) {
+            const z = lookupZoneCoord(data.recommended_zone);
+            if (z) {
+                hotelLat = z.lat;
+                hotelLng = z.lng;
+                anchorSource = 'zone_key';
+                anchorLabel = z.label;
+                console.log(`  ✓ [hotel-coord] zone key match: "${data.recommended_zone}" → ${z.label} (${z.lat}, ${z.lng})`);
+            }
+        }
+        if (hotelLat == null || hotelLng == null) {
+            console.warn(`  ⚠ [hotel-coord] all fallbacks failed — hotelAddress="${hotelAddress}" zone="${data.recommended_zone || ''}". LodgingBookend 미노출 + departure_guide city-center fallback.`);
         }
 
         const arrivalAirportKey = this._normalizeAirportKey(rawItinerary.arrival_guide?.airport || data.arrival_airport);
@@ -167,8 +202,18 @@ export class RouteAgent extends BaseAgent {
                     luggage: data.luggage,
                     paxCount: data.pax || 2,
                 });
-                rawItinerary.arrival_guide.route_to_hotel = { ...route, recommended_option: rec };
-                console.log(`  - [Airport→Hotel] ${route.est_min}min via ${route.method}, recommended=${rec.key}`);
+                // B9-15/25: anchor_lat/lng/label 명시 attach — routeEnrichment.js
+                // 의 validateLodgingBookend 가 이걸 사용. anchor_source 는 분석용
+                // (naver_geocode / zone_lookup / zone_key) — UI 는 무시 가능.
+                rawItinerary.arrival_guide.route_to_hotel = {
+                    ...route,
+                    recommended_option: rec,
+                    anchor_lat: hotelLat,
+                    anchor_lng: hotelLng,
+                    anchor_label: anchorLabel,
+                    anchor_source: anchorSource,
+                };
+                console.log(`  - [Airport→Hotel] ${route.est_min}min via ${route.method}, recommended=${rec.key}, anchor=${anchorSource}/${anchorLabel}`);
             }
         }
 
@@ -199,8 +244,15 @@ export class RouteAgent extends BaseAgent {
                         route.fallback_origin = depFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
                         route.fallback_label = depFromLabel || null;
                     }
+                    // B9-16/25: anchor_lat/lng/label 명시 attach — UI 가 "Seoul City
+                    // Center" generic 대신 정확한 출발지명 노출 가능. trip-level
+                    // hotelLat/Lng 가 있으면 그것을, 없으면 fallback chain 결과를 사용.
+                    route.anchor_lat = depFromCoord.lat;
+                    route.anchor_lng = depFromCoord.lng;
+                    route.anchor_label = depFromLabel || anchorLabel || null;
+                    route.anchor_source = depFromSource === 'hotel' ? (anchorSource || 'hotel') : depFromSource;
                     rawItinerary.departure_guide.route_to_airport = route;
-                    console.log(`  - [Hotel→Airport] ${route.est_min}min via ${route.method} (origin=${depFromSource})`);
+                    console.log(`  - [Hotel→Airport] ${route.est_min}min via ${route.method} (origin=${depFromSource}, anchor=${route.anchor_source}/${route.anchor_label})`);
                 } else {
                     // ODsay 끝까지 실패 — _failed 마커로 graceful 표시.
                     rawItinerary.departure_guide.route_to_airport = {
@@ -723,17 +775,29 @@ export class RouteAgent extends BaseAgent {
 
     /**
      * Resolve hotel-side coordinate for hotel↔airport routing with fallback chain.
-     * Order:
+     * Order (B9-16/25 강화):
      *   1. hotelLat/hotelLng (already geocoded from hotel_address)
-     *   2. arrival_guide.address geocode (rare — Gemini's per-stop transport address)
-     *   3. recommended_zone string anchor geocode
-     *   4. CITY_CENTER_COORDS[region] — last resort, "도시 중심 기준"
+     *   2. lookupZoneCoord(recommended_zone) — 정적 좌표 매핑 (Naver 호출 X)
+     *   3. lookupZoneCoord(hotelAddress) — substring 매핑 ("명동 롯데호텔" → 명동)
+     *   4. arrival_guide.address geocode (Gemini's per-stop transport address)
+     *   5. recommended_zone string Naver geocode (fallback for unmapped zones)
+     *   6. CITY_CENTER_COORDS[region] — last resort, "도시 중심 기준"
      * Returns { coord, source, label } where source indicates which fallback was used.
      */
     async _resolveHotelOrFallback({ hotelLat, hotelLng, hotelAddress, arrivalGuide, recommendedZone, region, clientId, clientSecret }) {
         // 1) primary
         if (hotelLat && hotelLng) {
             return { coord: { lat: hotelLat, lng: hotelLng }, source: 'hotel', label: hotelAddress || null };
+        }
+        // 2/3) 정적 zone 좌표 매핑 — Naver 호출 전 첫 시도. NCP 키 fail 또는 단일 동
+        // 명("명동")인 경우의 1차 보호. 좌표 정확도 ±100m, fail 가능성 0.
+        if (recommendedZone) {
+            const z = lookupZoneCoord(recommendedZone);
+            if (z) return { coord: { lat: z.lat, lng: z.lng }, source: 'zone_anchor', label: z.label };
+        }
+        if (hotelAddress) {
+            const z = lookupZoneCoord(hotelAddress);
+            if (z) return { coord: { lat: z.lat, lng: z.lng }, source: 'zone_anchor', label: z.label };
         }
         const tryGeocode = async (q) => {
             if (!q || !clientId || !clientSecret) return null;
@@ -751,21 +815,22 @@ export class RouteAgent extends BaseAgent {
             }
             return null;
         };
-        // 2) arrival_guide address (Gemini가 가끔 to_hotel 안내에 호텔 주소를 적어둠)
+        // 4) arrival_guide address (Gemini가 가끔 to_hotel 안내에 호텔 주소를 적어둠)
         const arrivalGuideAddr = arrivalGuide?.address || arrivalGuide?.hotel_address;
         if (arrivalGuideAddr) {
             const c = await tryGeocode(arrivalGuideAddr);
             if (c) return { coord: c, source: 'arrival_guide', label: arrivalGuideAddr };
         }
-        // 3) recommended_zone (string key like 'myeongdong' or address — geocode 시도)
+        // 5) recommended_zone (string key like 'myeongdong' or address — geocode 시도)
         if (recommendedZone) {
             const c = await tryGeocode(String(recommendedZone));
             if (c) return { coord: c, source: 'zone_anchor', label: String(recommendedZone) };
         }
-        // 4) city center
+        // 6) city center — last resort. 운영자 신고: 시청→노량진 우회 → 표시 부정확.
         const regionKey = String(region || '').toLowerCase().trim();
         const cc = CITY_CENTER_COORDS[regionKey];
         if (cc) {
+            console.warn(`  ⚠ [_resolveHotelOrFallback] city_center fallback → "${cc.label}". hotelAddress="${hotelAddress || ''}" zone="${recommendedZone || ''}". Naver Geocoding 또는 zone 매핑 실패 — 운영자 검토 필요.`);
             return { coord: { lat: cc.lat, lng: cc.lng }, source: 'city_center', label: cc.label };
         }
         return { coord: null, source: 'none', label: null };

@@ -82,6 +82,87 @@ export const CITY_CENTER_COORDS = {
   dmz: { lat: 37.9558, lng: 126.6748, label: 'DMZ Imjingak' },
 };
 
+// ── 동(neighborhood) 단위 zone → 좌표 직매핑 (B9-15/16/25, 2026-05-09) ──────
+// **목적**: 운영자가 호텔 주소("명동 롯데호텔") 또는 zone key("myeongdong") /
+// 한국어 명("명동")만 입력해도 RouteAgent 가 정확한 좌표를 즉시 잡도록 한다.
+// Naver Geocoding 은 도로명/지번에 강하지만 "명동" 같은 단일 동 명에 약하고,
+// NCP 키 401/timeout 으로 silent fail 시 city center 로 떨어짐 → 시청→노량진→
+// 김포 우회 routing (사용자 신고). 이 테이블은 Naver 호출 전 첫 번째 fallback.
+//
+// 키는 **소문자 영문 zone key** (zoneData.ts 와 동일) **+ 한국어 표기**.
+// 한국어 표기는 정확한 매칭만 — RouteAgent 는 String(zone).trim() 후 정확 비교.
+// 추가 시 zoneData.ts anchorAddress 와 좌표 일관성 확인.
+//
+// 좌표 기준: 각 zone 의 대표 지하철역 (네이버 검색 좌표). ±100m 이내.
+export const ZONE_COORDS = {
+  // ── Seoul ─────────────────────────────────────────
+  myeongdong: { lat: 37.5635, lng: 126.9821, label: '명동' },
+  '명동': { lat: 37.5635, lng: 126.9821, label: '명동' },
+  hongdae: { lat: 37.5571, lng: 126.9240, label: '홍대' },
+  '홍대': { lat: 37.5571, lng: 126.9240, label: '홍대' },
+  '홍익대학교': { lat: 37.5571, lng: 126.9240, label: '홍대' },
+  gangnam: { lat: 37.4979, lng: 127.0276, label: '강남' },
+  '강남': { lat: 37.4979, lng: 127.0276, label: '강남' },
+  itaewon: { lat: 37.5345, lng: 126.9947, label: '이태원' },
+  '이태원': { lat: 37.5345, lng: 126.9947, label: '이태원' },
+  jongno: { lat: 37.5704, lng: 126.9826, label: '종로' },
+  '종로': { lat: 37.5704, lng: 126.9826, label: '종로' },
+  '종각': { lat: 37.5704, lng: 126.9826, label: '종로' },
+  jamsil: { lat: 37.5133, lng: 127.1000, label: '잠실' },
+  '잠실': { lat: 37.5133, lng: 127.1000, label: '잠실' },
+  gwanghwamun: { lat: 37.5759, lng: 126.9769, label: '광화문' },
+  '광화문': { lat: 37.5759, lng: 126.9769, label: '광화문' },
+  dongdaemun: { lat: 37.5713, lng: 127.0098, label: '동대문' },
+  '동대문': { lat: 37.5713, lng: 127.0098, label: '동대문' },
+  sinchon: { lat: 37.5559, lng: 126.9366, label: '신촌' },
+  '신촌': { lat: 37.5559, lng: 126.9366, label: '신촌' },
+  ichon: { lat: 37.5223, lng: 126.9748, label: '이촌' },
+  '이촌': { lat: 37.5223, lng: 126.9748, label: '이촌' },
+  hannam: { lat: 37.5374, lng: 127.0085, label: '한남' },
+  '한남': { lat: 37.5374, lng: 127.0085, label: '한남' },
+  // ── Busan ─────────────────────────────────────────
+  haeundae: { lat: 35.1631, lng: 129.1635, label: '해운대' },
+  '해운대': { lat: 35.1631, lng: 129.1635, label: '해운대' },
+  gwangalli: { lat: 35.1532, lng: 129.1186, label: '광안리' },
+  '광안리': { lat: 35.1532, lng: 129.1186, label: '광안리' },
+  seomyeon: { lat: 35.1577, lng: 129.0594, label: '서면' },
+  '서면': { lat: 35.1577, lng: 129.0594, label: '서면' },
+  nampo: { lat: 35.0974, lng: 129.0289, label: '남포동' },
+  '남포동': { lat: 35.0974, lng: 129.0289, label: '남포동' },
+  '남포': { lat: 35.0974, lng: 129.0289, label: '남포동' },
+  // ── Jeju ──────────────────────────────────────────
+  jeju_city: { lat: 33.5070, lng: 126.4922, label: '제주시' },
+  '제주시': { lat: 33.5070, lng: 126.4922, label: '제주시' },
+  seogwipo: { lat: 33.2541, lng: 126.4129, label: '서귀포' },
+  '서귀포': { lat: 33.2541, lng: 126.4129, label: '서귀포' },
+  aewol: { lat: 33.4641, lng: 126.3313, label: '애월' },
+  '애월': { lat: 33.4641, lng: 126.3313, label: '애월' },
+};
+
+/**
+ * Zone key/한국어 명 → 좌표 lookup (RouteAgent fallback chain 1단계).
+ * Returns { lat, lng, label } or null. Case-insensitive on Latin keys; exact on Korean.
+ */
+export function lookupZoneCoord(zone) {
+  if (!zone || typeof zone !== 'string') return null;
+  const trimmed = zone.trim();
+  if (!trimmed) return null;
+  // 정확 매칭 (한국어)
+  if (ZONE_COORDS[trimmed]) return ZONE_COORDS[trimmed];
+  // lowercase 매칭 (영문 zone key)
+  const lower = trimmed.toLowerCase();
+  if (ZONE_COORDS[lower]) return ZONE_COORDS[lower];
+  // 한국어 substring fallback — "명동 롯데호텔", "명동역", "홍대입구역" 등
+  // 등록된 한국어 zone 명이 입력 문자열에 포함돼 있으면 매핑.
+  for (const k of Object.keys(ZONE_COORDS)) {
+    // 한국어 키 (Hangul 만 포함) 만 substring 검사 — 영문 키는 false-positive 위험
+    if (/^[가-힯]+$/.test(k) && trimmed.includes(k)) {
+      return ZONE_COORDS[k];
+    }
+  }
+  return null;
+}
+
 // ── Rich System Prompt Language Instructions ──────────────────────────────
 export const LANG_INSTRUCTION = {
   en: `Write ALL narrative text fields in English.
