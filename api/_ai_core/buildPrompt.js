@@ -270,7 +270,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 ## ROUTE OPTIMIZATION — CRITICAL (HUB-AND-SPOKE + LODGING BOOKEND)
 - **HUB-AND-SPOKE 강제**: 매일은 숙소(또는 숙소 근처 지하철역)에서 시작 → 그 zone 내 stops 순회 → 다시 숙소 근처로 복귀.
   - **🔴 LODGING BOOKEND — ABSOLUTE MUST (2026-05-08, 위반 시 사용자 환불 사유)**:
-    사용자 input 에 `hotel_address` 또는 `recommended_zone` 둘 중 하나라도 있으면,
+    사용자 input 에 'hotel_address' 또는 'recommended_zone' 둘 중 하나라도 있으면,
     **모든 Day** 의 모든 stops 배치는 다음 두 규칙을 동시에 만족해야 한다:
     1. **첫 stop**: 숙소(hotel_address 또는 recommended_zone 좌표) 로부터 **반경 5km 이내**
        이고 도보/지하철 환승 30분 이내. 멀리 있는 명소를 첫 stop 으로 두지 말 것.
