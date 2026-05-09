@@ -23,7 +23,7 @@ const ALL_CHARTERS: { key: string; productType: string; priceKRW: number; ko: st
   { key: 'gangwon',       productType: 'charter_gangwon',      priceKRW: 436800, cities: ['seoul', 'gangneung'], ko: '강원 (춘천·강릉·속초)', en: 'Gangwon (Chuncheon, Gangneung, Sokcho)',     ja: '江原 (春川·江陵·束草)', zh: '江原 (春川·江陵·束草)' },
   { key: 'ski-resort',    productType: 'charter_ski',          priceKRW: 416000, cities: ['seoul'],   ko: '스키 리조트 (용평·알펜시아)', en: 'Ski Resort (Yongpyong, Alpensia)',           ja: 'スキーリゾート',       zh: '滑雪度假村' },
   { key: 'gyeongju-jeonju', productType: 'charter_gyeongju',   priceKRW: 468000, cities: ['gyeongju', 'jeonju'], ko: '경주·전주 투어', en: 'Gyeongju / Jeonju Tour',                       ja: '慶州·全州ツアー',    zh: '庆州·全州游' },
-  { key: 'busan',         productType: 'charter_busan',        priceKRW: 572000, cities: ['busan'],   ko: '부산 데이 투어',          en: 'Busan Day Tour',                           ja: '釜山デーツアー',     zh: '釜山一日游' },
+  { key: 'busan',         productType: 'charter_busan',        priceKRW: 450000, cities: ['busan'],   ko: '부산 데이 투어',          en: 'Busan Day Tour',                           ja: '釜山デーツアー',     zh: '釜山一日游' },
 ];
 
 const HEADER: Record<string, { title: string; subtitle: string; pickupNote: string }> = {
