@@ -137,6 +137,8 @@ export function CharterInlineAd({ region, defaultDate, defaultPax, planId }: Cha
       defaultPax={defaultPax}
       userEmail={user?.email || ''}
       planId={planId}
+      // batch 9 (B9-12): 차터 — 픽업 위치 + 기사 언어 추가 입력.
+      extraFields="charter"
     />
   );
 }

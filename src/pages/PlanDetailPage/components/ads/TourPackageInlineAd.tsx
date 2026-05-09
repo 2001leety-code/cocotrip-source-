@@ -77,6 +77,8 @@ export function TourPackageInlineAd({ region, defaultDate, defaultPax, planId }:
       defaultPax={defaultPax}
       userEmail={user?.email || ''}
       planId={planId}
+      // batch 9 (B9-13): 콤보 (공항 픽업 + 투어) — 둘 다 추가 입력.
+      extraFields="combo"
     />
   );
 }
