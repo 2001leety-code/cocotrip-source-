@@ -116,6 +116,11 @@ export default async function handler(req, res) {
     const pax = Math.max(1, Math.min(50, isFinite(paxRaw) ? paxRaw : 2));
     const styles = Array.isArray(body.styles) ? body.styles : body.preferences ? [body.preferences] : ['culture'];
     const area = body.area || body.destination || body.region || 'seoul_city';
+    // 2026-05-10 (P0-1 launch blocker): regions array 추출 — 다도시 plan 처리 핵심.
+    // PR #331 의 _enrichMultiCityDays 가 regions.length>=2 시 작동. 누락 시 dead code.
+    const regions = Array.isArray(body.regions) && body.regions.length > 0
+      ? body.regions.filter((r) => typeof r === 'string' && r.trim()).slice(0, 5)
+      : (body.region ? [body.region] : (area ? [area] : ['Seoul']));
     const duration = body.duration || 'full_day';
     const durationDays = body.durationDays || (duration === 'multi_day' ? 2 : 1);
     const startDate = body.date || body.startDate || new Date().toISOString().split('T')[0];
@@ -152,6 +157,19 @@ export default async function handler(req, res) {
     const avoidListBody  = typeof body.avoidList      === 'string' ? body.avoidList.slice(0, 1000)     : '';
     const wantAccom = !!body.wantAccom;
     const accomBudget = body.accomBudget || 'moderate';
+    // 2026-05-10 (P1 launch blocker): WizardForm 누락 필드들 추출 — RouteAgent
+    // late-night/heavy-luggage 분기 + Gemini prompt 정확도 개선용.
+    const arrivalTime = typeof body.arrivalTime === 'string' ? body.arrivalTime.slice(0, 5) : '';
+    const departureTime = typeof body.departureTime === 'string' ? body.departureTime.slice(0, 5) : '';
+    const luggage = (body.luggage && typeof body.luggage === 'object') ? {
+      small: Number(body.luggage.small) || 0,
+      medium: Number(body.luggage.medium) || 0,
+      large: Number(body.luggage.large) || 0,
+    } : null;
+    const spiceLevel = typeof body.spiceLevel === 'string' ? body.spiceLevel : '';
+    const bucketDishes = Array.isArray(body.bucketDishes)
+      ? body.bucketDishes.filter((d) => typeof d === 'string').slice(0, 10)
+      : [];
     // 이동 강도 — 명시 pace 우선, 없으면 기존 tourPace에서 derive (UI 변경 최소화).
     const pace = ['relaxed', 'standard', 'packed'].includes(body.pace) ? body.pace
       : (body.tourPace === 'half' || body.tourPace === 'short') ? 'relaxed'
@@ -188,19 +206,30 @@ export default async function handler(req, res) {
       duration_days: durationDays,
       styles,
       area,
+      // 2026-05-10 (P0-1): regions array — 다도시 plan 시 buildPrompt MULTI-CITY
+      // HANDLING 섹션 (regions.length>=2) 트리거 + Gemini 가 city 별 분배 가능.
+      regions,
       duration,
       vehicle,
       arrival_airport: arrival_airport || undefined,
       departure_airport: departure_airport || undefined,
       arrival_address: arrivalAddress || undefined,
       departure_address: departureAddress || undefined,
+      // 2026-05-10 (P1): 도착/출발 시각 — Gemini 가 첫/마지막 day 일정 시각 분기.
+      arrival_time: arrivalTime || undefined,
+      departure_time: departureTime || undefined,
       hotel_address: hotel_address || undefined,
       // Sprint 2 #5: zone hint passed only when hotel_address absent.
       recommended_zone: !hotel_address && recommendedZone ? recommendedZone : undefined,
       mobility,
+      // 2026-05-10 (P1): luggage — RouteAgent late-night/heavy-luggage 분기 + Gemini.
+      luggage: luggage || undefined,
       special_request: specialRequest || undefined,
       diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
       food_allergies: allergies.length > 0 ? allergies : undefined,
+      // 2026-05-10 (P1): 매운맛 / 한국 음식 bucket — 식당 매칭 정확도 개선.
+      spice_level: spiceLevel || undefined,
+      bucket_dishes: bucketDishes.length > 0 ? bucketDishes : undefined,
       meal_budget: priceRange !== 'Any' ? priceRange : undefined, ...buildFoodPrefSnippet(body),
       pace, // relaxed: 단일 zone / standard: 2 인접 zone / packed: 자유
       variation_seed: Math.floor(Math.random() * 100) + 1,

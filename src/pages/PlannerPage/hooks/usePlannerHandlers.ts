@@ -180,9 +180,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       }, 300000);
 
       const authHeaders = await getAuthHeader();
-      if (!authHeaders.Authorization) {
+      // 2026-05-10 (P0-2 launch blocker): guest checkout 지원 — token 없어도
+      // paypalOrderId 있으면 진행. backend paymentGate.js 가 PayPal order 검증으로
+      // guest 결제 인증. 외국인 sign-in 미인증자도 결제만 완료하면 plan 생성 가능.
+      if (!authHeaders.Authorization && !paypalOrderId) {
         clearTimeout(timeoutId);
-        const e = new Error('Sign-in required to generate AI plan. Please sign in and try again.') as Error & { code?: string };
+        const e = new Error('Sign-in or payment required to generate AI plan.') as Error & { code?: string };
         e.code = 'AUTH_REQUIRED';
         throw e;
       }
@@ -197,6 +200,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           startDate: values.startDate,
           endDate: values.endDate,
           destination: (values.regions || []).join(', ') || 'Seoul',
+          // 2026-05-10 (P0-1 launch blocker): regions array forward — PR #331 다도시
+          // fix 가 backend 에서 작동하려면 array 형태로 받아야 함. area 는 첫 도시 만.
+          regions: values.regions || ['Seoul'],
           area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
           preferences: (values.categories || []).join(', ') || '',
           styles: values.categories || ['culture'],
@@ -212,6 +218,15 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
           special_request: values.freeText || '',
+          // 2026-05-10 (P1 launch blocker): WizardForm 에서 수집했지만 누락된
+          // 필드들 forward. AirportToLodgingGuide / RouteAgent 의 late-night /
+          // heavy-luggage 분기 작동 + Firestore input 보존을 위해 필요.
+          ...(values.arrivalTime ? { arrivalTime: values.arrivalTime } : {}),
+          ...(values.departureTime ? { departureTime: values.departureTime } : {}),
+          ...(values.luggage ? { luggage: values.luggage } : {}),
+          ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
+          ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
+          ...(values.tourPace ? { tourPace: values.tourPace } : {}),
           // Sprint 2 #5: undecided-hotel zone hint forwarded to backend.
           recommended_zone: values.recommended_zone || '',
           // 2026-05-03: zone 대표 주소 (RouteAgent가 공항↔zone 경로 계산용 fallback).
@@ -322,6 +337,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           startDate: values.startDate,
           endDate: values.endDate,
           destination: (values.regions || []).join(', ') || 'Seoul',
+          // 2026-05-10 (P0-1): regions array forward — 다도시 revision 도 작동.
+          regions: values.regions || ['Seoul'],
           area: cityNameToAreaKey((values.regions || ['Seoul'])[0]),
           preferences: (values.categories || []).join(', ') || '',
           styles: values.categories || ['culture'],
@@ -337,6 +354,13 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           allergies: values.allergies || [],
           priceRange: values.priceRange || 'Any',
           special_request: values.freeText || '',
+          // 2026-05-10 (P1): WizardForm 누락 필드 forward — paid path 와 동일.
+          ...(values.arrivalTime ? { arrivalTime: values.arrivalTime } : {}),
+          ...(values.departureTime ? { departureTime: values.departureTime } : {}),
+          ...(values.luggage ? { luggage: values.luggage } : {}),
+          ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
+          ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
+          ...(values.tourPace ? { tourPace: values.tourPace } : {}),
           // W4: revision reason → server buildRevisionInstruction
           ...(revisionReason ? { revisionReason } : {}),
           ...(revisionNote   ? { revisionNote }   : {}),
