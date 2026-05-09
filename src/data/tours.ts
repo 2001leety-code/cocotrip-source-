@@ -697,7 +697,7 @@ const TOURS_RAW: Tour[] = [
     priceFrom: 415, // from spec.daily_tour_prices.busan-day.priceUSD — SSOT 일치
     currency: 'USD',
     durationDays: 1,
-    durationHours: 12, // spec.daily_tour_prices.busan-day.hours 일치
+    durationHours: 10, // spec.daily_tour_prices.busan-day.hours 일치 (B9-38: 12→10, 시장 평균 KKday/Klook/KoreaTravelEasy 9-10h)
     vehicleType: 'Staria',
     maxPax: 7,
     thumbnail: '/Type1_광안대교, 도시를 품다_최영근_XA2xTa(1).jpg',
