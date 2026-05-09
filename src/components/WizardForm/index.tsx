@@ -16,6 +16,12 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
 import { requestNotifyPermission } from '@/lib/notify';
+import {
+  useWizardPersistence,
+  loadWizardSnapshot,
+  clearWizardSnapshot,
+} from '@/hooks/useWizardPersistence';
+import { ResumeWizardModal } from '@/components/ResumeWizardModal';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
@@ -27,6 +33,38 @@ import { WizardStep2Details, type TourPace } from './WizardStep2Details';
 import { WizardStep3Review } from './WizardStep3Review';
 
 import type { WizardDict } from './types';
+
+// 2026-05-09 (B9-35): autosave snapshot 의 values shape. wizard 가 30+ state 를
+// 갖고 있어 모두 typed 로 묶기엔 무거움 — 단순 Record 로 유연하게 + key 단위 복원.
+// 새 필드 추가 시 PlannerSnapshotValues 에도 같이 추가 (실수 시 그 필드만 복원 안 됨).
+interface PlannerSnapshotValues {
+  reservationStatus: ReservationStatus | null;
+  mainCity: string;
+  mainCityKey: string;
+  extraCities: string[];
+  selectedActivities: string[];
+  freeText: string;
+  dietPrefs: string[];
+  allergies: string[];
+  priceRange: string;
+  spiceLevel: string;
+  bucketDishes: string[];
+  // dateRange 는 Date 가 들어있어 JSON 직렬화 시 string 됨. 복원 시 new Date() 로 변환.
+  dateRangeFrom: string | null;  // ISO yyyy-MM-dd
+  dateRangeTo: string | null;
+  paxInput: string;
+  arrivalTerminal: string;
+  hotelAddress: string;
+  arrivalTime: string;
+  departureTime: string;
+  luggageSmall: number;
+  luggageMedium: number;
+  luggageLarge: number;
+  wantAccom: boolean;
+  accomBudget: string;
+  recommendedZone: string;
+  tourPace: TourPace;
+}
 
 // 2026-05-09 (B9-37): RevisionCard → PlannerPage → WizardForm 으로 흘러오는
 // prefill 데이터. plan.input 핵심 필드의 부분 직렬. 미직렬 필드는 기본값 유지.
@@ -111,6 +149,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     return () => window.removeEventListener('resize', handler);
   }, []);
 
+  // 2026-05-09 (B9-35): autosave 복원용 ResumeWizardModal 표시 여부 + 저장된 snapshot.
+  // initialValues (revision prefill) 가 있으면 autosave 무시 — revision 의도가 우선.
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [pendingSnap, setPendingSnap] = useState<PlannerSnapshotValues | null>(null);
+  const [pendingStep, setPendingStep] = useState<number>(0);
+
   // 2026-05-09 (B9-37): revision 으로 진입 시 plan.input 핵심 필드 prefill.
   // 첫 마운트 1회만 — 사용자가 이후 수정한 값을 덮어쓰지 않게 deps=[].
   // mainCityKey 매핑: regions[0] 가 cityKey('seoul') 또는 i18n cityName('서울') 양쪽 다 지원.
@@ -162,6 +206,72 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 2026-05-09 (B9-35): autosave snapshot 복원 시도. revision prefill 이 있으면 무시.
+  // 첫 마운트 1회만 — snapshot 발견 → 사용자에게 모달로 복원 여부 묻기.
+  useEffect(() => {
+    if (initialValues) return; // revision prefill 우선
+    const snap = loadWizardSnapshot<PlannerSnapshotValues>('planner');
+    if (!snap) return;
+    // 거의 빈 snapshot 이면 (사용자가 첫 step 도 안 채움) 모달 안 띄움 — 신호 너무 약함
+    const v = snap.values;
+    const hasContent = !!(v.mainCity || v.selectedActivities?.length || v.dateRangeFrom || v.arrivalTerminal);
+    if (!hasContent) {
+      clearWizardSnapshot('planner');
+      return;
+    }
+    setPendingSnap(v);
+    setPendingStep(snap.step || 0);
+    setResumeOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function applyResumeSnapshot() {
+    if (!pendingSnap) return;
+    const v = pendingSnap;
+    // 각 state 개별 복원. 누락된 필드는 default 유지 (실수로 새 필드 추가 후 deploy 시
+    // 기존 snapshot 파싱 안전).
+    setReservationStatus(v.reservationStatus ?? null);
+    setMainCity(v.mainCity ?? '');
+    setMainCityKey(v.mainCityKey ?? '');
+    setExtraCities(Array.isArray(v.extraCities) ? v.extraCities : []);
+    setSelectedActivities(Array.isArray(v.selectedActivities) ? v.selectedActivities : []);
+    setFreeText(v.freeText ?? '');
+    setDietPrefs(Array.isArray(v.dietPrefs) ? v.dietPrefs : []);
+    setAllergies(Array.isArray(v.allergies) ? v.allergies : []);
+    setPriceRange(v.priceRange ?? 'Any');
+    setSpiceLevel(v.spiceLevel ?? 'medium');
+    setBucketDishes(Array.isArray(v.bucketDishes) ? v.bucketDishes : []);
+    // dateRange 복원: ISO 문자열 → Date 변환. 잘못된 값이면 undefined.
+    if (v.dateRangeFrom) {
+      const from = new Date(v.dateRangeFrom);
+      if (!Number.isNaN(from.getTime())) {
+        const to = v.dateRangeTo ? new Date(v.dateRangeTo) : undefined;
+        setDateRange({ from, to: to && !Number.isNaN(to.getTime()) ? to : undefined });
+      }
+    }
+    setPaxInput(v.paxInput ?? '2');
+    setArrivalTerminal(v.arrivalTerminal ?? '');
+    setHotelAddress(v.hotelAddress ?? '');
+    setArrivalTime(v.arrivalTime ?? '');
+    setDepartureTime(v.departureTime ?? '');
+    setLuggageSmall(typeof v.luggageSmall === 'number' ? v.luggageSmall : 0);
+    setLuggageMedium(typeof v.luggageMedium === 'number' ? v.luggageMedium : 0);
+    setLuggageLarge(typeof v.luggageLarge === 'number' ? v.luggageLarge : 0);
+    setWantAccom(!!v.wantAccom);
+    setAccomBudget(v.accomBudget ?? 'moderate');
+    setRecommendedZone(v.recommendedZone ?? '');
+    setTourPace((v.tourPace as TourPace) ?? 'full');
+    setStep(pendingStep);
+    setResumeOpen(false);
+    setPendingSnap(null);
+  }
+
+  function discardResumeSnapshot() {
+    clearWizardSnapshot('planner');
+    setResumeOpen(false);
+    setPendingSnap(null);
+  }
+
   // derived
   const allCities = mainCity ? [mainCity, ...extraCities.filter(c => c !== mainCity)] : [];
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : '';
@@ -187,6 +297,43 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   }, [mainCityKey]);
 
   const calendarLocale = LOCALE_MAP[language] || enUS;
+
+  // 2026-05-09 (B9-35): debounced autosave. resume modal 이 떠 있는 동안엔 저장 X
+  // (사용자가 아직 결정 안 했으므로 기존 snapshot 덮어쓰면 안 됨).
+  const autosaveValues: PlannerSnapshotValues = {
+    reservationStatus,
+    mainCity, mainCityKey, extraCities,
+    selectedActivities, freeText,
+    dietPrefs, allergies, priceRange, spiceLevel, bucketDishes,
+    dateRangeFrom: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null,
+    dateRangeTo: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : null,
+    paxInput, arrivalTerminal, hotelAddress,
+    arrivalTime, departureTime,
+    luggageSmall, luggageMedium, luggageLarge,
+    wantAccom, accomBudget, recommendedZone, tourPace,
+  };
+  // resume modal 활성 시 'planner_paused' namespace 로 저장 → real snapshot 유지.
+  // (사용자가 모달 띄운 채 다른 input 만지면 새 snap 으로 덮이는 일 방지)
+  useWizardPersistence(resumeOpen ? 'planner_paused' : 'planner', autosaveValues, step);
+
+  // 2026-05-09 (B9-35): resume modal summary — 저장된 snapshot 의 핵심 필드 압축.
+  // "Seoul · 4박 5일 · 2명" 또는 "Seoul · 2명" (날짜만 빠져도 OK).
+  function buildSnapshotSummary(s: PlannerSnapshotValues | null): string {
+    if (!s) return '';
+    const parts: string[] = [];
+    if (s.mainCity) parts.push(s.mainCity);
+    if (s.dateRangeFrom && s.dateRangeTo) {
+      const from = new Date(s.dateRangeFrom);
+      const to = new Date(s.dateRangeTo);
+      if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())) {
+        const nightsCount = Math.max(0, differenceInCalendarDays(to, from));
+        if (nightsCount > 0) parts.push(`${nightsCount}N${nightsCount + 1}D`);
+      }
+    }
+    const paxNum = parseInt(s.paxInput || '0', 10);
+    if (paxNum > 0) parts.push(`${paxNum} pax`);
+    return parts.join(' · ');
+  }
 
   // validation
   const canGoStep1 = mainCity !== '' && selectedActivities.length > 0;
@@ -292,6 +439,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         } else {
           setErrorMsg(data.error || 'Something went wrong. Please try again.');
         }
+      } else {
+        // 2026-05-09 (B9-35): 제출 성공 → autosave snapshot 정리.
+        // (실패 시엔 유지 — 사용자가 다시 시도 가능하도록)
+        clearWizardSnapshot('planner');
+        clearWizardSnapshot('planner_paused');
       }
     } catch {
       setErrorMsg('Network error. Please check your connection and try again.');
@@ -323,6 +475,13 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
   return (
     <>
+      {/* 2026-05-09 (B9-35): autosave 복원 모달. snapshot 발견 시에만 표시. */}
+      <ResumeWizardModal
+        open={resumeOpen}
+        summary={buildSnapshotSummary(pendingSnap)}
+        onContinue={applyResumeSnapshot}
+        onRestart={discardResumeSnapshot}
+      />
       <div className="w-full">
         {/* Step Indicator — mobile mb 32px -> 20px, tighter spacing while preserving tap target */}
         <div className="flex items-center justify-center gap-1 mb-5 sm:mb-8">

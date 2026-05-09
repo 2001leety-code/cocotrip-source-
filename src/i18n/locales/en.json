@@ -2116,5 +2116,12 @@
     "signupSubmitBtn": "Continue",
     "signupSubmitting": "Submitting...",
     "signupSubmitError": "Save failed. Please try again."
+  },
+  "resumeWizard": {
+    "title": "Continue where you left off?",
+    "desc": "You filled out: {summary}. Pick up where you stopped, or start fresh.",
+    "descNoSummary": "Your previous progress was saved.",
+    "continue": "Continue",
+    "restart": "Start over"
   }
 }

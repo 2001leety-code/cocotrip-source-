@@ -13,8 +13,9 @@
  *   - Other Gemini errors               → re-thrown with code GEMINI_ERROR if missing.
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse } from './responseValidator.js';
+import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation } from './responseValidator.js';
 import { applyDBMatcher } from './dbMatcher.js';
+import { captureError } from '../_shared/sentry.js';
 import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
 import { sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
@@ -88,6 +89,60 @@ function mapGeminiError(err, geminiStart) {
 }
 
 /**
+ * P0-3 SAFETY-CRITICAL: dietary violation 발견 시 강조된 instruction 으로 1회 재호출.
+ * Gemini system prompt 위에 명시적인 reinforcement 를 prepend — JSON output schema
+ * 는 동일 (validateResponse 동일 적용 가능).
+ *
+ * 사용자 dietary preferences 에 따라 어떤 음식을 절대 추천하면 안 되는지 명시.
+ */
+function buildDietaryReinforcedPrompt(systemPrompt, dietary) {
+  const wantsHalal  = dietary.some((d) => /halal/i.test(d));
+  const wantsVegan  = dietary.some((d) => /vegan/i.test(d));
+  const wantsVeggie = dietary.some((d) => /vegetarian/i.test(d));
+
+  const parts = [
+    '═══════════════════════════════════════════════════════════',
+    '🚨 CRITICAL SAFETY REQUIREMENT — DIETARY RESTRICTIONS 🚨',
+    '═══════════════════════════════════════════════════════════',
+    '',
+    'The previous response contained restaurants that VIOLATED the user\'s',
+    'dietary requirements. This is a HEALTH RISK — Halal/Vegan customers',
+    'cannot eat foods containing prohibited ingredients.',
+    '',
+    'STRICT RULES (NO EXCEPTIONS):',
+  ];
+  if (wantsHalal) {
+    parts.push(
+      '- Halal: ONLY recommend restaurants explicitly certified or verified Halal.',
+      '  NEVER recommend restaurants serving pork (돼지/삼겹), bacon, ham, or alcohol.',
+      '  Mark each food stop with `dietary_tags: ["halal"]` AND mention "halal" or "할랄" in the tip.',
+    );
+  }
+  if (wantsVegan) {
+    parts.push(
+      '- Vegan: ONLY plant-based restaurants. NEVER recommend places serving',
+      '  beef/chicken/pork/fish/seafood (소고기/돼지/닭/생선/해산물) — even as an option.',
+      '  Mark each food stop with `dietary_tags: ["vegan"]` AND mention "vegan" or "비건" in the tip.',
+    );
+  }
+  if (wantsVeggie && !wantsVegan) {
+    parts.push(
+      '- Vegetarian: NO meat (소고기/돼지/닭/beef/chicken/pork). Eggs/dairy OK.',
+      '  Mark each food stop with `dietary_tags: ["vegetarian"]` AND mention "vegetarian" or "채식" in the tip.',
+    );
+  }
+  parts.push(
+    '',
+    'Regenerate the FULL itinerary with food stops that comply with the above.',
+    'Same JSON schema as before. Same `days[].stops[]` structure.',
+    '═══════════════════════════════════════════════════════════',
+    '',
+  );
+
+  return parts.join('\n') + systemPrompt;
+}
+
+/**
  * Run the appropriate Gemini pipeline (legacy or 3-pass) and return a
  * validated, DB-matched itinerary. Throws mapped errors on failure.
  *
@@ -98,11 +153,15 @@ function mapGeminiError(err, geminiStart) {
  * @param {string} args.area
  * @param {string} args.language
  * @param {'legacy'|'3pass'} args.mode
+ * @param {string[]} [args.dietary]           P0-3: 사용자 식이제한 (halal/vegan/vegetarian).
+ *                                            지정 시 응답 검증 + 위반 시 1회 retry.
  */
-export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode }) {
+export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary }) {
   const model = buildModel(apiKey);
   const foodIndex = await loadFoodIndex();
   const geminiStart = Date.now();
+  // P0-3: 빈 배열이면 검사 생략 (식이제한 없는 사용자). null/undefined 도 안전.
+  const dietaryArr = Array.isArray(dietary) ? dietary : [];
   let itinerary;
 
   if (mode === '3pass') {
@@ -131,7 +190,38 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     itinerary = await pass3Enrich(model, itinerary, language);
     console.log('[planner] Pass 3 done:', Date.now() - pass3Start, 'ms');
 
-    validateResponse(itinerary, { lang: language }, foodIndex);
+    // P0-3: dietary 전달 + violation 시 retry. 3pass 는 retry 비용 큼 — pass1 만 재호출.
+    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+    if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
+      console.warn('[planner] 🚨 dietary_violation detected — retrying pass1 with reinforced prompt');
+      const reinforced = buildDietaryReinforcedPrompt(systemPrompt, dietaryArr);
+      try {
+        const retryRaw = await withTimeout(pass1Intent(model, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry');
+        itinerary = repairAndParseJSON(retryRaw);
+        cleanAddresses(itinerary);
+        sanitizeStops(itinerary, language);
+        itinerary = pass2Resolve(itinerary, foodIndex, area);
+        itinerary = await pass3Enrich(model, itinerary, language);
+        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+      } catch (retryErr) {
+        console.error('[planner] dietary retry failed:', retryErr.message);
+      }
+      if (hasCriticalDietaryViolation(issues)) {
+        const violations = issues.filter((i) => i.type === 'dietary_violation');
+        await captureError(new Error('Dietary violation persists after retry'), {
+          route: 'ai-planner-full', mode: '3pass', dietary: dietaryArr.join(','),
+          violationCount: violations.length, violations: violations.slice(0, 5),
+        }).catch(() => {});
+        const e = new Error(
+          'AI failed to respect your dietary requirements (' +
+          dietaryArr.join(', ') + '). We are unable to deliver a safe plan. ' +
+          'Please contact support for a refund.'
+        );
+        e.code = 'DIETARY_VIOLATION';
+        e.statusCode = 422;
+        throw e;
+      }
+    }
     applyDBMatcher(itinerary, foodIndex, area, language);
 
     console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
@@ -161,7 +251,58 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
 
     cleanAddresses(itinerary);
     sanitizeStops(itinerary, language);
-    validateResponse(itinerary, { lang: language }, foodIndex);
+    // P0-3 SAFETY-CRITICAL: dietary 전달 + violation 시 1회 retry → 그래도 violation 시 throw.
+    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+    if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
+      console.warn('[planner] 🚨 dietary_violation detected — retrying with reinforced prompt');
+      const reinforced = buildDietaryReinforcedPrompt(systemPrompt, dietaryArr);
+      try {
+        const retryStart = Date.now();
+        const retryResult = await withTimeout(
+          model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+            systemInstruction: { role: 'system', parts: [{ text: reinforced }] },
+          }),
+          GEMINI_TIMEOUT_MS,
+          'legacy-retry',
+        );
+        console.log('[planner] dietary retry Gemini:', Date.now() - retryStart, 'ms');
+        const retryRaw = retryResult.response.text().trim();
+        itinerary = repairAndParseJSON(retryRaw);
+        cleanAddresses(itinerary);
+        sanitizeStops(itinerary, language);
+        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+      } catch (retryErr) {
+        console.error('[planner] dietary retry failed:', retryErr.message);
+        // retry 자체 실패 시에도 issues 는 직전 값 유지 → 아래 final check 가 throw.
+      }
+      if (hasCriticalDietaryViolation(issues)) {
+        const violations = issues.filter((i) => i.type === 'dietary_violation');
+        // Sentry alert — 운영자가 환불 + 사용자 연락 필요. 비동기 — throw 막지 않음.
+        captureError(new Error('Dietary violation persists after retry'), {
+          route: 'ai-planner-full', mode: 'legacy', dietary: dietaryArr.join(','),
+          violationCount: violations.length, violations: violations.slice(0, 5),
+        }).catch(() => {});
+        sendErrorAlert({
+          title: '🚨 SAFETY-CRITICAL: dietary_violation persisted',
+          context: {
+            dietary: dietaryArr.join(','),
+            violations: violations.length,
+            sample: violations.slice(0, 3).map((v) => `${v.diet}:${v.stop}`).join(' | '),
+          },
+        }).catch(() => {});
+        const e = new Error(
+          'AI failed to respect your dietary requirements (' +
+          dietaryArr.join(', ') + '). ' +
+          'We were unable to generate a safe plan. ' +
+          'Please contact support for a full refund — no plan was saved.'
+        );
+        e.code = 'DIETARY_VIOLATION';
+        e.statusCode = 422;
+        throw e;
+      }
+      console.log('[planner] dietary retry succeeded — no violations remain');
+    }
     applyDBMatcher(itinerary, foodIndex, area, language);
   }
 
