@@ -6,9 +6,12 @@
 // Falls back to legacy ACTIVITY_KEYS when no city is selected yet so the
 // "before you pick a city" view isn't empty.
 import { useMemo, useState } from 'react';
-import { Sparkles, Check } from 'lucide-react';
+import { Sparkles, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { WizardNav } from './WizardNav';
-import { CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS, getActivitiesForCities } from './data';
+import {
+  CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS,
+  getActivitiesForCities, ACTIVITY_CHIPS_EXPANDED, EXPANDED_ACTIVITY_ICONS,
+} from './data';
 import type { WizardDict } from './types';
 
 interface Step0Props {
@@ -48,6 +51,9 @@ export function WizardStep0Destination(props: Step0Props) {
 
   // 입력 가드: 사용자가 Next를 한 번 눌러야 오류 표시 (첫 진입 시 빨간 테두리 없음)
   const [showErrors, setShowErrors] = useState(false);
+  // 2026-05-09 (UI variety): 메인 chips는 항상 노출, sub chips (트레킹/한강 따릉이/
+  // 무료 활동 등) 는 expand 버튼 클릭 시에만 노출. 기본 false 로 선택지 폭증 회피.
+  const [showMoreActivities, setShowMoreActivities] = useState(false);
 
   function handleNext() {
     if (!canGoStep1) {
@@ -184,6 +190,56 @@ export function WizardStep0Destination(props: Step0Props) {
             );
           })}
         </div>
+
+        {/* 2026-05-09 (UI variety): "+ Show more activities" — 무료/액티브 활동
+            확장. 메인 chips는 위에 그대로 두고 클릭 시에만 sub-chips 노출.
+            돈 안 들이고 할 수 있는 활동 (트레킹·한강 따릉이·러닝 등) 강조. */}
+        <button
+          type="button"
+          onClick={() => setShowMoreActivities(v => !v)}
+          className="mt-3 flex items-center gap-1.5 text-[12px] font-semibold text-[#7C5CFC] hover:text-[#9b80ff] transition-colors"
+          aria-expanded={showMoreActivities}
+        >
+          {showMoreActivities ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {showMoreActivities
+            ? (p.showLessActivities || 'Show fewer activities')
+            : (p.showMoreActivities || '+ Show more activities (free options!)')}
+        </button>
+        {showMoreActivities && (
+          <div className="mt-3 space-y-3">
+            <p className="text-[11px] text-white/45 leading-relaxed">
+              {p.moreActivitiesHint || 'Active outdoor + free local culture. Most cost ₩0.'}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {ACTIVITY_CHIPS_EXPANDED.map(({ key, free }) => {
+                const nameKey = `act${key}` as keyof typeof p;
+                const sel = selectedActivities.includes(key);
+                const icon = EXPANDED_ACTIVITY_ICONS[key] || <Sparkles className="w-5 h-5" />;
+                const labelFallback = key.replace(/([a-z])([A-Z])/g, '$1 $2');
+                return (
+                  <button key={key} onClick={() => toggleActivity(key)}
+                    className={`relative flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all ${
+                      sel
+                        ? 'border-transparent text-white shadow-lg'
+                        : 'border-white/[0.1] bg-white/[0.04] text-white/60 hover:border-white/25 hover:text-white'
+                    }`}
+                    style={sel ? { background: 'linear-gradient(135deg,rgba(124,92,252,.35),rgba(234,83,126,.35))', borderColor: 'rgba(124,92,252,.5)' } : {}}>
+                    <span className="shrink-0">{icon}</span>
+                    <div className="overflow-hidden flex-1 min-w-0">
+                      <p className="text-[13px] font-bold leading-tight line-clamp-2">{p[nameKey] || labelFallback}</p>
+                      {free && (
+                        <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          {p.activityFreeBadge || 'FREE ₩0'}
+                        </span>
+                      )}
+                    </div>
+                    {sel && <Check className="w-4 h-4 ml-auto text-[#7C5CFC] shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Free text */}

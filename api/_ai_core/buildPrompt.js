@@ -571,6 +571,21 @@ The user picked cities; new activity keys are now city-aware. Map keys to schedu
 - ChinaTown → 인천 차이나타운 + 송월동 동화마을.
 - DaeguTower → 대구타워/앞산.
 
+### Expanded activity keys (2026-05-09, UI variety) — free/active outdoor + free culture:
+These chips emphasize free or low-cost activities for budget-conscious foreign visitors.
+- Trekking → 북한산/관악산/인왕산 등 등산 코스 1개 (Half-day, free entry).
+- HangangBike → 한강 따릉이 자전거 대여 (₩1,000/hr 한강공원 — Yeouido/Banpo/Ttukseom).
+- HangangRun → 한강 러닝 코스 (Yeouido/Banpo, free).
+- CheonggyecheonWalk → 청계천 산책 (광장시장 끝→광화문, free, 1.5h).
+- SeoulDoolegil → 서울 둘레길 한 구간 (8 코스 중 하나, free).
+- NamsanHike → 남산 등산 (N서울타워 도보, free).
+- FreeMuseum → 국립중앙박물관/국립민속박물관/서울역사박물관 (free entry, 2-3h).
+- GwangjangView → 광장시장 시장 구경 (먹지 않아도 OK, 30-60분 photo stop).
+- KpopStreetWatch → 홍대/신촌/강남 K-pop 댄스 거리 공연 관람 (free, 저녁 슬롯).
+- BookstoreCafe → 익선동/북촌/삼청동 북카페 (음료값만, ₩6-8K).
+- Jjimjilbang → 한국식 사우나 (드래곤힐 등, ₩12-15K, 외국인에게 cultural experience).
+- HangangPicnic → 한강공원 피크닉 (편의점 도시락 + 라면, free park entry).
+
 If the user's selected city doesn't match the activity key, treat as ambiguous — use user's main city.
 
 ### Reservation status hint (P6):
