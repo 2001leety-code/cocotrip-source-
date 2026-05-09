@@ -1,5 +1,7 @@
 // TourBookingDialog — 투어 상세 CTA 클릭 시 인원수·날짜·언어·addon 선택 + PayPal 직진입.
 // productType 매핑 있으면 (대부분) PayPalBookingButton, 없으면 (multicity-3d) charter 페이지 redirect.
+// 2026-05-10 (B9-35 잔여, P3): tour:${id} 별 24h autosave (silent prefill) — Dialog 가 modal
+// UX 라 ResumeWizardModal 중첩 대신 자연스러운 prefill + 24h TTL 자동 expire.
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -14,6 +16,21 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
+import { loadWizardSnapshot, useWizardPersistence } from '@/hooks/useWizardPersistence';
+
+// tour booking 자동저장 snapshot — Set<string> 은 JSON 직렬화 불가라 array 로 변환 보존.
+type TourBookingSnapshot = {
+  pax: number;
+  date: string;
+  driverLang: DriverLanguage;
+  selectedAddons: string[];
+  step: 1 | 2;
+  phone: string;
+  pickupAddress: string;
+  whatsappId: string;
+  lineId: string;
+  memoText: string;
+};
 
 /** Reusable text input row used in Step 2. Keeps the dialog body lean and
  *  ensures every field has the same focus/error treatment + label style. */
@@ -181,19 +198,40 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
     ? tour.driverLanguages
     : (['en'] as DriverLanguage[]);
 
-  const [pax, setPax] = useState<number>(2);
-  const [date, setDate] = useState<string>('');
-  const [driverLang, setDriverLang] = useState<DriverLanguage>(availableLangs[0]);
-  const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
+  // 2026-05-10 (B9-35 잔여): tour:${id} 별 snapshot 로드 → useState initial value prefill.
+  // tour 별로 분리 (서로 다른 투어 입력 충돌 방지). 24h TTL 만료 시 null → 빈 상태.
+  const persistKey = `tour:${tour.id}`;
+  const initialSnap = useMemo(() => {
+    return loadWizardSnapshot<TourBookingSnapshot>(persistKey)?.values ?? null;
+  }, [persistKey]);
+
+  const [pax, setPax] = useState<number>(initialSnap?.pax ?? 2);
+  const [date, setDate] = useState<string>(initialSnap?.date ?? '');
+  const [driverLang, setDriverLang] = useState<DriverLanguage>(
+    initialSnap?.driverLang && availableLangs.includes(initialSnap.driverLang)
+      ? initialSnap.driverLang
+      : availableLangs[0],
+  );
+  const [selectedAddons, setSelectedAddons] = useState<Set<string>>(
+    new Set(initialSnap?.selectedAddons ?? []),
+  );
 
   // Step 2 — contact + pickup. All fields below are required for submission;
   // backend captures them in PayPalBookingButton's `memo` arg (no API change).
-  const [step, setStep] = useState<1 | 2>(1);
-  const [phone, setPhone] = useState<string>('');
-  const [pickupAddress, setPickupAddress] = useState<string>('');
-  const [whatsappId, setWhatsappId] = useState<string>('');
-  const [lineId, setLineId] = useState<string>('');
-  const [memoText, setMemoText] = useState<string>('');
+  const [step, setStep] = useState<1 | 2>(initialSnap?.step ?? 1);
+  const [phone, setPhone] = useState<string>(initialSnap?.phone ?? '');
+  const [pickupAddress, setPickupAddress] = useState<string>(initialSnap?.pickupAddress ?? '');
+  const [whatsappId, setWhatsappId] = useState<string>(initialSnap?.whatsappId ?? '');
+  const [lineId, setLineId] = useState<string>(initialSnap?.lineId ?? '');
+  const [memoText, setMemoText] = useState<string>(initialSnap?.memoText ?? '');
+
+  // debounced autosave — 매 키 입력마다 저장 X, 500ms 후 1번. Set 직렬화 array 변환.
+  const persistValues = useMemo<TourBookingSnapshot>(() => ({
+    pax, date, driverLang,
+    selectedAddons: Array.from(selectedAddons),
+    step, phone, pickupAddress, whatsappId, lineId, memoText,
+  }), [pax, date, driverLang, selectedAddons, step, phone, pickupAddress, whatsappId, lineId, memoText]);
+  useWizardPersistence(persistKey, persistValues, step);
 
   // Firestore tour_availability cache (월별). 비어있으면 mock fallback.
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
