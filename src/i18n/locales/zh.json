@@ -2116,5 +2116,12 @@
     "signupSubmitBtn": "继续",
     "signupSubmitting": "保存中...",
     "signupSubmitError": "保存失败, 请重试。"
+  },
+  "resumeWizard": {
+    "title": "继续填写？",
+    "desc": "您已填写到 {summary}。可以继续填写或重新开始。",
+    "descNoSummary": "您之前的填写进度已保存。",
+    "continue": "继续",
+    "restart": "重新开始"
   }
 }

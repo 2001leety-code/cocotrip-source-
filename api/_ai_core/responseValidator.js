@@ -1,6 +1,12 @@
 /**
  * Response validation + JSON repair helpers.
  * Extracted verbatim from api/ai-planner-full.js L129-169, L877-946.
+ *
+ * 2026-05-10 (P0-3 SAFETY-CRITICAL): dietary_violation 검사 추가.
+ * CLAUDE.md J 항: halal/vegan/vegetarian 위반은 "고객 건강 위험" 등급.
+ * validateResponse 가 issues 배열에 critical violation 을 남기면 caller 가
+ * hasCriticalDietaryViolation() 으로 감지 → 1회 retry → 그래도 violation 시
+ * 사용자에게 명시적 에러 + 환불 권장.
  */
 import { sanitizeStopName } from './sanitizeName.js';
 
@@ -27,9 +33,68 @@ export function sanitizeStops(data, lang = 'ko') {
   return data;
 }
 
+/**
+ * P0-3 (SAFETY-CRITICAL): 사용자가 halal/vegan/vegetarian 입력 시 식이제한 위반 판정.
+ * qualityMetrics.js buildDietaryChecker 와 동일 로직 — single source of truth 안 만들고
+ * 의도적으로 복제 (qualityMetrics 는 점수용, 여기는 차단용. 임포트 사이클 회피).
+ *
+ * 보수적 fail-safe: 명시적 halal/vegan tag 가 없거나 conflict 키워드 (pork/beef 등)
+ * 가 있으면 violation. 비halal 식당이 halal 사용자 plan 에 들어가는 것 = 건강 위험.
+ *
+ * 음식 카테고리 만 체크 — non-food stop 은 dietary 와 무관.
+ */
+function checkDietaryViolation(stop, dietary) {
+  if (!Array.isArray(dietary) || dietary.length === 0) return null;
+  if (stop.category !== 'food') return null;
+
+  const wantsHalal  = dietary.some((d) => /halal/i.test(d));
+  const wantsVegan  = dietary.some((d) => /vegan/i.test(d));
+  const wantsVeggie = dietary.some((d) => /vegetarian/i.test(d));
+
+  if (!wantsHalal && !wantsVegan && !wantsVeggie) return null;
+
+  const tags = []
+    .concat(stop.dietary_tags || [])
+    .concat(stop.dietary || [])
+    .concat(stop.tags || [])
+    .map((t) => String(t).toLowerCase());
+  const hayLow = `${stop.name || ''} ${stop.display_name || ''} ${stop.tip || ''} ${stop.reason || ''}`.toLowerCase();
+
+  if (wantsHalal) {
+    const claimsHalal = tags.some((t) => t.includes('halal')) || /halal|할랄/i.test(hayLow);
+    const conflicts   = /pork|돼지|삼겹/i.test(hayLow);
+    if (!claimsHalal || conflicts) return 'halal';
+  }
+  if (wantsVegan) {
+    const claimsVegan = tags.some((t) => t.includes('vegan')) || /vegan|비건/i.test(hayLow);
+    const conflicts   = /beef|chicken|pork|fish|seafood|소고기|돼지|닭|생선|해산물/i.test(hayLow);
+    if (!claimsVegan || conflicts) return 'vegan';
+  }
+  if (wantsVeggie && !wantsVegan) {
+    const claimsVeg = tags.some((t) => t.includes('vegetarian') || t.includes('vegan'))
+      || /vegetarian|vegan|채식|비건/i.test(hayLow);
+    const conflicts = /beef|chicken|pork|소고기|돼지|닭/i.test(hayLow);
+    if (!claimsVeg || conflicts) return 'vegetarian';
+  }
+  return null;
+}
+
+/**
+ * P0-3: validateResponse 결과에서 critical dietary violation 존재 여부.
+ * 사용자가 식이제한 입력했는데 violation 이 있으면 plan 그대로 저장하면 안 됨.
+ * Caller (geminiPipeline) 가 1회 retry → 그래도 violation 이면 throw.
+ */
+export function hasCriticalDietaryViolation(issues) {
+  if (!Array.isArray(issues)) return false;
+  return issues.some((i) => i && i.type === 'dietary_violation' && i.severity === 'critical');
+}
+
 export function validateResponse(data, request, foodIndex) {
   const issues = [];
   const allStops = (data.days || []).flatMap(d => (d.stops || []));
+  // P0-3: request.dietary — 호출자가 사용자 식이제한 (Halal/Vegan/...) 전달 시 위반 검사.
+  // 누락이면 검사 skip — 기존 caller 호환 (geminiPipeline 만 dietary 전달).
+  const dietary = Array.isArray(request?.dietary) ? request.dietary : [];
 
   for (const stop of allStops) {
     // 주소 형식 — 시/도로 시작하는지
@@ -48,6 +113,18 @@ export function validateResponse(data, request, foodIndex) {
         return dbName === stopLabel || r.nameEn === (stop.display_name || stop.name_en || '');
       });
       if (!inDB) issues.push({ type: 'unverified_restaurant', stop: stopLabel });
+    }
+    // P0-3 SAFETY-CRITICAL: 식이제한 위반 (halal/vegan/vegetarian)
+    // critical severity — caller 가 plan 저장 차단할 수 있도록 표시.
+    const dietViolation = checkDietaryViolation(stop, dietary);
+    if (dietViolation) {
+      issues.push({
+        type: 'dietary_violation',
+        severity: 'critical',
+        stop: stopLabel,
+        diet: dietViolation,
+        category: stop.category,
+      });
     }
     // 언어 혼합 (ko 요청인데 tip이 영어만)
     const tipText = stop.tip || stop.tip_en || '';
@@ -80,10 +157,14 @@ export function validateResponse(data, request, foodIndex) {
     }
   }
 
+  // P0-3: dietary_violation 별도 카운트 — 운영자가 prod log 에서 즉시 식별.
+  const dietaryViolations = issues.filter((i) => i.type === 'dietary_violation').length;
   console.log('[RESPONSE_VALIDATION]', JSON.stringify({
     total_stops: allStops.length,
     food_stops: allStops.filter(s => s.category === 'food').length,
     issue_count: issues.length,
+    dietary_violations: dietaryViolations,
+    dietary_input: dietary,
     issues: issues.slice(0, 20),
   }));
   return issues;

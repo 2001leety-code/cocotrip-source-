@@ -56,11 +56,27 @@ export async function persistPlan(adminDb, {
   const accessToken = uid ? null : randomUUID();
 
   // ── Tier 2-D: 9-metric quality score (admin-only, not user-visible) ────
+  // P0-3 (2026-05-10, CLAUDE.md J): 빈 배열 fallback 제거.
+  // 이전: `dietary || body?.dietPrefs || body?.dietary || []` — 누락 시 silent default
+  //       → 사용자 식이제한이 잘못 전달돼도 plan 그대로 저장됐음 (J 룰 위반).
+  // 변경: 명시적 array check + 누락이면 null 로 전달 (computeQualityScore 가
+  //       buildDietaryChecker 에서 빈 배열로 graceful 처리).
+  // Note: 식이제한 차단은 이미 geminiPipeline 단계에서 throw 처리 — 여기까지 도달했다는 건
+  //       (a) 사용자 식이제한 없거나 (b) violation 통과한 plan. qualityScore 는
+  //       admin 모니터링용이므로 dietary null 도 안전.
+  const dietaryRaw = dietary ?? body?.dietPrefs;
+  if (dietaryRaw !== undefined && dietaryRaw !== null && !Array.isArray(dietaryRaw)) {
+    // 명시적 throw 대신 logging — qualityScore 는 non-blocking 이므로 plan 저장은 진행.
+    // Telemetry only — 호출 체인 어딘가에서 잘못된 type 이 넘어왔다는 신호.
+    console.error('[planPersister] dietary must be array, got:', typeof dietaryRaw, dietaryRaw);
+  }
+  const dietaryForScore = Array.isArray(dietaryRaw) ? dietaryRaw : null;
+
   let qualityScore = null;
   try {
     qualityScore = computeQualityScore(
       itinerary,
-      dietary || body?.dietPrefs || body?.dietary || [],
+      dietaryForScore,
       area,
       foodIndex || [],
       { lang: language || 'ko' },
