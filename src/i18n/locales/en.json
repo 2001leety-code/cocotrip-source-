@@ -1143,6 +1143,7 @@
     "zoneRecommendPicked": "AI will plan around this zone. You can still type a specific hotel above to override.",
     "zoneHotelCta": "Browse {zone} hotels on Trip.com",
     "zoneHotelSponsored": "Sponsored · Trip.com",
+    "zoneRecommendGroupHeader": "{city} zones",
     "originalPrice": "Regular",
     "launchPrice": "Launch Price",
     "limitedTimeOffer": "⏰ Limited Time — First 100 customers",

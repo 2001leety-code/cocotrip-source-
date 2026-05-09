@@ -551,3 +551,43 @@ export function getZonesForCity(cityKey: string | undefined): Zone[] {
   if (!cityKey) return [];
   return ZONES_BY_CITY[cityKey] || [];
 }
+
+// 다도시 plan 에서 zone 키 글로벌 reverse lookup. zone 키는 ZONES_BY_CITY 전체에서
+// unique (myeongdong/haeundae/jungmun 등) 라서 도시 모름 상태로도 찾을 수 있음.
+// 사용처: WizardForm submit 시 zone anchorAddress lookup, zone → mainCity auto-swap.
+export function getZoneByKey(zoneKey: string | undefined): { zone: Zone; cityKey: string } | undefined {
+  if (!zoneKey) return undefined;
+  for (const [cityKey, zones] of Object.entries(ZONES_BY_CITY)) {
+    const zone = zones.find(z => z.key === zoneKey);
+    if (zone) return { zone, cityKey };
+  }
+  return undefined;
+}
+
+// city name (사용자 언어 ko/en/ja/zh) → ZONES_BY_CITY 키 (e.g. 'seoul'/'busan').
+// 다도시 plan 에서 extraCities (이름 배열) 를 cityKey 배열로 변환할 때 사용.
+// 별도 helper인 이유: PlannerPage/lib/formatters.ts 의 cityNameToAreaKey 는
+// 'seoul_city' 같은 backend area 키 체계라 zoneData 키 ('seoul') 와 다름.
+const NAME_TO_ZONE_CITY_KEY: Record<string, string> = {
+  // English
+  'seoul': 'seoul', 'busan': 'busan', 'jeju': 'jeju',
+  'gyeongju': 'gyeongju', 'jeonju': 'jeonju', 'gangneung': 'gangneung',
+  'incheon': 'incheon', 'suwon': 'suwon', 'yeosu': 'yeosu', 'daegu': 'daegu',
+  // Korean
+  '서울': 'seoul', '부산': 'busan', '제주': 'jeju',
+  '경주': 'gyeongju', '전주': 'jeonju', '강릉': 'gangneung',
+  '인천': 'incheon', '수원': 'suwon', '여수': 'yeosu', '대구': 'daegu',
+  // Japanese
+  'ソウル': 'seoul', '釜山': 'busan', '済州': 'jeju',
+  '慶州': 'gyeongju', '全州': 'jeonju', '江陵': 'gangneung',
+  '仁川': 'incheon', '水原': 'suwon', '麗水': 'yeosu', '大邱': 'daegu',
+  // Chinese (Simplified)
+  '首尔': 'seoul', '济州': 'jeju', '庆州': 'gyeongju', '丽水': 'yeosu',
+  // Chinese (Traditional/Japanese 釜山 동일)
+};
+
+export function cityNameToZoneKey(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  const trimmed = name.trim();
+  return NAME_TO_ZONE_CITY_KEY[trimmed.toLowerCase()] || NAME_TO_ZONE_CITY_KEY[trimmed] || undefined;
+}

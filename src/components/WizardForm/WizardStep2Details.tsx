@@ -43,11 +43,12 @@ interface Step2Props {
   // P7 (2026-04-24): daily tour pace — controls Gemini's hours-per-day budget.
   tourPace: TourPace;
   setTourPace: (v: TourPace) => void;
-  // Sprint 2 #5: recommended Seoul zone (when hotel undecided) + city key
-  // for picker scoping.
+  // Sprint 2 #5: recommended zone (when hotel undecided) + city key for picker scoping.
+  // 2026-05-10 다도시 plan UX fix: cityKeys (모든 selected cities). zone 선택 시 cityKey
+  // 도 같이 받아 부모가 mainCity auto-swap. mainCityKey 는 cityKeys[0] 로 대체됨.
   recommendedZone: string;
-  setRecommendedZone: (v: string) => void;
-  mainCityKey: string;
+  cityKeys: string[];
+  onPickZone: (zoneKey: string, cityKey: string) => void;
   canGoStep3: boolean;
   onPrev: () => void;
   onNext: () => void;
@@ -113,7 +114,7 @@ export function WizardStep2Details(props: Step2Props) {
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
-    recommendedZone, setRecommendedZone, mainCityKey,
+    recommendedZone, cityKeys, onPickZone,
     canGoStep3, onPrev, onNext, onEditStep0,
     reservationStatus,
     airportTouchedInStep3, setAirportTouchedInStep3,
@@ -304,15 +305,16 @@ export function WizardStep2Details(props: Step2Props) {
             <ZoneRecommender
               language={lang}
               isMobile={isMobile}
-              cityKey={mainCityKey}
+              cityKeys={cityKeys}
               hotelAddress={hotelAddress}
               recommendedZone={recommendedZone}
-              setRecommendedZone={setRecommendedZone}
+              onPickZone={onPickZone}
               labelTitle={p.zoneRecommendTitle}
               labelSubtitle={p.zoneRecommendSubtitle}
               labelPick={p.zoneRecommendPicked}
               labelHotelCta={p.zoneHotelCta}
               labelHotelSponsored={p.zoneHotelSponsored}
+              labelGroupHeader={p.zoneRecommendGroupHeader}
             />
           )}
         </div>

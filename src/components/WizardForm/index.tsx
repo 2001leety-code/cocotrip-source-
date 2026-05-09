@@ -25,7 +25,7 @@ import { ResumeWizardModal } from '@/components/ResumeWizardModal';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
-import { getZonesForCity } from './zoneData';
+import { getZoneByKey, cityNameToZoneKey } from './zoneData';
 import { WizardStep0Reservation, type ReservationStatus } from './WizardStep0Reservation';
 import { WizardStep0Destination } from './WizardStep0Destination';
 import { WizardStep1Food } from './WizardStep1Food';
@@ -274,6 +274,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
   // derived
   const allCities = mainCity ? [mainCity, ...extraCities.filter(c => c !== mainCity)] : [];
+  // 2026-05-10 다도시 plan UX: extraCities (이름) → zoneData cityKey 배열.
+  // ZoneRecommender 가 모든 selected cities zone 묶음 표시.
+  const extraCityKeys = extraCities
+    .map(name => cityNameToZoneKey(name))
+    .filter((k): k is string => !!k && k !== mainCityKey);
+  const cityKeys = mainCityKey ? [mainCityKey, ...extraCityKeys] : ['seoul'];
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : '';
   const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : '';
   const nights = dateRange?.from && dateRange?.to ? differenceInCalendarDays(dateRange.to, dateRange.from) : 0;
@@ -369,6 +375,26 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     }
   }
 
+  // 2026-05-10 다도시 plan UX: zone 선택 시 그 zone 이 속한 도시가 mainCity 와
+  // 다르면 자동 swap (mainCity ↔ extraCities[idx]). 이렇게 하면 공항 dropdown
+  // 도 useEffect [mainCityKey] chain 으로 자동 업데이트, hub city 와 zone 정합.
+  function handlePickZone(zoneKey: string, zoneCityKey: string) {
+    setRecommendedZone(zoneKey);
+    if (!zoneKey) return; // deselect
+    if (zoneCityKey === mainCityKey) return; // already main — no swap
+    const idx = extraCities.findIndex(name => cityNameToZoneKey(name) === zoneCityKey);
+    if (idx === -1) return; // 일치 도시 없음 (예외 가드)
+    const newMainCityName = extraCities[idx];
+    const oldMainCityName = mainCity;
+    setMainCity(newMainCityName);
+    setMainCityKey(zoneCityKey);
+    setExtraCities(prev => {
+      const next = [...prev];
+      next[idx] = oldMainCityName;
+      return next;
+    });
+  }
+
   function isCitySelected(cityName: string) {
     return mainCity === cityName || extraCities.includes(cityName);
   }
@@ -401,8 +427,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       // (대표 주소)를 백엔드에 같이 전달 → RouteAgent가 공항↔zone 단계별 환승
       // 경로 계산 가능. hotel_address는 그대로 빈 문자열 유지 (Firestore 저장 시
       // "호텔 안 정함" 의미).
+      // 2026-05-10 다도시 plan UX: zone 이 mainCity 가 아닌 도시 (e.g. 부산) 에서
+      // 선택될 수 있으므로 mainCityKey 한정 lookup → 글로벌 reverse lookup 으로 변경.
+      // handlePickZone 의 mainCity auto-swap 이 한 frame 늦게 commit 되는 경우도
+      // safe (zoneData 전체에서 zone key unique).
       const zoneAnchor = (!hotelAddress && recommendedZone)
-        ? getZonesForCity(mainCityKey || 'seoul').find(z => z.key === recommendedZone)?.anchorAddress
+        ? getZoneByKey(recommendedZone)?.zone.anchorAddress
         : undefined;
       const res = await onSubmit({
         startDate: sd, endDate: ed,
@@ -571,8 +601,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   wantAccom={wantAccom} setWantAccom={setWantAccom}
                   accomBudget={accomBudget} setAccomBudget={setAccomBudget}
                   tourPace={tourPace} setTourPace={setTourPace}
-                  recommendedZone={recommendedZone} setRecommendedZone={setRecommendedZone}
-                  mainCityKey={mainCityKey || 'seoul'}
+                  recommendedZone={recommendedZone}
+                  cityKeys={cityKeys}
+                  onPickZone={handlePickZone}
                   canGoStep3={canGoStep3}
                   onPrev={() => goToStep(2)} onNext={() => goToStep(4)}
                   onEditStep0={() => goToStep(0)}
