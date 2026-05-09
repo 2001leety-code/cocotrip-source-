@@ -1,6 +1,7 @@
 // CharterWizard — 6단계 스테퍼.
 // 2026-05-07 정책 B: matrix miss → Geocoding 우선. Bus/VIP 차량은 가격 카드 대신 InquiryForm.
-import { useState, useCallback } from 'react';
+// 2026-05-10 (B9-35 잔여): wizard 진행 자동 저장 + 24h 이내 재진입 시 ResumeWizardModal.
+import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
@@ -14,6 +15,17 @@ import { Step5DateOptions } from './Step5DateOptions';
 import { Step6Quote } from './Step6Quote';
 import { InquiryForm } from './InquiryForm';
 import { getWizardI18n } from './wizard-i18n';
+import {
+  loadWizardSnapshot,
+  useWizardPersistence,
+  clearWizardSnapshot,
+} from '@/hooks/useWizardPersistence';
+import { ResumeWizardModal } from '@/components/ResumeWizardModal';
+
+// localStorage 에 저장하는 charter wizard snapshot — state + manualKm + step.
+// state object 만 저장하면 manualKm (Geocoding fail 후 사용자 직접 km 입력) 가
+// 복원 안 됨 → 6단계 도중 새로고침 시 거리 다시 입력해야. 둘 다 묶어 저장.
+type CharterSnapshotValues = { state: WizardState; manualKm: number | null };
 
 type CharterWizardProps = {
   initialState?: Partial<WizardState>;
@@ -50,6 +62,19 @@ function manualKmLabel(lang: string): string {
 }
 
 export function CharterWizard({ initialState, onComplete, language = 'en' }: CharterWizardProps) {
+  // 2026-05-10 (B9-35 잔여): 마운트 시 24h 이내 미완 snapshot 있으면 modal 노출.
+  // initialState (caller 가 명시 prefill) 이 있으면 snapshot 무시 — caller intent 우선.
+  const initialSnap = useMemo<CharterSnapshotValues | null>(() => {
+    if (initialState && Object.keys(initialState).length > 0) return null;
+    const snap = loadWizardSnapshot<CharterSnapshotValues>('charter');
+    return snap?.values ?? null;
+  }, [initialState]);
+  const initialSnapStep = useMemo<number>(() => {
+    if (initialState && Object.keys(initialState).length > 0) return 1;
+    const snap = loadWizardSnapshot<CharterSnapshotValues>('charter');
+    return snap?.step ?? 1;
+  }, [initialState]);
+
   const [state, setState] = useState<WizardState>(() => {
     const filtered = Object.fromEntries(
       Object.entries(initialState ?? {}).filter(([, v]) => v !== undefined),
@@ -59,8 +84,42 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const [currentStep, setCurrentStep] = useState(1);
   // 사용자 manual km override — Geocoding 실패 또는 직접 보정.
   const [manualKm, setManualKm] = useState<number | null>(null);
+  // Resume modal — 사용자가 '이어서/새로 시작' 결정할 때까지 main snapshot 보존.
+  const [resumeOpen, setResumeOpen] = useState<boolean>(!!initialSnap);
 
   const { quote, loading, geocodingFailed, distanceSource } = useQuoteCalculator(state, manualKm);
+
+  // Resume modal 활성 시 'charter_paused' namespace 로 저장 → 사용자가 '새로 시작'
+  // 누르기 전까지 원본 snapshot 유지. WizardForm/index.tsx 와 동일 패턴.
+  useWizardPersistence<CharterSnapshotValues>(
+    resumeOpen ? 'charter_paused' : 'charter',
+    { state, manualKm },
+    currentStep,
+  );
+
+  // Resume modal summary — origin → service → destination · pax 압축. snapshot 의 핵심만.
+  const resumeSummary = useMemo<string>(() => {
+    if (!initialSnap) return '';
+    const s = initialSnap.state;
+    const parts: string[] = [];
+    if (s.origin) parts.push(s.origin === 'CUSTOM' ? (s.originAddress || 'Custom') : s.origin);
+    if (s.service) parts.push(s.service.replace(/_/g, ' '));
+    if (s.destinationKey) parts.push(s.destinationKey);
+    if (s.paxCount && s.paxCount > 0) parts.push(`${s.paxCount} pax`);
+    return parts.join(' · ');
+  }, [initialSnap]);
+
+  function handleResumeContinue() {
+    if (!initialSnap) { setResumeOpen(false); return; }
+    setState(initialSnap.state);
+    setManualKm(initialSnap.manualKm);
+    setCurrentStep(Math.max(1, Math.min(6, initialSnapStep)));
+    setResumeOpen(false);
+  }
+  function handleResumeRestart() {
+    clearWizardSnapshot('charter');
+    setResumeOpen(false);
+  }
 
   const patch = useCallback((p: Partial<WizardState>) => {
     setState(prev => ({ ...prev, ...p }));
@@ -231,7 +290,11 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         {currentStep === 6 && onComplete && !isInquiryVehicle && (
           <button
             type="button"
-            onClick={() => onComplete(state)}
+            onClick={() => {
+              // 결제 진입 시 charter snapshot clear — 결제 완료/취소 후 빈 상태 재시작 보장.
+              clearWizardSnapshot('charter');
+              onComplete(state);
+            }}
             disabled={!canAdvance()}
             className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
             style={{ background: '#0070BA' }}
@@ -240,6 +303,13 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
           </button>
         )}
       </div>
+
+      <ResumeWizardModal
+        open={resumeOpen}
+        summary={resumeSummary}
+        onContinue={handleResumeContinue}
+        onRestart={handleResumeRestart}
+      />
     </div>
   );
 }
