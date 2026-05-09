@@ -106,8 +106,11 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
           </div>
         </div>
 
-        {quote.vatExcluded && (
+        {quote.vatExcluded ? (
           <p className="mt-3 text-right text-xs text-amber-300/80">⚠ {i18n.vatExcluded(quote.vatPercent)}</p>
+        ) : (
+          /* batch 9 fix (B9-9, 2026-05-09): 부가세 포함 명시 — vatExcluded 가 false 일 때 작은 안내. */
+          <p className="mt-2 text-right text-[11px] text-white/50">{i18n.vatIncludedNote}</p>
         )}
       </div>
 

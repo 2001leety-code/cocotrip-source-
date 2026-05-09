@@ -74,10 +74,9 @@ export function IntroSlide({ plan, planId, isTranslating, translationError }: In
       {/* Arrival Guide */}
       {arrival && <ArrivalGuide guide={arrival as any} />}
 
-      {/* Swipe hint */}
-      <p className="text-center text-white/55 text-xs mt-6">
-        {sw.swipeHint || 'Swipe left/right to navigate'} {'\u2192'}
-      </p>
+      {/* batch 9 fix (B9-14, 2026-05-09): swipe hint \uc81c\uac70 \u2014 5/3 batch 1 (PR #211) \uc5d0\uc11c
+          \uc2a4\uc640\uc774\ud504 \uae30\ub2a5 \uc790\uccb4\ub97c \uc81c\uac70\ud588\uc73c\ub098 \uc548\ub0b4 \ubb38\uad6c\ub9cc \uc794\uc874. i18n key 'swipeHint' \ub294
+          \ud0c0 locale \uc77c\uad00\uc131 \uc704\ud574 \uc794\uc874 (\uc0ac\uc6a9 \uc548 \ud568, harmless). */}
     </div>
   );
 }

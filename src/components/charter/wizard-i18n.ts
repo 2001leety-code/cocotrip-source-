@@ -77,6 +77,7 @@ export interface WizardI18n {
   roundTripDiscount: string;
   multiDayDiscount: (pct: number) => string;
   vatExcluded: (pct: number) => string;
+  vatIncludedNote: string;
   customQuoteTitle: string;
   customQuoteBody: string;
   customQuoteSub: string;
@@ -261,6 +262,7 @@ export function getWizardI18n(language: string): WizardI18n {
     roundTripDiscount: get('roundTripDiscount'),
     multiDayDiscount: (pct) => fmt(get('multiDayDiscount'), { pct }),
     vatExcluded: (pct) => fmt(get('vatExcluded'), { pct }),
+    vatIncludedNote: get('vatIncludedNote') || (lang === 'ko' ? '부가세 포함' : lang === 'ja' ? '税込' : lang === 'zh' ? '含税' : 'VAT included'),
     customQuoteTitle: get('customQuoteTitle'),
     customQuoteBody: get('customQuoteBody'),
     customQuoteSub: get('customQuoteSub'),
