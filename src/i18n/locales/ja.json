@@ -1143,6 +1143,7 @@
     "zoneRecommendPicked": "このエリアを中心に日程が作成されます。上に具体的なホテルを入力するとそちらが優先されます。",
     "zoneHotelCta": "Trip.comで{zone}のホテルを探す",
     "zoneHotelSponsored": "広告 · Trip.com",
+    "zoneRecommendGroupHeader": "{city}エリア",
     "originalPrice": "通常価格",
     "launchPrice": "ローンチ特価",
     "limitedTimeOffer": "⏰ 期間限定 — 先着100名様",
