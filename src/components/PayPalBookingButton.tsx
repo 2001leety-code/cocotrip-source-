@@ -757,6 +757,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                   {p.paypalRateLabel} 1 USD = {'\u20A9'}{rateInfo.currentRate.toLocaleString('ko-KR')}
                 </span>
               )}
+              {/* batch 9 fix (B9-9, 2026-05-09): \uBD80\uAC00\uC138 \uD3EC\uD568 \uBA85\uC2DC \u2014 \uCC28\uD130/\uD22C\uC5B4/AI\uD50C\uB798\uB108 \uACB0\uC81C \uACF5\uD1B5. */}
+              <span className="text-[10px] text-white/45 mt-0.5">
+                {lang === 'ko' ? '\uBD80\uAC00\uC138 \uD3EC\uD568' : lang === 'ja' ? '\u7A0E\u8FBC' : lang === 'zh' ? '\u542B\u7A0E' : 'VAT included'}
+              </span>
             </div>
           )}
         </button>

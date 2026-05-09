@@ -523,6 +523,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               <span className="text-white">{labels.priceTotal}</span>
               <span style={{ color: '#C99FFF' }}>{formatKRW(totalKRW)}</span>
             </div>
+            {/* batch 9 fix (B9-9, 2026-05-09): 부가세 포함 명시. */}
+            <p className="text-[10px] text-white/45 text-right mt-1">
+              {language === 'ko' ? '부가세 포함' : language === 'ja' ? '税込' : language === 'zh' ? '含税' : 'VAT included'}
+            </p>
           </div>
         </div>
         )}
