@@ -221,8 +221,11 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // 2026-05-10 (P1 launch blocker): WizardForm 에서 수집했지만 누락된
           // 필드들 forward. AirportToLodgingGuide / RouteAgent 의 late-night /
           // heavy-luggage 분기 작동 + Firestore input 보존을 위해 필요.
-          ...(values.arrivalTime ? { arrivalTime: values.arrivalTime } : {}),
-          ...(values.departureTime ? { departureTime: values.departureTime } : {}),
+          // PlannerFormValues 는 snake_case (arrival_time/departure_time) 로
+          // 정의되어 있고 backend ai-planner-full.js 는 body.arrivalTime
+          // (camelCase) 로 읽으므로 read snake_case → send camelCase 변환.
+          ...(values.arrival_time ? { arrivalTime: values.arrival_time } : {}),
+          ...(values.departure_time ? { departureTime: values.departure_time } : {}),
           ...(values.luggage ? { luggage: values.luggage } : {}),
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
@@ -355,8 +358,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           priceRange: values.priceRange || 'Any',
           special_request: values.freeText || '',
           // 2026-05-10 (P1): WizardForm 누락 필드 forward — paid path 와 동일.
-          ...(values.arrivalTime ? { arrivalTime: values.arrivalTime } : {}),
-          ...(values.departureTime ? { departureTime: values.departureTime } : {}),
+          // PlannerFormValues = snake_case, backend body 는 camelCase 기대.
+          ...(values.arrival_time ? { arrivalTime: values.arrival_time } : {}),
+          ...(values.departure_time ? { departureTime: values.departure_time } : {}),
           ...(values.luggage ? { luggage: values.luggage } : {}),
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
