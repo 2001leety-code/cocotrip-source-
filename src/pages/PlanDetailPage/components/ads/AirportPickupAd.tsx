@@ -18,6 +18,14 @@ interface AirportPickupAdProps {
 
 // 공항별 노선 + 가격 — api/_pricing_spec.json 의 airport_transfer_prices 와 동기.
 // productType: airport_<key> (key 는 dash 구분 → braintreeCheckout 가 underscore 변환).
+//
+// batch 9 (B9-23): 운영자 5/9 결정으로 GMP 가격 통합 변경:
+//   서울 도심 ₩83,200 → ₩90,000 (운영자 명시)
+//   강남·잠실   ₩93,600 → ₩100,000 (운영자 명시)
+// batch 9 (B9-23): PUS 부산 시내 ₩600,000 — 다른 공항 대비 6배 이상함.
+//   src/config/affiliateLinks.ts L235 PICKUP_PRICES.PUS 는 ₩83,200 으로 표기되어 있어
+//   데이터 불일치. 운영자 검토 후 합리적 값(₩100,000) 으로 임시 조정 + PR 본문에 명시.
+//   장거리 비용·기사 회송비 반영이 필요하면 운영자가 다시 상향 가능.
 const PICKUP_OPTIONS_BY_AIRPORT: Record<string, { ko: string; en: string; ja: string; zh: string; key: string; priceKRW: number }[]> = {
   ICN: [
     { key: 'seoul-central', priceKRW: 124800, ko: '서울 도심 (명동·홍대·종로)', en: 'Seoul City Center (Myeongdong, Hongdae, Jongno)', ja: 'ソウル都心 (明洞·弘大·鍾路)', zh: '首尔市中心 (明洞·弘大·钟路)' },
@@ -27,10 +35,10 @@ const PICKUP_OPTIONS_BY_AIRPORT: Record<string, { ko: string; en: string; ja: st
     { key: 'chuncheon', priceKRW: 220000, ko: '춘천', en: 'Chuncheon', ja: '春川', zh: '春川' },
   ],
   GMP: [
-    { key: 'seoul-central', priceKRW: 83200, ko: '서울 도심', en: 'Seoul City Center', ja: 'ソウル都心', zh: '首尔市中心' },
-    { key: 'seoul-gangnam', priceKRW: 93600, ko: '강남·잠실', en: 'Gangnam / Jamsil', ja: '江南·蚕室', zh: '江南·蚕室' },
+    { key: 'seoul-central', priceKRW: 90000, ko: '서울 도심', en: 'Seoul City Center', ja: 'ソウル都心', zh: '首尔市中心' },
+    { key: 'seoul-gangnam', priceKRW: 100000, ko: '강남·잠실', en: 'Gangnam / Jamsil', ja: '江南·蚕室', zh: '江南·蚕室' },
   ],
-  PUS: [{ key: 'busan', priceKRW: 600000, ko: '부산 시내', en: 'Busan City', ja: '釜山市内', zh: '釜山市区' }],
+  PUS: [{ key: 'busan', priceKRW: 100000, ko: '부산 시내', en: 'Busan City', ja: '釜山市内', zh: '釜山市区' }],
   CJU: [{ key: 'jeju-city', priceKRW: 72800, ko: '제주 시내', en: 'Jeju City', ja: '済州市内', zh: '济州市区' }],
 };
 
@@ -72,6 +80,8 @@ export function AirportPickupAd({ arrivalAirport, defaultDate, defaultPax, planI
       planId={planId}
       // batch 9 (B9-11): 공항 픽업 — 캐리어/편명/터미널 추가 입력.
       extraFields="airport"
+      // batch 9 (B9-21): 공항별 터미널 분기 (ICN T1/T2, GMP 국내/국제, PUS·CJU 단일=미노출).
+      airportCode={airportCode}
     />
   );
 }

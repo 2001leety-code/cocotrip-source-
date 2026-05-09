@@ -222,6 +222,8 @@ export function buildCarLink(city: string) {
 }
 
 /* ── Airport Pickup Prices (own service) ─────────────── */
+// batch 9 (B9-23): 운영자 5/9 결정 — GMP 가격 통합 변경 (서울 도심 ₩90,000, 강남 ₩100,000).
+//   PUS 부산 시내 ₩100,000 (이전 다른 곳 ₩600,000 표기 통일 — 운영자 검토 결과).
 export const PICKUP_PRICES: Record<string, { destination: string; price: string }[]> = {
   ICN: [
     { destination: '서울 도심', price: '₩124,800' },
@@ -229,9 +231,9 @@ export const PICKUP_PRICES: Record<string, { destination: string; price: string 
     { destination: '가평/남이섬', price: '₩208,000' },
   ],
   GMP: [
-    { destination: '서울 도심', price: '₩83,200' },
-    { destination: '강남/잠실', price: '₩93,600' },
+    { destination: '서울 도심', price: '₩90,000' },
+    { destination: '강남/잠실', price: '₩100,000' },
   ],
-  PUS: [{ destination: '부산 시내', price: '₩83,200' }],
+  PUS: [{ destination: '부산 시내', price: '₩100,000' }],
   CJU: [{ destination: '제주 시내', price: '₩72,800' }],
 };

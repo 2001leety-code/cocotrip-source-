@@ -32,7 +32,8 @@ interface Props {
   vehicleType?: string;
   memo?: string;
   itineraryData?: unknown;
-  airport?: { terminal?: 'T1' | 'T2'; flightNumber?: string; luggage?: { small?: number; medium?: number; large?: number } };
+  // batch 9 (B9-21): terminal 값을 ICN(T1/T2) 외 GMP(GMP_DOM/GMP_INT) 등으로 확장.
+  airport?: { terminal?: string; flightNumber?: string; luggage?: { small?: number; medium?: number; large?: number } };
   /** 결제 신고 후 호출 — 호출자가 후속 UI 처리 (모달 close + 안내 토스트). bookingRef 전달. */
   onPaymentReported?: (bookingRef: string) => void | Promise<void>;
   onBack?: () => void;
