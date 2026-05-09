@@ -92,12 +92,46 @@ interface Props {
   /**
    * batch 9 (B9-11/12/13): 추가 입력 필드 type (운영자 5/9 요청 — "투어창처럼
    *   더 자세한 정보 입력"). 옵션 선택 후 노출:
-   *   - 'airport': 캐리어(소/중/대) + 편명 + 터미널 (T1/T2)
+   *   - 'airport': 캐리어(소/중/대) + 편명 + 터미널 (T1/T2 또는 공항별 분기)
    *   - 'charter': 픽업 위치 + 언어
    *   - 'combo': 위 두 종류 모두
    *   - undefined: 추가 필드 없음 (기존 동작)
    */
   extraFields?: 'airport' | 'charter' | 'combo';
+  /**
+   * batch 9 (B9-21): 공항별 터미널 분기. 'airport' / 'combo' 모드에서 활용:
+   *   - ICN: T1 / T2
+   *   - GMP: 국내선 / 국제선
+   *   - PUS / CJU: 단일 터미널 → 입력 자체 미노출
+   * 미지정 시 기존 동작 (T1/T2 하드코딩) 유지 — fallback.
+   */
+  airportCode?: string;
+}
+
+/**
+ * batch 9 (B9-21): 공항 코드별 터미널 옵션.
+ * 라벨은 사용자 언어(L) 에서 직접 조립 — domestic/international.
+ * 단일 터미널 공항(PUS/CJU) 은 빈 배열 반환 → 입력 영역 자체 숨김.
+ */
+function getTerminalOptions(
+  airportCode: string | undefined,
+  L: Record<string, string>,
+): { value: string; label: string }[] {
+  const code = (airportCode || 'ICN').toUpperCase().replace(/_T[12]$/, '');
+  if (code === 'GMP') {
+    return [
+      { value: 'GMP_DOM', label: L.terminalDomestic },
+      { value: 'GMP_INT', label: L.terminalInternational },
+    ];
+  }
+  if (code === 'PUS' || code === 'CJU') {
+    return []; // 단일 터미널 → 미노출
+  }
+  // ICN 기본 + 알 수 없는 공항 fallback
+  return [
+    { value: 'T1', label: 'T1' },
+    { value: 'T2', label: 'T2' },
+  ];
 }
 
 const LABELS: Record<string, Record<string, string>> = {
@@ -112,6 +146,8 @@ const LABELS: Record<string, Record<string, string>> = {
     flightNo: '편명',
     flightNoPh: '예: KE085 / OZ213',
     terminal: '터미널',
+    terminalDomestic: '국내선',
+    terminalInternational: '국제선',
     luggageLabel: '수하물',
     luggageSmall: '기내',
     luggageMedium: '중형',
@@ -131,6 +167,8 @@ const LABELS: Record<string, Record<string, string>> = {
     flightNo: 'Flight number',
     flightNoPh: 'e.g. KE085 / OZ213',
     terminal: 'Terminal',
+    terminalDomestic: 'Domestic',
+    terminalInternational: 'International',
     luggageLabel: 'Luggage',
     luggageSmall: 'Carry-on',
     luggageMedium: 'Medium',
@@ -150,6 +188,8 @@ const LABELS: Record<string, Record<string, string>> = {
     flightNo: '便名',
     flightNoPh: '例: KE085 / OZ213',
     terminal: 'ターミナル',
+    terminalDomestic: '国内線',
+    terminalInternational: '国際線',
     luggageLabel: '荷物',
     luggageSmall: '機内',
     luggageMedium: '中型',
@@ -169,6 +209,8 @@ const LABELS: Record<string, Record<string, string>> = {
     flightNo: '航班号',
     flightNoPh: '例: KE085 / OZ213',
     terminal: '航站楼',
+    terminalDomestic: '国内线',
+    terminalInternational: '国际线',
     luggageLabel: '行李',
     luggageSmall: '随身',
     luggageMedium: '中型',
@@ -182,6 +224,7 @@ const LABELS: Record<string, Record<string, string>> = {
 export function InlineBookingCard({
   title, subtitle, icon, accent = 'amber', badge,
   options, defaultDate, defaultPax = 2, userEmail = '', planId, extraFields,
+  airportCode,
 }: Props) {
   const { language } = useLanguage();
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
@@ -195,9 +238,11 @@ export function InlineBookingCard({
   const [showPayment, setShowPayment] = useState(false);
 
   // batch 9 (B9-11/12/13): 추가 입력 필드 — extraFields prop 따라 노출.
+  // batch 9 (B9-21): 터미널 옵션 공항별 분기 (ICN T1/T2, GMP 국내/국제, PUS·CJU 단일=미노출).
   const showAirport = extraFields === 'airport' || extraFields === 'combo';
   const showCharter = extraFields === 'charter' || extraFields === 'combo';
-  const [terminal, setTerminal] = useState<'T1' | 'T2' | ''>('');
+  const terminalOptions = getTerminalOptions(airportCode || badge, L);
+  const [terminal, setTerminal] = useState<string>('');
   const [flightNumber, setFlightNumber] = useState<string>('');
   const [lugSmall, setLugSmall] = useState<number>(0);
   const [lugMedium, setLugMedium] = useState<number>(0);
@@ -312,21 +357,24 @@ export function InlineBookingCard({
       )}
 
       {/* batch 9 (B9-11/12/13): 추가 입력 필드 — 공항 픽업 (캐리어/편명/터미널) */}
+      {/* batch 9 (B9-21): 터미널 옵션 공항별 분기. PUS/CJU 는 단일 터미널 → 편명 single-column. */}
       {selected && showAirport && (
         <div className="space-y-3 mb-4 pt-3 border-t border-white/[0.06]">
           {/* 터미널 + 편명 */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.terminal}</label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {(['T1', 'T2'] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => setTerminal(t)}
-                    className={`py-1.5 rounded-lg text-xs font-bold border transition-colors ${
-                      terminal === t ? `bg-white/[0.08] ${a.text} border-current` : 'bg-white/[0.04] border-white/[0.08] text-white/60'
-                    }`}>{t}</button>
-                ))}
+          <div className={terminalOptions.length > 0 ? 'grid grid-cols-2 gap-2.5' : ''}>
+            {terminalOptions.length > 0 && (
+              <div>
+                <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.terminal}</label>
+                <div className={`grid gap-1.5 ${terminalOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {terminalOptions.map((t) => (
+                    <button key={t.value} type="button" onClick={() => setTerminal(t.value)}
+                      className={`py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                        terminal === t.value ? `bg-white/[0.08] ${a.text} border-current` : 'bg-white/[0.04] border-white/[0.08] text-white/60'
+                      }`}>{t.label}</button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             <div>
               <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.flightNo}</label>
               <input type="text" value={flightNumber}

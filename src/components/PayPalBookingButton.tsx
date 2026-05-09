@@ -25,8 +25,10 @@ interface BookingDict {
 }
 
 /** 공항 픽업 부가 정보 — 터미널/편명/수하물. */
+// batch 9 (B9-21): terminal 값을 ICN 외 공항(GMP 국내선/국제선 등)으로 확장.
+//   ICN: 'T1' | 'T2', GMP: 'GMP_DOM' | 'GMP_INT', PUS/CJU: undefined.
 export interface AirportBookingInfo {
-  terminal?: 'T1' | 'T2';
+  terminal?: string;
   flightNumber?: string;
   luggage?: { small?: number; medium?: number; large?: number };
 }
