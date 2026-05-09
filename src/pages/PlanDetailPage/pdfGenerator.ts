@@ -340,9 +340,14 @@ export async function generatePDF(
   // 2026-04-28: page-break-inside:avoid 를 day 전체에서 제거.
   // 7 stops/day는 한 페이지 안 들어감 → 브라우저가 무시하고 임의 위치에서 split (사용자 보고).
   // 대신 각 stop card + transit block 단위로 break-inside:avoid 적용 (아래).
+  // 2026-05-09 (B9-34): Day 시작 시 명시적 page break — 사용자 신고 "카드 가운데 잘림, 끝부분 누락".
+  //   - di>0 day wrapper 에 `pdf-day-break` 클래스 → pagebreak.before 로 새 페이지에서 시작.
+  //   - day header / day summary 에도 명시적 클래스 추가 (avoid 셀렉터 매칭 강화).
+  //   - 첫 번째 day 는 break 안 함 (intro 직후 자연 흐름).
   days.forEach((day: PlanDay, di: number) => {
-    html += `<div style="margin-bottom:24px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;">
+    const dayBreakClass = di > 0 ? ' pdf-day-break' : '';
+    html += `<div class="pdf-day-wrapper${dayBreakClass}" style="margin-bottom:24px;">
+      <div class="pdf-day-header" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;page-break-after:avoid;break-after:avoid;">
         <div style="width:32px;height:32px;border-radius:50%;background:${C.accent};color:white;text-align:center;line-height:32px;font-size:14px;font-weight:700;flex-shrink:0;">${day.day || di + 1}</div>
         <div>
           <h2 style="font-size:16px;font-weight:700;color:${C.heading};margin:0;">${day.theme || `Day ${day.day || di + 1}`}</h2>
@@ -391,7 +396,8 @@ export async function generatePDF(
       : '';
 
     // display:flex → table 레이아웃으로 교체. html2canvas flex 내 stretch/wrap 불안정.
-    html += `<table style="width:100%;background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${C.accent};border-radius:6px;padding:0;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;border-collapse:collapse;">
+    // 2026-05-09 (B9-34): pdf-day-summary 클래스 — pagebreak.avoid 매칭 + day header 와 함께 keep.
+    html += `<table class="pdf-day-summary" style="width:100%;background:${C.cardBg};border:1px solid ${C.border};border-left:4px solid ${C.accent};border-radius:6px;padding:0;margin-bottom:14px;page-break-inside:avoid;break-inside:avoid;border-collapse:collapse;">
       <tr>
         ${photoHtml ? `<td style="width:90px;padding:10px 6px 10px 10px;vertical-align:middle;">${photoHtml}</td>` : ''}
         <td style="padding:10px;vertical-align:middle;">
@@ -896,9 +902,15 @@ export async function generatePDF(
       // 명시적으로 제거했지만 'avoid-all'이 무시함).
       // 'css' + 'legacy'만 유지 — 명시적 .pdf-stop-card / .pdf-transit-block만
       // 분할 금지, 그 외는 자연스러운 페이지 흐름.
+      // 2026-05-09 (B9-34): Day 경계에서 명시적 page-break-before — 사용자 신고
+      // "카드 가운데 잘림, 끝부분 누락" 대응. 각 day 의 wrapper 에 .pdf-day-break
+      // 클래스(첫 day 제외) 부여 + before 셀렉터 매칭 → Day 2/3/4... 새 페이지 시작.
+      // .pdf-day-header 와 .pdf-day-summary 도 avoid 추가 — header 만 페이지 끝에
+      // 남고 본문이 다음 페이지로 밀리는 고아(orphan) header 방지.
       pagebreak: {
         mode: ['css', 'legacy'],
-        avoid: ['.pdf-stop-card', '.pdf-transit-block'],
+        avoid: ['.pdf-stop-card', '.pdf-transit-block', '.pdf-day-header', '.pdf-day-summary'],
+        before: ['.pdf-day-break'],
       },
     } as Record<string, unknown>).from(container);
 

@@ -28,7 +28,22 @@ import { WizardStep3Review } from './WizardStep3Review';
 
 import type { WizardDict } from './types';
 
-export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean }) {
+// 2026-05-09 (B9-37): RevisionCard → PlannerPage → WizardForm 으로 흘러오는
+// prefill 데이터. plan.input 핵심 필드의 부분 직렬. 미직렬 필드는 기본값 유지.
+export interface WizardInitialValues {
+  startDate?: string;
+  endDate?: string;
+  regions?: string[];
+  categories?: string[];
+  pax?: number;
+  arrivalAirport?: string;
+  hotelAddress?: string;
+  dietary?: string[];
+  allergies?: string[];
+  freeText?: string;
+}
+
+export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (values: PlannerFormValues) => Promise<{ ok: boolean; data?: Record<string, string> } | void>; isLoading: boolean; initialValues?: WizardInitialValues }) {
   const { t, language } = useLanguage();
   const p = t.planner as unknown as WizardDict;
   const [step, setStep] = useState(0);
@@ -94,6 +109,57 @@ export function WizardForm({ onSubmit, isLoading }: { onSubmit: (values: Planner
     const handler = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  // 2026-05-09 (B9-37): revision 으로 진입 시 plan.input 핵심 필드 prefill.
+  // 첫 마운트 1회만 — 사용자가 이후 수정한 값을 덮어쓰지 않게 deps=[].
+  // mainCityKey 매핑: regions[0] 가 cityKey('seoul') 또는 i18n cityName('서울') 양쪽 다 지원.
+  useEffect(() => {
+    if (!initialValues) return;
+    const iv = initialValues;
+    if (iv.regions && iv.regions[0]) {
+      const r0 = iv.regions[0];
+      const r0Lower = String(r0).toLowerCase().trim();
+      const chip = CITY_CHIPS.find(c => c.key === r0Lower) ||
+                   CITY_CHIPS.find(c => getCityName(c.key) === r0);
+      if (chip) {
+        setMainCity(getCityName(chip.key));
+        setMainCityKey(chip.key);
+      } else {
+        // chip 매칭 실패 시 그대로 표시 (사용자가 다시 선택 가능)
+        setMainCity(r0);
+      }
+      if (iv.regions.length > 1) {
+        setExtraCities(iv.regions.slice(1).map((r) => {
+          const lower = String(r).toLowerCase().trim();
+          const c = CITY_CHIPS.find(x => x.key === lower);
+          return c ? getCityName(c.key) : r;
+        }));
+      }
+    }
+    if (iv.categories && iv.categories.length) {
+      setSelectedActivities(iv.categories);
+    }
+    if (typeof iv.freeText === 'string' && iv.freeText) {
+      setFreeText(iv.freeText);
+    }
+    if (iv.dietary && iv.dietary.length) {
+      setDietPrefs(iv.dietary);
+    }
+    if (iv.allergies && iv.allergies.length) {
+      setAllergies(iv.allergies);
+    }
+    if (iv.startDate) {
+      const from = new Date(iv.startDate);
+      if (!Number.isNaN(from.getTime())) {
+        const to = iv.endDate ? new Date(iv.endDate) : undefined;
+        setDateRange({ from, to: to && !Number.isNaN(to.getTime()) ? to : undefined });
+      }
+    }
+    if (iv.pax && iv.pax > 0) setPaxInput(String(iv.pax));
+    if (iv.arrivalAirport) setArrivalTerminal(iv.arrivalAirport);
+    if (iv.hotelAddress) setHotelAddress(iv.hotelAddress);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // derived
