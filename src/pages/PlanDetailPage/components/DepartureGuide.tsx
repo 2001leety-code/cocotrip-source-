@@ -4,14 +4,23 @@
 //   - Pink accent (vs Arrival's purple) so users instantly tell them apart.
 //   - 2026-05-05: 호텔→공항 경로 무조건 표시 정책. ODsay 실패하거나 호텔 좌표
 //     없을 때도 graceful 메시지 + Gemini fallback instruction을 보여준다.
+//   - B9-33 (2026-05-09): 호텔 주소에서 hub (명동/강남/홍대/종로/잠실/동대문/가평) 추출
+//     → 헤더에 "🏨 명동에서 출발" + 직행 공항버스 카드 (6015/6005/6020) 추가.
+//     ODsay 는 지하철 환승 위주로 추천하지만 짐 많을 때 직행 버스가 더 편함.
 import { useState } from 'react';
-import { Plane, ChevronDown, Wallet, ShoppingBag, Briefcase, AlertTriangle } from 'lucide-react';
+import { Plane, ChevronDown, Wallet, ShoppingBag, Briefcase, AlertTriangle, Bus } from 'lucide-react';
 import { formatKRW } from '../constants';
-import type { DepartureGuideBlock } from '../types';
+import type { DepartureGuideBlock, PlanDocument } from '../types';
 import { getPlanDetailUI } from '../types';
 import { useLanguage } from '@/hooks/useLanguage';
 import { TransitArrow } from './TransitArrow';
 import type { TransitFromPrev } from '@/types/plan';
+import {
+  AIRPORT_BUS_BY_HUB,
+  HUB_LABELS,
+  detectHubFromAddress,
+  type AirportBusHubKey,
+} from '@/data/airportBusHubs';
 
 // Route 객체 shape — RouteAgent 가 셋하는 모든 변형 포함.
 // TransitArrow 가 `TransitFromPrev & Record<string, unknown>` 을 받으므로 동일하게 맞춰준다.
@@ -22,10 +31,30 @@ type DepartureRoute = (TransitFromPrev & Record<string, unknown> & {
   fallback_label?: string | null;
 }) | undefined;
 
-export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
-  const { t } = useLanguage();
+interface DepartureGuideProps {
+  guide: DepartureGuideBlock;
+  /** B9-33: 호텔 주소에서 hub 추출하기 위해 plan.input 접근 필요. */
+  plan?: PlanDocument;
+}
+
+export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
+  const { t, language } = useLanguage();
   const ui = getPlanDetailUI(t);
   const [open, setOpen] = useState(false);
+
+  // B9-33: 호텔 주소 또는 추천 zone 에서 hub 키 추출 → 헤더 라벨 + 직행 버스 카드 결정.
+  const hotelAddress = plan?.input?.hotel_address as string | undefined;
+  const recommendedZone = plan?.input?.recommended_zone as string | undefined;
+  const hubKey: AirportBusHubKey | null =
+    detectHubFromAddress(hotelAddress) || detectHubFromAddress(recommendedZone);
+  const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
+  const hubLabel = hubKey ? HUB_LABELS[hubKey][lang] : null;
+  const busInfo = hubKey ? AIRPORT_BUS_BY_HUB[hubKey] : null;
+  // 헤더용 "{hub}에서 출발" 보간 — useLanguage 는 raw dict 만 반환하므로 직접 치환.
+  const hubHeaderLabel =
+    hubLabel && ui.departureFromHub
+      ? String(ui.departureFromHub).replace('{{hub}}', hubLabel)
+      : null;
 
   const route = guide.route_to_airport as DepartureRoute;
   // _failed=true → ODsay 데이터 누락. 그 외에는 정상 ODsay 데이터.
@@ -57,6 +86,12 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
             <p className="text-[11px] text-white/55 mt-0.5">
               {guide.airport}{routeMin ? ` · ${routeMin}${ui.minUnit || 'min'}` : ''}
             </p>
+            {/* B9-33: hub 추출 성공 시 "🏨 {hub}에서 출발" 라벨 — 사용자가 출발지 즉시 인지 */}
+            {hubHeaderLabel && (
+              <p className="text-[10px] text-pink-200/85 mt-1 font-medium">
+                🏨 {hubHeaderLabel}
+              </p>
+            )}
           </div>
         </div>
         <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
@@ -171,6 +206,47 @@ export function DepartureGuide({ guide }: { guide: DepartureGuideBlock }) {
                       {ui.departureRouteFallback || 'Operations team is checking — detailed route to follow.'}
                     </p>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* B9-33: 직행 공항버스 카드 — hub 매칭 시에만 노출.
+            ODsay 결과는 지하철 환승 위주라 짐 많을 때 6015/6005 직행이 더 편함.
+            수동 추가 옵션이라 디자인은 알록달록한 hero 와 별개의 emerald 톤으로 차별. */}
+        {hubKey && busInfo && hubLabel && (
+          <div className="mb-4 rounded-2xl overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, rgba(52,211,153,0.10), rgba(96,165,250,0.06))', border: '1px solid rgba(52,211,153,0.30)' }}>
+            <div className="px-4 pt-4 pb-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-emerald-400/25">
+                  <Bus className="w-5 h-5 text-emerald-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[15px] font-bold text-white">
+                      {ui.directBusTitle || 'Airport Bus (Direct)'} {busInfo.busNo}
+                    </p>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold text-black"
+                      style={{ background: '#34d399' }}>
+                      ★ {ui.directBusBadge || 'No transfer'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/65 mt-1.5 leading-relaxed">
+                    {ui.directBusSubtitle || 'Easiest option with heavy luggage — direct to the airport, zero transfers'}
+                  </p>
+                  <div className="flex items-baseline gap-3 mt-2">
+                    <span className="text-[14px] font-bold text-white">
+                      {formatKRW(busInfo.priceKRW)}
+                    </span>
+                    <span className="text-[11px] text-white/55">
+                      · {busInfo.durationMin}{ui.minUnit || 'min'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-200/85 mt-1.5">
+                    {ui.directBusStop || 'Stop'}: {lang === 'ko' ? busInfo.stopKo : busInfo.stopEn}
+                  </p>
                 </div>
               </div>
             </div>

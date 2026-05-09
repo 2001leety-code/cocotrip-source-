@@ -49,8 +49,8 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
       {/* Budget Table */}
       {budget.length > 0 && <BudgetTable budget={budget as any} tMoney={(it.t_money_recommended_load as number | undefined) || 0} />}
 
-      {/* Departure Guide */}
-      {departure && <DepartureGuide guide={departure} />}
+      {/* Departure Guide — B9-33: plan 전달 시 호텔 주소 hub 추출 + 직행 버스 카드 노출 */}
+      {departure && <DepartureGuide guide={departure} plan={plan} />}
 
       {/* Action buttons - LOCKED: PDF button disabled condition must stay exact */}
       <div className="mt-8 space-y-3">
