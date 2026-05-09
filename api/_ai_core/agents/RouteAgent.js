@@ -68,8 +68,13 @@ function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount }) {
 // Map the Wizard / Gemini `area` value to the matching charter product in
 // createPaypalOrder.js PRODUCT_PRICES so the "book a charter" CTA deep-links
 // to the correct regional tour instead of always offering Seoul.
-// Unknown / unpriced regions (e.g. jeju) fall back to charter_seoul_city;
-// the client side still filters out regions that don't offer a charter.
+//
+// Launch P1-1 (2026-05-10): null fallback 으로 변경.
+// 잘못된 region 매핑 (예: jeju → charter_seoul_city) 은 사용자에게 잘못된 지역
+// 차터를 권유 → 환불·신뢰 손상 위험. 매핑 없으면 차터 cross-sell 자체를 노출
+// 하지 않는 게 옳음 (client 가 null 일 때 차터 CTA 숨김).
+//
+// 'jeju' 누락: 운영자 spec 에 jeju 차터 없음 → null. Jeju 차터 운영 시 매핑 추가.
 const REGION_TO_CHARTER_PRODUCT = {
     seoul_city: 'charter_seoul_city',
     seoul: 'charter_seoul_city',
@@ -87,12 +92,14 @@ const REGION_TO_CHARTER_PRODUCT = {
     busan: 'charter_busan',
     yeosu: 'charter_busan',
     daegu: 'charter_busan',
+    // jeju: 운영자 spec 에 차터 운영 안 함 — 매핑 추가 시 cross-sell 노출
 };
 
 function regionToCharterProduct(region) {
-    if (!region) return 'charter_seoul_city';
+    if (!region) return null;
     const key = String(region).toLowerCase();
-    return REGION_TO_CHARTER_PRODUCT[key] || 'charter_seoul_city';
+    // 매핑 없으면 null — client 가 차터 CTA 자체를 숨김 (잘못된 지역 권유 방지).
+    return REGION_TO_CHARTER_PRODUCT[key] || null;
 }
 
 export class RouteAgent extends BaseAgent {
@@ -590,7 +597,10 @@ export class RouteAgent extends BaseAgent {
                                 estimatedFare: (transit.drivingMin || transit.durationMin || 25) * 200 + 4800,
                                 disclaimer: "추정 요금",
                             },
-                            cocotrip: { available: true, productType: charterProductType },
+                            // P1-1 (2026-05-10): productType null 일 때 available=false
+                            // → client 가 cocotrip 차터 CTA 자체를 숨김 (잘못된 지역
+                            // 차터 권유 + 결제 실패 방지).
+                            cocotrip: { available: !!charterProductType, productType: charterProductType },
                             ...(pt && pt.method !== 'walk' ? { publicTransit: pt } : {}),
                         },
                     };
@@ -603,7 +613,7 @@ export class RouteAgent extends BaseAgent {
                         distanceKm: 5.0,
                         naverDirectionsUrl: place.naverMapUrl,
                         transitOptions: {
-                            cocotrip: { available: true, productType: charterProductType },
+                            cocotrip: { available: !!charterProductType, productType: charterProductType },
                         },
                     };
                 }
@@ -806,6 +816,9 @@ export class RouteAgent extends BaseAgent {
 
         // ── Step 2: 도시 변경 day 의 intercity_transit fallback
         // 표준 KTX/Air/Bus 데이터 (Gemini prompt 와 일관).
+        // Launch P1-2 (2026-05-10): 누락 노선 6쌍(12 entry) 추가.
+        // 강릉↔부산 / 여수↔서울 / 광주↔서울 / 대구↔부산 / 대구↔서울 / 제주↔대구.
+        // 가격·시간은 KTX/SRT 공식 시간표 + 항공 평균 기준 (2026-05 기준).
         const STANDARD_INTERCITY = {
             'Busan-Seoul':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com' },
             'Seoul-Busan':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com' },
@@ -823,6 +836,19 @@ export class RouteAgent extends BaseAgent {
             'Gyeongju-Busan': { mode: 'Bus',     est_min: 60,  est_fare_krw: 7000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.kobus.co.kr' },
             'Seoul-Gapyeong': { mode: 'ITX',     est_min: 60,  est_fare_krw: 8000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.letskorail.com' },
             'Seoul-Chuncheon':{ mode: 'ITX',     est_min: 75,  est_fare_krw: 9000,  recommended_depart: '09:00', arrival_at: '10:15', booking_url: 'https://www.letskorail.com' },
+            // P1-2 신규 노선 (2026-05-10)
+            'Gangneung-Busan':{ mode: 'KTX',     est_min: 330, est_fare_krw: 70000, recommended_depart: '08:00', arrival_at: '13:30', booking_url: 'https://www.letskorail.com' },
+            'Busan-Gangneung':{ mode: 'KTX',     est_min: 330, est_fare_krw: 70000, recommended_depart: '08:00', arrival_at: '13:30', booking_url: 'https://www.letskorail.com' },
+            'Yeosu-Seoul':    { mode: 'KTX',     est_min: 240, est_fare_krw: 55000, recommended_depart: '08:30', arrival_at: '12:30', booking_url: 'https://www.letskorail.com' },
+            'Seoul-Yeosu':    { mode: 'KTX',     est_min: 240, est_fare_krw: 55000, recommended_depart: '08:30', arrival_at: '12:30', booking_url: 'https://www.letskorail.com' },
+            'Gwangju-Seoul':  { mode: 'KTX',     est_min: 120, est_fare_krw: 47000, recommended_depart: '09:00', arrival_at: '11:00', booking_url: 'https://www.letskorail.com' },
+            'Seoul-Gwangju':  { mode: 'KTX',     est_min: 120, est_fare_krw: 47000, recommended_depart: '09:00', arrival_at: '11:00', booking_url: 'https://www.letskorail.com' },
+            'Daegu-Busan':    { mode: 'KTX',     est_min: 65,  est_fare_krw: 17000, recommended_depart: '09:00', arrival_at: '10:05', booking_url: 'https://www.letskorail.com' },
+            'Busan-Daegu':    { mode: 'KTX',     est_min: 65,  est_fare_krw: 17000, recommended_depart: '09:00', arrival_at: '10:05', booking_url: 'https://www.letskorail.com' },
+            'Daegu-Seoul':    { mode: 'KTX',     est_min: 110, est_fare_krw: 43500, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
+            'Seoul-Daegu':    { mode: 'KTX',     est_min: 110, est_fare_krw: 43500, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
+            'Jeju-Daegu':    { mode: 'Air',     est_min: 60,  est_fare_krw: 80000, recommended_depart: '10:00', arrival_at: '11:00', booking_url: 'https://www.trip.com' },
+            'Daegu-Jeju':    { mode: 'Air',     est_min: 60,  est_fare_krw: 80000, recommended_depart: '10:00', arrival_at: '11:00', booking_url: 'https://www.trip.com' },
         };
 
         for (let i = 1; i < daysList.length; i++) {

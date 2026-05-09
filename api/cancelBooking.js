@@ -19,6 +19,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { productDisplayLabel } from './_shared/pricing.js';
+import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
+import { sendEmail } from './_send-email.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -225,6 +227,25 @@ export default async function handler(req, res) {
       pickupLocation: booking.pickupLocation,
       dropoffLocation: booking.dropoffLocation,
     });
+
+    // 6. 사용자 환불 안내 이메일 (4-lang, best-effort).
+    // Launch P1-4 (2026-05-10): 사용자 자가 취소 시에도 환불 영수증 이메일 발송.
+    // 기존 누락: admin-booking-action 의 mark-refunded 만 메일 보내고 사용자 자가
+    // 취소 (cancelBooking endpoint) 는 사용자 알림 누락 → 운영자 매뉴얼 발송 부담.
+    (async () => {
+      try {
+        const { subject, html, text } = buildManualPaymentEmail('refunded', {
+          bookingRef: booking.bookingRef || bookingID,
+          refundedKRW: refundKRW,
+          refundReason: reason || null,
+          language: booking.language || 'en',
+        });
+        await sendEmail({ to: userEmail, subject, html, text });
+        console.log('[cancelBooking] refund email sent:', userEmail);
+      } catch (e) {
+        console.error('[cancelBooking] refund email failed (non-fatal):', e.message);
+      }
+    })();
 
     res.writeHead(200, JSON_CORS);
     return res.end(JSON.stringify(_ok({
