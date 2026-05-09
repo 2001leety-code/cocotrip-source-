@@ -2,7 +2,15 @@
 // Extracted from PlanDetailPage/index.tsx L424-456 (zero behavior change).
 // 2026-05-04 (Tier 1-B): 클릭 시 RevisionReasonModal 을 띄워 사유 수집 후 redirect.
 // 2026-05-08 (W4): revisionCredits=0 안내 카드 + 7개 사유 + plan_complaints 저장 + avoidList.
-import { useState } from 'react';
+// 2026-05-09 (B9-18): UX 안정화. 사용자 신고 ("안 눌림", "잘 안 뜸", "늦게 뜸").
+//   - RevisionReasonModal eager + createPortal 적용 (Modal 자체 PR 동시 적용)
+//   - 진단 console.log: onClick 진입 / modalOpen 상태 변화 시
+//   - 모바일 touch target ≥48px (min-h-[48px])
+//   - haptic feedback (navigator.vibrate)
+//   - type="button" 명시 (form submit 회피)
+//   - e.preventDefault + e.stopPropagation (ancestor click 가로채기 방지)
+//   - 첫 클릭 즉시 setModalOpen(true) — Firestore 같은 무거운 작업 없음
+import { useState, useEffect } from 'react';
 import { RefreshCw, Sparkles, Lock } from 'lucide-react';
 import { doc, updateDoc, arrayUnion, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -47,6 +55,14 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
   const credits = (plan.revisionCredits as number) ?? 0;
   const { language } = useLanguage();
   const [modalOpen, setModalOpen] = useState(false);
+
+  // 진단 로그: modalOpen 변화 추적. 운영자가 사용자 콘솔로그 받을 때 정확한 상태 파악 가능.
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.log('[RevisionCard] modalOpen state:', modalOpen, '| credits:', credits);
+    }
+  }, [modalOpen, credits]);
 
   if (!plan) return null;
 
@@ -181,9 +197,27 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
             {lbl.remaining(credits)}
           </p>
           <button
-            onClick={() => setModalOpen(true)}
-            className="w-full py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.25)' }}
+            type="button"
+            onClick={(e) => {
+              // ancestor (SwipeContainer / motion.div) 가 click 을 가로채는 경우 차단.
+              e.preventDefault();
+              e.stopPropagation();
+              // eslint-disable-next-line no-console
+              console.log('[RevisionCard] click | credits:', credits, '| modalOpen(prev):', modalOpen);
+              // haptic feedback (모바일 사용자가 클릭 인지 — "안 눌림" 신고 대응).
+              if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+                try { navigator.vibrate(10); } catch { /* ignore */ }
+              }
+              setModalOpen(true);
+            }}
+            aria-label={lbl.cta}
+            className="w-full min-h-[48px] py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 relative z-[1]"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b, #B668FC)',
+              boxShadow: '0 4px 20px rgba(245,158,11,0.25)',
+              touchAction: 'manipulation',  // 더블탭 줌 무시 → 첫 탭 즉시 인식
+              WebkitTapHighlightColor: 'transparent',
+            }}
           >
             <RefreshCw className="w-4 h-4" />
             {lbl.cta}
