@@ -230,22 +230,44 @@ export default async function handler(req, res) {
     res.end(JSON.stringify(_ok(json)));
 
     // ── 비동기 카운터 기록 (응답 후 실행 — 사용자 대기 없음) ──
+    // B9-31 (2026-05-09): 명시적 3s timeout + 1회 retry + 최종 silent fallback.
+    // 기존: Firestore 가 매달리면 deadline-exceeded 가 .catch 로 떨어져 console.warn
+    //       매번 출력 → Vercel 로그 noise. counter 미증가는 비핵심이라 silent OK.
     if (counterDb) {
       const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const monthKey = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}`;
       const dayKey = `${monthKey}-${String(kst.getDate()).padStart(2, '0')}`;
       const inc = FieldValue.increment(1);
+
+      const incrementWithRetry = async (label, runFn) => {
+        for (let i = 0; i < 2; i++) {
+          try {
+            await Promise.race([
+              runFn(),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000)),
+            ]);
+            return;
+          } catch (e) {
+            if (i === 1) console.info(`[quick] ${label} increment failed (non-fatal):`, e.message);
+          }
+        }
+      };
+
       // 월별 카운터
-      counterDb.collection('api_stats').doc(monthKey).set(
-        { quickCount: inc, lastUpdated: new Date().toISOString() },
-        { merge: true }
-      ).catch(e => console.warn('[quick] counter error:', e.message));
-      // 일별 카운터
-      counterDb.collection('api_stats').doc(monthKey)
-        .collection('daily').doc(dayKey).set(
+      incrementWithRetry('counter', () =>
+        counterDb.collection('api_stats').doc(monthKey).set(
           { quickCount: inc, lastUpdated: new Date().toISOString() },
           { merge: true }
-        ).catch(e => console.warn('[quick] daily counter error:', e.message));
+        )
+      );
+      // 일별 카운터
+      incrementWithRetry('daily counter', () =>
+        counterDb.collection('api_stats').doc(monthKey)
+          .collection('daily').doc(dayKey).set(
+            { quickCount: inc, lastUpdated: new Date().toISOString() },
+            { merge: true }
+          )
+      );
     }
 
   } catch (error) {
