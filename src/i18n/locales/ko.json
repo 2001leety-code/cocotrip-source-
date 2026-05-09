@@ -1428,6 +1428,14 @@
       "returnHeading": "숙소로 복귀",
       "noLodging": "숙소 정보를 입력하시면 출발 시간이 정확히 계산됩니다."
     },
+    "intercity": {
+      "title": "도시 간 이동 — {{mode}}",
+      "depart": "출발 {{time}}",
+      "arrive": "도착 {{time}}",
+      "duration": "약 {{min}}분",
+      "fare": "₩{{krw}} / 1인",
+      "book": "예약하기"
+    },
     "step5": {
       "transportTitle": "공항 → 숙소 이동 안내",
       "transportSubtitle": "4가지 방법 중 짐과 인원에 맞는 옵션을 추천드려요.",

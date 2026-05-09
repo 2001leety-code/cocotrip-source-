@@ -345,15 +345,54 @@ export async function generatePDF(
   //   - day header / day summary 에도 명시적 클래스 추가 (avoid 셀렉터 매칭 강화).
   //   - 첫 번째 day 는 break 안 함 (intro 직후 자연 흐름).
   days.forEach((day: PlanDay, di: number) => {
+    // B9-34: di>0 day wrapper 에 pdf-day-break 클래스 → pagebreak.before 새 페이지.
+    // B9-39: 다도시 plan 의 도시 chip 라벨 — 헤더에 표시.
     const dayBreakClass = di > 0 ? ' pdf-day-break' : '';
+    const cityChip = day.city
+      ? `<span style="font-size:10px;background:rgba(234,83,126,0.18);border:1px solid rgba(234,83,126,0.40);color:#FF8AAA;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600;vertical-align:middle;">${day.city}</span>`
+      : '';
     html += `<div class="pdf-day-wrapper${dayBreakClass}" style="margin-bottom:24px;">
       <div class="pdf-day-header" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;page-break-after:avoid;break-after:avoid;">
         <div style="width:32px;height:32px;border-radius:50%;background:${C.accent};color:white;text-align:center;line-height:32px;font-size:14px;font-weight:700;flex-shrink:0;">${day.day || di + 1}</div>
         <div>
-          <h2 style="font-size:16px;font-weight:700;color:${C.heading};margin:0;">${day.theme || `Day ${day.day || di + 1}`}</h2>
+          <h2 style="font-size:16px;font-weight:700;color:${C.heading};margin:0;">${day.theme || `Day ${day.day || di + 1}`}${cityChip}</h2>
           ${day.date ? `<p style="font-size:10px;color:${C.muted};margin:0;">${day.date}</p>` : ''}
         </div>
       </div>`;
+
+    // B9-39 (2026-05-09): 도시 간 이동 카드 (KTX/SRT/Air/Bus) — 다도시 plan.
+    // intercity_transit 가 있을 때만 노출. page-break-inside:avoid 로 카드 단위 보존.
+    const ic = day.intercity_transit as Record<string, unknown> | undefined;
+    if (ic && ic.mode) {
+      const icLabels = (uiDict as { intercity?: Record<string, string> } | undefined)?.intercity || {};
+      const modeStr = String(ic.mode);
+      const titleTpl = icLabels.title || 'Intercity Transit — {{mode}}';
+      const departTpl = icLabels.depart || 'Depart {{time}}';
+      const arriveTpl = icLabels.arrive || 'Arrive {{time}}';
+      const durationTpl = icLabels.duration || '~{{min}} min';
+      const fareTpl = icLabels.fare || 'KRW {{krw}} / pax';
+      const bookTpl = icLabels.book || 'Book';
+      const titleText = titleTpl.replace('{{mode}}', modeStr);
+      const fromCity = String(ic.from_city_display || ic.from_city || '');
+      const toCity = String(ic.to_city_display || ic.to_city || '');
+      const departText = ic.recommended_depart ? departTpl.replace('{{time}}', String(ic.recommended_depart)) : '';
+      const arriveText = ic.arrival_at ? arriveTpl.replace('{{time}}', String(ic.arrival_at)) : '';
+      const durationText = ic.est_min ? durationTpl.replace('{{min}}', String(ic.est_min)) : '';
+      const fareText = ic.est_fare_krw ? fareTpl.replace('{{krw}}', Number(ic.est_fare_krw).toLocaleString()) : '';
+      const instruction = ic.instruction ? `<p style="font-size:10.5px;color:${C.muted};margin:6px 0 0;line-height:1.4;">${String(ic.instruction)}</p>` : '';
+      const bookLink = ic.booking_url
+        ? `<a href="${String(ic.booking_url)}" style="display:inline-block;margin-top:6px;font-size:10px;color:${C.accent};font-weight:600;text-decoration:none;">${bookTpl} →</a>`
+        : '';
+      html += `<div style="margin-bottom:14px;background:rgba(124,92,252,0.10);border:1px solid rgba(124,92,252,0.30);border-radius:6px;padding:10px 12px;page-break-inside:avoid;break-inside:avoid;">
+        <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${C.accent};margin:0 0 4px;">${titleText}</p>
+        <p style="font-size:13px;font-weight:700;color:${C.heading};margin:0;">${fromCity} → ${toCity}</p>
+        <p style="font-size:11px;color:${C.muted};margin:4px 0 0;">
+          ${[departText, arriveText, durationText, fareText].filter(Boolean).join('  ·  ')}
+        </p>
+        ${instruction}
+        ${bookLink}
+      </div>`;
+    }
 
     // === Sprint 1 Step 4: 일별 요약 박스 ===
     // 사용자 요청: 총 거리, 추정 비용, 추천 photo.

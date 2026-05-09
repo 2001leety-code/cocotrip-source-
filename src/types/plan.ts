@@ -178,6 +178,42 @@ export interface TransitFromPrev {
   _stale?: boolean;
 }
 
+/**
+ * 다도시 plan 의 도시 간 이동 (B9-39, 2026-05-09).
+ *
+ * 사용자 신고 시뮬레이션: 부산 입국 → 1-2일 부산 → 3-5일 서울 → 서울 출국.
+ * Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 있어야 하지만 plan 에 명시
+ * 안 됨 → "사용자가 추측해야 함" 사용자 불만.
+ *
+ * Gemini 가 채우는 것이 1차 (Day.intercity_transit). RouteAgent 는 fallback —
+ * Day.city 가 이전 Day 와 다르고 Gemini 가 안 채웠을 때만 default mode/fare 셋.
+ *
+ * UI: DayTimeline 이 day stops 위 + lodging_to_first 위에 별도 "🚄 도시 간 이동"
+ * 카드를 렌더 (fromCity → toCity, 시간/요금/예약 링크).
+ */
+export interface IntercityTransit {
+  /** "KTX" | "SRT" | "Air" | "Bus" | "ITX" — display label 자체가 mode 역할. */
+  mode: string;
+  /** 한국어 도시명 (백엔드 매칭 + 표시 fallback). */
+  from_city: string;
+  to_city: string;
+  /** 사용자 언어 도시명 (UI 표시 우선). 없으면 from_city/to_city 사용. */
+  from_city_display?: string;
+  to_city_display?: string;
+  /** 추정 소요 시간 (분). KTX 부산-서울 ≈ 165분. */
+  est_min: number;
+  /** 추정 1인 요금 (KRW). KTX 부산-서울 ≈ 59,800. */
+  est_fare_krw: number;
+  /** "08:30" — 권장 출발 시각 (도시 간 첫 차량 시각 기준). */
+  recommended_depart: string;
+  /** "11:30" — Day 의 stops[0].start_time 보다 빠르거나 같아야 함. */
+  arrival_at: string;
+  /** 4-lang 안내 문구 (한 줄). 사용자 언어로. */
+  instruction?: string;
+  /** 예약 링크 (KTX = letskorail, SRT = srail, Air = trip.com 등). */
+  booking_url?: string;
+}
+
 export interface Day {
   day: number;
   date: string;
@@ -191,6 +227,13 @@ export interface Day {
   /** RouteAgent: 마지막 stop → 숙소 복귀 이동 (2026-05-08 신규). 호텔/zone anchor
    *  좌표가 있을 때만 채워짐. UI는 마지막 stop 아래 "🏨 숙소 복귀 N분" 표시. */
   last_to_lodging?: TransitFromPrev | null;
+  /** B9-39 (2026-05-09): 다도시 plan 시 이 day 가 속한 도시.
+   *  'Seoul' / 'Busan' / 'Jeju' 등. legacy plan 은 undefined → regions[0] / 'Seoul'
+   *  fallback. UI 는 Day 헤더에 "Day 3 — Seoul" 형태로 표시. */
+  city?: string;
+  /** B9-39 (2026-05-09): 이 day 의 시작이 직전 day 와 다른 도시면 채워짐.
+   *  Gemini 가 1차로 채우고 RouteAgent 가 fallback. legacy plan 은 undefined. */
+  intercity_transit?: IntercityTransit | null;
 }
 
 export interface ArrivalStep {

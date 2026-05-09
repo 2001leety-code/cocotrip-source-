@@ -15,7 +15,7 @@ const stopVariants = {
     transition: { delay: i * 0.05, duration: 0.3, ease: [0.22, 1, 0.36, 1] as const },
   }),
 };
-import { Plus, Calendar, Clock, MapPin } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, TrainFront, Plane } from 'lucide-react';
 import { TransitArrow } from './TransitArrow';
 import { SortableStopCard } from './SortableStopCard';
 import { StopCard } from './StopCard';
@@ -23,7 +23,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { LodgingBookend } from './LodgingBookend';
 import { useLanguage } from '@/hooks/useLanguage';
-import type { PlanDay, PlanStop, PlanDocument } from '../types';
+import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '../types';
 import { getPlanDetailDict } from '../types';
 import type { TransitFromPrev } from '@/types/plan';
 
@@ -57,7 +57,7 @@ function getLodgingLabel(plan: PlanDocument | undefined): string | undefined {
 }
 
 export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDeleteStop, onAddStop, plan }: DayTimelineProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
 
@@ -72,6 +72,13 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
   const timeRange = firstTime && lastTime ? `${firstTime} – ${lastTime}` : firstTime || lastTime || '';
   // 'placesUnit' (곳/places) 사용 — pd.transit.stops 는 지하철 정거장 의미라 부적절
   const stopCountLabel = (pd as { placesUnit?: string }).placesUnit || 'places';
+
+  // B9-39 (2026-05-09): 다도시 plan 의 도시 라벨 + 도시 간 이동 카드 데이터.
+  // city 가 있으면 Day 헤더에 chip 으로 표시; legacy plan = undefined → 미노출.
+  const cityLabel = day.city
+    || ((plan?.input?.regions as string[] | undefined)?.[0])
+    || undefined;
+  const intercity: IntercityTransitSegment | null | undefined = day.intercity_transit;
 
   return (
     <section className="mb-6 sm:mb-8">
@@ -103,7 +110,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             {day.theme || `Day ${day.day || dayIndex + 1}`}
           </h3>
 
-          {/* Meta chips: 일자 / 시간 / stops 수 */}
+          {/* Meta chips: 일자 / 시간 / stops 수 / city (다도시 plan) */}
           <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] sm:text-[11px]">
             {day.date && (
               <span className="inline-flex items-center gap-1 bg-white/[0.06] border border-white/[0.08] rounded-md px-2 py-0.5 text-white/65">
@@ -120,9 +127,22 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 <MapPin className="w-2.5 h-2.5" /> {stops.length} {stopCountLabel}
               </span>
             )}
+            {cityLabel && (
+              /* B9-39: 다도시 plan 의 도시 라벨. 단일 도시 plan 도 보여 OK
+                 (regions[0] fallback 으로 채워짐). 시각적 강조 위해 별도 색상. */
+              <span className="inline-flex items-center gap-1 bg-[#EA537E]/[0.14] border border-[#EA537E]/30 rounded-md px-2 py-0.5 text-[#FFB1C8] font-semibold">
+                <MapPin className="w-2.5 h-2.5" /> {cityLabel}
+              </span>
+            )}
           </div>
         </div>
       </div>
+
+      {/* B9-39 (2026-05-09): 다도시 plan 의 도시 간 이동 카드 (KTX/항공/버스).
+          intercity_transit 가 있을 때만 노출 — 단일 도시 plan = 미노출. */}
+      {intercity && intercity.mode && (
+        <IntercityTransitCard intercity={intercity} language={language} pd={pd} />
+      )}
 
       {/* Charter CTA -- shown when transit is complex */}
       <CharterCTA day={day} />
@@ -237,5 +257,129 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         onCancel={() => setDeleteTarget(null)}
       />
     </section>
+  );
+}
+
+/**
+ * B9-39 (2026-05-09): 도시 간 이동 (KTX/SRT/Air/Bus) 카드.
+ * 사용자 신고: 다도시 plan 에서 도시 간 이동이 명시 안 돼 사용자가 추측해야 함.
+ *
+ * Day 의 첫 stop 이전 위치에 별도 카드로 렌더. 사용자 언어에 맞춘 instruction +
+ * 출발/도착 시각 + 1인 요금 + 예약 링크 (KTX = letskorail, SRT = srail, Air = trip 등).
+ */
+function IntercityTransitCard({
+  intercity,
+  language,
+  pd,
+}: {
+  intercity: IntercityTransitSegment;
+  language: string;
+  pd: ReturnType<typeof getPlanDetailDict>;
+}) {
+  const dict = (pd.intercity as Record<string, string> | undefined) || {};
+  // 4-lang fallback 체크 — pd.intercity 미정의면 hardcoded 라벨 사용.
+  const titleTpl = dict.title
+    || (language === 'ko' ? '도시 간 이동 — {{mode}}'
+      : language === 'ja' ? '都市間移動 — {{mode}}'
+      : language === 'zh' ? '城市间移动 — {{mode}}'
+      : 'Intercity Transit — {{mode}}');
+  const departLabel = dict.depart
+    || (language === 'ko' ? '출발 {{time}}'
+      : language === 'ja' ? '出発 {{time}}'
+      : language === 'zh' ? '出发 {{time}}'
+      : 'Depart {{time}}');
+  const arriveLabel = dict.arrive
+    || (language === 'ko' ? '도착 {{time}}'
+      : language === 'ja' ? '到着 {{time}}'
+      : language === 'zh' ? '到达 {{time}}'
+      : 'Arrive {{time}}');
+  const durationLabel = dict.duration
+    || (language === 'ko' ? '약 {{min}}분'
+      : language === 'ja' ? '約{{min}}分'
+      : language === 'zh' ? '约{{min}}分钟'
+      : '~{{min}} min');
+  const fareLabel = dict.fare
+    || (language === 'ko' ? '₩{{krw}} / 1인'
+      : language === 'ja' ? '₩{{krw}} / 1人'
+      : language === 'zh' ? '₩{{krw}} / 人'
+      : '₩{{krw}} / pax');
+  const bookCta = dict.book
+    || (language === 'ko' ? '예약하기'
+      : language === 'ja' ? '予約'
+      : language === 'zh' ? '预订'
+      : 'Book');
+
+  const mode = intercity.mode || 'KTX';
+  const fromCity = intercity.from_city_display || intercity.from_city || '';
+  const toCity = intercity.to_city_display || intercity.to_city || '';
+  const Icon = /air|flight|plane/i.test(mode) ? Plane : TrainFront;
+
+  const title = titleTpl.replace('{{mode}}', mode);
+  const departText = intercity.recommended_depart
+    ? departLabel.replace('{{time}}', intercity.recommended_depart)
+    : '';
+  const arriveText = intercity.arrival_at
+    ? arriveLabel.replace('{{time}}', intercity.arrival_at)
+    : '';
+  const durationText = intercity.est_min
+    ? durationLabel.replace('{{min}}', String(intercity.est_min))
+    : '';
+  const fareText = intercity.est_fare_krw
+    ? fareLabel.replace('{{krw}}', intercity.est_fare_krw.toLocaleString())
+    : '';
+
+  return (
+    <div className="my-3">
+      <div
+        className="rounded-xl border px-3 py-3 sm:px-4 sm:py-3.5"
+        style={{
+          background: 'linear-gradient(135deg, rgba(124,92,252,0.16) 0%, rgba(96,150,255,0.10) 60%, rgba(10,4,18,0.55) 100%)',
+          borderColor: 'rgba(124,92,252,0.32)',
+        }}
+      >
+        <div className="flex items-start gap-2.5">
+          <div
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: 'linear-gradient(135deg,#7C5CFC,#6096FF)' }}
+          >
+            <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10.5px] sm:text-[11px] font-bold uppercase tracking-wider text-[#B9A4FF]">
+              {title}
+            </p>
+            <p className="text-[13px] sm:text-[14px] font-bold text-white leading-tight mt-0.5">
+              {fromCity}
+              <span className="mx-1.5 text-white/55">→</span>
+              {toCity}
+            </p>
+            {/* Meta row: 출발 · 도착 · 소요시간 · 요금 */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] sm:text-[11px] text-white/70">
+              {departText && <span>{departText}</span>}
+              {arriveText && <span>{arriveText}</span>}
+              {durationText && <span className="text-white/55">· {durationText}</span>}
+              {fareText && <span className="font-semibold text-white/85">· {fareText}</span>}
+            </div>
+            {/* instruction (사용자 언어) — backend 가 채움 */}
+            {intercity.instruction && (
+              <p className="mt-1.5 text-[11px] sm:text-[11.5px] text-white/70 leading-snug">
+                {intercity.instruction}
+              </p>
+            )}
+            {/* booking_url 있으면 inline CTA */}
+            {intercity.booking_url && (
+              <a
+                href={intercity.booking_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-[10.5px] sm:text-[11px] font-semibold text-[#B9A4FF] hover:text-white transition-colors"
+              >
+                {bookCta} →
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

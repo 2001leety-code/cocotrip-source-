@@ -282,6 +282,10 @@ No markdown. No code blocks. No explanation. Pure JSON only.
       나머지를 처리. **stops 가 잘못 배치되면 RouteAgent 도 의미 없는 경로 생성.**
     - NEVER 첫 stop 을 숙소에서 1시간 떨어진 곳으로 시작. NEVER 마지막 stop 을
       숙소에서 1시간 떨어진 곳에서 끝냄. 짐+피로 누적 = 사용자 불만 1순위.
+    - **다도시 plan (regions.length>=2)**: 도시 변경 day 의 lodging 은 새 도시
+      의 임시 reference. 사용자 hotel_address 가 단일이면 그 day 의 첫/마지막
+      stop 5km 반경 규칙은 **새 도시 zone 내** 에서 적용. RouteAgent 가 좌표
+      fallback 처리. 자세한 도시 간 이동 instruction 은 ## MULTI-CITY HANDLING 참조.
   - First stop of EVERY day: near hotel or arrival point. 첫 stop은 숙소에서 30분 이내 이동 가능한 곳이어야 함.
   - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
   - 마지막 stop 종료 후 숙소까지 도보/지하철 30분 이상 걸리면 → 더 가까운 stop 으로 교체
@@ -299,6 +303,98 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - Transit between consecutive stops should be under 30 minutes.
 - BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
 - GOOD: Hongdae → Yeonnam-dong → Hapjeong → Mangwon (same zone, walkable, hub-and-spoke)
+
+## MULTI-CITY HANDLING — CRITICAL (B9-39, 2026-05-09 — regions.length >= 2)
+
+When the user message has multiple regions (e.g. \`regions=["busan","seoul"]\`),
+**you MUST split the trip into city-blocks and emit intercity_transit data on the
+city-change day**. 사용자 신고: 부산 입국 → 1-2일 부산 → 3-5일 서울 → 서울 출국 시,
+Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락되어 사용자가 추측해야 함.
+
+### 1. Day 분배 (city ordering rule)
+- 첫 도시 = arrival_airport 와 가까운 도시.
+  - PUS (김해) → 부산 먼저
+  - ICN/GMP → 서울 먼저
+  - CJU → 제주 먼저
+- 마지막 도시 = departure_airport 와 가까운 도시 (출국이 다른 공항이면 그 도시로 끝).
+- 합리적 일수 분배 — 5일 trip 이면 (2+3) 또는 (3+2). 도시당 최소 1박 보장.
+
+### 2. 각 Day 의 \`city\` 필드 명시 (필수)
+- \`days[].city\` = 'Busan' | 'Seoul' | 'Jeju' | 'Gyeongju' | 'Jeonju' 등.
+- \`theme\` 도 city prefix 권장: "Busan Day 1 — 해운대 & 광안리"
+- regions.length === 1 (단일 도시) 이면 \`city\` 필드 생략 가능 (frontend 가 regions[0] fallback).
+
+### 3. 도시가 바뀌는 day 처리 (CRITICAL)
+- 그 day 첫 stop 으로 \`category:"transit"\` "KTX 부산→서울" 같은 가짜 stop **절대 추가하지 말 것**.
+  대신 day-level \`intercity_transit\` 객체로 분리:
+  \`\`\`json
+  {
+    "day": 3,
+    "date": "2026-05-15",
+    "theme": "Seoul Day 1 — 종로 한옥 산책",
+    "city": "Seoul",
+    "intercity_transit": {
+      "mode": "KTX",
+      "from_city": "Busan",
+      "to_city": "Seoul",
+      "from_city_display": "Busan",
+      "to_city_display": "Seoul",
+      "est_min": 165,
+      "est_fare_krw": 59800,
+      "recommended_depart": "08:30",
+      "arrival_at": "11:30",
+      "instruction": "부산역에서 KTX 탑승, 서울역 도착 약 2시간 45분",
+      "booking_url": "https://www.letskorail.com"
+    },
+    "stops": [
+      { "order": 1, "start_time": "12:30", "name": "...", ... }
+    ]
+  }
+  \`\`\`
+- **중요**: 그 day 의 \`stops[0].start_time\` 은 \`intercity_transit.arrival_at\`
+  보다 같거나 늦어야 함 (점심 → 오후 관광 시작). 위 예시는 11:30 도착 → 12:30 점심.
+
+### 4. mode 결정 (구간별 권장 mode)
+- 부산 ↔ 서울 / 부산 ↔ 대전: \`mode="KTX"\` (default). SRT 도 가능.
+- 제주 ↔ 본토 (서울/부산 등): \`mode="Air"\` — 제주는 다리 없음.
+- 서울 ↔ 가까운 위성도시 (수원/춘천/가평): \`mode="ITX"\` 또는 \`mode="Bus"\` (셔틀).
+- 부산 ↔ 경주/포항: \`mode="Bus"\` (KTX 노선 없음).
+- 전주 ↔ 서울: \`mode="KTX"\` 또는 \`mode="Bus"\`.
+
+### 5. 표준 시간/요금 추정 (KRW, 1인)
+| 구간 | mode | est_min | est_fare_krw |
+|---|---|---|---|
+| 부산 ↔ 서울 | KTX | 165 | 59,800 |
+| 부산 ↔ 서울 | SRT | 165 | 53,000 |
+| 부산 ↔ 대전 | KTX | 95 | 36,000 |
+| 제주 ↔ 서울 | Air (LCC) | 65 | 70,000 |
+| 제주 ↔ 부산 | Air (LCC) | 50 | 60,000 |
+| 서울 ↔ 전주 | KTX | 90 | 35,000 |
+| 서울 ↔ 강릉 | KTX | 110 | 28,000 |
+| 부산 ↔ 경주 | Bus | 60 | 7,000 |
+| 부산 ↔ 포항 | Bus | 90 | 12,000 |
+| 서울 ↔ 가평 | ITX | 60 | 8,000 |
+| 서울 ↔ 춘천 | ITX | 75 | 9,000 |
+
+### 6. booking_url 표준
+- KTX/ITX/일반열차: "https://www.letskorail.com"
+- SRT: "https://etk.srail.kr"
+- Air (제주 등): "https://www.trip.com" (CocoTrip Allianceid 적용 가능 페이지)
+- Bus (시외): "https://www.kobus.co.kr"
+
+### 7. instruction 작성 (사용자 언어로)
+- 한 줄, 출발지/도착지/소요시간/요금 명시.
+- 예 (ko): "부산역에서 KTX 탑승, 서울역 도착 약 2시간 45분 (₩59,800)"
+- 예 (en): "Take KTX from Busan Station to Seoul Station, ~2h 45m (₩59,800)"
+- 예 (ja): "釜山駅からKTXに乗車、ソウル駅まで約2時間45分（₩59,800）"
+- 예 (zh): "釜山站搭乘KTX前往首尔站，约2小时45分（₩59,800）"
+
+### 8. HUB-AND-SPOKE 적용 (다도시 day 의 숙소 처리)
+- 도시 변경 day 의 lodging 은 새 도시의 임시 reference. 사용자가 hotel_address
+  를 단일로만 줬으면 LODGING BOOKEND 첫 stop 5km 반경 규칙은 **새 도시 내** 에서
+  적용. (RouteAgent 가 좌표 fallback 처리.)
+
+If \`regions.length === 1\`: **본 섹션 전체 무시**. 기존 단일 도시 규칙만 적용.
 
 ## TRANSIT DIVERSITY — CRITICAL (사용자 신고 — 모든 segment가 walk면 plan이 빈약해 보임)
 - 사용자가 \`tour_pace\` 기본값(standard) 또는 packed 일 때:
