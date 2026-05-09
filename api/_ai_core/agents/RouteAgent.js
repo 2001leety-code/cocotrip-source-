@@ -631,6 +631,10 @@ export class RouteAgent extends BaseAgent {
         }
 
         // ODsay 결과 처리
+        // B9-31 (2026-05-09): null result(빈 path / no routes) 는 Vercel 로그에 누적되던
+        // noise 의 주요 원인. 정상적 fallback 임을 표시하기 위해 명시적 빈 객체를
+        // 만들고 console.info 로 1회만 표시 (warn → info). rejected (transient) 만
+        // warn 으로 유지.
         if (odsayResult.status === 'fulfilled' && odsayResult.value) {
             publicTransit = formatTransitSummary(odsayResult.value);
             console.log(`  ✓ [${name}] ODsay: ${odsayResult.value.type} ${odsayResult.value.totalTime}min ₩${odsayResult.value.fare}`);
@@ -657,9 +661,14 @@ export class RouteAgent extends BaseAgent {
                 });
                 await Promise.all(enrichments);
             }
+        } else if (odsayResult.status === 'rejected') {
+            // Transient 또는 fatal — error message 만 출력 (stack X, helper 가 throw 한
+            // Error 객체).
+            console.warn(`  - [${name}] ODsay unavailable: ${odsayResult.reason?.message || 'unknown'}`);
         } else {
-            const reason = odsayResult.status === 'rejected' ? odsayResult.reason?.message : 'null result';
-            console.warn(`  - [${name}] ODsay unavailable: ${reason}`);
+            // 정상적 null result (빈 path / 도시간 검색 실패 등) — info 로 다운그레이드.
+            // Caller 는 이미 publicTransit==null 을 graceful 처리.
+            console.info(`  - [${fromName}→${name}] ODsay no result, using fallback`);
         }
 
         // Walk-first override for short legs: if straight-line distance is
@@ -708,7 +717,9 @@ export class RouteAgent extends BaseAgent {
     }
 
     /**
-     * Layer 3: ODsay search with 500ms backoff retry (max 2 attempts)
+     * Layer 3: ODsay search with 500ms backoff retry (max 2 attempts).
+     * B9-31: attempt 1 failure 는 retry 가 정상 흐름이라 info 로 다운그레이드.
+     * attempt 2 fatal 만 warn 유지 (운영자가 인식해야 하는 패턴).
      */
     async _searchOdsayWithRetry(sx, sy, ex, ey) {
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -717,7 +728,7 @@ export class RouteAgent extends BaseAgent {
                 return result;
             } catch (e) {
                 if (attempt === 0) {
-                    console.warn(`  - [ODsay] attempt 1 failed, retrying in 500ms: ${e.message}`);
+                    console.info(`  - [ODsay] attempt 1 failed, retrying: ${e.message}`);
                     await new Promise(r => setTimeout(r, 500));
                 } else {
                     console.warn(`  - [ODsay] attempt 2 failed, giving up: ${e.message}`);

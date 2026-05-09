@@ -36,6 +36,18 @@ const COLUMNS = [
   '메모',          // R
 ];
 
+// B9-31 (2026-05-09): env 누락 시 1회만 info 로그 + caller 가 graceful skip 가능하도록
+// SkippedError sentinel 던짐. 기존 throw 패턴은 booking-processor / daily-report 가
+// catch 후 `err.message` 만 출력 → Vercel 로그에 매 호출마다 동일 메시지 누적되던 noise.
+let _envWarnedOnce = false;
+class SheetsEnvSkipped extends Error {
+  constructor(msg) {
+    super(msg);
+    this.name = 'SheetsEnvSkipped';
+    this.skipped = true;
+  }
+}
+
 // ── JWT 토큰 생성 (서비스 계정용) ──────────────────────────────────────
 async function getAccessToken() {
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -48,7 +60,11 @@ async function getAccessToken() {
   }
 
   if (!serviceAccountEmail || !privateKey) {
-    throw new Error('Google 서비스 계정 환경변수가 설정되지 않았습니다.');
+    if (!_envWarnedOnce) {
+      console.info('[google-sheets] env not configured — skipping (set GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY to enable)');
+      _envWarnedOnce = true;
+    }
+    throw new SheetsEnvSkipped('google-sheets env missing');
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -125,7 +141,13 @@ async function getAccessToken() {
  */
 export async function appendBooking(booking) {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID 미설정');
+  if (!spreadsheetId) {
+    if (!_envWarnedOnce) {
+      console.info('[google-sheets] GOOGLE_SHEETS_SPREADSHEET_ID not set — skipping');
+      _envWarnedOnce = true;
+    }
+    throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  }
 
   const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 
@@ -180,7 +202,13 @@ export async function appendBooking(booking) {
  */
 export async function updateBookingStatus(transactionId, status) {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID 미설정');
+  if (!spreadsheetId) {
+    if (!_envWarnedOnce) {
+      console.info('[google-sheets] GOOGLE_SHEETS_SPREADSHEET_ID not set — skipping');
+      _envWarnedOnce = true;
+    }
+    throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  }
 
   const accessToken = await getAccessToken();
   const range = `${SHEET_NAME}!A:R`;
@@ -225,7 +253,13 @@ export async function updateBookingStatus(transactionId, status) {
  */
 export async function getYesterdayBookings() {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID 미설정');
+  if (!spreadsheetId) {
+    if (!_envWarnedOnce) {
+      console.info('[google-sheets] GOOGLE_SHEETS_SPREADSHEET_ID not set — skipping');
+      _envWarnedOnce = true;
+    }
+    throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  }
 
   const accessToken = await getAccessToken();
   const range = `${SHEET_NAME}!A:R`;
@@ -256,7 +290,13 @@ export async function getYesterdayBookings() {
  */
 export async function getTodayTours() {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID 미설정');
+  if (!spreadsheetId) {
+    if (!_envWarnedOnce) {
+      console.info('[google-sheets] GOOGLE_SHEETS_SPREADSHEET_ID not set — skipping');
+      _envWarnedOnce = true;
+    }
+    throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  }
 
   const accessToken = await getAccessToken();
   const range = `${SHEET_NAME}!A:R`;
@@ -283,7 +323,13 @@ export async function getTodayTours() {
  */
 export async function getTomorrowTours() {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID 미설정');
+  if (!spreadsheetId) {
+    if (!_envWarnedOnce) {
+      console.info('[google-sheets] GOOGLE_SHEETS_SPREADSHEET_ID not set — skipping');
+      _envWarnedOnce = true;
+    }
+    throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  }
 
   const accessToken = await getAccessToken();
   const range = `${SHEET_NAME}!A:R`;
@@ -312,7 +358,13 @@ export async function getTomorrowTours() {
  */
 export async function getWeekSummary() {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID 미설정');
+  if (!spreadsheetId) {
+    if (!_envWarnedOnce) {
+      console.info('[google-sheets] GOOGLE_SHEETS_SPREADSHEET_ID not set — skipping');
+      _envWarnedOnce = true;
+    }
+    throw new SheetsEnvSkipped('GOOGLE_SHEETS_SPREADSHEET_ID missing');
+  }
 
   const accessToken = await getAccessToken();
   const range = `${SHEET_NAME}!A:R`;
@@ -354,6 +406,10 @@ export async function getWeekSummary() {
   return { totalUSD: totalUSD.toFixed(2), count: weekRows.length, byProduct };
 }
 
+// SkippedError sentinel — caller 가 env 누락(skipped) 과 실제 API 오류를 구분.
+// `err instanceof SheetsEnvSkipped` 또는 `err?.skipped === true` 둘 다 가능.
+export { SheetsEnvSkipped };
+
 export default {
   appendBooking,
   updateBookingStatus,
@@ -362,4 +418,5 @@ export default {
   getTomorrowTours,
   getWeekSummary,
   COLUMNS,
+  SheetsEnvSkipped,
 };

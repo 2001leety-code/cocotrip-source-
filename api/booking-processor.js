@@ -213,8 +213,13 @@ const originalHandler = async (event) => {
     results.steps.sheets = 'ok';
     console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
   } catch (err) {
-    results.steps.sheets = `error: ${err.message}`;
-    console.error('[booking-processor] Sheets 기록 실패:', err.message);
+    // B9-31: env 미설정(SheetsEnvSkipped) 시 silent — _google-sheets.js 가 이미 1회 info 로그 출력.
+    if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
+      results.steps.sheets = 'skipped (env not configured)';
+    } else {
+      results.steps.sheets = `error: ${err.message}`;
+      console.error('[booking-processor] Sheets 기록 실패:', err.message);
+    }
     // 비치명적 오류 — 계속 진행
   }
 
@@ -348,8 +353,13 @@ const originalHandler = async (event) => {
     await updateBookingStatus(orderID, '확정', sheetsRowHint);
     results.steps.sheetsUpdate = 'ok';
   } catch (err) {
-    results.steps.sheetsUpdate = `error: ${err.message}`;
-    console.error('[booking-processor] 상태 업데이트 실패:', err.message);
+    // B9-31: env 미설정(SheetsEnvSkipped) 시 silent.
+    if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
+      results.steps.sheetsUpdate = 'skipped (env not configured)';
+    } else {
+      results.steps.sheetsUpdate = `error: ${err.message}`;
+      console.error('[booking-processor] 상태 업데이트 실패:', err.message);
+    }
   }
 
   // ── 오류가 있었다면 태연님께 알림 ──────────────────────────────────

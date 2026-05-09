@@ -63,7 +63,8 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
     const data = await res.json();
 
     if (data.error || !data.result?.path?.length) {
-      console.warn('[ODsay] No routes found or error:', data.error?.msg || 'empty');
+      // B9-31: 정상적 fallback — info 로 다운그레이드 (caller 가 graceful 처리).
+      console.info('[ODsay] no routes found:', data.error?.msg || 'empty path');
       return null;
     }
 
