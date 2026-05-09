@@ -133,9 +133,13 @@ export function WizardStep2Details(props: Step2Props) {
     && !!arrivalTerminal
     && !airportTouchedInStep3;
 
-  // 수화물 합계 제한 (Carry-on + Medium + Large ≤ 7)
+  // 수화물 합계 — B9-32 (2026-05-09): cap 의미 분리. 차터 wizard PR #321 패턴과 동일.
+  //   luggageHardCap (>=99) — 사실상 무제한 (실질 입력 차단 안 닿음).
+  //   luggageOver7 (>=7) — amber 정보성 안내 트리거 (입력 차단 X). 큰 짐 많은 6명 가족
+  //   같은 사용자가 7개 이상 적어도 막히지 않도록. 7+ 시 차터/봉고차 권장 안내만.
   const luggageTotal = luggageSmall + luggageMedium + luggageLarge;
-  const luggageMaxReached = luggageTotal >= 7;
+  const luggageHardCap = luggageTotal >= 99;
+  const luggageOver7 = luggageTotal >= 7;
 
   // 입력 가드: 사용자가 Next를 눌러야 오류 표시
   const [showErrors, setShowErrors] = useState(false);
@@ -345,21 +349,22 @@ export function WizardStep2Details(props: Step2Props) {
             label={p.luggageSmall || 'Carry-on / Backpack'}
             sub={p.luggageSmallSub || 'Fits under seat'}
             value={luggageSmall} setValue={setLuggageSmall}
-            maxReached={luggageMaxReached} />
+            maxReached={luggageHardCap} />
           <LuggageCounter
             label={p.luggageMedium || 'Medium suitcase'}
             sub={p.luggageMediumSub || '24 inch'}
             value={luggageMedium} setValue={setLuggageMedium}
-            maxReached={luggageMaxReached} />
+            maxReached={luggageHardCap} />
           <LuggageCounter
             label={p.luggageLarge || 'Large suitcase'}
             sub={p.luggageLargeSub || '28 inch+'}
             value={luggageLarge} setValue={setLuggageLarge}
-            maxReached={luggageMaxReached} />
+            maxReached={luggageHardCap} />
         </div>
-        {luggageMaxReached && (
+        {/* B9-32 (2026-05-09): 7+ 시 amber 안내. 입력 차단 아닌 정보성 — 차터/봉고차 권장. */}
+        {luggageOver7 && (
           <p className="text-[11px] text-amber-300/80 mt-2 text-center">
-            {(p as Record<string, string>).luggageMaxNote || 'Max 7 large bags total (carry-on + medium + large)'}
+            {(p as Record<string, string>).luggageOver7Note || '7+ bags total — charter / van recommended (large vehicle suggested)'}
           </p>
         )}
       </div>
