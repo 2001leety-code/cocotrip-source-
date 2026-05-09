@@ -51,6 +51,16 @@ export default async function handler(req, res) {
 
   const handlerStart = Date.now();
   console.log('[planner] === START ===');
+  // batch 9 fix (PR-N, 2026-05-09): env 변수 유무 진단 — handler 진입 즉시.
+  // 키 값은 노출 X, 길이/존재만 노출. 5/9 prod 500 빈 body 회귀 추적용.
+  console.log('[planner] env check:', {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY ? `set(len=${process.env.GEMINI_API_KEY.length})` : 'MISSING',
+    FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
+    FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
+    FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? `set(len=${process.env.FIREBASE_PRIVATE_KEY.length})` : 'MISSING',
+    GOOGLE_SERVICE_ACCOUNT_KEY: !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
+    adminDb_initialized: !!adminDb,
+  });
 
   try {
     let body = req.body;
@@ -392,27 +402,47 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
 
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
-    // K Tier 2-E (PR #266) — throttled. 동일 unhandled 패턴 5분 윈도우 내 dedup.
-    throttledTelegramAlert({
-      key: 'ai-planner-unhandled',
-      channel: 'error',
-      message: `🔴 [ai-planner-full] ${error.message || 'unknown error'}`,
-      severity: 'high',
-      context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
-    }).catch(() => {});
-    await captureError(error, {
-      route: '/api/ai-planner-full',
-      method: req.method,
-      planner_mode: PLANNER_MODE,
-    });
+
+    // batch 9 fix (PR-N, 2026-05-09): 응답을 먼저 보내고 부수 작업은 fire-and-forget.
+    // 이전: await captureError 가 throw 하면 catch 블록 자체가 abort → res.end 못 보냄
+    //       → Vercel 500 + 빈 body. 운영자가 client console 에서 정확한 에러 못 봄.
+    // 변경: res.end() 먼저, telemetry/sentry 는 setImmediate 로 분리.
     if (!res.headersSent) {
       const statusCode = error.statusCode || 500;
       const code = error.code || 'INTERNAL_ERROR';
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify(_err('Planner failed', code, {
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        details: error.message || 'Unknown error',
+        // batch 9 fix (PR-N): root cause 진단 위해 prod 에서도 stack head 일부 노출.
+        // 운영자 본인 + Test Mode 케이스라 사용자에게 stack 노출 위험 낮음. 진단
+        // 완료 후 dev only 로 좁힐 것.
+        stackHead: (error.stack || '').slice(0, 500),
       })));
     }
+
+    // K Tier 2-E (PR #266) — throttled. 동일 unhandled 패턴 5분 윈도우 내 dedup.
+    // catch 블록 첫 응답 전에 await 하면 telemetry throw 시 응답 못 감 → 분리.
+    Promise.resolve().then(async () => {
+      try {
+        await throttledTelegramAlert({
+          key: 'ai-planner-unhandled',
+          channel: 'error',
+          message: `🔴 [ai-planner-full] ${error.message || 'unknown error'}`,
+          severity: 'high',
+          context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
+        });
+      } catch (e) {
+        console.warn('[ai-planner-full] telegram alert failed:', e.message);
+      }
+      try {
+        await captureError(error, {
+          route: '/api/ai-planner-full',
+          method: req.method,
+          planner_mode: PLANNER_MODE,
+        });
+      } catch (e) {
+        console.warn('[ai-planner-full] sentry capture failed:', e.message);
+      }
+    });
   }
 }
