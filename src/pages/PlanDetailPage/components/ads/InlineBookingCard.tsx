@@ -89,6 +89,15 @@ interface Props {
   defaultPax?: number;
   userEmail?: string;
   planId?: string;
+  /**
+   * batch 9 (B9-11/12/13): 추가 입력 필드 type (운영자 5/9 요청 — "투어창처럼
+   *   더 자세한 정보 입력"). 옵션 선택 후 노출:
+   *   - 'airport': 캐리어(소/중/대) + 편명 + 터미널 (T1/T2)
+   *   - 'charter': 픽업 위치 + 언어
+   *   - 'combo': 위 두 종류 모두
+   *   - undefined: 추가 필드 없음 (기존 동작)
+   */
+  extraFields?: 'airport' | 'charter' | 'combo';
 }
 
 const LABELS: Record<string, Record<string, string>> = {
@@ -100,6 +109,16 @@ const LABELS: Record<string, Record<string, string>> = {
     pickFirst: '먼저 옵션을 선택해 주세요',
     selected: '선택됨',
     paxUnit: '명',
+    flightNo: '편명',
+    flightNoPh: '예: KE085 / OZ213',
+    terminal: '터미널',
+    luggageLabel: '수하물',
+    luggageSmall: '기내',
+    luggageMedium: '중형',
+    luggageLarge: '대형',
+    pickupLocation: '픽업 위치 / 호텔',
+    pickupLocationPh: '예: 명동 롯데호텔, 종로구 ○○○',
+    driverLang: '기사 언어',
   },
   en: {
     chooseOption: 'Pick an option below',
@@ -109,6 +128,16 @@ const LABELS: Record<string, Record<string, string>> = {
     pickFirst: 'Please pick an option first',
     selected: 'Selected',
     paxUnit: 'pax',
+    flightNo: 'Flight number',
+    flightNoPh: 'e.g. KE085 / OZ213',
+    terminal: 'Terminal',
+    luggageLabel: 'Luggage',
+    luggageSmall: 'Carry-on',
+    luggageMedium: 'Medium',
+    luggageLarge: 'Large',
+    pickupLocation: 'Pickup hotel / address',
+    pickupLocationPh: 'e.g. Lotte Hotel Myeongdong',
+    driverLang: 'Driver language',
   },
   ja: {
     chooseOption: '以下から選択',
@@ -118,6 +147,16 @@ const LABELS: Record<string, Record<string, string>> = {
     pickFirst: '先にオプションを選択してください',
     selected: '選択済み',
     paxUnit: '名',
+    flightNo: '便名',
+    flightNoPh: '例: KE085 / OZ213',
+    terminal: 'ターミナル',
+    luggageLabel: '荷物',
+    luggageSmall: '機内',
+    luggageMedium: '中型',
+    luggageLarge: '大型',
+    pickupLocation: 'ピックアップ場所 / ホテル',
+    pickupLocationPh: '例: 明洞ロッテホテル',
+    driverLang: 'ドライバー言語',
   },
   zh: {
     chooseOption: '请选择以下选项',
@@ -127,12 +166,22 @@ const LABELS: Record<string, Record<string, string>> = {
     pickFirst: '请先选择一个选项',
     selected: '已选',
     paxUnit: '人',
+    flightNo: '航班号',
+    flightNoPh: '例: KE085 / OZ213',
+    terminal: '航站楼',
+    luggageLabel: '行李',
+    luggageSmall: '随身',
+    luggageMedium: '中型',
+    luggageLarge: '大型',
+    pickupLocation: '接送地点 / 酒店',
+    pickupLocationPh: '例: 明洞乐天酒店',
+    driverLang: '司机语言',
   },
 };
 
 export function InlineBookingCard({
   title, subtitle, icon, accent = 'amber', badge,
-  options, defaultDate, defaultPax = 2, userEmail = '', planId,
+  options, defaultDate, defaultPax = 2, userEmail = '', planId, extraFields,
 }: Props) {
   const { language } = useLanguage();
   const lang = (['ko', 'en', 'ja', 'zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh';
@@ -144,6 +193,17 @@ export function InlineBookingCard({
   const [time, setTime] = useState<string>('10:00');
   const [pax, setPax] = useState<number>(defaultPax);
   const [showPayment, setShowPayment] = useState(false);
+
+  // batch 9 (B9-11/12/13): 추가 입력 필드 — extraFields prop 따라 노출.
+  const showAirport = extraFields === 'airport' || extraFields === 'combo';
+  const showCharter = extraFields === 'charter' || extraFields === 'combo';
+  const [terminal, setTerminal] = useState<'T1' | 'T2' | ''>('');
+  const [flightNumber, setFlightNumber] = useState<string>('');
+  const [lugSmall, setLugSmall] = useState<number>(0);
+  const [lugMedium, setLugMedium] = useState<number>(0);
+  const [lugLarge, setLugLarge] = useState<number>(0);
+  const [pickupAddress, setPickupAddress] = useState<string>('');
+  const [driverLang, setDriverLang] = useState<'en' | 'ja' | 'zh'>('en');
   // 5/7 복구: PayPalBookingButton 이 PayPal Smart Buttons (live) + SDK 차단 시 paypal.me QR
   // fallback 통합. 위치 게이트 / 안내 모달 / 외부 토글 모두 제거 — 단순 button 렌더만.
 
@@ -251,6 +311,81 @@ export function InlineBookingCard({
         </div>
       )}
 
+      {/* batch 9 (B9-11/12/13): 추가 입력 필드 — 공항 픽업 (캐리어/편명/터미널) */}
+      {selected && showAirport && (
+        <div className="space-y-3 mb-4 pt-3 border-t border-white/[0.06]">
+          {/* 터미널 + 편명 */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.terminal}</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(['T1', 'T2'] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => setTerminal(t)}
+                    className={`py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      terminal === t ? `bg-white/[0.08] ${a.text} border-current` : 'bg-white/[0.04] border-white/[0.08] text-white/60'
+                    }`}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.flightNo}</label>
+              <input type="text" value={flightNumber}
+                onChange={(e) => setFlightNumber(e.target.value.toUpperCase())}
+                placeholder={L.flightNoPh} maxLength={10}
+                className="w-full px-2.5 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white text-xs outline-none focus:border-white/25" />
+            </div>
+          </div>
+          {/* 캐리어 — 소/중/대 */}
+          <div>
+            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.luggageLabel}</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { key: 'small', label: L.luggageSmall, value: lugSmall, set: setLugSmall },
+                { key: 'medium', label: L.luggageMedium, value: lugMedium, set: setLugMedium },
+                { key: 'large', label: L.luggageLarge, value: lugLarge, set: setLugLarge },
+              ].map((lug) => (
+                <div key={lug.key} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08]">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-white/55 truncate">{lug.label}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button type="button" onClick={() => lug.set(Math.max(0, lug.value - 1))} disabled={lug.value === 0}
+                      className="w-5 h-5 text-xs text-white/70 disabled:opacity-30">−</button>
+                    <span className="text-xs font-bold text-white w-3 text-center">{lug.value}</span>
+                    <button type="button" onClick={() => lug.set(Math.min(20, lug.value + 1))}
+                      className="w-5 h-5 text-xs text-white/70">+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* batch 9 (B9-12/13): 추가 입력 필드 — 차터 (픽업 위치 + 기사 언어) */}
+      {selected && showCharter && (
+        <div className="space-y-3 mb-4 pt-3 border-t border-white/[0.06]">
+          <div>
+            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.pickupLocation}</label>
+            <input type="text" value={pickupAddress}
+              onChange={(e) => setPickupAddress(e.target.value)}
+              placeholder={L.pickupLocationPh} maxLength={120}
+              className="w-full px-2.5 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white text-xs outline-none focus:border-white/25" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.driverLang}</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['en', 'ja', 'zh'] as const).map((dl) => (
+                <button key={dl} type="button" onClick={() => setDriverLang(dl)}
+                  className={`py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                    driverLang === dl ? `bg-white/[0.08] ${a.text} border-current` : 'bg-white/[0.04] border-white/[0.08] text-white/60'
+                  }`}>{dl === 'en' ? 'EN' : dl === 'ja' ? 'JA' : 'ZH'}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action: show "Proceed" button until clicked, then mount payment route gate */}
       {selected && !showPayment && (
         <button
@@ -295,9 +430,29 @@ export function InlineBookingCard({
               dateEnd={date}
               priceKRW={selected.priceKRW}
               lang={lang}
-              pickupLocation={selected.label}
-              memo={`Inline booking from plan ${planId || ''} — ${title}`}
+              pickupLocation={pickupAddress || selected.label}
+              memo={(() => {
+                // batch 9 (B9-11/12/13): memo 에 추가 입력 정보 통합 — 운영자 어드민에서
+                // 한 줄로 모든 정보 확인 가능. extraFields 미설정 시 기존 동작과 동일.
+                const lines = [`Inline booking from plan ${planId || ''} — ${title}`, `Time: ${time}`];
+                if (showAirport) {
+                  if (terminal) lines.push(`Terminal: ${terminal}`);
+                  if (flightNumber) lines.push(`Flight: ${flightNumber}`);
+                  const lugTotal = lugSmall + lugMedium + lugLarge;
+                  if (lugTotal > 0) lines.push(`Luggage: S${lugSmall}/M${lugMedium}/L${lugLarge} = ${lugTotal}`);
+                }
+                if (showCharter) {
+                  if (pickupAddress) lines.push(`Pickup: ${pickupAddress}`);
+                  lines.push(`Driver lang: ${driverLang.toUpperCase()}`);
+                }
+                return lines.join(' | ');
+              })()}
               userEmail={userEmail}
+              airport={showAirport ? {
+                terminal: terminal || undefined,
+                flightNumber: flightNumber || undefined,
+                luggage: { small: lugSmall, medium: lugMedium, large: lugLarge },
+              } : undefined}
             />
           </Suspense>
         </div>

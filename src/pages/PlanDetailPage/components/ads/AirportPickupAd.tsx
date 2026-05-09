@@ -70,6 +70,8 @@ export function AirportPickupAd({ arrivalAirport, defaultDate, defaultPax, planI
       defaultPax={defaultPax}
       userEmail={user?.email || ''}
       planId={planId}
+      // batch 9 (B9-11): 공항 픽업 — 캐리어/편명/터미널 추가 입력.
+      extraFields="airport"
     />
   );
 }
