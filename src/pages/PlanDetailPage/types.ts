@@ -49,6 +49,23 @@ export interface PlanDocument {
   [key: string]: unknown;
 }
 
+/** B9-39 (2026-05-09): 다도시 plan 의 도시 간 이동 (KTX/SRT/항공/버스).
+ *  Gemini 가 1차로 채우고 RouteAgent 가 fallback. legacy plan 은 undefined. */
+export interface IntercityTransitSegment {
+  mode?: string;
+  from_city?: string;
+  to_city?: string;
+  from_city_display?: string;
+  to_city_display?: string;
+  est_min?: number;
+  est_fare_krw?: number;
+  recommended_depart?: string;
+  arrival_at?: string;
+  instruction?: string;
+  booking_url?: string;
+  [key: string]: unknown;
+}
+
 export interface PlanDay {
   day?: number;
   date?: string;
@@ -59,6 +76,11 @@ export interface PlanDay {
    *  "🏨 숙소 출발/복귀" 카드를 렌더. legacy 플랜은 undefined → 자연스럽게 미노출. */
   lodging_to_first?: TransitSegment | null;
   last_to_lodging?: TransitSegment | null;
+  /** B9-39 (2026-05-09): 다도시 plan 시 이 day 가 속한 도시. legacy = undefined. */
+  city?: string;
+  /** B9-39 (2026-05-09): 직전 day 와 도시가 다르면 채워짐. 그 day 첫 stop 보다
+   *  앞에 "🚄 KTX 부산→서울" 카드로 렌더. */
+  intercity_transit?: IntercityTransitSegment | null;
   [key: string]: unknown;
 }
 

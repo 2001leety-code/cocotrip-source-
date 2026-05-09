@@ -288,6 +288,22 @@ export class RouteAgent extends BaseAgent {
             }
         }
 
+        // ════════════════════════════════════════════════════════
+        // B9-39 (2026-05-09): 다도시 plan 사전 처리
+        // ════════════════════════════════════════════════════════
+        // Gemini 가 days[].city + days[].intercity_transit 채웠으면 그대로 보존.
+        // 안 채웠고 regions.length>=2 면 RouteAgent 가 fallback 으로 채움.
+        // - 도시 추론: stops 의 첫 좌표를 city center 와 거리 비교 (haversine).
+        // - 부산↔서울 같은 도시 변경 day 의 첫 stop 은 ODsay skip (>100km 무의미).
+        const regionsList = Array.isArray(data.regions) ? data.regions
+            : (Array.isArray(rawItinerary.regions) ? rawItinerary.regions : []);
+        const isMultiCity = regionsList.length >= 2;
+        if (isMultiCity) {
+            console.log(`  [Route] multi-city plan detected: regions=${regionsList.join('+')}`);
+            // city 미명시 day 들 city 추론 + intercity_transit 누락 채움
+            this._enrichMultiCityDays(daysList, regionsList);
+        }
+
         for (const dayPlan of daysList) {
             const places = dayPlan.stops || dayPlan.places || [];
             // Derive weekday for first/last-train lookup. Gemini writes
@@ -392,14 +408,35 @@ export class RouteAgent extends BaseAgent {
             // Phase 3: Dynamic Time Stitching — 서버가 시간 계산
             // ════════════════════════════════════════════════════════
             // 첫 장소의 start_time은 Gemini 값 유지 (또는 09:00 디폴트)
-            let currentTime = this._parseTime(places[0]?.start_time || "09:00");
+            // B9-39: 도시 변경 day 면 intercity_transit.arrival_at 이후로 강제.
+            // 예: KTX 부산→서울 11:30 도착 시 stops[0].start_time >= 12:00 (점심).
+            let currentTime;
+            if (isCityChangeDay && dayPlan.intercity_transit?.arrival_at) {
+                const arrivalMin = this._parseTime(dayPlan.intercity_transit.arrival_at);
+                const geminiFirstMin = this._parseTime(places[0]?.start_time || "09:00");
+                // arrival_at + 30분 (이동 후 점심/체크인 여유) 와 Gemini 값 중 큰 것
+                currentTime = Math.max(arrivalMin + 30, geminiFirstMin);
+                console.log(`  [Route] Day ${dayPlan.day || '?'}: city change day, first stop start_time forced ≥ ${this._formatTime(arrivalMin + 30)} (intercity arrival ${dayPlan.intercity_transit.arrival_at})`);
+            } else {
+                currentTime = this._parseTime(places[0]?.start_time || "09:00");
+            }
             const BUFFER_MIN = 5; // 초행길 여유 시간
 
             // ════════════════════════════════════════════════════════
             // Phase 2.5: 호텔 → 첫 번째 장소 경로 (hotelLat/hotelLng는 trip-level에서 이미 지오코딩됨)
             // ════════════════════════════════════════════════════════
+            // B9-39 (2026-05-09): 다도시 plan 의 도시 변경 day 는 hotelTransit skip.
+            // hotelLat/Lng 는 trip-level 호텔 (대개 첫 도시) 좌표. 도시 변경 day 의
+            // 첫 stop 까지 ODsay 호출하면 100km+ 거리라 의미 없는 경로 (또는 fail) 반환.
+            // 대신 day.intercity_transit 가 그 day 첫 stop 시작 시각의 근거.
+            const isCityChangeDay = isMultiCity
+                && dayPlan.intercity_transit
+                && dayPlan.intercity_transit.mode;
+            if (isCityChangeDay) {
+                console.log(`  [Route] Day ${dayPlan.day || '?'}: city change (${dayPlan.intercity_transit.from_city}→${dayPlan.intercity_transit.to_city}), skip Hotel→FirstStop ODsay`);
+            }
             let hotelTransit = null;
-            if (hotelLat && hotelLng && places.length > 0 && places[0].lat && places[0].lng) {
+            if (!isCityChangeDay && hotelLat && hotelLng && places.length > 0 && places[0].lat && places[0].lng) {
                 try {
                     const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
                     const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
@@ -429,7 +466,17 @@ export class RouteAgent extends BaseAgent {
             // ════════════════════════════════════════════════════════
             // 사용자 신고: "Day 마지막에 숙소 복귀 경로 안 나옴 → 저녁 식사 후 어디로?"
             // 호텔/zone anchor 좌표가 있고, 마지막 stop 이 호텔과 다른 곳이면 ODsay 로 계산.
-            if (hotelLat && hotelLng && places.length > 0) {
+            // B9-39: 다도시 plan 의 다른 도시 day 는 hotel 좌표 (trip 첫 도시) 와
+            // 마지막 stop 좌표가 100km+ 거리라 ODsay 무의미 → skip.
+            const dayHasDifferentCity = isMultiCity
+                && places.length > 0
+                && places[0].lat && places[0].lng
+                && hotelLat && hotelLng
+                && this._haversineKm(places[0].lat, places[0].lng, hotelLat, hotelLng) > 50;
+            if (dayHasDifferentCity) {
+                console.log(`  [Route] Day ${dayPlan.day || '?'}: different city from hotel (>${50}km), skip LastStop→Hotel ODsay`);
+            }
+            if (!dayHasDifferentCity && hotelLat && hotelLng && places.length > 0) {
                 const lastPlace = places[places.length - 1];
                 if (lastPlace.lat && lastPlace.lng) {
                     // 호텔과 같은 좌표(50m 이내) 이면 의미 없음 — skip
@@ -700,6 +747,134 @@ export class RouteAgent extends BaseAgent {
         }
 
         return { index, durationMin, distanceKm, drivingMin, publicTransit };
+    }
+
+    /**
+     * B9-39 (2026-05-09): 다도시 plan 의 day.city + day.intercity_transit
+     * 누락 fallback. Gemini 가 안 채웠을 때만 작동.
+     *
+     * 1) day.city 추론: regions 순서대로 day 분배 (간단 휴리스틱).
+     *    - regions=["busan","seoul"], days=5 → 부산 2일 + 서울 3일 (반올림).
+     *    - Gemini 가 day.city 를 채웠으면 그대로 우선 사용.
+     * 2) intercity_transit 누락 fallback: day.city 가 직전 day 와 다르면
+     *    표준 mode/fare/시간 default 셋. KTX 부산↔서울 (165min/₩59,800) 등.
+     */
+    _enrichMultiCityDays(daysList, regionsList) {
+        if (!Array.isArray(daysList) || daysList.length === 0) return;
+        if (!Array.isArray(regionsList) || regionsList.length < 2) return;
+
+        // city 라벨 정규화 helper. "busan_city" / "Busan" / "부산" 모두 → "Busan".
+        const normalizeCity = (raw) => {
+            if (!raw) return null;
+            const s = String(raw).trim().toLowerCase();
+            if (s.includes('busan') || s.includes('부산')) return 'Busan';
+            if (s.includes('seoul') || s.includes('서울')) return 'Seoul';
+            if (s.includes('jeju') || s.includes('제주')) return 'Jeju';
+            if (s.includes('gyeongju') || s.includes('경주')) return 'Gyeongju';
+            if (s.includes('jeonju') || s.includes('전주')) return 'Jeonju';
+            if (s.includes('gangneung') || s.includes('강릉')) return 'Gangneung';
+            if (s.includes('yeosu') || s.includes('여수')) return 'Yeosu';
+            if (s.includes('daegu') || s.includes('대구')) return 'Daegu';
+            if (s.includes('incheon') || s.includes('인천')) return 'Incheon';
+            // capitalize first letter for unknown
+            return s.charAt(0).toUpperCase() + s.slice(1);
+        };
+
+        // ── Step 1: day.city 채우기 (Gemini 가 안 채웠으면 regions 순서대로 분배)
+        const normalizedRegions = regionsList.map(normalizeCity).filter(Boolean);
+        if (normalizedRegions.length < 2) return;
+
+        // 도시별 day 갯수 (단순 분배 — 마지막 도시에 잔여)
+        const totalDays = daysList.length;
+        const perCity = Math.floor(totalDays / normalizedRegions.length);
+        const remainder = totalDays - perCity * normalizedRegions.length;
+        const cityDays = normalizedRegions.map((city, i) => ({
+            city,
+            count: perCity + (i === normalizedRegions.length - 1 ? remainder : 0),
+        }));
+
+        let cursor = 0;
+        for (const { city, count } of cityDays) {
+            for (let i = 0; i < count && cursor < daysList.length; i++) {
+                const d = daysList[cursor];
+                if (d && !d.city) {
+                    d.city = city;
+                }
+                cursor++;
+            }
+        }
+
+        // ── Step 2: 도시 변경 day 의 intercity_transit fallback
+        // 표준 KTX/Air/Bus 데이터 (Gemini prompt 와 일관).
+        const STANDARD_INTERCITY = {
+            'Busan-Seoul':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com' },
+            'Seoul-Busan':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com' },
+            'Busan-Daejeon':  { mode: 'KTX',     est_min: 95,  est_fare_krw: 36000, recommended_depart: '09:00', arrival_at: '10:35', booking_url: 'https://www.letskorail.com' },
+            'Daejeon-Busan':  { mode: 'KTX',     est_min: 95,  est_fare_krw: 36000, recommended_depart: '09:00', arrival_at: '10:35', booking_url: 'https://www.letskorail.com' },
+            'Jeju-Seoul':    { mode: 'Air',     est_min: 65,  est_fare_krw: 70000, recommended_depart: '10:00', arrival_at: '11:05', booking_url: 'https://www.trip.com' },
+            'Seoul-Jeju':    { mode: 'Air',     est_min: 65,  est_fare_krw: 70000, recommended_depart: '10:00', arrival_at: '11:05', booking_url: 'https://www.trip.com' },
+            'Jeju-Busan':    { mode: 'Air',     est_min: 50,  est_fare_krw: 60000, recommended_depart: '10:00', arrival_at: '10:50', booking_url: 'https://www.trip.com' },
+            'Busan-Jeju':    { mode: 'Air',     est_min: 50,  est_fare_krw: 60000, recommended_depart: '10:00', arrival_at: '10:50', booking_url: 'https://www.trip.com' },
+            'Seoul-Jeonju':   { mode: 'KTX',     est_min: 90,  est_fare_krw: 35000, recommended_depart: '09:00', arrival_at: '10:30', booking_url: 'https://www.letskorail.com' },
+            'Jeonju-Seoul':   { mode: 'KTX',     est_min: 90,  est_fare_krw: 35000, recommended_depart: '09:00', arrival_at: '10:30', booking_url: 'https://www.letskorail.com' },
+            'Seoul-Gangneung':{ mode: 'KTX',     est_min: 110, est_fare_krw: 28000, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
+            'Gangneung-Seoul':{ mode: 'KTX',     est_min: 110, est_fare_krw: 28000, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
+            'Busan-Gyeongju': { mode: 'Bus',     est_min: 60,  est_fare_krw: 7000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.kobus.co.kr' },
+            'Gyeongju-Busan': { mode: 'Bus',     est_min: 60,  est_fare_krw: 7000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.kobus.co.kr' },
+            'Seoul-Gapyeong': { mode: 'ITX',     est_min: 60,  est_fare_krw: 8000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.letskorail.com' },
+            'Seoul-Chuncheon':{ mode: 'ITX',     est_min: 75,  est_fare_krw: 9000,  recommended_depart: '09:00', arrival_at: '10:15', booking_url: 'https://www.letskorail.com' },
+        };
+
+        for (let i = 1; i < daysList.length; i++) {
+            const d = daysList[i];
+            const prev = daysList[i - 1];
+            if (!d || !prev) continue;
+            const dCity = normalizeCity(d.city);
+            const prevCity = normalizeCity(prev.city);
+            if (!dCity || !prevCity) continue;
+            if (dCity === prevCity) continue;
+
+            // Gemini 가 이미 채웠으면 그대로 보존 (덮어쓰기 X)
+            if (d.intercity_transit && d.intercity_transit.mode) {
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: Gemini intercity_transit preserved (${d.intercity_transit.mode} ${prevCity}→${dCity})`);
+                continue;
+            }
+
+            const key = `${prevCity}-${dCity}`;
+            const std = STANDARD_INTERCITY[key];
+            if (std) {
+                d.intercity_transit = {
+                    mode: std.mode,
+                    from_city: prevCity,
+                    to_city: dCity,
+                    from_city_display: prevCity,
+                    to_city_display: dCity,
+                    est_min: std.est_min,
+                    est_fare_krw: std.est_fare_krw,
+                    recommended_depart: std.recommended_depart,
+                    arrival_at: std.arrival_at,
+                    instruction: `${prevCity} → ${dCity} via ${std.mode} (~${Math.round(std.est_min/60*10)/10}h, ₩${std.est_fare_krw.toLocaleString()})`,
+                    booking_url: std.booking_url,
+                };
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity}`);
+            } else {
+                // 표준 데이터 없는 도시쌍 — 보수적 default (Bus 2시간)
+                d.intercity_transit = {
+                    mode: 'Bus',
+                    from_city: prevCity,
+                    to_city: dCity,
+                    from_city_display: prevCity,
+                    to_city_display: dCity,
+                    est_min: 120,
+                    est_fare_krw: 15000,
+                    recommended_depart: '09:00',
+                    arrival_at: '11:00',
+                    instruction: `${prevCity} → ${dCity} via Bus (~2h, ₩15,000)`,
+                    booking_url: 'https://www.kobus.co.kr',
+                };
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: generic Bus fallback ${prevCity}→${dCity}`);
+            }
+        }
     }
 
     /**

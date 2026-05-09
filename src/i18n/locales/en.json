@@ -1428,6 +1428,14 @@
       "returnHeading": "Return to your stay",
       "noLodging": "Add your hotel address for exact departure time."
     },
+    "intercity": {
+      "title": "Intercity Transit — {{mode}}",
+      "depart": "Depart {{time}}",
+      "arrive": "Arrive {{time}}",
+      "duration": "~{{min}} min",
+      "fare": "KRW {{krw}} / pax",
+      "book": "Book"
+    },
     "step5": {
       "transportTitle": "Airport → Lodging Guide",
       "transportSubtitle": "4 options — we recommend the best fit for your luggage + group.",

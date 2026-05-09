@@ -1428,6 +1428,14 @@
       "returnHeading": "返回住宿",
       "noLodging": "填写住宿地址可计算精确出发时间。"
     },
+    "intercity": {
+      "title": "城市间移动 — {{mode}}",
+      "depart": "出发 {{time}}",
+      "arrive": "到达 {{time}}",
+      "duration": "约{{min}}分钟",
+      "fare": "₩{{krw}} / 人",
+      "book": "预订"
+    },
     "step5": {
       "transportTitle": "机场 → 住宿 指引",
       "transportSubtitle": "4种方式 — 根据行李和人数为您推荐最合适的。",

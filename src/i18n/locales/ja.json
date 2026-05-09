@@ -1428,6 +1428,14 @@
       "returnHeading": "宿泊先へ戻る",
       "noLodging": "宿泊先を入力すると正確な出発時刻が計算されます。"
     },
+    "intercity": {
+      "title": "都市間移動 — {{mode}}",
+      "depart": "出発 {{time}}",
+      "arrive": "到着 {{time}}",
+      "duration": "約{{min}}分",
+      "fare": "₩{{krw}} / 1人",
+      "book": "予約"
+    },
     "step5": {
       "transportTitle": "空港 → 宿泊先 ガイド",
       "transportSubtitle": "4つの選択肢から、荷物と人数に合った最適なものをご提案します。",
