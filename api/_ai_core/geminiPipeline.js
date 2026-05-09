@@ -23,12 +23,18 @@ const GEMINI_TIMEOUT_MS = 240000;
 
 // 2026-04-28 Flash → Pro: instruction following + JSON schema 압도적, thinking budget 8K→32K.
 // Plan당 비용 ~$0.02 → ~$0.10 (결제 $9.90 대비 1%).
+//
+// 2026-05-09 (B9-15 fix, batch 9 PR-I): temperature 0.7 → 0.5.
+// LODGING BOOKEND 같은 강한 제약 (첫/마지막 stop 5km 이내) 의 instruction
+// following 정확도를 우선. 다양성은 약간 ↓ 하지만 사용자 환불 사유 (숙소
+// 흐름 누락) 회피가 더 중요. 다양성은 'angle' rotation + variation_seed 로
+// 보조 (buildPrompt.js).
 function buildModel(apiKey) {
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
     model: 'gemini-2.5-pro',
     generationConfig: {
-      temperature: 0.7,
+      temperature: 0.5,
       thinkingConfig: { thinkingBudget: 32000 },
       maxOutputTokens: 32000,
       responseMimeType: 'application/json',

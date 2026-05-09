@@ -8,8 +8,62 @@
  *
  * Note: this function MUTATES the passed `itinerary` (matches the legacy
  * inline behavior). Callers don't need to capture a return value.
+ *
+ * 2026-05-09 (B9-15 PR-I): post-route LODGING BOOKEND validator 추가. RouteAgent
+ * 가 좌표를 채운 후, 첫/마지막 stop 이 hotel/zone 5km 이내인지 검증. 위반 시
+ * itinerary.quality_warnings 에 기록 + console.warn — 운영자 분석용.
  */
 import { RouteAgent } from './agents/RouteAgent.js';
+
+/** Haversine distance in meters between two {lat, lng} points. */
+function distanceMeters(a, b) {
+  if (!a || !b || a.lat == null || a.lng == null || b.lat == null || b.lng == null) return null;
+  const R = 6371e3;
+  const φ1 = (a.lat * Math.PI) / 180;
+  const φ2 = (b.lat * Math.PI) / 180;
+  const Δφ = ((b.lat - a.lat) * Math.PI) / 180;
+  const Δλ = ((b.lng - a.lng) * Math.PI) / 180;
+  const x = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return Math.round(2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
+}
+
+/**
+ * LODGING BOOKEND validator (B9-15).
+ * 호텔/zone 좌표 알면 각 Day 의 첫/마지막 stop 이 5km 이내인지 확인.
+ * 위반 시 itinerary.quality_warnings 에 항목 추가 (자동 재배치 X — 부작용 위험).
+ *
+ * @param {object} itinerary  - 진단 대상 itinerary (mutated: quality_warnings 추가)
+ * @param {object} anchor     - { lat, lng, label } hotel 또는 zone anchor 좌표
+ */
+function validateLodgingBookend(itinerary, anchor) {
+  if (!anchor || anchor.lat == null || anchor.lng == null) {
+    console.log('[validator] LODGING BOOKEND skip — anchor coord 없음');
+    return;
+  }
+  const THRESHOLD_M = 5000;
+  const warnings = [];
+  for (let i = 0; i < (itinerary.days || []).length; i++) {
+    const stops = itinerary.days[i].stops || [];
+    if (stops.length === 0) continue;
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    const firstDist = distanceMeters(first, anchor);
+    const lastDist = distanceMeters(last, anchor);
+    if (firstDist != null && firstDist > THRESHOLD_M) {
+      warnings.push({ day: i + 1, position: 'first', stopName: first.name || first.display_name, distM: firstDist });
+    }
+    if (lastDist != null && lastDist > THRESHOLD_M) {
+      warnings.push({ day: i + 1, position: 'last', stopName: last.name || last.display_name, distM: lastDist });
+    }
+  }
+  if (warnings.length > 0) {
+    console.warn('[validator] LODGING BOOKEND 위반:', warnings.map((w) => `Day${w.day} ${w.position}=${w.stopName} (${w.distM}m)`).join(' | '));
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    itinerary.quality_warnings.push({ type: 'lodging_bookend_violation', anchor: anchor.label || '(unknown)', items: warnings });
+  } else {
+    console.log('[validator] LODGING BOOKEND OK — 모든 Day 첫/마지막 stop 5km 이내');
+  }
+}
 
 export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_address, arrival_airport, departure_airport, pax }) {
   const routeStart = Date.now();
@@ -101,6 +155,22 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
       }
     }
     console.log('[planner] Route + Time Stitch:', Date.now() - routeStart, 'ms');
+
+    // batch 9 fix (B9-15 PR-I, 2026-05-09): LODGING BOOKEND post-validator.
+    // RouteAgent 가 stops 좌표 채운 후 첫/마지막 stop 이 hotel/zone 5km 이내인지 검증.
+    // arrival_guide.route_to_hotel.anchor_lat/lng 또는 RouteAgent 가 enriched 에 보관한
+    // hotel coord 사용. 좌표 모르면 skip (정상 — zone-only 사용자는 RouteAgent 가
+    // anchor 채워줌).
+    let anchorCoord = null;
+    if (enrichedItin && !Array.isArray(enrichedItin)) {
+      const ah = enrichedItin.arrival_guide?.route_to_hotel;
+      if (ah?.anchor_lat != null && ah?.anchor_lng != null) {
+        anchorCoord = { lat: ah.anchor_lat, lng: ah.anchor_lng, label: ah.anchor_label || hotel_address || 'lodging' };
+      } else if (ah?.hotel_lat != null && ah?.hotel_lng != null) {
+        anchorCoord = { lat: ah.hotel_lat, lng: ah.hotel_lng, label: hotel_address || 'lodging' };
+      }
+    }
+    validateLodgingBookend(itinerary, anchorCoord);
   } catch (routeErr) {
     console.error('[planner] Route FAILED:', routeErr.message, '| stack:', routeErr.stack?.split('\n').slice(0, 3).join(' | '), '|', Date.now() - routeStart, 'ms');
   }
