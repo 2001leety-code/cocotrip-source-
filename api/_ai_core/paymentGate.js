@@ -68,7 +68,13 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
     const uid = body.uid || null;
     const isOwner = uid && origData.uid === uid;
     const hasToken = origData.accessToken && origData.accessToken === revisionToken;
-    if (!isOwner && !hasToken && origData.uid) {
+    // Launch P1-4 (2026-05-10): origData.uid truthy check 강화.
+    // 빈 문자열 ''은 falsy → 권한 가드 우회 가능 (인증 없이 revision 생성).
+    // typeof string + length > 0 으로 명시적 검증.
+    const hasValidOwnerUid = origData.uid &&
+                             typeof origData.uid === 'string' &&
+                             origData.uid.length > 0;
+    if (!isOwner && !hasToken && hasValidOwnerUid) {
       return reject(403, 'FORBIDDEN', 'Unauthorized revision');
     }
     const credits = origData.revisionCredits ?? 0;

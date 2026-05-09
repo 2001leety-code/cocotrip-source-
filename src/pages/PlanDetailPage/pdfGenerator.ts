@@ -133,13 +133,15 @@ export async function generatePDF(
 
   // 다국어 concat sanitization — 백엔드 누락 시 display-time 안전망.
   // 사용자 PDF 보고: "Pig Co... 강남 돼지상회 ... 明洞..." 같은 3+ language 누수.
+  // Launch P1-3 (2026-05-10): tip / tip_en 추가 — 다국어 사용자 plan 의 한국어
+  // tip 그대로 PDF 노출되는 회귀 fix. (예: en 사용자 plan tip 에 "강남역 출구..." 한글 누수)
   try {
     const { sanitizeStopName } = await import('@/lib/sanitizeName');
     const lng = (lang as 'ko'|'en'|'ja'|'zh') || 'ko';
     const days = (plan.itinerary?.days as Array<{stops?: Array<Record<string, unknown>>}>) || [];
     for (const day of days) {
       for (const stop of (day.stops || [])) {
-        for (const f of ['name', 'display_name']) {
+        for (const f of ['name', 'display_name', 'tip', 'tip_en']) {
           if (typeof stop[f] === 'string') stop[f] = sanitizeStopName(stop[f] as string, lng);
         }
       }
