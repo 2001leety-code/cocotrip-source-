@@ -23,7 +23,18 @@ export function IntroSlide({ plan, planId, isTranslating, translationError }: In
 
   const it = plan.itinerary || {};
   const days = it.days || [];
-  const arrival = it.arrival_guide;
+  // B9-29 (2026-05-09): arrival_guide 누락/빈 객체 시 통계 카드 아래 빈 placeholder
+  // 노출 버그. ArrivalGuide 컴포넌트는 guide.steps / guide.route_to_hotel 둘 다
+  // 비어 있어도 헤더 + 빈 토글 영역을 항상 렌더 → 사용자에게 의미 없는 빈 박스.
+  // 둘 중 하나라도 실제 데이터가 있을 때만 마운트.
+  const arrivalRaw = it.arrival_guide as
+    | { steps?: unknown[]; route_to_hotel?: unknown }
+    | undefined;
+  const hasArrivalContent = !!arrivalRaw && (
+    (Array.isArray(arrivalRaw.steps) && arrivalRaw.steps.length > 0) ||
+    !!arrivalRaw.route_to_hotel
+  );
+  const arrival = hasArrivalContent ? arrivalRaw : null;
   const input = plan.input || {};
 
   return (
