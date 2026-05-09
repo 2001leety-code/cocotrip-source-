@@ -2098,5 +2098,12 @@
     "signupSubmitBtn": "続行",
     "signupSubmitting": "保存中...",
     "signupSubmitError": "保存に失敗しました。もう一度お試しください。"
+  },
+  "resumeWizard": {
+    "title": "続きから入力しますか？",
+    "desc": "{summary} まで入力済みです。続きから進めるか、最初からやり直せます。",
+    "descNoSummary": "以前の進行状況が保存されています。",
+    "continue": "続ける",
+    "restart": "新しく始める"
   }
 }

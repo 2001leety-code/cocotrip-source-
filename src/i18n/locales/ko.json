@@ -2098,5 +2098,12 @@
     "signupSubmitBtn": "계속하기",
     "signupSubmitting": "저장 중...",
     "signupSubmitError": "저장 실패. 다시 시도해 주세요."
+  },
+  "resumeWizard": {
+    "title": "이어서 작성하시겠어요?",
+    "desc": "{summary} 까지 입력하셨어요. 이어서 진행하거나 새로 시작할 수 있어요.",
+    "descNoSummary": "이전 진행 상황이 저장되어 있어요.",
+    "continue": "이어서 하기",
+    "restart": "새로 시작"
   }
 }
