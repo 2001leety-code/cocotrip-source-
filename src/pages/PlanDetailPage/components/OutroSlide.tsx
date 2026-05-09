@@ -7,7 +7,10 @@ import { SeasonalBanner } from './SeasonalBanner';
 import { RevisionCard } from './RevisionCard';
 import { ShareButton } from './ShareButton';
 import { HotelAd } from './ads/HotelAd';
-import { CharterBanner } from './ads/CharterBanner';
+// B9-17 (2026-05-09): TRIP EXTRAS 차터 — 기존 WhatsApp 문의 modal 패턴 (legacy
+// CharterBanner) 에서 인라인 결제 패턴 (CharterInlineAd) 으로 통일. PreTripSlide
+// 와 동일 funnel — 사용자가 wrap-up / pre-trip 어디서든 같은 흐름으로 결제 가능.
+import { CharterInlineAd } from './ads/CharterInlineAd';
 import { CarRentalAd } from './ads/CarRentalAd';
 import { FlightAd } from './ads/FlightAd';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -35,10 +38,25 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
   const budget = it.daily_budget_summary || [];
   const departure = it.departure_guide;
   const input = plan.input || {};
-  const region = (input.area as string) || 'Seoul';
+  // B9-28 (2026-05-09): 사용자에게 보여주는 region 텍스트는 원본 입력값 우선.
+  // input.area 는 cityNameToAreaKey 의 normalized key (예: "seoul_city", "busan")
+  // 로 raw 식별자가 그대로 노출되는 버그 (HotelAd "Best rates for seoul_city
+  // hotels"). 사용자가 입력한 destination / regions[0] (한/영/일/중) 우선,
+  // 마지막에만 normalize key 또는 'Seoul' fallback.
+  const rawRegion =
+    (input.destination as string) ||
+    ((input.regions as string[] | undefined)?.[0]) ||
+    (input.area as string) ||
+    'Seoul';
+  // 누적된 underscore key (seoul_city, seoul_suburb 등) 가 어떤 경로로든 들어와도
+  // 사용자에게 보여줄 때는 단어로 정리 (seoul_city → Seoul).
+  const region = rawRegion.replace(/_city$|_suburb$/i, '').replace(/_/g, ' ').trim() || 'Seoul';
   const arrivalAirport = (input.arrival_airport as string) || 'ICN';
   // D-option: ads that didn't make the slide cut surface here as a card grid.
   const extras = getOutroExtras(plan);
+  // B9-17: 차터 광고에 인라인 결제용 컨텍스트 — 시작일/인원/planId.
+  const startDate = (input.startDate as string) || '';
+  const pax = (input.pax as number) || (input.adults as number) || 2;
 
   return (
     <div>
@@ -83,7 +101,14 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
           <div className="space-y-3">
             {extras.includes('hotel') && <HotelAd region={region} />}
             {extras.includes('flight') && <FlightAd arrivalAirport={arrivalAirport} />}
-            {extras.includes('charter') && <CharterBanner days={(it.days || []) as any} plan={plan} />}
+            {extras.includes('charter') && (
+              <CharterInlineAd
+                region={rawRegion}
+                defaultDate={startDate}
+                defaultPax={pax}
+                planId={planId}
+              />
+            )}
             {extras.includes('carRental') && <CarRentalAd region={region} />}
           </div>
         </div>
