@@ -238,6 +238,11 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // 을 backend 로 forward. 누락 시 ai-planner-full 의 [ACCOMMODATION REQUEST]
           // 프롬프트 분기가 작동 안 함 → Gemini 가 호텔 추천 자체를 생성 안 함.
           ...(values.wantAccom ? { wantAccom: true, accomBudget: values.accomBudget || 'moderate' } : {}),
+          // 2026-05-10 B10-1/B10-2: 다도시 plan 입국 도시 명시 + 도시별 호텔 forward.
+          // backend buildPrompt.js 가 hotelByCity 받으면 day 별 prompt 에 도시별
+          // hotel inject. entry_city 는 RouteAgent 의 entry 공항→첫 호텔 경로 계산용.
+          ...(values.entry_city ? { entry_city: values.entry_city } : {}),
+          ...(values.hotelByCity && Object.keys(values.hotelByCity).length > 0 ? { hotelByCity: values.hotelByCity } : {}),
         }),
       });
 
@@ -371,6 +376,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           ...(avoidList      ? { avoidList }       : {}),
           // B9-20 (2026-05-09 round 4): revision 에서도 wantAccom forward.
           ...(values.wantAccom ? { wantAccom: true, accomBudget: values.accomBudget || 'moderate' } : {}),
+          // 2026-05-10 B10-1/B10-2: revision 에서도 다도시 entry_city + hotelByCity forward.
+          ...(values.entry_city ? { entry_city: values.entry_city } : {}),
+          ...(values.hotelByCity && Object.keys(values.hotelByCity).length > 0 ? { hotelByCity: values.hotelByCity } : {}),
         }),
       });
 

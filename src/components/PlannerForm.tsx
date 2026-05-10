@@ -92,6 +92,14 @@ export interface PlannerFormValues {
   // 2026-05-03: zone의 대표 주소 (예: "서울 마포구 홍익대학교"). 백엔드 RouteAgent가
   // hotel_address가 비었지만 이 값이 있으면 공항↔zone 환승 경로 계산용으로 사용.
   recommended_zone_address?: string;
+  // 2026-05-10 B10-1: 다도시 plan 시 사용자가 명시적으로 입국 도시 선택. 단도시면
+  // mainCity = entry. 다도시는 backend RouteAgent 가 entry city 의 공항 → 첫 호텔
+  // 경로 계산. cityKey 형식 (e.g. 'seoul', 'busan').
+  entry_city?: string;
+  // 2026-05-10 B10-2: 다도시 plan 시 도시별 호텔 주소. cityKey → address.
+  // 단도시면 hotel_address 만 사용 (backward compat). buildPrompt.js 가 다도시
+  // 시 도시별 hotel 을 day 별 prompt 에 inject.
+  hotelByCity?: Record<string, string>;
 }
 
 interface Props {

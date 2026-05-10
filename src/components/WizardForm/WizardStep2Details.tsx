@@ -11,6 +11,7 @@ import type { AirportOption } from './data';
 import type { WizardDict } from './types';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 import { useLanguage } from '@/hooks/useLanguage';
+import { CITY_NAME_BY_KEY } from './zoneData';
 
 const ZoneRecommender = lazy(() =>
   import('./ZoneRecommender').then(m => ({ default: m.ZoneRecommender })),
@@ -54,6 +55,12 @@ interface Step2Props {
   recommendedZone: string;
   cityKeys: string[];
   onPickZone: (zoneKey: string, cityKey: string) => void;
+  // 2026-05-10 B10-1/B10-2: 다도시 입국 도시 명시 + 도시별 호텔 input.
+  isMultiCity: boolean;
+  mainCityKey: string;
+  onEntryCityChange: (cityKey: string) => void;
+  hotelByCity: Record<string, string>;
+  setHotelByCity: (v: Record<string, string>) => void;
   canGoStep3: boolean;
   onPrev: () => void;
   onNext: () => void;
@@ -120,6 +127,7 @@ export function WizardStep2Details(props: Step2Props) {
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
     recommendedZone, cityKeys, onPickZone,
+    isMultiCity, mainCityKey, onEntryCityChange, hotelByCity, setHotelByCity,
     canGoStep3, onPrev, onNext, onEditStep0,
     reservationStatus,
     airportTouchedInStep3, setAirportTouchedInStep3,
@@ -243,6 +251,45 @@ export function WizardStep2Details(props: Step2Props) {
         </div>
       </div>
 
+      {/* 2026-05-10 B10-1: 다도시 plan 시 사용자가 입국 도시 명시 선택. 단도시 시
+          미노출 (mainCity = entry 자동). zone 클릭으로도 mainCity swap 되지만,
+          공항 dropdown 위에 명시적 라디오 노출 → 사용자 의도 분명. */}
+      {isMultiCity && (
+        <div className="rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.05] p-3.5">
+          <p className="text-[13px] font-semibold text-white mb-1">
+            {p.entryCityTitle || 'Which city are you arriving in?'}
+          </p>
+          <p className="text-[11px] text-white/55 mb-2.5">
+            {p.entryCityHelper || 'City with arrival airport — auto-set as main hub'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {cityKeys.map(ck => {
+              const meta = CITY_NAME_BY_KEY[ck];
+              const cityName = meta ? (meta[lang] || meta.en) : ck;
+              const cityIcon = meta?.icon || '📍';
+              const sel = ck === mainCityKey;
+              return (
+                <button
+                  key={ck}
+                  type="button"
+                  onClick={() => { if (!sel) onEntryCityChange(ck); }}
+                  aria-pressed={sel}
+                  className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-1.5 ${
+                    sel
+                      ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/55 text-white font-semibold'
+                      : 'bg-white/[0.04] border-white/[0.10] text-white/65 hover:border-white/20'
+                  }`}
+                >
+                  <span>{cityIcon}</span>
+                  <span>{cityName}</span>
+                  {sel && <span className="text-[#B668FC] text-xs ml-0.5">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Airport Dropdown — Step0에서 이미 입력한 경우 칩으로 대체 (P0 dedup) */}
       {flightInfoFromStep0 ? (
         <button
@@ -291,49 +338,117 @@ export function WizardStep2Details(props: Step2Props) {
       )}
 
       {/* Hotel — P1: AI 추천 토글 시 주소 입력칸 자동 숨김 (mutual exclusion).
-          2026-05-05: free-claim funnel 제거 — Step 0의 호텔 chip 분기 삭제,
-          호텔 입력은 항상 이 step에서. */}
+          2026-05-05: free-claim funnel 제거 — Step 0의 호텔 chip 분기 삭제, 호텔 입력은 항상 이 step에서.
+          2026-05-10 B10-2: 다도시 plan 시 도시별 hotel input 분리 (hotelByCity Record).
+          단도시는 기존 hotelAddress 단일 input (regression 0). */}
       {!wantAccom ? (
-        <div>
-          <p className="text-sm text-white/50 mb-2.5 font-medium">
-            {p.hotel_address_title || 'Where are you staying?'}
-            <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
-          </p>
-          <input type="text" value={hotelAddress}
-            onChange={e => { setHotelAddress(e.target.value); }}
-            placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
-            className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
-          {/* 2026-05-05 (운영자 신고 후속): hotelAddress 비어있을 때만 ZoneRecommender 노출 →
-              호텔 입력 즉시 자동 collapse 되어 "1번만 묻는다" 시각적으로 명확.
-              호텔 미입력 사용자 fallback (zone 으로 routing 가능) 만 유지. */}
-          {hotelAddress.trim().length === 0 && (
-            <Suspense fallback={
-              <div className="mt-3 rounded-xl border border-[#7C5CFC]/15 bg-[#7C5CFC]/[0.02] p-3">
-                <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse mb-2" />
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {[0,1,2,3,4,5].map(i => (
-                    <div key={i} className="h-20 rounded-lg bg-white/[0.04] animate-pulse" />
-                  ))}
+        isMultiCity ? (
+          /* 다도시 — 도시별 호텔 카드 list */
+          <div>
+            <p className="text-sm text-white/50 mb-1 font-medium">
+              {p.multicityHotelTitle || 'Hotels by city'}
+              <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
+            </p>
+            <p className="text-[11px] text-white/45 mb-3">
+              {p.multicityHotelHint || 'Enter the hotel for each city (optional)'}
+            </p>
+            <div className="space-y-3">
+              {cityKeys.map(ck => {
+                const meta = CITY_NAME_BY_KEY[ck];
+                const cityName = meta ? (meta[lang] || meta.en) : ck;
+                const cityIcon = meta?.icon || '📍';
+                const value = hotelByCity[ck] || '';
+                const labelTpl = p.multicityHotelLabel || '{city} hotel';
+                return (
+                  <div key={ck}>
+                    <label className="text-[12px] text-white/65 mb-1.5 flex items-center gap-1.5 font-medium">
+                      <span>{cityIcon}</span>
+                      <span>{labelTpl.replace('{city}', cityName)}</span>
+                      {ck === mainCityKey && (
+                        <span className="text-[10px] text-[#B668FC] bg-[#7C5CFC]/15 px-1.5 py-0.5 rounded ml-1">
+                          {p.entryCityTitle ? '🛬' : '🛬'}
+                        </span>
+                      )}
+                    </label>
+                    <input type="text"
+                      value={value}
+                      onChange={e => setHotelByCity({ ...hotelByCity, [ck]: e.target.value })}
+                      placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+                      className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+                  </div>
+                );
+              })}
+            </div>
+            {/* 다도시 ZoneRecommender — 모든 도시 호텔 비어있을 때만 노출.
+                한 도시라도 입력하면 자동 collapse. */}
+            {Object.values(hotelByCity).every(v => !(v && v.trim())) && (
+              <Suspense fallback={
+                <div className="mt-3 rounded-xl border border-[#7C5CFC]/15 bg-[#7C5CFC]/[0.02] p-3">
+                  <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse mb-2" />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[0,1,2,3,4,5].map(i => (
+                      <div key={i} className="h-20 rounded-lg bg-white/[0.04] animate-pulse" />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            }>
-              <ZoneRecommender
-                language={lang}
-                isMobile={isMobile}
-                cityKeys={cityKeys}
-                hotelAddress={hotelAddress}
-                recommendedZone={recommendedZone}
-                onPickZone={onPickZone}
-                labelTitle={p.zoneRecommendTitle}
-                labelSubtitle={p.zoneRecommendSubtitle}
-                labelPick={p.zoneRecommendPicked}
-                labelHotelCta={p.zoneHotelCta}
-                labelHotelSponsored={p.zoneHotelSponsored}
-                labelGroupHeader={p.zoneRecommendGroupHeader}
-              />
-            </Suspense>
-          )}
-        </div>
+              }>
+                <ZoneRecommender
+                  language={lang}
+                  isMobile={isMobile}
+                  cityKeys={cityKeys}
+                  hotelAddress=""
+                  recommendedZone={recommendedZone}
+                  onPickZone={onPickZone}
+                  labelTitle={p.zoneRecommendTitle}
+                  labelSubtitle={p.zoneRecommendSubtitle}
+                  labelPick={p.zoneRecommendPicked}
+                  labelHotelCta={p.zoneHotelCta}
+                  labelHotelSponsored={p.zoneHotelSponsored}
+                  labelGroupHeader={p.zoneRecommendGroupHeader}
+                />
+              </Suspense>
+            )}
+          </div>
+        ) : (
+          /* 단도시 — 기존 단일 input + ZoneRecommender (regression 0) */
+          <div>
+            <p className="text-sm text-white/50 mb-2.5 font-medium">
+              {p.hotel_address_title || 'Where are you staying?'}
+              <span className="text-[#7C5CFC]/80 ml-1 text-[11px]">{p.hotelAccuracyHint || '(precise address = step-by-step transit guide)'}</span>
+            </p>
+            <input type="text" value={hotelAddress}
+              onChange={e => { setHotelAddress(e.target.value); }}
+              placeholder={p.hotel_placeholder || 'e.g. Lotte Hotel Myeongdong...'}
+              className="w-full bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/25 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors" />
+            {hotelAddress.trim().length === 0 && (
+              <Suspense fallback={
+                <div className="mt-3 rounded-xl border border-[#7C5CFC]/15 bg-[#7C5CFC]/[0.02] p-3">
+                  <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse mb-2" />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[0,1,2,3,4,5].map(i => (
+                      <div key={i} className="h-20 rounded-lg bg-white/[0.04] animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              }>
+                <ZoneRecommender
+                  language={lang}
+                  isMobile={isMobile}
+                  cityKeys={cityKeys}
+                  hotelAddress={hotelAddress}
+                  recommendedZone={recommendedZone}
+                  onPickZone={onPickZone}
+                  labelTitle={p.zoneRecommendTitle}
+                  labelSubtitle={p.zoneRecommendSubtitle}
+                  labelPick={p.zoneRecommendPicked}
+                  labelHotelCta={p.zoneHotelCta}
+                  labelHotelSponsored={p.zoneHotelSponsored}
+                  labelGroupHeader={p.zoneRecommendGroupHeader}
+                />
+              </Suspense>
+            )}
+          </div>
+        )
       ) : null}
 
       {/* Arrival / Departure flight time — used by RouteAgent to recommend the right transport

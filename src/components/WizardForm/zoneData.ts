@@ -533,6 +533,23 @@ export const DAEGU_ZONES: Zone[] = [
   },
 ];
 
+// 2026-05-10 B10-1: 다도시 plan 입국 도시 radio + Step 2 호텔 도시별 카드 라벨용.
+// ZoneRecommender 가 inline 정의했던 것을 export 로 변경 — WizardStep2Details
+// (입국 도시 radio) + ZoneRecommender (그룹 헤더) 가 단일 소스 사용. 신규 도시
+// 추가 시 한 곳만 변경.
+export const CITY_NAME_BY_KEY: Record<string, { ko: string; en: string; ja: string; zh: string; icon: string }> = {
+  seoul:     { ko: '서울',   en: 'Seoul',     ja: 'ソウル',   zh: '首尔',   icon: '🏙️' },
+  busan:     { ko: '부산',   en: 'Busan',     ja: '釜山',     zh: '釜山',   icon: '🌊' },
+  jeju:      { ko: '제주',   en: 'Jeju',      ja: '済州',     zh: '济州',   icon: '🌴' },
+  gyeongju:  { ko: '경주',   en: 'Gyeongju',  ja: '慶州',     zh: '庆州',   icon: '🏛️' },
+  jeonju:    { ko: '전주',   en: 'Jeonju',    ja: '全州',     zh: '全州',   icon: '🍱' },
+  gangneung: { ko: '강릉',   en: 'Gangneung', ja: '江陵',     zh: '江陵',   icon: '☕' },
+  incheon:   { ko: '인천',   en: 'Incheon',   ja: '仁川',     zh: '仁川',   icon: '✈️' },
+  suwon:     { ko: '수원',   en: 'Suwon',     ja: '水原',     zh: '水原',   icon: '🏯' },
+  yeosu:     { ko: '여수',   en: 'Yeosu',     ja: '麗水',     zh: '丽水',   icon: '🌃' },
+  daegu:     { ko: '대구',   en: 'Daegu',     ja: '大邱',     zh: '大邱',   icon: '🚄' },
+};
+
 /** Map of cityKey → zone list. Falls back to [] for unsupported cities. */
 export const ZONES_BY_CITY: Record<string, Zone[]> = {
   seoul: SEOUL_ZONES,

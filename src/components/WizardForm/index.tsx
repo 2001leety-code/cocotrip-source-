@@ -116,6 +116,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const [paxInput, setPaxInput]               = useState('2');
   const [arrivalTerminal, setArrivalTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');
+  // 2026-05-10 B10-2: 다도시 plan 시 도시별 호텔 주소 (cityKey → address). 단도시면
+  // 기존 hotelAddress 사용 (backward compat). entry_city = mainCityKey 자동.
+  const [hotelByCity, setHotelByCity]         = useState<Record<string, string>>({});
   // Klook/Trip.com pattern: collect arrival time + luggage so backend can
   // recommend the right airport-to-hotel transport (late night → limousine,
   // heavy bags → taxi, otherwise AREX). All optional but improves accuracy.
@@ -280,6 +283,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     .map(name => cityNameToZoneKey(name))
     .filter((k): k is string => !!k && k !== mainCityKey);
   const cityKeys = mainCityKey ? [mainCityKey, ...extraCityKeys] : ['seoul'];
+  const isMultiCity = cityKeys.length > 1;
   const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : '';
   const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : '';
   const nights = dateRange?.from && dateRange?.to ? differenceInCalendarDays(dateRange.to, dateRange.from) : 0;
@@ -375,6 +379,24 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     }
   }
 
+  // 2026-05-10 B10-1: 다도시 plan 시 사용자가 다른 도시로 입국 변경. handlePickZone
+  // 의 swap 패턴 재사용 — mainCity ↔ extraCities[idx] 교환. 공항 dropdown 도
+  // useEffect [mainCityKey] chain 으로 자동 PUS/Gimhae 등 변경.
+  function handleEntryCityChange(newEntryCityKey: string) {
+    if (newEntryCityKey === mainCityKey) return;
+    const idx = extraCities.findIndex(name => cityNameToZoneKey(name) === newEntryCityKey);
+    if (idx === -1) return;
+    const newMainCityName = extraCities[idx];
+    const oldMainCityName = mainCity;
+    setMainCity(newMainCityName);
+    setMainCityKey(newEntryCityKey);
+    setExtraCities(prev => {
+      const next = [...prev];
+      next[idx] = oldMainCityName;
+      return next;
+    });
+  }
+
   // 2026-05-10 다도시 plan UX: zone 선택 시 그 zone 이 속한 도시가 mainCity 와
   // 다르면 자동 swap (mainCity ↔ extraCities[idx]). 이렇게 하면 공항 dropdown
   // 도 useEffect [mainCityKey] chain 으로 자동 업데이트, hub city 와 zone 정합.
@@ -434,6 +456,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       const zoneAnchor = (!hotelAddress && recommendedZone)
         ? getZoneByKey(recommendedZone)?.zone.anchorAddress
         : undefined;
+      // 2026-05-10 B10-1/B10-2: 다도시 시 entry city 의 호텔 = hotel_address (RouteAgent
+      // 가 entry 공항 → 첫 호텔 경로 계산). hotelByCity Record 도 같이 forward
+      // (buildPrompt.js 가 day 별 prompt 에 도시별 호텔 inject).
+      const effectiveHotelAddress = isMultiCity
+        ? (hotelByCity[mainCityKey] || hotelAddress)
+        : hotelAddress;
       const res = await onSubmit({
         startDate: sd, endDate: ed,
         regions: allCities.length > 0 ? allCities : ['Seoul'],
@@ -441,7 +469,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         freeText: freeText || '',
         arrival_airport: arrivalTerminal,
         departure_airport: departureAirport,
-        hotel_address: hotelAddress,
+        hotel_address: effectiveHotelAddress,
+        // 다도시 시 추가 컨텍스트 — backend buildPrompt.js 가 도시별 prompt inject.
+        ...(isMultiCity && Object.keys(hotelByCity).length > 0 ? { hotelByCity } : {}),
+        ...(isMultiCity ? { entry_city: mainCityKey } : {}),
         mobility,
         uid: user?.uid || null,
         wantAccom: wantAccom || undefined,
@@ -604,6 +635,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   recommendedZone={recommendedZone}
                   cityKeys={cityKeys}
                   onPickZone={handlePickZone}
+                  isMultiCity={isMultiCity}
+                  mainCityKey={mainCityKey}
+                  onEntryCityChange={handleEntryCityChange}
+                  hotelByCity={hotelByCity}
+                  setHotelByCity={setHotelByCity}
                   canGoStep3={canGoStep3}
                   onPrev={() => goToStep(2)} onNext={() => goToStep(4)}
                   onEditStep0={() => goToStep(0)}
