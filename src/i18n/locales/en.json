@@ -1149,6 +1149,8 @@
     "multicityHotelTitle": "Hotels by city",
     "multicityHotelHint": "Enter the hotel for each city (optional)",
     "multicityHotelLabel": "{city} hotel",
+    "transitFallbackWalkOrTaxi": "~{walk}min walk · or taxi ~₩{taxi} ({dist}m)",
+    "transitFallbackNaverLink": "View transit on Naver Map · {dist}km",
     "originalPrice": "Regular",
     "launchPrice": "Launch Price",
     "limitedTimeOffer": "⏰ Limited Time — First 100 customers",

@@ -1149,6 +1149,8 @@
     "multicityHotelTitle": "도시별 호텔",
     "multicityHotelHint": "도시마다 묵을 호텔을 입력하세요 (선택)",
     "multicityHotelLabel": "{city} 호텔",
+    "transitFallbackWalkOrTaxi": "도보 약 {walk}분 · 또는 택시 ~₩{taxi} ({dist}m)",
+    "transitFallbackNaverLink": "네이버 지도 길찾기 · {dist}km",
     "originalPrice": "정가",
     "launchPrice": "런칭 특가",
     "limitedTimeOffer": "⏰ 한정 기간 — 첫 100명 한정",

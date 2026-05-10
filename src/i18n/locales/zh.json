@@ -1149,6 +1149,8 @@
     "multicityHotelTitle": "各城市酒店",
     "multicityHotelHint": "请为每个城市输入酒店（选填）",
     "multicityHotelLabel": "{city}酒店",
+    "transitFallbackWalkOrTaxi": "步行约{walk}分钟 · 或出租车 ~₩{taxi}（{dist}m）",
+    "transitFallbackNaverLink": "在 Naver 地图查看路线 · {dist}km",
     "originalPrice": "原价",
     "launchPrice": "发布特惠",
     "limitedTimeOffer": "⏰ 限时 — 前100名顾客",

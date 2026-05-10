@@ -461,7 +461,55 @@ export async function generatePDF(
       </tr>
     </table>`;
 
-    (day.stops || []).forEach((stop: PlanStop) => {
+    (day.stops || []).forEach((stop: PlanStop, si: number) => {
+      // 2026-05-10 B10-4 phase 1: transit_from_prev 미부착 케이스 (RouteAgent ODsay
+      // null + 농어촌) 에 fallback (도보/택시 안내 또는 Naver deep link). 좌표
+      // 둘 다 있어야 거리 계산 가능 — 없으면 silent skip 유지.
+      if (!stop.transit_from_prev && si > 0) {
+        const prevStop = (day.stops || [])[si - 1];
+        const pLat = (prevStop as { lat?: number | null })?.lat;
+        const pLng = (prevStop as { lng?: number | null })?.lng;
+        const cLat = (stop as { lat?: number | null }).lat;
+        const cLng = (stop as { lng?: number | null }).lng;
+        if (pLat != null && pLng != null && cLat != null && cLng != null) {
+          // haversine km
+          const φ1 = (pLat * Math.PI) / 180;
+          const φ2 = (cLat * Math.PI) / 180;
+          const Δφ = ((cLat - pLat) * Math.PI) / 180;
+          const Δλ = ((cLng - pLng) * Math.PI) / 180;
+          const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+          const distKm = 2 * 6371 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const distM = Math.round(distKm * 1000);
+          // 4-lang inline (uiDict 별도 namespace 통합은 follow-up). PDF 가 한국어
+          // / 일본어 / 중국어 plan 도 같이 만들어지니 lang 분기로 텍스트 매핑.
+          const walkTpl = lang === 'ko' ? '🚶 도보 약 {walk}분 · 또는 택시 ~₩{taxi} ({dist}m)'
+            : lang === 'ja' ? '🚶 徒歩約{walk}分 · またはタクシー ~₩{taxi}（{dist}m）'
+            : lang === 'zh' ? '🚶 步行约{walk}分钟 · 或出租车 ~₩{taxi}（{dist}m）'
+            : '🚶 ~{walk}min walk · or taxi ~₩{taxi} ({dist}m)';
+          const linkTpl = lang === 'ko' ? '📍 네이버 지도 길찾기 · {dist}km'
+            : lang === 'ja' ? '📍 Naverマップで経路を見る · {dist}km'
+            : lang === 'zh' ? '📍 在 Naver 地图查看路线 · {dist}km'
+            : '📍 View transit on Naver Map · {dist}km';
+          if (distKm < 2) {
+            const walkMin = Math.max(3, Math.round(distM / 70));
+            const taxiKRW = 4800 + Math.max(0, Math.ceil((distM - 1600) / 132)) * 100;
+            const walkText = walkTpl.replace('{walk}', String(walkMin)).replace('{taxi}', taxiKRW.toLocaleString('ko-KR')).replace('{dist}', String(distM));
+            html += `<div class="pdf-transit-block" style="margin:4px 0 6px 16px;padding:6px 12px;background:rgba(245,158,11,0.06);border-left:3px solid rgba(245,158,11,0.4);border-radius:4px;page-break-inside:avoid;break-inside:avoid;">
+              <p style="font-size:10px;color:#fbbf24;font-weight:600;margin:0;">${walkText}</p>
+            </div>`;
+          } else {
+            const prevName = ((prevStop as { display_name?: string; name?: string }).display_name || (prevStop as { display_name?: string; name?: string }).name || '');
+            const currName = ((stop as { display_name?: string; name?: string }).display_name || (stop as { display_name?: string; name?: string }).name || '');
+            const enc = encodeURIComponent;
+            const naverUrl = `https://map.naver.com/v5/directions/${pLng},${pLat},${enc(prevName)}/${cLng},${cLat},${enc(currName)}/-/transit?c=15`;
+            const linkText = linkTpl.replace('{dist}', distKm.toFixed(1));
+            html += `<div class="pdf-transit-block" style="margin:4px 0 6px 16px;padding:6px 12px;background:rgba(3,199,90,0.08);border-left:3px solid rgba(3,199,90,0.4);border-radius:4px;page-break-inside:avoid;break-inside:avoid;">
+              <p style="font-size:10px;color:#5DDB91;font-weight:600;margin:0;"><a href="${naverUrl}" style="color:#5DDB91;text-decoration:underline;">${linkText}</a></p>
+            </div>`;
+          }
+        }
+      }
+
       // Transit arrow (rich: uses steps_detail when available, falls back to step_by_step for legacy plans)
       if (stop.transit_from_prev) {
         const t = stop.transit_from_prev;
