@@ -1,5 +1,7 @@
 // Step 2: travel dates, pax, airport, hotel address, arrival/departure time, luggage, accom opt-in.
-import { useState } from 'react';
+// 2026-05-10 ZoneRecommender React.lazy: hotel 미입력 시점에만 노출 → 진입 즉시
+// fetch (작은 skeleton fallback). Main bundle 에서 ZoneRecommender 코드 분리.
+import { useState, lazy, Suspense } from 'react';
 import { Plane, Briefcase, Minus, Plus, Pencil } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { DayPicker } from 'react-day-picker';
@@ -9,7 +11,10 @@ import type { AirportOption } from './data';
 import type { WizardDict } from './types';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 import { useLanguage } from '@/hooks/useLanguage';
-import { ZoneRecommender } from './ZoneRecommender';
+
+const ZoneRecommender = lazy(() =>
+  import('./ZoneRecommender').then(m => ({ default: m.ZoneRecommender })),
+);
 
 interface Step2Props {
   p: WizardDict;
@@ -302,20 +307,31 @@ export function WizardStep2Details(props: Step2Props) {
               호텔 입력 즉시 자동 collapse 되어 "1번만 묻는다" 시각적으로 명확.
               호텔 미입력 사용자 fallback (zone 으로 routing 가능) 만 유지. */}
           {hotelAddress.trim().length === 0 && (
-            <ZoneRecommender
-              language={lang}
-              isMobile={isMobile}
-              cityKeys={cityKeys}
-              hotelAddress={hotelAddress}
-              recommendedZone={recommendedZone}
-              onPickZone={onPickZone}
-              labelTitle={p.zoneRecommendTitle}
-              labelSubtitle={p.zoneRecommendSubtitle}
-              labelPick={p.zoneRecommendPicked}
-              labelHotelCta={p.zoneHotelCta}
-              labelHotelSponsored={p.zoneHotelSponsored}
-              labelGroupHeader={p.zoneRecommendGroupHeader}
-            />
+            <Suspense fallback={
+              <div className="mt-3 rounded-xl border border-[#7C5CFC]/15 bg-[#7C5CFC]/[0.02] p-3">
+                <div className="h-3 w-32 rounded bg-white/[0.06] animate-pulse mb-2" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[0,1,2,3,4,5].map(i => (
+                    <div key={i} className="h-20 rounded-lg bg-white/[0.04] animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            }>
+              <ZoneRecommender
+                language={lang}
+                isMobile={isMobile}
+                cityKeys={cityKeys}
+                hotelAddress={hotelAddress}
+                recommendedZone={recommendedZone}
+                onPickZone={onPickZone}
+                labelTitle={p.zoneRecommendTitle}
+                labelSubtitle={p.zoneRecommendSubtitle}
+                labelPick={p.zoneRecommendPicked}
+                labelHotelCta={p.zoneHotelCta}
+                labelHotelSponsored={p.zoneHotelSponsored}
+                labelGroupHeader={p.zoneRecommendGroupHeader}
+              />
+            </Suspense>
           )}
         </div>
       ) : null}
