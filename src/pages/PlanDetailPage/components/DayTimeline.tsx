@@ -17,6 +17,7 @@ const stopVariants = {
 };
 import { Plus, Calendar, Clock, MapPin, TrainFront, Plane } from 'lucide-react';
 import { TransitArrow } from './TransitArrow';
+import { TransitFallback } from './TransitFallback';
 import { SortableStopCard } from './SortableStopCard';
 import { StopCard } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -182,9 +183,24 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 // 첫 stop 의 transit_from_prev 가 lodging_to_first 와 동일하면
                 // 위 LodgingBookend 가 이미 보여 줬으므로 중복 렌더 방지.
                 const skipFirstTransit = si === 0 && !!day.lodging_to_first;
+                // 2026-05-10 B10-4 phase 1: transit_from_prev 미부착 케이스 (RouteAgent
+                // 의 ODsay null + 좌표 lookup 실패 / 농어촌) → TransitFallback 으로 silent
+                // skip 회피. si > 0 일 때만 의미 있음 (첫 stop 은 prev 없음).
+                const prevStop = si > 0 ? stops[si - 1] : null;
+                const prevName = prevStop ? ((prevStop as { display_name?: string; name?: string }).display_name || (prevStop as { display_name?: string; name?: string }).name || '') : '';
                 return (
                   <div key={stopIds[si]}>
                     {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
+                    {!skipFirstTransit && !stop.transit_from_prev && si > 0 && (
+                      <TransitFallback
+                        prevLat={(prevStop as { lat?: number | null })?.lat}
+                        prevLng={(prevStop as { lng?: number | null })?.lng}
+                        prevName={prevName}
+                        currLat={(stop as { lat?: number | null }).lat}
+                        currLng={(stop as { lng?: number | null }).lng}
+                        currName={destName}
+                      />
+                    )}
                     <SortableStopCard
                       stop={stop}
                       stopId={stopIds[si]}
@@ -215,6 +231,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
               || (stop as { display_name?: string; name?: string; name_ko?: string; name_en?: string }).name_en
               || '';
             const skipFirstTransit = si === 0 && !!day.lodging_to_first;
+            const prevStop = si > 0 ? stops[si - 1] : null;
+            const prevName = prevStop ? ((prevStop as { display_name?: string; name?: string }).display_name || (prevStop as { display_name?: string; name?: string }).name || '') : '';
             return (
               <motion.div
                 key={si}
@@ -224,6 +242,16 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                 animate="visible"
               >
                 {!skipFirstTransit && stop.transit_from_prev && <TransitArrow transit={stop.transit_from_prev as TransitFromPrev & Record<string, unknown>} destinationName={destName} />}
+                {!skipFirstTransit && !stop.transit_from_prev && si > 0 && (
+                  <TransitFallback
+                    prevLat={(prevStop as { lat?: number | null })?.lat}
+                    prevLng={(prevStop as { lng?: number | null })?.lng}
+                    prevName={prevName}
+                    currLat={(stop as { lat?: number | null }).lat}
+                    currLng={(stop as { lng?: number | null }).lng}
+                    currName={destName}
+                  />
+                )}
                 <StopCard stop={stop} />
               </motion.div>
             );
