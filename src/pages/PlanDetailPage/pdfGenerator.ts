@@ -349,11 +349,16 @@ export async function generatePDF(
   days.forEach((day: PlanDay, di: number) => {
     // B9-34: di>0 day wrapper 에 pdf-day-break 클래스 → pagebreak.before 새 페이지.
     // B9-39: 다도시 plan 의 도시 chip 라벨 — 헤더에 표시.
+    // 2026-05-10 B10-4: html2pdf 의 selector 기반 break (.pdf-day-break) 만 의존하면
+    // 일부 환경 (다도시/긴 카드) 에서 매칭 실패 또는 mode='css' 가 selector 무시 가능.
+    // inline style 에 page-break-before:always + break-before:page 이중 강화 →
+    // 어느 mode 에서도 Day 2/3/4 새 페이지 보장. selector + inline 둘 다 유지.
     const dayBreakClass = di > 0 ? ' pdf-day-break' : '';
+    const dayBreakInline = di > 0 ? 'page-break-before:always;break-before:page;' : '';
     const cityChip = day.city
       ? `<span style="font-size:10px;background:rgba(234,83,126,0.18);border:1px solid rgba(234,83,126,0.40);color:#FF8AAA;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600;vertical-align:middle;">${day.city}</span>`
       : '';
-    html += `<div class="pdf-day-wrapper${dayBreakClass}" style="margin-bottom:24px;">
+    html += `<div class="pdf-day-wrapper${dayBreakClass}" style="${dayBreakInline}margin-bottom:24px;">
       <div class="pdf-day-header" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;page-break-after:avoid;break-after:avoid;">
         <div style="width:32px;height:32px;border-radius:50%;background:${C.accent};color:white;text-align:center;line-height:32px;font-size:14px;font-weight:700;flex-shrink:0;">${day.day || di + 1}</div>
         <div>
