@@ -1,30 +1,35 @@
 // Step 5: 날짜 + 이름/연락처 + 공항/일정 필수 필드 · i18n
 // 2026-05-09 (batch 9 fix B9-19): 운영자 결정 — Staria=6/Sprinter=10 cap 제거.
-//   캐리어 카운터 무제한 (99). 7개 초과 시 amber 안내 "차량 2대 권장 — 운영자 견적".
+//   캐리어 카운터 무제한 (99). 7개 초과 시 amber 안내 "차량 N대 권장 — 운영자 견적".
 // 2026-05-09 (batch 9 fix B9-1+B9-2): 픽업 시각 입력을 Step 3 select 에서
 //   Step 5 날짜 아래 type="time" 자유 입력으로 이동. 30분 단위 제약 해제.
 //   야간 할증 자동 계산도 여기 onChange 에서 처리.
+// 2026-05-10 (B-5/B-8 prod 검증): 캐리어 → 차량 수 동적 룰 (calcVehicleCount).
+//   1-7개=1대, 8+=2대, 14+=3대, +6/대 선형. "봉고차" 라벨 금지 → "스타리아".
 import type { WizardState, LodgingLocation, VehicleType } from './types';
 import { EXTRA_CHARGES } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
+import { calcVehicleCount } from '@/lib/luggageVehicle';
 
 /**
- * batch 9 (B9-19): 운영자 5/9 결정 — 차종별 캐리어 cap 제거 (모두 실질 무제한).
- * 7개 초과 시 별도 amber 안내 (차량 2대 권장 — 가격 자동 ×2 X, 운영자 견적). Bus/VIP 도 동일.
- *
- * 차종별 안내 문구 i18n. Bus/VIP 는 협의 안내, 그 외는 7+ 초과 시 차량 2대 권장 안내.
+ * batch 9 (B9-19) + B-5/B-8 (2026-05-10 prod 검증):
+ * 차종별 캐리어 cap 제거 (모두 실질 무제한). 8개 이상부터 차량 수 동적:
+ *   1-7개 → 1대 (Staria), 8+ → 2대, 14+ → 3대, +6 마다 +1대 (선형).
+ * "봉고차" 라벨 금지 (외국인 픽업 부적절) → "스타리아 N대" 사용.
+ * Bus/VIP 는 협의 안내, 그 외는 calcVehicleCount(total) 동적 표시.
  */
 function vehicleLuggageNote(
   vehicle: VehicleType | undefined,
   total: number,
   lang: 'ko' | 'en' | 'ja' | 'zh',
 ): string {
-  // 7개 초과 시 — 운영자 결정: 차량 2대 권장 (가격 ×2 자동 X, 별도 견적)
-  if (total >= 7) {
-    if (lang === 'ko') return '캐리어 7개 이상 — 차량 2대 권장 (운영자 견적 후 별도 안내).';
-    if (lang === 'ja') return '荷物7個以上 — 2台目の車両推奨 (運営者見積後に別途案内)。';
-    if (lang === 'zh') return '行李7件以上 — 建议第二辆车 (运营审核后另议)。';
-    return '7+ luggage — second vehicle recommended (separate quote after operator review).';
+  const vehicles = calcVehicleCount(total);
+  // 8개 이상 (= 차량 2대 이상 권장) — 운영자 견적 별도 (가격 ×2 자동 X)
+  if (vehicles >= 2) {
+    if (lang === 'ko') return `캐리어 ${total}개 — 차량 ${vehicles}대 권장 (스타리아). 운영자 견적 후 별도 안내.`;
+    if (lang === 'ja') return `荷物${total}個 — 車両${vehicles}台推奨 (スターリア)。運営者見積後に別途案内。`;
+    if (lang === 'zh') return `${total}件行李 — 建议${vehicles}辆车 (Staria)。运营审核后另议。`;
+    return `${total} suitcases — ${vehicles} vehicles recommended (Staria). Separate quote after operator review.`;
   }
   if (vehicle === 'bus' || vehicle === 'vip') {
     if (lang === 'ko') return '버스/의전 차량은 캐리어 적재 협의 가능합니다.';
@@ -32,11 +37,11 @@ function vehicleLuggageNote(
     if (lang === 'zh') return '巴士／礼宾车的行李数量可协商。';
     return 'Bus/VIP vehicles: luggage count negotiable.';
   }
-  // 일반 차량 — 6개 이하 안내 (Staria/Sprinter 등 차종 무관 동일 문구)
-  if (lang === 'ko') return '캐리어는 기내 + 중형 + 대형을 합쳐서 입력해 주세요. 7개 이상이면 차량 2대를 권장합니다.';
-  if (lang === 'ja') return '荷物は機内＋中型＋大型の合計で入力してください。7個以上の場合は2台の車両を推奨します。';
-  if (lang === 'zh') return '请合计输入随身＋中型＋大型行李。超过7件建议使用2辆车。';
-  return 'Enter total luggage (carry-on + medium + large). 7+ bags: second vehicle recommended.';
+  // 일반 차량 — 7개 이하 안내 (Staria 1대 충분, 8+ 시 위 분기)
+  if (lang === 'ko') return '캐리어는 기내 + 중형 + 대형을 합쳐서 입력해 주세요. 8개 이상이면 차량 2대를 권장합니다 (스타리아).';
+  if (lang === 'ja') return '荷物は機内＋中型＋大型の合計で入力してください。8個以上の場合は2台の車両を推奨します (スターリア)。';
+  if (lang === 'zh') return '请合计输入随身＋中型＋大型行李。8件以上建议使用2辆车 (Staria)。';
+  return 'Enter total luggage (carry-on + medium + large). 8+ bags: 2 vehicles recommended (Staria).';
 }
 
 /** 날짜+픽업시각이 12h cutoff 이내인지 클라이언트에서 검사 (KST +09:00 기준). */
