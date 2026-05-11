@@ -23,7 +23,43 @@ const BASE = process.argv[2] || 'https://cocotripkr.com';
 const API_URL = `${BASE}/api/ai-planner-full`;
 
 // 테스트 계정 — ai-planner-full.js의 TEST_ACCOUNTS 목록에 있어야 함
-const TEST_EMAIL = '2001leety@gmail.com';
+const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com';
+
+// ── Firebase Auth: 자율점검용 idToken 발급 ────────────────────────────────
+// 2026-05-04 PR #247 (audit P0-#2) 머지로 /api/ai-planner-full 가 verifyUserToken
+// 호출 → Authorization: Bearer <idToken> 헤더 필수. 미주입 시 401 만 받음.
+// 따라서 fetch 직전 Firebase Auth REST API 로 idToken 발급 → Bearer 헤더 주입.
+//
+// 필수 env:
+//   - FIREBASE_WEB_API_KEY: Firebase Console → Project settings → General → Web API Key
+//   - HEALTH_CHECK_PASSWORD: TEST_ACCOUNTS 계정 비밀번호
+//   - (선택) HEALTH_CHECK_EMAIL: 기본값 2001leety@gmail.com
+async function getIdToken() {
+  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  const password = process.env.HEALTH_CHECK_PASSWORD;
+  if (!apiKey || !password) {
+    throw new Error(
+      'FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD env 필수. ' +
+      'GitHub Actions Secrets 또는 로컬 .env 에 등록 필요. ' +
+      'docs/AUTOMATION.md 참조.'
+    );
+  }
+  const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: TEST_EMAIL, password, returnSecureToken: true }),
+  });
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '');
+    throw new Error(`Firebase Auth signInWithPassword failed: HTTP ${r.status} — ${errText.substring(0, 200)}`);
+  }
+  const j = await r.json();
+  if (!j.idToken) {
+    throw new Error('Firebase Auth response missing idToken');
+  }
+  return j.idToken;
+}
 
 const scenarios = [
   { id: 'seoul-meat',      area: 'seoul', durationDays: 2, pax: 2, dietPrefs: ['Meat'],   priceRange: 'Moderate', language: 'ko', startDate: '2026-05-01', guestName: 'Validate-Test' },
@@ -114,6 +150,18 @@ async function runAll() {
   console.log(`   Test account: ${TEST_EMAIL}`);
   console.log(`   Scenarios: ${scenarios.length}\n`);
 
+  // ── Firebase idToken 발급 (PR #247 audit P0-#2 이후 필수) ──────────────
+  console.log('🔑 Issuing Firebase ID token for authentication...');
+  let idToken;
+  try {
+    idToken = await getIdToken();
+    console.log(`   ✅ Token issued (length=${idToken.length})\n`);
+  } catch (e) {
+    console.error(`   ❌ Token issuance failed: ${e.message}`);
+    console.error('   자율점검 중단 — secret 등록 후 재시도. docs/AUTOMATION.md 참조.');
+    throw e;
+  }
+
   const results = [];
 
   for (const s of scenarios) {
@@ -135,7 +183,10 @@ async function runAll() {
 
       const resp = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(300000), // 5 min timeout
       });
