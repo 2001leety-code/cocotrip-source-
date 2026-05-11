@@ -652,6 +652,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   getCityName={getCityName} toggleActivity={toggleActivity}
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
                   onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
+                  dateRange={dateRange} setDateRange={setDateRange}
                 />
               )}
               {step === 2 && (
