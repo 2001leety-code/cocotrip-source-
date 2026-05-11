@@ -346,19 +346,30 @@ export async function generatePDF(
   //   - di>0 day wrapper 에 `pdf-day-break` 클래스 → pagebreak.before 로 새 페이지에서 시작.
   //   - day header / day summary 에도 명시적 클래스 추가 (avoid 셀렉터 매칭 강화).
   //   - 첫 번째 day 는 break 안 함 (intro 직후 자연 흐름).
+  // 2026-05-11 (PDF P0 fix): days.length assert — Day 5 통째 누락 회귀 진단.
+  //  - days 가 undefined / null / 빈 배열이면 build 시점에 명시적 경고
+  //  - 실제 plan.itinerary.days 길이와 PDF html builder forEach 카운트 일치 검증
+  // Track 2 분석 보고: 5일 plan PDF 에서 Day 4 후반 + Day 5 전체 누락.
+  console.log('[PDF] days.length =', days.length, '— rendering all days');
+  if (!Array.isArray(days) || days.length === 0) {
+    console.error('[PDF] days array empty or invalid — PDF body will be incomplete');
+  }
+  let dayRenderCount = 0;
+
   days.forEach((day: PlanDay, di: number) => {
+    dayRenderCount += 1;
     // B9-34: di>0 day wrapper 에 pdf-day-break 클래스 → pagebreak.before 새 페이지.
     // B9-39: 다도시 plan 의 도시 chip 라벨 — 헤더에 표시.
-    // 2026-05-10 B10-4: html2pdf 의 selector 기반 break (.pdf-day-break) 만 의존하면
-    // 일부 환경 (다도시/긴 카드) 에서 매칭 실패 또는 mode='css' 가 selector 무시 가능.
-    // inline style 에 page-break-before:always + break-before:page 이중 강화 →
-    // 어느 mode 에서도 Day 2/3/4 새 페이지 보장. selector + inline 둘 다 유지.
+    // 2026-05-11 (PDF P0 fix): 인라인 page-break-before:always 제거 — Track 2 분석 보고.
+    //   직전(2026-05-10 B10-4) 에 inline 이중 강제로 추가했지만 부작용 = 페이지 상단
+    //   75% 백색 공간 (사용자 다운로드 PDF 검증). selector .pdf-day-break + before 매칭
+    //   (pagebreak.before L1007) 만으로 충분. mode: ['css', 'legacy'] 이미 적용중이라
+    //   selector 무시 케이스도 legacy 폴백으로 커버됨.
     const dayBreakClass = di > 0 ? ' pdf-day-break' : '';
-    const dayBreakInline = di > 0 ? 'page-break-before:always;break-before:page;' : '';
     const cityChip = day.city
       ? `<span style="font-size:10px;background:rgba(234,83,126,0.18);border:1px solid rgba(234,83,126,0.40);color:#FF8AAA;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600;vertical-align:middle;">${day.city}</span>`
       : '';
-    html += `<div class="pdf-day-wrapper${dayBreakClass}" style="${dayBreakInline}margin-bottom:24px;">
+    html += `<div class="pdf-day-wrapper${dayBreakClass}" style="margin-bottom:24px;">
       <div class="pdf-day-header" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;page-break-after:avoid;break-after:avoid;">
         <div style="width:32px;height:32px;border-radius:50%;background:${C.accent};color:white;text-align:center;line-height:32px;font-size:14px;font-weight:700;flex-shrink:0;">${day.day || di + 1}</div>
         <div>
@@ -413,10 +424,40 @@ export async function generatePDF(
     let totalWalkM = 0;
     let totalTransitMin = 0;
     let totalStayMin = 0;
-    for (const s of stopsArr) {
-      const tprev = s.transit_from_prev as { total_walk_m?: number; est_min?: number } | undefined;
-      if (tprev?.total_walk_m) totalWalkM += tprev.total_walk_m;
-      if (tprev?.est_min) totalTransitMin += tprev.est_min;
+    // 2026-05-11 (PDF P0 fix): transit_from_prev 부재/sparse 케이스 에 대해 haversine
+    // fallback 으로 도보·이동 시간 추정해 day header 합계 에 반영. 기존 코드 는 transit
+    // 데이터 없을 때 "—" 로 표시 — 사용자 신고 "Walking/Transit dash 만 뜸". 농어촌·부산
+    // 시외·ODsay null 케이스 일관성 확보.
+    for (let i = 0; i < stopsArr.length; i++) {
+      const s = stopsArr[i];
+      const tprev = s.transit_from_prev as { total_walk_m?: number; est_min?: number; steps_detail?: unknown[]; step_by_step?: string[] } | undefined;
+      const hasRich = !!tprev && (((tprev.steps_detail || []).length > 0) || ((tprev.step_by_step || []).length > 0) || (tprev.total_walk_m || 0) > 0);
+      if (hasRich) {
+        if (tprev?.total_walk_m) totalWalkM += tprev.total_walk_m;
+        if (tprev?.est_min) totalTransitMin += tprev.est_min;
+      } else if (i > 0) {
+        // Haversine fallback — 좌표 둘 다 있어야 추정 가능.
+        const prev = stopsArr[i - 1];
+        const pLat = (prev as { lat?: number | null })?.lat;
+        const pLng = (prev as { lng?: number | null })?.lng;
+        const cLat = (s as { lat?: number | null })?.lat;
+        const cLng = (s as { lng?: number | null })?.lng;
+        if (pLat != null && pLng != null && cLat != null && cLng != null) {
+          const φ1 = (pLat * Math.PI) / 180;
+          const φ2 = (cLat * Math.PI) / 180;
+          const Δφ = ((cLat - pLat) * Math.PI) / 180;
+          const Δλ = ((cLng - pLng) * Math.PI) / 180;
+          const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+          const distM = Math.round(2 * 6371 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 1000);
+          if (distM < 2000) {
+            totalWalkM += distM;
+            totalTransitMin += Math.max(3, Math.round(distM / 70));
+          } else {
+            // ≥2km — 도보 가정 X. 대중교통 평균 시속 25km 가정 → 분 환산.
+            totalTransitMin += Math.max(5, Math.round((distM / 1000) / 25 * 60));
+          }
+        }
+      }
       if (s.stay_min) totalStayMin += s.stay_min;
     }
     const dayBudget = budget.find((b: BudgetRow) => b.day === dayNum);
@@ -465,7 +506,18 @@ export async function generatePDF(
       // 2026-05-10 B10-4 phase 1: transit_from_prev 미부착 케이스 (RouteAgent ODsay
       // null + 농어촌) 에 fallback (도보/택시 안내 또는 Naver deep link). 좌표
       // 둘 다 있어야 거리 계산 가능 — 없으면 silent skip 유지.
-      if (!stop.transit_from_prev && si > 0) {
+      //
+      // 2026-05-11 (PDF P0 fix B-7): "transit_from_prev 가 있어도 step 정보가
+      // 비어있을 때" 도 fallback 트리거. Track 2 사용자 보고: "stop 사이 transit
+      // 안내 100% 부재 — '무료' 만 반복". 진단: RouteAgent 가 method 만 채우고
+      // steps_detail/step_by_step 비워 보낸 경우 (PDF builder L514-660 이 사실상
+      // 빈 박스 렌더) 이걸 sparse 케이스로 보고 fallback 까지 같이 출력.
+      const tprevForStop = stop.transit_from_prev;
+      const sparseTransit = !!tprevForStop
+        && !((tprevForStop as { steps_detail?: unknown[] }).steps_detail || []).length
+        && !(tprevForStop.step_by_step || []).length;
+      const needsFallback = (!tprevForStop || sparseTransit) && si > 0;
+      if (needsFallback) {
         const prevStop = (day.stops || [])[si - 1];
         const pLat = (prevStop as { lat?: number | null })?.lat;
         const pLng = (prevStop as { lng?: number | null })?.lng;
@@ -704,6 +756,15 @@ export async function generatePDF(
     });
     html += '</div>';
   });
+
+  // 2026-05-11 (PDF P0 fix): post-loop assert — Day 5 통째 누락 진단.
+  //  - dayRenderCount 가 days.length 와 일치해야 모든 day 가 html 빌더에 들어감.
+  //  - 5일 plan PDF 에서 Day 5 누락 보고됨 — forEach 가 throw 한 경우 console 에 흔적.
+  if (dayRenderCount !== days.length) {
+    console.error('[PDF] day render mismatch — expected', days.length, 'got', dayRenderCount);
+  } else {
+    console.log('[PDF] all', dayRenderCount, 'days rendered to html builder');
+  }
 
   // Budget table
   if (budget.length > 0) {
