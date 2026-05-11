@@ -7,6 +7,7 @@
 // "before you pick a city" view isn't empty.
 import { useMemo, useState } from 'react';
 import { Sparkles, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import type { DateRange } from 'react-day-picker';
 import { WizardNav } from './WizardNav';
 import {
   CITY_CHIPS, ACTIVITY_KEYS, ACTIVITY_ICON_MAP, CITY_ACTIVITY_ICONS,
@@ -36,6 +37,11 @@ interface Step0Props {
   isCitySelected: (cityName: string) => boolean;
   onPrev?: () => void;               // P6: Step 0 reservation now precedes this step
   onNext: () => void;
+  // 2026-05-11 (B-1 fix): Quick Start preset 라벨에 "3 Days"/"5 Days" 명시인데
+  // 클릭 시 일수 set 안 됐던 회귀. preset 클릭 시 setDateRange 호출로 캘린더 sync.
+  // 기존 startDate 가 있으면 그 시점 보존, 없으면 default 한 달 후.
+  dateRange?: DateRange;
+  setDateRange: (range: DateRange | undefined) => void;
   // 2026-05-05 (운영자 신고 후속): ZoneRecommender 가 Destination 페이지에 있어
   // 호텔/숙소 질문이 Step 2 와 함께 2번 받는 인상 → Destination 에서 완전 제거,
   // 관련 props (language/hotelAddress/recommendedZone/setRecommendedZone) 도
@@ -47,6 +53,7 @@ export function WizardStep0Destination(props: Step0Props) {
     p, isMobile, mainCity, selectedCityKeys, selectedActivities, freeText,
     setMainCity, setMainCityKey, setExtraCities, setSelectedActivities, setFreeText,
     allCities, canGoStep1, getCityName, toggleActivity, toggleCity, isCitySelected, onPrev, onNext,
+    dateRange, setDateRange,
   } = props;
 
   // 입력 가드: 사용자가 Next를 한 번 눌러야 오류 표시 (첫 진입 시 빨간 테두리 없음)
@@ -86,17 +93,24 @@ export function WizardStep0Destination(props: Step0Props) {
           </p>
           <div className="flex flex-wrap gap-2">
             {[
-              { label: p.presetFirst || '3 Days Seoul Highlights', city: 'seoul', acts: ['Food', 'Photo', 'Shopping'] },
-              { label: p.presetSecond || 'Seoul + Busan 5 Days', city: 'seoul', extra: ['busan'], acts: ['Food', 'Photo', 'Temple'] },
+              { label: p.presetFirst || '3 Days Seoul Highlights', city: 'seoul', acts: ['Food', 'Photo', 'Shopping'], days: 3 },
+              { label: p.presetSecond || 'Seoul + Busan 5 Days', city: 'seoul', extra: ['busan'], acts: ['Food', 'Photo', 'Temple'], days: 5 },
               { label: p.presetThird || 'K-pop Fan Trip', city: 'seoul', acts: ['Kpop', 'Shopping', 'Photo'] },
               { label: p.presetFourth || 'Foodie Tour Seoul', city: 'seoul', acts: ['Food', 'Night', 'Shopping'] },
               { label: p.presetFifth || 'Jeju Nature Healing', city: 'jeju', acts: ['Photo', 'Food', 'Temple'] },
-            ].map((preset: { label: string; city: string; extra?: string[]; acts: string[] }) => (
+            ].map((preset: { label: string; city: string; extra?: string[]; acts: string[]; days?: number }) => (
               <button key={preset.label} onClick={() => {
                 const cityName = getCityName(preset.city);
                 setMainCity(cityName); setMainCityKey(preset.city);
                 if (preset.extra) setExtraCities(preset.extra.map((k: string) => getCityName(k)));
                 setSelectedActivities(preset.acts);
+                // B-1 (2026-05-11): preset 에 days 명시 (3 Days / 5 Days) 시 캘린더 sync.
+                // 기존 출발일 보존, 없으면 한 달 후 default. 사용자가 캘린더에서 자유롭게 변경 가능.
+                if (preset.days) {
+                  const start = dateRange?.from ?? new Date(Date.now() + 30 * 86400000);
+                  const end = new Date(start.getTime() + (preset.days - 1) * 86400000);
+                  setDateRange({ from: start, to: end });
+                }
               }}
                 className="px-3 py-1.5 rounded-full text-[12px] font-semibold border border-[#7C5CFC]/25 text-white/60 hover:border-[#7C5CFC]/50 hover:text-white hover:bg-[#7C5CFC]/10 transition-all">
                 {preset.label}

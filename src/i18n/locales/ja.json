@@ -1618,6 +1618,7 @@
       "recRestaurantsVegan": "ヴィーガン向け",
       "recRestaurantsHalal": "ハラール対応",
       "recRestaurantsEmpty": "このエリアの検証済みDBに、該当する食事制限のお店はまだありません。",
+      "recRestaurantsCitySubSection": "{city}のおすすめ",
       "reviews": "件のレビュー",
       "openMap": "マップで開く",
       "kmAway": "km先",
