@@ -167,6 +167,9 @@ export interface RecommendedRestaurant {
   district?: string;
   /** Distance km from the nearest plan stop. */
   nearestStopKm?: number;
+  /** 2026-05-11 (B-3): 다도시 plan 시 backend 가 부착하는 도시 키 ('seoul'|'busan' 등).
+   *  단도시 plan 은 undefined → UI 가 단일 grid 로 렌더 (regression 0). */
+  region?: string;
 }
 
 export interface BudgetRow {

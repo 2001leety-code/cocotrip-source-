@@ -1617,6 +1617,7 @@
       "recRestaurantsVegan": "Vegan picks",
       "recRestaurantsHalal": "Halal picks",
       "recRestaurantsEmpty": "No matching spots in our verified database for this diet in this area yet.",
+      "recRestaurantsCitySubSection": "{city} picks",
       "reviews": "reviews",
       "openMap": "Open in Maps",
       "kmAway": "km away",

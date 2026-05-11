@@ -338,6 +338,7 @@ export default function PlanDetailPage() {
                 labelVeganSection={ui.recRestaurantsVegan}
                 labelHalalSection={ui.recRestaurantsHalal}
                 labelEmptyBucket={ui.recRestaurantsEmpty}
+                labelCitySubSection={ui.recRestaurantsCitySubSection}
               />
             </div>
           );
