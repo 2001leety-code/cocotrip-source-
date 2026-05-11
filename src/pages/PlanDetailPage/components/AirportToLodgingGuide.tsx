@@ -171,14 +171,8 @@ export function AirportToLodgingGuide({ plan }: Props) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-white mb-1">{HEADLINE.ko.title}</p>
             <p className="text-[13px] text-white/65 leading-relaxed">{SIMPLIFIED_KO}</p>
-            {heavyLoad && (
-              <Link to="/charter"
-                className="inline-flex items-center gap-1.5 mt-3 px-3 py-2 rounded-xl text-[12px] font-semibold text-white"
-                style={{ background: BRAND.gradient.primary }}
-                onClick={() => trackAdClick('charter', 'preTrip:airportToLodging:ko', '/charter')}>
-                코코트립 차량 알아보기 <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            )}
+            {/* B-4 (2026-05-11 prod 검증): "코코트립 차량 알아보기" 버튼 제거.
+                바로 아래 AirportPickupAd 카드와 중복 — 안내문은 유지, 버튼만 삭제. */}
           </div>
         </div>
       </div>
