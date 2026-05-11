@@ -12,6 +12,7 @@ import type { WizardDict } from './types';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 import { useLanguage } from '@/hooks/useLanguage';
 import { CITY_NAME_BY_KEY } from './zoneData';
+import { calcVehicleCount } from '@/lib/luggageVehicle';
 
 const ZoneRecommender = lazy(() =>
   import('./ZoneRecommender').then(m => ({ default: m.ZoneRecommender })),
@@ -151,11 +152,14 @@ export function WizardStep2Details(props: Step2Props) {
 
   // 수화물 합계 — B9-32 (2026-05-09): cap 의미 분리. 차터 wizard PR #321 패턴과 동일.
   //   luggageHardCap (>=99) — 사실상 무제한 (실질 입력 차단 안 닿음).
-  //   luggageOver7 (>=7) — amber 정보성 안내 트리거 (입력 차단 X). 큰 짐 많은 6명 가족
-  //   같은 사용자가 7개 이상 적어도 막히지 않도록. 7+ 시 차터/봉고차 권장 안내만.
+  //   luggageOver7 (>=8) — amber 정보성 안내 트리거 (입력 차단 X). 큰 짐 많은 6명 가족
+  //   같은 사용자가 8개 이상 적어도 막히지 않도록. 8+ 시 차량 N대 (스타리아 추천) 안내.
+  //   B-5/B-8 (2026-05-10 prod 검증): 1-7개=1대, 8+=2대, 14+=3대, +6/대 선형 룰.
+  //   "봉고차" 라벨 금지 (외국인 픽업 부적절) → "스타리아 N대" 사용.
   const luggageTotal = luggageSmall + luggageMedium + luggageLarge;
   const luggageHardCap = luggageTotal >= 99;
-  const luggageOver7 = luggageTotal >= 7;
+  const vehicleCount = calcVehicleCount(luggageTotal);
+  const luggageOver7 = vehicleCount >= 2; // 8개 이상 → 2대 이상 권장 시 amber 노출
 
   // 입력 가드: 사용자가 Next를 눌러야 오류 표시
   const [showErrors, setShowErrors] = useState(false);
@@ -496,10 +500,18 @@ export function WizardStep2Details(props: Step2Props) {
             value={luggageLarge} setValue={setLuggageLarge}
             maxReached={luggageHardCap} />
         </div>
-        {/* B9-32 (2026-05-09): 7+ 시 amber 안내. 입력 차단 아닌 정보성 — 차터/봉고차 권장. */}
+        {/* B9-32 (2026-05-09) + B-5/B-8 (2026-05-10 prod 검증):
+            8+ 시 amber 안내. 입력 차단 아닌 정보성 — 차량 N대 (스타리아) 권장.
+            "봉고차" 라벨 금지 (외국인 픽업 부적절). 룰: 1-7=1대, 8+=2대, 14+=3대, +6/대. */}
         {luggageOver7 && (
           <p className="text-[11px] text-amber-300/80 mt-2 text-center">
-            {(p as Record<string, string>).luggageOver7Note || '7+ bags total — charter / van recommended (large vehicle suggested)'}
+            {(() => {
+              const tmpl = (p as Record<string, string>).luggageVehicleNote
+                || '{{count}} suitcases — {{vehicles}} vehicles recommended (Staria)';
+              return tmpl
+                .replace(/\{\{count\}\}/g, String(luggageTotal))
+                .replace(/\{\{vehicles\}\}/g, String(vehicleCount));
+            })()}
           </p>
         )}
       </div>

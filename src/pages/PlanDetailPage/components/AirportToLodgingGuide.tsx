@@ -16,6 +16,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanDocument } from '../types';
 import { BRAND } from '@/lib/design-tokens';
 import { trackAdClick } from '@/lib/analytics';
+import { calcVehicleCount } from '@/lib/luggageVehicle';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -84,8 +85,10 @@ const REC_BADGE = { ko: '추천', en: 'Recommended', ja: 'おすすめ', zh: '�
 const SIMPLIFIED_KO = '한국 거주자라면 공항철도·공항버스·택시 모두 익숙하시죠? 캐리어가 많으시면 코코트립 차량을 이용하실 수도 있어요.';
 
 // 인천 (ICN) 기본 — 다른 공항도 동일 fallback (가격 약간 다르지만 큰 차이 X).
+// B-5/B-8 (2026-05-10 prod 검증): heavyLoad 기준을 calcVehicleCount(luggage) >= 2 로 통일.
+//   1-7개 → 1대 (택시/공항철도 충분), 8+ → 2대 (코코트립 차터 권장).
 function getOptions(lang: Lang, luggageCount: number, paxCount: number): TransportOption[] {
-  const heavyLoad = luggageCount >= 3 || paxCount >= 5;
+  const heavyLoad = calcVehicleCount(luggageCount) >= 2 || paxCount >= 5;
   const opts: TransportOption[] = [
     {
       key: 'arex_express',
@@ -151,7 +154,10 @@ export function AirportToLodgingGuide({ plan }: Props) {
   const luggage = input.luggage as { small?: number; medium?: number; large?: number } | undefined;
   const luggageCount = (luggage?.small || 0) + (luggage?.medium || 0) + (luggage?.large || 0);
   const paxCount = (input.pax as number) || (input.adults as number) || 2;
-  const heavyLoad = luggageCount >= 3 || paxCount >= 5;
+  // B-5/B-8 (2026-05-10 prod 검증): 캐리어 → 차량 수 동적 룰 통일.
+  //   1-7=1대, 8+=2대, 14+=3대, +6/대. 차량 2대 이상 필요 시 = heavyLoad.
+  const vehicleCount = calcVehicleCount(luggageCount);
+  const heavyLoad = vehicleCount >= 2 || paxCount >= 5;
 
   // 한국어 사용자는 단순화 — 한국인은 공항 교통 잘 알고, 디테일 본문 길면 짜증 (사용자 피드백).
   if (lang === 'ko') {
@@ -165,14 +171,8 @@ export function AirportToLodgingGuide({ plan }: Props) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-white mb-1">{HEADLINE.ko.title}</p>
             <p className="text-[13px] text-white/65 leading-relaxed">{SIMPLIFIED_KO}</p>
-            {heavyLoad && (
-              <Link to="/charter"
-                className="inline-flex items-center gap-1.5 mt-3 px-3 py-2 rounded-xl text-[12px] font-semibold text-white"
-                style={{ background: BRAND.gradient.primary }}
-                onClick={() => trackAdClick('charter', 'preTrip:airportToLodging:ko', '/charter')}>
-                코코트립 차량 알아보기 <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            )}
+            {/* B-4 (2026-05-11 prod 검증): "코코트립 차량 알아보기" 버튼 제거.
+                바로 아래 AirportPickupAd 카드와 중복 — 안내문은 유지, 버튼만 삭제. */}
           </div>
         </div>
       </div>
@@ -208,9 +208,9 @@ export function AirportToLodgingGuide({ plan }: Props) {
         {heavyLoad && (
           <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
             <p className="text-[11px] text-amber-200 leading-relaxed">
-              {lang === 'en' && `🧳 ${luggageCount} suitcases / ${paxCount} pax — Korean taxis fit only 1-2 large bags. Charter recommended.`}
-              {lang === 'ja' && `🧳 ${luggageCount}個のスーツケース / ${paxCount}名 — 韓国のタクシーは大きな荷物1-2個まで。チャーターを推奨。`}
-              {lang === 'zh' && `🧳 ${luggageCount}件行李 / ${paxCount}人 — 韩国出租车仅能放1-2件大行李。推荐包车。`}
+              {lang === 'en' && `🧳 ${luggageCount} suitcases / ${paxCount} pax — ${vehicleCount} vehicles recommended (Staria). Korean taxis fit only 1-2 large bags.`}
+              {lang === 'ja' && `🧳 荷物${luggageCount}個 / ${paxCount}名 — 車両${vehicleCount}台推奨 (スターリア)。韓国のタクシーは大きな荷物1-2個まで。`}
+              {lang === 'zh' && `🧳 ${luggageCount}件行李 / ${paxCount}人 — 建议${vehicleCount}辆车 (Staria)。韩国出租车仅能放1-2件大行李。`}
             </p>
           </div>
         )}
