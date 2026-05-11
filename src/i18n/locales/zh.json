@@ -1617,6 +1617,7 @@
       "recRestaurantsVegan": "纯素推荐",
       "recRestaurantsHalal": "清真推荐",
       "recRestaurantsEmpty": "本地区的验证餐厅库中暂无符合此饮食限制的店铺。",
+      "recRestaurantsCitySubSection": "{city}推荐",
       "reviews": "条评价",
       "openMap": "在地图中打开",
       "kmAway": "km",

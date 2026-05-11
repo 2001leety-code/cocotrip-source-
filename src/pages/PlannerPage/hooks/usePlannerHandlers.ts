@@ -232,6 +232,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           ...(values.tourPace ? { tourPace: values.tourPace } : {}),
           // Sprint 2 #5: undecided-hotel zone hint forwarded to backend.
           recommended_zone: values.recommended_zone || '',
+          // 2026-05-11 (B-2 fix): 도시별 zone Record. 다도시 plan 시 backend
+          // buildPrompt MULTI-CITY HANDLING 섹션이 city 별 zone hint 사용.
+          // 단도시 plan 도 동일 형식 전달 (regression 0 — backend Record.length===1 자동 fallback).
+          ...(values.recommended_zones && Object.keys(values.recommended_zones).length > 0
+            ? { recommended_zones: values.recommended_zones }
+            : {}),
           // 2026-05-03: zone 대표 주소 (RouteAgent가 공항↔zone 경로 계산용 fallback).
           recommended_zone_address: values.recommended_zone_address || '',
           // B9-20 (2026-05-09 round 4): WizardForm 에서 받은 wantAccom/accomBudget

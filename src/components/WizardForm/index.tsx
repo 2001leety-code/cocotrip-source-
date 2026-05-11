@@ -62,7 +62,9 @@ interface PlannerSnapshotValues {
   luggageLarge: number;
   wantAccom: boolean;
   accomBudget: string;
-  recommendedZone: string;
+  // 2026-05-11 (B-2): single-zone string → Record<city, zone>. autosave snapshot 의
+  // 기존 사용자는 recommendedZone (legacy) 만 갖고 있을 수 있어 복원 시 fallback 처리.
+  recommendedZones: Record<string, string>;
   tourPace: TourPace;
 }
 
@@ -130,8 +132,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const [wantAccom, setWantAccom]             = useState(false);
   const [accomBudget, setAccomBudget]         = useState('moderate');
   // Sprint 2 #5: when user has no booked hotel, they can pick a Seoul zone
-  // and the AI hubs stops near it. Empty string = no recommendation chosen.
-  const [recommendedZone, setRecommendedZone] = useState('');
+  // and the AI hubs stops near it. Empty record = no recommendation chosen.
+  // 2026-05-11 (B-2 fix): 단일 string → Record<cityKey, zoneKey>. 다도시 plan 에서
+  // 도시별로 각각 1개씩 zone 보유 가능. 단도시 plan 은 { [mainCityKey]: zone } 형태.
+  const [recommendedZones, setRecommendedZones] = useState<Record<string, string>>({});
   // 2026-05-03 fix: 사용자가 Step 3 자체 input에서 공항을 만진 적 있으면
   // "from Step 1" chip으로 swap 안 함 (한 글자 칠 때마다 input이 chip으로 바뀌고
   // Edit 버튼이 Step 0으로 점프시키던 버그). reservationStatus가 바뀌면 reset.
@@ -262,7 +266,21 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     setLuggageLarge(typeof v.luggageLarge === 'number' ? v.luggageLarge : 0);
     setWantAccom(!!v.wantAccom);
     setAccomBudget(v.accomBudget ?? 'moderate');
-    setRecommendedZone(v.recommendedZone ?? '');
+    // 2026-05-11 (B-2): Record 복원 + legacy single-string snapshot fallback.
+    // 기존 사용자는 recommendedZone (string) 만 갖고 있을 수 있음. mainCityKey
+    // 매핑으로 Record 로 lift — 도시 미상이면 빈 Record.
+    if (v.recommendedZones && typeof v.recommendedZones === 'object' && !Array.isArray(v.recommendedZones)) {
+      setRecommendedZones(v.recommendedZones);
+    } else {
+      // legacy snapshot: { recommendedZone: 'myeongdong' } — Record 로 lift.
+      const legacyZone = (v as unknown as { recommendedZone?: string }).recommendedZone;
+      const legacyMainKey = v.mainCityKey || '';
+      if (legacyZone && legacyMainKey) {
+        setRecommendedZones({ [legacyMainKey]: legacyZone });
+      } else {
+        setRecommendedZones({});
+      }
+    }
     setTourPace((v.tourPace as TourPace) ?? 'full');
     setStep(pendingStep);
     setResumeOpen(false);
@@ -320,7 +338,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     paxInput, arrivalTerminal, hotelAddress,
     arrivalTime, departureTime,
     luggageSmall, luggageMedium, luggageLarge,
-    wantAccom, accomBudget, recommendedZone, tourPace,
+    wantAccom, accomBudget, recommendedZones, tourPace,
   };
   // resume modal 활성 시 'planner_paused' namespace 로 저장 → real snapshot 유지.
   // (사용자가 모달 띄운 채 다른 input 만지면 새 snap 으로 덮이는 일 방지)
@@ -400,10 +418,29 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // 2026-05-10 다도시 plan UX: zone 선택 시 그 zone 이 속한 도시가 mainCity 와
   // 다르면 자동 swap (mainCity ↔ extraCities[idx]). 이렇게 하면 공항 dropdown
   // 도 useEffect [mainCityKey] chain 으로 자동 업데이트, hub city 와 zone 정합.
-  function handlePickZone(zoneKey: string, zoneCityKey: string) {
-    setRecommendedZone(zoneKey);
-    if (!zoneKey) return; // deselect
+  //
+  // 2026-05-11 (B-2 fix): 시그니처 (cityKey, zoneKey) — 도시별 zone Record 단위
+  // 토글. 다른 도시 zone 선택은 그 도시 슬롯만 교체 → 사용자가 두 도시 모두
+  // zone 보유 가능. zoneKey='' 면 그 도시 slot 만 deselect (다른 도시 유지).
+  // mainCity auto-swap 은 (1) 첫 zone 선택 (= 다른 도시 zone 없음) 시에만 발동.
+  // 두 번째 도시 zone 선택 시 swap 안 함 — 첫 도시 = 입국 hub 로 유지.
+  function handlePickZone(zoneCityKey: string, zoneKey: string) {
+    setRecommendedZones(prev => {
+      const next = { ...prev };
+      if (zoneKey) {
+        next[zoneCityKey] = zoneKey;
+      } else {
+        delete next[zoneCityKey];
+      }
+      return next;
+    });
+    if (!zoneKey) return; // deselect — swap 안 함
     if (zoneCityKey === mainCityKey) return; // already main — no swap
+    // 다른 도시 zone 도 이미 선택된 상태면 swap 안 함 — 사용자가 의도적으로 두
+    // 도시 모두 골랐을 가능성 높음. main = entry/airport 도시 유지.
+    const hasOtherCityZone = Object.entries(recommendedZones)
+      .some(([ck, zk]) => ck !== zoneCityKey && !!zk);
+    if (hasOtherCityZone) return;
     const idx = extraCities.findIndex(name => cityNameToZoneKey(name) === zoneCityKey);
     if (idx === -1) return; // 일치 도시 없음 (예외 가드)
     const newMainCityName = extraCities[idx];
@@ -453,8 +490,13 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       // 선택될 수 있으므로 mainCityKey 한정 lookup → 글로벌 reverse lookup 으로 변경.
       // handlePickZone 의 mainCity auto-swap 이 한 frame 늦게 commit 되는 경우도
       // safe (zoneData 전체에서 zone key unique).
-      const zoneAnchor = (!hotelAddress && recommendedZone)
-        ? getZoneByKey(recommendedZone)?.zone.anchorAddress
+      //
+      // 2026-05-11 (B-2 fix): Record 에서 mainCity zone 우선, 없으면 첫 키 zone.
+      // RouteAgent 의 공항→hotel 경로는 entry city (mainCity) zone 기반.
+      const mainCityZone = recommendedZones[mainCityKey] || '';
+      const firstAvailableZone = mainCityZone || Object.values(recommendedZones).find(z => !!z) || '';
+      const zoneAnchor = (!hotelAddress && firstAvailableZone)
+        ? getZoneByKey(firstAvailableZone)?.zone.anchorAddress
         : undefined;
       // 2026-05-10 B10-1/B10-2: 다도시 시 entry city 의 호텔 = hotel_address (RouteAgent
       // 가 entry 공항 → 첫 호텔 경로 계산). hotelByCity Record 도 같이 forward
@@ -488,7 +530,14 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         departure_time: departureTime || undefined,
         luggage: totalLuggage > 0 ? { small: luggageSmall, medium: luggageMedium, large: luggageLarge } : undefined,
         // Sprint 2 #5: zone hint when no hotel typed (string key like 'myeongdong').
-        recommended_zone: !hotelAddress && recommendedZone ? recommendedZone : undefined,
+        // 2026-05-11 (B-2): 단도시 또는 mainCity zone (= entry city) 우선. backend
+        // RouteAgent + LODGING ZONE PREFERENCE prompt 는 단일 zone 기준 작동.
+        recommended_zone: !hotelAddress && firstAvailableZone ? firstAvailableZone : undefined,
+        // 2026-05-11 (B-2): 다도시 시 도시별 zone Record. backend buildPrompt MULTI-CITY
+        // HANDLING 섹션이 도시별 prompt 분기 inject. 단도시 plan 도 동일 형식 전달.
+        recommended_zones: !hotelAddress && Object.keys(recommendedZones).length > 0
+          ? recommendedZones
+          : undefined,
         // 2026-05-03: zone의 대표 주소 (RouteAgent가 공항↔zone 환승 경로 계산용).
         recommended_zone_address: zoneAnchor,
       } as PlannerFormValues);
@@ -603,6 +652,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   getCityName={getCityName} toggleActivity={toggleActivity}
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
                   onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
+                  dateRange={dateRange} setDateRange={setDateRange}
                 />
               )}
               {step === 2 && (
@@ -632,7 +682,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   wantAccom={wantAccom} setWantAccom={setWantAccom}
                   accomBudget={accomBudget} setAccomBudget={setAccomBudget}
                   tourPace={tourPace} setTourPace={setTourPace}
-                  recommendedZone={recommendedZone}
+                  recommendedZones={recommendedZones}
                   cityKeys={cityKeys}
                   onPickZone={handlePickZone}
                   isMultiCity={isMultiCity}

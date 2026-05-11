@@ -139,7 +139,31 @@ export default async function handler(req, res) {
     // Sprint 2 #5: zone hint (string key like 'myeongdong'). Used as a soft
     // anchor for hub-and-spoke when no hotel_address provided. Ignored when
     // hotel_address present (hotel coords win).
+    // 2026-05-11 (B-2 fix): recommended_zones (Record<city, zone>) 도 함께 처리.
+    // 다도시 plan 시 도시별 zone hint. 단도시 plan 도 동일 형식이지만 backward
+    // compat — recommended_zone (string) 만 받아도 작동. recommended_zones 우선.
     const recommendedZone = body.recommended_zone || '';
+    const recommendedZones = (() => {
+      const raw = body.recommended_zones;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const out = {};
+        for (const [k, v] of Object.entries(raw)) {
+          if (typeof k === 'string' && typeof v === 'string' && v.trim()) {
+            out[k.trim()] = v.trim();
+          }
+        }
+        if (Object.keys(out).length > 0) return out;
+      }
+      // fallback: legacy recommended_zone + area → single-entry Record
+      // (단도시 plan 또는 client 가 recommended_zones 안 보낸 케이스).
+      if (recommendedZone && area) {
+        // area 는 'seoul_city' 형태. zone Record key 는 frontend zoneData key
+        // (e.g. 'seoul'). 안전한 매핑 — area startsWith 로 첫 도시 추출.
+        const cityKey = String(area).split('_')[0].toLowerCase();
+        return { [cityKey]: recommendedZone };
+      }
+      return {};
+    })();
     // 2026-05-03: zone의 대표 주소 (예: "서울 마포구 홍익대학교"). RouteAgent에는
     // hotel_address fallback으로 사용 (공항↔zone 환승 경로 계산). Firestore 저장 시
     // 사용자가 입력한 hotel_address는 빈 문자열 그대로 유지 — "호텔 미정" 의미.
@@ -221,6 +245,10 @@ export default async function handler(req, res) {
       hotel_address: hotel_address || undefined,
       // Sprint 2 #5: zone hint passed only when hotel_address absent.
       recommended_zone: !hotel_address && recommendedZone ? recommendedZone : undefined,
+      // 2026-05-11 (B-2): 다도시 plan zone hint Record — buildPrompt MULTI-CITY 분기 보완.
+      recommended_zones: !hotel_address && Object.keys(recommendedZones).length > 0
+        ? recommendedZones
+        : undefined,
       mobility,
       // 2026-05-10 (P1): luggage — RouteAgent late-night/heavy-luggage 분기 + Gemini.
       luggage: luggage || undefined,
@@ -235,20 +263,52 @@ export default async function handler(req, res) {
       variation_seed: Math.floor(Math.random() * 100) + 1,
       want_accommodation: wantAccom || undefined,
       accommodation_budget: wantAccom ? accomBudget : undefined,
-    }) + spotContext + foodContext + (!hotel_address && recommendedZone ? `
+    }) + spotContext + foodContext + (() => {
+      // 2026-05-11 (B-2 fix): 다도시 plan zone-per-city prompt 분기.
+      // recommended_zones 가 2개 이상 도시 zone 갖고 있으면 도시별 LODGING ZONE
+      // anchor 모두 강제. 단일 도시이거나 zones 1개 = 기존 single-zone 분기.
+      if (hotel_address) return '';
+      const zoneEntries = Object.entries(recommendedZones).filter(([, z]) => !!z);
+      if (zoneEntries.length === 0) return '';
+
+      if (zoneEntries.length === 1) {
+        const [, singleZone] = zoneEntries[0];
+        return `
 
 [LODGING ZONE PREFERENCE — STRICT]
-The user has not booked a hotel and chose "${recommendedZone}" as their preferred lodging district within ${area}.
-This is a HARD anchor — assume they will sleep in or near "${recommendedZone}" every night.
+The user has not booked a hotel and chose "${singleZone}" as their preferred lodging district within ${area}.
+This is a HARD anchor — assume they will sleep in or near "${singleZone}" every night.
 
 REQUIREMENTS:
-- 80%+ of all stops MUST be within 3km of "${recommendedZone}" centroid.
-- Day 1: first stop MUST be in "${recommendedZone}" (arrival convenience).
-- Day N (last day): last stop MUST be in "${recommendedZone}" (departure convenience).
-- Food stops (lunch/dinner): 90%+ within 3km of "${recommendedZone}".
+- 80%+ of all stops MUST be within 3km of "${singleZone}" centroid.
+- Day 1: first stop MUST be in "${singleZone}" (arrival convenience).
+- Day N (last day): last stop MUST be in "${singleZone}" (departure convenience).
+- Food stops (lunch/dinner): 90%+ within 3km of "${singleZone}".
 - Outside-zone stops: maximum 20% per day, AND only if the spot is genuinely iconic (major palace, must-see landmark, signature experience that cannot be substituted nearby).
 - DO NOT scatter stops across multiple distant districts — that defeats the purpose of choosing a base zone.
-- If "${recommendedZone}" lacks options for a category, prefer the closest adjacent neighborhood over a distant one.` : '') + (wantAccom ? `
+- If "${singleZone}" lacks options for a category, prefer the closest adjacent neighborhood over a distant one.`;
+      }
+
+      // 다도시: 도시별 zone anchor. 도시 변경 day 마다 그 도시 zone 중심 5km 반경.
+      const cityZoneLines = zoneEntries
+        .map(([city, zone]) => `- In ${city.charAt(0).toUpperCase() + city.slice(1)}, hub stops around "${zone}" — selected by user. Day blocks for this city: 80%+ stops within 3km of "${zone}" centroid, first + last stop within "${zone}".`)
+        .join('\n');
+      return `
+
+[MULTI-CITY LODGING ZONE PREFERENCE — STRICT]
+The user has not booked hotels. For each city they selected, they chose a preferred lodging district:
+
+${cityZoneLines}
+
+REQUIREMENTS:
+- Each Day's "city" field determines which zone anchor applies.
+- 80%+ of stops on a given day MUST be within 3km of THAT city's chosen zone.
+- First stop of each city-block MUST be in that city's zone (arrival/transit convenience).
+- Last stop of each city-block MUST be in that city's zone (rest/sleep convenience).
+- Food stops (lunch/dinner): 90%+ within 3km of the day's city zone.
+- DO NOT scatter stops across cities mid-day. Inter-city travel only at start of a new city-block via intercity_transit (see MULTI-CITY HANDLING).
+- If a city's zone lacks options for a category, prefer the closest adjacent neighborhood within the SAME city — never cross-city.`;
+    })() + (wantAccom ? `
 
 [ACCOMMODATION REQUEST]
 The user wants hotel recommendations. Budget level: ${accomBudget}.
@@ -366,8 +426,10 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     try {
       const foodIndex = await loadFoodIndex();
       foodIndexForQuality = foodIndex;
+      // 2026-05-11 (B-3 fix): regions array forward — 다도시 plan 시 도시별
+      // 추천 식당 분배 (5+5 또는 4+3+3). 단도시는 regions=[area] → 기존 10개 동일.
       itinerary.recommended_restaurants = pickRecommendedRestaurantsByStyle(
-        foodIndex, itinerary, area, dietPrefs,
+        foodIndex, itinerary, area, dietPrefs, regions,
       );
       const _bucketSizes = Object.entries(itinerary.recommended_restaurants)
         .map(([k, v]) => `${k}=${Array.isArray(v) ? v.length : 0}`).join(' ');

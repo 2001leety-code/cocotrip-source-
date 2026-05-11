@@ -52,9 +52,11 @@ interface Step2Props {
   // Sprint 2 #5: recommended zone (when hotel undecided) + city key for picker scoping.
   // 2026-05-10 다도시 plan UX fix: cityKeys (모든 selected cities). zone 선택 시 cityKey
   // 도 같이 받아 부모가 mainCity auto-swap. mainCityKey 는 cityKeys[0] 로 대체됨.
-  recommendedZone: string;
+  // 2026-05-11 (B-2 fix): recommendedZone: string → recommendedZones: Record<city,zone>.
+  // 다도시 plan 에서 두 도시 zone 동시 선택 가능. onPickZone 시그니처도 (cityKey, zoneKey).
+  recommendedZones: Record<string, string>;
   cityKeys: string[];
-  onPickZone: (zoneKey: string, cityKey: string) => void;
+  onPickZone: (cityKey: string, zoneKey: string) => void;
   // 2026-05-10 B10-1/B10-2: 다도시 입국 도시 명시 + 도시별 호텔 input.
   isMultiCity: boolean;
   mainCityKey: string;
@@ -126,7 +128,7 @@ export function WizardStep2Details(props: Step2Props) {
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
-    recommendedZone, cityKeys, onPickZone,
+    recommendedZones, cityKeys, onPickZone,
     isMultiCity, mainCityKey, onEntryCityChange, hotelByCity, setHotelByCity,
     canGoStep3, onPrev, onNext, onEditStep0,
     reservationStatus,
@@ -397,7 +399,7 @@ export function WizardStep2Details(props: Step2Props) {
                   isMobile={isMobile}
                   cityKeys={cityKeys}
                   hotelAddress=""
-                  recommendedZone={recommendedZone}
+                  recommendedZones={recommendedZones}
                   onPickZone={onPickZone}
                   labelTitle={p.zoneRecommendTitle}
                   labelSubtitle={p.zoneRecommendSubtitle}
@@ -436,7 +438,7 @@ export function WizardStep2Details(props: Step2Props) {
                   isMobile={isMobile}
                   cityKeys={cityKeys}
                   hotelAddress={hotelAddress}
-                  recommendedZone={recommendedZone}
+                  recommendedZones={recommendedZones}
                   onPickZone={onPickZone}
                   labelTitle={p.zoneRecommendTitle}
                   labelSubtitle={p.zoneRecommendSubtitle}
