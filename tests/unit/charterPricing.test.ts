@@ -889,3 +889,92 @@ describe('B-CHT17 — SSOT airport_transfer_pricing_formula 일관성', () => {
     expect(central).toBe(AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW);
   });
 });
+
+// ─────────────────────────────────────────────────────────
+// B-CHT18: Sprinter 가이드 중복 가산 차단 (P1 #9 fix, 2026-05-12)
+//   기존: sprinter 자동 guide_required ₩300K + 사용자 옵션 licensed_guide ₩300K = ₩600K 중복.
+//   수정: vehicle === 'sprinter' 일 때 licensed_guide 옵션 무시 (server-side dedup).
+//   UI Step5DateOptions 도 sprinter 선택 시 OptionPill 숨김.
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT18 — Sprinter 가이드 중복 가산 차단 (P1 #9 fix)', () => {
+  it('Sprinter + licensedGuide=true → addons 에 licensed_guide 미포함 (dedup)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'sprinter',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: true },
+    });
+    expect(q).not.toBeNull();
+    // licensed_guide 가 추가되지 않아야 함 (sprinter 자동 guide_required 와 중복 회피)
+    const licensedGuide = q!.addons.find(a => a.key === 'licensed_guide');
+    expect(licensedGuide).toBeUndefined();
+    // guide_required 는 sprinter 자동 가산이라 존재
+    const guideRequired = q!.addons.find(a => a.key === 'guide_required');
+    expect(guideRequired).toBeDefined();
+    expect(guideRequired!.amountKRW).toBe(300_000);
+  });
+
+  it('Sprinter + licensedGuide=true 합계 = ₩300K (₩600K 중복 회귀 차단)', () => {
+    const stateOn = {
+      ...baseState,
+      vehicle: 'sprinter' as const,
+      service: 'airport_transfer' as const,
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: true },
+    };
+    const stateOff = {
+      ...stateOn,
+      options: { licensedGuide: false },
+    };
+    const qOn = calculateQuote(stateOn);
+    const qOff = calculateQuote(stateOff);
+    // licensedGuide 옵션이 sprinter 견적에 영향 X — 두 결과 subtotalKRW 동일.
+    expect(qOn!.subtotalKRW).toBe(qOff!.subtotalKRW);
+    // 가이드 비용 단일 가산 확인 — guide_required addon 만 ₩300K
+    const guideTotal = qOn!.addons
+      .filter(a => a.key === 'licensed_guide' || a.key === 'guide_required')
+      .reduce((s, a) => s + a.amountKRW, 0);
+    expect(guideTotal).toBe(300_000);
+  });
+
+  it('Staria + licensedGuide=true → licensed_guide addon 존재 (정상 옵션 동작 보존)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: true },
+    });
+    const licensedGuide = q!.addons.find(a => a.key === 'licensed_guide');
+    expect(licensedGuide).toBeDefined();
+    expect(licensedGuide!.amountKRW).toBe(300_000);
+    // staria 는 guide_required 자동 가산 X
+    expect(q!.addons.find(a => a.key === 'guide_required')).toBeUndefined();
+  });
+
+  it('Staria + licensedGuide=false → 가이드 addon 0건 (regression)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: false },
+    });
+    expect(q!.addons.find(a => a.key === 'licensed_guide')).toBeUndefined();
+    expect(q!.addons.find(a => a.key === 'guide_required')).toBeUndefined();
+  });
+});
