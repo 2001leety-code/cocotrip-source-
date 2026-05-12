@@ -4,15 +4,20 @@
  * 사용처: applyPromoCode, booking-processor, createPaypalOrder, daily-report
  * 비즈니스 로직:
  *   - getExchangeRate() — 풀 메타데이터 (source/fetchedAt 포함) + Firestore 6h 캐시
- *   - getUsdToKrw({cap}) — 쿠폰 보호용 cap 적용 (기본 1500) — legacy
- *   - getUsdToKrwRaw() — 결제 KRW 환산용 cap 없음 — legacy
+ *   - getUsdToKrw({cap}) — 쿠폰 보호용 cap 적용 — legacy
+ *   - getUsdToKrwRaw() — 결제 KRW 환산용 — floor 1450 적용 (운영자 정책 2026-05-13)
+ *
+ * 환율 정책 (운영자 결정 2026-05-13):
+ *   - floor 1450 — live rate < 1450 → 1450 사용 (운영자 보호: USD 가격 underprice 방지)
+ *   - 위로는 cap 없음 — live rate >= 1450 → live rate 그대로 (실시세 반영)
+ *   - sanity max 2000 — fetch 오류로 비정상 spike (예: 5000) 차단
  *
  * API 호출 순서 (fallback chain):
  *   1. exchangerate-api.com (env EXCHANGE_RATE_API_KEY 사용 시 안정 — 1500 req/month 무료)
  *   2. exchangerate-api.com (open free tier, 키 없이)
  *   3. frankfurter.app (ECB 기반 무료, 평일만 갱신)
  *   4. Naver Finance scraping (의존성 없음, fragile)
- *   5. fallback hardcoded 1380 (마지막 안전망)
+ *   5. fallback hardcoded 1450 (마지막 안전망 — floor 와 동일)
  *
  * 캐시:
  *   - Firestore `system/exchange_rate` 도큐먼트
@@ -20,11 +25,13 @@
  *   - 캐시 만료/조회 실패 시 외부 API 호출 → 캐시 갱신
  */
 
-// P1 #5 fix (2026-05-13): RATE_CAP 1350 → 1500. 실시세 ~1430 이 기존 cap 1350 위로 올라가 매번 cap kick-in.
-// 1500 cap 은 정책 환율 1430 위에 ~5% headroom — 단기 spike 흡수 + 의미 있는 보호.
-// FALLBACK_RATE 1380 → 1430 (정책 환율 = SSOT pricing_spec.policy_krw_per_usd 와 일치).
-const RATE_CAP = 1500;
-const FALLBACK_RATE = 1430;
+// 운영자 정책 2026-05-13: floor 1450 (운영자 보호) + 위로는 실시세. sanity max 2000.
+// 이전 (5/13 PR #386): cap 1500 (실시세 cap 위로 못 올라감) — 1492.50 실시세 시점 cap 99.5% 소진.
+// 새 정책: live rate 가 1450 이하 (USD 강세 → KRW 약세 → 사용자 USD 가격이 underprice 보임) 만 floor 적용.
+//          1450 위 (KRW 약세 → USD 가격 자연스럽게 비싸짐) 는 실시세 그대로 — 운영자 입장 정상.
+const RATE_FLOOR = 1450;
+const RATE_SANITY_MAX = 2000;
+const FALLBACK_RATE = 1450;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 const FETCH_TIMEOUT_MS = 4500;
 
@@ -196,15 +203,31 @@ export async function getExchangeRate() {
 }
 
 /**
- * USD→KRW 환율 조회 (cap 적용)
+ * floor/sanity 정책 적용 — 운영자 결정 2026-05-13.
+ * live rate < RATE_FLOOR (1450) → RATE_FLOOR 사용
+ * RATE_FLOOR <= live rate <= RATE_SANITY_MAX → live rate 그대로
+ * live rate > RATE_SANITY_MAX (2000) → fetch 오류로 간주 → FALLBACK_RATE
+ *
+ * @param {number} rate live rate (외부 API 또는 캐시)
+ * @returns {number} 정책 적용 환율
+ */
+export function applyRatePolicy(rate) {
+  if (!Number.isFinite(rate) || rate <= 0) return FALLBACK_RATE;
+  if (rate > RATE_SANITY_MAX) return FALLBACK_RATE; // 비정상 spike 차단
+  if (rate < RATE_FLOOR) return RATE_FLOOR;          // floor 적용
+  return rate;                                       // 실시세 그대로
+}
+
+/**
+ * USD→KRW 환율 조회 (cap 적용 — legacy)
  * @param {{ cap?: number, timeout?: number }} opts
  * @returns {Promise<number>} 환율 (cap된 값)
  */
 export async function getUsdToKrw(opts = {}) {
-  const cap = opts.cap ?? RATE_CAP;
+  const cap = opts.cap ?? RATE_SANITY_MAX;
   try {
     const { krwPerUsd } = await getExchangeRate();
-    if (krwPerUsd && krwPerUsd > 0) return Math.min(krwPerUsd, cap);
+    if (krwPerUsd && krwPerUsd > 0) return Math.min(applyRatePolicy(krwPerUsd), cap);
   } catch (e) {
     console.warn('[exchange-rate] getUsdToKrw failed:', e.message);
   }
@@ -212,9 +235,16 @@ export async function getUsdToKrw(opts = {}) {
 }
 
 /**
- * USD→KRW 환율 조회 (cap 없음 — booking-processor용 실제 환율)
+ * USD→KRW 환율 조회 (booking-processor용 실제 환율 + floor 정책 적용).
+ * 운영자 정책 2026-05-13: floor 1450 + 위로 실시세 그대로.
  * @returns {Promise<number>}
  */
 export async function getUsdToKrwRaw() {
-  return getUsdToKrw({ cap: Infinity });
+  try {
+    const { krwPerUsd } = await getExchangeRate();
+    if (krwPerUsd && krwPerUsd > 0) return applyRatePolicy(krwPerUsd);
+  } catch (e) {
+    console.warn('[exchange-rate] getUsdToKrwRaw failed:', e.message);
+  }
+  return FALLBACK_RATE;
 }

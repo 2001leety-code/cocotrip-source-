@@ -30,7 +30,7 @@
 
 | # | 항목 | 현재 | 상태 |
 |---|---|---|---|
-| 5 | **공항 pickup KRW/USD 환율 비일관** | priceUSD ±5% 변동 | **✅ PR fix** — `policy_krw_per_usd: 1430` SSOT + 모든 priceUSD = round(priceKRW/1430) + KRW_PER_USD 1350→1430 + RATE_CAP 1350→1500 + B-CHT20/21/22 + P34 lint |
+| 5 | **공항 pickup KRW/USD 환율 비일관 + 실시세 floor 정책** | priceUSD ±5% 변동 + live rate cap 1500 소진 | **✅ PR fix** — `policy_krw_per_usd: 1430` SSOT (UI 표시) + 모든 priceUSD = round(priceKRW/1430) + KRW_PER_USD default 1430 + **applyRatePolicy floor 1450 + sanity max 2000** (실 결제: live<1450→1450 / 1450~2000→live 그대로 / >2000→fallback) + B-CHT20/21/22/23 + P34 lint |
 | 6 | **multi_day 단순 식** | sprinter underprice | **✅ PR #382 fix** — SSOT `VEHICLE_INTERCITY.sprinter` (280K/180K) 분기 도입 |
 | 7 | **DMZ vs Seoul Suburb 가격 동일** | ₩343,200 동가 | **✅ 운영자 정책 B 확정 (2026-05-13) — 현 유지** (가성비 마케팅 유지). 부산 launch 후 DMZ 예약 건수 모니터링 → 재논의. JSA 운영 risk 메모 보존. |
 | 8 | **톨비 50km 미만 0원 정책** | ICN 단거리 톨 흡수 | **✅ 운영자 정책 B 확정 (2026-05-13) — 현 유지** (정책 단순함 + 사용자 perception). PR #381 이후 장거리 (>=50km) 톨은 formula 에 이미 반영. 단거리 톨은 운영자 흡수. |
@@ -113,7 +113,8 @@
 2. **P1 #6** (PR #382): sprinter multi_day SSOT 분기 (280K/180K)
 3. **P1 #9** (PR #383): Sprinter 가이드 중복 ₩600K 차단 (server dedup + UI hide + B-CHT18 + P32 lint)
 4. **P1 #10** (PR #384): 콤보 SSOT 단일화 — UI/backend mismatch ₩110K 차단 (B-CHT19 + P33 lint)
-5. **P1 #5** (이번 PR): 환율 통일 — `policy_krw_per_usd: 1430` SSOT + 모든 priceUSD 재계산 + KRW_PER_USD 1350→1430 + B-CHT20/21/22 + P34 lint
+5. **P1 #5** (이번 PR): 환율 통일 — `policy_krw_per_usd: 1430` SSOT + 모든 priceUSD 재계산 + KRW_PER_USD 1350→1430 + **applyRatePolicy floor 1450** (운영자 보호) + B-CHT20/21/22/23 + P34 lint
+   - **floor 1450 정책 (운영자 결정 2026-05-13)**: 실 결제 환율 live rate 가 1450 이하 → 1450 사용 (운영자 보호: USD 가격 underprice 방지). 1450 위 → 실시세 그대로 (KRW 약세 시 자연스러운 USD 가격 인상). sanity max 2000 (fetch 오류 차단).
 
 ### ✅ 운영자 정책 확정 (코드 변경 없음, 정책 B 채택)
 6. **P1 #7** DMZ vs Suburb 동가 — 현 유지 + 예약 건수 모니터링 (가성비 유지, JSA risk 메모)

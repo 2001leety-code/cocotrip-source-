@@ -936,3 +936,48 @@ describe('B-CHT22 — daily_tour_prices priceUSD = round(priceKRW / 1430) (P1 #5
     });
   }
 });
+
+// ─────────────────────────────────────────────────────────
+// B-CHT23: applyRatePolicy floor 1450 + sanity max 2000 (운영자 결정 2026-05-13)
+//   - live rate < 1450 → 1450 (운영자 보호 — USD underprice 차단)
+//   - 1450 <= live <= 2000 → live 그대로 (실시세 반영)
+//   - live > 2000 → FALLBACK_RATE 1450 (fetch 오류 차단)
+// ─────────────────────────────────────────────────────────
+
+import { applyRatePolicy } from '../../api/_exchange-rate.js';
+
+describe('B-CHT23 — applyRatePolicy floor 1450 정책 (운영자 결정 2026-05-13)', () => {
+  it('live rate 1430 (< floor) → 1450 (floor 적용)', () => {
+    expect(applyRatePolicy(1430)).toBe(1450);
+  });
+
+  it('live rate 1400 (< floor) → 1450 (floor 적용)', () => {
+    expect(applyRatePolicy(1400)).toBe(1450);
+  });
+
+  it('live rate 1450 (=floor) → 1450 (경계, 그대로)', () => {
+    expect(applyRatePolicy(1450)).toBe(1450);
+  });
+
+  it('live rate 1492.50 (실시세 5/13) → 1492.50 (그대로, floor 미적용)', () => {
+    expect(applyRatePolicy(1492.50)).toBe(1492.50);
+  });
+
+  it('live rate 1600 (KRW 약세 spike) → 1600 (그대로, 위로 cap 없음)', () => {
+    expect(applyRatePolicy(1600)).toBe(1600);
+  });
+
+  it('live rate 1999 (sanity 경계 -1) → 1999 (그대로)', () => {
+    expect(applyRatePolicy(1999)).toBe(1999);
+  });
+
+  it('live rate 2500 (비정상 spike, > sanity 2000) → 1450 (FALLBACK)', () => {
+    expect(applyRatePolicy(2500)).toBe(1450);
+  });
+
+  it('live rate 0 / NaN / 음수 → 1450 (FALLBACK)', () => {
+    expect(applyRatePolicy(0)).toBe(1450);
+    expect(applyRatePolicy(NaN)).toBe(1450);
+    expect(applyRatePolicy(-100)).toBe(1450);
+  });
+});
