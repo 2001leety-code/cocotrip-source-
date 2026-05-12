@@ -240,3 +240,74 @@ SCENARIO_ARRIVAL_AIRPORT=ICN \
 - Gemini: 6 call/week ≈ $0.12/week ≈ $0.50/월
 - GitHub Actions: 6 × ~5분 = ~30분/주 = ~2시간/월 (무료 한도 내)
 - 실패 시 issue 자동 생성 (label `regression,scenario-matrix`)
+
+## Voucher 회귀 슈트 (자율 검증 v2 P0, 2026-05-12 도입)
+
+플래너 plan 회귀 슈트 (B-1 ~ B-18) 와 별개로 **voucher PDF 생성 도메인** 회귀를
+독립 슈트로 분리. 트리거 라벨 / 의존 booking 데이터가 다르기 때문.
+
+배경: 사용자가 결제 후 voucher 못 받으면 직접 신고하는 패턴 — 자동 검증 0건.
+voucher 생성 실패 = 결제 직후 핵심 사용자 신뢰 손상 → P0.
+
+### 3 assertion
+
+#### B-VCH1 — Voucher PDF 생성 가능
+
+- **가설:** 결제 완료 booking 의 `/api/voucher` 호출 시 PDF 응답이 아예 안 나오거나 빈 blob 반환.
+- **증상:** 사용자가 "내 예약 보기" → "Voucher 다운로드" 클릭했는데 빈 파일 / 500 에러.
+- **검증:** `status === 200` + `Content-Type: application/pdf` + blob ≥ 10KB + `%PDF-` magic.
+- **회귀 위험:** pdfkit/qrcode import path 깨짐, Buffer concat 실패, Firestore booking 조회 fail.
+
+#### B-VCH2 — Voucher 다국어 (4-lang) 분기
+
+- **가설:** voucher endpoint 가 `?lang=ko/en/ja/zh` 쿼리에 crash 하거나 일부 lang 만 timeout.
+- **증상:** 일본/중국 사용자가 voucher URL 클릭 시 500 또는 30s+ 응답.
+- **검증:** 4-lang 각각 `status === 200` + valid PDF (≥5KB + `%PDF-`) + 응답 시간 < 10s.
+- **참고:** 현재 `voucher.js` 는 `lang` 파라미터를 무시 (Helvetica only — 영문 단일 PDF).
+  4-lang voucher 다국어 추가 시 size 비교 / text 추출 검증으로 강화 예정.
+- **회귀 위험:** lang 파라미터 추가 후 일부 lang ko/zh CJK 폰트 누락 → blob 깨짐 / 빈 페이지.
+
+#### B-VCH3 — Voucher 공유 URL public access + email 매칭 가드
+
+- **가설:** PR #229 batch 2 정책 (auth header 없이 email 매칭만으로 voucher 다운로드) 가 깨져
+  인증 강제로 회귀 — 외부 공유 URL 통해 voucher 받기 X.
+- **증상:** 사용자가 이메일 첨부 URL 클릭하면 401 / 403 — voucher 못 받음.
+- **검증:**
+  - auth header 없이 GET → 200 + valid PDF blob ≥ 10KB
+  - 잘못된 email 입력 시 → 403 (보안 가드)
+- **회귀 위험:** voucher.js 에 `verifyAdminToken` 추가 / `bookingID + userEmail` 매칭 로직 약화.
+
+### 환경변수
+
+| Secret 이름 | 값 |
+| --- | --- |
+| `FIREBASE_WEB_API_KEY` | 기존 회귀 슈트와 동일 (admin 계정 sanity 체크용) |
+| `HEALTH_CHECK_EMAIL` | 동상 |
+| `HEALTH_CHECK_PASSWORD` | 동상 |
+| `VOUCHER_TEST_BOOKING_ID` | sandbox booking ID (예: `CT-20260512-123` 또는 `ADMIN-BYPASS-...`) |
+| `VOUCHER_TEST_BOOKING_EMAIL` | 해당 booking 의 `customerEmail` (소문자, voucher.js 매칭용) |
+
+`VOUCHER_TEST_BOOKING_ID` / `VOUCHER_TEST_BOOKING_EMAIL` **미설정 시 graceful skip + exit 0**
+→ 워크플로우는 PASS 로 표시. 운영자가 booking 1건 생성 후 Secrets 등록 → 다음 trigger 부터 활성화.
+
+### 실행 방법
+
+```bash
+# 로컬 (.env.local 에 VOUCHER_TEST_BOOKING_ID 등 설정)
+node scripts/validate-prod-voucher.mjs
+
+# 특정 booking 지정
+VOUCHER_TEST_BOOKING_ID=CT-20260512-123 \
+VOUCHER_TEST_BOOKING_EMAIL=2001leety@gmail.com \
+  node scripts/validate-prod-voucher.mjs
+
+# CI 트리거: PR 에 'ready-for-voucher-regression' 라벨 추가
+# 수동: GitHub → Actions → "PR Voucher Regression Suite" → Run workflow
+```
+
+### 비용
+
+- 슈트 1회 = HTTP GET 6회 (B-VCH1: 1 + B-VCH2: 4 lang + B-VCH3: 2)
+- Gemini / 결제 게이트웨이 호출 X — 순수 voucher endpoint 검증
+- GitHub Actions 5분/run, 라벨 trigger 만이라 비용 무시 가능
+
