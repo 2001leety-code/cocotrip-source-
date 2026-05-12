@@ -154,3 +154,57 @@ prod 에서 새 회귀가 발견되면:
   - 추후 별도 PR 로 Playwright headless + `page.evaluate(generatePDF)` 자동화 가능 (CLAUDE.md B-3 의 all-white 가드 우회).
 - **Gemini 비결정성** — temperature=0.95 라 1회 실행으로 100% 보장 X. 통계적으로 회귀 패턴 검출에는 충분.
 - **prod 직접 호출** — preview SSO 통과 자동화 미구현. `BASE_URL` env 로 수동 override 가능하지만 SSO 우회는 별도 작업.
+
+## 시나리오 매트릭스 (L2, 2026-05-12 도입)
+
+`pr-regression` 1 시나리오 (서울+부산 5일 ko) 만으로는 다양한 user input 조합 회귀를
+잡지 못한다는 한계. `.github/workflows/scenario-matrix.yml` 가 주간 1회 6 시나리오를
+prod 대상 실행하여 단도시/다도시/4-lang/dietary/공항 조합 회귀를 자동 검출.
+
+### 6 시나리오
+
+| 시나리오 | regions | duration | lang | dietary | arrival |
+| --- | --- | --- | --- | --- | --- |
+| `seoul-only-ko-3d` | seoul | 3 | ko | - | ICN |
+| `busan-only-en-3d` | busan | 3 | en | - | PUS |
+| `jeju-only-ja-4d` | jeju | 4 | ja | - | CJU |
+| `seoul-busan-zh-5d` | seoul,busan | 5 | zh | - | ICN |
+| `seoul-halal-en-4d` | seoul | 4 | en | Halal | ICN |
+| `seoul-vegan-ja-3d` | seoul | 3 | ja | Vegan | ICN |
+
+### env 매개변수 (scripts/validate-prod-regression.mjs)
+
+`SCENARIO_NAME` / `SCENARIO_REGIONS` (comma split) / `SCENARIO_DURATION` /
+`SCENARIO_LANG` (ko|en|ja|zh) / `SCENARIO_DIETARY` (comma split, 빈 값 OK) /
+`SCENARIO_ARRIVAL_AIRPORT` (ICN|GMP|PUS|CJU). 모두 미설정 시 기존 hardcoded 값
+(`seoul,busan` / 5 / ko / Meat / ICN) 으로 fallback → daily-health / pr-regression
+호환 유지.
+
+### 조건부 assertion (단일 region 시나리오)
+
+다음 항목은 `regions.length === 1` 시 자동 skip (PASS 로 카운트):
+- B-2 (다도시 stops 분배)
+- B-3 (추천 식당 region 균등)
+- B-9 (intercity_transit KTX 등)
+- B-13 (도시 전환 day lodging 매칭)
+
+### 실행 방법
+
+```bash
+# 단일 시나리오 로컬 실행
+SCENARIO_NAME=seoul-only-ko-3d \
+SCENARIO_REGIONS=seoul \
+SCENARIO_DURATION=3 \
+SCENARIO_LANG=ko \
+SCENARIO_ARRIVAL_AIRPORT=ICN \
+  node scripts/validate-prod-regression.mjs
+
+# CI 자동 실행: 일요일 01:00 UTC = KST 10:00 (주간 1회)
+# 수동: GitHub → Actions → "Scenario Matrix (weekly)" → Run workflow
+```
+
+### 비용
+
+- Gemini: 6 call/week ≈ $0.12/week ≈ $0.50/월
+- GitHub Actions: 6 × ~5분 = ~30분/주 = ~2시간/월 (무료 한도 내)
+- 실패 시 issue 자동 생성 (label `regression,scenario-matrix`)
