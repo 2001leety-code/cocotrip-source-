@@ -240,3 +240,77 @@ SCENARIO_ARRIVAL_AIRPORT=ICN \
 - Gemini: 6 call/week ≈ $0.12/week ≈ $0.50/월
 - GitHub Actions: 6 × ~5분 = ~30분/주 = ~2시간/월 (무료 한도 내)
 - 실패 시 issue 자동 생성 (label `regression,scenario-matrix`)
+
+## Admin Auth 회귀 슈트 (B-ADM, 자율 검증 v2 P1, 2026-05-12 도입)
+
+`scripts/validate-prod-admin-auth.mjs` + `.github/workflows/pr-admin-auth-regression.yml`.
+13 개 admin endpoint 의 인증/권한 검증 회귀를 자동 감지. **위험 등급 HIGH** — admin
+endpoint 우회 가능 시 booking 상태 임의 변경, 쿠폰 무한 발급, 환불 처리 등 결제 사고
+직결.
+
+### 5 assertion
+
+| ID | 항목 | 검증 방법 |
+| --- | --- | --- |
+| B-ADM1 | 일반 사용자 token → admin endpoint = 401/403 | non-admin idToken 으로 admin-issue-onboarding-coupons / admin-quality-summary / admin-booking-action 3종 호출 → 모두 401/403 |
+| B-ADM2 | 위조/만료/빈 token → 401/403 | 4 케이스 (`Bearer invalid.token`, 빈 Bearer, no Authorization, non-Bearer prefix) → 모두 401/403 |
+| B-ADM3 | ADMIN_EMAIL env 단일 source — 순수 hardcode 0건 | 코드 grep 자체검증. 4 카테고리 분류: env / hybridFallback (env \|\| hardcode) / HARDCODED_ADMIN_EMAILS 배열 fallback / **pureHardcode** (env 참조 0건 + 단독 hardcode 비교) |
+| B-ADM4 | admin token + admin-issue-onboarding-coupons → 200 | 정상 admin token + pageSize=1 minimal POST → 200 + `issued`/`alreadyIssued` 숫자 |
+| B-ADM5 | admin token + admin-booking-action (sandbox ref) → 비-auth 4xx | sandbox `bookingRef=CT-TEST-AUTH-<ts>` → 404 NOT_FOUND 또는 200 (auth 통과 검증, 401/403/500 fail) |
+
+### 실행 방법
+
+```bash
+# 로컬 실행 (.env.local 에 secrets 필요)
+node scripts/validate-prod-admin-auth.mjs
+
+# preview/staging 대상
+BASE_URL=https://my-pr-preview.vercel.app node scripts/validate-prod-admin-auth.mjs
+
+# CI 자동 실행
+# PR 에 'ready-for-admin-regression' 라벨 부착 → pr-admin-auth-regression.yml trigger
+# 또는 GitHub Actions UI 에서 workflow_dispatch 수동 실행
+```
+
+### Secrets (운영자 1회 등록 필요)
+
+기존 회귀 슈트와 공유 + 신규 2 개:
+
+| Secret 이름 | 값 |
+| --- | --- |
+| `FIREBASE_WEB_API_KEY` | (공유) `.env` 의 `VITE_FIREBASE_API_KEY` |
+| `HEALTH_CHECK_EMAIL` | (공유) admin 계정 (ADMIN_EMAIL 매칭) |
+| `HEALTH_CHECK_PASSWORD` | (공유) admin 비밀번호 |
+| `HEALTH_CHECK_NONADMIN_EMAIL` | **(신규)** 일반 사용자 계정 (TEST- prefix 없음) |
+| `HEALTH_CHECK_NONADMIN_PASSWORD` | **(신규)** 위 계정 비밀번호 |
+
+non-admin secrets 미설정 시 B-ADM1 skip (workflow 자체는 계속 진행 — B-ADM2~5 만 검증).
+
+### 자체 발견된 hardcode 위치 (2026-05-12 1차 실행 결과)
+
+코드 grep 결과 (`scripts/validate-prod-admin-auth.mjs` B-ADM3):
+
+- **PURE HARDCODE (HIGH risk, 1건)**:
+  - `api/reviews.js:22` — `const ADMIN_EMAILS = ['2001leety@gmail.com']` (env 참조 0건)
+- **HYBRID FALLBACK (LOW risk, 3건)** — env-driven 이지만 hardcoded fallback 있음:
+  - `src/pages/AdminClaims.tsx:65`
+  - `src/pages/AdminPayments.tsx:90`
+  - `src/pages/AdminReviews.tsx:31`
+- **HARDCODED_ADMIN_EMAILS 배열 fallback (LOW risk, 5건)** — 명시적 fallback 패턴:
+  - `api/capturePaypalOrder.js:14`, `api/loyalty.js:48`, `api/manual-payment-request.js:39`,
+    `api/_ai_core/paymentGate.js:34`, `src/lib/admin.ts:12`
+
+B-ADM3 는 PURE HARDCODE 만 fail 처리. hybrid/array fallback 은 note 로 안내.
+
+### 새 admin endpoint 추가 시 절차
+
+1. `verifyAdminToken` 사용 (HARDCODED_ADMIN_EMAILS 배열은 paymentGate 패턴만 OK)
+2. `pureHardcode` 신규 도입 금지 — 신규 추가 시 B-ADM3 fail
+3. `B-ADM1` 의 `adm1Targets` 배열에 새 endpoint 추가 (non-admin token blocked 검증)
+4. README 의 B-ADM1 항목 endpoint 목록 갱신
+
+### 비용
+
+- Gemini: 호출 X (admin endpoint 만 ping). $0.
+- GitHub Actions: ~3분/실행. 라벨 trigger 만 → PR 당 1회.
+- 실패 시 PR 댓글 자동 게시 (issue 자동 생성 X — PR 컨텍스트로 충분).
