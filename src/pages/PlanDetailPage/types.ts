@@ -50,13 +50,23 @@ export interface PlanDocument {
 }
 
 /** B9-39 (2026-05-09): 다도시 plan 의 도시 간 이동 (KTX/SRT/항공/버스).
- *  Gemini 가 1차로 채우고 RouteAgent 가 fallback. legacy plan 은 undefined. */
+ *  Gemini 가 1차로 채우고 RouteAgent 가 fallback. legacy plan 은 undefined.
+ *  PDF-issue-2 (2026-05-14): from_station/to_station + lodging_to_station/station_to_lodging 추가
+ *  — RouteAgent 가 city-change day 의 hotel→station + station→new_hotel bookend
+ *  segment 계산. UI 가 LodgingBookend 로 표시. */
 export interface IntercityTransitSegment {
   mode?: string;
   from_city?: string;
   to_city?: string;
   from_city_display?: string;
   to_city_display?: string;
+  /** KTX/SRT/Air 정거장 (예: "부산역", "김해국제공항"). PDF-issue-2 2026-05-14 추가. */
+  from_station?: string | null;
+  to_station?: string | null;
+  /** intercity 전 bookend transit (이전 day 호텔 → from_station). RouteAgent attach. */
+  lodging_to_station?: TransitSegment | null;
+  /** intercity 후 bookend transit (to_station → 새 day 호텔). RouteAgent attach. */
+  station_to_lodging?: TransitSegment | null;
   est_min?: number;
   est_fare_krw?: number;
   recommended_depart?: string;
