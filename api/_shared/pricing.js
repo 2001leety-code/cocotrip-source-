@@ -137,6 +137,7 @@ export function resolveKrwAmount(productType, passengers) {
   }
 
   // 콤보 패키지 — SSOT combo_packages 우선, 없으면 fallback
+  // PDF-issue-1 (2026-05-14): per-package discount_percent override 우선 (부산 콤보 5%).
   const ssotCombo = spec.combo_packages?.packages?.[normalized];
   const fbCombo = COMBO_PACKAGES_FALLBACK[normalized];
   const combo = ssotCombo || fbCombo;
@@ -144,8 +145,11 @@ export function resolveKrwAmount(productType, passengers) {
     const airport = spec.airport_transfer_prices[combo.airport_key]?.priceKRW;
     const tour    = spec.daily_tour_prices[combo.tour_key]?.priceKRW;
     if (!airport || !tour) return null;
-    const pct = (spec.combo_packages?.discount_percent ?? COMBO_DISCOUNT_PERCENT_FALLBACK) / 100;
-    return Math.round((airport + tour) * (1 - pct));
+    // per-package override > top-level discount_percent > fallback
+    const pctValue = (typeof combo.discount_percent === 'number')
+      ? combo.discount_percent
+      : (spec.combo_packages?.discount_percent ?? COMBO_DISCOUNT_PERCENT_FALLBACK);
+    return Math.round((airport + tour) * (1 - pctValue / 100));
   }
 
   return null;

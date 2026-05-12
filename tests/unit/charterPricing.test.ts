@@ -923,9 +923,11 @@ describe('B-CHT19 — COMBO_MAP SSOT 단일화 (P1 #10 fix)', () => {
     expect(computeComboPriceKRW('combo_airport_seoul')).toBe(expected);
   });
 
-  it('combo_airport_busan = (seoul-central + busan-day) × 0.9 — UI 카드 ₩627,300 regression 차단', () => {
+  it('combo_airport_busan = (seoul-central + busan-day) × 0.95 (5% 할인, PDF-issue-1 2026-05-14) — UI 카드 ₩627,300 regression 차단', () => {
+    // PDF-issue-1 (운영자 결정 2026-05-14): 부산 콤보만 5% 할인 (per-package override).
+    // 그 외 콤보는 10% 유지. B-CHT24 가 per-package discount 자체를 검증.
     const expected = Math.round(
-      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['busan-day'].priceKRW) * 0.9,
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['busan-day'].priceKRW) * 0.95,
     );
     const actual = computeComboPriceKRW('combo_airport_busan');
     expect(actual).toBe(expected);
@@ -951,4 +953,154 @@ describe('B-CHT19 — COMBO_MAP SSOT 단일화 (P1 #10 fix)', () => {
     expect(COMBO_PACKAGES['combo_airport_busan'].advertise_cities).toContain('busan');
     expect(COMBO_PACKAGES['combo_airport_seoul'].advertise_cities).toContain('seoul');
   });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT24: 부산 콤보 5% 할인 (PDF-issue-1, 운영자 결정 2026-05-14)
+//   per-package discount_percent override — 부산 콤보만 5%, 그 외 10%.
+//   사용자 PDF 캡쳐: combo_airport_busan UI 가격 정책 변경.
+// ─────────────────────────────────────────────────────────
+
+import { getComboDiscountPercent } from '../../src/data/charterPricing';
+
+describe('B-CHT24 — 부산 콤보 per-package discount 5% (PDF-issue-1)', () => {
+  it('combo_airport_busan discount_percent = 5 (운영자 결정)', () => {
+    expect(getComboDiscountPercent('combo_airport_busan')).toBe(5);
+  });
+
+  it('combo_airport_seoul / nami / dmz / gangwon discount_percent = 10 (기본 유지)', () => {
+    expect(getComboDiscountPercent('combo_airport_seoul')).toBe(10);
+    expect(getComboDiscountPercent('combo_airport_nami')).toBe(10);
+    expect(getComboDiscountPercent('combo_airport_dmz')).toBe(10);
+    expect(getComboDiscountPercent('combo_airport_gangwon')).toBe(10);
+  });
+
+  it('combo_airport_busan price = (seoul-central + busan-day) × 0.95 (5% 할인)', () => {
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['busan-day'].priceKRW) * 0.95,
+    );
+    expect(computeComboPriceKRW('combo_airport_busan')).toBe(expected);
+  });
+
+  it('combo_airport_seoul price = (seoul-central + seoul-city) × 0.9 (10% 유지, regression)', () => {
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['seoul-city'].priceKRW) * 0.9,
+    );
+    expect(computeComboPriceKRW('combo_airport_seoul')).toBe(expected);
+  });
+
+  it('등록 안 된 productType → getComboDiscountPercent fallback = 10', () => {
+    expect(getComboDiscountPercent('combo_airport_unknown')).toBe(10);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI1: wrap-up departure airport inference (PDF-issue-4, 2026-05-14)
+//   다도시 plan 마지막 city 기반 출국 공항 자동 추론.
+//   기존 버그: arrival_airport 그대로 fallback → 부산 도착·서울 마지막 plan 에서 PUS 출발 표시.
+// ─────────────────────────────────────────────────────────
+// inferDepartureAirport 는 api/ai-planner-full.js 에 정의되어 있으나 ESM import 차이로
+// 단위 테스트에서는 동일 logic 의 portable 복제로 검증 (실제 함수와 동기 유지).
+
+const CITY_DEFAULT_AIRPORT_TEST = {
+  seoul: 'ICN', '서울': 'ICN',
+  busan: 'PUS', '부산': 'PUS',
+  jeju:  'CJU', '제주': 'CJU',
+  daegu: 'TAE', '대구': 'TAE',
+};
+
+function inferDepartureAirportPortable(arrivalAirport: string, regions: string[] | null, cities: string[] | null): string {
+  const list = Array.isArray(regions) && regions.length > 0
+    ? regions
+    : (Array.isArray(cities) && cities.length > 0 ? cities : null);
+  if (!list || list.length <= 1) return arrivalAirport;
+  const last = String(list[list.length - 1] || '').toLowerCase().trim();
+  if (!last) return arrivalAirport;
+  for (const [key, airport] of Object.entries(CITY_DEFAULT_AIRPORT_TEST)) {
+    if (last.includes(key)) return airport;
+  }
+  return arrivalAirport;
+}
+
+describe('B-AI1 — wrap-up departure airport inference (PDF-issue-4)', () => {
+  it('단도시 plan (regions 1개) → arrival_airport 그대로', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul'], null)).toBe('ICN');
+    expect(inferDepartureAirportPortable('PUS', ['busan'], null)).toBe('PUS');
+  });
+
+  it('다도시 plan — PUS 도착 → 부산→서울 마지막 → ICN 출국 (PDF-issue-4 회귀)', () => {
+    expect(inferDepartureAirportPortable('PUS', ['busan', 'seoul'], null)).toBe('ICN');
+  });
+
+  it('다도시 plan — ICN 도착 → 서울→부산 마지막 → PUS 출국', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul', 'busan'], null)).toBe('PUS');
+  });
+
+  it('다도시 plan — ICN 도착 → 서울→제주 마지막 → CJU 출국', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul', 'jeju'], null)).toBe('CJU');
+  });
+
+  it('regions 미정 + cities 사용 — 다도시면 동일 inference', () => {
+    expect(inferDepartureAirportPortable('PUS', null, ['busan', 'seoul'])).toBe('ICN');
+  });
+
+  it('regions/cities 모두 빈 배열 → arrival_airport fallback', () => {
+    expect(inferDepartureAirportPortable('ICN', [], [])).toBe('ICN');
+    expect(inferDepartureAirportPortable('PUS', null, null)).toBe('PUS');
+  });
+
+  it('한글 city — 다도시 plan 출국 공항 inference', () => {
+    expect(inferDepartureAirportPortable('PUS', ['부산', '서울'], null)).toBe('ICN');
+    expect(inferDepartureAirportPortable('ICN', ['서울', '제주'], null)).toBe('CJU');
+  });
+
+  it('regions 첫 element = 마지막 = 같은 도시 (단도시) → arrival 그대로', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul'], null)).toBe('ICN');
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI2: KTX 전후 transit 누락 (PDF-issue-2, 2026-05-14)
+//   ⚠️ FIX 대기 — RouteAgent 핵심 수정 필요. 후속 PR.
+//   현재: city-change day 에서 intercity_transit 만 표시, 그 전후 (hotel→station,
+//         station→new_hotel) transit 누락. 사용자 PDF "부산호텔→부산역" "서울역→명동호텔"
+//         경로 안 보임.
+//   해야 할 fix: RouteAgent enrichItineraryWithRoute Phase 2.5 + 2.6 에 intercity
+//                bookend transit (hotel→station + station→new_lodging) 추가.
+//   대안: validateResponse 가 intercity 전후 transit 누락을 검출 → reinforced prompt 또는 throw.
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI2 — KTX 전후 transit 누락 (PDF-issue-2)', () => {
+  it.todo('city-change day intercity_transit 양쪽에 lodging_to_station + station_to_lodging transit 동반 — RouteAgent fix 후 활성');
+
+  it.todo('Gemini intercity_transit.mode=KTX/train 시 from_station + to_station 필드 명시 + transit_from_prev 에 hotel→station segment 추가');
+
+  it.todo('day.intercity_transit 후 day.places[0].transit_from_prev 가 새 도시 첫 lodging→첫 stop 으로 채워짐');
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI3: Day 별 lodging.city 중복 (PDF-issue-3, 2026-05-14)
+//   ⚠️ FIX 대기 — RouteAgent + plan validator 수정 필요. 후속 PR.
+//   현재: Day 3 에서 부산→서울 이동 후 Day 4 의 lodging context 가 여전히 부산
+//         (이전 도시) 으로 남아있어 "부산 해운대구 해운대역 → 호텔 (명동 지역)" 같은
+//         모순 표시.
+//   해야 할 fix: day.lodging 필드 또는 day.lodging_city 추가 → RouteAgent 가 day 별
+//                lodging context 갱신. validateResponse 에 "day.intercity_transit.to_city
+//                이후 day 의 lodging context = to_city" 검증 추가.
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI3 — Day 별 lodging.city 중복 (PDF-issue-3)', () => {
+  it.todo('city-change day 이후 day 의 lodging context = intercity_transit.to_city (이전 city 잔존 X)');
+
+  it.todo('plan.itinerary.days[i].lodging_city 추가 — 다도시 plan 에서 day 별 lodging 추적');
+
+  it.todo('validateResponse — day.lodging_city 와 day-1.intercity_transit.to_city 일관성 검증');
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI4: wrap-up departure airport — plan-level smoke (PDF-issue-4 보강)
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI4 — wrap-up departure airport plan-level (PDF-issue-4 보강)', () => {
+  it.todo('실제 ai-planner-full handler → plan.itinerary.departure_guide.airport = inferred (E2E)');
 });
