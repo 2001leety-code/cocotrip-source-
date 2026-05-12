@@ -240,3 +240,111 @@ SCENARIO_ARRIVAL_AIRPORT=ICN \
 - Gemini: 6 call/week ≈ $0.12/week ≈ $0.50/월
 - GitHub Actions: 6 × ~5분 = ~30분/주 = ~2시간/월 (무료 한도 내)
 - 실패 시 issue 자동 생성 (label `regression,scenario-matrix`)
+
+## 결제 회귀 슈트 (validate-prod-payment.mjs)
+
+**도입 (2026-05-12 자율 검증 v2 P0)** — 현재 결제 흐름 회귀 검출 0건/일 (사용자가 결제
+fail 신고해야만 알 수 있음 → 사후 발견). PR 머지 전 자동 8 assertion 으로 PayPal 결제
+endpoint / webhook / 쿠폰 정책 회귀 자동 검증.
+
+**Braintree/Toss 제외** — 운영자 명시 (2026-05-06, PayPal 단일 정책 확정).
+
+### 실행 방법
+
+```bash
+# 로컬 실행 (.env.local secrets 필요)
+node scripts/validate-prod-payment.mjs
+
+# CI: PR 에 'ready-for-payment-regression' 라벨 → pr-payment-regression.yml trigger
+```
+
+### 8 assertion 가설/증상/검증법
+
+#### B-PAY1 — PayPal SDK script 로드
+
+- **가설:** PayPal Smart Buttons SDK CDN (`paypal.com/sdk/js`) 가 차단되거나 client-id
+  rotated 후 prod 미반영.
+- **증상:** 결제 페이지에서 PayPal 버튼 렌더 실패 → "결제 수단을 불러올 수 없습니다".
+- **검증:** `https://www.paypal.com/sdk/js?client-id=${VITE_PAYPAL_CLIENT_ID}&currency=USD`
+  200 + content-type javascript. env 미설정 시 skip + warning.
+- **회귀 위험:** VITE_PAYPAL_CLIENT_ID rotate 후 Vercel env 갱신 누락. PayPal API 키 만료.
+  네트워크 차단 (한국 환경 5/6 batch 이슈).
+
+#### B-PAY2 — createPaypalOrder endpoint
+
+- **가설:** order 생성 endpoint 의 입력 검증 회귀. AI 플래너 + 쿠폰 reject 정책 (2026-05-05
+  운영자 정책: AI 플래너 = 디지털 상품 = 모든 쿠폰 reject) 회귀.
+- **증상:** AI 플래너 결제에 5% 쿠폰 적용되어 13,300원 → 12,635원 결제 — 운영자 수익 손실.
+- **검증:**
+  - case A: productType 누락 → 400 MISSING_FIELDS
+  - case B: AI 플래너 + promoCode → 400 AI_PLANNER_NO_COUPON
+- **회귀 위험:** AI 플래너 쿠폰 reject logic 제거. 검증 순서 swap (productType 검증 후 쿠폰
+  검증으로 순서 변경 시 우회 가능).
+
+#### B-PAY3 — Manual payment request
+
+- **가설:** 한국 체류 외국인의 PayPal QR 수동 결제 신고 endpoint
+  (`/api/manual-payment-request`) 회귀. pending_bookings Firestore 저장 실패 또는
+  bookingRef 검증 약화.
+- **증상:** 사용자가 [결제 완료 신고] 누르면 500 또는 silent fail → 운영자 텔레그램 알림
+  못 받음 → 입금 매칭 X.
+- **검증:** POST → status 200 + ok=true + bookingRef pattern (CT-YYYYMMDD-XXX) 통과.
+  admin email 인증 시 즉시 CONFIRMED + adminBypass=true. 일반 사용자는 AWAITING_VERIFICATION.
+- **회귀 위험:** BOOKING_REF_PATTERN 정규식 회귀. Firestore admin 초기화 fail.
+  ADMIN_BYPASS_EMAILS 누락.
+
+#### B-PAY4 — 5% 쿠폰 productScope
+
+- **가설:** charter / tour-package 만 적용 가능한 5% 쿠폰이 AI 플래너에도 적용되거나 그 반대.
+  운영자 정책: COCO5 (글로벌) = charter+tour만, AI 플래너 = reject.
+- **증상:** AI 플래너 결제 화면에서 COCO5 입력하면 5% 할인 적용 (잘못된 동작).
+- **검증:** applyPromoCode + COCO5 + charter productType → valid:true. AI 플래너는
+  createPaypalOrder 단에서 reject (B-PAY2 caseB 와 layered 검증).
+- **회귀 위험:** couponMatchesProduct() logic 회귀. productScope 검증 path swap.
+
+#### B-PAY5 — Trip Coins redeem percent
+
+- **가설:** Trip Coins 쿠폰 (회원가입 보너스) 가 fixed-USD type 으로 잔존하면 환율 변동에
+  취약 + 백오피스 운영 복잡. PR #270 마이그레이션 후 percent type 으로 통일.
+- **증상:** USD 5 고정 쿠폰 → 환율 1380 → 6,900 KRW 할인 (예상 5% 와 다름).
+- **검증:** users/{uid}/coupons 조회 — 모든 entry type='percent'. 현재 직접 검증 endpoint
+  부재로 soft check (코드 logic 잔존 확인만).
+- **회귀 위험:** 신규 쿠폰 발급 endpoint 가 fixed-USD type 으로 생성. 마이그레이션 스크립트
+  실수.
+- **격상 경로:** `/api/admin-coupon-audit` endpoint 추가 후 정식 검증으로 격상.
+
+#### B-PAY6 — Webhook idempotency
+
+- **가설:** PayPal webhook 같은 transmission-id 재시도 시 중복 처리 → 같은 booking 에 두
+  번 confirm → bookings status race / 텔레그램 중복 알림.
+- **증상:** 한 결제에 [입금 확인 ✅] 알림 2회 발사.
+- **검증:** 같은 transmission-id 로 2회 POST → 응답 status / body 일관. 정상 처리 path 면
+  paypal_webhook_log/{eventId} 가 1건만 생성 (직접 Firestore 검증 불가하므로 응답 일관성만).
+- **회귀 위험:** logRef.get() 체크 누락. status='processed' 갱신 누락.
+
+#### B-PAY7 — Webhook signature verify
+
+- **가설:** PayPal verify-webhook-signature API 우회 가능. 잘못된 signature header 로 POST
+  해도 처리됨.
+- **증상:** 공격자가 가짜 PAYMENT.CAPTURE.COMPLETED webhook 발사 → 미결제 booking 이
+  CONFIRMED 처리 → 무료 투어.
+- **검증:** 잘못된 signature → 401 또는 PAYPAL_WEBHOOK_ID 미설정 503. 200+ok:true 면 fail.
+- **회귀 위험:** verifyWebhookSignature() 호출 누락. PAYPAL_WEBHOOK_ID env 미설정 묵음 통과.
+
+#### B-PAY8 — 환불 흐름
+
+- **가설:** PAYMENT.CAPTURE.REFUNDED webhook 처리 path 회귀. bookings status='REFUNDED'
+  전환 안 됨 → 운영자가 PayPal 환불했는데 시스템상 CONFIRMED.
+- **증상:** 환불 후에도 텔레그램 배차 알림 / 영수증 이메일 발송.
+- **검증:** REFUNDED event_type 으로 webhook 호출 → 401/503/200(unmatched) 응답 (env
+  설정에 따라). unsupported 분기 진입 시 fail.
+- **회귀 위험:** event_type 분기 회귀. extractRefundedCaptureId() links 파싱 fail.
+
+### 운영자 후속 액션 (Secrets 등록 시 active)
+
+- **GitHub Secrets**:
+  - `VITE_PAYPAL_CLIENT_ID` 추가 → B-PAY1 SDK 로드 검증 활성화 (현재 skip+warning)
+- **Vercel env (이미 등록)**:
+  - `PAYPAL_WEBHOOK_ID` → B-PAY6/7/8 signature verify 정식 검증 (현재 503 fallback)
+- **admin endpoint 추가 시**:
+  - `/api/admin-coupon-audit` → B-PAY5 정식 검증으로 격상
