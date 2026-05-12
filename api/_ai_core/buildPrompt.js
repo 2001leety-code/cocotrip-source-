@@ -159,6 +159,20 @@ No markdown. No code blocks. No explanation. Pure JSON only.
       "stops": [
         {
           "order": 1,
+          "start_time": "09:00",
+          "name": "홍대 호텔",
+          "display_name": "Hotel (Hongdae area)",
+          "category": "lodging",
+          "address": "(사용자 hotel_address 또는 recommended_zone)",
+          "stay_min": 0,
+          "entry_fee_krw": 0,
+          "reservation_required": false,
+          "local_tag": "",
+          "tip": "Depart for first attraction.",
+          "personalization_reasoning": "당일 일정 출발 숙소"
+        },
+        {
+          "order": 2,
           "start_time": "09:30",
           "name": "경복궁",
           "display_name": "Gyeongbokgung Palace",
@@ -175,7 +189,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
           ]
         },
         {
-          "order": 2,
+          "order": 3,
           "start_time": "12:00",
           "name": "토속촌",
           "display_name": "Tosokchon Samgyetang",
@@ -191,6 +205,20 @@ No markdown. No code blocks. No explanation. Pure JSON only.
             {"name": "파전", "price_krw": 15000, "note": "To share"},
             {"name": "동동주", "price_krw": 10000, "note": "Traditional rice wine"}
           ]
+        },
+        {
+          "order": 99,
+          "start_time": "21:30",
+          "name": "홍대 호텔",
+          "display_name": "Hotel (Hongdae area)",
+          "category": "lodging",
+          "address": "(사용자 hotel_address 또는 recommended_zone)",
+          "stay_min": 0,
+          "entry_fee_krw": 0,
+          "reservation_required": false,
+          "local_tag": "",
+          "tip": "Return to hotel for rest.",
+          "personalization_reasoning": "당일 일정 마무리 숙소 복귀"
         }
       ]
     }
@@ -254,6 +282,16 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 
 ## ROUTE & TIME RULES
 - stops: 5-7 per full day (09:00-20:30), 3-4 per half day
+- **🔴 MIN STOPS PER DAY — ABSOLUTE MUST (2026-05-12 강화, 위반 시 사용자 신고)**:
+  - **EACH day MUST have AT LEAST 4 stops** (lodging 출발 + 관광/식사 2+ + lodging 복귀 포함)
+    AND **AT MOST 8 stops**.
+  - 사용자 신고: Day 5 가 1 stop (점심만) 으로 끝나는 buggy plan 발생. 절대 금지.
+  - **분량 균형**: 5일 trip 이면 Day 1~4 에 stops 몰아넣고 Day 5 비우지 말 것.
+    Day 5 도 4-6 stops 확보 (출국 항공편 시각 고려해 마지막 lodging 대신 공항 가는 경우는
+    departure_guide 에서 처리하되, stops 자체는 4개 이상 유지).
+  - 4일 plan = Day 1~3 각 5 stops, Day 4 = 4-5 stops (마지막 날 출국 시간 고려).
+  - 5일 plan = Day 1~4 각 5-6 stops, Day 5 = 4-6 stops.
+  - lodging bookend 2개 + 관광/식사 2~6 = 최소 4 ~ 최대 8.
 - start_time: realistic — include 12:00-13:30 lunch, 18:30-20:00 dinner
 - stay_min: honest (palace 90, restaurant 60, market 75, museum 120, cafe 40)
 - entry_fee_krw: 0 if free, real KRW otherwise
@@ -269,23 +307,39 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 
 ## ROUTE OPTIMIZATION — CRITICAL (HUB-AND-SPOKE + LODGING BOOKEND)
 - **HUB-AND-SPOKE 강제**: 매일은 숙소(또는 숙소 근처 지하철역)에서 시작 → 그 zone 내 stops 순회 → 다시 숙소 근처로 복귀.
-  - **🔴 LODGING BOOKEND — ABSOLUTE MUST (2026-05-08, 위반 시 사용자 환불 사유)**:
+  - **🔴 LODGING BOOKEND — ABSOLUTE MUST (2026-05-12 강화, 위반 시 사용자 환불 사유)**:
     사용자 input 에 'hotel_address' 또는 'recommended_zone' 둘 중 하나라도 있으면,
-    **모든 Day** 의 모든 stops 배치는 다음 두 규칙을 동시에 만족해야 한다:
-    1. **첫 stop**: 숙소(hotel_address 또는 recommended_zone 좌표) 로부터 **반경 5km 이내**
-       이고 도보/지하철 환승 30분 이내. 멀리 있는 명소를 첫 stop 으로 두지 말 것.
-    2. **마지막 stop**: 위 동일 조건을 만족. 저녁 식사 후 숙소 복귀가 30분 이상 걸리면
-       반드시 **더 가까운 stop 으로 교체**. 짐 들고 1시간씩 이동하면 환불 사유.
+    **모든 Day 의 stops 배열은 다음 패턴을 따라야 한다**:
+    \`\`\`
+    [lodging stop (출발)] → [관광/식사 stop] → [관광/식사 stop] → ... → [lodging stop (복귀)]
+    \`\`\`
+    구체적으로:
+    1. **stops[0] (첫 stop)** = **category="lodging" stop 필수**.
+       - "name" = 사용자의 hotel_address (있으면) 또는 recommended_zone 영역의 호텔
+         placeholder (예: "Hongdae area hotel" / "명동 호텔" — recommended_zone 기반).
+       - "start_time" = "09:00" (계속 같은 호텔 머무는 경우) 또는 체크아웃 시각 (예: "10:00").
+       - "stay_min" = 0 (출발 stop — 머무는 시간 X).
+       - "category" = "lodging".
+       - 멀리 있는 명소를 첫 stop 으로 두지 말 것 — 첫 stop 은 반드시 숙소 자체.
+    2. **stops[last] (마지막 stop)** = **category="lodging" stop 필수**.
+       - "name" = 같은 day 의 숙소 (다음 day 도 같은 도시면 동일 호텔, 도시 이동 day
+         면 새 도시 호텔).
+       - "start_time" = "21:00"-"22:00" (저녁 체크인).
+       - "stay_min" = 0 (도착 stop).
+       - "category" = "lodging".
+    3. **stops[1] ~ stops[last-1] (중간 stops)** = 관광/식사/카페 등 **3-6개**.
+       - 모두 첫/마지막 lodging 으로부터 반경 5km 이내, 도보/지하철 30분 이내.
+       - 짐 들고 zigzag 이동 금지.
     - 백엔드 RouteAgent (Phase 2.5/2.6) 가 ODsay 로 실제 환승 경로 계산해서
       day.lodging_to_first (첫 stop 직전) / day.last_to_lodging (마지막 stop 직후)
       필드에 attach 한다. Gemini 는 stops 만 위 규칙대로 배치하면 RouteAgent 가
       나머지를 처리. **stops 가 잘못 배치되면 RouteAgent 도 의미 없는 경로 생성.**
-    - NEVER 첫 stop 을 숙소에서 1시간 떨어진 곳으로 시작. NEVER 마지막 stop 을
-      숙소에서 1시간 떨어진 곳에서 끝냄. 짐+피로 누적 = 사용자 불만 1순위.
-    - **다도시 plan (regions.length>=2)**: 도시 변경 day 의 lodging 은 새 도시
-      의 임시 reference. 사용자 hotel_address 가 단일이면 그 day 의 첫/마지막
-      stop 5km 반경 규칙은 **새 도시 zone 내** 에서 적용. RouteAgent 가 좌표
-      fallback 처리. 자세한 도시 간 이동 instruction 은 ## MULTI-CITY HANDLING 참조.
+    - NEVER lodging stop 을 생략하지 말 것. NEVER 관광지부터 시작/종료하지 말 것.
+      짐+피로 누적 = 사용자 불만 1순위.
+    - **다도시 plan (regions.length>=2)**: 도시 변경 day 는 첫 lodging = origin city
+      체크아웃 (예: "Busan hotel checkout 09:00"), 마지막 lodging = destination city
+      체크인 (예: "Seoul hotel check-in 21:00"). intercity_transit 객체는 별도로 분리
+      (## MULTI-CITY HANDLING 참조).
   - First stop of EVERY day: near hotel or arrival point. 첫 stop은 숙소에서 30분 이내 이동 가능한 곳이어야 함.
   - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
   - 마지막 stop 종료 후 숙소까지 도보/지하철 30분 이상 걸리면 → 더 가까운 stop 으로 교체
