@@ -225,7 +225,21 @@ export async function generatePDF(
     adults: uiDict?.adultsLabel || 'adults',
     pax: uiDict?.paxLabel || 'pax',
   };
-  let html = `<div style="text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid ${C.accent};">
+  // 2026-05-12 (PDF P0 root cause fix): inject CSS class definitions for pagebreak selectors.
+  // Track 4 Playwright fresh download (cache 0) \uACB0\uACFC: PR #348 (\uC778\uB77C\uC778 page-break \uC81C\uAC70) \uC801\uC6A9
+  // \uB410\uC9C0\uB9CC Day 5 \uB204\uB77D + 75% \uBE48 \uD398\uC774\uC9C0 \uB3D9\uC77C \uC7AC\uD604. console: "[PDF] all 5 days rendered to html
+  // builder" + "[PDF] adaptive scale: 1.5 for scrollHeight: 3756px" \u2014 HTML builder \uB2E8\uACC4\uB294
+  // \uC815\uC0C1\uC774\uB098 html2canvas capture \uB2E8\uACC4\uC5D0\uC11C clip. root cause: html2pdf `mode: ['css', 'legacy']`
+  // \uC758 css mode \uAC00 \uB9E4\uCE6D\uD558\uB824\uBA74 `.pdf-day-break` \uD074\uB798\uC2A4\uC5D0 \uC2E4\uC81C `page-break-before:always` CSS
+  // \uC815\uC758\uAC00 \uD544\uC694. inline-only \uC600\uC744 \uB54C\uB294 selector lookup \uC6B0\uD68C \u2192 \uC815\uC0C1 \uC791\uB3D9. inline \uC81C\uAC70 \uD6C4
+  // selector \uB9CC \uB0A8\uC558\uB294\uB370 CSS class \uC815\uC758\uAC00 \uC5C6\uC5B4 \uB9E4\uCE6D \uC2E4\uD328 \u2192 days collapsed \u2192 scrollHeight \uCD95\uC18C.
+  let html = `<style>
+    .pdf-day-break { page-break-before: always !important; break-before: page !important; }
+    .pdf-stop-card { page-break-inside: avoid; break-inside: avoid; }
+    .pdf-transit-block { page-break-inside: avoid; break-inside: avoid; }
+    .pdf-day-header { page-break-inside: avoid; break-inside: avoid; page-break-after: avoid; break-after: avoid; }
+    .pdf-day-summary { page-break-inside: avoid; break-inside: avoid; }
+  </style><div style="text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid ${C.accent};">
     <h1 style="font-size:26px;font-weight:800;color:${C.accent};margin:0 0 6px;">${it.tour_title || L.defaultTitle}</h1>
     <p style="color:${C.muted};font-size:13px;margin:0;">
       ${input.startDate || ''} | ${input.adults ? `${input.adults} ${L.adults}` : `${input.pax || '-'} ${L.pax}`}
@@ -840,6 +854,47 @@ export async function generatePDF(
 
   container.innerHTML = html;
 
+  // 2026-05-12 (PDF P0 root cause fix): DOM settle + selector match validation.
+  // Track 4 console 분석: `[PDF] all 5 days rendered` (html builder OK) 인데
+  // scrollHeight 3756px 로 clip. innerHTML 직후 layout 미완료 가능 — 짧은 await
+  // 으로 settle 보장 후 진단.
+  await new Promise(resolve => setTimeout(resolve, 100));
+  void container.offsetHeight; // force reflow
+
+  console.log('[PDF] post-render container.scrollHeight:', container.scrollHeight);
+  console.log('[PDF] post-render container.offsetHeight:', container.offsetHeight);
+  console.log('[PDF] post-render container.getBoundingClientRect():', container.getBoundingClientRect());
+  console.log('[PDF] window.innerHeight:', window.innerHeight);
+
+  // selector match validation — pagebreak.before / avoid selector 가 실제 DOM 에 매칭되는지 확인.
+  // PR #348 가 인라인 page-break-before:always 제거 → .pdf-day-break selector 만 의존.
+  // CSS class 정의 (<style> 태그 inject) 가 있어야 css mode 매칭 정상.
+  const dayBreakElements = container.querySelectorAll('.pdf-day-break').length;
+  const expectedBreaks = Math.max(0, days.length - 1); // Day 1 은 break 없음
+  console.log('[PDF] .pdf-day-break selector matched:', dayBreakElements, 'expected:', expectedBreaks);
+  if (dayBreakElements !== expectedBreaks) {
+    console.error('[PDF] day-break selector mismatch — expected', expectedBreaks, 'got', dayBreakElements);
+  }
+  const stopCardCount = container.querySelectorAll('.pdf-stop-card').length;
+  const dayWrapperCount = container.querySelectorAll('.pdf-day-wrapper').length;
+  console.log('[PDF] selector counts — day-wrappers:', dayWrapperCount, 'stop-cards:', stopCardCount);
+
+  // parent overflow audit — container parent chain 의 overflow / max-height 제약 진단.
+  // 만약 부모가 clip 한다면 html2canvas 가 그 영역만 capture 할 수 있음.
+  let parentEl = container.parentElement;
+  let parentChainDepth = 0;
+  while (parentEl && parentChainDepth < 10) {
+    const style = window.getComputedStyle(parentEl);
+    if (style.overflow !== 'visible' && style.overflow !== '') {
+      console.warn('[PDF] parent overflow constraint:', parentEl.tagName, 'overflow=', style.overflow);
+    }
+    if (style.maxHeight !== 'none' && style.maxHeight !== '') {
+      console.warn('[PDF] parent maxHeight constraint:', parentEl.tagName, 'maxHeight=', style.maxHeight);
+    }
+    parentEl = parentEl.parentElement;
+    parentChainDepth += 1;
+  }
+
   // === 빈 콘텐츠 방지: 최소 높이/텍스트 검증 ===
   if (container.scrollHeight < 100 || container.innerText.trim().length < 50) {
     console.error('[PDF] Empty content detected — aborting PDF generation');
@@ -998,6 +1053,15 @@ export async function generatePDF(
     return;
   }
   console.log('[PDF] adaptive scale:', pdfScale, 'for scrollHeight:', scrollH);
+
+  // 2026-05-12 (PDF P0 root cause fix): pre-capture diagnostic — track scrollHeight
+  // 추세. 사용자 신고 "5일 plan 3756px" — 5일 평균 1500-1700px/day 면 7500-8500px 예상.
+  // 절반 이하 = day collapsed 또는 capture clip 의 증거. 이 로그 + .pdf-day-break
+  // selector match log 비교 시 root cause 명확.
+  console.log('[PDF] pre-capture diagnostic — days:', days.length, 'scrollH:', scrollH, 'expected ~', days.length * 1500, '-', days.length * 1700);
+  if (days.length >= 3 && scrollH < days.length * 1000) {
+    console.warn('[PDF] scrollHeight 추세 abnormal — days collapsed 의심. selector match 로그 확인');
+  }
 
   // Build WhatsApp fallback URL once — reused on failure.
   const planIdFromUrl = (typeof window !== 'undefined'
