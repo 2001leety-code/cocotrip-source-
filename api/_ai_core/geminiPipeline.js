@@ -13,7 +13,7 @@
  *   - Other Gemini errors               → re-thrown with code GEMINI_ERROR if missing.
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation } from './responseValidator.js';
+import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation, validatePatternStructure } from './responseValidator.js';
 import { applyDBMatcher } from './dbMatcher.js';
 import { captureError } from '../_shared/sentry.js';
 import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
@@ -143,6 +143,37 @@ function buildDietaryReinforcedPrompt(systemPrompt, dietary) {
 }
 
 /**
+ * 2026-05-12: pattern structural violation (B-10/B-12/B-14/B-15) 감지 시 강조된
+ * instruction 으로 1회 재호출. dietary reinforcement 와 유사한 패턴.
+ */
+function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
+  const head = [
+    '═══════════════════════════════════════════════════════════',
+    '🚨 PLAN STRUCTURE VIOLATION — RE-GENERATE 🚨',
+    '═══════════════════════════════════════════════════════════',
+    '',
+    'The previous response violated the required plan structure. Specific errors:',
+    '',
+  ];
+  const errLines = patternErrors.slice(0, 10).map((e) => `  - ${e}`);
+  const tail = [
+    '',
+    'STRICT RULES (NO EXCEPTIONS):',
+    '- EVERY day MUST start with a stop where category="lodging" (departure from hotel/zone).',
+    '- EVERY day MUST end with a stop where category="lodging" (return to hotel/zone). On the LAST day with a departure airport, the final stop may instead use category="travel" (airport).',
+    '- EVERY day MUST contain AT LEAST 4 stops total.',
+    '- EVERY stop start_time MUST be a 24h "HH:MM" value with hour 0-23 (NEVER 24:00 or higher).',
+    '- The LAST day MUST include either a category="travel" stop or a stop whose name/address mentions the airport.',
+    '',
+    'Regenerate the FULL itinerary respecting the structure above.',
+    'Same JSON schema as before. Same `days[].stops[]` structure.',
+    '═══════════════════════════════════════════════════════════',
+    '',
+  ];
+  return [...head, ...errLines, ...tail].join('\n') + systemPrompt;
+}
+
+/**
  * Run the appropriate Gemini pipeline (legacy or 3-pass) and return a
  * validated, DB-matched itinerary. Throws mapped errors on failure.
  *
@@ -155,8 +186,13 @@ function buildDietaryReinforcedPrompt(systemPrompt, dietary) {
  * @param {'legacy'|'3pass'} args.mode
  * @param {string[]} [args.dietary]           P0-3: 사용자 식이제한 (halal/vegan/vegetarian).
  *                                            지정 시 응답 검증 + 위반 시 1회 retry.
+ * @param {object} [args.body]                2026-05-12: pattern validation 입력 —
+ *                                            body.regions / arrival_airport /
+ *                                            departure_airport 로 출국일/도시 검증.
+ *                                            누락 시 pattern 검증은 partial (도시·공항
+ *                                            관련 룰 skip).
  */
-export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary }) {
+export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body }) {
   const model = buildModel(apiKey);
   const foodIndex = await loadFoodIndex();
   const geminiStart = Date.now();
@@ -222,6 +258,49 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         throw e;
       }
     }
+
+    // 2026-05-12: pattern structure validation (B-10/B-12/B-14/B-15).
+    // Gemini 비결정성으로 lodging bookend / min stops / start_time / 출국 공항
+    // 누락 회귀. 1회 재시도 후에도 실패하면 throw — broken plan 차단.
+    let patternErrors = validatePatternStructure(itinerary, body || {});
+    if (patternErrors.length > 0) {
+      console.warn('[planner] 🚨 pattern violation detected (3pass) — retrying with reinforced prompt:', patternErrors);
+      const reinforced = buildPatternReinforcedPrompt(systemPrompt, patternErrors);
+      try {
+        const retryRaw = await withTimeout(pass1Intent(model, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry-pattern');
+        itinerary = repairAndParseJSON(retryRaw);
+        cleanAddresses(itinerary);
+        sanitizeStops(itinerary, language);
+        itinerary = pass2Resolve(itinerary, foodIndex, area);
+        itinerary = await pass3Enrich(model, itinerary, language);
+        patternErrors = validatePatternStructure(itinerary, body || {});
+      } catch (retryErr) {
+        console.error('[planner] pattern retry failed:', retryErr.message);
+      }
+      if (patternErrors.length > 0) {
+        captureError(new Error('Plan pattern violation persists after retry'), {
+          route: 'ai-planner-full', mode: '3pass', errorCount: patternErrors.length,
+          sample: patternErrors.slice(0, 5),
+        }).catch(() => {});
+        throttledTelegramAlert({
+          key: 'plan-validation-failed-3pass',
+          channel: 'error',
+          severity: 'high',
+          message: '🔴 <b>AI plan validation failed (3pass)</b>\n\n' + patternErrors.slice(0, 5).join('\n'),
+          context: { errorCount: patternErrors.length, sample: patternErrors.slice(0, 3) },
+        }).catch(() => {});
+        const e = new Error(
+          'AI response failed structural validation after retry. ' +
+          'Please try again — the planner will produce a new plan. (Operations team notified.)'
+        );
+        e.code = 'PLAN_VALIDATION_FAILED';
+        e.statusCode = 500;
+        e.details = patternErrors.slice(0, 5);
+        throw e;
+      }
+      console.log('[planner] pattern retry succeeded (3pass)');
+    }
+
     applyDBMatcher(itinerary, foodIndex, area, language);
 
     console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
@@ -303,6 +382,57 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       }
       console.log('[planner] dietary retry succeeded — no violations remain');
     }
+
+    // 2026-05-12: pattern structure validation (B-10/B-12/B-14/B-15).
+    // Gemini 비결정성으로 lodging bookend / min stops / start_time / 출국 공항
+    // 누락 회귀. 1회 재시도 후에도 실패하면 throw — broken plan 차단.
+    let patternErrors = validatePatternStructure(itinerary, body || {});
+    if (patternErrors.length > 0) {
+      console.warn('[planner] 🚨 pattern violation detected (legacy) — retrying with reinforced prompt:', patternErrors);
+      const reinforced = buildPatternReinforcedPrompt(systemPrompt, patternErrors);
+      try {
+        const retryStart = Date.now();
+        const retryResult = await withTimeout(
+          model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+            systemInstruction: { role: 'system', parts: [{ text: reinforced }] },
+          }),
+          GEMINI_TIMEOUT_MS,
+          'legacy-retry-pattern',
+        );
+        console.log('[planner] pattern retry Gemini:', Date.now() - retryStart, 'ms');
+        const retryRaw = retryResult.response.text().trim();
+        itinerary = repairAndParseJSON(retryRaw);
+        cleanAddresses(itinerary);
+        sanitizeStops(itinerary, language);
+        patternErrors = validatePatternStructure(itinerary, body || {});
+      } catch (retryErr) {
+        console.error('[planner] pattern retry failed:', retryErr.message);
+      }
+      if (patternErrors.length > 0) {
+        captureError(new Error('Plan pattern violation persists after retry'), {
+          route: 'ai-planner-full', mode: 'legacy', errorCount: patternErrors.length,
+          sample: patternErrors.slice(0, 5),
+        }).catch(() => {});
+        throttledTelegramAlert({
+          key: 'plan-validation-failed-legacy',
+          channel: 'error',
+          severity: 'high',
+          message: '🔴 <b>AI plan validation failed (legacy)</b>\n\n' + patternErrors.slice(0, 5).join('\n'),
+          context: { errorCount: patternErrors.length, sample: patternErrors.slice(0, 3) },
+        }).catch(() => {});
+        const e = new Error(
+          'AI response failed structural validation after retry. ' +
+          'Please try again — the planner will produce a new plan. (Operations team notified.)'
+        );
+        e.code = 'PLAN_VALIDATION_FAILED';
+        e.statusCode = 500;
+        e.details = patternErrors.slice(0, 5);
+        throw e;
+      }
+      console.log('[planner] pattern retry succeeded (legacy)');
+    }
+
     applyDBMatcher(itinerary, foodIndex, area, language);
   }
 
