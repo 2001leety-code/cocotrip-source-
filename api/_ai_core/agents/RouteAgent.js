@@ -412,6 +412,23 @@ export class RouteAgent extends BaseAgent {
             const transitResults = await Promise.all(transitPromises);
 
             // ════════════════════════════════════════════════════════
+            // B9-39 (2026-05-09): 도시 변경 day 판정 — Phase 3 시각 계산 + Phase 2.5
+            // hotelTransit skip 양쪽에서 사용. 선언 위치는 반드시 두 사용처 모두보다 위.
+            // ════════════════════════════════════════════════════════
+            // B-11 fix (2026-05-12): const isCityChangeDay 가 Phase 3 (line 421) 아래
+            // 선언 → Phase 3 의 `if (isCityChangeDay ...)` 가 TDZ ReferenceError 던짐
+            // (Cannot access 'isCityChangeDay' before initialization). enrichItinerary-
+            // WithRoute 의 try/catch 가 silent swallow → 모든 stop 의 transit_from_prev
+            // null, lodging_to_first 누락, Phase 3 시간 재계산 누락 → PDF "가는 방법"
+            // 표시 0건 회귀. 선언을 두 사용처 모두보다 위로 이동.
+            const isCityChangeDay = isMultiCity
+                && dayPlan.intercity_transit
+                && dayPlan.intercity_transit.mode;
+            if (isCityChangeDay) {
+                console.log(`  [Route] Day ${dayPlan.day || '?'}: city change (${dayPlan.intercity_transit.from_city}→${dayPlan.intercity_transit.to_city}), skip Hotel→FirstStop ODsay`);
+            }
+
+            // ════════════════════════════════════════════════════════
             // Phase 3: Dynamic Time Stitching — 서버가 시간 계산
             // ════════════════════════════════════════════════════════
             // 첫 장소의 start_time은 Gemini 값 유지 (또는 09:00 디폴트)
@@ -436,12 +453,7 @@ export class RouteAgent extends BaseAgent {
             // hotelLat/Lng 는 trip-level 호텔 (대개 첫 도시) 좌표. 도시 변경 day 의
             // 첫 stop 까지 ODsay 호출하면 100km+ 거리라 의미 없는 경로 (또는 fail) 반환.
             // 대신 day.intercity_transit 가 그 day 첫 stop 시작 시각의 근거.
-            const isCityChangeDay = isMultiCity
-                && dayPlan.intercity_transit
-                && dayPlan.intercity_transit.mode;
-            if (isCityChangeDay) {
-                console.log(`  [Route] Day ${dayPlan.day || '?'}: city change (${dayPlan.intercity_transit.from_city}→${dayPlan.intercity_transit.to_city}), skip Hotel→FirstStop ODsay`);
-            }
+            // (isCityChangeDay 선언은 위로 이동 — B-11 TDZ fix, 2026-05-12)
             let hotelTransit = null;
             if (!isCityChangeDay && hotelLat && hotelLng && places.length > 0 && places[0].lat && places[0].lng) {
                 try {
