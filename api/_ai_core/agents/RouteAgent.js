@@ -44,6 +44,81 @@ export function lookupStationCoord(stationName) {
   return STATION_COORDS[trimmed] || null;
 }
 
+// ── city family normalization (PDF-issue-3 helper, 2026-05-14) ──────────
+// 부산/busan/busan_city 같은 다양한 표기를 family key 로 정규화 — 동일 city 판정용.
+function cityFamily(raw) {
+  if (!raw) return '';
+  const s = String(raw).toLowerCase().trim();
+  if (/busan|부산/i.test(s)) return 'busan';
+  if (/jeju|제주/i.test(s)) return 'jeju';
+  if (/seoul|서울/i.test(s)) return 'seoul';
+  if (/daegu|대구/i.test(s)) return 'daegu';
+  if (/gyeongju|경주/i.test(s)) return 'gyeongju';
+  if (/jeonju|전주/i.test(s)) return 'jeonju';
+  if (/gangneung|강릉/i.test(s)) return 'gangneung';
+  if (/yeosu|여수/i.test(s)) return 'yeosu';
+  return s;
+}
+
+/**
+ * Day 의 city 가 trip 첫 city 와 같은 family 인지 판정.
+ * 다도시 plan 의 day-level hotel coord 결정에 사용.
+ *
+ * @param {string} dCityRaw — 예: "Seoul", "서울", "seoul_city"
+ * @param {string} tripFirstRegion — 예: "busan"
+ * @returns {boolean} 같은 city = true (단도시 / city 미정 도 true → trip-level 사용)
+ */
+export function isSameAsFirstCity(dCityRaw, tripFirstRegion) {
+  if (!tripFirstRegion || !dCityRaw) return true;
+  return cityFamily(dCityRaw) === cityFamily(tripFirstRegion);
+}
+
+/**
+ * 다도시 plan 의 day-level hotel coord 결정.
+ *   - 단도시 / day.city 미정 / 같은 city continuing → trip-level (input hotel)
+ *   - 다른 city → recommended_zones[city] 우선 → CITY_CENTER_COORDS[city] fallback
+ *
+ * PDF-issue-3 fix (2026-05-14): 이전엔 trip-level hotelLat/Lng 만 사용 → 다도시 plan 의 모든 day 가 첫 city 호텔 좌표 기준 → 사용자 PDF "부산 해운대 → 명동 호텔" 모순.
+ *
+ * @param {object} dayPlan — Gemini plan 의 day 객체 (city 필드 사용)
+ * @param {object} ctx — { isMultiCity, recommendedZonesMap, tripFirstRegion, tripHotel: { lat, lng, label, source } }
+ * @returns {{ lat: number|null, lng: number|null, label: string|null, source: string|null }}
+ */
+export function getDayHotelCoord(dayPlan, ctx) {
+  const { isMultiCity, recommendedZonesMap, tripFirstRegion, tripHotel } = ctx || {};
+  const trip = tripHotel || { lat: null, lng: null, label: null, source: null };
+  // 다도시 plan 아니거나 day.city 미정 → trip-level 사용
+  if (!isMultiCity || !dayPlan?.city) {
+    return { lat: trip.lat, lng: trip.lng, label: trip.label, source: trip.source };
+  }
+  // 같은 city continuing → trip-level
+  if (isSameAsFirstCity(dayPlan.city, tripFirstRegion)) {
+    return { lat: trip.lat, lng: trip.lng, label: trip.label, source: trip.source };
+  }
+  // 다른 city — recommended_zones[city] 우선
+  const dCityKey = String(dayPlan.city).toLowerCase().trim();
+  if (recommendedZonesMap) {
+    for (const [k, v] of Object.entries(recommendedZonesMap)) {
+      if (!v || typeof v !== 'string') continue;
+      const kLower = String(k).toLowerCase().trim();
+      if (kLower === dCityKey || dCityKey.includes(kLower) || kLower.includes(dCityKey)) {
+        const z = lookupZoneCoord(v);
+        if (z) {
+          return { lat: z.lat, lng: z.lng, label: z.label, source: 'multi_city_zone' };
+        }
+      }
+    }
+  }
+  // CITY_CENTER_COORDS fallback (busan/jeju/seoul/...)
+  for (const [key, coord] of Object.entries(CITY_CENTER_COORDS)) {
+    if (dCityKey.includes(key) || key.includes(dCityKey)) {
+      return { lat: coord.lat, lng: coord.lng, label: coord.label, source: 'multi_city_center' };
+    }
+  }
+  // 마지막 fallback — trip-level (회귀 안전망)
+  return { lat: trip.lat, lng: trip.lng, label: trip.label, source: trip.source };
+}
+
 // Sentry import은 dynamic — `_shared/sentry.js`의 captureError가 SENTRY_DSN
 // 없으면 no-op이라 안전. 실패해도 import 자체로 plan 깨지지 않게 try/catch.
 let _captureError = null;
@@ -401,52 +476,13 @@ export class RouteAgent extends BaseAgent {
             ? data.recommended_zones
             : null;
         const tripFirstRegion = regionsList[0] ? String(regionsList[0]).toLowerCase().trim() : null;
-        // Day 의 city 가 trip 첫 city 와 같은 city 인지 판정 (한/영/key 형태 모두 흡수)
-        const isSameAsFirstCity = (dCityRaw) => {
-            if (!tripFirstRegion || !dCityRaw) return true; // 단도시 plan 또는 city 미정 → trip-level 사용
-            const d = String(dCityRaw).toLowerCase().trim();
-            // 부산/busan/busan_city 패밀리 매칭
-            const family = (s) => {
-                if (/busan|부산/i.test(s)) return 'busan';
-                if (/jeju|제주/i.test(s)) return 'jeju';
-                if (/seoul|서울/i.test(s)) return 'seoul';
-                if (/daegu|대구/i.test(s)) return 'daegu';
-                return s;
-            };
-            return family(d) === family(tripFirstRegion);
-        };
-        const getDayHotelCoord = (dayPlan) => {
-            // 다도시 plan 아니거나 day.city 미정 → trip-level 사용 (기존 동작 보존)
-            if (!isMultiCity || !dayPlan?.city) {
-                return { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource };
-            }
-            // 같은 city continuing → trip-level
-            if (isSameAsFirstCity(dayPlan.city)) {
-                return { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource };
-            }
-            // 다른 city — recommended_zones[city] 우선
-            const dCityKey = String(dayPlan.city).toLowerCase().trim();
-            if (recommendedZonesMap) {
-                // 키 매칭: busan/Busan/부산/busan_city 모두 흡수
-                for (const [k, v] of Object.entries(recommendedZonesMap)) {
-                    if (!v || typeof v !== 'string') continue;
-                    const kLower = String(k).toLowerCase().trim();
-                    if (kLower === dCityKey || dCityKey.includes(kLower) || kLower.includes(dCityKey)) {
-                        const z = lookupZoneCoord(v);
-                        if (z) {
-                            return { lat: z.lat, lng: z.lng, label: z.label, source: 'multi_city_zone' };
-                        }
-                    }
-                }
-            }
-            // CITY_CENTER_COORDS fallback (busan/jeju/seoul/...)
-            for (const [key, coord] of Object.entries(CITY_CENTER_COORDS)) {
-                if (dCityKey.includes(key) || key.includes(dCityKey)) {
-                    return { lat: coord.lat, lng: coord.lng, label: coord.label, source: 'multi_city_center' };
-                }
-            }
-            // 마지막 fallback — trip-level (회귀 안전망)
-            return { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource };
+        // PDF-issue-3 v2 (2026-05-14): module-level helpers (getDayHotelCoord / isSameAsFirstCity)
+        // 사용 — closure 제거 + unit test 가능. context 묶어서 전달.
+        const dayHotelCtx = {
+            isMultiCity,
+            recommendedZonesMap,
+            tripFirstRegion,
+            tripHotel: { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource },
         };
 
         for (const dayPlan of daysList) {
@@ -597,7 +633,7 @@ export class RouteAgent extends BaseAgent {
             //   이후 (PDF-issue-3): day-level hotel = 새 city 좌표라 ODsay 호출 정상.
             //   사용자 PDF 검토 (2026-05-14): Day 4 lodging_to_first 가 "부산 해운대
             //   (이전 city) → 명동 호텔 (Day 4 첫 stop)" 모순 transit 표시되던 회귀 fix.
-            const dayHotel = getDayHotelCoord(dayPlan);
+            const dayHotel = getDayHotelCoord(dayPlan, dayHotelCtx);
 
             // ════════════════════════════════════════════════════════
             // Phase 2.4: city-change day intercity bookend (PDF-issue-2 fix, 2026-05-14)
@@ -757,6 +793,32 @@ export class RouteAgent extends BaseAgent {
                         } catch (retErr) {
                             console.warn('  - LastStop→Hotel route failed:', retErr.message);
                         }
+                    }
+                }
+            }
+
+            // ════════════════════════════════════════════════════════
+            // Phase 3.5 (PDF-issue-2 v2, 2026-05-14): city-change day currentTime 재조정
+            // ════════════════════════════════════════════════════════
+            // Phase 3 (currentTime 1차) 는 arrival_at + 30분 단순 buffer.
+            // 그 사이 Phase 2.4 (station_to_lodging) + Phase 2.5 (lodging_to_first) 가
+            // 실제 transit 시간을 채웠으면, 더 현실적인 first stop start_time 계산.
+            //   total = arrival + station→hotel + 15min(체크인) + hotel→first + 5min(출발)
+            // 결과가 기존 currentTime 보다 크면 갱신 (작으면 보수적으로 기존 유지).
+            if (isCityChangeDay && dayPlan.intercity_transit?.arrival_at) {
+                const it = dayPlan.intercity_transit;
+                const arrivalMin = this._parseTime(it.arrival_at);
+                const stationToHotelMin = (it.station_to_lodging && typeof it.station_to_lodging.est_min === 'number')
+                    ? it.station_to_lodging.est_min
+                    : 0;
+                const hotelToFirstMin = (dayPlan.lodging_to_first && typeof dayPlan.lodging_to_first.est_min === 'number')
+                    ? dayPlan.lodging_to_first.est_min
+                    : 0;
+                if (stationToHotelMin > 0 || hotelToFirstMin > 0) {
+                    const realisticMin = arrivalMin + stationToHotelMin + 15 + hotelToFirstMin + 5;
+                    if (realisticMin > currentTime) {
+                        console.log(`  [Route] Day ${dayPlan.day || '?'}: city change day refined ${this._formatTime(currentTime)} → ${this._formatTime(realisticMin)} (arr ${it.arrival_at} + sta→hotel ${stationToHotelMin}min + 15 + hotel→first ${hotelToFirstMin}min + 5)`);
+                        currentTime = realisticMin;
                     }
                 }
             }

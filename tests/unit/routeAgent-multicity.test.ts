@@ -8,7 +8,12 @@
 // 단위 테스트는 pure helper + validator + 상수 매핑 정합성만 검증.
 
 import { describe, it, expect } from 'vitest';
-import { STATION_COORDS, lookupStationCoord } from '../../api/_ai_core/agents/RouteAgent.js';
+import {
+  STATION_COORDS,
+  lookupStationCoord,
+  isSameAsFirstCity,
+  getDayHotelCoord,
+} from '../../api/_ai_core/agents/RouteAgent.js';
 import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
 
 // ─────────────────────────────────────────────────────────
@@ -158,5 +163,122 @@ describe('B-AI3 — B-LCC validator (PDF-issue-3)', () => {
     const errors = validatePatternStructure(itinerary, singleCityRequest);
     const lccErrors = errors.filter((e: string) => e.includes('B-LCC'));
     expect(lccErrors).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI3b: getDayHotelCoord / isSameAsFirstCity portable test (PDF-issue-3 helper export 활성)
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI3b — isSameAsFirstCity family normalization (PDF-issue-3)', () => {
+  it('동일 city family — busan vs busan_city / Busan / 부산 모두 true', () => {
+    expect(isSameAsFirstCity('busan', 'busan')).toBe(true);
+    expect(isSameAsFirstCity('Busan', 'busan')).toBe(true);
+    expect(isSameAsFirstCity('busan_city', 'busan')).toBe(true);
+    expect(isSameAsFirstCity('부산', 'busan')).toBe(true);
+    expect(isSameAsFirstCity('busan', '부산')).toBe(true);
+  });
+
+  it('다른 city — Seoul vs Busan / 서울 vs 부산 → false', () => {
+    expect(isSameAsFirstCity('seoul', 'busan')).toBe(false);
+    expect(isSameAsFirstCity('Seoul', 'busan')).toBe(false);
+    expect(isSameAsFirstCity('서울', '부산')).toBe(false);
+    expect(isSameAsFirstCity('jeju', 'busan')).toBe(false);
+  });
+
+  it('단도시 / city 미정 → true (trip-level fallback 트리거)', () => {
+    expect(isSameAsFirstCity('', 'busan')).toBe(true);
+    expect(isSameAsFirstCity('seoul', '')).toBe(true);
+    expect(isSameAsFirstCity(null as unknown as string, null as unknown as string)).toBe(true);
+    expect(isSameAsFirstCity(undefined as unknown as string, 'busan')).toBe(true);
+  });
+});
+
+describe('B-AI3b — getDayHotelCoord context-based resolver (PDF-issue-3)', () => {
+  const tripHotelBusan = { lat: 35.1631, lng: 129.1635, label: '해운대', source: 'naver_geocode' };
+
+  it('단도시 plan / isMultiCity=false → 항상 trip-level', () => {
+    const ctx = {
+      isMultiCity: false,
+      recommendedZonesMap: null,
+      tripFirstRegion: 'busan',
+      tripHotel: tripHotelBusan,
+    };
+    const r = getDayHotelCoord({ city: 'Seoul' }, ctx);
+    expect(r.lat).toBe(35.1631);
+    expect(r.lng).toBe(129.1635);
+    expect(r.label).toBe('해운대');
+    expect(r.source).toBe('naver_geocode');
+  });
+
+  it('다도시 plan + day.city 미정 → trip-level', () => {
+    const ctx = {
+      isMultiCity: true,
+      recommendedZonesMap: null,
+      tripFirstRegion: 'busan',
+      tripHotel: tripHotelBusan,
+    };
+    const r = getDayHotelCoord({ city: null }, ctx);
+    expect(r.lat).toBe(35.1631);
+  });
+
+  it('다도시 plan + 같은 city continuing → trip-level (부산 → 부산)', () => {
+    const ctx = {
+      isMultiCity: true,
+      recommendedZonesMap: { seoul: 'myeongdong' },
+      tripFirstRegion: 'busan',
+      tripHotel: tripHotelBusan,
+    };
+    const r = getDayHotelCoord({ city: 'Busan' }, ctx);
+    expect(r.lat).toBe(35.1631);
+    expect(r.source).toBe('naver_geocode'); // trip-level
+  });
+
+  it('다도시 plan + 다른 city + recommended_zones[city] 매칭 → multi_city_zone', () => {
+    const ctx = {
+      isMultiCity: true,
+      recommendedZonesMap: { seoul: 'myeongdong', Seoul: 'myeongdong' },
+      tripFirstRegion: 'busan',
+      tripHotel: tripHotelBusan,
+    };
+    const r = getDayHotelCoord({ city: 'Seoul' }, ctx);
+    expect(r.source).toBe('multi_city_zone');
+    expect(r.label).toBe('명동');
+    // ZONE_COORDS 명동 = 37.5635, 126.9821
+    expect(r.lat).toBeCloseTo(37.5635, 2);
+    expect(r.lng).toBeCloseTo(126.9821, 2);
+  });
+
+  it('다도시 plan + 다른 city + recommended_zones 미정 → CITY_CENTER fallback', () => {
+    const ctx = {
+      isMultiCity: true,
+      recommendedZonesMap: null,
+      tripFirstRegion: 'busan',
+      tripHotel: tripHotelBusan,
+    };
+    const r = getDayHotelCoord({ city: 'Seoul' }, ctx);
+    expect(r.source).toBe('multi_city_center');
+    expect(r.label).toMatch(/Seoul/i);
+    // CITY_CENTER_COORDS seoul = 37.5665, 126.9780
+    expect(r.lat).toBeCloseTo(37.5665, 2);
+  });
+
+  it('다도시 plan + recommended_zones / city_center 둘 다 매칭 X → trip-level fallback', () => {
+    const ctx = {
+      isMultiCity: true,
+      recommendedZonesMap: { foo: 'bar' }, // 매칭 안 됨
+      tripFirstRegion: 'busan',
+      tripHotel: tripHotelBusan,
+    };
+    const r = getDayHotelCoord({ city: 'Unknownville' }, ctx);
+    // trip-level fallback
+    expect(r.lat).toBe(35.1631);
+    expect(r.source).toBe('naver_geocode');
+  });
+
+  it('ctx 미정 / null → trip-level null coord 반환 (안전)', () => {
+    const r = getDayHotelCoord({ city: 'Seoul' }, null as unknown as never);
+    expect(r.lat).toBeNull();
+    expect(r.lng).toBeNull();
   });
 });
