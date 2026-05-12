@@ -183,9 +183,16 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       // 2026-05-10 (P0-2 launch blocker): guest checkout 지원 — token 없어도
       // paypalOrderId 있으면 진행. backend paymentGate.js 가 PayPal order 검증으로
       // guest 결제 인증. 외국인 sign-in 미인증자도 결제만 완료하면 plan 생성 가능.
-      if (!authHeaders.Authorization && !paypalOrderId) {
+      // 2026-05-12 (B-9 fix): ADMIN-BYPASS-* / TEST-* prefix 는 server-side 가
+      // Firebase ID token 으로 검증 → auth 헤더 필수. MANUAL-* 만 pending_bookings
+      // doc 으로 검증 가능 → guard 통과 허용. PR #332 의 guard relax 부작용 차단.
+      const needsAuth = paypalOrderId?.startsWith('ADMIN-BYPASS-') || paypalOrderId?.startsWith('TEST-');
+      if (!authHeaders.Authorization && (!paypalOrderId || needsAuth)) {
         clearTimeout(timeoutId);
-        const e = new Error('Sign-in or payment required to generate AI plan.') as Error & { code?: string };
+        const errMsg = needsAuth
+          ? 'Sign-in required for admin/test mode. Sign in with admin account first.'
+          : 'Sign-in or payment required to generate AI plan.';
+        const e = new Error(errMsg) as Error & { code?: string };
         e.code = 'AUTH_REQUIRED';
         throw e;
       }

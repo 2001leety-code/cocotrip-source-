@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAuth } from '@/hooks/useAuth';
 import { notify } from '@/lib/notify';
 import { haptic } from '@/lib/haptic';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -58,6 +59,14 @@ export default function PlannerPage() {
 
   const [userEmail, setUserEmail] = useState<string>('');
   // 2026-05-05: free-claim funnel 제거 — selectedOption / optionBStep 상태 폐기.
+
+  // B-9 (2026-05-12): admin sign-in 후 /planner 진입 시 userEmail 자동 prefill.
+  // Test Mode 버튼 UX + ADMIN-BYPASS- flow 안정성 — userEmail input 수동 입력 누락
+  // 으로 isSandboxAccount=false 가 되어 버튼이 안 보이는 회귀 방지.
+  const { user: authUser } = useAuth();
+  useEffect(() => {
+    if (authUser?.email && !userEmail) setUserEmail(authUser.email);
+  }, [authUser?.email, userEmail]);
 
   const {
     status, resultQuick, errorMsg, errorCode,
