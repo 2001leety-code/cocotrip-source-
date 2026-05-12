@@ -151,6 +151,11 @@ npx tsc -b && npx vite build
 - **제주/경주/전주 맛집 DB 부족** → `_food_index.json`에 해당 지역 식당이 적어 `unverified_restaurant` 발생
 - **Gemini 비결정성** → 동일 조건에서도 결과 변동 (temperature=0.95)
 - **제주 비건 DB 0건** → 비건+제주 조합은 반드시 unverified 발생
+- **`validatePatternStructure` strict validator + Gemini 비결정성 = intermittent PLAN_VALIDATION_FAILED 위험**
+  - 5/12 자율 검증 시스템 (W2 agent) 가 prod 에서 자동 감지
+  - 새 validator 추가 시 반드시 **multi-layer fallback** (substring + alternate field + lenient case) 적용
+  - 예 (B-13): lodging name OR address OR day.theme OR intercity_transit.to_city OR known hotel chain — 5 fallback
+  - **Lesson**: validator strict 1-layer 매칭은 Gemini 응답 다양성에 못 따라감 → false positive → retry 후 throw 500
 
 ---
 

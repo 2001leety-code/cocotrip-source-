@@ -114,6 +114,8 @@ export function hasCriticalDietaryViolation(issues) {
  *                            airport 없는 케이스 backward compat).
  */
 // city display → 한글 매핑. day.city 가 영문이면 한글 alias 도 매칭 후보.
+// 2026-05-12 오후: 5/12 launch day 자율 검증 시스템 첫 작동 — W2 가 prod 에서 B-13
+// false positive 감지. CITY_KOR_ALIASES 15→25 도시 확장 + 4-layer fallback 도입.
 const CITY_KOR_ALIASES = {
   Seoul: ['서울'],
   Busan: ['부산'],
@@ -130,7 +132,30 @@ const CITY_KOR_ALIASES = {
   Suwon: ['수원'],
   Chuncheon: ['춘천'],
   Yeosu: ['여수'],
+  Yongin: ['용인'],
+  Sejong: ['세종'],
+  Pohang: ['포항'],
+  Andong: ['안동'],
+  Tongyeong: ['통영'],
+  Ansan: ['안산'],
+  Anyang: ['안양'],
+  Cheongju: ['청주'],
+  Mokpo: ['목포'],
+  Cheonan: ['천안'],
 };
+
+// 잘 알려진 글로벌 호텔 체인 — 이름만으로는 city 모르지만 well-known 5성급 위치.
+// 다도시 plan 에서 Gemini 가 "Lotte L7 Gangnam" / "JW Marriott Dongdaemun" 처럼
+// city 토큰 없는 이름만 반환 시 B-13 false positive 방지. lodging name 에
+// 이 체인 패턴 포함이면 city 매칭 부족해도 통과 (운영자 단점 = 진짜 mismatch
+// 일부 통과 위험. 하지만 false positive 가 훨씬 큰 비용).
+const KNOWN_HOTEL_CHAINS = [
+  'lotte', 'westin', 'jw marriott', 'marriott', 'hilton', 'sheraton',
+  'four seasons', 'park hyatt', 'grand hyatt', 'hyatt', 'shilla', 'shangri-la',
+  'intercontinental', 'conrad', 'ritz-carlton', 'mandarin oriental',
+  'fairmont', 'banyan tree', 'paradise', 'walkerhill', 'novotel',
+  'mercure', 'fraser', 'oakwood', 'somerset', 'ascott',
+];
 
 export function validatePatternStructure(itinerary, request = {}) {
   const errors = [];
@@ -172,21 +197,48 @@ export function validatePatternStructure(itinerary, request = {}) {
     }
 
     // B-13: 다도시 plan 도시 전환 day 의 lodging name/address 가 day.city 와 일치.
-    // regions.length >= 2 AND day.city 명시 + 첫 stop = lodging 일 때만 검증
-    // (단도시 plan / lodging 누락 day 는 B-10 / B-12 에서 잡음).
+    // regions.length >= 2 AND day.city 명시 + 첫 stop = lodging 일 때만 검증.
+    // 2026-05-12 오후 강화 (자율 검증 시스템 첫 적용 — W2 prod intermittent fail 진단):
+    //   기존 substring 매칭만 = Gemini 가 호텔 이름만 ("Lotte L7 Gangnam") 반환 시
+    //   false positive → PLAN_VALIDATION_FAILED status 500. 4-layer fallback:
+    //     L1. lodging name/address 에 day.city alias (영문/한글) substring (기존)
+    //     L2. day.theme 에 day.city 토큰 (Gemini 가 "Busan Day 1 — 해운대" theme 자주 출력)
+    //     L3. day.intercity_transit.to_city 가 day.city 와 일치 (도시 전환 day 명시)
+    //     L4. lodging name 이 KNOWN_HOTEL_CHAINS 포함 (well-known chain 은 lenient pass)
+    //   L1~L4 중 하나 만족이면 PASS. 모두 fail 시만 errors.push.
     if (isMultiCity && d?.city && stops.length > 0 && stops[0]?.category === 'lodging') {
       const dayCity = String(d.city).trim();
       const korAliases = CITY_KOR_ALIASES[dayCity] || [];
       const lodgingName = String(stops[0].name || stops[0].display_name || '');
       const lodgingAddr = String(stops[0].address || '');
+      const dayTheme = String(d.theme || '');
+      const intercityToCity = String(d.intercity_transit?.to_city || '');
       const hay = (lodgingName + ' ' + lodgingAddr).toLowerCase();
       const cityLow = dayCity.toLowerCase();
-      const cityMatch =
+
+      // L1: lodging name/address 매칭 (기존)
+      const matchL1 =
         hay.includes(cityLow) ||
         korAliases.some((alias) => lodgingName.includes(alias) || lodgingAddr.includes(alias));
-      if (!cityMatch) {
+
+      // L2: day.theme 매칭
+      const themeLow = dayTheme.toLowerCase();
+      const matchL2 =
+        themeLow.includes(cityLow) ||
+        korAliases.some((alias) => dayTheme.includes(alias));
+
+      // L3: intercity_transit.to_city 매칭 (도시 전환 day 명시 케이스)
+      const matchL3 =
+        intercityToCity.toLowerCase() === cityLow ||
+        korAliases.some((alias) => intercityToCity.includes(alias));
+
+      // L4: well-known hotel chain (lenient — name 만 lowercase 토큰 매칭)
+      const lodgingNameLow = lodgingName.toLowerCase();
+      const matchL4 = KNOWN_HOTEL_CHAINS.some((chain) => lodgingNameLow.includes(chain));
+
+      if (!matchL1 && !matchL2 && !matchL3 && !matchL4) {
         errors.push(
-          `Day ${dayNum} (city="${dayCity}"): lodging name/address "${lodgingName}|${lodgingAddr}" 가 도시명 미포함 (B-13)`
+          `Day ${dayNum} (city="${dayCity}"): lodging "${lodgingName}|${lodgingAddr}" + theme "${dayTheme}" + intercity_to "${intercityToCity}" 모두 도시명/체인 미포함 (B-13)`
         );
       }
     }

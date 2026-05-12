@@ -13,29 +13,45 @@ interface Stop {
   transit_to_airport?: boolean;
   next_destination?: string;
 }
+interface IntercityTransit {
+  mode?: string;
+  from_city?: string;
+  to_city?: string;
+}
 interface Day {
   day?: number;
   day_index?: number;
   city?: string;
+  theme?: string;
   stops?: Stop[];
   return_to_airport?: boolean;
   airport_transfer?: boolean;
+  intercity_transit?: IntercityTransit;
 }
 interface Itinerary {
   days?: Day[];
 }
 
 // Helper: a structurally-correct day with N stops (lodging bookend, 4+ stops).
+// 2026-05-12: B-13 4-layer fallback 추가 후, 다도시 plan 에서도 이 helper 가
+// 잡히지 않도록 lodging name 에 city 토큰 자동 삽입 (Seoul 호텔 / Busan 호텔 등).
 function makeValidDay(opts: { day?: number; city?: string; stops?: Stop[] } = {}): Day {
+  const city = opts.city ?? 'Seoul';
+  // city 한글 매핑 — B-13 L1 (lodging name 매칭) 자동 통과.
+  const cityKor: Record<string, string> = {
+    Seoul: '서울', Busan: '부산', Jeju: '제주', Gangneung: '강릉',
+    Sokcho: '속초', Gyeongju: '경주', Jeonju: '전주',
+  };
+  const cityToken = cityKor[city] || city;
   return {
     day: opts.day ?? 1,
-    city: opts.city ?? 'Seoul',
+    city,
     stops: opts.stops ?? [
-      { category: 'lodging', name: '호텔 출발', start_time: '09:00' },
+      { category: 'lodging', name: `${cityToken} 호텔 출발`, start_time: '09:00' },
       { category: 'attraction', name: '경복궁', start_time: '10:30' },
       { category: 'food', name: '광장시장', start_time: '12:30' },
       { category: 'attraction', name: '북촌한옥마을', start_time: '14:30' },
-      { category: 'lodging', name: '호텔 복귀', start_time: '20:00' },
+      { category: 'lodging', name: `${cityToken} 호텔 복귀`, start_time: '20:00' },
     ],
   };
 }
@@ -367,6 +383,118 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
       const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan'] });
       // B-10 잡힘, B-13 은 skip (lodging stop[0] 아니므로)
       expect(errors.some((e: string) => e.includes('B-10'))).toBe(true);
+      expect(errors.some((e: string) => e.includes('B-13'))).toBe(false);
+    });
+
+    // 2026-05-12 오후 자율 검증 시스템 첫 적용 — W2 prod intermittent fail 진단 결과
+    // 4-layer fallback 추가. 다음 4 케이스 모두 PASS 해야 false positive 차단.
+    it('B-13 L2 fallback — passes when day.theme contains city token', () => {
+      const itinerary: Itinerary = {
+        days: [
+          makeValidDay({ day: 1, city: 'Seoul' }),
+          {
+            day: 2,
+            city: 'Busan',
+            theme: 'Busan Day 1 — 해운대 & 광안리',
+            stops: [
+              // lodging name 만 ("Lotte L7") — city 토큰 없음. theme 이 잡아줌.
+              { category: 'lodging', name: 'L7 Hotel', address: 'Suyeong-gu', start_time: '12:00' },
+              { category: 'attraction', name: 'Beach', start_time: '14:00' },
+              { category: 'food', name: 'Restaurant', start_time: '18:00' },
+              { category: 'lodging', name: 'L7 Hotel', start_time: '21:00' },
+            ],
+          },
+        ],
+      };
+      const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan'] });
+      expect(errors.some((e: string) => e.includes('B-13'))).toBe(false);
+    });
+
+    it('B-13 L3 fallback — passes when day.intercity_transit.to_city matches', () => {
+      const itinerary: Itinerary = {
+        days: [
+          makeValidDay({ day: 1, city: 'Seoul' }),
+          {
+            day: 2,
+            city: 'Busan',
+            theme: 'Coastal Adventure',
+            intercity_transit: { mode: 'KTX', from_city: 'Seoul', to_city: 'Busan' },
+            stops: [
+              // city 토큰 lodging/theme 둘 다 없음. intercity_transit 이 잡아줌.
+              { category: 'lodging', name: 'Skybay Hotel', address: 'Suyeong-gu', start_time: '12:00' },
+              { category: 'attraction', name: 'Beach', start_time: '14:00' },
+              { category: 'food', name: 'Sashimi', start_time: '18:00' },
+              { category: 'lodging', name: 'Skybay Hotel', start_time: '21:00' },
+            ],
+          },
+        ],
+      };
+      const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan'] });
+      expect(errors.some((e: string) => e.includes('B-13'))).toBe(false);
+    });
+
+    it('B-13 L4 fallback — passes when lodging name is known hotel chain', () => {
+      const itinerary: Itinerary = {
+        days: [
+          makeValidDay({ day: 1, city: 'Seoul' }),
+          {
+            day: 2,
+            city: 'Busan',
+            theme: 'Day Out',
+            stops: [
+              // city 토큰 없음 + intercity_transit 없음. Lotte 체인이 잡아줌.
+              { category: 'lodging', name: 'Lotte L7 Gangnam', address: 'Gangnam-gu', start_time: '12:00' },
+              { category: 'attraction', name: 'Beach', start_time: '14:00' },
+              { category: 'food', name: 'Restaurant', start_time: '18:00' },
+              { category: 'lodging', name: 'Lotte L7 Gangnam', start_time: '21:00' },
+            ],
+          },
+        ],
+      };
+      const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan'] });
+      expect(errors.some((e: string) => e.includes('B-13'))).toBe(false);
+    });
+
+    it('B-13 still flags when ALL 4 layers fail (true mismatch)', () => {
+      const itinerary: Itinerary = {
+        days: [
+          makeValidDay({ day: 1, city: 'Seoul' }),
+          {
+            day: 2,
+            city: 'Busan',
+            theme: 'Generic Day',
+            intercity_transit: { mode: 'KTX', from_city: 'Seoul', to_city: 'Daegu' }, // 잘못된 to_city
+            stops: [
+              // 진짜 mismatch: city 토큰 없음 + theme 없음 + intercity_transit 다른 도시 + 무명 호텔
+              { category: 'lodging', name: 'Cozy Stay', address: '서울 강남구', start_time: '12:00' },
+              { category: 'attraction', name: 'Beach', start_time: '14:00' },
+              { category: 'food', name: 'Restaurant', start_time: '18:00' },
+              { category: 'lodging', name: 'Cozy Stay', start_time: '21:00' },
+            ],
+          },
+        ],
+      };
+      const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan'] });
+      expect(errors.some((e: string) => e.includes('B-13') && e.includes('Day 2'))).toBe(true);
+    });
+
+    it('B-13 extended CITY_KOR_ALIASES — Yongin/Sejong/Pohang etc.', () => {
+      const itinerary: Itinerary = {
+        days: [
+          makeValidDay({ day: 1, city: 'Seoul' }),
+          {
+            day: 2,
+            city: 'Yongin',
+            stops: [
+              { category: 'lodging', name: '용인 호텔', address: '경기도 용인시', start_time: '12:00' },
+              { category: 'attraction', name: 'Everland', start_time: '14:00' },
+              { category: 'food', name: 'Local food', start_time: '18:00' },
+              { category: 'lodging', name: '용인 호텔', start_time: '21:00' },
+            ],
+          },
+        ],
+      };
+      const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'yongin'] });
       expect(errors.some((e: string) => e.includes('B-13'))).toBe(false);
     });
   });
