@@ -1,0 +1,92 @@
+name: PR Mistake Pattern Lint
+
+# CocoTrip 오답노트 (memory feedback_mistake_log.md / feedback_pdf_korean_lessons.md /
+# feedback_proactive_audit.md) 의 반복 실수 패턴을 PR diff 에 대해 자동 lint.
+# 5/2~5/12 한 달 동안 같은 함정 반복 — 영구 차단 게이트 (자율 검증 L1).
+#
+# 위반 시: PR 머지 차단 + 오답노트 hint 가 PR 코멘트로 자동 첨부.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+concurrency:
+  group: pr-mistake-lint-${{ github.head_ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  mistake-lint:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          # diff 계산을 위해 base branch 까지 fetch
+          fetch-depth: 0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Ensure origin/main is reachable
+        run: |
+          git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main || true
+          git rev-parse origin/main
+
+      - name: Run mistake pattern lint
+        id: lint
+        run: |
+          set +e
+          node scripts/lint-mistake-patterns.mjs origin/main > lint.stdout 2> lint.stderr
+          echo "exit=$?" >> $GITHUB_OUTPUT
+          echo "----- stdout -----"
+          cat lint.stdout || true
+          echo "----- stderr -----"
+          cat lint.stderr || true
+          # Compose PR comment body (whether pass or fail)
+          {
+            echo "## CocoTrip 오답노트 자동 lint"
+            echo ""
+            if [ -s lint.stderr ]; then
+              echo "### 위반 사항 / 경고"
+              echo ""
+              echo '```'
+              cat lint.stderr
+              echo '```'
+              echo ""
+            fi
+            echo "### 통과 룰"
+            echo ""
+            echo '```'
+            cat lint.stdout
+            echo '```'
+            echo ""
+            echo "참조: \`scripts/README-lint-patterns.md\` — 새 패턴 추가 절차"
+          } > lint-comment.md
+        shell: bash
+
+      - name: Upsert PR comment
+        if: always()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: lint-comment.md
+          edit-mode: replace
+          # 동일 PR 에 1개만 유지 — header marker 로 식별
+          # peter-evans/create-or-update-comment 는 first-comment-of-same-body 가 없으므로
+          # find-comment-by-search 로 직접 검색하려면 별도 step 필요. 단순화를 위해 매번 추가.
+
+      - name: Fail if violations
+        if: steps.lint.outputs.exit != '0'
+        run: |
+          echo "Mistake pattern lint failed — see PR comment for details" >&2
+          exit 1
