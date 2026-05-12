@@ -155,6 +155,29 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
   - `base_price_krw > 0` (차량비 데이터 존재)
 - **회귀 위험:** Gemini 가 day 일부 누락하고 daily_budget 만 4일치 출력. price calculator silent fail. 통화 변환 (KRW ↔ USD) 일관성 깨짐.
 
+### B-CHT 시리즈 — Charter 가격 계산 단위 테스트 (2026-05-12 v2)
+
+`tests/unit/charterPricing.test.ts` — Charter wizard 가격 산출은 client-side logic
+(`useQuoteCalculator` hook + `resolveProductType`) 이라 prod HTTP 호출 검증이 부적합.
+**unit test** 로 산출 함수 8 클래스 (총 44 assertion) 직접 검증.
+
+| ID | 검증 항목 |
+| --- | --- |
+| B-CHT1 | Staria + 서울 1-day → DAILY_TOUR_PRICES SSOT 가격 (vehicle multiplier=1.0) |
+| B-CHT2 | Sprinter + ICN→Busan → matrix priceKRW(600k) × 2.0 + 가이드 가산 (300k) |
+| B-CHT3 | AIRPORT_TRANSFER_PRICES 모든 zone (8개) × staria/sprinter → vehicleChargeKRW > 0 회귀 가드 |
+| B-CHT4 | 5% 쿠폰 productScope — charter / both / ai_planner / legacy / unknown 매칭 정책 |
+| B-CHT5 | multi_day 합산 + 10% 다일 할인 (day_tour 는 미적용) |
+| B-CHT6 | 캐리어 합계 → 차량 수 (8개 cutoff: 1대→2대) |
+| B-CHT7 | 12h 예약 마감 (2026-05-07 통일 정책) — closed/imminent/ok 분류 |
+| B-CHT8 | resolveProductType ↔ calculateQuote 가격 일관성 (오답노트 P1) |
+
+**비고:**
+- 가격 계산이 client-side 라 prod HTTP 호출 검증 어려움 → unit test 로 대체.
+- 본 슈트는 **계산 logic 정합성** 만 가드. 가격 데이터 정확성 (예: ICN→부산 600k 가 시장가 대비 합리적인가) 은 별도 audit 보고서 소관.
+- 기존 `pr-tests.yml` 이 unit test 자동 실행 — 별도 workflow 불필요.
+- 12h cutoff 는 Step6Quote.CutoffNotice 내부 함수 export X — 정책 (12h 통일) 만 portable 복제로 검증.
+
 ### B-18 — 다양성 지표 (unique stop name + local_tag)
 
 - **가설:** Gemini 가 같은 stop 을 여러 day 에 반복 출력. local_tag (Local Pick / Hidden Gem / Bakery Pilgrimage / Blue Ribbon) 누락 — 차별화 카피 부재.
