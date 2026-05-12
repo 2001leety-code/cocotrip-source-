@@ -341,6 +341,68 @@ export class RouteAgent extends BaseAgent {
             this._enrichMultiCityDays(daysList, regionsList);
         }
 
+        // ════════════════════════════════════════════════════════
+        // PDF-issue-3 fix (2026-05-14): day-level hotel coord 결정
+        // ════════════════════════════════════════════════════════
+        // 다도시 plan 의 각 day 는 그 day 의 city 에 맞는 hotel 좌표 사용:
+        //   - trip 첫 city continuing → trip-level hotelLat/hotelLng (입력 hotel)
+        //   - 다른 city (city-change 이후) → recommended_zones[city] 좌표
+        //     → 없으면 CITY_CENTER_COORDS[city] fallback
+        // 이전: 모든 day 가 trip-level hotelLat/Lng (첫 city 호텔) 사용 → 부산
+        //       도착·서울 이동 plan 의 Day 4 lodging_to_first 가 "부산 해운대 →
+        //       명동 호텔" 모순 표시 (사용자 PDF 검토 2026-05-14).
+        const recommendedZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones))
+            ? data.recommended_zones
+            : null;
+        const tripFirstRegion = regionsList[0] ? String(regionsList[0]).toLowerCase().trim() : null;
+        // Day 의 city 가 trip 첫 city 와 같은 city 인지 판정 (한/영/key 형태 모두 흡수)
+        const isSameAsFirstCity = (dCityRaw) => {
+            if (!tripFirstRegion || !dCityRaw) return true; // 단도시 plan 또는 city 미정 → trip-level 사용
+            const d = String(dCityRaw).toLowerCase().trim();
+            // 부산/busan/busan_city 패밀리 매칭
+            const family = (s) => {
+                if (/busan|부산/i.test(s)) return 'busan';
+                if (/jeju|제주/i.test(s)) return 'jeju';
+                if (/seoul|서울/i.test(s)) return 'seoul';
+                if (/daegu|대구/i.test(s)) return 'daegu';
+                return s;
+            };
+            return family(d) === family(tripFirstRegion);
+        };
+        const getDayHotelCoord = (dayPlan) => {
+            // 다도시 plan 아니거나 day.city 미정 → trip-level 사용 (기존 동작 보존)
+            if (!isMultiCity || !dayPlan?.city) {
+                return { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource };
+            }
+            // 같은 city continuing → trip-level
+            if (isSameAsFirstCity(dayPlan.city)) {
+                return { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource };
+            }
+            // 다른 city — recommended_zones[city] 우선
+            const dCityKey = String(dayPlan.city).toLowerCase().trim();
+            if (recommendedZonesMap) {
+                // 키 매칭: busan/Busan/부산/busan_city 모두 흡수
+                for (const [k, v] of Object.entries(recommendedZonesMap)) {
+                    if (!v || typeof v !== 'string') continue;
+                    const kLower = String(k).toLowerCase().trim();
+                    if (kLower === dCityKey || dCityKey.includes(kLower) || kLower.includes(dCityKey)) {
+                        const z = lookupZoneCoord(v);
+                        if (z) {
+                            return { lat: z.lat, lng: z.lng, label: z.label, source: 'multi_city_zone' };
+                        }
+                    }
+                }
+            }
+            // CITY_CENTER_COORDS fallback (busan/jeju/seoul/...)
+            for (const [key, coord] of Object.entries(CITY_CENTER_COORDS)) {
+                if (dCityKey.includes(key) || key.includes(dCityKey)) {
+                    return { lat: coord.lat, lng: coord.lng, label: coord.label, source: 'multi_city_center' };
+                }
+            }
+            // 마지막 fallback — trip-level (회귀 안전망)
+            return { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource };
+        };
+
         for (const dayPlan of daysList) {
             const places = dayPlan.stops || dayPlan.places || [];
             // Derive weekday for first/last-train lookup. Gemini writes
@@ -477,81 +539,109 @@ export class RouteAgent extends BaseAgent {
             const BUFFER_MIN = 5; // 초행길 여유 시간
 
             // ════════════════════════════════════════════════════════
-            // Phase 2.5: 호텔 → 첫 번째 장소 경로 (hotelLat/hotelLng는 trip-level에서 이미 지오코딩됨)
+            // Phase 2.5: 호텔 → 첫 번째 장소 경로
             // ════════════════════════════════════════════════════════
-            // B9-39 (2026-05-09): 다도시 plan 의 도시 변경 day 는 hotelTransit skip.
-            // hotelLat/Lng 는 trip-level 호텔 (대개 첫 도시) 좌표. 도시 변경 day 의
-            // 첫 stop 까지 ODsay 호출하면 100km+ 거리라 의미 없는 경로 (또는 fail) 반환.
-            // 대신 day.intercity_transit 가 그 day 첫 stop 시작 시각의 근거.
-            // (isCityChangeDay 선언은 위로 이동 — B-11 TDZ fix, 2026-05-12)
+            // PDF-issue-3 fix (2026-05-14): day-level hotel 좌표 사용 (다도시 plan).
+            //   getDayHotelCoord(dayPlan) — day.city 가 trip 첫 city 와 다르면
+            //   recommended_zones[city] 또는 city center 좌표 반환. 같은 city 면
+            //   trip-level hotelLat/Lng 그대로.
+            //
+            // city-change day 의 hotelTransit:
+            //   이전 (B9-39): 무조건 skip (trip-level hotel 이 100km+ 거리)
+            //   이후 (PDF-issue-3): day-level hotel = 새 city 좌표라 ODsay 호출 정상.
+            //   사용자 PDF 검토 (2026-05-14): Day 4 lodging_to_first 가 "부산 해운대
+            //   (이전 city) → 명동 호텔 (Day 4 첫 stop)" 모순 transit 표시되던 회귀 fix.
+            const dayHotel = getDayHotelCoord(dayPlan);
             let hotelTransit = null;
-            if (!isCityChangeDay && hotelLat && hotelLng && places.length > 0 && places[0].lat && places[0].lng) {
-                try {
-                    const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
-                    const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
-                    const pt = transitData.publicTransit;
-                    hotelTransit = {
-                        method: pt?.method || 'subway',
-                        mode: methodToMode(pt?.method) || 'subway',
-                        instruction: pt?.summary || `Take public transit from hotel to ${places[0].name || places[0].display_name || 'first stop'}`,
-                        step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
-                        steps_detail: pt?.steps || [],
-                        est_min: pt?.duration || transitData.durationMin || 25,
-                        est_fare_krw: pt?.fare || 0,
-                        source: 'odsay',
-                        from_label: 'Hotel',
-                    };
-                    console.log(`  - [Hotel→${places[0].name}] ${hotelTransit.est_min}min via ${hotelTransit.method}`);
-                } catch (hotelErr) {
-                    console.warn('  - Hotel→FirstStop route failed:', hotelErr.message);
+            if (dayHotel.lat && dayHotel.lng && places.length > 0 && places[0].lat && places[0].lng) {
+                // city-change day 의 first stop 이 새 city 라면 day-level hotel (새 city center)
+                // 와 가까운 거리 → ODsay 의미 있음. 단 동일 city 안에서도 100km+ 거리면 skip.
+                const haversineKm = this._haversineKm(dayHotel.lat, dayHotel.lng, places[0].lat, places[0].lng);
+                if (haversineKm > 100) {
+                    console.log(`  [Route] Day ${dayPlan.day || '?'}: day-hotel→first stop ${haversineKm.toFixed(1)}km > 100km, skip ODsay (의미 없음)`);
+                } else {
+                    try {
+                        const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
+                        const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
+                        const pt = transitData.publicTransit;
+                        hotelTransit = {
+                            method: pt?.method || 'subway',
+                            mode: methodToMode(pt?.method) || 'subway',
+                            instruction: pt?.summary || `Take public transit from ${dayHotel.label || 'hotel'} to ${places[0].name || places[0].display_name || 'first stop'}`,
+                            step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
+                            steps_detail: pt?.steps || [],
+                            est_min: pt?.duration || transitData.durationMin || 25,
+                            est_fare_krw: pt?.fare || 0,
+                            source: 'odsay',
+                            from_label: dayHotel.label || 'Hotel',
+                            // PDF-issue-3: day-level anchor 정보 명시 — UI 가 "부산 호텔" vs
+                            // "명동 호텔" 명확히 표시할 수 있도록.
+                            anchor_lat: dayHotel.lat,
+                            anchor_lng: dayHotel.lng,
+                            anchor_label: dayHotel.label || null,
+                            anchor_source: dayHotel.source || 'hotel',
+                        };
+                        console.log(`  - [${dayHotel.label || 'Hotel'}→${places[0].name}] ${hotelTransit.est_min}min via ${hotelTransit.method} (day-city=${dayPlan.city || '?'}, source=${dayHotel.source})`);
+                    } catch (hotelErr) {
+                        console.warn('  - Hotel→FirstStop route failed:', hotelErr.message);
+                    }
                 }
             }
             // day-level mirror — UI 의 LodgingBookend 컴포넌트가 day.lodging_to_first 로 직접 접근
             if (hotelTransit) {
                 dayPlan.lodging_to_first = hotelTransit;
+                // PDF-issue-3: day.lodging_city 명시 — UI 가 day 별 lodging context
+                // (부산 vs 서울) 구분 가능. 후속 PR 의 validateResponse 검증 대상.
+                if (dayPlan.city) dayPlan.lodging_city = dayPlan.city;
             }
 
             // ════════════════════════════════════════════════════════
             // Phase 2.6 (2026-05-08 신규): 마지막 장소 → 숙소 복귀 경로
             // ════════════════════════════════════════════════════════
             // 사용자 신고: "Day 마지막에 숙소 복귀 경로 안 나옴 → 저녁 식사 후 어디로?"
-            // 호텔/zone anchor 좌표가 있고, 마지막 stop 이 호텔과 다른 곳이면 ODsay 로 계산.
-            // B9-39: 다도시 plan 의 다른 도시 day 는 hotel 좌표 (trip 첫 도시) 와
-            // 마지막 stop 좌표가 100km+ 거리라 ODsay 무의미 → skip.
-            const dayHasDifferentCity = isMultiCity
-                && places.length > 0
-                && places[0].lat && places[0].lng
-                && hotelLat && hotelLng
-                && this._haversineKm(places[0].lat, places[0].lng, hotelLat, hotelLng) > 50;
+            // PDF-issue-3 fix (2026-05-14): day-level hotel 좌표 사용 — 다도시 plan
+            //   의 다른 city day 도 새 city hotel 기준으로 ODsay 호출 정상.
+            //   이전 (B9-39): 100km+ 거리면 skip (trip-level hotel 만 기준이라 잘못).
+            //   이후 (PDF-issue-3): day-level hotel = 그 day 의 city center, 거리는
+            //   자연스럽게 < 100km.
+            const lastPlaceCheck = places[places.length - 1];
+            const lastDistKm = (lastPlaceCheck?.lat && lastPlaceCheck?.lng && dayHotel.lat && dayHotel.lng)
+                ? this._haversineKm(lastPlaceCheck.lat, lastPlaceCheck.lng, dayHotel.lat, dayHotel.lng)
+                : null;
+            const dayHasDifferentCity = lastDistKm != null && lastDistKm > 50;
             if (dayHasDifferentCity) {
-                console.log(`  [Route] Day ${dayPlan.day || '?'}: different city from hotel (>${50}km), skip LastStop→Hotel ODsay`);
+                console.log(`  [Route] Day ${dayPlan.day || '?'}: last stop→day-hotel ${lastDistKm.toFixed(1)}km > 50km, skip LastStop→Hotel ODsay`);
             }
-            if (!dayHasDifferentCity && hotelLat && hotelLng && places.length > 0) {
+            if (!dayHasDifferentCity && dayHotel.lat && dayHotel.lng && places.length > 0) {
                 const lastPlace = places[places.length - 1];
                 if (lastPlace.lat && lastPlace.lng) {
-                    // 호텔과 같은 좌표(50m 이내) 이면 의미 없음 — skip
-                    const sameAsHotel = Math.abs(lastPlace.lat - hotelLat) < 0.0005
-                        && Math.abs(lastPlace.lng - hotelLng) < 0.0005;
+                    // day-hotel 과 같은 좌표(50m 이내) 이면 의미 없음 — skip
+                    const sameAsHotel = Math.abs(lastPlace.lat - dayHotel.lat) < 0.0005
+                        && Math.abs(lastPlace.lng - dayHotel.lng) < 0.0005;
                     if (!sameAsHotel) {
                         try {
-                            const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
+                            const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
                             const lastTransit = await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek);
                             const pt = lastTransit.publicTransit;
                             const returnTransit = {
                                 method: pt?.method || 'subway',
                                 mode: methodToMode(pt?.method) || 'subway',
-                                instruction: pt?.summary || `Return to hotel from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
+                                instruction: pt?.summary || `Return to ${dayHotel.label || 'hotel'} from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
                                 step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
                                 steps_detail: pt?.steps || [],
                                 est_min: pt?.duration || lastTransit.durationMin || 25,
                                 est_fare_krw: pt?.fare || 0,
                                 source: 'odsay',
                                 from_label: lastPlace.display_name || lastPlace.name || 'last stop',
-                                to_label: 'Hotel',
+                                to_label: dayHotel.label || 'Hotel',
+                                anchor_lat: dayHotel.lat,
+                                anchor_lng: dayHotel.lng,
+                                anchor_label: dayHotel.label || null,
+                                anchor_source: dayHotel.source || 'hotel',
                                 _isLodgingReturn: true,
                             };
                             dayPlan.last_to_lodging = returnTransit;
-                            console.log(`  - [${lastPlace.name}→Hotel] ${returnTransit.est_min}min via ${returnTransit.method} (return)`);
+                            console.log(`  - [${lastPlace.name}→${dayHotel.label || 'Hotel'}] ${returnTransit.est_min}min via ${returnTransit.method} (return, day-city=${dayPlan.city || '?'})`);
                         } catch (retErr) {
                             console.warn('  - LastStop→Hotel route failed:', retErr.message);
                         }
