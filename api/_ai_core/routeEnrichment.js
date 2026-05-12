@@ -67,9 +67,16 @@ function validateLodgingBookend(itinerary, anchor) {
 
 export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_address, arrival_airport, departure_airport, pax }) {
   const routeStart = Date.now();
+  // B-11 diag (2026-05-12): root cause 진단용 — 어느 환경 변수가 없는지, 입력 stop
+  // 수가 얼마나 되는지, 출력에 transit 가 attach 됐는지 한 줄에 요약. 머지 후
+  // Vercel 로그에서 RouteAgent 호출 결과 즉시 확인 가능.
+  const totalInputStops = (itinerary.days || []).reduce((s, d) => s + (d.stops?.length || 0), 0);
   console.log('[planner] Step 2: RouteAgent...', {
     NAVER: !!process.env.NAVER_CLIENT_ID,
+    NAVER_SECRET: !!process.env.NAVER_CLIENT_SECRET,
     ODSAY: !!process.env.ODSAY_API_KEY,
+    GOOGLE_PLACES: !!process.env.GOOGLE_PLACES_API_KEY,
+    inputStops: totalInputStops,
   });
   try {
     const routeAgent = new RouteAgent(apiKey);
@@ -187,7 +194,18 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
       }
     }
     validateLodgingBookend(itinerary, anchorCoord);
+
+    // B-11 diag (2026-05-12): RouteAgent 후 최종 결과 요약. validate-prod-baseline
+    // B-7 검증과 대응 — transit_from_prev attach 비율 출력. 0/N 이면 RouteAgent
+    // 가 silent fail 한 신호 (TDZ ReferenceError 같은 회귀 빠른 감지).
+    const allStops = (itinerary.days || []).flatMap((d) => d.stops || []);
+    const stopsWithTransit = allStops.filter((s) => s.transit_from_prev != null).length;
+    const stopsGeocoded = allStops.filter((s) => s.lat != null).length;
+    console.log(`[routeEnrich] summary — transit attached: ${stopsWithTransit}/${allStops.length}, geocoded: ${stopsGeocoded}/${allStops.length}`);
   } catch (routeErr) {
-    console.error('[planner] Route FAILED:', routeErr.message, '| stack:', routeErr.stack?.split('\n').slice(0, 3).join(' | '), '|', Date.now() - routeStart, 'ms');
+    // B-11 (2026-05-12): TDZ ReferenceError 같은 회귀가 silent swallow 안 되도록
+    // 명시적 에러 type + 한 줄 요약 로그. Sentry 도 import 했으면 await reportError
+    // 하지만 routeEnrichment 는 sentry import 안 함 — 운영자 Vercel 로그 review 의존.
+    console.error('[planner] Route FAILED:', routeErr.name + ':', routeErr.message, '| stack:', routeErr.stack?.split('\n').slice(0, 3).join(' | '), '|', Date.now() - routeStart, 'ms');
   }
 }
