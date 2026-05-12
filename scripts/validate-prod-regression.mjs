@@ -1,9 +1,12 @@
-// CocoTrip prod 회귀 검증 슈트 — 받아적기 12 항목 자동화
+// CocoTrip prod 회귀 검증 슈트 — 받아적기 15 항목 자동화 (L2)
 // validate-prod-baseline.mjs 의 확장. PR 머지 전 'ready-for-regression' 라벨로 trigger.
 //
 // Auth: Firebase REST signInWithPassword (admin 계정)
 // Plan: POST /api/ai-planner-full with ADMIN-BYPASS- prefix paypalOrderId (실 결제 X)
-// Verify: 받아적기 B-2/B-3/B-6a/B-7/B-8/B-9/B-10~15 12 항목 assertion
+// Verify: 받아적기 B-2/B-3/B-6a/B-7/B-8/B-9/B-10~15 + B-16/B-17/B-18 15 항목 assertion
+//   - B-16: PDF 사전조건 (title/departure/arrival/planId)
+//   - B-17: 가격 합리성 (daily_budget 합산 vs total_cost ≤ 20% diff)
+//   - B-18: 다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%)
 //
 // Exit code:
 //   0 — 모두 PASS
@@ -55,7 +58,7 @@ if (!apiKey || !email || !password) {
 }
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('🔍 CocoTrip 회귀 검증 슈트 (받아적기 12항목)');
+console.log('🔍 CocoTrip 회귀 검증 슈트 (받아적기 15항목 / L2)');
 console.log(`   Target: ${BASE_URL}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
@@ -116,8 +119,8 @@ if (planRes.status !== 200) {
 }
 console.log('✅ Plan 생성 성공\n');
 
-// ─── Step 3: 받아적기 12항목 검증 ──────────────────────────
-console.log('[3/3] 받아적기 12항목 assertion 실행\n');
+// ─── Step 3: 받아적기 15항목 검증 ──────────────────────────
+console.log('[3/3] 받아적기 15항목 assertion 실행\n');
 
 const data = planBody.data || {};
 const itin = data.itinerary || {};
@@ -384,9 +387,99 @@ results.push({
   pass: hasAirportStop || !!hasAirportMeta,
 });
 
+// ─── B-16: PDF 생성 사전조건 (title/departure/arrival/planId) ────
+// PDF 는 client-side 렌더링이라 서버 응답만으로 직접 검증 불가. 그러나 PDF 표지/마지막
+// 페이지 필수 필드 누락 시 100% 클라이언트 렌더 깨짐. 백엔드 측 사전조건만 검증.
+const planId = data.planId || data.id || '';
+const tourTitle = data.tour_title || itin.tour_title || '';
+const departureGuide = data.departure_guide || itin.departure_guide || '';
+const arrivalGuideObj = data.arrival_guide || itin.arrival_guide || {};
+const arrivalAirportField =
+  arrivalGuideObj.airport || data.arrival_airport || itin.arrival_airport || '';
+const requestedAirport = 'ICN'; // Step 2 request body 와 일치
+const arrivalOk =
+  !!arrivalAirportField &&
+  String(arrivalAirportField).toUpperCase().includes(requestedAirport);
+const b16Pass = !!planId && !!tourTitle && !!departureGuide && arrivalOk;
+results.push({
+  id: 'B-16',
+  label: 'PDF 생성 사전조건 (title/departure/arrival/planId)',
+  actual: `title=${tourTitle ? 'Y' : 'N'}, departure=${departureGuide ? 'Y' : 'N'}, arrival=${arrivalOk ? 'Y' : 'N'}, planId=${planId ? 'Y' : 'N'}`,
+  pass: b16Pass,
+});
+
+// ─── B-17: 가격 합리성 (daily_budget 합산 ≈ total_cost) ─────
+// daily_budget_summary 누락 시 skip (legacy plan 호환). 둘 다 0 이면 fail.
+const dailyBudget =
+  data.daily_budget_summary ||
+  itin.daily_budget_summary ||
+  [];
+const totalCost =
+  Number(data.total_cost_krw) ||
+  Number(itin.base_price_krw) ||
+  Number(data.total_cost) ||
+  0;
+let b17Result;
+if (!Array.isArray(dailyBudget) || dailyBudget.length === 0) {
+  b17Result = {
+    id: 'B-17',
+    label: '가격 합리성 (daily_budget 합산 ≈ total_cost, diff ≤ 20%)',
+    actual: 'daily_budget_summary 누락',
+    pass: true,
+    note: 'daily_budget_summary 누락 — skip',
+  };
+} else {
+  const sum = dailyBudget.reduce(
+    (acc, d) => acc + (Number(d.total_krw) || Number(d.total) || Number(d.amount_krw) || 0),
+    0,
+  );
+  if (sum === 0 && totalCost === 0) {
+    b17Result = {
+      id: 'B-17',
+      label: '가격 합리성 (daily_budget 합산 ≈ total_cost, diff ≤ 20%)',
+      actual: 'budget 데이터 누락',
+      pass: false,
+    };
+  } else {
+    const denom = Math.max(sum, totalCost);
+    const diffPct = denom > 0 ? Math.abs(sum - totalCost) / denom : 1;
+    b17Result = {
+      id: 'B-17',
+      label: '가격 합리성 (daily_budget 합산 ≈ total_cost, diff ≤ 20%)',
+      actual: `sum=${sum.toLocaleString()}, total=${totalCost.toLocaleString()}, diff=${(diffPct * 100).toFixed(1)}%`,
+      pass: diffPct <= 0.2,
+    };
+  }
+}
+results.push(b17Result);
+
+// ─── B-18: 다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%) ──
+const allNames = [];
+let localTagCount = 0;
+const validLocalTags = ['Local Pick', 'Hidden Gem', 'Bakery Pilgrimage', 'Blue Ribbon'];
+for (const d of days) {
+  for (const s of d.stops || []) {
+    const nm = (s.name || s.display_name || '').trim();
+    if (nm) allNames.push(nm);
+    const tag = (s.local_tag || '').trim();
+    if (tag && validLocalTags.includes(tag)) localTagCount++;
+  }
+}
+const totalNames = allNames.length;
+const uniqueNames = new Set(allNames).size;
+const uniqueRatio = totalNames > 0 ? uniqueNames / totalNames : 0;
+const localTagRatio = totalNames > 0 ? localTagCount / totalNames : 0;
+const b18Pass = uniqueRatio >= 0.7 && localTagRatio >= 0.3;
+results.push({
+  id: 'B-18',
+  label: '다양성 지표 (unique stop name ≥ 70%, local_tag ≥ 30%)',
+  actual: `unique=${uniqueNames}/${totalNames} (${(uniqueRatio * 100).toFixed(0)}%), local_tag=${localTagCount}/${totalNames} (${(localTagRatio * 100).toFixed(0)}%)`,
+  pass: b18Pass,
+});
+
 // ─── Summary ──────────────────────────────────────────────
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('📊 받아적기 12항목 검증 결과');
+console.log('📊 받아적기 15항목 검증 결과');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 let passCount = 0;
 for (const r of results) {
@@ -412,7 +505,7 @@ console.log(`  generation time: ${(planMs / 1000).toFixed(1)}s`);
 if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFileSync } = await import('fs');
   const md = [
-    '# CocoTrip 회귀 검증 결과',
+    '# CocoTrip 회귀 검증 결과 (L2 — 15항목)',
     '',
     `**Target:** ${BASE_URL}`,
     `**총합:** ${passCount}/${results.length} pass`,

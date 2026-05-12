@@ -6,6 +6,9 @@ Gemini 비결정성으로 같은 fix 가 일부 plan 에서 회귀 재발하는 
 
 오늘까지 받아적기 항목들 (B-1 ~ B-15) 은 모두 운영자가 prod 페이지를 눈으로 확인해야만 발견됐음. PR 머지 전 자동 검증 필요.
 
+**2026-05-12 L2 확장 (B-16/B-17/B-18):** 구조 검증(B-2 ~ B-15) 외 PDF 사전조건/가격
+합리성/다양성 지표 3개 차원 추가. 자율 검증 v1 의 Auto-Regression 단계 강화.
+
 ## 실행 방법
 
 ### 1) 로컬 실행 (prod 대상)
@@ -23,7 +26,7 @@ BASE_URL=https://my-pr-preview.vercel.app node scripts/validate-prod-regression.
 ```
 
 Exit code:
-- `0` — 12/12 PASS
+- `0` — 15/15 PASS
 - `1` — 1건 이상 FAIL
 
 ### 2) CI 자동 실행 (PR 라벨 trigger)
@@ -41,7 +44,7 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 | `HEALTH_CHECK_EMAIL` | admin 계정 이메일 (TEST- prefix 바이패스 권한 보유 — 2001leety@gmail.com 또는 헬스체크 전용 계정) |
 | `HEALTH_CHECK_PASSWORD` | 위 계정 비밀번호 |
 
-## 받아적기 12항목 가설/증상/검증법
+## 받아적기 15항목 가설/증상/검증법
 
 각 항목은 prod 에서 실제 발견된 버그 클래스. 회귀 발생 시 fix 후 동일 assertion 으로 영구 가드.
 
@@ -133,6 +136,32 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 - **회귀 위험:** Gemini 가 출국 시각 (departureTime) 이전에 일정 종료 후 공항 transfer 안내 skip.
 - **백엔드 가드 (2026-05-12):** `validatePatternStructure` 가 회귀 슈트와 동일 기준 적용 (category travel/airport, 공항 토큰, day-level meta, transit_to_airport). 위반 시 retry → 차단.
 
+### B-16 — PDF 생성 사전조건
+
+- **가설:** PDF 표지/마지막 페이지 필수 필드 (`tour_title`, `departure_guide`, `arrival_guide.airport`, `planId`) 누락 시 클라이언트 PDF 렌더 일부 칸 빈칸 출력.
+- **증상:** PlanDetailPage 에서 PDF 다운로드 후 표지 제목 비어있음. 마지막 페이지 출국 안내 누락. 또는 `planId` 누락 시 plan URL 공유 X.
+- **검증:** PDF 자체는 client-side 라 직접 렌더 검증 불가. 백엔드 측 사전조건만 검증 — 4개 필드 모두 truthy + arrival_guide.airport 가 request body arrivalAirport (ICN) 포함.
+- **회귀 위험:** Gemini prompt 에서 표지/출국 안내 필드 약화. `data.planId` 응답 누락. arrival_guide 가 다른 공항 코드 반환.
+
+### B-17 — 가격 합리성 (daily_budget 합산 ≈ total_cost)
+
+- **가설:** `daily_budget_summary[*].total_krw` 합산과 `total_cost_krw` (또는 `itinerary.base_price_krw`) 가 크게 어긋남.
+- **증상:** PDF/이메일에 총합 ₩300,000 이라 적혀있는데 Day별 합 ₩500,000. 사용자 컴플레인.
+- **검증:** sum(daily_budget_summary[*].total_krw) vs total_cost 차이 ≤ 20% (`|sum - total| / max(sum, total)`).
+  - daily_budget_summary 누락 시 → `pass: true, note: 'skip'` (legacy plan 호환)
+  - 둘 다 0 이면 → `pass: false` (budget 데이터 누락)
+- **회귀 위험:** Gemini 가 daily total 만 계산하고 grand total 누락. price calculator 가 vehicle/hotel 외 추가 비용 누락. 통화 변환 (KRW ↔ USD) 일관성 깨짐.
+
+### B-18 — 다양성 지표 (unique stop name + local_tag)
+
+- **가설:** Gemini 가 같은 stop 을 여러 day 에 반복 출력. local_tag (Local Pick / Hidden Gem / Bakery Pilgrimage / Blue Ribbon) 누락 — 차별화 카피 부재.
+- **증상:** Day 1·3·5 모두 "경복궁" 반복. 모든 식당이 평범 — "Local Pick" 라벨 없음. 사용자가 "AI 가 짠 거 같지 않다" 평가.
+- **검증:**
+  - unique ratio = `new Set(names).size / names.length` ≥ 70%
+  - local_tag ratio = `(local_tag ∈ valid set).count / names.length` ≥ 30%
+  - 둘 다 만족 시 PASS
+- **회귀 위험:** Gemini prompt 의 diversity rule 약화. local_tag 사전 (4개 값) 변경 시 기준 갱신 필요. dbMatcher 가 매칭 못 한 stop 의 local_tag 누락.
+
 ## 새 회귀 추가 절차
 
 prod 에서 새 회귀가 발견되면:
@@ -144,7 +173,7 @@ prod 에서 새 회귀가 발견되면:
 
 ## 운영 모드
 
-- PR 머지 전 워크플로우 `ready-for-regression` 라벨 부착 → 1회 실행 → PR 댓글 결과 확인 → PASS 시 머지.
+- PR 머지 전 워크플로우 `ready-for-regression` 라벨 부착 → 1회 실행 (15 assertion) → PR 댓글 결과 확인 → PASS 시 머지.
 - 비용: PR 1개당 Gemini API 1회 호출 ($0.02 추정) + GitHub Actions 5분.
 - 라벨 없으면 실행 X — 명시적 opt-in.
 
