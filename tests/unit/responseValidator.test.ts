@@ -2,7 +2,7 @@
 // Pure function tests — no Gemini call needed.
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — JS module, no types
-import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
+import { validatePatternStructure, checkSoftQualityWarnings } from '../../api/_ai_core/responseValidator.js';
 
 interface Stop {
   name?: string;
@@ -28,8 +28,13 @@ interface Day {
   airport_transfer?: boolean;
   intercity_transit?: IntercityTransit;
 }
+interface AirportField {
+  airport?: string;
+}
 interface Itinerary {
   days?: Day[];
+  arrival_guide?: AirportField;
+  departure_guide?: AirportField;
 }
 
 // Helper: a structurally-correct day with N stops (lodging bookend, 4+ stops).
@@ -59,7 +64,10 @@ function makeValidDay(opts: { day?: number; city?: string; stops?: Stop[] } = {}
 describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
   describe('valid itinerary', () => {
     it('returns empty errors for a well-formed single-day plan', () => {
-      const itinerary: Itinerary = { days: [makeValidDay()] };
+      const itinerary: Itinerary = {
+        days: [makeValidDay()],
+        departure_guide: { airport: 'ICN T1' },
+      };
       const errors = validatePatternStructure(itinerary, {});
       expect(errors).toEqual([]);
     });
@@ -67,6 +75,7 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
     it('returns empty errors for multi-day plan with lodging bookends', () => {
       const itinerary: Itinerary = {
         days: [makeValidDay({ day: 1 }), makeValidDay({ day: 2 })],
+        departure_guide: { airport: 'ICN T1' },
       };
       const errors = validatePatternStructure(itinerary, {});
       expect(errors).toEqual([]);
@@ -83,7 +92,11 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
           { category: 'travel', name: '인천국제공항 T1', start_time: '15:00' },
         ],
       };
-      const itinerary: Itinerary = { days: [makeValidDay(), lastDay] };
+      const itinerary: Itinerary = {
+        days: [makeValidDay(), lastDay],
+        arrival_guide: { airport: 'ICN T1' },
+        departure_guide: { airport: 'ICN T1' },
+      };
       const errors = validatePatternStructure(itinerary, {
         arrival_airport: 'ICN',
         departure_airport: 'ICN',
@@ -699,5 +712,156 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
       const errors = validatePatternStructure(itinerary, {});
       expect(errors.some((e: string) => e.includes('B-14'))).toBe(false);
     });
+  });
+
+  // 2026-05-12 자율 검증 1차 fix — B-16 hard validation (PDF 사전조건).
+  // arrival_guide.airport OR departure_guide.airport 적어도 하나 채워야 PDF 페이지 렌더 가능.
+  describe('B-16: arrival_guide / departure_guide airport hard validation', () => {
+    it('flags when BOTH arrival_guide and departure_guide are missing', () => {
+      const itinerary: Itinerary = { days: [makeValidDay({ day: 1 })] };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.some((e: string) => e.includes('B-16'))).toBe(true);
+    });
+
+    it('passes when departure_guide.airport is present', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.some((e: string) => e.includes('B-16'))).toBe(false);
+    });
+
+    it('passes when arrival_guide.airport is present (departure missing)', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 })],
+        arrival_guide: { airport: 'GMP' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.some((e: string) => e.includes('B-16'))).toBe(false);
+    });
+
+    it('flags when airport field is empty string', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 })],
+        arrival_guide: { airport: '' },
+        departure_guide: { airport: '   ' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.some((e: string) => e.includes('B-16'))).toBe(true);
+    });
+  });
+});
+
+// 2026-05-12 자율 검증 1차 fix — B-18 SOFT warning (telegram alert only, plan 저장 OK).
+// local_tag 비율 < 30% 시 warning 반환. SAFETY-CRITICAL 아니므로 hard 차단 X.
+describe('checkSoftQualityWarnings (B-18 local_tag underfill)', () => {
+  interface StopWithTag extends Stop {
+    local_tag?: string;
+  }
+  function makeStopsWithLocalTagRatio(
+    total: number,
+    tagged: number,
+  ): StopWithTag[] {
+    const stops: StopWithTag[] = [];
+    for (let i = 0; i < total; i++) {
+      stops.push({
+        category: i % 2 === 0 ? 'attraction' : 'food',
+        name: `stop ${i}`,
+        local_tag: i < tagged ? 'Local Pick' : '',
+      });
+    }
+    return stops;
+  }
+
+  it('returns warning when local_tag ratio < 30%', () => {
+    const itinerary: Itinerary = {
+      days: [
+        { day: 1, stops: makeStopsWithLocalTagRatio(10, 1) }, // 10%
+      ],
+    };
+    const warnings = checkSoftQualityWarnings(itinerary);
+    expect(warnings.length).toBe(1);
+    expect(warnings[0].type).toBe('local_tag_underfill');
+    expect(warnings[0].severity).toBe('low');
+    expect(warnings[0].ratio).toBeCloseTo(0.1, 2);
+  });
+
+  it('returns empty warnings when local_tag ratio >= 30%', () => {
+    const itinerary: Itinerary = {
+      days: [
+        { day: 1, stops: makeStopsWithLocalTagRatio(10, 4) }, // 40%
+      ],
+    };
+    const warnings = checkSoftQualityWarnings(itinerary);
+    expect(warnings).toEqual([]);
+  });
+
+  it('excludes lodging / travel / airport categories from ratio', () => {
+    // 4 lodging + 1 attraction (tagged Local Pick) = 1/1 = 100% on eligible stops.
+    // But total eligible = 1 < 5 → skip (statistical insignificance) → empty.
+    const itinerary: Itinerary = {
+      days: [
+        {
+          day: 1,
+          stops: [
+            { category: 'lodging', name: 'L1', local_tag: '' },
+            { category: 'lodging', name: 'L2', local_tag: '' },
+            { category: 'travel', name: 'T1', local_tag: '' },
+            { category: 'airport', name: 'A1', local_tag: '' },
+            { category: 'attraction', name: 'A2', local_tag: 'Local Pick' },
+          ],
+        },
+      ],
+    };
+    const warnings = checkSoftQualityWarnings(itinerary);
+    expect(warnings).toEqual([]);
+  });
+
+  it('skips check when totalEligible < 5 (statistical insignificance)', () => {
+    const itinerary: Itinerary = {
+      days: [
+        {
+          day: 1,
+          stops: [
+            { category: 'attraction', name: 'A1', local_tag: '' },
+            { category: 'food', name: 'F1', local_tag: '' },
+          ],
+        },
+      ],
+    };
+    const warnings = checkSoftQualityWarnings(itinerary);
+    expect(warnings).toEqual([]);
+  });
+
+  it('only counts valid local_tag values (Local Pick / Hidden Gem / Bakery Pilgrimage / Blue Ribbon)', () => {
+    // 8 attraction + 2 food, but local_tags are all invalid ("custom_tag")
+    const itinerary: Itinerary = {
+      days: [
+        {
+          day: 1,
+          stops: [
+            { category: 'attraction', name: 'A1', local_tag: 'custom_tag' },
+            { category: 'attraction', name: 'A2', local_tag: 'custom_tag' },
+            { category: 'attraction', name: 'A3', local_tag: 'custom_tag' },
+            { category: 'attraction', name: 'A4', local_tag: 'custom_tag' },
+            { category: 'attraction', name: 'A5', local_tag: 'custom_tag' },
+            { category: 'food', name: 'F1', local_tag: '' },
+            { category: 'food', name: 'F2', local_tag: '' },
+          ],
+        },
+      ],
+    };
+    const warnings = checkSoftQualityWarnings(itinerary);
+    // 0% valid tags → warning fires.
+    expect(warnings.length).toBe(1);
+    expect(warnings[0].localTagCount).toBe(0);
+    expect(warnings[0].totalEligible).toBe(7);
+  });
+
+  it('handles missing itinerary gracefully (empty warnings)', () => {
+    expect(checkSoftQualityWarnings(null as unknown as Itinerary)).toEqual([]);
+    expect(checkSoftQualityWarnings({} as Itinerary)).toEqual([]);
+    expect(checkSoftQualityWarnings({ days: [] })).toEqual([]);
   });
 });

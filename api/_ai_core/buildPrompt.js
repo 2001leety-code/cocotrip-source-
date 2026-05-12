@@ -256,6 +256,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - \`departure_guide.to_airport.instruction\`은 백엔드 RouteAgent가 ODsay 실제 step-by-step으로 덮어쓴다 → Gemini는 1-2 문장 high-level만 (예: "Take AREX Express from Hongik Univ. Station to Incheon Airport").
 - airport 필드는 \`departure_airport\`(없으면 \`arrival_airport\`)를 그대로 사용.
 - arrival_airport가 "already_in_korea"이면 departure_guide 작성하되 airport는 "GMP" 또는 "ICN T1" 합리적 가정.
+- 🔴 **B-16 STRICT ENFORCEMENT (2026-05-12)**: \`departure_guide\` field 또는 \`departure_guide.airport\` 가 응답에 누락되면 backend validator 가 plan 을 거부하고 retry 한다. ALWAYS include the top-level \`departure_guide\` object AND set \`departure_guide.airport\` (예: "ICN T1", "GMP", "PUS"). Likewise \`arrival_guide.airport\` 는 \`arrival_airport != "already_in_korea"\` 일 때 반드시 채워야 한다. PDF 첫/마지막 페이지가 빈 페이지가 되는 사용자 신고 사유.
 
 ### 🔴 출국일 (마지막 day) 공항 STOP — ABSOLUTE MUST (B-15, 2026-05-12 강화)
 \`departure_airport\` 가 "already_in_korea" 가 아니면, **마지막 day 의 stops 배열에 반드시
@@ -509,6 +510,11 @@ For EVERY stop in the itinerary, set the "local_tag" field:
 - "Bakery Pilgrimage" — famous bakeries Korean foodies queue for (e.g. 런던베이글뮤지엄, 태극당, 나폴레옹과자점, 김영모과자점, 리치몬드과자점, 아티스트베이커리)
 - "Blue Ribbon" — restaurants recognized by Korea's Blue Ribbon Survey (한국판 미쉐린)
 At least 40% of stops should have a non-empty local_tag. This makes our paid plans feel curated by Korean insiders, not just a generic travel guide.
+- 🔴 **B-18 VALIDATOR ENFORCES THIS (2026-05-12)**: backend 가 stops 의 local_tag 비율을 측정한다.
+  비율 < 30% 면 자동으로 운영자 텔레그램 알림이 발송된다 (plan 저장 자체는 OK — 사용자
+  체감 품질만 저하). 안전 마진 위해 50%+ 를 목표로 작성하라. Local Pick / Hidden Gem /
+  Bakery Pilgrimage / Blue Ribbon 4 종을 골고루 섞어 다양성 확보. lodging / travel /
+  airport category 는 비율 계산에서 제외 (관광/식사/카페 stop 만 계산).
 
 ## STYLE-DRIVEN PLANNING — MANDATORY (사용자 선택 스타일 반영)
 The user selected specific styles (activity preferences). You MUST tailor at least 60% of stops:

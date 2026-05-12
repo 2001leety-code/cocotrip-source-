@@ -13,7 +13,7 @@
  *   - Other Gemini errors               → re-thrown with code GEMINI_ERROR if missing.
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation, validatePatternStructure } from './responseValidator.js';
+import { repairAndParseJSON, cleanAddresses, sanitizeStops, validateResponse, hasCriticalDietaryViolation, validatePatternStructure, checkSoftQualityWarnings } from './responseValidator.js';
 import { applyDBMatcher } from './dbMatcher.js';
 import { captureError } from '../_shared/sentry.js';
 import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
@@ -170,6 +170,7 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
     '   (d) lodging name is a well-known global hotel chain (Lotte/JW Marriott/Westin/Hilton/Sheraton/Hyatt/Shilla/etc.) — chain lenient pass.',
     '  Prefer (a) — most explicit. NEVER mismatch real city (Busan hotel on Seoul day = sole reason for re-generation).',
     '- The LAST day MUST include either a category="travel"/"airport" stop, a stop whose name/address mentions the airport (공항/airport/ICN/GMP/PUS/CJU), OR day-level "return_to_airport": true.',
+    '- The TOP-LEVEL response MUST include either `arrival_guide.airport` OR `departure_guide.airport` (non-empty string, e.g. "ICN T1" / "GMP" / "PUS"). NEVER omit BOTH — the PDF first/last page renders blank without them (B-16). Prefer including `departure_guide` always; include `arrival_guide` whenever `arrival_airport != "already_in_korea"`.',
     '',
     'Regenerate the FULL itinerary respecting the structure above.',
     'Same JSON schema as before. Same `days[].stops[]` structure.',
@@ -307,6 +308,25 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       console.log('[planner] pattern retry succeeded (3pass)');
     }
 
+    // 2026-05-12 자율 검증 1차 fix (B-18): SOFT quality — plan 저장 OK, telegram alert 만.
+    // local_tag 비율 < 30% 시 throttledTelegramAlert (severity:low, 5분 dedup).
+    // SAFETY-CRITICAL (dietary) 만 hard 차단 — 다양성 부족은 환불 사유 아니므로 soft.
+    try {
+      const softWarnings = checkSoftQualityWarnings(itinerary);
+      if (softWarnings.length > 0) {
+        console.warn('[planner] ⚠️ soft quality warnings (3pass):', softWarnings);
+        throttledTelegramAlert({
+          key: 'plan-quality-local-tag-low',
+          channel: 'error',
+          severity: 'low',
+          message: '🟡 <b>Plan 다양성 미달 (B-18)</b>\n\n' + softWarnings.map((w) => w.message).join('\n'),
+          context: { mode: '3pass', warnings: softWarnings.slice(0, 3) },
+        }).catch(() => {});
+      }
+    } catch (warnErr) {
+      console.error('[planner] soft warning check failed:', warnErr.message);
+    }
+
     applyDBMatcher(itinerary, foodIndex, area, language);
 
     console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
@@ -437,6 +457,25 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         throw e;
       }
       console.log('[planner] pattern retry succeeded (legacy)');
+    }
+
+    // 2026-05-12 자율 검증 1차 fix (B-18): SOFT quality — plan 저장 OK, telegram alert 만.
+    // local_tag 비율 < 30% 시 throttledTelegramAlert (severity:low, 5분 dedup).
+    // SAFETY-CRITICAL (dietary) 만 hard 차단 — 다양성 부족은 환불 사유 아니므로 soft.
+    try {
+      const softWarnings = checkSoftQualityWarnings(itinerary);
+      if (softWarnings.length > 0) {
+        console.warn('[planner] ⚠️ soft quality warnings (legacy):', softWarnings);
+        throttledTelegramAlert({
+          key: 'plan-quality-local-tag-low',
+          channel: 'error',
+          severity: 'low',
+          message: '🟡 <b>Plan 다양성 미달 (B-18)</b>\n\n' + softWarnings.map((w) => w.message).join('\n'),
+          context: { mode: 'legacy', warnings: softWarnings.slice(0, 3) },
+        }).catch(() => {});
+      }
+    } catch (warnErr) {
+      console.error('[planner] soft warning check failed:', warnErr.message);
     }
 
     applyDBMatcher(itinerary, foodIndex, area, language);
