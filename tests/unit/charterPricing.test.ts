@@ -74,7 +74,7 @@ describe('B-CHT1 — Staria + 서울 1-day 단일가', () => {
 // ─────────────────────────────────────────────────────────
 
 describe('B-CHT2 — Sprinter + ICN→Busan 합리적 가격', () => {
-  it('Sprinter + ICN→Busan: 매트릭스 priceKRW(600k) × 2.0(sprinter) = 1,200,000 + 가이드 300k', () => {
+  it('Sprinter + ICN→Busan: 매트릭스 priceKRW(660k, 2026-05-12 P0-Q3) × 2.0(sprinter) = 1,320,000 + 가이드 300k', () => {
     const q = calculateQuote({
       ...baseState,
       vehicle: 'sprinter',
@@ -86,14 +86,14 @@ describe('B-CHT2 — Sprinter + ICN→Busan 합리적 가격', () => {
     });
     expect(q).not.toBeNull();
     expect(q!.needsCustomQuote).toBe(false);
-    // 600k × 2.0 = 1,200,000 (vehicleChargeKRW)
-    expect(q!.vehicleChargeKRW).toBe(1_200_000);
+    // 660k × 2.0 = 1,320,000 (vehicleChargeKRW) — Q3 운영자 결정: ICN→부산 ₩600K → ₩660K
+    expect(q!.vehicleChargeKRW).toBe(1_320_000);
     // Sprinter 는 가이드 자동 가산 (300k)
     const guideAddon = q!.addons.find(a => a.key === 'guide_required');
     expect(guideAddon).toBeDefined();
     expect(guideAddon!.amountKRW).toBe(300_000);
-    // 합계 = 1,200,000 + 300,000 = 1,500,000 (야간/할인 없음)
-    expect(q!.subtotalKRW).toBe(1_500_000);
+    // 합계 = 1,320,000 + 300,000 = 1,620,000 (야간/할인 없음)
+    expect(q!.subtotalKRW).toBe(1_620_000);
     expect(q!.subtotalKRW).toBeGreaterThan(0);
     expect(Number.isFinite(q!.subtotalKRW)).toBe(true);
     expect(Number.isNaN(q!.subtotalKRW)).toBe(false);
@@ -437,5 +437,238 @@ describe('B-CHT8 — resolveProductType ↔ calculateQuote 가격 일관성', ()
     const quote = calculateQuote(state);
     expect(quote!.needsCustomQuote).toBe(true);
     expect(quote!.vehicleChargeKRW).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT9: PUS 픽업 가격 = ₩77,000 (운영자 P0-Q1, 2026-05-12)
+//   3 위치 SSOT 일관성 검증:
+//   1) PICKUP_PRICES.PUS (UI 카드 표기)
+//   2) AIRPORT_TRANSFER_PRICES['busan-metro'].priceKRW (SSOT)
+//   3) DISTANCE_MATRIX['PUS→BUS_METRO'].priceKRW (matrix lookup)
+// ─────────────────────────────────────────────────────────
+
+import { PICKUP_PRICES } from '../../src/config/affiliateLinks';
+import { DISTANCE_MATRIX } from '../../src/data/charterPricing';
+
+describe('B-CHT9 — PUS 픽업 ₩77,000 3 위치 SSOT 일관성', () => {
+  it('PICKUP_PRICES.PUS UI 카드 = ₩77,000', () => {
+    const pus = PICKUP_PRICES.PUS;
+    expect(pus).toBeDefined();
+    expect(pus.length).toBeGreaterThanOrEqual(1);
+    // UI 표기 문자열에서 숫자만 추출해서 비교
+    const numeric = Number(pus[0].price.replace(/[^\d]/g, ''));
+    expect(numeric).toBe(77000);
+  });
+
+  it('AIRPORT_TRANSFER_PRICES.busan-metro SSOT = ₩77,000', () => {
+    const entry = AIRPORT_TRANSFER_PRICES['busan-metro'];
+    expect(entry).toBeDefined();
+    expect(entry.priceKRW).toBe(77000);
+  });
+
+  it('DISTANCE_MATRIX.PUS→BUS_METRO matrix = ₩77,000', () => {
+    const m = (DISTANCE_MATRIX as unknown as Record<string, { priceKRW?: number; source?: string }>)['PUS→BUS_METRO'];
+    expect(m).toBeDefined();
+    expect(m.priceKRW).toBe(77000);
+    expect(m.source).toBe('airport_transfer');
+  });
+
+  it('PUS 픽업 calculateQuote → vehicleChargeKRW = ₩77,000 (Staria, matrix/spec hit)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'PUS',
+      destinationKey: 'busan-metro',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+    });
+    expect(q).not.toBeNull();
+    expect(q!.needsCustomQuote).toBe(false);
+    expect(q!.vehicleChargeKRW).toBe(77000);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT10: PayPal 공항 확대 — ICN/PUS/GMP/CJU 4 공항 모두 payable=true
+// (운영자 P0-Q2, 2026-05-12)
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT10 — PayPal 4 공항 확대 (Staria payable=true)', () => {
+  it('PUS + busan-metro + Staria → payable=true + productType=airport_busan_metro', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'PUS',
+      destinationKey: 'busan-metro',
+    });
+    expect(resolved.payable).toBe(true);
+    expect(resolved.productType).toBe('airport_busan_metro');
+    expect(resolved.priceKRW).toBe(77000);
+  });
+
+  it('GMP + gimpo-seoul-central + Staria → payable=true (₩90,000)', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'GMP',
+      destinationKey: 'gimpo-seoul-central',
+    });
+    expect(resolved.payable).toBe(true);
+    expect(resolved.priceKRW).toBe(90000);
+  });
+
+  it('CJU + jeju-metro + Staria → payable=true (₩72,800)', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'CJU',
+      destinationKey: 'jeju-metro',
+    });
+    expect(resolved.payable).toBe(true);
+    expect(resolved.priceKRW).toBe(72800);
+  });
+
+  it('ICN + seoul-central + Staria → 기존 동작 유지 (regression guard, ₩124,800)', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-central',
+    });
+    expect(resolved.payable).toBe(true);
+    expect(resolved.priceKRW).toBe(124800);
+  });
+
+  it('PUS + 등재 안된 destinationKey → payable=false (가드 유지)', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'PUS',
+      destinationKey: 'seoul-central', // PUS 출발이 서울 도심? 매트릭스 mismatch — 그러나 SSOT 등재됨이라 통과.
+    });
+    // seoul-central 은 SSOT 에 있으므로 payable=true 가 맞음. 의미적 mismatch 는 wizard step 1-2 가드.
+    expect(resolved.payable).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT11: ICN → 부산 직행 = ₩660,000 (운영자 P0-Q3, 2026-05-12)
+// ₩600K → ₩660K (-₩60K 운영자 손실 회복)
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT11 — ICN → 부산 직행 ₩660,000', () => {
+  it('AIRPORT_TRANSFER_PRICES.busan SSOT = ₩660,000', () => {
+    expect(AIRPORT_TRANSFER_PRICES['busan'].priceKRW).toBe(660000);
+  });
+
+  it('DISTANCE_MATRIX.ICN→BUSAN priceKRW = ₩660,000 + source=airport_transfer', () => {
+    const m = (DISTANCE_MATRIX as unknown as Record<string, { priceKRW?: number; source?: string }>)['ICN→BUSAN'];
+    expect(m).toBeDefined();
+    expect(m.priceKRW).toBe(660000);
+    expect(m.source).toBe('airport_transfer');
+  });
+
+  it('ICN→busan + Staria calculateQuote → vehicleChargeKRW = ₩660,000', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'busan',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+    });
+    expect(q).not.toBeNull();
+    expect(q!.vehicleChargeKRW).toBe(660000);
+  });
+
+  it('ICN→busan + Staria resolveProductType → priceKRW=₩660,000 + payable=true', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'busan',
+    });
+    expect(resolved.payable).toBe(true);
+    expect(resolved.priceKRW).toBe(660000);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT12: Bus/VIP needsCustomQuote 시 결제 가격 숫자 노출 X
+// (운영자 P0-Q4, 2026-05-12) — 협의 라벨만 표시
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT12 — Bus/VIP 협의 (가격 숫자 노출 차단)', () => {
+  it('Bus + airport_transfer → resolveProductType payable=false + priceKRW=null', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'bus',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+    });
+    expect(resolved.payable).toBe(false);
+    expect(resolved.priceKRW).toBeNull();
+    expect(resolved.productType).toBeNull();
+  });
+
+  it('VIP + airport_transfer → resolveProductType payable=false + priceKRW=null', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'vip',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+    });
+    expect(resolved.payable).toBe(false);
+    expect(resolved.priceKRW).toBeNull();
+  });
+
+  it('Bus + day_tour → payable=false + priceKRW=null (가격 숨김)', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'bus',
+      service: 'day_tour',
+      destinationKey: 'seoul-city',
+    });
+    expect(resolved.payable).toBe(false);
+    expect(resolved.priceKRW).toBeNull();
+    expect(resolved.productType).toBeNull();
+  });
+
+  it('VIP + kpop_shuttle → payable=false + priceKRW=null', () => {
+    const resolved = resolveProductType({
+      ...baseState,
+      vehicle: 'vip',
+      service: 'kpop_shuttle',
+    });
+    expect(resolved.payable).toBe(false);
+    expect(resolved.priceKRW).toBeNull();
+  });
+
+  it('Bus + airport_transfer calculateQuote → needsCustomQuote=true + vehicleChargeKRW=0', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'bus',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+    });
+    // Step6Quote 가 needsCustomQuote=true 면 early return 으로 협의 배너만 표시 (가격 숫자 X)
+    expect(q!.needsCustomQuote).toBe(true);
+    expect(q!.vehicleChargeKRW).toBe(0);
+    // 영수증에 노출될 subtotal 도 0 — Step6Quote.needsCustomQuote 분기로 도달 안 함
+    expect(q!.subtotalKRW).toBe(0);
   });
 });

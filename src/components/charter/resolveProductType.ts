@@ -36,13 +36,13 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
   const vehicle = state.vehicle ?? 'staria';
   const mult = VEHICLE_MULTIPLIER[vehicle] ?? 1.0;
 
-  // 공항 픽업 — ICN 출발만 PayPal 하드코딩 매핑 존재 (다른 공항은 즉시결제 불가)
+  // 공항 픽업 — 운영자 P0-Q2 (2026-05-12) 결정: ICN/PUS/GMP/CJU/TAE 4 공항 모두 PayPal 허용.
+  //   조건: AIRPORT_TRANSFER_PRICES SSOT 에 등재된 destinationKey 만 결제 가능.
+  //   ICN 외 공항은 SSOT 에 'busan-metro', 'gimpo-seoul-central', 'gimpo-seoul-gangnam', 'jeju-metro' 신규 등재됨.
   if (state.service === 'airport_transfer') {
-    if (state.origin !== 'ICN') {
-      return {
-        productType: null, priceKRW: null, passengers: pax, payable: false,
-        reason: 'ICN 외 공항은 WhatsApp으로 견적 요청',
-      };
+    // 운영자 P0-Q4 (2026-05-12): Bus/VIP 차종은 결제 영수증·UI 에 가격 숫자 노출 금지 — 협의 라벨만.
+    if (vehicle === 'bus' || vehicle === 'vip') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
     }
     const dest = state.destinationKey;
     if (!dest || !(AIRPORT_TRANSFER_PRICES[dest])) {
@@ -52,11 +52,15 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
     // createPaypalOrder.js는 'airport_'+key(dash→underscore)로 매핑
     const productType = `airport_${dest.replace(/-/g, '_')}`;
     return { productType, priceKRW: Math.round(base * mult), passengers: pax, payable: vehicle === 'staria' };
-    // sprinter/bus는 별도 견적 — 가이드비 등 추가 계산 복잡해서 즉시결제 아님
+    // sprinter는 별도 견적 — 가이드비 등 추가 계산 복잡해서 즉시결제 아님 (priceKRW 노출은 유지: 견적 화면 정상)
   }
 
   // 당일 투어
   if (state.service === 'day_tour') {
+    // 운영자 P0-Q4 (2026-05-12): Bus/VIP 가격 숨김.
+    if (vehicle === 'bus' || vehicle === 'vip') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    }
     const dest = state.destinationKey;
     if (!dest || !DAY_TOUR_PRODUCT_MAP[dest] || !DAILY_TOUR_PRICES[dest]) {
       return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: '패키지 미선택' };
@@ -72,6 +76,10 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
 
   // K-pop 셔틀 — 왕복 기본, per-vehicle 가격 (createPaypalOrder.js는 인원수 × 단가지만 위저드는 차량 단일가 사용)
   if (state.service === 'kpop_shuttle') {
+    // 운영자 P0-Q4 (2026-05-12): Bus/VIP 가격 숨김.
+    if (vehicle === 'bus' || vehicle === 'vip') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    }
     return {
       productType: 'kpop_shuttle_roundtrip',
       priceKRW: pax * KPOP_SHUTTLE.priceRoundTrip,
