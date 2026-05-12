@@ -28,14 +28,14 @@
 
 ### 🟡 P1 — 검토 필요 (운영자 결정)
 
-| # | 항목 | 현재 | 문제 가설 |
-|---|---|---|---|
-| 5 | **공항 pickup KRW/USD 환율 비일관** | `pricing_spec.json:167-174` | `seoul-central`: ₩124,800 / $90 → 비율 1386. `gangneung-sokcho`: ₩364,000 / $265 → 1373. `busan`: ₩600,000 / $450 → 1333. **각 항목마다 환율 ±5% 변동**. KRW_PER_USD default 1350 과도 안 맞음. SSOT 가 정합성 잃음. |
-| 6 | **multi_day 단순 식** | `useQuoteCalculator.ts:181-208` | hardcoded `daily = 200,000` + `overnight = 130,000`. staria intercity 만 적용 (SSOT `staria.intercity.daily_service_fee` 와는 일치). 그러나 sprinter 일 때도 같은 200K/130K 사용 → SSOT sprinter.intercity.daily=280K / overnight=180K 와 불일치. **sprinter 멀티데이 견적 underprice**. |
-| 7 | **DMZ vs Seoul Suburb 가격 동일** | `pricing_spec.json:185-196` | `seoul-suburb`: ₩343,200 / `dmz`: ₩343,200 동일. DMZ 는 사전 신청 + 신분증 + JSA 가이드 비용 일반적으로 별도 (Korea Travel Easy 시장가 $80-150/인 + 차량). 동일 가격이라면 DMZ 가 marketplace 비교 시 가성비 신호로 받아질 수 있지만, **JSA 입장 자체가 임의 운영(미군 협조) 이므로 정책 변경 시 운영 risk**. |
-| 8 | **톨비 50km 미만 0원 정책** | `calculator.ts:48-52` | km<50 → 톨비 0. 그러나 ICN→서울도심 = 52km (경계). ICN→GMP 환승 + 시내 = 60km. 실제 인천대교 통행료 = ₩9,000~15,800 (편도). **사용자 시각: ICN 출발이면 ICN 대교 톨 무조건 발생**. policy B 단순화 측면 OK 지만 ICN 출발은 항상 톨 부과 정책으로 분리 검토 필요. |
-| 9 | **Sprinter 가이드 의무 + 동시 옵션 노출** | `useQuoteCalculator.ts:223-227, 218` | sprinter 는 `guide_required: true` → 자동으로 ₩300K 가이드비 가산. 그런데 사용자가 `options.licensedGuide` 체크하면 또 ₩300K 추가됨 (`englishGuidePerDay`). **중복 ₩600K 가산 위험**. UI 에서 sprinter 선택 시 licensedGuide 옵션 비활성화 필요. |
-| 10 | **콤보 10% 할인 SSOT 표기 부재** | `createPaypalOrder.js:54-61, 93-97` | `COMBO_MAP` 5개 (`combo_airport_seoul` 등) 은 createPaypalOrder.js 에 하드코딩 `(airport + tour) × 0.9`. SSOT `pricing_spec.json` 에는 콤보 항목 없음. 콤보 UI 자체가 아직 안 노출되어 있다면 dead code. 노출 중이라면 SSOT 와 분리되어 향후 가격 변경 시 sync miss risk. |
+| # | 항목 | 현재 | 문제 가설 | 상태 |
+|---|---|---|---|---|
+| 5 | **공항 pickup KRW/USD 환율 비일관** | `pricing_spec.json:167-174` | `seoul-central`: ₩124,800 / $90 → 비율 1386. `gangneung-sokcho`: ₩364,000 / $265 → 1373. `busan`: ₩660,000 / $490 → 1347 (P0 fix 후). **각 항목마다 환율 ±3% 변동**. KRW_PER_USD default 1350 과도 안 맞음. SSOT 가 정합성 잃음. | **🔴 운영자 결정 대기** |
+| 6 | **multi_day 단순 식** | `useQuoteCalculator.ts:181-208` | hardcoded `daily = 200,000` + `overnight = 130,000`. staria intercity 만 적용. sprinter underprice. | **✅ PR #382 fix** — SSOT `VEHICLE_INTERCITY.sprinter` (280K/180K) 분기 도입 |
+| 7 | **DMZ vs Seoul Suburb 가격 동일** | `pricing_spec.json:185-196` | `seoul-suburb`: ₩343,200 / `dmz`: ₩343,200 동일. DMZ 는 사전 신청 + 신분증 + JSA 가이드 비용 일반적으로 별도 (Korea Travel Easy 시장가 $80-150/인 + 차량). 동일 가격이라면 DMZ 가 marketplace 비교 시 가성비 신호로 받아질 수 있지만, **JSA 입장 자체가 임의 운영(미군 협조) 이므로 정책 변경 시 운영 risk**. | **🔴 운영자 결정 대기** |
+| 8 | **톨비 50km 미만 0원 정책** | `calculator.ts:48-52` | km<50 → 톨비 0. 그러나 ICN→서울도심 = 52km (경계). ICN→GMP 환승 + 시내 = 60km. 실제 인천대교 통행료 = ₩9,000~15,800 (편도). **사용자 시각: ICN 출발이면 ICN 대교 톨 무조건 발생**. policy B 단순화 측면 OK 지만 ICN 출발은 항상 톨 부과 정책으로 분리 검토 필요. | **🔴 운영자 결정 대기** |
+| 9 | **Sprinter 가이드 의무 + 동시 옵션 노출** | `useQuoteCalculator.ts:223-227, 218` | sprinter 는 `guide_required: true` → 자동으로 ₩300K 가이드비 가산. 그런데 사용자가 `options.licensedGuide` 체크하면 또 ₩300K 추가됨 (`englishGuidePerDay`). **중복 ₩600K 가산 위험**. | **✅ PR #383 fix** — `useQuoteCalculator` server dedup + Step5 UI conditional render + B-CHT18 + P32 lint |
+| 10 | **콤보 10% 할인 SSOT 표기 부재** | `createPaypalOrder.js:54-61, 93-97` | `COMBO_MAP` 5개 (`combo_airport_seoul` 등) 은 createPaypalOrder.js 에 하드코딩 `(airport + tour) × 0.9`. SSOT `pricing_spec.json` 에는 콤보 항목 없음. **combo_airport_busan UI ₩627,300 vs backend ₩517,320 ₩110K mismatch** 검출. | **✅ PR #384 fix** — `pricing_spec.json` `combo_packages` 신설 + `computeComboPriceKRW()` SSOT 함수 + UI/backend 동일 호출 + B-CHT19 + P33 lint |
 
 ### 🟢 P2 — 정보 (참고)
 
@@ -108,15 +108,59 @@
 
 ## 5. 운영자 결정 대기
 
-1. **P0 #1**: ICN 외 공항(PUS/GMP/CJU/TAE) 픽업을 PayPal 결제 허용할지, UI 에서 "협의" 만 노출할지 선택. 부산 prod 활용 5/3~ 이래 PUS 픽업 결제 0건이면 후자 추천.
-2. **P0 #2**: `PICKUP_PRICES.PUS = ₩100,000` 표기 유지 → SSOT 동기화 필요. 또는 ICN 외 항목 전부 UI 제거.
-3. **P0 #3**: ICN→부산 직행 ₩600K 유지 vs ₩1,000K+ 인상. 5/3 부산 booking 1건 (운영자 본인 검증) 이외 실제 운영 데이터로 확정.
-4. **P0 #4**: Bus/VIP 차종 견적 영수증에 숫자 노출 차단 (협의 라벨만).
-5. **P1 #5**: pricing_spec.json 공항 priceKRW/priceUSD 환율 통일 (default 1380 또는 1430). 5/12 launch 후 별도 PR.
-6. **P1 #6**: sprinter multi_day daily/overnight SSOT 의 sprinter 항목으로 분기. (B9-38 후속)
-7. **P1 #9**: sprinter 선택 시 licensedGuide 옵션 비활성화. (UI 수정)
-8. **P1 #10**: COMBO_MAP 살아있는지 확인. dead 면 제거, alive 면 SSOT 의 `combo_discount_percent` 항목 신설.
-9. **P2 #13**: `VITE_KRW_PER_USD` Vercel env 업데이트 (1350→1430 또는 ExchangeRate-API live fetch).
+### 5/12-5/13 fix 완료 (자율 처리, 운영자 액션 불필요)
+- ✅ **P0 #1/#2/#3/#4** (PR #381): PUS ₩77K + PayPal 4 공항 + ICN→부산 ₩660K + Bus/VIP 협의
+- ✅ **P1 #6** (PR #382): sprinter multi_day SSOT 분기 (280K/180K)
+- ✅ **P1 #9** (PR #383): Sprinter 가이드 중복 ₩600K 차단 (server dedup + UI hide + B-CHT18 + P32 lint)
+- ✅ **P1 #10** (PR #384): 콤보 패키지 SSOT 단일화 — UI/backend mismatch ₩110K 차단 (B-CHT19 + P33 lint)
+
+### 운영자 결정 대기 (3건, post-launch 후순위)
+
+#### 🔴 P1 #5 — 환율 비일관 정리
+**현황** (PR #381 후):
+| zone | priceKRW | priceUSD | 산출 환율 |
+|---|---|---|---|
+| seoul-central | 124,800 | 90 | 1386 |
+| seoul-gangnam | 145,600 | 105 | 1387 |
+| gapyeong-nami | 208,000 | 150 | 1387 |
+| chuncheon | 220,000 | 165 | 1333 |
+| gangneung-sokcho | 364,000 | 265 | 1373 |
+| busan (ICN→) | 660,000 | 490 | 1347 |
+| busan-metro (PUS→) | 77,000 | 57 | 1351 |
+| jeju-metro (CJU→) | 72,800 | 54 | 1348 |
+
+**선택지**:
+- A) **환율 1380 통일** → priceUSD 재계산 (예: busan-metro $57 → $56). 사용자 외화 표기 안정. 일부 zone $1-2 변동.
+- B) **환율 1430 (실시세)** → priceUSD 다 인하 (KRW 그대로). 외국인 사용자 입장에서 "더 저렴해 보임". 운영 손실 X (KRW 기준 변동 X).
+- C) **현 상태 유지** + `VITE_KRW_PER_USD` env 1350 → 1430 만 업데이트. 향후 가격 변경 시 통일.
+
+**권장**: B (실시세 1430 적용 + priceUSD 인하). 외국인 perception 향상 + 실제 결제는 KRW 기준이라 영향 0.
+
+#### 🔴 P1 #7 — DMZ vs Seoul Suburb 가격 동일
+**현황**: `dmz`=₩343,200 / `seoul-suburb`=₩343,200 (같음).
+**시장가**: KKday DMZ tour $100-150 (₩135-200K) /인 — CocoTrip은 그룹가 ₩343K (4명 → ₩86K/인) 가성비.
+**risk**: JSA 입장 임의 운영 — 미군 협조 끊기면 환불·재예약 부담.
+**선택지**:
+- A) **₩400K 로 인상** (DMZ 특수성 반영). +17%.
+- B) **현 가격 유지** (가성비 마케팅).
+- C) **DMZ를 inquiry-only 로 변경** (사전 예약 까다로움 — 결제 차단, 협의 폼만).
+
+**권장**: B (현 유지) — 부산 launch 후 DMZ 예약 건수 검증 후 재논의. 단 운영 risk 메모 보존.
+
+#### 🔴 P1 #8 — 톨비 50km 미만 0원 정책
+**현황**: `calculator.ts:48-52` km<50 → 톨비 0.
+**문제**: ICN 출발 = 인천대교 톨 항상 발생 (편도 ₩9-15K). 단거리 (52km 미만) 도 톨 부담.
+**선택지**:
+- A) **ICN 출발은 km 무관 톨 ₩15K 가산** (정책 분리). +₩15K per booking.
+- B) **현 정책 유지** (마케팅 단순함 — 톨 포함이 사용자 perception 좋음).
+- C) **모든 톨 SSOT 분리** (`pricing_spec.json` 의 톨 테이블) — 향후 zone 별 정교 가산.
+
+**권장**: B (현 유지) — 5/12 PR #381 이후 ICN→busan 등 장거리 톨은 이미 formula 에 반영. 단거리는 운영자 흡수 (사용자 perception 우선).
+
+#### 🟢 P2 잔여 (별도 PR 추적)
+- **P2 #11** seoul-night 1인 ₩330K 그룹가 charged 모순 — `tours.ts:387` per_person → group 결제 mismatch
+- **P2 #12** Multi-city 3D2N USD $580 priceFrom 실비 ₩2.86M+ vs 광고가 ₩783K — "별도 협의" 라벨 필요
+- **P2 #13** `VITE_KRW_PER_USD` 1350→1430 — Vercel env 업데이트 또는 ExchangeRate-API live fetch
 
 ---
 
