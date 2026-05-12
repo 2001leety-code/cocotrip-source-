@@ -445,3 +445,40 @@ B-ADM3 는 PURE HARDCODE 만 fail 처리. hybrid/array fallback 은 note 로 안
 - Gemini: 호출 X (admin endpoint 만 ping). $0.
 - GitHub Actions: ~3분/실행. 라벨 trigger 만 → PR 당 1회.
 - 실패 시 PR 댓글 자동 게시 (issue 자동 생성 X — PR 컨텍스트로 충분).
+
+## Voucher 회귀 슈트 (자율 검증 v2 P0, 2026-05-12 도입)
+
+플래너 plan 회귀 슈트 (B-1 ~ B-18) 와 별개로 **voucher PDF 생성 도메인** 회귀를
+독립 슈트로 분리. 트리거 라벨 / 의존 booking 데이터가 다르기 때문.
+
+배경: 사용자가 결제 후 voucher 못 받으면 직접 신고하는 패턴 — 자동 검증 0건.
+voucher 생성 실패 = 결제 직후 핵심 사용자 신뢰 손상 → P0.
+
+### 3 assertion
+
+#### B-VCH1 — Voucher PDF 생성 가능
+
+- **가설:** 결제 완료 booking 의 `/api/voucher` 호출 시 PDF 응답이 아예 안 나오거나 빈 blob 반환.
+- **증상:** 사용자가 "내 예약 보기" → "Voucher 다운로드" 클릭했는데 빈 파일 / 500 에러.
+- **검증:** `status === 200` + `Content-Type: application/pdf` + blob ≥ 10KB + `%PDF-` magic.
+- **회귀 위험:** pdfkit/qrcode import path 깨짐, Buffer concat 실패, Firestore booking 조회 fail.
+
+#### B-VCH2 — Voucher 다국어 (4-lang) 분기
+
+- **가설:** voucher endpoint 가 `?lang=ko/en/ja/zh` 쿼리에 crash 하거나 일부 lang 만 timeout.
+- **검증:** 4-lang 각각 `status === 200` + valid PDF (≥5KB + `%PDF-`) + 응답 시간 < 10s.
+- **참고:** 현재 `voucher.js` 는 `lang` 파라미터를 무시 (Helvetica only — 영문 단일 PDF).
+
+#### B-VCH3 — Voucher 공유 URL public access + email 매칭 가드
+
+- **가설:** PR #229 batch 2 정책 (auth header 없이 email 매칭만으로 voucher 다운로드) 가 깨짐.
+- **검증:** auth header 없이 GET → 200 + valid PDF / 잘못된 email → 403
+
+### Secrets
+
+| Secret | 값 |
+|---|---|
+| `VOUCHER_TEST_BOOKING_ID` | sandbox booking ID |
+| `VOUCHER_TEST_BOOKING_EMAIL` | 해당 booking 의 customerEmail |
+
+미설정 시 graceful skip + exit 0.
