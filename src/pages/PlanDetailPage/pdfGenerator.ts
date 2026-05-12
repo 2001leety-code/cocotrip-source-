@@ -225,20 +225,16 @@ export async function generatePDF(
     adults: uiDict?.adultsLabel || 'adults',
     pax: uiDict?.paxLabel || 'pax',
   };
-  // 2026-05-12 (PDF P0 root cause fix): inject CSS class definitions for pagebreak selectors.
-  // Track 4 Playwright fresh download (cache 0) \uACB0\uACFC: PR #348 (\uC778\uB77C\uC778 page-break \uC81C\uAC70) \uC801\uC6A9
-  // \uB410\uC9C0\uB9CC Day 5 \uB204\uB77D + 75% \uBE48 \uD398\uC774\uC9C0 \uB3D9\uC77C \uC7AC\uD604. console: "[PDF] all 5 days rendered to html
-  // builder" + "[PDF] adaptive scale: 1.5 for scrollHeight: 3756px" \u2014 HTML builder \uB2E8\uACC4\uB294
-  // \uC815\uC0C1\uC774\uB098 html2canvas capture \uB2E8\uACC4\uC5D0\uC11C clip. root cause: html2pdf `mode: ['css', 'legacy']`
-  // \uC758 css mode \uAC00 \uB9E4\uCE6D\uD558\uB824\uBA74 `.pdf-day-break` \uD074\uB798\uC2A4\uC5D0 \uC2E4\uC81C `page-break-before:always` CSS
-  // \uC815\uC758\uAC00 \uD544\uC694. inline-only \uC600\uC744 \uB54C\uB294 selector lookup \uC6B0\uD68C \u2192 \uC815\uC0C1 \uC791\uB3D9. inline \uC81C\uAC70 \uD6C4
-  // selector \uB9CC \uB0A8\uC558\uB294\uB370 CSS class \uC815\uC758\uAC00 \uC5C6\uC5B4 \uB9E4\uCE6D \uC2E4\uD328 \u2192 days collapsed \u2192 scrollHeight \uCD95\uC18C.
+  // 2026-05-12 (PDF P0 root cause fix, rev 2): \uC57D\uD654\uB41C <style> + windowHeight \uAC15\uC81C.
+  // PR #351 (\uC120\uC81C \uC815\uC758) \uB294 selector matched 4/4 \u2713 \uD574\uACB0\uD588\uC73C\uB098
+  // !important \uAC00 \uB108\uBB34 \uAC15\uD574 selector \uB9E4\uCE6D \uC2DC \uACBD\uD5D8\uC801 capture clip \uBD80\uC791\uC6A9 \uBC1C\uC0DD.
+  // Playwright \uC7AC\uAC80\uC99D: scrollHeight 3720px (\uC608\uC0C1 7500-8500px), \uAC01 \uD398\uC774\uC9C0 70-95% bottom blank.
+  // Root cause: !important \uACFC\uB3C4 + html2canvas viewport \uAE30\uBCF8 (900px) \uB9CC capture.
+  // \uC218\uC815: (1) <style> \uC5D0\uC11C .pdf-day-break \uB9CC \uB0A8\uAE40 \u2014 \uB098\uBA38\uC9C0\uB294 inline style \uACFC \uC911\uBCF5
+  // (2) !important \uC81C\uAC70 \u2014 \uC77C\uBC18 page-break-before \uB9CC\uC73C\uB85C \uCDA9\uBD84
+  // (3) html2pdf options \uC758 windowHeight \uB97C Math.max(scrollHeight, 10000) \uAC15\uC81C (L1110)
   let html = `<style>
-    .pdf-day-break { page-break-before: always !important; break-before: page !important; }
-    .pdf-stop-card { page-break-inside: avoid; break-inside: avoid; }
-    .pdf-transit-block { page-break-inside: avoid; break-inside: avoid; }
-    .pdf-day-header { page-break-inside: avoid; break-inside: avoid; page-break-after: avoid; break-after: avoid; }
-    .pdf-day-summary { page-break-inside: avoid; break-inside: avoid; }
+    .pdf-day-break { page-break-before: always; break-before: page; }
   </style><div style="text-align:center;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid ${C.accent};">
     <h1 style="font-size:26px;font-weight:800;color:${C.accent};margin:0 0 6px;">${it.tour_title || L.defaultTitle}</h1>
     <p style="color:${C.muted};font-size:13px;margin:0;">
@@ -1090,6 +1086,12 @@ export async function generatePDF(
     // 즉시 안전 기본값 복구 (scale 1.0, jpeg 0.92), pagebreak 단순화.
     // windowHeight 명시 — html2canvas가 cloned element를 측정할 때 viewport 추정에 사용.
     // 안 주면 일부 환경(특히 dev preview)에서 0으로 떨어짐.
+    // 2026-05-12 (rev 2): windowHeight = Math.max(measuredHeight, 10000) 강제.
+    // 사용자 신고 + Playwright 검증: 페이지마다 70-95% blank + scrollHeight 3720px (5일 plan).
+    // measuredHeight 가 collapsed 된 상태로 capture clip 됨. min 10000px 로 일정 미만일 때도
+    // viewport 충분히 확보 → html2canvas 가 전체 영역 capture.
+    const forcedWindowHeight = Math.max(measuredHeight, 10000);
+    console.log('[PDF] html2pdf windowHeight forced:', forcedWindowHeight, '(measuredHeight:', measuredHeight, ')');
     const worker = html2pdf().set({
       margin: [8, 8, 8, 8],
       filename,
@@ -1107,7 +1109,7 @@ export async function generatePDF(
         foreignObjectRendering: false,
         allowTaint: false,
         windowWidth: 800,
-        windowHeight: measuredHeight,
+        windowHeight: forcedWindowHeight,
         height: measuredHeight,
         width: 800,
         scrollX: 0,
