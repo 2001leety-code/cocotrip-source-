@@ -102,6 +102,34 @@ function regionToCharterProduct(region) {
     return REGION_TO_CHARTER_PRODUCT[key] || null;
 }
 
+// B-11 fix (2026-05-12): transit_from_prev.mode 명시 보존.
+// ODsay formatTransitSummary 는 method 만 채우고 (값: 'subway'|'bus'|'subway+bus'|'walk'),
+// 회귀 슈트 B-11 은 `t.mode || t.type` 로 비율 측정 → 0/0 으로 영구 skip 됐다.
+// 모든 transit_from_prev / route 객체에 mode 필드를 명시 저장해 ODsay 사용 비율
+// 자동 검증 가능 + UI/PDF/이메일 에서 method 와 별개로 분류 가능 (subway+bus →
+// 'transit' 정규화). 자율 검증 시스템(2026-05-12) 자동 감지 후 추가된 매핑.
+//
+// ODsay pathType: 1=지하철, 2=버스, 3=지하철+버스. 도보는 형식이 다른 별도 경로.
+export function odsayPathTypeToMode(pathType) {
+    switch (pathType) {
+        case 1: return 'subway';
+        case 2: return 'bus';
+        case 3: return 'transit';
+        default: return 'walk';
+    }
+}
+
+// method (formatTransitSummary 출력) 를 표준 mode 값으로 정규화.
+// 'subway+bus' → 'transit' 변환, 그 외 enum 값은 그대로 통과.
+// 회귀 슈트 B-11 의 허용 enum: subway/bus/walk/transit/metro.
+export function methodToMode(method) {
+    if (!method) return null;
+    const m = String(method).toLowerCase();
+    if (m === 'subway+bus' || m === 'bus+subway' || m === 'mixed') return 'transit';
+    if (m === 'metro') return 'subway'; // 호환 — 일부 ODsay 응답에 잔존 가능
+    return m; // subway / bus / walk / car / unknown 그대로
+}
+
 export class RouteAgent extends BaseAgent {
     constructor(apiKey) {
         super(apiKey, "route");
@@ -269,6 +297,7 @@ export class RouteAgent extends BaseAgent {
                         fallback_origin: depFromSource,
                         fallback_label: depFromLabel || null,
                         method: 'unknown',
+                        mode: 'unknown',
                         source: 'failed',
                         direction: 'departure',
                     };
@@ -288,6 +317,7 @@ export class RouteAgent extends BaseAgent {
                     _odsay_failed: false,
                     fallbackReason: 'no_origin_coord',
                     method: 'unknown',
+                    mode: 'unknown',
                     source: 'failed',
                     direction: 'departure',
                 };
@@ -462,6 +492,7 @@ export class RouteAgent extends BaseAgent {
                     const pt = transitData.publicTransit;
                     hotelTransit = {
                         method: pt?.method || 'subway',
+                        mode: methodToMode(pt?.method) || 'subway',
                         instruction: pt?.summary || `Take public transit from hotel to ${places[0].name || places[0].display_name || 'first stop'}`,
                         step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
                         steps_detail: pt?.steps || [],
@@ -508,6 +539,7 @@ export class RouteAgent extends BaseAgent {
                             const pt = lastTransit.publicTransit;
                             const returnTransit = {
                                 method: pt?.method || 'subway',
+                                mode: methodToMode(pt?.method) || 'subway',
                                 instruction: pt?.summary || `Return to hotel from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
                                 step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
                                 steps_detail: pt?.steps || [],
@@ -566,6 +598,7 @@ export class RouteAgent extends BaseAgent {
                         // 렌더링에 쓴다. step_by_step(텍스트 배열)은 PDF/이메일 호환용.
                         place.transit_from_prev = {
                             method: pt.method || 'subway',
+                            mode: methodToMode(pt.method) || 'subway',
                             instruction_en: pt.summary || '',
                             step_by_step: (pt.steps || []).map(s => s.description),
                             steps_detail: pt.steps || [],
@@ -580,6 +613,7 @@ export class RouteAgent extends BaseAgent {
                     } else if (pt && pt.method === 'walk') {
                         place.transit_from_prev = {
                             method: 'walk',
+                            mode: 'walk',
                             instruction_en: pt.summary || `Walk ${realTransitMin} min`,
                             step_by_step: [],
                             est_min: pt.duration || realTransitMin,
@@ -591,6 +625,7 @@ export class RouteAgent extends BaseAgent {
                         const geminiTransit = place.transit_from_prev || {};
                         place.transit_from_prev = {
                             method: geminiTransit.method || 'car',
+                            mode: methodToMode(geminiTransit.method) || 'car',
                             instruction_en: geminiTransit.instruction_en || '',
                             step_by_step: geminiTransit.step_by_step || [],
                             est_min: transit.drivingMin || geminiTransit.est_min || realTransitMin,
@@ -970,6 +1005,7 @@ export class RouteAgent extends BaseAgent {
                 if (needsDetail && !hasDetail) {
                     t._downgraded_from = t.method;
                     t.method = 'car';
+                    t.mode = 'car';
                     t.source = 'downgrade';
                     downgradeCount++;
                 }
@@ -1095,6 +1131,7 @@ export class RouteAgent extends BaseAgent {
                 }
                 return {
                     method: pt.method || 'subway',
+                    mode: methodToMode(pt.method) || 'subway',
                     instruction: pt.summary || '',
                     step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
                     steps_detail: pt.steps || [],
