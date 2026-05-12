@@ -51,14 +51,17 @@ const CHARTER_MAP = {
 // airport_<key>: underscore → hyphen 변환 (예: airport_seoul_central → seoul-central, airport_gapyeong_nami → gapyeong-nami)
 // 단, 'seoul_gangnam' → 'seoul-gangnam', 'pyeongchang_yongpyong' → 'pyeongchang-yongpyong'은 모두 underscore → hyphen.
 
-const COMBO_MAP = {
-  // 콤보 = (ICN→서울도심 공항픽업) + (당일투어) × 0.9 (10% 콤보 할인)
-  combo_airport_seoul:   'seoul-city',
-  combo_airport_nami:    'seoul-suburb',
-  combo_airport_dmz:     'dmz',
-  combo_airport_gangwon: 'gangwon',
-  combo_airport_busan:   'busan-day',
+// P1 #10 fix (2026-05-13): COMBO_MAP 하드코딩 제거 — SSOT pricing_spec.json combo_packages
+// 단일 source. 콤보 가격 = (airport_key.priceKRW + tour_key.priceKRW) × (1 - discount_percent/100).
+// SSOT 키 누락 시 안전 fallback (legacy 배포 환경 호환).
+const COMBO_PACKAGES_FALLBACK = {
+  combo_airport_seoul:   { airport_key: 'seoul-central', tour_key: 'seoul-city' },
+  combo_airport_nami:    { airport_key: 'seoul-central', tour_key: 'seoul-suburb' },
+  combo_airport_dmz:     { airport_key: 'seoul-central', tour_key: 'dmz' },
+  combo_airport_gangwon: { airport_key: 'seoul-central', tour_key: 'gangwon' },
+  combo_airport_busan:   { airport_key: 'seoul-central', tour_key: 'busan-day' },
 };
+const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 
 // AI 플래너 서비스는 전세 가격과 별개 상품 (유료 플래너 $9.90)
 const AI_PLANNER_FULL_KRW = 13_300;
@@ -89,12 +92,16 @@ function resolveKrwAmount(productType, passengers) {
     return SPEC.airport_transfer_prices[key]?.priceKRW ?? null;
   }
 
-  // 콤보 패키지
-  if (COMBO_MAP[normalized]) {
-    const airport = SPEC.airport_transfer_prices['seoul-central']?.priceKRW;
-    const tour    = SPEC.daily_tour_prices[COMBO_MAP[normalized]]?.priceKRW;
+  // 콤보 패키지 — SSOT combo_packages 우선, 없으면 fallback (legacy 배포 환경 호환)
+  const ssotCombo = SPEC.combo_packages?.packages?.[normalized];
+  const fbCombo = COMBO_PACKAGES_FALLBACK[normalized];
+  const combo = ssotCombo || fbCombo;
+  if (combo) {
+    const airport = SPEC.airport_transfer_prices[combo.airport_key]?.priceKRW;
+    const tour    = SPEC.daily_tour_prices[combo.tour_key]?.priceKRW;
     if (!airport || !tour) return null;
-    return Math.round((airport + tour) * 0.9);
+    const pct = (SPEC.combo_packages?.discount_percent ?? COMBO_DISCOUNT_PERCENT_FALLBACK) / 100;
+    return Math.round((airport + tour) * (1 - pct));
   }
 
   return null;

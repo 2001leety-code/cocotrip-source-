@@ -261,6 +261,18 @@
     "pickup_points_en": ["Myeongdong", "Hongdae", "Gangnam Stn.", "Dongdaemun"]
   },
 
+  "combo_packages": {
+    "comment": "P1 #10 fix (2026-05-13) — 공항 픽업 + 당일 투어 콤보. 이전: api/createPaypalOrder.js + api/_shared/pricing.js + TourPackageInlineAd.tsx 3 곳 hardcode. 가격 = (airport_key.priceKRW + tour_key.priceKRW) × (1 - discount_percent/100). UI/backend 양쪽 SSOT.",
+    "discount_percent": 10,
+    "packages": {
+      "combo_airport_seoul":   { "airport_key": "seoul-central", "tour_key": "seoul-city",   "advertise_cities": ["seoul"] },
+      "combo_airport_nami":    { "airport_key": "seoul-central", "tour_key": "seoul-suburb", "advertise_cities": ["seoul"] },
+      "combo_airport_dmz":     { "airport_key": "seoul-central", "tour_key": "dmz",          "advertise_cities": ["seoul"] },
+      "combo_airport_gangwon": { "airport_key": "seoul-central", "tour_key": "gangwon",      "advertise_cities": ["seoul"] },
+      "combo_airport_busan":   { "airport_key": "seoul-central", "tour_key": "busan-day",    "advertise_cities": ["busan"] }
+    }
+  },
+
   "extra_charges": {
     "overtime_per_hour": 33000,
     "night_surcharge_percent": 20,

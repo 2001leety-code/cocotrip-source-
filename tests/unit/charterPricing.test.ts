@@ -889,3 +889,66 @@ describe('B-CHT17 — SSOT airport_transfer_pricing_formula 일관성', () => {
     expect(central).toBe(AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW);
   });
 });
+
+// ─────────────────────────────────────────────────────────
+// B-CHT19: COMBO_MAP SSOT 단일화 (P1 #10 fix, 2026-05-13)
+//   이전: createPaypalOrder.js + _shared/pricing.js + TourPackageInlineAd.tsx
+//         3 곳 hardcoded → combo_airport_busan UI ₩627,300 vs backend ₩517,320 ₩110K mismatch.
+//   이후: pricing_spec.json combo_packages 단일 source. UI/backend 동일 공식.
+// ─────────────────────────────────────────────────────────
+
+import { COMBO_PACKAGES, COMBO_DISCOUNT_PERCENT, computeComboPriceKRW } from '../../src/data/charterPricing';
+
+describe('B-CHT19 — COMBO_MAP SSOT 단일화 (P1 #10 fix)', () => {
+  it('SSOT combo_packages 등재 — 5개 콤보 (운영자 정책)', () => {
+    expect(Object.keys(COMBO_PACKAGES)).toEqual(
+      expect.arrayContaining([
+        'combo_airport_seoul',
+        'combo_airport_nami',
+        'combo_airport_dmz',
+        'combo_airport_gangwon',
+        'combo_airport_busan',
+      ]),
+    );
+  });
+
+  it('SSOT discount_percent = 10', () => {
+    expect(COMBO_DISCOUNT_PERCENT).toBe(10);
+  });
+
+  it('combo_airport_seoul = (seoul-central + seoul-city) × 0.9', () => {
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['seoul-city'].priceKRW) * 0.9,
+    );
+    expect(computeComboPriceKRW('combo_airport_seoul')).toBe(expected);
+  });
+
+  it('combo_airport_busan = (seoul-central + busan-day) × 0.9 — UI 카드 ₩627,300 regression 차단', () => {
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['busan-day'].priceKRW) * 0.9,
+    );
+    const actual = computeComboPriceKRW('combo_airport_busan');
+    expect(actual).toBe(expected);
+    // 회귀 가드 — 이전 UI hardcoded ₩627,300 절대 다시 나오면 안 됨
+    expect(actual).not.toBe(627_300);
+  });
+
+  it('combo_airport_dmz / nami 동일 가격 (둘 다 seoul-suburb 가격대) 일관성', () => {
+    const dmz = computeComboPriceKRW('combo_airport_dmz');
+    const nami = computeComboPriceKRW('combo_airport_nami');
+    // 두 콤보 tour_key 가 dmz / seoul-suburb 인데, daily_tour_prices.priceKRW 가 같으면 콤보 가격도 같음.
+    if (DAILY_TOUR_PRICES['dmz'].priceKRW === DAILY_TOUR_PRICES['seoul-suburb'].priceKRW) {
+      expect(dmz).toBe(nami);
+    }
+  });
+
+  it('등록 안 된 productType → computeComboPriceKRW null', () => {
+    expect(computeComboPriceKRW('combo_airport_unknown')).toBeNull();
+    expect(computeComboPriceKRW('charter_seoul_city')).toBeNull();
+  });
+
+  it('advertise_cities 메타 — UI 가 city 매칭 시 사용', () => {
+    expect(COMBO_PACKAGES['combo_airport_busan'].advertise_cities).toContain('busan');
+    expect(COMBO_PACKAGES['combo_airport_seoul'].advertise_cities).toContain('seoul');
+  });
+});

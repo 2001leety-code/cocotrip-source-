@@ -270,3 +270,37 @@ export const VEHICLE_INTERCITY: { staria: VehicleIntercity; sprinter: VehicleInt
   staria: spec.vehicles.staria.intercity as VehicleIntercity,
   sprinter: spec.vehicles.sprinter.intercity as VehicleIntercity,
 };
+
+// ────────────────────────────────────────
+// P1 #10 fix (2026-05-13): 콤보 패키지 SSOT 단일화
+// ────────────────────────────────────────
+// 이전: createPaypalOrder.js (COMBO_MAP 5개) + _shared/pricing.js (동일) + TourPackageInlineAd.tsx (priceKRW hardcoded) 3 곳 분산.
+// 이후: pricing_spec.json combo_packages 단일 source. 가격 = (airport_key.priceKRW + tour_key.priceKRW) × (1 - discount_percent/100).
+export type ComboPackage = {
+  airport_key: string;
+  tour_key: string;
+  advertise_cities: string[];
+};
+
+const _combo = (spec as unknown as Record<string, unknown>).combo_packages as
+  | { discount_percent: number; packages: Record<string, ComboPackage> }
+  | undefined;
+
+// SSOT 누락 시 fallback (regression 안전망).
+export const COMBO_DISCOUNT_PERCENT: number = _combo?.discount_percent ?? 10;
+
+export const COMBO_PACKAGES: Record<string, ComboPackage> = _combo?.packages ?? {};
+
+/**
+ * 콤보 패키지 가격 계산 — SSOT 기반. UI / backend 양쪽 호출.
+ * @param productType 'combo_airport_<key>'
+ * @returns KRW 정수 또는 null (등록 X / airport·tour 가격 부재)
+ */
+export function computeComboPriceKRW(productType: string): number | null {
+  const pkg = COMBO_PACKAGES[productType];
+  if (!pkg) return null;
+  const airport = AIRPORT_TRANSFER_PRICES[pkg.airport_key]?.priceKRW;
+  const tour = DAILY_TOUR_PRICES[pkg.tour_key]?.priceKRW;
+  if (!airport || !tour) return null;
+  return Math.round((airport + tour) * (1 - COMBO_DISCOUNT_PERCENT / 100));
+}
