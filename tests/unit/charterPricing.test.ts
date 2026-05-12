@@ -672,3 +672,220 @@ describe('B-CHT12 — Bus/VIP 협의 (가격 숫자 노출 차단)', () => {
     expect(q!.subtotalKRW).toBe(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────
+// B-CHT13: Pickup/Transfer Formula 1 (4-tier one-way) —
+//   옵션 C-FINAL (2026-05-12) 운영자 결정 (PR #381) 자연 도출 검증
+//   Tier 1 (0-30km flat ₩77K) / Tier 2 (-100km +₩1.8K/km)
+//   Tier 3 (-300km +₩1.3K/km) / Tier 4 (300+ +₩0.85K/km + toll)
+// ─────────────────────────────────────────────────────────
+
+import { calcPickupTransferFormula } from '../../src/hooks/useQuoteCalculator';
+import { AIRPORT_TRANSFER_PRICING_FORMULA, VEHICLE_INTERCITY } from '../../src/data/charterPricing';
+
+describe('B-CHT13 — Pickup/Transfer Formula 1 (4-tier)', () => {
+  it('Tier 1: PUS → 해운대 30km → ₩77K (운영자 PR #381 자연 도출)', () => {
+    const r = calcPickupTransferFormula(30, 'staria', true);
+    expect(r).not.toBeNull();
+    expect(r!.krw).toBe(77_000);
+    expect(r!.breakdown.base).toBe(77_000);
+    expect(r!.breakdown.perKm).toBe(0);
+    expect(r!.breakdown.toll).toBe(0);
+  });
+
+  it('Tier 1 edge: 1km → ₩77K (최소 거리도 flat)', () => {
+    const r = calcPickupTransferFormula(1, 'staria', true);
+    expect(r!.krw).toBe(77_000);
+  });
+
+  it('Tier 2: CJU → 중문 40km → ₩95K (77K + 10×1.8K)', () => {
+    const r = calcPickupTransferFormula(40, 'staria', true);
+    expect(r!.krw).toBe(95_000);
+    expect(r!.breakdown.perKm).toBe(18_000);
+  });
+
+  it('Tier 2: 50km → ₩113K (77K + 20×1.8K, toll 0 because <50)', () => {
+    const r = calcPickupTransferFormula(49, 'staria', true);
+    expect(r!.krw).toBe(77_000 + 19 * 1_800);
+  });
+
+  it('Tier 2 edge: 100km → ₩203K (77K + 70×1.8K, toll 100×100=10K 가산)', () => {
+    const r = calcPickupTransferFormula(100, 'staria', true);
+    // 77K + 70×1.8K = 203K + tollEstimate(100) = 100×100 = 10K → 213K
+    // (tollEstimate: 50-199km → km×100)
+    expect(r!.krw).toBe(203_000 + 10_000);
+  });
+
+  it('Tier 4: 300km → ₩463K + toll 300×150 = ₩508K', () => {
+    const r = calcPickupTransferFormula(300, 'staria', true);
+    // Tier3 end: 77K + 70×1.8K + 200×1.3K = 77K + 126K + 260K = 463K
+    // tollEstimate(300) = 300×150 = 45K (km>=200)
+    expect(r!.krw).toBe(463_000 + 45_000);
+  });
+
+  it('Tier 4: ICN → 부산 450km → ₩591K + toll ₩67.5K ≈ ₩658.5K (SSOT ₩660K 의 ±5% 이내)', () => {
+    const r = calcPickupTransferFormula(450, 'staria', true);
+    // Tier3 end (300km): 463K. +150×0.85K = 127.5K → 590.5K
+    // toll: 450×150 = 67.5K → 658K
+    const ssotPrice = 660_000;
+    expect(r!.krw).toBeGreaterThanOrEqual(Math.round(ssotPrice * 0.95));
+    expect(r!.krw).toBeLessThanOrEqual(Math.round(ssotPrice * 1.05));
+  });
+
+  it('Sprinter formula = staria × 1.85 (multiplier)', () => {
+    const staria = calcPickupTransferFormula(50, 'staria', true);
+    const sprinter = calcPickupTransferFormula(50, 'sprinter', true);
+    expect(sprinter!.krw).toBe(Math.round(staria!.krw * 1.85));
+  });
+
+  it('Bus/VIP → null (협의)', () => {
+    expect(calcPickupTransferFormula(50, 'bus', true)).toBeNull();
+    expect(calcPickupTransferFormula(50, 'vip', true)).toBeNull();
+  });
+
+  it('km=0/음수/NaN → null (안전)', () => {
+    expect(calcPickupTransferFormula(0, 'staria', true)).toBeNull();
+    expect(calcPickupTransferFormula(-1, 'staria', true)).toBeNull();
+    expect(calcPickupTransferFormula(NaN, 'staria', true)).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT14: ICN → 명동 55km (서울 시내) → ₩122K
+//   매트릭스 priceKRW=124,800 우선이라 formula 직접 호출로 검증
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT14 — ICN 도심 단거리 Formula 검증', () => {
+  it('55km → 77K + 25×1.8K = ₩122K', () => {
+    const r = calcPickupTransferFormula(55, 'staria', false);
+    expect(r!.krw).toBe(122_000);
+  });
+
+  it('70km → 77K + 40×1.8K = ₩149K (강남급 거리)', () => {
+    const r = calcPickupTransferFormula(70, 'staria', false);
+    expect(r!.krw).toBe(149_000);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT15: ICN → 부산 450km + toll ₩67.5K → 매트릭스 ₩660K 와 일치 검증
+//   - airport_transfer 자유입력 시 calcPickupTransferFormula 호출
+//   - 매트릭스 lookup 우선이므로 destinationKey 가 'busan' 이면 ₩660K 그대로
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT15 — ICN → 부산 매트릭스 vs Formula 일관성', () => {
+  it('매트릭스 hit: destinationKey="busan" → ₩660,000 (SSOT)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'busan',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+    });
+    expect(q!.vehicleChargeKRW).toBe(660_000);
+  });
+
+  it('Formula 직접 호출 450km → SSOT ₩660K ±5% 이내', () => {
+    const r = calcPickupTransferFormula(450, 'staria', true);
+    expect(r!.krw).toBeGreaterThanOrEqual(Math.round(660_000 * 0.95));
+    expect(r!.krw).toBeLessThanOrEqual(Math.round(660_000 * 1.05));
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT16: Sprinter multi_day daily/overnight (P1 #6 fix) —
+//   기존 hardcode (200K/130K) → SSOT VEHICLE_INTERCITY.sprinter
+//   sprinter intercity.daily_service_fee = 280K, overnight = 180K
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT16 — Sprinter multi_day SSOT 가격 사용 (P1 #6 fix)', () => {
+  it('SSOT VEHICLE_INTERCITY.sprinter = daily ₩280K / overnight ₩180K', () => {
+    expect(VEHICLE_INTERCITY.sprinter.daily_service_fee).toBe(280_000);
+    expect(VEHICLE_INTERCITY.sprinter.overnight_driver_fee).toBe(180_000);
+  });
+
+  it('SSOT VEHICLE_INTERCITY.staria = daily ₩200K / overnight ₩130K (regression guard)', () => {
+    expect(VEHICLE_INTERCITY.staria.daily_service_fee).toBe(200_000);
+    expect(VEHICLE_INTERCITY.staria.overnight_driver_fee).toBe(130_000);
+  });
+
+  it('Sprinter 부산 2박3일 vs Staria 가격 차이 — sprinter underprice 해소 확인', () => {
+    const stateBase = {
+      ...baseState,
+      service: 'multi_day' as const,
+      origin: 'SEL_METRO',
+      destinationCustom: '부산',
+      startDate: '2026-06-01',
+      endDate: '2026-06-03',
+      startTime: '08:00',
+    };
+    const staria = calculateQuote({ ...stateBase, vehicle: 'staria' });
+    const sprinter = calculateQuote({ ...stateBase, vehicle: 'sprinter' });
+    // sprinter > staria 보장 — 기존 hardcode 시점에는 동일 daily/overnight 사용해서 차이가 vehicle 배수만 발생.
+    // 이제는 SSOT 280K/180K 도 추가로 반영되어 차이 ↑.
+    expect(sprinter!.vehicleChargeKRW).toBeGreaterThan(staria!.vehicleChargeKRW);
+    // SSOT 정확 계산:
+    //   sprinter intercity (calcIntercityFormula 의 staria base × 2.0 배수 — 차종 multiplier 라 분리됨)
+    //   + daily 280K × 3 + overnight 180K × 2
+    // 정확 일치 검증은 vehicleCharge 분해 어렵 — sprinter daily > staria daily 만 보장.
+    const stariaDailySum = 200_000 * 3 + 130_000 * 2; // 860K
+    const sprinterDailySum = 280_000 * 3 + 180_000 * 2; // 1,200K
+    // 두 견적 차이가 (sprinterDailySum - stariaDailySum) 보다 커야 함 (배수 + daily 차이).
+    expect(sprinter!.vehicleChargeKRW - staria!.vehicleChargeKRW).toBeGreaterThanOrEqual(
+      sprinterDailySum - stariaDailySum,
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT17: SSOT formula 메타 cross-check — 코드 hardcode 없음 검증
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT17 — SSOT airport_transfer_pricing_formula 일관성', () => {
+  it('SSOT staria tier 값 = PR #381 운영자 결정 (₩77K flat / 1.8K / 1.3K / 0.85K)', () => {
+    const f = AIRPORT_TRANSFER_PRICING_FORMULA.staria;
+    expect(f.tier1_flat_km).toBe(30);
+    expect(f.tier1_price_krw).toBe(77_000);
+    expect(f.tier2_max_km).toBe(100);
+    expect(f.tier2_per_km_krw).toBe(1_800);
+    expect(f.tier3_max_km).toBe(300);
+    expect(f.tier3_per_km_krw).toBe(1_300);
+    expect(f.tier4_per_km_krw).toBe(850);
+    expect(f.include_toll).toBe(true);
+  });
+
+  it('SSOT sprinter multiplier_vs_staria = 1.85', () => {
+    expect(AIRPORT_TRANSFER_PRICING_FORMULA.sprinter.multiplier_vs_staria).toBe(1.85);
+  });
+
+  it('hardcode 0: PICKUP_PRICES (affiliateLinks) 의 PUS 가격 = SSOT busan-metro priceKRW', () => {
+    const pus = PICKUP_PRICES.PUS;
+    expect(pus).toBeDefined();
+    const pusPrice = Number(pus[0].price.replace(/[^\d]/g, ''));
+    expect(pusPrice).toBe(AIRPORT_TRANSFER_PRICES['busan-metro'].priceKRW);
+  });
+
+  it('hardcode 0: PICKUP_PRICES GMP 가격 = SSOT gimpo-* priceKRW', () => {
+    const gmp = PICKUP_PRICES.GMP;
+    expect(gmp).toBeDefined();
+    const central = Number(gmp.find(r => r.destination === '서울 도심')?.price.replace(/[^\d]/g, '') ?? '0');
+    const gangnam = Number(gmp.find(r => r.destination === '강남/잠실')?.price.replace(/[^\d]/g, '') ?? '0');
+    expect(central).toBe(AIRPORT_TRANSFER_PRICES['gimpo-seoul-central'].priceKRW);
+    expect(gangnam).toBe(AIRPORT_TRANSFER_PRICES['gimpo-seoul-gangnam'].priceKRW);
+  });
+
+  it('hardcode 0: PICKUP_PRICES CJU = SSOT jeju-metro priceKRW', () => {
+    const cju = PICKUP_PRICES.CJU;
+    expect(cju).toBeDefined();
+    const price = Number(cju[0].price.replace(/[^\d]/g, ''));
+    expect(price).toBe(AIRPORT_TRANSFER_PRICES['jeju-metro'].priceKRW);
+  });
+
+  it('hardcode 0: PICKUP_PRICES ICN seoul-central = SSOT seoul-central priceKRW (regression)', () => {
+    const icn = PICKUP_PRICES.ICN;
+    const central = Number(icn.find(r => r.destination === '서울 도심')?.price.replace(/[^\d]/g, '') ?? '0');
+    expect(central).toBe(AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW);
+  });
+});

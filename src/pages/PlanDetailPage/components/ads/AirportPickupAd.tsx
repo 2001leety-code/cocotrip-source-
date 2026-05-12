@@ -6,6 +6,7 @@ import { Plane } from 'lucide-react';
 import { InlineBookingCard, type InlineBookingOption } from './InlineBookingCard';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { AIRPORT_TRANSFER_PRICES } from '@/data/charterPricing';
 
 interface AirportPickupAdProps {
   arrivalAirport: string;
@@ -16,33 +17,46 @@ interface AirportPickupAdProps {
   planId?: string;
 }
 
-// 공항별 노선 + 가격 — api/_pricing_spec.json 의 airport_transfer_prices 와 동기.
+// 옵션 C-FINAL (2026-05-12): SSOT 단일화 — AIRPORT_TRANSFER_PRICES 에서 동적 import.
+//   기존 hardcode (PUS=₩70K stale, jeju-city 키 SSOT 없음 등 불일치) 모두 해결.
+//   가격은 SSOT 1 곳만 수정 → UI/PayPal/inline booking 모두 자동 일치.
 // productType: airport_<key> (key 는 dash 구분 → braintreeCheckout 가 underscore 변환).
 //
-// batch 9 (B9-23): 운영자 5/9 결정으로 GMP 가격 통합 변경:
-//   서울 도심 ₩83,200 → ₩90,000 (운영자 명시)
-//   강남·잠실   ₩93,600 → ₩100,000 (운영자 명시)
-// batch 9 (B9-23): PUS 부산 시내 ₩600,000 — 다른 공항 대비 6배 이상함.
-//   src/config/affiliateLinks.ts L235 PICKUP_PRICES.PUS 는 ₩83,200 으로 표기되어 있어
-//   데이터 불일치. 운영자 검토 후 합리적 값(₩100,000) 으로 임시 조정 + PR 본문에 명시.
-//   장거리 비용·기사 회송비 반영이 필요하면 운영자가 다시 상향 가능.
-// 2026-05-09 (B9-38 PUS): 시장 평균 비교 — Klook US$49 (~₩68K), Welcome Pickups
-//   ~₩70-95K. ₩100K → ₩70K 로 조정 (시장 평균 일치, 가격 경쟁력 확보).
-const PICKUP_OPTIONS_BY_AIRPORT: Record<string, { ko: string; en: string; ja: string; zh: string; key: string; priceKRW: number }[]> = {
+// 다국어 라벨 — SSOT 에 name_ko/name_en 만 있어 ja/zh 는 별도 매핑 유지 (4-lang 정합 요구).
+type PickupRoute = { key: string; ko: string; en: string; ja: string; zh: string };
+
+const PICKUP_ROUTES_BY_AIRPORT: Record<string, PickupRoute[]> = {
   ICN: [
-    { key: 'seoul-central', priceKRW: 124800, ko: '서울 도심 (명동·홍대·종로)', en: 'Seoul City Center (Myeongdong, Hongdae, Jongno)', ja: 'ソウル都心 (明洞·弘大·鍾路)', zh: '首尔市中心 (明洞·弘大·钟路)' },
-    { key: 'seoul-gangnam', priceKRW: 145600, ko: '강남·잠실·송파', en: 'Gangnam / Jamsil / Songpa', ja: '江南·蚕室·松坡', zh: '江南·蚕室·松坡' },
-    { key: 'gapyeong-nami', priceKRW: 208000, ko: '가평·남이섬', en: 'Gapyeong / Nami Island', ja: '加平·南怡島', zh: '加平·南怡岛' },
-    { key: 'suwon-yongin', priceKRW: 150000, ko: '수원·용인', en: 'Suwon / Yongin', ja: '水原·龍仁', zh: '水原·龙仁' },
-    { key: 'chuncheon', priceKRW: 220000, ko: '춘천', en: 'Chuncheon', ja: '春川', zh: '春川' },
+    { key: 'seoul-central', ko: '서울 도심 (명동·홍대·종로)', en: 'Seoul City Center (Myeongdong, Hongdae, Jongno)', ja: 'ソウル都心 (明洞·弘大·鍾路)', zh: '首尔市中心 (明洞·弘大·钟路)' },
+    { key: 'seoul-gangnam', ko: '강남·잠실·송파', en: 'Gangnam / Jamsil / Songpa', ja: '江南·蚕室·松坡', zh: '江南·蚕室·松坡' },
+    { key: 'gapyeong-nami', ko: '가평·남이섬', en: 'Gapyeong / Nami Island', ja: '加平·南怡島', zh: '加平·南怡岛' },
+    { key: 'suwon-yongin', ko: '수원·용인', en: 'Suwon / Yongin', ja: '水原·龍仁', zh: '水原·龙仁' },
+    { key: 'chuncheon', ko: '춘천', en: 'Chuncheon', ja: '春川', zh: '春川' },
   ],
   GMP: [
-    { key: 'seoul-central', priceKRW: 90000, ko: '서울 도심', en: 'Seoul City Center', ja: 'ソウル都心', zh: '首尔市中心' },
-    { key: 'seoul-gangnam', priceKRW: 100000, ko: '강남·잠실', en: 'Gangnam / Jamsil', ja: '江南·蚕室', zh: '江南·蚕室' },
+    { key: 'gimpo-seoul-central', ko: '서울 도심', en: 'Seoul City Center', ja: 'ソウル都心', zh: '首尔市中心' },
+    { key: 'gimpo-seoul-gangnam', ko: '강남·잠실', en: 'Gangnam / Jamsil', ja: '江南·蚕室', zh: '江南·蚕室' },
   ],
-  PUS: [{ key: 'busan', priceKRW: 70000, ko: '부산 시내', en: 'Busan City', ja: '釜山市内', zh: '釜山市区' }],
-  CJU: [{ key: 'jeju-city', priceKRW: 72800, ko: '제주 시내', en: 'Jeju City', ja: '済州市内', zh: '济州市区' }],
+  PUS: [{ key: 'busan-metro', ko: '부산 시내', en: 'Busan City', ja: '釜山市内', zh: '釜山市区' }],
+  CJU: [{ key: 'jeju-metro', ko: '제주 시내', en: 'Jeju City', ja: '済州市内', zh: '济州市区' }],
 };
+
+// SSOT 가격을 합쳐 컴포넌트가 쓰던 형태로 구성. 누락된 key 는 자동 제외.
+function buildPickupOptions(): Record<string, { key: string; ko: string; en: string; ja: string; zh: string; priceKRW: number }[]> {
+  const out: Record<string, { key: string; ko: string; en: string; ja: string; zh: string; priceKRW: number }[]> = {};
+  for (const [airport, routes] of Object.entries(PICKUP_ROUTES_BY_AIRPORT)) {
+    out[airport] = routes
+      .map(r => {
+        const entry = AIRPORT_TRANSFER_PRICES[r.key];
+        if (!entry) return null;
+        return { ...r, priceKRW: entry.priceKRW };
+      })
+      .filter((r): r is { key: string; ko: string; en: string; ja: string; zh: string; priceKRW: number } => r != null);
+  }
+  return out;
+}
+
+const PICKUP_OPTIONS_BY_AIRPORT = buildPickupOptions();
 
 const HEADER: Record<string, { title: string; subtitle: string }> = {
   ko: { title: '공항 픽업 서비스', subtitle: '영어 가능 기사가 도착장에서 대기' },

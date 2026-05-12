@@ -220,3 +220,53 @@ export const CITIES_CATALOG = spec.cities;
 export const DISTANCE_MATRIX = spec.distance_matrix;
 export const ATTRACTION_FEES = spec.attraction_fees;
 export const PRICING_SPEC_VERSION = spec.version;
+
+// ────────────────────────────────────────
+// 옵션 C-FINAL (2026-05-12): SSOT 단일화
+// ────────────────────────────────────────
+// Pickup/Transfer Formula 1 (4-tier, one-way) — useQuoteCalculator.calcPickupTransferFormula 가 import.
+// hardcode 회피: 모든 tier 값 (₩77K / ₩1.8K / ₩1.3K / ₩0.85K) 가 pricing_spec.json 에 단일 source.
+type AirportTransferFormulaStaria = {
+  tier1_flat_km: number;
+  tier1_price_krw: number;
+  tier2_max_km: number;
+  tier2_per_km_krw: number;
+  tier3_max_km: number;
+  tier3_per_km_krw: number;
+  tier4_per_km_krw: number;
+  include_toll: boolean;
+};
+type AirportTransferFormulaSprinter = { multiplier_vs_staria: number };
+
+const _formula = (spec as unknown as Record<string, unknown>).airport_transfer_pricing_formula as
+  | { staria: AirportTransferFormulaStaria; sprinter: AirportTransferFormulaSprinter }
+  | undefined;
+
+// SSOT 누락 시 안전 default (운영자 P0-Q1 결정 PR #381 반영).
+export const AIRPORT_TRANSFER_PRICING_FORMULA = {
+  staria: _formula?.staria ?? {
+    tier1_flat_km: 30,
+    tier1_price_krw: 77_000,
+    tier2_max_km: 100,
+    tier2_per_km_krw: 1_800,
+    tier3_max_km: 300,
+    tier3_per_km_krw: 1_300,
+    tier4_per_km_krw: 850,
+    include_toll: true,
+  },
+  sprinter: _formula?.sprinter ?? { multiplier_vs_staria: 1.85 },
+} as const;
+
+// vehicles.{staria,sprinter}.intercity 노출 — useQuoteCalculator.multi_day 분기에서 사용.
+// P1 #6 fix (옵션 C-FINAL): sprinter multi_day 가 staria 값 200K/130K 으로 계산되던 underprice 해결.
+type VehicleIntercity = {
+  base_fee: number;
+  rate_per_km: number;
+  deadhead_factor: number;
+  daily_service_fee: number;
+  overnight_driver_fee: number;
+};
+export const VEHICLE_INTERCITY: { staria: VehicleIntercity; sprinter: VehicleIntercity } = {
+  staria: spec.vehicles.staria.intercity as VehicleIntercity,
+  sprinter: spec.vehicles.sprinter.intercity as VehicleIntercity,
+};

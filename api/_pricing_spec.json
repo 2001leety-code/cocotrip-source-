@@ -162,6 +162,24 @@
     }
   },
 
+  "airport_transfer_pricing_formula": {
+    "comment": "Pickup/Transfer Formula 1 (one-way, 옵션 C-FINAL 2026-05-12) — 매트릭스 미등록 zone 또는 사용자 자유입력 destination 에 적용. 운영자 결정 (PR #381) 자연 도출: PUS→해운대 30km=₩77K (flat tier1), ICN→부산 450km+톨₩67K=₩658K≈₩660K.",
+    "staria": {
+      "tier1_flat_km": 30,
+      "tier1_price_krw": 77000,
+      "tier2_max_km": 100,
+      "tier2_per_km_krw": 1800,
+      "tier3_max_km": 300,
+      "tier3_per_km_krw": 1300,
+      "tier4_per_km_krw": 850,
+      "include_toll": true
+    },
+    "sprinter": {
+      "comment": "스프린터 = staria × 1.85 (가이드비 별도, 운영자 P0-Q4 정책).",
+      "multiplier_vs_staria": 1.85
+    }
+  },
+
   "airport_transfer_prices": {
     "comment": "기존 charterPricing.ts AIRPORT_TRANSFER_PRICES 그대로. ICN/GMP 출발은 서울·근교 기준, busan-metro/jeju-metro/gimpo-seoul-central 등 ICN 외 공항 zone 도 등재 (운영자 P0-Q2 5/12 결정: 4 공항 모두 PayPal 결제 허용).",
     "seoul-central":        { "name_ko": "서울 도심 (명동·홍대·종로·용산)", "name_en": "Seoul City Center (Myeongdong, Hongdae, Jongno)", "priceKRW": 124800, "priceUSD": 90,  "durationMin": 60  },
