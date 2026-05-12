@@ -143,14 +143,17 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 - **검증:** PDF 자체는 client-side 라 직접 렌더 검증 불가. 백엔드 측 사전조건만 검증 — 4개 필드 모두 truthy + arrival_guide.airport 가 request body arrivalAirport (ICN) 포함.
 - **회귀 위험:** Gemini prompt 에서 표지/출국 안내 필드 약화. `data.planId` 응답 누락. arrival_guide 가 다른 공항 코드 반환.
 
-### B-17 — 가격 합리성 (daily_budget 합산 ≈ total_cost)
+### B-17 — 가격 데이터 구조 합리성 (2026-05-12 logic 수정)
 
-- **가설:** `daily_budget_summary[*].total_krw` 합산과 `total_cost_krw` (또는 `itinerary.base_price_krw`) 가 크게 어긋남.
-- **증상:** PDF/이메일에 총합 ₩300,000 이라 적혀있는데 Day별 합 ₩500,000. 사용자 컴플레인.
-- **검증:** sum(daily_budget_summary[*].total_krw) vs total_cost 차이 ≤ 20% (`|sum - total| / max(sum, total)`).
-  - daily_budget_summary 누락 시 → `pass: true, note: 'skip'` (legacy plan 호환)
-  - 둘 다 0 이면 → `pass: false` (budget 데이터 누락)
-- **회귀 위험:** Gemini 가 daily total 만 계산하고 grand total 누락. price calculator 가 vehicle/hotel 외 추가 비용 누락. 통화 변환 (KRW ↔ USD) 일관성 깨짐.
+> **수정 사항**: 초안의 "daily_budget 합산 ≈ total_cost (diff ≤ 20%)" 는 잘못된 가정. `total_cost_krw` 는 차터 차량 base_price (Staria ₩330K 등), `daily_budget_summary` 는 일별 잡비 (entry fees + meals + activities + shopping) — 둘은 같을 필요 없는 별도 항목. **자율 검증 1차 가동에서 자동 감지** → 즉시 fix.
+
+- **가설:** `daily_budget_summary` 가 day 수와 맞지 않거나 일부 day 가 0 또는 base_price 누락.
+- **증상:** PDF/이메일에 일별 잡비 일부 비어있음. 사용자 "이 날은 비용 없나?" 컴플레인.
+- **검증** (새 logic):
+  - `daily_budget_summary.length === days.length` (일 수 일치)
+  - 각 day `total_krw > 0` (빈 day 없음)
+  - `base_price_krw > 0` (차량비 데이터 존재)
+- **회귀 위험:** Gemini 가 day 일부 누락하고 daily_budget 만 4일치 출력. price calculator silent fail. 통화 변환 (KRW ↔ USD) 일관성 깨짐.
 
 ### B-18 — 다양성 지표 (unique stop name + local_tag)
 

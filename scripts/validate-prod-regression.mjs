@@ -518,13 +518,20 @@ results.push({
   pass: b16Pass,
 });
 
-// ─── B-17: 가격 합리성 (daily_budget 합산 ≈ total_cost) ─────
-// daily_budget_summary 누락 시 skip (legacy plan 호환). 둘 다 0 이면 fail.
+// ─── B-17: 가격 데이터 구조 합리성 ────────────────────────────
+// 2026-05-12 오후 수정: 초안 logic 잘못 — `total_cost_krw` 는 차터 차량
+// `base_price_krw` (Staria 등) 이고 `daily_budget_summary` 는 일별 잡비
+// (entry fees + meals + activities + shopping). 둘은 더해야 할 항목 ≠ 같은 값.
+// 새 logic: 데이터 구조 합리성 만 검증.
+//   1. daily_budget_summary.length === days.length (일 수 일치)
+//   2. 각 day total_krw > 0 (빈 day 없음)
+//   3. base_price_krw 또는 total_cost_krw > 0 (차량비 정보 존재)
+// daily_budget_summary 누락 시 skip (legacy plan 호환).
 const dailyBudget =
   data.daily_budget_summary ||
   itin.daily_budget_summary ||
   [];
-const totalCost =
+const basePrice =
   Number(data.total_cost_krw) ||
   Number(itin.base_price_krw) ||
   Number(data.total_cost) ||
@@ -533,33 +540,33 @@ let b17Result;
 if (!Array.isArray(dailyBudget) || dailyBudget.length === 0) {
   b17Result = {
     id: 'B-17',
-    label: '가격 합리성 (daily_budget 합산 ≈ total_cost, diff ≤ 20%)',
+    label: '가격 데이터 구조 합리성 (daily_budget length === days, total>0)',
     actual: 'daily_budget_summary 누락',
     pass: true,
-    note: 'daily_budget_summary 누락 — skip',
+    note: 'daily_budget_summary 누락 — skip (legacy 호환)',
   };
 } else {
-  const sum = dailyBudget.reduce(
+  const lengthMatch = dailyBudget.length === days.length;
+  const allDaysHaveTotal = dailyBudget.every(
+    (d) => (Number(d.total_krw) || Number(d.total) || Number(d.amount_krw) || 0) > 0,
+  );
+  const basePriceOk = basePrice > 0;
+  const dailySum = dailyBudget.reduce(
     (acc, d) => acc + (Number(d.total_krw) || Number(d.total) || Number(d.amount_krw) || 0),
     0,
   );
-  if (sum === 0 && totalCost === 0) {
-    b17Result = {
-      id: 'B-17',
-      label: '가격 합리성 (daily_budget 합산 ≈ total_cost, diff ≤ 20%)',
-      actual: 'budget 데이터 누락',
-      pass: false,
-    };
-  } else {
-    const denom = Math.max(sum, totalCost);
-    const diffPct = denom > 0 ? Math.abs(sum - totalCost) / denom : 1;
-    b17Result = {
-      id: 'B-17',
-      label: '가격 합리성 (daily_budget 합산 ≈ total_cost, diff ≤ 20%)',
-      actual: `sum=${sum.toLocaleString()}, total=${totalCost.toLocaleString()}, diff=${(diffPct * 100).toFixed(1)}%`,
-      pass: diffPct <= 0.2,
-    };
-  }
+  const issues = [];
+  if (!lengthMatch) issues.push(`length=${dailyBudget.length}≠days=${days.length}`);
+  if (!allDaysHaveTotal) issues.push('1+ day total=0');
+  if (!basePriceOk) issues.push('base_price=0');
+  b17Result = {
+    id: 'B-17',
+    label: '가격 데이터 구조 합리성 (daily_budget length === days, total>0)',
+    actual: issues.length === 0
+      ? `length=${dailyBudget.length}/${days.length}, base=${basePrice.toLocaleString()}, daily_sum=${dailySum.toLocaleString()}`
+      : `issues: ${issues.join(', ')}`,
+    pass: lengthMatch && allDaysHaveTotal && basePriceOk,
+  };
 }
 results.push(b17Result);
 
