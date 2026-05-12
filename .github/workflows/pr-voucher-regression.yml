@@ -1,0 +1,111 @@
+name: PR Voucher Regression Suite
+
+# Voucher PDF 회귀 자동 검증 (자율 검증 v2 P0).
+# PR 머지 전 'ready-for-voucher-regression' 라벨 trigger 로 1회 prod 실행.
+# 도입 배경: voucher PDF 생성 실패 = 사용자 사후 신고 패턴. 0건 자동 검증 → P0.
+#
+# Secrets 필요 (GitHub Settings → Secrets and variables → Actions):
+#   FIREBASE_WEB_API_KEY            — .env 의 VITE_FIREBASE_API_KEY 와 동일
+#   HEALTH_CHECK_EMAIL              — admin 계정 (TEST- prefix 바이패스 권한)
+#   HEALTH_CHECK_PASSWORD           — admin 계정 비밀번호
+#   VOUCHER_TEST_BOOKING_ID         — sandbox booking ID (예: CT-20260512-123)
+#   VOUCHER_TEST_BOOKING_EMAIL      — 해당 booking 의 customerEmail
+#
+# Secrets 미설정 시: validate-prod-voucher.mjs 가 graceful skip + exit 0
+# → workflow 는 PASS 표시. 운영자가 booking 생성 후 등록하면 활성화.
+
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number (수동 실행 시)'
+        required: false
+        type: string
+
+permissions:
+  pull-requests: write
+  contents: read
+
+# 같은 PR 새 푸시 시 이전 run 즉시 취소
+concurrency:
+  group: pr-voucher-regression-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  voucher-regression:
+    # 라벨 trigger 만 실행 (PR push 마다 X — 비용 절약)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'ready-for-voucher-regression' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 의존성 설치 X — voucher 슈트는 native fetch + Buffer 만 사용 (node 20 글로벌)
+
+      - name: Run voucher regression suite
+        id: voucher
+        env:
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
+          VOUCHER_TEST_BOOKING_ID: ${{ secrets.VOUCHER_TEST_BOOKING_ID }}
+          VOUCHER_TEST_BOOKING_EMAIL: ${{ secrets.VOUCHER_TEST_BOOKING_EMAIL }}
+          BASE_URL: https://cocotripkr.com
+        run: |
+          set -o pipefail
+          node scripts/validate-prod-voucher.mjs 2>&1 | tee voucher-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Post result to PR
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let output = '';
+            try {
+              output = fs.readFileSync('voucher-output.txt', 'utf8');
+            } catch (e) {
+              output = '(no output captured)';
+            }
+            const exitCode = '${{ steps.voucher.outputs.exit_code }}';
+            const status = exitCode === '0' ? '✅ PASS' : '❌ FAIL';
+            const skipped = output.includes('graceful skip');
+            const headline = skipped
+              ? '⏭️ SKIP — sandbox booking 미설정'
+              : `${status} — Voucher 회귀 검증 (3 assertion)`;
+            const body = [
+              `## ${headline}`,
+              '',
+              `**Target:** https://cocotripkr.com`,
+              `**Trigger:** \`ready-for-voucher-regression\` 라벨`,
+              '',
+              '<details><summary>실행 로그</summary>',
+              '',
+              '```',
+              output.slice(-3500),
+              '```',
+              '',
+              '</details>',
+              '',
+              skipped
+                ? 'ℹ️ `VOUCHER_TEST_BOOKING_ID` + `VOUCHER_TEST_BOOKING_EMAIL` 등록 후 라벨 재부착 → 활성화.'
+                : (exitCode === '0'
+                    ? '머지 가능. Voucher 회귀 없음 확인.'
+                    : '⚠️ FAIL 항목 fix 또는 회귀 가설 검증 필요. 머지 차단.'),
+            ].join('\n');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
