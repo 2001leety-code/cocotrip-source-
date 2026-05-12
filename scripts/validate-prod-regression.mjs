@@ -321,18 +321,27 @@ results.push({
 });
 
 // ─── B-11: ODsay source 비율 >= 50% ─────────────────────────
-// transit_from_prev.mode 가 subway/bus/walk 인 비율
+// transit_from_prev.mode / method / source 다중 fallback 으로 ODsay 사용 비율 측정.
+// 2026-05-12 자율 검증 fix (PR #369): RouteAgent 는 method 필드만 저장하고
+// mode 필드는 신규 추가됐다. 회귀 슈트는 두 필드 모두 확인 + 'subway+bus' 정규화.
+// source === 'odsay' 면 최종 확정 — RouteAgent 가 ODsay 응답 기반으로 작성한 객체.
 let odsayMatchCount = 0;
 let transitWithMode = 0;
+const allowedModes = ['subway', 'bus', 'walk', 'transit', 'metro', 'subway+bus', 'bus+subway'];
 for (const day of days) {
   const stops = day.stops || [];
   for (let i = 1; i < stops.length; i++) {
     const t = stops[i].transit_from_prev || stops[i].transit;
     if (!t || typeof t !== 'object') continue;
-    const mode = (t.mode || t.type || '').toLowerCase();
-    if (mode) {
+    // 다중 fallback: mode → method → type
+    const modeRaw = (t.mode || t.method || t.type || '').toLowerCase();
+    const source = (t.source || '').toLowerCase();
+    if (modeRaw || source) {
       transitWithMode++;
-      if (['subway', 'bus', 'walk', 'transit', 'metro'].includes(mode)) {
+      // ODsay match 조건 (어느 하나라도 만족):
+      //   1) mode/method/type 이 알려진 transit enum
+      //   2) source === 'odsay' (RouteAgent 직접 작성)
+      if (allowedModes.includes(modeRaw) || source === 'odsay') {
         odsayMatchCount++;
       }
     }
@@ -341,7 +350,7 @@ for (const day of days) {
 const odsayRate = transitWithMode > 0 ? odsayMatchCount / transitWithMode : 0;
 results.push({
   id: 'B-11',
-  label: 'ODsay source 비율 >= 50% (subway/bus/walk)',
+  label: 'ODsay source 비율 >= 50% (subway/bus/walk/transit)',
   actual: `${odsayMatchCount}/${transitWithMode} (${(odsayRate * 100).toFixed(0)}%)`,
   pass: transitWithMode === 0 || odsayRate >= 0.5,
   note: transitWithMode === 0
