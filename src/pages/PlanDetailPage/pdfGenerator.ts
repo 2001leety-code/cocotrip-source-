@@ -1086,11 +1086,12 @@ export async function generatePDF(
     // 즉시 안전 기본값 복구 (scale 1.0, jpeg 0.92), pagebreak 단순화.
     // windowHeight 명시 — html2canvas가 cloned element를 측정할 때 viewport 추정에 사용.
     // 안 주면 일부 환경(특히 dev preview)에서 0으로 떨어짐.
-    // 2026-05-12 (rev 2): windowHeight = Math.max(measuredHeight, 10000) 강제.
-    // 사용자 신고 + Playwright 검증: 페이지마다 70-95% blank + scrollHeight 3720px (5일 plan).
-    // measuredHeight 가 collapsed 된 상태로 capture clip 됨. min 10000px 로 일정 미만일 때도
-    // viewport 충분히 확보 → html2canvas 가 전체 영역 capture.
-    const forcedWindowHeight = Math.max(measuredHeight, 10000);
+    // 2026-05-12 (rev 3): rev 2 의 Math.max(measuredHeight, 10000) 가 measuredHeight=8265
+    // 시 1735px 빈 영역 capture → html2canvas all-white canvas + download event 미발생.
+    // 약화: safety margin +200 만 추가. measuredHeight 가 이미 정상이면 그대로 사용.
+    // (PR #353 의 buildPrompt min stops + PR #355 의 RouteAgent TDZ fix 적용으로
+    //  measuredHeight 가 7500-8500 정상 범위 회복됨 → 강제 10000 불필요.)
+    const forcedWindowHeight = measuredHeight + 200;
     console.log('[PDF] html2pdf windowHeight forced:', forcedWindowHeight, '(measuredHeight:', measuredHeight, ')');
     const worker = html2pdf().set({
       margin: [8, 8, 8, 8],
