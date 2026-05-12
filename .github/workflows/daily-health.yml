@@ -36,9 +36,27 @@ jobs:
       - name: Install dependencies (for Playwright)
         if: always()
         run: npm ci
-      - name: Install Playwright Chromium
+
+      # Cache Playwright browsers — 2026-05-12 추가. chromium only (daily-health 는 webkit 미사용).
+      # 별도 cache key (chromium-only) — pr-i18n-smoke 의 chromium+webkit 캐시와 분리.
+      # 같은 key 쓰면 cache hit 시 webkit 도 받지만 install-deps chromium 만 호출이라 의존성 누락 가능.
+      - name: Cache Playwright Chromium
         if: always()
+        uses: actions/cache@v4
+        id: playwright-cache-chromium
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-chromium-
+
+      - name: Install Playwright Chromium (cache miss)
+        if: always() && steps.playwright-cache-chromium.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit)
+        if: always() && steps.playwright-cache-chromium.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: E2E PROD smoke (Plan + Translation + PDF)
         if: always()
         env:
