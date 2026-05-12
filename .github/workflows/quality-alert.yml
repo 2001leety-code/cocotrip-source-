@@ -1,0 +1,243 @@
+name: L3 — Daily Quality Score Monitor
+
+# 자율 검증 시스템 v1 — L3 보강 (Tier 1-A quality score 시계열 모니터링).
+# L1 (api-health, code/ok 검증) + L2 (daily-health, E2E + validate-planner) 와 분리.
+# L3 는 "200 OK" 가 아니라 "평균 quality score 회귀" 를 감지한다.
+#
+# 동작:
+#   1. Firebase Auth signInWithPassword → admin idToken
+#   2. GET /api/admin-quality-summary?days=1 (24h 윈도우) + days=7 (베이스라인)
+#   3. 임계 검사 (hard=80 / drop=10pt / min_samples=5)
+#   4. 실패 시 GH issue 자동 생성/업데이트 + (옵션) Telegram alert
+#
+# Tier 1-A endpoint 정찰 결과 (2026-05-12):
+#   - PR #225 / PR-D 머지 완료 — endpoint live (`/api/admin-quality-summary`)
+#   - 응답: window.scoredCount + overall.{avgScore,min,max} + metricFrequency
+#     + byArea + worstPlans + _collectionMissing (silent fail 노출)
+#   - admin verify: Authorization: Bearer <Firebase ID token>
+#
+# Secrets 필요 (GitHub Settings → Secrets and variables → Actions):
+#   FIREBASE_WEB_API_KEY    — .env 의 VITE_FIREBASE_API_KEY 와 동일 (재사용)
+#   HEALTH_CHECK_EMAIL      — admin 계정 이메일 (재사용)
+#   HEALTH_CHECK_PASSWORD   — admin 계정 비밀번호 (재사용)
+#   TELEGRAM_BOT_TOKEN      — 선택 (없으면 텔레그램 alert 조용히 skip)
+#   TELEGRAM_CHAT_ID        — 선택 (없으면 텔레그램 alert 조용히 skip)
+
+on:
+  schedule:
+    # UTC 01:00 = KST 10:00 매일.
+    # daily-health (UTC 00:00 월/수/금) + api-health (UTC 0/12 매일) 와 시각 분리.
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      hard_floor:
+        description: 'Hard floor score (단독 fail 임계, 기본 80)'
+        required: false
+        default: '80'
+      drop_delta:
+        description: '7d − 24h drop delta (regression fail, 기본 10)'
+        required: false
+        default: '10'
+
+permissions:
+  contents: read
+  issues: write
+
+# 같은 schedule 중복 trigger 시 이전 run 즉시 취소
+concurrency:
+  group: quality-alert-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 의존성 설치 X — native fetch + fs 만 사용 (node 20 글로벌).
+      # validate-prod-regression.mjs 와 동일 패턴.
+
+      - name: Run quality score check
+        id: check
+        env:
+          FIREBASE_WEB_API_KEY:  ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL:    ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
+          BASE_URL:              https://cocotripkr.com
+          HARD_FLOOR_SCORE:      ${{ github.event.inputs.hard_floor || '80' }}
+          DROP_DELTA:            ${{ github.event.inputs.drop_delta || '10' }}
+          MIN_SAMPLES:           '5'
+          STATUS_FILE:           ${{ github.workspace }}/quality-alert-status.json
+        run: |
+          set +e
+          node scripts/check-quality-score.mjs
+          EXIT=$?
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+          # exit 0 (ok 또는 graceful skip) 은 issue/telegram 안 보냄
+          # exit 1 (hard / regression) 만 alert 단계 실행
+          exit $EXIT
+        continue-on-error: true
+
+      - name: Upload status artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-alert-status-${{ github.run_id }}
+          path: quality-alert-status.json
+          retention-days: 90
+
+      # ── Alert: GH issue 자동 생성/업데이트 (실패 시만) ──────────────
+      - name: Open or update tracking issue
+        if: ${{ steps.check.outputs.exit_code != '0' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let payload = {};
+            try {
+              payload = JSON.parse(fs.readFileSync('quality-alert-status.json', 'utf8'));
+            } catch (e) {
+              payload = { status: 'unknown', issues: [], generatedAt: new Date().toISOString() };
+            }
+
+            const date = new Date().toISOString().slice(0, 10);
+            const severity = payload.severity || 'fail';
+            const sevIcon = severity === 'hard' ? '🔴' : severity === 'regression' ? '🟡' : '⚪';
+            const title = `${sevIcon} Quality score ${severity} — ${date}`;
+
+            const w24 = payload.window24h || {};
+            const w7  = payload.baseline7d || null;
+            const issuesMd = (payload.issues || []).map((i) => `- **[${i.severity}] ${i.id}** — ${i.detail}`).join('\n') || '_(없음)_';
+            const topMetrics = (payload.topMetrics || []).slice(0, 3)
+              .map((m) => `- \`${m.metric}\` — violations ${m.violations}/${m.stops}, rate ${m.avgRate}`)
+              .join('\n') || '_(없음)_';
+            const missing = (payload.collectionMissing || []).join(', ') || '없음';
+
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            const body = [
+              `> 자율 검증 L3 — Tier 1-A quality score 회귀 감지.`,
+              '',
+              `- **Severity:** \`${severity}\``,
+              `- **24h:** avg \`${w24.avgScore ?? 'null'}\`, samples \`${w24.sampleCount ?? 0}\``,
+              `- **7d 베이스라인:** avg \`${w7?.avgScore ?? 'n/a'}\``,
+              `- **임계:** hard floor \`${payload.thresholds?.hardFloor}\`, drop delta \`${payload.thresholds?.dropDelta}\`pt`,
+              `- **컬렉션 미존재:** ${missing}`,
+              `- **Workflow run:** ${runUrl}`,
+              '',
+              '## 감지된 이슈',
+              issuesMd,
+              '',
+              '## Top 3 violation (24h)',
+              topMetrics,
+              '',
+              '## 다음 액션',
+              '1. `/admin/quality` 대시보드에서 worst plans + byArea 확인',
+              '2. 최근 머지 PR diff — Gemini 프롬프트 / DB matcher / _food_index 변경 의심',
+              '3. 회귀 가설 검증: `node scripts/validate-planner.cjs` (Gemini 5회 호출, 5분)',
+              '4. fix PR 머지 후 다음 day 결과로 close',
+              '',
+              '— 이 issue 는 같은 날 다시 fail 하면 코멘트만 추가, 다음 날 새 issue 생성.',
+            ].join('\n');
+
+            const labels = ['quality', 'auto-detected', `severity:${severity}`];
+
+            // 같은 제목의 open issue 있으면 코멘트 추가, 없으면 새로 생성
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'quality',
+              per_page: 30,
+            });
+            const hit = existing.data.find((i) => i.title === title);
+
+            if (hit) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: hit.number,
+                body: `또 ${severity} — 24h avg ${w24.avgScore ?? 'null'}, samples ${w24.sampleCount}. run: ${runUrl}`,
+              });
+              core.notice(`Updated existing issue #${hit.number}`);
+              core.exportVariable('QUALITY_ISSUE_NUMBER', String(hit.number));
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels,
+              });
+              core.notice(`Opened issue #${created.data.number}`);
+              core.exportVariable('QUALITY_ISSUE_NUMBER', String(created.data.number));
+            }
+
+      # ── Alert: Telegram (옵션, secrets 미설정 시 graceful skip) ──
+      - name: Send Telegram alert
+        if: ${{ steps.check.outputs.exit_code != '0' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "[telegram] secrets 미설정 — alert skip (GH issue 만 발송됨)"
+            exit 0
+          fi
+
+          # status JSON 에서 핵심 필드 추출 (jq 글로벌 설치돼 있음)
+          STATUS_FILE=quality-alert-status.json
+          if [ ! -f "$STATUS_FILE" ]; then
+            echo "[telegram] status file 없음 — skip"
+            exit 0
+          fi
+
+          SEVERITY=$(jq -r '.severity // "fail"' "$STATUS_FILE")
+          AVG24=$(jq -r '.window24h.avgScore // "null"' "$STATUS_FILE")
+          SAMPLES=$(jq -r '.window24h.sampleCount // 0' "$STATUS_FILE")
+          AVG7D=$(jq -r '.baseline7d.avgScore // "n/a"' "$STATUS_FILE")
+          ISSUE_NUM="${QUALITY_ISSUE_NUMBER:-?}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          ISSUE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/issues/${ISSUE_NUM}"
+
+          # severity icon
+          case "$SEVERITY" in
+            hard)       ICON="🔴" ;;
+            regression) ICON="🟡" ;;
+            *)          ICON="⚪" ;;
+          esac
+
+          # HTML 메시지 조립 (notify.js sendMessage 와 동일 parse_mode)
+          TEXT="<b>${ICON} Quality score ${SEVERITY}</b>%0A%0A"
+          TEXT="${TEXT}24h 평균: <b>${AVG24}</b> (samples ${SAMPLES})%0A"
+          TEXT="${TEXT}7d 베이스라인: ${AVG7D}%0A%0A"
+          TEXT="${TEXT}<a href=\"${ISSUE_URL}\">GH Issue #${ISSUE_NUM}</a> · <a href=\"${RUN_URL}\">workflow run</a>%0A%0A"
+          TEXT="${TEXT}<i>대응: /admin/quality 대시보드 + 최근 머지 PR diff 확인</i>"
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
+            -o /tmp/tg_response.json -w "[telegram] http=%{http_code}\n"
+
+          if grep -q '"ok":true' /tmp/tg_response.json; then
+            echo "[telegram] alert sent."
+          else
+            echo "[telegram] response:"
+            cat /tmp/tg_response.json
+          fi
+
+      - name: Fail step (relay exit code)
+        if: ${{ steps.check.outputs.exit_code != '0' }}
+        run: |
+          echo "::error::Quality score check failed — see issue + workflow log."
+          exit 1

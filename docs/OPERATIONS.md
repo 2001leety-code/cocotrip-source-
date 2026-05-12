@@ -97,6 +97,27 @@ CocoTrip 웹 운영 노하우 누적용 문서. **신규 직원 온보딩** + **
 - **Edge case**: 사용자가 사후 식이제한 추가 (재생성 시 새로 명시) → 위반 아님, 정상 재생성 처리
 - **Note**: <!-- SAFETY-CRITICAL — 본 패턴은 절대 무시 / 지연 응답 금지. 발생 즉시 운영자 호출 -->
 
+### Pattern 2.4 — L3 자동 모니터 (Quality Score 회귀 alert)
+
+- **증상**: GitHub Issue `🔴 Quality score hard` 또는 `🟡 Quality score regression` 자동 생성 + (옵션) Telegram alert
+- **트리거**: `.github/workflows/quality-alert.yml` — 매일 KST 10:00 (UTC 01:00) `node scripts/check-quality-score.mjs` 실행
+  - `hard` (severity:hard) — 24h 평균 score < **80** (hard floor)
+  - `regression` (severity:regression) — 24h 평균이 7d 베이스라인 대비 **10점** 이상 하락
+  - `warn` — sample count < 5 또는 `_collectionMissing` 발견. issue 생성 X, GITHUB_STEP_SUMMARY 만 갱신.
+- **대응 (P1, 24h 내)**:
+  1. `/admin/quality` 대시보드 (AdminQualityDashboard) 열어 `worstPlans` + `byArea` 확인 — 어느 area / metric 이 가장 떨어졌는지
+  2. issue body 의 "Top 3 violation (24h)" 표에서 가장 빈번한 위반 metric 확인 (예: `dietary_violation`, `unverified_restaurant`)
+  3. **최근 24h 머지 PR diff** 검토 — Gemini 프롬프트 (`api/_ai_core/buildPrompt.js`) / DB matcher (`api/_ai_core/dbMatcher.js`) / `_food_index.json` 변경 의심
+  4. 회귀 가설 검증: `node scripts/validate-planner.cjs` — Gemini 5회 호출, 약 5분 소요. 기준치 (총 이슈 ≤ 9건) 초과 시 직전 PR revert 또는 fix PR 진행
+  5. fix 후 다음 day workflow 결과로 issue close (auto-detected 라벨이 살아있으면 새 alert 와 별개로 인지됨)
+- **Edge case**:
+  - **첫 운영 D+1~D+3**: 24h sample < 5 인 날 빈번 — `warn` 만 발생, fail 안 함. 정상.
+  - **endpoint 404**: PR #225 미배포 / Vercel rollback 의심. `scripts/check-quality-score.mjs` 가 graceful skip (exit 0) 처리. 한 번이라도 200 나오면 정상화.
+  - **credentials 미설정 첫 trigger**: `FIREBASE_WEB_API_KEY` / `HEALTH_CHECK_EMAIL` / `HEALTH_CHECK_PASSWORD` 셋 중 하나라도 secrets 누락 시 graceful skip — issue 미생성. secrets 등록 후 manual `workflow_dispatch` 1회 검증 권장.
+  - **Telegram secrets 미설정**: `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` 없으면 GH issue 만 발송 (정책상 옵션).
+  - 같은 day 중복 fail: 첫 fail 은 새 issue, 이후 동일 day 는 코멘트만 추가 (title 매칭).
+- **Note**: hard floor 80 / drop delta 10 / min_samples 5 는 Phase 3 (총 이슈 32→9, 평균 score ~90 대 가정) 기준. 실 운영 1주 후 통계 보고 임계 재조정.
+
 ---
 
 ## §3. 차터 / 투어 예약
