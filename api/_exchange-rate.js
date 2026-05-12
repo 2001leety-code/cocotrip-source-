@@ -4,7 +4,7 @@
  * 사용처: applyPromoCode, booking-processor, createPaypalOrder, daily-report
  * 비즈니스 로직:
  *   - getExchangeRate() — 풀 메타데이터 (source/fetchedAt 포함) + Firestore 6h 캐시
- *   - getUsdToKrw({cap}) — 쿠폰 보호용 cap 적용 (기본 1350) — legacy
+ *   - getUsdToKrw({cap}) — 쿠폰 보호용 cap 적용 (기본 1500) — legacy
  *   - getUsdToKrwRaw() — 결제 KRW 환산용 cap 없음 — legacy
  *
  * API 호출 순서 (fallback chain):
@@ -20,8 +20,11 @@
  *   - 캐시 만료/조회 실패 시 외부 API 호출 → 캐시 갱신
  */
 
-const RATE_CAP = 1350;
-const FALLBACK_RATE = 1380;
+// P1 #5 fix (2026-05-13): RATE_CAP 1350 → 1500. 실시세 ~1430 이 기존 cap 1350 위로 올라가 매번 cap kick-in.
+// 1500 cap 은 정책 환율 1430 위에 ~5% headroom — 단기 spike 흡수 + 의미 있는 보호.
+// FALLBACK_RATE 1380 → 1430 (정책 환율 = SSOT pricing_spec.policy_krw_per_usd 와 일치).
+const RATE_CAP = 1500;
+const FALLBACK_RATE = 1430;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 const FETCH_TIMEOUT_MS = 4500;
 

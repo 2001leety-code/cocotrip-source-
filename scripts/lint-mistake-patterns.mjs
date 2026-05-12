@@ -445,6 +445,69 @@ function SURFACE_AUDIT({ changed, base }) {
   return null;
 }
 
+/**
+ * P34_priceUsdConsistency — 메모리 P34. pricing_spec.json 의 priceUSD 는
+ * policy_krw_per_usd 환율 기준 round(priceKRW / rate) 와 ±1 이내여야 함.
+ * 한쪽만 변경 시 환율 drift 회귀 위험 (P1 #5).
+ *
+ * 트리거: pricing_spec.json 변경 시 SSOT policy_krw_per_usd 와 비교.
+ * 위반 시 fail.
+ */
+function P34_priceUsdConsistency({ changed }) {
+  const SPEC = 'src/data/pricing_spec.json';
+  if (!isModified(SPEC, changed)) return { skipped: true };
+  let spec;
+  try {
+    spec = JSON.parse(getChangedFileContent(SPEC));
+  } catch {
+    return { skipped: true }; // JSON parse 오류는 다른 룰/CI 가 잡음
+  }
+  const rate = spec.policy_krw_per_usd;
+  if (!rate || typeof rate !== 'number') {
+    fail(
+      'P34_priceUsdConsistency',
+      `${SPEC}: policy_krw_per_usd 필드 누락 또는 비정상`,
+      'P1 #5 fix — pricing_spec.json 최상위에 policy_krw_per_usd: 1430 필수',
+    );
+    return null;
+  }
+  const violations = [];
+  // airport_transfer_prices 검사
+  if (spec.airport_transfer_prices && typeof spec.airport_transfer_prices === 'object') {
+    for (const [k, entry] of Object.entries(spec.airport_transfer_prices)) {
+      if (k === 'comment' || typeof entry !== 'object' || !entry) continue;
+      const krw = entry.priceKRW;
+      const usd = entry.priceUSD;
+      if (typeof krw !== 'number' || typeof usd !== 'number') continue;
+      const expected = Math.round(krw / rate);
+      if (Math.abs(usd - expected) > 1) {
+        violations.push(`airport_transfer_prices.${k}: KRW=${krw} USD=${usd} (rate=${rate} → expected ${expected})`);
+      }
+    }
+  }
+  // daily_tour_prices 검사
+  if (spec.daily_tour_prices && typeof spec.daily_tour_prices === 'object') {
+    for (const [k, entry] of Object.entries(spec.daily_tour_prices)) {
+      if (k === 'comment' || typeof entry !== 'object' || !entry) continue;
+      const krw = entry.priceKRW;
+      const usd = entry.priceUSD;
+      if (typeof krw !== 'number' || typeof usd !== 'number') continue;
+      const expected = Math.round(krw / rate);
+      if (Math.abs(usd - expected) > 1) {
+        violations.push(`daily_tour_prices.${k}: KRW=${krw} USD=${usd} (rate=${rate} → expected ${expected})`);
+      }
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'P34_priceUsdConsistency',
+      `${SPEC}: priceUSD ↔ priceKRW / policy_krw_per_usd ${violations.length}건 drift — ${violations.slice(0, 3).join(' | ')}${violations.length > 3 ? ' …' : ''}`,
+      'P1 #5 fix — priceUSD = round(priceKRW / policy_krw_per_usd). KRW 변경 시 USD 도 함께.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -453,6 +516,7 @@ const RULES = [
   ['PDF_KOREAN_FONT', PDF_KOREAN_FONT],
   ['STOP_SCHEMA', STOP_SCHEMA],
   ['SURFACE_AUDIT', SURFACE_AUDIT],
+  ['P34_priceUsdConsistency', P34_priceUsdConsistency],
 ];
 
 function runAll(base) {
@@ -589,6 +653,19 @@ function runSelfTest() {
           'const x = stop.display_name || stop.name;\nconst legacy = stop.name_ko;\n',
       },
       expectRule: 'STOP_SCHEMA',
+    },
+    {
+      label: 'P34: pricing_spec.json priceUSD ↔ priceKRW / policy_krw_per_usd drift',
+      base: {
+        'src/data/pricing_spec.json':
+          '{"policy_krw_per_usd":1430,"airport_transfer_prices":{"seoul-central":{"priceKRW":124800,"priceUSD":87}}}',
+      },
+      head: {
+        // priceKRW 만 변경, priceUSD 갱신 안 됨 → drift
+        'src/data/pricing_spec.json':
+          '{"policy_krw_per_usd":1430,"airport_transfer_prices":{"seoul-central":{"priceKRW":150000,"priceUSD":87}}}',
+      },
+      expectRule: 'P34_priceUsdConsistency',
     },
   ];
 

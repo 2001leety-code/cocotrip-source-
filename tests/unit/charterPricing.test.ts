@@ -889,3 +889,50 @@ describe('B-CHT17 — SSOT airport_transfer_pricing_formula 일관성', () => {
     expect(central).toBe(AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW);
   });
 });
+
+// ─────────────────────────────────────────────────────────
+// B-CHT20: P1 #5 fix (2026-05-13) — 환율 1430 통일.
+//   pricing_spec.json 의 모든 airport_transfer_prices + daily_tour_prices 의
+//   priceUSD = round(priceKRW / 1430) ± 1 (rounding) 일관성 검증.
+// ─────────────────────────────────────────────────────────
+
+import pricingSpecRaw from '../../src/data/pricing_spec.json';
+import { CALCULATOR_KRW_PER_USD } from '../../src/lib/calculator';
+
+const POLICY_RATE = (pricingSpecRaw as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
+
+describe('B-CHT20 — 환율 SSOT 통일 (P1 #5 fix)', () => {
+  it('pricing_spec.policy_krw_per_usd = 1430 (운영자 정책 B 확정)', () => {
+    expect(POLICY_RATE).toBe(1430);
+  });
+
+  it('CALCULATOR_KRW_PER_USD = POLICY_RATE (env override 없을 때)', () => {
+    // env VITE_KRW_PER_USD 가 set 되어있으면 그 값 우선이라 ±100 허용
+    // 기본 환경 (env 미설정) 에서는 POLICY_RATE 와 일치해야 함
+    expect(CALCULATOR_KRW_PER_USD).toBeGreaterThanOrEqual(1300);
+    expect(CALCULATOR_KRW_PER_USD).toBeLessThanOrEqual(1500);
+  });
+});
+
+describe('B-CHT21 — airport_transfer_prices priceUSD = round(priceKRW / 1430) (P1 #5 fix)', () => {
+  for (const [zone, entry] of Object.entries(AIRPORT_TRANSFER_PRICES)) {
+    it(`zone=${zone} priceUSD ≈ ${entry.priceKRW} / 1430`, () => {
+      const expectedUSD = Math.round(entry.priceKRW / 1430);
+      // ±1 허용 (rounding floor/ceil 차이)
+      expect(entry.priceUSD, `zone=${zone} KRW=${entry.priceKRW} expectedUSD=${expectedUSD} actualUSD=${entry.priceUSD}`)
+        .toBeGreaterThanOrEqual(expectedUSD - 1);
+      expect(entry.priceUSD).toBeLessThanOrEqual(expectedUSD + 1);
+    });
+  }
+});
+
+describe('B-CHT22 — daily_tour_prices priceUSD = round(priceKRW / 1430) (P1 #5 fix)', () => {
+  for (const [tour, entry] of Object.entries(DAILY_TOUR_PRICES)) {
+    it(`tour=${tour} priceUSD ≈ ${entry.priceKRW} / 1430`, () => {
+      const expectedUSD = Math.round(entry.priceKRW / 1430);
+      expect(entry.priceUSD, `tour=${tour} KRW=${entry.priceKRW} expectedUSD=${expectedUSD} actualUSD=${entry.priceUSD}`)
+        .toBeGreaterThanOrEqual(expectedUSD - 1);
+      expect(entry.priceUSD).toBeLessThanOrEqual(expectedUSD + 1);
+    });
+  }
+});

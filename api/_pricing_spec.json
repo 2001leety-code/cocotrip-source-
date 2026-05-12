@@ -5,6 +5,9 @@
   "currency": "KRW",
   "note": "CocoTripKR 가격 단일 진실 출처(SSOT). TypeScript(charterPricing.ts)와 Python(pricing.py) 양쪽에서 읽는다. 이 파일이 마스터이며, Python 쪽은 sync 스크립트로 복사된다.",
 
+  "policy_krw_per_usd": 1430,
+  "policy_krw_per_usd_comment": "P1 #5 fix (2026-05-13 운영자 정책 B 확정) — priceUSD 환산 기준 환율. 실시세 ~1430. 실제 결제 시 backend (api/_exchange-rate.js) 가 live rate 사용. 이 값은 UI 표시 priceUSD 의 기준일 뿐.",
+
   "includes": ["fuel", "tolls", "parking"],
   "excludes": ["meals", "attractions", "drinks", "shopping"],
 
@@ -181,62 +184,62 @@
   },
 
   "airport_transfer_prices": {
-    "comment": "기존 charterPricing.ts AIRPORT_TRANSFER_PRICES 그대로. ICN/GMP 출발은 서울·근교 기준, busan-metro/jeju-metro/gimpo-seoul-central 등 ICN 외 공항 zone 도 등재 (운영자 P0-Q2 5/12 결정: 4 공항 모두 PayPal 결제 허용).",
-    "seoul-central":        { "name_ko": "서울 도심 (명동·홍대·종로·용산)", "name_en": "Seoul City Center (Myeongdong, Hongdae, Jongno)", "priceKRW": 124800, "priceUSD": 90,  "durationMin": 60  },
-    "seoul-gangnam":        { "name_ko": "서울 강남·잠실·송파",           "name_en": "Seoul Gangnam / Jamsil / Songpa",                "priceKRW": 145600, "priceUSD": 105, "durationMin": 80  },
-    "suwon-yongin":         { "name_ko": "수원·용인",                     "name_en": "Suwon / Yongin",                                 "priceKRW": 150000, "priceUSD": 115, "durationMin": 90  },
-    "gapyeong-nami":        { "name_ko": "가평·남이섬",                   "name_en": "Gapyeong / Nami Island",                         "priceKRW": 208000, "priceUSD": 150, "durationMin": 110 },
-    "chuncheon":            { "name_ko": "춘천",                          "name_en": "Chuncheon",                                      "priceKRW": 220000, "priceUSD": 165, "durationMin": 120 },
-    "pyeongchang-yongpyong":{ "name_ko": "평창·용평·알펜시아",            "name_en": "Pyeongchang / Yongpyong / Alpensia",             "priceKRW": 332800, "priceUSD": 240, "durationMin": 160 },
-    "gangneung-sokcho":     { "name_ko": "강릉·속초",                     "name_en": "Gangneung / Sokcho",                             "priceKRW": 364000, "priceUSD": 265, "durationMin": 180 },
-    "busan":                { "name_ko": "부산 (ICN 직행)",                "name_en": "Busan (ICN Direct)",                             "priceKRW": 660000, "priceUSD": 490, "durationMin": 270 },
-    "busan-metro":          { "name_ko": "부산 시내 (PUS 픽업)",           "name_en": "Busan Metro (PUS pickup)",                       "priceKRW":  77000, "priceUSD":  57, "durationMin":  40 },
-    "gimpo-seoul-central":  { "name_ko": "서울 도심 (GMP 픽업)",           "name_en": "Seoul City Center (GMP pickup)",                 "priceKRW":  90000, "priceUSD":  67, "durationMin":  45 },
-    "gimpo-seoul-gangnam":  { "name_ko": "서울 강남 (GMP 픽업)",           "name_en": "Seoul Gangnam (GMP pickup)",                     "priceKRW": 100000, "priceUSD":  75, "durationMin":  50 },
-    "jeju-metro":           { "name_ko": "제주 시내 (CJU 픽업)",           "name_en": "Jeju Metro (CJU pickup)",                        "priceKRW":  72800, "priceUSD":  54, "durationMin":  30 }
+    "comment": "P1 #5 fix (2026-05-13): 환율 1430 통일 — 운영자 정책 B 확정. priceUSD = round(priceKRW / 1430). 이전 ±5% 변동 → 0. KRW 변동 없음 (외국인 perception 만 향상). ICN/GMP 출발은 서울·근교 기준, busan-metro/jeju-metro/gimpo-seoul-central 등 ICN 외 공항 zone 도 등재 (운영자 P0-Q2 5/12 결정: 4 공항 모두 PayPal 결제 허용).",
+    "seoul-central":        { "name_ko": "서울 도심 (명동·홍대·종로·용산)", "name_en": "Seoul City Center (Myeongdong, Hongdae, Jongno)", "priceKRW": 124800, "priceUSD":  87, "durationMin": 60  },
+    "seoul-gangnam":        { "name_ko": "서울 강남·잠실·송파",           "name_en": "Seoul Gangnam / Jamsil / Songpa",                "priceKRW": 145600, "priceUSD": 102, "durationMin": 80  },
+    "suwon-yongin":         { "name_ko": "수원·용인",                     "name_en": "Suwon / Yongin",                                 "priceKRW": 150000, "priceUSD": 105, "durationMin": 90  },
+    "gapyeong-nami":        { "name_ko": "가평·남이섬",                   "name_en": "Gapyeong / Nami Island",                         "priceKRW": 208000, "priceUSD": 145, "durationMin": 110 },
+    "chuncheon":            { "name_ko": "춘천",                          "name_en": "Chuncheon",                                      "priceKRW": 220000, "priceUSD": 154, "durationMin": 120 },
+    "pyeongchang-yongpyong":{ "name_ko": "평창·용평·알펜시아",            "name_en": "Pyeongchang / Yongpyong / Alpensia",             "priceKRW": 332800, "priceUSD": 233, "durationMin": 160 },
+    "gangneung-sokcho":     { "name_ko": "강릉·속초",                     "name_en": "Gangneung / Sokcho",                             "priceKRW": 364000, "priceUSD": 255, "durationMin": 180 },
+    "busan":                { "name_ko": "부산 (ICN 직행)",                "name_en": "Busan (ICN Direct)",                             "priceKRW": 660000, "priceUSD": 462, "durationMin": 270 },
+    "busan-metro":          { "name_ko": "부산 시내 (PUS 픽업)",           "name_en": "Busan Metro (PUS pickup)",                       "priceKRW":  77000, "priceUSD":  54, "durationMin":  40 },
+    "gimpo-seoul-central":  { "name_ko": "서울 도심 (GMP 픽업)",           "name_en": "Seoul City Center (GMP pickup)",                 "priceKRW":  90000, "priceUSD":  63, "durationMin":  45 },
+    "gimpo-seoul-gangnam":  { "name_ko": "서울 강남 (GMP 픽업)",           "name_en": "Seoul Gangnam (GMP pickup)",                     "priceKRW": 100000, "priceUSD":  70, "durationMin":  50 },
+    "jeju-metro":           { "name_ko": "제주 시내 (CJU 픽업)",           "name_en": "Jeju Metro (CJU pickup)",                        "priceKRW":  72800, "priceUSD":  51, "durationMin":  30 }
   },
 
   "daily_tour_prices": {
-    "comment": "기존 charterPricing.ts DAILY_TOUR_PRICES 그대로. 패키지 차량비 하드코딩 우선, 커스텀 일정은 공식 fallback.",
+    "comment": "P1 #5 fix (2026-05-13): 환율 1430 통일 — priceUSD = round(priceKRW / 1430). 기존 charterPricing.ts DAILY_TOUR_PRICES 그대로. 패키지 차량비 하드코딩 우선, 커스텀 일정은 공식 fallback.",
     "seoul-city": {
       "name_ko": "서울 시내 투어", "name_en": "Seoul City Tour",
-      "priceKRW": 330000, "priceUSD": 240, "hours": 8,
+      "priceKRW": 330000, "priceUSD": 231, "hours": 8,
       "spots": ["경복궁", "홍대", "명동", "북촌", "인사동", "성수", "한강"],
       "keywords": ["seoul", "서울", "gyeongbokgung", "hongdae", "myeongdong", "bukchon"]
     },
     "seoul-suburb": {
       "name_ko": "서울 근교 투어 (남이섬·가평·수원)", "name_en": "Seoul Suburb Tour (Nami Island, Gapyeong, Suwon)",
-      "priceKRW": 343200, "priceUSD": 250, "hours": 8,
+      "priceKRW": 343200, "priceUSD": 240, "hours": 8,
       "spots": ["남이섬", "가평", "알파카월드", "수원화성", "레일바이크", "쁘띠프랑스", "아침고요수목원"],
       "keywords": ["nami", "남이섬", "alpaca", "알파카", "suwon", "수원", "gapyeong", "가평", "railbike", "레일바이크"]
     },
     "dmz": {
       "name_ko": "DMZ 투어", "name_en": "DMZ Tour",
-      "priceKRW": 343200, "priceUSD": 250, "hours": 8,
+      "priceKRW": 343200, "priceUSD": 240, "hours": 8,
       "spots": ["DMZ", "임진각", "제3땅굴", "도라산역", "파주"],
       "keywords": ["dmz", "비무장지대", "imjingak", "임진각", "panmunjom", "판문점"]
     },
     "gangwon": {
       "name_ko": "강원도 당일 투어 (춘천·강릉·속초)", "name_en": "Gangwon Day Tour (Chuncheon, Gangneung, Sokcho)",
-      "priceKRW": 436800, "priceUSD": 315, "hours": 10,
+      "priceKRW": 436800, "priceUSD": 305, "hours": 10,
       "spots": ["춘천", "강릉", "속초", "설악산", "경포대", "정동진"],
       "keywords": ["chuncheon", "춘천", "gangneung", "강릉", "sokcho", "속초", "seoraksan", "설악산"]
     },
     "ski-resort": {
       "name_ko": "스키 리조트 투어 (용평·알펜시아·하이원)", "name_en": "Ski Resort Tour (Yongpyong, Alpensia, High1)",
-      "priceKRW": 416000, "priceUSD": 300, "hours": 10,
+      "priceKRW": 416000, "priceUSD": 291, "hours": 10,
       "spots": ["용평", "알펜시아", "하이원", "비발디파크", "평창"],
       "keywords": ["yongpyong", "용평", "alpensia", "알펜시아", "ski", "스키", "high1", "하이원", "vivaldi"]
     },
     "gyeongju-jeonju": {
       "name_ko": "경주·전주 투어", "name_en": "Gyeongju / Jeonju Tour",
-      "priceKRW": 600000, "priceUSD": 437, "hours": 10,
+      "priceKRW": 600000, "priceUSD": 420, "hours": 10,
       "spots": ["경주", "불국사", "석굴암", "전주한옥마을", "전주"],
       "keywords": ["gyeongju", "경주", "bulguksa", "불국사", "jeonju", "전주"]
     },
     "busan-day": {
       "name_ko": "부산 당일 투어", "name_en": "Busan Day Tour",
-      "priceKRW": 450000, "priceUSD": 327, "hours": 10,
+      "priceKRW": 450000, "priceUSD": 315, "hours": 10,
       "spots": ["부산", "해운대", "감천문화마을", "자갈치시장", "광안리"],
       "keywords": ["busan", "부산", "haeundae", "해운대", "gamcheon", "감천"]
     }
