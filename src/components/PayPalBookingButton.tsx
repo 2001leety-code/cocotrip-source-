@@ -91,7 +91,16 @@ declare global {
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
 export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays }: Props) {
-  const isSandboxAccount = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
+  // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
+  // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
+  const { user: authUser } = useAuth();
+  const authUserId = authUser?.uid ?? null;
+  // B-9 (2026-05-12): Test Mode 버튼은 Firebase auth + email input 둘 다 admin email 매칭
+  // 시에만 노출. ADMIN-BYPASS- 흐름은 server-side 가 Firebase ID token 으로 admin 검증
+  // — 미로그인 시 무조건 401. userEmail input 만으로는 부족.
+  const adminEmailMatched = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
+  const firebaseEmailMatched = !!(authUser?.email && TEST_ACCOUNTS.includes(authUser.email.toLowerCase().trim()));
+  const isSandboxAccount = adminEmailMatched && firebaseEmailMatched;
   // customAmountKRW (charter_custom_estimate) 가 있으면 priceKRW override — 5/4 추가
   const priceKRW = customAmountKRW != null && customAmountKRW > 0 ? customAmountKRW : rawPriceKRW;
   console.log('[PayPal Props]', { productType, passengers, dateStart, dateEnd, priceKRW });
@@ -123,9 +132,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // \ubcf4\uc720 \ucfe0\ud3f0 \u2014 \ubbf8\ub85c\uadf8\uc778 \uc2dc hook\uc740 \uc548\uc804 (loyalty=null, coupons=[]).
   const { activeCoupons } = useLoyalty();
-  // \uc774\uc288 18: userId \ud544\uc694 \u2014 Firestore \uac1c\uc778 \ucfe0\ud3f0 \uac80\uc99d \uc2dc backend\uc5d0 \uc804\ub2ec.
-  const { user: authUser } = useAuth();
-  const authUserId = authUser?.uid ?? null;
+  // B-9 (2026-05-12): authUser / authUserId \ub294 \ucef4\ud3ec\ub10c\ud2b8 \uc0c1\ub2e8\uc5d0\uc11c \uc774\ubbf8 \ud638\ucd9c\ub428.
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
     ko: {
@@ -771,8 +778,10 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       {/* 🧪 어드민 결제 우회 — TEST_ACCOUNTS(운영자 본인)만 보임.
            이슈 17 fix (2026-05-07): TEST- prefix → prod BRAINTREE_ENV 미설정 시 reject.
            ADMIN-BYPASS- prefix 사용 — paymentGate.js가 Firebase ID token + admin email
-           이중 인증 후 허용. 클라이언트는 로그인된 상태(handlePaymentSuccess에서 authHeader
-           전달)이므로 추가 처리 불필요. */}
+           이중 인증 후 허용.
+           2026-05-12 (B-9 fix): 가정 명시화 — Test Mode 버튼은 위 isSandboxAccount 가드가
+           Firebase auth + email input 둘 다 admin 매칭 시에만 노출. 미로그인 admin 은
+           버튼 안 보임. handlePaymentSuccess 에서 getAuthHeader() 가 ID token 첨부 가능. */}
       {isSandboxAccount && onPaymentSuccess && (
         <button
           type="button"
