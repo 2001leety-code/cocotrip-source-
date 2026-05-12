@@ -14,6 +14,15 @@
 //   HEALTH_CHECK_EMAIL        — admin 계정 이메일 (TEST- prefix 바이패스 권한)
 //   HEALTH_CHECK_PASSWORD     — admin 계정 비밀번호
 //   BASE_URL (선택)           — 기본 https://cocotripkr.com
+//
+// 시나리오 매트릭스 (L2, 2026-05-12 추가):
+//   SCENARIO_NAME             — 시나리오 식별자 (출력 prefix). 기본 'default'
+//   SCENARIO_REGIONS          — comma split. 예 'seoul,busan'. 기본 'seoul,busan'
+//   SCENARIO_DURATION         — 정수. 기본 5
+//   SCENARIO_LANG             — ko/en/ja/zh. 기본 'ko'
+//   SCENARIO_DIETARY          — comma split (빈 값 OK). 예 'Halal,Vegan'. 기본 'Meat'
+//   SCENARIO_ARRIVAL_AIRPORT  — ICN/GMP/PUS/CJU. 기본 'ICN'
+// 기본값은 daily-health / pr-regression 호환 위해 기존 hardcoded 값 유지.
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -48,6 +57,43 @@ const email = process.env.HEALTH_CHECK_EMAIL || envLocal.HEALTH_CHECK_EMAIL;
 const password = process.env.HEALTH_CHECK_PASSWORD || envLocal.HEALTH_CHECK_PASSWORD;
 const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
 
+// ─── 시나리오 매트릭스 매개변수 (env override, 기본값은 기존 hardcoded 유지) ───
+const SCENARIO_NAME = process.env.SCENARIO_NAME || 'default';
+const SCENARIO_REGIONS = (process.env.SCENARIO_REGIONS || 'seoul,busan')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const SCENARIO_DURATION = parseInt(process.env.SCENARIO_DURATION || '5', 10);
+const SCENARIO_LANG = process.env.SCENARIO_LANG || 'ko';
+const SCENARIO_DIETARY = (process.env.SCENARIO_DIETARY ?? 'Meat')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const SCENARIO_ARRIVAL_AIRPORT = process.env.SCENARIO_ARRIVAL_AIRPORT || 'ICN';
+
+// 시나리오에 따라 1번째 region 기준으로 area + recommendedZones + arrivalTerminal 자동 산출
+const ZONE_BY_REGION = {
+  seoul: 'myeongdong',
+  busan: 'haeundae',
+  jeju: 'jungmun',
+  gangneung: 'gangneung-beach',
+  sokcho: 'sokcho-beach',
+  gyeongju: 'bomun',
+  jeonju: 'hanok-village',
+};
+const TERMINAL_BY_AIRPORT = {
+  ICN: 'T1',
+  GMP: 'T1',
+  PUS: 'T1',
+  CJU: 'T1',
+};
+const SCENARIO_AREA = SCENARIO_REGIONS[0] || 'seoul';
+const SCENARIO_RECOMMENDED_ZONES = Object.fromEntries(
+  SCENARIO_REGIONS.map((r) => [r, ZONE_BY_REGION[r] || ''])
+    .filter(([, v]) => v)
+);
+const SCENARIO_ARRIVAL_TERMINAL = TERMINAL_BY_AIRPORT[SCENARIO_ARRIVAL_AIRPORT] || 'T1';
+
 if (!apiKey || !email || !password) {
   console.error('❌ Missing credentials. Set FIREBASE_WEB_API_KEY, HEALTH_CHECK_EMAIL, HEALTH_CHECK_PASSWORD');
   console.error('   (CI: GitHub Secrets / Local: .env.local)');
@@ -55,8 +101,9 @@ if (!apiKey || !email || !password) {
 }
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('🔍 CocoTrip 회귀 검증 슈트 (받아적기 12항목)');
+console.log(`🔍 CocoTrip 회귀 검증 슈트 (받아적기 12항목) — [${SCENARIO_NAME}]`);
 console.log(`   Target: ${BASE_URL}`);
+console.log(`   Scenario: regions=[${SCENARIO_REGIONS.join(',')}] duration=${SCENARIO_DURATION}d lang=${SCENARIO_LANG} dietary=[${SCENARIO_DIETARY.join(',') || '-'}] airport=${SCENARIO_ARRIVAL_AIRPORT}`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
 // ─── Step 1: Firebase Auth ────────────────────────────────
@@ -76,8 +123,8 @@ if (!auth.idToken) {
 }
 console.log(`✅ idToken 발급 (uid=${auth.localId})\n`);
 
-// ─── Step 2: 5일 다도시 plan 생성 ───────────────────────────
-console.log('[2/3] POST /api/ai-planner-full — 서울+부산 5일 plan 생성...');
+// ─── Step 2: plan 생성 (시나리오 매개변수) ──────────────────
+console.log(`[2/3] POST /api/ai-planner-full — [${SCENARIO_NAME}] ${SCENARIO_REGIONS.join('+')} ${SCENARIO_DURATION}일 plan 생성...`);
 const planStart = Date.now();
 const planRes = await fetch(`${BASE_URL}/api/ai-planner-full`, {
   method: 'POST',
@@ -89,17 +136,17 @@ const planRes = await fetch(`${BASE_URL}/api/ai-planner-full`, {
     paypalOrderId: 'ADMIN-BYPASS-REGRESSION-' + Date.now(),
     guestName: 'RegressionSuite',
     pax: 2,
-    durationDays: 5,
+    durationDays: SCENARIO_DURATION,
     startDate: '2026-06-15',
-    area: 'seoul',
-    regions: ['seoul', 'busan'],
-    recommendedZones: { seoul: 'myeongdong', busan: 'haeundae' },
-    dietPrefs: ['Meat'],
+    area: SCENARIO_AREA,
+    regions: SCENARIO_REGIONS,
+    recommendedZones: SCENARIO_RECOMMENDED_ZONES,
+    dietPrefs: SCENARIO_DIETARY,
     priceRange: 'Moderate',
-    language: 'ko',
+    language: SCENARIO_LANG,
     styles: ['Food', 'Photo'],
-    arrivalAirport: 'ICN',
-    arrivalTerminal: 'T1',
+    arrivalAirport: SCENARIO_ARRIVAL_AIRPORT,
+    arrivalTerminal: SCENARIO_ARRIVAL_TERMINAL,
     arrivalTime: '14:00',
     departureTime: '10:00',
     luggage: { small: 1, medium: 2, large: 0 },
@@ -127,50 +174,93 @@ const allRecs = Object.values(recObj).flat();
 const fullText = JSON.stringify(planBody);
 
 const results = [];
+const isMultiCity = SCENARIO_REGIONS.length >= 2;
 
-// ─── B-2: 다도시 stops 분배 ──────────────────────────────
-const cityCounts = { seoul: 0, busan: 0, jeju: 0, other: 0 };
-for (const d of days) {
-  for (const s of d.stops || []) {
-    const addr = s.address || '';
-    if (addr.includes('서울')) cityCounts.seoul++;
-    else if (addr.includes('부산')) cityCounts.busan++;
-    else if (addr.includes('제주')) cityCounts.jeju++;
-    else cityCounts.other++;
+// ─── B-2: 다도시 stops 분배 (다도시만, 시나리오 region 모두 > 0) ───
+if (isMultiCity) {
+  const REGION_KOR_KEYWORDS = {
+    seoul: '서울',
+    busan: '부산',
+    jeju: '제주',
+    gangneung: '강릉',
+    sokcho: '속초',
+    gyeongju: '경주',
+    jeonju: '전주',
+  };
+  const cityCounts = Object.fromEntries(SCENARIO_REGIONS.map((r) => [r, 0]));
+  let otherCount = 0;
+  for (const d of days) {
+    for (const s of d.stops || []) {
+      const addr = s.address || '';
+      let matched = false;
+      for (const r of SCENARIO_REGIONS) {
+        const kw = REGION_KOR_KEYWORDS[r] || r;
+        if (addr.includes(kw)) {
+          cityCounts[r]++;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) otherCount++;
+    }
   }
+  const allRegionsCovered = SCENARIO_REGIONS.every((r) => cityCounts[r] > 0);
+  const breakdown = SCENARIO_REGIONS.map((r) => `${r}=${cityCounts[r]}`).join(', ');
+  results.push({
+    id: 'B-2',
+    label: `다도시 stops 분배 (${SCENARIO_REGIONS.join(' + ')} 모두 > 0)`,
+    actual: `${breakdown}, 기타=${otherCount}`,
+    pass: allRegionsCovered,
+  });
+} else {
+  results.push({
+    id: 'B-2',
+    label: '다도시 stops 분배 (skip — 단일 region 시나리오)',
+    actual: `regions=[${SCENARIO_REGIONS.join(',')}]`,
+    pass: true,
+    note: 'ℹ️ 단일 region 시나리오에서는 스킵',
+  });
 }
-results.push({
-  id: 'B-2',
-  label: '다도시 stops 분배 (서울 + 부산 모두 > 0)',
-  actual: `서울=${cityCounts.seoul}, 부산=${cityCounts.busan}, 기타=${cityCounts.other}`,
-  pass: cityCounts.seoul > 0 && cityCounts.busan > 0,
-});
 
-// ─── B-3: 추천 식당 region 균등 ───────────────────────────
-const recByRegion = { seoul: 0, busan: 0, other: 0 };
-for (const r of allRecs) {
-  if (r.region === 'seoul') recByRegion.seoul++;
-  else if (r.region === 'busan') recByRegion.busan++;
-  else recByRegion.other++;
+// ─── B-3: 추천 식당 region 균등 (다도시만) ──────────────────
+if (isMultiCity) {
+  const recByRegion = Object.fromEntries(SCENARIO_REGIONS.map((r) => [r, 0]));
+  let otherRecCount = 0;
+  for (const r of allRecs) {
+    if (r.region && SCENARIO_REGIONS.includes(r.region)) {
+      recByRegion[r.region]++;
+    } else {
+      otherRecCount++;
+    }
+  }
+  // 균등 — 모든 region 1+, max-min <= max (즉 한쪽 0 금지)
+  const counts = SCENARIO_REGIONS.map((r) => recByRegion[r]);
+  const minCount = Math.min(...counts);
+  const maxCount = Math.max(...counts);
+  const balanceOk = minCount >= 1 && maxCount - minCount <= maxCount;
+  const breakdown = SCENARIO_REGIONS.map((r) => `${r}=${recByRegion[r]}`).join(', ');
+  results.push({
+    id: 'B-3',
+    label: `추천 식당 region 균등 (${SCENARIO_REGIONS.join(' + ')} 각자 1+)`,
+    actual: `총 ${allRecs.length}개 (${breakdown}, other=${otherRecCount})`,
+    pass: balanceOk,
+  });
+} else {
+  results.push({
+    id: 'B-3',
+    label: '추천 식당 region 균등 (skip — 단일 region 시나리오)',
+    actual: `총 ${allRecs.length}개`,
+    pass: true,
+    note: 'ℹ️ 단일 region 시나리오에서는 스킵',
+  });
 }
-// 균등 — 서울+부산 각자 1+, |seoul-busan| <= max(seoul,busan) (즉 한쪽 0 금지)
-const balanceOk =
-  recByRegion.seoul >= 1 &&
-  recByRegion.busan >= 1 &&
-  Math.abs(recByRegion.seoul - recByRegion.busan) <= Math.max(recByRegion.seoul, recByRegion.busan);
-results.push({
-  id: 'B-3',
-  label: '추천 식당 region 균등 (seoul 1+ AND busan 1+)',
-  actual: `총 ${allRecs.length}개 (seoul=${recByRegion.seoul}, busan=${recByRegion.busan}, other=${recByRegion.other})`,
-  pass: balanceOk,
-});
 
-// ─── B-6a: Day 5 출력 (days.length === 5) ───────────────────
+// ─── B-6a: Day N 출력 (days.length === SCENARIO_DURATION) ─────
 results.push({
   id: 'B-6a',
-  label: 'Day 5 출력 (days.length === 5)',
+  label: `Day ${SCENARIO_DURATION} 출력 (days.length === ${SCENARIO_DURATION})`,
   actual: `days.length=${days.length}`,
-  pass: days.length === 5,
+  pass: days.length === SCENARIO_DURATION,
 });
 
 // ─── B-7: transit_from_prev 채움률 >= 80% ─────────────────
@@ -274,46 +364,56 @@ results.push({
   pass: dayStopsPass === days.length,
 });
 
-// ─── B-13: 도시 전환 day lodging name 도시 매칭 ─────────────
-// 각 day 의 첫 lodging stop name/address 가 day.city 와 일치하는지.
-// day.city 가 영문일 수 있으므로 한글 매핑.
-const cityToKor = {
-  Seoul: '서울',
-  Busan: '부산',
-  Jeju: '제주',
-  Gangneung: '강릉',
-  Sokcho: '속초',
-  Gyeongju: '경주',
-  Jeonju: '전주',
-};
-let cityMatchPass = 0;
-let cityMatchCheck = 0;
-const cityMatchDetails = [];
-for (const d of days) {
-  const stops = d.stops || [];
-  if (stops.length === 0) continue;
-  if (stops[0].category !== 'lodging') continue; // B-10 가 잡음. 여기는 매칭만.
-  cityMatchCheck++;
-  const dayCity = d.city || '';
-  const korCity = cityToKor[dayCity] || dayCity;
-  const lodgingName = stops[0].name || '';
-  const lodgingAddr = stops[0].address || '';
-  const matches =
-    lodgingName.includes(korCity) ||
-    lodgingAddr.includes(korCity) ||
-    lodgingName.toLowerCase().includes(dayCity.toLowerCase()) ||
-    lodgingAddr.toLowerCase().includes(dayCity.toLowerCase());
-  if (matches) cityMatchPass++;
-  cityMatchDetails.push(`D${d.day}/${dayCity}:${matches ? '✓' : '✗'}`);
+// ─── B-13: 도시 전환 day lodging name 도시 매칭 (다도시만) ─────
+if (isMultiCity) {
+  // 각 day 의 첫 lodging stop name/address 가 day.city 와 일치하는지.
+  // day.city 가 영문일 수 있으므로 한글 매핑.
+  const cityToKor = {
+    Seoul: '서울',
+    Busan: '부산',
+    Jeju: '제주',
+    Gangneung: '강릉',
+    Sokcho: '속초',
+    Gyeongju: '경주',
+    Jeonju: '전주',
+  };
+  let cityMatchPass = 0;
+  let cityMatchCheck = 0;
+  const cityMatchDetails = [];
+  for (const d of days) {
+    const stops = d.stops || [];
+    if (stops.length === 0) continue;
+    if (stops[0].category !== 'lodging') continue; // B-10 가 잡음. 여기는 매칭만.
+    cityMatchCheck++;
+    const dayCity = d.city || '';
+    const korCity = cityToKor[dayCity] || dayCity;
+    const lodgingName = stops[0].name || '';
+    const lodgingAddr = stops[0].address || '';
+    const matches =
+      lodgingName.includes(korCity) ||
+      lodgingAddr.includes(korCity) ||
+      lodgingName.toLowerCase().includes(dayCity.toLowerCase()) ||
+      lodgingAddr.toLowerCase().includes(dayCity.toLowerCase());
+    if (matches) cityMatchPass++;
+    cityMatchDetails.push(`D${d.day}/${dayCity}:${matches ? '✓' : '✗'}`);
+  }
+  results.push({
+    id: 'B-13',
+    label: '도시 전환 day lodging name/addr 도시 매칭',
+    actual: cityMatchCheck > 0
+      ? `${cityMatchPass}/${cityMatchCheck} (${cityMatchDetails.join(',')})`
+      : 'lodging stop 없음 (B-10 에서 fail)',
+    pass: cityMatchCheck === 0 || cityMatchPass === cityMatchCheck,
+  });
+} else {
+  results.push({
+    id: 'B-13',
+    label: '도시 전환 day lodging 매칭 (skip — 단일 region 시나리오)',
+    actual: `regions=[${SCENARIO_REGIONS.join(',')}]`,
+    pass: true,
+    note: 'ℹ️ 단일 region 시나리오에서는 스킵',
+  });
 }
-results.push({
-  id: 'B-13',
-  label: '도시 전환 day lodging name/addr 도시 매칭',
-  actual: cityMatchCheck > 0
-    ? `${cityMatchPass}/${cityMatchCheck} (${cityMatchDetails.join(',')})`
-    : 'lodging stop 없음 (B-10 에서 fail)',
-  pass: cityMatchCheck === 0 || cityMatchPass === cityMatchCheck,
-});
 
 // ─── B-14: 모든 stop start_time < 24:00 (HH:MM < 24:00) ─────
 let invalidTime = 0;
@@ -344,29 +444,39 @@ results.push({
   pass: invalidTime === 0,
 });
 
-// ─── B-9: intercity_transit (다도시 전환 day) ──────────────
-// regions: ['seoul','busan'] 다도시 plan 이라 어느 1 day 에 intercity_transit 객체 존재 (KTX 등)
-let intercityFound = false;
-let intercityMode = '';
-for (const d of days) {
-  if (d.intercity_transit && typeof d.intercity_transit === 'object') {
-    intercityFound = true;
-    intercityMode = d.intercity_transit.mode || '?';
-    break;
+// ─── B-9: intercity_transit (다도시 전환 day, 다도시만) ───────
+if (isMultiCity) {
+  // regions: ['seoul','busan'] 다도시 plan 이라 어느 1 day 에 intercity_transit 객체 존재 (KTX 등)
+  let intercityFound = false;
+  let intercityMode = '';
+  for (const d of days) {
+    if (d.intercity_transit && typeof d.intercity_transit === 'object') {
+      intercityFound = true;
+      intercityMode = d.intercity_transit.mode || '?';
+      break;
+    }
   }
+  results.push({
+    id: 'B-9',
+    label: '다도시 intercity_transit 존재 (KTX 등)',
+    actual: intercityFound ? `mode=${intercityMode}` : 'intercity_transit 없음',
+    pass: intercityFound,
+  });
+} else {
+  results.push({
+    id: 'B-9',
+    label: 'intercity_transit (skip — 단일 region 시나리오)',
+    actual: `regions=[${SCENARIO_REGIONS.join(',')}]`,
+    pass: true,
+    note: 'ℹ️ 단일 region 시나리오에서는 스킵',
+  });
 }
-results.push({
-  id: 'B-9',
-  label: '다도시 intercity_transit 존재 (KTX 등)',
-  actual: intercityFound ? `mode=${intercityMode}` : 'intercity_transit 없음',
-  pass: intercityFound,
-});
 
 // ─── B-15: 출국일 공항 stop 또는 transit 존재 ───────────────
-// 마지막 day 의 stops 중 category=='airport' 또는 name/address 에 공항/airport/ICN/GMP/PUS
+// 마지막 day 의 stops 중 category=='airport' 또는 name/address 에 공항/airport/ICN/GMP/PUS/CJU
 const lastDay = days[days.length - 1];
 const lastStops = (lastDay && lastDay.stops) || [];
-const airportTokens = ['공항', 'airport', 'ICN', 'GMP', 'PUS', '인천', '김포', '김해'];
+const airportTokens = ['공항', 'airport', 'ICN', 'GMP', 'PUS', 'CJU', '인천', '김포', '김해', '제주'];
 const hasAirportStop = lastStops.some((s) => {
   const name = (s.name || '') + (s.display_name || '') + (s.address || '');
   return s.category === 'airport' || airportTokens.some((t) => name.includes(t));
@@ -386,16 +496,16 @@ results.push({
 
 // ─── Summary ──────────────────────────────────────────────
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('📊 받아적기 12항목 검증 결과');
+console.log(`📊 받아적기 12항목 검증 결과 — [${SCENARIO_NAME}]`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 let passCount = 0;
 for (const r of results) {
-  console.log(`  ${r.pass ? '✅' : '❌'} [${r.id}] ${r.label}`);
+  console.log(`  ${r.pass ? '✅' : '❌'} [${SCENARIO_NAME}][${r.id}] ${r.label}`);
   console.log(`      → ${r.actual}`);
   if (r.note) console.log(`      ${r.note}`);
   if (r.pass) passCount++;
 }
-console.log(`\n  종합: ${passCount}/${results.length} pass`);
+console.log(`\n  종합: [${SCENARIO_NAME}] ${passCount}/${results.length} pass`);
 
 // Plan metadata for further inspection
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -412,9 +522,10 @@ console.log(`  generation time: ${(planMs / 1000).toFixed(1)}s`);
 if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFileSync } = await import('fs');
   const md = [
-    '# CocoTrip 회귀 검증 결과',
+    `# CocoTrip 회귀 검증 결과 — [${SCENARIO_NAME}]`,
     '',
     `**Target:** ${BASE_URL}`,
+    `**Scenario:** regions=[${SCENARIO_REGIONS.join(',')}] duration=${SCENARIO_DURATION}d lang=${SCENARIO_LANG} dietary=[${SCENARIO_DIETARY.join(',') || '-'}] airport=${SCENARIO_ARRIVAL_AIRPORT}`,
     `**총합:** ${passCount}/${results.length} pass`,
     `**Plan time:** ${(planMs / 1000).toFixed(1)}s`,
     '',

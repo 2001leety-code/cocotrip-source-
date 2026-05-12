@@ -1,0 +1,84 @@
+name: Scenario Matrix (weekly)
+
+# 회귀 슈트 L2 확장 — 다양한 user input 조합 (도시 / 일수 / 언어 / dietary / 공항)
+# 6 시나리오를 주간 1회 prod 대상 실행. fail-fast=false 로 모든 시나리오 결과 수집.
+# Gemini 비결정성 회귀 패턴 검출용. 비용: 6 Gemini call/week ≈ $0.12/week.
+#
+# Secrets 필요 (PR Regression Suite 와 동일):
+#   FIREBASE_WEB_API_KEY    -> .env 의 VITE_FIREBASE_API_KEY 와 동일
+#   HEALTH_CHECK_EMAIL      -> admin 계정 (TEST- prefix 바이패스 권한)
+#   HEALTH_CHECK_PASSWORD   -> admin 계정 비밀번호
+
+on:
+  schedule:
+    # 일요일 01:00 UTC = KST 10:00. daily-health (월/수/금 00:00 UTC) 와 겹치지 않게 일요일 선택.
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scenario:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false  # 한 시나리오 fail 해도 나머지 진행
+      max-parallel: 3   # Gemini rate limit 보호
+      matrix:
+        scenario:
+          - { name: "seoul-only-ko-3d",    regions: "seoul",        duration: 3, lang: "ko", dietary: "",      arrival: "ICN" }
+          - { name: "busan-only-en-3d",    regions: "busan",        duration: 3, lang: "en", dietary: "",      arrival: "PUS" }
+          - { name: "jeju-only-ja-4d",     regions: "jeju",         duration: 4, lang: "ja", dietary: "",      arrival: "CJU" }
+          - { name: "seoul-busan-zh-5d",   regions: "seoul,busan",  duration: 5, lang: "zh", dietary: "",      arrival: "ICN" }
+          - { name: "seoul-halal-en-4d",   regions: "seoul",        duration: 4, lang: "en", dietary: "Halal", arrival: "ICN" }
+          - { name: "seoul-vegan-ja-3d",   regions: "seoul",        duration: 3, lang: "ja", dietary: "Vegan", arrival: "ICN" }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run scenario ${{ matrix.scenario.name }}
+        env:
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
+          BASE_URL: https://cocotripkr.com
+          SCENARIO_NAME: ${{ matrix.scenario.name }}
+          SCENARIO_REGIONS: ${{ matrix.scenario.regions }}
+          SCENARIO_DURATION: ${{ matrix.scenario.duration }}
+          SCENARIO_LANG: ${{ matrix.scenario.lang }}
+          SCENARIO_DIETARY: ${{ matrix.scenario.dietary }}
+          SCENARIO_ARRIVAL_AIRPORT: ${{ matrix.scenario.arrival }}
+        run: node scripts/validate-prod-regression.mjs
+
+  summarize:
+    needs: scenario
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create issue on failure
+        if: needs.scenario.result != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "🟡 Weekly scenario matrix fail — $(date -u +%Y-%m-%d)" \
+            --label "regression,scenario-matrix" \
+            --body "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          시나리오 매트릭스 (주간) 1건 이상 실패. 위 run 의 시나리오별 step log 확인 필요.
+
+          - 시나리오 매트릭스 6건: seoul-only-ko-3d / busan-only-en-3d / jeju-only-ja-4d / seoul-busan-zh-5d / seoul-halal-en-4d / seoul-vegan-ja-3d
+          - 비결정성 한계: 1회 실행 fail 이 곧 회귀 의미 X. 동일 시나리오 수동 재실행 (workflow_dispatch) 후 재현 시 회귀 가능성 높음.
+          - fix 후 매트릭스 슈트에 새 assertion 추가 절차: tests/regression/README.md '새 회귀 추가 절차' 참조."
