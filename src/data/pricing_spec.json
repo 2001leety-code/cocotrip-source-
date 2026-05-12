@@ -163,7 +163,7 @@
   },
 
   "airport_transfer_prices": {
-    "comment": "기존 charterPricing.ts AIRPORT_TRANSFER_PRICES 그대로. 출발지는 ICN 기준. 다른 공항 출발은 distance_matrix 또는 공식 fallback.",
+    "comment": "기존 charterPricing.ts AIRPORT_TRANSFER_PRICES 그대로. ICN/GMP 출발은 서울·근교 기준, busan-metro/jeju-metro/gimpo-seoul-central 등 ICN 외 공항 zone 도 등재 (운영자 P0-Q2 5/12 결정: 4 공항 모두 PayPal 결제 허용).",
     "seoul-central":        { "name_ko": "서울 도심 (명동·홍대·종로·용산)", "name_en": "Seoul City Center (Myeongdong, Hongdae, Jongno)", "priceKRW": 124800, "priceUSD": 90,  "durationMin": 60  },
     "seoul-gangnam":        { "name_ko": "서울 강남·잠실·송파",           "name_en": "Seoul Gangnam / Jamsil / Songpa",                "priceKRW": 145600, "priceUSD": 105, "durationMin": 80  },
     "suwon-yongin":         { "name_ko": "수원·용인",                     "name_en": "Suwon / Yongin",                                 "priceKRW": 150000, "priceUSD": 115, "durationMin": 90  },
@@ -171,7 +171,11 @@
     "chuncheon":            { "name_ko": "춘천",                          "name_en": "Chuncheon",                                      "priceKRW": 220000, "priceUSD": 165, "durationMin": 120 },
     "pyeongchang-yongpyong":{ "name_ko": "평창·용평·알펜시아",            "name_en": "Pyeongchang / Yongpyong / Alpensia",             "priceKRW": 332800, "priceUSD": 240, "durationMin": 160 },
     "gangneung-sokcho":     { "name_ko": "강릉·속초",                     "name_en": "Gangneung / Sokcho",                             "priceKRW": 364000, "priceUSD": 265, "durationMin": 180 },
-    "busan":                { "name_ko": "부산 (직행)",                   "name_en": "Busan (Direct)",                                 "priceKRW": 600000, "priceUSD": 450, "durationMin": 270 }
+    "busan":                { "name_ko": "부산 (ICN 직행)",                "name_en": "Busan (ICN Direct)",                             "priceKRW": 660000, "priceUSD": 490, "durationMin": 270 },
+    "busan-metro":          { "name_ko": "부산 시내 (PUS 픽업)",           "name_en": "Busan Metro (PUS pickup)",                       "priceKRW":  77000, "priceUSD":  57, "durationMin":  40 },
+    "gimpo-seoul-central":  { "name_ko": "서울 도심 (GMP 픽업)",           "name_en": "Seoul City Center (GMP pickup)",                 "priceKRW":  90000, "priceUSD":  67, "durationMin":  45 },
+    "gimpo-seoul-gangnam":  { "name_ko": "서울 강남 (GMP 픽업)",           "name_en": "Seoul Gangnam (GMP pickup)",                     "priceKRW": 100000, "priceUSD":  75, "durationMin":  50 },
+    "jeju-metro":           { "name_ko": "제주 시내 (CJU 픽업)",           "name_en": "Jeju Metro (CJU pickup)",                        "priceKRW":  72800, "priceUSD":  54, "durationMin":  30 }
   },
 
   "daily_tour_prices": {
@@ -336,7 +340,7 @@
     "ICN→PYEONGCHANG":      { "km": 230, "hours": 2.7,  "priceKRW": 332800, "source": "airport_transfer" },
     "ICN→GANGNEUNG":        { "km": 280, "hours": 3.2,  "priceKRW": 364000, "source": "airport_transfer" },
     "ICN→SOKCHO":           { "km": 260, "hours": 3.0 },
-    "ICN→BUSAN":            { "km": 450, "hours": 5.0,  "priceKRW": 600000, "source": "airport_transfer" },
+    "ICN→BUSAN":            { "km": 450, "hours": 5.0,  "priceKRW": 660000, "source": "airport_transfer" },
     "ICN→GYEONGJU":         { "km": 420, "hours": 4.5 },
     "ICN→JEONJU":           { "km": 260, "hours": 3.0 },
     "ICN→ANDONG":           { "km": 310, "hours": 3.5 },
@@ -357,7 +361,7 @@
     "GMP→JEONJU":            { "km": 220, "hours": 2.7 },
     "GMP→ANDONG":           { "km": 280, "hours": 3.2 },
 
-    "PUS→BUS_METRO":        { "km": 30,  "hours": 0.7 },
+    "PUS→BUS_METRO":        { "km": 30,  "hours": 0.7,  "priceKRW":  77000, "source": "airport_transfer" },
     "PUS→SEL_METRO":        { "km": 410, "hours": 4.5 },
     "PUS→GYEONGJU":         { "km": 85,  "hours": 1.0 },
     "PUS→ANDONG":           { "km": 140, "hours": 1.8 },
