@@ -260,6 +260,33 @@ export function validatePatternStructure(itinerary, request = {}) {
     }
   }
 
+  // B-16: PDF 사전조건 — arrival_guide.airport OR departure_guide.airport 둘 다 누락 차단.
+  // 2026-05-12 자율 검증 시스템 1차 fix:
+  //   회귀 슈트 (validate-prod-regression.mjs L500-519) 가 prod 에서 자동 감지 — Gemini
+  //   가 prompt "REQUIRED" 절을 무시하고 departure_guide.airport 누락 반환 → PDF 마지막
+  //   페이지 빈 페이지. 운영자가 PDF 만들기 전엔 모름.
+  //
+  //   HARD validation 기준 (plan 저장 차단):
+  //     - itinerary.arrival_guide.airport (non-empty) OR
+  //     - itinerary.departure_guide.airport (non-empty)
+  //     둘 다 누락이면 errors.push → 1회 retry → 그래도 실패면 PLAN_VALIDATION_FAILED.
+  //
+  //   "둘 중 하나" 기준 사용 이유: arrival_airport="already_in_korea" 시 arrival_guide
+  //   skip 가능 (buildPrompt.js L320). 하지만 둘 다 누락 = PDF 양쪽 페이지 모두 빈 칸.
+  //   buildPrompt 는 "departure_guide 는 항상 포함" 명시했지만 Gemini 가 무시.
+  //   single source of truth = backend validator.
+  {
+    const ag = itinerary.arrival_guide || {};
+    const dg = itinerary.departure_guide || {};
+    const arrivalAirportStr = String(ag.airport || '').trim();
+    const departureAirportStr = String(dg.airport || '').trim();
+    if (!arrivalAirportStr && !departureAirportStr) {
+      errors.push(
+        'Plan: arrival_guide.airport OR departure_guide.airport 모두 누락 (B-16)'
+      );
+    }
+  }
+
   // B-15: 출국일 (마지막 day) 공항 stop 또는 travel|airport category 또는 day-level meta 존재.
   // departure_airport 입력 있을 때만 검증 (예: "ALREADY" 또는 미입력은 검증 skip).
   // arrival_airport 만 있는 경우도 출국 = 도착 공항 가정 (ai-planner-full.js L135 와 동일).
@@ -294,6 +321,60 @@ export function validatePatternStructure(itinerary, request = {}) {
   }
 
   return errors;
+}
+
+/**
+ * 2026-05-12: SOFT quality warnings — plan 저장은 OK, telegram alert 만.
+ *
+ * 자율 검증 시스템 1차 fix (B-18 다양성):
+ *   회귀 슈트가 prod 에서 local_tag 비율 10% 감지 (목표 30%+). hard validation 으로
+ *   차단하면 사용자 plan 실패 → 환불. CLAUDE.md J 항 SAFETY-CRITICAL 만 hard 차단.
+ *   B-18 같은 quality 룰은 SOFT — plan 저장 + 운영자 알림 만.
+ *
+ * 계산 룰:
+ *   - lodging / travel / airport category stop 은 비율 계산에서 제외 (관광·식사·카페만).
+ *   - validLocalTags = ['Local Pick', 'Hidden Gem', 'Bakery Pilgrimage', 'Blue Ribbon']
+ *   - 임계값 30% (회귀 슈트와 동일).
+ *   - food/attraction stop 총합 < 5 면 검사 skip (작은 plan 통계적 부정확).
+ *
+ * @returns {Array<{type:string, severity:string, ...}>} warnings (빈 배열이면 정상).
+ *          Caller (geminiPipeline) 가 throttledTelegramAlert 로 발송.
+ */
+export function checkSoftQualityWarnings(itinerary) {
+  const warnings = [];
+  if (!itinerary || !Array.isArray(itinerary.days)) return warnings;
+
+  const validLocalTags = ['Local Pick', 'Hidden Gem', 'Bakery Pilgrimage', 'Blue Ribbon'];
+  const excludedCategories = new Set(['lodging', 'travel', 'airport']);
+
+  let totalEligible = 0;
+  let localTagCount = 0;
+  for (const day of itinerary.days) {
+    for (const stop of (day.stops || [])) {
+      const cat = String(stop?.category || '').toLowerCase();
+      if (excludedCategories.has(cat)) continue;
+      totalEligible++;
+      const tag = String(stop?.local_tag || '').trim();
+      if (tag && validLocalTags.includes(tag)) localTagCount++;
+    }
+  }
+
+  // 통계적 유의성 — 5 미만은 비율이 너무 흔들림.
+  if (totalEligible < 5) return warnings;
+
+  const ratio = localTagCount / totalEligible;
+  if (ratio < 0.30) {
+    warnings.push({
+      type: 'local_tag_underfill',
+      severity: 'low',
+      ratio,
+      localTagCount,
+      totalEligible,
+      message: `local_tag 비율 ${(ratio * 100).toFixed(0)}% (${localTagCount}/${totalEligible}) < 30% 목표 (B-18)`,
+    });
+  }
+
+  return warnings;
 }
 
 export function validateResponse(data, request, foodIndex) {
