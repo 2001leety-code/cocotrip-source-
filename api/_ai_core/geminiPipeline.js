@@ -143,7 +143,7 @@ function buildDietaryReinforcedPrompt(systemPrompt, dietary) {
 }
 
 /**
- * 2026-05-12: pattern structural violation (B-10/B-12/B-14/B-15) 감지 시 강조된
+ * 2026-05-12: pattern structural violation (B-10/B-12/B-13/B-14/B-15) 감지 시 강조된
  * instruction 으로 1회 재호출. dietary reinforcement 와 유사한 패턴.
  */
 function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
@@ -160,10 +160,11 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
     '',
     'STRICT RULES (NO EXCEPTIONS):',
     '- EVERY day MUST start with a stop where category="lodging" (departure from hotel/zone).',
-    '- EVERY day MUST end with a stop where category="lodging" (return to hotel/zone). On the LAST day with a departure airport, the final stop may instead use category="travel" (airport).',
+    '- EVERY day MUST end with a stop where category="lodging" (return to hotel/zone). On the LAST day with a departure airport, the final stop may instead use category="travel" or category="airport".',
     '- EVERY day MUST contain AT LEAST 4 stops total.',
     '- EVERY stop start_time MUST be a 24h "HH:MM" value with hour 0-23 (NEVER 24:00 or higher).',
-    '- The LAST day MUST include either a category="travel" stop or a stop whose name/address mentions the airport.',
+    '- For MULTI-CITY plans (regions.length >= 2), the first lodging stop of EACH day MUST mention day.city in its name OR address. Seoul day → 서울/Seoul; Busan day → 부산/Busan; Jeju day → 제주/Jeju. NEVER mismatch (Busan hotel on Seoul day = sole reason for re-generation).',
+    '- The LAST day MUST include either a category="travel"/"airport" stop, a stop whose name/address mentions the airport (공항/airport/ICN/GMP/PUS/CJU), OR day-level "return_to_airport": true.',
     '',
     'Regenerate the FULL itinerary respecting the structure above.',
     'Same JSON schema as before. Same `days[].stops[]` structure.',
