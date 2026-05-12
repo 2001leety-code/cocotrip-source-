@@ -362,6 +362,9 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     // ── Gemini 파이프라인 (legacy or 3pass) ────────────────────────────────
     // P0-3 SAFETY-CRITICAL (CLAUDE.md J): 사용자 dietary 전달 → validateResponse 가
     // halal/vegan/vegetarian 위반 검사 → 위반 시 1회 retry → 그래도 위반이면 throw.
+    // 2026-05-12 pattern validation: body 전달 → regions/arrival_airport/
+    // departure_airport 기반 lodging bookend / min stops / start_time / 출국 공항
+    // 검증 (B-10/B-12/B-14/B-15). 위반 시 1회 retry → 그래도 위반이면 500 throw.
     const itinerary = await runGeminiPipeline({
       apiKey,
       systemPrompt,
@@ -370,6 +373,12 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       language,
       mode: PLANNER_MODE,
       dietary: dietPrefs,
+      body: {
+        regions,
+        arrival_airport,
+        departure_airport,
+        durationDays,
+      },
     });
 
     console.log('[planner] Step 2: Running RouteAgent...');

@@ -89,6 +89,105 @@ export function hasCriticalDietaryViolation(issues) {
   return issues.some((i) => i && i.type === 'dietary_violation' && i.severity === 'critical');
 }
 
+/**
+ * 2026-05-12: AI 응답 pattern structural guard. validateResponse 는 식이제한/언어/
+ * field 만 검증 — Gemini 비결정성으로 발생하는 "broken plan" 패턴은 잡지 못함.
+ *
+ * 검사 항목 (B-10/B-12/B-14/B-15 회귀 회피):
+ *  - B-10: lodging bookend — stops[0].category='lodging', stops[-1] ∈ {lodging, travel}
+ *  - B-12: min 4 stops per day
+ *  - B-14: stop start_time < 24:00 (hour overflow 차단)
+ *  - B-15: 출국일(마지막 day) 공항 stop 또는 travel category 존재
+ *
+ * Returns: { errors: string[] }
+ *
+ * caller 가 errors.length > 0 일 때 Gemini 1회 재시도 → 그래도 errors 면 telegram
+ * alert + 사용자에게 500 (plan 저장 안 함).
+ *
+ * @param {object} itinerary  Gemini parsed itinerary ({ days: [...] })
+ * @param {object} [request]  request shape — body.regions, body.arrival_airport,
+ *                            body.departure_airport, body.durationDays 등
+ *                            (request 누락 시 출국 공항/도시 검증 skip — 단도시
+ *                            airport 없는 케이스 backward compat).
+ */
+export function validatePatternStructure(itinerary, request = {}) {
+  const errors = [];
+  if (!itinerary || !Array.isArray(itinerary.days)) {
+    errors.push('itinerary.days array missing or not array');
+    return errors;
+  }
+
+  const days = itinerary.days;
+  // 정규화: regions / arrival_airport / departure_airport — snake_case + camelCase 둘 다 수용.
+  const regions = Array.isArray(request.regions)
+    ? request.regions.filter((r) => typeof r === 'string' && r.trim())
+    : (request.region ? [request.region] : []);
+  const arrivalAirport  = request.arrival_airport  || request.arrivalAirport  || '';
+  const departureAirport = request.departure_airport || request.departureAirport || '';
+
+  for (let i = 0; i < days.length; i++) {
+    const d = days[i];
+    const dayNum = d?.day || d?.day_index || (i + 1);
+    const stops = Array.isArray(d?.stops) ? d.stops : [];
+
+    // B-12: min stops per day. 빈 day 도 잡힘.
+    if (stops.length < 4) {
+      errors.push(`Day ${dayNum}: stops.length=${stops.length} < 4 minimum (B-12)`);
+    }
+
+    // B-10: lodging bookend — 첫 stop = lodging, 마지막 stop ∈ {lodging, travel}.
+    if (stops.length > 0) {
+      const first = stops[0];
+      if (first?.category !== 'lodging') {
+        errors.push(`Day ${dayNum}: stops[0].category="${first?.category}" expected "lodging" (B-10)`);
+      }
+      const last = stops[stops.length - 1];
+      const lastCat = last?.category;
+      if (!['lodging', 'travel'].includes(lastCat)) {
+        errors.push(`Day ${dayNum}: stops[-1].category="${lastCat}" expected lodging|travel (B-10)`);
+      }
+    }
+
+    // B-14: stop start_time hour < 24. "HH:MM" 형식. 25:00 / 24:30 등 차단.
+    for (const s of stops) {
+      const t = s?.start_time || '';
+      if (typeof t === 'string' && /^(\d{2}):(\d{2})$/.test(t)) {
+        const m = t.match(/^(\d{2}):(\d{2})$/);
+        const hour = parseInt(m[1], 10);
+        const min  = parseInt(m[2], 10);
+        if (hour >= 24) {
+          errors.push(`Day ${dayNum} stop "${s.name || s.display_name || '?'}": start_time="${t}" >= 24:00 invalid (B-14)`);
+        }
+        if (min >= 60) {
+          errors.push(`Day ${dayNum} stop "${s.name || s.display_name || '?'}": start_time="${t}" minutes >= 60 invalid (B-14)`);
+        }
+      }
+    }
+  }
+
+  // B-15: 출국일 (마지막 day) 공항 stop 또는 travel category 존재 여부.
+  // departure_airport 입력 있을 때만 검증 (예: "ALREADY" 또는 미입력은 검증 skip).
+  // arrival_airport 만 있는 경우도 출국 = 도착 공항 가정 (ai-planner-full.js L135 와 동일).
+  const effectiveDepAirport = departureAirport || arrivalAirport;
+  if (effectiveDepAirport && effectiveDepAirport !== 'ALREADY' && effectiveDepAirport !== 'already_in_korea' && days.length > 0) {
+    const lastDay = days[days.length - 1];
+    const lastStops = Array.isArray(lastDay?.stops) ? lastDay.stops : [];
+    const hasAirport = lastStops.some((s) => {
+      if (!s) return false;
+      if (s.category === 'travel') return true;
+      const name = String(s.name || s.display_name || '');
+      const addr = String(s.address || '');
+      return /공항|airport|空港|空港|국제선/i.test(name) || /공항|airport|空港|国際線/i.test(addr);
+    });
+    if (!hasAirport) {
+      const lastDayNum = lastDay?.day || days.length;
+      errors.push(`Day ${lastDayNum} (출국일): 공항 stop 또는 travel category 누락 (departure_airport=${effectiveDepAirport}) (B-15)`);
+    }
+  }
+
+  return errors;
+}
+
 export function validateResponse(data, request, foodIndex) {
   const issues = [];
   const allStops = (data.days || []).flatMap(d => (d.stops || []));
