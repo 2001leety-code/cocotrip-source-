@@ -93,11 +93,14 @@ export function hasCriticalDietaryViolation(issues) {
  * 2026-05-12: AI 응답 pattern structural guard. validateResponse 는 식이제한/언어/
  * field 만 검증 — Gemini 비결정성으로 발생하는 "broken plan" 패턴은 잡지 못함.
  *
- * 검사 항목 (B-10/B-12/B-14/B-15 회귀 회피):
- *  - B-10: lodging bookend — stops[0].category='lodging', stops[-1] ∈ {lodging, travel}
+ * 검사 항목 (B-10/B-12/B-13/B-14/B-15 회귀 회피):
+ *  - B-10: lodging bookend — stops[0].category='lodging', stops[-1] ∈ {lodging, travel, airport}
  *  - B-12: min 4 stops per day
+ *  - B-13: 다도시 plan 도시 전환 day 의 lodging name/address 가 day.city 와 일치
+ *          (regions.length >= 2 AND day.city 명시된 경우만 검증)
  *  - B-14: stop start_time < 24:00 (hour overflow 차단)
- *  - B-15: 출국일(마지막 day) 공항 stop 또는 travel category 존재
+ *  - B-15: 출국일(마지막 day) 공항 stop / travel|airport category / day-level
+ *          return_to_airport|airport_transfer meta 존재
  *
  * Returns: { errors: string[] }
  *
@@ -110,6 +113,25 @@ export function hasCriticalDietaryViolation(issues) {
  *                            (request 누락 시 출국 공항/도시 검증 skip — 단도시
  *                            airport 없는 케이스 backward compat).
  */
+// city display → 한글 매핑. day.city 가 영문이면 한글 alias 도 매칭 후보.
+const CITY_KOR_ALIASES = {
+  Seoul: ['서울'],
+  Busan: ['부산'],
+  Jeju: ['제주'],
+  Gangneung: ['강릉'],
+  Sokcho: ['속초'],
+  Gyeongju: ['경주'],
+  Jeonju: ['전주'],
+  Incheon: ['인천'],
+  Daegu: ['대구'],
+  Daejeon: ['대전'],
+  Gwangju: ['광주'],
+  Ulsan: ['울산'],
+  Suwon: ['수원'],
+  Chuncheon: ['춘천'],
+  Yeosu: ['여수'],
+};
+
 export function validatePatternStructure(itinerary, request = {}) {
   const errors = [];
   if (!itinerary || !Array.isArray(itinerary.days)) {
@@ -124,6 +146,7 @@ export function validatePatternStructure(itinerary, request = {}) {
     : (request.region ? [request.region] : []);
   const arrivalAirport  = request.arrival_airport  || request.arrivalAirport  || '';
   const departureAirport = request.departure_airport || request.departureAirport || '';
+  const isMultiCity = regions.length >= 2;
 
   for (let i = 0; i < days.length; i++) {
     const d = days[i];
@@ -135,7 +158,7 @@ export function validatePatternStructure(itinerary, request = {}) {
       errors.push(`Day ${dayNum}: stops.length=${stops.length} < 4 minimum (B-12)`);
     }
 
-    // B-10: lodging bookend — 첫 stop = lodging, 마지막 stop ∈ {lodging, travel}.
+    // B-10: lodging bookend — 첫 stop = lodging, 마지막 stop ∈ {lodging, travel, airport}.
     if (stops.length > 0) {
       const first = stops[0];
       if (first?.category !== 'lodging') {
@@ -143,8 +166,28 @@ export function validatePatternStructure(itinerary, request = {}) {
       }
       const last = stops[stops.length - 1];
       const lastCat = last?.category;
-      if (!['lodging', 'travel'].includes(lastCat)) {
-        errors.push(`Day ${dayNum}: stops[-1].category="${lastCat}" expected lodging|travel (B-10)`);
+      if (!['lodging', 'travel', 'airport'].includes(lastCat)) {
+        errors.push(`Day ${dayNum}: stops[-1].category="${lastCat}" expected lodging|travel|airport (B-10)`);
+      }
+    }
+
+    // B-13: 다도시 plan 도시 전환 day 의 lodging name/address 가 day.city 와 일치.
+    // regions.length >= 2 AND day.city 명시 + 첫 stop = lodging 일 때만 검증
+    // (단도시 plan / lodging 누락 day 는 B-10 / B-12 에서 잡음).
+    if (isMultiCity && d?.city && stops.length > 0 && stops[0]?.category === 'lodging') {
+      const dayCity = String(d.city).trim();
+      const korAliases = CITY_KOR_ALIASES[dayCity] || [];
+      const lodgingName = String(stops[0].name || stops[0].display_name || '');
+      const lodgingAddr = String(stops[0].address || '');
+      const hay = (lodgingName + ' ' + lodgingAddr).toLowerCase();
+      const cityLow = dayCity.toLowerCase();
+      const cityMatch =
+        hay.includes(cityLow) ||
+        korAliases.some((alias) => lodgingName.includes(alias) || lodgingAddr.includes(alias));
+      if (!cityMatch) {
+        errors.push(
+          `Day ${dayNum} (city="${dayCity}"): lodging name/address "${lodgingName}|${lodgingAddr}" 가 도시명 미포함 (B-13)`
+        );
       }
     }
 
@@ -165,23 +208,36 @@ export function validatePatternStructure(itinerary, request = {}) {
     }
   }
 
-  // B-15: 출국일 (마지막 day) 공항 stop 또는 travel category 존재 여부.
+  // B-15: 출국일 (마지막 day) 공항 stop 또는 travel|airport category 또는 day-level meta 존재.
   // departure_airport 입력 있을 때만 검증 (예: "ALREADY" 또는 미입력은 검증 skip).
   // arrival_airport 만 있는 경우도 출국 = 도착 공항 가정 (ai-planner-full.js L135 와 동일).
+  // 회귀 슈트 (scripts/validate-prod-regression.mjs L368-385) 와 동일 기준 통일:
+  //  - stop.category ∈ {travel, airport}
+  //  - stop name/addr 에 공항 토큰 (공항/airport/ICN/GMP/PUS/CJU/인천/김포/김해/제주/空港/国際線)
+  //  - day-level meta (return_to_airport / airport_transfer)
+  //  - 마지막 stop 의 transit_to_airport 또는 next_destination='airport'
   const effectiveDepAirport = departureAirport || arrivalAirport;
   if (effectiveDepAirport && effectiveDepAirport !== 'ALREADY' && effectiveDepAirport !== 'already_in_korea' && days.length > 0) {
     const lastDay = days[days.length - 1];
     const lastStops = Array.isArray(lastDay?.stops) ? lastDay.stops : [];
-    const hasAirport = lastStops.some((s) => {
+    const airportTokenRe = /공항|airport|空港|国際線|국제선|ICN|GMP|PUS|CJU|인천|김포|김해|제주/i;
+    const hasAirportStop = lastStops.some((s) => {
       if (!s) return false;
-      if (s.category === 'travel') return true;
+      if (s.category === 'travel' || s.category === 'airport') return true;
       const name = String(s.name || s.display_name || '');
       const addr = String(s.address || '');
-      return /공항|airport|空港|空港|국제선/i.test(name) || /공항|airport|空港|国際線/i.test(addr);
+      return airportTokenRe.test(name) || airportTokenRe.test(addr);
     });
-    if (!hasAirport) {
+    const hasAirportMeta =
+      !!(lastDay?.return_to_airport || lastDay?.airport_transfer) ||
+      (lastStops.length > 0 &&
+        (lastStops[lastStops.length - 1]?.transit_to_airport ||
+          lastStops[lastStops.length - 1]?.next_destination === 'airport'));
+    if (!hasAirportStop && !hasAirportMeta) {
       const lastDayNum = lastDay?.day || days.length;
-      errors.push(`Day ${lastDayNum} (출국일): 공항 stop 또는 travel category 누락 (departure_airport=${effectiveDepAirport}) (B-15)`);
+      errors.push(
+        `Day ${lastDayNum} (출국일): 공항 stop/airport|travel category/return_to_airport meta 모두 누락 (departure_airport=${effectiveDepAirport}) (B-15)`
+      );
     }
   }
 

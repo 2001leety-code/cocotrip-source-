@@ -257,6 +257,23 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - airport 필드는 \`departure_airport\`(없으면 \`arrival_airport\`)를 그대로 사용.
 - arrival_airport가 "already_in_korea"이면 departure_guide 작성하되 airport는 "GMP" 또는 "ICN T1" 합리적 가정.
 
+### 🔴 출국일 (마지막 day) 공항 STOP — ABSOLUTE MUST (B-15, 2026-05-12 강화)
+\`departure_airport\` 가 "already_in_korea" 가 아니면, **마지막 day 의 stops 배열에 반드시
+공항 관련 stop 1개 추가** (lodging bookend 마지막 stop 을 공항 이동 stop 으로 대체 가능):
+- **GOOD 패턴 1**: 마지막 day stops 의 끝에 \`category: "travel"\` 또는 \`category: "airport"\` stop 추가:
+  \`\`\`json
+  {
+    "order": 5, "start_time": "15:00", "stay_min": 0,
+    "category": "travel", "name": "인천국제공항 T1",
+    "address": "인천광역시 중구 공항로 272", "tip": "출국 3시간 전 도착 권장"
+  }
+  \`\`\`
+- **GOOD 패턴 2**: 마지막 stop 이 lodging 이어도 day-level \`return_to_airport: true\` meta 추가.
+- **GOOD 패턴 3**: 마지막 stop 의 name/address 에 공항 토큰 (공항/airport/ICN/GMP/PUS/CJU) 포함.
+- **BAD**: 마지막 day 마지막 stop = "점심 식당" 으로 끝 + 공항 stop / meta 없음 →
+  사용자가 "어떻게 공항 가지?" 혼란. validator 가 즉시 차단.
+- airport 토큰 사용 권장: \`departure_airport\` 값 (ICN/GMP/PUS/CJU) 또는 한글명 (인천공항/김포공항/김해공항/제주공항).
+
 
   "daily_budget_summary": [
     {
@@ -447,6 +464,17 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
 - 도시 변경 day 의 lodging 은 새 도시의 임시 reference. 사용자가 hotel_address
   를 단일로만 줬으면 LODGING BOOKEND 첫 stop 5km 반경 규칙은 **새 도시 내** 에서
   적용. (RouteAgent 가 좌표 fallback 처리.)
+
+### 9. 🔴 LODGING NAME/ADDRESS 도시 매칭 — ABSOLUTE MUST (B-13, 2026-05-12 강화)
+다도시 plan 의 각 day 의 첫 lodging stop 은 **반드시 그 day 의 \`city\` 값과 일치**:
+- \`day.city = "Seoul"\` 인 day → lodging \`name\` 또는 \`address\` 에 **"서울" 또는 "Seoul"** 포함 필수.
+  - GOOD: \`name = "명동 호텔"\`, \`address = "서울특별시 중구 명동..."\`
+  - GOOD: \`name = "Seoul Station Hotel"\`, \`address = "서울 용산구..."\`
+  - BAD: \`name = "해운대 호텔"\`, \`address = "부산광역시 해운대구..."\` (day.city=Seoul 이면 위반)
+- \`day.city = "Busan"\` 인 day → lodging \`name\` 또는 \`address\` 에 **"부산" 또는 "Busan"** 포함 필수.
+- \`day.city = "Jeju"\` → "제주" 또는 "Jeju".
+- 사용자 신고: 부산 → 서울 전환 day 의 lodging 이 부산 호텔로 잘못 매칭 → 사용자가 짐 끌고 KTX 후 어디로 가야 할지 혼란.
+- 위반 시 백엔드 validator 가 즉시 1회 재시도 → 그래도 위반이면 plan 저장 차단 + 사용자 500 에러.
 
 If \`regions.length === 1\`: **본 섹션 전체 무시**. 기존 단일 도시 규칙만 적용.
 

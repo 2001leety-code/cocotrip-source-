@@ -114,6 +114,9 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 - **증상:** Day 3 city=Busan 인데 lodging 주소가 "서울특별시...".
 - **검증:** lodging stop 의 name 또는 address 가 `day.city` 한글명 포함.
 - **회귀 위험:** Gemini 가 도시 전환 인지 못함. address fallback 이 첫 도시 사용.
+- **백엔드 가드 (2026-05-12):** `validatePatternStructure` 가 다도시 plan(regions.length≥2)
+  + day.city 명시된 day 의 첫 lodging stop name/address 가 day.city (영문 또는 한글 alias)
+  포함 여부 검증. 위반 시 1회 retry → 그래도 위반이면 plan 저장 차단.
 
 ### B-14 — 모든 stop start_time < 24:00
 
@@ -126,8 +129,9 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 
 - **가설:** 출국일 마지막에 공항 이동 stop/안내 누락.
 - **증상:** Day 5 마지막 stop 이 점심 식당, 공항 어떻게 가지?
-- **검증:** 마지막 day 의 stops 중 category='airport' 또는 name/address 에 공항/airport/ICN/GMP/PUS 토큰 포함. 또는 meta 필드 (return_to_airport 등).
+- **검증:** 마지막 day 의 stops 중 category='airport' 또는 'travel', 또는 name/address 에 공항/airport/ICN/GMP/PUS/CJU 토큰 포함. 또는 day-level meta (return_to_airport / airport_transfer) 또는 마지막 stop transit_to_airport.
 - **회귀 위험:** Gemini 가 출국 시각 (departureTime) 이전에 일정 종료 후 공항 transfer 안내 skip.
+- **백엔드 가드 (2026-05-12):** `validatePatternStructure` 가 회귀 슈트와 동일 기준 적용 (category travel/airport, 공항 토큰, day-level meta, transit_to_airport). 위반 시 retry → 차단.
 
 ## 새 회귀 추가 절차
 
