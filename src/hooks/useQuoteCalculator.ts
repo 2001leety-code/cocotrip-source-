@@ -6,6 +6,10 @@
 //   4. Geocoding 실패 → null (사용자 manual km 입력 toggle)
 // zone fallback 폐기 — 충청권 평균 200km로 모든 도시 균일 가격이 비현실적.
 //
+// 옵션 C-FINAL (2026-05-12):
+//   airport_transfer 자유입력 fallback 은 calcPickupTransferFormula (4-tier) 적용.
+//   day_tour / multi_day 는 기존 calcIntercityFormula (왕복 × 차량 배수) 유지.
+//
 // async 처리 — Geocoding은 fetch이므로 useEffect + useState 패턴.
 import { useEffect, useState } from 'react';
 import {
@@ -17,6 +21,8 @@ import {
   DISTANCE_MATRIX,
   SERVICE_CONFIG,
   ATTRACTION_FEES,
+  AIRPORT_TRANSFER_PRICING_FORMULA,
+  VEHICLE_INTERCITY,
 } from '@/data/charterPricing';
 import type { WizardState, QuoteBreakdown, QuoteAddon, VehicleType } from '@/components/charter/types';
 import {
@@ -24,7 +30,7 @@ import {
   getMatrixKeyAlternatives,
 } from '@/components/charter/destinationKeyMap';
 import { resolveKm, resolveKmFromCoords } from '@/lib/calculatorDistance';
-import { calcSimpleByVehicle } from '@/lib/calculator';
+import { calcSimpleByVehicle, tollEstimate } from '@/lib/calculator';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
 // 2026-05-03 사용자 정책: sprinter 1.45→2.0, bus 2.3→3.0. resolveProductType.ts와 동기화.
@@ -37,8 +43,74 @@ const VEHICLE_MULTIPLIER: Record<VehicleType, number> = {
 };
 
 // pricing_spec.json staria.intercity 기준 (rate_per_km: 1000) — 매트릭스 km만 알 때 사용.
+// 옵션 C-FINAL 이후 SSOT VEHICLE_INTERCITY.staria 와 일치 확인됨 — hardcode 보조용.
 const STARIA_BASE_FEE = 50_000;
 const STARIA_RATE_PER_KM = 1000;
+
+// Formula 1 (Pickup/Transfer one-way) — SSOT airport_transfer_pricing_formula 기반.
+// 검증 (운영자 PR #381 자연 도출):
+//   PUS → 해운대 (30km)         : flat ₩77K ✓
+//   ICN → 부산 (450km, toll ₩67K): ₩463K + 150×0.85 + 67 = ₩658K ≈ ₩660K ✓
+//   ICN → 명동 (55km)           : ₩77K + 25×1.8 = ₩122K
+//   ICN → 강남 (70km)           : ₩77K + 40×1.8 = ₩149K
+//   CJU → 중문 (40km)           : ₩77K + 10×1.8 = ₩95K
+export function calcPickupTransferFormula(
+  km: number,
+  vehicleType: VehicleType,
+  includeToll: boolean = true,
+): { krw: number; breakdown: { base: number; perKm: number; toll: number } } | null {
+  // Bus/VIP 는 협의 (formula 미적용)
+  if (vehicleType === 'bus' || vehicleType === 'vip') return null;
+  const safeKm = Number.isFinite(km) && km > 0 ? km : 0;
+  if (safeKm === 0) return null;
+
+  const f = AIRPORT_TRANSFER_PRICING_FORMULA.staria;
+  let priceKRW: number;
+  let baseKRW = f.tier1_price_krw;
+  let perKmKRW = 0;
+
+  if (safeKm <= f.tier1_flat_km) {
+    // Tier 1: 0-30km flat
+    priceKRW = f.tier1_price_krw;
+  } else if (safeKm <= f.tier2_max_km) {
+    // Tier 2: 30-100km
+    perKmKRW = (safeKm - f.tier1_flat_km) * f.tier2_per_km_krw;
+    priceKRW = f.tier1_price_krw + perKmKRW;
+  } else if (safeKm <= f.tier3_max_km) {
+    // Tier 3: 100-300km
+    const tier2Cap = (f.tier2_max_km - f.tier1_flat_km) * f.tier2_per_km_krw;
+    perKmKRW = tier2Cap + (safeKm - f.tier2_max_km) * f.tier3_per_km_krw;
+    priceKRW = f.tier1_price_krw + perKmKRW;
+  } else {
+    // Tier 4: 300km+
+    const tier2Cap = (f.tier2_max_km - f.tier1_flat_km) * f.tier2_per_km_krw;
+    const tier3Cap = (f.tier3_max_km - f.tier2_max_km) * f.tier3_per_km_krw;
+    perKmKRW = tier2Cap + tier3Cap + (safeKm - f.tier3_max_km) * f.tier4_per_km_krw;
+    priceKRW = f.tier1_price_krw + perKmKRW;
+  }
+
+  const toll = includeToll && f.include_toll ? tollEstimate(safeKm) : 0;
+  priceKRW += toll;
+
+  // Sprinter 는 staria × multiplier_vs_staria
+  if (vehicleType === 'sprinter') {
+    const mult = AIRPORT_TRANSFER_PRICING_FORMULA.sprinter.multiplier_vs_staria;
+    priceKRW = Math.round(priceKRW * mult);
+    baseKRW = Math.round(baseKRW * mult);
+    perKmKRW = Math.round(perKmKRW * mult);
+  } else {
+    priceKRW = Math.round(priceKRW);
+  }
+
+  return {
+    krw: priceKRW,
+    breakdown: {
+      base: baseKRW,
+      perKm: perKmKRW,
+      toll,
+    },
+  };
+}
 
 // Bus/VIP는 결제 불가 — 항상 협의(상담 폼) 신호.
 function isInquiryOnly(vehicle: VehicleType): boolean {
@@ -134,15 +206,17 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
           receiptIsPackage = true;
         }
       }
-      // 3. matrix miss + externalKm (Geocoding 또는 manual) → 차량별 단순 공식
+      // 3. matrix miss + externalKm (Geocoding 또는 manual) → Pickup/Transfer Formula 1 (4-tier)
+      //    옵션 C-FINAL 2026-05-12: airport_transfer 는 단방향이므로 calcSimpleByVehicle (왕복식) 대신
+      //    calcPickupTransferFormula 사용. SSOT airport_transfer_pricing_formula 기반.
       if (vehicleChargeKRW === 0 && externalKm != null && externalKm > 0) {
-        const simple = calcSimpleByVehicle(vehicle, externalKm);
-        if (simple) {
-          vehicleChargeKRW = simple.krw;
+        const formula = calcPickupTransferFormula(externalKm, vehicle, true);
+        if (formula) {
+          vehicleChargeKRW = formula.krw;
           distanceKm = externalKm; source = 'formula';
-          receiptBase = simple.breakdown.base;
-          receiptDistance = simple.breakdown.perKm;
-          receiptToll = simple.toll;
+          receiptBase = formula.breakdown.base;
+          receiptDistance = formula.breakdown.perKm;
+          receiptToll = formula.breakdown.toll;
         }
       }
       // 4. Geocoding fail / km 없음 → needsCustomQuote
@@ -180,8 +254,13 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
       }
     } else if (mode === 'multi_day') {
       // 1박 이상: 매트릭스 또는 externalKm 기반 + 일당 운영비 + 숙박비
-      const daily = 200_000;
-      const overnight = 130_000;
+      // P1 #6 fix (옵션 C-FINAL 2026-05-12): 차종별 daily/overnight 분기.
+      //   staria  : daily ₩200K + overnight ₩130K (SSOT staria.intercity)
+      //   sprinter: daily ₩280K + overnight ₩180K (SSOT sprinter.intercity)
+      //   기존 hardcode (200K/130K) 는 sprinter 도 staria 값 적용 → underprice.
+      const ic = VEHICLE_INTERCITY[vehicle as 'staria' | 'sprinter'] ?? VEHICLE_INTERCITY.staria;
+      const daily = ic.daily_service_fee;
+      const overnight = ic.overnight_driver_fee;
       const dayDiff = state.startDate && state.endDate
         ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
         : 0;

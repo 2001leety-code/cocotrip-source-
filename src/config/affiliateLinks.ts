@@ -222,20 +222,49 @@ export function buildCarLink(city: string) {
 }
 
 /* ── Airport Pickup Prices (own service) ─────────────── */
-// batch 9 (B9-23): 운영자 5/9 결정 — GMP 가격 통합 변경 (서울 도심 ₩90,000, 강남 ₩100,000).
-// P0-pricing (2026-05-12): PUS 부산 시내 ₩100,000 → ₩77,000 (운영자 Q1 결정).
-//   SSOT `pricing_spec.json:airport_transfer_prices.busan-metro` + `distance_matrix.PUS→BUS_METRO.priceKRW`
-//   세 곳 모두 ₩77,000 단일 source.
-export const PICKUP_PRICES: Record<string, { destination: string; price: string }[]> = {
+// 옵션 C-FINAL (2026-05-12): SSOT 단일화 — pricing_spec.json:airport_transfer_prices 에서 동적 import.
+//   기존 hardcode (PUS/GMP/ICN/CJU 4 도시 × 8개 가격) → SSOT 자동 매핑.
+//   PR #381 의 PUS=₩77K / GMP 90K/100K / busan=₩660K 변경 시 SSOT 1 곳만 수정.
+// 사용처: src/pages/PlannerPage/components/AirportPickupCard.tsx (UI 카드).
+//
+// 매핑 규칙: 공항 코드 → AIRPORT_TRANSFER_PRICES 의 키 목록 + 한국어 라벨.
+//   각 항목은 productType 변환 (createPaypalOrder.js `airport_<key>` 규약) 도 가능하도록 key 보존.
+import { AIRPORT_TRANSFER_PRICES } from '@/data/charterPricing';
+
+type AirportPickupRoute = { destination: string; key: string; price: string };
+
+const PICKUP_ROUTES_BY_AIRPORT: Record<string, { destination: string; key: string }[]> = {
   ICN: [
-    { destination: '서울 도심', price: '₩124,800' },
-    { destination: '강남/잠실', price: '₩145,600' },
-    { destination: '가평/남이섬', price: '₩208,000' },
+    { destination: '서울 도심', key: 'seoul-central' },
+    { destination: '강남/잠실', key: 'seoul-gangnam' },
+    { destination: '가평/남이섬', key: 'gapyeong-nami' },
+    { destination: '수원·용인', key: 'suwon-yongin' },
+    { destination: '춘천', key: 'chuncheon' },
   ],
   GMP: [
-    { destination: '서울 도심', price: '₩90,000' },
-    { destination: '강남/잠실', price: '₩100,000' },
+    { destination: '서울 도심', key: 'gimpo-seoul-central' },
+    { destination: '강남/잠실', key: 'gimpo-seoul-gangnam' },
   ],
-  PUS: [{ destination: '부산 시내', price: '₩77,000' }],
-  CJU: [{ destination: '제주 시내', price: '₩72,800' }],
+  PUS: [{ destination: '부산 시내', key: 'busan-metro' }],
+  CJU: [{ destination: '제주 시내', key: 'jeju-metro' }],
 };
+
+function formatKRW(amount: number): string {
+  return `₩${amount.toLocaleString('en-US')}`;
+}
+
+function buildPickupPrices(): Record<string, AirportPickupRoute[]> {
+  const out: Record<string, AirportPickupRoute[]> = {};
+  for (const [airport, routes] of Object.entries(PICKUP_ROUTES_BY_AIRPORT)) {
+    out[airport] = routes
+      .map(r => {
+        const entry = AIRPORT_TRANSFER_PRICES[r.key];
+        if (!entry) return null; // SSOT 누락 시 항목 생략 (안전)
+        return { destination: r.destination, key: r.key, price: formatKRW(entry.priceKRW) };
+      })
+      .filter((r): r is AirportPickupRoute => r != null);
+  }
+  return out;
+}
+
+export const PICKUP_PRICES: Record<string, AirportPickupRoute[]> = buildPickupPrices();
