@@ -1,0 +1,113 @@
+name: PR Admin Auth Regression Suite
+
+# CocoTrip 자율 검증 v2 P1 — Admin 인증/권한 자동 검증.
+# 위험 등급 HIGH (admin endpoint 우회 가능 시 결제 사고 직결).
+#
+# 5 assertion (B-ADM1~5):
+#   B-ADM1: 일반 사용자 token → admin endpoint = 401/403
+#   B-ADM2: 위조/만료/빈 token → 401/403
+#   B-ADM3: ADMIN_EMAIL env 단일 source — 순수 hardcode 0건 (코드 grep 자체검증)
+#   B-ADM4: admin token + admin-issue-onboarding-coupons → 200
+#   B-ADM5: admin token + admin-booking-action (sandbox ref) → 비-auth 4xx
+#
+# Trigger 정책:
+#   1. label 'ready-for-admin-regression' 부착 시 (admin auth 가 영향받는 PR 만 명시적 opt-in)
+#   2. workflow_dispatch (수동 ad-hoc 실행)
+#
+# Secrets 필요:
+#   FIREBASE_WEB_API_KEY                — Firebase Web API key (VITE_FIREBASE_API_KEY 와 동일)
+#   HEALTH_CHECK_EMAIL                  — admin 계정 (ADMIN_EMAIL 매칭)
+#   HEALTH_CHECK_PASSWORD               — admin 계정 비밀번호
+#   HEALTH_CHECK_NONADMIN_EMAIL  (신규) — 일반 사용자 계정 (TEST- prefix 없음)
+#   HEALTH_CHECK_NONADMIN_PASSWORD (신규) — 위 계정 비밀번호
+#
+# non-admin 미설정 시 B-ADM1 skip + 경고 (workflow 자체는 계속 진행).
+
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number (수동 실행 시)'
+        required: false
+        type: string
+
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: pr-admin-auth-regression-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  admin-auth-regression:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'ready-for-admin-regression' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 의존성 설치 X — admin auth 슈트는 native fetch + fs 만 사용 (node 20 글로벌)
+
+      - name: Run admin auth regression suite
+        id: admin-auth
+        env:
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
+          HEALTH_CHECK_NONADMIN_EMAIL: ${{ secrets.HEALTH_CHECK_NONADMIN_EMAIL }}
+          HEALTH_CHECK_NONADMIN_PASSWORD: ${{ secrets.HEALTH_CHECK_NONADMIN_PASSWORD }}
+          BASE_URL: https://cocotripkr.com
+        run: |
+          set -o pipefail
+          node scripts/validate-prod-admin-auth.mjs 2>&1 | tee admin-auth-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Post result to PR
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let output = '';
+            try {
+              output = fs.readFileSync('admin-auth-output.txt', 'utf8');
+            } catch (e) {
+              output = '(no output captured)';
+            }
+            const exitCode = '${{ steps.admin-auth.outputs.exit_code }}';
+            const status = exitCode === '0' ? '✅ PASS' : '❌ FAIL';
+            const body = [
+              `## ${status} — Admin Auth 회귀 검증 (B-ADM 5항목)`,
+              '',
+              `**Target:** https://cocotripkr.com`,
+              `**Trigger:** \`ready-for-admin-regression\` 라벨`,
+              `**위험 등급:** HIGH (admin endpoint 우회 시 결제 사고)`,
+              '',
+              '<details><summary>실행 로그</summary>',
+              '',
+              '```',
+              output.slice(-3500),
+              '```',
+              '',
+              '</details>',
+              '',
+              exitCode === '0'
+                ? '머지 가능. admin auth 회귀 없음 확인.'
+                : '⚠️ FAIL 항목 fix 필요. 머지 차단 (인증 우회 위험).',
+            ].join('\n');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
