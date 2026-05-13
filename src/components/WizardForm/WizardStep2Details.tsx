@@ -11,7 +11,9 @@ import type { AirportOption } from './data';
 import type { WizardDict } from './types';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 import { useLanguage } from '@/hooks/useLanguage';
-import { CITY_NAME_BY_KEY } from './zoneData';
+// 2026-05-13 PR #393 후속: light helper 만 import (zone arrays 는 ZoneRecommender
+// lazy chunk 가 fetch — 본 컴포넌트는 도시 라벨만 필요).
+import { CITY_NAME_BY_KEY } from './zoneHelpers';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
 
 const ZoneRecommender = lazy(() =>
