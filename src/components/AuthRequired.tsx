@@ -59,6 +59,13 @@ export function AuthRequired({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [redirectChecking, setRedirectChecking] = useState(true);
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+
+  // PR #403 (2026-05-13): LINE 버튼 feature flag — Email permission 심사 통과 전까지 숨김.
+  // 운영자 Vercel env 에 `VITE_LINE_OIDC_ENABLED=true` 등록 시 노출. 기본값 = 숨김.
+  // 배경: LINE Login channel 의 email permission 신청 ~1주일 심사. 그 전까지 LINE 로그인 시
+  // email scope 거부 → Firebase 가 임의 uid 부여 → 사용자 식별/CS 연결 어려움. UX 차원 차단.
+  // 심사 통과 후 운영자가 env 만 변경 → 재배포 → LINE 버튼 즉시 노출 (코드 변경 X).
+  const LINE_ENABLED = import.meta.env.VITE_LINE_OIDC_ENABLED === 'true';
   // PR-E: 신규 가입자 needsOnboarding 체크 — null=미확인, false=완료, true=리다이렉트 필요
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
 
@@ -168,18 +175,21 @@ export function AuthRequired({ children }: { children: ReactNode }) {
           </button>
 
           {/* LINE Button (PR #396): Google 아래 보조 옵션. 일본/대만/홍콩 사용자.
-              Identity Platform 업그레이드 + Firebase OIDC provider 등록 후 작동. */}
-          <button
-            onClick={handleLine}
-            disabled={lineLoading}
-            className="w-full py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
-            style={{ background: '#06C755', color: '#fff', boxShadow: '0 2px 12px rgba(6,199,85,0.25)' }}
-          >
-            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.477 2 2 5.78 2 10.444c0 4.18 3.553 7.683 8.354 8.348.325.07.768.214.88.491.1.252.066.647.032.901l-.142.852c-.044.252-.2.987.865.538 1.066-.449 5.751-3.387 7.844-5.797C20.97 14.171 22 12.434 22 10.444 22 5.78 17.523 2 12 2zM8.072 13.108H6.116c-.286 0-.518-.232-.518-.519V8.781c0-.287.232-.519.518-.519.286 0 .519.232.519.519v3.29h1.437c.287 0 .519.232.519.518 0 .287-.232.519-.519.519zm2.057 0c-.287 0-.519-.232-.519-.519V8.781c0-.287.232-.519.519-.519.286 0 .518.232.518.519v3.808c0 .287-.232.519-.518.519zm4.575 0c-.215 0-.4-.13-.477-.323L13.014 10.7v1.889c0 .287-.232.519-.518.519-.287 0-.519-.232-.519-.519V8.781c0-.222.142-.42.355-.493.213-.075.45-.012.595.156.018.022 1.227 1.658 1.255 1.694l1.226 2.103V8.781c0-.287.232-.519.519-.519.286 0 .518.232.518.519v3.808c0 .287-.232.519-.518.519zm3.158-2.434c.287 0 .519.232.519.518 0 .287-.232.519-.519.519h-1.437v.879h1.437c.287 0 .519.232.519.518 0 .287-.232.519-.519.519H16.31c-.286 0-.518-.232-.518-.519V8.781c0-.287.232-.519.518-.519h1.956c.286 0 .518.232.518.519 0 .286-.232.518-.518.518H16.83v.876h1.437z"/>
-            </svg>
-            {lineLoading ? text.loading : text.line}
-          </button>
+              Identity Platform 업그레이드 + Firebase OIDC provider 등록 후 작동.
+              PR #403: Email permission 심사 통과 전까지 숨김 (VITE_LINE_OIDC_ENABLED env flag). */}
+          {LINE_ENABLED && (
+            <button
+              onClick={handleLine}
+              disabled={lineLoading}
+              className="w-full py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
+              style={{ background: '#06C755', color: '#fff', boxShadow: '0 2px 12px rgba(6,199,85,0.25)' }}
+            >
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.477 2 2 5.78 2 10.444c0 4.18 3.553 7.683 8.354 8.348.325.07.768.214.88.491.1.252.066.647.032.901l-.142.852c-.044.252-.2.987.865.538 1.066-.449 5.751-3.387 7.844-5.797C20.97 14.171 22 12.434 22 10.444 22 5.78 17.523 2 12 2zM8.072 13.108H6.116c-.286 0-.518-.232-.518-.519V8.781c0-.287.232-.519.518-.519.286 0 .519.232.519.519v3.29h1.437c.287 0 .519.232.519.518 0 .287-.232.519-.519.519zm2.057 0c-.287 0-.519-.232-.519-.519V8.781c0-.287.232-.519.519-.519.286 0 .518.232.518.519v3.808c0 .287-.232.519-.518.519zm4.575 0c-.215 0-.4-.13-.477-.323L13.014 10.7v1.889c0 .287-.232.519-.518.519-.287 0-.519-.232-.519-.519V8.781c0-.222.142-.42.355-.493.213-.075.45-.012.595.156.018.022 1.227 1.658 1.255 1.694l1.226 2.103V8.781c0-.287.232-.519.519-.519.286 0 .518.232.518.519v3.808c0 .287-.232.519-.518.519zm3.158-2.434c.287 0 .519.232.519.518 0 .287-.232.519-.519.519h-1.437v.879h1.437c.287 0 .519.232.519.518 0 .287-.232.519-.519.519H16.31c-.286 0-.518-.232-.518-.519V8.781c0-.287.232-.519.518-.519h1.956c.286 0 .518.232.518.519 0 .286-.232.518-.518.518H16.83v.876h1.437z"/>
+              </svg>
+              {lineLoading ? text.loading : text.line}
+            </button>
+          )}
 
           {/* Phone Number Button (PR #390): Google + LINE 아래 보조 옵션. */}
           <button
