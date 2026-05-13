@@ -23,11 +23,19 @@ const BASE_BOOKING = {
   memo: '',
 };
 
+// PDF size 하한: standard booking voucher 의 실측치는 ~4.3KB (Helvetica only +
+// safeText 가 라틴 외 문자 '?' 치환 → 텍스트 압축률 매우 높음 + QR 100x100 ~2KB).
+// 3KB 하한은 "헤더/예약박스/8행 정보/QR/푸터 모두 실제 렌더됐는지" 회귀 감지가
+// 목적 — 5KB 는 과잉 추정 (PR #379 도입 시 실측 안 함, PR #388 5/13 회귀 fix
+// 에서 4346 bytes 실측 후 3KB 로 정정). 향후 약관 박스/언어별 폰트 추가로 PDF
+// 가 커져도 하한은 동일 (회귀 방지가 목적이지 상한이 아님 — 상한은 50KB).
+const MIN_VOUCHER_PDF_BYTES = 3 * 1024;
+
 describe('api/_generate-voucher — generateVoucherPDF', () => {
   it('returns a non-empty PDF Buffer for standard booking', async () => {
     const buf = await generateVoucherPDF(BASE_BOOKING);
     expect(Buffer.isBuffer(buf)).toBe(true);
-    expect(buf.length).toBeGreaterThanOrEqual(5 * 1024); // ≥ 5KB
+    expect(buf.length).toBeGreaterThanOrEqual(MIN_VOUCHER_PDF_BYTES);
   });
 
   it('produces output with %PDF- magic bytes (valid PDF header)', async () => {
@@ -74,10 +82,11 @@ describe('api/_generate-voucher — generateVoucherPDF', () => {
     const buffers = await Promise.all(langSamples.map((b) => generateVoucherPDF(b)));
     for (const buf of buffers) {
       expect(Buffer.isBuffer(buf)).toBe(true);
-      expect(buf.length).toBeGreaterThanOrEqual(5 * 1024);
+      expect(buf.length).toBeGreaterThanOrEqual(MIN_VOUCHER_PDF_BYTES);
       expect(buf.slice(0, 5).toString('ascii')).toBe('%PDF-');
     }
-    // 4 lang 모두 5-15KB 범위 (Helvetica only — non-Latin 은 safeText 로 치환)
+    // 4 lang 모두 3-50KB 범위 (Helvetica only — non-Latin 은 safeText 로 치환).
+    // 실측: 모든 lang 동일 출력 (~4346 bytes), CJK 는 '?' 치환됨.
     for (const buf of buffers) {
       expect(buf.length).toBeLessThan(50 * 1024);
     }

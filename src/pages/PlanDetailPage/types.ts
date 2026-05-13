@@ -13,6 +13,8 @@ export interface PlanDocument {
   input?: {
     language?: string;
     area?: string;
+    /** 투어 시작일 (YYYY-MM-DD). **Inclusive** — plan.days[0].date === startDate.
+     *  endDate 필드 없음 (tourDays = days.length 로 계산). */
     startDate?: string;
     adults?: number;
     pax?: number;
