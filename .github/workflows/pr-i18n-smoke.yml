@@ -22,7 +22,11 @@ jobs:
       github.event.deployment.environment == 'Preview' &&
       github.event.deployment.creator.login == 'vercel[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 2026-05-13 PR #402: 10 → 15 분 상향. 배경: PR #397 + #401 두 차례 10m15s
+    # timeout. Playwright 4-lang × 3-viewport (~12 browser run) + Vercel preview
+    # 초기 cold start + 가격 환산 PR 등의 i18n locale 로드 증가로 한도 초과.
+    # 15분이면 안전 마진 확보 — 기존 normal 3-4분 (캐시 hit) / cold start 7-9분.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout PR head (use deployment ref)
