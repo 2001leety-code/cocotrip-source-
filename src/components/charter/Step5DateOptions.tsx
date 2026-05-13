@@ -240,8 +240,12 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
       <div className="pt-4 border-t border-white/[0.06]">
         <Label>{i18n.addons}</Label>
         <div className="flex flex-wrap gap-2">
-          <OptionPill label={i18n.licensedGuide} sub={`+₩${EXTRA_CHARGES.englishGuidePerDay.toLocaleString('ko-KR')}`}
-            checked={!!state.options?.licensedGuide} onChange={v => patch({ options: { ...state.options, licensedGuide: v } })} />
+          {/* P1 #9 fix (2026-05-12): sprinter 는 guide_required 자동 가산 → licensedGuide 옵션 숨김.
+              사용자가 두 번 가산되는 혼란 차단. 백엔드 (useQuoteCalculator) 도 dedup. */}
+          {state.vehicle !== 'sprinter' && (
+            <OptionPill label={i18n.licensedGuide} sub={`+₩${EXTRA_CHARGES.englishGuidePerDay.toLocaleString('ko-KR')}`}
+              checked={!!state.options?.licensedGuide} onChange={v => patch({ options: { ...state.options, licensedGuide: v } })} />
+          )}
           <OptionPill label={i18n.picket} sub={`+₩${EXTRA_CHARGES.airportPicketService.toLocaleString('ko-KR')}`}
             checked={!!state.options?.airportPicket} onChange={v => patch({ options: { ...state.options, airportPicket: v } })} />
           <OptionPill label={i18n.childSeat} sub={`+₩${EXTRA_CHARGES.childSeatPerTrip.toLocaleString('ko-KR')}`}
