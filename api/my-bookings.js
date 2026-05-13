@@ -1,13 +1,19 @@
 /**
  * Vercel API Route: My Bookings (GET)
- * GET /api/my-bookings?userEmail=...
+ * GET /api/my-bookings?tier=...
+ * Headers: Authorization: Bearer <Firebase ID token>
  *
  * 로그인한 고객의 예약 목록을 Firestore `bookings` 컬렉션에서 조회.
  * 각 레코드에 취소/변경 가능 여부(canRefund, canModify, refundPercent) 계산 포함.
+ *
+ * Security (PR #418, Audit W-C1 — 2026-05-13): query `userEmail` 신뢰 종료 —
+ * 누구나 남의 이메일로 query 해 PII (booking ref / 항공편 / 픽업주소) 조회
+ * 가능했음. 이제 `Authorization: Bearer <ID-token>` 검증 후 `auth.email` 사용.
  */
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -35,14 +41,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = new URL(req.url, `https://${req.headers.host}`);
-    const userEmail = (url.searchParams.get('userEmail') || '').trim().toLowerCase();
-    const tier      = url.searchParams.get('tier') || 'Bronze';
-
-    if (!userEmail) {
-      res.writeHead(400, JSON_CORS);
-      return res.end(JSON.stringify(_err('userEmail is required', 'MISSING_FIELDS')));
+    // PR #418 (Audit W-C1): require Authorization: Bearer <ID-token>.
+    // 이전엔 query.userEmail 신뢰 → IDOR (남의 이메일 query 가능).
+    const auth = await verifyUserToken(req);
+    if (!auth.ok) {
+      res.writeHead(auth.status, JSON_CORS);
+      return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
     }
+    const userEmail = auth.email;
+
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const tier = url.searchParams.get('tier') || 'Bronze';
 
     const db = getDb();
     const snap = await db.collection('bookings')

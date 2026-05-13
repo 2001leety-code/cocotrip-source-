@@ -673,6 +673,77 @@ function P34_priceUsdConsistency({ changed }) {
   return null;
 }
 
+/**
+ * P43_authIdorBodyTrusted — 메모리 P43 (PR #418, Audit W-C1~C4).
+ * IDOR 회귀 차단: user-scoped endpoint (my-bookings / voucher / cancelBooking /
+ * modifyBooking / reviews) 를 호출할 때 body/query 에 `userEmail` 또는 `userId`
+ * 를 넣는 패턴 = 서버가 body 신뢰하던 옛 IDOR 패턴 부활.
+ *
+ * 룰:
+ *   1. client 가 위 5개 endpoint 에 raw `fetch(...)` 사용 — `authFetch` 써야 함.
+ *   2. client body 또는 query 에 `userEmail: ` / `userId: ` 직접 전달 — 서버는
+ *      verified auth.email / auth.uid 만 사용해야 함.
+ *
+ * 트리거: 변경된 .ts/.tsx/.js/.jsx 파일.
+ * 위반 시 fail.
+ */
+function P43_authIdorBodyTrusted({ changed }) {
+  const targets = (changed || []).filter((c) =>
+    c.status !== 'D' && /\.(ts|tsx|js|jsx)$/.test(c.file) &&
+    !c.file.startsWith('api/') &&  // server-side files use verifyUserToken directly
+    !c.file.startsWith('scripts/') &&
+    !c.file.startsWith('tests/') &&
+    !c.file.endsWith('authFetch.ts'),  // the helper itself
+  );
+  if (targets.length === 0) return { skipped: true };
+
+  const PROTECTED = /\/api\/(my-bookings|voucher|cancelBooking|modifyBooking|reviews)\b/;
+  const localViolations = [];
+
+  for (const { file } of targets) {
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+    if (!PROTECTED.test(content)) continue;
+
+    const lines = content.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Rule 1: raw fetch( against protected endpoint
+      if (/\bfetch\s*\(\s*['"`]\/api\/(my-bookings|voucher|cancelBooking|modifyBooking|reviews)/.test(line)) {
+        // window check ±15 lines for 'Authorization' header — admin pages already
+        // attach it manually; only flag if Authorization NOT in window.
+        const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 15)).join('\n');
+        if (!/Authorization\s*:\s*['"`]?Bearer/i.test(win)) {
+          localViolations.push(`${file}:L${i + 1}: raw fetch() against protected endpoint — use authFetch from @/lib/authFetch`);
+        }
+      }
+      // Rule 2: body/query carrying userEmail or userId to protected endpoint
+      // Heuristic — line contains `userEmail:` or `userId:` AND the file
+      // touches a protected endpoint. False-positive risk acceptable; remove
+      // the property if not actually targeting these endpoints.
+      const isCalloutLine =
+        /\buserEmail\s*:\s*(user\??\.email|email|userEmail)\b/.test(line) ||
+        /\buserId\s*:\s*(user\??\.uid|uid|userId)\b/.test(line);
+      if (isCalloutLine) {
+        // Check ±10 lines window to confirm protected endpoint context
+        const window = lines.slice(Math.max(0, i - 10), Math.min(lines.length, i + 4)).join('\n');
+        if (PROTECTED.test(window)) {
+          localViolations.push(`${file}:L${i + 1}: body/query carries userEmail/userId to protected endpoint — server uses verified auth.email / auth.uid`);
+        }
+      }
+    }
+  }
+
+  if (localViolations.length > 0) {
+    fail(
+      'P43_authIdorBodyTrusted',
+      `IDOR regression ${localViolations.length}건 — ${localViolations.slice(0, 3).join(' | ')}${localViolations.length > 3 ? ' …' : ''}`,
+      'PR #418 IDOR fix — protected endpoint 호출은 authFetch(/api/...) + body 에서 userEmail/userId 제거. server 는 Authorization Bearer 만 사용.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -684,6 +755,7 @@ const RULES = [
   ['P32_sprinterGuideDedup', P32_sprinterGuideDedup],
   ['P33_comboHardcode', P33_comboHardcode],
   ['P34_priceUsdConsistency', P34_priceUsdConsistency],
+  ['P43_authIdorBodyTrusted', P43_authIdorBodyTrusted],
 ];
 
 function runAll(base) {

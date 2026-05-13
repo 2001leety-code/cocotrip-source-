@@ -6,6 +6,7 @@ import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { ReviewSubmitModal } from '@/components/ReviewSubmitModal';
 import { useAuth } from '@/hooks/useAuth';
 import { translations, type Language } from '@/i18n';
+import { authFetch, authDownload } from '@/lib/authFetch';
 
 interface Booking {
   id: string;
@@ -90,8 +91,10 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
     setLoading(true);
     setError(null);
     try {
-      const qs = new URLSearchParams({ userEmail, tier }).toString();
-      const res = await fetch(`/api/my-bookings?${qs}`);
+      // PR #418 IDOR fix: Authorization Bearer + verified email server-side.
+      // body/query userEmail 더 이상 안 보냄.
+      const qs = new URLSearchParams({ tier }).toString();
+      const res = await authFetch(`/api/my-bookings?${qs}`);
       const json = await res.json();
       if (json.ok) setBookings(json.data.bookings || []);
       else setError(json.error || 'Failed to load bookings');
@@ -100,7 +103,7 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
     } finally {
       setLoading(false);
     }
-  }, [userEmail, tier]);
+  }, [tier]);
 
   useEffect(() => { if (userEmail) load(); }, [userEmail, load]);
 
@@ -111,10 +114,11 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
     if (!ok) return;
     setCancelingId(b.id);
     try {
-      const res = await fetch('/api/cancelBooking', {
+      // PR #418 IDOR fix: Authorization Bearer.
+      const res = await authFetch('/api/cancelBooking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingID: b.id, userEmail, reason, tier }),
+        body: JSON.stringify({ bookingID: b.id, reason, tier }),
       });
       const json = await res.json();
       if (json.ok) await load();
@@ -289,7 +293,6 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
       {modifyTarget && (
         <ModifyModal
           booking={modifyTarget}
-          userEmail={userEmail}
           tier={tier}
           language={language}
           onClose={() => setModifyTarget(null)}
@@ -316,8 +319,8 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   );
 }
 
-function ModifyModal({ booking, userEmail, tier, language, onClose, onSaved }: {
-  booking: Booking; userEmail: string; tier: string; language: 'ko'|'en'|'ja'|'zh';
+function ModifyModal({ booking, tier, language, onClose, onSaved }: {
+  booking: Booking; tier: string; language: 'ko'|'en'|'ja'|'zh';
   onClose: () => void; onSaved: () => void | Promise<void>;
 }) {
   const i18n = getWizardI18n(language);
@@ -344,10 +347,11 @@ function ModifyModal({ booking, userEmail, tier, language, onClose, onSaved }: {
     }
     if (Object.keys(changes).length === 0) { setErr(i18n.modifyNoChanges); setSaving(false); return; }
     try {
-      const res = await fetch('/api/modifyBooking', {
+      // PR #418 IDOR fix: Authorization Bearer.
+      const res = await authFetch('/api/modifyBooking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingID: booking.id, userEmail, tier, changes }),
+        body: JSON.stringify({ bookingID: booking.id, tier, changes }),
       });
       const json = await res.json();
       if (json.ok) await onSaved();
@@ -455,9 +459,23 @@ function BookingDetailModal({
     && !(booking.productType || '').toString().startsWith('ai-planner');
   // 2026-05-04: voucher PDF 다운로드 — 취소된 booking + AI 플래너 (디지털 상품, voucher 없음)
   // 은 hide. CONFIRMED / MODIFIED / COMPLETED 모두 발급 가능 (백엔드 api/voucher.js 동일 정책).
+  // PR #418 (Audit W-C2): query userEmail 매칭 → Authorization Bearer 로 전환.
+  // 직접 <a href> 다운로드 시 헤더 못 보내므로 fetch+blob 패턴 (authDownload).
   const isAiPlanner = (booking.productType || '').toString().startsWith('ai-planner');
   const showVoucherBtn = !isCanceled && !isAiPlanner;
-  const voucherUrl = `/api/voucher?bookingID=${encodeURIComponent(booking.id)}&userEmail=${encodeURIComponent(userEmail)}`;
+  const [voucherDownloading, setVoucherDownloading] = useState(false);
+  const handleVoucherDownload = async () => {
+    if (voucherDownloading) return;
+    setVoucherDownloading(true);
+    try {
+      const url = `/api/voucher?bookingID=${encodeURIComponent(booking.id)}`;
+      await authDownload(url, `voucher_${booking.bookingRef || booking.id}.pdf`);
+    } catch (e) {
+      alert((e instanceof Error ? e.message : 'Download failed'));
+    } finally {
+      setVoucherDownloading(false);
+    }
+  };
 
   const fallback = {
     title: i18n.mbDetailTitle || 'Booking Details',
@@ -563,17 +581,20 @@ function BookingDetailModal({
             )}
           </div>
 
-          {/* Voucher PDF 다운로드 — bookingID + userEmail 매칭 후 백엔드에서 PDF 스트리밍.
-              api/voucher.js 가 booking-processor 와 동일 _generate-voucher.js 사용. */}
+          {/* Voucher PDF 다운로드 — PR #418 (W-C2): Authorization Bearer + fetch+blob.
+              api/voucher.js 가 verified auth.email 로 booking ownership 검증. */}
           {showVoucherBtn && (
-            <a
-              href={voucherUrl}
-              download={`voucher_${booking.bookingRef}.pdf`}
-              className="mt-3 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#C4956A]/40 text-[#C4956A] text-xs font-semibold hover:bg-[#C4956A]/10 transition-colors"
+            <button
+              type="button"
+              onClick={handleVoucherDownload}
+              disabled={voucherDownloading}
+              className="mt-3 flex w-full items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#C4956A]/40 text-[#C4956A] text-xs font-semibold hover:bg-[#C4956A]/10 transition-colors disabled:opacity-50"
             >
               <Download size={13} />
-              {i18n.mbDetailDownloadVoucher || 'Download Voucher'}
-            </a>
+              {voucherDownloading
+                ? (i18n.mbProcessing || 'Downloading...')
+                : (i18n.mbDetailDownloadVoucher || 'Download Voucher')}
+            </button>
           )}
 
           {/* 문의 안내 — 환불 정책에 막힌 사용자에게 사람과 연결 가능한 채널 안내. */}
