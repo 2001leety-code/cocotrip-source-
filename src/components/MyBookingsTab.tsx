@@ -293,7 +293,6 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
       {modifyTarget && (
         <ModifyModal
           booking={modifyTarget}
-          userEmail={userEmail}
           tier={tier}
           language={language}
           onClose={() => setModifyTarget(null)}
@@ -320,8 +319,8 @@ export function MyBookingsTab({ userEmail, tier = 'Bronze', language = 'en' }: P
   );
 }
 
-function ModifyModal({ booking, userEmail, tier, language, onClose, onSaved }: {
-  booking: Booking; userEmail: string; tier: string; language: 'ko'|'en'|'ja'|'zh';
+function ModifyModal({ booking, tier, language, onClose, onSaved }: {
+  booking: Booking; tier: string; language: 'ko'|'en'|'ja'|'zh';
   onClose: () => void; onSaved: () => void | Promise<void>;
 }) {
   const i18n = getWizardI18n(language);
