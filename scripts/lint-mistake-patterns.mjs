@@ -784,6 +784,85 @@ function P44_cronAuthGate({ changed }) {
   return null;
 }
 
+/**
+ * P46_unescapedHtmlInterpolation — 메모리 P46 (PR #421, Audit CZ2).
+ * api/_send-email.js / api/pdf/generate.js 등 server HTML 템플릿에서
+ * booking 필드 등 user input 을 raw 로 interpolate 하면 XSS / 레이아웃 깨짐.
+ *
+ * 트리거: api 디렉터리 내 .js 파일에서 `\${booking.foo}` 같이
+ * 흔히 user-controlled 인 객체 필드를 HTML 백틱 안에 escape 없이 흘리는 경우.
+ *
+ * Heuristic — 정확도 < 1.0:
+ *  - api/_send-email.js / api/pdf/generate.js / api/_telegram.js / api/_shared/notify.js
+ *    파일만 검사 (HTML 템플릿 경로).
+ *  - 위 risky field 패턴이 escapeHtml/escapeAttr/escapeTelegram 안에
+ *    없으면 violation.
+ *
+ * False-positive 가능 — 의도된 raw HTML (script 가 아닌 알려진 값) 은
+ * 주석 PR-421-safe 로 silence.
+ */
+function P46_unescapedHtmlInterpolation({ changed }) {
+  const TARGETS = new Set([
+    'api/_send-email.js',
+    'api/pdf/generate.js',
+  ]);
+  const targets = (changed || []).filter((c) => c.status !== 'D' && TARGETS.has(c.file));
+  if (targets.length === 0) return { skipped: true };
+
+  // Look for `${booking.<field>}` outside an escapeHtml(/escapeAttr/escapeTelegram(...)) call.
+  // Conservative: only flag clear user-input fields.
+  const RISKY_FIELDS = /\$\{(booking\.(customerName|product|tourDate|pickupLocation|dropoffLocation|paxCount|bookingRef|amountUSD|customerEmail)|customerName|customerEmail|userEmail|guestName)\b[^}]*\}/g;
+  const SAFE_WRAPPED = /escape(Html|Attr|Telegram)\(/;
+  // Track which template literal we're inside: `const html = \`...\`` vs
+  // `const text = \`...\``. Plain-text literals don't need HTML escape.
+  const HTML_LITERAL_START = /(?:^|\s)(const|let)\s+(html|finalHtml|body|walletBtn|walletSection|reconciliationNotice)\s*[+=]?=\s*`/;
+  const TEXT_LITERAL_START = /(?:^|\s)(const|let)\s+(text|subject)\s*[+=]?=\s*`/;
+  const LITERAL_END = /`/;
+
+  const violations = [];
+  for (const { file } of targets) {
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+    const lines = content.split(/\r?\n/);
+    let context = 'unknown'; // 'html' | 'text' | 'unknown'
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes('PR-421-safe')) { /* fall-through to flag check (silenced) */ }
+      // Detect template-literal boundaries to track context.
+      if (HTML_LITERAL_START.test(line)) context = 'html';
+      else if (TEXT_LITERAL_START.test(line)) context = 'text';
+      // A closing backtick that's not part of a `${...}` resets context.
+      // Heuristic: line ends with backtick-semicolon (`;) or backtick-comma.
+      if (/`\s*[;,)]\s*$/.test(line) && context !== 'unknown') context = 'unknown';
+
+      if (line.includes('PR-421-safe')) continue;
+      if (!line.includes('${')) continue;
+      // Skip plain-text contexts — XSS doesn't apply.
+      if (context === 'text' || context === 'unknown') continue;
+
+      const matches = line.match(RISKY_FIELDS);
+      if (!matches) continue;
+      for (const m of matches) {
+        const pos = line.indexOf(m);
+        const before = line.slice(Math.max(0, pos - 30), pos);
+        if (!SAFE_WRAPPED.test(before)) {
+          violations.push(`${file}:L${i + 1}: ${m.trim()} — unescaped user input in HTML template`);
+          break;
+        }
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P46_unescapedHtmlInterpolation',
+      `${violations.length}건 HTML 템플릿에 escape 없는 user input — ${violations.slice(0, 3).join(' | ')}${violations.length > 3 ? ' …' : ''}`,
+      'PR #421 — escapeHtml(...) / escapeAttr(...) 로 wrap. 의도된 raw HTML 이면 // PR-421-safe 주석 추가.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -797,6 +876,7 @@ const RULES = [
   ['P34_priceUsdConsistency', P34_priceUsdConsistency],
   ['P43_authIdorBodyTrusted', P43_authIdorBodyTrusted],
   ['P44_cronAuthGate', P44_cronAuthGate],
+  ['P46_unescapedHtmlInterpolation', P46_unescapedHtmlInterpolation],
 ];
 
 function runAll(base) {

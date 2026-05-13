@@ -15,6 +15,9 @@ import { Buffer } from 'buffer';
 import { initAdminDb } from '../_shared/firebase-admin.js';
 import { sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+// PR #421 (CZ2): consolidate escapeHtml — same impl as the inline one below,
+// now sourced from api/_shared/escape.js to share with _send-email.js etc.
+import { escapeHtml } from '../_shared/escape.js';
 
 // 일반 사용자 ID token 검증 (admin 비교 X — 본인 plan 소유자만 통과)
 // firebase-admin.js의 initAdminDb를 재사용해 multi-source env credential 지원:
@@ -198,12 +201,4 @@ function buildPlanHtml(plan) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`;
 }
 
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+// escapeHtml moved to api/_shared/escape.js (PR #421 CZ2).
