@@ -19,6 +19,11 @@ tests/report/
 # Environment Variables
 .env
 .env*.local
+# 2026-05-13 PR (Critical security fix): .env.preview.tmp, .env*.tmp 등 비밀키 파일
+# 절대 push 차단. Firebase / PayPal / Gmail / Gemini / Naver / ODsay / Tripadvisor 키 노출 위험.
+.env*.tmp
+.env.preview*
+.env*.backup
 
 # Google Service Account (민감한 인증 파일 - 절대 커밋 금지)
 service-account.json

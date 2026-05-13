@@ -156,15 +156,33 @@ export default async function handler(req, res) {
     const area = body.area || body.destination || body.region || 'seoul_city';
     // 2026-05-10 (P0-1 launch blocker): regions array 추출 — 다도시 plan 처리 핵심.
     // PR #331 의 _enrichMultiCityDays 가 regions.length>=2 시 작동. 누락 시 dead code.
-    const regions = Array.isArray(body.regions) && body.regions.length > 0
+    //
+    // 2026-05-13 PR (Critical C2 — Agent X audit): 빈 regions 또는 빈 region 문자열 차단.
+    // 기존: body.regions=[] → body.region 빈 문자열 → [""] → regionToCityKey null →
+    // pickRecommendedRestaurantsByStyle 빈 객체 반환 → recommended_restaurants 0건 (silent).
+    // 사용자 결제 후 "must-visit" 섹션 빈칸 — 신고 패턴.
+    const _safeRegions = Array.isArray(body.regions) && body.regions.length > 0
       ? body.regions.filter((r) => typeof r === 'string' && r.trim()).slice(0, 5)
-      : (body.region ? [body.region] : (area ? [area] : ['Seoul']));
+      : null;
+    const _safeRegion = body.region && typeof body.region === 'string' && body.region.trim()
+      ? [body.region.trim()]
+      : null;
+    const _safeArea = area && typeof area === 'string' && area.trim()
+      ? [area.trim()]
+      : null;
+    const regions = _safeRegions || _safeRegion || _safeArea || ['Seoul'];
     const duration = body.duration || 'full_day';
     const durationDays = body.durationDays || (duration === 'multi_day' ? 2 : 1);
     const startDate = body.date || body.startDate || new Date().toISOString().split('T')[0];
     // Audit P0-#2: email은 인증된 값 (authenticatedEmail). body.email 무시.
     const email = authenticatedEmail;
-    const specialRequest = body.special_request || body.message || '';
+    // 2026-05-13 PR (Critical C1 — Agent X audit): special_request 길이 cap 1000자.
+    // 기존: 무제한 → Gemini 32K maxOutputTokens 도달 → JSON truncation → days 누락 →
+    // Firestore 900KB 한계 트리거 → 사용자 결제 후 plan 짧음/실패.
+    // 다른 free-text field (revisionNote 300, avoidList 1000, bucketDishes 10) 와 일관.
+    const specialRequest = body.special_request || body.message
+      ? String(body.special_request || body.message || '').slice(0, 1000)
+      : '';
     const vehicleOverride = body.vehicle || 'auto';
     const vehicle = selectVehicle(pax, vehicleOverride);
     const language = body.language || 'en';
