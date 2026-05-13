@@ -13,6 +13,8 @@ import {
   lookupStationCoord,
   isSameAsFirstCity,
   getDayHotelCoord,
+  CITY_DEFAULT_STATION,
+  inferDefaultStation,
 } from '../../api/_ai_core/agents/RouteAgent.js';
 import { validatePatternStructure } from '../../api/_ai_core/responseValidator.js';
 
@@ -280,5 +282,80 @@ describe('B-AI3b — getDayHotelCoord context-based resolver (PDF-issue-3)', () 
     const r = getDayHotelCoord({ city: 'Seoul' }, null as unknown as never);
     expect(r.lat).toBeNull();
     expect(r.lng).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI2b: CITY_DEFAULT_STATION + inferDefaultStation (PDF-issue-2 v4 활성)
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI2b — CITY_DEFAULT_STATION 매핑 (PDF-issue-2 v4)', () => {
+  it('주요 city × mode 매핑 등록 — Seoul/Busan/Jeju/Daegu', () => {
+    expect(CITY_DEFAULT_STATION.Seoul.ktx).toBe('서울역');
+    expect(CITY_DEFAULT_STATION.Seoul.air).toBe('김포국제공항');
+    expect(CITY_DEFAULT_STATION.Seoul.bus).toBe('서울고속버스터미널');
+    expect(CITY_DEFAULT_STATION.Busan.ktx).toBe('부산역');
+    expect(CITY_DEFAULT_STATION.Busan.air).toBe('김해국제공항');
+    expect(CITY_DEFAULT_STATION.Jeju.air).toBe('제주국제공항');
+    expect(CITY_DEFAULT_STATION.Daegu.ktx).toBe('동대구역');
+  });
+
+  it('Jeju 는 KTX/Bus 없음 (Air 만)', () => {
+    expect(CITY_DEFAULT_STATION.Jeju.ktx).toBeUndefined();
+    expect(CITY_DEFAULT_STATION.Jeju.bus).toBeUndefined();
+  });
+
+  it('모든 등록 station 이 STATION_COORDS 에도 존재 (cross-check)', () => {
+    const allStations: string[] = [];
+    for (const [, modes] of Object.entries(CITY_DEFAULT_STATION)) {
+      for (const station of Object.values(modes)) {
+        if (station) allStations.push(station);
+      }
+    }
+    for (const s of allStations) {
+      expect(STATION_COORDS[s], `${s} not in STATION_COORDS`).toBeDefined();
+    }
+  });
+});
+
+describe('B-AI2b — inferDefaultStation (PDF-issue-2 v4)', () => {
+  it('KTX mode — KTX/SRT/ITX 모두 ktx 매핑 반환', () => {
+    expect(inferDefaultStation('Seoul', 'KTX')).toBe('서울역');
+    expect(inferDefaultStation('Seoul', 'SRT')).toBe('서울역');
+    expect(inferDefaultStation('Seoul', 'ITX')).toBe('서울역');
+    expect(inferDefaultStation('Busan', 'KTX')).toBe('부산역');
+  });
+
+  it('Air mode — air 매핑 반환', () => {
+    expect(inferDefaultStation('Jeju', 'Air')).toBe('제주국제공항');
+    expect(inferDefaultStation('Seoul', 'Air')).toBe('김포국제공항');
+    expect(inferDefaultStation('Busan', 'Flight')).toBe('김해국제공항');
+  });
+
+  it('Bus mode — bus 매핑 반환', () => {
+    expect(inferDefaultStation('Seoul', 'Bus')).toBe('서울고속버스터미널');
+    expect(inferDefaultStation('Gyeongju', 'Bus')).toBe('경주시외버스터미널');
+    expect(inferDefaultStation('Gyeongju', 'Coach')).toBe('경주시외버스터미널');
+  });
+
+  it('미등록 city/mode 조합 → null', () => {
+    expect(inferDefaultStation('Jeju', 'KTX')).toBeNull(); // 제주 KTX 없음
+    expect(inferDefaultStation('Gyeongju', 'KTX')).toBeNull(); // 경주 KTX 없음
+    expect(inferDefaultStation('Daejeon', 'Air')).toBeNull(); // 대전 공항 없음
+    expect(inferDefaultStation('Unknownville', 'Bus')).toBeNull();
+  });
+
+  it('빈 / null 입력 → null (안전)', () => {
+    expect(inferDefaultStation('', 'KTX')).toBeNull();
+    expect(inferDefaultStation('Seoul', '')).toBeNull();
+    expect(inferDefaultStation(null as unknown as string, 'KTX')).toBeNull();
+    expect(inferDefaultStation('Seoul', null as unknown as string)).toBeNull();
+  });
+
+  it('대소문자 / 공백 robust', () => {
+    // mode 는 toLowerCase().trim() 이라 'ktx' 'KTX' '  KTX  ' 모두 OK
+    expect(inferDefaultStation('Seoul', '  KTX  ')).toBe('서울역');
+    expect(inferDefaultStation('Seoul', 'ktx')).toBe('서울역');
+    expect(inferDefaultStation('Seoul', 'kTx')).toBe('서울역');
   });
 });

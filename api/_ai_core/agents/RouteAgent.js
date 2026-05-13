@@ -44,6 +44,50 @@ export function lookupStationCoord(stationName) {
   return STATION_COORDS[trimmed] || null;
 }
 
+// ── city → default station 매핑 (PDF-issue-2 v4, 2026-05-14) ─────────────
+// STANDARD_INTERCITY 에 등록 안 된 city pair (예: Suwon-Daejeon) 의 fallback —
+// 각 city 의 mode 별 기본 정거장. RouteAgent 가 from_station/to_station 없는
+// fallback intercity 도 station 좌표 기반 bookend 계산 가능.
+export const CITY_DEFAULT_STATION = {
+  Seoul:     { ktx: '서울역',        air: '김포국제공항',    bus: '서울고속버스터미널' },
+  Busan:     { ktx: '부산역',        air: '김해국제공항',    bus: '부산종합버스터미널' },
+  Jeju:      {                      air: '제주국제공항' },
+  Daegu:     { ktx: '동대구역',      air: '대구국제공항' },
+  Daejeon:   { ktx: '대전역' },
+  Gwangju:   { ktx: '광주송정역' },
+  Jeonju:    { ktx: '전주역' },
+  Gangneung: { ktx: '강릉역' },
+  Yeosu:     { ktx: '여수EXPO역' },
+  Chuncheon: { ktx: '춘천역' },
+  Gapyeong:  { ktx: '가평역' },
+  Gyeongju:  {                                            bus: '경주시외버스터미널' },
+};
+
+/**
+ * city + mode → 기본 station 이름 추론. STANDARD_INTERCITY hit X 케이스 fallback.
+ * @param {string} city 예: "Seoul"
+ * @param {string} mode 예: "KTX" / "Air" / "Bus" / "ITX" / "SRT"
+ * @returns {string | null} station 이름 (예: "서울역") 또는 null
+ */
+export function inferDefaultStation(city, mode) {
+  if (!city || !mode) return null;
+  const cityKey = String(city).trim();
+  const modeLower = String(mode).toLowerCase().trim();
+  const cityStations = CITY_DEFAULT_STATION[cityKey];
+  if (!cityStations) return null;
+  // mode → station type 매핑 (KTX/SRT/ITX → ktx, Air → air, Bus → bus)
+  if (modeLower === 'ktx' || modeLower === 'srt' || modeLower === 'itx') {
+    return cityStations.ktx || null;
+  }
+  if (modeLower === 'air' || modeLower === 'flight') {
+    return cityStations.air || null;
+  }
+  if (modeLower === 'bus' || modeLower === 'coach') {
+    return cityStations.bus || null;
+  }
+  return null;
+}
+
 // ── city family normalization (PDF-issue-3 helper, 2026-05-14) ──────────
 // 부산/busan/busan_city 같은 다양한 표기를 family key 로 정규화 — 동일 city 판정용.
 function cityFamily(raw) {
@@ -645,6 +689,23 @@ export class RouteAgent extends BaseAgent {
             // UI (DayTimeline) 가 intercity 전후 segment 표시. ODsay 실패 시 graceful skip.
             if (isCityChangeDay && dayPlan.intercity_transit) {
                 const it = dayPlan.intercity_transit;
+                // PDF-issue-2 v4 (2026-05-14): Gemini 또는 fallback 가 from_station/to_station
+                // 미명시 케이스 보강 — city + mode 기반 inferDefaultStation 으로 추론.
+                // 이미 명시되어 있으면 그대로 사용 (override X). 회귀 안전망.
+                if (!it.from_station && it.from_city && it.mode) {
+                    const inferred = inferDefaultStation(it.from_city, it.mode);
+                    if (inferred) {
+                        it.from_station = inferred;
+                        console.log(`  [Route] Day ${dayPlan.day || '?'}: from_station inferred → ${inferred} (city=${it.from_city}, mode=${it.mode})`);
+                    }
+                }
+                if (!it.to_station && it.to_city && it.mode) {
+                    const inferred = inferDefaultStation(it.to_city, it.mode);
+                    if (inferred) {
+                        it.to_station = inferred;
+                        console.log(`  [Route] Day ${dayPlan.day || '?'}: to_station inferred → ${inferred} (city=${it.to_city}, mode=${it.mode})`);
+                    }
+                }
                 // Phase 2.4a: 이전 day hotel → from_station
                 if (it.from_station && prevDayHotelCoord && prevDayHotelCoord.lat && prevDayHotelCoord.lng) {
                     const fromStationCoord = lookupStationCoord(it.from_station);
@@ -1210,7 +1271,9 @@ export class RouteAgent extends BaseAgent {
                 };
                 console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity} (${std.from_station} → ${std.to_station})`);
             } else {
-                // 표준 데이터 없는 도시쌍 — 보수적 default (Bus 2시간)
+                // 표준 데이터 없는 도시쌍 — 보수적 default (Bus 2시간).
+                // PDF-issue-2 v4 (2026-05-14): from_station/to_station 도 city 기반 추론
+                // (CITY_DEFAULT_STATION lookup) — UI bookend segment 표시 가능.
                 d.intercity_transit = {
                     mode: 'Bus',
                     from_city: prevCity,
@@ -1223,10 +1286,10 @@ export class RouteAgent extends BaseAgent {
                     arrival_at: '11:00',
                     instruction: `${prevCity} → ${dCity} via Bus (~2h, ₩15,000)`,
                     booking_url: 'https://www.kobus.co.kr',
-                    from_station: null,
-                    to_station: null,
+                    from_station: inferDefaultStation(prevCity, 'Bus'),
+                    to_station: inferDefaultStation(dCity, 'Bus'),
                 };
-                console.log(`  [Route] multi-city Day ${d.day || i+1}: generic Bus fallback ${prevCity}→${dCity}`);
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: generic Bus fallback ${prevCity}→${dCity} (stations: ${d.intercity_transit.from_station || '?'} → ${d.intercity_transit.to_station || '?'})`);
             }
         }
     }
