@@ -190,7 +190,17 @@ async function reportError(err, ctx) {
 //   ≥3 large bags, OR (≥2 large bags AND ≥4 pax), OR (≥2 mediums AND ≥1 large
 //   AND ≥3 pax) — anything that clearly won't fit in a sedan trunk.
 function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount }) {
-  const hour = arrivalTimeHHMM ? parseInt(arrivalTimeHHMM.split(':')[0], 10) : null;
+  // 2026-05-13 PR (Critical C3 — Agent X audit): HH:MM 형식 검증.
+  // 기존: arrivalTimeHHMM 형식 검증 없음 → "9:30 " / "오전 9시" / "ABCDE" 등
+  // 비정상 입력 시 parseInt 가 NaN 반환 → lateNight=false 가정 → 잘못된 추천.
+  // /^\d{1,2}:\d{2}$/ 매칭 + 0-23 범위 확인.
+  let hour = null;
+  if (arrivalTimeHHMM && /^\d{1,2}:\d{2}$/.test(arrivalTimeHHMM)) {
+    const parsed = parseInt(arrivalTimeHHMM.split(':')[0], 10);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed < 24) {
+      hour = parsed;
+    }
+  }
   const lateNight = hour !== null && (hour >= 23 || hour < 5);
   const large = luggage?.large || 0;
   const medium = luggage?.medium || 0;
