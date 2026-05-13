@@ -140,9 +140,32 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       </div>
 
       {/* B9-39 (2026-05-09): 다도시 plan 의 도시 간 이동 카드 (KTX/항공/버스).
-          intercity_transit 가 있을 때만 노출 — 단일 도시 plan = 미노출. */}
+          intercity_transit 가 있을 때만 노출 — 단일 도시 plan = 미노출.
+          PDF-issue-2 (2026-05-14): 전후 bookend segment 표시 — 사용자 PDF "부산호텔→
+          부산역" + "서울역→명동호텔" transit 누락 회귀 fix. RouteAgent 가 intercity_transit
+          .lodging_to_station + station_to_lodging 채우면 LodgingBookend 로 표시. */}
       {intercity && intercity.mode && (
-        <IntercityTransitCard intercity={intercity} language={language} pd={pd} />
+        <>
+          {/* 전 bookend: 이전 day 호텔 → from_station */}
+          {(intercity as IntercityTransitSegment & { lodging_to_station?: TransitFromPrev }).lodging_to_station && (
+            <LodgingBookend
+              transit={(intercity as IntercityTransitSegment & { lodging_to_station?: TransitFromPrev }).lodging_to_station as TransitFromPrev}
+              variant="depart"
+              lodgingLabel={`${intercity.from_city || ''} 호텔`.trim() || undefined}
+              otherLabel={(intercity as IntercityTransitSegment & { from_station?: string | null }).from_station || ''}
+            />
+          )}
+          <IntercityTransitCard intercity={intercity} language={language} pd={pd} />
+          {/* 후 bookend: to_station → 새 day 호텔 */}
+          {(intercity as IntercityTransitSegment & { station_to_lodging?: TransitFromPrev }).station_to_lodging && (
+            <LodgingBookend
+              transit={(intercity as IntercityTransitSegment & { station_to_lodging?: TransitFromPrev }).station_to_lodging as TransitFromPrev}
+              variant="return"
+              lodgingLabel={`${intercity.to_city || ''} 호텔`.trim() || undefined}
+              otherLabel={(intercity as IntercityTransitSegment & { to_station?: string | null }).to_station || ''}
+            />
+          )}
+        </>
       )}
 
       {/* Charter CTA -- shown when transit is complex */}

@@ -243,6 +243,35 @@ export function validatePatternStructure(itinerary, request = {}) {
       }
     }
 
+    // B-LCC (PDF-issue-3, 2026-05-14): 다도시 plan 의 day.lodging_city 일관성.
+    //   day.lodging_city 가 명시되어 있을 때:
+    //     - city-change day (intercity_transit 있음): lodging_city = intercity_transit.to_city
+    //     - 일반 day: lodging_city = day.city
+    //   사용자 PDF 검토 (2026-05-14): Day 4 lodging context 가 Day 3 이전 city (부산)
+    //   잔존 → 모순. Gemini 가 day.lodging_city 채울 때 일관성 강제.
+    //   주의: 강제 throw 가 아닌 errors.push (caller 가 retry/throw 결정).
+    if (isMultiCity && d?.lodging_city) {
+      const lodgingCity = String(d.lodging_city).trim();
+      const dayCity = String(d.city || '').trim();
+      const intercityTo = String(d.intercity_transit?.to_city || '').trim();
+      const lodgingCityLow = lodgingCity.toLowerCase();
+      if (d.intercity_transit?.to_city) {
+        // city-change day → lodging_city = to_city
+        if (intercityTo.toLowerCase() !== lodgingCityLow) {
+          errors.push(
+            `Day ${dayNum}: city-change day lodging_city="${lodgingCity}" ≠ intercity_transit.to_city="${intercityTo}" (B-LCC)`
+          );
+        }
+      } else if (dayCity) {
+        // 일반 day → lodging_city = day.city
+        if (dayCity.toLowerCase() !== lodgingCityLow) {
+          errors.push(
+            `Day ${dayNum}: lodging_city="${lodgingCity}" ≠ day.city="${dayCity}" (B-LCC)`
+          );
+        }
+      }
+    }
+
     // B-14: stop start_time hour < 24. "HH:MM" 형식. 25:00 / 24:30 등 차단.
     for (const s of stops) {
       const t = s?.start_time || '';

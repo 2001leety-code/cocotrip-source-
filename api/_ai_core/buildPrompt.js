@@ -395,6 +395,7 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
 - \`days[].city\` = 'Busan' | 'Seoul' | 'Jeju' | 'Gyeongju' | 'Jeonju' 등.
 - \`theme\` 도 city prefix 권장: "Busan Day 1 — 해운대 & 광안리"
 - regions.length === 1 (단일 도시) 이면 \`city\` 필드 생략 가능 (frontend 가 regions[0] fallback).
+- **(PDF-issue-3, 2026-05-14)** 다도시 plan 의 각 day 에 \`days[].lodging_city\` 도 명시 (어느 city 에서 자는지). 보통 \`day.city\` 와 동일하지만 city-change day 의 lodging 이 도착 city 인 경우는 \`lodging_city = intercity_transit.to_city\` 로 일치시킴.
 
 ### 3. 도시가 바뀌는 day 처리 (CRITICAL)
 - 그 day 첫 stop 으로 \`category:"transit"\` "KTX 부산→서울" 같은 가짜 stop **절대 추가하지 말 것**.
@@ -411,6 +412,8 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
       "to_city": "Seoul",
       "from_city_display": "Busan",
       "to_city_display": "Seoul",
+      "from_station": "부산역",
+      "to_station": "서울역",
       "est_min": 165,
       "est_fare_krw": 59800,
       "recommended_depart": "08:30",

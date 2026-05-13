@@ -3,6 +3,166 @@ import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 import { AIRPORT_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
 
+// ── intercity station coordinates (PDF-issue-2 fix, 2026-05-14) ─────────
+// KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
+// 의 hotel→station + station→new_hotel bookend transit 계산할 때 사용.
+// UI 도 intercity 전후 segment 표시 가능.
+export const STATION_COORDS = {
+  // ── KTX/SRT 주요역 ─────────────────────────────────
+  '서울역':         { lat: 37.5547, lng: 126.9706, label: '서울역' },
+  '용산역':         { lat: 37.5298, lng: 126.9648, label: '용산역' },
+  '청량리역':       { lat: 37.5800, lng: 127.0470, label: '청량리역' },
+  '부산역':         { lat: 35.1149, lng: 129.0411, label: '부산역' },
+  '동대구역':       { lat: 35.8772, lng: 128.6286, label: '동대구역' },
+  '대전역':         { lat: 36.3322, lng: 127.4346, label: '대전역' },
+  '광주송정역':     { lat: 35.1357, lng: 126.7943, label: '광주송정역' },
+  '전주역':         { lat: 35.8467, lng: 127.1539, label: '전주역' },
+  '강릉역':         { lat: 37.7644, lng: 128.8997, label: '강릉역' },
+  '여수EXPO역':     { lat: 34.7589, lng: 127.7426, label: '여수EXPO역' },
+  '춘천역':         { lat: 37.8849, lng: 127.7188, label: '춘천역' },
+  '가평역':         { lat: 37.8126, lng: 127.5108, label: '가평역' },
+  // ── 공항 ──────────────────────────────────────────
+  '김포국제공항':   { lat: 37.5589, lng: 126.7906, label: '김포국제공항' },
+  '인천국제공항':   { lat: 37.4602, lng: 126.4407, label: '인천국제공항' },
+  '김해국제공항':   { lat: 35.1795, lng: 128.9381, label: '김해국제공항' },
+  '제주국제공항':   { lat: 33.5113, lng: 126.4929, label: '제주국제공항' },
+  '대구국제공항':   { lat: 35.8980, lng: 128.6593, label: '대구국제공항' },
+  // ── 고속/시외버스 터미널 ───────────────────────────
+  '서울고속버스터미널':   { lat: 37.5044, lng: 127.0048, label: '서울고속버스터미널' },
+  '부산종합버스터미널':   { lat: 35.2117, lng: 129.0871, label: '부산종합버스터미널' },
+  '경주시외버스터미널':   { lat: 35.8554, lng: 129.2284, label: '경주시외버스터미널' },
+};
+
+/**
+ * station label → coord lookup. 등록 안 된 station 이면 null.
+ * @param {string} stationName 예: "부산역" / "김포국제공항"
+ * @returns {{ lat: number, lng: number, label: string } | null}
+ */
+export function lookupStationCoord(stationName) {
+  if (!stationName || typeof stationName !== 'string') return null;
+  const trimmed = stationName.trim();
+  return STATION_COORDS[trimmed] || null;
+}
+
+// ── city → default station 매핑 (PDF-issue-2 v4, 2026-05-14) ─────────────
+// STANDARD_INTERCITY 에 등록 안 된 city pair (예: Suwon-Daejeon) 의 fallback —
+// 각 city 의 mode 별 기본 정거장. RouteAgent 가 from_station/to_station 없는
+// fallback intercity 도 station 좌표 기반 bookend 계산 가능.
+export const CITY_DEFAULT_STATION = {
+  Seoul:     { ktx: '서울역',        air: '김포국제공항',    bus: '서울고속버스터미널' },
+  Busan:     { ktx: '부산역',        air: '김해국제공항',    bus: '부산종합버스터미널' },
+  Jeju:      {                      air: '제주국제공항' },
+  Daegu:     { ktx: '동대구역',      air: '대구국제공항' },
+  Daejeon:   { ktx: '대전역' },
+  Gwangju:   { ktx: '광주송정역' },
+  Jeonju:    { ktx: '전주역' },
+  Gangneung: { ktx: '강릉역' },
+  Yeosu:     { ktx: '여수EXPO역' },
+  Chuncheon: { ktx: '춘천역' },
+  Gapyeong:  { ktx: '가평역' },
+  Gyeongju:  {                                            bus: '경주시외버스터미널' },
+};
+
+/**
+ * city + mode → 기본 station 이름 추론. STANDARD_INTERCITY hit X 케이스 fallback.
+ * @param {string} city 예: "Seoul"
+ * @param {string} mode 예: "KTX" / "Air" / "Bus" / "ITX" / "SRT"
+ * @returns {string | null} station 이름 (예: "서울역") 또는 null
+ */
+export function inferDefaultStation(city, mode) {
+  if (!city || !mode) return null;
+  const cityKey = String(city).trim();
+  const modeLower = String(mode).toLowerCase().trim();
+  const cityStations = CITY_DEFAULT_STATION[cityKey];
+  if (!cityStations) return null;
+  // mode → station type 매핑 (KTX/SRT/ITX → ktx, Air → air, Bus → bus)
+  if (modeLower === 'ktx' || modeLower === 'srt' || modeLower === 'itx') {
+    return cityStations.ktx || null;
+  }
+  if (modeLower === 'air' || modeLower === 'flight') {
+    return cityStations.air || null;
+  }
+  if (modeLower === 'bus' || modeLower === 'coach') {
+    return cityStations.bus || null;
+  }
+  return null;
+}
+
+// ── city family normalization (PDF-issue-3 helper, 2026-05-14) ──────────
+// 부산/busan/busan_city 같은 다양한 표기를 family key 로 정규화 — 동일 city 판정용.
+function cityFamily(raw) {
+  if (!raw) return '';
+  const s = String(raw).toLowerCase().trim();
+  if (/busan|부산/i.test(s)) return 'busan';
+  if (/jeju|제주/i.test(s)) return 'jeju';
+  if (/seoul|서울/i.test(s)) return 'seoul';
+  if (/daegu|대구/i.test(s)) return 'daegu';
+  if (/gyeongju|경주/i.test(s)) return 'gyeongju';
+  if (/jeonju|전주/i.test(s)) return 'jeonju';
+  if (/gangneung|강릉/i.test(s)) return 'gangneung';
+  if (/yeosu|여수/i.test(s)) return 'yeosu';
+  return s;
+}
+
+/**
+ * Day 의 city 가 trip 첫 city 와 같은 family 인지 판정.
+ * 다도시 plan 의 day-level hotel coord 결정에 사용.
+ *
+ * @param {string} dCityRaw — 예: "Seoul", "서울", "seoul_city"
+ * @param {string} tripFirstRegion — 예: "busan"
+ * @returns {boolean} 같은 city = true (단도시 / city 미정 도 true → trip-level 사용)
+ */
+export function isSameAsFirstCity(dCityRaw, tripFirstRegion) {
+  if (!tripFirstRegion || !dCityRaw) return true;
+  return cityFamily(dCityRaw) === cityFamily(tripFirstRegion);
+}
+
+/**
+ * 다도시 plan 의 day-level hotel coord 결정.
+ *   - 단도시 / day.city 미정 / 같은 city continuing → trip-level (input hotel)
+ *   - 다른 city → recommended_zones[city] 우선 → CITY_CENTER_COORDS[city] fallback
+ *
+ * PDF-issue-3 fix (2026-05-14): 이전엔 trip-level hotelLat/Lng 만 사용 → 다도시 plan 의 모든 day 가 첫 city 호텔 좌표 기준 → 사용자 PDF "부산 해운대 → 명동 호텔" 모순.
+ *
+ * @param {object} dayPlan — Gemini plan 의 day 객체 (city 필드 사용)
+ * @param {object} ctx — { isMultiCity, recommendedZonesMap, tripFirstRegion, tripHotel: { lat, lng, label, source } }
+ * @returns {{ lat: number|null, lng: number|null, label: string|null, source: string|null }}
+ */
+export function getDayHotelCoord(dayPlan, ctx) {
+  const { isMultiCity, recommendedZonesMap, tripFirstRegion, tripHotel } = ctx || {};
+  const trip = tripHotel || { lat: null, lng: null, label: null, source: null };
+  // 다도시 plan 아니거나 day.city 미정 → trip-level 사용
+  if (!isMultiCity || !dayPlan?.city) {
+    return { lat: trip.lat, lng: trip.lng, label: trip.label, source: trip.source };
+  }
+  // 같은 city continuing → trip-level
+  if (isSameAsFirstCity(dayPlan.city, tripFirstRegion)) {
+    return { lat: trip.lat, lng: trip.lng, label: trip.label, source: trip.source };
+  }
+  // 다른 city — recommended_zones[city] 우선
+  const dCityKey = String(dayPlan.city).toLowerCase().trim();
+  if (recommendedZonesMap) {
+    for (const [k, v] of Object.entries(recommendedZonesMap)) {
+      if (!v || typeof v !== 'string') continue;
+      const kLower = String(k).toLowerCase().trim();
+      if (kLower === dCityKey || dCityKey.includes(kLower) || kLower.includes(dCityKey)) {
+        const z = lookupZoneCoord(v);
+        if (z) {
+          return { lat: z.lat, lng: z.lng, label: z.label, source: 'multi_city_zone' };
+        }
+      }
+    }
+  }
+  // CITY_CENTER_COORDS fallback (busan/jeju/seoul/...)
+  for (const [key, coord] of Object.entries(CITY_CENTER_COORDS)) {
+    if (dCityKey.includes(key) || key.includes(dCityKey)) {
+      return { lat: coord.lat, lng: coord.lng, label: coord.label, source: 'multi_city_center' };
+    }
+  }
+  // 마지막 fallback — trip-level (회귀 안전망)
+  return { lat: trip.lat, lng: trip.lng, label: trip.label, source: trip.source };
+}
+
 // Sentry import은 dynamic — `_shared/sentry.js`의 captureError가 SENTRY_DSN
 // 없으면 no-op이라 안전. 실패해도 import 자체로 plan 깨지지 않게 try/catch.
 let _captureError = null;
@@ -341,6 +501,34 @@ export class RouteAgent extends BaseAgent {
             this._enrichMultiCityDays(daysList, regionsList);
         }
 
+        // ════════════════════════════════════════════════════════
+        // PDF-issue-3 fix (2026-05-14): day-level hotel coord 결정
+        // ════════════════════════════════════════════════════════
+        // 다도시 plan 의 각 day 는 그 day 의 city 에 맞는 hotel 좌표 사용:
+        //   - trip 첫 city continuing → trip-level hotelLat/hotelLng (입력 hotel)
+        //   - 다른 city (city-change 이후) → recommended_zones[city] 좌표
+        //     → 없으면 CITY_CENTER_COORDS[city] fallback
+        // 이전: 모든 day 가 trip-level hotelLat/Lng (첫 city 호텔) 사용 → 부산
+        //       도착·서울 이동 plan 의 Day 4 lodging_to_first 가 "부산 해운대 →
+        //       명동 호텔" 모순 표시 (사용자 PDF 검토 2026-05-14).
+        // prev-day hotel coord cache — Phase 2 loop 의 직전 iteration 결과를 다음
+        // iteration 의 intercity bookend segment 계산에 활용. city-change day 의
+        // hotel→from_station transit 을 그릴 때 출발지가 이전 day 의 hotel 좌표.
+        let prevDayHotelCoord = null;
+
+        const recommendedZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones))
+            ? data.recommended_zones
+            : null;
+        const tripFirstRegion = regionsList[0] ? String(regionsList[0]).toLowerCase().trim() : null;
+        // PDF-issue-3 v2 (2026-05-14): module-level helpers (getDayHotelCoord / isSameAsFirstCity)
+        // 사용 — closure 제거 + unit test 가능. context 묶어서 전달.
+        const dayHotelCtx = {
+            isMultiCity,
+            recommendedZonesMap,
+            tripFirstRegion,
+            tripHotel: { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource },
+        };
+
         for (const dayPlan of daysList) {
             const places = dayPlan.stops || dayPlan.places || [];
             // Derive weekday for first/last-train lookup. Gemini writes
@@ -477,84 +665,221 @@ export class RouteAgent extends BaseAgent {
             const BUFFER_MIN = 5; // 초행길 여유 시간
 
             // ════════════════════════════════════════════════════════
-            // Phase 2.5: 호텔 → 첫 번째 장소 경로 (hotelLat/hotelLng는 trip-level에서 이미 지오코딩됨)
+            // Phase 2.5: 호텔 → 첫 번째 장소 경로
             // ════════════════════════════════════════════════════════
-            // B9-39 (2026-05-09): 다도시 plan 의 도시 변경 day 는 hotelTransit skip.
-            // hotelLat/Lng 는 trip-level 호텔 (대개 첫 도시) 좌표. 도시 변경 day 의
-            // 첫 stop 까지 ODsay 호출하면 100km+ 거리라 의미 없는 경로 (또는 fail) 반환.
-            // 대신 day.intercity_transit 가 그 day 첫 stop 시작 시각의 근거.
-            // (isCityChangeDay 선언은 위로 이동 — B-11 TDZ fix, 2026-05-12)
+            // PDF-issue-3 fix (2026-05-14): day-level hotel 좌표 사용 (다도시 plan).
+            //   getDayHotelCoord(dayPlan) — day.city 가 trip 첫 city 와 다르면
+            //   recommended_zones[city] 또는 city center 좌표 반환. 같은 city 면
+            //   trip-level hotelLat/Lng 그대로.
+            //
+            // city-change day 의 hotelTransit:
+            //   이전 (B9-39): 무조건 skip (trip-level hotel 이 100km+ 거리)
+            //   이후 (PDF-issue-3): day-level hotel = 새 city 좌표라 ODsay 호출 정상.
+            //   사용자 PDF 검토 (2026-05-14): Day 4 lodging_to_first 가 "부산 해운대
+            //   (이전 city) → 명동 호텔 (Day 4 첫 stop)" 모순 transit 표시되던 회귀 fix.
+            const dayHotel = getDayHotelCoord(dayPlan, dayHotelCtx);
+
+            // ════════════════════════════════════════════════════════
+            // Phase 2.4: city-change day intercity bookend (PDF-issue-2 fix, 2026-05-14)
+            // ════════════════════════════════════════════════════════
+            // city-change day 의 intercity_transit (KTX 부산→서울 등) 전후에:
+            //   - lodging_to_station: 이전 day hotel → intercity.from_station (예: 부산역)
+            //   - station_to_lodging: intercity.to_station → 새 day hotel (예: 명동 호텔)
+            // 사용자 PDF 검토에서 "부산호텔→부산역", "서울역→명동호텔" 표시 안 됨 → 본 fix.
+            // UI (DayTimeline) 가 intercity 전후 segment 표시. ODsay 실패 시 graceful skip.
+            if (isCityChangeDay && dayPlan.intercity_transit) {
+                const it = dayPlan.intercity_transit;
+                // PDF-issue-2 v4 (2026-05-14): Gemini 또는 fallback 가 from_station/to_station
+                // 미명시 케이스 보강 — city + mode 기반 inferDefaultStation 으로 추론.
+                // 이미 명시되어 있으면 그대로 사용 (override X). 회귀 안전망.
+                if (!it.from_station && it.from_city && it.mode) {
+                    const inferred = inferDefaultStation(it.from_city, it.mode);
+                    if (inferred) {
+                        it.from_station = inferred;
+                        console.log(`  [Route] Day ${dayPlan.day || '?'}: from_station inferred → ${inferred} (city=${it.from_city}, mode=${it.mode})`);
+                    }
+                }
+                if (!it.to_station && it.to_city && it.mode) {
+                    const inferred = inferDefaultStation(it.to_city, it.mode);
+                    if (inferred) {
+                        it.to_station = inferred;
+                        console.log(`  [Route] Day ${dayPlan.day || '?'}: to_station inferred → ${inferred} (city=${it.to_city}, mode=${it.mode})`);
+                    }
+                }
+                // Phase 2.4a: 이전 day hotel → from_station
+                if (it.from_station && prevDayHotelCoord && prevDayHotelCoord.lat && prevDayHotelCoord.lng) {
+                    const fromStationCoord = lookupStationCoord(it.from_station);
+                    if (fromStationCoord) {
+                        try {
+                            const stationPlace = { lat: fromStationCoord.lat, lng: fromStationCoord.lng, name: it.from_station, display_name: it.from_station };
+                            const prevHotelPlace = { lat: prevDayHotelCoord.lat, lng: prevDayHotelCoord.lng, name: prevDayHotelCoord.label || 'Hotel', display_name: prevDayHotelCoord.label || 'Hotel' };
+                            const transitData = await this._getTransitData(prevHotelPlace, stationPlace, clientId, clientSecret, -1, dayOfWeek);
+                            const pt = transitData.publicTransit;
+                            it.lodging_to_station = {
+                                method: pt?.method || 'subway',
+                                mode: methodToMode(pt?.method) || 'subway',
+                                instruction: pt?.summary || `Take public transit from ${prevDayHotelCoord.label || 'hotel'} to ${it.from_station}`,
+                                step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
+                                steps_detail: pt?.steps || [],
+                                est_min: pt?.duration || transitData.durationMin || 30,
+                                est_fare_krw: pt?.fare || 0,
+                                source: 'odsay',
+                                from_label: prevDayHotelCoord.label || 'Hotel',
+                                to_label: it.from_station,
+                            };
+                            console.log(`  - [${prevDayHotelCoord.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station.est_min}min (intercity bookend pre)`);
+                        } catch (preErr) {
+                            console.warn(`  - intercity bookend pre (${it.from_station}) failed:`, preErr.message);
+                        }
+                    }
+                }
+                // Phase 2.4b: to_station → new day hotel
+                if (it.to_station && dayHotel.lat && dayHotel.lng) {
+                    const toStationCoord = lookupStationCoord(it.to_station);
+                    if (toStationCoord) {
+                        try {
+                            const stationPlace = { lat: toStationCoord.lat, lng: toStationCoord.lng, name: it.to_station, display_name: it.to_station };
+                            const newHotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
+                            const transitData = await this._getTransitData(stationPlace, newHotelPlace, clientId, clientSecret, -2, dayOfWeek);
+                            const pt = transitData.publicTransit;
+                            it.station_to_lodging = {
+                                method: pt?.method || 'subway',
+                                mode: methodToMode(pt?.method) || 'subway',
+                                instruction: pt?.summary || `Take public transit from ${it.to_station} to ${dayHotel.label || 'hotel'}`,
+                                step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
+                                steps_detail: pt?.steps || [],
+                                est_min: pt?.duration || transitData.durationMin || 30,
+                                est_fare_krw: pt?.fare || 0,
+                                source: 'odsay',
+                                from_label: it.to_station,
+                                to_label: dayHotel.label || 'Hotel',
+                            };
+                            console.log(`  - [${it.to_station}→${dayHotel.label || 'Hotel'}] ${it.station_to_lodging.est_min}min (intercity bookend post)`);
+                        } catch (postErr) {
+                            console.warn(`  - intercity bookend post (${it.to_station}) failed:`, postErr.message);
+                        }
+                    }
+                }
+            }
             let hotelTransit = null;
-            if (!isCityChangeDay && hotelLat && hotelLng && places.length > 0 && places[0].lat && places[0].lng) {
-                try {
-                    const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
-                    const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
-                    const pt = transitData.publicTransit;
-                    hotelTransit = {
-                        method: pt?.method || 'subway',
-                        mode: methodToMode(pt?.method) || 'subway',
-                        instruction: pt?.summary || `Take public transit from hotel to ${places[0].name || places[0].display_name || 'first stop'}`,
-                        step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
-                        steps_detail: pt?.steps || [],
-                        est_min: pt?.duration || transitData.durationMin || 25,
-                        est_fare_krw: pt?.fare || 0,
-                        source: 'odsay',
-                        from_label: 'Hotel',
-                    };
-                    console.log(`  - [Hotel→${places[0].name}] ${hotelTransit.est_min}min via ${hotelTransit.method}`);
-                } catch (hotelErr) {
-                    console.warn('  - Hotel→FirstStop route failed:', hotelErr.message);
+            if (dayHotel.lat && dayHotel.lng && places.length > 0 && places[0].lat && places[0].lng) {
+                // city-change day 의 first stop 이 새 city 라면 day-level hotel (새 city center)
+                // 와 가까운 거리 → ODsay 의미 있음. 단 동일 city 안에서도 100km+ 거리면 skip.
+                const haversineKm = this._haversineKm(dayHotel.lat, dayHotel.lng, places[0].lat, places[0].lng);
+                if (haversineKm > 100) {
+                    console.log(`  [Route] Day ${dayPlan.day || '?'}: day-hotel→first stop ${haversineKm.toFixed(1)}km > 100km, skip ODsay (의미 없음)`);
+                } else {
+                    try {
+                        const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
+                        const transitData = await this._getTransitData(hotelPlace, places[0], clientId, clientSecret, 0, dayOfWeek);
+                        const pt = transitData.publicTransit;
+                        hotelTransit = {
+                            method: pt?.method || 'subway',
+                            mode: methodToMode(pt?.method) || 'subway',
+                            instruction: pt?.summary || `Take public transit from ${dayHotel.label || 'hotel'} to ${places[0].name || places[0].display_name || 'first stop'}`,
+                            step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
+                            steps_detail: pt?.steps || [],
+                            est_min: pt?.duration || transitData.durationMin || 25,
+                            est_fare_krw: pt?.fare || 0,
+                            source: 'odsay',
+                            from_label: dayHotel.label || 'Hotel',
+                            // PDF-issue-3: day-level anchor 정보 명시 — UI 가 "부산 호텔" vs
+                            // "명동 호텔" 명확히 표시할 수 있도록.
+                            anchor_lat: dayHotel.lat,
+                            anchor_lng: dayHotel.lng,
+                            anchor_label: dayHotel.label || null,
+                            anchor_source: dayHotel.source || 'hotel',
+                        };
+                        console.log(`  - [${dayHotel.label || 'Hotel'}→${places[0].name}] ${hotelTransit.est_min}min via ${hotelTransit.method} (day-city=${dayPlan.city || '?'}, source=${dayHotel.source})`);
+                    } catch (hotelErr) {
+                        console.warn('  - Hotel→FirstStop route failed:', hotelErr.message);
+                    }
                 }
             }
             // day-level mirror — UI 의 LodgingBookend 컴포넌트가 day.lodging_to_first 로 직접 접근
             if (hotelTransit) {
                 dayPlan.lodging_to_first = hotelTransit;
+                // PDF-issue-3: day.lodging_city 명시 — UI 가 day 별 lodging context
+                // (부산 vs 서울) 구분 가능. 후속 PR 의 validateResponse 검증 대상.
+                if (dayPlan.city) dayPlan.lodging_city = dayPlan.city;
             }
 
             // ════════════════════════════════════════════════════════
             // Phase 2.6 (2026-05-08 신규): 마지막 장소 → 숙소 복귀 경로
             // ════════════════════════════════════════════════════════
             // 사용자 신고: "Day 마지막에 숙소 복귀 경로 안 나옴 → 저녁 식사 후 어디로?"
-            // 호텔/zone anchor 좌표가 있고, 마지막 stop 이 호텔과 다른 곳이면 ODsay 로 계산.
-            // B9-39: 다도시 plan 의 다른 도시 day 는 hotel 좌표 (trip 첫 도시) 와
-            // 마지막 stop 좌표가 100km+ 거리라 ODsay 무의미 → skip.
-            const dayHasDifferentCity = isMultiCity
-                && places.length > 0
-                && places[0].lat && places[0].lng
-                && hotelLat && hotelLng
-                && this._haversineKm(places[0].lat, places[0].lng, hotelLat, hotelLng) > 50;
+            // PDF-issue-3 fix (2026-05-14): day-level hotel 좌표 사용 — 다도시 plan
+            //   의 다른 city day 도 새 city hotel 기준으로 ODsay 호출 정상.
+            //   이전 (B9-39): 100km+ 거리면 skip (trip-level hotel 만 기준이라 잘못).
+            //   이후 (PDF-issue-3): day-level hotel = 그 day 의 city center, 거리는
+            //   자연스럽게 < 100km.
+            const lastPlaceCheck = places[places.length - 1];
+            const lastDistKm = (lastPlaceCheck?.lat && lastPlaceCheck?.lng && dayHotel.lat && dayHotel.lng)
+                ? this._haversineKm(lastPlaceCheck.lat, lastPlaceCheck.lng, dayHotel.lat, dayHotel.lng)
+                : null;
+            const dayHasDifferentCity = lastDistKm != null && lastDistKm > 50;
             if (dayHasDifferentCity) {
-                console.log(`  [Route] Day ${dayPlan.day || '?'}: different city from hotel (>${50}km), skip LastStop→Hotel ODsay`);
+                console.log(`  [Route] Day ${dayPlan.day || '?'}: last stop→day-hotel ${lastDistKm.toFixed(1)}km > 50km, skip LastStop→Hotel ODsay`);
             }
-            if (!dayHasDifferentCity && hotelLat && hotelLng && places.length > 0) {
+            if (!dayHasDifferentCity && dayHotel.lat && dayHotel.lng && places.length > 0) {
                 const lastPlace = places[places.length - 1];
                 if (lastPlace.lat && lastPlace.lng) {
-                    // 호텔과 같은 좌표(50m 이내) 이면 의미 없음 — skip
-                    const sameAsHotel = Math.abs(lastPlace.lat - hotelLat) < 0.0005
-                        && Math.abs(lastPlace.lng - hotelLng) < 0.0005;
+                    // day-hotel 과 같은 좌표(50m 이내) 이면 의미 없음 — skip
+                    const sameAsHotel = Math.abs(lastPlace.lat - dayHotel.lat) < 0.0005
+                        && Math.abs(lastPlace.lng - dayHotel.lng) < 0.0005;
                     if (!sameAsHotel) {
                         try {
-                            const hotelPlace = { lat: hotelLat, lng: hotelLng, name: 'Hotel', display_name: 'Hotel' };
+                            const hotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
                             const lastTransit = await this._getTransitData(lastPlace, hotelPlace, clientId, clientSecret, 999, dayOfWeek);
                             const pt = lastTransit.publicTransit;
                             const returnTransit = {
                                 method: pt?.method || 'subway',
                                 mode: methodToMode(pt?.method) || 'subway',
-                                instruction: pt?.summary || `Return to hotel from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
+                                instruction: pt?.summary || `Return to ${dayHotel.label || 'hotel'} from ${lastPlace.name || lastPlace.display_name || 'last stop'}`,
                                 step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
                                 steps_detail: pt?.steps || [],
                                 est_min: pt?.duration || lastTransit.durationMin || 25,
                                 est_fare_krw: pt?.fare || 0,
                                 source: 'odsay',
                                 from_label: lastPlace.display_name || lastPlace.name || 'last stop',
-                                to_label: 'Hotel',
+                                to_label: dayHotel.label || 'Hotel',
+                                anchor_lat: dayHotel.lat,
+                                anchor_lng: dayHotel.lng,
+                                anchor_label: dayHotel.label || null,
+                                anchor_source: dayHotel.source || 'hotel',
                                 _isLodgingReturn: true,
                             };
                             dayPlan.last_to_lodging = returnTransit;
-                            console.log(`  - [${lastPlace.name}→Hotel] ${returnTransit.est_min}min via ${returnTransit.method} (return)`);
+                            console.log(`  - [${lastPlace.name}→${dayHotel.label || 'Hotel'}] ${returnTransit.est_min}min via ${returnTransit.method} (return, day-city=${dayPlan.city || '?'})`);
                         } catch (retErr) {
                             console.warn('  - LastStop→Hotel route failed:', retErr.message);
                         }
+                    }
+                }
+            }
+
+            // ════════════════════════════════════════════════════════
+            // Phase 3.5 (PDF-issue-2 v2, 2026-05-14): city-change day currentTime 재조정
+            // ════════════════════════════════════════════════════════
+            // Phase 3 (currentTime 1차) 는 arrival_at + 30분 단순 buffer.
+            // 그 사이 Phase 2.4 (station_to_lodging) + Phase 2.5 (lodging_to_first) 가
+            // 실제 transit 시간을 채웠으면, 더 현실적인 first stop start_time 계산.
+            //   total = arrival + station→hotel + 15min(체크인) + hotel→first + 5min(출발)
+            // 결과가 기존 currentTime 보다 크면 갱신 (작으면 보수적으로 기존 유지).
+            if (isCityChangeDay && dayPlan.intercity_transit?.arrival_at) {
+                const it = dayPlan.intercity_transit;
+                const arrivalMin = this._parseTime(it.arrival_at);
+                const stationToHotelMin = (it.station_to_lodging && typeof it.station_to_lodging.est_min === 'number')
+                    ? it.station_to_lodging.est_min
+                    : 0;
+                const hotelToFirstMin = (dayPlan.lodging_to_first && typeof dayPlan.lodging_to_first.est_min === 'number')
+                    ? dayPlan.lodging_to_first.est_min
+                    : 0;
+                if (stationToHotelMin > 0 || hotelToFirstMin > 0) {
+                    const realisticMin = arrivalMin + stationToHotelMin + 15 + hotelToFirstMin + 5;
+                    if (realisticMin > currentTime) {
+                        console.log(`  [Route] Day ${dayPlan.day || '?'}: city change day refined ${this._formatTime(currentTime)} → ${this._formatTime(realisticMin)} (arr ${it.arrival_at} + sta→hotel ${stationToHotelMin}min + 15 + hotel→first ${hotelToFirstMin}min + 5)`);
+                        currentTime = realisticMin;
                     }
                 }
             }
@@ -667,6 +992,17 @@ export class RouteAgent extends BaseAgent {
             }
 
             console.log(`  [Route] Day ${dayPlan.day || '?'}: ${places.length} stops, time-stitched ${this._formatTime(this._parseTime(places[0]?.start_time || "09:00"))} ~ ${places[places.length - 1]?.start_time || '?'}`);
+
+            // PDF-issue-2/3: 다음 iteration 의 intercity bookend 계산용으로 현재
+            // day 의 hotel coord cache. dayHotel 이 valid 면 (lat/lng 둘 다) 업데이트.
+            if (dayHotel.lat && dayHotel.lng) {
+                prevDayHotelCoord = {
+                    lat: dayHotel.lat,
+                    lng: dayHotel.lng,
+                    label: dayHotel.label,
+                    source: dayHotel.source,
+                };
+            }
         }
 
         // Layer 4: Enforce transit completeness invariant
@@ -864,38 +1200,39 @@ export class RouteAgent extends BaseAgent {
         // ── Step 2: 도시 변경 day 의 intercity_transit fallback
         // 표준 KTX/Air/Bus 데이터 (Gemini prompt 와 일관).
         // Launch P1-2 (2026-05-10): 누락 노선 6쌍(12 entry) 추가.
-        // 강릉↔부산 / 여수↔서울 / 광주↔서울 / 대구↔부산 / 대구↔서울 / 제주↔대구.
-        // 가격·시간은 KTX/SRT 공식 시간표 + 항공 평균 기준 (2026-05 기준).
+        // PDF-issue-2 (2026-05-14): from_station/to_station + 좌표 추가 — RouteAgent
+        //   bookend transit 계산 + UI 가 KTX 전후 segment 표시 가능. STATION_COORDS 는
+        //   상수 헤더에서 정의 (모듈 레벨).
         const STANDARD_INTERCITY = {
-            'Busan-Seoul':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com' },
-            'Seoul-Busan':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com' },
-            'Busan-Daejeon':  { mode: 'KTX',     est_min: 95,  est_fare_krw: 36000, recommended_depart: '09:00', arrival_at: '10:35', booking_url: 'https://www.letskorail.com' },
-            'Daejeon-Busan':  { mode: 'KTX',     est_min: 95,  est_fare_krw: 36000, recommended_depart: '09:00', arrival_at: '10:35', booking_url: 'https://www.letskorail.com' },
-            'Jeju-Seoul':    { mode: 'Air',     est_min: 65,  est_fare_krw: 70000, recommended_depart: '10:00', arrival_at: '11:05', booking_url: 'https://www.trip.com' },
-            'Seoul-Jeju':    { mode: 'Air',     est_min: 65,  est_fare_krw: 70000, recommended_depart: '10:00', arrival_at: '11:05', booking_url: 'https://www.trip.com' },
-            'Jeju-Busan':    { mode: 'Air',     est_min: 50,  est_fare_krw: 60000, recommended_depart: '10:00', arrival_at: '10:50', booking_url: 'https://www.trip.com' },
-            'Busan-Jeju':    { mode: 'Air',     est_min: 50,  est_fare_krw: 60000, recommended_depart: '10:00', arrival_at: '10:50', booking_url: 'https://www.trip.com' },
-            'Seoul-Jeonju':   { mode: 'KTX',     est_min: 90,  est_fare_krw: 35000, recommended_depart: '09:00', arrival_at: '10:30', booking_url: 'https://www.letskorail.com' },
-            'Jeonju-Seoul':   { mode: 'KTX',     est_min: 90,  est_fare_krw: 35000, recommended_depart: '09:00', arrival_at: '10:30', booking_url: 'https://www.letskorail.com' },
-            'Seoul-Gangneung':{ mode: 'KTX',     est_min: 110, est_fare_krw: 28000, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
-            'Gangneung-Seoul':{ mode: 'KTX',     est_min: 110, est_fare_krw: 28000, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
-            'Busan-Gyeongju': { mode: 'Bus',     est_min: 60,  est_fare_krw: 7000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.kobus.co.kr' },
-            'Gyeongju-Busan': { mode: 'Bus',     est_min: 60,  est_fare_krw: 7000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.kobus.co.kr' },
-            'Seoul-Gapyeong': { mode: 'ITX',     est_min: 60,  est_fare_krw: 8000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.letskorail.com' },
-            'Seoul-Chuncheon':{ mode: 'ITX',     est_min: 75,  est_fare_krw: 9000,  recommended_depart: '09:00', arrival_at: '10:15', booking_url: 'https://www.letskorail.com' },
+            'Busan-Seoul':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com', from_station: '부산역', to_station: '서울역' },
+            'Seoul-Busan':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '부산역' },
+            'Busan-Daejeon':  { mode: 'KTX',     est_min: 95,  est_fare_krw: 36000, recommended_depart: '09:00', arrival_at: '10:35', booking_url: 'https://www.letskorail.com', from_station: '부산역', to_station: '대전역' },
+            'Daejeon-Busan':  { mode: 'KTX',     est_min: 95,  est_fare_krw: 36000, recommended_depart: '09:00', arrival_at: '10:35', booking_url: 'https://www.letskorail.com', from_station: '대전역', to_station: '부산역' },
+            'Jeju-Seoul':    { mode: 'Air',     est_min: 65,  est_fare_krw: 70000, recommended_depart: '10:00', arrival_at: '11:05', booking_url: 'https://www.trip.com', from_station: '제주국제공항', to_station: '김포국제공항' },
+            'Seoul-Jeju':    { mode: 'Air',     est_min: 65,  est_fare_krw: 70000, recommended_depart: '10:00', arrival_at: '11:05', booking_url: 'https://www.trip.com', from_station: '김포국제공항', to_station: '제주국제공항' },
+            'Jeju-Busan':    { mode: 'Air',     est_min: 50,  est_fare_krw: 60000, recommended_depart: '10:00', arrival_at: '10:50', booking_url: 'https://www.trip.com', from_station: '제주국제공항', to_station: '김해국제공항' },
+            'Busan-Jeju':    { mode: 'Air',     est_min: 50,  est_fare_krw: 60000, recommended_depart: '10:00', arrival_at: '10:50', booking_url: 'https://www.trip.com', from_station: '김해국제공항', to_station: '제주국제공항' },
+            'Seoul-Jeonju':   { mode: 'KTX',     est_min: 90,  est_fare_krw: 35000, recommended_depart: '09:00', arrival_at: '10:30', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '전주역' },
+            'Jeonju-Seoul':   { mode: 'KTX',     est_min: 90,  est_fare_krw: 35000, recommended_depart: '09:00', arrival_at: '10:30', booking_url: 'https://www.letskorail.com', from_station: '전주역', to_station: '서울역' },
+            'Seoul-Gangneung':{ mode: 'KTX',     est_min: 110, est_fare_krw: 28000, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '강릉역' },
+            'Gangneung-Seoul':{ mode: 'KTX',     est_min: 110, est_fare_krw: 28000, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com', from_station: '강릉역', to_station: '서울역' },
+            'Busan-Gyeongju': { mode: 'Bus',     est_min: 60,  est_fare_krw: 7000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.kobus.co.kr', from_station: '부산종합버스터미널', to_station: '경주시외버스터미널' },
+            'Gyeongju-Busan': { mode: 'Bus',     est_min: 60,  est_fare_krw: 7000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.kobus.co.kr', from_station: '경주시외버스터미널', to_station: '부산종합버스터미널' },
+            'Seoul-Gapyeong': { mode: 'ITX',     est_min: 60,  est_fare_krw: 8000,  recommended_depart: '09:00', arrival_at: '10:00', booking_url: 'https://www.letskorail.com', from_station: '청량리역', to_station: '가평역' },
+            'Seoul-Chuncheon':{ mode: 'ITX',     est_min: 75,  est_fare_krw: 9000,  recommended_depart: '09:00', arrival_at: '10:15', booking_url: 'https://www.letskorail.com', from_station: '청량리역', to_station: '춘천역' },
             // P1-2 신규 노선 (2026-05-10)
-            'Gangneung-Busan':{ mode: 'KTX',     est_min: 330, est_fare_krw: 70000, recommended_depart: '08:00', arrival_at: '13:30', booking_url: 'https://www.letskorail.com' },
-            'Busan-Gangneung':{ mode: 'KTX',     est_min: 330, est_fare_krw: 70000, recommended_depart: '08:00', arrival_at: '13:30', booking_url: 'https://www.letskorail.com' },
-            'Yeosu-Seoul':    { mode: 'KTX',     est_min: 240, est_fare_krw: 55000, recommended_depart: '08:30', arrival_at: '12:30', booking_url: 'https://www.letskorail.com' },
-            'Seoul-Yeosu':    { mode: 'KTX',     est_min: 240, est_fare_krw: 55000, recommended_depart: '08:30', arrival_at: '12:30', booking_url: 'https://www.letskorail.com' },
-            'Gwangju-Seoul':  { mode: 'KTX',     est_min: 120, est_fare_krw: 47000, recommended_depart: '09:00', arrival_at: '11:00', booking_url: 'https://www.letskorail.com' },
-            'Seoul-Gwangju':  { mode: 'KTX',     est_min: 120, est_fare_krw: 47000, recommended_depart: '09:00', arrival_at: '11:00', booking_url: 'https://www.letskorail.com' },
-            'Daegu-Busan':    { mode: 'KTX',     est_min: 65,  est_fare_krw: 17000, recommended_depart: '09:00', arrival_at: '10:05', booking_url: 'https://www.letskorail.com' },
-            'Busan-Daegu':    { mode: 'KTX',     est_min: 65,  est_fare_krw: 17000, recommended_depart: '09:00', arrival_at: '10:05', booking_url: 'https://www.letskorail.com' },
-            'Daegu-Seoul':    { mode: 'KTX',     est_min: 110, est_fare_krw: 43500, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
-            'Seoul-Daegu':    { mode: 'KTX',     est_min: 110, est_fare_krw: 43500, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com' },
-            'Jeju-Daegu':    { mode: 'Air',     est_min: 60,  est_fare_krw: 80000, recommended_depart: '10:00', arrival_at: '11:00', booking_url: 'https://www.trip.com' },
-            'Daegu-Jeju':    { mode: 'Air',     est_min: 60,  est_fare_krw: 80000, recommended_depart: '10:00', arrival_at: '11:00', booking_url: 'https://www.trip.com' },
+            'Gangneung-Busan':{ mode: 'KTX',     est_min: 330, est_fare_krw: 70000, recommended_depart: '08:00', arrival_at: '13:30', booking_url: 'https://www.letskorail.com', from_station: '강릉역', to_station: '부산역' },
+            'Busan-Gangneung':{ mode: 'KTX',     est_min: 330, est_fare_krw: 70000, recommended_depart: '08:00', arrival_at: '13:30', booking_url: 'https://www.letskorail.com', from_station: '부산역', to_station: '강릉역' },
+            'Yeosu-Seoul':    { mode: 'KTX',     est_min: 240, est_fare_krw: 55000, recommended_depart: '08:30', arrival_at: '12:30', booking_url: 'https://www.letskorail.com', from_station: '여수EXPO역', to_station: '서울역' },
+            'Seoul-Yeosu':    { mode: 'KTX',     est_min: 240, est_fare_krw: 55000, recommended_depart: '08:30', arrival_at: '12:30', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '여수EXPO역' },
+            'Gwangju-Seoul':  { mode: 'KTX',     est_min: 120, est_fare_krw: 47000, recommended_depart: '09:00', arrival_at: '11:00', booking_url: 'https://www.letskorail.com', from_station: '광주송정역', to_station: '서울역' },
+            'Seoul-Gwangju':  { mode: 'KTX',     est_min: 120, est_fare_krw: 47000, recommended_depart: '09:00', arrival_at: '11:00', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '광주송정역' },
+            'Daegu-Busan':    { mode: 'KTX',     est_min: 65,  est_fare_krw: 17000, recommended_depart: '09:00', arrival_at: '10:05', booking_url: 'https://www.letskorail.com', from_station: '동대구역', to_station: '부산역' },
+            'Busan-Daegu':    { mode: 'KTX',     est_min: 65,  est_fare_krw: 17000, recommended_depart: '09:00', arrival_at: '10:05', booking_url: 'https://www.letskorail.com', from_station: '부산역', to_station: '동대구역' },
+            'Daegu-Seoul':    { mode: 'KTX',     est_min: 110, est_fare_krw: 43500, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com', from_station: '동대구역', to_station: '서울역' },
+            'Seoul-Daegu':    { mode: 'KTX',     est_min: 110, est_fare_krw: 43500, recommended_depart: '09:00', arrival_at: '10:50', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '동대구역' },
+            'Jeju-Daegu':    { mode: 'Air',     est_min: 60,  est_fare_krw: 80000, recommended_depart: '10:00', arrival_at: '11:00', booking_url: 'https://www.trip.com', from_station: '제주국제공항', to_station: '대구국제공항' },
+            'Daegu-Jeju':    { mode: 'Air',     est_min: 60,  est_fare_krw: 80000, recommended_depart: '10:00', arrival_at: '11:00', booking_url: 'https://www.trip.com', from_station: '대구국제공항', to_station: '제주국제공항' },
         };
 
         for (let i = 1; i < daysList.length; i++) {
@@ -928,10 +1265,15 @@ export class RouteAgent extends BaseAgent {
                     arrival_at: std.arrival_at,
                     instruction: `${prevCity} → ${dCity} via ${std.mode} (~${Math.round(std.est_min/60*10)/10}h, ₩${std.est_fare_krw.toLocaleString()})`,
                     booking_url: std.booking_url,
+                    // PDF-issue-2 (2026-05-14): UI 가 intercity 전후 bookend segment 표시 가능.
+                    from_station: std.from_station || null,
+                    to_station: std.to_station || null,
                 };
-                console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity}`);
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity} (${std.from_station} → ${std.to_station})`);
             } else {
-                // 표준 데이터 없는 도시쌍 — 보수적 default (Bus 2시간)
+                // 표준 데이터 없는 도시쌍 — 보수적 default (Bus 2시간).
+                // PDF-issue-2 v4 (2026-05-14): from_station/to_station 도 city 기반 추론
+                // (CITY_DEFAULT_STATION lookup) — UI bookend segment 표시 가능.
                 d.intercity_transit = {
                     mode: 'Bus',
                     from_city: prevCity,
@@ -944,8 +1286,10 @@ export class RouteAgent extends BaseAgent {
                     arrival_at: '11:00',
                     instruction: `${prevCity} → ${dCity} via Bus (~2h, ₩15,000)`,
                     booking_url: 'https://www.kobus.co.kr',
+                    from_station: inferDefaultStation(prevCity, 'Bus'),
+                    to_station: inferDefaultStation(dCity, 'Bus'),
                 };
-                console.log(`  [Route] multi-city Day ${d.day || i+1}: generic Bus fallback ${prevCity}→${dCity}`);
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: generic Bus fallback ${prevCity}→${dCity} (stations: ${d.intercity_transit.from_station || '?'} → ${d.intercity_transit.to_station || '?'})`);
             }
         }
     }
