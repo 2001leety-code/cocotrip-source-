@@ -1,0 +1,79 @@
+name: PR Required Status (docs-only bypass)
+
+# 2026-05-13 PR #415: docs-only PR 에서 unit / bundle-size required check 자동 충족.
+#
+# 배경 (P42 메모리):
+#   branch protection 의 required check 가 unit / bundle-size / mistake-lint / smoke 4종.
+#   기존 pr-tests.yml (unit) + pr-bundle-size.yml 가 paths-ignore: ['docs/**', ...] 적용.
+#   → docs-only PR 변경 (예: PR #414 runbook) 시 workflow 미실행 → required check 부재
+#   → mergeStateStatus=BLOCKED 영구 (PR #404 가 smoke fix 했지만 unit/bundle-size 잔존).
+#
+# Fix (본 워크플로):
+#   - paths trigger: docs/**, .agent/**, **/*.md (docs-only paths 와 매칭)
+#   - 같은 check name (`unit`, `bundle-size`) 사용 → required check 충족
+#   - 즉시 echo + exit 0 → 30초 내 통과
+#
+# Mixed PR (docs + src) 시:
+#   - 본 워크플로 트리거 (docs 매칭) — auto-pass (`unit`, `bundle-size` 1회)
+#   - pr-tests.yml + pr-bundle-size.yml 도 트리거 (src 매칭) — 실제 검사 (`unit`, `bundle-size` 1회 더)
+#   - 같은 check name 2회 — 둘 다 PASS 필요. 실 검사 FAIL 시 BLOCK 유지 (안전).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.agent/**'
+      - '**/*.md'
+
+concurrency:
+  group: pr-required-bypass-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify all changes are docs-only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Auto-pass — docs-only PR
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          NON_IGNORED=$(echo "$CHANGED" | grep -vE '^(docs/|\.agent/|.*\.md$)' || true)
+          if [ -n "$NON_IGNORED" ]; then
+            echo "::warning::Mixed PR — real pr-tests.yml will also run + final result authoritative"
+            echo "Non-docs changes:"
+            echo "$NON_IGNORED"
+          else
+            echo "::notice::Pure docs-only PR — unit auto-pass"
+          fi
+          # 항상 exit 0 — 실 unit 워크플로가 mixed PR 시 authoritative
+          exit 0
+
+  bundle-size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify all changes are docs-only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Auto-pass — docs-only PR
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          NON_IGNORED=$(echo "$CHANGED" | grep -vE '^(docs/|\.agent/|.*\.md$)' || true)
+          if [ -n "$NON_IGNORED" ]; then
+            echo "::warning::Mixed PR — real pr-bundle-size.yml will also run + final result authoritative"
+          else
+            echo "::notice::Pure docs-only PR — bundle-size auto-pass"
+          fi
+          exit 0
