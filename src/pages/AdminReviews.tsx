@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, ArrowLeft, CheckCircle, EyeOff, Trash2, RefreshCw, AlertTriangle, MessageSquare, Star, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { authFetch } from '@/lib/authFetch';
 
 interface ReportedReview {
   id: string;
@@ -48,12 +49,12 @@ export default function AdminReviews() {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/reviews', {
+      // PR #418 IDOR fix: Authorization Bearer — server uses verifyAdminToken.
+      const res = await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'admin-list',
-          userEmail: user?.email,
           filter,
         }),
       });
@@ -64,7 +65,7 @@ export default function AdminReviews() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, user?.email, filter]);
+  }, [isAdmin, filter]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -77,14 +78,14 @@ export default function AdminReviews() {
   const handleModerate = async (reviewId: string, decision: 'keep' | 'hide' | 'delete') => {
     setActionLoading(reviewId);
     try {
-      const res = await fetch('/api/reviews', {
+      // PR #418 IDOR fix: Authorization Bearer — server uses verifyAdminToken.
+      const res = await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'moderate',
           reviewId,
           decision,
-          userEmail: user?.email,
         }),
       });
       const data = await res.json();

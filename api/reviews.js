@@ -1,14 +1,28 @@
 /**
  * api/reviews.js — 리뷰 CRUD + 리워드 (+50 Trip Coins)
- * 
+ *
  * Actions:
- *   create  — 리뷰 작성 (중복 방지 + 소유자 차단 + +50 코인)
- *   list    — 리뷰 목록 (무인증 가능, 페이지네이션)
- *   delete  — 리뷰 삭제 (작성자 or 어드민)
- *   report  — 리뷰 신고
+ *   create     — 리뷰 작성 (verified user — 중복 방지 + 소유자 차단 + +50 코인)
+ *   list       — 리뷰 목록 (무인증 — public)
+ *   my-reviews — 본인 리뷰 (verified user)
+ *   delete     — 리뷰 삭제 (verified user 작성자 또는 verified admin)
+ *   report     — 리뷰 신고 (verified user)
+ *   admin-list — 모더레이션 리스트 (verified admin)
+ *   moderate   — 모더레이션 결정 (verified admin)
+ *
+ * Security (PR #418, Audit W-C3 — 2026-05-13):
+ *   - 이전엔 body.userId / body.userEmail 신뢰 → 누구나 victim 의 uid 추측해
+ *     남의 리뷰 삭제/신고, 또는 admin email 위장으로 admin-list/moderate 가능.
+ *   - 이제 ALL writeable actions require Authorization Bearer:
+ *       - user actions: verifyUserToken → auth.uid / auth.email
+ *       - admin actions: verifyAdminToken (ADMIN_EMAIL env 비교)
+ *   - `list` 만 public 유지 (review 목록은 anyone 가 봐도 무방).
  */
 
 // ── 표준 응답 래퍼 (api/_shared/response.js와 동일 형식) ──────────
+import { verifyUserToken } from './_shared/user-auth.js';
+import { verifyAdminToken } from './_shared/admin-auth.js';
+
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
@@ -84,7 +98,15 @@ export default async function handler(req, res) {
     // ACTION: create — 리뷰 작성
     // ════════════════════════════════════════════════════════
     if (action === 'create') {
-      const { userId, targetType, targetId, rating, text, photos, authorName, authorPhotoURL, language, bookingId } = body;
+      // PR #418 (Audit W-C3): body.userId 신뢰 종료 — verified auth.uid 만 사용.
+      // 이전엔 victim uid 추측해 위장 리뷰 작성 가능 (코인 강탈 + 위장 리뷰).
+      const auth = await verifyUserToken(req);
+      if (!auth.ok) {
+        res.writeHead(auth.status, JSON_CORS);
+        return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
+      }
+      const userId = auth.uid;
+      const { targetType, targetId, rating, text, photos, authorName, authorPhotoURL, language, bookingId } = body;
       let { driverChatId, driverName } = body;
 
       // bookingId만 있고 driver 정보가 없으면 booking 문서에서 자동 채움.
@@ -107,7 +129,8 @@ export default async function handler(req, res) {
       }
 
       // 필수 필드 검증
-      if (!userId || !targetType || !targetId || !rating) {
+      // userId 는 auth.uid 이미 보장됨 — body 의 targetType/targetId/rating 만 체크.
+      if (!targetType || !targetId || !rating) {
         res.writeHead(400, JSON_CORS);
         return res.end(JSON.stringify(_err('Missing required fields', 'MISSING_FIELDS')));
       }
@@ -229,11 +252,13 @@ export default async function handler(req, res) {
     // ACTION: my-reviews — 내 리뷰 목록 (서버사이드 필터)
     // ════════════════════════════════════════════════════════
     if (action === 'my-reviews') {
-      const { userId } = body;
-      if (!userId) {
-        res.writeHead(400, JSON_CORS);
-        return res.end(JSON.stringify(_err('Missing userId', 'MISSING_FIELDS')));
+      // PR #418 (Audit W-C3): body.userId 신뢰 종료 — verified auth.uid 만 사용.
+      const auth = await verifyUserToken(req);
+      if (!auth.ok) {
+        res.writeHead(auth.status, JSON_CORS);
+        return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
       }
+      const userId = auth.uid;
 
       const snap = await db.collection('reviews')
         .where('authorUid', '==', userId)
@@ -251,11 +276,15 @@ export default async function handler(req, res) {
     // ACTION: admin-list — 신고된 리뷰 (어드민 전용)
     // ════════════════════════════════════════════════════════
     if (action === 'admin-list') {
-      const { userEmail, filter } = body;
-      if (!ADMIN_EMAILS.includes((userEmail || '').toLowerCase())) {
-        res.writeHead(403, JSON_CORS);
-        return res.end(JSON.stringify(_err('Admin only', 'FORBIDDEN')));
+      // PR #418 (Audit W-C3): body.userEmail 신뢰 종료 — verifyAdminToken.
+      const adminAuth = await verifyAdminToken(req);
+      if (!adminAuth.ok) {
+        res.writeHead(adminAuth.status, JSON_CORS);
+        return res.end(JSON.stringify(_err(adminAuth.error, 'FORBIDDEN')));
       }
+      const { filter } = body;
+      // Belt-and-suspenders: 보조 allowlist 비교 (legacy fallback).
+      void ADMIN_EMAILS;
 
       let query;
       if (filter === 'hidden') {
@@ -286,7 +315,17 @@ export default async function handler(req, res) {
     // ACTION: delete — 리뷰 삭제 (작성자 or 어드민)
     // ════════════════════════════════════════════════════════
     if (action === 'delete') {
-      const { reviewId, userId, userEmail } = body;
+      // PR #418 (Audit W-C3): body.userId / body.userEmail 신뢰 종료.
+      // verified auth 로 작성자 또는 admin 결정.
+      const auth = await verifyUserToken(req);
+      if (!auth.ok) {
+        res.writeHead(auth.status, JSON_CORS);
+        return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
+      }
+      const userId = auth.uid;
+      const userEmail = auth.email;
+
+      const { reviewId } = body;
       if (!reviewId) {
         res.writeHead(400, JSON_CORS);
         return res.end(JSON.stringify(_err('Missing reviewId', 'MISSING_FIELDS')));
@@ -301,7 +340,9 @@ export default async function handler(req, res) {
 
       const review = reviewSnap.data();
       const isAuthor = review.authorUid === userId;
-      const isAdmin = ADMIN_EMAILS.includes((userEmail || '').toLowerCase());
+      // ADMIN_EMAIL env (verifyAdminToken 패턴과 동일 source-of-truth).
+      const adminEmailEnv = (process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+      const isAdmin = !!adminEmailEnv && userEmail === adminEmailEnv;
 
       if (!isAuthor && !isAdmin) {
         res.writeHead(403, JSON_CORS);
@@ -319,7 +360,15 @@ export default async function handler(req, res) {
     // ACTION: report — 리뷰 신고
     // ════════════════════════════════════════════════════════
     if (action === 'report') {
-      const { reviewId, reason, userId: reporterUid } = body;
+      // PR #418 (Audit W-C3): body.userId 신뢰 종료. unauthenticated 신고 차단
+      // (이전엔 anonymous flooding 으로 모더레이션 큐 스팸 가능).
+      const auth = await verifyUserToken(req);
+      if (!auth.ok) {
+        res.writeHead(auth.status, JSON_CORS);
+        return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
+      }
+      const reporterUid = auth.uid;
+      const { reviewId, reason } = body;
       if (!reviewId) {
         res.writeHead(400, JSON_CORS);
         return res.end(JSON.stringify(_err('Missing reviewId', 'MISSING_FIELDS')));
@@ -330,11 +379,11 @@ export default async function handler(req, res) {
       await reviewRef.update({
         status: 'reported',
         reportReason: reason || '',
-        reportedBy: reporterUid || 'anonymous',
+        reportedBy: reporterUid,
         reportedAt: Date.now(),
         // 신고 사유 배열 추가 (§6.2)
         reports: FieldValue.arrayUnion({
-          reporterUid: reporterUid || 'anonymous',
+          reporterUid,
           reason: reason || '',
           createdAt: Date.now(),
         }),
@@ -349,11 +398,13 @@ export default async function handler(req, res) {
     // ACTION: moderate — 어드민 모더레이션 (keep/hide/delete)
     // ════════════════════════════════════════════════════════
     if (action === 'moderate') {
-      const { reviewId, decision, userEmail } = body;
-      if (!ADMIN_EMAILS.includes((userEmail || '').toLowerCase())) {
-        res.writeHead(403, JSON_CORS);
-        return res.end(JSON.stringify(_err('Admin only', 'FORBIDDEN')));
+      // PR #418 (Audit W-C3): body.userEmail 신뢰 종료 — verifyAdminToken.
+      const adminAuth = await verifyAdminToken(req);
+      if (!adminAuth.ok) {
+        res.writeHead(adminAuth.status, JSON_CORS);
+        return res.end(JSON.stringify(_err(adminAuth.error, 'FORBIDDEN')));
       }
+      const { reviewId, decision } = body;
       if (!reviewId || !['keep', 'hide', 'delete'].includes(decision)) {
         res.writeHead(400, JSON_CORS);
         return res.end(JSON.stringify(_err('Missing reviewId or invalid decision', 'INVALID_INPUT')));
@@ -368,7 +419,7 @@ export default async function handler(req, res) {
         const newStatus = decision === 'keep' ? 'published' : 'hidden';
         await reviewRef.update({
           status: newStatus,
-          moderatedBy: userEmail,
+          moderatedBy: adminAuth.email,
           moderatedAt: Date.now(),
           updatedAt: Date.now(),
         });

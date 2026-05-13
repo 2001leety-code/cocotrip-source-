@@ -1,15 +1,19 @@
 /**
- * GET /api/voucher?bookingID=...&userEmail=...
+ * GET /api/voucher?bookingID=...
+ * Headers: Authorization: Bearer <Firebase ID token>
  *
  * 사용자 본인의 voucher PDF를 다운로드. PR #234 BookingDetailModal 에서 호출.
  * 내부 _generate-voucher.js (booking-processor 가 사용하는 동일 PDF 생성기) 를
  * 그대로 재사용해 confirmation email 첨부와 100% 동일한 결과물을 보장한다.
  *
- * 보안:
- *   - bookingID + userEmail 매칭 — 다른 사람 voucher 발급 차단 (auth token 없이도
- *     bookingID 추측이 불가능하므로 query-param 매칭으로 충분)
- *   - status 검사: CANCELED → 410, CONFIRMED/MODIFIED/COMPLETED 만 발급
- *   - Cache-Control: private, no-store — voucher 는 PII 포함, 절대 캐시 금지
+ * 보안 (PR #418, Audit W-C2 — 2026-05-13):
+ *   - 이전엔 query.userEmail 매칭 만으로 발급 → bookingID 추측 가능하면 (PNR 8자리)
+ *     남의 voucher PDF (이름·항공편·픽업주소) 발급 가능. IDOR critical.
+ *   - 이제 Authorization Bearer 검증 후 verified `auth.email` 로 booking 비교.
+ *   - 직접 `<a href>` 다운로드 시 헤더 못 보내므로 client 는 fetch+blob 패턴
+ *     (`src/lib/authFetch.ts` 의 `authDownload`).
+ *   - status 검사: CANCELED → 410, CONFIRMED/MODIFIED/COMPLETED 만 발급.
+ *   - Cache-Control: private, no-store — voucher 는 PII 포함, 절대 캐시 금지.
  *
  * Vercel maxDuration: PDF 생성은 cold start 포함해도 ~3-5s. 일반 endpoint 정책에
  * 맞춰 15초.
@@ -18,6 +22,7 @@
 import { initAdminDb } from './_ai_core/firestoreAdmin.js';
 import { generateVoucherPDF } from './_generate-voucher.js';
 import { captureError } from './_shared/sentry.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 
 export const config = { maxDuration: 15 };
 
@@ -44,19 +49,24 @@ export default async function handler(req, res) {
     return jsonErr(res, 405, 'Method not allowed', 'METHOD_NOT_ALLOWED');
   }
 
+  // PR #418 (Audit W-C2): require Authorization: Bearer <ID-token>.
+  const auth = await verifyUserToken(req);
+  if (!auth.ok) {
+    return jsonErr(res, auth.status, auth.error, 'AUTH_REQUIRED');
+  }
+  const userEmail = auth.email;
+
   // Vercel `req.query` is populated; fallback to URL parsing for safety.
   const q = req.query || {};
   let bookingID = String(q.bookingID || '').trim();
-  let userEmail = String(q.userEmail || '').trim().toLowerCase();
-  if (!bookingID || !userEmail) {
+  if (!bookingID) {
     try {
       const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-      bookingID = bookingID || u.searchParams.get('bookingID') || '';
-      userEmail = userEmail || (u.searchParams.get('userEmail') || '').toLowerCase();
+      bookingID = u.searchParams.get('bookingID') || '';
     } catch { /* noop */ }
   }
-  if (!bookingID || !userEmail) {
-    return jsonErr(res, 400, 'bookingID and userEmail required', 'MISSING_FIELDS');
+  if (!bookingID) {
+    return jsonErr(res, 400, 'bookingID required', 'MISSING_FIELDS');
   }
 
   let booking;

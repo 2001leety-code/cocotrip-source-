@@ -1,15 +1,21 @@
 /**
  * Vercel API Route: Cancel Booking + PayPal Refund
  * POST /api/cancelBooking
- * body: { bookingID, userEmail, reason?, tier? }
+ * Headers: Authorization: Bearer <Firebase ID token>
+ * body: { bookingID, reason?, tier? }
  *
  * 플로우:
- *   1. bookings/{bookingID} 조회 + 소유자 검증
+ *   1. bookings/{bookingID} 조회 + 소유자 검증 (verified auth.email)
  *   2. evaluateRefundPolicy() 로 환불율 결정
  *   3. PayPal /v2/payments/captures/{captureID}/refund 호출
  *   4. bookings doc 업데이트 (status=CANCELED, refundID, refundedAmount, canceledReason)
  *   5. Google Sheets 상태 업데이트 (best-effort)
  *   6. Telegram 알림 (태연님)
+ *
+ * Security (PR #418, Audit W-C4 — 2026-05-13): body.userEmail 신뢰 종료.
+ * 이전엔 공격자가 victim 의 bookingID + email 만 알면 (이메일은 PII 유출/추측 가능)
+ * 남의 예약 환불 가능 → PayPal 자금 victim 으로 다시 들어가지만 booking 데이터 손상.
+ * 이제 Authorization Bearer 의 verified email 만 사용.
  */
 import { captureError } from './_shared/sentry.js';
 import { evaluateRefundPolicy } from './_refund-policy.js';
@@ -21,6 +27,7 @@ import { notifyOperator } from './_shared/operator-alerts.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -107,14 +114,23 @@ export default async function handler(req, res) {
   }
 
   try {
+    // PR #418 (Audit W-C4): require Authorization: Bearer <ID-token>.
+    // body.userEmail 무시 — verified auth.email 만 사용.
+    const auth = await verifyUserToken(req);
+    if (!auth.ok) {
+      res.writeHead(auth.status, JSON_CORS);
+      return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
+    }
+    const userEmail = auth.email;
+
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { bookingID, userEmail = '', reason = '', tier = 'Bronze' } = body;
-    if (!bookingID || !userEmail) {
+    const { bookingID, reason = '', tier = 'Bronze' } = body;
+    if (!bookingID) {
       res.writeHead(400, JSON_CORS);
-      return res.end(JSON.stringify(_err('bookingID and userEmail required', 'MISSING_FIELDS')));
+      return res.end(JSON.stringify(_err('bookingID required', 'MISSING_FIELDS')));
     }
 
     // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행되므로 (createPaypalOrder

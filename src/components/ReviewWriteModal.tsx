@@ -8,6 +8,7 @@ import { storage } from '@/lib/firebase';
 import { StarRating } from './StarRating';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { authFetch } from '@/lib/authFetch';
 
 interface Props {
   targetType: 'plan' | 'tour';
@@ -100,12 +101,12 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
       const photoUrls = await uploadPhotos();
 
       // 2. Create review with photo URLs
-      const res = await fetch('/api/reviews', {
+      // PR #418 IDOR fix: Authorization Bearer — server uses verified auth.uid.
+      const res = await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create',
-          userId: user.uid,
           targetType,
           targetId,
           rating,

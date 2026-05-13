@@ -21,6 +21,7 @@ import { Header } from '@/sections/Header';
 import { MyBookingsTab } from '@/components/MyBookingsTab';
 import { haptic } from '@/lib/haptic';
 import { Package } from 'lucide-react';
+import { authFetch } from '@/lib/authFetch';
 
 const TIER_COLORS: Record<TierType, { color: string; bg: string; border: string }> = {
   Bronze:   { color: '#CD7F32', bg: 'from-[#CD7F32]/15 to-[#8B4513]/10', border: 'border-[#CD7F32]/20' },
@@ -680,10 +681,11 @@ function MyReviewsTab({ userId }: { userId: string }) {
   const fetchMyReviews = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
     try {
-      const res = await fetch('/api/reviews', {
+      // PR #418 IDOR fix: Authorization Bearer — server uses verified auth.uid.
+      const res = await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'my-reviews', userId }),
+        body: JSON.stringify({ action: 'my-reviews' }),
       });
       const data = await res.json();
       setReviews(data.reviews || []);
@@ -696,10 +698,11 @@ function MyReviewsTab({ userId }: { userId: string }) {
   const handleDelete = async (reviewId: string) => {
     if (!confirm('Delete this review?')) return;
     try {
-      await fetch('/api/reviews', {
+      // PR #418 IDOR fix: server uses verified auth.uid.
+      await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', reviewId, userId }),
+        body: JSON.stringify({ action: 'delete', reviewId }),
       });
       setReviews(prev => prev.filter(r => r.id !== reviewId));
     } catch { /* silent */ }

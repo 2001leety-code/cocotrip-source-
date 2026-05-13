@@ -1,17 +1,24 @@
 /**
  * Vercel API Route: Modify Booking
  * POST /api/modifyBooking
- * body: { bookingID, userEmail, changes: { tourDate?, paxCount?, pickupLocation?, dropoffLocation?, memo? } }
+ * Headers: Authorization: Bearer <Firebase ID token>
+ * body: { bookingID, changes: { tourDate?, paxCount?, pickupLocation?, dropoffLocation?, memo? } }
  *
  * 현재 범위: 메타데이터 변경(날짜/인원/픽업)만 지원. 가격 차이 처리는 차후 확장.
  * 이 API는 변경 가능 시점 검사 후 Firestore modifications 배열에 append하고 필드 갱신.
  *
  * 가격 재계산/차액 결제는 사용자가 charter 페이지에서 재예약하거나 WhatsApp으로 진행.
+ *
+ * Security (PR #418, Audit W-C4 — 2026-05-13): body.userEmail 신뢰 종료.
+ * 이전엔 누구나 victim 의 bookingID + email 알면 (이메일 PII 유출/추측) 남의 예약
+ * 날짜/픽업 등 변경 가능 → 운영자 dispatch 혼란. 이제 Authorization Bearer 의
+ * verified email 만 사용.
  */
 import { evaluateRefundPolicy } from './_refund-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureError } from './_shared/sentry.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -68,14 +75,23 @@ export default async function handler(req, res) {
   }
 
   try {
+    // PR #418 (Audit W-C4): require Authorization: Bearer <ID-token>.
+    // body.userEmail 무시 — verified auth.email 만 사용.
+    const auth = await verifyUserToken(req);
+    if (!auth.ok) {
+      res.writeHead(auth.status, JSON_CORS);
+      return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
+    }
+    const userEmail = auth.email;
+
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { bookingID, userEmail = '', changes = {}, tier = 'Bronze' } = body;
-    if (!bookingID || !userEmail) {
+    const { bookingID, changes = {}, tier = 'Bronze' } = body;
+    if (!bookingID) {
       res.writeHead(400, JSON_CORS);
-      return res.end(JSON.stringify(_err('bookingID and userEmail required', 'MISSING_FIELDS')));
+      return res.end(JSON.stringify(_err('bookingID required', 'MISSING_FIELDS')));
     }
 
     // 변경 필드 화이트리스트 필터

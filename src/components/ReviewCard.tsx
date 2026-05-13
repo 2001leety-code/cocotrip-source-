@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { MoreHorizontal, Trash2, Flag, X } from 'lucide-react';
 import { StarRating } from './StarRating';
 import { useAuth } from '@/hooks/useAuth';
+import { authFetch } from '@/lib/authFetch';
 
 interface ReviewData {
   id: string;
@@ -36,10 +37,11 @@ export function ReviewCard({ review, onDelete }: Props) {
   const handleReport = async () => {
     setReporting(true);
     try {
-      await fetch('/api/reviews', {
+      // PR #418 IDOR fix: Authorization Bearer — server uses verified auth.uid.
+      await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'report', reviewId: review.id, userId: user?.uid }),
+        body: JSON.stringify({ action: 'report', reviewId: review.id }),
       });
     } finally {
       setReporting(false);
@@ -50,10 +52,11 @@ export function ReviewCard({ review, onDelete }: Props) {
   const handleDelete = async () => {
     if (!confirm('Delete this review?')) return;
     try {
-      await fetch('/api/reviews', {
+      // PR #418 IDOR fix: server uses verified auth.uid + auth.email.
+      await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', reviewId: review.id, userId: user?.uid, userEmail: user?.email }),
+        body: JSON.stringify({ action: 'delete', reviewId: review.id }),
       });
       onDelete?.(review.id);
     } catch { /* silent */ }

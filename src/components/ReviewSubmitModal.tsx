@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Star, X, Loader2 } from 'lucide-react';
 import { haptic } from '@/lib/haptic';
 import { useLanguage } from '@/hooks/useLanguage';
+import { authFetch } from '@/lib/authFetch';
 
 interface Props {
   open: boolean;
@@ -50,12 +51,15 @@ export function ReviewSubmitModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/reviews', {
+      // PR #418 IDOR fix: Authorization Bearer — server uses verified auth.uid.
+      // userId prop kept for backwards compat in component API but server
+      // ignores it (audit W-C3).
+      void userId;
+      const res = await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create',
-          userId,
           targetType,
           targetId,
           rating,
