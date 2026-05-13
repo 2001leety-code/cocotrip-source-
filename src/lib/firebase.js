@@ -6,6 +6,8 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -219,6 +221,60 @@ export async function signInWithApple() {
   }
 }
 
+
+// ── 전화번호 로그인 (PR #390, 2026-05-13) ──────────────────────────────
+// Firebase Phone Auth — LINE OIDC 가 Identity Platform 업그레이드 필요해서 보류,
+// Phone 만 기본 제공업체로 우선 활성. 일본/대만 LINE 사용자는 후속 PR.
+//
+// 흐름: setUpRecaptchaVerifier(containerId) → signInWithPhone(phone, verifier)
+// → ConfirmationResult.confirm(code) 로 verify → saveUserToFirestore 자동 호출.
+//
+// reCAPTCHA: invisible 모드. 컴포넌트가 DOM 에 빈 div (id=containerId) 두면
+// Firebase 가 그 안에 invisible widget 주입. modal close 시 verifier.clear() 호출.
+
+/**
+ * Invisible reCAPTCHA verifier 생성.
+ * @param {string} containerId - 빈 div 의 DOM id (예: 'phone-recaptcha-container')
+ * @returns {RecaptchaVerifier}
+ */
+export function setUpRecaptchaVerifier(containerId) {
+  return new RecaptchaVerifier(auth, containerId, {
+    size: 'invisible',
+    // expired-callback 은 verifier 만료 시 재초기화 트리거. 사용자는 다음 클릭에서
+    // 새 verifier 받게 됨 (modal 의 useEffect 가 처리).
+  });
+}
+
+/**
+ * Phone 으로 SMS 코드 전송 요청.
+ * @param {string} phoneNumber - E.164 포맷 (예: '+821012345678')
+ * @param {RecaptchaVerifier} appVerifier - setUpRecaptchaVerifier 결과
+ * @returns {Promise<import('firebase/auth').ConfirmationResult>}
+ */
+export async function signInWithPhone(phoneNumber, appVerifier) {
+  try {
+    return await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Phone sign-in failed.';
+    throw new Error(message);
+  }
+}
+
+/**
+ * SMS 코드 검증 + Firestore user 저장.
+ * @param {import('firebase/auth').ConfirmationResult} confirmationResult
+ * @param {string} code - 6자리 SMS 코드
+ */
+export async function verifyPhoneCode(confirmationResult, code) {
+  try {
+    const result = await confirmationResult.confirm(code);
+    await saveUserToFirestore(result.user);
+    return result.user;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Code verification failed.';
+    throw new Error(message);
+  }
+}
 
 // 페이지 로드 시 Redirect 결과 처리 (App.tsx 등에서 호출)
 export async function handleRedirectResult() {

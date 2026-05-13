@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle, handleRedirectResult, db } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
+import { PhoneSignInModal } from '@/components/PhoneSignInModal';
 
 const TEXT = {
   ko: {
@@ -11,6 +12,7 @@ const TEXT = {
     desc: '소셜 로그인으로 간편하게 시작하세요.',
     benefits: ['🗺️ 나만의 맞춤 여행 일정 저장', '📋 예약 내역 및 이용 기록 관리', '💬 24/7 고객 지원 이용'],
     google: '구글로 시작하기',
+    phone: '전화번호로 계속',
     loading: '로그인 중...',
     privacy: '로그인 시 개인정보 처리방침에 동의하게 됩니다.',
   },
@@ -19,6 +21,7 @@ const TEXT = {
     desc: 'Get started quickly with your social account.',
     benefits: ['🗺️ Save your personalized itineraries', '📋 Manage bookings & travel history', '💬 Access 24/7 customer support'],
     google: 'Continue with Google',
+    phone: 'Continue with phone',
     loading: 'Signing in...',
     privacy: 'By signing in, you agree to our Privacy Policy.',
   },
@@ -27,6 +30,7 @@ const TEXT = {
     desc: 'ソーシャルアカウントで簡単に始められます。',
     benefits: ['🗺️ カスタム旅程の保存', '📋 予約履歴の管理', '💬 24時間カスタマーサポート'],
     google: 'Googleで続ける',
+    phone: '電話番号で続ける',
     loading: 'ログイン中...',
     privacy: 'ログインすると、プライバシーポリシーに同意したことになります。',
   },
@@ -35,6 +39,7 @@ const TEXT = {
     desc: '使用社交账号快速开始。',
     benefits: ['🗺️ 保存您的定制行程', '📋 管理预订和旅行记录', '💬 享受24/7客服支持'],
     google: '使用Google登录',
+    phone: '使用电话号码登录',
     loading: '登录中...',
     privacy: '登录即表示您同意我们的隐私政策。',
   },
@@ -48,6 +53,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [redirectChecking, setRedirectChecking] = useState(true);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   // PR-E: 신규 가입자 needsOnboarding 체크 — null=미확인, false=완료, true=리다이렉트 필요
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
 
@@ -147,9 +153,29 @@ export function AuthRequired({ children }: { children: ReactNode }) {
             {googleLoading ? text.loading : text.google}
           </button>
 
+          {/* Phone Number Button (PR #390): Google 아래 보조 옵션. LINE OIDC 는
+              Identity Platform 업그레이드 필요로 후속 PR. */}
+          <button
+            onClick={() => { setError(null); setPhoneModalOpen(true); }}
+            className="w-full py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
+            style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.95.68l1.5 4.49a1 1 0 01-.5 1.21l-2.26 1.13a11 11 0 005.52 5.52l1.13-2.26a1 1 0 011.21-.5l4.49 1.5a1 1 0 01.68.95V19a2 2 0 01-2 2h-1C9.72 21 3 14.28 3 6V5z" />
+            </svg>
+            {text.phone}
+          </button>
+
           {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
           <p className="text-[11px] text-white/55 mt-4">{text.privacy}</p>
         </div>
+
+        {phoneModalOpen && (
+          <PhoneSignInModal
+            language={(language as 'ko' | 'en' | 'ja' | 'zh') in TEXT ? (language as 'ko' | 'en' | 'ja' | 'zh') : 'en'}
+            onClose={() => setPhoneModalOpen(false)}
+          />
+        )}
       </div>
     );
   }
