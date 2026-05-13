@@ -445,6 +445,47 @@ function SURFACE_AUDIT({ changed, base }) {
   return null;
 }
 
+/**
+ * P32_sprinterGuideDedup — 메모리 P32. sprinter 는 guide_required 자동 가산이라
+ * licensed_guide 옵션은 무시되어야 함. useQuoteCalculator.ts 가 licensed_guide
+ * 를 push 할 때 vehicle !== 'sprinter' 가드를 잃으면 ₩300K × 2 = ₩600K 중복 가산.
+ *
+ * 트리거: useQuoteCalculator.ts 의 addons.push({ key: 'licensed_guide', ... })
+ * 호출이 vehicle !== 'sprinter' 또는 동등 가드 없이 일어나면 fail.
+ */
+function P32_sprinterGuideDedup({ changed }) {
+  const FILE = 'src/hooks/useQuoteCalculator.ts';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+
+  // licensed_guide push 라인 위치 찾기
+  const pushMatch = content.match(/addons\.push\(\s*\{\s*key:\s*['"]licensed_guide['"]/);
+  if (!pushMatch) {
+    // licensed_guide push 자체가 사라졌다면 OK (다른 dedup 방식 가능)
+    return null;
+  }
+
+  // push 라인 주변 ±400 chars 에 sprinter dedup 가드 있는지 검사
+  const idx = pushMatch.index ?? 0;
+  const start = Math.max(0, idx - 400);
+  const end = Math.min(content.length, idx + 400);
+  const window = content.slice(start, end);
+
+  const hasSprinterGuard =
+    /vehicle\s*!==\s*['"]sprinter['"]/.test(window) ||
+    /vehicle\s*===\s*['"]staria['"]/.test(window) ||
+    /licensedGuideApplies/.test(window);
+
+  if (!hasSprinterGuard) {
+    fail(
+      'P32_sprinterGuideDedup',
+      `${FILE}: licensed_guide push 가 sprinter dedup 가드 (vehicle !== 'sprinter') 없이 호출됨 — ₩300K × 2 중복 가산 회귀 위험`,
+      "P1 #9 fix — 'const licensedGuideApplies = state.options?.licensedGuide && vehicle !== \\'sprinter\\'' 가드 유지",
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -453,6 +494,7 @@ const RULES = [
   ['PDF_KOREAN_FONT', PDF_KOREAN_FONT],
   ['STOP_SCHEMA', STOP_SCHEMA],
   ['SURFACE_AUDIT', SURFACE_AUDIT],
+  ['P32_sprinterGuideDedup', P32_sprinterGuideDedup],
 ];
 
 function runAll(base) {
@@ -589,6 +631,18 @@ function runSelfTest() {
           'const x = stop.display_name || stop.name;\nconst legacy = stop.name_ko;\n',
       },
       expectRule: 'STOP_SCHEMA',
+    },
+    {
+      label: 'P32: useQuoteCalculator licensed_guide push 가 sprinter dedup 없이 호출',
+      base: {
+        'src/hooks/useQuoteCalculator.ts':
+          "const vehicle = state.vehicle;\nconst guard = vehicle !== 'sprinter' && state.options?.licensedGuide;\nif (guard) addons.push({ key: 'licensed_guide', amountKRW: 300000 });\n",
+      },
+      head: {
+        'src/hooks/useQuoteCalculator.ts':
+          "const vehicle = state.vehicle;\nif (state.options?.licensedGuide) addons.push({ key: 'licensed_guide', amountKRW: 300000 });\n",
+      },
+      expectRule: 'P32_sprinterGuideDedup',
     },
   ];
 
