@@ -5,7 +5,6 @@ import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
 import { HeroSlider } from '@/sections/HeroSlider';
-import { MobileHome } from '@/sections/MobileHome';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Services } from '@/sections/Services';
 import { Regions } from '@/sections/Regions';
@@ -16,7 +15,11 @@ const CTA = lazy(() => import('@/sections/CTA').then(m => ({ default: m.CTA })))
 const Membership = lazy(() => import('@/sections/Membership').then(m => ({ default: m.Membership })));
 import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { SeasonalBanner } from '@/components/SeasonalBanner';
+// MobileHome (mobile only)  → tours.ts (~92 KB raw) leak 방지
+// SeasonalBanner (desktop only)  → seasonalSpots.ts (~20 KB raw) leak 방지
+// 둘 다 device branch 별 1개만 마운트되므로 lazy 로 분리해 메인 번들에서 제외.
+const MobileHome = lazy(() => import('@/sections/MobileHome').then(m => ({ default: m.MobileHome })));
+const SeasonalBanner = lazy(() => import('@/components/SeasonalBanner').then(m => ({ default: m.SeasonalBanner })));
 const RegionDetail = lazy(() => import('@/pages/RegionDetail').then(m => ({ default: m.RegionDetail })));
 // Booking 레거시 페이지 — /booking 라우트는 /tours로 redirect (북마크 호환).
 // BookingPageWrapper + Booking lazy import는 PR #197에서 제거됨.
@@ -100,7 +103,11 @@ function HomePage() {
       <div className="min-h-screen bg-[#0a0b14]">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />
         <main className="pt-14">
-          <MobileHome t={t} />
+          {/* MobileHome lazy chunk — tours.ts (~92 KB raw) 가 메인 번들에 진입하지 않도록 분리.
+              fallback 은 hero 영역 dark 배경 placeholder 로 layout shift 최소화. */}
+          <Suspense fallback={<div className="min-h-screen" style={{ background: '#0a0412' }} aria-hidden />}>
+            <MobileHome t={t} />
+          </Suspense>
         </main>
       </div>
     );
@@ -122,7 +129,9 @@ function HomePage() {
           <GoogleReviews />
         </Suspense>
         <Services t={t} />
-        <SeasonalBanner />
+        <Suspense fallback={null}>
+          <SeasonalBanner />
+        </Suspense>
         <Regions t={t} />
         <Suspense fallback={null}>
           <Membership t={t} />
