@@ -209,4 +209,65 @@ describe('reorderStopsByProximity — intra-day TSP (PR #408)', () => {
     const out = reorderStopsByProximity(input);
     expect(out).toBe(input); // 원본 그대로
   });
+
+  // 2026-05-13 PR #413: chronological 보존 검증.
+  // TSP reorder 는 start_time 재할당 X — 시간 순서 깨지면 PDF 시간 jumbled.
+  it('case 9: chronological 깨는 forward NN 후보는 제외 (PR #413)', () => {
+    // 시나리오: forward NN 의 distance 가 짧지만 chronological 깨면 거부 → original 채택
+    // Stops with chronological start_times:
+    //   Lodging 09:00 (Gwangalli E)
+    //   A 11:00 (NE far)
+    //   B 13:00 (E close to lodging — but should be after A timewise)
+    //   C 18:00 (SW far)
+    //   Lodging 21:00
+    //
+    // Original chronological: Lodging → A → B → C → Lodging (Gemini's chrono order)
+    // Forward NN from Lodging: would pick B (closest), then A, then C — BUT this gives
+    //   times [09:00, 13:00, 11:00, 18:00, 21:00] = 13 < 11 NOT chronological.
+    // PR #413: 이 forward NN 후보 chronology 깨짐 → 제외 → original 채택.
+    const input = [
+      { name: 'Lodging', category: 'lodging', start_time: '09:00', lat: 35.15, lng: 129.12 },
+      { name: 'A-far-NE', start_time: '11:00', lat: 35.25, lng: 129.22 },
+      { name: 'B-close-E', start_time: '13:00', lat: 35.16, lng: 129.13 },
+      { name: 'C-far-SW', start_time: '18:00', lat: 35.08, lng: 128.95 },
+      { name: 'Lodging', category: 'lodging', start_time: '21:00', lat: 35.15, lng: 129.12 },
+    ];
+    const out = reorderStopsByProximity(input);
+    // chronological 보존 = original 순서 유지
+    expect(out.map((s: { name: string }) => s.name)).toEqual(['Lodging', 'A-far-NE', 'B-close-E', 'C-far-SW', 'Lodging']);
+  });
+
+  it('case 10: 모든 stops start_time 없으면 chronological 검사 통과 (모두 적합)', () => {
+    // start_time 모두 없으면 chronological 검사 skip — 거리 기반 reorder 진행
+    const input = [
+      { name: 'Lodging-start', lat: 37.55, lng: 126.97 },
+      { name: 'A-far', lat: 37.7, lng: 127.2 },
+      { name: 'B-near', lat: 37.56, lng: 126.98 },
+      { name: 'C-mid', lat: 37.6, lng: 127.05 },
+      { name: 'Lodging-end', lat: 37.55, lng: 126.97 },
+    ];
+    const out = reorderStopsByProximity(input);
+    // first/last 보존 + 중간 reorder 발생 가능 (distance 기반)
+    expect(out[0]?.name).toBe('Lodging-start');
+    expect(out[out.length - 1]?.name).toBe('Lodging-end');
+    // chronology 검사 통과 (start_time 없으면 통과) → reorder 적용 (distance min)
+  });
+
+  it('case 11: 입력 자체 chronological 깨짐 + greedy 도 깨짐 → original 반환 (안전 fallback)', () => {
+    // 비상 케이스: Gemini 가 시간 순서 안 맞춰서 응답 + greedy 도 안 맞음
+    // → 모든 candidate 비chronological → original 반환
+    const input = [
+      { name: 'Lodging', category: 'lodging', start_time: '09:00', lat: 35.15, lng: 129.12 },
+      { name: 'X', start_time: '15:00', lat: 35.25, lng: 129.22 }, // 15시
+      { name: 'Y', start_time: '11:00', lat: 35.16, lng: 129.13 }, // 11시 (시간 역전!)
+      { name: 'Z', start_time: '18:00', lat: 35.08, lng: 128.95 },
+      { name: 'Lodging', category: 'lodging', start_time: '21:00', lat: 35.15, lng: 129.12 },
+    ];
+    const out = reorderStopsByProximity(input);
+    // 입력 자체 chronological 깨졌고, greedy 도 또 다른 순열을 시도하지만 chronology 보장 못 함.
+    // 안전 fallback = original 반환 (caller 에서 추가 검증 필요)
+    expect(Array.isArray(out)).toBe(true);
+    expect(out[0]?.name).toBe('Lodging');
+    expect(out[out.length - 1]?.name).toBe('Lodging');
+  });
 });

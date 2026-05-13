@@ -343,6 +343,24 @@ function _totalRouteKm(stops) {
  * @param {Array} stops — Gemini/RouteAgent 가 채운 stop 배열. 각 stop 은 lat/lng 필요.
  * @returns {Array} 새 배열 또는 원본 — 좌표 누락 또는 stops.length<=3 시 입력 그대로 반환.
  */
+// 2026-05-13 PR #413: stops 가 chronological 인지 검증 (start_time 오름차순).
+// PR #409 의 TSP reorder 는 start_time 재할당 X — array 순서만 바꿈.
+// reorder 가 chronology 깨면 (e.g. 14:00 stop 이 19:00 stop 앞으로) → PDF 시간 jumbled.
+// Gemini 가 일반적으로 chronological 응답 → reorder 가 시간 의미 파괴 가능.
+function _isChronological(stops) {
+    if (!Array.isArray(stops) || stops.length === 0) return true;
+    let prevMinutes = -1;
+    for (const s of stops) {
+        const t = String(s?.start_time || '');
+        const m = t.match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) continue; // start_time 없는 stop skip
+        const minutes = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+        if (minutes < prevMinutes) return false;
+        prevMinutes = minutes;
+    }
+    return true;
+}
+
 export function reorderStopsByProximity(stops) {
     if (!Array.isArray(stops) || stops.length <= 3) {
         // 2-stop (lodging-lodging), 3-stop (lodging + 1 + lodging) → 재정렬 불필요.
@@ -398,14 +416,31 @@ export function reorderStopsByProximity(stops) {
     // greedy 가 둘 다 zigzag 보다 나쁜 케이스 (pathological) — 원본 보존.
     const candidateOriginal = stops;
 
-    // 셋 중 총 거리 최소 채택. forward / backward 가 같으면 forward 선호.
+    // 셋 중 총 거리 최소 채택 — 단, **chronological 보존** candidate 만.
+    // 2026-05-13 PR #413: TSP 가 start_time 재할당 X 라 chronology 깨지면 PDF 시간 jumbled.
+    // chronological 후보만 distance 비교. original 이 항상 fallback (Gemini 일반적으로 chrono).
     const distForward = _totalRouteKm(candidateForward);
     const distBackward = _totalRouteKm(candidateBackward);
     const distOriginal = _totalRouteKm(candidateOriginal);
+    const chronoForward = _isChronological(candidateForward);
+    const chronoBackward = _isChronological(candidateBackward);
+    const chronoOriginal = _isChronological(candidateOriginal);
 
-    if (distForward <= distBackward && distForward <= distOriginal) return candidateForward;
-    if (distBackward < distForward && distBackward <= distOriginal) return candidateBackward;
-    return candidateOriginal;
+    // chronological 후보만 필터 → 그중 min distance
+    const validCandidates = [];
+    if (chronoForward) validCandidates.push({ stops: candidateForward, dist: distForward, label: 'forward' });
+    if (chronoBackward) validCandidates.push({ stops: candidateBackward, dist: distBackward, label: 'backward' });
+    if (chronoOriginal) validCandidates.push({ stops: candidateOriginal, dist: distOriginal, label: 'original' });
+
+    if (validCandidates.length === 0) {
+        // 모든 후보 비chronological — Gemini 응답 자체가 시간 순서 깨져 있음 (이상 케이스).
+        // 안전 default = 원본 반환 (caller 에서 추가 검증 또는 별도 fix 필요).
+        return candidateOriginal;
+    }
+
+    // min distance 채택 — 순서: forward / backward / original (tie-break)
+    validCandidates.sort((a, b) => a.dist - b.dist);
+    return validCandidates[0].stops;
 }
 
 export class RouteAgent extends BaseAgent {
