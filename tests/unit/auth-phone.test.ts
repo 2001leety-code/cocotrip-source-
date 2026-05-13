@@ -51,6 +51,57 @@ describe('Phone Auth — E.164 phone format', () => {
   });
 });
 
+// PR #399: 국가 select dropdown + nationalNumber 분리 입력 — PhoneSignInModal 의
+// handleSendCode 조합 로직 검증. dialCode + leading-0-strip(nationalNumber) → E.164.
+function composeE164(dialCode: string, nationalNumber: string): string {
+  const trimmed = nationalNumber.replace(/^0+/, '');
+  return `+${dialCode}${trimmed}`;
+}
+
+describe('Phone Auth — dial + nationalNumber 조합 (PR #399)', () => {
+  describe('valid composition', () => {
+    it.each([
+      ['82', '1012345678', '+821012345678', 'Korea mobile (no leading 0)'],
+      ['82', '01012345678', '+821012345678', 'Korea mobile (leading 0 strip)'],
+      ['82', '0001012345678', '+821012345678', 'Korea (multiple leading 0 strip)'],
+      ['81', '9012345678', '+819012345678', 'Japan mobile (no leading 0)'],
+      ['81', '09012345678', '+819012345678', 'Japan mobile (leading 0 strip)'],
+      ['886', '912345678', '+886912345678', 'Taiwan mobile'],
+      ['852', '91234567', '+85291234567', 'Hong Kong mobile'],
+      ['86', '13812345678', '+8613812345678', 'China mobile'],
+      ['1', '2025550123', '+12025550123', 'US'],
+      ['1', '4161234567', '+14161234567', 'Canada (same dial as US)'],
+      ['65', '91234567', '+6591234567', 'Singapore'],
+      ['44', '7400123456', '+447400123456', 'UK'],
+    ])('dial=%s national=%s → %s (%s)', (dial, national, expected) => {
+      const composed = composeE164(dial, national);
+      expect(composed).toBe(expected);
+      expect(PHONE_E164_REGEX.test(composed)).toBe(true);
+    });
+  });
+
+  describe('edge cases', () => {
+    it('strips multiple leading zeros', () => {
+      expect(composeE164('82', '0001012345678')).toBe('+821012345678');
+    });
+    it('keeps leading 0 only inside the number (not at start)', () => {
+      // 미국 +1 (XXX) 0YY-ZZZZ — 중간 0 은 유지
+      expect(composeE164('1', '2020551234')).toBe('+12020551234');
+    });
+    it('all-zero national → still strips all → invalid (PHONE_E164_REGEX rejects)', () => {
+      const composed = composeE164('82', '0000000000');
+      expect(composed).toBe('+82');
+      // PHONE_E164_REGEX 가 reject — UX 가드: 사용자 에러 메시지
+      expect(PHONE_E164_REGEX.test(composed)).toBe(false);
+    });
+    it('empty national → just +dialCode (invalid)', () => {
+      const composed = composeE164('82', '');
+      expect(composed).toBe('+82');
+      expect(PHONE_E164_REGEX.test(composed)).toBe(false);
+    });
+  });
+});
+
 describe('Phone Auth — SMS code format', () => {
   describe('valid cases', () => {
     it.each(['123456', '000000', '999999', '987654'])('accepts %s', (code) => {
