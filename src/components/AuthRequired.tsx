@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle, handleRedirectResult, db } from '@/lib/firebase';
+import { signInWithGoogle, signInWithLine, handleRedirectResult, db } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
 import { PhoneSignInModal } from '@/components/PhoneSignInModal';
 
@@ -12,6 +12,7 @@ const TEXT = {
     desc: '소셜 로그인으로 간편하게 시작하세요.',
     benefits: ['🗺️ 나만의 맞춤 여행 일정 저장', '📋 예약 내역 및 이용 기록 관리', '💬 24/7 고객 지원 이용'],
     google: '구글로 시작하기',
+    line: 'LINE으로 계속',
     phone: '전화번호로 계속',
     loading: '로그인 중...',
     privacy: '로그인 시 개인정보 처리방침에 동의하게 됩니다.',
@@ -21,6 +22,7 @@ const TEXT = {
     desc: 'Get started quickly with your social account.',
     benefits: ['🗺️ Save your personalized itineraries', '📋 Manage bookings & travel history', '💬 Access 24/7 customer support'],
     google: 'Continue with Google',
+    line: 'Continue with LINE',
     phone: 'Continue with phone',
     loading: 'Signing in...',
     privacy: 'By signing in, you agree to our Privacy Policy.',
@@ -30,6 +32,7 @@ const TEXT = {
     desc: 'ソーシャルアカウントで簡単に始められます。',
     benefits: ['🗺️ カスタム旅程の保存', '📋 予約履歴の管理', '💬 24時間カスタマーサポート'],
     google: 'Googleで続ける',
+    line: 'LINEで続ける',
     phone: '電話番号で続ける',
     loading: 'ログイン中...',
     privacy: 'ログインすると、プライバシーポリシーに同意したことになります。',
@@ -39,6 +42,7 @@ const TEXT = {
     desc: '使用社交账号快速开始。',
     benefits: ['🗺️ 保存您的定制行程', '📋 管理预订和旅行记录', '💬 享受24/7客服支持'],
     google: '使用Google登录',
+    line: '使用LINE登录',
     phone: '使用电话号码登录',
     loading: '登录中...',
     privacy: '登录即表示您同意我们的隐私政策。',
@@ -51,6 +55,7 @@ export function AuthRequired({ children }: { children: ReactNode }) {
   const location = useLocation();
   const text = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [lineLoading, setLineLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [redirectChecking, setRedirectChecking] = useState(true);
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
@@ -75,6 +80,15 @@ export function AuthRequired({ children }: { children: ReactNode }) {
     setGoogleLoading(true);
     try { await signInWithGoogle(); } catch (e) { setError(e instanceof Error ? e.message : 'Login failed'); }
     finally { setGoogleLoading(false); }
+  }, []);
+
+  // LINE OIDC (PR #396): Identity Platform + Firebase OIDC provider 등록 후 작동.
+  // 미등록 시 auth/operation-not-allowed 에러 → 일반 에러 메시지 노출.
+  const handleLine = useCallback(async () => {
+    setError(null);
+    setLineLoading(true);
+    try { await signInWithLine(); } catch (e) { setError(e instanceof Error ? e.message : 'LINE login failed'); }
+    finally { setLineLoading(false); }
   }, []);
 
   // PR-E: 로그인 직후 users/{uid}.needsOnboarding 1회 fetch — true면 /onboarding 리다이렉트
@@ -153,8 +167,21 @@ export function AuthRequired({ children }: { children: ReactNode }) {
             {googleLoading ? text.loading : text.google}
           </button>
 
-          {/* Phone Number Button (PR #390): Google 아래 보조 옵션. LINE OIDC 는
-              Identity Platform 업그레이드 필요로 후속 PR. */}
+          {/* LINE Button (PR #396): Google 아래 보조 옵션. 일본/대만/홍콩 사용자.
+              Identity Platform 업그레이드 + Firebase OIDC provider 등록 후 작동. */}
+          <button
+            onClick={handleLine}
+            disabled={lineLoading}
+            className="w-full py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
+            style={{ background: '#06C755', color: '#fff', boxShadow: '0 2px 12px rgba(6,199,85,0.25)' }}
+          >
+            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.477 2 2 5.78 2 10.444c0 4.18 3.553 7.683 8.354 8.348.325.07.768.214.88.491.1.252.066.647.032.901l-.142.852c-.044.252-.2.987.865.538 1.066-.449 5.751-3.387 7.844-5.797C20.97 14.171 22 12.434 22 10.444 22 5.78 17.523 2 12 2zM8.072 13.108H6.116c-.286 0-.518-.232-.518-.519V8.781c0-.287.232-.519.518-.519.286 0 .519.232.519.519v3.29h1.437c.287 0 .519.232.519.518 0 .287-.232.519-.519.519zm2.057 0c-.287 0-.519-.232-.519-.519V8.781c0-.287.232-.519.519-.519.286 0 .518.232.518.519v3.808c0 .287-.232.519-.518.519zm4.575 0c-.215 0-.4-.13-.477-.323L13.014 10.7v1.889c0 .287-.232.519-.518.519-.287 0-.519-.232-.519-.519V8.781c0-.222.142-.42.355-.493.213-.075.45-.012.595.156.018.022 1.227 1.658 1.255 1.694l1.226 2.103V8.781c0-.287.232-.519.519-.519.286 0 .518.232.518.519v3.808c0 .287-.232.519-.518.519zm3.158-2.434c.287 0 .519.232.519.518 0 .287-.232.519-.519.519h-1.437v.879h1.437c.287 0 .519.232.519.518 0 .287-.232.519-.519.519H16.31c-.286 0-.518-.232-.518-.519V8.781c0-.287.232-.519.518-.519h1.956c.286 0 .518.232.518.519 0 .286-.232.518-.518.518H16.83v.876h1.437z"/>
+            </svg>
+            {lineLoading ? text.loading : text.line}
+          </button>
+
+          {/* Phone Number Button (PR #390): Google + LINE 아래 보조 옵션. */}
           <button
             onClick={() => { setError(null); setPhoneModalOpen(true); }}
             className="w-full py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 mb-3 hover:scale-[1.02]"
