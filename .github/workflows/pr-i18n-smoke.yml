@@ -3,24 +3,38 @@ name: PR i18n Smoke (Vercel Preview)
 # Triggered when Vercel finishes deploying a preview. Runs the same i18n
 # locale smoke as the weekly job, but against the per-PR preview URL so
 # regressions surface during review instead of waiting for Monday.
+#
+# 2026-05-13 (PR #404): Also triggers on `pull_request` for paths Vercel
+# ignores (.github/**, docs/**, **/*.md, .agent/**). Without this, branch
+# protection's required `smoke` check BLOCKED forever for workflow-only PRs
+# (deployment_status never fires when Vercel skips preview build).
+# See PR #402 incident: workflow timeout bump itself was unmergeable until
+# admin override. For mixed PRs (workflow + src), both pull_request auto-pass
+# AND deployment_status real smoke fire; latest wins (real smoke authoritative).
 
 on:
   deployment_status:
+  pull_request:
+    paths:
+      - '.github/**'
+      - '**/*.md'
+      - 'docs/**'
+      - '.agent/**'
 
 # Cancel old runs when a newer preview lands. Each Playwright run is ~9min
 # with 3 viewports — saves big when an active PR gets pushed multiple times.
 concurrency:
-  group: pr-i18n-smoke-${{ github.event.deployment.ref }}
+  group: pr-i18n-smoke-${{ github.event.deployment.ref || github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
   smoke:
-    # Only run on successful Vercel preview deployments (not Production, not
-    # other vendors). Vercel's preview env is named "Preview".
     if: |
-      github.event.deployment_status.state == 'success' &&
-      github.event.deployment.environment == 'Preview' &&
-      github.event.deployment.creator.login == 'vercel[bot]'
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Preview' &&
+       github.event.deployment.creator.login == 'vercel[bot]')
     runs-on: ubuntu-latest
     # 2026-05-13 PR #402: 10 → 15 분 상향. 배경: PR #397 + #401 두 차례 10m15s
     # timeout. Playwright 4-lang × 3-viewport (~12 browser run) + Vercel preview
@@ -29,24 +43,37 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Workflow/docs-only PRs: Vercel ignores these paths → no preview deploy
+      # → deployment_status never fires → required `smoke` check absent → BLOCKED.
+      # This auto-pass step closes that gap. See PR #402 incident (PR #404 fix).
+      - name: Auto-pass — workflow/docs-only PR (no preview deploy)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "::notice::PR matches Vercel-ignored paths — no preview deployment expected."
+          echo "::notice::Auto-pass to satisfy branch protection 'smoke' required check."
+
       - name: Checkout PR head (use deployment ref)
+        if: github.event_name == 'deployment_status'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.deployment.ref }}
 
       - name: Setup Node.js
+        if: github.event_name == 'deployment_status'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
+        if: github.event_name == 'deployment_status'
         run: npm ci
 
       # Cache Playwright browsers — 2026-05-12 추가. 1차 fail 원인: install --with-deps
       # 가 9~10분 걸려 timeout 10m 초과. 캐시 hit 시 ~30s, miss 시 기존 그대로.
       # 키 = OS + package-lock.json hash (Playwright 버전 변경 시 자동 무효화).
       - name: Cache Playwright browsers
+        if: github.event_name == 'deployment_status'
         uses: actions/cache@v4
         id: playwright-cache
         with:
@@ -56,18 +83,19 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright browsers (cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit != 'true'
         # iPhone 14 Pro 프로젝트가 webkit 엔진을 쓰므로 chromium + webkit 둘 다 설치.
         # 이전엔 chromium만 설치 → iPhone 14 Pro 케이스 3ms 즉시 실패 (Executable not found at webkit-XXX/pw_run.sh).
         run: npx playwright install --with-deps chromium webkit
 
       - name: Install Playwright system deps (cache hit)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit == 'true'
         # 브라우저 바이너리는 ~/.cache/ms-playwright 에 캐시되지만 system deps
         # (apt 패키지 — libnss3/libgbm1 등) 는 /var/lib 라서 매번 install-deps 필요.
         run: npx playwright install-deps chromium webkit
 
       - name: Run i18n locale smoke against preview URL (3 viewports)
+        if: github.event_name == 'deployment_status'
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
           # Vercel Pro Deployment Protection bypass — preview URLs return 401
@@ -80,7 +108,7 @@ jobs:
             --project='iPhone 14 Pro'
 
       - name: Upload Playwright report
-        if: always()
+        if: always() && github.event_name == 'deployment_status'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-pr-${{ github.run_id }}
