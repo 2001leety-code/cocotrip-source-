@@ -7,6 +7,7 @@ import { Clock, Users, ChevronRight, Star, Moon, Images, Languages } from 'lucid
 import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
 import { WishlistToggle } from '@/components/WishlistButton';
+import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 
@@ -191,7 +192,7 @@ export function TourCard({ tour, language }: TourCardProps) {
               )}
             </p>
             <p className="text-[9px] text-white/55 leading-none mt-0.5">
-              ≈ ₩{Math.round(tour.priceFrom * 1350).toLocaleString('ko-KR')}{tour.priceUnit === 'per_person' ? PER_PERSON_LABEL[language] : ''}
+              ≈ ₩{Math.round(tour.priceFrom * CALCULATOR_KRW_PER_USD).toLocaleString('ko-KR')}{tour.priceUnit === 'per_person' ? PER_PERSON_LABEL[language] : ''}
             </p>
           </div>
         </div>

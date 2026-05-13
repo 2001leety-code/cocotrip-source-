@@ -5,6 +5,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
+import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
 // lazy import 로 첫 paint 영향 0.
@@ -481,7 +482,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // 예상 USD (rate 없을 때 간이 계산)
   const estimatedUSD = rateInfo
     ? rateInfo.displayUSD
-    : `\u2248 $${(effectiveKRW / 1350).toFixed(2)} USD`;
+    : `\u2248 $${(effectiveKRW / CALCULATOR_KRW_PER_USD).toFixed(2)} USD`;
 
   // ── 예약 확인 모달 (Premium Overlay) ──────────────────────────────
   if (showSuccess && successData) {

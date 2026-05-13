@@ -11,8 +11,13 @@
 //   km >= 200 → km × 150 KRW (장거리 고속도로)
 
 import type { VehicleType } from '@/components/charter/types';
+import spec from '@/data/pricing_spec.json';
 
-const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD ?? 1350);
+// P1 #5 fix (2026-05-13): 환율 SSOT 통일 — pricing_spec.json policy_krw_per_usd 우선.
+// 우선순위: Vercel env (VITE_KRW_PER_USD) > pricing_spec.json (1430) > hardcoded fallback (1430).
+// 실제 결제 환산은 backend (api/_exchange-rate.js) 의 live rate 사용. 이 상수는 UI 표시 estimate 용.
+const POLICY_RATE = (spec as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
+const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD ?? POLICY_RATE);
 
 interface VehicleFormula {
   base: number;

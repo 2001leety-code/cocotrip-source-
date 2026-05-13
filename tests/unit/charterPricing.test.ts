@@ -1193,3 +1193,82 @@ describe('B-AI3 — Day 별 lodging.city 중복 (PDF-issue-3)', () => {
 describe('B-AI4 — wrap-up departure airport plan-level (PDF-issue-4 보강)', () => {
   it.todo('실제 ai-planner-full handler → plan.itinerary.departure_guide.airport = inferred (E2E)');
 });
+
+// ─────────────────────────────────────────────────────────
+// B-CHT20/21/22/23: P1 #5 환율 1430 통일 + applyRatePolicy floor 1450
+// ─────────────────────────────────────────────────────────
+
+import pricingSpecRaw from '../../src/data/pricing_spec.json';
+import { CALCULATOR_KRW_PER_USD } from '../../src/lib/calculator';
+import { applyRatePolicy } from '../../api/_exchange-rate.js';
+
+const POLICY_RATE = (pricingSpecRaw as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
+
+describe('B-CHT20 — 환율 SSOT 통일 (P1 #5 fix)', () => {
+  it('pricing_spec.policy_krw_per_usd = 1430 (운영자 정책 B 확정)', () => {
+    expect(POLICY_RATE).toBe(1430);
+  });
+
+  it('CALCULATOR_KRW_PER_USD = POLICY_RATE (env override 없을 때)', () => {
+    expect(CALCULATOR_KRW_PER_USD).toBeGreaterThanOrEqual(1300);
+    expect(CALCULATOR_KRW_PER_USD).toBeLessThanOrEqual(1500);
+  });
+});
+
+describe('B-CHT21 — airport_transfer_prices priceUSD = round(priceKRW / 1430) (P1 #5 fix)', () => {
+  for (const [zone, entry] of Object.entries(AIRPORT_TRANSFER_PRICES)) {
+    it(`zone=${zone} priceUSD ≈ ${entry.priceKRW} / 1430`, () => {
+      const expectedUSD = Math.round(entry.priceKRW / 1430);
+      expect(entry.priceUSD, `zone=${zone} KRW=${entry.priceKRW} expectedUSD=${expectedUSD} actualUSD=${entry.priceUSD}`)
+        .toBeGreaterThanOrEqual(expectedUSD - 1);
+      expect(entry.priceUSD).toBeLessThanOrEqual(expectedUSD + 1);
+    });
+  }
+});
+
+describe('B-CHT22 — daily_tour_prices priceUSD = round(priceKRW / 1430) (P1 #5 fix)', () => {
+  for (const [tour, entry] of Object.entries(DAILY_TOUR_PRICES)) {
+    it(`tour=${tour} priceUSD ≈ ${entry.priceKRW} / 1430`, () => {
+      const expectedUSD = Math.round(entry.priceKRW / 1430);
+      expect(entry.priceUSD, `tour=${tour} KRW=${entry.priceKRW} expectedUSD=${expectedUSD} actualUSD=${entry.priceUSD}`)
+        .toBeGreaterThanOrEqual(expectedUSD - 1);
+      expect(entry.priceUSD).toBeLessThanOrEqual(expectedUSD + 1);
+    });
+  }
+});
+
+describe('B-CHT23 — applyRatePolicy floor 1450 정책 (운영자 결정 2026-05-13)', () => {
+  it('live rate 1430 (< floor) → 1450 (floor 적용)', () => {
+    expect(applyRatePolicy(1430)).toBe(1450);
+  });
+
+  it('live rate 1400 (< floor) → 1450 (floor 적용)', () => {
+    expect(applyRatePolicy(1400)).toBe(1450);
+  });
+
+  it('live rate 1450 (=floor) → 1450 (경계, 그대로)', () => {
+    expect(applyRatePolicy(1450)).toBe(1450);
+  });
+
+  it('live rate 1492.50 (실시세 5/13) → 1492.50 (그대로, floor 미적용)', () => {
+    expect(applyRatePolicy(1492.50)).toBe(1492.50);
+  });
+
+  it('live rate 1600 (KRW 약세 spike) → 1600 (그대로, 위로 cap 없음)', () => {
+    expect(applyRatePolicy(1600)).toBe(1600);
+  });
+
+  it('live rate 1999 (sanity 경계 -1) → 1999 (그대로)', () => {
+    expect(applyRatePolicy(1999)).toBe(1999);
+  });
+
+  it('live rate 2500 (비정상 spike, > sanity 2000) → 1450 (FALLBACK)', () => {
+    expect(applyRatePolicy(2500)).toBe(1450);
+  });
+
+  it('live rate 0 / NaN / 음수 → 1450 (FALLBACK)', () => {
+    expect(applyRatePolicy(0)).toBe(1450);
+    expect(applyRatePolicy(NaN)).toBe(1450);
+    expect(applyRatePolicy(-100)).toBe(1450);
+  });
+});

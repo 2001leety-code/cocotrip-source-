@@ -6,8 +6,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import pricingSpec from './pricing_spec.json';
 
-// 환경변수로 USD→KRW 환율 오버라이드 가능 (default 1350). 출발지 명확화 — 환율 변동 대응.
-const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD ?? 1350);
+// P1 #5 fix (2026-05-13): 환율 SSOT — pricing_spec.policy_krw_per_usd (1430) 우선.
+// Vercel env (VITE_KRW_PER_USD) > SSOT > hardcoded fallback. 실 결제 환산은 backend live rate 사용.
+const POLICY_RATE = (pricingSpec as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
+const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD ?? POLICY_RATE);
 
 /** Tour ID → pricing_spec.daily_tour_prices key. null이면 spec에 없음 (fallback 사용). */
 const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {

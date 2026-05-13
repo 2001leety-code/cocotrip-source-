@@ -26,16 +26,16 @@
 | 3 | **`pricing_spec.json` busan 항목 ₩600,000 라벨 "직행"** | `pricing_spec.json:174` | `airport_transfer_prices.busan` = ICN→부산 직행 ₩600K (km 450). 위 UI 통합(`100,000` PUS 출발) 과 별개 항목이라 키 충돌은 없지만, **운영자 5/9 결정 메모** ("이전 다른 곳 ₩600K 표기 통일") 가 SSOT 에는 반영 안 됨. 즉 ICN→부산 직행 차터를 ₩600K (5시간 직행) 로 받으면 staria intercity formula: 50K + 450km × 2K + 톨비 (450×150 = 67.5K) = ₩1,017,500 보다 훨씬 저렴 → **실비 미만, 운영 손실**. | 운영자에 확인: (A) ₩600K 유지하되 실비 손실 감수, 또는 (B) ₩1,000,000+ 로 인상, 또는 (C) busan 직행 항목 제거 후 multi_day 로 받음. |
 | 4 | **Bus 배수 3.0× 비현실** | `useQuoteCalculator.ts:36`, `resolveProductType.ts:22` `VEHICLE_MULTIPLIER.bus = 3.0` | Staria 1.0×, Sprinter 2.0×, Bus 3.0×. SSOT `pricing_spec.json` vehicles.bus.intercity 는 base 100K + km×2070 + daily 450K (실비 기준). 그러나 wizard 화면은 단순히 staria 가격 × 3 으로 표시. 즉 ICN→서울 staria ₩124,800 × 3 = ₩374,400 으로 bus 표기되지만 실제 SSOT 기준은 100K + 52×2070 + 450K = ₩657,640 → **bus 견적이 SSOT 의 57% 수준**. 그나마 `isInquiryOnly()` 가 bus/vip 차단해서 결제 진행 안 되지만, **UI 견적 화면에 잘못된 숫자가 노출**됨. | bus/vip 차종 선택 시 가격 숫자 노출 자체를 숨기고 "협의" 라벨만 표시 (현재 needsCustomQuote=true 지만 vehicleChargeKRW 는 계산되어 영수증 미리보기에 보일 수 있음). |
 
-### 🟡 P1 — 검토 필요 (운영자 결정)
+### 🟡 P1 — 검토 필요 (운영자 결정 → 5/13 모두 권장 B 진행)
 
-| # | 항목 | 현재 | 문제 가설 |
+| # | 항목 | 현재 | 상태 |
 |---|---|---|---|
-| 5 | **공항 pickup KRW/USD 환율 비일관** | `pricing_spec.json:167-174` | `seoul-central`: ₩124,800 / $90 → 비율 1386. `gangneung-sokcho`: ₩364,000 / $265 → 1373. `busan`: ₩600,000 / $450 → 1333. **각 항목마다 환율 ±5% 변동**. KRW_PER_USD default 1350 과도 안 맞음. SSOT 가 정합성 잃음. |
-| 6 | **multi_day 단순 식** | `useQuoteCalculator.ts:181-208` | hardcoded `daily = 200,000` + `overnight = 130,000`. staria intercity 만 적용 (SSOT `staria.intercity.daily_service_fee` 와는 일치). 그러나 sprinter 일 때도 같은 200K/130K 사용 → SSOT sprinter.intercity.daily=280K / overnight=180K 와 불일치. **sprinter 멀티데이 견적 underprice**. |
-| 7 | **DMZ vs Seoul Suburb 가격 동일** | `pricing_spec.json:185-196` | `seoul-suburb`: ₩343,200 / `dmz`: ₩343,200 동일. DMZ 는 사전 신청 + 신분증 + JSA 가이드 비용 일반적으로 별도 (Korea Travel Easy 시장가 $80-150/인 + 차량). 동일 가격이라면 DMZ 가 marketplace 비교 시 가성비 신호로 받아질 수 있지만, **JSA 입장 자체가 임의 운영(미군 협조) 이므로 정책 변경 시 운영 risk**. |
-| 8 | **톨비 50km 미만 0원 정책** | `calculator.ts:48-52` | km<50 → 톨비 0. 그러나 ICN→서울도심 = 52km (경계). ICN→GMP 환승 + 시내 = 60km. 실제 인천대교 통행료 = ₩9,000~15,800 (편도). **사용자 시각: ICN 출발이면 ICN 대교 톨 무조건 발생**. policy B 단순화 측면 OK 지만 ICN 출발은 항상 톨 부과 정책으로 분리 검토 필요. |
-| 9 | **Sprinter 가이드 의무 + 동시 옵션 노출** | `useQuoteCalculator.ts:223-227, 218` | sprinter 는 `guide_required: true` → 자동으로 ₩300K 가이드비 가산. 그런데 사용자가 `options.licensedGuide` 체크하면 또 ₩300K 추가됨 (`englishGuidePerDay`). **중복 ₩600K 가산 위험**. UI 에서 sprinter 선택 시 licensedGuide 옵션 비활성화 필요. |
-| 10 | **콤보 10% 할인 SSOT 표기 부재** | `createPaypalOrder.js:54-61, 93-97` | `COMBO_MAP` 5개 (`combo_airport_seoul` 등) 은 createPaypalOrder.js 에 하드코딩 `(airport + tour) × 0.9`. SSOT `pricing_spec.json` 에는 콤보 항목 없음. 콤보 UI 자체가 아직 안 노출되어 있다면 dead code. 노출 중이라면 SSOT 와 분리되어 향후 가격 변경 시 sync miss risk. |
+| 5 | **공항 pickup KRW/USD 환율 비일관 + 실시세 floor 정책** | priceUSD ±5% 변동 + live rate cap 1500 소진 | **✅ PR fix** — `policy_krw_per_usd: 1430` SSOT (UI 표시) + 모든 priceUSD = round(priceKRW/1430) + KRW_PER_USD default 1430 + **applyRatePolicy floor 1450 + sanity max 2000** (실 결제: live<1450→1450 / 1450~2000→live 그대로 / >2000→fallback) + B-CHT20/21/22/23 + P34 lint |
+| 6 | **multi_day 단순 식** | sprinter underprice | **✅ PR #382 fix** — SSOT `VEHICLE_INTERCITY.sprinter` (280K/180K) 분기 도입 |
+| 7 | **DMZ vs Seoul Suburb 가격 동일** | ₩343,200 동가 | **✅ 운영자 정책 B 확정 (2026-05-13) — 현 유지** (가성비 마케팅 유지). 부산 launch 후 DMZ 예약 건수 모니터링 → 재논의. JSA 운영 risk 메모 보존. |
+| 8 | **톨비 50km 미만 0원 정책** | ICN 단거리 톨 흡수 | **✅ 운영자 정책 B 확정 (2026-05-13) — 현 유지** (정책 단순함 + 사용자 perception). PR #381 이후 장거리 (>=50km) 톨은 formula 에 이미 반영. 단거리 톨은 운영자 흡수. |
+| 9 | **Sprinter 가이드 의무 + 동시 옵션 노출** | ₩600K 중복 가산 위험 | **✅ PR #383 fix** — server dedup + UI hide + B-CHT18 + P32 lint |
+| 10 | **콤보 10% 할인 SSOT 표기 부재** | UI ↔ backend ₩110K mismatch | **✅ PR #384 fix** — `pricing_spec.json` `combo_packages` 신설 + `computeComboPriceKRW()` SSOT 함수 + UI/backend 동일 호출 + B-CHT19 + P33 lint |
 
 ### 🟢 P2 — 정보 (참고)
 
@@ -106,17 +106,24 @@
 
 ---
 
-## 5. 운영자 결정 대기
+## 5. 운영자 결정 대기 → 5/12-5/13 모두 처리 완료
 
-1. **P0 #1**: ICN 외 공항(PUS/GMP/CJU/TAE) 픽업을 PayPal 결제 허용할지, UI 에서 "협의" 만 노출할지 선택. 부산 prod 활용 5/3~ 이래 PUS 픽업 결제 0건이면 후자 추천.
-2. **P0 #2**: `PICKUP_PRICES.PUS = ₩100,000` 표기 유지 → SSOT 동기화 필요. 또는 ICN 외 항목 전부 UI 제거.
-3. **P0 #3**: ICN→부산 직행 ₩600K 유지 vs ₩1,000K+ 인상. 5/3 부산 booking 1건 (운영자 본인 검증) 이외 실제 운영 데이터로 확정.
-4. **P0 #4**: Bus/VIP 차종 견적 영수증에 숫자 노출 차단 (협의 라벨만).
-5. **P1 #5**: pricing_spec.json 공항 priceKRW/priceUSD 환율 통일 (default 1380 또는 1430). 5/12 launch 후 별도 PR.
-6. **P1 #6**: sprinter multi_day daily/overnight SSOT 의 sprinter 항목으로 분기. (B9-38 후속)
-7. **P1 #9**: sprinter 선택 시 licensedGuide 옵션 비활성화. (UI 수정)
-8. **P1 #10**: COMBO_MAP 살아있는지 확인. dead 면 제거, alive 면 SSOT 의 `combo_discount_percent` 항목 신설.
-9. **P2 #13**: `VITE_KRW_PER_USD` Vercel env 업데이트 (1350→1430 또는 ExchangeRate-API live fetch).
+### ✅ 자율 처리 (코드 변경)
+1. **P0 #1/#2/#3/#4** (PR #381): PUS ₩77K + PayPal 4 공항 + ICN→부산 ₩660K + Bus/VIP 협의
+2. **P1 #6** (PR #382): sprinter multi_day SSOT 분기 (280K/180K)
+3. **P1 #9** (PR #383): Sprinter 가이드 중복 ₩600K 차단 (server dedup + UI hide + B-CHT18 + P32 lint)
+4. **P1 #10** (PR #384): 콤보 SSOT 단일화 — UI/backend mismatch ₩110K 차단 (B-CHT19 + P33 lint)
+5. **P1 #5** (이번 PR): 환율 통일 — `policy_krw_per_usd: 1430` SSOT + 모든 priceUSD 재계산 + KRW_PER_USD 1350→1430 + **applyRatePolicy floor 1450** (운영자 보호) + B-CHT20/21/22/23 + P34 lint
+   - **floor 1450 정책 (운영자 결정 2026-05-13)**: 실 결제 환율 live rate 가 1450 이하 → 1450 사용 (운영자 보호: USD 가격 underprice 방지). 1450 위 → 실시세 그대로 (KRW 약세 시 자연스러운 USD 가격 인상). sanity max 2000 (fetch 오류 차단).
+
+### ✅ 운영자 정책 확정 (코드 변경 없음, 정책 B 채택)
+6. **P1 #7** DMZ vs Suburb 동가 — 현 유지 + 예약 건수 모니터링 (가성비 유지, JSA risk 메모)
+7. **P1 #8** 톨비 50km<0원 — 현 유지 + 단거리 톨 운영자 흡수 (정책 단순함 우선)
+
+### 🟢 P2 잔여 (별도 PR 추적, post-launch)
+8. **P2 #11** seoul-night 1인 ₩330K 그룹가 모순 — `tours.ts:387` per_person → group 결제 mismatch
+9. **P2 #12** Multi-city 3D2N USD $580 priceFrom 실비 ₩2.86M+ 모순 — "별도 협의" 라벨 필요
+10. **P2 #13** Vercel env `VITE_KRW_PER_USD` 1350 → 1430 등록 (선택 — 이번 PR 이후 코드 default 가 1430 이라 안 해도 작동)
 
 ---
 
