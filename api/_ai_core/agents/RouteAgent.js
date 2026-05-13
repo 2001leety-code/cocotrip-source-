@@ -290,6 +290,124 @@ export function methodToMode(method) {
     return m; // subway / bus / walk / car / unknown 그대로
 }
 
+// ── Haversine helper (module-level pure fn) ─────────────────────────────
+// _haversineKm 은 RouteAgent 인스턴스 메서드라 reorderStopsByProximity 의
+// pure helper 호출을 위해 module-level 복제. 동일 공식 (R=6371 km).
+function _haversineKmPure(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const toRad = (x) => (x * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 좌표 배열의 총 traversal 거리 (km) — TSP fitness 평가용.
+function _totalRouteKm(stops) {
+    let total = 0;
+    for (let i = 1; i < stops.length; i++) {
+        const a = stops[i - 1];
+        const b = stops[i];
+        if (a && b && a.lat != null && a.lng != null && b.lat != null && b.lng != null) {
+            total += _haversineKmPure(a.lat, a.lng, b.lat, b.lng);
+        }
+    }
+    return total;
+}
+
+/**
+ * 일 단위 stop 재정렬 — Gemini 가 zone 클러스터 안내 (buildPrompt.js L556) 를
+ * 무시하고 zigzag 순서 (Gwangalli → Gijang → Yeongdo → Gwangalli) 를 반환했을 때
+ * RouteAgent 가 Haversine nearest-neighbor (greedy TSP) 로 동선 단축.
+ *
+ * 사용자 신고 (2026-05-13 PDF): Day 4 Busan 동선 4.7시간 (283분) transit —
+ * Gwangalli (수영구) → Gijang (NE) → Huinnyeoul (영도구 SW) → 다시 Gwangalli.
+ * buildPrompt.js 의 "같은 권역(구) 내 stops 묶어서 이동 시간 최소화" 안내 명시
+ * 했지만 RouteAgent 가 Gemini 순서 trust + 재정렬 X.
+ *
+ * 정책:
+ *   - 첫 stop (보통 lodging departure / 호텔 출발) → 그대로 [0]
+ *   - 마지막 stop (보통 lodging return 또는 공항 이동) → 그대로 [N-1]
+ *   - 중간 stop 들 → 후보 알고리즘 여러 개 돌리고 가장 짧은 총 거리 채택.
+ *     1) greedy NN forward (first anchor 기준 nearest-neighbor)
+ *     2) greedy NN backward (last anchor 기준 nearest-neighbor — 결과 reverse)
+ *     3) 원본 그대로
+ *     → 셋 중 총 거리 (first → ... → last 포함) 최소 채택.
+ *   - 좌표 누락 중간 stop 있으면 원본 순서 유지 (회귀 안전망)
+ *
+ * 왜 candidates 비교 — greedy NN 은 "마지막 stop 으로의 복귀 비용" 을 무시해서
+ * 종종 원본 zigzag 보다 나쁜 결과 (e.g. outlier 를 첫 step 에 빼면 마지막에 다시
+ * 돌아와야 함). fail-safe: 후보 중 최소 거리 채택 → 절대 악화시키지 않음.
+ *
+ * @param {Array} stops — Gemini/RouteAgent 가 채운 stop 배열. 각 stop 은 lat/lng 필요.
+ * @returns {Array} 새 배열 또는 원본 — 좌표 누락 또는 stops.length<=3 시 입력 그대로 반환.
+ */
+export function reorderStopsByProximity(stops) {
+    if (!Array.isArray(stops) || stops.length <= 3) {
+        // 2-stop (lodging-lodging), 3-stop (lodging + 1 + lodging) → 재정렬 불필요.
+        return stops;
+    }
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    const middle = stops.slice(1, stops.length - 1);
+
+    // 좌표 누락 중간 stop 1개라도 있으면 fallback — 원본 순서 유지.
+    // (anchor 인 first/last 좌표도 누락 시 거리 계산 불가 → 동일 처리)
+    const hasAllCoords = first && first.lat != null && first.lng != null
+        && last && last.lat != null && last.lng != null
+        && middle.every((s) => s && s.lat != null && s.lng != null);
+    if (!hasAllCoords) {
+        return stops;
+    }
+
+    // ─── 후보 1: greedy NN forward (first anchor 부터) ─────────
+    const greedyFromAnchor = (anchorLat, anchorLng, pool) => {
+        const remaining = [...pool];
+        const ordered = [];
+        let aLat = anchorLat;
+        let aLng = anchorLng;
+        while (remaining.length > 0) {
+            let bestIdx = 0;
+            let bestDist = Infinity;
+            for (let i = 0; i < remaining.length; i++) {
+                const s = remaining[i];
+                const d = _haversineKmPure(aLat, aLng, s.lat, s.lng);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestIdx = i;
+                }
+            }
+            const next = remaining.splice(bestIdx, 1)[0];
+            ordered.push(next);
+            aLat = next.lat;
+            aLng = next.lng;
+        }
+        return ordered;
+    };
+    const forwardOrder = greedyFromAnchor(first.lat, first.lng, middle);
+    const candidateForward = [first, ...forwardOrder, last];
+
+    // ─── 후보 2: greedy NN backward (last anchor 부터 — 결과 reverse) ─────────
+    // last anchor 에서 가장 가까운 stop 부터 거꾸로 잡으면 마지막 stop 이 lodging
+    // return 에 가까워서 total path 짧아지는 케이스 (PDF 사례).
+    const backwardOrder = greedyFromAnchor(last.lat, last.lng, middle).reverse();
+    const candidateBackward = [first, ...backwardOrder, last];
+
+    // ─── 후보 3: 원본 그대로 ─────────
+    // greedy 가 둘 다 zigzag 보다 나쁜 케이스 (pathological) — 원본 보존.
+    const candidateOriginal = stops;
+
+    // 셋 중 총 거리 최소 채택. forward / backward 가 같으면 forward 선호.
+    const distForward = _totalRouteKm(candidateForward);
+    const distBackward = _totalRouteKm(candidateBackward);
+    const distOriginal = _totalRouteKm(candidateOriginal);
+
+    if (distForward <= distBackward && distForward <= distOriginal) return candidateForward;
+    if (distBackward < distForward && distBackward <= distOriginal) return candidateBackward;
+    return candidateOriginal;
+}
+
 export class RouteAgent extends BaseAgent {
     constructor(apiKey) {
         super(apiKey, "route");
@@ -603,6 +721,38 @@ export class RouteAgent extends BaseAgent {
                 place._geocoded = lat !== null;
                 const nameKo = place.name || place.name_ko || place.display_name || place.name_en || name;
                 place.naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(nameKo)}`;
+            }
+
+            // ════════════════════════════════════════════════════════
+            // Phase 1.5: Intra-day TSP reorder (2026-05-13, PR #408 fix)
+            // ════════════════════════════════════════════════════════
+            // 사용자 신고: Day 4 Busan 동선 4.7시간 (283분 transit) — Gemini 가 zone
+            // 안내 (buildPrompt.js L556 "같은 권역(구) 내 stops 묶어서") 를 무시하고
+            // Gwangalli → Gijang → Yeongdo → Gwangalli 셔플 반환. RouteAgent 가
+            // 순서 그대로 trust → 재방문 / 백트래킹 발생.
+            //
+            // 정책: Phase 1 (Naver Geocoding) 완료 후 stops[].lat/lng 채워진 상태에서
+            // greedy nearest-neighbor (Haversine) 재정렬. lodging bookend (첫/마지막)
+            // 보존. 좌표 누락 시 원본 순서 유지 (회귀 안전망).
+            const beforeReorder = places.map((p, i) => `${i}:${p.name || p.display_name || '?'}`).join(' → ');
+            const reorderedPlaces = reorderStopsByProximity(places);
+            if (reorderedPlaces !== places) {
+                // 새 배열 반환됨 — 순서 바뀐 stops 들의 order 필드도 1..N 재할당.
+                for (let k = 0; k < reorderedPlaces.length; k++) {
+                    if (reorderedPlaces[k]) reorderedPlaces[k].order = k + 1;
+                }
+                // dayPlan.stops/places 모두 동기화 (원본 ref 유지하는 day-plan 호환).
+                if (dayPlan.stops) dayPlan.stops = reorderedPlaces;
+                if (dayPlan.places) dayPlan.places = reorderedPlaces;
+                // 이후 Phase 2/3 에서 사용하는 places 변수 자체도 교체.
+                places.length = 0;
+                for (const p of reorderedPlaces) places.push(p);
+                const afterReorder = places.map((p, i) => `${i}:${p.name || p.display_name || '?'}`).join(' → ');
+                if (beforeReorder !== afterReorder) {
+                    console.log(`  [Route] Day ${dayPlan.day || '?'}: intra-day TSP reorder applied`);
+                    console.log(`    before: ${beforeReorder}`);
+                    console.log(`    after : ${afterReorder}`);
+                }
             }
 
             // ════════════════════════════════════════════════════════
