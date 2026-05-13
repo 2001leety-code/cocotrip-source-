@@ -363,9 +363,29 @@ function P7_pdfPositionAbsolute({ changed }) {
  * PDF_KOREAN_FONT — 메모리 feedback_pdf_korean_lessons.md 가이드 1/3.
  * Noto Sans KR 로딩에 display=swap 사용 차단 / pdfGenerator.ts 가 fonts.ready
  * 만 신뢰하고 글리프 측정 없는 케이스 차단.
+ *
+ * 2026-05-13 PR #400 강화 (UI/UX 점검 #4):
+ * - 검사 대상 확장: 신규 HTML→PDF 모듈 (`*pdf*Generator*.ts`, `*Pdf*.tsx`) 추가 시 자동 검사
+ * - PR #82/#104/#106/#110/#111/#115/#131/#139/#212/#305 (10회 회귀) 사례 — 새 PDF
+ *   컴포넌트 작성 시 같은 함정 빠짐. 자동 lint 로 영구 차단.
+ * - 본 룰은 html2canvas/html2pdf 사용 모듈만 — PDFKit (api/_generate-voucher.js)
+ *   는 글리프 측정 무관 (서버사이드, 라틴 only).
  */
 function PDF_KOREAN_FONT({ changed }) {
-  const targets = ['src/pages/PlanDetailPage/pdfGenerator.ts', 'index.html'];
+  // 1) 고정 target file (기존)
+  const FIXED_TARGETS = ['src/pages/PlanDetailPage/pdfGenerator.ts', 'index.html'];
+  // 2) PR #400 신규: 새 HTML-PDF 모듈 자동 감지
+  //    pattern: src/**/*pdf*Generator*.ts OR src/**/*PdfGen*.ts OR src/components/**/*Pdf*.tsx
+  //    (PDFKit 서버 모듈 api/_generate-voucher.js 는 글리프 무관 — 제외)
+  const newPdfModules = changed
+    .filter((c) => c.status !== 'D')
+    .filter((c) =>
+      /^src\/.+(pdf|Pdf|PDF).*\.(ts|tsx)$/.test(c.file)
+      && !c.file.endsWith('.test.ts')
+      && !c.file.endsWith('.test.tsx')
+    )
+    .map((c) => c.file);
+  const targets = [...new Set([...FIXED_TARGETS, ...newPdfModules])];
   const touched = targets.filter((t) => isModified(t, changed));
   if (touched.length === 0) return { skipped: true };
 
@@ -378,14 +398,18 @@ function PDF_KOREAN_FONT({ changed }) {
         '가이드 1 — display=block 또는 self-host (/fonts/NotoSansKR-*.woff2)',
       );
     }
-    if (t.endsWith('pdfGenerator.ts')) {
+    // html2canvas / html2pdf 사용 모듈 — 글리프 측정 필수
+    const isHtmlToPdfModule =
+      t.endsWith('pdfGenerator.ts')
+      || /html2canvas|html2pdf|html-to-image/.test(c);
+    if (isHtmlToPdfModule) {
       const usesReady = /document\.fonts\.ready/.test(c);
       const measuresGlyph = /(offsetWidth|getBoundingClientRect)/.test(c);
       if (usesReady && !measuresGlyph) {
         fail(
           'PDF_KOREAN_FONT',
           `${t}: document.fonts.ready 사용하나 글리프 측정 (offsetWidth / getBoundingClientRect) 없음`,
-          '가이드 3 — 더미 한글 span 의 offsetWidth 검증 필수',
+          '가이드 3 — 더미 한글 span 의 offsetWidth 검증 필수 (e.g. testEl.textContent="한"; expect(testEl.offsetWidth > 0))',
         );
       }
       if (/font-family\s*:\s*['"]?Noto Sans KR['"]?\s*[,;]/i.test(c)) {
@@ -397,6 +421,15 @@ function PDF_KOREAN_FONT({ changed }) {
             '자가 진단 — Apple SD Gothic Neo, Malgun Gothic, system-ui, sans-serif 체인 유지',
           );
         }
+      }
+      // PR #400 신규 검사: html2canvas/html2pdf 사용 모듈이 fonts.ready 자체를 안 함
+      // (가장 흔한 회귀 — Phase 1 PDF 백지 사고)
+      if (/html2(canvas|pdf)|html-to-image/.test(c) && !usesReady) {
+        fail(
+          'PDF_KOREAN_FONT',
+          `${t}: html2canvas/html2pdf 사용하나 document.fonts.ready 대기 부재 — 한글 폰트 로딩 전 캡처 → tofu (□)`,
+          '가이드 2 — await document.fonts.ready 후 글리프 측정 (offsetWidth) 까지 검증',
+        );
       }
     }
   }
@@ -849,6 +882,40 @@ function runSelfTest() {
       },
       expectRule: null, // P1 trigger 되면 안 됨
       expectClean: true,
+    },
+    {
+      label: 'PDF_KOREAN_FONT (PR #400 강화): 신규 HTML-PDF 모듈 html2canvas + fonts.ready 부재',
+      base: {
+        // 빈 base — head 에서 새 PDF 모듈 신규 추가 시나리오
+        'src/components/InvoicePdfGenerator.tsx': "// stub\nexport const X = 1;\n",
+      },
+      head: {
+        'src/components/InvoicePdfGenerator.tsx':
+          "import html2canvas from 'html2canvas';\n"
+          + "export async function generateInvoice(el) {\n"
+          + "  const canvas = await html2canvas(el);\n"
+          + "  return canvas.toDataURL('image/png');\n"
+          + "}\n",
+      },
+      expectRule: 'PDF_KOREAN_FONT',
+    },
+    {
+      label: 'PDF_KOREAN_FONT (false positive 차단): PDFKit 서버 모듈 — 글리프 측정 무관',
+      base: {
+        'api/_generate-voucher.js': "// stub\n",
+      },
+      head: {
+        // PDFKit 사용 — 서버사이드, fonts.ready 무관 (PDFKit 가 자체 폰트 처리)
+        'api/_generate-voucher.js':
+          "import PDFDocument from 'pdfkit';\n"
+          + "export function generateVoucher() {\n"
+          + "  const doc = new PDFDocument();\n"
+          + "  doc.text('voucher');\n"
+          + "  return doc;\n"
+          + "}\n",
+      },
+      expectRule: 'PDF_KOREAN_FONT',
+      expectClean: true, // api/ 경로 — 본 룰 검사 대상 X
     },
   ];
 
