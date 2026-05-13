@@ -1,8 +1,8 @@
 [
   {
-    "name": "Main bundle (eager — first paint critical, all index-* chunks). 2026-05-09 launch blocker fix: 260→270 KB (PR #332-#335 autosave/ResumeWizardModal/12 활동 chips/dietary validator 누적 6.4 kB). 2026-05-13 PR #388 후속: 270→275 KB (PR #383-#387 5/13 SSOT/audit lint 누적 1.6 kB + 5/12 STATION_COORDS/inferDefaultStation). Post-launch P0: lazy-split (zoneData/Home page/Wizard Step).",
+    "name": "Main bundle (eager — first paint critical, all index-* chunks). 2026-05-09 launch blocker fix: 260→270 KB (PR #332-#335 autosave/ResumeWizardModal/12 활동 chips/dietary validator 누적 6.4 kB). 2026-05-13 PR #388 후속: 270→275 KB 임시 상향 (PR #383-#387 5/13 SSOT/audit lint 누적). 2026-05-13 PR #393: 275→250 KB 환원 (PR #392 lazy-split MobileHome+SeasonalBanner -35 KB 효과). 실측 236.34 KB / 한도 250 KB = 13.66 KB 마진. 후속: WizardForm Step / zoneData arrays.",
     "path": "dist/assets/index-*.js",
-    "limit": "275 KB",
+    "limit": "250 KB",
     "gzip": true
   },
   {
