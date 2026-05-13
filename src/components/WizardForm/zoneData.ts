@@ -537,18 +537,11 @@ export const DAEGU_ZONES: Zone[] = [
 // ZoneRecommender 가 inline 정의했던 것을 export 로 변경 — WizardStep2Details
 // (입국 도시 radio) + ZoneRecommender (그룹 헤더) 가 단일 소스 사용. 신규 도시
 // 추가 시 한 곳만 변경.
-export const CITY_NAME_BY_KEY: Record<string, { ko: string; en: string; ja: string; zh: string; icon: string }> = {
-  seoul:     { ko: '서울',   en: 'Seoul',     ja: 'ソウル',   zh: '首尔',   icon: '🏙️' },
-  busan:     { ko: '부산',   en: 'Busan',     ja: '釜山',     zh: '釜山',   icon: '🌊' },
-  jeju:      { ko: '제주',   en: 'Jeju',      ja: '済州',     zh: '济州',   icon: '🌴' },
-  gyeongju:  { ko: '경주',   en: 'Gyeongju',  ja: '慶州',     zh: '庆州',   icon: '🏛️' },
-  jeonju:    { ko: '전주',   en: 'Jeonju',    ja: '全州',     zh: '全州',   icon: '🍱' },
-  gangneung: { ko: '강릉',   en: 'Gangneung', ja: '江陵',     zh: '江陵',   icon: '☕' },
-  incheon:   { ko: '인천',   en: 'Incheon',   ja: '仁川',     zh: '仁川',   icon: '✈️' },
-  suwon:     { ko: '수원',   en: 'Suwon',     ja: '水原',     zh: '水原',   icon: '🏯' },
-  yeosu:     { ko: '여수',   en: 'Yeosu',     ja: '麗水',     zh: '丽水',   icon: '🌃' },
-  daegu:     { ko: '대구',   en: 'Daegu',     ja: '大邱',     zh: '大邱',   icon: '🚄' },
-};
+//
+// 2026-05-13 lazy-split: CITY_NAME_BY_KEY + cityNameToZoneKey 는 zoneHelpers.ts
+// 로 이동 (eager 필요한 helper). 본 파일은 heavy zone arrays 만 — ZoneRecommender
+// lazy chunk 가 fetch. 기존 import 호환을 위해 re-export.
+export { CITY_NAME_BY_KEY, cityNameToZoneKey } from './zoneHelpers';
 
 /** Map of cityKey → zone list. Falls back to [] for unsupported cities. */
 export const ZONES_BY_CITY: Record<string, Zone[]> = {
@@ -581,30 +574,4 @@ export function getZoneByKey(zoneKey: string | undefined): { zone: Zone; cityKey
   return undefined;
 }
 
-// city name (사용자 언어 ko/en/ja/zh) → ZONES_BY_CITY 키 (e.g. 'seoul'/'busan').
-// 다도시 plan 에서 extraCities (이름 배열) 를 cityKey 배열로 변환할 때 사용.
-// 별도 helper인 이유: PlannerPage/lib/formatters.ts 의 cityNameToAreaKey 는
-// 'seoul_city' 같은 backend area 키 체계라 zoneData 키 ('seoul') 와 다름.
-const NAME_TO_ZONE_CITY_KEY: Record<string, string> = {
-  // English
-  'seoul': 'seoul', 'busan': 'busan', 'jeju': 'jeju',
-  'gyeongju': 'gyeongju', 'jeonju': 'jeonju', 'gangneung': 'gangneung',
-  'incheon': 'incheon', 'suwon': 'suwon', 'yeosu': 'yeosu', 'daegu': 'daegu',
-  // Korean
-  '서울': 'seoul', '부산': 'busan', '제주': 'jeju',
-  '경주': 'gyeongju', '전주': 'jeonju', '강릉': 'gangneung',
-  '인천': 'incheon', '수원': 'suwon', '여수': 'yeosu', '대구': 'daegu',
-  // Japanese
-  'ソウル': 'seoul', '釜山': 'busan', '済州': 'jeju',
-  '慶州': 'gyeongju', '全州': 'jeonju', '江陵': 'gangneung',
-  '仁川': 'incheon', '水原': 'suwon', '麗水': 'yeosu', '大邱': 'daegu',
-  // Chinese (Simplified)
-  '首尔': 'seoul', '济州': 'jeju', '庆州': 'gyeongju', '丽水': 'yeosu',
-  // Chinese (Traditional/Japanese 釜山 동일)
-};
-
-export function cityNameToZoneKey(name: string | undefined): string | undefined {
-  if (!name) return undefined;
-  const trimmed = name.trim();
-  return NAME_TO_ZONE_CITY_KEY[trimmed.toLowerCase()] || NAME_TO_ZONE_CITY_KEY[trimmed] || undefined;
-}
+// cityNameToZoneKey 는 zoneHelpers.ts 로 이동 (re-export 됨, 상단 참조).
