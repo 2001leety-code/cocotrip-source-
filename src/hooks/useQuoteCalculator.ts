@@ -294,7 +294,11 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
   // ── 추가 옵션 ──
   const addons: QuoteAddon[] = [];
   if (!isInquiryOnly(vehicle)) {
-    if (state.options?.licensedGuide) addons.push({ key: 'licensed_guide', label: '면허 가이드 (영/일/중)', amountKRW: EXTRA_CHARGES.englishGuidePerDay });
+    // P1 #9 fix (2026-05-12): sprinter 는 guide_required 자동 가산이므로 licensed_guide 옵션을 무시.
+    // 사용자가 sprinter + licensedGuide 둘 다 켜도 ₩300K 가 두 번 가산되지 않도록 server-side dedup.
+    // UI Step5DateOptions 도 sprinter 선택 시 OptionPill 숨김 — 양쪽 다 방어.
+    const licensedGuideApplies = state.options?.licensedGuide && vehicle !== 'sprinter';
+    if (licensedGuideApplies)         addons.push({ key: 'licensed_guide', label: '면허 가이드 (영/일/중)', amountKRW: EXTRA_CHARGES.englishGuidePerDay });
     if (state.options?.airportPicket) addons.push({ key: 'airport_picket', label: '공항 픽켓 서비스',         amountKRW: EXTRA_CHARGES.airportPicketService });
     if (state.options?.childSeat)     addons.push({ key: 'child_seat',     label: '카시트',                   amountKRW: EXTRA_CHARGES.childSeatPerTrip });
 

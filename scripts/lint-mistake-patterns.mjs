@@ -446,6 +446,92 @@ function SURFACE_AUDIT({ changed, base }) {
 }
 
 /**
+/**
+ * P32_sprinterGuideDedup — 메모리 P32. sprinter 는 guide_required 자동 가산이라
+ * licensed_guide 옵션은 무시되어야 함. useQuoteCalculator.ts 가 licensed_guide
+ * 를 push 할 때 vehicle !== 'sprinter' 가드를 잃으면 ₩300K × 2 = ₩600K 중복 가산.
+ *
+ * 트리거: useQuoteCalculator.ts 의 addons.push({ key: 'licensed_guide', ... })
+ * 호출이 vehicle !== 'sprinter' 또는 동등 가드 없이 일어나면 fail.
+ */
+function P32_sprinterGuideDedup({ changed }) {
+  const FILE = 'src/hooks/useQuoteCalculator.ts';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+
+  // licensed_guide push 라인 위치 찾기
+  const pushMatch = content.match(/addons\.push\(\s*\{\s*key:\s*['"]licensed_guide['"]/);
+  if (!pushMatch) {
+    // licensed_guide push 자체가 사라졌다면 OK (다른 dedup 방식 가능)
+    return null;
+  }
+
+  // push 라인 주변 ±400 chars 에 sprinter dedup 가드 있는지 검사
+  const idx = pushMatch.index ?? 0;
+  const start = Math.max(0, idx - 400);
+  const end = Math.min(content.length, idx + 400);
+  const window = content.slice(start, end);
+
+  const hasSprinterGuard =
+    /vehicle\s*!==\s*['"]sprinter['"]/.test(window) ||
+    /vehicle\s*===\s*['"]staria['"]/.test(window) ||
+    /licensedGuideApplies/.test(window);
+
+  if (!hasSprinterGuard) {
+    fail(
+      'P32_sprinterGuideDedup',
+      `${FILE}: licensed_guide push 가 sprinter dedup 가드 (vehicle !== 'sprinter') 없이 호출됨 — ₩300K × 2 중복 가산 회귀 위험`,
+      "P1 #9 fix — 'const licensedGuideApplies = state.options?.licensedGuide && vehicle !== \\'sprinter\\'' 가드 유지",
+    );
+  }
+  return null;
+}
+
+/**
+ * P33_comboHardcode — 메모리 P33. 콤보 패키지 (combo_airport_*) 가격은 SSOT
+ * pricing_spec.json combo_packages 단일 source 여야 함. UI / backend / shared
+ * 어느 곳이든 priceKRW 하드코딩 시 mismatch 회귀 위험 (이전 UI ₩627,300 vs
+ * backend ₩517,320 ₩110K 불일치).
+ *
+ * 트리거: TourPackageInlineAd.tsx / createPaypalOrder.js / _shared/pricing.js
+ * 에서 combo_airport_* productType 가까이 priceKRW 정수 hardcode 발견 시 fail.
+ */
+function P33_comboHardcode({ changed }) {
+  const TARGETS = [
+    'src/pages/PlanDetailPage/components/ads/TourPackageInlineAd.tsx',
+    'api/createPaypalOrder.js',
+    'api/_shared/pricing.js',
+  ];
+  const touched = TARGETS.filter((t) => isModified(t, changed));
+  if (touched.length === 0) return { skipped: true };
+
+  for (const f of touched) {
+    const content = getChangedFileContent(f);
+    // combo_airport_<xxx> 와 같은 줄 또는 ±150 chars 범위에 priceKRW: 숫자 (5~7자리) 발견 시 fail.
+    // SSOT 함수 호출 (computeComboPriceKRW) 은 OK.
+    const lines = content.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!/combo_airport_[a-z]+/.test(line)) continue;
+      // 같은 라인 또는 다음 2줄 windows 에 priceKRW: 정수 패턴
+      const window = lines.slice(i, Math.min(lines.length, i + 3)).join(' ');
+      // priceKRW: 100000 또는 priceKRW: 627_300 (숫자/언더스코어) — function 호출이면 X
+      const hardcodeRe = /priceKRW\s*:\s*[\d_]{5,}/;
+      const functionCall = /computeComboPriceKRW|combo_packages|COMBO_PACKAGES/.test(window);
+      if (hardcodeRe.test(window) && !functionCall) {
+        fail(
+          'P33_comboHardcode',
+          `${f}:L${i + 1}: combo_airport_* 가까이 priceKRW 하드코딩 — SSOT pricing_spec.json combo_packages 와 drift 위험`,
+          'P1 #10 fix — computeComboPriceKRW(productType) 또는 combo_packages.packages 사용. 직접 priceKRW 정수 금지.',
+        );
+        return null; // 첫 발견 시 fail, 누적 안 함
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * P34_priceUsdConsistency — 메모리 P34. pricing_spec.json 의 priceUSD 는
  * policy_krw_per_usd 환율 기준 round(priceKRW / rate) 와 ±1 이내여야 함.
  * 한쪽만 변경 시 환율 drift 회귀 위험 (P1 #5).
@@ -516,6 +602,8 @@ const RULES = [
   ['PDF_KOREAN_FONT', PDF_KOREAN_FONT],
   ['STOP_SCHEMA', STOP_SCHEMA],
   ['SURFACE_AUDIT', SURFACE_AUDIT],
+  ['P32_sprinterGuideDedup', P32_sprinterGuideDedup],
+  ['P33_comboHardcode', P33_comboHardcode],
   ['P34_priceUsdConsistency', P34_priceUsdConsistency],
 ];
 
@@ -653,6 +741,30 @@ function runSelfTest() {
           'const x = stop.display_name || stop.name;\nconst legacy = stop.name_ko;\n',
       },
       expectRule: 'STOP_SCHEMA',
+    },
+    {
+      label: 'P32: useQuoteCalculator licensed_guide push 가 sprinter dedup 없이 호출',
+      base: {
+        'src/hooks/useQuoteCalculator.ts':
+          "const vehicle = state.vehicle;\nconst guard = vehicle !== 'sprinter' && state.options?.licensedGuide;\nif (guard) addons.push({ key: 'licensed_guide', amountKRW: 300000 });\n",
+      },
+      head: {
+        'src/hooks/useQuoteCalculator.ts':
+          "const vehicle = state.vehicle;\nif (state.options?.licensedGuide) addons.push({ key: 'licensed_guide', amountKRW: 300000 });\n",
+      },
+      expectRule: 'P32_sprinterGuideDedup',
+    },
+    {
+      label: 'P33: TourPackageInlineAd 에 combo_airport_busan priceKRW 하드코딩',
+      base: {
+        'src/pages/PlanDetailPage/components/ads/TourPackageInlineAd.tsx':
+          "const list = COMBO_PACKAGES.map(p => ({ productType: 'combo_airport_seoul', priceKRW: computeComboPriceKRW('combo_airport_seoul') }));\n",
+      },
+      head: {
+        'src/pages/PlanDetailPage/components/ads/TourPackageInlineAd.tsx':
+          "const list = [{ productType: 'combo_airport_busan', priceKRW: 627300 }];\n",
+      },
+      expectRule: 'P33_comboHardcode',
     },
     {
       label: 'P34: pricing_spec.json priceUSD ↔ priceKRW / policy_krw_per_usd drift',

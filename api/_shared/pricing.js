@@ -42,13 +42,17 @@ const CHARTER_MAP = {
   charter_busan:        'busan-day',
 };
 
-const COMBO_MAP = {
-  combo_airport_seoul:   'seoul-city',
-  combo_airport_nami:    'seoul-suburb',
-  combo_airport_dmz:     'dmz',
-  combo_airport_gangwon: 'gangwon',
-  combo_airport_busan:   'busan-day',
+// P1 #10 fix (2026-05-13): COMBO_MAP 하드코딩 제거 — SSOT pricing_spec.json combo_packages 단일 source.
+// 콤보 가격 = (airport_key.priceKRW + tour_key.priceKRW) × (1 - discount_percent/100).
+// SSOT 키 누락 시 안전 fallback (legacy 배포 환경 호환).
+const COMBO_PACKAGES_FALLBACK = {
+  combo_airport_seoul:   { airport_key: 'seoul-central', tour_key: 'seoul-city' },
+  combo_airport_nami:    { airport_key: 'seoul-central', tour_key: 'seoul-suburb' },
+  combo_airport_dmz:     { airport_key: 'seoul-central', tour_key: 'dmz' },
+  combo_airport_gangwon: { airport_key: 'seoul-central', tour_key: 'gangwon' },
+  combo_airport_busan:   { airport_key: 'seoul-central', tour_key: 'busan-day' },
 };
+const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 
 // AI 플래너 가격 정책 (2026-05-05 운영자 확정 — Option B):
 //   정가 (originalKRW)     : ₩26,600 / $19.90
@@ -132,12 +136,20 @@ export function resolveKrwAmount(productType, passengers) {
     return spec.airport_transfer_prices[key]?.priceKRW || null;
   }
 
-  // 콤보 패키지 (10% 할인)
-  if (COMBO_MAP[normalized]) {
-    const airport = spec.airport_transfer_prices['seoul-central']?.priceKRW;
-    const tour    = spec.daily_tour_prices[COMBO_MAP[normalized]]?.priceKRW;
+  // 콤보 패키지 — SSOT combo_packages 우선, 없으면 fallback
+  // PDF-issue-1 (2026-05-14): per-package discount_percent override 우선 (부산 콤보 5%).
+  const ssotCombo = spec.combo_packages?.packages?.[normalized];
+  const fbCombo = COMBO_PACKAGES_FALLBACK[normalized];
+  const combo = ssotCombo || fbCombo;
+  if (combo) {
+    const airport = spec.airport_transfer_prices[combo.airport_key]?.priceKRW;
+    const tour    = spec.daily_tour_prices[combo.tour_key]?.priceKRW;
     if (!airport || !tour) return null;
-    return Math.round((airport + tour) * 0.9);
+    // per-package override > top-level discount_percent > fallback
+    const pctValue = (typeof combo.discount_percent === 'number')
+      ? combo.discount_percent
+      : (spec.combo_packages?.discount_percent ?? COMBO_DISCOUNT_PERCENT_FALLBACK);
+    return Math.round((airport + tour) * (1 - pctValue / 100));
   }
 
   return null;

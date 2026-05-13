@@ -39,6 +39,35 @@ export const config = { runtime: 'nodejs' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR', extra) => ({ ok: false, error: msg, code, ...extra });
 
+// ── 도시 → 기본 공항 매핑 (PDF-issue-4, 2026-05-14) ─────────────────────────
+// 다도시 plan 의 출국 공항 inference. arrival_airport 와 마지막 city 가 다르면
+// 그 city 기본 공항으로 자동 추론 (예: 부산 입국 → 서울 마지막 → ICN 출국).
+const CITY_DEFAULT_AIRPORT = {
+  seoul: 'ICN', '서울': 'ICN',
+  busan: 'PUS', '부산': 'PUS',
+  jeju:  'CJU', '제주': 'CJU',
+  daegu: 'TAE', '대구': 'TAE',
+};
+
+function inferDepartureAirport(arrivalAirport, regions, cities) {
+  // 다도시 plan 만 처리. 단도시거나 regions/cities 미정이면 arrivalAirport 그대로.
+  const list = Array.isArray(regions) && regions.length > 0
+    ? regions
+    : (Array.isArray(cities) && cities.length > 0 ? cities : null);
+  if (!list || list.length <= 1) return arrivalAirport;
+
+  const last = String(list[list.length - 1] || '').toLowerCase().trim();
+  if (!last) return arrivalAirport;
+
+  // substring 매칭 (예: "seoul_city" → seoul, "부산광역시" → 부산)
+  for (const [key, airport] of Object.entries(CITY_DEFAULT_AIRPORT)) {
+    if (last.includes(key)) return airport;
+  }
+  return arrivalAirport;
+}
+
+export { inferDepartureAirport };
+
 const adminDb = initAdminDb();
 
 // ── 메인 핸들러 ─────────────────────────────────────────────────────────────
@@ -132,7 +161,14 @@ export default async function handler(req, res) {
     const language = body.language || 'en';
 
     const arrival_airport = body.arrival_airport || '';
-    const departure_airport = body.departure_airport || arrival_airport || '';
+    // PDF-issue-4 fix (2026-05-14): 다도시 plan 의 마지막 도시가 도착 도시와 다르면
+    // 그 도시 기본 공항으로 inference. 이전: arrival_airport 그대로 fallback →
+    // 부산 도착 → 서울 이동 plan 에서 wrap-up "PUS 출발" 표시 (잘못).
+    // 운영자 명시 departure_airport 가 있으면 그 값 우선.
+    const departure_airport = body.departure_airport
+      || inferDepartureAirport(arrival_airport, body.regions, body.cities)
+      || arrival_airport
+      || '';
     const hotel_address = body.hotel_address || '';
     const mobility = body.mobility || 'ok';
     const uid = body.uid || null;

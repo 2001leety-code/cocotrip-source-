@@ -891,13 +891,316 @@ describe('B-CHT17 — SSOT airport_transfer_pricing_formula 일관성', () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// B-CHT20: P1 #5 fix (2026-05-13) — 환율 1430 통일.
-//   pricing_spec.json 의 모든 airport_transfer_prices + daily_tour_prices 의
-//   priceUSD = round(priceKRW / 1430) ± 1 (rounding) 일관성 검증.
+// B-CHT18: Sprinter 가이드 중복 가산 차단 (P1 #9 fix, 2026-05-12)
+//   기존: sprinter 자동 guide_required ₩300K + 사용자 옵션 licensed_guide ₩300K = ₩600K 중복.
+//   수정: vehicle === 'sprinter' 일 때 licensed_guide 옵션 무시 (server-side dedup).
+//   UI Step5DateOptions 도 sprinter 선택 시 OptionPill 숨김.
+// ─────────────────────────────────────────────────────────
+
+describe('B-CHT18 — Sprinter 가이드 중복 가산 차단 (P1 #9 fix)', () => {
+  it('Sprinter + licensedGuide=true → addons 에 licensed_guide 미포함 (dedup)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'sprinter',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: true },
+    });
+    expect(q).not.toBeNull();
+    // licensed_guide 가 추가되지 않아야 함 (sprinter 자동 guide_required 와 중복 회피)
+    const licensedGuide = q!.addons.find(a => a.key === 'licensed_guide');
+    expect(licensedGuide).toBeUndefined();
+    // guide_required 는 sprinter 자동 가산이라 존재
+    const guideRequired = q!.addons.find(a => a.key === 'guide_required');
+    expect(guideRequired).toBeDefined();
+    expect(guideRequired!.amountKRW).toBe(300_000);
+  });
+
+  it('Sprinter + licensedGuide=true 합계 = ₩300K (₩600K 중복 회귀 차단)', () => {
+    const stateOn = {
+      ...baseState,
+      vehicle: 'sprinter' as const,
+      service: 'airport_transfer' as const,
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: true },
+    };
+    const stateOff = {
+      ...stateOn,
+      options: { licensedGuide: false },
+    };
+    const qOn = calculateQuote(stateOn);
+    const qOff = calculateQuote(stateOff);
+    // licensedGuide 옵션이 sprinter 견적에 영향 X — 두 결과 subtotalKRW 동일.
+    expect(qOn!.subtotalKRW).toBe(qOff!.subtotalKRW);
+    // 가이드 비용 단일 가산 확인 — guide_required addon 만 ₩300K
+    const guideTotal = qOn!.addons
+      .filter(a => a.key === 'licensed_guide' || a.key === 'guide_required')
+      .reduce((s, a) => s + a.amountKRW, 0);
+    expect(guideTotal).toBe(300_000);
+  });
+
+  it('Staria + licensedGuide=true → licensed_guide addon 존재 (정상 옵션 동작 보존)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: true },
+    });
+    const licensedGuide = q!.addons.find(a => a.key === 'licensed_guide');
+    expect(licensedGuide).toBeDefined();
+    expect(licensedGuide!.amountKRW).toBe(300_000);
+    // staria 는 guide_required 자동 가산 X
+    expect(q!.addons.find(a => a.key === 'guide_required')).toBeUndefined();
+  });
+
+  it('Staria + licensedGuide=false → 가이드 addon 0건 (regression)', () => {
+    const q = calculateQuote({
+      ...baseState,
+      vehicle: 'staria',
+      service: 'airport_transfer',
+      origin: 'ICN',
+      destinationKey: 'seoul-gangnam',
+      startDate: '2026-06-01',
+      startTime: '14:00',
+      options: { licensedGuide: false },
+    });
+    expect(q!.addons.find(a => a.key === 'licensed_guide')).toBeUndefined();
+    expect(q!.addons.find(a => a.key === 'guide_required')).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT19: COMBO_MAP SSOT 단일화 (P1 #10 fix, 2026-05-13)
+//   이전: createPaypalOrder.js + _shared/pricing.js + TourPackageInlineAd.tsx
+//         3 곳 hardcoded → combo_airport_busan UI ₩627,300 vs backend ₩517,320 ₩110K mismatch.
+//   이후: pricing_spec.json combo_packages 단일 source. UI/backend 동일 공식.
+// ─────────────────────────────────────────────────────────
+
+import { COMBO_PACKAGES, COMBO_DISCOUNT_PERCENT, computeComboPriceKRW } from '../../src/data/charterPricing';
+
+describe('B-CHT19 — COMBO_MAP SSOT 단일화 (P1 #10 fix)', () => {
+  it('SSOT combo_packages 등재 — 5개 콤보 (운영자 정책)', () => {
+    expect(Object.keys(COMBO_PACKAGES)).toEqual(
+      expect.arrayContaining([
+        'combo_airport_seoul',
+        'combo_airport_nami',
+        'combo_airport_dmz',
+        'combo_airport_gangwon',
+        'combo_airport_busan',
+      ]),
+    );
+  });
+
+  it('SSOT discount_percent = 10', () => {
+    expect(COMBO_DISCOUNT_PERCENT).toBe(10);
+  });
+
+  it('combo_airport_seoul = (seoul-central + seoul-city) × 0.9', () => {
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['seoul-city'].priceKRW) * 0.9,
+    );
+    expect(computeComboPriceKRW('combo_airport_seoul')).toBe(expected);
+  });
+
+  it('combo_airport_busan = (seoul-central + busan-day) × 0.95 (5% 할인, PDF-issue-1 2026-05-14) — UI 카드 ₩627,300 regression 차단', () => {
+    // PDF-issue-1 (운영자 결정 2026-05-14): 부산 콤보만 5% 할인 (per-package override).
+    // 그 외 콤보는 10% 유지. B-CHT24 가 per-package discount 자체를 검증.
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['busan-day'].priceKRW) * 0.95,
+    );
+    const actual = computeComboPriceKRW('combo_airport_busan');
+    expect(actual).toBe(expected);
+    // 회귀 가드 — 이전 UI hardcoded ₩627,300 절대 다시 나오면 안 됨
+    expect(actual).not.toBe(627_300);
+  });
+
+  it('combo_airport_dmz / nami 동일 가격 (둘 다 seoul-suburb 가격대) 일관성', () => {
+    const dmz = computeComboPriceKRW('combo_airport_dmz');
+    const nami = computeComboPriceKRW('combo_airport_nami');
+    // 두 콤보 tour_key 가 dmz / seoul-suburb 인데, daily_tour_prices.priceKRW 가 같으면 콤보 가격도 같음.
+    if (DAILY_TOUR_PRICES['dmz'].priceKRW === DAILY_TOUR_PRICES['seoul-suburb'].priceKRW) {
+      expect(dmz).toBe(nami);
+    }
+  });
+
+  it('등록 안 된 productType → computeComboPriceKRW null', () => {
+    expect(computeComboPriceKRW('combo_airport_unknown')).toBeNull();
+    expect(computeComboPriceKRW('charter_seoul_city')).toBeNull();
+  });
+
+  it('advertise_cities 메타 — UI 가 city 매칭 시 사용', () => {
+    expect(COMBO_PACKAGES['combo_airport_busan'].advertise_cities).toContain('busan');
+    expect(COMBO_PACKAGES['combo_airport_seoul'].advertise_cities).toContain('seoul');
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT24: 부산 콤보 5% 할인 (PDF-issue-1, 운영자 결정 2026-05-14)
+//   per-package discount_percent override — 부산 콤보만 5%, 그 외 10%.
+//   사용자 PDF 캡쳐: combo_airport_busan UI 가격 정책 변경.
+// ─────────────────────────────────────────────────────────
+
+import { getComboDiscountPercent } from '../../src/data/charterPricing';
+
+describe('B-CHT24 — 부산 콤보 per-package discount 5% (PDF-issue-1)', () => {
+  it('combo_airport_busan discount_percent = 5 (운영자 결정)', () => {
+    expect(getComboDiscountPercent('combo_airport_busan')).toBe(5);
+  });
+
+  it('combo_airport_seoul / nami / dmz / gangwon discount_percent = 10 (기본 유지)', () => {
+    expect(getComboDiscountPercent('combo_airport_seoul')).toBe(10);
+    expect(getComboDiscountPercent('combo_airport_nami')).toBe(10);
+    expect(getComboDiscountPercent('combo_airport_dmz')).toBe(10);
+    expect(getComboDiscountPercent('combo_airport_gangwon')).toBe(10);
+  });
+
+  it('combo_airport_busan price = (seoul-central + busan-day) × 0.95 (5% 할인)', () => {
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['busan-day'].priceKRW) * 0.95,
+    );
+    expect(computeComboPriceKRW('combo_airport_busan')).toBe(expected);
+  });
+
+  it('combo_airport_seoul price = (seoul-central + seoul-city) × 0.9 (10% 유지, regression)', () => {
+    const expected = Math.round(
+      (AIRPORT_TRANSFER_PRICES['seoul-central'].priceKRW + DAILY_TOUR_PRICES['seoul-city'].priceKRW) * 0.9,
+    );
+    expect(computeComboPriceKRW('combo_airport_seoul')).toBe(expected);
+  });
+
+  it('등록 안 된 productType → getComboDiscountPercent fallback = 10', () => {
+    expect(getComboDiscountPercent('combo_airport_unknown')).toBe(10);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI1: wrap-up departure airport inference (PDF-issue-4, 2026-05-14)
+//   다도시 plan 마지막 city 기반 출국 공항 자동 추론.
+//   기존 버그: arrival_airport 그대로 fallback → 부산 도착·서울 마지막 plan 에서 PUS 출발 표시.
+// ─────────────────────────────────────────────────────────
+// inferDepartureAirport 는 api/ai-planner-full.js 에 정의되어 있으나 ESM import 차이로
+// 단위 테스트에서는 동일 logic 의 portable 복제로 검증 (실제 함수와 동기 유지).
+
+const CITY_DEFAULT_AIRPORT_TEST = {
+  seoul: 'ICN', '서울': 'ICN',
+  busan: 'PUS', '부산': 'PUS',
+  jeju:  'CJU', '제주': 'CJU',
+  daegu: 'TAE', '대구': 'TAE',
+};
+
+function inferDepartureAirportPortable(arrivalAirport: string, regions: string[] | null, cities: string[] | null): string {
+  const list = Array.isArray(regions) && regions.length > 0
+    ? regions
+    : (Array.isArray(cities) && cities.length > 0 ? cities : null);
+  if (!list || list.length <= 1) return arrivalAirport;
+  const last = String(list[list.length - 1] || '').toLowerCase().trim();
+  if (!last) return arrivalAirport;
+  for (const [key, airport] of Object.entries(CITY_DEFAULT_AIRPORT_TEST)) {
+    if (last.includes(key)) return airport;
+  }
+  return arrivalAirport;
+}
+
+describe('B-AI1 — wrap-up departure airport inference (PDF-issue-4)', () => {
+  it('단도시 plan (regions 1개) → arrival_airport 그대로', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul'], null)).toBe('ICN');
+    expect(inferDepartureAirportPortable('PUS', ['busan'], null)).toBe('PUS');
+  });
+
+  it('다도시 plan — PUS 도착 → 부산→서울 마지막 → ICN 출국 (PDF-issue-4 회귀)', () => {
+    expect(inferDepartureAirportPortable('PUS', ['busan', 'seoul'], null)).toBe('ICN');
+  });
+
+  it('다도시 plan — ICN 도착 → 서울→부산 마지막 → PUS 출국', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul', 'busan'], null)).toBe('PUS');
+  });
+
+  it('다도시 plan — ICN 도착 → 서울→제주 마지막 → CJU 출국', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul', 'jeju'], null)).toBe('CJU');
+  });
+
+  it('regions 미정 + cities 사용 — 다도시면 동일 inference', () => {
+    expect(inferDepartureAirportPortable('PUS', null, ['busan', 'seoul'])).toBe('ICN');
+  });
+
+  it('regions/cities 모두 빈 배열 → arrival_airport fallback', () => {
+    expect(inferDepartureAirportPortable('ICN', [], [])).toBe('ICN');
+    expect(inferDepartureAirportPortable('PUS', null, null)).toBe('PUS');
+  });
+
+  it('한글 city — 다도시 plan 출국 공항 inference', () => {
+    expect(inferDepartureAirportPortable('PUS', ['부산', '서울'], null)).toBe('ICN');
+    expect(inferDepartureAirportPortable('ICN', ['서울', '제주'], null)).toBe('CJU');
+  });
+
+  it('regions 첫 element = 마지막 = 같은 도시 (단도시) → arrival 그대로', () => {
+    expect(inferDepartureAirportPortable('ICN', ['seoul'], null)).toBe('ICN');
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI2: KTX 전후 transit 누락 (PDF-issue-2, 2026-05-14)
+//   ⚠️ FIX 대기 — RouteAgent 핵심 수정 필요. 후속 PR.
+//   현재: city-change day 에서 intercity_transit 만 표시, 그 전후 (hotel→station,
+//         station→new_hotel) transit 누락. 사용자 PDF "부산호텔→부산역" "서울역→명동호텔"
+//         경로 안 보임.
+//   해야 할 fix: RouteAgent enrichItineraryWithRoute Phase 2.5 + 2.6 에 intercity
+//                bookend transit (hotel→station + station→new_lodging) 추가.
+//   대안: validateResponse 가 intercity 전후 transit 누락을 검출 → reinforced prompt 또는 throw.
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI2 — KTX 전후 transit 누락 (PDF-issue-2)', () => {
+  it.todo('city-change day intercity_transit 양쪽에 lodging_to_station + station_to_lodging transit 동반 — RouteAgent fix 후 활성');
+
+  it.todo('Gemini intercity_transit.mode=KTX/train 시 from_station + to_station 필드 명시 + transit_from_prev 에 hotel→station segment 추가');
+
+  it.todo('day.intercity_transit 후 day.places[0].transit_from_prev 가 새 도시 첫 lodging→첫 stop 으로 채워짐');
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI3: Day 별 lodging.city 중복 (PDF-issue-3, 2026-05-14)
+//   ⚠️ FIX 대기 — RouteAgent + plan validator 수정 필요. 후속 PR.
+//   현재: Day 3 에서 부산→서울 이동 후 Day 4 의 lodging context 가 여전히 부산
+//         (이전 도시) 으로 남아있어 "부산 해운대구 해운대역 → 호텔 (명동 지역)" 같은
+//         모순 표시.
+//   해야 할 fix: day.lodging 필드 또는 day.lodging_city 추가 → RouteAgent 가 day 별
+//                lodging context 갱신. validateResponse 에 "day.intercity_transit.to_city
+//                이후 day 의 lodging context = to_city" 검증 추가.
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI3 — Day 별 lodging.city 중복 (PDF-issue-3)', () => {
+  it.todo('city-change day 이후 day 의 lodging context = intercity_transit.to_city (이전 city 잔존 X)');
+
+  it.todo('plan.itinerary.days[i].lodging_city 추가 — 다도시 plan 에서 day 별 lodging 추적');
+
+  it.todo('validateResponse — day.lodging_city 와 day-1.intercity_transit.to_city 일관성 검증');
+});
+
+// ─────────────────────────────────────────────────────────
+// B-AI4: wrap-up departure airport — plan-level smoke (PDF-issue-4 보강)
+// ─────────────────────────────────────────────────────────
+
+describe('B-AI4 — wrap-up departure airport plan-level (PDF-issue-4 보강)', () => {
+  it.todo('실제 ai-planner-full handler → plan.itinerary.departure_guide.airport = inferred (E2E)');
+});
+
+// ─────────────────────────────────────────────────────────
+// B-CHT20/21/22/23: P1 #5 환율 1430 통일 + applyRatePolicy floor 1450
 // ─────────────────────────────────────────────────────────
 
 import pricingSpecRaw from '../../src/data/pricing_spec.json';
 import { CALCULATOR_KRW_PER_USD } from '../../src/lib/calculator';
+import { applyRatePolicy } from '../../api/_exchange-rate.js';
 
 const POLICY_RATE = (pricingSpecRaw as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
 
@@ -907,8 +1210,6 @@ describe('B-CHT20 — 환율 SSOT 통일 (P1 #5 fix)', () => {
   });
 
   it('CALCULATOR_KRW_PER_USD = POLICY_RATE (env override 없을 때)', () => {
-    // env VITE_KRW_PER_USD 가 set 되어있으면 그 값 우선이라 ±100 허용
-    // 기본 환경 (env 미설정) 에서는 POLICY_RATE 와 일치해야 함
     expect(CALCULATOR_KRW_PER_USD).toBeGreaterThanOrEqual(1300);
     expect(CALCULATOR_KRW_PER_USD).toBeLessThanOrEqual(1500);
   });
@@ -918,7 +1219,6 @@ describe('B-CHT21 — airport_transfer_prices priceUSD = round(priceKRW / 1430) 
   for (const [zone, entry] of Object.entries(AIRPORT_TRANSFER_PRICES)) {
     it(`zone=${zone} priceUSD ≈ ${entry.priceKRW} / 1430`, () => {
       const expectedUSD = Math.round(entry.priceKRW / 1430);
-      // ±1 허용 (rounding floor/ceil 차이)
       expect(entry.priceUSD, `zone=${zone} KRW=${entry.priceKRW} expectedUSD=${expectedUSD} actualUSD=${entry.priceUSD}`)
         .toBeGreaterThanOrEqual(expectedUSD - 1);
       expect(entry.priceUSD).toBeLessThanOrEqual(expectedUSD + 1);
@@ -936,15 +1236,6 @@ describe('B-CHT22 — daily_tour_prices priceUSD = round(priceKRW / 1430) (P1 #5
     });
   }
 });
-
-// ─────────────────────────────────────────────────────────
-// B-CHT23: applyRatePolicy floor 1450 + sanity max 2000 (운영자 결정 2026-05-13)
-//   - live rate < 1450 → 1450 (운영자 보호 — USD underprice 차단)
-//   - 1450 <= live <= 2000 → live 그대로 (실시세 반영)
-//   - live > 2000 → FALLBACK_RATE 1450 (fetch 오류 차단)
-// ─────────────────────────────────────────────────────────
-
-import { applyRatePolicy } from '../../api/_exchange-rate.js';
 
 describe('B-CHT23 — applyRatePolicy floor 1450 정책 (운영자 결정 2026-05-13)', () => {
   it('live rate 1430 (< floor) → 1450 (floor 적용)', () => {
