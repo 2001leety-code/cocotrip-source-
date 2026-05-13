@@ -7,12 +7,19 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 60000, 
+  timeout: 60000,
   expect: { timeout: 10000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // 2026-05-13 PR #409: CI workers 1 → 3 — pr-i18n-smoke timeout 영구 해소.
+  // PR #397/#401/#406 모두 smoke 10-15분 timeout. 원인: serial 실행 (workers=1)
+  // × 3 viewports (Desktop Chrome / Pixel 5 / iPhone 14 Pro) × 9 tests
+  // (3 locales × 3 navigation tests) = 27 test invocations.
+  // 캐시 hit + cold start 포함 한 viewport 당 ~4-5분 → 3 viewport 직렬 12-15분.
+  // workers=3 으로 viewport 별 병렬 → ~4-5분 (서버 부하 분산). retries=2 이미 설정 = 안전.
+  // GitHub Actions runner = 2-core 4GB — 3 worker 부하 감내 가능 (Playwright 가벼움).
+  workers: process.env.CI ? 3 : undefined,
   reporter: [
     ['html', { open: 'never', outputFolder: 'tests/report' }],
     ['list'],
