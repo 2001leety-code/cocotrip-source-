@@ -14,9 +14,10 @@ import { setUpRecaptchaVerifier, signInWithPhone, verifyPhoneCode } from '@/lib/
 const TEXT = {
   ko: {
     title: '전화번호로 로그인',
-    step1Label: '전화번호 (국가 코드 포함)',
-    step1Placeholder: '+821012345678',
-    step1Hint: '예: 한국 +82, 일본 +81, 미국 +1',
+    countryLabel: '국가',
+    step1Label: '전화번호',
+    step1Placeholder: '1012345678',
+    step1Hint: '국가 코드 자동 적용 (예: +82 1012345678)',
     step1Submit: 'SMS 인증코드 받기',
     step1Loading: '전송 중...',
     step2Label: '인증코드 (6자리)',
@@ -26,14 +27,15 @@ const TEXT = {
     step2Loading: '확인 중...',
     step2Back: '← 번호 변경',
     cancel: '닫기',
-    errInvalidPhone: '전화번호 형식이 올바르지 않습니다 (예: +821012345678)',
+    errInvalidPhone: '전화번호 숫자 8-14자리를 입력하세요',
     errInvalidCode: '인증코드가 올바르지 않거나 만료되었습니다',
   },
   en: {
     title: 'Sign in with phone',
-    step1Label: 'Phone number (with country code)',
-    step1Placeholder: '+12025550123',
-    step1Hint: 'e.g. US +1, Japan +81, Korea +82',
+    countryLabel: 'Country',
+    step1Label: 'Phone number',
+    step1Placeholder: '2025550123',
+    step1Hint: 'Country code auto-applied (e.g. +1 2025550123)',
     step1Submit: 'Send SMS code',
     step1Loading: 'Sending...',
     step2Label: 'Verification code (6 digits)',
@@ -43,14 +45,15 @@ const TEXT = {
     step2Loading: 'Verifying...',
     step2Back: '← Change number',
     cancel: 'Close',
-    errInvalidPhone: 'Invalid phone format (e.g. +12025550123)',
+    errInvalidPhone: 'Enter 8-14 digit phone number',
     errInvalidCode: 'Invalid or expired verification code',
   },
   ja: {
     title: '電話番号でログイン',
-    step1Label: '電話番号（国番号付き）',
-    step1Placeholder: '+81901234567',
-    step1Hint: '例: 日本 +81、韓国 +82、米国 +1',
+    countryLabel: '国',
+    step1Label: '電話番号',
+    step1Placeholder: '901234567',
+    step1Hint: '国番号は自動で付きます（例: +81 901234567）',
     step1Submit: 'SMS認証コードを送信',
     step1Loading: '送信中...',
     step2Label: '認証コード（6桁）',
@@ -60,14 +63,15 @@ const TEXT = {
     step2Loading: '確認中...',
     step2Back: '← 番号を変更',
     cancel: '閉じる',
-    errInvalidPhone: '電話番号の形式が正しくありません (例: +81901234567)',
+    errInvalidPhone: '電話番号の数字8-14桁を入力してください',
     errInvalidCode: '認証コードが正しくないか期限切れです',
   },
   zh: {
     title: '使用电话号码登录',
-    step1Label: '电话号码（含国家代码）',
-    step1Placeholder: '+8613812345678',
-    step1Hint: '例如：中国 +86、台湾 +886、香港 +852',
+    countryLabel: '国家',
+    step1Label: '电话号码',
+    step1Placeholder: '13812345678',
+    step1Hint: '自动添加国家代码（例如 +86 13812345678）',
     step1Submit: '发送短信验证码',
     step1Loading: '发送中...',
     step2Label: '验证码（6位）',
@@ -77,7 +81,7 @@ const TEXT = {
     step2Loading: '验证中...',
     step2Back: '← 更改号码',
     cancel: '关闭',
-    errInvalidPhone: '电话号码格式不正确 (例如 +8613812345678)',
+    errInvalidPhone: '请输入8-14位数字电话号码',
     errInvalidCode: '验证码无效或已过期',
   },
 } as const;
@@ -85,6 +89,37 @@ const TEXT = {
 const RECAPTCHA_CONTAINER_ID = 'phone-recaptcha-container';
 // E.164: `+` 다음 국가코드(1~3자리) + 가입자 번호. 합계 8~15 자리.
 const PHONE_E164_REGEX = /^\+[1-9]\d{7,14}$/;
+// PR #399 (2026-05-13): 국가 select dropdown — CocoTrip 외국인 핵심 타겟 + 주요 국가.
+// `dial` 은 LINE/Phone Auth E.164 prefix (앞의 + 제외 1-3자리). emoji 는 BMP 외 surrogate
+// pair (Windows 글꼴 미지원 시 사각형 표시 가능 — 안전한 fallback).
+const COUNTRIES = [
+  { code: 'KR', dial: '82',  flag: '🇰🇷', name: { ko: '대한민국', en: 'South Korea',  ja: '韓国',     zh: '韩国' } },
+  { code: 'JP', dial: '81',  flag: '🇯🇵', name: { ko: '일본',     en: 'Japan',        ja: '日本',     zh: '日本' } },
+  { code: 'TW', dial: '886', flag: '🇹🇼', name: { ko: '대만',     en: 'Taiwan',       ja: '台湾',     zh: '台湾' } },
+  { code: 'HK', dial: '852', flag: '🇭🇰', name: { ko: '홍콩',     en: 'Hong Kong',    ja: '香港',     zh: '香港' } },
+  { code: 'CN', dial: '86',  flag: '🇨🇳', name: { ko: '중국',     en: 'China',        ja: '中国',     zh: '中国' } },
+  { code: 'US', dial: '1',   flag: '🇺🇸', name: { ko: '미국',     en: 'United States', ja: 'アメリカ', zh: '美国' } },
+  { code: 'SG', dial: '65',  flag: '🇸🇬', name: { ko: '싱가포르', en: 'Singapore',    ja: 'シンガポール', zh: '新加坡' } },
+  { code: 'MY', dial: '60',  flag: '🇲🇾', name: { ko: '말레이시아', en: 'Malaysia',    ja: 'マレーシア', zh: '马来西亚' } },
+  { code: 'TH', dial: '66',  flag: '🇹🇭', name: { ko: '태국',     en: 'Thailand',     ja: 'タイ',     zh: '泰国' } },
+  { code: 'ID', dial: '62',  flag: '🇮🇩', name: { ko: '인도네시아', en: 'Indonesia',   ja: 'インドネシア', zh: '印度尼西亚' } },
+  { code: 'VN', dial: '84',  flag: '🇻🇳', name: { ko: '베트남',   en: 'Vietnam',      ja: 'ベトナム', zh: '越南' } },
+  { code: 'PH', dial: '63',  flag: '🇵🇭', name: { ko: '필리핀',   en: 'Philippines',  ja: 'フィリピン', zh: '菲律宾' } },
+  { code: 'AU', dial: '61',  flag: '🇦🇺', name: { ko: '호주',     en: 'Australia',    ja: 'オーストラリア', zh: '澳大利亚' } },
+  { code: 'GB', dial: '44',  flag: '🇬🇧', name: { ko: '영국',     en: 'United Kingdom', ja: 'イギリス', zh: '英国' } },
+  { code: 'DE', dial: '49',  flag: '🇩🇪', name: { ko: '독일',     en: 'Germany',      ja: 'ドイツ',   zh: '德国' } },
+  { code: 'FR', dial: '33',  flag: '🇫🇷', name: { ko: '프랑스',   en: 'France',       ja: 'フランス', zh: '法国' } },
+  { code: 'CA', dial: '1',   flag: '🇨🇦', name: { ko: '캐나다',   en: 'Canada',       ja: 'カナダ',   zh: '加拿大' } },
+] as const;
+
+// 언어 → default 국가 dial code (사용자 진입 시 자동 선택).
+// CocoTrip 외국인 VIP 투어 타겟 분포 기반.
+const DEFAULT_DIAL_BY_LANG: Record<'ko' | 'en' | 'ja' | 'zh', string> = {
+  ko: '82',
+  ja: '81',
+  zh: '86', // 중국 본토 우선 (대만/홍콩 별도 선택)
+  en: '1',  // 미국 default — 영어권 사용자
+};
 
 interface Props {
   language: 'ko' | 'en' | 'ja' | 'zh';
@@ -95,7 +130,11 @@ interface Props {
 export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
   const text = TEXT[language] ?? TEXT.en;
   const [step, setStep] = useState<1 | 2>(1);
-  const [phone, setPhone] = useState('');
+  // PR #399: 국가 dial code (E.164 prefix) — default 는 사용자 언어 기반.
+  // 사용자가 dropdown 으로 변경 가능 (외국인은 본인 국가 dial 선택).
+  const [dialCode, setDialCode] = useState<string>(() => DEFAULT_DIAL_BY_LANG[language] ?? '1');
+  // PR #399: nationalNumber 만 입력 (국가 코드 분리). 합쳐서 E.164 검증.
+  const [nationalNumber, setNationalNumber] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +156,11 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
 
   const handleSendCode = useCallback(async () => {
     setError(null);
+    // PR #399: dialCode + nationalNumber → E.164 조합 후 검증.
+    // 사용자가 nationalNumber 의 leading 0 (예: 한국 010..., 일본 090...) 입력해도
+    // strip — 국제 표준에서 leading 0 제외.
+    const trimmedNumber = nationalNumber.replace(/^0+/, '');
+    const phone = `+${dialCode}${trimmedNumber}`;
     if (!PHONE_E164_REGEX.test(phone)) {
       setError(text.errInvalidPhone);
       return;
@@ -134,7 +178,7 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [phone, text.errInvalidPhone]);
+  }, [dialCode, nationalNumber, text.errInvalidPhone]);
 
   const handleVerifyCode = useCallback(async () => {
     setError(null);
@@ -175,25 +219,48 @@ export function PhoneSignInModal({ language, onClose, onSuccess }: Props) {
 
         {step === 1 && (
           <div className="space-y-3">
-            <label className="block text-xs text-white/70" htmlFor="phone-input">
+            {/* PR #399: 국가 select + 번호 input 분리 — 외국인 진입 장벽 ↓ */}
+            <label className="block text-xs text-white/70" htmlFor="country-select">
+              {text.countryLabel}
+            </label>
+            <select
+              id="country-select"
+              value={dialCode}
+              onChange={(e) => setDialCode(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg bg-white/10 text-white border border-white/15 focus:border-purple-400 outline-none appearance-none cursor-pointer"
+              disabled={loading}
+              style={{ backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23ffffff\' stroke-width=\'2\'><polyline points=\'6 9 12 15 18 9\'/></svg>")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '32px' }}
+            >
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.dial} style={{ background: '#0f1220', color: '#fff' }}>
+                  {c.flag} {c.name[language] ?? c.name.en} (+{c.dial})
+                </option>
+              ))}
+            </select>
+            <label className="block text-xs text-white/70 pt-1" htmlFor="phone-input">
               {text.step1Label}
             </label>
-            <input
-              id="phone-input"
-              type="tel"
-              autoComplete="tel"
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ''))}
-              placeholder={text.step1Placeholder}
-              className="w-full px-3 py-2.5 rounded-lg bg-white/10 text-white border border-white/15 focus:border-purple-400 outline-none"
-              disabled={loading}
-            />
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-2.5 rounded-lg bg-white/5 text-white/70 text-sm border border-white/10 shrink-0">
+                +{dialCode}
+              </span>
+              <input
+                id="phone-input"
+                type="tel"
+                autoComplete="tel-national"
+                inputMode="tel"
+                value={nationalNumber}
+                onChange={(e) => setNationalNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder={text.step1Placeholder}
+                className="flex-1 px-3 py-2.5 rounded-lg bg-white/10 text-white border border-white/15 focus:border-purple-400 outline-none"
+                disabled={loading}
+              />
+            </div>
             <p className="text-[11px] text-white/45">{text.step1Hint}</p>
             <button
               type="button"
               onClick={handleSendCode}
-              disabled={loading || !phone}
+              disabled={loading || !nationalNumber}
               className="w-full py-3 rounded-xl font-bold transition-all disabled:opacity-50"
               style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', color: '#fff' }}
             >
