@@ -47,6 +47,11 @@ export async function persistPlan(adminDb, {
   specialRequest, arrival_airport, departure_airport,
   hotel_address, mobility, language,
   dietary, foodIndex,
+  // Phase 4 A/B test (2026-05-13): plannerMode / abReason / abBucket persisted
+  // alongside qualityScore so admin can compare legacy vs 3-pass score
+  // distribution. Absent on legacy revision paths that don't pass the field
+  // (back-compat — silent skip when undefined).
+  plannerMode, abReason, abBucket,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
@@ -139,6 +144,12 @@ export async function persistPlan(adminDb, {
     revisionCredits: 2,  // 무료 재생성 2회 (결제 시 포함)
     revisionCount: 0,    // 현재까지 재생성 횟수
     ...(qualityScore ? { qualityScore } : {}),
+    // Phase 4 A/B test (2026-05-13): per-plan mode trace. Used by admin
+    // quality-summary endpoint (Tier 2-D) to bucket scores by pipeline.
+    // Absent fields skip safely (legacy plans pre-PR have no plannerMode).
+    ...(plannerMode ? { plannerMode } : {}),
+    ...(abReason ? { abReason } : {}),
+    ...(typeof abBucket === 'number' ? { abBucket } : {}),
   };
 
   // 2026-05-10 (P0-5 launch blocker): Firestore 1MB doc size 가드.
