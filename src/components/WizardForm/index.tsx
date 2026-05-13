@@ -1,7 +1,7 @@
 // WizardForm container: holds shared wizard state + routes between steps.
 // Previously src/components/WizardForm.tsx (798L) — split into step components
 // under src/components/WizardForm/* for P3 Lock release.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   MapPin, Calendar, Wand2, UtensilsCrossed, Check, Plane,
@@ -25,12 +25,30 @@ import { ResumeWizardModal } from '@/components/ResumeWizardModal';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
-import { getZoneByKey, cityNameToZoneKey } from './zoneData';
-import { WizardStep0Reservation, type ReservationStatus } from './WizardStep0Reservation';
-import { WizardStep0Destination } from './WizardStep0Destination';
-import { WizardStep1Food } from './WizardStep1Food';
-import { WizardStep2Details, type TourPace } from './WizardStep2Details';
-import { WizardStep3Review } from './WizardStep3Review';
+// 2026-05-13 PR #393 후속: getZoneByKey 는 handleGenerate 안에서 dynamic import.
+// cityNameToZoneKey + CITY_NAME_BY_KEY 는 zoneHelpers (light) 에서 직접 import →
+// main planner chunk 에서 heavy zone arrays 분리.
+import { cityNameToZoneKey } from './zoneHelpers';
+// 2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 lazy. 한 번에 하나만 마운트되므로
+// 다음 step 으로 이동 시점에 fetch — 초기 planner chunk 에서 step 코드 분리.
+// type-only re-export 는 컴파일 시 사라져 main chunk 영향 없음.
+const WizardStep0Reservation = lazy(() =>
+  import('./WizardStep0Reservation').then(m => ({ default: m.WizardStep0Reservation })),
+);
+const WizardStep0Destination = lazy(() =>
+  import('./WizardStep0Destination').then(m => ({ default: m.WizardStep0Destination })),
+);
+const WizardStep1Food = lazy(() =>
+  import('./WizardStep1Food').then(m => ({ default: m.WizardStep1Food })),
+);
+const WizardStep2Details = lazy(() =>
+  import('./WizardStep2Details').then(m => ({ default: m.WizardStep2Details })),
+);
+const WizardStep3Review = lazy(() =>
+  import('./WizardStep3Review').then(m => ({ default: m.WizardStep3Review })),
+);
+import type { ReservationStatus } from './WizardStep0Reservation';
+import type { TourPace } from './WizardStep2Details';
 
 import type { WizardDict } from './types';
 
@@ -495,9 +513,13 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       // RouteAgent 의 공항→hotel 경로는 entry city (mainCity) zone 기반.
       const mainCityZone = recommendedZones[mainCityKey] || '';
       const firstAvailableZone = mainCityZone || Object.values(recommendedZones).find(z => !!z) || '';
-      const zoneAnchor = (!hotelAddress && firstAvailableZone)
-        ? getZoneByKey(firstAvailableZone)?.zone.anchorAddress
-        : undefined;
+      // 2026-05-13 PR #393 후속: getZoneByKey 가 zoneData heavy arrays 를 참조 →
+      // submit 시점에 dynamic import. handleGenerate 가 async 라 자연스럽게 await.
+      let zoneAnchor: string | undefined = undefined;
+      if (!hotelAddress && firstAvailableZone) {
+        const { getZoneByKey } = await import('./zoneData');
+        zoneAnchor = getZoneByKey(firstAvailableZone)?.zone.anchorAddress;
+      }
       // 2026-05-10 B10-1/B10-2: 다도시 시 entry city 의 호텔 = hotel_address (RouteAgent
       // 가 entry 공항 → 첫 호텔 경로 계산). hotelByCity Record 도 같이 forward
       // (buildPrompt.js 가 day 별 prompt 에 도시별 호텔 inject).
@@ -617,7 +639,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
         <div className="max-w-2xl mx-auto">
           {/* AnimatePresence + motion.div로 step 전환 시 슬라이드/페이드.
-              key={step}로 React가 unmount/mount 인식 → exit 애니 발동. */}
+              key={step}로 React가 unmount/mount 인식 → exit 애니 발동.
+              2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 React.lazy. 한 번에 한
+              step 만 마운트 → 다음 step 으로 이동 시점에 dynamic fetch. Suspense
+              fallback 은 step 컨테이너 최소 높이 유지하는 spinner — layout shift
+              방지. fetch 가 통상 < 100ms (preload + prefetch 가능) 이므로 UX 영향
+              미미하나, 첫 진입 시 main planner chunk 가 가장 작아짐. */}
           <AnimatePresence initial={false}>
             <motion.div
               key={`step-${step}`}
@@ -626,6 +653,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
               exit={{ opacity: 0, x: -16 }}
               transition={{ duration: 0.25 }}
             >
+              <Suspense fallback={
+                <div className="min-h-[320px] flex items-center justify-center">
+                  <div className="w-7 h-7 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
+                </div>
+              }>
               {/* Step 0: reservation status (P6) */}
               {step === 0 && (
                 <WizardStep0Reservation
@@ -708,6 +740,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   onEditStep={(s) => goToStep(s)} onGenerate={handleGenerate}
                 />
               )}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </div>

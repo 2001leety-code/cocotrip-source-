@@ -23,7 +23,8 @@
 // 도시별로 각각 1개씩 zone 보유 가능. 다른 도시 zone 클릭은 그 도시 슬롯만 교체.
 import { Sparkles, Check, ExternalLink } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { getZonesForCity, CITY_NAME_BY_KEY, type Zone } from './zoneData';
+import { getZonesForCity, type Zone } from './zoneData';
+import { CITY_NAME_BY_KEY } from './zoneHelpers';
 import { buildZoneHotelLink } from '@/config/affiliateLinks';
 import { trackAdImpression, trackAdClick } from '@/lib/analytics';
 import { haptic } from '@/lib/haptic';
