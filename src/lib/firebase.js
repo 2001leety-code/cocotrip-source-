@@ -37,6 +37,21 @@ export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
 
+// LINE OIDC provider (PR #396, 2026-05-13)
+// 일본/대만/홍콩 사용자 LINE 로그인 지원. Firebase Identity Platform 업그레이드
+// 필요 (50K MAU 무료, $0 비용). Firebase Console > Authentication > Sign-in
+// method > Add new provider > OpenID Connect:
+//   - Provider ID: oidc.line
+//   - Client ID: <LINE Channel ID, 운영자 LINE Developers Console>
+//   - Client Secret: <LINE Channel Secret, rotate 권장>
+//   - Issuer URL: https://access.line.me
+// LINE Developers Console > LINE Login > Callback URL:
+//   - https://planning-with-ai-a0801.firebaseapp.com/__/auth/handler
+export const lineProvider = new OAuthProvider('oidc.line');
+lineProvider.addScope('openid');
+lineProvider.addScope('profile');
+lineProvider.addScope('email');
+
 // UX: ensure Google account selection screen appears.
 googleProvider.setCustomParameters({
   prompt: 'select_account',
@@ -217,6 +232,26 @@ export async function signInWithApple() {
       return null;
     }
     const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
+    throw new Error(message);
+  }
+}
+
+// LINE 로그인 (PR #396): Popup 방식 → 실패 시 Redirect 폴백.
+// Identity Platform 업그레이드 + LINE OIDC provider 등록 후 작동.
+// 미등록 상태 (현재 default) 에서 호출 시 auth/operation-not-allowed 에러 →
+// AuthRequired 가 일반 에러 메시지 표시 (사용자 경험 정상).
+export async function signInWithLine() {
+  try {
+    const result = await signInWithPopup(auth, lineProvider);
+    await saveUserToFirestore(result.user);
+    return result.user;
+  } catch (err) {
+    const code = err?.code ?? '';
+    if (POPUP_FALLBACK_CODES.has(code)) {
+      await signInWithRedirect(auth, lineProvider);
+      return null;
+    }
+    const message = err instanceof Error ? err.message : 'LINE sign-in failed.';
     throw new Error(message);
   }
 }
