@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { haptic } from '@/lib/haptic';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
+import { formatPrice } from '@/lib/exchange-rate';
 import type { Translations } from '@/i18n';
 
 interface MobileHomeProps {
@@ -33,13 +34,14 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
   const marqueeItems = [...featuredTours, ...featuredTours];
   const [marqueePaused, setMarqueePaused] = useState(false);
   const marqueeRef = useRef<HTMLDivElement | null>(null);
+  // 사용자 언어 기반 자동 환산. ko 는 KRW 만원 단위 축약 유지 (기존 UX), 그 외는 formatPrice (USD/JPY/CNY).
+  // 본 PR (feat/price-multi-currency, 2026-05-13) 전: 모든 외국인이 ₩123k 형태로 강제 표시 → 가격 인식 어려움.
   const formatPriceKRW = (priceKRW: number) => {
     if (language === 'ko') {
       if (priceKRW >= 10000) return `${Math.round(priceKRW / 10000)}만원~`;
       return `₩${priceKRW.toLocaleString()}~`;
     }
-    if (priceKRW >= 10000) return `₩${Math.round(priceKRW / 1000)}k~`;
-    return `₩${priceKRW.toLocaleString()}~`;
+    return formatPrice(priceKRW, language, { approximate: true });
   };
 
   useEffect(() => {

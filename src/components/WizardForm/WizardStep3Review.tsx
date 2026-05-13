@@ -2,6 +2,7 @@
 import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
 import { SummaryCard, formatDateShort } from './helpers';
+import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardDict } from './types';
 
 interface Step3Props {
@@ -15,6 +16,8 @@ interface Step3Props {
   hotelAddress: string;
   isLoading: boolean;
   errorMsg: string;
+  // 사용자 언어 — 가격 secondary 환산 표시용 (en→KRW / ko→KRW / ja→JPY / zh→CNY).
+  language?: string;
   onEditStep: (step: number) => void;
   onGenerate: () => void;
 }
@@ -22,7 +25,7 @@ interface Step3Props {
 export function WizardStep3Review(props: Step3Props) {
   const {
     p, allCities, startDate, endDate, arrivalTerminal, pax, selectedActivities, hotelAddress,
-    isLoading, errorMsg, onEditStep, onGenerate,
+    isLoading, errorMsg, language, onEditStep, onGenerate,
   } = props;
 
   const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
@@ -75,7 +78,10 @@ export function WizardStep3Review(props: Step3Props) {
           <p className="text-sm text-white/50 mb-1">{p.wizardAiPlan || 'AI Travel Plan'}</p>
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl font-bold text-white">$9.90</span>
-            <span className="text-sm text-white/55">/ &#8361;13,300</span>
+            {/* 사용자 언어 기반 보조 통화 — en/ko 는 ₩13,300, ja→¥JPY, zh→¥CNY. 결제는 PayPal USD $9.90. */}
+            <span className="text-sm text-white/55">
+              / {language === 'ja' || language === 'zh' ? formatPrice(13300, language) : '₩13,300'}
+            </span>
           </div>
         </div>
 

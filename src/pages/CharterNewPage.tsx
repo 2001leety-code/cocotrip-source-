@@ -15,6 +15,7 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
+import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState, OriginCode, ServiceMode } from '@/components/charter/types';
 
 const VALID_ORIGINS: OriginCode[] = ['ICN','GMP','PUS','CJU','TAE','CJJ','MWX','KWJ','RSU','USN','SEL_METRO','BUS_METRO','CUSTOM'];
@@ -140,7 +141,9 @@ function PaymentPanel({
   // 시점에 state 만 넘기므로). PaymentPanel 진입 시점에 권역/매트릭스 hit 인 경우만 doable — 그 외엔
   // resolved.priceKRW 또는 quote.subtotalKRW 0 → estimateOnlyNote 분기로 빠져 WhatsApp 요청.
   const { quote } = useQuoteCalculator(state);
-  const KRW = (n: number | null | undefined) => n == null ? '—' : `₩${n.toLocaleString('ko-KR')}`;
+  // 결제 패널 가격 — 사용자 언어 기반 자동 환산. ko 만 ₩, 그 외는 USD/JPY/CNY 표시.
+  // 결제 직전 명시 (withCurrencyCode) 로 잘못된 통화 인지 방지 — 실 결제는 PayPal USD 그대로.
+  const KRW = (n: number | null | undefined) => formatPrice(n, language, { withCurrencyCode: true });
 
   // PayPal-payable 가격이 우선, 없으면 wizard에서 산출한 권역/매트릭스 추정가 fallback
   const estimateKRW = quote && !quote.needsCustomQuote && quote.subtotalKRW > 0 ? quote.subtotalKRW : null;

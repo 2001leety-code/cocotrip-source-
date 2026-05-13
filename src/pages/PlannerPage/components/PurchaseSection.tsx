@@ -10,6 +10,7 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
+import { formatPrice } from '@/lib/exchange-rate';
 
 interface QuickPreviewData {
   themes?: string[];
@@ -60,7 +61,11 @@ export function PurchaseSection({
         </div>
         <div className="flex items-baseline justify-center gap-2 mb-2">
           <span className="text-5xl font-black text-white" style={{ textShadow: isMobile ? '0 0 20px rgba(182,104,252,0.3)' : '0 0 20px rgba(124,92,252,0.3)' }}>$9.90</span>
-          <span className="text-white/55 text-sm">/ {'₩'}13,300</span>
+          {/* 보조 통화 — 사용자 언어 기반 자동 환산.
+              ko → ₩13,300, en → KRW 병기 유지, ja → ¥JPY, zh → ¥CNY. 결제 자체는 PayPal USD $9.90. */}
+          <span className="text-white/55 text-sm">
+            / {language === 'en' ? '₩13,300' : formatPrice(13300, language)}
+          </span>
         </div>
         <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border ${isMobile ? 'bg-gradient-to-r from-[#FF6B9D]/15 to-[#B668FC]/15 border-[#FF6B9D]/40' : 'bg-gradient-to-r from-[#EA537E]/15 to-[#7C5CFC]/15 border-[#EA537E]/40'}`}>
           <span className={`text-xs font-bold ${isMobile ? 'text-[#FF6B9D]' : 'text-[#EA537E]'}`}>50% OFF</span>

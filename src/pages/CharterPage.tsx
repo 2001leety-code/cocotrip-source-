@@ -17,6 +17,7 @@ import { KpopShuttleBanner } from '@/components/KpopShuttleBanner';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
+import { formatPrice } from '@/lib/exchange-rate';
 
 // ── 타입 ──────────────────────────────────────────────
 type VehicleType = 'staria' | 'sprinter' | 'bus';
@@ -433,8 +434,16 @@ export default function CharterPage() {
                   {quote.priceKRW != null ? (
                     <>
                       <div className="flex items-baseline gap-3 mb-1">
-                        <span className="text-3xl font-bold text-white">₩{quote.priceKRW.toLocaleString('ko-KR')}</span>
-                        <span className="text-sm text-white/55">≈ ${quote.priceUSD} USD</span>
+                        {/* 주 통화 = 사용자 언어 (ko→₩ / en→$ / ja→¥JPY / zh→¥CNY).
+                            보조 = 결제 통화 USD (실 결제 시 PayPal USD 그대로). */}
+                        <span className="text-3xl font-bold text-white">
+                          {formatPrice(quote.priceKRW, language)}
+                        </span>
+                        <span className="text-sm text-white/55">
+                          {language === 'en'
+                            ? `≈ ₩${quote.priceKRW.toLocaleString('ko-KR')}`
+                            : `≈ $${quote.priceUSD} USD`}
+                        </span>
                       </div>
                       {EXTRA_CHARGES.roundTripDiscountPercent > 0 && service === 'airport' && (
                         <p className="text-[11px] text-[#C4956A]/70 mb-4">

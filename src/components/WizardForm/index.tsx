@@ -737,6 +737,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   arrivalTerminal={arrivalTerminal} pax={pax}
                   selectedActivities={selectedActivities} hotelAddress={hotelAddress}
                   isLoading={isLoading} errorMsg={errorMsg}
+                  language={language}
                   onEditStep={(s) => goToStep(s)} onGenerate={handleGenerate}
                 />
               )}
