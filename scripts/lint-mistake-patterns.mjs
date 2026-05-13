@@ -744,6 +744,46 @@ function P43_authIdorBodyTrusted({ changed }) {
   return null;
 }
 
+/**
+ * P44_cronAuthGate — 메모리 P44 (PR #419, Audit CZ3 / WC5).
+ * 새 cron 엔드포인트 (api/cron-runner.js + 향후 api/_crons/*) 또는 dispatcher
+ * 가 verifyCronRequest 없이 export default handler 패턴을 가지면 fail.
+ *
+ * 트리거: api/cron-runner.js 또는 api/_crons/*.js 변경/신규.
+ * 위반 시 fail.
+ */
+function P44_cronAuthGate({ changed }) {
+  const targets = (changed || []).filter((c) =>
+    c.status !== 'D' && /\.js$/.test(c.file) &&
+    (c.file === 'api/cron-runner.js' || c.file.startsWith('api/_crons/')),
+  );
+  if (targets.length === 0) return { skipped: true };
+
+  const violations = [];
+  for (const { file } of targets) {
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+    // dispatcher 만 verifyCronRequest 필요 (개별 job 핸들러는 dispatcher 가 보호).
+    if (file === 'api/cron-runner.js') {
+      if (!/verifyCronRequest|cron-auth/.test(content)) {
+        violations.push(`${file}: missing verifyCronRequest import — dispatcher must auth-gate before invoking jobs (PR #419 CZ3/WC5)`);
+      }
+      if (!/await\s+verifyCronRequest\s*\(/.test(content)) {
+        violations.push(`${file}: handler must call \`await verifyCronRequest(req)\` before dispatching`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P44_cronAuthGate',
+      `Cron auth gate missing — ${violations.length}건: ${violations.slice(0, 3).join(' | ')}${violations.length > 3 ? ' …' : ''}`,
+      'PR #419 — api/cron-runner.js 는 verifyCronRequest(req) 로 CRON_SECRET / x-vercel-cron / admin token 셋 중 하나를 검증해야 mass email/Telegram spam 차단됨.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -756,6 +796,7 @@ const RULES = [
   ['P33_comboHardcode', P33_comboHardcode],
   ['P34_priceUsdConsistency', P34_priceUsdConsistency],
   ['P43_authIdorBodyTrusted', P43_authIdorBodyTrusted],
+  ['P44_cronAuthGate', P44_cronAuthGate],
 ];
 
 function runAll(base) {
