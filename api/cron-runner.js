@@ -4,6 +4,12 @@
  *
  * Dispatches to individual cron handlers in api/_crons/
  * Vercel cron paths: /api/cron-runner?job=daily-report etc.
+ *
+ * Auth (PR #419, Audit CZ3 / WC5 — 2026-05-13): every invocation must
+ * present either CRON_SECRET (Bearer), the Vercel `x-vercel-cron: 1`
+ * platform header, or an admin Firebase ID token. Otherwise the dispatcher
+ * could be called publicly to fire mass email / Telegram blasts (operator
+ * spam, customer email quota abuse). Detail in api/_shared/cron-auth.js.
  */
 
 import dailyReport from './_crons/daily-report.js';
@@ -12,6 +18,7 @@ import dispatchTimeoutSweep from './_crons/dispatch-timeout-sweep.js';
 import weeklyQualityReport from './_crons/weekly-quality-report.js';
 import dispatchReminder from './_crons/dispatch-reminder.js';
 import operatorTodoReminder from './_crons/operator-todo-reminder.js';
+import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -37,6 +44,18 @@ export default async function handler(req, res) {
     return res.end();
   }
 
+  // Auth gate first — refuses unknown callers before touching Firestore /
+  // sending emails / firing Telegram alerts. PR #419 (Audit CZ3 / WC5).
+  const auth = await verifyCronRequest(req);
+  if (!auth.ok) {
+    res.writeHead(auth.status, { ...CORS, 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      ok: false,
+      error: auth.error,
+      code: 'AUTH_REQUIRED',
+    }));
+  }
+
   const job = req.query?.job
     || new URL(req.url, 'http://localhost').searchParams.get('job');
 
@@ -48,6 +67,6 @@ export default async function handler(req, res) {
     }));
   }
 
-  console.log(`[cron-runner] executing job: ${job}`);
+  console.log(`[cron-runner] executing job: ${job} (source=${auth.source})`);
   return JOBS[job](req, res);
 }
