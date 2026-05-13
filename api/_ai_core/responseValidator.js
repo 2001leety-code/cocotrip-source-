@@ -178,8 +178,12 @@ export function validatePatternStructure(itinerary, request = {}) {
   // Gemini 가 마지막 day drop 시 기존 validator (B-12: 각 day ≥4 stops) 가 통과시킴
   // → 4-day plan 이 5-day 결제로 prod 흘러나옴. HARD validation — caller 가
   // 1회 retry → 그래도 mismatch 면 PLAN_VALIDATION_FAILED.
+  //
+  // 2026-05-13 PR #412 env flag (P40 일환): `VALIDATOR_BDC_ENABLED=false` 시 skip.
+  // 운영자 비상 circuit breaker — Gemini 가 일관되게 day count 틀리면 일시 비활성.
+  const bdcEnabled = process.env.VALIDATOR_BDC_ENABLED !== 'false';
   const requestedDays = Number(request.durationDays || request.duration_days);
-  if (Number.isFinite(requestedDays) && requestedDays > 0 && days.length !== requestedDays) {
+  if (bdcEnabled && Number.isFinite(requestedDays) && requestedDays > 0 && days.length !== requestedDays) {
     errors.push(
       `Plan: itinerary.days.length=${days.length} ≠ requested durationDays=${requestedDays} (B-DC)`
     );
@@ -318,7 +322,10 @@ export function validatePatternStructure(itinerary, request = {}) {
     //   - 단일일 plan (days.length === 1): full day 와 동일 처리
     //
     // HARD validation — caller 가 1회 retry. 회귀 슈트 B-MEAL 와 동일 기준.
-    {
+    //
+    // 2026-05-13 PR #412 env flag (P40 일환): `VALIDATOR_BMEAL_ENABLED=false` 시 skip.
+    // 운영자 비상 circuit breaker — Gemini 가 일관되게 식사 시간대 못 맞추면 일시 비활성.
+    if (process.env.VALIDATOR_BMEAL_ENABLED !== 'false') {
       const foodStops = stops.filter((s) => s?.category === 'food');
       const matchHour = (s, lo, hi) => {
         const t = String(s?.start_time || '');
