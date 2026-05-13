@@ -6,6 +6,7 @@ import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
+import { formatPrice } from '@/lib/exchange-rate';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
 // lazy import 로 첫 paint 영향 0.
@@ -752,12 +753,20 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               <div className="flex items-center gap-2">
                 {promoApplied ? (
                   <>
-                    {/* \uC774\uC288 38 fix: JSX text \uC548 \u20A9 (6\uC790 \uADF8\uB300\uB85C \uCD9C\uB825) \u2192 JS string literal \uC548\uC5D0\uC11C escape \uD480\uB9BC */}
-                    <span className="text-[13px] text-white/55 line-through">{'\u20A9'}{priceKRW.toLocaleString('ko-KR')}</span>
-                    <span className="text-[15px] font-bold text-emerald-300">{'\u20A9'}{effectiveKRW.toLocaleString('ko-KR')}</span>
+                    {/* \uC0AC\uC6A9\uC790 \uC5B8\uC5B4 \uAE30\uBC18 \uD45C\uC2DC. ko/en \uC740 \u20A9, ja\u2192\u00A5JPY, zh\u2192\u00A5CNY. \uC2E4 \uACB0\uC81C\uB294 PayPal USD. */}
+                    <span className="text-[13px] text-white/55 line-through">
+                      {lang === 'ja' || lang === 'zh' ? formatPrice(priceKRW, lang) : `\u20A9${priceKRW.toLocaleString('ko-KR')}`}
+                    </span>
+                    <span className="text-[15px] font-bold text-emerald-300">
+                      {lang === 'ja' || lang === 'zh' ? formatPrice(effectiveKRW, lang) : `\u20A9${effectiveKRW.toLocaleString('ko-KR')}`}
+                    </span>
                   </>
                 ) : (
-                  <span className="text-[15px] font-bold">{rateInfo?.displayKRW ?? `\u20A9${priceKRW.toLocaleString('ko-KR')}`}</span>
+                  <span className="text-[15px] font-bold">
+                    {lang === 'ja' || lang === 'zh'
+                      ? formatPrice(priceKRW, lang)
+                      : (rateInfo?.displayKRW ?? `\u20A9${priceKRW.toLocaleString('ko-KR')}`)}
+                  </span>
                 )}
                 <span className="text-xs text-white/70">{estimatedUSD}</span>
               </div>

@@ -8,6 +8,7 @@ import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
 import { WishlistToggle } from '@/components/WishlistButton';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
+import { formatPrice } from '@/lib/exchange-rate';
 
 const DRIVER_LANG_LABEL: Record<DriverLanguage, string> = { en: 'EN', ja: 'JA', zh: 'ZH' };
 
@@ -191,8 +192,12 @@ export function TourCard({ tour, language }: TourCardProps) {
                 <span className="text-[10px] text-white/70 font-medium ml-0.5">{PER_PERSON_LABEL[language]}</span>
               )}
             </p>
+            {/* 보조 통화 — 사용자 언어 기반 자동 환산 (en→USD 시엔 KRW 병기 유지) */}
             <p className="text-[9px] text-white/55 leading-none mt-0.5">
-              ≈ ₩{Math.round(tour.priceFrom * CALCULATOR_KRW_PER_USD).toLocaleString('ko-KR')}{tour.priceUnit === 'per_person' ? PER_PERSON_LABEL[language] : ''}
+              ≈ {language === 'en'
+                ? `₩${Math.round(tour.priceFrom * CALCULATOR_KRW_PER_USD).toLocaleString('ko-KR')}`
+                : formatPrice(tour.priceFrom * CALCULATOR_KRW_PER_USD, language)}
+              {tour.priceUnit === 'per_person' ? PER_PERSON_LABEL[language] : ''}
             </p>
           </div>
         </div>
