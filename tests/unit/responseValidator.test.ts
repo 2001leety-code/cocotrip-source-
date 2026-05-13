@@ -961,17 +961,19 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
       expect(errors.some((e: string) => e.includes('B-MEAL-DINNER'))).toBe(true);
     });
 
-    it('counts lunch at boundary 13:59 and dinner at boundary 17:00 / 20:59', () => {
+    it('counts lunch at boundary 14:59 and dinner at boundary 21:59 (PR #410 widened)', () => {
+      // 2026-05-13 PR #410: boundary 14:00 / 21:00 → 14:59 / 21:59 widening.
+      // 사용자 본인 PDF Day 4 lunch 14:16 false-positive 차단 해소.
       const dayBoundary: Day = {
         day: 2,
         city: 'Seoul',
         stops: [
           { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
           { category: 'attraction', name: 'A', start_time: '10:00' },
-          { category: 'food', name: '점심 13:59', start_time: '13:59' },
-          { category: 'attraction', name: 'B', start_time: '15:00' },
-          { category: 'food', name: '저녁 20:59', start_time: '20:59' },
-          { category: 'lodging', name: '서울 호텔 복귀', start_time: '21:30' },
+          { category: 'food', name: '점심 14:59', start_time: '14:59' },
+          { category: 'attraction', name: 'B', start_time: '16:00' },
+          { category: 'food', name: '저녁 21:59', start_time: '21:59' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '22:30' },
         ],
       };
       const itinerary: Itinerary = {
@@ -981,14 +983,43 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
       expect(errors.filter((e: string) => e.includes('B-MEAL') && e.includes('Day 2'))).toEqual([]);
     });
 
-    it('rejects lunch at boundary 14:00 (out of range)', () => {
+    it('allows lunch at 14:16 — 사용자 PDF Day 4 실제 케이스 (PR #410 false-positive fix)', () => {
+      // 2026-05-13 PR #410: 사용자 PDF Day 4 (Gijang Seafood Kalguksu 14:16) 가
+      // 원본 boundary [11,14) 에서 false-positive fail 발생. widening 후 PASS.
+      const dayDay4Real: Day = {
+        day: 4,
+        city: 'Busan',
+        stops: [
+          { category: 'lodging', name: '광안리 호텔 출발', start_time: '09:30' },
+          { category: 'attraction', name: '해동용궁사', start_time: '11:31' },
+          { category: 'food', name: 'Gijang Seafood Kalguksu', start_time: '14:16' },
+          { category: 'attraction', name: '흰여울문화마을', start_time: '16:48' },
+          { category: 'food', name: '언양불고기 광안', start_time: '20:13' },
+          { category: 'lodging', name: '광안리 호텔 복귀', start_time: '21:50' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [
+          makeValidDay({ day: 1, city: 'Busan' }),
+          makeValidDay({ day: 2, city: 'Busan' }),
+          makeValidDay({ day: 3, city: 'Busan' }),
+          dayDay4Real,
+          makeValidDay({ day: 5, city: 'Busan' }),
+        ],
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      // 14:16 점심 + 20:13 저녁 둘 다 widened boundary 통과
+      expect(errors.filter((e: string) => e.includes('B-MEAL') && e.includes('Day 4'))).toEqual([]);
+    });
+
+    it('rejects lunch at boundary 15:00 (still out of range after widening)', () => {
       const dayLateLunch: Day = {
         day: 2,
         city: 'Seoul',
         stops: [
           { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
           { category: 'attraction', name: 'A', start_time: '10:00' },
-          { category: 'food', name: '점심 14:00 (late)', start_time: '14:00' },
+          { category: 'food', name: '점심 15:00 (afternoon snack)', start_time: '15:00' },
           { category: 'attraction', name: 'B', start_time: '16:00' },
           { category: 'food', name: '저녁 18:30', start_time: '18:30' },
           { category: 'lodging', name: '서울 호텔 복귀', start_time: '21:00' },
@@ -998,8 +1029,29 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
         days: [makeValidDay({ day: 1 }), dayLateLunch, makeValidDay({ day: 3 })],
       };
       const errors = validatePatternStructure(itinerary, {});
-      // 14:00 = 점심 slot 밖 → B-MEAL-LUNCH 위반
+      // 15:00 = widening 후에도 점심 slot [11,15) 밖 → B-MEAL-LUNCH 위반
       expect(errors.some((e: string) => e.includes('B-MEAL-LUNCH') && e.includes('Day 2'))).toBe(true);
+    });
+
+    it('rejects dinner at boundary 22:00 (still out of range after widening)', () => {
+      const dayLateDinner: Day = {
+        day: 2,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
+          { category: 'attraction', name: 'A', start_time: '10:00' },
+          { category: 'food', name: '점심 12:30', start_time: '12:30' },
+          { category: 'attraction', name: 'B', start_time: '15:00' },
+          { category: 'food', name: '심야 저녁 22:00', start_time: '22:00' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '23:30' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), dayLateDinner, makeValidDay({ day: 3 })],
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      // 22:00 = widening 후에도 저녁 slot [17,22) 밖 → B-MEAL-DINNER 위반
+      expect(errors.some((e: string) => e.includes('B-MEAL-DINNER') && e.includes('Day 2'))).toBe(true);
     });
   });
 });

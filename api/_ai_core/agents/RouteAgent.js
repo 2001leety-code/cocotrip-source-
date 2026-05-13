@@ -734,8 +734,12 @@ export class RouteAgent extends BaseAgent {
             // 정책: Phase 1 (Naver Geocoding) 완료 후 stops[].lat/lng 채워진 상태에서
             // greedy nearest-neighbor (Haversine) 재정렬. lodging bookend (첫/마지막)
             // 보존. 좌표 누락 시 원본 순서 유지 (회귀 안전망).
+            //
+            // 2026-05-13 PR #412 env flag (P40 일환): `ROUTE_TSP_ENABLED=false` 시 skip.
+            // 운영자 비상 circuit breaker — TSP 재정렬이 의도 깨면 일시 비활성.
+            const tspEnabled = process.env.ROUTE_TSP_ENABLED !== 'false';
             const beforeReorder = places.map((p, i) => `${i}:${p.name || p.display_name || '?'}`).join(' → ');
-            const reorderedPlaces = reorderStopsByProximity(places);
+            const reorderedPlaces = tspEnabled ? reorderStopsByProximity(places) : places;
             if (reorderedPlaces !== places) {
                 // 새 배열 반환됨 — 순서 바뀐 stops 들의 order 필드도 1..N 재할당.
                 for (let k = 0; k < reorderedPlaces.length; k++) {
