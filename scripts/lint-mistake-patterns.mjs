@@ -127,25 +127,71 @@ function runRule(name, fn, ctx) {
 
 /**
  * P1_dateInclusiveExclusive — 메모리 P10 (날짜 inclusive/exclusive 혼동) + P1 (drift)
- * addDays/diffDays/tourDays/endDate/startDate 등 날짜 헬퍼 변경 시
+ * addDays/diffDays/tourDays/computeNights 등 **날짜 헬퍼** 정의·호출 변경 시
  * inclusive/exclusive 컨벤션 주석 부재면 위반.
+ *
+ * 2026-05-13 정밀화 (PR #391):
+ * - 이전: file 전체 content 가 dateRe 매칭 → trigger. type field 만 있어도 over-trigger
+ *   (예: PR #387 의 IntercityTransitSegment 추가가 file 의 무관한 `startDate?: string`
+ *   field 때문에 trigger 됨)
+ * - 이후: **changed lines (git diff 의 + 라인) 만** 검사 + **type field declaration 제외**.
+ *   단순 `startDate?: string` / `endDate: Date | null` 같은 type/interface field 는 skip.
+ *   헬퍼 정의 (`function addDays`/`const addDays =`) 또는 호출 (`addDays(...)`/`startDate =`)
+ *   만 trigger.
  */
 function P1_dateInclusiveExclusive({ changed, base }) {
-  const dateRe = /\b(addDays|diffDays|tourDays|computeNights|endDate|startDate)\b/;
+  // 헬퍼 함수 정의 (실제 위험 — inclusive/exclusive 컨벤션 명시 필수)
+  const HELPER_DEFINE = /\b(function\s+(addDays|diffDays|tourDays|computeNights)|const\s+(addDays|diffDays|tourDays|computeNights)\s*=)/;
+  // 헬퍼 함수 호출 (caller 도 컨벤션 인지 필요)
+  const HELPER_CALL = /\b(addDays|diffDays|tourDays|computeNights)\s*\(/;
+  // 단순 type field declaration — inclusive/exclusive 무관 (skip 대상)
+  const DATE_FIELD_TYPE_ONLY = /^\s*\/?\*?\s*(startDate|endDate)\s*\??:\s*(string|Date|number|null|undefined|[A-Z][\w<>|& ]*)\s*;?\s*$/;
+  // startDate/endDate 변수 할당 또는 메소드 호출 — 실제 계산 컨텍스트
+  const DATE_USE = /\b(startDate|endDate)\s*(=(?!=)|\.\w+|\[|\+|-(?!=))/;
+  // 변경된 파일에 날짜 관련 키워드가 하나라도 있나 (skip 여부 결정용)
+  const ANY_DATE_KEYWORD = /\b(addDays|diffDays|tourDays|computeNights|startDate|endDate)\b/;
+
   const affected = [];
+  let anyDateRelevant = false;
+
   for (const c of changed) {
     if (c.status === 'D') continue;
     if (!/\.(ts|tsx|js|mjs|cjs)$/.test(c.file)) continue;
+
+    // changed lines (git diff hunk 의 + 라인) — file 전체 content 가 아닌 변경분만 검사.
+    const diff = safeExec(`git diff ${base}...HEAD -- "${c.file}"`);
+    const addedLines = diff
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+      .map((line) => line.slice(1));
+
+    if (addedLines.length === 0) continue;
+
+    // 변경된 line 중 dateRe 매칭이 있나? (skip 여부 추적)
+    if (addedLines.some((line) => ANY_DATE_KEYWORD.test(line))) {
+      anyDateRelevant = true;
+    }
+
+    // trigger 조건: helper define/call 또는 startDate/endDate 사용 (할당·메소드·산술).
+    // type field declaration 만 추가됐으면 skip (PR #387 같은 false positive 방지).
+    const triggerLines = addedLines.filter((line) => {
+      if (DATE_FIELD_TYPE_ONLY.test(line)) return false;
+      return HELPER_DEFINE.test(line) || HELPER_CALL.test(line) || DATE_USE.test(line);
+    });
+
+    if (triggerLines.length === 0) continue;
+
+    // 컨벤션 주석 검사 — file 전체에서 inclusive/exclusive 키워드 1회 이상.
     const content = getChangedFileContent(c.file);
-    if (!dateRe.test(content)) continue;
-    // 헬퍼 정의/export 인지 확인 (caller 가 단순히 변수 쓰는 거면 X)
-    if (!/export\s+(const|function|default|\{)/.test(content) && !/function\s+(addDays|diffDays|tourDays|computeNights)/.test(content)) continue;
-    // 컨벤션 주석 검사
     if (!/\b(inclusive|exclusive)\b/i.test(content)) {
       affected.push(c.file);
     }
   }
-  if (affected.length === 0) return changed.some((c) => dateRe.test(getChangedFileContent(c.file))) ? null : { skipped: true };
+
+  if (affected.length === 0) {
+    // 어떤 file 도 trigger 안 됐으면 — date 관련 변경이 아예 없으면 skip 처리.
+    return anyDateRelevant ? null : { skipped: true };
+  }
   for (const f of affected) {
     fail(
       'P1_dateInclusiveExclusive',
@@ -779,6 +825,31 @@ function runSelfTest() {
       },
       expectRule: 'P34_priceUsdConsistency',
     },
+    {
+      label: 'P1 (true positive): addDays 헬퍼 정의 신규 추가, inclusive/exclusive 주석 없음',
+      base: {
+        'src/lib/dates.ts': "// stub\nexport const X = 1;\n",
+      },
+      head: {
+        'src/lib/dates.ts':
+          "// stub\nexport const X = 1;\nexport function addDays(d, n) { return new Date(d.getTime() + n*86400000); }\n",
+      },
+      expectRule: 'P1_dateInclusiveExclusive',
+    },
+    {
+      label: 'P1 (false positive 차단): type field 만 추가 — PR #387 회귀 시나리오',
+      base: {
+        'src/types/plan.ts':
+          "export interface Plan {\n  startDate?: string;\n  name: string;\n}\n",
+      },
+      head: {
+        // IntercityTransitSegment 추가 (PR #387 와 동일 패턴) — 무관한 field 만 추가
+        'src/types/plan.ts':
+          "export interface Plan {\n  startDate?: string;\n  name: string;\n  intercity_transit?: { from_city?: string; to_city?: string } | null;\n}\n",
+      },
+      expectRule: null, // P1 trigger 되면 안 됨
+      expectClean: true,
+    },
   ];
 
   let pass = 0;
@@ -791,16 +862,31 @@ function runSelfTest() {
       gitInSandbox(dir, 'tag base');
       applyFilesAndCommit(dir, c.head, 'head');
       runRulesInDir(dir, 'base');
-      const matched = violations.find((v) => v.rule === c.expectRule);
-      if (matched) {
-        process.stdout.write(`  [PASS] ${c.label}\n    -> caught: ${matched.msg}\n`);
-        pass++;
+      if (c.expectClean) {
+        // false-positive 차단 검증 — expectRule 가 발화 **안 해야** PASS.
+        // P1 정밀화 같은 over-trigger 회귀 방지에 필수.
+        const falselyTriggered = violations.find((v) => v.rule === c.expectRule);
+        if (!falselyTriggered) {
+          process.stdout.write(`  [PASS] ${c.label}\n    -> no false positive (${c.expectRule} stayed silent)\n`);
+          pass++;
+        } else {
+          process.stdout.write(
+            `  [FAIL] ${c.label}\n    -> ${c.expectRule} falsely triggered: ${falselyTriggered.msg}\n`,
+          );
+          fail++;
+        }
       } else {
-        process.stdout.write(
-          `  [FAIL] ${c.label}\n    -> expected rule ${c.expectRule} did NOT fire. ` +
-            `actual violations: ${JSON.stringify(violations.map((v) => v.rule))}\n`,
-        );
-        fail++;
+        const matched = violations.find((v) => v.rule === c.expectRule);
+        if (matched) {
+          process.stdout.write(`  [PASS] ${c.label}\n    -> caught: ${matched.msg}\n`);
+          pass++;
+        } else {
+          process.stdout.write(
+            `  [FAIL] ${c.label}\n    -> expected rule ${c.expectRule} did NOT fire. ` +
+              `actual violations: ${JSON.stringify(violations.map((v) => v.rule))}\n`,
+          );
+          fail++;
+        }
       }
     } catch (err) {
       process.stdout.write(`  [FAIL] ${c.label} — crashed: ${err.message}\n`);
