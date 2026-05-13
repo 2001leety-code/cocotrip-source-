@@ -28,9 +28,13 @@ import { selectVehicle, calcPrice, VEHICLE_LABELS } from './_ai_core/vehicleAndP
 import { buildAvoidClause } from './_ai_core/avoidListQuery.js';
 import { runGeminiPipeline } from './_ai_core/geminiPipeline.js';
 import { enrichItineraryWithRoute } from './_ai_core/routeEnrichment.js';
+import { decidePlannerMode } from './_ai_core/plannerMode.js';
 
-// Feature flag: 'legacy' (default) or '3pass'
-const PLANNER_MODE = (process.env.PLANNER_MODE || 'legacy').trim();
+// Phase 4 A/B test (2026-05-13): mode resolved per-request via
+// decidePlannerMode (api/_ai_core/plannerMode.js). Inputs: uid / guestEmail /
+// sessionId hash → bucket [0..99] → < PLANNER_AB_3PASS_PCT means 3-pass.
+// PLANNER_MODE='3pass' env still overrides (entire population → 3-pass).
+// Default behaviour with both env unset = legacy 100% (Phase 3 baseline).
 
 export const maxDuration = 300;
 export const config = { runtime: 'nodejs' };
@@ -79,6 +83,11 @@ export default async function handler(req, res) {
   }
 
   const handlerStart = Date.now();
+  // Phase 4 A/B test (2026-05-13): mode trace 변수 — try 블록 밖에서 선언해
+  // 초기 throw 시에도 catch 블록의 sentry/log 가 안전하게 read 할 수 있게.
+  // try 안에서 decidePlannerMode 호출 후 덮어쓰기. body parse 전에 throw 하면
+  // 'unknown' 그대로 sentry 에 기록.
+  let resolvedPlannerMode = 'unknown';
   console.log('[planner] === START ===');
   // batch 9 fix (PR-N, 2026-05-09): env 변수 유무 진단 — handler 진입 즉시.
   // 키 값은 노출 X, 길이/존재만 노출. 5/9 prod 500 빈 body 회귀 추적용.
@@ -172,6 +181,27 @@ export default async function handler(req, res) {
     const hotel_address = body.hotel_address || '';
     const mobility = body.mobility || 'ok';
     const uid = body.uid || null;
+
+    // ── Phase 4 A/B test: planner mode 결정 (uid > guestEmail > sessionId) ───
+    // sessionId 는 client 가 보낼 수 있는 anonymous 식별자 (현재 미사용이지만 향후
+    // 비로그인 게스트 결제 흐름 대비). hash → bucket → PCT 미만이면 3pass.
+    // 결정론적 — 동일 사용자 = 동일 mode 유지 (revision 도 같은 mode 사용).
+    // SAFETY-CRITICAL (CLAUDE.md J): mode 결정은 dietary validation 에 영향 없음.
+    // 1-pass / 3-pass 모두 동일한 validateResponse + hasCriticalDietaryViolation 적용.
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
+    const abDecision = decidePlannerMode({
+      uid,
+      guestEmail: authenticatedEmail,
+      sessionId,
+    });
+    const PLANNER_MODE = abDecision.mode;
+    resolvedPlannerMode = PLANNER_MODE;  // expose to catch-block sentry context
+    console.log(
+      `[planner] AB test: uid=${uid || '-'} email=${authenticatedEmail || '-'} ` +
+      `mode=${abDecision.mode} reason=${abDecision.reason} ` +
+      `bucket=${abDecision.bucket ?? '-'}`,
+    );
+
     // Sprint 2 #5: zone hint (string key like 'myeongdong'). Used as a soft
     // anchor for hub-and-spoke when no hotel_address provided. Ignored when
     // hotel_address present (hotel coords win).
@@ -491,12 +521,18 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     const priceUSD = Math.round(priceKRW / exchangeRate * 100) / 100;
 
     // ── Firestore 저장 + Loyalty ──────────────────────────────────────────
+    // Phase 4 (2026-05-13): plannerMode + abReason + abBucket — admin
+    // dashboard 에서 mode 별 qualityScore 비교 위함. legacy vs 3-pass 평균
+    // 차이 + diet/unverified/route 카운트 차이를 운영자가 직접 확인 가능.
     const { planId, planUrl } = await persistPlan(adminDb, {
       body, itinerary, uid, vehicle, priceKRW, priceUSD,
       guestName, pax, styles, area, duration, startDate, email,
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,
       dietary: dietPrefs, foodIndex: foodIndexForQuality,
+      plannerMode: PLANNER_MODE,
+      abReason: abDecision.reason,
+      abBucket: abDecision.bucket,
     });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
@@ -577,7 +613,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         await captureError(error, {
           route: '/api/ai-planner-full',
           method: req.method,
-          planner_mode: PLANNER_MODE,
+          planner_mode: resolvedPlannerMode,
         });
       } catch (e) {
         console.warn('[ai-planner-full] sentry capture failed:', e.message);
