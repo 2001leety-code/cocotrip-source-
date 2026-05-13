@@ -40,6 +40,8 @@ interface Itinerary {
 // Helper: a structurally-correct day with N stops (lodging bookend, 4+ stops).
 // 2026-05-12: B-13 4-layer fallback 추가 후, 다도시 plan 에서도 이 helper 가
 // 잡히지 않도록 lodging name 에 city 토큰 자동 삽입 (Seoul 호텔 / Busan 호텔 등).
+// 2026-05-13 (PR #407 B-MEAL): full day 는 점심+저녁 둘 다 필수.
+// 기본 makeValidDay 가 dinner food stop 도 포함 (18:30) — B-MEAL 통과.
 function makeValidDay(opts: { day?: number; city?: string; stops?: Stop[] } = {}): Day {
   const city = opts.city ?? 'Seoul';
   // city 한글 매핑 — B-13 L1 (lodging name 매칭) 자동 통과.
@@ -56,7 +58,8 @@ function makeValidDay(opts: { day?: number; city?: string; stops?: Stop[] } = {}
       { category: 'attraction', name: '경복궁', start_time: '10:30' },
       { category: 'food', name: '광장시장', start_time: '12:30' },
       { category: 'attraction', name: '북촌한옥마을', start_time: '14:30' },
-      { category: 'lodging', name: `${cityToken} 호텔 복귀`, start_time: '20:00' },
+      { category: 'food', name: '인사동 한식', start_time: '18:30' },
+      { category: 'lodging', name: `${cityToken} 호텔 복귀`, start_time: '20:30' },
     ],
   };
 }
@@ -749,6 +752,254 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
       };
       const errors = validatePatternStructure(itinerary, {});
       expect(errors.some((e: string) => e.includes('B-16'))).toBe(true);
+    });
+  });
+
+  // 2026-05-13 PR #407: B-DC + B-MEAL 신규 hard validation.
+  // 사용자 PDF 보고 (Guest-5--2026-05-14) 트리거: 5일 결제했는데 PDF Day 4 까지만
+  // (Day 5 누락) + Day 2 저녁 누락 (hotel 17:43 종료) + 불고기 Day 1/4 중복.
+  describe('B-DC: day count must match request.durationDays', () => {
+    it('flags when itinerary.days.length is less than requested', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), makeValidDay({ day: 2 }), makeValidDay({ day: 3 }), makeValidDay({ day: 4 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, { durationDays: 5 });
+      expect(errors.some((e: string) => e.includes('B-DC') && e.includes('days.length=4') && e.includes('durationDays=5'))).toBe(true);
+    });
+
+    it('flags when itinerary.days.length is greater than requested', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), makeValidDay({ day: 2 }), makeValidDay({ day: 3 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, { durationDays: 2 });
+      expect(errors.some((e: string) => e.includes('B-DC') && e.includes('days.length=3') && e.includes('durationDays=2'))).toBe(true);
+    });
+
+    it('passes when itinerary.days.length matches requested', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), makeValidDay({ day: 2 }), makeValidDay({ day: 3 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, { durationDays: 3 });
+      expect(errors.filter((e: string) => e.includes('B-DC'))).toEqual([]);
+    });
+
+    it('also accepts snake_case duration_days', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, { duration_days: 3 });
+      expect(errors.some((e: string) => e.includes('B-DC'))).toBe(true);
+    });
+
+    it('skips when durationDays is missing or invalid (backward compat)', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      // request 빈 객체 — durationDays 없음 → B-DC skip
+      expect(validatePatternStructure(itinerary, {}).filter((e: string) => e.includes('B-DC'))).toEqual([]);
+      // durationDays=0 → skip
+      expect(validatePatternStructure(itinerary, { durationDays: 0 }).filter((e: string) => e.includes('B-DC'))).toEqual([]);
+      // durationDays=null → skip
+      expect(validatePatternStructure(itinerary, { durationDays: null }).filter((e: string) => e.includes('B-DC'))).toEqual([]);
+      // durationDays='abc' → skip
+      expect(validatePatternStructure(itinerary, { durationDays: 'abc' }).filter((e: string) => e.includes('B-DC'))).toEqual([]);
+    });
+  });
+
+  describe('B-MEAL: lunch + dinner coverage per full day', () => {
+    // Helper — day with only lodging + attractions, no food stops
+    function makeDayNoFood(day: number): Day {
+      return {
+        day,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
+          { category: 'attraction', name: 'A1', start_time: '10:00' },
+          { category: 'attraction', name: 'A2', start_time: '14:00' },
+          { category: 'attraction', name: 'A3', start_time: '16:00' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '20:00' },
+        ],
+      };
+    }
+
+    it('flags full day with no lunch (only dinner)', () => {
+      // 3-day plan: day 2 = full day, no lunch
+      const day2NoLunch: Day = {
+        day: 2,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
+          { category: 'attraction', name: '경복궁', start_time: '10:00' },
+          { category: 'attraction', name: 'N서울타워', start_time: '14:00' },
+          { category: 'food', name: '저녁 식당', start_time: '18:30' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '20:30' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), day2NoLunch, makeValidDay({ day: 3 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.some((e: string) => e.includes('B-MEAL-LUNCH') && e.includes('Day 2'))).toBe(true);
+      expect(errors.some((e: string) => e.includes('B-MEAL-DINNER') && e.includes('Day 2'))).toBe(false);
+    });
+
+    it('flags full day with no dinner (only lunch) — sample from Guest PDF Day 2', () => {
+      // Wizard 5-day plan, Day 2 reproduces PDF bug: hotel return 17:43 with no dinner.
+      const day2NoDinner: Day = {
+        day: 2,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 출발', start_time: '09:30' },
+          { category: 'attraction', name: '북촌한옥마을', start_time: '10:52' },
+          { category: 'food', name: 'KUT SEOUL', start_time: '13:12' },
+          { category: 'attraction', name: '인사동거리', start_time: '14:36' },
+          { category: 'attraction', name: '조계사', start_time: '16:18' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '17:43' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), day2NoDinner, makeValidDay({ day: 3 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.some((e: string) => e.includes('B-MEAL-DINNER') && e.includes('Day 2'))).toBe(true);
+      expect(errors.some((e: string) => e.includes('B-MEAL-LUNCH') && e.includes('Day 2'))).toBe(false);
+    });
+
+    it('flags full day with no food at all', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), makeDayNoFood(2), makeValidDay({ day: 3 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.some((e: string) => e.includes('B-MEAL-LUNCH') && e.includes('Day 2'))).toBe(true);
+      expect(errors.some((e: string) => e.includes('B-MEAL-DINNER') && e.includes('Day 2'))).toBe(true);
+    });
+
+    it('allows arrival day (first) with only dinner — common 15:00 check-in pattern', () => {
+      // Wizard 5-day plan, Day 1 reproduces PDF: 15:00 check-in, dinner 18:52, hotel 21:15.
+      const day1Arrival: Day = {
+        day: 1,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 도착', start_time: '15:00' },
+          { category: 'attraction', name: '명동거리', start_time: '16:44' },
+          { category: 'food', name: '한식왕비집', start_time: '18:52' },
+          { category: 'attraction', name: '명동성당', start_time: '20:17' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '21:15' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [day1Arrival, makeValidDay({ day: 2 }), makeValidDay({ day: 3 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      // 도착일은 점심 OR 저녁 중 1개 OK
+      expect(errors.filter((e: string) => e.includes('B-MEAL') && e.includes('Day 1'))).toEqual([]);
+    });
+
+    it('flags arrival day with no food at all', () => {
+      const itinerary: Itinerary = {
+        days: [makeDayNoFood(1), makeValidDay({ day: 2 }), makeValidDay({ day: 3 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      // 도착일도 식사 0건 = 차단 (점심 또는 저녁 중 최소 1개)
+      expect(errors.some((e: string) => e.includes('B-MEAL') && e.includes('Day 1') && e.includes('도착일'))).toBe(true);
+    });
+
+    it('allows departure day (last) with only lunch — common pre-departure pattern', () => {
+      const dayLastLunchOnly: Day = {
+        day: 3,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
+          { category: 'attraction', name: '남산타워', start_time: '10:00' },
+          { category: 'food', name: '점심 식당', start_time: '12:30' },
+          { category: 'travel', name: '인천국제공항 T1', start_time: '15:00' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), makeValidDay({ day: 2 }), dayLastLunchOnly],
+        arrival_guide: { airport: 'ICN T1' },
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.filter((e: string) => e.includes('B-MEAL') && e.includes('Day 3'))).toEqual([]);
+    });
+
+    it('allows single-day plan with both lunch and dinner', () => {
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 })],
+        departure_guide: { airport: 'ICN T1' },
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      // makeValidDay 가 lunch 12:30 + dinner 18:30 둘 다 있음 → 통과
+      expect(errors.filter((e: string) => e.includes('B-MEAL'))).toEqual([]);
+    });
+
+    it('flags single-day plan with only lunch (B-MEAL-DINNER)', () => {
+      const singleDayNoDinner: Day = {
+        day: 1,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔', start_time: '09:00' },
+          { category: 'attraction', name: '경복궁', start_time: '10:00' },
+          { category: 'food', name: '광장시장', start_time: '12:30' },
+          { category: 'attraction', name: '명동', start_time: '15:00' },
+        ],
+      };
+      const itinerary: Itinerary = { days: [singleDayNoDinner] };
+      const errors = validatePatternStructure(itinerary, {});
+      // 단일일 = full day 처리 → 점심 + 저녁 둘 다 필수
+      expect(errors.some((e: string) => e.includes('B-MEAL-DINNER'))).toBe(true);
+    });
+
+    it('counts lunch at boundary 13:59 and dinner at boundary 17:00 / 20:59', () => {
+      const dayBoundary: Day = {
+        day: 2,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
+          { category: 'attraction', name: 'A', start_time: '10:00' },
+          { category: 'food', name: '점심 13:59', start_time: '13:59' },
+          { category: 'attraction', name: 'B', start_time: '15:00' },
+          { category: 'food', name: '저녁 20:59', start_time: '20:59' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '21:30' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), dayBoundary, makeValidDay({ day: 3 })],
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      expect(errors.filter((e: string) => e.includes('B-MEAL') && e.includes('Day 2'))).toEqual([]);
+    });
+
+    it('rejects lunch at boundary 14:00 (out of range)', () => {
+      const dayLateLunch: Day = {
+        day: 2,
+        city: 'Seoul',
+        stops: [
+          { category: 'lodging', name: '서울 호텔 출발', start_time: '09:00' },
+          { category: 'attraction', name: 'A', start_time: '10:00' },
+          { category: 'food', name: '점심 14:00 (late)', start_time: '14:00' },
+          { category: 'attraction', name: 'B', start_time: '16:00' },
+          { category: 'food', name: '저녁 18:30', start_time: '18:30' },
+          { category: 'lodging', name: '서울 호텔 복귀', start_time: '21:00' },
+        ],
+      };
+      const itinerary: Itinerary = {
+        days: [makeValidDay({ day: 1 }), dayLateLunch, makeValidDay({ day: 3 })],
+      };
+      const errors = validatePatternStructure(itinerary, {});
+      // 14:00 = 점심 slot 밖 → B-MEAL-LUNCH 위반
+      expect(errors.some((e: string) => e.includes('B-MEAL-LUNCH') && e.includes('Day 2'))).toBe(true);
     });
   });
 });

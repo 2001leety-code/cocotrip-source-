@@ -171,6 +171,8 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
     '  Prefer (a) — most explicit. NEVER mismatch real city (Busan hotel on Seoul day = sole reason for re-generation).',
     '- The LAST day MUST include either a category="travel"/"airport" stop, a stop whose name/address mentions the airport (공항/airport/ICN/GMP/PUS/CJU), OR day-level "return_to_airport": true.',
     '- The TOP-LEVEL response MUST include either `arrival_guide.airport` OR `departure_guide.airport` (non-empty string, e.g. "ICN T1" / "GMP" / "PUS"). NEVER omit BOTH — the PDF first/last page renders blank without them (B-16). Prefer including `departure_guide` always; include `arrival_guide` whenever `arrival_airport != "already_in_korea"`.',
+    '- The itinerary.days array MUST contain EXACTLY the requested duration_days count. NEVER drop or truncate the last day. If user requests 5 days, output 5 day objects (B-DC). Each day must be a full entry with stops[], NOT a placeholder.',
+    '- EVERY full day (middle days — neither arrival nor departure day) MUST contain at least 1 lunch food stop (category="food", start_time hour ∈ [11:00, 13:59]) AND at least 1 dinner food stop (category="food", start_time hour ∈ [17:00, 20:59]). Arrival day (Day 1, often 15:00 check-in) and departure day may have ≥1 meal total. NEVER end a full day at hotel before 18:00 without a dinner stop (B-MEAL).',
     '',
     'Regenerate the FULL itinerary respecting the structure above.',
     'Same JSON schema as before. Same `days[].stops[]` structure.',

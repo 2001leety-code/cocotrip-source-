@@ -173,6 +173,18 @@ export function validatePatternStructure(itinerary, request = {}) {
   const departureAirport = request.departure_airport || request.departureAirport || '';
   const isMultiCity = regions.length >= 2;
 
+  // B-DC (2026-05-13 PR #407): itinerary.days.length === request.durationDays.
+  // 사용자 PDF 보고 (Guest-5--2026-05-14): wizard 5일 plan 인데 PDF Day 4 까지만 노출.
+  // Gemini 가 마지막 day drop 시 기존 validator (B-12: 각 day ≥4 stops) 가 통과시킴
+  // → 4-day plan 이 5-day 결제로 prod 흘러나옴. HARD validation — caller 가
+  // 1회 retry → 그래도 mismatch 면 PLAN_VALIDATION_FAILED.
+  const requestedDays = Number(request.durationDays || request.duration_days);
+  if (Number.isFinite(requestedDays) && requestedDays > 0 && days.length !== requestedDays) {
+    errors.push(
+      `Plan: itinerary.days.length=${days.length} ≠ requested durationDays=${requestedDays} (B-DC)`
+    );
+  }
+
   for (let i = 0; i < days.length; i++) {
     const d = days[i];
     const dayNum = d?.day || d?.day_index || (i + 1);
@@ -285,6 +297,47 @@ export function validatePatternStructure(itinerary, request = {}) {
         if (min >= 60) {
           errors.push(`Day ${dayNum} stop "${s.name || s.display_name || '?'}": start_time="${t}" minutes >= 60 invalid (B-14)`);
         }
+      }
+    }
+
+    // B-MEAL (2026-05-13 PR #407): 식사 slot 시간대 검증.
+    // 사용자 PDF 보고 (Guest-5--2026-05-14): Day 2 저녁 누락 (hotel return 17:43 종료).
+    // buildPrompt.js:541 명시: "1 dedicated lunch + 1 dinner per full day (category: food)".
+    // 기존 validator 가 강제 안 함 → Gemini 가 lazy 응답해도 통과.
+    //
+    // 정의:
+    //   - 점심 slot: start_time 시(hour) ∈ [11, 14) — 11:00~13:59
+    //   - 저녁 slot: start_time 시(hour) ∈ [17, 21) — 17:00~20:59
+    //   - first/last day (도착/출국일): 점심 OR 저녁 중 최소 1개 (도착/출국 시각 변동)
+    //   - full day (중간 day): 점심 + 저녁 둘 다 필수
+    //   - 단일일 plan (days.length === 1): full day 와 동일 처리
+    //
+    // HARD validation — caller 가 1회 retry. 회귀 슈트 B-MEAL 와 동일 기준.
+    {
+      const foodStops = stops.filter((s) => s?.category === 'food');
+      const matchHour = (s, lo, hi) => {
+        const t = String(s?.start_time || '');
+        const m = t.match(/^(\d{2}):(\d{2})$/);
+        if (!m) return false;
+        const h = parseInt(m[1], 10);
+        return h >= lo && h < hi;
+      };
+      const lunchCount = foodStops.filter((s) => matchHour(s, 11, 14)).length;
+      const dinnerCount = foodStops.filter((s) => matchHour(s, 17, 21)).length;
+      const isSingleDay = days.length === 1;
+      const isFirst = i === 0 && !isSingleDay;
+      const isLast = i === days.length - 1 && !isSingleDay;
+      if (isFirst || isLast) {
+        // 도착/출국일 — 점심 OR 저녁 중 최소 1개
+        if (lunchCount === 0 && dinnerCount === 0) {
+          errors.push(
+            `Day ${dayNum} (${isFirst ? '도착' : '출국'}일): 점심(11-13시)+저녁(17-20시) 모두 누락 (B-MEAL)`
+          );
+        }
+      } else {
+        // full day (또는 단일일) — 점심 + 저녁 둘 다 필수
+        if (lunchCount === 0) errors.push(`Day ${dayNum}: 점심(11-13시) food stop 누락 (B-MEAL-LUNCH)`);
+        if (dinnerCount === 0) errors.push(`Day ${dayNum}: 저녁(17-20시) food stop 누락 (B-MEAL-DINNER)`);
       }
     }
   }

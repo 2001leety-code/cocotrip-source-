@@ -539,8 +539,16 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
 - 1 dedicated lunch + 1 dinner per full day (category: "food")
+- **Lunch slot**: start_time hour ∈ [11:00, 13:59]. Backend validator (B-MEAL-LUNCH) rejects plans missing lunch on full days.
+- **Dinner slot**: start_time hour ∈ [17:00, 20:59]. Backend validator (B-MEAL-DINNER) rejects plans missing dinner on full days.
+- **Full day** = middle days (not arrival, not departure). Day 1 (arrival, often 15:00 check-in) and last day (departure) may have ≥1 meal total.
+- NEVER end a full day at hotel before 18:00 without including a dinner food stop. NEVER skip a meal slot.
 - 3-5 signature menu items with KRW prices
 - reservation_required + phone for popular spots
+
+## DAY COUNT — STRICT (B-DC)
+- Output EXACTLY `duration_days` day objects in itinerary.days array. NEVER drop or truncate the last day.
+- If user requests 5 days, output 5 day objects with stops[] populated. NEVER output 4 with last-day narration.
 
 ### BUSAN SIGNATURE DISHES — MANDATORY (부산 일정 시 필수)
 When the destination includes Busan:
