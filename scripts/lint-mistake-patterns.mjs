@@ -960,7 +960,36 @@ const RULES = [
   ['P51_couponPreLock', P51_couponPreLock],
   ['P52_swNoApiCache', P52_swNoApiCache],
   ['P53_complaintRateLimit', P53_complaintRateLimit],
+  ['P54_foodIndexCache', P54_foodIndexCache],
 ];
+
+/**
+ * P54_foodIndexCache — 메모리 P54 (PR #430, Audit X-C4).
+ * api/_ai_core/geminiPipeline.js 의 loadFoodIndex 가 module-scope 캐시
+ * 누락하면 fail. 매 요청 1.27MB JSON parse → ai-planner cold-start latency
+ * + warm path 불필요 CPU/IO. 캐시 + in-flight promise 패턴 강제.
+ */
+function P54_foodIndexCache({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  if (!/let\s+_foodIndexCache\s*=/.test(content)) {
+    violations.push(`${FILE}: module-scope _foodIndexCache missing — 매 요청 1.27MB parse (X-C4)`);
+  }
+  if (!/if\s*\(\s*_foodIndexCache\s*!==\s*null\s*\)/.test(content)) {
+    violations.push(`${FILE}: cached-value early-return missing in loadFoodIndex`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P54_foodIndexCache',
+      violations.join(' | '),
+      'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
 
 /**
  * P53_complaintRateLimit — 메모리 P53 (PR #429, Audit WC10).

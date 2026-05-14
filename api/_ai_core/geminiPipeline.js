@@ -43,15 +43,45 @@ function buildModel(apiKey) {
   });
 }
 
-// Exported so the handler can reuse it for recommendedRestaurants — avoids
-// reading the 1.27MB JSON twice per request.
+// Module-scope cache. Vercel reuses Node modules across invocations on the
+// same warm instance, so the 1.27 MB JSON gets parsed once per cold-start
+// instead of once per request.
+//
+// PR #430 (Audit X-C4 — 2026-05-14): pre-fix every /api/ai-planner-full
+// invocation did `fs.readFileSync` + `JSON.parse` on the 1.27 MB
+// _food_index.json. That's ~50-150ms of pure CPU/IO blocking per request
+// at p50, plus thundering-herd risk on cold start when multiple requests
+// arrive simultaneously. The handler comment already said "avoid reading
+// twice per request" but the function still re-read on every call.
+//
+// The cache uses both a resolved value AND an in-flight promise so two
+// concurrent cold-start calls share one read instead of racing the FS.
+let _foodIndexCache = null;
+let _foodIndexLoading = null;
+
 export async function loadFoodIndex() {
-  try {
-    const fs = await import('fs');
-    return JSON.parse(fs.readFileSync(new URL('../_food_index.json', import.meta.url), 'utf-8'));
-  } catch {
-    return [];
-  }
+  if (_foodIndexCache !== null) return _foodIndexCache;
+  if (_foodIndexLoading) return _foodIndexLoading;
+  _foodIndexLoading = (async () => {
+    try {
+      const fs = await import('fs');
+      _foodIndexCache = JSON.parse(
+        fs.readFileSync(new URL('../_food_index.json', import.meta.url), 'utf-8'),
+      );
+    } catch {
+      _foodIndexCache = [];
+    }
+    _foodIndexLoading = null;
+    return _foodIndexCache;
+  })();
+  return _foodIndexLoading;
+}
+
+// Test-only escape hatch: lets the unit suite reset the cache between
+// scenarios. Production callers should never hit this path.
+export function __resetFoodIndexCacheForTests() {
+  _foodIndexCache = null;
+  _foodIndexLoading = null;
 }
 
 function withTimeout(promise, ms, label) {
