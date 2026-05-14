@@ -955,6 +955,7 @@ const RULES = [
   ['P46_unescapedHtmlInterpolation', P46_unescapedHtmlInterpolation],
   ['P47_paypalWebhookRawBody', P47_paypalWebhookRawBody],
   ['P48_voucherCjkFont', P48_voucherCjkFont],
+  ['P49_paymentIntegrity', P49_paymentIntegrity],
   ['P50_refundTourTime', P50_refundTourTime],
 ];
 
@@ -1019,6 +1020,58 @@ function P48_voucherCjkFont({ changed }) {
       'PR #424 — Puppeteer + @sparticuz/chromium (CJK system fonts) 또는 PDFKit registerFont 로 한글/CJK 렌더링 보장.',
     );
   }
+  return null;
+}
+
+/**
+ * P49_paymentIntegrity — 메모리 P49 (PR #425, Audit CY1/CY2/CY5).
+ * 결제 무결성 회귀 차단:
+ *   - capturePaypalOrder.js: used_paypal_orders lock 이 runTransaction 빠짐 (CY1)
+ *     또는 amountKRW 저장 누락 (CY2)
+ *   - admin-booking-action.js: mark-refunded 가 refundPaypalCapture 호출 없이
+ *     status='REFUNDED' 쓰면 (CY5) fail
+ */
+function P49_paymentIntegrity({ changed }) {
+  const violations = [];
+
+  if (isModified('api/capturePaypalOrder.js', changed)) {
+    const content = getChangedFileContent('api/capturePaypalOrder.js');
+    if (content) {
+      const lockBlock = content.match(/used_paypal_orders[\s\S]{0,1200}/);
+      if (lockBlock && !/runTransaction/.test(lockBlock[0])) {
+        violations.push("api/capturePaypalOrder.js: used_paypal_orders lock missing runTransaction — race-safe acquire required (CY1)");
+      }
+      if (!/amountKRW\s*[,:]/.test(content)) {
+        violations.push("api/capturePaypalOrder.js: amountKRW missing from booking doc — cancelBooking will refund ₩0 (CY2)");
+      }
+    }
+  }
+
+  if (isModified('api/admin-booking-action.js', changed)) {
+    const content = getChangedFileContent('api/admin-booking-action.js');
+    if (content) {
+      const idx = content.indexOf("action === 'mark-refunded'");
+      if (idx > -1) {
+        const section = content.slice(idx, idx + 4000);
+        if (!/refundPaypalCapture\s*\(/.test(section)) {
+          violations.push("api/admin-booking-action.js: mark-refunded missing refundPaypalCapture() — PayPal funds not actually returned (CY5)");
+        }
+      }
+    }
+  }
+
+  if (violations.length === 0) {
+    const touched = isModified('api/capturePaypalOrder.js', changed)
+      || isModified('api/admin-booking-action.js', changed);
+    if (!touched) return { skipped: true };
+    return null;
+  }
+
+  fail(
+    'P49_paymentIntegrity',
+    violations.join(' | '),
+    'PR #425 (CY1/CY2/CY5) — runTransaction lock + amountKRW persist + refundPaypalCapture 호출 유지.',
+  );
   return null;
 }
 

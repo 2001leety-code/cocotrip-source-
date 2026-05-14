@@ -37,6 +37,7 @@ import { notify } from './_shared/notify.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
+import { refundPaypalCapture } from './_shared/paypal-refund.js';
 
 // 이메일 발송 헬퍼 — 실패해도 admin action 자체는 성공해야 (booking 상태 갱신은
 // 이미 끝났고, 이메일 누락은 admin 이 수동 재발송 가능).
@@ -163,6 +164,12 @@ export default async function handler(req, res) {
     }
 
     // ──────── Action 2: mark-refunded ────────────────────────────────
+    //
+    // PR #425 (Audit CY5 — 2026-05-14): 이전엔 Firestore status='REFUNDED' +
+    // 환불 이메일만 발송하고 PayPal API 호출은 누락. 결과: 사용자 mypage 와
+    // 이메일은 "환불 완료" 라고 표시되지만 PayPal 계정엔 그대로 돈이 남음.
+    // 운영자가 별도로 PayPal Dashboard 에서 수동 refund 안 누르면 사용자가
+    // 며칠씩 환불 못 받음. 이제 captureID 가 있으면 자동 PayPal refund 호출.
     if (action === 'mark-refunded') {
       // 환불은 confirmed booking 에만 가능
       if (pending.status !== 'CONFIRMED') {
@@ -171,32 +178,76 @@ export default async function handler(req, res) {
       }
       const refundKrw = refundedKRW != null ? Number(refundedKRW) : pending.priceKRW;
 
-      await pendingRef.update({
+      // bookings doc 에서 captureID 조회 — PayPal 자동 환불용.
+      const bookingId = pending.paypalTransactionId || bookingRef;
+      const bookingSnap = await adminDb.collection('bookings').doc(bookingId).get();
+      const bookingData = bookingSnap.exists ? (bookingSnap.data() || {}) : {};
+      const captureID = bookingData.captureID || pending.paypalCaptureId || null;
+
+      // PayPal API 호출 — captureID 가 있을 때만. 없으면 manual booking
+      // (paypal.me QR 수동 입금 등) 으로 간주하고 운영자가 별도 환불 진행.
+      let paypalRefund = null;
+      if (captureID) {
+        const usdToKrw = Number(process.env.KRW_USD_RATE)
+          || Number(process.env.VITE_USD_KRW_RATE)
+          || 1430;
+        // refundKrw → refundUSD 환산. 부분환불 (refundedKRW < priceKRW) 일 때 비례 계산.
+        let refundUSD = null;
+        const originalKRW = Number(bookingData.amountKRW || pending.priceKRW || 0);
+        if (originalKRW > 0 && refundKrw < originalKRW) {
+          const originalUSD = parseFloat(bookingData.amountUSD || '0');
+          if (originalUSD > 0) {
+            refundUSD = (originalUSD * (refundKrw / originalKRW)).toFixed(2);
+          } else {
+            refundUSD = (refundKrw / usdToKrw).toFixed(2);
+          }
+        }
+        const result = await refundPaypalCapture({
+          captureID,
+          refundUSD,
+          note: reason
+            ? `CocoTrip admin refund: ${String(reason).slice(0, 80)}`
+            : 'CocoTrip admin refund',
+        });
+        if (!result.ok) {
+          console.error('[admin-booking-action] PayPal refund failed:', result.code, result.error);
+          // PayPal 실패 시 Firestore 도 업데이트 하지 않음 — 운영자가 정확한
+          // 사유 보고 수동 처리하도록 status code 그대로 반환.
+          res.writeHead(result.status, JSON_HEADERS);
+          return res.end(JSON.stringify(_err(result.error, result.code)));
+        }
+        paypalRefund = result.refund;
+      } else {
+        console.warn('[admin-booking-action] mark-refunded without captureID — Firestore-only refund (manual PayPal expected):', bookingRef);
+      }
+
+      const firestoreUpdate = {
         status: 'REFUNDED',
         refundedKRW: refundKrw,
         refundReason: reason || null,
         refundedAt: FieldValue.serverTimestamp(),
         refundedByUid: adminUid,
         updatedAt: FieldValue.serverTimestamp(),
-      });
+        ...(paypalRefund
+          ? { refundID: paypalRefund.id, refundStatus: paypalRefund.status, refundSource: 'paypal-api' }
+          : { refundSource: 'manual' }),
+      };
 
-      // bookings doc 도 동시 업데이트
-      const bookingId = pending.paypalTransactionId || bookingRef;
+      await pendingRef.update(firestoreUpdate);
       await adminDb.collection('bookings').doc(bookingId).set({
-        status: 'REFUNDED',
-        refundedKRW: refundKrw,
-        refundReason: reason || null,
-        refundedAt: FieldValue.serverTimestamp(),
+        ...firestoreUpdate,
         refundedByAdminUid: adminUid,
-        updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
       const telText = [
-        '💸 <b>환불 완료 (PayPal 수동 처리)</b>',
+        paypalRefund
+          ? '💸 <b>환불 완료 (PayPal API 자동)</b>'
+          : '💸 <b>환불 완료 (PayPal 수동 처리)</b>',
         '',
         `<b>예약번호:</b> <code>${bookingRef}</code>`,
         `<b>환불액:</b> ₩${refundKrw.toLocaleString('ko-KR')}`,
         `<b>이메일:</b> ${pending.customerEmail}`,
+        paypalRefund ? `<b>PayPal refund:</b> <code>${paypalRefund.id}</code>` : null,
         reason ? `<b>사유:</b> ${reason}` : null,
       ].filter(Boolean).join('\n');
       notify('booking', telText).catch(() => {});
@@ -209,7 +260,16 @@ export default async function handler(req, res) {
       }).catch(() => {});
 
       res.writeHead(200, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: true, data: { bookingRef, status: 'REFUNDED', refundedKRW: refundKrw } }));
+      return res.end(JSON.stringify({
+        ok: true,
+        data: {
+          bookingRef,
+          status: 'REFUNDED',
+          refundedKRW: refundKrw,
+          refundSource: paypalRefund ? 'paypal-api' : 'manual',
+          ...(paypalRefund ? { refundID: paypalRefund.id } : {}),
+        },
+      }));
     }
 
     // ──────── Action 3: mark-canceled ────────────────────────────────
