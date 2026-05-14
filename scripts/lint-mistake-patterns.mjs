@@ -954,7 +954,37 @@ const RULES = [
   ['P45_firestoreRulesFieldAllowlist', P45_firestoreRulesFieldAllowlist],
   ['P46_unescapedHtmlInterpolation', P46_unescapedHtmlInterpolation],
   ['P47_paypalWebhookRawBody', P47_paypalWebhookRawBody],
+  ['P48_voucherCjkFont', P48_voucherCjkFont],
 ];
+
+/**
+ * P48_voucherCjkFont — 메모리 P48 (PR #424, Audit CZ5).
+ * api/_generate-voucher.js 가 PDFKit Helvetica + safeText() 로 회귀하면 fail.
+ * 한국어 이름/주소가 ? 로 깨지는 CZ5 원래 버그 복귀 차단.
+ */
+function P48_voucherCjkFont({ changed }) {
+  const FILE = 'api/_generate-voucher.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  if (/function\s+safeText\s*\(/.test(content)) {
+    violations.push(`${FILE}: safeText() returned — that was the CZ5 bug (strips non-Latin to '?')`);
+  }
+  const hasPuppeteer = /puppeteer-core|@sparticuz\/chromium/.test(content);
+  const hasRegisteredFont = /registerFont\s*\(/.test(content);
+  if (!hasPuppeteer && !hasRegisteredFont) {
+    violations.push(`${FILE}: neither Puppeteer pipeline nor PDFKit registerFont() — CJK chars will render as missing glyphs`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P48_voucherCjkFont',
+      violations.join(' | '),
+      'PR #424 — Puppeteer + @sparticuz/chromium (CJK system fonts) 또는 PDFKit registerFont 로 한글/CJK 렌더링 보장.',
+    );
+  }
+  return null;
+}
 
 function runAll(base) {
   const changed = getChangedFiles(base);
