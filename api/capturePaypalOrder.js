@@ -70,31 +70,75 @@ export default async function handler(req, res) {
     // 1. Access Token + baseUrl from shared helper (live only)
     const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(false);
 
-    // 1.5 Duplicate orderID guard — used_paypal_orders 중복 방지
-    {
-      const db = initAdminDb('capturePaypalOrder');
-      if (!db) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
-      const existing = await db.collection('used_paypal_orders').doc(orderID).get();
-      if (existing.exists) {
+    // 1.5 Duplicate orderID guard — used_paypal_orders 중복 방지.
+    //
+    // PR #425 (Audit CY1 — 2026-05-14): 이전엔 read-then-set non-atomic +
+    // 캡처 성공 전 영구 lock. 두 가지 버그:
+    //   (a) race — 동일 orderID 동시 호출 시 둘 다 .get() 통과 → 이중 capture
+    //       → 같은 카드에서 두 번 청구.
+    //   (b) capture fail 후 영구 lock — 네트워크 일시 장애로 capture 실패해도
+    //       used_paypal_orders 가 남아 사용자가 재시도 시 DUPLICATE_ORDER.
+    // 이제 트랜잭션으로 lock 을 acquire + capture 후 status 업데이트 +
+    // capture 실패 시 lock 삭제 (재시도 허용).
+    const dbForLock = initAdminDb('capturePaypalOrder');
+    if (!dbForLock) throw new Error('Firestore unavailable — check FIREBASE_* env vars');
+    const lockRef = dbForLock.collection('used_paypal_orders').doc(orderID);
+    try {
+      await dbForLock.runTransaction(async (tx) => {
+        const existing = await tx.get(lockRef);
+        if (existing.exists) {
+          const data = existing.data() || {};
+          // 이미 captured 상태면 진짜 중복. pending 인데 30초 이상 stale 이면
+          // 이전 cold-start fail 가능성 — 재시도 허용.
+          const stale = data.status === 'pending'
+            && data.createdAtMs
+            && (Date.now() - Number(data.createdAtMs)) > 30_000;
+          if (data.status === 'captured' || !stale) {
+            throw new Error('DUPLICATE_ORDER');
+          }
+          // stale pending → overwrite 로 재시도.
+        }
+        tx.set(lockRef, {
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          createdAtMs: Date.now(),
+          userEmail,
+          product: product || 'unknown',
+        });
+      });
+    } catch (lockErr) {
+      if (lockErr.message === 'DUPLICATE_ORDER') {
         console.warn('[capturePaypalOrder] duplicate orderID blocked:', orderID);
         res.writeHead(409, JSON_CORS);
         return res.end(JSON.stringify(_err('Order already processed', 'DUPLICATE_ORDER')));
       }
-      // 선점 기록 (결제 캡처 전)
-      await db.collection('used_paypal_orders').doc(orderID).set({
-        createdAt: new Date().toISOString(),
-        userEmail,
-        product: product || 'unknown',
-      });
+      throw lockErr;
     }
 
-    // 2. Capture
-    const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    // 2. Capture — wrapped so we can release the lock on failure.
+    let capture;
+    try {
+      const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      });
+      capture = await captureRes.json();
+      if (capture.status !== 'COMPLETED') {
+        throw new Error(`Capture status: ${capture.status ?? 'unknown'}`);
+      }
+    } catch (captureErr) {
+      // Release lock so the user can retry. We don't await — the response
+      // path stays fast and a leftover lock auto-expires via the 30s stale
+      // check above.
+      lockRef.delete().catch((delErr) => {
+        console.warn('[capturePaypalOrder] lock release failed (CY1 retry path):', delErr.message);
+      });
+      throw captureErr;
+    }
+    // Mark lock as captured so future retries are correctly rejected.
+    lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() }).catch((e) => {
+      console.warn('[capturePaypalOrder] lock status update failed (non-fatal):', e.message);
     });
-    const capture = await captureRes.json();
-    if (capture.status !== 'COMPLETED') throw new Error(`Capture status: ${capture.status ?? 'unknown'}`);
 
     // 필드 추출 + 누락 시 명시 로그 (LIVE 응답 누락이 admin 로그 미노출의 첫 번째 원인 후보).
     const captureNode = capture.purchase_units?.[0]?.payments?.captures?.[0];
@@ -120,6 +164,15 @@ export default async function handler(req, res) {
 
     // 2.4 bookings/{orderID} 정식 레코드 생성 — cancel/modify/my-bookings API가 조회.
     // captureID는 취소 시 PayPal Refund 호출에 필수.
+    //
+    // PR #425 (Audit CY2 — 2026-05-14): amountKRW 를 capture 시점에 계산해
+    // 저장. 이전엔 amountUSD 만 저장 → cancelBooking.js:167 의
+    // `(booking.amountKRW || 0) * policy.refundRatio` 가 항상 0 → 마이페이지
+    // 환불 영수증에 "₩0 환불" 표기 → 사용자 신고 폭주.
+    const usdToKrw = Number(process.env.KRW_USD_RATE)
+      || Number(process.env.VITE_USD_KRW_RATE)
+      || 1430;
+    const amountKRW = Math.round(parseFloat(amount || '0') * usdToKrw);
     try {
       const db = initAdminDb('capturePaypalOrder');
       if (!db) throw new Error('Firestore unavailable');
@@ -142,6 +195,8 @@ export default async function handler(req, res) {
         memo: memo || '',
         airport: airport || null,
         amountUSD: amount,
+        amountKRW,
+        capturedExchangeRate: usdToKrw,
         currency: 'USD',
         rawCapturePayload,
         createdAt: FieldValue.serverTimestamp(),

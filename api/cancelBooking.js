@@ -19,7 +19,6 @@
  */
 import { captureError } from './_shared/sentry.js';
 import { evaluateRefundPolicy } from './_refund-policy.js';
-import { getPaypalAccessToken } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
@@ -28,6 +27,7 @@ import { productDisplayLabel } from './_shared/pricing.js';
 import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
 import { verifyUserToken } from './_shared/user-auth.js';
+import { refundPaypalCapture } from './_shared/paypal-refund.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -193,25 +193,22 @@ export default async function handler(req, res) {
         'LEGACY_BRAINTREE_BOOKING',
       )));
     }
-    let refundData;
-    {
-      const { accessToken: token, baseUrl } = await getPaypalAccessToken(isSandbox);
-      const refundRes = await fetch(`${baseUrl}/v2/payments/captures/${booking.captureID}/refund`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(policy.refundRatio < 1.0 ? {
-          amount: { value: refundUSD, currency_code: 'USD' },
-          note_to_payer: `CocoTrip cancellation: ${policy.refundPercent}% refund`,
-        } : {
-          note_to_payer: 'CocoTrip cancellation: full refund',
-        }),
-      });
-      refundData = await refundRes.json();
-      if (refundData.status !== 'COMPLETED' && refundData.status !== 'PENDING') {
-        res.writeHead(502, JSON_CORS);
-        return res.end(JSON.stringify(_err(`PayPal refund ${refundData.status}: ${refundData.message || ''}`, 'REFUND_FAILED')));
-      }
+    // PR #425 (Audit CY5 prep): shared paypal-refund helper. Same flow as
+    // admin-booking-action.js mark-refunded path, so both surfaces stay in
+    // sync if PayPal's API ever shifts.
+    const refundResult = await refundPaypalCapture({
+      captureID: booking.captureID,
+      refundUSD: policy.refundRatio < 1.0 ? refundUSD : null,
+      note: policy.refundRatio < 1.0
+        ? `CocoTrip cancellation: ${policy.refundPercent}% refund`
+        : 'CocoTrip cancellation: full refund',
+      isSandbox,
+    });
+    if (!refundResult.ok) {
+      res.writeHead(refundResult.status || 502, JSON_CORS);
+      return res.end(JSON.stringify(_err(refundResult.error, refundResult.code || 'REFUND_FAILED')));
     }
+    const refundData = refundResult.refund;
 
     // 4. Firestore 업데이트
     await ref.update({
