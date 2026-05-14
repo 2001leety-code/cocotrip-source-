@@ -785,6 +785,51 @@ function P44_cronAuthGate({ changed }) {
 }
 
 /**
+ * P45_firestoreRulesFieldAllowlist — 메모리 P45 (PR #420, Audit WC7/WC8/WC9 + H20).
+ * firestore.rules 변경 시 users/tours/plans 의 hardening predicate 가
+ * 제거되면 fail (catch-all default-deny + affectedKeys().hasOnly() allowlists).
+ */
+function P45_firestoreRulesFieldAllowlist({ changed }) {
+  const RULES_FILE = 'firestore.rules';
+  if (!isModified(RULES_FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(RULES_FILE);
+  if (!content) return { skipped: true };
+
+  const checks = [
+    {
+      label: 'WC7 tours update affectedKeys hasOnly currentBookings',
+      re: /match\s+\/tours\/\{tourId\}[\s\S]*?affectedKeys\(\)\s*\.\s*hasOnly\s*\(\s*\[\s*'currentBookings'/,
+    },
+    {
+      label: "WC8 tours/bookings create status=='pending'",
+      re: /match\s+\/bookings\/\{bookingId\}[\s\S]*?request\.resource\.data\.status\s*==\s*'pending'/,
+    },
+    {
+      label: 'WC9 users create tier=Bronze default',
+      re: /match\s+\/users\/\{uid\}[\s\S]*?request\.resource\.data\.tier\s*==\s*'Bronze'/,
+    },
+    {
+      label: 'WC9 users update hasOnly allowlist',
+      re: /match\s+\/users\/\{uid\}[\s\S]*?allow update[\s\S]*?affectedKeys\(\)\s*\.\s*hasOnly/,
+    },
+    {
+      label: 'H20 plans update hasOnly allowlist',
+      re: /match\s+\/plans\/\{planId\}[\s\S]*?allow update[\s\S]*?affectedKeys\(\)\s*\.\s*hasOnly/,
+    },
+  ];
+
+  const missing = checks.filter((c) => !c.re.test(content));
+  if (missing.length > 0) {
+    fail(
+      'P45_firestoreRulesFieldAllowlist',
+      `firestore.rules: ${missing.length}건 hardening missing — ${missing.map((m) => m.label).join(' | ')}`,
+      'PR #420 (WC7/WC8/WC9/H20) — tours/users/plans 의 affectedKeys().hasOnly() 필드 allowlist 및 default 값 검증을 복원하세요.',
+    );
+  }
+  return null;
+}
+
+/**
  * P46_unescapedHtmlInterpolation — 메모리 P46 (PR #421, Audit CZ2).
  * api/_send-email.js / api/pdf/generate.js 등 server HTML 템플릿에서
  * booking 필드 등 user input 을 raw 로 interpolate 하면 XSS / 레이아웃 깨짐.
@@ -863,6 +908,36 @@ function P46_unescapedHtmlInterpolation({ changed }) {
   return null;
 }
 
+/**
+ * P47_paypalWebhookRawBody — 메모리 P47 (PR #423, Audit CZ6).
+ * api/paypal-webhook.js 의 raw body 가 Vercel auto-parse + re-stringify
+ * 되면 canonical form 차이로 signature verify 실패 → 자동 결제 확인 fail.
+ * `api: { bodyParser: false }` 설정 누락 또는 readRawBody 가 다시
+ * JSON.stringify(req.body) 패턴으로 회귀하면 fail.
+ */
+function P47_paypalWebhookRawBody({ changed }) {
+  const FILE = 'api/paypal-webhook.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+  if (!/api\s*:\s*\{\s*bodyParser\s*:\s*false\s*\}/.test(content)) {
+    violations.push(`${FILE}: missing \`api: { bodyParser: false }\` — PayPal signed bytes must reach the verify API unmodified`);
+  }
+  if (/return\s+JSON\.stringify\(\s*req\.body\s*\)/.test(content)) {
+    violations.push(`${FILE}: re-stringifying req.body breaks PayPal signature canonicalisation (CZ6 regression)`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P47_paypalWebhookRawBody',
+      `${violations.length}건 — ${violations.join(' | ')}`,
+      'PR #423 — Vercel bodyParser off + raw stream read. Re-stringify 한 body 는 verify-webhook-signature 가 reject (canonical form drift).',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -876,7 +951,9 @@ const RULES = [
   ['P34_priceUsdConsistency', P34_priceUsdConsistency],
   ['P43_authIdorBodyTrusted', P43_authIdorBodyTrusted],
   ['P44_cronAuthGate', P44_cronAuthGate],
+  ['P45_firestoreRulesFieldAllowlist', P45_firestoreRulesFieldAllowlist],
   ['P46_unescapedHtmlInterpolation', P46_unescapedHtmlInterpolation],
+  ['P47_paypalWebhookRawBody', P47_paypalWebhookRawBody],
   ['P48_voucherCjkFont', P48_voucherCjkFont],
 ];
 

@@ -40,7 +40,15 @@ import { notify } from './_shared/notify.js';
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 
-export const config = { runtime: 'nodejs' };
+// PR #423 (CZ6): disable Vercel's auto-bodyParser so we receive the raw
+// PayPal-signed bytes. If Vercel parses + we re-stringify (the previous
+// branch in readRawBody), key ordering and number normalisation drift
+// from PayPal's canonical form and verify-webhook-signature returns
+// FAILURE on every legitimate event — auto-confirm silently stops working.
+export const config = {
+  runtime: 'nodejs',
+  api: { bodyParser: false },
+};
 export const maxDuration = 30;
 
 const JSON_HEADERS = {
@@ -50,20 +58,21 @@ const JSON_HEADERS = {
 
 const BOOKING_REF_PATTERN = /CT-\d{8}-\d{3}/;
 
-// PayPal 은 webhook 본문 검증을 위해 raw body string 이 필요. 헤더 + body 의
-// canonical form 으로 서명 매칭하기 때문에 JSON.parse 후 stringify 하면 mismatch.
+// PR #423 (CZ6): PayPal signs the raw request bytes. To verify the signature
+// we MUST parse the body ourselves from the original bytes — never let
+// Vercel parse + re-stringify, because key ordering / number normalisation
+// drift produces a JSON shape that PayPal's canonical-form hash rejects.
+//
+// With `api: { bodyParser: false }` set above, req.body is undefined and we
+// always read the IncomingMessage stream. The two preserved branches handle
+// dev/test setups where the stream has already been consumed.
 async function readRawBody(req) {
   if (typeof req.body === 'string') return req.body;
-  if (req.body && typeof req.body === 'object') {
-    // Vercel 일부 런타임이 자동 JSON 파싱 — 다행히 PayPal 은 webhook_event 본문을
-    // canonical form 으로 hash 하지 않고 별도 transmission_id 로 검증해서
-    // re-stringify 가 안전. (verify-webhook-signature 에선 webhook_event 객체 그대로 전달)
-    return JSON.stringify(req.body);
-  }
-  // raw body 직접 읽기 — Vercel Node 런타임은 보통 req.body 가 채워져 있음.
-  // fallback 으로만 동작 (req 가 IncomingMessage 면 stream 으로 읽음).
+  if (Buffer.isBuffer?.(req.body)) return req.body.toString('utf8');
+  // No fallback to JSON.stringify(req.body) — that's the exact bug CZ6 fixes.
   return new Promise((resolve, reject) => {
     let data = '';
+    req.setEncoding?.('utf8');
     req.on('data', (chunk) => { data += chunk; });
     req.on('end', () => resolve(data));
     req.on('error', reject);
