@@ -958,7 +958,39 @@ const RULES = [
   ['P49_paymentIntegrity', P49_paymentIntegrity],
   ['P50_refundTourTime', P50_refundTourTime],
   ['P51_couponPreLock', P51_couponPreLock],
+  ['P52_swNoApiCache', P52_swNoApiCache],
 ];
+
+/**
+ * P52_swNoApiCache — 메모리 P52 (PR #428, Audit CZ4).
+ * src/sw.ts 가 /api/* runtime 캐시 (NetworkFirst / StaleWhileRevalidate /
+ * CacheFirst) 로 회귀하면 fail. 교차 사용자 PII 누출 위험.
+ */
+function P52_swNoApiCache({ changed }) {
+  const FILE = 'src/sw.ts';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const routeRe = /registerRoute\(\s*\(\s*\{\s*url\s*\}\s*\)\s*=>\s*url\.pathname\.startsWith\(\s*['"]\/api\/['"]\s*\)[\s\S]*?\)\s*\)/;
+  const m = content.match(routeRe);
+  if (!m) {
+    fail(
+      'P52_swNoApiCache',
+      `${FILE}: /api/* registerRoute missing — should explicitly opt out via NetworkOnly (CZ4)`,
+      'PR #428 — `/api/*` 경로는 NetworkOnly 사용. SW 가 API 응답 캐시하면 cross-user PII 누출.',
+    );
+    return null;
+  }
+  if (/new\s+(NetworkFirst|StaleWhileRevalidate|CacheFirst)\s*\(/.test(m[0])) {
+    fail(
+      'P52_swNoApiCache',
+      `${FILE}: /api/* route uses a caching strategy — CZ4 regression (PII leak via shared SW cache)`,
+      'PR #428 — `/api/*` 경로는 NetworkOnly. NetworkFirst/SWR/CacheFirst 사용 금지.',
+    );
+  }
+  return null;
+}
 
 /**
  * P51_couponPreLock — 메모리 P51 (PR #427, Audit CY4).
