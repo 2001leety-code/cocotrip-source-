@@ -31,6 +31,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 
 // ── 어드민 bypass 허용 이메일 목록 ──────────────────────────────────────
 // paymentGate.js / capturePaypalOrder.js 와 동일 패턴.
@@ -153,6 +154,30 @@ export default async function handler(req, res) {
       console.error('[manual-payment-request] Firestore admin unavailable');
       res.writeHead(500, JSON_HEADERS);
       return res.end(JSON.stringify(_err('Firestore unavailable', 'FIRESTORE_UNAVAILABLE')));
+    }
+
+    // IP rate limit (PR #432 — Audit W-H13). 익명 신청 허용 + 어드민 bypass 도
+    // 같은 endpoint 라 인증된 admin 도 통과시켜야 하므로 인증 확인 *전에* IP
+    // throttle. 결제 endpoint 는 신고보다 spam 영향이 크니 3/h. 텔레그램
+    // booking 채널 spam + 가짜 pending_bookings 쓰기 폭주 차단.
+    //
+    // Admin bypass 는 인증된 admin 이라 IP 가 같은 사무실 망 한 곳일 수 있어
+    // rate limit 에 걸릴 수 있다 → 인증 후 admin 이라 판명되면 우회 가능하지만,
+    // 본 endpoint 구조상 인증 검증이 rate limit 뒤에 있는 것이 자연스럽고 admin
+    // 본인이 시간당 3건 이상 manual 결제 요청을 정말로 보내는 케이스는 없으므로
+    // 모두에게 동일 cap 적용.
+    const clientIp = getClientIp(req);
+    const rateCheck = await checkIpRateLimit({
+      db: adminDb,
+      ip: clientIp,
+      collection: 'manual_payment_rate_limits',
+      maxRequests: 3,
+      errorLabel: 'payment requests',
+    });
+    if (!rateCheck.ok) {
+      res.setHeader?.('Retry-After', String(rateCheck.retryAfterSec));
+      res.writeHead(rateCheck.status, JSON_HEADERS);
+      return res.end(JSON.stringify(_err(rateCheck.error, 'RATE_LIMITED')));
     }
 
     const docRef = adminDb.collection('pending_bookings').doc(bookingRef);

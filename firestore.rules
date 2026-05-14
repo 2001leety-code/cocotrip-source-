@@ -335,6 +335,8 @@ service cloud.firestore {
     match /chat_rate_limits/{key}       { allow read, write: if false; }
     // PR #429 (Audit WC10): submit-plan-complaint IP rate limit bucket.
     match /complaint_rate_limits/{key}  { allow read, write: if false; }
+    // PR #432 (Audit W-H13): manual-payment-request IP rate limit bucket.
+    match /manual_payment_rate_limits/{key} { allow read, write: if false; }
     // K Tier 2-E: 텔레그램 에러 dedup + 집계 (Admin SDK 만 접근, 사용자 미노출)
     match /error_log/{logId}            { allow read, write: if false; }
     match /telegram_throttle/{key}      { allow read, write: if false; }

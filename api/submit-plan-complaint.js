@@ -24,7 +24,7 @@
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
-import { createHash } from 'node:crypto';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -59,85 +59,9 @@ function json(res, status, body) {
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
-// ── IP rate limit (PR #429 — Audit WC10) ──────────────────────────────────
-// Vercel is the only environment we target; behind their edge proxy
-// `x-forwarded-for` is reliable. We hash before storing because (a) the
-// Firestore doc id has to be filesystem-safe and (b) we don't want to
-// retain plaintext IPs (privacy + GDPR adjacent — even though the rule
-// purpose is abuse mitigation, less is more).
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1h
-const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_COLLECTION = 'complaint_rate_limits';
-
-function getClientIp(req) {
-  // Standard Vercel/Cloudflare/most proxies: x-forwarded-for (comma-separated).
-  // The first entry is the original client.
-  const xff = req.headers?.['x-forwarded-for'] || req.headers?.['X-Forwarded-For'];
-  if (typeof xff === 'string' && xff.trim()) {
-    return xff.split(',')[0].trim();
-  }
-  // Vercel-specific fallback.
-  const vercelForwarded = req.headers?.['x-real-ip'] || req.headers?.['X-Real-IP'];
-  if (typeof vercelForwarded === 'string' && vercelForwarded.trim()) {
-    return vercelForwarded.trim();
-  }
-  // Local dev / test fallback.
-  return req.socket?.remoteAddress || 'unknown';
-}
-
-function hashIp(ip) {
-  // sha256 + 16-char prefix is plenty unique for ~hourly buckets; firestore
-  // doc id requirement is satisfied (no slashes / control chars).
-  return createHash('sha256').update(`coco:${ip}`).digest('hex').slice(0, 32);
-}
-
-/**
- * @returns {Promise<{ok: true} | {ok: false, retryAfterSec: number, status: number, error: string}>}
- */
-async function checkRateLimit(db, ip) {
-  if (!db) {
-    // Firestore down — fail OPEN (better to accept a complaint than block real
-    // users). The endpoint's own duplicate-report guard still applies.
-    return { ok: true, degraded: true };
-  }
-  const ref = db.collection(RATE_LIMIT_COLLECTION).doc(hashIp(ip));
-  const now = Date.now();
-  try {
-    return await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      let count = 0;
-      let windowStart = now;
-      if (snap.exists) {
-        const data = snap.data() || {};
-        const startedAt = Number(data.windowStartedAtMs || 0);
-        if (startedAt && now - startedAt < RATE_LIMIT_WINDOW_MS) {
-          count = Number(data.count || 0);
-          windowStart = startedAt;
-        }
-        // window expired → reset to fresh bucket below.
-      }
-      if (count >= RATE_LIMIT_MAX) {
-        const retryAfterMs = (windowStart + RATE_LIMIT_WINDOW_MS) - now;
-        return {
-          ok: false,
-          status: 429,
-          retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)),
-          error: `Too many complaints from this IP (limit: ${RATE_LIMIT_MAX}/hour)`,
-        };
-      }
-      tx.set(ref, {
-        count: count + 1,
-        windowStartedAtMs: windowStart,
-        lastSeenAtMs: now,
-      });
-      return { ok: true };
-    });
-  } catch (e) {
-    // Transaction error — degrade to allow (same fail-open as no-db).
-    console.warn('[submit-plan-complaint] rate-limit tx failed (fail-open):', e.message);
-    return { ok: true, degraded: true };
-  }
-}
+// IP rate limit moved to shared helper (api/_shared/ip-rate-limit.js) — same
+// 5/hour / sha256 hashing / fail-OPEN behavior, now reusable by other
+// anonymous endpoints (PR #432 / W-H13 adds /api/manual-payment-request).
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
@@ -172,7 +96,13 @@ export default async function handler(req, res) {
     // but a single IP can't fire more than 5 complaints per hour. Telegram
     // booking channel can't be spammed via this endpoint anymore.
     const clientIp = getClientIp(req);
-    const rateCheck = await checkRateLimit(db, clientIp);
+    const rateCheck = await checkIpRateLimit({
+      db,
+      ip: clientIp,
+      collection: 'complaint_rate_limits',
+      maxRequests: 5,
+      errorLabel: 'complaints',
+    });
     if (!rateCheck.ok) {
       res.setHeader?.('Retry-After', String(rateCheck.retryAfterSec));
       return json(res, rateCheck.status, _err(rateCheck.error, 'RATE_LIMITED'));
