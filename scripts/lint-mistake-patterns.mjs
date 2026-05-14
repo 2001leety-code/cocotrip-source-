@@ -959,7 +959,42 @@ const RULES = [
   ['P50_refundTourTime', P50_refundTourTime],
   ['P51_couponPreLock', P51_couponPreLock],
   ['P52_swNoApiCache', P52_swNoApiCache],
+  ['P53_complaintRateLimit', P53_complaintRateLimit],
 ];
+
+/**
+ * P53_complaintRateLimit — 메모리 P53 (PR #429, Audit WC10).
+ * api/submit-plan-complaint.js 가 IP rate limit 누락 회귀하면 fail.
+ * 익명 spam → 운영자 Telegram 채널 spam + Firestore writes 폭주.
+ */
+function P53_complaintRateLimit({ changed }) {
+  const FILE = 'api/submit-plan-complaint.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+  if (!/checkRateLimit\s*\(/.test(content)) {
+    violations.push(`${FILE}: checkRateLimit() call missing — endpoint can be spammed (WC10)`);
+  }
+  if (!/x-forwarded-for/i.test(content) || !/createHash\s*\(\s*['"]sha256['"]/.test(content)) {
+    violations.push(`${FILE}: IP extraction / hashing pattern missing`);
+  }
+  // checkRateLimit must run before the Telegram notify + Firestore add.
+  const checkIdx = content.indexOf('checkRateLimit(');
+  const notifyIdx = content.indexOf("notify('booking'");
+  if (checkIdx > -1 && notifyIdx > -1 && checkIdx > notifyIdx) {
+    violations.push(`${FILE}: checkRateLimit must run before the Telegram notify (currently after)`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P53_complaintRateLimit',
+      violations.join(' | '),
+      'PR #429 (WC10) — IP rate limit (5/h) Firestore-transaction 으로 acquire + checkRateLimit 을 매 호출 첫 단계로 유지.',
+    );
+  }
+  return null;
+}
 
 /**
  * P52_swNoApiCache — 메모리 P52 (PR #428, Audit CZ4).
