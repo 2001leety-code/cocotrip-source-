@@ -961,7 +961,34 @@ const RULES = [
   ['P52_swNoApiCache', P52_swNoApiCache],
   ['P53_complaintRateLimit', P53_complaintRateLimit],
   ['P54_foodIndexCache', P54_foodIndexCache],
+  ['P55_webhookExchangeRate', P55_webhookExchangeRate],
 ];
+
+/**
+ * P55_webhookExchangeRate — 메모리 P55 (PR #431, Audit Y-H6).
+ * api/paypal-webhook.js 가 KRW/USD 환율을 1380 로 하드코딩하면 fail.
+ * pricing_spec.json policy_krw_per_usd (현재 1430) 와 drift → amount_mismatch
+ * false positive + 환불 KRW 잘못 계산.
+ */
+function P55_webhookExchangeRate({ changed }) {
+  const FILE = 'api/paypal-webhook.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  // 코드 라인에서 1380 검색 (주석은 제외).
+  const codeLines = content.split('\n').filter((l) => {
+    const t = l.trim();
+    return !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*');
+  });
+  if (codeLines.some((l) => /\b1380\b/.test(l))) {
+    fail(
+      'P55_webhookExchangeRate',
+      `${FILE}: stale 1380 hardcoded rate — should use Number(env.KRW_USD_RATE) || Number(env.VITE_USD_KRW_RATE) || 1430`,
+      'PR #431 (Y-H6) — capturePaypalOrder 와 동일한 env precedence + 1430 default 유지.',
+    );
+  }
+  return null;
+}
 
 /**
  * P54_foodIndexCache — 메모리 P54 (PR #430, Audit X-C4).
