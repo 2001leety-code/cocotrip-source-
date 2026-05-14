@@ -292,9 +292,20 @@ export default async function handler(req, res) {
       }
       const pending = pendingSnap.data();
 
-      // amount sanity — PriceUSD 와 ±1% (또는 env 설정값) 매칭. 미설정 시 KRW/1380 추정.
+      // amount sanity — PriceUSD 와 ±1% (또는 env 설정값) 매칭.
+      //
+      // PR #431 (Audit Y-H6 — 2026-05-14): default rate 1380 → 1430.
+      // 1380 was the launch-era estimate; the current policy_krw_per_usd
+      // (src/data/pricing_spec.json) is 1430. Stale 1380 produced a ~3.5 %
+      // expected-USD undershoot, so legitimate refund webhooks were being
+      // logged as `amount_mismatch` and routed to the operator queue.
+      // Pulls from the same env var precedence as capturePaypalOrder.js
+      // (PR #425): KRW_USD_RATE > VITE_USD_KRW_RATE > 1430 default.
       const tolerance = parseFloat(process.env.PAYPAL_WEBHOOK_TOLERANCE || '0.01');
-      const expectedUSD = parseFloat(pending.priceUSD || (Number(pending.priceKRW || 0) / 1380));
+      const fallbackUsdToKrw = Number(process.env.KRW_USD_RATE)
+        || Number(process.env.VITE_USD_KRW_RATE)
+        || 1430;
+      const expectedUSD = parseFloat(pending.priceUSD || (Number(pending.priceKRW || 0) / fallbackUsdToKrw));
       if (expectedUSD > 0 && Math.abs(amountUSD - expectedUSD) / expectedUSD > tolerance) {
         await logWebhookEvent({
           db: adminDb, eventId, eventType,
@@ -397,7 +408,12 @@ export default async function handler(req, res) {
       }
 
       // 환불 처리 — KRW 환산 (priceUSD 가 있다면 비례, 없으면 USD*환율)
-      const usdToKrw = Number(process.env.VITE_USD_KRW_RATE || 1380);
+      // PR #431 (Audit Y-H6): 1380 → 1430 default + env precedence aligned
+      // with capturePaypalOrder.js so refund KRW figures match what was
+      // originally charged.
+      const usdToKrw = Number(process.env.KRW_USD_RATE)
+        || Number(process.env.VITE_USD_KRW_RATE)
+        || 1430;
       const refundedKRW = Math.round(refundedUSD * usdToKrw);
 
       const updates = {
