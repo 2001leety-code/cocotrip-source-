@@ -42,6 +42,9 @@
 import { initAdminDb } from './firebase-admin.js';
 import { notify } from './notify.js';
 import { logger } from './log.js';
+// PR #421 (CZ2): consolidate escapeHtml helper. Telegram parse_mode=HTML only
+// needs &/</> escaping (no quote escape — attributes aren't part of the parse).
+import { escapeTelegram as escapeHtml } from './escape.js';
 
 const THROTTLE_WINDOW_MS = 5 * 60 * 1000; // 5분
 const ERROR_LOG_COLLECTION = 'error_log';
@@ -161,12 +164,7 @@ function sanitizeContext(context) {
   return out;
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
+// escapeHtml moved to shared helper above (PR #421).
 
 /**
  * 디버그용 — throttle 키의 현재 윈도우 상태 조회. 운영 / 테스트 보조.
