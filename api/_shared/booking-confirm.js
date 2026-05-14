@@ -144,6 +144,12 @@ export async function confirmBookingAsPaid({
     customerPhone: pending.customerPhone || null,
     productType: pending.productType,
     tourDate: pending.dateStart || '',
+    // PR #426 (Audit CY3 — 2026-05-14): persist tourTime so cancelBooking /
+    // modifyBooking / my-bookings use the actual tour start hour for
+    // window calculations. pending.tourTime may come from manual-payment-
+    // request or admin entry; missing → legacy '00:00' fallback in
+    // evaluateRefundPolicy.
+    tourTime: pending.tourTime || '',
     tourEndDate: pending.dateEnd || '',
     paxCount: pending.passengers || 1,
     pickupLocation: pending.pickupLocation || '',
