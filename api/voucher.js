@@ -15,8 +15,8 @@
  *   - status 검사: CANCELED → 410, CONFIRMED/MODIFIED/COMPLETED 만 발급.
  *   - Cache-Control: private, no-store — voucher 는 PII 포함, 절대 캐시 금지.
  *
- * Vercel maxDuration: PDF 생성은 cold start 포함해도 ~3-5s. 일반 endpoint 정책에
- * 맞춰 15초.
+ * Vercel maxDuration: PR #424 (CZ5) 이후 Puppeteer + @sparticuz/chromium 사용 —
+ * cold start 5-10s + render 2-5s. 30s 로 상향 (api/pdf/generate.js 와 동일 기준).
  */
 
 import { initAdminDb } from './_ai_core/firestoreAdmin.js';
@@ -24,7 +24,7 @@ import { generateVoucherPDF } from './_generate-voucher.js';
 import { captureError } from './_shared/sentry.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 
-export const config = { maxDuration: 15 };
+export const config = { maxDuration: 30 };
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
