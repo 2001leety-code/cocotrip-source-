@@ -6,9 +6,18 @@
  *
  * CONTEXT: CocoTripKR 자동화 유틸리티
  * NOTE: Netlify Functions에서 nodemailer 사용 (npm install nodemailer 필요)
+ *
+ * Security (PR #421, Audit CZ2 — 2026-05-13): all user-controlled fields
+ * (customerName, pickupLocation, product, itinerary place names / meals /
+ * tips, etc.) MUST go through escapeHtml() before being interpolated into
+ * the HTML body. Pre-fix, a booking with
+ * `customerName: '<img src=x onerror=alert(1)>'` would template that tag
+ * straight into the confirmation email — at minimum a layout bug,
+ * potentially XSS in vulnerable clients, and a phishing payload vector.
  */
 
 import nodemailer from 'nodemailer';
+import { escapeHtml, escapeAttr } from './_shared/escape.js';
 
 // ── Gmail Transporter ──────────────────────────────────────────────────
 function createTransporter() {
@@ -75,9 +84,11 @@ export async function sendBookingConfirmation(toEmail, emailContent, voucherText
   // walletUrl이 있으면 이메일 HTML에 Wallet 버튼 삽입
   let finalHtml = emailContent.html;
   if (walletUrl && finalHtml) {
+    // walletUrl is server-generated (Google Wallet API) but escape defensively
+    // — if a future caller passes user input, we still produce safe HTML.
     const walletBtn = `
     <div style="text-align:center;margin:24px 0;">
-      <a href="${walletUrl}" target="_blank"
+      <a href="${escapeAttr(walletUrl)}" target="_blank"
          style="display:inline-block;background:#1a1a2e;color:#C4956A;text-decoration:none;
                 font-weight:bold;font-size:14px;padding:14px 28px;border-radius:10px;
                 letter-spacing:0.5px;">
@@ -147,7 +158,7 @@ function renderItineraryHTML(itinerary) {
     html += `
       <div style="margin-bottom:20px;">
         <div style="background:#1a1a2e;color:#C4956A;padding:10px 16px;border-radius:8px 8px 0 0;font-weight:bold;font-size:14px;">
-          📅 Day ${day.day}${day.date ? ` — ${day.date}` : ''}
+          📅 Day ${escapeHtml(day.day)}${day.date ? ` — ${escapeHtml(day.date)}` : ''}
         </div>
         <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:12px 16px;">`;
 
@@ -161,10 +172,10 @@ function renderItineraryHTML(itinerary) {
           <div style="display:flex;align-items:flex-start;gap:10px;${!isLast ? 'margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed #e5e7eb;' : ''}">
             <div style="min-width:28px;height:28px;background:${num === 1 ? '#10b981' : isLast ? '#ef4444' : '#7C5CFC'};color:#fff;border-radius:50%;text-align:center;line-height:28px;font-size:12px;font-weight:bold;">${num}</div>
             <div style="flex:1;">
-              <p style="margin:0;font-weight:bold;font-size:13px;color:#1a1a2e;">${place.name || place.ko || ''}</p>
-              ${place.category ? `<span style="display:inline-block;background:#f3f4f6;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:10px;margin-top:3px;">${place.category}</span>` : ''}
-              ${place.duration ? `<span style="color:#9ca3af;font-size:11px;margin-left:6px;">⏱ ${place.duration}</span>` : ''}
-              ${place.tips ? `<p style="margin:4px 0 0;font-size:11px;color:#6b7280;">💡 ${place.tips}</p>` : ''}
+              <p style="margin:0;font-weight:bold;font-size:13px;color:#1a1a2e;">${escapeHtml(place.name || place.ko || '')}</p>
+              ${place.category ? `<span style="display:inline-block;background:#f3f4f6;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:10px;margin-top:3px;">${escapeHtml(place.category)}</span>` : ''}
+              ${place.duration ? `<span style="color:#9ca3af;font-size:11px;margin-left:6px;">⏱ ${escapeHtml(place.duration)}</span>` : ''}
+              ${place.tips ? `<p style="margin:4px 0 0;font-size:11px;color:#6b7280;">💡 ${escapeHtml(place.tips)}</p>` : ''}
             </div>
           </div>`;
 
@@ -174,7 +185,7 @@ function renderItineraryHTML(itinerary) {
           html += `
           <div style="text-align:center;padding:4px 0;margin-bottom:8px;">
             <span style="display:inline-block;background:#f0f0ff;color:#7C5CFC;font-size:10px;padding:3px 10px;border-radius:10px;">
-              ${t.mode === 'walk' ? '🚶' : t.mode === 'transit' ? '🚇' : '🚗'} ${t.time || ''} ${t.distance ? `(${t.distance})` : ''}
+              ${t.mode === 'walk' ? '🚶' : t.mode === 'transit' ? '🚇' : '🚗'} ${escapeHtml(t.time || '')} ${t.distance ? `(${escapeHtml(t.distance)})` : ''}
             </span>
           </div>`;
         }
@@ -187,7 +198,7 @@ function renderItineraryHTML(itinerary) {
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e5e7eb;">
           <p style="margin:0 0 6px;font-size:12px;font-weight:bold;color:#374151;">🍽️ Recommended Meals</p>`;
       for (const meal of day.meals) {
-        html += `<p style="margin:2px 0;font-size:11px;color:#6b7280;">• <strong>${meal.type || ''}</strong>: ${meal.name || meal.restaurant || ''} ${meal.price ? `(${meal.price})` : ''}</p>`;
+        html += `<p style="margin:2px 0;font-size:11px;color:#6b7280;">• <strong>${escapeHtml(meal.type || '')}</strong>: ${escapeHtml(meal.name || meal.restaurant || '')} ${meal.price ? `(${escapeHtml(meal.price)})` : ''}</p>`;
       }
       html += `</div>`;
     }
@@ -196,7 +207,7 @@ function renderItineraryHTML(itinerary) {
     if (day.dailyTips && Array.isArray(day.dailyTips) && day.dailyTips.length > 0) {
       html += `
         <div style="margin-top:8px;background:#fffbeb;border-radius:6px;padding:8px 12px;">
-          <p style="margin:0;font-size:11px;color:#92400e;">💡 ${day.dailyTips.join(' | ')}</p>
+          <p style="margin:0;font-size:11px;color:#92400e;">💡 ${day.dailyTips.map(escapeHtml).join(' | ')}</p>
         </div>`;
     }
 
@@ -243,12 +254,15 @@ function renderItineraryText(itinerary) {
 }
 
 export function buildDefaultConfirmationEmail(booking, walletUrl = null, itineraryData = null) {
-  const subject = `[CocoTrip] Your Booking is Confirmed! 🎉 — ${booking.bookingRef || 'CT-' + Date.now()}`;
+  // PR #421 (CZ2): bookingRef appears in the subject (text/plain context, no
+  // escape needed) and in HTML body (escape needed below). Build once.
+  const bookingRef = booking.bookingRef || 'CT-' + Date.now();
+  const subject = `[CocoTrip] Your Booking is Confirmed! 🎉 — ${bookingRef}`;
 
   const walletSection = walletUrl ? `
     <!-- Google Wallet 버튼 -->
     <div style="text-align:center;margin:28px 0;">
-      <a href="${walletUrl}" target="_blank"
+      <a href="${escapeAttr(walletUrl)}" target="_blank"
          style="display:inline-block;background:#1a1a2e;color:#C4956A;text-decoration:none;
                 font-weight:bold;font-size:14px;padding:14px 32px;border-radius:10px;
                 letter-spacing:0.5px;">🎫 Add to Google Wallet</a>
@@ -289,19 +303,19 @@ export function buildDefaultConfirmationEmail(booking, walletUrl = null, itinera
 
   <div style="background:#fff;padding:30px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-    <p style="font-size:16px;margin-top:0;">Hi <strong>${booking.customerName || 'there'}</strong>, 안녕하세요!</p>
+    <p style="font-size:16px;margin-top:0;">Hi <strong>${escapeHtml(booking.customerName || 'there')}</strong>, 안녕하세요!</p>
     <p style="color:#374151;">Your booking is confirmed. We're excited to take you on an amazing journey through Korea! 🇰🇷</p>
 
     <!-- 예약 요약 -->
     <div style="background:#eff6ff;border-left:4px solid #C4956A;border-radius:8px;padding:20px;margin:24px 0;">
       <h2 style="color:#1a1a2e;margin:0 0 14px;font-size:16px;">📋 Booking Summary</h2>
       <table style="width:100%;border-collapse:collapse;">
-        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;width:130px;font-size:13px;">Service</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${booking.product || '-'}</td></tr>
-        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Tour Date</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${booking.tourDate || '-'}</td></tr>
-        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Pickup</td><td style="padding:7px 8px;font-size:13px;">${booking.pickupLocation || 'Hotel Lobby'}</td></tr>
-        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Party Size</td><td style="padding:7px 8px;font-size:13px;">${booking.paxCount || '-'} person(s)</td></tr>
-        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Amount Paid</td><td style="padding:7px 8px;font-weight:bold;color:#059669;font-size:13px;">$${booking.amountUSD || '0'} USD</td></tr>
-        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Booking Ref</td><td style="padding:7px 8px;font-family:monospace;font-size:13px;">${booking.bookingRef || '-'}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;width:130px;font-size:13px;">Service</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${escapeHtml(booking.product || '-')}</td></tr>
+        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Tour Date</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${escapeHtml(booking.tourDate || '-')}</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Pickup</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(booking.pickupLocation || 'Hotel Lobby')}</td></tr>
+        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Party Size</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(booking.paxCount || '-')} person(s)</td></tr>
+        <tr style="background:#f9fafb;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Amount Paid</td><td style="padding:7px 8px;font-weight:bold;color:#059669;font-size:13px;">$${escapeHtml(booking.amountUSD || '0')} USD</td></tr>
+        <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">Booking Ref</td><td style="padding:7px 8px;font-family:monospace;font-size:13px;">${escapeHtml(bookingRef)}</td></tr>
       </table>
     </div>
 
