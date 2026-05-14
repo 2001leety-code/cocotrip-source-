@@ -957,7 +957,49 @@ const RULES = [
   ['P48_voucherCjkFont', P48_voucherCjkFont],
   ['P49_paymentIntegrity', P49_paymentIntegrity],
   ['P50_refundTourTime', P50_refundTourTime],
+  ['P51_couponPreLock', P51_couponPreLock],
 ];
+
+/**
+ * P51_couponPreLock — 메모리 P51 (PR #427, Audit CY4).
+ * api/capturePaypalOrder.js 가 쿠폰을 capture 이후에 mark-used 하면 fail.
+ * 동시 요청 race 발생 시 결제는 됐는데 쿠폰 못 받는 사용자 발생 → 운영자
+ * 수동 환불. capture 전 pre-lock 으로 안전하게 처리.
+ */
+function P51_couponPreLock({ changed }) {
+  const FILE = 'api/capturePaypalOrder.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // coupon lock 호출 (couponLockRef 또는 couponRef + runTransaction) 이
+  // capture fetch 호출보다 먼저 등장하는지 확인.
+  const couponIdx = content.search(/couponLockRef|couponRef\s*=\s*db/);
+  const captureIdx = content.indexOf('/v2/checkout/orders/');
+  if (couponIdx > -1 && captureIdx > -1 && couponIdx > captureIdx) {
+    violations.push(`${FILE}: coupon mark-used runs AFTER capture — CY4 race regression`);
+  }
+
+  // 옛 patterns: couponWarning 또는 'coupon-warning' notifyOperator 채널.
+  // 이들이 등장하면 post-capture handling 으로 회귀한 것.
+  if (/couponWarning\s*:\s*code/.test(content)) {
+    violations.push(`${FILE}: couponWarning post-capture pattern reappeared — pre-lock should have prevented this`);
+  }
+  if (/notifyOperator\(\s*['"]coupon-warning['"]/.test(content)) {
+    violations.push(`${FILE}: 'coupon-warning' operator alert reappeared — pre-lock path uses 'coupon-race' instead`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P51_couponPreLock',
+      violations.join(' | '),
+      'PR #427 (CY4) — 쿠폰 lock 을 capture 전 runTransaction 으로 acquire + capture 실패 시 release.',
+    );
+  }
+  return null;
+}
 
 /**
  * P50_refundTourTime — 메모리 P50 (PR #426, Audit CY3).

@@ -118,7 +118,62 @@ export default async function handler(req, res) {
       throw lockErr;
     }
 
-    // 2. Capture — wrapped so we can release the lock on failure.
+    // 1.6 쿠폰 PRE-LOCK — PR #427 (Audit CY4 — 2026-05-14).
+    //
+    // 이전엔 capture 성공 후에 쿠폰을 isUsed=true 로 마킹했음. 두 가지 race
+    // 상황에서 사용자가 손해:
+    //   A) 두 요청이 동시 진입 → 둘 다 createPaypalOrder 단계에서 쿠폰 검증
+    //      통과 → 둘 다 capture 성공 → 한 명은 mark 성공, 다른 한 명은
+    //      COUPON_ALREADY_USED. 패자는 PayPal 에 결제됐는데 할인 안 받음 →
+    //      운영자가 수동으로 차액 환불해야 함.
+    //   B) 사용자가 결제 진행 중 다른 탭/세션에서 같은 쿠폰을 별도 booking 에
+    //      사용 → A 와 동일.
+    //
+    // 이제 capture 호출 전에 쿠폰을 트랜잭션으로 선점 (isUsed=true). 트랜잭션
+    // 실패 시 즉시 409 반환 + used_paypal_orders lock 해제 → 사용자가 다른
+    // 쿠폰 / 쿠폰 없이 재시도 가능. capture 실패 시 쿠폰 + lock 둘 다 해제 →
+    // 정상적인 재시도 흐름 보장.
+    const couponLockRef = (couponDocId && couponUserId)
+      ? dbForLock.collection('users').doc(couponUserId)
+          .collection('coupons').doc(couponDocId)
+      : null;
+    if (couponLockRef) {
+      try {
+        await dbForLock.runTransaction(async (tx) => {
+          const snap = await tx.get(couponLockRef);
+          if (!snap.exists) throw new Error('COUPON_NOT_FOUND');
+          const data = snap.data() || {};
+          if (data.isUsed === true && data.usedOrderID !== orderID) {
+            // 다른 orderID 가 이미 점유. 같은 orderID 면 idempotent 재시도로 간주.
+            throw new Error('COUPON_ALREADY_USED');
+          }
+          tx.update(couponLockRef, {
+            isUsed: true,
+            usedAt: FieldValue.serverTimestamp(),
+            usedOrderID: orderID,
+            // pendingCapture flag — capture 실패 시 자동 rollback 의 신호.
+            // capture 성공 후 false 로 변경.
+            pendingCapture: true,
+          });
+        });
+        console.log('[capturePaypalOrder] coupon pre-locked:', couponDocId);
+      } catch (couponErr) {
+        const code = couponErr.message || 'UNKNOWN';
+        console.warn('[capturePaypalOrder] coupon pre-lock failed:', code, '| orderID:', orderID);
+        // orderID lock 해제 — 사용자가 다른 쿠폰/쿠폰 없이 재시도 가능.
+        lockRef.delete().catch((e) => {
+          console.warn('[capturePaypalOrder] lock release after coupon fail (non-fatal):', e.message);
+        });
+        // 운영자 알림 — 쿠폰 race 발생을 인지 (수동 환불 불필요 — capture 안 일어났음).
+        notifyOperator('coupon-race',
+          `<code>${orderID}</code>\n사유: ${code}\n쿠폰: ${couponDocId} (uid ${couponUserId.slice(0, 8)})\n→ capture 전 차단 — 환불 불필요`
+        ).catch((alertErr) => console.error('[capturePaypalOrder] operator alert failed:', alertErr.message));
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(_err(`Coupon unavailable: ${code}`, code)));
+      }
+    }
+
+    // 2. Capture — wrapped so we can release BOTH locks on failure.
     let capture;
     try {
       const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
@@ -130,18 +185,38 @@ export default async function handler(req, res) {
         throw new Error(`Capture status: ${capture.status ?? 'unknown'}`);
       }
     } catch (captureErr) {
-      // Release lock so the user can retry. We don't await — the response
-      // path stays fast and a leftover lock auto-expires via the 30s stale
-      // check above.
+      // Release orderID lock so the user can retry. We don't await — the
+      // response path stays fast and a leftover lock auto-expires via the
+      // 30s stale check above.
       lockRef.delete().catch((delErr) => {
         console.warn('[capturePaypalOrder] lock release failed (CY1 retry path):', delErr.message);
       });
+      // PR #427 (CY4): release coupon too — capture never happened so the
+      // coupon discount wasn't actually consumed. Without this, a network
+      // blip during capture would burn the user's coupon.
+      if (couponLockRef) {
+        couponLockRef.update({
+          isUsed: false,
+          usedAt: null,
+          usedOrderID: null,
+          pendingCapture: false,
+        }).catch((e) => {
+          console.warn('[capturePaypalOrder] coupon release after capture fail (non-fatal):', e.message);
+        });
+      }
       throw captureErr;
     }
     // Mark lock as captured so future retries are correctly rejected.
     lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() }).catch((e) => {
       console.warn('[capturePaypalOrder] lock status update failed (non-fatal):', e.message);
     });
+    // PR #427 (CY4): finalise coupon — clear the pendingCapture flag so the
+    // coupon is unambiguously "spent" rather than "in-flight".
+    if (couponLockRef) {
+      couponLockRef.update({ pendingCapture: false }).catch((e) => {
+        console.warn('[capturePaypalOrder] coupon finalise failed (non-fatal):', e.message);
+      });
+    }
 
     // 필드 추출 + 누락 시 명시 로그 (LIVE 응답 누락이 admin 로그 미노출의 첫 번째 원인 후보).
     const captureNode = capture.purchase_units?.[0]?.payments?.captures?.[0];
@@ -212,52 +287,9 @@ export default async function handler(req, res) {
       console.error('[capturePaypalOrder] bookings doc write failed:', bookingErr.message);
     }
 
-    // 2.5 쿠폰 소진 처리 — runTransaction 으로 race condition 차단.
-    // 검증(applyPromoCode)과 차감이 분리되어 있어 동일 쿠폰 동시 적용 시 둘 다 통과 가능했음.
-    // 결제 capture 는 이미 성공했으므로 COUPON_ALREADY_USED 발생해도 결제 취소 불가 →
-    // bookings/{orderID}.couponWarning 에 기록 (운영자 수동 환불 대상).
-    if (couponDocId && couponUserId) {
-      const db = initAdminDb('capturePaypalOrder');
-      if (!db) {
-        console.error('[capturePaypalOrder] coupon mark skipped: Firestore unavailable');
-      } else {
-        const couponRef = db.collection('users').doc(couponUserId)
-          .collection('coupons').doc(couponDocId);
-        try {
-          await db.runTransaction(async (tx) => {
-            const snap = await tx.get(couponRef);
-            if (!snap.exists) throw new Error('COUPON_NOT_FOUND');
-            const data = snap.data() || {};
-            if (data.isUsed === true) throw new Error('COUPON_ALREADY_USED');
-            tx.update(couponRef, {
-              isUsed: true,
-              usedAt: FieldValue.serverTimestamp(),
-              usedOrderID: orderID,
-            });
-          });
-          console.log('[capturePaypalOrder] coupon marked used:', couponDocId);
-        } catch (couponErr) {
-          const code = couponErr.message || 'UNKNOWN';
-          console.error('[capturePaypalOrder] coupon update failed:', code, '| orderID:', orderID);
-          if (code === 'COUPON_ALREADY_USED' || code === 'COUPON_NOT_FOUND') {
-            try {
-              await db.collection('bookings').doc(orderID).set({
-                couponWarning: code,
-                couponWarningAt: FieldValue.serverTimestamp(),
-                couponDocId,
-                couponUserId,
-              }, { merge: true });
-            } catch (warnErr) {
-              console.error('[capturePaypalOrder] couponWarning write failed:', warnErr.message);
-            }
-            // PR-G: 운영자 즉시 알림 — 수동 환불 필요. silent fail 금지.
-            notifyOperator('coupon-warning',
-              `<code>${orderID}</code>\n사유: ${code}\n쿠폰: ${couponDocId} (uid ${couponUserId.slice(0, 8)})\n→ 수동 환불 필요`
-            ).catch((alertErr) => console.error('[capturePaypalOrder] operator alert failed:', alertErr.message));
-          }
-        }
-      }
-    }
+    // 2.5 쿠폰 처리 — PR #427 이후 capture 전 pre-lock 으로 이동됨 (section 1.6).
+    // 여기까지 왔다면 쿠폰은 이미 isUsed=true + pendingCapture=false 상태.
+    // 더 이상 운영자 수동 환불 case (capture 성공 + 쿠폰 race fail) 발생 안 함.
 
     // 2.6 글로벌 프로모 사용량 증가 (COCO5/COCO10/EARLY50). 트랜잭션으로 race-safe.
     // applyPromoCode 의 limit gate 가 read-only 이므로 여기서 실제 increment.
