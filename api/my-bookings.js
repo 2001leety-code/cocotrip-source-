@@ -64,9 +64,16 @@ export default async function handler(req, res) {
     const bookings = snap.docs.map(doc => {
       const data = doc.data();
       const tourDate = data.tourDate || '';
+      // PR #426 (Audit CY3 — 2026-05-14): pass tourTime so the refund-window
+      // calculation isn't always anchored at 00:00 KST. Pre-fix a 6 PM tour
+      // showed "refund window closed" 6+ hours earlier than the actual cutoff,
+      // and a 09:00 tour got an extra free-cancel window. Bookings written
+      // before this PR don't have tourTime — evaluateRefundPolicy falls back
+      // to '00:00' for those (legacy behaviour preserved).
+      const tourTime = data.tourTime || undefined;
       let policy = null;
       if (tourDate && data.status === 'CONFIRMED') {
-        try { policy = evaluateRefundPolicy({ tourDate, tier, now }); } catch { /* ignore */ }
+        try { policy = evaluateRefundPolicy({ tourDate, tourTime, tier, now }); } catch { /* ignore */ }
       }
       return {
         id: doc.id,
