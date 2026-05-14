@@ -6,7 +6,7 @@
 // 빌드 시 self.__WB_MANIFEST 가 precache 매니페스트로 치환됨.
 import { precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { CacheFirst, NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 
@@ -25,16 +25,22 @@ registerRoute(
   })
 );
 
+// PR #428 (Audit CZ4 — 2026-05-14): /api/* MUST NOT be cached by the service
+// worker. The previous NetworkFirst route cached every API response for 5
+// minutes keyed by URL. /api/voucher?bookingID=X (a PII-laden PDF), /api/
+// my-bookings (PII), /api/admin-* etc. were all share-cached across users
+// on the same device. If user A loaded their voucher and user B (different
+// account, same browser) navigated to the same URL with a different
+// Authorization header, an offline or 5s-timeout fallback would serve
+// user A's response — cross-user PII leak.
+//
+// Auth-gated, mutating, or PII-bearing endpoints have no business in a
+// shared cache. We force NetworkOnly for the entire /api/* surface; the
+// cache name 'api-runtime' is also deleted on activate (below) to clear
+// any pre-existing entries from old SW deployments.
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api/'),
-  new NetworkFirst({
-    cacheName: 'api-runtime',
-    networkTimeoutSeconds: 5,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 5 }),
-    ],
-  })
+  new NetworkOnly()
 );
 
 registerRoute(
@@ -95,4 +101,17 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
 
 // VitePWA autoUpdate가 등록 후 즉시 활성화 — generateSW 기본 동작과 동일.
 self.addEventListener('install', () => { self.skipWaiting(); });
-self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    // PR #428 (CZ4): purge the legacy `api-runtime` cache from previous SW
+    // deployments. setDefaultHandler/registerRoute only affects future
+    // requests — without this, the stale cross-user PDF responses persist
+    // until the per-entry TTL (5min) expires on each pre-PR-#428 client.
+    try {
+      await caches.delete('api-runtime');
+    } catch (e) {
+      console.warn('[sw] api-runtime cache delete failed:', e);
+    }
+    await self.clients.claim();
+  })());
+});
