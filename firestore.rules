@@ -20,9 +20,17 @@ service cloud.firestore {
                || resource.data.isPublic == true
                || (request.auth != null && resource.data.uid == request.auth.uid);
 
+      // PR #420 (audit H20): 이전엔 uid 외 어느 필드든 update 가능 → user 가
+      // quality.score / priceKRW / vehicle 등 server-computed 값 조작 가능.
+      // 이제 사용자 control 가능한 필드 (isPublic, title 수정, memo) 만 허용.
       allow update: if request.auth != null
                  && resource.data.uid == request.auth.uid
-                 && request.resource.data.uid == resource.data.uid;
+                 && request.resource.data.uid == resource.data.uid
+                 && request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly([
+                        'isPublic', 'title', 'tourTitle', 'memo',
+                        'lastViewedAt', 'updatedAt',
+                      ]);
 
       allow create, delete: if false;
 
@@ -48,9 +56,41 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────
     // users/{uid} — 본인만
+    //
+    // PR #420 (WC9): 이전엔 read/write 무제한 → 본인이 tier='Platinum' /
+    // tripCoins=999999 / totalSpentUSD=999999 직접 조작 가능. 이제 field
+    // allowlist 로 sensitive 필드 (loyalty/financial) 잠금.
+    //
+    // 허용 필드:
+    //   create — sign-up 흐름 (saveUserToFirestore in src/lib/firebase.js).
+    //            tier='Bronze' / tripCoins=0 / totalSpentUSD=0 / bookingCount=0
+    //            기본값 강제. 그 외 default 변조 차단.
+    //   update — 프로필 (displayName/photoURL/phoneNumber/needsOnboarding/name/
+    //            email/role/lastLoginAt). tier/tripCoins/totalSpentUSD/
+    //            bookingCount/createdAt 등 server-managed 필드 제외.
     // ─────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read: if isOwner(uid);
+
+      // 신규 가입 — saveUserToFirestore() 호출. 기본값 강제 검증.
+      allow create: if isOwner(uid)
+                 && request.resource.data.tier == 'Bronze'
+                 && request.resource.data.tripCoins == 0
+                 && request.resource.data.totalSpentUSD == 0
+                 && request.resource.data.bookingCount == 0;
+
+      // 프로필 업데이트 — sensitive 필드 (tier/tripCoins/totalSpentUSD/
+      // bookingCount/createdAt) 변경 차단. 서버 SDK 가 loyalty.js 등에서
+      // rules 우회로 정상 갱신.
+      allow update: if isOwner(uid)
+                 && request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly([
+                        'displayName', 'photoURL', 'phoneNumber',
+                        'needsOnboarding', 'name', 'email', 'role',
+                        'lastLoginAt', 'uid',
+                      ]);
+
+      allow delete: if false;
 
       // 저장된 플랜 참조 (planPersister가 서버에서 생성)
       match /plans/{planId} {
@@ -91,21 +131,33 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
     // tours — 공개 카탈로그, 어드민 관리
     //   read:   전체 공개 (비로그인 카탈로그 조회)
-    //   update: 로그인 사용자 (예약 트랜잭션이 currentBookings 증가)
-    //           + 어드민 (수동 편집)
+    //   update: 어드민(수동 편집) 또는 로그인 사용자 — but only the
+    //           `currentBookings` counter (PR #420 / WC7: 예전엔 어느 필드든
+    //           수정 가능 → 카탈로그 변조 risk).
     //   create/delete: 어드민만
     // ─────────────────────────────────────────────────────────
     match /tours/{tourId} {
       allow read:   if true;
-      allow update: if isSignedIn();
+      // PR #420 (WC7): 비-어드민은 currentBookings 증감만 허용. 그 외 필드
+      // (price, name, capacity 등) 는 catalog tampering 위험.
+      allow update: if isAdminEmail()
+                 || (isSignedIn()
+                     && request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['currentBookings', 'updatedAt']));
       allow create, delete: if isAdminEmail();
 
-      // 예약 레코드 — 본인 것만 생성/열람
+      // 예약 레코드 — 본인 것만 생성/열람.
+      // PR #420 (WC8): 이전엔 status='CONFIRMED' / amountUSD=0 가짜 가능 →
+      // 결제 안 한 user 가 예약 레코드만 만들어 confirmation 발급 attack.
+      // 이제 status='pending' 강제 + amountUSD > 0 검증.
       match /bookings/{bookingId} {
         allow read:   if isSignedIn()
                    && (resource.data.userId == request.auth.uid || isAdminEmail());
         allow create: if isSignedIn()
-                   && request.resource.data.userId == request.auth.uid;
+                   && request.resource.data.userId == request.auth.uid
+                   && request.resource.data.status == 'pending'
+                   && request.resource.data.amountUSD is number
+                   && request.resource.data.amountUSD > 0;
         allow update, delete: if isAdminEmail();
       }
     }
