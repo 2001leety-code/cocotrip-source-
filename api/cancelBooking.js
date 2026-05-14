@@ -172,7 +172,14 @@ export default async function handler(req, res) {
     }
 
     // 2. 환불 정책 평가
-    const policy = evaluateRefundPolicy({ tourDate: booking.tourDate, tier });
+    // PR #426 (Audit CY3 — 2026-05-14): pass tourTime so the cutoff isn't
+    // anchored at 00:00 KST. Legacy bookings without tourTime fall back to
+    // '00:00' inside evaluateRefundPolicy (no regression for existing data).
+    const policy = evaluateRefundPolicy({
+      tourDate: booking.tourDate,
+      tourTime: booking.tourTime || undefined,
+      tier,
+    });
     if (!policy.canRefund) {
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(_err('Cancellation window closed — no refund available', 'NO_REFUND')));

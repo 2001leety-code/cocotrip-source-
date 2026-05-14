@@ -956,7 +956,43 @@ const RULES = [
   ['P47_paypalWebhookRawBody', P47_paypalWebhookRawBody],
   ['P48_voucherCjkFont', P48_voucherCjkFont],
   ['P49_paymentIntegrity', P49_paymentIntegrity],
+  ['P50_refundTourTime', P50_refundTourTime],
 ];
+
+/**
+ * P50_refundTourTime — 메모리 P50 (PR #426, Audit CY3).
+ * cancelBooking / modifyBooking / my-bookings 가 evaluateRefundPolicy 호출
+ * 시 booking.tourTime 전달 누락하면 fail. 00:00 KST 기본값으로 cutoff 수
+ * 시간 어긋남 (오후 6시 투어가 환불 윈도우 닫힘으로 잘못 표시).
+ */
+function P50_refundTourTime({ changed }) {
+  const FILES = ['api/cancelBooking.js', 'api/modifyBooking.js', 'api/my-bookings.js'];
+  const targets = FILES.filter((f) => isModified(f, changed));
+  if (targets.length === 0) return { skipped: true };
+
+  const violations = [];
+  for (const file of targets) {
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+    const callRe = /evaluateRefundPolicy\s*\(\s*\{[\s\S]*?\}\s*\)/g;
+    let m;
+    while ((m = callRe.exec(content)) !== null) {
+      const callArgs = m[0];
+      if (!/tourTime/.test(callArgs)) {
+        violations.push(`${file}: evaluateRefundPolicy() called without tourTime — refund cutoff defaults to 00:00 KST (CY3)`);
+        break;
+      }
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'P50_refundTourTime',
+      violations.join(' | '),
+      'PR #426 (CY3) — evaluateRefundPolicy({ tourDate, tourTime: booking.tourTime || undefined, tier }) 패턴 유지.',
+    );
+  }
+  return null;
+}
 
 /**
  * P48_voucherCjkFont — 메모리 P48 (PR #424, Audit CZ5).

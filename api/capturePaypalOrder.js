@@ -62,7 +62,10 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { orderID, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode } = body;
+    // PR #426 (Audit CY3 — 2026-05-14): persist tourTime so the cancel/modify
+    // window calculation uses the actual tour start hour, not the 00:00 KST
+    // default. Optional — bookings without tourTime fall back to legacy.
+    const { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     console.log('[capturePaypalOrder] LIVE mode | email:', userEmail);
@@ -186,6 +189,8 @@ export default async function handler(req, res) {
         status: 'CONFIRMED',
         productType: product || '',
         tourDate: tourDate || '',
+        // PR #426 (CY3): persist tourTime for refund-cutoff accuracy.
+        tourTime: tourTime || '',
         pickupLocation: pickupLocation || '',
         dropoffLocation: dropoffLocation || '',
         paxCount: paxCount || 0,

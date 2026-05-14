@@ -125,7 +125,13 @@ export default async function handler(req, res) {
     }
 
     // 변경 가능 시점 (투어일 24시간 전까지)
-    const policy = evaluateRefundPolicy({ tourDate: booking.tourDate, tier });
+    // PR #426 (Audit CY3 — 2026-05-14): pass tourTime so the modify window
+    // cutoff isn't anchored at 00:00 KST. 6 PM tour gets correct 24h window.
+    const policy = evaluateRefundPolicy({
+      tourDate: booking.tourDate,
+      tourTime: booking.tourTime || undefined,
+      tier,
+    });
     if (!policy.canModify) {
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(_err('Modification deadline passed (24h before tour)', 'MODIFY_WINDOW_CLOSED')));
