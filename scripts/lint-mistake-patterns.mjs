@@ -908,6 +908,36 @@ function P46_unescapedHtmlInterpolation({ changed }) {
   return null;
 }
 
+/**
+ * P47_paypalWebhookRawBody — 메모리 P47 (PR #423, Audit CZ6).
+ * api/paypal-webhook.js 의 raw body 가 Vercel auto-parse + re-stringify
+ * 되면 canonical form 차이로 signature verify 실패 → 자동 결제 확인 fail.
+ * `api: { bodyParser: false }` 설정 누락 또는 readRawBody 가 다시
+ * JSON.stringify(req.body) 패턴으로 회귀하면 fail.
+ */
+function P47_paypalWebhookRawBody({ changed }) {
+  const FILE = 'api/paypal-webhook.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+  if (!/api\s*:\s*\{\s*bodyParser\s*:\s*false\s*\}/.test(content)) {
+    violations.push(`${FILE}: missing \`api: { bodyParser: false }\` — PayPal signed bytes must reach the verify API unmodified`);
+  }
+  if (/return\s+JSON\.stringify\(\s*req\.body\s*\)/.test(content)) {
+    violations.push(`${FILE}: re-stringifying req.body breaks PayPal signature canonicalisation (CZ6 regression)`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P47_paypalWebhookRawBody',
+      `${violations.length}건 — ${violations.join(' | ')}`,
+      'PR #423 — Vercel bodyParser off + raw stream read. Re-stringify 한 body 는 verify-webhook-signature 가 reject (canonical form drift).',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -923,6 +953,7 @@ const RULES = [
   ['P44_cronAuthGate', P44_cronAuthGate],
   ['P45_firestoreRulesFieldAllowlist', P45_firestoreRulesFieldAllowlist],
   ['P46_unescapedHtmlInterpolation', P46_unescapedHtmlInterpolation],
+  ['P47_paypalWebhookRawBody', P47_paypalWebhookRawBody],
 ];
 
 function runAll(base) {
