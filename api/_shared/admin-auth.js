@@ -10,7 +10,7 @@
  *   if (!auth.ok) { res.writeHead(auth.status, ...); return res.end(JSON.stringify({error: auth.error})); }
  *   // proceed — auth.email 은 검증된 admin 이메일
  *
- * PR #441 (Audit Y-H12 — 2026-05-16): cold-start init 강화.
+ * PR #441 (Audit Y-H12 — 2026-05-16): cold-start init 강화 (module-cached bootstrap).
  *
  * Pre-fix: getAdminAuth() 가 매 요청 dynamic import + GOOGLE_SERVICE_ACCOUNT_KEY
  * 만 시도. firebase-admin.js (Firestore bootstrap) 는 FIREBASE_PROJECT_ID +
