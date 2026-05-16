@@ -990,6 +990,7 @@ const RULES = [
   ['P82_pdfCanvasPerBandCheck', P82_pdfCanvasPerBandCheck],
   ['P83_routeEnrichmentSilentCatch', P83_routeEnrichmentSilentCatch],
   ['P84_planPersisterTruncateSurface', P84_planPersisterTruncateSurface],
+  ['P85_geminiRetryDeterministicModel', P85_geminiRetryDeterministicModel],
 ];
 
 /**
@@ -1081,6 +1082,64 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P85_geminiRetryDeterministicModel — 메모리 P85 (PR #461, Audit X-H2).
+ * api/_ai_core/geminiPipeline.js 의 retry 사이트들이 같은 temperature=0.5
+ * model 을 재사용하면 fail. retryModel (temperature=0.1) + recordRetryAttempt
+ * (5분 sliding window, threshold 10) + admin alert 필수.
+ */
+function P85_geminiRetryDeterministicModel({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/const\s+RETRY_TEMPERATURE\s*=\s*0\.1/.test(content)) {
+    violations.push(`${FILE}: RETRY_TEMPERATURE=0.1 상수 누락 — retry quota burn 위험 (X-H2)`);
+  }
+  if (!/const\s+RETRY_RATE_WINDOW_MS\s*=\s*5\s*\*\s*60\s*\*\s*1000/.test(content)) {
+    violations.push(`${FILE}: RETRY_RATE_WINDOW_MS=5분 누락 → retry storm 감지 약화`);
+  }
+  if (!/const\s+RETRY_RATE_THRESHOLD\s*=\s*10/.test(content)) {
+    violations.push(`${FILE}: RETRY_RATE_THRESHOLD=10 누락 → alert 임계 변경`);
+  }
+  if (!/export\s+function\s+buildModel\s*\(\s*apiKey\s*,\s*temperatureOverride\s*\)/.test(content)) {
+    violations.push(`${FILE}: buildModel(apiKey, temperatureOverride) signature 누락 — retryModel 분리 불가`);
+  }
+  if (!/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE\)/.test(content)) {
+    violations.push(`${FILE}: retryModel 미생성 — retry 가 동일 0.5 model 재사용`);
+  }
+  // 4 retry types must each register a recordRetryAttempt call.
+  const requiredTypes = ['dietary-3pass', 'pattern-3pass', 'dietary-legacy', 'pattern-legacy'];
+  for (const t of requiredTypes) {
+    const re = new RegExp(`recordRetryAttempt\\(\\s*['\"]${t.replace(/[-]/g, '\\-')}['\"]\\s*\\)`);
+    if (!re.test(content)) {
+      violations.push(`${FILE}: recordRetryAttempt('${t}') 누락 → 해당 retry 카운트 누락`);
+    }
+  }
+  // Each retry call must use retryModel.
+  if (!/pass1Intent\(\s*retryModel\s*,/.test(content)) {
+    violations.push(`${FILE}: 3pass retry 가 pass1Intent(retryModel, ...) 아님 — 동일 model 재사용 (X-H2 회귀)`);
+  }
+  if (!/retryModel\.generateContent/.test(content)) {
+    violations.push(`${FILE}: legacy retry 가 retryModel.generateContent 호출 안 함 — model.generateContent 재사용`);
+  }
+  if (!/gemini-retry-rate-high:\$\{retryType\}/.test(content)) {
+    violations.push(`${FILE}: alert key 'gemini-retry-rate-high:${'${retryType}'}' 누락`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P85_geminiRetryDeterministicModel',
+      violations.join(' | '),
+      'PR #461 (X-H2) — retryModel (temperature 0.1) + recordRetryAttempt (5min/10건 window, admin alert) 유지.',
     );
   }
   return null;
