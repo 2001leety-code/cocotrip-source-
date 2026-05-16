@@ -989,6 +989,7 @@ const RULES = [
   ['P81_refundAllSettledInspect', P81_refundAllSettledInspect],
   ['P82_pdfCanvasPerBandCheck', P82_pdfCanvasPerBandCheck],
   ['P83_routeEnrichmentSilentCatch', P83_routeEnrichmentSilentCatch],
+  ['P84_planPersisterTruncateSurface', P84_planPersisterTruncateSurface],
 ];
 
 /**
@@ -1080,6 +1081,67 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P84_planPersisterTruncateSurface — 메모리 P84 (PR #460, Audit X-H1).
+ * api/_ai_core/planPersister.js 의 900KB 가드가 silent truncate 면 fail.
+ * - throttledTelegramAlert import 필수
+ * - admin channel, severity:'high' 로 발송
+ * - dedup key 패턴 `plan-persister-truncate:${regionKey}:${durationKey}` 필수
+ * - root-level __truncated / __truncated_days_count / __truncated_original_days
+ *   필수 (PlanDetailPage 가 itinerary 깊이 탐색 없이 banner 표시)
+ * - 900_000-byte 한계 + legacy itinerary._truncated_days 유지
+ */
+function P84_planPersisterTruncateSurface({ changed }) {
+  const FILE = 'api/_ai_core/planPersister.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H1)`);
+  }
+  if (!/plan-persister-truncate:\$\{regionKey\}:\$\{durationKey\}/.test(content)) {
+    violations.push(`${FILE}: dedup key 'plan-persister-truncate:${'${regionKey}'}:${'${durationKey}'}' 누락 → storm 차단 X`);
+  }
+  if (!/channel:\s*['"]admin['"]/.test(content)) {
+    violations.push(`${FILE}: admin 채널 알림 누락 — booking 채널 다운 시 도달 X`);
+  }
+  if (!/severity:\s*['"]high['"]/.test(content)) {
+    violations.push(`${FILE}: severity:'high' 누락`);
+  }
+  if (!/docToSave\.__truncated\s*=\s*true/.test(content)) {
+    violations.push(`${FILE}: root-level __truncated=true 누락 → UI banner 감지 어려움`);
+  }
+  if (!/docToSave\.__truncated_days_count/.test(content)) {
+    violations.push(`${FILE}: __truncated_days_count 누락`);
+  }
+  if (!/docToSave\.__truncated_original_days/.test(content)) {
+    violations.push(`${FILE}: __truncated_original_days 누락 → 잘린 day 추적 불가`);
+  }
+  if (!/SIZE_LIMIT_BYTES\s*=\s*900_000/.test(content)) {
+    violations.push(`${FILE}: SIZE_LIMIT_BYTES 900_000 변경 — Firestore 1MB 안전 margin 깨짐`);
+  }
+  // Back-compat — UI 의 기존 탐색 경로 유지.
+  if (!/itinerary\._truncated_days\s*=/.test(content)) {
+    violations.push(`${FILE}: legacy itinerary._truncated_days 누락 — 기존 UI 경로 깨짐`);
+  }
+  // Fire-and-forget — alert infra fail 이 plan 저장 latency 영향 X
+  if (!/throttledTelegramAlert\(\{[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert 가 .catch(()=>{}) fire-and-forget 아님 → plan-save latency 위험`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P84_planPersisterTruncateSurface',
+      violations.join(' | '),
+      'PR #460 (X-H1) — root __truncated 플래그 + admin throttledTelegramAlert + 900KB 한계 + legacy back-compat 유지.',
     );
   }
   return null;
