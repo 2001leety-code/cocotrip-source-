@@ -984,6 +984,7 @@ const RULES = [
   ['P76_bookingAmountNanGuard', P76_bookingAmountNanGuard],
   ['P77_triggerDownstreamSilentPaths', P77_triggerDownstreamSilentPaths],
   ['P78_pdfImageProxyCorsGuard', P78_pdfImageProxyCorsGuard],
+  ['P79_wizardPersistenceQuotaSweep', P79_wizardPersistenceQuotaSweep],
 ];
 
 /**
@@ -1035,6 +1036,53 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P79_wizardPersistenceQuotaSweep — 메모리 P79 (PR #455, Audit W-H15).
+ * src/hooks/useWizardPersistence.ts 가 setItem 실패를 silent `catch {}` 처리하면
+ * fail. quota error 감지 + stale snapshot sweep + structured warn-log 필수.
+ */
+function P79_wizardPersistenceQuotaSweep({ changed }) {
+  const FILE = 'src/hooks/useWizardPersistence.ts';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/function\s+isQuotaError/.test(content)) {
+    violations.push(`${FILE}: isQuotaError helper 누락 — 모든 브라우저 quota 플레이버 감지 필요 (W-H15)`);
+  }
+  if (!/QuotaExceededError/.test(content)) {
+    violations.push(`${FILE}: QuotaExceededError 문자열 누락 — modern browser quota detection`);
+  }
+  if (!/NS_ERROR_DOM_QUOTA_REACHED/.test(content)) {
+    violations.push(`${FILE}: NS_ERROR_DOM_QUOTA_REACHED 누락 — Firefox quota 플레이버`);
+  }
+  if (!/function\s+sweepStaleWizardSnapshots/.test(content)) {
+    violations.push(`${FILE}: sweepStaleWizardSnapshots helper 누락 — quota 회복 path`);
+  }
+  if (!/function\s+safeWizardSetItem/.test(content)) {
+    violations.push(`${FILE}: safeWizardSetItem helper 누락`);
+  }
+  // The hook must call the safe helper, not raw localStorage.setItem.
+  if (/localStorage\.setItem\(\s*STORAGE_PREFIX\s*\+/.test(content)) {
+    violations.push(`${FILE}: raw localStorage.setItem(STORAGE_PREFIX + ...) — safeWizardSetItem 사용`);
+  }
+  // Structured warn so Sentry surfaces the silent-loss pattern instead of /* silent */.
+  if (!/console\.warn\(\s*['"]\[wizard-persistence\] localStorage quota exceeded/.test(content)) {
+    violations.push(`${FILE}: structured warn log 누락 — quota 도달이 silent 면 Sentry 가 잡지 못함`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P79_wizardPersistenceQuotaSweep',
+      violations.join(' | '),
+      'PR #455 (W-H15) — quota error 감지 + stale snapshot sweep + retry + structured warn-log.',
     );
   }
   return null;
