@@ -986,6 +986,7 @@ const RULES = [
   ['P78_pdfImageProxyCorsGuard', P78_pdfImageProxyCorsGuard],
   ['P79_wizardPersistenceQuotaSweep', P79_wizardPersistenceQuotaSweep],
   ['P80_iosBlobPopupBlocker', P80_iosBlobPopupBlocker],
+  ['P81_refundAllSettledInspect', P81_refundAllSettledInspect],
 ];
 
 /**
@@ -1037,6 +1038,52 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P81_refundAllSettledInspect — 메모리 P81 (PR #457, Audit Y-H13).
+ * cancelBooking.js sendRefundTelegram 의 Promise.allSettled 결과를 unwrap 안 하면 fail.
+ * 개별 notify 의 {ok:false} / 'rejected' silent → 환불 알림 일부 채널 누락.
+ */
+function P81_refundAllSettledInspect({ changed }) {
+  const FILE = 'api/cancelBooking.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // Result array destructuring required
+  if (!/const\s*\[\s*bookingResult\s*,\s*dispatchResult\s*,\s*operatorResult\s*\]\s*=\s*await\s+Promise\.allSettled/.test(content)) {
+    violations.push(`${FILE}: Promise.allSettled 결과 destructure 누락 — 개별 notify silent fail (Y-H13)`);
+  }
+  // Both failure shapes inspected
+  if (!/result\.status\s*===\s*['"]rejected['"]/.test(content)) {
+    violations.push(`${FILE}: result.status === 'rejected' 체크 누락`);
+  }
+  if (!/value\.ok\s*===\s*false/.test(content)) {
+    violations.push(`${FILE}: value.ok === false 체크 누락 — semantic failure 감지 못 함`);
+  }
+  // Fallback alert
+  if (!/key:\s*['"]refund-telegram-partial-fail['"]/.test(content)) {
+    violations.push(`${FILE}: 'refund-telegram-partial-fail' throttledTelegramAlert 누락`);
+  }
+  if (!/channel:\s*['"]admin['"]/.test(content)) {
+    violations.push(`${FILE}: admin 채널 fallback 누락 — booking/dispatch 다운 시 도달 불가`);
+  }
+  // notifyOperator catch must return failure shape (so allSettled inspection sees it)
+  if (!/notifyOperator\(\s*['"]refund['"]\s*,[\s\S]{0,300}?\.catch\(\s*\(err\)\s*=>\s*\{[\s\S]{0,300}?return\s*\{\s*ok:\s*false/.test(content)) {
+    violations.push(`${FILE}: notifyOperator catch 가 {ok:false} 반환 안 함 → inspect()에서 silent`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P81_refundAllSettledInspect',
+      violations.join(' | '),
+      'PR #457 (Y-H13) — Promise.allSettled 결과 unwrap + per-channel inspect + admin fallback alert.',
     );
   }
   return null;
