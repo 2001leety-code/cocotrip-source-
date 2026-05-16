@@ -964,6 +964,7 @@ const RULES = [
   ['P55_webhookExchangeRate', P55_webhookExchangeRate],
   ['P56_manualPaymentRateLimit', P56_manualPaymentRateLimit],
   ['P57_aiPlannerCouponGate', P57_aiPlannerCouponGate],
+  ['P58_globalPromoRaceCapCheck', P58_globalPromoRaceCapCheck],
 ];
 
 /**
@@ -1015,6 +1016,94 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P58_globalPromoRaceCapCheck — 메모리 P58 (PR #434, Audit Y-H11).
+ * applyPromoCode 의 read-only gate 만으로는 N 명이 동시 capturePaypalOrder 에
+ * 도달 시 모두 +1 → cap 초과. capturePaypalOrder 의 promo increment 가 같은
+ * transaction 안에서 cap 을 체크하지 않으면 회귀.
+ *
+ * - capturePaypalOrder 가 incrementGlobalPromoUsage (shared helper) 를
+ *   import + 호출하는지
+ * - PROMO_LIMIT_EXCEEDED 분기에서 refundPaypalCapture 호출하는지
+ * - applyPromoCode 가 GLOBAL_PROMO_DEFAULTS 를 helper 에서 import 하는지
+ *   (inline 재정의 시 두 endpoint cap 이 drift)
+ * - helper 자체가 transaction 내 cap check + PROMO_LIMIT_EXCEEDED throw 패턴
+ *   유지하는지
+ */
+function P58_globalPromoRaceCapCheck({ changed }) {
+  const CAPTURE = 'api/capturePaypalOrder.js';
+  const APPLY = 'api/applyPromoCode.js';
+  const HELPER = 'api/_shared/global-promo.js';
+  const touchedCapture = isModified(CAPTURE, changed);
+  const touchedApply = isModified(APPLY, changed);
+  const touchedHelper = isModified(HELPER, changed);
+  if (!touchedCapture && !touchedApply && !touchedHelper) return { skipped: true };
+
+  const violations = [];
+
+  if (touchedCapture) {
+    const content = getChangedFileContent(CAPTURE);
+    if (content) {
+      if (!/from\s*['"]\.\/_shared\/global-promo\.js['"]/.test(content)) {
+        violations.push(`${CAPTURE}: shared global-promo helper import missing`);
+      }
+      if (!/incrementGlobalPromoUsage\s*\(/.test(content)) {
+        violations.push(`${CAPTURE}: incrementGlobalPromoUsage() call missing — cap-LESS increment race risk (Y-H11)`);
+      }
+      // The PROMO_LIMIT_EXCEEDED branch must refund.
+      if (/PROMO_LIMIT_EXCEEDED/.test(content) && !/refundPaypalCapture\s*\(/.test(content)) {
+        violations.push(`${CAPTURE}: PROMO_LIMIT_EXCEEDED branch missing refundPaypalCapture call`);
+      }
+      // Regression guard: no cap-less inline increment of usedCount.
+      if (/tx\.set\s*\([^)]*usedCount\s*:\s*cur\s*\+\s*1/s.test(content)) {
+        violations.push(`${CAPTURE}: inline cap-less usedCount++ detected — use incrementGlobalPromoUsage helper`);
+      }
+    }
+  }
+
+  if (touchedApply) {
+    const content = getChangedFileContent(APPLY);
+    if (content) {
+      if (!/from\s*['"]\.\/_shared\/global-promo\.js['"]/.test(content)) {
+        violations.push(`${APPLY}: must import GLOBAL_PROMO_DEFAULTS / resolveGlobalPromoLimit from the shared helper`);
+      }
+      // Inline EARLY50 limit redefinition would drift from the helper.
+      if (/EARLY50[^\n]*limit\s*:\s*\d+/.test(content)) {
+        violations.push(`${APPLY}: inline EARLY50 limit redefinition — defaults live in api/_shared/global-promo.js`);
+      }
+    }
+  }
+
+  if (touchedHelper) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/export\s+async\s+function\s+incrementGlobalPromoUsage/.test(content)) {
+        violations.push(`${HELPER}: incrementGlobalPromoUsage export missing`);
+      }
+      if (!/PROMO_LIMIT_EXCEEDED/.test(content)) {
+        violations.push(`${HELPER}: PROMO_LIMIT_EXCEEDED error string missing — caller string-matches on it`);
+      }
+      if (!/runTransaction\s*\(/.test(content)) {
+        violations.push(`${HELPER}: runTransaction missing — cap check must be inside a transaction`);
+      }
+      // Must read both usage and admin/limits docs inside the tx.
+      const txGets = (content.match(/tx\.get\s*\(/g) || []).length;
+      if (txGets < 2) {
+        violations.push(`${HELPER}: expected ≥2 tx.get calls (usage + admin/global_promo_limits) — got ${txGets}`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P58_globalPromoRaceCapCheck',
+      violations.join(' | '),
+      'PR #434 (Y-H11) — capturePaypalOrder 의 promo increment 가 transaction 내 cap-check + refund 분기 유지, applyPromoCode 는 helper import.',
     );
   }
   return null;
