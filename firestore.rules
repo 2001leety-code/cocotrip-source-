@@ -362,6 +362,8 @@ service cloud.firestore {
     match /pending_processor_retries/{orderID} { allow read, write: if false; }
     // PR #439 (Audit Z-H16): customer email failure retry queue.
     match /pending_email_retries/{retryId} { allow read, write: if false; }
+    // PR #453 (Audit Z-H7): AI Planner trigger failure retry queue.
+    match /pending_ai_planner_retries/{bookingRef} { allow read, write: if false; }
     // PR #440 (Audit Y-H9): PayPal webhook verify-failed operator-alert dedup throttle.
     match /paypal_verify_alert_throttle/{key} { allow read, write: if false; }
     // PR #447 (Audit Z-H8): Gmail SMTP daily-quota counter.
