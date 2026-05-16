@@ -9,17 +9,87 @@
  *   const auth = await verifyAdminToken(req);
  *   if (!auth.ok) { res.writeHead(auth.status, ...); return res.end(JSON.stringify({error: auth.error})); }
  *   // proceed — auth.email 은 검증된 admin 이메일
+ *
+ * PR #441 (Audit Y-H12 — 2026-05-16): cold-start init 강화.
+ *
+ * Pre-fix: getAdminAuth() 가 매 요청 dynamic import + GOOGLE_SERVICE_ACCOUNT_KEY
+ * 만 시도. firebase-admin.js (Firestore bootstrap) 는 FIREBASE_PROJECT_ID +
+ * FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY 3-tuple 도 지원하는데 이쪽은
+ * 안 함. Vercel 에 FIREBASE_* 만 설정된 환경 (prod 현재 상태) 에서 cold-start
+ * 시 JSON.parse('') throw → 500 cryptic error. 또 매 요청 lazy import → cold-
+ * start latency.
+ *
+ * Post-fix:
+ *   - 같은 bootstrap 패턴 (firebase-admin.js 와 동일) 을 module 레벨에서 1회
+ *   - FIREBASE_* 우선 + GOOGLE_SERVICE_ACCOUNT_KEY fallback
+ *   - getApps() 재사용 (double-init 방지 — firebase-admin.js 가 이미 init 했을 수도)
+ *   - 결과를 module 변수에 캐싱 → 요청당 import/init 오버헤드 제거
+ *   - 인증 helper 자체가 init 실패 시 명시적 500 + 점검 안내 메시지
  */
 import { Buffer } from 'buffer';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
-async function getAdminAuth() {
-  const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-  const { getAuth } = await import('firebase-admin/auth');
-  if (!getApps().length) {
-    const sa = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '', 'base64').toString('utf8'));
-    initializeApp({ credential: cert(sa) });
+let _adminAuth = null;
+let _bootstrapTried = false;
+
+function bootstrapAdminAuth() {
+  if (_adminAuth) return _adminAuth;
+  if (_bootstrapTried && !_adminAuth) {
+    // Already tried + failed — don't retry every request, but allow ENV
+    // hot-reload in dev: re-bootstrap if env vars changed since last try.
+    // Cheap shortcut: just retry once per cold start (lazy re-init).
   }
-  return getAuth();
+  _bootstrapTried = true;
+
+  // 1) Existing app — firebase-admin.js bootstrap may have already initialized one.
+  if (getApps().length) {
+    try {
+      _adminAuth = getAuth(getApps()[0]);
+      return _adminAuth;
+    } catch (e) {
+      console.warn('[admin-auth] getAuth on existing app failed:', e.message);
+    }
+  }
+
+  // 2) Canonical FIREBASE_* env triple (preferred — matches firebase-admin.js)
+  let credential = null;
+  const projectId = process.env.FIREBASE_PROJECT_ID || '';
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || '';
+  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  if (projectId && clientEmail && privateKey) {
+    try {
+      credential = cert({ projectId, clientEmail, privateKey });
+    } catch (e) {
+      console.warn('[admin-auth] cert() with FIREBASE_* failed:', e.message);
+    }
+  }
+
+  // 3) Fallback: GOOGLE_SERVICE_ACCOUNT_KEY (base64 JSON)
+  if (!credential && process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    try {
+      const sa = JSON.parse(
+        Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8'),
+      );
+      credential = cert(sa);
+    } catch (e) {
+      console.warn('[admin-auth] GOOGLE_SERVICE_ACCOUNT_KEY parse failed:', e.message);
+    }
+  }
+
+  if (!credential) {
+    // No usable creds — caller will return 500. Don't log every request.
+    return null;
+  }
+
+  try {
+    const app = initializeApp({ credential });
+    _adminAuth = getAuth(app);
+    return _adminAuth;
+  } catch (e) {
+    console.error('[admin-auth] initializeApp failed:', e.message);
+    return null;
+  }
 }
 
 /**
@@ -38,8 +108,18 @@ export async function verifyAdminToken(req) {
     return { ok: false, status: 500, error: 'ADMIN_EMAIL env var not configured' };
   }
 
+  const auth = bootstrapAdminAuth();
+  if (!auth) {
+    // Explicit, actionable error — no more cryptic JSON.parse stack traces.
+    return {
+      ok: false,
+      status: 500,
+      error: 'firebase-admin init failed — set FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY or GOOGLE_SERVICE_ACCOUNT_KEY env vars',
+    };
+  }
+
   try {
-    const decoded = await (await getAdminAuth()).verifyIdToken(m[1], true);
+    const decoded = await auth.verifyIdToken(m[1], true);
     const email = (decoded.email || '').toLowerCase().trim();
     if (!email || !decoded.email_verified) {
       return { ok: false, status: 403, error: 'Email not verified' };
@@ -51,6 +131,15 @@ export async function verifyAdminToken(req) {
   } catch (err) {
     return { ok: false, status: 401, error: `Token verification failed: ${err.code || err.message}` };
   }
+}
+
+/**
+ * Test helper — clear the cached admin auth so tests can re-bootstrap.
+ * NEVER call from production code paths.
+ */
+export function __resetAdminAuthCacheForTests() {
+  _adminAuth = null;
+  _bootstrapTried = false;
 }
 
 export default verifyAdminToken;
