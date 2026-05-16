@@ -18,6 +18,7 @@
 
 import nodemailer from 'nodemailer';
 import { escapeHtml, escapeAttr } from './_shared/escape.js';
+import { checkGmailQuota, incrementGmailSentCount, GMAIL_QUOTA_EXCEEDED } from './_shared/gmail-quota.js';
 
 // ── Gmail Transporter ──────────────────────────────────────────────────
 function createTransporter() {
@@ -40,6 +41,20 @@ function createTransporter() {
  * @returns {object} Nodemailer 응답
  */
 export async function sendEmail({ to, subject, html, text, attachments = [] }) {
+  // PR #447 (Audit Z-H8): pre-check daily Gmail quota. If we're past 96%
+  // throw GMAIL_QUOTA_EXCEEDED so the caller (customer-email-trigger /
+  // PR #439) routes the message into pending_email_retries for next-day
+  // retry — without the guard we'd hit Gmail's hard cap, get a 24h
+  // account lockout, and silently drop every outgoing email.
+  const quotaCheck = await checkGmailQuota();
+  if (!quotaCheck.ok && quotaCheck.code === GMAIL_QUOTA_EXCEEDED) {
+    const err = new Error(`${GMAIL_QUOTA_EXCEEDED}: ${quotaCheck.count}/${quotaCheck.quota} today — deferring to next-day retry`);
+    err.code = GMAIL_QUOTA_EXCEEDED;
+    err.count = quotaCheck.count;
+    err.quota = quotaCheck.quota;
+    throw err;
+  }
+
   const transporter = createTransporter();
   const from = `CocoTripKR <${process.env.GMAIL_USER}>`;
 
@@ -53,6 +68,11 @@ export async function sendEmail({ to, subject, html, text, attachments = [] }) {
   });
 
   console.log('[send-email] 발송 성공:', info.messageId, '→', to);
+
+  // Best-effort: bump the daily counter + fire 80% warn alert at threshold.
+  // Fire-and-forget — counter accuracy < deliverability.
+  void incrementGmailSentCount();
+
   return info;
 }
 
