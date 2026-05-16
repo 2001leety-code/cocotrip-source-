@@ -28,6 +28,7 @@ import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
+import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -97,13 +98,58 @@ async function sendRefundTelegram({ bookingRef, productType, paxCount, tourDate,
     `사유: ${reason || '-'}\n` +
     `→ /admin/refunds 에서 확인`;
 
-  await Promise.allSettled([
+  // PR #457 (Audit Y-H13 — 2026-05-16): inspect Promise.allSettled results.
+  // Pre-fix: `await Promise.allSettled([...])` discarded the array → individual
+  // notify() returning {ok:false, error} or a rejection were silent. If
+  // Telegram booking channel was down during a refund storm, operator never
+  // saw the refund alerts even though refund itself succeeded.
+  // Now: per-channel inspection, fallback alert via admin channel (separate
+  // token) so at least one path delivers.
+  const [bookingResult, dispatchResult, operatorResult] = await Promise.allSettled([
     notify('booking',  refundMsg,  { parseMode: undefined }),
     notify('dispatch', dispatchMsg, { parseMode: undefined }),
-    notifyOperator('refund', operatorMsg).catch((err) =>
-      console.error('[cancelBooking] notifyOperator failed (silent fail 방지):', err.message)
-    ),
+    notifyOperator('refund', operatorMsg).catch((err) => {
+      console.error('[cancelBooking] notifyOperator failed (silent fail 방지):', err.message);
+      return { ok: false, error: err.message };
+    }),
   ]);
+
+  function inspect(name, result) {
+    if (result.status === 'rejected') return { channel: name, reason: result.reason?.message || 'rejected' };
+    const value = result.value;
+    if (value && typeof value === 'object' && value.ok === false) {
+      return { channel: name, reason: value.error || 'unknown' };
+    }
+    return null;
+  }
+  const failures = [
+    inspect('booking', bookingResult),
+    inspect('dispatch', dispatchResult),
+    inspect('operator', operatorResult),
+  ].filter(Boolean);
+
+  if (failures.length > 0) {
+    console.error('[cancelBooking] refund Telegram partial-fail:', { bookingRef, failures });
+    // Fallback alert via admin channel (separate token → resilient to the
+    // booking/dispatch channels being misconfigured). throttledTelegramAlert
+    // also dedups via key so a Firestore brownout doesn't flood.
+    throttledTelegramAlert({
+      key: 'refund-telegram-partial-fail',
+      channel: 'admin',
+      severity: 'critical',
+      message: [
+        `🚨 <b>환불 알림 일부 채널 실패</b>`,
+        ``,
+        `<b>BookingRef:</b> <code>${bookingRef}</code>`,
+        `<b>환불액:</b> $${refundUSD} (${refundPercent}%)`,
+        `<b>실패 채널:</b>`,
+        ...failures.map((f) => `  • <code>${f.channel}</code>: ${String(f.reason).replace(/[<>&]/g, '_').slice(0, 200)}`),
+        ``,
+        `→ /admin/refunds 에서 환불 자체는 정상 확인. 알림 미수신 채널 점검.`,
+      ].join('\n'),
+      context: { bookingRef, refundUSD, refundPercent, failures: failures.map((f) => f.channel) },
+    }).catch(() => {});
+  }
 }
 
 export default async function handler(req, res) {
