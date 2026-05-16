@@ -82,8 +82,8 @@ describe('PR #446 W-H18 — NotFoundPage SEO + UX', () => {
   it('uses Header + Footer for consistent chrome (not a bare body)', () => {
     expect(notFoundSrc).toMatch(/import\s*\{\s*Header\s*\}\s*from/);
     expect(notFoundSrc).toMatch(/import\s*\{\s*Footer\s*\}\s*from/);
-    expect(notFoundSrc).toMatch(/<Header\s*\/>/);
-    expect(notFoundSrc).toMatch(/<Footer\s*\/>/);
+    expect(notFoundSrc).toMatch(/<Header\s+language=/);
+    expect(notFoundSrc).toMatch(/<Footer\s+t=/);
   });
 
   it('falls back to en when language is unknown (defensive)', () => {

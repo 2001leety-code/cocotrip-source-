@@ -63,7 +63,7 @@ const COPY: Record<string, { title: string; subtitle: string; home: string; tour
 };
 
 export default function NotFoundPage() {
-  const { language } = useLanguage();
+  const { language, t, changeLanguage } = useLanguage();
   const lang = (language && (COPY as Record<string, unknown>)[language]) ? language : 'en';
   const copy = COPY[lang] || COPY.en;
 
@@ -95,7 +95,7 @@ export default function NotFoundPage() {
 
   return (
     <>
-      <Header />
+      <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main
         role="main"
         aria-labelledby="not-found-title"
@@ -170,7 +170,7 @@ export default function NotFoundPage() {
           </Link>
         </nav>
       </main>
-      <Footer />
+      <Footer t={t} />
     </>
   );
 }
