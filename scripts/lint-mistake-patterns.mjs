@@ -991,6 +991,7 @@ const RULES = [
   ['P83_routeEnrichmentSilentCatch', P83_routeEnrichmentSilentCatch],
   ['P84_planPersisterTruncateSurface', P84_planPersisterTruncateSurface],
   ['P85_geminiRetryDeterministicModel', P85_geminiRetryDeterministicModel],
+  ['P86_repairDroppedGuidesAlert', P86_repairDroppedGuidesAlert],
 ];
 
 /**
@@ -1082,6 +1083,63 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P86_repairDroppedGuidesAlert — 메모리 P86 (PR #462, Audit X-H3).
+ * api/_ai_core/responseValidator.js 의 repairAndParseJSON 가 truncated JSON 복구 후
+ * 누락된 arrival_guide/departure_guide 를 silent 하면 fail.
+ * - throttledTelegramAlert import 필수
+ * - detectDroppedKeys + classifyMissingKeys export 필수
+ * - alert key 'repair-dropped-guides:${droppedKey}' 패턴 필수
+ * - result.__repair_dropped_keys flag 필수
+ */
+function P86_repairDroppedGuidesAlert({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H3)`);
+  }
+  if (!/CRITICAL_TOP_LEVEL_KEYS\s*=\s*\[\s*['"]arrival_guide['"]\s*,\s*['"]departure_guide['"]\s*\]/.test(content)) {
+    violations.push(`${FILE}: CRITICAL_TOP_LEVEL_KEYS = ['arrival_guide','departure_guide'] 누락`);
+  }
+  if (!/export\s+function\s+detectDroppedKeys\s*\(/.test(content)) {
+    violations.push(`${FILE}: detectDroppedKeys export 누락 — test 표면 없음`);
+  }
+  if (!/export\s+function\s+classifyMissingKeys\s*\(/.test(content)) {
+    violations.push(`${FILE}: classifyMissingKeys export 누락 — lost-after-emit vs never-emitted 구분 불가`);
+  }
+  if (!/result\.__repair_dropped_keys\s*=\s*droppedKeys/.test(content)) {
+    violations.push(`${FILE}: result.__repair_dropped_keys 플래그 누락 → UI/debugger 감지 어려움`);
+  }
+  if (!/repair-dropped-guides:\$\{droppedKey\}/.test(content)) {
+    violations.push(`${FILE}: alert key 'repair-dropped-guides:${'${droppedKey}'}' 패턴 누락 → dedup 깨짐`);
+  }
+  // alert config — admin / high / fire-and-forget
+  const alertBlock = content.slice(content.indexOf('repair-dropped-guides'), content.indexOf('repair-dropped-guides') + 2000);
+  if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
+    violations.push(`${FILE}: admin 채널 누락 — booking 다운 시 도달 X`);
+  }
+  if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
+    violations.push(`${FILE}: severity:'high' 누락`);
+  }
+  if (!/throttledTelegramAlert\(\{[\s\S]*?repair-dropped-guides[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: alert 가 .catch(()=>{}) fire-and-forget 아님 → parse latency 위험`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P86_repairDroppedGuidesAlert',
+      violations.join(' | '),
+      'PR #462 (X-H3) — detectDroppedKeys + classifyMissingKeys + admin alert + result flag 유지.',
     );
   }
   return null;

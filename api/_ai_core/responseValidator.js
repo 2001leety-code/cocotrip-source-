@@ -9,6 +9,53 @@
  * 사용자에게 명시적 에러 + 환불 권장.
  */
 import { sanitizeStopName } from './sanitizeName.js';
+import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+
+// PR #462 (Audit X-H3 — 2026-05-16): keys that the cut-and-close repair
+// path in repairAndParseJSON may lose when Gemini truncates the response
+// (either it cut inside the guide fields after emitting them, OR it cut
+// inside days[] before reaching them — declaration-order makes guides
+// the most common casualty either way). Pattern validator catches the
+// loss via retry trigger, but the silent path burns quota and gives
+// operators no visibility into the rate or root cause. `detectDroppedKeys`
+// is exported so the unit test can exercise it directly. It returns
+// keys missing from `repaired`, partitioned by whether they appeared in
+// rawText (= cut path dropped them) vs not (= Gemini never reached them);
+// the operator alert message includes both buckets so a regression in
+// prompt ordering vs a regression in max-tokens budget can be told apart.
+const CRITICAL_TOP_LEVEL_KEYS = ['arrival_guide', 'departure_guide'];
+
+/**
+ * Inspect the post-repair object for missing critical top-level keys.
+ * Returns the names of any missing keys.
+ *
+ * Only called on the repair path (cut-and-close success) — when JSON
+ * parsed directly we have nothing to flag.
+ */
+export function detectDroppedKeys(rawText, repaired) {
+  if (!repaired || typeof repaired !== 'object') return [];
+  const missing = [];
+  for (const key of CRITICAL_TOP_LEVEL_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(repaired, key)) missing.push(key);
+  }
+  return missing;
+}
+
+/**
+ * Categorize the missing keys by whether they appeared in the raw text.
+ * - emitted: was in raw but lost during the cut (truncation cut after emit)
+ * - not_emitted: never appeared in raw (truncation cut before emit OR Gemini skipped)
+ */
+export function classifyMissingKeys(rawText, missingKeys) {
+  const emitted = [];
+  const notEmitted = [];
+  const safeRaw = typeof rawText === 'string' ? rawText : '';
+  for (const key of missingKeys) {
+    if (safeRaw.indexOf(`"${key}"`) !== -1) emitted.push(key);
+    else notEmitted.push(key);
+  }
+  return { emitted, notEmitted };
+}
 
 /**
  * 모든 stop의 name/display_name 다국어 concat 정리. 사용자 PDF 보고로 발견된
@@ -625,6 +672,52 @@ export function repairAndParseJSON(rawText) {
     try {
       const result = JSON.parse(repaired);
       console.log('[ai-planner-full] Truncated JSON repaired OK, days:', (result.days || []).length);
+
+      // PR #462 (X-H3): the cut-and-close path frequently loses
+      // top-level critical fields (arrival_guide/departure_guide) —
+      // either because Gemini emitted them after `days[]` and the cut
+      // chopped inside them, OR because the cut happened inside `days[]`
+      // before Gemini ever reached the guides. validatePatternStructure
+      // already requires at least one guide → existing retry trigger
+      // preserved. The new annotation + admin alert give operators
+      // visibility into the rate AND the root cause: classifyMissingKeys
+      // tells "lost-after-emit" vs "never-emitted" apart so prompt-order
+      // regressions and max-tokens regressions don't blur together.
+      const droppedKeys = detectDroppedKeys(rawText, result);
+      if (droppedKeys.length > 0) {
+        result.__repair_dropped_keys = droppedKeys;
+        const droppedKey = droppedKeys.slice().sort().join('+');
+        const { emitted, notEmitted } = classifyMissingKeys(rawText, droppedKeys);
+        console.warn(
+          '[ai-planner-full] Repair lost top-level critical keys: ' + droppedKey +
+          ' (lostAfterEmit=' + emitted.join(',') + ', neverEmitted=' + notEmitted.join(',') +
+          ', rawLen=' + rawText.length + ', cutAt=' + cutIdx + ', cleanedLen=' + cleaned.length + ')'
+        );
+        throttledTelegramAlert({
+          key: `repair-dropped-guides:${droppedKey}`,
+          channel: 'admin',
+          severity: 'high',
+          message: [
+            `⚠️ <b>repairAndParseJSON lost critical top-level keys</b>`,
+            ``,
+            `<b>missing:</b> ${droppedKey}`,
+            `<b>lost-after-emit:</b> ${emitted.join(', ') || '(none)'}`,
+            `<b>never-emitted:</b> ${notEmitted.join(', ') || '(none)'}`,
+            `<b>raw length:</b> ${rawText.length}`,
+            `<b>cut at:</b> ${cutIdx} / ${cleaned.length}`,
+            `<b>days[] count after repair:</b> ${(result.days || []).length}`,
+            ``,
+            `→ pattern validator 가 missing 잡아 retry 트리거 (existing). quota 추가 소모.`,
+            `→ <b>lost-after-emit</b> 비율 ↑ → buildPrompt 에서 guides 를 days[] 앞으로 위치 강제 검토.`,
+            `→ <b>never-emitted</b> 비율 ↑ → maxOutputTokens 부족 / Gemini stop sequence 회귀 검토.`,
+          ].join('\n'),
+          context: {
+            errorCode: 'repair_dropped_guides',
+            reason: droppedKey,
+            step: 'repairAndParseJSON',
+          },
+        }).catch(() => {});
+      }
       return result;
     } catch (parseErr3) {
       console.error('[ai-planner-full] JSON repair also failed:', parseErr3.message);
