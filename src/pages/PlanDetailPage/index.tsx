@@ -72,6 +72,16 @@ export default function PlanDetailPage() {
   const { current, goToSlide } = useSwipeNavigation(slides.length);
 
   // Firestore listener
+  //
+  // PR #450 (Audit W-H16 — 2026-05-16): deps used to be
+  //   [planId, token, user, authLoading]
+  // — `user` is the Firebase User object, whose REFERENCE changes on every
+  // token refresh (esp. after PR #449 added 50min periodic + visibility
+  // refresh). Each ref change tore down the onSnapshot subscription and
+  // immediately re-subscribed → leaked listener handles + redundant
+  // Firestore reads. Switched to `user?.uid` (stable string) so the
+  // effect only re-runs when the actual identity changes.
+  const uid = user?.uid ?? null;
   useEffect(() => {
     if (!planId) { setError('notfound'); setLoading(false); return; }
     if (authLoading) return;
@@ -80,7 +90,7 @@ export default function PlanDetailPage() {
     const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
       if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
       const data = snap.data() as PlanDocument;
-      const ownerCheck = !!(user && data.uid === user.uid);
+      const ownerCheck = !!(uid && data.uid === uid);
       const hasToken = data.accessToken && data.accessToken === token;
       const isGuestPlan = !data.uid;
       const isPublicShared = data.isPublic === true;
@@ -106,7 +116,7 @@ export default function PlanDetailPage() {
       setLoading(false);
     });
     return () => unsub();
-  }, [planId, token, user, authLoading]);
+  }, [planId, token, uid, authLoading]);
 
   // share_visit tracking
   useEffect(() => {

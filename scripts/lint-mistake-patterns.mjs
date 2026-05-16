@@ -979,6 +979,7 @@ const RULES = [
   ['P71_gmailSmtpQuotaGuard', P71_gmailSmtpQuotaGuard],
   ['P72_chatRateLimitNatImmune', P72_chatRateLimitNatImmune],
   ['P73_useAuthForegroundTokenRefresh', P73_useAuthForegroundTokenRefresh],
+  ['P74_planDetailListenerStableDep', P74_planDetailListenerStableDep],
 ];
 
 /**
@@ -1030,6 +1031,49 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P74_planDetailListenerStableDep — 메모리 P74 (PR #450, Audit W-H16).
+ * PlanDetailPage onSnapshot effect 가 `user` (객체 ref) 를 deps 에 직접 넣으면 fail.
+ * Firebase User 객체 reference 가 token refresh 시 변하므로 매 refresh 마다
+ * onSnapshot teardown + re-subscribe → listener leak. `user?.uid` (stable string) 사용.
+ */
+function P74_planDetailListenerStableDep({ changed }) {
+  const FILE = 'src/pages/PlanDetailPage/index.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // const uid = user?.uid ?? null; 필수
+  if (!/const\s+uid\s*=\s*user\?\.uid\s*\?\?\s*null/.test(content)) {
+    violations.push(`${FILE}: \`const uid = user?.uid ?? null\` hoist 누락 — onSnapshot effect 가 user 객체 ref dep 사용 시 listener leak (W-H16)`);
+  }
+
+  // onSnapshot effect deps array 에 user (bare) 가 있으면 fail
+  const onSnapshotIdx = content.indexOf('const unsub = onSnapshot(');
+  if (onSnapshotIdx > -1) {
+    const depMatch = content.slice(onSnapshotIdx).match(/\}\s*,\s*\[(.*?)\]\s*\)\s*;/);
+    if (depMatch) {
+      const deps = depMatch[1];
+      if (/\buser\b/.test(deps) && !/\buid\b/.test(deps)) {
+        violations.push(`${FILE}: onSnapshot effect deps 에 user (object ref) — uid 사용 필요 (W-H16 listener leak)`);
+      } else if (!/\buid\b/.test(deps)) {
+        violations.push(`${FILE}: onSnapshot effect deps 에 uid 누락`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P74_planDetailListenerStableDep',
+      violations.join(' | '),
+      'PR #450 (W-H16) — onSnapshot effect deps 는 user?.uid (stable string) 사용. user 객체 ref 회귀 금지.',
     );
   }
   return null;
