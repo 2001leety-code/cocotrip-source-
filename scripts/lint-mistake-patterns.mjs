@@ -970,6 +970,7 @@ const RULES = [
   ['P62_paypalWebhookDirectFlowMatch', P62_paypalWebhookDirectFlowMatch],
   ['P63_customerEmailSilentFail', P63_customerEmailSilentFail],
   ['P64_paypalWebhookVerifyFailedRetryStorm', P64_paypalWebhookVerifyFailedRetryStorm],
+  ['P65_adminAuthColdStartInit', P65_adminAuthColdStartInit],
 ];
 
 /**
@@ -1021,6 +1022,56 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P65_adminAuthColdStartInit — 메모리 P65 (PR #441, Audit Y-H12).
+ * api/_shared/admin-auth.js 가 dynamic `await import('firebase-admin/...')`
+ * + GOOGLE_SERVICE_ACCOUNT_KEY 만 시도하는 패턴으로 회귀하면 fail.
+ * Module-level static import + FIREBASE_* 우선 fallback + 캐시 패턴 유지.
+ */
+function P65_adminAuthColdStartInit({ changed }) {
+  const FILE = 'api/_shared/admin-auth.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1. Top-level static imports — no per-request `await import('firebase-admin/...')`.
+  if (/await\s+import\(\s*['"]firebase-admin\/(app|auth)['"]/.test(content)) {
+    violations.push(`${FILE}: dynamic await import('firebase-admin/...') in handler — use module-top static import (Y-H12 cold-start)`);
+  }
+  if (!/^import\s*\{[^}]*initializeApp[^}]*\}\s*from\s*['"]firebase-admin\/app['"]/m.test(content)) {
+    violations.push(`${FILE}: top-level static import of initializeApp from 'firebase-admin/app' missing`);
+  }
+  if (!/^import\s*\{[^}]*getAuth[^}]*\}\s*from\s*['"]firebase-admin\/auth['"]/m.test(content)) {
+    violations.push(`${FILE}: top-level static import of getAuth from 'firebase-admin/auth' missing`);
+  }
+
+  // 2. FIREBASE_* tuple must be tried (canonical pattern matching firebase-admin.js).
+  if (!/cert\(\{\s*projectId\s*,\s*clientEmail\s*,\s*privateKey\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: cert({projectId,clientEmail,privateKey}) call missing — FIREBASE_* triple must be tried first`);
+  }
+
+  // 3. Existing-app reuse via getApps() — no double-init.
+  if (!/getApps\(\)\.length/.test(content)) {
+    violations.push(`${FILE}: getApps().length check missing — double-init risk with firebase-admin.js`);
+  }
+
+  // 4. Module-level cache.
+  if (!/let\s+_adminAuth\s*=\s*null/.test(content)) {
+    violations.push(`${FILE}: module-level _adminAuth cache missing — per-request init overhead`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P65_adminAuthColdStartInit',
+      violations.join(' | '),
+      'PR #441 (Y-H12) — admin-auth bootstrap: static import + FIREBASE_* 우선 + getApps() 재사용 + module 캐시.',
     );
   }
   return null;
