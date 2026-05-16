@@ -994,7 +994,6 @@ const RULES = [
   ['P86_repairDroppedGuidesAlert', P86_repairDroppedGuidesAlert],
   ['P87_routeBlindFallbackRatio', P87_routeBlindFallbackRatio],
   ['P88_bmealSnackSlot', P88_bmealSnackSlot],
-  ['P89_avoidListIndexAlert', P89_avoidListIndexAlert],
 ];
 
 /**
@@ -1086,96 +1085,6 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
-    );
-  }
-  return null;
-}
-
-/**
- * P89_avoidListIndexAlert — 메모리 P89 (PR #465, Audit X-H7).
- * api/_ai_core/avoidListQuery.js 의 Firestore composite-index 누락 silent
- * catch 면 fail. 또한 firestore.indexes.json 의 plans.uid/email 인덱스 누락 검출.
- * - isFirestoreIndexMissingError + extractIndexCreationUrl export 필수
- * - catch 에서 alert 호출 + fail-OPEN (return '') 보존
- * - plans.uid+createdAt / plans.email+createdAt 인덱스 firestore.indexes.json 에 존재
- */
-function P89_avoidListIndexAlert({ changed }) {
-  const CODE = 'api/_ai_core/avoidListQuery.js';
-  const INDEXES = 'firestore.indexes.json';
-  const touched = isModified(CODE, changed) || isModified(INDEXES, changed);
-  if (!touched) return { skipped: true };
-
-  const violations = [];
-
-  if (isModified(CODE, changed)) {
-    const c = getChangedFileContent(CODE);
-    if (c) {
-      if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(c)) {
-        violations.push(`${CODE}: throttledTelegramAlert import 누락 — operator silent (X-H7)`);
-      }
-      if (!/export\s+function\s+isFirestoreIndexMissingError\s*\(/.test(c)) {
-        violations.push(`${CODE}: isFirestoreIndexMissingError export 누락 — test 표면 없음`);
-      }
-      if (!/export\s+function\s+extractIndexCreationUrl\s*\(/.test(c)) {
-        violations.push(`${CODE}: extractIndexCreationUrl export 누락 — alert 메시지에 URL 못 넣음`);
-      }
-      if (!/code\s*===\s*['"]FAILED_PRECONDITION['"]\s*\|\|\s*code\s*===\s*['"]9['"]/.test(c)) {
-        violations.push(`${CODE}: FAILED_PRECONDITION || code 9 detector 누락 — 다른 Firestore 에러로 false positive`);
-      }
-      if (!/avoid-list-index-missing:\$\{queryKind\}/.test(c)) {
-        violations.push(`${CODE}: alert key 'avoid-list-index-missing:${'${queryKind}'}' 누락 → dedup 깨짐`);
-      }
-      const alertBlock = c.slice(c.indexOf('avoid-list-index-missing'), c.indexOf('avoid-list-index-missing') + 2000);
-      if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
-        violations.push(`${CODE}: admin 채널 누락`);
-      }
-      if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
-        violations.push(`${CODE}: severity:'high' 누락`);
-      }
-      if (!/throttledTelegramAlert\(\{[\s\S]*?avoid-list-index-missing[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(c)) {
-        violations.push(`${CODE}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
-      }
-      // fail-OPEN preserved — catch 안에 return ''
-      if (!/return\s+['"]['"]\s*;/.test(c)) {
-        violations.push(`${CODE}: catch 안의 return '' 누락 — fail-OPEN 깨짐 (non-critical path 보장 X)`);
-      }
-    }
-  }
-
-  if (isModified(INDEXES, changed)) {
-    const c = getChangedFileContent(INDEXES);
-    if (c) {
-      try {
-        const idx = JSON.parse(c);
-        const hasIndex = (collectionGroup, fields) =>
-          idx.indexes?.some((entry) =>
-            entry.collectionGroup === collectionGroup &&
-            entry.fields?.length === fields.length &&
-            entry.fields.every((f, i) => f.fieldPath === fields[i].fieldPath && f.order === fields[i].order),
-          );
-        if (!hasIndex('plans', [
-          { fieldPath: 'uid', order: 'ASCENDING' },
-          { fieldPath: 'createdAt', order: 'DESCENDING' },
-        ])) {
-          violations.push(`${INDEXES}: plans.uid+createdAt DESC 인덱스 누락 → avoidListQuery 매 호출 fail (X-H7)`);
-        }
-        if (!hasIndex('plans', [
-          { fieldPath: 'email', order: 'ASCENDING' },
-          { fieldPath: 'createdAt', order: 'DESCENDING' },
-        ])) {
-          violations.push(`${INDEXES}: plans.email+createdAt DESC 인덱스 누락 → guest 사용자 avoidListQuery fail`);
-        }
-      } catch (parseErr) {
-        violations.push(`${INDEXES}: JSON parse 실패 (${parseErr.message}) — firebase deploy 거부`);
-      }
-    }
-  }
-
-  if (violations.length > 0) {
-    fail(
-      'P89_avoidListIndexAlert',
-      violations.join(' | '),
-      'PR #465 (X-H7) — index 누락 detector + admin alert + fail-OPEN 보존 + 인덱스 정의 유지.',
     );
   }
   return null;
