@@ -11,6 +11,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
+import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -135,19 +136,23 @@ export default async function handler(req, res) {
     if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
 
     // AI 플래너 = 디지털 상품 — 모든 쿠폰/프로모 reject (운영자 정책 2026-05-05).
-    const normalizedProduct = productType.replace(/-/g, '_');
-    if (normalizedProduct.startsWith('ai_planner') && (promoCode || couponDocId)) {
-      console.warn('[createPaypalOrder] AI Planner coupon rejected:', { productType, promoCode, couponDocId });
-      res.writeHead(400, JSON_CORS);
-      return res.end(JSON.stringify(_err('AI Planner does not accept coupons', 'AI_PLANNER_NO_COUPON')));
+    // PR #433 (Y-H10): policy 를 api/_shared/ai-planner-policy.js 로 추출 →
+    // capturePaypalOrder.js 도 같은 helper 호출 (이전엔 createPaypalOrder 만
+    // 검증해서 capture-time 우회 가능했음).
+    const aiPlannerGate = checkAiPlannerCouponPolicy({ productType, promoCode, couponDocId });
+    if (!aiPlannerGate.ok) {
+      console.warn('[createPaypalOrder] AI Planner coupon rejected:', aiPlannerGate.debug);
+      res.writeHead(aiPlannerGate.status, JSON_CORS);
+      return res.end(JSON.stringify(_err(aiPlannerGate.error, aiPlannerGate.code)));
     }
+    const isAiPlanner = isAiPlannerProduct(productType);
 
     // PR-R (2026-05-08): 예약 마감 정책 검증.
     // - airport / charter / day_tour / kpop_shuttle / tour: 출발 24시간 전 마감
     // - multi_day (durationDays >= 2): 출발 48시간 전 마감
     // - AI 플래너 = 디지털 상품 — 마감 검증 X (즉시 생성, 출발 일정 무관)
     // - charter_custom_estimate: dateStart + pickupTime 있으면 검증 (없으면 skip — 협의 폼)
-    if (!normalizedProduct.startsWith('ai_planner') && dateStart) {
+    if (!isAiPlanner && dateStart) {
       try {
         if (isPastCutoff(dateStart, pickupTime, productType, durationDays)) {
           const cutoffHours = getCutoffHours(productType, durationDays);

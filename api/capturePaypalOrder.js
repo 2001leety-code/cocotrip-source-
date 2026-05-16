@@ -4,6 +4,7 @@
  */
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
@@ -67,6 +68,19 @@ export default async function handler(req, res) {
     // default. Optional — bookings without tourTime fall back to legacy.
     const { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
+
+    // PR #433 (Audit Y-H10 — 2026-05-16): AI Planner = 디지털 상품 → 쿠폰/프로모
+    // reject. 이전엔 createPaypalOrder.js 만 검증해서 product='ai_planner_full'
+    // + couponDocId 를 capture-time 에 보내면 booking 이 AI planner 로 기록되되
+    // 쿠폰을 함께 소비하는 우회가 가능했다 (특히 createPaypalOrder 를 우회하는
+    // PayPal Smart Buttons client-side order 흐름에서). createPaypalOrder 와
+    // 동일 helper 호출로 양 endpoint 정책 통일.
+    const aiPlannerGate = checkAiPlannerCouponPolicy({ product, promoCode, couponDocId });
+    if (!aiPlannerGate.ok) {
+      console.warn('[capturePaypalOrder] AI Planner coupon rejected at capture:', { orderID, ...aiPlannerGate.debug });
+      res.writeHead(aiPlannerGate.status, JSON_CORS);
+      return res.end(JSON.stringify(_err(aiPlannerGate.error, aiPlannerGate.code)));
+    }
 
     console.log('[capturePaypalOrder] LIVE mode | email:', userEmail);
 
