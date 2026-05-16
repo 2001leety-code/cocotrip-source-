@@ -965,6 +965,7 @@ const RULES = [
   ['P56_manualPaymentRateLimit', P56_manualPaymentRateLimit],
   ['P57_aiPlannerCouponGate', P57_aiPlannerCouponGate],
   ['P58_globalPromoRaceCapCheck', P58_globalPromoRaceCapCheck],
+  ['P60_bookingProcessorFireAndForget', P60_bookingProcessorFireAndForget],
 ];
 
 /**
@@ -1016,6 +1017,80 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P60_bookingProcessorFireAndForget — 메모리 P60 (PR #436, Audit Y-H8).
+ * capturePaypalOrder + booking-confirm 이 booking-processor 를 raw fetch().catch()
+ * 패턴으로 호출하면 회귀. HTTP 500/504 응답에 .catch 가 발화 안 함 → 모든
+ * downstream side-effect (sheets / email / voucher / Telegram) silent loss.
+ * 반드시 api/_shared/booking-processor-trigger.js 의 triggerBookingProcessor 사용.
+ */
+function P60_bookingProcessorFireAndForget({ changed }) {
+  const TARGETS = ['api/capturePaypalOrder.js', 'api/_shared/booking-confirm.js'];
+  const HELPER = 'api/_shared/booking-processor-trigger.js';
+  const CRON = 'api/_crons/processor-retry-sweep.js';
+  const touchedAny = TARGETS.some((t) => isModified(t, changed))
+    || isModified(HELPER, changed)
+    || isModified(CRON, changed);
+  if (!touchedAny) return { skipped: true };
+
+  const violations = [];
+
+  for (const FILE of TARGETS) {
+    if (!isModified(FILE, changed)) continue;
+    const content = getChangedFileContent(FILE);
+    if (!content) continue;
+    // Banned: raw fetch on /api/booking-processor followed by .catch — the
+    // silent-failure pattern Y-H8 closed.
+    const silentFetch = /fetch\(\s*`?\$\{[^}]*\}\/api\/booking-processor`?[\s\S]*?\}\s*\)\s*\.\s*catch\(/;
+    if (silentFetch.test(content)) {
+      violations.push(`${FILE}: raw fetch('/api/booking-processor').catch() detected — use triggerBookingProcessor helper (Y-H8 silent fail)`);
+    }
+    // Must import + call the helper.
+    if (!/from\s*['"](?:\.\/_shared|\.)\/booking-processor-trigger\.js['"]/.test(content)) {
+      violations.push(`${FILE}: missing booking-processor-trigger import`);
+    }
+    if (!/triggerBookingProcessor\s*\(/.test(content)) {
+      violations.push(`${FILE}: triggerBookingProcessor() call missing`);
+    }
+  }
+
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/AbortController/.test(content)) {
+        violations.push(`${HELPER}: AbortController missing — without it 504/hung server stalls function for full maxDuration`);
+      }
+      if (!/r\.ok|response\.ok|!r\.ok|!response\.ok/.test(content)) {
+        violations.push(`${HELPER}: response.ok check missing — non-2xx must be treated as failure (Y-H8 root cause)`);
+      }
+      if (!/pending_processor_retries/.test(content)) {
+        violations.push(`${HELPER}: retry-queue collection name 'pending_processor_retries' missing — required for cron sweep`);
+      }
+    }
+  }
+
+  if (isModified(CRON, changed)) {
+    const content = getChangedFileContent(CRON);
+    if (content) {
+      if (!/MAX_ATTEMPTS/.test(content)) {
+        violations.push(`${CRON}: MAX_ATTEMPTS missing — retries must escalate to manual-intervention eventually`);
+      }
+      if (!/manual-intervention/.test(content)) {
+        violations.push(`${CRON}: escalation status 'manual-intervention' missing`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P60_bookingProcessorFireAndForget',
+      violations.join(' | '),
+      'PR #436 (Y-H8) — triggerBookingProcessor + retry queue + 5분 cron sweep 유지. raw fetch().catch() 회귀 금지.',
     );
   }
   return null;
