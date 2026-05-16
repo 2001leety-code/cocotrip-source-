@@ -23,14 +23,27 @@ const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
 // ── Rate limit (Gemini abuse 방어) ──────────────────────────────────
-// 정책: 로그인 필수 + sessionId 5분당 5건 + IP 일 50건 (defense-in-depth)
+// 정책: 로그인 필수 + userId 5분당 5건 + userId 일 50건 (defense-in-depth)
+//
+// PR #448 (Audit W-H14 — 2026-05-16): daily cap 키를 `ip:${ip}:${dayKey}` →
+// `usr:${userId}:${dayKey}` 로 교체.
+//
+// Pre-fix: Vercel 함수가 NAT 뒤에서 동작 → 카페/회사/모바일 캐리어 공유 IP 의
+// 정상 user 들이 같은 IP 카운터 공유 → 한 사용자가 50건 소진하면 같은 NAT 의
+// 다른 사용자들 모두 차단. Vercel 자체 IP 가 outbound 에서 reuse 되는 케이스
+// 도 동일 — 모든 chat 호출이 한 IP 로 묶임.
+//
+// Post-fix: `userId` 가 이미 mandatory (handler line ~312 의 Login required 게이트)
+// 이므로 user-level cap 이 진짜 abuse 정의 단위. NAT 영향 없음. 사용자별 정확
+// 50건/day 적용.
+//
 // 미들웨어가 아니라 인라인으로 둔 이유: counterDb 없으면 silent skip해야 하는데
 // 미들웨어로 감쌌다가 카운터 다운되면 채팅 자체가 막힘. graceful degrade가 우선.
 const RATE_USER_WINDOW_MS = 5 * 60 * 1000;
 const RATE_USER_MAX = 5;
-const RATE_IP_DAILY_MAX = 50;
+const RATE_USER_DAILY_MAX = 50;
 
-async function checkRateLimit(userId, ip) {
+async function checkRateLimit(userId, _ip) {
   if (!counterDb) return { allowed: true }; // graceful skip if Firestore down
   const now = Date.now();
 
@@ -45,21 +58,21 @@ async function checkRateLimit(userId, ip) {
     return { allowed: false, code: 'RATE_LIMIT_USER', retryAfter: retry };
   }
 
-  // 2. IP daily cap (KST 기준)
+  // 2. user daily cap (KST 기준). PR #448 — 이전엔 IP 기준이라 NAT 공유 시 무력.
   const kst = new Date(now + 9 * 60 * 60 * 1000);
   const dayKey = kst.toISOString().slice(0, 10);
-  const ipRef = counterDb.collection('chat_rate_limits').doc(`ip:${ip}:${dayKey}`);
-  const ipSnap = await ipRef.get();
-  const ipCount = ipSnap.exists ? (ipSnap.data().c || 0) : 0;
-  if (ipCount >= RATE_IP_DAILY_MAX) {
-    return { allowed: false, code: 'RATE_LIMIT_IP', retryAfter: 3600 };
+  const dailyRef = counterDb.collection('chat_rate_limits').doc(`usr:${userId}:${dayKey}`);
+  const dailySnap = await dailyRef.get();
+  const dailyCount = dailySnap.exists ? (dailySnap.data().c || 0) : 0;
+  if (dailyCount >= RATE_USER_DAILY_MAX) {
+    return { allowed: false, code: 'RATE_LIMIT_USER_DAILY', retryAfter: 3600 };
   }
 
   // 기록 (await 안 함 — 응답 지연 최소화. fail은 무시 가능, 다음 호출에서 다시 측정됨)
   fresh.push(now);
   Promise.all([
     userRef.set({ t: fresh, updatedAt: now }, { merge: true }),
-    ipRef.set({ c: FieldValue.increment(1), lastUpdated: now }, { merge: true }),
+    dailyRef.set({ c: FieldValue.increment(1), lastUpdated: now }, { merge: true }),
   ]).catch((e) => console.warn('[chat] rate-limit write failed:', e.message));
 
   return { allowed: true };
