@@ -971,6 +971,7 @@ const RULES = [
   ['P63_customerEmailSilentFail', P63_customerEmailSilentFail],
   ['P64_paypalWebhookVerifyFailedRetryStorm', P64_paypalWebhookVerifyFailedRetryStorm],
   ['P65_adminAuthColdStartInit', P65_adminAuthColdStartInit],
+  ['P66_pushVapidAuthFailedCleanup', P66_pushVapidAuthFailedCleanup],
 ];
 
 /**
@@ -1022,6 +1023,57 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P66_pushVapidAuthFailedCleanup — 메모리 P66 (PR #442, Audit Z-H15).
+ * api/_send-push.js 가 401/403 (VAPID 회전 / 권한 취소) 응답을 expired (410/404)
+ * 와 동등 처리하면 fail. mass-cleanup 위험. 분리된 authFailed 플래그 + failedAttempts
+ * 카운터 (MAX 5) + throttled operator alert (telegram-throttle helper) 패턴 유지.
+ */
+function P66_pushVapidAuthFailedCleanup({ changed }) {
+  const FILE = 'api/_send-push.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1. 401/403 must be separated from 410/404 (no instant mass-delete).
+  if (!/AUTH_FAILED_STATUS\s*=\s*new\s+Set\(\[\s*401\s*,\s*403\s*\]\)/.test(content)) {
+    violations.push(`${FILE}: AUTH_FAILED_STATUS set with 401+403 missing (Z-H15 needs separate auth-failed bucket)`);
+  }
+  if (!/PERMANENT_GONE_STATUS\s*=\s*new\s+Set\(\[\s*404\s*,\s*410\s*\]\)/.test(content)) {
+    violations.push(`${FILE}: PERMANENT_GONE_STATUS set with 404+410 missing`);
+  }
+
+  // 2. failedAttempts counter required (not immediate delete on auth-failed).
+  if (!/failedAttempts/.test(content)) {
+    violations.push(`${FILE}: failedAttempts counter missing — would mass-delete on VAPID rotate (Z-H15)`);
+  }
+  if (!/MAX_AUTH_FAILED_ATTEMPTS\s*=\s*\d+/.test(content)) {
+    violations.push(`${FILE}: MAX_AUTH_FAILED_ATTEMPTS threshold constant missing`);
+  }
+  if (!/if\s*\(\s*nextAttempts\s*>=\s*MAX_AUTH_FAILED_ATTEMPTS\s*\)/.test(content)) {
+    violations.push(`${FILE}: must only delete subscription when nextAttempts >= MAX_AUTH_FAILED_ATTEMPTS`);
+  }
+
+  // 3. Throttled operator alert via existing helper.
+  if (!/from\s*['"]\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: must import throttledTelegramAlert from _shared/telegram-throttle.js (dedup operator alert)`);
+  }
+  if (!/throttledTelegramAlert\s*\(\s*\{[\s\S]*?key:\s*['"]push-vapid-auth-failed['"]/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert with key='push-vapid-auth-failed' missing — operator can't tell VAPID misconfig`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P66_pushVapidAuthFailedCleanup',
+      violations.join(' | '),
+      'PR #442 (Z-H15) — 401/403 vs 410/404 분리, failedAttempts 5회 누적 후 삭제, throttled operator alert.',
     );
   }
   return null;
