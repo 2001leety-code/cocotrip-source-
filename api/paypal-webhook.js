@@ -199,6 +199,59 @@ async function alertAdmin(text) {
   try { await notify('admin', text); } catch {}
 }
 
+/**
+ * PR #440 (Audit Y-H9 — 2026-05-16): operator alert for verify_failed,
+ * deduplicated so a misconfigured webhook secret doesn't spam Telegram.
+ *
+ * Uses Firestore as a 1-hour-per-reason throttle. Doc key is
+ * sha256(reason) so distinct verify-failure reasons each get one
+ * alert per hour. If Firestore is unavailable, fall back to always
+ * alerting (operator visibility > spam concerns during outage).
+ */
+async function alertVerifyFailedDedup({ db, eventId, reason, eventType }) {
+  const reasonKey = String(reason || 'unknown').slice(0, 200);
+  const message = [
+    '🚨 <b>PayPal Webhook signature 검증 실패</b>',
+    '',
+    `<b>이벤트 ID:</b> <code>${(eventId || 'unknown').slice(0, 80)}</code>`,
+    `<b>이벤트 타입:</b> ${eventType || 'unknown'}`,
+    `<b>실패 사유:</b> ${reasonKey}`,
+    '',
+    '→ 본 응답은 PayPal 에 200 ack (재시도 storm 차단). 진짜 misconfig 라면',
+    '  PAYPAL_WEBHOOK_ID 또는 PAYPAL_*_CLIENT_SECRET 점검 필요.',
+    '→ 1시간당 같은 사유 1회만 알림 (dedup).',
+  ].join('\n');
+
+  if (!db) {
+    notify('admin', message).catch(() => {});
+    return;
+  }
+
+  try {
+    const { createHash } = await import('node:crypto');
+    const reasonHash = createHash('sha256').update(reasonKey).digest('hex').slice(0, 32);
+    const throttleRef = db.collection('paypal_verify_alert_throttle').doc(reasonHash);
+    const now = Date.now();
+    const WINDOW_MS = 60 * 60 * 1000;
+    const shouldSend = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(throttleRef);
+      const lastSentMs = snap.exists ? Number(snap.data()?.lastSentMs || 0) : 0;
+      if (lastSentMs && (now - lastSentMs) < WINDOW_MS) return false;
+      tx.set(throttleRef, { lastSentMs: now, lastReason: reasonKey, lastEventId: eventId || null }, { merge: true });
+      return true;
+    });
+    if (shouldSend) {
+      notify('admin', message).catch(() => {});
+    } else {
+      console.log('[paypal-webhook] verify_failed alert deduped (within 1h window):', reasonHash);
+    }
+  } catch (e) {
+    // Throttle infra failure — alert anyway so the real issue isn't masked.
+    console.warn('[paypal-webhook] verify_failed dedup throttle failed (alerting anyway):', e.message);
+    notify('admin', message).catch(() => {});
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.writeHead(405, JSON_HEADERS);
@@ -257,9 +310,31 @@ export default async function handler(req, res) {
         status: 'verify_failed',
         detail: { reason: verifyResult.reason },
       });
-      // 401 응답 → PayPal 이 재시도 (정상 — 위변조 차단)
-      res.writeHead(401, JSON_HEADERS);
-      return res.end(JSON.stringify({ ok: false, error: 'signature verification failed' }));
+
+      // PR #440 (Audit Y-H9 — 2026-05-16): respond 200 (NOT 401) on
+      // verify_failed.
+      //
+      // Pre-fix: 401 → PayPal interprets as "deliverable but unprocessed"
+      // and retries up to 25 times over 3 days (per PayPal IPN docs).
+      // Each retry calls verifyWebhookSignature → consumes PayPal API
+      // quota. A single misconfigured webhook secret could storm 25×
+      // /transmission for every PayPal event.
+      //
+      // Signature failure is DETERMINISTIC — retrying won't fix it.
+      // The right behavior is to ack so PayPal stops, log the failure
+      // for forensics (already done above), and surface to the operator
+      // via Telegram with dedup (so a misconfig storm doesn't spam the
+      // channel either). Security is unaffected: we still don't process
+      // the unverified event below.
+      await alertVerifyFailedDedup({
+        db: adminDb,
+        eventId,
+        reason: verifyResult.reason,
+        eventType: verifyResult.webhookEvent?.event_type,
+      });
+
+      res.writeHead(200, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'signature verification failed', acked: true }));
     }
 
     const event = verifyResult.webhookEvent;
