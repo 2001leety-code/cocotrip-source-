@@ -972,6 +972,7 @@ const RULES = [
   ['P64_paypalWebhookVerifyFailedRetryStorm', P64_paypalWebhookVerifyFailedRetryStorm],
   ['P65_adminAuthColdStartInit', P65_adminAuthColdStartInit],
   ['P66_pushVapidAuthFailedCleanup', P66_pushVapidAuthFailedCleanup],
+  ['P67_telegramThrottleFailClosed', P67_telegramThrottleFailClosed],
 ];
 
 /**
@@ -1023,6 +1024,49 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P67_telegramThrottleFailClosed — 메모리 P67 (PR #443, Audit Z-H12).
+ * api/_shared/telegram-throttle.js 의 fail-open 경로 (!adminDb / transaction
+ * throw / !key) 가 in-memory throttle 없이 바로 notify() 호출하면 fail.
+ * Firestore 다운 + 고빈도 에러 조합에서 운영자 채팅 flood.
+ */
+function P67_telegramThrottleFailClosed({ changed }) {
+  const FILE = 'api/_shared/telegram-throttle.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/_inMemoryThrottle\s*=\s*new\s+Map\(\)/.test(content)) {
+    violations.push(`${FILE}: in-memory Map fallback missing — Firestore outage + high-rate errors will flood operator (Z-H12)`);
+  }
+  if (!/function\s+_checkInMemoryThrottle/.test(content)) {
+    violations.push(`${FILE}: _checkInMemoryThrottle helper missing`);
+  }
+  // The three fail-open call sites must all consult the in-memory throttle.
+  const checkCalls = (content.match(/_checkInMemoryThrottle\s*\(/g) || []).length;
+  if (checkCalls < 3) {
+    violations.push(`${FILE}: _checkInMemoryThrottle must be consulted at all 3 fail-open sites (!key, !adminDb, catch); got ${checkCalls}`);
+  }
+  if (!/__resetInMemoryThrottleForTests/.test(content)) {
+    violations.push(`${FILE}: __resetInMemoryThrottleForTests test helper missing — vitest can't clear state between cases`);
+  }
+  // Bounded map (no memory leak)
+  if (!/_IN_MEMORY_MAX_KEYS/.test(content)) {
+    violations.push(`${FILE}: _IN_MEMORY_MAX_KEYS cap missing — unbounded Map can leak`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P67_telegramThrottleFailClosed',
+      violations.join(' | '),
+      'PR #443 (Z-H12) — fail-open 경로 (!key / !adminDb / catch) 모두 in-memory Map throttle 통과해야 함.',
     );
   }
   return null;
