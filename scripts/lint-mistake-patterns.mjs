@@ -988,6 +988,7 @@ const RULES = [
   ['P80_iosBlobPopupBlocker', P80_iosBlobPopupBlocker],
   ['P81_refundAllSettledInspect', P81_refundAllSettledInspect],
   ['P82_pdfCanvasPerBandCheck', P82_pdfCanvasPerBandCheck],
+  ['P83_routeEnrichmentSilentCatch', P83_routeEnrichmentSilentCatch],
 ];
 
 /**
@@ -1039,6 +1040,46 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P83_routeEnrichmentSilentCatch — 메모리 P83 (PR #459, Audit X-H5).
+ * routeEnrichment.js 의 RouteAgent throw 가 silent catch 만 되면 fail.
+ * console.error 외에 throttledTelegramAlert (errType+regionsKey 키 dedup) 필수.
+ */
+function P83_routeEnrichmentSilentCatch({ changed }) {
+  const FILE = 'api/_ai_core/routeEnrichment.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s*['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: telegram-throttle import 누락 — X-H5 silent catch 회귀`);
+  }
+  const catchIdx = content.indexOf('catch (routeErr)');
+  if (catchIdx > -1) {
+    const block = content.slice(catchIdx, catchIdx + 2500);
+    if (!/throttledTelegramAlert\s*\(\s*\{/.test(block)) {
+      violations.push(`${FILE}: catch (routeErr) 가 throttledTelegramAlert 호출 안 함 — transit info 0건 silent`);
+    }
+    if (!/key:\s*`route-enrich-fail:\$\{errType\}:\$\{regionsKey\}`/.test(block)) {
+      violations.push(`${FILE}: dedup key 'route-enrich-fail:\${errType}:\${regionsKey}' 패턴 누락 — storm 차단 약화`);
+    }
+    if (!/channel:\s*['"]admin['"]/.test(block)) {
+      violations.push(`${FILE}: alert channel admin 누락 — booking 채널 다운 시 도달 불가`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P83_routeEnrichmentSilentCatch',
+      violations.join(' | '),
+      'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
     );
   }
   return null;

@@ -14,6 +14,7 @@
  * itinerary.quality_warnings 에 기록 + console.warn — 운영자 분석용.
  */
 import { RouteAgent } from './agents/RouteAgent.js';
+import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 /** Haversine distance in meters between two {lat, lng} points. */
 function distanceMeters(a, b) {
@@ -204,8 +205,32 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
     console.log(`[routeEnrich] summary — transit attached: ${stopsWithTransit}/${allStops.length}, geocoded: ${stopsGeocoded}/${allStops.length}`);
   } catch (routeErr) {
     // B-11 (2026-05-12): TDZ ReferenceError 같은 회귀가 silent swallow 안 되도록
-    // 명시적 에러 type + 한 줄 요약 로그. Sentry 도 import 했으면 await reportError
-    // 하지만 routeEnrichment 는 sentry import 안 함 — 운영자 Vercel 로그 review 의존.
+    // 명시적 에러 type + 한 줄 요약 로그.
     console.error('[planner] Route FAILED:', routeErr.name + ':', routeErr.message, '| stack:', routeErr.stack?.split('\n').slice(0, 3).join(' | '), '|', Date.now() - routeStart, 'ms');
+
+    // PR #459 (Audit X-H5 — 2026-05-16): silent catch + console.error 만으로는
+    // 운영자가 Vercel 로그 폴링 없이 알 수 없음. user 는 이미 plan 받았지만
+    // 모든 stop 에 transit_from_prev 없음 (이동 정보 0건) → "이동 어떻게 해요?"
+    // CS 문의. throttledTelegramAlert (5min Firestore dedup + in-memory fallback
+    // P67) 로 운영자 가시화. errType+regionsKey 키로 dedup → 한 city 전체 RouteAgent
+    // 실패 시 1 alert (storm 차단).
+    const errType = routeErr.name || 'Error';
+    const regionsKey = Array.isArray(itinerary?.regions) ? itinerary.regions.slice(0, 3).join('+') : 'unknown';
+    throttledTelegramAlert({
+      key: `route-enrich-fail:${errType}:${regionsKey}`,
+      channel: 'admin',
+      severity: 'high',
+      message: [
+        `⚠️ <b>RouteAgent enrichment 실패 — transit info 0건</b>`,
+        ``,
+        `<b>에러 타입:</b> ${errType}`,
+        `<b>regions:</b> ${regionsKey}`,
+        `<b>메시지:</b> ${String(routeErr.message || '').slice(0, 250).replace(/[<>&]/g, '_')}`,
+        `<b>소요시간:</b> ${Date.now() - routeStart}ms`,
+        ``,
+        `→ user plan 받았지만 stop 들에 transit 없음. NAVER_DEVELOPERS_* / Gemini quota / 좌표 누락 점검.`,
+      ].join('\n'),
+      context: { errType, regionsKey, message: String(routeErr.message || '').slice(0, 200) },
+    }).catch(() => {});
   }
 }
