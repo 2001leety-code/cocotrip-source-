@@ -963,6 +963,7 @@ const RULES = [
   ['P54_foodIndexCache', P54_foodIndexCache],
   ['P55_webhookExchangeRate', P55_webhookExchangeRate],
   ['P56_manualPaymentRateLimit', P56_manualPaymentRateLimit],
+  ['P57_aiPlannerCouponGate', P57_aiPlannerCouponGate],
 ];
 
 /**
@@ -1014,6 +1015,62 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P57_aiPlannerCouponGate — 메모리 P57 (PR #433, Audit Y-H10).
+ * AI Planner = 디지털 상품 → 모든 쿠폰/프로모 reject. PayPal create + capture
+ * 두 endpoint 모두 api/_shared/ai-planner-policy.js 의 checkAiPlannerCouponPolicy
+ * 호출. 한 쪽만 검증하면 (구버전) capture-time 우회로 쿠폰 소비 + AI plan 발급
+ * 가능 (Y-H10 exploit).
+ */
+function P57_aiPlannerCouponGate({ changed }) {
+  const ENDPOINTS = ['api/createPaypalOrder.js', 'api/capturePaypalOrder.js'];
+  const HELPER = 'api/_shared/ai-planner-policy.js';
+  const touched = ENDPOINTS.filter((f) => isModified(f, changed));
+  const helperTouched = isModified(HELPER, changed);
+  if (touched.length === 0 && !helperTouched) return { skipped: true };
+
+  const violations = [];
+
+  for (const FILE of touched) {
+    const content = getChangedFileContent(FILE);
+    if (!content) continue;
+    if (!/from\s*['"]\.\/_shared\/ai-planner-policy\.js['"]/.test(content)) {
+      violations.push(`${FILE}: shared helper import (api/_shared/ai-planner-policy.js) missing — inline coupon gate drift risk`);
+    }
+    if (!/checkAiPlannerCouponPolicy\s*\(/.test(content)) {
+      violations.push(`${FILE}: checkAiPlannerCouponPolicy() call missing — coupon-on-AI-planner exploit (Y-H10)`);
+    }
+    // Don't re-inline the startsWith check next to a coupon/promo neighbour.
+    if (/startsWith\(\s*['"]ai_planner['"]\s*\)\s*&&\s*\(?\s*(promoCode|couponDocId)/.test(content)) {
+      violations.push(`${FILE}: inline startsWith('ai_planner') + (promoCode|couponDocId) detected — use the shared helper instead`);
+    }
+  }
+
+  if (helperTouched) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/export\s+function\s+isAiPlannerProduct/.test(content)) {
+        violations.push(`${HELPER}: isAiPlannerProduct export missing`);
+      }
+      if (!/export\s+function\s+checkAiPlannerCouponPolicy/.test(content)) {
+        violations.push(`${HELPER}: checkAiPlannerCouponPolicy export missing`);
+      }
+      if (!/AI_PLANNER_NO_COUPON/.test(content)) {
+        violations.push(`${HELPER}: AI_PLANNER_NO_COUPON code constant missing — callers depend on it for client routing`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P57_aiPlannerCouponGate',
+      violations.join(' | '),
+      'PR #433 (Y-H10) — create + capture 양 endpoint 가 같은 helper 호출. 운영자 정책 바뀌면 helper 한 곳만 수정.',
     );
   }
   return null;
