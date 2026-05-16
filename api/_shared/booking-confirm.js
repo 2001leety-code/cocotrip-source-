@@ -19,6 +19,8 @@ import { notify } from './notify.js';
 import { buildManualPaymentEmail } from './manual-payment-emails.js';
 import { triggerBookingProcessor } from './booking-processor-trigger.js';
 import { sendCustomerEmailWithAlert } from './customer-email-trigger.js';
+import { triggerAiPlanner } from './ai-planner-trigger.js';
+import { throttledTelegramAlert } from './telegram-throttle.js';
 
 async function sendCustomerConfirmEmail(db, booking) {
   if (!booking?.customerEmail) return { ok: true, skipped: 'no-email' };
@@ -53,23 +55,54 @@ function triggerDownstreamEffects({ db, pending, bookingRef, bookingId }) {
           uid: pending.userId || null,
         };
         console.log('[booking-confirm] triggering AI planner for', bookingRef);
-        fetch(`${siteUrl}/api/ai-planner-full`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(aiPayload),
-        }).catch((e) => console.warn('[booking-confirm] ai-planner-full failed:', e.message));
+        // PR #453 (Audit Z-H7 — 2026-05-16): replaced silent-failure fetch().catch()
+        // with triggerAiPlanner helper — non-2xx + timeout now record a retry doc
+        // (pending_ai_planner_retries) + operator alert instead of being lost.
+        // 5-min cron 'ai-planner-retry-sweep' auto-retries up to 3 times.
+        void triggerAiPlanner({
+          db,
+          siteUrl,
+          bookingRef,
+          payload: aiPayload,
+          source: 'booking-confirm',
+          notify,
+        });
       } else {
+        // PR #453 (Z-H7): previously console.warn only — operator never saw it.
+        // User paid for AI planner but the input data is missing → can't auto
+        // recover. Critical alert so operator can contact user.
         console.warn('[booking-confirm] AI planner requested but itineraryData missing — manual trigger required:', bookingRef);
+        throttledTelegramAlert({
+          key: 'ai-planner-itinerary-missing',
+          channel: 'booking',
+          severity: 'critical',
+          message: [
+            `🚨 <b>AI Planner 결제 완료, itineraryData 누락 — 수동 개입</b>`,
+            ``,
+            `<b>예약번호:</b> <code>${bookingRef}</code>`,
+            `<b>이메일:</b> ${pending.customerEmail || '(none)'}`,
+            `<b>productType:</b> ${pending.productType}`,
+            ``,
+            `→ user 가 결제했지만 wizard input 없음 → AI 플랜 생성 불가`,
+            `→ user 에게 wizard 재진입 안내 + 수동 환불 검토`,
+          ].join('\n'),
+          context: { bookingRef, customerEmail: pending.customerEmail, productType: pending.productType },
+        }).catch(() => {});
       }
     } else {
       // PR #436 (Audit Y-H8 — 2026-05-16): replaced silent-failure fetch() with
       // triggerBookingProcessor helper — non-2xx + timeout now record a retry
       // doc + operator alert instead of being lost.
+      // PR #455 (P55): KRW_USD_RATE > VITE_USD_KRW_RATE > 1430 default
+      // (was stale 1380 hardcode).
+      const usdToKrwFallback = Number(process.env.KRW_USD_RATE)
+        || Number(process.env.VITE_USD_KRW_RATE)
+        || 1430;
       const processorPayload = {
         orderID: bookingId,
         payerEmail: pending.customerEmail,
         payerName: (pending.customerEmail || '').split('@')[0],
-        amount: pending.priceUSD || (Number(pending.priceKRW) / 1380).toFixed(2),
+        amount: pending.priceUSD || (Number(pending.priceKRW) / usdToKrwFallback).toFixed(2),
         product: pending.productType,
         tourDate: pending.dateStart || '',
         pickupLocation: pending.pickupLocation || '',
@@ -89,7 +122,25 @@ function triggerDownstreamEffects({ db, pending, bookingRef, bookingId }) {
       });
     }
   } catch (procErr) {
-    console.warn('[booking-confirm] downstream effects failed:', procErr.message);
+    // PR #453 (Z-H7): previously console.warn only — silent if both branches
+    // threw synchronously. Alert operator with the error message.
+    console.error('[booking-confirm] downstream effects failed:', procErr.message);
+    throttledTelegramAlert({
+      key: 'booking-confirm-downstream-throw',
+      channel: 'admin',
+      severity: 'critical',
+      message: [
+        `🚨 <b>booking-confirm downstream 효과 함수 throw</b>`,
+        ``,
+        `<b>예약번호:</b> <code>${bookingRef || '-'}</code>`,
+        `<b>BookingId:</b> <code>${bookingId || '-'}</code>`,
+        `<b>에러:</b> ${(procErr.message || 'unknown').replace(/[<>&]/g, '_').slice(0, 250)}`,
+        ``,
+        `→ user 결제 완료. AI planner / booking-processor 트리거 실패 가능.`,
+        `→ admin-replay-booking-notifications 로 복구 검토.`,
+      ].join('\n'),
+      context: { bookingRef, bookingId, error: procErr.message },
+    }).catch(() => {});
   }
 }
 

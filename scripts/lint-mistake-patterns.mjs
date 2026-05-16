@@ -982,6 +982,7 @@ const RULES = [
   ['P74_planDetailListenerStableDep', P74_planDetailListenerStableDep],
   ['P75_notifyTelegram4096Truncate', P75_notifyTelegram4096Truncate],
   ['P76_bookingAmountNanGuard', P76_bookingAmountNanGuard],
+  ['P77_triggerDownstreamSilentPaths', P77_triggerDownstreamSilentPaths],
 ];
 
 /**
@@ -1033,6 +1034,90 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P77_triggerDownstreamSilentPaths — 메모리 P77 (PR #453, Audit Z-H7).
+ * booking-confirm.js 의 triggerDownstreamEffects 3가지 silent path 회귀 시 fail.
+ *   - AI Planner fetch().catch() raw 패턴
+ *   - itineraryData 누락 시 alert 없음
+ *   - 외부 try/catch console.warn only
+ *
+ * Helper / cron / Firestore rules 도 같은 lint 가 cover.
+ */
+function P77_triggerDownstreamSilentPaths({ changed }) {
+  const CONFIRM = 'api/_shared/booking-confirm.js';
+  const HELPER = 'api/_shared/ai-planner-trigger.js';
+  const CRON = 'api/_crons/ai-planner-retry-sweep.js';
+  const touched = isModified(CONFIRM, changed)
+    || isModified(HELPER, changed)
+    || isModified(CRON, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(CONFIRM, changed)) {
+    const content = getChangedFileContent(CONFIRM);
+    if (content) {
+      if (!/from\s*['"]\.\/ai-planner-trigger\.js['"]/.test(content)) {
+        violations.push(`${CONFIRM}: ai-planner-trigger helper import 누락 — Z-H7 silent loss 회귀`);
+      }
+      if (!/triggerAiPlanner\s*\(/.test(content)) {
+        violations.push(`${CONFIRM}: triggerAiPlanner() 호출 누락`);
+      }
+      // Regression guard: raw fetch().catch() on /api/ai-planner-full
+      const silentAiFetch = /fetch\(\s*`?\$\{[^}]*\}\/api\/ai-planner-full`?[\s\S]*?\}\s*\)\s*\.\s*catch\(/;
+      if (silentAiFetch.test(content)) {
+        violations.push(`${CONFIRM}: raw fetch('/api/ai-planner-full').catch() — use triggerAiPlanner helper`);
+      }
+      if (!/key:\s*['"]ai-planner-itinerary-missing['"]/.test(content)) {
+        violations.push(`${CONFIRM}: 'ai-planner-itinerary-missing' alert 누락 — itineraryData missing path silent`);
+      }
+      if (!/key:\s*['"]booking-confirm-downstream-throw['"]/.test(content)) {
+        violations.push(`${CONFIRM}: 'booking-confirm-downstream-throw' alert 누락 — outer try/catch silent`);
+      }
+      // Drive-by P55 — no bare /1380 remaining in this file
+      if (/\/\s*1380(?![0-9])/.test(content)) {
+        violations.push(`${CONFIRM}: stale 1380 KRW/USD literal — use Number(env.KRW_USD_RATE) || Number(env.VITE_USD_KRW_RATE) || 1430 (P55)`);
+      }
+    }
+  }
+
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/AbortController/.test(content)) {
+        violations.push(`${HELPER}: AbortController missing — long ai-planner-full call needs timeout`);
+      }
+      if (!/r\.ok|response\.ok|!r\.ok|!response\.ok/.test(content)) {
+        violations.push(`${HELPER}: response.ok check missing — non-2xx must be treated as failure`);
+      }
+      if (!/pending_ai_planner_retries/.test(content)) {
+        violations.push(`${HELPER}: 'pending_ai_planner_retries' retry queue collection 누락`);
+      }
+    }
+  }
+
+  if (isModified(CRON, changed)) {
+    const content = getChangedFileContent(CRON);
+    if (content) {
+      if (!/MAX_ATTEMPTS/.test(content)) {
+        violations.push(`${CRON}: MAX_ATTEMPTS missing — must escalate eventually`);
+      }
+      if (!/manual-intervention/.test(content)) {
+        violations.push(`${CRON}: escalation status 'manual-intervention' missing`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P77_triggerDownstreamSilentPaths',
+      violations.join(' | '),
+      'PR #453 (Z-H7) — booking-confirm 의 3 silent path 모두 helper / alert / cron 으로 가시화.',
     );
   }
   return null;
