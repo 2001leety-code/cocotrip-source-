@@ -50,6 +50,42 @@ const THROTTLE_WINDOW_MS = 5 * 60 * 1000; // 5분
 const ERROR_LOG_COLLECTION = 'error_log';
 const THROTTLE_COLLECTION = 'telegram_throttle';
 
+// PR #443 (Audit Z-H12 — 2026-05-16): in-memory fallback throttle.
+//
+// Pre-fix: if Firestore was down OR the transaction threw, we fell through
+// to a direct notify() with NO throttle (fail-OPEN). Combined with a
+// high-rate error (Gemini quota exceeded → 100+ alerts/min), this would
+// flood the operator Telegram channel — exactly the spam the dedup was
+// meant to prevent.
+//
+// In-memory Map keyed by dedup key holds the last-sent timestamp. Per
+// serverless instance only — different containers don't share, but each
+// container caps its own flood. Worst case: N concurrent containers each
+// send 1 alert per window = N alerts/window instead of unbounded.
+// Acceptable trade — Firestore outages are rare AND short, and the
+// operator gets enough signal without spam.
+const _inMemoryThrottle = new Map();
+const _IN_MEMORY_MAX_KEYS = 500; // bounded LRU-ish to avoid leaks
+function _checkInMemoryThrottle(key) {
+  const now = Date.now();
+  const last = _inMemoryThrottle.get(key);
+  if (last && (now - last) < THROTTLE_WINDOW_MS) {
+    return { shouldAlert: false };
+  }
+  // Trim if oversize (oldest first).
+  if (_inMemoryThrottle.size >= _IN_MEMORY_MAX_KEYS) {
+    const oldestKey = _inMemoryThrottle.keys().next().value;
+    if (oldestKey !== undefined) _inMemoryThrottle.delete(oldestKey);
+  }
+  _inMemoryThrottle.set(key, now);
+  return { shouldAlert: true };
+}
+
+/** Test-only helper — wipe the in-memory map between vitest cases. */
+export function __resetInMemoryThrottleForTests() {
+  _inMemoryThrottle.clear();
+}
+
 /**
  * @param {Object} args
  * @param {string} args.key - dedup key (예: 'booking-processor-fail').
@@ -67,7 +103,16 @@ export async function throttledTelegramAlert({
   context = {},
 }) {
   if (!key || typeof key !== 'string') {
-    logger.warn('[telegram-throttle] missing key — falling back to direct notify');
+    // No key → can't dedup. Apply an in-memory throttle keyed on a stable
+    // hash of the message so a runaway no-key caller can't flood the channel.
+    // PR #443 (Z-H12): was direct notify (fail-OPEN).
+    const noKeyBucket = `__no_key__:${(message || '').slice(0, 80)}`;
+    const noKeyAllow = _checkInMemoryThrottle(noKeyBucket);
+    if (!noKeyAllow.shouldAlert) {
+      logger.warn('[telegram-throttle] missing key — in-memory throttled (same message in 5min window)');
+      return { ok: true, alerted: false, throttled: true, fallback: true, error: 'no_key' };
+    }
+    logger.warn('[telegram-throttle] missing key — falling back to direct notify (in-memory throttled)');
     await notify(channel, message);
     return { ok: true, alerted: true, fallback: true, error: 'no_key' };
   }
@@ -75,9 +120,17 @@ export async function throttledTelegramAlert({
   const adminDb = initAdminDb('telegram-throttle');
   const now = Date.now();
 
-  // Firestore 미초기화 — legacy 동작 (즉시 발송, error_log 저장 X).
+  // Firestore 미초기화 — PR #443 (Z-H12): 이전엔 direct notify (fail-OPEN) 였다.
+  // 같은 키로 1초에 100건 firing 하면 100건 다 Telegram 으로 직진 → 운영자 채팅
+  // flood. 이제 in-memory Map throttle (per-instance, 5분 window). Firestore
+  // 복구되면 자동으로 본래 분산 throttle 경로로 돌아감.
   if (!adminDb) {
-    logger.warn('[telegram-throttle] adminDb unavailable — direct notify (no dedup)');
+    const memAllow = _checkInMemoryThrottle(key);
+    if (!memAllow.shouldAlert) {
+      logger.warn(`[telegram-throttle] adminDb unavailable + in-memory throttled (key=${key})`);
+      return { ok: true, alerted: false, throttled: true, fallback: true, error: 'no_admin_db' };
+    }
+    logger.warn(`[telegram-throttle] adminDb unavailable — direct notify (in-memory throttled, key=${key})`);
     const r = await notify(channel, message);
     return { ok: !!r.ok, alerted: true, fallback: true, error: 'no_admin_db' };
   }
@@ -122,8 +175,15 @@ export async function throttledTelegramAlert({
       return { shouldAlert: true, totalCount: 1, prevAccumulated: 0 };
     });
   } catch (e) {
-    // 트랜잭션 실패 — fail-open (발송) 으로 기울임. 로그 노이즈가 안 가는 것보다 가는 게 낫다.
-    logger.warn(`[telegram-throttle] transaction failed: ${e.message} — fail-open notify`);
+    // PR #443 (Z-H12): 트랜잭션 실패 시 같은 in-memory throttle. fail-open 이
+    // 100x/sec 로 firing 되면 운영자 채팅 flood. in-memory map 으로 같은 instance
+    // 안에선 5분당 1회 제한.
+    const txAllow = _checkInMemoryThrottle(key);
+    if (!txAllow.shouldAlert) {
+      logger.warn(`[telegram-throttle] transaction failed (${e.message}) + in-memory throttled (key=${key})`);
+      return { ok: true, alerted: false, throttled: true, fallback: true, error: e.message };
+    }
+    logger.warn(`[telegram-throttle] transaction failed: ${e.message} — fail-open notify (in-memory throttled, key=${key})`);
     const r = await notify(channel, message);
     return { ok: !!r.ok, alerted: true, fallback: true, error: e.message };
   }
