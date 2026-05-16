@@ -969,6 +969,7 @@ const RULES = [
   ['P61_adminCorsWildcard', P61_adminCorsWildcard],
   ['P62_paypalWebhookDirectFlowMatch', P62_paypalWebhookDirectFlowMatch],
   ['P63_customerEmailSilentFail', P63_customerEmailSilentFail],
+  ['P64_paypalWebhookVerifyFailedRetryStorm', P64_paypalWebhookVerifyFailedRetryStorm],
 ];
 
 /**
@@ -1020,6 +1021,60 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P64_paypalWebhookVerifyFailedRetryStorm — 메모리 P64 (PR #440, Audit Y-H9).
+ * paypal-webhook.js 가 verify_failed 분기에서 401 응답하면 fail. PayPal IPN
+ * 정책상 4xx 는 retry trigger → 25회 재시도 → PayPal API quota storm.
+ * 200 ack + status=verify_failed 로깅 + dedup operator alert 가 옳은 패턴.
+ *
+ * 또한 alertVerifyFailedDedup helper 의 sha256 + 1시간 throttle 형태 유지 가드.
+ */
+function P64_paypalWebhookVerifyFailedRetryStorm({ changed }) {
+  const FILE = 'api/paypal-webhook.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1. verify_failed 분기에서 401 응답 금지.
+  const verifyIdx = content.indexOf("status: 'verify_failed'");
+  if (verifyIdx > -1) {
+    const block = content.slice(verifyIdx, verifyIdx + 2000);
+    if (/res\.writeHead\(\s*401\s*,/.test(block)) {
+      violations.push(`${FILE}: verify_failed branch responds 401 → PayPal 25x retry storm (Y-H9). Use res.writeHead(200, ...) + alertVerifyFailedDedup.`);
+    }
+    if (!/res\.writeHead\(\s*200\s*,/.test(block)) {
+      violations.push(`${FILE}: verify_failed branch missing 200 ack response`);
+    }
+    if (!/alertVerifyFailedDedup\s*\(/.test(block)) {
+      violations.push(`${FILE}: verify_failed branch must call alertVerifyFailedDedup (dedup operator alert)`);
+    }
+  }
+
+  // 2. Dedup helper shape.
+  if (/alertVerifyFailedDedup/.test(content)) {
+    if (!/createHash\(\s*['"]sha256['"]/.test(content)) {
+      violations.push(`${FILE}: alertVerifyFailedDedup must hash reason with sha256 (dedup doc key)`);
+    }
+    if (!/runTransaction\s*\(/.test(content)) {
+      violations.push(`${FILE}: alertVerifyFailedDedup must use runTransaction for race-safe throttle`);
+    }
+    if (!/60\s*\*\s*60\s*\*\s*1000|WINDOW_MS/.test(content)) {
+      violations.push(`${FILE}: alertVerifyFailedDedup throttle window must be 1 hour (60*60*1000)`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P64_paypalWebhookVerifyFailedRetryStorm',
+      violations.join(' | '),
+      'PR #440 (Y-H9) — verify_failed 는 deterministic → 200 ack 로 PayPal 재시도 storm 차단 + dedup alert.',
     );
   }
   return null;
