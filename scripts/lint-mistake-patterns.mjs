@@ -977,6 +977,7 @@ const RULES = [
   ['P69_firestoreFieldLengthCaps', P69_firestoreFieldLengthCaps],
   ['P70_appCatchAllRoute', P70_appCatchAllRoute],
   ['P71_gmailSmtpQuotaGuard', P71_gmailSmtpQuotaGuard],
+  ['P72_chatRateLimitNatImmune', P72_chatRateLimitNatImmune],
 ];
 
 /**
@@ -1028,6 +1029,50 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P72_chatRateLimitNatImmune — 메모리 P72 (PR #448, Audit W-H14).
+ * api/chat.js daily cap 키가 `ip:${ip}:${dayKey}` 패턴으로 회귀하면 fail.
+ * Vercel NAT 뒤 IP 공유로 같은 카페/회사 user 모두 차단되는 문제.
+ * `usr:${userId}:${dayKey}` 패턴 유지.
+ */
+function P72_chatRateLimitNatImmune({ changed }) {
+  const FILE = 'api/chat.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // IP-keyed daily cap 회귀 차단
+  if (/doc\(\s*`ip:\$\{ip\}:\$\{dayKey\}`\s*\)/.test(content)) {
+    violations.push(`${FILE}: 'ip:\${ip}:\${dayKey}' doc key 회귀 — Vercel NAT 공유 IP 로 정상 user 차단 (W-H14)`);
+  }
+  if (/RATE_IP_DAILY_MAX/.test(content)) {
+    violations.push(`${FILE}: RATE_IP_DAILY_MAX 회귀 — RATE_USER_DAILY_MAX 사용`);
+  }
+  // RATE_LIMIT_IP code 도 제거 (caller/UI 가 IP-keyed 로 오해 차단)
+  if (/RATE_LIMIT_IP\b/.test(content)) {
+    violations.push(`${FILE}: RATE_LIMIT_IP error code 회귀 — RATE_LIMIT_USER_DAILY 사용`);
+  }
+
+  // userId-keyed daily cap 강제
+  if (!/doc\(\s*`usr:\$\{userId\}:\$\{dayKey\}`\s*\)/.test(content)) {
+    violations.push(`${FILE}: 'usr:\${userId}:\${dayKey}' doc key 누락 — NAT-immune daily cap (W-H14)`);
+  }
+  if (!/RATE_USER_DAILY_MAX\s*=\s*\d+/.test(content)) {
+    violations.push(`${FILE}: RATE_USER_DAILY_MAX 상수 누락`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P72_chatRateLimitNatImmune',
+      violations.join(' | '),
+      'PR #448 (W-H14) — daily cap 은 userId 기준 (Vercel NAT-immune). IP 기준 키 회귀 금지.',
     );
   }
   return null;
