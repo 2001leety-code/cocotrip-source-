@@ -974,6 +974,7 @@ const RULES = [
   ['P66_pushVapidAuthFailedCleanup', P66_pushVapidAuthFailedCleanup],
   ['P67_telegramThrottleFailClosed', P67_telegramThrottleFailClosed],
   ['P68_bookingsWriteRetryAlert', P68_bookingsWriteRetryAlert],
+  ['P69_firestoreFieldLengthCaps', P69_firestoreFieldLengthCaps],
 ];
 
 /**
@@ -1025,6 +1026,51 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P69_firestoreFieldLengthCaps — 메모리 P69 (PR #445, Audit W-H19).
+ * firestore.rules 의 tours/{tourId} update + tours/{tourId}/bookings/{bookingId}
+ * create 룰에 currentBookings/amountUSD range cap + memo/note size cap 누락 시 fail.
+ */
+function P69_firestoreFieldLengthCaps({ changed }) {
+  const FILE = 'firestore.rules';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // tours.currentBookings range
+  if (!/currentBookings\s+is\s+int/.test(content)) {
+    violations.push(`${FILE}: tours.currentBookings type check (is int) missing — W-H19 DoS via type-mismatch`);
+  }
+  if (!/currentBookings\s*>=\s*0/.test(content)) {
+    violations.push(`${FILE}: tours.currentBookings >= 0 cap missing — counter underflow risk`);
+  }
+  if (!/currentBookings\s*<=\s*9999/.test(content)) {
+    violations.push(`${FILE}: tours.currentBookings <= 9999 cap missing — capacity DoS risk`);
+  }
+
+  // tours/bookings amountUSD cap + memo/note size
+  if (!/amountUSD\s*<=\s*100000/.test(content)) {
+    violations.push(`${FILE}: tours/bookings.amountUSD <= 100000 sanity cap missing — sales aggregate / Firestore quota DoS`);
+  }
+  if (!/memo\.size\(\)\s*<=\s*1000/.test(content)) {
+    violations.push(`${FILE}: tours/bookings.memo size cap (<=1000) missing — 1MB doc spam-write risk`);
+  }
+  if (!/note\.size\(\)\s*<=\s*1000/.test(content)) {
+    violations.push(`${FILE}: tours/bookings.note size cap (<=1000) missing — 1MB doc spam-write risk`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P69_firestoreFieldLengthCaps',
+      violations.join(' | '),
+      'PR #445 (W-H19) — tours.currentBookings int 0-9999 + amountUSD <=100000 + memo/note size <=1000 유지.',
     );
   }
   return null;

@@ -140,16 +140,30 @@ service cloud.firestore {
       allow read:   if true;
       // PR #420 (WC7): 비-어드민은 currentBookings 증감만 허용. 그 외 필드
       // (price, name, capacity 등) 는 catalog tampering 위험.
+      // PR #445 (W-H19): currentBookings 는 0-9999 정수 cap (음수/거대값 차단).
+      //   - 음수 → counter underflow + 다른 booking 들의 한도 의미 변질
+      //   - 거대 값 (예: 9999999999) → DoS — 다른 정상 user 의 capacity check
+      //     계산 시 거대 정수 연산 + 표시 UI 깨짐 + Firestore quota 폭주
       allow update: if isAdminEmail()
                  || (isSignedIn()
                      && request.resource.data.diff(resource.data).affectedKeys()
-                          .hasOnly(['currentBookings', 'updatedAt']));
+                          .hasOnly(['currentBookings', 'updatedAt'])
+                     && request.resource.data.currentBookings is int
+                     && request.resource.data.currentBookings >= 0
+                     && request.resource.data.currentBookings <= 9999);
       allow create, delete: if isAdminEmail();
 
       // 예약 레코드 — 본인 것만 생성/열람.
       // PR #420 (WC8): 이전엔 status='CONFIRMED' / amountUSD=0 가짜 가능 →
       // 결제 안 한 user 가 예약 레코드만 만들어 confirmation 발급 attack.
       // 이제 status='pending' 강제 + amountUSD > 0 검증.
+      //
+      // PR #445 (W-H19): field length + value range 추가 cap.
+      //   - amountUSD <= 100000 ($100k) — 정상 투어 최대 가격 << $100k. 거대
+      //     amountUSD 는 sales aggregate / 정산 view 깨짐 + Firestore quota DoS.
+      //   - memo / note string 길이 1000자 cap — Firestore 1MB doc 한도까지
+      //     채우는 spam-write 차단 (1 write = 1KB → 1 user 가 1M write 로 quota
+      //     소진 가능). 1000자면 정상 사용자 메모로 충분.
       match /bookings/{bookingId} {
         allow read:   if isSignedIn()
                    && (resource.data.userId == request.auth.uid || isAdminEmail());
@@ -157,7 +171,14 @@ service cloud.firestore {
                    && request.resource.data.userId == request.auth.uid
                    && request.resource.data.status == 'pending'
                    && request.resource.data.amountUSD is number
-                   && request.resource.data.amountUSD > 0;
+                   && request.resource.data.amountUSD > 0
+                   && request.resource.data.amountUSD <= 100000
+                   && (!('memo' in request.resource.data)
+                       || (request.resource.data.memo is string
+                           && request.resource.data.memo.size() <= 1000))
+                   && (!('note' in request.resource.data)
+                       || (request.resource.data.note is string
+                           && request.resource.data.note.size() <= 1000));
         allow update, delete: if isAdminEmail();
       }
     }
