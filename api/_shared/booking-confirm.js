@@ -17,18 +17,25 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './notify.js';
 import { buildManualPaymentEmail } from './manual-payment-emails.js';
-import { sendEmail } from '../_send-email.js';
 import { triggerBookingProcessor } from './booking-processor-trigger.js';
+import { sendCustomerEmailWithAlert } from './customer-email-trigger.js';
 
-async function sendCustomerConfirmEmail(booking) {
-  try {
-    if (!booking?.customerEmail) return;
-    const { subject, html, text } = buildManualPaymentEmail('confirmed', booking);
-    await sendEmail({ to: booking.customerEmail, subject, html, text });
-    console.log('[booking-confirm] customer confirm email sent:', booking.customerEmail);
-  } catch (e) {
-    console.error('[booking-confirm] customer email failed:', e.message);
-  }
+async function sendCustomerConfirmEmail(db, booking) {
+  if (!booking?.customerEmail) return { ok: true, skipped: 'no-email' };
+  const { subject, html, text } = buildManualPaymentEmail('confirmed', booking);
+  // PR #439 (Audit Z-H16): helper now writes to pending_email_retries +
+  // fires operator Telegram alert on failure (was silent .catch(()=>{})).
+  return sendCustomerEmailWithAlert({
+    db,
+    to: booking.customerEmail,
+    subject, html, text,
+    context: {
+      bookingRef: booking.bookingRef || null,
+      emailType: 'manual-payment-confirmed',
+      language: booking.language || 'en',
+      source: 'booking-confirm',
+    },
+  });
 }
 
 function triggerDownstreamEffects({ db, pending, bookingRef, bookingId }) {
@@ -192,8 +199,9 @@ export async function confirmBookingAsPaid({
   ].filter(Boolean).join('\n');
   notify('booking', telText).catch(() => {});
 
-  // 5. 사용자 confirm 이메일
-  sendCustomerConfirmEmail(pending).catch(() => {});
+  // 5. 사용자 confirm 이메일 — PR #439 (Z-H16): helper 가 실패 시 운영자 알림
+  // + pending_email_retries 등록 (silent loss 차단). fire-and-forget 유지.
+  void sendCustomerConfirmEmail(db, pending);
 
   return { ok: true, bookingId };
 }

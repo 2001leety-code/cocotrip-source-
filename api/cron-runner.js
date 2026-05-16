@@ -19,6 +19,7 @@ import weeklyQualityReport from './_crons/weekly-quality-report.js';
 import dispatchReminder from './_crons/dispatch-reminder.js';
 import operatorTodoReminder from './_crons/operator-todo-reminder.js';
 import processorRetrySweep from './_crons/processor-retry-sweep.js';
+import emailRetrySweep from './_crons/email-retry-sweep.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -32,6 +33,7 @@ const JOBS = {
   'dispatch-reminder':       dispatchReminder,
   'operator-todo-reminder':  operatorTodoReminder,
   'processor-retry-sweep':   processorRetrySweep,
+  'email-retry-sweep':       emailRetrySweep,
 };
 
 const CORS = {
