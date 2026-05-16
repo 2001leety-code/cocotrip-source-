@@ -32,6 +32,10 @@
     {
       "path": "/api/cron-runner?job=processor-retry-sweep",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron-runner?job=email-retry-sweep",
+      "schedule": "*/5 * * * *"
     }
   ],
   "functions": {

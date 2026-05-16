@@ -968,6 +968,7 @@ const RULES = [
   ['P60_bookingProcessorFireAndForget', P60_bookingProcessorFireAndForget],
   ['P61_adminCorsWildcard', P61_adminCorsWildcard],
   ['P62_paypalWebhookDirectFlowMatch', P62_paypalWebhookDirectFlowMatch],
+  ['P63_customerEmailSilentFail', P63_customerEmailSilentFail],
 ];
 
 /**
@@ -1019,6 +1020,75 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P63_customerEmailSilentFail — 메모리 P63 (PR #439, Audit Z-H16).
+ * api/_shared/booking-confirm.js 가 sendCustomerConfirmEmail 를 silent
+ * `.catch(()=>{})` 패턴으로 호출하면 fail. 반드시 api/_shared/customer-email-trigger.js
+ * 의 sendCustomerEmailWithAlert (실패 시 운영자 알림 + retry queue 등록) 사용.
+ *
+ * Helper 자체 + 5분 cron 도 같이 가드:
+ *   - helper: notify('booking', ...) + pending_email_retries 등록 패턴 유지
+ *   - cron: MAX_ATTEMPTS + manual-intervention escalation
+ */
+function P63_customerEmailSilentFail({ changed }) {
+  const CONFIRM = 'api/_shared/booking-confirm.js';
+  const HELPER = 'api/_shared/customer-email-trigger.js';
+  const CRON = 'api/_crons/email-retry-sweep.js';
+  const touched = isModified(CONFIRM, changed) || isModified(HELPER, changed) || isModified(CRON, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(CONFIRM, changed)) {
+    const content = getChangedFileContent(CONFIRM);
+    if (content) {
+      if (!/from\s*['"]\.\/customer-email-trigger\.js['"]/.test(content)) {
+        violations.push(`${CONFIRM}: customer-email-trigger helper import missing — silent .catch(()=>{}) drift risk`);
+      }
+      // Forbid the original silent-loss pattern.
+      if (/sendCustomerConfirmEmail\s*\([^)]*\)\s*\.\s*catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/.test(content)) {
+        violations.push(`${CONFIRM}: silent .catch(()=>{}) on sendCustomerConfirmEmail — use sendCustomerEmailWithAlert helper (Z-H16)`);
+      }
+    }
+  }
+
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/export\s+async\s+function\s+sendCustomerEmailWithAlert/.test(content)) {
+        violations.push(`${HELPER}: sendCustomerEmailWithAlert export missing`);
+      }
+      if (!/notify\s*\(\s*['"]booking['"]/.test(content)) {
+        violations.push(`${HELPER}: operator notify('booking', ...) call missing — failures must be visible`);
+      }
+      if (!/pending_email_retries/.test(content)) {
+        violations.push(`${HELPER}: retry-queue collection 'pending_email_retries' missing`);
+      }
+    }
+  }
+
+  if (isModified(CRON, changed)) {
+    const content = getChangedFileContent(CRON);
+    if (content) {
+      if (!/MAX_ATTEMPTS/.test(content)) {
+        violations.push(`${CRON}: MAX_ATTEMPTS missing — retries must escalate eventually`);
+      }
+      if (!/manual-intervention/.test(content)) {
+        violations.push(`${CRON}: escalation status 'manual-intervention' missing`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P63_customerEmailSilentFail',
+      violations.join(' | '),
+      'PR #439 (Z-H16) — sendCustomerEmailWithAlert + pending_email_retries + 5분 cron sweep 유지.',
     );
   }
   return null;
