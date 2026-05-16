@@ -975,6 +975,7 @@ const RULES = [
   ['P67_telegramThrottleFailClosed', P67_telegramThrottleFailClosed],
   ['P68_bookingsWriteRetryAlert', P68_bookingsWriteRetryAlert],
   ['P69_firestoreFieldLengthCaps', P69_firestoreFieldLengthCaps],
+  ['P70_appCatchAllRoute', P70_appCatchAllRoute],
 ];
 
 /**
@@ -1026,6 +1027,56 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P70_appCatchAllRoute — 메모리 P70 (PR #446, Audit W-H18).
+ * src/App.tsx 가 `<Route path="*">` catch-all 누락하면 fail. NotFoundPage
+ * 누락 시도 fail. 알려지지 않은 URL → 빈 페이지 → SEO soft-404 + UX dead-end.
+ */
+function P70_appCatchAllRoute({ changed }) {
+  const APP = 'src/App.tsx';
+  const NF = 'src/pages/NotFoundPage.tsx';
+  const touched = isModified(APP, changed) || isModified(NF, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(APP, changed)) {
+    const content = getChangedFileContent(APP);
+    if (content) {
+      if (!/<Route\s+path=["']\*["']/.test(content)) {
+        violations.push(`${APP}: catch-all <Route path="*"> missing — unknown URLs render blank (W-H18)`);
+      }
+      if (!/NotFoundPage/.test(content)) {
+        violations.push(`${APP}: NotFoundPage component not imported / mounted`);
+      }
+      // The catch-all must be the LAST <Route> before </Routes>.
+      const closeIdx = content.indexOf('</Routes>');
+      const catchAllIdx = content.lastIndexOf('path="*"');
+      if (closeIdx > -1 && catchAllIdx > -1 && catchAllIdx > closeIdx) {
+        violations.push(`${APP}: <Route path="*"> appears after </Routes> — not mounted`);
+      }
+    }
+  }
+
+  if (isModified(NF, changed)) {
+    const content = getChangedFileContent(NF);
+    if (content) {
+      if (!/meta\[name="robots"\]/.test(content) || !/['"]noindex/.test(content)) {
+        violations.push(`${NF}: noindex robots meta missing — soft-404 still indexed by crawlers`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P70_appCatchAllRoute',
+      violations.join(' | '),
+      'PR #446 (W-H18) — App.tsx catch-all <Route path="*"> + NotFoundPage with noindex meta.',
     );
   }
   return null;

@@ -27,6 +27,7 @@ const About = lazy(() => import('@/pages/About'));
 const Terms = lazy(() => import('@/pages/Terms'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
 const TravelTerms = lazy(() => import('@/pages/TravelTerms'));
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 const Admin = lazy(() => import('@/pages/Admin'));
 const AdminReviews = lazy(() => import('@/pages/AdminReviews'));
 const AdminClaims = lazy(() => import('@/pages/AdminClaims'));
@@ -424,6 +425,15 @@ function AnimatedRoutes() {
               }
             />
           )}
+          {/* PR #446 (Audit W-H18): catch-all 404. MUST be the LAST route. */}
+          <Route
+            path="*"
+            element={
+              <Suspense fallback={<PlannerSkeleton />}>
+                <NotFoundPage />
+              </Suspense>
+            }
+          />
         </Routes>
       </motion.div>
     </AnimatePresence>
