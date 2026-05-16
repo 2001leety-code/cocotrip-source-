@@ -987,6 +987,7 @@ const RULES = [
   ['P79_wizardPersistenceQuotaSweep', P79_wizardPersistenceQuotaSweep],
   ['P80_iosBlobPopupBlocker', P80_iosBlobPopupBlocker],
   ['P81_refundAllSettledInspect', P81_refundAllSettledInspect],
+  ['P82_pdfCanvasPerBandCheck', P82_pdfCanvasPerBandCheck],
 ];
 
 /**
@@ -1038,6 +1039,46 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P82_pdfCanvasPerBandCheck — 메모리 P82 (PR #458, Audit Z-H10).
+ * pdfGenerator.ts 의 5% 전체 non-white threshold 가 partial-blank PDF 못 잡음.
+ * BANDS=10 / PER_BAND_SAMPLES=20 / BLANK_BAND_NONWHITE=0.02 / MAX_BLANK_BAND_RATIO=0.25
+ * 패턴 유지 + structured warn-log 필수.
+ */
+function P82_pdfCanvasPerBandCheck({ changed }) {
+  const FILE = 'src/pages/PlanDetailPage/pdfGenerator.ts';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/const\s+BANDS\s*=\s*10/.test(content)) {
+    violations.push(`${FILE}: BANDS=10 누락 — partial-blank PDF 못 잡음 (Z-H10)`);
+  }
+  if (!/const\s+PER_BAND_SAMPLES\s*=\s*20/.test(content)) {
+    violations.push(`${FILE}: PER_BAND_SAMPLES=20 누락`);
+  }
+  if (!/const\s+BLANK_BAND_NONWHITE\s*=\s*0\.02/.test(content)) {
+    violations.push(`${FILE}: BLANK_BAND_NONWHITE=0.02 누락`);
+  }
+  if (!/const\s+MAX_BLANK_BAND_RATIO\s*=\s*0\.25/.test(content)) {
+    violations.push(`${FILE}: MAX_BLANK_BAND_RATIO=0.25 누락`);
+  }
+  if (!/partial-blank suspected \(band check\)/.test(content)) {
+    violations.push(`${FILE}: 'partial-blank suspected (band check)' structured warn 누락 — Sentry grep-friendly`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P82_pdfCanvasPerBandCheck',
+      violations.join(' | '),
+      'PR #458 (Z-H10) — 10-band sampling + 25% blank-band 임계 + structured warn 유지.',
     );
   }
   return null;
