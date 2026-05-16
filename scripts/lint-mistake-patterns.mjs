@@ -978,6 +978,7 @@ const RULES = [
   ['P70_appCatchAllRoute', P70_appCatchAllRoute],
   ['P71_gmailSmtpQuotaGuard', P71_gmailSmtpQuotaGuard],
   ['P72_chatRateLimitNatImmune', P72_chatRateLimitNatImmune],
+  ['P73_useAuthForegroundTokenRefresh', P73_useAuthForegroundTokenRefresh],
 ];
 
 /**
@@ -1029,6 +1030,48 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P73_useAuthForegroundTokenRefresh — 메모리 P73 (PR #449, Audit W-H17).
+ * src/hooks/useAuth.ts 가 onAuthStateChanged 만 구독하고 periodic + visibility
+ * 기반 token refresh 누락하면 fail. 1h Firebase token expiry 후 API 401 storm.
+ */
+function P73_useAuthForegroundTokenRefresh({ changed }) {
+  const FILE = 'src/hooks/useAuth.ts';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/setInterval\(/.test(content) || !/50\s*\*\s*60\s*\*\s*1000/.test(content)) {
+    violations.push(`${FILE}: 50-min setInterval token refresh missing — token expires at 60min (W-H17)`);
+  }
+  if (!/getIdToken\(\s*true\s*\)/.test(content)) {
+    violations.push(`${FILE}: getIdToken(true) (force refresh) missing — lazy refresh insufficient`);
+  }
+  if (!/clearInterval\s*\(/.test(content)) {
+    violations.push(`${FILE}: clearInterval cleanup missing — leak on re-render`);
+  }
+  if (!/visibilitychange/.test(content)) {
+    violations.push(`${FILE}: visibilitychange listener missing — tab return after 1h+ stays on expired token`);
+  }
+  if (!/visibilityState\s*===\s*['"]visible['"]/.test(content)) {
+    violations.push(`${FILE}: must guard refresh on document.visibilityState === 'visible' (avoid double-fire on hide)`);
+  }
+  if (!/removeEventListener\(\s*['"]visibilitychange['"]/.test(content)) {
+    violations.push(`${FILE}: visibilitychange listener cleanup missing — leak across renders`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P73_useAuthForegroundTokenRefresh',
+      violations.join(' | '),
+      'PR #449 (W-H17) — useAuth 가 50-min periodic + visibility-driven getIdToken(true) 호출 유지.',
     );
   }
   return null;
