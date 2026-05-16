@@ -307,7 +307,7 @@ export default async function handler(req, res) {
     // 여기까지 왔다면 쿠폰은 이미 isUsed=true + pendingCapture=false 상태.
     // 더 이상 운영자 수동 환불 case (capture 성공 + 쿠폰 race fail) 발생 안 함.
 
-    // 2.6 글로벌 프로모 사용량 증가 + cap 체크 (COCO5/COCO10/EARLY50).
+    // 2.6 글로벌 프로모 사용량 증가 + transactional cap 체크 (COCO5/COCO10/EARLY50).
     //
     // PR #434 (Audit Y-H11 — 2026-05-16): 이전엔 transaction 이 atomic increment
     // 만 하고 cap (maxUses) 검증을 안 해서, applyPromoCode 의 read-only gate 를
