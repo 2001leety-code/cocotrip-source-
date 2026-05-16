@@ -31,18 +31,16 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { productDisplayLabel, isCustomEstimateProduct } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'GET, POST, OPTIONS';
 
-function json(res, status, body) {
-  res.writeHead(status, { ...CORS, 'Content-Type': 'application/json' });
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -53,14 +51,14 @@ const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 const DEFAULT_SINCE = '2026-05-03T11:51:00Z';
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
   if (req.method !== 'GET' && req.method !== 'POST') {
-    return json(res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
+    return json(req, res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
   }
 
   const tokenAuth = await verifyAdminToken(req);
   if (!tokenAuth.ok) {
-    return json(res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
+    return json(req, res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
   }
 
   let body = req.body;
@@ -77,13 +75,13 @@ export default async function handler(req, res) {
   const limit = Math.min(100, Math.max(1, Number(body.limit) || 50));
 
   if (Number.isNaN(since.getTime()) || Number.isNaN(until.getTime())) {
-    return json(res, 400, _err('Invalid since/until ISO date', 'INVALID_DATE'));
+    return json(req, res, 400, _err('Invalid since/until ISO date', 'INVALID_DATE'));
   }
 
   try {
     const db = initAdminDb('admin-scan-suspect-bookings');
     if (!db) {
-      return json(res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
+      return json(req, res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
     }
 
     // 후보 booking: createdAt in [since, until] + status=CONFIRMED + (provider 일치 시).
@@ -121,7 +119,7 @@ export default async function handler(req, res) {
     });
 
     if (dryRun || candidates.length === 0) {
-      return json(res, 200, _ok({
+      return json(req, res, 200, _ok({
         mode: 'dryRun',
         scanned: snap.size,
         candidatesCount: candidates.length,
@@ -189,7 +187,7 @@ export default async function handler(req, res) {
       await new Promise((r) => setTimeout(r, 1000));
     }
 
-    return json(res, 200, _ok({
+    return json(req, res, 200, _ok({
       mode: 'replay',
       scanned: snap.size,
       candidatesCount: candidates.length,
@@ -202,6 +200,6 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('[admin-scan-suspect-bookings]', err);
     await captureError(err, { route: '/api/admin-scan-suspect-bookings', method: req.method });
-    return json(res, 500, _err(err.message, 'INTERNAL_ERROR'));
+    return json(req, res, 500, _err(err.message, 'INTERNAL_ERROR'));
   }
 }

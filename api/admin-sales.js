@@ -18,19 +18,16 @@
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
-const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'GET, OPTIONS';
 
-function json(res, status, body) {
-  res.writeHead(status, JSON_CORS);
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -98,14 +95,14 @@ async function getExchangeRate() {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
   if (req.method !== 'GET') {
-    return json(res, 405, { error: 'Method Not Allowed' });
+    return json(req, res, 405, { error: 'Method Not Allowed' });
   }
 
   const auth = await verifyAdminToken(req);
   if (!auth.ok) {
-    return json(res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
+    return json(req, res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
   }
 
   const days = Math.min(Math.max(parseInt(req.query?.days || '30', 10), 7), 90);
@@ -210,7 +207,7 @@ export default async function handler(req, res) {
 
     const exchangeRate = await getExchangeRate();
 
-    return json(res, 200, {
+    return json(req, res, 200, {
       kpi,
       daily,
       byProduct: byProductMap,
@@ -221,6 +218,6 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error('[admin-sales] Error:', err);
-    return json(res, 500, { error: err.message });
+    return json(req, res, 500, { error: err.message });
   }
 }

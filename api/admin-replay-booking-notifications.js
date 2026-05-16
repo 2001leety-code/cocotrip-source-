@@ -22,18 +22,16 @@ import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 import { captureError } from './_shared/sentry.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'POST, OPTIONS';
 
-function json(res, status, body) {
-  res.writeHead(status, { ...CORS, 'Content-Type': 'application/json' });
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -41,14 +39,14 @@ const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
   if (req.method !== 'POST') {
-    return json(res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
+    return json(req, res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
   }
 
   const tokenAuth = await verifyAdminToken(req);
   if (!tokenAuth.ok) {
-    return json(res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
+    return json(req, res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
   }
 
   let body = req.body;
@@ -56,19 +54,19 @@ export default async function handler(req, res) {
   body = body || {};
   const { bookingId } = body;
   if (!bookingId) {
-    return json(res, 400, _err('bookingId required in body', 'MISSING_FIELDS'));
+    return json(req, res, 400, _err('bookingId required in body', 'MISSING_FIELDS'));
   }
 
   try {
     const db = initAdminDb('admin-replay-booking-notifications');
     if (!db) {
-      return json(res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
+      return json(req, res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
     }
 
     const ref = db.collection('bookings').doc(bookingId);
     const doc = await ref.get();
     if (!doc.exists) {
-      return json(res, 404, _err(`Booking not found: ${bookingId}`, 'NOT_FOUND'));
+      return json(req, res, 404, _err(`Booking not found: ${bookingId}`, 'NOT_FOUND'));
     }
     const booking = doc.data();
 
@@ -102,7 +100,7 @@ export default async function handler(req, res) {
     });
     const procJson = await procRes.json().catch(() => null);
 
-    return json(res, 200, _ok({
+    return json(req, res, 200, _ok({
       bookingId,
       bookingRef: booking.bookingRef,
       product: payload.product,
@@ -114,6 +112,6 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('[admin-replay-booking-notifications]', err);
     await captureError(err, { route: '/api/admin-replay-booking-notifications', method: req.method });
-    return json(res, 500, _err(err.message, 'INTERNAL_ERROR'));
+    return json(req, res, 500, _err(err.message, 'INTERNAL_ERROR'));
   }
 }

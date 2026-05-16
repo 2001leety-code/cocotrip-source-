@@ -10,29 +10,27 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_ai_core/firestoreAdmin.js';
 import { sendPushToUser } from './_send-push.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'POST, OPTIONS';
 
-function json(res, status, body) {
-  res.writeHead(status, { ...CORS, 'Content-Type': 'application/json' });
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
-  if (req.method !== 'POST') return json(res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
+  if (req.method !== 'POST') return json(req, res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
 
   const tokenAuth = await verifyAdminToken(req);
-  if (!tokenAuth.ok) return json(res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
+  if (!tokenAuth.ok) return json(req, res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
 
   try {
     const body = req.body || {};
@@ -45,9 +43,9 @@ export default async function handler(req, res) {
 
     const adminDb = await initAdminDb();
     const result = await sendPushToUser(adminDb, tokenAuth.uid, payload);
-    return json(res, 200, _ok({ uid: tokenAuth.uid, payload, ...result }));
+    return json(req, res, 200, _ok({ uid: tokenAuth.uid, payload, ...result }));
   } catch (e) {
     console.error('[admin-test-push]', e);
-    return json(res, 500, _err(e.message || 'send failed', 'SEND_FAILED'));
+    return json(req, res, 500, _err(e.message || 'send failed', 'SEND_FAILED'));
   }
 }

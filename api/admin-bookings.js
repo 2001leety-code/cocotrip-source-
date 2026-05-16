@@ -18,6 +18,7 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 // response.js 는 CommonJS — Vercel ESM 런타임 named import 불안정해서 inline 정의.
 const _ok  = (data) => ({ ok: true, data });
@@ -26,14 +27,11 @@ const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'GET, OPTIONS';
 
-function json(res, status, body) {
-  res.writeHead(status, { ...CORS, 'Content-Type': 'application/json' });
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -103,20 +101,20 @@ function flattenBooking(id, b) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
   if (req.method !== 'GET') {
-    return json(res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
+    return json(req, res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
   }
 
   const tokenAuth = await verifyAdminToken(req);
   if (!tokenAuth.ok) {
-    return json(res, tokenAuth.status, { ok: false, error: tokenAuth.error, code: 'AUTH_FAILED' });
+    return json(req, res, tokenAuth.status, { ok: false, error: tokenAuth.error, code: 'AUTH_FAILED' });
   }
 
   try {
     const db = initAdminDb('admin-bookings');
     if (!db) {
-      return json(res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
+      return json(req, res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
     }
 
     // createdAt desc + limit 50 — 단일 필드 인덱스(자동 생성)로 충분.
@@ -127,7 +125,7 @@ export default async function handler(req, res) {
       .get();
 
     if (snap.empty) {
-      return json(res, 200, _ok({ bookings: [], total: 0 }));
+      return json(req, res, 200, _ok({ bookings: [], total: 0 }));
     }
 
     const bookings = [];
@@ -135,7 +133,7 @@ export default async function handler(req, res) {
       bookings.push(flattenBooking(doc.id, doc.data()));
     });
 
-    return json(res, 200, _ok({ bookings, total: bookings.length }));
+    return json(req, res, 200, _ok({ bookings, total: bookings.length }));
 
   } catch (error) {
     console.error('[admin-bookings] Error:', error.message);
@@ -145,14 +143,14 @@ export default async function handler(req, res) {
     try {
       const db = initAdminDb('admin-bookings-fallback');
       if (!db) {
-        return json(res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
+        return json(req, res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
       }
       const snap = await db.collection('bookings').limit(50).get();
       const bookings = [];
       snap.forEach((doc) => bookings.push(flattenBooking(doc.id, doc.data())));
-      return json(res, 200, _ok({ bookings, total: bookings.length }));
+      return json(req, res, 200, _ok({ bookings, total: bookings.length }));
     } catch {
-      return json(res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
+      return json(req, res, 500, _err('Failed to fetch bookings', 'FETCH_ERROR'));
     }
   }
 }

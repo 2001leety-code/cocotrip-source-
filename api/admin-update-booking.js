@@ -35,17 +35,14 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { sendDispatchToDriver } from './_shared/dispatch-helpers.js';
 import { notify } from './_shared/notify.js';
 import { productDisplayLabel } from './_shared/pricing.js';
+import { buildAdminJsonCors } from './_shared/cors.js';
 
 export const config = { runtime: 'nodejs' };
 export const maxDuration = 30;
 
-const JSON_HEADERS = {
-  'Content-Type': 'application/json',
-  'Cache-Control': 'no-store',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): per-request origin allowlist — was wildcard '*'.
+const JSON_HEADERS_STATIC = { 'Cache-Control': 'no-store' };
+const CORS_METHODS = 'POST, OPTIONS';
 
 const VALID_ACTIONS = new Set(['dispatch']);
 
@@ -54,6 +51,7 @@ function _err(error, code = 'UNKNOWN_ERROR') {
 }
 
 export default async function handler(req, res) {
+  const JSON_HEADERS = { ...JSON_HEADERS_STATIC, ...buildAdminJsonCors(req, { methods: CORS_METHODS }) };
   if (req.method === 'OPTIONS') {
     res.writeHead(200, JSON_HEADERS);
     return res.end();

@@ -20,6 +20,7 @@
  * PostHog 미설정 시 503 응답 — ConversionFunnel.tsx가 Firestore-only로 폴백.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -27,14 +28,11 @@ export const config = { runtime: 'nodejs' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'GET, OPTIONS';
 
-function json(res, status, body) {
-  res.writeHead(status, { ...CORS, 'Content-Type': 'application/json' });
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -48,16 +46,16 @@ const FUNNEL_STEPS = [
 ];
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
-  if (req.method !== 'GET') return json(res, 405, _err('GET only', 'METHOD_NOT_ALLOWED'));
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
+  if (req.method !== 'GET') return json(req, res, 405, _err('GET only', 'METHOD_NOT_ALLOWED'));
 
   const auth = await verifyAdminToken(req);
-  if (!auth.ok) return json(res, auth.status, { ok: false, error: auth.error, code: 'AUTH_FAILED' });
+  if (!auth.ok) return json(req, res, auth.status, { ok: false, error: auth.error, code: 'AUTH_FAILED' });
 
   const apiKey = process.env.POSTHOG_PERSONAL_API_KEY;
   const projectId = process.env.POSTHOG_PROJECT_ID;
   if (!apiKey || !projectId) {
-    return json(res, 503, _err('PostHog not configured', 'POSTHOG_DISABLED'));
+    return json(req, res, 503, _err('PostHog not configured', 'POSTHOG_DISABLED'));
   }
 
   const url = new URL(req.url, 'http://localhost');
@@ -94,9 +92,9 @@ export default async function handler(req, res) {
       }),
     );
 
-    return json(res, 200, _ok({ days, steps: counts, host: HOST, projectId }));
+    return json(req, res, 200, _ok({ days, steps: counts, host: HOST, projectId }));
   } catch (err) {
     console.error('[admin-posthog-funnel] error:', err);
-    return json(res, 500, _err(err.message, 'POSTHOG_ERROR'));
+    return json(req, res, 500, _err(err.message, 'POSTHOG_ERROR'));
   }
 }

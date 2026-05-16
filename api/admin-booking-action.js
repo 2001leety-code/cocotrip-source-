@@ -38,6 +38,7 @@ import { buildManualPaymentEmail } from './_shared/manual-payment-emails.js';
 import { sendEmail } from './_send-email.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
+import { buildAdminJsonCors } from './_shared/cors.js';
 
 // 이메일 발송 헬퍼 — 실패해도 admin action 자체는 성공해야 (booking 상태 갱신은
 // 이미 끝났고, 이메일 누락은 admin 이 수동 재발송 가능).
@@ -58,13 +59,10 @@ async function sendCustomerNotification(kind, booking) {
 export const config = { runtime: 'nodejs' };
 export const maxDuration = 30;
 
-const JSON_HEADERS = {
-  'Content-Type': 'application/json',
-  'Cache-Control': 'no-store',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): per-request origin allowlist — was wildcard '*'.
+// JSON_HEADERS is now built per-handler-call so it can echo req.headers.origin.
+const JSON_HEADERS_STATIC = { 'Cache-Control': 'no-store' };
+const CORS_METHODS = 'POST, OPTIONS';
 
 const VALID_ACTIONS = new Set(['mark-paid', 'mark-refunded', 'mark-canceled']);
 
@@ -73,6 +71,7 @@ function _err(error, code = 'UNKNOWN_ERROR') {
 }
 
 export default async function handler(req, res) {
+  const JSON_HEADERS = { ...JSON_HEADERS_STATIC, ...buildAdminJsonCors(req, { methods: CORS_METHODS }) };
   if (req.method === 'OPTIONS') {
     res.writeHead(200, JSON_HEADERS);
     return res.end();

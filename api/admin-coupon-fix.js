@@ -18,21 +18,19 @@ import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { issueOnboardingCouponsForUid } from './onboarding-coupons.js';
 import { captureError } from './_shared/sentry.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'POST, OPTIONS';
 
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 
-function json(res, status, body) {
-  res.writeHead(status, { ...CORS, 'Content-Type': 'application/json' });
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -58,14 +56,14 @@ async function lookupUidByEmail(email) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
   if (req.method !== 'POST') {
-    return json(res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
+    return json(req, res, 405, _err('Method Not Allowed', 'METHOD_NOT_ALLOWED'));
   }
 
   const tokenAuth = await verifyAdminToken(req);
   if (!tokenAuth.ok) {
-    return json(res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
+    return json(req, res, tokenAuth.status, _err(tokenAuth.error, 'AUTH_FAILED'));
   }
 
   let body = req.body;
@@ -76,13 +74,13 @@ export default async function handler(req, res) {
   email = (email || '').trim().toLowerCase();
 
   if (!uid && !email) {
-    return json(res, 400, _err('uid or email required', 'MISSING_FIELDS'));
+    return json(req, res, 400, _err('uid or email required', 'MISSING_FIELDS'));
   }
 
   try {
     const db = initAdminDb('admin-coupon-fix');
     if (!db) {
-      return json(res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
+      return json(req, res, 500, _err('Firestore unavailable — check FIREBASE_* env vars', 'DB_UNAVAILABLE'));
     }
 
     // 이메일 → uid 변환
@@ -91,23 +89,23 @@ export default async function handler(req, res) {
         uid = await lookupUidByEmail(email);
       } catch (lookupErr) {
         if (lookupErr.code === 'auth/user-not-found') {
-          return json(res, 404, _err(`User not found for email: ${email}`, 'USER_NOT_FOUND'));
+          return json(req, res, 404, _err(`User not found for email: ${email}`, 'USER_NOT_FOUND'));
         }
         throw lookupErr;
       }
     }
 
     if (!uid) {
-      return json(res, 400, _err('uid resolution failed', 'MISSING_FIELDS'));
+      return json(req, res, 400, _err('uid resolution failed', 'MISSING_FIELDS'));
     }
 
     const result = await issueOnboardingCouponsForUid(db, uid);
     console.log('[admin-coupon-fix] uid=', uid, 'email=', email || '(via uid)', 'result=', result);
 
-    return json(res, 200, _ok({ uid, email: email || null, ...result }));
+    return json(req, res, 200, _ok({ uid, email: email || null, ...result }));
   } catch (err) {
     console.error('[admin-coupon-fix]', err);
     await captureError(err, { route: '/api/admin-coupon-fix', method: req.method });
-    return json(res, 500, _err(err.message, 'INTERNAL_ERROR'));
+    return json(req, res, 500, _err(err.message, 'INTERNAL_ERROR'));
   }
 }
