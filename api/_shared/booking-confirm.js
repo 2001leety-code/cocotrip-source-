@@ -18,6 +18,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './notify.js';
 import { buildManualPaymentEmail } from './manual-payment-emails.js';
 import { sendEmail } from '../_send-email.js';
+import { triggerBookingProcessor } from './booking-processor-trigger.js';
 
 async function sendCustomerConfirmEmail(booking) {
   try {
@@ -30,7 +31,7 @@ async function sendCustomerConfirmEmail(booking) {
   }
 }
 
-function triggerDownstreamEffects({ pending, bookingRef, bookingId }) {
+function triggerDownstreamEffects({ db, pending, bookingRef, bookingId }) {
   try {
     const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
     const isAiPlanner = String(pending.productType || '').startsWith('ai-planner');
@@ -54,25 +55,31 @@ function triggerDownstreamEffects({ pending, bookingRef, bookingId }) {
         console.warn('[booking-confirm] AI planner requested but itineraryData missing — manual trigger required:', bookingRef);
       }
     } else {
-      fetch(`${siteUrl}/api/booking-processor`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderID: bookingId,
-          payerEmail: pending.customerEmail,
-          payerName: (pending.customerEmail || '').split('@')[0],
-          amount: pending.priceUSD || (Number(pending.priceKRW) / 1380).toFixed(2),
-          product: pending.productType,
-          tourDate: pending.dateStart || '',
-          pickupLocation: pending.pickupLocation || '',
-          dropoffLocation: pending.dropoffLocation || '',
-          paxCount: pending.passengers || 1,
-          vehicleType: pending.vehicleType || '',
-          memo: pending.memo || '',
-          itineraryData: pending.itineraryData || null,
-          airport: pending.airport || null,
-        }),
-      }).catch((e) => console.warn('[booking-confirm] booking-processor failed:', e.message));
+      // PR #436 (Audit Y-H8 — 2026-05-16): replaced silent-failure fetch() with
+      // triggerBookingProcessor helper — non-2xx + timeout now record a retry
+      // doc + operator alert instead of being lost.
+      const processorPayload = {
+        orderID: bookingId,
+        payerEmail: pending.customerEmail,
+        payerName: (pending.customerEmail || '').split('@')[0],
+        amount: pending.priceUSD || (Number(pending.priceKRW) / 1380).toFixed(2),
+        product: pending.productType,
+        tourDate: pending.dateStart || '',
+        pickupLocation: pending.pickupLocation || '',
+        dropoffLocation: pending.dropoffLocation || '',
+        paxCount: pending.passengers || 1,
+        vehicleType: pending.vehicleType || '',
+        memo: pending.memo || '',
+        itineraryData: pending.itineraryData || null,
+        airport: pending.airport || null,
+      };
+      void triggerBookingProcessor({
+        db,
+        siteUrl,
+        payload: processorPayload,
+        source: 'booking-confirm',
+        notify,
+      });
     }
   } catch (procErr) {
     console.warn('[booking-confirm] downstream effects failed:', procErr.message);
@@ -166,8 +173,8 @@ export async function confirmBookingAsPaid({
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  // 3. fire-and-forget downstream
-  triggerDownstreamEffects({ pending, bookingRef, bookingId });
+  // 3. fire-and-forget downstream (with failure capture — see PR #436)
+  triggerDownstreamEffects({ db, pending, bookingRef, bookingId });
 
   // 4. 텔레그램 booking #2
   const sourceLabel = source === 'webhook' ? '🤖 자동 매칭 (PayPal Webhook)' : '✅ 입금 확인 완료 (PayPal 매칭)';

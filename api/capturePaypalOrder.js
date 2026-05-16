@@ -7,6 +7,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
 import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
+import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
@@ -377,13 +378,31 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3. Fire-and-forget booking-processor
+    // 3. Booking-processor trigger — PR #436 (Audit Y-H8 — 2026-05-16).
+    //
+    // 이전 fire-and-forget `fetch().catch()` 는 HTTP 500/504 같은 비-2xx 응답에는
+    // .catch 가 발화 안 함 → user 는 "예약 확정" 받았는데 downstream (Google Sheets,
+    // 고객 확인 이메일, voucher PDF, 텔레그램 채널 #2) 가 silent fail. 운영자가
+    // 수동으로 /admin-replay-booking-notifications 돌리기 전에는 사라짐.
+    //
+    // 이제 triggerBookingProcessor helper 가:
+    //   - AbortController 로 25s timeout
+    //   - response.ok 검증 (비-2xx 도 실패로 처리)
+    //   - 실패 시 pending_processor_retries/{orderID} 등록 + 운영자 텔레그램 alert
+    //   - 5분 마다 processor-retry-sweep cron 이 재시도
+    // user 응답은 변함없이 즉시. helper 자체는 await 으로 호출하지만 promise 가 항상
+    // resolve 하므로 정상 흐름에 영향 없음. 25s + Vercel maxDuration 60s 안에 안전.
     const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cocotripkr.com';
-    fetch(`${siteUrl}/api/booking-processor`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, airport }),
-    }).catch(err => console.error('[capturePaypalOrder] booking-processor call failed:', err.message));
+    const processorPayload = { orderID, payerEmail, payerName, amount, product, tourDate, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, airport };
+    // Fire-and-don't-await: respond to the user immediately, helper records its
+    // own outcome and operator alert in background.
+    void triggerBookingProcessor({
+      db: initAdminDb('capturePaypalOrder'),
+      siteUrl,
+      payload: processorPayload,
+      source: 'capturePaypalOrder',
+      notify,
+    });
 
     // 4. Respond immediately
     res.writeHead(200, JSON_CORS);
