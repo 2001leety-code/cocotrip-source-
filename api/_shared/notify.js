@@ -37,6 +37,30 @@ const CHANNEL_ENV = {
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
+// PR #451 (Audit Z-H13 — 2026-05-16): Telegram sendMessage hard-caps text at
+// 4096 chars. Pre-fix, notify() forwarded oversized text unchanged; Telegram
+// rejected with "MESSAGE_TOO_LONG" → notify() returned ok:false but the alert
+// was silently lost. notifyLong() existed for explicit chunking but no caller
+// reached for it on booking memo / operator alert paths.
+//
+// Now notify() auto-truncates oversized text at the last newline boundary
+// under the cap so the alert still reaches the operator. The suffix points at
+// throttledTelegramAlert's error_log collection for the full original text.
+const TELEGRAM_TEXT_HARD_LIMIT = 4096;
+const TELEGRAM_TEXT_SAFE_LIMIT = 4090; // 6-char margin for suffix bytes
+const TRUNCATE_SUFFIX = '\n…(truncated, full text in error_log)';
+
+export function safeTruncateForTelegram(text) {
+  if (typeof text !== 'string') return { text: String(text ?? ''), truncated: false };
+  if (text.length <= TELEGRAM_TEXT_HARD_LIMIT) return { text, truncated: false };
+  // Prefer truncation at the last newline within the safe limit so we don't
+  // chop mid-line and orphan an HTML tag.
+  const window = text.slice(0, TELEGRAM_TEXT_SAFE_LIMIT - TRUNCATE_SUFFIX.length);
+  const lastNl = window.lastIndexOf('\n');
+  const cut = lastNl > 0 ? window.slice(0, lastNl) : window;
+  return { text: `${cut}${TRUNCATE_SUFFIX}`, truncated: true, originalLength: text.length };
+}
+
 /**
  * 채널 → bot token 해석. 미설정 시 fallback.
  */
@@ -65,13 +89,20 @@ export async function notify(channel, text, options = {}) {
   const channelEnv = CHANNEL_ENV[channel];
   const isFallback = channelEnv && !process.env[channelEnv];
 
+  // PR #451 (Z-H13): hard-cap text at Telegram's 4096-char limit.
+  // Truncating is better than silent-dropping the alert.
+  const { text: safeText, truncated, originalLength } = safeTruncateForTelegram(text);
+  if (truncated) {
+    console.warn(`[notify:${channel}] text truncated for Telegram 4096-cap: ${originalLength} → ${safeText.length} chars`);
+  }
+
   try {
     const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text,
+        text: safeText,
         parse_mode: options.parseMode || 'HTML',
         disable_web_page_preview: true,
         ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
@@ -83,7 +114,7 @@ export async function notify(channel, text, options = {}) {
       return { ok: false, channel, error: data.description };
     }
     // result.message_id를 호출자가 알 수 있어야 추후 reply_to_message 매핑 가능
-    return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id };
+    return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id, truncated };
   } catch (err) {
     console.error(`[notify:${channel}] fetch failed:`, err.message);
     return { ok: false, channel, error: err.message };

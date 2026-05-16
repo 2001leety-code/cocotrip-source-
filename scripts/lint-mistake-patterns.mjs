@@ -980,6 +980,7 @@ const RULES = [
   ['P72_chatRateLimitNatImmune', P72_chatRateLimitNatImmune],
   ['P73_useAuthForegroundTokenRefresh', P73_useAuthForegroundTokenRefresh],
   ['P74_planDetailListenerStableDep', P74_planDetailListenerStableDep],
+  ['P75_notifyTelegram4096Truncate', P75_notifyTelegram4096Truncate],
 ];
 
 /**
@@ -1031,6 +1032,47 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P75_notifyTelegram4096Truncate — 메모리 P75 (PR #451, Audit Z-H13).
+ * api/_shared/notify.js 가 text 길이 검사 없이 Telegram sendMessage 호출하면 fail.
+ * 4096 char 초과 시 "MESSAGE_TOO_LONG" → silent loss. safeTruncateForTelegram
+ * helper 로 4090 cap + 마지막 newline 경계 trim + "...(truncated)" suffix 필수.
+ */
+function P75_notifyTelegram4096Truncate({ changed }) {
+  const FILE = 'api/_shared/notify.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/TELEGRAM_TEXT_HARD_LIMIT\s*=\s*4096/.test(content)) {
+    violations.push(`${FILE}: TELEGRAM_TEXT_HARD_LIMIT=4096 상수 누락 — Z-H13 silent MESSAGE_TOO_LONG 회귀`);
+  }
+  if (!/export\s+function\s+safeTruncateForTelegram/.test(content)) {
+    violations.push(`${FILE}: safeTruncateForTelegram export 누락`);
+  }
+  if (!/safeTruncateForTelegram\(\s*text\s*\)/.test(content)) {
+    violations.push(`${FILE}: notify() 가 safeTruncateForTelegram(text) 호출 누락`);
+  }
+  if (!/text:\s*safeText/.test(content)) {
+    violations.push(`${FILE}: sendMessage payload 가 safeText 대신 raw text 사용 — truncate 가 적용 안 됨`);
+  }
+  // Regression guard — `text: text` (raw) 패턴이 sendMessage body 에 들어가면 안 됨.
+  if (/JSON\.stringify\(\s*\{[\s\S]*?text:\s*text(?!Length)/.test(content)) {
+    violations.push(`${FILE}: sendMessage body 에 raw text 사용 — safeText 로 변경 필요`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P75_notifyTelegram4096Truncate',
+      violations.join(' | '),
+      'PR #451 (Z-H13) — notify() 가 safeTruncateForTelegram 으로 4096-cap 적용, sendMessage body 는 safeText 사용.',
     );
   }
   return null;
