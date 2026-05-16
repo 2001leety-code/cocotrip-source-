@@ -8,6 +8,7 @@ import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
 import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js';
+import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
@@ -268,40 +269,86 @@ export default async function handler(req, res) {
       || Number(process.env.VITE_USD_KRW_RATE)
       || 1430;
     const amountKRW = Math.round(parseFloat(amount || '0') * usdToKrw);
-    try {
-      const db = initAdminDb('capturePaypalOrder');
-      if (!db) throw new Error('Firestore unavailable');
-      await db.collection('bookings').doc(orderID).set({
-        bookingRef: orderID,
-        orderID,
-        captureID,
-        userEmail: (userEmail || '').toLowerCase(),
-        payerEmail,
-        payerName,
-        status: 'CONFIRMED',
-        productType: product || '',
-        tourDate: tourDate || '',
-        // PR #426 (CY3): persist tourTime for refund-cutoff accuracy.
-        tourTime: tourTime || '',
-        pickupLocation: pickupLocation || '',
-        dropoffLocation: dropoffLocation || '',
-        paxCount: paxCount || 0,
-        vehicleType: vehicleType || '',
-        customerPhone: customerPhone || '',
-        couponApplied: !!couponApplied,
-        memo: memo || '',
-        airport: airport || null,
-        amountUSD: amount,
-        amountKRW,
-        capturedExchangeRate: usdToKrw,
-        currency: 'USD',
-        rawCapturePayload,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    } catch (bookingErr) {
-      // 예약 레코드 저장 실패해도 결제는 통과 (booking-processor가 sheets에 기록)
-      console.error('[capturePaypalOrder] bookings doc write failed:', bookingErr.message);
+    //
+    // PR #444 (Audit Y-H14 — 2026-05-16): bookings doc write was best-effort
+    // with a silent console.error catch. If the write failed (Firestore brownout,
+    // quota, network blip) the user's PayPal capture had already SUCCEEDED but
+    // my-bookings / cancelBooking / modifyBooking / voucher all key off this
+    // doc → user sees no reservation → CS escalation. Now:
+    //   - retry up to 3 times with exponential backoff (200/500/1000ms)
+    //   - on total failure: throttled operator alert with orderID + captureID
+    //     (operator can recover via /api/admin-replay-booking-notifications)
+    //   - payment is NOT rolled back — money was captured, the right move is
+    //     to recover the booking record, not refund
+    const bookingDocPayload = {
+      bookingRef: orderID,
+      orderID,
+      captureID,
+      userEmail: (userEmail || '').toLowerCase(),
+      payerEmail,
+      payerName,
+      status: 'CONFIRMED',
+      productType: product || '',
+      tourDate: tourDate || '',
+      // PR #426 (CY3): persist tourTime for refund-cutoff accuracy.
+      tourTime: tourTime || '',
+      pickupLocation: pickupLocation || '',
+      dropoffLocation: dropoffLocation || '',
+      paxCount: paxCount || 0,
+      vehicleType: vehicleType || '',
+      customerPhone: customerPhone || '',
+      couponApplied: !!couponApplied,
+      memo: memo || '',
+      airport: airport || null,
+      amountUSD: amount,
+      amountKRW,
+      capturedExchangeRate: usdToKrw,
+      currency: 'USD',
+      rawCapturePayload,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    const BOOKING_WRITE_BACKOFF_MS = [200, 500, 1000];
+    let bookingWriteOk = false;
+    let lastBookingErr = null;
+    for (let attempt = 0; attempt < BOOKING_WRITE_BACKOFF_MS.length; attempt++) {
+      try {
+        const db = initAdminDb('capturePaypalOrder');
+        if (!db) throw new Error('Firestore unavailable');
+        await db.collection('bookings').doc(orderID).set(bookingDocPayload, { merge: true });
+        bookingWriteOk = true;
+        break;
+      } catch (bookingErr) {
+        lastBookingErr = bookingErr;
+        const msg = bookingErr.message || String(bookingErr);
+        console.error(`[capturePaypalOrder] bookings doc write failed (attempt ${attempt + 1}/${BOOKING_WRITE_BACKOFF_MS.length}):`, msg);
+        if (attempt < BOOKING_WRITE_BACKOFF_MS.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, BOOKING_WRITE_BACKOFF_MS[attempt]));
+        }
+      }
+    }
+    if (!bookingWriteOk) {
+      // CRITICAL — payment captured but reservation record missing. Throttled
+      // alert (dedup per orderID prefix to prevent storm on Firestore outage).
+      // Operator recovers via /api/admin-replay-booking-notifications.
+      throttledTelegramAlert({
+        key: 'bookings-doc-write-fail',
+        channel: 'admin',
+        severity: 'critical',
+        message: [
+          '🚨 <b>CRITICAL — bookings doc 저장 실패 (PayPal 결제 완료됨)</b>',
+          '',
+          `<b>OrderID:</b> <code>${orderID}</code>`,
+          `<b>CaptureID:</b> <code>${captureID}</code>`,
+          `<b>금액:</b> $${amount} / ₩${amountKRW.toLocaleString('ko-KR')}`,
+          `<b>이메일:</b> ${payerEmail || userEmail || '(none)'}`,
+          `<b>최종 사유:</b> ${(lastBookingErr?.message || 'unknown').slice(0, 250)}`,
+          '',
+          '→ user 결제 완료. my-bookings / cancel / voucher 모두 깨짐 상태.',
+          `→ 복구: <code>POST /api/admin-replay-booking-notifications {bookingId:"${orderID}"}</code>`,
+        ].join('\n'),
+        context: { orderID, captureID, amountUSD: amount, amountKRW, source: 'capturePaypalOrder' },
+      }).catch(() => {});
     }
 
     // 2.5 쿠폰 처리 — PR #427 이후 capture 전 pre-lock 으로 이동됨 (section 1.6).
