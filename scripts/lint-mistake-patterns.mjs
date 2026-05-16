@@ -976,6 +976,7 @@ const RULES = [
   ['P68_bookingsWriteRetryAlert', P68_bookingsWriteRetryAlert],
   ['P69_firestoreFieldLengthCaps', P69_firestoreFieldLengthCaps],
   ['P70_appCatchAllRoute', P70_appCatchAllRoute],
+  ['P71_gmailSmtpQuotaGuard', P71_gmailSmtpQuotaGuard],
 ];
 
 /**
@@ -1027,6 +1028,70 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P71_gmailSmtpQuotaGuard — 메모리 P71 (PR #447, Audit Z-H8).
+ * api/_send-email.js 가 quota pre-check + post-success increment 누락하면 fail.
+ * Gmail 500/day cap 초과 시 24h 계정 lockout — 모든 customer email silent loss.
+ */
+function P71_gmailSmtpQuotaGuard({ changed }) {
+  const SEND = 'api/_send-email.js';
+  const HELPER = 'api/_shared/gmail-quota.js';
+  const touched = isModified(SEND, changed) || isModified(HELPER, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(SEND, changed)) {
+    const content = getChangedFileContent(SEND);
+    if (content) {
+      if (!/from\s*['"]\.\/_shared\/gmail-quota\.js['"]/.test(content)) {
+        violations.push(`${SEND}: missing gmail-quota helper import — Z-H8 quota guard absent`);
+      }
+      if (!/checkGmailQuota\s*\(/.test(content)) {
+        violations.push(`${SEND}: checkGmailQuota() pre-check missing — would hit Gmail 500/day cap silently`);
+      }
+      if (!/incrementGmailSentCount\s*\(/.test(content)) {
+        violations.push(`${SEND}: incrementGmailSentCount() post-send call missing — daily counter never advances`);
+      }
+      // Pre-check must run BEFORE sendMail
+      const checkIdx = content.indexOf('checkGmailQuota(');
+      const sendMailIdx = content.indexOf('transporter.sendMail(');
+      if (checkIdx > -1 && sendMailIdx > -1 && checkIdx > sendMailIdx) {
+        violations.push(`${SEND}: checkGmailQuota must run BEFORE transporter.sendMail (wasted SMTP connection on overage)`);
+      }
+      // Increment must run AFTER sendMail (failed sends don't consume quota)
+      const incrIdx = content.indexOf('incrementGmailSentCount(');
+      if (incrIdx > -1 && sendMailIdx > -1 && incrIdx < sendMailIdx) {
+        violations.push(`${SEND}: incrementGmailSentCount must run AFTER sendMail (failed sends would still count)`);
+      }
+    }
+  }
+
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/DEFAULT_DAILY_QUOTA\s*=\s*500/.test(content)) {
+        violations.push(`${HELPER}: DEFAULT_DAILY_QUOTA must be 500 (Gmail free-tier cap)`);
+      }
+      if (!/FieldValue\.increment\(\s*1\s*\)/.test(content)) {
+        violations.push(`${HELPER}: FieldValue.increment(1) missing — race-unsafe manual increment risk`);
+      }
+      if (!/process\.env\.GMAIL_DAILY_QUOTA/.test(content)) {
+        violations.push(`${HELPER}: GMAIL_DAILY_QUOTA env override missing — Workspace accounts can't raise to 2000`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P71_gmailSmtpQuotaGuard',
+      violations.join(' | '),
+      'PR #447 (Z-H8) — sendEmail pre-checks quota + post-success increment, helper uses FieldValue.increment + env override.',
     );
   }
   return null;
