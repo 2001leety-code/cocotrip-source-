@@ -981,6 +981,7 @@ const RULES = [
   ['P73_useAuthForegroundTokenRefresh', P73_useAuthForegroundTokenRefresh],
   ['P74_planDetailListenerStableDep', P74_planDetailListenerStableDep],
   ['P75_notifyTelegram4096Truncate', P75_notifyTelegram4096Truncate],
+  ['P76_bookingAmountNanGuard', P76_bookingAmountNanGuard],
 ];
 
 /**
@@ -1032,6 +1033,62 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P76_bookingAmountNanGuard — 메모리 P76 (PR #452, Audit Z-H9).
+ * api/booking-processor.js 가 `parseFloat(amount || 0)` 패턴 회귀 시 fail.
+ * NaN propagation → $NaN sheets/email/voucher + loyalty silent no-op.
+ * safeParseAmountUSD helper + invalid 시 throttledTelegramAlert 필수.
+ */
+function P76_bookingAmountNanGuard({ changed }) {
+  const FILE = 'api/booking-processor.js';
+  const HELPER = 'api/_shared/amount-guard.js';
+  const touched = isModified(FILE, changed) || isModified(HELPER, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(FILE, changed)) {
+    const content = getChangedFileContent(FILE);
+    if (content) {
+      if (!/from\s*['"]\.\/_shared\/amount-guard\.js['"]/.test(content)) {
+        violations.push(`${FILE}: amount-guard helper import 누락 — Z-H9 NaN guard 회귀`);
+      }
+      if (!/safeParseAmountUSD\(\s*amount\s*\)/.test(content)) {
+        violations.push(`${FILE}: safeParseAmountUSD(amount) 호출 누락`);
+      }
+      // 구 패턴 회귀 차단
+      if (/parseFloat\(\s*amount\s*\|\|\s*0\s*\)/.test(content)) {
+        violations.push(`${FILE}: parseFloat(amount || 0) 회귀 — safeParseAmountUSD 사용 (Z-H9)`);
+      }
+      // operator alert
+      if (!/key:\s*['"]booking-amount-nan['"]/.test(content)) {
+        violations.push(`${FILE}: 'booking-amount-nan' throttledTelegramAlert 누락 — invalid amount silent`);
+      }
+    }
+  }
+
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/export\s+function\s+safeParseAmountUSD/.test(content)) {
+        violations.push(`${HELPER}: safeParseAmountUSD export 누락`);
+      }
+      if (!/Number\.isFinite/.test(content)) {
+        violations.push(`${HELPER}: Number.isFinite 사용 안 함 — 실제 NaN 차단 불가`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P76_bookingAmountNanGuard',
+      violations.join(' | '),
+      'PR #452 (Z-H9) — safeParseAmountUSD + invalid 시 operator alert + 구 parseFloat(amount||0) 회귀 금지.',
     );
   }
   return null;

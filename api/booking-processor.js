@@ -25,6 +25,7 @@ import { appendBooking, updateBookingStatus } from './_google-sheets.js';
 import { sendDispatchAlert, sendBookingPaymentAlert, sendErrorAlert } from './_telegram.js';
 import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { notify } from './_shared/notify.js';
+import { safeParseAmountUSD } from './_shared/amount-guard.js';
 
 // ── 어드민 bypass 감지 ───────────────────────────────────────────────────
 // capturePaypalOrder → booking-processor 호출 시 orderID 에 ADMIN-BYPASS- prefix 가
@@ -158,10 +159,38 @@ const originalHandler = async (event) => {
   let exchangeRate = USD_TO_KRW;
   let amountKRW = 0;
 
+  // PR #452 (Audit Z-H9): malformed `amount` (e.g. 'abc') previously NaN-
+  // propagated through KRW conversion + booking record + loyalty earn,
+  // surfacing as $NaN in Sheets / email / voucher and silent loss of
+  // loyalty points. safeParseAmountUSD returns 0 on invalid + an
+  // `invalid` flag so we can alert operator without blocking the booking.
+  const amountGuard = safeParseAmountUSD(amount);
+  const amountUSDSafe = amountGuard.value;
+  if (amountGuard.invalid) {
+    console.error('[booking-processor] amount NaN guard tripped:', { orderID, rawAmount: String(amount).slice(0, 100) });
+    throttledTelegramAlert({
+      key: 'booking-amount-nan',
+      channel: 'admin',
+      severity: 'critical',
+      message: [
+        '🚨 <b>booking amount malformed — $0 으로 진행</b>',
+        '',
+        `<b>OrderID:</b> <code>${orderID}</code>`,
+        `<b>BookingRef:</b> <code>${bookingRef}</code>`,
+        `<b>Raw amount:</b> <code>${String(amount).slice(0, 100).replace(/[<>&]/g, '_')}</code>`,
+        `<b>이메일:</b> ${payerEmail || '(none)'}`,
+        '',
+        '→ Sheets/email/voucher 모두 $0 으로 표시. 운영자 수동 보정 필요.',
+        `→ /api/admin-update-booking 또는 admin UI 에서 amountUSD 갱신.`,
+      ].join('\n'),
+      context: { orderID, bookingRef, rawAmount: String(amount).slice(0, 100) },
+    }).catch(() => {});
+  }
+
   // ── Step 1: 환율 조회 ────────────────────────────────────────────────
   try {
     exchangeRate = await getUsdToKrwRaw();
-    amountKRW = Math.round(parseFloat(amount || 0) * exchangeRate);
+    amountKRW = Math.round(amountUSDSafe * exchangeRate);
     console.log('[booking-processor] 환율:', exchangeRate, '→ KRW:', amountKRW);
   } catch (err) {
     console.warn('[booking-processor] 환율 조회 실패, 기본값 사용:', err.message);
@@ -193,7 +222,7 @@ const originalHandler = async (event) => {
     dropoffLocation: dropoffLocation || '',
     paxCount: paxCount || 1,
     vehicleType: vehicleType || '스타리아',
-    amountUSD: parseFloat(amount || 0).toFixed(2),
+    amountUSD: amountUSDSafe.toFixed(2),
     amountKRW,
     exchangeRate,
     couponApplied: couponApplied || '없음',
@@ -383,7 +412,10 @@ const originalHandler = async (event) => {
 
   // ── 로열티 포인트 자동 적립 ──────────────────────────────────────────
   try {
-    const amountNum = parseFloat(amount) || 0;
+    // PR #452 (Z-H9): use the shared guard so 'abc' doesn't silently set
+    // amountNum=0 + skip loyalty earn (the operator-alerted path above
+    // already fired for the same NaN).
+    const amountNum = amountUSDSafe;
     if (amountNum > 0 && body.userId) {
       const loyaltyRes = await fetch(`https://cocotripkr.com/api/loyalty`, {
         method: 'POST',
