@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { formatKRW } from './constants';
 import { normalizeRecommendedItem } from '@/types/plan';
 import { track as posthogTrack } from '@/lib/posthog';
+import { openBlobSafely } from '@/lib/openBlobSafely';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
@@ -108,20 +109,18 @@ export async function generatePDF(
   // Phase 3: server-side PDF 우선 시도 (활성화 시). 실패하면 기존 클라이언트 경로로.
   const serverPdf = await tryServerPdf(plan);
   if (serverPdf) {
-    const url = URL.createObjectURL(serverPdf);
+    // PR #456 (Audit Z-H14): openBlobSafely tries <a download> first
+    // (iOS 13+ supports it for blob URLs and it bypasses the popup
+    // blocker that silently killed window.open(blob:) on iOS Safari).
+    // Falls back to window.open + popup-blocker detection so failures
+    // surface to the user instead of being silent.
     const titleSlug = ((plan.itinerary?.tour_title as string) || 'korea-trip')
       .replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'korea-trip';
     const filename = `cocotrip-${titleSlug}-${plan.input?.startDate || 'undated'}.pdf`;
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      window.open(url, '_blank');
-    } else {
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+    const openResult = openBlobSafely({ blob: serverPdf, filename });
+    if (!openResult.ok) {
+      console.warn('[PDF] server-side open failed:', openResult.reason);
     }
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
     console.log('[PDF] server-side generation succeeded');
     void posthogTrack('plan_downloaded', {
       planId: planIdForTrack,
@@ -1228,21 +1227,13 @@ export async function generatePDF(
       offerWhatsapp('PDF capture failed (empty file).');
       return;
     }
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      // iOS Safari: direct .save() often blocked -> open blob in new tab
-      const url = URL.createObjectURL(pdf);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } else {
-      // 안드로이드 / 데스크톱: blob을 a[download] 트리거로 저장 (worker.save() 우회)
-      const url = URL.createObjectURL(pdf);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    // PR #456 (Audit Z-H14): unified iOS-safe blob open. <a download>
+    // works on iOS 13+ for blob URLs and bypasses the popup blocker
+    // that previously silently killed window.open(blob:). Fallback
+    // path detects popup-blocked and surfaces a user alert.
+    const openResult = openBlobSafely({ blob: pdf, filename });
+    if (!openResult.ok) {
+      console.warn('[PDF] client-side open failed:', openResult.reason);
     }
     void posthogTrack('plan_downloaded', {
       planId: planIdForTrack,
