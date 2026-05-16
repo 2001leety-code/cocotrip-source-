@@ -962,6 +962,7 @@ const RULES = [
   ['P53_complaintRateLimit', P53_complaintRateLimit],
   ['P54_foodIndexCache', P54_foodIndexCache],
   ['P55_webhookExchangeRate', P55_webhookExchangeRate],
+  ['P56_manualPaymentRateLimit', P56_manualPaymentRateLimit],
 ];
 
 /**
@@ -1019,9 +1020,13 @@ function P54_foodIndexCache({ changed }) {
 }
 
 /**
- * P53_complaintRateLimit — 메모리 P53 (PR #429, Audit WC10).
- * api/submit-plan-complaint.js 가 IP rate limit 누락 회귀하면 fail.
+ * P53_complaintRateLimit — 메모리 P53 (PR #429, Audit WC10; refactor PR #432).
+ * api/submit-plan-complaint.js 가 IP rate limit wire-up 을 누락 회귀하면 fail.
  * 익명 spam → 운영자 Telegram 채널 spam + Firestore writes 폭주.
+ *
+ * PR #432 (W-H13) 에서 inline 코드를 api/_shared/ip-rate-limit.js 로 추출 →
+ * endpoint 는 import + checkIpRateLimit 호출만, helper 자체는 P56 가 별도로
+ * shape (hash + transaction + fail-open) 을 검증.
  */
 function P53_complaintRateLimit({ changed }) {
   const FILE = 'api/submit-plan-complaint.js';
@@ -1030,23 +1035,98 @@ function P53_complaintRateLimit({ changed }) {
   if (!content) return { skipped: true };
 
   const violations = [];
-  if (!/checkRateLimit\s*\(/.test(content)) {
-    violations.push(`${FILE}: checkRateLimit() call missing — endpoint can be spammed (WC10)`);
+  if (!/from\s*['"]\.\/_shared\/ip-rate-limit\.js['"]/.test(content)) {
+    violations.push(`${FILE}: shared helper import (api/_shared/ip-rate-limit.js) missing — inline rate-limit drift risk`);
   }
-  if (!/x-forwarded-for/i.test(content) || !/createHash\s*\(\s*['"]sha256['"]/.test(content)) {
-    violations.push(`${FILE}: IP extraction / hashing pattern missing`);
+  if (!/checkIpRateLimit\s*\(/.test(content)) {
+    violations.push(`${FILE}: checkIpRateLimit() call missing — endpoint can be spammed (WC10)`);
   }
-  // checkRateLimit must run before the Telegram notify + Firestore add.
-  const checkIdx = content.indexOf('checkRateLimit(');
+  if (!/collection\s*:\s*['"]complaint_rate_limits['"]/.test(content)) {
+    violations.push(`${FILE}: must pass collection='complaint_rate_limits' to checkIpRateLimit`);
+  }
+  // The call must run before the Telegram notify + Firestore add.
+  const checkIdx = content.indexOf('checkIpRateLimit(');
   const notifyIdx = content.indexOf("notify('booking'");
   if (checkIdx > -1 && notifyIdx > -1 && checkIdx > notifyIdx) {
-    violations.push(`${FILE}: checkRateLimit must run before the Telegram notify (currently after)`);
+    violations.push(`${FILE}: checkIpRateLimit must run before the Telegram notify (currently after)`);
   }
   if (violations.length > 0) {
     fail(
       'P53_complaintRateLimit',
       violations.join(' | '),
-      'PR #429 (WC10) — IP rate limit (5/h) Firestore-transaction 으로 acquire + checkRateLimit 을 매 호출 첫 단계로 유지.',
+      'PR #429 (WC10) — IP rate limit (5/h) helper import + 매 호출 첫 단계로 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P56_manualPaymentRateLimit — 메모리 P56 (PR #432, Audit W-H13).
+ * api/manual-payment-request.js 가 IP rate limit 누락 회귀하면 fail. 익명
+ * payment claim endpoint — 어떤 인증 흐름 시도 *전에* rate limit 적용해야
+ * Telegram booking 채널 + pending_bookings spam blast radius 제한됨.
+ *
+ * 동시에 shared helper (api/_shared/ip-rate-limit.js) 가 hash + transaction
+ * + fail-open shape 을 유지하는지도 같은 rule 에서 확인 — helper 가 silently
+ * 약해지면 두 endpoint 모두 drift.
+ */
+function P56_manualPaymentRateLimit({ changed }) {
+  const FILE = 'api/manual-payment-request.js';
+  const HELPER = 'api/_shared/ip-rate-limit.js';
+  const touchedEndpoint = isModified(FILE, changed);
+  const touchedHelper = isModified(HELPER, changed);
+  if (!touchedEndpoint && !touchedHelper) return { skipped: true };
+
+  const violations = [];
+
+  if (touchedEndpoint) {
+    const content = getChangedFileContent(FILE);
+    if (!content) return { skipped: true };
+    if (!/from\s*['"]\.\/_shared\/ip-rate-limit\.js['"]/.test(content)) {
+      violations.push(`${FILE}: shared helper import missing — inline rate-limit drift risk`);
+    }
+    if (!/checkIpRateLimit\s*\(/.test(content)) {
+      violations.push(`${FILE}: checkIpRateLimit() call missing — manual payment endpoint can be spammed (W-H13)`);
+    }
+    if (!/collection\s*:\s*['"]manual_payment_rate_limits['"]/.test(content)) {
+      violations.push(`${FILE}: must pass collection='manual_payment_rate_limits' to checkIpRateLimit`);
+    }
+    // Rate-limit must precede pending_bookings write + Telegram notify.
+    const rateIdx = content.indexOf('checkIpRateLimit(');
+    const writeIdx = content.indexOf("collection('pending_bookings')");
+    const notifyIdx = content.indexOf("notify('booking'");
+    if (rateIdx > -1 && writeIdx > -1 && rateIdx > writeIdx) {
+      violations.push(`${FILE}: checkIpRateLimit must run before pending_bookings write`);
+    }
+    if (rateIdx > -1 && notifyIdx > -1 && rateIdx > notifyIdx) {
+      violations.push(`${FILE}: checkIpRateLimit must run before Telegram notify`);
+    }
+  }
+
+  if (touchedHelper) {
+    const content = getChangedFileContent(HELPER);
+    if (!content) return violations.length > 0
+      ? fail('P56_manualPaymentRateLimit', violations.join(' | '), 'PR #432 (W-H13)')
+      : null;
+    if (!/createHash\s*\(\s*['"]sha256['"]/.test(content)) {
+      violations.push(`${HELPER}: sha256 hashing of IP missing — plaintext-IP-at-rest privacy regression`);
+    }
+    if (!/runTransaction\s*\(/.test(content)) {
+      violations.push(`${HELPER}: Firestore transaction missing — race on the counter at cap (two requests pass)`);
+    }
+    if (!/degraded\s*:\s*true/.test(content)) {
+      violations.push(`${HELPER}: fail-OPEN path (degraded:true) missing — Firestore outage would lock out users`);
+    }
+    if (!/status\s*:\s*429/.test(content)) {
+      violations.push(`${HELPER}: 429 status missing — caller can't tell 429 from generic error`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P56_manualPaymentRateLimit',
+      violations.join(' | '),
+      'PR #432 (W-H13) — manual-payment-request 3/h cap + shared helper shape (hash + transaction + fail-open + 429) 유지.',
     );
   }
   return null;
