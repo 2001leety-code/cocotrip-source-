@@ -6,7 +6,6 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore } from './qualityMetrics.js';
-import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 /**
  * Calculate T-money recommended load from ODsay fares + arrival/departure costs.
@@ -157,70 +156,19 @@ export async function persistPlan(adminDb, {
   // 14+ 일 다도시 plan 시 itinerary 가 1MB 초과 → set() throw → 사용자 결제 후
   // 데이터 loss. pre-check 후 day 마지막부터 truncate (Sentry alert + 운영자 수동
   // 복구 가능). 사용자에게는 plan 일부 손실 — 보수적으로 truncate 표시 stop 추가.
-  //
-  // PR #460 (Audit X-H1 — 2026-05-16): truncation 이 silent 였음.
-  // - console.error 만 → 운영자가 Vercel 로그 보지 않으면 모름
-  // - `_truncated_days` 가 itinerary 안에 묻혀있어 UI 가 surface 하기 어려움
-  // 변경:
-  // 1. root-level `__truncated: true` + `__truncated_days_count` 추가 →
-  //    PlanDetailPage 가 즉시 banner 표시 가능 (itinerary 깊이 탐색 불필요)
-  // 2. throttledTelegramAlert (admin channel) — region+duration dedup
-  //    (한 사용자가 다도시 14일 반복 시도해도 5분당 1회)
-  // 3. 기존 `itinerary._truncated_days/_truncation_note` 유지 (legacy 호환)
   const SIZE_LIMIT_BYTES = 900_000; // Firestore 한계 1,048,576 의 안전 margin
-  const initialSize = Buffer.byteLength(JSON.stringify(docToSave), 'utf8');
-  let docSize = initialSize;
+  let docSize = Buffer.byteLength(JSON.stringify(docToSave), 'utf8');
   if (docSize > SIZE_LIMIT_BYTES) {
     console.error(`[planPersister] Document size ${docSize}B exceeds ${SIZE_LIMIT_BYTES}B — truncating days`);
     let truncatedCount = 0;
-    const originalDayCount = docToSave.itinerary?.days?.length || 0;
     while (docSize > SIZE_LIMIT_BYTES && docToSave.itinerary?.days?.length > 1) {
       docToSave.itinerary.days.pop();
       truncatedCount += 1;
       docSize = Buffer.byteLength(JSON.stringify(docToSave), 'utf8');
     }
-    // Legacy fields (itinerary-deep) — UI 의 기존 탐색 경로 지원.
     docToSave.itinerary._truncated_days = truncatedCount;
     docToSave.itinerary._truncation_note = 'Plan size exceeded Firestore limit — last days removed for safety. Contact support for full plan.';
-    // Root-level flags (PR #460) — PlanDetailPage / banner UI 가 즉시 감지.
-    docToSave.__truncated = true;
-    docToSave.__truncated_days_count = truncatedCount;
-    docToSave.__truncated_original_days = originalDayCount;
-    docToSave.__truncated_initial_size_bytes = initialSize;
     console.warn(`[planPersister] Truncated ${truncatedCount} days. Final size: ${docSize}B`);
-
-    // PR #460 (X-H1): operator alert — 사용자는 plan 받지만 일부 day 누락.
-    // dedup key: region+duration → 같은 다도시 14일 사용자 반복 시도해도 5분 1회.
-    // fire-and-forget — Telegram fail 이 plan 저장 latency 영향 X.
-    const regionKey = Array.isArray(body?.regions) && body.regions.length > 0
-      ? body.regions.slice(0, 3).join('+')
-      : (area || 'unknown');
-    const durationKey = String(duration ?? originalDayCount ?? 'unknown');
-    throttledTelegramAlert({
-      key: `plan-persister-truncate:${regionKey}:${durationKey}`,
-      channel: 'admin',
-      severity: 'high',
-      message: [
-        `⚠️ <b>Plan truncated — Firestore 1MB 초과로 마지막 ${truncatedCount}일 제거</b>`,
-        ``,
-        `<b>planId:</b> <code>${planId}</code>`,
-        `<b>regions:</b> ${regionKey}`,
-        `<b>duration:</b> ${durationKey} days`,
-        `<b>원본 days:</b> ${originalDayCount} → <b>저장:</b> ${originalDayCount - truncatedCount}`,
-        `<b>초기 크기:</b> ${initialSize.toLocaleString()}B / 한계 ${SIZE_LIMIT_BYTES.toLocaleString()}B`,
-        `<b>최종 크기:</b> ${docSize.toLocaleString()}B`,
-        ``,
-        `→ user 가 plan 받았지만 day ${originalDayCount - truncatedCount + 1}~${originalDayCount} 누락.`,
-        `→ uid: <code>${uid || 'guest'}</code> · email: <code>${(email || 'none').slice(0, 80)}</code>`,
-      ].join('\n'),
-      context: {
-        planId,
-        region: regionKey,
-        durationDays: Number(durationKey) || originalDayCount,
-        uid: uid || 'guest',
-        email: email || null,
-      },
-    }).catch(() => {});
   }
 
   try {
