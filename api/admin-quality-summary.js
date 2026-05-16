@@ -53,16 +53,13 @@ import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
 import { collectQualityCounts } from './_shared/quality-summary-helper.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
-const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'GET, OPTIONS';
 
 const METRIC_KEYS = [
   'dietary_violation',
@@ -76,8 +73,8 @@ const METRIC_KEYS = [
   'loose_schedule',
 ];
 
-function json(res, status, body) {
-  res.writeHead(status, JSON_CORS);
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -110,14 +107,14 @@ function topMetrics(metrics, n = 3) {
 }
 
 async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
   if (req.method !== 'GET') {
-    return json(res, 405, { error: 'Method Not Allowed' });
+    return json(req, res, 405, { error: 'Method Not Allowed' });
   }
 
   const auth = await verifyAdminToken(req);
   if (!auth.ok) {
-    return json(res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
+    return json(req, res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
   }
 
   const days  = Math.min(Math.max(parseInt(req.query?.days  || '30',  10), 1), 365);
@@ -125,7 +122,7 @@ async function handler(req, res) {
 
   const db = initAdminDb('admin-quality-summary');
   if (!db) {
-    return json(res, 500, { error: 'Firestore unavailable — check FIREBASE_* env vars' });
+    return json(req, res, 500, { error: 'Firestore unavailable — check FIREBASE_* env vars' });
   }
 
   const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
@@ -259,7 +256,7 @@ async function handler(req, res) {
     const _collectionErrors  = { ...(counts._collectionErrors || {}) };
     delete _collectionErrors.plans;
 
-    return json(res, 200, {
+    return json(req, res, 200, {
       window: {
         days,
         limit,
@@ -282,7 +279,7 @@ async function handler(req, res) {
   } catch (err) {
     await captureError(err, { route: '/api/admin-quality-summary', method: 'GET' });
     console.error('[admin-quality-summary] error:', err);
-    return json(res, 500, { error: err.message, code: 'QUALITY_SUMMARY_FAILED' });
+    return json(req, res, 500, { error: err.message, code: 'QUALITY_SUMMARY_FAILED' });
   }
 }
 

@@ -966,6 +966,7 @@ const RULES = [
   ['P57_aiPlannerCouponGate', P57_aiPlannerCouponGate],
   ['P58_globalPromoRaceCapCheck', P58_globalPromoRaceCapCheck],
   ['P60_bookingProcessorFireAndForget', P60_bookingProcessorFireAndForget],
+  ['P61_adminCorsWildcard', P61_adminCorsWildcard],
 ];
 
 /**
@@ -1017,6 +1018,39 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P61_adminCorsWildcard — 메모리 P61 (PR #437, Audit W-H11).
+ * api/admin-*.js 가 `Access-Control-Allow-Origin: '*'` 로 회귀하면 fail.
+ * 모든 admin endpoint 는 api/_shared/cors.js 의 buildAdminCors / buildAdminJsonCors
+ * 를 import 해서 사용해야 함. 신규 admin-*.js 파일이 추가될 때도 자동 검출.
+ */
+function P61_adminCorsWildcard({ changed }) {
+  const touched = changed.filter((c) =>
+    c.status !== 'D' && /^api\/admin-[\w-]+\.js$/.test(c.file),
+  );
+  if (touched.length === 0) return { skipped: true };
+
+  const violations = [];
+  for (const { file: FILE } of touched) {
+    const content = getChangedFileContent(FILE);
+    if (!content) continue;
+    if (/'Access-Control-Allow-Origin'\s*:\s*['"]\*['"]/.test(content)) {
+      violations.push(`${FILE}: wildcard 'Access-Control-Allow-Origin': '*' detected — use buildAdminCors helper (W-H11)`);
+    }
+    if (!/from\s*['"]\.\/_shared\/cors\.js['"]/.test(content)) {
+      violations.push(`${FILE}: missing api/_shared/cors.js import — admin endpoints must use the shared origin allowlist`);
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'P61_adminCorsWildcard',
+      violations.join(' | '),
+      'PR #437 (W-H11) — admin endpoints 은 buildAdminCors/buildAdminJsonCors 사용. wildcard CORS 금지 (defense in depth).',
     );
   }
   return null;

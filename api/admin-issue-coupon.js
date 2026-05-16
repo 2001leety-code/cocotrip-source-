@@ -23,19 +23,17 @@
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { captureError } from './_shared/sentry.js';
+import { buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
-const JSON_HEADERS = {
-  'Content-Type': 'application/json',
-  'Cache-Control': 'no-store',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-};
+// PR #437 (W-H11): per-request origin allowlist — was wildcard '*'.
+const JSON_HEADERS_STATIC = { 'Cache-Control': 'no-store' };
+const CORS_METHODS = 'POST, OPTIONS';
 
 export default async function handler(req, res) {
+  const JSON_HEADERS = { ...JSON_HEADERS_STATIC, ...buildAdminJsonCors(req, { methods: CORS_METHODS, headers: 'Authorization, Content-Type' }) };
   if (req.method === 'OPTIONS') {
     res.writeHead(200, JSON_HEADERS);
     return res.end();

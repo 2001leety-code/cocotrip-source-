@@ -23,19 +23,16 @@ import {
   deleteCachedTranslation,
 } from './_shared/place-translation-cache.js';
 import { wrapHandler, captureError } from './_shared/sentry.js';
+import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
-const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
+// PR #437 (W-H11): origin allowlist via buildAdminCors — was wildcard '*'.
+const CORS_METHODS = 'GET, PATCH, DELETE, OPTIONS';
 
-function json(res, status, body) {
-  res.writeHead(status, JSON_CORS);
+function json(req, res, status, body) {
+  res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
   return res.end(JSON.stringify(body));
 }
 
@@ -53,11 +50,11 @@ async function readBody(req) {
 }
 
 async function handler(req, res) {
-  if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
 
   const auth = await verifyAdminToken(req);
   if (!auth.ok) {
-    return json(res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
+    return json(req, res, auth.status, { error: auth.error, code: 'AUTH_FAILED' });
   }
 
   try {
@@ -75,7 +72,7 @@ async function handler(req, res) {
         limit,
         offset,
       });
-      return json(res, 200, {
+      return json(req, res, 200, {
         items: result.items,
         total: result.total,
         offset,
@@ -91,37 +88,37 @@ async function handler(req, res) {
       const translatedText = String(body?.translatedText || '').trim();
 
       if (!originalText || !translatedText) {
-        return json(res, 400, { error: 'originalText 와 translatedText 모두 필요', code: 'BAD_REQUEST' });
+        return json(req, res, 400, { error: 'originalText 와 translatedText 모두 필요', code: 'BAD_REQUEST' });
       }
       if (!['en', 'ja', 'zh'].includes(lang)) {
-        return json(res, 400, { error: 'lang 은 en/ja/zh 중 하나', code: 'BAD_LANG' });
+        return json(req, res, 400, { error: 'lang 은 en/ja/zh 중 하나', code: 'BAD_LANG' });
       }
 
       const ok = await updateManualTranslation(originalText, lang, translatedText, auth.email);
       if (!ok) {
-        return json(res, 500, { error: 'Firestore 업데이트 실패', code: 'UPDATE_FAILED' });
+        return json(req, res, 500, { error: 'Firestore 업데이트 실패', code: 'UPDATE_FAILED' });
       }
-      return json(res, 200, { ok: true, updatedBy: auth.email, source: 'manual' });
+      return json(req, res, 200, { ok: true, updatedBy: auth.email, source: 'manual' });
     }
 
     if (req.method === 'DELETE') {
       const body = await readBody(req);
       const docId = String(body?.docId || '').trim();
       if (!docId) {
-        return json(res, 400, { error: 'docId 필요', code: 'BAD_REQUEST' });
+        return json(req, res, 400, { error: 'docId 필요', code: 'BAD_REQUEST' });
       }
       const ok = await deleteCachedTranslation(docId);
       if (!ok) {
-        return json(res, 500, { error: 'Firestore 삭제 실패', code: 'DELETE_FAILED' });
+        return json(req, res, 500, { error: 'Firestore 삭제 실패', code: 'DELETE_FAILED' });
       }
-      return json(res, 200, { ok: true, docId });
+      return json(req, res, 200, { ok: true, docId });
     }
 
-    return json(res, 405, { error: 'Method Not Allowed' });
+    return json(req, res, 405, { error: 'Method Not Allowed' });
   } catch (err) {
     await captureError(err, { route: '/api/admin-translations', method: req.method });
     console.error('[admin-translations] error:', err);
-    return json(res, 500, { error: err.message, code: 'ADMIN_TRANSLATIONS_FAILED' });
+    return json(req, res, 500, { error: err.message, code: 'ADMIN_TRANSLATIONS_FAILED' });
   }
 }
 
