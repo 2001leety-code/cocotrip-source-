@@ -202,7 +202,57 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
     const allStops = (itinerary.days || []).flatMap((d) => d.stops || []);
     const stopsWithTransit = allStops.filter((s) => s.transit_from_prev != null).length;
     const stopsGeocoded = allStops.filter((s) => s.lat != null).length;
-    console.log(`[routeEnrich] summary — transit attached: ${stopsWithTransit}/${allStops.length}, geocoded: ${stopsGeocoded}/${allStops.length}`);
+    const blindFallbackStops = allStops.filter((s) => s.transit_from_prev?._blind_fallback === true).length;
+    console.log(`[routeEnrich] summary — transit attached: ${stopsWithTransit}/${allStops.length}, geocoded: ${stopsGeocoded}/${allStops.length}, blind_fallback: ${blindFallbackStops}/${stopsWithTransit}`);
+
+    // PR #463 (Audit X-H4 — 2026-05-16): aggregate blind-fallback ratio.
+    // Pre-fix: RouteAgent emitted per-pair console.warn but routeEnrichment
+    // never aggregated, so a regional geocoding outage produced "car · 25분 /
+    // 5.0km" on every stop without surfacing to the operator. User saw a plan
+    // where ALL transits were identical and asked "how do I actually get
+    // between places?" — CS triage was the only signal.
+    //
+    // Threshold = 40% blind ratio across at least 5 transit-bearing stops.
+    // Below 5 stops we don't alert: single-day arrival plans naturally have
+    // few transits and one missing geocode dominates the ratio. Dedup key
+    // includes regions so a busan-day outage and a seoul-day outage surface
+    // as separate signals.
+    const BLIND_RATIO_THRESHOLD = 0.4;
+    const MIN_TRANSITS_FOR_ALERT = 5;
+    if (stopsWithTransit >= MIN_TRANSITS_FOR_ALERT) {
+      const blindRatio = blindFallbackStops / stopsWithTransit;
+      if (blindRatio > BLIND_RATIO_THRESHOLD) {
+        const regionsKey = Array.isArray(itinerary?.regions) && itinerary.regions.length > 0
+          ? itinerary.regions.slice(0, 3).join('+')
+          : (body?.area || 'unknown');
+        const blindPct = Math.round(blindRatio * 100);
+        throttledTelegramAlert({
+          key: `route-blind-fallback:${regionsKey}`,
+          channel: 'admin',
+          severity: 'high',
+          message: [
+            `⚠️ <b>RouteAgent blind 25min/5km fallback — ${blindPct}% of transits</b>`,
+            ``,
+            `<b>regions:</b> ${regionsKey}`,
+            `<b>blind stops:</b> ${blindFallbackStops} / ${stopsWithTransit} transit-bearing (${blindPct}%)`,
+            `<b>geocoded:</b> ${stopsGeocoded} / ${allStops.length} total stops`,
+            `<b>hotel_address:</b> ${String(hotel_address || '(none)').slice(0, 120)}`,
+            ``,
+            `→ user 가 받은 plan 의 대부분 transit 이 "car · 25분 · 5km" 동일. 사실상 이동 정보 없음.`,
+            `→ 회귀 원인 가능성:`,
+            `• Gemini geocode 단계가 stop 의 address 를 못 채움 (address parsing 회귀)`,
+            `• NAVER geocoding API outage / quota`,
+            `• stop name 형식이 NAVER 가 인식 못 함 (display_name 만 출력, address 누락)`,
+          ].join('\n'),
+          context: {
+            errorCode: 'route_blind_fallback_high',
+            reason: regionsKey,
+            step: 'routeEnrichment-summary',
+          },
+        }).catch(() => {});
+        console.warn(`[routeEnrich] BLIND FALLBACK RATIO HIGH — ${blindPct}% (${blindFallbackStops}/${stopsWithTransit}), alert fired`);
+      }
+    }
   } catch (routeErr) {
     // B-11 (2026-05-12): TDZ ReferenceError 같은 회귀가 silent swallow 안 되도록
     // 명시적 에러 type + 한 줄 요약 로그.

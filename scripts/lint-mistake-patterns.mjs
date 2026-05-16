@@ -992,6 +992,7 @@ const RULES = [
   ['P84_planPersisterTruncateSurface', P84_planPersisterTruncateSurface],
   ['P85_geminiRetryDeterministicModel', P85_geminiRetryDeterministicModel],
   ['P86_repairDroppedGuidesAlert', P86_repairDroppedGuidesAlert],
+  ['P87_routeBlindFallbackRatio', P87_routeBlindFallbackRatio],
 ];
 
 /**
@@ -1083,6 +1084,75 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P87_routeBlindFallbackRatio — 메모리 P87 (PR #463, Audit X-H4).
+ * api/_ai_core/agents/RouteAgent.js 가 blind 25min/5km fallback 을
+ * silent 하면 fail (transit_from_prev 에 _blind_fallback 플래그 필수).
+ * api/_ai_core/routeEnrichment.js 는 RouteAgent 출력 후 blind 비율 집계 +
+ * 40% 초과 시 admin alert 필수.
+ */
+function P87_routeBlindFallbackRatio({ changed }) {
+  const AGENT = 'api/_ai_core/agents/RouteAgent.js';
+  const ENRICH = 'api/_ai_core/routeEnrichment.js';
+  const touched = isModified(AGENT, changed) || isModified(ENRICH, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(AGENT, changed)) {
+    const c = getChangedFileContent(AGENT);
+    if (c) {
+      // isBlindFallback 식별 (4-input AND chain)
+      if (!/const\s+isBlindFallback\s*=/.test(c)) {
+        violations.push(`${AGENT}: isBlindFallback boolean 누락 — 25min/5km path 식별 불가 (X-H4)`);
+      }
+      if (!/source:\s*isBlindFallback\s*\?\s*['"]blind_25_no_coords['"]\s*:\s*['"]naver_fallback['"]/.test(c)) {
+        violations.push(`${AGENT}: naver_fallback 분기 source flag 누락 (blind_25_no_coords vs naver_fallback)`);
+      }
+      if (!/_blind_fallback:\s*true/.test(c)) {
+        violations.push(`${AGENT}: _blind_fallback:true 마킹 누락 → routeEnrichment 가 비율 못 잼`);
+      }
+    }
+  }
+
+  if (isModified(ENRICH, changed)) {
+    const c = getChangedFileContent(ENRICH);
+    if (c) {
+      if (!/blindFallbackStops\s*=\s*allStops\.filter\(\(s\)\s*=>\s*s\.transit_from_prev\?\._blind_fallback\s*===\s*true\)\.length/.test(c)) {
+        violations.push(`${ENRICH}: blindFallbackStops 집계 누락`);
+      }
+      if (!/const\s+BLIND_RATIO_THRESHOLD\s*=\s*0\.4/.test(c)) {
+        violations.push(`${ENRICH}: BLIND_RATIO_THRESHOLD=0.4 누락 → alert 임계 변경`);
+      }
+      if (!/const\s+MIN_TRANSITS_FOR_ALERT\s*=\s*5/.test(c)) {
+        violations.push(`${ENRICH}: MIN_TRANSITS_FOR_ALERT=5 누락 → arrival-day 1-transit edge false positive`);
+      }
+      if (!/route-blind-fallback:\$\{regionsKey\}/.test(c)) {
+        violations.push(`${ENRICH}: dedup key 'route-blind-fallback:${'${regionsKey}'}' 누락`);
+      }
+      const alertBlock = c.slice(c.indexOf('route-blind-fallback'), c.indexOf('route-blind-fallback') + 2500);
+      if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
+        violations.push(`${ENRICH}: admin 채널 누락`);
+      }
+      if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
+        violations.push(`${ENRICH}: severity:'high' 누락`);
+      }
+      if (!/throttledTelegramAlert\(\{[\s\S]*?route-blind-fallback[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(c)) {
+        violations.push(`${ENRICH}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P87_routeBlindFallbackRatio',
+      violations.join(' | '),
+      'PR #463 (X-H4) — _blind_fallback flag + 집계 + 40%/5건 threshold + admin alert 유지.',
     );
   }
   return null;
