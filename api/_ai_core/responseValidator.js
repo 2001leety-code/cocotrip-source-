@@ -351,7 +351,8 @@ export function validatePatternStructure(itinerary, request = {}) {
       }
     }
 
-    // B-MEAL (2026-05-13 PR #407 → PR #410 boundary widening): 식사 slot 시간대 검증.
+    // B-MEAL (2026-05-13 PR #407 → PR #410 boundary widening → PR #464 X-H6 snack slot):
+    // 식사 slot 시간대 검증.
     // 사용자 PDF 보고 (Guest-5--2026-05-14): Day 2 저녁 누락 (hotel return 17:43 종료).
     // buildPrompt.js:541 명시: "1 dedicated lunch + 1 dinner per full day (category: food)".
     // 기존 validator 가 강제 안 함 → Gemini 가 lazy 응답해도 통과.
@@ -361,11 +362,21 @@ export function validatePatternStructure(itinerary, request = {}) {
     //   lunch 14:16 (Gijang Seafood Kalguksu) 가 14 >= 14 → fail-positive 차단!
     //   이는 실제 정상 plan 인데 validator 가 false-positive 차단 → retry → throw 500 → 환불.
     //
-    // 새 정의 (현실 한국 식사 시간대 반영):
-    //   - 점심 slot: start_time hour ∈ [11, 15) — 11:00~14:59 (12-14시 점심 흔함)
-    //   - 저녁 slot: start_time hour ∈ [17, 22) — 17:00~21:59 (late dinner 흔함)
-    //   - first/last day (도착/출국일): 점심 OR 저녁 중 최소 1개 (도착/출국 시각 변동)
-    //   - full day (중간 day): 점심 + 저녁 둘 다 필수
+    // 2026-05-16 PR #464 (Audit X-H6) snack slot 추가:
+    //   원본 boundary lunch [11,15) + dinner [17,22) — 15:00~16:59 사이 food stop 은
+    //   neither lunch nor dinner 로 silent ignore. Gemini 가 사용자에게 "오후 카페/디저트
+    //   stop" (e.g. 15:30 Sulbing 빙수, 16:00 Anthracite Coffee) 만 넣으면 lunchCount=0
+    //   → 'B-MEAL-LUNCH 누락' false-positive → retry 강제 → Gemini quota burn (PR #461
+    //   retryModel 도입 후에도 quota 사용량 ↑).
+    //   해결: snack slot [15,17) 명시 카운트, 점심 요구사항은 lunch OR snack 만족하면 통과.
+    //   저녁은 그대로 [17,22) 유지 (저녁은 분명한 메인 식사).
+    //
+    // 정의:
+    //   - 점심/오후식사 slot: start_time hour ∈ [11, 17) — 11:00~16:59
+    //     (subset: lunch [11,15) + snack [15,17) — 텔레메트리만 분리)
+    //   - 저녁 slot: start_time hour ∈ [17, 22) — 17:00~21:59
+    //   - first/last day (도착/출국일): 점심/snack OR 저녁 중 최소 1개
+    //   - full day (중간 day): 점심/snack + 저녁 둘 다 필수
     //   - 단일일 plan (days.length === 1): full day 와 동일 처리
     //
     // HARD validation — caller 가 1회 retry. 회귀 슈트 B-MEAL 와 동일 기준.
@@ -382,31 +393,36 @@ export function validatePatternStructure(itinerary, request = {}) {
         return h >= lo && h < hi;
       };
       const lunchCount = foodStops.filter((s) => matchHour(s, 11, 15)).length;
+      // PR #464 (X-H6): explicit snack slot for telemetry + lenient lunch counting.
+      const snackCount = foodStops.filter((s) => matchHour(s, 15, 17)).length;
       const dinnerCount = foodStops.filter((s) => matchHour(s, 17, 22)).length;
+      // afternoonMealCount satisfies the "afternoon meal" requirement —
+      // lunch (11-14:59) OR snack (15-16:59) both pass.
+      const afternoonMealCount = lunchCount + snackCount;
       const isSingleDay = days.length === 1;
       const isFirst = i === 0 && !isSingleDay;
       const isLast = i === days.length - 1 && !isSingleDay;
 
       // 2026-05-13 PR #410 telemetry: B-MEAL hit/miss 통계 prod 디버그용.
       // Vercel function logs 에서 grep '[validator] B-MEAL' 로 검색 가능.
-      // 차후 false-positive 사례 발견 시 boundary 추가 조정 근거.
+      // PR #464: snackCount 추가 — afternoon meal pattern 분석.
       if (foodStops.length > 0) {
         console.log(
-          `[validator] B-MEAL Day ${dayNum}: foodStops=${foodStops.length} lunch=${lunchCount} dinner=${dinnerCount} ` +
+          `[validator] B-MEAL Day ${dayNum}: foodStops=${foodStops.length} lunch=${lunchCount} snack=${snackCount} dinner=${dinnerCount} ` +
           `isFirst=${isFirst} isLast=${isLast} times=[${foodStops.map((s) => s.start_time || '?').join(',')}]`
         );
       }
 
       if (isFirst || isLast) {
-        // 도착/출국일 — 점심 OR 저녁 중 최소 1개
-        if (lunchCount === 0 && dinnerCount === 0) {
+        // 도착/출국일 — 점심/snack OR 저녁 중 최소 1개
+        if (afternoonMealCount === 0 && dinnerCount === 0) {
           errors.push(
-            `Day ${dayNum} (${isFirst ? '도착' : '출국'}일): 점심(11-14시)+저녁(17-21시) 모두 누락 (B-MEAL)`
+            `Day ${dayNum} (${isFirst ? '도착' : '출국'}일): 오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
           );
         }
       } else {
-        // full day (또는 단일일) — 점심 + 저녁 둘 다 필수
-        if (lunchCount === 0) errors.push(`Day ${dayNum}: 점심(11-14시) food stop 누락 (B-MEAL-LUNCH)`);
+        // full day (또는 단일일) — 점심/snack + 저녁 둘 다 필수
+        if (afternoonMealCount === 0) errors.push(`Day ${dayNum}: 오후식사(11-16시, 점심 또는 snack) food stop 누락 (B-MEAL-LUNCH)`);
         if (dinnerCount === 0) errors.push(`Day ${dayNum}: 저녁(17-21시) food stop 누락 (B-MEAL-DINNER)`);
       }
     }

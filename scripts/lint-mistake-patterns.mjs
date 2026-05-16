@@ -993,6 +993,7 @@ const RULES = [
   ['P85_geminiRetryDeterministicModel', P85_geminiRetryDeterministicModel],
   ['P86_repairDroppedGuidesAlert', P86_repairDroppedGuidesAlert],
   ['P87_routeBlindFallbackRatio', P87_routeBlindFallbackRatio],
+  ['P88_bmealSnackSlot', P88_bmealSnackSlot],
 ];
 
 /**
@@ -1084,6 +1085,63 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P88_bmealSnackSlot — 메모리 P88 (PR #464, Audit X-H6).
+ * api/_ai_core/responseValidator.js 의 B-MEAL validator 가 15:00-16:59
+ * snack slot 무시하면 fail. snackCount 추가 + afternoonMealCount = lunch + snack
+ * + 점심 가드는 afternoonMealCount === 0 사용 필수.
+ */
+function P88_bmealSnackSlot({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // snack slot 필터 [15, 17)
+  if (!/snackCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*15,\s*17\)\)/.test(content)) {
+    violations.push(`${FILE}: snackCount [15,17) 필터 누락 — afternoon meal silent ignore (X-H6)`);
+  }
+  // lunchCount + snackCount = afternoonMealCount
+  if (!/afternoonMealCount\s*=\s*lunchCount\s*\+\s*snackCount/.test(content)) {
+    violations.push(`${FILE}: afternoonMealCount = lunchCount + snackCount 누락`);
+  }
+  // full-day 가드는 afternoonMealCount 사용
+  if (!/if\s*\(\s*afternoonMealCount\s*===\s*0\s*\)\s*errors\.push/.test(content)) {
+    violations.push(`${FILE}: full-day 점심 가드가 afternoonMealCount 사용 안 함 → snack false-positive 회귀`);
+  }
+  // arrival/departure 가드도 afternoonMealCount 사용
+  if (!/if\s*\(\s*afternoonMealCount\s*===\s*0\s*&&\s*dinnerCount\s*===\s*0\s*\)/.test(content)) {
+    violations.push(`${FILE}: arrival/departure 가드가 afternoonMealCount 사용 안 함`);
+  }
+  // dinner boundary 변경 금지 (메인 식사 분명)
+  if (!/dinnerCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*17,\s*22\)\)/.test(content)) {
+    violations.push(`${FILE}: dinnerCount [17,22) 변경됨 — 저녁 boundary 보존 필요`);
+  }
+  // lunch boundary 보존 (subset)
+  if (!/lunchCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*11,\s*15\)\)/.test(content)) {
+    violations.push(`${FILE}: lunchCount [11,15) 변경됨 — lunch+snack 분리 telemetry 깨짐`);
+  }
+  // 텔레메트리 snack 포함
+  if (!/lunch=\$\{lunchCount\}\s*snack=\$\{snackCount\}/.test(content)) {
+    violations.push(`${FILE}: 텔레메트리 로그에 snack=N 누락 → 운영자 분석 어려움`);
+  }
+  // env flag 보존
+  if (!/process\.env\.VALIDATOR_BMEAL_ENABLED\s*!==\s*['"]false['"]/.test(content)) {
+    violations.push(`${FILE}: VALIDATOR_BMEAL_ENABLED env flag 제거됨 — 비상 circuit breaker 손실`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P88_bmealSnackSlot',
+      violations.join(' | '),
+      'PR #464 (X-H6) — snack slot [15,17) + afternoonMealCount + telemetry 유지.',
     );
   }
   return null;
