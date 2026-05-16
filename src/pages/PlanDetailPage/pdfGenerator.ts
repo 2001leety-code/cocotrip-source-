@@ -967,16 +967,35 @@ export async function generatePDF(
   // html2canvas는 CORS 실패한 이미지를 빈 영역으로 렌더 → 부분 백지 PDF.
   // container 내 모든 <img>를 fetch + FileReader로 base64 변환해 inline.
   // 안전장치: 5초 timeout, fail 시 해당 이미지만 포기 (전체 abort X).
+  //
+  // PR #454 (Audit Z-H11 — 2026-05-16): Tripadvisor / Google Places /
+  // 기타 CDN 은 CORS 헤더 안 보냄 → 같은 origin (cocotripkr.com) 이 아닌
+  // 이미지는 위 fetch 가 CORS 실패 → 빈 박스 PDF. 외부 origin 이미지는
+  // /api/image-proxy 로 보내서 서버가 fetch 한 뒤 CORS 헤더 추가해
+  // 반환하도록. SSRF 방어는 image-proxy.js 가 allowlist 로 처리.
+  const sameOrigin = window.location.origin;
+  const toFetchableUrl = (src: string): string => {
+    if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src;
+    try {
+      const u = new URL(src, sameOrigin);
+      if (u.origin === sameOrigin) return src; // 같은 origin 은 직접 fetch
+      return `/api/image-proxy?url=${encodeURIComponent(u.toString())}`;
+    } catch {
+      return src;
+    }
+  };
+
   const imgs = Array.from(container.querySelectorAll('img'));
   if (imgs.length > 0) {
     await Promise.allSettled(imgs.map(async (img) => {
       const src = img.src;
       // 이미 data: URL이면 스킵
       if (!src || src.startsWith('data:')) return;
+      const fetchUrl = toFetchableUrl(src);
       try {
         const ctrl = new AbortController();
         const timeoutId = setTimeout(() => ctrl.abort(), 5000);
-        const res = await fetch(src, { signal: ctrl.signal, mode: 'cors' });
+        const res = await fetch(fetchUrl, { signal: ctrl.signal, mode: 'cors' });
         clearTimeout(timeoutId);
         if (!res.ok) return;
         const blob = await res.blob();
@@ -988,7 +1007,7 @@ export async function generatePDF(
         });
         img.src = dataUrl;
       } catch (e) {
-        console.warn('[PDF] image preload failed for', src, e);
+        console.warn('[PDF] image preload failed for', src, '(fetch via', fetchUrl, ')', e);
       }
     }));
     // 이미지 src 변경 후 layout settle 대기

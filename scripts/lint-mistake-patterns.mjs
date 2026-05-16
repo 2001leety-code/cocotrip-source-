@@ -983,6 +983,7 @@ const RULES = [
   ['P75_notifyTelegram4096Truncate', P75_notifyTelegram4096Truncate],
   ['P76_bookingAmountNanGuard', P76_bookingAmountNanGuard],
   ['P77_triggerDownstreamSilentPaths', P77_triggerDownstreamSilentPaths],
+  ['P78_pdfImageProxyCorsGuard', P78_pdfImageProxyCorsGuard],
 ];
 
 /**
@@ -1034,6 +1035,74 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P78_pdfImageProxyCorsGuard — 메모리 P78 (PR #454, Audit Z-H11).
+ * pdfGenerator.ts Phase 2 preload 가 외부 origin 이미지를 직접 fetch 하면 fail.
+ * /api/image-proxy 통과 필수 (CORS-blocked CDN 이미지 → 빈 PDF 박스 방지).
+ * image-proxy.js 의 allowlist + 보안 헤더 회귀도 같이 가드.
+ */
+function P78_pdfImageProxyCorsGuard({ changed }) {
+  const PDFGEN = 'src/pages/PlanDetailPage/pdfGenerator.ts';
+  const PROXY = 'api/image-proxy.js';
+  const touched = isModified(PDFGEN, changed) || isModified(PROXY, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(PDFGEN, changed)) {
+    const content = getChangedFileContent(PDFGEN);
+    if (content) {
+      if (!/toFetchableUrl/.test(content)) {
+        violations.push(`${PDFGEN}: toFetchableUrl 헬퍼 누락 — Z-H11 CORS-blocked CDN 이미지 (Tripadvisor 등) 빈 PDF 회귀`);
+      }
+      if (!/\/api\/image-proxy\?url=\$\{encodeURIComponent/.test(content)) {
+        violations.push(`${PDFGEN}: /api/image-proxy?url=... routing 누락`);
+      }
+      if (!/u\.origin\s*===\s*sameOrigin/.test(content)) {
+        violations.push(`${PDFGEN}: same-origin short-circuit 누락 (불필요한 proxy 호출 → 더 느림)`);
+      }
+    }
+  }
+
+  if (isModified(PROXY, changed)) {
+    const content = getChangedFileContent(PROXY);
+    if (content) {
+      if (!/ALLOWED_HOST_SUFFIXES/.test(content)) {
+        violations.push(`${PROXY}: ALLOWED_HOST_SUFFIXES allowlist 누락 — SSRF risk`);
+      }
+      if (!/ALLOWED_PROTOCOLS/.test(content) || !/['"]http:['"]/.test(content) || !/['"]https:['"]/.test(content)) {
+        violations.push(`${PROXY}: ALLOWED_PROTOCOLS (http/https only) 누락 — file://, gopher:// 등 우회 가능`);
+      }
+      if (!/MAX_BYTES/.test(content)) {
+        violations.push(`${PROXY}: MAX_BYTES 누락 — 거대 이미지로 운영자 burning 위험`);
+      }
+      if (!/AbortController/.test(content)) {
+        violations.push(`${PROXY}: AbortController 누락 — 외부 호출 timeout 부재`);
+      }
+      // Security headers
+      if (!/'Access-Control-Allow-Origin':\s*'\*'/.test(content)) {
+        violations.push(`${PROXY}: CORS 헤더 (Access-Control-Allow-Origin: *) 누락 — html2canvas 가 픽셀 못 읽음`);
+      }
+      if (!/'X-Content-Type-Options':\s*'nosniff'/.test(content)) {
+        violations.push(`${PROXY}: X-Content-Type-Options: nosniff 누락 — MIME confusion guard`);
+      }
+      // Anonymous proxy — no cookie/auth forwarding
+      if (/credentials:\s*['"]include['"]/.test(content)) {
+        violations.push(`${PROXY}: credentials: 'include' 사용 — proxy 는 anonymous 여야 함`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P78_pdfImageProxyCorsGuard',
+      violations.join(' | '),
+      'PR #454 (Z-H11) — image-proxy SSRF allowlist + nosniff + anonymous fetch + pdfGenerator 외부 origin routing 유지.',
     );
   }
   return null;
