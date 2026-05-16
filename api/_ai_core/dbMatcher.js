@@ -1,20 +1,7 @@
 /**
  * Food DB matcher — applies verified restaurant data to Gemini output.
  * Extracted verbatim from api/ai-planner-full.js L953-1009.
- *
- * PR #466 (Audit X-H8 — 2026-05-16): city-mismatch guard.
- * Pre-fix: the 1차 (exact) and 2차 (partial) matchers ignored city
- * entirely. Common chain names like "본가", "원조김밥" exist in many
- * cities — a Seoul plan stop named "본가" would silently get the
- * Busan-branch address/coordinates from foodIndex, and the user would
- * travel to the wrong city for that meal. The 3차 chain matcher already
- * required city, but the first two tiers didn't. Now all three tiers
- * prefer same-city matches; if no same-city match exists, an other-city
- * match is allowed but the stop's address is NOT overwritten (preserving
- * Gemini's intent) and the mismatch is flagged. A per-call summary +
- * throttled admin alert fires when mismatch ratio crosses a threshold.
  */
-import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 // ── 체인점 브랜드 추출 ──────────────────────────────────────────────────────
 // "BHC 치킨 홍대점" → "BHC", "교촌치킨 강남점" → "교촌"
@@ -88,52 +75,6 @@ export function sanitizeStopNames(stop, lang = 'ko') {
   }
 }
 
-// PR #466 (X-H8): per-call summary threshold for city-mismatch alert.
-// Below 3 food stops we don't alert (1-mismatch dominates ratio in tiny
-// plans). Above 3, fire when > 30% of matches landed on a different city.
-const CITY_MISMATCH_RATIO_THRESHOLD = 0.3;
-const CITY_MISMATCH_MIN_MATCHES = 3;
-
-/**
- * Try the three-tier match with a city filter applied. Returns the
- * first match or null. Extracted so we can call it twice: once with
- * the requested city (preferred), once without (fallback that we then
- * flag as a city-mismatch).
- */
-function findFoodIndexMatch(foodIndex, stopName, stopDisplayName, cityFilter) {
-  const cityOk = (r) => !cityFilter || (r.city || '').toLowerCase() === cityFilter;
-
-  // 1차: 정확 매칭 (name 또는 nameEn)
-  let match = foodIndex.find(r => {
-    const dbName = (r.name || '').split('|')[0].trim();
-    const dbNameEn = (r.nameEn || '').toLowerCase();
-    return cityOk(r) && (dbName === stopName || (stopDisplayName && dbNameEn === stopDisplayName));
-  });
-
-  // 2차: 부분 매칭 (DB 이름이 stop 이름에 포함되거나 그 반대)
-  if (!match) {
-    match = foodIndex.find(r => {
-      if (!cityOk(r)) return false;
-      const dbName = (r.name || '').split('|')[0].trim();
-      if (!dbName || dbName.length < 2) return false;
-      return stopName.includes(dbName) || dbName.includes(stopName);
-    });
-  }
-
-  // 3차: 체인점 브랜드 매칭 — "BHC 치킨 홍대점" → "BHC" 브랜드로 매칭
-  if (!match) {
-    const brand = extractBrand(stopName);
-    if (brand && brand.length >= 2) {
-      match = foodIndex.find(r => {
-        if (!cityOk(r)) return false;
-        const dbBrand = extractBrand((r.name || '').split('|')[0].trim());
-        return dbBrand && brandsMatch(dbBrand, brand);
-      });
-    }
-  }
-  return match;
-}
-
 export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
   if (!foodIndex || foodIndex.length === 0) {
     // foodIndex 없어도 다국어 sanitize는 수행
@@ -146,9 +87,6 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
   const matchCity = (city || '').replace(/_.*$/, '').toLowerCase();
 
   let dbMatched = 0, dbUnmatched = 0;
-  // PR #466 (X-H8): track city-mismatch occurrences across this call.
-  let cityMismatchCount = 0;
-  const cityMismatchSamples = [];
   const allStops = (itinerary.days || []).flatMap(d => d.stops || []);
   for (const stop of allStops) {
     // 모든 stop에 sanitize 적용 (food 카테고리 외에도 hallucination 가능)
@@ -161,99 +99,69 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
 
     const stopDisplayName = (stop.display_name || stop.name_en || '').toLowerCase();
 
-    // PR #466 (X-H8): prefer same-city match first. Only fall back to
-    // other-city when no same-city match exists, and flag the result.
-    let match = findFoodIndexMatch(foodIndex, stopName, stopDisplayName, matchCity);
-    let isCityMismatch = false;
+    // 1차: 정확 매칭 (name 또는 nameEn)
+    let match = foodIndex.find(r => {
+      const dbName = (r.name || '').split('|')[0].trim();
+      const dbNameEn = (r.nameEn || '').toLowerCase();
+      return dbName === stopName || (stopDisplayName && dbNameEn === stopDisplayName);
+    });
 
+    // 2차: 부분 매칭 (DB 이름이 stop 이름에 포함되거나 그 반대)
     if (!match) {
-      const fallback = findFoodIndexMatch(foodIndex, stopName, stopDisplayName, null);
-      if (fallback && matchCity && (fallback.city || '').toLowerCase() !== matchCity) {
-        // We're matching a restaurant from a DIFFERENT city than the plan.
-        // Accept the match for the verified=true signal, but DON'T override
-        // stop.address/lat/lng (those would point the user to the wrong city).
-        match = fallback;
-        isCityMismatch = true;
-        cityMismatchCount++;
-        if (cityMismatchSamples.length < 5) {
-          cityMismatchSamples.push(`${stopName} (plan=${matchCity}, dbCity=${(match.city || '?').toLowerCase()})`);
+      match = foodIndex.find(r => {
+        const dbName = (r.name || '').split('|')[0].trim();
+        if (!dbName || dbName.length < 2) return false;
+        return stopName.includes(dbName) || dbName.includes(stopName);
+      });
+    }
+
+    // 3차: 체인점 브랜드 매칭 — "BHC 치킨 홍대점" → "BHC" 브랜드로 동일 도시 매칭
+    if (!match) {
+      const brand = extractBrand(stopName);
+      if (brand && brand.length >= 2) {
+        match = foodIndex.find(r => {
+          const dbBrand = extractBrand((r.name || '').split('|')[0].trim());
+          if (!dbBrand) return false;
+          // 브랜드 매치 + 동일 도시 (과잉 매칭 방지)
+          return brandsMatch(dbBrand, brand) && r.city === matchCity;
+        });
+        // 도시 정보 없을 때 브랜드만으로 매칭 (fallback)
+        if (!match && !matchCity) {
+          match = foodIndex.find(r => {
+            const dbBrand = extractBrand((r.name || '').split('|')[0].trim());
+            return dbBrand && brandsMatch(dbBrand, brand);
+          });
         }
-        console.warn(
-          `[planner] DB city-mismatch: "${stopName}" plan=${matchCity} db=${(match.city || '?').toLowerCase()} — keeping Gemini address/coords`
-        );
-      } else if (fallback) {
-        // No requested city, or fallback happened to be in the right city anyway.
-        match = fallback;
+        if (match) {
+          console.log(`[planner] Chain match: "${stopName}" → "${(match.name || '').split('|')[0]}" (brand: ${brand})`);
+        }
       }
     }
 
     if (match) {
+      // DB 데이터로 교정 — 주소/좌표/URL을 실제 검증된 데이터로 덮어씌움
       const dbName = (match.name || '').split('|')[0].trim();
-      if (match.address && !isCityMismatch) {
+      if (match.address) {
         // _food_index 주소 정리: "대한민국 " 접두사, "KR " 제거, 역순 주소 무시
         let cleanAddr = match.address
           .replace(/^대한민국\s+/, '')
           .replace(/\bKR\s+/g, '');
+        // DB 주소가 한국 도시로 시작하면 덮어쓰기, 아니면 Gemini 주소 유지
         if (/^(서울|부산|제주|인천|경기|강원|충청|전라|경상|울산|대구|대전|광주|세종)/.test(cleanAddr)) {
           stop.address = cleanAddr;
         }
+        // else: keep Gemini's address (usually cleaner)
       }
-      // PR #466 (X-H8): coord override SKIPPED on city-mismatch — user must
-      // not be led to a different city via the map link.
-      if (!isCityMismatch) {
-        if (match.lat) { stop.lat = match.lat; stop._dbLat = match.lat; }
-        if (match.lng) { stop.lng = match.lng; stop._dbLng = match.lng; }
-        if (match.googleMapsUrl) stop.googleMapsUrl = match.googleMapsUrl;
-      }
-      stop.verified = !isCityMismatch; // city-mismatch is NOT fully verified for the requested city
+      if (match.lat) { stop.lat = match.lat; stop._dbLat = match.lat; }
+      if (match.lng) { stop.lng = match.lng; stop._dbLng = match.lng; }
+      if (match.googleMapsUrl) stop.googleMapsUrl = match.googleMapsUrl;
+      stop.verified = true;
       stop._dbMatchedName = dbName;
-      if (isCityMismatch) {
-        stop._db_city_mismatch = {
-          dbCity: (match.city || '').toLowerCase(),
-          requestedCity: matchCity,
-        };
-      }
       dbMatched++;
     } else {
       stop.verified = false;
       dbUnmatched++;
     }
   }
-  console.log(`[planner] DB Match: ${dbMatched} matched (${cityMismatchCount} city-mismatch), ${dbUnmatched} unmatched out of ${dbMatched + dbUnmatched} food stops`);
-
-  // PR #466 (X-H8): admin alert when city-mismatch ratio is suspiciously high.
-  // Indicates either a regional outage in foodIndex (city field missing for
-  // a region's restaurants), a Gemini regression (outputting wrong-city
-  // restaurant names), or a wizard mis-routing plans to the wrong region.
-  if (dbMatched >= CITY_MISMATCH_MIN_MATCHES) {
-    const ratio = cityMismatchCount / dbMatched;
-    if (ratio > CITY_MISMATCH_RATIO_THRESHOLD) {
-      const ratioPct = Math.round(ratio * 100);
-      throttledTelegramAlert({
-        key: `dbmatcher-city-mismatch:${matchCity || 'unknown'}`,
-        channel: 'admin',
-        severity: 'high',
-        message: [
-          `⚠️ <b>DB matcher city-mismatch — ${ratioPct}% of food matches landed in wrong city</b>`,
-          ``,
-          `<b>requested city:</b> ${matchCity || '(none)'}`,
-          `<b>mismatched:</b> ${cityMismatchCount} / ${dbMatched} matched food stops (${ratioPct}%)`,
-          `<b>samples:</b>`,
-          ...cityMismatchSamples.slice(0, 5).map((s) => `  • ${s.replace(/[<>&]/g, '_')}`),
-          ``,
-          `→ 회귀 원인 가능성:`,
-          `• foodIndex.json 의 특정 region 데이터가 city 필드 누락`,
-          `• Gemini prompt 가 region 명시 못 따라가 wrong-city 식당 출력 (P85 retry storm 동반 가능)`,
-          `• wizard 가 plan 을 잘못된 region 으로 routing (P54 foodIndex cache 회귀 검토)`,
-          ``,
-          `<i>city-mismatch stop 의 address/lat/lng 는 Gemini 원본 보존 (사용자 잘못된 도시 안 감).</i>`,
-        ].join('\n'),
-        context: {
-          errorCode: 'dbmatcher_city_mismatch_high',
-          reason: matchCity || 'unknown',
-          step: 'applyDBMatcher',
-        },
-      }).catch(() => {});
-    }
-  }
+  console.log(`[planner] DB Match: ${dbMatched} matched, ${dbUnmatched} unmatched out of ${dbMatched + dbUnmatched} food stops`);
 }

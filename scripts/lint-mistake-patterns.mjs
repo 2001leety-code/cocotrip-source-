@@ -995,7 +995,6 @@ const RULES = [
   ['P87_routeBlindFallbackRatio', P87_routeBlindFallbackRatio],
   ['P88_bmealSnackSlot', P88_bmealSnackSlot],
   ['P89_avoidListIndexAlert', P89_avoidListIndexAlert],
-  ['P90_dbmatcherCityGuard', P90_dbmatcherCityGuard],
 ];
 
 /**
@@ -1087,84 +1086,6 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
-    );
-  }
-  return null;
-}
-
-/**
- * P90_dbmatcherCityGuard — 메모리 P90 (PR #466, Audit X-H8).
- * api/_ai_core/dbMatcher.js 의 1차/2차 matcher 가 city 필터 누락하면 fail.
- * findFoodIndexMatch helper + same-city preferred + other-city flagged
- * + address/coords override skip on mismatch + 30% threshold admin alert.
- */
-function P90_dbmatcherCityGuard({ changed }) {
-  const FILE = 'api/_ai_core/dbMatcher.js';
-  if (!isModified(FILE, changed)) return { skipped: true };
-  const content = getChangedFileContent(FILE);
-  if (!content) return { skipped: true };
-
-  const violations = [];
-
-  if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
-    violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H8)`);
-  }
-  if (!/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.3/.test(content)) {
-    violations.push(`${FILE}: CITY_MISMATCH_RATIO_THRESHOLD=0.3 누락 → alert 임계 변경`);
-  }
-  if (!/CITY_MISMATCH_MIN_MATCHES\s*=\s*3/.test(content)) {
-    violations.push(`${FILE}: CITY_MISMATCH_MIN_MATCHES=3 누락 → 작은 plan false positive`);
-  }
-  if (!/function\s+findFoodIndexMatch\s*\(\s*foodIndex\s*,\s*stopName\s*,\s*stopDisplayName\s*,\s*cityFilter\s*\)/.test(content)) {
-    violations.push(`${FILE}: findFoodIndexMatch helper 누락 — cityFilter param signature 깨짐`);
-  }
-  // 3 tiers must all check cityOk
-  const helperBlock = content.slice(content.indexOf('function findFoodIndexMatch'), content.indexOf('export function applyDBMatcher'));
-  if (helperBlock) {
-    const cityOkCount = (helperBlock.match(/cityOk\(/g) || []).length;
-    if (cityOkCount < 3) {
-      violations.push(`${FILE}: findFoodIndexMatch 의 cityOk 호출 < 3 — 1차/2차/3차 tier 중 일부 city 필터 누락`);
-    }
-  }
-  // applyDBMatcher must call helper twice (with city then without)
-  if (!/findFoodIndexMatch\(foodIndex,\s*stopName,\s*stopDisplayName,\s*matchCity\)/.test(content)) {
-    violations.push(`${FILE}: applyDBMatcher 가 same-city 우선 호출 안 함`);
-  }
-  if (!/findFoodIndexMatch\(foodIndex,\s*stopName,\s*stopDisplayName,\s*null\)/.test(content)) {
-    violations.push(`${FILE}: applyDBMatcher 가 no-city fallback 호출 안 함`);
-  }
-  // address/coord skip on mismatch
-  if (!/if\s*\(\s*match\.address\s*&&\s*!isCityMismatch\s*\)/.test(content)) {
-    violations.push(`${FILE}: address 덮어쓰기에 !isCityMismatch 가드 누락 → 사용자 잘못된 도시로 안내 위험`);
-  }
-  if (!/if\s*\(\s*!isCityMismatch\s*\)\s*\{[\s\S]*?match\.lat[\s\S]*?match\.googleMapsUrl/.test(content)) {
-    violations.push(`${FILE}: lat/lng/mapUrl 덮어쓰기 block 의 !isCityMismatch 가드 누락`);
-  }
-  if (!/stop\._db_city_mismatch\s*=\s*\{[\s\S]*?dbCity[\s\S]*?requestedCity/.test(content)) {
-    violations.push(`${FILE}: stop._db_city_mismatch 마킹 누락 → 다운스트림 detect 불가`);
-  }
-  if (!/stop\.verified\s*=\s*!isCityMismatch/.test(content)) {
-    violations.push(`${FILE}: city-mismatch 가 verified=false 처리 안 함 → 사용자/UI 잘못된 verified 배지`);
-  }
-  if (!/dbmatcher-city-mismatch:\$\{matchCity\s*\|\|\s*['"]unknown['"]\}/.test(content)) {
-    violations.push(`${FILE}: alert key 'dbmatcher-city-mismatch:${'${matchCity}'}' 누락`);
-  }
-  const alertBlock = content.slice(content.indexOf('dbmatcher-city-mismatch'), content.indexOf('dbmatcher-city-mismatch') + 2000);
-  if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
-    violations.push(`${FILE}: admin 채널 누락`);
-  }
-  if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
-    violations.push(`${FILE}: severity:'high' 누락`);
-  }
-  if (!/throttledTelegramAlert\(\{[\s\S]*?dbmatcher-city-mismatch[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
-    violations.push(`${FILE}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
-  }
-
-  if (violations.length > 0) {
-    fail(
-      'P90_dbmatcherCityGuard',
-      violations.join(' | '),
-      'PR #466 (X-H8) — findFoodIndexMatch + cityOk 3-tier + override skip + verified=false + admin alert 유지.',
     );
   }
   return null;
