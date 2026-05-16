@@ -255,10 +255,11 @@ describe('PR #465 X-H7 — source-level invariants', () => {
   });
 
   it('AVOID-clause fail-OPEN preserved: catch ends with return ""', () => {
-    // Read the catch block — it must still terminate with `return '';` (the
+    // The catch block must still terminate with `return '';` (the
     // non-critical-path contract). The alert call is fire-and-forget; the
-    // function must NEVER throw.
+    // function must NEVER throw. Slice goes UP TO the closing `}\n}` of
+    // the function, so the inner `return '';` is what we need to assert.
     const catchBlock = avoidSrc.slice(avoidSrc.indexOf('} catch (err) {'), avoidSrc.indexOf('}\n}'));
-    expect(catchBlock).toMatch(/return\s+['"]['"]\s*;\s*\}/);
+    expect(catchBlock).toMatch(/return\s+['"]['"]\s*;/);
   });
 });

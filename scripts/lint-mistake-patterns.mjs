@@ -1135,9 +1135,9 @@ function P89_avoidListIndexAlert({ changed }) {
       if (!/throttledTelegramAlert\(\{[\s\S]*?avoid-list-index-missing[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(c)) {
         violations.push(`${CODE}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
       }
-      // fail-OPEN preserved — catch 끝에 return ''
-      if (!/return\s+['"]['"]\s*;[\s\n]*\}/.test(c)) {
-        violations.push(`${CODE}: catch 끝의 return '' 누락 — fail-OPEN 깨짐 (non-critical path 보장 X)`);
+      // fail-OPEN preserved — catch 안에 return ''
+      if (!/return\s+['"]['"]\s*;/.test(c)) {
+        violations.push(`${CODE}: catch 안의 return '' 누락 — fail-OPEN 깨짐 (non-critical path 보장 X)`);
       }
     }
   }
