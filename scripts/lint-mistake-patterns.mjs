@@ -973,6 +973,7 @@ const RULES = [
   ['P65_adminAuthColdStartInit', P65_adminAuthColdStartInit],
   ['P66_pushVapidAuthFailedCleanup', P66_pushVapidAuthFailedCleanup],
   ['P67_telegramThrottleFailClosed', P67_telegramThrottleFailClosed],
+  ['P68_bookingsWriteRetryAlert', P68_bookingsWriteRetryAlert],
 ];
 
 /**
@@ -1024,6 +1025,57 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P68_bookingsWriteRetryAlert — 메모리 P68 (PR #444, Audit Y-H14).
+ * capturePaypalOrder.js 의 bookings/{orderID}.set 가 silent catch 로 회귀하면 fail.
+ * 반드시 retry 루프 + throttledTelegramAlert (critical) + orderID/captureID 안내.
+ */
+function P68_bookingsWriteRetryAlert({ changed }) {
+  const FILE = 'api/capturePaypalOrder.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // Retry shape
+  if (!/BOOKING_WRITE_BACKOFF_MS\s*=\s*\[\s*200\s*,\s*500\s*,\s*1000\s*\]/.test(content)) {
+    violations.push(`${FILE}: BOOKING_WRITE_BACKOFF_MS [200, 500, 1000] missing — Y-H14 needs retry-with-backoff`);
+  }
+  if (!/let\s+bookingWriteOk\s*=\s*false/.test(content)) {
+    violations.push(`${FILE}: bookingWriteOk tracker missing`);
+  }
+  if (!/for\s*\(\s*let\s+attempt\s*=\s*0\s*;\s*attempt\s*<\s*BOOKING_WRITE_BACKOFF_MS\.length/.test(content)) {
+    violations.push(`${FILE}: retry loop over BOOKING_WRITE_BACKOFF_MS missing`);
+  }
+
+  // Critical alert wire-up
+  if (!/throttledTelegramAlert\s*\(\s*\{[\s\S]*?key:\s*['"]bookings-doc-write-fail['"]/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert with key='bookings-doc-write-fail' missing — operator must learn of payment-without-booking`);
+  }
+  // The alert must mention admin-replay-booking-notifications (operator recovery path)
+  if (!/admin-replay-booking-notifications/.test(content)) {
+    violations.push(`${FILE}: alert message must include admin-replay-booking-notifications recovery path`);
+  }
+  // The bookings-write-fail branch must NOT refund (different semantics from PROMO_LIMIT_EXCEEDED).
+  const writeFailIdx = content.indexOf('if (!bookingWriteOk)');
+  if (writeFailIdx > -1) {
+    const block = content.slice(writeFailIdx, writeFailIdx + 1500);
+    if (/refundPaypalCapture\s*\(/.test(block)) {
+      violations.push(`${FILE}: bookings-write-fail branch must NOT refund (payment was captured; operator recovers booking via admin-replay)`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P68_bookingsWriteRetryAlert',
+      violations.join(' | '),
+      'PR #444 (Y-H14) — bookings/{orderID}.set 3x retry + critical throttled alert + 운영자 복구 안내.',
     );
   }
   return null;
