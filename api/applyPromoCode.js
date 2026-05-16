@@ -28,42 +28,19 @@ const CORS = {
 const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 
 // ── 글로벌 (하드코딩) 프로모 코드 ──
-// limit 기본값은 환경변수 / Firestore admin doc 으로 override 가능 (getGlobalPromoLimit 참조).
-// 실 사용량 카운트는 Firestore global_promo_usage/{code} 에서 추적 (capturePaypalOrder 가 increment).
-const GLOBAL_PROMOS = {
-  'EARLY50': { discount: 0.20, label: 'Early Bird 20% OFF', limit: 50, stackable: false },
-  'COCO5':   { discount: 0.05, label: 'Base 5% OFF', limit: 9999, stackable: true },
-  'COCO10':  { discount: 0.10, label: '10% OFF', limit: 9999, stackable: false },
-};
-
-// 글로벌 프로모 maxUses override — Firestore admin/global_promo_limits doc 또는 env var.
-// env: GLOBAL_PROMO_LIMIT_COCO5=20000 → COCO5 limit 20000 으로 override.
-async function getGlobalPromoLimit(db, code) {
-  const upper = code.toUpperCase();
-  const envKey = `GLOBAL_PROMO_LIMIT_${upper}`;
-  const envVal = process.env[envKey];
-  if (envVal && Number.isFinite(Number(envVal))) return Number(envVal);
-
-  if (db) {
-    try {
-      const doc = await db.collection('admin').doc('global_promo_limits').get();
-      if (doc.exists) {
-        const v = doc.data()?.[upper];
-        if (Number.isFinite(Number(v))) return Number(v);
-      }
-    } catch (err) {
-      console.warn('[applyPromoCode] admin/global_promo_limits read failed:', err.message);
-    }
-  }
-
-  return GLOBAL_PROMOS[upper]?.limit ?? 9999;
-}
+// PR #434 (Audit Y-H11 — 2026-05-16): 정의 + cap 해석을 api/_shared/global-promo.js
+// 로 추출. capturePaypalOrder 의 transactional cap check 와 같은 source of truth.
+// limit 기본값은 환경변수 / Firestore admin doc 으로 override 가능 (resolveGlobalPromoLimit).
+// 실 사용량 카운트는 Firestore global_promo_usage/{code} 에서 추적
+// (capturePaypalOrder 의 incrementGlobalPromoUsage 가 transaction 으로 cap-check 후 +1).
+import { GLOBAL_PROMO_DEFAULTS, resolveGlobalPromoLimit } from './_shared/global-promo.js';
+const GLOBAL_PROMOS = GLOBAL_PROMO_DEFAULTS;
 
 // global_promo_usage/{code}.usedCount < maxUses 검증 (read-only). 실제 increment 는
 // capturePaypalOrder 의 트랜잭션 내에서 수행 — 여기는 사용자 UX gate.
 async function checkGlobalPromoLimit(db, code) {
   const upper = code.toUpperCase();
-  const maxUses = await getGlobalPromoLimit(db, upper);
+  const maxUses = await resolveGlobalPromoLimit({ db, code: upper });
   if (!db) return { ok: true, usedCount: 0, maxUses };
   try {
     const doc = await db.collection('global_promo_usage').doc(upper).get();

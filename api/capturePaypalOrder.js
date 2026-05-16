@@ -5,6 +5,8 @@
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
+import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
+import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
@@ -305,24 +307,72 @@ export default async function handler(req, res) {
     // 여기까지 왔다면 쿠폰은 이미 isUsed=true + pendingCapture=false 상태.
     // 더 이상 운영자 수동 환불 case (capture 성공 + 쿠폰 race fail) 발생 안 함.
 
-    // 2.6 글로벌 프로모 사용량 증가 (COCO5/COCO10/EARLY50). 트랜잭션으로 race-safe.
-    // applyPromoCode 의 limit gate 가 read-only 이므로 여기서 실제 increment.
+    // 2.6 글로벌 프로모 사용량 증가 + transactional cap 체크 (COCO5/COCO10/EARLY50).
+    //
+    // PR #434 (Audit Y-H11 — 2026-05-16): 이전엔 transaction 이 atomic increment
+    // 만 하고 cap (maxUses) 검증을 안 해서, applyPromoCode 의 read-only gate 를
+    // race 로 통과한 N 명 (예: 60 명) 이 모두 EARLY50 (limit=50) 의 +1 을 받아
+    // 51~60 번째에게 무단으로 20% 할인 부여됨. 이제 cap check 가 같은 transaction
+    // 내부에서 일어나며, 초과 시 PayPal capture 를 즉시 환불 + booking 도큐먼트도
+    // refunded 로 마킹 + 운영자 알림. 사용자 UX 는 약간 나빠지지만 (charged-then-
+    // refunded) 회계 정합성은 유지된다.
     if (promoCode && typeof promoCode === 'string') {
       const upper = promoCode.toUpperCase();
-      const KNOWN_GLOBAL = ['COCO5', 'COCO10', 'EARLY50'];
-      if (KNOWN_GLOBAL.includes(upper)) {
-        try {
-          const db = initAdminDb('capturePaypalOrder');
-          if (db) {
-            await db.runTransaction(async (tx) => {
-              const ref = db.collection('global_promo_usage').doc(upper);
-              const snap = await tx.get(ref);
-              const cur = snap.exists ? Number(snap.data()?.usedCount || 0) : 0;
-              tx.set(ref, { usedCount: cur + 1, lastUsedAt: FieldValue.serverTimestamp() }, { merge: true });
-            });
+      if (KNOWN_GLOBAL_PROMO_CODES.includes(upper)) {
+        const db = initAdminDb('capturePaypalOrder');
+        if (db) {
+          let promoResult;
+          try {
+            promoResult = await incrementGlobalPromoUsage({ db, code: upper, orderID });
+          } catch (promoErr) {
+            // Transaction infra error — log + skip the cap enforcement (better
+            // than refunding a legit payment over a Firestore blip). The
+            // applyPromoCode soft-gate already filtered most over-limit attempts.
+            console.error('[capturePaypalOrder] global_promo_usage transaction crashed:', promoErr.message);
+            promoResult = null;
           }
-        } catch (promoErr) {
-          console.error('[capturePaypalOrder] global_promo_usage increment failed:', promoErr.message);
+          if (promoResult && !promoResult.ok && promoResult.code === 'PROMO_LIMIT_EXCEEDED') {
+            console.warn('[capturePaypalOrder] PROMO_LIMIT_EXCEEDED race detected:',
+              { orderID, promoCode: upper, usedCount: promoResult.usedCount, maxUses: promoResult.maxUses });
+            // 1) Refund the PayPal capture (we already charged the user).
+            let refundOk = false;
+            try {
+              const refundRes = await refundPaypalCapture({
+                captureID,
+                refundUSD: amount,
+                note: `PROMO_LIMIT_EXCEEDED race (${upper}) — auto refund`,
+                isSandbox: false,
+              });
+              refundOk = !!refundRes?.ok;
+            } catch (refundErr) {
+              console.error('[capturePaypalOrder] auto-refund failed (operator must refund manually):', refundErr.message);
+            }
+            // 2) Mark the booking as refunded so cancel/modify/voucher paths
+            //    don't treat it as active.
+            try {
+              await db.collection('bookings').doc(orderID).set({
+                status: refundOk ? 'REFUNDED' : 'REFUND_PENDING',
+                refundReason: 'PROMO_LIMIT_EXCEEDED',
+                refundedAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+              }, { merge: true });
+            } catch (markErr) {
+              console.error('[capturePaypalOrder] booking refund-mark failed (non-fatal):', markErr.message);
+            }
+            // 3) Operator alert — even though we auto-refunded, operator should
+            //    know the cap is being hit (may want to extend the campaign).
+            notifyOperator('coupon-race',
+              `<code>${orderID}</code>\n사유: PROMO_LIMIT_EXCEEDED (${upper})\n사용: ${promoResult.usedCount}/${promoResult.maxUses}\n자동환불: ${refundOk ? '성공' : '실패 — 수동환불 필요'}`
+            ).catch((alertErr) => console.error('[capturePaypalOrder] operator alert failed:', alertErr.message));
+            // 4) User response — explain refund.
+            res.writeHead(409, JSON_CORS);
+            return res.end(JSON.stringify(_err(
+              refundOk
+                ? `Promo code "${upper}" reached its usage limit. Your payment has been refunded — please retry without the promo code.`
+                : `Promo code "${upper}" reached its usage limit. A manual refund will be issued — operator notified.`,
+              'PROMO_LIMIT_EXCEEDED'
+            )));
+          }
         }
       }
     }
