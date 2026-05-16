@@ -985,6 +985,7 @@ const RULES = [
   ['P77_triggerDownstreamSilentPaths', P77_triggerDownstreamSilentPaths],
   ['P78_pdfImageProxyCorsGuard', P78_pdfImageProxyCorsGuard],
   ['P79_wizardPersistenceQuotaSweep', P79_wizardPersistenceQuotaSweep],
+  ['P80_iosBlobPopupBlocker', P80_iosBlobPopupBlocker],
 ];
 
 /**
@@ -1036,6 +1037,64 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P80_iosBlobPopupBlocker — 메모리 P80 (PR #456, Audit Z-H14).
+ * pdfGenerator.ts 에서 raw `window.open(blob:url)` 패턴이 회귀하면 fail —
+ * iOS Safari popup blocker 가 silent block. openBlobSafely helper 사용 필수.
+ */
+function P80_iosBlobPopupBlocker({ changed }) {
+  const PDFGEN = 'src/pages/PlanDetailPage/pdfGenerator.ts';
+  const HELPER = 'src/lib/openBlobSafely.ts';
+  const touched = isModified(PDFGEN, changed) || isModified(HELPER, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(PDFGEN, changed)) {
+    const content = getChangedFileContent(PDFGEN);
+    if (content) {
+      if (!/from\s*['"]@\/lib\/openBlobSafely['"]/.test(content)) {
+        violations.push(`${PDFGEN}: openBlobSafely import 누락 — iOS popup blocker silent loss (Z-H14)`);
+      }
+      if (!/openBlobSafely\s*\(\s*\{/.test(content)) {
+        violations.push(`${PDFGEN}: openBlobSafely 호출 누락`);
+      }
+      // Regression guard: 구 UA-conditional window.open(blob:) 패턴
+      const oldIosBranch = /if\s*\(\/iPhone\|iPad\|iPod\/i\.test\(navigator\.userAgent\)\)\s*\{[\s\S]{0,200}?window\.open\(\s*url\s*,/;
+      if (oldIosBranch.test(content)) {
+        violations.push(`${PDFGEN}: UA-conditional window.open(blob:) 회귀 — openBlobSafely 사용`);
+      }
+    }
+  }
+
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/export\s+function\s+openBlobSafely/.test(content)) {
+        violations.push(`${HELPER}: openBlobSafely export 누락`);
+      }
+      if (!/<a download>/i.test(content) && !/a\.download\s*=/.test(content)) {
+        violations.push(`${HELPER}: <a download> 우선 strategy 누락 — iOS popup blocker 우회 핵심`);
+      }
+      if (!/popup-blocked/.test(content)) {
+        violations.push(`${HELPER}: popup-blocked 감지 (win === null) 누락 — silent loss 방지`);
+      }
+      if (!/REVOKE_AFTER_MS/.test(content)) {
+        violations.push(`${HELPER}: URL.revokeObjectURL timer 누락 — blob URL leak`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P80_iosBlobPopupBlocker',
+      violations.join(' | '),
+      'PR #456 (Z-H14) — openBlobSafely (<a download> 우선 + popup-blocker 감지 + user alert).',
     );
   }
   return null;
