@@ -1219,6 +1219,43 @@ export async function generatePDF(
         console.log('[PDF] canvas content check OK — nonWhite=', nonWhite, '/', points.length,
           'rate=', nonWhiteRate.toFixed(3));
       }
+
+      // PR #458 (Audit Z-H10 — 2026-05-16): per-band check for partial-blank
+      // PDFs. The 5% global threshold above misses the more common bug class
+      // — pagebreak-corrupt PDFs where (e.g.) 5 of 10 logical pages are blank
+      // but the overall non-white rate is still 20-30% (the non-blank pages
+      // carry the weight). Slice the canvas into 10 horizontal bands; if
+      // >25% of bands are <2% non-white, flag suspected partial-blank.
+      // Same fail-open posture — log structured warn so Sentry/operator sees
+      // the pattern, don't block the download.
+      const BANDS = 10;
+      const PER_BAND_SAMPLES = 20;
+      const BLANK_BAND_NONWHITE = 0.02;
+      const MAX_BLANK_BAND_RATIO = 0.25;
+      let blankBands = 0;
+      const bandStats: Array<{ band: number; rate: number }> = [];
+      for (let b = 0; b < BANDS; b++) {
+        const yStart = Math.floor((b / BANDS) * H);
+        const yEnd = Math.max(yStart + 1, Math.floor(((b + 1) / BANDS) * H));
+        let bandNonWhite = 0;
+        for (let s = 0; s < PER_BAND_SAMPLES; s++) {
+          const x = Math.floor(Math.random() * W);
+          const y = yStart + Math.floor(Math.random() * (yEnd - yStart));
+          const d = ctx.getImageData(x, y, 1, 1).data;
+          if (!(d[0] === 255 && d[1] === 255 && d[2] === 255) && d[3] !== 0) bandNonWhite++;
+        }
+        const rate = bandNonWhite / PER_BAND_SAMPLES;
+        bandStats.push({ band: b, rate });
+        if (rate < BLANK_BAND_NONWHITE) blankBands++;
+      }
+      const blankBandRatio = blankBands / BANDS;
+      if (blankBandRatio > MAX_BLANK_BAND_RATIO) {
+        console.warn('[PDF] partial-blank suspected (band check) — blankBands=',
+          blankBands, '/', BANDS, 'ratio=', blankBandRatio.toFixed(2),
+          'globalRate=', nonWhiteRate.toFixed(3), 'bands=',
+          bandStats.map((s) => `${s.band}:${s.rate.toFixed(2)}`).join(','),
+          '→ continuing (blob.size 가드 + 운영자 Sentry 알림으로 추후 회귀 회피)');
+      }
     }
     // 캔버스 검증 통과 → PDF blob 생성
     const pdf = await worker.outputPdf('blob');
