@@ -6,6 +6,15 @@
 //
 // Run locally:   BASE_URL=http://localhost:5173 npx playwright test i18n-locale
 // Run on prod:   npx playwright test i18n-locale  (uses default https://cocotripkr.com)
+//
+// PR #435 (2026-05-16): page.goto() now uses { waitUntil: 'domcontentloaded' }
+// instead of the default 'load'. Prior failures showed "Target page, context
+// or browser has been closed" on /charter or /about across all 3 retries —
+// classic symptom of the per-test 60s timeout firing inside page.goto() while
+// Vercel preview's late-loaded images/iframes finished. 'load' waits for ALL
+// subresources; we only need DOM ready (the toContainText assertion has its
+// own 10s expect timeout, so it'll naturally wait for the body to be ready).
+// Side benefits: less flaky on cold-start previews, ~3-5s faster per test.
 
 import { test, expect } from '@playwright/test';
 
@@ -37,6 +46,12 @@ const EXPECTATIONS: Record<Locale, { homeNav: string[]; aboutHeading: string; ch
   },
 };
 
+// Use domcontentloaded so page.goto returns before all resources finish
+// loading. The test's own expect.toContainText (10s default timeout) waits
+// for the body to render translated strings — we don't need to block goto
+// on iframes/lazy images/late ad scripts. See PR #435.
+const GOTO_OPTS = { waitUntil: 'domcontentloaded' as const, timeout: 30_000 };
+
 for (const locale of ['ko', 'ja', 'zh'] as Locale[]) {
   test.describe(`i18n: ${locale}`, () => {
     test.beforeEach(async ({ page }) => {
@@ -47,27 +62,31 @@ for (const locale of ['ko', 'ja', 'zh'] as Locale[]) {
     });
 
     test('home navigation renders translated labels', async ({ page }) => {
-      await page.goto('/');
+      await page.goto('/', GOTO_OPTS);
       // Mobile bottom nav uses these labels — at least one should appear visibly.
       // We check for the union to allow the layout to differ between mobile/desktop.
       const expected = EXPECTATIONS[locale].homeNav;
+      // Wait for any one of the expected labels to be present — gives the SPA
+      // time to hydrate i18n. innerText after a static read would race with
+      // React's first paint on slow cold-start previews.
+      await expect(page.locator('body')).toContainText(expected[0], { timeout: 15_000 });
       const bodyText = await page.locator('body').innerText();
       const hits = expected.filter((label) => bodyText.includes(label));
       expect(hits.length).toBeGreaterThanOrEqual(2);
     });
 
     test('/about page heading is translated', async ({ page }) => {
-      await page.goto('/about');
+      await page.goto('/about', GOTO_OPTS);
       const expected = EXPECTATIONS[locale].aboutHeading;
       // Don't assert exact heading text (responsive layouts may add suffixes);
       // assert the translated brand-line appears somewhere on the page.
-      await expect(page.locator('body')).toContainText(expected);
+      await expect(page.locator('body')).toContainText(expected, { timeout: 15_000 });
     });
 
     test('/charter page title is translated', async ({ page }) => {
-      await page.goto('/charter');
+      await page.goto('/charter', GOTO_OPTS);
       const expected = EXPECTATIONS[locale].charterTitle;
-      await expect(page.locator('body')).toContainText(expected);
+      await expect(page.locator('body')).toContainText(expected, { timeout: 15_000 });
     });
   });
 }
