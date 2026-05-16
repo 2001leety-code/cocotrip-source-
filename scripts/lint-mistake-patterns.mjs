@@ -967,6 +967,7 @@ const RULES = [
   ['P58_globalPromoRaceCapCheck', P58_globalPromoRaceCapCheck],
   ['P60_bookingProcessorFireAndForget', P60_bookingProcessorFireAndForget],
   ['P61_adminCorsWildcard', P61_adminCorsWildcard],
+  ['P62_paypalWebhookDirectFlowMatch', P62_paypalWebhookDirectFlowMatch],
 ];
 
 /**
@@ -1018,6 +1019,51 @@ function P54_foodIndexCache({ changed }) {
       'P54_foodIndexCache',
       violations.join(' | '),
       'PR #430 (X-C4) — module-scope 캐시 + in-flight promise 패턴 유지. Vercel warm instance 재사용 활용.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P62_paypalWebhookDirectFlowMatch — 메모리 P62 (PR #438, Audit Y-H7).
+ * paypal-webhook.js 가 PayPal-direct flow (capturePaypalOrder) 의 capture
+ * 이벤트를 매칭 못 해서 silent-unmatched alert 발사하면 fail.
+ * - extractPaypalOrderId helper 필요
+ * - PAYMENT.CAPTURE.COMPLETED 의 memo-miss 경로에 supplementary_data.related_ids.order_id
+ *   기반 bookings/{paypalOrderId} 조회 분기 필요
+ * - PAYMENT.CAPTURE.REFUNDED 가 where('captureID','==',captureId) 조회 필요
+ * - refund update 는 bookingsDocId (matched doc) 기준 — bookings/{captureId} blind write 금지
+ */
+function P62_paypalWebhookDirectFlowMatch({ changed }) {
+  const FILE = 'api/paypal-webhook.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/function\s+extractPaypalOrderId/.test(content)) {
+    violations.push(`${FILE}: extractPaypalOrderId helper missing — PayPal-direct flow can't be matched (Y-H7)`);
+  }
+  if (!/supplementary_data[\s?.]*related_ids[\s?.]*order_id/.test(content)) {
+    violations.push(`${FILE}: supplementary_data.related_ids.order_id lookup missing — needed for PayPal-direct capture match`);
+  }
+  if (!/already_confirmed_via_capture_endpoint/.test(content)) {
+    violations.push(`${FILE}: 'already_confirmed_via_capture_endpoint' status missing — webhook should ack silently after capturePaypalOrder already confirmed`);
+  }
+  if (!/where\(\s*['"]captureID['"]\s*,\s*['"]==['"]\s*,\s*captureId/.test(content)) {
+    violations.push(`${FILE}: refund handler must query bookings.where('captureID','==',captureId) for PayPal-direct refunds`);
+  }
+  // Blind write to bookings/{captureId} = the original Y-H7 orphan bug.
+  if (/collection\(['"]bookings['"]\)\.doc\(\s*captureId\s*\)\.set\(\s*updates/.test(content)) {
+    violations.push(`${FILE}: refund handler must NOT blind-write to bookings/{captureId} — use the matched bookingsDocId`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P62_paypalWebhookDirectFlowMatch',
+      violations.join(' | '),
+      'PR #438 (Y-H7) — PayPal-direct flow (supplementary_data.related_ids.order_id + captureID field) 매칭 유지, refund 는 matched doc id 로만 write.',
     );
   }
   return null;
