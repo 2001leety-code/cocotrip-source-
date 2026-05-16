@@ -165,6 +165,22 @@ function extractRefundedCaptureId(event) {
   return m ? m[2] : null;
 }
 
+/**
+ * PR #438 (Audit Y-H7 — 2026-05-16): PayPal-direct flow (createPaypalOrder +
+ * capturePaypalOrder) 는 order memo 에 custom_id/invoice_id/note_to_payee 를
+ * 안 넣어서 webhook 이 bookingRef 로 매칭 불가 → 매 capture 마다
+ * "unmatched" alert 발사. 이걸 막으려면 PayPal 이 capture event 에 함께 주는
+ * `supplementary_data.related_ids.order_id` 로 우리 `bookings/{orderID}` 를
+ * 직접 lookup. capturePaypalOrder 가 이미 status='CONFIRMED' 로 저장한 후라
+ * webhook 은 단순 ack 만 하면 됨 (사용자에게는 redundant alert 없음).
+ */
+function extractPaypalOrderId(event) {
+  const r = event?.resource || {};
+  return r.supplementary_data?.related_ids?.order_id
+      || r.purchase_units?.[0]?.payments?.captures?.[0]?.supplementary_data?.related_ids?.order_id
+      || null;
+}
+
 async function logWebhookEvent({ db, eventId, eventType, status, detail }) {
   try {
     await db.collection('paypal_webhook_log').doc(eventId).set({
@@ -257,15 +273,43 @@ export default async function handler(req, res) {
       const paypalTxId = event.resource?.id || null;
 
       if (!bookingRef) {
+        // PR #438 (Audit Y-H7 — 2026-05-16): PayPal-direct flow (Smart
+        // Buttons) doesn't carry our bookingRef in any memo field, but the
+        // capture event DOES carry the original PayPal order id under
+        // supplementary_data.related_ids.order_id. capturePaypalOrder.js
+        // stores `bookings/{orderID}` with status='CONFIRMED' before this
+        // webhook arrives, so the right behavior here is just to ack —
+        // not to alert the operator (alert is for genuine unmatched cases
+        // like manual QR with malformed memo).
+        const paypalOrderId = extractPaypalOrderId(event);
+        if (paypalOrderId) {
+          const directBookingDoc = await adminDb.collection('bookings').doc(paypalOrderId).get();
+          if (directBookingDoc.exists) {
+            const directData = directBookingDoc.data() || {};
+            await logWebhookEvent({
+              db: adminDb, eventId, eventType,
+              status: 'processed',
+              detail: {
+                reason: 'already_confirmed_via_capture_endpoint',
+                bookingRef: directData.bookingRef || paypalOrderId,
+                paypalOrderId, paypalTxId, amountUSD, currency,
+              },
+            });
+            console.log('[paypal-webhook] PayPal-direct capture ack (no alert):', paypalOrderId);
+            res.writeHead(200, JSON_HEADERS);
+            return res.end(JSON.stringify({ ok: true, status: 'already_confirmed' }));
+          }
+        }
         console.warn('[paypal-webhook] no bookingRef in memo — manual review:', eventId);
         await logWebhookEvent({
           db: adminDb, eventId, eventType,
           status: 'unmatched',
-          detail: { reason: 'no_booking_ref', amountUSD, currency, paypalTxId },
+          detail: { reason: 'no_booking_ref', amountUSD, currency, paypalTxId, paypalOrderId },
         });
         await alertAdmin(
           '⚠️ <b>PayPal Webhook — bookingRef 미매칭</b>\n\n' +
           `PayPal TX: <code>${paypalTxId}</code>\n` +
+          (paypalOrderId ? `PayPal Order: <code>${paypalOrderId}</code>\n` : '') +
           `금액: $${amountUSD} ${currency}\n` +
           'memo 에 CT-YYYYMMDD-XXX 패턴 없음 — admin UI 에서 수동 매칭 필요'
         );
@@ -378,21 +422,43 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify({ ok: true, status: 'unmatched' }));
       }
 
-      // bookings/{captureId} 또는 pending_bookings 에서 paypalTransactionId 매칭
-      let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
+      // PR #438 (Audit Y-H7 — 2026-05-16): match across all three storage
+      // shapes so PayPal-direct refunds stop being silent-unmatched:
+      //   (1) bookings/{captureId}  — legacy ID-as-captureId shape
+      //   (2) bookings where captureID==captureId — PR #425 shape (doc id=orderID)
+      //   (3) pending_bookings where paypalTransactionId==captureId — admin-matched manual QR
+      // Capture the actual bookings doc ID (could be captureId OR orderID) so
+      // the subsequent update writes to the RIGHT doc rather than creating an
+      // orphan at bookings/{captureId} (the Y-H7 silent bug).
+      let bookingsDocId = null;
       let bookingRef = null;
       let priceKRW = 0;
 
+      let bookingDoc = await adminDb.collection('bookings').doc(captureId).get();
       if (bookingDoc.exists) {
+        bookingsDocId = captureId;
         bookingRef = bookingDoc.data().bookingRef || captureId;
         priceKRW = bookingDoc.data().amountKRW || 0;
       } else {
-        const pendingMatch = await adminDb.collection('pending_bookings')
-          .where('paypalTransactionId', '==', captureId)
+        // PR #438: try captureID field — PayPal-direct flow's doc id is orderID.
+        const captureFieldMatch = await adminDb.collection('bookings')
+          .where('captureID', '==', captureId)
           .limit(1).get();
-        if (!pendingMatch.empty) {
-          bookingRef = pendingMatch.docs[0].id;
-          priceKRW = pendingMatch.docs[0].data().priceKRW || 0;
+        if (!captureFieldMatch.empty) {
+          bookingDoc = captureFieldMatch.docs[0];
+          bookingsDocId = bookingDoc.id;
+          bookingRef = bookingDoc.data().bookingRef || bookingDoc.id;
+          priceKRW = bookingDoc.data().amountKRW || 0;
+        } else {
+          // Manual QR path — admin-matched paypalTransactionId on pending_bookings.
+          const pendingMatch = await adminDb.collection('pending_bookings')
+            .where('paypalTransactionId', '==', captureId)
+            .limit(1).get();
+          if (!pendingMatch.empty) {
+            bookingRef = pendingMatch.docs[0].id;
+            priceKRW = pendingMatch.docs[0].data().priceKRW || 0;
+            // bookingsDocId stays null — pending_bookings update only.
+          }
         }
       }
 
@@ -431,11 +497,15 @@ export default async function handler(req, res) {
       } catch (e) {
         console.warn('[paypal-webhook] pending_bookings update skipped:', e.message);
       }
-      // bookings doc 업데이트
-      try {
-        await adminDb.collection('bookings').doc(captureId).set(updates, { merge: true });
-      } catch (e) {
-        console.warn('[paypal-webhook] bookings update failed:', e.message);
+      // bookings doc 업데이트 — PR #438: use the actual doc ID we matched on
+      // (captureId for legacy shape, orderID for PayPal-direct). Skip when we
+      // matched via pending_bookings only (no bookings mirror exists yet).
+      if (bookingsDocId) {
+        try {
+          await adminDb.collection('bookings').doc(bookingsDocId).set(updates, { merge: true });
+        } catch (e) {
+          console.warn('[paypal-webhook] bookings update failed:', e.message);
+        }
       }
 
       await logWebhookEvent({
