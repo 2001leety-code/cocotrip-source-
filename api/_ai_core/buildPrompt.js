@@ -547,7 +547,7 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - reservation_required + phone for popular spots
 
 ## DAY COUNT — STRICT (B-DC)
-- Output EXACTLY `duration_days` day objects in itinerary.days array. NEVER drop or truncate the last day.
+- Output EXACTLY \`duration_days\` day objects in itinerary.days array. NEVER drop or truncate the last day.
 - If user requests 5 days, output 5 day objects with stops[] populated. NEVER output 4 with last-day narration.
 
 ### BUSAN SIGNATURE DISHES — MANDATORY (부산 일정 시 필수)
