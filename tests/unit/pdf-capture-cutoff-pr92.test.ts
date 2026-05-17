@@ -73,6 +73,30 @@ describe('P92 —pdfGenerator capture cut-off prevention (frontend)', () => {
     expect(generatorSrc).toMatch(/wa\.me\/821087140611/);
   });
 
+  it('auto-escalates to server PDF endpoint on cut-off (VITE flag bypassed)', () => {
+    // The whole point of P92 — if client capture is short, don't dump the user
+    // into manual WhatsApp triage; force the server endpoint that already
+    // exists (`api/pdf/generate.js`, Puppeteer + Chromium, immune to all 5
+    // root causes the client path has). VITE_USE_SERVER_PDF env stays
+    // optional for the happy path, but cut-off recovery must NOT depend on it.
+    expect(generatorSrc).toMatch(/tryServerPdf\(\s*plan\s*,\s*\{\s*force\s*:\s*true\s*\}\s*\)/);
+    // The tryServerPdf helper must honor force by skipping the VITE check.
+    expect(generatorSrc).toMatch(/if\s*\(\s*!opts\.force\s*&&\s*import\.meta\.env\.VITE_USE_SERVER_PDF/);
+    // When server recovery succeeds, open the blob and return success-toast
+    // (NOT the error toast / WhatsApp path).
+    expect(generatorSrc).toMatch(/recoveredViaServer\s*=\s*true/);
+    expect(generatorSrc).toMatch(/toast\.success\([^)]*pdfReady/);
+    // Recovery telemetry — operator must be able to distinguish auto-recovered
+    // hits from manual-intervention hits.
+    expect(generatorSrc).toMatch(/format\s*:\s*['"]pdf-server-recovery['"]/);
+  });
+
+  it('reports recoveredViaServer in the backend alert payload', () => {
+    // Operator gets a different signal for auto-recovered (env nudge) vs
+    // unrecovered (critical: server endpoint also broken, manual reissue).
+    expect(generatorSrc).toMatch(/recoveredViaServer\s*,?\s*\}/);
+  });
+
   it('fires backend alert with planId + heights + UA on cut-off', () => {
     // The fetch is fire-and-forget but the call site must exist with the
     // right URL and key payload fields (operator needs planId for replay).
@@ -85,7 +109,8 @@ describe('P92 —pdfGenerator capture cut-off prevention (frontend)', () => {
   it('still aborts via toast even if backend alert fetch fails (fail-open)', () => {
     // .catch on the alert fetch — operator-side notification is best-effort,
     // never block the user-side abort + WhatsApp fallback path on it.
-    expect(generatorSrc).toMatch(/\/api\/alert-pdf-cutoff[\s\S]{0,400}\.catch\(/);
+    // 800-char window accommodates the recoveredViaServer payload body.
+    expect(generatorSrc).toMatch(/\/api\/alert-pdf-cutoff[\s\S]{0,800}\.catch\(/);
   });
 });
 
@@ -105,12 +130,22 @@ describe('P92 —/api/alert-pdf-cutoff backend (operator alert)', () => {
     expect(callMatch![0]).toMatch(/maxRequests\s*:\s*5/);
   });
 
-  it('routes through throttledTelegramAlert (admin channel, planId dedup key)', () => {
+  it('routes through throttledTelegramAlert (admin channel, recovery-aware dedup key)', () => {
     expect(alertSrc).toMatch(/from\s*['"]\.\/_shared\/telegram-throttle\.js['"]/);
     expect(alertSrc).toMatch(/key\s*:\s*dedupKey/);
-    expect(alertSrc).toMatch(/`pdf-capture-cutoff:\$\{planId\s*\|\|\s*['"]unknown['"]\}`/);
+    // dedup key includes recovery state so 'auto-recovered' and 'critical' hits
+    // don't collapse together — operator sees both as separate signals.
+    expect(alertSrc).toMatch(/recoveredViaServer\s*\?\s*['"]recovered['"]\s*:\s*['"]critical['"]/);
     expect(alertSrc).toMatch(/channel\s*:\s*['"]admin['"]/);
-    expect(alertSrc).toMatch(/severity\s*:\s*['"]high['"]/);
+    // Severity downgrades to 'medium' when auto-recovery succeeded (user is OK).
+    expect(alertSrc).toMatch(/severity\s*:\s*recoveredViaServer\s*\?\s*['"]medium['"]\s*:\s*['"]high['"]/);
+  });
+
+  it('parses recoveredViaServer flag and reflects it in the message body', () => {
+    expect(alertSrc).toMatch(/const\s+recoveredViaServer\s*=\s*!!body\.recoveredViaServer/);
+    // Status line differs based on flag — operator-readable action guidance.
+    expect(alertSrc).toMatch(/자동 복구 성공/);
+    expect(alertSrc).toMatch(/자동 복구 실패/);
   });
 
   it('escapes planId + UA before HTML interpolation (P46 hygiene)', () => {

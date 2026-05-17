@@ -61,9 +61,13 @@ export interface PdfUiDict {
  * Phase 3 (2026-04-27): server-side Puppeteer PDF 시도 → 실패 시 client html2pdf fallback.
  * `VITE_USE_SERVER_PDF=true` env로 활성화. plan에 `id` 필요.
  * Firebase ID token으로 인증, plan 소유자만 다운로드 가능.
+ *
+ * P92 (2026-05-18): `force` 옵션 — VITE flag 무시하고 강제 호출. client capture
+ * cut-off 감지 시 자동 escalate 경로로 사용. 운영자가 VITE_USE_SERVER_PDF 안
+ * 켜둔 환경에서도 cut-off 발생 시 자동 server 복구 가능.
  */
-async function tryServerPdf(plan: PlanDocument): Promise<Blob | null> {
-  if (import.meta.env.VITE_USE_SERVER_PDF !== 'true') return null;
+async function tryServerPdf(plan: PlanDocument, opts: { force?: boolean } = {}): Promise<Blob | null> {
+  if (!opts.force && import.meta.env.VITE_USE_SERVER_PDF !== 'true') return null;
   const planId = (plan as { id?: string }).id;
   if (!planId) return null;
   try {
@@ -1126,7 +1130,27 @@ export async function generatePDF(
       : '');
     console.error('[PDF] capture height suspiciously short — got', scrollH, 'expected min', expectedMinH,
       '(days:', days.length, 'arrival:', !!arrival, 'departure:', !!departure, ') planId:', cutPlanId);
-    // Telegram admin alert via _generate-voucher style endpoint (best-effort, fail-open).
+
+    // P92 자동 복구: VITE flag 무시하고 server-side Puppeteer endpoint 강제 호출.
+    // 운영자가 VITE_USE_SERVER_PDF 안 켜둔 환경에서도 cut-off 검출 시 자동 복구.
+    // 성공 시 사용자는 정상 PDF 를 받고 cut-off 발생을 모름 (운영자만 알림 받음).
+    const serverPdfRecovery = await tryServerPdf(plan, { force: true });
+    let recoveredViaServer = false;
+    if (serverPdfRecovery) {
+      const titleSlugRec = ((plan.itinerary?.tour_title as string) || 'korea-trip')
+        .replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'korea-trip';
+      const filenameRec = `cocotrip-${titleSlugRec}-${plan.input?.startDate || 'undated'}.pdf`;
+      const openResult = openBlobSafely({ blob: serverPdfRecovery, filename: filenameRec });
+      if (openResult.ok) {
+        recoveredViaServer = true;
+        console.log('[PDF] capture cut-off auto-recovered via server-side endpoint');
+      } else {
+        console.warn('[PDF] server-side blob open failed after auto-recovery:', openResult.reason);
+      }
+    }
+
+    // Telegram admin alert — 자동 복구 성공/실패 둘 다 운영자가 봐야 함.
+    // 성공 시: "감지+자동복구됨, env 점검 권고" 신호 / 실패 시: critical 수동 개입.
     void fetch('/api/alert-pdf-cutoff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1138,14 +1162,32 @@ export async function generatePDF(
         measuredHeight: scrollH,
         expectedMinHeight: expectedMinH,
         userAgent: navigator.userAgent,
+        recoveredViaServer,
       }),
     }).catch(() => { /* fail-open — local toast 우선 */ });
-    const cutMsg = `Hi CocoTrip! PDF capture cut-off detected for my plan${cutPlanId ? ` (${cutPlanId})` : ''} — only ${scrollH}px rendered vs ${expectedMinH}px expected. Could you send it manually?`;
-    const cutUrl = `https://wa.me/821087140611?text=${encodeURIComponent(cutMsg)}`;
+
     document.body.removeChild(container);
     document.body.removeChild(overlay);
+
+    if (recoveredViaServer) {
+      // 사용자에게는 무엇이 일어났는지 가볍게 표시 — 정상 PDF 가 이미 다운로드됨.
+      toast.success(uiDict?.pdfReady || 'PDF ready', {
+        description: 'High-quality version delivered automatically.',
+        duration: 4000,
+      });
+      void posthogTrack('plan_downloaded', {
+        planId: planIdForTrack,
+        format: 'pdf-server-recovery',
+        durationMs: Date.now() - pdfStartTs,
+      });
+      return;
+    }
+
+    // server 도 실패하면 그제야 WhatsApp fallback (수동 개입 경로).
+    const cutMsg = `Hi CocoTrip! PDF capture cut-off detected for my plan${cutPlanId ? ` (${cutPlanId})` : ''} — auto-recovery also failed. Could you send it manually?`;
+    const cutUrl = `https://wa.me/821087140611?text=${encodeURIComponent(cutMsg)}`;
     toast.error('PDF generated with missing days', {
-      description: 'Some days may be missing from the PDF. We can send a manually-rendered full PDF via WhatsApp.',
+      description: 'Auto-recovery failed. We can send a manually-rendered full PDF via WhatsApp.',
       action: { label: 'Request via WhatsApp', onClick: () => window.open(cutUrl, '_blank') },
       duration: 15000,
     });

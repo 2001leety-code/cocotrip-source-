@@ -1063,11 +1063,30 @@ function P92_pdfCaptureCutoff({ changed }) {
     );
   }
 
+  // 5) 자동 server escalate — cut-off 시 VITE flag 무시하고 server endpoint
+  //    force 호출. 사용자 손에 잘린 PDF 못 가게 자동 복구하는 게 P92 의 본질.
+  const hasForceServer =
+    /tryServerPdf\(\s*plan\s*,\s*\{\s*force\s*:\s*true\s*\}\s*\)/.test(content);
+  const hasForceFlag = /if\s*\(\s*!opts\.force\s*&&\s*import\.meta\.env\.VITE_USE_SERVER_PDF/.test(content);
+  if (!hasForceServer || !hasForceFlag) {
+    violations.push(
+      `${FILE}: cut-off 시 tryServerPdf({force:true}) 자동 escalate + force-bypass-VITE 둘 다 필요 — 운영자 env 켜둠 여부와 무관하게 자동 복구되어야 사용자가 잘린 PDF 안 받음`,
+    );
+  }
+
+  // 6) alert payload 에 recoveredViaServer 플래그 — 운영자가 자동복구 hit 와
+  //    수동개입 critical hit 구분 가능해야 함.
+  if (!/recoveredViaServer/.test(content)) {
+    violations.push(
+      `${FILE}: alert payload 에 recoveredViaServer 누락 — 운영자가 auto-recovered vs manual-intervention 구분 불가`,
+    );
+  }
+
   if (violations.length > 0) {
     fail(
       'P92_pdfCaptureCutoff',
       `${violations.length}건 — ${violations.join(' | ')}`,
-      '메모리 P92 — image onload await + scrollHeight stabilize + expectedMinHeight hard gate + /api/alert-pdf-cutoff 4종 모두 유지.',
+      '메모리 P92 — image onload await + scrollHeight stabilize + expectedMinHeight hard gate + /api/alert-pdf-cutoff + 자동 server escalate + recoveredViaServer 플래그 6종 모두 유지.',
     );
   }
   return null;

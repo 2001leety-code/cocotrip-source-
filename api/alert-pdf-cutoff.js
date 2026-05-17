@@ -74,6 +74,9 @@ export default async function handler(req, res) {
     const measuredHeight = clampInt(body.measuredHeight, 100000);
     const expectedMinHeight = clampInt(body.expectedMinHeight, 100000);
     const userAgent = clampStr(body.userAgent, 200);
+    // P92 자동 복구 플래그 — true 면 frontend 가 server endpoint 로 escalate 해서
+    // 사용자에게 정상 PDF 전달 완료. false 면 server 도 실패 → 운영자 수동 개입 필요.
+    const recoveredViaServer = !!body.recoveredViaServer;
 
     // Firestore 미초기화 시 telegram-throttle 가 자체 fallback. 그래도 본 endpoint
     // 의 IP rate-limit 은 Firestore 필수 — db 없으면 fail-OPEN.
@@ -96,24 +99,30 @@ export default async function handler(req, res) {
     const percent = expectedMinHeight > 0
       ? Math.round((measuredHeight * 100) / expectedMinHeight)
       : 0;
+
+    // 자동 복구 성공 시 운영자 작업: env 점검 권고 / 실패 시: critical 수동 개입.
+    const statusLine = recoveredViaServer
+      ? '✅ <b>자동 복구 성공</b> — 사용자는 정상 PDF 받음. 후속: <code>VITE_USE_SERVER_PDF=true</code> 점검 권고 (왜 client 경로 갔는지).'
+      : '🚨 <b>자동 복구 실패</b> — server endpoint 도 미동작. 운영자 즉시 수동 PDF 재발급 필요.';
     const html = [
-      '⚠️ <b>PDF capture cut-off detected (P85)</b>',
+      '⚠️ <b>PDF capture cut-off detected (P92)</b>',
       `planId: <code>${escapeTelegram(planId || 'unknown')}</code>`,
       `days: ${days} · arrival: ${hasArrival ? '✓' : '✗'} · departure: ${hasDeparture ? '✓' : '✗'}`,
       `measured: ${measuredHeight}px · expectedMin: ${expectedMinHeight}px (${percent}%)`,
       `ua: ${escapeTelegram(userAgent || 'unknown')}`,
       '',
-      'frontend pdfGenerator abort + WhatsApp fallback 제안됨. 운영자: 수동 PDF 재발급 필요.',
+      statusLine,
     ].join('\n');
 
-    // planId 별 dedup — 같은 plan 의 retry 가 폭주해도 5분 window 안에서 1회 alert.
-    const dedupKey = `pdf-capture-cutoff:${planId || 'unknown'}`;
+    // dedup key 에 recovery 상태 포함 — 자동복구 hit 와 미복구 critical hit 가
+    // 같은 window 에서 발생해도 둘 다 1회씩 알림 (각각 별개 신호).
+    const dedupKey = `pdf-capture-cutoff:${recoveredViaServer ? 'recovered' : 'critical'}:${planId || 'unknown'}`;
     throttledTelegramAlert({
       key: dedupKey,
       channel: 'admin',
-      severity: 'high',
+      severity: recoveredViaServer ? 'medium' : 'high',
       message: html,
-      context: { planId, days, measuredHeight, expectedMinHeight },
+      context: { planId, days, measuredHeight, expectedMinHeight, recoveredViaServer },
     }).catch(() => { /* fail-open — 사용자 toast 가 이미 표시됨 */ });
 
     return json(res, 200, { ok: true });
