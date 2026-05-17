@@ -371,12 +371,21 @@ export function validatePatternStructure(itinerary, request = {}) {
     //   해결: snack slot [15,17) 명시 카운트, 점심 요구사항은 lunch OR snack 만족하면 통과.
     //   저녁은 그대로 [17,22) 유지 (저녁은 분명한 메인 식사).
     //
+    // 2026-05-17 PR (Audit follow-up): breakfast slot 추가.
+    //   운영자 본인 plan 생성 검증 시 출국일 Day 4 에서 매번 'B-MEAL' fail 알림 (10분 6건).
+    //   원인: 이른 아침 출국편 (예: 09:00 ICN) 시나리오에서 Gemini 가 breakfast(08:00)
+    //   + checkout(11:00 lodging) + airport(12:00 travel) 만 출력 → food stop in [11,22) 가
+    //   없어 B-MEAL fail → user HTTP 500. real customer 도 동일 패턴 fail 가능.
+    //   해결: breakfast slot [06,11) 명시 카운트. 도착/출국일은 "아침/오후/저녁 중 최소 1식"
+    //   으로 완화. full day 는 점심/snack + 저녁 유지 (breakfast 는 bonus).
+    //
     // 정의:
+    //   - 아침 slot: start_time hour ∈ [06, 11) — 06:00~10:59 (early departure / late arrival)
     //   - 점심/오후식사 slot: start_time hour ∈ [11, 17) — 11:00~16:59
     //     (subset: lunch [11,15) + snack [15,17) — 텔레메트리만 분리)
     //   - 저녁 slot: start_time hour ∈ [17, 22) — 17:00~21:59
-    //   - first/last day (도착/출국일): 점심/snack OR 저녁 중 최소 1개
-    //   - full day (중간 day): 점심/snack + 저녁 둘 다 필수
+    //   - first/last day (도착/출국일): 아침 OR 점심/snack OR 저녁 중 최소 1개
+    //   - full day (중간 day): 점심/snack + 저녁 둘 다 필수 (아침은 bonus, 강제 X)
     //   - 단일일 plan (days.length === 1): full day 와 동일 처리
     //
     // HARD validation — caller 가 1회 retry. 회귀 슈트 B-MEAL 와 동일 기준.
@@ -392,6 +401,8 @@ export function validatePatternStructure(itinerary, request = {}) {
         const h = parseInt(m[1], 10);
         return h >= lo && h < hi;
       };
+      // PR #467-like (X-H6 follow-up): breakfast slot for early-departure / late-arrival days.
+      const breakfastCount = foodStops.filter((s) => matchHour(s, 6, 11)).length;
       const lunchCount = foodStops.filter((s) => matchHour(s, 11, 15)).length;
       // PR #464 (X-H6): explicit snack slot for telemetry + lenient lunch counting.
       const snackCount = foodStops.filter((s) => matchHour(s, 15, 17)).length;
@@ -405,19 +416,19 @@ export function validatePatternStructure(itinerary, request = {}) {
 
       // 2026-05-13 PR #410 telemetry: B-MEAL hit/miss 통계 prod 디버그용.
       // Vercel function logs 에서 grep '[validator] B-MEAL' 로 검색 가능.
-      // PR #464: snackCount 추가 — afternoon meal pattern 분석.
+      // PR #464: snackCount + (X-H6 follow-up) breakfastCount 추가 — meal pattern 분석.
       if (foodStops.length > 0) {
         console.log(
-          `[validator] B-MEAL Day ${dayNum}: foodStops=${foodStops.length} lunch=${lunchCount} snack=${snackCount} dinner=${dinnerCount} ` +
+          `[validator] B-MEAL Day ${dayNum}: foodStops=${foodStops.length} breakfast=${breakfastCount} lunch=${lunchCount} snack=${snackCount} dinner=${dinnerCount} ` +
           `isFirst=${isFirst} isLast=${isLast} times=[${foodStops.map((s) => s.start_time || '?').join(',')}]`
         );
       }
 
       if (isFirst || isLast) {
-        // 도착/출국일 — 점심/snack OR 저녁 중 최소 1개
-        if (afternoonMealCount === 0 && dinnerCount === 0) {
+        // 도착/출국일 — 아침 OR 점심/snack OR 저녁 중 최소 1개 (이른 아침 출국편 / 늦은 도착 시나리오 수용)
+        if (breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
           errors.push(
-            `Day ${dayNum} (${isFirst ? '도착' : '출국'}일): 오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
+            `Day ${dayNum} (${isFirst ? '도착' : '출국'}일): 아침(06-10시)+오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
           );
         }
       } else {

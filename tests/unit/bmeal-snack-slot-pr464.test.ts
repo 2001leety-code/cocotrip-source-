@@ -143,6 +143,71 @@ describe('PR #464 X-H6 — snack slot [15,17) satisfies afternoon-meal requireme
     expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 3'))).toEqual([]);
   });
 
+  // 2026-05-17 follow-up: breakfast slot for early-departure / late-arrival days.
+  // Operator self-test surfaced this: 09:00 ICN flight → Gemini outputs breakfast
+  // (08:00) + checkout (11:00 lodging) + airport (12:00 travel). No food stop in
+  // [11,22). Pre-fix: B-MEAL fail → retry → still fail → user HTTP 500.
+  it('last day (departure) with ONLY breakfast at 08:00 — passes (이른 아침 출국편)', () => {
+    const departureDay = fullDayWithFoodAt(['08:00']);
+    departureDay.day = 3;
+    const itinerary: Itinerary = {
+      days: [makeBookendDay(1, 'Day 1'), makeBookendDay(2, 'Day 2'), departureDay],
+      arrival_guide: { airport: 'ICN' }, departure_guide: { airport: 'ICN' },
+    };
+    const errors = validatePatternStructure(itinerary, {});
+    expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 3'))).toEqual([]);
+  });
+
+  it('first day (arrival) with ONLY breakfast at 10:30 — passes (도착일 늦은 아침)', () => {
+    const arrivalDay = fullDayWithFoodAt(['10:30']);
+    arrivalDay.day = 1;
+    const itinerary: Itinerary = {
+      days: [arrivalDay, makeBookendDay(2, 'Day 2'), makeBookendDay(3, 'Day 3')],
+      arrival_guide: { airport: 'ICN' }, departure_guide: { airport: 'ICN' },
+    };
+    const errors = validatePatternStructure(itinerary, {});
+    expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 1'))).toEqual([]);
+  });
+
+  it('boundary: breakfast at 06:00 — counts as breakfast (lower edge)', () => {
+    const departureDay = fullDayWithFoodAt(['06:00']);
+    departureDay.day = 3;
+    const itinerary: Itinerary = {
+      days: [makeBookendDay(1, 'Day 1'), makeBookendDay(2, 'Day 2'), departureDay],
+      arrival_guide: { airport: 'ICN' }, departure_guide: { airport: 'ICN' },
+    };
+    const errors = validatePatternStructure(itinerary, {});
+    expect(errors.filter((e) => e.includes('B-MEAL') && e.includes('Day 3'))).toEqual([]);
+  });
+
+  it('boundary: food at 10:59 (last min of breakfast) — counts as breakfast, 11:00 = lunch', () => {
+    const arrivalDay = fullDayWithFoodAt(['10:59']);
+    arrivalDay.day = 1;
+    const itinerary: Itinerary = {
+      days: [arrivalDay, makeBookendDay(2, 'Day 2'), makeBookendDay(3, 'Day 3')],
+      arrival_guide: { airport: 'ICN' }, departure_guide: { airport: 'ICN' },
+    };
+    expect(validatePatternStructure(itinerary, {}).filter((e) => e.includes('B-MEAL') && e.includes('Day 1'))).toEqual([]);
+  });
+
+  it('full-day middle: breakfast at 09:00 alone does NOT cover lunch+dinner requirement', () => {
+    // breakfast bonus on full days — still requires lunch + dinner.
+    const errors = validatePatternStructure(withDays(fullDayWithFoodAt(['09:00'])), {});
+    expect(errors.some((e) => e.includes('B-MEAL-LUNCH') && e.includes('Day 2'))).toBe(true);
+    expect(errors.some((e) => e.includes('B-MEAL-DINNER') && e.includes('Day 2'))).toBe(true);
+  });
+
+  it('departure day with no food at all (no breakfast either) — fails with new error message', () => {
+    const departureDay = fullDayWithFoodAt([]);
+    departureDay.day = 3;
+    const itinerary: Itinerary = {
+      days: [makeBookendDay(1, 'Day 1'), makeBookendDay(2, 'Day 2'), departureDay],
+      arrival_guide: { airport: 'ICN' }, departure_guide: { airport: 'ICN' },
+    };
+    const errors = validatePatternStructure(itinerary, {});
+    expect(errors.some((e) => e.includes('B-MEAL') && e.includes('Day 3') && e.includes('아침(06-10시)'))).toBe(true);
+  });
+
   it('boundary: snack at exactly 17:00 is dinner (NOT snack) — still counts as dinner', () => {
     // 17:00 should fall into dinner slot [17,22), NOT snack [15,17).
     const errors = validatePatternStructure(withDays(fullDayWithFoodAt(['12:00', '17:00'])), {});
@@ -171,12 +236,18 @@ describe('PR #464 X-H6 — source-level invariants', () => {
     expect(src).toMatch(/if\s*\(\s*afternoonMealCount\s*===\s*0\s*\)\s*errors\.push/);
   });
 
-  it('first/last-day guard uses afternoonMealCount (NOT just lunchCount)', () => {
-    expect(src).toMatch(/if\s*\(\s*afternoonMealCount\s*===\s*0\s*&&\s*dinnerCount\s*===\s*0\s*\)/);
+  it('first/last-day guard uses breakfast+afternoonMeal+dinner (NOT just afternoonMealCount)', () => {
+    // 2026-05-17 follow-up: breakfast slot added so ealy-departure days
+    // (08:00 breakfast → 09:00 airport flight, no food in [11,22)) pass.
+    expect(src).toMatch(/if\s*\(\s*breakfastCount\s*===\s*0\s*&&\s*afternoonMealCount\s*===\s*0\s*&&\s*dinnerCount\s*===\s*0\s*\)/);
   });
 
-  it('telemetry log includes snack=N alongside lunch/dinner counts', () => {
-    expect(src).toMatch(/foodStops=\$\{foodStops\.length\}\s*lunch=\$\{lunchCount\}\s*snack=\$\{snackCount\}\s*dinner=\$\{dinnerCount\}/);
+  it('declares NEW breakfastCount with [6, 11) range (early-departure / late-arrival)', () => {
+    expect(src).toMatch(/breakfastCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*6,\s*11\)\)/);
+  });
+
+  it('telemetry log includes breakfast + snack alongside lunch/dinner counts', () => {
+    expect(src).toMatch(/foodStops=\$\{foodStops\.length\}\s*breakfast=\$\{breakfastCount\}\s*lunch=\$\{lunchCount\}\s*snack=\$\{snackCount\}\s*dinner=\$\{dinnerCount\}/);
   });
 
   it('B-MEAL env flag VALIDATOR_BMEAL_ENABLED still gates the whole block', () => {
