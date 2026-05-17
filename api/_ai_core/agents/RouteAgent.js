@@ -1103,16 +1103,8 @@ export class RouteAgent extends BaseAgent {
                         || transit.durationMin  // havCarMin if coords exist
                         || geminiOriginal.est_min  // Gemini plan estimate
                         || 25;
-                    // PR #463 (Audit X-H4 — 2026-05-16): explicit blind-fallback flag.
-                    // Pre-fix: warn only — routeEnrichment summary doesn't see how many
-                    // transits actually fell through to the flat-25 path, so a regional
-                    // geocoding outage producing "car · 25분" on every stop went silent.
-                    const isBlindFallback =
-                        !transit.publicTransit?.duration &&
-                        !transit.drivingMin &&
-                        !transit.durationMin &&
-                        !geminiOriginal.est_min;
-                    if (isBlindFallback) {
+                    // Diagnostic: log when fall through to last fallback (좌표 + Gemini 모두 없음)
+                    if (!transit.publicTransit?.duration && !transit.drivingMin && !transit.durationMin && !geminiOriginal.est_min) {
                         console.warn(`  ⚠ [transit ${i}] no coords + no Gemini est_min → using flat 25min fallback. Check NAVER_CLIENT_ID / Gemini prompt.`);
                     }
 
@@ -1162,11 +1154,7 @@ export class RouteAgent extends BaseAgent {
                             step_by_step: geminiTransit.step_by_step || [],
                             est_min: transit.drivingMin || geminiTransit.est_min || realTransitMin,
                             est_fare_krw: geminiTransit.est_fare_krw || 0,
-                            // PR #463 (X-H4): when both real data + Gemini estimate are
-                            // absent, source is the blind 25min/5km path. routeEnrichment
-                            // aggregates per-plan ratio + fires admin alert.
-                            source: isBlindFallback ? 'blind_25_no_coords' : 'naver_fallback',
-                            ...(isBlindFallback ? { _blind_fallback: true } : {}),
+                            source: 'naver_fallback',
                         };
                     }
 
