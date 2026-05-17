@@ -989,59 +989,15 @@ const RULES = [
   ['P81_refundAllSettledInspect', P81_refundAllSettledInspect],
   ['P82_pdfCanvasPerBandCheck', P82_pdfCanvasPerBandCheck],
   ['P83_routeEnrichmentSilentCatch', P83_routeEnrichmentSilentCatch],
+  ['P84_planPersisterTruncateSurface', P84_planPersisterTruncateSurface],
+  ['P85_geminiRetryDeterministicModel', P85_geminiRetryDeterministicModel],
+  ['P86_repairDroppedGuidesAlert', P86_repairDroppedGuidesAlert],
+  ['P87_routeBlindFallbackRatio', P87_routeBlindFallbackRatio],
+  ['P88_bmealSnackSlot', P88_bmealSnackSlot],
+  ['P89_avoidListIndexAlert', P89_avoidListIndexAlert],
+  ['P90_dbmatcherCityGuard', P90_dbmatcherCityGuard],
   ['P91_templateLiteralBacktickEscape', P91_templateLiteralBacktickEscape],
 ];
-
-/**
- * P91_templateLiteralBacktickEscape — 메모리 P91 (PR #471 hot-fix, 5/17).
- * api/**\/*.js 의 template literal 내부에 unescaped backtick 이 있으면 fail.
- * 도입 경로: PR #417 (5/13) 가 buildPrompt.js:550 에 raw `\`duration_days\``
- * 작성 → ESM module-load SyntaxError → ai-planner-full HTTP 500 FUNCTION_INVOCATION_FAILED.
- * 다른 endpoint 가 buildPrompt 안 import 라 4일간 latent. Unit test 가 buildSystemPrompt
- * 호출 안 해서 catch 못 함.
- *
- * 알고리즘: 첫 raw `\`` 만나면 template OPEN, 다음 raw `\`` 만나면 CLOSE.
- *           `\\\`` (escape) 는 skip. `${...}` interpolation 안의 ${...} 도 skip.
- *           file 끝까지 OPEN/CLOSE 짝이 안 맞으면 unterminated → fail.
- *           각 file 의 raw backtick count 가 짝수가 아니면 fail.
- */
-function P91_templateLiteralBacktickEscape({ changed }) {
-  // api/ 안의 모든 .js 만 검사 (테스트/스크립트는 제외 — Vercel function 그래프에
-  // 들어가는 코드만 ESM SyntaxError 가 prod 영향).
-  const targets = (changed || []).filter((c) =>
-    c.file.startsWith('api/') &&
-    c.file.endsWith('.js') &&
-    c.status !== 'D',
-  );
-  if (targets.length === 0) return { skipped: true };
-
-  const violations = [];
-  for (const { file } of targets) {
-    const content = getChangedFileContent(file);
-    if (!content) continue;
-
-    // unescaped backtick count — `\\\`` 는 무시
-    let count = 0;
-    for (let i = 0; i < content.length; i++) {
-      const c = content[i];
-      if (c === '\\') { i++; continue; } // 다음 char skip (escape)
-      if (c === '`') count++;
-    }
-    // 짝수 = template literal open/close 쌍이 맞음
-    if (count % 2 !== 0) {
-      violations.push(`${file}: backtick count=${count} (odd) — unterminated template literal 가능. line 단위 grep 으로 검색: \`awk '{ for(i=1;i<=length($0);i++){c=substr($0,i,1);if(c=="\\\\"){i++;continue}if(c=="\`")print NR}}' ${file}\``);
-    }
-  }
-
-  if (violations.length > 0) {
-    fail(
-      'P91_templateLiteralBacktickEscape',
-      violations.join(' | '),
-      'PR #471 hot-fix (P91) — template literal 안 backtick 은 \\\` 로 escape. 짝수 count 검증.',
-    );
-  }
-  return null;
-}
 
 /**
  * P55_webhookExchangeRate — 메모리 P55 (PR #431, Audit Y-H6).
@@ -1132,6 +1088,518 @@ function P83_routeEnrichmentSilentCatch({ changed }) {
       'P83_routeEnrichmentSilentCatch',
       violations.join(' | '),
       'PR #459 (X-H5) — RouteAgent throw → throttledTelegramAlert(admin/high/errType+regions dedup) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P91_templateLiteralBacktickEscape — 메모리 P91 (PR #471 hot-fix, 5/17).
+ * api/**\/*.js 의 template literal 내부에 unescaped backtick 이 있으면 fail.
+ * 도입 경로: PR #417 (5/13) buildPrompt.js:550 raw \`duration_days\` → ESM
+ * SyntaxError → ai-planner-full HTTP 500 FUNCTION_INVOCATION_FAILED, 4일 latent.
+ *
+ * 알고리즘: file 의 raw backtick (escape 안 된 것) 카운트. 짝수가 아니면 fail
+ * (open/close 짝 안 맞으면 = unterminated template).
+ */
+function P91_templateLiteralBacktickEscape({ changed }) {
+  const targets = (changed || []).filter((c) =>
+    c.file.startsWith('api/') &&
+    c.file.endsWith('.js') &&
+    c.status !== 'D',
+  );
+  if (targets.length === 0) return { skipped: true };
+
+  const violations = [];
+  for (const { file } of targets) {
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+    let count = 0;
+    for (let i = 0; i < content.length; i++) {
+      const c = content[i];
+      if (c === '\\') { i++; continue; }
+      if (c === '`') count++;
+    }
+    if (count % 2 !== 0) {
+      violations.push(`${file}: backtick count=${count} (odd) — unterminated template literal 가능`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P91_templateLiteralBacktickEscape',
+      violations.join(' | '),
+      'PR #471 hot-fix (P91) — template literal 안 backtick 은 \\\` 로 escape.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P90_dbmatcherCityGuard — 메모리 P90 (PR #466, Audit X-H8).
+ * api/_ai_core/dbMatcher.js 의 1차/2차 matcher 가 city 필터 누락하면 fail.
+ * findFoodIndexMatch helper + same-city preferred + other-city flagged
+ * + address/coords override skip on mismatch + 30% threshold admin alert.
+ */
+function P90_dbmatcherCityGuard({ changed }) {
+  const FILE = 'api/_ai_core/dbMatcher.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H8)`);
+  }
+  if (!/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.3/.test(content)) {
+    violations.push(`${FILE}: CITY_MISMATCH_RATIO_THRESHOLD=0.3 누락 → alert 임계 변경`);
+  }
+  if (!/CITY_MISMATCH_MIN_MATCHES\s*=\s*3/.test(content)) {
+    violations.push(`${FILE}: CITY_MISMATCH_MIN_MATCHES=3 누락 → 작은 plan false positive`);
+  }
+  if (!/function\s+findFoodIndexMatch\s*\(\s*foodIndex\s*,\s*stopName\s*,\s*stopDisplayName\s*,\s*cityFilter\s*\)/.test(content)) {
+    violations.push(`${FILE}: findFoodIndexMatch helper 누락 — cityFilter param signature 깨짐`);
+  }
+  // 3 tiers must all check cityOk
+  const helperBlock = content.slice(content.indexOf('function findFoodIndexMatch'), content.indexOf('export function applyDBMatcher'));
+  if (helperBlock) {
+    const cityOkCount = (helperBlock.match(/cityOk\(/g) || []).length;
+    if (cityOkCount < 3) {
+      violations.push(`${FILE}: findFoodIndexMatch 의 cityOk 호출 < 3 — 1차/2차/3차 tier 중 일부 city 필터 누락`);
+    }
+  }
+  // applyDBMatcher must call helper twice (with city then without)
+  if (!/findFoodIndexMatch\(foodIndex,\s*stopName,\s*stopDisplayName,\s*matchCity\)/.test(content)) {
+    violations.push(`${FILE}: applyDBMatcher 가 same-city 우선 호출 안 함`);
+  }
+  if (!/findFoodIndexMatch\(foodIndex,\s*stopName,\s*stopDisplayName,\s*null\)/.test(content)) {
+    violations.push(`${FILE}: applyDBMatcher 가 no-city fallback 호출 안 함`);
+  }
+  // address/coord skip on mismatch
+  if (!/if\s*\(\s*match\.address\s*&&\s*!isCityMismatch\s*\)/.test(content)) {
+    violations.push(`${FILE}: address 덮어쓰기에 !isCityMismatch 가드 누락 → 사용자 잘못된 도시로 안내 위험`);
+  }
+  if (!/if\s*\(\s*!isCityMismatch\s*\)\s*\{[\s\S]*?match\.lat[\s\S]*?match\.googleMapsUrl/.test(content)) {
+    violations.push(`${FILE}: lat/lng/mapUrl 덮어쓰기 block 의 !isCityMismatch 가드 누락`);
+  }
+  if (!/stop\._db_city_mismatch\s*=\s*\{[\s\S]*?dbCity[\s\S]*?requestedCity/.test(content)) {
+    violations.push(`${FILE}: stop._db_city_mismatch 마킹 누락 → 다운스트림 detect 불가`);
+  }
+  if (!/stop\.verified\s*=\s*!isCityMismatch/.test(content)) {
+    violations.push(`${FILE}: city-mismatch 가 verified=false 처리 안 함 → 사용자/UI 잘못된 verified 배지`);
+  }
+  if (!/dbmatcher-city-mismatch:\$\{matchCity\s*\|\|\s*['"]unknown['"]\}/.test(content)) {
+    violations.push(`${FILE}: alert key 'dbmatcher-city-mismatch:${'${matchCity}'}' 누락`);
+  }
+  const alertBlock = content.slice(content.indexOf('dbmatcher-city-mismatch'), content.indexOf('dbmatcher-city-mismatch') + 2000);
+  if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
+    violations.push(`${FILE}: admin 채널 누락`);
+  }
+  if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
+    violations.push(`${FILE}: severity:'high' 누락`);
+  }
+  if (!/throttledTelegramAlert\(\{[\s\S]*?dbmatcher-city-mismatch[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P90_dbmatcherCityGuard',
+      violations.join(' | '),
+      'PR #466 (X-H8) — findFoodIndexMatch + cityOk 3-tier + override skip + verified=false + admin alert 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P89_avoidListIndexAlert — 메모리 P89 (PR #465, Audit X-H7).
+ * api/_ai_core/avoidListQuery.js 의 Firestore composite-index 누락 silent
+ * catch 면 fail. 또한 firestore.indexes.json 의 plans.uid/email 인덱스 누락 검출.
+ * - isFirestoreIndexMissingError + extractIndexCreationUrl export 필수
+ * - catch 에서 alert 호출 + fail-OPEN (return '') 보존
+ * - plans.uid+createdAt / plans.email+createdAt 인덱스 firestore.indexes.json 에 존재
+ */
+function P89_avoidListIndexAlert({ changed }) {
+  const CODE = 'api/_ai_core/avoidListQuery.js';
+  const INDEXES = 'firestore.indexes.json';
+  const touched = isModified(CODE, changed) || isModified(INDEXES, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(CODE, changed)) {
+    const c = getChangedFileContent(CODE);
+    if (c) {
+      if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(c)) {
+        violations.push(`${CODE}: throttledTelegramAlert import 누락 — operator silent (X-H7)`);
+      }
+      if (!/export\s+function\s+isFirestoreIndexMissingError\s*\(/.test(c)) {
+        violations.push(`${CODE}: isFirestoreIndexMissingError export 누락 — test 표면 없음`);
+      }
+      if (!/export\s+function\s+extractIndexCreationUrl\s*\(/.test(c)) {
+        violations.push(`${CODE}: extractIndexCreationUrl export 누락 — alert 메시지에 URL 못 넣음`);
+      }
+      if (!/code\s*===\s*['"]FAILED_PRECONDITION['"]\s*\|\|\s*code\s*===\s*['"]9['"]/.test(c)) {
+        violations.push(`${CODE}: FAILED_PRECONDITION || code 9 detector 누락 — 다른 Firestore 에러로 false positive`);
+      }
+      if (!/avoid-list-index-missing:\$\{queryKind\}/.test(c)) {
+        violations.push(`${CODE}: alert key 'avoid-list-index-missing:${'${queryKind}'}' 누락 → dedup 깨짐`);
+      }
+      const alertBlock = c.slice(c.indexOf('avoid-list-index-missing'), c.indexOf('avoid-list-index-missing') + 2000);
+      if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
+        violations.push(`${CODE}: admin 채널 누락`);
+      }
+      if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
+        violations.push(`${CODE}: severity:'high' 누락`);
+      }
+      if (!/throttledTelegramAlert\(\{[\s\S]*?avoid-list-index-missing[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(c)) {
+        violations.push(`${CODE}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
+      }
+      // fail-OPEN preserved — catch 안에 return ''
+      if (!/return\s+['"]['"]\s*;/.test(c)) {
+        violations.push(`${CODE}: catch 안의 return '' 누락 — fail-OPEN 깨짐 (non-critical path 보장 X)`);
+      }
+    }
+  }
+
+  if (isModified(INDEXES, changed)) {
+    const c = getChangedFileContent(INDEXES);
+    if (c) {
+      try {
+        const idx = JSON.parse(c);
+        const hasIndex = (collectionGroup, fields) =>
+          idx.indexes?.some((entry) =>
+            entry.collectionGroup === collectionGroup &&
+            entry.fields?.length === fields.length &&
+            entry.fields.every((f, i) => f.fieldPath === fields[i].fieldPath && f.order === fields[i].order),
+          );
+        if (!hasIndex('plans', [
+          { fieldPath: 'uid', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ])) {
+          violations.push(`${INDEXES}: plans.uid+createdAt DESC 인덱스 누락 → avoidListQuery 매 호출 fail (X-H7)`);
+        }
+        if (!hasIndex('plans', [
+          { fieldPath: 'email', order: 'ASCENDING' },
+          { fieldPath: 'createdAt', order: 'DESCENDING' },
+        ])) {
+          violations.push(`${INDEXES}: plans.email+createdAt DESC 인덱스 누락 → guest 사용자 avoidListQuery fail`);
+        }
+      } catch (parseErr) {
+        violations.push(`${INDEXES}: JSON parse 실패 (${parseErr.message}) — firebase deploy 거부`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P89_avoidListIndexAlert',
+      violations.join(' | '),
+      'PR #465 (X-H7) — index 누락 detector + admin alert + fail-OPEN 보존 + 인덱스 정의 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P88_bmealSnackSlot — 메모리 P88 (PR #464, Audit X-H6).
+ * api/_ai_core/responseValidator.js 의 B-MEAL validator 가 15:00-16:59
+ * snack slot 무시하면 fail. snackCount 추가 + afternoonMealCount = lunch + snack
+ * + 점심 가드는 afternoonMealCount === 0 사용 필수.
+ */
+function P88_bmealSnackSlot({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // snack slot 필터 [15, 17)
+  if (!/snackCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*15,\s*17\)\)/.test(content)) {
+    violations.push(`${FILE}: snackCount [15,17) 필터 누락 — afternoon meal silent ignore (X-H6)`);
+  }
+  // lunchCount + snackCount = afternoonMealCount
+  if (!/afternoonMealCount\s*=\s*lunchCount\s*\+\s*snackCount/.test(content)) {
+    violations.push(`${FILE}: afternoonMealCount = lunchCount + snackCount 누락`);
+  }
+  // full-day 가드는 afternoonMealCount 사용
+  if (!/if\s*\(\s*afternoonMealCount\s*===\s*0\s*\)\s*errors\.push/.test(content)) {
+    violations.push(`${FILE}: full-day 점심 가드가 afternoonMealCount 사용 안 함 → snack false-positive 회귀`);
+  }
+  // arrival/departure 가드도 afternoonMealCount 사용
+  if (!/if\s*\(\s*afternoonMealCount\s*===\s*0\s*&&\s*dinnerCount\s*===\s*0\s*\)/.test(content)) {
+    violations.push(`${FILE}: arrival/departure 가드가 afternoonMealCount 사용 안 함`);
+  }
+  // dinner boundary 변경 금지 (메인 식사 분명)
+  if (!/dinnerCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*17,\s*22\)\)/.test(content)) {
+    violations.push(`${FILE}: dinnerCount [17,22) 변경됨 — 저녁 boundary 보존 필요`);
+  }
+  // lunch boundary 보존 (subset)
+  if (!/lunchCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*11,\s*15\)\)/.test(content)) {
+    violations.push(`${FILE}: lunchCount [11,15) 변경됨 — lunch+snack 분리 telemetry 깨짐`);
+  }
+  // 텔레메트리 snack 포함
+  if (!/lunch=\$\{lunchCount\}\s*snack=\$\{snackCount\}/.test(content)) {
+    violations.push(`${FILE}: 텔레메트리 로그에 snack=N 누락 → 운영자 분석 어려움`);
+  }
+  // env flag 보존
+  if (!/process\.env\.VALIDATOR_BMEAL_ENABLED\s*!==\s*['"]false['"]/.test(content)) {
+    violations.push(`${FILE}: VALIDATOR_BMEAL_ENABLED env flag 제거됨 — 비상 circuit breaker 손실`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P88_bmealSnackSlot',
+      violations.join(' | '),
+      'PR #464 (X-H6) — snack slot [15,17) + afternoonMealCount + telemetry 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P87_routeBlindFallbackRatio — 메모리 P87 (PR #463, Audit X-H4).
+ * api/_ai_core/agents/RouteAgent.js 가 blind 25min/5km fallback 을
+ * silent 하면 fail (transit_from_prev 에 _blind_fallback 플래그 필수).
+ * api/_ai_core/routeEnrichment.js 는 RouteAgent 출력 후 blind 비율 집계 +
+ * 40% 초과 시 admin alert 필수.
+ */
+function P87_routeBlindFallbackRatio({ changed }) {
+  const AGENT = 'api/_ai_core/agents/RouteAgent.js';
+  const ENRICH = 'api/_ai_core/routeEnrichment.js';
+  const touched = isModified(AGENT, changed) || isModified(ENRICH, changed);
+  if (!touched) return { skipped: true };
+
+  const violations = [];
+
+  if (isModified(AGENT, changed)) {
+    const c = getChangedFileContent(AGENT);
+    if (c) {
+      // isBlindFallback 식별 (4-input AND chain)
+      if (!/const\s+isBlindFallback\s*=/.test(c)) {
+        violations.push(`${AGENT}: isBlindFallback boolean 누락 — 25min/5km path 식별 불가 (X-H4)`);
+      }
+      if (!/source:\s*isBlindFallback\s*\?\s*['"]blind_25_no_coords['"]\s*:\s*['"]naver_fallback['"]/.test(c)) {
+        violations.push(`${AGENT}: naver_fallback 분기 source flag 누락 (blind_25_no_coords vs naver_fallback)`);
+      }
+      if (!/_blind_fallback:\s*true/.test(c)) {
+        violations.push(`${AGENT}: _blind_fallback:true 마킹 누락 → routeEnrichment 가 비율 못 잼`);
+      }
+    }
+  }
+
+  if (isModified(ENRICH, changed)) {
+    const c = getChangedFileContent(ENRICH);
+    if (c) {
+      if (!/blindFallbackStops\s*=\s*allStops\.filter\(\(s\)\s*=>\s*s\.transit_from_prev\?\._blind_fallback\s*===\s*true\)\.length/.test(c)) {
+        violations.push(`${ENRICH}: blindFallbackStops 집계 누락`);
+      }
+      if (!/const\s+BLIND_RATIO_THRESHOLD\s*=\s*0\.4/.test(c)) {
+        violations.push(`${ENRICH}: BLIND_RATIO_THRESHOLD=0.4 누락 → alert 임계 변경`);
+      }
+      if (!/const\s+MIN_TRANSITS_FOR_ALERT\s*=\s*5/.test(c)) {
+        violations.push(`${ENRICH}: MIN_TRANSITS_FOR_ALERT=5 누락 → arrival-day 1-transit edge false positive`);
+      }
+      if (!/route-blind-fallback:\$\{regionsKey\}/.test(c)) {
+        violations.push(`${ENRICH}: dedup key 'route-blind-fallback:${'${regionsKey}'}' 누락`);
+      }
+      const alertBlock = c.slice(c.indexOf('route-blind-fallback'), c.indexOf('route-blind-fallback') + 2500);
+      if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
+        violations.push(`${ENRICH}: admin 채널 누락`);
+      }
+      if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
+        violations.push(`${ENRICH}: severity:'high' 누락`);
+      }
+      if (!/throttledTelegramAlert\(\{[\s\S]*?route-blind-fallback[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(c)) {
+        violations.push(`${ENRICH}: alert 가 .catch(()=>{}) fire-and-forget 아님`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P87_routeBlindFallbackRatio',
+      violations.join(' | '),
+      'PR #463 (X-H4) — _blind_fallback flag + 집계 + 40%/5건 threshold + admin alert 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P86_repairDroppedGuidesAlert — 메모리 P86 (PR #462, Audit X-H3).
+ * api/_ai_core/responseValidator.js 의 repairAndParseJSON 가 truncated JSON 복구 후
+ * 누락된 arrival_guide/departure_guide 를 silent 하면 fail.
+ * - throttledTelegramAlert import 필수
+ * - detectDroppedKeys + classifyMissingKeys export 필수
+ * - alert key 'repair-dropped-guides:${droppedKey}' 패턴 필수
+ * - result.__repair_dropped_keys flag 필수
+ */
+function P86_repairDroppedGuidesAlert({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H3)`);
+  }
+  if (!/CRITICAL_TOP_LEVEL_KEYS\s*=\s*\[\s*['"]arrival_guide['"]\s*,\s*['"]departure_guide['"]\s*\]/.test(content)) {
+    violations.push(`${FILE}: CRITICAL_TOP_LEVEL_KEYS = ['arrival_guide','departure_guide'] 누락`);
+  }
+  if (!/export\s+function\s+detectDroppedKeys\s*\(/.test(content)) {
+    violations.push(`${FILE}: detectDroppedKeys export 누락 — test 표면 없음`);
+  }
+  if (!/export\s+function\s+classifyMissingKeys\s*\(/.test(content)) {
+    violations.push(`${FILE}: classifyMissingKeys export 누락 — lost-after-emit vs never-emitted 구분 불가`);
+  }
+  if (!/result\.__repair_dropped_keys\s*=\s*droppedKeys/.test(content)) {
+    violations.push(`${FILE}: result.__repair_dropped_keys 플래그 누락 → UI/debugger 감지 어려움`);
+  }
+  if (!/repair-dropped-guides:\$\{droppedKey\}/.test(content)) {
+    violations.push(`${FILE}: alert key 'repair-dropped-guides:${'${droppedKey}'}' 패턴 누락 → dedup 깨짐`);
+  }
+  // alert config — admin / high / fire-and-forget
+  const alertBlock = content.slice(content.indexOf('repair-dropped-guides'), content.indexOf('repair-dropped-guides') + 2000);
+  if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
+    violations.push(`${FILE}: admin 채널 누락 — booking 다운 시 도달 X`);
+  }
+  if (alertBlock && !/severity:\s*['"]high['"]/.test(alertBlock)) {
+    violations.push(`${FILE}: severity:'high' 누락`);
+  }
+  if (!/throttledTelegramAlert\(\{[\s\S]*?repair-dropped-guides[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: alert 가 .catch(()=>{}) fire-and-forget 아님 → parse latency 위험`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P86_repairDroppedGuidesAlert',
+      violations.join(' | '),
+      'PR #462 (X-H3) — detectDroppedKeys + classifyMissingKeys + admin alert + result flag 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P85_geminiRetryDeterministicModel — 메모리 P85 (PR #461, Audit X-H2).
+ * api/_ai_core/geminiPipeline.js 의 retry 사이트들이 같은 temperature=0.5
+ * model 을 재사용하면 fail. retryModel (temperature=0.1) + recordRetryAttempt
+ * (5분 sliding window, threshold 10) + admin alert 필수.
+ */
+function P85_geminiRetryDeterministicModel({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/const\s+RETRY_TEMPERATURE\s*=\s*0\.1/.test(content)) {
+    violations.push(`${FILE}: RETRY_TEMPERATURE=0.1 상수 누락 — retry quota burn 위험 (X-H2)`);
+  }
+  if (!/const\s+RETRY_RATE_WINDOW_MS\s*=\s*5\s*\*\s*60\s*\*\s*1000/.test(content)) {
+    violations.push(`${FILE}: RETRY_RATE_WINDOW_MS=5분 누락 → retry storm 감지 약화`);
+  }
+  if (!/const\s+RETRY_RATE_THRESHOLD\s*=\s*10/.test(content)) {
+    violations.push(`${FILE}: RETRY_RATE_THRESHOLD=10 누락 → alert 임계 변경`);
+  }
+  if (!/export\s+function\s+buildModel\s*\(\s*apiKey\s*,\s*temperatureOverride\s*\)/.test(content)) {
+    violations.push(`${FILE}: buildModel(apiKey, temperatureOverride) signature 누락 — retryModel 분리 불가`);
+  }
+  if (!/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE\)/.test(content)) {
+    violations.push(`${FILE}: retryModel 미생성 — retry 가 동일 0.5 model 재사용`);
+  }
+  // 4 retry types must each register a recordRetryAttempt call.
+  const requiredTypes = ['dietary-3pass', 'pattern-3pass', 'dietary-legacy', 'pattern-legacy'];
+  for (const t of requiredTypes) {
+    const re = new RegExp(`recordRetryAttempt\\(\\s*['\"]${t.replace(/[-]/g, '\\-')}['\"]\\s*\\)`);
+    if (!re.test(content)) {
+      violations.push(`${FILE}: recordRetryAttempt('${t}') 누락 → 해당 retry 카운트 누락`);
+    }
+  }
+  // Each retry call must use retryModel.
+  if (!/pass1Intent\(\s*retryModel\s*,/.test(content)) {
+    violations.push(`${FILE}: 3pass retry 가 pass1Intent(retryModel, ...) 아님 — 동일 model 재사용 (X-H2 회귀)`);
+  }
+  if (!/retryModel\.generateContent/.test(content)) {
+    violations.push(`${FILE}: legacy retry 가 retryModel.generateContent 호출 안 함 — model.generateContent 재사용`);
+  }
+  if (!/gemini-retry-rate-high:\$\{retryType\}/.test(content)) {
+    violations.push(`${FILE}: alert key 'gemini-retry-rate-high:${'${retryType}'}' 누락`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P85_geminiRetryDeterministicModel',
+      violations.join(' | '),
+      'PR #461 (X-H2) — retryModel (temperature 0.1) + recordRetryAttempt (5min/10건 window, admin alert) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P84_planPersisterTruncateSurface — 메모리 P84 (PR #460, Audit X-H1).
+ * api/_ai_core/planPersister.js 의 900KB 가드가 silent truncate 면 fail.
+ * - throttledTelegramAlert import 필수
+ * - admin channel, severity:'high' 로 발송
+ * - dedup key 패턴 `plan-persister-truncate:${regionKey}:${durationKey}` 필수
+ * - root-level __truncated / __truncated_days_count / __truncated_original_days
+ *   필수 (PlanDetailPage 가 itinerary 깊이 탐색 없이 banner 표시)
+ * - 900_000-byte 한계 + legacy itinerary._truncated_days 유지
+ */
+function P84_planPersisterTruncateSurface({ changed }) {
+  const FILE = 'api/_ai_core/planPersister.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H1)`);
+  }
+  if (!/plan-persister-truncate:\$\{regionKey\}:\$\{durationKey\}/.test(content)) {
+    violations.push(`${FILE}: dedup key 'plan-persister-truncate:${'${regionKey}'}:${'${durationKey}'}' 누락 → storm 차단 X`);
+  }
+  if (!/channel:\s*['"]admin['"]/.test(content)) {
+    violations.push(`${FILE}: admin 채널 알림 누락 — booking 채널 다운 시 도달 X`);
+  }
+  if (!/severity:\s*['"]high['"]/.test(content)) {
+    violations.push(`${FILE}: severity:'high' 누락`);
+  }
+  if (!/docToSave\.__truncated\s*=\s*true/.test(content)) {
+    violations.push(`${FILE}: root-level __truncated=true 누락 → UI banner 감지 어려움`);
+  }
+  if (!/docToSave\.__truncated_days_count/.test(content)) {
+    violations.push(`${FILE}: __truncated_days_count 누락`);
+  }
+  if (!/docToSave\.__truncated_original_days/.test(content)) {
+    violations.push(`${FILE}: __truncated_original_days 누락 → 잘린 day 추적 불가`);
+  }
+  if (!/SIZE_LIMIT_BYTES\s*=\s*900_000/.test(content)) {
+    violations.push(`${FILE}: SIZE_LIMIT_BYTES 900_000 변경 — Firestore 1MB 안전 margin 깨짐`);
+  }
+  // Back-compat — UI 의 기존 탐색 경로 유지.
+  if (!/itinerary\._truncated_days\s*=/.test(content)) {
+    violations.push(`${FILE}: legacy itinerary._truncated_days 누락 — 기존 UI 경로 깨짐`);
+  }
+  // Fire-and-forget — alert infra fail 이 plan 저장 latency 영향 X
+  if (!/throttledTelegramAlert\(\{[\s\S]*?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: throttledTelegramAlert 가 .catch(()=>{}) fire-and-forget 아님 → plan-save latency 위험`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P84_planPersisterTruncateSurface',
+      violations.join(' | '),
+      'PR #460 (X-H1) — root __truncated 플래그 + admin throttledTelegramAlert + 900KB 한계 + legacy back-compat 유지.',
     );
   }
   return null;

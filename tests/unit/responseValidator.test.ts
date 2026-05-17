@@ -1012,7 +1012,11 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
       expect(errors.filter((e: string) => e.includes('B-MEAL') && e.includes('Day 4'))).toEqual([]);
     });
 
-    it('rejects lunch at boundary 15:00 (still out of range after widening)', () => {
+    // PR #464 (Audit X-H6): 15:00-16:59 snack slot 통과 — afternoon meal
+    // 요구사항은 lunch [11,15) OR snack [15,17) 둘 다 만족. 이전엔 15:00 이
+    // neither lunch nor dinner 로 silent ignore → B-MEAL-LUNCH false-positive
+    // → Gemini retry 강제 → quota burn.
+    it('accepts snack at 15:00 as afternoon meal (X-H6)', () => {
       const dayLateLunch: Day = {
         day: 2,
         city: 'Seoul',
@@ -1029,8 +1033,7 @@ describe('validatePatternStructure (api/_ai_core/responseValidator.js)', () => {
         days: [makeValidDay({ day: 1 }), dayLateLunch, makeValidDay({ day: 3 })],
       };
       const errors = validatePatternStructure(itinerary, {});
-      // 15:00 = widening 후에도 점심 slot [11,15) 밖 → B-MEAL-LUNCH 위반
-      expect(errors.some((e: string) => e.includes('B-MEAL-LUNCH') && e.includes('Day 2'))).toBe(true);
+      expect(errors.filter((e: string) => e.includes('B-MEAL') && e.includes('Day 2'))).toEqual([]);
     });
 
     it('rejects dinner at boundary 22:00 (still out of range after widening)', () => {
