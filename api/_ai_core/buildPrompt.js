@@ -539,10 +539,14 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
 - 1 dedicated lunch + 1 dinner per full day (category: "food")
+- **Breakfast slot** (NEW): start_time hour ∈ [06:00, 10:59] — 호텔 조식 / 김밥천국 / 광장시장 등. arrival/departure day 의 이른 비행 시간대 수용.
 - **Lunch slot**: start_time hour ∈ [11:00, 14:59] — 점심은 12-14시 한국 식사 시간 흔함. Backend validator (B-MEAL-LUNCH) rejects plans missing lunch on full days.
+- **Snack/Afternoon meal slot**: start_time hour ∈ [15:00, 16:59] — 빙수/카페/디저트. lunch 와 같은 가중치 (lunch OR snack 만족).
 - **Dinner slot**: start_time hour ∈ [17:00, 21:59] — 저녁은 18-20시 표준, 21시 늦은 저녁 흔함. Backend validator (B-MEAL-DINNER) rejects plans missing dinner on full days.
-- **Full day** = middle days (not arrival, not departure). Day 1 (arrival, often 15:00 check-in) and last day (departure) may have ≥1 meal total.
-- NEVER end a full day at hotel before 17:00 without including a dinner food stop. NEVER skip a meal slot.
+- **Full day** = middle days (not arrival, not departure). REQUIRES lunch/snack + dinner BOTH. Breakfast is bonus on full days.
+- **Arrival day (Day 1)**: 도착 시각에 따라 breakfast OR lunch/snack OR dinner 중 최소 1식. Late arrival (20:00+) 시 dinner 만으로 OK. Early arrival (10:00 도착) 시 lunch 부터 정상 진행.
+- **Departure day (last day)**: 출국 시각에 따라 breakfast OR lunch/snack OR dinner 중 최소 1식. **이른 출국편 (예: 09:00 ICN)** 시나리오 → 06:00-09:00 사이 호텔 조식 / 24시 김밥집 / 광장시장 아침 food stop 1건 반드시 포함 (category="food", start_time="08:00" 같은 형식). 이 stop 없이 lodging+travel 만으로 출국일 채우면 backend validator (B-MEAL) reject 한다.
+- NEVER end a full day at hotel before 17:00 without including a dinner food stop. NEVER skip a meal slot. NEVER output departure day with 0 food stops.
 - 3-5 signature menu items with KRW prices
 - reservation_required + phone for popular spots
 
