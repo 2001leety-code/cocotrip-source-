@@ -989,7 +989,59 @@ const RULES = [
   ['P81_refundAllSettledInspect', P81_refundAllSettledInspect],
   ['P82_pdfCanvasPerBandCheck', P82_pdfCanvasPerBandCheck],
   ['P83_routeEnrichmentSilentCatch', P83_routeEnrichmentSilentCatch],
+  ['P91_templateLiteralBacktickEscape', P91_templateLiteralBacktickEscape],
 ];
+
+/**
+ * P91_templateLiteralBacktickEscape — 메모리 P91 (PR #471 hot-fix, 5/17).
+ * api/**\/*.js 의 template literal 내부에 unescaped backtick 이 있으면 fail.
+ * 도입 경로: PR #417 (5/13) 가 buildPrompt.js:550 에 raw `\`duration_days\``
+ * 작성 → ESM module-load SyntaxError → ai-planner-full HTTP 500 FUNCTION_INVOCATION_FAILED.
+ * 다른 endpoint 가 buildPrompt 안 import 라 4일간 latent. Unit test 가 buildSystemPrompt
+ * 호출 안 해서 catch 못 함.
+ *
+ * 알고리즘: 첫 raw `\`` 만나면 template OPEN, 다음 raw `\`` 만나면 CLOSE.
+ *           `\\\`` (escape) 는 skip. `${...}` interpolation 안의 ${...} 도 skip.
+ *           file 끝까지 OPEN/CLOSE 짝이 안 맞으면 unterminated → fail.
+ *           각 file 의 raw backtick count 가 짝수가 아니면 fail.
+ */
+function P91_templateLiteralBacktickEscape({ changed }) {
+  // api/ 안의 모든 .js 만 검사 (테스트/스크립트는 제외 — Vercel function 그래프에
+  // 들어가는 코드만 ESM SyntaxError 가 prod 영향).
+  const targets = (changed || []).filter((c) =>
+    c.file.startsWith('api/') &&
+    c.file.endsWith('.js') &&
+    c.status !== 'D',
+  );
+  if (targets.length === 0) return { skipped: true };
+
+  const violations = [];
+  for (const { file } of targets) {
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+
+    // unescaped backtick count — `\\\`` 는 무시
+    let count = 0;
+    for (let i = 0; i < content.length; i++) {
+      const c = content[i];
+      if (c === '\\') { i++; continue; } // 다음 char skip (escape)
+      if (c === '`') count++;
+    }
+    // 짝수 = template literal open/close 쌍이 맞음
+    if (count % 2 !== 0) {
+      violations.push(`${file}: backtick count=${count} (odd) — unterminated template literal 가능. line 단위 grep 으로 검색: \`awk '{ for(i=1;i<=length($0);i++){c=substr($0,i,1);if(c=="\\\\"){i++;continue}if(c=="\`")print NR}}' ${file}\``);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P91_templateLiteralBacktickEscape',
+      violations.join(' | '),
+      'PR #471 hot-fix (P91) — template literal 안 backtick 은 \\\` 로 escape. 짝수 count 검증.',
+    );
+  }
+  return null;
+}
 
 /**
  * P55_webhookExchangeRate — 메모리 P55 (PR #431, Audit Y-H6).
