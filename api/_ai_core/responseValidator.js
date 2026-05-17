@@ -417,12 +417,20 @@ export function validatePatternStructure(itinerary, request = {}) {
       // 2026-05-13 PR #410 telemetry: B-MEAL hit/miss 통계 prod 디버그용.
       // Vercel function logs 에서 grep '[validator] B-MEAL' 로 검색 가능.
       // PR #464: snackCount + (X-H6 follow-up) breakfastCount 추가 — meal pattern 분석.
-      if (foodStops.length > 0) {
-        console.log(
-          `[validator] B-MEAL Day ${dayNum}: foodStops=${foodStops.length} breakfast=${breakfastCount} lunch=${lunchCount} snack=${snackCount} dinner=${dinnerCount} ` +
-          `isFirst=${isFirst} isLast=${isLast} times=[${foodStops.map((s) => s.start_time || '?').join(',')}]`
-        );
-      }
+      // 2026-05-17 (PR follow-up): foodStops=0 케이스도 unconditional 로그 — Gemini 가
+      // 출국일에 lodging/travel 만 출력하는 회귀를 logs 에서 즉시 식별 가능.
+      // categories breakdown 도 포함 — food vs lodging vs travel vs attraction 분포 확인.
+      const categoryCounts = stops.reduce((acc, s) => {
+        const cat = s?.category || 'unknown';
+        acc[cat] = (acc[cat] || 0) + 1;
+        return acc;
+      }, {});
+      const categoryStr = Object.entries(categoryCounts).map(([k, v]) => `${k}=${v}`).join(',');
+      console.log(
+        `[validator] B-MEAL Day ${dayNum}: foodStops=${foodStops.length} breakfast=${breakfastCount} lunch=${lunchCount} snack=${snackCount} dinner=${dinnerCount} ` +
+        `isFirst=${isFirst} isLast=${isLast} times=[${foodStops.map((s) => s.start_time || '?').join(',')}] ` +
+        `allCategories=[${categoryStr}] totalStops=${stops.length}`
+      );
 
       if (isFirst || isLast) {
         // 도착/출국일 — 아침 OR 점심/snack OR 저녁 중 최소 1개 (이른 아침 출국편 / 늦은 도착 시나리오 수용)
