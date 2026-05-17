@@ -30,17 +30,97 @@ const GEMINI_TIMEOUT_MS = 240000;
 // following 정확도를 우선. 다양성은 약간 ↓ 하지만 사용자 환불 사유 (숙소
 // 흐름 누락) 회피가 더 중요. 다양성은 'angle' rotation + variation_seed 로
 // 보조 (buildPrompt.js).
-function buildModel(apiKey) {
+//
+// PR #461 (Audit X-H2 — 2026-05-16): retry 전용 model 분리. 기존엔 retry
+// 도 동일 temperature=0.5 → variance 가 같아 retry 가 같은 violation 으로
+// 다시 fail → 추가 quota 소모. retry 는 reinforced prompt 가 이미 명시
+// 지시를 강화하므로 deterministic 한 temperature=0.1 로 호출 → 첫 retry
+// 성공률 ↑ → 평균 Gemini quota 사용량 ↓. 회귀 시 빠르게 운영자가 알 수
+// 있도록 instance-local 5분 window retry 카운터 + threshold 초과 시
+// throttledTelegramAlert 추가.
+const RETRY_TEMPERATURE = 0.1;
+const RETRY_RATE_WINDOW_MS = 5 * 60 * 1000; // 5min
+const RETRY_RATE_THRESHOLD = 10; // 5분당 10건 초과 시 1회 alert
+
+export function buildModel(apiKey, temperatureOverride) {
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
     model: 'gemini-2.5-pro',
     generationConfig: {
-      temperature: 0.5,
+      temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
       thinkingConfig: { thinkingBudget: 32000 },
       maxOutputTokens: 32000,
       responseMimeType: 'application/json',
     },
   });
+}
+
+// Per-instance sliding-window retry counter. Vercel containers don't share
+// state, but a single hot container handling many requests will surface a
+// retry storm to the operator within 5min. This is observability, NOT a
+// hard rate-limit (we never block a user retry — DIETARY_VIOLATION etc.
+// would re-fire if we silently dropped the attempt).
+const _retryWindow = new Map(); // retryType → number[] of timestamps
+const _retryAlertedAt = new Map(); // retryType → number (last alert ms)
+
+/** Test-only — reset window/alert state between vitest cases. */
+export function __resetRetryWindowForTests() {
+  _retryWindow.clear();
+  _retryAlertedAt.clear();
+}
+
+/**
+ * Record a retry attempt. When a single retry type fires more than
+ * RETRY_RATE_THRESHOLD times in the past RETRY_RATE_WINDOW_MS, fire an
+ * admin alert (once per window). The alert key is dedup'd by retry type
+ * so a Gemini outage causing both dietary + pattern retries triggers
+ * 2 distinct alerts (operator can correlate root cause).
+ *
+ * @param {string} retryType e.g. 'dietary-3pass', 'pattern-legacy'
+ * @returns {{ countInWindow: number, alerted: boolean }}
+ */
+export function recordRetryAttempt(retryType) {
+  const now = Date.now();
+  const list = _retryWindow.get(retryType) || [];
+  // Prune timestamps outside window.
+  const cutoff = now - RETRY_RATE_WINDOW_MS;
+  let firstFresh = 0;
+  while (firstFresh < list.length && list[firstFresh] < cutoff) firstFresh++;
+  const pruned = firstFresh > 0 ? list.slice(firstFresh) : list;
+  pruned.push(now);
+  _retryWindow.set(retryType, pruned);
+
+  let alerted = false;
+  if (pruned.length > RETRY_RATE_THRESHOLD) {
+    const lastAlert = _retryAlertedAt.get(retryType) || 0;
+    if ((now - lastAlert) > RETRY_RATE_WINDOW_MS) {
+      _retryAlertedAt.set(retryType, now);
+      alerted = true;
+      throttledTelegramAlert({
+        key: `gemini-retry-rate-high:${retryType}`,
+        channel: 'admin',
+        severity: 'high',
+        message: [
+          `⚠️ <b>Gemini retry storm — ${retryType}</b>`,
+          ``,
+          `<b>최근 5분간 retry:</b> ${pruned.length}건 (임계 ${RETRY_RATE_THRESHOLD})`,
+          `<b>retry 종류:</b> <code>${retryType}</code>`,
+          ``,
+          `→ Gemini quota burn 위험. prompt regression 또는 외부 outage 점검:`,
+          `• <b>dietary-*</b> → buildDietaryReinforcedPrompt 회귀 / Gemini Pro 정확도 저하`,
+          `• <b>pattern-*</b> → buildPatternReinforcedPrompt 회귀 / B-MEAL/B-DC 검증 룰 변경`,
+          ``,
+          `<i>retry 전용 model 은 temperature=${RETRY_TEMPERATURE} (deterministic). 그래도 fail = 입력 결함.</i>`,
+        ].join('\n'),
+        context: {
+          errorCode: 'gemini_retry_rate_high',
+          reason: retryType,
+          step: 'retry-window',
+        },
+      }).catch(() => {});
+    }
+  }
+  return { countInWindow: pruned.length, alerted };
 }
 
 // Module-scope cache. Vercel reuses Node modules across invocations on the
@@ -233,6 +313,9 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
  */
 export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body }) {
   const model = buildModel(apiKey);
+  // PR #461 (X-H2): retry 전용 deterministic model. reinforced prompt 와 결합
+  // 시 첫 retry 성공률 ↑ → 평균 Gemini quota 사용량 ↓.
+  const retryModel = buildModel(apiKey, RETRY_TEMPERATURE);
   const foodIndex = await loadFoodIndex();
   const geminiStart = Date.now();
   // P0-3: 빈 배열이면 검사 생략 (식이제한 없는 사용자). null/undefined 도 안전.
@@ -269,9 +352,11 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
       console.warn('[planner] 🚨 dietary_violation detected — retrying pass1 with reinforced prompt');
+      recordRetryAttempt('dietary-3pass');
       const reinforced = buildDietaryReinforcedPrompt(systemPrompt, dietaryArr);
       try {
-        const retryRaw = await withTimeout(pass1Intent(model, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry');
+        // PR #461 (X-H2): retryModel (temperature=0.1) — deterministic re-gen.
+        const retryRaw = await withTimeout(pass1Intent(retryModel, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry');
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
@@ -304,9 +389,11 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     let patternErrors = validatePatternStructure(itinerary, body || {});
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (3pass) — retrying with reinforced prompt:', patternErrors);
+      recordRetryAttempt('pattern-3pass');
       const reinforced = buildPatternReinforcedPrompt(systemPrompt, patternErrors);
       try {
-        const retryRaw = await withTimeout(pass1Intent(model, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry-pattern');
+        // PR #461 (X-H2): retryModel — temperature 0.1.
+        const retryRaw = await withTimeout(pass1Intent(retryModel, reinforced, userMessage), GEMINI_TIMEOUT_MS, 'pass1-retry-pattern');
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
@@ -392,11 +479,13 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
       console.warn('[planner] 🚨 dietary_violation detected — retrying with reinforced prompt');
+      recordRetryAttempt('dietary-legacy');
       const reinforced = buildDietaryReinforcedPrompt(systemPrompt, dietaryArr);
       try {
         const retryStart = Date.now();
+        // PR #461 (X-H2): retryModel — temperature 0.1.
         const retryResult = await withTimeout(
-          model.generateContent({
+          retryModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: userMessage }] }],
             systemInstruction: { role: 'system', parts: [{ text: reinforced }] },
           }),
@@ -447,11 +536,13 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     let patternErrors = validatePatternStructure(itinerary, body || {});
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (legacy) — retrying with reinforced prompt:', patternErrors);
+      recordRetryAttempt('pattern-legacy');
       const reinforced = buildPatternReinforcedPrompt(systemPrompt, patternErrors);
       try {
         const retryStart = Date.now();
+        // PR #461 (X-H2): retryModel — temperature 0.1.
         const retryResult = await withTimeout(
-          model.generateContent({
+          retryModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: userMessage }] }],
             systemInstruction: { role: 'system', parts: [{ text: reinforced }] },
           }),
