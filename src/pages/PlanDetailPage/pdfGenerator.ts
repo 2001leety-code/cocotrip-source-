@@ -1013,15 +1013,51 @@ export async function generatePDF(
     await new Promise(resolve => setTimeout(resolve, 200));
   }
 
+  // P92 (2026-05-18): 이미지 src 갱신 후 실제 브라우저가 새 비트맵 decode + layout
+  // 반영을 끝낼 때까지 진짜 대기. 기존 setTimeout(200+300=500ms) 만으로는 7+일 plan
+  // 처럼 이미지가 많은 케이스에서 늦게 도착한 이미지가 measuredHeight 측정 후 layout
+  // 늘리며 capture 영역 밖으로 밀려남 (Day 6 후반 + Day 7 + Wrap-up 누락 사례).
+  // load/error 둘 다 layout 은 안정화되므로 둘 다 신호로 사용. 5초 hard cap.
+  const allImgs = Array.from(container.querySelectorAll('img'));
+  await Promise.all(allImgs.map(img => {
+    if (img.complete && img.naturalHeight > 0) return Promise.resolve();
+    return new Promise<void>(res => {
+      const done = () => res();
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      setTimeout(done, 5000);
+    });
+  }));
+
   // Additional settle time for layout recalculation
   await new Promise(resolve => setTimeout(resolve, 300));
   void container.offsetHeight; // force reflow
+  // double rAF — 브라우저가 다음 paint 이후까지 진행 보장
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(null))));
 
   // === 백지 root cause fix (2026-04-27): explicit height 명시 ===
   // 사용자 신고 → empty canvas h=0 진단. html2canvas/html2pdf는 element clone 시
   // measurement를 다시 하는데, position:absolute 컨테이너의 height 측정에 실패하면
   // 0px canvas 생성 → 백지 PDF. scrollHeight를 explicit height로 박아서 확실히 측정되게 함.
-  const measuredHeight = container.scrollHeight;
+  //
+  // P92 (2026-05-18): 단일 측정 → 안정화 측정. scrollHeight 가 2회 연속 같을 때까지
+  // 200ms 간격으로 최대 5회 측정. 늦게 도착하는 이미지/폰트 reflow 가 끝나지 않은
+  // 시점에 측정하면 짧게 잡혀서 capture 가 일부 day 를 잘랐던 사례 회귀 방지.
+  let h1 = container.scrollHeight;
+  let h2 = -1;
+  let stableTries = 0;
+  while (h1 !== h2 && stableTries < 5) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    h2 = h1;
+    h1 = container.scrollHeight;
+    stableTries += 1;
+  }
+  if (h1 !== h2) {
+    console.warn('[PDF] scrollHeight did not stabilize after', stableTries, 'tries — last:', h1, 'prev:', h2);
+  } else {
+    console.log('[PDF] scrollHeight stabilized at', h1, 'after', stableTries, 'tries');
+  }
+  const measuredHeight = h1;
   if (measuredHeight > 0) {
     container.style.height = `${measuredHeight}px`;
     container.style.minHeight = `${measuredHeight}px`;
@@ -1073,6 +1109,49 @@ export async function generatePDF(
   // 절반 이하 = day collapsed 또는 capture clip 의 증거. 이 로그 + .pdf-day-break
   // selector match log 비교 시 root cause 명확.
   console.log('[PDF] pre-capture diagnostic — days:', days.length, 'scrollH:', scrollH, 'expected ~', days.length * 1500, '-', days.length * 1700);
+
+  // P92 (2026-05-18): expected min-height hard gate (mistake-log P92, NOT to be
+  // confused with P85 gemini-retry / P87 route-blind-fallback). 기존 warn-only
+  // 가드는 fail-open 이라 7일 plan 의 Day 6 후반/Day 7/Wrap-up 누락 PDF 가 그대로
+  // 다운로드됨 (사용자 보고 cocotrip-Guest-7--2026-05-18.pdf). expected =
+  // days*800 + arrival*600 + departure*800 (실측 1500-1700/day 의 절반인 보수적
+  // lower bound). 미만이면 abort + Telegram admin alert (capture 단 cut-off
+  // 회귀 즉시 감지) + WhatsApp fallback.
+  const expectedMinH = days.length * 800
+    + (arrival ? 600 : 0)
+    + (departure ? 800 : 0);
+  if (scrollH < expectedMinH) {
+    const cutPlanId = (typeof window !== 'undefined'
+      ? (window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '')
+      : '');
+    console.error('[PDF] capture height suspiciously short — got', scrollH, 'expected min', expectedMinH,
+      '(days:', days.length, 'arrival:', !!arrival, 'departure:', !!departure, ') planId:', cutPlanId);
+    // Telegram admin alert via _generate-voucher style endpoint (best-effort, fail-open).
+    void fetch('/api/alert-pdf-cutoff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        planId: cutPlanId,
+        days: days.length,
+        hasArrival: !!arrival,
+        hasDeparture: !!departure,
+        measuredHeight: scrollH,
+        expectedMinHeight: expectedMinH,
+        userAgent: navigator.userAgent,
+      }),
+    }).catch(() => { /* fail-open — local toast 우선 */ });
+    const cutMsg = `Hi CocoTrip! PDF capture cut-off detected for my plan${cutPlanId ? ` (${cutPlanId})` : ''} — only ${scrollH}px rendered vs ${expectedMinH}px expected. Could you send it manually?`;
+    const cutUrl = `https://wa.me/821087140611?text=${encodeURIComponent(cutMsg)}`;
+    document.body.removeChild(container);
+    document.body.removeChild(overlay);
+    toast.error('PDF generated with missing days', {
+      description: 'Some days may be missing from the PDF. We can send a manually-rendered full PDF via WhatsApp.',
+      action: { label: 'Request via WhatsApp', onClick: () => window.open(cutUrl, '_blank') },
+      duration: 15000,
+    });
+    return;
+  }
+  // 기존 warn 은 보존 — expected min 통과했지만 추세상 의심스러운 경우 logging
   if (days.length >= 3 && scrollH < days.length * 1000) {
     console.warn('[PDF] scrollHeight 추세 abnormal — days collapsed 의심. selector match 로그 확인');
   }

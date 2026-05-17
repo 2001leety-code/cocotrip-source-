@@ -8,7 +8,7 @@
 //   - outro   → "Wrap-up"
 //
 // 광고 ad slide는 별도로 안 만듬 (PreTrip slide에 통합됨, 2026-05-03 기준).
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
 import type { Slide } from '../lib/buildSlides';
@@ -69,11 +69,26 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
     return sections[current]?.key || sections[0]?.key;
   }, [sections, current]);
 
+  // P93 (2026-05-18): 모바일 viewport 에서 가로 스크롤 탭바의 활성 탭이 viewport 밖에
+  // 머무는 문제. 9탭(여행 준비/Intro/Day1-7/Wrap-up) 가 360px viewport 에 모두 fit
+  // 안되는데 scrollbar-hide 로 스크롤 가능성 시각 신호도 없어 사용자가 Day7/Wrap-up
+  // 존재를 모름. current 가 바뀔 때마다 active 탭을 가로 중앙으로 자동 스크롤.
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [activeKey]);
+
   if (sections.length <= 1) return null;
 
   return (
-    <div className="sticky top-16 z-30 bg-[#0a0b14]/95 backdrop-blur-md border-b border-white/[0.06] -mx-4 px-4">
-      <div className="flex gap-1 overflow-x-auto scrollbar-hide py-2" role="tablist">
+    <div className="sticky top-16 z-30 bg-[#0a0b14]/95 backdrop-blur-md border-b border-white/[0.06] -mx-4 px-4 relative">
+      <div
+        ref={listRef}
+        data-testid="section-tabs-scroll"
+        className="flex gap-1 overflow-x-auto scrollbar-hide py-2"
+        role="tablist"
+      >
         {sections.map(sec => {
           const active = sec.key === activeKey;
           return (
@@ -96,6 +111,11 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
           );
         })}
       </div>
+      {/* P93: 우측 fade gradient — 잘리는 탭이 있다는 시각 신호 (scrollbar-hide 보완) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-[#0a0b14] to-transparent"
+      />
     </div>
   );
 }

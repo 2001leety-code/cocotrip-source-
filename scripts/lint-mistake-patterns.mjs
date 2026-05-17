@@ -997,7 +997,129 @@ const RULES = [
   ['P89_avoidListIndexAlert', P89_avoidListIndexAlert],
   ['P90_dbmatcherCityGuard', P90_dbmatcherCityGuard],
   ['P91_templateLiteralBacktickEscape', P91_templateLiteralBacktickEscape],
+  ['P92_pdfCaptureCutoff', P92_pdfCaptureCutoff],
+  ['P93_sectionTabsMobileOverflow', P93_sectionTabsMobileOverflow],
 ];
+
+/**
+ * P92_pdfCaptureCutoff — 메모리 P92 (2026-05-18, no-PR-yet).
+ * src/pages/PlanDetailPage/pdfGenerator.ts 의 html2canvas capture 가 늦게
+ * 로드된 이미지/폰트 layout reflow 전에 측정한 scrollHeight 만큼만 캡처해
+ * Day 후반/Wrap-up 잘리는 회귀 차단.
+ *   - 단일 측정 (`const measuredHeight = container.scrollHeight;` 만 있고 이후
+ *     stabilize 루프가 없음) 패턴 검출 시 fail.
+ *   - expectedMinHeight hard gate (`days.length * 800` 식 비교) 누락 시 fail.
+ *   - 알림 endpoint 호출 (`/api/alert-pdf-cutoff`) 누락 시 fail.
+ *
+ * 회귀 슬롯: tests/unit/pdf-capture-cutoff-pr92.test.ts
+ */
+function P92_pdfCaptureCutoff({ changed }) {
+  const FILE = 'src/pages/PlanDetailPage/pdfGenerator.ts';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1) scrollHeight stabilize 루프 — `while (h1 !== h2 ...)` 같은 안정화 패턴 필수.
+  //    단일 측정 (`const measuredHeight = container.scrollHeight;` 만 있고
+  //    이후 재측정 없음) 으로 회귀하면 늦은 이미지 reflow 가 다시 잘림.
+  const hasStabilizeLoop =
+    /while\s*\(\s*h1\s*!==\s*h2[\s\S]{0,300}container\.scrollHeight/.test(content);
+  if (!hasStabilizeLoop) {
+    violations.push(
+      `${FILE}: scrollHeight stabilize loop 누락 — late-image reflow 가 measuredHeight 측정 후 layout 늘리면 capture 잘림 (P92 회귀)`,
+    );
+  }
+
+  // 2) image load/error 진짜 await 필요. setTimeout 추정만으론 부족.
+  const hasImageAwait =
+    /addEventListener\(\s*['"]load['"][\s\S]{0,200}addEventListener\(\s*['"]error['"]/.test(
+      content,
+    ) ||
+    /addEventListener\(\s*['"]error['"][\s\S]{0,200}addEventListener\(\s*['"]load['"]/.test(
+      content,
+    );
+  if (!hasImageAwait) {
+    violations.push(
+      `${FILE}: img load+error 이벤트 await 누락 — setTimeout 추정만으론 늦은 이미지 reflow 보장 X`,
+    );
+  }
+
+  // 3) expectedMinHeight hard gate — scrollH < expectedMinH 비교 + abort.
+  const hasMinHeightGate =
+    /expectedMinH\s*=\s*days\.length\s*\*\s*800/.test(content) &&
+    /scrollH\s*<\s*expectedMinH/.test(content);
+  if (!hasMinHeightGate) {
+    violations.push(
+      `${FILE}: expectedMinHeight hard gate (days*800 + arrival*600 + departure*800) 누락 — 잘린 PDF 가 그대로 다운로드됨`,
+    );
+  }
+
+  // 4) /api/alert-pdf-cutoff alert 호출 — 운영자 즉시 감지 위함.
+  if (!/fetch\(\s*['"]\/api\/alert-pdf-cutoff['"]/.test(content)) {
+    violations.push(
+      `${FILE}: backend alert endpoint (/api/alert-pdf-cutoff) 호출 누락 — capture cut-off 운영자 알림 침묵`,
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P92_pdfCaptureCutoff',
+      `${violations.length}건 — ${violations.join(' | ')}`,
+      '메모리 P92 — image onload await + scrollHeight stabilize + expectedMinHeight hard gate + /api/alert-pdf-cutoff 4종 모두 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P93_sectionTabsMobileOverflow — 메모리 P93 (2026-05-18, no-PR-yet).
+ * src/pages/PlanDetailPage/components/SectionTabs.tsx 의 모바일 가로스크롤
+ * 탭바 가시성 회귀 차단.
+ *   - active tab `scrollIntoView({inline:'center'})` 누락 → Day 6+ 탭이 영영 viewport 밖.
+ *   - 우측 fade gradient 누락 → 사용자가 가로 스크롤 가능성 인지 못 함 (scrollbar-hide 와 결합 시 치명적).
+ *
+ * 회귀 슬롯: tests/unit/section-tabs-mobile-overflow-pr93.test.ts
+ */
+function P93_sectionTabsMobileOverflow({ changed }) {
+  const FILE = 'src/pages/PlanDetailPage/components/SectionTabs.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1) activeKey 변화 시 scrollIntoView(center). 유일한 신호.
+  const hasAutoScroll =
+    /scrollIntoView\(\s*\{[^}]*inline\s*:\s*['"]center['"][^}]*\}\s*\)/.test(content) &&
+    /\}\s*,\s*\[activeKey\]\s*\)/.test(content);
+  if (!hasAutoScroll) {
+    violations.push(
+      `${FILE}: active tab scrollIntoView({inline:'center'}) on [activeKey] 누락 — 모바일에서 Day 후반 탭이 viewport 밖에 잔류`,
+    );
+  }
+
+  // 2) 우측 fade gradient — 가로 스크롤 가능 시각 신호. scrollbar-hide 만 있으면 가시성 0.
+  const hasFade =
+    /bg-gradient-to-l/.test(content) &&
+    /pointer-events-none/.test(content) &&
+    /aria-hidden=["']true["']/.test(content);
+  if (!hasFade) {
+    violations.push(
+      `${FILE}: 우측 fade gradient (bg-gradient-to-l + pointer-events-none + aria-hidden) 누락 — scrollbar-hide 와 결합 시 가로 스크롤 가능성 시각 신호 0`,
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P93_sectionTabsMobileOverflow',
+      `${violations.length}건 — ${violations.join(' | ')}`,
+      '메모리 P93 — useEffect([activeKey]) scrollIntoView + 우측 fade gradient 둘 다 유지.',
+    );
+  }
+  return null;
+}
 
 /**
  * P55_webhookExchangeRate — 메모리 P55 (PR #431, Audit Y-H6).
