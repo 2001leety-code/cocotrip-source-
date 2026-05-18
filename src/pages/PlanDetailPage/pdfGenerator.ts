@@ -61,9 +61,13 @@ export interface PdfUiDict {
  * Phase 3 (2026-04-27): server-side Puppeteer PDF 시도 → 실패 시 client html2pdf fallback.
  * `VITE_USE_SERVER_PDF=true` env로 활성화. plan에 `id` 필요.
  * Firebase ID token으로 인증, plan 소유자만 다운로드 가능.
+ *
+ * P92 (2026-05-18): `force` 옵션 — VITE flag 무시하고 강제 호출. client capture
+ * cut-off 감지 시 자동 escalate 경로로 사용. 운영자가 VITE_USE_SERVER_PDF 안
+ * 켜둔 환경에서도 cut-off 발생 시 자동 server 복구 가능.
  */
-async function tryServerPdf(plan: PlanDocument): Promise<Blob | null> {
-  if (import.meta.env.VITE_USE_SERVER_PDF !== 'true') return null;
+async function tryServerPdf(plan: PlanDocument, opts: { force?: boolean } = {}): Promise<Blob | null> {
+  if (!opts.force && import.meta.env.VITE_USE_SERVER_PDF !== 'true') return null;
   const planId = (plan as { id?: string }).id;
   if (!planId) return null;
   try {
@@ -1013,15 +1017,51 @@ export async function generatePDF(
     await new Promise(resolve => setTimeout(resolve, 200));
   }
 
+  // P92 (2026-05-18): 이미지 src 갱신 후 실제 브라우저가 새 비트맵 decode + layout
+  // 반영을 끝낼 때까지 진짜 대기. 기존 setTimeout(200+300=500ms) 만으로는 7+일 plan
+  // 처럼 이미지가 많은 케이스에서 늦게 도착한 이미지가 measuredHeight 측정 후 layout
+  // 늘리며 capture 영역 밖으로 밀려남 (Day 6 후반 + Day 7 + Wrap-up 누락 사례).
+  // load/error 둘 다 layout 은 안정화되므로 둘 다 신호로 사용. 5초 hard cap.
+  const allImgs = Array.from(container.querySelectorAll('img'));
+  await Promise.all(allImgs.map(img => {
+    if (img.complete && img.naturalHeight > 0) return Promise.resolve();
+    return new Promise<void>(res => {
+      const done = () => res();
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      setTimeout(done, 5000);
+    });
+  }));
+
   // Additional settle time for layout recalculation
   await new Promise(resolve => setTimeout(resolve, 300));
   void container.offsetHeight; // force reflow
+  // double rAF — 브라우저가 다음 paint 이후까지 진행 보장
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(null))));
 
   // === 백지 root cause fix (2026-04-27): explicit height 명시 ===
   // 사용자 신고 → empty canvas h=0 진단. html2canvas/html2pdf는 element clone 시
   // measurement를 다시 하는데, position:absolute 컨테이너의 height 측정에 실패하면
   // 0px canvas 생성 → 백지 PDF. scrollHeight를 explicit height로 박아서 확실히 측정되게 함.
-  const measuredHeight = container.scrollHeight;
+  //
+  // P92 (2026-05-18): 단일 측정 → 안정화 측정. scrollHeight 가 2회 연속 같을 때까지
+  // 200ms 간격으로 최대 5회 측정. 늦게 도착하는 이미지/폰트 reflow 가 끝나지 않은
+  // 시점에 측정하면 짧게 잡혀서 capture 가 일부 day 를 잘랐던 사례 회귀 방지.
+  let h1 = container.scrollHeight;
+  let h2 = -1;
+  let stableTries = 0;
+  while (h1 !== h2 && stableTries < 5) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    h2 = h1;
+    h1 = container.scrollHeight;
+    stableTries += 1;
+  }
+  if (h1 !== h2) {
+    console.warn('[PDF] scrollHeight did not stabilize after', stableTries, 'tries — last:', h1, 'prev:', h2);
+  } else {
+    console.log('[PDF] scrollHeight stabilized at', h1, 'after', stableTries, 'tries');
+  }
+  const measuredHeight = h1;
   if (measuredHeight > 0) {
     container.style.height = `${measuredHeight}px`;
     container.style.minHeight = `${measuredHeight}px`;
@@ -1073,6 +1113,87 @@ export async function generatePDF(
   // 절반 이하 = day collapsed 또는 capture clip 의 증거. 이 로그 + .pdf-day-break
   // selector match log 비교 시 root cause 명확.
   console.log('[PDF] pre-capture diagnostic — days:', days.length, 'scrollH:', scrollH, 'expected ~', days.length * 1500, '-', days.length * 1700);
+
+  // P92 (2026-05-18): expected min-height hard gate (mistake-log P92, NOT to be
+  // confused with P85 gemini-retry / P87 route-blind-fallback). 기존 warn-only
+  // 가드는 fail-open 이라 7일 plan 의 Day 6 후반/Day 7/Wrap-up 누락 PDF 가 그대로
+  // 다운로드됨 (사용자 보고 cocotrip-Guest-7--2026-05-18.pdf). expected =
+  // days*800 + arrival*600 + departure*800 (실측 1500-1700/day 의 절반인 보수적
+  // lower bound). 미만이면 abort + Telegram admin alert (capture 단 cut-off
+  // 회귀 즉시 감지) + WhatsApp fallback.
+  const expectedMinH = days.length * 800
+    + (arrival ? 600 : 0)
+    + (departure ? 800 : 0);
+  if (scrollH < expectedMinH) {
+    const cutPlanId = (typeof window !== 'undefined'
+      ? (window.location.pathname.match(/my-plans\/([^/?#]+)/)?.[1] || '')
+      : '');
+    console.error('[PDF] capture height suspiciously short — got', scrollH, 'expected min', expectedMinH,
+      '(days:', days.length, 'arrival:', !!arrival, 'departure:', !!departure, ') planId:', cutPlanId);
+
+    // P92 자동 복구: VITE flag 무시하고 server-side Puppeteer endpoint 강제 호출.
+    // 운영자가 VITE_USE_SERVER_PDF 안 켜둔 환경에서도 cut-off 검출 시 자동 복구.
+    // 성공 시 사용자는 정상 PDF 를 받고 cut-off 발생을 모름 (운영자만 알림 받음).
+    const serverPdfRecovery = await tryServerPdf(plan, { force: true });
+    let recoveredViaServer = false;
+    if (serverPdfRecovery) {
+      const titleSlugRec = ((plan.itinerary?.tour_title as string) || 'korea-trip')
+        .replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'korea-trip';
+      const filenameRec = `cocotrip-${titleSlugRec}-${plan.input?.startDate || 'undated'}.pdf`;
+      const openResult = openBlobSafely({ blob: serverPdfRecovery, filename: filenameRec });
+      if (openResult.ok) {
+        recoveredViaServer = true;
+        console.log('[PDF] capture cut-off auto-recovered via server-side endpoint');
+      } else {
+        console.warn('[PDF] server-side blob open failed after auto-recovery:', openResult.reason);
+      }
+    }
+
+    // Telegram admin alert — 자동 복구 성공/실패 둘 다 운영자가 봐야 함.
+    // 성공 시: "감지+자동복구됨, env 점검 권고" 신호 / 실패 시: critical 수동 개입.
+    void fetch('/api/alert-pdf-cutoff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        planId: cutPlanId,
+        days: days.length,
+        hasArrival: !!arrival,
+        hasDeparture: !!departure,
+        measuredHeight: scrollH,
+        expectedMinHeight: expectedMinH,
+        userAgent: navigator.userAgent,
+        recoveredViaServer,
+      }),
+    }).catch(() => { /* fail-open — local toast 우선 */ });
+
+    document.body.removeChild(container);
+    document.body.removeChild(overlay);
+
+    if (recoveredViaServer) {
+      // 사용자에게는 무엇이 일어났는지 가볍게 표시 — 정상 PDF 가 이미 다운로드됨.
+      toast.success(uiDict?.pdfReady || 'PDF ready', {
+        description: 'High-quality version delivered automatically.',
+        duration: 4000,
+      });
+      void posthogTrack('plan_downloaded', {
+        planId: planIdForTrack,
+        format: 'pdf-server-recovery',
+        durationMs: Date.now() - pdfStartTs,
+      });
+      return;
+    }
+
+    // server 도 실패하면 그제야 WhatsApp fallback (수동 개입 경로).
+    const cutMsg = `Hi CocoTrip! PDF capture cut-off detected for my plan${cutPlanId ? ` (${cutPlanId})` : ''} — auto-recovery also failed. Could you send it manually?`;
+    const cutUrl = `https://wa.me/821087140611?text=${encodeURIComponent(cutMsg)}`;
+    toast.error('PDF generated with missing days', {
+      description: 'Auto-recovery failed. We can send a manually-rendered full PDF via WhatsApp.',
+      action: { label: 'Request via WhatsApp', onClick: () => window.open(cutUrl, '_blank') },
+      duration: 15000,
+    });
+    return;
+  }
+  // 기존 warn 은 보존 — expected min 통과했지만 추세상 의심스러운 경우 logging
   if (days.length >= 3 && scrollH < days.length * 1000) {
     console.warn('[PDF] scrollHeight 추세 abnormal — days collapsed 의심. selector match 로그 확인');
   }
