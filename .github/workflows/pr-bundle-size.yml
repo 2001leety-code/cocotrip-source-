@@ -11,11 +11,15 @@ on:
     # 배경: branch protection 의 required check 가 'bundle-size' 인데, 기존
     # paths 매칭 (src/** 등) 안 되는 PR (예: api/ 만 변경한 PR #397) 은 workflow
     # 실행 자체 안 됨 → required check 미존재 → 머지 영구 차단.
-    # 해결: docs/tests/md 만 ignore, 나머지 모든 변경에서 trigger.
+    # 해결: docs/md 만 ignore, 나머지 모든 변경에서 trigger.
     # 비용: ~1분 빌드 추가 발생하지만 branch protection 일관성 우선.
+    #
+    # 2026-05-19: tests/** 제거. PR #487 (tests/visual baseline PNG only)
+    # 가 같은 함정으로 BLOCKED — bundle-size workflow 가 tests/** ignore 라
+    # trigger 안 돼서 required check absent. admin merge 로 우회했음. 영구
+    # 차단을 위해 tests/** 도 매 PR trigger (build artifact 검사용).
     paths-ignore:
       - 'docs/**'
-      - 'tests/**'
       - '**/*.md'
       - '.agent/**'
 
