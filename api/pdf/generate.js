@@ -116,7 +116,7 @@ export default async function handler(req, res) {
     // 폰트 로드 대기 — Chromium 컨테이너에 Noto Sans 사전 설치되어 있어 빠름
     await page.evaluateHandle('document.fonts.ready');
 
-    const pdfBuffer = await page.pdf({
+    const pdfRaw = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: { top: '8mm', right: '8mm', bottom: '8mm', left: '8mm' },
@@ -126,10 +126,19 @@ export default async function handler(req, res) {
     await browser.close();
     browser = null;
 
+    // P99 (2026-05-19): Puppeteer 21+ `page.pdf()` returns `Uint8Array`
+    // (not Buffer). Vercel serverless `res.send(Uint8Array)` 는 그 객체를
+    // JSON-serialize 해서 `{"0":37,"1":80,...}` 응답 → content-type 은
+    // PDF 인데 body 는 JSON → 사용자 다운로드 파일 PDF reader 에서 안 열림.
+    // 명시적 `Buffer.from()` + `res.end()` (lower-level binary) 로 raw bytes
+    // 응답 강제. PDF magic bytes `%PDF-` (37 80 68 70 45) 그대로 binary 전송.
+    const pdfBuffer = Buffer.from(pdfRaw);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cocotrip-${planId}.pdf"`);
     res.setHeader('Cache-Control', 'private, no-cache');
-    return res.status(200).send(pdfBuffer);
+    res.setHeader('Content-Length', String(pdfBuffer.length));
+    res.statusCode = 200;
+    return res.end(pdfBuffer);
   } catch (e) {
     console.error('[PDF] generation failed:', e);
     // K Tier 2-E (PR #266) — throttled. Puppeteer 일시 장애 시 dedup.
