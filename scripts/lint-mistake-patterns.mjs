@@ -1001,6 +1001,7 @@ const RULES = [
   ['P93_sectionTabsMobileOverflow', P93_sectionTabsMobileOverflow],
   ['P94_vercelIgnoreShallowCloneSafe', P94_vercelIgnoreShallowCloneSafe],
   ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
+  ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
 ];
 
 /**
@@ -1286,6 +1287,59 @@ function P95_paypalSdkNoUnverifiedWallets({ changed }) {
       `${violations.length}건 — ${violations.join(' | ')}`,
       '메모리 P95 — enable-funding=googlepay,applepay 코드 라인 회귀 차단 (머천트 대시보드 도메인 등록 + .well-known 호스팅 둘 다 완료 후만 재추가). components=buttons + live PayPal URL 유지.',
     );
+  }
+  return null;
+}
+
+/**
+ * P96_longRunningEndpointInstrumentation — 메모리 P96 (PR #482, 2026-05-19).
+ *
+ * api/*.js 중 `export const maxDuration >= 180` (3분 이상) endpoint 에
+ * step-level elapsed log (withStep helper) + cap 도달 직전 admin alert
+ * 둘 다 부재하면 fail. 2026-05-19 ai-planner-full 5분 hang 인시던트 진단
+ * 사각지대 회귀 차단.
+ *
+ * Rationale: maxDuration=300 (Vercel Pro cap) endpoint 가 hang 했을 때
+ * START + TOTAL 두 로그만 있으면 prod logs 도 어느 step 에서 멈췄는지
+ * 알 수 없음. withStep('label', fn) 패턴이 ENTER/DONE/FAILED elapsed 로그
+ * 의무. 추가로 setTimeout((maxDuration-30s), () => admin alert) 로 cap
+ * 도달 전 last step 정보 노출 필수.
+ *
+ * Threshold = 180s: 3분 이하 endpoint 는 hang risk 낮음 + 진단 ROI 작음.
+ * 현재 trigger: api/ai-planner-full.js (300s) 만 해당. 미래 새 long-running
+ * endpoint 추가 시 자동 cover (L5 자율 검증 카테고리).
+ *
+ * 회귀 슬롯: tests/unit/planner-step-instrumentation-pr96.test.ts (specific file).
+ */
+function P96_longRunningEndpointInstrumentation({ changed }) {
+  const apiFiles = changed
+    .filter((c) => c.file.startsWith('api/') && c.file.endsWith('.js') && c.status !== 'D')
+    .map((c) => c.file);
+
+  for (const file of apiFiles) {
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+
+    const maxDurMatch = content.match(/export\s+const\s+maxDuration\s*=\s*(\d+)/);
+    if (!maxDurMatch) continue;
+    const maxDur = parseInt(maxDurMatch[1], 10);
+    if (maxDur < 180) continue;
+
+    const hasWithStep = /async\s+function\s+withStep\s*\(\s*\w+\s*,\s*\w+\s*\)/.test(content);
+    const hasHangAlert =
+      /HANG_WARN_MS|hangWarnTimer/.test(content) ||
+      /setTimeout\([\s\S]{0,300}throttledTelegramAlert/.test(content);
+
+    if (!hasWithStep || !hasHangAlert) {
+      const missing = [];
+      if (!hasWithStep) missing.push('withStep helper');
+      if (!hasHangAlert) missing.push('hang alert setTimeout (cap-30s)');
+      fail(
+        'P96_longRunningEndpointInstrumentation',
+        `${file}: maxDuration=${maxDur}s endpoint 에 ${missing.join(' + ')} 부재 — P96 hang 진단 사각지대 회귀`,
+        '메모리 P96 (PR #482) — 5분 cap 도달 시 어느 step 에서 멈췄는지 prod logs/Telegram 으로 즉시 식별 가능해야 함. ai-planner-full.js 의 withStep + hangWarnTimer 패턴 참조.',
+      );
+    }
   }
   return null;
 }
@@ -3769,6 +3823,70 @@ function runSelfTest() {
       },
       expectRule: 'PDF_KOREAN_FONT',
       expectClean: true, // api/ 경로 — 본 룰 검사 대상 X
+    },
+    {
+      label: 'P96 (true positive): maxDuration=300 endpoint 신규 withStep + hangWarn 부재',
+      base: {
+        // 빈 stub — head 에서 새 long-running endpoint 추가 시나리오
+        'api/new-long-handler.js': "// stub\n",
+      },
+      head: {
+        'api/new-long-handler.js':
+          "export const maxDuration = 300;\n"
+          + "export default async function handler(req, res) {\n"
+          + "  // 핵심 step elapsed log 부재 → hang 진단 사각지대\n"
+          + "  const data = await someExpensiveCall();\n"
+          + "  res.json({ ok: true, data });\n"
+          + "}\n",
+      },
+      expectRule: 'P96_longRunningEndpointInstrumentation',
+    },
+    {
+      label: 'P96 (false positive 차단): maxDuration=30 endpoint — 3분 threshold 미달',
+      base: {
+        'api/short-handler.js': "// stub\n",
+      },
+      head: {
+        // 짧은 endpoint — instrumentation 불필요. lint 검사 대상 X.
+        'api/short-handler.js':
+          "export const maxDuration = 30;\n"
+          + "export default async function handler(req, res) {\n"
+          + "  res.json({ ok: true });\n"
+          + "}\n",
+      },
+      expectRule: 'P96_longRunningEndpointInstrumentation',
+      expectClean: true, // maxDuration<180 — 룰 미적용 (정상)
+    },
+    {
+      label: 'P96 (false positive 차단): maxDuration=300 + withStep + hangWarn 정상 구현',
+      base: {
+        'api/proper-long-handler.js': "// stub\n",
+      },
+      head: {
+        // ai-planner-full.js 패턴 — withStep + hangWarnTimer 둘 다 있음. 정상 통과.
+        'api/proper-long-handler.js':
+          "export const maxDuration = 300;\n"
+          + "export default async function handler(req, res) {\n"
+          + "  const handlerStart = Date.now();\n"
+          + "  let currentStep = 'init';\n"
+          + "  let currentStepStart = handlerStart;\n"
+          + "  async function withStep(label, fn) {\n"
+          + "    currentStep = label;\n"
+          + "    currentStepStart = Date.now();\n"
+          + "    return await fn();\n"
+          + "  }\n"
+          + "  const HANG_WARN_MS = 270_000;\n"
+          + "  const hangWarnTimer = setTimeout(() => { /* admin alert */ }, HANG_WARN_MS);\n"
+          + "  try {\n"
+          + "    const data = await withStep('main', () => someExpensiveCall());\n"
+          + "    res.json({ ok: true, data });\n"
+          + "  } finally {\n"
+          + "    clearTimeout(hangWarnTimer);\n"
+          + "  }\n"
+          + "}\n",
+      },
+      expectRule: 'P96_longRunningEndpointInstrumentation',
+      expectClean: true, // 패턴 모두 갖춤 — 룰 silent (정상)
     },
   ];
 
