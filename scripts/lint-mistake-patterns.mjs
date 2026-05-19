@@ -999,6 +999,7 @@ const RULES = [
   ['P91_templateLiteralBacktickEscape', P91_templateLiteralBacktickEscape],
   ['P92_pdfCaptureCutoff', P92_pdfCaptureCutoff],
   ['P93_sectionTabsMobileOverflow', P93_sectionTabsMobileOverflow],
+  ['P94_vercelIgnoreShallowCloneSafe', P94_vercelIgnoreShallowCloneSafe],
 ];
 
 /**
@@ -1135,6 +1136,88 @@ function P93_sectionTabsMobileOverflow({ changed }) {
       'P93_sectionTabsMobileOverflow',
       `${violations.length}건 — ${violations.join(' | ')}`,
       '메모리 P93 — useEffect([activeKey]) scrollIntoView + 우측 fade gradient 둘 다 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P94_vercelIgnoreShallowCloneSafe — 메모리 P94 (2026-05-19, no-PR-yet).
+ * scripts/vercel-ignore.sh 가 set -e + VERCEL_GIT_PREVIOUS_SHA (shallow clone 에
+ * 없는 abandoned/recreated PR 의 이전 deploy SHA 가능) + git diff 실패 조합으로
+ * non-binary exit 코드 → Vercel "Error" 상태로 PR preview 빌드 차단되는 회귀.
+ *
+ * 실제 발현: PR #410 (dependabot dev-deps recreate) — Builds 0ms + status Error.
+ * 영향: required `smoke` check 가 Vercel preview 의존 → mergeStateStatus UNSTABLE
+ * → branch protection 머지 차단 → admin override 필요.
+ *
+ * 회귀 슬롯: scripts/test-vercel-ignore.sh (12 case, 핵심: Case 5 unreachable SHA).
+ */
+function P94_vercelIgnoreShallowCloneSafe({ changed }) {
+  const FILE = 'scripts/vercel-ignore.sh';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1) set -e 사용 금지 — command substitution 실패가 non-binary exit 로 propagate.
+  //    명시적 || true / if/then 으로 분기해야 fail-safe 보장.
+  if (/^\s*set\s+-e\s*$/m.test(content)) {
+    violations.push(
+      `${FILE}: \`set -e\` 사용 — git diff 실패 시 non-binary exit → Vercel "Error". 명시적 fallback (|| true + exit code 변수 체크) 사용.`,
+    );
+  }
+
+  // 2) is_commit_reachable 헬퍼 함수 존재 — BASE SHA 가 shallow clone 에 있는지
+  //    확인 후 사용해야 함. 헬퍼 함수 정의 검출.
+  const hasReachableFn =
+    /is_commit_reachable\s*\(\s*\)\s*\{[\s\S]{0,200}git\s+rev-parse\s+--verify[\s\S]{0,80}\^\{commit\}/.test(
+      content,
+    );
+  if (!hasReachableFn) {
+    violations.push(
+      `${FILE}: \`is_commit_reachable()\` 헬퍼 누락 — git rev-parse --verify --quiet \$SHA^{commit} 로 도달성 확인 후 사용해야 abandoned PR 의 stale VERCEL_GIT_PREVIOUS_SHA 안전 처리`,
+    );
+  }
+
+  // 3) VERCEL_GIT_PREVIOUS_SHA 사용 전 is_commit_reachable 호출 — unreachable 시
+  //    fallback 으로 origin/main merge-base 사용.
+  const hasGuardedPrev =
+    /\[\s*-n\s+"\$VERCEL_GIT_PREVIOUS_SHA"\s*\]\s*&&\s*is_commit_reachable\s+"\$VERCEL_GIT_PREVIOUS_SHA"/.test(
+      content,
+    );
+  if (!hasGuardedPrev) {
+    violations.push(
+      `${FILE}: VERCEL_GIT_PREVIOUS_SHA 도달성 미검증 사용 — \`[ -n "$VERCEL_GIT_PREVIOUS_SHA" ] && is_commit_reachable "$VERCEL_GIT_PREVIOUS_SHA"\` 패턴 필요. 미검증 시 stale SHA 가 git diff 실패 유발 → Vercel "Error".`,
+    );
+  }
+
+  // 4) git diff 실패 시 fail-safe — || true 로 exit code 흡수 + 변수 체크로 분기.
+  const hasDiffFailSafe =
+    /git\s+diff\s+--name-only\s+"\$BASE"\s+HEAD\s+2>\/dev\/null\s+\|\|\s+true/.test(
+      content,
+    ) || /CHANGED=\$\([^)]*git\s+diff[^)]*\|\|\s+true\)/.test(content);
+  if (!hasDiffFailSafe) {
+    violations.push(
+      `${FILE}: git diff fail-safe 누락 — \`git diff ... 2>/dev/null || true\` 로 exit code 흡수 필요. 미적용 시 BASE 가 unreachable 일 때 (예: race condition) 스크립트 non-binary exit.`,
+    );
+  }
+
+  // 5) 모든 exit 분기는 0 또는 1 만 반환해야 함 (Vercel 의 binary contract).
+  //    exit 2 같은 우발 케이스 검출.
+  const otherExits = content.match(/^\s*exit\s+([2-9]|\d{2,})\b/gm);
+  if (otherExits && otherExits.length > 0) {
+    violations.push(
+      `${FILE}: non-binary exit 코드 검출 (${otherExits.join(', ')}) — Vercel 은 0=skip, 1=build 만 인식. 그 외는 "Error" 로 처리됨.`,
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P94_vercelIgnoreShallowCloneSafe',
+      `${violations.length}건 — ${violations.join(' | ')}`,
+      '메모리 P94 — set -e 금지 + is_commit_reachable 헬퍼 + VERCEL_GIT_PREVIOUS_SHA 도달성 검증 + git diff || true fail-safe + binary exit (0/1) 모두 유지. abandoned/recreated PR 시나리오 PR #410 (#477 이후) 사례.',
     );
   }
   return null;
