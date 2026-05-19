@@ -11,6 +11,13 @@ name: PR i18n Smoke (Vercel Preview)
 # See PR #402 incident: workflow timeout bump itself was unmergeable until
 # admin override. For mixed PRs (workflow + src), both pull_request auto-pass
 # AND deployment_status real smoke fire; latest wins (real smoke authoritative).
+#
+# 2026-05-19 (PR after #477): Extended paths to mirror scripts/vercel-ignore.sh
+# IGNORE_RE — scripts/**, tests/**, reports/**, outputs/**, food_data/**,
+# preview/** + various dotfiles + images/logs. Same root cause: Vercel skips
+# build for these paths → deployment_status absent → smoke BLOCKED on
+# scripts-only PRs (eg PR #478 vercel-ignore.sh fix itself).
+# IMPORTANT: keep in sync with vercel-ignore.sh — drift causes silent re-occur.
 
 on:
   deployment_status:
@@ -20,6 +27,30 @@ on:
       - '**/*.md'
       - 'docs/**'
       - '.agent/**'
+      - '.claude/**'
+      - '.idx/**'
+      - '.vscode/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'reports/**'
+      - 'outputs/**'
+      - 'food_data/**'
+      - 'preview/**'
+      - 'deploys.txt'
+      - 'error.log'
+      - '.gitignore'
+      - '.gitattributes'
+      - '.editorconfig'
+      - '.claudeignore'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.webp'
+      - '**/*.svg'
+      - '**/*.gif'
+      - '**/*.ico'
+      - '**/*.txt'
+      - '**/*.log'
 
 # Cancel old runs when a newer preview lands. Each Playwright run is ~9min
 # with 3 viewports — saves big when an active PR gets pushed multiple times.
