@@ -121,18 +121,43 @@ export default async function handler(req, res) {
     const { planId, action, credits } = body;
 
     if (!planId) return json(req, res, 400, _err('planId required', 'MISSING_PLAN_ID'));
-    if (action !== 'addCredits') return json(req, res, 400, _err('action must be "addCredits"', 'INVALID_ACTION'));
-    if (typeof credits !== 'number' || !Number.isFinite(credits)) {
-      return json(req, res, 400, _err('credits must be a finite number', 'INVALID_CREDITS'));
-    }
-    if (Math.abs(credits) > 100) {
-      return json(req, res, 400, _err('credits delta out of safe range (-100 ~ +100)', 'OUT_OF_RANGE'));
-    }
 
     const ref = db.collection('plans').doc(planId);
     const docSnap = await ref.get();
     if (!docSnap.exists) {
       return json(req, res, 404, _err('Plan not found: ' + planId, 'NOT_FOUND'));
+    }
+
+    // 2026-05-19: action 'delete' 추가 — 테스터 plan cleanup 용. Firebase Console
+    // 접속 없이 어드민 페이지에서 직접 처리. 안전 가드:
+    //   1) Firestore 의 admin_delete_audit 컬렉션에 삭제 직전 plan snapshot 저장
+    //      (실수 시 복구 가능)
+    //   2) confirm flag 필수 — body.confirm === true 만 통과
+    if (action === 'delete') {
+      if (body.confirm !== true) {
+        return json(req, res, 400, _err('Delete requires { confirm: true } flag', 'CONFIRM_REQUIRED'));
+      }
+      const planData = docSnap.data();
+      // 복구용 backup 저장 (TTL 30일 — 운영자 cleanup 또는 별도 cron)
+      await db.collection('admin_delete_audit').add({
+        planId,
+        deletedAt: FieldValue.serverTimestamp(),
+        deletedBy: tokenAuth.email || 'admin',
+        // plan 전체 snapshot — itinerary 포함 (복구 가능)
+        planSnapshot: planData,
+      });
+      await ref.delete();
+      console.log('[admin-plan-lookup] deleted plan:', planId, 'by:', tokenAuth.email);
+      return json(req, res, 200, _ok({ planId, deleted: true, backedUpTo: 'admin_delete_audit' }));
+    }
+
+    // action 'addCredits' (기존)
+    if (action !== 'addCredits') return json(req, res, 400, _err('action must be "addCredits" or "delete"', 'INVALID_ACTION'));
+    if (typeof credits !== 'number' || !Number.isFinite(credits)) {
+      return json(req, res, 400, _err('credits must be a finite number', 'INVALID_CREDITS'));
+    }
+    if (Math.abs(credits) > 100) {
+      return json(req, res, 400, _err('credits delta out of safe range (-100 ~ +100)', 'OUT_OF_RANGE'));
     }
 
     await ref.update({

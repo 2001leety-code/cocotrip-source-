@@ -2,7 +2,7 @@
 // 2026-05-04: Q4 — /api/admin-plan-lookup 엔드포인트 wrap. CS 대응 + 학습 루프 신고 대응.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Search, Plus, Minus, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Search, Plus, Minus, ExternalLink, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -51,6 +51,33 @@ export default function AdminPlans() {
   const [selectedPlan, setSelectedPlan] = useState<PlanDetail | null>(null);
   const [creditDelta, setCreditDelta] = useState<number>(1);
   const [adjusting, setAdjusting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeletePlan = async () => {
+    if (!user || !selectedPlan) return;
+    const title = selectedPlan.title || '제목 없음';
+    const confirmMsg = `이 플랜을 정말 삭제할까요?\n\n제목: ${title}\nplanId: ${selectedPlan.planId}\n사용자: ${selectedPlan.userEmail || '-'}\n\n복구는 admin_delete_audit 컬렉션에 30일 backup 됩니다.`;
+    if (!confirm(confirmMsg)) return;
+    setDeleting(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin-plan-lookup', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: selectedPlan.planId, action: 'delete', confirm: true }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || '삭제 실패');
+      toast.success(`삭제 완료 — backup: admin_delete_audit`);
+      setSelectedPlan(null);
+      // search 결과에서도 제거
+      setPlans((prev) => prev.filter((p) => p.planId !== selectedPlan.planId));
+    } catch (err) {
+      toast.error('삭제 실패: ' + (err instanceof Error ? err.message : 'unknown'));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleSearchByEmail = async () => {
     if (!user || !searchEmail.trim()) return;
@@ -341,6 +368,25 @@ export default function AdminPlans() {
               <p className="text-xs text-gray-500 mt-2">
                 음수도 가능 (차감). 사용자가 환불·플랜 재생성 추가 요청 시 사용. 안전 범위: -100 ~ +100.
               </p>
+            </div>
+
+            {/* 플랜 삭제 (테스트 또는 무결성 검증 후만 사용) */}
+            <div className="border-t border-red-100 p-5 bg-red-50/30">
+              <h3 className="text-sm font-bold text-red-700 mb-2 flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4" /> 플랜 삭제 (위험)
+              </h3>
+              <p className="text-xs text-red-600/80 mb-3 leading-relaxed">
+                테스트 플랜 또는 사용자 요청에 의한 영구 삭제. 삭제 즉시 사용자가 해당 플랜 접근 불가. 30일간 <code className="bg-red-100 px-1 rounded">admin_delete_audit</code> 컬렉션에 backup 저장됩니다. 일반 사용자 환불은 credits 조정으로 처리하세요.
+              </p>
+              <button
+                type="button"
+                onClick={handleDeletePlan}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                플랜 영구 삭제
+              </button>
             </div>
           </div>
         )}
