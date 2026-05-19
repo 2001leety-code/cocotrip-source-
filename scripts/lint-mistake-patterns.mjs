@@ -1000,6 +1000,7 @@ const RULES = [
   ['P92_pdfCaptureCutoff', P92_pdfCaptureCutoff],
   ['P93_sectionTabsMobileOverflow', P93_sectionTabsMobileOverflow],
   ['P94_vercelIgnoreShallowCloneSafe', P94_vercelIgnoreShallowCloneSafe],
+  ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
 ];
 
 /**
@@ -1218,6 +1219,72 @@ function P94_vercelIgnoreShallowCloneSafe({ changed }) {
       'P94_vercelIgnoreShallowCloneSafe',
       `${violations.length}건 — ${violations.join(' | ')}`,
       '메모리 P94 — set -e 금지 + is_commit_reachable 헬퍼 + VERCEL_GIT_PREVIOUS_SHA 도달성 검증 + git diff || true fail-safe + binary exit (0/1) 모두 유지. abandoned/recreated PR 시나리오 PR #410 (#477 이후) 사례.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P95_paypalSdkNoUnverifiedWallets — 메모리 P95 (2026-05-19, PR after #478).
+ * src/components/PayPalBookingButton.tsx 의 PayPal SDK script URL 에
+ * `enable-funding=googlepay,applepay` (또는 `applepay,googlepay`) 재추가 차단.
+ *
+ * 원인: Apple Pay/Google Pay 활성화는 PayPal 머천트 대시보드 도메인 등록 +
+ * /.well-known/apple-developer-merchantid-domain-association 호스팅 둘 다 필수.
+ * cocotripkr.com 미등록 상태에서 SDK URL 에 enable-funding=applepay 포함하면
+ * PayPal CDN 이 HTTP 400 반환 → SDK 로드 실패 → 결제 페이지 사망.
+ *
+ * 회귀 슬롯: tests/unit/paypal-sdk-no-unverified-wallets-pr95.test.ts
+ */
+function P95_paypalSdkNoUnverifiedWallets({ changed }) {
+  const FILE = 'src/components/PayPalBookingButton.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1) 코드 라인 (코멘트 제외) 에 enable-funding=googlepay,applepay (또는 역순) 검출.
+  //    회귀 시 PayPal CDN 이 SDK js 요청에 400 반환 → 결제 surface 전부 사망.
+  const lines = content.split(/\r?\n/);
+  let codeLineViolations = 0;
+  let firstViolatingLine = '';
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+    if (
+      /enable-funding=googlepay,applepay/.test(line) ||
+      /enable-funding=applepay,googlepay/.test(line)
+    ) {
+      codeLineViolations++;
+      if (!firstViolatingLine) firstViolatingLine = `L${idx + 1}: ${trimmed.slice(0, 100)}`;
+    }
+  });
+  if (codeLineViolations > 0) {
+    violations.push(
+      `${FILE}: \`enable-funding=googlepay,applepay\` 코드 라인 재등장 (${codeLineViolations}건, 예: ${firstViolatingLine}) — PayPal 머천트 대시보드 도메인 등록 + Apple Pay merchantid-domain-association 호스팅 안 됐으면 SDK CDN HTTP 400 → 결제 페이지 사망 회귀`,
+    );
+  }
+
+  // 2) components=buttons 핵심 SDK 컴포넌트 유지 (회귀 시 결제 자체 안 됨).
+  if (!/components=buttons/.test(content)) {
+    violations.push(
+      `${FILE}: \`components=buttons\` 누락 — PayPal 버튼 SDK 자체 미실행. enable-funding 만 제거하고 components 도 같이 떨어뜨리면 SDK 가 아무것도 실행 안 함.`,
+    );
+  }
+
+  // 3) live PayPal URL 유지 (sandbox 분기 회귀 시 prod 결제 실패).
+  if (!/https:\/\/www\.paypal\.com\/sdk\/js/.test(content)) {
+    violations.push(
+      `${FILE}: PayPal live SDK URL (https://www.paypal.com/sdk/js) 누락 — sandbox 분기 회귀 시 prod 결제 영구 실패. 2026-05-03 PR 에서 의도적으로 sandbox 분기 제거됨.`,
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P95_paypalSdkNoUnverifiedWallets',
+      `${violations.length}건 — ${violations.join(' | ')}`,
+      '메모리 P95 — enable-funding=googlepay,applepay 코드 라인 회귀 차단 (머천트 대시보드 도메인 등록 + .well-known 호스팅 둘 다 완료 후만 재추가). components=buttons + live PayPal URL 유지.',
     );
   }
   return null;

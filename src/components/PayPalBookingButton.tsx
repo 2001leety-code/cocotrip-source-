@@ -274,7 +274,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     const sdkBase = 'https://www.paypal.com/sdk/js';
     // force=true 시 cache-buster 추가 (브라우저가 실패한 응답을 캐시한 경우 회피).
     const cacheBust = force ? `&_t=${Date.now()}` : '';
-    const sdkUrl = `${sdkBase}?client-id=${resolvedClientId}&currency=USD&intent=capture&components=buttons&enable-funding=googlepay,applepay${cacheBust}`;
+    // 2026-05-19 P95: `enable-funding=googlepay,applepay` 제거. Apple Pay/Google Pay
+    // 활성화는 PayPal 머천트 대시보드 (1) 결제 수단 활성화 (2) cocotripkr.com 도메인
+    // 등록 (3) /.well-known/apple-developer-merchantid-domain-association 호스팅
+    // 3종 모두 필요. 미완료 상태에서 enable-funding 에 포함하면 PayPal CDN 이
+    // SDK js 요청에 HTTP 400 반환 → SDK 로드 자체 실패 → 결제 페이지 사용 불가.
+    // 운영자 PayPal 머천트 대시보드 설정 완료 후 재추가. 회귀 차단: 메모리 P95 + lint.
+    const sdkUrl = `${sdkBase}?client-id=${resolvedClientId}&currency=USD&intent=capture&components=buttons${cacheBust}`;
     script.src = sdkUrl;
     console.log('[PayPal SDK] loading mode:', expectedMode, '| clientId prefix:', resolvedClientId.substring(0, 8));
     script.onload = () => {
