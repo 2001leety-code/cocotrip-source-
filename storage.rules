@@ -23,6 +23,19 @@ service firebase.storage {
                        || request.resource.contentType == 'application/pdf');
     }
 
+    // tours/{tourId}/** — 어드민 상품 사진 (Phase 1, 2026-05-19)
+    //   썸네일/갤러리/stop 사진/미팅포인트 사진 모두 이 경로 아래
+    //   read: 누구나 (공개 카탈로그)
+    //   write: 어드민만, 8MB 이하 이미지/영상 (위 reviews 5MB 보다 크게 — OTA 원본 권장)
+    match /tours/{tourId}/{allPaths=**} {
+      allow read:  if true;
+      allow write: if request.auth != null
+                   && request.auth.token.email == '2001leety@gmail.com'
+                   && request.resource.size < 8 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType.matches('video/.*'));
+    }
+
     // 기타 모든 경로 — 차단
     match /{allPaths=**} {
       allow read, write: if false;

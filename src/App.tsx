@@ -42,6 +42,8 @@ const AdminOpsHub = lazy(() => import('@/pages/AdminOpsHub'));
 const AdminQualityDashboard = lazy(() => import('@/pages/AdminQualityDashboard'));
 const AdminTranslations = lazy(() => import('@/pages/AdminTranslations'));
 const AdminCoupons = lazy(() => import('@/pages/AdminCoupons'));
+const AdminProducts = lazy(() => import('@/pages/AdminProducts'));
+const AdminProductEditor = lazy(() => import('@/pages/AdminProductEditor'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
@@ -335,6 +337,36 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminCoupons />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/products"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminProducts />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/products/new"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminProductEditor />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/products/edit/:tourId"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminProductEditor />
                 </Suspense>
               </AdminRoute>
             }

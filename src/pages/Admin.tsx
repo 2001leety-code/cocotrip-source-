@@ -370,6 +370,16 @@ export default function Admin() {
             </div>
             <p className="text-xs text-gray-400">일자별 투어 운영 가능 여부 관리</p>
           </a>
+          <a
+            href="/admin/products"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🎫</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">상품 관리 <span className="text-[10px] text-[#7C5CFC] font-bold ml-1">NEW</span></h3>
+            </div>
+            <p className="text-xs text-gray-400">OTA 표준 — 4언어·갤러리·일정·미팅포인트·FAQ·취소정책 9-탭 등록</p>
+          </a>
         </div>
 
         {/* ── Bookings Table (Firestore) ── */}

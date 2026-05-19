@@ -13,6 +13,7 @@ import { getTourProductType, getTourPriceKRW } from '@/data/tours';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
+import { SlotPicker } from '@/components/tours/SlotPicker';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
@@ -30,6 +31,8 @@ type TourBookingSnapshot = {
   whatsappId: string;
   lineId: string;
   memoText: string;
+  /** Phase 1 (2026-05-19): 시간 슬롯 ID (tour.slots[].id). 슬롯 없는 투어는 null. */
+  selectedSlotId?: string | null;
 };
 
 /** Reusable text input row used in Step 2. Keeps the dialog body lean and
@@ -225,12 +228,25 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const [lineId, setLineId] = useState<string>(initialSnap?.lineId ?? '');
   const [memoText, setMemoText] = useState<string>(initialSnap?.memoText ?? '');
 
+  // Phase 1 (2026-05-19): 시간 슬롯 선택 (tour.slots 가 정의된 어드민 투어용)
+  const activeSlots = useMemo(
+    () => (tour.slots ?? []).filter((s) => s.is_active !== false),
+    [tour.slots],
+  );
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(initialSnap?.selectedSlotId ?? null);
+
+  // 날짜 변경 시 슬롯 선택 reset (날짜별 capacity 변할 수 있어 — 향후 확장 대비)
+  useEffect(() => {
+    if (activeSlots.length === 0) setSelectedSlotId(null);
+  }, [date, activeSlots.length]);
+
   // debounced autosave — 매 키 입력마다 저장 X, 500ms 후 1번. Set 직렬화 array 변환.
   const persistValues = useMemo<TourBookingSnapshot>(() => ({
     pax, date, driverLang,
     selectedAddons: Array.from(selectedAddons),
     step, phone, pickupAddress, whatsappId, lineId, memoText,
-  }), [pax, date, driverLang, selectedAddons, step, phone, pickupAddress, whatsappId, lineId, memoText]);
+    selectedSlotId,
+  }), [pax, date, driverLang, selectedAddons, step, phone, pickupAddress, whatsappId, lineId, memoText, selectedSlotId]);
   useWizardPersistence(persistKey, persistValues, step);
 
   // Firestore tour_availability cache (월별). 비어있으면 mock fallback.
@@ -283,7 +299,16 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   }, [tourAdmissionTotal]);
 
   const addonKRW = computeAddonTotal(effectiveAddons, pax, days, dynamicAddons);
-  const totalKRW = baseKRW + addonKRW;
+
+  // Phase 1 (2026-05-19): 선택 슬롯의 price_modifier_krw 가 총액에 반영됨.
+  // 슬롯 미선택이거나 슬롯 없는 투어는 0.
+  const selectedSlot = useMemo(
+    () => activeSlots.find((s) => s.id === selectedSlotId),
+    [activeSlots, selectedSlotId],
+  );
+  const slotModifierKRW = selectedSlot?.price_modifier_krw ?? 0;
+
+  const totalKRW = baseKRW + addonKRW + slotModifierKRW;
 
   const productType = useMemo(() => getTourProductType(tour.id), [tour.id]);
   const availability = useMemo(() => {
@@ -298,7 +323,11 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const availabilityMsg = availability.reason ? REASON_LABELS[availability.reason][langKey] : '';
 
   // Step 1 → 2 gate: must have a date + availability before showing contact form.
-  const canAdvanceStep1 = productType !== null && totalKRW > 0 && !!date && availability.available;
+  // Phase 1 (2026-05-19): tour.slots 가 정의된 투어는 슬롯 선택 필수.
+  //   activeSlots.length === 1 이면 SlotPicker 가 자동 선택 → 항상 truthy.
+  //   activeSlots.length > 1 이면 사용자가 직접 선택 필요.
+  const slotRequirementMet = activeSlots.length === 0 || !!selectedSlotId;
+  const canAdvanceStep1 = productType !== null && totalKRW > 0 && !!date && availability.available && slotRequirementMet;
   // Step 2 → checkout gate: all four contact fields populated (whatsapp/line both,
   // phone, pickup). Memo is required per spec ("둘다 메모 필수"). Trim ensures the
   // user actually typed something rather than just spaces.
@@ -312,6 +341,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
 
   // Bundled memo payload — backend's PayPalBookingButton accepts `memo` and
   // logs/persists the full string. No API contract change required.
+  // Phase 1 (2026-05-19): 슬롯 선택된 경우 slot info (id, time, modifier) 포함 →
+  // 운영자가 배차 시 정확한 출발 시각 인지 가능 + 추후 backend slot capacity 차감 hook 시 활용.
   const fullMemo = useMemo(() => {
     const lines = [
       `Tour: ${tour.title.en} | ${pax} pax | ${driverLang.toUpperCase()} driver`,
@@ -322,8 +353,14 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       `Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`,
       `Notes: ${memoText}`,
     ];
+    if (selectedSlot) {
+      const mod = selectedSlot.price_modifier_krw ?? 0;
+      const modStr = mod === 0 ? '' : mod > 0 ? ` (+₩${mod.toLocaleString()})` : ` (-₩${Math.abs(mod).toLocaleString()})`;
+      const labelStr = selectedSlot.label?.en || selectedSlot.label?.ko || '';
+      lines.push(`Slot: ${selectedSlot.id} @ ${selectedSlot.start_time}${labelStr ? ` "${labelStr}"` : ''}${modStr}`);
+    }
     return lines.join(' | ');
-  }, [tour.title.en, pax, driverLang, phone, pickupAddress, whatsappId, lineId, effectiveAddons, memoText]);
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, whatsappId, lineId, effectiveAddons, memoText, selectedSlot]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
@@ -460,6 +497,17 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               </p>
             )}
           </div>
+
+          {/* Phase 1 (2026-05-19): 시간 슬롯 picker — tour.slots 가 정의된 어드민 투어만 */}
+          {/* TODO: slot id forward to backend (Phase 2 follow-up — 결제 메모에 포함됨) */}
+          {activeSlots.length > 0 && (
+            <SlotPicker
+              slots={activeSlots}
+              selectedSlotId={selectedSlotId}
+              onChange={setSelectedSlotId}
+              language={language}
+            />
+          )}
 
           {/* Driver language */}
           <div>

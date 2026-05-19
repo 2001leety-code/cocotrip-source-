@@ -137,7 +137,11 @@ service cloud.firestore {
     //   create/delete: 어드민만
     // ─────────────────────────────────────────────────────────
     match /tours/{tourId} {
-      allow read:   if true;
+      // Phase 1 (2026-05-19): draft 상태 도큐먼트는 admin 만 read.
+      // 기존 published/archived 또는 status 필드 부재 (정적 9 투어 호환) 는 public read 유지.
+      allow read:   if !('status' in resource.data)
+                 || resource.data.status != 'draft'
+                 || isAdminEmail();
       // PR #420 (WC7): 비-어드민은 currentBookings 증감만 허용. 그 외 필드
       // (price, name, capacity 등) 는 catalog tampering 위험.
       // PR #445 (W-H19): currentBookings 는 0-9999 정수 cap (음수/거대값 차단).
@@ -181,6 +185,15 @@ service cloud.firestore {
                            && request.resource.data.note.size() <= 1000));
         allow update, delete: if isAdminEmail();
       }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // tours_drafts — 어드민 작성 중 임시 저장 (Phase 1, 2026-05-19)
+    //   read/write: admin only. autosave 1초 throttle.
+    //   publish 시 tours/{tourId} 로 commit + draft 유지 (재편집 가능)
+    // ─────────────────────────────────────────────────────────
+    match /tours_drafts/{tourId} {
+      allow read, create, update, delete: if isAdminEmail();
     }
 
     // ─────────────────────────────────────────────────────────

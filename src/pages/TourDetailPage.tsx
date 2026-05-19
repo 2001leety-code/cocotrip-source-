@@ -10,19 +10,23 @@ import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
   CalendarCheck, Package, ChevronRight, Languages,
   ShieldCheck, CreditCard, ExternalLink, ChevronLeft, Moon,
+  ChevronDown,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
-import { getTourBySlug } from '@/data/tours';
 import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
+import { MeetingPointCard } from '@/components/tours/MeetingPointCard';
+import { TourFAQ } from '@/components/tours/TourFAQ';
+import { SuitabilityChips } from '@/components/tours/SuitabilityChips';
 import { useTourRating } from '@/hooks/useTourRating';
+import { useTour } from '@/hooks/useTour';
 import type { I18nString, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
 
@@ -56,7 +60,8 @@ export default function TourDetailPage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
 
-  const tour = slug ? getTourBySlug(slug) : undefined;
+  // Phase 1 (2026-05-19): Firestore 우선 + 정적 폴백. tour 가 있으면 즉시 paint.
+  const { tour } = useTour(slug);
   const hotels = tour ? getRecommendedHotels(tour.region, 3) : [];
 
   // P2-B: 외부 리뷰 fetch (env 키 있으면 Google Places, 없으면 internal fallback)
@@ -286,6 +291,11 @@ export default function TourDetailPage() {
           })()}
         </div>
 
+        {/* 적합성 / 제약 칩 (휠체어·연령·체력 등) — tour.suitability 있을 때만 */}
+        {tour.suitability && (
+          <SuitabilityChips suitability={tour.suitability} language={language} />
+        )}
+
         <div className="h-px bg-white/[0.06] mb-5" />
 
         {/* 포함 사항 */}
@@ -308,6 +318,23 @@ export default function TourDetailPage() {
           <h2 className="text-[13px] font-black uppercase tracking-[0.08em] text-white/55 mb-3">{overviewTitle}</h2>
           <p className="text-[13px] text-white/55 leading-relaxed">{description}</p>
         </section>
+
+        {/* 영상 — video_embed_url 있을 때만 (자동재생 OFF — H7) */}
+        {tour.video_embed_url && (
+          <>
+            <div className="h-px bg-white/[0.06] mb-5" />
+            <section className="mb-5">
+              <iframe
+                src={tour.video_embed_url}
+                className="w-full aspect-video rounded-2xl border border-white/10"
+                title={title}
+                allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
+                allowFullScreen
+                loading="lazy"
+              />
+            </section>
+          </>
+        )}
 
         <div className="h-px bg-white/[0.06] mb-5" />
 
@@ -348,6 +375,24 @@ export default function TourDetailPage() {
             </div>
           )}
         </section>
+
+        {/* 미팅 포인트 — meeting_point 있을 때만 */}
+        {tour.meeting_point && (
+          <MeetingPointCard meeting_point={tour.meeting_point} language={language} />
+        )}
+
+        {/* 준비물 / 중요 정보 / 적합성 추가 안내 — 데이터 있는 항목만 노출 */}
+        <TourExtraInfo
+          whatToBring={tour.what_to_bring}
+          importantInfo={tour.important_info}
+          suitabilityNotes={tour.suitability?.notes}
+          language={language}
+        />
+
+        {/* FAQ — faqs 있을 때만 */}
+        {tour.faqs && tour.faqs.length > 0 && (
+          <TourFAQ faqs={tour.faqs} language={language} />
+        )}
 
         {/* ══════════════════════════════════════════════════════════════════
             추천 숙소 — Trip.com 어필리에이트 (Allianceid=4831212)
@@ -707,6 +752,107 @@ function ImageGallery({ images, title, isNight }: ImageGalleryProps) {
             {current + 1} / {total}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TourExtraInfo — 준비물 / 중요 정보 / 적합성 안내 accordion
+// (Phase 1, 2026-05-19) — 데이터 있는 항목만 렌더
+// ─────────────────────────────────────────────────────────────────────────────
+function TourExtraInfo({
+  whatToBring, importantInfo, suitabilityNotes, language,
+}: {
+  whatToBring?: I18nString;
+  importantInfo?: I18nString;
+  suitabilityNotes?: I18nString;
+  language: Language;
+}) {
+  const items: Array<{ key: string; icon: string; titleByLang: Record<Language, string>; content: string }> = [];
+
+  const getText = (f: I18nString | undefined): string => f ? (f[language] || f.en || f.ko || '') : '';
+
+  const importantTxt = getText(importantInfo);
+  if (importantTxt) {
+    items.push({
+      key: 'important',
+      icon: '⚠️',
+      titleByLang: { ko: '중요 안내', en: 'Important info', ja: '重要なお知らせ', zh: '重要信息' },
+      content: importantTxt,
+    });
+  }
+
+  const whatToBringTxt = getText(whatToBring);
+  if (whatToBringTxt) {
+    items.push({
+      key: 'what-to-bring',
+      icon: '🎒',
+      titleByLang: { ko: '준비물', en: 'What to bring', ja: '持ち物', zh: '携带物品' },
+      content: whatToBringTxt,
+    });
+  }
+
+  const suitNotesTxt = getText(suitabilityNotes);
+  if (suitNotesTxt) {
+    items.push({
+      key: 'suitability',
+      icon: '🧭',
+      titleByLang: { ko: '적합성 안내', en: 'Suitability notes', ja: '適性に関するご案内', zh: '适合人群说明' },
+      content: suitNotesTxt,
+    });
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mb-8">
+      <div className="space-y-2">
+        {items.map((item) => (
+          <ExtraInfoItem key={item.key} item={item} language={language} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ExtraInfoItem({
+  item, language,
+}: {
+  item: { key: string; icon: string; titleByLang: Record<Language, string>; content: string };
+  language: Language;
+}) {
+  const [open, setOpen] = useState(false);
+  const title = item.titleByLang[language] || item.titleByLang.en;
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.07)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 text-[13px] font-semibold text-white/85">
+          <span aria-hidden>{item.icon}</span>
+          {title}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 shrink-0 text-white/55 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="px-4 pb-3.5 pt-1 border-t border-white/[0.04]">
+          <p className="text-[12px] text-white/65 leading-relaxed whitespace-pre-line">
+            {item.content}
+          </p>
+        </div>
       )}
     </div>
   );
