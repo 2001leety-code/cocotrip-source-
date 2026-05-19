@@ -2,6 +2,27 @@
 
 CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머지 전 차단 (자율 검증 L1 게이트).
 
+## ⚠️ 자율 검증 사각지대 매트릭스 (2026-05-19)
+
+**메타-rule**: 매 P-pattern (오답노트) 추가 시 다음 카테고리 중 어디에 속하는지 분류 +
+해당 카테고리의 자동 게이트가 실재하는지 확인. 없으면 후속 PR 에서 도입.
+
+| 카테고리 | 자동 게이트 | 위치 | 잡는 회귀 예 |
+|---|---|---|---|
+| **L1: 코드 grep 패턴** | mistake-lint | `scripts/lint-mistake-patterns.mjs` + `pr-mistake-lint.yml` | P5 (food index 삭제), P7 (PDF position), P95 (SDK enable-funding 코드 라인) |
+| **L2: 외부 API contract** | SDK preflight | `scripts/preflight-sdk-urls.mjs` + `pr-sdk-preflight.yml` | P95 런타임 (PayPal CDN 400), 미래 Gemini/Naver SDK reject |
+| **L3: PDF 런타임** | ⏳ 후속 도입 | (계획) Vercel preview + Playwright + pdf-parse | P92 byte-output cut-off, 한글 폰트 깨짐 |
+| **L4: 시각 회귀 / 모바일 viewport** | ⏳ 후속 도입 | (계획) Playwright screenshot diff | P93 모바일 탭 overflow, 다크모드 contrast |
+| **L5: E2E user journey** | △ 부분 | `pr-i18n-smoke.yml`, `pr-payment-regression.yml`, `pr-voucher-regression.yml` | 결제·voucher·i18n 회귀 |
+
+**L3/L4 가 미도입** — P92 / P93 같은 런타임 시각 영역은 L1 grep + L5 부분 smoke 만으로는 잡히지 않음.
+새 P-pattern 추가 시 L3/L4 영역이면 후속 PR 로 게이트 도입 우선순위 등록.
+
+## P-pattern 메모리 위치
+
+운영자 로컬: `C:\Users\<user>\.claude\projects\E--ai-------\memory\feedback_mistake_p<NN>_*.md`.
+인덱스: 같은 dir 의 `MEMORY.md`. 새 P 추가 시 양쪽 모두 업데이트.
+
 ## 무엇
 
 - `scripts/lint-mistake-patterns.mjs` 가 base..HEAD diff 를 스캔해 알려진 함정 패턴을 검출
@@ -40,10 +61,14 @@ node scripts/lint-mistake-patterns.mjs --self-test
 
 CI 는 `pull_request` (opened, synchronize, reopened) 이벤트에 자동 실행.
 
-## 새 패턴 추가 — 4 step
+## 새 패턴 추가 — 5 step
 
+0. **카테고리 분류** (자율 검증 사각지대 매트릭스 참조)
+   - 본 P-pattern 이 L1 ~ L5 중 어디에 속하는지 확정.
+   - 해당 카테고리 자동 게이트가 실재하면 → 1번부터 진행.
+   - **L3/L4 미도입 영역이면** → 게이트 도입 후속 PR 등록 + 본 PR 은 L1 grep rule 만 추가 (best-effort cover).
 1. **메모리 등록**
-   - `C:\Users\<user>\.claude\projects\E--ai-------\memory\feedback_mistake_log.md` 의 `## 패턴 P-NN` 섹션에 새 카테고리 추가 (증상 / 원인 / 교훈 / 예방).
+   - `C:\Users\<user>\.claude\projects\E--ai-------\memory\feedback_mistake_log.md` 의 `## 패턴 P-NN` 섹션에 새 카테고리 추가 (증상 / 원인 / 교훈 / 예방 + **L? 카테고리 명시**).
 2. **룰 함수 추가**
    - `scripts/lint-mistake-patterns.mjs` 에 `function P-NN_xxx({ changed, base }) { ... }` 작성. `fail(rule, msg, hint)` 또는 `warn(rule, msg)` 호출.
    - **검사 범위 결정** (아래 "검사 범위 가이드" 참조):
