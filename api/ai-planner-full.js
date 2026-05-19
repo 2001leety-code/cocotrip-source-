@@ -88,6 +88,59 @@ export default async function handler(req, res) {
   // try 안에서 decidePlannerMode 호출 후 덮어쓰기. body parse 전에 throw 하면
   // 'unknown' 그대로 sentry 에 기록.
   let resolvedPlannerMode = 'unknown';
+
+  // P96 (2026-05-19): step-level elapsed instrumentation. 기존엔 START + TOTAL
+  // 두 로그만 있어 hang 시 어느 step 에서 멈췄는지 prod logs 로도 진단 불가.
+  // withStep 으로 핵심 await 마다 ENTER + DONE/FAILED elapsed 로그. catch 블록
+  // 의 hangWarn alert 는 5분 Vercel cap 도달 30초 전 (4분30초) 발사.
+  let currentStep = 'init';
+  let currentStepStart = handlerStart;
+  let lastUid = null;
+  let lastEmail = null;
+  async function withStep(label, fn) {
+    currentStep = label;
+    currentStepStart = Date.now();
+    console.log(`[planner] step=${label} ENTER`);
+    try {
+      const result = await fn();
+      const elapsed = Date.now() - currentStepStart;
+      console.log(`[planner] step=${label} DONE ${elapsed}ms`);
+      return result;
+    } catch (err) {
+      const elapsed = Date.now() - currentStepStart;
+      console.error(`[planner] step=${label} FAILED ${elapsed}ms — ${err && err.message ? err.message : err}`);
+      throw err;
+    }
+  }
+  const HANG_WARN_MS = 270_000;
+  const hangWarnTimer = setTimeout(() => {
+    // fire-and-forget — throttledTelegramAlert dedup (5분 window, P67) 로
+    // 폭주 자동 차단. clearTimeout 으로 정상 종료 시 alert 안 가게 함.
+    throttledTelegramAlert({
+      key: 'ai-planner-hang',
+      channel: 'admin',
+      severity: 'high',
+      message: [
+        `⚠️ <b>ai-planner-full 4분30초 경과 — Vercel 5분 cap 임박</b>`,
+        ``,
+        `<b>last step:</b> ${currentStep}`,
+        `<b>step elapsed:</b> ${Date.now() - currentStepStart}ms`,
+        `<b>total elapsed:</b> ${Date.now() - handlerStart}ms`,
+        `<b>mode:</b> ${resolvedPlannerMode}`,
+        `<b>uid:</b> ${lastUid || '-'} <b>email:</b> ${lastEmail || '-'}`,
+      ].join('\n'),
+      context: {
+        lastStep: currentStep,
+        elapsedTotal: Date.now() - handlerStart,
+        lastStepStart: currentStepStart,
+        mode: resolvedPlannerMode,
+        uid: lastUid,
+        email: lastEmail,
+      },
+    }).catch(() => {});
+  }, HANG_WARN_MS);
+  if (hangWarnTimer.unref) hangWarnTimer.unref();
+
   console.log('[planner] === START ===');
   // batch 9 fix (PR-N, 2026-05-09): env 변수 유무 진단 — handler 진입 즉시.
   // 키 값은 노출 X, 길이/존재만 노출. 5/9 prod 500 빈 body 회귀 추적용.
@@ -108,15 +161,16 @@ export default async function handler(req, res) {
     // ── Audit P0-#2 (2026-05-04): Firebase ID token 검증 ─────────────────────
     // body.email 신뢰 종료 — 이전 버전에서 admin email 위장으로 TEST mode bypass 가능.
     // 클라이언트는 Authorization: Bearer <idToken> 필수 (api/_shared/admin-auth.js 패턴 동일).
-    const auth = await verifyUserToken(req);
+    const auth = await withStep('verifyAuth', () => verifyUserToken(req));
     if (!auth.ok) {
       res.writeHead(auth.status, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
     }
     const authenticatedEmail = auth.email;
+    lastEmail = authenticatedEmail;
 
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
-    const gate = await enforcePaymentAndRevision(body, adminDb, authenticatedEmail);
+    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail));
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
@@ -199,6 +253,7 @@ export default async function handler(req, res) {
     const hotel_address = body.hotel_address || '';
     const mobility = body.mobility || 'ok';
     const uid = body.uid || null;
+    lastUid = uid;
 
     // ── Phase 4 A/B test: planner mode 결정 (uid > guestEmail > sessionId) ───
     // sessionId 는 client 가 보낼 수 있는 anonymous 식별자 (현재 미사용이지만 향후
@@ -421,7 +476,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     })();
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
-    const avoidClause = await buildAvoidClause(adminDb, { uid, requestEmail });
+    const avoidClause = await withStep('avoidClause', () => buildAvoidClause(adminDb, { uid, requestEmail }));
 
     // ── W4 revision instruction (사유 → Gemini 추가 지시) ────────────────────
     // gate.isRevision이 true일 때만 revision instruction 추가 (일반 신규 플랜 불필요).
@@ -449,7 +504,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     // 2026-05-12 pattern validation: body 전달 → regions/arrival_airport/
     // departure_airport 기반 lodging bookend / min stops / start_time / 출국 공항
     // 검증 (B-10/B-12/B-14/B-15). 위반 시 1회 retry → 그래도 위반이면 500 throw.
-    const itinerary = await runGeminiPipeline({
+    const itinerary = await withStep('gemini', () => runGeminiPipeline({
       apiKey,
       systemPrompt,
       userMessage: finalUserMessage,
@@ -463,7 +518,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         departure_airport,
         durationDays,
       },
-    });
+    }));
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -484,14 +539,14 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     // 2026-05-03: routeHotelAddress = hotel_address || zone anchor. zone만 골랐어도
     // 공항↔zone 환승 경로(arrival_guide.route_to_hotel)가 정상 계산됨. 사용자가
     // Firestore에서 보는 hotel_address 필드는 그대로 빈 값 유지.
-    await enrichItineraryWithRoute(itinerary, {
+    await withStep('routeEnrich', () => enrichItineraryWithRoute(itinerary, {
       apiKey,
       body,
       hotel_address: routeHotelAddress,
       arrival_airport,
       departure_airport,
       pax,
-    });
+    }));
     // arrival_guide / departure_guide의 route_to_hotel에 zone fallback이 적용됐음을
     // 표시 — UI가 "Lotte Hotel 기준" 대신 "홍대 지역 기준"으로 라벨링할 수 있게.
     if (!hotel_address && recommendedZoneAddress) {
@@ -542,7 +597,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     // Phase 4 (2026-05-13): plannerMode + abReason + abBucket — admin
     // dashboard 에서 mode 별 qualityScore 비교 위함. legacy vs 3-pass 평균
     // 차이 + diet/unverified/route 카운트 차이를 운영자가 직접 확인 가능.
-    const { planId, planUrl } = await persistPlan(adminDb, {
+    const { planId, planUrl } = await withStep('persistPlan', () => persistPlan(adminDb, {
       body, itinerary, uid, vehicle, priceKRW, priceUSD,
       guestName, pax, styles, area, duration, startDate, email,
       specialRequest, arrival_airport, departure_airport,
@@ -551,7 +606,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       plannerMode: PLANNER_MODE,
       abReason: abDecision.reason,
       abBucket: abDecision.bucket,
-    });
+    }));
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
@@ -637,5 +692,8 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         console.warn('[ai-planner-full] sentry capture failed:', e.message);
       }
     });
+  } finally {
+    // P96: 정상 완료 + error path 모두에서 4분30초 hang alert timer 해제.
+    clearTimeout(hangWarnTimer);
   }
 }
