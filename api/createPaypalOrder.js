@@ -67,14 +67,14 @@ const COMBO_DISCOUNT_PERCENT_FALLBACK = 10;
 // AI 플래너 서비스는 전세 가격과 별개 상품 (유료 플래너 $9.90)
 const AI_PLANNER_FULL_KRW = 13_300;
 
-function resolveKrwAmount(productType, passengers) {
+function resolveKrwAmount(productType, passengers, durationDays) {
   if (!SPEC) return null;
   const normalized = productType.replace(/-/g, '_');
 
-  // AI 플래너
+  // AI 플래너 — 디지털 상품, fixed price (durationDays 무관)
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
 
-  // K-pop 셔틀 — 인원수 곱셈
+  // K-pop 셔틀 — 인원수 곱셈 (one-way / round-trip 자체가 일자 무관)
   if (normalized === 'kpop_shuttle_oneway') {
     return (passengers || 1) * SPEC.kpop_shuttle.price_one_way;
   }
@@ -82,9 +82,17 @@ function resolveKrwAmount(productType, passengers) {
     return (passengers || 1) * SPEC.kpop_shuttle.price_round_trip;
   }
 
-  // 당일 전세 투어
+  // 차터/투어 — daily price × 일수.
+  // P100 (2026-05-19) fix: 기존엔 `× durationDays` 누락 → multi-day charter 가
+  // 1-day 가격으로 결제됨 → 운영자 4-day 무료 손해 (Seoul 5-day = 4×330k 손해).
+  // 운영자 정책: charter 는 daily unit rate. 1-day 결제는 durationDays=1 또는
+  // undefined fallback 으로 그대로 동작 (backward-compat).
   if (CHARTER_MAP[normalized]) {
-    return SPEC.daily_tour_prices[CHARTER_MAP[normalized]]?.priceKRW ?? null;
+    const dailyPrice = SPEC.daily_tour_prices[CHARTER_MAP[normalized]]?.priceKRW;
+    if (!dailyPrice) return null;
+    // durationDays sanity: 1~30 cap (음수/0/거대 값 차단). undefined 면 1-day.
+    const days = Number.isFinite(durationDays) && durationDays >= 1 ? Math.min(30, Math.floor(durationDays)) : 1;
+    return dailyPrice * days;
   }
 
   // 공항 픽업
@@ -181,7 +189,7 @@ export default async function handler(req, res) {
     void TEST_ACCOUNTS; void userEmail; // 의도적 무시 (PayPal API 호출은 항상 LIVE)
     console.log('[createPaypalOrder] mode: LIVE (always) | email:', userEmail, '| product:', productType);
 
-    let krwAmount = resolveKrwAmount(productType, passengers);
+    let krwAmount = resolveKrwAmount(productType, passengers, durationDays);
     if (!krwAmount) {
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT')));
