@@ -1,0 +1,78 @@
+name: PR PDF Golden (Vercel Preview)
+
+# 자율 검증 사각지대 매트릭스 L3 게이트 — PDF 런타임 byte-output 검증.
+# Vercel preview deploy 완료 후 fixture plan 의 PDF 를 server endpoint
+# (api/pdf/generate.js, Puppeteer + Chromium) 로 생성 → pdf-parse 로 페이지수
+# + 텍스트 + 글리프 검증. P92 (cut-off) / PDF_KOREAN_FONT (tofu) 회귀 차단.
+#
+# 위반 시: PR 머지 차단 + GITHUB_STEP_SUMMARY 의 4 assertion 표.
+#
+# Env 누락 시 (PDF_GOLDEN_PLAN_ID 등) SKIP — 운영자 후속 (scripts/README-pdf-golden.md).
+#
+# 시간 budget: Firebase auth ~1s + PDF gen ~30-60s + parse ~1s = ~60-90s.
+
+on:
+  deployment_status:
+  pull_request:
+    paths:
+      - '.github/**'
+      - '**/*.md'
+      - 'docs/**'
+      - '.agent/**'
+      - '.claude/**'
+      - 'tests/**'
+      - 'scripts/**'
+
+concurrency:
+  group: pr-pdf-golden-${{ github.event.deployment.ref || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pdf-golden:
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Preview' &&
+       github.event.deployment.creator.login == 'vercel[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Auto-pass — workflow/docs-only PR (no preview deploy)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "::notice::PR matches Vercel-ignored paths — no preview deployment expected."
+          echo "::notice::Auto-pass to satisfy branch protection 'pdf-golden' required check."
+
+      - name: Checkout PR head (use deployment ref)
+        if: github.event_name == 'deployment_status'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.ref }}
+
+      - name: Setup Node.js
+        if: github.event_name == 'deployment_status'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install pdf-parse only (lightweight)
+        if: github.event_name == 'deployment_status'
+        # 전체 npm ci 대신 pdf-parse 만 — 1.5s. 스크립트 의존성은 Node 내장 fetch.
+        run: npm install --no-save pdf-parse@^1.1.1
+
+      - name: Run PDF golden check
+        if: github.event_name == 'deployment_status'
+        env:
+          BASE_URL: ${{ github.event.deployment_status.target_url }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
+          PDF_GOLDEN_PLAN_ID: ${{ secrets.PDF_GOLDEN_PLAN_ID }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/pdf-golden-check.mjs
