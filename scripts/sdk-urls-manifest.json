@@ -1,0 +1,18 @@
+{
+  "_doc": "Third-party SDK URL preflight manifest. PR 머지 전 각 entry 의 url_template 을 env 로 채워 실제 fetch → expected_status + content-type 검증. P95 (PayPal enable-funding=googlepay,applepay 400 차단) 같은 SDK contract 위반을 prod 도달 전에 차단. 코드에서 SDK URL 변경 시 본 manifest 도 동기화 필수 (mistake-lint enforce).",
+  "_skip_in_pr_fork": "fork PR 은 secrets 접근 불가 → workflow 가 entry 별 required_env 누락 시 skip + warning.",
+  "entries": [
+    {
+      "id": "paypal_sdk_live",
+      "label": "PayPal Smart Buttons SDK (LIVE)",
+      "url_template": "https://www.paypal.com/sdk/js?client-id={{VITE_PAYPAL_CLIENT_ID}}&currency=USD&intent=capture&components=buttons",
+      "required_env": ["VITE_PAYPAL_CLIENT_ID"],
+      "expected_status": 200,
+      "expected_content_type_includes": ["javascript", "application"],
+      "source_files": [
+        "src/components/PayPalBookingButton.tsx"
+      ],
+      "notes": "enable-funding=googlepay,applepay 같은 contract 변경 시 PayPal CDN 400 — P95 회귀 차단용. 머천트 대시보드 도메인 + Apple Pay merchant ID 등록 완료 후에만 enable-funding 추가 허용."
+    }
+  ]
+}

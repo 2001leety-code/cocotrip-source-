@@ -1,0 +1,44 @@
+name: PR SDK Preflight
+
+# CocoTrip 자율 검증 — 외부 SDK URL contract preflight.
+# 우리 코드가 실제로 만들 PayPal/외부 SDK URL 을 PR 머지 전 fetch → 200 + content-type
+# 검증. P95 (enable-funding=googlepay,applepay 400) 같은 SDK reject 가 prod 도달 전 차단.
+#
+# 위반 시: PR 머지 차단 + GITHUB_STEP_SUMMARY 에 어느 entry/param 이 문제인지 진단.
+#
+# Manifest: scripts/sdk-urls-manifest.json
+# Script: scripts/preflight-sdk-urls.mjs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  # docs/test/yml-only PR 도 통과시키되, scripts/sdk-urls-manifest.json 또는
+  # src/components/PayPalBookingButton.tsx 변경 시는 반드시 실행되도록 paths-ignore 사용 안 함.
+
+concurrency:
+  group: pr-sdk-preflight-${{ github.head_ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-preflight:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run SDK URL preflight
+        env:
+          VITE_PAYPAL_CLIENT_ID: ${{ secrets.VITE_PAYPAL_CLIENT_ID }}
+        run: node scripts/preflight-sdk-urls.mjs
