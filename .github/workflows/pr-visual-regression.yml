@@ -1,0 +1,116 @@
+name: PR Visual Regression (Vercel Preview)
+
+# 자율 검증 사각지대 L4 게이트 — 시각 회귀 / 모바일 viewport.
+# Vercel preview deploy 완료 후 trigger, baseline 과 pixel-diff 비교.
+# P93 (모바일 section 탭 overflow) 같은 layout 회귀가 PR 머지 전 차단.
+#
+# 위반 시: PR 머지 차단 + diff PNG artifact 업로드 (운영자가 다운로드해서 확인).
+#
+# Baseline 없는 신규 spec: --update-snapshots 후 commit-back 은 미구현 — 운영자가
+# 로컬 Docker 로 baseline 생성 후 별도 commit (tests/visual/README.md 참조).
+# 본 워크플로우는 baseline 없으면 fail (Playwright default). 그러나 본 PR
+# 인프라 도입 시점에는 baseline PNG 가 main 에 없으므로, baseline 없으면
+# soft-pass (continue-on-error) 처리 → 운영자 baseline commit 후부터 strict.
+
+on:
+  deployment_status:
+  # docs/test/script/workflow only PR 도 통과시키기 위해 pull_request fallback.
+  # pr-i18n-smoke 와 동일 paths 패턴.
+  pull_request:
+    paths:
+      - '.github/**'
+      - '**/*.md'
+      - 'docs/**'
+      - '.agent/**'
+      - '.claude/**'
+      - 'tests/**'
+      - 'scripts/**'
+
+concurrency:
+  group: pr-visual-regression-${{ github.event.deployment.ref || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Preview' &&
+       github.event.deployment.creator.login == 'vercel[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Auto-pass — workflow/docs-only PR (no preview deploy)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "::notice::PR matches Vercel-ignored paths — no preview deployment expected."
+          echo "::notice::Auto-pass to satisfy branch protection 'visual' required check."
+
+      - name: Checkout PR head (use deployment ref)
+        if: github.event_name == 'deployment_status'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.ref }}
+
+      - name: Setup Node.js
+        if: github.event_name == 'deployment_status'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: github.event_name == 'deployment_status'
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        if: github.event_name == 'deployment_status'
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright chromium (cache miss)
+        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit)
+        if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Check baseline exists
+        if: github.event_name == 'deployment_status'
+        id: baseline-check
+        run: |
+          # snapshot 디렉토리들 검색. landing-mobile.spec.ts-snapshots 같은 패턴.
+          count=$(find tests/visual -type d -name '*-snapshots' 2>/dev/null | wc -l)
+          echo "snapshot_dirs=$count" >> $GITHUB_OUTPUT
+          if [ "$count" = "0" ]; then
+            echo "::warning::No visual baselines found — soft-pass mode. Operator must generate baselines locally per tests/visual/README.md."
+          fi
+
+      - name: Run visual regression against preview URL
+        if: github.event_name == 'deployment_status'
+        # baseline 없으면 fail 하되 workflow 는 soft-pass — 인프라 도입 단계 대응.
+        # baseline commit 후에는 이 continue-on-error 제거 (strict 모드).
+        continue-on-error: ${{ steps.baseline-check.outputs.snapshot_dirs == '0' }}
+        env:
+          BASE_URL: ${{ github.event.deployment_status.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: npx playwright test --config=playwright.visual.config.ts
+
+      - name: Upload visual diff report
+        if: always() && github.event_name == 'deployment_status'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-report-pr-${{ github.run_id }}
+          path: tests/visual-report
+          retention-days: 14
