@@ -5,7 +5,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { toast, Toaster } from 'sonner';
-import { RefreshCw, Plus, List, ChevronDown, ChevronUp, Bell } from 'lucide-react';
+import { RefreshCw, Plus, List, ChevronDown, ChevronUp, Bell, Users, TrendingUp } from 'lucide-react';
 
 interface Booking {
   id: string;
@@ -31,6 +31,44 @@ export default function Admin() {
   const [totalBookings, setTotalBookings] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [pushTesting, setPushTesting] = useState(false);
+
+  // ── 방문자 통계 (PostHog, 본인 제외) ──
+  interface VisitorBucket { uniqueVisitors: number; pageviews: number }
+  interface VisitorData {
+    today: VisitorBucket; week: VisitorBucket; month: VisitorBucket;
+    topPages: { path: string; pageviews: number }[];
+    excludedAdmin: string | null;
+  }
+  const [visitors, setVisitors] = useState<VisitorData | null>(null);
+  const [visitorsLoading, setVisitorsLoading] = useState(false);
+  const [visitorsError, setVisitorsError] = useState<string | null>(null);
+
+  const loadVisitors = async () => {
+    if (!user) return;
+    setVisitorsLoading(true);
+    setVisitorsError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const resp = await fetch('/api/admin-posthog-visitors', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = await resp.json();
+      if (!json.ok) {
+        setVisitorsError(json.code === 'POSTHOG_DISABLED' ? 'PostHog 미연결' : (json.error || 'unknown'));
+        return;
+      }
+      setVisitors(json.data);
+    } catch (err) {
+      setVisitorsError(err instanceof Error ? err.message : 'unknown');
+    } finally {
+      setVisitorsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) void loadVisitors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleTestPush = async () => {
     if (!user) return;
@@ -172,6 +210,73 @@ export default function Admin() {
         </div>
 
         {error ? <p className="text-sm text-red-500">{error}</p> : null}
+
+        {/* ── 방문자 통계 (PostHog, 운영자 본인 제외) ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-[#7C5CFC]" />
+              <h2 className="text-base font-bold text-[#1a1a2e]">외부 방문자 통계</h2>
+              {visitors?.excludedAdmin ? (
+                <span className="text-xs text-gray-400">({visitors.excludedAdmin} 제외)</span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={loadVisitors}
+              disabled={visitorsLoading}
+              className="text-xs text-gray-500 hover:text-[#7C5CFC] inline-flex items-center gap-1"
+            >
+              <RefreshCw className={`w-3 h-3 ${visitorsLoading ? 'animate-spin' : ''}`} />
+              새로고침
+            </button>
+          </div>
+
+          {visitorsError ? (
+            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              ⚠ {visitorsError}. PostHog 사이트 직접 접속:{' '}
+              <a href="https://us.posthog.com" target="_blank" rel="noopener noreferrer" className="underline">us.posthog.com</a>
+            </p>
+          ) : visitors ? (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-500">오늘</p>
+                  <p className="text-2xl font-bold text-[#7C5CFC] mt-1">{visitors.today.uniqueVisitors.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">방문자</p>
+                </div>
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-500">최근 7일</p>
+                  <p className="text-2xl font-bold text-[#7C5CFC] mt-1">{visitors.week.uniqueVisitors.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">방문자 합</p>
+                </div>
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-500">최근 30일</p>
+                  <p className="text-2xl font-bold text-[#7C5CFC] mt-1">{visitors.month.uniqueVisitors.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">방문자 합</p>
+                </div>
+              </div>
+              {visitors.topPages.length > 0 ? (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">가장 많이 본 페이지 (7일)</h3>
+                  </div>
+                  <div className="space-y-1">
+                    {visitors.topPages.map((p, i) => (
+                      <div key={p.path} className="flex items-center justify-between text-sm">
+                        <span className="font-mono text-xs text-gray-700 truncate">{i + 1}. {p.path}</span>
+                        <span className="text-xs font-bold text-[#7C5CFC]">{p.pageviews.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : visitorsLoading ? (
+            <p className="text-sm text-gray-500">불러오는 중...</p>
+          ) : null}
+        </div>
 
         {/* ── Quick Links ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
