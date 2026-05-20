@@ -36,13 +36,49 @@ function distanceMeters(a, b) {
  * @param {object} itinerary  - 진단 대상 itinerary (mutated: quality_warnings 추가)
  * @param {object} anchor     - { lat, lng, label } hotel 또는 zone anchor 좌표
  */
-function validateLodgingBookend(itinerary, anchor) {
-  if (!anchor || anchor.lat == null || anchor.lng == null) {
-    console.log('[validator] LODGING BOOKEND skip — anchor coord 없음');
-    return;
-  }
+function validateLodgingBookend(itinerary, anchor, isMultiCity) {
+  // P127 (2026-05-20): multi-city plan 일 때 single global anchor (예: 첫 도시 호텔)
+  // 기준 검증은 도시 전환 day 마다 false-positive 5건+ 발생 (plan 209de47b / 5aeeecef
+  // 회귀). 다도시 → 각 day 의 lodging stop (stops 안의 첫 lodging category) 좌표
+  // 기준 그 day 검증으로 분기.
   const THRESHOLD_M = 5000;
   const warnings = [];
+
+  if (isMultiCity) {
+    // P127: day-level anchor — 각 day 의 lodging stop 자체 좌표 기준 그 day 의
+    // 다른 stops 가 5km 이내인지 검증. day-anchor 좌표 없으면 그 day skip.
+    for (let i = 0; i < (itinerary.days || []).length; i++) {
+      const stops = itinerary.days[i].stops || [];
+      if (stops.length === 0) continue;
+      const dayLodging = stops.find((s) => s?.category === 'lodging' && s?.lat != null && s?.lng != null);
+      if (!dayLodging) continue;
+      const dayAnchor = { lat: dayLodging.lat, lng: dayLodging.lng };
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      const firstDist = distanceMeters(first, dayAnchor);
+      const lastDist = distanceMeters(last, dayAnchor);
+      if (firstDist != null && firstDist > THRESHOLD_M) {
+        warnings.push({ day: i + 1, position: 'first', stopName: first.name || first.display_name, distM: firstDist, anchorBasis: 'day-lodging' });
+      }
+      if (lastDist != null && lastDist > THRESHOLD_M) {
+        warnings.push({ day: i + 1, position: 'last', stopName: last.name || last.display_name, distM: lastDist, anchorBasis: 'day-lodging' });
+      }
+    }
+    if (warnings.length > 0) {
+      console.warn('[validator] LODGING BOOKEND (multi-city day-anchor) 위반:', warnings.map((w) => `Day${w.day} ${w.position}=${w.stopName} (${w.distM}m)`).join(' | '));
+      itinerary.quality_warnings = itinerary.quality_warnings || [];
+      itinerary.quality_warnings.push({ type: 'lodging_bookend_violation', anchor: 'multi-city-day-anchor', items: warnings });
+    } else {
+      console.log('[validator] LODGING BOOKEND (multi-city day-anchor) OK — 모든 day 의 stops 가 그 day lodging 5km 이내');
+    }
+    return;
+  }
+
+  // 단도시 (regions.length<=1) — 기존 logic (단일 global anchor)
+  if (!anchor || anchor.lat == null || anchor.lng == null) {
+    console.log('[validator] LODGING BOOKEND skip — anchor coord 없음 (단도시)');
+    return;
+  }
   for (let i = 0; i < (itinerary.days || []).length; i++) {
     const stops = itinerary.days[i].stops || [];
     if (stops.length === 0) continue;
@@ -194,7 +230,10 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
         anchorCoord = { lat: dh.anchor_lat, lng: dh.anchor_lng, label: dh.anchor_label || hotel_address || 'lodging' };
       }
     }
-    validateLodgingBookend(itinerary, anchorCoord);
+    // P127 (2026-05-20): multi-city plan 에는 day-level anchor 사용. 단일 global
+    // anchor (첫 도시 호텔) 기준 검증이 도시 전환 day false-positive 5건+ 발생.
+    const isMultiCityForBookend = Array.isArray(body?.regions) && body.regions.length >= 2;
+    validateLodgingBookend(itinerary, anchorCoord, isMultiCityForBookend);
 
     // B-11 diag (2026-05-12): RouteAgent 후 최종 결과 요약. validate-prod-baseline
     // B-7 검증과 대응 — transit_from_prev attach 비율 출력. 0/N 이면 RouteAgent

@@ -507,6 +507,70 @@ export function validatePatternStructure(itinerary, request = {}) {
     }
   }
 
+  // P124 (2026-05-20): B-LATE-ARRIVAL / B-EARLY-DEPARTURE — Day 1/N 의 늦은 도착
+  // / 이른 출국 edge case. plan 5aeeecef 회귀: arrival 23:05 인데 Day1 stops 01:10
+  // /02:03/02:37 새벽 활동. arrival_time + 9h sleep buffer 강제.
+  const parseHHMM = (s) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    if (!Number.isFinite(h) || !Number.isFinite(mi) || h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+    return h * 60 + mi;
+  };
+  const arrivalMin = parseHHMM(request.arrival_time || request.arrivalTime);
+  const departureMin = parseHHMM(request.departure_time || request.departureTime);
+
+  // B-LATE-ARRIVAL: Day 1 검증
+  if (arrivalMin !== null) {
+    const day1 = days[0];
+    const day1Stops = Array.isArray(day1?.stops) ? day1.stops : [];
+    const minActivityMin = arrivalMin + 9 * 60; // arrival + 1h transit + 8h sleep
+    const wrapToNextDay = minActivityMin >= 24 * 60;
+    if (wrapToNextDay && day1Stops.length > 2) {
+      errors.push(`Day 1: arrival_time=${request.arrival_time || request.arrivalTime} + 9h sleep buffer = 다음날 새벽 → Day 1 = lodging 2 stops 만 의무. 현재 stops=${day1Stops.length} (B-LATE-ARRIVAL)`);
+    }
+    // Day 1 의 lodging 외 카테고리 stops 검증
+    for (const stop of day1Stops) {
+      if (stop?.category === 'lodging' || stop?.category === 'airport' || stop?.category === 'travel') continue;
+      const stopMin = parseHHMM(stop?.start_time);
+      if (stopMin === null) continue;
+      // Day 1 same-day 활동 stops (arrival 이후, 다음날 새벽 wrap 안 한 경우)
+      if (!wrapToNextDay && stopMin >= arrivalMin && stopMin < minActivityMin) {
+        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} < arrival+9h sleep buffer (B-LATE-ARRIVAL)`);
+      }
+      // 새벽 활동 (hour < 5) 일반 stops 금지 (단 lodging 도착 stop 만 허용)
+      const stopHour = Math.floor(stopMin / 60);
+      if (stopHour < 5) {
+        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" 새벽 활동 (start_time=${stop.start_time}, hour<5, category=${stop.category}) (B-LATE-ARRIVAL)`);
+      }
+    }
+  }
+
+  // B-EARLY-DEPARTURE: Day N 검증
+  if (departureMin !== null && days.length > 0) {
+    const lastDayIdx = days.length - 1;
+    const dayN = days[lastDayIdx];
+    const dayNStops = Array.isArray(dayN?.stops) ? dayN.stops : [];
+    const maxActivityMin = departureMin - 3 * 60; // departure - 3h 공항 buffer
+    const isRedEye = departureMin < 9 * 60; // 09:00 이전 출국 = 새벽 출국
+    if (isRedEye && dayNStops.length > 2) {
+      errors.push(`Day ${lastDayIdx + 1} (출국일): departure_time=${request.departure_time || request.departureTime} red-eye → 호텔 체크아웃 + airport 2 stops 만 의무. 현재 stops=${dayNStops.length} (B-EARLY-DEPARTURE)`);
+    }
+    for (const stop of dayNStops) {
+      if (stop?.category === 'lodging' || stop?.category === 'airport' || stop?.category === 'travel') continue;
+      const stopMin = parseHHMM(stop?.start_time);
+      if (stopMin === null) continue;
+      if (stopMin > maxActivityMin && stopMin < departureMin) {
+        errors.push(`Day ${lastDayIdx + 1} stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} > departure-3h 공항 buffer (B-EARLY-DEPARTURE)`);
+      }
+      const stopHour = Math.floor(stopMin / 60);
+      if (stopHour < 5 && isRedEye) {
+        errors.push(`Day ${lastDayIdx + 1} stop "${stop.name || stop.display_name || '?'}" 출국일 새벽 활동 (hour<5, category=${stop.category}) (B-EARLY-DEPARTURE)`);
+      }
+    }
+  }
+
   return errors;
 }
 

@@ -375,6 +375,52 @@ No markdown. No code blocks. No explanation. Pure JSON only.
       체크아웃 (예: "Busan hotel checkout 09:00"), 마지막 lodging = destination city
       체크인 (예: "Seoul hotel check-in 21:00"). intercity_transit 객체는 별도로 분리
       (## MULTI-CITY HANDLING 참조).
+
+### 🔴 ARRIVAL DAY HANDLING — STRICT (P124, 2026-05-20)
+사용자 input 의 \`arrival_time\` (예: "23:05") 를 받으면 **Day 1 의 stops 시간 구성을
+강제 분기**. 늦은 도착 / 새벽 도착 시 새벽 stops 박지 말 것.
+
+**Logic**:
+- **stops[0]** (lodging 체크인) start_time = arrival_time + 60min (공항→호텔 transit)
+- **stops[1+]** (실제 활동) start_time **≥ arrival_time + 9h** (1h transit + 8h sleep buffer 강제)
+- arrival_time + 9h 가 다음날 새벽 (00:00-04:59) 으로 wrap 되면 → **Day 1 = lodging stop 2개만**
+  (체크인 + Day 2 부터 본격 일정)
+
+**예시**:
+| arrival_time | Day 1 첫 활동 시작 | Day 1 stops 수 |
+|---|---|---|
+| 23:05 | 다음날 08:05 → Day 1 풀 day (아침 08:05 부터) | 5-7개 |
+| 03:00 | 12:00 (점심부터) | 4-5개 |
+| 06:00 | 15:00 (오후만) | 3-4개 |
+| 19:00 | 다음날 04:00 (wrap) → Day 1 = 체크인만 | 2개 (lodging 만) |
+| 12:00 | 21:00 → Day 1 저녁만 | 2-3개 |
+
+**NEVER**:
+- Day 1 stops 의 start_time 이 \`arrival_time\` 과 \`arrival_time + 60min\` 사이 (transit 중)
+- Day 1 의 lodging 외 카테고리 stop start_time hour ∈ [00, 04] (새벽 활동)
+- Day 1 새벽 식당 / 새벽 관광 (한국 새벽 운영 시설 거의 없음)
+
+### 🔴 DEPARTURE DAY HANDLING — STRICT (P124, 2026-05-20)
+사용자 input 의 \`departure_time\` 을 받으면 **Day N (마지막 day) stops 의 시간 상한
+강제**.
+
+**Logic**:
+- **stops 의 모든 start_time ≤ departure_time - 180min** (공항 buffer 3h 강제 — 체크인 + 보안 + 면세)
+- **stops[last]** (공항 이동 stop) start_time = departure_time - 180min (공항 도착 시각)
+- departure_time < 09:00 (red-eye / 새벽 출국) → **Day N = lodging 체크아웃 + airport 2 stops 만**
+  (사용자 잠은 Day N-1 저녁 후)
+
+**예시**:
+| departure_time | Day N 마지막 활동 종료 | Day N stops 수 |
+|---|---|---|
+| 05:05 (red-eye) | 02:00 호텔 체크아웃 → 03:00 공항 | 2개 (lodging + airport) |
+| 09:00 | 06:00 (아침 식사만) → 06:30 공항 | 3-4개 |
+| 14:00 | 11:00 (점심) → 11:30 공항 | 5-6개 |
+| 22:00 | 19:00 (저녁) → 19:30 공항 | 풀 day 6-7개 |
+
+**NEVER**:
+- Day N stops 의 start_time > \`departure_time - 180min\` (공항 buffer 무시)
+- Day N 의 lodging 외 카테고리 stop start_time hour ∈ [00, 04] (출국 직전 새벽 활동)
   - First stop of EVERY day: near hotel or arrival point. 첫 stop은 숙소에서 30분 이내 이동 가능한 곳이어야 함.
   - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
   - 마지막 stop 종료 후 숙소까지 도보/지하철 30분 이상 걸리면 → 더 가까운 stop 으로 교체
