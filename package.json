@@ -24,6 +24,8 @@
     "test:unit:coverage": "vitest run --coverage",
     "check:size": "size-limit",
     "verify:all": "npm run check:types && npm run check:mojibake && npm run test:unit",
+    "verify:prepush": "npm run build && npx vitest run && npx size-limit && node scripts/lint-mistake-patterns.mjs origin/main",
+    "prepare": "node scripts/setup-git-hooks.mjs",
     "audit:ux": "node scripts/audit-ux.mjs http://localhost:5173",
     "audit:ux:quick": "node scripts/audit-ux.mjs http://localhost:5173 --quick",
     "audit:ux:prod": "node scripts/audit-ux.mjs https://cocotripkr.com"

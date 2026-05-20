@@ -1,0 +1,55 @@
+#!/bin/sh
+# CocoTrip pre-push hook — 4-piece Vercel parity verification.
+# Checks: full build (tsc -b && vite build), vitest run, size-limit, mistake-lint.
+# Goal: 같은 명령을 push 전 로컬에서 실행해 Vercel preview build 회귀 차단.
+# Bypass (explicit user approval 만): SKIP_PREPUSH=1 git push  OR  git push --no-verify
+
+set -e
+
+# CI / Vercel build 머신은 본 hook 부재. 만약 어떤 경로로 호출돼도 자동 skip.
+if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ "$VERCEL" = "1" ]; then
+  exit 0
+fi
+
+if [ "$SKIP_PREPUSH" = "1" ]; then
+  echo "[pre-push] SKIP_PREPUSH=1 — bypass (use only with explicit user approval)"
+  exit 0
+fi
+
+echo "[pre-push] Running 4-piece full verification (Vercel parity)..."
+START=$(date +%s)
+
+LOGDIR="${TMPDIR:-/tmp}"
+mkdir -p "$LOGDIR" 2>/dev/null || true
+
+run_step() {
+  step_num="$1"
+  step_label="$2"
+  shift 2
+  log="$LOGDIR/cocotrip-prepush-step-$step_num.log"
+  echo "[pre-push] ($step_num/4) $step_label..."
+  if ! "$@" >"$log" 2>&1; then
+    echo "[pre-push] STEP $step_num FAILED ($step_label). tail of $log:"
+    tail -50 "$log" 2>/dev/null || cat "$log"
+    echo ""
+    echo "[pre-push] Bypass (only after fix): SKIP_PREPUSH=1 git push  /  git push --no-verify"
+    exit 1
+  fi
+}
+
+# 1. Full build: tsc -b && vite build (Vercel 와 동일)
+#    P117: tsc --noEmit 만 돌리면 noUnusedLocals / build-strict 누락. -b 가 잡음.
+run_step 1 "npm run build (= tsc -b && vite build)" npm run build
+
+# 2. Vitest unit suite
+run_step 2 "npx vitest run (full unit suite)" npx --no-install vitest run
+
+# 3. size-limit (bundle 회귀 차단)
+run_step 3 "npx size-limit" npx --no-install size-limit
+
+# 4. lint-mistake-patterns (오답노트 P-pattern grep 게이트)
+run_step 4 "node scripts/lint-mistake-patterns.mjs origin/main" node scripts/lint-mistake-patterns.mjs origin/main
+
+END=$(date +%s)
+echo "[pre-push] All 4 checks passed in $((END - START))s."
+exit 0

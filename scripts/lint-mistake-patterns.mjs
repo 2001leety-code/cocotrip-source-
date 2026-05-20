@@ -1013,6 +1013,7 @@ const RULES = [
   ['P114_dbMatcherPerDayCity', P114_dbMatcherPerDayCity],
   ['P115_planMarkdownFallback', P115_planMarkdownFallback],
   ['P116_lodgingBookendLabel', P116_lodgingBookendLabel],
+  ['P118_prePushHookContent', P118_prePushHookContent],
 ];
 
 /**
@@ -2042,6 +2043,73 @@ function P116_lodgingBookendLabel({ changed }) {
       'P116_lodgingBookendLabel',
       violations.join(' | '),
       '메모리 P116 — lodging bookend 호텔 카드 첫/마지막/중간 구분 라벨 (checkout/depart/checkin/return). StopCard LodgingRole 타입 + 4-lang + 가드 badge + computeLodgingRole 헬퍼 + SortableStopCard forward. tests/unit/lodging-bookend-label-pr116.test.tsx 13 케이스.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P118_prePushHookContent — 메모리 P118 (2026-05-20 자율 검증 사각지대 closure).
+ * scripts/git-hooks/pre-push 가 Vercel parity 4-piece (tsc -b / vitest / size-limit /
+ * mistake-lint) 다 포함하는지 file 전체 검사. + setup-git-hooks.mjs 존재 검사
+ * (없으면 hook 활성화 mechanism 자체 부재).
+ *
+ * 카테고리: L0 (메타 — 자율 검증 게이트 자체 보호).
+ *
+ * 왜:
+ *   - 2026-05-20 6 PR 회귀: 사용자가 `npx tsc --noEmit` 만 돌리고 commit → Vercel
+ *     build 단계 (`tsc -b`) 가 noUnusedLocals 검출 → preview build fail. 5 iteration.
+ *   - 해결: pre-push 가 `npm run build` 자동 실행 → push 전 차단. 본 lint 가 hook
+ *     자체 회귀 (누군가 vitest / size-limit 등 step 삭제) 영구 차단.
+ *
+ * self-test sandbox 임시 dir 에는 vite.config.ts / vercel.json / package.json 셋 다
+ * 없으므로 → 그 환경에선 자동 skip. P118 case 는 명시적으로 hook 파일을 base/head 에
+ * 풀어놓는다.
+ */
+function P118_prePushHookContent({ changed: _changed }) {
+  const HOOK = 'scripts/git-hooks/pre-push';
+  const SETUP = 'scripts/setup-git-hooks.mjs';
+
+  const isRealRepo =
+    existsSync('vite.config.ts') ||
+    existsSync('vercel.json') ||
+    existsSync(HOOK) ||
+    existsSync(SETUP);
+  if (!isRealRepo) return { skipped: true };
+
+  const violations = [];
+
+  if (!existsSync(HOOK)) {
+    violations.push(
+      `${HOOK} 부재 — push 전 Vercel parity 검증 자동화 누락 (build/vitest/size/lint).`,
+    );
+  } else {
+    const content = readFileSync(HOOK, 'utf8');
+    const required = [
+      { name: 'npm run build (tsc -b + vite build)', pattern: /(npm\s+run\s+build|tsc\s+-b)/ },
+      { name: 'vitest run', pattern: /vitest\s+run/ },
+      { name: 'size-limit', pattern: /size-limit/ },
+      { name: 'lint-mistake-patterns.mjs', pattern: /lint-mistake-patterns\.mjs/ },
+    ];
+    const missing = required.filter((r) => !r.pattern.test(content));
+    if (missing.length > 0) {
+      violations.push(
+        `${HOOK} 4-piece 검증 중 ${missing.length}개 누락: ${missing.map((m) => m.name).join(', ')}`,
+      );
+    }
+  }
+
+  if (!existsSync(SETUP)) {
+    violations.push(
+      `${SETUP} 부재 — hook 파일이 있어도 git config core.hooksPath 자동 등록 안 됨 (npm install 후 활성화 mechanism 없음).`,
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P118_prePushHookContent',
+      violations.join(' | '),
+      '메모리 P118 — pre-push 4-piece (build / vitest / size-limit / mistake-lint) + setup-git-hooks.mjs (prepare 단계 activation) 둘 다 유지 필수.',
     );
   }
   return null;
@@ -4592,6 +4660,51 @@ function runSelfTest() {
       },
       expectRule: 'P96_longRunningEndpointInstrumentation',
       expectClean: true, // 패턴 모두 갖춤 — 룰 silent (정상)
+    },
+    {
+      label: 'P118: pre-push hook 부재 + setup-git-hooks.mjs 만 존재 (활성화 mechanism 만)',
+      base: {
+        'vite.config.ts': '// marker for isRealRepo',
+        'scripts/setup-git-hooks.mjs': '// activator',
+      },
+      head: {
+        'vite.config.ts': '// marker for isRealRepo',
+        'scripts/setup-git-hooks.mjs': '// activator',
+      },
+      expectRule: 'P118_prePushHookContent',
+    },
+    {
+      label: 'P118: pre-push 에서 vitest run 행 제거 — 4-piece 위반',
+      base: {
+        'vite.config.ts': '// marker',
+        'scripts/setup-git-hooks.mjs': '// activator',
+        'scripts/git-hooks/pre-push':
+          '#!/bin/sh\nnpm run build\nnpx vitest run\nnpx size-limit\nnode scripts/lint-mistake-patterns.mjs origin/main\n',
+      },
+      head: {
+        'vite.config.ts': '// marker',
+        'scripts/setup-git-hooks.mjs': '// activator',
+        'scripts/git-hooks/pre-push':
+          '#!/bin/sh\nnpm run build\nnpx size-limit\nnode scripts/lint-mistake-patterns.mjs origin/main\n',
+      },
+      expectRule: 'P118_prePushHookContent',
+    },
+    {
+      label: 'P118: pre-push + setup-git-hooks 모두 정상 4-piece — false positive 차단',
+      base: {
+        'vite.config.ts': '// marker',
+        'scripts/setup-git-hooks.mjs': '// activator',
+        'scripts/git-hooks/pre-push':
+          '#!/bin/sh\nnpm run build\nnpx vitest run\nnpx size-limit\nnode scripts/lint-mistake-patterns.mjs origin/main\n',
+      },
+      head: {
+        'vite.config.ts': '// marker',
+        'scripts/setup-git-hooks.mjs': '// activator',
+        'scripts/git-hooks/pre-push':
+          '#!/bin/sh\nnpm run build\nnpx vitest run\nnpx size-limit\nnode scripts/lint-mistake-patterns.mjs origin/main\n',
+      },
+      expectRule: 'P118_prePushHookContent',
+      expectClean: true, // 4-piece 갖춤 — 룰 silent (정상)
     },
   ];
 

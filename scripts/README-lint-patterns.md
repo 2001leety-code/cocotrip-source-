@@ -9,6 +9,7 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 
 | 카테고리 | 자동 게이트 | 위치 | 잡는 회귀 예 |
 |---|---|---|---|
+| **L0: 자율 검증 게이트 자체** | mistake-lint R-P118 + pre-push 자체 | `scripts/git-hooks/pre-push` + `scripts/setup-git-hooks.mjs` + `R-P118` | P118 (pre-push 의 vitest/size/lint step 삭제), hook 자체 활성화 누락 |
 | **L1: 코드 grep 패턴** | mistake-lint | `scripts/lint-mistake-patterns.mjs` + `pr-mistake-lint.yml` | P5 (food index 삭제), P7 (PDF position), P95 (SDK enable-funding 코드 라인) |
 | **L2: 외부 API contract** | SDK preflight | `scripts/preflight-sdk-urls.mjs` + `pr-sdk-preflight.yml` | P95 런타임 (PayPal CDN 400), 미래 Gemini/Naver SDK reject |
 | **L3: PDF 런타임** | ⏳ 후속 도입 | (계획) Vercel preview + Playwright + pdf-parse | P92 byte-output cut-off, 한글 폰트 깨짐 |
@@ -47,6 +48,7 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 | `P32_sprinterGuideDedup` | P32 | `useQuoteCalculator.ts` 의 `licensed_guide` push 라인 주변 ±400 chars 에 sprinter dedup 가드 (`vehicle !== 'sprinter'`) 부재 | specific file + 위치 window |
 | `P33_comboHardcode` | P33 | `TourPackageInlineAd.tsx` / `createPaypalOrder.js` / `_shared/pricing.js` 에 `combo_airport_*` 가까이 `priceKRW: <정수 5자리+>` 하드코딩 (SSOT 함수 호출 X) | specific TARGETS |
 | `P34_priceUsdConsistency` | P34 | `pricing_spec.json` 의 `priceUSD` 가 `policy_krw_per_usd` 환율 기준 `round(priceKRW / rate) ± 1` 와 drift | SSOT file |
+| `P118_prePushHookContent` | P118 (메타) | `scripts/git-hooks/pre-push` 부재 또는 4-piece (npm run build / vitest run / size-limit / lint-mistake-patterns.mjs) 중 누락. `scripts/setup-git-hooks.mjs` (prepare 활성화기) 부재 | file 전체 (sandbox 임시 dir 자동 skip) |
 
 ## 실행 방법
 
