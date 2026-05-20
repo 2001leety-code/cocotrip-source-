@@ -9,7 +9,29 @@
  *   4. buildPhotoSrcSet 의 빈/누락 처리 (브라우저 src 만 fallback).
  *   5. legacy_public_path 우선순위 유지 (string URL > http url > legacy).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// CI 호환 (P117 follow-up): tours-firestore.ts → @/lib/firebase 가 top-level
+// getAuth() 호출 → VITE_FIREBASE_API_KEY 없으면 throw. 본 테스트는 순수 helper
+// (resolvePhotoUrl/buildPhotoSrcSet) 만 검증하므로 firebase client mock.
+vi.mock('@/lib/firebase', () => ({
+  db: {},
+  auth: {},
+  storage: {},
+  app: {},
+}));
+vi.mock('firebase/firestore', () => ({
+  doc: vi.fn(),
+  setDoc: vi.fn(),
+  getDoc: vi.fn(),
+  deleteDoc: vi.fn(),
+  collection: vi.fn(),
+  getDocs: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+  serverTimestamp: vi.fn(),
+}));
+
 import { resolvePhotoUrl, buildPhotoSrcSet } from '../../src/lib/tours-firestore';
 
 describe('resolvePhotoUrl — Phase 4 backward compat', () => {
