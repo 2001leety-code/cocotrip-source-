@@ -262,10 +262,15 @@ export default async function handler(req, res) {
     // SAFETY-CRITICAL (CLAUDE.md J): mode 결정은 dietary validation 에 영향 없음.
     // 1-pass / 3-pass 모두 동일한 validateResponse + hasCriticalDietaryViolation 적용.
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
+    // P102 (2026-05-20): isAdminBypass 를 decidePlannerMode 에 전달 → admin Test
+    // Mode 는 항상 'legacy'. 3-pass 는 Pass1+Pass2+Pass3 = 90-150s + retry 시 5분
+    // cap 도달 → Test Mode 클릭 시 client 5min timeout (handlePaymentSuccess).
+    // customer 흐름은 변동 없음 (isAdminBypass=false).
     const abDecision = decidePlannerMode({
       uid,
       guestEmail: authenticatedEmail,
       sessionId,
+      isAdminBypass: !!gate.isAdminBypass,
     });
     const PLANNER_MODE = abDecision.mode;
     resolvedPlannerMode = PLANNER_MODE;  // expose to catch-block sentry context
