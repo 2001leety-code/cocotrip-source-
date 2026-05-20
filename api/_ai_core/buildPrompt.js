@@ -396,6 +396,7 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
 - \`theme\` 도 city prefix 권장: "Busan Day 1 — 해운대 & 광안리"
 - regions.length === 1 (단일 도시) 이면 \`city\` 필드 생략 가능 (frontend 가 regions[0] fallback).
 - **(PDF-issue-3, 2026-05-14)** 다도시 plan 의 각 day 에 \`days[].lodging_city\` 도 명시 (어느 city 에서 자는지). 보통 \`day.city\` 와 동일하지만 city-change day 의 lodging 이 도착 city 인 경우는 \`lodging_city = intercity_transit.to_city\` 로 일치시킴.
+- **(P119, 2026-05-20)** 모든 day 에 \`days[].lodging\` 객체 필드 (호텔 \`name\` + \`address\`) **반드시 명시**. \`day.lodging.name\` = 그 day stops[] 의 첫 \`category="lodging"\` stop name 과 동일. 단도시 plan 이면 모든 day 의 \`day.lodging\` 동일 호텔. 다도시 plan 의 도시 변경 day 는 \`day.lodging\` 이 **새 도시 호텔** (\`day.city\` 값과 일치). 누락 시 백엔드 RouteAgent Phase 2.4 가 \`prevDayHotelCoord\` 못 찾아 intercity KTX/Air bookend stop 생성 실패 → 사용자 동선 가이드 누락.
 
 ### 3. 도시가 바뀌는 day 처리 (CRITICAL)
 - 그 day 첫 stop 으로 \`category:"transit"\` "KTX 부산→서울" 같은 가짜 stop **절대 추가하지 말 것**.
