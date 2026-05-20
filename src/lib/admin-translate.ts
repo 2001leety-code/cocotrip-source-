@@ -6,7 +6,10 @@
 // /api/admin-translate 호출. Firebase ID token 필요 (admin only).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { User } from 'firebase/auth';
-import type { I18nString } from '@/data/tours';
+
+// P117 (2026-05-20): I18nString import 제거 — Phase 5 변경 후 LangCode 만 사용.
+// Phase 4 는 targets?: Array<keyof I18nString & ('en'|'ja'|'zh')> 였으나
+// Phase 5 는 LangCode 로 단순화.
 
 export type LangCode = 'ko' | 'en' | 'ja' | 'zh';
 

@@ -18,12 +18,8 @@ const HEADING: Record<Language, string> = {
   zh: '选择时间',
 };
 
-const CAPACITY_LABEL: Record<Language, string> = {
-  ko: '정원',
-  en: 'Capacity',
-  ja: '定員',
-  zh: '名额',
-};
+// P117 (2026-05-20): CAPACITY_LABEL 미사용 (formatCapacity 가 이미 "8명/8 pax"
+// 형태로 capacity 자체를 라벨링). 향후 분리된 헤더 라벨 필요 시 복원.
 
 const BASE_PRICE: Record<Language, string> = {
   ko: '기본가',
