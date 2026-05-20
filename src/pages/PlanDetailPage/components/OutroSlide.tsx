@@ -1,12 +1,15 @@
 // Outro slide: PDF download, WhatsApp, revision card, seasonal banner.
 // Last slide in the swipe carousel.
-import { Download, MessageCircle } from 'lucide-react';
+import { Download, MessageCircle, FileText } from 'lucide-react';
+import { useState } from 'react';
 import { BudgetTable } from './BudgetTable';
 import { DepartureGuide } from './DepartureGuide';
 import { SeasonalBanner } from './SeasonalBanner';
 import { RevisionCard } from './RevisionCard';
 import { ShareButton } from './ShareButton';
 import { HotelAd } from './ads/HotelAd';
+import { toast } from 'sonner';
+import { downloadPlanAsMarkdown } from '../lib/planToMarkdown';
 // B9-17 (2026-05-09): TRIP EXTRAS 차터 — 기존 WhatsApp 문의 modal 패턴 (legacy
 // CharterBanner) 에서 인라인 결제 패턴 (CharterInlineAd) 으로 통일. PreTripSlide
 // 와 동일 funnel — 사용자가 wrap-up / pre-trip 어디서든 같은 흐름으로 결제 가능.
@@ -31,9 +34,37 @@ interface OutroSlideProps {
 }
 
 export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating, isOwner, onDownloadPDF }: OutroSlideProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
+
+  // P115 (2026-05-20): Markdown fallback download. PDF 깨질 때 사용자가
+  // "텍스트로 다운로드" 클릭 → .md 파일 받음. 메모장/Notion/Apple Notes 어디서나
+  // 열림 + 사진 없는 단순 텍스트라 깨질 일 X.
+  const [isMdDownloading, setIsMdDownloading] = useState(false);
+  const handleDownloadMarkdown = () => {
+    try {
+      setIsMdDownloading(true);
+      const planUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/my-plans/${planId}`
+        : undefined;
+      downloadPlanAsMarkdown(plan, { language, planUrl });
+      toast.success(
+        language === 'ko' ? '텍스트 파일 다운로드 완료 — 메모장/Notion 에서 열어보세요'
+        : language === 'ja' ? 'テキストファイルをダウンロードしました'
+        : language === 'zh' ? '文本文件下载完成'
+        : 'Text file downloaded — open in Notes/Notion/any text app',
+      );
+    } catch (err) {
+      console.error('[OutroSlide] Markdown download failed:', err);
+      toast.error(
+        language === 'ko' ? '다운로드 실패 — WhatsApp 으로 문의해주세요'
+        : 'Download failed — please contact us on WhatsApp',
+      );
+    } finally {
+      setIsMdDownloading(false);
+    }
+  };
 
   const it = plan.itinerary || {};
   const budget = it.daily_budget_summary || [];
@@ -84,6 +115,18 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
             <><Download className="w-5 h-5" /> {sw.outroPdfCta || 'Download PDF itinerary'}</>
           )}
         </button>
+        {/* P115 (2026-05-20): Markdown fallback download. PDF 깨질 때 사용자가
+            이거 누르면 .md 파일 받음 (메모장/Notion/Apple Notes 호환). 사진 X,
+            텍스트만. 모바일/iOS popup blocker 영향 적음. */}
+        <button onClick={handleDownloadMarkdown} disabled={isMdDownloading}
+          className="w-full py-3 rounded-2xl text-sm font-semibold text-white/85 flex items-center justify-center gap-2 border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] transition-colors disabled:opacity-60">
+          {isMdDownloading ? (
+            <><div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> 다운로드 중...</>
+          ) : (
+            <><FileText className="w-4 h-4 text-white/70" /> 텍스트로 다운로드 (.md)</>
+          )}
+        </button>
+
         <a href="https://wa.me/821087140611" target="_blank" rel="noopener noreferrer"
           className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-colors">
           <MessageCircle className="w-5 h-5 text-green-400" /> {sw.whatsappBooking || 'WhatsApp Booking'}

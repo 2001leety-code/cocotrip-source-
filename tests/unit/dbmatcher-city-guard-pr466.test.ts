@@ -231,7 +231,10 @@ describe('PR #466 X-H8 — source-level invariants', () => {
   });
 
   it('alert key follows canonical dedup form', () => {
-    expect(src).toMatch(/dbmatcher-city-mismatch:\$\{matchCity\s*\|\|\s*['"]unknown['"]\}/);
+    // P114 (2026-05-20): per-day matchCity 도입으로 alert key 는 trip-level
+    // tripMatchCity 사용. matchCity (구 변수명) 또는 tripMatchCity (신 변수명)
+    // 둘 다 허용 — 기존 PR #466 호환 + P114 호환.
+    expect(src).toMatch(/dbmatcher-city-mismatch:\$\{(matchCity|tripMatchCity)\s*\|\|\s*['"]unknown['"]\}/);
   });
 
   it('alert is fire-and-forget (.catch swallow)', () => {

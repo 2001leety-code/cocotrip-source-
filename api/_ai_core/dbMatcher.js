@@ -143,14 +143,27 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
   }
 
   // Normalize city name for matching (e.g., "seoul_city" → "seoul")
-  const matchCity = (city || '').replace(/_.*$/, '').toLowerCase();
+  const tripMatchCity = (city || '').replace(/_.*$/, '').toLowerCase();
+
+  // P114 (2026-05-20): per-day matchCity — multi-city plan 의 Busan day 식당이
+  // Seoul foodIndex 와 매칭되던 회귀 차단 (plan 4792076e: Jagalchi/Isaac Toast
+  // 부산 식당이 Seoul 주소로 override 됨).
+  //
+  // day.city 가 있으면 그걸 사용 (정규화 후), 없으면 trip-level area 폴백.
+  // single-city plan 은 day.city 가 trip area 와 같거나 undefined → 동일 동작.
+  function dayMatchCity(day) {
+    const dayCity = (day?.city || '').replace(/_.*$/, '').toLowerCase().trim();
+    return dayCity || tripMatchCity;
+  }
 
   let dbMatched = 0, dbUnmatched = 0;
   // PR #466 (X-H8): track city-mismatch occurrences across this call.
   let cityMismatchCount = 0;
   const cityMismatchSamples = [];
-  const allStops = (itinerary.days || []).flatMap(d => d.stops || []);
-  for (const stop of allStops) {
+  // P114: 평탄화 대신 day 단위 iterate — 각 stop 에 정확한 day.city 적용.
+  for (const day of (itinerary.days || [])) {
+    const matchCity = dayMatchCity(day);
+    for (const stop of (day.stops || [])) {
     // 모든 stop에 sanitize 적용 (food 카테고리 외에도 hallucination 가능)
     sanitizeStopNames(stop, lang);
 
@@ -163,6 +176,8 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
 
     // PR #466 (X-H8): prefer same-city match first. Only fall back to
     // other-city when no same-city match exists, and flag the result.
+    // P114: matchCity 가 trip-level 이 아닌 day-level — Busan day 식당이
+    // Seoul foodIndex 와 silent override 되던 회귀 차단.
     let match = findFoodIndexMatch(foodIndex, stopName, stopDisplayName, matchCity);
     let isCityMismatch = false;
 
@@ -218,7 +233,8 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
       stop.verified = false;
       dbUnmatched++;
     }
-  }
+    } // end per-stop (P114)
+  } // end per-day (P114)
   console.log(`[planner] DB Match: ${dbMatched} matched (${cityMismatchCount} city-mismatch), ${dbUnmatched} unmatched out of ${dbMatched + dbUnmatched} food stops`);
 
   // PR #466 (X-H8): admin alert when city-mismatch ratio is suspiciously high.
@@ -230,13 +246,13 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
     if (ratio > CITY_MISMATCH_RATIO_THRESHOLD) {
       const ratioPct = Math.round(ratio * 100);
       throttledTelegramAlert({
-        key: `dbmatcher-city-mismatch:${matchCity || 'unknown'}`,
+        key: `dbmatcher-city-mismatch:${tripMatchCity || 'unknown'}`,
         channel: 'admin',
         severity: 'high',
         message: [
           `⚠️ <b>DB matcher city-mismatch — ${ratioPct}% of food matches landed in wrong city</b>`,
           ``,
-          `<b>requested city:</b> ${matchCity || '(none)'}`,
+          `<b>requested city (trip):</b> ${tripMatchCity || '(none)'} <i>(P114: per-day matchCity 적용; samples 에 day별 city 포함)</i>`,
           `<b>mismatched:</b> ${cityMismatchCount} / ${dbMatched} matched food stops (${ratioPct}%)`,
           `<b>samples:</b>`,
           ...cityMismatchSamples.slice(0, 5).map((s) => `  • ${s.replace(/[<>&]/g, '_')}`),
@@ -250,7 +266,7 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
         ].join('\n'),
         context: {
           errorCode: 'dbmatcher_city_mismatch_high',
-          reason: matchCity || 'unknown',
+          reason: tripMatchCity || 'unknown',
           step: 'applyDBMatcher',
         },
       }).catch(() => {});

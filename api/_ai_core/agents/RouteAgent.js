@@ -2,6 +2,7 @@ import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 import { AIRPORT_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
+import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 
 // ── intercity station coordinates (PDF-issue-2 fix, 2026-05-14) ─────────
 // KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
@@ -886,6 +887,12 @@ export class RouteAgent extends BaseAgent {
             //   - station_to_lodging: intercity.to_station → 새 day hotel (예: 명동 호텔)
             // 사용자 PDF 검토에서 "부산호텔→부산역", "서울역→명동호텔" 표시 안 됨 → 본 fix.
             // UI (DayTimeline) 가 intercity 전후 segment 표시. ODsay 실패 시 graceful skip.
+            //
+            // P111 (2026-05-20): 4개 silent-fail 분기 모두 throttledTelegramAlert (P83 패턴)
+            // 발사. 이전엔 lookupStationCoord null / prevDayHotelCoord null / ODsay throw /
+            // dayHotel coord null 4가지 케이스가 silent → 사용자가 "서울→부산 KTX 가이드 없음"
+            // 으로 보고. dedup key: intercity-bookend-fail:{reason}:{from→to}.
+            const bookendFailReasons = [];
             if (isCityChangeDay && dayPlan.intercity_transit) {
                 const it = dayPlan.intercity_transit;
                 // PDF-issue-2 v4 (2026-05-14): Gemini 또는 fallback 가 from_station/to_station
@@ -906,9 +913,19 @@ export class RouteAgent extends BaseAgent {
                     }
                 }
                 // Phase 2.4a: 이전 day hotel → from_station
-                if (it.from_station && prevDayHotelCoord && prevDayHotelCoord.lat && prevDayHotelCoord.lng) {
+                // P111: 4 silent-fail 분기 explicit log + alert reason 누적.
+                if (!it.from_station) {
+                    bookendFailReasons.push(`pre:from_station_missing`);
+                    console.warn(`  - intercity bookend pre SKIP — from_station undefined`);
+                } else if (!prevDayHotelCoord || !prevDayHotelCoord.lat || !prevDayHotelCoord.lng) {
+                    bookendFailReasons.push(`pre:prev_hotel_coord_missing`);
+                    console.warn(`  - intercity bookend pre SKIP — prevDayHotelCoord lat/lng missing (Day ${dayPlan.day})`);
+                } else {
                     const fromStationCoord = lookupStationCoord(it.from_station);
-                    if (fromStationCoord) {
+                    if (!fromStationCoord) {
+                        bookendFailReasons.push(`pre:station_coord_missing:${it.from_station}`);
+                        console.warn(`  - intercity bookend pre SKIP — STATION_COORDS 에 '${it.from_station}' 미등록 (Day ${dayPlan.day})`);
+                    } else {
                         try {
                             const stationPlace = { lat: fromStationCoord.lat, lng: fromStationCoord.lng, name: it.from_station, display_name: it.from_station };
                             const prevHotelPlace = { lat: prevDayHotelCoord.lat, lng: prevDayHotelCoord.lng, name: prevDayHotelCoord.label || 'Hotel', display_name: prevDayHotelCoord.label || 'Hotel' };
@@ -928,14 +945,24 @@ export class RouteAgent extends BaseAgent {
                             };
                             console.log(`  - [${prevDayHotelCoord.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station.est_min}min (intercity bookend pre)`);
                         } catch (preErr) {
-                            console.warn(`  - intercity bookend pre (${it.from_station}) failed:`, preErr.message);
+                            bookendFailReasons.push(`pre:odsay_throw:${(preErr.message || 'unknown').slice(0, 60)}`);
+                            console.warn(`  - intercity bookend pre ODsay failed:`, preErr.message);
                         }
                     }
                 }
                 // Phase 2.4b: to_station → new day hotel
-                if (it.to_station && dayHotel.lat && dayHotel.lng) {
+                if (!it.to_station) {
+                    bookendFailReasons.push(`post:to_station_missing`);
+                    console.warn(`  - intercity bookend post SKIP — to_station undefined`);
+                } else if (!dayHotel.lat || !dayHotel.lng) {
+                    bookendFailReasons.push(`post:day_hotel_coord_missing`);
+                    console.warn(`  - intercity bookend post SKIP — dayHotel lat/lng missing (Day ${dayPlan.day}, source=${dayHotel.source})`);
+                } else {
                     const toStationCoord = lookupStationCoord(it.to_station);
-                    if (toStationCoord) {
+                    if (!toStationCoord) {
+                        bookendFailReasons.push(`post:station_coord_missing:${it.to_station}`);
+                        console.warn(`  - intercity bookend post SKIP — STATION_COORDS 에 '${it.to_station}' 미등록 (Day ${dayPlan.day})`);
+                    } else {
                         try {
                             const stationPlace = { lat: toStationCoord.lat, lng: toStationCoord.lng, name: it.to_station, display_name: it.to_station };
                             const newHotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
@@ -955,7 +982,77 @@ export class RouteAgent extends BaseAgent {
                             };
                             console.log(`  - [${it.to_station}→${dayHotel.label || 'Hotel'}] ${it.station_to_lodging.est_min}min (intercity bookend post)`);
                         } catch (postErr) {
-                            console.warn(`  - intercity bookend post (${it.to_station}) failed:`, postErr.message);
+                            bookendFailReasons.push(`post:odsay_throw:${(postErr.message || 'unknown').slice(0, 60)}`);
+                            console.warn(`  - intercity bookend post ODsay failed:`, postErr.message);
+                        }
+                    }
+                }
+
+                // P111 (2026-05-20): bookend silent fail 누적 시 throttledTelegramAlert.
+                // dedup key 에 from→to + 첫 reason 포함 → 같은 city pair 의 같은 원인은
+                // 5분 1회 (P67 throttle). user-facing 증상: 사용자가 "서울→부산 KTX 가이드
+                // 없음" 으로 보고. lodging_to_station + station_to_lodging 둘 다 없으면
+                // UI 는 IntercityTransitCard 만 표시 + LodgingBookend 미표시 → 호텔→역,
+                // 역→호텔 transit arrow 누락.
+                if (bookendFailReasons.length > 0) {
+                    const fromTo = `${it.from_city || '?'}→${it.to_city || '?'}`;
+                    const firstReason = bookendFailReasons[0].split(':')[0] + ':' + bookendFailReasons[0].split(':')[1];
+                    throttledTelegramAlert({
+                        key: `intercity-bookend-fail:${firstReason}:${fromTo}`,
+                        channel: 'admin',
+                        severity: 'high',
+                        message: [
+                            `⚠️ <b>intercity bookend silent fail — ${fromTo} (Day ${dayPlan.day || '?'})</b>`,
+                            ``,
+                            `<b>mode:</b> ${it.mode || '?'}`,
+                            `<b>from_station:</b> ${it.from_station || '(none)'}`,
+                            `<b>to_station:</b> ${it.to_station || '(none)'}`,
+                            `<b>prev_hotel:</b> ${prevDayHotelCoord ? prevDayHotelCoord.label || '(unlabeled)' : '(null)'} (${prevDayHotelCoord?.lat || '?'},${prevDayHotelCoord?.lng || '?'})`,
+                            `<b>day_hotel:</b> ${dayHotel.label || '(unlabeled)'} (${dayHotel.lat || '?'},${dayHotel.lng || '?'}, source=${dayHotel.source || '?'})`,
+                            `<b>reasons:</b> ${bookendFailReasons.join(' | ').slice(0, 400)}`,
+                            ``,
+                            `→ 사용자 plan UI 에서 호텔→역 / 역→호텔 transit arrow 누락.`,
+                            `→ user-facing 증상: "서울→부산 KTX 가이드가 그냥 부산 나옴" 류 신고.`,
+                            `→ 진단:`,
+                            `• prev_hotel_coord_missing → 이전 day 의 dayHotel.lat/lng 계산 실패 (Gemini day.lodging 누락 + recommended_zones 폴백 실패)`,
+                            `• day_hotel_coord_missing → 새 city 의 dayHotel.lat/lng 계산 실패 (recommended_zones[city] 또는 CITY_CENTER_COORDS 키 매핑 실패)`,
+                            `• station_coord_missing → STATION_COORDS 테이블에 미등록된 역명 (예: '대구역' vs '동대구역' 표기 차이)`,
+                            `• odsay_throw → ODsay API 호출 실패 (네트워크 / quota)`,
+                        ].join('\n'),
+                        context: {
+                            day: dayPlan.day,
+                            fromCity: it.from_city,
+                            toCity: it.to_city,
+                            mode: it.mode,
+                            reasons: bookendFailReasons,
+                            step: 'intercity-bookend',
+                        },
+                    }).catch(() => {});
+                }
+
+                // P113 (2026-05-20): intercity_transit.recommended_depart 시간 stitching.
+                // Gemini 가 recommended_depart 를 09:00 같은 임의 값으로 출력하면 stop1
+                // (호텔 체크아웃) 시간과 모순 — plan 4792076e: stop1=12:25 인데 KTX
+                // recommended_depart=09:00 → "KTX 가이드 09:00 인데 호텔 12:25 출발이면
+                // 늦음" 사용자 혼란. Phase 2.4 가 lodging_to_station 채웠으면 그 est_min
+                // 으로 stop1.start_time + transit 계산 → recommended_depart override.
+                // arrival_at 도 동시 stitch (depart + KTX duration).
+                if (it.lodging_to_station && Number.isFinite(it.lodging_to_station.est_min)
+                    && places.length > 0 && places[0].start_time) {
+                    const stop1Min = this._parseTime(places[0].start_time);
+                    if (Number.isFinite(stop1Min)) {
+                        const newDepartMin = stop1Min + Number(it.lodging_to_station.est_min);
+                        const oldDepart = it.recommended_depart || '(none)';
+                        const formattedDepart = this._formatTime(newDepartMin);
+                        if (formattedDepart) {
+                            it.recommended_depart = formattedDepart;
+                            // arrival_at = depart + KTX/Air/Bus duration (intercity_transit.est_min)
+                            if (Number.isFinite(it.est_min)) {
+                                const newArrivalMin = newDepartMin + Number(it.est_min);
+                                const formattedArrival = this._formatTime(newArrivalMin);
+                                if (formattedArrival) it.arrival_at = formattedArrival;
+                            }
+                            console.log(`  [Route] Day ${dayPlan.day || '?'}: intercity recommended_depart ${oldDepart} → ${formattedDepart} (stitched stop1=${places[0].start_time} + lodging→station=${it.lodging_to_station.est_min}min)`);
                         }
                     }
                 }
