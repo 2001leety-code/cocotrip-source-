@@ -1007,6 +1007,7 @@ const RULES = [
   ['P112_endTimeBackfill', P112_endTimeBackfill],
   ['P113_intercityTimeStitch', P113_intercityTimeStitch],
   ['P114_dbMatcherPerDayCity', P114_dbMatcherPerDayCity],
+  ['P115_planMarkdownFallback', P115_planMarkdownFallback],
 ];
 
 /**
@@ -1625,6 +1626,66 @@ function P114_dbMatcherPerDayCity({ changed }) {
       'P114_dbMatcherPerDayCity',
       violations.join(' | '),
       '메모리 P114 — applyDBMatcher 가 day 단위 iterate + dayMatchCity 헬퍼로 per-day matchCity 적용. multi-city plan 의 도시별 식당 매칭 정확도 보장. tests/unit/dbmatcher-per-day-city-pr114.test.ts 9 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P115_planMarkdownFallback — 메모리 P115 (2026-05-20, no-PR-yet).
+ *
+ * PDF 깨질 때 Markdown fallback. planToMarkdown + downloadPlanAsMarkdown helper
+ * + OutroSlide 의 "텍스트로 다운로드" 버튼 + intercity bookend (P111) 표시 의무.
+ * 사용자가 메모장/Notion/Apple Notes 등 어디서나 열 수 있는 텍스트 파일.
+ *
+ * 회귀 슬롯: tests/unit/plan-to-markdown-pr115.test.ts (12 케이스).
+ */
+function P115_planMarkdownFallback({ changed }) {
+  const violations = [];
+
+  const LIB = 'src/pages/PlanDetailPage/lib/planToMarkdown.ts';
+  if (isModified(LIB, changed)) {
+    const content = getChangedFileContent(LIB);
+    if (content) {
+      if (!/export\s+function\s+planToMarkdown/.test(content)) {
+        violations.push(`${LIB}: planToMarkdown 미export — pure helper 누락`);
+      }
+      if (!/export\s+function\s+downloadPlanAsMarkdown/.test(content)) {
+        violations.push(`${LIB}: downloadPlanAsMarkdown 미export — 브라우저 download 헬퍼 누락`);
+      }
+      // intercity bookend (P111 enrichment) 표시 의무
+      if (!/lodging_to_station/.test(content) || !/station_to_lodging/.test(content)) {
+        violations.push(`${LIB}: intercity bookend (lodging_to_station / station_to_lodging) 표시 누락 — P111 enrichment 결과 사용자 surface 안 됨`);
+      }
+      // Blob + text/markdown MIME
+      if (!/text\/markdown/.test(content)) {
+        violations.push(`${LIB}: Blob MIME 'text/markdown' 누락 — 사용자 OS 가 텍스트 앱으로 안 열 수 있음`);
+      }
+      // Safari setTimeout cleanup pattern
+      if (!/setTimeout\([^)]*URL\.revokeObjectURL/.test(content)) {
+        violations.push(`${LIB}: URL.revokeObjectURL setTimeout 누락 — Safari 비동기 timing 으로 download fail 위험`);
+      }
+    }
+  }
+
+  const OUTRO = 'src/pages/PlanDetailPage/components/OutroSlide.tsx';
+  if (isModified(OUTRO, changed) && /downloadPlanAsMarkdown/.test(getChangedFileContent(OUTRO) || '')) {
+    const content = getChangedFileContent(OUTRO);
+    if (content) {
+      if (!/from\s*['"]\.\.\/lib\/planToMarkdown['"]/.test(content)) {
+        violations.push(`${OUTRO}: planToMarkdown lib import 누락`);
+      }
+      if (!/handleDownloadMarkdown/.test(content)) {
+        violations.push(`${OUTRO}: handleDownloadMarkdown handler 누락 — toast 성공/실패 메시지 + try-catch 안전망`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P115_planMarkdownFallback',
+      violations.join(' | '),
+      '메모리 P115 — PDF fallback Markdown export. planToMarkdown + downloadPlanAsMarkdown + intercity bookend 표시 + Safari setTimeout cleanup. tests/unit/plan-to-markdown-pr115.test.ts 12 케이스.',
     );
   }
   return null;
