@@ -1019,6 +1019,8 @@ const RULES = [
   ['P121_qualityWarningsAdminPanel', P121_qualityWarningsAdminPanel],
   ['P122_multiCityLodgingPlaceholder', P122_multiCityLodgingPlaceholder],
   ['P123_hotelByCityForwarding', P123_hotelByCityForwarding],
+  ['P124_arrivalDepartureSleepBuffer', P124_arrivalDepartureSleepBuffer],
+  ['P127_lodgingBookendMultiCityAnchor', P127_lodgingBookendMultiCityAnchor],
 ];
 
 /**
@@ -2202,6 +2204,92 @@ function P121_qualityWarningsAdminPanel({ changed }) {
       'P121_qualityWarningsAdminPanel',
       violations.join(' | '),
       '메모리 P121 — QualityWarningsPanel + isAdminEmail 가드 + PlanDetailPage 통합 (ReviewList 직후) 3 layer 유지.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P124_arrivalDepartureSleepBuffer — 메모리 P124 (2026-05-20).
+ * plan 5aeeecef 회귀: arrival 23:05 인데 Day1 stops 01:10/02:03/02:37 새벽 활동.
+ * buildPrompt ARRIVAL/DEPARTURE DAY HANDLING block + responseValidator
+ * B-LATE-ARRIVAL/B-EARLY-DEPARTURE 룰 3 layer 검증.
+ */
+function P124_arrivalDepartureSleepBuffer({ changed }) {
+  const PROMPT = 'api/_ai_core/buildPrompt.js';
+  const VALIDATOR = 'api/_ai_core/responseValidator.js';
+  if (!isModified(PROMPT, changed) && !isModified(VALIDATOR, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(PROMPT)) {
+    const c = readFileSync(PROMPT, 'utf8');
+    if (!/ARRIVAL DAY HANDLING.*STRICT.*P124/s.test(c)) {
+      violations.push(`${PROMPT}: ARRIVAL DAY HANDLING (P124) block 누락`);
+    }
+    if (!/DEPARTURE DAY HANDLING.*STRICT.*P124/s.test(c)) {
+      violations.push(`${PROMPT}: DEPARTURE DAY HANDLING (P124) block 누락`);
+    }
+    if (!/arrival_time \+ 9h|arrival_time 9h sleep|9h sleep buffer/i.test(c)) {
+      violations.push(`${PROMPT}: 8h sleep buffer (arrival + 9h) logic 명시 누락`);
+    }
+  }
+
+  if (existsSync(VALIDATOR)) {
+    const c = readFileSync(VALIDATOR, 'utf8');
+    if (!/B-LATE-ARRIVAL/.test(c)) {
+      violations.push(`${VALIDATOR}: B-LATE-ARRIVAL 룰 누락`);
+    }
+    if (!/B-EARLY-DEPARTURE/.test(c)) {
+      violations.push(`${VALIDATOR}: B-EARLY-DEPARTURE 룰 누락`);
+    }
+    if (!/request\.arrival_time \|\| request\.arrivalTime/.test(c)) {
+      violations.push(`${VALIDATOR}: arrival_time / arrivalTime 양쪽 수용 logic 누락`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P124_arrivalDepartureSleepBuffer',
+      violations.join(' | '),
+      '메모리 P124 — Day 1/N 새벽 stops 0건 + 8h sleep buffer. buildPrompt + responseValidator 2 layer 의무.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P127_lodgingBookendMultiCityAnchor — 메모리 P127 (2026-05-20).
+ * plan 5aeeecef quality_warnings.lodging_bookend_violation = 5건 (multi-city 의도된 패턴).
+ * routeEnrichment.js validateLodgingBookend 가 multi-city 일 때 day-level anchor 사용.
+ */
+function P127_lodgingBookendMultiCityAnchor({ changed }) {
+  const ROUTE_ENRICH = 'api/_ai_core/routeEnrichment.js';
+  if (!isModified(ROUTE_ENRICH, changed)) return { skipped: true };
+  const violations = [];
+
+  if (existsSync(ROUTE_ENRICH)) {
+    const c = readFileSync(ROUTE_ENRICH, 'utf8');
+    if (!/validateLodgingBookend\s*\(\s*itinerary\s*,\s*anchor\s*,\s*isMultiCity/.test(c)) {
+      violations.push(`${ROUTE_ENRICH}: validateLodgingBookend signature 의 isMultiCity 인자 누락`);
+    }
+    if (!/P127|day-anchor|day-level anchor/i.test(c)) {
+      violations.push(`${ROUTE_ENRICH}: P127 day-level anchor logic 마커 누락`);
+    }
+    if (!/multi-city-day-anchor/.test(c)) {
+      violations.push(`${ROUTE_ENRICH}: 다도시 day-anchor 검증 분기 누락`);
+    }
+    if (!/validateLodgingBookend\s*\(\s*itinerary\s*,\s*anchorCoord\s*,\s*\w+/.test(c)) {
+      violations.push(`${ROUTE_ENRICH}: validateLodgingBookend 호출에 isMultiCity 인자 전달 누락`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P127_lodgingBookendMultiCityAnchor',
+      violations.join(' | '),
+      '메모리 P127 — multi-city plan false-positive 5건 차단. validateLodgingBookend(it, anchor, isMultiCity) signature + day-level anchor logic.',
     );
   }
   return null;
@@ -5042,6 +5130,34 @@ function runSelfTest() {
           "export function backfillDayLodging(itinerary) {}\n",
       },
       expectRule: 'P123_hotelByCityForwarding',
+    },
+    {
+      label: 'P124: buildPrompt 의 ARRIVAL DAY HANDLING (9h sleep buffer) block 누락',
+      base: {
+        'api/_ai_core/buildPrompt.js':
+          "// ARRIVAL DAY HANDLING — STRICT (P124, 2026-05-20)\n// arrival_time + 9h sleep buffer\n",
+        'api/_ai_core/responseValidator.js':
+          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n",
+      },
+      head: {
+        'api/_ai_core/buildPrompt.js':
+          "// arrival_time 단순 hint, sleep buffer 명시 X\n",
+        'api/_ai_core/responseValidator.js':
+          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n",
+      },
+      expectRule: 'P124_arrivalDepartureSleepBuffer',
+    },
+    {
+      label: 'P127: routeEnrichment 의 validateLodgingBookend signature 에 isMultiCity 인자 누락',
+      base: {
+        'api/_ai_core/routeEnrichment.js':
+          "// P127 day-level anchor\nfunction validateLodgingBookend(itinerary, anchor, isMultiCity) { /* multi-city-day-anchor */ }\nvalidateLodgingBookend(itinerary, anchorCoord, isMultiCity);\n",
+      },
+      head: {
+        'api/_ai_core/routeEnrichment.js':
+          "function validateLodgingBookend(itinerary, anchor) { }\nvalidateLodgingBookend(itinerary, anchorCoord);\n",
+      },
+      expectRule: 'P127_lodgingBookendMultiCityAnchor',
     },
   ];
 
