@@ -58,6 +58,108 @@ export function backfillStopEndTimes(itinerary) {
 }
 
 /**
+ * P119 (2026-05-20): day.lodging 필드 backfill. plan 4792076e dump 결과 모든
+ * day 의 day.lodging = undefined. RouteAgent Phase 2.4 의 prevDayHotelCoord null
+ * → KTX intercity bookend 누락 silent fail (P111 alert 대상). buildPrompt 보강
+ * (day.lodging 명시 지시) 의 안전망 — Gemini 비결정성으로 day.lodging 누락 시
+ * stops[] 의 첫 lodging category stop 으로 자동 채우기.
+ *
+ * 이미 day.lodging.name 있으면 override X.
+ */
+export function backfillDayLodging(itinerary) {
+  let filled = 0;
+  for (const day of (itinerary?.days || [])) {
+    if (day?.lodging && (day.lodging.name || day.lodging.address)) continue;
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+    const firstLodging = stops.find((s) => s?.category === 'lodging');
+    if (firstLodging) {
+      day.lodging = {
+        name: String(firstLodging.name || firstLodging.display_name || '').trim() || null,
+        address: String(firstLodging.address || '').trim() || null,
+      };
+      if (day.lodging.name || day.lodging.address) {
+        filled += 1;
+      }
+    }
+  }
+  if (filled > 0) console.log(`[planPersister] day.lodging backfilled: ${filled} days`);
+  return filled;
+}
+
+/**
+ * P120 (2026-05-20): 새벽 시간대 stops detect. plan 4792076e 의 Day3 00:31,
+ * Day4 01:24, 03:26 같은 start_time = 사용자 실현 불가능 (새벽 관광 X). 회귀의
+ * root cause 는 RouteAgent Phase 2.5/2.6 시간 stitching 의 transit time 누적
+ * 검증 부재 — 24h modulo wrap-around 가 새벽 시각 silent 생성.
+ *
+ * 1차 fix (본 함수): 합리 시간대 [05:00, 23:59] 밖의 stop 발견 시 admin telegram
+ * alert (P83 dedup 패턴). plan 저장은 non-blocking (사용자 영향 없음). root cause
+ * fix 는 별도 후속 (RouteAgent stitching 검증 강화).
+ *
+ * @param {object} itinerary
+ * @returns {Array<{day:number, stop:string, start_time:string, reason:string}>}
+ */
+export function detectUnreasonableStopTimes(itinerary) {
+  const alerts = [];
+  for (const day of (itinerary?.days || [])) {
+    const dayNum = day?.day || day?.day_index || 0;
+    for (const stop of (day?.stops || [])) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(stop?.start_time || ''));
+      if (!m) continue;
+      const hour = parseInt(m[1], 10);
+      const minute = parseInt(m[2], 10);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
+      // 합리 범위: 05:00 ~ 23:59 (24h 자체는 invalid time 이므로 별도 처리 X).
+      // 새벽 0~4 시 = pre-dawn (관광/식사 불가).
+      if (hour < 5) {
+        alerts.push({
+          day: dayNum,
+          stop: String(stop?.name || stop?.display_name || '').slice(0, 80),
+          start_time: stop.start_time,
+          reason: 'pre-dawn (< 05:00) — 사용자 실현 불가',
+        });
+      }
+    }
+  }
+  return alerts;
+}
+
+/**
+ * P120: detectUnreasonableStopTimes + admin telegram alert (P83 dedup) wrapper.
+ * ai-planner-full.js 가 1줄 호출만 하도록 (P1 lock — per-file line limit 보호).
+ */
+export function runUnreasonableStopTimesCheck(itinerary, body) {
+  try {
+    const stops = detectUnreasonableStopTimes(itinerary);
+    if (stops.length === 0) return 0;
+    const regionsKey = Array.isArray(body?.regions) && body.regions.length > 0
+      ? body.regions.slice(0, 2).join('+')
+      : 'unknown';
+    const sample = stops.slice(0, 5)
+      .map((u) => `Day${u.day} ${u.start_time} "${u.stop}"`).join(' / ');
+    throttledTelegramAlert({
+      key: `unreasonable-stop-times:${regionsKey}`,
+      channel: 'admin',
+      severity: 'low',
+      message: [
+        `⚠️ <b>새벽 시간 stops 감지 — RouteAgent stitching wrap (P120)</b>`,
+        ``,
+        `<b>건수:</b> ${stops.length}`,
+        `<b>샘플:</b> ${sample}`,
+        ``,
+        `→ root cause 후속: RouteAgent Phase 2.5/2.6 transit time 누적 검증`,
+      ].join('\n'),
+      context: { count: stops.length, stops: stops.slice(0, 10), regions: body?.regions || null },
+    });
+    console.log(`[planner] P120 unreasonable stops detected: ${stops.length}`);
+    return stops.length;
+  } catch (e) {
+    console.warn('[planner] P120 check failed:', e?.message);
+    return 0;
+  }
+}
+
+/**
  * Calculate T-money recommended load from ODsay fares + arrival/departure costs.
  */
 export function calculateTmoney(itinerary) {
