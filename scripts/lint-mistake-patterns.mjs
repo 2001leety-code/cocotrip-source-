@@ -2786,9 +2786,10 @@ function P88_bmealSnackSlot({ changed }) {
   if (!/if\s*\(\s*afternoonMealCount\s*===\s*0\s*\)\s*errors\.push/.test(content)) {
     violations.push(`${FILE}: full-day 점심 가드가 afternoonMealCount 사용 안 함 → snack false-positive 회귀`);
   }
-  // arrival/departure 가드도 afternoonMealCount 사용
-  if (!/if\s*\(\s*afternoonMealCount\s*===\s*0\s*&&\s*dinnerCount\s*===\s*0\s*\)/.test(content)) {
-    violations.push(`${FILE}: arrival/departure 가드가 afternoonMealCount 사용 안 함`);
+  // arrival/departure 가드도 afternoonMealCount 사용 — 2026-05-20 완화:
+  // 다른 조건 (breakfastCount, totalFoodCount 등) 이 추가돼도 OK. 핵심은 두 키워드.
+  if (!/if\s*\([^)]*afternoonMealCount\s*===\s*0[^)]*dinnerCount\s*===\s*0[^)]*\)/.test(content)) {
+    violations.push(`${FILE}: arrival/departure 가드가 afternoonMealCount + dinnerCount 사용 안 함`);
   }
   // dinner boundary 변경 금지 (메인 식사 분명)
   if (!/dinnerCount\s*=\s*foodStops\.filter\(\(s\)\s*=>\s*matchHour\(s,\s*17,\s*22\)\)/.test(content)) {
