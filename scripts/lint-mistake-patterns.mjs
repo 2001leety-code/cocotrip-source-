@@ -1006,6 +1006,7 @@ const RULES = [
   ['P111_intercityBookendSilentFailAlert', P111_intercityBookendSilentFailAlert],
   ['P112_endTimeBackfill', P112_endTimeBackfill],
   ['P113_intercityTimeStitch', P113_intercityTimeStitch],
+  ['P114_dbMatcherPerDayCity', P114_dbMatcherPerDayCity],
 ];
 
 /**
@@ -1586,6 +1587,50 @@ function P113_intercityTimeStitch({ changed }) {
 }
 
 /**
+ * P114_dbMatcherPerDayCity — 메모리 P114 (2026-05-20, no-PR-yet).
+ *
+ * applyDBMatcher 가 trip-level area 만 받으면 multi-city plan 의 다른 city day
+ * 식당이 silent 잘못된 도시 foodIndex 와 매칭. plan 4792076e 의 부산 day "자갈치
+ * 시장" 이 Seoul "자갈치" (종로구 익선동) 에 매칭되어 사용자가 부산 plan 보면서
+ * 서울 주소 안내받는 회귀.
+ *
+ * Fix: day 단위 iterate + dayMatchCity 헬퍼로 각 stop 의 matchCity 결정 (day.city
+ * 우선, 없으면 trip-level area 폴백).
+ *
+ * 회귀 슬롯: tests/unit/dbmatcher-per-day-city-pr114.test.ts (9 케이스).
+ */
+function P114_dbMatcherPerDayCity({ changed }) {
+  const FILE = 'api/_ai_core/dbMatcher.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/function\s+dayMatchCity\s*\(/.test(content)) {
+    violations.push(`${FILE}: dayMatchCity 헬퍼 미선언 — per-day matchCity 결정 불가`);
+  }
+  if (!/const\s+tripMatchCity\s*=/.test(content)) {
+    violations.push(`${FILE}: tripMatchCity (trip-level area 정규화) 미선언 — alert 용 fallback 깨짐`);
+  }
+  if (!/for\s*\(\s*const\s+day\s+of\s*\(itinerary\.days\s*\|\|\s*\[\]\)\s*\)/.test(content)) {
+    violations.push(`${FILE}: day 단위 iterate 안 함 — 평탄화 (flatMap) 로 인한 day.city 손실`);
+  }
+  if (!/return\s+dayCity\s*\|\|\s*tripMatchCity/.test(content)) {
+    violations.push(`${FILE}: dayMatchCity 의 day.city → tripMatchCity 폴백 누락`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P114_dbMatcherPerDayCity',
+      violations.join(' | '),
+      '메모리 P114 — applyDBMatcher 가 day 단위 iterate + dayMatchCity 헬퍼로 per-day matchCity 적용. multi-city plan 의 도시별 식당 매칭 정확도 보장. tests/unit/dbmatcher-per-day-city-pr114.test.ts 9 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
  * P55_webhookExchangeRate — 메모리 P55 (PR #431, Audit Y-H6).
  * api/paypal-webhook.js 가 KRW/USD 환율을 1380 로 하드코딩하면 fail.
  * pricing_spec.json policy_krw_per_usd (현재 1430) 와 drift → amount_mismatch
@@ -1775,8 +1820,10 @@ function P90_dbmatcherCityGuard({ changed }) {
   if (!/stop\.verified\s*=\s*!isCityMismatch/.test(content)) {
     violations.push(`${FILE}: city-mismatch 가 verified=false 처리 안 함 → 사용자/UI 잘못된 verified 배지`);
   }
-  if (!/dbmatcher-city-mismatch:\$\{matchCity\s*\|\|\s*['"]unknown['"]\}/.test(content)) {
-    violations.push(`${FILE}: alert key 'dbmatcher-city-mismatch:${'${matchCity}'}' 누락`);
+  // P114 (2026-05-20): per-day matchCity 도입 — matchCity (per-day) 또는
+  // tripMatchCity (trip-level) 둘 다 허용. 기존 PR #466 호환.
+  if (!/dbmatcher-city-mismatch:\$\{(matchCity|tripMatchCity)\s*\|\|\s*['"]unknown['"]\}/.test(content)) {
+    violations.push(`${FILE}: alert key 'dbmatcher-city-mismatch:${'${matchCity|tripMatchCity}'}' 누락`);
   }
   const alertBlock = content.slice(content.indexOf('dbmatcher-city-mismatch'), content.indexOf('dbmatcher-city-mismatch') + 2000);
   if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {
