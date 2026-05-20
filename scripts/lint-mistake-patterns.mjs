@@ -1002,6 +1002,7 @@ const RULES = [
   ['P94_vercelIgnoreShallowCloneSafe', P94_vercelIgnoreShallowCloneSafe],
   ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
+  ['P107_aiTranslateReverseBackcompat', P107_aiTranslateReverseBackcompat],
 ];
 
 /**
@@ -1340,6 +1341,69 @@ function P96_longRunningEndpointInstrumentation({ changed }) {
         '메모리 P96 (PR #482) — 5분 cap 도달 시 어느 step 에서 멈췄는지 prod logs/Telegram 으로 즉시 식별 가능해야 함. ai-planner-full.js 의 withStep + hangWarnTimer 패턴 참조.',
       );
     }
+  }
+  return null;
+}
+
+/**
+ * P107_aiTranslateReverseBackcompat — 메모리 P107 (2026-05-20, no-PR-yet).
+ *
+ * Phase 5 reverse translation (admin-translate.js) 가 Phase 4 backward compat
+ * 깨지면 fail. resolveSourceAndTargets 가 두 body 형태 (Phase 5 source object
+ * + Phase 4 korean string) 모두 받아야 함. 클라이언트 헬퍼 (translateKoreanToOthers)
+ * 가 미배포 client 와 함께 작동.
+ *
+ * 또한 buildPrompt + ALL_LANGS 가 named export 되어야 unit test 가 import 가능.
+ *
+ * 회귀 슬롯: tests/unit/admin-translate-prompt.test.ts (24 케이스).
+ */
+function P107_aiTranslateReverseBackcompat({ changed }) {
+  const violations = [];
+
+  const API_FILE = 'api/admin-translate.js';
+  if (isModified(API_FILE, changed)) {
+    const content = getChangedFileContent(API_FILE);
+    if (content) {
+      if (!/export\s+function\s+resolveSourceAndTargets/.test(content)) {
+        violations.push(`${API_FILE}: resolveSourceAndTargets 미export — Phase 5 body resolver 회귀 (legacy korean field 폴백 깨질 수 있음)`);
+      }
+      if (!/export\s+function\s+buildPrompt/.test(content)) {
+        violations.push(`${API_FILE}: buildPrompt 미export — unit test 가 prompt 회귀 검출 불가`);
+      }
+      if (!/export\s+const\s+ALL_LANGS/.test(content)) {
+        violations.push(`${API_FILE}: ALL_LANGS 미export — schema canonical set drift 가능`);
+      }
+      // legacy backcompat: body.korean 경로가 코드에 남아 있어야 함 (Phase 4 미배포
+      // client 가 보내는 { korean: ... } body 처리). resolveSourceAndTargets 안에서.
+      if (!/body\.korean/.test(content)) {
+        violations.push(`${API_FILE}: legacy body.korean 분기 누락 — Phase 4 client 호환성 깨짐`);
+      }
+      // 4-lang canonical: ko/en/ja/zh — Phase 5 source 가 모두 받을 수 있어야 함.
+      if (!/\['ko',\s*'en',\s*'ja',\s*'zh'\]/.test(content)) {
+        violations.push(`${API_FILE}: ALL_LANGS 4-lang canonical 배열 형태 누락 — schema drift`);
+      }
+    }
+  }
+
+  const LIB_FILE = 'src/lib/admin-translate.ts';
+  if (isModified(LIB_FILE, changed)) {
+    const content = getChangedFileContent(LIB_FILE);
+    if (content) {
+      if (!/export\s+async\s+function\s+translateFromSource/.test(content)) {
+        violations.push(`${LIB_FILE}: translateFromSource 미export — Phase 5 클라이언트 호출 경로 누락`);
+      }
+      if (!/export\s+async\s+function\s+translateKoreanToOthers/.test(content)) {
+        violations.push(`${LIB_FILE}: translateKoreanToOthers 미export — Phase 4 호환 wrapper 누락 (기존 I18nField 호출처 break)`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P107_aiTranslateReverseBackcompat',
+      violations.join(' | '),
+      '메모리 P107 — Phase 5 4-lang any-direction 번역. Phase 4 backward compat 유지 필수 (legacy { korean } body + translateKoreanToOthers wrapper). tests/unit/admin-translate-prompt.test.ts 24 케이스 참조.',
+    );
   }
   return null;
 }

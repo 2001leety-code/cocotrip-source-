@@ -1,12 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// admin-translate.ts — 어드민 AI 번역 클라이언트 헬퍼 (Phase 4, 2026-05-19)
+// admin-translate.ts — 어드민 AI 번역 클라이언트 헬퍼
+// Phase 4 (2026-05-19): ko → en/ja/zh
+// Phase 5 (2026-05-20): 4-lang any-direction (source.lang 명시)
 //
 // /api/admin-translate 호출. Firebase ID token 필요 (admin only).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { User } from 'firebase/auth';
 import type { I18nString } from '@/data/tours';
 
+export type LangCode = 'ko' | 'en' | 'ja' | 'zh';
+
 export interface TranslateResult {
+  ko?: string;
   en?: string;
   ja?: string;
   zh?: string;
@@ -15,17 +20,24 @@ export interface TranslateResult {
 interface TranslateOptions {
   /** "투어 제목" / "FAQ 답변" 같은 문맥 힌트 (선택, 번역 톤 보정) */
   context?: string;
-  /** 기본 ['en','ja','zh']. 비어있는 lang 만 채울 때 customize. */
-  targets?: Array<keyof I18nString & ('en' | 'ja' | 'zh')>;
+  /** 기본 = ALL 4 lang − source.lang. 비어있는 lang 만 채울 때 customize. */
+  targets?: LangCode[];
 }
 
-/** ko 텍스트 → en/ja/zh 자동 번역. user 가 admin 이 아니면 backend 가 401 응답. */
-export async function translateKoreanToOthers(
+/**
+ * 4-lang any-direction 번역. source 언어 명시 + target 자동 (self-skip).
+ * Phase 5 (2026-05-20) — P104 이후 어드민 상품 시스템에서 외국어 import 시 사용.
+ *
+ * 예: source={lang:'en', text:'Royal Palace Tour'} → ko/ja/zh 자동 채움.
+ */
+export async function translateFromSource(
   user: User,
-  korean: string,
+  source: { lang: LangCode; text: string },
   opts: TranslateOptions = {},
 ): Promise<TranslateResult> {
-  if (!korean || !korean.trim()) throw new Error('한국어 텍스트가 비어있습니다.');
+  if (!source?.text || !source.text.trim()) {
+    throw new Error(`${source.lang} 텍스트가 비어있습니다.`);
+  }
 
   const idToken = await user.getIdToken();
   const resp = await fetch('/api/admin-translate', {
@@ -35,8 +47,8 @@ export async function translateKoreanToOthers(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      korean: korean.trim(),
-      targets: opts.targets ?? ['en', 'ja', 'zh'],
+      source: { lang: source.lang, text: source.text.trim() },
+      targets: opts.targets,
       context: opts.context,
     }),
   });
@@ -46,4 +58,23 @@ export async function translateKoreanToOthers(
     throw new Error(json.error || `HTTP ${resp.status}`);
   }
   return json.data as TranslateResult;
+}
+
+/**
+ * Legacy ko → others wrapper. Phase 4 호환 — 신규 코드는 translateFromSource
+ * 사용 권장. 4 lang 중 어느 source 든 동일 endpoint.
+ */
+export async function translateKoreanToOthers(
+  user: User,
+  korean: string,
+  opts: Omit<TranslateOptions, 'targets'> & { targets?: Array<'en' | 'ja' | 'zh'> } = {},
+): Promise<TranslateResult> {
+  return translateFromSource(
+    user,
+    { lang: 'ko', text: korean },
+    {
+      context: opts.context,
+      targets: opts.targets ?? ['en', 'ja', 'zh'],
+    },
+  );
 }
