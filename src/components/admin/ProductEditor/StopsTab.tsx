@@ -141,7 +141,12 @@ export function StopsTab({ draft, tourId, onChange }: Props) {
               tourId={tourId}
               bucket={`stops/${i}`}
               multiple={false}
-              value={stop.photo}
+              // P117 (2026-05-20): PhotoUploader Value = TourPhoto | TourPhoto[] | undefined.
+              // stop.photo 는 string | TourPhoto | undefined → string 이면 legacy
+              // 형식으로 wrap (legacy_public_path 보존), TourPhoto 면 그대로.
+              value={typeof stop.photo === 'string'
+                ? { url: stop.photo, legacy_public_path: stop.photo, alt: { ko: '', en: '', ja: '', zh: '' } }
+                : stop.photo}
               onChange={(v) => update(i, { photo: v as TourStop['photo'] })}
             />
           </div>
