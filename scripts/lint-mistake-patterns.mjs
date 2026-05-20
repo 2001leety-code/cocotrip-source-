@@ -1014,6 +1014,8 @@ const RULES = [
   ['P115_planMarkdownFallback', P115_planMarkdownFallback],
   ['P116_lodgingBookendLabel', P116_lodgingBookendLabel],
   ['P118_prePushHookContent', P118_prePushHookContent],
+  ['P119_dayLodgingBackfill', P119_dayLodgingBackfill],
+  ['P120_unreasonableStopTimeDetect', P120_unreasonableStopTimeDetect],
 ];
 
 /**
@@ -2043,6 +2045,96 @@ function P116_lodgingBookendLabel({ changed }) {
       'P116_lodgingBookendLabel',
       violations.join(' | '),
       '메모리 P116 — lodging bookend 호텔 카드 첫/마지막/중간 구분 라벨 (checkout/depart/checkin/return). StopCard LodgingRole 타입 + 4-lang + 가드 badge + computeLodgingRole 헬퍼 + SortableStopCard forward. tests/unit/lodging-bookend-label-pr116.test.tsx 13 케이스.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P119_dayLodgingBackfill — 메모리 P119 (2026-05-20). plan 4792076e 의 day.lodging
+ * 미생성 회귀 → RouteAgent Phase 2.4 prevDayHotelCoord null → KTX bookend 누락.
+ * api/_ai_core/planPersister.js 의 backfillDayLodging export + ai-planner-full.js
+ * 호출 검증.
+ */
+function P119_dayLodgingBackfill({ changed }) {
+  const PLAN_PERSISTER = 'api/_ai_core/planPersister.js';
+  const AI_PLANNER = 'api/ai-planner-full.js';
+  if (!isModified(PLAN_PERSISTER, changed) && !isModified(AI_PLANNER, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(PLAN_PERSISTER)) {
+    const c = readFileSync(PLAN_PERSISTER, 'utf8');
+    if (!/export\s+function\s+backfillDayLodging\s*\(/.test(c)) {
+      violations.push(`${PLAN_PERSISTER}: backfillDayLodging export 누락 — day.lodging 안전망 부재`);
+    }
+  }
+
+  if (existsSync(AI_PLANNER)) {
+    const c = readFileSync(AI_PLANNER, 'utf8');
+    if (/backfillDayLodging/.test(c)) {
+      // import 와 call 둘 다 있어야 함
+      if (!/import[^;]+backfillDayLodging[^;]+from/.test(c)) {
+        violations.push(`${AI_PLANNER}: backfillDayLodging import 누락`);
+      }
+      if (!/backfillDayLodging\s*\(\s*itinerary\s*\)/.test(c)) {
+        violations.push(`${AI_PLANNER}: backfillDayLodging(itinerary) 호출 누락 — backfillStopEndTimes 다음에 호출 의무`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P119_dayLodgingBackfill',
+      violations.join(' | '),
+      '메모리 P119 — planPersister 의 backfillDayLodging + ai-planner-full 호출. buildPrompt P119 instruction 의 안전망.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P120_unreasonableStopTimeDetect — 메모리 P120 (2026-05-20). plan 4792076e 의
+ * Day3 00:31, Day4 01:24, 03:26 같은 새벽 시간 stops 회귀. planPersister.js 의
+ * detectUnreasonableStopTimes export + ai-planner-full.js 가 호출 후 admin alert
+ * 발송 검증.
+ */
+function P120_unreasonableStopTimeDetect({ changed }) {
+  const PLAN_PERSISTER = 'api/_ai_core/planPersister.js';
+  const AI_PLANNER = 'api/ai-planner-full.js';
+  if (!isModified(PLAN_PERSISTER, changed) && !isModified(AI_PLANNER, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(PLAN_PERSISTER)) {
+    const c = readFileSync(PLAN_PERSISTER, 'utf8');
+    if (!/export\s+function\s+detectUnreasonableStopTimes\s*\(/.test(c)) {
+      violations.push(`${PLAN_PERSISTER}: detectUnreasonableStopTimes export 누락`);
+    }
+    // wrapper export 도 필수 — ai-planner-full.js 가 1줄 호출하도록.
+    if (!/export\s+function\s+runUnreasonableStopTimesCheck\s*\(/.test(c)) {
+      violations.push(`${PLAN_PERSISTER}: runUnreasonableStopTimesCheck wrapper export 누락 — ai-planner-full.js 라인 폭증 위험`);
+    }
+  }
+
+  if (existsSync(AI_PLANNER)) {
+    const c = readFileSync(AI_PLANNER, 'utf8');
+    // ai-planner-full.js 는 wrapper runUnreasonableStopTimesCheck 호출만 의무.
+    // 직접 detectUnreasonableStopTimes 호출 + alert 작성하면 P1 lock 초과 위험.
+    if (/runUnreasonableStopTimesCheck/.test(c)) {
+      if (!/runUnreasonableStopTimesCheck\s*\(\s*itinerary\s*,\s*body\s*\)/.test(c)) {
+        violations.push(`${AI_PLANNER}: runUnreasonableStopTimesCheck(itinerary, body) 호출 형식 누락`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P120_unreasonableStopTimeDetect',
+      violations.join(' | '),
+      '메모리 P120 — detectUnreasonableStopTimes 헬퍼 + admin alert (severity:low, dedup key unreasonable-stop-times:<regions>). plan 저장은 non-blocking.',
     );
   }
   return null;
@@ -4705,6 +4797,48 @@ function runSelfTest() {
       },
       expectRule: 'P118_prePushHookContent',
       expectClean: true, // 4-piece 갖춤 — 룰 silent (정상)
+    },
+    {
+      label: 'P119: planPersister.js 에 backfillDayLodging export 누락',
+      base: {
+        'api/_ai_core/planPersister.js':
+          "export function backfillStopEndTimes(it) { return 0; }\n" +
+          "export function backfillDayLodging(it) { return 0; }\n",
+        'api/ai-planner-full.js':
+          "import { backfillStopEndTimes, backfillDayLodging } from './_ai_core/planPersister.js';\n" +
+          "backfillDayLodging(itinerary);\n",
+      },
+      head: {
+        'api/_ai_core/planPersister.js':
+          "export function backfillStopEndTimes(it) { return 0; }\n",
+        'api/ai-planner-full.js':
+          "import { backfillStopEndTimes, backfillDayLodging } from './_ai_core/planPersister.js';\n" +
+          "backfillDayLodging(itinerary);\n",
+      },
+      expectRule: 'P119_dayLodgingBackfill',
+    },
+    {
+      label: 'P120: detectUnreasonableStopTimes + runUnreasonableStopTimesCheck wrapper + 1줄 호출 모두 존재 — false positive 차단',
+      base: {
+        'api/_ai_core/planPersister.js':
+          "export function detectUnreasonableStopTimes(it) { return []; }\n" +
+          "export function runUnreasonableStopTimesCheck(itinerary, body) { return 0; }\n",
+        'api/ai-planner-full.js':
+          "import { runUnreasonableStopTimesCheck } from './_ai_core/planPersister.js';\n" +
+          "runUnreasonableStopTimesCheck(itinerary, body);\n",
+      },
+      head: {
+        'api/_ai_core/planPersister.js':
+          "export function detectUnreasonableStopTimes(it) { return []; }\n" +
+          "export function runUnreasonableStopTimesCheck(itinerary, body) { return 0; }\n" +
+          "// trivial change\n",
+        'api/ai-planner-full.js':
+          "import { runUnreasonableStopTimesCheck } from './_ai_core/planPersister.js';\n" +
+          "runUnreasonableStopTimesCheck(itinerary, body);\n" +
+          "// trivial change\n",
+      },
+      expectRule: 'P120_unreasonableStopTimeDetect',
+      expectClean: true,
     },
   ];
 

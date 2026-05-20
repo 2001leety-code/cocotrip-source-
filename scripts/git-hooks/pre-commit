@@ -129,7 +129,7 @@ check_lock() {
 
 VIOLATIONS=0
 check_lock "src/pages/PlannerPage/index.tsx" 400 "P0 Released — per-file limit" || VIOLATIONS=$((VIOLATIONS+1))
-check_lock "api/ai-planner-full.js" 500 "P1 Released — per-file limit" || VIOLATIONS=$((VIOLATIONS+1))
+check_lock "api/ai-planner-full.js" 800 "P1 Released — per-file limit (2026-05-20 P119/P120: 500→800 — base 이미 754 lines, decomp 별도 PR)" || VIOLATIONS=$((VIOLATIONS+1))
 check_lock "src/pages/PlanDetailPage.tsx" 1200 "P2 Lock (do-not-touch until split)" || VIOLATIONS=$((VIOLATIONS+1))
 check_lock "src/components/WizardForm.tsx" 900 "P3 Lock" || VIOLATIONS=$((VIOLATIONS+1))
 

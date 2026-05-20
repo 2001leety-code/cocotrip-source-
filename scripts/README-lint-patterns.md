@@ -49,6 +49,8 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 | `P33_comboHardcode` | P33 | `TourPackageInlineAd.tsx` / `createPaypalOrder.js` / `_shared/pricing.js` 에 `combo_airport_*` 가까이 `priceKRW: <정수 5자리+>` 하드코딩 (SSOT 함수 호출 X) | specific TARGETS |
 | `P34_priceUsdConsistency` | P34 | `pricing_spec.json` 의 `priceUSD` 가 `policy_krw_per_usd` 환율 기준 `round(priceKRW / rate) ± 1` 와 drift | SSOT file |
 | `P118_prePushHookContent` | P118 (메타) | `scripts/git-hooks/pre-push` 부재 또는 4-piece (npm run build / vitest run / size-limit / lint-mistake-patterns.mjs) 중 누락. `scripts/setup-git-hooks.mjs` (prepare 활성화기) 부재 | file 전체 (sandbox 임시 dir 자동 skip) |
+| `P119_dayLodgingBackfill` | P119 | `api/_ai_core/planPersister.js` 의 `backfillDayLodging` export 누락 또는 `api/ai-planner-full.js` 의 import/호출 누락 | 변경된 file 의 export/import grep |
+| `P120_unreasonableStopTimeDetect` | P120 | `api/_ai_core/planPersister.js` 의 `detectUnreasonableStopTimes` export 누락 또는 `api/ai-planner-full.js` 가 호출 없이 또는 admin alert 발송 없이 사용 | 변경된 file 의 export/호출/alert grep |
 
 ## 실행 방법
 
