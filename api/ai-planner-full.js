@@ -512,6 +512,11 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       language,
       mode: PLANNER_MODE,
       dietary: dietPrefs,
+      // 2026-05-19: admin Test Mode (ADMIN-BYPASS- orderId) downgrades the strict
+      // validatePatternStructure throw to a soft telegram alert — admin testing
+      // shouldn't be blocked by Gemini non-determinism (CLAUDE.md §F intermittent
+      // PLAN_VALIDATION_FAILED). Customers still get hard validation.
+      isAdminBypass: !!gate.isAdminBypass,
       body: {
         regions,
         arrival_airport,
@@ -675,7 +680,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         await throttledTelegramAlert({
           key: 'ai-planner-unhandled',
           channel: 'error',
-          message: `🔴 [ai-planner-full] ${error.message || 'unknown error'}`,
+          message: `🔴 <b>AI 플래너 처리 실패</b>\n\n${error.message || '알 수 없는 오류'}\n\n경로: /api/ai-planner-full | 모드: ${resolvedPlannerMode}`,
           severity: 'high',
           context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
         });

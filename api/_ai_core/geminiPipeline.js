@@ -310,8 +310,12 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
  *                                            departure_airport 로 출국일/도시 검증.
  *                                            누락 시 pattern 검증은 partial (도시·공항
  *                                            관련 룰 skip).
+ * @param {boolean} [args.isAdminBypass]      2026-05-19: admin Test Mode 표시.
+ *                                            true 시 validatePatternStructure 의 1-retry
+ *                                            실패가 throw → telegram alert 로 다운그레이드.
+ *                                            SAFETY-CRITICAL (dietary) 는 admin 도 hard throw 유지.
  */
-export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body }) {
+export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body, isAdminBypass }) {
   const model = buildModel(apiKey);
   // PR #461 (X-H2): retry 전용 deterministic model. reinforced prompt 와 결합
   // 시 첫 retry 성공률 ↑ → 평균 Gemini quota 사용량 ↓.
@@ -407,24 +411,37 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         captureError(new Error('Plan pattern violation persists after retry'), {
           route: 'ai-planner-full', mode: '3pass', errorCount: patternErrors.length,
           sample: patternErrors.slice(0, 5),
+          adminBypass: !!isAdminBypass,
         }).catch(() => {});
         throttledTelegramAlert({
-          key: 'plan-validation-failed-3pass',
+          key: isAdminBypass ? 'plan-validation-soft-3pass-admin' : 'plan-validation-failed-3pass',
           channel: 'error',
-          severity: 'high',
-          message: '🔴 <b>AI plan validation failed (3pass)</b>\n\n' + patternErrors.slice(0, 5).join('\n'),
-          context: { errorCount: patternErrors.length, sample: patternErrors.slice(0, 3) },
+          severity: isAdminBypass ? 'low' : 'high',
+          message: (isAdminBypass
+            ? '🟡 <b>AI 플랜 구조 검증 실패 — admin Test Mode (3pass, SOFT)</b>\n\n'
+            : '🔴 <b>AI 플랜 구조 검증 실패 (3pass)</b>\n\n')
+            + patternErrors.slice(0, 5).join('\n')
+            + (isAdminBypass
+              ? '\n\n운영자(admin Test Mode) 요청 — plan 저장 진행. prompt/validator 점검 필요.'
+              : '\n\n사용자 1회 재시도 후 새 플랜 생성. 재발 시 prompt/validator 점검 필요.'),
+          context: { errorCount: patternErrors.length, sample: patternErrors.slice(0, 3), adminBypass: !!isAdminBypass },
         }).catch(() => {});
-        const e = new Error(
-          'AI response failed structural validation after retry. ' +
-          'Please try again — the planner will produce a new plan. (Operations team notified.)'
-        );
-        e.code = 'PLAN_VALIDATION_FAILED';
-        e.statusCode = 500;
-        e.details = patternErrors.slice(0, 5);
-        throw e;
+        // 2026-05-19: admin Test Mode 는 hard throw 다운그레이드. customer 는 그대로 throw.
+        // SAFETY-CRITICAL (dietary) 는 위쪽 분기에서 admin 도 throw — 여기는 구조 검증만.
+        if (!isAdminBypass) {
+          const e = new Error(
+            'AI 응답이 구조 검증을 통과하지 못했습니다 (재시도 후에도 실패). ' +
+            '잠시 후 다시 시도해주시면 새 플랜이 생성됩니다. 운영팀에 알림이 전송됐습니다.'
+          );
+          e.code = 'PLAN_VALIDATION_FAILED';
+          e.statusCode = 500;
+          e.details = patternErrors.slice(0, 5);
+          throw e;
+        }
+        console.warn('[planner] ⚠️ pattern violation accepted under admin bypass (3pass) — saving plan with soft alert');
+      } else {
+        console.log('[planner] pattern retry succeeded (3pass)');
       }
-      console.log('[planner] pattern retry succeeded (3pass)');
     }
 
     // 2026-05-12 자율 검증 1차 fix (B-18): SOFT quality — plan 저장 OK, telegram alert 만.
@@ -562,24 +579,37 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         captureError(new Error('Plan pattern violation persists after retry'), {
           route: 'ai-planner-full', mode: 'legacy', errorCount: patternErrors.length,
           sample: patternErrors.slice(0, 5),
+          adminBypass: !!isAdminBypass,
         }).catch(() => {});
         throttledTelegramAlert({
-          key: 'plan-validation-failed-legacy',
+          key: isAdminBypass ? 'plan-validation-soft-legacy-admin' : 'plan-validation-failed-legacy',
           channel: 'error',
-          severity: 'high',
-          message: '🔴 <b>AI plan validation failed (legacy)</b>\n\n' + patternErrors.slice(0, 5).join('\n'),
-          context: { errorCount: patternErrors.length, sample: patternErrors.slice(0, 3) },
+          severity: isAdminBypass ? 'low' : 'high',
+          message: (isAdminBypass
+            ? '🟡 <b>AI 플랜 구조 검증 실패 — admin Test Mode (legacy, SOFT)</b>\n\n'
+            : '🔴 <b>AI 플랜 구조 검증 실패 (legacy)</b>\n\n')
+            + patternErrors.slice(0, 5).join('\n')
+            + (isAdminBypass
+              ? '\n\n운영자(admin Test Mode) 요청 — plan 저장 진행. prompt/validator 점검 필요.'
+              : '\n\n사용자 1회 재시도 후 새 플랜 생성. 재발 시 prompt/validator 점검 필요.'),
+          context: { errorCount: patternErrors.length, sample: patternErrors.slice(0, 3), adminBypass: !!isAdminBypass },
         }).catch(() => {});
-        const e = new Error(
-          'AI response failed structural validation after retry. ' +
-          'Please try again — the planner will produce a new plan. (Operations team notified.)'
-        );
-        e.code = 'PLAN_VALIDATION_FAILED';
-        e.statusCode = 500;
-        e.details = patternErrors.slice(0, 5);
-        throw e;
+        // 2026-05-19: admin Test Mode 는 hard throw 다운그레이드. customer 는 그대로 throw.
+        // SAFETY-CRITICAL (dietary) 는 위쪽 분기에서 admin 도 throw — 여기는 구조 검증만.
+        if (!isAdminBypass) {
+          const e = new Error(
+            'AI 응답이 구조 검증을 통과하지 못했습니다 (재시도 후에도 실패). ' +
+            '잠시 후 다시 시도해주시면 새 플랜이 생성됩니다. 운영팀에 알림이 전송됐습니다.'
+          );
+          e.code = 'PLAN_VALIDATION_FAILED';
+          e.statusCode = 500;
+          e.details = patternErrors.slice(0, 5);
+          throw e;
+        }
+        console.warn('[planner] ⚠️ pattern violation accepted under admin bypass (legacy) — saving plan with soft alert');
+      } else {
+        console.log('[planner] pattern retry succeeded (legacy)');
       }
-      console.log('[planner] pattern retry succeeded (legacy)');
     }
 
     // 2026-05-12 자율 검증 1차 fix (B-18): SOFT quality — plan 저장 OK, telegram alert 만.
