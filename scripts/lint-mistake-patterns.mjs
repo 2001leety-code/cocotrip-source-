@@ -1002,10 +1002,17 @@ const RULES = [
   ['P94_vercelIgnoreShallowCloneSafe', P94_vercelIgnoreShallowCloneSafe],
   ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
+  ['P102_adminBypassForceLegacy', P102_adminBypassForceLegacy],
   ['P107_aiTranslateReverseBackcompat', P107_aiTranslateReverseBackcompat],
   ['P108_slotCapacityPreLockTransaction', P108_slotCapacityPreLockTransaction],
   ['P109_resizeImagesVariantsFallback', P109_resizeImagesVariantsFallback],
   ['P110_adminClaimsRbacFoundation', P110_adminClaimsRbacFoundation],
+  ['P111_intercityBookendSilentFailAlert', P111_intercityBookendSilentFailAlert],
+  ['P112_endTimeBackfill', P112_endTimeBackfill],
+  ['P113_intercityTimeStitch', P113_intercityTimeStitch],
+  ['P114_dbMatcherPerDayCity', P114_dbMatcherPerDayCity],
+  ['P115_planMarkdownFallback', P115_planMarkdownFallback],
+  ['P116_lodgingBookendLabel', P116_lodgingBookendLabel],
 ];
 
 /**
@@ -1349,6 +1356,69 @@ function P96_longRunningEndpointInstrumentation({ changed }) {
 }
 
 /**
+ * P102_adminBypassForceLegacy — 메모리 P102 (2026-05-20, no-PR-yet).
+ *
+ * Test Mode 5분 timeout 인시던트:
+ *   1. Vercel prod PLANNER_MODE env 가 "﻿3pass\r\n" (BOM + literal CRLF) 으로
+ *      설정됨 (29일 전 운영자 토글). .trim() 가 ES WhiteSpace 규격에 따라 BOM/
+ *      CRLF 제거 → "3pass" 매칭 → 모든 요청 3-pass 파이프라인.
+ *   2. 3-pass = Pass1 (gemini ~30s) + Pass2 (DB resolve) + Pass3 (gemini enrich
+ *      ~30s) + validate retry → 90~150s + 재시도 시 5분 Vercel cap 도달.
+ *   3. handlePaymentSuccess 의 client AbortController timeout=300s 와 maxDuration
+ *      =300 이 동일 → 서버 cap 직전 응답해도 client 가 거의 동시에 abort.
+ *
+ * 회귀 차단:
+ *   - api/_ai_core/plannerMode.js: decidePlannerMode 가 isAdminBypass 파라미터
+ *     를 첫 precedence 로 처리 (admin-bypass-force-legacy reason).
+ *   - api/ai-planner-full.js: decidePlannerMode 호출 시 isAdminBypass 전달.
+ *
+ * 회귀 슬롯: tests/unit/planner-ab-mode.test.ts ('P102 — isAdminBypass forces
+ * legacy' describe 블록 6 케이스).
+ */
+function P102_adminBypassForceLegacy({ changed }) {
+  const violations = [];
+
+  const PM_FILE = 'api/_ai_core/plannerMode.js';
+  if (isModified(PM_FILE, changed)) {
+    const content = getChangedFileContent(PM_FILE);
+    if (content) {
+      if (!/isAdminBypass/.test(content)) {
+        violations.push(`${PM_FILE}: decidePlannerMode 가 isAdminBypass 파라미터 미수용 — 3-pass A/B override 면역 깨짐`);
+      }
+      if (!/admin-bypass-force-legacy/.test(content)) {
+        violations.push(`${PM_FILE}: reason 'admin-bypass-force-legacy' 누락 — 트레이스/로그에서 식별 불가`);
+      }
+      // Precedence 0 위치 확인 — env override 체크보다 먼저 isAdminBypass 처리.
+      const adminIdx = content.indexOf("admin-bypass-force-legacy");
+      const envOverrideIdx = content.indexOf("env-override-3pass");
+      if (adminIdx > -1 && envOverrideIdx > -1 && adminIdx > envOverrideIdx) {
+        violations.push(`${PM_FILE}: isAdminBypass 분기가 env-override-3pass 보다 뒤에 위치 — Precedence 0 (admin 최우선) 위반`);
+      }
+    }
+  }
+
+  const PLANNER_FILE = 'api/ai-planner-full.js';
+  if (isModified(PLANNER_FILE, changed)) {
+    const content = getChangedFileContent(PLANNER_FILE);
+    if (content) {
+      // decidePlannerMode 호출 블록에 isAdminBypass 인자 포함 필수.
+      const callMatch = content.match(/decidePlannerMode\s*\(\s*\{[\s\S]{0,400}?\}\s*\)/);
+      if (callMatch && !/isAdminBypass\s*:/.test(callMatch[0])) {
+        violations.push(`${PLANNER_FILE}: decidePlannerMode 호출에 isAdminBypass 인자 누락 — gate.isAdminBypass 가 mode 결정에 반영 안 됨 → admin Test Mode 가 3-pass 로 빠져 5분 cap 회귀`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P102_adminBypassForceLegacy',
+      violations.join(' | '),
+      '메모리 P102 — admin Test Mode (ADMIN-BYPASS-*) 은 decidePlannerMode Precedence 0 으로 항상 legacy. tests/unit/planner-ab-mode.test.ts 의 P102 describe 블록 참조.',
+    );
+  }
+  return null;
+}
+/**
  * P107_aiTranslateReverseBackcompat — 메모리 P107 (2026-05-20, no-PR-yet).
  *
  * Phase 5 reverse translation (admin-translate.js) 가 Phase 4 backward compat
@@ -1630,6 +1700,353 @@ function P110_adminClaimsRbacFoundation({ changed }) {
   return null;
 }
 
+
+
+/**
+ * P111_intercityBookendSilentFailAlert — 메모리 P111 (2026-05-20, no-PR-yet).
+ *
+ * RouteAgent.js Phase 2.4 (city-change day intercity bookend) 의 silent fail
+ * 분기에 throttledTelegramAlert 의무. lookupStationCoord null / prevDayHotelCoord
+ * null / dayHotel coord null / ODsay throw 4 케이스가 console.warn 만 하고 끝나면
+ * 운영자가 Vercel logs 폴링 없이 인지 불가. 사용자 보고 패턴: "서울→부산 KTX
+ * 가이드 없음, 그냥 부산 나옴".
+ *
+ * 회귀 슬롯: tests/unit/intercity-bookend-silent-fail-pr111.test.ts (10 케이스).
+ */
+function P111_intercityBookendSilentFailAlert({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s*['"]\.\.\/\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: telegram-throttle import 누락 — P111 silent fail alert 불가`);
+  }
+  if (!/const\s+bookendFailReasons\s*=\s*\[\]/.test(content)) {
+    violations.push(`${FILE}: bookendFailReasons accumulator 누락 — 4 silent-fail 분기 reason 수집 불가`);
+  }
+  // Phase 2.4a (pre) 4 reasons
+  const preReasons = [
+    'pre:from_station_missing',
+    'pre:prev_hotel_coord_missing',
+    'pre:station_coord_missing',
+    'pre:odsay_throw',
+  ];
+  for (const r of preReasons) {
+    if (!content.includes(r)) {
+      violations.push(`${FILE}: '${r}' reason push 누락 — 해당 silent-fail 케이스 운영자 인지 불가`);
+    }
+  }
+  // Phase 2.4b (post) 4 reasons
+  const postReasons = [
+    'post:to_station_missing',
+    'post:day_hotel_coord_missing',
+    'post:station_coord_missing',
+    'post:odsay_throw',
+  ];
+  for (const r of postReasons) {
+    if (!content.includes(r)) {
+      violations.push(`${FILE}: '${r}' reason push 누락 — 해당 silent-fail 케이스 운영자 인지 불가`);
+    }
+  }
+  // Alert call guard + key pattern
+  if (!/if\s*\(\s*bookendFailReasons\.length\s*>\s*0\s*\)\s*\{[\s\S]{0,3000}?throttledTelegramAlert\s*\(/.test(content)) {
+    violations.push(`${FILE}: bookendFailReasons.length>0 가드 + throttledTelegramAlert 호출 누락`);
+  }
+  if (!/key:\s*`intercity-bookend-fail:\$\{firstReason\}:\$\{fromTo\}`/.test(content)) {
+    violations.push(`${FILE}: alert key 'intercity-bookend-fail:\${firstReason}:\${fromTo}' 패턴 누락 — dedup 깨짐`);
+  }
+  // Non-blocking dispatch
+  if (!/throttledTelegramAlert\(\{[\s\S]+?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: alert .catch(() => {}) 누락 — alert 실패가 plan 생성 break 가능`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P111_intercityBookendSilentFailAlert',
+      violations.join(' | '),
+      '메모리 P111 — Phase 2.4 의 8 silent-fail 분기 (pre/post 각 4) 모두 reason push + bookendFailReasons.length>0 시 throttledTelegramAlert (admin/high/dedup by first reason + city pair). tests/unit/intercity-bookend-silent-fail-pr111.test.ts 10 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P112_endTimeBackfill — 메모리 P112 (2026-05-20, no-PR-yet).
+ *
+ * planPersister.js 가 stop.end_time 누락 backfill 안 하면 UI/PDF/email/voucher
+ * 가 "15:45-undefined" 류 표시. Gemini/RouteAgent 가 일부만 채우는 비결정성
+ * 대비 안전망. ai-planner-full.js 가 calculateTmoney 전에 backfillStopEndTimes
+ * 호출 필수.
+ *
+ * 회귀 슬롯: tests/unit/end-time-backfill-pr112.test.ts (27 케이스).
+ */
+function P112_endTimeBackfill({ changed }) {
+  const violations = [];
+
+  const PERSIST = 'api/_ai_core/planPersister.js';
+  if (isModified(PERSIST, changed)) {
+    const content = getChangedFileContent(PERSIST);
+    if (content) {
+      if (!/export\s+function\s+computeEndTime\s*\(/.test(content)) {
+        violations.push(`${PERSIST}: computeEndTime 미export — pure helper 누락 → 다른 호출자가 ad-hoc 재구현 위험`);
+      }
+      if (!/export\s+function\s+backfillStopEndTimes\s*\(/.test(content)) {
+        violations.push(`${PERSIST}: backfillStopEndTimes 미export — itinerary mutator helper 누락`);
+      }
+      // null/undefined explicit reject (Number(null)===0 bypass 차단)
+      if (!/stayMin\s*===\s*null\s*\|\|\s*stayMin\s*===\s*undefined/.test(content)) {
+        violations.push(`${PERSIST}: computeEndTime null/undefined 명시 거부 분기 누락 — Number(null)=0 통과로 잘못된 end_time 생성`);
+      }
+      // override-protection check (existing end_time preserved)
+      if (!/if\s*\(\s*stop\.end_time\s*&&\s*\/\^\\d/.test(content)) {
+        violations.push(`${PERSIST}: backfillStopEndTimes 가 기존 end_time 보존 분기 누락 — Gemini/RouteAgent stitched 결과 override 위험`);
+      }
+    }
+  }
+
+  const HANDLER = 'api/ai-planner-full.js';
+  if (isModified(HANDLER, changed)) {
+    const content = getChangedFileContent(HANDLER);
+    if (content && /backfillStopEndTimes/.test(content)) {
+      // import 와 호출 둘 다.
+      if (!/import\s*\{[^}]*backfillStopEndTimes[^}]*\}\s*from\s*['"]\.\/_ai_core\/planPersister\.js['"]/.test(content)) {
+        violations.push(`${HANDLER}: backfillStopEndTimes import 누락 — 호출은 있는데 import 안 함 → ReferenceError`);
+      }
+      if (!/backfillStopEndTimes\s*\(\s*itinerary\s*\)/.test(content)) {
+        violations.push(`${HANDLER}: backfillStopEndTimes(itinerary) 호출 누락 — helper 만 import 하고 안 쓰면 의미 없음`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P112_endTimeBackfill',
+      violations.join(' | '),
+      '메모리 P112 — planPersister 의 computeEndTime + backfillStopEndTimes pair + null/undefined reject + override-protection. ai-planner-full handler 가 calculateTmoney 전에 호출. tests/unit/end-time-backfill-pr112.test.ts 27 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P113_intercityTimeStitch — 메모리 P113 (2026-05-20, no-PR-yet).
+ *
+ * RouteAgent.js Phase 2.4 가 lodging_to_station 채운 직후 intercity_transit.
+ * recommended_depart + arrival_at 를 stop1.start_time + lodging_to_station.est_min
+ * 기준으로 stitch. Gemini 의 임의 09:00 값 vs 실제 호텔 체크아웃 시간 모순
+ * 차단. 사용자 보고 패턴: "호텔 12:25 출발인데 KTX 09:00 어떻게 타나?".
+ *
+ * 회귀 슬롯: tests/unit/intercity-time-stitch-pr113.test.ts (5 케이스).
+ */
+function P113_intercityTimeStitch({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // P113 guard: lodging_to_station 존재 + stop1 start_time 존재 확인 후만 stitch.
+  if (!/it\.lodging_to_station\s*&&\s*Number\.isFinite\(it\.lodging_to_station\.est_min\)/.test(content)) {
+    violations.push(`${FILE}: P113 stitching 의 lodging_to_station presence guard 누락 — Phase 2.4 silent fail 시 잘못된 stitching 위험`);
+  }
+  // recommended_depart override + arrival_at stitch
+  if (!/it\.recommended_depart\s*=\s*formattedDepart/.test(content)) {
+    violations.push(`${FILE}: recommended_depart override 누락 — Gemini 의 임의 09:00 값 그대로 → 모순 시각 유지`);
+  }
+  if (!/it\.arrival_at\s*=\s*formattedArrival/.test(content)) {
+    violations.push(`${FILE}: arrival_at stitch 누락 — depart 만 update 하면 KTX 도착 시간 inconsistent`);
+  }
+  // Audit log
+  if (!/intercity recommended_depart.*stitched stop1=/.test(content)) {
+    violations.push(`${FILE}: stitch console.log 누락 — prod 검증 어려움 (어느 plan 이 stitch 됐는지 추적 불가)`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P113_intercityTimeStitch',
+      violations.join(' | '),
+      '메모리 P113 — Phase 2.4 가 lodging_to_station 채운 직후 recommended_depart + arrival_at stitching 의무. tests/unit/intercity-time-stitch-pr113.test.ts 5 케이스. P111 silent fail 시 Gemini 값 그대로 보존 (안전 default).',
+    );
+  }
+  return null;
+}
+
+/**
+ * P114_dbMatcherPerDayCity — 메모리 P114 (2026-05-20, no-PR-yet).
+ *
+ * applyDBMatcher 가 trip-level area 만 받으면 multi-city plan 의 다른 city day
+ * 식당이 silent 잘못된 도시 foodIndex 와 매칭. plan 4792076e 의 부산 day "자갈치
+ * 시장" 이 Seoul "자갈치" (종로구 익선동) 에 매칭되어 사용자가 부산 plan 보면서
+ * 서울 주소 안내받는 회귀.
+ *
+ * Fix: day 단위 iterate + dayMatchCity 헬퍼로 각 stop 의 matchCity 결정 (day.city
+ * 우선, 없으면 trip-level area 폴백).
+ *
+ * 회귀 슬롯: tests/unit/dbmatcher-per-day-city-pr114.test.ts (9 케이스).
+ */
+function P114_dbMatcherPerDayCity({ changed }) {
+  const FILE = 'api/_ai_core/dbMatcher.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/function\s+dayMatchCity\s*\(/.test(content)) {
+    violations.push(`${FILE}: dayMatchCity 헬퍼 미선언 — per-day matchCity 결정 불가`);
+  }
+  if (!/const\s+tripMatchCity\s*=/.test(content)) {
+    violations.push(`${FILE}: tripMatchCity (trip-level area 정규화) 미선언 — alert 용 fallback 깨짐`);
+  }
+  if (!/for\s*\(\s*const\s+day\s+of\s*\(itinerary\.days\s*\|\|\s*\[\]\)\s*\)/.test(content)) {
+    violations.push(`${FILE}: day 단위 iterate 안 함 — 평탄화 (flatMap) 로 인한 day.city 손실`);
+  }
+  if (!/return\s+dayCity\s*\|\|\s*tripMatchCity/.test(content)) {
+    violations.push(`${FILE}: dayMatchCity 의 day.city → tripMatchCity 폴백 누락`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P114_dbMatcherPerDayCity',
+      violations.join(' | '),
+      '메모리 P114 — applyDBMatcher 가 day 단위 iterate + dayMatchCity 헬퍼로 per-day matchCity 적용. multi-city plan 의 도시별 식당 매칭 정확도 보장. tests/unit/dbmatcher-per-day-city-pr114.test.ts 9 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P115_planMarkdownFallback — 메모리 P115 (2026-05-20, no-PR-yet).
+ *
+ * PDF 깨질 때 Markdown fallback. planToMarkdown + downloadPlanAsMarkdown helper
+ * + OutroSlide 의 "텍스트로 다운로드" 버튼 + intercity bookend (P111) 표시 의무.
+ * 사용자가 메모장/Notion/Apple Notes 등 어디서나 열 수 있는 텍스트 파일.
+ *
+ * 회귀 슬롯: tests/unit/plan-to-markdown-pr115.test.ts (12 케이스).
+ */
+function P115_planMarkdownFallback({ changed }) {
+  const violations = [];
+
+  const LIB = 'src/pages/PlanDetailPage/lib/planToMarkdown.ts';
+  if (isModified(LIB, changed)) {
+    const content = getChangedFileContent(LIB);
+    if (content) {
+      if (!/export\s+function\s+planToMarkdown/.test(content)) {
+        violations.push(`${LIB}: planToMarkdown 미export — pure helper 누락`);
+      }
+      if (!/export\s+function\s+downloadPlanAsMarkdown/.test(content)) {
+        violations.push(`${LIB}: downloadPlanAsMarkdown 미export — 브라우저 download 헬퍼 누락`);
+      }
+      // intercity bookend (P111 enrichment) 표시 의무
+      if (!/lodging_to_station/.test(content) || !/station_to_lodging/.test(content)) {
+        violations.push(`${LIB}: intercity bookend (lodging_to_station / station_to_lodging) 표시 누락 — P111 enrichment 결과 사용자 surface 안 됨`);
+      }
+      // Blob + text/markdown MIME
+      if (!/text\/markdown/.test(content)) {
+        violations.push(`${LIB}: Blob MIME 'text/markdown' 누락 — 사용자 OS 가 텍스트 앱으로 안 열 수 있음`);
+      }
+      // Safari setTimeout cleanup pattern — multiline arrow body OK
+      if (!/setTimeout\([\s\S]{0,200}URL\.revokeObjectURL/.test(content)) {
+        violations.push(`${LIB}: URL.revokeObjectURL setTimeout 누락 — Safari 비동기 timing 으로 download fail 위험`);
+      }
+    }
+  }
+
+  const OUTRO = 'src/pages/PlanDetailPage/components/OutroSlide.tsx';
+  if (isModified(OUTRO, changed) && /downloadPlanAsMarkdown/.test(getChangedFileContent(OUTRO) || '')) {
+    const content = getChangedFileContent(OUTRO);
+    if (content) {
+      if (!/from\s*['"]\.\.\/lib\/planToMarkdown['"]/.test(content)) {
+        violations.push(`${OUTRO}: planToMarkdown lib import 누락`);
+      }
+      if (!/handleDownloadMarkdown/.test(content)) {
+        violations.push(`${OUTRO}: handleDownloadMarkdown handler 누락 — toast 성공/실패 메시지 + try-catch 안전망`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P115_planMarkdownFallback',
+      violations.join(' | '),
+      '메모리 P115 — PDF fallback Markdown export. planToMarkdown + downloadPlanAsMarkdown + intercity bookend 표시 + Safari setTimeout cleanup. tests/unit/plan-to-markdown-pr115.test.ts 12 케이스.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P116_lodgingBookendLabel — 메모리 P116 (2026-05-20, no-PR-yet).
+ *
+ * lodging bookend 패턴 (매일 호텔 첫+마지막 stop) 사용자 오인 방지. StopCard 가
+ * LodgingRole 타입 + 4-lang 라벨 + 가드된 badge 렌더 + DayTimeline 이 computeLodgingRole
+ * 헬퍼 + SortableStopCard prop forwarding.
+ *
+ * 회귀 슬롯: tests/unit/lodging-bookend-label-pr116.test.tsx (13 케이스).
+ */
+function P116_lodgingBookendLabel({ changed }) {
+  const violations = [];
+
+  const STOP = 'src/pages/PlanDetailPage/components/StopCard.tsx';
+  if (isModified(STOP, changed)) {
+    const content = getChangedFileContent(STOP);
+    if (content) {
+      if (!/export\s+type\s+LodgingRole\s*=/.test(content)) {
+        violations.push(`${STOP}: LodgingRole 타입 미export — DayTimeline/SortableStopCard 에서 type-safe forward 불가`);
+      }
+      if (!/lodgingRole\?:\s*LodgingRole/.test(content)) {
+        violations.push(`${STOP}: lodgingRole?: prop 시그니처 누락`);
+      }
+      if (!/\{lodgingRole\s*&&\s*\(/.test(content)) {
+        violations.push(`${STOP}: 가드된 badge 렌더 (lodgingRole && (...)) 누락 — undefined 시 빈 element 출력 위험`);
+      }
+      // 4-lang label coverage
+      for (const role of ['checkout', 'depart', 'checkin', 'return']) {
+        const pattern = new RegExp(`${role}:\\s*\\{\\s*ko:[^}]+,\\s*en:[^}]+,\\s*ja:[^}]+,\\s*zh:`);
+        if (!pattern.test(content)) {
+          violations.push(`${STOP}: LODGING_ROLE_LABEL.${role} 4-lang 라벨 누락`);
+        }
+      }
+    }
+  }
+
+  const DT = 'src/pages/PlanDetailPage/components/DayTimeline.tsx';
+  if (isModified(DT, changed)) {
+    const content = getChangedFileContent(DT);
+    if (content && /lodgingRole/.test(content)) {
+      if (!/function\s+computeLodgingRole/.test(content)) {
+        violations.push(`${DT}: computeLodgingRole 헬퍼 미선언 — lodgingRole prop 값 계산 불가`);
+      }
+      if (!/computeLodgingRole\(stop,\s*si,\s*stops,\s*!!intercity\)/.test(content)) {
+        violations.push(`${DT}: computeLodgingRole 호출에 intercity 플래그 미전달 — checkout vs depart 구분 불가`);
+      }
+    }
+  }
+
+  const SORT = 'src/pages/PlanDetailPage/components/SortableStopCard.tsx';
+  if (isModified(SORT, changed)) {
+    const content = getChangedFileContent(SORT);
+    if (content && /lodgingRole/.test(content)) {
+      if (!/<StopCard\s+stop=\{stop\}\s+lodgingRole=\{lodgingRole\}/.test(content)) {
+        violations.push(`${SORT}: SortableStopCard 가 lodgingRole 을 StopCard 로 forward 안 함`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P116_lodgingBookendLabel',
+      violations.join(' | '),
+      '메모리 P116 — lodging bookend 호텔 카드 첫/마지막/중간 구분 라벨 (checkout/depart/checkin/return). StopCard LodgingRole 타입 + 4-lang + 가드 badge + computeLodgingRole 헬퍼 + SortableStopCard forward. tests/unit/lodging-bookend-label-pr116.test.tsx 13 케이스.',
+    );
+  }
+  return null;
+}
+
 /**
  * P55_webhookExchangeRate — 메모리 P55 (PR #431, Audit Y-H6).
  * api/paypal-webhook.js 가 KRW/USD 환율을 1380 로 하드코딩하면 fail.
@@ -1820,8 +2237,10 @@ function P90_dbmatcherCityGuard({ changed }) {
   if (!/stop\.verified\s*=\s*!isCityMismatch/.test(content)) {
     violations.push(`${FILE}: city-mismatch 가 verified=false 처리 안 함 → 사용자/UI 잘못된 verified 배지`);
   }
-  if (!/dbmatcher-city-mismatch:\$\{matchCity\s*\|\|\s*['"]unknown['"]\}/.test(content)) {
-    violations.push(`${FILE}: alert key 'dbmatcher-city-mismatch:${'${matchCity}'}' 누락`);
+  // P114 (2026-05-20): per-day matchCity 도입 — matchCity (per-day) 또는
+  // tripMatchCity (trip-level) 둘 다 허용. 기존 PR #466 호환.
+  if (!/dbmatcher-city-mismatch:\$\{(matchCity|tripMatchCity)\s*\|\|\s*['"]unknown['"]\}/.test(content)) {
+    violations.push(`${FILE}: alert key 'dbmatcher-city-mismatch:${'${matchCity|tripMatchCity}'}' 누락`);
   }
   const alertBlock = content.slice(content.indexOf('dbmatcher-city-mismatch'), content.indexOf('dbmatcher-city-mismatch') + 2000);
   if (alertBlock && !/channel:\s*['"]admin['"]/.test(alertBlock)) {

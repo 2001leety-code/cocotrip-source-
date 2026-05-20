@@ -6,7 +6,7 @@
  *
  * Return shape:
  *   { rejection: { statusCode, code, message, details? } }  // caller writes response
- *   { isRevision: boolean }                                 // caller proceeds
+ *   { isRevision: boolean, isAdminBypass: boolean }         // caller proceeds
  */
 import { FieldValue } from 'firebase-admin/firestore';
 import { getPaypalAccessToken } from '../_shared/paypal.js';
@@ -56,6 +56,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
   let isRevision = false;
+  let isAdminBypass = false;
 
   if (revisionOf && adminDb) {
     console.log('[planner] Revision mode — checking credits for plan:', revisionOf);
@@ -122,6 +123,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
           `Authenticated as "${requestEmail}" but not in admin allowlist. Allowed: [${allowedEmails.join(', ')}]. Configure ADMIN_BYPASS_EMAILS env var or sign in with the admin account.`);
       }
       console.log('[planner] 🟢 ADMIN BYPASS accepted — LIVE mode, no payment | admin:', requestEmail, '| orderId:', paypalOrderId);
+      isAdminBypass = true;
       // 감사 기록 (비치명적 — 실패해도 bypass 허용)
       if (adminDb) {
         adminDb.collection('admin_bypass_audit').add({
@@ -217,5 +219,5 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   }
 
   console.log('[planner] ✅ Auth passed:', isRevision ? `REVISION of ${revisionOf}` : paypalOrderId);
-  return { isRevision };
+  return { isRevision, isAdminBypass };
 }

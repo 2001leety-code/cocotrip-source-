@@ -9,6 +9,55 @@ import { computeQualityScore } from './qualityMetrics.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 /**
+ * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
+ * end_time = undefined. UI 가 "15:45-undefined" 류 표시 위험 + PDF/email/voucher
+ * 같은 downstream surface 가 end_time 가정. start_time + stay_min 으로 자동
+ * 계산. Gemini/RouteAgent 가 이미 채웠으면 (시간 stitching 결과) override X.
+ *
+ * stay_min 0 이면 end_time = start_time (transit-only stop). stay_min 음수/
+ * NaN 이면 graceful skip (corruption 차단).
+ *
+ * @param {string} startHHMM  "HH:mm" 형식
+ * @param {number} stayMin    체류 분
+ * @returns {string|null}     "HH:mm" 또는 input 비정상이면 null
+ */
+export function computeEndTime(startHHMM, stayMin) {
+  if (typeof startHHMM !== 'string' || !/^\d{1,2}:\d{2}$/.test(startHHMM)) return null;
+  // 명시적 null/undefined reject — Number(null) === 0 통과 차단.
+  if (stayMin === null || stayMin === undefined) return null;
+  const stay = Number(stayMin);
+  if (!Number.isFinite(stay) || stay < 0) return null;
+  const [h, m] = startHHMM.split(':').map((v) => parseInt(v, 10));
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  const totalMin = h * 60 + m + Math.floor(stay);
+  // 24h+ wrap-around (예: Day 5 의 새벽 stop) — modulo 24h.
+  const wrapped = ((totalMin % (24 * 60)) + 24 * 60) % (24 * 60);
+  const eh = Math.floor(wrapped / 60);
+  const em = wrapped % 60;
+  return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+}
+
+/**
+ * P112: 모든 stop 에 end_time 채우기 (없는 경우만). Gemini 또는 RouteAgent 가
+ * 이미 채웠으면 override X (timeline stitching 결과 존중).
+ */
+export function backfillStopEndTimes(itinerary) {
+  let filled = 0;
+  for (const day of (itinerary?.days || [])) {
+    for (const stop of (day?.stops || [])) {
+      if (stop.end_time && /^\d{1,2}:\d{2}$/.test(stop.end_time)) continue;
+      const computed = computeEndTime(stop.start_time, stop.stay_min);
+      if (computed) {
+        stop.end_time = computed;
+        filled += 1;
+      }
+    }
+  }
+  if (filled > 0) console.log(`[planPersister] end_time backfilled: ${filled} stops`);
+  return filled;
+}
+
+/**
  * Calculate T-money recommended load from ODsay fares + arrival/departure costs.
  */
 export function calculateTmoney(itinerary) {

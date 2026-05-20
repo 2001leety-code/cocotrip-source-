@@ -18,7 +18,7 @@ import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 import { CORS, AIRPORT_ADDRESSES } from './_ai_core/constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './_ai_core/buildPrompt.js';
-import { calculateTmoney, persistPlan } from './_ai_core/planPersister.js';
+import { calculateTmoney, persistPlan, backfillStopEndTimes } from './_ai_core/planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './_ai_core/recommendedRestaurants.js';
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { sendNotificationEmail, recordLeadToSheets } from './_ai_core/emailNotifier.js';
@@ -262,10 +262,15 @@ export default async function handler(req, res) {
     // SAFETY-CRITICAL (CLAUDE.md J): mode 결정은 dietary validation 에 영향 없음.
     // 1-pass / 3-pass 모두 동일한 validateResponse + hasCriticalDietaryViolation 적용.
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null;
+    // P102 (2026-05-20): isAdminBypass 를 decidePlannerMode 에 전달 → admin Test
+    // Mode 는 항상 'legacy'. 3-pass 는 Pass1+Pass2+Pass3 = 90-150s + retry 시 5분
+    // cap 도달 → Test Mode 클릭 시 client 5min timeout (handlePaymentSuccess).
+    // customer 흐름은 변동 없음 (isAdminBypass=false).
     const abDecision = decidePlannerMode({
       uid,
       guestEmail: authenticatedEmail,
       sessionId,
+      isAdminBypass: !!gate.isAdminBypass,
     });
     const PLANNER_MODE = abDecision.mode;
     resolvedPlannerMode = PLANNER_MODE;  // expose to catch-block sentry context
@@ -512,6 +517,11 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       language,
       mode: PLANNER_MODE,
       dietary: dietPrefs,
+      // 2026-05-19: admin Test Mode (ADMIN-BYPASS- orderId) downgrades the strict
+      // validatePatternStructure throw to a soft telegram alert — admin testing
+      // shouldn't be blocked by Gemini non-determinism (CLAUDE.md §F intermittent
+      // PLAN_VALIDATION_FAILED). Customers still get hard validation.
+      isAdminBypass: !!gate.isAdminBypass,
       body: {
         regions,
         arrival_airport,
@@ -561,6 +571,12 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     }
 
     console.log('[planner] Step 3: Saving to Firestore...');
+
+    // ── P112 (2026-05-20): end_time backfill ──────────────────────────────
+    // Gemini/RouteAgent 가 일부 stop 에 end_time 안 채우면 UI 가 "15:45-undefined"
+    // 류 표시 + PDF/email/voucher downstream 깨짐. start_time + stay_min 으로
+    // 자동 계산. 이미 채워진 stop 은 override X (timeline stitching 결과 존중).
+    backfillStopEndTimes(itinerary);
 
     // ── T-money 서버 계산 ─────────────────────────────────────────────────
     calculateTmoney(itinerary);
@@ -675,7 +691,7 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
         await throttledTelegramAlert({
           key: 'ai-planner-unhandled',
           channel: 'error',
-          message: `🔴 [ai-planner-full] ${error.message || 'unknown error'}`,
+          message: `🔴 <b>AI 플래너 처리 실패</b>\n\n${error.message || '알 수 없는 오류'}\n\n경로: /api/ai-planner-full | 모드: ${resolvedPlannerMode}`,
           severity: 'high',
           context: { errorMessage: (error.message || '').slice(0, 200), stack: (error.stack || '').slice(0, 500) },
         });

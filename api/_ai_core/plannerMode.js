@@ -92,15 +92,29 @@ export function bucketFor(identifier) {
  * @param {string|null} [args.uid]
  * @param {string|null} [args.guestEmail]
  * @param {string|null} [args.sessionId]
- * @param {object} [args.env]            Optional env override (for tests).
- *                                       Defaults to process.env.
+ * @param {boolean}     [args.isAdminBypass]  P102 (2026-05-20): admin Test Mode
+ *                                            (ADMIN-BYPASS-* orderId) → always
+ *                                            'legacy'. 3-pass 는 Pass1+Pass2+
+ *                                            Pass3 로 90-150s + retry 시 5분
+ *                                            cap 도달 → Test Mode 5min timeout.
+ *                                            Test Mode 의 목적은 빠른 happy-path
+ *                                            검증이라 A/B bucketing 면역 필요.
+ * @param {object}      [args.env]            Optional env override (for tests).
+ *                                            Defaults to process.env.
  * @returns {{ mode: 'legacy'|'3pass', reason: string, bucket: number|null }}
  *   - mode:   final pipeline to run
  *   - reason: human-readable trace (logged for analytics — e.g.
- *             'env-override', 'pct-bucketing', 'no-identifier-fallback')
+ *             'env-override', 'pct-bucketing', 'no-identifier-fallback',
+ *             'admin-bypass-force-legacy')
  *   - bucket: assigned bucket [0, 99] when hash-bucketed, else null
  */
-export function decidePlannerMode({ uid, guestEmail, sessionId, env } = {}) {
+export function decidePlannerMode({ uid, guestEmail, sessionId, isAdminBypass, env } = {}) {
+  // Precedence 0 (P102): ADMIN-BYPASS- orderId → force legacy regardless of
+  // env override or A/B bucketing. Customer flow (no admin bypass) unaffected.
+  if (isAdminBypass) {
+    return { mode: 'legacy', reason: 'admin-bypass-force-legacy', bucket: null };
+  }
+
   const envSource = env || process.env;
   const rawMode = String(envSource.PLANNER_MODE || '').trim().toLowerCase();
   const pct = parsePct(envSource.PLANNER_AB_3PASS_PCT);

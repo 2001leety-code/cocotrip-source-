@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { StopCard } from './StopCard';
+import { StopCard, type LodgingRole } from './StopCard';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { PlanStop } from '../types';
 import { getPlanDetailDict } from '../types';
@@ -14,9 +14,11 @@ interface SortableStopCardProps {
   stopId: string;
   editMode: boolean;
   onDelete: () => void;
+  /** P116: lodging bookend role 라벨링 — 호텔 카드 첫/마지막/중간 구분. */
+  lodgingRole?: LodgingRole;
 }
 
-export function SortableStopCard({ stop, stopId, editMode, onDelete }: SortableStopCardProps) {
+export function SortableStopCard({ stop, stopId, editMode, onDelete, lodgingRole }: SortableStopCardProps) {
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ed = pd.editor || {};
@@ -98,7 +100,7 @@ export function SortableStopCard({ stop, stopId, editMode, onDelete }: SortableS
         )}
 
         <div className={editMode ? 'border border-dashed border-white/10 rounded-xl transition-colors' : ''}>
-          <StopCard stop={stop} />
+          <StopCard stop={stop} lodgingRole={lodgingRole} />
         </div>
       </motion.div>
     </div>
