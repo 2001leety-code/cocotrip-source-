@@ -232,6 +232,81 @@ describe('decidePlannerMode — env precedence + bucketing', () => {
   });
 });
 
+// P102 (2026-05-20): admin Test Mode (ADMIN-BYPASS-*) must always run on the
+// legacy pipeline. 3-pass executes Pass1 (gemini) + Pass2 (DB) + Pass3 (gemini
+// enrich) = 90-150s + retry → easily exceeds 5min Vercel cap → client sees
+// "AI 플랜 생성이 5분 이상 걸려 중단" timeout. Test Mode is meant for fast
+// happy-path verification, not A/B exposure. Customer flow (isAdminBypass=false)
+// unaffected.
+describe('P102 — isAdminBypass forces legacy (regardless of env/PCT)', () => {
+  it('isAdminBypass=true overrides PLANNER_MODE=3pass env override', () => {
+    const d = decidePlannerMode({
+      uid: '2001leety@gmail.com',
+      isAdminBypass: true,
+      env: { PLANNER_MODE: '3pass' },
+    });
+    expect(d.mode).toBe('legacy');
+    expect(d.reason).toBe('admin-bypass-force-legacy');
+    expect(d.bucket).toBeNull();
+  });
+
+  it('isAdminBypass=true overrides PCT=100 bucketing', () => {
+    const d = decidePlannerMode({
+      uid: '2001leety@gmail.com',
+      isAdminBypass: true,
+      env: { PLANNER_AB_3PASS_PCT: '100' },
+    });
+    expect(d.mode).toBe('legacy');
+    expect(d.reason).toBe('admin-bypass-force-legacy');
+  });
+
+  it('isAdminBypass=true survives Vercel BOM/CRLF env corruption', () => {
+    // Replicates real prod incident: vercel env pull surfaced PLANNER_MODE as
+    // "﻿3pass\r\n" — BOM + literal CRLF. JS .trim() strips both (per ES
+    // WhiteSpace spec) → '3pass' → forces 3pass for everyone. Admin Test Mode
+    // must remain immune to this latent prod-env hazard.
+    const d = decidePlannerMode({
+      uid: '2001leety@gmail.com',
+      isAdminBypass: true,
+      env: { PLANNER_MODE: '﻿3pass\r\n' },
+    });
+    expect(d.mode).toBe('legacy');
+    expect(d.reason).toBe('admin-bypass-force-legacy');
+  });
+
+  it('isAdminBypass=false → normal A/B logic still applies (no regression)', () => {
+    // Customer flow unaffected — PLANNER_MODE=3pass env still forces 3pass.
+    const d = decidePlannerMode({
+      uid: 'customer-uid',
+      isAdminBypass: false,
+      env: { PLANNER_MODE: '3pass' },
+    });
+    expect(d.mode).toBe('3pass');
+    expect(d.reason).toBe('env-override-3pass');
+  });
+
+  it('isAdminBypass omitted (undefined) → normal A/B logic applies', () => {
+    // Backward-compat: callers not yet passing isAdminBypass keep prior behavior.
+    const d = decidePlannerMode({
+      uid: 'customer-uid',
+      env: { PLANNER_MODE: '3pass' },
+    });
+    expect(d.mode).toBe('3pass');
+    expect(d.reason).toBe('env-override-3pass');
+  });
+
+  it('isAdminBypass=true with no identifier → still legacy (defense in depth)', () => {
+    // Admin Test Mode without uid/email should not throw or fall through to
+    // pct-bucketing fallback — admin-bypass-force-legacy is precedence 0.
+    const d = decidePlannerMode({
+      isAdminBypass: true,
+      env: { PLANNER_AB_3PASS_PCT: '50' },
+    });
+    expect(d.mode).toBe('legacy');
+    expect(d.reason).toBe('admin-bypass-force-legacy');
+  });
+});
+
 describe('normalizeMode — only canonical values pass', () => {
   it.each([
     ['legacy', 'legacy'],

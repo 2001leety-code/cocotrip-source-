@@ -1002,6 +1002,7 @@ const RULES = [
   ['P94_vercelIgnoreShallowCloneSafe', P94_vercelIgnoreShallowCloneSafe],
   ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
+  ['P102_adminBypassForceLegacy', P102_adminBypassForceLegacy],
 ];
 
 /**
@@ -1340,6 +1341,70 @@ function P96_longRunningEndpointInstrumentation({ changed }) {
         '메모리 P96 (PR #482) — 5분 cap 도달 시 어느 step 에서 멈췄는지 prod logs/Telegram 으로 즉시 식별 가능해야 함. ai-planner-full.js 의 withStep + hangWarnTimer 패턴 참조.',
       );
     }
+  }
+  return null;
+}
+
+/**
+ * P102_adminBypassForceLegacy — 메모리 P102 (2026-05-20, no-PR-yet).
+ *
+ * Test Mode 5분 timeout 인시던트:
+ *   1. Vercel prod PLANNER_MODE env 가 "﻿3pass\r\n" (BOM + literal CRLF) 으로
+ *      설정됨 (29일 전 운영자 토글). .trim() 가 ES WhiteSpace 규격에 따라 BOM/
+ *      CRLF 제거 → "3pass" 매칭 → 모든 요청 3-pass 파이프라인.
+ *   2. 3-pass = Pass1 (gemini ~30s) + Pass2 (DB resolve) + Pass3 (gemini enrich
+ *      ~30s) + validate retry → 90~150s + 재시도 시 5분 Vercel cap 도달.
+ *   3. handlePaymentSuccess 의 client AbortController timeout=300s 와 maxDuration
+ *      =300 이 동일 → 서버 cap 직전 응답해도 client 가 거의 동시에 abort.
+ *
+ * 회귀 차단:
+ *   - api/_ai_core/plannerMode.js: decidePlannerMode 가 isAdminBypass 파라미터
+ *     를 첫 precedence 로 처리 (admin-bypass-force-legacy reason).
+ *   - api/ai-planner-full.js: decidePlannerMode 호출 시 isAdminBypass 전달.
+ *
+ * 회귀 슬롯: tests/unit/planner-ab-mode.test.ts ('P102 — isAdminBypass forces
+ * legacy' describe 블록 6 케이스).
+ */
+function P102_adminBypassForceLegacy({ changed }) {
+  const violations = [];
+
+  const PM_FILE = 'api/_ai_core/plannerMode.js';
+  if (isModified(PM_FILE, changed)) {
+    const content = getChangedFileContent(PM_FILE);
+    if (content) {
+      if (!/isAdminBypass/.test(content)) {
+        violations.push(`${PM_FILE}: decidePlannerMode 가 isAdminBypass 파라미터 미수용 — 3-pass A/B override 면역 깨짐`);
+      }
+      if (!/admin-bypass-force-legacy/.test(content)) {
+        violations.push(`${PM_FILE}: reason 'admin-bypass-force-legacy' 누락 — 트레이스/로그에서 식별 불가`);
+      }
+      // Precedence 0 위치 확인 — env override 체크보다 먼저 isAdminBypass 처리.
+      const adminIdx = content.indexOf("admin-bypass-force-legacy");
+      const envOverrideIdx = content.indexOf("env-override-3pass");
+      if (adminIdx > -1 && envOverrideIdx > -1 && adminIdx > envOverrideIdx) {
+        violations.push(`${PM_FILE}: isAdminBypass 분기가 env-override-3pass 보다 뒤에 위치 — Precedence 0 (admin 최우선) 위반`);
+      }
+    }
+  }
+
+  const PLANNER_FILE = 'api/ai-planner-full.js';
+  if (isModified(PLANNER_FILE, changed)) {
+    const content = getChangedFileContent(PLANNER_FILE);
+    if (content) {
+      // decidePlannerMode 호출 블록에 isAdminBypass 인자 포함 필수.
+      const callMatch = content.match(/decidePlannerMode\s*\(\s*\{[\s\S]{0,400}?\}\s*\)/);
+      if (callMatch && !/isAdminBypass\s*:/.test(callMatch[0])) {
+        violations.push(`${PLANNER_FILE}: decidePlannerMode 호출에 isAdminBypass 인자 누락 — gate.isAdminBypass 가 mode 결정에 반영 안 됨 → admin Test Mode 가 3-pass 로 빠져 5분 cap 회귀`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P102_adminBypassForceLegacy',
+      violations.join(' | '),
+      '메모리 P102 — admin Test Mode (ADMIN-BYPASS-*) 은 decidePlannerMode Precedence 0 으로 항상 legacy. tests/unit/planner-ab-mode.test.ts 의 P102 describe 블록 참조.',
+    );
   }
   return null;
 }
