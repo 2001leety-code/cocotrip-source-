@@ -62,24 +62,39 @@ export function backfillStopEndTimes(itinerary) {
  * day 의 day.lodging = undefined. RouteAgent Phase 2.4 의 prevDayHotelCoord null
  * → KTX intercity bookend 누락 silent fail (P111 alert 대상). buildPrompt 보강
  * (day.lodging 명시 지시) 의 안전망 — Gemini 비결정성으로 day.lodging 누락 시
- * stops[] 의 첫 lodging category stop 으로 자동 채우기.
+ * stops[] 의 lodging category stops 로 자동 채우기.
  *
- * 이미 day.lodging.name 있으면 override X.
+ * 선택 logic (5/20 plan 4792076e 검증 결과 정정):
+ *   - city-change arrival day (intercity_transit 있고 to_city === day.city 이며
+ *     lodgings >= 2): **마지막 lodging** (도착 city check-in 호텔) — Day3 Seoul→Busan
+ *     의 경우 stops[0]=명동(checkout) / stops[last]=해운대(check-in). 의도된
+ *     day.lodging = 해운대 (Busan).
+ *   - 그 외 (일반 day, 출국 day, lodging 부족): **첫 lodging** (시작 호텔) —
+ *     일반 day 는 first=last 동일. 출국 day 는 checkout 호텔.
+ *
+ * 이미 day.lodging.name 또는 address 있으면 override X.
  */
 export function backfillDayLodging(itinerary) {
   let filled = 0;
   for (const day of (itinerary?.days || [])) {
     if (day?.lodging && (day.lodging.name || day.lodging.address)) continue;
     const stops = Array.isArray(day?.stops) ? day.stops : [];
-    const firstLodging = stops.find((s) => s?.category === 'lodging');
-    if (firstLodging) {
-      day.lodging = {
-        name: String(firstLodging.name || firstLodging.display_name || '').trim() || null,
-        address: String(firstLodging.address || '').trim() || null,
-      };
-      if (day.lodging.name || day.lodging.address) {
-        filled += 1;
-      }
+    const lodgingStops = stops.filter((s) => s?.category === 'lodging');
+    if (lodgingStops.length === 0) continue;
+
+    const toCity = String(day?.intercity_transit?.to_city || '').trim().toLowerCase();
+    const dayCity = String(day?.city || '').trim().toLowerCase();
+    const isArrivalDay =
+      !!day?.intercity_transit && toCity && dayCity && toCity === dayCity &&
+      lodgingStops.length >= 2;
+
+    const target = isArrivalDay ? lodgingStops[lodgingStops.length - 1] : lodgingStops[0];
+    day.lodging = {
+      name: String(target.name || target.display_name || '').trim() || null,
+      address: String(target.address || '').trim() || null,
+    };
+    if (day.lodging.name || day.lodging.address) {
+      filled += 1;
     }
   }
   if (filled > 0) console.log(`[planPersister] day.lodging backfilled: ${filled} days`);
