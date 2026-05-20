@@ -1005,6 +1005,7 @@ const RULES = [
   ['P107_aiTranslateReverseBackcompat', P107_aiTranslateReverseBackcompat],
   ['P108_slotCapacityPreLockTransaction', P108_slotCapacityPreLockTransaction],
   ['P109_resizeImagesVariantsFallback', P109_resizeImagesVariantsFallback],
+  ['P110_adminClaimsRbacFoundation', P110_adminClaimsRbacFoundation],
 ];
 
 /**
@@ -1553,6 +1554,77 @@ function P109_resizeImagesVariantsFallback({ changed }) {
       'P109_resizeImagesVariantsFallback',
       violations.join(' | '),
       '메모리 P109 — TourPhoto.variants 키 = Extension 출력 사이즈 (400/800/1600). resolvePhotoUrl(photo, w?) 폴백 chain + buildPhotoSrcSet builder. docs/RESIZE-IMAGES-SETUP.md 운영자 액션 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P110_adminClaimsRbacFoundation — 메모리 P110 (2026-05-20, no-PR-yet).
+ *
+ * 하드코드 admin email → Firebase custom claims RBAC 마이그 Phase 1 (Foundation).
+ * verifyAdminToken 가 email OR admin claim 양쪽 허용 + role 정규화 export +
+ * super-admin self-lockout 방지.
+ *
+ * 회귀 차단:
+ *   - api/_shared/admin-auth.js: extractRoles + requireRole 정규화 함수 유지.
+ *     verifyAdminToken 반환값에 claims/roles 노출.
+ *   - api/admin-set-claims.js: super-admin role 검증 + 5 canonical role
+ *     whitelist (sanitizeRoles) + self-lockout 보호.
+ *
+ * 회귀 슬롯: tests/unit/admin-set-claims-roles.test.ts (14 케이스).
+ */
+function P110_adminClaimsRbacFoundation({ changed }) {
+  const violations = [];
+
+  const AUTH = 'api/_shared/admin-auth.js';
+  if (isModified(AUTH, changed)) {
+    const content = getChangedFileContent(AUTH);
+    if (content) {
+      if (!/export\s+function\s+extractRoles/.test(content)) {
+        violations.push(`${AUTH}: extractRoles 미export — token roles 정규화 helper 누락`);
+      }
+      if (!/export\s+function\s+requireRole/.test(content)) {
+        violations.push(`${AUTH}: requireRole 미export — caller 가 role 검증 불가 → set-claims endpoint 우회 가능`);
+      }
+      if (!/decoded\.admin\s*===\s*true/.test(content)) {
+        violations.push(`${AUTH}: admin claim 검증 (decoded.admin === true) 누락 — RBAC 마이그 효과 0`);
+      }
+      // self-lockout 방지를 위해 caller 의 roles 가 응답에 포함돼야 함.
+      if (!/roles\s*,?\s*\}\s*;/.test(content) && !/return\s*\{[\s\S]{0,300}roles[\s\S]{0,200}\}/m.test(content)) {
+        violations.push(`${AUTH}: verifyAdminToken 반환값에 roles 미포함 — caller 가 role 검증 불가`);
+      }
+    }
+  }
+
+  const SET_CLAIMS = 'api/admin-set-claims.js';
+  if (isModified(SET_CLAIMS, changed)) {
+    const content = getChangedFileContent(SET_CLAIMS);
+    if (content) {
+      // super-admin 보유자만 호출 가능해야 함.
+      if (!/requireRole\s*\([^)]+,\s*['"]super-admin['"]\s*\)/.test(content)) {
+        violations.push(`${SET_CLAIMS}: requireRole('super-admin') 검증 누락 — 모든 admin 이 임의 권한 부여 가능 → 권한 escalation`);
+      }
+      // self-lockout 방지 분기.
+      if (!/SELF_LOCKOUT_BLOCKED/.test(content)) {
+        violations.push(`${SET_CLAIMS}: self-lockout 방지 분기 누락 — super-admin 본인이 자신의 role 회수 가능 → 영구 잠김`);
+      }
+      // whitelist sanitization.
+      if (!/sanitizeRoles\s*\(/.test(content)) {
+        violations.push(`${SET_CLAIMS}: sanitizeRoles 호출 누락 — 'ghost-role' 같은 임의값 token 에 박힘 → schema drift`);
+      }
+      // Audit log.
+      if (!/admin_actions/.test(content)) {
+        violations.push(`${SET_CLAIMS}: admin_actions audit log 누락 — 권한 부여 추적 불가 → 감사 책임 회피`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P110_adminClaimsRbacFoundation',
+      violations.join(' | '),
+      '메모리 P110 — RBAC Phase 1. verifyAdminToken 의 email OR admin claim 양쪽 통과 + super-admin 자가 lockout 방지 + 5 role whitelist. tests/unit/admin-set-claims-roles.test.ts 14 케이스 참조. 운영자 액션: node scripts/grant-super-admin.mjs <email>.',
     );
   }
   return null;

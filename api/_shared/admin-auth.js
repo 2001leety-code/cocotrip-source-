@@ -94,7 +94,13 @@ function bootstrapAdminAuth() {
 
 /**
  * @param {object} req - HTTP request (Vercel/Next)
- * @returns {Promise<{ok: true, email: string, uid: string} | {ok: false, status: number, error: string}>}
+ * @returns {Promise<{ok: true, email: string, uid: string, claims?: object, roles?: string[]} | {ok: false, status: number, error: string}>}
+ *   - claims: decoded ID token claims (subset — admin, roles).
+ *   - roles: shortcut to claims.roles (string[] or []).
+ *
+ * P110 (2026-05-20): admin claim 통과 시 ADMIN_EMAIL allowlist 와 동등하게
+ * 인증. RBAC 마이그 Phase 1 — email 와 admin claim 양쪽 통과 허용 (점진 마이그
+ * 안전). caller 는 .roles 로 행위별 분기 가능 (예: super-admin only set claims).
  */
 export async function verifyAdminToken(req) {
   const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
@@ -124,13 +130,47 @@ export async function verifyAdminToken(req) {
     if (!email || !decoded.email_verified) {
       return { ok: false, status: 403, error: 'Email not verified' };
     }
-    if (email !== adminEmail) {
+    // P110 (2026-05-20): admin claim 또는 ADMIN_EMAIL allowlist 매칭 시 통과.
+    // 마이그 Phase 1 — 양쪽 동시 허용. Phase 3 (운영자 확인 후) 에 email 비교
+    // 제거 + claim-only 전환. extractRoles 가 claims.roles 정규화.
+    const adminClaim = decoded.admin === true;
+    const emailMatch = email === adminEmail;
+    if (!adminClaim && !emailMatch) {
       return { ok: false, status: 403, error: 'Not admin' };
     }
-    return { ok: true, email, uid: decoded.uid };
+    const roles = extractRoles(decoded.roles);
+    return {
+      ok: true,
+      email,
+      uid: decoded.uid,
+      claims: { admin: !!decoded.admin, roles },
+      roles,
+    };
   } catch (err) {
     return { ok: false, status: 401, error: `Token verification failed: ${err.code || err.message}` };
   }
+}
+
+/**
+ * P110: roles claim 정규화 — string[] 형태 보장. 잘못된 형태 (undefined / 비
+ * 배열 / 비 string 요소) 는 [] 반환.
+ */
+export function extractRoles(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((r) => typeof r === 'string' && r.trim()).map((r) => r.trim().toLowerCase());
+}
+
+/**
+ * P110: caller 가 특정 role 검증할 때 사용. super-admin 은 모든 role 묵시
+ * 통과 (정책 — super-admin 은 RBAC 우회). 그 외는 정확 매칭.
+ *
+ * 예: requireRole(auth.roles, 'product-manager') → super-admin 또는
+ *     product-manager 보유 시 true.
+ */
+export function requireRole(roles, neededRole) {
+  if (!Array.isArray(roles) || roles.length === 0) return false;
+  if (roles.includes('super-admin')) return true;
+  return roles.includes(neededRole);
 }
 
 /**
