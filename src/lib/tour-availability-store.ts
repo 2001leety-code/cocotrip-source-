@@ -1,8 +1,12 @@
 // Firestore tour_availability/{tourId}/{YYYY-MM-DD} CRUD wrapper.
 // 가용성 상태: 'available' (default) | 'fully_booked' | 'blackout'.
 // 운영자 admin 페이지에서 set/clear, 클라이언트(UI)는 fetchMonthAvailability 로 한달치 한 번에 조회.
+//
+// P108 (2026-05-20): TourSlot 별 잔여석 (slot_bookings / slot_pending) 조회 헬퍼
+// 추가. SlotPicker 가 "정원 7 (잔여 3)" UX 표시 + 마감 슬롯 비활성화.
 import {
   doc,
+  getDoc,
   setDoc,
   deleteDoc,
   collection,
@@ -21,6 +25,19 @@ export type AvailabilityEntry = {
   status: AvailabilityStatus;
   note?: string;      // admin 메모
   updatedAt?: number; // serverTimestamp on write
+  // P108: 슬롯별 카운터 (모두 optional, 슬롯 미사용 투어는 누락).
+  slot_bookings?: Record<string, number>;
+  slot_pending?: Record<string, { count: number; expiresAt: string; orderId?: string | null }>;
+};
+
+/** P108: 슬롯 capacity 정보 — SlotPicker 가 잔여석 표시 + 마감 차단에 사용. */
+export type SlotCapacityEntry = {
+  /** 결제 확정 인원. */
+  booked: number;
+  /** 결제 진행 중인 (10분 TTL) 인원. UX 상 "선점 중" 으로 표시 가능. */
+  pending: number;
+  /** 총 점유 = booked + pending (만료 제외). */
+  total: number;
 };
 
 function entryDocPath(tourId: string, date: string) {
@@ -60,6 +77,42 @@ export async function fetchMonthAvailability(tourId: string, yearMonth: string):
     map.set(data.date, data);
   });
   return map;
+}
+
+/**
+ * 슬롯별 잔여 capacity 조회 (P108). 반환 맵은 slot id 키. 슬롯별 entry 가 없으면
+ * (slot 사용 첫 결제 전) 빈 맵 반환 — caller 는 "0 booked / capacity" 로 처리.
+ *
+ * 만료된 pending (cron sweep 직전 상태) 은 클라이언트 단에서도 제외하므로 UI
+ * 표시가 prematurely "마감" 처리되지 않음.
+ */
+export async function fetchSlotCapacity(
+  tourId: string,
+  date: string,
+): Promise<Map<string, SlotCapacityEntry>> {
+  const result = new Map<string, SlotCapacityEntry>();
+  try {
+    const snap = await getDoc(doc(db, 'tour_availability', tourId, 'dates', date));
+    if (!snap.exists()) return result;
+    const data = snap.data() as AvailabilityEntry;
+    const now = Date.now();
+    const allSlotIds = new Set<string>([
+      ...Object.keys(data.slot_bookings ?? {}),
+      ...Object.keys(data.slot_pending ?? {}),
+    ]);
+    for (const slotId of allSlotIds) {
+      const booked = Number(data.slot_bookings?.[slotId] ?? 0);
+      const rawPending = data.slot_pending?.[slotId];
+      const expiresMs = rawPending?.expiresAt ? Date.parse(rawPending.expiresAt) : NaN;
+      const activePending = rawPending && Number.isFinite(expiresMs) && expiresMs > now
+        ? Number(rawPending.count ?? 0)
+        : 0;
+      result.set(slotId, { booked, pending: activePending, total: booked + activePending });
+    }
+  } catch (err) {
+    console.warn('[tour-availability-store] fetchSlotCapacity failed:', err);
+  }
+  return result;
 }
 
 /** 단일 일자 비활성 여부 (Firestore + mock fallback). */

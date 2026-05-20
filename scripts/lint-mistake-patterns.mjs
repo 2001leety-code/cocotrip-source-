@@ -1003,6 +1003,7 @@ const RULES = [
   ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
   ['P107_aiTranslateReverseBackcompat', P107_aiTranslateReverseBackcompat],
+  ['P108_slotCapacityPreLockTransaction', P108_slotCapacityPreLockTransaction],
 ];
 
 /**
@@ -1403,6 +1404,94 @@ function P107_aiTranslateReverseBackcompat({ changed }) {
       'P107_aiTranslateReverseBackcompat',
       violations.join(' | '),
       '메모리 P107 — Phase 5 4-lang any-direction 번역. Phase 4 backward compat 유지 필수 (legacy { korean } body + translateKoreanToOthers wrapper). tests/unit/admin-translate-prompt.test.ts 24 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P108_slotCapacityPreLockTransaction — 메모리 P108 (2026-05-20, no-PR-yet).
+ *
+ * TourSlot 별 잔여석 차감 로직이 createPaypalOrder.js / capturePaypalOrder.js /
+ * cron-runner.js 에서 빠지면 overbooking 회귀. 슬롯 사용 투어 (어드민 상품
+ * 시스템 Phase 1 의 TourSlot.capacity) 의 동시 결제 race condition 차단.
+ *
+ * 회귀 차단:
+ *   - api/_shared/slot-capacity.js: acquireSlotLock + confirmSlotLock +
+ *     sweepExpiredPending 3 export 유지 + runTransaction 호출 (race-safe).
+ *   - api/createPaypalOrder.js: acquireSlotLock import + 호출 분기 (4 필드
+ *     모두 있을 때만 발화 — backward compat).
+ *   - api/capturePaypalOrder.js: confirmSlotLock import + 호출 분기.
+ *   - api/cron-runner.js: slot-pending-sweep job 등록 (Vercel cron, 5분 간격).
+ *
+ * 회귀 슬롯: tests/unit/slot-capacity.test.ts (22 케이스 — capacity gate /
+ * expired pending overwrite / status fully_booked guard / lost-lock re-validate /
+ * cron sweep idempotency).
+ */
+function P108_slotCapacityPreLockTransaction({ changed }) {
+  const violations = [];
+
+  const HELPER = 'api/_shared/slot-capacity.js';
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/export\s+async\s+function\s+acquireSlotLock/.test(content)) {
+        violations.push(`${HELPER}: acquireSlotLock 미export — pre-lock 진입점 누락 → overbooking 회귀`);
+      }
+      if (!/export\s+async\s+function\s+confirmSlotLock/.test(content)) {
+        violations.push(`${HELPER}: confirmSlotLock 미export — capture 시 pending→confirmed 전환 불가 → counter drift`);
+      }
+      if (!/export\s+async\s+function\s+sweepExpiredPending/.test(content)) {
+        violations.push(`${HELPER}: sweepExpiredPending 미export — cron sweep 불가 → 만료 lock 영구 누적`);
+      }
+      if (!/adminDb\.runTransaction/.test(content)) {
+        violations.push(`${HELPER}: runTransaction 호출 누락 — read-then-write race condition → 동시 결제 overbooking`);
+      }
+    }
+  }
+
+  const CREATE = 'api/createPaypalOrder.js';
+  if (isModified(CREATE, changed)) {
+    const content = getChangedFileContent(CREATE);
+    if (content && /tourSlotId/.test(content)) {
+      // tourSlotId 분기가 추가됐다면 acquireSlotLock 호출 + import 필수.
+      if (!/from\s*['"]\.\/_shared\/slot-capacity\.js['"]/.test(content)) {
+        violations.push(`${CREATE}: tourSlotId 분기는 도입됐지만 slot-capacity.js import 누락 — pre-lock 무력화`);
+      }
+      if (!/acquireSlotLock\s*\(/.test(content)) {
+        violations.push(`${CREATE}: acquireSlotLock 호출 누락 — tourSlotId 받아도 capacity 검증 X → silent overbooking`);
+      }
+    }
+  }
+
+  const CAPTURE = 'api/capturePaypalOrder.js';
+  if (isModified(CAPTURE, changed)) {
+    const content = getChangedFileContent(CAPTURE);
+    if (content && /tourSlotId/.test(content)) {
+      if (!/from\s*['"]\.\/_shared\/slot-capacity\.js['"]/.test(content)) {
+        violations.push(`${CAPTURE}: tourSlotId 분기는 도입됐지만 slot-capacity.js import 누락 — pending 영구 누적`);
+      }
+      if (!/confirmSlotLock\s*\(/.test(content)) {
+        violations.push(`${CAPTURE}: confirmSlotLock 호출 누락 — capture 후 pending→confirmed 전환 X → counter drift`);
+      }
+    }
+  }
+
+  const RUNNER = 'api/cron-runner.js';
+  if (isModified(RUNNER, changed)) {
+    const content = getChangedFileContent(RUNNER);
+    if (content && /slot-capacity\.js/.test(getChangedFileContent(HELPER) || '')) {
+      if (!/slot-pending-sweep/.test(content)) {
+        violations.push(`${RUNNER}: slot-pending-sweep job 등록 누락 — pending lock 만료 후 영구 누적`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P108_slotCapacityPreLockTransaction',
+      violations.join(' | '),
+      '메모리 P108 — TourSlot 동시 결제 overbooking 차단. 3 endpoint 동기화 (createPaypalOrder pre-lock + capturePaypalOrder confirm + cron sweep). tests/unit/slot-capacity.test.ts 22 케이스 + transaction 안에서만 read-modify-write.',
     );
   }
   return null;

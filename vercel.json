@@ -40,6 +40,10 @@
     {
       "path": "/api/cron-runner?job=ai-planner-retry-sweep",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron-runner?job=slot-pending-sweep",
+      "schedule": "*/5 * * * *"
     }
   ],
   "functions": {
