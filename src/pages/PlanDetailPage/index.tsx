@@ -34,6 +34,7 @@ import { SectionTabs } from './components/SectionTabs';
 import { IntroSlide } from './components/IntroSlide';
 import { OutroSlide } from './components/OutroSlide';
 import { AdSlide } from './components/AdSlide';
+import { QualityWarningsPanel } from './components/QualityWarningsPanel';
 import { usePlanEditor } from './hooks/usePlanEditor';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { buildSlides } from './lib/buildSlides';
@@ -358,6 +359,16 @@ export default function PlanDetailPage() {
         <div className="max-w-4xl mx-auto px-4">
           <ReviewList targetType="plan" targetId={planId || ''} />
         </div>
+
+        {/* P121 (2026-05-20): 운영자 전용 quality_warnings + qualityScore 노출.
+            isAdminEmail 가드 — 일반 사용자에게는 null 반환. */}
+        <QualityWarningsPanel
+          userEmail={user?.email || null}
+          qualityWarnings={plan.itinerary?.quality_warnings as never}
+          qualityScore={(plan as Record<string, unknown>).qualityScore as never}
+          planId={planId || ''}
+          plannerMode={(plan as Record<string, unknown>).plannerMode as string | undefined}
+        />
 
         {/* 2026-05-04: 플랜 신고 버튼 (Tier 1-A 학습 루프). 인라인 — floating 보다 덜 방해적. */}
         <div className="max-w-4xl mx-auto px-4 mt-8 mb-4 text-center">

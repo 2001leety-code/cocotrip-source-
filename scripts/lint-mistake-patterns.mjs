@@ -1016,6 +1016,7 @@ const RULES = [
   ['P118_prePushHookContent', P118_prePushHookContent],
   ['P119_dayLodgingBackfill', P119_dayLodgingBackfill],
   ['P120_unreasonableStopTimeDetect', P120_unreasonableStopTimeDetect],
+  ['P121_qualityWarningsAdminPanel', P121_qualityWarningsAdminPanel],
 ];
 
 /**
@@ -2045,6 +2046,55 @@ function P116_lodgingBookendLabel({ changed }) {
       'P116_lodgingBookendLabel',
       violations.join(' | '),
       '메모리 P116 — lodging bookend 호텔 카드 첫/마지막/중간 구분 라벨 (checkout/depart/checkin/return). StopCard LodgingRole 타입 + 4-lang + 가드 badge + computeLodgingRole 헬퍼 + SortableStopCard forward. tests/unit/lodging-bookend-label-pr116.test.tsx 13 케이스.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P121_qualityWarningsAdminPanel — 메모리 P121 (2026-05-20).
+ * plan.itinerary.quality_warnings 가 Firestore 에 저장되지만 UI 미노출이라
+ * 운영자가 plan detail 보면서 진단 불가했음. PlanDetailPage 의 운영자 전용
+ * QualityWarningsPanel 컴포넌트 + isAdminEmail 가드 + PlanDetailPage 통합 검증.
+ */
+function P121_qualityWarningsAdminPanel({ changed }) {
+  const PANEL = 'src/pages/PlanDetailPage/components/QualityWarningsPanel.tsx';
+  const INDEX = 'src/pages/PlanDetailPage/index.tsx';
+  if (!isModified(PANEL, changed) && !isModified(INDEX, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(PANEL)) {
+    const c = readFileSync(PANEL, 'utf8');
+    if (!/import\s+\{\s*isAdminEmail\s*\}\s+from\s+['"]@\/lib\/admin['"]/.test(c)) {
+      violations.push(`${PANEL}: isAdminEmail import 누락 — 운영자 가드 없음`);
+    }
+    if (!/isAdminEmail\s*\(/.test(c)) {
+      violations.push(`${PANEL}: isAdminEmail 호출 누락 — 일반 사용자에게도 노출 위험`);
+    }
+    if (!/export\s+function\s+QualityWarningsPanel\s*\(/.test(c)) {
+      violations.push(`${PANEL}: QualityWarningsPanel export 누락`);
+    }
+  }
+
+  if (existsSync(INDEX)) {
+    const c = readFileSync(INDEX, 'utf8');
+    if (/QualityWarningsPanel/.test(c)) {
+      if (!/import\s+\{\s*QualityWarningsPanel\s*\}/.test(c)) {
+        violations.push(`${INDEX}: QualityWarningsPanel import 누락`);
+      }
+      if (!/<QualityWarningsPanel/.test(c)) {
+        violations.push(`${INDEX}: <QualityWarningsPanel> 렌더 누락`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P121_qualityWarningsAdminPanel',
+      violations.join(' | '),
+      '메모리 P121 — QualityWarningsPanel + isAdminEmail 가드 + PlanDetailPage 통합 (ReviewList 직후) 3 layer 유지.',
     );
   }
   return null;
@@ -4839,6 +4889,22 @@ function runSelfTest() {
       },
       expectRule: 'P120_unreasonableStopTimeDetect',
       expectClean: true,
+    },
+    {
+      label: 'P121: QualityWarningsPanel 에 isAdminEmail 가드 부재 — 일반 사용자 노출 위험',
+      base: {
+        'src/pages/PlanDetailPage/components/QualityWarningsPanel.tsx':
+          "import { isAdminEmail } from '@/lib/admin';\nexport function QualityWarningsPanel(props) { if (!isAdminEmail(props.userEmail)) return null; return <div />; }\n",
+        'src/pages/PlanDetailPage/index.tsx':
+          "import { QualityWarningsPanel } from './components/QualityWarningsPanel';\n<QualityWarningsPanel />\n",
+      },
+      head: {
+        'src/pages/PlanDetailPage/components/QualityWarningsPanel.tsx':
+          "export function QualityWarningsPanel(props) { return <div />; }\n",
+        'src/pages/PlanDetailPage/index.tsx':
+          "import { QualityWarningsPanel } from './components/QualityWarningsPanel';\n<QualityWarningsPanel />\n",
+      },
+      expectRule: 'P121_qualityWarningsAdminPanel',
     },
   ];
 
