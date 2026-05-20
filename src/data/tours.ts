@@ -114,7 +114,24 @@ export type TourPhoto = {
   blurhash?: string;
   /** 정적 마이그용 — /public 경로 보존. resolvePhotoUrl() 이 처리. */
   legacy_public_path?: string;
+  /**
+   * P109 (2026-05-20): Firebase Extension storage-resize-images 가 비동기로
+   * 생성하는 variant URLs. 모바일/데스크톱 srcset 분기 + LCP 5초→1초 개선.
+   * 모두 optional — Extension 미설치 환경 / 기존 사진 (backfill 안 함) 도
+   * resolvePhotoUrl 가 자동 원본 폴백. webp 단일 포맷.
+   */
+  variants?: {
+    /** 400×400 (모바일 thumbnail / TourCard) */
+    '400'?: string;
+    /** 800×800 (모바일 갤러리) */
+    '800'?: string;
+    /** 1600×1600 (데스크톱 풀 갤러리) */
+    '1600'?: string;
+  };
 };
+
+/** P109: TourPhoto.variants 의 키 — srcset 생성 / preferredWidth 매칭에 사용. */
+export type TourPhotoVariantWidth = '400' | '800' | '1600';
 
 export type GuideType = 'live_guide' | 'driver_only' | 'audio' | 'self_guided';
 

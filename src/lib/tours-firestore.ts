@@ -154,12 +154,43 @@ export async function deleteDraft(tourId: string): Promise<void> {
 
 /** /public 경로 또는 https URL → 단일 src.
  *  TourPhoto 객체면 legacy_public_path 폴백, 문자열이면 그대로 반환.
- *  Firebase Storage URL 마이그 도중 호환성 유지. */
-export function resolvePhotoUrl(photo: { url: string; legacy_public_path?: string } | string | undefined): string {
+ *  Firebase Storage URL 마이그 도중 호환성 유지.
+ *
+ *  P109 (2026-05-20): preferredWidth 인자 추가 — TourPhoto.variants[N] 매칭 우선.
+ *  Firebase Extension storage-resize-images 미설치 환경 / variants 누락 시
+ *  자동 원본 폴백. 기존 호출 (preferredWidth 미전달) 무영향. */
+export function resolvePhotoUrl(
+  photo: { url: string; legacy_public_path?: string; variants?: Record<string, string | undefined> } | string | undefined,
+  preferredWidth?: '400' | '800' | '1600',
+): string {
   if (!photo) return '';
   if (typeof photo === 'string') return photo;
+  if (preferredWidth && photo.variants?.[preferredWidth]) {
+    return photo.variants[preferredWidth] as string;
+  }
   if (photo.url?.startsWith('http')) return photo.url;
   return photo.legacy_public_path ?? photo.url ?? '';
+}
+
+/**
+ * P109: srcset 문자열 builder — `<img srcSet>` 직접 주입 가능 포맷.
+ * variants 가 1+ 존재할 때만 string 반환, 없거나 빈 객체면 undefined → 호출자
+ * 가 srcSet attribute 자체 omit (브라우저 src 만 fallback).
+ *
+ * 예) buildPhotoSrcSet(photo) → "https://.../400.webp 400w, https://.../800.webp 800w"
+ */
+export function buildPhotoSrcSet(
+  photo: { variants?: Record<string, string | undefined> } | string | undefined,
+): string | undefined {
+  if (!photo || typeof photo === 'string') return undefined;
+  const variants = photo.variants;
+  if (!variants) return undefined;
+  const parts: string[] = [];
+  for (const w of ['400', '800', '1600'] as const) {
+    const url = variants[w];
+    if (typeof url === 'string' && url) parts.push(`${url} ${w}w`);
+  }
+  return parts.length > 0 ? parts.join(', ') : undefined;
 }
 
 const EMPTY_I18N: I18nString = { ko: '', en: '', ja: '', zh: '' };

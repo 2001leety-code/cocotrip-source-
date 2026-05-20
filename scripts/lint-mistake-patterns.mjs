@@ -1004,6 +1004,7 @@ const RULES = [
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
   ['P107_aiTranslateReverseBackcompat', P107_aiTranslateReverseBackcompat],
   ['P108_slotCapacityPreLockTransaction', P108_slotCapacityPreLockTransaction],
+  ['P109_resizeImagesVariantsFallback', P109_resizeImagesVariantsFallback],
 ];
 
 /**
@@ -1492,6 +1493,66 @@ function P108_slotCapacityPreLockTransaction({ changed }) {
       'P108_slotCapacityPreLockTransaction',
       violations.join(' | '),
       '메모리 P108 — TourSlot 동시 결제 overbooking 차단. 3 endpoint 동기화 (createPaypalOrder pre-lock + capturePaypalOrder confirm + cron sweep). tests/unit/slot-capacity.test.ts 22 케이스 + transaction 안에서만 read-modify-write.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P109_resizeImagesVariantsFallback — 메모리 P109 (2026-05-20, no-PR-yet).
+ *
+ * Firebase Extension storage-resize-images 통합 — TourPhoto.variants 키
+ * (`'400' | '800' | '1600'`) + resolvePhotoUrl(photo, preferredWidth?) 시그니처
+ * + buildPhotoSrcSet helper 회귀 차단. Extension 미설치 환경 자동 폴백 보장.
+ *
+ * 회귀 슬롯: tests/unit/resolve-photo-url.test.ts (17 케이스 — 4 backward
+ * compat + 7 P109 새 동작 + 6 srcset builder).
+ */
+function P109_resizeImagesVariantsFallback({ changed }) {
+  const violations = [];
+
+  const TYPES = 'src/data/tours.ts';
+  if (isModified(TYPES, changed)) {
+    const content = getChangedFileContent(TYPES);
+    if (content && /export\s+type\s+TourPhoto\s*=/.test(content)) {
+      // variants 필드 정의 — Extension 출력과 정확히 매칭되는 키.
+      const photoBlock = content.match(/export\s+type\s+TourPhoto\s*=\s*\{[\s\S]+?\n\};/);
+      if (photoBlock && !/variants\?:/.test(photoBlock[0])) {
+        violations.push(`${TYPES}: TourPhoto.variants 필드 누락 — Extension URL 매칭 불가 → 모바일 LCP 회귀`);
+      }
+      if (photoBlock) {
+        // 3 canonical width 모두 schema 에 있어야 함.
+        for (const w of ['400', '800', '1600']) {
+          if (!new RegExp(`'${w}'\\?:`).test(photoBlock[0])) {
+            violations.push(`${TYPES}: TourPhoto.variants.'${w}' 키 누락 — Extension 이 그 사이즈로 생성한 파일 사용 불가`);
+          }
+        }
+      }
+    }
+  }
+
+  const LIB = 'src/lib/tours-firestore.ts';
+  if (isModified(LIB, changed)) {
+    const content = getChangedFileContent(LIB);
+    if (content) {
+      // resolvePhotoUrl 가 preferredWidth 인자 받는 시그니처 + variants 매칭 분기.
+      if (!/resolvePhotoUrl\s*\([\s\S]{0,300}preferredWidth\?:/.test(content)) {
+        violations.push(`${LIB}: resolvePhotoUrl 시그니처에 preferredWidth 인자 누락 — srcset 분기 불가`);
+      }
+      if (!/photo\.variants\?\.\[preferredWidth\]/.test(content)) {
+        violations.push(`${LIB}: resolvePhotoUrl 안에 variants[preferredWidth] 매칭 분기 누락 — 항상 원본 url 사용 → resize 효과 없음`);
+      }
+      if (!/export\s+function\s+buildPhotoSrcSet/.test(content)) {
+        violations.push(`${LIB}: buildPhotoSrcSet helper 누락 — <img srcSet> attribute 빌더 부재 → 컴포넌트마다 ad-hoc 재구현`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P109_resizeImagesVariantsFallback',
+      violations.join(' | '),
+      '메모리 P109 — TourPhoto.variants 키 = Extension 출력 사이즈 (400/800/1600). resolvePhotoUrl(photo, w?) 폴백 chain + buildPhotoSrcSet builder. docs/RESIZE-IMAGES-SETUP.md 운영자 액션 참조.',
     );
   }
   return null;
