@@ -91,7 +91,11 @@ describe('PR #441 Y-H12 — verifyAdminToken behavior preserved', () => {
 
   it('checks email_verified + admin email match (no permission widening)', () => {
     expect(src).toMatch(/email_verified/);
-    expect(src).toMatch(/email\s*!==\s*adminEmail/);
+    // P110 (2026-05-20): admin claim OR email match — Phase 1 마이그 점진 안전.
+    // 기존 `email !== adminEmail` strict 비교 → `!adminClaim && !emailMatch` 로 확장.
+    // email match 유지 (RBAC 마이그 완료 전까지) + admin claim 추가.
+    expect(src).toMatch(/emailMatch|email\s*===\s*adminEmail|email\s*!==\s*adminEmail/);
+    expect(src).toMatch(/adminClaim|decoded\.admin\s*===\s*true/);
   });
 
   it('exports a test-only cache reset helper (so vitest can re-bootstrap between cases)', () => {

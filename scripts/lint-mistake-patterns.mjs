@@ -1003,6 +1003,10 @@ const RULES = [
   ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
   ['P102_adminBypassForceLegacy', P102_adminBypassForceLegacy],
+  ['P107_aiTranslateReverseBackcompat', P107_aiTranslateReverseBackcompat],
+  ['P108_slotCapacityPreLockTransaction', P108_slotCapacityPreLockTransaction],
+  ['P109_resizeImagesVariantsFallback', P109_resizeImagesVariantsFallback],
+  ['P110_adminClaimsRbacFoundation', P110_adminClaimsRbacFoundation],
   ['P111_intercityBookendSilentFailAlert', P111_intercityBookendSilentFailAlert],
   ['P112_endTimeBackfill', P112_endTimeBackfill],
   ['P113_intercityTimeStitch', P113_intercityTimeStitch],
@@ -1414,6 +1418,289 @@ function P102_adminBypassForceLegacy({ changed }) {
   }
   return null;
 }
+/**
+ * P107_aiTranslateReverseBackcompat — 메모리 P107 (2026-05-20, no-PR-yet).
+ *
+ * Phase 5 reverse translation (admin-translate.js) 가 Phase 4 backward compat
+ * 깨지면 fail. resolveSourceAndTargets 가 두 body 형태 (Phase 5 source object
+ * + Phase 4 korean string) 모두 받아야 함. 클라이언트 헬퍼 (translateKoreanToOthers)
+ * 가 미배포 client 와 함께 작동.
+ *
+ * 또한 buildPrompt + ALL_LANGS 가 named export 되어야 unit test 가 import 가능.
+ *
+ * 회귀 슬롯: tests/unit/admin-translate-prompt.test.ts (24 케이스).
+ */
+function P107_aiTranslateReverseBackcompat({ changed }) {
+  const violations = [];
+
+  const API_FILE = 'api/admin-translate.js';
+  if (isModified(API_FILE, changed)) {
+    const content = getChangedFileContent(API_FILE);
+    if (content) {
+      if (!/export\s+function\s+resolveSourceAndTargets/.test(content)) {
+        violations.push(`${API_FILE}: resolveSourceAndTargets 미export — Phase 5 body resolver 회귀 (legacy korean field 폴백 깨질 수 있음)`);
+      }
+      if (!/export\s+function\s+buildPrompt/.test(content)) {
+        violations.push(`${API_FILE}: buildPrompt 미export — unit test 가 prompt 회귀 검출 불가`);
+      }
+      if (!/export\s+const\s+ALL_LANGS/.test(content)) {
+        violations.push(`${API_FILE}: ALL_LANGS 미export — schema canonical set drift 가능`);
+      }
+      // legacy backcompat: body.korean 경로가 코드에 남아 있어야 함 (Phase 4 미배포
+      // client 가 보내는 { korean: ... } body 처리). resolveSourceAndTargets 안에서.
+      if (!/body\.korean/.test(content)) {
+        violations.push(`${API_FILE}: legacy body.korean 분기 누락 — Phase 4 client 호환성 깨짐`);
+      }
+      // 4-lang canonical: ko/en/ja/zh — Phase 5 source 가 모두 받을 수 있어야 함.
+      if (!/\['ko',\s*'en',\s*'ja',\s*'zh'\]/.test(content)) {
+        violations.push(`${API_FILE}: ALL_LANGS 4-lang canonical 배열 형태 누락 — schema drift`);
+      }
+    }
+  }
+
+  const LIB_FILE = 'src/lib/admin-translate.ts';
+  if (isModified(LIB_FILE, changed)) {
+    const content = getChangedFileContent(LIB_FILE);
+    if (content) {
+      if (!/export\s+async\s+function\s+translateFromSource/.test(content)) {
+        violations.push(`${LIB_FILE}: translateFromSource 미export — Phase 5 클라이언트 호출 경로 누락`);
+      }
+      if (!/export\s+async\s+function\s+translateKoreanToOthers/.test(content)) {
+        violations.push(`${LIB_FILE}: translateKoreanToOthers 미export — Phase 4 호환 wrapper 누락 (기존 I18nField 호출처 break)`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P107_aiTranslateReverseBackcompat',
+      violations.join(' | '),
+      '메모리 P107 — Phase 5 4-lang any-direction 번역. Phase 4 backward compat 유지 필수 (legacy { korean } body + translateKoreanToOthers wrapper). tests/unit/admin-translate-prompt.test.ts 24 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P108_slotCapacityPreLockTransaction — 메모리 P108 (2026-05-20, no-PR-yet).
+ *
+ * TourSlot 별 잔여석 차감 로직이 createPaypalOrder.js / capturePaypalOrder.js /
+ * cron-runner.js 에서 빠지면 overbooking 회귀. 슬롯 사용 투어 (어드민 상품
+ * 시스템 Phase 1 의 TourSlot.capacity) 의 동시 결제 race condition 차단.
+ *
+ * 회귀 차단:
+ *   - api/_shared/slot-capacity.js: acquireSlotLock + confirmSlotLock +
+ *     sweepExpiredPending 3 export 유지 + runTransaction 호출 (race-safe).
+ *   - api/createPaypalOrder.js: acquireSlotLock import + 호출 분기 (4 필드
+ *     모두 있을 때만 발화 — backward compat).
+ *   - api/capturePaypalOrder.js: confirmSlotLock import + 호출 분기.
+ *   - api/cron-runner.js: slot-pending-sweep job 등록 (Vercel cron, 5분 간격).
+ *
+ * 회귀 슬롯: tests/unit/slot-capacity.test.ts (22 케이스 — capacity gate /
+ * expired pending overwrite / status fully_booked guard / lost-lock re-validate /
+ * cron sweep idempotency).
+ */
+function P108_slotCapacityPreLockTransaction({ changed }) {
+  const violations = [];
+
+  const HELPER = 'api/_shared/slot-capacity.js';
+  if (isModified(HELPER, changed)) {
+    const content = getChangedFileContent(HELPER);
+    if (content) {
+      if (!/export\s+async\s+function\s+acquireSlotLock/.test(content)) {
+        violations.push(`${HELPER}: acquireSlotLock 미export — pre-lock 진입점 누락 → overbooking 회귀`);
+      }
+      if (!/export\s+async\s+function\s+confirmSlotLock/.test(content)) {
+        violations.push(`${HELPER}: confirmSlotLock 미export — capture 시 pending→confirmed 전환 불가 → counter drift`);
+      }
+      if (!/export\s+async\s+function\s+sweepExpiredPending/.test(content)) {
+        violations.push(`${HELPER}: sweepExpiredPending 미export — cron sweep 불가 → 만료 lock 영구 누적`);
+      }
+      if (!/adminDb\.runTransaction/.test(content)) {
+        violations.push(`${HELPER}: runTransaction 호출 누락 — read-then-write race condition → 동시 결제 overbooking`);
+      }
+    }
+  }
+
+  const CREATE = 'api/createPaypalOrder.js';
+  if (isModified(CREATE, changed)) {
+    const content = getChangedFileContent(CREATE);
+    if (content && /tourSlotId/.test(content)) {
+      // tourSlotId 분기가 추가됐다면 acquireSlotLock 호출 + import 필수.
+      if (!/from\s*['"]\.\/_shared\/slot-capacity\.js['"]/.test(content)) {
+        violations.push(`${CREATE}: tourSlotId 분기는 도입됐지만 slot-capacity.js import 누락 — pre-lock 무력화`);
+      }
+      if (!/acquireSlotLock\s*\(/.test(content)) {
+        violations.push(`${CREATE}: acquireSlotLock 호출 누락 — tourSlotId 받아도 capacity 검증 X → silent overbooking`);
+      }
+    }
+  }
+
+  const CAPTURE = 'api/capturePaypalOrder.js';
+  if (isModified(CAPTURE, changed)) {
+    const content = getChangedFileContent(CAPTURE);
+    if (content && /tourSlotId/.test(content)) {
+      if (!/from\s*['"]\.\/_shared\/slot-capacity\.js['"]/.test(content)) {
+        violations.push(`${CAPTURE}: tourSlotId 분기는 도입됐지만 slot-capacity.js import 누락 — pending 영구 누적`);
+      }
+      if (!/confirmSlotLock\s*\(/.test(content)) {
+        violations.push(`${CAPTURE}: confirmSlotLock 호출 누락 — capture 후 pending→confirmed 전환 X → counter drift`);
+      }
+    }
+  }
+
+  const RUNNER = 'api/cron-runner.js';
+  if (isModified(RUNNER, changed)) {
+    const content = getChangedFileContent(RUNNER);
+    if (content && /slot-capacity\.js/.test(getChangedFileContent(HELPER) || '')) {
+      if (!/slot-pending-sweep/.test(content)) {
+        violations.push(`${RUNNER}: slot-pending-sweep job 등록 누락 — pending lock 만료 후 영구 누적`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P108_slotCapacityPreLockTransaction',
+      violations.join(' | '),
+      '메모리 P108 — TourSlot 동시 결제 overbooking 차단. 3 endpoint 동기화 (createPaypalOrder pre-lock + capturePaypalOrder confirm + cron sweep). tests/unit/slot-capacity.test.ts 22 케이스 + transaction 안에서만 read-modify-write.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P109_resizeImagesVariantsFallback — 메모리 P109 (2026-05-20, no-PR-yet).
+ *
+ * Firebase Extension storage-resize-images 통합 — TourPhoto.variants 키
+ * (`'400' | '800' | '1600'`) + resolvePhotoUrl(photo, preferredWidth?) 시그니처
+ * + buildPhotoSrcSet helper 회귀 차단. Extension 미설치 환경 자동 폴백 보장.
+ *
+ * 회귀 슬롯: tests/unit/resolve-photo-url.test.ts (17 케이스 — 4 backward
+ * compat + 7 P109 새 동작 + 6 srcset builder).
+ */
+function P109_resizeImagesVariantsFallback({ changed }) {
+  const violations = [];
+
+  const TYPES = 'src/data/tours.ts';
+  if (isModified(TYPES, changed)) {
+    const content = getChangedFileContent(TYPES);
+    if (content && /export\s+type\s+TourPhoto\s*=/.test(content)) {
+      // variants 필드 정의 — Extension 출력과 정확히 매칭되는 키.
+      const photoBlock = content.match(/export\s+type\s+TourPhoto\s*=\s*\{[\s\S]+?\n\};/);
+      if (photoBlock && !/variants\?:/.test(photoBlock[0])) {
+        violations.push(`${TYPES}: TourPhoto.variants 필드 누락 — Extension URL 매칭 불가 → 모바일 LCP 회귀`);
+      }
+      if (photoBlock) {
+        // 3 canonical width 모두 schema 에 있어야 함.
+        for (const w of ['400', '800', '1600']) {
+          if (!new RegExp(`'${w}'\\?:`).test(photoBlock[0])) {
+            violations.push(`${TYPES}: TourPhoto.variants.'${w}' 키 누락 — Extension 이 그 사이즈로 생성한 파일 사용 불가`);
+          }
+        }
+      }
+    }
+  }
+
+  const LIB = 'src/lib/tours-firestore.ts';
+  if (isModified(LIB, changed)) {
+    const content = getChangedFileContent(LIB);
+    if (content) {
+      // resolvePhotoUrl 가 preferredWidth 인자 받는 시그니처 + variants 매칭 분기.
+      if (!/resolvePhotoUrl\s*\([\s\S]{0,300}preferredWidth\?:/.test(content)) {
+        violations.push(`${LIB}: resolvePhotoUrl 시그니처에 preferredWidth 인자 누락 — srcset 분기 불가`);
+      }
+      if (!/photo\.variants\?\.\[preferredWidth\]/.test(content)) {
+        violations.push(`${LIB}: resolvePhotoUrl 안에 variants[preferredWidth] 매칭 분기 누락 — 항상 원본 url 사용 → resize 효과 없음`);
+      }
+      if (!/export\s+function\s+buildPhotoSrcSet/.test(content)) {
+        violations.push(`${LIB}: buildPhotoSrcSet helper 누락 — <img srcSet> attribute 빌더 부재 → 컴포넌트마다 ad-hoc 재구현`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P109_resizeImagesVariantsFallback',
+      violations.join(' | '),
+      '메모리 P109 — TourPhoto.variants 키 = Extension 출력 사이즈 (400/800/1600). resolvePhotoUrl(photo, w?) 폴백 chain + buildPhotoSrcSet builder. docs/RESIZE-IMAGES-SETUP.md 운영자 액션 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P110_adminClaimsRbacFoundation — 메모리 P110 (2026-05-20, no-PR-yet).
+ *
+ * 하드코드 admin email → Firebase custom claims RBAC 마이그 Phase 1 (Foundation).
+ * verifyAdminToken 가 email OR admin claim 양쪽 허용 + role 정규화 export +
+ * super-admin self-lockout 방지.
+ *
+ * 회귀 차단:
+ *   - api/_shared/admin-auth.js: extractRoles + requireRole 정규화 함수 유지.
+ *     verifyAdminToken 반환값에 claims/roles 노출.
+ *   - api/admin-set-claims.js: super-admin role 검증 + 5 canonical role
+ *     whitelist (sanitizeRoles) + self-lockout 보호.
+ *
+ * 회귀 슬롯: tests/unit/admin-set-claims-roles.test.ts (14 케이스).
+ */
+function P110_adminClaimsRbacFoundation({ changed }) {
+  const violations = [];
+
+  const AUTH = 'api/_shared/admin-auth.js';
+  if (isModified(AUTH, changed)) {
+    const content = getChangedFileContent(AUTH);
+    if (content) {
+      if (!/export\s+function\s+extractRoles/.test(content)) {
+        violations.push(`${AUTH}: extractRoles 미export — token roles 정규화 helper 누락`);
+      }
+      if (!/export\s+function\s+requireRole/.test(content)) {
+        violations.push(`${AUTH}: requireRole 미export — caller 가 role 검증 불가 → set-claims endpoint 우회 가능`);
+      }
+      if (!/decoded\.admin\s*===\s*true/.test(content)) {
+        violations.push(`${AUTH}: admin claim 검증 (decoded.admin === true) 누락 — RBAC 마이그 효과 0`);
+      }
+      // self-lockout 방지를 위해 caller 의 roles 가 응답에 포함돼야 함.
+      if (!/roles\s*,?\s*\}\s*;/.test(content) && !/return\s*\{[\s\S]{0,300}roles[\s\S]{0,200}\}/m.test(content)) {
+        violations.push(`${AUTH}: verifyAdminToken 반환값에 roles 미포함 — caller 가 role 검증 불가`);
+      }
+    }
+  }
+
+  const SET_CLAIMS = 'api/admin-set-claims.js';
+  if (isModified(SET_CLAIMS, changed)) {
+    const content = getChangedFileContent(SET_CLAIMS);
+    if (content) {
+      // super-admin 보유자만 호출 가능해야 함.
+      if (!/requireRole\s*\([^)]+,\s*['"]super-admin['"]\s*\)/.test(content)) {
+        violations.push(`${SET_CLAIMS}: requireRole('super-admin') 검증 누락 — 모든 admin 이 임의 권한 부여 가능 → 권한 escalation`);
+      }
+      // self-lockout 방지 분기.
+      if (!/SELF_LOCKOUT_BLOCKED/.test(content)) {
+        violations.push(`${SET_CLAIMS}: self-lockout 방지 분기 누락 — super-admin 본인이 자신의 role 회수 가능 → 영구 잠김`);
+      }
+      // whitelist sanitization.
+      if (!/sanitizeRoles\s*\(/.test(content)) {
+        violations.push(`${SET_CLAIMS}: sanitizeRoles 호출 누락 — 'ghost-role' 같은 임의값 token 에 박힘 → schema drift`);
+      }
+      // Audit log.
+      if (!/admin_actions/.test(content)) {
+        violations.push(`${SET_CLAIMS}: admin_actions audit log 누락 — 권한 부여 추적 불가 → 감사 책임 회피`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P110_adminClaimsRbacFoundation',
+      violations.join(' | '),
+      '메모리 P110 — RBAC Phase 1. verifyAdminToken 의 email OR admin claim 양쪽 통과 + super-admin 자가 lockout 방지 + 5 role whitelist. tests/unit/admin-set-claims-roles.test.ts 14 케이스 참조. 운영자 액션: node scripts/grant-super-admin.mjs <email>.',
+    );
+  }
+  return null;
+}
+
+
 
 /**
  * P111_intercityBookendSilentFailAlert — 메모리 P111 (2026-05-20, no-PR-yet).

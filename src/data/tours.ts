@@ -84,8 +84,13 @@ export type TourStop = {
   name: I18nString;
   /** 머무는 시간 (분) */
   stay_min: number;
-  /** /public 기준 사진 경로 (선택). 없으면 카드에 placeholder. */
-  photo?: string;
+  /**
+   * 사진 — 두 형태 모두 허용:
+   *   1) string: /public 기준 경로 (정적 9 투어 legacy)
+   *   2) TourPhoto: Firebase Storage URL + alt/blurhash/variants (어드민 등록)
+   * resolvePhotoUrl() 가 양쪽 통합 처리. UI 렌더 시 그 헬퍼 사용 의무.
+   */
+  photo?: string | TourPhoto;
   /** 무엇을 보고/하는지 1-2문장 설명 */
   description: I18nString;
   /** 입장료 (KRW). 0 또는 생략 시 무료. */
@@ -97,6 +102,111 @@ export type TourStop = {
   /** 이전 stop에서 여기로 오는 방법. 첫 stop은 생략. */
   transit_from_prev?: TourTransit;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v3 OTA-standard types (Phase 1, 2026-05-19) — Firestore 기반 어드민 상품 등록
+// 모두 optional. 기존 정적 9 투어는 영향 없음. tours-firestore.ts CRUD 가 사용.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 사진 객체 — Firebase Storage 마이그용. legacy_public_path 가 /public 폴백. */
+export type TourPhoto = {
+  /** Firebase Storage HTTPS URL 또는 /public 정적 경로 */
+  url: string;
+  alt: I18nString;
+  width?: number;
+  height?: number;
+  /** 로딩 placeholder (선택) */
+  blurhash?: string;
+  /** 정적 마이그용 — /public 경로 보존. resolvePhotoUrl() 이 처리. */
+  legacy_public_path?: string;
+  /**
+   * P109 (2026-05-20): Firebase Extension storage-resize-images 가 비동기로
+   * 생성하는 variant URLs. 모바일/데스크톱 srcset 분기 + LCP 5초→1초 개선.
+   * 모두 optional — Extension 미설치 환경 / 기존 사진 (backfill 안 함) 도
+   * resolvePhotoUrl 가 자동 원본 폴백. webp 단일 포맷.
+   */
+  variants?: {
+    /** 400×400 (모바일 thumbnail / TourCard) */
+    '400'?: string;
+    /** 800×800 (모바일 갤러리) */
+    '800'?: string;
+    /** 1600×1600 (데스크톱 풀 갤러리) */
+    '1600'?: string;
+  };
+};
+
+/** P109: TourPhoto.variants 의 키 — srcset 생성 / preferredWidth 매칭에 사용. */
+export type TourPhotoVariantWidth = '400' | '800' | '1600';
+
+export type GuideType = 'live_guide' | 'driver_only' | 'audio' | 'self_guided';
+
+/** 다중 픽업 존 — meeting_point.kind='multi_zone' 일 때 */
+export type PickupZone = {
+  id: string;
+  name: I18nString;
+  area_label: I18nString;
+  surcharge_krw?: number;
+  /** "HH:mm" KST */
+  pickup_time?: string;
+};
+
+export type MeetingPoint = {
+  kind: 'hotel_pickup' | 'fixed_address' | 'multi_zone';
+  address?: I18nString;
+  lat?: number;
+  lng?: number;
+  photo?: TourPhoto;
+  instructions?: I18nString;
+  naver_map_url?: string;
+  google_maps_url?: string;
+  zones?: PickupZone[];
+};
+
+/** 출발 시간 슬롯 — `tours/{id}/slots` 서브컬렉션에 저장 가능 (또는 메인 doc 배열). */
+export type TourSlot = {
+  id: string;
+  /** "HH:mm" 24시간 KST */
+  start_time: string;
+  price_modifier_krw?: number;
+  capacity?: number;
+  label?: I18nString;
+  is_active: boolean;
+};
+
+export type CancellationTier = {
+  hours_before: number;
+  /** 0-100 정수 % */
+  refund_percent: { general: number; gold: number; platinum: number };
+};
+
+export type CancellationPolicy = {
+  /** 'inherit_global' = RefundPolicyModal 의 글로벌 표 사용 */
+  kind: 'inherit_global' | 'custom';
+  tiers?: CancellationTier[];
+  /** 글로벌 NOTES 위에 추가됨 (4-lang) */
+  extra_notes?: I18nString[];
+};
+
+export type FAQ = {
+  id: string;
+  question: I18nString;
+  answer: I18nString;
+  /** 낮은 숫자가 위 */
+  order: number;
+};
+
+export type Suitability = {
+  min_age?: number;
+  max_age?: number;
+  fitness_level?: 'easy' | 'moderate' | 'challenging';
+  wheelchair_accessible?: boolean;
+  stroller_friendly?: boolean;
+  pregnancy_safe?: boolean;
+  infant_seat_available?: boolean;
+  notes?: I18nString;
+};
+
+export type TourStatus = 'draft' | 'published' | 'archived';
 
 export type Tour = {
   id: string;
@@ -114,8 +224,8 @@ export type Tour = {
   isNightTour?: boolean;
   vehicleType: VehicleType;
   maxPax: number;
-  thumbnail: string;       // /public 기준 메인 사진
-  images: string[];        // /public 기준 갤러리 사진들
+  thumbnail: string;       // /public 기준 메인 사진 (legacy) 또는 TourPhoto.url
+  images: string[];        // /public 기준 갤러리 사진들 (legacy) 또는 photos[].url
   tags: TourTag[];
   highlights: TourHighlight[];
 
@@ -138,6 +248,51 @@ export type Tour = {
   included?: TourHighlight[];
   /** 투어별 추가 excluded 항목. 미설정 시 GLOBAL_EXCLUDED만 표시. */
   excluded?: TourHighlight[];
+
+  // ── v3 신규 (Phase 1, 2026-05-19) — Firestore 어드민 상품 등록 시스템
+  /** 데이터 출처. undefined/false='static' (tours.ts 정적), 'firestore' 는 어드민 등록. */
+  source?: 'static' | 'firestore';
+  /** draft = 어드민 작성 중 (운영자만 조회), published = 공개, archived = 비공개 */
+  status?: TourStatus;
+  /** 낙관적 lock 용. 어드민 두 명 동시 편집 충돌 감지. */
+  version?: number;
+  /** 운영자가 publish 한 시각 (ms epoch) */
+  publishedAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
+  createdBy?: string;
+  updatedBy?: string;
+  /** cleanup cron 보호 플래그 (architecture index 의 PDF golden 패턴 동일) */
+  do_not_delete?: boolean;
+
+  // 미디어 (v2)
+  /** 신규 사진 갤러리. images[] 보다 우선. 비어있으면 images[] 폴백. */
+  photos?: TourPhoto[];
+  thumbnail_photo?: TourPhoto;
+  video_embed_url?: string;
+  /** 즉시확정 컷오프 최소 인원 */
+  minPax?: number;
+
+  // 가이드 / 미팅
+  guide_type?: GuideType;
+  meeting_point?: MeetingPoint;
+
+  // 가격 표시
+  price_display_note?: I18nString;
+
+  // 시간 슬롯 (메인 doc 인라인 — slot 1-10개라 서브컬렉션 미사용)
+  slots?: TourSlot[];
+
+  // 취소 정책 (투어별 override)
+  cancellation_policy?: CancellationPolicy;
+
+  // 적합성 / 준비물 / 중요 정보
+  suitability?: Suitability;
+  what_to_bring?: I18nString;
+  important_info?: I18nString;
+
+  // FAQ (메인 doc 인라인 — 20개 cap)
+  faqs?: FAQ[];
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

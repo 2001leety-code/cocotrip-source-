@@ -12,6 +12,8 @@ import { fileURLToPath } from 'url';
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
+import { acquireSlotLock } from './_shared/slot-capacity.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -196,6 +198,47 @@ export default async function handler(req, res) {
     }
 
     if (promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
+
+    // P108 (2026-05-20): 슬롯 사용 투어 pre-lock — body 에 tourId/tourSlotId/
+    // bookingDate/slotCapacity 모두 있으면 PayPal order 생성 전에 capacity
+    // 검증 + pending 카운터 증가 (10분 TTL). 결제 진행 중 다른 사용자 동시
+    // 같은 슬롯 진입 차단. AI 플래너/charter 등 슬롯 없는 상품은 자동 skip.
+    // capturePaypalOrder.js 의 confirmSlotLock 가 결제 확정 시 pending → confirmed
+    // 전환. slot-pending-sweep cron 이 10분 후 만료 lock 자동 해제.
+    const tourSlotId = typeof body.tourSlotId === 'string' ? body.tourSlotId.trim() : '';
+    const tourId = typeof body.tourId === 'string' ? body.tourId.trim() : '';
+    const bookingDate = typeof body.bookingDate === 'string' ? body.bookingDate.trim() : dateStart;
+    const slotCapacity = Number(body.slotCapacity);
+    if (tourSlotId && tourId && bookingDate && Number.isFinite(slotCapacity) && slotCapacity > 0) {
+      const adminDb = initAdminDb('createPaypalOrder');
+      if (!adminDb) {
+        console.warn('[createPaypalOrder] slot pre-lock SKIPPED — adminDb unavailable. tourId:', tourId, 'slot:', tourSlotId);
+      } else {
+        try {
+          await acquireSlotLock({
+            adminDb,
+            tourId,
+            date: bookingDate,
+            slotId: tourSlotId,
+            pax: passengers,
+            capacity: slotCapacity,
+            // 실제 PayPal orderId 는 아직 없음. capturePaypalOrder 가 confirmSlotLock
+            // 호출 시 같은 slot+date 의 active pending 을 자동 소비 (orderId 매칭
+            // 없이도 capacity 검증 + counter 갱신). pre-PayPal 식별자로 임시 사용.
+            orderId: `PRELOCK-${Date.now()}-${tourSlotId}`,
+          });
+          console.log('[createPaypalOrder] slot lock acquired:', { tourId, date: bookingDate, slot: tourSlotId, pax: passengers });
+        } catch (slotErr) {
+          const code = slotErr.code || 'SLOT_LOCK_FAILED';
+          const status = code === 'SLOT_FULL' ? 409
+                       : code === 'DATE_UNAVAILABLE' ? 410
+                       : 400;
+          console.warn('[createPaypalOrder] slot lock rejected:', code, slotErr.message);
+          res.writeHead(status, JSON_CORS);
+          return res.end(JSON.stringify(_err(slotErr.message, code)));
+        }
+      }
+    }
 
     const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
     const usdToKrw = await getUsdToKrwRaw();

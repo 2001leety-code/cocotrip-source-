@@ -5,6 +5,7 @@
 import { getPaypalAccessToken } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
+import { confirmSlotLock } from './_shared/slot-capacity.js';
 import { incrementGlobalPromoUsage, KNOWN_GLOBAL_PROMO_CODES } from './_shared/global-promo.js';
 import { refundPaypalCapture } from './_shared/paypal-refund.js';
 import { triggerBookingProcessor } from './_shared/booking-processor-trigger.js';
@@ -70,7 +71,11 @@ export default async function handler(req, res) {
     // PR #426 (Audit CY3 — 2026-05-14): persist tourTime so the cancel/modify
     // window calculation uses the actual tour start hour, not the 00:00 KST
     // default. Optional — bookings without tourTime fall back to legacy.
-    const { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode } = body;
+    //
+    // P108 (2026-05-20): tourId/tourSlotId/bookingDate/slotCapacity 도 추출 —
+    // 슬롯 capacity confirm 용. createPaypalOrder 의 pre-lock 과 짝.
+    const { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode,
+      tourId, tourSlotId, bookingDate, slotCapacity } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     // PR #433 (Audit Y-H10 — 2026-05-16): AI Planner = 디지털 상품 → 쿠폰/프로모
@@ -349,6 +354,52 @@ export default async function handler(req, res) {
         ].join('\n'),
         context: { orderID, captureID, amountUSD: amount, amountKRW, source: 'capturePaypalOrder' },
       }).catch(() => {});
+    }
+
+    // P108 (2026-05-20): 슬롯 capacity confirm — bookings doc 저장 성공 후 pending
+    // → confirmed 전환. body 에 4 필드 모두 있어야 함 (createPaypalOrder 와 동일).
+    // 실패해도 booking 자체는 이미 confirmed (결제 완료) — alert 만 발사, throw X.
+    // 슬롯 lock 만료 + 다른 confirmed 가 채워졌으면 SLOT_FULL_AT_CAPTURE — 운영자가
+    // overbooking 발생 사실 인지하고 수동 환불/조정 결정. payment refund 자동 X
+    // (운영자 정책: 결제 일단 받고 운영자가 사후 처리).
+    if (bookingWriteOk && tourId && tourSlotId && bookingDate && Number.isFinite(Number(slotCapacity)) && Number(slotCapacity) > 0 && Number(paxCount) > 0) {
+      try {
+        const db = initAdminDb('capturePaypalOrder.slotConfirm');
+        if (db) {
+          await confirmSlotLock({
+            adminDb: db,
+            tourId,
+            date: bookingDate,
+            slotId: tourSlotId,
+            pax: Number(paxCount),
+            capacity: Number(slotCapacity),
+            orderId: orderID,
+          });
+          console.log('[capturePaypalOrder] slot confirmed:', { tourId, date: bookingDate, slot: tourSlotId, pax: paxCount });
+        }
+      } catch (slotErr) {
+        const code = slotErr.code || 'SLOT_CONFIRM_FAILED';
+        console.error('[capturePaypalOrder] slot confirm failed:', code, slotErr.message);
+        // SLOT_FULL_AT_CAPTURE = overbooking risk — operator 즉시 인지 필요.
+        const severity = code === 'SLOT_FULL_AT_CAPTURE' ? 'critical' : 'high';
+        throttledTelegramAlert({
+          key: `slot-confirm-${code}`,
+          channel: 'admin',
+          severity,
+          message: [
+            `⚠️ <b>슬롯 confirm 실패 (결제 완료 후) — ${code}</b>`,
+            ``,
+            `<b>OrderID:</b> <code>${orderID}</code>`,
+            `<b>tourId:</b> ${tourId}`,
+            `<b>date/slot:</b> ${bookingDate} / ${tourSlotId}`,
+            `<b>pax:</b> ${paxCount} <b>capacity:</b> ${slotCapacity}`,
+            `<b>오류:</b> ${slotErr.message?.slice(0, 200)}`,
+            ``,
+            `${code === 'SLOT_FULL_AT_CAPTURE' ? '🚨 overbooking 가능성 — 운영자 수동 검토 + 환불/조정 결정 필요.' : '슬롯 카운터 불일치. lockfix scripts/admin-slot-rebuild 검토.'}`,
+          ].join('\n'),
+          context: { orderID, tourId, bookingDate, tourSlotId, paxCount, slotCapacity, code },
+        }).catch(() => {});
+      }
     }
 
     // 2.5 쿠폰 처리 — PR #427 이후 capture 전 pre-lock 으로 이동됨 (section 1.6).

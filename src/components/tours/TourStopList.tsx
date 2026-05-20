@@ -3,6 +3,7 @@
 import { Footprints, Car, Train, MapPin, Clock, ExternalLink } from 'lucide-react';
 import type { TourStop, TourTransit, I18nString } from '@/data/tours';
 import type { Language } from '@/i18n';
+import { resolvePhotoUrl } from '@/lib/tours-firestore';
 
 function txt(field: I18nString | undefined, lang: Language): string {
   if (!field) return '';
@@ -85,11 +86,17 @@ function TourStopCard({ stop, language }: { stop: TourStop; language: Language }
         border: '1px solid rgba(255,255,255,0.06)',
       }}
     >
-      {stop.photo && (
-        <div className="w-28 h-28 md:w-36 md:h-36 shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
-          <img src={stop.photo} alt={name} className="w-full h-full object-cover" loading="lazy" />
-        </div>
-      )}
+      {stop.photo && (() => {
+        // P117 (2026-05-20): TourStop.photo 가 string | TourPhoto 둘 다 허용 →
+        // resolvePhotoUrl 통합. legacy_public_path 폴백 자동.
+        const photoUrl = resolvePhotoUrl(stop.photo);
+        if (!photoUrl) return null;
+        return (
+          <div className="w-28 h-28 md:w-36 md:h-36 shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
+            <img src={photoUrl} alt={name} className="w-full h-full object-cover" loading="lazy" />
+          </div>
+        );
+      })()}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-1">

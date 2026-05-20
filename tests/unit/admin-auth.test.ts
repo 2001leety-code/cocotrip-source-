@@ -62,7 +62,8 @@ describe('api/_shared/admin-auth — verifyAdminToken', () => {
     });
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
     const result = await verifyAdminToken(reqWith('Bearer t'));
-    expect(result).toEqual({ ok: true, email: 'fallback@example.com', uid: 'uid-1' });
+    // P110: roles/claims 추가 — 핵심 필드만 검증.
+    expect(result).toMatchObject({ ok: true, email: 'fallback@example.com', uid: 'uid-1' });
   });
 
   it('rejects 403 when token email is unverified', async () => {
@@ -95,7 +96,13 @@ describe('api/_shared/admin-auth — verifyAdminToken', () => {
     });
     const { verifyAdminToken } = await import('../../api/_shared/admin-auth.js');
     const result = await verifyAdminToken(reqWith('Bearer valid-token'));
-    expect(result).toEqual({ ok: true, email: 'admin@example.com', uid: 'uid-42' });
+    // P110 (2026-05-20): verifyAdminToken 응답이 claims/roles 노출 — 기존 필드는 그대로,
+    // roles 추가 (decoded.roles 없으면 []). objectContaining 으로 핵심 필드만 검증.
+    expect(result).toMatchObject({ ok: true, email: 'admin@example.com', uid: 'uid-42' });
+    if (result.ok) {
+      expect(result.roles).toEqual([]);
+      expect(result.claims).toEqual({ admin: false, roles: [] });
+    }
   });
 
   it('rejects 401 when verifyIdToken throws', async () => {
