@@ -1005,6 +1005,7 @@ const RULES = [
   ['P102_adminBypassForceLegacy', P102_adminBypassForceLegacy],
   ['P111_intercityBookendSilentFailAlert', P111_intercityBookendSilentFailAlert],
   ['P112_endTimeBackfill', P112_endTimeBackfill],
+  ['P113_intercityTimeStitch', P113_intercityTimeStitch],
 ];
 
 /**
@@ -1535,6 +1536,50 @@ function P112_endTimeBackfill({ changed }) {
       'P112_endTimeBackfill',
       violations.join(' | '),
       '메모리 P112 — planPersister 의 computeEndTime + backfillStopEndTimes pair + null/undefined reject + override-protection. ai-planner-full handler 가 calculateTmoney 전에 호출. tests/unit/end-time-backfill-pr112.test.ts 27 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P113_intercityTimeStitch — 메모리 P113 (2026-05-20, no-PR-yet).
+ *
+ * RouteAgent.js Phase 2.4 가 lodging_to_station 채운 직후 intercity_transit.
+ * recommended_depart + arrival_at 를 stop1.start_time + lodging_to_station.est_min
+ * 기준으로 stitch. Gemini 의 임의 09:00 값 vs 실제 호텔 체크아웃 시간 모순
+ * 차단. 사용자 보고 패턴: "호텔 12:25 출발인데 KTX 09:00 어떻게 타나?".
+ *
+ * 회귀 슬롯: tests/unit/intercity-time-stitch-pr113.test.ts (5 케이스).
+ */
+function P113_intercityTimeStitch({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // P113 guard: lodging_to_station 존재 + stop1 start_time 존재 확인 후만 stitch.
+  if (!/it\.lodging_to_station\s*&&\s*Number\.isFinite\(it\.lodging_to_station\.est_min\)/.test(content)) {
+    violations.push(`${FILE}: P113 stitching 의 lodging_to_station presence guard 누락 — Phase 2.4 silent fail 시 잘못된 stitching 위험`);
+  }
+  // recommended_depart override + arrival_at stitch
+  if (!/it\.recommended_depart\s*=\s*formattedDepart/.test(content)) {
+    violations.push(`${FILE}: recommended_depart override 누락 — Gemini 의 임의 09:00 값 그대로 → 모순 시각 유지`);
+  }
+  if (!/it\.arrival_at\s*=\s*formattedArrival/.test(content)) {
+    violations.push(`${FILE}: arrival_at stitch 누락 — depart 만 update 하면 KTX 도착 시간 inconsistent`);
+  }
+  // Audit log
+  if (!/intercity recommended_depart.*stitched stop1=/.test(content)) {
+    violations.push(`${FILE}: stitch console.log 누락 — prod 검증 어려움 (어느 plan 이 stitch 됐는지 추적 불가)`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P113_intercityTimeStitch',
+      violations.join(' | '),
+      '메모리 P113 — Phase 2.4 가 lodging_to_station 채운 직후 recommended_depart + arrival_at stitching 의무. tests/unit/intercity-time-stitch-pr113.test.ts 5 케이스. P111 silent fail 시 Gemini 값 그대로 보존 (안전 default).',
     );
   }
   return null;

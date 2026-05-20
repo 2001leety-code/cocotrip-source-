@@ -1029,6 +1029,33 @@ export class RouteAgent extends BaseAgent {
                         },
                     }).catch(() => {});
                 }
+
+                // P113 (2026-05-20): intercity_transit.recommended_depart 시간 stitching.
+                // Gemini 가 recommended_depart 를 09:00 같은 임의 값으로 출력하면 stop1
+                // (호텔 체크아웃) 시간과 모순 — plan 4792076e: stop1=12:25 인데 KTX
+                // recommended_depart=09:00 → "KTX 가이드 09:00 인데 호텔 12:25 출발이면
+                // 늦음" 사용자 혼란. Phase 2.4 가 lodging_to_station 채웠으면 그 est_min
+                // 으로 stop1.start_time + transit 계산 → recommended_depart override.
+                // arrival_at 도 동시 stitch (depart + KTX duration).
+                if (it.lodging_to_station && Number.isFinite(it.lodging_to_station.est_min)
+                    && places.length > 0 && places[0].start_time) {
+                    const stop1Min = this._parseTime(places[0].start_time);
+                    if (Number.isFinite(stop1Min)) {
+                        const newDepartMin = stop1Min + Number(it.lodging_to_station.est_min);
+                        const oldDepart = it.recommended_depart || '(none)';
+                        const formattedDepart = this._formatTime(newDepartMin);
+                        if (formattedDepart) {
+                            it.recommended_depart = formattedDepart;
+                            // arrival_at = depart + KTX/Air/Bus duration (intercity_transit.est_min)
+                            if (Number.isFinite(it.est_min)) {
+                                const newArrivalMin = newDepartMin + Number(it.est_min);
+                                const formattedArrival = this._formatTime(newArrivalMin);
+                                if (formattedArrival) it.arrival_at = formattedArrival;
+                            }
+                            console.log(`  [Route] Day ${dayPlan.day || '?'}: intercity recommended_depart ${oldDepart} → ${formattedDepart} (stitched stop1=${places[0].start_time} + lodging→station=${it.lodging_to_station.est_min}min)`);
+                        }
+                    }
+                }
             }
             let hotelTransit = null;
             if (dayHotel.lat && dayHotel.lng && places.length > 0 && places[0].lat && places[0].lng) {
