@@ -1004,6 +1004,7 @@ const RULES = [
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
   ['P102_adminBypassForceLegacy', P102_adminBypassForceLegacy],
   ['P111_intercityBookendSilentFailAlert', P111_intercityBookendSilentFailAlert],
+  ['P112_endTimeBackfill', P112_endTimeBackfill],
 ];
 
 /**
@@ -1476,6 +1477,64 @@ function P111_intercityBookendSilentFailAlert({ changed }) {
       'P111_intercityBookendSilentFailAlert',
       violations.join(' | '),
       '메모리 P111 — Phase 2.4 의 8 silent-fail 분기 (pre/post 각 4) 모두 reason push + bookendFailReasons.length>0 시 throttledTelegramAlert (admin/high/dedup by first reason + city pair). tests/unit/intercity-bookend-silent-fail-pr111.test.ts 10 케이스 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P112_endTimeBackfill — 메모리 P112 (2026-05-20, no-PR-yet).
+ *
+ * planPersister.js 가 stop.end_time 누락 backfill 안 하면 UI/PDF/email/voucher
+ * 가 "15:45-undefined" 류 표시. Gemini/RouteAgent 가 일부만 채우는 비결정성
+ * 대비 안전망. ai-planner-full.js 가 calculateTmoney 전에 backfillStopEndTimes
+ * 호출 필수.
+ *
+ * 회귀 슬롯: tests/unit/end-time-backfill-pr112.test.ts (27 케이스).
+ */
+function P112_endTimeBackfill({ changed }) {
+  const violations = [];
+
+  const PERSIST = 'api/_ai_core/planPersister.js';
+  if (isModified(PERSIST, changed)) {
+    const content = getChangedFileContent(PERSIST);
+    if (content) {
+      if (!/export\s+function\s+computeEndTime\s*\(/.test(content)) {
+        violations.push(`${PERSIST}: computeEndTime 미export — pure helper 누락 → 다른 호출자가 ad-hoc 재구현 위험`);
+      }
+      if (!/export\s+function\s+backfillStopEndTimes\s*\(/.test(content)) {
+        violations.push(`${PERSIST}: backfillStopEndTimes 미export — itinerary mutator helper 누락`);
+      }
+      // null/undefined explicit reject (Number(null)===0 bypass 차단)
+      if (!/stayMin\s*===\s*null\s*\|\|\s*stayMin\s*===\s*undefined/.test(content)) {
+        violations.push(`${PERSIST}: computeEndTime null/undefined 명시 거부 분기 누락 — Number(null)=0 통과로 잘못된 end_time 생성`);
+      }
+      // override-protection check (existing end_time preserved)
+      if (!/if\s*\(\s*stop\.end_time\s*&&\s*\/\^\\d/.test(content)) {
+        violations.push(`${PERSIST}: backfillStopEndTimes 가 기존 end_time 보존 분기 누락 — Gemini/RouteAgent stitched 결과 override 위험`);
+      }
+    }
+  }
+
+  const HANDLER = 'api/ai-planner-full.js';
+  if (isModified(HANDLER, changed)) {
+    const content = getChangedFileContent(HANDLER);
+    if (content && /backfillStopEndTimes/.test(content)) {
+      // import 와 호출 둘 다.
+      if (!/import\s*\{[^}]*backfillStopEndTimes[^}]*\}\s*from\s*['"]\.\/_ai_core\/planPersister\.js['"]/.test(content)) {
+        violations.push(`${HANDLER}: backfillStopEndTimes import 누락 — 호출은 있는데 import 안 함 → ReferenceError`);
+      }
+      if (!/backfillStopEndTimes\s*\(\s*itinerary\s*\)/.test(content)) {
+        violations.push(`${HANDLER}: backfillStopEndTimes(itinerary) 호출 누락 — helper 만 import 하고 안 쓰면 의미 없음`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P112_endTimeBackfill',
+      violations.join(' | '),
+      '메모리 P112 — planPersister 의 computeEndTime + backfillStopEndTimes pair + null/undefined reject + override-protection. ai-planner-full handler 가 calculateTmoney 전에 호출. tests/unit/end-time-backfill-pr112.test.ts 27 케이스 참조.',
     );
   }
   return null;

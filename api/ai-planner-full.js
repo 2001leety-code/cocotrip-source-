@@ -18,7 +18,7 @@ import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 import { CORS, AIRPORT_ADDRESSES } from './_ai_core/constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './_ai_core/buildPrompt.js';
-import { calculateTmoney, persistPlan } from './_ai_core/planPersister.js';
+import { calculateTmoney, persistPlan, backfillStopEndTimes } from './_ai_core/planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './_ai_core/recommendedRestaurants.js';
 import { loadFoodIndex } from './_ai_core/geminiPipeline.js';
 import { sendNotificationEmail, recordLeadToSheets } from './_ai_core/emailNotifier.js';
@@ -571,6 +571,12 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     }
 
     console.log('[planner] Step 3: Saving to Firestore...');
+
+    // ── P112 (2026-05-20): end_time backfill ──────────────────────────────
+    // Gemini/RouteAgent 가 일부 stop 에 end_time 안 채우면 UI 가 "15:45-undefined"
+    // 류 표시 + PDF/email/voucher downstream 깨짐. start_time + stay_min 으로
+    // 자동 계산. 이미 채워진 stop 은 override X (timeline stitching 결과 존중).
+    backfillStopEndTimes(itinerary);
 
     // ── T-money 서버 계산 ─────────────────────────────────────────────────
     calculateTmoney(itinerary);
