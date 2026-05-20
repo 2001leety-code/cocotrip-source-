@@ -51,6 +51,7 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 | `P118_prePushHookContent` | P118 (메타) | `scripts/git-hooks/pre-push` 부재 또는 4-piece (npm run build / vitest run / size-limit / lint-mistake-patterns.mjs) 중 누락. `scripts/setup-git-hooks.mjs` (prepare 활성화기) 부재 | file 전체 (sandbox 임시 dir 자동 skip) |
 | `P119_dayLodgingBackfill` | P119 | `api/_ai_core/planPersister.js` 의 `backfillDayLodging` export 누락 또는 `api/ai-planner-full.js` 의 import/호출 누락 | 변경된 file 의 export/import grep |
 | `P120_unreasonableStopTimeDetect` | P120 | `api/_ai_core/planPersister.js` 의 `detectUnreasonableStopTimes` export 누락 또는 `api/ai-planner-full.js` 가 호출 없이 또는 admin alert 발송 없이 사용 | 변경된 file 의 export/호출/alert grep |
+| `P121_qualityWarningsAdminPanel` | P121 | `QualityWarningsPanel.tsx` 의 `isAdminEmail` import/호출 누락 → 일반 사용자 노출 위험. 또는 `PlanDetailPage/index.tsx` 의 import/렌더 누락 | 변경된 file 의 import/호출 grep |
 
 ## 실행 방법
 
