@@ -251,6 +251,23 @@ export default async function handler(req, res) {
       || arrival_airport
       || '';
     const hotel_address = body.hotel_address || '';
+    // P123 (2026-05-20): 다도시 plan 도시별 호텔 Record. Wizard Step2 가
+    // hotelByCity = { seoul: "명동 호텔...", busan: "해운대 호텔..." } 입력받음.
+    // 이전: backend 가 받기만 하고 buildPrompt 에 inject X → Gemini 가 단일
+    // hotel_address (첫 도시) 만 모든 day 에 박음 (plan 209de47b 회귀).
+    const hotelByCity = (() => {
+      const raw = body.hotelByCity;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const out = {};
+        for (const [k, v] of Object.entries(raw)) {
+          if (typeof k === 'string' && typeof v === 'string' && v.trim()) {
+            out[k.trim().toLowerCase()] = v.trim();
+          }
+        }
+        return out;
+      }
+      return {};
+    })();
     const mobility = body.mobility || 'ok';
     const uid = body.uid || null;
     lastUid = uid;
@@ -452,6 +469,31 @@ REQUIREMENTS:
 - Food stops (lunch/dinner): 90%+ within 3km of the day's city zone.
 - DO NOT scatter stops across cities mid-day. Inter-city travel only at start of a new city-block via intercity_transit (see MULTI-CITY HANDLING).
 - If a city's zone lacks options for a category, prefer the closest adjacent neighborhood within the SAME city — never cross-city.`;
+    })() + (() => {
+      // P123 (2026-05-20): 다도시 plan 의 도시별 호텔 명시 — wizard Step2
+      // hotelByCity Record forward. plan 209de47b 회귀 (부산 day 에 명동 호텔
+      // 박힘) 의 진짜 fix. Gemini 가 day.city 별 호텔 매칭 강제.
+      const hbcEntries = Object.entries(hotelByCity).filter(([, v]) => v && v.trim());
+      if (hbcEntries.length === 0) return '';
+      const cityHotelLines = hbcEntries
+        .map(([city, hotel]) => `- ${city.charAt(0).toUpperCase() + city.slice(1)}: "${hotel}"`)
+        .join('\n');
+      const firstExample = hbcEntries[0]?.[1] || '';
+      return `
+
+[MULTI-CITY HOTELS BY CITY — STRICT (P123, 2026-05-20)]
+The user provided different hotels for each city:
+
+${cityHotelLines}
+
+REQUIREMENTS:
+- For each Day's stops[0] (first lodging) and stops[last] (last lodging):
+  - Use the hotel that matches THAT day's "city" field (case-insensitive lookup).
+  - stops[0].name and stops[0].address MUST match that day's city.
+  - NEVER use a hotel from a different city than day.city.
+- BAD: regions=["seoul","busan"], Day 4 city="Busan", stops[0].address="서울 명동 ..." ← cross-city wrong, 사용자 짐 못 옮김.
+- GOOD: Day 4 city="Busan", stops[0].address starts with "부산" / "Busan" (from the list above).
+- B-13 validator (백엔드) rejects + retries lodging name/address mismatched with day.city.`;
     })() + (wantAccom ? `
 
 [ACCOMMODATION REQUEST]
@@ -578,9 +620,10 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
     // 자동 계산. 이미 채워진 stop 은 override X (timeline stitching 결과 존중).
     backfillStopEndTimes(itinerary);
 
-    // ── P119/P120 (2026-05-20): day.lodging backfill + 새벽 stops admin alert ──
-    // plan 4792076e 두 회귀 동시 차단. 자세한 로직은 planPersister 안 wrapper.
-    backfillDayLodging(itinerary);
+    // ── P119/P120/P123 (2026-05-20): day.lodging + 새벽 stops + 도시별 호텔 ──
+    // plan 4792076e + 209de47b 회귀 동시 차단. 자세한 로직은 planPersister wrapper.
+    // P123: hotelByCity (사용자 wizard 도시별 호텔) 우선 — Gemini wrong-city 호텔 override.
+    backfillDayLodging(itinerary, hotelByCity);
     runUnreasonableStopTimesCheck(itinerary, body);
 
     // ── T-money 서버 계산 ─────────────────────────────────────────────────
