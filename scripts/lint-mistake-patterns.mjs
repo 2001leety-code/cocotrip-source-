@@ -1003,6 +1003,7 @@ const RULES = [
   ['P95_paypalSdkNoUnverifiedWallets', P95_paypalSdkNoUnverifiedWallets],
   ['P96_longRunningEndpointInstrumentation', P96_longRunningEndpointInstrumentation],
   ['P102_adminBypassForceLegacy', P102_adminBypassForceLegacy],
+  ['P111_intercityBookendSilentFailAlert', P111_intercityBookendSilentFailAlert],
 ];
 
 /**
@@ -1404,6 +1405,77 @@ function P102_adminBypassForceLegacy({ changed }) {
       'P102_adminBypassForceLegacy',
       violations.join(' | '),
       '메모리 P102 — admin Test Mode (ADMIN-BYPASS-*) 은 decidePlannerMode Precedence 0 으로 항상 legacy. tests/unit/planner-ab-mode.test.ts 의 P102 describe 블록 참조.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P111_intercityBookendSilentFailAlert — 메모리 P111 (2026-05-20, no-PR-yet).
+ *
+ * RouteAgent.js Phase 2.4 (city-change day intercity bookend) 의 silent fail
+ * 분기에 throttledTelegramAlert 의무. lookupStationCoord null / prevDayHotelCoord
+ * null / dayHotel coord null / ODsay throw 4 케이스가 console.warn 만 하고 끝나면
+ * 운영자가 Vercel logs 폴링 없이 인지 불가. 사용자 보고 패턴: "서울→부산 KTX
+ * 가이드 없음, 그냥 부산 나옴".
+ *
+ * 회귀 슬롯: tests/unit/intercity-bookend-silent-fail-pr111.test.ts (10 케이스).
+ */
+function P111_intercityBookendSilentFailAlert({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  if (!/from\s*['"]\.\.\/\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
+    violations.push(`${FILE}: telegram-throttle import 누락 — P111 silent fail alert 불가`);
+  }
+  if (!/const\s+bookendFailReasons\s*=\s*\[\]/.test(content)) {
+    violations.push(`${FILE}: bookendFailReasons accumulator 누락 — 4 silent-fail 분기 reason 수집 불가`);
+  }
+  // Phase 2.4a (pre) 4 reasons
+  const preReasons = [
+    'pre:from_station_missing',
+    'pre:prev_hotel_coord_missing',
+    'pre:station_coord_missing',
+    'pre:odsay_throw',
+  ];
+  for (const r of preReasons) {
+    if (!content.includes(r)) {
+      violations.push(`${FILE}: '${r}' reason push 누락 — 해당 silent-fail 케이스 운영자 인지 불가`);
+    }
+  }
+  // Phase 2.4b (post) 4 reasons
+  const postReasons = [
+    'post:to_station_missing',
+    'post:day_hotel_coord_missing',
+    'post:station_coord_missing',
+    'post:odsay_throw',
+  ];
+  for (const r of postReasons) {
+    if (!content.includes(r)) {
+      violations.push(`${FILE}: '${r}' reason push 누락 — 해당 silent-fail 케이스 운영자 인지 불가`);
+    }
+  }
+  // Alert call guard + key pattern
+  if (!/if\s*\(\s*bookendFailReasons\.length\s*>\s*0\s*\)\s*\{[\s\S]{0,3000}?throttledTelegramAlert\s*\(/.test(content)) {
+    violations.push(`${FILE}: bookendFailReasons.length>0 가드 + throttledTelegramAlert 호출 누락`);
+  }
+  if (!/key:\s*`intercity-bookend-fail:\$\{firstReason\}:\$\{fromTo\}`/.test(content)) {
+    violations.push(`${FILE}: alert key 'intercity-bookend-fail:\${firstReason}:\${fromTo}' 패턴 누락 — dedup 깨짐`);
+  }
+  // Non-blocking dispatch
+  if (!/throttledTelegramAlert\(\{[\s\S]+?\}\)\.catch\(\(\)\s*=>\s*\{\s*\}\)/.test(content)) {
+    violations.push(`${FILE}: alert .catch(() => {}) 누락 — alert 실패가 plan 생성 break 가능`);
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P111_intercityBookendSilentFailAlert',
+      violations.join(' | '),
+      '메모리 P111 — Phase 2.4 의 8 silent-fail 분기 (pre/post 각 4) 모두 reason push + bookendFailReasons.length>0 시 throttledTelegramAlert (admin/high/dedup by first reason + city pair). tests/unit/intercity-bookend-silent-fail-pr111.test.ts 10 케이스 참조.',
     );
   }
   return null;
