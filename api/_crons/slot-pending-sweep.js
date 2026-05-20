@@ -9,8 +9,8 @@
  * 카운터만 정리.
  *
  * 호출 패턴:
- *   1. collectionGroup('dates') 로 모든 tour_availability/*/dates/* 조회 (한도
- *      MAX_DOCS 100).
+ *   1. collectionGroup('dates') 로 모든 tour_availability 의 dates 하위 doc 조회
+ *      (한도 MAX_DOCS 100).
  *   2. slot_pending 존재 + 만료 항목이 있는 doc 만 sweep 대상으로 분기.
  *   3. 각 doc 에 sweepExpiredPending 호출 — 내부에서 runTransaction (race-safe).
  *
