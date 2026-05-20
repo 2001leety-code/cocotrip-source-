@@ -1018,6 +1018,7 @@ const RULES = [
   ['P120_unreasonableStopTimeDetect', P120_unreasonableStopTimeDetect],
   ['P121_qualityWarningsAdminPanel', P121_qualityWarningsAdminPanel],
   ['P122_multiCityLodgingPlaceholder', P122_multiCityLodgingPlaceholder],
+  ['P123_hotelByCityForwarding', P123_hotelByCityForwarding],
 ];
 
 /**
@@ -2047,6 +2048,56 @@ function P116_lodgingBookendLabel({ changed }) {
       'P116_lodgingBookendLabel',
       violations.join(' | '),
       '메모리 P116 — lodging bookend 호텔 카드 첫/마지막/중간 구분 라벨 (checkout/depart/checkin/return). StopCard LodgingRole 타입 + 4-lang + 가드 badge + computeLodgingRole 헬퍼 + SortableStopCard forward. tests/unit/lodging-bookend-label-pr116.test.tsx 13 케이스.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P123_hotelByCityForwarding — 메모리 P123 (2026-05-20).
+ * Wizard Step2 가 hotelByCity Record (도시별 호텔) 입력받지만 백엔드 buildPrompt 가
+ * 처리 X → Gemini 가 단일 hotel_address 만 받음 → 모든 day 에 박힘 회귀.
+ * ai-planner-full.js 가 body.hotelByCity destructure + Gemini user message 에 inject
+ * + planPersister.backfillDayLodging 가 인자로 받아 우선 lookup 3 layer 검증.
+ */
+function P123_hotelByCityForwarding({ changed }) {
+  const AI_PLANNER = 'api/ai-planner-full.js';
+  const PERSIST = 'api/_ai_core/planPersister.js';
+  if (!isModified(AI_PLANNER, changed) && !isModified(PERSIST, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(AI_PLANNER)) {
+    const c = readFileSync(AI_PLANNER, 'utf8');
+    if (!/const\s+hotelByCity\s*=/.test(c)) {
+      violations.push(`${AI_PLANNER}: hotelByCity destructure 누락 — body.hotelByCity 처리 안 됨`);
+    }
+    if (!/MULTI-CITY HOTELS BY CITY/.test(c)) {
+      violations.push(`${AI_PLANNER}: Gemini user message 에 MULTI-CITY HOTELS BY CITY 블록 누락 — wizard 도시별 호텔 입력 활용 X`);
+    }
+    if (!/backfillDayLodging\s*\(\s*itinerary\s*,\s*hotelByCity\s*\)/.test(c)) {
+      violations.push(`${AI_PLANNER}: backfillDayLodging(itinerary, hotelByCity) 호출 — 두 번째 인자 누락`);
+    }
+  }
+
+  if (existsSync(PERSIST)) {
+    const c = readFileSync(PERSIST, 'utf8');
+    if (/backfillDayLodging/.test(c)) {
+      if (!/backfillDayLodging\s*\(\s*itinerary\s*,\s*hotelByCity\s*=/.test(c)) {
+        violations.push(`${PERSIST}: backfillDayLodging signature 의 hotelByCity 인자 누락`);
+      }
+      if (!/hbc\[dayCityLc\]/.test(c) && !/P123/.test(c)) {
+        violations.push(`${PERSIST}: P123 hotelByCity[day.city] 우선 lookup logic 누락`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P123_hotelByCityForwarding',
+      violations.join(' | '),
+      '메모리 P123 — wizard 도시별 호텔 input 백엔드 통합. ai-planner-full destructure + Gemini user message inject + planPersister 우선 lookup 3 layer 의무.',
     );
   }
   return null;
@@ -4973,6 +5024,22 @@ function runSelfTest() {
           "// hotel_address 단일 placeholder only\n// | Seoul | 명동 호텔 |\n",
       },
       expectRule: 'P122_multiCityLodgingPlaceholder',
+    },
+    {
+      label: 'P123: ai-planner-full 에 hotelByCity destructure + Gemini message inject 누락',
+      base: {
+        'api/ai-planner-full.js':
+          "const hotelByCity = (() => ({}))();\n// MULTI-CITY HOTELS BY CITY block\nbackfillDayLodging(itinerary, hotelByCity);\n",
+        'api/_ai_core/planPersister.js':
+          "// P123\nexport function backfillDayLodging(itinerary, hotelByCity = {}) { const hbc = hotelByCity; for (const day of itinerary.days) { const dayCityLc = day.city.toLowerCase(); if (hbc[dayCityLc]) return; } }\n",
+      },
+      head: {
+        'api/ai-planner-full.js':
+          "// hotelByCity ignored\nbackfillDayLodging(itinerary);\n",
+        'api/_ai_core/planPersister.js':
+          "export function backfillDayLodging(itinerary) {}\n",
+      },
+      expectRule: 'P123_hotelByCityForwarding',
     },
   ];
 

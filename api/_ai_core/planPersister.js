@@ -74,10 +74,20 @@ export function backfillStopEndTimes(itinerary) {
  *
  * 이미 day.lodging.name 또는 address 있으면 override X.
  */
-export function backfillDayLodging(itinerary) {
+export function backfillDayLodging(itinerary, hotelByCity = {}) {
   let filled = 0;
+  // P123 (2026-05-20): hotelByCity Record (사용자 wizard 도시별 호텔 input) 우선.
+  // Gemini 응답이 wrong-city 호텔 박았을 때 사용자가 직접 명시한 도시별 호텔로 override.
+  const hbc = (hotelByCity && typeof hotelByCity === 'object') ? hotelByCity : {};
   for (const day of (itinerary?.days || [])) {
     if (day?.lodging && (day.lodging.name || day.lodging.address)) continue;
+    const dayCityLc = String(day?.city || '').trim().toLowerCase();
+    // P123: 사용자 명시 hotelByCity 우선 — Gemini stops 보다 신뢰.
+    if (dayCityLc && hbc[dayCityLc] && typeof hbc[dayCityLc] === 'string' && hbc[dayCityLc].trim()) {
+      day.lodging = { name: null, address: hbc[dayCityLc].trim() };
+      filled += 1;
+      continue;
+    }
     const stops = Array.isArray(day?.stops) ? day.stops : [];
     const lodgingStops = stops.filter((s) => s?.category === 'lodging');
     if (lodgingStops.length === 0) continue;
