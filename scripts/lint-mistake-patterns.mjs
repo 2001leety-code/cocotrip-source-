@@ -2235,8 +2235,10 @@ function P119_dayLodgingBackfill({ changed }) {
       if (!/import[^;]+backfillDayLodging[^;]+from/.test(c)) {
         violations.push(`${AI_PLANNER}: backfillDayLodging import 누락`);
       }
-      if (!/backfillDayLodging\s*\(\s*itinerary\s*\)/.test(c)) {
-        violations.push(`${AI_PLANNER}: backfillDayLodging(itinerary) 호출 누락 — backfillStopEndTimes 다음에 호출 의무`);
+      // P123 (2026-05-20): 두 번째 인자 hotelByCity 추가로 정규식 완화.
+      // 호출 자체 있으면 OK (R-P123 가 정확한 인자 검증).
+      if (!/backfillDayLodging\s*\(\s*itinerary\b/.test(c)) {
+        violations.push(`${AI_PLANNER}: backfillDayLodging(itinerary, ...) 호출 누락 — backfillStopEndTimes 다음에 호출 의무`);
       }
     }
   }
