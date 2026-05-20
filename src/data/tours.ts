@@ -84,8 +84,13 @@ export type TourStop = {
   name: I18nString;
   /** 머무는 시간 (분) */
   stay_min: number;
-  /** /public 기준 사진 경로 (선택). 없으면 카드에 placeholder. */
-  photo?: string;
+  /**
+   * 사진 — 두 형태 모두 허용:
+   *   1) string: /public 기준 경로 (정적 9 투어 legacy)
+   *   2) TourPhoto: Firebase Storage URL + alt/blurhash/variants (어드민 등록)
+   * resolvePhotoUrl() 가 양쪽 통합 처리. UI 렌더 시 그 헬퍼 사용 의무.
+   */
+  photo?: string | TourPhoto;
   /** 무엇을 보고/하는지 1-2문장 설명 */
   description: I18nString;
   /** 입장료 (KRW). 0 또는 생략 시 무료. */
