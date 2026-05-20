@@ -1017,6 +1017,7 @@ const RULES = [
   ['P119_dayLodgingBackfill', P119_dayLodgingBackfill],
   ['P120_unreasonableStopTimeDetect', P120_unreasonableStopTimeDetect],
   ['P121_qualityWarningsAdminPanel', P121_qualityWarningsAdminPanel],
+  ['P122_multiCityLodgingPlaceholder', P122_multiCityLodgingPlaceholder],
 ];
 
 /**
@@ -2046,6 +2047,61 @@ function P116_lodgingBookendLabel({ changed }) {
       'P116_lodgingBookendLabel',
       violations.join(' | '),
       '메모리 P116 — lodging bookend 호텔 카드 첫/마지막/중간 구분 라벨 (checkout/depart/checkin/return). StopCard LodgingRole 타입 + 4-lang + 가드 badge + computeLodgingRole 헬퍼 + SortableStopCard forward. tests/unit/lodging-bookend-label-pr116.test.tsx 13 케이스.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P122_multiCityLodgingPlaceholder — 메모리 P122 (2026-05-20).
+ * plan 209de47b: 다도시 plan 의 부산 day 에 "명동 호텔" 박혀있음 회귀.
+ * buildPrompt.js 의 stops[0].name 선택 instruction 이 단일 hotel_address 만 강조하고
+ * 다도시 city-specific 호텔 placeholder 명시 부족. + planPersister backfillDayLodging
+ * 의 city mismatch 가드 검증.
+ */
+function P122_multiCityLodgingPlaceholder({ changed }) {
+  const PROMPT = 'api/_ai_core/buildPrompt.js';
+  const PERSIST = 'api/_ai_core/planPersister.js';
+  if (!isModified(PROMPT, changed) && !isModified(PERSIST, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(PROMPT)) {
+    const c = readFileSync(PROMPT, 'utf8');
+    // 다도시 호텔 영역 표 — 최소 4 도시 placeholder 명시 의무.
+    const cityPlaceholders = [
+      { city: 'Seoul', pattern: /Seoul[^|]+\|\s*명동 호텔[^|]*홍대 호텔/ },
+      { city: 'Busan', pattern: /Busan[^|]+\|\s*해운대 호텔[^|]*광안리 호텔/ },
+      { city: 'Jeju', pattern: /Jeju[^|]+\|\s*중문 호텔/ },
+    ];
+    const missing = cityPlaceholders.filter((p) => !p.pattern.test(c));
+    if (missing.length > 0) {
+      violations.push(
+        `${PROMPT}: 다도시 lodging placeholder 표 누락 — ${missing.map((m) => m.city).join(', ')}. buildPrompt LODGING BOOKEND stops[0].name 섹션에 city-specific 호텔 영역 표 + GOOD/BAD 예시 의무.`,
+      );
+    }
+    // P122 명시 (메모리 ref) 의무 — 추후 누군가 instruction 제거 시 즉시 회귀 인지.
+    if (!/P122/.test(c)) {
+      violations.push(`${PROMPT}: "P122" 마커 누락 — 의도된 instruction 자체 흔적 X`);
+    }
+  }
+
+  if (existsSync(PERSIST)) {
+    const c = readFileSync(PERSIST, 'utf8');
+    // backfillDayLodging 에 city mismatch 가드 — wrong-city 호텔 박힘 차단.
+    if (/backfillDayLodging/.test(c)) {
+      if (!/P122 .*city mismatch/.test(c) && !/cityMatched/.test(c)) {
+        violations.push(`${PERSIST}: backfillDayLodging 의 city mismatch 가드 누락 — Gemini wrong-city 호텔 backfill 시 wrong city 박힘.`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P122_multiCityLodgingPlaceholder',
+      violations.join(' | '),
+      '메모리 P122 — 다도시 plan 의 도시 변경 day 에 wrong-city 호텔 (예: 부산 day 의 "명동 호텔") 박힘 회귀 차단. buildPrompt 표 + backfill 가드 2 layer.',
     );
   }
   return null;
@@ -4905,6 +4961,18 @@ function runSelfTest() {
           "import { QualityWarningsPanel } from './components/QualityWarningsPanel';\n<QualityWarningsPanel />\n",
       },
       expectRule: 'P121_qualityWarningsAdminPanel',
+    },
+    {
+      label: 'P122: buildPrompt 다도시 호텔 placeholder 표 누락 — 부산/제주 city placeholder 없음',
+      base: {
+        'api/_ai_core/buildPrompt.js':
+          "// P122 (2026-05-20):\n// | Seoul | 명동 호텔 / 홍대 호텔 |\n// | Busan | 해운대 호텔 / 광안리 호텔 |\n// | Jeju | 중문 호텔 |\n",
+      },
+      head: {
+        'api/_ai_core/buildPrompt.js':
+          "// hotel_address 단일 placeholder only\n// | Seoul | 명동 호텔 |\n",
+      },
+      expectRule: 'P122_multiCityLodgingPlaceholder',
     },
   ];
 

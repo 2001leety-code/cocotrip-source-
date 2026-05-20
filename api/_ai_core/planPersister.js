@@ -89,6 +89,27 @@ export function backfillDayLodging(itinerary) {
       lodgingStops.length >= 2;
 
     const target = isArrivalDay ? lodgingStops[lodgingStops.length - 1] : lodgingStops[0];
+
+    // P122 (2026-05-20): city mismatch 가드. Gemini 가 wrong-city 호텔 stop 을
+    // 첫 lodging 으로 박은 경우 (예: Day 4 city=Busan 인데 stops[0]="명동 호텔")
+    // backfill 하면 사용자에게 wrong city 호텔 노출. day.lodging 미설정이 더 안전
+    // (UI / RouteAgent 가 graceful fallback).
+    const targetName = String(target.name || target.display_name || '').toLowerCase();
+    const targetAddr = String(target.address || '').toLowerCase();
+    const CITY_KOR = {
+      seoul: '서울', busan: '부산', jeju: '제주', gyeongju: '경주',
+      jeonju: '전주', gangneung: '강릉', sokcho: '속초', incheon: '인천',
+      daegu: '대구', daejeon: '대전', gwangju: '광주', suwon: '수원',
+    };
+    const kor = dayCity ? CITY_KOR[dayCity] : '';
+    const cityMatched = !dayCity || (targetName + ' ' + targetAddr).includes(dayCity) ||
+      (kor && (targetName.includes(kor) || targetAddr.includes(kor)));
+
+    if (!cityMatched) {
+      console.warn(`[planPersister] day.lodging skip (P122 city mismatch): day.city=${day.city}, target.name="${target.name || target.display_name}"`);
+      continue;
+    }
+
     day.lodging = {
       name: String(target.name || target.display_name || '').trim() || null,
       address: String(target.address || '').trim() || null,

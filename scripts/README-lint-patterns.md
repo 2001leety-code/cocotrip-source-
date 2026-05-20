@@ -52,6 +52,7 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 | `P119_dayLodgingBackfill` | P119 | `api/_ai_core/planPersister.js` 의 `backfillDayLodging` export 누락 또는 `api/ai-planner-full.js` 의 import/호출 누락 | 변경된 file 의 export/import grep |
 | `P120_unreasonableStopTimeDetect` | P120 | `api/_ai_core/planPersister.js` 의 `detectUnreasonableStopTimes` export 누락 또는 `api/ai-planner-full.js` 가 호출 없이 또는 admin alert 발송 없이 사용 | 변경된 file 의 export/호출/alert grep |
 | `P121_qualityWarningsAdminPanel` | P121 | `QualityWarningsPanel.tsx` 의 `isAdminEmail` import/호출 누락 → 일반 사용자 노출 위험. 또는 `PlanDetailPage/index.tsx` 의 import/렌더 누락 | 변경된 file 의 import/호출 grep |
+| `P122_multiCityLodgingPlaceholder` | P122 | `buildPrompt.js` 의 다도시 city-specific 호텔 영역 표 (Seoul/Busan/Jeju 등) 누락. 또는 `planPersister.js` backfillDayLodging 의 city mismatch 가드 누락 — wrong-city 호텔 박힘 회귀 | 변경된 file 의 표 / 가드 grep |
 
 ## 실행 방법
 

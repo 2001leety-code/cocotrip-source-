@@ -333,8 +333,25 @@ No markdown. No code blocks. No explanation. Pure JSON only.
     \`\`\`
     구체적으로:
     1. **stops[0] (첫 stop)** = **category="lodging" stop 필수**.
-       - "name" = 사용자의 hotel_address (있으면) 또는 recommended_zone 영역의 호텔
-         placeholder (예: "Hongdae area hotel" / "명동 호텔" — recommended_zone 기반).
+       - "name" 선택 (P122, 2026-05-20 — 다도시 wrong-city 호텔 박힘 회귀 fix):
+         - **단도시 plan (regions.length === 1)**: 사용자 hotel_address (있으면) 또는
+           recommended_zone 영역 호텔 placeholder (예: "Hongdae area hotel" / "명동 호텔").
+           모든 day 동일 호텔.
+         - **다도시 plan (regions.length >= 2)** ⚠️ **모든 day 에 같은 호텔 박지 말 것**:
+           - 사용자 hotel_address = **첫 도시 (arrival_airport 가까운 도시) 의 호텔만** 간주.
+           - 각 도시 day 의 lodging name = **그 도시의 well-known 호텔 영역 placeholder**:
+             | day.city | lodging name 예시 |
+             |---|---|
+             | Seoul | 명동 호텔 / 홍대 호텔 / 강남 호텔 / 이태원 호텔 / 잠실 호텔 / 종로 호텔 |
+             | Busan | 해운대 호텔 / 광안리 호텔 / 서면 호텔 / 남포동 호텔 / 송도 호텔 |
+             | Jeju | 중문 호텔 / 노형 호텔 / 제주시청 호텔 / 성산 호텔 |
+             | Gyeongju | 보문 호텔 / 황남동 호텔 / 대릉원 호텔 |
+             | Jeonju | 한옥마을 호텔 / 객사 호텔 |
+             | Gangneung | 경포 호텔 / 강릉역 호텔 |
+             | Sokcho | 속초해변 호텔 / 설악산 호텔 |
+           - **BAD**: regions=["seoul","busan"], hotel_address="서울 명동...", Day 4 (city=Busan) stops[0].name="명동 호텔" ← wrong city, 사용자 짐 들고 부산 못 감.
+           - **GOOD**: Day 4 (city=Busan) stops[0].name="해운대 호텔", Day 5 (city=Seoul) stops[0].name="명동 호텔" (사용자 hotel_address 유지).
+           - B-13 validator (백엔드) 가 lodging name/address 도시 매칭 강제 — 위반 시 retry.
        - "start_time" = "09:00" (계속 같은 호텔 머무는 경우) 또는 체크아웃 시각 (예: "10:00").
        - "stay_min" = 0 (출발 stop — 머무는 시간 X).
        - "category" = "lodging".
