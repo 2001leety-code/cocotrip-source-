@@ -19,7 +19,7 @@ import { Plus, Calendar, Clock, MapPin, TrainFront, Plane } from 'lucide-react';
 import { TransitArrow } from './TransitArrow';
 import { TransitFallback } from './TransitFallback';
 import { SortableStopCard } from './SortableStopCard';
-import { StopCard } from './StopCard';
+import { StopCard, type LodgingRole } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { LodgingBookend } from './LodgingBookend';
@@ -80,6 +80,28 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
     || ((plan?.input?.regions as string[] | undefined)?.[0])
     || undefined;
   const intercity: IntercityTransitSegment | null | undefined = day.intercity_transit;
+
+  /**
+   * P116 (2026-05-20): lodging bookend 패턴의 호텔 카드 라벨링.
+   *  - 첫 stop 호텔 + intercity_transit 있음 → 'checkout' (다른 도시 출발 전)
+   *  - 첫 stop 호텔 + intercity_transit 없음 → 'depart' (당일 일반 출발)
+   *  - 마지막 stop 호텔 → 'return' (취침 복귀)
+   *  - 중간 stop 호텔 → 'checkin' (city-change day 새 호텔)
+   *  - 비-lodging → undefined (no badge)
+   */
+  function computeLodgingRole(
+    stop: PlanStop,
+    si: number,
+    stopsArr: PlanStop[],
+    hasIntercity: boolean,
+  ): LodgingRole | undefined {
+    if (stop.category !== 'lodging') return undefined;
+    const isFirst = si === 0;
+    const isLast = si === stopsArr.length - 1;
+    if (isFirst) return hasIntercity ? 'checkout' : 'depart';
+    if (isLast) return 'return';
+    return 'checkin';
+  }
 
   return (
     <section className="mb-6 sm:mb-8">
@@ -229,6 +251,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                       stopId={stopIds[si]}
                       editMode={editMode}
                       onDelete={() => setDeleteTarget(si)}
+                      lodgingRole={computeLodgingRole(stop, si, stops, !!intercity)}
                     />
                   </div>
                 );
@@ -275,7 +298,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                     currName={destName}
                   />
                 )}
-                <StopCard stop={stop} />
+                <StopCard stop={stop} lodgingRole={computeLodgingRole(stop, si, stops, !!intercity)} />
               </motion.div>
             );
           })}

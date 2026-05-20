@@ -96,7 +96,26 @@ function buildNaverMapUrl(stop: PlanStop): string {
   return `https://map.naver.com/v5/search/${encodeURIComponent(q)}`;
 }
 
-export function StopCard({ stop }: { stop: PlanStop }) {
+/**
+ * P116 (2026-05-20): 호텔 stop 이 매일 첫 + 마지막 stop 으로 노출되는 lodging
+ * bookend 패턴이 사용자에게 "호텔 2번 표시 = 중복 버그" 로 보임 (plan 4792076e
+ * 보고). lodgingRole 로 첫/마지막/중간 호텔 구분 표시:
+ *   - 'checkout': city-change day 첫 stop 호텔 (다른 도시로 출발 전 체크아웃)
+ *   - 'depart': 일반 day 첫 stop 호텔 (당일 출발)
+ *   - 'checkin': day 중간의 신규 호텔 (city-change day 새 도시 도착 후)
+ *   - 'return': day 마지막 stop 호텔 (취침)
+ * undefined 면 기존 동작 (no badge). 비-lodging stop 도 영향 X.
+ */
+export type LodgingRole = 'checkout' | 'depart' | 'checkin' | 'return';
+
+const LODGING_ROLE_LABEL: Record<LodgingRole, Record<string, string>> = {
+  checkout: { ko: '🚪 체크아웃', en: '🚪 Check-out', ja: '🚪 チェックアウト', zh: '🚪 退房' },
+  depart:   { ko: '🚪 출발',     en: '🚪 Depart',    ja: '🚪 出発',         zh: '🚪 出发' },
+  checkin:  { ko: '🛏️ 체크인',  en: '🛏️ Check-in', ja: '🛏️ チェックイン', zh: '🛏️ 入住' },
+  return:   { ko: '🌙 취침 복귀', en: '🌙 Return',    ja: '🌙 帰着',         zh: '🌙 归来' },
+};
+
+export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: LodgingRole }) {
   const { t, language } = useLanguage();
   const ui = getPlanDetailUI(t);
   // 다국어 concat 누수 안전망 (사용자 PDF 보고). 백엔드 sanitize 누락 시 display-time fix.
@@ -227,6 +246,16 @@ export function StopCard({ stop }: { stop: PlanStop }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-[15px] sm:text-base font-bold text-white leading-snug">{cleanDisplayName}</p>
+            {/* P116: lodging role badge — 호텔 카드가 매일 2번 노출되는 bookend
+                패턴을 사용자가 "중복 버그" 로 오인하지 않게 명시 구분. */}
+            {lodgingRole && (
+              <span
+                className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border bg-[#7C5CFC]/15 border-[#7C5CFC]/30 text-[#B9A4FF]"
+                title={`Lodging ${lodgingRole}`}
+              >
+                {LODGING_ROLE_LABEL[lodgingRole][language] || LODGING_ROLE_LABEL[lodgingRole].en}
+              </span>
+            )}
             {stop.local_tag && (() => {
               const tagConfig: Record<string, { bg: string; text: string; emoji: string }> = {
                 'Local Pick': { bg: 'bg-purple-500/20 border-purple-500/30', text: 'text-purple-300', emoji: '\u{1F4CD}' },

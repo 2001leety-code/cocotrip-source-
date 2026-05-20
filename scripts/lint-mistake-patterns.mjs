@@ -1008,6 +1008,7 @@ const RULES = [
   ['P113_intercityTimeStitch', P113_intercityTimeStitch],
   ['P114_dbMatcherPerDayCity', P114_dbMatcherPerDayCity],
   ['P115_planMarkdownFallback', P115_planMarkdownFallback],
+  ['P116_lodgingBookendLabel', P116_lodgingBookendLabel],
 ];
 
 /**
@@ -1661,8 +1662,8 @@ function P115_planMarkdownFallback({ changed }) {
       if (!/text\/markdown/.test(content)) {
         violations.push(`${LIB}: Blob MIME 'text/markdown' 누락 — 사용자 OS 가 텍스트 앱으로 안 열 수 있음`);
       }
-      // Safari setTimeout cleanup pattern
-      if (!/setTimeout\([^)]*URL\.revokeObjectURL/.test(content)) {
+      // Safari setTimeout cleanup pattern — multiline arrow body OK
+      if (!/setTimeout\([\s\S]{0,200}URL\.revokeObjectURL/.test(content)) {
         violations.push(`${LIB}: URL.revokeObjectURL setTimeout 누락 — Safari 비동기 timing 으로 download fail 위험`);
       }
     }
@@ -1686,6 +1687,74 @@ function P115_planMarkdownFallback({ changed }) {
       'P115_planMarkdownFallback',
       violations.join(' | '),
       '메모리 P115 — PDF fallback Markdown export. planToMarkdown + downloadPlanAsMarkdown + intercity bookend 표시 + Safari setTimeout cleanup. tests/unit/plan-to-markdown-pr115.test.ts 12 케이스.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P116_lodgingBookendLabel — 메모리 P116 (2026-05-20, no-PR-yet).
+ *
+ * lodging bookend 패턴 (매일 호텔 첫+마지막 stop) 사용자 오인 방지. StopCard 가
+ * LodgingRole 타입 + 4-lang 라벨 + 가드된 badge 렌더 + DayTimeline 이 computeLodgingRole
+ * 헬퍼 + SortableStopCard prop forwarding.
+ *
+ * 회귀 슬롯: tests/unit/lodging-bookend-label-pr116.test.tsx (13 케이스).
+ */
+function P116_lodgingBookendLabel({ changed }) {
+  const violations = [];
+
+  const STOP = 'src/pages/PlanDetailPage/components/StopCard.tsx';
+  if (isModified(STOP, changed)) {
+    const content = getChangedFileContent(STOP);
+    if (content) {
+      if (!/export\s+type\s+LodgingRole\s*=/.test(content)) {
+        violations.push(`${STOP}: LodgingRole 타입 미export — DayTimeline/SortableStopCard 에서 type-safe forward 불가`);
+      }
+      if (!/lodgingRole\?:\s*LodgingRole/.test(content)) {
+        violations.push(`${STOP}: lodgingRole?: prop 시그니처 누락`);
+      }
+      if (!/\{lodgingRole\s*&&\s*\(/.test(content)) {
+        violations.push(`${STOP}: 가드된 badge 렌더 (lodgingRole && (...)) 누락 — undefined 시 빈 element 출력 위험`);
+      }
+      // 4-lang label coverage
+      for (const role of ['checkout', 'depart', 'checkin', 'return']) {
+        const pattern = new RegExp(`${role}:\\s*\\{\\s*ko:[^}]+,\\s*en:[^}]+,\\s*ja:[^}]+,\\s*zh:`);
+        if (!pattern.test(content)) {
+          violations.push(`${STOP}: LODGING_ROLE_LABEL.${role} 4-lang 라벨 누락`);
+        }
+      }
+    }
+  }
+
+  const DT = 'src/pages/PlanDetailPage/components/DayTimeline.tsx';
+  if (isModified(DT, changed)) {
+    const content = getChangedFileContent(DT);
+    if (content && /lodgingRole/.test(content)) {
+      if (!/function\s+computeLodgingRole/.test(content)) {
+        violations.push(`${DT}: computeLodgingRole 헬퍼 미선언 — lodgingRole prop 값 계산 불가`);
+      }
+      if (!/computeLodgingRole\(stop,\s*si,\s*stops,\s*!!intercity\)/.test(content)) {
+        violations.push(`${DT}: computeLodgingRole 호출에 intercity 플래그 미전달 — checkout vs depart 구분 불가`);
+      }
+    }
+  }
+
+  const SORT = 'src/pages/PlanDetailPage/components/SortableStopCard.tsx';
+  if (isModified(SORT, changed)) {
+    const content = getChangedFileContent(SORT);
+    if (content && /lodgingRole/.test(content)) {
+      if (!/<StopCard\s+stop=\{stop\}\s+lodgingRole=\{lodgingRole\}/.test(content)) {
+        violations.push(`${SORT}: SortableStopCard 가 lodgingRole 을 StopCard 로 forward 안 함`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P116_lodgingBookendLabel',
+      violations.join(' | '),
+      '메모리 P116 — lodging bookend 호텔 카드 첫/마지막/중간 구분 라벨 (checkout/depart/checkin/return). StopCard LodgingRole 타입 + 4-lang + 가드 badge + computeLodgingRole 헬퍼 + SortableStopCard forward. tests/unit/lodging-bookend-label-pr116.test.tsx 13 케이스.',
     );
   }
   return null;
