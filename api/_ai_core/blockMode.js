@@ -518,6 +518,13 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   };
 }
 
+// P10 inclusive/exclusive 컨벤션 (P1 lint rule 요구):
+// - yyyymmdd: ISO 'YYYY-MM-DD' 형식의 시작일 (inclusive)
+// - offsetDays: 시작일 기준 N 일 뒤. 0 이면 startDate 자체.
+// - 반환: startDate + N 일의 ISO date string
+// - 예: offsetDate('2026-06-01', 0) = '2026-06-01' (Day 1, inclusive)
+//       offsetDate('2026-06-01', 4) = '2026-06-05' (Day 5, 5박6일 trip 의 마지막 day inclusive)
+// - durationDays = 5 → days[].date 가 [Day0, Day1, ..., Day4] = startDate + [0..4] = startDate + 4 inclusive
 function offsetDate(yyyymmdd, offsetDays) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(yyyymmdd))) return undefined;
   try {
