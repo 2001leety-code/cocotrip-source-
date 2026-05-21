@@ -702,9 +702,21 @@ export class RouteAgent extends BaseAgent {
             const dayOfWeek = (dayDate && !isNaN(dayDate.getTime())) ? dayDate.getDay() : null;
 
             // ════════════════════════════════════════════════════════
-            // Phase 1: 모든 장소의 좌표 확보 (Naver Geocoding)
+            // Phase 1: 모든 장소의 좌표 확보 (Naver Geocoding) — 병렬화 (P138)
             // ════════════════════════════════════════════════════════
-            for (const place of places) {
+            // P138 (2026-05-22): 운영자 alert "ai-planner-full 4분30초 경과, last step:
+            // routeEnrich 39초, total 270001ms" — Vercel 5분 cap 도달 직전. root cause
+            // 의 큰 부분 = Phase 1 의 per-place sequential geocoding (30 places × 200-5000ms
+            // × 3 query fallback = 최대 75s per day × 5 day = 6분+).
+            //
+            // 병렬화: outer for-of → Promise.all(places.map). place 간 독립 fetch (Naver
+            // NCP 50 req/s 한도 — 30 places 동시는 안전). 각 place 내부의 query fallback
+            // (address → name+region → display_name) 는 sequential 유지 — 1순위 성공 시
+            // break 하는 의도 보존.
+            //
+            // 회귀 안전: place 별 try/catch 격리됨. 한 place fetch 실패해도 다른 place
+            // 영향 X (Promise.all 의 fail-fast 는 안 발동 — 각 fetch 가 catch).
+            await Promise.all(places.map(async (place) => {
                 const address = place.address || "";
                 const name = place.name || place.name_ko || place.display_name || place.name_en || "";
                 let lat = null;
@@ -767,7 +779,7 @@ export class RouteAgent extends BaseAgent {
                 place._geocoded = lat !== null;
                 const nameKo = place.name || place.name_ko || place.display_name || place.name_en || name;
                 place.naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(nameKo)}`;
-            }
+            }));
 
             // ════════════════════════════════════════════════════════
             // Phase 1.5: Intra-day TSP reorder (2026-05-13, PR #408 fix)
