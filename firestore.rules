@@ -216,6 +216,59 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // rising_spots/{region}/spots/{spotId} — Track B trend cron (2026-05-21)
+    //   매주 cron 이 Naver Local rating/reviewCount delta 추적.
+    //   rating_delta >= 0.3 또는 reviewCount_delta >= 50 면 'rising' 으로 마킹.
+    //   zone_courses placeholder 채우는 데이터 자산 누적 목적.
+    //
+    //   read:  admin only — 큐레이션 의사결정 사용.
+    //   write: 서버 cron 만 (Admin SDK rules 우회). 클라이언트 / 운영자 직접 쓰기 X.
+    // ─────────────────────────────────────────────────────────
+    match /rising_spots/{region} {
+      allow read: if isAdminEmail();
+      allow write: if false;
+      match /spots/{spotId} {
+        allow read: if isAdminEmail();
+        allow write: if false;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // trend_signals/{signalId} — Track B trend cron (2026-05-21)
+    //   Naver Blog 게시 빈도, Google Trends 등 trending 신호.
+    //   read:  admin only.
+    //   write: 서버 cron 만 (Admin SDK rules 우회).
+    // ─────────────────────────────────────────────────────────
+    match /trend_signals/{signalId} {
+      allow read: if isAdminEmail();
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // user_painpoints/{painpointId} — Track B trend cron (2026-05-21)
+    //   Reddit r/koreatravel / r/seoul / r/Korea / r/JapanTravel 등 외국인
+    //   painpoint scrape. score + comments_count threshold 이상만 저장.
+    //   read:  admin only.
+    //   write: 서버 cron 만 (Admin SDK rules 우회).
+    // ─────────────────────────────────────────────────────────
+    match /user_painpoints/{painpointId} {
+      allow read: if isAdminEmail();
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // attractions_meta/{contentId} — Track B trend cron (2026-05-21)
+    //   VisitKorea Tour API (한국관광공사) attraction meta — 운영시간 / 입장료 /
+    //   외국어 안내 여부. 매월 1일 갱신. content_id 가 doc ID.
+    //   read:  admin only — placeholder 채우는 용도 (운영자 큐레이션).
+    //   write: 서버 cron 만 (Admin SDK rules 우회).
+    // ─────────────────────────────────────────────────────────
+    match /attractions_meta/{contentId} {
+      allow read: if isAdminEmail();
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // earlybird — 공개 카운터
     // ─────────────────────────────────────────────────────────
     match /earlybird/{docId} {
