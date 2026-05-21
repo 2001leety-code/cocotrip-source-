@@ -1,0 +1,148 @@
+{
+  "id": "SEOUL_DAY_MYEONGDONG_STANDARD",
+  "city": "seoul",
+  "zone": "Myeongdong",
+  "block_type": "city_day",
+  "theme": "쇼핑 + 전망 + 야시장",
+  "theme_i18n": {
+    "ko": "쇼핑 + 전망 + 야시장",
+    "en": "Shopping + View + Night Market",
+    "ja": "ショッピング + 展望 + 夜市",
+    "zh": "购物 + 观景 + 夜市"
+  },
+  "intensity": "standard",
+  "best_for": ["first_time_visitor", "shopper", "family"],
+  "unsuitable_for": ["crowd_averse"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "Myeongdong 신규 PoC — 명동성당 + 점심 + 명동 쇼핑 + 남산 케이블카/N서울타워 + 명동 야시장. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "명동성당",
+      "name_i18n": {
+        "ko": "명동성당",
+        "en": "Myeongdong Cathedral",
+        "ja": "明洞聖堂",
+        "zh": "明洞圣堂"
+      },
+      "address": "서울특별시 중구 명동길 74",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 미사 중에는 입장 제한."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 가톨릭의 본산 — 고딕 양식 건축물. 미사 시간 피해서 방문.",
+        "en": "Mother church of Korean Catholicism — Gothic architecture. Avoid Mass hours.",
+        "ja": "韓国カトリックの母教会 — ゴシック様式の建築。ミサの時間は避けて訪問。",
+        "zh": "韩国天主教母堂 — 哥特式建筑。建议避开弥撒时间参观。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Myeongdong",
+        "en": "Verified lunch in Myeongdong",
+        "ja": "Verified lunch in Myeongdong",
+        "zh": "Verified lunch in Myeongdong"
+      },
+      "address": "서울특별시 중구 명동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "명동 일대 — 명동교자 / 칼국수 / 갈비탕 (식이 제약 매칭).",
+        "en": "Myeongdong area — Myeongdong Gyoja / kalguksu / galbitang matched to diet.",
+        "ja": "明洞エリア — 明洞餃子 / カルグクス / カルビタン (食事制限とマッチング)。",
+        "zh": "明洞一带 — 明洞饺子 / 刀削面 / 排骨汤 (按饮食偏好匹配)。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "명동 쇼핑 거리",
+      "name_i18n": {
+        "ko": "명동 쇼핑 거리",
+        "en": "Myeongdong Shopping Street",
+        "ja": "明洞ショッピング街",
+        "zh": "明洞购物街"
+      },
+      "address": "서울특별시 중구 명동길",
+      "stay_min": 120,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "K-뷰티 플래그십 + 면세점 + 길거리 음식 — 외국인 친화 거리. 여권 지참 시 면세 혜택.",
+        "en": "K-beauty flagships + duty-free + street food — tourist-friendly. Bring passport for tax-free.",
+        "ja": "K-ビューティ旗艦店 + 免税店 + 屋台 — 観光客に優しい街。パスポート持参で免税。",
+        "zh": "K-美妆旗舰店 + 免税店 + 街头小吃 — 适合游客。携带护照可免税。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "N서울타워",
+      "name_i18n": {
+        "ko": "남산 케이블카 + N서울타워",
+        "en": "Namsan Cable Car + N Seoul Tower",
+        "ja": "南山ケーブルカー + Nソウルタワー",
+        "zh": "南山缆车 + N首尔塔"
+      },
+      "address": "서울특별시 용산구 남산공원길 105",
+      "stay_min": 120,
+      "entry_fee_krw": 14000,
+      "entry_fee_note": "성인 14,000원 / 청소년 10,000원 (전망대 입장료). 케이블카 별도.",
+      "entry_fee": {
+        "adult": 14000,
+        "child": 10000,
+        "senior": 11000,
+        "toddler": 0,
+        "notes": "전망대 입장료. 케이블카 왕복 성인 14,000원 별도."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "케이블카 + 전망대 — 일몰 시간대가 최고 (서울 전경). 사랑의 자물쇠 명소.",
+        "en": "Cable car + observatory — sunset is best (Seoul skyline). Famous love-lock spot.",
+        "ja": "ケーブルカー + 展望台 — 日没時間帯がベスト (ソウルの夜景)。愛の鍵スポット。",
+        "zh": "缆车 + 观景台 — 日落时分最佳 (首尔全景)。爱情锁名胜。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Myeongdong",
+        "en": "Verified dinner in Myeongdong",
+        "ja": "Verified dinner in Myeongdong",
+        "zh": "Verified dinner in Myeongdong"
+      },
+      "address": "서울특별시 중구 명동길 야시장",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "명동 야시장 — 길거리 음식 (회오리 감자 / 닭꼬치 / 호떡 / 떡볶이).",
+        "en": "Myeongdong night market — street food (tornado potato / chicken skewers / hotteok / tteokbokki).",
+        "ja": "明洞夜市 — 屋台フード (トルネードポテト / 鶏串 / ホットク / トッポッキ)。",
+        "zh": "明洞夜市 — 街头小吃 (旋风薯 / 鸡肉串 / 糖饼 / 辣炒年糕)。"
+      }
+    }
+  ]
+}

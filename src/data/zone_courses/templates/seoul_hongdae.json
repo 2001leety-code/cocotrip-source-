@@ -1,0 +1,142 @@
+{
+  "id": "SEOUL_DAY_HONGDAE_STANDARD",
+  "city": "seoul",
+  "zone": "Hongdae",
+  "block_type": "city_day",
+  "theme": "젊은 거리 + 클럽 + 라이브",
+  "theme_i18n": {
+    "ko": "젊은 거리 + 클럽 + 라이브",
+    "en": "Youth Street + Club + Live",
+    "ja": "若者の街 + クラブ + ライブ",
+    "zh": "年轻街区 + 夜店 + Live"
+  },
+  "intensity": "standard",
+  "best_for": ["young_traveler", "nightlife", "k_pop_fan"],
+  "unsuitable_for": ["senior_traveler", "family_with_young_kids"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "Hongdae 신규 PoC — 홍대입구 + 연남동 + 망원시장 + 합정 카페 + 홍대 클럽거리. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "홍대입구 거리",
+      "name_i18n": {
+        "ko": "홍대입구 거리 (걷고싶은거리)",
+        "en": "Hongdae Walking Street",
+        "ja": "弘大入口の街 (歩きたい通り)",
+        "zh": "弘大入口街 (步行街)"
+      },
+      "address": "서울특별시 마포구 양화로 160 홍대 걷고싶은거리",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "거리 산책 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "버스킹 + 스트리트 아트 명소 — 주말 오후 활기 최고.",
+        "en": "Buskers + street art hotspot — most vibrant on weekend afternoons.",
+        "ja": "バスキング + ストリートアート名所 — 週末午後が最も活気あり。",
+        "zh": "街头表演 + 街头艺术胜地 — 周末下午最热闹。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Hongdae",
+        "en": "Verified lunch in Hongdae",
+        "ja": "Verified lunch in Hongdae",
+        "zh": "Verified lunch in Hongdae"
+      },
+      "address": "서울특별시 마포구 연남동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "연남동 — 베이커리 + 브런치 + 모던 한식 (식이 제약 매칭).",
+        "en": "Yeonnam-dong — bakeries + brunch + modern Korean matched to diet.",
+        "ja": "延南洞 — ベーカリー + ブランチ + モダン韓食 (食事制限とマッチング)。",
+        "zh": "延南洞 — 烘焙 + 早午餐 + 现代韩餐 (按饮食偏好匹配)。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "망원시장",
+      "name_i18n": {
+        "ko": "망원시장",
+        "en": "Mangwon Market",
+        "ja": "望遠市場",
+        "zh": "望远市场"
+      },
+      "address": "서울특별시 마포구 포은로8길 14 망원시장",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "로컬 분위기 + 길거리 음식 (호떡 / 닭강정 / 떡볶이).",
+        "en": "Local vibe + street food (hotteok / chicken / tteokbokki).",
+        "ja": "ローカルな雰囲気 + 屋台フード (ホットク / ヤンニョムチキン / トッポッキ)。",
+        "zh": "本地氛围 + 街头小吃 (糖饼 / 炸鸡 / 辣炒年糕)。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified cafe in Hongdae",
+        "en": "Verified cafe in Hongdae",
+        "ja": "Verified cafe in Hongdae",
+        "zh": "Verified cafe in Hongdae"
+      },
+      "address": "서울특별시 마포구 합정동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "합정동 — 로스터리 카페 + 디저트 명소.",
+        "en": "Hapjeong-dong — roastery cafes + dessert hotspots.",
+        "ja": "合井洞 — ロースタリーカフェ + デザート名店。",
+        "zh": "合井洞 — 烘焙咖啡馆 + 甜品名店。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Hongdae",
+        "en": "Verified dinner in Hongdae",
+        "ja": "Verified dinner in Hongdae",
+        "zh": "Verified dinner in Hongdae"
+      },
+      "address": "서울특별시 마포구 와우산로 홍대 클럽거리",
+      "stay_min": 120,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "홍대 클럽거리 — 펍 + 라이브하우스 + 야식 (식이 제약 매칭).",
+        "en": "Hongdae club street — pubs + live houses + late-night eats matched to diet.",
+        "ja": "弘大クラブ通り — パブ + ライブハウス + 夜食 (食事制限とマッチング)。",
+        "zh": "弘大夜店街 — 酒吧 + Live House + 夜宵 (按饮食偏好匹配)。"
+      }
+    }
+  ]
+}

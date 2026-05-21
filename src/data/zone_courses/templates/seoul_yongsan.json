@@ -1,0 +1,137 @@
+{
+  "id": "SEOUL_DAY_YONGSAN_STANDARD",
+  "city": "seoul",
+  "zone": "Yongsan",
+  "block_type": "city_day",
+  "theme": "K-pop + 외국인 거리",
+  "theme_i18n": {
+    "ko": "K-pop + 외국인 거리",
+    "en": "K-pop + International District",
+    "ja": "K-pop + 国際的な街",
+    "zh": "K-pop + 国际街区"
+  },
+  "intensity": "standard",
+  "best_for": ["k_pop_fan", "foreigner_friendly", "foodie"],
+  "unsuitable_for": [],
+  "dietary_options": ["halal", "vegan", "vegetarian"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "Yongsan/Itaewon — halal/vegan 풍부. HYBE 인접. ODsay/Naver API key 없을 시 mock transit, 운영자 재실행 의무.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "HYBE Insight",
+      "name_i18n": {
+        "ko": "HYBE Insight",
+        "en": "HYBE Insight",
+        "ja": "HYBE Insight",
+        "zh": "HYBE Insight"
+      },
+      "address": "서울특별시 용산구 한강대로 42 HYBE",
+      "stay_min": 90,
+      "entry_fee_krw": 22000,
+      "entry_fee": {
+        "adult": 22000,
+        "child": 16000,
+        "senior": 22000,
+        "toddler": 0,
+        "free_with": [],
+        "reservation_required_for_group": true,
+        "notes": "사전 예약 필수. 만 7세 이상 입장."
+      },
+      "reservation_required": true,
+      "tips_i18n": {
+        "ko": "HYBE 본사 전시관 — BTS / 세븐틴 / 르세라핌. 사전 예약 필수.",
+        "en": "HYBE HQ exhibition — BTS / SEVENTEEN / LE SSERAFIM. Advance booking required.",
+        "ja": "HYBE 本社展示館 — BTS / SEVENTEEN / LE SSERAFIM。事前予約必須。",
+        "zh": "HYBE 总部展览馆 — BTS / SEVENTEEN / LE SSERAFIM。需提前预约。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "서울특별시 용산구 이태원동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": ["halal", "vegan"],
+      "tips_i18n": {
+        "ko": "이태원 — halal / vegan 식당 다수.",
+        "en": "Itaewon — many halal / vegan restaurants.",
+        "ja": "梨泰院 — ハラル / ヴィーガン店多数。",
+        "zh": "梨泰院 — 多家清真 / 素食餐厅。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "서울중앙성원",
+      "name_i18n": {
+        "ko": "서울중앙성원 (이슬람 사원)",
+        "en": "Seoul Central Mosque",
+        "ja": "ソウル中央モスク",
+        "zh": "首尔中央清真寺"
+      },
+      "address": "서울특별시 용산구 우사단로10길 39",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "free_with": [],
+        "notes": "무료. 예배 시간 외 관람 가능. 노출 없는 복장 권장."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 유일 모스크. 이태원 모스크 거리 산책 추천.",
+        "en": "Korea's only mosque. Walk through Itaewon mosque street.",
+        "ja": "韓国唯一のモスク。梨泰院モスク通り散策推奨。",
+        "zh": "韩国唯一清真寺。推荐梨泰院清真寺街散步。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "서울특별시 용산구 한남동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "한남동 카페거리 — 외국인 친화 + 한국 디저트.",
+        "en": "Hannam-dong cafe street — foreigner-friendly + Korean desserts.",
+        "ja": "漢南洞カフェ通り — 外国人フレンドリー + 韓国スイーツ。",
+        "zh": "汉南洞咖啡街 — 外国人友好 + 韩式甜品。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "서울특별시 용산구 이태원로",
+      "stay_min": 120,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": ["halal", "vegan"],
+      "tips_i18n": {
+        "ko": "이태원 펍 / 외국 음식 / 한식 모두 선택지. halal / vegan 추천.",
+        "en": "Itaewon pubs / international cuisine / Korean. Halal / vegan recommended.",
+        "ja": "梨泰院パブ / 各国料理 / 韓食 全部選べる。ハラル / ヴィーガン推奨。",
+        "zh": "梨泰院酒吧 / 异国料理 / 韩食 都有。推荐清真 / 素食。"
+      }
+    }
+  ]
+}
