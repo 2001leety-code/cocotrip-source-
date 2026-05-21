@@ -1,0 +1,133 @@
+{
+  "id": "JEJU_DAY_CITY_STANDARD",
+  "city": "jeju",
+  "zone": "Jeju City",
+  "block_type": "city_day",
+  "theme": "동문시장 + 용두암 + 제주민속자연사박물관",
+  "theme_i18n": {
+    "ko": "동문시장 + 용두암 + 제주민속자연사박물관",
+    "en": "Dongmun Market + Yongduam Rock + Jeju Folklore Museum",
+    "ja": "東門市場 + 龍頭岩 + 済州民俗自然史博物館",
+    "zh": "东门市场 + 龙头岩 + 济州民俗自然史博物馆"
+  },
+  "intensity": "standard",
+  "best_for": ["first_time_visitor", "foodie", "history_lover"],
+  "unsuitable_for": [],
+  "dietary_options": ["vegetarian"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "제주시 zone — 도심형 day. 차량 이동 많음 (제주는 렌터카/택시). Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "동문재래시장",
+      "name_i18n": {
+        "ko": "동문재래시장",
+        "en": "Dongmun Traditional Market",
+        "ja": "東門伝統市場",
+        "zh": "东门传统市场"
+      },
+      "address": "제주특별자치도 제주시 관덕로14길 20",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "제주 대표 시장. 흑돼지 / 해산물 / 한라봉 / 야시장 (저녁).",
+        "en": "Jeju's iconic market. Black pork / seafood / hallabong / night market (evening).",
+        "ja": "済州を代表する市場。黒豚 / 海産物 / ハルラボン / 夜市 (夕方)。",
+        "zh": "济州代表市场。黑猪肉 / 海鲜 / 汉拿峰 / 夜市 (傍晚)。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주특별자치도 제주시 관덕로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "제주 시내 — 흑돼지 / 갈치 / 고기국수 (식이 제약 매칭).",
+        "en": "Jeju downtown — black pork / cutlassfish / pork noodle soup matched by dietary needs.",
+        "ja": "済州市内 — 黒豚 / タチウオ / 肉ククス (食事制限とマッチング)。",
+        "zh": "济州市内 — 黑猪肉 / 带鱼 / 肉刀切面 (按饮食偏好匹配)。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "용두암",
+      "name_i18n": {
+        "ko": "용두암",
+        "en": "Yongduam Rock (Dragon Head Rock)",
+        "ja": "龍頭岩",
+        "zh": "龙头岩"
+      },
+      "address": "제주특별자치도 제주시 용두암길 15",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "용 머리 모양의 화산암. 일몰 명소. 옆 용연 산책 추천.",
+        "en": "Dragon-head-shaped volcanic rock. Sunset spot. Adjacent Yongyeon walk recommended.",
+        "ja": "龍の頭の形をした火山岩。夕日の名所。隣の龍淵散策推奨。",
+        "zh": "龙头形火山岩。日落胜地。建议在旁边的龙渊散步。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "제주민속자연사박물관",
+      "name_i18n": {
+        "ko": "제주민속자연사박물관",
+        "en": "Jeju Folklore & Natural History Museum",
+        "ja": "済州民俗自然史博物館",
+        "zh": "济州民俗自然史博物馆"
+      },
+      "address": "제주특별자치도 제주시 삼성로 40",
+      "stay_min": 75,
+      "entry_fee_krw": 2000,
+      "entry_fee": {
+        "adult": 2000,
+        "child": 1000,
+        "senior": 0,
+        "toddler": 0,
+        "group_discount_min_pax": 30,
+        "free_with": ["cultural_heritage_day"],
+        "reservation_required_for_group": true,
+        "notes": "65세 이상 무료. 단체 30인 이상 30% 할인."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "제주 자연 + 해녀 문화 + 화산 형성 전시.",
+        "en": "Jeju nature + haenyeo culture + volcanic formation exhibits.",
+        "ja": "済州自然 + 海女文化 + 火山形成展示。",
+        "zh": "济州自然 + 海女文化 + 火山形成展览。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주특별자치도 제주시 노형동",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "제주 시내 — 흑돼지구이 / 해물탕 / 갈치조림 (식이 제약 매칭).",
+        "en": "Jeju downtown — black pork BBQ / seafood stew / braised cutlassfish matched by diet.",
+        "ja": "済州市内 — 黒豚焼肉 / 海鮮鍋 / タチウオ煮 (食事制限とマッチング)。",
+        "zh": "济州市内 — 黑猪烤肉 / 海鲜锅 / 烧带鱼 (按饮食偏好匹配)。"
+      }
+    }
+  ]
+}

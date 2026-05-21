@@ -1,0 +1,239 @@
+{
+  "id": "JEJU_DAY_HANLIM_STANDARD",
+  "city": "jeju",
+  "zone": "Hanlim",
+  "theme": "협재해변 + 곽지해변 + 한림공원",
+  "theme_i18n": {
+    "ko": "협재해변 + 곽지해변 + 한림공원",
+    "en": "Hyeopjae Beach + Gwakji Beach + Hallim Park",
+    "ja": "挾才ビーチ + 郭支ビーチ + 翰林公園",
+    "zh": "挾才海滩 + 郭支海滩 + 翰林公园"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "협재해수욕장",
+      "name_i18n": {
+        "ko": "협재해수욕장",
+        "en": "Hyeopjae Beach",
+        "ja": "挾才ビーチ",
+        "zh": "挾才海水浴场"
+      },
+      "address": "제주특별자치도 제주시 한림읍 협재리 2497-1",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "제주 대표 에메랄드 바다. 비양도 view 명소.",
+        "en": "Jeju's emerald sea. Best Biyangdo Island view.",
+        "ja": "済州の代表的なエメラルド海。飛揚島ビュー名所。",
+        "zh": "济州代表绿宝石海滩。飞扬岛景观胜地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "한림공원",
+      "name_i18n": {
+        "ko": "한림공원",
+        "en": "Hallim Park",
+        "ja": "翰林公園",
+        "zh": "翰林公园"
+      },
+      "address": "제주특별자치도 제주시 한림읍 한림로 300",
+      "stay_min": 90,
+      "entry_fee_krw": 15000,
+      "entry_fee": {
+        "adult": 15000,
+        "child": 9000,
+        "senior": 12000,
+        "toddler": 0,
+        "group_discount_min_pax": 30,
+        "free_with": [],
+        "reservation_required_for_group": true,
+        "notes": "단체 30인 이상 할인. 만 36개월 미만 무료. 한라산 + 협재 사이 1시간 코스."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "야자수 + 협재굴 + 분재정원. 비양도 보이는 view 카페.",
+        "en": "Palm trees + Hyeopjae Cave + bonsai garden. Cafe with Biyangdo view.",
+        "ja": "ヤシの木 + 挾才洞窟 + 盆栽庭園。飛揚島が見えるカフェ。",
+        "zh": "棕榈树 + 挾才洞窟 + 盆景花园。飞扬岛景观咖啡厅。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "제주특별자치도 제주시 한림읍",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [
+        "vegetarian"
+      ],
+      "tips_i18n": {
+        "ko": "협재 / 한림 일대 — 해산물 / 보말칼국수 / 한식 (식이 제약 매칭).",
+        "en": "Hyeopjae/Hallim area — seafood / sea-snail noodles / Korean matched by diet.",
+        "ja": "挾才 / 翰林エリア — 海産物 / ボマルカルククス / 韓食 (食事制限とマッチング)。",
+        "zh": "挾才 / 翰林一带 — 海鲜 / 螺贝刀切面 / 韩餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 210
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "곽지해수욕장",
+      "name_i18n": {
+        "ko": "곽지해수욕장",
+        "en": "Gwakji Beach",
+        "ja": "郭支ビーチ",
+        "zh": "郭支海水浴场"
+      },
+      "address": "제주특별자치도 제주시 애월읍 곽지리 1565",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "협재보다 한산. 일몰 명소. 카페 거리 인접.",
+        "en": "Less crowded than Hyeopjae. Sunset spot. Adjacent cafe street.",
+        "ja": "挾才より空いている。夕日の名所。カフェ通り隣接。",
+        "zh": "比挾才清静。日落胜地。临近咖啡街。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 285
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "제주특별자치도 제주시 애월읍",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "애월 / 곽지 — 흑돼지 / 회 / 오션뷰 카페 (식이 제약 매칭).",
+        "en": "Aewol/Gwakji — black pork / sashimi / ocean view cafes matched by dietary needs.",
+        "ja": "涯月 / 郭支 — 黒豚 / 刺身 / オーシャンビューカフェ (食事制限とマッチング)。",
+        "zh": "涯月 / 郭支 — 黑猪肉 / 生鱼片 / 海景咖啡 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 360
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    }
+  },
+  "best_for": [
+    "beach_lover",
+    "family",
+    "photographer"
+  ],
+  "unsuitable_for": [],
+  "dietary_options": [
+    "vegetarian"
+  ],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "block_type": "city_day",
+  "notes": "제주 서부 zone — 비양도 view 비치 + 한림공원. 에메랄드 바다 명소. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env."
+}

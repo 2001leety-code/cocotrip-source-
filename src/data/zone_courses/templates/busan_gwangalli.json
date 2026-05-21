@@ -1,0 +1,130 @@
+{
+  "id": "BUSAN_DAY_GWANGALLI_STANDARD",
+  "city": "busan",
+  "zone": "Gwangalli",
+  "block_type": "city_day",
+  "theme": "광안리 비치 + 광안대교 야경",
+  "theme_i18n": {
+    "ko": "광안리 비치 + 광안대교 야경",
+    "en": "Gwangalli Beach + Gwangan Bridge Night View",
+    "ja": "広安里ビーチ + 広安大橋夜景",
+    "zh": "广安里海滩 + 广安大桥夜景"
+  },
+  "intensity": "standard",
+  "best_for": ["beach_lover", "night_view_seeker", "foodie"],
+  "unsuitable_for": [],
+  "dietary_options": ["vegetarian"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "부산 광안리 zone — 비치 + 광안대교 + 민락수변공원. 야경 명소. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "광안리 해수욕장",
+      "name_i18n": {
+        "ko": "광안리 해수욕장",
+        "en": "Gwangalli Beach",
+        "ja": "広安里ビーチ",
+        "zh": "广安里海水浴场"
+      },
+      "address": "부산광역시 수영구 광안해변로 219",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 매주 토요일 야간 드론쇼 (계절 변동)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "광안대교 view 최고. 토요일 야간 드론쇼 확인 권장.",
+        "en": "Best Gwangan Bridge view. Check Saturday night drone show schedule.",
+        "ja": "広安大橋ビュー最高。土曜夜のドローンショー要確認。",
+        "zh": "广安大桥最佳观赏点。建议查询周六晚间无人机表演。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산광역시 수영구 광안해변로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": ["vegetarian"],
+      "tips_i18n": {
+        "ko": "광안리 비치 일대 — 회 / 해산물 / 카페 (식이 제약 매칭).",
+        "en": "Gwangalli beachfront — sashimi / seafood / cafes matched by dietary needs.",
+        "ja": "広安里ビーチ周辺 — 刺身 / 海産物 / カフェ (食事制限とマッチング)。",
+        "zh": "广安里海滩一带 — 生鱼片 / 海鲜 / 咖啡 (按饮食偏好匹配)。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "민락수변공원",
+      "name_i18n": {
+        "ko": "민락수변공원",
+        "en": "Millak Waterside Park",
+        "ja": "民楽水辺公園",
+        "zh": "民乐水边公园"
+      },
+      "address": "부산광역시 수영구 광안해변로 50",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "현지인 피크닉 명소. 회 사다가 공원에서 먹기 가능.",
+        "en": "Local picnic spot. Buy sashimi nearby and eat at the park.",
+        "ja": "地元のピクニック名所。刺身を買って公園で食べられる。",
+        "zh": "当地野餐胜地。可买生鱼片在公园食用。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "남천동 벚꽃거리",
+      "name_i18n": {
+        "ko": "남천동 벚꽃거리",
+        "en": "Namcheon-dong Cherry Blossom Street",
+        "ja": "南川洞桜の道",
+        "zh": "南川洞樱花路"
+      },
+      "address": "부산광역시 수영구 남천동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "봄 (4월 초) 벚꽃 명소. 평시에는 카페거리.",
+        "en": "Spring (early April) cherry blossoms. Cafe street year-round.",
+        "ja": "春 (4月初) の桜の名所。普段はカフェ通り。",
+        "zh": "春季 (4月初) 樱花胜地。平日为咖啡街。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산광역시 수영구 광안해변로",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": ["vegetarian"],
+      "tips_i18n": {
+        "ko": "광안리 야경 보며 저녁 — 광안대교 + 야경 레스토랑.",
+        "en": "Sunset dinner with Gwangan Bridge view — bridge view restaurants.",
+        "ja": "広安里夜景を見ながら夕食 — 広安大橋ビューレストラン。",
+        "zh": "光看广安里夜景享用晚餐 — 广安大桥景观餐厅。"
+      }
+    }
+  ]
+}
