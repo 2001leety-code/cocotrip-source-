@@ -1,0 +1,11 @@
+{
+  "id":"ANSEONG_DAY_FARMLAND_STANDARD","city":"anseong","zone":"Farmland",
+  "theme":"안성팜랜드+안성맞춤랜드+미리내성지","theme_i18n":{"ko":"안성팜랜드+안성맞춤랜드+미리내성지","en":"Anseong Farmland+Matchum Land+Mirinae","ja":"安城ファームランド+マッチュムランド+ミリネ聖地","zh":"安城农场+合身乐园+米里内圣地"},
+  "intensity":"standard","duration_min":450,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"안성팜랜드","name_i18n":{"ko":"안성팜랜드","en":"Anseong Farmland","ja":"安城ファームランド","zh":"安城农场"},"address":"경기 안성시 공도읍","stay_min":150,"entry_fee_krw":15000,"reservation_required":false,"tips_i18n":{"ko":"국내 최대 농장 테마파크. 동물체험.","en":"Korea's largest farm theme park. Animal experience.","ja":"国内最大農場テーマパーク。動物体験。","zh":"国内最大农场主题公园。动物体验。"},"lat":37.0306,"lng":127.1500,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"안성 한우","name_i18n":{"ko":"안성 한우","en":"Anseong Hanwoo","ja":"安城韓牛","zh":"安城韩牛"},"address":"경기 안성시","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"안성 한우 명소.","en":"Anseong hanwoo.","ja":"安城韓牛名所。","zh":"安城韩牛名所。"},"lat":37.0083,"lng":127.2697,"start_time_offset_min":165},
+    {"order":3,"category":"culture","name":"안성맞춤랜드","name_i18n":{"ko":"안성맞춤랜드","en":"Anseong Matchum Land","ja":"安城マッチュムランド","zh":"安城合身乐园"},"address":"경기 안성시 보개면","stay_min":75,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"전통문화체험관+놋쇠 체험.","en":"Traditional culture+brassware experience.","ja":"伝統文化+真鍮体験。","zh":"传统文化+黄铜体验。"},"lat":36.9750,"lng":127.2778,"start_time_offset_min":255},
+    {"order":4,"category":"culture","name":"미리내성지","name_i18n":{"ko":"미리내성지","en":"Mirinae Sanctuary","ja":"ミリネ聖地","zh":"米里内圣地"},"address":"경기 안성시 양성면","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한국 천주교 성지. 김대건 신부.","en":"Korean Catholic sanctuary. Kim Tae-gon priest.","ja":"韓国カトリック聖地。金大建神父。","zh":"韩国天主教圣地。金大建神父。"},"lat":37.0944,"lng":127.0833,"start_time_offset_min":345}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id":"DANYANG_DAY_DODAM_STANDARD","city":"danyang","zone":"Dodam-Skywalk",
+  "theme":"도담삼봉+만천하 스카이워크+구담봉","theme_i18n":{"ko":"도담삼봉+만천하 스카이워크+구담봉","en":"Dodamsambong+Mancheonha Skywalk+Gudambong","ja":"島潭三峰+万天下スカイウォーク+龜潭峰","zh":"岛潭三峰+万天下天桥+龟潭峰"},
+  "intensity":"standard","duration_min":450,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"도담삼봉","name_i18n":{"ko":"도담삼봉","en":"Dodamsambong","ja":"島潭三峰","zh":"岛潭三峰"},"address":"충북 단양군 단양읍","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"단양 8경 1경. 정도전 호.","en":"Danyang Top 8 #1. Jeong Do-jeon's name.","ja":"丹陽8景1景。鄭道伝号。","zh":"丹阳8景1景。郑道传号。"},"lat":36.9925,"lng":128.3617,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"만천하 스카이워크","name_i18n":{"ko":"만천하 스카이워크","en":"Mancheonha Skywalk","ja":"万天下スカイウォーク","zh":"万天下天桥"},"address":"충북 단양군 적성면","stay_min":75,"entry_fee_krw":4000,"reservation_required":false,"tips_i18n":{"ko":"남한강 위 80m 스카이워크.","en":"80m skywalk over Namhangang.","ja":"南漢江上80mスカイウォーク。","zh":"南汉江上80m天桥。"},"lat":36.9847,"lng":128.3956,"start_time_offset_min":75},
+    {"order":3,"category":"food","name":"단양 마늘 닭갈비","name_i18n":{"ko":"단양 마늘 닭갈비","en":"Danyang Garlic Dakgalbi","ja":"丹陽ニンニクタッカルビ","zh":"丹阳大蒜炒鸡"},"address":"충북 단양군 단양읍","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"단양 마늘 + 닭갈비. 향토음식.","en":"Danyang garlic + dakgalbi. Local food.","ja":"丹陽ニンニク+タッカルビ。郷土食。","zh":"丹阳大蒜+炒鸡。乡土食。"},"lat":36.9847,"lng":128.3633,"start_time_offset_min":165},
+    {"order":4,"category":"nature","name":"구담봉 유람선","name_i18n":{"ko":"구담봉 유람선","en":"Gudambong Cruise","ja":"龜潭峰遊覧船","zh":"龟潭峰游船"},"address":"충북 단양군","stay_min":90,"entry_fee_krw":13000,"reservation_required":false,"tips_i18n":{"ko":"충주호 유람선 90분.","en":"Chungju Lake cruise 90min.","ja":"忠州湖遊覧90分。","zh":"忠州湖游船90分。"},"lat":36.9367,"lng":128.3500,"start_time_offset_min":255},
+    {"order":5,"category":"nature","name":"단양 패러글라이딩","name_i18n":{"ko":"단양 패러글라이딩","en":"Danyang Paragliding","ja":"丹陽パラグライダー","zh":"丹阳滑翔伞"},"address":"충북 단양군","stay_min":60,"entry_fee_krw":110000,"reservation_required":true,"tips_i18n":{"ko":"양방산 활공장. 사전 예약.","en":"Yangbangsan launch. Reserve ahead.","ja":"陽方山滑空場。事前予約。","zh":"阳方山滑翔场。提前预约。"},"lat":36.9889,"lng":128.3531,"start_time_offset_min":390}
+  ]
+}

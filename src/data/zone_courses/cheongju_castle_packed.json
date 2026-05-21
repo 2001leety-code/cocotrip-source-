@@ -1,0 +1,11 @@
+{
+  "id":"CHEONGJU_DAY_CASTLE_PACKED","city":"cheongju","zone":"Castle-Heritage",
+  "theme":"청남대+문의문화재단지","theme_i18n":{"ko":"청남대+문의문화재단지","en":"Cheongnamdae+Munui Cultural Site","ja":"青南台+文義文化財団地","zh":"青南台+文义文化园"},
+  "intensity":"packed","duration_min":510,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"청남대","name_i18n":{"ko":"청남대","en":"Cheongnamdae","ja":"青南台","zh":"青南台"},"address":"충북 청주시 상당구 문의면","stay_min":150,"entry_fee_krw":6000,"reservation_required":false,"tips_i18n":{"ko":"전직 대통령 별장. 대청호 조망.","en":"Former presidential villa. Daecheong Lake view.","ja":"元大統領別荘。大清湖眺望。","zh":"前总统别墅。大清湖眺望。"},"lat":36.5103,"lng":127.4528,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"문의문화재단지","name_i18n":{"ko":"문의문화재단지","en":"Munui Cultural Site","ja":"文義文化財団地","zh":"文义文化园"},"address":"충북 청주시 상당구 문의면","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"전통 가옥 복원지.","en":"Traditional houses restoration site.","ja":"伝統家屋復元地。","zh":"传统房屋复原地。"},"lat":36.5167,"lng":127.4889,"start_time_offset_min":165},
+    {"order":3,"category":"food","name":"청주 닭갈비","name_i18n":{"ko":"청주 닭갈비","en":"Cheongju Dakgalbi","ja":"清州タッカルビ","zh":"清州炒鸡"},"address":"충북 청주시","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"청주 도심 닭갈비.","en":"Cheongju downtown dakgalbi.","ja":"清州市内タッカルビ。","zh":"清州市内炒鸡。"},"lat":36.6394,"lng":127.4889,"start_time_offset_min":270},
+    {"order":4,"category":"culture","name":"국립청주박물관","name_i18n":{"ko":"국립청주박물관","en":"Cheongju National Museum","ja":"国立清州博物館","zh":"国立清州博物馆"},"address":"충북 청주시 상당구 명암로 143","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"충북 일대 유물. 무료.","en":"Chungbuk artifacts. Free.","ja":"忠北一帯遺物。無料。","zh":"忠北一带文物。免费。"},"lat":36.6500,"lng":127.5083,"start_time_offset_min":360}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id":"JECHEON_DAY_UIRIMJI_STANDARD","city":"jecheon","zone":"Uirimji-Cheongpung",
+  "theme":"의림지+청풍문화재단지+박달재","theme_i18n":{"ko":"의림지+청풍문화재단지+박달재","en":"Uirimji+Cheongpung Cultural Site+Bakdaljae","ja":"義林池+清風文化財団地+朴達峠","zh":"义林池+清风文化园+朴达岭"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"의림지","name_i18n":{"ko":"의림지","en":"Uirimji","ja":"義林池","zh":"义林池"},"address":"충북 제천시 의림지로","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"삼한시대 저수지. 둘레 산책로 2km.","en":"Samhan-era reservoir. 2km loop.","ja":"三韓時代ため池。周遊2km。","zh":"三韩时代水库。环路2km。"},"lat":37.1722,"lng":128.1944,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"청풍문화재단지","name_i18n":{"ko":"청풍문화재단지","en":"Cheongpung Cultural Site","ja":"清風文化財団地","zh":"清风文化园"},"address":"충북 제천시 청풍면","stay_min":90,"entry_fee_krw":4000,"reservation_required":false,"tips_i18n":{"ko":"충주댐 수몰 전통가옥 이전 보존.","en":"Relocated traditional houses.","ja":"忠州ダム水没伝統家屋移転保存。","zh":"忠州大坝水没传统房屋搬迁保存。"},"lat":37.0394,"lng":128.1361,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"제천 약초밥상","name_i18n":{"ko":"제천 약초밥상","en":"Jecheon Herbal Set","ja":"堤川薬草膳","zh":"堤川药草膳"},"address":"충북 제천시","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"제천 한방 약초 밥상. 비건 가능.","en":"Jecheon herbal set. Vegan available.","ja":"堤川漢方薬草膳。ヴィーガン可。","zh":"堤川韩方药草膳。素食可。"},"lat":37.1322,"lng":128.1903,"start_time_offset_min":195},
+    {"order":4,"category":"nature","name":"박달재","name_i18n":{"ko":"박달재","en":"Bakdaljae","ja":"朴達峠","zh":"朴达岭"},"address":"충북 제천시 백운면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"노래 박달재 배경. 사랑 이야기.","en":"From famous song. Love story.","ja":"民謡舞台。愛物語。","zh":"民歌背景。爱情故事。"},"lat":37.0972,"lng":128.0250,"start_time_offset_min":285},
+    {"order":5,"category":"culture","name":"옥순봉 출렁다리","name_i18n":{"ko":"옥순봉 출렁다리","en":"Oksunbong Suspension Bridge","ja":"玉筍峰つり橋","zh":"玉笋峰悬索桥"},"address":"충북 제천시 수산면","stay_min":60,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"222m 출렁다리. 충주호 위.","en":"222m bridge over Chungju Lake.","ja":"222mつり橋。忠州湖上。","zh":"222m悬索桥。忠州湖上。"},"lat":36.9389,"lng":128.1972,"start_time_offset_min":360}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id":"CHEONGJU_DAY_SANGDANG_STANDARD","city":"cheongju","zone":"Sangdang",
+  "theme":"상당산성+수암골+성안길","theme_i18n":{"ko":"상당산성+수암골+성안길","en":"Sangdang Fortress+Suamgol+Seongangil","ja":"上党山城+水岩谷+城内通り","zh":"上党山城+水岩谷+城内街"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"상당산성","name_i18n":{"ko":"상당산성","en":"Sangdang Fortress","ja":"上党山城","zh":"上党山城"},"address":"충북 청주시 상당구 산성동","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"백제 시대 산성. 산책로 4km.","en":"Baekje-era fortress. 4km trail.","ja":"百済時代山城。4km散歩道。","zh":"百济时代山城。4km步道。"},"lat":36.6464,"lng":127.5278,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"수암골 벽화마을","name_i18n":{"ko":"수암골","en":"Suamgol Mural Village","ja":"水岩谷壁画村","zh":"水岩谷壁画村"},"address":"충북 청주시 상당구 수동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"카인과 아벨 드라마 촬영지.","en":"Cain and Abel drama site.","ja":"カインとアベルロケ地。","zh":"该隐与亚伯拍摄地。"},"lat":36.6394,"lng":127.4806,"start_time_offset_min":105},
+    {"order":3,"category":"food","name":"청주 올갱이국","name_i18n":{"ko":"청주 올갱이국","en":"Cheongju Olgaengi Soup","ja":"清州オルゲンギスープ","zh":"清州田螺汤"},"address":"충북 청주시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"청주 향토음식. 다슬기 국.","en":"Cheongju local. Marsh snail soup.","ja":"清州郷土食。タニシスープ。","zh":"清州乡土食。田螺汤。"},"lat":36.6411,"lng":127.4889,"start_time_offset_min":180},
+    {"order":4,"category":"shopping","name":"성안길","name_i18n":{"ko":"성안길","en":"Seongangil","ja":"城内通り","zh":"城内街"},"address":"충북 청주시 상당구","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"청주 최대 번화가.","en":"Cheongju main street.","ja":"清州最大繁華街。","zh":"清州最大商业街。"},"lat":36.6378,"lng":127.4889,"start_time_offset_min":255},
+    {"order":5,"category":"culture","name":"청주 고인쇄박물관","name_i18n":{"ko":"청주 고인쇄박물관","en":"Cheongju Early Printing Museum","ja":"清州古印刷博物館","zh":"清州古印刷博物馆"},"address":"충북 청주시 흥덕구","stay_min":60,"entry_fee_krw":1200,"reservation_required":false,"tips_i18n":{"ko":"세계 最古 금속활자 직지심체요절.","en":"World's oldest metal type Jikji.","ja":"世界最古金属活字直指。","zh":"世界最古金属活字直指。"},"lat":36.6394,"lng":127.4644,"start_time_offset_min":345}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id":"GAPYEONG_DAY_NAMISUM_STANDARD","city":"gapyeong","zone":"Namiseom-Pyeonggang",
+  "theme":"남이섬+쁘띠프랑스+가평 아침고요","theme_i18n":{"ko":"남이섬+쁘띠프랑스+아침고요수목원","en":"Nami Island+Petite France+Morning Calm Garden","ja":"南怡島+プチフランス+朝の静けさ樹木園","zh":"南怡岛+小法兰西+清晨宁静树木园"},
+  "intensity":"standard","duration_min":480,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"남이섬","name_i18n":{"ko":"남이섬","en":"Nami Island","ja":"南怡島","zh":"南怡岛"},"address":"강원 춘천시 남산면 남이섬길 1","stay_min":150,"entry_fee_krw":16000,"reservation_required":false,"tips_i18n":{"ko":"메타세콰이어 길. 겨울연가 촬영지.","en":"Metasequoia path. Winter Sonata site.","ja":"メタセコイア並木。冬ソナロケ地。","zh":"水杉路。冬季恋歌拍摄地。"},"lat":37.7900,"lng":127.5258,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"쁘띠프랑스","name_i18n":{"ko":"쁘띠프랑스","en":"Petite France","ja":"プチフランス","zh":"小法兰西"},"address":"경기 가평군 청평면 호반로 1063","stay_min":90,"entry_fee_krw":12000,"reservation_required":false,"tips_i18n":{"ko":"별에서 온 그대/베토벤 바이러스 촬영지.","en":"My Love from the Star drama site.","ja":"星から来たあなたロケ地。","zh":"来自星星的你拍摄地。"},"lat":37.7728,"lng":127.4486,"start_time_offset_min":165},
+    {"order":3,"category":"food","name":"가평 잣국수","name_i18n":{"ko":"가평 잣국수","en":"Gapyeong Pine Nut Noodles","ja":"加平松の実うどん","zh":"加平松子面"},"address":"경기 가평군 가평읍","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"가평 명물. 잣가루+국수.","en":"Gapyeong specialty. Pine nut+noodles.","ja":"加平名物。松の実+うどん。","zh":"加平名菜。松子+面。"},"lat":37.8278,"lng":127.5083,"start_time_offset_min":270},
+    {"order":4,"category":"nature","name":"아침고요수목원","name_i18n":{"ko":"아침고요수목원","en":"Morning Calm Garden","ja":"朝の静けさ樹木園","zh":"清晨宁静树木园"},"address":"경기 가평군 상면 수목원로 432","stay_min":120,"entry_fee_krw":11000,"reservation_required":false,"tips_i18n":{"ko":"한국식 정원. 야간 조명 (가을~겨울).","en":"Korean garden. Night lights (Aut-Win).","ja":"韓国式庭園。夜間照明(秋-冬)。","zh":"韩式园林。夜灯(秋-冬)。"},"lat":37.7367,"lng":127.4528,"start_time_offset_min":345}
+  ]
+}
