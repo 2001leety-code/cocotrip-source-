@@ -54,7 +54,7 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 | `P121_qualityWarningsAdminPanel` | P121 | `QualityWarningsPanel.tsx` 의 `isAdminEmail` import/호출 누락 → 일반 사용자 노출 위험. 또는 `PlanDetailPage/index.tsx` 의 import/렌더 누락 | 변경된 file 의 import/호출 grep |
 | `P122_multiCityLodgingPlaceholder` | P122 | `buildPrompt.js` 의 다도시 city-specific 호텔 영역 표 (Seoul/Busan/Jeju 등) 누락. 또는 `planPersister.js` backfillDayLodging 의 city mismatch 가드 누락 — wrong-city 호텔 박힘 회귀 | 변경된 file 의 표 / 가드 grep |
 | `P123_hotelByCityForwarding` | P123 | `ai-planner-full.js` 의 hotelByCity destructure / MULTI-CITY HOTELS BY CITY 블록 / backfillDayLodging(., hotelByCity) 인자 누락. 또는 `planPersister.js` 의 backfillDayLodging signature 의 hotelByCity 인자 / hbc[dayCityLc] lookup 누락 — wizard 도시별 호텔 입력 백엔드 무시 | 변경된 file 의 destructure / inject / lookup grep |
-| `P124_arrivalDepartureSleepBuffer` | P124 | `buildPrompt.js` 의 ARRIVAL/DEPARTURE DAY HANDLING (P124) block 누락 또는 8h sleep buffer (arrival+9h) logic 부재. 또는 `responseValidator.js` 의 B-LATE-ARRIVAL/B-EARLY-DEPARTURE 룰 누락 | 변경된 file 의 block / rule grep |
+| `P124_arrivalDepartureSleepBuffer` | P124 + P124-extended (2026-05-21) | `buildPrompt.js` 의 ARRIVAL/DEPARTURE DAY HANDLING + GLOBAL TIME RULES (P124-extended) 3 block 누락 또는 8h sleep buffer (arrival+9h) logic 부재. 또는 `responseValidator.js` 의 B-LATE-ARRIVAL/B-EARLY-DEPARTURE/B-GLOBAL-DAWN (중간 day 새벽 stops) 3 rule 누락 | 변경된 file 의 block / rule grep |
 | `P127_lodgingBookendMultiCityAnchor` | P127 | `routeEnrichment.js` 의 validateLodgingBookend signature 에 isMultiCity 인자 누락. day-level anchor 분기 logic 또는 호출처에서 isMultiCity 전달 누락 — multi-city false-positive 5건 잔존 | 변경된 file 의 signature / 분기 grep |
 
 ## 실행 방법
