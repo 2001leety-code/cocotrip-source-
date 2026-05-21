@@ -250,6 +250,9 @@ export async function persistPlan(adminDb, {
   // distribution. Absent on legacy revision paths that don't pass the field
   // (back-compat — silent skip when undefined).
   plannerMode, abReason, abBucket,
+  // P128 (2026-05-21): block-mode trace — block IDs that drove block-mode plan.
+  // null for legacy/3-pass plans (backward compat).
+  blocksUsed,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
@@ -348,6 +351,8 @@ export async function persistPlan(adminDb, {
     ...(plannerMode ? { plannerMode } : {}),
     ...(abReason ? { abReason } : {}),
     ...(typeof abBucket === 'number' ? { abBucket } : {}),
+    // P128 (2026-05-21): block-mode trace. Only persisted on block-mode plans.
+    ...(Array.isArray(blocksUsed) && blocksUsed.length > 0 ? { blocksUsed } : {}),
   };
 
   // 2026-05-10 (P0-5 launch blocker): Firestore 1MB doc size 가드.

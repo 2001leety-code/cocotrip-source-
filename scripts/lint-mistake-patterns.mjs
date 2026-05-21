@@ -1094,6 +1094,7 @@ const RULES = [
   ['P125_multiCityArrivalDeparture', P125_multiCityArrivalDeparture],
   ['P126_wizardResumeContent', P126_wizardResumeContent],
   ['P127_lodgingBookendMultiCityAnchor', P127_lodgingBookendMultiCityAnchor],
+  ['P128_blockModeIntegration', P128_blockModeIntegration],
 ];
 
 /**
@@ -2513,6 +2514,58 @@ function P127_lodgingBookendMultiCityAnchor({ changed }) {
       'P127_lodgingBookendMultiCityAnchor',
       violations.join(' | '),
       '메모리 P127 — multi-city plan false-positive 5건 차단. validateLodgingBookend(it, anchor, isMultiCity) signature + day-level anchor logic.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P128_blockModeIntegration — 메모리 P128 (2026-05-21). zone_courses 기반
+ * block-mode 분기. ai-planner-full.js 가 block-mode pipeline 을 도입했다면
+ * import + 분기 호출 의무 + legacy fallback path 유지 의무.
+ */
+function P128_blockModeIntegration({ changed }) {
+  const AI_PLANNER = 'api/ai-planner-full.js';
+  const BLOCK_MODE = 'api/_ai_core/blockMode.js';
+  if (!isModified(AI_PLANNER, changed) && !isModified(BLOCK_MODE, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  // ai-planner-full.js 가 변경됐는데 block-mode 마커가 있으면 import + 호출 둘 다 있어야 함.
+  if (existsSync(AI_PLANNER)) {
+    const c = readFileSync(AI_PLANNER, 'utf8');
+    const mentionsBlockMode = /block.?mode|runBlockModePipeline|tryRunBlockMode|PLANNER_BLOCK_MODE/i.test(c);
+    if (mentionsBlockMode) {
+      if (!/import[^;]+(runBlockModePipeline|getBlockModeEnv|tryRunBlockMode)[^;]+from\s+['"]\.\/_ai_core\/blockMode/.test(c)) {
+        violations.push(`${AI_PLANNER}: blockMode.js import 누락 — block-mode 분기 의존성 부재`);
+      }
+      if (!/(runBlockModePipeline|tryRunBlockMode)\s*\(/.test(c)) {
+        violations.push(`${AI_PLANNER}: block-mode pipeline 호출 누락 — 분기만 있고 실행 안 됨`);
+      }
+      // legacy fallback 패턴 — try/catch 또는 if (!itinerary) 폴백 의무.
+      if (!/if\s*\(\s*!\s*itinerary\s*\)|legacy[^.]*fallback|legacy[^.]* path/i.test(c)) {
+        violations.push(`${AI_PLANNER}: block-mode 실패 시 legacy fallback 분기 누락 — 사용자 plan 손실 위험`);
+      }
+    }
+  }
+
+  // blockMode.js 자체에 SAFETY-CRITICAL dietary 검사 누락 차단.
+  if (existsSync(BLOCK_MODE)) {
+    const c = readFileSync(BLOCK_MODE, 'utf8');
+    if (!/BLOCK_MODE_DIETARY_UNSATISFIED|dietary/i.test(c)) {
+      violations.push(`${BLOCK_MODE}: dietary 검사 마커 없음 — SAFETY-CRITICAL (CLAUDE.md J) 위반 위험`);
+    }
+    if (!/fetchAvailableBlocks|expandBlocksToItinerary|shouldUseBlockMode/.test(c)) {
+      violations.push(`${BLOCK_MODE}: 필수 export (fetchAvailableBlocks/expandBlocksToItinerary/shouldUseBlockMode) 누락`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P128_blockModeIntegration',
+      violations.join(' | '),
+      '메모리 P128 — ai-planner-full block-mode 분기 import + 호출 + legacy fallback + SAFETY-CRITICAL dietary 검사 의무.',
     );
   }
   return null;
@@ -5382,6 +5435,22 @@ function runSelfTest() {
           "function validateLodgingBookend(itinerary, anchor) { }\nvalidateLodgingBookend(itinerary, anchorCoord);\n",
       },
       expectRule: 'P127_lodgingBookendMultiCityAnchor',
+    },
+    {
+      label: 'P128: ai-planner-full block-mode 분기 마커만 있고 import 누락',
+      base: {
+        'api/ai-planner-full.js':
+          "import { runBlockModePipeline, getBlockModeEnv } from './_ai_core/blockMode.js';\nconst env = getBlockModeEnv();\nconst out = await runBlockModePipeline({adminDb, city});\nif (!itinerary) { /* legacy fallback */ }\n",
+        'api/_ai_core/blockMode.js':
+          "export function shouldUseBlockMode() {}\nexport function fetchAvailableBlocks() {}\nexport function expandBlocksToItinerary() { throw new Error('BLOCK_MODE_DIETARY_UNSATISFIED'); }\n",
+      },
+      head: {
+        'api/ai-planner-full.js':
+          "// PLANNER_BLOCK_MODE referenced but no import — broken integration\nif (process.env.PLANNER_BLOCK_MODE === 'enabled') runBlockModePipeline();\n",
+        'api/_ai_core/blockMode.js':
+          "export function shouldUseBlockMode() {}\nexport function fetchAvailableBlocks() {}\nexport function expandBlocksToItinerary() { throw new Error('BLOCK_MODE_DIETARY_UNSATISFIED'); }\n",
+      },
+      expectRule: 'P128_blockModeIntegration',
     },
   ];
 

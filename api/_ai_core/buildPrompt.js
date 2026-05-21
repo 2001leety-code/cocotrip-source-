@@ -3,8 +3,67 @@
  * Extracted verbatim from api/ai-planner-full.js L112-527.
  *
  * 2026-05-08 (W4): buildRevisionInstruction — user's revision reason chips → extra Gemini instructions.
+ * 2026-05-21 (P128): buildBlockModePrompt — block-mode 전용 system prompt (block ID 선택만).
  */
 import { LANG_INSTRUCTION } from './constants.js';
+
+/**
+ * P128 (2026-05-21): block-mode 전용 system prompt.
+ * blockMode.js 의 buildBlockSelectionSystemPrompt 와 동일한 prompt 를 buildPrompt 에서도
+ * 재노출 (caller 가 buildPrompt 만 import 해도 block-mode 시작 가능). 본질적으로 같은
+ * spec 의 두 곳 export 임 — caller 편의용.
+ *
+ * @param {Array<object>} blocks — available zone_courses blocks (id/zone/theme/intensity/best_for/dietary_options)
+ * @param {object} userInput — { durationDays, styles, dietPrefs, special_request, language }
+ * @returns {{system: string, user: string}} Gemini 호출 input
+ */
+export function buildBlockModePrompt(blocks, userInput) {
+  const language = String(userInput?.language || 'en');
+  const durationDays = Math.max(1, Math.min(14, Number(userInput?.durationDays) || 1));
+  const styles = Array.isArray(userInput?.styles) ? userInput.styles : [];
+  const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
+  const specialRequest = String(userInput?.special_request || '').slice(0, 800);
+
+  const blockCards = (Array.isArray(blocks) ? blocks : []).map((b) => ({
+    id: b?.id,
+    zone: b?.zone,
+    theme: b?.theme,
+    intensity: b?.intensity,
+    duration_min: b?.duration_min,
+    best_for: Array.isArray(b?.best_for) ? b.best_for.slice(0, 6) : [],
+    dietary_options: Array.isArray(b?.dietary_options) ? b.dietary_options : [],
+  }));
+
+  const system = `You are CocoTrip's block selector — pick the best pre-curated day-blocks for the user.
+
+## OUTPUT FORMAT — STRICT JSON ONLY
+No markdown. No code blocks. No explanation. Pure JSON only.
+
+{
+  "day_selections": [
+    { "day": 1, "block_id": "<one of available_blocks[].id>", "tweak_notes": "Optional 1-sentence note (max 200 chars) in ${language}" }
+  ]
+}
+
+## RULES
+1. day_selections MUST contain EXACTLY duration_days entries.
+2. block_id MUST be one of available_blocks[].id (string match). NEVER invent IDs.
+3. Prefer variety — do NOT repeat unless duration_days exceeds unique blocks count.
+4. Match user's styles to block.best_for and block.theme.
+5. SAFETY-CRITICAL: every chosen block's dietary_options MUST cover all user dietary needs.
+6. Day 1 → easy/standard intensity (arrival fatigue). Day N → vary based on styles.
+7. tweak_notes MUST be in language=${language}. block_id values are language-neutral identifiers.`;
+
+  const user = JSON.stringify({
+    duration_days: durationDays,
+    styles,
+    special_request: specialRequest || undefined,
+    diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    available_blocks: blockCards,
+  });
+
+  return { system, user };
+}
 
 /**
  * Build an additional instruction block appended to the user message when the user

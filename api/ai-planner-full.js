@@ -29,6 +29,7 @@ import { buildAvoidClause } from './_ai_core/avoidListQuery.js';
 import { runGeminiPipeline } from './_ai_core/geminiPipeline.js';
 import { enrichItineraryWithRoute } from './_ai_core/routeEnrichment.js';
 import { decidePlannerMode } from './_ai_core/plannerMode.js';
+import { tryRunBlockMode } from './_ai_core/blockMode.js';
 
 // Phase 4 A/B test (2026-05-13): mode resolved per-request via
 // decidePlannerMode (api/_ai_core/plannerMode.js). Inputs: uid / guestEmail /
@@ -576,13 +577,18 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       injectedRestaurants: (foodContext.match(/•/g) || []).length,
     });
 
+    // Block-mode (P128) — tryRunBlockMode handles elig/dietary throw/legacy fallback. SAFETY-CRITICAL dietary unsatisfied = skipped→legacy.
+    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime } })));
+    const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
+    let itinerary = blockModeUsed ? _blkR.itinerary : null;
+
     // ── Gemini 파이프라인 (legacy or 3pass) ────────────────────────────────
     // P0-3 SAFETY-CRITICAL (CLAUDE.md J): 사용자 dietary 전달 → validateResponse 가
     // halal/vegan/vegetarian 위반 검사 → 위반 시 1회 retry → 그래도 위반이면 throw.
     // 2026-05-12 pattern validation: body 전달 → regions/arrival_airport/
     // departure_airport 기반 lodging bookend / min stops / start_time / 출국 공항
     // 검증 (B-10/B-12/B-14/B-15). 위반 시 1회 retry → 그래도 위반이면 500 throw.
-    const itinerary = await withStep('gemini', () => runGeminiPipeline({
+    if (!itinerary) itinerary = await withStep('gemini', () => runGeminiPipeline({
       apiKey,
       systemPrompt,
       userMessage: finalUserMessage,
@@ -698,9 +704,9 @@ Pick a REAL hotel that exists near the main activity zone.` : '') + (() => {
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,
       dietary: dietPrefs, foodIndex: foodIndexForQuality,
-      plannerMode: PLANNER_MODE,
-      abReason: abDecision.reason,
-      abBucket: abDecision.bucket,
+      plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,  // P128 block-mode trace
+      abReason: abDecision.reason, abBucket: abDecision.bucket,
+      blocksUsed: blockModeUsed ? blocksUsed : null,
     }));
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
