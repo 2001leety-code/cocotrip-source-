@@ -1,0 +1,12 @@
+{
+  "id":"SEOSAN_DAY_HAEMI_STANDARD","city":"seosan","zone":"Haemi-Ganwol",
+  "theme":"해미읍성+간월암+황금산","theme_i18n":{"ko":"해미읍성+간월암+황금산","en":"Haemi Fortress+Ganwolam+Hwangguemsan","ja":"海美邑城+看月庵+黄金山","zh":"海美邑城+看月庵+黄金山"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"해미읍성","name_i18n":{"ko":"해미읍성","en":"Haemi Fortress","ja":"海美邑城","zh":"海美邑城"},"address":"충남 서산시 해미면","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"조선 읍성. 천주교 순교지.","en":"Joseon fortress. Catholic martyrs site.","ja":"朝鮮邑城。カトリック殉教地。","zh":"朝鲜邑城。天主教殉教地。"},"lat":36.7158,"lng":126.5994,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"간월암","name_i18n":{"ko":"간월암","en":"Ganwolam","ja":"看月庵","zh":"看月庵"},"address":"충남 서산시 부석면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"바다 위 작은 암자. 일몰 명소.","en":"Small hermitage on sea. Sunset spot.","ja":"海上小庵。夕日名所。","zh":"海上小庵。日落名所。"},"lat":36.7178,"lng":126.4350,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"서산 어리굴젓","name_i18n":{"ko":"서산 어리굴젓","en":"Seosan Oyster Kimchi","ja":"瑞山牡蠣キムチ","zh":"瑞山牡蛎泡菜"},"address":"충남 서산시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"서산 명물. 굴+무+양념.","en":"Seosan specialty. Oyster+radish+seasoning.","ja":"瑞山名物。牡蠣+大根+薬味。","zh":"瑞山名菜。牡蛎+萝卜+调料。"},"lat":36.7833,"lng":126.4500,"start_time_offset_min":165},
+    {"order":4,"category":"nature","name":"황금산","name_i18n":{"ko":"황금산","en":"Hwangguemsan","ja":"黄金山","zh":"黄金山"},"address":"충남 서산시 대산읍","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"코끼리 바위+해식동굴.","en":"Elephant rock+sea cave.","ja":"象岩+海食洞窟。","zh":"象岩+海食洞窟。"},"lat":36.9111,"lng":126.4083,"start_time_offset_min":255},
+    {"order":5,"category":"culture","name":"서산 마애삼존불","name_i18n":{"ko":"서산 마애삼존불","en":"Seosan Buddha Triad","ja":"瑞山磨崖三尊仏","zh":"瑞山磨崖三尊佛"},"address":"충남 서산시 운산면","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"국보 84호. 백제 마애불.","en":"National Treasure #84. Baekje rock Buddha.","ja":"国宝84号。百済磨崖仏。","zh":"国宝84号。百济磨崖佛。"},"lat":36.7783,"lng":126.6033,"start_time_offset_min":390}
+  ]
+}

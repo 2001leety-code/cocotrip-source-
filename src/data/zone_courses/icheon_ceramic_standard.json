@@ -1,0 +1,11 @@
+{
+  "id":"ICHEON_DAY_CERAMIC_STANDARD","city":"icheon","zone":"Ceramic-Spa",
+  "theme":"이천 도예촌+미란다 스파+자영농원","theme_i18n":{"ko":"이천 도예촌+미란다 스파+자영농원","en":"Icheon Ceramic Village+Miranda Spa+Jayoung Farm","ja":"利川陶芸村+ミランダスパ+自営農園","zh":"利川陶艺村+米兰达温泉+自营农园"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"이천 도예촌","name_i18n":{"ko":"이천 도예촌","en":"Icheon Ceramic Village","ja":"利川陶芸村","zh":"利川陶艺村"},"address":"경기 이천시 신둔면","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한국 도예 중심지. 도자기 체험.","en":"Korean ceramic hub. Pottery experience.","ja":"韓国陶芸の中心。陶芸体験。","zh":"韩国陶艺中心。陶艺体验。"},"lat":37.2667,"lng":127.4500,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"이천 쌀밥거리","name_i18n":{"ko":"이천 쌀밥거리","en":"Icheon Rice Street","ja":"利川米飯通り","zh":"利川米饭街"},"address":"경기 이천시 사음동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"이천 쌀밥 한정식. 임금 진상미.","en":"Icheon rice hanjeongsik. Royal rice.","ja":"利川米飯定食。王様献上米。","zh":"利川米饭套餐。皇室进贡米。"},"lat":37.2667,"lng":127.4361,"start_time_offset_min":135},
+    {"order":3,"category":"culture","name":"이천 자영농원","name_i18n":{"ko":"이천 자영농원","en":"Icheon Jayoung Farm","ja":"利川自営農園","zh":"利川自营农园"},"address":"경기 이천시 마장면","stay_min":75,"entry_fee_krw":7000,"reservation_required":false,"tips_i18n":{"ko":"농장 체험+카페+포토존.","en":"Farm experience+cafe+photo zone.","ja":"農場体験+カフェ+フォトゾーン。","zh":"农场体验+咖啡+拍照区。"},"lat":37.3167,"lng":127.4000,"start_time_offset_min":225},
+    {"order":4,"category":"sports","name":"이천 미란다 온천","name_i18n":{"ko":"미란다 온천","en":"Miranda Spa","ja":"ミランダスパ","zh":"米兰达温泉"},"address":"경기 이천시 안흥동","stay_min":120,"entry_fee_krw":18000,"reservation_required":false,"tips_i18n":{"ko":"한국 명탕. 알칼리성 온천.","en":"Korea famous spa. Alkaline hot spring.","ja":"韓国名湯。アルカリ性温泉。","zh":"韩国名汤。碱性温泉。"},"lat":37.2806,"lng":127.4419,"start_time_offset_min":315}
+  ]
+}

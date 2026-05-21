@@ -1,0 +1,12 @@
+{
+  "id":"YANGPYEONG_DAY_DUMULMEORI_STANDARD","city":"yangpyeong","zone":"Dumulmeori-Semiwon",
+  "theme":"두물머리+세미원+용문사","theme_i18n":{"ko":"두물머리+세미원+용문사","en":"Dumulmeori+Semiwon+Yongmunsa","ja":"二水頭+洗美苑+龍門寺","zh":"二水头+洗美苑+龙门寺"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"두물머리","name_i18n":{"ko":"두물머리","en":"Dumulmeori","ja":"二水頭","zh":"二水头"},"address":"경기 양평군 양서면","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"북한강+남한강 합류점. 일출 명소.","en":"Bukhan+Namhan River meeting. Sunrise spot.","ja":"北漢江+南漢江合流。日の出名所。","zh":"北汉江+南汉江汇合。日出名所。"},"lat":37.5333,"lng":127.3194,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"세미원","name_i18n":{"ko":"세미원","en":"Semiwon","ja":"洗美苑","zh":"洗美苑"},"address":"경기 양평군 양서면","stay_min":90,"entry_fee_krw":7000,"reservation_required":false,"tips_i18n":{"ko":"연꽃 정원. 6-8월 만개.","en":"Lotus garden. Bloom Jun-Aug.","ja":"蓮の花庭園。6-8月満開。","zh":"莲花园。6-8月盛开。"},"lat":37.5267,"lng":127.3175,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"양평 옥천냉면","name_i18n":{"ko":"양평 옥천냉면","en":"Yangpyeong Okcheon Naengmyeon","ja":"楊平玉泉冷麺","zh":"杨平玉泉冷面"},"address":"경기 양평군 옥천면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"양평 향토 냉면.","en":"Yangpyeong local naengmyeon.","ja":"楊平郷土冷麺。","zh":"杨平乡土冷面。"},"lat":37.5333,"lng":127.5667,"start_time_offset_min":195},
+    {"order":4,"category":"culture","name":"용문사 (천년 은행나무)","name_i18n":{"ko":"용문사","en":"Yongmunsa","ja":"龍門寺","zh":"龙门寺"},"address":"경기 양평군 용문면","stay_min":90,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"천년 은행나무. 가을 단풍 명소.","en":"1000-yr ginkgo. Autumn foliage spot.","ja":"千年イチョウ。紅葉名所。","zh":"千年银杏。秋叶名所。"},"lat":37.5567,"lng":127.5722,"start_time_offset_min":285},
+    {"order":5,"category":"cafe","name":"두물머리 카페","name_i18n":{"ko":"두물머리 카페","en":"Dumulmeori Cafe","ja":"二水頭カフェ","zh":"二水头咖啡"},"address":"경기 양평군 양서면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"강변 뷰 카페.","en":"Riverside view cafes.","ja":"川沿いカフェ。","zh":"河边咖啡。"},"lat":37.5333,"lng":127.3200,"start_time_offset_min":390}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id":"NONSAN_DAY_BAEKJE_STANDARD","city":"nonsan","zone":"Baekje-Heritage",
+  "theme":"백제군사박물관+탑정호+돈암서원","theme_i18n":{"ko":"백제군사박물관+탑정호+돈암서원","en":"Baekje Military Museum+Tapjeongho+Donamseowon","ja":"百済軍事博物館+塔亭湖+遯岩書院","zh":"百济军事博物馆+塔亭湖+遁岩书院"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"백제군사박물관","name_i18n":{"ko":"백제군사박물관","en":"Baekje Military Museum","ja":"百済軍事博物館","zh":"百济军事博物馆"},"address":"충남 논산시 부적면","stay_min":75,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"황산벌 계백 장군 박물관.","en":"Hwangsan Battle General Gyebaek museum.","ja":"黄山岱階伯将軍博物館。","zh":"黄山岱阶伯将军博物馆。"},"lat":36.2192,"lng":127.1031,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"탑정호","name_i18n":{"ko":"탑정호","en":"Tapjeongho","ja":"塔亭湖","zh":"塔亭湖"},"address":"충남 논산시 부적면","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"충남 최대 저수지. 출렁다리.","en":"Chungnam's largest reservoir. Suspension bridge.","ja":"忠南最大ため池。つり橋。","zh":"忠南最大水库。悬索桥。"},"lat":36.2278,"lng":127.1011,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"논산 강경 젓갈","name_i18n":{"ko":"강경 젓갈","en":"Ganggyeong Jeotgal","ja":"江景チョッカル","zh":"江景虾酱"},"address":"충남 논산시 강경읍","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한국 최대 젓갈시장.","en":"Korea's largest jeotgal market.","ja":"韓国最大チョッカル市場。","zh":"韩国最大虾酱市场。"},"lat":36.1644,"lng":127.0181,"start_time_offset_min":180},
+    {"order":4,"category":"culture","name":"돈암서원","name_i18n":{"ko":"돈암서원","en":"Donamseowon","ja":"遯岩書院","zh":"遁岩书院"},"address":"충남 논산시 연산면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"유네스코 세계유산. 9개 서원 중 하나.","en":"UNESCO heritage. One of 9 seowons.","ja":"ユネスコ世界遺産。9書院の一。","zh":"联合国遗产。9书院之一。"},"lat":36.2356,"lng":127.2528,"start_time_offset_min":270},
+    {"order":5,"category":"culture","name":"개태사","name_i18n":{"ko":"개태사","en":"Gaetaesa","ja":"開泰寺","zh":"开泰寺"},"address":"충남 논산시 연산면","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"고려 태조 왕건 건립.","en":"Founded by Goryeo King Wang Geon.","ja":"高麗太祖王建建立。","zh":"高丽太祖王建建立。"},"lat":36.2367,"lng":127.2611,"start_time_offset_min":345}
+  ]
+}
