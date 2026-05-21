@@ -1,0 +1,242 @@
+{
+  "id": "SEOUL_DAY_JONGNO_STANDARD",
+  "city": "seoul",
+  "zone": "Jongno",
+  "theme": "전통 + 시장 + 카페",
+  "theme_i18n": {
+    "ko": "전통 + 시장 + 카페",
+    "en": "Tradition + Market + Cafe",
+    "ja": "伝統 + 市場 + カフェ",
+    "zh": "传统 + 市场 + 咖啡"
+  },
+  "intensity": "standard",
+  "duration_min": 555,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "경복궁",
+      "name_i18n": {
+        "ko": "경복궁",
+        "en": "Gyeongbokgung Palace",
+        "ja": "景福宮",
+        "zh": "景福宫"
+      },
+      "address": "서울특별시 종로구 사직로 161",
+      "stay_min": 90,
+      "entry_fee_krw": 3000,
+      "entry_fee_note": "한복 착용 시 무료",
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "수문장 교대식 (10:00 / 14:00) 시간 맞추면 좋아요.",
+        "en": "Time your visit to the Royal Guard Changing Ceremony (10:00 / 14:00).",
+        "ja": "守門将交代式 (10:00 / 14:00) の時間に合わせましょう。",
+        "zh": "建议配合守门将交接仪式 (10:00 / 14:00) 时间参观。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "서울특별시 종로구 창경궁로 88 광장시장",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "광장시장 빈대떡 + 마약김밥 + 육회.",
+        "en": "Gwangjang Market — bindaetteok + mayak gimbap + yukhoe.",
+        "ja": "広蔵市場 — ビンデトック + 麻薬キンパ + 육회。",
+        "zh": "广藏市场 — 绿豆煎饼 + 麻药紫菜包饭 + 生牛肉。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "인사동",
+      "name_i18n": {
+        "ko": "인사동",
+        "en": "Insadong",
+        "ja": "仁寺洞",
+        "zh": "仁寺洞"
+      },
+      "address": "서울특별시 종로구 인사동길",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "쌈지길 + 전통 다실 + 갤러리 골목.",
+        "en": "Ssamzigil + traditional tea house + gallery alley.",
+        "ja": "サムジキル + 伝統茶屋 + ギャラリー横丁。",
+        "zh": "Ssamzigil + 传统茶屋 + 画廊小巷。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 180
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "북촌한옥마을",
+      "name_i18n": {
+        "ko": "북촌한옥마을",
+        "en": "Bukchon Hanok Village",
+        "ja": "北村韓屋村",
+        "zh": "北村韩屋村"
+      },
+      "address": "서울특별시 종로구 계동길 37",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "주민 거주지 — 정숙 관광. 8경 포토 스팟 추천.",
+        "en": "Residents live here — please be quiet. 8 photo spots are recommended.",
+        "ja": "住民が暮らしています — 静かに観光を。8つのフォトスポット推奨。",
+        "zh": "居民居住区 — 请保持安静。推荐 8 大摄影点。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 285
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "서울특별시 종로구 가회동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "한옥 카페 — 전망 명소 추천.",
+        "en": "Hanok cafe — view spots recommended.",
+        "ja": "韓屋カフェ — 眺望スポット推奨。",
+        "zh": "韩屋咖啡馆 — 推荐景观点。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 390
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "서울특별시 종로구 종로1가",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "광화문 일대 — 한정식 / 삼계탕 / 비빔밥.",
+        "en": "Gwanghwamun area — Korean set / samgyetang / bibimbap.",
+        "ja": "光化門エリア — 韓定食 / サムゲタン / ビビンバ。",
+        "zh": "光化门一带 — 韩定食 / 参鸡汤 / 拌饭。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 465
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed"
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed"
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed"
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed"
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed"
+    }
+  },
+  "best_for": [
+    "first_time_visitor",
+    "history_lover",
+    "foodie"
+  ],
+  "unsuitable_for": [
+    "wheelchair_user"
+  ],
+  "dietary_options": [
+    "vegetarian"
+  ],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "notes": "Foundation PoC — Jongno 전통 코스. ODsay/Naver API key 없을 시 mock transit 으로 빌드되며 prod 재실행 필요. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env."
+}
