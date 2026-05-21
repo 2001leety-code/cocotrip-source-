@@ -73,6 +73,10 @@ interface PlannerSnapshotValues {
   dateRangeTo: string | null;
   paxInput: string;
   arrivalTerminal: string;
+  /** P142 (2026-05-22): 입국/출국 공항 분리. 빈 문자열 = arrivalTerminal 과 동일
+   *  (단도시 plan 기본값 / backward compat snapshot). 사용자가 명시적으로 다른 값을
+   *  고른 경우만 채워짐 (예: 입국=T1, 출국=T2 또는 ICN→GMP). */
+  departureTerminal: string;
   hotelAddress: string;
   arrivalTime: string;
   departureTime: string;
@@ -141,6 +145,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   });
   const [paxInput, setPaxInput]               = useState('2');
   const [arrivalTerminal, setArrivalTerminal] = useState('');
+  // P142 (2026-05-22): 출국 공항/터미널 분리. 빈 문자열 = arrivalTerminal 폴백.
+  // 사용자가 입국=T1, 출국=T2 (또는 입국=ICN, 출국=GMP) 같이 다른 터미널 선택 가능.
+  // 이전 회귀: const departureAirport = arrivalTerminal; 하드코딩으로 출국 항상 입국과 동일.
+  const [departureTerminal, setDepartureTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');
   // 2026-05-10 B10-2: 다도시 plan 시 도시별 호텔 주소 (cityKey → address). 단도시면
   // 기존 hotelAddress 사용 (backward compat). entry_city = mainCityKey 자동.
@@ -289,6 +297,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     }
     setPaxInput(v.paxInput ?? '2');
     setArrivalTerminal(v.arrivalTerminal ?? '');
+    setDepartureTerminal(v.departureTerminal ?? '');
     setHotelAddress(v.hotelAddress ?? '');
     setArrivalTime(v.arrivalTime ?? '');
     setDepartureTime(v.departureTime ?? '');
@@ -342,7 +351,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const datesPicked = !!(dateRange?.from && dateRange?.to);
   const durationDays = datesPicked ? Math.max(1, nights + 1) : 3;
   const pax = parseInt(paxInput) || 2;
-  const departureAirport = arrivalTerminal;
+  // P142 (2026-05-22): 출국 공항. 사용자가 명시 안 했으면 입국 공항으로 폴백
+  // (단도시 plan + 같은 터미널 입출국 = 절대다수 케이스).
+  const departureAirport = departureTerminal || arrivalTerminal;
 
   const airportOptions = getAirportOptions(mainCityKey || 'seoul');
 
@@ -351,6 +362,12 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     const validValues = airportOptions.map(o => o.value);
     if (arrivalTerminal && !validValues.includes(arrivalTerminal)) {
       setArrivalTerminal('');
+    }
+    // P142: 다도시에서 mainCity 변경 시 departureTerminal 도 검증.
+    // 출국지 도시가 mainCity 와 다를 수 있어 airportOptions 검사 skip — 단도시면
+    // 같이 reset, 다도시면 별도 도시 공항 옵션 사용 가능 (사용자 자유).
+    if (departureTerminal && !validValues.includes(departureTerminal) && cityKeys.length <= 1) {
+      setDepartureTerminal('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainCityKey]);
@@ -380,7 +397,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     dietPrefs, allergies, priceRange, spiceLevel, bucketDishes,
     dateRangeFrom: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null,
     dateRangeTo: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : null,
-    paxInput, arrivalTerminal, hotelAddress,
+    paxInput, arrivalTerminal, departureTerminal, hotelAddress,
     arrivalTime, departureTime,
     luggageSmall, luggageMedium, luggageLarge,
     wantAccom, accomBudget, recommendedZones, tourPace,
@@ -776,6 +793,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   paxInput={paxInput} setPaxInput={setPaxInput}
                   mainCity={mainCity} airportOptions={airportOptions}
                   arrivalTerminal={arrivalTerminal} setArrivalTerminal={setArrivalTerminal}
+                  departureTerminal={departureTerminal} setDepartureTerminal={setDepartureTerminal}
                   hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
                   arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
                   departureTime={departureTime} setDepartureTime={setDepartureTime}

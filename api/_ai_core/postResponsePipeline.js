@@ -14,6 +14,7 @@
 import {
   calculateTmoney, persistPlan, backfillStopEndTimes, backfillDayLodging,
   runUnreasonableStopTimesCheck,
+  pushIntercityGapWarnings,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -89,6 +90,11 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   // P123: hotelByCity (사용자 wizard 도시별 호텔) 우선 — Gemini wrong-city 호텔 override.
   backfillDayLodging(itinerary, ctx.hotelByCity);
   runUnreasonableStopTimesCheck(itinerary, ctx.body);
+
+  // ── P143 (2026-05-22): intercity KTX → 첫 stop 90min+ 공백 detect ──
+  // RouteAgent Phase 2.4 stitch 실패 또는 Gemini 임의값 silent pass 케이스.
+  // quality_warnings 에 박제 → 운영자 UI panel (P121 QualityWarningsPanel) 즉시 노출.
+  pushIntercityGapWarnings(itinerary);
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);

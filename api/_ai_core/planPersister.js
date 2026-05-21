@@ -171,6 +171,70 @@ export function detectUnreasonableStopTimes(itinerary) {
 }
 
 /**
+ * P143 (2026-05-22): intercity_transit.arrival_at 와 day 첫 stop start_time 사이
+ * 큰 공백 (> 90 min) detect. plan 209de47b (Seoul→Busan KTX 12:15 도착 → 첫 Busan
+ * stop 17:43, 5h+ 공백) 같은 케이스: 사용자가 "서울에서 부산가는 과정이 엉터리야"
+ * 신고. RouteAgent Phase 2.4 stitch 가 lodging_to_station null 일 때 동작 안 함
+ * → Gemini 임의 값 그대로 통과. 이를 quality_warning 으로 박제 + admin UI 노출.
+ *
+ * @param {object} itinerary
+ * @returns {Array<{day:number, intercity_arrival_at:string, first_stop_start:string, gap_min:number}>}
+ */
+export function detectIntercityFirstStopGap(itinerary) {
+  const out = [];
+  const GAP_THRESHOLD_MIN = 90;
+  for (const day of (itinerary?.days || [])) {
+    const it = day?.intercity_transit;
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+    if (!it || !it.arrival_at || stops.length === 0) continue;
+    // 첫 stop 의 start_time. lodging stop (도착 직후 호텔 체크인) 은 자연스러우니
+    // 첫 non-lodging stop 도 함께 검사. lodging-only 첫 stop 도 30min+ buffer 까진 OK.
+    const firstStop = stops[0];
+    const firstStart = String(firstStop?.start_time || '');
+    const arrM = /^(\d{1,2}):(\d{2})$/.exec(String(it.arrival_at));
+    const stopM = /^(\d{1,2}):(\d{2})$/.exec(firstStart);
+    if (!arrM || !stopM) continue;
+    const arrMin = parseInt(arrM[1], 10) * 60 + parseInt(arrM[2], 10);
+    const stopMin = parseInt(stopM[1], 10) * 60 + parseInt(stopM[2], 10);
+    if (!Number.isFinite(arrMin) || !Number.isFinite(stopMin)) continue;
+    if (stopMin <= arrMin) continue; // 첫 stop 이 KTX 도착 전 (= 이전 city stop) → 별도 회귀
+    const gap = stopMin - arrMin;
+    if (gap > GAP_THRESHOLD_MIN) {
+      out.push({
+        day: day?.day || 0,
+        intercity_arrival_at: it.arrival_at,
+        first_stop_start: firstStart,
+        first_stop_name: String(firstStop?.name || firstStop?.display_name || '').slice(0, 80),
+        gap_min: gap,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * P143: detectIntercityFirstStopGap → itinerary.quality_warnings push (UI 운영자 노출).
+ * 운영자 plan 진단 panel (P121) 에서 즉시 보임. non-blocking (plan 저장 진행).
+ * @param {object} itinerary - mutated: quality_warnings 추가
+ * @returns {number} 감지 건수
+ */
+export function pushIntercityGapWarnings(itinerary) {
+  const gaps = detectIntercityFirstStopGap(itinerary);
+  if (gaps.length === 0) return 0;
+  itinerary.quality_warnings = itinerary.quality_warnings || [];
+  itinerary.quality_warnings.push({
+    type: 'intercity_first_stop_gap',
+    anchor: 'route-agent-stitch',
+    items: gaps.map((g) => ({
+      day: g.day,
+      message: `Day ${g.day}: KTX/intercity 도착 ${g.intercity_arrival_at} → 첫 stop ${g.first_stop_start} (${g.first_stop_name}) — ${g.gap_min}분 공백`,
+    })),
+  });
+  console.warn(`[planPersister] P143 intercity gap detected: ${gaps.length} day(s)`);
+  return gaps.length;
+}
+
+/**
  * P120/P136: detectUnreasonableStopTimes + admin/customer 분기 (P101 패턴).
  * - admin (ADMIN-BYPASS-* orderId 또는 adminBypass:true): telegram alert + return count (plan 저장 진행).
  * - customer: throw UNREASONABLE_STOP_TIMES → ai-planner-full 500.
