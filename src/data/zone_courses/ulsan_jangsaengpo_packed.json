@@ -1,0 +1,12 @@
+{
+  "id":"ULSAN_DAY_JANGSAENGPO_PACKED","city":"ulsan","zone":"Jangsaengpo-Industrial",
+  "theme":"장생포 고래+현대미술관+신불산","theme_i18n":{"ko":"장생포+현대중공업+신불산","en":"Jangsaengpo+Hyundai Heavy+Sinbulsan","ja":"長生浦+現代重工業+神仏山","zh":"长生浦+现代重工+神佛山"},
+  "intensity":"packed","duration_min":510,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"장생포 고래박물관","name_i18n":{"ko":"장생포 고래박물관","en":"Jangsaengpo Whale Museum","ja":"長生浦鯨博物館","zh":"长生浦鲸博物馆"},"address":"울산 남구 장생포고래로 244","stay_min":90,"entry_fee_krw":2000,"reservation_required":false,"tips_i18n":{"ko":"고래 관찰선 4월~10월.","en":"Whale watching boat Apr-Oct.","ja":"鯨観察船4-10月。","zh":"观鲸船4-10月。"},"lat":35.5042,"lng":129.3839,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"대왕암공원","name_i18n":{"ko":"대왕암공원","en":"Daewangam Park","ja":"大王岩公園","zh":"大王岩公园"},"address":"울산 동구 일산동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"신라 문무왕 수중릉 전설.","en":"Silla King Munmu underwater tomb legend.","ja":"新羅文武王水中陵伝説。","zh":"新罗文武王水中陵传说。"},"lat":35.4944,"lng":129.4533,"start_time_offset_min":105},
+    {"order":3,"category":"food","name":"울산 짬뽕","name_i18n":{"ko":"울산 짬뽕","en":"Ulsan Jjamppong","ja":"蔚山チャンポン","zh":"蔚山辣海鲜面"},"address":"울산 남구","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"울산 명물 해물짬뽕.","en":"Ulsan specialty seafood jjamppong.","ja":"蔚山名物海鮮チャンポン。","zh":"蔚山名菜海鲜辣面。"},"lat":35.5394,"lng":129.3128,"start_time_offset_min":195},
+    {"order":4,"category":"nature","name":"신불산 케이블카","name_i18n":{"ko":"신불산 케이블카","en":"Sinbulsan Cable Car","ja":"神仏山ロープウェイ","zh":"神佛山缆车"},"address":"울산 울주군 상북면","stay_min":120,"entry_fee_krw":15000,"reservation_required":false,"tips_i18n":{"ko":"영남알프스 1.6km 케이블카.","en":"Yeongnam Alps 1.6km cable car.","ja":"嶺南アルプス1.6kmロープウェイ。","zh":"岭南阿尔卑斯1.6km缆车。"},"lat":35.5681,"lng":129.0750,"start_time_offset_min":285},
+    {"order":5,"category":"cafe","name":"울산 카페거리","name_i18n":{"ko":"울산 카페","en":"Ulsan Cafe","ja":"蔚山カフェ","zh":"蔚山咖啡"},"address":"울산 남구 삼산동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"울산 도심 카페.","en":"Ulsan downtown cafes.","ja":"蔚山市内カフェ。","zh":"蔚山市内咖啡。"},"lat":35.5469,"lng":129.3406,"start_time_offset_min":420}
+  ]
+}

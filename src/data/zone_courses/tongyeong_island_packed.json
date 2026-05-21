@@ -1,0 +1,11 @@
+{
+  "id":"TONGYEONG_DAY_ISLAND_PACKED","city":"tongyeong","zone":"Island-Hopping",
+  "theme":"소매물도+한산도+거제 외도","theme_i18n":{"ko":"소매물도+한산도+외도","en":"Somaemuldo+Hansando+Oedo","ja":"小売物島+閑山島+外島","zh":"小卖物岛+闲山岛+外岛"},
+  "intensity":"packed","duration_min":540,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"소매물도","name_i18n":{"ko":"소매물도","en":"Somaemuldo Island","ja":"小売物島","zh":"小卖物岛"},"address":"경남 통영시 한산면","stay_min":240,"entry_fee_krw":15000,"reservation_required":true,"tips_i18n":{"ko":"등대섬 트래킹. 페리 90분.","en":"Lighthouse island trek. 90min ferry.","ja":"灯台島トレッキング。フェリー90分。","zh":"灯塔岛徒步。渡轮90分。"},"lat":34.6694,"lng":128.5667,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"통영 굴구이","name_i18n":{"ko":"통영 굴구이","en":"Tongyeong Grilled Oyster","ja":"統営牡蠣焼き","zh":"统营烤牡蛎"},"address":"경남 통영시 중앙동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"겨울 별미 (11-3월). 굴구이/굴찜.","en":"Winter delicacy (Nov-Mar). Grilled/steamed.","ja":"冬の珍味(11-3月)。焼き/蒸し。","zh":"冬季美食(11-3月)。烤/蒸。"},"lat":34.8478,"lng":128.4239,"start_time_offset_min":255},
+    {"order":3,"category":"culture","name":"한산도 제승당","name_i18n":{"ko":"한산도 제승당","en":"Hansando Jeseungdang","ja":"閑山島制勝堂","zh":"闲山岛制胜堂"},"address":"경남 통영시 한산면","stay_min":120,"entry_fee_krw":15000,"reservation_required":false,"tips_i18n":{"ko":"이순신 한산대첩 본거지. 페리 25분.","en":"Yi Sun-sin Hansan Battle base. 25min ferry.","ja":"李舜臣閑山大捷拠点。フェリー25分。","zh":"李舜臣闲山大捷据点。渡轮25分。"},"lat":34.7903,"lng":128.4775,"start_time_offset_min":345},
+    {"order":4,"category":"cafe","name":"통영 항구 카페","name_i18n":{"ko":"통영 항구 카페","en":"Tongyeong Port Cafe","ja":"統営港カフェ","zh":"统营港咖啡"},"address":"경남 통영시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"항구 야경 카페.","en":"Port night view cafes.","ja":"港夜景カフェ。","zh":"港夜景咖啡。"},"lat":34.8483,"lng":128.4244,"start_time_offset_min":480}
+  ]
+}

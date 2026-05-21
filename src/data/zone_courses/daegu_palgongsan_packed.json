@@ -1,0 +1,12 @@
+{
+  "id":"DAEGU_DAY_PALGONGSAN_PACKED","city":"daegu","zone":"Palgongsan",
+  "theme":"팔공산+동화사+갓바위","theme_i18n":{"ko":"팔공산+동화사+갓바위","en":"Palgongsan+Donghwasa+Gatbawi","ja":"八公山+桐華寺+笠岩","zh":"八公山+桐华寺+笠岩"},
+  "intensity":"packed","duration_min":540,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"동화사","name_i18n":{"ko":"동화사","en":"Donghwasa","ja":"桐華寺","zh":"桐华寺"},"address":"대구 동구 동화사1길 1","stay_min":60,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"팔공산 대표 사찰. 통일대불.","en":"Palgongsan main temple. Unification Buddha.","ja":"八公山代表寺院。統一大仏。","zh":"八公山代表寺院。统一大佛。"},"lat":35.9925,"lng":128.6928,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"팔공산 케이블카","name_i18n":{"ko":"팔공산 케이블카","en":"Palgongsan Cable Car","ja":"八公山ケーブルカー","zh":"八公山缆车"},"address":"대구 동구 팔공산로","stay_min":90,"entry_fee_krw":12000,"reservation_required":false,"tips_i18n":{"ko":"신림봉 전망대. 대구 시내 조망.","en":"Sinrimbong observatory. Daegu panorama.","ja":"申林峰展望台。大邱市内眺望。","zh":"申林峰观景台。大邱市区眺望。"},"lat":35.9956,"lng":128.6722,"start_time_offset_min":75},
+    {"order":3,"category":"food","name":"팔공산 산채정식","name_i18n":{"ko":"팔공산 산채정식","en":"Palgongsan Mountain Veg Set","ja":"八公山山菜定食","zh":"八公山山菜套餐"},"address":"대구 동구 팔공산로","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"산채비빔밥/도토리묵. 비건 친화.","en":"Mountain bibimbap. Vegan-friendly.","ja":"山菜ビビンバ。ヴィーガン対応。","zh":"山菜拌饭。素食友好。"},"lat":35.9933,"lng":128.6900,"start_time_offset_min":180},
+    {"order":4,"category":"culture","name":"갓바위 (관봉)","name_i18n":{"ko":"갓바위","en":"Gatbawi","ja":"笠岩","zh":"笠岩"},"address":"대구 동구 팔공산로","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"소원 비는 석불. 매표소→정상 1.5km 1.5h.","en":"Wish-granting stone Buddha. Gate→1.5km 1.5h.","ja":"願掛け石仏。改札→1.5km1.5h。","zh":"许愿石佛。售票处→1.5km1.5h。"},"lat":35.9683,"lng":128.7044,"start_time_offset_min":265},
+    {"order":5,"category":"cafe","name":"팔공산 카페거리","name_i18n":{"ko":"팔공산 카페","en":"Palgongsan Cafe","ja":"八公山カフェ","zh":"八公山咖啡"},"address":"대구 동구 팔공산로","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"산뷰 카페 다수.","en":"Mountain view cafes.","ja":"山ビューカフェ。","zh":"山景咖啡。"},"lat":35.9956,"lng":128.6750,"start_time_offset_min":395}
+  ]
+}

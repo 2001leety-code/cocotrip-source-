@@ -1,0 +1,12 @@
+{
+  "id":"ULSAN_DAY_TAEHWA_STANDARD","city":"ulsan","zone":"Taehwa",
+  "theme":"태화강+십리대숲+간절곶","theme_i18n":{"ko":"태화강+십리대숲+간절곶","en":"Taehwagang+Bamboo Grove+Ganjeolgot","ja":"太和江+十里竹林+艮絶串","zh":"太和江+十里竹林+艮绝串"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"태화강 국가정원","name_i18n":{"ko":"태화강 국가정원","en":"Taehwagang National Garden","ja":"太和江国家庭園","zh":"太和江国家园"},"address":"울산 중구 태화동","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"국내 2호 국가정원. 봄 유채/가을 코스모스.","en":"Korea's 2nd national garden. Spring rapeseed/autumn cosmos.","ja":"国内2号国家庭園。春菜の花/秋コスモス。","zh":"国内2号国家园。春油菜/秋宇宙花。"},"lat":35.5444,"lng":129.3061,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"십리대숲","name_i18n":{"ko":"십리대숲","en":"Sipridae Bamboo Grove","ja":"十里竹林","zh":"十里竹林"},"address":"울산 중구 태화동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"4km 대숲길. 태화강변.","en":"4km bamboo trail. Taehwa riverside.","ja":"4km竹林道。太和江畔。","zh":"4km竹林道。太和江畔。"},"lat":35.5478,"lng":129.3119,"start_time_offset_min":105},
+    {"order":3,"category":"food","name":"울산 고래고기","name_i18n":{"ko":"울산 고래고기","en":"Ulsan Whale Meat","ja":"蔚山鯨肉","zh":"蔚山鲸肉"},"address":"울산 남구 장생포동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"장생포 고래 문화. 박물관 인접.","en":"Jangsaengpo whale culture. Museum nearby.","ja":"長生浦鯨文化。博物館近接。","zh":"长生浦鲸文化。博物馆近邻。"},"lat":35.5039,"lng":129.3839,"start_time_offset_min":180},
+    {"order":4,"category":"culture","name":"장생포 고래문화마을","name_i18n":{"ko":"장생포 고래문화마을","en":"Jangsaengpo Whale Village","ja":"長生浦鯨文化村","zh":"长生浦鲸文化村"},"address":"울산 남구 장생포고래로","stay_min":75,"entry_fee_krw":4000,"reservation_required":false,"tips_i18n":{"ko":"한국 유일 고래박물관.","en":"Korea's only whale museum.","ja":"韓国唯一鯨博物館。","zh":"韩国唯一鲸博物馆。"},"lat":35.5039,"lng":129.3833,"start_time_offset_min":270},
+    {"order":5,"category":"nature","name":"간절곶","name_i18n":{"ko":"간절곶","en":"Ganjeolgot","ja":"艮絶串","zh":"艮绝串"},"address":"울산 울주군 서생면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"동해 일출 명소. 등대.","en":"East Sea sunrise spot. Lighthouse.","ja":"東海日の出名所。灯台。","zh":"东海日出名所。灯塔。"},"lat":35.3556,"lng":129.3656,"start_time_offset_min":360}
+  ]
+}

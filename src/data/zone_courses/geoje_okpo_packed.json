@@ -1,0 +1,12 @@
+{
+  "id":"GEOJE_DAY_OKPO_PACKED","city":"geoje","zone":"Okpo-Industrial",
+  "theme":"옥포 대우조선+칠천도+포로수용소","theme_i18n":{"ko":"옥포+칠천도+포로수용소","en":"Okpo+Chilcheondo+POW Camp","ja":"玉浦+漆川島+捕虜収容所","zh":"玉浦+漆川岛+战俘营"},
+  "intensity":"packed","duration_min":540,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"거제 포로수용소 유적공원","name_i18n":{"ko":"거제 포로수용소","en":"Geoje POW Camp","ja":"巨済捕虜収容所","zh":"巨济战俘营"},"address":"경남 거제시 계룡로 61","stay_min":120,"entry_fee_krw":10000,"reservation_required":false,"tips_i18n":{"ko":"한국전쟁 역사 박물관.","en":"Korean War history museum.","ja":"朝鮮戦争歴史博物館。","zh":"朝鲜战争历史博物馆。"},"lat":34.8806,"lng":128.6225,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"옥포 멍게회","name_i18n":{"ko":"옥포 멍게","en":"Okpo Sea Pineapple","ja":"玉浦ホヤ","zh":"玉浦海菠萝"},"address":"경남 거제시 옥포동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"신선한 멍게+회.","en":"Fresh sea pineapple+sashimi.","ja":"新鮮ホヤ+刺身。","zh":"新鲜海菠萝+生鱼片。"},"lat":34.8839,"lng":128.6864,"start_time_offset_min":135},
+    {"order":3,"category":"nature","name":"칠천도","name_i18n":{"ko":"칠천도","en":"Chilcheondo Island","ja":"漆川島","zh":"漆川岛"},"address":"경남 거제시 하청면","stay_min":150,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한산도대첩 격전지. 칠천도연륙교.","en":"Hansan Battle site. Connected bridge.","ja":"閑山島大捷激戦地。連陸橋。","zh":"闲山岛大捷激战地。连陆桥。"},"lat":34.9333,"lng":128.6056,"start_time_offset_min":225},
+    {"order":4,"category":"nature","name":"매미성","name_i18n":{"ko":"매미성","en":"Maemiseong","ja":"メミ城","zh":"梅美城"},"address":"경남 거제시 장목면 복항길","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한 명이 쌓은 거제판 마추픽추.","en":"Geoje's Machu Picchu by one man.","ja":"巨済版マチュピチュ。","zh":"巨济版马丘比丘。"},"lat":34.9683,"lng":128.7444,"start_time_offset_min":390},
+    {"order":5,"category":"cafe","name":"거제 카페거리","name_i18n":{"ko":"거제 카페","en":"Geoje Cafe","ja":"巨済カフェ","zh":"巨济咖啡"},"address":"경남 거제시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"거제 도심 카페.","en":"Geoje downtown cafes.","ja":"巨済市内カフェ。","zh":"巨济市内咖啡。"},"lat":34.8806,"lng":128.6244,"start_time_offset_min":465}
+  ]
+}

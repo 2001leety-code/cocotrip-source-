@@ -1,0 +1,12 @@
+{
+  "id":"POHANG_DAY_HOMIGOT_PACKED","city":"pohang","zone":"Homigot-Guryongpo",
+  "theme":"호미곶+구룡포+영덕대게","theme_i18n":{"ko":"호미곶+구룡포+영덕대게","en":"Homigot+Guryongpo+Yeongdeok Snow Crab","ja":"虎尾串+九龍浦+盈徳大蟹","zh":"虎尾串+九龙浦+盈德雪蟹"},
+  "intensity":"packed","duration_min":510,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"호미곶 일출","name_i18n":{"ko":"호미곶 일출","en":"Homigot Sunrise","ja":"虎尾串日の出","zh":"虎尾串日出"},"address":"경북 포항시 남구 호미곶면","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한반도 일출 가장 빠른 곳.","en":"Earliest sunrise in Korea.","ja":"韓半島で一番早い日の出。","zh":"韩半岛日出最早处。"},"lat":36.0772,"lng":129.5667,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"구룡포 해변","name_i18n":{"ko":"구룡포 해변","en":"Guryongpo Beach","ja":"九龍浦海岸","zh":"九龙浦海滩"},"address":"경북 포항시 남구 구룡포읍","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한적한 어촌 해변.","en":"Quiet fishing village beach.","ja":"静かな漁村海岸。","zh":"安静渔村海滩。"},"lat":35.9889,"lng":129.5556,"start_time_offset_min":105},
+    {"order":3,"category":"food","name":"구룡포 과메기","name_i18n":{"ko":"구룡포 과메기","en":"Guryongpo Gwamegi","ja":"九龍浦カメギ","zh":"九龙浦烤鱼干"},"address":"경북 포항시 남구 구룡포읍","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"겨울 별미. 청어/꽁치 반건조.","en":"Winter delicacy. Half-dried herring/saury.","ja":"冬の珍味。サンマ半乾燥。","zh":"冬季美食。秋刀鱼半干。"},"lat":35.9869,"lng":129.5544,"start_time_offset_min":180},
+    {"order":4,"category":"food","name":"영덕 대게","name_i18n":{"ko":"영덕 대게","en":"Yeongdeok Snow Crab","ja":"盈徳大蟹","zh":"盈德雪蟹"},"address":"경북 영덕군 강구면","stay_min":120,"entry_fee_krw":0,"reservation_required":true,"tips_i18n":{"ko":"한국 최고 대게 산지. 강구항.","en":"Korea's top crab area. Ganggu Port.","ja":"韓国最高蟹産地。江口港。","zh":"韩国最佳蟹产地。江口港。"},"lat":36.3500,"lng":129.4000,"start_time_offset_min":270},
+    {"order":5,"category":"nature","name":"영덕 해맞이공원","name_i18n":{"ko":"영덕 해맞이공원","en":"Yeongdeok Sunrise Park","ja":"盈徳日の出公園","zh":"盈德日出公园"},"address":"경북 영덕군 영덕읍","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"동해 절벽 위 공원.","en":"East Sea cliff park.","ja":"東海絶壁公園。","zh":"东海绝壁公园。"},"lat":36.4133,"lng":129.4108,"start_time_offset_min":405}
+  ]
+}

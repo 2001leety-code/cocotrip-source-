@@ -1,0 +1,12 @@
+{
+  "id":"DAEGU_DAY_DONGSEONGNO_STANDARD","city":"daegu","zone":"Dongseongno",
+  "theme":"동성로+김광석거리+서문시장","theme_i18n":{"ko":"동성로+김광석거리+서문시장","en":"Dongseongno+Kim Kwang-seok Street+Seomun Market","ja":"東城路+キム・グァンソク通り+西門市場","zh":"东城路+金光石街+西门市场"},
+  "intensity":"standard","duration_min":450,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"shopping","name":"동성로","name_i18n":{"ko":"동성로","en":"Dongseongno","ja":"東城路","zh":"东城路"},"address":"대구 중구 동성로","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"대구 최대 번화가. 쇼핑+카페.","en":"Daegu's main downtown. Shopping+cafes.","ja":"大邱最大繁華街。買物+カフェ。","zh":"大邱最大商业街。购物+咖啡。"},"lat":35.8689,"lng":128.5928,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"김광석거리","name_i18n":{"ko":"김광석 다시 그리기 길","en":"Kim Kwang-seok Street","ja":"キム・グァンソク通り","zh":"金光石街"},"address":"대구 중구 달구벌대로 2238","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"가수 김광석 추모 벽화 거리.","en":"Tribute murals to singer Kim Kwang-seok.","ja":"歌手キム・グァンソク追悼壁画通り。","zh":"歌手金光石纪念壁画街。"},"lat":35.8606,"lng":128.6047,"start_time_offset_min":105},
+    {"order":3,"category":"food","name":"대구 막창골목","name_i18n":{"ko":"대구 막창","en":"Daegu Makchang","ja":"大邱マッチャン","zh":"大邱牛肠"},"address":"대구 중구 안지랑로","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"대구 명물 막창구이.","en":"Daegu specialty grilled tripe.","ja":"大邱名物マッチャン焼き。","zh":"大邱名菜烤牛肠。"},"lat":35.8489,"lng":128.5847,"start_time_offset_min":180},
+    {"order":4,"category":"shopping","name":"서문시장","name_i18n":{"ko":"서문시장","en":"Seomun Market","ja":"西門市場","zh":"西门市场"},"address":"대구 중구 큰장로26길","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"대구 최대 전통시장. 야시장 (저녁).","en":"Daegu's largest traditional market. Night market (eve).","ja":"大邱最大伝統市場。夜市(夜)。","zh":"大邱最大传统市场。夜市(晚)。"},"lat":35.8731,"lng":128.5811,"start_time_offset_min":270},
+    {"order":5,"category":"culture","name":"근대골목","name_i18n":{"ko":"근대골목","en":"Modern History Alley","ja":"近代路地","zh":"近代胡同"},"address":"대구 중구 동산동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"청라언덕+선교사 가옥+계산성당.","en":"Cheongna Hill+missionary houses+Gyesan Cathedral.","ja":"青蘿丘+宣教師家+桂山聖堂。","zh":"青蘿丘+宣教师家+桂山圣堂。"},"lat":35.8678,"lng":128.5917,"start_time_offset_min":380}
+  ]
+}
