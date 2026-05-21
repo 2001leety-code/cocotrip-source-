@@ -1766,6 +1766,11 @@
       "submit": "Create Tour",
       "submitting": "Creating..."
     },
+    "intentClassifierTitle": "🧭 Intent Classifier Monitoring",
+    "intentDistribution": "Intent Distribution",
+    "llmFallbackRate": "LLM Fallback Rate",
+    "mutatorFailureRate": "Mutator Failure Rate",
+    "trainingDataSuggestion": "Training data suggestions (add rule keywords)",
     "reviews": {
       "title": "Review Moderation",
       "refresh": "Refresh",

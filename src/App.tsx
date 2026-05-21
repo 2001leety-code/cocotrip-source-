@@ -46,6 +46,7 @@ const AdminProducts = lazy(() => import('@/pages/AdminProducts'));
 const AdminProductEditor = lazy(() => import('@/pages/AdminProductEditor'));
 const AdminZoneCourses = lazy(() => import('@/pages/AdminZoneCourses'));
 const AdminZoneCourseEditor = lazy(() => import('@/pages/AdminZoneCourseEditor'));
+const AdminIntentClassifier = lazy(() => import('@/pages/AdminIntentClassifier'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
@@ -399,6 +400,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminZoneCourseEditor />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/intent-classifier"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminIntentClassifier />
                 </Suspense>
               </AdminRoute>
             }

@@ -279,6 +279,20 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // intent_classifier_logs/{logId} — modify endpoint 분류 결과 (P130, 2026-05-21)
+    //   매 /api/ai-planner-modify 호출마다 fire-and-forget add. raw_text +
+    //   rule/llm intent + mutator 결과 + elapsed.
+    //   read:  admin only (raw_text 사용자 입력 누설 차단).
+    //   write: 서버 전용 (Admin SDK 우회). 클라이언트 직접 write 금지.
+    //   목적:  rule classifier 정확도 + LLM 폴백률 + mutator 실패율 모니터링.
+    //         admin dashboard `/admin/intent-classifier` + 주간 cron 알림.
+    // ─────────────────────────────────────────────────────────
+    match /intent_classifier_logs/{logId} {
+      allow read: if isAdminEmail();
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // earlybird — 공개 카운터
     // ─────────────────────────────────────────────────────────
     match /earlybird/{docId} {

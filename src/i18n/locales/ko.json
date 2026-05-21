@@ -1766,6 +1766,11 @@
       "submit": "상품 등록",
       "submitting": "등록 중..."
     },
+    "intentClassifierTitle": "🧭 Intent Classifier 모니터링",
+    "intentDistribution": "Intent 분포",
+    "llmFallbackRate": "LLM 폴백률",
+    "mutatorFailureRate": "Mutator 실패율",
+    "trainingDataSuggestion": "Training data 제안 (rule keyword 추가)",
     "reviews": {
       "title": "리뷰 모더레이션",
       "refresh": "새로고침",
