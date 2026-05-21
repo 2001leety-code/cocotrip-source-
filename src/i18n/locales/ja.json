@@ -2152,5 +2152,26 @@
     "descNoSummary": "以前の進行状況が保存されています。",
     "continue": "続ける",
     "restart": "新しく始める"
+  },
+  "adminZoneCourses": {
+    "title": "ゾーンコース管理",
+    "subtitle": "AIプランナーのday-block — 動線検証済みzoneコース",
+    "empty": "登録されたゾーンコースがありません。",
+    "addNew": "新規コース作成",
+    "publish": "公開",
+    "rebuildTransit": "Transit 再生成",
+    "trendHints": "Trend Hints",
+    "painpoints": "Painpoints",
+    "tabs": {
+      "basic": "基本情報",
+      "stops": "Stops",
+      "transit": "Transit Matrix",
+      "bestfor": "Best / Unsuitable",
+      "dietary": "Dietary",
+      "booking": "Booking",
+      "trend": "Trend Hints",
+      "painpoints": "Painpoints",
+      "meta": "Meta·QA"
+    }
   }
 }

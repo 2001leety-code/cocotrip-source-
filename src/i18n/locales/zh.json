@@ -2152,5 +2152,26 @@
     "descNoSummary": "您之前的填写进度已保存。",
     "continue": "继续",
     "restart": "重新开始"
+  },
+  "adminZoneCourses": {
+    "title": "区域路线管理",
+    "subtitle": "AI 行程规划的 day-block — 经过路线验证的 zone 路线",
+    "empty": "尚未登记的区域路线。",
+    "addNew": "新建路线",
+    "publish": "发布",
+    "rebuildTransit": "Transit 重新生成",
+    "trendHints": "Trend Hints",
+    "painpoints": "Painpoints",
+    "tabs": {
+      "basic": "基本信息",
+      "stops": "Stops",
+      "transit": "Transit Matrix",
+      "bestfor": "Best / Unsuitable",
+      "dietary": "Dietary",
+      "booking": "Booking",
+      "trend": "Trend Hints",
+      "painpoints": "Painpoints",
+      "meta": "Meta·QA"
+    }
   }
 }

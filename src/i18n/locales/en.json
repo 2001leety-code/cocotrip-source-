@@ -2152,5 +2152,26 @@
     "descNoSummary": "Your previous progress was saved.",
     "continue": "Continue",
     "restart": "Start over"
+  },
+  "adminZoneCourses": {
+    "title": "Zone Course Management",
+    "subtitle": "AI planner day-blocks — operator-verified zone courses",
+    "empty": "No zone courses registered.",
+    "addNew": "Create New Course",
+    "publish": "Publish",
+    "rebuildTransit": "Rebuild Transit",
+    "trendHints": "Trend Hints",
+    "painpoints": "Painpoints",
+    "tabs": {
+      "basic": "Basic",
+      "stops": "Stops",
+      "transit": "Transit Matrix",
+      "bestfor": "Best / Unsuitable",
+      "dietary": "Dietary",
+      "booking": "Booking",
+      "trend": "Trend Hints",
+      "painpoints": "Painpoints",
+      "meta": "Meta·QA"
+    }
   }
 }
