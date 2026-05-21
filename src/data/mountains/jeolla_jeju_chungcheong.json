@@ -1,0 +1,366 @@
+[
+  {
+    "key": "hallasan",
+    "rank_100": 1,
+    "name": {"ko":"한라산","en":"Hallasan","ja":"漢拏山","zh":"汉拿山"},
+    "city": "jeju",
+    "region": "jeju",
+    "lat": 33.3611, "lng": 126.5292,
+    "elevation_m": 1947,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"성판악→백록담","en":"Seongpanak-Baengnokdam"},"distance_km":9.6,"elevation_gain_m":1300,"hours":9,"difficulty":"advanced"},
+      {"name":{"ko":"관음사→백록담","en":"Gwaneumsa-Baengnokdam"},"distance_km":8.7,"elevation_gain_m":1400,"hours":10,"difficulty":"advanced"},
+      {"name":{"ko":"영실→윗세오름","en":"Yeongsil-Witseoreum"},"distance_km":3.7,"elevation_gain_m":700,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"어리목→윗세오름","en":"Eorimok-Witseoreum"},"distance_km":4.7,"elevation_gain_m":700,"hours":4,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn","winter"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=한라산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/한라산",
+    "tags": ["highest_in_korea","reservation_required","crater_lake"]
+  },
+  {
+    "key": "mudeungsan",
+    "rank_100": 2,
+    "name": {"ko":"무등산","en":"Mudeungsan","ja":"無等山","zh":"无等山"},
+    "city": "gwangju",
+    "region": "jeolla_nam",
+    "lat": 35.1342, "lng": 126.9886,
+    "elevation_m": 1187,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"증심사→천왕봉","en":"Jeungsimsa-Cheonwangbong"},"distance_km":6.0,"elevation_gain_m":1000,"hours":5,"difficulty":"advanced"},
+      {"name":{"ko":"원효사→입석대","en":"Wonhyosa-Ipseokdae"},"distance_km":3.5,"elevation_gain_m":600,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=무등산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/무등산",
+    "tags": ["columnar_joint","unesco_geopark"]
+  },
+  {
+    "key": "naejangsan",
+    "rank_100": 3,
+    "name": {"ko":"내장산","en":"Naejangsan","ja":"內藏山","zh":"内藏山"},
+    "city": "jeongeup",
+    "region": "jeolla_buk",
+    "lat": 35.4861, "lng": 126.8889,
+    "elevation_m": 763,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"내장사→신선봉","en":"Naejangsa-Shinseonbong"},"distance_km":4.0,"elevation_gain_m":600,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"케이블카→전망대","en":"Cable Car-Observatory"},"distance_km":0.5,"elevation_gain_m":50,"hours":0.5,"difficulty":"beginner"}
+    ],
+    "best_season": ["autumn"],
+    "entry_fee_krw": 4000,
+    "google_maps_url": "https://maps.google.com/?q=내장산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/내장산",
+    "tags": ["autumn_foliage_famous","cable_car_available"]
+  },
+  {
+    "key": "moaksan",
+    "rank_100": 4,
+    "name": {"ko":"모악산","en":"Moaksan","ja":"母岳山","zh":"母岳山"},
+    "city": "jeonju",
+    "region": "jeolla_buk",
+    "lat": 35.7167, "lng": 127.0944,
+    "elevation_m": 793,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"금산사→정상","en":"Geumsansa-Summit"},"distance_km":3.5,"elevation_gain_m":650,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=모악산도립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/모악산"
+  },
+  {
+    "key": "maisan",
+    "rank_100": 5,
+    "name": {"ko":"마이산","en":"Maisan","ja":"馬耳山","zh":"马耳山"},
+    "city": "jinan",
+    "region": "jeolla_buk",
+    "lat": 35.7639, "lng": 127.4083,
+    "elevation_m": 685,
+    "difficulty": "beginner",
+    "trails": [
+      {"name":{"ko":"남부→탑사→북부","en":"South-Tapsa-North Loop"},"distance_km":3.0,"elevation_gain_m":350,"hours":2,"difficulty":"beginner"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 3000,
+    "google_maps_url": "https://maps.google.com/?q=마이산도립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/마이산",
+    "tags": ["unique_shape","stone_pagoda"]
+  },
+  {
+    "key": "nogodan",
+    "rank_100": 6,
+    "name": {"ko":"노고단","en":"Nogodan","ja":"老姑壇","zh":"老姑坛"},
+    "city": "gurye",
+    "region": "jeolla_nam",
+    "lat": 35.2944, "lng": 127.5278,
+    "elevation_m": 1507,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"성삼재→노고단","en":"Seongsamjae-Nogodan"},"distance_km":2.5,"elevation_gain_m":250,"hours":1,"difficulty":"beginner"},
+      {"name":{"ko":"화엄사→노고단","en":"Hwaeomsa-Nogodan"},"distance_km":6.5,"elevation_gain_m":1100,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=노고단",
+    "naver_maps_url": "https://map.naver.com/v5/search/노고단",
+    "tags": ["jirisan_peak","reservation_required"]
+  },
+  {
+    "key": "wolchulsan",
+    "rank_100": 7,
+    "name": {"ko":"월출산","en":"Wolchulsan","ja":"月出山","zh":"月出山"},
+    "city": "yeongam",
+    "region": "jeolla_nam",
+    "lat": 34.7611, "lng": 126.6917,
+    "elevation_m": 809,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"천황사→천황봉","en":"Cheonhwangsa-Cheonhwangbong"},"distance_km":4.0,"elevation_gain_m":800,"hours":4,"difficulty":"advanced"},
+      {"name":{"ko":"도갑사→천황봉","en":"Dogapsa-Cheonhwangbong"},"distance_km":6.5,"elevation_gain_m":900,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 2000,
+    "google_maps_url": "https://maps.google.com/?q=월출산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/월출산",
+    "tags": ["sky_bridge"]
+  },
+  {
+    "key": "duryunsan",
+    "rank_100": 8,
+    "name": {"ko":"두륜산","en":"Duryunsan","ja":"頭輪山","zh":"头轮山"},
+    "city": "haenam",
+    "region": "jeolla_nam",
+    "lat": 34.4778, "lng": 126.6111,
+    "elevation_m": 700,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"대흥사→두륜봉","en":"Daeheungsa-Duryunbong"},"distance_km":3.5,"elevation_gain_m":600,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"케이블카→고계봉","en":"Cable Car-Gogyebong"},"distance_km":0.3,"elevation_gain_m":50,"hours":0.3,"difficulty":"beginner"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 3000,
+    "google_maps_url": "https://maps.google.com/?q=두륜산도립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/두륜산",
+    "tags": ["cable_car_available"]
+  },
+  {
+    "key": "cheongwansan",
+    "rank_100": 9,
+    "name": {"ko":"천관산","en":"Cheongwansan","ja":"天冠山","zh":"天冠山"},
+    "city": "jangheung",
+    "region": "jeolla_nam",
+    "lat": 34.5111, "lng": 126.9472,
+    "elevation_m": 724,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"천관사→연대봉","en":"Cheongwansa-Yeondaebong"},"distance_km":3.5,"elevation_gain_m":600,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=천관산도립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/천관산",
+    "tags": ["silver_grass_famous"]
+  },
+  {
+    "key": "gangcheonsan",
+    "rank_100": 10,
+    "name": {"ko":"강천산","en":"Gangcheonsan","ja":"剛泉山","zh":"刚泉山"},
+    "city": "sunchang",
+    "region": "jeolla_buk",
+    "lat": 35.4222, "lng": 127.0750,
+    "elevation_m": 583,
+    "difficulty": "beginner",
+    "trails": [
+      {"name":{"ko":"매표소→구름다리→정상","en":"Gate-Sky Bridge-Summit"},"distance_km":4.0,"elevation_gain_m":400,"hours":2.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["autumn"],
+    "entry_fee_krw": 3000,
+    "google_maps_url": "https://maps.google.com/?q=강천산군립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/강천산",
+    "tags": ["sky_bridge","autumn_foliage"]
+  },
+  {
+    "key": "gyeryongsan",
+    "rank_100": 11,
+    "name": {"ko":"계룡산","en":"Gyeryongsan","ja":"鷄龍山","zh":"鸡龙山"},
+    "city": "gongju",
+    "region": "chungcheong_nam",
+    "lat": 36.3417, "lng": 127.2056,
+    "elevation_m": 846,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"동학사→천황봉","en":"Donghaksa-Cheonhwangbong"},"distance_km":4.5,"elevation_gain_m":700,"hours":4,"difficulty":"intermediate"},
+      {"name":{"ko":"갑사→천황봉","en":"Gapsa-Cheonhwangbong"},"distance_km":5.0,"elevation_gain_m":750,"hours":4,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=계룡산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/계룡산"
+  },
+  {
+    "key": "deogyusan",
+    "rank_100": 12,
+    "name": {"ko":"덕유산","en":"Deogyusan","ja":"德裕山","zh":"德裕山"},
+    "city": "muju",
+    "region": "jeolla_buk",
+    "lat": 35.8597, "lng": 127.7472,
+    "elevation_m": 1614,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"무주리조트 곤돌라→향적봉","en":"Muju Resort Gondola-Hyangjeokbong"},"distance_km":0.6,"elevation_gain_m":100,"hours":0.5,"difficulty":"beginner"},
+      {"name":{"ko":"백련사→향적봉","en":"Baengnyeonsa-Hyangjeokbong"},"distance_km":4.0,"elevation_gain_m":800,"hours":4,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn","winter"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=덕유산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/덕유산",
+    "tags": ["gondola_accessible","snow_landscape"]
+  },
+  {
+    "key": "woraksan",
+    "rank_100": 13,
+    "name": {"ko":"월악산","en":"Woraksan","ja":"月嶽山","zh":"月岳山"},
+    "city": "jecheon",
+    "region": "chungcheong_buk",
+    "lat": 36.8753, "lng": 128.0083,
+    "elevation_m": 1093,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"덕주사→영봉","en":"Deokjusa-Yeongbong"},"distance_km":4.5,"elevation_gain_m":850,"hours":4,"difficulty":"advanced"},
+      {"name":{"ko":"동창교→영봉","en":"Dongchanggyo-Yeongbong"},"distance_km":5.0,"elevation_gain_m":900,"hours":4.5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 2000,
+    "google_maps_url": "https://maps.google.com/?q=월악산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/월악산"
+  },
+  {
+    "key": "doraksan",
+    "rank_100": 14,
+    "name": {"ko":"도락산","en":"Doraksan","ja":"道樂山","zh":"道乐山"},
+    "city": "danyang",
+    "region": "chungcheong_buk",
+    "lat": 36.9056, "lng": 128.4500,
+    "elevation_m": 964,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"상선암→도락산","en":"Sangseonam-Doraksan"},"distance_km":3.5,"elevation_gain_m":700,"hours":3.5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=도락산",
+    "naver_maps_url": "https://map.naver.com/v5/search/도락산"
+  },
+  {
+    "key": "sajasan_yeongwol",
+    "rank_100": 15,
+    "name": {"ko":"사자산","en":"Sajasan","ja":"獅子山","zh":"狮子山"},
+    "city": "yeongwol",
+    "region": "gangwon",
+    "lat": 37.2128, "lng": 128.4567,
+    "elevation_m": 1167,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"법흥사→사자산","en":"Beopheungsa-Sajasan"},"distance_km":4.0,"elevation_gain_m":700,"hours":4,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=사자산영월",
+    "naver_maps_url": "https://map.naver.com/v5/search/사자산"
+  },
+  {
+    "key": "minjujisan",
+    "rank_100": 16,
+    "name": {"ko":"민주지산","en":"Minjujisan","ja":"岷周之山","zh":"岷周之山"},
+    "city": "yeongdong",
+    "region": "chungcheong_buk",
+    "lat": 36.1500, "lng": 127.7500,
+    "elevation_m": 1242,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"물한리→민주지산","en":"Mulhanri-Minjujisan"},"distance_km":6.0,"elevation_gain_m":1000,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=민주지산",
+    "naver_maps_url": "https://map.naver.com/v5/search/민주지산"
+  },
+  {
+    "key": "baekhwasan",
+    "rank_100": 17,
+    "name": {"ko":"백화산","en":"Baekhwasan","ja":"白華山","zh":"白华山"},
+    "city": "yeongdong",
+    "region": "chungcheong_buk",
+    "lat": 36.2500, "lng": 127.7333,
+    "elevation_m": 1064,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"반야사→백화산","en":"Banyasa-Baekhwasan"},"distance_km":4.5,"elevation_gain_m":750,"hours":4,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=백화산",
+    "naver_maps_url": "https://map.naver.com/v5/search/백화산"
+  },
+  {
+    "key": "seongsan_ilchulbong",
+    "rank_100": null,
+    "name": {"ko":"성산일출봉","en":"Seongsan Ilchulbong","ja":"城山日出峰","zh":"城山日出峰"},
+    "city": "seogwipo",
+    "region": "jeju",
+    "lat": 33.4583, "lng": 126.9417,
+    "elevation_m": 182,
+    "difficulty": "beginner",
+    "trails": [
+      {"name":{"ko":"매표소→정상","en":"Gate-Crater Rim"},"distance_km":0.6,"elevation_gain_m":170,"hours":0.5,"difficulty":"beginner"}
+    ],
+    "best_season": ["all"],
+    "entry_fee_krw": 5000,
+    "google_maps_url": "https://maps.google.com/?q=성산일출봉",
+    "naver_maps_url": "https://map.naver.com/v5/search/성산일출봉",
+    "tags": ["unesco_world_heritage","sunrise_famous","volcanic_crater"]
+  },
+  {
+    "key": "sanbangsan",
+    "rank_100": null,
+    "name": {"ko":"산방산","en":"Sanbangsan","ja":"山房山","zh":"山房山"},
+    "city": "seogwipo",
+    "region": "jeju",
+    "lat": 33.2375, "lng": 126.3122,
+    "elevation_m": 395,
+    "difficulty": "beginner",
+    "trails": [
+      {"name":{"ko":"산방굴사 코스","en":"Sanbanggulsa Trail"},"distance_km":0.5,"elevation_gain_m":150,"hours":0.5,"difficulty":"beginner"}
+    ],
+    "best_season": ["all"],
+    "entry_fee_krw": 4000,
+    "google_maps_url": "https://maps.google.com/?q=산방산",
+    "naver_maps_url": "https://map.naver.com/v5/search/산방산",
+    "tags": ["volcanic_dome","sea_view"]
+  },
+  {
+    "key": "mireuksan_jeonju",
+    "rank_100": null,
+    "name": {"ko":"미륵산","en":"Mireuksan","ja":"彌勒山","zh":"弥勒山"},
+    "city": "iksan",
+    "region": "jeolla_buk",
+    "lat": 36.0500, "lng": 127.0250,
+    "elevation_m": 430,
+    "difficulty": "beginner",
+    "trails": [
+      {"name":{"ko":"미륵사지→미륵산","en":"Mireuksa Site-Mireuksan"},"distance_km":3.0,"elevation_gain_m":350,"hours":2,"difficulty":"beginner"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=미륵산익산",
+    "naver_maps_url": "https://map.naver.com/v5/search/미륵산",
+    "tags": ["unesco_world_heritage"]
+  }
+]

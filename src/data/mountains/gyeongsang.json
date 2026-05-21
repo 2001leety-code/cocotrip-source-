@@ -1,0 +1,362 @@
+[
+  {
+    "key": "jirisan",
+    "rank_100": 1,
+    "name": {"ko":"지리산","en":"Jirisan","ja":"智異山","zh":"智异山"},
+    "city": "sancheong",
+    "region": "gyeongsang_nam",
+    "lat": 35.3372, "lng": 127.7308,
+    "elevation_m": 1915,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"성삼재→노고단","en":"Seongsamjae-Nogodan"},"distance_km":2.5,"elevation_gain_m":250,"hours":1,"difficulty":"beginner"},
+      {"name":{"ko":"중산리→천왕봉","en":"Jungsanri-Cheonwangbong"},"distance_km":5.4,"elevation_gain_m":1300,"hours":5,"difficulty":"advanced"},
+      {"name":{"ko":"종주코스 노고단-천왕봉","en":"Nogodan-Cheonwangbong Traverse"},"distance_km":25.0,"elevation_gain_m":1500,"hours":15,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=지리산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/지리산",
+    "tags": ["highest_in_mainland"]
+  },
+  {
+    "key": "gayasan",
+    "rank_100": 2,
+    "name": {"ko":"가야산","en":"Gayasan","ja":"伽倻山","zh":"伽倻山"},
+    "city": "hapcheon",
+    "region": "gyeongsang_nam",
+    "lat": 35.8222, "lng": 128.1278,
+    "elevation_m": 1430,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"해인사→상왕봉","en":"Haeinsa-Sangwangbong"},"distance_km":4.0,"elevation_gain_m":800,"hours":4,"difficulty":"advanced"},
+      {"name":{"ko":"백운동→상왕봉","en":"Baegundong-Sangwangbong"},"distance_km":6.5,"elevation_gain_m":1000,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=가야산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/가야산"
+  },
+  {
+    "key": "juwangsan",
+    "rank_100": 3,
+    "name": {"ko":"주왕산","en":"Juwangsan","ja":"周王山","zh":"周王山"},
+    "city": "cheongsong",
+    "region": "gyeongsang_buk",
+    "lat": 36.3917, "lng": 129.1644,
+    "elevation_m": 720,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"대전사→주왕굴","en":"Daejeonsa-Juwanggul"},"distance_km":4.5,"elevation_gain_m":400,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"절골→가메봉","en":"Jeolgol-Gamebong"},"distance_km":6.0,"elevation_gain_m":600,"hours":4,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=주왕산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/주왕산"
+  },
+  {
+    "key": "palgongsan",
+    "rank_100": 4,
+    "name": {"ko":"팔공산","en":"Palgongsan","ja":"八公山","zh":"八公山"},
+    "city": "daegu",
+    "region": "gyeongsang_buk",
+    "lat": 36.0114, "lng": 128.6953,
+    "elevation_m": 1192,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"동화사→비로봉","en":"Donghwasa-Birobong"},"distance_km":4.5,"elevation_gain_m":750,"hours":4,"difficulty":"advanced"},
+      {"name":{"ko":"갓바위 코스","en":"Gatbawi Trail"},"distance_km":1.5,"elevation_gain_m":300,"hours":1.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=팔공산",
+    "naver_maps_url": "https://map.naver.com/v5/search/팔공산",
+    "tags": ["cable_car_available"]
+  },
+  {
+    "key": "geumjeongsan",
+    "rank_100": 5,
+    "name": {"ko":"금정산","en":"Geumjeongsan","ja":"金井山","zh":"金井山"},
+    "city": "busan",
+    "region": "gyeongsang_nam",
+    "lat": 35.2664, "lng": 129.0533,
+    "elevation_m": 801,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"범어사→고당봉","en":"Beomeosa-Godangbong"},"distance_km":4.0,"elevation_gain_m":650,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"산성마을→고당봉","en":"Sanseong Village-Godangbong"},"distance_km":3.0,"elevation_gain_m":400,"hours":2.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=금정산",
+    "naver_maps_url": "https://map.naver.com/v5/search/금정산",
+    "tags": ["subway_accessible"]
+  },
+  {
+    "key": "sobaeksan",
+    "rank_100": 6,
+    "name": {"ko":"소백산","en":"Sobaeksan","ja":"小白山","zh":"小白山"},
+    "city": "yeongju",
+    "region": "gyeongsang_buk",
+    "lat": 36.9583, "lng": 128.4778,
+    "elevation_m": 1439,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"희방사→비로봉","en":"Huibangsa-Birobong"},"distance_km":3.5,"elevation_gain_m":850,"hours":3.5,"difficulty":"advanced"},
+      {"name":{"ko":"천동탐방→비로봉","en":"Cheondong-Birobong"},"distance_km":7.0,"elevation_gain_m":1100,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn","winter"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=소백산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/소백산"
+  },
+  {
+    "key": "munsusan",
+    "rank_100": 7,
+    "name": {"ko":"문수산","en":"Munsusan","ja":"文殊山","zh":"文殊山"},
+    "city": "cheongdo",
+    "region": "gyeongsang_buk",
+    "lat": 35.5944, "lng": 128.7944,
+    "elevation_m": 1206,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"운문사→문수산","en":"Unmunsa-Munsusan"},"distance_km":5.0,"elevation_gain_m":800,"hours":4,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=문수산",
+    "naver_maps_url": "https://map.naver.com/v5/search/문수산"
+  },
+  {
+    "key": "cheonseongsan",
+    "rank_100": 8,
+    "name": {"ko":"천성산","en":"Cheonseongsan","ja":"千聖山","zh":"千圣山"},
+    "city": "yangsan",
+    "region": "gyeongsang_nam",
+    "lat": 35.3667, "lng": 129.1278,
+    "elevation_m": 920,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"내원사→원효봉","en":"Naewonsa-Wonhyobong"},"distance_km":4.5,"elevation_gain_m":600,"hours":3.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=천성산",
+    "naver_maps_url": "https://map.naver.com/v5/search/천성산"
+  },
+  {
+    "key": "geumosan",
+    "rank_100": 9,
+    "name": {"ko":"금오산","en":"Geumosan","ja":"金烏山","zh":"金乌山"},
+    "city": "gumi",
+    "region": "gyeongsang_buk",
+    "lat": 36.0944, "lng": 128.3458,
+    "elevation_m": 976,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"올라가는길→정상","en":"Main Trail-Summit"},"distance_km":3.5,"elevation_gain_m":700,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"케이블카→정상","en":"Cable Car-Summit"},"distance_km":0.5,"elevation_gain_m":100,"hours":0.5,"difficulty":"beginner"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=금오산도립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/금오산",
+    "tags": ["cable_car_available"]
+  },
+  {
+    "key": "bisilsan",
+    "rank_100": 10,
+    "name": {"ko":"비슬산","en":"Bisilsan","ja":"琵瑟山","zh":"琵瑟山"},
+    "city": "daegu",
+    "region": "gyeongsang_buk",
+    "lat": 35.6917, "lng": 128.5333,
+    "elevation_m": 1084,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"유가사→대견봉","en":"Yugasa-Daegyeonbong"},"distance_km":3.5,"elevation_gain_m":750,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=비슬산",
+    "naver_maps_url": "https://map.naver.com/v5/search/비슬산",
+    "tags": ["royal_azalea_famous"]
+  },
+  {
+    "key": "daewoonsan",
+    "rank_100": 11,
+    "name": {"ko":"대운산","en":"Daewoonsan","ja":"大運山","zh":"大运山"},
+    "city": "ulsan",
+    "region": "gyeongsang_nam",
+    "lat": 35.4444, "lng": 129.2444,
+    "elevation_m": 742,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"내원사→대운산","en":"Naewonsa-Daewoonsan"},"distance_km":4.0,"elevation_gain_m":500,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=대운산",
+    "naver_maps_url": "https://map.naver.com/v5/search/대운산"
+  },
+  {
+    "key": "hwangmaesan",
+    "rank_100": 12,
+    "name": {"ko":"황매산","en":"Hwangmaesan","ja":"黃梅山","zh":"黄梅山"},
+    "city": "hapcheon",
+    "region": "gyeongsang_nam",
+    "lat": 35.4778, "lng": 127.8889,
+    "elevation_m": 1108,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"황매평전→정상","en":"Hwangmae Plateau-Summit"},"distance_km":2.0,"elevation_gain_m":250,"hours":1.5,"difficulty":"beginner"}
+    ],
+    "best_season": ["spring"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=황매산",
+    "naver_maps_url": "https://map.naver.com/v5/search/황매산",
+    "tags": ["royal_azalea_famous","drone_friendly"]
+  },
+  {
+    "key": "hwangseoksan",
+    "rank_100": 13,
+    "name": {"ko":"황석산","en":"Hwangseoksan","ja":"黃石山","zh":"黄石山"},
+    "city": "hamyang",
+    "region": "gyeongsang_nam",
+    "lat": 35.6500, "lng": 127.6750,
+    "elevation_m": 1190,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"동발리→황석산성","en":"Dongbalri-Hwangseok Fortress"},"distance_km":3.5,"elevation_gain_m":700,"hours":3.5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=황석산",
+    "naver_maps_url": "https://map.naver.com/v5/search/황석산"
+  },
+  {
+    "key": "baekunsan_hamyang",
+    "rank_100": 14,
+    "name": {"ko":"백운산","en":"Baekunsan","ja":"白雲山","zh":"白云山"},
+    "city": "hamyang",
+    "region": "gyeongsang_nam",
+    "lat": 35.6028, "lng": 127.6444,
+    "elevation_m": 1228,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"백운암→상연대","en":"Baegunam-Sangyeondae"},"distance_km":5.0,"elevation_gain_m":850,"hours":4,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=함양백운산",
+    "naver_maps_url": "https://map.naver.com/v5/search/함양+백운산"
+  },
+  {
+    "key": "hwangjangsan",
+    "rank_100": 15,
+    "name": {"ko":"황장산","en":"Hwangjangsan","ja":"黃腸山","zh":"黄肠山"},
+    "city": "mungyeong",
+    "region": "gyeongsang_buk",
+    "lat": 36.7833, "lng": 128.1944,
+    "elevation_m": 1077,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"안생달→황장산","en":"Ansaengdal-Hwangjangsan"},"distance_km":5.5,"elevation_gain_m":750,"hours":4,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=황장산",
+    "naver_maps_url": "https://map.naver.com/v5/search/황장산"
+  },
+  {
+    "key": "namsan_gyeongju",
+    "rank_100": 16,
+    "name": {"ko":"경주 남산","en":"Gyeongju Namsan","ja":"慶州南山","zh":"庆州南山"},
+    "city": "gyeongju",
+    "region": "gyeongsang_buk",
+    "lat": 35.7889, "lng": 129.2167,
+    "elevation_m": 466,
+    "difficulty": "beginner",
+    "trails": [
+      {"name":{"ko":"삼릉→상선암→정상","en":"Samneung-Sangseonam-Summit"},"distance_km":4.5,"elevation_gain_m":350,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"용장골→정상","en":"Yongjanggol-Summit"},"distance_km":4.0,"elevation_gain_m":300,"hours":2.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=경주남산",
+    "naver_maps_url": "https://map.naver.com/v5/search/경주+남산",
+    "tags": ["unesco_world_heritage","buddhist_relics"]
+  },
+  {
+    "key": "tohamsan",
+    "rank_100": null,
+    "name": {"ko":"토함산","en":"Tohamsan","ja":"吐含山","zh":"吐含山"},
+    "city": "gyeongju",
+    "region": "gyeongsang_buk",
+    "lat": 35.7889, "lng": 129.3528,
+    "elevation_m": 745,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"불국사→석굴암→토함산","en":"Bulguksa-Seokguram-Tohamsan"},"distance_km":4.5,"elevation_gain_m":600,"hours":3.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 6000,
+    "google_maps_url": "https://maps.google.com/?q=토함산",
+    "naver_maps_url": "https://map.naver.com/v5/search/토함산",
+    "tags": ["unesco_world_heritage","temple_route"]
+  },
+  {
+    "key": "hwangnyeongsan",
+    "rank_100": null,
+    "name": {"ko":"황령산","en":"Hwangnyeongsan","ja":"荒嶺山","zh":"荒岭山"},
+    "city": "busan",
+    "region": "gyeongsang_nam",
+    "lat": 35.1378, "lng": 129.0858,
+    "elevation_m": 427,
+    "difficulty": "beginner",
+    "trails": [
+      {"name":{"ko":"황령산봉수대 코스","en":"Beacon Tower Loop"},"distance_km":2.5,"elevation_gain_m":280,"hours":1.5,"difficulty":"beginner"}
+    ],
+    "best_season": ["all"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=황령산",
+    "naver_maps_url": "https://map.naver.com/v5/search/황령산",
+    "tags": ["night_view_famous","busan_panorama"]
+  },
+  {
+    "key": "namhaesan_geumsan",
+    "rank_100": 17,
+    "name": {"ko":"남해 금산","en":"Namhae Geumsan","ja":"南海錦山","zh":"南海锦山"},
+    "city": "namhae",
+    "region": "gyeongsang_nam",
+    "lat": 34.7456, "lng": 127.9956,
+    "elevation_m": 681,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"보리암→상사바위","en":"Boriam-Sangsabawi"},"distance_km":2.0,"elevation_gain_m":300,"hours":2,"difficulty":"beginner"}
+    ],
+    "best_season": ["all"],
+    "entry_fee_krw": 1000,
+    "google_maps_url": "https://maps.google.com/?q=남해+금산",
+    "naver_maps_url": "https://map.naver.com/v5/search/남해+금산",
+    "tags": ["sea_view"]
+  },
+  {
+    "key": "songnisan",
+    "rank_100": 18,
+    "name": {"ko":"속리산","en":"Songnisan","ja":"俗離山","zh":"俗离山"},
+    "city": "boeun",
+    "region": "chungcheong_buk",
+    "lat": 36.5500, "lng": 127.8722,
+    "elevation_m": 1058,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"법주사→문장대","en":"Beopjusa-Munjangdae"},"distance_km":6.0,"elevation_gain_m":850,"hours":5,"difficulty":"advanced"},
+      {"name":{"ko":"법주사→천왕봉","en":"Beopjusa-Cheonwangbong"},"distance_km":8.0,"elevation_gain_m":1000,"hours":6,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 4000,
+    "google_maps_url": "https://maps.google.com/?q=속리산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/속리산"
+  }
+]

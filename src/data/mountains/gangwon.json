@@ -1,0 +1,353 @@
+[
+  {
+    "key": "seoraksan",
+    "rank_100": 1,
+    "name": {"ko":"설악산","en":"Seoraksan","ja":"雪嶽山","zh":"雪岳山"},
+    "city": "sokcho",
+    "region": "gangwon",
+    "lat": 38.1196, "lng": 128.4655,
+    "elevation_m": 1708,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"오색→대청봉","en":"Osaek-Daecheongbong"},"distance_km":5.0,"elevation_gain_m":1300,"hours":5,"difficulty":"advanced"},
+      {"name":{"ko":"설악동→대청봉","en":"Seorakdong-Daecheongbong"},"distance_km":11.0,"elevation_gain_m":1500,"hours":7,"difficulty":"advanced"},
+      {"name":{"ko":"비룡폭포 코스","en":"Biryong Falls Trail"},"distance_km":4.0,"elevation_gain_m":300,"hours":2,"difficulty":"beginner"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 3500,
+    "google_maps_url": "https://maps.google.com/?q=설악산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/설악산"
+  },
+  {
+    "key": "odaesan",
+    "rank_100": 2,
+    "name": {"ko":"오대산","en":"Odaesan","ja":"五臺山","zh":"五台山"},
+    "city": "pyeongchang",
+    "region": "gangwon",
+    "lat": 37.7942, "lng": 128.5439,
+    "elevation_m": 1565,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"상원사→비로봉","en":"Sangwonsa-Birobong"},"distance_km":3.6,"elevation_gain_m":700,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"월정사→비로봉","en":"Woljeongsa-Birobong"},"distance_km":12.0,"elevation_gain_m":900,"hours":6,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","summer","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=오대산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/오대산"
+  },
+  {
+    "key": "taebaeksan",
+    "rank_100": 3,
+    "name": {"ko":"태백산","en":"Taebaeksan","ja":"太白山","zh":"太白山"},
+    "city": "taebaek",
+    "region": "gangwon",
+    "lat": 37.0945, "lng": 128.9165,
+    "elevation_m": 1567,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"유일사→천제단","en":"Yuilsa-Cheonjedan"},"distance_km":4.0,"elevation_gain_m":600,"hours":3,"difficulty":"intermediate"},
+      {"name":{"ko":"백단사→천제단","en":"Baekdansa-Cheonjedan"},"distance_km":4.4,"elevation_gain_m":650,"hours":3.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["winter","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=태백산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/태백산"
+  },
+  {
+    "key": "gyebangsan",
+    "rank_100": 4,
+    "name": {"ko":"계방산","en":"Gyebangsan","ja":"桂芳山","zh":"桂芳山"},
+    "city": "pyeongchang",
+    "region": "gangwon",
+    "lat": 37.7311, "lng": 128.3833,
+    "elevation_m": 1577,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"운두령→정상","en":"Undeungnyeong-Summit"},"distance_km":4.0,"elevation_gain_m":300,"hours":2.5,"difficulty":"beginner"},
+      {"name":{"ko":"이승복생가→정상","en":"Lee Seung-bok House-Summit"},"distance_km":8.0,"elevation_gain_m":1100,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["winter","spring"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=계방산",
+    "naver_maps_url": "https://map.naver.com/v5/search/계방산"
+  },
+  {
+    "key": "bangtaesan",
+    "rank_100": 5,
+    "name": {"ko":"방태산","en":"Bangtaesan","ja":"芳台山","zh":"芳台山"},
+    "city": "inje",
+    "region": "gangwon",
+    "lat": 38.0653, "lng": 128.3500,
+    "elevation_m": 1444,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"방태천→주억봉","en":"Bangtaecheon-Jueokbong"},"distance_km":7.5,"elevation_gain_m":900,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=방태산휴양림",
+    "naver_maps_url": "https://map.naver.com/v5/search/방태산"
+  },
+  {
+    "key": "jeombongsan",
+    "rank_100": 6,
+    "name": {"ko":"점봉산","en":"Jeombongsan","ja":"占峰山","zh":"占峰山"},
+    "city": "inje",
+    "region": "gangwon",
+    "lat": 38.0289, "lng": 128.4500,
+    "elevation_m": 1424,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"오색→점봉산","en":"Osaek-Jeombongsan"},"distance_km":6.5,"elevation_gain_m":1000,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=점봉산",
+    "naver_maps_url": "https://map.naver.com/v5/search/점봉산"
+  },
+  {
+    "key": "eungboksan",
+    "rank_100": 7,
+    "name": {"ko":"응복산","en":"Eungboksan","ja":"鷹伏山","zh":"鹰伏山"},
+    "city": "yangyang",
+    "region": "gangwon",
+    "lat": 37.9000, "lng": 128.5167,
+    "elevation_m": 1360,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"통마름→응복산","en":"Tongmareum-Eungboksan"},"distance_km":7.0,"elevation_gain_m":950,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=응복산",
+    "naver_maps_url": "https://map.naver.com/v5/search/응복산"
+  },
+  {
+    "key": "dutasan",
+    "rank_100": 8,
+    "name": {"ko":"두타산","en":"Dutasan","ja":"頭陀山","zh":"头陀山"},
+    "city": "donghae",
+    "region": "gangwon",
+    "lat": 37.3458, "lng": 129.0014,
+    "elevation_m": 1353,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"무릉계곡→두타산","en":"Mureung Valley-Dutasan"},"distance_km":7.5,"elevation_gain_m":1100,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","summer","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=두타산무릉계곡",
+    "naver_maps_url": "https://map.naver.com/v5/search/두타산"
+  },
+  {
+    "key": "cheongoksan",
+    "rank_100": 9,
+    "name": {"ko":"청옥산","en":"Cheongoksan","ja":"青玉山","zh":"青玉山"},
+    "city": "samcheok",
+    "region": "gangwon",
+    "lat": 37.3389, "lng": 128.9750,
+    "elevation_m": 1404,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"무릉계곡→청옥산","en":"Mureung Valley-Cheongoksan"},"distance_km":9.0,"elevation_gain_m":1150,"hours":6,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=청옥산",
+    "naver_maps_url": "https://map.naver.com/v5/search/청옥산"
+  },
+  {
+    "key": "gariwangsan",
+    "rank_100": 10,
+    "name": {"ko":"가리왕산","en":"Gariwangsan","ja":"加里王山","zh":"加里王山"},
+    "city": "pyeongchang",
+    "region": "gangwon",
+    "lat": 37.4628, "lng": 128.5847,
+    "elevation_m": 1561,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"장구목이→가리왕산","en":"Janggumogi-Gariwangsan"},"distance_km":6.5,"elevation_gain_m":900,"hours":5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=가리왕산",
+    "naver_maps_url": "https://map.naver.com/v5/search/가리왕산"
+  },
+  {
+    "key": "hambaeksan",
+    "rank_100": 11,
+    "name": {"ko":"함백산","en":"Hambaeksan","ja":"咸白山","zh":"咸白山"},
+    "city": "taebaek",
+    "region": "gangwon",
+    "lat": 37.1592, "lng": 128.9100,
+    "elevation_m": 1573,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"만항재→함백산","en":"Manhangjae-Hambaeksan"},"distance_km":2.5,"elevation_gain_m":230,"hours":1.5,"difficulty":"beginner"},
+      {"name":{"ko":"두문동재→함백산","en":"Dumundongjae-Hambaeksan"},"distance_km":5.0,"elevation_gain_m":500,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["winter","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=함백산",
+    "naver_maps_url": "https://map.naver.com/v5/search/함백산"
+  },
+  {
+    "key": "chiaksan",
+    "rank_100": 12,
+    "name": {"ko":"치악산","en":"Chiaksan","ja":"雉嶽山","zh":"雉岳山"},
+    "city": "wonju",
+    "region": "gangwon",
+    "lat": 37.3711, "lng": 128.0517,
+    "elevation_m": 1288,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"구룡사→비로봉","en":"Guryongsa-Birobong"},"distance_km":4.4,"elevation_gain_m":1000,"hours":4,"difficulty":"advanced"},
+      {"name":{"ko":"황골→비로봉","en":"Hwanggol-Birobong"},"distance_km":3.5,"elevation_gain_m":900,"hours":3.5,"difficulty":"advanced"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 3000,
+    "google_maps_url": "https://maps.google.com/?q=치악산국립공원",
+    "naver_maps_url": "https://map.naver.com/v5/search/치악산"
+  },
+  {
+    "key": "balwangsan",
+    "rank_100": null,
+    "name": {"ko":"발왕산","en":"Balwangsan","ja":"發旺山","zh":"发旺山"},
+    "city": "pyeongchang",
+    "region": "gangwon",
+    "lat": 37.6539, "lng": 128.6764,
+    "elevation_m": 1458,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"용평리조트 곤돌라→정상","en":"Yongpyong Gondola-Summit"},"distance_km":0.5,"elevation_gain_m":50,"hours":0.5,"difficulty":"beginner"},
+      {"name":{"ko":"베어스타운→정상","en":"Bear's Town-Summit"},"distance_km":6.0,"elevation_gain_m":900,"hours":4,"difficulty":"intermediate"}
+    ],
+    "best_season": ["all"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=발왕산",
+    "naver_maps_url": "https://map.naver.com/v5/search/발왕산",
+    "tags": ["gondola_accessible","ski_resort"]
+  },
+  {
+    "key": "deokhangsan",
+    "rank_100": null,
+    "name": {"ko":"덕항산","en":"Deokhangsan","ja":"德項山","zh":"德项山"},
+    "city": "samcheok",
+    "region": "gangwon",
+    "lat": 37.2406, "lng": 128.9089,
+    "elevation_m": 1071,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"환선굴→덕항산","en":"Hwanseon Cave-Deokhangsan"},"distance_km":5.5,"elevation_gain_m":700,"hours":4,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=덕항산",
+    "naver_maps_url": "https://map.naver.com/v5/search/덕항산"
+  },
+  {
+    "key": "myeongseongsan",
+    "rank_100": 13,
+    "name": {"ko":"명성산","en":"Myeongseongsan","ja":"鳴聲山","zh":"鸣声山"},
+    "city": "cheorwon",
+    "region": "gangwon",
+    "lat": 38.0731, "lng": 127.3722,
+    "elevation_m": 922,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"산정호수→명성산","en":"Sanjeong Lake-Myeongseongsan"},"distance_km":4.5,"elevation_gain_m":700,"hours":3.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=명성산억새",
+    "naver_maps_url": "https://map.naver.com/v5/search/명성산",
+    "tags": ["silver_grass_famous"]
+  },
+  {
+    "key": "baekdeoksan",
+    "rank_100": 14,
+    "name": {"ko":"백덕산","en":"Baekdeoksan","ja":"白德山","zh":"白德山"},
+    "city": "pyeongchang",
+    "region": "gangwon",
+    "lat": 37.4181, "lng": 128.3792,
+    "elevation_m": 1350,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"문재→백덕산","en":"Munjae-Baekdeoksan"},"distance_km":5.0,"elevation_gain_m":650,"hours":4,"difficulty":"intermediate"}
+    ],
+    "best_season": ["winter","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=백덕산",
+    "naver_maps_url": "https://map.naver.com/v5/search/백덕산"
+  },
+  {
+    "key": "baekseoksan",
+    "rank_100": 15,
+    "name": {"ko":"백석산","en":"Baekseoksan","ja":"白石山","zh":"白石山"},
+    "city": "pyeongchang",
+    "region": "gangwon",
+    "lat": 37.5667, "lng": 128.4528,
+    "elevation_m": 1364,
+    "difficulty": "advanced",
+    "trails": [
+      {"name":{"ko":"비행기재→백석산","en":"Bihaenggijae-Baekseoksan"},"distance_km":4.0,"elevation_gain_m":500,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=백석산",
+    "naver_maps_url": "https://map.naver.com/v5/search/백석산"
+  },
+  {
+    "key": "palbongsan_hongcheon",
+    "rank_100": 16,
+    "name": {"ko":"팔봉산","en":"Palbongsan","ja":"八峰山","zh":"八峰山"},
+    "city": "hongcheon",
+    "region": "gangwon",
+    "lat": 37.7264, "lng": 127.7544,
+    "elevation_m": 327,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"매표소→8봉→매표소","en":"Loop 8 peaks"},"distance_km":3.5,"elevation_gain_m":300,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 1000,
+    "google_maps_url": "https://maps.google.com/?q=팔봉산홍천",
+    "naver_maps_url": "https://map.naver.com/v5/search/홍천+팔봉산"
+  },
+  {
+    "key": "samaksan",
+    "rank_100": null,
+    "name": {"ko":"삼악산","en":"Samaksan","ja":"三嶽山","zh":"三岳山"},
+    "city": "chuncheon",
+    "region": "gangwon",
+    "lat": 37.8556, "lng": 127.6056,
+    "elevation_m": 654,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"등선폭포→정상","en":"Deungseon Falls-Summit"},"distance_km":3.5,"elevation_gain_m":550,"hours":3,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 1000,
+    "google_maps_url": "https://maps.google.com/?q=삼악산",
+    "naver_maps_url": "https://map.naver.com/v5/search/삼악산",
+    "tags": ["cable_car_nearby"]
+  },
+  {
+    "key": "geombongsan",
+    "rank_100": 17,
+    "name": {"ko":"검봉산","en":"Geombongsan","ja":"劍峰山","zh":"剑峰山"},
+    "city": "samcheok",
+    "region": "gangwon",
+    "lat": 37.1986, "lng": 129.0986,
+    "elevation_m": 685,
+    "difficulty": "intermediate",
+    "trails": [
+      {"name":{"ko":"용화역→검봉산","en":"Yonghwa Station-Geombongsan"},"distance_km":5.0,"elevation_gain_m":600,"hours":3.5,"difficulty":"intermediate"}
+    ],
+    "best_season": ["spring","autumn"],
+    "entry_fee_krw": 0,
+    "google_maps_url": "https://maps.google.com/?q=검봉산",
+    "naver_maps_url": "https://map.naver.com/v5/search/검봉산"
+  }
+]
