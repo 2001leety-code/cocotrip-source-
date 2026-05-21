@@ -33,10 +33,10 @@ describe('P135 resolveGeminiModel', () => {
     for (const k of ENV_KEYS) delete process.env[k];
   });
 
-  it('default — main role 은 3.5 Flash (Pro → Flash 다운그레이드)', async () => {
+  it('default — main role 은 2.5 Pro 유지 (Flash 다운그레이드 시 schema/B-MEAL 회귀 위험)', async () => {
     const { resolveGeminiModel, _GEMINI_MODEL_DEFAULTS } = await freshResolver();
     expect(resolveGeminiModel('main')).toBe(_GEMINI_MODEL_DEFAULTS.main);
-    expect(_GEMINI_MODEL_DEFAULTS.main).toBe('gemini-3.5-flash');
+    expect(_GEMINI_MODEL_DEFAULTS.main).toBe('gemini-2.5-pro');
   });
 
   it('default — block role 은 3.5 Flash', async () => {
@@ -90,7 +90,7 @@ describe('P135 resolveGeminiModel', () => {
     process.env.GEMINI_MODEL_OVERRIDE = '   ';
     process.env.GEMINI_MAIN_MODEL = '\n\t';
     const { resolveGeminiModel } = await freshResolver();
-    expect(resolveGeminiModel('main')).toBe('gemini-3.5-flash');
+    expect(resolveGeminiModel('main')).toBe('gemini-2.5-pro');
   });
 
   it('invalid role 은 TypeError throw', async () => {

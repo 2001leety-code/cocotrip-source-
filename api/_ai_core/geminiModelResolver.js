@@ -17,10 +17,12 @@
 // (보이지 않는 \n 으로 invalid model error 회피).
 
 const DEFAULTS = {
-  // ai-planner main — legacy 1-pass Gemini. 운영자 메모리: 2.5 Pro → 3.5 Flash
-  // 다운그레이드 (비용 +$1.8/월 = Flash 가격대 추정). 단, plan 품질 priority 라
-  // Vercel ENV GEMINI_MAIN_MODEL=gemini-3.5-pro 운영자 명시 옵션.
-  main: 'gemini-3.5-flash',
+  // ai-planner main — legacy 1-pass Gemini. **Pro 유지** (2026-05-21 운영자 결정):
+  // Flash 다운그레이드 시 JSON schema strict 위반 / B-MEAL / B-13 / dietary
+  // validator 회귀 위험 (CLAUDE.md F 'validatePatternStructure intermittent fail'
+  // 경고와 정합). thinkingBudget 32K + 32K output 으로 5-day 복잡 plan 추론 필수.
+  // 비용 ↓ 보다 plan 품질 priority. Vercel ENV GEMINI_MAIN_MODEL 로 추후 변경 가능.
+  main: 'gemini-2.5-pro',
   // block-mode selection — Flash JSON-only 빠르고 저렴
   block: 'gemini-3.5-flash',
   // intent classifier 폴백 — Flash Lite 유지 (rule-based 미달 시만 호출)
