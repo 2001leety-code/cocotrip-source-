@@ -1095,6 +1095,7 @@ const RULES = [
   ['P126_wizardResumeContent', P126_wizardResumeContent],
   ['P127_lodgingBookendMultiCityAnchor', P127_lodgingBookendMultiCityAnchor],
   ['P128_blockModeIntegration', P128_blockModeIntegration],
+  ['P130_intentClassifierMonitoring', P130_intentClassifierMonitoring],
 ];
 
 /**
@@ -2566,6 +2567,94 @@ function P128_blockModeIntegration({ changed }) {
       'P128_blockModeIntegration',
       violations.join(' | '),
       '메모리 P128 — ai-planner-full block-mode 분기 import + 호출 + legacy fallback + SAFETY-CRITICAL dietary 검사 의무.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P130_intentClassifierMonitoring — 메모리 P130 (2026-05-21). ai-planner-modify.js
+ * 의 intent classifier 결과를 Firestore `intent_classifier_logs/{logId}` 에
+ * fire-and-forget 으로 저장 + admin dashboard `/admin/intent-classifier` + weekly
+ * cron 알림. 다음 4 layer 검증:
+ *   1. src/lib/intent-classifier-logs.ts: fetchRecentLogs / fetchWeeklyStats /
+ *      fetchHighFallbackSamples 3 export.
+ *   2. api/ai-planner-modify.js: intent_classifier_logs collection write
+ *      (logIntentClassifierAsync 또는 collection('intent_classifier_logs').add).
+ *   3. api/_crons/intent-classifier-summary.js 존재 + throttledTelegramAlert 호출.
+ *   4. cron-runner.js / vercel.json 에 'intent-classifier-summary' job 등록.
+ */
+function P130_intentClassifierMonitoring({ changed }) {
+  const LIB = 'src/lib/intent-classifier-logs.ts';
+  const MODIFY = 'api/ai-planner-modify.js';
+  const CRON = 'api/_crons/intent-classifier-summary.js';
+  const RUNNER = 'api/cron-runner.js';
+  const VERCEL = 'vercel.json';
+  const ADMIN_PAGE = 'src/pages/AdminIntentClassifier.tsx';
+  const allRelevant = [LIB, MODIFY, CRON, RUNNER, VERCEL, ADMIN_PAGE];
+  if (!allRelevant.some((f) => isModified(f, changed))) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  // 1. src/lib helper — 3 export 필수.
+  if (existsSync(LIB)) {
+    const c = readFileSync(LIB, 'utf8');
+    if (!/export\s+async\s+function\s+fetchRecentLogs\s*\(/.test(c)) {
+      violations.push(`${LIB}: fetchRecentLogs export 누락`);
+    }
+    if (!/export\s+async\s+function\s+fetchWeeklyStats\s*\(/.test(c)) {
+      violations.push(`${LIB}: fetchWeeklyStats export 누락`);
+    }
+    if (!/export\s+async\s+function\s+fetchHighFallbackSamples\s*\(/.test(c)) {
+      violations.push(`${LIB}: fetchHighFallbackSamples export 누락`);
+    }
+  } else if (isModified(MODIFY, changed) || isModified(ADMIN_PAGE, changed)) {
+    violations.push(`${LIB}: 파일 누락 — modify endpoint / admin page 가 dependency`);
+  }
+
+  // 2. ai-planner-modify.js — intent_classifier_logs write 호출 필수.
+  if (existsSync(MODIFY)) {
+    const c = readFileSync(MODIFY, 'utf8');
+    const hasLogWrite = /collection\(\s*['"]intent_classifier_logs['"]\s*\)\s*\.add\s*\(/.test(c)
+      || /logIntentClassifierAsync\s*\(/.test(c);
+    if (!hasLogWrite) {
+      violations.push(`${MODIFY}: intent_classifier_logs.add 또는 logIntentClassifierAsync 호출 누락 — P130 모니터링 불가`);
+    }
+  }
+
+  // 3. cron handler — throttledTelegramAlert 호출 + 임계값 정의.
+  if (existsSync(CRON)) {
+    const c = readFileSync(CRON, 'utf8');
+    if (!/throttledTelegramAlert\s*\(/.test(c)) {
+      violations.push(`${CRON}: throttledTelegramAlert 호출 누락 — alert dedup pattern (P67) 미사용`);
+    }
+    if (!/intent_classifier_logs/.test(c)) {
+      violations.push(`${CRON}: intent_classifier_logs 컬렉션 참조 누락`);
+    }
+  } else if (isModified(RUNNER, changed) || isModified(VERCEL, changed)) {
+    violations.push(`${CRON}: 파일 누락 — cron-runner / vercel.json 에 'intent-classifier-summary' 등록됐으나 handler 없음`);
+  }
+
+  // 4. cron-runner + vercel.json 등록 일관성.
+  if (existsSync(RUNNER)) {
+    const c = readFileSync(RUNNER, 'utf8');
+    if (!/['"]intent-classifier-summary['"]/.test(c)) {
+      violations.push(`${RUNNER}: 'intent-classifier-summary' job 등록 누락 — cron handler 호출 불가`);
+    }
+  }
+  if (existsSync(VERCEL)) {
+    const c = readFileSync(VERCEL, 'utf8');
+    if (!/intent-classifier-summary/.test(c)) {
+      violations.push(`${VERCEL}: crons 배열에 intent-classifier-summary 누락 — 스케줄러 미동작`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P130_intentClassifierMonitoring',
+      violations.join(' | '),
+      '메모리 P130 — intent classifier prod 모니터링: lib export 3개 + modify endpoint 로그 저장 + weekly cron + cron-runner/vercel.json 등록.',
     );
   }
   return null;
@@ -5451,6 +5540,34 @@ function runSelfTest() {
           "export function shouldUseBlockMode() {}\nexport function fetchAvailableBlocks() {}\nexport function expandBlocksToItinerary() { throw new Error('BLOCK_MODE_DIETARY_UNSATISFIED'); }\n",
       },
       expectRule: 'P128_blockModeIntegration',
+    },
+    {
+      label: 'P130: intent_classifier_logs.add 호출 누락 — 모니터링 불가',
+      base: {
+        'src/lib/intent-classifier-logs.ts':
+          "export async function fetchRecentLogs() {}\nexport async function fetchWeeklyStats() {}\nexport async function fetchHighFallbackSamples() {}\n",
+        'api/ai-planner-modify.js':
+          "// P130 log\nadminDb.collection('intent_classifier_logs').add({});\n",
+        'api/_crons/intent-classifier-summary.js':
+          "// P130\nimport { throttledTelegramAlert } from '../_shared/telegram-throttle.js';\n// intent_classifier_logs\nthrottledTelegramAlert({key:'intent-classifier-fallback-high'});\n",
+        'api/cron-runner.js':
+          "// 'intent-classifier-summary'\n'intent-classifier-summary': handler\n",
+        'vercel.json':
+          "{ \"crons\": [ { \"path\": \"/api/cron-runner?job=intent-classifier-summary\", \"schedule\": \"0 21 * * 1\" } ] }\n",
+      },
+      head: {
+        'src/lib/intent-classifier-logs.ts':
+          "export async function fetchRecentLogs() {}\nexport async function fetchWeeklyStats() {}\nexport async function fetchHighFallbackSamples() {}\n",
+        'api/ai-planner-modify.js':
+          "// log 호출 제거\nreturn ok();\n",
+        'api/_crons/intent-classifier-summary.js':
+          "// P130\nimport { throttledTelegramAlert } from '../_shared/telegram-throttle.js';\n// intent_classifier_logs\nthrottledTelegramAlert({key:'intent-classifier-fallback-high'});\n",
+        'api/cron-runner.js':
+          "// 'intent-classifier-summary'\n'intent-classifier-summary': handler\n",
+        'vercel.json':
+          "{ \"crons\": [ { \"path\": \"/api/cron-runner?job=intent-classifier-summary\", \"schedule\": \"0 21 * * 1\" } ] }\n",
+      },
+      expectRule: 'P130_intentClassifierMonitoring',
     },
   ];
 

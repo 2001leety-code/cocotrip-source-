@@ -56,6 +56,10 @@
     {
       "path": "/api/cron-runner?job=scan-visitkorea-attractions",
       "schedule": "0 20 1 * *"
+    },
+    {
+      "path": "/api/cron-runner?job=intent-classifier-summary",
+      "schedule": "0 21 * * 1"
     }
   ],
   "functions": {
