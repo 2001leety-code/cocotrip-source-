@@ -119,6 +119,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const [extraCities, setExtraCities]         = useState<string[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
   const [freeText, setFreeText]               = useState('');
+  // 2026-05-21 (P125): 다도시 plan 의 명시적 입국/출국 도시. cityKey 형식.
+  // 사용자 신고 (5/21): "서울 부산이면 어디서 입국하고 어디서 출국하는지 표시해야되는데
+  // 없더라" — 단일 mainCity 로 entry 만 추론 → 출국 city 모호성.
+  const [arrivalCityKey, setArrivalCityKey]     = useState<string>('');
+  const [departureCityKey, setDepartureCityKey] = useState<string>('');
 
   // Step 1: food preferences
   const [dietPrefs, setDietPrefs]   = useState<string[]>([]);
@@ -350,6 +355,20 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainCityKey]);
 
+  // 2026-05-21 (P125): arrival/departure role 자동 cleanup. 사용자가 도시를 deselect
+  // 하면 (예: extraCities 에서 제거, mainCity swap) 그 도시의 role 도 해제.
+  // 또한 arrival === departure 무효 상태 차단 (단도시 plan 의 경우만 같을 수 있음).
+  useEffect(() => {
+    const liveKeys = mainCityKey ? [mainCityKey, ...extraCityKeys] : [];
+    if (arrivalCityKey && !liveKeys.includes(arrivalCityKey)) setArrivalCityKey('');
+    if (departureCityKey && !liveKeys.includes(departureCityKey)) setDepartureCityKey('');
+    // 다도시 plan 인데 arrival === departure 같으면 departure 해제 (사용자 cycle 중 혼동).
+    if (liveKeys.length > 1 && arrivalCityKey && arrivalCityKey === departureCityKey) {
+      setDepartureCityKey('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainCityKey, extraCityKeys.join(','), arrivalCityKey, departureCityKey]);
+
   const calendarLocale = LOCALE_MAP[language] || enUS;
 
   // 2026-05-09 (B9-35): debounced autosave. resume modal 이 떠 있는 동안엔 저장 X
@@ -545,6 +564,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         // 다도시 시 추가 컨텍스트 — backend buildPrompt.js 가 도시별 prompt inject.
         ...(isMultiCity && Object.keys(hotelByCity).length > 0 ? { hotelByCity } : {}),
         ...(isMultiCity ? { entry_city: mainCityKey } : {}),
+        // 2026-05-21 (P125): 사용자가 명시적으로 입국/출국 도시 클릭 cycle 로 지정한 경우만
+        // forward. 미입력 시 backend buildPrompt MULTI-CITY HANDLING 의 city ordering rule
+        // (arrival_airport → 첫 도시) 폴백.
+        ...(arrivalCityKey ? { arrival_city: arrivalCityKey } : {}),
+        ...(departureCityKey ? { departure_city: departureCityKey } : {}),
         mobility,
         uid: user?.uid || null,
         wantAccom: wantAccom || undefined,
@@ -693,6 +717,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
                   onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
                   dateRange={dateRange} setDateRange={setDateRange}
+                  arrivalCityKey={arrivalCityKey} departureCityKey={departureCityKey}
+                  setArrivalCityKey={setArrivalCityKey} setDepartureCityKey={setDepartureCityKey}
                 />
               )}
               {step === 2 && (

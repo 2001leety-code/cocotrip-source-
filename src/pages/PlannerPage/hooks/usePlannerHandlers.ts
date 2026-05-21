@@ -256,6 +256,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // hotel inject. entry_city 는 RouteAgent 의 entry 공항→첫 호텔 경로 계산용.
           ...(values.entry_city ? { entry_city: values.entry_city } : {}),
           ...(values.hotelByCity && Object.keys(values.hotelByCity).length > 0 ? { hotelByCity: values.hotelByCity } : {}),
+          // 2026-05-21 (P125): 사용자 명시적 입국/출국 도시 (Wizard cycle UI).
+          ...(values.arrival_city ? { arrival_city: values.arrival_city } : {}),
+          ...(values.departure_city ? { departure_city: values.departure_city } : {}),
         }),
       });
 
@@ -392,6 +395,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // 2026-05-10 B10-1/B10-2: revision 에서도 다도시 entry_city + hotelByCity forward.
           ...(values.entry_city ? { entry_city: values.entry_city } : {}),
           ...(values.hotelByCity && Object.keys(values.hotelByCity).length > 0 ? { hotelByCity: values.hotelByCity } : {}),
+          // 2026-05-21 (P125): 사용자 명시적 입국/출국 도시 (Wizard cycle UI).
+          ...(values.arrival_city ? { arrival_city: values.arrival_city } : {}),
+          ...(values.departure_city ? { departure_city: values.departure_city } : {}),
         }),
       });
 

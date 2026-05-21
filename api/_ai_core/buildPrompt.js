@@ -473,6 +473,11 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
   - CJU → 제주 먼저
 - 마지막 도시 = departure_airport 와 가까운 도시 (출국이 다른 공항이면 그 도시로 끝).
 - 합리적 일수 분배 — 5일 trip 이면 (2+3) 또는 (3+2). 도시당 최소 1박 보장.
+- **(P125, 2026-05-21)** Wizard 가 \`arrival_city\` / \`departure_city\` 를 명시적으로
+  보내면 (\`MULTI-CITY ENTRY/EXIT\` block 참조), 사용자 의도가 공항 inference 보다 우선.
+  - arrival_city 가 명시되면 Day 1.city = arrival_city (공항도 자동 매핑).
+  - departure_city 가 명시되면 Day N.city = departure_city.
+  - 두 값 모두 명시되면 day 순서는 둘 사이를 만족해야 함 (intercity_transit 으로 잇는다).
 
 ### 2. 각 Day 의 \`city\` 필드 명시 (필수)
 - \`days[].city\` = 'Busan' | 'Seoul' | 'Jeju' | 'Gyeongju' | 'Jeonju' 등.

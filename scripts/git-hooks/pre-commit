@@ -95,9 +95,11 @@ if [ -n "$SCAN_FILES" ]; then
       // nullish coalescing. 0/false 보존 필요 (count=0 표시 vs 누락 구분).
       if (f === "src/pages/PlanDetailPage/index.tsx") continue;
       if (f === "src/pages/PlanDetailPage/components/QualityWarningsPanel.tsx") continue;
-      // 2026-05-21 (P126): WizardForm/index.tsx 의 nullish coalescing fallback 13건
-      // 모두 pre-existing legitimate (autosave snapshot resume — 0/false 보존).
+      // 2026-05-21 (P125 + P126): WizardForm/index.tsx + WizardStep0Destination 의
+      // nullish coalescing fallback 13건 모두 pre-existing legitimate
+      // (autosave snapshot resume — 0/false 보존 + B-1 preset dateRange).
       if (f === "src/components/WizardForm/index.tsx") continue;
+      if (f === "src/components/WizardForm/WizardStep0Destination.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

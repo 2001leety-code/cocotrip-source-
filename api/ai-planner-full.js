@@ -268,6 +268,11 @@ export default async function handler(req, res) {
       }
       return {};
     })();
+    // P125 (2026-05-21): 사용자 명시적 입국/출국 도시 (Wizard cycle UI). 다도시 plan 의
+    // Day 1 city = arrival_city, Day N city = departure_city 강제. 단도시 plan 은
+    // 두 값 동일 또는 미입력 — buildPrompt 가 기존 entry_city / MULTI-CITY HANDLING 로 폴백.
+    const arrivalCity = String(body.arrival_city || body.arrivalCity || '').trim().toLowerCase();
+    const departureCity = String(body.departure_city || body.departureCity || '').trim().toLowerCase();
     const mobility = body.mobility || 'ok';
     const uid = body.uid || null;
     lastUid = uid;
@@ -494,6 +499,32 @@ REQUIREMENTS:
 - BAD: regions=["seoul","busan"], Day 4 city="Busan", stops[0].address="서울 명동 ..." ← cross-city wrong, 사용자 짐 못 옮김.
 - GOOD: Day 4 city="Busan", stops[0].address starts with "부산" / "Busan" (from the list above).
 - B-13 validator (백엔드) rejects + retries lodging name/address mismatched with day.city.`;
+    })() + (() => {
+      // P125 (2026-05-21): 사용자 명시적 입국/출국 도시. Wizard cycle UI 로
+      // arrival_city / departure_city 받으면 Day 1.city = arrival_city,
+      // Day N.city = departure_city 강제. 다도시 plan 만 의미 있음. 단도시 (둘 다 같음)
+      // 또는 미입력 → 빈 string (기존 MULTI-CITY HANDLING city ordering rule 폴백).
+      const isMultiCity = Array.isArray(regions) && regions.length >= 2;
+      if (!isMultiCity) return '';
+      if (!arrivalCity && !departureCity) return '';
+      if (arrivalCity && departureCity && arrivalCity === departureCity) return '';
+      const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+      return `
+
+[MULTI-CITY ENTRY/EXIT — STRICT (P125, 2026-05-21)]
+The user explicitly designated their entry / exit cities via the Wizard arrival/departure cycle:
+
+${arrivalCity ? `- arrival_city = "${cap(arrivalCity)}" → Day 1's "city" field MUST be "${cap(arrivalCity)}".` : '- arrival_city not specified — use existing city ordering rule (arrival_airport proximity).'}
+${departureCity ? `- departure_city = "${cap(departureCity)}" → Day N (last day) "city" field MUST be "${cap(departureCity)}".` : '- departure_city not specified — use existing city ordering rule (departure_airport proximity).'}
+
+REQUIREMENTS:
+- The day ordering must satisfy BOTH constraints (e.g., regions=["seoul","busan"], arrival_city="busan", departure_city="seoul" → Day 1=Busan ... Day N=Seoul).
+- intercity_transit.from_city must reflect the previous day's city; intercity_transit.to_city must reflect the next day's city.
+- airport_code mapping (Day 1 arrival + Day N departure):
+  - Seoul → ICN (default) or GMP
+  - Busan → PUS
+  - Jeju → CJU
+- BAD: User wanted Busan-arrival → Seoul-departure plan, but Day 1.city="Seoul" — wrong entry direction.`;
     })() + (wantAccom ? `
 
 [ACCOMMODATION REQUEST]
