@@ -2234,6 +2234,10 @@ function P124_arrivalDepartureSleepBuffer({ changed }) {
     if (!/arrival_time \+ 9h|arrival_time 9h sleep|9h sleep buffer/i.test(c)) {
       violations.push(`${PROMPT}: 8h sleep buffer (arrival + 9h) logic 명시 누락`);
     }
+    // P124-extended (2026-05-21): 중간 day 새벽 stops 금지 글로벌 룰
+    if (!/GLOBAL TIME RULES.*P124-extended/s.test(c)) {
+      violations.push(`${PROMPT}: GLOBAL TIME RULES (P124-extended) block 누락 — 중간 day 새벽 활동 금지 명시 누락`);
+    }
   }
 
   if (existsSync(VALIDATOR)) {
@@ -2247,13 +2251,17 @@ function P124_arrivalDepartureSleepBuffer({ changed }) {
     if (!/request\.arrival_time \|\| request\.arrivalTime/.test(c)) {
       violations.push(`${VALIDATOR}: arrival_time / arrivalTime 양쪽 수용 logic 누락`);
     }
+    // P124-extended (2026-05-21): 중간 day 새벽 stops 검증 룰
+    if (!/B-GLOBAL-DAWN/.test(c)) {
+      violations.push(`${VALIDATOR}: B-GLOBAL-DAWN 룰 누락 — 중간 day 새벽 stops 검증 부재`);
+    }
   }
 
   if (violations.length > 0) {
     fail(
       'P124_arrivalDepartureSleepBuffer',
       violations.join(' | '),
-      '메모리 P124 — Day 1/N 새벽 stops 0건 + 8h sleep buffer. buildPrompt + responseValidator 2 layer 의무.',
+      '메모리 P124 + P124-extended (2026-05-21) — Day 1/N 8h sleep buffer + 중간 day 새벽 stops 0건. buildPrompt (ARRIVAL/DEPARTURE/GLOBAL TIME RULES 3 block) + responseValidator (B-LATE-ARRIVAL/B-EARLY-DEPARTURE/B-GLOBAL-DAWN 3 rule) 의무.',
     );
   }
   return null;
@@ -5136,15 +5144,15 @@ function runSelfTest() {
       label: 'P124: buildPrompt 의 ARRIVAL DAY HANDLING (9h sleep buffer) block 누락',
       base: {
         'api/_ai_core/buildPrompt.js':
-          "// ARRIVAL DAY HANDLING — STRICT (P124, 2026-05-20)\n// arrival_time + 9h sleep buffer\n",
+          "// ARRIVAL DAY HANDLING — STRICT (P124, 2026-05-20)\n// arrival_time + 9h sleep buffer\n// DEPARTURE DAY HANDLING — STRICT (P124, 2026-05-20)\n// GLOBAL TIME RULES — STRICT (P124-extended, 2026-05-21)\n",
         'api/_ai_core/responseValidator.js':
-          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n",
+          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n// B-GLOBAL-DAWN\n",
       },
       head: {
         'api/_ai_core/buildPrompt.js':
           "// arrival_time 단순 hint, sleep buffer 명시 X\n",
         'api/_ai_core/responseValidator.js':
-          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n",
+          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n// B-GLOBAL-DAWN\n",
       },
       expectRule: 'P124_arrivalDepartureSleepBuffer',
     },
