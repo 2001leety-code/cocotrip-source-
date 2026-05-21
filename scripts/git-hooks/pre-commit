@@ -90,6 +90,10 @@ if [ -n "$SCAN_FILES" ]; then
       // + regex 안의 \?? (optional) 가 mojibake check 의 /\?\?/ 와 충돌. lint 도구 스크립트는
       // 코드 grep 룰을 *코드 안에* 표현하므로 ?? 사용이 정상.
       if (f === "scripts/lint-mistake-patterns.mjs") continue;
+      // 2026-05-21 (zone-courses foundation): build-zone-course.mjs 의 ??
+      // (passport_required ?? false, requires_advance_booking ?? false) 는
+      // legitimate nullish coalescing — false 값 보존 의도.
+      if (f === "scripts/build-zone-course.mjs") continue;
       // 2026-05-20 (P121): PlanDetailPage/index.tsx 의 user?.uid ?? null (P74 stable dep)
       // + QualityWarningsPanel.tsx 의 item.day ?? '?' / val?.count ?? '?' 등 legitimate
       // nullish coalescing. 0/false 보존 필요 (count=0 표시 vs 누락 구분).

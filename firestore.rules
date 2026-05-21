@@ -197,6 +197,25 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // zone_courses — 사전 큐레이트된 day-block (2026-05-21, Track A foundation)
+    //   read:   published 만 public, draft 은 admin only.
+    //           status 미지정 시 (legacy) public read 허용.
+    //   write:  admin only (operator-verified blocks).
+    //   schema: ZoneCourseBlock (src/data/zone_courses/types.ts)
+    //   목적:   AI 플래너가 Gemini 호출 대신 block ID 선택 + tweak.
+    //           Gemini 부하 1/10 + 검증된 동선 동시 확보.
+    //
+    // 신규 optional 필드 (verified_at / source / transit_matrix.*.notes)
+    // 모두 schema 검증 안 함 — backward compat 유지 (P106).
+    // ─────────────────────────────────────────────────────────
+    match /zone_courses/{blockId} {
+      allow read: if !('status' in resource.data)
+               || resource.data.status != 'draft'
+               || isAdminEmail();
+      allow create, update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // earlybird — 공개 카운터
     // ─────────────────────────────────────────────────────────
     match /earlybird/{docId} {
