@@ -1,5 +1,5 @@
 /**
- * P96 (2026-05-19) — ai-planner-full.js step-level instrumentation 회귀 차단.
+ * P96 (2026-05-19) — ai-planner-full step-level instrumentation 회귀 차단.
  *
  * Pre-fix: api/ai-planner-full.js 가 START + TOTAL 두 로그만 출력. handler 가
  * 5분 Vercel cap 까지 hang 한 prod 인시던트에서 어느 step (Gemini Pass1/2/3,
@@ -16,6 +16,11 @@
  *      throttledTelegramAlert key 'ai-planner-hang' — 5분 window dedup (P67).
  *   5) finally clearTimeout — 정상 완료 + error path 모두에서 해제.
  *
+ * P129 (2026-05-21): handler 본체가 api/_ai_core/handlerCore.js 로 추출됨.
+ * api/ai-planner-full.js 는 thin re-export wrapper. 본 테스트는 handlerCore.js
+ * 의 instrumentation 패턴을 검사한다 — refactor 가 회귀하면 prod hang 진단
+ * 사각지대 재진입.
+ *
  * Refactor 가 instrumentation 을 제거하면 다음 prod hang 인시던트도 같은
  * 진단 사각지대로 빠짐 — 본 assertion 들이 회귀를 머지 전 차단.
  */
@@ -24,7 +29,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const src = readFileSync(
-  resolve(process.cwd(), 'api/ai-planner-full.js'),
+  resolve(process.cwd(), 'api/_ai_core/handlerCore.js'),
   'utf8',
 );
 
