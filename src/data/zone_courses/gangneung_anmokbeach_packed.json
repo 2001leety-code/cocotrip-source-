@@ -1,0 +1,18 @@
+{
+  "id": "GANGNEUNG_DAY_ANMOKBEACH_PACKED",
+  "city": "gangneung",
+  "zone": "Anmok-Beach",
+  "theme": "안목해변+정동진+묵호항",
+  "theme_i18n": {"ko":"안목해변+정동진+묵호항","en":"Anmok Beach+Jeongdongjin+Mukho Port","ja":"安木海岸+正東津+墨湖港","zh":"安木海滩+正东津+墨湖港"},
+  "intensity": "packed",
+  "duration_min": 540,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"cafe","name":"안목해변 커피거리","name_i18n":{"ko":"안목해변 커피거리","en":"Anmok Coffee Street","ja":"安木コーヒー通り","zh":"安木咖啡街"},"address":"강원 강릉시 창해로14번길","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"바다 뷰 카페 30+개. 아메리카노 추천.","en":"30+ ocean view cafes. Americano recommended.","ja":"海ビューカフェ30+。アメリカーノ推奨。","zh":"30+海景咖啡。推荐美式。"},"lat":37.7700,"lng":128.9472,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"정동진","name_i18n":{"ko":"정동진","en":"Jeongdongjin","ja":"正東津","zh":"正东津"},"address":"강원 강릉시 강동면 정동진리","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"세계 최북동단 해돋이 기차역. 모래시계 공원.","en":"World's northernmost sunrise station. Sandglass park.","ja":"世界最北東日の出駅。砂時計公園。","zh":"世界最北东日出火车站。沙漏公园。"},"lat":37.6914,"lng":129.0339,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"정동진 회집","name_i18n":{"ko":"정동진 회","en":"Jeongdongjin Sashimi","ja":"正東津刺身","zh":"正东津生鱼片"},"address":"강원 강릉시 강동면","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"활어회 + 매운탕.","en":"Fresh sashimi + spicy stew.","ja":"活魚刺身+辛いスープ。","zh":"活鱼生鱼片+辣汤。"},"lat":37.6917,"lng":129.0344,"start_time_offset_min":195},
+    {"order":4,"category":"nature","name":"묵호항 등대전망대","name_i18n":{"ko":"묵호항 등대전망대","en":"Mukho Lighthouse","ja":"墨湖港灯台","zh":"墨湖港灯塔"},"address":"강원 동해시 묵호진동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"논골담길 벽화마을 인접.","en":"Nongol Mural Village adjacent.","ja":"論ゴル壁画村近接。","zh":"论谷壁画村近邻。"},"lat":37.5489,"lng":129.1167,"start_time_offset_min":300},
+    {"order":5,"category":"food","name":"묵호항 어시장","name_i18n":{"ko":"묵호항 어시장","en":"Mukho Fish Market","ja":"墨湖港魚市場","zh":"墨湖港鱼市场"},"address":"강원 동해시 묵호항길","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"활어회 + 마른오징어.","en":"Sashimi + dried squid.","ja":"活魚刺身+干しイカ。","zh":"活鱼生鱼片+干鱿鱼。"},"lat":37.5500,"lng":129.1167,"start_time_offset_min":395},
+    {"order":6,"category":"cafe","name":"강릉역 카페","name_i18n":{"ko":"강릉역 카페","en":"Gangneung Station Cafe","ja":"江陵駅カフェ","zh":"江陵站咖啡"},"address":"강원 강릉시 용지로","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"KTX 출발 전 휴식.","en":"Rest before KTX.","ja":"KTX出発前休憩。","zh":"KTX出发前休息。"},"lat":37.7644,"lng":128.8997,"start_time_offset_min":485}
+  ]
+}

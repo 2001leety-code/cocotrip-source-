@@ -1,0 +1,16 @@
+{
+  "id": "CHUNCHEON_DAY_DOWNTOWN_SHORT",
+  "city": "chuncheon",
+  "zone": "Downtown",
+  "theme": "춘천 명동+공지천",
+  "theme_i18n": {"ko":"명동+공지천","en":"Myeongdong+Gongjicheon","ja":"明洞+公知川","zh":"明洞+公知川"},
+  "intensity": "short",
+  "duration_min": 300,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"food","name":"춘천 명동닭갈비골목","name_i18n":{"ko":"명동닭갈비골목","en":"Myeongdong Dakgalbi Alley","ja":"明洞タッカルビ路地","zh":"明洞炒鸡街"},"address":"강원 춘천시 조양동","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"수십 개 닭갈비집 밀집.","en":"Dozens of dakgalbi restaurants.","ja":"数十軒のタッカルビ店。","zh":"数十家炒鸡店。"},"lat":37.8806,"lng":127.7297,"start_time_offset_min":0},
+    {"order":2,"category":"shopping","name":"춘천 명동거리","name_i18n":{"ko":"춘천 명동거리","en":"Chuncheon Myeongdong Street","ja":"春川明洞通り","zh":"春川明洞街"},"address":"강원 춘천시 명동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"쇼핑+카페. 젊은이 거리.","en":"Shopping+cafe. Youth street.","ja":"ショッピング+カフェ。若者通り。","zh":"购物+咖啡。年轻人街。"},"lat":37.8808,"lng":127.7286,"start_time_offset_min":105},
+    {"order":3,"category":"nature","name":"공지천 산책로","name_i18n":{"ko":"공지천 산책로","en":"Gongjicheon Trail","ja":"公知川散歩道","zh":"公知川步道"},"address":"강원 춘천시 공지로","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"춘천 중심 시내 산책. 의암호 인접.","en":"Downtown walk. Near Uiam Lake.","ja":"市内散歩。衣岩湖近接。","zh":"市内散步。近衣岩湖。"},"lat":37.8689,"lng":127.7242,"start_time_offset_min":195},
+    {"order":4,"category":"cafe","name":"춘천 KT&G 상상마당","name_i18n":{"ko":"KT&G 상상마당","en":"KT&G Sangsang Madang","ja":"KT&G 想像広場","zh":"KT&G 想像广场"},"address":"강원 춘천시 스포츠타운길","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"전시+카페+서점 복합. 무료.","en":"Exhibit+cafe+bookstore. Free.","ja":"展示+カフェ+本屋。無料。","zh":"展览+咖啡+书店。免费。"},"lat":37.8669,"lng":127.7000,"start_time_offset_min":270}
+  ]
+}

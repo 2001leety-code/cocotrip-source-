@@ -1,0 +1,284 @@
+{
+  "id": "SOKCHO_DAY_SEORAKHAE_STANDARD",
+  "city": "sokcho",
+  "zone": "Seorak-hae",
+  "theme": "속초해변 + 아바이마을 + 설악케이블카",
+  "theme_i18n": {
+    "ko": "속초해변 + 아바이마을 + 설악케이블카",
+    "en": "Sokcho Beach + Abai Village + Seorak Cable Car",
+    "ja": "束草ビーチ + アバイ村 + 雪岳ケーブルカー",
+    "zh": "束草海滩 + 阿爸依村 + 雪岳缆车"
+  },
+  "intensity": "standard",
+  "duration_min": 430,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "속초해수욕장",
+      "name_i18n": {
+        "ko": "속초해수욕장",
+        "en": "Sokcho Beach",
+        "ja": "束草海水浴場",
+        "zh": "束草海水浴场"
+      },
+      "address": "강원특별자치도 속초시 해오름로 216",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 봄~가을 성수기 혼잡."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "설악산이 배경으로 보이는 해변. 청정 동해 바다. 바다 수영 가능 (여름).",
+        "en": "Beach with Seoraksan as backdrop. Clean East Sea. Swimming available in summer.",
+        "ja": "雪岳山を背景に見渡せるビーチ。清らかな東海。夏は海水浴可能。",
+        "zh": "以雪岳山为背景的海滩。清澈东海。夏季可游泳。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "아바이마을",
+      "name_i18n": {
+        "ko": "아바이마을",
+        "en": "Abai Village",
+        "ja": "アバイ村",
+        "zh": "阿爸依村"
+      },
+      "address": "강원특별자치도 속초시 청호동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "마을 입장 무료. 갯배 요금 편도 500원."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국전쟁 피난민이 만든 마을. 갯배(손으로 당기는 배) 체험 필수. 순대 명소.",
+        "en": "Village founded by Korean War refugees. Gaetbae (hand-pulled boat) ride is a must. Famous for sausage.",
+        "ja": "朝鮮戦争の避難民が作った村。ゲッペ（手引き船）体験は必須。スンデが名物。",
+        "zh": "朝鲜战争难民建立的村庄。必体验刮背（手拉船）。猪血肠著名。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 75
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 속초시 청호동 아바이마을",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "속초 향토 음식 — 아바이순대 / 오징어순대 / 닭강정 (식이 제약 매칭).",
+        "en": "Sokcho local food — Abai sausage / squid sausage / dakgangjeong matched by dietary needs.",
+        "ja": "束草郷土料理 — アバイスンデ / イカスンデ / ヤンニョムチキン (食事制限とマッチング)。",
+        "zh": "束草乡土料理 — 阿爸依猪血肠 / 鱿鱼肠 / 韩式炸鸡 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 150
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "설악산 권금성 케이블카",
+      "name_i18n": {
+        "ko": "설악산 권금성 케이블카",
+        "en": "Seoraksan Gwongeumseong Cable Car",
+        "ja": "雪岳山 権金城 ケーブルカー",
+        "zh": "雪岳山 权金城 缆车"
+      },
+      "address": "강원특별자치도 속초시 설악산로 1091",
+      "stay_min": 90,
+      "entry_fee_krw": 16000,
+      "entry_fee": {
+        "adult": 16000,
+        "child": 10000,
+        "senior": 16000,
+        "toddler": 8000,
+        "reservation_required_for_group": false,
+        "notes": "왕복 요금. 현장 발권 대기 30-60분. 성수기 2시간+ 대기 가능. 사전 예약 권장."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "해발 805m 권금성까지 왕복 3분. 설악산 전경 + 속초 시내 조망. 성수기 1-2시간 대기.",
+        "en": "3-min ride to Gwongeumseong at 805m elevation. Panoramic views of Seoraksan and Sokcho. 1-2hr wait in peak season.",
+        "ja": "標高805mの権金城まで往復3分。雪岳山全景と束草市内を一望。繁忙期は1〜2時間待ち。",
+        "zh": "往返3分钟到达海拔805m权金城。俯瞰雪岳山全景和束草市区。旺季等待1-2小时。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 225
+    },
+    {
+      "order": 5,
+      "category": "shopping",
+      "name": "속초관광수산시장",
+      "name_i18n": {
+        "ko": "속초관광수산시장",
+        "en": "Sokcho Tourist & Seafood Market",
+        "ja": "束草観光水産市場",
+        "zh": "束草观光水产市场"
+      },
+      "address": "강원특별자치도 속초시 중앙로 147번길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "닭강정 + 만석닭강정 등 유명 맛집 밀집. 어시장 활어회. 각종 건어물 선물 가능.",
+        "en": "Famous dakgangjeong shops (e.g. Mansok). Fresh sashimi at fish market. Dried seafood souvenirs.",
+        "ja": "有名ダッカンジョン店（万石など）が集結。活魚刺身。乾物土産も豊富。",
+        "zh": "著名炸鸡店（万石等）聚集。活鱼生鱼片。干海鲜伴手礼。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 330
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 속초시 중앙로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "속초 저녁 — 해물라면 / 오징어불고기 / 회덮밥 (식이 제약 매칭).",
+        "en": "Sokcho dinner — seafood ramyeon / spicy squid / sashimi rice bowl.",
+        "ja": "束草の夕食 — 海鮮ラーメン / イカプルコギ / 刺身丼。",
+        "zh": "束草晚餐 — 海鲜拉面 / 辣鱿鱼 / 生鱼片拌饭。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 405
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 2000,
+      "cost_krw": 4000,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 10,
+        "distance_m": 2000,
+        "cost_krw": 4000
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 5000,
+      "cost_krw": 6000,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 5000,
+        "cost_krw": 6000
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 5000,
+      "cost_krw": 6000,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 5000,
+        "cost_krw": 6000
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["beach_lover", "nature_lover", "culture_lover", "foodie"],
+  "unsuitable_for": ["mobility_limited"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 케이블카 성수기 사전 예약 권장 (현장 대기 2시간+). 식당 슬롯(order 3/6)은 verified_lunch/dinner placeholder — 속초 아바이순대 / 닭강정 DB 수집 권장."
+}

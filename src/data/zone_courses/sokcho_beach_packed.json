@@ -1,0 +1,19 @@
+{
+  "id": "SOKCHO_DAY_BEACH_PACKED",
+  "city": "sokcho",
+  "zone": "Beach-Culture",
+  "theme": "속초해변+영금정+아바이마을+대포항",
+  "theme_i18n": {"ko":"속초해변+영금정+아바이마을+대포항","en":"Sokcho Beach+Yeonggeumjeong+Abai Village+Daepo Port","ja":"束草ビーチ+迎金亭+アバイ村+大浦港","zh":"束草海滩+迎金亭+阿爸依村+大浦港"},
+  "intensity": "packed",
+  "duration_min": 540,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"nature","name":"속초해수욕장","name_i18n":{"ko":"속초해수욕장","en":"Sokcho Beach","ja":"束草海水浴場","zh":"束草海水浴场"},"address":"강원 속초시 해오름로 216","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"설악산이 보이는 해변. 여름 수영 가능.","en":"Beach with Seoraksan view. Summer swimming.","ja":"雪岳山が見えるビーチ。夏は遊泳可。","zh":"可看雪岳山的海滩。夏季游泳。"},"lat":38.2042,"lng":128.5942,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"영금정","name_i18n":{"ko":"영금정","en":"Yeonggeumjeong","ja":"迎金亭","zh":"迎金亭"},"address":"강원 속초시 영금정로 43","stay_min":40,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"바위 위 정자. 일출 명소.","en":"Pavilion on rocks. Sunrise spot.","ja":"岩の上の亭。日の出名所。","zh":"岩上亭子。日出名所。"},"lat":38.2089,"lng":128.6014,"start_time_offset_min":75},
+    {"order":3,"category":"food","name":"속초 중앙시장","name_i18n":{"ko":"속초 중앙시장","en":"Sokcho Central Market","ja":"束草中央市場","zh":"束草中央市场"},"address":"강원 속초시 중앙로 147번길","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"닭강정/오징어순대/씨앗호떡 유명.","en":"Famous for sweet&spicy chicken / squid sundae / hotteok.","ja":"鶏カンジョン/イカスンデ/胡桃ホットック有名。","zh":"鸡江丁/鱿鱼血肠/胡桃糖饼有名。"},"lat":38.2069,"lng":128.5944,"start_time_offset_min":130},
+    {"order":4,"category":"culture","name":"아바이마을","name_i18n":{"ko":"아바이마을","en":"Abai Village","ja":"アバイ村","zh":"阿爸依村"},"address":"강원 속초시 청호로","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"갯배 타고 도착. 함경도 실향민 마을.","en":"Arrive by gaetbae ferry. Refugee village.","ja":"カッペで到着。咸鏡道避難民村。","zh":"乘渡船到达。咸镜道难民村。"},"lat":38.2008,"lng":128.5933,"start_time_offset_min":225},
+    {"order":5,"category":"food","name":"대포항","name_i18n":{"ko":"대포항","en":"Daepo Port","ja":"大浦港","zh":"大浦港"},"address":"강원 속초시 대포항길","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"동해 활어회 명소. 늦은 점심 추천.","en":"East Sea sashimi spot. Late lunch.","ja":"東海活魚刺身名所。遅めの昼食。","zh":"东海活鱼生鱼片名所。晚午餐。"},"lat":38.1856,"lng":128.6022,"start_time_offset_min":305},
+    {"order":6,"category":"nature","name":"속초 등대전망대","name_i18n":{"ko":"속초 등대전망대","en":"Sokcho Lighthouse Observatory","ja":"束草灯台展望台","zh":"束草灯塔观景台"},"address":"강원 속초시 영금정로5길","stay_min":30,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"속초 시내+동해 파노라마.","en":"Sokcho city + East Sea panorama.","ja":"束草市内+東海パノラマ。","zh":"束草市区+东海全景。"},"lat":38.2086,"lng":128.6044,"start_time_offset_min":420},
+    {"order":7,"category":"food","name":"청초호 카페거리","name_i18n":{"ko":"청초호 카페거리","en":"Cheongchoho Cafe Street","ja":"青草湖カフェ通り","zh":"青草湖咖啡街"},"address":"강원 속초시 청초호반로","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"호수 뷰 카페 다수. 일몰 추천.","en":"Lake view cafes. Sunset recommended.","ja":"湖ビューカフェ多数。夕日推奨。","zh":"湖景咖啡多。日落推荐。"},"lat":38.1972,"lng":128.5872,"start_time_offset_min":460}
+  ]
+}

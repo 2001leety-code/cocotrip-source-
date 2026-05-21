@@ -1,0 +1,17 @@
+{
+  "id": "PYEONGCHANG_DAY_ODAESAN_PACKED",
+  "city": "pyeongchang",
+  "zone": "Odaesan-Jinbu",
+  "theme": "오대산 트레킹+월정사+상원사",
+  "theme_i18n": {"ko":"오대산 트레킹+월정사+상원사","en":"Odaesan Trek+Woljeongsa+Sangwonsa","ja":"五台山+月精寺+上院寺","zh":"五台山+月精寺+上院寺"},
+  "intensity": "packed",
+  "duration_min": 540,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"culture","name":"월정사","name_i18n":{"ko":"월정사","en":"Woljeongsa","ja":"月精寺","zh":"月精寺"},"address":"강원 평창군 진부면 오대산로 374-8","stay_min":60,"entry_fee_krw":5000,"reservation_required":false,"tips_i18n":{"ko":"전나무숲길 1km 산책 권장.","en":"1km fir forest trail walk.","ja":"モミ林道1km散歩。","zh":"冷杉林路1km步行。"},"lat":37.7311,"lng":128.5894,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"진부 산채정식","name_i18n":{"ko":"진부 산채정식","en":"Jinbu Mountain Vegetable Set","ja":"珍富山菜定食","zh":"珍富山菜套餐"},"address":"강원 평창군 진부면 진부중앙로","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"오대산 산채 다양. 비건 친화.","en":"Diverse mountain vegetables. Vegan-friendly.","ja":"五台山山菜多様。ヴィーガン対応。","zh":"五台山山菜多样。素食友好。"},"lat":37.6889,"lng":128.5806,"start_time_offset_min":75},
+    {"order":3,"category":"culture","name":"상원사","name_i18n":{"ko":"상원사","en":"Sangwonsa","ja":"上院寺","zh":"上院寺"},"address":"강원 평창군 진부면 동산리","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"오대산 중턱 사찰. 동종 국보.","en":"Mid-Odaesan temple. National Treasure bell.","ja":"五台山中腹寺院。国宝梵鐘。","zh":"五台山中腹寺院。国宝梵钟。"},"lat":37.7553,"lng":128.5631,"start_time_offset_min":165},
+    {"order":4,"category":"nature","name":"오대산 비로봉 트레킹","name_i18n":{"ko":"오대산 비로봉 트레킹","en":"Odaesan Birobong Trek","ja":"五台山毘盧峰トレッキング","zh":"五台山毗卢峰徒步"},"address":"강원 평창군 진부면","stay_min":210,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"상원사→비로봉 3.6km 왕복 3h.","en":"Sangwonsa→Birobong 3.6km round 3h.","ja":"上院寺→毘盧峰3.6km往復3h。","zh":"上院寺→毗卢峰3.6km往返3h。"},"lat":37.7942,"lng":128.5439,"start_time_offset_min":225},
+    {"order":5,"category":"food","name":"진부 황태해장국","name_i18n":{"ko":"진부 황태해장국","en":"Jinbu Pollock Soup","ja":"珍富明太スープ","zh":"珍富明太鱼汤"},"address":"강원 평창군 진부면","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"진부 황태가 유명. 산행 후 추천.","en":"Jinbu pollock famous. Post-hike recommended.","ja":"珍富明太有名。下山後推奨。","zh":"珍富明太鱼有名。下山后推荐。"},"lat":37.6892,"lng":128.5808,"start_time_offset_min":450}
+  ]
+}
