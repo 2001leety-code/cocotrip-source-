@@ -380,6 +380,16 @@ export default function Admin() {
             </div>
             <p className="text-xs text-gray-400">OTA 표준 — 4언어·갤러리·일정·미팅포인트·FAQ·취소정책 9-탭 등록</p>
           </a>
+          <a
+            href="/admin/zone-courses"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🗺️</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">존 코스 <span className="text-[10px] text-[#7C5CFC] font-bold ml-1">NEW</span></h3>
+            </div>
+            <p className="text-xs text-gray-400">AI 플래너의 day-block 시스템 — 동선 검증된 zone 별 코스 사전 큐레이션</p>
+          </a>
         </div>
 
         {/* ── Bookings Table (Firestore) ── */}

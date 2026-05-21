@@ -44,6 +44,8 @@ const AdminTranslations = lazy(() => import('@/pages/AdminTranslations'));
 const AdminCoupons = lazy(() => import('@/pages/AdminCoupons'));
 const AdminProducts = lazy(() => import('@/pages/AdminProducts'));
 const AdminProductEditor = lazy(() => import('@/pages/AdminProductEditor'));
+const AdminZoneCourses = lazy(() => import('@/pages/AdminZoneCourses'));
+const AdminZoneCourseEditor = lazy(() => import('@/pages/AdminZoneCourseEditor'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
@@ -367,6 +369,36 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminProductEditor />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/zone-courses"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminZoneCourses />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/zone-courses/new"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminZoneCourseEditor />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/zone-courses/edit/:blockId"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminZoneCourseEditor />
                 </Suspense>
               </AdminRoute>
             }
