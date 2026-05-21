@@ -216,6 +216,16 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────
+    // zone_courses_drafts — 어드민 작성 중 임시 저장 (Track C, 2026-05-21)
+    //   tours_drafts 패턴 동일. autosave 1초 throttle (P105).
+    //   publish 시 zone_courses/{blockId} 로 commit (draft 은 재편집용 유지).
+    //   read/write: admin only (운영 데이터, public 무관).
+    // ─────────────────────────────────────────────────────────
+    match /zone_courses_drafts/{blockId} {
+      allow read, create, update, delete: if isAdminEmail();
+    }
+
+    // ─────────────────────────────────────────────────────────
     // rising_spots/{region}/spots/{spotId} — Track B trend cron (2026-05-21)
     //   매주 cron 이 Naver Local rating/reviewCount delta 추적.
     //   rating_delta >= 0.3 또는 reviewCount_delta >= 50 면 'rising' 으로 마킹.

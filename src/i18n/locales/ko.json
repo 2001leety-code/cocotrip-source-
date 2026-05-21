@@ -2152,5 +2152,26 @@
     "descNoSummary": "이전 진행 상황이 저장되어 있어요.",
     "continue": "이어서 하기",
     "restart": "새로 시작"
+  },
+  "adminZoneCourses": {
+    "title": "존 코스 관리",
+    "subtitle": "AI 플래너 day-block — 동선 검증된 zone 별 코스 사전 큐레이션",
+    "empty": "등록된 존 코스가 없습니다.",
+    "addNew": "새 코스 작성",
+    "publish": "발행",
+    "rebuildTransit": "Transit 재생성",
+    "trendHints": "Trend Hints",
+    "painpoints": "Painpoints",
+    "tabs": {
+      "basic": "기본정보",
+      "stops": "Stops",
+      "transit": "Transit Matrix",
+      "bestfor": "Best / Unsuitable",
+      "dietary": "Dietary",
+      "booking": "Booking",
+      "trend": "Trend Hints",
+      "painpoints": "Painpoints",
+      "meta": "Meta·QA"
+    }
   }
 }
