@@ -36,6 +36,17 @@ function distanceMeters(a, b) {
  * @param {object} itinerary  - 진단 대상 itinerary (mutated: quality_warnings 추가)
  * @param {object} anchor     - { lat, lng, label } hotel 또는 zone anchor 좌표
  */
+/** P139 (2026-05-22): airport_transfer 카테고리 stop 은 lodging_bookend 검증
+ *  대상에서 제외. plan 9845a69e Day 5 의 last stop "인천국제공항 T1"
+ *  (category=airport_transfer) 가 다도시 day-lodging anchor (해운대 호텔) 와
+ *  349.4km 측정 → false-positive lodging_bookend_violation 생성. 출국일 마지막
+ *  stop = 공항 이동 = lodging 5km 이내 의도 자체가 부적절. 단도시 / 다도시
+ *  양쪽 분기 모두 적용. */
+function isAirportTransferStop(stop) {
+  const cat = String(stop?.category || '').toLowerCase();
+  return cat === 'airport_transfer' || cat === 'airport';
+}
+
 function validateLodgingBookend(itinerary, anchor, isMultiCity) {
   // P127 (2026-05-20): multi-city plan 일 때 single global anchor (예: 첫 도시 호텔)
   // 기준 검증은 도시 전환 day 마다 false-positive 5건+ 발생 (plan 209de47b / 5aeeecef
@@ -55,8 +66,9 @@ function validateLodgingBookend(itinerary, anchor, isMultiCity) {
       const dayAnchor = { lat: dayLodging.lat, lng: dayLodging.lng };
       const first = stops[0];
       const last = stops[stops.length - 1];
-      const firstDist = distanceMeters(first, dayAnchor);
-      const lastDist = distanceMeters(last, dayAnchor);
+      // P139: airport_transfer category 는 출국 동선 의도 — bookend 검증 자체 부적절. skip.
+      const firstDist = isAirportTransferStop(first) ? null : distanceMeters(first, dayAnchor);
+      const lastDist = isAirportTransferStop(last) ? null : distanceMeters(last, dayAnchor);
       if (firstDist != null && firstDist > THRESHOLD_M) {
         warnings.push({ day: i + 1, position: 'first', stopName: first.name || first.display_name, distM: firstDist, anchorBasis: 'day-lodging' });
       }
@@ -84,8 +96,9 @@ function validateLodgingBookend(itinerary, anchor, isMultiCity) {
     if (stops.length === 0) continue;
     const first = stops[0];
     const last = stops[stops.length - 1];
-    const firstDist = distanceMeters(first, anchor);
-    const lastDist = distanceMeters(last, anchor);
+    // P139: airport_transfer skip — 출국일 마지막 stop = 공항 이동 의도.
+    const firstDist = isAirportTransferStop(first) ? null : distanceMeters(first, anchor);
+    const lastDist = isAirportTransferStop(last) ? null : distanceMeters(last, anchor);
     if (firstDist != null && firstDist > THRESHOLD_M) {
       warnings.push({ day: i + 1, position: 'first', stopName: first.name || first.display_name, distM: firstDist });
     }
