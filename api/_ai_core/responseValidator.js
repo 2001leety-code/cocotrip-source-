@@ -432,12 +432,70 @@ export function validatePatternStructure(itinerary, request = {}) {
         `allCategories=[${categoryStr}] totalStops=${stops.length}`
       );
 
-      if (isFirst || isLast) {
-        // 도착/출국일 — 아침 OR 점심/snack OR 저녁 중 최소 1개 (이른 아침 출국편 / 늦은 도착 시나리오 수용)
+      if (isFirst) {
+        // 도착일 — 아침 OR 점심/snack OR 저녁 중 최소 1개 (늦은 도착 시나리오 수용)
         if (breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
           errors.push(
-            `Day ${dayNum} (${isFirst ? '도착' : '출국'}일): 아침(06-10시)+오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
+            `Day ${dayNum} (도착일): 아침(06-10시)+오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
           );
+        }
+      } else if (isLast) {
+        // 출국일 — P137 (2026-05-21): departure_time 기준 3-tier strict 검증
+        // plan ba10d29b 회귀: Day 5 출국일 food 0건 → B-MEAL 미감지 누락.
+        // departure_time 미제공 시 기존 3-slot 로직 유지 (backward compat).
+        const depMin = (() => {
+          const raw = request.departure_time || request.departureTime;
+          if (!raw) return null;
+          const mm = /^(\d{1,2}):(\d{2})$/.exec(String(raw));
+          if (!mm) return null;
+          const h = parseInt(mm[1], 10);
+          const mi = parseInt(mm[2], 10);
+          if (h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+          return h * 60 + mi;
+        })();
+
+        if (depMin === null) {
+          // departure_time 미제공 — 기존 로직: 3개 slot 모두 0이면 에러
+          if (breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
+            errors.push(
+              `Day ${dayNum} (출국일): 아침(06-10시)+오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
+            );
+          }
+        } else {
+          const depHour = Math.floor(depMin / 60);
+          if (depHour < 11) {
+            // 이른 출국 (< 11:00): breakfast slot [06,11) 1건 필수
+            if (breakfastCount === 0) {
+              errors.push(
+                `Day ${dayNum} (출국일): departure_time=${request.departure_time || request.departureTime} 이른 출국 — 조식(06-10시) 누락 (B-MEAL, P137)`
+              );
+            }
+          } else if (depHour < 17) {
+            // 낮 출국 (11:00-16:59): breakfast OR lunch/snack 최소 1건
+            if (breakfastCount === 0 && afternoonMealCount === 0) {
+              errors.push(
+                `Day ${dayNum} (출국일): departure_time=${request.departure_time || request.departureTime} 낮 출국 — 조식(06-10시)/오후식사(11-16시) 모두 누락 (B-MEAL, P137)`
+              );
+            }
+          } else {
+            // 저녁 출국 (>= 17:00): breakfast + lunch/snack 둘 다 의무
+            if (breakfastCount === 0 && afternoonMealCount === 0) {
+              // 둘 다 없음 — 기본 B-MEAL
+              errors.push(
+                `Day ${dayNum} (출국일): departure_time=${request.departure_time || request.departureTime} 저녁 출국 — 조식+오후식사 모두 누락 (B-MEAL-DEPARTURE-LATE, P137)`
+              );
+            } else if (breakfastCount === 0) {
+              // 오후식사는 있지만 breakfast 없음
+              errors.push(
+                `Day ${dayNum} (출국일): departure_time=${request.departure_time || request.departureTime} 저녁 출국 — 조식(06-10시) 누락 (B-MEAL-DEPARTURE-BREAKFAST, P137)`
+              );
+            } else if (afternoonMealCount === 0) {
+              // breakfast는 있지만 오후식사 없음
+              errors.push(
+                `Day ${dayNum} (출국일): departure_time=${request.departure_time || request.departureTime} 저녁 출국 — 오후식사(11-16시) 누락 (B-MEAL-DEPARTURE-LUNCH, P137)`
+              );
+            }
+          }
         }
       } else {
         // full day (또는 단일일) — 점심/snack + 저녁 둘 다 필수

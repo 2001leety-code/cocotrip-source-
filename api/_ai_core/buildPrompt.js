@@ -738,7 +738,38 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - **Dinner slot**: start_time hour ∈ [17:00, 21:59] — 저녁은 18-20시 표준, 21시 늦은 저녁 흔함. Backend validator (B-MEAL-DINNER) rejects plans missing dinner on full days.
 - **Full day** = middle days (not arrival, not departure). REQUIRES lunch/snack + dinner BOTH. Breakfast is bonus on full days.
 - **Arrival day (Day 1)**: 도착 시각에 따라 breakfast OR lunch/snack OR dinner 중 최소 1식. Late arrival (20:00+) 시 dinner 만으로 OK. Early arrival (10:00 도착) 시 lunch 부터 정상 진행.
-- **Departure day (last day)**: 출국 시각에 따라 breakfast OR lunch/snack OR dinner 중 최소 1식. **이른 출국편 (예: 09:00 ICN)** 시나리오 → 06:00-09:00 사이 호텔 조식 / 24시 김밥집 / 광장시장 아침 food stop 1건 반드시 포함 (category="food", start_time="08:00" 같은 형식). 이 stop 없이 lodging+travel 만으로 출국일 채우면 backend validator (B-MEAL) reject 한다.
+- **Departure day (last day) — P137 STRICT** (plan ba10d29b 회귀: Day 5 food 0건 reject):
+  Departure_time 기준 3-tier 분류 표 — backend responseValidator 와 동일 기준 (B-MEAL, P137):
+
+  | departure_time | 의무 식사 | 예시 |
+  |---|---|---|
+  | < 11:00 (이른 출국) | breakfast slot [06:00, 11:00) 1건 필수 | 08:00 호텔 조식 / 07:30 김밥천국 |
+  | 11:00-16:59 (낮 출국) | breakfast OR lunch/snack 중 최소 1건 | 08:00 조식 OR 12:30 점심 |
+  | >= 17:00 (저녁 출국) | breakfast + lunch/snack 둘 다 의무 | 08:00 조식 + 12:30 점심 |
+  | 미제공 | 아침·오후·저녁 중 최소 1건 (기존) | 아무 slot 1건 이상 |
+
+  GOOD (departure 09:00 — 이른 출국):
+  \`\`\`json
+  { "category": "food", "name": "호텔 조식", "start_time": "07:30" }
+  \`\`\`
+  GOOD (departure 14:00 — 낮 출국):
+  \`\`\`json
+  { "category": "food", "name": "김밥천국", "start_time": "11:30" }
+  \`\`\`
+  GOOD (departure 20:00 — 저녁 출국):
+  \`\`\`json
+  [
+    { "category": "food", "name": "호텔 조식", "start_time": "08:00" },
+    { "category": "food", "name": "점심 식당", "start_time": "12:30" }
+  ]
+  \`\`\`
+  BAD (plan ba10d29b 회귀 패턴 — IMMEDIATE B-MEAL reject):
+  \`\`\`json
+  // Day 5 (출국일): lodging 체크아웃 + travel 공항이동 만 있고 0 food stops → REJECTED
+  { "category": "lodging", "name": "호텔 체크아웃", "start_time": "09:00" }
+  { "category": "travel", "name": "인천공항 이동", "start_time": "11:00" }
+  // ZERO food stops = immediate B-MEAL reject by backend validator
+  \`\`\`
 - NEVER end a full day at hotel before 17:00 without including a dinner food stop. NEVER skip a meal slot. NEVER output departure day with 0 food stops.
 - 3-5 signature menu items with KRW prices
 - reservation_required + phone for popular spots
