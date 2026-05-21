@@ -1254,19 +1254,57 @@ export class RouteAgent extends BaseAgent {
                         };
                     } else {
                         // ODsay 실패 → Gemini 원본 유지하되 시간은 Naver 기준 보정
+                        // P144-continued (2026-05-22): step_by_step 비어있으면 자동 보강.
+                        // 사용자 신고: Day 2 마지막 "차량 17분 → Hotel" 단순 표시 — 거리 / 권장
+                        // 수단 정보 부재로 사용자 "어떻게 가는지 모름" 신고. ODsay null 케이스에
+                        // 거리 / 택시 추정 / 야간 라벨 stub 텍스트 inject. publicTransit 데이터가
+                        // 있으면 위 분기에서 이미 채워지므로 본 분기는 ODsay null fallback 전용.
                         const geminiTransit = place.transit_from_prev || {};
+                        const fallbackMethod = geminiTransit.method || 'car';
+                        const fallbackMin = transit.drivingMin || geminiTransit.est_min || realTransitMin;
+                        const distKm = transit.distanceKm;
+                        // 시각 (현재 진행 중인 stop 의 start_time 또는 직전 stop end_time 기준)
+                        // 으로 야간 라벨 분기. _isLateNightTransit helper 가 22:00 이후 / 막차 종료.
+                        // place.start_time 이 22:00+ 또는 04:00- 이면 야간.
+                        const startHHMM = String(place.start_time || '');
+                        const startHourMatch = /^(\d{1,2}):/.exec(startHHMM);
+                        const startHour = startHourMatch ? parseInt(startHourMatch[1], 10) : null;
+                        const isLateNight = startHour !== null && (startHour >= 22 || startHour < 5);
+                        // 기존 Gemini step_by_step 있으면 그대로 사용. 없을 때만 stub 생성.
+                        let enrichedSteps = Array.isArray(geminiTransit.step_by_step) && geminiTransit.step_by_step.length > 0
+                            ? geminiTransit.step_by_step
+                            : [];
+                        if (enrichedSteps.length === 0 && !isBlindFallback) {
+                            // 좌표 있는 케이스 (Naver fallback) — 거리 + 택시 권장 stub.
+                            const taxiFareKrw = (transit.drivingMin || fallbackMin) * 200 + 4800;
+                            const distStr = (typeof distKm === 'number' && Number.isFinite(distKm))
+                                ? `약 ${distKm.toFixed(1)}km`
+                                : '단거리';
+                            enrichedSteps = [
+                                `이동 거리: ${distStr}`,
+                                `예상 시간: 약 ${fallbackMin}분 (차량 기준)`,
+                                `택시 추정: 약 ${Math.round(taxiFareKrw / 100) * 100}원 — 카카오T / Uber 권장`,
+                            ];
+                            if (isLateNight) {
+                                enrichedSteps.push('야간 시간대 — 지하철·버스 막차 종료 가능. 택시·카카오T 안전');
+                            }
+                        }
                         place.transit_from_prev = {
-                            method: geminiTransit.method || 'car',
-                            mode: methodToMode(geminiTransit.method) || 'car',
+                            method: fallbackMethod,
+                            mode: methodToMode(fallbackMethod) || 'car',
                             instruction_en: geminiTransit.instruction_en || '',
-                            step_by_step: geminiTransit.step_by_step || [],
-                            est_min: transit.drivingMin || geminiTransit.est_min || realTransitMin,
+                            step_by_step: enrichedSteps,
+                            est_min: fallbackMin,
                             est_fare_krw: geminiTransit.est_fare_krw || 0,
+                            // P144-continued: distanceKm 도 transit_from_prev 에 inject — UI 가
+                            // 거리 표시 가능 (이전엔 travelFromPrev 에만 존재).
+                            ...(typeof distKm === 'number' && Number.isFinite(distKm) ? { distance_km: distKm } : {}),
                             // PR #463 (X-H4): when both real data + Gemini estimate are
                             // absent, source is the blind 25min/5km path. routeEnrichment
                             // aggregates per-plan ratio + fires admin alert.
                             source: isBlindFallback ? 'blind_25_no_coords' : 'naver_fallback',
                             ...(isBlindFallback ? { _blind_fallback: true } : {}),
+                            ...(isLateNight ? { _late_night: true } : {}),
                         };
                     }
 
