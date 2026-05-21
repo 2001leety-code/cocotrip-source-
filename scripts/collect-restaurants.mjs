@@ -100,12 +100,23 @@ const CITY_CONFIG = {
       { q: '제주 피자 맛집', tag: 'general', category: 'western', target: 5 },
       { q: '제주 스테이크 맛집', tag: 'general', category: 'western', target: 5 },
       { q: '제주 버거 맛집', tag: 'general', category: 'western', target: 5 },
-      // ── 비건/할랄 ──
+      // ── 비건 ──
       { q: '제주 비건 식당', tag: 'vegan', category: 'vegan', target: 5 },
       { q: '제주 채식 식당', tag: 'vegan', category: 'vegan', target: 5 },
       { q: '제주 비건 카페', tag: 'vegan', category: 'vegan', target: 5 },
       { q: '제주 샐러드 식당', tag: 'vegan', category: 'vegan', target: 5 },
       { q: '제주 채식 뷔페', tag: 'vegan', category: 'vegan', target: 5 },
+      // ── 채식 (vegetarian) — PR #282 재작성 (2026-05-22), dietary 0건 → 보강 ──
+      { q: '제주 사찰음식', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '제주 콩요리 식당', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '제주 자연식 식당', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '제주 두부 전문점', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      // ── 할랄 — PR #282 재작성, halal 데이터 0건 → 보강 ──
+      { q: '제주 할랄 식당', tag: 'halal', category: 'halal', target: 5 },
+      { q: '제주 무슬림 친화 식당', tag: 'halal', category: 'halal', target: 5 },
+      { q: '제주 터키 음식', tag: 'halal', category: 'halal', target: 5 },
+      { q: '제주 아랍 음식', tag: 'halal', category: 'halal', target: 5 },
+      { q: '제주 인도 음식', tag: 'halal', category: 'halal', target: 5 },
     ],
   },
   gyeongju: {
@@ -148,6 +159,17 @@ const CITY_CONFIG = {
       { q: '경주 일식 맛집', tag: 'general', category: 'japanese', target: 5 },
       { q: '경주 중식 맛집', tag: 'general', category: 'chinese', target: 5 },
       { q: '경주 파스타 맛집', tag: 'general', category: 'western', target: 5 },
+      // ── Dietary — PR #282 재작성 (2026-05-22), halal/vegan/vegetarian 모두 0건 → 보강 ──
+      { q: '경주 비건 식당', tag: 'vegan', category: 'vegan', target: 5 },
+      { q: '경주 채식 식당', tag: 'vegan', category: 'vegan', target: 5 },
+      { q: '경주 샐러드 식당', tag: 'vegan', category: 'vegan', target: 5 },
+      { q: '경주 사찰음식', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '경주 두부 전문점', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '경주 콩요리', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '경주 할랄 식당', tag: 'halal', category: 'halal', target: 5 },
+      { q: '경주 무슬림 친화 식당', tag: 'halal', category: 'halal', target: 5 },
+      { q: '경주 터키 음식', tag: 'halal', category: 'halal', target: 5 },
+      { q: '경주 인도 음식', tag: 'halal', category: 'halal', target: 5 },
     ],
   },
   jeonju: {
@@ -188,6 +210,17 @@ const CITY_CONFIG = {
       { q: '전주 중식 맛집', tag: 'general', category: 'chinese', target: 5 },
       { q: '전주 파스타 맛집', tag: 'general', category: 'western', target: 5 },
       { q: '전주 피자 맛집', tag: 'general', category: 'western', target: 5 },
+      // ── Dietary — PR #282 재작성 (2026-05-22), halal/vegan/vegetarian 모두 0건 → 보강 ──
+      { q: '전주 비건 식당', tag: 'vegan', category: 'vegan', target: 5 },
+      { q: '전주 채식 식당', tag: 'vegan', category: 'vegan', target: 5 },
+      { q: '전주 비건 카페', tag: 'vegan', category: 'vegan', target: 5 },
+      { q: '전주 사찰음식', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '전주 두부 전문점', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '전주 자연식 식당', tag: 'vegetarian', category: 'vegetarian', target: 5 },
+      { q: '전주 할랄 식당', tag: 'halal', category: 'halal', target: 5 },
+      { q: '전주 무슬림 친화 식당', tag: 'halal', category: 'halal', target: 5 },
+      { q: '전주 터키 음식', tag: 'halal', category: 'halal', target: 5 },
+      { q: '전주 인도 음식', tag: 'halal', category: 'halal', target: 5 },
     ],
   },
 };
