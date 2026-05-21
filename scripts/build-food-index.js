@@ -133,6 +133,13 @@ function main() {
   const gyeongju = loadJson(join(FOOD_DATA_DIR, 'restaurants_gyeongju_collected.json'));
   const jeonju   = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeonju_collected.json'));
 
+  // 2026-05-21 신규 AI-curated batch (제주/경주/전주 halal/vegan/dong 확충).
+  // 운영자 검증 후속 필수 — record 의 `notes` 필드 + `source=ai_curated_2026_05_21` 로 식별.
+  // 신뢰도: 식당명·dong 은 well-known, lat/lng 는 area centroid 근사값.
+  const jejuCurated     = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeju_2026-05-21.json'));
+  const gyeongjuCurated = loadJson(join(FOOD_DATA_DIR, 'restaurants_gyeongju_2026-05-21.json'));
+  const jeonjuCurated   = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeonju_2026-05-21.json'));
+
   // Load Busan Phase 6 files (from collect-busan.mjs + enrich-busan.mjs)
   // These files are already rating-filtered (≥4.6) by enrich-busan.mjs
   const busanSeafood    = loadJson(join(FOOD_DATA_DIR, 'busan_seafood.json'));
@@ -144,6 +151,7 @@ function main() {
   const all = [
     ...general, ...halal, ...vegan,
     ...jeju, ...gyeongju, ...jeonju,
+    ...jejuCurated, ...gyeongjuCurated, ...jeonjuCurated,
     ...busanSeafood, ...busanCafe, ...busanRestaurant, ...busanAttraction,
   ];
   console.log(`\n  📊 Total raw items: ${all.length}`);
