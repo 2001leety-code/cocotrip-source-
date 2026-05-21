@@ -1217,6 +1217,9 @@ export class RouteAgent extends BaseAgent {
                     const prevStayMin = places[i - 1].stay_min || 60;
                     currentTime += prevStayMin + realTransitMin + BUFFER_MIN;
 
+                    // P136: 24h wrap 차단 (midnight 초과 시 22:30 cap)
+                    currentTime = this._sanitizeTime(currentTime, `day${dayPlan.day || '?'}-stop${i}`);
+
                     place.start_time = this._formatTime(currentTime);
 
                     // ── 통합 transit_from_prev (ODsay 우선, Gemini fallback) ──
@@ -1819,5 +1822,44 @@ export class RouteAgent extends BaseAgent {
         const h = Math.floor(totalMin / 60) % 24;
         const m = totalMin % 60;
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    /**
+     * P136: 24h wrap 차단.
+     * rawMin >= 1440 (midnight) → 22:30 (1350min) hard cap + admin alert (non-blocking).
+     * pre-dawn (< 300 = 05:00) 은 planPersister.detectUnreasonableStopTimes 에 위임.
+     *
+     * @param {number} rawMin - 분 단위 누적 시각
+     * @param {string} [context] - 로그용 컨텍스트 (예: "day3-stop2")
+     * @returns {number} sanitized minutes (<= 1439)
+     */
+    _sanitizeTime(rawMin, context = '') {
+        const MIDNIGHT_MIN = 24 * 60;   // 1440
+        const SAFE_CAP_MIN = 22 * 60 + 30; // 1350 = 22:30
+        const MAX_DAY_MIN = 23 * 60 + 59;  // 1439
+
+        if (!Number.isFinite(rawMin)) {
+            console.warn(`[RouteAgent] P136 _sanitizeTime: non-finite rawMin (${rawMin}) → cap 22:30${context ? ' ctx=' + context : ''}`);
+            throttledTelegramAlert({
+                key: `plan-time-wrap:non-finite${context ? ':' + context : ''}`,
+                channel: 'admin',
+                severity: 'low',
+                message: `⚠️ P136 RouteAgent _sanitizeTime: non-finite rawMin=${rawMin}${context ? ' ctx=' + context : ''}`,
+            });
+            return SAFE_CAP_MIN;
+        }
+
+        if (rawMin >= MIDNIGHT_MIN) {
+            console.warn(`[RouteAgent] P136 _sanitizeTime: 24h wrap detected rawMin=${rawMin} → cap 22:30${context ? ' ctx=' + context : ''}`);
+            throttledTelegramAlert({
+                key: `plan-time-wrap:${context || 'unknown'}`,
+                channel: 'admin',
+                severity: 'low',
+                message: `⚠️ P136 RouteAgent 24h wrap 차단: rawMin=${rawMin} (${this._formatTime(rawMin % (24 * 60))}) → capped 22:30${context ? ' ctx=' + context : ''}`,
+            });
+            return SAFE_CAP_MIN;
+        }
+
+        return Math.min(rawMin, MAX_DAY_MIN);
     }
 }

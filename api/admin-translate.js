@@ -45,7 +45,11 @@ function json(req, res, status, body) {
   return res.end(JSON.stringify(body));
 }
 
-const GEMINI_MODEL = 'gemini-2.0-flash';
+// 2026-05-21 P135: 2.0 Flash → resolveGeminiModel('translate') default 3.5 Flash.
+// ENV GEMINI_TRANSLATE_MODEL 또는 GEMINI_MODEL_OVERRIDE 로 override.
+// lazy resolve — function call 시점 ENV 평가 (test runtime ENV mutation 호환).
+import { resolveGeminiModel } from './_ai_core/geminiModelResolver.js';
+const getGeminiModel = () => resolveGeminiModel('translate');
 
 const SOURCE_LANG_LABELS = {
   ko: 'Korean (한국어)',
@@ -117,7 +121,7 @@ async function callGemini(prompt) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY missing');
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent?key=${apiKey}`;
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {

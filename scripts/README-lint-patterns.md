@@ -56,6 +56,33 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 | `P123_hotelByCityForwarding` | P123 | `ai-planner-full.js` 의 hotelByCity destructure / MULTI-CITY HOTELS BY CITY 블록 / backfillDayLodging(., hotelByCity) 인자 누락. 또는 `planPersister.js` 의 backfillDayLodging signature 의 hotelByCity 인자 / hbc[dayCityLc] lookup 누락 — wizard 도시별 호텔 입력 백엔드 무시 | 변경된 file 의 destructure / inject / lookup grep |
 | `P124_arrivalDepartureSleepBuffer` | P124 + P124-extended (2026-05-21) | `buildPrompt.js` 의 ARRIVAL/DEPARTURE DAY HANDLING + GLOBAL TIME RULES (P124-extended) 3 block 누락 또는 8h sleep buffer (arrival+9h) logic 부재. 또는 `responseValidator.js` 의 B-LATE-ARRIVAL/B-EARLY-DEPARTURE/B-GLOBAL-DAWN (중간 day 새벽 stops) 3 rule 누락 | 변경된 file 의 block / rule grep |
 | `P127_lodgingBookendMultiCityAnchor` | P127 | `routeEnrichment.js` 의 validateLodgingBookend signature 에 isMultiCity 인자 누락. day-level anchor 분기 logic 또는 호출처에서 isMultiCity 전달 누락 — multi-city false-positive 5건 잔존 | 변경된 file 의 signature / 분기 grep |
+| `P133_catalogSync` | P133 (2026-05-21) | (a) data.tsx / WizardStep2Details.tsx 의 10개 상수 키 ↔ WIZARD-INPUT-CATALOG.md 누락. (b) buildPrompt.js reservation_status ↔ index.tsx payload 미전달. (c) reservationStatus 변경 시 arrivalTime/Airport 클리어 부재. (d) toggleCity setHotelByCity 누락 / wantAccom=true 시 setHotelByCity({}) 초기화 누락 | 변경된 file + docs/WIZARD-INPUT-CATALOG.md grep / lint-catalog-sync.mjs 위임 |
+
+## R-P133 — 카탈로그 ↔ DB ↔ 위자드 동기 매트릭스
+
+카테고리: **L1 코드 grep + 신규 Catalog SSOT 동기**
+
+검사 대상:
+1. **(a) data.tsx / WizardStep2Details.tsx 10개 상수 ↔ WIZARD-INPUT-CATALOG.md SSOT 동기**
+   - CITY_CHIPS, AIRPORT_OPTIONS, AIRPORT_DISPLAY, FOOD_STYLE_KEYS, ALLERGY_KEYS, SPICE_LEVEL_KEYS, KOREAN_BUCKET_LIST, PRICE_KEYS, ACTIVITY_CHIPS_EXPANDED, TOUR_PACE_KEYS
+2. **(b) buildPrompt.js 의 reservation_status ↔ WizardForm/index.tsx payload 동기**
+3. **(c) reservationStatus 변경 시 arrivalTime/arrivalAirport cleanup useEffect 전수 분기**
+4. **(d) hotelByCity stale Record cleanup** — toggleCity 내 setHotelByCity 호출 (분기 #10) + wantAccom=true 시 setHotelByCity({}) 초기화 (분기 #23)
+
+예방 회귀: P122/P123 (다도시 호텔 placeholder / hotelByCity forwarding), 카탈로그 분기 #1/#2/#10/#23
+
+호출:
+```bash
+node scripts/lint-catalog-sync.mjs             # report-only (exit 0)
+node scripts/lint-catalog-sync.mjs --strict    # 오류 시 exit 1 (CI 차단용)
+```
+
+Pre-push hook 통합: `scripts/git-hooks/pre-push` 의 mistake-lint step 이 자동 실행.
+(`lint-mistake-patterns.mjs` 내 `P133_catalogSync` 룰이 트리거 파일 변경 시 inline 검사 + `lint-catalog-sync.mjs` 위임)
+
+주의: R-P128 은 PR #516 (block-mode) 이 차지했으므로 카탈로그 동기는 **R-P133** 사용.
+
+---
 
 ## 실행 방법
 

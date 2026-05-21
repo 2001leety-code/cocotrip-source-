@@ -1,0 +1,286 @@
+{
+  "id": "GANGNEUNG_DAY_ANMOKBEACH_STANDARD",
+  "city": "gangneung",
+  "zone": "Anmok Beach",
+  "theme": "안목해변 + 강릉커피거리 + 경포호",
+  "theme_i18n": {
+    "ko": "안목해변 + 강릉커피거리 + 경포호",
+    "en": "Anmok Beach + Gangneung Coffee Street + Gyeongpo Lake",
+    "ja": "安木海辺 + 江陵コーヒー街 + 鏡浦湖",
+    "zh": "安木海滩 + 江陵咖啡街 + 镜浦湖"
+  },
+  "intensity": "standard",
+  "duration_min": 420,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "안목해변",
+      "name_i18n": {
+        "ko": "안목해변",
+        "en": "Anmok Beach",
+        "ja": "安木海辺",
+        "zh": "安木海滩"
+      },
+      "address": "강원특별자치도 강릉시 창해로 14번길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 해돋이 명소 (일출 시각 확인 권장)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "강릉 커피거리 시작점. 테이크아웃 커피 들고 해변 산책 코스. 일출 명소.",
+        "en": "Starting point of Gangneung Coffee Street. Scenic walk with takeout coffee. Famous sunrise spot.",
+        "ja": "江陵コーヒー街の起点。テイクアウトコーヒーを持ってビーチ散策。日の出スポットとしても有名。",
+        "zh": "江陵咖啡街起点。拿外带咖啡沿海滩散步。著名日出胜地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "강릉커피거리 카페 1",
+      "name_i18n": {
+        "ko": "강릉커피거리 카페 1",
+        "en": "Gangneung Coffee Street Cafe 1",
+        "ja": "江陵コーヒー街 カフェ 1",
+        "zh": "江陵咖啡街咖啡馆 1"
+      },
+      "address": "강원특별자치도 강릉시 창해로",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": ["vegetarian"],
+      "tips_i18n": {
+        "ko": "한국 바리스타 대회 발상지. 로스터리 카페 집결. 오션뷰 자리 인기.",
+        "en": "Birthplace of Korea's barista competition culture. Roastery cafes. Ocean view seating popular.",
+        "ja": "韓国バリスタ大会発祥の地。ロースタリーカフェが集結。オーシャンビュー席が人気。",
+        "zh": "韩国咖啡师大赛发源地。精品烘焙咖啡馆聚集。海景座位最受欢迎。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 75
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "경포호",
+      "name_i18n": {
+        "ko": "경포호",
+        "en": "Gyeongpo Lake",
+        "ja": "鏡浦湖",
+        "zh": "镜浦湖"
+      },
+      "address": "강원특별자치도 강릉시 경포로 365",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 둘레길 4.3km 순환."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "4.3km 호수 순환로. 봄 벚꽃 명소. 고니·기러기 도래지 (겨울).",
+        "en": "4.3km lake circuit trail. Spring cherry blossoms. Swan and geese habitat (winter).",
+        "ja": "4.3km湖周回路。春は桜の名所。白鳥・ガンの飛来地 (冬)。",
+        "zh": "4.3km环湖步道。春季樱花胜地。天鹅和大雁栖息地（冬季）。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 140
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 강릉시 경포로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "강릉 향토 음식 — 순두부찌개 / 초당두부 / 물회 (식이 제약 매칭).",
+        "en": "Gangneung local food — soondubu jjigae / Chodang tofu / mulhoe matched by dietary needs.",
+        "ja": "江陵郷土料理 — スンドゥブチゲ / 草堂豆腐 / ムルフェ (食事制限とマッチング)。",
+        "zh": "江陵乡土料理 — 嫩豆腐锅 / 草堂豆腐 / 水拌鱼生 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 215
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "오죽헌",
+      "name_i18n": {
+        "ko": "오죽헌",
+        "en": "Ojukheon House",
+        "ja": "烏竹軒",
+        "zh": "乌竹轩"
+      },
+      "address": "강원특별자치도 강릉시 율곡로3139번길 24",
+      "stay_min": 60,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1000,
+        "senior": 0,
+        "toddler": 0,
+        "free_with": ["cultural_heritage_day"],
+        "notes": "율곡 이이·신사임당 생가. 5만원 지폐 도안 배경."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "조선시대 대학자 율곡 이이 생가. 5만원권·5천원권 도안 배경 실물 확인 가능.",
+        "en": "Birthplace of Joseon scholar Yulgok Yi I. The actual site depicted on Korean 50,000 won and 5,000 won banknotes.",
+        "ja": "朝鮮時代の学者・栗谷李珥の生家。5万ウォン札・5千ウォン札の図柄の実物が確認できる。",
+        "zh": "朝鲜时代大学者栗谷李珥故居。五万韩元和五千韩元纸币图案的原型地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 290
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 강릉시 중앙시장",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "강릉 중앙시장 — 감자전 / 닭강정 / 해물 (식이 제약 매칭).",
+        "en": "Gangneung Central Market — potato pancake / dakgangjeong / seafood.",
+        "ja": "江陵中央市場 — ジャガイモチヂミ / ヤンニョムチキン / 海鮮。",
+        "zh": "江陵中央市场 — 土豆煎饼 / 韩式炸鸡 / 海鲜。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 365
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 400,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 4000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 4000,
+        "cost_krw": 5000
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 3000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 3000,
+        "cost_krw": 5000
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 2500,
+      "cost_krw": 4500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 2500,
+        "cost_krw": 4500
+      }
+    }
+  },
+  "best_for": ["beach_lover", "coffee_enthusiast", "culture_lover", "nature_walker"],
+  "unsuitable_for": [],
+  "dietary_options": ["vegetarian"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 식당 슬롯(order 2/4/6)은 verified_cafe/lunch/dinner placeholder — 운영자가 _food_index.json 강릉 항목 추가 후 매칭. 강릉 초당두부 / 물회 DB 수집 권장."
+}

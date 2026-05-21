@@ -171,38 +171,52 @@ export function detectUnreasonableStopTimes(itinerary) {
 }
 
 /**
- * P120: detectUnreasonableStopTimes + admin telegram alert (P83 dedup) wrapper.
+ * P120/P136: detectUnreasonableStopTimes + admin/customer 분기 (P101 패턴).
+ * - admin (ADMIN-BYPASS-* orderId 또는 adminBypass:true): telegram alert + return count (plan 저장 진행).
+ * - customer: throw UNREASONABLE_STOP_TIMES → ai-planner-full 500.
+ *
  * ai-planner-full.js 가 1줄 호출만 하도록 (P1 lock — per-file line limit 보호).
+ *
+ * @param {object} itinerary
+ * @param {object} body - request body ({ orderId, adminBypass, regions })
+ * @returns {number} unreasonable stop count (0 = clean, >0 = admin soft alert only)
+ * @throws {Error} UNREASONABLE_STOP_TIMES — customer path only
  */
 export function runUnreasonableStopTimesCheck(itinerary, body) {
-  try {
-    const stops = detectUnreasonableStopTimes(itinerary);
-    if (stops.length === 0) return 0;
-    const regionsKey = Array.isArray(body?.regions) && body.regions.length > 0
-      ? body.regions.slice(0, 2).join('+')
-      : 'unknown';
-    const sample = stops.slice(0, 5)
-      .map((u) => `Day${u.day} ${u.start_time} "${u.stop}"`).join(' / ');
+  const stops = detectUnreasonableStopTimes(itinerary);
+  if (stops.length === 0) return 0;
+
+  const isAdminBypass = String(body?.orderId || '').startsWith('ADMIN-BYPASS-')
+    || body?.adminBypass === true;
+
+  const regionsKey = Array.isArray(body?.regions) && body.regions.length > 0
+    ? body.regions.slice(0, 2).join('+')
+    : 'unknown';
+  const sample = stops.slice(0, 5)
+    .map((u) => `Day${u.day} ${u.start_time} "${u.stop}"`).join(' / ');
+
+  if (isAdminBypass) {
+    // P101 패턴: admin bypass → soft alert, plan 저장 진행
     throttledTelegramAlert({
       key: `unreasonable-stop-times:${regionsKey}`,
       channel: 'admin',
       severity: 'low',
       message: [
-        `⚠️ <b>새벽 시간 stops 감지 — RouteAgent stitching wrap (P120)</b>`,
+        `⚠️ <b>새벽 시간 stops 감지 — admin bypass (P136)</b>`,
         ``,
         `<b>건수:</b> ${stops.length}`,
         `<b>샘플:</b> ${sample}`,
         ``,
-        `→ root cause 후속: RouteAgent Phase 2.5/2.6 transit time 누적 검증`,
+        `→ root cause: RouteAgent stitching 24h wrap. P136 _sanitizeTime 으로 차단됨.`,
       ].join('\n'),
       context: { count: stops.length, stops: stops.slice(0, 10), regions: body?.regions || null },
     });
-    console.log(`[planner] P120 unreasonable stops detected: ${stops.length}`);
+    console.log(`[planner] P136 unreasonable stops detected (admin bypass, soft): ${stops.length}`);
     return stops.length;
-  } catch (e) {
-    console.warn('[planner] P120 check failed:', e?.message);
-    return 0;
   }
+
+  // customer path: throw → ai-planner-full 500
+  throw new Error(`UNREASONABLE_STOP_TIMES: ${stops.length} pre-dawn stops detected. sample: ${sample}`);
 }
 
 /**

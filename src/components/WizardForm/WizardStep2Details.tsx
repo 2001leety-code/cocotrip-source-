@@ -146,9 +146,11 @@ export function WizardStep2Details(props: Step2Props) {
   // 경우(=reservationStatus가 flight + 사용자가 Step 3에서 만진 적 없음)에만
   // chip 모드로 표시.
   // 2026-05-05: 호텔 chip 분기 제거 — Step 0에서 호텔을 묻지 않으므로 항상 input 노출.
+  // 2026-05-21 (P134 분기 #22 fix): flight_hotel 도 chip 분기 발동. 이전엔 'flight' only →
+  // flight_hotel 사용자는 Step0 에서 항공편 입력했어도 Step3 에서 input 재노출 (P0 dedup 의도 위반).
   const flightInfoFromStep0 =
     !!onEditStep0
-    && reservationStatus === 'flight'
+    && (reservationStatus === 'flight' || reservationStatus === 'flight_hotel')
     && !!arrivalTerminal
     && !airportTouchedInStep3;
 
@@ -527,6 +529,9 @@ export function WizardStep2Details(props: Step2Props) {
             setWantAccom(next);
             // P1 mutual exclusion: AI 추천 켜면 사용자 입력 호텔 주소 클리어 (혼란 방지)
             if (next && hotelAddress) setHotelAddress('');
+            // 2026-05-21 (분기 #23 fix, R-P133 d): wantAccom 켜면 다도시 hotelByCity Record 도
+            // 클리어. 누락 시 stale Record 가 backend forward → AI 가 사용자 입력 호텔로 오해.
+            if (next && Object.keys(hotelByCity).length > 0) setHotelByCity({});
           }}
             className="w-5 h-5 rounded border-white/20 bg-white/[0.06] accent-[#7C5CFC]" />
           <div>

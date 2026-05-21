@@ -428,12 +428,43 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   function toggleCity(cityName: string, chipKey?: string) {
     haptic('select');
     if (mainCity === cityName) {
+      // 2026-05-21 (P134 분기 #10 fix): mainCity 변경 시 oldMainKey 의 hotelByCity /
+      // recommendedZones Record 키 cleanup. 누락 시 backend buildPrompt 가 deselect 된
+      // 도시의 호텔 주소 inject → P122 placeholder 회귀.
+      const oldMainKey = mainCityKey;
       const next = extraCities[0] || '';
+      const newMainKey = next ? (CITY_CHIPS.find(c => getCityName(c.key) === next)?.key || '') : '';
       setMainCity(next);
-      setMainCityKey(next ? (CITY_CHIPS.find(c => getCityName(c.key) === next)?.key || '') : '');
+      setMainCityKey(newMainKey);
       setExtraCities(prev => prev.slice(1));
+      if (oldMainKey) {
+        setHotelByCity(prev => {
+          if (!(oldMainKey in prev)) return prev;
+          const { [oldMainKey]: _drop, ...rest } = prev;
+          return rest;
+        });
+        setRecommendedZones(prev => {
+          if (!(oldMainKey in prev)) return prev;
+          const { [oldMainKey]: _drop, ...rest } = prev;
+          return rest;
+        });
+      }
     } else if (extraCities.includes(cityName)) {
+      // 2026-05-21 (P134 분기 #10 fix): 다도시 deselect 시 그 도시 hotelByCity / zones 키 cleanup.
+      const removedKey = cityNameToZoneKey(cityName);
       setExtraCities(prev => prev.filter(c => c !== cityName));
+      if (removedKey) {
+        setHotelByCity(prev => {
+          if (!(removedKey in prev)) return prev;
+          const { [removedKey]: _drop, ...rest } = prev;
+          return rest;
+        });
+        setRecommendedZones(prev => {
+          if (!(removedKey in prev)) return prev;
+          const { [removedKey]: _drop, ...rest } = prev;
+          return rest;
+        });
+      }
     } else if (!mainCity) {
       setMainCity(cityName);
       setMainCityKey(chipKey || '');
@@ -561,8 +592,14 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         arrival_airport: arrivalTerminal,
         departure_airport: departureAirport,
         hotel_address: effectiveHotelAddress,
+        // 2026-05-21 (P134 분기 #1 fix, R-P133): buildPrompt 가 reservation_status 사용하는데
+        // frontend payload 미전달이던 회귀. nothing/flight/flight_hotel/all_done 4 종 forward.
+        ...(reservationStatus ? { reservation_status: reservationStatus } : {}),
         // 다도시 시 추가 컨텍스트 — backend buildPrompt.js 가 도시별 prompt inject.
-        ...(isMultiCity && Object.keys(hotelByCity).length > 0 ? { hotelByCity } : {}),
+        // 2026-05-21 (P134 Layer 1): 빈 객체도 전달. 운영자 의도 — 호텔 입력 옵셔널.
+        // 호텔 없는 도시는 backend buildPrompt 가 zone 중심 bookend 분기 (Layer 2,
+        // buildPrompt.js #10 호텔 미입력 도시 섹션). P122/P123 silent placeholder 차단.
+        ...(isMultiCity ? { hotelByCity: hotelByCity ?? {} } : {}),
         ...(isMultiCity ? { entry_city: mainCityKey } : {}),
         // 2026-05-21 (P125): 사용자가 명시적으로 입국/출국 도시 클릭 cycle 로 지정한 경우만
         // forward. 미입력 시 backend buildPrompt MULTI-CITY HANDLING 의 city ordering rule
@@ -770,6 +807,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   allCities={allCities} startDate={startDate} endDate={endDate}
                   arrivalTerminal={arrivalTerminal} pax={pax}
                   selectedActivities={selectedActivities} hotelAddress={hotelAddress}
+                  // 2026-05-21 (P134 분기 #34/#35 fix): 다도시 + 호텔 anchor 미리보기 props
+                  mainCityKey={mainCityKey}
+                  hotelByCity={hotelByCity}
+                  recommendedZones={recommendedZones}
+                  isMultiCity={isMultiCity}
                   isLoading={isLoading} errorMsg={errorMsg}
                   language={language}
                   onEditStep={(s) => goToStep(s)} onGenerate={handleGenerate}

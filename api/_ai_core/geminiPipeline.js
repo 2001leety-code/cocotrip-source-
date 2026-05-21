@@ -42,10 +42,14 @@ const RETRY_TEMPERATURE = 0.1;
 const RETRY_RATE_WINDOW_MS = 5 * 60 * 1000; // 5min
 const RETRY_RATE_THRESHOLD = 10; // 5분당 10건 초과 시 1회 alert
 
+import { resolveGeminiModel } from './geminiModelResolver.js';
+
 export function buildModel(apiKey, temperatureOverride) {
   const genAI = new GoogleGenerativeAI(apiKey);
+  // 2026-05-21 P135: 2.5 Pro → resolveGeminiModel('main') default 3.5 Flash.
+  // ENV GEMINI_MAIN_MODEL=gemini-3.5-pro 로 Pro 유지 가능 (운영자 명시).
   return genAI.getGenerativeModel({
-    model: 'gemini-2.5-pro',
+    model: resolveGeminiModel('main'),
     generationConfig: {
       temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
       thinkingConfig: { thinkingBudget: 32000 },

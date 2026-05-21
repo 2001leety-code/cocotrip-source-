@@ -9,8 +9,18 @@ import type { ZoneCourseDoc } from '@/lib/zone-courses-firestore';
 import { I18nField } from '@/components/admin/ProductEditor/I18nField';
 
 const CITY_OPTIONS: ZoneCourseCity[] = [
-  'seoul', 'busan', 'jeju', 'gyeongju', 'jeonju',
-  'gangneung', 'sokcho', 'andong', 'suwon', 'gangwon',
+  // 서울권
+  'seoul', 'suwon',
+  // 부산/경상
+  'busan', 'gyeongju', 'andong', 'daegu', 'pohang', 'gyeongsang',
+  // 제주
+  'jeju',
+  // 전라
+  'jeonju',
+  // 강원
+  'gangneung', 'sokcho', 'gangwon',
+  // 충청
+  'daejeon', 'chungcheong',
 ];
 
 const INTENSITY_OPTIONS: { value: ZoneCourseIntensity; label: string }[] = [

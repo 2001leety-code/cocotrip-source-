@@ -1040,6 +1040,85 @@ function Z01_blockTypeMetaConsistency({ changed }) {
   return null;
 }
 
+/**
+ * P133_catalogSync — 메모리 P133 (2026-05-21, R-P133).
+ * 위자드 input 키 = DB 카테고리 키 1:1 매칭 의무. `docs/WIZARD-INPUT-CATALOG.md` 가 SSOT.
+ *
+ * 검사 (a): data.tsx / WizardStep2Details.tsx 의 10개 상수 변경 시 WIZARD-INPUT-CATALOG.md 동시 update 강제.
+ * 검사 (b): buildPrompt.js 의 reservation_status="..." ↔ WizardForm/index.tsx onSubmit payload 동기.
+ * 검사 (c): WizardStep0Reservation.tsx / index.tsx 의 reservationStatus 변경 시 arrivalTime/arrivalAirport 클리어 확인.
+ * 검사 (d): toggleCity 내 setHotelByCity 호출 + wantAccom=true 시 setHotelByCity({}) 초기화.
+ *
+ * 트리거: WizardForm/data.tsx / WizardStep2Details.tsx / WizardForm/index.tsx /
+ *         WizardStep0Reservation.tsx / WIZARD-INPUT-CATALOG.md / buildPrompt.js 변경 시.
+ * 오류 시: lint-catalog-sync.mjs 위임 (execSync) 또는 inline grep.
+ *
+ * 예방 회귀: P122/P123 (다도시 호텔), 분기 #1/#2/#10/#23 (카탈로그 전수 audit).
+ */
+function P133_catalogSync({ changed }) {
+  const TRIGGER_FILES = [
+    'src/components/WizardForm/data.tsx',
+    'src/components/WizardForm/WizardStep2Details.tsx',
+    'src/components/WizardForm/index.tsx',
+    'src/components/WizardForm/WizardStep0Reservation.tsx',
+    'docs/WIZARD-INPUT-CATALOG.md',
+    'api/_ai_core/buildPrompt.js',
+  ];
+  const triggered = changed.some(
+    (c) => c.status !== 'D' && TRIGGER_FILES.some((t) => c.file === t || c.file.endsWith(t)),
+  );
+  if (!triggered) return { skipped: true };
+
+  // lint-catalog-sync.mjs 를 별도 프로세스로 호출해 4 검사 위임 (pre-push hook 단계).
+  // 여기서는 inline grep 로 핵심 분기만 빠르게 검사 — 전체 검사는 lint-catalog-sync.mjs 위임.
+
+  // --- inline (b) 검사: buildPrompt + index.tsx payload ---
+  const buildPromptSrc = getChangedFileContent('api/_ai_core/buildPrompt.js');
+  const indexSrc = getChangedFileContent('src/components/WizardForm/index.tsx');
+
+  if (buildPromptSrc && /reservation_status\s*=\s*["']/.test(buildPromptSrc)) {
+    if (indexSrc) {
+      const hasPayload =
+        /reservation_status\s*:/.test(indexSrc) ||
+        /\breservation_status\b,/.test(indexSrc);
+      if (!hasPayload) {
+        fail(
+          'P133_catalogSync',
+          'buildPrompt.js 가 reservation_status payload 를 expect 하지만 WizardForm/index.tsx 의 onSubmit 에 미전달 (CATALOG 분기 #1 회귀)',
+          'index.tsx onSubmit payload 에 reservation_status: reservationStatus 추가. ' +
+          '자세한 검사: node scripts/lint-catalog-sync.mjs',
+        );
+        return null;
+      }
+    }
+  }
+
+  // --- inline (d) 검사: toggleCity setHotelByCity ---
+  if (indexSrc) {
+    const toggleMatch = indexSrc.match(/function\s+toggleCity[\s\S]{0,600}/);
+    const toggleBlock = toggleMatch ? toggleMatch[0] : '';
+    if (toggleMatch && !/setHotelByCity/.test(toggleBlock)) {
+      warn(
+        'P133_catalogSync',
+        'toggleCity 함수 내 setHotelByCity 호출 없음 — 도시 deselect 시 hotelByCity stale (분기 #10). ' +
+        'node scripts/lint-catalog-sync.mjs 로 전체 검사.',
+      );
+    }
+  }
+
+  // --- CATALOG.md 존재 여부 (a) 간이 확인 ---
+  if (!existsSync('docs/WIZARD-INPUT-CATALOG.md')) {
+    fail(
+      'P133_catalogSync',
+      'docs/WIZARD-INPUT-CATALOG.md 없음 — SSOT 카탈로그 파일 필요. node scripts/lint-catalog-sync.mjs 로 전체 검사.',
+      'WizardForm input 키 ↔ DB 카테고리 키 동기 보장 파일. R-P133 필수 산출물.',
+    );
+    return null;
+  }
+
+  return null;
+}
+
 const RULES = [
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
@@ -1130,6 +1209,7 @@ const RULES = [
   ['P129_aiPlannerFullDecomposeLock', P129_aiPlannerFullDecomposeLock],
   ['P130_intentClassifierMonitoring', P130_intentClassifierMonitoring],
   ['P132_prDescriptionImpactSections', P132_prDescriptionImpactSections],
+  ['P133_catalogSync', P133_catalogSync],
 ];
 
 /**

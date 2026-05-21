@@ -628,6 +628,51 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
 - 사용자 신고: 부산 → 서울 전환 day 의 lodging 이 부산 호텔로 잘못 매칭 → 사용자가 짐 끌고 KTX 후 어디로 가야 할지 혼란.
 - 위반 시 백엔드 validator 가 즉시 1회 재시도 → 그래도 위반이면 plan 저장 차단 + 사용자 500 에러.
 
+### 10. 🔴 호텔 미입력 도시 — zone 중심 bookend (P134, 2026-05-21)
+운영자 의도 (받아적기): **"AI 플랜 짤 때 호텔 > 이동 > 장소 > 이동 > 장소 > 호텔복귀 이걸 원해서 호텔을 넣었던 거야. 강제가 되면 안 되지 어디다 호텔을 잡을지 모르는데."**
+→ 호텔 = 매일 동선 anchor. **입력 강제 X (옵션)**. 호텔 입력 여부와 무관하게 동선 구조 (anchor → 이동 → 장소 → ... → anchor 복귀) 가 깨지지 않아야 함.
+
+다도시 plan 에서 \`hotelByCity\` Record 는 일부 도시만 채워질 수 있음 (운영자 의도: 사용자가 호텔 미정인 도시는 비워둠):
+
+**A. 호텔 입력된 도시** (예: \`hotelByCity['seoul'] = "명동 호텔 ..."\`):
+- 그 호텔 좌표를 anchor.
+- 매일 동선이 호텔에서 출발 → 호텔 복귀.
+- ### 9 도시 매칭 룰 적용.
+
+**B. 호텔 미입력 도시** (예: hotelByCity 에 'busan' key 없음 또는 빈 문자열):
+- \`recommended_zones[cityKey]\` (예: 'haeundae') 의 zone 중심 좌표를 anchor.
+- \`day.lodging.name\` = zone 이름 + "(호텔 미정)" / "Hotel near {zone}" (사용자 언어). 예: "해운대 (호텔 미정)" or "Hotel near Haeundae".
+- \`day.lodging.address\` = zone 의 anchorAddress (RouteAgent 가 좌표 처리).
+- lodging bookend 룰 (첫 stop ≤ 30분 거리, 마지막 stop ≤ 30분 거리) **그대로 발동**.
+- ### 9 도시 매칭 룰도 그대로 — \`day.lodging.name/address\` 에 그 도시 이름 포함.
+
+**C. 호텔도 zone 도 미입력 도시** (양쪽 다 비어있음):
+- 그 도시의 첫 추천 attraction 좌표를 anchor.
+- \`day.lodging.name\` = "{도시 이름} (위치 미정)" / "Day start near {first stop}".
+- 첫 stop 과 마지막 stop 모두 그 좌표 30분 이내.
+
+**NEVER**:
+- ❌ 호텔 미입력 도시 = lodging bookend 생략. \`day.lodging\` 을 null 로 두면 P119/P122 회귀.
+- ❌ 호텔 없다고 day.city 의 다른 도시 호텔 (예: Seoul 호텔) 차용 (P122 placeholder 회귀).
+- ❌ "호텔 미정" 표시 = 동선 자유. 항상 zone 중심 또는 첫 추천 장소 anchor 로 결합.
+
+**GOOD (호텔 미입력 부산 day, recommended_zones={busan:'haeundae'})**:
+\`\`\`json
+{
+  "day": 3,
+  "city": "Busan",
+  "lodging": {"name": "해운대 일대 (호텔 미정)", "address": "부산광역시 해운대구 우동..."},
+  "stops": [
+    {"start_time":"10:00","name":"해운대 해변","address":"부산광역시 해운대구..."},
+    ...
+    {"start_time":"21:00","name":"해운대 야시장","address":"부산광역시 해운대구..."}
+  ]
+}
+\`\`\`
+**BAD**: \`day.lodging = null\` 또는 \`day.lodging.name = "명동 호텔"\` (Busan day 인데 Seoul 호텔).
+
+관련 회귀 메모리: P116 lodging bookend label / P119 day.lodging backfill (안전망) / P122 다도시 placeholder / P123 hotelByCity 3-layer / **P134 호텔 의도 (옵션 anchor, zone 중심 fallback)**.
+
 If \`regions.length === 1\`: **본 섹션 전체 무시**. 기존 단일 도시 규칙만 적용.
 
 ## TRANSIT DIVERSITY — CRITICAL (사용자 신고 — 모든 segment가 walk면 plan이 빈약해 보임)
@@ -693,7 +738,38 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - **Dinner slot**: start_time hour ∈ [17:00, 21:59] — 저녁은 18-20시 표준, 21시 늦은 저녁 흔함. Backend validator (B-MEAL-DINNER) rejects plans missing dinner on full days.
 - **Full day** = middle days (not arrival, not departure). REQUIRES lunch/snack + dinner BOTH. Breakfast is bonus on full days.
 - **Arrival day (Day 1)**: 도착 시각에 따라 breakfast OR lunch/snack OR dinner 중 최소 1식. Late arrival (20:00+) 시 dinner 만으로 OK. Early arrival (10:00 도착) 시 lunch 부터 정상 진행.
-- **Departure day (last day)**: 출국 시각에 따라 breakfast OR lunch/snack OR dinner 중 최소 1식. **이른 출국편 (예: 09:00 ICN)** 시나리오 → 06:00-09:00 사이 호텔 조식 / 24시 김밥집 / 광장시장 아침 food stop 1건 반드시 포함 (category="food", start_time="08:00" 같은 형식). 이 stop 없이 lodging+travel 만으로 출국일 채우면 backend validator (B-MEAL) reject 한다.
+- **Departure day (last day) — P137 STRICT** (plan ba10d29b 회귀: Day 5 food 0건 reject):
+  Departure_time 기준 3-tier 분류 표 — backend responseValidator 와 동일 기준 (B-MEAL, P137):
+
+  | departure_time | 의무 식사 | 예시 |
+  |---|---|---|
+  | < 11:00 (이른 출국) | breakfast slot [06:00, 11:00) 1건 필수 | 08:00 호텔 조식 / 07:30 김밥천국 |
+  | 11:00-16:59 (낮 출국) | breakfast OR lunch/snack 중 최소 1건 | 08:00 조식 OR 12:30 점심 |
+  | >= 17:00 (저녁 출국) | breakfast + lunch/snack 둘 다 의무 | 08:00 조식 + 12:30 점심 |
+  | 미제공 | 아침·오후·저녁 중 최소 1건 (기존) | 아무 slot 1건 이상 |
+
+  GOOD (departure 09:00 — 이른 출국):
+  \`\`\`json
+  { "category": "food", "name": "호텔 조식", "start_time": "07:30" }
+  \`\`\`
+  GOOD (departure 14:00 — 낮 출국):
+  \`\`\`json
+  { "category": "food", "name": "김밥천국", "start_time": "11:30" }
+  \`\`\`
+  GOOD (departure 20:00 — 저녁 출국):
+  \`\`\`json
+  [
+    { "category": "food", "name": "호텔 조식", "start_time": "08:00" },
+    { "category": "food", "name": "점심 식당", "start_time": "12:30" }
+  ]
+  \`\`\`
+  BAD (plan ba10d29b 회귀 패턴 — IMMEDIATE B-MEAL reject):
+  \`\`\`json
+  // Day 5 (출국일): lodging 체크아웃 + travel 공항이동 만 있고 0 food stops → REJECTED
+  { "category": "lodging", "name": "호텔 체크아웃", "start_time": "09:00" }
+  { "category": "travel", "name": "인천공항 이동", "start_time": "11:00" }
+  // ZERO food stops = immediate B-MEAL reject by backend validator
+  \`\`\`
 - NEVER end a full day at hotel before 17:00 without including a dinner food stop. NEVER skip a meal slot. NEVER output departure day with 0 food stops.
 - 3-5 signature menu items with KRW prices
 - reservation_required + phone for popular spots
