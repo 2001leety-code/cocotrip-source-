@@ -2,6 +2,32 @@
 
 <!-- 1-3 bullet points: what changed + why -->
 
+## 사전 영향 분석 (Impact Analysis)
+
+<!-- 본 변경이 영향 미칠 수 있는 연결된 모듈 / 함수 / 의존성 / 사이드 이펙트.
+     PR-pattern 가이드 (P132, 2026-05-21):
+     - 직접 수정: 변경한 파일 + 함수
+     - 간접 영향: 위 함수 호출하는 다른 모듈 (grep / import 체인)
+     - 공유 상태 / 전역 객체 / DB 스키마 / Firestore 컬렉션 / ENV 변경 시 명시
+     - SAFETY-CRITICAL (CLAUDE.md J: dietary 등) 흐름 영향 명시 의무 -->
+
+**직접 수정 영역:**
+- `...`
+
+**간접 영향 가능 영역 (호출 체인):**
+- `...`
+
+**공유 상태 / 사이드 이펙트:**
+- (해당 없으면 "없음" 명시)
+
+## 가장 취약한 부분 (Most Fragile Spot)
+
+<!-- 본 변경 후 회귀 가능성 가장 높은 1-2 지점.
+     P132: 자동 lint 가 잡는 영역 외 — 사람이 review 시 우선 확인해야 할 부분.
+     예: "block-mode fallback 분기 — env GEMINI_MODEL_OVERRIDE=disabled 시 legacy path 동작 확인 필수" -->
+
+- ...
+
 ## 분류 (해당 시)
 
 <!-- 이 PR 이 prod incident / 메모리 P-pattern 의 fix 라면 해당 카테고리 체크.

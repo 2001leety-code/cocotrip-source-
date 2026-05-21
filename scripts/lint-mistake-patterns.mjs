@@ -1129,6 +1129,7 @@ const RULES = [
   ['P128_blockModeIntegration', P128_blockModeIntegration],
   ['P129_aiPlannerFullDecomposeLock', P129_aiPlannerFullDecomposeLock],
   ['P130_intentClassifierMonitoring', P130_intentClassifierMonitoring],
+  ['P132_prDescriptionImpactSections', P132_prDescriptionImpactSections],
 ];
 
 /**
@@ -2833,6 +2834,50 @@ function P130_intentClassifierMonitoring({ changed }) {
       'P130_intentClassifierMonitoring',
       violations.join(' | '),
       '메모리 P130 — intent classifier prod 모니터링: lib export 3개 + modify endpoint 로그 저장 + weekly cron + cron-runner/vercel.json 등록.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P132_prDescriptionImpactSections — 메모리 P132 (2026-05-21).
+ *
+ * PR description template (.github/pull_request_template.md) 에 다음 2 섹션
+ * 의무 유지 (사용자 가이드 "Code Modification & Regression Prevention Guidelines"
+ * 항목 1 + 4 통합):
+ *   1. "사전 영향 분석 (Impact Analysis)" — 직접 수정 + 간접 영향 + 사이드 이펙트
+ *   2. "가장 취약한 부분 (Most Fragile Spot)" — 회귀 가능성 가장 높은 1-2 지점
+ *
+ * 누군가 template 에서 위 섹션을 제거하면 PR review 시 사람의 사전 분석 의무가
+ * 사라지고 자동 lint 가 못 잡는 영역에 회귀 risk 누적 — 본 룰이 차단.
+ */
+function P132_prDescriptionImpactSections({ changed }) {
+  const TEMPLATE = '.github/pull_request_template.md';
+  if (!isModified(TEMPLATE, changed)) return { skipped: true };
+  const violations = [];
+
+  if (existsSync(TEMPLATE)) {
+    const c = readFileSync(TEMPLATE, 'utf8');
+    if (!/##\s+사전 영향 분석/.test(c)) {
+      violations.push(`${TEMPLATE}: "## 사전 영향 분석 (Impact Analysis)" 섹션 누락 — PR 사전 분석 의무 회귀`);
+    }
+    if (!/##\s+가장 취약한 부분/.test(c)) {
+      violations.push(`${TEMPLATE}: "## 가장 취약한 부분 (Most Fragile Spot)" 섹션 누락 — 회귀 risk 지점 명시 의무 회귀`);
+    }
+    // 두 섹션 모두 구조 검증: bullet + commented 가이드 라인 존재
+    if (!/직접 수정 영역/.test(c)) {
+      violations.push(`${TEMPLATE}: "직접 수정 영역" 하위 항목 누락 — Impact Analysis 구조 회귀`);
+    }
+    if (!/간접 영향 가능 영역|호출 체인/.test(c)) {
+      violations.push(`${TEMPLATE}: "간접 영향 가능 영역" (호출 체인) 하위 항목 누락`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P132_prDescriptionImpactSections',
+      violations.join(' | '),
+      '메모리 P132 (2026-05-21) — PR description template 의 "사전 영향 분석" + "가장 취약한 부분" 2 섹션 의무 유지. 자동 lint 가 못 잡는 영역의 사람 review 가드.',
     );
   }
   return null;
@@ -5748,6 +5793,18 @@ function runSelfTest() {
           "{ \"crons\": [ { \"path\": \"/api/cron-runner?job=intent-classifier-summary\", \"schedule\": \"0 21 * * 1\" } ] }\n",
       },
       expectRule: 'P130_intentClassifierMonitoring',
+    },
+    {
+      label: 'P132: PR template 의 "사전 영향 분석" 섹션 누락 — 사람 review 가드 회귀',
+      base: {
+        '.github/pull_request_template.md':
+          "## Summary\n\n## 사전 영향 분석 (Impact Analysis)\n\n**직접 수정 영역:**\n- ...\n\n**간접 영향 가능 영역 (호출 체인):**\n- ...\n\n## 가장 취약한 부분 (Most Fragile Spot)\n\n- ...\n",
+      },
+      head: {
+        '.github/pull_request_template.md':
+          "## Summary\n\n## Test plan\n- ...\n",
+      },
+      expectRule: 'P132_prDescriptionImpactSections',
     },
   ];
 
