@@ -1,0 +1,147 @@
+{
+  "id": "SEOUL_DAY_HANGANG_MANGWON_RUNNING_5KM",
+  "city": "seoul",
+  "zone": "Hangang Mangwon",
+  "block_type": "running_route",
+  "theme": "한강 망원지구 5km 러닝",
+  "theme_i18n": {
+    "ko": "한강 망원지구 5km 러닝",
+    "en": "Hangang Mangwon 5km Running",
+    "ja": "漢江 望遠地区 5km ランニング",
+    "zh": "汉江望远区 5km 跑步"
+  },
+  "intensity": "relaxed",
+  "best_for": ["runner", "active_traveler", "morning_person"],
+  "unsuitable_for": ["wheelchair_user", "elderly"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "Running PoC — 한강 망원지구 ↔ 한강대교 turn-back 5km loop. 초보자 추천. 아침/저녁 권장 (점심 햇볕 피해). ODsay/Naver API key 없을 시 mock transit 으로 빌드되며 prod 재실행 필요.",
+  "running_meta": {
+    "total_km": 5.2,
+    "surface_type": "asphalt",
+    "elevation_gain_m": 8,
+    "loop_or_out_and_back": "out_and_back",
+    "recommended_time": ["morning", "evening"],
+    "lighting_quality": "well_lit",
+    "difficulty": "beginner",
+    "water_stations_count": 3,
+    "pace_target": {
+      "easy_min_per_km": 7,
+      "tempo_min_per_km": 5
+    }
+  },
+  "stops": [
+    {
+      "order": 1,
+      "category": "activity",
+      "name": "망원한강공원 시작점",
+      "name_i18n": {
+        "ko": "망원한강공원 시작점",
+        "en": "Mangwon Hangang Park (Start)",
+        "ja": "望遠漢江公園 (スタート)",
+        "zh": "望远汉江公园 (起点)"
+      },
+      "address": "서울특별시 마포구 망원동 482-2",
+      "stay_min": 10,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "스트레칭 후 출발. 화장실 + 정수대 사용 가능.",
+        "en": "Stretch before starting. Restroom + water fountain available.",
+        "ja": "ストレッチしてからスタート。トイレ + 水飲み場有り。",
+        "zh": "出发前先做拉伸。备有洗手间与饮水器。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "한강대교 turn-back",
+      "name_i18n": {
+        "ko": "한강대교 turn-back",
+        "en": "Hangang Bridge Turnaround",
+        "ja": "漢江大橋 折り返し",
+        "zh": "汉江大桥 折返点"
+      },
+      "address": "서울특별시 마포구 한강대교 북단",
+      "stay_min": 5,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "정확한 turn-back point. 짧은 휴식 후 복귀.",
+        "en": "Exact turnaround point. Short rest then return.",
+        "ja": "正確な折り返し地点。小休止して戻る。",
+        "zh": "准确折返点。短暂休息后返回。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "망원지구 카페",
+      "name_i18n": {
+        "ko": "망원지구 카페",
+        "en": "Mangwon Park Cafe",
+        "ja": "望遠地区カフェ",
+        "zh": "望远地区咖啡馆"
+      },
+      "address": "서울특별시 마포구 망원동 482-15",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "러닝 후 회복 음료 + 단백질 보충.",
+        "en": "Recovery drink + protein after the run.",
+        "ja": "ラン後のリカバリー飲料 + プロテイン。",
+        "zh": "跑后补水 + 蛋白质补充。"
+      }
+    }
+  ],
+  "waypoints": [
+    {
+      "order": 1,
+      "category": "transit",
+      "name": "망원한강공원 main_entrance",
+      "name_i18n": {
+        "ko": "망원한강공원 main_entrance",
+        "en": "Mangwon Park Main Entrance",
+        "ja": "望遠漢江公園 メイン入口",
+        "zh": "望远汉江公园主入口"
+      },
+      "address": "서울특별시 마포구 망원동 482-1",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "지하철 합정역 7번 출구에서 도보 12분.",
+        "en": "12-min walk from Hapjeong Station Exit 7.",
+        "ja": "合井駅7番出口から徒歩12分。",
+        "zh": "合井站7号出口步行12分钟。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "한강대교 정수대",
+      "name_i18n": {
+        "ko": "한강대교 정수대",
+        "en": "Hangang Bridge Water Fountain",
+        "ja": "漢江大橋 水飲み場",
+        "zh": "汉江大桥饮水点"
+      },
+      "address": "서울특별시 마포구 한강대교 북단 정수대",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "중간 물 보충 가능 — 약 2.5km 지점.",
+        "en": "Mid-run water refill — around the 2.5km mark.",
+        "ja": "中間給水 — 約2.5km地点。",
+        "zh": "中途补水 — 约 2.5km 处。"
+      }
+    }
+  ]
+}

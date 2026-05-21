@@ -2,6 +2,7 @@
   "id": "SEOUL_DAY_JONGNO_STANDARD",
   "city": "seoul",
   "zone": "Jongno",
+  "block_type": "city_day",
   "theme": "전통 + 시장 + 카페",
   "theme_i18n": {
     "ko": "전통 + 시장 + 카페",
@@ -33,6 +34,16 @@
       "stay_min": 90,
       "entry_fee_krw": 3000,
       "entry_fee_note": "한복 착용 시 무료",
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1500,
+        "senior": 0,
+        "toddler": 0,
+        "group_discount_min_pax": 10,
+        "free_with": ["hanbok", "cultural_heritage_day"],
+        "reservation_required_for_group": true,
+        "notes": "한복 착용 시 전 연령 무료. 매월 마지막 수요일 (문화의 날) 무료."
+      },
       "reservation_required": false,
       "tips_i18n": {
         "ko": "수문장 교대식 (10:00 / 14:00) 시간 맞추면 좋아요.",

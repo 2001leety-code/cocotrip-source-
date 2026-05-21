@@ -10,6 +10,7 @@
     "zh": "传统 + 市场 + 咖啡"
   },
   "intensity": "standard",
+  "block_type": "city_day",
   "duration_min": 555,
   "stops": [
     {
@@ -26,6 +27,16 @@
       "stay_min": 90,
       "entry_fee_krw": 3000,
       "entry_fee_note": "한복 착용 시 무료",
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1500,
+        "senior": 0,
+        "toddler": 0,
+        "group_discount_min_pax": 10,
+        "free_with": ["hanbok", "cultural_heritage_day"],
+        "reservation_required_for_group": true,
+        "notes": "한복 착용 시 전 연령 무료. 매월 마지막 수요일 (문화의 날) 무료."
+      },
       "reservation_required": false,
       "tips_i18n": {
         "ko": "수문장 교대식 (10:00 / 14:00) 시간 맞추면 좋아요.",
@@ -174,7 +185,29 @@
       "cost_krw": 1500,
       "source": "mock",
       "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed"
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      },
+      "peak_hour": {
+        "mode": "mixed",
+        "duration_min": 22,
+        "distance_m": 1000,
+        "cost_krw": 1500,
+        "recommend_alternative_in": ["peak_rush"],
+        "notes": "출퇴근 시간 지하철 + 도보 약 7분 추가"
+      },
+      "rain": {
+        "mode": "subway",
+        "duration_min": 17,
+        "distance_m": 1000,
+        "cost_krw": 1500,
+        "recommend_alternative_in": ["rain"],
+        "notes": "비 올 때 도보 구간 최소화 — 지하철 1정거장 + 짧은 도보"
+      }
     },
     "2->3": {
       "from_order": 2,
@@ -185,7 +218,13 @@
       "cost_krw": 1500,
       "source": "mock",
       "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed"
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
     },
     "3->4": {
       "from_order": 3,
@@ -196,7 +235,13 @@
       "cost_krw": 1500,
       "source": "mock",
       "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed"
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
     },
     "4->5": {
       "from_order": 4,
@@ -207,7 +252,13 @@
       "cost_krw": 1500,
       "source": "mock",
       "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed"
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
     },
     "5->6": {
       "from_order": 5,
@@ -218,7 +269,13 @@
       "cost_krw": 1500,
       "source": "mock",
       "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed"
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
     }
   },
   "best_for": [
