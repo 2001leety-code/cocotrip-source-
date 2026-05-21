@@ -1,0 +1,614 @@
+/**
+ * blockMode.js — zone_courses 기반 block-mode planner pipeline (P128, 2026-05-21).
+ *
+ * 운영자가 사전 큐레이트한 day-block (zone_courses Firestore 컬렉션) 을 가지고
+ * Gemini 가 block ID 만 선택 + 약간의 tweak 만 수행. Gemini 부하 1/10 + 검증된
+ * 동선 동시 확보.
+ *
+ * 진입 조건:
+ *   shouldUseBlockMode(city, durationDays, dietPrefs)
+ *     - Firestore zone_courses where city == ? AND block_type == 'city_day'
+ *     - count >= 3 이면 block-mode 가능. 부족하면 legacy path 로 폴백.
+ *     - dietPrefs 가 비어있거나 (none) 또는 block 의 dietary_options 가 매칭 가능한
+ *       경우만 (예: vegan plan + vegan block 없음 = block-mode 불가, legacy 폴백).
+ *
+ * Pipeline:
+ *   1. fetchAvailableBlocks(city) — Firestore 에서 published city_day blocks 가져오기
+ *   2. selectBlocksWithGemini(blocks, userInput, geminiClient) — Gemini 빠른 모델 호출.
+ *      block ID 배열 (day 별) + tweak instructions 반환.
+ *   3. expandBlocksToItinerary(blockSelections, blocks, userInput) — block stops 를
+ *      itinerary.days[].stops[] 로 변환 + start_time 계산 + food placeholder 매칭.
+ *
+ * SAFETY-CRITICAL (CLAUDE.md J — dietary):
+ *   - dietPrefs 가 있고 block dietary_options 가 매칭 안 되면 expand 단에서 throw.
+ *   - food placeholder 매칭은 _food_index.json + preferred_dietary 매칭. 다중 후보 중
+ *     dietary_tags 가 사용자 dietPrefs 와 일치하는 식당만 선택. 매칭 실패 시 throw.
+ *
+ * ENV flag PLANNER_BLOCK_MODE:
+ *   - 'enabled' : 무조건 block-mode (블록 부족하면 throw)
+ *   - 'disabled': 무조건 legacy (block-mode 비활성)
+ *   - 'auto'    : shouldUseBlockMode 결과에 따라 결정 (기본값)
+ */
+
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { repairAndParseJSON } from './responseValidator.js';
+
+/** 기본 ENV mode — 운영자가 PLANNER_BLOCK_MODE 미설정 시 'auto' (자동 폴백). */
+export function getBlockModeEnv() {
+  const raw = String(process.env.PLANNER_BLOCK_MODE || '').trim().toLowerCase().replace(/[\r\n]/g, '');
+  if (raw === 'enabled' || raw === 'disabled') return raw;
+  return 'auto';
+}
+
+/**
+ * Firestore 의 zone_courses 컬렉션에서 city 의 published city_day blocks 가져오기.
+ *
+ * @param {object} adminDb — Firebase Admin Firestore instance
+ * @param {string} city — 'seoul' / 'busan' / ...
+ * @param {object} [opts]
+ * @param {string[]} [opts.dietaryRequired] — 사용자 dietPrefs. 매칭되는 block 만 반환.
+ * @returns {Promise<Array<object>>}  blocks[] (raw Firestore doc data)
+ */
+export async function fetchAvailableBlocks(adminDb, city, opts = {}) {
+  if (!adminDb || !city) return [];
+  const cityLc = String(city).trim().toLowerCase();
+  if (!cityLc) return [];
+
+  try {
+    const snap = await adminDb
+      .collection('zone_courses')
+      .where('city', '==', cityLc)
+      .where('status', '==', 'published')
+      .get();
+    if (snap.empty) return [];
+
+    let blocks = [];
+    snap.forEach((doc) => {
+      const data = doc.data();
+      if (!data || typeof data !== 'object') return;
+      // block_type 누락 시 default 'city_day' (backward compat — PR-A 의 schema 확장 전 block).
+      const blockType = data.block_type || 'city_day';
+      if (blockType !== 'city_day') return; // trekking / running_route 등은 별도 분기
+      if (!Array.isArray(data.stops) || data.stops.length < 3) return; // 너무 적은 stops 는 invalid block
+      blocks.push({ ...data, id: doc.id });
+    });
+
+    // dietPrefs 필터링 — SAFETY-CRITICAL (CLAUDE.md J).
+    // halal / vegan / vegetarian 사용자는 block.dietary_options 에 그 옵션이 포함된 block 만 선택.
+    const dietary = Array.isArray(opts.dietaryRequired) ? opts.dietaryRequired : [];
+    const critical = dietary.filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
+    if (critical.length > 0) {
+      blocks = blocks.filter((b) => {
+        const opts2 = Array.isArray(b.dietary_options) ? b.dietary_options : [];
+        return critical.every((d) => opts2.some((o) => String(o).toLowerCase() === String(d).toLowerCase()));
+      });
+    }
+
+    return blocks;
+  } catch (err) {
+    // Firestore 인덱스 누락 또는 권한 오류 — graceful fallback (legacy path).
+    console.warn('[blockMode] fetchAvailableBlocks failed:', err && err.message ? err.message : err);
+    return [];
+  }
+}
+
+/**
+ * block-mode 사용 가능 여부.
+ *
+ * @param {string} city
+ * @param {number} durationDays
+ * @param {string[]} dietPrefs
+ * @param {Array<object>} availableBlocks — fetchAvailableBlocks 결과 (이미 dietary 필터 적용)
+ * @returns {{eligible: boolean, reason: string}}
+ */
+export function shouldUseBlockMode(city, durationDays, dietPrefs, availableBlocks) {
+  const env = getBlockModeEnv();
+  if (env === 'disabled') return { eligible: false, reason: 'env_disabled' };
+
+  const cityLc = String(city || '').trim().toLowerCase();
+  if (!cityLc) return { eligible: false, reason: 'no_city' };
+  const days = Number(durationDays) || 0;
+  if (!Number.isFinite(days) || days < 1 || days > 14) {
+    return { eligible: false, reason: 'invalid_duration' };
+  }
+
+  const blocks = Array.isArray(availableBlocks) ? availableBlocks : [];
+  if (blocks.length < 3) {
+    return { eligible: false, reason: `insufficient_blocks:${blocks.length}` };
+  }
+
+  // env=enabled 일 때는 강제. auto 면 조건 만족 시.
+  if (env === 'enabled') return { eligible: true, reason: 'env_enabled' };
+  return { eligible: true, reason: 'auto_eligible' };
+}
+
+/**
+ * Gemini 빠른 모델 (2.5 flash) 로 block ID 선택 + tweak 받기.
+ * 일반 legacy / 3-pass 보다 가볍게: block ID 배열 + per-day 변경 사유만 응답하면 OK.
+ *
+ * @param {Array<object>} blocks — available blocks
+ * @param {object} userInput — { durationDays, styles, special_request, dietPrefs, language, ... }
+ * @param {object} geminiClient — { apiKey, model? }
+ * @returns {Promise<{ day_selections: Array<{day:number, block_id:string, tweak_notes?:string}>, language: string }>}
+ */
+export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    throw new Error('selectBlocksWithGemini: no blocks available');
+  }
+  if (!userInput || typeof userInput !== 'object') {
+    throw new Error('selectBlocksWithGemini: userInput required');
+  }
+  if (!geminiClient || !geminiClient.apiKey) {
+    throw new Error('selectBlocksWithGemini: geminiClient.apiKey required');
+  }
+
+  const durationDays = Math.max(1, Math.min(14, Number(userInput.durationDays) || 1));
+  const styles = Array.isArray(userInput.styles) ? userInput.styles : [];
+  const language = String(userInput.language || 'en');
+  const specialRequest = String(userInput.special_request || '').slice(0, 800);
+  const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
+
+  // 압축된 block 카드만 prompt 에 넣음 — Gemini 가 ID 만 선택하면 되므로 stops/transit 풀 detail X.
+  const blockCards = blocks.map((b) => ({
+    id: b.id,
+    zone: b.zone,
+    theme: b.theme,
+    intensity: b.intensity,
+    duration_min: b.duration_min,
+    best_for: Array.isArray(b.best_for) ? b.best_for.slice(0, 6) : [],
+    dietary_options: Array.isArray(b.dietary_options) ? b.dietary_options : [],
+    stops_summary: Array.isArray(b.stops)
+      ? b.stops.slice(0, 8).map((s) => ({
+          order: s.order,
+          category: s.category,
+          name: s.name || (s.placeholder ? `[placeholder:${s.placeholder}]` : '???'),
+        }))
+      : [],
+  }));
+
+  const systemPrompt = buildBlockSelectionSystemPrompt(language);
+  const userMessage = JSON.stringify({
+    duration_days: durationDays,
+    styles,
+    special_request: specialRequest || undefined,
+    diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    available_blocks: blockCards,
+  });
+
+  // Use gemini-2.5-flash (lite) for block selection — fast + cheap. JSON-only response.
+  const genAI = new GoogleGenerativeAI(geminiClient.apiKey);
+  const model = genAI.getGenerativeModel({
+    model: geminiClient.model || 'gemini-2.5-flash',
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 4000,
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+  });
+
+  const raw = (result && result.response && typeof result.response.text === 'function')
+    ? result.response.text().trim()
+    : '';
+  if (!raw) {
+    throw new Error('selectBlocksWithGemini: empty Gemini response');
+  }
+
+  let parsed;
+  try {
+    parsed = repairAndParseJSON(raw);
+  } catch (err) {
+    throw new Error(`selectBlocksWithGemini: parse failed — ${err && err.message ? err.message : err}`);
+  }
+
+  const daySelections = Array.isArray(parsed?.day_selections) ? parsed.day_selections : [];
+  if (daySelections.length !== durationDays) {
+    // Gemini 가 day 수 무시한 경우 — clamp + 부족 시 첫 block 반복 (fail-safe).
+    const safe = [];
+    for (let i = 1; i <= durationDays; i++) {
+      const existing = daySelections.find((d) => Number(d?.day) === i);
+      if (existing && existing.block_id) {
+        safe.push({
+          day: i,
+          block_id: String(existing.block_id),
+          tweak_notes: typeof existing.tweak_notes === 'string' ? existing.tweak_notes.slice(0, 400) : '',
+        });
+      } else {
+        // round-robin available blocks (배치 다양성).
+        const fallback = blocks[(i - 1) % blocks.length];
+        safe.push({ day: i, block_id: fallback.id, tweak_notes: 'auto-fallback (Gemini omitted day)' });
+      }
+    }
+    return { day_selections: safe, language };
+  }
+
+  // Validate block IDs.
+  const validIds = new Set(blocks.map((b) => b.id));
+  const cleaned = daySelections.map((d, idx) => {
+    const day = Number(d?.day) || (idx + 1);
+    let blockId = String(d?.block_id || '').trim();
+    if (!validIds.has(blockId)) {
+      blockId = blocks[(idx) % blocks.length].id; // fallback to round-robin
+    }
+    return {
+      day,
+      block_id: blockId,
+      tweak_notes: typeof d?.tweak_notes === 'string' ? d.tweak_notes.slice(0, 400) : '',
+    };
+  });
+  return { day_selections: cleaned, language };
+}
+
+/**
+ * block-mode 전용 system prompt — Gemini 가 block ID 선택만 책임짐.
+ */
+export function buildBlockSelectionSystemPrompt(language = 'en') {
+  return `You are CocoTrip's block selector — pick the best pre-curated day-blocks for the user.
+
+## OUTPUT FORMAT — STRICT JSON ONLY
+No markdown. No code blocks. No explanation. Pure JSON only.
+
+{
+  "day_selections": [
+    {
+      "day": 1,
+      "block_id": "<one of available_blocks[].id>",
+      "tweak_notes": "Optional 1-sentence note in ${language} (max 200 chars) about why this block fits the user. Empty if no rationale needed."
+    }
+  ]
+}
+
+## RULES
+1. day_selections MUST contain EXACTLY duration_days entries (one per day). day = 1, 2, ..., duration_days.
+2. block_id MUST be one of available_blocks[].id (string match). NEVER invent new IDs.
+3. Prefer variety — do NOT repeat the same block_id across multiple days unless duration_days exceeds unique blocks count.
+4. Match user's styles (e.g. "Food", "Kpop") to block.best_for and block.theme.
+5. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs (halal/vegan/vegetarian). The system already filtered the available_blocks to dietary-compatible ones; you only need to focus on preference variety.
+6. tweak_notes is optional and short. NEVER use it to invent new stops — actual stop substitutions happen later.
+7. Day 1 should be an easy / standard intensity block (arrival fatigue). Day N can be packed if styles indicate. Otherwise alternate intensity.
+
+## OUTPUT LANGUAGE
+- tweak_notes text MUST be in language=${language}.
+- block_id values are language-neutral identifiers — copy them verbatim.`;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Expand block selections to itinerary.days[].stops[].
+// ─────────────────────────────────────────────────────────────────────
+
+const DEFAULT_DAY_START_HHMM = '09:00';
+
+/**
+ * "HH:mm" + minutes → "HH:mm" (24h wrap-around).
+ */
+function addMinutesToHHMM(hhmm, minutes) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const mn = parseInt(m[2], 10);
+  if (!Number.isFinite(h) || !Number.isFinite(mn) || h < 0 || h > 23 || mn < 0 || mn > 59) return null;
+  const minTotal = h * 60 + mn + Math.floor(Number(minutes) || 0);
+  const wrapped = ((minTotal % (24 * 60)) + 24 * 60) % (24 * 60);
+  const oh = Math.floor(wrapped / 60);
+  const om = wrapped % 60;
+  return `${String(oh).padStart(2, '0')}:${String(om).padStart(2, '0')}`;
+}
+
+/**
+ * food placeholder 매칭 — dbMatcher 패턴과 유사.
+ * preferred_dietary 가 있으면 매칭 식당의 dietary_tags 와 교집합 검사.
+ *
+ * @param {object} placeholderStop — { placeholder, preferred_dietary, ... }
+ * @param {Array<object>} foodIndex — _food_index.json 항목
+ * @param {string} city
+ * @param {string[]} userDietPrefs
+ * @returns {object|null} foodIndex entry 또는 null (매칭 실패)
+ */
+export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = []) {
+  if (!placeholderStop || !placeholderStop.placeholder) return null;
+  if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
+  const cityLc = String(city || '').trim().toLowerCase();
+  const placeholder = String(placeholderStop.placeholder || '').toLowerCase();
+
+  // placeholder 타입별 카테고리 매핑.
+  // verified_lunch / verified_dinner / verified_breakfast / verified_cafe
+  const cafeTypes = ['cafe', 'dessert', 'bakery'];
+  const isCafe = placeholder.includes('cafe');
+
+  // Diet filtering — SAFETY-CRITICAL (CLAUDE.md J).
+  const dietary = Array.isArray(userDietPrefs)
+    ? userDietPrefs.map((d) => String(d).toLowerCase())
+    : [];
+  const dietRequired = dietary.filter((d) => /halal|vegan|vegetarian/i.test(d));
+
+  // preferred_dietary 가 명시되면 (block stop 운영자 의도) 추가 필터.
+  const preferred = Array.isArray(placeholderStop.preferred_dietary)
+    ? placeholderStop.preferred_dietary.map((d) => String(d).toLowerCase())
+    : [];
+
+  const candidates = foodIndex.filter((r) => {
+    if (!r || typeof r !== 'object') return false;
+    const rCity = String(r.city || '').toLowerCase();
+    if (cityLc && rCity && !rCity.includes(cityLc) && !cityLc.includes(rCity)) return false;
+    const rType = String(r.type || r.category || '').toLowerCase();
+    if (isCafe) {
+      if (!cafeTypes.some((t) => rType.includes(t))) return false;
+    }
+    // dietary tags 필터.
+    const tags = Array.isArray(r.dietary_tags) ? r.dietary_tags.map((t) => String(t).toLowerCase()) : [];
+    for (const d of dietRequired) {
+      if (!tags.includes(d)) return false;
+    }
+    for (const d of preferred) {
+      if (!tags.includes(d)) return false;
+    }
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    if (dietRequired.length > 0) {
+      // SAFETY-CRITICAL — caller (expandBlocksToItinerary) 가 throw 해야 함.
+      return null;
+    }
+    return null;
+  }
+
+  // rating × log(reviews) 정렬 — pickRecommendedRestaurants 와 동일 가중치.
+  candidates.sort((a, b) => {
+    const ra = Number(a.rating) || 0;
+    const rb = Number(b.rating) || 0;
+    const va = Number(a.reviews) || 1;
+    const vb = Number(b.reviews) || 1;
+    return rb * Math.log10(vb) - ra * Math.log10(va);
+  });
+
+  return candidates[0];
+}
+
+/**
+ * block-mode 의 핵심: blockSelections 를 받아 itinerary.days[] 형식으로 변환.
+ *
+ * @param {{day_selections: Array}} blockSelections
+ * @param {Array<object>} blocks — fetchAvailableBlocks 결과
+ * @param {object} userInput — { durationDays, dietPrefs, language, startDate, arrival_time, departure_time, foodIndex, area }
+ * @returns {object} itinerary (legacy 와 호환되는 days[] 포함)
+ */
+export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
+  if (!blockSelections || !Array.isArray(blockSelections.day_selections)) {
+    throw new Error('expandBlocksToItinerary: invalid blockSelections');
+  }
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    throw new Error('expandBlocksToItinerary: no blocks');
+  }
+  const blockMap = new Map(blocks.map((b) => [b.id, b]));
+
+  const language = String(userInput?.language || 'en');
+  const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
+  const dietCritical = dietPrefs.filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
+  const foodIndex = Array.isArray(userInput?.foodIndex) ? userInput.foodIndex : [];
+  const area = String(userInput?.area || '').toLowerCase();
+  const startDate = userInput?.startDate || null;
+  const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
+  const departureTime = String(userInput?.departure_time || userInput?.departureTime || '');
+
+  const days = [];
+  for (const sel of blockSelections.day_selections) {
+    const dayNum = Number(sel.day) || (days.length + 1);
+    const block = blockMap.get(sel.block_id);
+    if (!block) {
+      throw new Error(`expandBlocksToItinerary: block_id not found: ${sel.block_id}`);
+    }
+
+    // start_time 결정 — Day 1 이면 arrival_time 우선 (+60min transit + 8h sleep 분기는
+    // legacy buildPrompt 가 처리하던 로직이지만, block-mode 에서는 단순 day-start fallback).
+    // Day N (마지막) 이면 departure_time 으로 cap.
+    let dayStart = DEFAULT_DAY_START_HHMM;
+    const isFirstDay = dayNum === 1;
+    const isLastDay = dayNum === blockSelections.day_selections.length;
+    if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
+      // arrival_time + 9h (transit 1h + sleep 8h) 가 일반 day_start 이전이면 그대로 사용.
+      const computed = addMinutesToHHMM(arrivalTime, 9 * 60);
+      if (computed) dayStart = computed;
+    }
+
+    // stops expand
+    const stops = [];
+    const blockStops = Array.isArray(block.stops) ? block.stops : [];
+    for (const bs of blockStops) {
+      const offsetMin = Number(bs.start_time_offset_min) || 0;
+      const startTime = addMinutesToHHMM(dayStart, offsetMin) || dayStart;
+
+      // food placeholder 매칭
+      let resolvedName = bs.name || '';
+      let resolvedDisplay = (bs.name_i18n && bs.name_i18n[language]) || resolvedName;
+      let resolvedAddress = bs.address || '';
+      let verified = false;
+      let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
+      if (bs.placeholder && !resolvedName) {
+        const matched = matchFoodPlaceholder(bs, foodIndex, area, dietPrefs);
+        if (matched) {
+          resolvedName = matched.name || matched.name_ko || matched.display_name || '';
+          resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
+          resolvedAddress = matched.address || resolvedAddress;
+          verified = true;
+          if (Array.isArray(matched.dietary_tags)) {
+            dietaryTags = matched.dietary_tags.slice();
+          }
+        } else if (dietCritical.length > 0) {
+          // SAFETY-CRITICAL: dietary 사용자에게 매칭 안 됨 = throw (block-mode 폐기 + legacy fallback).
+          const err = new Error(
+            `Block-mode unable to satisfy dietary preference (${dietCritical.join(', ')}) for placeholder "${bs.placeholder}" in ${area}. ` +
+            `Falling back to legacy planner is recommended.`
+          );
+          err.code = 'BLOCK_MODE_DIETARY_UNSATISFIED';
+          err.statusCode = 422;
+          throw err;
+        } else {
+          // placeholder 매칭 실패 + dietary 강제 X → graceful: 표시명 비워두고 진행.
+          resolvedName = bs.address || 'Local restaurant';
+          resolvedDisplay = resolvedName;
+        }
+      }
+
+      stops.push({
+        order: bs.order,
+        start_time: startTime,
+        name: resolvedName || '',
+        display_name: resolvedDisplay || resolvedName || '',
+        category: bs.category || 'culture',
+        address: resolvedAddress || '',
+        stay_min: Number(bs.stay_min) || 0,
+        entry_fee_krw: Number(bs.entry_fee_krw) || 0,
+        entry_fee_note: bs.entry_fee_note || undefined,
+        reservation_required: !!bs.reservation_required,
+        local_tag: bs.local_tag || '',
+        tip: (bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '',
+        verified,
+        dietary_tags: dietaryTags.length > 0 ? dietaryTags : undefined,
+        personalization_reasoning: sel.tweak_notes
+          ? sel.tweak_notes
+          : `Pre-curated ${block.zone} block — ${block.theme}`,
+        // block source 추적 — admin dashboard 에서 plan 진단용
+        source_block_id: block.id,
+        // P112: end_time backfill 은 planPersister 가 처리 — 여기서는 skip.
+      });
+    }
+
+    // Day N (departure day) 의 마지막 활동 stop start_time > departure_time - 180min 이면 trim.
+    // departure_time 강제는 buildPrompt 기존 로직과 일관성 유지 — block 시간이 너무 늦으면
+    // tail stops 제거. SAFETY-CRITICAL 아니므로 graceful (사용자 미입력 시 skip).
+    if (isLastDay && departureTime && /^\d{1,2}:\d{2}$/.test(departureTime)) {
+      const cap = addMinutesToHHMM(departureTime, -180);
+      if (cap && /^\d{1,2}:\d{2}$/.test(cap)) {
+        while (
+          stops.length > 2 &&
+          stops[stops.length - 1].start_time > cap &&
+          stops[stops.length - 1].category !== 'lodging' &&
+          stops[stops.length - 1].category !== 'airport' &&
+          stops[stops.length - 1].category !== 'travel'
+        ) {
+          stops.pop();
+        }
+      }
+    }
+
+    days.push({
+      day: dayNum,
+      date: startDate ? offsetDate(startDate, dayNum - 1) : undefined,
+      theme: (block.theme_i18n && block.theme_i18n[language]) || block.theme || `Day ${dayNum}`,
+      city: block.city || area,
+      lodging: undefined, // planPersister.backfillDayLodging 가 stops[] 의 lodging 으로 채움
+      stops,
+      // block-mode trace — admin dashboard 분석용
+      source_block_id: block.id,
+      source_block_zone: block.zone,
+      source_block_intensity: block.intensity,
+      tweak_notes: sel.tweak_notes || '',
+    });
+  }
+
+  return {
+    tour_title: `Pre-curated ${area || 'Korea'} ${days.length}-day plan`,
+    days,
+    planner_pipeline: 'block_mode',
+  };
+}
+
+function offsetDate(yyyymmdd, offsetDays) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(yyyymmdd))) return undefined;
+  try {
+    const d = new Date(yyyymmdd + 'T00:00:00Z');
+    if (Number.isNaN(d.getTime())) return undefined;
+    d.setUTCDate(d.getUTCDate() + Math.floor(Number(offsetDays) || 0));
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 전체 block-mode pipeline 의 컨비니언스 wrapper.
+ * shouldUseBlockMode 통과 후 호출자 (ai-planner-full.js) 가 1줄로 호출 가능.
+ *
+ * 에러 시 BLOCK_MODE_* 코드 throw — 호출자가 catch 해서 legacy fallback 결정.
+ *
+ * @param {object} args
+ * @param {object} args.adminDb
+ * @param {string} args.city
+ * @param {object} args.userInput — { durationDays, dietPrefs, styles, special_request, language, startDate, arrival_time, departure_time, area, foodIndex }
+ * @param {object} args.geminiClient — { apiKey, model? }
+ * @returns {Promise<{itinerary: object, eligible: true, blocks_used: string[]}>}
+ */
+export async function runBlockModePipeline({ adminDb, city, userInput, geminiClient }) {
+  if (!adminDb) throw new Error('runBlockModePipeline: adminDb required');
+  if (!city) throw new Error('runBlockModePipeline: city required');
+  if (!userInput) throw new Error('runBlockModePipeline: userInput required');
+
+  const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
+  const blocks = await fetchAvailableBlocks(adminDb, city, { dietaryRequired: dietPrefs });
+  const elig = shouldUseBlockMode(city, userInput.durationDays, dietPrefs, blocks);
+  if (!elig.eligible) {
+    const err = new Error(`block-mode ineligible: ${elig.reason}`);
+    err.code = 'BLOCK_MODE_INELIGIBLE';
+    err.reason = elig.reason;
+    throw err;
+  }
+
+  const selections = await selectBlocksWithGemini(blocks, userInput, geminiClient);
+  const itinerary = expandBlocksToItinerary(selections, blocks, userInput);
+  return {
+    itinerary,
+    eligible: true,
+    blocks_used: selections.day_selections.map((d) => d.block_id),
+  };
+}
+
+/**
+ * Branch helper — ai-planner-full.js 의 길이 lock (800 lines) 보호용 컨비니언스 wrapper.
+ *
+ * shouldUseBlockMode 사전 check 없이 직접 호출 — runBlockModePipeline 내부 elig 체크에 위임.
+ * env='disabled' 또는 다도시 plan 이면 result.skipped=true 반환 (legacy path 사용 안내).
+ * env='enabled' + 실패 시 throw — 운영자가 명시적으로 강제했으므로 fail-fast.
+ * env='auto' + 실패 시 result.skipped=true + result.error 반환 (legacy path 폴백).
+ *
+ * @param {object} args
+ * @param {object} args.adminDb
+ * @param {string[]} args.regions — body.regions (다도시 검사용)
+ * @param {string} args.area — 단도시 fallback
+ * @param {object} args.userInput — runBlockModePipeline 동일 spec + foodIndexLoader (await loadFoodIndex)
+ * @param {string} args.apiKey
+ * @returns {Promise<{skipped: true, reason: string} | {skipped: false, itinerary: object, blocks_used: string[]}>}
+ */
+export async function tryRunBlockMode({ adminDb, regions, area, userInput, apiKey, foodIndex }) {
+  const env = getBlockModeEnv();
+  if (env === 'disabled') return { skipped: true, reason: 'env_disabled' };
+  const isSingleCity = Array.isArray(regions) && regions.length === 1;
+  if (!isSingleCity) return { skipped: true, reason: 'multi_city_not_supported' };
+  const city = String(regions[0] || area || '').split('_')[0].toLowerCase();
+  if (!city) return { skipped: true, reason: 'no_city' };
+
+  try {
+    const blockOut = await runBlockModePipeline({
+      adminDb,
+      city,
+      userInput: { ...userInput, foodIndex, area: city },
+      geminiClient: { apiKey },
+    });
+    return {
+      skipped: false,
+      itinerary: blockOut.itinerary,
+      blocks_used: blockOut.blocks_used,
+    };
+  } catch (err) {
+    const code = err && err.code ? err.code : 'BLOCK_MODE_UNKNOWN';
+    if (env === 'enabled') {
+      // 운영자가 명시적으로 강제했으므로 fail-fast. 호출자가 catch.
+      throw err;
+    }
+    return { skipped: true, reason: code, error: err };
+  }
+}
