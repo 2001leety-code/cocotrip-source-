@@ -852,13 +852,32 @@ export class RouteAgent extends BaseAgent {
             // 첫 장소의 start_time은 Gemini 값 유지 (또는 09:00 디폴트)
             // B9-39: 도시 변경 day 면 intercity_transit.arrival_at 이후로 강제.
             // 예: KTX 부산→서울 11:30 도착 시 stops[0].start_time >= 12:00 (점심).
+            //
+            // P145 (2026-05-22): upper-bound cap 추가. plan 209de47b 회귀: KTX 12:15
+            // 도착인데 Gemini 가 첫 stop 17:43 박음 → Math.max 가 17:43 통과 → 5h+
+            // 공백 silent pass. 사용자 신고: "서울에서 부산가는 과정이 엉터리야".
+            // P143 이 detect 만 했던 회귀의 root cause 차단.
+            //
+            // 분기:
+            //  - 첫 stop = lodging (호텔 체크인) → cap +240min (호텔 체크인 통상 14-15시).
+            //  - 첫 stop = 활동 (사찰/맛집/관광) → cap +90min (도착 후 적정 휴식 후 활동).
+            // Gemini 값이 [arrival+30, arrival+cap] 범위 안이면 통과, 밖이면 clamp.
             let currentTime;
             if (isCityChangeDay && dayPlan.intercity_transit?.arrival_at) {
                 const arrivalMin = this._parseTime(dayPlan.intercity_transit.arrival_at);
                 const geminiFirstMin = this._parseTime(places[0]?.start_time || "09:00");
-                // arrival_at + 30분 (이동 후 점심/체크인 여유) 와 Gemini 값 중 큰 것
-                currentTime = Math.max(arrivalMin + 30, geminiFirstMin);
-                console.log(`  [Route] Day ${dayPlan.day || '?'}: city change day, first stop start_time forced ≥ ${this._formatTime(arrivalMin + 30)} (intercity arrival ${dayPlan.intercity_transit.arrival_at})`);
+                const lowerBound = arrivalMin + 30;
+                const firstIsLodging = String(places[0]?.category || '').toLowerCase() === 'lodging';
+                const upperBound = arrivalMin + (firstIsLodging ? 240 : 90);
+                // clamp(Gemini, [lower, upper]). Gemini 17:43 + arrival 12:15 (lodging) =
+                // arrival+328min > +240 → upper 로 cap = 16:15. activity 였으면 +90 = 13:45.
+                const clamped = Math.max(lowerBound, Math.min(geminiFirstMin, upperBound));
+                currentTime = clamped;
+                if (clamped !== geminiFirstMin) {
+                    console.log(`  [Route] Day ${dayPlan.day || '?'}: P145 city-change clamp — Gemini ${this._formatTime(geminiFirstMin)} → ${this._formatTime(clamped)} (intercity arrival ${dayPlan.intercity_transit.arrival_at}, first.category=${places[0]?.category || '?'}, cap ${firstIsLodging ? '+240min lodging' : '+90min activity'})`);
+                } else {
+                    console.log(`  [Route] Day ${dayPlan.day || '?'}: city change day, first stop ${this._formatTime(currentTime)} (intercity arrival ${dayPlan.intercity_transit.arrival_at}, within bounds)`);
+                }
             } else {
                 currentTime = this._parseTime(places[0]?.start_time || "09:00");
             }
