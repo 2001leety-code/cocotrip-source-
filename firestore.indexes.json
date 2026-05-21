@@ -198,6 +198,47 @@
         { "fieldPath": "city", "order": "ASCENDING" },
         { "fieldPath": "verified_at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "spots",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "rating_delta", "order": "DESCENDING" },
+        { "fieldPath": "scanned_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "spots",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "reviewCount_delta", "order": "DESCENDING" },
+        { "fieldPath": "scanned_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "trend_signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "region", "order": "ASCENDING" },
+        { "fieldPath": "scanned_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "user_painpoints",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "subreddit", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" },
+        { "fieldPath": "scanned_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attractions_meta",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "region", "order": "ASCENDING" },
+        { "fieldPath": "scanned_at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -44,6 +44,18 @@
     {
       "path": "/api/cron-runner?job=slot-pending-sweep",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron-runner?job=scan-naver-rising",
+      "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/cron-runner?job=scan-reddit-painpoints",
+      "schedule": "0 19 * * 1"
+    },
+    {
+      "path": "/api/cron-runner?job=scan-visitkorea-attractions",
+      "schedule": "0 20 1 * *"
     }
   ],
   "functions": {
