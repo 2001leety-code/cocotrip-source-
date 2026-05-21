@@ -25,6 +25,7 @@ import { ResumeWizardModal } from '@/components/ResumeWizardModal';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
+import { hasMeaningfulWizardContent } from './snapshotContent';
 // 2026-05-13 PR #393 후속: getZoneByKey 는 handleGenerate 안에서 dynamic import.
 // cityNameToZoneKey + CITY_NAME_BY_KEY 는 zoneHelpers (light) 에서 직접 import →
 // main planner chunk 에서 heavy zone arrays 분리.
@@ -238,13 +239,20 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
 
   // 2026-05-09 (B9-35): autosave snapshot 복원 시도. revision prefill 이 있으면 무시.
   // 첫 마운트 1회만 — snapshot 발견 → 사용자에게 모달로 복원 여부 묻기.
+  // 2026-05-21 (P126): 사용자 신고 "이어 작성하시겠습니까 아무때나 나와". hasContent
+  // 의 dateRangeFrom 검사가 false positive — dateRange.from 은 mount 시 tomorrow
+  // 기본값 auto-init (L131-135) → autosave 500ms 후 항상 snapshot 저장 → 재방문 시 모달.
+  // 사용자는 wizard 만 열고 닫았을 뿐인데 "이어 작성" 발화.
+  // Fix: dateRangeFrom 제외 + 명시적 사용자 시그널 (reservationStatus / freeText /
+  // dietPrefs / allergies / paxInput≠default / dateRangeTo 등) 모두 확인.
   useEffect(() => {
     if (initialValues) return; // revision prefill 우선
     const snap = loadWizardSnapshot<PlannerSnapshotValues>('planner');
     if (!snap) return;
-    // 거의 빈 snapshot 이면 (사용자가 첫 step 도 안 채움) 모달 안 띄움 — 신호 너무 약함
     const v = snap.values;
-    const hasContent = !!(v.mainCity || v.selectedActivities?.length || v.dateRangeFrom || v.arrivalTerminal);
+    // P126 (2026-05-21): 명시적 사용자 입력 시그널만 hasContent 로 인정. dateRangeFrom 은
+    // mount 시 tomorrow auto-init 이라 false positive — 제외. helper 는 testable.
+    const hasContent = hasMeaningfulWizardContent(v);
     if (!hasContent) {
       clearWizardSnapshot('planner');
       return;

@@ -1021,6 +1021,7 @@ const RULES = [
   ['P123_hotelByCityForwarding', P123_hotelByCityForwarding],
   ['P124_arrivalDepartureSleepBuffer', P124_arrivalDepartureSleepBuffer],
   ['P125_multiCityArrivalDeparture', P125_multiCityArrivalDeparture],
+  ['P126_wizardResumeContent', P126_wizardResumeContent],
   ['P127_lodgingBookendMultiCityAnchor', P127_lodgingBookendMultiCityAnchor],
 ];
 
@@ -2235,6 +2236,10 @@ function P124_arrivalDepartureSleepBuffer({ changed }) {
     if (!/arrival_time \+ 9h|arrival_time 9h sleep|9h sleep buffer/i.test(c)) {
       violations.push(`${PROMPT}: 8h sleep buffer (arrival + 9h) logic 명시 누락`);
     }
+    // P124-extended (2026-05-21): 중간 day 새벽 stops 금지 글로벌 룰
+    if (!/GLOBAL TIME RULES.*P124-extended/s.test(c)) {
+      violations.push(`${PROMPT}: GLOBAL TIME RULES (P124-extended) block 누락 — 중간 day 새벽 활동 금지 명시 누락`);
+    }
   }
 
   if (existsSync(VALIDATOR)) {
@@ -2248,13 +2253,71 @@ function P124_arrivalDepartureSleepBuffer({ changed }) {
     if (!/request\.arrival_time \|\| request\.arrivalTime/.test(c)) {
       violations.push(`${VALIDATOR}: arrival_time / arrivalTime 양쪽 수용 logic 누락`);
     }
+    // P124-extended (2026-05-21): 중간 day 새벽 stops 검증 룰
+    if (!/B-GLOBAL-DAWN/.test(c)) {
+      violations.push(`${VALIDATOR}: B-GLOBAL-DAWN 룰 누락 — 중간 day 새벽 stops 검증 부재`);
+    }
   }
 
   if (violations.length > 0) {
     fail(
       'P124_arrivalDepartureSleepBuffer',
       violations.join(' | '),
-      '메모리 P124 — Day 1/N 새벽 stops 0건 + 8h sleep buffer. buildPrompt + responseValidator 2 layer 의무.',
+      '메모리 P124 + P124-extended (2026-05-21) — Day 1/N 8h sleep buffer + 중간 day 새벽 stops 0건. buildPrompt (ARRIVAL/DEPARTURE/GLOBAL TIME RULES 3 block) + responseValidator (B-LATE-ARRIVAL/B-EARLY-DEPARTURE/B-GLOBAL-DAWN 3 rule) 의무.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P126_wizardResumeContent — 메모리 P126 (2026-05-21).
+ * 사용자 신고: "이어 작성하시겠습니까 아무때나 나와". WizardForm/index.tsx 가
+ * dateRange.from = tomorrow 기본값 mount 시 auto-init → useWizardPersistence 가
+ * 500ms 후 snapshot 저장 → 재방문 시 hasContent (dateRangeFrom 기반) = true →
+ * 모달 발화. fix: hasMeaningfulWizardContent helper 가 dateRangeFrom 제외 + 명시적
+ * 사용자 시그널만 인정.
+ */
+function P126_wizardResumeContent({ changed }) {
+  const HELPER = 'src/components/WizardForm/snapshotContent.ts';
+  const WIZARD = 'src/components/WizardForm/index.tsx';
+  if (!isModified(HELPER, changed) && !isModified(WIZARD, changed)) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(HELPER)) {
+    const c = readFileSync(HELPER, 'utf8');
+    if (!/export\s+function\s+hasMeaningfulWizardContent\s*\(/.test(c)) {
+      violations.push(`${HELPER}: hasMeaningfulWizardContent export 누락 — testable helper 부재`);
+    }
+    // dateRangeFrom 제외 가드 — false positive 회귀 차단
+    if (/v\.dateRangeFrom/.test(c)) {
+      violations.push(`${HELPER}: hasMeaningfulWizardContent 가 v.dateRangeFrom 참조 — mount 시 tomorrow auto-init 시그널 → false positive 회귀. dateRangeTo 만 인정.`);
+    }
+    if (!/v\.dateRangeTo/.test(c)) {
+      violations.push(`${HELPER}: dateRangeTo 검사 누락 — end-date 사용자 입력 시그널 미인정`);
+    }
+    if (!/PAX_INPUT_DEFAULT|paxInput\s*!==/.test(c)) {
+      violations.push(`${HELPER}: paxInput 기본값 가드 누락 — '2' default 가 false positive 트리거`);
+    }
+  }
+
+  if (existsSync(WIZARD)) {
+    const c = readFileSync(WIZARD, 'utf8');
+    if (!/hasMeaningfulWizardContent/.test(c)) {
+      violations.push(`${WIZARD}: hasMeaningfulWizardContent import/호출 누락 — inline hasContent regression 위험`);
+    }
+    // inline hasContent 의 dateRangeFrom 참조 = pre-fix 회귀 시그널
+    if (/const hasContent[^;]*v\.dateRangeFrom/s.test(c)) {
+      violations.push(`${WIZARD}: hasContent 검사가 v.dateRangeFrom 참조 — P126 회귀. helper hasMeaningfulWizardContent 사용 의무.`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P126_wizardResumeContent',
+      violations.join(' | '),
+      '메모리 P126 (2026-05-21) — Wizard 이어작성 모달 false positive 차단. helper hasMeaningfulWizardContent (snapshotContent.ts) + WizardForm/index.tsx 사용 의무. dateRangeFrom 검사 금지 (mount 시 auto-init).',
     );
   }
   return null;
@@ -5225,15 +5288,15 @@ function runSelfTest() {
       label: 'P124: buildPrompt 의 ARRIVAL DAY HANDLING (9h sleep buffer) block 누락',
       base: {
         'api/_ai_core/buildPrompt.js':
-          "// ARRIVAL DAY HANDLING — STRICT (P124, 2026-05-20)\n// arrival_time + 9h sleep buffer\n",
+          "// ARRIVAL DAY HANDLING — STRICT (P124, 2026-05-20)\n// arrival_time + 9h sleep buffer\n// DEPARTURE DAY HANDLING — STRICT (P124, 2026-05-20)\n// GLOBAL TIME RULES — STRICT (P124-extended, 2026-05-21)\n",
         'api/_ai_core/responseValidator.js':
-          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n",
+          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n// B-GLOBAL-DAWN\n",
       },
       head: {
         'api/_ai_core/buildPrompt.js':
           "// arrival_time 단순 hint, sleep buffer 명시 X\n",
         'api/_ai_core/responseValidator.js':
-          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n",
+          "// B-LATE-ARRIVAL\nrequest.arrival_time || request.arrivalTime\n// B-EARLY-DEPARTURE\n// B-GLOBAL-DAWN\n",
       },
       expectRule: 'P124_arrivalDepartureSleepBuffer',
     },

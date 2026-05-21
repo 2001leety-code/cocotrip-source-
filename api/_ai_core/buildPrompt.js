@@ -421,6 +421,26 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 **NEVER**:
 - Day N stops 의 start_time > \`departure_time - 180min\` (공항 buffer 무시)
 - Day N 의 lodging 외 카테고리 stop start_time hour ∈ [00, 04] (출국 직전 새벽 활동)
+
+### 🔴 GLOBAL TIME RULES — STRICT (P124-extended, 2026-05-21)
+모든 day 의 모든 stop \`start_time\` hour ∈ [05, 23] 만 허용. plan 54805380 회귀:
+중간 day (Day 2~N-1) 에 01:57/03:06/04:45 새벽 activity stops 발생. Gemini 가
+중간 day 룰을 모르면 RouteAgent time stitching wrap 의 직접 transcript 만든다.
+
+**EXCEPTION (이미 별도 처리됨)**:
+- Day 1 lodging 도착 체크인 (arrival_time + 60min) — ARRIVAL DAY HANDLING 참조
+- Day N airport_transfer (departure_time - 180min) — DEPARTURE DAY HANDLING 참조
+
+**NEVER (어느 day 든)**:
+- 중간 day (Day 2 ~ Day N-1) 의 모든 stop start_time hour ∈ [00, 04]
+  - 새벽 식당 (한국 24h 운영 식당 거의 없음, 안전상 위험)
+  - 새벽 관광 (관광지 운영시간 외)
+  - 새벽 카페 / 새벽 산책 / 새벽 호텔 stop 모두 금지
+  - 중간 day 의 lodging stop 도 [00, 04] 금지 — 자정 호텔 stop = 회귀 패턴
+
+**GOOD**: Day 2 stops 09:00 ~ 22:00 (정상 풀 day, 첫 stop 아침 식사 / 마지막 stop 호텔 복귀)
+**BAD (plan 54805380)**: Day 2 01:57 lodging / 03:06 갈비집 / 04:45 lodging — 모두 제거 필수
+
   - First stop of EVERY day: near hotel or arrival point. 첫 stop은 숙소에서 30분 이내 이동 가능한 곳이어야 함.
   - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
   - 마지막 stop 종료 후 숙소까지 도보/지하철 30분 이상 걸리면 → 더 가까운 stop 으로 교체

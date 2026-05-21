@@ -571,6 +571,24 @@ export function validatePatternStructure(itinerary, request = {}) {
     }
   }
 
+  // B-GLOBAL-DAWN (P124-extended, 2026-05-21): 중간 day (Day 2 ~ N-1) 새벽 stops 금지.
+  // plan 54805380 회귀: Day 2-4 의 01:57 lodging / 03:06 갈비집 / 04:45 lodging /
+  // Day 3 01:36 lodging / Day 4 02:43 lodging. B-LATE-ARRIVAL/B-EARLY-DEPARTURE
+  // 는 Day 1/N + arrival/departure_time 입력 있을 때만 fire — 중간 day 는 별도 룰.
+  // 중간 day 의 lodging stop 도 [00, 04] 금지 (RouteAgent time stitching wrap 회귀).
+  for (let i = 1; i < days.length - 1; i++) {
+    const d = days[i];
+    const dayNum = d?.day || i + 1;
+    const dayStops = Array.isArray(d?.stops) ? d.stops : [];
+    for (const stop of dayStops) {
+      const stopMin = parseHHMM(stop?.start_time);
+      if (stopMin === null) continue;
+      const stopHour = Math.floor(stopMin / 60);
+      if (stopHour >= 5) continue;
+      errors.push(`Day ${dayNum} 중간 day 새벽 stop "${stop.name || stop.display_name || '?'}" (start_time=${stop.start_time}, category=${stop?.category}) — 모든 day 의 00-04시 stop 금지 (B-GLOBAL-DAWN)`);
+    }
+  }
+
   return errors;
 }
 
