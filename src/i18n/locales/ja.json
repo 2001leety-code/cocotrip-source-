@@ -1766,6 +1766,11 @@
       "submit": "商品登録",
       "submitting": "登録中..."
     },
+    "intentClassifierTitle": "🧭 Intent Classifier モニタリング",
+    "intentDistribution": "Intent 分布",
+    "llmFallbackRate": "LLM フォールバック率",
+    "mutatorFailureRate": "Mutator 失敗率",
+    "trainingDataSuggestion": "Training data 提案 (rule キーワード追加)",
     "reviews": {
       "title": "レビューモデレーション",
       "refresh": "更新",

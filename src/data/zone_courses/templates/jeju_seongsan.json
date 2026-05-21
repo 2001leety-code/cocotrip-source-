@@ -1,0 +1,141 @@
+{
+  "id": "JEJU_DAY_SEONGSAN_PACKED",
+  "city": "jeju",
+  "zone": "Seongsan",
+  "block_type": "city_day",
+  "theme": "성산일출봉 + 우도 + 섭지코지",
+  "theme_i18n": {
+    "ko": "성산일출봉 + 우도 + 섭지코지",
+    "en": "Seongsan Sunrise Peak + Udo Island + Seopjikoji",
+    "ja": "城山日出峰 + 牛島 + 涉地岬",
+    "zh": "城山日出峰 + 牛岛 + 涉地岬"
+  },
+  "intensity": "packed",
+  "best_for": ["nature_lover", "photographer", "first_time_visitor"],
+  "unsuitable_for": ["wheelchair_user"],
+  "dietary_options": ["vegetarian"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "제주 동부 zone — 일출봉 + 우도 페리 + 섭지코지. UNESCO 세계자연유산. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "성산일출봉",
+      "name_i18n": {
+        "ko": "성산일출봉",
+        "en": "Seongsan Ilchulbong (Sunrise Peak)",
+        "ja": "城山日出峰",
+        "zh": "城山日出峰"
+      },
+      "address": "제주특별자치도 서귀포시 성산읍 성산리 1",
+      "stay_min": 90,
+      "entry_fee_krw": 5000,
+      "entry_fee": {
+        "adult": 5000,
+        "child": 2500,
+        "senior": 0,
+        "toddler": 0,
+        "group_discount_min_pax": 10,
+        "free_with": [],
+        "reservation_required_for_group": false,
+        "notes": "65세 이상 무료. 단체 10인 이상 할인. UNESCO 세계자연유산."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "UNESCO 세계자연유산. 30분 등반. 일출 명소.",
+        "en": "UNESCO World Heritage. 30-min climb. Sunrise viewing spot.",
+        "ja": "UNESCO世界自然遺産。30分の登山。日の出名所。",
+        "zh": "UNESCO 世界自然遗产。30 分钟登山。日出名胜。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "우도",
+      "name_i18n": {
+        "ko": "우도",
+        "en": "Udo Island",
+        "ja": "牛島",
+        "zh": "牛岛"
+      },
+      "address": "제주특별자치도 제주시 우도면",
+      "stay_min": 180,
+      "entry_fee_krw": 10500,
+      "entry_fee": {
+        "adult": 10500,
+        "child": 3500,
+        "senior": 10500,
+        "toddler": 0,
+        "free_with": [],
+        "notes": "성산항-우도 페리 왕복 (성인 10,500원). 페리 30분 간격."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "성산항에서 페리 15분. 자전거 + 전기차 대여 인기. 땅콩 아이스크림 명물.",
+        "en": "15-min ferry from Seongsan Port. Bike + e-car rental popular. Peanut ice cream signature.",
+        "ja": "城山港から15分。自転車 + 電動車レンタル人気。ピーナッツアイス名物。",
+        "zh": "城山港乘船 15 分钟。脚踏车 + 电动车租赁热门。花生冰淇淋名物。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주특별자치도 제주시 우도면",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "우도 — 해산물 / 보말칼국수 / 흑돼지 (식이 제약 매칭).",
+        "en": "Udo Island — seafood / sea-snail noodles / black pork matched by dietary needs.",
+        "ja": "牛島 — 海産物 / ボマルカルククス / 黒豚 (食事制限とマッチング)。",
+        "zh": "牛岛 — 海鲜 / 螺贝刀切面 / 黑猪肉 (按饮食偏好匹配)。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "섭지코지",
+      "name_i18n": {
+        "ko": "섭지코지",
+        "en": "Seopjikoji",
+        "ja": "涉地岬",
+        "zh": "涉地岬"
+      },
+      "address": "제주특별자치도 서귀포시 성산읍 섭지코지로 95",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "유채꽃 + 등대 + 드라마 촬영지. 봄/가을 추천.",
+        "en": "Rapeseed flowers + lighthouse + drama filming site. Spring/autumn best.",
+        "ja": "菜の花 + 灯台 + ドラマロケ地。春/秋がおすすめ。",
+        "zh": "油菜花 + 灯塔 + 韩剧拍摄地。推荐春/秋。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주특별자치도 서귀포시 성산읍",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "성산 일대 — 흑돼지구이 / 회 (식이 제약 매칭).",
+        "en": "Seongsan area — black pork BBQ / sashimi matched by dietary needs.",
+        "ja": "城山エリア — 黒豚焼肉 / 刺身 (食事制限とマッチング)。",
+        "zh": "城山一带 — 黑猪烤肉 / 生鱼片 (按饮食偏好匹配)。"
+      }
+    }
+  ]
+}

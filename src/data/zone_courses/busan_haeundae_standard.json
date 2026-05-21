@@ -1,0 +1,246 @@
+{
+  "id": "BUSAN_DAY_HAEUNDAE_STANDARD",
+  "city": "busan",
+  "zone": "Haeundae",
+  "theme": "해운대 + 마린시티 + 아쿠아리움",
+  "theme_i18n": {
+    "ko": "해운대 + 마린시티 + 아쿠아리움",
+    "en": "Haeundae + Marine City + Aquarium",
+    "ja": "海雲台 + マリンシティ + 水族館",
+    "zh": "海云台 + 海洋城 + 水族馆"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "해운대 해수욕장",
+      "name_i18n": {
+        "ko": "해운대 해수욕장",
+        "en": "Haeundae Beach",
+        "ja": "海雲台ビーチ",
+        "zh": "海云台海水浴场"
+      },
+      "address": "부산광역시 해운대구 해운대해변로 264",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 여름철 (7-8월) 매우 혼잡."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산 최고의 해변. 동백섬 산책로 추천. 여름 7-8월 인파 최대.",
+        "en": "Busan's top beach. Dongbaek Island walking trail recommended. Peak crowds July-August.",
+        "ja": "釜山の代表的なビーチ。冬柏島散歩道おすすめ。7-8月が最も混雑。",
+        "zh": "釜山最具代表性的海滩。推荐冬柏岛步道。7-8 月人潮最多。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "부산광역시 해운대구 구남로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [
+        "vegetarian"
+      ],
+      "tips_i18n": {
+        "ko": "해운대 구남로 — 회 / 돼지국밥 / 밀면 (식이 제약 매칭).",
+        "en": "Haeundae Gunamro — sashimi / dwaeji gukbap / milmyeon matched by dietary needs.",
+        "ja": "海雲台クナムロ — 刺身 / 豚クッパ / ミルミョン (食事制限とマッチング)。",
+        "zh": "海云台九南路 — 生鱼片 / 猪肉汤饭 / 小麦冷面 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "SEA LIFE 부산아쿠아리움",
+      "name_i18n": {
+        "ko": "SEA LIFE 부산아쿠아리움",
+        "en": "SEA LIFE Busan Aquarium",
+        "ja": "SEA LIFE 釜山アクアリウム",
+        "zh": "SEA LIFE 釜山水族馆"
+      },
+      "address": "부산광역시 해운대구 해운대해변로 266",
+      "stay_min": 90,
+      "entry_fee_krw": 32000,
+      "entry_fee": {
+        "adult": 32000,
+        "child": 26000,
+        "senior": 26000,
+        "toddler": 0,
+        "group_discount_min_pax": 15,
+        "free_with": [],
+        "reservation_required_for_group": true,
+        "notes": "온라인 사전 예매 시 약 10-15% 할인. 만 3세 미만 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "해저터널 명소. 비 오는 날 실내 대안 1순위.",
+        "en": "Underwater tunnel highlight. Top indoor option on rainy days.",
+        "ja": "海底トンネルが見どころ。雨の日の屋内代替として人気。",
+        "zh": "海底隧道为亮点。雨天最佳室内备选。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 180
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "마린시티",
+      "name_i18n": {
+        "ko": "마린시티",
+        "en": "Marine City",
+        "ja": "マリンシティ",
+        "zh": "海洋城"
+      },
+      "address": "부산광역시 해운대구 마린시티1로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "고층 빌딩 야경 명소. 광안대교 view 포토 스팟.",
+        "en": "Skyscraper night view spot. Best Gwangan Bridge photo angle.",
+        "ja": "高層ビル夜景の名所。広安大橋ビューが撮影スポット。",
+        "zh": "高楼夜景胜地。广安大桥拍摄最佳点。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 285
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "부산광역시 해운대구 달맞이길",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "달맞이길 — 회 / 한우 / 오션뷰 레스토랑.",
+        "en": "Dalmaji-gil — sashimi / Hanwoo beef / ocean view restaurants.",
+        "ja": "月見の道 — 刺身 / 韓牛 / オーシャンビューレストラン。",
+        "zh": "月见路 — 生鱼片 / 韩牛 / 海景餐厅。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 360
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    }
+  },
+  "best_for": [
+    "beach_lover",
+    "family",
+    "first_time_visitor"
+  ],
+  "unsuitable_for": [],
+  "dietary_options": [
+    "vegetarian"
+  ],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "block_type": "city_day",
+  "notes": "부산 해운대 zone — 비치 + 마린시티 + SEA LIFE 아쿠아리움. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env."
+}

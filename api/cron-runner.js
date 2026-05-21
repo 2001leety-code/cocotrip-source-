@@ -26,6 +26,8 @@ import slotPendingSweep from './_crons/slot-pending-sweep.js';
 import scanNaverRising from './_crons/scan-naver-rising.js';
 import scanRedditPainpoints from './_crons/scan-reddit-painpoints.js';
 import scanVisitkoreaAttractions from './_crons/scan-visitkorea-attractions.js';
+// P130 (2026-05-21) — weekly intent classifier 모니터링.
+import intentClassifierSummary from './_crons/intent-classifier-summary.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -46,6 +48,8 @@ const JOBS = {
   'scan-naver-rising':           scanNaverRising,
   'scan-reddit-painpoints':      scanRedditPainpoints,
   'scan-visitkorea-attractions': scanVisitkoreaAttractions,
+  // P130 (2026-05-21) — weekly intent classifier 모니터링.
+  'intent-classifier-summary':   intentClassifierSummary,
 };
 
 const CORS = {

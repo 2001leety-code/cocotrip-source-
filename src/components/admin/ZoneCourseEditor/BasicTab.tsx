@@ -10,7 +10,7 @@ import { I18nField } from '@/components/admin/ProductEditor/I18nField';
 
 const CITY_OPTIONS: ZoneCourseCity[] = [
   'seoul', 'busan', 'jeju', 'gyeongju', 'jeonju',
-  'gangneung', 'sokcho', 'andong', 'suwon',
+  'gangneung', 'sokcho', 'andong', 'suwon', 'gangwon',
 ];
 
 const INTENSITY_OPTIONS: { value: ZoneCourseIntensity; label: string }[] = [

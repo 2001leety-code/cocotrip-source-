@@ -1,0 +1,170 @@
+{
+  "id": "GANGWON_TREK_SEORAKSAN_ULSANBAWI_HARD",
+  "city": "gangwon",
+  "zone": "Seoraksan Ulsanbawi",
+  "block_type": "trekking",
+  "theme": "설악산 울산바위 (신흥사 → 흔들바위 → 정상)",
+  "theme_i18n": {
+    "ko": "설악산 울산바위 (신흥사 → 흔들바위 → 정상)",
+    "en": "Seoraksan Ulsanbawi (Sinheungsa → Heundeulbawi → Summit)",
+    "ja": "雪嶽山 蔚山岩 (新興寺 → 揺らぎ岩 → 頂上)",
+    "zh": "雪岳山 蔚山岩 (新兴寺 → 摇晃岩 → 山顶)"
+  },
+  "intensity": "packed",
+  "best_for": ["hiker", "active_traveler", "nature_lover"],
+  "unsuitable_for": ["wheelchair_user", "elderly", "young_children", "vertigo_sensitive"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "설악산 울산바위 — 신흥사 출발 3.8km 편도. 정상부 808 철계단 구간 위험. 봄/가을 권장. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "trekking_meta": {
+    "total_distance_km": 7.6,
+    "elevation_gain_m": 580,
+    "difficulty": "hard",
+    "trail_type": "mountain",
+    "estimated_duration_min": 300,
+    "starting_elevation_m": 305,
+    "highest_point_m": 873,
+    "recommended_gear": [
+      "trekking_pole",
+      "water_1_5L",
+      "hat",
+      "gloves",
+      "wind_breaker",
+      "ankle_support_shoes"
+    ],
+    "hazards": [
+      "steep_iron_stairs",
+      "icy_winter",
+      "crowded_weekend",
+      "fog_visibility_drop"
+    ],
+    "trailhead_address": "강원특별자치도 속초시 설악산로 1085 설악동 소공원",
+    "trailhead_access": {
+      "subway": "지하철 없음",
+      "bus": "속초고속버스터미널 → 7번/7-1번 버스 → 설악산소공원 (약 25분)",
+      "taxi_from_city_center_krw": 12000,
+      "parking_available": true
+    },
+    "seasons_recommended": ["spring", "autumn"]
+  },
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "신흥사",
+      "name_i18n": {
+        "ko": "신흥사",
+        "en": "Sinheungsa Temple",
+        "ja": "新興寺",
+        "zh": "新兴寺"
+      },
+      "address": "강원특별자치도 속초시 설악동 170",
+      "stay_min": 30,
+      "entry_fee_krw": 4500,
+      "entry_fee": {
+        "adult": 4500,
+        "child": 1500,
+        "senior": 2000,
+        "toddler": 0,
+        "group_discount_min_pax": 30,
+        "free_with": [],
+        "notes": "설악산국립공원 + 신흥사 문화재 관람료 통합. 단체 30인 이상 할인."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신라 진덕여왕 시기 (652년) 창건 사찰. 청동 대불 명소. 등반 전 화장실.",
+        "en": "Founded in 652 (Silla dynasty). Bronze Buddha highlight. Last restroom before climb.",
+        "ja": "新羅真徳女王時代 (652年) 創建寺。青銅大仏が名所。登山前トイレ。",
+        "zh": "新罗真德女王时期 (652年) 创建寺庙。青铜大佛名物。登山前洗手间。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "강원특별자치도 속초시 설악동",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "설악동 소공원 — 산채비빔밥 / 황태해장국 / 막걸리.",
+        "en": "Seorak-dong Sogongwon — wild herb bibimbap / dried pollack soup / makgeolli.",
+        "ja": "雪嶽洞小公園 — 山菜ビビンバ / フンテ解酲スープ / マッコリ。",
+        "zh": "雪岳洞小公园 — 山菜拌饭 / 明太鱼汤 / 米酒。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "울산바위 정상",
+      "name_i18n": {
+        "ko": "울산바위 정상",
+        "en": "Ulsanbawi Summit",
+        "ja": "蔚山岩頂上",
+        "zh": "蔚山岩山顶"
+      },
+      "address": "강원특별자치도 속초시 설악산 울산바위 정상",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "873m 화강암 봉우리. 808 철계단 (마지막 600m). 동해 view 명소.",
+        "en": "873m granite peak. 808 iron stairs (last 600m). East Sea view highlight.",
+        "ja": "873mの花崗岩峰。808段の鉄階段 (最後の600m)。東海ビューが名所。",
+        "zh": "873m 花岗岩峰。808 级铁梯 (最后 600m)。东海景观胜地。"
+      }
+    }
+  ],
+  "waypoints": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "흔들바위",
+      "name_i18n": {
+        "ko": "흔들바위",
+        "en": "Heundeulbawi (Rocking Rock)",
+        "ja": "揺らぎ岩",
+        "zh": "摇晃岩"
+      },
+      "address": "강원특별자치도 속초시 설악산 흔들바위",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "신흥사 → 울산바위 중간 (약 1.5km). 흔들어 보는 명소 — 짧은 휴식.",
+        "en": "Mid-point Sinheungsa → Ulsanbawi (~1.5km). Try to rock it — short rest.",
+        "ja": "新興寺→蔚山岩の中間 (約1.5km)。揺らしてみる名所 — 小休止。",
+        "zh": "新兴寺→蔚山岩中点 (约 1.5km)。可试摇动 — 短暂休息。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "transit",
+      "name": "울산바위 철계단 입구",
+      "name_i18n": {
+        "ko": "울산바위 철계단 입구",
+        "en": "Ulsanbawi Iron Stairs Entry",
+        "ja": "蔚山岩鉄階段入口",
+        "zh": "蔚山岩铁梯入口"
+      },
+      "address": "강원특별자치도 속초시 설악산 울산바위 철계단",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "808 철계단 시작. 가파른 구간 — 손잡이 의지. 겨울 빙판 위험.",
+        "en": "808 iron stairs begin. Steep — use handrails. Icy in winter.",
+        "ja": "808段の鉄階段開始。急勾配 — 手すりに頼る。冬は凍結注意。",
+        "zh": "808 级铁梯起点。陡峭 — 请扶扶手。冬季冰冻危险。"
+      }
+    }
+  ]
+}

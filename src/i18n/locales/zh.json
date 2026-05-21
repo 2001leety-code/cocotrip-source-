@@ -1766,6 +1766,11 @@
       "submit": "创建套餐",
       "submitting": "创建中..."
     },
+    "intentClassifierTitle": "🧭 Intent Classifier 监控",
+    "intentDistribution": "Intent 分布",
+    "llmFallbackRate": "LLM 回退率",
+    "mutatorFailureRate": "Mutator 失败率",
+    "trainingDataSuggestion": "Training data 建议 (添加 rule 关键词)",
     "reviews": {
       "title": "评论审核",
       "refresh": "刷新",

@@ -470,12 +470,71 @@ function applyStopRemove({ itinerary, classified }) {
 // Handler
 // ─────────────────────────────────────────────────────────────────────
 
+/**
+ * P130 (2026-05-21) — intent classifier 로그 저장. fire-and-forget.
+ * Firestore `intent_classifier_logs/{logId}` 컬렉션. Admin only read (rules).
+ *
+ * 호출 응답 차단 X — 실패해도 사용자 modify 흐름 영향 없음.
+ *
+ * schema:
+ *   ts, uid, email, plan_id, raw_text, language,
+ *   rule_intent, rule_confidence, used_llm_fallback,
+ *   llm_intent, llm_confidence, final_intent, final_confidence,
+ *   classifier_source ('rule'|'llm'), mutator_success, mutator_error,
+ *   mutator_code, elapsed_ms
+ */
+function logIntentClassifierAsync(payload) {
+  if (!adminDb) return;
+  try {
+    const doc = {
+      ts: new Date().toISOString(),
+      uid: payload.uid || null,
+      email: payload.email || null,
+      plan_id: payload.plan_id || null,
+      raw_text: String(payload.raw_text || '').slice(0, 1000),
+      language: payload.language || null,
+      rule_intent: payload.rule_intent || 'no_change',
+      rule_confidence: typeof payload.rule_confidence === 'number'
+        ? Math.max(0, Math.min(1, payload.rule_confidence))
+        : 0,
+      used_llm_fallback: !!payload.used_llm_fallback,
+      llm_intent: payload.llm_intent || null,
+      llm_confidence: typeof payload.llm_confidence === 'number'
+        ? Math.max(0, Math.min(1, payload.llm_confidence))
+        : null,
+      final_intent: payload.final_intent || 'no_change',
+      final_confidence: typeof payload.final_confidence === 'number'
+        ? Math.max(0, Math.min(1, payload.final_confidence))
+        : null,
+      classifier_source: payload.classifier_source === 'llm' ? 'llm' : 'rule',
+      mutator_success: !!payload.mutator_success,
+      mutator_error: payload.mutator_error
+        ? String(payload.mutator_error).slice(0, 300)
+        : null,
+      mutator_code: payload.mutator_code || null,
+      elapsed_ms: typeof payload.elapsed_ms === 'number'
+        ? Math.max(0, Math.floor(payload.elapsed_ms))
+        : null,
+    };
+    // fire-and-forget — never block caller. swallow all errors (no telegram —
+    // log write 실패가 prod alert flood 가 되면 곤란하다).
+    adminDb.collection('intent_classifier_logs').add(doc).catch((err) => {
+      console.warn('[ai-planner-modify] log write failed:', err?.message || err);
+    });
+  } catch (err) {
+    console.warn('[ai-planner-modify] log preparation failed:', err?.message || err);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, CORS); return res.end(); }
   if (req.method !== 'POST') {
     res.writeHead(405, JSON_CORS);
     return res.end(JSON.stringify(_err('Method Not Allowed', 'METHOD_NOT_ALLOWED')));
   }
+
+  // P130: track timing for monitoring. captured even on early-return paths.
+  const _startedAt = Date.now();
 
   try {
     if (!adminDb) {
@@ -523,17 +582,19 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err('Plan has no itinerary', 'INVALID_PLAN')));
     }
 
-    // ── classify intent
-    let classified = classifyModification(requestText);
-    if (typeof hintDayIndex === 'number' && !classified.target?.day_index) {
-      classified.target = { ...(classified.target || {}), day_index: hintDayIndex };
+    // ── classify intent (P130 — track rule + LLM split for monitoring)
+    const ruleClassified = classifyModification(requestText);
+    if (typeof hintDayIndex === 'number' && !ruleClassified.target?.day_index) {
+      ruleClassified.target = { ...(ruleClassified.target || {}), day_index: hintDayIndex };
     }
-    if (classified.confidence < 0.5) {
+    let classified = ruleClassified;
+    let llmRes = null;
+    if (ruleClassified.confidence < 0.5) {
       try {
         const apiKey = (process.env.GEMINI_API_KEY || '').trim();
         if (apiKey) {
-          const llmRes = await llmClassify(requestText, apiKey, hintDayIndex);
-          if (llmRes && llmRes.confidence > classified.confidence) {
+          llmRes = await llmClassify(requestText, apiKey, hintDayIndex);
+          if (llmRes && llmRes.confidence > ruleClassified.confidence) {
             classified = llmRes;
           }
         }
@@ -542,8 +603,31 @@ export default async function handler(req, res) {
         console.warn('[ai-planner-modify] LLM classify failed:', llmErr?.message || llmErr);
       }
     }
+    const usedLlmFallback = ruleClassified.confidence < 0.5;
+    // P130 — language used for both logging + downstream block-mode call.
+    const language = planData.input?.language || 'en';
 
     if (classified.intent === 'no_change' || classified.confidence < 0.3) {
+      // P130 — log intent_unclear case too (rule classifier 정확도 감지).
+      logIntentClassifierAsync({
+        uid: auth.uid,
+        email: auth.email,
+        plan_id: planId,
+        raw_text: requestText,
+        language,
+        rule_intent: ruleClassified.intent,
+        rule_confidence: ruleClassified.confidence,
+        used_llm_fallback: usedLlmFallback,
+        llm_intent: llmRes ? llmRes.intent : null,
+        llm_confidence: llmRes ? llmRes.confidence : null,
+        final_intent: classified.intent,
+        final_confidence: classified.confidence,
+        classifier_source: classified.source || 'rule',
+        mutator_success: false,
+        mutator_error: 'INTENT_UNCLEAR',
+        mutator_code: 'INTENT_UNCLEAR',
+        elapsed_ms: Date.now() - _startedAt,
+      });
       res.writeHead(422, JSON_CORS);
       return res.end(JSON.stringify(_err(
         'Could not understand modification — please be more specific (e.g. "Day 2 add N서울타워", "remove 인사동").',
@@ -557,7 +641,7 @@ export default async function handler(req, res) {
     const dietPrefs = Array.isArray(planData.input?.dietary)
       ? planData.input.dietary
       : (Array.isArray(planData.input?.dietPrefs) ? planData.input.dietPrefs : []);
-    const language = planData.input?.language || 'en';
+    // language already declared above for P130 logging — reuse.
     const area = String(planData.input?.area || '').trim() || (Array.isArray(planData.input?.regions) ? planData.input.regions[0] : '') || '';
     const city = String(area).split('_')[0].toLowerCase();
     let foodIndex = [];
@@ -581,6 +665,26 @@ export default async function handler(req, res) {
     if (!mutResult || !mutResult.ok) {
       // rollback (should be safe since we only mutated days)
       try { itinerary.days = JSON.parse(originalDaysJson); } catch {}
+      // P130 — log mutator failure for monitoring.
+      logIntentClassifierAsync({
+        uid: auth.uid,
+        email: auth.email,
+        plan_id: planId,
+        raw_text: requestText,
+        language,
+        rule_intent: ruleClassified.intent,
+        rule_confidence: ruleClassified.confidence,
+        used_llm_fallback: usedLlmFallback,
+        llm_intent: llmRes ? llmRes.intent : null,
+        llm_confidence: llmRes ? llmRes.confidence : null,
+        final_intent: classified.intent,
+        final_confidence: classified.confidence,
+        classifier_source: classified.source || 'rule',
+        mutator_success: false,
+        mutator_error: mutResult?.message || 'Mutation failed',
+        mutator_code: mutResult?.code || 'MUTATION_FAILED',
+        elapsed_ms: Date.now() - _startedAt,
+      });
       res.writeHead(422, JSON_CORS);
       return res.end(JSON.stringify(_err(
         mutResult?.message || 'Mutation failed',
@@ -599,6 +703,27 @@ export default async function handler(req, res) {
     if (patternErrors.length > 0) {
       // rollback
       try { itinerary.days = JSON.parse(originalDaysJson); } catch {}
+      // P130 — log validation failure for monitoring (mutator 자체는 ok 였으나
+      // validator 가 거부했음).
+      logIntentClassifierAsync({
+        uid: auth.uid,
+        email: auth.email,
+        plan_id: planId,
+        raw_text: requestText,
+        language,
+        rule_intent: ruleClassified.intent,
+        rule_confidence: ruleClassified.confidence,
+        used_llm_fallback: usedLlmFallback,
+        llm_intent: llmRes ? llmRes.intent : null,
+        llm_confidence: llmRes ? llmRes.confidence : null,
+        final_intent: classified.intent,
+        final_confidence: classified.confidence,
+        classifier_source: classified.source || 'rule',
+        mutator_success: false,
+        mutator_error: 'pattern_violation: ' + (patternErrors[0]?.code || patternErrors[0] || ''),
+        mutator_code: 'PATTERN_VIOLATION',
+        elapsed_ms: Date.now() - _startedAt,
+      });
       res.writeHead(422, JSON_CORS);
       return res.end(JSON.stringify(_err(
         'Modification would break plan structure — request rejected.',
@@ -614,6 +739,27 @@ export default async function handler(req, res) {
       lastModifiedAt: new Date().toISOString(),
       lastModifyIntent: classified.intent,
     }, { merge: true });
+
+    // P130 — log successful mutation for monitoring.
+    logIntentClassifierAsync({
+      uid: auth.uid,
+      email: auth.email,
+      plan_id: planId,
+      raw_text: requestText,
+      language,
+      rule_intent: ruleClassified.intent,
+      rule_confidence: ruleClassified.confidence,
+      used_llm_fallback: usedLlmFallback,
+      llm_intent: llmRes ? llmRes.intent : null,
+      llm_confidence: llmRes ? llmRes.confidence : null,
+      final_intent: classified.intent,
+      final_confidence: classified.confidence,
+      classifier_source: classified.source || 'rule',
+      mutator_success: true,
+      mutator_error: null,
+      mutator_code: null,
+      elapsed_ms: Date.now() - _startedAt,
+    });
 
     res.writeHead(200, JSON_CORS);
     res.end(JSON.stringify(_ok({

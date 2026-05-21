@@ -1,0 +1,137 @@
+{
+  "id": "BUSAN_DAY_GAMCHEON_STANDARD",
+  "city": "busan",
+  "zone": "Gamcheon",
+  "block_type": "city_day",
+  "theme": "감천문화마을 + 송도 스카이워크 + 송도해수욕장",
+  "theme_i18n": {
+    "ko": "감천문화마을 + 송도 스카이워크 + 송도해수욕장",
+    "en": "Gamcheon Culture Village + Songdo Skywalk + Songdo Beach",
+    "ja": "甘川文化村 + 松島スカイウォーク + 松島ビーチ",
+    "zh": "甘川文化村 + 松岛天空步道 + 松岛海水浴场"
+  },
+  "intensity": "standard",
+  "best_for": ["photographer", "instagram_lover", "first_time_visitor"],
+  "unsuitable_for": ["wheelchair_user", "elderly"],
+  "dietary_options": ["vegetarian"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "부산 감천 + 송도 zone — '한국의 마추픽추' 감천문화마을 + 송도 스카이워크. 경사 많아 휠체어 불가. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "감천문화마을",
+      "name_i18n": {
+        "ko": "감천문화마을",
+        "en": "Gamcheon Culture Village",
+        "ja": "甘川文化村",
+        "zh": "甘川文化村"
+      },
+      "address": "부산광역시 사하구 감내2로 203",
+      "stay_min": 120,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "마을 입장 무료. 스탬프 투어 책자 별도 (2,000원)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국의 마추픽추. 어린왕자 포토존 명소. 가파른 골목 — 편한 신발.",
+        "en": "Korea's Machu Picchu. Little Prince photo spot. Steep alleys — wear comfortable shoes.",
+        "ja": "韓国のマチュピチュ。星の王子さま撮影スポット。急な路地 — 歩きやすい靴。",
+        "zh": "韩国马丘比丘。小王子拍照胜地。陡峭巷弄 — 请穿舒适鞋。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산광역시 사하구 감내2로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": ["vegetarian"],
+      "tips_i18n": {
+        "ko": "감천마을 카페거리 — 뷰 카페 + 한식 (식이 제약 매칭).",
+        "en": "Gamcheon village cafe street — view cafes + Korean matched by dietary needs.",
+        "ja": "甘川村カフェ通り — ビューカフェ + 韓食 (食事制限とマッチング)。",
+        "zh": "甘川村咖啡街 — 景观咖啡 + 韩餐 (按饮食偏好匹配)。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "송도 스카이워크",
+      "name_i18n": {
+        "ko": "송도 스카이워크",
+        "en": "Songdo Skywalk",
+        "ja": "松島スカイウォーク",
+        "zh": "松岛天空步道"
+      },
+      "address": "부산광역시 서구 송도해변로 14",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "스카이워크 도보 무료. 송도해상케이블카는 별도 (왕복 20,000-25,000원)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "유리바닥 해상 산책로. 송도해상케이블카 (별도)와 함께 추천.",
+        "en": "Glass-bottom seaside walkway. Recommended with Songdo Marine Cable Car (separate).",
+        "ja": "ガラス底の海上散歩道。松島海上ケーブルカー (別途) と一緒に推奨。",
+        "zh": "玻璃底海上步道。建议结合松岛海上缆车 (另付) 体验。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "송도해수욕장",
+      "name_i18n": {
+        "ko": "송도해수욕장",
+        "en": "Songdo Beach",
+        "ja": "松島ビーチ",
+        "zh": "松岛海水浴场"
+      },
+      "address": "부산광역시 서구 송도해변로 100",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 1호 공설 해수욕장 (1913년). 해운대보다 한산.",
+        "en": "Korea's first public beach (1913). Less crowded than Haeundae.",
+        "ja": "韓国初の公設ビーチ (1913年)。海雲台より空いている。",
+        "zh": "韩国首座公共海水浴场 (1913年)。比海云台清静。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산광역시 서구 송도해변로",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "송도해변 — 회 / 해산물 + 오션뷰 레스토랑.",
+        "en": "Songdo beachfront — sashimi / seafood + ocean view restaurants.",
+        "ja": "松島ビーチ — 刺身 / 海産物 + オーシャンビューレストラン。",
+        "zh": "松岛海滩 — 生鱼片 / 海鲜 + 海景餐厅。"
+      }
+    }
+  ]
+}

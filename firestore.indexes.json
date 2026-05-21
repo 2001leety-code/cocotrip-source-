@@ -239,6 +239,21 @@
         { "fieldPath": "region", "order": "ASCENDING" },
         { "fieldPath": "scanned_at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "intent_classifier_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ts", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "intent_classifier_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "used_llm_fallback", "order": "ASCENDING" },
+        { "fieldPath": "ts", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

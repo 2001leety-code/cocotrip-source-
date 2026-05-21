@@ -1,0 +1,248 @@
+{
+  "id": "JEJU_DAY_JUNGMUN_PACKED",
+  "city": "jeju",
+  "zone": "Jungmun",
+  "theme": "중문관광단지 + 천제연폭포 + 여미지식물원 + 색달해변",
+  "theme_i18n": {
+    "ko": "중문관광단지 + 천제연폭포 + 여미지식물원 + 색달해변",
+    "en": "Jungmun Resort + Cheonjeyeon Falls + Yeomiji Garden + Saekdal Beach",
+    "ja": "中文観光団地 + 天帝淵滝 + 如美地植物園 + セクタルビーチ",
+    "zh": "中文旅游区 + 天帝渊瀑布 + 如美地植物园 + 色达海滩"
+  },
+  "intensity": "packed",
+  "duration_min": 435,
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "천제연폭포",
+      "name_i18n": {
+        "ko": "천제연폭포",
+        "en": "Cheonjeyeon Waterfall",
+        "ja": "天帝淵滝",
+        "zh": "天帝渊瀑布"
+      },
+      "address": "제주특별자치도 서귀포시 천제연로 132",
+      "stay_min": 75,
+      "entry_fee_krw": 2500,
+      "entry_fee": {
+        "adult": 2500,
+        "child": 1350,
+        "senior": 1350,
+        "toddler": 0,
+        "group_discount_min_pax": 10,
+        "free_with": [],
+        "notes": "단체 10인 이상 할인. 만 7세 미만 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "3단 폭포. 7월 칠선녀 축제 (격년). 선임교 view 추천.",
+        "en": "3-tier waterfall. July Seven Fairies Festival (biennial). Seonimgyo bridge view recommended.",
+        "ja": "3段滝。7月七仙女祭り (隔年)。仙臨橋ビュー推奨。",
+        "zh": "3 层瀑布。7月七仙女节 (隔年)。推荐仙临桥观景。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "제주특별자치도 서귀포시 중문관광로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [
+        "vegetarian"
+      ],
+      "tips_i18n": {
+        "ko": "중문관광단지 — 흑돼지 / 갈치 / 한식 (식이 제약 매칭).",
+        "en": "Jungmun Resort area — black pork / cutlassfish / Korean matched by dietary needs.",
+        "ja": "中文観光団地 — 黒豚 / タチウオ / 韓食 (食事制限とマッチング)。",
+        "zh": "中文旅游区 — 黑猪肉 / 带鱼 / 韩餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 90
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "여미지식물원",
+      "name_i18n": {
+        "ko": "여미지식물원",
+        "en": "Yeomiji Botanical Garden",
+        "ja": "如美地植物園",
+        "zh": "如美地植物园"
+      },
+      "address": "제주특별자치도 서귀포시 중문관광로 93",
+      "stay_min": 90,
+      "entry_fee_krw": 10000,
+      "entry_fee": {
+        "adult": 10000,
+        "child": 6000,
+        "senior": 7500,
+        "toddler": 0,
+        "group_discount_min_pax": 15,
+        "free_with": [],
+        "reservation_required_for_group": true,
+        "notes": "단체 15인 이상 할인. 만 36개월 미만 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "온실 + 옥상 전망대. 아시아 최대 단일 온실. 비 오는 날 추천.",
+        "en": "Greenhouse + rooftop observatory. Asia's largest single greenhouse. Good for rainy days.",
+        "ja": "温室 + 屋上展望台。アジア最大級の単一温室。雨の日にも最適。",
+        "zh": "温室 + 顶楼观景台。亚洲最大单一温室。雨天首选。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 165
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "색달해수욕장",
+      "name_i18n": {
+        "ko": "색달해수욕장",
+        "en": "Saekdal Beach (Jungmun Beach)",
+        "ja": "セクタルビーチ",
+        "zh": "色达海水浴场"
+      },
+      "address": "제주특별자치도 서귀포시 중문관광로 198",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "중문 비치. 서핑 명소. 일몰 view 추천.",
+        "en": "Jungmun Beach. Top surfing spot. Sunset view recommended.",
+        "ja": "中文ビーチ。サーフィン名所。夕日ビュー推奨。",
+        "zh": "中文海滩。冲浪胜地。推荐日落观景。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 270
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "제주특별자치도 서귀포시 중문관광로",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "중문 일대 — 흑돼지구이 / 회 / 오션뷰 레스토랑.",
+        "en": "Jungmun area — black pork BBQ / sashimi / ocean view restaurants.",
+        "ja": "中文エリア — 黒豚焼肉 / 刺身 / オーシャンビューレストラン。",
+        "zh": "中文一带 — 黑猪烤肉 / 生鱼片 / 海景餐厅。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 345
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    }
+  },
+  "best_for": [
+    "family",
+    "nature_lover",
+    "first_time_visitor"
+  ],
+  "unsuitable_for": [],
+  "dietary_options": [
+    "vegetarian"
+  ],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "block_type": "city_day",
+  "notes": "제주 중문 zone — 리조트단지 + 폭포 + 식물원 + 해변. 차량 이동 다수. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env."
+}

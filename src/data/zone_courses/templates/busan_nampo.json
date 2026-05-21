@@ -1,0 +1,123 @@
+{
+  "id": "BUSAN_DAY_NAMPO_STANDARD",
+  "city": "busan",
+  "zone": "Nampo",
+  "block_type": "city_day",
+  "theme": "자갈치 + 국제시장 + BIFF + 부평깡통야시장",
+  "theme_i18n": {
+    "ko": "자갈치 + 국제시장 + BIFF + 부평깡통야시장",
+    "en": "Jagalchi + Gukje Market + BIFF Square + Bupyeong Night Market",
+    "ja": "チャガルチ + 国際市場 + BIFF + 富平カントン夜市",
+    "zh": "札嘎其 + 国际市场 + BIFF + 富平罐头夜市"
+  },
+  "intensity": "packed",
+  "best_for": ["foodie", "market_lover", "first_time_visitor"],
+  "unsuitable_for": ["vegan_only"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "부산 남포 zone — 부산 대표 시장 코스. 자갈치 회 + 국제시장 + BIFF 광장 + 부평깡통야시장. 해산물 중심. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "자갈치시장",
+      "name_i18n": {
+        "ko": "자갈치시장",
+        "en": "Jagalchi Market",
+        "ja": "チャガルチ市場",
+        "zh": "札嘎其市场"
+      },
+      "address": "부산광역시 중구 자갈치해안로 52",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 최대 수산시장. 1층 회 떠서 2층에서 식사. 비건/할랄 불가.",
+        "en": "Korea's largest seafood market. Buy sashimi on 1F, eat on 2F. No vegan/halal.",
+        "ja": "韓国最大の水産市場。1階で刺身を購入、2階で食事。ヴィーガン/ハラル不可。",
+        "zh": "韩国最大水产市场。1楼买生鱼片,2楼用餐。无素食/清真选项。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산광역시 중구 자갈치해안로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "자갈치 회센터 — 활어 회 / 매운탕 / 해물탕.",
+        "en": "Jagalchi sashimi center — live fish sashimi / spicy fish stew.",
+        "ja": "チャガルチ刺身センター — 活魚刺身 / メウンタン / 海鮮鍋。",
+        "zh": "札嘎其生鱼片中心 — 活鱼生鱼片 / 辣鱼汤 / 海鲜锅。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "국제시장",
+      "name_i18n": {
+        "ko": "국제시장",
+        "en": "Gukje Market",
+        "ja": "国際市場",
+        "zh": "国际市场"
+      },
+      "address": "부산광역시 중구 신창동4가 38-1",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "6.25 피난민 시장 유래. 잡화 + 길거리 음식 + 영화 '국제시장' 촬영지.",
+        "en": "Originated from Korean War refugees. Goods + street food + 'Ode to My Father' filming site.",
+        "ja": "朝鮮戦争避難民市場が起源。雑貨 + 屋台 + 映画『国際市場』ロケ地。",
+        "zh": "源于朝鲜战争避难市场。杂货 + 街头小吃 + 电影《国际市场》拍摄地。"
+      }
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "BIFF 광장",
+      "name_i18n": {
+        "ko": "BIFF 광장",
+        "en": "BIFF Square",
+        "ja": "BIFF 広場",
+        "zh": "BIFF 广场"
+      },
+      "address": "부산광역시 중구 BIFF광장로 30",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산국제영화제 발상지. 핫도그 / 씨앗호떡 명소.",
+        "en": "Birthplace of Busan International Film Festival. Famous hot dogs / seed-stuffed hotteok.",
+        "ja": "釜山国際映画祭発祥地。ホットドッグ / 種ホットッ名所。",
+        "zh": "釜山国际电影节发源地。著名热狗 / 籽糖饼。"
+      }
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산광역시 중구 부평1길",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "부평깡통야시장 — 1948년 시작. 다국적 길거리 음식 + 야간 명소.",
+        "en": "Bupyeong Kkangtong Night Market — since 1948. International street food + night scene.",
+        "ja": "富平カントン夜市 — 1948年開場。多国籍屋台 + 夜の名所。",
+        "zh": "富平罐头夜市 — 1948年开市。多国街头小吃 + 夜间胜地。"
+      }
+    }
+  ]
+}
