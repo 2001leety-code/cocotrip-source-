@@ -90,6 +90,38 @@ function isDeleted(file, changed) {
   return changed.some((c) => c.file === file && c.status === 'D');
 }
 
+// ── P129 (2026-05-21) — ai-planner-full.js 분해 호환 헬퍼 ────────────────────
+// ai-planner-full.js (25L wrapper) 는 본체를 api/_ai_core/handlerCore.js +
+// requestShaper.js + userMessageBuilder.js + postResponsePipeline.js 4종으로
+// 추출. 기존 lint 룰들이 "ai-planner-full.js 의 content" 만 검사하면 P119/
+// P120/P123/P125/P128/P96/P102/P112 false-positive 폭주. 본 헬퍼는 wrapper +
+// 추출 모듈들 content 를 concat 해서 반환 — 룰은 substring 매칭만 하므로
+// 안전. modified 검사도 같은 family 로 확장.
+const PLANNER_FAMILY = [
+  'api/ai-planner-full.js',
+  'api/_ai_core/handlerCore.js',
+  'api/_ai_core/requestShaper.js',
+  'api/_ai_core/userMessageBuilder.js',
+  'api/_ai_core/postResponsePipeline.js',
+  'api/_ai_core/airportInference.js',
+];
+
+function getPlannerFamilyContent(opts = {}) {
+  // 우선 working tree (HEAD) — sandbox self-test 환경 포함.
+  // pre-push 본번 호출 시엔 working tree 가 곧 HEAD.
+  let out = '';
+  for (const f of PLANNER_FAMILY) {
+    if (existsSync(f)) {
+      try { out += '\n/* ===== ' + f + ' ===== */\n' + readFileSync(f, 'utf8'); } catch {}
+    }
+  }
+  return out;
+}
+
+function isPlannerFamilyModified(changed) {
+  return PLANNER_FAMILY.some((f) => isModified(f, changed));
+}
+
 // ----------------------------------------------------------------------------
 // 위반 누적 + 룰 러너
 // ----------------------------------------------------------------------------
@@ -1095,6 +1127,7 @@ const RULES = [
   ['P126_wizardResumeContent', P126_wizardResumeContent],
   ['P127_lodgingBookendMultiCityAnchor', P127_lodgingBookendMultiCityAnchor],
   ['P128_blockModeIntegration', P128_blockModeIntegration],
+  ['P129_aiPlannerFullDecomposeLock', P129_aiPlannerFullDecomposeLock],
 ];
 
 /**
@@ -1418,10 +1451,26 @@ function P96_longRunningEndpointInstrumentation({ changed }) {
     const maxDur = parseInt(maxDurMatch[1], 10);
     if (maxDur < 180) continue;
 
-    const hasWithStep = /async\s+function\s+withStep\s*\(\s*\w+\s*,\s*\w+\s*\)/.test(content);
+    // P129 (2026-05-21): ai-planner-full.js 는 thin re-export wrapper —
+    // withStep/hangWarn 본체는 api/_ai_core/handlerCore.js. wrapper 가
+    // export { default } from './_ai_core/handlerCore.js' 패턴이면
+    // handlerCore content 도 검사 대상에 합산.
+    let searchContent = content;
+    const reexportMatch = content.match(/export\s+\{\s*default\s*\}\s+from\s+['"]([^'"]+)['"]/);
+    if (reexportMatch) {
+      const reexportPath = reexportMatch[1];
+      // api/ai-planner-full.js → './_ai_core/handlerCore.js' resolve.
+      const dir = path.dirname(file);
+      const resolved = path.posix.join(dir, reexportPath).replace(/\\/g, '/');
+      if (existsSync(resolved)) {
+        searchContent = content + '\n' + readFileSync(resolved, 'utf8');
+      }
+    }
+
+    const hasWithStep = /async\s+function\s+withStep\s*\(\s*\w+\s*,\s*\w+\s*\)/.test(searchContent);
     const hasHangAlert =
-      /HANG_WARN_MS|hangWarnTimer/.test(content) ||
-      /setTimeout\([\s\S]{0,300}throttledTelegramAlert/.test(content);
+      /HANG_WARN_MS|hangWarnTimer/.test(searchContent) ||
+      /setTimeout\([\s\S]{0,300}throttledTelegramAlert/.test(searchContent);
 
     if (!hasWithStep || !hasHangAlert) {
       const missing = [];
@@ -1479,14 +1528,19 @@ function P102_adminBypassForceLegacy({ changed }) {
     }
   }
 
+  // P129 (2026-05-21): ai-planner-full.js 분해 — handler 본체는 handlerCore.js.
+  // 두 파일 중 어디든 변경되면 검사. content 도 양쪽 concat 으로 살핌.
   const PLANNER_FILE = 'api/ai-planner-full.js';
-  if (isModified(PLANNER_FILE, changed)) {
-    const content = getChangedFileContent(PLANNER_FILE);
+  const HANDLER_CORE = 'api/_ai_core/handlerCore.js';
+  if (isModified(PLANNER_FILE, changed) || isModified(HANDLER_CORE, changed)) {
+    const a = existsSync(PLANNER_FILE) ? readFileSync(PLANNER_FILE, 'utf8') : '';
+    const b = existsSync(HANDLER_CORE) ? readFileSync(HANDLER_CORE, 'utf8') : '';
+    const content = a + '\n' + b;
     if (content) {
       // decidePlannerMode 호출 블록에 isAdminBypass 인자 포함 필수.
       const callMatch = content.match(/decidePlannerMode\s*\(\s*\{[\s\S]{0,400}?\}\s*\)/);
       if (callMatch && !/isAdminBypass\s*:/.test(callMatch[0])) {
-        violations.push(`${PLANNER_FILE}: decidePlannerMode 호출에 isAdminBypass 인자 누락 — gate.isAdminBypass 가 mode 결정에 반영 안 됨 → admin Test Mode 가 3-pass 로 빠져 5분 cap 회귀`);
+        violations.push(`${PLANNER_FILE}/${HANDLER_CORE}: decidePlannerMode 호출에 isAdminBypass 인자 누락 — gate.isAdminBypass 가 mode 결정에 반영 안 됨 → admin Test Mode 가 3-pass 로 빠져 5분 cap 회귀`);
       }
     }
   }
@@ -1889,16 +1943,19 @@ function P112_endTimeBackfill({ changed }) {
     }
   }
 
+  // P129 (2026-05-21): ai-planner-full.js → handlerCore.js + postResponsePipeline.js
+  // 분해. backfillStopEndTimes 호출은 postResponsePipeline.js 의
+  // applyBackfillsAndTmoney() 안 — 두 파일 중 어디든 import + 호출 보이면 OK.
   const HANDLER = 'api/ai-planner-full.js';
-  if (isModified(HANDLER, changed)) {
-    const content = getChangedFileContent(HANDLER);
+  if (isPlannerFamilyModified(changed)) {
+    const content = getPlannerFamilyContent();
     if (content && /backfillStopEndTimes/.test(content)) {
-      // import 와 호출 둘 다.
-      if (!/import\s*\{[^}]*backfillStopEndTimes[^}]*\}\s*from\s*['"]\.\/_ai_core\/planPersister\.js['"]/.test(content)) {
-        violations.push(`${HANDLER}: backfillStopEndTimes import 누락 — 호출은 있는데 import 안 함 → ReferenceError`);
+      // import 와 호출 둘 다 (postResponsePipeline.js 의 import path 는 './planPersister.js').
+      if (!/import[^;]*backfillStopEndTimes[^;]*from\s*['"]\.[^'"]*planPersister\.js['"]/.test(content)) {
+        violations.push(`${HANDLER}/family: backfillStopEndTimes import 누락 — 호출은 있는데 import 안 함 → ReferenceError`);
       }
       if (!/backfillStopEndTimes\s*\(\s*itinerary\s*\)/.test(content)) {
-        violations.push(`${HANDLER}: backfillStopEndTimes(itinerary) 호출 누락 — helper 만 import 하고 안 쓰면 의미 없음`);
+        violations.push(`${HANDLER}/family: backfillStopEndTimes(itinerary) 호출 누락 — helper 만 import 하고 안 쓰면 의미 없음`);
       }
     }
   }
@@ -2139,21 +2196,24 @@ function P116_lodgingBookendLabel({ changed }) {
 function P123_hotelByCityForwarding({ changed }) {
   const AI_PLANNER = 'api/ai-planner-full.js';
   const PERSIST = 'api/_ai_core/planPersister.js';
-  if (!isModified(AI_PLANNER, changed) && !isModified(PERSIST, changed)) {
+  if (!isPlannerFamilyModified(changed) && !isModified(PERSIST, changed)) {
     return { skipped: true };
   }
   const violations = [];
 
-  if (existsSync(AI_PLANNER)) {
-    const c = readFileSync(AI_PLANNER, 'utf8');
-    if (!/const\s+hotelByCity\s*=/.test(c)) {
-      violations.push(`${AI_PLANNER}: hotelByCity destructure 누락 — body.hotelByCity 처리 안 됨`);
+  // P129 (2026-05-21): hotelByCity destructure 는 requestShaper.js,
+  // MULTI-CITY HOTELS BY CITY block 은 userMessageBuilder.js, backfillDayLodging
+  // 호출은 postResponsePipeline.js. 셋 다 family content 에 포함.
+  {
+    const c = getPlannerFamilyContent();
+    if (!/(const|let)\s+hotelByCity\s*=/.test(c)) {
+      violations.push(`${AI_PLANNER}/family: hotelByCity destructure 누락 — body.hotelByCity 처리 안 됨`);
     }
     if (!/MULTI-CITY HOTELS BY CITY/.test(c)) {
-      violations.push(`${AI_PLANNER}: Gemini user message 에 MULTI-CITY HOTELS BY CITY 블록 누락 — wizard 도시별 호텔 입력 활용 X`);
+      violations.push(`${AI_PLANNER}/family: Gemini user message 에 MULTI-CITY HOTELS BY CITY 블록 누락 — wizard 도시별 호텔 입력 활용 X`);
     }
-    if (!/backfillDayLodging\s*\(\s*itinerary\s*,\s*hotelByCity\s*\)/.test(c)) {
-      violations.push(`${AI_PLANNER}: backfillDayLodging(itinerary, hotelByCity) 호출 — 두 번째 인자 누락`);
+    if (!/backfillDayLodging\s*\(\s*itinerary\s*,\s*[^)]*hotelByCity[^)]*\)/.test(c)) {
+      violations.push(`${AI_PLANNER}/family: backfillDayLodging(itinerary, hotelByCity) 호출 — 두 번째 인자 누락`);
     }
   }
 
@@ -2412,11 +2472,12 @@ function P125_multiCityArrivalDeparture({ changed }) {
   const HANDLERS = 'src/pages/PlannerPage/hooks/usePlannerHandlers.ts';
   const BACKEND = 'api/ai-planner-full.js';
   const PROMPT = 'api/_ai_core/buildPrompt.js';
+  // P129 (2026-05-21): backend 검사 대상 family 로 확장.
   if (
     !isModified(STEP0, changed) &&
     !isModified(WIZARD, changed) &&
     !isModified(HANDLERS, changed) &&
-    !isModified(BACKEND, changed) &&
+    !isPlannerFamilyModified(changed) &&
     !isModified(PROMPT, changed)
   ) {
     return { skipped: true };
@@ -2453,16 +2514,19 @@ function P125_multiCityArrivalDeparture({ changed }) {
     }
   }
 
-  if (existsSync(BACKEND)) {
-    const c = readFileSync(BACKEND, 'utf8');
+  {
+    // P129: family (ai-planner-full.js + handlerCore.js + requestShaper.js
+    // + userMessageBuilder.js + postResponsePipeline.js + airportInference.js)
+    // 합산 content 검사.
+    const c = getPlannerFamilyContent();
     if (!/body\.arrival_city\s*\|\|\s*body\.arrivalCity/.test(c)) {
-      violations.push(`${BACKEND}: body.arrival_city || body.arrivalCity destructure 누락 — backend 가 wizard 입력 무시`);
+      violations.push(`${BACKEND}/family: body.arrival_city || body.arrivalCity destructure 누락 — backend 가 wizard 입력 무시`);
     }
     if (!/body\.departure_city\s*\|\|\s*body\.departureCity/.test(c)) {
-      violations.push(`${BACKEND}: body.departure_city || body.departureCity destructure 누락`);
+      violations.push(`${BACKEND}/family: body.departure_city || body.departureCity destructure 누락`);
     }
     if (!/MULTI-CITY ENTRY\/EXIT.*P125/s.test(c)) {
-      violations.push(`${BACKEND}: MULTI-CITY ENTRY/EXIT (P125) Gemini message block 누락`);
+      violations.push(`${BACKEND}/family: MULTI-CITY ENTRY/EXIT (P125) Gemini message block 누락`);
     }
   }
 
@@ -2527,25 +2591,26 @@ function P127_lodgingBookendMultiCityAnchor({ changed }) {
 function P128_blockModeIntegration({ changed }) {
   const AI_PLANNER = 'api/ai-planner-full.js';
   const BLOCK_MODE = 'api/_ai_core/blockMode.js';
-  if (!isModified(AI_PLANNER, changed) && !isModified(BLOCK_MODE, changed)) {
+  if (!isPlannerFamilyModified(changed) && !isModified(BLOCK_MODE, changed)) {
     return { skipped: true };
   }
   const violations = [];
 
-  // ai-planner-full.js 가 변경됐는데 block-mode 마커가 있으면 import + 호출 둘 다 있어야 함.
-  if (existsSync(AI_PLANNER)) {
-    const c = readFileSync(AI_PLANNER, 'utf8');
+  // P129 (2026-05-21): ai-planner-full.js 분해 — block-mode import / 호출은
+  // handlerCore.js 안. family content 합산 검사.
+  {
+    const c = getPlannerFamilyContent();
     const mentionsBlockMode = /block.?mode|runBlockModePipeline|tryRunBlockMode|PLANNER_BLOCK_MODE/i.test(c);
     if (mentionsBlockMode) {
-      if (!/import[^;]+(runBlockModePipeline|getBlockModeEnv|tryRunBlockMode)[^;]+from\s+['"]\.\/_ai_core\/blockMode/.test(c)) {
-        violations.push(`${AI_PLANNER}: blockMode.js import 누락 — block-mode 분기 의존성 부재`);
+      if (!/import[^;]+(runBlockModePipeline|getBlockModeEnv|tryRunBlockMode)[^;]+from\s+['"][^'"]*blockMode/.test(c)) {
+        violations.push(`${AI_PLANNER}/family: blockMode.js import 누락 — block-mode 분기 의존성 부재`);
       }
       if (!/(runBlockModePipeline|tryRunBlockMode)\s*\(/.test(c)) {
-        violations.push(`${AI_PLANNER}: block-mode pipeline 호출 누락 — 분기만 있고 실행 안 됨`);
+        violations.push(`${AI_PLANNER}/family: block-mode pipeline 호출 누락 — 분기만 있고 실행 안 됨`);
       }
       // legacy fallback 패턴 — try/catch 또는 if (!itinerary) 폴백 의무.
       if (!/if\s*\(\s*!\s*itinerary\s*\)|legacy[^.]*fallback|legacy[^.]* path/i.test(c)) {
-        violations.push(`${AI_PLANNER}: block-mode 실패 시 legacy fallback 분기 누락 — 사용자 plan 손실 위험`);
+        violations.push(`${AI_PLANNER}/family: block-mode 실패 시 legacy fallback 분기 누락 — 사용자 plan 손실 위험`);
       }
     }
   }
@@ -2572,6 +2637,119 @@ function P128_blockModeIntegration({ changed }) {
 }
 
 /**
+ * P129_aiPlannerFullDecomposeLock — 메모리 P129 (2026-05-21).
+ *
+ * api/ai-planner-full.js 가 800L 까지 부풀어 P1 lock 한도 도달 (pre-commit hook).
+ * 본 PR 에서 본체를 api/_ai_core/handlerCore.js + requestShaper.js +
+ * userMessageBuilder.js + postResponsePipeline.js + airportInference.js 5종으로
+ * 추출하고 ai-planner-full.js 는 thin re-export wrapper (~25L) 로 만들었다.
+ *
+ * 본 룰은 회귀 방지:
+ *   1. ai-planner-full.js 가 ≤100L 유지 (handler entry + maxDuration + re-export 만).
+ *   2. ai-planner-full.js 가 handlerCore.js 의 default 를 re-export 해야 함.
+ *   3. inferDepartureAirport named export 가 airportInference.js 로 forward 필수
+ *      (backward-compat — 외부 test 가 이름으로 import 시도할 수 있음).
+ *   4. handlerCore.js 가 maxDuration 을 자체 export 하지 않음 (ai-planner-full.js
+ *      가 Vercel handler 진입점 — maxDuration 도 거기서 export 해야 Vercel 인식).
+ *   5. handlerCore.js 가 ≤500L 유지 (orchestrator 가 너무 부풀면 추가 분리).
+ *
+ * 카테고리: L1 (코드 grep) — file size + content 시그니처 검사.
+ *
+ * 회귀 슬롯: tests/unit/planner-step-instrumentation-pr96.test.ts 가 handlerCore.js
+ * 의 withStep/hangWarn 패턴 검사 — 본 룰과 협력해서 분해 흐름 보호.
+ */
+function P129_aiPlannerFullDecomposeLock({ changed: _changed }) {
+  const WRAPPER = 'api/ai-planner-full.js';
+  const HANDLER_CORE = 'api/_ai_core/handlerCore.js';
+  const AIRPORT_INFER = 'api/_ai_core/airportInference.js';
+
+  // 본 룰은 ai-planner-full.js 가 존재하면 항상 검사 — sandbox self-test 에서
+  // wrapper 파일 자체를 안 만들면 skip.
+  if (!existsSync(WRAPPER)) {
+    return { skipped: true };
+  }
+
+  const violations = [];
+
+  // 1. WRAPPER size cap — 100L (P1 lock 800→100).
+  const wrapperLines = readFileSync(WRAPPER, 'utf8').split(/\r?\n/).length;
+  if (wrapperLines > 100) {
+    violations.push(
+      `${WRAPPER}: ${wrapperLines} lines > 100 — 800L 분해 회귀. handler 본체는 _ai_core/handlerCore.js 로 추출해야 함.`,
+    );
+  }
+
+  const wrapperContent = readFileSync(WRAPPER, 'utf8');
+
+  // 2. handlerCore re-export 의무.
+  if (!/export\s+\{\s*default\s*\}\s+from\s+['"]\.\/_ai_core\/handlerCore(\.js)?['"]/.test(wrapperContent)) {
+    violations.push(
+      `${WRAPPER}: \`export { default } from './_ai_core/handlerCore.js'\` re-export 누락 — Vercel handler 가 handlerCore 의 default 함수를 노출해야 함.`,
+    );
+  }
+
+  // 3. inferDepartureAirport named export 도 forward.
+  if (!/export\s+\{\s*inferDepartureAirport[^}]*\}\s+from\s+['"]\.\/_ai_core\/airportInference(\.js)?['"]/.test(wrapperContent)) {
+    violations.push(
+      `${WRAPPER}: \`export { inferDepartureAirport } from './_ai_core/airportInference.js'\` 누락 — backward-compat 깨짐 (외부 test 가 named import 시도 가능).`,
+    );
+  }
+
+  // 4. maxDuration / config 는 wrapper 에서만 export (Vercel handler entry).
+  if (!/export\s+const\s+maxDuration\s*=/.test(wrapperContent)) {
+    violations.push(
+      `${WRAPPER}: \`export const maxDuration = 300\` 누락 — Vercel 이 본 wrapper 의 maxDuration 을 읽어야 5분 cap 적용.`,
+    );
+  }
+
+  // 5. handlerCore 가 maxDuration 을 export 하지 않음 (Vercel 은 entry file 만 read).
+  if (existsSync(HANDLER_CORE)) {
+    const coreContent = readFileSync(HANDLER_CORE, 'utf8');
+    if (/export\s+const\s+maxDuration\s*=/.test(coreContent)) {
+      violations.push(
+        `${HANDLER_CORE}: maxDuration export 발견 — Vercel handler entry (api/ai-planner-full.js) 가 아닌 곳에서 maxDuration export 하면 인식 안 됨. wrapper 에서만 export.`,
+      );
+    }
+    // handlerCore size cap — 500L.
+    const coreLines = coreContent.split(/\r?\n/).length;
+    if (coreLines > 500) {
+      violations.push(
+        `${HANDLER_CORE}: ${coreLines} lines > 500 — orchestrator 가 부풀면 추가 분리 (예: errorHandling.js).`,
+      );
+    }
+    // handler default export 의무.
+    if (!/export\s+default\s+async\s+function\s+handler/.test(coreContent)) {
+      violations.push(
+        `${HANDLER_CORE}: \`export default async function handler\` 누락 — wrapper 의 re-export 대상 부재.`,
+      );
+    }
+  } else {
+    violations.push(
+      `${HANDLER_CORE}: 파일 부재 — wrapper 가 re-export 하지만 대상 없음.`,
+    );
+  }
+
+  // 6. airportInference 가 inferDepartureAirport export 해야 함.
+  if (existsSync(AIRPORT_INFER)) {
+    const inferContent = readFileSync(AIRPORT_INFER, 'utf8');
+    if (!/export\s+function\s+inferDepartureAirport/.test(inferContent)) {
+      violations.push(
+        `${AIRPORT_INFER}: \`export function inferDepartureAirport\` 누락 — wrapper 의 named re-export 대상 부재.`,
+      );
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P129_aiPlannerFullDecomposeLock',
+      violations.join(' | '),
+      '메모리 P129 (2026-05-21) — ai-planner-full.js 800L → 25L wrapper 분해. wrapper 는 maxDuration + handlerCore default re-export + inferDepartureAirport named re-export 만 유지. handlerCore.js 는 orchestrator (try/catch + withStep + 합성).',
+    );
+  }
+  return null;
+}
+
+/**
  * P119_dayLodgingBackfill — 메모리 P119 (2026-05-20). plan 4792076e 의 day.lodging
  * 미생성 회귀 → RouteAgent Phase 2.4 prevDayHotelCoord null → KTX bookend 누락.
  * api/_ai_core/planPersister.js 의 backfillDayLodging export + ai-planner-full.js
@@ -2580,7 +2758,7 @@ function P128_blockModeIntegration({ changed }) {
 function P119_dayLodgingBackfill({ changed }) {
   const PLAN_PERSISTER = 'api/_ai_core/planPersister.js';
   const AI_PLANNER = 'api/ai-planner-full.js';
-  if (!isModified(PLAN_PERSISTER, changed) && !isModified(AI_PLANNER, changed)) {
+  if (!isModified(PLAN_PERSISTER, changed) && !isPlannerFamilyModified(changed)) {
     return { skipped: true };
   }
   const violations = [];
@@ -2592,17 +2770,19 @@ function P119_dayLodgingBackfill({ changed }) {
     }
   }
 
-  if (existsSync(AI_PLANNER)) {
-    const c = readFileSync(AI_PLANNER, 'utf8');
+  // P129 (2026-05-21): backfillDayLodging import + 호출은
+  // postResponsePipeline.js (handlerCore 가 합성). family content 검사.
+  {
+    const c = getPlannerFamilyContent();
     if (/backfillDayLodging/.test(c)) {
       // import 와 call 둘 다 있어야 함
       if (!/import[^;]+backfillDayLodging[^;]+from/.test(c)) {
-        violations.push(`${AI_PLANNER}: backfillDayLodging import 누락`);
+        violations.push(`${AI_PLANNER}/family: backfillDayLodging import 누락`);
       }
       // P123 (2026-05-20): 두 번째 인자 hotelByCity 추가로 정규식 완화.
       // 호출 자체 있으면 OK (R-P123 가 정확한 인자 검증).
       if (!/backfillDayLodging\s*\(\s*itinerary\b/.test(c)) {
-        violations.push(`${AI_PLANNER}: backfillDayLodging(itinerary, ...) 호출 누락 — backfillStopEndTimes 다음에 호출 의무`);
+        violations.push(`${AI_PLANNER}/family: backfillDayLodging(itinerary, ...) 호출 누락 — backfillStopEndTimes 다음에 호출 의무`);
       }
     }
   }
@@ -2626,7 +2806,7 @@ function P119_dayLodgingBackfill({ changed }) {
 function P120_unreasonableStopTimeDetect({ changed }) {
   const PLAN_PERSISTER = 'api/_ai_core/planPersister.js';
   const AI_PLANNER = 'api/ai-planner-full.js';
-  if (!isModified(PLAN_PERSISTER, changed) && !isModified(AI_PLANNER, changed)) {
+  if (!isModified(PLAN_PERSISTER, changed) && !isPlannerFamilyModified(changed)) {
     return { skipped: true };
   }
   const violations = [];
@@ -2642,13 +2822,13 @@ function P120_unreasonableStopTimeDetect({ changed }) {
     }
   }
 
-  if (existsSync(AI_PLANNER)) {
-    const c = readFileSync(AI_PLANNER, 'utf8');
-    // ai-planner-full.js 는 wrapper runUnreasonableStopTimesCheck 호출만 의무.
-    // 직접 detectUnreasonableStopTimes 호출 + alert 작성하면 P1 lock 초과 위험.
+  // P129 (2026-05-21): runUnreasonableStopTimesCheck 호출은
+  // postResponsePipeline.js 의 applyBackfillsAndTmoney. family content 합산.
+  {
+    const c = getPlannerFamilyContent();
     if (/runUnreasonableStopTimesCheck/.test(c)) {
-      if (!/runUnreasonableStopTimesCheck\s*\(\s*itinerary\s*,\s*body\s*\)/.test(c)) {
-        violations.push(`${AI_PLANNER}: runUnreasonableStopTimesCheck(itinerary, body) 호출 형식 누락`);
+      if (!/runUnreasonableStopTimesCheck\s*\(\s*itinerary\s*,\s*[\w.]+\s*\)/.test(c)) {
+        violations.push(`${AI_PLANNER}/family: runUnreasonableStopTimesCheck(itinerary, body) 호출 형식 누락`);
       }
     }
   }
