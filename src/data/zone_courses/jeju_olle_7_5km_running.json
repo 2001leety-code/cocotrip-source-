@@ -1,0 +1,233 @@
+{
+  "id": "JEJU_RUN_OLLE_7_5KM_BEGINNER",
+  "city": "jeju",
+  "zone": "Jeju Olle Trail 7",
+  "theme": "제주 올레길 7코스 일부 (외돌개 → 법환포구) 5.5km",
+  "theme_i18n": {
+    "ko": "제주 올레길 7코스 일부 (외돌개 → 법환포구) 5.5km",
+    "en": "Jeju Olle Trail 7 (Oedolgae → Beophwan Port) 5.5km",
+    "ja": "済州オルレ7コース一部 (外突介→法還浦口) 5.5km",
+    "zh": "济州偶来步道 7号 (外突介→法还浦口) 5.5km"
+  },
+  "intensity": "relaxed",
+  "duration_min": 85,
+  "stops": [
+    {
+      "order": 1,
+      "category": "activity",
+      "name": "외돌개 (출발)",
+      "name_i18n": {
+        "ko": "외돌개 (출발)",
+        "en": "Oedolgae Rock (Start)",
+        "ja": "外突介 (スタート)",
+        "zh": "外突介 (起点)"
+      },
+      "address": "제주특별자치도 서귀포시 서홍동 766-1",
+      "stay_min": 15,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "스트레칭 + 외돌개 view 사진. 화장실 + 음수대 있음.",
+        "en": "Stretch + photo with Oedolgae view. Restroom + water fountain available.",
+        "ja": "ストレッチ + 外突介ビュー撮影。トイレ + 水飲み場有り。",
+        "zh": "拉伸 + 外突介景观拍照。设有洗手间与饮水器。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "돔베낭길 해안절벽",
+      "name_i18n": {
+        "ko": "돔베낭길 해안절벽",
+        "en": "Dombenang Coastal Cliff Trail",
+        "ja": "ドムベナン路海岸絶壁",
+        "zh": "栋边浪路海岸悬崖"
+      },
+      "address": "제주특별자치도 서귀포시 서홍동 돔베낭길",
+      "stay_min": 10,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "약 1.5km 지점. 해안 절경 — 짧은 사진 휴식.",
+        "en": "Around 1.5km mark. Coastal scenery — short photo stop.",
+        "ja": "約1.5km地点。海岸絶景 — 短い撮影休憩。",
+        "zh": "约 1.5km 处。海岸绝景 — 短暂拍照休息。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 30
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "법환포구 도착 카페",
+      "name_i18n": {
+        "ko": "법환포구 도착 카페",
+        "en": "Beophwan Port Arrival Cafe",
+        "ja": "法還浦口到着カフェ",
+        "zh": "法还浦口终点咖啡馆"
+      },
+      "address": "제주특별자치도 서귀포시 법환동",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "법환포구 일대 카페 — 회복 음료 + 한라봉주스.",
+        "en": "Beophwan Port cafes — recovery drinks + hallabong juice.",
+        "ja": "法還浦口エリアカフェ — リカバリー飲料 + ハルラボンジュース。",
+        "zh": "法还浦口一带咖啡馆 — 补水饮料 + 汉拿峰果汁。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 55
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    }
+  },
+  "best_for": [
+    "runner",
+    "active_traveler",
+    "nature_lover",
+    "morning_person"
+  ],
+  "unsuitable_for": [
+    "wheelchair_user"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "block_type": "running_route",
+  "running_meta": {
+    "total_km": 5.5,
+    "surface_type": "mixed",
+    "elevation_gain_m": 45,
+    "loop_or_out_and_back": "point_to_point",
+    "recommended_time": [
+      "morning",
+      "evening"
+    ],
+    "lighting_quality": "partial",
+    "difficulty": "beginner",
+    "water_stations_count": 2,
+    "pace_target": {
+      "easy_min_per_km": 7,
+      "tempo_min_per_km": 5
+    }
+  },
+  "waypoints": [
+    {
+      "order": 1,
+      "category": "transit",
+      "name": "외돌개 주차장 (트레일 시작)",
+      "name_i18n": {
+        "ko": "외돌개 주차장 (트레일 시작)",
+        "en": "Oedolgae Parking (Trail Start)",
+        "ja": "外突介駐車場 (トレイル開始)",
+        "zh": "外突介停车场 (步道起点)"
+      },
+      "address": "제주특별자치도 서귀포시 서홍동 외돌개 주차장",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "서귀포시 중심에서 택시 10분 (5,000원). 시민회관 정류장 → 환승.",
+        "en": "10-min taxi from Seogwipo center (5,000 KRW). Bus via Civic Hall stop.",
+        "ja": "西帰浦市中心からタクシー10分 (5,000ウォン)。市民会館停留所→乗換。",
+        "zh": "西归浦市中心打车 10 分钟 (5,000 韩元)。市民会馆站换乘。"
+      },
+      "lat": 0,
+      "lng": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "돔베낭길 음수대 (2.5km 지점)",
+      "name_i18n": {
+        "ko": "돔베낭길 음수대 (2.5km 지점)",
+        "en": "Dombenang Water Fountain (2.5km)",
+        "ja": "ドムベナン路給水場 (2.5km地点)",
+        "zh": "栋边浪路饮水点 (2.5km 处)"
+      },
+      "address": "제주특별자치도 서귀포시 돔베낭길 2.5km 지점",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "중간 물 보충 가능. 화장실 X.",
+        "en": "Mid-run water refill. No restroom.",
+        "ja": "中間給水可能。トイレ無し。",
+        "zh": "中途补水。无洗手间。"
+      },
+      "lat": 0,
+      "lng": 0
+    },
+    {
+      "order": 3,
+      "category": "transit",
+      "name": "마라도해녀촌 입구 음수대",
+      "name_i18n": {
+        "ko": "마라도해녀촌 입구 음수대",
+        "en": "Marado Haenyeo Village Water Fountain",
+        "ja": "馬羅島海女村入口給水場",
+        "zh": "马罗岛海女村入口饮水点"
+      },
+      "address": "제주특별자치도 서귀포시 법환동 해녀촌",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "도착 약 500m 전 마지막 음수대. 화장실 있음.",
+        "en": "Last water fountain ~500m before finish. Restroom available.",
+        "ja": "ゴール約500m前の最終給水場。トイレ有り。",
+        "zh": "终点前约 500m 最后饮水点。设有洗手间。"
+      },
+      "lat": 0,
+      "lng": 0
+    }
+  ],
+  "notes": "제주 올레 7코스 5.5km 트레일 러닝 (asphalt + dirt mixed). 외돌개 출발 → 해안 절경 → 법환포구. 초보 러너 친화. 아침/저녁 권장 (한낮 햇볕). Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env."
+}

@@ -17,7 +17,7 @@ import {
 
 const CITY_FILTERS: Array<ZoneCourseCity | 'all'> = [
   'all', 'seoul', 'busan', 'jeju', 'gyeongju', 'jeonju',
-  'gangneung', 'sokcho', 'andong', 'suwon',
+  'gangneung', 'sokcho', 'andong', 'suwon', 'gangwon',
 ];
 
 const SOURCE_FILTERS: Array<ZoneCourseSource | 'all'> = [

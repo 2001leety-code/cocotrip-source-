@@ -1,0 +1,187 @@
+{
+  "id": "JEJU_TREK_HALLASAN_SEONGPANAK_EXPERT",
+  "city": "jeju",
+  "zone": "Hallasan Seongpanak",
+  "block_type": "trekking",
+  "theme": "한라산 성판악 코스 (백록담 정상)",
+  "theme_i18n": {
+    "ko": "한라산 성판악 코스 (백록담 정상)",
+    "en": "Hallasan Seongpanak Course (Baengnokdam Summit)",
+    "ja": "漢拏山 城板岳コース (白鹿潭頂上)",
+    "zh": "汉拿山 城板岳路线 (白鹿潭山顶)"
+  },
+  "intensity": "packed",
+  "best_for": ["expert_hiker", "active_traveler", "nature_lover"],
+  "unsuitable_for": ["wheelchair_user", "elderly", "young_children", "winter_first_time", "altitude_sensitive"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": true,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "한라산 백록담 트레킹 — 성판악 코스 (9.6km 왕복, 750m elevation). 한국 최고봉 (1947m). 사전 예약 의무 (한라산 탐방예약제). 12:30 진달래밭대피소 통과 시간 cutoff. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장.",
+  "trekking_meta": {
+    "total_distance_km": 9.6,
+    "elevation_gain_m": 750,
+    "difficulty": "expert",
+    "trail_type": "mountain",
+    "estimated_duration_min": 480,
+    "starting_elevation_m": 750,
+    "highest_point_m": 1947,
+    "recommended_gear": [
+      "trekking_pole",
+      "water_2L",
+      "hat",
+      "gloves",
+      "wind_breaker",
+      "rain_gear",
+      "headlamp",
+      "ankle_support_shoes",
+      "crampons_winter"
+    ],
+    "hazards": [
+      "high_altitude_weather_change",
+      "snow_winter",
+      "no_water_above_4km",
+      "fog_visibility_drop",
+      "12_30_pm_cutoff_at_jindallae"
+    ],
+    "trailhead_address": "제주특별자치도 제주시 조천읍 516로 1865 성판악탐방안내소",
+    "trailhead_access": {
+      "subway": "지하철 없음",
+      "bus": "제주시청 → 281번 버스 → 성판악탐방안내소 (약 40분)",
+      "taxi_from_city_center_krw": 25000,
+      "parking_available": true
+    },
+    "seasons_recommended": ["spring", "summer", "autumn"]
+  },
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "성판악탐방안내소",
+      "name_i18n": {
+        "ko": "성판악탐방안내소",
+        "en": "Seongpanak Visitor Center",
+        "ja": "城板岳探訪案内所",
+        "zh": "城板岳探访咨询处"
+      },
+      "address": "제주특별자치도 제주시 조천읍 516로 1865",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": true,
+      "tips_i18n": {
+        "ko": "탐방예약제 사전 예약 필수 (홈페이지 reservation.knps.or.kr). 화장실 + 물 보충.",
+        "en": "Advance reservation required (reservation.knps.or.kr). Last restroom + water refill.",
+        "ja": "事前予約必須 (reservation.knps.or.kr)。最終トイレ + 給水。",
+        "zh": "需提前预约 (reservation.knps.or.kr)。最后洗手间 + 补水点。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주특별자치도 제주시 조천읍 516로",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "성판악 인근 — 김밥 / 도시락 packed-style 식당. 산행 전 든든히.",
+        "en": "Near Seongpanak — gimbap / packed lunch restaurants. Eat well before the climb.",
+        "ja": "城板岳近隣 — キンパ / 弁当スタイル食堂。登山前にしっかり。",
+        "zh": "城板岳附近 — 紫菜包饭 / 便当式餐厅。登山前吃饱。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "백록담 정상",
+      "name_i18n": {
+        "ko": "백록담 정상",
+        "en": "Baengnokdam Summit",
+        "ja": "白鹿潭頂上",
+        "zh": "白鹿潭山顶"
+      },
+      "address": "제주특별자치도 제주시 한라산 정상 백록담",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 최고봉 (1947m). 백록담 분화구 view. 정상 도시락 권장 (식당 없음).",
+        "en": "Korea's highest peak (1947m). Baengnokdam crater view. Picnic only (no restaurants).",
+        "ja": "韓国最高峰 (1947m)。白鹿潭火口ビュー。山頂で弁当推奨 (食堂無し)。",
+        "zh": "韩国最高峰 (1947m)。白鹿潭火山口景观。山顶仅可便当 (无餐厅)。"
+      }
+    }
+  ],
+  "waypoints": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "사라오름",
+      "name_i18n": {
+        "ko": "사라오름",
+        "en": "Sara Oreum",
+        "ja": "サラオルム",
+        "zh": "沙罗岳"
+      },
+      "address": "제주특별자치도 제주시 한라산 사라오름",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "성판악 → 백록담 중간 분기점 오름 (왕복 30분 추가). 호수 view.",
+        "en": "Side oreum off Seongpanak → Baengnokdam (30-min round trip). Lake view.",
+        "ja": "城板岳→白鹿潭の中間支岐オルム (往復30分追加)。湖ビュー。",
+        "zh": "城板岳→白鹿潭中途分岔岳 (往返额外 30 分钟)。湖泊景观。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "transit",
+      "name": "진달래밭대피소",
+      "name_i18n": {
+        "ko": "진달래밭대피소",
+        "en": "Jindallaebat Shelter",
+        "ja": "ジンダルレバット避難所",
+        "zh": "杜鹃花田避难所"
+      },
+      "address": "제주특별자치도 제주시 한라산 진달래밭대피소",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "정상 진입 cutoff (12:30 PM 이전 통과 의무). 도시락 휴식 + 화장실.",
+        "en": "Summit cutoff (must pass by 12:30 PM). Lunch break + restroom.",
+        "ja": "頂上進入カットオフ (12:30 PM 以前通過義務)。弁当休憩 + トイレ。",
+        "zh": "登顶截止点 (须于 12:30 PM 前通过)。便当休息 + 洗手间。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "성판악 4km 지점 (마지막 물 보충)",
+      "name_i18n": {
+        "ko": "성판악 4km 지점 (마지막 물 보충)",
+        "en": "Seongpanak 4km Mark (Last Water Refill)",
+        "ja": "城板岳4km地点 (最終給水)",
+        "zh": "城板岳 4km 处 (最后补水)"
+      },
+      "address": "제주특별자치도 제주시 한라산 성판악 4km",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "이후 정상까지 물 보충 지점 없음. 2L 이상 보유 의무.",
+        "en": "No water beyond this point until summit. Carry 2L minimum.",
+        "ja": "ここから頂上まで給水なし。2L以上携帯必須。",
+        "zh": "此处之后至山顶无补水点。须携带 2L 以上水。"
+      }
+    }
+  ]
+}

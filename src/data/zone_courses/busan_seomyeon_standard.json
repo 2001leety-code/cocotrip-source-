@@ -1,0 +1,237 @@
+{
+  "id": "BUSAN_DAY_SEOMYEON_STANDARD",
+  "city": "busan",
+  "zone": "Seomyeon",
+  "theme": "서면 쇼핑 + 부전시장 + 전포 카페거리",
+  "theme_i18n": {
+    "ko": "서면 쇼핑 + 부전시장 + 전포 카페거리",
+    "en": "Seomyeon Shopping + Bujeon Market + Jeonpo Cafe Street",
+    "ja": "西面ショッピング + 釜田市場 + 田浦カフェ通り",
+    "zh": "西面购物 + 釜田市场 + 田浦咖啡街"
+  },
+  "intensity": "standard",
+  "duration_min": 420,
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "서면 쇼핑거리",
+      "name_i18n": {
+        "ko": "서면 쇼핑거리",
+        "en": "Seomyeon Shopping Street",
+        "ja": "西面ショッピング街",
+        "zh": "西面购物街"
+      },
+      "address": "부산광역시 부산진구 중앙대로",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "롯데백화점 본점 + 지하상가 + 시내 쇼핑.",
+        "en": "Lotte Department Store main branch + underground arcade + downtown shopping.",
+        "ja": "ロッテ百貨店本店 + 地下商店街 + 市内ショッピング。",
+        "zh": "乐天百货总店 + 地下商店街 + 市区购物。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "부산광역시 부산진구 부전동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [
+        "vegetarian"
+      ],
+      "tips_i18n": {
+        "ko": "서면 일대 — 돼지국밥 / 밀면 / 한식 (식이 제약 매칭).",
+        "en": "Seomyeon area — dwaeji gukbap / milmyeon / Korean matched by dietary needs.",
+        "ja": "西面エリア — 豚クッパ / ミルミョン / 韓食 (食事制限とマッチング)。",
+        "zh": "西面一带 — 猪肉汤饭 / 小麦冷面 / 韩餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "부전시장",
+      "name_i18n": {
+        "ko": "부전시장",
+        "en": "Bujeon Market",
+        "ja": "釜田市場",
+        "zh": "釜田市场"
+      },
+      "address": "부산광역시 부산진구 부전로 51",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산 대표 재래시장. 신선한 농수산물 + 길거리 음식.",
+        "en": "Busan's iconic traditional market. Fresh produce + street food.",
+        "ja": "釜山を代表する伝統市場。新鮮な農水産物 + 屋台。",
+        "zh": "釜山代表传统市场。新鲜农水产 + 街头小吃。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 180
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "부산광역시 부산진구 전포대로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tips_i18n": {
+        "ko": "전포 카페거리 — 트렌디 카페 + 디저트. vegan 옵션 있음.",
+        "en": "Jeonpo Cafe Street — trendy cafes + desserts. Vegan options available.",
+        "ja": "田浦カフェ通り — トレンディカフェ + デザート。ヴィーガン対応有り。",
+        "zh": "田浦咖啡街 — 潮流咖啡馆 + 甜品。提供素食选项。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 255
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "부산광역시 부산진구 서면",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [
+        "vegetarian"
+      ],
+      "tips_i18n": {
+        "ko": "서면 일대 — 갈비 / 한정식 / 일식 (식이 제약 매칭).",
+        "en": "Seomyeon area — galbi / Korean set / Japanese matched by dietary needs.",
+        "ja": "西面エリア — カルビ / 韓定食 / 和食 (食事制限とマッチング)。",
+        "zh": "西面一带 — 烤排骨 / 韩定食 / 日料 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 330
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    }
+  },
+  "best_for": [
+    "shopper",
+    "cafe_hopper",
+    "foodie"
+  ],
+  "unsuitable_for": [],
+  "dietary_options": [
+    "vegetarian",
+    "vegan"
+  ],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "block_type": "city_day",
+  "notes": "부산 서면 zone — 시내 중심 쇼핑 + 부전시장 + 전포 카페거리. 부산 다운타운. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env."
+}

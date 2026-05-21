@@ -30,7 +30,8 @@ export type ZoneCourseCity =
   | 'gangneung'
   | 'sokcho'
   | 'andong'
-  | 'suwon';
+  | 'suwon'
+  | 'gangwon';
 
 /** 코스 강도 — 운영자가 분류 */
 export type ZoneCourseIntensity = 'relaxed' | 'standard' | 'packed';
