@@ -184,18 +184,33 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
     if (!match) {
       const fallback = findFoodIndexMatch(foodIndex, stopName, stopDisplayName, null);
       if (fallback && matchCity && (fallback.city || '').toLowerCase() !== matchCity) {
-        // We're matching a restaurant from a DIFFERENT city than the plan.
-        // Accept the match for the verified=true signal, but DON'T override
-        // stop.address/lat/lng (those would point the user to the wrong city).
-        match = fallback;
-        isCityMismatch = true;
-        cityMismatchCount++;
-        if (cityMismatchSamples.length < 5) {
-          cityMismatchSamples.push(`${stopName} (plan=${matchCity}, dbCity=${(match.city || '?').toLowerCase()})`);
+        // P114 후속 (2026-05-22): landmark/market name 인 경우 cross-city fallback
+        // SKIP. plan 9845a69e Day 4 "자갈치" (Busan landmark) 가 Seoul 종로 "자갈치"
+        // 식당과 매칭되던 33% city-mismatch noise. Landmark = 시장 / 거리 / 광장 /
+        // 역 suffix 또는 정확히 시장/거리 단어. dbMatcher 의도 (food category 매칭)
+        // 와 무관 — 그냥 unmatched 처리 + verified=false.
+        const LANDMARK_SUFFIXES = /(시장|거리|광장|역|타운|마을|로|공항|터미널|광장시장|남대문|동대문|광장)$/;
+        const LANDMARK_WORDS = /^(자갈치|광장시장|남대문시장|동대문시장|남포동|해운대|광안리|gwangjang|namdaemun|dongdaemun|jagalchi|nampo|haeundae|gwangalli)$/i;
+        const isLandmark = LANDMARK_SUFFIXES.test(stopName) || LANDMARK_WORDS.test(stopName);
+        if (isLandmark) {
+          console.warn(
+            `[planner] DB city-mismatch SKIP (P114 후속): "${stopName}" landmark name — cross-city fallback 사용 X (verified=false)`
+          );
+          // match 미설정 → 아래 else 분기로 가서 verified=false + dbUnmatched++
+        } else {
+          // We're matching a restaurant from a DIFFERENT city than the plan.
+          // Accept the match for the verified=true signal, but DON'T override
+          // stop.address/lat/lng (those would point the user to the wrong city).
+          match = fallback;
+          isCityMismatch = true;
+          cityMismatchCount++;
+          if (cityMismatchSamples.length < 5) {
+            cityMismatchSamples.push(`${stopName} (plan=${matchCity}, dbCity=${(match.city || '?').toLowerCase()})`);
+          }
+          console.warn(
+            `[planner] DB city-mismatch: "${stopName}" plan=${matchCity} db=${(match.city || '?').toLowerCase()} — keeping Gemini address/coords`
+          );
         }
-        console.warn(
-          `[planner] DB city-mismatch: "${stopName}" plan=${matchCity} db=${(match.city || '?').toLowerCase()} — keeping Gemini address/coords`
-        );
       } else if (fallback) {
         // No requested city, or fallback happened to be in the right city anyway.
         match = fallback;
