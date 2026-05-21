@@ -1,0 +1,12 @@
+{
+  "id":"ANDONG_DAY_DOSANSEOWON_PACKED","city":"andong","zone":"Dosanseowon",
+  "theme":"도산서원+봉정사+이육사문학관","theme_i18n":{"ko":"도산서원+봉정사+이육사문학관","en":"Dosanseowon+Bongjeongsa+Lee Yuksa","ja":"陶山書院+鳳停寺+李陸史","zh":"陶山书院+凤停寺+李陆史"},
+  "intensity":"packed","duration_min":510,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"도산서원","name_i18n":{"ko":"도산서원","en":"Dosanseowon","ja":"陶山書院","zh":"陶山书院"},"address":"경북 안동시 도산면 도산서원길","stay_min":90,"entry_fee_krw":2000,"reservation_required":false,"tips_i18n":{"ko":"유네스코 세계유산. 퇴계 이황 사학.","en":"UNESCO heritage. Toegye Lee Hwang academy.","ja":"ユネスコ世界遺産。退渓李滉私学。","zh":"联合国遗产。退溪李滉私学。"},"lat":36.7222,"lng":128.8444,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"봉정사","name_i18n":{"ko":"봉정사","en":"Bongjeongsa","ja":"鳳停寺","zh":"凤停寺"},"address":"경북 안동시 서후면 봉정사길","stay_min":60,"entry_fee_krw":2000,"reservation_required":false,"tips_i18n":{"ko":"유네스코 세계유산. 한국 最古 목조건축.","en":"UNESCO heritage. Korea's oldest wood building.","ja":"ユネスコ世界遺産。韓国最古木造建築。","zh":"联合国遗产。韩国最古木造建筑。"},"lat":36.6092,"lng":128.6347,"start_time_offset_min":120},
+    {"order":3,"category":"food","name":"안동 헛제사밥","name_i18n":{"ko":"안동 헛제사밥","en":"Andong Heotjesabap","ja":"アンドン虚祭祀飯","zh":"安东虚祭祀饭"},"address":"경북 안동시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"안동 양반가 제사상 재현 음식.","en":"Andong yangban ritual table replica.","ja":"アンドン両班家祭祀膳再現。","zh":"安东两班家祭祀桌再现。"},"lat":36.5708,"lng":128.7250,"start_time_offset_min":210},
+    {"order":4,"category":"culture","name":"이육사문학관","name_i18n":{"ko":"이육사문학관","en":"Lee Yuksa Literature Hall","ja":"李陸史文学館","zh":"李陆史文学馆"},"address":"경북 안동시 도산면 백운로","stay_min":60,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"독립운동가 시인 이육사.","en":"Independence poet Lee Yuksa.","ja":"独立運動家詩人李陸史。","zh":"独立运动家诗人李陆史。"},"lat":36.7167,"lng":128.8056,"start_time_offset_min":300},
+    {"order":5,"category":"cafe","name":"안동 한옥카페","name_i18n":{"ko":"안동 한옥카페","en":"Andong Hanok Cafe","ja":"アンドン韓屋カフェ","zh":"安东韩屋咖啡"},"address":"경북 안동시 풍천면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한옥+카페. 하회마을 인근.","en":"Hanok+cafe. Near Hahoe.","ja":"韓屋+カフェ。河回村近接。","zh":"韩屋+咖啡。河回村近邻。"},"lat":36.5417,"lng":128.5194,"start_time_offset_min":405}
+  ]
+}

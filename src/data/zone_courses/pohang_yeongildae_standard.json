@@ -1,0 +1,12 @@
+{
+  "id":"POHANG_DAY_YEONGILDAE_STANDARD","city":"pohang","zone":"Yeongildae",
+  "theme":"영일대+포항운하+죽도시장","theme_i18n":{"ko":"영일대+포항운하+죽도시장","en":"Yeongildae+Pohang Canal+Jukdo Market","ja":"迎日台+浦項運河+竹島市場","zh":"迎日台+浦项运河+竹岛市场"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"영일대 해수욕장","name_i18n":{"ko":"영일대 해수욕장","en":"Yeongildae Beach","ja":"迎日台海水浴場","zh":"迎日台海水浴场"},"address":"경북 포항시 북구 영일대로","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"포항 대표 해변. 해상누각.","en":"Pohang main beach. Sea pavilion.","ja":"浦項代表海岸。海上楼閣。","zh":"浦项代表海滩。海上楼阁。"},"lat":36.0644,"lng":129.3833,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"포항운하","name_i18n":{"ko":"포항운하","en":"Pohang Canal","ja":"浦項運河","zh":"浦项运河"},"address":"경북 포항시 남구 송도동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"운하 유람선 (15000원). 도심 운하.","en":"Canal cruise (KRW 15000). City canal.","ja":"運河遊覧船。市内運河。","zh":"运河游船。市内运河。"},"lat":36.0303,"lng":129.3683,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"죽도시장","name_i18n":{"ko":"죽도시장","en":"Jukdo Market","ja":"竹島市場","zh":"竹岛市场"},"address":"경북 포항시 북구 죽도시장2길","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"포항 최대 수산시장. 회+물회.","en":"Pohang's largest fish market. Sashimi+mulhoe.","ja":"浦項最大水産市場。刺身+ムルフェ。","zh":"浦项最大水产市场。生鱼片+水冷面。"},"lat":36.0381,"lng":129.3631,"start_time_offset_min":165},
+    {"order":4,"category":"nature","name":"구룡포 일본인가옥거리","name_i18n":{"ko":"구룡포 일본인가옥거리","en":"Guryongpo Japanese Houses","ja":"九龍浦日本人家屋通り","zh":"九龙浦日式房屋街"},"address":"경북 포항시 남구 구룡포읍","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"일제시대 가옥 50채. 동백꽃 필 무렵 촬영지.","en":"50 Japanese-era houses. When Camellia Blooms filming.","ja":"日帝時代家屋50軒。椿が咲く頃ロケ地。","zh":"日帝时代房屋50栋。山茶花开时拍摄地。"},"lat":35.9889,"lng":129.5556,"start_time_offset_min":270},
+    {"order":5,"category":"nature","name":"호미곶","name_i18n":{"ko":"호미곶","en":"Homigot","ja":"虎尾串","zh":"虎尾串"},"address":"경북 포항시 남구 호미곶면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한반도 동쪽 끝. 상생의 손 조형물.","en":"Korea's easternmost. Hands of Sangsaeng.","ja":"韓半島東端。共生の手像。","zh":"韩半岛东端。共生之手雕像。"},"lat":36.0772,"lng":129.5667,"start_time_offset_min":360}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id":"ANDONG_DAY_HAHOE_STANDARD","city":"andong","zone":"Hahoe",
+  "theme":"하회마을+병산서원+안동찜닭","theme_i18n":{"ko":"하회마을+병산서원+안동찜닭","en":"Hahoe Village+Byeongsanseowon+Jjimdak","ja":"河回村+屛山書院+アンドンチムタク","zh":"河回村+屏山书院+安东炖鸡"},
+  "intensity":"standard","duration_min":450,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"안동 하회마을","name_i18n":{"ko":"하회마을","en":"Hahoe Folk Village","ja":"河回民俗村","zh":"河回民俗村"},"address":"경북 안동시 풍천면 하회종가길","stay_min":150,"entry_fee_krw":5000,"reservation_required":false,"tips_i18n":{"ko":"유네스코 세계유산. 양반 전통 마을.","en":"UNESCO heritage. Yangban traditional village.","ja":"ユネスコ世界遺産。両班伝統村。","zh":"联合国遗产。两班传统村。"},"lat":36.5394,"lng":128.5181,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"병산서원","name_i18n":{"ko":"병산서원","en":"Byeongsanseowon","ja":"屛山書院","zh":"屏山书院"},"address":"경북 안동시 풍천면 병산길","stay_min":60,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"유네스코 세계유산. 조선 사학.","en":"UNESCO heritage. Joseon academy.","ja":"ユネスコ世界遺産。朝鮮私学。","zh":"联合国遗产。朝鲜私学。"},"lat":36.5478,"lng":128.5417,"start_time_offset_min":165},
+    {"order":3,"category":"food","name":"안동 찜닭 골목","name_i18n":{"ko":"안동찜닭 골목","en":"Andong Jjimdak Alley","ja":"アンドンチムタク路地","zh":"安东炖鸡街"},"address":"경북 안동시 안동찜닭골목","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"찜닭 발상지. 10여개 식당.","en":"Jjimdak origin. 10+ restaurants.","ja":"チムタク発祥。10軒以上。","zh":"炖鸡发源地。10余家店。"},"lat":36.5681,"lng":128.7236,"start_time_offset_min":240},
+    {"order":4,"category":"culture","name":"월영교","name_i18n":{"ko":"월영교","en":"Wolyeong Bridge","ja":"月映橋","zh":"月映桥"},"address":"경북 안동시 상아동","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"안동댐 위 목조 다리. 야경.","en":"Wood bridge over Andong Dam. Night view.","ja":"安東ダム上木橋。夜景。","zh":"安东大坝上木桥。夜景。"},"lat":36.5594,"lng":128.7297,"start_time_offset_min":330},
+    {"order":5,"category":"food","name":"안동 간고등어","name_i18n":{"ko":"안동 간고등어","en":"Andong Salted Mackerel","ja":"アンドン塩サバ","zh":"安东盐青鱼"},"address":"경북 안동시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"안동 향토음식. 간고등어 정식.","en":"Andong local. Salted mackerel set.","ja":"アンドン郷土食。塩サバ定食。","zh":"安东乡土食。盐青鱼套餐。"},"lat":36.5708,"lng":128.7297,"start_time_offset_min":390}
+  ]
+}
