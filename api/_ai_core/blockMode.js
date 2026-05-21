@@ -175,10 +175,13 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
     available_blocks: blockCards,
   });
 
-  // Use gemini-2.5-flash (lite) for block selection — fast + cheap. JSON-only response.
+  // 2026-05-21 P135: 2.5 Flash → resolveGeminiModel('block') default 3.5 Flash.
+  // ENV GEMINI_BLOCK_MODEL 또는 GEMINI_MODEL_OVERRIDE 로 override.
+  // JSON-only response — block ID 선택만 책임 (Gemini 부하 1/10).
+  const { resolveGeminiModel } = await import('./geminiModelResolver.js');
   const genAI = new GoogleGenerativeAI(geminiClient.apiKey);
   const model = genAI.getGenerativeModel({
-    model: geminiClient.model || 'gemini-2.5-flash',
+    model: geminiClient.model || resolveGeminiModel('block'),
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 4000,

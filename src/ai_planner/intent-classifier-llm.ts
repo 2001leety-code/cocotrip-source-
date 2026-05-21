@@ -67,7 +67,18 @@ export async function llmClassifyModification(
     throw new Error('llmClassifyModification: apiKey required');
   }
 
-  const modelName = options.model || 'gemini-2.5-flash-lite';
+  // 2026-05-21 P135: 2.5 Flash Lite → resolveGeminiModel('classifier') default 3.5 Flash Lite.
+  // ENV GEMINI_CLASSIFIER_MODEL 또는 GEMINI_MODEL_OVERRIDE 로 override.
+  // dynamic import — backend only helper.
+  let resolveGeminiModel: (role: string) => string;
+  try {
+    const helper = await import('../../api/_ai_core/geminiModelResolver.js' as string);
+    resolveGeminiModel = helper.resolveGeminiModel;
+  } catch {
+    // browser / unit-test mock 환경: fallback 기본값 (3.5 Flash Lite)
+    resolveGeminiModel = () => 'gemini-3.5-flash-lite';
+  }
+  const modelName = options.model || resolveGeminiModel('classifier');
   const timeoutMs = Number(options.timeoutMs) || 12000;
 
   // dynamic import — type 만 server 환경에 필요. 모듈 미설치 (브라우저) 환경 호출 차단.
