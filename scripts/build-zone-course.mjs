@@ -189,6 +189,37 @@ async function buildBlock(template) {
     stops.push(stop);
   }
 
+  // 1.5. Geocode waypoints (2026-05-21 PR-A — trek/run 보조 지점).
+  const waypoints = [];
+  if (Array.isArray(template.waypoints)) {
+    for (const raw of template.waypoints) {
+      const wp = { ...raw };
+      if (hasNaver && wp.address) {
+        try {
+          const geo = await geocodeNaver(wp.address, NCP_ID, NCP_SECRET);
+          if (geo) {
+            wp.lat = geo.lat;
+            wp.lng = geo.lng;
+          } else {
+            wp.lat = 0;
+            wp.lng = 0;
+            warnings.push(`Waypoint geocode no-match for "${wp.name || wp.address}"`);
+          }
+        } catch (err) {
+          wp.lat = 0;
+          wp.lng = 0;
+          warnings.push(
+            `Waypoint geocode failed for "${wp.name || wp.address}": ${err.message}`
+          );
+        }
+      } else {
+        wp.lat = typeof wp.lat === 'number' ? wp.lat : 0;
+        wp.lng = typeof wp.lng === 'number' ? wp.lng : 0;
+      }
+      waypoints.push(wp);
+    }
+  }
+
   // 2. Build transit matrix (1->2, 2->3, ...)
   const transitMatrix = {};
   for (let i = 0; i < stops.length - 1; i++) {
@@ -238,6 +269,17 @@ async function buildBlock(template) {
         notes: 'API call skipped, manual verification needed',
       };
     }
+    // 2026-05-21 schema 확장 (PR-A): base variant 동기화. mode/duration_min/
+    // distance_m/cost_krw 는 backward compat 거울. base 는 명시적 표준 variant.
+    // peak_hour/late_night/rain 은 운영자가 후속 입력 (운영자 admin UI 에서).
+    if (!entry.base) {
+      entry.base = {
+        mode: entry.mode,
+        duration_min: entry.duration_min,
+        distance_m: entry.distance_m,
+        cost_krw: entry.cost_krw,
+      };
+    }
     transitMatrix[key] = entry;
   }
 
@@ -272,6 +314,25 @@ async function buildBlock(template) {
     verified_by: template.verified_by || '',
     last_review_date: today,
   };
+
+  // 2026-05-21 PR-A schema 확장 — block_type / trekking_meta / running_meta / waypoints.
+  // 누락 시 'city_day' default (backward compat). trek/run 은 meta 필수 (consistency check).
+  block.block_type = template.block_type || 'city_day';
+  if (template.trekking_meta) block.trekking_meta = template.trekking_meta;
+  if (template.running_meta) block.running_meta = template.running_meta;
+  if (waypoints.length > 0) block.waypoints = waypoints;
+
+  // 일관성 가드 — block_type/meta mismatch 경고 누적.
+  if (block.block_type === 'trekking' && !block.trekking_meta) {
+    warnings.push("block_type='trekking' 이지만 trekking_meta 누락");
+  }
+  if (block.block_type === 'running_route' && !block.running_meta) {
+    warnings.push("block_type='running_route' 이지만 running_meta 누락");
+  }
+  if (block.block_type === 'city_day' && (block.trekking_meta || block.running_meta)) {
+    warnings.push("block_type='city_day' 이지만 trekking/running meta 가 있음 — 정리 필요");
+  }
+
   if (template.notes || warnings.length > 0) {
     const merged = [template.notes, ...warnings].filter(Boolean).join(' | ');
     block.notes = merged;

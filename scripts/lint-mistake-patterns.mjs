@@ -938,7 +938,78 @@ function P47_paypalWebhookRawBody({ changed }) {
   return null;
 }
 
+/**
+ * Z01_blockTypeMetaConsistency — PR-A zone_courses schema 확장 회귀 차단 (2026-05-21).
+ *
+ * src/data/zone_courses/*.json 파일이 변경됐을 때 다음을 검증:
+ *   - block_type === 'trekking' 이면 trekking_meta 필수
+ *   - block_type === 'running_route' 이면 running_meta 필수
+ *   - block_type === 'city_day' (또는 미지정) 이면 trek/run meta 없어야 함
+ *   - 모든 stop 의 entry_fee.adult 가 entry_fee_krw 와 일치 (backward compat)
+ *   - templates/*.json 은 lat/lng 누락 OK (build 단계에서 채움) — skip
+ */
+function Z01_blockTypeMetaConsistency({ changed }) {
+  const blockFiles = changed.filter(
+    (c) =>
+      c.status !== 'D' &&
+      c.file.startsWith('src/data/zone_courses/') &&
+      c.file.endsWith('.json') &&
+      !c.file.includes('/templates/'),
+  );
+  if (blockFiles.length === 0) return { skipped: true };
+
+  const violations = [];
+  for (const { file } of blockFiles) {
+    if (!existsSync(file)) continue;
+    let block;
+    try {
+      block = JSON.parse(readFileSync(file, 'utf8'));
+    } catch (err) {
+      violations.push(`${file}: invalid JSON — ${err.message}`);
+      continue;
+    }
+
+    const bt = block.block_type || 'city_day';
+    if (bt === 'trekking' && !block.trekking_meta) {
+      violations.push(`${file}: block_type='trekking' 이지만 trekking_meta 누락`);
+    }
+    if (bt === 'running_route' && !block.running_meta) {
+      violations.push(`${file}: block_type='running_route' 이지만 running_meta 누락`);
+    }
+    if (bt === 'city_day' && (block.trekking_meta || block.running_meta)) {
+      violations.push(`${file}: block_type='city_day' 인데 trekking/running meta 가 존재함 — 정리 필요`);
+    }
+    if (!['city_day', 'trekking', 'running_route', 'cycling', 'guided_tour', 'dmz_tour'].includes(bt)) {
+      violations.push(`${file}: block_type='${bt}' 알 수 없는 값 — types.ts BlockType 추가 필요`);
+    }
+
+    // entry_fee.adult ↔ entry_fee_krw 동기화 검증.
+    if (Array.isArray(block.stops)) {
+      for (const stop of block.stops) {
+        if (stop?.entry_fee && typeof stop.entry_fee === 'object') {
+          const adult = stop.entry_fee.adult;
+          if (typeof adult === 'number' && adult !== stop.entry_fee_krw) {
+            violations.push(
+              `${file}: stop order=${stop.order} entry_fee.adult (${adult}) != entry_fee_krw (${stop.entry_fee_krw}) — backward compat 동기화 의무`,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'Z01_blockTypeMetaConsistency',
+      violations.join(' | '),
+      'PR-A zone_courses schema 확장 — block_type/meta consistency + entry_fee.adult==entry_fee_krw. types.ts BlockType / TrekkingMeta / RunningMeta / EntryFeeVariants 참조.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
+  ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
   ['P5_foodIndexProtection', P5_foodIndexProtection],

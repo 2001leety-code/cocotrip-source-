@@ -1,0 +1,165 @@
+{
+  "id": "SEOUL_DAY_BUKHANSAN_BAEGUNDAE_PACKED",
+  "city": "seoul",
+  "zone": "Bukhansan Baegundae",
+  "block_type": "trekking",
+  "theme": "북한산 백운대 트레킹",
+  "theme_i18n": {
+    "ko": "북한산 백운대 트레킹",
+    "en": "Bukhansan Baegundae Trekking",
+    "ja": "北漢山 白雲台 トレッキング",
+    "zh": "北汉山白云台徒步"
+  },
+  "intensity": "packed",
+  "best_for": ["hiker", "active_traveler", "nature_lover"],
+  "unsuitable_for": ["wheelchair_user", "elderly", "young_children", "winter_first_time"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_by": "2001leety@gmail.com",
+  "notes": "Trekking PoC — 북한산 백운대 (836m) 코스. 도선사 코스 — 우이동에서 진입. 봄/가을 권장. 겨울 빙판 위험. 5-6시간 소요 (식사 + 사진 포함). ODsay/Naver API key 없을 시 mock transit 으로 빌드되며 prod 재실행 필요.",
+  "trekking_meta": {
+    "total_distance_km": 5.4,
+    "elevation_gain_m": 580,
+    "difficulty": "hard",
+    "trail_type": "mountain",
+    "estimated_duration_min": 240,
+    "starting_elevation_m": 230,
+    "highest_point_m": 836,
+    "recommended_gear": [
+      "trekking_pole",
+      "water_2L",
+      "hat",
+      "gloves",
+      "wind_breaker",
+      "ankle_support_shoes"
+    ],
+    "hazards": [
+      "steep_rock_climb",
+      "iron_railing_section",
+      "icy_winter",
+      "summer_heatstroke",
+      "weekend_overcrowding"
+    ],
+    "trailhead_address": "서울특별시 강북구 우이동 도선사 입구",
+    "trailhead_access": {
+      "subway": "우이신설선 북한산우이역 → 도보 또는 마을버스 1212",
+      "bus": "우이동 종점 (강북구 우이로 일대)",
+      "taxi_from_city_center_krw": 15000,
+      "parking_available": true
+    },
+    "seasons_recommended": ["spring", "autumn"]
+  },
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "도선사",
+      "name_i18n": {
+        "ko": "도선사",
+        "en": "Doseonsa Temple",
+        "ja": "道詵寺",
+        "zh": "道诜寺"
+      },
+      "address": "서울특별시 강북구 우이동 264",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "백운대 진입 전 한국 전통 사찰 방문. 화장실 사용 권장.",
+        "en": "Korean traditional temple before the Baegundae trail. Last restroom stop recommended.",
+        "ja": "白雲台ルート前の韓国伝統寺。トイレ利用推奨。",
+        "zh": "登白云台前的韩国传统寺庙。建议在此使用洗手间。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "백운대 정상",
+      "name_i18n": {
+        "ko": "백운대 정상",
+        "en": "Baegundae Peak",
+        "ja": "白雲台山頂",
+        "zh": "白云台山顶"
+      },
+      "address": "서울특별시 강북구 우이동 산24",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "서울 최고봉 (836m). 철 난간 구간 위험 — 천천히. 정상 도시락 권장.",
+        "en": "Highest peak in Seoul (836m). Iron railing section is challenging — take it slow. Picnic lunch recommended.",
+        "ja": "ソウル最高峰 (836m)。鉄柵区間は注意 — ゆっくり。山頂で弁当推奨。",
+        "zh": "首尔最高峰 (836m)。铁栏杆段需慢行。建议在山顶享用便当。"
+      }
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "인수봉 전망대",
+      "name_i18n": {
+        "ko": "인수봉 전망대",
+        "en": "Insubong Viewpoint",
+        "ja": "仁寿峰展望台",
+        "zh": "仁寿峰观景台"
+      },
+      "address": "서울특별시 강북구 우이동 산25",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "인수봉 (810m) 암벽 등반 명소 — 클라이머 관찰 포인트.",
+        "en": "Insubong (810m) rock climbing landmark — best spot to observe climbers.",
+        "ja": "仁寿峰 (810m) ロッククライミングの名所 — 観察ポイント。",
+        "zh": "仁寿峰 (810m) 攀岩名胜 — 最佳观察点。"
+      }
+    }
+  ],
+  "waypoints": [
+    {
+      "order": 1,
+      "category": "transit",
+      "name": "도봉탐방지원센터",
+      "name_i18n": {
+        "ko": "도봉탐방지원센터",
+        "en": "Dobong Visitor Center",
+        "ja": "道峰探訪支援センター",
+        "zh": "道峰游客中心"
+      },
+      "address": "서울특별시 도봉구 도봉동 327",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "트레일 안내 + 비상 대피소 위치 확인.",
+        "en": "Trail info + emergency shelter locations.",
+        "ja": "トレイル案内 + 緊急避難所案内。",
+        "zh": "步道指南 + 紧急避难所位置。"
+      }
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "도봉약수터",
+      "name_i18n": {
+        "ko": "도봉약수터",
+        "en": "Dobong Spring",
+        "ja": "道峰薬水場",
+        "zh": "道峰山泉"
+      },
+      "address": "서울특별시 도봉구 도봉동 산 41",
+      "stay_min": 0,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "음수 보충 가능. 정수기 X — 약수 그대로 사용.",
+        "en": "Refill point. Untreated spring water — boil before long-term use.",
+        "ja": "水補給可。湧き水のまま — 長期保存時は煮沸推奨。",
+        "zh": "可补充饮水。天然山泉 — 长期使用前建议煮沸。"
+      }
+    }
+  ]
+}
