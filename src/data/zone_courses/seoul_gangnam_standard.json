@@ -1,0 +1,236 @@
+{
+  "id": "SEOUL_DAY_GANGNAM_STANDARD",
+  "city": "seoul",
+  "zone": "Gangnam",
+  "theme": "현대적 쇼핑 + 카페",
+  "theme_i18n": {
+    "ko": "현대적 쇼핑 + 카페",
+    "en": "Modern Shopping + Cafe",
+    "ja": "モダンショッピング + カフェ",
+    "zh": "现代购物 + 咖啡"
+  },
+  "intensity": "standard",
+  "duration_min": 420,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "별마당 도서관",
+      "name_i18n": {
+        "ko": "별마당 도서관 (코엑스)",
+        "en": "Starfield Library (COEX)",
+        "ja": "ピョルマダン図書館 (COEX)",
+        "zh": "星空图书馆 (COEX)"
+      },
+      "address": "서울특별시 강남구 영동대로 513 코엑스몰",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방 — 코엑스몰 1F 중앙광장."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "13m 높이 거대 책장 — 인생샷 명소. 평일 오전이 한산해요.",
+        "en": "Iconic 13m-tall bookshelf — top photo spot. Less crowded on weekday mornings.",
+        "ja": "13mの巨大本棚 — 撮影スポット。平日午前が空いています。",
+        "zh": "13米巨型书架 — 拍照胜地。建议工作日上午前往。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Gangnam",
+        "en": "Verified lunch in Gangnam",
+        "ja": "Verified lunch in Gangnam",
+        "zh": "Verified lunch in Gangnam"
+      },
+      "address": "서울특별시 강남구 강남대로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "강남역 일대 — 한정식 / 라멘 / 모던 한식 중 식이 제약 매칭.",
+        "en": "Gangnam Station area — Korean set / ramen / modern Korean matched by dietary needs.",
+        "ja": "江南駅エリア — 韓定食 / ラーメン / モダン韓食を食事制限とマッチング。",
+        "zh": "江南站一带 — 韩定食 / 拉面 / 现代韩餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 75
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "가로수길",
+      "name_i18n": {
+        "ko": "가로수길",
+        "en": "Garosu-gil",
+        "ja": "カロスキル",
+        "zh": "林荫道 (Garosu-gil)"
+      },
+      "address": "서울특별시 강남구 신사동 가로수길",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신사역 8번 출구 — 디자이너 부티크 + 편집숍 + K-뷰티 플래그십.",
+        "en": "Sinsa Stn Exit 8 — designer boutiques + select shops + K-beauty flagships.",
+        "ja": "新沙駅8番出口 — デザイナーブティック + セレクトショップ + K-ビューティ。",
+        "zh": "新沙站8号出口 — 设计师精品店 + 买手店 + K-美妆旗舰店。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 150
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified cafe in Gangnam",
+        "en": "Verified cafe in Gangnam",
+        "ja": "Verified cafe in Gangnam",
+        "zh": "Verified cafe in Gangnam"
+      },
+      "address": "서울특별시 강남구 청담동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "청담동 — 디자이너 카페 + 디저트 명소.",
+        "en": "Cheongdam-dong — designer cafes + dessert hotspots.",
+        "ja": "清潭洞 — デザイナーカフェ + デザート名店。",
+        "zh": "清潭洞 — 设计师咖啡馆 + 甜品名店。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 255
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Gangnam",
+        "en": "Verified dinner in Gangnam",
+        "ja": "Verified dinner in Gangnam",
+        "zh": "Verified dinner in Gangnam"
+      },
+      "address": "서울특별시 강남구 강남대로",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "강남 일대 — 한우 / 모던 한식 / 미슐랭 비스트로 (식이 제약 매칭).",
+        "en": "Gangnam area — Hanwoo beef / modern Korean / Michelin bistros matched to diet.",
+        "ja": "江南エリア — 韓牛 / モダン韓食 / ミシュランビストロ (食事制限とマッチング)。",
+        "zh": "江南一带 — 韩牛 / 现代韩餐 / 米其林餐厅 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 330
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "mixed",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "API call skipped, manual verification needed",
+      "base": {
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500
+      }
+    }
+  },
+  "best_for": [
+    "shopper",
+    "k_pop_fan",
+    "cafe_hopper"
+  ],
+  "unsuitable_for": [
+    "budget_traveler"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "block_type": "city_day",
+  "notes": "Gangnam 신규 PoC — 강남역/코엑스 + 가로수길 + 청담동 카페 + 강남 저녁. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env."
+}
