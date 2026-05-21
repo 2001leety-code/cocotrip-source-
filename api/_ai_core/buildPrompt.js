@@ -628,6 +628,51 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
 - 사용자 신고: 부산 → 서울 전환 day 의 lodging 이 부산 호텔로 잘못 매칭 → 사용자가 짐 끌고 KTX 후 어디로 가야 할지 혼란.
 - 위반 시 백엔드 validator 가 즉시 1회 재시도 → 그래도 위반이면 plan 저장 차단 + 사용자 500 에러.
 
+### 10. 🔴 호텔 미입력 도시 — zone 중심 bookend (P134, 2026-05-21)
+운영자 의도 (받아적기): **"AI 플랜 짤 때 호텔 > 이동 > 장소 > 이동 > 장소 > 호텔복귀 이걸 원해서 호텔을 넣었던 거야. 강제가 되면 안 되지 어디다 호텔을 잡을지 모르는데."**
+→ 호텔 = 매일 동선 anchor. **입력 강제 X (옵션)**. 호텔 입력 여부와 무관하게 동선 구조 (anchor → 이동 → 장소 → ... → anchor 복귀) 가 깨지지 않아야 함.
+
+다도시 plan 에서 \`hotelByCity\` Record 는 일부 도시만 채워질 수 있음 (운영자 의도: 사용자가 호텔 미정인 도시는 비워둠):
+
+**A. 호텔 입력된 도시** (예: \`hotelByCity['seoul'] = "명동 호텔 ..."\`):
+- 그 호텔 좌표를 anchor.
+- 매일 동선이 호텔에서 출발 → 호텔 복귀.
+- ### 9 도시 매칭 룰 적용.
+
+**B. 호텔 미입력 도시** (예: hotelByCity 에 'busan' key 없음 또는 빈 문자열):
+- \`recommended_zones[cityKey]\` (예: 'haeundae') 의 zone 중심 좌표를 anchor.
+- \`day.lodging.name\` = zone 이름 + "(호텔 미정)" / "Hotel near {zone}" (사용자 언어). 예: "해운대 (호텔 미정)" or "Hotel near Haeundae".
+- \`day.lodging.address\` = zone 의 anchorAddress (RouteAgent 가 좌표 처리).
+- lodging bookend 룰 (첫 stop ≤ 30분 거리, 마지막 stop ≤ 30분 거리) **그대로 발동**.
+- ### 9 도시 매칭 룰도 그대로 — \`day.lodging.name/address\` 에 그 도시 이름 포함.
+
+**C. 호텔도 zone 도 미입력 도시** (양쪽 다 비어있음):
+- 그 도시의 첫 추천 attraction 좌표를 anchor.
+- \`day.lodging.name\` = "{도시 이름} (위치 미정)" / "Day start near {first stop}".
+- 첫 stop 과 마지막 stop 모두 그 좌표 30분 이내.
+
+**NEVER**:
+- ❌ 호텔 미입력 도시 = lodging bookend 생략. \`day.lodging\` 을 null 로 두면 P119/P122 회귀.
+- ❌ 호텔 없다고 day.city 의 다른 도시 호텔 (예: Seoul 호텔) 차용 (P122 placeholder 회귀).
+- ❌ "호텔 미정" 표시 = 동선 자유. 항상 zone 중심 또는 첫 추천 장소 anchor 로 결합.
+
+**GOOD (호텔 미입력 부산 day, recommended_zones={busan:'haeundae'})**:
+\`\`\`json
+{
+  "day": 3,
+  "city": "Busan",
+  "lodging": {"name": "해운대 일대 (호텔 미정)", "address": "부산광역시 해운대구 우동..."},
+  "stops": [
+    {"start_time":"10:00","name":"해운대 해변","address":"부산광역시 해운대구..."},
+    ...
+    {"start_time":"21:00","name":"해운대 야시장","address":"부산광역시 해운대구..."}
+  ]
+}
+\`\`\`
+**BAD**: \`day.lodging = null\` 또는 \`day.lodging.name = "명동 호텔"\` (Busan day 인데 Seoul 호텔).
+
+관련 회귀 메모리: P116 lodging bookend label / P119 day.lodging backfill (안전망) / P122 다도시 placeholder / P123 hotelByCity 3-layer / **P134 호텔 의도 (옵션 anchor, zone 중심 fallback)**.
+
 If \`regions.length === 1\`: **본 섹션 전체 무시**. 기존 단일 도시 규칙만 적용.
 
 ## TRANSIT DIVERSITY — CRITICAL (사용자 신고 — 모든 segment가 walk면 plan이 빈약해 보임)

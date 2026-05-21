@@ -146,9 +146,11 @@ export function WizardStep2Details(props: Step2Props) {
   // 경우(=reservationStatus가 flight + 사용자가 Step 3에서 만진 적 없음)에만
   // chip 모드로 표시.
   // 2026-05-05: 호텔 chip 분기 제거 — Step 0에서 호텔을 묻지 않으므로 항상 input 노출.
+  // 2026-05-21 (P134 분기 #22 fix): flight_hotel 도 chip 분기 발동. 이전엔 'flight' only →
+  // flight_hotel 사용자는 Step0 에서 항공편 입력했어도 Step3 에서 input 재노출 (P0 dedup 의도 위반).
   const flightInfoFromStep0 =
     !!onEditStep0
-    && reservationStatus === 'flight'
+    && (reservationStatus === 'flight' || reservationStatus === 'flight_hotel')
     && !!arrivalTerminal
     && !airportTouchedInStep3;
 
