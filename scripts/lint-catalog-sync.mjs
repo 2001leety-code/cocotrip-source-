@@ -301,10 +301,12 @@ function checkHotelByCityCleanup() {
   }
 
   // 분기 #10: toggleCity 함수 내 setHotelByCity 호출 존재 확인
-  // toggleCity 블록 추출 (함수 선언 시작 + 500자 window)
-  const toggleMatch = indexSrc.match(/function\s+toggleCity[\s\S]{0,600}/);
+  // 2026-05-21 (pattern 정밀화): toggleCity 함수 본문 전체 추출 — function 선언부터
+  // 다음 top-level `function` 또는 closing brace 까지. 기존 600자 window 는 분기 #10
+  // fix (mainCity 재클릭 + extraCities deselect 양쪽 cleanup) 의 함수 길이를 못 커버.
+  const toggleMatch = indexSrc.match(/function\s+toggleCity[\s\S]*?\n {2}}/);
   const toggleBlock = toggleMatch ? toggleMatch[0] : '';
-  const hasToggleCityCleanup = /setHotelByCity/.test(toggleBlock);
+  const hasToggleCityCleanup = /setHotelByCity\s*\(/.test(toggleBlock);
 
   if (!hasToggleCityCleanup) {
     recordWarn(
@@ -316,10 +318,13 @@ function checkHotelByCityCleanup() {
   }
 
   // 분기 #23: wantAccom=true 전환 시 setHotelByCity({}) 초기화 확인
-  // wantAccom setter 관련 로직에서 setHotelByCity({}) 존재 확인
+  // 2026-05-21 (pattern 정밀화): wantAccom 변경 분기는 WizardStep2Details.tsx 의 onChange
+  // 안에 있음 (index.tsx 가 아님). 두 파일 모두 검사.
+  const step2Src = readFile('src/components/WizardForm/WizardStep2Details.tsx') || '';
+  const combinedWantAccomSrc = indexSrc + '\n' + step2Src;
   const hasWantAccomReset =
-    /setWantAccom[\s\S]{0,400}setHotelByCity\s*\(\s*\{\s*\}\s*\)/.test(indexSrc) ||
-    /setHotelByCity\s*\(\s*\{\s*\}\s*\)[\s\S]{0,400}setWantAccom/.test(indexSrc);
+    /setWantAccom\s*\([\s\S]{0,500}setHotelByCity\s*\(\s*\{\s*\}\s*\)/.test(combinedWantAccomSrc) ||
+    /setHotelByCity\s*\(\s*\{\s*\}\s*\)[\s\S]{0,500}setWantAccom/.test(combinedWantAccomSrc);
 
   if (!hasWantAccomReset) {
     recordWarn(
