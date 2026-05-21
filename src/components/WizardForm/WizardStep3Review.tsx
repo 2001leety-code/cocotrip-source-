@@ -1,5 +1,5 @@
 // Step 3: summary review + generate button.
-import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield } from 'lucide-react';
+import { MapPin, Users, Calendar, ChevronLeft, Plane, Sparkles, Check, Wallet, Shield, Hotel, Navigation } from 'lucide-react';
 import { AIRPORT_DISPLAY } from './data';
 import { SummaryCard, formatDateShort } from './helpers';
 import { formatPrice } from '@/lib/exchange-rate';
@@ -14,6 +14,16 @@ interface Step3Props {
   pax: number;
   selectedActivities: string[];
   hotelAddress: string;
+  // 2026-05-21 (P134 분기 #34/#35 fix): 다도시 + 호텔 anchor 미리보기 props.
+  // mainCityKey: 단도시면 그 도시, 다도시면 entry city.
+  // hotelByCity: 다도시 시 도시별 호텔 Record (cityKey → address).
+  // recommendedZones: 호텔 미입력 시 zone 중심 fallback (cityKey → zoneKey).
+  // 운영자 의도 (P134): 호텔 입력 여부와 무관하게 매일 동선 구조 (호텔→이동→장소→...→복귀) 유지.
+  // Review step 에서 사용자가 "왜 호텔 입력하면 디테일 ↑" 인지 + 다도시 plan 도 한눈에.
+  mainCityKey?: string;
+  hotelByCity?: Record<string, string>;
+  recommendedZones?: Record<string, string>;
+  isMultiCity?: boolean;
   isLoading: boolean;
   errorMsg: string;
   // 사용자 언어 — 가격 secondary 환산 표시용 (en→KRW / ko→KRW / ja→JPY / zh→CNY).
@@ -25,10 +35,49 @@ interface Step3Props {
 export function WizardStep3Review(props: Step3Props) {
   const {
     p, allCities, startDate, endDate, arrivalTerminal, pax, selectedActivities, hotelAddress,
+    mainCityKey, hotelByCity, recommendedZones, isMultiCity,
     isLoading, errorMsg, language, onEditStep, onGenerate,
   } = props;
 
   const airportLabel = AIRPORT_DISPLAY[arrivalTerminal] || arrivalTerminal || '-';
+
+  // 2026-05-21 (P134 분기 #34/#35 fix): destination 다도시 시 "Seoul → Busan" 형식.
+  const destinationValue = isMultiCity && allCities.length > 1
+    ? allCities.join(' → ')
+    : (allCities[0] || '-');
+
+  // 2026-05-21 (P134 분기 #34/#35 fix): 호텔 anchor 효과 미리보기.
+  // 호텔 입력 도시 = "🏨 도시: 주소" / 호텔 없는 도시 = "📍 도시: zone".
+  const hotelEntries: Array<{ city: string; address: string }> = [];
+  const zoneEntries: Array<{ city: string; zone: string }> = [];
+  if (isMultiCity && allCities.length > 1) {
+    // 다도시: mainCity 의 entry hotel + hotelByCity 의 모든 키
+    if (mainCityKey) {
+      const mainAddr = (hotelByCity && hotelByCity[mainCityKey]) || hotelAddress;
+      if (mainAddr) hotelEntries.push({ city: allCities[0], address: mainAddr });
+      else if (recommendedZones && recommendedZones[mainCityKey]) {
+        zoneEntries.push({ city: allCities[0], zone: recommendedZones[mainCityKey] });
+      }
+    }
+    if (hotelByCity) {
+      for (const [cityKey, addr] of Object.entries(hotelByCity)) {
+        if (cityKey === mainCityKey) continue;
+        if (addr) hotelEntries.push({ city: cityKey, address: addr });
+      }
+    }
+    if (recommendedZones) {
+      for (const [cityKey, zone] of Object.entries(recommendedZones)) {
+        if (cityKey === mainCityKey) continue;
+        if (zone && !hotelByCity?.[cityKey]) zoneEntries.push({ city: cityKey, zone });
+      }
+    }
+  } else {
+    // 단도시
+    if (hotelAddress) hotelEntries.push({ city: allCities[0] || '', address: hotelAddress });
+    else if (mainCityKey && recommendedZones && recommendedZones[mainCityKey]) {
+      zoneEntries.push({ city: allCities[0] || '', zone: recommendedZones[mainCityKey] });
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -38,7 +87,7 @@ export function WizardStep3Review(props: Step3Props) {
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button onClick={() => onEditStep(0)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
-            <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={allCities[0] || '-'} />
+            <SummaryCard icon={<MapPin className="w-4 h-4" />} label={p.wizardDestination || 'Destination'} value={destinationValue} />
           </button>
           <button onClick={() => onEditStep(2)} className="text-left hover:ring-1 hover:ring-[#7C5CFC]/40 rounded-xl transition-all">
             <SummaryCard icon={<Calendar className="w-4 h-4" />} label={p.wizardDates || 'Dates'} value={startDate && endDate ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}` : 'TBD'} />
@@ -53,7 +102,35 @@ export function WizardStep3Review(props: Step3Props) {
 
         <div className="text-xs text-white/55 space-y-1 border-t border-white/[0.06] pt-3">
           <p><span className="text-white/55">{p.wizardActivitiesLabel || 'Activities'}:</span> <span className="text-white/60">{selectedActivities.map(a => p[`act${a}`] || a).join(', ') || '-'}</span></p>
-          {hotelAddress && <p><span className="text-white/55">{p.wizardHotelLabel || 'Hotel'}:</span> <span className="text-white/60">{hotelAddress}</span></p>}
+
+          {/* 2026-05-21 (P134 분기 #34 fix): 호텔 입력 도시 anchor */}
+          {hotelEntries.map((e, i) => (
+            <p key={`hotel-${i}`} className="flex items-start gap-1.5">
+              <Hotel className="w-3 h-3 mt-0.5 text-[#7C5CFC]" />
+              <span className="text-white/55">
+                {hotelEntries.length > 1 || zoneEntries.length > 0 ? `${e.city}: ` : `${p.wizardHotelLabel || 'Hotel'}: `}
+              </span>
+              <span className="text-white/60">{e.address}</span>
+            </p>
+          ))}
+
+          {/* 2026-05-21 (P134 분기 #34 fix): zone 중심 fallback — 호텔 없는 도시 */}
+          {zoneEntries.map((e, i) => (
+            <p key={`zone-${i}`} className="flex items-start gap-1.5">
+              <Navigation className="w-3 h-3 mt-0.5 text-[#7C5CFC]/60" />
+              <span className="text-white/55">
+                {hotelEntries.length > 0 || zoneEntries.length > 1 ? `${e.city}: ` : `${p.wizardZoneCenterLabel || 'Zone center'}: `}
+              </span>
+              <span className="text-white/60">{e.zone}</span>
+            </p>
+          ))}
+
+          {/* 호텔도 zone 도 없는 경우 — backend 가 default fallback */}
+          {hotelEntries.length === 0 && zoneEntries.length === 0 && (
+            <p className="text-white/45 italic">
+              {p.wizardNoAnchorHint || 'AI will pick optimal start points per day'}
+            </p>
+          )}
         </div>
 
         <p className="text-[10px] text-white/55 text-center">{p.wizardTapToEdit || 'Tap any card to edit'}</p>

@@ -83,6 +83,13 @@ export function WizardStep0Reservation({
               if (q.key !== 'flight_hotel' && hotelAddress) {
                 setHotelAddress('');
               }
+              // 2026-05-21 (분기 #2 fix, R-P133 c): nothing/all_done 전환 시 항공편 stale 잔류 차단.
+              // 이전엔 flight → nothing 가도 arrivalAirport/arrivalTime 잔존 → backend payload 에
+              // 의미 없는 값 forward.
+              if ((q.key === 'nothing' || q.key === 'all_done') && (arrivalTime || arrivalAirport)) {
+                setArrivalTime('');
+                setArrivalAirport('');
+              }
             }}
               className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
                 sel

@@ -529,6 +529,9 @@ export function WizardStep2Details(props: Step2Props) {
             setWantAccom(next);
             // P1 mutual exclusion: AI 추천 켜면 사용자 입력 호텔 주소 클리어 (혼란 방지)
             if (next && hotelAddress) setHotelAddress('');
+            // 2026-05-21 (분기 #23 fix, R-P133 d): wantAccom 켜면 다도시 hotelByCity Record 도
+            // 클리어. 누락 시 stale Record 가 backend forward → AI 가 사용자 입력 호텔로 오해.
+            if (next && Object.keys(hotelByCity).length > 0) setHotelByCity({});
           }}
             className="w-5 h-5 rounded border-white/20 bg-white/[0.06] accent-[#7C5CFC]" />
           <div>

@@ -807,6 +807,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   allCities={allCities} startDate={startDate} endDate={endDate}
                   arrivalTerminal={arrivalTerminal} pax={pax}
                   selectedActivities={selectedActivities} hotelAddress={hotelAddress}
+                  // 2026-05-21 (P134 분기 #34/#35 fix): 다도시 + 호텔 anchor 미리보기 props
+                  mainCityKey={mainCityKey}
+                  hotelByCity={hotelByCity}
+                  recommendedZones={recommendedZones}
+                  isMultiCity={isMultiCity}
                   isLoading={isLoading} errorMsg={errorMsg}
                   language={language}
                   onEditStep={(s) => goToStep(s)} onGenerate={handleGenerate}
