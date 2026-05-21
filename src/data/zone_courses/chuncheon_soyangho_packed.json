@@ -1,0 +1,17 @@
+{
+  "id": "CHUNCHEON_DAY_SOYANGHO_PACKED",
+  "city": "chuncheon",
+  "zone": "Soyangho",
+  "theme": "소양호 유람선+청평사+삼악산",
+  "theme_i18n": {"ko":"소양호+청평사+삼악산","en":"Soyang Lake+Cheongpyeongsa+Samaksan","ja":"昭陽湖+清平寺+三嶽山","zh":"昭阳湖+清平寺+三岳山"},
+  "intensity": "packed",
+  "duration_min": 540,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"nature","name":"소양호 유람선","name_i18n":{"ko":"소양호 유람선","en":"Soyang Lake Cruise","ja":"昭陽湖遊覧船","zh":"昭阳湖游船"},"address":"강원 춘천시 신북읍 신샘밭로 1605","stay_min":90,"entry_fee_krw":9000,"reservation_required":false,"tips_i18n":{"ko":"국내 최대 인공호수. 청평사행 30분.","en":"Korea's largest artificial lake. 30min to Cheongpyeongsa.","ja":"国内最大人工湖。清平寺まで30分。","zh":"国内最大人工湖。30分钟到清平寺。"},"lat":37.9756,"lng":127.8244,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"청평사","name_i18n":{"ko":"청평사","en":"Cheongpyeongsa","ja":"清平寺","zh":"清平寺"},"address":"강원 춘천시 북산면 청평리","stay_min":60,"entry_fee_krw":2000,"reservation_required":false,"tips_i18n":{"ko":"고려시대 사찰. 호수 건너 사찰.","en":"Goryeo-era temple. Lake-crossing temple.","ja":"高麗時代寺院。湖越え寺。","zh":"高丽时代寺院。跨湖寺院。"},"lat":37.9683,"lng":127.8919,"start_time_offset_min":120},
+    {"order":3,"category":"food","name":"춘천 막국수 본점","name_i18n":{"ko":"춘천 막국수","en":"Chuncheon Makguksu","ja":"春川マッククス","zh":"春川冷面"},"address":"강원 춘천시 명동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"춘천 명물 막국수. 비빔/물.","en":"Chuncheon makguksu. Bibim/mul.","ja":"春川名物マッククス。ビビム/水。","zh":"春川名菜冷面。拌/汤。"},"lat":37.8806,"lng":127.7300,"start_time_offset_min":240},
+    {"order":4,"category":"nature","name":"삼악산 케이블카","name_i18n":{"ko":"삼악산 케이블카","en":"Samaksan Cable Car","ja":"三嶽山ロープウェイ","zh":"三岳山缆车"},"address":"강원 춘천시 칠전동","stay_min":120,"entry_fee_krw":20000,"reservation_required":false,"tips_i18n":{"ko":"국내 최장 케이블카 3.6km. 의암호 위로.","en":"Korea's longest cable car 3.6km. Over Uiam Lake.","ja":"国内最長ロープウェイ3.6km。衣岩湖上。","zh":"国内最长缆车3.6km。衣岩湖上。"},"lat":37.8567,"lng":127.6611,"start_time_offset_min":330},
+    {"order":5,"category":"cafe","name":"의암호 카페거리","name_i18n":{"ko":"의암호 카페","en":"Uiamho Cafe","ja":"衣岩湖カフェ","zh":"衣岩湖咖啡"},"address":"강원 춘천시 의암호반","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"호수 뷰 카페. 일몰 추천.","en":"Lake view cafes. Sunset.","ja":"湖ビューカフェ。夕日。","zh":"湖景咖啡。日落。"},"lat":37.8783,"lng":127.7144,"start_time_offset_min":470}
+  ]
+}

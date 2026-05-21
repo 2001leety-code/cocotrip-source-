@@ -1,0 +1,17 @@
+{
+  "id": "WONJU_DAY_OAKVALLEY_PACKED",
+  "city": "wonju",
+  "zone": "Oak-Valley",
+  "theme": "오크밸리 리조트+섬강",
+  "theme_i18n": {"ko":"오크밸리+섬강","en":"Oak Valley+Seomgang","ja":"オークバレー+蟾江","zh":"橡树谷+蟾江"},
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"sports","name":"오크밸리 골프&리조트","name_i18n":{"ko":"오크밸리","en":"Oak Valley","ja":"オークバレー","zh":"橡树谷"},"address":"강원 원주시 지정면 오크밸리2길 1116","stay_min":180,"entry_fee_krw":0,"reservation_required":true,"tips_i18n":{"ko":"골프/스키/온천 종합 리조트.","en":"Golf/ski/spa resort complex.","ja":"ゴルフ/スキー/温泉総合リゾート。","zh":"高尔夫/滑雪/温泉度假村。"},"lat":37.4144,"lng":127.8444,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"리조트 한식당","name_i18n":{"ko":"리조트 한식당","en":"Resort Korean Restaurant","ja":"リゾート韓食堂","zh":"度假村韩餐厅"},"address":"강원 원주시 지정면 오크밸리2길","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한정식 또는 갈비.","en":"Hanjeongsik or galbi.","ja":"韓定食またはカルビ。","zh":"韩定食或烤肉。"},"lat":37.4144,"lng":127.8444,"start_time_offset_min":200},
+    {"order":3,"category":"nature","name":"섬강 둔치 산책","name_i18n":{"ko":"섬강 둔치","en":"Seomgang Riverside","ja":"蟾江河岸","zh":"蟾江河岸"},"address":"강원 원주시 흥업면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"강변 자전거+산책로.","en":"Riverside cycling+walking.","ja":"川辺サイクリング+散歩。","zh":"江边骑行+步行。"},"lat":37.3025,"lng":127.9444,"start_time_offset_min":280},
+    {"order":4,"category":"culture","name":"한지테마파크","name_i18n":{"ko":"한지테마파크","en":"Hanji Theme Park","ja":"韓紙テーマパーク","zh":"韩纸主题公园"},"address":"강원 원주시 단구로 1102","stay_min":90,"entry_fee_krw":5000,"reservation_required":false,"tips_i18n":{"ko":"한지 만들기 체험.","en":"Hanji-making experience.","ja":"韓紙作り体験。","zh":"韩纸制作体验。"},"lat":37.3500,"lng":127.9583,"start_time_offset_min":360},
+    {"order":5,"category":"food","name":"원주 닭갈비 거리","name_i18n":{"ko":"원주 닭갈비","en":"Wonju Dakgalbi","ja":"原州タッカルビ","zh":"原州炒鸡"},"address":"강원 원주시 명륜동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"닭갈비 + 막국수 콤보.","en":"Dakgalbi + makguksu combo.","ja":"タッカルビ+マッククス。","zh":"炒鸡+冷面套餐。"},"lat":37.3417,"lng":127.9528,"start_time_offset_min":465}
+  ]
+}

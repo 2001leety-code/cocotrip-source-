@@ -1,0 +1,16 @@
+{
+  "id": "TAEBAEK_DAY_TAEBAEKSAN_STANDARD",
+  "city": "taebaek",
+  "zone": "Taebaeksan",
+  "theme": "태백산+황지연못+추전역",
+  "theme_i18n": {"ko":"태백산+황지연못+추전역","en":"Taebaeksan+Hwangjiyeon+Chujeon Station","ja":"太白山+黄池蓮+楸田駅","zh":"太白山+黄池池+楸田站"},
+  "intensity": "standard",
+  "duration_min": 450,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"nature","name":"태백산 천제단","name_i18n":{"ko":"태백산 천제단","en":"Taebaeksan Cheonjedan","ja":"太白山天祭壇","zh":"太白山天祭坛"},"address":"강원 태백시 소도동","stay_min":210,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"유일사→천제단 4km 3h. 한국 5대 영산.","en":"Yuilsa→Cheonjedan 4km 3h. Top 5 sacred mountain.","ja":"裕一寺→天祭壇4km3h。韓国5大霊山。","zh":"裕一寺→天祭坛4km3h。韩国5大灵山。"},"lat":37.0945,"lng":128.9165,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"태백 한우","name_i18n":{"ko":"태백 한우","en":"Taebaek Hanwoo","ja":"太白韓牛","zh":"太白韩牛"},"address":"강원 태백시 황지동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"고지대 한우 명소. 갈비+등심.","en":"Highland hanwoo. Galbi+sirloin.","ja":"高地韓牛名所。カルビ+ロース。","zh":"高地韩牛名所。烤肉+里脊。"},"lat":37.1644,"lng":128.9881,"start_time_offset_min":225},
+    {"order":3,"category":"nature","name":"황지연못","name_i18n":{"ko":"황지연못","en":"Hwangjiyeon Pond","ja":"黄池蓮池","zh":"黄池池"},"address":"강원 태백시 황지동","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"낙동강 발원지. 도심 한가운데.","en":"Nakdonggang origin. City center.","ja":"洛東江源流。市内中心。","zh":"洛东江源头。市中心。"},"lat":37.1639,"lng":128.9856,"start_time_offset_min":315},
+    {"order":4,"category":"culture","name":"추전역 (한국 최고지 역)","name_i18n":{"ko":"추전역","en":"Chujeon Station (Highest in Korea)","ja":"楸田駅","zh":"楸田站"},"address":"강원 태백시 화전동","stay_min":30,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"해발 855m. 한국 최고지 역.","en":"855m elevation. Korea's highest station.","ja":"標高855m。韓国最高地駅。","zh":"海拔855m。韩国最高站。"},"lat":37.1750,"lng":128.9444,"start_time_offset_min":375}
+  ]
+}

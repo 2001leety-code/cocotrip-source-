@@ -1,0 +1,17 @@
+{
+  "id": "PYEONGCHANG_DAY_ALPENSIA_STANDARD",
+  "city": "pyeongchang",
+  "zone": "Alpensia-Daegwallyeong",
+  "theme": "알펜시아+대관령양떼목장+이효석문학관",
+  "theme_i18n": {"ko":"알펜시아+대관령양떼목장+이효석문학관","en":"Alpensia+Daegwallyeong Sheep Farm+Lee Hyo-seok","ja":"アルペンシア+大関嶺羊牧場+李孝石","zh":"阿尔卑西亚+大关岭羊牧场+李孝石"},
+  "intensity": "standard",
+  "duration_min": 450,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"nature","name":"대관령양떼목장","name_i18n":{"ko":"대관령양떼목장","en":"Daegwallyeong Sheep Farm","ja":"大関嶺羊牧場","zh":"大关岭羊牧场"},"address":"강원 평창군 대관령면 대관령마루길 483-32","stay_min":75,"entry_fee_krw":7000,"reservation_required":false,"tips_i18n":{"ko":"양 직접 먹이 주기. 산책로 1.2km.","en":"Feed sheep directly. 1.2km walking path.","ja":"羊に直接餌やり。散歩道1.2km。","zh":"亲手喂羊。步道1.2km。"},"lat":37.6856,"lng":128.7178,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"이효석문학관","name_i18n":{"ko":"이효석문학관","en":"Lee Hyo-seok Literature Hall","ja":"李孝石文学館","zh":"李孝石文学馆"},"address":"강원 평창군 봉평면 효석문학길 73-25","stay_min":60,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"메밀꽃 작품 배경. 9월 메밀꽃 만개.","en":"Buckwheat novel setting. Sept blooms.","ja":"そばの花作品舞台。9月満開。","zh":"荞麦花作品背景。9月盛开。"},"lat":37.5722,"lng":128.4039,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"평창 메밀꾼 본점","name_i18n":{"ko":"평창 메밀꾼 본점","en":"Pyeongchang Memilkkun","ja":"平昌メミルクン","zh":"平昌荞麦店"},"address":"강원 평창군 봉평면 이효석길 33","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"메밀국수/메밀전 명소.","en":"Buckwheat noodles famous.","ja":"そば麺/そばチヂミ名所。","zh":"荞麦面/荞麦煎饼名所。"},"lat":37.5725,"lng":128.4028,"start_time_offset_min":175},
+    {"order":4,"category":"sports","name":"알펜시아 리조트","name_i18n":{"ko":"알펜시아 리조트","en":"Alpensia Resort","ja":"アルペンシアリゾート","zh":"阿尔卑西亚度假村"},"address":"강원 평창군 대관령면 솔봉로 325","stay_min":120,"entry_fee_krw":10000,"reservation_required":false,"tips_i18n":{"ko":"2018 평창동계올림픽 메인. 스키점프대 전망.","en":"2018 Olympics venue. Ski jump view.","ja":"2018冬季五輪会場。スキージャンプ眺望。","zh":"2018冬奥会场。跳台滑雪眺望。"},"lat":37.6633,"lng":128.6856,"start_time_offset_min":260},
+    {"order":5,"category":"culture","name":"월정사 (오대산)","name_i18n":{"ko":"월정사","en":"Woljeongsa","ja":"月精寺","zh":"月精寺"},"address":"강원 평창군 진부면 오대산로 374-8","stay_min":60,"entry_fee_krw":5000,"reservation_required":false,"tips_i18n":{"ko":"오대산 대표 사찰. 전나무숲길.","en":"Odaesan main temple. Fir forest trail.","ja":"五台山代表寺院。モミの林道。","zh":"五台山代表寺院。冷杉林路。"},"lat":37.7311,"lng":128.5894,"start_time_offset_min":410}
+  ]
+}

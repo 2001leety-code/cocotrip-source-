@@ -1,0 +1,17 @@
+{
+  "id": "TAEBAEK_DAY_HAMBAEKSAN_PACKED",
+  "city": "taebaek",
+  "zone": "Hambaeksan",
+  "theme": "함백산+만항재+석탄박물관",
+  "theme_i18n": {"ko":"함백산+만항재+석탄박물관","en":"Hambaeksan+Manhangjae+Coal Museum","ja":"咸白山+万項峠+石炭博物館","zh":"咸白山+万项岭+煤炭博物馆"},
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"nature","name":"만항재","name_i18n":{"ko":"만항재","en":"Manhangjae","ja":"万項峠","zh":"万项岭"},"address":"강원 태백시 혈동","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"해발 1330m. 한국 최고지 포장도로.","en":"1330m elevation. Korea's highest paved road.","ja":"標高1330m。韓国最高地舗装路。","zh":"海拔1330m。韩国最高铺装路。"},"lat":37.1881,"lng":128.8889,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"함백산 정상","name_i18n":{"ko":"함백산","en":"Hambaeksan","ja":"咸白山","zh":"咸白山"},"address":"강원 태백시 혈동","stay_min":150,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"만항재→정상 2.5km 1.5h. 일출 명소.","en":"Manhangjae→Summit 2.5km 1.5h. Sunrise spot.","ja":"万項峠→頂上2.5km1.5h。日の出名所。","zh":"万项岭→顶峰2.5km1.5h。日出名所。"},"lat":37.1592,"lng":128.9100,"start_time_offset_min":60},
+    {"order":3,"category":"food","name":"태백 닭갈비","name_i18n":{"ko":"태백 닭갈비","en":"Taebaek Dakgalbi","ja":"太白タッカルビ","zh":"太白炒鸡"},"address":"강원 태백시 황지동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"태백 닭갈비 + 막국수.","en":"Taebaek dakgalbi + makguksu.","ja":"太白タッカルビ+マッククス。","zh":"太白炒鸡+冷面。"},"lat":37.1644,"lng":128.9889,"start_time_offset_min":225},
+    {"order":4,"category":"culture","name":"태백 석탄박물관","name_i18n":{"ko":"태백 석탄박물관","en":"Taebaek Coal Museum","ja":"太白石炭博物館","zh":"太白煤炭博物馆"},"address":"강원 태백시 천제단길 195","stay_min":90,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"국내 최대 석탄 박물관. 갱도 체험.","en":"Korea's largest coal museum. Mine experience.","ja":"国内最大石炭博物館。坑道体験。","zh":"国内最大煤炭博物馆。矿道体验。"},"lat":37.1372,"lng":128.9089,"start_time_offset_min":325},
+    {"order":5,"category":"cafe","name":"태백 도심 카페","name_i18n":{"ko":"태백 카페","en":"Taebaek Cafe","ja":"太白カフェ","zh":"太白咖啡"},"address":"강원 태백시 황지동","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"고지대 도심 카페.","en":"Highland city cafes.","ja":"高地市内カフェ。","zh":"高地市内咖啡。"},"lat":37.1647,"lng":128.9883,"start_time_offset_min":440}
+  ]
+}

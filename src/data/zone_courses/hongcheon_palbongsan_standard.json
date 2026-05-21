@@ -1,0 +1,16 @@
+{
+  "id": "HONGCHEON_DAY_PALBONGSAN_STANDARD",
+  "city": "hongcheon",
+  "zone": "Palbongsan",
+  "theme": "팔봉산+홍천강",
+  "theme_i18n": {"ko":"팔봉산+홍천강","en":"Palbongsan+Hongcheongang","ja":"八峰山+洪川江","zh":"八峰山+洪川江"},
+  "intensity": "standard",
+  "duration_min": 420,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"nature","name":"팔봉산 산행","name_i18n":{"ko":"팔봉산","en":"Palbongsan","ja":"八峰山","zh":"八峰山"},"address":"강원 홍천군 서면 팔봉산로","stay_min":180,"entry_fee_krw":1500,"reservation_required":false,"tips_i18n":{"ko":"8개 봉우리 종주 3h. 홍천강 조망.","en":"8-peak traverse 3h. Hongcheongang view.","ja":"8峰縦走3h。洪川江眺望。","zh":"8峰纵走3h。洪川江眺望。"},"lat":37.7264,"lng":127.7544,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"홍천 한우","name_i18n":{"ko":"홍천 한우","en":"Hongcheon Hanwoo","ja":"洪川韓牛","zh":"洪川韩牛"},"address":"강원 홍천군 홍천읍","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"홍천 한우 명소. 갈비/등심.","en":"Hongcheon hanwoo. Galbi/sirloin.","ja":"洪川韓牛名所。カルビ/ロース。","zh":"洪川韩牛名所。烤肉/里脊。"},"lat":37.6911,"lng":127.8867,"start_time_offset_min":195},
+    {"order":3,"category":"nature","name":"홍천강 래프팅","name_i18n":{"ko":"홍천강 래프팅","en":"Hongcheongang Rafting","ja":"洪川江ラフティング","zh":"洪川江漂流"},"address":"강원 홍천군 서석면","stay_min":120,"entry_fee_krw":35000,"reservation_required":true,"tips_i18n":{"ko":"여름 시즌 (6-9월). 사전 예약.","en":"Summer season (Jun-Sep). Reserve ahead.","ja":"夏季 (6-9月)。事前予約。","zh":"夏季 (6-9月)。提前预约。"},"lat":37.7236,"lng":128.1500,"start_time_offset_min":290},
+    {"order":4,"category":"food","name":"홍천 막국수","name_i18n":{"ko":"홍천 막국수","en":"Hongcheon Makguksu","ja":"洪川マッククス","zh":"洪川冷面"},"address":"강원 홍천군 홍천읍","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"강원 막국수 명소.","en":"Gangwon makguksu spot.","ja":"江原マッククス名所。","zh":"江原冷面名所。"},"lat":37.6928,"lng":127.8847,"start_time_offset_min":420}
+  ]
+}

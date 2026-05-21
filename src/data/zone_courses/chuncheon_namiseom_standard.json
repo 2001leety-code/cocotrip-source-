@@ -1,0 +1,16 @@
+{
+  "id": "CHUNCHEON_DAY_NAMISEOM_STANDARD",
+  "city": "chuncheon",
+  "zone": "Namiseom-Garden",
+  "theme": "남이섬+가평 아침고요수목원",
+  "theme_i18n": {"ko":"남이섬+아침고요수목원","en":"Nami Island+Morning Calm Garden","ja":"南怡島+朝の静けさ樹木園","zh":"南怡岛+清晨宁静树木园"},
+  "intensity": "standard",
+  "duration_min": 480,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"nature","name":"남이섬","name_i18n":{"ko":"남이섬","en":"Nami Island","ja":"南怡島","zh":"南怡岛"},"address":"강원 춘천시 남산면 남이섬길 1","stay_min":180,"entry_fee_krw":16000,"reservation_required":false,"tips_i18n":{"ko":"겨울연가 촬영지. 메타세콰이어길.","en":"Winter Sonata filming site. Metasequoia path.","ja":"冬のソナタロケ地。メタセコイア並木。","zh":"冬季恋歌拍摄地。水杉路。"},"lat":37.7900,"lng":127.5258,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"춘천 닭갈비 명동거리","name_i18n":{"ko":"춘천 닭갈비","en":"Chuncheon Dakgalbi","ja":"春川タッカルビ","zh":"春川炒鸡"},"address":"강원 춘천시 조양동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"닭갈비 본고장. 막국수 사이드.","en":"Dakgalbi origin. Makguksu side.","ja":"タッカルビ発祥。マッククス付。","zh":"炒鸡发源地。冷面配菜。"},"lat":37.8806,"lng":127.7297,"start_time_offset_min":195},
+    {"order":3,"category":"nature","name":"아침고요수목원","name_i18n":{"ko":"아침고요수목원","en":"Morning Calm Garden","ja":"朝の静けさ樹木園","zh":"清晨宁静树木园"},"address":"경기 가평군 상면 수목원로 432","stay_min":120,"entry_fee_krw":11000,"reservation_required":false,"tips_i18n":{"ko":"한국식 정원. 봄꽃/가을 단풍.","en":"Korean garden. Spring flowers/autumn foliage.","ja":"韓国式庭園。春花/紅葉。","zh":"韩式园林。春花/秋叶。"},"lat":37.7367,"lng":127.4528,"start_time_offset_min":305},
+    {"order":4,"category":"cafe","name":"강촌 카페거리","name_i18n":{"ko":"강촌 카페","en":"Gangchon Cafe","ja":"江村カフェ","zh":"江村咖啡"},"address":"강원 춘천시 남산면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"북한강 뷰 카페.","en":"Bukhan River view cafes.","ja":"北漢江ビューカフェ。","zh":"北汉江景咖啡。"},"lat":37.8125,"lng":127.5667,"start_time_offset_min":440}
+  ]
+}

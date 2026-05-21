@@ -1,0 +1,17 @@
+{
+  "id": "WONJU_DAY_CHIAKSAN_STANDARD",
+  "city": "wonju",
+  "zone": "Chiaksan",
+  "theme": "치악산 구룡사+소금산 출렁다리",
+  "theme_i18n": {"ko":"치악산+소금산","en":"Chiaksan+Sogeumsan","ja":"雉岳山+小金山","zh":"雉岳山+小金山"},
+  "intensity": "standard",
+  "duration_min": 420,
+  "block_type": "city_day",
+  "stops": [
+    {"order":1,"category":"culture","name":"구룡사","name_i18n":{"ko":"구룡사","en":"Guryongsa","ja":"九龍寺","zh":"九龙寺"},"address":"강원 원주시 소초면 구룡사로 500","stay_min":45,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"치악산 입구 사찰. 천년 노송.","en":"Chiaksan entrance temple. Ancient pines.","ja":"雉岳山入口寺院。千年松。","zh":"雉岳山入口寺院。千年松。"},"lat":37.3947,"lng":128.0367,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"치악산 세렴폭포 트레킹","name_i18n":{"ko":"치악산 세렴폭포","en":"Chiaksan Seryeom Falls","ja":"雉岳山セリョム滝","zh":"雉岳山世廉瀑布"},"address":"강원 원주시 소초면","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"구룡사→세렴폭포 4km 왕복 2h.","en":"Guryongsa→Falls 4km round 2h.","ja":"九龍寺→滝4km往復2h。","zh":"九龙寺→瀑布4km往返2h。"},"lat":37.3856,"lng":128.0556,"start_time_offset_min":60},
+    {"order":3,"category":"food","name":"원주 추어탕 거리","name_i18n":{"ko":"원주 추어탕","en":"Wonju Loach Soup","ja":"原州ドジョウスープ","zh":"原州泥鳅汤"},"address":"강원 원주시 단계동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"원주 향토음식. 추어탕/추어전.","en":"Wonju local food. Loach soup/pancake.","ja":"原州郷土食。ドジョウスープ/チヂミ。","zh":"原州乡土食。泥鳅汤/煎饼。"},"lat":37.3411,"lng":127.9472,"start_time_offset_min":195},
+    {"order":4,"category":"nature","name":"소금산 출렁다리","name_i18n":{"ko":"소금산 출렁다리","en":"Sogeumsan Suspension Bridge","ja":"小金山つり橋","zh":"小金山悬索桥"},"address":"강원 원주시 지정면 소금산길 26","stay_min":90,"entry_fee_krw":6000,"reservation_required":false,"tips_i18n":{"ko":"국내 최장 출렁다리 200m. 절벽 스카이워크.","en":"Korea's longest suspension bridge 200m. Cliff skywalk.","ja":"国内最長つり橋200m。崖スカイウォーク。","zh":"国内最长悬索桥200m。悬崖天桥。"},"lat":37.4181,"lng":127.9722,"start_time_offset_min":295},
+    {"order":5,"category":"cafe","name":"원주 카페거리","name_i18n":{"ko":"원주 카페거리","en":"Wonju Cafe Street","ja":"原州カフェ通り","zh":"原州咖啡街"},"address":"강원 원주시 무실로","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"감성 카페 다수. 휴식.","en":"Cozy cafes. Rest spot.","ja":"おしゃれカフェ多数。休憩。","zh":"文艺咖啡多。休息。"},"lat":37.3556,"lng":127.9472,"start_time_offset_min":395}
+  ]
+}
