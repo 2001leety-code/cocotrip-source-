@@ -10,6 +10,8 @@ on:
 
 # Daily Sentinel (L3) — regression FAIL 시 GH issue 자동 생성용 권한.
 # 자율 검증 시스템 v1 L3 — PR 없어도 prod 자체 monitoring.
+# 2026-05-11 (PR #347): health-log.jsonl commit 을 위해 contents: write 필수.
+# 누락 시 git push 403 Forbidden (기존 commit step 항상 fail 무한반복).
 permissions:
   contents: write # health-log commit (기존)
   issues: write   # L3: regression FAIL 시 자동 issue 생성
@@ -30,8 +32,12 @@ jobs:
 
       - name: Run Daily Health Check
         env:
-          # validate-planner.cjs uses TEST- prefix PayPal bypass
-          # No additional secrets needed for health check
+          # 2026-05-04 PR #247 (audit P0-#2) 이후 /api/ai-planner-full 는
+          # Authorization: Bearer <idToken> 필수. validate-planner.cjs 는
+          # Firebase Auth REST API 로 idToken 발급 → Bearer 헤더 주입.
+          # docs/AUTOMATION.md 의 secret 등록 가이드 참조.
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
           NODE_OPTIONS: '--experimental-fetch'
         run: node scripts/daily-health-check.mjs
 
@@ -67,6 +73,9 @@ jobs:
         if: always()
         env:
           BASE_URL: https://cocotripkr.com
+          # PR #247 audit P0-#2 이후 plan 생성 step 도 Bearer 헤더 필수.
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
         run: npx playwright test full-plan-translation-pdf --project='Desktop Chrome' --reporter=list
         continue-on-error: true # E2E 실패해도 health-log commit 단계 실행
 

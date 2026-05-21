@@ -17,8 +17,36 @@
 import { test, expect } from '@playwright/test';
 
 const BASE_URL = process.env.BASE_URL || 'https://cocotripkr.com';
-const TEST_EMAIL = '2001leety@gmail.com'; // TEST_ACCOUNTS whitelist
+const TEST_EMAIL = process.env.HEALTH_CHECK_EMAIL || '2001leety@gmail.com'; // TEST_ACCOUNTS whitelist
 const TEST_ORDER_ID = `TEST-E2E-${Date.now()}`;
+
+// 2026-05-04 PR #247 (audit P0-#2) 머지로 /api/ai-planner-full 가
+// verifyUserToken 호출 → Authorization: Bearer <idToken> 필수.
+// 자동화된 plan 생성 검증을 위해 Firebase Auth REST API 로 idToken 발급.
+async function getIdToken(): Promise<string | null> {
+  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  const password = process.env.HEALTH_CHECK_PASSWORD;
+  if (!apiKey || !password) {
+    console.warn(
+      '⚠️ FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD env 미설정 — plan 생성 step 401 예상. ' +
+      'GitHub Actions Secrets 등록 필요 (docs/AUTOMATION.md 참조).'
+    );
+    return null;
+  }
+  const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: TEST_EMAIL, password, returnSecureToken: true }),
+  });
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '');
+    console.warn(`⚠️ Firebase Auth signInWithPassword failed: HTTP ${r.status} — ${errText.slice(0, 200)}`);
+    return null;
+  }
+  const j = await r.json();
+  return j.idToken || null;
+}
 
 interface Stop {
   name?: string;
@@ -50,6 +78,17 @@ test.describe('CocoTrip Full E2E — Plan + Translation + PDF Auth', () => {
 
   test('1. 플랜 생성 — POST /api/ai-planner-full (TEST bypass)', async ({ request }) => {
     test.setTimeout(180_000); // Gemini Pro 60-90s 응답
+
+    // 2026-05-04 PR #247 (audit P0-#2): Authorization: Bearer <idToken> 필수.
+    // Firebase Auth REST API 로 발급 — secret 미설정 시 명시적 fail.
+    const idToken = await getIdToken();
+    if (!idToken) {
+      throw new Error(
+        'FIREBASE_WEB_API_KEY + HEALTH_CHECK_PASSWORD secrets required for E2E plan creation. ' +
+        'GitHub Actions Secrets 등록 후 재실행 (docs/AUTOMATION.md 참조).'
+      );
+    }
+
     const res = await request.post(`${BASE_URL}/api/ai-planner-full`, {
       data: {
         paypalOrderId: TEST_ORDER_ID,
@@ -66,7 +105,10 @@ test.describe('CocoTrip Full E2E — Plan + Translation + PDF Auth', () => {
         arrival_airport: 'ICN T1',
         special_request: '인사동, 광화문 포함',
       },
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
       timeout: 180_000,
     });
 
