@@ -2171,7 +2171,90 @@
       "booking": "Booking",
       "trend": "Trend Hints",
       "painpoints": "Painpoints",
-      "meta": "Meta·QA"
+      "meta": "Meta·QA",
+      "trekkingMeta": "Trekking Meta",
+      "runningMeta": "Running Meta"
     }
+  },
+  "adminZoneCoursesTrekkingMeta": {
+    "title": "トレッキングメタ",
+    "subtitle": "block_type === 'trekking' の時に必須。距離・難易度・トレイルヘッドはユーザーマッチングと安全案内に使用。",
+    "totalDistanceKm": "総距離 (km)",
+    "elevationGainM": "累積標高 (m)",
+    "estimatedDurationMin": "想定所要時間 (分)",
+    "startingElevationM": "出発地点の標高 (m)",
+    "highestPointM": "最高地点の標高 (m)",
+    "trailheadAccessSubway": "地下鉄ガイド",
+    "trailheadAccessBus": "バスガイド",
+    "trailheadAccessTaxi": "都心からのタクシー料金 (KRW)",
+    "trailheadAccessParking": "駐車場あり",
+    "seasonsRecommended": "推奨シーズン (任意)"
+  },
+  "adminZoneCoursesRunningMeta": {
+    "title": "ランニングメタ",
+    "subtitle": "block_type === 'running_route' の時に必須。距離・路面・難易度・時間帯/照明はユーザーマッチングと安全案内に使用。",
+    "totalKm": "総距離 (km)",
+    "elevationGainM": "累積標高 (m)",
+    "easyPace": "Easy ペース (分/km)",
+    "tempoPace": "Tempo ペース (分/km)",
+    "recommendedTime": "推奨時間帯",
+    "removePace": "ペース削除"
+  },
+  "adminTrekkingDifficulty": {
+    "easy": "Easy (平坦・短距離 — 1-2時間 / 標高200m以下)",
+    "moderate": "Moderate (一般登山 — 3-4時間 / 標高200-500m)",
+    "hard": "Hard (5時間以上 / 標高500m以上)",
+    "expert": "Expert (岩登り・冬山・ロングコース)"
+  },
+  "adminTrailType": {
+    "forest": "Forest (森林)",
+    "ridge": "Ridge (尾根)",
+    "coastal": "Coastal (海岸)",
+    "urban": "Urban (市街地)",
+    "mountain": "Mountain (山岳)"
+  },
+  "adminRecommendedGear": {
+    "label": "推奨装備 (recommended_gear)",
+    "hint": "ユーザーへの事前準備案内。snake_case 英語 (UI が4言語に翻訳)。",
+    "addCustom": "カスタム追加",
+    "empty": "なし"
+  },
+  "adminHazards": {
+    "label": "危険要素 (hazards)",
+    "hint": "安全警告 — 該当ユーザーをブロックでマッチング対象から除外 + buildPrompt が顕著に表示。",
+    "addCustom": "カスタム追加",
+    "empty": "なし"
+  },
+  "adminTrailheadAddress": {
+    "label": "トレイルヘッド住所",
+    "placeholder": "ソウル特別市江北区牛耳洞 道詵寺入口",
+    "hint": "Naver Geocoding 入力値。最初の stop の住所と異なる場合あり (例: 入口ゲート)。"
+  },
+  "adminRunningSurface": {
+    "label": "路面種類 (surface_type)",
+    "asphalt": "Asphalt (アスファルト) — 道路 / 公園歩道",
+    "dirt": "Dirt (土) — 河川敷遊歩道 / 土トレイル",
+    "mixed": "Mixed (混合) — アスファルト + 土 + 歩道ブロック",
+    "track": "Track (トラック) — 学校 / 公式陸上トラック"
+  },
+  "adminLoopType": {
+    "label": "コース形態 (loop_or_out_and_back)",
+    "loop": "Loop (周回) — 出発点 = ゴール、同一経路なし",
+    "outAndBack": "Out & Back (往復) — 折り返してから同じ道で戻る",
+    "pointToPoint": "Point to Point (片道) — 出発点 != ゴール"
+  },
+  "adminLightingQuality": {
+    "label": "夜間照明品質 (lighting_quality)",
+    "wellLit": "Well-lit (明るい) — 夜間安全 / 街灯十分",
+    "partial": "Partial (部分的) — 区間ごとに暗い / 夕方・夜は注意",
+    "dark": "Dark (暗い) — 夜間非推奨、早朝/日中のみ"
+  },
+  "adminWaterStations": {
+    "label": "給水可能地点数",
+    "hint": "水飲み場 + カフェ合算。"
+  },
+  "adminPaceTarget": {
+    "label": "ペース目標 (任意)",
+    "hint": "運営者の推奨値 — ユーザーレベル表記に使用。空欄ならユーザー本人のペースで適用。"
   }
 }

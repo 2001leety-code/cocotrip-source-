@@ -1,6 +1,9 @@
-// BasicTab — 탭 ① 기본정보 (id / city / zone / theme / intensity / duration)
+// BasicTab — 탭 ① 기본정보 (id / city / zone / theme / intensity / duration / block_type)
+//
+// 2026-05-21: block_type dropdown 추가 — 'trekking' 선택 시 TrekkingMetaTab,
+// 'running_route' 선택 시 RunningMetaTab 이 활성화 (AdminZoneCourseEditor 의 동적 분기).
 import type {
-  ZoneCourseCity, ZoneCourseIntensity,
+  ZoneCourseCity, ZoneCourseIntensity, BlockType,
 } from '@/data/zone_courses/types';
 import type { ZoneCourseDoc } from '@/lib/zone-courses-firestore';
 import { I18nField } from '@/components/admin/ProductEditor/I18nField';
@@ -14,6 +17,15 @@ const INTENSITY_OPTIONS: { value: ZoneCourseIntensity; label: string }[] = [
   { value: 'relaxed',  label: '느긋 (Relaxed)' },
   { value: 'standard', label: '표준 (Standard)' },
   { value: 'packed',   label: '빡빡 (Packed)' },
+];
+
+const BLOCK_TYPE_OPTIONS: { value: BlockType; label: string; desc: string; emoji: string }[] = [
+  { value: 'city_day',       label: 'City Day',       desc: '도심형 day block (기본)',                    emoji: '🏙️' },
+  { value: 'trekking',       label: 'Trekking',       desc: '등산 / 도보 트레킹 (trekking_meta 필수)',     emoji: '🥾' },
+  { value: 'running_route',  label: 'Running Route',  desc: '러닝 코스 (running_meta 필수)',              emoji: '🏃' },
+  { value: 'cycling',        label: 'Cycling',        desc: '자전거 코스 (향후)',                          emoji: '🚴' },
+  { value: 'guided_tour',    label: 'Guided Tour',    desc: '가이드 동반 정기 투어 (향후)',                emoji: '🧑‍🏫' },
+  { value: 'dmz_tour',       label: 'DMZ Tour',       desc: '비무장지대 투어 (향후 — 여권 + 사전 예약)',    emoji: '🛂' },
 ];
 
 interface Props {
@@ -135,6 +147,45 @@ export function BasicTab({ draft, onChange, isNew }: Props) {
           />
           <p className="mt-1 text-[10px] text-gray-400">Stops + Transit Matrix 가 변경되면 자동 갱신.</p>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+          Block 종류 (block_type)
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {BLOCK_TYPE_OPTIONS.map((opt) => {
+            const current = draft.block_type || 'city_day';
+            const checked = current === opt.value;
+            return (
+              <label
+                key={opt.value}
+                className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  checked ? 'bg-[#7C5CFC]/5 border-[#7C5CFC]/30' : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="block-type"
+                  checked={checked}
+                  onChange={() => onChange({ block_type: opt.value })}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span>{opt.emoji}</span>
+                    <span className="text-xs font-bold text-gray-800">{opt.label}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{opt.desc}</p>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[10px] text-gray-400">
+          'trekking' = Trekking Meta 탭 활성화. 'running_route' = Running Meta 탭 활성화.
+          그 외 = 기본 9 탭.
+        </p>
       </div>
     </div>
   );

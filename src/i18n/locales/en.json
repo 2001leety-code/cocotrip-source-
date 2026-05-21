@@ -2171,7 +2171,90 @@
       "booking": "Booking",
       "trend": "Trend Hints",
       "painpoints": "Painpoints",
-      "meta": "Meta·QA"
+      "meta": "Meta·QA",
+      "trekkingMeta": "Trekking Meta",
+      "runningMeta": "Running Meta"
     }
+  },
+  "adminZoneCoursesTrekkingMeta": {
+    "title": "Trekking Meta",
+    "subtitle": "Required when block_type === 'trekking'. Distance / difficulty / trailhead used for user matching + safety guidance.",
+    "totalDistanceKm": "Total Distance (km)",
+    "elevationGainM": "Elevation Gain (m)",
+    "estimatedDurationMin": "Estimated Duration (min)",
+    "startingElevationM": "Starting Elevation (m)",
+    "highestPointM": "Highest Point (m)",
+    "trailheadAccessSubway": "Subway Access",
+    "trailheadAccessBus": "Bus Access",
+    "trailheadAccessTaxi": "Taxi from city center (KRW)",
+    "trailheadAccessParking": "Parking Available",
+    "seasonsRecommended": "Recommended Seasons (optional)"
+  },
+  "adminZoneCoursesRunningMeta": {
+    "title": "Running Meta",
+    "subtitle": "Required when block_type === 'running_route'. Distance / surface / difficulty / time-of-day used for user matching + safety guidance.",
+    "totalKm": "Total Distance (km)",
+    "elevationGainM": "Elevation Gain (m)",
+    "easyPace": "Easy Pace (min/km)",
+    "tempoPace": "Tempo Pace (min/km)",
+    "recommendedTime": "Recommended Times",
+    "removePace": "Remove Pace"
+  },
+  "adminTrekkingDifficulty": {
+    "easy": "Easy (flat / short — 1-2h, elevation under 200m)",
+    "moderate": "Moderate (typical hike — 3-4h, 200-500m elevation)",
+    "hard": "Hard (5h+, 500m+ elevation)",
+    "expert": "Expert (rock / winter / long course)"
+  },
+  "adminTrailType": {
+    "forest": "Forest",
+    "ridge": "Ridge",
+    "coastal": "Coastal",
+    "urban": "Urban",
+    "mountain": "Mountain"
+  },
+  "adminRecommendedGear": {
+    "label": "Recommended Gear (recommended_gear)",
+    "hint": "Pre-hike preparation guidance for the user. snake_case English (UI translates to 4 langs).",
+    "addCustom": "Add Custom",
+    "empty": "None"
+  },
+  "adminHazards": {
+    "label": "Hazards",
+    "hint": "Safety warnings — block matching for at-risk users + prominently shown in plan prompt.",
+    "addCustom": "Add Custom",
+    "empty": "None"
+  },
+  "adminTrailheadAddress": {
+    "label": "Trailhead Address",
+    "placeholder": "264 Uidong, Gangbuk-gu, Seoul (Doseonsa entrance)",
+    "hint": "Naver Geocoding input. May differ from the first stop's address (e.g., entry gate)."
+  },
+  "adminRunningSurface": {
+    "label": "Surface Type",
+    "asphalt": "Asphalt — road / park walkway",
+    "dirt": "Dirt — riverside walkway / dirt trail",
+    "mixed": "Mixed — asphalt + dirt + sidewalk",
+    "track": "Track — school / official athletics track"
+  },
+  "adminLoopType": {
+    "label": "Course Shape",
+    "loop": "Loop — start = end, no repeated path",
+    "outAndBack": "Out & Back — turnaround then return",
+    "pointToPoint": "Point to Point — start != end"
+  },
+  "adminLightingQuality": {
+    "label": "Night Lighting Quality",
+    "wellLit": "Well-lit — night-safe / sufficient lamps",
+    "partial": "Partial — dark stretches / caution at dusk-night",
+    "dark": "Dark — not recommended at night, dawn/day only"
+  },
+  "adminWaterStations": {
+    "label": "Water Refill Points",
+    "hint": "Fountains + cafes combined."
+  },
+  "adminPaceTarget": {
+    "label": "Pace Target (optional)",
+    "hint": "Operator-suggested values for level labeling. Leave blank to use the runner's own pace."
   }
 }
