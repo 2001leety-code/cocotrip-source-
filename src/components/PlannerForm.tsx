@@ -103,6 +103,13 @@ export interface PlannerFormValues {
   // 단도시면 hotel_address 만 사용 (backward compat). buildPrompt.js 가 다도시
   // 시 도시별 hotel 을 day 별 prompt 에 inject.
   hotelByCity?: Record<string, string>;
+  // 2026-05-21 (P125): 다도시 plan 의 사용자 명시적 입국/출국 도시. cityKey 형식
+  // (e.g. 'seoul', 'busan'). buildPrompt.js MULTI-CITY ENTRY/EXIT 가 Day 1 city =
+  // arrival_city, Day N city = departure_city 강제. arrival_airport / departure_airport
+  // 도 이 도시의 공항으로 자동 매핑 (Seoul → ICN/GMP, Busan → PUS, Jeju → CJU).
+  // 미입력 시 entry_city = mainCityKey 가 폴백 (backward compat).
+  arrival_city?: string;
+  departure_city?: string;
 }
 
 interface Props {

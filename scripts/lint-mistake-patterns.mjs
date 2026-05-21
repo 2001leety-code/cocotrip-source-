@@ -1020,6 +1020,7 @@ const RULES = [
   ['P122_multiCityLodgingPlaceholder', P122_multiCityLodgingPlaceholder],
   ['P123_hotelByCityForwarding', P123_hotelByCityForwarding],
   ['P124_arrivalDepartureSleepBuffer', P124_arrivalDepartureSleepBuffer],
+  ['P125_multiCityArrivalDeparture', P125_multiCityArrivalDeparture],
   ['P127_lodgingBookendMultiCityAnchor', P127_lodgingBookendMultiCityAnchor],
 ];
 
@@ -2254,6 +2255,94 @@ function P124_arrivalDepartureSleepBuffer({ changed }) {
       'P124_arrivalDepartureSleepBuffer',
       violations.join(' | '),
       '메모리 P124 — Day 1/N 새벽 stops 0건 + 8h sleep buffer. buildPrompt + responseValidator 2 layer 의무.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P125_multiCityArrivalDeparture — 메모리 P125 (2026-05-21).
+ * 사용자 신고 (5/21): "서울 부산이면 어디서 입국하고 어디서 출국하는지 표시해야되는데
+ * 없더라". Wizard cycle UI 로 arrival_city / departure_city 받아서 backend forward
+ * + buildPrompt MULTI-CITY ENTRY/EXIT block. 4 layer 검증:
+ *   - WizardStep0Destination: arrivalCityKey/departureCityKey props + 배지 UI
+ *   - WizardForm/index: state 보유 + body forward (arrival_city/departure_city)
+ *   - usePlannerHandlers: revision 에서도 forward
+ *   - ai-planner-full: body destructure + MULTI-CITY ENTRY/EXIT inject
+ *   - buildPrompt: MULTI-CITY HANDLING 의 P125 city ordering override 명시
+ */
+function P125_multiCityArrivalDeparture({ changed }) {
+  const STEP0 = 'src/components/WizardForm/WizardStep0Destination.tsx';
+  const WIZARD = 'src/components/WizardForm/index.tsx';
+  const HANDLERS = 'src/pages/PlannerPage/hooks/usePlannerHandlers.ts';
+  const BACKEND = 'api/ai-planner-full.js';
+  const PROMPT = 'api/_ai_core/buildPrompt.js';
+  if (
+    !isModified(STEP0, changed) &&
+    !isModified(WIZARD, changed) &&
+    !isModified(HANDLERS, changed) &&
+    !isModified(BACKEND, changed) &&
+    !isModified(PROMPT, changed)
+  ) {
+    return { skipped: true };
+  }
+  const violations = [];
+
+  if (existsSync(STEP0)) {
+    const c = readFileSync(STEP0, 'utf8');
+    if (!/arrivalCityKey/.test(c) || !/departureCityKey/.test(c)) {
+      violations.push(`${STEP0}: arrivalCityKey / departureCityKey props 누락 — 입국/출국 cycle UI 부재`);
+    }
+    if (!/setArrivalCityKey|setDepartureCityKey/.test(c)) {
+      violations.push(`${STEP0}: setArrivalCityKey / setDepartureCityKey 호출 누락 — role cycle 미구현`);
+    }
+  }
+
+  if (existsSync(WIZARD)) {
+    const c = readFileSync(WIZARD, 'utf8');
+    if (!/arrival_city:\s*arrivalCityKey/.test(c) && !/arrival_city:\s*\w+CityKey/.test(c)) {
+      violations.push(`${WIZARD}: body 에 arrival_city forward 누락 — wizard state → backend 전달 단절`);
+    }
+    if (!/departure_city:\s*departureCityKey/.test(c) && !/departure_city:\s*\w+CityKey/.test(c)) {
+      violations.push(`${WIZARD}: body 에 departure_city forward 누락`);
+    }
+  }
+
+  if (existsSync(HANDLERS)) {
+    const c = readFileSync(HANDLERS, 'utf8');
+    if (!/values\.arrival_city/.test(c)) {
+      violations.push(`${HANDLERS}: values.arrival_city forward 누락 — revision 경로 P125 미반영`);
+    }
+    if (!/values\.departure_city/.test(c)) {
+      violations.push(`${HANDLERS}: values.departure_city forward 누락`);
+    }
+  }
+
+  if (existsSync(BACKEND)) {
+    const c = readFileSync(BACKEND, 'utf8');
+    if (!/body\.arrival_city\s*\|\|\s*body\.arrivalCity/.test(c)) {
+      violations.push(`${BACKEND}: body.arrival_city || body.arrivalCity destructure 누락 — backend 가 wizard 입력 무시`);
+    }
+    if (!/body\.departure_city\s*\|\|\s*body\.departureCity/.test(c)) {
+      violations.push(`${BACKEND}: body.departure_city || body.departureCity destructure 누락`);
+    }
+    if (!/MULTI-CITY ENTRY\/EXIT.*P125/s.test(c)) {
+      violations.push(`${BACKEND}: MULTI-CITY ENTRY/EXIT (P125) Gemini message block 누락`);
+    }
+  }
+
+  if (existsSync(PROMPT)) {
+    const c = readFileSync(PROMPT, 'utf8');
+    if (!/P125/.test(c)) {
+      violations.push(`${PROMPT}: P125 마커 누락 — MULTI-CITY HANDLING 의 arrival_city/departure_city override 명시 부재`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P125_multiCityArrivalDeparture',
+      violations.join(' | '),
+      '메모리 P125 (2026-05-21) — wizard 도시 클릭 cycle 로 명시한 arrival_city/departure_city 가 backend buildPrompt 까지 전달돼야 Gemini 가 Day 1/N city 강제. 5 layer (UI props + state + revision handler + backend destructure + buildPrompt instruction) 의무.',
     );
   }
   return null;
