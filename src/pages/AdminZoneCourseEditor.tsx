@@ -7,7 +7,12 @@
 //   - 1초 throttle autosave (P105)
 //   - beforeunload pending flush
 //   - 낙관적 lock 기반 publish
-//   - 9 탭 sidebar
+//   - 9 탭 sidebar + block_type 별 동적 10탭
+//
+// 2026-05-21 trek/run 분기:
+//   - block_type === 'trekking'      → 9 탭 + Trekking Meta = 10 탭
+//   - block_type === 'running_route' → 9 탭 + Running Meta  = 10 탭
+//   - 그 외 (city_day / cycling / guided_tour / dmz_tour) → 9 탭 유지
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -15,7 +20,7 @@ import { toast, Toaster } from 'sonner';
 import {
   Settings, MapPin, Map, Star, Utensils,
   Ticket, TrendingUp, MessageSquare, FileText,
-  Save, Send, ArrowLeft,
+  Save, Send, ArrowLeft, Mountain, Footprints,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -31,22 +36,32 @@ import { BookingTab } from '@/components/admin/ZoneCourseEditor/BookingTab';
 import { TrendHintsTab } from '@/components/admin/ZoneCourseEditor/TrendHintsTab';
 import { PainpointsTab } from '@/components/admin/ZoneCourseEditor/PainpointsTab';
 import { MetaTab } from '@/components/admin/ZoneCourseEditor/MetaTab';
+import { TrekkingMetaTab } from '@/components/admin/ZoneCourseEditor/TrekkingMetaTab';
+import { RunningMetaTab } from '@/components/admin/ZoneCourseEditor/RunningMetaTab';
 
 type TabKey =
   | 'basic' | 'stops' | 'transit' | 'bestfor' | 'dietary'
-  | 'booking' | 'trend' | 'painpoints' | 'meta';
+  | 'booking' | 'trend' | 'painpoints' | 'meta'
+  | 'trekking_meta' | 'running_meta';
 
-const TABS: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: 'basic',      label: '① 기본정보',         icon: Settings },
-  { key: 'stops',      label: '② Stops',           icon: MapPin },
-  { key: 'transit',    label: '③ Transit Matrix',  icon: Map },
+const BASE_TABS: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: 'basic',      label: '① 기본정보',          icon: Settings },
+  { key: 'stops',      label: '② Stops',             icon: MapPin },
+  { key: 'transit',    label: '③ Transit Matrix',    icon: Map },
   { key: 'bestfor',    label: '④ Best / Unsuitable', icon: Star },
-  { key: 'dietary',    label: '⑤ Dietary',          icon: Utensils },
-  { key: 'booking',    label: '⑥ Booking',          icon: Ticket },
-  { key: 'trend',      label: '⑦ Trend Hints',      icon: TrendingUp },
-  { key: 'painpoints', label: '⑧ Painpoints',       icon: MessageSquare },
-  { key: 'meta',       label: '⑨ Meta·QA',          icon: FileText },
+  { key: 'dietary',    label: '⑤ Dietary',           icon: Utensils },
+  { key: 'booking',    label: '⑥ Booking',           icon: Ticket },
+  { key: 'trend',      label: '⑦ Trend Hints',       icon: TrendingUp },
+  { key: 'painpoints', label: '⑧ Painpoints',        icon: MessageSquare },
+  { key: 'meta',       label: '⑨ Meta·QA',           icon: FileText },
 ];
+
+const TREKKING_META_TAB: typeof BASE_TABS[number] = {
+  key: 'trekking_meta', label: '⑩ Trekking Meta', icon: Mountain,
+};
+const RUNNING_META_TAB: typeof BASE_TABS[number] = {
+  key: 'running_meta',  label: '⑩ Running Meta',  icon: Footprints,
+};
 
 const AUTOSAVE_DELAY_MS = 1000;
 
@@ -204,6 +219,24 @@ export default function AdminZoneCourseEditor() {
     return `${Math.floor(diff / 3600)}시간 전`;
   }, [lastSavedAt]);
 
+  // block_type 에 따라 sidebar 의 추가 탭 결정 (2026-05-21).
+  //   trekking      → 9 탭 + Trekking Meta
+  //   running_route → 9 탭 + Running Meta
+  //   그 외          → 9 탭만
+  const tabs = useMemo(() => {
+    const bt = draft.block_type || 'city_day';
+    if (bt === 'trekking') return [...BASE_TABS, TREKKING_META_TAB];
+    if (bt === 'running_route') return [...BASE_TABS, RUNNING_META_TAB];
+    return BASE_TABS;
+  }, [draft.block_type]);
+
+  // block_type 이 바뀌면 더 이상 유효하지 않은 탭에서 basic 으로 폴백.
+  useEffect(() => {
+    if (!tabs.some((t) => t.key === tab)) {
+      setTab('basic');
+    }
+  }, [tabs, tab]);
+
   if (authLoading || loadingDoc) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#faf9f6] text-gray-500 text-sm">
@@ -268,7 +301,7 @@ export default function AdminZoneCourseEditor() {
           {/* Sidebar 탭 */}
           <aside>
             <nav className="bg-white rounded-2xl border border-gray-100 p-2 lg:sticky lg:top-20">
-              {TABS.map((t) => {
+              {tabs.map((t) => {
                 const Icon = t.icon;
                 const active = tab === t.key;
                 return (
@@ -290,15 +323,17 @@ export default function AdminZoneCourseEditor() {
 
           {/* 컨텐츠 */}
           <main className="bg-white rounded-2xl border border-gray-100 p-5">
-            {tab === 'basic'      && <BasicTab        draft={draft} onChange={handleChange} isNew={isNew} />}
-            {tab === 'stops'      && <StopsTab        draft={draft} onChange={handleChange} />}
-            {tab === 'transit'    && <TransitMatrixTab draft={draft} onChange={handleChange} />}
-            {tab === 'bestfor'    && <BestForTab      draft={draft} onChange={handleChange} />}
-            {tab === 'dietary'    && <DietaryTab      draft={draft} onChange={handleChange} />}
-            {tab === 'booking'    && <BookingTab      draft={draft} onChange={handleChange} />}
-            {tab === 'trend'      && <TrendHintsTab   draft={draft} onChange={handleChange} />}
-            {tab === 'painpoints' && <PainpointsTab   draft={draft} />}
-            {tab === 'meta'       && <MetaTab         draft={draft} onChange={handleChange} />}
+            {tab === 'basic'         && <BasicTab        draft={draft} onChange={handleChange} isNew={isNew} />}
+            {tab === 'stops'         && <StopsTab        draft={draft} onChange={handleChange} />}
+            {tab === 'transit'       && <TransitMatrixTab draft={draft} onChange={handleChange} />}
+            {tab === 'bestfor'       && <BestForTab      draft={draft} onChange={handleChange} />}
+            {tab === 'dietary'       && <DietaryTab      draft={draft} onChange={handleChange} />}
+            {tab === 'booking'       && <BookingTab      draft={draft} onChange={handleChange} />}
+            {tab === 'trend'         && <TrendHintsTab   draft={draft} onChange={handleChange} />}
+            {tab === 'painpoints'    && <PainpointsTab   draft={draft} />}
+            {tab === 'meta'          && <MetaTab         draft={draft} onChange={handleChange} />}
+            {tab === 'trekking_meta' && <TrekkingMetaTab draft={draft} onChange={handleChange} />}
+            {tab === 'running_meta'  && <RunningMetaTab  draft={draft} onChange={handleChange} />}
           </main>
         </div>
       </div>

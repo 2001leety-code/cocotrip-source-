@@ -2171,7 +2171,90 @@
       "booking": "Booking",
       "trend": "Trend Hints",
       "painpoints": "Painpoints",
-      "meta": "Meta·QA"
+      "meta": "Meta·QA",
+      "trekkingMeta": "Trekking Meta",
+      "runningMeta": "Running Meta"
     }
+  },
+  "adminZoneCoursesTrekkingMeta": {
+    "title": "徒步元数据",
+    "subtitle": "block_type === 'trekking' 时必填。距离·难度·登山口用于用户匹配 + 安全提示。",
+    "totalDistanceKm": "总距离 (km)",
+    "elevationGainM": "累计爬升 (m)",
+    "estimatedDurationMin": "预估所需时间 (分钟)",
+    "startingElevationM": "起点海拔 (m)",
+    "highestPointM": "最高点海拔 (m)",
+    "trailheadAccessSubway": "地铁指引",
+    "trailheadAccessBus": "公交指引",
+    "trailheadAccessTaxi": "市区出租车费用 (KRW)",
+    "trailheadAccessParking": "可停车",
+    "seasonsRecommended": "推荐季节 (可选)"
+  },
+  "adminZoneCoursesRunningMeta": {
+    "title": "跑步元数据",
+    "subtitle": "block_type === 'running_route' 时必填。距离·路面·难度·时间段/照明用于用户匹配 + 安全提示。",
+    "totalKm": "总距离 (km)",
+    "elevationGainM": "累计爬升 (m)",
+    "easyPace": "Easy 配速 (分钟/km)",
+    "tempoPace": "Tempo 配速 (分钟/km)",
+    "recommendedTime": "推荐时段",
+    "removePace": "移除配速"
+  },
+  "adminTrekkingDifficulty": {
+    "easy": "Easy (平坦·短距离, 1-2 小时 / 海拔 200m 以下)",
+    "moderate": "Moderate (一般登山, 3-4 小时 / 海拔 200-500m)",
+    "hard": "Hard (5 小时以上 / 海拔 500m 以上)",
+    "expert": "Expert (攀岩·冬季·长线)"
+  },
+  "adminTrailType": {
+    "forest": "Forest (林径)",
+    "ridge": "Ridge (山脊)",
+    "coastal": "Coastal (海岸)",
+    "urban": "Urban (都市)",
+    "mountain": "Mountain (山地)"
+  },
+  "adminRecommendedGear": {
+    "label": "推荐装备 (recommended_gear)",
+    "hint": "对用户的事前准备指引。snake_case 英文 (UI 自动翻译为 4 种语言)。",
+    "addCustom": "添加自定义",
+    "empty": "无"
+  },
+  "adminHazards": {
+    "label": "危险要素 (hazards)",
+    "hint": "安全警告 — 拦截高风险用户匹配 + buildPrompt 突出显示。",
+    "addCustom": "添加自定义",
+    "empty": "无"
+  },
+  "adminTrailheadAddress": {
+    "label": "登山口地址",
+    "placeholder": "首尔特别市江北区牛耳洞道诜寺入口",
+    "hint": "Naver Geocoding 输入值。可能与首个 stop 的地址不同 (如入口大门)。"
+  },
+  "adminRunningSurface": {
+    "label": "路面类型 (surface_type)",
+    "asphalt": "Asphalt (沥青) — 道路 / 公园步道",
+    "dirt": "Dirt (土路) — 河滨步道 / 土质径",
+    "mixed": "Mixed (混合) — 沥青 + 土 + 人行道",
+    "track": "Track (跑道) — 学校 / 正式田径跑道"
+  },
+  "adminLoopType": {
+    "label": "线路形态 (loop_or_out_and_back)",
+    "loop": "Loop (环线) — 起点 = 终点, 无重复路径",
+    "outAndBack": "Out & Back (往返) — 折返后原路返回",
+    "pointToPoint": "Point to Point (单程) — 起点 != 终点"
+  },
+  "adminLightingQuality": {
+    "label": "夜间照明质量 (lighting_quality)",
+    "wellLit": "Well-lit (明亮) — 夜间安全 / 路灯充足",
+    "partial": "Partial (局部) — 部分路段昏暗 / 傍晚·夜间需注意",
+    "dark": "Dark (黑暗) — 夜间不推荐, 仅限清晨/白天"
+  },
+  "adminWaterStations": {
+    "label": "可补水地点数",
+    "hint": "饮水点 + 咖啡店合计。"
+  },
+  "adminPaceTarget": {
+    "label": "配速目标 (可选)",
+    "hint": "运营者推荐值 — 用于跑者水平标注。留空则使用用户自身配速。"
   }
 }

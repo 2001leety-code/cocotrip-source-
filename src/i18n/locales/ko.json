@@ -2171,7 +2171,90 @@
       "booking": "Booking",
       "trend": "Trend Hints",
       "painpoints": "Painpoints",
-      "meta": "Meta·QA"
+      "meta": "Meta·QA",
+      "trekkingMeta": "Trekking Meta",
+      "runningMeta": "Running Meta"
     }
+  },
+  "adminZoneCoursesTrekkingMeta": {
+    "title": "트레킹 메타",
+    "subtitle": "block_type === 'trekking' 일 때 필수. 거리·난이도·트레일헤드 등 사용자 매칭 + 안전 안내에 사용됨.",
+    "totalDistanceKm": "총 거리 (km)",
+    "elevationGainM": "누적 고도 (m)",
+    "estimatedDurationMin": "예상 소요 시간 (분)",
+    "startingElevationM": "출발 지점 고도 (m)",
+    "highestPointM": "최고 지점 고도 (m)",
+    "trailheadAccessSubway": "지하철 가이드",
+    "trailheadAccessBus": "버스 가이드",
+    "trailheadAccessTaxi": "도심 택시 비용 (KRW)",
+    "trailheadAccessParking": "주차 가능",
+    "seasonsRecommended": "권장 시즌 (선택)"
+  },
+  "adminZoneCoursesRunningMeta": {
+    "title": "러닝 메타",
+    "subtitle": "block_type === 'running_route' 일 때 필수. 거리·노면·난이도·시간대/조명은 사용자 매칭 + 안전 안내에 사용됨.",
+    "totalKm": "총 거리 (km)",
+    "elevationGainM": "누적 고도 (m)",
+    "easyPace": "Easy 페이스 (분/km)",
+    "tempoPace": "Tempo 페이스 (분/km)",
+    "recommendedTime": "권장 시간대",
+    "removePace": "페이스 제거"
+  },
+  "adminTrekkingDifficulty": {
+    "easy": "Easy (평탄·짧음, 1-2시간 / 고도 200m 이하)",
+    "moderate": "Moderate (일반 등산, 3-4시간 / 고도 200-500m)",
+    "hard": "Hard (난이도 높음, 5시간+ / 고도 500m+)",
+    "expert": "Expert (전문가 — 암벽·동계·롱코스)"
+  },
+  "adminTrailType": {
+    "forest": "Forest (숲길)",
+    "ridge": "Ridge (능선)",
+    "coastal": "Coastal (해안)",
+    "urban": "Urban (도심)",
+    "mountain": "Mountain (산악)"
+  },
+  "adminRecommendedGear": {
+    "label": "권장 장비 (recommended_gear)",
+    "hint": "사용자에게 사전 준비 안내. snake_case 영문 (UI 가 4-lang 으로 번역).",
+    "addCustom": "커스텀 추가",
+    "empty": "없음"
+  },
+  "adminHazards": {
+    "label": "위험 요소 (hazards)",
+    "hint": "안전 경고 — 사용자 매칭 차단 + buildPrompt 가 prominent 표시.",
+    "addCustom": "커스텀 추가",
+    "empty": "없음"
+  },
+  "adminTrailheadAddress": {
+    "label": "트레일헤드 주소",
+    "placeholder": "서울특별시 강북구 우이동 도선사 입구",
+    "hint": "Naver Geocoding 입력값. 시작 stop 의 주소와 다를 수 있음 (예: 진입 게이트)."
+  },
+  "adminRunningSurface": {
+    "label": "노면 종류 (surface_type)",
+    "asphalt": "Asphalt (아스팔트) — 도로 / 공원 보행로",
+    "dirt": "Dirt (흙길) — 하천 산책로 / 흙 트레일",
+    "mixed": "Mixed (혼합) — 아스팔트 + 흙 + 보도블럭",
+    "track": "Track (트랙) — 학교 / 공식 육상 트랙"
+  },
+  "adminLoopType": {
+    "label": "코스 형태 (loop_or_out_and_back)",
+    "loop": "Loop (순환) — 출발점 = 도착점, 동일 경로 X",
+    "outAndBack": "Out & Back (왕복) — turn-back 후 같은 길 복귀",
+    "pointToPoint": "Point to Point (편도) — 출발점 != 도착점"
+  },
+  "adminLightingQuality": {
+    "label": "야간 조명 품질 (lighting_quality)",
+    "wellLit": "Well-lit (밝음) — 야간 안전 / 가로등 충분",
+    "partial": "Partial (부분) — 구간별 어둠 / 저녁·밤 주의",
+    "dark": "Dark (어두움) — 야간 비추천, 새벽/낮 한정"
+  },
+  "adminWaterStations": {
+    "label": "물 보충 가능 지점 수",
+    "hint": "음수대 + 카페 합산."
+  },
+  "adminPaceTarget": {
+    "label": "페이스 목표 (선택)",
+    "hint": "운영자 권장치 — 사용자 수준 표기에 사용. 비워두면 사용자 본인 페이스 적용."
   }
 }
