@@ -11,6 +11,8 @@ import type { AirportOption } from './data';
 import type { WizardDict } from './types';
 import { MobileSelectDrawer } from '@/components/MobileSelectDrawer';
 import { useLanguage } from '@/hooks/useLanguage';
+// P142 (2026-05-22): 출국 공항 옵션 빌더 — 다도시 union dedup.
+import { getDepartureAirportOptions } from './helpers';
 // 2026-05-13 PR #393 후속: light helper 만 import (zone arrays 는 ZoneRecommender
 // lazy chunk 가 fetch — 본 컴포넌트는 도시 라벨만 필요).
 import { CITY_NAME_BY_KEY } from './zoneHelpers';
@@ -33,6 +35,10 @@ interface Step2Props {
   airportOptions: AirportOption[];
   arrivalTerminal: string;
   setArrivalTerminal: (v: string) => void;
+  /** P142 (2026-05-22): 출국 공항. 빈 문자열 = arrivalTerminal 폴백 (UI 에서 chip
+   *  "같은 공항 / Same as arrival" 표시). 사용자가 명시적으로 다른 공항 선택 가능. */
+  departureTerminal: string;
+  setDepartureTerminal: (v: string) => void;
   hotelAddress: string;
   setHotelAddress: (v: string) => void;
   arrivalTime: string;
@@ -126,7 +132,9 @@ export function WizardStep2Details(props: Step2Props) {
   const {
     p, isMobile, calendarLocale, dateRange, setDateRange, nights,
     paxInput, setPaxInput, mainCity, airportOptions,
-    arrivalTerminal, setArrivalTerminal, hotelAddress, setHotelAddress,
+    arrivalTerminal, setArrivalTerminal,
+    departureTerminal, setDepartureTerminal,
+    hotelAddress, setHotelAddress,
     arrivalTime, setArrivalTime, departureTime, setDepartureTime,
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
@@ -344,6 +352,35 @@ export function WizardStep2Details(props: Step2Props) {
             }))}
             icon={<Plane className="w-4 h-4 text-white/55" />}
           />
+        </div>
+      )}
+
+      {/* P142 (2026-05-22): 출국 공항 — 입국지와 다를 수 있어 (T1 입국 → T2 출국,
+          또는 ICN 입국 → GMP/PUS 출국) 별도 dropdown. 빈 값 = 입국 공항과 동일
+          (단도시 plan 절대다수 케이스). arrivalTerminal 이 'ALREADY'(이미 한국 체류)
+          여도 출국 공항은 필요하므로 노출.
+          이전 회귀: const departureAirport = arrivalTerminal; 하드코딩으로 입국=출국 강제. */}
+      {arrivalTerminal && (
+        <div>
+          <p className="text-sm text-white/50 mb-2.5 font-medium">
+            {(p as Record<string, string>).wizardWhichDepartureAirport || 'Which airport are you departing from?'}
+          </p>
+          <MobileSelectDrawer
+            value={departureTerminal}
+            onChange={(v) => setDepartureTerminal(v)}
+            title={(p as Record<string, string>).wizardWhichDepartureAirport || 'Departure airport'}
+            placeholder={(p as Record<string, string>).wizardDepartureSameAsArrival || 'Same as arrival airport'}
+            options={getDepartureAirportOptions(isMultiCity ? cityKeys : [mainCityKey || 'seoul']).map(opt => ({
+              value: opt.value,
+              label: opt.label,
+            }))}
+            icon={<Plane className="w-4 h-4 text-white/55" />}
+          />
+          {departureTerminal && departureTerminal !== arrivalTerminal && (
+            <p className="text-[11px] text-[#C99FFF] mt-1.5 font-medium">
+              {(p as Record<string, string>).wizardDepartureDifferentNote || 'Different from arrival — backend will plan accordingly'}
+            </p>
+          )}
         </div>
       )}
 

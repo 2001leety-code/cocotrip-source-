@@ -2242,7 +2242,10 @@ function P116_lodgingBookendLabel({ changed }) {
       if (!/function\s+computeLodgingRole/.test(content)) {
         violations.push(`${DT}: computeLodgingRole 헬퍼 미선언 — lodgingRole prop 값 계산 불가`);
       }
-      if (!/computeLodgingRole\(stop,\s*si,\s*stops,\s*!!intercity\)/.test(content)) {
+      // P143 (2026-05-22): intercity 5번째 인자 (checkout vs checkin 시간 비교) 추가.
+      // 4-arg `(stop, si, stops, !!intercity)` 또는 5-arg `(stop, si, stops, !!intercity, intercity)`
+      // 양쪽 통과 — P116 + P143 backward compat.
+      if (!/computeLodgingRole\(stop,\s*si,\s*stops,\s*!!intercity(?:,\s*intercity)?\)/.test(content)) {
         violations.push(`${DT}: computeLodgingRole 호출에 intercity 플래그 미전달 — checkout vs depart 구분 불가`);
       }
     }

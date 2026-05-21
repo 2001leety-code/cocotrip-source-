@@ -58,7 +58,8 @@ describe('P116 — source-level invariants (lodging role labeling)', () => {
 
   it('DayTimeline declares computeLodgingRole helper inside component scope', () => {
     expect(DAY_TIMELINE).toMatch(/function\s+computeLodgingRole\s*\(/);
-    expect(DAY_TIMELINE).toMatch(/computeLodgingRole\(stop,\s*si,\s*stops,\s*!!intercity\)/);
+    // P143 (2026-05-22): intercity 인자 5번째 추가 — checkout vs checkin 시간 비교용.
+    expect(DAY_TIMELINE).toMatch(/computeLodgingRole\(stop,\s*si,\s*stops,\s*!!intercity,\s*intercity\)/);
   });
 
   it('SortableStopCard forwards lodgingRole prop to StopCard', () => {

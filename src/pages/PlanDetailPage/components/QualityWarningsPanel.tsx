@@ -18,6 +18,8 @@ interface QualityWarningItem {
   position?: string;
   stopName?: string;
   distM?: number;
+  /** P143 (2026-05-22): intercity_first_stop_gap 등 자유형 메시지 fallback. */
+  message?: string;
   [key: string]: unknown;
 }
 
@@ -123,8 +125,14 @@ export function QualityWarningsPanel({
                     <ul className="space-y-0.5">
                       {w.items.map((item, j) => (
                         <li key={j} className="font-mono text-[10px] text-white/65">
-                          Day {item.day ?? '?'} · {item.position ?? '?'} · &quot;{item.stopName ?? ''}&quot;
-                          {typeof item.distM === 'number' ? ` · ${(item.distM / 1000).toFixed(1)}km` : ''}
+                          {item.message ? (
+                            <>{item.message}</>
+                          ) : (
+                            <>
+                              Day {item.day ?? '?'} · {item.position ?? '?'} · &quot;{item.stopName ?? ''}&quot;
+                              {typeof item.distM === 'number' ? ` · ${(item.distM / 1000).toFixed(1)}km` : ''}
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>

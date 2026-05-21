@@ -39,15 +39,40 @@ interface DayTimelineProps {
   plan?: PlanDocument;
 }
 
-/** Pull the user-friendly lodging label from PlanDocument input.
- *  Priority: input.hotel_address (literal) > input.recommended_zone_address >
- *  input.recommended_zone (zone key) > input.recommendedZone (camelCase legacy) >
- *  undefined. legacy plans 은 recommended_zone 자체가 없을 수 있어 모든 fallback 검사. */
-function getLodgingLabel(plan: PlanDocument | undefined): string | undefined {
+/** P140 (2026-05-22): per-day lodging label resolver. 다도시 plan 에서 Day N
+ *  city 기준 호텔 라벨 결정 — 이전 `getLodgingLabel(plan)` 단일 호출은 plan.input
+ *  .hotel_address 하나만 봐서 부산 day 가 "서울 중구 명동역" 노출되는 회귀.
+ *
+ *  Priority chain:
+ *  1. day.lodging.name / day.lodging.address — backend planPersister.backfillDayLodging 가
+ *     hotelByCity 또는 stops first lodging 으로 채움 (P119/P123).
+ *  2. plan.input.hotelByCity[day.city] — 사용자 wizard 도시별 호텔 input (P123 forward).
+ *  3. plan.input.hotel_address — 단도시 plan / legacy / entry city.
+ *  4. plan.input.recommended_zone_address — zone 사용자.
+ *  5. plan.input.recommended_zone — zone 키 (camelCase legacy 폴백 포함).
+ *  6. undefined → LodgingBookend 가 빈 라벨 graceful skip. */
+function getLodgingLabelForDay(plan: PlanDocument | undefined, day: PlanDay): string | undefined {
   if (!plan) return undefined;
+  // 1. backend backfilled day.lodging (P119/P123)
+  const dayLodging = (day as { lodging?: { name?: string | null; address?: string | null } }).lodging;
+  if (dayLodging) {
+    const dlName = String(dayLodging.name || '').trim();
+    if (dlName.length > 0) return dlName;
+    const dlAddr = String(dayLodging.address || '').trim();
+    if (dlAddr.length > 0) return dlAddr;
+  }
   const input = (plan.input || {}) as Record<string, unknown>;
+  // 2. 다도시 hotelByCity Record (P123)
+  const dayCity = String(day.city || '').trim().toLowerCase();
+  const hotelByCity = (input.hotelByCity as Record<string, string> | undefined) || undefined;
+  if (dayCity && hotelByCity && typeof hotelByCity === 'object') {
+    const cityHotel = String(hotelByCity[dayCity] || '').trim();
+    if (cityHotel.length > 0) return cityHotel;
+  }
+  // 3. plan-level hotel_address (단도시 / entry city / legacy)
   const hotelAddr = (input.hotel_address as string) || '';
   if (typeof hotelAddr === 'string' && hotelAddr.trim().length > 0) return hotelAddr;
+  // 4-5. zone fallback
   const zoneAddr = (input.recommended_zone_address as string) || '';
   if (typeof zoneAddr === 'string' && zoneAddr.trim().length > 0) return zoneAddr;
   const zone = (input.recommended_zone as string)
@@ -88,19 +113,49 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
    *  - 마지막 stop 호텔 → 'return' (취침 복귀)
    *  - 중간 stop 호텔 → 'checkin' (city-change day 새 호텔)
    *  - 비-lodging → undefined (no badge)
+   *
+   * P143 (2026-05-22): city-change day 의 첫 lodging stop role 정확도 보강.
+   * 이전 회귀: Seoul→Busan KTX 09:30 plan 에서 Day 3 첫 stop 'Hotel in Haeundae'
+   * (Busan 호텔) 가 '체크아웃' badge 로 잘못 표시 (KTX 후 도착 호텔 = checkin 이어야).
+   * 판정: stop.start_time > intercity.arrival_at → KTX 도착 후 stop = 'checkin'.
+   * intercity.recommended_depart > stop.start_time → KTX 출발 전 stop = 'checkout'.
    */
   function computeLodgingRole(
     stop: PlanStop,
     si: number,
     stopsArr: PlanStop[],
     hasIntercity: boolean,
+    intercity?: IntercityTransitSegment | null,
   ): LodgingRole | undefined {
     if (stop.category !== 'lodging') return undefined;
     const isFirst = si === 0;
     const isLast = si === stopsArr.length - 1;
-    if (isFirst) return hasIntercity ? 'checkout' : 'depart';
+    if (isFirst && hasIntercity) {
+      // P143: intercity arrival_at vs stop.start_time 으로 checkout/checkin 판정.
+      const stopMin = parseHHMM(stop.start_time);
+      const arrivalMin = parseHHMM(intercity?.arrival_at);
+      const departMin = parseHHMM(intercity?.recommended_depart);
+      if (stopMin !== null) {
+        if (arrivalMin !== null && stopMin >= arrivalMin) return 'checkin'; // 도착 후 = 신도시 체크인
+        if (departMin !== null && stopMin <= departMin) return 'checkout'; // 출발 전 = 구도시 체크아웃
+      }
+      // fallback (시간 정보 부족): 기존 동작 — first + intercity = checkout 가정
+      return 'checkout';
+    }
+    if (isFirst) return 'depart';
     if (isLast) return 'return';
     return 'checkin';
+  }
+
+  /** P143: "HH:MM" → minutes since midnight. invalid → null. */
+  function parseHHMM(t: string | undefined | null): number | null {
+    if (!t) return null;
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t));
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+    if (!Number.isFinite(h) || !Number.isFinite(mm) || h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+    return h * 60 + mm;
   }
 
   return (
@@ -203,12 +258,15 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
 
       {/* 2026-05-08: 숙소 출발 카드 — RouteAgent 가 day.lodging_to_first 에 ODsay
           데이터를 채운 경우에만 노출. 첫 stop 의 transit_from_prev 와 동일 데이터를
-          쓸 수도 있지만, day-level 에 별도로 두면 호텔 라벨 + 시각 강조 가능. */}
-      {day.lodging_to_first && stops.length > 0 && (
+          쓸 수도 있지만, day-level 에 별도로 두면 호텔 라벨 + 시각 강조 가능.
+          P141 (2026-05-22): 첫 stop 자체가 lodging stop (체크인/출발 호텔) 이면
+          day-level BookEnd 는 동일 호텔→동일 호텔 hop 또는 zone placeholder→hotel
+          redundant 표시 → skip. lodging stop card 가 이미 호텔 표시 + 'depart' badge. */}
+      {day.lodging_to_first && stops.length > 0 && stops[0]?.category !== 'lodging' && (
         <LodgingBookend
           transit={day.lodging_to_first as TransitFromPrev}
           variant="depart"
-          lodgingLabel={getLodgingLabel(plan)}
+          lodgingLabel={getLodgingLabelForDay(plan, day)}
           otherLabel={(stops[0] as { display_name?: string; name?: string }).display_name
             || (stops[0] as { display_name?: string; name?: string }).name
             || ''}
@@ -251,7 +309,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                       stopId={stopIds[si]}
                       editMode={editMode}
                       onDelete={() => setDeleteTarget(si)}
-                      lodgingRole={computeLodgingRole(stop, si, stops, !!intercity)}
+                      lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)}
                     />
                   </div>
                 );
@@ -298,7 +356,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
                     currName={destName}
                   />
                 )}
-                <StopCard stop={stop} lodgingRole={computeLodgingRole(stop, si, stops, !!intercity)} />
+                <StopCard stop={stop} lodgingRole={computeLodgingRole(stop, si, stops, !!intercity, intercity)} />
               </motion.div>
             );
           })}
@@ -306,12 +364,15 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       )}
 
       {/* 2026-05-08: 숙소 복귀 카드 — RouteAgent Phase 2.6 가 day.last_to_lodging 에
-          ODsay 데이터를 채운 경우만. 마지막 stop 카드 바로 아래. */}
-      {day.last_to_lodging && stops.length > 0 && (
+          ODsay 데이터를 채운 경우만. 마지막 stop 카드 바로 아래.
+          P141 (2026-05-22): 마지막 stop 자체가 lodging stop (취침 복귀 호텔) 이면
+          day-level BookEnd 는 hotel→hotel redundant → skip. lodging stop card 가
+          이미 호텔 표시 + 'return' badge. */}
+      {day.last_to_lodging && stops.length > 0 && stops[stops.length - 1]?.category !== 'lodging' && (
         <LodgingBookend
           transit={day.last_to_lodging as TransitFromPrev}
           variant="return"
-          lodgingLabel={getLodgingLabel(plan)}
+          lodgingLabel={getLodgingLabelForDay(plan, day)}
           otherLabel={(stops[stops.length - 1] as { display_name?: string; name?: string }).display_name
             || (stops[stops.length - 1] as { display_name?: string; name?: string }).name
             || ''}
