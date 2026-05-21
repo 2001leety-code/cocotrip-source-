@@ -39,6 +39,9 @@ export function shapeRequest(body, authenticatedEmail) {
   const regions = _safeRegions || _safeRegion || _safeArea || ['Seoul'];
   const duration = body.duration || 'full_day';
   const durationDays = body.durationDays || (duration === 'multi_day' ? 2 : 1);
+  // startDate convention: inclusive day-1 of the plan (YYYY-MM-DD KST).
+  // durationDays is also inclusive — 1박2일 = durationDays:2 (Day 1 + Day 2).
+  // RouteAgent/buildPrompt 가 동일 inclusive 컨벤션 가정 (P10 lesson).
   const startDate = body.date || body.startDate || new Date().toISOString().split('T')[0];
   // Audit P0-#2: email은 인증된 값 (authenticatedEmail). body.email 무시.
   const email = authenticatedEmail;
