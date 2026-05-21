@@ -16,8 +16,19 @@ import {
 } from '@/lib/zone-courses-firestore';
 
 const CITY_FILTERS: Array<ZoneCourseCity | 'all'> = [
-  'all', 'seoul', 'busan', 'jeju', 'gyeongju', 'jeonju',
-  'gangneung', 'sokcho', 'andong', 'suwon', 'gangwon',
+  'all',
+  // 서울권
+  'seoul', 'suwon',
+  // 부산/경상
+  'busan', 'gyeongju', 'andong', 'daegu', 'pohang', 'gyeongsang',
+  // 제주
+  'jeju',
+  // 전라
+  'jeonju',
+  // 강원
+  'gangneung', 'sokcho', 'gangwon',
+  // 충청
+  'daejeon', 'chungcheong',
 ];
 
 const SOURCE_FILTERS: Array<ZoneCourseSource | 'all'> = [

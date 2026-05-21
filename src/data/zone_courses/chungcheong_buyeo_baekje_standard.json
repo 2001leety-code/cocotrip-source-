@@ -1,0 +1,290 @@
+{
+  "id": "CHUNGCHEONG_DAY_BUYEO_BAEKJE_STANDARD",
+  "city": "chungcheong",
+  "zone": "Buyeo Baekje",
+  "theme": "부여 백제 유적 + 궁남지 + 국립부여박물관",
+  "theme_i18n": {
+    "ko": "부여 백제 유적 + 궁남지 + 국립부여박물관",
+    "en": "Buyeo Baekje Heritage + Gungnamji Pond + National Buyeo Museum",
+    "ja": "扶余 百済遺跡 + 宮南池 + 国立扶余博物館",
+    "zh": "扶余 百济遗址 + 宫南池 + 国立扶余博物馆"
+  },
+  "intensity": "standard",
+  "duration_min": 420,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "국립부여박물관",
+      "name_i18n": {
+        "ko": "국립부여박물관",
+        "en": "National Buyeo Museum",
+        "ja": "国立扶余博物館",
+        "zh": "国立扶余博物馆"
+      },
+      "address": "충청남도 부여군 부여읍 금성로 5",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 입장. 월요일 휴관."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "백제 금동대향로 국보 실물 소장. 백제 역사·문화 핵심 전시. 월요일 휴관.",
+        "en": "Houses the Baekje Gilt-bronze Incense Burner (National Treasure). Core Baekje history exhibits. Closed Mondays.",
+        "ja": "百済金銅大香炉（国宝）を所蔵。百済の歴史・文化の核心展示。月曜休館。",
+        "zh": "收藏百济金铜大香炉（国宝实物）。百济历史文化核心展示。周一闭馆。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "부소산성",
+      "name_i18n": {
+        "ko": "부소산성",
+        "en": "Busosanseong Fortress",
+        "ja": "扶蘇山城",
+        "zh": "扶苏山城"
+      },
+      "address": "충청남도 부여군 부여읍 부소로 31",
+      "stay_min": 80,
+      "entry_fee_krw": 2000,
+      "entry_fee": {
+        "adult": 2000,
+        "child": 1000,
+        "senior": 1000,
+        "toddler": 0,
+        "notes": "백마강 뷰 포함. 낙화암 관람 포함."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "백제 마지막 도성 유적. 낙화암·백마강 조망. 숲길 산책 코스 약 2km.",
+        "en": "Remnants of Baekje's last capital. Nakhwaam Rock and Baekmagang River views. 2km forest walk.",
+        "ja": "百済最後の都城跡。落花岩・白馬江の眺望。森の散策路約2km。",
+        "zh": "百济最后都城遗址。落花岩和白马江景观。约2km森林步道。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 100
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "충청남도 부여군 부여읍",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "부여 향토 음식 — 연잎밥 / 연근정식 / 돌솥비빔밥 (식이 제약 매칭).",
+        "en": "Buyeo local food — lotus leaf rice / lotus root set / dolsot bibimbap matched by dietary needs.",
+        "ja": "扶余郷土料理 — 蓮の葉ご飯 / レンコン定食 / 石釜ビビンバ (食事制限とマッチング)。",
+        "zh": "扶余乡土料理 — 荷叶饭 / 莲藕套餐 / 石锅拌饭 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 195
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "궁남지",
+      "name_i18n": {
+        "ko": "궁남지",
+        "en": "Gungnamji Pond",
+        "ja": "宮南池",
+        "zh": "宫南池"
+      },
+      "address": "충청남도 부여군 부여읍 동남리",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료. 7-8월 연꽃 축제 기간 방문 권장."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 최초 인공 연못 (백제 무왕 시대). 7-8월 연꽃 만발. 포룡정 정자 포토 스팟.",
+        "en": "Korea's oldest man-made pond (Baekje King Mu era). Full lotus blooms July-August. Poryungjeong pavilion photo spot.",
+        "ja": "韓国最古の人工池（百済・武王時代）。7-8月は蓮の花が満開。浮龍亭のフォトスポット。",
+        "zh": "韩国最古老人工池（百济武王时期）。7-8月荷花盛开。浮龙亭是拍照胜地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 270
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "정림사지",
+      "name_i18n": {
+        "ko": "정림사지",
+        "en": "Jeongnimsaji Temple Site",
+        "ja": "定林寺址",
+        "zh": "定林寺址"
+      },
+      "address": "충청남도 부여군 부여읍 정림로 83",
+      "stay_min": 40,
+      "entry_fee_krw": 1500,
+      "entry_fee": {
+        "adult": 1500,
+        "child": 700,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "백제 5층 석탑 (국보 9호) 현장. 유물전시관 포함."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "백제 5층 석탑 (국보 9호). 1400년 역사. 당 소정방의 전승비 새겨짐 — 역사의 아이러니.",
+        "en": "Five-story stone pagoda (National Treasure No.9). 1400-year history. Tang general Su Dingfang's victory inscription — historical irony.",
+        "ja": "百済五重石塔（国宝9号）。1400年の歴史。唐・蘇定方の戦勝碑が刻まれた歴史の皮肉。",
+        "zh": "百济五层石塔（国宝9号）。1400年历史。刻有唐将苏定方战胜碑铭——历史的讽刺。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 340
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "충청남도 부여군 부여읍 중앙로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "부여 저녁 — 갈비찜 / 청국장 / 도토리묵무침 (식이 제약 매칭).",
+        "en": "Buyeo dinner — braised short rib / cheonggukjang / acorn jelly salad.",
+        "ja": "扶余の夕食 — カルビチム / チョングクジャン / どんぐりムク和え物。",
+        "zh": "扶余晚餐 — 炖排骨 / 清麹酱 / 橡子凉粉拌菜。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 390
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 600,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 800,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "taxi",
+      "duration_min": 5,
+      "distance_m": 500,
+      "cost_krw": 3500,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 5,
+        "distance_m": 500,
+        "cost_krw": 3500
+      }
+    }
+  },
+  "best_for": ["history_lover", "culture_lover", "nature_walker", "slow_travel"],
+  "unsuitable_for": [],
+  "dietary_options": ["vegetarian", "vegan"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 국립부여박물관·정림사지 월요일 휴관 주의. 7-8월 연꽃 축제 시즌 방문 강력 권장. 연잎밥 등 채식 친화 메뉴 다수 — vegan/vegetarian 옵션 표기. 식당 슬롯(order 3/6)은 verified_lunch/dinner placeholder — 부여 연잎밥 DB 수집 권장."
+}

@@ -145,16 +145,20 @@ export function WizardStep0Reservation({
         </div>
       )}
 
+      {/* P133 (2026-05-21): all_done 안내 박스 — free-claim funnel 제거(2026-05-05) 이후
+          CTA 가 step 1 로 그대로 진행하므로 구 funnel 언급 제거.
+          사용자에게는 "AI 일정을 받을 수 있다"는 정확한 안내만 노출. */}
       {status === 'all_done' && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-sm text-white/80 leading-relaxed">
-          {p.resAllDoneNote || "Great — you'll be redirected to the free-plan claim form on the next step. Upload your booking proof and we'll send your full itinerary within 24 hours."}
+          {p.resAllDoneNote || "You're all set! We'll build your personalized AI itinerary based on your trip details in the next steps."}
         </div>
       )}
 
       <button onClick={onNext} disabled={!canContinue}
         className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-35 hover:scale-[1.03] transition-all"
         style={{ background: canContinue ? (isMobile ? 'linear-gradient(135deg,#B668FC,#FF6B9D)' : 'linear-gradient(135deg,#7C5CFC,#EA537E)') : 'rgba(255,255,255,.1)' }}>
-        {status === 'all_done' ? (p.resGoClaim || 'Continue to free claim form') : (p.resNext || 'Continue')} <ChevronRight className="w-5 h-5" />
+        {/* P133: all_done 분기도 동일 CTA — 구 funnel 오해 소지 제거. resNext 재사용. */}
+        {p.resNext || 'Continue'} <ChevronRight className="w-5 h-5" />
       </button>
     </div>
   );

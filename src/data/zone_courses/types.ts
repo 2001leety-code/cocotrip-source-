@@ -31,7 +31,16 @@ export type ZoneCourseCity =
   | 'sokcho'
   | 'andong'
   | 'suwon'
-  | 'gangwon';
+  | 'gangwon'
+  // 강원 도시 (Phase E #2, 2026-05-21)
+  // gangneung / sokcho 는 기존 존재 — 강원권 region 별도 추가
+  // 경상 권역 (Phase E #2, 2026-05-21)
+  | 'daegu'
+  | 'pohang'
+  | 'gyeongsang'
+  // 충청 권역 (Phase E #2, 2026-05-21)
+  | 'daejeon'
+  | 'chungcheong';
 
 /** 코스 강도 — 운영자가 분류 */
 export type ZoneCourseIntensity = 'relaxed' | 'standard' | 'packed';

@@ -1,0 +1,284 @@
+{
+  "id": "DAEJEON_DAY_EUNHAENGDONG_STANDARD",
+  "city": "daejeon",
+  "zone": "Eunhaengdong",
+  "theme": "은행동 거리 + 성심당 + 국립중앙과학관",
+  "theme_i18n": {
+    "ko": "은행동 거리 + 성심당 + 국립중앙과학관",
+    "en": "Eunhaengdong Street + Sungsimdang Bakery + National Science Museum",
+    "ja": "銀杏洞通り + ソンシムダン + 国立中央科学館",
+    "zh": "银杏洞街道 + 圣心堂面包店 + 国立中央科学馆"
+  },
+  "intensity": "standard",
+  "duration_min": 420,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "food",
+      "name": "성심당",
+      "name_i18n": {
+        "ko": "성심당",
+        "en": "Sungsimdang Bakery",
+        "ja": "ソンシムダン",
+        "zh": "圣心堂面包店"
+      },
+      "address": "대전광역시 중구 대종로 480",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "입장 무료 (베이커리 구매). 튀김소보로·판타롱부추빵 인기. 오전 오픈런 권장."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대전 대표 베이커리. 1956년 창업. 튀김소보로·판타롱부추빵 필수 구매. 오전 일찍 방문 권장.",
+        "en": "Daejeon's iconic bakery since 1956. Must-buy: twigim soboro, fantarong buchupang (chive bread). Go early.",
+        "ja": "1956年創業の大田を代表するベーカリー。揚げソボロとパンタロン韮パンは必買い。午前中の早い時間がおすすめ。",
+        "zh": "大田标志性面包店，创立于1956年。必买：炸酥皮面包、韭菜面包。建议早上去。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "으능정이 문화의 거리",
+      "name_i18n": {
+        "ko": "으능정이 문화의 거리",
+        "en": "Euneungjeong-i Culture Street",
+        "ja": "ウヌンジョンイ文化の通り",
+        "zh": "银行洞文化街"
+      },
+      "address": "대전광역시 중구 은행동 으능정이문화의거리",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대전 최대 번화가. 카페·식당·쇼핑 집결. 주말 버스킹 공연.",
+        "en": "Daejeon's main shopping and entertainment district. Weekend busking performances.",
+        "ja": "大田最大の繁華街。カフェ・レストラン・ショッピングが集結。週末はバスキングも。",
+        "zh": "大田最大繁华街区。咖啡馆、餐厅、购物聚集。周末有街头表演。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 50
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대전광역시 중구 은행동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "대전 향토 음식 — 두부두루치기 / 칼국수 / 설렁탕 (식이 제약 매칭).",
+        "en": "Daejeon local food — dubu durutchigi / kalguksu / seolleongtang matched by dietary needs.",
+        "ja": "大田郷土料理 — 豆腐トゥルチギ / カルグクス / ソルロンタン (食事制限とマッチング)。",
+        "zh": "大田乡土料理 — 豆腐炒锅 / 刀削面 / 牛骨汤 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 115
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "국립중앙과학관",
+      "name_i18n": {
+        "ko": "국립중앙과학관",
+        "en": "National Science Museum",
+        "ja": "国立中央科学館",
+        "zh": "国立中央科学馆"
+      },
+      "address": "대전광역시 유성구 대덕대로 481",
+      "stay_min": 90,
+      "entry_fee_krw": 1000,
+      "entry_fee": {
+        "adult": 1000,
+        "child": 500,
+        "senior": 0,
+        "toddler": 0,
+        "free_with": ["cultural_heritage_day", "first_wednesday"],
+        "notes": "월요일 휴관. 천문대 별도 요금."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 대표 과학관. 상설·기획 전시 풍부. 가족/어린이 동반 최적. 야외 수목원 포함.",
+        "en": "Korea's premier science museum. Rich permanent and special exhibits. Great for families. Includes outdoor arboretum.",
+        "ja": "韓国を代表する科学館。常設・企画展示が豊富。家族連れに最適。屋外樹木園も。",
+        "zh": "韩国代表性科学馆。常设和特别展览丰富。最适合家庭出游。含户外植物园。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 190
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "대전 엑스포 과학공원",
+      "name_i18n": {
+        "ko": "대전 엑스포 과학공원",
+        "en": "Daejeon Expo Science Park",
+        "ja": "大田エキスポ科学公園",
+        "zh": "大田世博科学公园"
+      },
+      "address": "대전광역시 유성구 대덕대로 480",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "공원 입장 무료. 일부 시설 별도 유료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "1993 대전엑스포 부지. 한빛탑 + 야외 공원 산책 코스. 저녁 분수 쇼 (계절 운영).",
+        "en": "Site of the 1993 Daejeon Expo. Hanbit Tower + outdoor park walk. Evening fountain show (seasonal).",
+        "ja": "1993年大田エキスポ会場跡地。ハンビットタワー + 屋外公園散策。夜の噴水ショー（季節限定）。",
+        "zh": "1993年大田世博会场地。韩光塔 + 户外公园散步。夜晚喷泉表演（季节性）。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 295
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대전광역시 유성구",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "유성 저녁 — 갈비찜 / 삼겹살 / 콩나물국밥 (식이 제약 매칭).",
+        "en": "Yuseong dinner — braised short rib / samgyeopsal / bean sprout soup rice.",
+        "ja": "儒城の夕食 — カルビチム / サムギョプサル / コンナムルクッパブ。",
+        "zh": "儒城晚餐 — 炖排骨 / 五花肉烤肉 / 豆芽汤饭。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 370
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 350,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 350,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "subway",
+      "duration_min": 20,
+      "distance_m": 5000,
+      "cost_krw": 1400,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "subway",
+        "duration_min": 20,
+        "distance_m": 5000,
+        "cost_krw": 1400
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 3000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-21",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 3000,
+        "cost_krw": 5000
+      }
+    }
+  },
+  "best_for": ["family", "science_lover", "food_lover", "culture_lover"],
+  "unsuitable_for": [],
+  "dietary_options": ["vegetarian"],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-21",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-21",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 성심당 오전 오픈런 권장 (인기 빵 조기 품절). 식당 슬롯(order 3/6)은 verified_lunch/dinner placeholder — 대전 두부두루치기 DB 수집 권장. 국립중앙과학관 월요일 휴관."
+}

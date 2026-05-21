@@ -337,6 +337,43 @@ function checkHotelByCityCleanup() {
 }
 
 // ---------------------------------------------------------------------------
+// (e) all_done CTA "free claim" 레거시 문자열 잔존 감지 (P133)
+// ---------------------------------------------------------------------------
+function checkAllDoneFreeClaim() {
+  const LABEL = 'e:all_done-free-claim-label';
+  const step0Src = readFile('src/components/WizardForm/WizardStep0Reservation.tsx');
+
+  if (!step0Src) {
+    recordWarn(LABEL, 'WizardStep0Reservation.tsx 없음 — 검사 skip');
+    return;
+  }
+
+  // 2026-05-05 free-claim funnel 제거 이후 CTA/안내 박스에 "free claim" 문자열 잔존 시 warn.
+  // 패턴: resGoClaim 키 사용 (p.resGoClaim 으로 JSX 렌더링 시) — 주석/문자열 내 언급은 오탐.
+  // 안내 박스 fallback 텍스트에 "claim form" 등이 남아있으면 실제 렌더링에 노출되므로 별도 감지.
+  const hasResGoClaim = /p\.resGoClaim/.test(step0Src);
+  // || 조건: fallback 텍스트('...' 또는 "...") 에 "free claim" 또는 "claim form" 포함 감지
+  // 주석 행(// 로 시작) 및 JSX 주석({/* */}) 은 제외
+  const nonCommentLines = step0Src
+    .split('\n')
+    .filter(l => !/^\s*\/\//.test(l) && !/^\s*\{\/\*/.test(l) && !/^\s*\*/.test(l))
+    .join('\n');
+  const hasFallbackFreeClaim = /['"`][^'"`]*free[- ]claim[^'"`]*['"`]/i.test(nonCommentLines);
+  const hasFreeClaim = hasResGoClaim || hasFallbackFreeClaim;
+
+  if (hasFreeClaim) {
+    recordWarn(
+      LABEL,
+      'WizardStep0Reservation.tsx 에 "free claim" 또는 resGoClaim 잔존 — ' +
+      '2026-05-05 free-claim funnel 제거 이후 dead branch 텍스트. ' +
+      'CTA 를 resNext 로 통일하고 안내 박스를 free-claim 언급 없는 내용으로 교체하세요 (P133).',
+    );
+  } else {
+    recordPass(LABEL);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 실행
 // ---------------------------------------------------------------------------
 console.log('R-P133 카탈로그 ↔ DB ↔ 위자드 동기 lint 실행 중...\n');
@@ -346,6 +383,7 @@ checkCatalogSync();
 checkReservationStatusPayload();
 checkReservationCleanupEffect();
 checkHotelByCityCleanup();
+checkAllDoneFreeClaim();
 
 console.log(
   `\n총 검사: ${total} | 통과: ${passCount} | 경고: ${warns.length} | 오류: ${errors.length}`,
