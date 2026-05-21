@@ -1210,6 +1210,14 @@ const RULES = [
   ['P130_intentClassifierMonitoring', P130_intentClassifierMonitoring],
   ['P132_prDescriptionImpactSections', P132_prDescriptionImpactSections],
   ['P133_catalogSync', P133_catalogSync],
+  ['P138_routeEnrichPhase1Parallel', P138_routeEnrichPhase1Parallel],
+  ['P139_airportBookendException', P139_airportBookendException],
+  ['P140_perDayLodgingLabel', P140_perDayLodgingLabel],
+  ['P141_lodgingBookendDedup', P141_lodgingBookendDedup],
+  ['P142_arrivalDepartureTerminalSplit', P142_arrivalDepartureTerminalSplit],
+  ['P143_intercityFirstStopGap', P143_intercityFirstStopGap],
+  ['P144_transitFallbackDetail', P144_transitFallbackDetail],
+  ['P145_cityChangeTimeClamp', P145_cityChangeTimeClamp],
 ];
 
 /**
@@ -5933,6 +5941,273 @@ function runSelfTest() {
   }
   process.stdout.write(`\n[SELF-TEST] ${pass}/${cases.length} cases passed (${fail} failed)\n`);
   return fail > 0 ? 1 : 0;
+}
+
+// ----------------------------------------------------------------------------
+// P138-P145 lint rules (R-P138 ~ R-P145, 2026-05-22 세션 fix 박제)
+// ----------------------------------------------------------------------------
+
+/**
+ * P138_routeEnrichPhase1Parallel — 메모리 P138 (2026-05-22, PR #524).
+ * RouteAgent.js Phase 1 (Naver Geocoding) 의 sequential `for (const place of places)`
+ * → `Promise.all(places.map(async (place) => ...))` 병렬화. Vercel 5분 cap 차단.
+ * 회귀 슬롯: tests/unit/route-agent-phase1-parallel-p138.test.ts (7 케이스).
+ */
+function P138_routeEnrichPhase1Parallel({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  // Phase 1 부분이 Promise.all(places.map(async (place)...)) 패턴 사용 강제.
+  if (!/Phase 1[\s\S]{0,2000}await Promise\.all\(places\.map\(async \(place\) =>/.test(content)) {
+    violations.push(`${FILE}: Phase 1 (Naver Geocoding) 의 outer loop = Promise.all(places.map(async (place))) 누락 — sequential 회귀 (Vercel 5분 cap 임박)`);
+  }
+  // 이전 for-of + axios.get(geoUrl) 회귀 패턴 부재 강제.
+  if (/for \(const place of places\)\s*\{[\s\S]{0,500}axios\.get\([^)]*geoUrl/.test(content)) {
+    violations.push(`${FILE}: 이전 sequential geocoding 회귀 패턴 (for-of + axios.get(geoUrl)) 잔존 — 병렬화 안 됨`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P138_routeEnrichPhase1Parallel',
+      violations.join(' | '),
+      '메모리 P138 — Phase 1 Naver Geocoding 병렬화. for-of → Promise.all(places.map). Vercel 5분 cap 차단. tests/unit/route-agent-phase1-parallel-p138.test.ts.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P139_airportBookendException — 메모리 P139 (2026-05-22, PR #526).
+ * validateLodgingBookend 의 airport_transfer/airport 카테고리 false-positive 차단.
+ * isAirportTransferStop helper + multi-city / 단도시 양쪽 분기 skip.
+ * 회귀 슬롯: tests/unit/route-enrichment-airport-bookend-p139.test.ts (17 케이스).
+ */
+function P139_airportBookendException({ changed }) {
+  const FILE = 'api/_ai_core/routeEnrichment.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  if (!/function\s+isAirportTransferStop/.test(content)) {
+    violations.push(`${FILE}: isAirportTransferStop helper 누락 — multi-city Day N airport false-positive 회귀`);
+  }
+  if (!/cat\s*===\s*['"]airport_transfer['"]\s*\|\|\s*cat\s*===\s*['"]airport['"]/.test(content)) {
+    violations.push(`${FILE}: isAirportTransferStop 의 'airport_transfer' || 'airport' 양쪽 매칭 누락`);
+  }
+  // multi-city + 단도시 양쪽 분기에 isAirportTransferStop check 적용 강제.
+  const skipMatches = content.match(/isAirportTransferStop\([^)]+\)\s*\?\s*null\s*:\s*distanceMeters/g) || [];
+  if (skipMatches.length < 4) {
+    violations.push(`${FILE}: isAirportTransferStop skip 패턴 ${skipMatches.length}회 등장 — 양쪽 분기 (multi-city/단도시) × first/last = 최소 4회 필요`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P139_airportBookendException',
+      violations.join(' | '),
+      '메모리 P139 — airport_transfer category skip. plan 9845a69e Day 5 인천공항 349km false-positive 차단. tests/unit/route-enrichment-airport-bookend-p139.test.ts.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P140_perDayLodgingLabel — 메모리 P140 (2026-05-22, PR #522).
+ * DayTimeline.tsx 의 getLodgingLabel(plan) 단일 plan-level 회귀 → getLodgingLabelForDay
+ * (plan, day) 5-layer 폴백 (day.lodging → hotelByCity → hotel_address → zone).
+ */
+function P140_perDayLodgingLabel({ changed }) {
+  const FILE = 'src/pages/PlanDetailPage/components/DayTimeline.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  if (!/function\s+getLodgingLabelForDay/.test(content)) {
+    violations.push(`${FILE}: getLodgingLabelForDay 헬퍼 누락 — 단일 getLodgingLabel(plan) 회귀 (다도시 부산 day 가 서울 명동역 노출)`);
+  }
+  // 이전 회귀: getLodgingLabel(plan) 단일 호출 (day 인자 없음) 패턴 부재 강제.
+  if (/getLodgingLabel\(\s*plan\s*\)/.test(content) && !/getLodgingLabelForDay/.test(content)) {
+    violations.push(`${FILE}: getLodgingLabel(plan) 회귀 패턴 잔존 — getLodgingLabelForDay(plan, day) 로 교체 필수`);
+  }
+  // hotelByCity 분기 존재 강제.
+  if (!/hotelByCity/.test(content)) {
+    violations.push(`${FILE}: hotelByCity 폴백 분기 누락 — 다도시 도시별 호텔 라벨 미반영`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P140_perDayLodgingLabel',
+      violations.join(' | '),
+      '메모리 P140 — getLodgingLabelForDay 5-layer 폴백 (day.lodging → hotelByCity → hotel_address → zone_address → zone). 다도시 plan 도시 mismatch 차단.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P141_lodgingBookendDedup — 메모리 P141 (2026-05-22, PR #522).
+ * 첫/마지막 stop 자체가 category='lodging' 이면 day-level LodgingBookend skip
+ * (hotel→hotel hop redundant). stops[0]?.category !== 'lodging' guard.
+ */
+function P141_lodgingBookendDedup({ changed }) {
+  const FILE = 'src/pages/PlanDetailPage/components/DayTimeline.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  // day.lodging_to_first 가드 + stops[0]?.category !== 'lodging' 확인.
+  if (/day\.lodging_to_first\s*&&\s*stops\.length\s*>\s*0\s*&&\s*\(/.test(content)) {
+    // dedup 가드 없으면 회귀.
+    if (!/day\.lodging_to_first\s*&&\s*stops\.length\s*>\s*0\s*&&\s*stops\[0\]\?\.category\s*!==\s*['"]lodging['"]/.test(content)) {
+      violations.push(`${FILE}: day.lodging_to_first BookEnd 의 stops[0]?.category !== 'lodging' guard 누락 — hotel→hotel 4중 카드 회귀`);
+    }
+  }
+  if (/day\.last_to_lodging\s*&&\s*stops\.length\s*>\s*0\s*&&\s*\(/.test(content)) {
+    if (!/day\.last_to_lodging\s*&&\s*stops\.length\s*>\s*0\s*&&\s*stops\[stops\.length\s*-\s*1\]\?\.category\s*!==\s*['"]lodging['"]/.test(content)) {
+      violations.push(`${FILE}: day.last_to_lodging BookEnd 의 stops[last]?.category !== 'lodging' guard 누락 — hotel→hotel 4중 카드 회귀`);
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'P141_lodgingBookendDedup',
+      violations.join(' | '),
+      '메모리 P141 — LodgingBookend dedup. 첫/마지막 stop 이 lodging stop 이면 day-level BookEnd skip. 4중 카드 회귀 차단.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P142_arrivalDepartureTerminalSplit — 메모리 P142 (2026-05-22, PR #522).
+ * Wizard 의 `const departureAirport = arrivalTerminal` 하드코딩 회귀.
+ * departureTerminal state 분리 + 입국=출국 강제 차단.
+ */
+function P142_arrivalDepartureTerminalSplit({ changed }) {
+  const FILE = 'src/components/WizardForm/index.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  // 이전 회귀: const departureAirport = arrivalTerminal; (단순 동일 할당)
+  if (/const\s+departureAirport\s*=\s*arrivalTerminal\s*;/.test(content)) {
+    violations.push(`${FILE}: const departureAirport = arrivalTerminal 하드코딩 회귀 — 입국=출국 강제 (운영자 5/22 신고)`);
+  }
+  // departureTerminal state 존재 강제.
+  if (!/const \[departureTerminal,\s*setDepartureTerminal\]\s*=\s*useState/.test(content)) {
+    violations.push(`${FILE}: departureTerminal state 누락 — 입국/출국 공항 분리 불가`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P142_arrivalDepartureTerminalSplit',
+      violations.join(' | '),
+      '메모리 P142 — 입국/출국 공항 분리. departureTerminal state + departureAirport=departureTerminal||arrivalTerminal 폴백. 운영자 "T1 입국인데 출국도 T1" 회귀 차단.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P143_intercityFirstStopGap — 메모리 P143 (2026-05-22, PR #522).
+ * planPersister.js 의 detectIntercityFirstStopGap + pushIntercityGapWarnings
+ * + postResponsePipeline.js 의 hook + DayTimeline computeLodgingRole 5번째 인자.
+ */
+function P143_intercityFirstStopGap({ changed }) {
+  const violations = [];
+  const PP = 'api/_ai_core/planPersister.js';
+  if (isModified(PP, changed)) {
+    const content = getChangedFileContent(PP);
+    if (content) {
+      if (!/function\s+detectIntercityFirstStopGap/.test(content)) {
+        violations.push(`${PP}: detectIntercityFirstStopGap 함수 누락 — KTX 도착→첫 stop 90min+ 공백 detect 부재`);
+      }
+      if (!/function\s+pushIntercityGapWarnings/.test(content)) {
+        violations.push(`${PP}: pushIntercityGapWarnings 함수 누락 — quality_warnings push 부재`);
+      }
+    }
+  }
+  const PIPE = 'api/_ai_core/postResponsePipeline.js';
+  if (isModified(PIPE, changed)) {
+    const content = getChangedFileContent(PIPE);
+    if (content && /backfillDayLodging/.test(content)) {
+      if (!/pushIntercityGapWarnings\(itinerary\)/.test(content)) {
+        violations.push(`${PIPE}: applyBackfillsAndTmoney 안에서 pushIntercityGapWarnings 호출 누락`);
+      }
+    }
+  }
+  const DT = 'src/pages/PlanDetailPage/components/DayTimeline.tsx';
+  if (isModified(DT, changed)) {
+    const content = getChangedFileContent(DT);
+    if (content && /computeLodgingRole/.test(content)) {
+      // P143 신규 5번째 인자 또는 P116 기존 4번째 인자 시그니처 둘 다 OK.
+      // P116 lint 와 동일 패턴 사용 (이미 lint-mistake-patterns 의 다른 룰이 검증).
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'P143_intercityFirstStopGap',
+      violations.join(' | '),
+      '메모리 P143 — intercity KTX→첫 stop 90min+ 공백 detect. detectIntercityFirstStopGap + pushIntercityGapWarnings + applyBackfillsAndTmoney hook.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P144_transitFallbackDetail — 메모리 P144-continued (2026-05-22, PR #525).
+ * RouteAgent ODsay null fallback 의 step_by_step 빈 배열 회귀.
+ * enrichedSteps + 카카오T 권장 + 야간 라벨 stub.
+ */
+function P144_transitFallbackDetail({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  if (!/let enrichedSteps/.test(content)) {
+    violations.push(`${FILE}: enrichedSteps 변수 누락 — step_by_step 빈 배열 회귀 ("차량 17분" 단순 표시)`);
+  }
+  if (!/카카오T/.test(content)) {
+    violations.push(`${FILE}: 카카오T 권장 stub 텍스트 누락 — 택시 권장 미표시`);
+  }
+  if (!/막차 종료/.test(content)) {
+    violations.push(`${FILE}: 야간 라벨 (막차 종료) 누락`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P144_transitFallbackDetail',
+      violations.join(' | '),
+      '메모리 P144-continued — ODsay null fallback step_by_step enrichment. 거리/택시 추정/카카오T/야간 라벨 stub.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P145_cityChangeTimeClamp — 메모리 P145 (2026-05-22, PR #523).
+ * Phase 3 의 Math.max(arrival+30, Gemini) → upper-bound cap (lodging +240 /
+ * activity +90) 추가. KTX 12:15 도착 → 첫 stop 17:43 5h+ 공백 root cause 차단.
+ */
+function P145_cityChangeTimeClamp({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  const violations = [];
+  if (!/firstIsLodging/.test(content)) {
+    violations.push(`${FILE}: firstIsLodging 변수 누락 — P145 clamp logic 부재 (KTX 5h+ 공백 회귀)`);
+  }
+  if (!/upperBound\s*=\s*arrivalMin\s*\+\s*\(\s*firstIsLodging\s*\?\s*240\s*:\s*90\s*\)/.test(content)) {
+    violations.push(`${FILE}: upperBound = arrivalMin + (firstIsLodging ? 240 : 90) clamp logic 누락`);
+  }
+  if (!/Math\.max\(lowerBound,\s*Math\.min\(geminiFirstMin,\s*upperBound\)\)/.test(content)) {
+    violations.push(`${FILE}: Math.max(lowerBound, Math.min(geminiFirstMin, upperBound)) clamp 패턴 누락`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P145_cityChangeTimeClamp',
+      violations.join(' | '),
+      '메모리 P145 — city-change day 첫 stop 시각 upper-bound clamp. lodging +240 / activity +90. plan 209de47b 5h+ 공백 회귀의 root cause 차단.',
+    );
+  }
+  return null;
 }
 
 // ----------------------------------------------------------------------------
