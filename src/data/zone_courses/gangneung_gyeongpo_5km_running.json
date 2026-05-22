@@ -1,0 +1,10 @@
+{
+  "id":"GANGNEUNG_RUN_GYEONGPO_5KM","city":"gangneung","zone":"Gyeongpo-Lake",
+  "theme":"경포호수 5km 러닝","theme_i18n":{"ko":"경포호수 5km","en":"Gyeongpo Lake 5km","ja":"鏡浦湖5km","zh":"镜浦湖5km"},
+  "intensity":"short","duration_min":60,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"경포호수 시작","name_i18n":{"ko":"경포호수 시작","en":"Gyeongpo Lake Start","ja":"鏡浦湖スタート","zh":"镜浦湖起点"},"address":"강원 강릉시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"호수 둘레 5km 평지.","en":"5km flat lake loop.","ja":"湖周5km平地。","zh":"湖环5km平地。"},"lat":37.7975,"lng":128.9019,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"경포호수 둘레길","name_i18n":{"ko":"호수 둘레길","en":"Lake Loop","ja":"湖周遊路","zh":"湖环路"},"address":"강원 강릉시","stay_min":50,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"경포대 정자 통과. 평지+자전거 공유.","en":"Pass Gyeongpodae pavilion. Flat+shared bike.","ja":"鏡浦台亭通過。平地+自転車共有。","zh":"经过镜浦台亭。平地+自行车共享。"},"lat":37.7975,"lng":128.9019,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"경포호수 종료","name_i18n":{"ko":"경포호수 종료","en":"Gyeongpo Finish","ja":"鏡浦湖ゴール","zh":"镜浦湖终点"},"address":"강원 강릉시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"경포해변 도보 5분.","en":"5min walk to Gyeongpo Beach.","ja":"鏡浦海岸徒歩5分。","zh":"镜浦海滩步行5分。"},"lat":37.7975,"lng":128.9019,"start_time_offset_min":55}
+  ]
+}

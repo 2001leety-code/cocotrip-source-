@@ -1,0 +1,11 @@
+{
+  "id":"BUSAN_RUN_HAEUNDAE_5KM","city":"busan","zone":"Haeundae-Beach",
+  "theme":"해운대 해변 5km 러닝","theme_i18n":{"ko":"해운대 해변 5km 러닝","en":"Haeundae Beach 5km Run","ja":"海雲台ビーチ5kmラン","zh":"海云台海滩5km跑步"},
+  "intensity":"short","duration_min":60,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"해운대 시작점","name_i18n":{"ko":"해운대 시작점","en":"Haeundae Start","ja":"海雲台スタート","zh":"海云台起点"},"address":"부산 해운대구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"해변 동쪽 끝 시작.","en":"East end start.","ja":"東端スタート。","zh":"东端起点。"},"lat":35.1583,"lng":129.1689,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"해운대 백사장 1.5km","name_i18n":{"ko":"해운대 백사장","en":"Haeundae Beach 1.5km","ja":"海雲台砂浜","zh":"海云台沙滩"},"address":"부산 해운대구","stay_min":15,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"평지 모래/시멘트.","en":"Flat sand/concrete.","ja":"平地砂/コンクリ。","zh":"平地沙/水泥。"},"lat":35.1586,"lng":129.1603,"start_time_offset_min":15},
+    {"order":3,"category":"nature","name":"동백섬 둘레 2km","name_i18n":{"ko":"동백섬","en":"Dongbaekseom Loop","ja":"椿島周回","zh":"山茶岛环路"},"address":"부산 해운대구","stay_min":20,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"누리마루 APEC 하우스 통과.","en":"Pass Nurimaru APEC House.","ja":"ヌリマル通過。","zh":"经过努里玛鲁。"},"lat":35.1539,"lng":129.1500,"start_time_offset_min":40},
+    {"order":4,"category":"sports","name":"해운대 종료점","name_i18n":{"ko":"해운대 종료","en":"Haeundae Finish","ja":"海雲台ゴール","zh":"海云台终点"},"address":"부산 해운대구","stay_min":10,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"카페+샤워시설.","en":"Cafe+shower.","ja":"カフェ+シャワー。","zh":"咖啡+淋浴。"},"lat":35.1583,"lng":129.1500,"start_time_offset_min":50}
+  ]
+}

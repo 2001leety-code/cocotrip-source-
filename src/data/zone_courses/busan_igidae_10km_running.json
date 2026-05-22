@@ -1,0 +1,11 @@
+{
+  "id":"BUSAN_RUN_IGIDAE_10KM","city":"busan","zone":"Igidae-Coastal",
+  "theme":"이기대 해안 10km 트레일","theme_i18n":{"ko":"이기대 해안 10km","en":"Igidae Coastal 10km","ja":"二妓台海岸10km","zh":"二妓台海岸10km"},
+  "intensity":"action","duration_min":120,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"이기대 시작점","name_i18n":{"ko":"이기대 시작","en":"Igidae Start","ja":"二妓台スタート","zh":"二妓台起点"},"address":"부산 남구 용호동","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"용호만 출발. 트레일러닝 추천.","en":"Yongho Bay start. Trail run.","ja":"龍湖湾出発。トレラン。","zh":"龙湖湾出发。越野跑。"},"lat":35.1067,"lng":129.1131,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"이기대 해안 산책로 5km","name_i18n":{"ko":"이기대 해안","en":"Igidae Coast","ja":"二妓台海岸","zh":"二妓台海岸"},"address":"부산 남구","stay_min":50,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"기암절벽+바다. 계단 多.","en":"Cliffs+sea. Many stairs.","ja":"奇岩+海。階段多。","zh":"奇岩+海。多阶梯。"},"lat":35.1056,"lng":129.1206,"start_time_offset_min":5},
+    {"order":3,"category":"nature","name":"오륙도 스카이워크","name_i18n":{"ko":"오륙도 스카이워크","en":"Oryukdo Skywalk","ja":"五六島スカイウォーク","zh":"五六岛天桥"},"address":"부산 남구 오륙도로","stay_min":20,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"35m 절벽 위 유리 다리.","en":"35m glass bridge over cliff.","ja":"35m絶壁ガラス橋。","zh":"35m绝壁玻璃桥。"},"lat":35.1019,"lng":129.1278,"start_time_offset_min":55},
+    {"order":4,"category":"sports","name":"이기대 종료점","name_i18n":{"ko":"이기대 종료","en":"Igidae Finish","ja":"二妓台ゴール","zh":"二妓台终点"},"address":"부산 남구","stay_min":15,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"왕복 10km. 카페.","en":"10km round trip. Cafe.","ja":"往復10km。カフェ。","zh":"往返10km。咖啡。"},"lat":35.1067,"lng":129.1131,"start_time_offset_min":105}
+  ]
+}
