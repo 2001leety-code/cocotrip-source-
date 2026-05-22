@@ -37,8 +37,19 @@ describe('hasMeaningfulWizardContent — P126 false-positive 차단', () => {
     expect(hasMeaningfulWizardContent({ reservationStatus: 'no' })).toBe(true);
   });
 
-  it('mainCity 선택 → true', () => {
-    expect(hasMeaningfulWizardContent({ mainCity: '서울' })).toBe(true);
+  // P151 (2026-05-22): mainCity 단독은 도시 칩 1번 클릭 → 의미있는 콘텐츠 threshold 미달.
+  // mainCity + 추가 1개 이상의 명시적 행동이 있어야 true.
+  it('mainCity 단독 → false (P151)', () => {
+    expect(hasMeaningfulWizardContent({ mainCity: '서울' })).toBe(false);
+    expect(hasMeaningfulWizardContent({ mainCity: 'Seoul' })).toBe(false);
+  });
+
+  it('mainCity + activities → true (P151 조합)', () => {
+    expect(hasMeaningfulWizardContent({ mainCity: '서울', selectedActivities: ['Food'] })).toBe(true);
+    expect(hasMeaningfulWizardContent({ mainCity: 'Busan', dateRangeTo: '2026-07-01' })).toBe(true);
+    expect(hasMeaningfulWizardContent({ mainCity: '제주', freeText: 'hiking' })).toBe(true);
+    expect(hasMeaningfulWizardContent({ mainCity: 'Seoul', hotelAddress: '명동 호텔' })).toBe(true);
+    expect(hasMeaningfulWizardContent({ mainCity: 'Seoul', arrivalTerminal: 'ICN1' })).toBe(true);
   });
 
   it('selectedActivities 1개 이상 → true', () => {
