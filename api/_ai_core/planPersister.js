@@ -303,6 +303,110 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
 }
 
 /**
+ * P160 (2026-05-22): B-10 lodging bookend self-heal.
+ *
+ * 상용화 D-day prod alert: "Day 3: stops[0].category='food' expected 'lodging' (B-10)".
+ * Gemini 가 lodging bookend 룰을 가끔 어김 → customer path 면 throw 500.
+ *
+ * Self-heal 전략:
+ *   - 첫 stop 이 lodging 아니면 day.lodging 정보로 synthetic lodging stop 을 stops[0] 앞에 prepend.
+ *   - day.lodging 없으면 city-default placeholder 사용 (해운대 호텔 / 명동 호텔 등).
+ *   - 마지막 stop 도 lodging|travel|airport 아니면 (단 출국일 제외) 동일하게 append.
+ *
+ * Quality_warnings 박제 — 운영자 가 Gemini 누락 빈도 추적 가능.
+ *
+ * @returns {Array<object>} prepend/append 이력
+ */
+export function selfHealLodgingBookend(itinerary) {
+  const healed = [];
+  const days = itinerary?.days || [];
+  for (let d = 0; d < days.length; d++) {
+    const day = days[d];
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+    if (stops.length === 0) continue;
+
+    const dayCityLc = String(day?.city || '').trim().toLowerCase();
+    const defaultMeta = CITY_LODGING_DEFAULT[dayCityLc];
+    const dayCityKor = CITY_KOR_MAP_FULL[dayCityLc] || '';
+
+    // 첫 stop 이 lodging 이 아니면 prepend
+    if (stops[0]?.category !== 'lodging') {
+      const synName    = day?.lodging?.name    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
+      const synAddress = day?.lodging?.address || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
+      // 첫 stop start_time 보다 1시간 이르게 설정 (logical 출발 시각)
+      let synStart = '09:00';
+      const firstTimeMatch = /^(\d{1,2}):(\d{2})$/.exec(String(stops[0]?.start_time || ''));
+      if (firstTimeMatch) {
+        const fh = parseInt(firstTimeMatch[1], 10);
+        const fm = parseInt(firstTimeMatch[2], 10);
+        let earlierMin = fh * 60 + fm - 60;
+        if (earlierMin < 9 * 60) earlierMin = 9 * 60; // 09:00 floor
+        synStart = `${String(Math.floor(earlierMin / 60)).padStart(2, '0')}:${String(earlierMin % 60).padStart(2, '0')}`;
+      }
+      stops.unshift({
+        category: 'lodging',
+        name: synName,
+        display_name: synName,
+        address: synAddress,
+        start_time: synStart,
+        stay_min: 0,
+        order: 0,
+        _self_healed: true,
+      });
+      // 후속 order 재매핑
+      for (let i = 0; i < stops.length; i++) {
+        if (typeof stops[i].order === 'number') stops[i].order = i + 1;
+      }
+      healed.push({ day: day?.day || d + 1, kind: 'prepend_first_lodging', synthesized_name: synName });
+    }
+
+    // 마지막 stop 이 lodging/travel/airport 가 아니면 append (lodging)
+    const last = stops[stops.length - 1];
+    if (last && !['lodging', 'travel', 'airport'].includes(last.category)) {
+      const synName    = day?.lodging?.name    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
+      const synAddress = day?.lodging?.address || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
+      // 마지막 stop end_time 또는 start_time 후 1시간
+      let synStart = '21:00';
+      const lastTimeStr = String(last.end_time || last.start_time || '');
+      const lastTimeMatch = /^(\d{1,2}):(\d{2})$/.exec(lastTimeStr);
+      if (lastTimeMatch) {
+        const lh = parseInt(lastTimeMatch[1], 10);
+        const lm = parseInt(lastTimeMatch[2], 10);
+        let laterMin = lh * 60 + lm + 60;
+        if (laterMin > 23 * 60 + 30) laterMin = 23 * 60 + 30; // 23:30 ceiling
+        synStart = `${String(Math.floor(laterMin / 60)).padStart(2, '0')}:${String(laterMin % 60).padStart(2, '0')}`;
+      }
+      stops.push({
+        category: 'lodging',
+        name: synName,
+        display_name: synName,
+        address: synAddress,
+        start_time: synStart,
+        stay_min: 0,
+        order: stops.length + 1,
+        _self_healed: true,
+      });
+      healed.push({ day: day?.day || d + 1, kind: 'append_last_lodging', synthesized_name: synName });
+    }
+  }
+
+  if (healed.length > 0) {
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    for (const h of healed) {
+      itinerary.quality_warnings.push({
+        ...h,
+        kind: 'lodging_bookend_self_healed',
+        sub_kind: h.kind,
+        severity: 'low',
+        message: `Day ${h.day}: ${h.kind === 'prepend_first_lodging' ? '첫' : '마지막'} stop lodging 누락 → "${h.synthesized_name}" 자동 prepend/append (P160)`,
+      });
+    }
+    console.log(`[planPersister] P160 lodging bookend self-healed: ${healed.length} stops`);
+  }
+  return healed;
+}
+
+/**
  * P120 (2026-05-20): 새벽 시간대 stops detect. plan 4792076e 의 Day3 00:31,
  * Day4 01:24, 03:26 같은 start_time = 사용자 실현 불가능 (새벽 관광 X). 회귀의
  * root cause 는 RouteAgent Phase 2.5/2.6 시간 stitching 의 transit time 누적

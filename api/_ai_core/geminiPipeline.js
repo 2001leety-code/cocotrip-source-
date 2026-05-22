@@ -19,6 +19,7 @@ import { captureError } from '../_shared/sentry.js';
 import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
 import { sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { selfHealLodgingBookend } from './planPersister.js';
 
 const GEMINI_TIMEOUT_MS = 240000;
 
@@ -394,6 +395,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // 2026-05-12: pattern structure validation (B-10/B-12/B-14/B-15).
     // Gemini 비결정성으로 lodging bookend / min stops / start_time / 출국 공항
     // 누락 회귀. 1회 재시도 후에도 실패하면 throw — broken plan 차단.
+    // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
+    // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
+    // synthetic lodging prepend/append → validation 통과 + alert.
+    selfHealLodgingBookend(itinerary);
     let patternErrors = validatePatternStructure(itinerary, body || {});
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (3pass) — retrying with reinforced prompt:', patternErrors);
@@ -554,6 +559,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     // 2026-05-12: pattern structure validation (B-10/B-12/B-14/B-15).
     // Gemini 비결정성으로 lodging bookend / min stops / start_time / 출국 공항
     // 누락 회귀. 1회 재시도 후에도 실패하면 throw — broken plan 차단.
+    // P160 (2026-05-22): self-heal lodging bookend BEFORE pattern validation.
+    // Gemini 가 가끔 stops[0]=food 시작 → B-10 throw → customer 500.
+    // synthetic lodging prepend/append → validation 통과 + alert.
+    selfHealLodgingBookend(itinerary);
     let patternErrors = validatePatternStructure(itinerary, body || {});
     if (patternErrors.length > 0) {
       console.warn('[planner] 🚨 pattern violation detected (legacy) — retrying with reinforced prompt:', patternErrors);
