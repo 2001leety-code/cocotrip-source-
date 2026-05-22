@@ -1,0 +1,11 @@
+{
+  "id":"IKSAN_DAY_MIREUKSA_STANDARD","city":"iksan","zone":"Mireuksa-Heritage",
+  "theme":"미륵사지+왕궁리유적+황등시장","theme_i18n":{"ko":"미륵사지+왕궁리유적+황등시장","en":"Mireuksa Site+Wanggungri+Hwangdeung Market","ja":"弥勒寺址+王宮里+黄登市場","zh":"弥勒寺址+王宫里+黄登市场"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"미륵사지","name_i18n":{"ko":"미륵사지","en":"Mireuksa Temple Site","ja":"弥勒寺址","zh":"弥勒寺址"},"address":"전북 익산시 금마면 미륵사지로 362","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"유네스코 세계유산. 백제 미륵사지 석탑.","en":"UNESCO heritage. Baekje Mireuksa pagoda.","ja":"ユネスコ世界遺産。百済弥勒寺址石塔。","zh":"联合国遗产。百济弥勒寺址石塔。"},"lat":36.0119,"lng":127.0292,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"왕궁리 유적","name_i18n":{"ko":"왕궁리 유적","en":"Wanggungri Royal Palace","ja":"王宮里遺跡","zh":"王宫里遗址"},"address":"전북 익산시 왕궁면","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"유네스코 세계유산. 백제 무왕 왕궁터.","en":"UNESCO heritage. Baekje King Mu palace site.","ja":"ユネスコ世界遺産。百済武王王宮跡。","zh":"联合国遗产。百济武王王宫遗址。"},"lat":35.9933,"lng":127.0717,"start_time_offset_min":135},
+    {"order":3,"category":"food","name":"익산 황등시장 비빔밥","name_i18n":{"ko":"황등 비빔밥","en":"Hwangdeung Bibimbap","ja":"黄登ビビンバ","zh":"黄登拌饭"},"address":"전북 익산시 황등면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"황등 명물 육회비빔밥.","en":"Hwangdeung specialty raw beef bibimbap.","ja":"黄登名物ユッケビビンバ。","zh":"黄登名菜生牛肉拌饭。"},"lat":36.0072,"lng":126.9817,"start_time_offset_min":240},
+    {"order":4,"category":"culture","name":"국립익산박물관","name_i18n":{"ko":"국립익산박물관","en":"Iksan National Museum","ja":"国立益山博物館","zh":"国立益山博物馆"},"address":"전북 익산시 금마면 미륵사지로 362","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"백제 무왕 시대 유물. 미륵사지 인접.","en":"Baekje King Mu artifacts. Near Mireuksa.","ja":"百済武王時代遺物。弥勒寺近接。","zh":"百济武王时代文物。弥勒寺近邻。"},"lat":36.0117,"lng":127.0300,"start_time_offset_min":330}
+  ]
+}

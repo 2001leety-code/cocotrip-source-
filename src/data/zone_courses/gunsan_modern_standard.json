@@ -1,0 +1,12 @@
+{
+  "id":"GUNSAN_DAY_MODERN_STANDARD","city":"gunsan","zone":"Modern-Heritage",
+  "theme":"군산 근대문화도시+경암동철길마을+이성당","theme_i18n":{"ko":"군산 근대문화도시+경암동철길마을+이성당","en":"Gunsan Modern City+Gyeongam Rail Village+Lee Sung Dang","ja":"群山近代文化都市+京岩洞鉄道村+李成堂","zh":"群山近代文化城+京岩洞铁路村+李成堂"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"군산 근대문화공간","name_i18n":{"ko":"근대문화공간","en":"Modern Cultural Space","ja":"近代文化空間","zh":"近代文化空间"},"address":"전북 군산시 해망로","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"일제시대 건축물 다수. 영화 8월의 크리스마스 촬영지.","en":"Japanese-era buildings. August Christmas film site.","ja":"日帝時代建物。8月のクリスマスロケ地。","zh":"日帝时代建筑。8月圣诞节拍摄地。"},"lat":35.9856,"lng":126.7144,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"군산 이성당","name_i18n":{"ko":"이성당","en":"Lee Sung Dang Bakery","ja":"李成堂","zh":"李成堂"},"address":"전북 군산시 중앙로 177","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한국 最古 빵집 (1945). 단팥빵 명물.","en":"Korea's oldest bakery (1945). Famous red bean bun.","ja":"韓国最古パン屋(1945)。あんパン名物。","zh":"韩国最古面包店(1945)。红豆面包有名。"},"lat":35.9697,"lng":126.7361,"start_time_offset_min":135},
+    {"order":3,"category":"culture","name":"경암동 철길마을","name_i18n":{"ko":"경암동 철길마을","en":"Gyeongam Rail Village","ja":"京岩洞鉄道村","zh":"京岩洞铁路村"},"address":"전북 군산시 경암동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"폐선 철길 따라 옛 가옥. 추억의 거리.","en":"Old houses along closed rail. Memory lane.","ja":"廃線沿いの古い家。思い出通り。","zh":"废线沿线老房子。回忆街。"},"lat":35.9803,"lng":126.7286,"start_time_offset_min":195},
+    {"order":4,"category":"food","name":"군산 짬뽕","name_i18n":{"ko":"군산 짬뽕","en":"Gunsan Jjamppong","ja":"群山チャンポン","zh":"群山辣海鲜面"},"address":"전북 군산시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"군산 명물 해물짬뽕.","en":"Gunsan specialty seafood jjamppong.","ja":"群山名物海鮮チャンポン。","zh":"群山名菜海鲜辣面。"},"lat":35.9694,"lng":126.7350,"start_time_offset_min":285},
+    {"order":5,"category":"nature","name":"은파호수공원","name_i18n":{"ko":"은파호수공원","en":"Eunpa Lake Park","ja":"銀波湖公園","zh":"银波湖公园"},"address":"전북 군산시 은파공원","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"군산 도심 호수공원. 산책로 5km.","en":"Gunsan city lake park. 5km trail.","ja":"群山市内湖公園。5km散歩道。","zh":"群山市内湖公园。5km步道。"},"lat":35.9544,"lng":126.7008,"start_time_offset_min":360}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id":"YEOSU_DAY_DOLSAN_STANDARD","city":"yeosu","zone":"Dolsan-Romance",
+  "theme":"돌산공원+이순신광장+낭만포차","theme_i18n":{"ko":"돌산공원+이순신광장+낭만포차","en":"Dolsan Park+Yi Sun-sin Square+Romance Pocha","ja":"突山公園+李舜臣広場+ロマン屋台","zh":"突山公园+李舜臣广场+浪漫小吃摊"},
+  "intensity":"standard","duration_min":450,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"돌산공원 (돌산대교 야경)","name_i18n":{"ko":"돌산공원","en":"Dolsan Park","ja":"突山公園","zh":"突山公园"},"address":"전남 여수시 돌산읍","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"여수 야경 1번지. 돌산대교 조망.","en":"Yeosu's #1 night view. Dolsan Bridge view.","ja":"麗水夜景1位。突山大橋眺望。","zh":"丽水夜景1位。突山大桥眺望。"},"lat":34.7378,"lng":127.7544,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"여수 해상케이블카","name_i18n":{"ko":"여수 해상케이블카","en":"Yeosu Maritime Cable Car","ja":"麗水海上ケーブルカー","zh":"丽水海上缆车"},"address":"전남 여수시 오동도로","stay_min":75,"entry_fee_krw":15000,"reservation_required":false,"tips_i18n":{"ko":"국내 최초 해상 케이블카. 1.5km.","en":"Korea's first sea cable car. 1.5km.","ja":"国内初海上ケーブルカー。1.5km。","zh":"国内首海上缆车。1.5km。"},"lat":34.7383,"lng":127.7503,"start_time_offset_min":90},
+    {"order":3,"category":"food","name":"여수 게장정식","name_i18n":{"ko":"여수 게장","en":"Yeosu Crab Soy Sauce","ja":"麗水カンジャンケジャン","zh":"丽水酱蟹"},"address":"전남 여수시","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"여수 명물 간장게장.","en":"Yeosu specialty soy crab.","ja":"麗水名物カンジャンケジャン。","zh":"丽水名菜酱蟹。"},"lat":34.7611,"lng":127.7600,"start_time_offset_min":180},
+    {"order":4,"category":"nature","name":"오동도","name_i18n":{"ko":"오동도","en":"Odongdo Island","ja":"梧桐島","zh":"梧桐岛"},"address":"전남 여수시 오동도로","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"동백꽃 섬. 3-4월 만개.","en":"Camellia island. Bloom Mar-Apr.","ja":"椿の島。3-4月満開。","zh":"山茶花岛。3-4月盛开。"},"lat":34.7456,"lng":127.7547,"start_time_offset_min":270},
+    {"order":5,"category":"food","name":"낭만포차","name_i18n":{"ko":"낭만포차","en":"Romance Pocha","ja":"ロマン屋台","zh":"浪漫小吃摊"},"address":"전남 여수시 이순신광장","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"여수 야시장. 해산물 포장마차.","en":"Yeosu night market. Seafood stalls.","ja":"麗水夜市。海鮮屋台。","zh":"丽水夜市。海鲜小吃摊。"},"lat":34.7406,"lng":127.7411,"start_time_offset_min":360}
+  ]
+}

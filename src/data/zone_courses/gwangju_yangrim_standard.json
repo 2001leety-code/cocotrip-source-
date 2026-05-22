@@ -1,0 +1,12 @@
+{
+  "id":"GWANGJU_DAY_YANGRIM_STANDARD","city":"gwangju","zone":"Yangrim-ACC",
+  "theme":"양림동+ACC+충장로","theme_i18n":{"ko":"양림동+ACC+충장로","en":"Yangrim+ACC+Chungjangno","ja":"楊林洞+ACC+忠壮路","zh":"杨林洞+ACC+忠壮路"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"culture","name":"양림동 근대역사문화마을","name_i18n":{"ko":"양림동","en":"Yangrim Modern History Village","ja":"楊林洞近代歴史村","zh":"杨林洞近代历史村"},"address":"광주 남구 양림동","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광주 핫플. 펭귄마을+선교사 가옥.","en":"Gwangju hotspot. Penguin village+missionary houses.","ja":"光州ホットスポット。ペンギン村+宣教師家。","zh":"光州热点。企鹅村+宣教师家。"},"lat":35.1361,"lng":126.9039,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"국립아시아문화전당 (ACC)","name_i18n":{"ko":"국립아시아문화전당","en":"Asia Culture Center","ja":"国立アジア文化殿堂","zh":"国立亚洲文化殿堂"},"address":"광주 동구 문화전당로 38","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"아시아 문화 허브. 무료 전시.","en":"Asia culture hub. Free exhibits.","ja":"アジア文化ハブ。無料展示。","zh":"亚洲文化中心。免费展览。"},"lat":35.1469,"lng":126.9233,"start_time_offset_min":105},
+    {"order":3,"category":"food","name":"광주 송정떡갈비","name_i18n":{"ko":"송정떡갈비","en":"Songjeong Tteokgalbi","ja":"松汀餅カルビ","zh":"松汀年糕排骨"},"address":"광주 광산구 송정동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광주 명물. 떡갈비+된장찌개.","en":"Gwangju specialty. Tteokgalbi+doenjang.","ja":"光州名物。餅カルビ+味噌チゲ。","zh":"光州名菜。年糕排骨+大酱汤。"},"lat":35.1450,"lng":126.7906,"start_time_offset_min":240},
+    {"order":4,"category":"shopping","name":"충장로","name_i18n":{"ko":"충장로","en":"Chungjangno","ja":"忠壮路","zh":"忠壮路"},"address":"광주 동구 충장로","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광주 중심 번화가. 쇼핑+카페.","en":"Gwangju main downtown. Shopping+cafe.","ja":"光州中心繁華街。買物+カフェ。","zh":"光州中心商业街。购物+咖啡。"},"lat":35.1486,"lng":126.9181,"start_time_offset_min":330},
+    {"order":5,"category":"culture","name":"광주 5.18 민주광장","name_i18n":{"ko":"5.18 민주광장","en":"May 18 Memorial Park","ja":"5.18民主広場","zh":"5.18民主广场"},"address":"광주 동구 금남로","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광주 민주화 운동 기념.","en":"Gwangju Democratic Movement memorial.","ja":"光州民主化運動記念。","zh":"光州民主化运动纪念。"},"lat":35.1497,"lng":126.9181,"start_time_offset_min":420}
+  ]
+}

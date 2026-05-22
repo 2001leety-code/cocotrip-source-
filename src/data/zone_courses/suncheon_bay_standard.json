@@ -1,0 +1,12 @@
+{
+  "id":"SUNCHEON_DAY_BAY_STANDARD","city":"suncheon","zone":"Suncheonman",
+  "theme":"순천만+낙안읍성+드라마촬영장","theme_i18n":{"ko":"순천만+낙안읍성+드라마촬영장","en":"Suncheonman+Naganeupseong+Drama Set","ja":"順天湾+樂安邑城+ドラマセット","zh":"顺天湾+乐安邑城+电视剧拍摄地"},
+  "intensity":"standard","duration_min":450,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"순천만 국가정원","name_i18n":{"ko":"순천만 국가정원","en":"Suncheonman National Garden","ja":"順天湾国家庭園","zh":"顺天湾国家园"},"address":"전남 순천시 국가정원1호길 47","stay_min":150,"entry_fee_krw":8000,"reservation_required":false,"tips_i18n":{"ko":"국내 1호 국가정원. 갈대+습지+정원.","en":"Korea's 1st national garden. Reeds+wetland.","ja":"国内1号国家庭園。葦+湿地。","zh":"国内1号国家园。芦苇+湿地。"},"lat":34.8753,"lng":127.5072,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"낙안읍성","name_i18n":{"ko":"낙안읍성","en":"Naganeupseong","ja":"樂安邑城","zh":"乐安邑城"},"address":"전남 순천시 낙안면","stay_min":75,"entry_fee_krw":4000,"reservation_required":false,"tips_i18n":{"ko":"조선시대 읍성 + 민속마을.","en":"Joseon fortress + folk village.","ja":"朝鮮邑城+民俗村。","zh":"朝鲜邑城+民俗村。"},"lat":34.9097,"lng":127.3475,"start_time_offset_min":165},
+    {"order":3,"category":"food","name":"순천 짱뚱어탕","name_i18n":{"ko":"순천 짱뚱어탕","en":"Suncheon Mudskipper Soup","ja":"順天ハゼスープ","zh":"顺天弹涂鱼汤"},"address":"전남 순천시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"순천만 짱뚱어 향토음식.","en":"Suncheonman mudskipper local food.","ja":"順天湾ハゼ郷土食。","zh":"顺天湾弹涂鱼乡土食。"},"lat":34.9492,"lng":127.4886,"start_time_offset_min":255},
+    {"order":4,"category":"culture","name":"순천 드라마촬영장","name_i18n":{"ko":"순천 드라마촬영장","en":"Suncheon Drama Set","ja":"順天ドラマセット","zh":"顺天电视剧拍摄地"},"address":"전남 순천시 비례골길 24","stay_min":75,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"60-70년대 가옥 재현. 동백 드라마.","en":"60-70s house replica. Dongbaek drama site.","ja":"60-70年代家屋再現。椿ロケ地。","zh":"60-70年代房屋再现。山茶花拍摄地。"},"lat":34.9444,"lng":127.4828,"start_time_offset_min":345},
+    {"order":5,"category":"cafe","name":"순천 카페거리","name_i18n":{"ko":"순천 카페","en":"Suncheon Cafe","ja":"順天カフェ","zh":"顺天咖啡"},"address":"전남 순천시","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"순천 도심 카페.","en":"Suncheon downtown cafes.","ja":"順天市内カフェ。","zh":"顺天市内咖啡。"},"lat":34.9506,"lng":127.4881,"start_time_offset_min":435}
+  ]
+}

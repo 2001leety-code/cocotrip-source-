@@ -1,0 +1,12 @@
+{
+  "id":"GWANGJU_DAY_MUDEUNGSAN_PACKED","city":"gwangju","zone":"Mudeungsan-Damyang",
+  "theme":"무등산+담양 죽녹원+메타세콰이어길","theme_i18n":{"ko":"무등산+담양 죽녹원+메타세콰이어길","en":"Mudeungsan+Damyang Bamboo+Metasequoia","ja":"無等山+潭陽竹緑苑+メタセコイア","zh":"无等山+潭阳竹绿苑+水杉"},
+  "intensity":"packed","duration_min":540,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"무등산 입석대","name_i18n":{"ko":"무등산 입석대","en":"Mudeungsan Ipseokdae","ja":"無等山立石台","zh":"无等山立石台"},"address":"광주 동구 운림동","stay_min":180,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"무등산 주상절리. 원효사→입석대 3.5km 3h.","en":"Mudeungsan columnar joint. Wonhyosa→Ipseokdae 3.5km 3h.","ja":"無等山柱状節理。元暁寺→立石台3.5km3h。","zh":"无等山柱状节理。元晓寺→立石台3.5km3h。"},"lat":35.1342,"lng":126.9886,"start_time_offset_min":0},
+    {"order":2,"category":"food","name":"광주 한정식","name_i18n":{"ko":"광주 한정식","en":"Gwangju Hanjeongsik","ja":"光州韓定食","zh":"光州韩定食"},"address":"광주 남구","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"호남 한정식. 20+ 반찬.","en":"Honam hanjeongsik. 20+ side dishes.","ja":"湖南韓定食。20+おかず。","zh":"湖南韩定食。20+小菜。"},"lat":35.1417,"lng":126.9075,"start_time_offset_min":195},
+    {"order":3,"category":"nature","name":"담양 죽녹원","name_i18n":{"ko":"죽녹원","en":"Juknokwon Bamboo Garden","ja":"竹緑苑","zh":"竹绿苑"},"address":"전남 담양군 담양읍 죽녹원로 119","stay_min":90,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"31만㎡ 대나무숲. 8개 산책로.","en":"310,000㎡ bamboo forest. 8 trails.","ja":"31万㎡竹林。8つの散歩道。","zh":"31万㎡竹林。8条步道。"},"lat":35.3267,"lng":126.9931,"start_time_offset_min":300},
+    {"order":4,"category":"nature","name":"담양 메타세콰이어길","name_i18n":{"ko":"메타세콰이어길","en":"Metasequoia Road","ja":"メタセコイア並木","zh":"水杉路"},"address":"전남 담양군 담양읍","stay_min":75,"entry_fee_krw":2000,"reservation_required":false,"tips_i18n":{"ko":"국내 최고 아름다운 길 1위. 8.5km.","en":"Korea's #1 most beautiful road. 8.5km.","ja":"国内最美道路1位。8.5km。","zh":"国内最美道路1位。8.5km。"},"lat":35.3411,"lng":126.9886,"start_time_offset_min":405},
+    {"order":5,"category":"food","name":"담양 떡갈비+대통밥","name_i18n":{"ko":"담양 떡갈비+대통밥","en":"Damyang Tteokgalbi+Daetongbap","ja":"潭陽餅カルビ+大筒飯","zh":"潭阳年糕排骨+竹筒饭"},"address":"전남 담양군","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"담양 향토음식. 대나무 통밥.","en":"Damyang local. Bamboo rice.","ja":"潭陽郷土食。竹筒飯。","zh":"潭阳乡土食。竹筒饭。"},"lat":35.3217,"lng":126.9889,"start_time_offset_min":495}
+  ]
+}
