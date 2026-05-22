@@ -532,6 +532,12 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
   - CJU → 제주 먼저
 - 마지막 도시 = departure_airport 와 가까운 도시 (출국이 다른 공항이면 그 도시로 끝).
 - 합리적 일수 분배 — 5일 trip 이면 (2+3) 또는 (3+2). 도시당 최소 1박 보장.
+- **🔴 ABSOLUTE: 모든 region 은 최소 1 day 배정 (P158, 2026-05-22)**.
+  - 사용자가 regions=["seoul","busan"] 선택 = "두 도시 모두 방문하고 싶다"는 명시적 의도.
+  - 3-day trip 이라도 (예: Day1 Seoul + Day2 Busan + Day3 Seoul) 또는 (Day1 Busan + Day2-3 Seoul) 식으로 둘 다 포함.
+  - regions 중 1개 도시라도 day 0개면 백엔드 validator 가 reject + retry → 결국 fail.
+  - **BAD**: regions=["seoul","busan"] 3-day → 모든 day.city="Seoul" (부산 day 0개).
+  - **GOOD**: regions=["seoul","busan"] 3-day → Day1 Seoul, Day2 Busan (KTX), Day3 Seoul (KTX 복귀).
 - **(P125, 2026-05-21)** Wizard 가 \`arrival_city\` / \`departure_city\` 를 명시적으로
   보내면 (\`MULTI-CITY ENTRY/EXIT\` block 참조), 사용자 의도가 공항 inference 보다 우선.
   - arrival_city 가 명시되면 Day 1.city = arrival_city (공항도 자동 매핑).

@@ -1171,3 +1171,67 @@ describe('checkSoftQualityWarnings (B-18 local_tag underfill)', () => {
     expect(checkSoftQualityWarnings({ days: [] })).toEqual([]);
   });
 });
+
+describe('B-REGION-COVERAGE (P158, 2026-05-22)', () => {
+  it('단도시 plan 은 skip', () => {
+    const itinerary: Itinerary = {
+      days: [makeValidDay({ day: 1, city: 'Seoul' })],
+      departure_guide: { airport: 'ICN T1' },
+    };
+    const errors = validatePatternStructure(itinerary, { regions: ['seoul'] });
+    expect(errors).toEqual([]);
+  });
+
+  it('각 region 1 day 배정 시 통과', () => {
+    const itinerary: Itinerary = {
+      days: [
+        makeValidDay({ day: 1, city: 'Seoul' }),
+        makeValidDay({ day: 2, city: 'Busan' }),
+        makeValidDay({ day: 3, city: 'Seoul' }),
+      ],
+      departure_guide: { airport: 'ICN T1' },
+    };
+    const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan'] });
+    expect(errors).toEqual([]);
+  });
+
+  it('region 누락 시 ERROR (3d 서울+부산 → 부산 day 0개)', () => {
+    const itinerary: Itinerary = {
+      days: [
+        makeValidDay({ day: 1, city: 'Seoul' }),
+        makeValidDay({ day: 2, city: 'Seoul' }),
+        makeValidDay({ day: 3, city: 'Seoul' }),
+      ],
+      departure_guide: { airport: 'ICN T1' },
+    };
+    const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan'] });
+    expect(errors.some((e) => e.includes('B-REGION-COVERAGE') && e.includes('busan'))).toBe(true);
+  });
+
+  it('regions 대소문자 무관 (Seoul vs seoul)', () => {
+    const itinerary: Itinerary = {
+      days: [
+        makeValidDay({ day: 1, city: 'Seoul' }),
+        makeValidDay({ day: 2, city: 'Busan' }),
+      ],
+      departure_guide: { airport: 'ICN T1' },
+    };
+    const errors = validatePatternStructure(itinerary, { regions: ['Seoul', 'Busan'] });
+    expect(errors).toEqual([]);
+  });
+
+  it('3-region 중 2개 누락 시 둘 다 명시', () => {
+    const itinerary: Itinerary = {
+      days: [
+        makeValidDay({ day: 1, city: 'Seoul' }),
+        makeValidDay({ day: 2, city: 'Seoul' }),
+      ],
+      departure_guide: { airport: 'ICN T1' },
+    };
+    const errors = validatePatternStructure(itinerary, { regions: ['seoul', 'busan', 'jeju'] });
+    const coverageErr = errors.find((e) => e.includes('B-REGION-COVERAGE'));
+    expect(coverageErr).toBeDefined();
+    expect(coverageErr).toContain('busan');
+    expect(coverageErr).toContain('jeju');
+  });
+});
