@@ -1,0 +1,10 @@
+{
+  "id":"SUNCHEON_RUN_GARDEN_5KM","city":"suncheon","zone":"National-Garden",
+  "theme":"순천만 정원 5km","theme_i18n":{"ko":"순천만 정원 5km","en":"Suncheonman Garden 5km","ja":"順天湾庭園5km","zh":"顺天湾园5km"},
+  "intensity":"short","duration_min":60,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"순천만 시작","name_i18n":{"ko":"순천만 시작","en":"Suncheonman Start","ja":"順天湾スタート","zh":"顺天湾起点"},"address":"전남 순천시","stay_min":5,"entry_fee_krw":8000,"reservation_required":false,"tips_i18n":{"ko":"국가정원 입장료.","en":"National Garden fee.","ja":"国家庭園入場料。","zh":"国家园门票。"},"lat":34.8753,"lng":127.5072,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"정원 둘레 5km","name_i18n":{"ko":"정원 둘레","en":"Garden Loop","ja":"庭園周遊","zh":"园环路"},"address":"전남 순천시","stay_min":50,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"세계 정원 통과. 갈대+습지.","en":"World gardens. Reeds+wetland.","ja":"世界庭園。葦+湿地。","zh":"世界园林。芦苇+湿地。"},"lat":34.8753,"lng":127.5072,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"순천만 종료","name_i18n":{"ko":"순천만 종료","en":"Suncheonman Finish","ja":"順天湾ゴール","zh":"顺天湾终点"},"address":"전남 순천시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"PR (Personal Record) 가능.","en":"PR possible.","ja":"PR可能。","zh":"PR可能。"},"lat":34.8753,"lng":127.5072,"start_time_offset_min":55}
+  ]
+}

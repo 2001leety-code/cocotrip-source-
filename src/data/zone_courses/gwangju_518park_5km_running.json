@@ -1,0 +1,10 @@
+{
+  "id":"GWANGJU_RUN_518PARK_5KM","city":"gwangju","zone":"518-Park",
+  "theme":"5.18 기념공원 5km","theme_i18n":{"ko":"5.18 기념공원 5km","en":"May 18 Park 5km","ja":"5.18記念公園5km","zh":"5.18纪念公园5km"},
+  "intensity":"short","duration_min":55,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"5.18 기념공원 시작","name_i18n":{"ko":"5.18 기념공원","en":"May 18 Park","ja":"5.18記念公園","zh":"5.18纪念公园"},"address":"광주 서구 상무지구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광주 민주화 운동 기념.","en":"Gwangju Democratic Movement.","ja":"光州民主化記念。","zh":"光州民主化纪念。"},"lat":35.1525,"lng":126.8528,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"공원 둘레 5km","name_i18n":{"ko":"공원 둘레","en":"Park Loop","ja":"公園周遊","zh":"公园环路"},"address":"광주 서구","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"잘 정비된 산책로.","en":"Well-maintained trail.","ja":"整備された散歩道。","zh":"良好维护步道。"},"lat":35.1525,"lng":126.8528,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"5.18 종료","name_i18n":{"ko":"5.18 종료","en":"518 Finish","ja":"5.18ゴール","zh":"5.18终点"},"address":"광주 서구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"기념관 관람.","en":"Memorial visit.","ja":"記念館見学。","zh":"纪念馆参观。"},"lat":35.1525,"lng":126.8528,"start_time_offset_min":50}
+  ]
+}

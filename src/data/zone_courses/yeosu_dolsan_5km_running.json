@@ -1,0 +1,10 @@
+{
+  "id":"YEOSU_RUN_DOLSAN_5KM","city":"yeosu","zone":"Dolsan",
+  "theme":"돌산공원 둘레 5km","theme_i18n":{"ko":"돌산공원 5km","en":"Dolsan Park 5km","ja":"突山公園5km","zh":"突山公园5km"},
+  "intensity":"short","duration_min":60,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"돌산공원 시작","name_i18n":{"ko":"돌산공원 시작","en":"Dolsan Start","ja":"突山公園スタート","zh":"突山公园起点"},"address":"전남 여수시 돌산읍","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"여수 야경 1번지.","en":"Yeosu top night view.","ja":"麗水夜景1位。","zh":"丽水夜景1位。"},"lat":34.7378,"lng":127.7544,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"돌산공원 둘레","name_i18n":{"ko":"돌산공원 둘레","en":"Dolsan Loop","ja":"突山公園周遊","zh":"突山公园环路"},"address":"전남 여수시","stay_min":50,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"바다 조망. 약간의 언덕.","en":"Sea view. Some hills.","ja":"海眺望。少し坂。","zh":"海景。一些坡。"},"lat":34.7378,"lng":127.7544,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"돌산공원 종료","name_i18n":{"ko":"돌산공원 종료","en":"Dolsan Finish","ja":"突山公園ゴール","zh":"突山公园终点"},"address":"전남 여수시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"돌산대교 야경.","en":"Dolsan Bridge night view.","ja":"突山大橋夜景。","zh":"突山大桥夜景。"},"lat":34.7378,"lng":127.7544,"start_time_offset_min":55}
+  ]
+}

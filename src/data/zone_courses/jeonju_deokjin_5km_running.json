@@ -1,0 +1,10 @@
+{
+  "id":"JEONJU_RUN_DEOKJIN_5KM","city":"jeonju","zone":"Deokjin-Park",
+  "theme":"덕진공원 5km 러닝","theme_i18n":{"ko":"덕진공원 5km","en":"Deokjin Park 5km","ja":"徳津公園5km","zh":"德津公园5km"},
+  "intensity":"short","duration_min":55,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"덕진공원 시작","name_i18n":{"ko":"덕진공원 시작","en":"Deokjin Start","ja":"徳津公園スタート","zh":"德津公园起点"},"address":"전북 전주시 덕진동","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"전주 도심 호수공원.","en":"Jeonju downtown lake park.","ja":"全州市内湖公園。","zh":"全州市内湖公园。"},"lat":35.8528,"lng":127.1306,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"덕진공원 둘레","name_i18n":{"ko":"덕진공원 둘레","en":"Deokjin Loop","ja":"徳津公園周遊","zh":"德津公园环路"},"address":"전북 전주시","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"연꽃 (6-8월)+ 평지.","en":"Lotus (Jun-Aug)+flat.","ja":"蓮の花(6-8月)+平地。","zh":"莲花(6-8月)+平地。"},"lat":35.8528,"lng":127.1306,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"덕진공원 종료","name_i18n":{"ko":"덕진공원 종료","en":"Deokjin Finish","ja":"徳津公園ゴール","zh":"德津公园终点"},"address":"전북 전주시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한옥마을 도보 15분.","en":"15min walk to Hanok Village.","ja":"韓屋村徒歩15分。","zh":"韩屋村步行15分。"},"lat":35.8528,"lng":127.1306,"start_time_offset_min":50}
+  ]
+}

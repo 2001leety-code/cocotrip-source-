@@ -1,0 +1,10 @@
+{
+  "id":"POHANG_RUN_YEONGILDAE_5KM","city":"pohang","zone":"Yeongildae-Beach",
+  "theme":"영일대 해변 5km","theme_i18n":{"ko":"영일대 해변 5km","en":"Yeongildae Beach 5km","ja":"迎日台5km","zh":"迎日台5km"},
+  "intensity":"short","duration_min":55,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"영일대 시작","name_i18n":{"ko":"영일대 시작","en":"Yeongildae Start","ja":"迎日台スタート","zh":"迎日台起点"},"address":"경북 포항시 북구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"포항 대표 해변.","en":"Pohang main beach.","ja":"浦項代表海岸。","zh":"浦项代表海滩。"},"lat":36.0644,"lng":129.3833,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"영일대 해변 5km","name_i18n":{"ko":"영일대 해변","en":"Yeongildae Beach","ja":"迎日台海岸","zh":"迎日台海滩"},"address":"경북 포항시","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"평지 해변. 해상누각 통과.","en":"Flat beach. Pass sea pavilion.","ja":"平地海岸。海上楼閣通過。","zh":"平地海滩。经过海上楼阁。"},"lat":36.0644,"lng":129.3833,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"영일대 종료","name_i18n":{"ko":"영일대 종료","en":"Yeongildae Finish","ja":"迎日台ゴール","zh":"迎日台终点"},"address":"경북 포항시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"카페+편의시설.","en":"Cafe+facilities.","ja":"カフェ+施設。","zh":"咖啡+设施。"},"lat":36.0644,"lng":129.3833,"start_time_offset_min":50}
+  ]
+}

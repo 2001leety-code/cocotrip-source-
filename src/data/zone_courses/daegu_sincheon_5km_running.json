@@ -1,0 +1,10 @@
+{
+  "id":"DAEGU_RUN_SINCHEON_5KM","city":"daegu","zone":"Sincheon",
+  "theme":"신천 둔치 5km","theme_i18n":{"ko":"신천 둔치 5km","en":"Sincheon Riverside 5km","ja":"新川河岸5km","zh":"新川河岸5km"},
+  "intensity":"short","duration_min":60,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"신천 시작","name_i18n":{"ko":"신천 시작","en":"Sincheon Start","ja":"新川スタート","zh":"新川起点"},"address":"대구 중구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"대구 도심 강변.","en":"Daegu downtown riverside.","ja":"大邱市内川辺。","zh":"大邱市内河边。"},"lat":35.8689,"lng":128.6017,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"신천 둔치 5km","name_i18n":{"ko":"신천 둔치","en":"Sincheon Riverside","ja":"新川河岸","zh":"新川河岸"},"address":"대구 중구","stay_min":50,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"평지 자전거 공유. 가로등 야간 OK.","en":"Flat shared with bike. Lit at night.","ja":"平地自転車共有。夜間照明。","zh":"平地共享自行车。夜间照明。"},"lat":35.8689,"lng":128.6017,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"신천 종료","name_i18n":{"ko":"신천 종료","en":"Sincheon Finish","ja":"新川ゴール","zh":"新川终点"},"address":"대구 중구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"도심 카페 인접.","en":"Near downtown cafes.","ja":"市内カフェ近接。","zh":"市内咖啡近邻。"},"lat":35.8689,"lng":128.6017,"start_time_offset_min":55}
+  ]
+}

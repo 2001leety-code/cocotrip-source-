@@ -1,0 +1,10 @@
+{
+  "id":"SEOUL_RUN_JAMSIL_5KM","city":"seoul","zone":"Jamsil-Hangang",
+  "theme":"한강 잠실 5km","theme_i18n":{"ko":"한강 잠실 5km","en":"Hangang Jamsil 5km","ja":"漢江蚕室5km","zh":"汉江蚕室5km"},
+  "intensity":"short","duration_min":55,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"잠실 시작","name_i18n":{"ko":"잠실 시작","en":"Jamsil Start","ja":"蚕室スタート","zh":"蚕室起点"},"address":"서울 송파구 한강","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"잠실대교 부근.","en":"Near Jamsil Bridge.","ja":"蚕室大橋近接。","zh":"蚕室大桥附近。"},"lat":37.5170,"lng":127.0817,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"잠실 한강공원 5km","name_i18n":{"ko":"잠실 한강공원","en":"Jamsil Hangang Park","ja":"蚕室漢江公園","zh":"蚕室汉江公园"},"address":"서울 송파구","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"평지. 롯데타워 야경.","en":"Flat. Lotte Tower night view.","ja":"平地。ロッテタワー夜景。","zh":"平地。乐天塔夜景。"},"lat":37.5170,"lng":127.0817,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"잠실 종료","name_i18n":{"ko":"잠실 종료","en":"Jamsil Finish","ja":"蚕室ゴール","zh":"蚕室终点"},"address":"서울 송파구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"롯데월드 인접.","en":"Near Lotte World.","ja":"ロッテワールド近接。","zh":"乐天世界近邻。"},"lat":37.5170,"lng":127.0817,"start_time_offset_min":50}
+  ]
+}

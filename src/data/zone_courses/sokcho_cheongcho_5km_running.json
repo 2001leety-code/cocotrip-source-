@@ -1,0 +1,10 @@
+{
+  "id":"SOKCHO_RUN_CHEONGCHO_5KM","city":"sokcho","zone":"Cheongcho-Lake",
+  "theme":"청초호수공원 5km","theme_i18n":{"ko":"청초호수 5km","en":"Cheongcho Lake 5km","ja":"青草湖5km","zh":"青草湖5km"},
+  "intensity":"short","duration_min":55,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"청초호수 시작","name_i18n":{"ko":"청초호수 시작","en":"Cheongcho Start","ja":"青草湖スタート","zh":"青草湖起点"},"address":"강원 속초시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"속초 도심 호수.","en":"Sokcho downtown lake.","ja":"束草市内湖。","zh":"束草市内湖。"},"lat":38.1972,"lng":128.5872,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"청초호수 둘레","name_i18n":{"ko":"청초호수 둘레","en":"Cheongcho Loop","ja":"青草湖周遊","zh":"青草湖环路"},"address":"강원 속초시","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"평지 5km. 설악산 조망.","en":"Flat 5km. Seoraksan view.","ja":"平地5km。雪岳山眺望。","zh":"平地5km。雪岳山眺望。"},"lat":38.1972,"lng":128.5872,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"청초호수 종료","name_i18n":{"ko":"청초호수 종료","en":"Cheongcho Finish","ja":"青草湖ゴール","zh":"青草湖终点"},"address":"강원 속초시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"카페거리 인접.","en":"Near cafe street.","ja":"カフェ通り近接。","zh":"咖啡街近邻。"},"lat":38.1972,"lng":128.5872,"start_time_offset_min":50}
+  ]
+}

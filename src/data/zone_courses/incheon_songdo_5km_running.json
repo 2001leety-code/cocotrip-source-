@@ -1,0 +1,10 @@
+{
+  "id":"INCHEON_RUN_SONGDO_5KM","city":"incheon","zone":"Songdo-Central-Park",
+  "theme":"송도 센트럴파크 5km","theme_i18n":{"ko":"송도 센트럴파크 5km","en":"Songdo Central Park 5km","ja":"松島セントラルパーク5km","zh":"松岛中央公园5km"},
+  "intensity":"short","duration_min":55,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"sports","name":"센트럴파크 시작","name_i18n":{"ko":"센트럴파크 시작","en":"Central Park Start","ja":"セントラルパークスタート","zh":"中央公园起点"},"address":"인천 연수구 송도","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"인천 송도 인공운하.","en":"Songdo artificial canal.","ja":"松島人工運河。","zh":"松岛人工运河。"},"lat":37.3942,"lng":126.6394,"start_time_offset_min":0},
+    {"order":2,"category":"nature","name":"센트럴파크 5km","name_i18n":{"ko":"센트럴파크 둘레","en":"Central Park Loop","ja":"セントラルパーク周遊","zh":"中央公园环路"},"address":"인천 연수구","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"평지 + 도시 야경.","en":"Flat + city night view.","ja":"平地+都市夜景。","zh":"平地+城市夜景。"},"lat":37.3942,"lng":126.6394,"start_time_offset_min":5},
+    {"order":3,"category":"sports","name":"센트럴파크 종료","name_i18n":{"ko":"센트럴파크 종료","en":"Central Park Finish","ja":"セントラルパークゴール","zh":"中央公园终点"},"address":"인천 연수구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"카페+컨벤시아.","en":"Cafe+Convensia.","ja":"カフェ+コンベンシア。","zh":"咖啡+会议中心。"},"lat":37.3942,"lng":126.6394,"start_time_offset_min":50}
+  ]
+}
