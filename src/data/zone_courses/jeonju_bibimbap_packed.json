@@ -1,0 +1,373 @@
+{
+  "id": "JEONJU_DAY_BIBIMBAP_PACKED",
+  "city": "jeonju",
+  "zone": "Hanok-Central",
+  "theme": "한옥마을 + 경기전 + 전주공예품전시관 + 풍남문",
+  "theme_i18n": {
+    "ko": "한옥마을 + 경기전 + 전주공예품전시관 + 풍남문",
+    "en": "Hanok Village + Gyeonggijeon + Jeonju Craft Exhibition Hall + Pungnamun Gate",
+    "ja": "韓屋村 + 慶基殿 + 全州工芸品展示館 + 豊南門",
+    "zh": "韩屋村 + 庆基殿 + 全州工艺品展示馆 + 丰南门"
+  },
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "전주한옥마을",
+      "name_i18n": {
+        "ko": "전주한옥마을",
+        "en": "Jeonju Hanok Village",
+        "ja": "全州韓屋村",
+        "zh": "全州韩屋村"
+      },
+      "address": "전라북도 전주시 완산구 기린대로 99",
+      "stay_min": 70,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "마을 입장 무료. 한복 대여 1-2만원/시간."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "아침 일찍 방문하면 인파 없고 사진 촬영 최적. 한복 대여 후 전체 코스 진행.",
+        "en": "Visit early morning for best photos without crowds. Rent hanbok first for the whole course.",
+        "ja": "早朝訪問で人出少なく撮影最適。最初に韓服レンタルして終日着用。",
+        "zh": "清晨前往人少照片最佳。先租韩服全程穿着。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "경기전",
+      "name_i18n": {
+        "ko": "경기전",
+        "en": "Gyeonggijeon Shrine",
+        "ja": "慶基殿",
+        "zh": "庆基殿"
+      },
+      "address": "전라북도 전주시 완산구 태조로 44",
+      "stay_min": 50,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1500,
+        "senior": 0,
+        "toddler": 0,
+        "free_with": ["hanbok"],
+        "notes": "한복 착용 시 무료. 만 65세 이상 무료. 문화의 날 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "태조 어진 봉안. 대나무 숲 포토 스팟. 한복 착용 시 무료 입장 — 반드시 활용.",
+        "en": "Taejo royal portrait. Bamboo forest photo spot. Free entry with hanbok — use it.",
+        "ja": "太祖肖像奉安。竹林撮影スポット。韓服着用で無料入場 — 必ず活用。",
+        "zh": "太祖画像奉安。竹林拍照胜地。穿韩服免费入场 — 务必利用。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 85
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "전라북도 전주시 완산구 전동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "전주 점심 — 전주비빔밥 (한정식 포함) / 콩나물국밥 (식이 제약 매칭).",
+        "en": "Jeonju lunch — Jeonju bibimbap (hanjeongsik option) / kongnamul gukbap.",
+        "ja": "全州ランチ — 全州ビビンバ（韓定食含）/ 豆もやしクッパ。",
+        "zh": "全州午餐 — 全州拌饭（含韩定食）/ 豆芽汤饭。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 150
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "전주공예품전시관",
+      "name_i18n": {
+        "ko": "전주공예품전시관",
+        "en": "Jeonju Craft Exhibition Hall",
+        "ja": "全州工芸品展示館",
+        "zh": "全州工艺品展示馆"
+      },
+      "address": "전라북도 전주시 완산구 향교길 31-5",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "전시 무료. 공방 체험 프로그램 별도 (한지 공예 1만~3만원)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "전주 한지·부채·칠기 공예 전시. 체험 프로그램 사전 예약 권장 (한지 공예 등).",
+        "en": "Jeonju hanji paper / fan / lacquerware crafts on display. Advance booking recommended for craft workshops.",
+        "ja": "全州韓紙・扇子・漆器工芸展示。体験プログラムは事前予約推奨。",
+        "zh": "全州韩纸/扇子/漆器工艺展示。体验课程建议提前预约。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 225
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "전동성당",
+      "name_i18n": {
+        "ko": "전동성당",
+        "en": "Jeondong Catholic Cathedral",
+        "ja": "殿洞カトリック聖堂",
+        "zh": "殿洞天主教圣堂"
+      },
+      "address": "전라북도 전주시 완산구 태조로 51",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "1914년 로마네스크 성당. 한옥마을 배경 사진 포인트. 미사 시간 외 자유 관람.",
+        "en": "1914 Romanesque cathedral. Hanok village backdrop photo point. Free viewing outside Mass.",
+        "ja": "1914年ロマネスク聖堂。韓屋村背景写真ポイント。ミサ時間外は自由観覧。",
+        "zh": "1914年罗马式圣堂。韩屋村背景拍照点。弥撒时间外自由参观。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 290
+    },
+    {
+      "order": 6,
+      "category": "culture",
+      "name": "풍남문",
+      "name_i18n": {
+        "ko": "풍남문",
+        "en": "Pungnamun Gate",
+        "ja": "豊南門",
+        "zh": "丰南门"
+      },
+      "address": "전라북도 전주시 완산구 풍남문3길 1",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료. 외부 감상. 야간 조명 운영."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "조선시대 전주 남문. 보물 제308호. 야간 조명 아름다움. 전동성당과 도보 5분.",
+        "en": "Joseon-era south gate. Treasure No.308. Beautiful night illumination. 5min walk from Jeondong Cathedral.",
+        "ja": "朝鮮時代の全州南門。宝物第308号。夜間ライトアップが美しい。殿洞聖堂から徒歩5分。",
+        "zh": "朝鲜时代全州南门。宝物第308号。夜间灯光华美。距殿洞圣堂步行5分钟。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 335
+    },
+    {
+      "order": 7,
+      "category": "shopping",
+      "name": "남부시장 청년몰",
+      "name_i18n": {
+        "ko": "남부시장 청년몰",
+        "en": "Nambu Market Youth Mall",
+        "ja": "南部市場青年モール",
+        "zh": "南部市场青年商场"
+      },
+      "address": "전라북도 전주시 완산구 전주객사3길 22",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "남부시장 2층 청년몰. 전통시장 + 트렌디 푸드. 금·토 야시장 별미.",
+        "en": "Nambu Market 2F Youth Mall. Traditional market + trendy food. Night market Fri-Sat specials.",
+        "ja": "南部市場2F青年モール。伝統市場+トレンドフード。金・土夜市が格別。",
+        "zh": "南部市场2楼青年商场。传统市场+潮流美食。周五至周六夜市特色。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 380
+    },
+    {
+      "order": 8,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "전라북도 전주시 완산구 남부시장길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "전주 저녁 — 막걸리 + 모둠전 (동문 거리) / 돌솥비빔밥 / 피순대 (식이 제약 매칭).",
+        "en": "Jeonju dinner — makgeolli + assorted jeon / stone-pot bibimbap / blood sausage.",
+        "ja": "全州の夕食 — マッコリ+チヂミ盛り合わせ / 石鍋ビビンバ / 血腸。",
+        "zh": "全州晚餐 — 马格利酒+煎饼拼盘 / 石锅拌饭 / 猪血肠。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 445
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 400,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    },
+    "6->7": {
+      "from_order": 6,
+      "to_order": 7,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "7->8": {
+      "from_order": 7,
+      "to_order": 8,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 200,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 200,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["culture_lover", "foodie", "history_buff", "hanbok_lover"],
+  "unsuitable_for": ["mobility_limited"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. packed 코스 도보 중심. 한복 대여 시 경기전 무료 혜택. 공예품전시관 체험 예약 권장. 전주비빔밥 DB 수집 권장 (CLAUDE.md F 약점)."
+}

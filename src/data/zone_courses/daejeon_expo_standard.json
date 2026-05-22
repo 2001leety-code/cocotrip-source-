@@ -1,0 +1,290 @@
+{
+  "id": "DAEJEON_DAY_EXPO_STANDARD",
+  "city": "daejeon",
+  "zone": "Expo-Yuseong",
+  "theme": "엑스포과학공원 + 유성온천 + 한밭수목원",
+  "theme_i18n": {
+    "ko": "엑스포과학공원 + 유성온천 + 한밭수목원",
+    "en": "Expo Science Park + Yuseong Hot Springs + Hanbat Arboretum",
+    "ja": "エキスポ科学公園 + 儒城温泉 + ハンバット樹木園",
+    "zh": "世博科学公园 + 儒城温泉 + 韩밭树木园"
+  },
+  "intensity": "standard",
+  "duration_min": 430,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "대전 엑스포과학공원",
+      "name_i18n": {
+        "ko": "대전 엑스포과학공원",
+        "en": "Daejeon Expo Science Park",
+        "ja": "大田エキスポ科学公園",
+        "zh": "大田世博科学公园"
+      },
+      "address": "대전광역시 유성구 대덕대로 480",
+      "stay_min": 80,
+      "entry_fee_krw": 5000,
+      "entry_fee": {
+        "adult": 5000,
+        "child": 3000,
+        "senior": 3000,
+        "toddler": 0,
+        "notes": "엑스포타워 입장 별도. 과학관·놀이시설 일부 추가 요금. 연중무휴."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "1993 대전세계박람회 부지. 엑스포타워 (93m 전망 가능). 과학관·야외 공원. 어린이 동반 추천.",
+        "en": "Site of 1993 Daejeon Expo. Expo Tower (93m viewpoint). Science museum + outdoor park. Great for families with kids.",
+        "ja": "1993年大田世界博覧会の跡地。エキスポタワー（93m展望）。科学館・野外公園。子連れにおすすめ。",
+        "zh": "1993年大田世博会场址。世博塔（93m观景）。科学馆+户外公园。带小朋友推荐。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "한밭수목원",
+      "name_i18n": {
+        "ko": "한밭수목원",
+        "en": "Hanbat Arboretum",
+        "ja": "ハンバット樹木園",
+        "zh": "韩밭树木园"
+      },
+      "address": "대전광역시 서구 둔산대로 169",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 장미원 (5-6월 절정). 동물원 별도."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "국내 최대 도심 수목원. 79만㎡. 장미원 (5-6월) + 수국 (7월) + 단풍 (10월). 조깅 코스.",
+        "en": "Korea's largest urban arboretum. 790,000㎡. Rose garden (May-Jun) / hydrangeas (Jul) / foliage (Oct). Jogging course.",
+        "ja": "国内最大の都市型樹木園。79万㎡。バラ園（5〜6月）+アジサイ（7月）+紅葉（10月）。ジョギングコース。",
+        "zh": "国内最大城市树木园。79万㎡。玫瑰园（5-6月）+绣球花（7月）+红叶（10月）。慢跑路线。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 95
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대전광역시 유성구 봉명동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "유성 점심 — 두부두루치기 / 올갱이해장국 / 성심당 케이크 간식 (식이 제약 매칭).",
+        "en": "Yuseong lunch — tofu stir-fry / freshwater snail hangover soup / Sungsimdang cake snack matched by dietary needs.",
+        "ja": "儒城ランチ — 豆腐炒め / タニシ解酒スープ / 聖心堂ケーキおやつ (食事制限マッチング)。",
+        "zh": "儒城午餐 — 豆腐炒 / 田螺醒酒汤 / 圣心堂蛋糕点心 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 170
+    },
+    {
+      "order": 4,
+      "category": "activity",
+      "name": "유성온천",
+      "name_i18n": {
+        "ko": "유성온천",
+        "en": "Yuseong Hot Springs",
+        "ja": "儒城温泉",
+        "zh": "儒城温泉"
+      },
+      "address": "대전광역시 유성구 봉명동 온천로",
+      "stay_min": 80,
+      "entry_fee_krw": 10000,
+      "entry_fee": {
+        "adult": 10000,
+        "child": 6000,
+        "senior": 6000,
+        "toddler": 0,
+        "notes": "시설별 상이. 호텔 온천탕 이용 시 외부인 별도 요금 (1만~2만원). 수영복 필요 시설 있음."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "55-68도 알칼리성 유황천. 라돈 성분 포함. 대전 유일 온천 지구. 호텔 온천탕 이용 권장.",
+        "en": "55-68°C alkaline sulfur spring. Contains radon. Daejeon's only hot spring district. Hotel baths recommended.",
+        "ja": "55〜68度アルカリ性硫黄泉。ラドン成分含有。大田唯一の温泉地区。ホテル温泉浴推奨。",
+        "zh": "55-68度碱性硫磺泉。含氡成分。大田唯一温泉区。推荐酒店温泉浴。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 245
+    },
+    {
+      "order": 5,
+      "category": "shopping",
+      "name": "성심당 본점",
+      "name_i18n": {
+        "ko": "성심당 본점",
+        "en": "Sungsimdang Bakery (Main Branch)",
+        "ja": "聖心堂本店",
+        "zh": "圣心堂面包店（总店）"
+      },
+      "address": "대전광역시 중구 대종로 480",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "빵 구매 비용 별도. 대표 메뉴: 튀김소보로 1,500원, 판타롱부추빵 1,500원."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대전 명물 빵집. 1956년 창업. 튀김소보로·부추빵 줄 필수. 주말 줄 30분+.",
+        "en": "Daejeon's legendary bakery since 1956. Fried soboro bread / chive bread. Weekend queue 30min+.",
+        "ja": "大田名物パン屋、1956年創業。揚げソボロ・ニラパンは行列必至。週末は30分以上待ち。",
+        "zh": "大田名物面包店，创业于1956年。炸酥粒面包/韭菜面包必排队。周末排队30分钟以上。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 340
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대전광역시 중구 대종로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "대전 원도심 저녁 — 두부두루치기 / 올갱이국밥 / 어죽 (식이 제약 매칭).",
+        "en": "Daejeon original downtown dinner — tofu stir-fry / freshwater snail rice soup / fish porridge.",
+        "ja": "大田原都心夕食 — 豆腐炒め / タニシごはんスープ / 魚粥。",
+        "zh": "大田原城区晚餐 — 豆腐炒 / 田螺汤饭 / 鱼粥。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 395
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "subway",
+      "duration_min": 15,
+      "distance_m": 3000,
+      "cost_krw": 1400,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 대전 지하철 1호선 이용. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "subway",
+        "duration_min": 15,
+        "distance_m": 3000,
+        "cost_krw": 1400
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 3000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 10,
+        "distance_m": 3000,
+        "cost_krw": 5000
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "subway",
+      "duration_min": 15,
+      "distance_m": 4000,
+      "cost_krw": 1400,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 유성온천→대전역 방향. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "subway",
+        "duration_min": 15,
+        "distance_m": 4000,
+        "cost_krw": 1400
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 200,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 200,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["family", "nature_lover", "relaxation", "foodie"],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 성심당 본점 주말 줄 30분+ — 이른 방문 권장. 유성온천 호텔 온천 이용 시 수영복 지참. 대전 지하철 1호선 연계 이동."
+}

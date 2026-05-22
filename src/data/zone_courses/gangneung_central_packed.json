@@ -1,0 +1,331 @@
+{
+  "id": "GANGNEUNG_DAY_CENTRAL_PACKED",
+  "city": "gangneung",
+  "zone": "Central-Anmok",
+  "theme": "안목 + 경포호 + 오죽헌 + 강릉중앙시장 + 선교장",
+  "theme_i18n": {
+    "ko": "안목 + 경포호 + 오죽헌 + 강릉중앙시장 + 선교장",
+    "en": "Anmok + Gyeongpo Lake + Ojukheon + Gangneung Central Market + Seongyojang",
+    "ja": "安木 + 鏡浦湖 + 烏竹軒 + 江陵中央市場 + 船橋荘",
+    "zh": "安木 + 镜浦湖 + 乌竹轩 + 江陵中央市场 + 船桥庄"
+  },
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "activity",
+      "name": "안목 커피거리",
+      "name_i18n": {
+        "ko": "안목 커피거리",
+        "en": "Anmok Coffee Street",
+        "ja": "安木コーヒー通り",
+        "zh": "安木咖啡街"
+      },
+      "address": "강원특별자치도 강릉시 창해로14번길 20",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "카페 이용 비용 별도 (아메리카노 5,000-8,000원). 자판기 커피 500원."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "강릉 커피 문화의 발상지. 동해 바다 뷰. 자판기 커피 꼭 체험.",
+        "en": "Birthplace of Gangneung coffee culture. East Sea view. Try the iconic vending machine coffee.",
+        "ja": "江陵コーヒー文化の発祥地。東海ビュー。自販機コーヒーは必体験。",
+        "zh": "江陵咖啡文化发源地。东海海景。必试自动贩卖机咖啡。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "경포호",
+      "name_i18n": {
+        "ko": "경포호",
+        "en": "Gyeongpo Lake",
+        "ja": "鏡浦湖",
+        "zh": "镜浦湖"
+      },
+      "address": "강원특별자치도 강릉시 저동 경포로",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 자전거 대여 가능 (시간당 약 5,000원)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "둘레 4km 산책·자전거 코스. 봄 벚꽃 명소. 고니·철새 도래지 (겨울).",
+        "en": "4km perimeter walking/cycling path. Spring cherry blossom hotspot. Migratory birds in winter.",
+        "ja": "周囲4kmの散策・自転車コース。春の桜の名所。冬は渡り鳥の飛来地。",
+        "zh": "周长4km散步/自行车路线。春季赏樱名地。冬季候鸟栖息地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 65
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 강릉시 성산면 초당순두부길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "초당 순두부마을 점심 — 순두부찌개 / 모두부 / 강릉 초당두부 (식이 제약 매칭).",
+        "en": "Chodang Tofu Village lunch — soft tofu stew / block tofu / Gangneung specialty tofu.",
+        "ja": "草堂スンドゥブ村ランチ — スンドゥブチゲ / 豆腐 / 江陵草堂豆腐。",
+        "zh": "草堂豆腐村午餐 — 嫩豆腐汤 / 豆腐块 / 江陵草堂豆腐。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 130
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "오죽헌",
+      "name_i18n": {
+        "ko": "오죽헌",
+        "en": "Ojukheon",
+        "ja": "烏竹軒",
+        "zh": "乌竹轩"
+      },
+      "address": "강원특별자치도 강릉시 율곡로3139번길 24",
+      "stay_min": 50,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1000,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "강릉시민 무료. 만 65세 이상 무료. 매월 마지막 수요일 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신사임당·율곡 이이 생가. 5만원권 도안 장소. 시립박물관 연계 관람 가능.",
+        "en": "Birthplace of Shin Saimdang and Yulgok Yi I. 50,000 won note design site.",
+        "ja": "申師任堂と栗谷李珥の生家。5万ウォン紙幣の図案地。市立博物館も見学可。",
+        "zh": "申师任堂与栗谷李珥故居。五万韩元纸币图案地。可联合参观市立博物馆。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 205
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "선교장",
+      "name_i18n": {
+        "ko": "선교장",
+        "en": "Seongyojang",
+        "ja": "船橋荘",
+        "zh": "船桥庄"
+      },
+      "address": "강원특별자치도 강릉시 운정길 63",
+      "stay_min": 50,
+      "entry_fee_krw": 5000,
+      "entry_fee": {
+        "adult": 5000,
+        "child": 3000,
+        "senior": 3000,
+        "toddler": 0,
+        "notes": "한복 체험 추가 비용. 전통차 체험 포함 패키지 있음."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "300년 역사 조선 상류층 가옥. 99칸 대저택. 활래정 연못 포토 스팟.",
+        "en": "300-year-old Joseon aristocratic estate. 99-room mansion. Hwallaejeong pond photo spot.",
+        "ja": "300年の歴史を持つ朝鮮両班の屋敷。99室の大邸宅。活来亭の池が撮影スポット。",
+        "zh": "有300年历史的朝鲜贵族宅第。99间大宅。活来亭水池拍照胜地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 270
+    },
+    {
+      "order": 6,
+      "category": "shopping",
+      "name": "강릉중앙시장",
+      "name_i18n": {
+        "ko": "강릉중앙시장",
+        "en": "Gangneung Central Market",
+        "ja": "江陵中央市場",
+        "zh": "江陵中央市场"
+      },
+      "address": "강원특별자치도 강릉시 금성로 21",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "강릉 전통시장. 감자전·물회·닭강정. 야시장 (금~일 저녁).",
+        "en": "Gangneung traditional market. Gamjajeon / mul-hoe / dakgangjeong. Night market Fri-Sun eve.",
+        "ja": "江陵の伝統市場。ジャガイモチヂミ・水刺身・ダッカンジョン。夜市(金〜日夕)。",
+        "zh": "江陵传统市场。土豆煎饼/水刺身/韩式炸鸡。夜市(周五至周日晚)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 340
+    },
+    {
+      "order": 7,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 강릉시 금성로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "강릉 저녁 — 물회 / 짬뽕 / 오징어불고기 (식이 제약 매칭).",
+        "en": "Gangneung dinner — mul-hoe / jjamppong / spicy squid.",
+        "ja": "江陵の夕食 — 水刺身 / チャンポン / イカプルコギ。",
+        "zh": "江陵晚餐 — 水刺身 / 炒码面 / 辣鱿鱼。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 420
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 4500,
+      "cost_krw": 6000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 4500,
+        "cost_krw": 6000
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 2500,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 10,
+        "distance_m": 2500,
+        "cost_krw": 5000
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 3000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 10,
+        "distance_m": 3000,
+        "cost_krw": 5000
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 800,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 2000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 10,
+        "distance_m": 2000,
+        "cost_krw": 5000
+      }
+    },
+    "6->7": {
+      "from_order": 6,
+      "to_order": 7,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["coffee_lover", "culture_lover", "nature_lover", "foodie"],
+  "unsuitable_for": ["mobility_limited"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. packed 코스로 이동 많음 — 택시 사전 예약 권장. 선교장 한복 체험 옵션 별도 예약."
+}

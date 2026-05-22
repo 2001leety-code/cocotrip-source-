@@ -1,0 +1,290 @@
+{
+  "id": "DAEGU_DAY_DONGSEONG_STANDARD",
+  "city": "daegu",
+  "zone": "Dongseong-Seomun",
+  "theme": "동성로 + 서문시장 + 대구근대골목",
+  "theme_i18n": {
+    "ko": "동성로 + 서문시장 + 대구근대골목",
+    "en": "Dongseongno + Seomun Market + Daegu Modern History Alley",
+    "ja": "東城路 + 西門市場 + 大邱近代路地",
+    "zh": "东城路 + 西门市场 + 大邱近代胡同"
+  },
+  "intensity": "standard",
+  "duration_min": 430,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "동성로",
+      "name_i18n": {
+        "ko": "동성로",
+        "en": "Dongseongno",
+        "ja": "東城路",
+        "zh": "东城路"
+      },
+      "address": "대구광역시 중구 동성로2가",
+      "stay_min": 70,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 보행로. 대구 최대 번화가."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대구 최대 상업·문화 거리. 10-20대 트렌드 집결지. 주말 버스킹 상시 진행.",
+        "en": "Daegu's main commercial and cultural street. Youth fashion/trend hub. Weekend busking always on.",
+        "ja": "大邱最大の商業・文化通り。10〜20代のトレンド集結地。週末バスキング常時開催。",
+        "zh": "大邱最大商业文化街。年轻人潮流聚集地。周末常有街头表演。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "대구 근대골목 (청라언덕)",
+      "name_i18n": {
+        "ko": "대구 근대골목 (청라언덕)",
+        "en": "Daegu Modern History Alley (Cheongna Hill)",
+        "ja": "大邱近代路地（青蘿丘）",
+        "zh": "大邱近代胡同（青蘿丘）"
+      },
+      "address": "대구광역시 중구 달구벌대로 2029",
+      "stay_min": 70,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "투어 코스 무료. 스탬프 투어 지도 무료 배포 (관광안내소)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "청라언덕 (선교사 가옥) + 계산성당 + 3·1 만세운동 길. 대구 근대화 흔적. 스탬프 투어 권장.",
+        "en": "Cheongna Hill (missionary houses) + Gyesan Cathedral + March 1st Movement path. Daegu's modernization heritage. Stamp tour recommended.",
+        "ja": "青蘿丘（宣教師家屋）+桂山聖堂+3.1万歳運動の道。大邱近代化の痕跡。スタンプツアー推奨。",
+        "zh": "青蘿丘（传教士房屋）+桂山圣堂+三一万岁运动路。大邱近代化痕迹。建议参与盖章游。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 85
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대구광역시 중구 큰장로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "대구 점심 — 납작만두 / 막창구이 / 야끼우동 (식이 제약 매칭).",
+        "en": "Daegu lunch — flat dumplings / grilled beef intestine / yaki-udon matched by dietary needs.",
+        "ja": "大邱ランチ — 平餃子 / マッチャン焼き / 焼きうどん (食事制限マッチング)。",
+        "zh": "大邱午餐 — 扁饺子 / 烤牛肠 / 炒乌冬面 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 170
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "서문시장",
+      "name_i18n": {
+        "ko": "서문시장",
+        "en": "Seomun Market",
+        "ja": "西門市場",
+        "zh": "西门市场"
+      },
+      "address": "대구광역시 중구 큰장로26길 45",
+      "stay_min": 80,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 입장. 야시장 수-일 운영 (봄~가을 저녁 7시~). 우천 취소."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "조선시대부터 이어진 대구 최대 전통시장. 납작만두·양념곱창 맛집. 야시장 (수~일 봄가을).",
+        "en": "Daegu's largest traditional market since Joseon era. Flat dumplings / marinated tripe. Night market Wed-Sun spring-fall.",
+        "ja": "朝鮮時代から続く大邱最大伝統市場。平餃子・양념곱창グルメ。夜市（水〜日・春秋）。",
+        "zh": "自朝鲜时代延续的大邱最大传统市场。扁饺子/调味牛肠。夜市（周三至周日，春秋季）。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 245
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "약령시 (대구 약령시한의약박물관)",
+      "name_i18n": {
+        "ko": "대구 약령시 한의약박물관",
+        "en": "Daegu Yangnyeongsi Oriental Medicine Museum",
+        "ja": "大邱薬令市韓医薬博物館",
+        "zh": "大邱药令市韩医药博物馆"
+      },
+      "address": "대구광역시 중구 달구벌대로415길 49",
+      "stay_min": 40,
+      "entry_fee_krw": 1000,
+      "entry_fee": {
+        "adult": 1000,
+        "child": 500,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "만 65세 이상 무료. 한방 체험 프로그램 별도."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "350년 역사 약재 시장. 한방 약재 향기 독특. 한방 족욕·체험 프로그램. 한약재 쇼핑.",
+        "en": "350-year-old medicinal herb market. Unique traditional medicine aroma. Oriental medicine foot bath. Herb shopping.",
+        "ja": "350年の歴史を持つ薬材市場。韓方薬材の独特な香り。韓方足湯・体験プログラム。薬材ショッピング。",
+        "zh": "350年历史药材市场。韩药材独特香气。韩方足浴/体验项目。药材购物。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 340
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대구광역시 중구 동성로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "동성로 저녁 — 대구 막창 / 돼지갈비 / 동인동 찜갈비 (식이 제약 매칭).",
+        "en": "Dongseongno dinner — Daegu makchang / pork ribs / Dongin-dong braised ribs.",
+        "ja": "東城路の夕食 — 大邱マッチャン / 豚カルビ / 東仁洞チムカルビ。",
+        "zh": "东城路晚餐 — 大邱烤牛肠 / 猪排骨 / 东仁洞炖排骨。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 395
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 800,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 600,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["culture_lover", "foodie", "history_buff", "shopping_lover"],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 대구 지하철 1호선 중앙로역 하차 도보권. 서문시장 야시장 수-일 저녁 운영 (봄~가을). 근대골목 스탬프 투어 관광안내소 지도 수령."
+}

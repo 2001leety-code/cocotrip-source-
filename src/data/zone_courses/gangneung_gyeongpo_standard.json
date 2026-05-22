@@ -1,0 +1,290 @@
+{
+  "id": "GANGNEUNG_DAY_GYEONGPO_STANDARD",
+  "city": "gangneung",
+  "zone": "Gyeongpo-Anmok",
+  "theme": "경포대 + 안목커피거리 + 오죽헌",
+  "theme_i18n": {
+    "ko": "경포대 + 안목커피거리 + 오죽헌",
+    "en": "Gyeongpodae + Anmok Coffee Street + Ojukheon",
+    "ja": "鏡浦台 + 安木コーヒー通り + 烏竹軒",
+    "zh": "镜浦台 + 安木咖啡街 + 乌竹轩"
+  },
+  "intensity": "standard",
+  "duration_min": 430,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "경포대",
+      "name_i18n": {
+        "ko": "경포대",
+        "en": "Gyeongpodae Pavilion",
+        "ja": "鏡浦台",
+        "zh": "镜浦台"
+      },
+      "address": "강원특별자치도 강릉시 강문동 경포로 365",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 경포호 주변 산책로 포함."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "조선시대 누각. 경포호 위에 달이 여러 개 뜬다는 전설. 일출 명소.",
+        "en": "Joseon-era pavilion. Legend says multiple moons reflect on Gyeongpo Lake. Famous for sunrise.",
+        "ja": "朝鮮時代の楼閣。鏡浦湖に複数の月が映るという伝説。日の出スポット。",
+        "zh": "朝鲜时代楼阁。传说镜浦湖中可见多个月影。著名日出观赏地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "경포해수욕장",
+      "name_i18n": {
+        "ko": "경포해수욕장",
+        "en": "Gyeongpo Beach",
+        "ja": "鏡浦海水浴場",
+        "zh": "镜浦海水浴场"
+      },
+      "address": "강원특별자치도 강릉시 강문동 해안로 348",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 여름 성수기 매우 혼잡."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "강릉 대표 해변. 경포호와 동해가 이어지는 절경. 모래사장 1.8km.",
+        "en": "Gangneung's main beach. Scenic where Gyeongpo Lake meets the East Sea. 1.8km sandy shore.",
+        "ja": "江陵の代表的な海水浴場。鏡浦湖と東海がつながる絶景。砂浜1.8km。",
+        "zh": "江陵代表海滩。镜浦湖与东海交汇处绝景。沙滩长1.8km。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 70
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 강릉시 안목해변로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "강릉 향토 음식 — 초당순두부 / 오징어물회 / 강릉짬뽕 (식이 제약 매칭).",
+        "en": "Gangneung local food — Chodang soft tofu / squid mul-hoe / Gangneung jjamppong matched by dietary needs.",
+        "ja": "江陵郷土料理 — 草堂スンドゥブ / イカ水刺身 / 江陵チャンポン (食事制限とマッチング)。",
+        "zh": "江陵乡土料理 — 草堂嫩豆腐 / 鱿鱼水刺身 / 江陵炒码面 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 135
+    },
+    {
+      "order": 4,
+      "category": "activity",
+      "name": "안목 커피거리",
+      "name_i18n": {
+        "ko": "안목 커피거리",
+        "en": "Anmok Coffee Street",
+        "ja": "安木コーヒー通り",
+        "zh": "安木咖啡街"
+      },
+      "address": "강원특별자치도 강릉시 창해로14번길 20",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "카페 이용 비용 별도 (아메리카노 5,000-8,000원)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "동해 바다 뷰 카페 거리. 강릉 커피 문화의 발상지. 자판기 커피도 유명.",
+        "en": "Oceanview cafe strip. Birthplace of Gangneung coffee culture. Vending machine coffee also iconic.",
+        "ja": "東海オーシャンビューカフェ通り。江陵コーヒー文化の発祥地。自販機コーヒーも有名。",
+        "zh": "东海海景咖啡街。江陵咖啡文化发源地。自动贩卖机咖啡也很有名。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 210
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "오죽헌",
+      "name_i18n": {
+        "ko": "오죽헌",
+        "en": "Ojukheon",
+        "ja": "烏竹軒",
+        "zh": "乌竹轩"
+      },
+      "address": "강원특별자치도 강릉시 율곡로3139번길 24",
+      "stay_min": 60,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1000,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "강릉시민 무료. 만 65세 이상 무료. 매월 마지막 수요일(문화의 날) 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신사임당·율곡 이이 생가. 조선시대 건축 보존. 5만원권 지폐 도안 장소.",
+        "en": "Birthplace of Shin Saimdang and Yi I (Yulgok). Joseon architecture. Featured on 50,000 won note.",
+        "ja": "申師任堂と李珥(栗谷)の生家。朝鮮建築保存。5万ウォン紙幣の図案の場所。",
+        "zh": "申师任堂与李珥（栗谷）故居。朝鲜时代建筑。五万韩元纸币图案所在地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 285
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "강원특별자치도 강릉시 성산면 초당순두부길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "초당 순두부마을 — 강릉 명물 초당순두부찌개 / 순두부전골 (식이 제약 매칭).",
+        "en": "Chodang Tofu Village — Gangneung specialty soft tofu stew / tofu hot pot.",
+        "ja": "草堂スンドゥブ村 — 江陵名物草堂スンドゥブチゲ / スンドゥブ鍋。",
+        "zh": "草堂豆腐村 — 江陵特色草堂嫩豆腐汤 / 豆腐锅。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 365
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 1200,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 1200,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 4000,
+      "cost_krw": 6000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 4000,
+        "cost_krw": 6000
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 3000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 10,
+        "distance_m": 3000,
+        "cost_krw": 5000
+      }
+    }
+  },
+  "best_for": ["nature_lover", "culture_lover", "foodie", "coffee_lover"],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 초당순두부마을 저녁 슬롯 (order 6) 은 verified_dinner placeholder — 강릉 초당두부 DB 수집 권장."
+}

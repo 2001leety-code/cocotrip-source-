@@ -1,0 +1,290 @@
+{
+  "id": "GYEONGJU_DAY_BULGUKSA_STANDARD",
+  "city": "gyeongju",
+  "zone": "Bulguksa-Hwangni",
+  "theme": "불국사 + 석굴암 + 황리단길",
+  "theme_i18n": {
+    "ko": "불국사 + 석굴암 + 황리단길",
+    "en": "Bulguksa Temple + Seokguram Grotto + Hwangniданgil",
+    "ja": "仏国寺 + 石窟庵 + ファンリダンギル",
+    "zh": "佛国寺 + 石窟庵 + 黄里街"
+  },
+  "intensity": "standard",
+  "duration_min": 430,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "불국사",
+      "name_i18n": {
+        "ko": "불국사",
+        "en": "Bulguksa Temple",
+        "ja": "仏国寺",
+        "zh": "佛国寺"
+      },
+      "address": "경상북도 경주시 불국로 385",
+      "stay_min": 90,
+      "entry_fee_krw": 6000,
+      "entry_fee": {
+        "adult": 6000,
+        "child": 4000,
+        "senior": 4000,
+        "toddler": 0,
+        "notes": "만 65세 이상 경감. 단체 20인+ 할인. 연중무휴."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신라 불교 예술의 정수. 유네스코 세계유산. 청운교·다보탑·석가탑 필수 촬영.",
+        "en": "UNESCO World Heritage. Pinnacle of Silla Buddhist art. Must-see: Cheongunbyo stairs, Dabotap, Seokgatap pagodas.",
+        "ja": "ユネスコ世界遺産。新羅仏教美術の粋。青雲橋・多宝塔・釈迦塔は必見。",
+        "zh": "联合国教科文组织世界遗产。新罗佛教艺术精华。必拍：青云桥、多宝塔、释迦塔。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "석굴암",
+      "name_i18n": {
+        "ko": "석굴암",
+        "en": "Seokguram Grotto",
+        "ja": "石窟庵",
+        "zh": "石窟庵"
+      },
+      "address": "경상북도 경주시 불국로 873-243",
+      "stay_min": 60,
+      "entry_fee_krw": 6000,
+      "entry_fee": {
+        "adult": 6000,
+        "child": 4000,
+        "senior": 4000,
+        "toddler": 0,
+        "notes": "불국사 입장 후 추가 요금. 불국사와 통합권 없음. 셔틀버스 운행."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "8세기 신라 석조 불상. 유네스코 세계유산. 토함산 정상 근처. 셔틀버스 또는 도보 20분.",
+        "en": "8th-century Silla stone Buddha. UNESCO World Heritage. Near Tohamsan summit. Shuttle or 20min walk.",
+        "ja": "8世紀新羅の石造仏像。ユネスコ世界遺産。吐含山頂近く。シャトルバスまたは徒歩20分。",
+        "zh": "8世纪新罗石造佛像。联合国教科文组织世界遗产。近吐含山顶。有班车或步行20分钟。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "경상북도 경주시 황오동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "경주 향토 음식 — 쌈밥 / 경주법주 + 안주 / 황남빵 디저트 (식이 제약 매칭).",
+        "en": "Gyeongju local food — ssambap / Gyeongju rice wine pairing / Hwangnam bread dessert.",
+        "ja": "慶州郷土料理 — サムパプ / 慶州法酒おつまみ / 皇南パンデザート。",
+        "zh": "庆州乡土料理 — 包饭 / 庆州法酒下酒菜 / 皇南面包甜点。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 180
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "황리단길",
+      "name_i18n": {
+        "ko": "황리단길",
+        "en": "Hwangniданgil Street",
+        "ja": "ファンリダンギル",
+        "zh": "黄里街"
+      },
+      "address": "경상북도 경주시 포석로 1080",
+      "stay_min": 70,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료. 카페·빵집·소품샵 이용 비용 별도."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대릉원 옆 경주판 경리단길. 전통 기와집 + 트렌디 카페. 황남빵·찰보리빵 쇼핑.",
+        "en": "Gyeongju's trendy alley beside Daereungwon. Traditional hanok + modern cafes. Hwangnam bread shopping.",
+        "ja": "大陵苑隣の慶州版路地。伝統瓦屋根 + トレンドカフェ。皇南パン・麦パン購入。",
+        "zh": "大陵苑旁庆州版网红街。传统瓦房 + 潮流咖啡。黄南面包购物胜地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 255
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "대릉원",
+      "name_i18n": {
+        "ko": "대릉원",
+        "en": "Daereungwon Tumuli Park",
+        "ja": "大陵苑",
+        "zh": "大陵苑"
+      },
+      "address": "경상북도 경주시 계림로 9",
+      "stay_min": 50,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 2000,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "만 65세 이상 무료. 천마총 내부 관람 포함. 일몰 후 조명 야경."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신라 왕릉 23기. 천마총 내부 공개. 황리단길과 연계. 일몰 무렵 방문 추천.",
+        "en": "23 Silla royal burial mounds. Cheonmachong interior open. Best visited at dusk for illumination.",
+        "ja": "新羅王陵23基。天馬塚内部公開。夕暮れのライトアップがおすすめ。",
+        "zh": "新罗王陵23座。天马冢内部开放。傍晚灯光亮起时参观最佳。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 345
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "경상북도 경주시 황오동 황리단길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "황리단길 저녁 — 경주 떡갈비 / 비빔밥 / 전통주 막걸리 (식이 제약 매칭).",
+        "en": "Hwangniданgil dinner — Gyeongju tteokgalbi / bibimbap / traditional makgeolli.",
+        "ja": "ファンリダンギル夕食 — 慶州トッカルビ / ビビンバ / 伝統マッコリ。",
+        "zh": "黄里街晚餐 — 庆州年糕排骨 / 拌饭 / 传统马格利酒。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 410
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "bus",
+      "duration_min": 15,
+      "distance_m": 3000,
+      "cost_krw": 1300,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 셔틀버스 이용 또는 도보 20분. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "bus",
+        "duration_min": 15,
+        "distance_m": 3000,
+        "cost_krw": 1300
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "taxi",
+      "duration_min": 20,
+      "distance_m": 8000,
+      "cost_krw": 8000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 20,
+        "distance_m": 8000,
+        "cost_krw": 8000
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 600,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["culture_lover", "history_buff", "first_time_visitor"],
+  "unsuitable_for": ["mobility_limited"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 불국사→석굴암 셔틀버스 30분 간격 운행 확인 필요. 황리단길 황남빵집 현장 대기 30분+ 성수기."
+}

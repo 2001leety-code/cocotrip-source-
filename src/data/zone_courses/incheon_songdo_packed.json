@@ -1,0 +1,331 @@
+{
+  "id": "INCHEON_DAY_SONGDO_PACKED",
+  "city": "incheon",
+  "zone": "Songdo-Central",
+  "theme": "트리플스트리트 + 송도 센트럴파크 + G타워",
+  "theme_i18n": {
+    "ko": "트리플스트리트 + 송도 센트럴파크 + G타워",
+    "en": "Triple Street + Songdo Central Park + G-Tower",
+    "ja": "トリプルストリート + 松島セントラルパーク + Gタワー",
+    "zh": "Triple Street + 松岛中央公园 + G塔"
+  },
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "송도 센트럴파크",
+      "name_i18n": {
+        "ko": "송도 센트럴파크",
+        "en": "Songdo Central Park",
+        "ja": "松島セントラルパーク",
+        "zh": "松岛中央公园"
+      },
+      "address": "인천광역시 연수구 컨벤시아대로 160",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "공원 입장 무료. 보트 대여 별도 (수상 택시 등). 요트 투어 유료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "뉴욕 센트럴파크 모델 송도 수변공원. 수상 택시·카약 체험. 주변 G타워 야경 포인트.",
+        "en": "Songdo waterfront park modeled on NYC Central Park. Water taxi / kayak. G-Tower night view nearby.",
+        "ja": "NYセントラルパーク参考の松島水辺公園。水上タクシー・カヤック体験。GタワーN夜景ポイント。",
+        "zh": "参考纽约中央公园建造的松岛滨水公园。水上出租车/皮划艇体验。G塔夜景观赏点。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "G타워 전망대",
+      "name_i18n": {
+        "ko": "G타워 전망대",
+        "en": "G-Tower Observatory",
+        "ja": "Gタワー展望台",
+        "zh": "G塔观景台"
+      },
+      "address": "인천광역시 연수구 아트센터대로 175",
+      "stay_min": 50,
+      "entry_fee_krw": 8000,
+      "entry_fee": {
+        "adult": 8000,
+        "child": 5000,
+        "senior": 5000,
+        "toddler": 0,
+        "notes": "33층 전망대 운영 시간 확인 필요. 온라인 예약 권장."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "송도 국제도시 + 인천 공항 방향 조망. 33층 전망대. 맑은 날 서울 여의도 조망 가능.",
+        "en": "View of Songdo International City + direction of Incheon Airport. 33F observatory. Clear day: Yeouido Seoul visible.",
+        "ja": "松島国際都市+仁川空港方向の眺望。33階展望台。晴天時はソウル汝矣島も見える。",
+        "zh": "松岛国际城市+仁川机场方向眺望。33层观景台。晴天可望首尔汝矣岛。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 75
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "인천광역시 연수구 송도동 트리플스트리트",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "트리플스트리트 점심 — 다국적 레스토랑 밀집 (한식/일식/양식). 식이 제약 매칭.",
+        "en": "Triple Street lunch — international restaurants (Korean/Japanese/Western) matched by dietary needs.",
+        "ja": "トリプルストリートランチ — 多国籍レストラン集結（韓食/和食/洋食）。食事制限マッチング。",
+        "zh": "Triple Street午餐 — 多国餐厅云集（韩餐/日餐/西餐）。按饮食偏好匹配。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 140
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "트리플스트리트",
+      "name_i18n": {
+        "ko": "트리플스트리트",
+        "en": "Triple Street",
+        "ja": "トリプルストリート",
+        "zh": "Triple Street"
+      },
+      "address": "인천광역시 연수구 컨벤시아대로 165",
+      "stay_min": 70,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "쇼핑몰 입장 무료. 개별 매장 이용 비용 별도."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "송도 대형 복합쇼핑몰. 3개 동 연결. 루프탑 산책로. 영화관·볼링·루프탑 바.",
+        "en": "Songdo large mall complex. 3 connected blocks. Rooftop walkway. Cinema / bowling / rooftop bar.",
+        "ja": "松島大型複合ショッピングモール。3棟連結。ルーフトップ遊歩道。映画館・ボウリング・ルーフトップバー。",
+        "zh": "松岛大型综合购物中心。3栋连体。屋顶步道。电影院/保龄球/屋顶酒吧。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 215
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "인천 아트센터",
+      "name_i18n": {
+        "ko": "인천 아트센터",
+        "en": "Incheon Arts Center",
+        "ja": "仁川アーツセンター",
+        "zh": "仁川艺术中心"
+      },
+      "address": "인천광역시 연수구 아트센터대로 175",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "건물 외관·광장 무료. 내부 공연·전시 별도 요금."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "송도 랜드마크 문화시설. 광장 야외 조각 전시. G타워와 인접. 공연 일정 사전 확인.",
+        "en": "Songdo landmark cultural venue. Outdoor sculpture plaza. Adjacent to G-Tower. Check performance schedule.",
+        "ja": "松島ランドマーク文化施設。広場屋外彫刻展示。Gタワー隣接。公演スケジュール事前確認。",
+        "zh": "松岛地标文化设施。广场户外雕塑展示。邻近G塔。请提前确认演出日程。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 300
+    },
+    {
+      "order": 6,
+      "category": "nature",
+      "name": "달빛축제공원 (송도)",
+      "name_i18n": {
+        "ko": "달빛축제공원",
+        "en": "Moonlight Festival Park (Songdo)",
+        "ja": "月光祭りの公園（松島）",
+        "zh": "月光节庆公园（松岛）"
+      },
+      "address": "인천광역시 연수구 컨벤시아대로",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "송도 저녁 산책. 센트럴파크 주변 야경. 커플·가족 산책로. 야간 조명 설치.",
+        "en": "Songdo evening stroll. Central Park surroundings at night. Couple/family walking paths with lighting.",
+        "ja": "松島の夜散歩。セントラルパーク周辺夜景。カップル・ファミリー遊歩道。夜間照明。",
+        "zh": "松岛傍晚散步。中央公园周边夜景。情侣/家庭步道。夜间灯光。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 355
+    },
+    {
+      "order": 7,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "인천광역시 연수구 송도동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "송도 저녁 — 해산물 / 스테이크 (G타워 인근) / 한식 저녁 (식이 제약 매칭).",
+        "en": "Songdo dinner — seafood / steak (near G-Tower) / Korean dinner matched by dietary needs.",
+        "ja": "松島の夕食 — 海鮮 / ステーキ（Gタワー近く）/ 韓食夕食。",
+        "zh": "松岛晚餐 — 海鲜 / 牛排（G塔附近）/ 韩式晚餐。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 415
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 800,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 200,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 200,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "6->7": {
+      "from_order": 6,
+      "to_order": 7,
+      "mode": "walk",
+      "duration_min": 20,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 20,
+        "distance_m": 600,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["urban_explorer", "family", "shopping_lover", "night_view_lover"],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 인천 1호선 센트럴파크역 하차. G타워 전망대 운영시간 사전 확인 필요. 송도 내 이동 거리 넓음 — 자전거 대여 권장."
+}

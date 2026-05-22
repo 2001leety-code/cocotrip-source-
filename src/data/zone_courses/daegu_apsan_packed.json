@@ -1,0 +1,331 @@
+{
+  "id": "DAEGU_DAY_APSAN_PACKED",
+  "city": "daegu",
+  "zone": "Apsan-Modern",
+  "theme": "앞산공원 + 팔공산(케이블카) + 근대문화골목",
+  "theme_i18n": {
+    "ko": "앞산공원 + 팔공산(케이블카) + 근대문화골목",
+    "en": "Apsan Park + Palgongsan (Cable Car) + Modern Culture Alley",
+    "ja": "前山公園 + 八公山（ケーブルカー）+ 近代文化路地",
+    "zh": "前山公园 + 八公山（缆车）+ 近代文化胡同"
+  },
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "앞산공원",
+      "name_i18n": {
+        "ko": "앞산공원",
+        "en": "Apsan Park",
+        "ja": "前山公園",
+        "zh": "前山公园"
+      },
+      "address": "대구광역시 남구 앞산순환로 574",
+      "stay_min": 80,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "공원 입장 무료. 케이블카 왕복 5,000원. 산책로 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대구 시내 남쪽 도심 녹지. 케이블카 타고 앞산 전망대 (대구 시내 파노라마). 트레킹·산책 가능.",
+        "en": "Daegu's southern urban greenery. Cable car to Apsan Observatory (panoramic city view). Hiking and strolling.",
+        "ja": "大邱市内南の都市緑地。ケーブルカーで前山展望台（市内パノラマ）。ハイキング・散策可。",
+        "zh": "大邱市南部城市绿地。乘缆车至前山观景台（市区全景）。可徒步或散步。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대구광역시 남구 앞산순환로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "앞산 인근 점심 — 산채비빔밥 / 대구탕 / 보리밥 정식 (식이 제약 매칭).",
+        "en": "Apsan area lunch — mountain veggie bibimbap / daegutang soup / barley rice set matched by dietary needs.",
+        "ja": "前山近くランチ — 山菜ビビンバ / テグタン / 麦飯定食 (食事制限マッチング)。",
+        "zh": "前山附近午餐 — 山菜拌饭 / 大邱汤 / 大麦饭套餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 95
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "팔공산 케이블카 (팔공산 도립공원)",
+      "name_i18n": {
+        "ko": "팔공산 케이블카",
+        "en": "Palgongsan Cable Car",
+        "ja": "八公山ケーブルカー",
+        "zh": "八公山缆车"
+      },
+      "address": "대구광역시 동구 팔공산로185길 51",
+      "stay_min": 90,
+      "entry_fee_krw": 12000,
+      "entry_fee": {
+        "adult": 12000,
+        "child": 7000,
+        "senior": 7000,
+        "toddler": 0,
+        "notes": "왕복 요금. 현장 발권. 성수기 1-2시간 대기. 날씨 불량 시 운행 중단."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신림봉 전망대까지 케이블카. 대구 시내 + 경북 조망. 갓바위 연계 등산 가능. 성수기 대기 길어.",
+        "en": "Cable car to Sinrimbong Observatory. Views of Daegu + North Gyeongbuk. Gatbawi hike connection possible. Long waits in peak season.",
+        "ja": "申林峰展望台へのケーブルカー。大邱+慶北の眺望。笠岩ハイキング連携可能。繁忙期は待ち長い。",
+        "zh": "缆车至申林峰观景台。俯瞰大邱+庆北。可连接笠岩徒步。旺季等候时间较长。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 170
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "동화사",
+      "name_i18n": {
+        "ko": "동화사",
+        "en": "Donghwasa Temple",
+        "ja": "桐華寺",
+        "zh": "桐华寺"
+      },
+      "address": "대구광역시 동구 동화사1길 1",
+      "stay_min": 50,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1500,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "만 65세 이상 무료. 케이블카 탑승 후 차량 이동 필요."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "팔공산 대표 사찰. 통일대불 높이 33m. 대구 사찰 중 최대 규모. 연등 (봄) + 단풍 (가을).",
+        "en": "Palgongsan's main temple. 33m Unification Buddha. Largest temple in Daegu. Lanterns in spring / foliage in fall.",
+        "ja": "八公山代表寺院。統一大仏33m。大邱最大規模の寺院。春は灯籠・秋は紅葉。",
+        "zh": "八公山代表寺院。统一大佛高33m。大邱规模最大寺院。春季灯笼/秋季红叶。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 275
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "대구 근대문화골목 (청라언덕)",
+      "name_i18n": {
+        "ko": "대구 근대문화골목 (청라언덕)",
+        "en": "Daegu Modern Culture Alley (Cheongna Hill)",
+        "ja": "大邱近代文化路地（青蘿丘）",
+        "zh": "大邱近代文化胡同（青蘿丘）"
+      },
+      "address": "대구광역시 중구 달구벌대로 2029",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료. 스탬프 투어 지도 관광안내소 수령."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "청라언덕 + 계산성당 + 3·1 만세운동 길. 근대화 시대 선교사 가옥. 스탬프 투어 권장.",
+        "en": "Cheongna Hill + Gyesan Cathedral + March 1st path. Modernization-era missionary houses. Stamp tour recommended.",
+        "ja": "青蘿丘 + 桂山聖堂 + 3.1万歳通り。近代化時代の宣教師家屋。スタンプツアー推奨。",
+        "zh": "青蘿丘 + 桂山圣堂 + 三一运动路。近代化时代传教士房屋。建议参与盖章游。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 340
+    },
+    {
+      "order": 6,
+      "category": "shopping",
+      "name": "서문시장",
+      "name_i18n": {
+        "ko": "서문시장",
+        "en": "Seomun Market",
+        "ja": "西門市場",
+        "zh": "西门市场"
+      },
+      "address": "대구광역시 중구 큰장로26길 45",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대구 최대 전통시장. 납작만두·양념곱창·야시장 (수~일 저녁, 봄~가을).",
+        "en": "Daegu's largest traditional market. Flat dumplings / marinated tripe / night market Wed-Sun spring-fall.",
+        "ja": "大邱最大伝統市場。平餃子・ヤンニョムコプチャン・夜市（水〜日夕、春秋）。",
+        "zh": "大邱最大传统市场。扁饺子/调味牛肠/夜市（周三至周日，春秋季）。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 415
+    },
+    {
+      "order": 7,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대구광역시 중구 큰장로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "서문시장 저녁 — 대구 막창 / 동인동 찜갈비 / 납작만두 (식이 제약 매칭).",
+        "en": "Seomun Market dinner — Daegu makchang / Dongin-dong braised ribs / flat dumplings.",
+        "ja": "西門市場の夕食 — 大邱マッチャン / 東仁洞チムカルビ / 平餃子。",
+        "zh": "西门市场晚餐 — 大邱烤牛肠 / 东仁洞炖排骨 / 扁饺子。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 480
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "taxi",
+      "duration_min": 30,
+      "distance_m": 20000,
+      "cost_krw": 15000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 앞산→팔공산 택시 이동. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 30,
+        "distance_m": 20000,
+        "cost_krw": 15000
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 3000,
+      "cost_krw": 5000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 팔공산 케이블카→동화사 근거리. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 10,
+        "distance_m": 3000,
+        "cost_krw": 5000
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "taxi",
+      "duration_min": 25,
+      "distance_m": 15000,
+      "cost_krw": 12000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 동화사→근대문화골목 택시. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 25,
+        "distance_m": 15000,
+        "cost_krw": 12000
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "6->7": {
+      "from_order": 6,
+      "to_order": 7,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 200,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 200,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["nature_lover", "culture_lover", "history_buff", "active_traveler"],
+  "unsuitable_for": ["mobility_limited"],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. packed 코스로 택시 이동 2회 (앞산→팔공산, 동화사→근대골목). 팔공산 케이블카 성수기 1-2시간 대기 가능 — 오전 일찍 방문 권장. 체력 소모 코스."
+}

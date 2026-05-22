@@ -1,0 +1,283 @@
+{
+  "id": "INCHEON_DAY_CHINATOWN_STANDARD",
+  "city": "incheon",
+  "zone": "Chinatown-Gaehangnol",
+  "theme": "차이나타운 + 개항로거리 + 자유공원",
+  "theme_i18n": {
+    "ko": "차이나타운 + 개항로거리 + 자유공원",
+    "en": "Chinatown + Gaehangno Street + Freedom Park",
+    "ja": "チャイナタウン + 開港路通り + 自由公園",
+    "zh": "唐人街 + 开港路街 + 自由公园"
+  },
+  "intensity": "standard",
+  "duration_min": 430,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "인천 차이나타운",
+      "name_i18n": {
+        "ko": "인천 차이나타운",
+        "en": "Incheon Chinatown",
+        "ja": "仁川チャイナタウン",
+        "zh": "仁川唐人街"
+      },
+      "address": "인천광역시 중구 차이나타운로 26",
+      "stay_min": 70,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 짜장면 박물관 입장 별도 (성인 1,000원)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 최대 차이나타운. 짜장면 발상지. 삼국지 벽화거리. 짜장면 박물관 (세계 유일).",
+        "en": "Korea's largest Chinatown. Birthplace of jjajangmyeon (black bean noodles). Three Kingdoms murals. Jajangmyeon Museum (world's only).",
+        "ja": "韓国最大のチャイナタウン。チャジャンミョン発祥地。三国志壁画通り。チャジャンミョン博物館（世界唯一）。",
+        "zh": "韩国最大唐人街。炸酱面发源地。三国志壁画街。炸酱面博物馆（全球唯一）。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "인천광역시 중구 차이나타운로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "차이나타운 점심 — 짜장면 / 짬뽕 / 탕수육 (식이 제약 매칭). 중화요리 발상지 체험.",
+        "en": "Chinatown lunch — jjajangmyeon / jjamppong / tangsuyuk matched by dietary needs.",
+        "ja": "チャイナタウンランチ — チャジャンミョン / チャンポン / タンスユク (食事制限マッチング)。",
+        "zh": "唐人街午餐 — 炸酱面 / 炒码面 / 糖醋肉 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 85
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "개항로거리 (개항누리길)",
+      "name_i18n": {
+        "ko": "개항로거리 (개항누리길)",
+        "en": "Gaehangno Historical Street",
+        "ja": "開港路通り（開港ぬり道）",
+        "zh": "开港路街（开港누리길）"
+      },
+      "address": "인천광역시 중구 신포로27번길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "거리 보행 무료. 개별 건물 입장 별도."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "1883년 개항 이후 근대 건축 보존. 일본·청국·조선 건물 혼재. 트렌디 카페 + 공방.",
+        "en": "Preserved modern-era buildings since 1883 port opening. Mix of Japanese, Chinese, Korean architecture + trendy cafes.",
+        "ja": "1883年開港以来の近代建築保存。日本・清国・朝鮮建物が混在。トレンドカフェ+工房。",
+        "zh": "1883年开港以来近代建筑保存。日本、清朝、朝鲜建筑混杂。潮流咖啡+工坊。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 160
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "자유공원",
+      "name_i18n": {
+        "ko": "자유공원",
+        "en": "Jayu (Freedom) Park",
+        "ja": "自由公園",
+        "zh": "自由公园"
+      },
+      "address": "인천광역시 중구 자유공원로 25",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 맥아더 동상 관람 포함."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 최초 서구식 공원 (1888년). 맥아더 장군 동상. 인천항 + 차이나타운 전경. 벚꽃 명소 (4월).",
+        "en": "Korea's first Western-style park (1888). MacArthur statue. Panoramic view of Incheon port + Chinatown. Cherry blossoms in April.",
+        "ja": "韓国初の西洋式公園（1888年）。マッカーサー将軍像。仁川港+チャイナタウン全景。桜の名所（4月）。",
+        "zh": "韩国首个西式公园（1888年）。麦克阿瑟将军铜像。仁川港+唐人街全景。赏樱胜地（4月）。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 235
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "신포국제시장",
+      "name_i18n": {
+        "ko": "신포국제시장",
+        "en": "Sinpo International Market",
+        "ja": "新浦国際市場",
+        "zh": "新浦国际市场"
+      },
+      "address": "인천광역시 중구 우현로 49번길 12",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "인천 전통시장. 닭강정 원조 명소. 신포닭강정 줄 필수. 분식·간식 거리.",
+        "en": "Incheon traditional market. Original dakgangjeong spot. Queue at Sinpo dakgangjeong. Snack street.",
+        "ja": "仁川伝統市場。ダッカンジョンの元祖スポット。新浦ダッカンジョンは行列必至。スナック通り。",
+        "zh": "仁川传统市场。炸鸡原祖地。新浦炸鸡必排队。小吃街。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 300
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "인천광역시 중구 신포로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "신포 저녁 — 중화요리 (냉채·팔보채) / 인천 스타일 해물 / 막걸리 (식이 제약 매칭).",
+        "en": "Sinpo dinner — Chinese cuisine / Incheon-style seafood / makgeolli.",
+        "ja": "新浦の夕食 — 中華料理（冷菜・八宝菜）/ 仁川スタイル海鮮 / マッコリ。",
+        "zh": "新浦晚餐 — 中式料理（凉菜、八宝菜）/ 仁川风格海鲜 / 马格利酒。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 365
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 600,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 800,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 200,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 5,
+        "distance_m": 200,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["culture_lover", "history_buff", "foodie", "first_time_visitor"],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 인천 1호선 인천역 하차 후 도보권. 신포닭강정 현장 줄 대기 30분+. 짜장면 박물관 내부 관람 성인 1,000원."
+}

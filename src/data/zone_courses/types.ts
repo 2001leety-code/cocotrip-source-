@@ -31,6 +31,7 @@ export type ZoneCourseCity =
   | 'sokcho'
   | 'andong'
   | 'suwon'
+  | 'incheon'
   | 'gangwon'
   // 강원 도시 (Phase E #2, 2026-05-21)
   // gangneung / sokcho 는 기존 존재 — 강원권 region 별도 추가
