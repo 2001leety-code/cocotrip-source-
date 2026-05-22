@@ -1,0 +1,12 @@
+{
+  "id":"MOKPO_DAY_CENTRAL_STANDARD","city":"mokpo","zone":"Yudalsan-Modern",
+  "theme":"유달산+근대문화공간+평화광장","theme_i18n":{"ko":"유달산+근대문화공간+평화광장","en":"Yudalsan+Modern Cultural Space+Peace Square","ja":"儒達山+近代文化空間+平和広場","zh":"儒达山+近代文化空间+和平广场"},
+  "intensity":"standard","duration_min":420,"block_type":"city_day",
+  "stops":[
+    {"order":1,"category":"nature","name":"유달산","name_i18n":{"ko":"유달산","en":"Yudalsan","ja":"儒達山","zh":"儒达山"},"address":"전남 목포시 유달동","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"목포 상징산. 정상 일등바위.","en":"Mokpo symbol mountain. Ildeungbawi summit.","ja":"木浦象徴山。一等岩頂上。","zh":"木浦象征山。一等岩顶峰。"},"lat":34.7861,"lng":126.3753,"start_time_offset_min":0},
+    {"order":2,"category":"culture","name":"목포 근대역사관","name_i18n":{"ko":"목포 근대역사관","en":"Mokpo Modern History Hall","ja":"木浦近代歴史館","zh":"木浦近代历史馆"},"address":"전남 목포시 영산로 29번길 6","stay_min":75,"entry_fee_krw":2000,"reservation_required":false,"tips_i18n":{"ko":"일제시대 동양척식회사 건물. 1번관.","en":"Japanese colonial bank building. Hall 1.","ja":"日帝時代東洋拓殖会社建物。1号館。","zh":"日帝时代东洋拓殖会社建筑。1号馆。"},"lat":34.7861,"lng":126.3925,"start_time_offset_min":135},
+    {"order":3,"category":"food","name":"목포 세발낙지","name_i18n":{"ko":"목포 세발낙지","en":"Mokpo Small Octopus","ja":"木浦小タコ","zh":"木浦小章鱼"},"address":"전남 목포시","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"목포 명물. 세발낙지 코스.","en":"Mokpo specialty. Small octopus course.","ja":"木浦名物。小タココース。","zh":"木浦名菜。小章鱼套餐。"},"lat":34.7889,"lng":126.3917,"start_time_offset_min":225},
+    {"order":4,"category":"nature","name":"평화광장","name_i18n":{"ko":"평화광장","en":"Peace Square","ja":"平和広場","zh":"和平广场"},"address":"전남 목포시 평화광장","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"춤추는 바다분수. 야경 명소.","en":"Dancing sea fountain. Night spot.","ja":"踊る海噴水。夜景名所。","zh":"跳舞海喷泉。夜景名所。"},"lat":34.7958,"lng":126.4019,"start_time_offset_min":315},
+    {"order":5,"category":"culture","name":"갓바위","name_i18n":{"ko":"목포 갓바위","en":"Mokpo Gatbawi","ja":"木浦笠岩","zh":"木浦笠岩"},"address":"전남 목포시 용해동","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"명승 13호 천연기념물.","en":"Scenic site #13. Natural monument.","ja":"名勝13号天然記念物。","zh":"名胜13号天然纪念物。"},"lat":34.7889,"lng":126.4242,"start_time_offset_min":405}
+  ]
+}
