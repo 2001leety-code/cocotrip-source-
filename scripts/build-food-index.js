@@ -8,7 +8,7 @@
  * Usage: node scripts/build-food-index.js
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { sanitizeStopName } from '../api/_ai_core/sanitizeName.js';
@@ -128,10 +128,15 @@ function main() {
   const halal   = loadJson(join(FOOD_DATA_DIR, 'restaurants_halal.json'));
   const vegan   = loadJson(join(FOOD_DATA_DIR, 'restaurants_vegan.json'));
 
-  // Load city-collected files (from collect-restaurants.mjs)
-  const jeju     = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeju_collected.json'));
-  const gyeongju = loadJson(join(FOOD_DATA_DIR, 'restaurants_gyeongju_collected.json'));
-  const jeonju   = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeonju_collected.json'));
+  // Load all city-collected files dynamically (from collect-restaurants.mjs)
+  // Pattern: restaurants_{city}_collected.json — auto-discovers new cities
+  const collectedFiles = existsSync(FOOD_DATA_DIR)
+    ? readdirSync(FOOD_DATA_DIR).filter(f => /^restaurants_.+_collected\.json$/.test(f))
+    : [];
+  const cityCollected = collectedFiles.flatMap(f => loadJson(join(FOOD_DATA_DIR, f)));
+  if (collectedFiles.length) {
+    console.log(`  🏙️  Collected city files: ${collectedFiles.map(f => f.replace(/^restaurants_|_collected\.json$/g, '')).join(', ')}`);
+  }
 
   // 2026-05-21 신규 AI-curated batch (제주/경주/전주 halal/vegan/dong 확충).
   // 운영자 검증 후속 필수 — record 의 `notes` 필드 + `source=ai_curated_2026_05_21` 로 식별.
@@ -150,7 +155,7 @@ function main() {
   // Combine all
   const all = [
     ...general, ...halal, ...vegan,
-    ...jeju, ...gyeongju, ...jeonju,
+    ...cityCollected,
     ...jejuCurated, ...gyeongjuCurated, ...jeonjuCurated,
     ...busanSeafood, ...busanCafe, ...busanRestaurant, ...busanAttraction,
   ];

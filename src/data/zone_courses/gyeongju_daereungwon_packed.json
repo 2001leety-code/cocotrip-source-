@@ -1,0 +1,331 @@
+{
+  "id": "GYEONGJU_DAY_DAEREUNGWON_PACKED",
+  "city": "gyeongju",
+  "zone": "Daereungwon-Wolseong",
+  "theme": "대릉원 + 동궁과월지 + 첨성대 + 황리단길",
+  "theme_i18n": {
+    "ko": "대릉원 + 동궁과월지 + 첨성대 + 황리단길",
+    "en": "Daereungwon + Donggung & Wolji + Cheomseongdae + Hwangniданgil",
+    "ja": "大陵苑 + 東宮と月池 + 瞻星台 + ファンリダンギル",
+    "zh": "大陵苑 + 东宫与月池 + 瞻星台 + 黄里街"
+  },
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "대릉원",
+      "name_i18n": {
+        "ko": "대릉원",
+        "en": "Daereungwon Tumuli Park",
+        "ja": "大陵苑",
+        "zh": "大陵苑"
+      },
+      "address": "경상북도 경주시 계림로 9",
+      "stay_min": 60,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 2000,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "만 65세 이상 무료. 천마총 내부 관람 포함."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신라 왕릉 23기. 천마총 내부 공개. 아침 일찍 방문하면 인파 적고 안개 사진 가능.",
+        "en": "23 Silla royal burial mounds. Cheonmachong interior open. Arrive early for fewer crowds and misty photos.",
+        "ja": "新羅王陵23基。天馬塚内部公開。早朝訪問で人出少なく霞の写真も。",
+        "zh": "新罗王陵23座。天马冢内部开放。早上前往人少且可拍雾气照片。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "첨성대",
+      "name_i18n": {
+        "ko": "첨성대",
+        "en": "Cheomseongdae Observatory",
+        "ja": "瞻星台",
+        "zh": "瞻星台"
+      },
+      "address": "경상북도 경주시 인왕동 839-1",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 외부 감상만 가능 (내부 입장 불가)."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "7세기 신라 천문대. 동아시아 현존 최고(最古) 천문대. 유채꽃밭 (봄) + 코스모스 (가을).",
+        "en": "7th-century Silla observatory. Oldest surviving observatory in East Asia. Rapeseed fields in spring, cosmos in fall.",
+        "ja": "7世紀新羅の天文台。東アジア現存最古の天文台。春は菜の花畑、秋はコスモス。",
+        "zh": "7世纪新罗天文台。东亚现存最古天文台。春季油菜花田，秋季波斯菊。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 75
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "경상북도 경주시 황오동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "경주 점심 — 쌈밥 / 경주 비빔밥 / 황남빵 디저트 (식이 제약 매칭).",
+        "en": "Gyeongju lunch — ssambap / Gyeongju bibimbap / Hwangnam bread dessert.",
+        "ja": "慶州ランチ — サムパプ / 慶州ビビンバ / 皇南パンデザート。",
+        "zh": "庆州午餐 — 包饭 / 庆州拌饭 / 皇南面包甜点。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 120
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "황리단길",
+      "name_i18n": {
+        "ko": "황리단길",
+        "en": "Hwangniданgil Street",
+        "ja": "ファンリダンギル",
+        "zh": "黄里街"
+      },
+      "address": "경상북도 경주시 포석로 1080",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대릉원 옆 경주판 경리단길. 한옥 카페 + 소품샵. 황남빵·찰보리빵.",
+        "en": "Gyeongju's trendy alley beside Daereungwon. Hanok cafes + boutiques. Hwangnam bread.",
+        "ja": "大陵苑隣の路地。韓屋カフェ+雑貨店。皇南パン。",
+        "zh": "大陵苑旁网红街。韩屋咖啡+精品店。黄南面包。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 195
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "월성 (반월성)",
+      "name_i18n": {
+        "ko": "월성 (반월성)",
+        "en": "Wolseong Palace Site",
+        "ja": "月城（半月城）",
+        "zh": "月城（半月城）"
+      },
+      "address": "경상북도 경주시 인왕동 387-1",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료. 발굴 진행 중 — 일부 구역 접근 제한."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신라 왕궁 터. 현재 발굴 진행 중. 첨성대와 인접. 봄 벚꽃 명소.",
+        "en": "Silla royal palace site. Active excavation. Near Cheomseongdae. Spring cherry blossoms.",
+        "ja": "新羅王宮跡。発掘作業中。瞻星台に隣接。春の桜が見事。",
+        "zh": "新罗王宫遗址。正在发掘中。邻近瞻星台。春季樱花胜地。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 270
+    },
+    {
+      "order": 6,
+      "category": "culture",
+      "name": "동궁과월지 (안압지)",
+      "name_i18n": {
+        "ko": "동궁과월지 (안압지)",
+        "en": "Donggung Palace & Wolji Pond (Anapji)",
+        "ja": "東宮と月池（雁鴨池）",
+        "zh": "东宫与月池（雁鸭池）"
+      },
+      "address": "경상북도 경주시 원화로 102",
+      "stay_min": 60,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 2000,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "야간 조명 운영 (일몰 후~22시). 야경 방문 강력 권장. 만 65세 이상 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신라 별궁 연못. 야간 조명 반영 = 경주 최고 야경. 일몰 직전 도착 권장.",
+        "en": "Silla detached palace pond. Night illumination reflection = best night scene in Gyeongju. Arrive before sunset.",
+        "ja": "新羅の別宮池。夜間ライトアップの水鏡 = 慶州最高の夜景。日没前到着を強く推奨。",
+        "zh": "新罗别宫水池。夜间灯光倒影 = 庆州最美夜景。强烈建议日落前到达。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 325
+    },
+    {
+      "order": 7,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "경상북도 경주시 동부동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "동궁 인근 저녁 — 경주 한정식 / 닭갈비 / 경주법주 막걸리 (식이 제약 매칭).",
+        "en": "Near Donggung dinner — Gyeongju hanjeongsik / dak-galbi / Gyeongju makgeolli.",
+        "ja": "東宮近くの夕食 — 慶州韓定食 / タッカルビ / 慶州法酒マッコリ。",
+        "zh": "东宫附近晚餐 — 庆州韩定食 / 辣炒鸡 / 庆州法酒马格利。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 435
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 800,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 500,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 600,
+        "cost_krw": 0
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "6->7": {
+      "from_order": 6,
+      "to_order": 7,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 400,
+        "cost_krw": 0
+      }
+    }
+  },
+  "best_for": ["culture_lover", "history_buff", "photographer", "night_view_lover"],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 동궁과월지 야경 (order 6) 일몰 후 방문 강력 권장 — 일정 후반부 배치. packed 코스로 도보 이동 많음 — 편한 신발 필수."
+}

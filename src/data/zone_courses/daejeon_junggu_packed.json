@@ -1,0 +1,331 @@
+{
+  "id": "DAEJEON_DAY_JUNGGU_PACKED",
+  "city": "daejeon",
+  "zone": "Junggu-Wondosim",
+  "theme": "성심당 + 원도심 + 근현대사박물관 + 대전시립박물관",
+  "theme_i18n": {
+    "ko": "성심당 + 원도심 + 근현대사박물관 + 대전시립박물관",
+    "en": "Sungsimdang + Original Downtown + Modern History Museum + Daejeon City Museum",
+    "ja": "聖心堂 + 原都心 + 近現代史博物館 + 大田市立博物館",
+    "zh": "圣心堂 + 原城区 + 近现代史博物馆 + 大田市立博物馆"
+  },
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "성심당 본점",
+      "name_i18n": {
+        "ko": "성심당 본점",
+        "en": "Sungsimdang Bakery (Main Branch)",
+        "ja": "聖心堂本店",
+        "zh": "圣心堂面包店（总店）"
+      },
+      "address": "대전광역시 중구 대종로 480",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "빵 구매 비용 별도. 튀김소보로 1,500원 / 판타롱부추빵 1,500원. 아침 일찍 방문 시 줄 짧음."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대전 명물. 1956년 창업. 아침 오픈 시간에 방문하면 줄 최소화. 튀김소보로·부추빵 필수 구매.",
+        "en": "Daejeon icon since 1956. Visit at opening time to minimize queue. Must-buy: fried soboro / chive bread.",
+        "ja": "1956年創業の大田名物。開店時間に訪問すると行列最小限。揚げソボロ・ニラパン必購入。",
+        "zh": "大田1956年创业名物。开门时间前往排队最短。必买：炸酥粒面包/韭菜面包。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "대전 원도심 (구 충남도청 일원)",
+      "name_i18n": {
+        "ko": "대전 원도심 (구 충남도청)",
+        "en": "Daejeon Original Downtown (Former Chungnam Provincial Hall)",
+        "ja": "大田原都心（旧忠南道庁）",
+        "zh": "大田原城区（旧忠南道厅）"
+      },
+      "address": "대전광역시 중구 중앙로 101",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 개방. 일부 건물 내부 전시 무료."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "1930-40년대 근대 건축 밀집. 구 충남도청 건물 (현 문화예술 공간). 중앙시장 인근.",
+        "en": "1930-40s modern architecture cluster. Former Chungnam Provincial Hall (now arts space). Near Central Market.",
+        "ja": "1930〜40年代の近代建築集積。旧忠南道庁（現文化芸術空間）。中央市場近く。",
+        "zh": "1930-40年代近代建筑聚集。旧忠南道厅（现文化艺术空间）。邻近中央市场。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 55
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대전광역시 중구 중앙로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "대전 원도심 점심 — 두부두루치기 / 올갱이국밥 / 칼국수 (식이 제약 매칭).",
+        "en": "Daejeon downtown lunch — tofu stir-fry / freshwater snail soup / knife-cut noodles matched by dietary needs.",
+        "ja": "大田原都心ランチ — 豆腐炒め / タニシ国飯 / カルグクス (食事制限マッチング)。",
+        "zh": "大田原城区午餐 — 豆腐炒 / 田螺汤饭 / 手擀刀切面 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 130
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "대전근현대사전시관",
+      "name_i18n": {
+        "ko": "대전근현대사전시관",
+        "en": "Daejeon Modern & Contemporary History Exhibition Hall",
+        "ja": "大田近現代史展示館",
+        "zh": "大田近现代史展示馆"
+      },
+      "address": "대전광역시 중구 중앙로 101",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 관람. 월요일 휴관."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대전의 근현대사 100년. 구 충남도청 건물 활용. 대전 철도 도시 발전사. 무료 입장.",
+        "en": "100 years of Daejeon modern history. Housed in former Chungnam Provincial Hall. Daejeon as railway city. Free entry.",
+        "ja": "大田の近現代100年史。旧忠南道庁を活用。大田鉄道都市の発展史。無料入場。",
+        "zh": "大田近现代100年历史。利用旧忠南道厅。大田铁路城市发展史。免费参观。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 205
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "대전시립박물관",
+      "name_i18n": {
+        "ko": "대전시립박물관",
+        "en": "Daejeon City Museum",
+        "ja": "大田市立博物館",
+        "zh": "大田市立博物馆"
+      },
+      "address": "대전광역시 유성구 도안대로 398",
+      "stay_min": 70,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "상설 전시 무료. 특별 기획전 유료 (성인 3,000-5,000원). 월요일 휴관."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "대전·충청 선사시대~근현대 유물 전시. 대전 정체성 이해. 야외 조각 공원.",
+        "en": "Prehistoric to modern exhibits from Daejeon and Chungcheong. Understand Daejeon's identity. Outdoor sculpture park.",
+        "ja": "大田・忠清の先史〜近現代遺物展示。大田のアイデンティティ理解。野外彫刻公園。",
+        "zh": "大田与忠清史前至近代文物展示。了解大田城市身份认同。户外雕塑公园。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 290
+    },
+    {
+      "order": 6,
+      "category": "nature",
+      "name": "한밭수목원",
+      "name_i18n": {
+        "ko": "한밭수목원",
+        "en": "Hanbat Arboretum",
+        "ja": "ハンバット樹木園",
+        "zh": "韩밭树木园"
+      },
+      "address": "대전광역시 서구 둔산대로 169",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "시립박물관 인근 도심 수목원. 저녁 산책 코스. 조명 야경. 가족 산책로.",
+        "en": "Urban arboretum near City Museum. Evening walk route. Lit night scenery. Family walking paths.",
+        "ja": "市立博物館近くの都市型樹木園。夕方散歩コース。夜間照明。家族散歩道。",
+        "zh": "市立博物馆附近城市树木园。傍晚散步路线。灯光夜景。家庭步道。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 375
+    },
+    {
+      "order": 7,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "",
+        "en": "",
+        "ja": "",
+        "zh": ""
+      },
+      "address": "대전광역시 유성구 봉명동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "유성 저녁 — 두부두루치기 / 올갱이해장국 / 대전 참게탕 (식이 제약 매칭).",
+        "en": "Yuseong dinner — tofu stir-fry / freshwater snail soup / Daejeon freshwater crab soup.",
+        "ja": "儒城の夕食 — 豆腐炒め / タニシ解酒スープ / 大田サワガニスープ。",
+        "zh": "儒城晚餐 — 豆腐炒 / 田螺醒酒汤 / 大田淡水蟹汤。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 440
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 700,
+        "cost_krw": 0
+      }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 600,
+        "cost_krw": 0
+      }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 10,
+        "distance_m": 300,
+        "cost_krw": 0
+      }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "subway",
+      "duration_min": 20,
+      "distance_m": 6000,
+      "cost_krw": 1400,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 대전 지하철 1호선 이용. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "subway",
+        "duration_min": 20,
+        "distance_m": 6000,
+        "cost_krw": 1400
+      }
+    },
+    "5->6": {
+      "from_order": 5,
+      "to_order": 6,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 시립박물관→한밭수목원 도보 근거리. 운영자 prod 재빌드 후 정확화 필요",
+      "base": {
+        "mode": "walk",
+        "duration_min": 15,
+        "distance_m": 800,
+        "cost_krw": 0
+      }
+    },
+    "6->7": {
+      "from_order": 6,
+      "to_order": 7,
+      "mode": "taxi",
+      "duration_min": 15,
+      "distance_m": 4000,
+      "cost_krw": 6000,
+      "source": "mock",
+      "fetched_at": "2026-05-22",
+      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "base": {
+        "mode": "taxi",
+        "duration_min": 15,
+        "distance_m": 4000,
+        "cost_krw": 6000
+      }
+    }
+  },
+  "best_for": ["culture_lover", "history_buff", "foodie", "urban_explorer"],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-22",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-22",
+  "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요. 성심당 아침 일찍 방문 줄 최소화. 근현대사전시관·시립박물관 월요일 휴관 주의. 대전 지하철 1호선 연계 효율적. 성심당 두부두루치기 DB 수집 권장."
+}
