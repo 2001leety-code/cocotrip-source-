@@ -236,6 +236,23 @@ export function validatePatternStructure(itinerary, request = {}) {
     );
   }
 
+  // B-REGION-COVERAGE (P158, 2026-05-22): 다도시 plan 에서 각 region 이 최소 1 day 배정.
+  // 사용자 신고: regions=["seoul","busan"] 3-day plan 에서 Gemini 가 모든 day=Seoul →
+  // 부산 day 0개 → 결제했는데 부산 미방문. 사용자가 명시적으로 선택한 도시는 모두 방문 의무.
+  if (isMultiCity) {
+    const cityHits = Object.fromEntries(regions.map((r) => [r.toLowerCase(), 0]));
+    for (const d of days) {
+      const cityKey = String(d?.city || '').trim().toLowerCase();
+      if (cityKey && cityHits[cityKey] !== undefined) cityHits[cityKey]++;
+    }
+    const missing = regions.filter((r) => cityHits[r.toLowerCase()] === 0);
+    if (missing.length > 0) {
+      errors.push(
+        `Plan: regions [${missing.join(',')}] have 0 days assigned — 사용자가 선택한 모든 도시는 최소 1 day 배정 필수 (B-REGION-COVERAGE)`
+      );
+    }
+  }
+
   for (let i = 0; i < days.length; i++) {
     const d = days[i];
     const dayNum = d?.day || d?.day_index || (i + 1);
