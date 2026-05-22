@@ -726,11 +726,6 @@ export class RouteAgent extends BaseAgent {
         // 이전: 모든 day 가 trip-level hotelLat/Lng (첫 city 호텔) 사용 → 부산
         //       도착·서울 이동 plan 의 Day 4 lodging_to_first 가 "부산 해운대 →
         //       명동 호텔" 모순 표시 (사용자 PDF 검토 2026-05-14).
-        // prev-day hotel coord cache — Phase 2 loop 의 직전 iteration 결과를 다음
-        // iteration 의 intercity bookend segment 계산에 활용. city-change day 의
-        // hotel→from_station transit 을 그릴 때 출발지가 이전 day 의 hotel 좌표.
-        let prevDayHotelCoord = null;
-
         const recommendedZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones))
             ? data.recommended_zones
             : null;
@@ -744,7 +739,37 @@ export class RouteAgent extends BaseAgent {
             tripHotel: { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource },
         };
 
-        for (const dayPlan of daysList) {
+        // ════════════════════════════════════════════════════════
+        // P157 (2026-05-22): days 병렬화 — dayHotel pre-computation
+        // ════════════════════════════════════════════════════════
+        // 10d multi-city plan 300s timeout fix. RouteAgent processing 60-120s → 20-30s.
+        // inter-day dep 인 prevDayHotelCoord 는 getDayHotelCoord (pure 함수) 결과 →
+        // 사전 일괄 계산하여 race condition 회피. P148 CITY_CENTER fallback 도 deterministic.
+        //
+        // NCP/ODsay rate limit 안전: 동시 days 수 제한 (DAY_CONCURRENCY=3).
+        // 3 days 씩 batch 처리.
+        const dayHotels = daysList.map((dayPlan) => {
+            const dh = getDayHotelCoord(dayPlan, dayHotelCtx);
+            // P148 CITY_CENTER fallback
+            if ((!dh.lat || !dh.lng) && (dayPlan.city || tripFirstRegion)) {
+                const cityKey = String(dayPlan.city || tripFirstRegion || '').toLowerCase().trim();
+                for (const [k, c] of Object.entries(CITY_CENTER_COORDS)) {
+                    if (cityKey.includes(k) || k.includes(cityKey)) {
+                        dh.lat = c.lat;
+                        dh.lng = c.lng;
+                        dh.label = dh.label || c.label;
+                        dh.source = 'city_center_p148';
+                        break;
+                    }
+                }
+            }
+            return dh;
+        });
+
+        const DAY_CONCURRENCY = 3;
+        const processDayFn = async (dayPlan, dayIdx) => {
+            const dayHotel = dayHotels[dayIdx];
+            const prevDayHotelCoord = dayIdx > 0 ? dayHotels[dayIdx - 1] : null;
             const places = dayPlan.stops || dayPlan.places || [];
             // Derive weekday for first/last-train lookup. Gemini writes
             // dayPlan.date as "YYYY-MM-DD"; Date.getDay() -> 0=Sun..6=Sat
@@ -961,23 +986,9 @@ export class RouteAgent extends BaseAgent {
             //   이후 (PDF-issue-3): day-level hotel = 새 city 좌표라 ODsay 호출 정상.
             //   사용자 PDF 검토 (2026-05-14): Day 4 lodging_to_first 가 "부산 해운대
             //   (이전 city) → 명동 호텔 (Day 4 첫 stop)" 모순 transit 표시되던 회귀 fix.
-            const dayHotel = getDayHotelCoord(dayPlan, dayHotelCtx);
-            // P148 (2026-05-22): dayHotel coord null → city center fallback.
-            // hotel geocoding 실패 시 prevDayHotelCoord = null → intercity bookend transit 미생성.
-            // city-level fallback 으로 최소한 bookend 생성 (정확도 낮지만 없는 것보다 나음).
-            if ((!dayHotel.lat || !dayHotel.lng) && (dayPlan.city || tripFirstRegion)) {
-              const _cityKey148 = String(dayPlan.city || tripFirstRegion || '').toLowerCase().trim();
-              for (const [_k148, _coord148] of Object.entries(CITY_CENTER_COORDS)) {
-                if (_cityKey148.includes(_k148) || _k148.includes(_cityKey148)) {
-                  dayHotel.lat = _coord148.lat;
-                  dayHotel.lng = _coord148.lng;
-                  dayHotel.label = dayHotel.label || _coord148.label;
-                  dayHotel.source = 'city_center_p148';
-                  console.log(`[RouteAgent] P148: dayHotel null → city_center fallback (${_coord148.label}) for day${dayPlan.day || '?'}`);
-                  break;
-                }
-              }
-            }
+            // P157 (2026-05-22): dayHotel + prevDayHotelCoord 는 loop top 에서 pre-computed
+            // dayHotels[] 로 부터 받음. inline getDayHotelCoord + P148 fallback 는 pre-computation
+            // 으로 이동 (race-condition 차단 + days 병렬화 안전).
 
             // ════════════════════════════════════════════════════════
             // Phase 2.4: city-change day intercity bookend (PDF-issue-2 fix, 2026-05-14)
@@ -1469,16 +1480,18 @@ export class RouteAgent extends BaseAgent {
 
             console.log(`  [Route] Day ${dayPlan.day || '?'}: ${places.length} stops, time-stitched ${this._formatTime(this._parseTime(places[0]?.start_time || "09:00"))} ~ ${places[places.length - 1]?.start_time || '?'}`);
 
-            // PDF-issue-2/3: 다음 iteration 의 intercity bookend 계산용으로 현재
-            // day 의 hotel coord cache. dayHotel 이 valid 면 (lat/lng 둘 다) 업데이트.
-            if (dayHotel.lat && dayHotel.lng) {
-                prevDayHotelCoord = {
-                    lat: dayHotel.lat,
-                    lng: dayHotel.lng,
-                    label: dayHotel.label,
-                    source: dayHotel.source,
-                };
+            // P157 (2026-05-22): prevDayHotelCoord update 불필요 — pre-computed dayHotels[] 사용.
+        };
+
+        // P157: batch processing — DAY_CONCURRENCY days 씩 동시 처리.
+        // NCP/ODsay rate limit 고려 (50 req/s NCP, ODsay 분당 quota).
+        for (let batchStart = 0; batchStart < daysList.length; batchStart += DAY_CONCURRENCY) {
+            const batchEnd = Math.min(batchStart + DAY_CONCURRENCY, daysList.length);
+            const batchPromises = [];
+            for (let i = batchStart; i < batchEnd; i++) {
+                batchPromises.push(processDayFn(daysList[i], i));
             }
+            await Promise.all(batchPromises);
         }
 
         // Layer 4: Enforce transit completeness invariant
