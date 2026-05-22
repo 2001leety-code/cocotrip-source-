@@ -340,7 +340,8 @@ describe('B-AI2b — inferDefaultStation (PDF-issue-2 v4)', () => {
 
   it('미등록 city/mode 조합 → null', () => {
     expect(inferDefaultStation('Jeju', 'KTX')).toBeNull(); // 제주 KTX 없음
-    expect(inferDefaultStation('Gyeongju', 'KTX')).toBeNull(); // 경주 KTX 없음
+    // P155 (2026-05-22): 경주 KTX = 신경주역 신규 등록.
+    expect(inferDefaultStation('Gyeongju', 'KTX')).toBe('신경주역');
     expect(inferDefaultStation('Daejeon', 'Air')).toBeNull(); // 대전 공항 없음
     expect(inferDefaultStation('Unknownville', 'Bus')).toBeNull();
   });

@@ -22,6 +22,9 @@ export const STATION_COORDS = {
   '여수EXPO역':     { lat: 34.7589, lng: 127.7426, label: '여수EXPO역' },
   '춘천역':         { lat: 37.8849, lng: 127.7188, label: '춘천역' },
   '가평역':         { lat: 37.8126, lng: 127.5108, label: '가평역' },
+  // P155 (2026-05-22): 신경주역 추가 — 경주 KTX 정거장.
+  // prod alert 다수 발생 ("신경주역 미등록" intercity bookend silent fail).
+  '신경주역':       { lat: 35.7976, lng: 129.1338, label: '신경주역' },
   // ── 공항 ──────────────────────────────────────────
   '김포국제공항':   { lat: 37.5589, lng: 126.7906, label: '김포국제공항' },
   '인천국제공항':   { lat: 37.4602, lng: 126.4407, label: '인천국제공항' },
@@ -32,17 +35,65 @@ export const STATION_COORDS = {
   '서울고속버스터미널':   { lat: 37.5044, lng: 127.0048, label: '서울고속버스터미널' },
   '부산종합버스터미널':   { lat: 35.2117, lng: 129.0871, label: '부산종합버스터미널' },
   '경주시외버스터미널':   { lat: 35.8554, lng: 129.2284, label: '경주시외버스터미널' },
+  // P155 (2026-05-22): 경주고속버스터미널 추가 — Gemini 가 시외 / 고속 둘 다 사용.
+  '경주고속버스터미널':   { lat: 35.8489, lng: 129.2143, label: '경주고속버스터미널' },
+};
+
+// P155 (2026-05-22): Station 이름 정규화 매핑 — Gemini 출력 변형 (괄호 suffix /
+// 공백 / 동/노포 위치명) 처리. lookupStationCoord 이 정규화 후 매칭.
+const STATION_ALIAS = {
+  // 공항 코드 suffix 변형
+  'gmp': '김포국제공항',
+  'icn': '인천국제공항',
+  'pus': '김해국제공항',
+  'cju': '제주국제공항',
+  'tae': '대구국제공항',
+  // 부산종합버스터미널 노포 변형
+  '부산종합버스터미널노포': '부산종합버스터미널',
+  '노포동부산종합버스터미널': '부산종합버스터미널',
 };
 
 /**
- * station label → coord lookup. 등록 안 된 station 이면 null.
- * @param {string} stationName 예: "부산역" / "김포국제공항"
+ * station label → coord lookup with fuzzy fallback (P155, 2026-05-22).
+ *
+ * 1) Exact match
+ * 2) Remove parenthetical suffix: "김포국제공항 (GMP)" → "김포국제공항"
+ * 3) Remove all whitespace: "부산종합버스터미널 (노포)" → "부산종합버스터미널노포"
+ * 4) Alias map: airport codes / location suffixes
+ *
+ * @param {string} stationName 예: "부산역" / "김포국제공항 (GMP)" / "부산종합버스터미널(노포)"
  * @returns {{ lat: number, lng: number, label: string } | null}
  */
 export function lookupStationCoord(stationName) {
   if (!stationName || typeof stationName !== 'string') return null;
-  const trimmed = stationName.trim();
-  return STATION_COORDS[trimmed] || null;
+  const raw = stationName.trim();
+  if (STATION_COORDS[raw]) return STATION_COORDS[raw];
+
+  // 1) 괄호 suffix 제거: "김포국제공항 (GMP)" / "부산종합버스터미널 (노포)"
+  const noParen = raw.replace(/\s*\([^)]*\)\s*/g, '').trim();
+  if (noParen && STATION_COORDS[noParen]) return STATION_COORDS[noParen];
+
+  // 2) 공백 제거: "부산종합버스터미널 (노포)" → "부산종합버스터미널(노포)"
+  const noSpace = raw.replace(/\s+/g, '');
+  if (STATION_COORDS[noSpace]) return STATION_COORDS[noSpace];
+
+  // 3) 괄호 + 공백 모두 제거: "부산종합버스터미널 (노포)" → "부산종합버스터미널"
+  const normalized = noParen.replace(/\s+/g, '');
+  if (normalized && STATION_COORDS[normalized]) return STATION_COORDS[normalized];
+
+  // 4) Alias map (airport code / 위치명 변형)
+  const lowerNorm = normalized.toLowerCase();
+  // 공항 코드만 들어온 경우 ("GMP", "PUS")
+  if (STATION_ALIAS[lowerNorm]) return STATION_COORDS[STATION_ALIAS[lowerNorm]] || null;
+  // 괄호 안 알파벳 코드만 추출 시도: "김포 (GMP)" → 'gmp' 추출
+  const parenCode = raw.match(/\(([A-Z]{3,4})\)/i);
+  if (parenCode && STATION_ALIAS[parenCode[1].toLowerCase()]) {
+    return STATION_COORDS[STATION_ALIAS[parenCode[1].toLowerCase()]] || null;
+  }
+  // 노포동 / 동대구역 alias
+  if (STATION_ALIAS[normalized]) return STATION_COORDS[STATION_ALIAS[normalized]] || null;
+
+  return null;
 }
 
 // ── city → default station 매핑 (PDF-issue-2 v4, 2026-05-14) ─────────────
@@ -61,7 +112,7 @@ export const CITY_DEFAULT_STATION = {
   Yeosu:     { ktx: '여수EXPO역' },
   Chuncheon: { ktx: '춘천역' },
   Gapyeong:  { ktx: '가평역' },
-  Gyeongju:  {                                            bus: '경주시외버스터미널' },
+  Gyeongju:  { ktx: '신경주역',                              bus: '경주시외버스터미널' },
 };
 
 /**
@@ -961,12 +1012,28 @@ export class RouteAgent extends BaseAgent {
                         console.log(`  [Route] Day ${dayPlan.day || '?'}: to_station inferred → ${inferred} (city=${it.to_city}, mode=${it.mode})`);
                     }
                 }
+                // P155 (2026-05-22): Day 1 + intercity_transit 케이스에 prev_hotel
+                // = arrival_airport coord fallback. prod alert 다수: "Seoul→Busan
+                // (Day 1) prev_hotel: (null) — pre:prev_hotel_coord_missing".
+                // 입국일에 바로 KTX/Bus/Air 로 다른 도시 이동 = 출발지 = 공항.
+                let prevHotelEffective = prevDayHotelCoord;
+                const isDay1 = (dayPlan.day === 1 || dayPlan.day_index === 1);
+                if (isDay1 && (!prevHotelEffective || !prevHotelEffective.lat || !prevHotelEffective.lng)
+                    && arrivalAirportKey && AIRPORT_COORDS[arrivalAirportKey]) {
+                    const ap = AIRPORT_COORDS[arrivalAirportKey];
+                    prevHotelEffective = {
+                        lat: ap.lat, lng: ap.lng,
+                        label: ap.label || arrivalAirportKey,
+                        source: 'arrival_airport_day1_p155',
+                    };
+                    console.log(`[RouteAgent] P155: Day 1 prev_hotel = arrival_airport (${arrivalAirportKey}) for intercity bookend`);
+                }
                 // Phase 2.4a: 이전 day hotel → from_station
                 // P111: 4 silent-fail 분기 explicit log + alert reason 누적.
                 if (!it.from_station) {
                     bookendFailReasons.push(`pre:from_station_missing`);
                     console.warn(`  - intercity bookend pre SKIP — from_station undefined`);
-                } else if (!prevDayHotelCoord || !prevDayHotelCoord.lat || !prevDayHotelCoord.lng) {
+                } else if (!prevHotelEffective || !prevHotelEffective.lat || !prevHotelEffective.lng) {
                     bookendFailReasons.push(`pre:prev_hotel_coord_missing`);
                     console.warn(`  - intercity bookend pre SKIP — prevDayHotelCoord lat/lng missing (Day ${dayPlan.day})`);
                 } else {
@@ -977,22 +1044,22 @@ export class RouteAgent extends BaseAgent {
                     } else {
                         try {
                             const stationPlace = { lat: fromStationCoord.lat, lng: fromStationCoord.lng, name: it.from_station, display_name: it.from_station };
-                            const prevHotelPlace = { lat: prevDayHotelCoord.lat, lng: prevDayHotelCoord.lng, name: prevDayHotelCoord.label || 'Hotel', display_name: prevDayHotelCoord.label || 'Hotel' };
+                            const prevHotelPlace = { lat: prevHotelEffective.lat, lng: prevHotelEffective.lng, name: prevHotelEffective.label || 'Hotel', display_name: prevHotelEffective.label || 'Hotel' };
                             const transitData = await this._getTransitData(prevHotelPlace, stationPlace, clientId, clientSecret, -1, dayOfWeek);
                             const pt = transitData.publicTransit;
                             it.lodging_to_station = {
                                 method: pt?.method || 'subway',
                                 mode: methodToMode(pt?.method) || 'subway',
-                                instruction: pt?.summary || `Take public transit from ${prevDayHotelCoord.label || 'hotel'} to ${it.from_station}`,
+                                instruction: pt?.summary || `Take public transit from ${prevHotelEffective.label || 'hotel'} to ${it.from_station}`,
                                 step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
                                 steps_detail: pt?.steps || [],
                                 est_min: pt?.duration || transitData.durationMin || 30,
                                 est_fare_krw: pt?.fare || 0,
                                 source: 'odsay',
-                                from_label: prevDayHotelCoord.label || 'Hotel',
+                                from_label: prevHotelEffective.label || 'Hotel',
                                 to_label: it.from_station,
                             };
-                            console.log(`  - [${prevDayHotelCoord.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station.est_min}min (intercity bookend pre)`);
+                            console.log(`  - [${prevHotelEffective.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station.est_min}min (intercity bookend pre, source=${prevHotelEffective.source || 'prev_day_hotel'})`);
                         } catch (preErr) {
                             bookendFailReasons.push(`pre:odsay_throw:${(preErr.message || 'unknown').slice(0, 60)}`);
                             console.warn(`  - intercity bookend pre ODsay failed:`, preErr.message);
