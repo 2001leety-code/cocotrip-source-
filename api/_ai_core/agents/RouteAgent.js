@@ -874,6 +874,8 @@ export class RouteAgent extends BaseAgent {
             //  - 첫 stop = lodging (호텔 체크인) → cap +240min (호텔 체크인 통상 14-15시).
             //  - 첫 stop = 활동 (사찰/맛집/관광) → cap +90min (도착 후 적정 휴식 후 활동).
             // Gemini 값이 [arrival+30, arrival+cap] 범위 안이면 통과, 밖이면 clamp.
+            // P150 (2026-05-22): Gemini 원본 시각 저장. wrap 발생 시 22:30 cascade 대신 Gemini 시각 fallback.
+            const _p150GeminiTimes = places.map(p => this._parseTime(p.start_time || '09:00'));
             let currentTime;
             if (isCityChangeDay && dayPlan.intercity_transit?.arrival_at) {
                 const arrivalMin = this._parseTime(dayPlan.intercity_transit.arrival_at);
@@ -1264,8 +1266,19 @@ export class RouteAgent extends BaseAgent {
                     const prevStayMin = places[i - 1].stay_min || 60;
                     currentTime += prevStayMin + realTransitMin + BUFFER_MIN;
 
-                    // P136: 24h wrap 차단 (midnight 초과 시 22:30 cap)
-                    currentTime = this._sanitizeTime(currentTime, `day${dayPlan.day || '?'}-stop${i}`);
+                    // P150 (2026-05-22): 24h wrap → Gemini 원본 시각 fallback (P136 22:30 cascade 차단).
+                    // 이전: wrap 시 22:30 cap → 이후 stops 도 22:30+stay+transit → 재차 wrap → cascade.
+                    // 이후: wrap 시 해당 stop 의 Gemini 원본 시각 사용 → cascade 차단 → B-MEAL-DINNER 정상.
+                    if (!Number.isFinite(currentTime) || currentTime >= 24 * 60) {
+                        const geminiMin = _p150GeminiTimes[i];
+                        const safeMin = (Number.isFinite(geminiMin) && geminiMin < 24 * 60)
+                            ? geminiMin
+                            : 22 * 60 + 30; // Gemini 시각도 없으면 최종 fallback
+                        console.warn(`[RouteAgent] P150 wrap fallback day${dayPlan.day || '?'}-stop${i}: rawMin=${currentTime} → Gemini ${this._formatTime(safeMin)}`);
+                        currentTime = safeMin;
+                    } else {
+                        currentTime = this._sanitizeTime(currentTime, `day${dayPlan.day || '?'}-stop${i}`);
+                    }
 
                     place.start_time = this._formatTime(currentTime);
 
@@ -1913,6 +1926,9 @@ export class RouteAgent extends BaseAgent {
      * P136: 24h wrap 차단.
      * rawMin >= 1440 (midnight) → 22:30 (1350min) hard cap + admin alert (non-blocking).
      * pre-dawn (< 300 = 05:00) 은 planPersister.detectUnreasonableStopTimes 에 위임.
+     *
+     * P150 (2026-05-22): Phase 3 루프 내 wrap 은 이 메서드 대신 Gemini 원본 시각 fallback 사용.
+     * 이 메서드는 non-finite 방어 + non-loop 경로 (예: 직접 호출) 에서만 22:30 cap 적용.
      *
      * @param {number} rawMin - 분 단위 누적 시각
      * @param {string} [context] - 로그용 컨텍스트 (예: "day3-stop2")

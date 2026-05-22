@@ -268,11 +268,14 @@ export function validatePatternStructure(itinerary, request = {}) {
     //     L2. day.theme 에 day.city 토큰 (Gemini 가 "Busan Day 1 — 해운대" theme 자주 출력)
     //     L3. day.intercity_transit.to_city 가 day.city 와 일치 (도시 전환 day 명시)
     //     L4. lodging name 이 KNOWN_HOTEL_CHAINS 포함 (well-known chain 은 lenient pass)
-    //   L1~L4 중 하나 만족이면 PASS. 모두 fail 시만 errors.push.
-    // P149 (2026-05-22): B-13 = city-change day (intercity_transit 있는 day) 만 검증.
-    // 이미 도착한 이후 day (Day4/Busan) 는 false positive → skip.
-    const isCityChangeThisDay = !!(d?.intercity_transit?.mode);
-    if (isMultiCity && d?.city && stops.length > 0 && stops[0]?.category === 'lodging' && isCityChangeThisDay) {
+    //   L1~L4 중 하나 만족이면 PASS. 모두 fail 시 L5 negative check 로 최종 결정.
+    // P149 (2026-05-22): 두 가지 검증 모드.
+    //   city-change day (intercity_transit.mode 있음): L1-L4 positive 매칭.
+    //   일반 day (이미 그 도시에 있음): L5 negative 매칭 — 다른 도시 명시적 언급 있으면 flag,
+    //     없으면 pass (generic hotel name 은 false positive 차단).
+    //   예: Day4/Busan (no intercity) + "Paradise Hotel" → L5 other-city 없음 → pass.
+    //       Day2/Seoul (no intercity) + address="부산광역시" → L5 Busan 명시 → flag.
+    if (isMultiCity && d?.city && stops.length > 0 && stops[0]?.category === 'lodging') {
       const dayCity = String(d.city).trim();
       const korAliases = CITY_KOR_ALIASES[dayCity] || [];
       const lodgingName = String(stops[0].name || stops[0].display_name || '');
@@ -281,6 +284,7 @@ export function validatePatternStructure(itinerary, request = {}) {
       const intercityToCity = String(d.intercity_transit?.to_city || '');
       const hay = (lodgingName + ' ' + lodgingAddr).toLowerCase();
       const cityLow = dayCity.toLowerCase();
+      const isCityChangeThisDay = !!(d?.intercity_transit?.mode);
 
       // L1: lodging name/address 매칭 (기존)
       const matchL1 =
@@ -302,10 +306,31 @@ export function validatePatternStructure(itinerary, request = {}) {
       const lodgingNameLow = lodgingName.toLowerCase();
       const matchL4 = KNOWN_HOTEL_CHAINS.some((chain) => lodgingNameLow.includes(chain));
 
-      if (!matchL1 && !matchL2 && !matchL3 && !matchL4) {
-        errors.push(
-          `Day ${dayNum} (city="${dayCity}"): lodging "${lodgingName}|${lodgingAddr}" + theme "${dayTheme}" + intercity_to "${intercityToCity}" 모두 도시명/체인 미포함 (B-13)`
-        );
+      if (isCityChangeThisDay) {
+        // city-change day: positive 매칭 — L1-L4 중 하나면 PASS, 모두 fail 시 ERROR.
+        if (!matchL1 && !matchL2 && !matchL3 && !matchL4) {
+          errors.push(
+            `Day ${dayNum} (city="${dayCity}"): lodging "${lodgingName}|${lodgingAddr}" + theme "${dayTheme}" + intercity_to "${intercityToCity}" 모두 도시명/체인 미포함 (B-13)`
+          );
+        }
+      } else {
+        // 일반 day (already in city): negative 매칭 — 다른 도시 명시적 언급 있으면 ERROR.
+        // L5: 다른 도시 토큰이 lodging name/addr 에 있으면 진짜 mismatch.
+        // CITY_KOR_ALIASES 키는 PascalCase (Seoul/Busan), regions 는 lowercase → normalize.
+        const otherCities = regions.filter((r) => r.toLowerCase() !== cityLow);
+        const hasExplicitOtherCity = otherCities.some((other) => {
+          const otherKey = other.charAt(0).toUpperCase() + other.slice(1).toLowerCase();
+          const otherAliases = CITY_KOR_ALIASES[other] || CITY_KOR_ALIASES[otherKey] || [];
+          return (
+            hay.includes(other.toLowerCase()) ||
+            otherAliases.some((a) => hay.includes(a.toLowerCase()))
+          );
+        });
+        if (hasExplicitOtherCity) {
+          errors.push(
+            `Day ${dayNum} (city="${dayCity}"): lodging "${lodgingName}|${lodgingAddr}" 다른 도시 명시적 언급 (B-13)`
+          );
+        }
       }
     }
 
