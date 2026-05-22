@@ -909,6 +909,22 @@ export class RouteAgent extends BaseAgent {
             //   사용자 PDF 검토 (2026-05-14): Day 4 lodging_to_first 가 "부산 해운대
             //   (이전 city) → 명동 호텔 (Day 4 첫 stop)" 모순 transit 표시되던 회귀 fix.
             const dayHotel = getDayHotelCoord(dayPlan, dayHotelCtx);
+            // P148 (2026-05-22): dayHotel coord null → city center fallback.
+            // hotel geocoding 실패 시 prevDayHotelCoord = null → intercity bookend transit 미생성.
+            // city-level fallback 으로 최소한 bookend 생성 (정확도 낮지만 없는 것보다 나음).
+            if ((!dayHotel.lat || !dayHotel.lng) && (dayPlan.city || tripFirstRegion)) {
+              const _cityKey148 = String(dayPlan.city || tripFirstRegion || '').toLowerCase().trim();
+              for (const [_k148, _coord148] of Object.entries(CITY_CENTER_COORDS)) {
+                if (_cityKey148.includes(_k148) || _k148.includes(_cityKey148)) {
+                  dayHotel.lat = _coord148.lat;
+                  dayHotel.lng = _coord148.lng;
+                  dayHotel.label = dayHotel.label || _coord148.label;
+                  dayHotel.source = 'city_center_p148';
+                  console.log(`[RouteAgent] P148: dayHotel null → city_center fallback (${_coord148.label}) for day${dayPlan.day || '?'}`);
+                  break;
+                }
+              }
+            }
 
             // ════════════════════════════════════════════════════════
             // Phase 2.4: city-change day intercity bookend (PDF-issue-2 fix, 2026-05-14)

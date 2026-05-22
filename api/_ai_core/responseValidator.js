@@ -269,7 +269,10 @@ export function validatePatternStructure(itinerary, request = {}) {
     //     L3. day.intercity_transit.to_city 가 day.city 와 일치 (도시 전환 day 명시)
     //     L4. lodging name 이 KNOWN_HOTEL_CHAINS 포함 (well-known chain 은 lenient pass)
     //   L1~L4 중 하나 만족이면 PASS. 모두 fail 시만 errors.push.
-    if (isMultiCity && d?.city && stops.length > 0 && stops[0]?.category === 'lodging') {
+    // P149 (2026-05-22): B-13 = city-change day (intercity_transit 있는 day) 만 검증.
+    // 이미 도착한 이후 day (Day4/Busan) 는 false positive → skip.
+    const isCityChangeThisDay = !!(d?.intercity_transit?.mode);
+    if (isMultiCity && d?.city && stops.length > 0 && stops[0]?.category === 'lodging' && isCityChangeThisDay) {
       const dayCity = String(d.city).trim();
       const korAliases = CITY_KOR_ALIASES[dayCity] || [];
       const lodgingName = String(stops[0].name || stops[0].display_name || '');
