@@ -377,9 +377,10 @@ results.push({
 });
 
 // ─── B-13: 도시 전환 day lodging name 도시 매칭 (다도시만) ─────
+// P149-v2 (2026-05-22): L5 negative matching — 다른 도시 명시적 언급 시만 fail.
+//   generic hotel ("비즈니스 호텔", "Paradise Hotel") 은 도시명 미포함이 정상 → PASS.
+//   실제 mismatch: Seoul day 에 "해운대 호텔 부산광역시" → Busan 명시 → FAIL.
 if (isMultiCity) {
-  // 각 day 의 첫 lodging stop name/address 가 day.city 와 일치하는지.
-  // day.city 가 영문일 수 있으므로 한글 매핑.
   const cityToKor = {
     Seoul: '서울',
     Busan: '부산',
@@ -398,14 +399,17 @@ if (isMultiCity) {
     if (stops[0].category !== 'lodging') continue; // B-10 가 잡음. 여기는 매칭만.
     cityMatchCheck++;
     const dayCity = d.city || '';
-    const korCity = cityToKor[dayCity] || dayCity;
+    const dayCityLow = dayCity.toLowerCase();
     const lodgingName = stops[0].name || '';
     const lodgingAddr = stops[0].address || '';
-    const matches =
-      lodgingName.includes(korCity) ||
-      lodgingAddr.includes(korCity) ||
-      lodgingName.toLowerCase().includes(dayCity.toLowerCase()) ||
-      lodgingAddr.toLowerCase().includes(dayCity.toLowerCase());
+    const hay = (lodgingName + ' ' + lodgingAddr).toLowerCase();
+    // L5 negative check: 다른 도시 명시적 언급 여부.
+    const otherCities = SCENARIO_REGIONS.filter(r => r.toLowerCase() !== dayCityLow);
+    const hasExplicitOtherCity = otherCities.some(other => {
+      const otherKor = cityToKor[other.charAt(0).toUpperCase() + other.slice(1)] || '';
+      return hay.includes(other.toLowerCase()) || (otherKor && hay.includes(otherKor.toLowerCase()));
+    });
+    const matches = !hasExplicitOtherCity; // 다른 도시 없으면 OK
     if (matches) cityMatchPass++;
     cityMatchDetails.push(`D${d.day}/${dayCity}:${matches ? '✓' : '✗'}`);
   }
