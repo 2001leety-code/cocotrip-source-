@@ -341,6 +341,87 @@ export function detectUnreasonableStopTimes(itinerary) {
 }
 
 /**
+ * P159 (2026-05-22): pre-dawn stops auto-correct.
+ *
+ * 상용화 D-day prod alert: customer 결제 후 UNREASONABLE_STOP_TIMES throw 500.
+ * P120 detector 가 throw 로 사용자 결제 막던 회귀 — auto-fix 로 전환.
+ *
+ * 전략:
+ *   - 첫 stop (lodging) 의 pre-dawn 시각 → 09:00 으로 push (관광 시작 표준 시각).
+ *   - 후속 stops 는 (이전 stop end + 30min buffer) 로 cascade 재계산.
+ *   - 마지막 lodging stop (복귀) 은 pre-dawn 이라도 그대로 (호텔 체크인 늦은 도착 가능).
+ *
+ * @param {object} itinerary - mutated in-place
+ * @returns {number} 교정된 stop 수
+ */
+export function correctPreDawnStopTimes(itinerary) {
+  let corrected = 0;
+  const STANDARD_START_MIN = 9 * 60; // 09:00 KST 표준 관광 시작
+  const STAY_BUFFER_MIN = 30;        // 이동 + 다음 stop 버퍼
+
+  for (const day of (itinerary?.days || [])) {
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+    if (stops.length === 0) continue;
+
+    // 첫 stop pre-dawn detect
+    const firstStop = stops[0];
+    const firstTimeMatch = /^(\d{1,2}):(\d{2})$/.exec(String(firstStop?.start_time || ''));
+    if (!firstTimeMatch) continue;
+    const firstHour = parseInt(firstTimeMatch[1], 10);
+    if (!Number.isFinite(firstHour) || firstHour >= 5) continue;
+
+    // 첫 stop pre-dawn → 09:00 reset + 후속 stops cascade
+    const origFirst = firstStop.start_time;
+    let currentMin = STANDARD_START_MIN;
+
+    for (let i = 0; i < stops.length; i++) {
+      const s = stops[i];
+      if (i === 0) {
+        s.start_time = formatMinAsHHMM(currentMin);
+      } else {
+        // 이전 stop end + buffer. ?? 로 0 을 0 으로 보존 (|| 는 0 → 60 falsy fall-through).
+        const prevStop = stops[i - 1];
+        const prevStayRaw = prevStop?.stay_min;
+        const prevStayMin = (prevStayRaw === undefined || prevStayRaw === null || !Number.isFinite(Number(prevStayRaw)))
+          ? 60
+          : Number(prevStayRaw);
+        currentMin += prevStayMin + STAY_BUFFER_MIN;
+        if (currentMin >= 24 * 60) currentMin = 23 * 60 + 30; // 23:30 cap
+        s.start_time = formatMinAsHHMM(currentMin);
+      }
+      // end_time 도 동기화 (있는 경우)
+      if (s.stay_min !== undefined && s.stay_min !== null) {
+        const stayMin = Number.isFinite(Number(s.stay_min)) ? Number(s.stay_min) : 0;
+        const endMin = Math.min(currentMin + stayMin, 23 * 60 + 59);
+        s.end_time = formatMinAsHHMM(endMin);
+      }
+      corrected++;
+    }
+
+    // quality_warnings 박제
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    itinerary.quality_warnings.push({
+      kind: 'predawn_auto_corrected',
+      severity: 'medium',
+      day: day?.day || day?.day_index || 0,
+      original_first_start_time: origFirst,
+      corrected_first_start_time: stops[0].start_time,
+      stops_recalculated: stops.length,
+      message: `Day ${day?.day || '?'}: 첫 stop ${origFirst} → ${stops[0].start_time} 으로 auto-correct + ${stops.length} stops cascade 재계산`,
+    });
+  }
+
+  if (corrected > 0) console.log(`[planPersister] P159 pre-dawn stops auto-corrected: ${corrected} stops`);
+  return corrected;
+}
+
+function formatMinAsHHMM(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
  * P143 (2026-05-22): intercity_transit.arrival_at 와 day 첫 stop start_time 사이
  * 큰 공백 (> 90 min) detect. plan 209de47b (Seoul→Busan KTX 12:15 도착 → 첫 Busan
  * stop 17:43, 5h+ 공백) 같은 케이스: 사용자가 "서울에서 부산가는 과정이 엉터리야"
@@ -429,28 +510,29 @@ export function runUnreasonableStopTimesCheck(itinerary, body) {
   const sample = stops.slice(0, 5)
     .map((u) => `Day${u.day} ${u.start_time} "${u.stop}"`).join(' / ');
 
-  if (isAdminBypass) {
-    // P101 패턴: admin bypass → soft alert, plan 저장 진행
-    throttledTelegramAlert({
-      key: `unreasonable-stop-times:${regionsKey}`,
-      channel: 'admin',
-      severity: 'low',
-      message: [
-        `⚠️ <b>새벽 시간 stops 감지 — admin bypass (P136)</b>`,
-        ``,
-        `<b>건수:</b> ${stops.length}`,
-        `<b>샘플:</b> ${sample}`,
-        ``,
-        `→ root cause: RouteAgent stitching 24h wrap. P136 _sanitizeTime 으로 차단됨.`,
-      ].join('\n'),
-      context: { count: stops.length, stops: stops.slice(0, 10), regions: body?.regions || null },
-    });
-    console.log(`[planner] P136 unreasonable stops detected (admin bypass, soft): ${stops.length}`);
-    return stops.length;
-  }
+  // P159 (2026-05-22): customer + admin 모두 auto-correct.
+  // 이전: customer throw 500 → 결제 후 plan 못 받음 → 환불 분쟁.
+  // 이후: pre-dawn 시각 09:00 cascade 재계산 + telegram alert + quality_warning 박제.
+  const corrected = correctPreDawnStopTimes(itinerary);
 
-  // customer path: throw → ai-planner-full 500
-  throw new Error(`UNREASONABLE_STOP_TIMES: ${stops.length} pre-dawn stops detected. sample: ${sample}`);
+  throttledTelegramAlert({
+    key: `unreasonable-stop-times:${regionsKey}:${isAdminBypass ? 'admin' : 'customer'}`,
+    channel: 'admin',
+    severity: isAdminBypass ? 'low' : 'medium',
+    message: [
+      `⚠️ <b>새벽 시간 stops auto-corrected (P159)</b>`,
+      ``,
+      `<b>모드:</b> ${isAdminBypass ? 'admin bypass' : '🔴 customer 결제'}`,
+      `<b>건수:</b> ${stops.length} stops detect → ${corrected} stops 재계산`,
+      `<b>샘플:</b> ${sample}`,
+      ``,
+      `→ root cause: RouteAgent stitching 24h wrap.`,
+      `→ 사용자 영향: plan 정상 저장 (시각 강제 09:00 cascade).`,
+    ].join('\n'),
+    context: { count: stops.length, corrected, stops: stops.slice(0, 10), regions: body?.regions || null, mode: isAdminBypass ? 'admin' : 'customer' },
+  });
+  console.log(`[planner] P159 unreasonable stops auto-corrected (${isAdminBypass ? 'admin' : 'customer'}): ${stops.length} detected → ${corrected} fixed`);
+  return stops.length;
 }
 
 /**
