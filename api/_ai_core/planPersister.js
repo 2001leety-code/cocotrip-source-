@@ -149,6 +149,32 @@ const CITY_LODGING_DEFAULT = {
   sokcho:    { defaultZone: '속초해변', placeholder: '속초해변 호텔 (위치 미정)' },
 };
 
+// P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
+// "황리단길 호텔" (Gyeongju 동네명만 있고 "경주" 미명시) 같은 케이스 보강.
+// prod 시뮬레이션 잔여 B-13 fail 2건의 원인.
+const NEIGHBORHOOD_TO_CITY = {
+  // Seoul
+  '명동': 'seoul', '홍대': 'seoul', '강남': 'seoul', '이태원': 'seoul',
+  '잠실': 'seoul', '종로': 'seoul', '익선동': 'seoul', '성수동': 'seoul',
+  '한남동': 'seoul', '망원동': 'seoul', '연남동': 'seoul', '북촌': 'seoul',
+  '인사동': 'seoul', '광화문': 'seoul', '서울역': 'seoul', '동대문': 'seoul',
+  // Busan
+  '해운대': 'busan', '광안리': 'busan', '서면': 'busan', '남포동': 'busan',
+  '송도': 'busan', '자갈치': 'busan', '기장': 'busan', '센텀시티': 'busan',
+  // Jeju
+  '중문': 'jeju', '노형': 'jeju', '성산': 'jeju', '서귀포': 'jeju',
+  '함덕': 'jeju', '협재': 'jeju',
+  // Gyeongju
+  '황리단길': 'gyeongju', '황남동': 'gyeongju', '보문': 'gyeongju',
+  '대릉원': 'gyeongju', '동궁': 'gyeongju', '안압지': 'gyeongju',
+  // Jeonju
+  '한옥마을': 'jeonju', '객사': 'jeonju', '풍남동': 'jeonju',
+  // Gangneung
+  '경포': 'gangneung', '안목해변': 'gangneung', '주문진': 'gangneung',
+  // Sokcho
+  '속초해변': 'sokcho', '설악산': 'sokcho', '대포항': 'sokcho',
+};
+
 /**
  * P152 (2026-05-22): cross-city lodging stops 강제 교정.
  *
@@ -194,17 +220,34 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
         if (enRegex.test(textRaw)) return true;
         const otherKor = CITY_KOR_MAP_FULL[other];
         if (!otherKor) return false;
-        // 2) Korean: 명시적 행정구역 suffix 또는 standalone
+        // 2) Korean: 명시적 행정구역 suffix (광역시/특별시/특별자치도/특별자치시/시/도)
         if (text.includes(`${otherKor}광역시`)) return true;
         if (text.includes(`${otherKor}특별시`)) return true;
         if (text.includes(`${otherKor}특별자치도`)) return true;
         if (text.includes(`${otherKor}특별자치시`)) return true;
+        // P156: 일반 "시" suffix — 경주시 / 전주시 / 강릉시 / 속초시 등.
+        if (text.includes(`${otherKor}시`)) return true;
         // 3) standalone (preceded/followed by space, start, end, or punctuation)
         const korStandaloneRegex = new RegExp(`(^|[\\s,，.()\\[\\]])${otherKor}($|[\\s,，.()\\[\\]])`);
         if (korStandaloneRegex.test(textRaw)) return true;
         return false;
       });
-      if (!conflictingCity) continue;
+      // P156 (2026-05-22): 동네/랜드마크 sweep — "황리단길 호텔" 처럼 도시명 없이
+      // 동네명만 있는 케이스. day.city 와 다른 도시의 동네명이 있으면 violation.
+      let detectedConflict = conflictingCity;
+      if (!detectedConflict) {
+        for (const [nbhd, ownerCity] of Object.entries(NEIGHBORHOOD_TO_CITY)) {
+          if (ownerCity === dayCityLc) continue; // same city — OK
+          if (text.includes(nbhd.toLowerCase())) {
+            detectedConflict = ownerCity;
+            break;
+          }
+        }
+      }
+      if (!detectedConflict) continue;
+      // Re-assign so downstream `conflictingCity` references work uniformly.
+      // eslint-disable-next-line no-const-assign
+      const _conflictAsKey = detectedConflict;
 
       // 교정 placeholder 결정 (사용자 hotelByCity > zone > default 순)
       let newName, newAddress;
@@ -234,7 +277,7 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
         day: day?.day || day?.day_index || 0,
         stop_index: i,
         day_city: day.city,
-        conflicting_city: conflictingCity,
+        conflicting_city: _conflictAsKey,
         original_name: originalName,
         original_address: originalAddr,
         corrected_name: newName,

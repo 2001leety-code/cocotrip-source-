@@ -165,6 +165,80 @@ describe('P152 correctCrossCityLodgingStops', () => {
     expect(violations).toHaveLength(0);
   });
 
+  it('P156: ${city}시 suffix 매칭 — "경주시 황리단길..." 부산 day에', () => {
+    const itinerary = {
+      days: [
+        {
+          day: 3,
+          city: 'Busan',
+          stops: [
+            { category: 'lodging', name: '황리단길 호텔', address: '경주시 황리단길 일대' },
+          ],
+        },
+      ],
+    } as any;
+
+    const violations = correctCrossCityLodgingStops(itinerary, {}, {});
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].conflicting_city).toBe('gyeongju');
+  });
+
+  it('P156: 동네명 매핑 — "황리단길 호텔" Seoul day (도시명 없어도 잡힘)', () => {
+    const itinerary = {
+      days: [
+        {
+          day: 4,
+          city: 'Seoul',
+          stops: [
+            { category: 'lodging', name: '황리단길 호텔 (호텔 미정)', address: '' },
+          ],
+        },
+      ],
+    } as any;
+
+    const violations = correctCrossCityLodgingStops(itinerary, {}, {});
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].conflicting_city).toBe('gyeongju');
+  });
+
+  it('P156: 동네명 매핑 — "해운대 호텔" Seoul day', () => {
+    const itinerary = {
+      days: [
+        {
+          day: 2,
+          city: 'Seoul',
+          stops: [
+            { category: 'lodging', name: '해운대 그랜드 호텔', address: '미정' },
+          ],
+        },
+      ],
+    } as any;
+
+    const violations = correctCrossCityLodgingStops(itinerary, {}, {});
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].conflicting_city).toBe('busan');
+  });
+
+  it('P156: 같은 도시 동네는 통과 — "명동 호텔" Seoul day', () => {
+    const itinerary = {
+      days: [
+        {
+          day: 1,
+          city: 'Seoul',
+          stops: [
+            { category: 'lodging', name: '명동 호텔', address: '명동' },
+          ],
+        },
+      ],
+    } as any;
+
+    const violations = correctCrossCityLodgingStops(itinerary, {}, {});
+    expect(violations).toHaveLength(0);
+  });
+
   it('quality_warnings 기존 항목 보존 + 추가', () => {
     const itinerary = {
       days: [
