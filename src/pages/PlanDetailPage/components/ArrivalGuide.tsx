@@ -238,6 +238,10 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                                     </div>
                                     <p className="text-[13px] font-bold text-white">{formatKRW(val?.price_krw || val?.est_price_krw || 0)}</p>
                                     <p className="text-[10px] text-white/55">{val?.duration_min || '?'}{ui.minUnit || 'min'}</p>
+                                    {/* P153 (2026-05-22): instruction 텍스트 표시 — 데이터엔 있는데 UI 미노출 회귀 */}
+                                    {val?.instruction && (
+                                      <p className="text-[10px] text-white/65 mt-1 leading-snug line-clamp-3">{val.instruction}</p>
+                                    )}
                                   </div>
                                 );
                               })}
