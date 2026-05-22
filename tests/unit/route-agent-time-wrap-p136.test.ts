@@ -188,27 +188,39 @@ describe('runUnreasonableStopTimesCheck — admin bypass (soft, no throw)', () =
     const itin = mkItinerary([{ start_time: '02:00' }]);
     const body = { orderId: 'any-id', adminBypass: true, regions: ['Busan'] };
     expect(() => runUnreasonableStopTimesCheck(itin, body)).not.toThrow();
-    expect(runUnreasonableStopTimesCheck(itin, body)).toBe(1);
+    // P159 (2026-05-22): 첫 호출 후 itinerary auto-corrected → 두 번째 호출은 0.
+    // 함수 자체 반환값은 첫 호출 시 detect count = 1.
+    const itin2 = mkItinerary([{ start_time: '02:00' }]);
+    expect(runUnreasonableStopTimesCheck(itin2, body)).toBe(1);
   });
 });
 
-// ─── G. runUnreasonableStopTimesCheck — customer: throw on pre-dawn ───────────
-describe('runUnreasonableStopTimesCheck — customer (strict throw)', () => {
-  it('pre-dawn stop + non-admin orderId → throw UNREASONABLE_STOP_TIMES', () => {
+// ─── G. runUnreasonableStopTimesCheck — customer: P159 auto-correct (no throw) ───────────
+// P159 (2026-05-22): customer throw 500 → auto-correct + alert 로 전환.
+// 이전: UNREASONABLE_STOP_TIMES throw → 결제 후 plan 못 받음 → 환불 분쟁.
+// 이후: pre-dawn 시각 09:00 cascade 재계산 + telegram alert.
+describe('runUnreasonableStopTimesCheck — customer (P159 auto-correct)', () => {
+  it('pre-dawn stop + non-admin orderId → no throw, auto-correct + return count', () => {
     const itin = mkItinerary([{ start_time: '01:24', name: '해운대 호텔' }]);
     const body = { orderId: 'PAYPAL-REAL-ORDER-123', regions: ['Busan'] };
-    expect(() => runUnreasonableStopTimesCheck(itin, body))
-      .toThrow(/UNREASONABLE_STOP_TIMES/);
+    let result: number;
+    expect(() => { result = runUnreasonableStopTimesCheck(itin, body); }).not.toThrow();
+    expect(result!).toBe(1);
+    // 첫 stop start_time auto-corrected to 09:00
+    expect(itin.days[0].stops[0].start_time).toBe('09:00');
   });
 
-  it('multiple pre-dawn stops → throw lists sample in message', () => {
+  it('multiple pre-dawn stops → no throw, all cascaded', () => {
     const itin = mkItinerary([
       { start_time: '00:17', name: '해운대 호텔' },
       { start_time: '03:26', name: '자갈치 시장' },
     ]);
     const body = { orderId: 'PAYPAL-123', regions: ['Busan'] };
-    expect(() => runUnreasonableStopTimesCheck(itin, body))
-      .toThrow(/UNREASONABLE_STOP_TIMES: 2/);
+    let result: number;
+    expect(() => { result = runUnreasonableStopTimesCheck(itin, body); }).not.toThrow();
+    expect(result!).toBe(2); // 2 detected before correction
+    // 첫 stop = 09:00 + cascade
+    expect(itin.days[0].stops[0].start_time).toBe('09:00');
   });
 });
 
