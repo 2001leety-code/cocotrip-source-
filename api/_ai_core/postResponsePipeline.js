@@ -15,6 +15,7 @@ import {
   calculateTmoney, persistPlan, backfillStopEndTimes, backfillDayLodging,
   runUnreasonableStopTimesCheck,
   pushIntercityGapWarnings,
+  correctCrossCityLodgingStops,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -84,6 +85,12 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   // 류 표시 + PDF/email/voucher downstream 깨짐. start_time + stay_min 으로
   // 자동 계산. 이미 채워진 stop 은 override X (timeline stitching 결과 존중).
   backfillStopEndTimes(itinerary);
+
+  // ── P152 (2026-05-22): cross-city lodging stops 강제 교정 ──────────────
+  // 9-시나리오 시뮬레이션 7/9 실패 (B-13). buildPrompt + userMessageBuilder
+  // 만으로는 Gemini 비결정성을 못 잡음 → 마지막 안전망. day.city 와 다른 도시
+  // 명시한 lodging stop 을 city-appropriate placeholder 로 강제 override.
+  correctCrossCityLodgingStops(itinerary, ctx.hotelByCity, ctx.body?.recommendedZones);
 
   // ── P119/P120/P123 (2026-05-20): day.lodging + 새벽 stops + 도시별 호텔 ──
   // plan 4792076e + 209de47b 회귀 동시 차단. 자세한 로직은 planPersister wrapper.

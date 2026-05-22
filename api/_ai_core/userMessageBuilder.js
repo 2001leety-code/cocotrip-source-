@@ -68,7 +68,7 @@ export function buildUserMessage({
     want_accommodation: wantAccom || undefined,
     accommodation_budget: wantAccom ? accomBudget : undefined,
   }) + spotContext + foodContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
-    + buildMultiCityHotelBlock(hotelByCity)
+    + buildMultiCityHotelBlock(hotelByCity, regions)
     + buildMultiCityEntryExitBlock({ regions, arrivalCity, departureCity })
     + buildAccommodationBlock({ wantAccom, accomBudget })
     + buildVariationAngleBlock();
@@ -123,12 +123,47 @@ REQUIREMENTS:
 - If a city's zone lacks options for a category, prefer the closest adjacent neighborhood within the SAME city — never cross-city.`;
 }
 
-function buildMultiCityHotelBlock(hotelByCity) {
+const CITY_LODGING_MAP = {
+  seoul:     { kr: '서울', en: 'Seoul',     examples: '명동 호텔 / 홍대 호텔 / 강남 호텔 / 이태원 호텔' },
+  busan:     { kr: '부산', en: 'Busan',     examples: '해운대 호텔 / 광안리 호텔 / 서면 호텔 / 남포동 호텔' },
+  jeju:      { kr: '제주', en: 'Jeju',      examples: '중문 호텔 / 노형 호텔 / 제주시청 호텔 / 성산 호텔' },
+  gyeongju:  { kr: '경주', en: 'Gyeongju',  examples: '보문 호텔 / 황남동 호텔 / 대릉원 호텔' },
+  jeonju:    { kr: '전주', en: 'Jeonju',    examples: '한옥마을 호텔 / 객사 호텔' },
+  gangneung: { kr: '강릉', en: 'Gangneung', examples: '경포 호텔 / 강릉역 호텔' },
+  sokcho:    { kr: '속초', en: 'Sokcho',    examples: '속초해변 호텔 / 설악산 호텔' },
+};
+
+function buildMultiCityHotelBlock(hotelByCity, regions) {
   // P123 (2026-05-20): 다도시 plan 의 도시별 호텔 명시 — wizard Step2
   // hotelByCity Record forward. plan 209de47b 회귀 (부산 day 에 명동 호텔
   // 박힘) 의 진짜 fix. Gemini 가 day.city 별 호텔 매칭 강제.
+  const isMultiCity = Array.isArray(regions) && regions.length >= 2;
   const hbcEntries = Object.entries(hotelByCity).filter(([, v]) => v && v.trim());
-  if (hbcEntries.length === 0) return '';
+  if (hbcEntries.length === 0) {
+    if (!isMultiCity) return '';
+    // No hotel info for multi-city plan — inject per-city placeholder rules.
+    // Without this Gemini reuses Seoul placeholder for ALL days (B-13, P122).
+    const cityLines = regions.map(cityKey => {
+      const info = CITY_LODGING_MAP[cityKey.toLowerCase()];
+      if (!info) {
+        const cap = cityKey.charAt(0).toUpperCase() + cityKey.slice(1);
+        return `- ${cap}: lodging name/address MUST contain "${cap}"`;
+      }
+      return `- ${info.en}: lodging name/address MUST contain "${info.kr}" or "${info.en}". Good examples: ${info.examples}.`;
+    }).join('\n');
+    return `
+
+[MULTI-CITY HOTELS — NO HOTELS PROVIDED (B-13/P122)]
+The user did NOT book hotels. Generate city-appropriate lodging placeholders PER CITY:
+
+${cityLines}
+
+CRITICAL:
+- NEVER put a Seoul-area hotel name (e.g., "명동 호텔") on a day whose city="Busan". B-13 REJECTS.
+- Each day's stops[0] and stops[last] lodging name/address MUST match that day's "city" field.
+- GOOD: day.city="Busan" → stops[0].name="해운대 호텔", address="부산광역시 해운대구..."
+- BAD:  day.city="Busan" → stops[0].name="명동 호텔", address="서울특별시 중구..." (WRONG)`;
+  }
   const cityHotelLines = hbcEntries
     .map(([city, hotel]) => `- ${city.charAt(0).toUpperCase() + city.slice(1)}: "${hotel}"`)
     .join('\n');

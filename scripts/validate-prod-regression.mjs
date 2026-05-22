@@ -137,6 +137,7 @@ const planRes = await fetch(`${BASE_URL}/api/ai-planner-full`, {
   },
   body: JSON.stringify({
     paypalOrderId: 'ADMIN-BYPASS-REGRESSION-' + Date.now(),
+    uid: auth.localId,
     guestName: 'RegressionSuite',
     pax: 2,
     durationDays: SCENARIO_DURATION,

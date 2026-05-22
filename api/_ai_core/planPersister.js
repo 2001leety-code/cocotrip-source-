@@ -132,6 +132,133 @@ export function backfillDayLodging(itinerary, hotelByCity = {}) {
   return filled;
 }
 
+// ── P152 (2026-05-22): cross-city lodging 강제 교정용 도시 메타 ────────────────
+const CITY_KOR_MAP_FULL = {
+  seoul: '서울', busan: '부산', jeju: '제주', gyeongju: '경주',
+  jeonju: '전주', gangneung: '강릉', sokcho: '속초',
+  incheon: '인천', daegu: '대구', daejeon: '대전', gwangju: '광주',
+};
+
+const CITY_LODGING_DEFAULT = {
+  seoul:     { defaultZone: '명동',     placeholder: '명동 호텔 (위치 미정)' },
+  busan:     { defaultZone: '해운대',   placeholder: '해운대 호텔 (위치 미정)' },
+  jeju:      { defaultZone: '제주시',   placeholder: '제주시 호텔 (위치 미정)' },
+  gyeongju:  { defaultZone: '보문',     placeholder: '보문 호텔 (위치 미정)' },
+  jeonju:    { defaultZone: '한옥마을', placeholder: '한옥마을 호텔 (위치 미정)' },
+  gangneung: { defaultZone: '경포',     placeholder: '경포 호텔 (위치 미정)' },
+  sokcho:    { defaultZone: '속초해변', placeholder: '속초해변 호텔 (위치 미정)' },
+};
+
+/**
+ * P152 (2026-05-22): cross-city lodging stops 강제 교정.
+ *
+ * 9-시나리오 시뮬레이션 결과 7/9 실패 (D2(Busan):"서울역 호텔" / D4(Seoul):"제주시
+ * 호텔" 등). buildPrompt + userMessageBuilder layer 만으로는 Gemini 비결정성을 못 잡음.
+ *
+ * 본 함수: 각 day 의 lodging stops 의 name/address 가 day.city 와 다른 도시를 명시적
+ * 언급하면 도시 적절 placeholder 로 강제 override. 사용자 hotelByCity > recommendedZones
+ * > default placeholder 순으로 fallback. 모든 교정 이력은 quality_warnings 에 박제 →
+ * 운영자 UI panel (P121) 즉시 노출.
+ *
+ * stops[i].name/address override + `_corrected_cross_city: true` flag set.
+ *
+ * @param {object} itinerary
+ * @param {object} hotelByCity        { seoul: "명동 호텔...", busan: "해운대..." } 사용자 입력
+ * @param {object} recommendedZones   { seoul: "myeongdong", busan: "haeundae" } 사용자 zone
+ * @returns {Array<object>} 교정 이력
+ */
+export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recommendedZones = {}) {
+  const violations = [];
+  const hbc = (hotelByCity && typeof hotelByCity === 'object') ? hotelByCity : {};
+  const rz  = (recommendedZones && typeof recommendedZones === 'object') ? recommendedZones : {};
+
+  for (const day of (itinerary?.days || [])) {
+    const dayCityLc = String(day?.city || '').trim().toLowerCase();
+    if (!dayCityLc) continue;
+    const dayCityKor = CITY_KOR_MAP_FULL[dayCityLc] || '';
+    const otherCities = Object.keys(CITY_KOR_MAP_FULL).filter((c) => c !== dayCityLc);
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+
+    for (let i = 0; i < stops.length; i++) {
+      const stop = stops[i];
+      if (stop?.category !== 'lodging') continue;
+      const textRaw = `${stop.name || ''} ${stop.address || ''} ${stop.display_name || ''}`;
+      const text = textRaw.toLowerCase();
+
+      // 다른 도시 명시적 언급 detect — substring false positive 차단.
+      // 예: "해운대구" 안에 "대구" substring 매칭 X. "광역시" suffix 또는
+      //     word-boundary 컨텍스트만 인정.
+      const conflictingCity = otherCities.find((other) => {
+        // 1) English: word boundary
+        const enRegex = new RegExp(`\\b${other}\\b`, 'i');
+        if (enRegex.test(textRaw)) return true;
+        const otherKor = CITY_KOR_MAP_FULL[other];
+        if (!otherKor) return false;
+        // 2) Korean: 명시적 행정구역 suffix 또는 standalone
+        if (text.includes(`${otherKor}광역시`)) return true;
+        if (text.includes(`${otherKor}특별시`)) return true;
+        if (text.includes(`${otherKor}특별자치도`)) return true;
+        if (text.includes(`${otherKor}특별자치시`)) return true;
+        // 3) standalone (preceded/followed by space, start, end, or punctuation)
+        const korStandaloneRegex = new RegExp(`(^|[\\s,，.()\\[\\]])${otherKor}($|[\\s,，.()\\[\\]])`);
+        if (korStandaloneRegex.test(textRaw)) return true;
+        return false;
+      });
+      if (!conflictingCity) continue;
+
+      // 교정 placeholder 결정 (사용자 hotelByCity > zone > default 순)
+      let newName, newAddress;
+      const defaultMeta = CITY_LODGING_DEFAULT[dayCityLc];
+      if (hbc[dayCityLc] && typeof hbc[dayCityLc] === 'string' && hbc[dayCityLc].trim()) {
+        newAddress = hbc[dayCityLc].trim();
+        newName    = `${dayCityKor || dayCityLc} 호텔`;
+      } else if (rz[dayCityLc]) {
+        const zone = String(rz[dayCityLc]).trim();
+        newName    = `${zone} 일대 호텔 (위치 미정)`;
+        newAddress = `${dayCityKor || dayCityLc} ${zone}`;
+      } else if (defaultMeta) {
+        newName    = defaultMeta.placeholder;
+        newAddress = `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}`;
+      } else {
+        newName    = `${dayCityKor || dayCityLc} 호텔 (위치 미정)`;
+        newAddress = dayCityKor || dayCityLc;
+      }
+
+      const originalName = stop.name;
+      const originalAddr = stop.address;
+      stop.name = newName;
+      stop.address = newAddress;
+      stop._corrected_cross_city = true;
+
+      violations.push({
+        day: day?.day || day?.day_index || 0,
+        stop_index: i,
+        day_city: day.city,
+        conflicting_city: conflictingCity,
+        original_name: originalName,
+        original_address: originalAddr,
+        corrected_name: newName,
+        corrected_address: newAddress,
+      });
+    }
+  }
+
+  if (violations.length > 0) {
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    for (const v of violations) {
+      itinerary.quality_warnings.push({
+        kind: 'cross_city_lodging_corrected',
+        severity: 'medium',
+        message: `Day ${v.day} (${v.day_city}): "${v.original_name}" → "${v.corrected_name}" (다른 도시 "${v.conflicting_city}" 호텔 자동 교정)`,
+        ...v,
+      });
+    }
+    console.log(`[planPersister] P152 cross-city lodging corrected: ${violations.length} stops`);
+  }
+
+  return violations;
+}
+
 /**
  * P120 (2026-05-20): 새벽 시간대 stops detect. plan 4792076e 의 Day3 00:31,
  * Day4 01:24, 03:26 같은 start_time = 사용자 실현 불가능 (새벽 관광 X). 회귀의
