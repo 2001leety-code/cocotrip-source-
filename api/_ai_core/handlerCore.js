@@ -41,7 +41,9 @@ import { initAdminDb } from './firestoreAdmin.js';
 import { enforcePaymentAndRevision } from './paymentGate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
-import { runGeminiPipeline } from './geminiPipeline.js';
+import { runGeminiPipeline, buildModel, isPass3BackgroundEnabled } from './geminiPipeline.js';
+import { pass3Enrich } from './threePassPipeline.js';
+import { updatePlanEnrichment } from './planPersister.js';
 import { decidePlannerMode } from './plannerMode.js';
 import { tryRunBlockMode } from './blockMode.js';
 
@@ -343,6 +345,32 @@ export default async function handler(req, res) {
       abReason: abDecision.reason, abBucket: abDecision.bucket,
       blocksUsed: blockModeUsed ? blocksUsed : null,
     }));
+
+    // ── P168: Pass3 background trigger ───────────────────────────────────
+    // _pass3_pending = true 일 때 (PLANNER_PASS3_BACKGROUND=true + 3pass mode):
+    // 사용자 응답 전에 fire-and-forget 으로 background enrich 시작.
+    // response 는 즉시 반환 → tip 은 몇 초 후 Firestore listener (onSnapshot) 로
+    // 자동 화면 갱신. background fail = throttledTelegramAlert (non-critical).
+    if (itinerary._pass3_pending && isPass3BackgroundEnabled()) {
+      // fire-and-forget — catch 안 붙이면 UnhandledPromiseRejection 경고 발생하므로 .catch() 필수.
+      (async () => {
+        try {
+          const bgModel = buildModel(apiKey);
+          const enriched = await pass3Enrich(bgModel, itinerary, language);
+          await updatePlanEnrichment(adminDb, planId, enriched);
+          console.log(`[planner] P168 Pass3 background completed: planId=${planId}`);
+        } catch (bgErr) {
+          console.error('[planner] P168 Pass3 background fail:', bgErr.message);
+          throttledTelegramAlert({
+            key: `pass3-background-fail:${planId}`,
+            channel: 'admin',
+            severity: 'low',
+            message: `⚠️ <b>Pass3 background 실패 (P168)</b>\n\n<b>planId:</b> <code>${planId}</code>\n<b>err:</b> ${bgErr.message}\n\n→ tip/recommended_items 미채움 (plan 은 정상 저장). 재시도: 없음 (non-critical).`,
+            context: { planId, error: bgErr.message },
+          }).catch(() => {});
+        }
+      })();
+    }
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
