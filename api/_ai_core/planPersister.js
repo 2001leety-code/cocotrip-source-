@@ -132,6 +132,70 @@ export function backfillDayLodging(itinerary, hotelByCity = {}) {
   return filled;
 }
 
+/**
+ * P162 (2026-05-23): daily_budget_summary self-heal.
+ *
+ * Gemini 가 daily_budget_summary 전부 빈 객체로 출력하는 회귀 (plan 36c12df2).
+ * 사용자 화면에서 일별 예산 카드 빈 칸 → 결제 후 가치 체감 저하.
+ *
+ * 전략 (stop 데이터 기반 추정):
+ *   - food per day = food stop 수 × 15,000 KRW
+ *   - attraction per day = attraction stop 수 × 10,000 KRW (입장료 추정)
+ *   - transport per day = 0 (server T-money + ODsay 가 별도 계산)
+ *   - misc per day = 10,000 KRW (잡비)
+ *   - total = food + attraction + transport + misc
+ *
+ * 이미 daily_budget_summary 가 채워진 day 는 skip (Gemini 응답 존중).
+ *
+ * @param {object} itinerary - mutated in-place
+ * @returns {number} heal 된 day 수
+ */
+export function selfHealDailyBudget(itinerary) {
+  if (!itinerary || typeof itinerary !== 'object') return 0;
+  const days = Array.isArray(itinerary.days) ? itinerary.days : [];
+  let healed = 0;
+  for (const day of days) {
+    const existing = day.daily_budget_summary || day.daily_budget || {};
+    const existingTotal =
+      (Number(existing.food) || 0) +
+      (Number(existing.transport) || 0) +
+      (Number(existing.attraction) || 0) +
+      (Number(existing.misc) || 0) +
+      (Number(existing.total) || 0);
+    if (existingTotal > 0) continue; // 이미 채워짐 — skip
+
+    const stops = Array.isArray(day.stops) ? day.stops : [];
+    let foodCount = 0;
+    let attrCount = 0;
+    for (const s of stops) {
+      const cat = String(s?.category || '').toLowerCase();
+      if (cat === 'food') foodCount++;
+      else if (cat === 'attraction') attrCount++;
+    }
+    const food = foodCount * 15000;
+    const attraction = attrCount * 10000;
+    const transport = 0; // server 가 T-money + ODsay 로 채움
+    const misc = 10000;
+    const total = food + attraction + transport + misc;
+    day.daily_budget_summary = {
+      food, transport, attraction, misc, total,
+      _self_healed: true,
+    };
+    healed++;
+  }
+  if (healed > 0) {
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    itinerary.quality_warnings.push({
+      kind: 'daily_budget_self_healed',
+      severity: 'low',
+      message: `daily_budget_summary 누락 ${healed} 일 → stop count 기반 추정값 자동 생성 (P162)`,
+      healed_days: healed,
+    });
+    console.log(`[planPersister] P162 daily_budget self-healed: ${healed} days`);
+  }
+  return healed;
+}
+
 // ── P152 (2026-05-22): cross-city lodging 강제 교정용 도시 메타 ────────────────
 const CITY_KOR_MAP_FULL = {
   seoul: '서울', busan: '부산', jeju: '제주', gyeongju: '경주',

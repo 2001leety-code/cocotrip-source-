@@ -17,6 +17,7 @@ import {
   pushIntercityGapWarnings,
   correctCrossCityLodgingStops,
   selfHealArrivalGuide,
+  selfHealDailyBudget,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -109,6 +110,11 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   // RouteAgent Phase 2.4 stitch 실패 또는 Gemini 임의값 silent pass 케이스.
   // quality_warnings 에 박제 → 운영자 UI panel (P121 QualityWarningsPanel) 즉시 노출.
   pushIntercityGapWarnings(itinerary);
+
+  // ── P162 (2026-05-23): daily_budget_summary self-heal ────────────────
+  // Gemini 가 daily_budget_summary 통째 비우는 회귀 (plan 36c12df2). UI 빈 칸 →
+  // 결제 가치 체감 저하. stop count 기반 추정값 생성.
+  selfHealDailyBudget(itinerary);
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);
