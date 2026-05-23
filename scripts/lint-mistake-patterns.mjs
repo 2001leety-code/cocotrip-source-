@@ -5533,8 +5533,10 @@ function P169_geminiStreaming({ changed }) {
   if (handlerModified) {
     const content = getChangedFileContent(HANDLER);
     if (content) {
-      if (!/isStreamingEnabled/.test(content)) {
-        violations.push(`${HANDLER}: isStreamingEnabled() 호출 누락 — streaming 분기 연결 끊김`);
+      // P170 (2026-05-23): streaming pipeline 은 backgroundPipelines.js 로 추출됨.
+      // handlerCore 는 shouldUseStreaming + tryInitStreamingSkeleton + sendStreamingEarlyResponse 위임.
+      if (!/shouldUseStreaming/.test(content)) {
+        violations.push(`${HANDLER}: shouldUseStreaming() 호출 누락 — P170 추출 후 backgroundPipelines.js 위임 의무. (isStreamingEnabled 직접 호출 금지)`);
       }
     }
   }
@@ -6497,11 +6499,10 @@ function P168_pass3BackgroundAsync({ changed }) {
   if (isModified(HC, changed)) {
     const content = getChangedFileContent(HC);
     if (content) {
-      if (!/_pass3_pending/.test(content)) {
-        violations.push(`${HC}: _pass3_pending 체크 누락 — background trigger 진입 조건 없음`);
-      }
-      if (!/updatePlanEnrichment/.test(content)) {
-        violations.push(`${HC}: updatePlanEnrichment 호출 누락 — background Pass3 Firestore 업데이트 불가`);
+      // P170 (2026-05-23): Pass3 background pipeline 은 backgroundPipelines.js 로 추출됨.
+      // handlerCore 는 triggerPass3BackgroundIfPending 호출만 (inline IIFE 금지).
+      if (!/triggerPass3BackgroundIfPending/.test(content)) {
+        violations.push(`${HC}: triggerPass3BackgroundIfPending 호출 누락 — P170 추출 후 backgroundPipelines.js 위임 의무. (_pass3_pending inline IIFE 재도입 금지)`);
       }
     }
   }
