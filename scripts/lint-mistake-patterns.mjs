@@ -1270,6 +1270,7 @@ const RULES = [
   ['P165_aiPlannerMaxDurationCap', P165_aiPlannerMaxDurationCap],
   ['P166_systemPromptStaticPrefix', P166_systemPromptStaticPrefix],
   ['P167_blockModeMultiCitySupport', P167_blockModeMultiCitySupport],
+  ['P168_pass3BackgroundAsync', P168_pass3BackgroundAsync],
 ];
 
 /**
@@ -6293,6 +6294,71 @@ function P145_cityChangeTimeClamp({ changed }) {
       'P145_cityChangeTimeClamp',
       violations.join(' | '),
       '메모리 P145 — city-change day 첫 stop 시각 upper-bound clamp. lodging +240 / activity +90. plan 209de47b 5h+ 공백 회귀의 root cause 차단.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P168_pass3BackgroundAsync — 메모리 P168 (2026-05-23).
+ *
+ * 3-pass Pass3 (식당 tip enrichment) 를 plan Firestore 저장 후 background job 으로 분리.
+ * env flag PLANNER_PASS3_BACKGROUND default false (안전). 사용자 응답 -30~60초 단축.
+ *
+ * 검증:
+ *   - geminiPipeline.js 수정 시: isPass3BackgroundEnabled 함수 존재 + _pass3_pending 마킹 분기 존재
+ *   - planPersister.js 수정 시: updatePlanEnrichment 함수 존재
+ *   - handlerCore.js 수정 시: _pass3_pending 체크 분기 + updatePlanEnrichment 호출 존재
+ *
+ * 회귀 시: -30~60초 단축 효과 손실. tip 미표시.
+ */
+function P168_pass3BackgroundAsync({ changed }) {
+  const violations = [];
+
+  const GP = 'api/_ai_core/geminiPipeline.js';
+  if (isModified(GP, changed)) {
+    const content = getChangedFileContent(GP);
+    if (content) {
+      if (!/function\s+isPass3BackgroundEnabled/.test(content)) {
+        violations.push(`${GP}: isPass3BackgroundEnabled 함수 누락 — P168 env flag 분기 부재`);
+      }
+      if (!/_pass3_pending\s*=\s*true/.test(content)) {
+        violations.push(`${GP}: _pass3_pending = true 마킹 누락 — Pass3 background 표시 불가`);
+      }
+      if (!/isPass3BackgroundEnabled\(\)/.test(content)) {
+        violations.push(`${GP}: isPass3BackgroundEnabled() 호출 누락 — flag 체크 없이 항상 sync 또는 항상 async`);
+      }
+    }
+  }
+
+  const PP = 'api/_ai_core/planPersister.js';
+  if (isModified(PP, changed)) {
+    const content = getChangedFileContent(PP);
+    if (content) {
+      if (!/function\s+updatePlanEnrichment|async function updatePlanEnrichment/.test(content)) {
+        violations.push(`${PP}: updatePlanEnrichment 함수 누락 — background Pass3 결과를 Firestore 에 반영 불가`);
+      }
+    }
+  }
+
+  const HC = 'api/_ai_core/handlerCore.js';
+  if (isModified(HC, changed)) {
+    const content = getChangedFileContent(HC);
+    if (content) {
+      if (!/_pass3_pending/.test(content)) {
+        violations.push(`${HC}: _pass3_pending 체크 누락 — background trigger 진입 조건 없음`);
+      }
+      if (!/updatePlanEnrichment/.test(content)) {
+        violations.push(`${HC}: updatePlanEnrichment 호출 누락 — background Pass3 Firestore 업데이트 불가`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P168_pass3BackgroundAsync',
+      violations.join(' | '),
+      'P168 회귀 — Pass3 background flag 분기 누락. 다시 sync 호출 시 -30~60s 단축 효과 손실. tip/recommended_items 지연 표시 불가.',
     );
   }
   return null;

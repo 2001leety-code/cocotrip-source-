@@ -45,6 +45,20 @@ const RETRY_RATE_THRESHOLD = 10; // 5분당 10건 초과 시 1회 alert
 
 import { resolveGeminiModel } from './geminiModelResolver.js';
 
+/**
+ * P168 (2026-05-23): Pass3 background flag.
+ *
+ * default false (안전 — legacy 동작 유지).
+ * 활성화 시 사용자 응답 -30~60초 단축 (Pass3 = Gemini 추가 호출 1회 분리).
+ * tip 은 background 가 Firestore set merge 후 onSnapshot 으로 자동 화면 갱신.
+ *
+ * 회귀 시 ENV PLANNER_PASS3_BACKGROUND= (empty) 또는 'false' 로 즉시 legacy 동작.
+ * 운영자 액션: Vercel ENV PLANNER_PASS3_BACKGROUND=true 설정 → 효과 측정.
+ */
+export function isPass3BackgroundEnabled() {
+  return String(process.env.PLANNER_PASS3_BACKGROUND || '').trim().toLowerCase() === 'true';
+}
+
 export function buildModel(apiKey, temperatureOverride) {
   const genAI = new GoogleGenerativeAI(apiKey);
   // 2026-05-21 P135: 2.5 Pro → resolveGeminiModel('main') default 3.5 Flash.
@@ -354,10 +368,20 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     itinerary = pass2Resolve(itinerary, foodIndex, area);
     console.log('[planner] Pass 2 done:', Date.now() - pass2Start, 'ms');
 
-    console.log('[planner] Pass 3/3: Narrative enrichment...');
-    const pass3Start = Date.now();
-    itinerary = await pass3Enrich(model, itinerary, language);
-    console.log('[planner] Pass 3 done:', Date.now() - pass3Start, 'ms');
+    // P168 (2026-05-23): Pass3 background 분기.
+    // isPass3BackgroundEnabled() = true 일 때 Pass3 를 handlerCore 에서 Firestore 저장 후
+    // background job 으로 trigger. 사용자 응답에는 Pass3 미포함 (tip 은 몇 초 후 등장).
+    // _pass3_pending = true 마커 → handlerCore 가 planId 확정 후 triggerPass3Background 호출.
+    // default false = legacy 동작 (sync Pass3). 단도시/legacy mode 영향 0.
+    if (isPass3BackgroundEnabled()) {
+      console.log('[planner] P168 Pass3 deferred to background (PLANNER_PASS3_BACKGROUND=true)');
+      itinerary._pass3_pending = true;
+    } else {
+      console.log('[planner] Pass 3/3: Narrative enrichment...');
+      const pass3Start = Date.now();
+      itinerary = await pass3Enrich(model, itinerary, language);
+      console.log('[planner] Pass 3 done:', Date.now() - pass3Start, 'ms');
+    }
 
     // P0-3: dietary 전달 + violation 시 retry. 3pass 는 retry 비용 큼 — pass1 만 재호출.
     let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
@@ -372,7 +396,12 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
         itinerary = pass2Resolve(itinerary, foodIndex, area);
-        itinerary = await pass3Enrich(model, itinerary, language);
+        // P168: retry 경로에서도 background 분기 적용.
+        if (isPass3BackgroundEnabled()) {
+          itinerary._pass3_pending = true;
+        } else {
+          itinerary = await pass3Enrich(model, itinerary, language);
+        }
         issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
       } catch (retryErr) {
         console.error('[planner] dietary retry failed:', retryErr.message);
@@ -413,7 +442,12 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
         itinerary = pass2Resolve(itinerary, foodIndex, area);
-        itinerary = await pass3Enrich(model, itinerary, language);
+        // P168: pattern retry 경로에서도 background 분기 적용.
+        if (isPass3BackgroundEnabled()) {
+          itinerary._pass3_pending = true;
+        } else {
+          itinerary = await pass3Enrich(model, itinerary, language);
+        }
         patternErrors = validatePatternStructure(itinerary, body || {});
       } catch (retryErr) {
         console.error('[planner] pattern retry failed:', retryErr.message);

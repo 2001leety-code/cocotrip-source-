@@ -812,6 +812,33 @@ export function runUnreasonableStopTimesCheck(itinerary, body) {
 }
 
 /**
+ * P168 (2026-05-23): Pass3 background enrichment Firestore update.
+ *
+ * triggerPass3Background 이 pass3Enrich 완료 후 호출. set merge 로 tip/recommended_items
+ * 만 덮어씀 — plan 전체 덮어쓰기 X (다른 backfill 결과 보호).
+ * _pass3_pending = false / _pass3_completed_at = ISO 타임스탬프 로 완료 표시.
+ * PlanDetailPage 의 onSnapshot listener 가 Firestore 변경 감지 → 자동 화면 갱신.
+ *
+ * @param {object} adminDb - initAdminDb() 반환값
+ * @param {string} planId - Firestore plans/{planId}
+ * @param {object} enrichedItinerary - pass3Enrich 반환값 (tip/recommended_items 포함)
+ */
+export async function updatePlanEnrichment(adminDb, planId, enrichedItinerary) {
+  if (!adminDb || !planId || !enrichedItinerary) {
+    throw new Error('[updatePlanEnrichment] adminDb / planId / enrichedItinerary 필수');
+  }
+  await adminDb.collection('plans').doc(planId).set(
+    {
+      'itinerary.days': enrichedItinerary.days,
+      'itinerary._pass3_pending': false,
+      'itinerary._pass3_completed_at': new Date().toISOString(),
+    },
+    { merge: true },
+  );
+  console.log(`[planPersister] P168 updatePlanEnrichment: planId=${planId}, days=${(enrichedItinerary.days || []).length}`);
+}
+
+/**
  * Calculate T-money recommended load from ODsay fares + arrival/departure costs.
  */
 export function calculateTmoney(itinerary) {
