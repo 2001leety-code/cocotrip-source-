@@ -92,12 +92,12 @@ describe('P129 — handlerCore.js orchestrator', () => {
     expect(handlerCoreSrc).not.toMatch(/export\s+const\s+maxDuration\s*=/);
   });
 
-  it('size cap ≤600 lines (orchestrator 분리 트리거)', () => {
-    // P168/P169 (2026-05-23) 머지 후 Pass3 background trigger + streaming early-response
-    // pipeline 추가로 ~50 line 증가. 500→600 임시 상향. 후속 P170 후보: streaming +
-    // Pass3 background trigger 를 별도 모듈 (예: backgroundPipelines.js) 로 추출.
+  it('size cap ≤500 lines (orchestrator 분리 트리거)', () => {
+    // P170 (2026-05-23): P168/P169 의 Pass3 background + streaming early-response 를
+    // backgroundPipelines.js 로 추출 → cap 600→500 복귀. handlerCore 는 orchestrator
+    // 단일 책임 (try/catch + withStep + 합성). 추가 로직은 backgroundPipelines 로 추가.
     const lines = handlerCoreSrc.split(/\r?\n/).length;
-    expect(lines).toBeLessThanOrEqual(600);
+    expect(lines).toBeLessThanOrEqual(500);
   });
 
   it('imports the 4 split helper modules', () => {
