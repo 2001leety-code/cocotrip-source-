@@ -176,8 +176,11 @@ describe('PR #461 X-H2 — source-level invariants (retry sites use retryModel)'
   });
 
   it('runGeminiPipeline builds BOTH model and retryModel', () => {
-    expect(src).toMatch(/const\s+model\s*=\s*buildModel\(apiKey\)\s*;/);
-    expect(src).toMatch(/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE\)\s*;/);
+    // P171 (2026-05-23): buildModel(apiKey, temperatureOverride, { isAdminBypass }) 시그니처 확장.
+    // model: undefined temperature + isAdminBypass propagate.
+    // retryModel: RETRY_TEMPERATURE + isAdminBypass propagate.
+    expect(src).toMatch(/const\s+model\s*=\s*buildModel\(apiKey,\s*undefined,\s*\{\s*isAdminBypass\s*\}\s*\)\s*;/);
+    expect(src).toMatch(/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE,\s*\{\s*isAdminBypass\s*\}\s*\)\s*;/);
   });
 
   it('all 4 retry sites call recordRetryAttempt with the canonical type names', () => {
