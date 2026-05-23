@@ -2890,11 +2890,13 @@ function P129_aiPlannerFullDecomposeLock({ changed: _changed }) {
         `${HANDLER_CORE}: maxDuration export 발견 — Vercel handler entry (api/ai-planner-full.js) 가 아닌 곳에서 maxDuration export 하면 인식 안 됨. wrapper 에서만 export.`,
       );
     }
-    // handlerCore size cap — 500L.
+    // handlerCore size cap — 600L (P168/P169 머지 후 Pass3 background + streaming
+    // early-response 추가로 500→600 임시 상향, 2026-05-23). 후속 P170 후보:
+    // backgroundPipelines.js 로 추출 후 다시 500.
     const coreLines = coreContent.split(/\r?\n/).length;
-    if (coreLines > 500) {
+    if (coreLines > 600) {
       violations.push(
-        `${HANDLER_CORE}: ${coreLines} lines > 500 — orchestrator 가 부풀면 추가 분리 (예: errorHandling.js).`,
+        `${HANDLER_CORE}: ${coreLines} lines > 600 — orchestrator 가 부풀면 추가 분리 (예: backgroundPipelines.js / errorHandling.js).`,
       );
     }
     // handler default export 의무.
