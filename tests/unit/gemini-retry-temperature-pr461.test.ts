@@ -98,7 +98,9 @@ describe('PR #461 X-H2 — buildModel accepts temperature override', () => {
     buildModel('fake-key', 0.1);
     const cfg = genModelCalls[0].generationConfig;
     expect(cfg.thinkingConfig.thinkingBudget).toBe(32000);
-    expect(cfg.maxOutputTokens).toBe(32000);
+    // P164 (2026-05-23): 32000 → 12000. 실측 plan JSON 2-5K 토큰 — 12K = 2x safety.
+    // 32K 할당은 generation overhead. -15~25% Gemini gen time.
+    expect(cfg.maxOutputTokens).toBe(12000);
     expect(cfg.responseMimeType).toBe('application/json');
   });
 });
