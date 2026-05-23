@@ -79,7 +79,16 @@ function validateLodgingBookend(itinerary, anchor, isMultiCity) {
     if (warnings.length > 0) {
       console.warn('[validator] LODGING BOOKEND (multi-city day-anchor) 위반:', warnings.map((w) => `Day${w.day} ${w.position}=${w.stopName} (${w.distM}m)`).join(' | '));
       itinerary.quality_warnings = itinerary.quality_warnings || [];
-      itinerary.quality_warnings.push({ type: 'lodging_bookend_violation', anchor: 'multi-city-day-anchor', items: warnings });
+      // P161 (2026-05-23): UI panel (QualityWarningsPanel) heading 은 w.type 읽음 +
+      // 다른 self-heal 함수들은 w.kind. kind/type/message 양쪽 mirror 로 panel + JSON dump 호환.
+      itinerary.quality_warnings.push({
+        kind: 'lodging_bookend_violation',
+        type: 'lodging_bookend_violation',
+        anchor: 'multi-city-day-anchor',
+        severity: 'low',
+        message: `Multi-city day-anchor 위반 ${warnings.length}건: ` + warnings.map((w) => `Day${w.day} ${w.position}=${w.stopName}`).join(', '),
+        items: warnings,
+      });
     } else {
       console.log('[validator] LODGING BOOKEND (multi-city day-anchor) OK — 모든 day 의 stops 가 그 day lodging 5km 이내');
     }
@@ -109,7 +118,15 @@ function validateLodgingBookend(itinerary, anchor, isMultiCity) {
   if (warnings.length > 0) {
     console.warn('[validator] LODGING BOOKEND 위반:', warnings.map((w) => `Day${w.day} ${w.position}=${w.stopName} (${w.distM}m)`).join(' | '));
     itinerary.quality_warnings = itinerary.quality_warnings || [];
-    itinerary.quality_warnings.push({ type: 'lodging_bookend_violation', anchor: anchor.label || '(unknown)', items: warnings });
+    // P161 (2026-05-23): UI panel heading + JSON dump 호환 — kind/type/message mirror.
+    itinerary.quality_warnings.push({
+      kind: 'lodging_bookend_violation',
+      type: 'lodging_bookend_violation',
+      anchor: anchor.label || '(unknown)',
+      severity: 'low',
+      message: `Lodging bookend 위반 ${warnings.length}건: ` + warnings.map((w) => `Day${w.day} ${w.position}=${w.stopName}`).join(', '),
+      items: warnings,
+    });
   } else {
     console.log('[validator] LODGING BOOKEND OK — 모든 Day 첫/마지막 stop 5km 이내');
   }

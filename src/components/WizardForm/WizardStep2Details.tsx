@@ -2,7 +2,7 @@
 // 2026-05-10 ZoneRecommender React.lazy: hotel 미입력 시점에만 노출 → 진입 즉시
 // fetch (작은 skeleton fallback). Main bundle 에서 ZoneRecommender 코드 분리.
 import { useState, lazy, Suspense } from 'react';
-import { Plane, Briefcase, Minus, Plus, Pencil } from 'lucide-react';
+import { Plane, Briefcase, Minus, Plus, Pencil, PlaneLanding, PlaneTakeoff } from 'lucide-react';
 import { WizardNav } from './WizardNav';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
@@ -87,6 +87,14 @@ interface Step2Props {
   reservationStatus?: 'nothing' | 'flight' | 'flight_hotel' | 'all_done' | null;
   airportTouchedInStep3: boolean;
   setAirportTouchedInStep3: (v: boolean) => void;
+  /** P161 (2026-05-23): 입국/출국 cycle 마킹 UI 가 2페이지 (Destinations) 에서 4페이지로
+   *  이전. 도시 chips 더블클릭 cycle (선택 → 입국 → 출국 → 해제) + route 표시 통합. */
+  allCities: string[];
+  selectedCityKeys: string[];
+  arrivalCityKey: string;
+  departureCityKey: string;
+  setArrivalCityKey: (v: string) => void;
+  setDepartureCityKey: (v: string) => void;
 }
 
 export type TourPace = 'half' | 'short' | 'full' | 'action';
@@ -144,6 +152,8 @@ export function WizardStep2Details(props: Step2Props) {
     canGoStep3, onPrev, onNext, onEditStep0,
     reservationStatus,
     airportTouchedInStep3, setAirportTouchedInStep3,
+    allCities, selectedCityKeys,
+    arrivalCityKey, departureCityKey, setArrivalCityKey, setDepartureCityKey,
   } = props;
   const { language } = useLanguage();
   const lang = (language as 'ko' | 'en' | 'ja' | 'zh') || 'en';
@@ -269,42 +279,96 @@ export function WizardStep2Details(props: Step2Props) {
         </div>
       </div>
 
-      {/* 2026-05-10 B10-1: 다도시 plan 시 사용자가 입국 도시 명시 선택. 단도시 시
-          미노출 (mainCity = entry 자동). zone 클릭으로도 mainCity swap 되지만,
-          공항 dropdown 위에 명시적 라디오 노출 → 사용자 의도 분명. */}
+      {/* P161 (2026-05-23): 다도시 plan 의 입국/출국 cycle UI (2페이지에서 이전).
+          기존 single-select radio toggle → cycle chip 으로 교체. 사용자 신고 Screenshot 2:
+          도시 chip 한 번 더 누르면 입국 → 출국 순으로 마킹 (출국 지정 시 다른 도시 자동 입국).
+          arrival 도시 = mainCity (entry hub) — onEntryCityChange 로 mainCity ↔ extraCities swap.
+          단도시 시 미노출 (mainCity = entry 자동). */}
       {isMultiCity && (
         <div className="rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.05] p-3.5">
           <p className="text-[13px] font-semibold text-white mb-1">
             {p.entryCityTitle || 'Which city are you arriving in?'}
           </p>
-          <p className="text-[11px] text-white/55 mb-2.5">
-            {p.entryCityHelper || 'City with arrival airport — auto-set as main hub'}
+          <p className="text-[11px] text-white/55 mb-2.5 leading-snug flex items-center gap-1.5">
+            <PlaneLanding className="w-3 h-3 text-sky-400 shrink-0" />
+            <span>{p.wizardArrivalDepartureHint || '도시를 한 번 더 누르면 입국 → 출국 순으로 지정됩니다 (출국 지정 시 다른 도시 자동 입국)'}</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {cityKeys.map(ck => {
               const meta = CITY_NAME_BY_KEY[ck];
               const cityName = meta ? (meta[lang] || meta.en) : ck;
               const cityIcon = meta?.icon || '📍';
-              const sel = ck === mainCityKey;
+              const isArr = arrivalCityKey === ck;
+              const isDep = departureCityKey === ck;
+              const isMain = ck === mainCityKey;
               return (
                 <button
                   key={ck}
                   type="button"
-                  onClick={() => { if (!sel) onEntryCityChange(ck); }}
-                  aria-pressed={sel}
+                  onClick={() => {
+                    // P161 cycle (4페이지 통합): none → arrival → departure → none.
+                    // arrival 지정 시 mainCity swap (entry hub = arrival city 동기화).
+                    if (!isArr && !isDep) {
+                      // role 없음 → arrival 채움 (이미 다른 도시 arrival 이면 이 도시 departure)
+                      if (!arrivalCityKey) {
+                        setArrivalCityKey(ck);
+                        if (!isMain) onEntryCityChange(ck);
+                      } else if (!departureCityKey) {
+                        setDepartureCityKey(ck);
+                      } else {
+                        // 둘 다 점유 중 → 기존 departure 해제 + 이 도시 departure
+                        setDepartureCityKey(ck);
+                      }
+                    } else if (isArr) {
+                      // arrival → departure (다른 selected city 자동 arrival 승계)
+                      setArrivalCityKey('');
+                      setDepartureCityKey(ck);
+                      const others = selectedCityKeys.filter((k) => k !== ck && k !== departureCityKey);
+                      if (others.length > 0) {
+                        setArrivalCityKey(others[0]);
+                        if (others[0] !== mainCityKey) onEntryCityChange(others[0]);
+                      }
+                    } else if (isDep) {
+                      // departure → 해제 (cycle 닫기)
+                      setDepartureCityKey('');
+                    }
+                  }}
+                  aria-pressed={isArr || isDep}
                   className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-1.5 ${
-                    sel
-                      ? 'bg-[#7C5CFC]/20 border-[#7C5CFC]/55 text-white font-semibold'
-                      : 'bg-white/[0.04] border-white/[0.10] text-white/65 hover:border-white/20'
+                    isArr
+                      ? 'bg-sky-500/20 border-sky-500/55 text-white font-semibold'
+                      : isDep
+                        ? 'bg-fuchsia-500/20 border-fuchsia-500/55 text-white font-semibold'
+                        : 'bg-white/[0.04] border-white/[0.10] text-white/65 hover:border-white/20'
                   }`}
                 >
                   <span>{cityIcon}</span>
                   <span>{cityName}</span>
-                  {sel && <span className="text-[#B668FC] text-xs ml-0.5">✓</span>}
+                  {isArr && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-sky-300 ml-0.5">
+                      <PlaneLanding className="w-3 h-3" /> {p.wizardArrivalBadge || '입국'}
+                    </span>
+                  )}
+                  {isDep && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-fuchsia-300 ml-0.5">
+                      <PlaneTakeoff className="w-3 h-3" /> {p.wizardDepartureBadge || '출국'}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
+          {/* P161: 경로 표시 — 2페이지에서 이전 */}
+          {allCities.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              <span className="text-xs text-white/55">{p.wizardRoute || 'Route'}:</span>
+              {allCities.map((c, i) => (
+                <span key={c} className="text-xs text-white/50">
+                  {i > 0 && <span className="text-white/55 mx-1">-&gt;</span>}{c}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

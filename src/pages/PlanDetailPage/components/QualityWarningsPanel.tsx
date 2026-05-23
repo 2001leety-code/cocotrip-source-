@@ -24,8 +24,14 @@ interface QualityWarningItem {
 }
 
 interface QualityWarning {
-  type: string;
+  /** P161 (2026-05-23): self-heal 함수들 (selfHealLodgingBookend, correctCrossCityLodgingStops,
+   *  correctPreDawnStopTimes, selfHealArrivalGuide) 가 kind 만 push 한 회귀로 panel heading 이
+   *  undefined 노출. 양쪽 shape 호환을 위해 type/kind 둘 다 선택. message 도 fallback. */
+  type?: string;
+  kind?: string;
+  message?: string;
   anchor?: string;
+  severity?: string;
   items?: QualityWarningItem[];
   [key: string]: unknown;
 }
@@ -115,30 +121,42 @@ export function QualityWarningsPanel({
             )}
 
             {hasWarnings &&
-              warnings.map((w, i) => (
-                <div key={i} className="rounded-lg border border-amber-400/20 bg-black/20 p-3 text-xs text-white/80">
-                  <div className="font-bold text-amber-200 mb-1">
-                    {w.type}
-                    {w.anchor ? <span className="text-white/55"> · anchor: {w.anchor}</span> : null}
+              warnings.map((w, i) => {
+                // P161 (2026-05-23): heading fallback chain — type → kind → '(unknown warning)'.
+                // self-heal 함수들이 kind 만 push 한 케이스 (plan 8e767d9c {kind:undefined,
+                // message:undefined} 회귀) 의 silent UI 표시 차단.
+                const heading = w.type || w.kind || '(unknown warning)';
+                const hasItems = Array.isArray(w.items) && w.items.length > 0;
+                return (
+                  <div key={i} className="rounded-lg border border-amber-400/20 bg-black/20 p-3 text-xs text-white/80">
+                    <div className="font-bold text-amber-200 mb-1">
+                      {heading}
+                      {w.anchor ? <span className="text-white/55"> · anchor: {w.anchor}</span> : null}
+                      {w.severity ? <span className="text-white/55"> · {w.severity}</span> : null}
+                    </div>
+                    {/* P161: items[] 없는 단건 warning (self-heal 류) 의 message 도 표시 */}
+                    {!hasItems && typeof w.message === 'string' && w.message.length > 0 && (
+                      <div className="font-mono text-[10px] text-white/65 break-words">{w.message}</div>
+                    )}
+                    {hasItems && (
+                      <ul className="space-y-0.5">
+                        {w.items!.map((item, j) => (
+                          <li key={j} className="font-mono text-[10px] text-white/65">
+                            {item.message ? (
+                              <>{item.message}</>
+                            ) : (
+                              <>
+                                Day {item.day ?? '?'} · {item.position ?? '?'} · &quot;{item.stopName ?? ''}&quot;
+                                {typeof item.distM === 'number' ? ` · ${(item.distM / 1000).toFixed(1)}km` : ''}
+                              </>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                  {Array.isArray(w.items) && w.items.length > 0 && (
-                    <ul className="space-y-0.5">
-                      {w.items.map((item, j) => (
-                        <li key={j} className="font-mono text-[10px] text-white/65">
-                          {item.message ? (
-                            <>{item.message}</>
-                          ) : (
-                            <>
-                              Day {item.day ?? '?'} · {item.position ?? '?'} · &quot;{item.stopName ?? ''}&quot;
-                              {typeof item.distM === 'number' ? ` · ${(item.distM / 1000).toFixed(1)}km` : ''}
-                            </>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
+                );
+              })}
 
             <div className="text-[10px] text-white/40 italic">
               ※ multi-city plan 의 lodging_bookend_violation 은 의도된 패턴 (anchor=첫 day 호텔 vs 도시 이동 후 호텔).

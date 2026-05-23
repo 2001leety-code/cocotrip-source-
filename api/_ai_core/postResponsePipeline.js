@@ -16,6 +16,7 @@ import {
   runUnreasonableStopTimesCheck,
   pushIntercityGapWarnings,
   correctCrossCityLodgingStops,
+  selfHealArrivalGuide,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -37,6 +38,12 @@ export async function runRouteEnrichment(itinerary, ctx) {
   // ALREADY 또는 미정 → arrival_guide / departure_guide 제거
   if (!arrival_airport || arrival_airport === 'ALREADY') delete itinerary.arrival_guide;
   if (!departure_airport || departure_airport === 'ALREADY') delete itinerary.departure_guide;
+
+  // P161 (2026-05-23): arrival_guide self-heal — Gemini 비결정성으로 통째 누락 시
+  // 5-step skeleton 합성. plan 8e767d9c (2026-05-23) 사용자 신고: "도착하면 어떻게
+  // 한국 입국하는 안내가 없어" — Intro 다음 빈 영역. P160 selfHealLodgingBookend
+  // 패턴 동일 — arrival_airport 가 있고 ALREADY 아니면 항상 호출 (이미 채워졌으면 no-op).
+  selfHealArrivalGuide(itinerary, arrival_airport);
 
   // 2026-05-05 (운영자 요청): 숙소→공항 경로 무조건 표시 정책 강화.
   // Gemini 가 departure_guide 자체를 생성 안 한 케이스에 대비해 빈 객체라도
