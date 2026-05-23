@@ -1272,6 +1272,7 @@ const RULES = [
   ['P167_blockModeMultiCitySupport', P167_blockModeMultiCitySupport],
   ['P168_pass3BackgroundAsync', P168_pass3BackgroundAsync],
   ['P169_geminiStreaming', P169_geminiStreaming],
+  ['P170_backgroundPipelinesExtract', P170_backgroundPipelinesExtract],
 ];
 
 /**
@@ -2890,13 +2891,13 @@ function P129_aiPlannerFullDecomposeLock({ changed: _changed }) {
         `${HANDLER_CORE}: maxDuration export 발견 — Vercel handler entry (api/ai-planner-full.js) 가 아닌 곳에서 maxDuration export 하면 인식 안 됨. wrapper 에서만 export.`,
       );
     }
-    // handlerCore size cap — 600L (P168/P169 머지 후 Pass3 background + streaming
-    // early-response 추가로 500→600 임시 상향, 2026-05-23). 후속 P170 후보:
-    // backgroundPipelines.js 로 추출 후 다시 500.
+    // handlerCore size cap — 500L (P170, 2026-05-23: backgroundPipelines.js 추출로 복귀).
+    // P168/P169 Pass3 background + streaming early-response → backgroundPipelines.js.
+    // 신규 background/streaming 로직은 backgroundPipelines.js 에 추가 (handlerCore inline X).
     const coreLines = coreContent.split(/\r?\n/).length;
-    if (coreLines > 600) {
+    if (coreLines > 500) {
       violations.push(
-        `${HANDLER_CORE}: ${coreLines} lines > 600 — orchestrator 가 부풀면 추가 분리 (예: backgroundPipelines.js / errorHandling.js).`,
+        `${HANDLER_CORE}: ${coreLines} lines > 500 — orchestrator 가 부풀면 추가 분리 (backgroundPipelines.js 또는 신규 모듈). P170 cap 복귀.`,
       );
     }
     // handler default export 의무.
@@ -5543,6 +5544,82 @@ function P169_geminiStreaming({ changed }) {
       'P169_geminiStreaming',
       violations.join(' | '),
       'P169 회귀 — Gemini streaming 핵심 요소 누락. PLANNER_STREAMING_ENABLED env flag + isStreamingEnabled + runGeminiStreaming + savePlanSkeleton + updatePlanProgressive 모두 유지 필수.',
+    );
+  }
+  return null;
+}
+
+/**
+ * R-P170 — backgroundPipelines.js 추출 회귀 차단 (2026-05-23).
+ *
+ * P170: handlerCore.js 의 P168 Pass3 background IIFE + P169 streaming skeleton/early-response 를
+ * backgroundPipelines.js 로 추출. handlerCore.js 는 orchestrator 단일 책임 (P129 cap 500L).
+ *
+ * 룰:
+ *   1. handlerCore.js 에 `_pass3_pending` literal 이 있으면 fail (추출된 영역 inline 재도입).
+ *   2. handlerCore.js 에 `runGeminiStreaming` 직접 호출이 있으면 fail (backgroundPipelines 경유해야 함).
+ *   3. backgroundPipelines.js 가 존재하지 않으면 fail.
+ *   4. backgroundPipelines.js 가 `triggerPass3BackgroundIfPending` export 하지 않으면 fail.
+ *   5. backgroundPipelines.js 가 `shouldUseStreaming` export 하지 않으면 fail.
+ */
+function P170_backgroundPipelinesExtract({ changed }) {
+  const HANDLER_CORE = 'api/_ai_core/handlerCore.js';
+  const BG_PIPELINES = 'api/_ai_core/backgroundPipelines.js';
+
+  const handlerModified = isModified(HANDLER_CORE, changed);
+  const bgModified = isModified(BG_PIPELINES, changed);
+
+  if (!handlerModified && !bgModified) {
+    return { skipped: true };
+  }
+
+  const violations = [];
+
+  if (handlerModified) {
+    const content = getChangedFileContent(HANDLER_CORE);
+    if (content) {
+      // inline `_pass3_pending` — IIFE 재도입 신호
+      if (/_pass3_pending/.test(content)) {
+        violations.push(
+          `${HANDLER_CORE}: \`_pass3_pending\` literal 발견 — P170 회귀. Pass3 background pipeline 은 backgroundPipelines.js#triggerPass3BackgroundIfPending 로 추출됨. handlerCore.js inline 재도입 금지.`,
+        );
+      }
+      // runGeminiStreaming 직접 호출 (import 는 허용, await runGeminiStreaming(...) 형태)
+      if (/await\s+runGeminiStreaming\s*\(/.test(content)) {
+        violations.push(
+          `${HANDLER_CORE}: \`await runGeminiStreaming(\` 직접 호출 발견 — P170 회귀. streaming pipeline 은 backgroundPipelines.js 경유 의무.`,
+        );
+      }
+    }
+  }
+
+  // backgroundPipelines.js 존재 + export contract 검사
+  const bgContent = getChangedFileContent(BG_PIPELINES) || (() => {
+    try {
+      return readFileSync(BG_PIPELINES, 'utf8');
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!bgContent) {
+    violations.push(
+      `${BG_PIPELINES}: 파일 부재 — P170 추출 결과물. triggerPass3BackgroundIfPending + shouldUseStreaming + tryInitStreamingSkeleton + sendStreamingEarlyResponse export 필수.`,
+    );
+  } else {
+    if (!/triggerPass3BackgroundIfPending/.test(bgContent)) {
+      violations.push(`${BG_PIPELINES}: \`triggerPass3BackgroundIfPending\` export 누락 — P168 background trigger 계약 불이행.`);
+    }
+    if (!/shouldUseStreaming/.test(bgContent)) {
+      violations.push(`${BG_PIPELINES}: \`shouldUseStreaming\` export 누락 — P169 streaming 판단 계약 불이행.`);
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P170_backgroundPipelinesExtract',
+      violations.join(' | '),
+      'P170 회귀 — Pass3 background / streaming pipeline 은 backgroundPipelines.js 로 추출. handlerCore.js inline 재도입 금지. backgroundPipelines.js 삭제 금지.',
     );
   }
   return null;

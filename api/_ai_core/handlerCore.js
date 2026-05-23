@@ -35,17 +35,20 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 import { CORS } from './constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
-import { loadFoodIndex, runGeminiPipeline, isStreamingEnabled } from './geminiPipeline.js';
+import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
 import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
 import { initAdminDb } from './firestoreAdmin.js';
 import { enforcePaymentAndRevision } from './paymentGate.js';
-import { VEHICLE_LABELS, calcPrice } from './vehicleAndPrice.js';
+import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
-import { runGeminiPipeline, buildModel, isPass3BackgroundEnabled } from './geminiPipeline.js';
-import { pass3Enrich } from './threePassPipeline.js';
 import { decidePlannerMode } from './plannerMode.js';
 import { tryRunBlockMode } from './blockMode.js';
-import { updatePlanEnrichment, savePlanSkeleton, finalizeStreamingPlan } from './planPersister.js';
+import {
+  triggerPass3BackgroundIfPending,
+  shouldUseStreaming,
+  tryInitStreamingSkeleton,
+  sendStreamingEarlyResponse,
+} from './backgroundPipelines.js';
 
 import { shapeRequest } from './requestShaper.js';
 import { buildUserMessage } from './userMessageBuilder.js';
@@ -287,32 +290,26 @@ export default async function handler(req, res) {
     // PLANNER_STREAMING_ENABLED=true + legacy 1-pass 일 때만 활성.
     // block-mode 는 skeleton 불필요 (이미 itinerary 있음). 3-pass 는 미지원.
     // streaming 모드에서는:
-    //   1. savePlanSkeleton → planId 획득
+    //   1. tryInitStreamingSkeleton → planId 획득
     //   2. Gemini 파이프라인 (streaming) → 점진 Firestore write (geminiPipeline 내부)
-    //   3. response 즉시 반환 (status: 'streaming')
+    //   3. sendStreamingEarlyResponse → response 즉시 반환 (status: 'streaming')
     //   4. background 에서 나머지 pipeline (RouteEnrich / persist) 계속
     // env flag false (default) 시 기존 흐름 100% 유지 (변경 없음).
-    const useStreaming = isStreamingEnabled() && !itinerary && PLANNER_MODE !== '3pass';
+    // [P170] 세부 로직은 backgroundPipelines.js 로 추출됨.
+    const useStreaming = shouldUseStreaming({ itinerary, plannerMode: PLANNER_MODE });
     let streamingPlanId = null;
     let streamingPlanUrl = null;
     let streamingResponseSent = false;
 
     if (useStreaming) {
       console.log('[planner P169] Streaming mode: saving skeleton plan...');
-      const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
-        try { return calcPrice(vehicle, durationDays); } catch { return { priceKRW: 0, priceUSD: 0 }; }
-      })();
-      try {
-        const sk = await savePlanSkeleton(adminDb, {
-          uid, email, area, startDate, guestName, pax, language,
-          vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
-        });
+      const sk = await tryInitStreamingSkeleton({
+        adminDb, uid, email, area, startDate, guestName, pax, language,
+        vehicle, durationDays, body,
+      });
+      if (sk) {
         streamingPlanId = sk.planId;
         streamingPlanUrl = sk.planUrl;
-        console.log('[planner P169] Skeleton saved:', streamingPlanId);
-      } catch (skErr) {
-        // skeleton 저장 실패 시 일반 모드로 fallback
-        console.warn('[planner P169] Skeleton save failed, falling back to normal mode:', skErr.message);
       }
     }
 
@@ -348,17 +345,10 @@ export default async function handler(req, res) {
     // P169: streaming 모드에서 Gemini 완료 시점에 response 먼저 반환.
     // 이후 RouteEnrich / persistPlan 은 background 에서 계속 (Vercel function 종료 전까지).
     // Vercel Node functions 은 res.end() 후에도 await 계속 실행 가능 (fire-after-response).
+    // [P170] sendStreamingEarlyResponse → backgroundPipelines.js
     if (streamingPlanId && !streamingResponseSent) {
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(_ok({
-        planId: streamingPlanId,
-        planUrl: streamingPlanUrl,
-        status: 'streaming',
-        firestoreSaved: false,
-        emailSent: false,
-      })));
+      sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl });
       streamingResponseSent = true;
-      console.log('[planner P169] Early streaming response sent. Continuing background pipeline...');
     }
 
     console.log('[planner] Step 2: Running RouteAgent...');
@@ -400,30 +390,10 @@ export default async function handler(req, res) {
     }));
 
     // ── P168: Pass3 background trigger ───────────────────────────────────
-    // _pass3_pending = true 일 때 (PLANNER_PASS3_BACKGROUND=true + 3pass mode):
-    // 사용자 응답 전에 fire-and-forget 으로 background enrich 시작.
-    // response 는 즉시 반환 → tip 은 몇 초 후 Firestore listener (onSnapshot) 로
-    // 자동 화면 갱신. background fail = throttledTelegramAlert (non-critical).
-    if (itinerary._pass3_pending && isPass3BackgroundEnabled()) {
-      // fire-and-forget — catch 안 붙이면 UnhandledPromiseRejection 경고 발생하므로 .catch() 필수.
-      (async () => {
-        try {
-          const bgModel = buildModel(apiKey);
-          const enriched = await pass3Enrich(bgModel, itinerary, language);
-          await updatePlanEnrichment(adminDb, planId, enriched);
-          console.log(`[planner] P168 Pass3 background completed: planId=${planId}`);
-        } catch (bgErr) {
-          console.error('[planner] P168 Pass3 background fail:', bgErr.message);
-          throttledTelegramAlert({
-            key: `pass3-background-fail:${planId}`,
-            channel: 'admin',
-            severity: 'low',
-            message: `⚠️ <b>Pass3 background 실패 (P168)</b>\n\n<b>planId:</b> <code>${planId}</code>\n<b>err:</b> ${bgErr.message}\n\n→ tip/recommended_items 미채움 (plan 은 정상 저장). 재시도: 없음 (non-critical).`,
-            context: { planId, error: bgErr.message },
-          }).catch(() => {});
-        }
-      })();
-    }
+    // 3pass mode 에서 background enrich fire-and-forget 실행.
+    // response 는 즉시 반환 → tip 은 Firestore onSnapshot 으로 자동 화면 갱신.
+    // [P170] 세부 로직은 backgroundPipelines.js#triggerPass3BackgroundIfPending 로 추출됨.
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
