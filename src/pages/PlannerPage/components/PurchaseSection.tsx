@@ -125,7 +125,8 @@ export function PurchaseSection({
         {isGeneratingPlan ? (
           <div className="space-y-3 py-2">
             {/* 4-step 진행 + 꿀팁 슬라이드 (en/ja/zh: 한국 여행 꿀팁 10개, ko: 기존 한국어 팁) */}
-            <TriviaLoadingAnimation p={p} lang={language} />
+            {/* P163: 일수별 동적 ETA — lastValues.current.durationDays 전달 */}
+            <TriviaLoadingAnimation p={p} lang={language} durationDays={lastValues?.current?.durationDays as number | undefined} />
             {/* 안심 메시지 — 이메일로도 발송됨을 명시 (booking confirmation 이미 발송) */}
             <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border"
               style={{ background: 'rgba(124,92,252,0.06)', borderColor: 'rgba(124,92,252,0.20)' }}>

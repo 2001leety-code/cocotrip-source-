@@ -10,9 +10,11 @@ interface TriviaLoadingAnimationProps {
   streamStep?: number;
   /** Current user language — ko keeps Korean tips, others get travel tips. */
   lang?: string;
+  /** P163 (2026-05-23): 일수 → 동적 ETA. 없으면 기본 1~2분 라벨 유지. */
+  durationDays?: number;
 }
 
-export function TriviaLoadingAnimation({ p, streamStep, lang = 'en' }: TriviaLoadingAnimationProps) {
+export function TriviaLoadingAnimation({ p, streamStep, lang = 'en', durationDays }: TriviaLoadingAnimationProps) {
   const tips: string[]   = p.loading_tips ?? [];
   const phases: string[] = [p.loading_step1, p.loading_step2, p.loading_step3, p.loading_step4];
   const [tipIdx,   setTipIdx]   = useState(0);
@@ -37,12 +39,25 @@ export function TriviaLoadingAnimation({ p, streamStep, lang = 'en' }: TriviaLoa
     ? Math.round((streamStep / 6) * 100)
     : Math.round(((phaseIdx + 1) / phases.length) * 100);
 
-  // "1~2분" honest time label — pull from locale if available, fallback per lang
-  const timeLabel: string = (p.takesAbout15Sec as string | undefined)
-    ?? (lang === 'ko' ? '보통 1~2분 정도 걸려요'
-      : lang === 'ja' ? '通常1〜2分かかります'
-      : lang === 'zh' ? '通常需要 1~2 分钟'
-      : 'Usually takes 1–2 minutes');
+  // "1~2분" honest time label — pull from locale if available, fallback per lang.
+  // P163 (2026-05-23): durationDays 있으면 동적 ETA (3일 2~3분 / 5일 3~4분 / 7일 4~5분).
+  const _etaMin = !durationDays || durationDays <= 0
+    ? '1~2'
+    : durationDays <= 2 ? '1~2'
+    : durationDays <= 3 ? '2~3'
+    : durationDays <= 5 ? '3~4'
+    : durationDays <= 7 ? '4~5'
+    : '5';
+  const timeLabel: string = durationDays
+    ? (lang === 'ko' ? `${durationDays}일 플랜 — 약 ${_etaMin}분 예상`
+      : lang === 'ja' ? `${durationDays}日プラン — 約 ${_etaMin}分`
+      : lang === 'zh' ? `${durationDays}天行程 — 约 ${_etaMin}分钟`
+      : `${durationDays}-day plan — ~${_etaMin} min`)
+    : ((p.takesAbout15Sec as string | undefined)
+      ?? (lang === 'ko' ? '보통 1~2분 정도 걸려요'
+        : lang === 'ja' ? '通常1〜2分かかります'
+        : lang === 'zh' ? '通常需要 1~2 分钟'
+        : 'Usually takes 1–2 minutes'));
 
   const analyzingLabel: string = (p.planReadyEmailAnalyzing as string | undefined)
     ?? (lang === 'ko' ? '더 좋은 일정을 위해 데이터를 분석 중입니다'
