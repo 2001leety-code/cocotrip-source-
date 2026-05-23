@@ -147,7 +147,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const [arrivalTerminal, setArrivalTerminal] = useState('');
   // P142 (2026-05-22): 출국 공항/터미널 분리. 빈 문자열 = arrivalTerminal 폴백.
   // 사용자가 입국=T1, 출국=T2 (또는 입국=ICN, 출국=GMP) 같이 다른 터미널 선택 가능.
-  // 이전 회귀: const departureAirport = arrivalTerminal; 하드코딩으로 출국 항상 입국과 동일.
+  // 이전 회귀 (PR #522 fix): 출국 터미널을 입국 터미널 변수로 직접 할당해서
   const [departureTerminal, setDepartureTerminal] = useState('');
   const [hotelAddress, setHotelAddress]       = useState('');
   // 2026-05-10 B10-2: 다도시 plan 시 도시별 호텔 주소 (cityKey → address). 단도시면
