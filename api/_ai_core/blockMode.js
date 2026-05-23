@@ -577,35 +577,527 @@ export async function runBlockModePipeline({ adminDb, city, userInput, geminiCli
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// P167 (2026-05-23): 다도시 block-mode 지원
+// 운영자 PR #514 (서울 4) + PR #518 (부산 5 + 제주 4 + 한라산/설악산/올레 = 18+)
+// zone block 이 다도시 plan 에서도 활용되도록. 기존: regions.length >= 2 이면
+// multi_city_not_supported → legacy 3-pass 폴백 4분 30초. 수정: 도시별
+// fetchAvailableBlocks 병렬 + city-per-day 매핑으로 1-2분 추정.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * 다도시 plan 에서 도시별 blocks 병렬 fetch.
+ *
+ * @param {object} adminDb
+ * @param {string[]} cities — 정규화된 city key 목록 (예: ['seoul', 'busan'])
+ * @param {string[]} dietPrefs — 사용자 dietary preferences
+ * @returns {Promise<Array<{city: string, blocks: Array<object>, ok: boolean, error?: Error}>>}
+ */
+export async function fetchAvailableBlocksMultiCity(adminDb, cities, dietPrefs = []) {
+  const results = await Promise.all(
+    cities.map(async (city) => {
+      try {
+        const blocks = await fetchAvailableBlocks(adminDb, city, { dietaryRequired: dietPrefs });
+        return { city, blocks, ok: true };
+      } catch (err) {
+        console.warn(`[blockMode] fetchAvailableBlocksMultiCity failed for ${city}:`, err && err.message ? err.message : err);
+        return { city, blocks: [], ok: false, error: err };
+      }
+    }),
+  );
+  return results;
+}
+
+/**
+ * 다도시 block-mode 사용 가능 여부 판단.
+ * 각 도시 최소 3 blocks + dietary 매칭 가능 검증.
+ *
+ * @param {Array<{city: string, blocks: Array<object>, ok: boolean}>} cityBlocksList
+ * @param {string[]} dietPrefs
+ * @returns {{eligible: boolean, reason: string}}
+ */
+export function shouldUseBlockModeMultiCity(cityBlocksList, dietPrefs = []) {
+  const env = getBlockModeEnv();
+  if (env === 'disabled') return { eligible: false, reason: 'env_disabled' };
+
+  const dietCritical = dietPrefs.filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
+
+  for (const { city, blocks, ok } of cityBlocksList) {
+    if (!ok || !Array.isArray(blocks) || blocks.length < 3) {
+      return { eligible: false, reason: `insufficient_blocks_for_${city}:${ok ? blocks.length : 'fetch_failed'}` };
+    }
+    // dietary 사용자 시 도시별 매칭 block 최소 1개 검증 (SAFETY-CRITICAL CLAUDE.md J).
+    if (dietCritical.length > 0) {
+      const hasDietary = blocks.some((b) => {
+        const opts = Array.isArray(b.dietary_options) ? b.dietary_options : [];
+        return dietCritical.every((d) =>
+          opts.some((o) => String(o).toLowerCase() === String(d).toLowerCase()),
+        );
+      });
+      if (!hasDietary) {
+        return { eligible: false, reason: `no_dietary_block_for_${city}` };
+      }
+    }
+  }
+
+  if (env === 'enabled') return { eligible: true, reason: 'env_enabled' };
+  return { eligible: true, reason: 'auto_eligible' };
+}
+
+/**
+ * 다도시 plan 의 city-per-day 매핑 계산.
+ * userInput.perDayCity 가 있으면 우선 사용, 없으면 균등 분배 fallback.
+ *
+ * @param {string[]} cities — 순서 있는 도시 목록
+ * @param {number} durationDays
+ * @param {object|null} perDayCity — { 1: 'seoul', 2: 'seoul', 3: 'busan', ... } 명시 매핑
+ * @returns {string[]} 길이 = durationDays, 각 day 의 city (1-indexed array[day-1])
+ */
+function buildCityPerDay(cities, durationDays, perDayCity = null) {
+  if (perDayCity && typeof perDayCity === 'object') {
+    const result = [];
+    for (let d = 1; d <= durationDays; d++) {
+      const explicit = String(perDayCity[d] || perDayCity[String(d)] || '').toLowerCase();
+      result.push(explicit || cities[0]);
+    }
+    return result;
+  }
+  // fallback: 균등 분배 (cities[0] = 전반, cities[1] = 후반, ...).
+  // 예: 5-day [seoul, busan] → [seoul, seoul, busan, busan, busan]
+  const result = [];
+  const cityCount = cities.length;
+  for (let d = 1; d <= durationDays; d++) {
+    // (d-1) / durationDays 비율로 도시 인덱스 결정
+    const idx = Math.min(Math.floor(((d - 1) / durationDays) * cityCount), cityCount - 1);
+    result.push(cities[idx]);
+  }
+  return result;
+}
+
+/**
+ * 다도시 Gemini block 선택 — 도시별 available blocks + city-per-day 매핑 전달.
+ *
+ * @param {Array<{city: string, blocks: Array<object>}>} cityBlocksList
+ * @param {object} userInput — { durationDays, styles, special_request, dietPrefs, language, perDayCity? }
+ * @param {object} geminiClient — { apiKey, model? }
+ * @param {string[]} cityPerDay — buildCityPerDay 결과
+ * @returns {Promise<{ day_selections: Array<{day:number, city:string, block_id:string, tweak_notes?:string}>, language: string }>}
+ */
+export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay) {
+  if (!Array.isArray(cityBlocksList) || cityBlocksList.length === 0) {
+    throw new Error('selectBlocksMultiCity: no cityBlocksList');
+  }
+  if (!geminiClient || !geminiClient.apiKey) {
+    throw new Error('selectBlocksMultiCity: geminiClient.apiKey required');
+  }
+
+  const durationDays = Math.max(1, Math.min(14, Number(userInput.durationDays) || 1));
+  const styles = Array.isArray(userInput.styles) ? userInput.styles : [];
+  const language = String(userInput.language || 'en');
+  const specialRequest = String(userInput.special_request || '').slice(0, 800);
+  const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
+
+  // 도시별 block 카드 + city-per-day 일정 조합
+  const cityBlockCards = {};
+  const allValidIds = new Set();
+  for (const { city, blocks } of cityBlocksList) {
+    cityBlockCards[city] = blocks.map((b) => ({
+      id: b.id,
+      zone: b.zone,
+      theme: b.theme,
+      intensity: b.intensity,
+      duration_min: b.duration_min,
+      best_for: Array.isArray(b.best_for) ? b.best_for.slice(0, 6) : [],
+      dietary_options: Array.isArray(b.dietary_options) ? b.dietary_options : [],
+      stops_summary: Array.isArray(b.stops)
+        ? b.stops.slice(0, 8).map((s) => ({
+            order: s.order,
+            category: s.category,
+            name: s.name || (s.placeholder ? `[placeholder:${s.placeholder}]` : '???'),
+          }))
+        : [],
+    }));
+    blocks.forEach((b) => allValidIds.add(b.id));
+  }
+
+  // day-schedule: day 번호 → 도시 + 해당 도시 available blocks
+  const daySchedule = cityPerDay.map((city, idx) => ({
+    day: idx + 1,
+    city,
+    available_blocks: cityBlockCards[city] || [],
+  }));
+
+  const systemPrompt = buildBlockSelectionMultiCitySystemPrompt(language);
+  const userMessage = JSON.stringify({
+    duration_days: durationDays,
+    styles,
+    special_request: specialRequest || undefined,
+    diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    day_schedule: daySchedule,
+  });
+
+  const { resolveGeminiModel } = await import('./geminiModelResolver.js');
+  const genAI = new GoogleGenerativeAI(geminiClient.apiKey);
+  const model = genAI.getGenerativeModel({
+    model: geminiClient.model || resolveGeminiModel('block'),
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 4000,
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+  });
+
+  const raw = (result && result.response && typeof result.response.text === 'function')
+    ? result.response.text().trim()
+    : '';
+  if (!raw) throw new Error('selectBlocksMultiCity: empty Gemini response');
+
+  let parsed;
+  try {
+    parsed = repairAndParseJSON(raw);
+  } catch (err) {
+    throw new Error(`selectBlocksMultiCity: parse failed — ${err && err.message ? err.message : err}`);
+  }
+
+  const daySelections = Array.isArray(parsed?.day_selections) ? parsed.day_selections : [];
+
+  // city-per-day 정합성 validator — 서울 day 에 부산 block 거부 (P167 city mismatch 가드).
+  const blockCityMap = new Map();
+  for (const { city, blocks } of cityBlocksList) {
+    for (const b of blocks) blockCityMap.set(b.id, city);
+  }
+
+  const safe = [];
+  for (let i = 1; i <= durationDays; i++) {
+    const expectedCity = cityPerDay[i - 1];
+    const existing = daySelections.find((d) => Number(d?.day) === i);
+    let blockId = existing && existing.block_id ? String(existing.block_id) : '';
+
+    // block ID 유효성 + city 정합성 검증
+    const blockCity = blockCityMap.get(blockId);
+    if (!blockId || !allValidIds.has(blockId) || (blockCity && blockCity !== expectedCity)) {
+      // fallback: 해당 도시의 round-robin block
+      const cityBlocks = cityBlocksList.find((c) => c.city === expectedCity)?.blocks || [];
+      const fallback = cityBlocks[(i - 1) % Math.max(1, cityBlocks.length)];
+      blockId = fallback ? fallback.id : (cityBlocksList[0]?.blocks[0]?.id || '');
+    }
+
+    safe.push({
+      day: i,
+      city: expectedCity,
+      block_id: blockId,
+      tweak_notes: typeof existing?.tweak_notes === 'string' ? existing.tweak_notes.slice(0, 400) : '',
+    });
+  }
+
+  return { day_selections: safe, language };
+}
+
+/**
+ * 다도시 block-mode 전용 system prompt.
+ */
+export function buildBlockSelectionMultiCitySystemPrompt(language = 'en') {
+  return `You are CocoTrip's multi-city block selector — pick the best pre-curated day-blocks for each city in a multi-city trip.
+
+## OUTPUT FORMAT — STRICT JSON ONLY
+No markdown. No code blocks. No explanation. Pure JSON only.
+
+{
+  "day_selections": [
+    {
+      "day": 1,
+      "city": "<must match the city given in day_schedule[day-1].city>",
+      "block_id": "<one of day_schedule[day-1].available_blocks[].id>",
+      "tweak_notes": "Optional 1-sentence note in ${language} (max 200 chars). Empty if not needed."
+    }
+  ]
+}
+
+## RULES
+1. day_selections MUST contain EXACTLY duration_days entries. day = 1, 2, ..., duration_days.
+2. city MUST exactly match day_schedule[day-1].city — do NOT swap cities between days.
+3. block_id MUST be one of day_schedule[day-1].available_blocks[].id (city-specific list). NEVER use a block from a different city.
+4. Prefer variety within each city — do NOT repeat the same block_id for the same city unless blocks run out.
+5. Match user styles to block.best_for and block.theme.
+6. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs.
+7. Day 1 should be standard intensity. Last day can be lighter for departure prep.
+
+## OUTPUT LANGUAGE
+- tweak_notes text MUST be in language=${language}.
+- city and block_id values are identifiers — copy them verbatim from day_schedule.`;
+}
+
+/**
+ * 다도시 block 선택 결과를 itinerary.days[] 형식으로 변환.
+ * 기존 expandBlocksToItinerary 의 다도시 변종.
+ *
+ * @param {{ day_selections: Array<{day,city,block_id,tweak_notes}> }} blockSelections
+ * @param {Array<{city: string, blocks: Array<object>}>} cityBlocksList
+ * @param {object} userInput
+ * @returns {object} itinerary
+ */
+export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList, userInput) {
+  if (!blockSelections || !Array.isArray(blockSelections.day_selections)) {
+    throw new Error('expandBlocksToItineraryMultiCity: invalid blockSelections');
+  }
+
+  // 전체 blockMap: id → block (도시 무관 조회용)
+  const blockMap = new Map();
+  for (const { blocks } of cityBlocksList) {
+    for (const b of blocks) blockMap.set(b.id, b);
+  }
+
+  // P167 city mismatch 가드: 각 도시의 valid block IDs set
+  const cityValidBlockIds = new Map();
+  for (const { city, blocks } of cityBlocksList) {
+    cityValidBlockIds.set(city, new Set(blocks.map((b) => b.id)));
+  }
+
+  const language = String(userInput?.language || 'en');
+  const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
+  const dietCritical = dietPrefs.filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
+  const foodIndex = Array.isArray(userInput?.foodIndex) ? userInput.foodIndex : [];
+  const startDate = userInput?.startDate || null;
+  const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
+  const departureTime = String(userInput?.departure_time || userInput?.departureTime || '');
+  // P123 학습: hotelByCity Record 로 도시별 lodging 정합성 보장.
+  const hotelByCity = (userInput?.hotelByCity && typeof userInput.hotelByCity === 'object' && !Array.isArray(userInput.hotelByCity))
+    ? userInput.hotelByCity
+    : {};
+
+  const days = [];
+  for (const sel of blockSelections.day_selections) {
+    const dayNum = Number(sel.day) || (days.length + 1);
+    const dayCityKey = String(sel.city || '').toLowerCase();
+    const block = blockMap.get(sel.block_id);
+
+    if (!block) {
+      throw new Error(`expandBlocksToItineraryMultiCity: block_id not found: ${sel.block_id}`);
+    }
+
+    // P167 city mismatch 가드: 선택된 block 이 해당 day 의 도시와 일치하는지 재확인.
+    // (selectBlocksMultiCity 에서 이미 검증했지만 이중 안전망).
+    const validIds = cityValidBlockIds.get(dayCityKey);
+    if (validIds && !validIds.has(sel.block_id)) {
+      // wrong city block 박힘 → runtime error + fallback 대신 명시적 throw (운영자 alert 용).
+      throw new Error(
+        `expandBlocksToItineraryMultiCity: city mismatch — block "${sel.block_id}" ` +
+        `does not belong to city "${dayCityKey}" (day ${dayNum})`,
+      );
+    }
+
+    // start_time 결정
+    let dayStart = DEFAULT_DAY_START_HHMM;
+    const isFirstDay = dayNum === 1;
+    const isLastDay = dayNum === blockSelections.day_selections.length;
+    if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
+      const computed = addMinutesToHHMM(arrivalTime, 9 * 60);
+      if (computed) dayStart = computed;
+    }
+
+    // stops expand (단도시 expandBlocksToItinerary 와 동일 로직)
+    const stops = [];
+    const blockStops = Array.isArray(block.stops) ? block.stops : [];
+    for (const bs of blockStops) {
+      const offsetMin = Number(bs.start_time_offset_min) || 0;
+      const startTime = addMinutesToHHMM(dayStart, offsetMin) || dayStart;
+
+      let resolvedName = bs.name || '';
+      let resolvedDisplay = (bs.name_i18n && bs.name_i18n[language]) || resolvedName;
+      let resolvedAddress = bs.address || '';
+      let verified = false;
+      let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
+
+      if (bs.placeholder && !resolvedName) {
+        const matched = matchFoodPlaceholder(bs, foodIndex, dayCityKey, dietPrefs);
+        if (matched) {
+          resolvedName = matched.name || matched.name_ko || matched.display_name || '';
+          resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
+          resolvedAddress = matched.address || resolvedAddress;
+          verified = true;
+          if (Array.isArray(matched.dietary_tags)) dietaryTags = matched.dietary_tags.slice();
+        } else if (dietCritical.length > 0) {
+          const err = new Error(
+            `Block-mode multi-city unable to satisfy dietary (${dietCritical.join(', ')}) ` +
+            `for placeholder "${bs.placeholder}" in city "${dayCityKey}" day ${dayNum}. Legacy fallback.`,
+          );
+          err.code = 'BLOCK_MODE_DIETARY_UNSATISFIED';
+          err.statusCode = 422;
+          throw err;
+        } else {
+          resolvedName = bs.address || 'Local restaurant';
+          resolvedDisplay = resolvedName;
+        }
+      }
+
+      stops.push({
+        order: bs.order,
+        start_time: startTime,
+        name: resolvedName || '',
+        display_name: resolvedDisplay || resolvedName || '',
+        category: bs.category || 'culture',
+        address: resolvedAddress || '',
+        stay_min: Number(bs.stay_min) || 0,
+        entry_fee_krw: Number(bs.entry_fee_krw) || 0,
+        entry_fee_note: bs.entry_fee_note || undefined,
+        reservation_required: !!bs.reservation_required,
+        local_tag: bs.local_tag || '',
+        tip: (bs.tips_i18n && bs.tips_i18n[language]) || bs.tip || '',
+        verified,
+        dietary_tags: dietaryTags.length > 0 ? dietaryTags : undefined,
+        personalization_reasoning: sel.tweak_notes
+          ? sel.tweak_notes
+          : `Pre-curated ${block.zone} block — ${block.theme}`,
+        source_block_id: block.id,
+      });
+    }
+
+    // departure day tail trim
+    if (isLastDay && departureTime && /^\d{1,2}:\d{2}$/.test(departureTime)) {
+      const cap = addMinutesToHHMM(departureTime, -180);
+      if (cap && /^\d{1,2}:\d{2}$/.test(cap)) {
+        while (
+          stops.length > 2 &&
+          stops[stops.length - 1].start_time > cap &&
+          stops[stops.length - 1].category !== 'lodging' &&
+          stops[stops.length - 1].category !== 'airport' &&
+          stops[stops.length - 1].category !== 'travel'
+        ) {
+          stops.pop();
+        }
+      }
+    }
+
+    // P123 학습: hotelByCity[dayCityKey] 우선 사용 → day.lodging 정합성.
+    // planPersister.backfillDayLodging 가 stops[] 의 lodging 으로 채우나,
+    // hotelByCity 가 있으면 해당 도시 호텔을 hint 로 남겨둠.
+    const lodgingHint = hotelByCity[dayCityKey] || hotelByCity[block.city] || undefined;
+
+    days.push({
+      day: dayNum,
+      date: startDate ? offsetDate(startDate, dayNum - 1) : undefined,
+      theme: (block.theme_i18n && block.theme_i18n[language]) || block.theme || `Day ${dayNum}`,
+      city: dayCityKey || block.city,
+      lodging: lodgingHint ? { name: lodgingHint } : undefined,
+      stops,
+      source_block_id: block.id,
+      source_block_zone: block.zone,
+      source_block_intensity: block.intensity,
+      tweak_notes: sel.tweak_notes || '',
+    });
+  }
+
+  const cityList = [...new Set(blockSelections.day_selections.map((s) => s.city))].join('/');
+  return {
+    tour_title: `Pre-curated ${cityList} ${days.length}-day plan`,
+    days,
+    planner_pipeline: 'block_mode',
+  };
+}
+
+/**
+ * 다도시 block-mode pipeline 전체 (runBlockModePipeline 의 다도시 변종).
+ *
+ * @param {object} args
+ * @param {object} args.adminDb
+ * @param {string[]} args.cities — 정규화된 city key 목록
+ * @param {object} args.userInput
+ * @param {object} args.geminiClient
+ * @returns {Promise<{itinerary: object, eligible: true, blocks_used: string[]}>}
+ */
+export async function runBlockModeMultiCity({ adminDb, cities, userInput, geminiClient }) {
+  if (!adminDb) throw new Error('runBlockModeMultiCity: adminDb required');
+  if (!Array.isArray(cities) || cities.length < 2) {
+    throw new Error('runBlockModeMultiCity: cities must have >= 2 items');
+  }
+
+  const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
+  const cityBlocksList = await fetchAvailableBlocksMultiCity(adminDb, cities, dietPrefs);
+  const elig = shouldUseBlockModeMultiCity(cityBlocksList, dietPrefs);
+  if (!elig.eligible) {
+    const err = new Error(`block-mode multi-city ineligible: ${elig.reason}`);
+    err.code = 'BLOCK_MODE_INELIGIBLE';
+    err.reason = elig.reason;
+    throw err;
+  }
+
+  const durationDays = Math.max(1, Math.min(14, Number(userInput.durationDays) || 1));
+  const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null);
+
+  const selections = await selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay);
+  const itinerary = expandBlocksToItineraryMultiCity(selections, cityBlocksList, userInput);
+
+  return {
+    itinerary,
+    eligible: true,
+    blocks_used: selections.day_selections.map((d) => d.block_id),
+  };
+}
+
 /**
  * Branch helper — ai-planner-full.js 의 길이 lock (800 lines) 보호용 컨비니언스 wrapper.
  *
  * shouldUseBlockMode 사전 check 없이 직접 호출 — runBlockModePipeline 내부 elig 체크에 위임.
- * env='disabled' 또는 다도시 plan 이면 result.skipped=true 반환 (legacy path 사용 안내).
+ * env='disabled' 이면 result.skipped=true 반환 (legacy path 사용 안내).
  * env='enabled' + 실패 시 throw — 운영자가 명시적으로 강제했으므로 fail-fast.
  * env='auto' + 실패 시 result.skipped=true + result.error 반환 (legacy path 폴백).
  *
+ * P167 (2026-05-23): 다도시 regions.length >= 2 지원 추가.
+ * 기존 `multi_city_not_supported` 분기 제거 — 운영자 PR #514/#518 의 zone block 18+
+ * 이 다도시 plan 에서도 활용됨. 단도시 흐름 backward-compat 100% 보장.
+ *
  * @param {object} args
  * @param {object} args.adminDb
- * @param {string[]} args.regions — body.regions (다도시 검사용)
+ * @param {string[]} args.regions — body.regions (다도시 지원)
  * @param {string} args.area — 단도시 fallback
- * @param {object} args.userInput — runBlockModePipeline 동일 spec + foodIndexLoader (await loadFoodIndex)
+ * @param {object} args.userInput — runBlockModePipeline 동일 spec + foodIndex
  * @param {string} args.apiKey
  * @returns {Promise<{skipped: true, reason: string} | {skipped: false, itinerary: object, blocks_used: string[]}>}
  */
 export async function tryRunBlockMode({ adminDb, regions, area, userInput, apiKey, foodIndex }) {
   const env = getBlockModeEnv();
   if (env === 'disabled') return { skipped: true, reason: 'env_disabled' };
-  const isSingleCity = Array.isArray(regions) && regions.length === 1;
-  if (!isSingleCity) return { skipped: true, reason: 'multi_city_not_supported' };
-  const city = String(regions[0] || area || '').split('_')[0].toLowerCase();
-  if (!city) return { skipped: true, reason: 'no_city' };
 
+  // P167: regions 정규화 — 도시 key 추출 (예: 'seoul_city' → 'seoul').
+  const cities = Array.isArray(regions) && regions.length > 0
+    ? regions.map((r) => String(r || '').split('_')[0].toLowerCase()).filter(Boolean)
+    : [String(area || '').split('_')[0].toLowerCase()].filter(Boolean);
+
+  if (cities.length === 0) return { skipped: true, reason: 'no_city' };
+
+  // ── 단도시: 기존 runBlockModePipeline (backward-compat 100%) ─────────────
+  if (cities.length === 1) {
+    const city = cities[0];
+    try {
+      const blockOut = await runBlockModePipeline({
+        adminDb,
+        city,
+        userInput: { ...userInput, foodIndex, area: city },
+        geminiClient: { apiKey },
+      });
+      return {
+        skipped: false,
+        itinerary: blockOut.itinerary,
+        blocks_used: blockOut.blocks_used,
+      };
+    } catch (err) {
+      const code = err && err.code ? err.code : 'BLOCK_MODE_UNKNOWN';
+      if (env === 'enabled') throw err;
+      return { skipped: true, reason: code, error: err };
+    }
+  }
+
+  // ── 다도시: P167 신규 분기 ────────────────────────────────────────────────
   try {
-    const blockOut = await runBlockModePipeline({
+    const blockOut = await runBlockModeMultiCity({
       adminDb,
-      city,
-      userInput: { ...userInput, foodIndex, area: city },
+      cities,
+      userInput: { ...userInput, foodIndex },
       geminiClient: { apiKey },
     });
     return {
@@ -615,10 +1107,8 @@ export async function tryRunBlockMode({ adminDb, regions, area, userInput, apiKe
     };
   } catch (err) {
     const code = err && err.code ? err.code : 'BLOCK_MODE_UNKNOWN';
-    if (env === 'enabled') {
-      // 운영자가 명시적으로 강제했으므로 fail-fast. 호출자가 catch.
-      throw err;
-    }
+    console.warn(`[blockMode] multi-city block-mode failed (${code}) — falling back to legacy:`, err && err.message ? err.message : err);
+    if (env === 'enabled') throw err;
     return { skipped: true, reason: code, error: err };
   }
 }
