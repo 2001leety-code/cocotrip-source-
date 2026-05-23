@@ -150,6 +150,8 @@ const planRes = await fetch(`${BASE_URL}/api/ai-planner-full`, {
     language: SCENARIO_LANG,
     styles: ['Food', 'Photo'],
     arrivalAirport: SCENARIO_ARRIVAL_AIRPORT,
+    arrival_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
+    departure_airport: SCENARIO_ARRIVAL_AIRPORT === 'ICN' ? 'ICN_T1' : SCENARIO_ARRIVAL_AIRPORT,
     arrivalTerminal: SCENARIO_ARRIVAL_TERMINAL,
     arrivalTime: '14:00',
     departureTime: '10:00',
