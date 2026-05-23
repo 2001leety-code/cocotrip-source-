@@ -1122,7 +1122,7 @@ function P133_catalogSync({ changed }) {
 // ── P164/P165/P166 (2026-05-23) — Quick wins (latency caps + cache prefix) ─────
 // P164: geminiPipeline.js 의 maxOutputTokens 가 16K 초과 (=32K 회귀) 시 fail.
 //       실측 출력 2-5K 토큰 — 12K 가 2x safety. 32K = generation overhead.
-function P164_geminiOutputTokenCap(changed, _base) {
+function P164_geminiOutputTokenCap({ changed }) {
   const file = 'api/_ai_core/geminiPipeline.js';
   if (!isModified(file, changed)) return null;
   const content = getChangedFileContent(file);
@@ -1136,7 +1136,7 @@ function P164_geminiOutputTokenCap(changed, _base) {
 }
 // P165: ai-planner-full.js 의 maxDuration 이 600 미만 (=300 회귀) 시 fail.
 //       P138 5분 cap fail 위험. Vercel Fluid Compute 800s 까지 OK.
-function P165_aiPlannerMaxDurationCap(changed, _base) {
+function P165_aiPlannerMaxDurationCap({ changed }) {
   const file = 'api/ai-planner-full.js';
   if (!isModified(file, changed)) return null;
   const content = getChangedFileContent(file);
@@ -1151,7 +1151,7 @@ function P165_aiPlannerMaxDurationCap(changed, _base) {
 // P166: buildSystemPrompt 가 language 외 가변 파라미터 추가 시 fail.
 //       systemPrompt 정적 = Gemini 2.5 implicit cache hit (90% cost ↓ + latency ↓).
 //       가변 요소 (regions/hotel/dietary/dates) 는 userMessage 에 inject.
-function P166_systemPromptStaticPrefix(changed, _base) {
+function P166_systemPromptStaticPrefix({ changed }) {
   const file = 'api/_ai_core/buildPrompt.js';
   if (!isModified(file, changed)) return null;
   const content = getChangedFileContent(file);
