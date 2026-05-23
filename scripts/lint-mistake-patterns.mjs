@@ -3757,10 +3757,12 @@ function P85_geminiRetryDeterministicModel({ changed }) {
   if (!/const\s+RETRY_RATE_THRESHOLD\s*=\s*10/.test(content)) {
     violations.push(`${FILE}: RETRY_RATE_THRESHOLD=10 누락 → alert 임계 변경`);
   }
-  if (!/export\s+function\s+buildModel\s*\(\s*apiKey\s*,\s*temperatureOverride\s*\)/.test(content)) {
-    violations.push(`${FILE}: buildModel(apiKey, temperatureOverride) signature 누락 — retryModel 분리 불가`);
+  // P171 (2026-05-23): buildModel signature 확장 — (apiKey, temperatureOverride, opts).
+  // temperatureOverride 인자 존재 + retryModel 분리 유지 시 OK (opts 는 P171 admin 분기용).
+  if (!/export\s+function\s+buildModel\s*\(\s*apiKey\s*,\s*temperatureOverride/.test(content)) {
+    violations.push(`${FILE}: buildModel(apiKey, temperatureOverride, ...) signature 누락 — retryModel 분리 불가`);
   }
-  if (!/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE\)/.test(content)) {
+  if (!/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE/.test(content)) {
     violations.push(`${FILE}: retryModel 미생성 — retry 가 동일 0.5 model 재사용`);
   }
   // 4 retry types must each register a recordRetryAttempt call.
