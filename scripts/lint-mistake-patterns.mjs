@@ -1269,7 +1269,41 @@ const RULES = [
   ['P164_geminiOutputTokenCap', P164_geminiOutputTokenCap],
   ['P165_aiPlannerMaxDurationCap', P165_aiPlannerMaxDurationCap],
   ['P166_systemPromptStaticPrefix', P166_systemPromptStaticPrefix],
+  ['P167_blockModeMultiCitySupport', P167_blockModeMultiCitySupport],
 ];
+
+/**
+ * P167_blockModeMultiCitySupport — 메모리 P167 (2026-05-23).
+ * blockMode.js 의 `multi_city_not_supported` 분기가 재도입되면 운영자 PR #514/#518
+ * zone block 18+ 가 다도시 plan 에서 무시 → legacy 3-pass 폴백 4분 30초 회귀.
+ *
+ * 룰:
+ *   1. blockMode.js 에 `'multi_city_not_supported'` literal 이 등장하면 fail.
+ *   2. tryRunBlockMode 에서 `return { skipped: true, reason: 'multi_city_not_supported' }`
+ *      또는 이와 동등한 분기가 있으면 fail.
+ *
+ * 트리거: api/_ai_core/blockMode.js 변경 시.
+ */
+function P167_blockModeMultiCitySupport({ changed }) {
+  const FILE = 'api/_ai_core/blockMode.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  // P167 회귀 패턴: multi_city_not_supported reason 재도입
+  if (/['"]multi_city_not_supported['"]/.test(content)) {
+    fail(
+      'P167_blockModeMultiCitySupport',
+      `${FILE}: 'multi_city_not_supported' reason 재도입 감지 — P167 회귀. ` +
+      '운영자 PR #514/#518 의 zone block 18+ 가 다도시 plan 에서 무시됨.',
+      'P167 fix: tryRunBlockMode 는 regions.length >= 2 시 runBlockModeMultiCity 를 호출해야 함. ' +
+      'multi_city_not_supported skip 분기 금지.',
+    );
+    return null;
+  }
+
+  return null;
+}
 
 /**
  * P92_pdfCaptureCutoff — 메모리 P92 (2026-05-18, no-PR-yet).
