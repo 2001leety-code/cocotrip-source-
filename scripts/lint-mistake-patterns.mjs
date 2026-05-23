@@ -1167,6 +1167,24 @@ function P166_systemPromptStaticPrefix({ changed }) {
   return null;
 }
 
+// ── P171 (2026-05-23) — admin Test Mode Flash 분기 propagation ─────────────
+// handlerCore.js 의 triggerPass3BackgroundIfPending 호출 시 isAdminBypass 인자
+// 누락되면 background Pass3 Gemini 호출이 Pro 로 고정 → 운영자 Pro vs Flash
+// 품질 비교 시 tip/recommended_items 만 Pro 로 일관성 깨짐.
+function P171_adminBypassPropagation({ changed }) {
+  const file = 'api/_ai_core/handlerCore.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  // triggerPass3BackgroundIfPending 호출이 isAdminBypass 인자 포함하는지 검사.
+  // 호출 형식: triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass })
+  const callMatch = content.match(/triggerPass3BackgroundIfPending\s*\(\s*\{([^}]+)\}/);
+  if (!callMatch) return null;
+  if (!/\bisAdminBypass\b/.test(callMatch[1])) {
+    return `R-P171: handlerCore.js triggerPass3BackgroundIfPending 호출에 isAdminBypass 누락 — admin Test Mode 의 background Pass3 Gemini 호출이 Pro 로 고정. Pro→Flash 품질 비교 시 tip 일관성 깨짐.`;
+  }
+  return null;
+}
+
 const RULES = [
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
@@ -1273,6 +1291,7 @@ const RULES = [
   ['P168_pass3BackgroundAsync', P168_pass3BackgroundAsync],
   ['P169_geminiStreaming', P169_geminiStreaming],
   ['P170_backgroundPipelinesExtract', P170_backgroundPipelinesExtract],
+  ['P171_adminBypassPropagation', P171_adminBypassPropagation],
 ];
 
 /**
@@ -3738,10 +3757,12 @@ function P85_geminiRetryDeterministicModel({ changed }) {
   if (!/const\s+RETRY_RATE_THRESHOLD\s*=\s*10/.test(content)) {
     violations.push(`${FILE}: RETRY_RATE_THRESHOLD=10 누락 → alert 임계 변경`);
   }
-  if (!/export\s+function\s+buildModel\s*\(\s*apiKey\s*,\s*temperatureOverride\s*\)/.test(content)) {
-    violations.push(`${FILE}: buildModel(apiKey, temperatureOverride) signature 누락 — retryModel 분리 불가`);
+  // P171 (2026-05-23): buildModel signature 확장 — (apiKey, temperatureOverride, opts).
+  // temperatureOverride 인자 존재 + retryModel 분리 유지 시 OK (opts 는 P171 admin 분기용).
+  if (!/export\s+function\s+buildModel\s*\(\s*apiKey\s*,\s*temperatureOverride/.test(content)) {
+    violations.push(`${FILE}: buildModel(apiKey, temperatureOverride, ...) signature 누락 — retryModel 분리 불가`);
   }
-  if (!/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE\)/.test(content)) {
+  if (!/const\s+retryModel\s*=\s*buildModel\(apiKey,\s*RETRY_TEMPERATURE/.test(content)) {
     violations.push(`${FILE}: retryModel 미생성 — retry 가 동일 0.5 model 재사용`);
   }
   // 4 retry types must each register a recordRetryAttempt call.

@@ -157,12 +157,23 @@ export function isPass3BackgroundEnabled() {
   return String(process.env.PLANNER_PASS3_BACKGROUND || '').trim().toLowerCase() === 'true';
 }
 
-export function buildModel(apiKey, temperatureOverride) {
+/**
+ * Gemini model 인스턴스 생성.
+ *
+ * @param {string} apiKey
+ * @param {number} [temperatureOverride]
+ * @param {object} [opts]
+ * @param {boolean} [opts.isAdminBypass] - P171 (2026-05-23): admin Test Mode 만
+ *   GEMINI_ADMIN_BYPASS_MODEL env 우선 (운영자 Pro→Flash 품질 비교용).
+ *   미지정 시 기존 동작 (P135 Pro 유지). backward-compat 100%.
+ */
+export function buildModel(apiKey, temperatureOverride, opts = {}) {
   const genAI = new GoogleGenerativeAI(apiKey);
   // 2026-05-21 P135: 2.5 Pro → resolveGeminiModel('main') default 3.5 Flash.
   // ENV GEMINI_MAIN_MODEL=gemini-3.5-pro 로 Pro 유지 가능 (운영자 명시).
+  // P171 (2026-05-23): isAdminBypass=true 일 때 GEMINI_ADMIN_BYPASS_MODEL 우선.
   return genAI.getGenerativeModel({
-    model: resolveGeminiModel('main'),
+    model: resolveGeminiModel('main', { isAdminBypass: opts.isAdminBypass }),
     generationConfig: {
       temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
       thinkingConfig: { thinkingBudget: 32000 },
@@ -437,10 +448,12 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
  * @param {string} [args.planId]              P169: skeleton plan ID (streaming 모드에서만 사용).
  */
 export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body, isAdminBypass, adminDb, planId }) {
-  const model = buildModel(apiKey);
+  // P171 (2026-05-23): isAdminBypass propagate. admin Test Mode 만 GEMINI_ADMIN_BYPASS_MODEL
+  // 우선 적용 (운영자 Pro→Flash 품질 비교용). 일반 사용자 (isAdminBypass=false) 영향 0.
+  const model = buildModel(apiKey, undefined, { isAdminBypass });
   // PR #461 (X-H2): retry 전용 deterministic model. reinforced prompt 와 결합
   // 시 첫 retry 성공률 ↑ → 평균 Gemini quota 사용량 ↓.
-  const retryModel = buildModel(apiKey, RETRY_TEMPERATURE);
+  const retryModel = buildModel(apiKey, RETRY_TEMPERATURE, { isAdminBypass });
   const foodIndex = await loadFoodIndex();
   const geminiStart = Date.now();
   // P0-3: 빈 배열이면 검사 생략 (식이제한 없는 사용자). null/undefined 도 안전.
