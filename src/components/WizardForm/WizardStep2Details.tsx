@@ -232,9 +232,33 @@ export function WizardStep2Details(props: Step2Props) {
           />
         </div>
         {nights > 0 && (
-          <p className="text-sm text-[#7C5CFC] font-semibold mt-2">
-            {(p.wizardNightsTrip || '{n} nights, {m} days trip').replace('{n}', String(nights)).replace('{m}', String(nights + 1))}
-          </p>
+          <>
+            <p className="text-sm text-[#7C5CFC] font-semibold mt-2">
+              {(p.wizardNightsTrip || '{n} nights, {m} days trip').replace('{n}', String(nights)).replace('{m}', String(nights + 1))}
+            </p>
+            {/* P163 (2026-05-23): 일수별 생성 시간 동적 표시 + 7일 초과 권장 */}
+            {(() => {
+              const days = nights + 1;
+              // 시뮬레이션 기준 (3일 90~180s / 5일 200~260s / 7일 230~290s / 10일 cap)
+              const etaMin = days <= 2 ? '1~2' : days <= 3 ? '2~3' : days <= 5 ? '3~4' : days <= 7 ? '4~5' : '5';
+              const etaTxt = lang === 'ko' ? `⏱ AI 플랜 생성 예상 시간: 약 ${etaMin}분`
+                            : lang === 'ja' ? `⏱ AIプラン生成所要時間: 約 ${etaMin}分`
+                            : lang === 'zh' ? `⏱ AI规划生成预计时间: 约 ${etaMin}分钟`
+                            : `⏱ Estimated plan generation: ~${etaMin} min`;
+              const overTxt = lang === 'ko' ? `💡 7일 이상은 안정적인 생성을 위해 여러 번 나눠서 만드시는 걸 권장드려요`
+                            : lang === 'ja' ? `💡 7日以上は安定した生成のため複数回に分けて作成することをおすすめします`
+                            : lang === 'zh' ? `💡 建议7天以上的行程分多次创建以确保稳定生成`
+                            : `💡 For trips longer than 7 days, we recommend splitting into multiple plans for reliable generation`;
+              return (
+                <>
+                  <p className="text-[12px] text-white/70 mt-1">{etaTxt}</p>
+                  {days > 7 && (
+                    <p className="text-[12px] text-amber-300 mt-1 leading-snug">{overTxt}</p>
+                  )}
+                </>
+              );
+            })()}
+          </>
         )}
         {/* AI 플래너: 내일 이후만 가능 안내 (달력 아래 항상 노출) */}
         <p className="text-[11px] text-white/45 mt-1.5 px-1">
