@@ -291,6 +291,9 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
     for (const v of violations) {
       itinerary.quality_warnings.push({
         kind: 'cross_city_lodging_corrected',
+        // P161 (2026-05-23): UI panel (QualityWarningsPanel) heading 은 w.type 읽음 →
+        // 누락 시 undefined 노출. kind/type 양쪽 mirror 로 panel + JSON dump 양쪽 호환.
+        type: 'cross_city_lodging_corrected',
         severity: 'medium',
         message: `Day ${v.day} (${v.day_city}): "${v.original_name}" → "${v.corrected_name}" (다른 도시 "${v.conflicting_city}" 호텔 자동 교정)`,
         ...v,
@@ -396,6 +399,8 @@ export function selfHealLodgingBookend(itinerary) {
       itinerary.quality_warnings.push({
         ...h,
         kind: 'lodging_bookend_self_healed',
+        // P161 (2026-05-23): UI panel (QualityWarningsPanel) heading 은 w.type 읽음.
+        type: 'lodging_bookend_self_healed',
         sub_kind: h.kind,
         severity: 'low',
         message: `Day ${h.day}: ${h.kind === 'prepend_first_lodging' ? '첫' : '마지막'} stop lodging 누락 → "${h.synthesized_name}" 자동 prepend/append (P160)`,
@@ -404,6 +409,97 @@ export function selfHealLodgingBookend(itinerary) {
     console.log(`[planPersister] P160 lodging bookend self-healed: ${healed.length} stops`);
   }
   return healed;
+}
+
+/**
+ * P161 (2026-05-23): arrival_guide self-heal — Gemini 비결정성으로 통째 누락 시 5-step skeleton 생성.
+ *
+ * 사용자 신고 (plan 8e767d9c, 2026-05-23): "도착하면 어떻게 한국 입국하는 안내가 없어".
+ * Gemini 가 가끔 arrival_guide 자체를 응답 root level 에 안 만들어 PDF/UI 의 Intro 다음
+ * 빈 영역 발생. arrival_airport 가 있고 ALREADY 아닌데 itinerary.arrival_guide 가 falsy 면
+ * 기본 5-step (Immigration / SIM / T-money / Currency / Get-to-Hotel) 합성 + quality_warnings 박제.
+ *
+ * P160 selfHealLodgingBookend 패턴과 동일 — postResponsePipeline.runRouteEnrichment 진입
+ * 직후 (delete itinerary.arrival_guide 분기 다음) 호출. RouteAgent 가 step 5 의
+ * transport_to_hotel 을 실제 데이터로 덮어씀.
+ *
+ * @param {object} itinerary - mutated in-place
+ * @param {string} arrival_airport - "ICN T1" / "ICN T2" / "GMP" / "PUS" 등 (ALREADY 아님)
+ * @returns {boolean} true = self-healed, false = no-op
+ */
+export function selfHealArrivalGuide(itinerary, arrival_airport) {
+  if (!itinerary || typeof itinerary !== 'object') return false;
+  if (!arrival_airport || arrival_airport === 'ALREADY' || arrival_airport === 'already_in_korea') {
+    return false;
+  }
+  // 이미 arrival_guide 있고 steps 1개 이상이면 self-heal 불필요.
+  const existing = itinerary.arrival_guide;
+  if (existing && Array.isArray(existing.steps) && existing.steps.length > 0) {
+    return false;
+  }
+  // 기본 5-step skeleton. RouteAgent 가 step 5 transport_to_hotel 덮어씀.
+  itinerary.arrival_guide = {
+    airport: arrival_airport,
+    steps: [
+      {
+        step: 1,
+        title: 'Immigration & Baggage',
+        description: 'Pass immigration with arrival card + collect baggage at carousel.',
+        est_min: 35,
+      },
+      {
+        step: 2,
+        title: 'Get Connected (SIM / Wi-Fi)',
+        description: 'Pick up SIM card or portable Wi-Fi at airport kiosks.',
+        est_min: 10,
+        options: [
+          { name: 'Physical SIM (KT/SKT)', price_krw: 33000, note: '5-day unlimited data' },
+          { name: 'Portable Wi-Fi', price_krw: 5500, note: 'per day rental' },
+          { name: 'eSIM (Klook)', price_krw: 15000, note: 'pre-purchase recommended' },
+        ],
+      },
+      {
+        step: 3,
+        title: 'Get a T-money Card',
+        description: 'Buy at CU/GS25 convenience store inside airport. Load amount calculated by server.',
+        est_min: 5,
+        t_money_card_cost_krw: 4000,
+        t_money_recommended_load_krw: 0,
+      },
+      {
+        step: 4,
+        title: 'Currency & Payment Tips',
+        description: 'Withdraw initial cash from ATM (Citi/KEB Hana ATMs accept foreign cards). Most stores accept card.',
+        est_min: 5,
+        recommended_cash_krw: 50000,
+      },
+      {
+        step: 5,
+        title: 'Get to Your Hotel',
+        description: 'Best transport option depends on group size + luggage. Backend RouteAgent will populate transport_to_hotel with ODsay step-by-step routes.',
+        est_min: 0,
+        transport_to_hotel: {
+          arex_express: { price_krw: 9500, duration_min: 43, instruction: '' },
+          arex_all_stop: { price_krw: 4150, duration_min: 66, instruction: '' },
+          limousine_bus: { price_krw: 17000, duration_min: 70, instruction: '' },
+          taxi: { est_price_krw: 75000, duration_min: 60, instruction: '' },
+        },
+        recommendation: 'Based on group size and luggage',
+      },
+    ],
+    _self_healed: true,
+  };
+  // quality_warnings 박제
+  itinerary.quality_warnings = itinerary.quality_warnings || [];
+  itinerary.quality_warnings.push({
+    kind: 'arrival_guide_self_healed',
+    type: 'arrival_guide_self_healed',
+    severity: 'medium',
+    message: `arrival_guide 누락 (Gemini 응답에 없음) → ${arrival_airport} 기본 5-step skeleton 자동 합성. RouteAgent 가 transport_to_hotel 채움.`,
+    airport: arrival_airport,
+  });
+  console.log(`[planPersister] P161 arrival_guide self-healed: airport=${arrival_airport}`);
+  return true;
 }
 
 /**
@@ -506,6 +602,8 @@ export function correctPreDawnStopTimes(itinerary) {
     itinerary.quality_warnings = itinerary.quality_warnings || [];
     itinerary.quality_warnings.push({
       kind: 'predawn_auto_corrected',
+      // P161 (2026-05-23): UI panel (QualityWarningsPanel) heading 은 w.type 읽음.
+      type: 'predawn_auto_corrected',
       severity: 'medium',
       day: day?.day || day?.day_index || 0,
       original_first_start_time: origFirst,
@@ -570,6 +668,12 @@ export function detectIntercityFirstStopGap(itinerary) {
 /**
  * P143: detectIntercityFirstStopGap → itinerary.quality_warnings push (UI 운영자 노출).
  * 운영자 plan 진단 panel (P121) 에서 즉시 보임. non-blocking (plan 저장 진행).
+ *
+ * P161 (2026-05-23): plan 8e767d9c quality_warnings[0]={kind:undefined,message:undefined}
+ * 회귀 fix — 본 함수가 type/items 만 push 했지만 UI panel + 다른 self-heal 함수들은
+ * kind/message 시그니처. 양쪽 호환을 위해 kind + type + message 동시 출력. items[].message
+ * 도 그대로 유지 (UI panel detail).
+ *
  * @param {object} itinerary - mutated: quality_warnings 추가
  * @returns {number} 감지 건수
  */
@@ -577,9 +681,13 @@ export function pushIntercityGapWarnings(itinerary) {
   const gaps = detectIntercityFirstStopGap(itinerary);
   if (gaps.length === 0) return 0;
   itinerary.quality_warnings = itinerary.quality_warnings || [];
+  const summary = gaps.map((g) => `Day ${g.day} ${g.intercity_arrival_at}→${g.first_stop_start} (${g.gap_min}min)`).join(', ');
   itinerary.quality_warnings.push({
+    kind: 'intercity_first_stop_gap',
     type: 'intercity_first_stop_gap',
     anchor: 'route-agent-stitch',
+    severity: 'low',
+    message: `Intercity 도착 후 첫 stop 까지 90분 이상 공백 ${gaps.length}건: ${summary}`,
     items: gaps.map((g) => ({
       day: g.day,
       message: `Day ${g.day}: KTX/intercity 도착 ${g.intercity_arrival_at} → 첫 stop ${g.first_stop_start} (${g.first_stop_name}) — ${g.gap_min}분 공백`,

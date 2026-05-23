@@ -756,7 +756,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   onNext={() => goToStep(1)}
                 />
               )}
-              {/* Step 1: destinations */}
+              {/* Step 1: destinations. P161: arrival/departure marking props 제거 (4페이지로 이전). */}
               {step === 1 && (
                 <WizardStep0Destination
                   p={p} isMobile={isMobile}
@@ -771,8 +771,6 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   toggleCity={toggleCity} isCitySelected={isCitySelected}
                   onPrev={() => goToStep(0)} onNext={() => goToStep(2)}
                   dateRange={dateRange} setDateRange={setDateRange}
-                  arrivalCityKey={arrivalCityKey} departureCityKey={departureCityKey}
-                  setArrivalCityKey={setArrivalCityKey} setDepartureCityKey={setDepartureCityKey}
                 />
               )}
               {step === 2 && (
@@ -817,6 +815,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   reservationStatus={reservationStatus}
                   airportTouchedInStep3={airportTouchedInStep3}
                   setAirportTouchedInStep3={setAirportTouchedInStep3}
+                  /* P161 (2026-05-23): 입국/출국 cycle 마킹 4페이지로 이전 */
+                  allCities={allCities}
+                  selectedCityKeys={selectedCityKeys}
+                  arrivalCityKey={arrivalCityKey} departureCityKey={departureCityKey}
+                  setArrivalCityKey={setArrivalCityKey} setDepartureCityKey={setDepartureCityKey}
                 />
               )}
               {step === 4 && (
