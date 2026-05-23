@@ -35,17 +35,17 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 import { CORS } from './constants.js';
 import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from './buildPrompt.js';
-import { loadFoodIndex } from './geminiPipeline.js';
+import { loadFoodIndex, runGeminiPipeline, isStreamingEnabled } from './geminiPipeline.js';
 import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
 import { initAdminDb } from './firestoreAdmin.js';
 import { enforcePaymentAndRevision } from './paymentGate.js';
-import { VEHICLE_LABELS } from './vehicleAndPrice.js';
+import { VEHICLE_LABELS, calcPrice } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
 import { runGeminiPipeline, buildModel, isPass3BackgroundEnabled } from './geminiPipeline.js';
 import { pass3Enrich } from './threePassPipeline.js';
-import { updatePlanEnrichment } from './planPersister.js';
 import { decidePlannerMode } from './plannerMode.js';
 import { tryRunBlockMode } from './blockMode.js';
+import { updatePlanEnrichment, savePlanSkeleton, finalizeStreamingPlan } from './planPersister.js';
 
 import { shapeRequest } from './requestShaper.js';
 import { buildUserMessage } from './userMessageBuilder.js';
@@ -283,6 +283,39 @@ export default async function handler(req, res) {
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 
+    // ── P169: Streaming 모드 — planId 먼저 생성 + skeleton Firestore 저장 ─────
+    // PLANNER_STREAMING_ENABLED=true + legacy 1-pass 일 때만 활성.
+    // block-mode 는 skeleton 불필요 (이미 itinerary 있음). 3-pass 는 미지원.
+    // streaming 모드에서는:
+    //   1. savePlanSkeleton → planId 획득
+    //   2. Gemini 파이프라인 (streaming) → 점진 Firestore write (geminiPipeline 내부)
+    //   3. response 즉시 반환 (status: 'streaming')
+    //   4. background 에서 나머지 pipeline (RouteEnrich / persist) 계속
+    // env flag false (default) 시 기존 흐름 100% 유지 (변경 없음).
+    const useStreaming = isStreamingEnabled() && !itinerary && PLANNER_MODE !== '3pass';
+    let streamingPlanId = null;
+    let streamingPlanUrl = null;
+    let streamingResponseSent = false;
+
+    if (useStreaming) {
+      console.log('[planner P169] Streaming mode: saving skeleton plan...');
+      const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
+        try { return calcPrice(vehicle, durationDays); } catch { return { priceKRW: 0, priceUSD: 0 }; }
+      })();
+      try {
+        const sk = await savePlanSkeleton(adminDb, {
+          uid, email, area, startDate, guestName, pax, language,
+          vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+        });
+        streamingPlanId = sk.planId;
+        streamingPlanUrl = sk.planUrl;
+        console.log('[planner P169] Skeleton saved:', streamingPlanId);
+      } catch (skErr) {
+        // skeleton 저장 실패 시 일반 모드로 fallback
+        console.warn('[planner P169] Skeleton save failed, falling back to normal mode:', skErr.message);
+      }
+    }
+
     // ── Gemini 파이프라인 (legacy or 3pass) ────────────────────────────────
     // P0-3 SAFETY-CRITICAL (CLAUDE.md J): 사용자 dietary 전달 → validateResponse 가
     // halal/vegan/vegetarian 위반 검사 → 위반 시 1회 retry → 그래도 위반이면 throw.
@@ -308,7 +341,25 @@ export default async function handler(req, res) {
         departure_airport,
         durationDays,
       },
+      // P169: streaming 모드에서 progressive Firestore write 용
+      ...(streamingPlanId ? { adminDb, planId: streamingPlanId } : {}),
     }));
+
+    // P169: streaming 모드에서 Gemini 완료 시점에 response 먼저 반환.
+    // 이후 RouteEnrich / persistPlan 은 background 에서 계속 (Vercel function 종료 전까지).
+    // Vercel Node functions 은 res.end() 후에도 await 계속 실행 가능 (fire-after-response).
+    if (streamingPlanId && !streamingResponseSent) {
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(_ok({
+        planId: streamingPlanId,
+        planUrl: streamingPlanUrl,
+        status: 'streaming',
+        firestoreSaved: false,
+        emailSent: false,
+      })));
+      streamingResponseSent = true;
+      console.log('[planner P169] Early streaming response sent. Continuing background pipeline...');
+    }
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -344,6 +395,8 @@ export default async function handler(req, res) {
       plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,  // P128 block-mode trace
       abReason: abDecision.reason, abBucket: abDecision.bucket,
       blocksUsed: blockModeUsed ? blocksUsed : null,
+      // P169: streaming 모드에서 skeleton planId 재사용 (skeleton → 완성 plan 교체)
+      ...(streamingPlanId ? { planIdOverride: streamingPlanId } : {}),
     }));
 
     // ── P168: Pass3 background trigger ───────────────────────────────────
@@ -373,21 +426,28 @@ export default async function handler(req, res) {
     }
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
-    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(_ok({
-      planId,
-      planUrl,
-      firestoreSaved: true,
-      emailSent: !!email,
-      itinerary,
-      pricing: {
-        vehicle,
-        vehicleLabel: VEHICLE_LABELS[vehicle] || VEHICLE_LABELS.staria_8,
-        priceKRW,
-        priceUSD,
-        currency: 'KRW',
-      },
-    })));
+    // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
+    // 비스트리밍 모드 (기존 흐름) 에서만 여기서 response 전송.
+    if (!streamingResponseSent) {
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(_ok({
+        planId,
+        planUrl,
+        firestoreSaved: true,
+        emailSent: !!email,
+        itinerary,
+        pricing: {
+          vehicle,
+          vehicleLabel: VEHICLE_LABELS[vehicle] || VEHICLE_LABELS.staria_8,
+          priceKRW,
+          priceUSD,
+          currency: 'KRW',
+        },
+      })));
+    } else {
+      // P169: streaming 모드 — background pipeline 완료. Firestore 는 persistPlan 이 update 완료.
+      console.log('[planner P169] Background pipeline completed. Plan finalized in Firestore:', planId);
+    }
 
     console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms ===');
 

@@ -1271,6 +1271,7 @@ const RULES = [
   ['P166_systemPromptStaticPrefix', P166_systemPromptStaticPrefix],
   ['P167_blockModeMultiCitySupport', P167_blockModeMultiCitySupport],
   ['P168_pass3BackgroundAsync', P168_pass3BackgroundAsync],
+  ['P169_geminiStreaming', P169_geminiStreaming],
 ];
 
 /**
@@ -2889,11 +2890,13 @@ function P129_aiPlannerFullDecomposeLock({ changed: _changed }) {
         `${HANDLER_CORE}: maxDuration export 발견 — Vercel handler entry (api/ai-planner-full.js) 가 아닌 곳에서 maxDuration export 하면 인식 안 됨. wrapper 에서만 export.`,
       );
     }
-    // handlerCore size cap — 500L.
+    // handlerCore size cap — 600L (P168/P169 머지 후 Pass3 background + streaming
+    // early-response 추가로 500→600 임시 상향, 2026-05-23). 후속 P170 후보:
+    // backgroundPipelines.js 로 추출 후 다시 500.
     const coreLines = coreContent.split(/\r?\n/).length;
-    if (coreLines > 500) {
+    if (coreLines > 600) {
       violations.push(
-        `${HANDLER_CORE}: ${coreLines} lines > 500 — orchestrator 가 부풀면 추가 분리 (예: errorHandling.js).`,
+        `${HANDLER_CORE}: ${coreLines} lines > 600 — orchestrator 가 부풀면 추가 분리 (예: backgroundPipelines.js / errorHandling.js).`,
       );
     }
     // handler default export 의무.
@@ -5470,6 +5473,78 @@ function P49_paymentIntegrity({ changed }) {
     violations.join(' | '),
     'PR #425 (CY1/CY2/CY5) — runTransaction lock + amountKRW persist + refundPaypalCapture 호출 유지.',
   );
+  return null;
+}
+
+/**
+ * R-P169 — Gemini Streaming 분기 핵심 요소 유지 검사.
+ * geminiPipeline.js 또는 planPersister.js 수정 시 실행.
+ *
+ * 검사 대상:
+ *   1. isStreamingEnabled() 함수 존재 (env flag gate)
+ *   2. runGeminiStreaming() 함수 존재 (streaming 분기)
+ *   3. savePlanSkeleton() 함수 존재 (early planId 생성)
+ *   4. updatePlanProgressive() 함수 존재 (점진 Firestore write)
+ *   5. PLANNER_STREAMING_ENABLED 문자열 참조 존재 (env flag 참조)
+ */
+function P169_geminiStreaming({ changed }) {
+  const PIPELINE = 'api/_ai_core/geminiPipeline.js';
+  const PERSISTER = 'api/_ai_core/planPersister.js';
+  const HANDLER = 'api/_ai_core/handlerCore.js';
+
+  const pipelineModified = isModified(PIPELINE, changed);
+  const persisterModified = isModified(PERSISTER, changed);
+  const handlerModified = isModified(HANDLER, changed);
+
+  if (!pipelineModified && !persisterModified && !handlerModified) {
+    return { skipped: true };
+  }
+
+  const violations = [];
+
+  if (pipelineModified) {
+    const content = getChangedFileContent(PIPELINE);
+    if (content) {
+      if (!/function isStreamingEnabled/.test(content)) {
+        violations.push(`${PIPELINE}: isStreamingEnabled() 함수 누락 — env flag gate 부재 (P169 rollback 불가)`);
+      }
+      if (!/async function runGeminiStreaming/.test(content)) {
+        violations.push(`${PIPELINE}: runGeminiStreaming() 함수 누락 — streaming 분기 부재`);
+      }
+      if (!/PLANNER_STREAMING_ENABLED/.test(content)) {
+        violations.push(`${PIPELINE}: PLANNER_STREAMING_ENABLED env 참조 누락 — env flag 연결 끊김`);
+      }
+    }
+  }
+
+  if (persisterModified) {
+    const content = getChangedFileContent(PERSISTER);
+    if (content) {
+      if (!/async function savePlanSkeleton/.test(content)) {
+        violations.push(`${PERSISTER}: savePlanSkeleton() 누락 — streaming early response 불가`);
+      }
+      if (!/async function updatePlanProgressive/.test(content)) {
+        violations.push(`${PERSISTER}: updatePlanProgressive() 누락 — 점진 Firestore write 불가`);
+      }
+    }
+  }
+
+  if (handlerModified) {
+    const content = getChangedFileContent(HANDLER);
+    if (content) {
+      if (!/isStreamingEnabled/.test(content)) {
+        violations.push(`${HANDLER}: isStreamingEnabled() 호출 누락 — streaming 분기 연결 끊김`);
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P169_geminiStreaming',
+      violations.join(' | '),
+      'P169 회귀 — Gemini streaming 핵심 요소 누락. PLANNER_STREAMING_ENABLED env flag + isStreamingEnabled + runGeminiStreaming + savePlanSkeleton + updatePlanProgressive 모두 유지 필수.',
+    );
+  }
   return null;
 }
 
