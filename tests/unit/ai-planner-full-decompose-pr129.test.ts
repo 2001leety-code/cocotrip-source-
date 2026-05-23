@@ -71,8 +71,10 @@ describe('P129 — ai-planner-full.js thin wrapper (decompose)', () => {
     );
   });
 
-  it('wrapper keeps maxDuration = 300 export (Vercel entry)', () => {
-    expect(wrapperSrc).toMatch(/export\s+const\s+maxDuration\s*=\s*300/);
+  it('wrapper keeps maxDuration = 600 export (Vercel entry, P165 안전망)', () => {
+    // P165 (2026-05-23): 300 → 600. P138 5분 cap fail 안전망. Vercel Fluid
+    // Compute (Pro 800s) 활성 시 추가 여유. 단축 효과 0, fail 위험만 차단.
+    expect(wrapperSrc).toMatch(/export\s+const\s+maxDuration\s*=\s*600/);
   });
 
   it('wrapper keeps runtime config export', () => {

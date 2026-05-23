@@ -54,7 +54,9 @@ export function buildModel(apiKey, temperatureOverride) {
     generationConfig: {
       temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
       thinkingConfig: { thinkingBudget: 32000 },
-      maxOutputTokens: 32000,
+      // P164 (2026-05-23): 32K→12K. 5-day plan JSON 실측 평균 2-5K 토큰 — 32K 할당은
+      // generation overhead. 12K = safety margin 2x. 사용자 도달 가능성 거의 0.
+      maxOutputTokens: 12000,
       responseMimeType: 'application/json',
     },
   });

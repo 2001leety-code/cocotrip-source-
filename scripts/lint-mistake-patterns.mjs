@@ -1119,6 +1119,54 @@ function P133_catalogSync({ changed }) {
   return null;
 }
 
+// ── P164/P165/P166 (2026-05-23) — Quick wins (latency caps + cache prefix) ─────
+// P164: geminiPipeline.js 의 maxOutputTokens 가 16K 초과 (=32K 회귀) 시 fail.
+//       실측 출력 2-5K 토큰 — 12K 가 2x safety. 32K = generation overhead.
+function P164_geminiOutputTokenCap({ changed }) {
+  const file = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  const m = content.match(/maxOutputTokens:\s*(\d+)/);
+  if (!m) return null;
+  const v = parseInt(m[1], 10);
+  if (v > 16000) {
+    return `R-P164: geminiPipeline.js maxOutputTokens=${v} > 16000. 실측 plan JSON 2-5K 토큰 — 12K=2x safety. 32K 복원 = generation overhead.`;
+  }
+  return null;
+}
+// P165: ai-planner-full.js 의 maxDuration 이 600 미만 (=300 회귀) 시 fail.
+//       P138 5분 cap fail 위험. Vercel Fluid Compute 800s 까지 OK.
+function P165_aiPlannerMaxDurationCap({ changed }) {
+  const file = 'api/ai-planner-full.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  const m = content.match(/export\s+const\s+maxDuration\s*=\s*(\d+)/);
+  if (!m) return null;
+  const v = parseInt(m[1], 10);
+  if (v < 600) {
+    return `R-P165: ai-planner-full.js maxDuration=${v} < 600. P138 routeEnrich 39s + Gemini 90-150s + retry = 5분 cap fail 위험. 600+ 유지.`;
+  }
+  return null;
+}
+// P166: buildSystemPrompt 가 language 외 가변 파라미터 추가 시 fail.
+//       systemPrompt 정적 = Gemini 2.5 implicit cache hit (90% cost ↓ + latency ↓).
+//       가변 요소 (regions/hotel/dietary/dates) 는 userMessage 에 inject.
+function P166_systemPromptStaticPrefix({ changed }) {
+  const file = 'api/_ai_core/buildPrompt.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  const m = content.match(/export\s+function\s+buildSystemPrompt\s*\(([^)]*)\)/);
+  if (!m) return null;
+  const params = m[1]
+    .split(',')
+    .map((s) => s.trim().split('=')[0].trim())
+    .filter(Boolean);
+  if (params.length > 1) {
+    return `R-P166: buildSystemPrompt(${params.join(', ')}) 가변 파라미터 ${params.length}개. language 만 가능 (Gemini 2.5 implicit cache hit 보존 — 정적 prefix → 90% cost + latency ↓). 가변 요소는 userMessage 에 inject.`;
+  }
+  return null;
+}
+
 const RULES = [
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
@@ -1218,6 +1266,9 @@ const RULES = [
   ['P143_intercityFirstStopGap', P143_intercityFirstStopGap],
   ['P144_transitFallbackDetail', P144_transitFallbackDetail],
   ['P145_cityChangeTimeClamp', P145_cityChangeTimeClamp],
+  ['P164_geminiOutputTokenCap', P164_geminiOutputTokenCap],
+  ['P165_aiPlannerMaxDurationCap', P165_aiPlannerMaxDurationCap],
+  ['P166_systemPromptStaticPrefix', P166_systemPromptStaticPrefix],
 ];
 
 /**
