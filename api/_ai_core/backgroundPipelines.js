@@ -40,15 +40,18 @@ import { calcPrice } from './vehicleAndPrice.js';
  * itinerary._pass3_pending === true + isPass3BackgroundEnabled() 일 때만 실행.
  * fire-and-forget — 실패해도 plan 은 정상 저장됨 (non-critical).
  *
- * @param {{ adminDb, planId: string, language: string, apiKey: string, itinerary: object }} args
+ * @param {{ adminDb, planId: string, language: string, apiKey: string, itinerary: object, isAdminBypass?: boolean }} args
+ *   isAdminBypass — P171 (2026-05-23): admin Test Mode 면 background Gemini 호출도
+ *   GEMINI_ADMIN_BYPASS_MODEL 우선 (운영자 Pro→Flash 비교 시 background tip 도 Flash).
  */
-export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary }) {
+export function triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass }) {
   if (!itinerary._pass3_pending || !isPass3BackgroundEnabled()) return;
 
   // fire-and-forget — UnhandledPromiseRejection 방지를 위해 .catch() 필수.
   (async () => {
     try {
-      const bgModel = buildModel(apiKey);
+      // P171: admin Test Mode 만 GEMINI_ADMIN_BYPASS_MODEL 우선. 일반 사용자 영향 0.
+      const bgModel = buildModel(apiKey, undefined, { isAdminBypass });
       const enriched = await pass3Enrich(bgModel, itinerary, language);
       await updatePlanEnrichment(adminDb, planId, enriched);
       console.log(`[planner] P168 Pass3 background completed: planId=${planId}`);

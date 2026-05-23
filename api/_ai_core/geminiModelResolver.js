@@ -42,19 +42,33 @@ const ROLE_ENV_MAP = {
  * Gemini model ID resolve — ENV override + 모듈별 ENV + default 3-tier.
  *
  * @param {'main'|'block'|'classifier'|'translate'} role - 모듈 식별자
+ * @param {object} [opts]
+ * @param {boolean} [opts.isAdminBypass] - P171 (2026-05-23): admin Test Mode 면
+ *   env GEMINI_ADMIN_BYPASS_MODEL 우선 (운영자가 Pro→Flash 품질 직접 비교용).
+ *   default 미설정 → 기존 동작 (Pro 또는 ENV override). backward-compat 100%.
+ *   GEMINI_MODEL_OVERRIDE (전역 emergency) 가 있으면 admin bypass 보다 우선 (안전망).
  * @returns {string} - Gemini API 의 model ID (예: 'gemini-3.5-flash')
  * @throws {TypeError} - role 이 유효하지 않으면 throw
  */
-export function resolveGeminiModel(role) {
+export function resolveGeminiModel(role, opts = {}) {
   if (!DEFAULTS[role]) {
     throw new TypeError(
       `resolveGeminiModel: invalid role "${role}". Allowed: ${Object.keys(DEFAULTS).join(', ')}`,
     );
   }
 
-  // 1. 일괄 override (운영자 emergency rollback)
+  // 1. 일괄 override (운영자 emergency rollback) — P171: admin bypass 보다 우선 (안전망)
   const globalOverride = (process.env.GEMINI_MODEL_OVERRIDE || '').trim();
   if (globalOverride) return globalOverride;
+
+  // P171 (2026-05-23): admin Test Mode + GEMINI_ADMIN_BYPASS_MODEL 설정 시 우선.
+  // 운영자가 TEST- prefix orderId 로 5-10 plan 생성해 Pro vs Flash 품질 직접 비교.
+  // 미설정 (default) → 기존 분기 (Pro 유지 — P135 운영자 결정).
+  // 일반 사용자 (isAdminBypass=false) → 이 분기 진입 안 함 → 영향 0.
+  if (opts.isAdminBypass) {
+    const adminBypassModel = (process.env.GEMINI_ADMIN_BYPASS_MODEL || '').trim();
+    if (adminBypassModel) return adminBypassModel;
+  }
 
   // 2. 모듈별 ENV
   const roleEnvKey = ROLE_ENV_MAP[role];
