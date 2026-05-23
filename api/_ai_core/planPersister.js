@@ -869,6 +869,118 @@ export function calculateTmoney(itinerary) {
 }
 
 /**
+ * P169 (2026-05-23): Streaming 모드에서 planId 먼저 생성 + 빈 skeleton plan Firestore 저장.
+ * Streaming response 를 handlerCore 가 즉시 반환할 수 있도록 planId 를 먼저 확보.
+ * 사용자는 PlanDetailPage 로 redirect 되어 onSnapshot 으로 점진 업데이트 수신.
+ *
+ * @param {object} adminDb - Firebase Admin Firestore instance
+ * @param {object} ctx     - { uid, email, area, startDate, guestName, pax, language, vehicle, priceKRW, priceUSD, body }
+ * @returns {{ planId: string, planUrl: string }}
+ */
+export async function savePlanSkeleton(adminDb, {
+  uid, email, area, startDate, guestName, pax, language, vehicle, priceKRW, priceUSD, body,
+}) {
+  if (!adminDb) throw new Error('[P169] Firebase not configured — cannot save skeleton');
+
+  const planId = randomUUID();
+  const accessToken = uid ? null : randomUUID();
+
+  const skeletonDoc = {
+    planId,
+    status: 'streaming',
+    _streaming_in_progress: true,
+    _streaming_started_at: Date.now(),
+    isPublic: false,
+    createdAt: new Date().toISOString(),
+    createdAtMs: Date.now(),
+    uid: uid || null,
+    accessToken,
+    guestEmail: email || null,
+    input: {
+      guestName: guestName || 'Guest',
+      pax: pax || 2,
+      styles: Array.isArray(body?.styles) ? body.styles : [],
+      area: area || null,
+      startDate: startDate || null,
+      language: language || 'en',
+      vehicle: vehicle || null,
+      regions: Array.isArray(body?.regions) && body.regions.length > 0 ? body.regions : (area ? [area] : []),
+    },
+    pricing: { vehicle, priceKRW: priceKRW || 0, priceUSD: priceUSD || 0 },
+    revisionCredits: 2,
+    revisionCount: 0,
+    // 빈 itinerary — streaming 완료 전 PlanDetailPage 가 로딩 인디케이터 표시용
+    itinerary: {
+      tour_title: null,
+      days: [],
+      _streaming_skeleton: true,
+    },
+  };
+
+  try {
+    await adminDb.collection('plans').doc(planId).set(skeletonDoc);
+  } catch (saveErr) {
+    console.error('[planPersister P169] skeleton save failed:', saveErr.message);
+    throw new Error(`Skeleton save failed (${saveErr.code || saveErr.name})`);
+  }
+
+  console.log('[planPersister P169] skeleton saved:', planId);
+  const planUrl = `/my-plans/${planId}`;
+  return { planId, planUrl };
+}
+
+/**
+ * P169 (2026-05-23): Streaming 진행 중 Firestore 에 partial plan 업데이트.
+ * best-effort — 실패해도 streaming 은 계속. catch 는 호출자가 처리.
+ *
+ * @param {object} adminDb
+ * @param {string} planId
+ * @param {object} partial - { days: [], _streaming_progress: N, ... }
+ */
+export async function updatePlanProgressive(adminDb, planId, partial) {
+  if (!adminDb || !planId) return;
+  await adminDb.collection('plans').doc(planId).set(
+    {
+      ...partial,
+      _streaming_in_progress: true,
+      _streaming_last_update: Date.now(),
+    },
+    { merge: true },
+  );
+}
+
+/**
+ * P169 (2026-05-23): Streaming 완료 후 skeleton → 완성 plan 으로 교체.
+ * skeleton 시 저장했던 docToSave 에 _streaming_in_progress: false 마킹.
+ *
+ * @param {object} adminDb
+ * @param {string} planId
+ * @param {object} finalDoc - persistPlan 에서 생성한 docToSave (planId 포함)
+ */
+export async function finalizeStreamingPlan(adminDb, planId, finalDoc) {
+  if (!adminDb || !planId) throw new Error('[P169] finalizeStreamingPlan: missing adminDb or planId');
+  const doc = {
+    ...finalDoc,
+    planId,
+    status: 'ready',
+    _streaming_in_progress: false,
+    _streaming_completed_at: Date.now(),
+  };
+  try {
+    await adminDb.collection('plans').doc(planId).set(doc);
+  } catch (err) {
+    console.error('[planPersister P169] finalizeStreamingPlan failed:', err.message);
+    // mark error so PlanDetailPage can show fallback
+    await adminDb.collection('plans').doc(planId).set(
+      { _streaming_in_progress: false, _streaming_error: err.message, status: 'error' },
+      { merge: true },
+    ).catch(() => {});
+    throw err;
+  }
+  console.log('[planPersister P169] streaming finalized:', planId);
+}
+
+/**
  * Persist plan to Firestore + update user subcollection + API stats + loyalty.
  * Returns { planId, planUrl }.
  */
@@ -886,12 +998,15 @@ export async function persistPlan(adminDb, {
   // P128 (2026-05-21): block-mode trace — block IDs that drove block-mode plan.
   // null for legacy/3-pass plans (backward compat).
   blocksUsed,
+  // P169 (2026-05-23): streaming 모드에서 skeleton 에서 미리 생성한 planId 재사용.
+  // undefined 시 기존 randomUUID() 생성 (비스트리밍 호환).
+  planIdOverride,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
   }
 
-  const planId = randomUUID();
+  const planId = planIdOverride || randomUUID();
   const accessToken = uid ? null : randomUUID();
 
   // ── Tier 2-D: 9-metric quality score (admin-only, not user-visible) ────

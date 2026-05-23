@@ -291,6 +291,9 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
       setStreamStep(4);
       setStreamAgent('done');
 
+      // P169: streaming 모드 — status: 'streaming' 이면 planId 받아서 바로 navigate.
+      // PlanDetailPage 가 onSnapshot 으로 Firestore 점진 update 자동 감지 (이미 사용 중).
+      // 비스트리밍 모드 (status: undefined 또는 'ready') 도 동일 navigate 흐름 유지.
       if (data?.planUrl) {
         navigate(data.planUrl);
       } else if (data?.planId) {

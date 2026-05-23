@@ -19,7 +19,105 @@ import { captureError } from '../_shared/sentry.js';
 import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
 import { sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { selfHealLodgingBookend } from './planPersister.js';
+import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.js';
+
+// ────────────────────────────────────────────────────────────────────────────
+// P169 (2026-05-23): Gemini Streaming + 점진 Firestore Write
+//
+// PLANNER_STREAMING_ENABLED=true 시:
+//   - legacy 1-pass: generateContent → generateContentStream
+//   - chunks 받는 동안 partial JSON repair → Firestore 점진 write (0.5초 간격)
+//   - handlerCore 가 planId 를 먼저 Firestore 에 skeleton 저장 후 response 반환
+//   - 프론트엔드 onSnapshot (이미 사용 중) 이 자동으로 점진 update 감지
+//
+// ENV FLAG: PLANNER_STREAMING_ENABLED=true (default: false → 기존 흐름 100% 보장)
+// ROLLBACK: Vercel Dashboard 에서 false 또는 삭제 → 즉시 rollback
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * P169: streaming 모드 활성 여부.
+ * env flag 'true' (대소문자 무관) 일 때만 활성.
+ * default false — 기존 흐름 100% 보장 (rollback 보장).
+ */
+export function isStreamingEnabled() {
+  return String(process.env.PLANNER_STREAMING_ENABLED || '').trim().toLowerCase() === 'true';
+}
+
+/**
+ * P169: 누적 텍스트에서 best-effort partial JSON parse.
+ * 기존 repairAndParseJSON 로직을 활용 — incomplete JSON 도 처리.
+ * days[] 배열이 하나 이상 완성됐을 때만 의미있는 결과 반환 (null 반환 otherwise).
+ *
+ * @param {string} accumulated  현재까지 수신한 텍스트
+ * @returns {{ days: Array }|null}  days 배열 포함 partial object, 없으면 null
+ */
+export function tryParsePartialJSON(accumulated) {
+  if (!accumulated || accumulated.length < 20) return null;
+  try {
+    // 1. 완성 JSON 먼저 시도
+    const obj = JSON.parse(accumulated);
+    if (obj && Array.isArray(obj.days) && obj.days.length > 0) return obj;
+    return null;
+  } catch {
+    // 2. 불완전 JSON repair
+    try {
+      const repaired = repairAndParseJSON(accumulated);
+      if (repaired && Array.isArray(repaired.days) && repaired.days.length > 0) return repaired;
+    } catch {
+      // best-effort: ignore
+    }
+    return null;
+  }
+}
+
+/**
+ * P169: Gemini generateContentStream 호출 + 점진 Firestore write.
+ * legacy 1-pass 전용 (3-pass 의 pass1Intent 는 별도 streaming 필요 — 추후 Phase 2).
+ *
+ * @param {object} args
+ * @param {object} args.model          buildModel() 반환 model instance
+ * @param {string} args.systemPrompt   system instruction
+ * @param {string} args.userMessage    최종 user 메시지
+ * @param {object} [args.adminDb]      Firestore admin (progressive write 용)
+ * @param {string} [args.planId]       skeleton planId (progressive write 용)
+ * @param {string} [args.language]     언어 코드 (현재 unused, 향후 확장용)
+ * @returns {string}  최종 accumulated text (repairAndParseJSON 직접 호출 가능)
+ */
+export async function runGeminiStreaming({ model, systemPrompt, userMessage, adminDb, planId, language }) {
+  let accumulated = '';
+  let lastFirestoreUpdate = 0;
+  const FIRESTORE_UPDATE_INTERVAL_MS = 500;
+
+  console.log('[geminiPipeline P169] Starting generateContentStream...');
+  const streamStart = Date.now();
+
+  const streamResult = await model.generateContentStream({
+    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+  });
+
+  for await (const chunk of streamResult.stream) {
+    const chunkText = chunk.text();
+    if (chunkText) accumulated += chunkText;
+
+    // 0.5초 간격으로 partial JSON parse + Firestore update (best-effort)
+    const now = Date.now();
+    if (adminDb && planId && (now - lastFirestoreUpdate) > FIRESTORE_UPDATE_INTERVAL_MS) {
+      const partial = tryParsePartialJSON(accumulated);
+      if (partial && Array.isArray(partial.days) && partial.days.length > 0) {
+        // fire-and-forget — streaming 중단 방지
+        updatePlanProgressive(adminDb, planId, {
+          'itinerary.days': partial.days,
+          _streaming_progress: partial.days.length,
+        }).catch((e) => console.warn('[geminiPipeline P169] progressive update failed:', e.message));
+        lastFirestoreUpdate = now;
+      }
+    }
+  }
+
+  console.log('[geminiPipeline P169] Stream complete. Elapsed:', Date.now() - streamStart, 'ms. Accumulated:', accumulated.length, 'chars');
+  return accumulated;
+}
 
 const GEMINI_TIMEOUT_MS = 240000;
 
@@ -335,8 +433,10 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
  *                                            true 시 validatePatternStructure 의 1-retry
  *                                            실패가 throw → telegram alert 로 다운그레이드.
  *                                            SAFETY-CRITICAL (dietary) 는 admin 도 hard throw 유지.
+ * @param {object} [args.adminDb]             P169: streaming 모드에서 Firestore progressive write 용.
+ * @param {string} [args.planId]              P169: skeleton plan ID (streaming 모드에서만 사용).
  */
-export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body, isAdminBypass }) {
+export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body, isAdminBypass, adminDb, planId }) {
   const model = buildModel(apiKey);
   // PR #461 (X-H2): retry 전용 deterministic model. reinforced prompt 와 결합
   // 시 첫 retry 성공률 ↑ → 평균 Gemini quota 사용량 ↓.
@@ -513,22 +613,41 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
   } else {
     // LEGACY single-pass
-    let result;
-    try {
-      result = await withTimeout(
-        model.generateContent({
-          contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-          systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
-        }),
-        GEMINI_TIMEOUT_MS,
-        'legacy',
-      );
-    } catch (err) {
-      throw mapGeminiError(err, geminiStart);
-    }
-    console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
+    let rawText;
 
-    const rawText = result.response.text().trim();
+    // P169: PLANNER_STREAMING_ENABLED=true 이고 legacy 1-pass 일 때 streaming 분기.
+    // 3-pass 는 pass1Intent 가 별도 streaming 필요 → 현재는 legacy 만 지원.
+    // env flag false (default) 시 기존 generateContent 흐름 100% 유지.
+    if (isStreamingEnabled() && mode !== '3pass') {
+      console.log('[planner P169] streaming mode activated (PLANNER_STREAMING_ENABLED=true)');
+      try {
+        rawText = await withTimeout(
+          runGeminiStreaming({ model, systemPrompt, userMessage, adminDb, planId, language }),
+          GEMINI_TIMEOUT_MS,
+          'legacy-streaming',
+        );
+      } catch (err) {
+        throw mapGeminiError(err, geminiStart);
+      }
+    } else {
+      // 기존 generateContent 흐름 (변경 0)
+      let result;
+      try {
+        result = await withTimeout(
+          model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+            systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+          }),
+          GEMINI_TIMEOUT_MS,
+          'legacy',
+        );
+      } catch (err) {
+        throw mapGeminiError(err, geminiStart);
+      }
+      rawText = result.response.text().trim();
+    }
+
+    console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
     console.log('[ai-planner-full] Gemini raw (first 200):', rawText.substring(0, 200));
     console.log('[ai-planner-full] Gemini raw length:', rawText.length);
 

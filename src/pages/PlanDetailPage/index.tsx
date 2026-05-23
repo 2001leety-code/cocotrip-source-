@@ -175,6 +175,12 @@ export default function PlanDetailPage() {
     }
   }, [plan, t]);
 
+  // P169: streaming 진행 중 여부 (Firestore _streaming_in_progress 필드)
+  const isStreamingInProgress = !loading && plan && (plan as Record<string, unknown>)._streaming_in_progress === true;
+  const streamingProgress = !loading && plan
+    ? (plan as Record<string, unknown>)._streaming_progress as number | undefined
+    : undefined;
+
   // Loading / Error states
   if (loading) {
     const ui = getPlanDetailUI(t);
@@ -286,6 +292,22 @@ export default function PlanDetailPage() {
     <div className={`min-h-screen text-white ${isMobile ? 'bg-[#0a0412]' : 'bg-[#0a0b14]'}`}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className="max-w-3xl mx-auto pt-20 pb-4 px-4">
+        {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}
+        {isStreamingInProgress && (
+          <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#7C5CFC]/30 bg-[#7C5CFC]/10 text-sm text-white/80">
+            <div className="w-4 h-4 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            <span>
+              {language === 'ko'
+                ? `AI가 일정을 만들고 있어요${streamingProgress ? ` (Day ${streamingProgress} 완성 중...)` : '...'}`
+                : language === 'ja'
+                ? `AIが旅程を作成中です${streamingProgress ? ` (Day ${streamingProgress} 作成中...)` : '...'}`
+                : language === 'zh'
+                ? `AI正在创建行程${streamingProgress ? `（正在完成 Day ${streamingProgress}...）` : '...'}`
+                : `AI is building your itinerary${streamingProgress ? ` (Day ${streamingProgress} in progress...)` : '...'}`}
+            </span>
+          </div>
+        )}
+
         {/* Section tabs (2026-05-03 사용자 결정: 탭만으로 네비게이션, dots/swipe 제거) */}
         <SectionTabs slides={slides} current={current} onJump={goToSlide} />
 
