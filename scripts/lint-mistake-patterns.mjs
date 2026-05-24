@@ -1220,6 +1220,33 @@ function P172_flashPctBucketingPropagation({ changed }) {
 // 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
 //    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
 //    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+// ── P180 (2026-05-24) — food stop city 강제 + dbMatcher threshold 강화 ────
+// buildPrompt 의 section 9-bis (다도시 food stop = day.city 일치) 누락 시
+// Gemini wrong-city food 회귀. dbMatcher threshold 30%→20% (P180) 동기.
+function P180_foodCityEnforcement({ changed }) {
+  // (1) buildPrompt section 9-bis 존재
+  const bp = 'api/_ai_core/buildPrompt.js';
+  if (isModified(bp, changed)) {
+    const content = getChangedFileContent(bp);
+    // section 9-bis header + P180 reference 둘 다 매칭
+    if (!/9-bis[^\n]*FOOD STOP city/.test(content)) {
+      return `R-P180a: buildPrompt.js 의 section 9-bis (FOOD STOP city 매칭) 누락 — 다도시 Gemini wrong-city food 출력 → dbMatcher cross-city → verified=false + hallucination address. 사용자 plan 신뢰 손상.`;
+    }
+    if (!/P180/.test(content) || !/day\.city/.test(content)) {
+      return `R-P180a: buildPrompt.js section 9-bis 의 P180 reference 또는 day.city 강제 룰 누락.`;
+    }
+  }
+  // (2) dbMatcher threshold 0.2
+  const dm = 'api/_ai_core/dbMatcher.js';
+  if (isModified(dm, changed)) {
+    const content = getChangedFileContent(dm);
+    if (!/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.2\b/.test(content)) {
+      return `R-P180b: dbMatcher.js CITY_MISMATCH_RATIO_THRESHOLD 가 0.2 아님 (P180 30→20% 강화 회귀) — 일반 user 1/5 mismatch 도 alert 발동해야 신뢰 손상 조기 발견.`;
+    }
+  }
+  return null;
+}
+
 // ── P177 (2026-05-24) — admin-bypass _debug response leak 차단 ────────────
 // handlerCore.js 의 _ok response 에 _debug 객체 (modelMain / plannerMode /
 // abReason 등) 추가 시 admin-bypass 조건부 (gate.isAdminBypass) 필수. 무조건
@@ -1395,6 +1422,7 @@ const RULES = [
   ['P174_validatePlannerSilentFail', P174_validatePlannerSilentFail],
   ['P175_dailyHealthLogPushSilent', P175_dailyHealthLogPushSilent],
   ['P177_adminDebugConditional', P177_adminDebugConditional],
+  ['P180_foodCityEnforcement', P180_foodCityEnforcement],
 ];
 
 /**
@@ -3500,8 +3528,9 @@ function P90_dbmatcherCityGuard({ changed }) {
   if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
     violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H8)`);
   }
-  if (!/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.3/.test(content)) {
-    violations.push(`${FILE}: CITY_MISMATCH_RATIO_THRESHOLD=0.3 누락 → alert 임계 변경`);
+  // P180 (2026-05-24): threshold 0.3 → 0.2 강화. P90 lint rule 도 동기.
+  if (!/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.2\b/.test(content)) {
+    violations.push(`${FILE}: CITY_MISMATCH_RATIO_THRESHOLD=0.2 누락 → alert 임계 변경 (P180 30→20% 강화)`);
   }
   if (!/CITY_MISMATCH_MIN_MATCHES\s*=\s*3/.test(content)) {
     violations.push(`${FILE}: CITY_MISMATCH_MIN_MATCHES=3 누락 → 작은 plan false positive`);
