@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   fetchTourById, fetchDraft, saveDraft, publishDraft,
 } from '@/lib/tours-firestore';
+import { validateProductPublish } from '@/lib/admin-product-publish-validation';
 import type { Tour } from '@/data/tours';
 import { BasicInfoTab } from '@/components/admin/ProductEditor/BasicInfoTab';
 import { MediaTab } from '@/components/admin/ProductEditor/MediaTab';
@@ -46,7 +47,7 @@ export default function AdminProductEditor() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [draft, setDraft] = useState<Partial<Tour>>({});
-  const [tourId, setTourId] = useState<string>(paramId ?? '');
+  const [tourId, setTourId] = useState<string>(paramId || '');
   const [tab, setTab] = useState<TabKey>('basic');
   const [loadingDoc, setLoadingDoc] = useState<boolean>(!!paramId);
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -67,7 +68,7 @@ export default function AdminProductEditor() {
       .then(([d, t]) => {
         if (cancelled) return;
         // draft 가 있으면 그게 우선 (작성 중 상태 보존). 없으면 published 복제.
-        const initial = d ?? t ?? {};
+        const initial = d || t || {};
         setDraft(initial);
         setTourId(paramId);
       })
@@ -159,12 +160,16 @@ export default function AdminProductEditor() {
       setTab('basic');
       return;
     }
-    if (!draft.title?.ko || !draft.summary?.ko || !draft.description?.ko) {
-      toast.error('한국어 제목·요약·설명은 필수입니다.');
-      setTab('basic');
+    // A1-7-3: SSOT publish 검증 (i18n basic / stops>=2 / slots>=1 / photos>=3)
+    const validation = validateProductPublish(draft);
+    if (!validation.ok) {
+      toast.error(validation.message || '발행 전 필수 항목이 부족합니다.');
+      if (validation.suggestedTab) {
+        setTab(validation.suggestedTab);
+      }
       return;
     }
-    if (!window.confirm(`"${draft.title.ko}" 투어를 발행할까요?\n공개되어 사용자에게 노출됩니다.`)) return;
+    if (!window.confirm(`"${draft.title?.ko}" 투어를 발행할까요?\n공개되어 사용자에게 노출됩니다.`)) return;
 
     setPublishing(true);
     try {
@@ -228,7 +233,7 @@ export default function AdminProductEditor() {
             <div className="min-w-0">
               <h1 className="text-base font-bold text-[#1a1a2e] truncate">{title}</h1>
               <p className="text-[10px] text-gray-400">
-                {draft.status ?? 'draft'} · {tourId || 'slug 미입력'}
+                {draft.status || 'draft'} · {tourId || 'slug 미입력'}
               </p>
             </div>
           </div>
