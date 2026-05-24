@@ -203,13 +203,52 @@ jobs:
           retention-days: 90
 
       - name: Commit health log
+        id: commit_log
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # health-log.jsonl만 commit. planner-report.json은 .gitignore에 등록돼
           # 있어 commit 불가 (이미 actions/upload-artifact로 90일 보존 중이라
-          # repo에 둘 필요 없음). 모든 git 명령에 || true 붙여 step 실패 방지.
+          # repo에 둘 필요 없음).
           git add scripts/health-log.jsonl || true
-          git diff --cached --quiet || git commit -m "chore: daily health check $(date -u +%Y-%m-%d)" || true
-          git push || echo "Push failed (likely protected branch or no changes)"
+          if git diff --cached --quiet; then
+            echo "No changes to commit (artifact 보존)"
+            echo "result=no-changes" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "chore: daily health check $(date -u +%Y-%m-%d)" || true
+          # P175 (2026-05-24): silent fail 차단. 기존 `git push || echo` 패턴은
+          # main branch protection (GH006) reject 도 silent → 5/14~5/24 11일간
+          # health-log.jsonl commit 누락 발견 지연. push 실패 시 명시적 output
+          # set + telegram alert step 진입 (continue-on-error 유지 — artifact 는
+          # 90일 보존이라 데이터 손실 없음, 단 monitoring 시스템 silent 차단).
+          if git push 2>&1 | tee push-output.txt; then
+            echo "result=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::health-log.jsonl push failed (likely main branch protection — GH006)"
+            cat push-output.txt
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+            # exit 1 하지 않음 — artifact 보존 + 다음 step (alert) 진입.
+          fi
+        continue-on-error: true
+
+      - name: Telegram alert on health-log push failure (P175)
+        if: always() && steps.commit_log.outputs.result == 'fail'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "ℹ️  TELEGRAM secrets 미설정 — alert skip"
+            exit 0
+          fi
+          MSG="🟠 *health-log.jsonl push 실패*%0A%0AGH006 protected branch reject 가능성.%0Aartifact 는 90일 보존 — 데이터 손실 없음.%0A%0Arun:%0A${WORKFLOW_URL}%0A%0A운영자 액션: branch protection 의 github-actions[bot] 예외 또는 별도 storage 검토."
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MSG}" \
+            -d "parse_mode=Markdown" \
+            -d "disable_web_page_preview=true" \
+            > /dev/null || echo "⚠️  Telegram API call failed (non-fatal)"
+        continue-on-error: true
