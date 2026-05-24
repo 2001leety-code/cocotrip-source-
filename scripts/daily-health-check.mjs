@@ -121,6 +121,13 @@ async function main() {
   const validation = runValidatePlanner();
 
   // Build health record
+  // P174 (2026-05-24): 기존 issues_within_threshold 단독 검사 결함 — validate-planner
+  // 가 5/5 fail (success_count=0) 면 total_issues=0 → `0 <= 9 = true` → silent
+  // "healthy" 판정. 5/12 BRAINTREE_ENV='production' 변경 후 TEST- prefix 403 reject
+  // 인 상황이 12일간 발견 지연 root cause. 추가 검사: success_count > 0 (실제 plan
+  // 생성됐는지) + validation.ok != false (실행 자체 성공).
+  const validationActuallyOk = validation.ok !== false &&
+    (validation.success_count == null || validation.success_count > 0);
   const record = {
     timestamp: new Date().toISOString(),
     base_url: BASE,
@@ -128,6 +135,7 @@ async function main() {
     validation,
     all_pings_ok: pings.every(p => p.ok),
     issues_within_threshold: (validation.total_issues != null ? validation.total_issues : 99) <= 9,
+    validation_actually_ok: validationActuallyOk,
   };
 
   // Append to JSONL log
@@ -140,12 +148,15 @@ async function main() {
   console.log(`  Endpoints: ${pings.filter(p => p.ok).length}/${pings.length} OK`);
   console.log(`  Planner issues: ${validation.total_issues != null ? validation.total_issues : 'N/A'} (threshold: ≤ 9)`);
   console.log(`  Diversity overlap: ${validation.diversity_overlap != null ? validation.diversity_overlap : 'N/A'}%`);
-  console.log(`  Status: ${record.all_pings_ok && record.issues_within_threshold ? '🟢 HEALTHY' : '🔴 DEGRADED'}`);
+  console.log(`  Status: ${record.all_pings_ok && record.issues_within_threshold && record.validation_actually_ok ? '🟢 HEALTHY' : '🔴 DEGRADED'}`);
+  if (!validationActuallyOk) {
+    console.log(`  🔴 validate-planner.cjs 실행 실패 — success_count=${validation.success_count ?? 'n/a'}, ok=${validation.ok}. silent fail 차단.`);
+  }
   console.log(`  Log: ${LOG_PATH}`);
   console.log(`${'═'.repeat(50)}\n`);
 
-  // Exit code
-  if (!record.all_pings_ok || !record.issues_within_threshold) {
+  // Exit code — P174 (2026-05-24): validation_actually_ok 도 검사 (silent fail 차단).
+  if (!record.all_pings_ok || !record.issues_within_threshold || !record.validation_actually_ok) {
     process.exit(1);
   }
 }

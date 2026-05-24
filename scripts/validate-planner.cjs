@@ -1,12 +1,20 @@
 /**
  * CocoTrip — Planner Quality Validation Runner
  * Phase 1: 기준점 측정용
- * 
+ *
  * Usage: node scripts/validate-planner.js [base-url]
  * Default: https://cocotripkr.com
- * 
+ *
  * 5개 시나리오를 순차 실행하여 planner-report.json 생성
  * ⚠️ Gemini API 5회 호출 (비용 발생)
+ *
+ * P174 (2026-05-24): paypalOrderId → ADMIN-BYPASS-VALIDATE-... (admin email 인증
+ * LIVE bypass). 이전 TEST- prefix 는 BRAINTREE_ENV='production' 인 prod 에서 403
+ * reject (audit P1-A) — 5/12~5/24 12일간 자율 검증 silent fail root cause.
+ *
+ * Caveat (P102): ADMIN-BYPASS- → decidePlannerMode 가 'legacy' 강제. 본 검증은
+ * P164/P165/P166/P169/P171 효과 측정 가능. P167/P168/P172 (3pass/block-mode/PCT
+ * bucketing) 는 별도 (실제 결제 또는 staging). docs/AUTOMATION.md 8 절 참조.
  */
 const fs = require('fs');
 const path = require('path');
@@ -177,8 +185,14 @@ async function runAll() {
         departure_airport: s.area === 'jeju' ? 'CJU' : (s.area === 'busan' ? 'PUS' : 'ICN_T1'),
         styles: ['culture', 'food'],
         allergies: [],
-        // TEST- prefix 바이패스 — ai-planner-full.js에서 TEST_ACCOUNTS 확인 후 PayPal 검증 스킵
-        paypalOrderId: `TEST-VALIDATE-${s.id}-${Date.now()}`,
+        // P174 (2026-05-24): ADMIN-BYPASS- prefix — admin email (HEALTH_CHECK_EMAIL,
+        // ADMIN_BYPASS_EMAILS 또는 hardcoded fallback `2001leety@gmail.com`) 인증 시
+        // LIVE 모드 결제 우회 가능. TEST- prefix 는 BRAINTREE_ENV='production' 인 prod
+        // 에서 403 reject (audit P1-A) — 5/12 부터 자율 검증 silent fail 의 root cause.
+        // Caveat (P102): ADMIN-BYPASS- → decidePlannerMode 가 'legacy' 강제. 따라서
+        // 본 검증은 prompt/output (P164/P166) + duration (P165) + streaming (P169) +
+        // admin Flash (P171) 효과 측정 가능 — 3pass/block-mode (P167/P168) 는 별도.
+        paypalOrderId: `ADMIN-BYPASS-VALIDATE-${s.id}-${Date.now()}`,
       };
 
       const resp = await fetch(API_URL, {
