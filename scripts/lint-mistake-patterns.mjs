@@ -1220,6 +1220,31 @@ function P172_flashPctBucketingPropagation({ changed }) {
 // 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
 //    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
 //    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+// ── P183 phase 1 (2026-05-24) — dbMatcher cross-city HARD REJECT ─────────
+// P180 (prompt strict) + P179 (B-MEAL prompt) 후에도 telegram alert 잔존
+// (Gemini 비결정성). 운영자 "오류 좀 잡자 회귀법칙도 해놨는데" 강조 — prompt-only
+// 한계 인정 후 runtime hard reject. cross-city fallback 시 match=null 강제.
+function P183_dbMatcherCrossCityHardReject({ changed }) {
+  const file = 'api/_ai_core/dbMatcher.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  // P183 marker 존재 확인
+  if (!/P183[\s\S]{0,200}HARD REJECT/.test(content)) {
+    return `R-P183: dbMatcher.js P183 phase 1 HARD REJECT 마커 누락 — cross-city fallback 다시 match=fallback 회귀 위험.`;
+  }
+  // cross-city 분기 안에 match=fallback 패턴 직접 회귀 차단
+  // (cityMismatchCount++ 다음 10 라인 안에 match=fallback 없어야)
+  const m = content.match(/cityMismatchCount\+\+[\s\S]{0,500}?(?=\n\s{8}\}|cityMismatchSamples\.push)/);
+  if (m && /match\s*=\s*fallback/.test(m[0])) {
+    return `R-P183: dbMatcher.js cross-city 분기에 match=fallback 회귀 — P180 verified=false 시그널 + Gemini hallucination address 노출 위험. match=null 유지 필수.`;
+  }
+  // 분모 변경 검증 (totalFoodWithCityCheck)
+  if (!/totalFoodWithCityCheck\s*=\s*dbMatched\s*\+\s*cityMismatchCount/.test(content)) {
+    return `R-P183: dbMatcher.js totalFoodWithCityCheck 분모 누락 — P183 후 dbMatched=same-city only 이라 MIN_MATCHES check 회귀 (작은 plan alert silent).`;
+  }
+  return null;
+}
+
 // ── P181 (2026-05-24) — INVALID_JSON zero-tolerance (cap 16K + prompt) ──
 // 측정 시 INVALID_JSON 3건/day 발생 (운영자 zero-tolerance 명시 "오류 1도없이").
 // maxOutputTokens 16K 이상 유지 + buildPrompt OUTPUT SIZE 강화 검증.
@@ -1468,6 +1493,7 @@ const RULES = [
   ['P180_foodCityEnforcement', P180_foodCityEnforcement],
   ['P179_finalSelfCheckSection', P179_finalSelfCheckSection],
   ['P181_invalidJsonZeroTolerance', P181_invalidJsonZeroTolerance],
+  ['P183_dbMatcherCrossCityHardReject', P183_dbMatcherCrossCityHardReject],
 ];
 
 /**
