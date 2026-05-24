@@ -999,5 +999,26 @@ If meal_budget is "Premium":
 
 ### PRICING (2026)
 - Palace: ₩3,000 (free with hanbok), N서울타워: ₩21,000
-- If price uncertain → note "가격 변동 가능" in tip`;
+- If price uncertain → note "가격 변동 가능" in tip
+
+### 🔴 FINAL SELF-CHECK BEFORE RESPONDING (P179, 2026-05-24)
+**돈 받는 plan (\$9.90) — 빠진 식사는 직접 신뢰 손상.** 응답 출력 직전 의무 self-check:
+
+1. **모든 full day (도착일/출국일 외 middle day)** 마다:
+   - [ ] lunch slot (11:00-14:59) 또는 snack slot (15:00-16:59) 중 최소 1건 = \`category="food"\`
+   - [ ] dinner slot (17:00-21:59) 최소 1건 = \`category="food"\`
+   - **둘 중 하나라도 누락 시** → 그 day 의 plan 다시 작성 (no exception)
+
+2. **도착일 (Day 1)** — arrival_time 기준 최소 1식 (breakfast/lunch/snack/dinner 중 하나)
+3. **출국일 (last day)** — departure_time 기준 (B-MEAL, P137 3-tier 표):
+   - < 11:00 출국 → breakfast 의무
+   - 11:00-16:59 → breakfast OR lunch/snack 중 1건
+   - >= 17:00 → breakfast + lunch/snack 둘 다 의무
+
+**BAD (P179 측정 발견, 2026-05-24 telegram alert)**:
+- Day 2 저녁 누락 (17-21시 food stop 0건) — 사용자가 호텔 도착 후 굶음
+- Day 3 점심 누락 (11-16시 food stop 0건) — 사용자 점심 시간 빈 slot
+- 위 case = backend validator B-MEAL-LUNCH/DINNER 즉시 reject + retry → latency +60s + 일반 user throw 500
+
+**GOOD**: 모든 full day = MINIMUM 2 food stops (1 lunch/snack + 1 dinner). 자기 검증 후 빠진 day 발견 시 그 day stops 다시 작성하고 출력.`;
 }
