@@ -119,9 +119,9 @@ function HomePage() {
     );
   }
 
-  // 데스크톱: 기존 디자인 유지
+  // 데스크톱: 모바일과 통일된 다크 gradient (D1: 통일성)
   return (
-    <div className="min-h-screen bg-[#faf9f6]">
+    <div className="min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]">
       <Header
         language={language}
         t={t}

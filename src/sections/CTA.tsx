@@ -10,12 +10,12 @@ export function CTA({ t }: CTAProps) {
   const isMobile = useIsMobile();
 
   return (
-    <section id="cta" className="py-20 lg:py-32 bg-[#faf9f6] relative overflow-hidden">
+    <section id="cta" className="py-20 lg:py-32 relative overflow-hidden">
       {/* Decorative Elements */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#c0b283]/5 rounded-full blur-3xl" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#B668FC]/10 rounded-full blur-3xl" />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-        <h2 className="text-3xl sm:text-4xl font-bold text-[#1a1a2e] mb-8 whitespace-pre-line leading-tight">
+        <h2 className="text-3xl sm:text-4xl font-bold text-white mb-8 whitespace-pre-line leading-tight">
           {t.cta.title}
         </h2>
         
@@ -32,8 +32,8 @@ export function CTA({ t }: CTAProps) {
         {/* Show QR code only on desktop */}
         {!isMobile && (
           <div className="mt-12 inline-block">
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <p className="text-sm text-gray-500 mb-4">{t.cta.scanWhatsApp}</p>
+            <div className="bg-white/[0.04] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 shadow-lg">
+              <p className="text-sm text-white/60 mb-4">{t.cta.scanWhatsApp}</p>
               <img
                 src="/whatsapp-qr.jpg"
                 alt="WhatsApp QR Code"

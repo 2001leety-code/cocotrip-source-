@@ -68,7 +68,7 @@ export function Footer({ t }: FooterProps) {
 
   /* ═══ DESKTOP FOOTER (unchanged) ═══ */
   return (
-    <footer className="bg-[#1a1a2e] text-white pb-16 md:pb-0">
+    <footer className="bg-black/30 backdrop-blur-md text-white pb-16 md:pb-0 border-t border-white/[0.08]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         
         {/* Top Link Bar */}
@@ -89,16 +89,16 @@ export function Footer({ t }: FooterProps) {
           {/* Company Info */}
           <div className="md:col-span-2 lg:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 rounded-full bg-[#c0b283] flex items-center justify-center">
-                <span className="text-[#0f3460] font-bold text-sm">COCO</span>
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#B668FC] to-[#FF6B9D] flex items-center justify-center">
+                <span className="text-white font-bold text-sm">COCO</span>
               </div>
               <div>
                 <span className="font-bold text-lg">COCOTRIP</span>
-                <span className="text-[#c0b283] text-xs block">{t.footer.tagline}</span>
+                <span className="text-[#FF6B9D] text-xs block">{t.footer.tagline}</span>
               </div>
             </div>
             
-            <div className="space-y-3 text-gray-400 text-sm">
+            <div className="space-y-3 text-white/60 text-sm">
               <p>{t.footer.ceo}</p>
               <p className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -115,17 +115,17 @@ export function Footer({ t }: FooterProps) {
 
           {/* Customer Service */}
           <div className="border-t border-white/10 pt-8 md:pt-0 md:border-t-0">
-            <h3 className="text-lg font-bold mb-6 text-[#c0b283]">{t.footer.cs}</h3>
+            <h3 className="text-lg font-bold mb-6 text-[#FF6B9D]">{t.footer.cs}</h3>
             <div className="space-y-4">
               <a
                 href="tel:+821087140611"
-                className="flex items-center gap-3 text-2xl font-bold text-white hover:text-[#c0b283] transition-colors"
+                className="flex items-center gap-3 text-2xl font-bold text-white hover:text-[#FF6B9D] transition-colors"
               >
                 <Phone className="w-6 h-6" />
                 {t.footer.phone}
               </a>
-              <p className="text-gray-400 text-sm">{t.footer.hours}</p>
-              <div className="flex items-center gap-2 text-gray-400 text-sm">
+              <p className="text-white/60 text-sm">{t.footer.hours}</p>
+              <div className="flex items-center gap-2 text-white/60 text-sm">
                 <CreditCard className="w-4 h-4" />
                 <span>{t.footer.payment}</span>
               </div>
@@ -134,18 +134,18 @@ export function Footer({ t }: FooterProps) {
 
           {/* Quick Links */}
           <div className="border-t border-white/10 pt-8 md:pt-0 md:border-t-0">
-            <h3 className="text-lg font-bold mb-6 text-[#c0b283]">{t.footer.quickLinks}</h3>
+            <h3 className="text-lg font-bold mb-6 text-[#FF6B9D]">{t.footer.quickLinks}</h3>
             <nav className="space-y-3">
-              <a href="#services" className="block text-gray-400 hover:text-white transition-colors">{t.nav.privateTour}</a>
-              <a href="#services" className="block text-gray-400 hover:text-white transition-colors">{t.nav.groupTour}</a>
-              <a href="#regions" className="block text-gray-400 hover:text-white transition-colors">{t.nav.packages}</a>
+              <a href="#services" className="block text-white/60 hover:text-white transition-colors">{t.nav.privateTour}</a>
+              <a href="#services" className="block text-white/60 hover:text-white transition-colors">{t.nav.groupTour}</a>
+              <a href="#regions" className="block text-white/60 hover:text-white transition-colors">{t.nav.packages}</a>
             </nav>
           </div>
         </div>
 
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-white/10 flex flex-col-reverse sm:flex-row items-center justify-between gap-6 sm:gap-4">
-          <p className="text-gray-500 text-center sm:text-left text-sm">{t.footer.copyright}</p>
+          <p className="text-white/40 text-center sm:text-left text-sm">{t.footer.copyright}</p>
           <div className="flex items-center gap-4">
             <a
               href="https://wa.me/821087140611"
