@@ -251,7 +251,10 @@ const PLAN_RESPONSE_SCHEMA = {
     },
     arrival_guide: { type: 'OBJECT' },
     departure_guide: { type: 'OBJECT' },
-    daily_budget_summary: { type: 'ARRAY' },
+    // P184 (2026-05-25): Gemini 3.5 Flash strict schema 는 ARRAY 에 items 필수.
+    // 누락 시 GenerateContentRequest 400 "missing field items" → admin-bypass 전부 500.
+    // Pro (2.5) 는 lenient → 누락해도 통과, Flash (3.5) 는 strict → reject.
+    daily_budget_summary: { type: 'ARRAY', items: { type: 'OBJECT' } },
     t_money_recommended_load: { type: 'NUMBER' },
   },
 };

@@ -71,4 +71,36 @@ describe('P183 phase 2 — Gemini responseSchema', () => {
     }
     checkTypes(PLAN_RESPONSE_SCHEMA);
   });
+
+  it('P185 — 모든 ARRAY 노드에 items 필수 (Gemini 3.5 Flash strict schema)', () => {
+    // 회귀: daily_budget_summary 가 { type: 'ARRAY' } 단독 → admin-bypass (Flash) 500.
+    // Pro (2.5) 는 lenient 통과지만 Flash (3.5) 는 strict reject.
+    // GenerateContentRequest.generation_config.response_schema.properties[X].items: missing field
+    const violations: string[] = [];
+    function walk(node: any, path = 'root') {
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'ARRAY' && !node.items) {
+        violations.push(path);
+      }
+      if (node.properties) {
+        for (const [k, v] of Object.entries(node.properties)) {
+          walk(v, `${path}.${k}`);
+        }
+      }
+      if (node.items) walk(node.items, `${path}[]`);
+    }
+    walk(PLAN_RESPONSE_SCHEMA);
+    expect(violations, `ARRAY without items: ${violations.join(', ')}`).toEqual([]);
+  });
+
+  it('P185 — daily_budget_summary 가 ARRAY of OBJECT 명시', () => {
+    // 사용처 확인: planPersister.js selfHealDailyBudget 가 day.daily_budget_summary 를
+    // OBJECT 로 채움 (food/attraction/transport/misc/total). 단, 본 schema 는
+    // top-level itinerary.daily_budget_summary = ARRAY (per-day budgets) — prompt
+    // buildPrompt.js:338 예시 "daily_budget_summary": [ { day, transport_krw, ... } ].
+    const node = PLAN_RESPONSE_SCHEMA.properties.daily_budget_summary;
+    expect(node.type).toBe('ARRAY');
+    expect(node.items).toBeDefined();
+    expect(node.items.type).toBe('OBJECT');
+  });
 });

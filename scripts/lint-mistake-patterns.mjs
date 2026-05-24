@@ -1303,6 +1303,45 @@ function P183Phase2_geminiResponseSchema({ changed }) {
   return null;
 }
 
+// ── P185 (2026-05-25) — responseSchema ARRAY 노드 items 필수 ─────────────
+// 회귀: PR 이 PLAN_RESPONSE_SCHEMA 에 새 ARRAY field 추가하면서 items 누락 →
+// Gemini 3.5 Flash strict schema 가 400 reject (admin-bypass 500).
+// Pro 2.5 는 lenient 통과 → CI 에서 안 보이고 admin-bypass 운영 시점만 발견.
+// 실 사고: daily_budget_summary: { type: 'ARRAY' } (items 없음) → admin-bypass HTTP 500.
+// "GenerateContentRequest.generation_config.response_schema.properties[X].items: missing field"
+function P185_responseSchemaArrayItems({ changed }) {
+  const file = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  if (!content) return null;
+
+  // PLAN_RESPONSE_SCHEMA = { ... } 블록 추출
+  const schemaMatch = content.match(/const\s+PLAN_RESPONSE_SCHEMA\s*=\s*(\{[\s\S]*?\n\};)/);
+  if (!schemaMatch) return null; // schema 누락 자체는 R-P183-phase2 가 catch
+
+  const schemaBlock = schemaMatch[1];
+  // type: 'ARRAY' 발견 위치마다, 같은 줄 또는 뒤따르는 객체 본문에 items 가 있는지 확인.
+  // 단순화: 'ARRAY' 한 줄과 직후 5줄 내에 'items' 가 있어야 함.
+  const lines = schemaBlock.split('\n');
+  const violations = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/type:\s*['"]ARRAY['"]/.test(line)) continue;
+    // 같은 줄에 items 가 있으면 OK (한 줄 inline 표기)
+    if (/items\s*:/.test(line)) continue;
+    // 뒤 5줄 안에 items 가 있어야 함 (multi-line 표기)
+    const window = lines.slice(i + 1, i + 6).join('\n');
+    if (!/items\s*:/.test(window)) {
+      const snippet = line.trim().slice(0, 80);
+      violations.push(`L~${i + 1}: ${snippet}`);
+    }
+  }
+  if (violations.length > 0) {
+    return `R-P185: PLAN_RESPONSE_SCHEMA 에 items 누락 ARRAY 노드 ${violations.length}건 — Gemini 3.5 Flash strict schema 400 reject → admin-bypass 500. 모든 ARRAY 에 items: { type: 'OBJECT' } 또는 적절한 sub-schema 명시 필수. 위치: ${violations.join(' | ')}`;
+  }
+  return null;
+}
+
 // ── P183 phase 1 (2026-05-24) — dbMatcher cross-city HARD REJECT ─────────
 // P180 (prompt strict) + P179 (B-MEAL prompt) 후에도 telegram alert 잔존
 // (Gemini 비결정성). 운영자 "오류 좀 잡자 회귀법칙도 해놨는데" 강조 — prompt-only
@@ -1643,6 +1682,7 @@ const RULES = [
   ['P183_dbMatcherCrossCityHardReject', P183_dbMatcherCrossCityHardReject],
   ['P184_odsayTransitCache', P184_odsayTransitCache],
   ['P183Phase2_geminiResponseSchema', P183Phase2_geminiResponseSchema],
+  ['P185_responseSchemaArrayItems', P185_responseSchemaArrayItems],
 ];
 
 /**
