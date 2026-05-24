@@ -76,13 +76,14 @@ export const BLOCK_TYPE_META_REQUIREMENTS: Record<
       { key: 'surface_type',         label: '노면 종류' },
       { key: 'elevation_gain_m',     label: '누적 고도 (m)' },
       { key: 'loop_or_out_and_back', label: '코스 형태' },
+      { key: 'recommended_time',    label: '권장 시간대' },
       { key: 'lighting_quality',     label: '야간 조명 품질' },
       { key: 'difficulty',           label: '난이도' },
     ],
     safetyLabel: '러닝',
     safetyReason:
-      '러닝 코스는 거리·노면·조명·난이도 안내 없이 발행 시 AI 플래너가\n' +
-      '초보 사용자에게 고난도/야간 어두운 코스를 추천하여 안전 사고 위험.',
+      '러닝 코스는 거리·노면·권장 시간대·조명·난이도 안내 없이 발행 시 AI 플래너가\n' +
+      '초보 사용자에게 야간 어두운 코스·새벽 시간대를 추천하여 안전 사고 위험.',
   },
 };
 
