@@ -1220,6 +1220,22 @@ function P172_flashPctBucketingPropagation({ changed }) {
 // 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
 //    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
 //    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+// ── P179 (2026-05-24) — buildPrompt FINAL SELF-CHECK section ─────────────
+// telegram alert 10:42 (Day 2/3 저녁 누락) + 11:26 (Day 3 점심 누락) 발견 →
+// Gemini 비결정성으로 기존 strict 룰 만으로 부족. final reminder section 강제.
+function P179_finalSelfCheckSection({ changed }) {
+  const file = 'api/_ai_core/buildPrompt.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  if (!/FINAL SELF-CHECK BEFORE RESPONDING/.test(content)) {
+    return `R-P179: buildPrompt.js FINAL SELF-CHECK 섹션 누락 — Gemini 가 lunch/dinner 누락 self-check 안 함. telegram alert 10:42/11:26 회귀.`;
+  }
+  if (!/MINIMUM\s*2\s*food stops/i.test(content)) {
+    return `R-P179: buildPrompt.js FINAL SELF-CHECK 의 "MINIMUM 2 food stops per full day" 명시 누락 — Gemini 강제 룰 약화.`;
+  }
+  return null;
+}
+
 // ── P180 (2026-05-24) — food stop city 강제 + dbMatcher threshold 강화 ────
 // buildPrompt 의 section 9-bis (다도시 food stop = day.city 일치) 누락 시
 // Gemini wrong-city food 회귀. dbMatcher threshold 30%→20% (P180) 동기.
@@ -1423,6 +1439,7 @@ const RULES = [
   ['P175_dailyHealthLogPushSilent', P175_dailyHealthLogPushSilent],
   ['P177_adminDebugConditional', P177_adminDebugConditional],
   ['P180_foodCityEnforcement', P180_foodCityEnforcement],
+  ['P179_finalSelfCheckSection', P179_finalSelfCheckSection],
 ];
 
 /**
