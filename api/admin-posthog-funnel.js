@@ -14,13 +14,17 @@
  *
  * ENV:
  *   POSTHOG_PERSONAL_API_KEY  — PostHog 개인 API 키 (Settings → Personal API Keys)
+ *                                ※ project_api_key (이벤트 ingest 용) 와 다름.
  *   POSTHOG_PROJECT_ID        — PostHog 프로젝트 ID (URL에서 확인)
- *   POSTHOG_HOST              — 기본 https://us.i.posthog.com
+ *   POSTHOG_HOST              — 기본 https://us.posthog.com
+ *                                ※ A1-2 (2026-05-24): ingestion us.i.posthog.com 가
+ *                                  query API 403 거부. private query host 는 us.posthog.com.
  *
  * PostHog 미설정 시 503 응답 — ConversionFunnel.tsx가 Firestore-only로 폴백.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+import { resolvePosthogQueryHost, formatPosthogError } from './_shared/posthog-host.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -36,7 +40,7 @@ function json(req, res, status, body) {
   return res.end(JSON.stringify(body));
 }
 
-const HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
+const HOST = resolvePosthogQueryHost(process.env.POSTHOG_HOST);
 
 const FUNNEL_STEPS = [
   { id: 'pageview', label: '플래너 페이지 진입', event: '$pageview', filter: { properties: [{ key: '$pathname', value: '/planner', operator: 'icontains' }] } },
@@ -82,8 +86,8 @@ export default async function handler(req, res) {
           body: JSON.stringify(body),
         });
         if (!r.ok) {
-          const text = await r.text();
-          throw new Error(`PostHog ${step.id} ${r.status}: ${text.slice(0, 200)}`);
+          const text = await r.text().catch(() => '');
+          throw new Error(formatPosthogError(`funnel:${step.id}`, r.status, text));
         }
         const data = await r.json();
         // result[0].count = 합계
