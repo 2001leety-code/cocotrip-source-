@@ -17,15 +17,25 @@
  * 보안: verifyAdminToken (admin email 매칭) 필수.
  *
  * Env:
- *   POSTHOG_PERSONAL_API_KEY  — PostHog Personal API Key
- *   POSTHOG_PROJECT_ID         — PostHog Project ID
- *   POSTHOG_HOST               — 기본 https://us.i.posthog.com
+ *   POSTHOG_PERSONAL_API_KEY  — PostHog Personal API Key (Settings → Personal API Keys)
+ *                                ※ project_api_key (이벤트 ingest 용) 와 다름. query API
+ *                                  는 personal key 만 통과.
+ *   POSTHOG_PROJECT_ID         — PostHog Project ID (Settings → Project URL 의 숫자)
+ *   POSTHOG_HOST               — 기본 https://us.posthog.com
+ *                                ※ US Cloud query/private endpoint host. ingestion 용
+ *                                  us.i.posthog.com 과 다름. EU 는 eu.posthog.com.
+ *                                  잘못 설정 시 query API 403/4xx (A1-2 root cause).
  *   ADMIN_EMAIL                — 운영자 본인 이메일 (필터 제외 대상)
  *
  * 미설정 시 503 — UI 가 "PostHog 미연결" 로 fallback.
+ *
+ * A1-2 (2026-05-24): 이전 default `https://us.i.posthog.com` (ingestion host) 는 query
+ *   API 거부 → 403. PostHog docs: "US Cloud, public endpoints us.i.posthog.com /
+ *   private endpoints us.posthog.com." Insight/Trend 는 private endpoint.
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+import { resolvePosthogQueryHost, formatPosthogError } from './_shared/posthog-host.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -33,7 +43,9 @@ export const config = { runtime: 'nodejs' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (msg, code = 'UNKNOWN_ERROR') => ({ ok: false, error: msg, code });
 const CORS_METHODS = 'GET, OPTIONS';
-const HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
+
+// A1-2: query API host. ingestion host (us.i.posthog.com) 와 분리.
+const HOST = resolvePosthogQueryHost(process.env.POSTHOG_HOST);
 
 function json(req, res, status, body) {
   res.writeHead(status, buildAdminJsonCors(req, { methods: CORS_METHODS }));
@@ -67,7 +79,10 @@ async function posthogTrend({ apiKey, projectId, dateFrom, dateTo, excludeEmail 
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(10000),
   });
-  if (!r.ok) throw new Error(`PostHog trend ${r.status}`);
+  if (!r.ok) {
+    const detail = await r.text().catch(() => '');
+    throw new Error(formatPosthogError('trend', r.status, detail));
+  }
   const data = await r.json();
   const series = data?.result?.[0]?.data || [];
   const total = series.reduce((s, n) => s + (Number(n) || 0), 0);
@@ -94,7 +109,10 @@ async function posthogTopPages({ apiKey, projectId, dateFrom, excludeEmail }) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(10000),
   });
-  if (!r.ok) throw new Error(`PostHog breakdown ${r.status}`);
+  if (!r.ok) {
+    const detail = await r.text().catch(() => '');
+    throw new Error(formatPosthogError('breakdown', r.status, detail));
+  }
   const data = await r.json();
   const results = data?.result || [];
   return results
