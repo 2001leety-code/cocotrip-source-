@@ -42,6 +42,7 @@ import { enforcePaymentAndRevision } from './paymentGate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
 import { decidePlannerMode, pickIdentifier } from './plannerMode.js';
+import { buildAdminDebug } from './debugInfo.js';
 import { tryRunBlockMode } from './blockMode.js';
 import {
   triggerPass3BackgroundIfPending,
@@ -404,20 +405,13 @@ export default async function handler(req, res) {
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
     // 비스트리밍 모드 (기존 흐름) 에서만 여기서 response 전송.
     if (!streamingResponseSent) {
+      // P177: admin-bypass 한정 _debug 노출 (debugInfo.js#buildAdminDebug — 일반 user undefined).
+      const debug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming });
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify(_ok({
-        planId,
-        planUrl,
-        firestoreSaved: true,
-        emailSent: !!email,
-        itinerary,
-        pricing: {
-          vehicle,
-          vehicleLabel: VEHICLE_LABELS[vehicle] || VEHICLE_LABELS.staria_8,
-          priceKRW,
-          priceUSD,
-          currency: 'KRW',
-        },
+        planId, planUrl, firestoreSaved: true, emailSent: !!email, itinerary,
+        pricing: { vehicle, vehicleLabel: VEHICLE_LABELS[vehicle] || VEHICLE_LABELS.staria_8, priceKRW, priceUSD, currency: 'KRW' },
+        ...(debug ? { _debug: debug } : {}),
       })));
     } else {
       // P169: streaming 모드 — background pipeline 완료. Firestore 는 persistPlan 이 update 완료.

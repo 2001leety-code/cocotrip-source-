@@ -1220,6 +1220,32 @@ function P172_flashPctBucketingPropagation({ changed }) {
 // 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
 //    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
 //    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+// ── P177 (2026-05-24) — admin-bypass _debug response leak 차단 ────────────
+// handlerCore.js 의 _ok response 에 _debug 객체 (modelMain / plannerMode /
+// abReason 등) 추가 시 admin-bypass 조건부 (gate.isAdminBypass) 필수. 무조건
+// 노출 시 일반 user 가 Pro vs Flash A/B 정보 알게 됨 (security/UX leak).
+// 본 검사: handlerCore.js + debugInfo.js (buildAdminDebug 추출본) 양쪽 audit.
+function P177_adminDebugConditional({ changed }) {
+  // (1) handlerCore.js — _debug spread 시 buildAdminDebug 호출 결과 사용
+  const hc = 'api/_ai_core/handlerCore.js';
+  if (isModified(hc, changed)) {
+    const content = getChangedFileContent(hc);
+    if (/_debug\s*:/.test(content) && !/buildAdminDebug/.test(content)) {
+      return `R-P177a: handlerCore.js _debug response 가 buildAdminDebug 헬퍼 미사용 — 직접 객체 작성 시 조건부 누락 위험 (Pro vs Flash A/B leak). debugInfo.js#buildAdminDebug 사용 필수.`;
+    }
+  }
+  // (2) debugInfo.js — gate.isAdminBypass false 시 undefined 반환 강제
+  const di = 'api/_ai_core/debugInfo.js';
+  if (isModified(di, changed)) {
+    const content = getChangedFileContent(di);
+    if (/export\s+function\s+buildAdminDebug/.test(content) &&
+        !/if\s*\(\s*!gate[^)]*isAdminBypass\s*\)\s*return\s+undefined/.test(content)) {
+      return `R-P177b: debugInfo.js buildAdminDebug 가 !gate.isAdminBypass 시 undefined 반환 없음 — 일반 user 도 _debug 정보 노출 (security leak).`;
+    }
+  }
+  return null;
+}
+
 // ── P175 (2026-05-24) — daily-health workflow log push silent fail ─────────
 // .github/workflows/daily-health.yml 의 `git push || echo "Push failed"` 패턴은
 // protected branch reject (GH006) 도 silent → 5/14~5/24 11일간 health-log.jsonl
@@ -1368,6 +1394,7 @@ const RULES = [
   ['P172_flashPctBucketingPropagation', P172_flashPctBucketingPropagation],
   ['P174_validatePlannerSilentFail', P174_validatePlannerSilentFail],
   ['P175_dailyHealthLogPushSilent', P175_dailyHealthLogPushSilent],
+  ['P177_adminDebugConditional', P177_adminDebugConditional],
 ];
 
 /**
