@@ -144,9 +144,9 @@ const CONTENT = {
 const PageSection = ({ title, children, isMobile }: { title: string; children: ReactNode; isMobile?: boolean }) => (
   <section className="mb-8">
     <h2 className={`text-xl font-semibold pb-2 mb-4 border-b-2 ${
-      isMobile ? 'text-white border-[#B668FC]/30' : 'text-[#1a1a2e] border-[#c0b283]'
+      isMobile ? 'text-white border-[#B668FC]/30' : 'text-white border-[#FF6B9D]/40'
     }`}>{title}</h2>
-    <div className={`space-y-4 text-sm leading-relaxed ${isMobile ? 'text-white/50' : 'text-gray-700'}`}>{children}</div>
+    <div className={`space-y-4 text-sm leading-relaxed ${isMobile ? 'text-white/50' : 'text-white/70'}`}>{children}</div>
   </section>
 );
 
@@ -161,16 +161,16 @@ export default function TravelTerms() {
   });
 
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen bg-[#faf9f6]'}>
+    <div className={isMobile ? 'm-page' : 'min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]'}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className={`container mx-auto px-4 ${isMobile ? 'pt-6 pb-4' : 'py-16 sm:py-24'}`}>
-        <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white p-8 sm:p-12 rounded-lg shadow-lg'}>
-          <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-[#1a1a2e] text-3xl sm:text-4xl sm:mb-12'}`}>{content.pageTitle}</h1>
+        <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white/[0.04] backdrop-blur-md border border-white/[0.08] p-8 sm:p-12 rounded-lg shadow-lg'}>
+          <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-white text-3xl sm:text-4xl sm:mb-12'}`}>{content.pageTitle}</h1>
           
           {content.articles.map((article, idx) => (
             <PageSection key={idx} title={article.title} isMobile={isMobile}>
               {article.body.split('\n\n').map((paragraph, pIdx) => (
-                <p key={pIdx} className={paragraph.startsWith('•') ? `pl-4 text-xs ${isMobile ? 'text-white/55' : 'text-gray-600'}` : undefined}>
+                <p key={pIdx} className={paragraph.startsWith('•') ? `pl-4 text-xs ${isMobile ? 'text-white/55' : 'text-white/60'}` : undefined}>
                   {paragraph}
                 </p>
               ))}
