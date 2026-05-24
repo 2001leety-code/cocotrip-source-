@@ -971,6 +971,47 @@ function P47_paypalWebhookRawBody({ changed }) {
 }
 
 /**
+ * R_A1_7_2_runningRouteValidator — A1-7-2 follow-up (2026-05-24).
+ *
+ * AdminZoneCourseEditor.tsx 가 handlePublish 에서 zone-course-publish-validation.ts
+ * 의 validateZoneCoursePublish 를 import/호출하지 않으면 running_route 코스의
+ * recommended_time 누락 상태로 publish 가능 → AI 플래너가 야간 어두운 코스를
+ * 새벽/야간 초보자에게 추천 → SAFETY 사고 위험.
+ *
+ * 룰:
+ *   1. AdminZoneCourseEditor.tsx 변경 시 zone-course-publish-validation import 존재 확인.
+ *   2. validateZoneCoursePublish 호출 확인.
+ *
+ * 트리거: src/pages/AdminZoneCourseEditor.tsx 변경 시.
+ */
+function R_A1_7_2_runningRouteValidator({ changed }) {
+  const FILE = 'src/pages/AdminZoneCourseEditor.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  if (!content.includes('zone-course-publish-validation')) {
+    fail(
+      'R_A1_7_2_runningRouteValidator',
+      `${FILE}: zone-course-publish-validation import 누락 — running_route recommended_time 검증 없이 publish 가능 (A1-7-2 follow-up SAFETY 회귀).`,
+      '해결: import { validateZoneCoursePublish } from \'../lib/zone-course-publish-validation\'; 추가 후 handlePublish 에서 호출.',
+    );
+    return null;
+  }
+
+  if (!content.includes('validateZoneCoursePublish')) {
+    fail(
+      'R_A1_7_2_runningRouteValidator',
+      `${FILE}: validateZoneCoursePublish 호출 누락 — import 만 있고 실제 publish 검증 안 됨 (A1-7-2 follow-up SAFETY 회귀).`,
+      '해결: handlePublish 내 validateZoneCoursePublish(draft) 호출 추가.',
+    );
+    return null;
+  }
+
+  return null;
+}
+
+/**
  * Z01_blockTypeMetaConsistency — PR-A zone_courses schema 확장 회귀 차단 (2026-05-21).
  *
  * src/data/zone_courses/*.json 파일이 변경됐을 때 다음을 검증:
@@ -1422,6 +1463,7 @@ function P174_validatePlannerSilentFail({ changed }) {
 }
 
 const RULES = [
+  ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
