@@ -1220,6 +1220,21 @@ function P172_flashPctBucketingPropagation({ changed }) {
 // 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
 //    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
 //    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+// ── P175 (2026-05-24) — daily-health workflow log push silent fail ─────────
+// .github/workflows/daily-health.yml 의 `git push || echo "Push failed"` 패턴은
+// protected branch reject (GH006) 도 silent → 5/14~5/24 11일간 health-log.jsonl
+// commit 누락 발견 지연. 명시적 step output + alert step 필수.
+function P175_dailyHealthLogPushSilent({ changed }) {
+  const file = '.github/workflows/daily-health.yml';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  // silent push 패턴 차단: `git push || echo ...` 또는 `git push || true`
+  if (/git\s+push\s*\|\|\s*(echo|true)/.test(content)) {
+    return `R-P175: .github/workflows/daily-health.yml git push 가 silent fail (|| echo / || true) — protected branch reject (GH006) 5/14~5/24 11일 미발견 root cause. 명시적 'if git push ... else ... output set + alert step' 패턴 사용.`;
+  }
+  return null;
+}
+
 function P174_validatePlannerSilentFail({ changed }) {
   // (1) validate-planner.cjs
   const vp = 'scripts/validate-planner.cjs';
@@ -1352,6 +1367,7 @@ const RULES = [
   ['P171_adminBypassPropagation', P171_adminBypassPropagation],
   ['P172_flashPctBucketingPropagation', P172_flashPctBucketingPropagation],
   ['P174_validatePlannerSilentFail', P174_validatePlannerSilentFail],
+  ['P175_dailyHealthLogPushSilent', P175_dailyHealthLogPushSilent],
 ];
 
 /**
