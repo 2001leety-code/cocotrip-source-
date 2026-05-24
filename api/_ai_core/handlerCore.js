@@ -397,7 +397,8 @@ export default async function handler(req, res) {
     // 3pass mode 에서 background enrich fire-and-forget 실행.
     // response 는 즉시 반환 → tip 은 Firestore onSnapshot 으로 자동 화면 갱신.
     // P170/P171/P172: backgroundPipelines.js#triggerPass3BackgroundIfPending 추출 + admin/PCT propagate.
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing });
+    // P173 (2026-05-24 hotfix): shorthand `isAdminBypass` 는 scope 에 없음 (231/337 줄 패턴 = gate.isAdminBypass) — explicit assignment 필수.
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
