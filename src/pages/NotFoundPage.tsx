@@ -122,7 +122,7 @@ export default function NotFoundPage() {
         >
           {copy.title}
         </h1>
-        <p style={{ fontSize: '1rem', color: '#475569', maxWidth: '32rem', margin: 0 }}>
+        <p style={{ fontSize: '1rem', color: '#7c8a9e', maxWidth: '32rem', margin: 0 }}>
           {copy.subtitle}
         </p>
         <nav

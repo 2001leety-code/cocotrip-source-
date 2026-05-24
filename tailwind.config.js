@@ -4,6 +4,12 @@ module.exports = {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        // D2: display font for hero / page titles. Body keeps Pretendard/Inter chain (src/index.css L170+).
+        // Georgia = system serif on Win/Mac/iOS/Android — zero external dep + luxury look.
+        // Upgrade path: swap to ["Instrument Serif", ...Georgia chain] once Google Fonts permission added.
+        display: ['Georgia', '"Times New Roman"', '"Noto Serif KR"', 'serif'],
+      },
       colors: {
         // CocoTrip brand tokens (DESIGN.md SSOT)
         // CSS vars: src/index.css :root brand vars block

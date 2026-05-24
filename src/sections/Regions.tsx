@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ArrowRight } from 'lucide-react';
 import type { Translations } from '@/i18n';
+import { MotionSection } from '@/components/MotionSection';
 
 interface RegionsProps {
   t: Translations;
@@ -30,17 +31,17 @@ export function Regions({ t }: RegionsProps) {
   };
 
   return (
-    <section id="regions" className="py-20 lg:py-32 bg-white">
+    <MotionSection id="regions" className="py-20 lg:py-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1a1a2e] mb-4">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             {t.regions.title}
           </h2>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          <p className="text-white/60 text-lg max-w-2xl mx-auto">
             {t.regions.subtitle}
           </p>
-          <div className="w-20 h-1 bg-[#c0b283] mx-auto rounded-full mt-6" />
+          <div className="w-20 h-1 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] mx-auto rounded-full mt-6" />
         </div>
 
         {/* Regions Grid */}
@@ -69,14 +70,14 @@ export function Regions({ t }: RegionsProps) {
                 </div>
 
                 {/* Overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-t from-[#0f3460] via-[#0f3460]/40 to-transparent transition-opacity duration-300 ${
+                <div className={`absolute inset-0 bg-gradient-to-t from-[#0a0412] via-[#B668FC]/40 to-transparent transition-opacity duration-300 ${
                   isActive ? 'opacity-90' : 'opacity-60'
                 }`} />
 
                 {/* Content */}
                 <div className="absolute inset-0 flex flex-col justify-end p-4 lg:p-6">
                   <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="w-4 h-4 text-[#c0b283]" />
+                    <MapPin className="w-4 h-4 text-[#FF6B9D]" />
                     <span className="text-white/80 text-xs uppercase tracking-wider">
                       Korea
                     </span>
@@ -89,7 +90,7 @@ export function Regions({ t }: RegionsProps) {
                   <div className={`overflow-hidden transition-all duration-300 ${
                     isActive ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
                   }`}>
-                    <button className="flex items-center gap-2 text-[#c0b283] text-sm font-medium mt-2">
+                    <button className="flex items-center gap-2 text-[#FF6B9D] text-sm font-medium mt-2">
                       <span>{(t.regions as Record<string, string>)[region.id]} {t.regions.viewTours}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
@@ -105,12 +106,12 @@ export function Regions({ t }: RegionsProps) {
 
         {/* View All Button */}
         <div className="text-center mt-12">
-          <button className="inline-flex items-center gap-2 px-8 py-4 bg-[#0f3460] text-white rounded-full font-medium hover:bg-[#0f3460]/90 transition-colors duration-300">
+          <button className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-medium hover:from-[#FF6B9D] hover:to-[#B668FC] transition-colors duration-300">
             <span>{t.regions.viewAll}</span>
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

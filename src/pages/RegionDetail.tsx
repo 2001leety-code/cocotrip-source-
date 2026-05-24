@@ -92,12 +92,12 @@ export function RegionDetail() {
 
   if (!regionData) {
     return (
-      <div className={isMobile ? 'm-page flex items-center justify-center' : 'min-h-screen bg-[#faf9f6] flex items-center justify-center'}>
+      <div className={isMobile ? 'm-page flex items-center justify-center' : 'min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210] flex items-center justify-center'}>
         <div className="text-center">
-          <h1 className={`text-2xl font-bold mb-4 ${isMobile ? 'text-white' : 'text-[#1a1a2e]'}`}>{t.regionDetail?.notFound || 'Region not found'}</h1>
+          <h1 className="text-2xl font-bold mb-4 text-white">{t.regionDetail?.notFound || 'Region not found'}</h1>
           <button
             onClick={() => navigate('/')}
-            className={isMobile ? 'm-cta px-6 py-3' : 'px-6 py-3 bg-[#0f3460] text-white rounded-full'}
+            className={isMobile ? 'm-cta px-6 py-3' : 'px-6 py-3 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full'}
           >
             {t.regionDetail?.goHome || 'Go Home'}
           </button>
@@ -213,7 +213,7 @@ export function RegionDetail() {
 
   /* ═══ DESKTOP (unchanged) ═══ */
   return (
-    <div className="min-h-screen bg-[#faf9f6]">
+    <div className="min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]">
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       
       {/* Hero Section */}
@@ -233,7 +233,7 @@ export function RegionDetail() {
               <ArrowLeft className="w-5 h-5" />
               {t.regionDetail.backToRegions}
             </button>
-            <h1 className="text-4xl lg:text-6xl font-bold text-white mb-2">
+            <h1 className="text-4xl lg:text-7xl font-display font-normal text-white mb-2 tracking-tight">
               {regionData.title}
             </h1>
             <p className="text-xl text-white/90">{regionData.subtitle}</p>
@@ -245,32 +245,32 @@ export function RegionDetail() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
         {/* Description */}
         <div className="mb-16">
-          <h2 className="text-2xl lg:text-3xl font-bold text-[#1a1a2e] mb-6">
+          <h2 className="text-2xl lg:text-3xl font-bold text-white mb-6">
             {t.regionDetail?.aboutHeading || 'About'} {regionData.title}
           </h2>
-          <p className="text-lg text-gray-600 leading-relaxed max-w-3xl">
+          <p className="text-lg text-white/60 leading-relaxed max-w-3xl">
             {regionData.description}
           </p>
         </div>
 
         {/* Attractions */}
         <div className="mb-16">
-          <h2 className="text-2xl lg:text-3xl font-bold text-[#1a1a2e] mb-8">
+          <h2 className="text-2xl lg:text-3xl font-bold text-white mb-8">
             {t.regionDetail?.mustVisitAttractions || 'Must-Visit Attractions'}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {regionData.attractions.map((attraction: { name: string; desc: string }, index: number) => (
               <div
                 key={index}
-                className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-lg transition-shadow"
+                className="bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-[#B668FC]/30 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all"
               >
-                <div className="w-12 h-12 bg-[#c0b283]/20 rounded-xl flex items-center justify-center mb-4">
-                  <MapPin className="w-6 h-6 text-[#c0b283]" />
+                <div className="w-12 h-12 bg-[#B668FC]/20 border border-[#B668FC]/30 rounded-xl flex items-center justify-center mb-4">
+                  <MapPin className="w-6 h-6 text-[#FF6B9D]" />
                 </div>
-                <h3 className="text-xl font-bold text-[#1a1a2e] mb-2">
+                <h3 className="text-xl font-bold text-white mb-2">
                   {attraction.name}
                 </h3>
-                <p className="text-gray-600">{attraction.desc}</p>
+                <p className="text-white/60">{attraction.desc}</p>
               </div>
             ))}
           </div>
@@ -279,7 +279,7 @@ export function RegionDetail() {
         {/* Photo Gallery */}
         {images.length > 1 && (
           <div className="mb-16">
-            <h2 className="text-2xl lg:text-3xl font-bold text-[#1a1a2e] mb-8">
+            <h2 className="text-2xl lg:text-3xl font-bold text-white mb-8">
               {t.regionDetail?.photoGallery || 'Photo Gallery'}
             </h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -301,7 +301,7 @@ export function RegionDetail() {
         )}
 
         {/* CTA Section */}
-        <div className="bg-[#0f3460] rounded-3xl p-8 lg:p-12 text-center">
+        <div className="bg-gradient-to-br from-[#B668FC]/20 to-[#FF6B9D]/20 border border-[#B668FC]/30 backdrop-blur-md rounded-3xl p-8 lg:p-12 text-center">
           <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
             {t.regionDetail?.planTrip || 'Plan Your Trip to'} {regionData.title}
           </h2>

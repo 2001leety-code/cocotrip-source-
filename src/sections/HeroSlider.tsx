@@ -117,7 +117,7 @@ export function HeroSlider({ t }: HeroSliderProps) {
                     {getSlideContent(slide.tag)}
                   </span>
                   {/* Responsive Font Sizes */}
-                  <h1 className="text-4xl md:text-6xl font-bold text-white mb-3 leading-tight whitespace-pre-line drop-shadow-lg">
+                  <h1 className="text-4xl md:text-7xl font-display font-normal text-white mb-3 leading-[1.05] whitespace-pre-line drop-shadow-lg tracking-tight">
                     {getSlideContent(slide.title)}
                   </h1>
                   <p className="text-base md:text-lg text-white/90 mb-8 max-w-xs md:max-w-2xl mx-auto drop-shadow-md">

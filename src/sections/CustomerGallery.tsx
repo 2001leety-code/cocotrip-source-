@@ -1,6 +1,7 @@
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { useLanguage } from '@/hooks/useLanguage';
+import { MotionSection } from '@/components/MotionSection';
 
 const customers = [
   { image: '/고객사진/KakaoTalk_20250923_114705709_11.jpg', name: 'Maria from Italy', location: 'Seoul Tour', quote: 'The best way to see Seoul! Highly recommended.' },
@@ -36,7 +37,7 @@ const customers = [
 ];
 
 const CustomerCard = ({ customer, verifiedLabel }: { customer: typeof customers[0]; verifiedLabel: string }) => (
-  <div className="group relative overflow-hidden rounded-2xl bg-white shadow-lg flex flex-col h-full">
+  <div className="group relative overflow-hidden rounded-2xl bg-white/[0.04] backdrop-blur-md border border-white/[0.08] hover:border-[#B668FC]/30 shadow-lg flex flex-col h-full transition-colors">
     <div className="aspect-[4/5] overflow-hidden shrink-0">
       <img
         src={customer.image}
@@ -46,25 +47,25 @@ const CustomerCard = ({ customer, verifiedLabel }: { customer: typeof customers[
       />
     </div>
     
-    <div className="p-5 flex-1 flex flex-col justify-between bg-white relative">
+    <div className="p-5 flex-1 flex flex-col justify-between bg-transparent relative">
        {/* Location Badge positioned over the image overlap slightly */}
        
        <div className="mt-2">
-         <p className="text-gray-800 text-sm leading-snug italic mb-4 line-clamp-3 relative">
-            <span className="text-2xl text-[#c0b283] font-serif leading-none absolute -top-1 -left-2">"</span>
+         <p className="text-white/80 text-sm leading-snug italic mb-4 line-clamp-3 relative">
+            <span className="text-2xl text-[#FF6B9D] font-serif leading-none absolute -top-1 -left-2">"</span>
             &nbsp;&nbsp;&nbsp;{customer.quote}
-            <span className="text-2xl text-[#c0b283] font-serif leading-none absolute -bottom-3 ml-1">"</span>
+            <span className="text-2xl text-[#FF6B9D] font-serif leading-none absolute -bottom-3 ml-1">"</span>
          </p>
        </div>
        
-       <div className="flex items-center gap-3 mt-auto pt-4 border-t border-gray-100">
-           <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 shrink-0 border border-gray-300">
+       <div className="flex items-center gap-3 mt-auto pt-4 border-t border-white/[0.08]">
+           <div className="w-8 h-8 rounded-full overflow-hidden bg-white/[0.08] shrink-0 border border-white/[0.15]">
              {/* Using a placeholder avatar or the main image as avatar if user avatars aren't available */}
                 <img src={customer.image} alt={customer.name} loading="lazy" className="w-full h-full object-cover" />
            </div>
            <div>
-               <p className="text-[#1a1a2e] font-bold text-xs">{customer.name}</p>
-                <p className="text-[#c0b283] text-[10px] uppercase tracking-wider font-semibold">{verifiedLabel}</p>
+               <p className="text-white font-bold text-xs">{customer.name}</p>
+                <p className="text-[#FF6B9D] text-[10px] uppercase tracking-wider font-semibold">{verifiedLabel}</p>
            </div>
        </div>
     </div>
@@ -81,16 +82,16 @@ export function CustomerGallery() {
   }, [Autoplay({ delay: 3000, stopOnInteraction: false })]);
 
   return (
-    <section className="py-20 lg:py-32 bg-[#faf9f6] overflow-hidden">
+    <MotionSection className="py-20 lg:py-32 overflow-hidden">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16 px-4">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1a1a2e] mb-4">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             {g.title || 'Our Happy Travelers'}
           </h2>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          <p className="text-white/60 text-lg max-w-2xl mx-auto">
             {g.subtitle || 'Real moments and stories from our guests exploring Korea'}
           </p>
-          <div className="w-20 h-1 bg-[#c0b283] mx-auto rounded-full mt-6" />
+          <div className="w-20 h-1 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] mx-auto rounded-full mt-6" />
         </div>
 
         <div className="overflow-hidden" ref={emblaRef}>
@@ -108,6 +109,6 @@ export function CustomerGallery() {
           </div>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

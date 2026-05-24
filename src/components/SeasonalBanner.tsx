@@ -3,6 +3,7 @@ import { ArrowRight, Flower2, Sun, Leaf, Snowflake } from 'lucide-react';
 import { getCurrentSeason, SEASONAL_SPOTS, type Season } from '@/data/seasonalSpots';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useNavigate } from 'react-router-dom';
+import { MotionSection } from '@/components/MotionSection';
 
 const SEASON_ICON: Record<Season, React.ReactNode> = {
   spring: <Flower2 className="w-5 h-5" />,
@@ -35,7 +36,7 @@ export function SeasonalBanner() {
   const spotHighlight = ({ ko: topSpot.highlight, en: topSpot.highlightEn, ja: topSpot.highlight, zh: topSpot.highlight })[language] ?? topSpot.highlightEn;
 
   return (
-    <section className="py-12 lg:py-16">
+    <MotionSection className="py-12 lg:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div
           className="relative overflow-hidden rounded-3xl p-8 lg:p-12 text-white"
@@ -58,7 +59,7 @@ export function SeasonalBanner() {
               <p className="text-white/80 text-lg mb-6">{subtitle}</p>
               <button
                 onClick={() => navigate('/planner')}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-900 rounded-full font-bold hover:bg-white/90 transition-all active:scale-95"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-all active:scale-95"
               >
                 {ad.planCta}
                 <ArrowRight className="w-4 h-4" />
@@ -81,6 +82,6 @@ export function SeasonalBanner() {
           </div>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }
