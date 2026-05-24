@@ -7,8 +7,58 @@
  */
 
 import { localizeLineName, romanizeStation } from './_transit_localization.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
 
 const ODSAY_BASE = 'https://api.odsay.com/v1/api';
+
+// ── P184 (2026-05-24) — ODSAY transit_cache (Firestore 1 month TTL) ────────
+// 운영자: "오딧세이 80% 썼어 대안방향있어?" + "호출할때마다 학습해서 그경로 숙지
+// 해놓고 필요할때 그것도 갖다 쓰면 되지않아?" → 정확. 같은 좌표 pair 호출 반복
+// = quota waste. 1 month cache + lazy update (cache hit + 만료 시 자동 refresh).
+//
+// cache key = `${sy.toFixed(4)},${sx.toFixed(4)}_${ey.toFixed(4)},${ex.toFixed(4)}`
+// = 위/경도 4자리 (≈11m precision — 같은 건물 다른 출구 cluster).
+// TTL = 30 days. 지하철/버스 schedule 안정 (KTX edge case 1-3 day stale 허용).
+//
+// Firestore rules: transit_cache server only (Admin SDK 우회).
+const TRANSIT_CACHE_COLLECTION = 'transit_cache';
+const TRANSIT_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function buildTransitCacheKey(sx, sy, ex, ey) {
+  // 좌표 4자리 반올림 + Firestore doc ID 안전 chars (no slash). "_" separator.
+  const f = (n) => Number(n).toFixed(4);
+  return `${f(sy)},${f(sx)}_${f(ey)},${f(ex)}`;
+}
+
+async function getCachedTransit(key) {
+  const adminDb = initAdminDb('odsay-cache');
+  if (!adminDb) return null;
+  try {
+    const doc = await adminDb.collection(TRANSIT_CACHE_COLLECTION).doc(key).get();
+    if (!doc.exists) return null;
+    const data = doc.data() || {};
+    const age = Date.now() - (data.cachedAt || 0);
+    if (age > TRANSIT_CACHE_TTL_MS) return null; // expired — lazy refresh by caller
+    return data.transit || null;
+  } catch (e) {
+    console.warn(`[ODsay cache] read failed (key=${key}):`, e.message);
+    return null;
+  }
+}
+
+async function setCachedTransit(key, transit) {
+  const adminDb = initAdminDb('odsay-cache');
+  if (!adminDb || !transit) return;
+  try {
+    await adminDb.collection(TRANSIT_CACHE_COLLECTION).doc(key).set({
+      transit,
+      cachedAt: Date.now(),
+      cachedAtISO: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn(`[ODsay cache] write failed (key=${key}):`, e.message);
+  }
+}
 
 /**
  * 두 좌표 간 대중교통 경로 검색
@@ -35,6 +85,14 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
       transfers: 0,
       steps: [{ mode: 'walk', description: `도보 약 ${Math.round(dist * 1000)}m`, duration: Math.max(3, Math.round(dist / 0.07)) }],
     };
+  }
+
+  // P184: Firestore cache lookup (1 month TTL). cache hit 시 ODSAY 호출 0.
+  const cacheKey = buildTransitCacheKey(sx, sy, ex, ey);
+  const cached = await getCachedTransit(cacheKey);
+  if (cached) {
+    console.log(`[ODsay cache HIT] ${cacheKey} (saved 1 ODSAY call)`);
+    return cached;
   }
 
   try {
@@ -75,7 +133,7 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
     // 상세 이동 단계 파싱
     const steps = (best.subPath || []).map(sub => parseSubPath(sub)).filter(Boolean);
 
-    return {
+    const result = {
       type: info.pathType === 1 ? 'subway' : info.pathType === 2 ? 'bus' : 'subway+bus',
       totalTime: info.totalTime,       // 분
       fare: info.payment,              // 원
@@ -88,6 +146,9 @@ export async function searchTransitRoute(sx, sy, ex, ey) {
       // 대안 경로 수
       alternatives: Math.min(data.result.path.length - 1, 2),
     };
+    // P184: write to cache (fire-and-forget, await 안 함 — caller latency 영향 0)
+    setCachedTransit(cacheKey, result).catch(() => {});
+    return result;
   } catch (err) {
     // Timeout (AbortError) + 5xx + network error 모두 throw — 호출자가 retry 결정.
     // 사실 ODsay searchTransitRoute는 RouteAgent의 _searchOdsayWithRetry 또는
