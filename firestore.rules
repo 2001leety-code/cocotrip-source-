@@ -483,6 +483,9 @@ service cloud.firestore {
     // 일반 사용자 read 차단 유지 (PII / 회귀 정보 leak 방지). write 는 server only.
     match /error_log/{logId}            { allow read: if isAdminEmail(); allow write: if false; }
     match /telegram_throttle/{key}      { allow read: if isAdminEmail(); allow write: if false; }
+    // P184 (2026-05-24): ODSAY transit_cache (1 month TTL + lazy update). server
+    // only — admin SDK 우회. 운영자 80% quota 도달 → cache 로 -70~85% 감소.
+    match /transit_cache/{cacheKey}     { allow read, write: if false; }
 
     // ─────────────────────────────────────────────────────────
     // 2026-05-06: PayPal Manual QR 결제 시스템

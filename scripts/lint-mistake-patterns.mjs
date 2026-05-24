@@ -1220,6 +1220,28 @@ function P172_flashPctBucketingPropagation({ changed }) {
 // 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
 //    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
 //    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+// ── P184 (2026-05-24) — ODSAY transit_cache (1 month TTL) ────────────────
+// 운영자 80% quota 도달 → cache layer 로 -70~85% 감소. 회귀 시 ODSAY 직접 호출
+// 반복 → quota 빠르게 소진. cache key (좌표 4자리) + 30-day TTL + lazy update.
+function P184_odsayTransitCache({ changed }) {
+  const file = 'api/_odsay_helper.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  if (!/buildTransitCacheKey/.test(content)) {
+    return `R-P184a: api/_odsay_helper.js buildTransitCacheKey 누락 — ODSAY cache key 생성 helper 회귀.`;
+  }
+  if (!/getCachedTransit\s*\(\s*cacheKey\s*\)/.test(content)) {
+    return `R-P184b: api/_odsay_helper.js searchTransitRoute 안에 getCachedTransit 호출 누락 — cache lookup 우회 회귀.`;
+  }
+  if (!/setCachedTransit\s*\(/.test(content)) {
+    return `R-P184c: api/_odsay_helper.js setCachedTransit 호출 누락 — cache write 회귀.`;
+  }
+  if (!/TRANSIT_CACHE_TTL_MS\s*=\s*30/.test(content)) {
+    return `R-P184d: api/_odsay_helper.js TRANSIT_CACHE_TTL_MS 30 days 누락 — 운영자 의도 "한달에 한번 업데이트" 회귀.`;
+  }
+  return null;
+}
+
 // ── P183 phase 1 (2026-05-24) — dbMatcher cross-city HARD REJECT ─────────
 // P180 (prompt strict) + P179 (B-MEAL prompt) 후에도 telegram alert 잔존
 // (Gemini 비결정성). 운영자 "오류 좀 잡자 회귀법칙도 해놨는데" 강조 — prompt-only
@@ -1494,6 +1516,7 @@ const RULES = [
   ['P179_finalSelfCheckSection', P179_finalSelfCheckSection],
   ['P181_invalidJsonZeroTolerance', P181_invalidJsonZeroTolerance],
   ['P183_dbMatcherCrossCityHardReject', P183_dbMatcherCrossCityHardReject],
+  ['P184_odsayTransitCache', P184_odsayTransitCache],
 ];
 
 /**
