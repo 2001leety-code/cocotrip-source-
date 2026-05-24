@@ -67,6 +67,26 @@ secret 미설정 시 명확한 에러 출력 + 종료 (silent fail 금지).
 | validate-planner 5 시나리오 모두 401 | PR #247 머지 후 Bearer 헤더 누락 | `getIdToken()` + Authorization 헤더 주입 |
 | `health-log.jsonl` push 403 | `permissions: contents: write` 미설정 | 워크플로우 상단에 추가 |
 | E2E plan 생성 step 401 | 동일 — Bearer 헤더 누락 | `getIdToken()` 헬퍼 + Authorization 주입 |
+| **validate-planner 5/5 fail 12일 silent (2026-05-12 ~ 2026-05-24)** | `BRAINTREE_ENV='production'` 후 TEST- prefix 403 reject (audit P1-A) + `daily-health-check.mjs` 의 `issues_within_threshold` 단독 검사 결함 (`total_issues=0 <= 9 = true`) | P174 (R-P174a/b): paypalOrderId → `ADMIN-BYPASS-` prefix (admin email 인증 LIVE bypass) + `validation_actually_ok` (success_count > 0) 추가 검사 |
+
+## 8. ADMIN-BYPASS- prefix 사용 caveat (P174, 2026-05-24)
+
+validate-planner.cjs 는 `ADMIN-BYPASS-VALIDATE-...` prefix 로 결제 우회. paymentGate.js:106 의 분기 통과 — admin email 인증 (HEALTH_CHECK_EMAIL 또는 ADMIN_BYPASS_EMAILS env + hardcoded `2001leety@gmail.com` fallback) 필수.
+
+**caveat (P102, plannerMode.js:113)**: ADMIN-BYPASS- → `decidePlannerMode` 가 항상 `mode='legacy'` 강제. 따라서 자율 검증 측정 범위:
+
+| Effect | 측정 가능 | 비고 |
+|---|---|---|
+| P164 maxOutputTokens cap | ✅ | prompt/output 정량 |
+| P165 maxDuration 600 + Fluid Compute | ✅ | duration 측정 |
+| P166 systemPrompt 정적 prefix | ✅ | implicit cache 효과 |
+| P167 block-mode 다도시 | ❌ | legacy 강제 — 별도 (실제 결제 또는 staging) |
+| P168 Pass3 background async | ❌ | 3pass mode 한정 — legacy 면 영향 0 |
+| P169 Gemini streaming | ✅ | mode-independent |
+| P171 admin Test Mode Flash | ✅ | admin-bypass 분기 |
+| P172 PCT bucketing | ❌ | admin > PCT 우선 — admin path 면 bypass |
+
+P167/P168/P172 완전 측정은 별도 수단 필요.
 
 ## 8. 검증
 

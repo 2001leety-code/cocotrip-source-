@@ -1213,6 +1213,36 @@ function P172_flashPctBucketingPropagation({ changed }) {
   return null;
 }
 
+// ── P174 (2026-05-24) — 자율 검증 시스템 silent fail 차단 ────────────────────
+// 1) validate-planner.cjs 의 paypalOrderId 가 TEST- prefix 면 prod 에서 403 reject
+//    (BRAINTREE_ENV='production' + audit P1-A). 5/12~5/24 12일간 silent fail 의
+//    root cause. ADMIN-BYPASS- prefix 강제 (admin email 인증 필수, mode=legacy caveat).
+// 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
+//    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
+//    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+function P174_validatePlannerSilentFail({ changed }) {
+  // (1) validate-planner.cjs
+  const vp = 'scripts/validate-planner.cjs';
+  if (isModified(vp, changed)) {
+    const content = getChangedFileContent(vp);
+    if (/paypalOrderId\s*:\s*`TEST-/.test(content)) {
+      return `R-P174a: scripts/validate-planner.cjs paypalOrderId='TEST-...' 사용 — prod (BRAINTREE_ENV=production) 에서 403 reject (audit P1-A). ADMIN-BYPASS- prefix 사용 필수 (admin email 인증 + LIVE bypass).`;
+    }
+  }
+  // (2) daily-health-check.mjs
+  const dh = 'scripts/daily-health-check.mjs';
+  if (isModified(dh, changed)) {
+    const content = getChangedFileContent(dh);
+    // validation_actually_ok 또는 success_count > 0 패턴 둘 다 포함되어야 함
+    const hasActuallyOk = /validation_actually_ok|validationActuallyOk/.test(content);
+    const hasSuccessCheck = /success_count\s*[><=!]+\s*0|success_count\s*\?/.test(content);
+    if (!hasActuallyOk && !hasSuccessCheck) {
+      return `R-P174b: scripts/daily-health-check.mjs validation silent fail 차단 누락 — issues_within_threshold 단독 검사 시 success_count=0 (모두 fail) 도 "healthy" 판정. validation_actually_ok 또는 success_count > 0 추가 검사 필수.`;
+    }
+  }
+  return null;
+}
+
 const RULES = [
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
@@ -1321,6 +1351,7 @@ const RULES = [
   ['P170_backgroundPipelinesExtract', P170_backgroundPipelinesExtract],
   ['P171_adminBypassPropagation', P171_adminBypassPropagation],
   ['P172_flashPctBucketingPropagation', P172_flashPctBucketingPropagation],
+  ['P174_validatePlannerSilentFail', P174_validatePlannerSilentFail],
 ];
 
 /**
