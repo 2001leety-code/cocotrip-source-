@@ -95,6 +95,63 @@ img {
 /* ═══════════════════════════════════════════════════════ */
 
 
+
+/* =======================================================
+   CocoTrip brand CSS vars -- DESIGN.md SSOT
+   Tailwind v3: referenced via tailwind.config.js extend.colors/borderRadius/boxShadow
+   Tailwind v4: uncomment @theme block below, remove tailwind.config.js brand entries.
+   Hex values must match DESIGN.md SSOT -- update there first.
+   ======================================================= */
+:root {
+  --color-bg-base:             #0a0f1e;
+  --color-bg-card:             #111827;
+  --color-bg-elevated:         #1a2235;
+  --color-brand-purple:        #7c3aed;
+  --color-brand-purple-hover:  #6d28d9;
+  --color-brand-pink:          #ec4899;
+  --color-text-primary:        #f1f5f9;
+  --color-text-secondary:      #94a3b8;
+  --color-text-muted:          #7c8a9e;
+  --color-text-disabled:       #475569;
+  --color-border-default:      #1e293b;
+  --color-border-active:       #7c3aed;
+  --color-success:             #10b981;
+  --color-warning:             #f59e0b;
+  --color-error:               #ef4444;
+  --radius-sm:                 6px;
+  --radius-md:                 10px;
+  --radius-lg:                 14px;
+  --radius-xl:                 20px;
+  --shadow-glow-cta:           0 0 20px rgba(124, 58, 237, 0.4);
+  --ring-focus:                0 0 0 3px rgba(124, 58, 237, 0.5);
+}
+
+/*
+@theme {
+  --color-bg-base:             #0a0f1e;
+  --color-bg-card:             #111827;
+  --color-bg-elevated:         #1a2235;
+  --color-brand-purple:        #7c3aed;
+  --color-brand-purple-hover:  #6d28d9;
+  --color-brand-pink:          #ec4899;
+  --color-text-primary:        #f1f5f9;
+  --color-text-secondary:      #94a3b8;
+  --color-text-muted:          #7c8a9e;
+  --color-text-disabled:       #475569;
+  --color-border-default:      #1e293b;
+  --color-border-active:       #7c3aed;
+  --color-success:             #10b981;
+  --color-warning:             #f59e0b;
+  --color-error:               #ef4444;
+  --radius-sm:                 6px;
+  --radius-md:                 10px;
+  --radius-lg:                 14px;
+  --radius-xl:                 20px;
+  --shadow-glow-cta:           0 0 20px rgba(124,58,237,0.4);
+  --ring-focus:                0 0 0 3px rgba(124,58,237,0.5);
+}
+*/
+
 @layer base {
   :root {
     --background: 0 0% 100%;

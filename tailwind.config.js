@@ -11,6 +11,36 @@ module.exports = {
         display: ['Georgia', '"Times New Roman"', '"Noto Serif KR"', 'serif'],
       },
       colors: {
+        // CocoTrip brand tokens (DESIGN.md SSOT)
+        // CSS vars: src/index.css :root brand vars block
+        // Usage: bg-bg-base / bg-bg-card / text-cc-primary / shadow-glow-cta / rounded-cc-md
+        // v4 migration: move to @theme in index.css, remove this extend section.
+        bg: {
+          base:     "var(--color-bg-base)",
+          card:     "var(--color-bg-card)",
+          elevated: "var(--color-bg-elevated)",
+        },
+        brand: {
+          purple:         "var(--color-brand-purple)",
+          "purple-hover": "var(--color-brand-purple-hover)",
+          pink:           "var(--color-brand-pink)",
+        },
+        cc: {
+          primary:   "var(--color-text-primary)",
+          secondary: "var(--color-text-secondary)",
+          muted:     "var(--color-text-muted)",
+          disabled:  "var(--color-text-disabled)",
+        },
+        "cc-border": {
+          default: "var(--color-border-default)",
+          active:  "var(--color-border-active)",
+        },
+        "cc-status": {
+          success: "var(--color-success)",
+          warning: "var(--color-warning)",
+          error:   "var(--color-error)",
+        },
+        // shadcn/ui semantic tokens (keep as-is)
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -61,9 +91,15 @@ module.exports = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
         xs: "calc(var(--radius) - 6px)",
+        "cc-sm":  "var(--radius-sm)",
+        "cc-md":  "var(--radius-md)",
+        "cc-lg":  "var(--radius-lg)",
+        "cc-xl":  "var(--radius-xl)",
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        "glow-cta":   "var(--shadow-glow-cta)",
+        "ring-focus": "var(--ring-focus)",
       },
       keyframes: {
         "accordion-down": {
