@@ -185,9 +185,79 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
       // generation overhead = Pro 의 max cap reserve 영향 미미 (실측 영향 0).
       maxOutputTokens: 16000,
       responseMimeType: 'application/json',
+      // P183 phase 2 (2026-05-24): Gemini responseSchema — typed validation 강제.
+      // 운영자 "회귀법칙도 해놨는데 그래도 못 잡네" 메타 lesson: prompt-only 회귀
+      // 차단 한계. responseSchema = Gemini 측에서 JSON structure 강제 → wrong-field
+      // / missing required / type mismatch 자동 reject. INVALID_JSON 추가 차단 layer.
+      //
+      // Lenient 설계: top-level (days required) + days[] (day/stops required) +
+      // stops[] (name/category/start_time required). 다른 field optional —
+      // Gemini 가 추가 field 출력 OK. 점진 strict 화 가능.
+      responseSchema: PLAN_RESPONSE_SCHEMA,
     },
   });
 }
+
+/**
+ * P183 phase 2 (2026-05-24): Minimal Gemini responseSchema.
+ *
+ * 운영자 zero-tolerance 강조 + prompt-only 회귀 차단 한계 인정 — Gemini API 의
+ * typed validation 으로 추가 강화. lenient (필수 field 만 strict, 다른 field
+ * optional). 점진 strict 화 가능 (필요 시 expand).
+ *
+ * 형식: OpenAPI Subset (Gemini 2.5 Pro 지원). type 대문자 (OBJECT/ARRAY/STRING/INTEGER/NUMBER).
+ */
+const PLAN_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  required: ['days'],
+  properties: {
+    tour_title: { type: 'STRING' },
+    vehicle: { type: 'STRING' },
+    base_price_krw: { type: 'NUMBER' },
+    days: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        required: ['day', 'stops'],
+        properties: {
+          day: { type: 'INTEGER' },
+          city: { type: 'STRING' },
+          theme: { type: 'STRING' },
+          lodging: { type: 'OBJECT' },
+          intercity_transit: { type: 'OBJECT' },
+          stops: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              required: ['name', 'category', 'start_time'],
+              properties: {
+                order: { type: 'INTEGER' },
+                name: { type: 'STRING' },
+                display_name: { type: 'STRING' },
+                category: { type: 'STRING' },
+                start_time: { type: 'STRING' },
+                stay_min: { type: 'INTEGER' },
+                address: { type: 'STRING' },
+                tip: { type: 'STRING' },
+                lat: { type: 'NUMBER' },
+                lng: { type: 'NUMBER' },
+                entry_fee_krw: { type: 'NUMBER' },
+                verified: { type: 'BOOLEAN' },
+              },
+            },
+          },
+        },
+      },
+    },
+    arrival_guide: { type: 'OBJECT' },
+    departure_guide: { type: 'OBJECT' },
+    daily_budget_summary: { type: 'ARRAY' },
+    t_money_recommended_load: { type: 'NUMBER' },
+  },
+};
+
+// Export for unit testing (회귀 검증).
+export { PLAN_RESPONSE_SCHEMA };
 
 // Per-instance sliding-window retry counter. Vercel containers don't share
 // state, but a single hot container handling many requests will surface a
