@@ -3528,8 +3528,9 @@ function P90_dbmatcherCityGuard({ changed }) {
   if (!/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/.test(content)) {
     violations.push(`${FILE}: throttledTelegramAlert import 누락 — operator silent (X-H8)`);
   }
-  if (!/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.3/.test(content)) {
-    violations.push(`${FILE}: CITY_MISMATCH_RATIO_THRESHOLD=0.3 누락 → alert 임계 변경`);
+  // P180 (2026-05-24): threshold 0.3 → 0.2 강화. P90 lint rule 도 동기.
+  if (!/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.2\b/.test(content)) {
+    violations.push(`${FILE}: CITY_MISMATCH_RATIO_THRESHOLD=0.2 누락 → alert 임계 변경 (P180 30→20% 강화)`);
   }
   if (!/CITY_MISMATCH_MIN_MATCHES\s*=\s*3/.test(content)) {
     violations.push(`${FILE}: CITY_MISMATCH_MIN_MATCHES=3 누락 → 작은 plan false positive`);
