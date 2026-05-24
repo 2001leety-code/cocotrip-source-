@@ -103,7 +103,7 @@ function AdminCoupons() {
     <div className="min-h-screen bg-[#0a0412] text-white pb-24">
       <header className="sticky top-0 z-20 bg-[#0a0412]/95 backdrop-blur border-b border-white/[0.06]">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link to="/" className="p-2 rounded-lg hover:bg-white/[0.05]" title="홈으로">
+          <Link to="/admin" className="p-2 rounded-lg hover:bg-white/[0.05]" title="어드민으로">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <h1 className="text-base font-bold flex items-center gap-2">
