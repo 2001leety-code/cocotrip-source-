@@ -41,7 +41,7 @@ import { initAdminDb } from './firestoreAdmin.js';
 import { enforcePaymentAndRevision } from './paymentGate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
-import { decidePlannerMode } from './plannerMode.js';
+import { decidePlannerMode, pickIdentifier } from './plannerMode.js';
 import { tryRunBlockMode } from './blockMode.js';
 import {
   triggerPass3BackgroundIfPending,
@@ -221,6 +221,9 @@ export default async function handler(req, res) {
     // Mode 는 항상 'legacy'. 3-pass 는 Pass1+Pass2+Pass3 = 90-150s + retry 시 5분
     // cap 도달 → Test Mode 클릭 시 client 5min timeout (handlePaymentSuccess).
     // customer 흐름은 변동 없음 (isAdminBypass=false).
+    // P172 (2026-05-24): identifier 1회 계산 → runGeminiPipeline + triggerPass3 양쪽 propagate (deterministic per-user).
+    const identifierForBucketing = pickIdentifier({ uid, guestEmail: authenticatedEmail, sessionId });
+
     const abDecision = decidePlannerMode({
       uid,
       guestEmail: authenticatedEmail,
@@ -332,6 +335,7 @@ export default async function handler(req, res) {
       // shouldn't be blocked by Gemini non-determinism (CLAUDE.md §F intermittent
       // PLAN_VALIDATION_FAILED). Customers still get hard validation.
       isAdminBypass: !!gate.isAdminBypass,
+      identifierForBucketing, // P172: PCT bucketing 입력 (admin > PCT 우선)
       body: {
         regions,
         arrival_airport,
@@ -392,10 +396,8 @@ export default async function handler(req, res) {
     // ── P168: Pass3 background trigger ───────────────────────────────────
     // 3pass mode 에서 background enrich fire-and-forget 실행.
     // response 는 즉시 반환 → tip 은 Firestore onSnapshot 으로 자동 화면 갱신.
-    // [P170] 세부 로직은 backgroundPipelines.js#triggerPass3BackgroundIfPending 로 추출됨.
-    // [P171] isAdminBypass propagate — admin Test Mode 면 background Gemini 호출도
-    // GEMINI_ADMIN_BYPASS_MODEL 우선 (Pro→Flash 비교 시 tip 도 Flash 로 일관성).
-    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass });
+    // P170/P171/P172: backgroundPipelines.js#triggerPass3BackgroundIfPending 추출 + admin/PCT propagate.
+    triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass, identifierForBucketing });
 
     // ── JSON 응답 ────────────────────────────────────────────────────────
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
