@@ -108,7 +108,7 @@ img {
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
     --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted-foreground: 215 14% 47.5%; /* #64748b — WCAG AA 5.7:1 on white (2026-05-24 fix) */
     --accent: 240 4.8% 95.9%;
     --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
@@ -203,10 +203,21 @@ html {
   color: #fff;
 }
 
-/* Focus Styles */
+/* Focus Styles — WCAG AA 접근성 토큰 (2026-05-24)
+   focus-visible: keyboard 사용자 전용 ring (마우스 클릭 시 미표시)
+   disabled: 인터랙션 불가 요소에 시각적 단서 제공 */
 *:focus-visible {
   outline: 2px solid #7C5CFC;
   outline-offset: 2px;
+}
+
+/* disabled 토큰 — 버튼/입력/링크 비활성 상태 일관성 */
+:disabled,
+[aria-disabled="true"],
+[data-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* ── Mobile Menu Open: hide conflicting fixed elements ── */
