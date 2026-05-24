@@ -477,9 +477,12 @@ service cloud.firestore {
     match /paypal_verify_alert_throttle/{key} { allow read, write: if false; }
     // PR #447 (Audit Z-H8): Gmail SMTP daily-quota counter.
     match /email_send_counter/{day} { allow read, write: if false; }
-    // K Tier 2-E: 텔레그램 에러 dedup + 집계 (Admin SDK 만 접근, 사용자 미노출)
-    match /error_log/{logId}            { allow read, write: if false; }
-    match /telegram_throttle/{key}      { allow read, write: if false; }
+    // K Tier 2-E: 텔레그램 에러 dedup + 집계 (Admin SDK write, admin email read)
+    // P182 (2026-05-24): error_log read 권한 admin email 부여 — 자율 검증 시스템
+    // (measure script + 우리 측 fetch helper) 가 telegram alert 자동 polling.
+    // 일반 사용자 read 차단 유지 (PII / 회귀 정보 leak 방지). write 는 server only.
+    match /error_log/{logId}            { allow read: if isAdminEmail(); allow write: if false; }
+    match /telegram_throttle/{key}      { allow read: if isAdminEmail(); allow write: if false; }
 
     // ─────────────────────────────────────────────────────────
     // 2026-05-06: PayPal Manual QR 결제 시스템
