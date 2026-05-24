@@ -393,7 +393,7 @@ export default function ReviewManagement() {
         </div>
       </div>
 
-      {/* CS Kanban — placeholder until cs_tickets collection lands */}
+      {/* CS Kanban — cs_tickets collection 실시간 구독 (텔레그램 봇 "이슈추가 plan:<planId>" syntax 로도 생성 가능, PR #237 참조) */}
       <div className="bg-[#12131C] border border-gray-800 rounded-2xl p-5 shadow-xl">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
