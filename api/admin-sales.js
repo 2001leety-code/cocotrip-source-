@@ -19,6 +19,7 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
+import { isAdminBypassBooking } from './_shared/admin-bypass-detector.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -119,11 +120,26 @@ export default async function handler(req, res) {
       .where('createdAt', '>=', Timestamp.fromDate(sinceCutoff))
       .get();
 
-    const all = [];
+    const rawAll = [];
     snap.forEach((doc) => {
       const b = doc.data();
-      all.push({ id: doc.id, ...b, _createdAtMs: bookingDateMs(b) });
+      rawAll.push({ id: doc.id, ...b, _createdAtMs: bookingDateMs(b) });
     });
+
+    // A1-7-1 (2026-05-24): 운영자 본인 테스트 결제 (TEST-/ADMIN-BYPASS- prefix) 제외.
+    // 비유: "식당 매출 계산기가 사장님 본인 시식까지 합산하던 것 → 분리".
+    // paymentGate.js / planPersister.js / booking-processor.js 와 동일 prefix 규약 사용
+    // (SSOT: _shared/admin-bypass-detector.js).
+    const adminBypassBookings = rawAll.filter((b) => isAdminBypassBooking(b));
+    const canceledBookings = rawAll.filter(
+      (b) => b.status === 'CANCELED' && !isAdminBypassBooking(b)
+    );
+    const all = rawAll.filter((b) => !isAdminBypassBooking(b));
+
+    const excludedMeta = {
+      adminBypass: adminBypassBookings.length,
+      canceled: canceledBookings.length,
+    };
 
     const now = todayKST();
     const todayStart = new Date(now); todayStart.setUTCHours(0, 0, 0, 0);
@@ -214,6 +230,8 @@ export default async function handler(req, res) {
       recent,
       exchangeRate,
       totalBookings: all.length,
+      // A1-7-1: 매출 집계에서 제외된 건수 메타 — 운영자가 "왜 KPI 가 줄었는지" 즉시 인지.
+      excluded: excludedMeta,
       generatedAt: new Date().toISOString(),
     });
   } catch (err) {
