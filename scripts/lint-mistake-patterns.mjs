@@ -1242,6 +1242,26 @@ function P184_odsayTransitCache({ changed }) {
   return null;
 }
 
+// ── P183 phase 2 (2026-05-24) — Gemini responseSchema typed validation ───
+// 운영자 메타 "회귀법칙도 해놨는데 그래도 못 잡네" — prompt-only 한계 인정 후
+// Gemini API responseSchema 로 typed validation 강제. wrong-field/missing required
+// 자동 reject. 회귀 시 schema 빠짐 → Gemini lenient 출력.
+function P183Phase2_geminiResponseSchema({ changed }) {
+  const file = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  if (!/PLAN_RESPONSE_SCHEMA/.test(content)) {
+    return `R-P183-phase2: geminiPipeline.js PLAN_RESPONSE_SCHEMA constant 누락 — Gemini typed validation 회귀.`;
+  }
+  if (!/responseSchema:\s*PLAN_RESPONSE_SCHEMA/.test(content)) {
+    return `R-P183-phase2: geminiPipeline.js generationConfig 에 responseSchema:PLAN_RESPONSE_SCHEMA 누락 — Gemini lenient 출력 회귀.`;
+  }
+  if (!/required:\s*\[\s*['"]days['"]\s*\]/.test(content)) {
+    return `R-P183-phase2: PLAN_RESPONSE_SCHEMA top-level required=['days'] 누락 — Gemini 가 days 빈 OK 가능.`;
+  }
+  return null;
+}
+
 // ── P183 phase 1 (2026-05-24) — dbMatcher cross-city HARD REJECT ─────────
 // P180 (prompt strict) + P179 (B-MEAL prompt) 후에도 telegram alert 잔존
 // (Gemini 비결정성). 운영자 "오류 좀 잡자 회귀법칙도 해놨는데" 강조 — prompt-only
@@ -1517,6 +1537,7 @@ const RULES = [
   ['P181_invalidJsonZeroTolerance', P181_invalidJsonZeroTolerance],
   ['P183_dbMatcherCrossCityHardReject', P183_dbMatcherCrossCityHardReject],
   ['P184_odsayTransitCache', P184_odsayTransitCache],
+  ['P183Phase2_geminiResponseSchema', P183Phase2_geminiResponseSchema],
 ];
 
 /**
