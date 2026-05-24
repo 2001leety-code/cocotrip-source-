@@ -68,6 +68,7 @@ secret 미설정 시 명확한 에러 출력 + 종료 (silent fail 금지).
 | `health-log.jsonl` push 403 | `permissions: contents: write` 미설정 | 워크플로우 상단에 추가 |
 | E2E plan 생성 step 401 | 동일 — Bearer 헤더 누락 | `getIdToken()` 헬퍼 + Authorization 주입 |
 | **validate-planner 5/5 fail 12일 silent (2026-05-12 ~ 2026-05-24)** | `BRAINTREE_ENV='production'` 후 TEST- prefix 403 reject (audit P1-A) + `daily-health-check.mjs` 의 `issues_within_threshold` 단독 검사 결함 (`total_issues=0 <= 9 = true`) | P174 (R-P174a/b): paypalOrderId → `ADMIN-BYPASS-` prefix (admin email 인증 LIVE bypass) + `validation_actually_ok` (success_count > 0) 추가 검사 |
+| **health-log.jsonl 5/14~5/24 11일 미commit silent** | main branch protection (GH006) 강화로 github-actions[bot] push reject. 기존 `git push \|\| echo "Push failed"` 패턴 silent | **P175 (R-P175)**: 명시적 step output + telegram alert. **P176 (옵션 B 채택)**: commit + alert step 자체 제거. artifact 90일 보존 사용 (`gh run download <run-id>`) |
 
 ## 8. ADMIN-BYPASS- prefix 사용 caveat (P174, 2026-05-24)
 
