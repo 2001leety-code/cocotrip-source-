@@ -1220,6 +1220,33 @@ function P172_flashPctBucketingPropagation({ changed }) {
 // 2) daily-health-check.mjs 의 issues_within_threshold 단독 검사 결함 — success_count=0
 //    (모두 fail) 시 total_issues=0 → `0 <= 9 = true` → silent "healthy" 판정.
 //    validation_actually_ok (success_count > 0 + ok != false) 추가 검사 강제.
+// ── P181 (2026-05-24) — INVALID_JSON zero-tolerance (cap 16K + prompt) ──
+// 측정 시 INVALID_JSON 3건/day 발생 (운영자 zero-tolerance 명시 "오류 1도없이").
+// maxOutputTokens 16K 이상 유지 + buildPrompt OUTPUT SIZE 강화 검증.
+function P181_invalidJsonZeroTolerance({ changed }) {
+  // (1) geminiPipeline maxOutputTokens >= 16000
+  const gp = 'api/_ai_core/geminiPipeline.js';
+  if (isModified(gp, changed)) {
+    const content = getChangedFileContent(gp);
+    const m = content.match(/maxOutputTokens:\s*(\d+)/);
+    if (m) {
+      const v = parseInt(m[1], 10);
+      if (v < 16000) {
+        return `R-P181a: geminiPipeline.js maxOutputTokens=${v} < 16000. 다도시 5-day Halal/Meat plan 12K 근접 → INVALID_JSON. zero-tolerance 보장 위해 16K 이상 유지 (P164 raise 후속).`;
+      }
+    }
+  }
+  // (2) buildPrompt OUTPUT SIZE P181 ZERO TOLERANCE section 존재
+  const bp = 'api/_ai_core/buildPrompt.js';
+  if (isModified(bp, changed)) {
+    const content = getChangedFileContent(bp);
+    if (/OUTPUT SIZE/.test(content) && !/P181 ZERO TOLERANCE/.test(content)) {
+      return `R-P181b: buildPrompt.js OUTPUT SIZE section 의 P181 ZERO TOLERANCE 강화 누락 — tip 1 sentence MAX + 다도시 max 5 stops + recommended_items 4 max.`;
+    }
+  }
+  return null;
+}
+
 // ── P179 (2026-05-24) — buildPrompt FINAL SELF-CHECK section ─────────────
 // telegram alert 10:42 (Day 2/3 저녁 누락) + 11:26 (Day 3 점심 누락) 발견 →
 // Gemini 비결정성으로 기존 strict 룰 만으로 부족. final reminder section 강제.
@@ -1440,6 +1467,7 @@ const RULES = [
   ['P177_adminDebugConditional', P177_adminDebugConditional],
   ['P180_foodCityEnforcement', P180_foodCityEnforcement],
   ['P179_finalSelfCheckSection', P179_finalSelfCheckSection],
+  ['P181_invalidJsonZeroTolerance', P181_invalidJsonZeroTolerance],
 ];
 
 /**
