@@ -7,6 +7,7 @@ import { ReviewCard } from './ReviewCard';
 import { ReviewWriteModal } from './ReviewWriteModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { authFetch } from '@/lib/authFetch';
 
 interface Props {
   targetType: 'plan' | 'tour';
@@ -35,7 +36,7 @@ export function ReviewList({ targetType, targetId }: Props) {
 
   const fetchReviews = useCallback(async () => {
     try {
-      const res = await fetch('/api/reviews', {
+      const res = await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'list', targetType, targetId }),
