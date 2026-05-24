@@ -986,10 +986,13 @@ If meal_budget is "Premium":
   ❌ "서울 종로구" (too vague)
   ❌ "서울특별시 중구 명동길" (missing number)
 
-### OUTPUT SIZE (prevent JSON truncation)
-- Keep tip to 1-2 sentences max.
-- Trips 4+ days: max 5 stops per day.
-- Be concise everywhere. Shorter = safer.
+### OUTPUT SIZE (prevent JSON truncation — P181 ZERO TOLERANCE, 2026-05-24)
+- **tip: 1 sentence MAX** (이전 1-2 sentences → 1 strict). 8-12 words. 운영자 강조 "오류 1도없이".
+- **personalization_reasoning: 1 sentence MAX**. 8-12 words.
+- **Trips 4+ days: max 5 stops per day** (full day). arrival/departure day max 4 stops.
+- **다도시 (regions.length >= 2): max 5 stops per day strict** — Halal/Vegan/Vegetarian 식이 시 tip 더 짧게.
+- recommended_items / guides: 4 items max (이전 무제한 → 4 strict).
+- Be ruthlessly concise. **Shorter response = zero INVALID_JSON**.
 
 ### ⚠️ SAFETY-CRITICAL (OVERRIDE ALL)
 - food_allergies → NEVER recommend allergen dishes. Add "⚠️ [Allergen] allergy — inform staff" to tip.

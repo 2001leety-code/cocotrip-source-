@@ -178,8 +178,12 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
       temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
       thinkingConfig: { thinkingBudget: 32000 },
       // P164 (2026-05-23): 32K→12K. 5-day plan JSON 실측 평균 2-5K 토큰 — 32K 할당은
-      // generation overhead. 12K = safety margin 2x. 사용자 도달 가능성 거의 0.
-      maxOutputTokens: 12000,
+      // generation overhead. 12K = safety margin 2x.
+      // P181 (2026-05-24) raise: 12K→16K. 측정 후 INVALID_JSON 발생 (오늘 3건 = 3-5%).
+      // 다도시 5-day Halal/Meat + 자세한 tip → 12K 근접 가능. 운영자 zero-tolerance
+      // 강조 ("플랜 만들었을때 오류 1도없이"). 16K = 단도시 4x / 다도시 5-day 2x 안전.
+      // generation overhead = Pro 의 max cap reserve 영향 미미 (실측 영향 0).
+      maxOutputTokens: 16000,
       responseMimeType: 'application/json',
     },
   });
