@@ -95,6 +95,55 @@ img {
 /* ═══════════════════════════════════════════════════════ */
 
 
+/* ═══════════════════════════════════════════════════════
+   Light mode 확장 path — 2-layer 토큰 분리 stub
+   (2026-05-24 PR #583 follow-up)
+
+   현재 상태: <html class="dark"> 고정 (main.tsx) → dark only.
+   Light mode 도입 시 아래 :root:not(.dark) 블록을 별도 규칙으로 추가.
+
+   2-layer 설계:
+   - Layer 1 (raw)  = Tailwind palette: slate-950 / slate-50 / etc.
+   - Layer 2 (semantic) = 아래 CSS var: --color-bg-base / --color-text-primary / etc.
+
+   TODO (운영자 결정 후 활성화) — src/index.css 에 아래 규칙 추가:
+
+     [light mode stub — 아래 규칙을 그대로 붙여넣기]
+     :root:not(.dark) {
+       --color-bg-base:        hsl(210 40% 98%);    [slate-50  #f8fafc]
+       --color-bg-card:        hsl(0 0% 100%);       [white     #ffffff]
+       --color-bg-elevated:    hsl(210 40% 96.1%);   [slate-100 #f1f5f9]
+       --color-text-primary:   hsl(222 47% 11.2%);   [slate-900 #0f172a]
+       --color-text-secondary: hsl(215 16% 47%);     [slate-500 #64748b]
+       --color-text-muted:     hsl(215 14% 34%);     [slate-600 #475569]
+       --color-border:         hsl(214 32% 91%);     [slate-200 #e2e8f0]
+       --color-brand-purple:   hsl(262 83% 58%);     [purple-600 #7c3aed - same]
+     }
+
+   light mode 활성화 3단계:
+   1. main.tsx: document.documentElement.classList.remove('dark') 분기 추가
+   2. 위 :root:not(.dark) 블록을 이 파일에 추가
+   3. 컴포넌트에서 raw hex (#0a0f1e) → semantic var (var(--color-bg-base)) 마이그레이션
+
+   상세 가이드: docs/DESIGN-LIGHT-MODE-PATH.md
+   ═══════════════════════════════════════════════════════ */
+
+/* Dark mode semantic tokens (현재 활성 — 값 변경 금지, hex raw 대신 var 참조 권장) */
+:root.dark,
+.dark {
+  --color-bg-base:        hsl(222 73% 7.3%);   /* #0a0f1e — bg.base  */
+  --color-bg-card:        hsl(222 47% 11.2%);  /* #111827 — bg.card  */
+  --color-bg-elevated:    hsl(220 40% 16.7%);  /* #1a2235 — bg.elevated */
+
+  --color-text-primary:   hsl(210 40% 96.1%);  /* #f1f5f9 — text.primary   */
+  --color-text-secondary: hsl(215 14% 60%);    /* #94a3b8 — text.secondary  */
+  --color-text-muted:     hsl(215 15% 55%);    /* #7c8a9e — text.muted (WCAG AA ✅) */
+
+  --color-border:         hsl(215 28% 17%);    /* #1e293b — border */
+  --color-brand-purple:   hsl(262 83% 58%);    /* #7c3aed — brand.purple */
+  --color-brand-pink:     hsl(330 81% 60%);    /* #ec4899 — brand.pink */
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -365,6 +414,29 @@ html[data-menu-open="true"] .early-bird-banner {
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ═══════════════════════════════════════════════════════
+   브랜드 gradient fallback (PR #583 follow-up)
+   구형 browser (IE11 / old Safari) / print / SSR 환경에서
+   gradient 미렌더링 시 solid color fallback 보장.
+   패턴: background-color(fallback) 먼저 → background-image(progressive enhancement).
+   사용: className="bg-brand-gradient" 또는 인라인 Tailwind 에서도 동일 패턴 적용.
+   ═══════════════════════════════════════════════════════ */
+.bg-brand-gradient {
+  background-color: #7C5CFC; /* fallback — gradient 불가 환경 (IE11 / print / SSR) */
+  background-image: linear-gradient(135deg, #7C5CFC 0%, #EA537E 100%); /* progressive enhancement */
+}
+
+/* print: gradient 보통 깨짐 → solid purple fallback */
+@media print {
+  .bg-brand-gradient,
+  [class*="from-[#B668FC]"],
+  [class*="from-[#7C5CFC]"],
+  [class*="from-brand-purple"] {
+    background-image: none !important;
+    background-color: #7C5CFC !important;
+  }
+}
 
 /* ═══════════════════════════════════════════════════════
    접근성: 사용자가 OS 레벨에서 prefers-reduced-motion 활성화 시
