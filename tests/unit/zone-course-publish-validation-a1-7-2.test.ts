@@ -31,12 +31,13 @@ const FULL_TREKKING_META = {
   trailhead_address: '서울 강북구 우이동 등산로 입구',
 };
 
-// 풀-채운 running_meta
+// 풀-채운 running_meta — A1-7-2 follow-up: recommended_time 추가 (7 필드)
 const FULL_RUNNING_META = {
   total_km: 5,
   surface_type: 'paved',
   elevation_gain_m: 30,
   loop_or_out_and_back: 'loop',
+  recommended_time: ['morning', 'evening'],
   lighting_quality: 'good',
   difficulty: 'easy',
 };
@@ -188,7 +189,7 @@ describe('A1-7-2 validateZoneCoursePublish — SAFETY publish gate', () => {
   });
 
   describe('SAFETY — running_route 매트릭스', () => {
-    it('block_type=running_route + running_meta 빈 객체 → missing_meta + 6 missingKeys', () => {
+    it('block_type=running_route + running_meta 빈 객체 → missing_meta + 7 missingKeys', () => {
       const r = validateZoneCoursePublish({
         ...BASIC_OK,
         block_type: 'running_route',
@@ -199,11 +200,51 @@ describe('A1-7-2 validateZoneCoursePublish — SAFETY publish gate', () => {
         expect(r.reason).toBe('missing_meta');
         expect(r.missingMeta?.metaField).toBe('running_meta');
         expect(r.missingMeta?.safetyLabel).toBe('러닝');
-        expect(r.missingMeta?.missingKeys).toHaveLength(6);
+        expect(r.missingMeta?.missingKeys).toHaveLength(7);
       }
     });
 
-    it('block_type=running_route + 풀 채움 → ok', () => {
+    // A1-7-2 follow-up 핵심 회귀 테스트 — recommended_time=[] 빈 배열 publish 차단
+    it('A1-7-2: recommended_time=[] (빈 배열) → missing 으로 잡혀 publish 차단', () => {
+      const r = validateZoneCoursePublish({
+        ...BASIC_OK,
+        block_type: 'running_route',
+        running_meta: { ...FULL_RUNNING_META, recommended_time: [] },
+      } as never);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe('missing_meta');
+        const missingKeys = r.missingMeta?.missingKeys.map((k) => k.key) ?? [];
+        expect(missingKeys).toContain('recommended_time');
+      }
+    });
+
+    it('A1-7-2: recommended_time=null → missing 으로 잡혀 publish 차단', () => {
+      const r = validateZoneCoursePublish({
+        ...BASIC_OK,
+        block_type: 'running_route',
+        running_meta: { ...FULL_RUNNING_META, recommended_time: null },
+      } as never);
+      expect(r.ok).toBe(false);
+      if (!r.ok && r.missingMeta) {
+        expect(r.missingMeta.missingKeys.map((k) => k.key)).toContain('recommended_time');
+      }
+    });
+
+    it('A1-7-2: recommended_time 필드 누락 (undefined) → missing 으로 잡혀 publish 차단', () => {
+      const { recommended_time: _unused, ...metaWithoutTime } = FULL_RUNNING_META;
+      const r = validateZoneCoursePublish({
+        ...BASIC_OK,
+        block_type: 'running_route',
+        running_meta: metaWithoutTime,
+      } as never);
+      expect(r.ok).toBe(false);
+      if (!r.ok && r.missingMeta) {
+        expect(r.missingMeta.missingKeys.map((k) => k.key)).toContain('recommended_time');
+      }
+    });
+
+    it('block_type=running_route + 풀 채움 (recommended_time 포함) → ok', () => {
       const r = validateZoneCoursePublish({
         ...BASIC_OK,
         block_type: 'running_route',
@@ -280,10 +321,20 @@ describe('A1-7-2 BLOCK_TYPE_META_REQUIREMENTS — 매트릭스 구조', () => {
     expect(BLOCK_TYPE_META_REQUIREMENTS.trekking.safetyLabel).toBe('등산');
   });
 
-  it('running_route 매트릭스 = running_meta + 6 필드', () => {
+  it('running_route 매트릭스 = running_meta + 7 필드 (A1-7-2: recommended_time 추가)', () => {
     expect(BLOCK_TYPE_META_REQUIREMENTS.running_route.metaField).toBe('running_meta');
-    expect(BLOCK_TYPE_META_REQUIREMENTS.running_route.requiredKeys).toHaveLength(6);
+    expect(BLOCK_TYPE_META_REQUIREMENTS.running_route.requiredKeys).toHaveLength(7);
     expect(BLOCK_TYPE_META_REQUIREMENTS.running_route.safetyLabel).toBe('러닝');
+    const keys = BLOCK_TYPE_META_REQUIREMENTS.running_route.requiredKeys.map((k) => k.key);
+    expect(keys).toContain('recommended_time');
+  });
+
+  it('running_route 매트릭스 recommended_time 라벨 = 권장 시간대', () => {
+    const rtKey = BLOCK_TYPE_META_REQUIREMENTS.running_route.requiredKeys.find(
+      (k) => k.key === 'recommended_time',
+    );
+    expect(rtKey).toBeDefined();
+    expect(rtKey?.label).toBe('권장 시간대');
   });
 
   it('safety 영역만 등록 — city_day / cafe_hop / cycling 은 매트릭스 없음 (운영자 의도)', () => {

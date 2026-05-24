@@ -971,6 +971,47 @@ function P47_paypalWebhookRawBody({ changed }) {
 }
 
 /**
+ * R_A1_7_2_runningRouteValidator — A1-7-2 follow-up (2026-05-24).
+ *
+ * AdminZoneCourseEditor.tsx 가 handlePublish 에서 zone-course-publish-validation.ts
+ * 의 validateZoneCoursePublish 를 import/호출하지 않으면 running_route 코스의
+ * recommended_time 누락 상태로 publish 가능 → AI 플래너가 야간 어두운 코스를
+ * 새벽/야간 초보자에게 추천 → SAFETY 사고 위험.
+ *
+ * 룰:
+ *   1. AdminZoneCourseEditor.tsx 변경 시 zone-course-publish-validation import 존재 확인.
+ *   2. validateZoneCoursePublish 호출 확인.
+ *
+ * 트리거: src/pages/AdminZoneCourseEditor.tsx 변경 시.
+ */
+function R_A1_7_2_runningRouteValidator({ changed }) {
+  const FILE = 'src/pages/AdminZoneCourseEditor.tsx';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  if (!content.includes('zone-course-publish-validation')) {
+    fail(
+      'R_A1_7_2_runningRouteValidator',
+      `${FILE}: zone-course-publish-validation import 누락 — running_route recommended_time 검증 없이 publish 가능 (A1-7-2 follow-up SAFETY 회귀).`,
+      '해결: import { validateZoneCoursePublish } from \'../lib/zone-course-publish-validation\'; 추가 후 handlePublish 에서 호출.',
+    );
+    return null;
+  }
+
+  if (!content.includes('validateZoneCoursePublish')) {
+    fail(
+      'R_A1_7_2_runningRouteValidator',
+      `${FILE}: validateZoneCoursePublish 호출 누락 — import 만 있고 실제 publish 검증 안 됨 (A1-7-2 follow-up SAFETY 회귀).`,
+      '해결: handlePublish 내 validateZoneCoursePublish(draft) 호출 추가.',
+    );
+    return null;
+  }
+
+  return null;
+}
+
+/**
  * Z01_blockTypeMetaConsistency — PR-A zone_courses schema 확장 회귀 차단 (2026-05-21).
  *
  * src/data/zone_courses/*.json 파일이 변경됐을 때 다음을 검증:
@@ -1421,7 +1462,68 @@ function P174_validatePlannerSilentFail({ changed }) {
   return null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// R-A1-7-3-* (2026-05-24) — PR #578 follow-up nested 검증 매트릭스
+//
+// PR #578 머지 후 4번 review 에서 5종 nested 검증 갭 발견:
+//   1. stops.name.ko / description.ko 빈 값 미검증 (length≥2 통과 시 빈 stop 통과)
+//   2. slots.capacity=0 / price_modifier_krw 음수 통과
+//   3. i18n en/ja/zh 미검증 (외국인 손님 본질 — CocoTrip VIP target)
+//   4. meeting_point lat/lng 미검증 (손님 위치 못 찾음 → 노쇼)
+//   5. cancellation_policy.kind 미지정 (환불 분쟁)
+//
+// admin-product-publish-validation.ts 변경 시 5종 validator 함수가
+// import/호출되는지 확인. AdminProductEditor.tsx 는 validateProductPublish
+// 단일 entry 호출 (chain 내부) — 별도 lint 불필요.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function R_A1_7_3_stopsNested({ changed }) {
+  const FILE = 'src/lib/admin-product-publish-validation.ts';
+  if (!isModified(FILE, changed)) return null;
+  const content = getChangedFileContent(FILE);
+  if (!content) return null;
+
+  if (!/export function validateStopNested/.test(content)) {
+    return `R-A1-7-3-stops-nested: ${FILE} 에 validateStopNested export 누락 — A1-7-3 follow-up review 1번 갭 회귀 (각 stop name.ko/en + description.ko/en 빈 값 검증). PR #578 follow-up 5종 validator 매트릭스 일부.`;
+  }
+  if (!/validateStopNested\(stops\)/.test(content) && !/validateStopNested\(\s*stops\s*\)/.test(content)) {
+    return `R-A1-7-3-stops-nested: ${FILE} validateStopNested 호출 누락 (validateProductPublish 내부 chain). export 만 있고 실제 publish 검증 안 됨 — 빈 stop 노출 회귀.`;
+  }
+  return null;
+}
+
+function R_A1_7_3_slotsNumeric({ changed }) {
+  const FILE = 'src/lib/admin-product-publish-validation.ts';
+  if (!isModified(FILE, changed)) return null;
+  const content = getChangedFileContent(FILE);
+  if (!content) return null;
+
+  if (!/export function validateSlotNumeric/.test(content)) {
+    return `R-A1-7-3-slots-numeric: ${FILE} 에 validateSlotNumeric export 누락 — A1-7-3 follow-up review 2번 갭 회귀 (capacity ≥ 1, price_modifier_krw 음수 차단). PR #578 follow-up 매트릭스.`;
+  }
+  if (!/validateSlotNumeric\(slots\)/.test(content) && !/validateSlotNumeric\(\s*slots\s*\)/.test(content)) {
+    return `R-A1-7-3-slots-numeric: ${FILE} validateSlotNumeric 호출 누락 — capacity=0 slot publish 가능 회귀.`;
+  }
+  return null;
+}
+
+function R_A1_7_3_meetingValidate({ changed }) {
+  const FILE = 'src/lib/admin-product-publish-validation.ts';
+  if (!isModified(FILE, changed)) return null;
+  const content = getChangedFileContent(FILE);
+  if (!content) return null;
+
+  if (!/export function validateMeetingPoint/.test(content)) {
+    return `R-A1-7-3-meeting-validate: ${FILE} 에 validateMeetingPoint export 누락 — A1-7-3 follow-up review 4번 갭 회귀 (fixed_address lat/lng / hotel_pickup instructions / multi_zone zones). 손님 위치 못 찾으면 노쇼.`;
+  }
+  if (!/validateMeetingPoint\(draft\.meeting_point\)/.test(content)) {
+    return `R-A1-7-3-meeting-validate: ${FILE} validateMeetingPoint(draft.meeting_point) 호출 누락 — meeting_point invalid 상태로 publish 가능 회귀.`;
+  }
+  return null;
+}
+
 const RULES = [
+  ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
   ['P3_i18nKeyParity', P3_i18nKeyParity],
@@ -1530,6 +1632,9 @@ const RULES = [
   ['P171_adminBypassPropagation', P171_adminBypassPropagation],
   ['P172_flashPctBucketingPropagation', P172_flashPctBucketingPropagation],
   ['P174_validatePlannerSilentFail', P174_validatePlannerSilentFail],
+  ['R_A1_7_3_stopsNested', R_A1_7_3_stopsNested],
+  ['R_A1_7_3_slotsNumeric', R_A1_7_3_slotsNumeric],
+  ['R_A1_7_3_meetingValidate', R_A1_7_3_meetingValidate],
   ['P175_dailyHealthLogPushSilent', P175_dailyHealthLogPushSilent],
   ['P177_adminDebugConditional', P177_adminDebugConditional],
   ['P180_foodCityEnforcement', P180_foodCityEnforcement],
