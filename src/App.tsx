@@ -50,6 +50,7 @@ const AdminIntentClassifier = lazy(() => import('@/pages/AdminIntentClassifier')
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
+import { TrustBadges } from '@/components/TrustBadges';
 const CharterPage = lazy(() => import('@/pages/CharterPage'));
 const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
@@ -129,6 +130,7 @@ function HomePage() {
       />
       <main>
         <HeroSlider t={t} />
+        <TrustBadges />
         <HeroCards t={t} />
         <Suspense fallback={null}>
           <CustomerGallery />
