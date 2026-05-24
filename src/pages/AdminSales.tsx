@@ -18,6 +18,10 @@ interface RecentEntry {
   customerEmail: string;
   createdAt: string | null;
 }
+interface ExcludedMeta {
+  adminBypass: number;
+  canceled: number;
+}
 interface SalesResponse {
   kpi: { today: Bucket; week: Bucket; month: Bucket; ytd: Bucket };
   daily: DailyEntry[];
@@ -25,6 +29,9 @@ interface SalesResponse {
   recent: RecentEntry[];
   exchangeRate: number;
   totalBookings: number;
+  // A1-7-1 (2026-05-24): 매출 집계에서 제외된 건수 — 운영자 본인 테스트 결제 + 취소.
+  // 서버 응답이 구버전이면 undefined.
+  excluded?: ExcludedMeta;
   generatedAt: string;
 }
 
@@ -295,12 +302,29 @@ export default function AdminSales() {
         ) : data ? (
           <>
             {/* KPI 카드 */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
               <KpiCard title={t.adminSales?.kpi?.today ||'오늘'} bucket={data.kpi.today} rate={data.exchangeRate} />
               <KpiCard title={t.adminSales?.kpi?.week ||'이번 주'} bucket={data.kpi.week} rate={data.exchangeRate} />
               <KpiCard title={t.adminSales?.kpi?.month ||'이번 달'} bucket={data.kpi.month} rate={data.exchangeRate} />
               <KpiCard title={t.adminSales?.kpi?.ytd ||'연 누적'} bucket={data.kpi.ytd} rate={data.exchangeRate} />
             </div>
+
+            {/* A1-7-1: 제외 메타 — 운영자가 KPI 숫자가 줄어든 이유 즉시 인지 */}
+            {data.excluded && (data.excluded.adminBypass > 0 || data.excluded.canceled > 0) && (
+              <p className="text-[11px] text-white/50 mb-5 px-1">
+                {data.excluded.adminBypass > 0 && (
+                  <span className="mr-3">
+                    본인 테스트 결제 <span className="text-amber-300 font-semibold">{data.excluded.adminBypass}건</span> 제외 (TEST-/ADMIN-BYPASS-)
+                  </span>
+                )}
+                {data.excluded.canceled > 0 && (
+                  <span>취소 {data.excluded.canceled}건 제외</span>
+                )}
+              </p>
+            )}
+            {(!data.excluded || (data.excluded.adminBypass === 0 && data.excluded.canceled === 0)) && (
+              <div className="mb-5" />
+            )}
 
             {/* 일별 차트 */}
             <div className="mb-5">

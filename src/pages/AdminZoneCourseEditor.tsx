@@ -38,6 +38,7 @@ import { PainpointsTab } from '@/components/admin/ZoneCourseEditor/PainpointsTab
 import { MetaTab } from '@/components/admin/ZoneCourseEditor/MetaTab';
 import { TrekkingMetaTab } from '@/components/admin/ZoneCourseEditor/TrekkingMetaTab';
 import { RunningMetaTab } from '@/components/admin/ZoneCourseEditor/RunningMetaTab';
+import { validateZoneCoursePublish } from '@/lib/zone-course-publish-validation';
 
 type TabKey =
   | 'basic' | 'stops' | 'transit' | 'bestfor' | 'dietary'
@@ -183,18 +184,35 @@ export default function AdminZoneCourseEditor() {
       setTab('basic');
       return;
     }
-    if (!draft.id || !draft.city || !draft.zone || !draft.theme) {
-      toast.error('Basic 탭의 id / city / zone / theme 가 필수입니다.');
-      setTab('basic');
+
+    // A1-7-2: block_type ↔ meta 매트릭스 검증 강화 (SAFETY-CRITICAL)
+    // basic / stops / trekking_meta / running_meta 누락을 한 번에 검사.
+    // 비유: "등산이라면서 등산화 권고 없이 메뉴 발행 → 손님 운동화로 가서 다침"
+    const validation = validateZoneCoursePublish(draft);
+    if (!validation.ok) {
+      if (validation.reason === 'missing_basic') {
+        toast.error(validation.message);
+        setTab('basic');
+        return;
+      }
+      if (validation.reason === 'insufficient_stops') {
+        toast.error(validation.message);
+        setTab('stops');
+        return;
+      }
+      if (validation.reason === 'missing_meta' && validation.missingMeta) {
+        // SAFETY-CRITICAL — toast 대신 alert (반드시 확인 필요)
+        window.alert(validation.message);
+        setTab(validation.missingMeta.metaField);
+        return;
+      }
+      // fallback (미래 reason 추가 시)
+      toast.error(validation.message);
       return;
     }
-    if (!draft.stops || draft.stops.length < 2) {
-      toast.error('Stops 2 개 이상 필요합니다.');
-      setTab('stops');
-      return;
-    }
+
     if (!window.confirm(
-      `"${draft.theme}" (${draft.city.toUpperCase()} ${draft.zone}) 을 발행할까요?\nAI 플래너 후보로 노출됩니다.`,
+      `"${draft.theme}" (${(draft.city || '').toUpperCase()} ${draft.zone}) 을 발행할까요?\nAI 플래너 후보로 노출됩니다.`,
     )) return;
 
     setPublishing(true);

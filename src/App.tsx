@@ -50,6 +50,7 @@ const AdminIntentClassifier = lazy(() => import('@/pages/AdminIntentClassifier')
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
+import { TrustBadges } from '@/components/TrustBadges';
 const CharterPage = lazy(() => import('@/pages/CharterPage'));
 const CharterNewPage = lazy(() => import('@/pages/CharterNewPage'));
 const MyPage = lazy(() => import('@/pages/MyPage'));
@@ -119,9 +120,9 @@ function HomePage() {
     );
   }
 
-  // 데스크톱: 기존 디자인 유지
+  // 데스크톱: 모바일과 통일된 다크 gradient (D1: 통일성)
   return (
-    <div className="min-h-screen bg-[#faf9f6]">
+    <div className="min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]">
       <Header
         language={language}
         t={t}
@@ -129,6 +130,7 @@ function HomePage() {
       />
       <main>
         <HeroSlider t={t} />
+        <TrustBadges />
         <HeroCards t={t} />
         <Suspense fallback={null}>
           <CustomerGallery />

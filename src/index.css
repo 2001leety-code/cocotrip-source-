@@ -196,7 +196,7 @@ img {
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
     --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted-foreground: 215 15% 55%; /* #7c8a9e — WCAG AA: bg.card 5.06:1 / bg.base 5.44:1 / bg.elevated 4.52:1 (2026-05-24 SSOT fix) */
     --accent: 240 3.7% 15.9%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
@@ -260,10 +260,25 @@ html {
   color: #fff;
 }
 
-/* Focus Styles */
+/* Focus Styles — WCAG AA 접근성 토큰 (2026-05-24 SSOT)
+   --ring-focus: keyboard 사용자 전용 ring 토큰 (마우스 클릭 시 미표시)
+   disabled: 인터랙션 불가 요소 시각 단서 */
+:root {
+  --ring-focus: 0 0 0 3px rgba(124, 92, 252, 0.5);
+}
 *:focus-visible {
   outline: 2px solid #7C5CFC;
   outline-offset: 2px;
+  box-shadow: var(--ring-focus);
+}
+
+/* disabled 토큰 — text.disabled=#475569 (의도된 미달 — disabled 시각 표시) / bg.disabled=#1a2235 */
+:disabled,
+[aria-disabled="true"],
+[data-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* ── Mobile Menu Open: hide conflicting fixed elements ── */
