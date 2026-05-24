@@ -634,6 +634,16 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
 - 사용자 신고: 부산 → 서울 전환 day 의 lodging 이 부산 호텔로 잘못 매칭 → 사용자가 짐 끌고 KTX 후 어디로 가야 할지 혼란.
 - 위반 시 백엔드 validator 가 즉시 1회 재시도 → 그래도 위반이면 plan 저장 차단 + 사용자 500 에러.
 
+### 9-bis. 🔴 FOOD STOP city 매칭 — ABSOLUTE MUST (P180, 2026-05-24)
+다도시 plan 의 each day food stop (\`category="food"\`) 은 **반드시 그 day 의 \`city\` 값과 일치하는 도시의 식당**:
+- \`day.city = "Seoul"\` → food stop name/address 가 **서울 식당** (서울/Seoul 포함 address)
+- \`day.city = "Busan"\` → 부산 식당 (부산/Busan)
+- \`day.city = "Jeju"\` → 제주 식당 (제주/Jeju)
+- **BAD** (P180 측정 발견): day.city="Jeju" 인 day stops[5].category="food", name="마초스테이크 본점" ← **서울 강남구 식당**. dbMatcher 가 cross-city 감지 + verified=false 처리. 사용자가 받은 plan 의 address (Gemini hallucination) 는 jeju 어딘가 가짜 위치 → **돈 받는 plan 의 신뢰 손상**.
+- **GOOD**: day.city="Jeju" 인 day stops[5].category="food", name="흑돼지 본점" (제주 식당, 실제 제주 위치).
+- **DB-injected food (\`recommended_restaurants_by_city\`) 우선 사용** — 그 day 의 city 에 해당하는 list 만 골라서 추천. Gemini 임의 식당 생성 X (verified=false 표시되어 사용자 신뢰 손상).
+- 위반 시 backend dbMatcher 가 city-mismatch 감지 + verified=false 처리 + admin alert (20% threshold).
+
 ### 10. 🔴 호텔 미입력 도시 — zone 중심 bookend (P134, 2026-05-21)
 운영자 의도 (받아적기): **"AI 플랜 짤 때 호텔 > 이동 > 장소 > 이동 > 장소 > 호텔복귀 이걸 원해서 호텔을 넣었던 거야. 강제가 되면 안 되지 어디다 호텔을 잡을지 모르는데."**
 → 호텔 = 매일 동선 anchor. **입력 강제 X (옵션)**. 호텔 입력 여부와 무관하게 동선 구조 (anchor → 이동 → 장소 → ... → anchor 복귀) 가 깨지지 않아야 함.

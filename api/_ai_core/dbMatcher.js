@@ -90,8 +90,11 @@ export function sanitizeStopNames(stop, lang = 'ko') {
 
 // PR #466 (X-H8): per-call summary threshold for city-mismatch alert.
 // Below 3 food stops we don't alert (1-mismatch dominates ratio in tiny
-// plans). Above 3, fire when > 30% of matches landed on a different city.
-const CITY_MISMATCH_RATIO_THRESHOLD = 0.3;
+// plans). Above 3, fire when > 20% of matches landed on a different city.
+// P180 (2026-05-24): 30% → 20% — 측정 시 1/3 (33%) alert 발동했지만 일반
+// user 1/5 (20%) 도 hallucination 위험 동등. 돈 받는 plan 의 신뢰 손상
+// 차단 위해 조기 발견. 5 stop plan 에서 1+ mismatch 시 alert.
+const CITY_MISMATCH_RATIO_THRESHOLD = 0.2;
 const CITY_MISMATCH_MIN_MATCHES = 3;
 
 /**
