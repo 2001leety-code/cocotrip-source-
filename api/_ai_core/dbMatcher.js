@@ -261,7 +261,10 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
   // restaurant names), or a wizard mis-routing plans to the wrong region.
   if (dbMatched >= CITY_MISMATCH_MIN_MATCHES) {
     const ratio = cityMismatchCount / dbMatched;
-    if (ratio > CITY_MISMATCH_RATIO_THRESHOLD) {
+    // P180 (2026-05-24): > 에서 >= 로 변경 — 정확히 20% (1/5 mismatch) 도 alert.
+    // 이전 `>` 는 1/5 = 0.2 = 0.2 false → silent. 1+ mismatch in 5-stop plan
+    // 시 alert 보장.
+    if (ratio >= CITY_MISMATCH_RATIO_THRESHOLD) {
       const ratioPct = Math.round(ratio * 100);
       throttledTelegramAlert({
         key: `dbmatcher-city-mismatch:${tripMatchCity || 'unknown'}`,

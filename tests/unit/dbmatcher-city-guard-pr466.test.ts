@@ -166,8 +166,15 @@ describe('PR #466 X-H8 — admin alert fires when mismatch ratio crosses thresho
     expect(alertCalls[0].message).toMatch(/40%/);
   });
 
-  it('10 matches / 2 mismatches (20%) → NO alert (below 30%)', () => {
+  it('P180 (2026-05-24): 10 matches / 2 mismatches (20%) → ALERT (threshold 30%→20% 강화 + >= 변경)', () => {
     const { itinerary, foodIndex } = plan(10, 0.2);
+    applyDBMatcher(itinerary, foodIndex, 'seoul', 'ko');
+    expect(alertCalls.length).toBe(1);
+    expect(alertCalls[0].message).toMatch(/20%/);
+  });
+
+  it('P180: 10 matches / 1 mismatch (10%) → NO alert (below 20%)', () => {
+    const { itinerary, foodIndex } = plan(10, 0.1);
     applyDBMatcher(itinerary, foodIndex, 'seoul', 'ko');
     expect(alertCalls.length).toBe(0);
   });
@@ -198,9 +205,11 @@ describe('PR #466 X-H8 — source-level invariants', () => {
     expect(src).toMatch(/from\s+['"]\.\.\/_shared\/telegram-throttle\.js['"]/);
   });
 
-  it('declares the canonical threshold constants', () => {
-    expect(src).toMatch(/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.3/);
+  it('declares the canonical threshold constants (P180: 0.3 → 0.2 강화)', () => {
+    expect(src).toMatch(/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.2\b/);
     expect(src).toMatch(/CITY_MISMATCH_MIN_MATCHES\s*=\s*3/);
+    // 30% 회귀 차단
+    expect(src).not.toMatch(/CITY_MISMATCH_RATIO_THRESHOLD\s*=\s*0\.3\b/);
   });
 
   it('extracts findFoodIndexMatch helper with cityFilter parameter', () => {
