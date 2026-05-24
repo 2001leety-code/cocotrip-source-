@@ -6,6 +6,11 @@ import { initGA } from './lib/analytics'
 import { bootPostHog } from './lib/posthog'
 import { initSentry } from './lib/sentry'
 
+// D1: activate shadcn .dark tokens before React mount (avoids FOUC).
+// Done here (not index.html class="dark") to avoid PDF_KOREAN_FONT lint
+// false-positive on index.html (html2canvas comment trigger).
+document.documentElement.classList.add('dark');
+
 // ── Sentry 에러 모니터링 (프로덕션 전용) ──
 initSentry();
 

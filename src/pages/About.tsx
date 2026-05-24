@@ -40,14 +40,14 @@ export default function About() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf9f6]">
+    <div className="min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]">
       <Header
         language={language}
         t={t}
         onLanguageChange={changeLanguage}
       />
       <main className="container mx-auto px-4 py-16">
-        <h1 className="text-4xl font-bold text-center text-[#1a1a2e] mb-12">{t.about?.heading || 'About COCOTRIP'}</h1>
+        <h1 className="text-5xl font-display font-normal text-center text-white mb-12 tracking-tight">{t.about?.heading || 'About COCOTRIP'}</h1>
         <div className="flex flex-col items-center gap-16 py-8">
           <img src="/브랜드 상세페이지/1.jpeg" alt="Brand Story 1" loading="lazy" className="w-full max-w-3xl mx-auto rounded-2xl shadow-xl object-cover" />
           <img src="/브랜드 상세페이지/2.jpeg" alt="Brand Story 2" loading="lazy" className="w-full max-w-3xl mx-auto rounded-2xl shadow-xl object-cover" />

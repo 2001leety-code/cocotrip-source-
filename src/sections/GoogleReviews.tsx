@@ -1,5 +1,6 @@
 import { Star, ExternalLink } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { MotionSection } from '@/components/MotionSection';
 
 const reviews = [
   {
@@ -38,7 +39,7 @@ export function GoogleReviews() {
   const { t } = useLanguage();
   const gr = (t as any).googleReviews || {};
   return (
-    <section className="py-20 bg-white overflow-hidden">
+    <MotionSection className="py-20 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header with Google Logo Colors and Overall Rating */}
@@ -51,22 +52,22 @@ export function GoogleReviews() {
               <span className="text-[#4285F4]">g</span>
               <span className="text-[#34A853]">l</span>
               <span className="text-[#EA4335]">e</span>
-              <span className="text-[#1a1a2e] ml-4 font-bold">{gr.reviewsLabel || 'Reviews'}</span>
+              <span className="text-white ml-4 font-bold">{gr.reviewsLabel || 'Reviews'}</span>
             </h2>
-            <p className="text-gray-600 text-lg">{gr.subtitle || 'What our global guests are saying about us'}</p>
+            <p className="text-white/60 text-lg">{gr.subtitle || 'What our global guests are saying about us'}</p>
           </div>
           
-          <div className="bg-[#faf9f6] p-6 rounded-2xl flex items-center gap-6 shadow-sm border border-gray-100">
+          <div className="bg-white/[0.04] backdrop-blur-md p-6 rounded-2xl flex items-center gap-6 shadow-sm border border-white/[0.08]">
             <div className="text-center">
-              <div className="text-5xl font-bold text-[#1a1a2e]">5.0</div>
+              <div className="text-5xl font-bold text-white">5.0</div>
               <div className="flex gap-1 mt-1 justify-center">
                 {[...Array(5)].map((_, i) => (
                   <Star key={i} className="w-5 h-5 fill-[#FBBC05] text-[#FBBC05]" />
                 ))}
               </div>
-              <div className="text-gray-500 text-sm mt-2">{gr.basedOn || 'Based on 150+ reviews'}</div>
+              <div className="text-white/60 text-sm mt-2">{gr.basedOn || 'Based on 150+ reviews'}</div>
             </div>
-            <div className="w-[1px] h-16 bg-gray-200" />
+            <div className="w-[1px] h-16 bg-white/[0.15]" />
             <a 
               href="https://www.google.com/search?q=cocotrip+korea+reviews" 
               target="_blank" 
@@ -81,7 +82,7 @@ export function GoogleReviews() {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
               </div>
-              <span className="text-xs font-bold text-gray-700 uppercase tracking-tighter">{gr.verified || 'Verified'}</span>
+              <span className="text-xs font-bold text-white uppercase tracking-tighter">{gr.verified || 'Verified'}</span>
             </a>
           </div>
         </div>
@@ -91,16 +92,16 @@ export function GoogleReviews() {
           {reviews.map((review, index) => (
             <div 
               key={index} 
-              className={`p-8 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 bg-[#faf9f6]/30 ${index >= 3 ? 'lg:flex' : ''}`}
+              className={`p-8 rounded-2xl border border-white/[0.08] shadow-sm transition-all hover:shadow-md hover:-translate-y-1 bg-white/[0.04] backdrop-blur-md ${index >= 3 ? 'lg:flex' : ''}`}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#1a1a2e] flex items-center justify-center text-white font-bold">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#B668FC] to-[#FF6B9D] flex items-center justify-center text-white font-bold">
                     {review.name.charAt(0)}
                   </div>
                   <div>
-                    <div className="font-bold text-[#1a1a2e]">{review.name}</div>
-                    <div className="text-gray-400 text-xs">{review.date}</div>
+                    <div className="font-bold text-white">{review.name}</div>
+                    <div className="text-white/40 text-xs">{review.date}</div>
                   </div>
                 </div>
                 <div className="flex">
@@ -109,7 +110,7 @@ export function GoogleReviews() {
                   ))}
                 </div>
               </div>
-              <p className="text-gray-600 text-sm leading-relaxed line-clamp-4 italic">
+              <p className="text-white/60 text-sm leading-relaxed line-clamp-4 italic">
                 "{review.text}"
               </p>
             </div>
@@ -122,13 +123,13 @@ export function GoogleReviews() {
             href="https://www.google.com/search?q=cocotrip+korea+reviews"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-[#1a1a2e] text-white px-8 py-4 rounded-full font-bold hover:bg-[#c0b283] hover:text-[#1a1a2e] transition-all group shadow-xl"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white px-8 py-4 rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-all group shadow-xl"
           >
             {gr.seeAll || 'See all reviews on Google'}
             <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </a>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }
