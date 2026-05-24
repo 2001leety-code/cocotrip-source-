@@ -1,6 +1,7 @@
 import useEmblaCarousel from 'embla-carousel-react';
 import Autoplay from 'embla-carousel-autoplay';
 import { useLanguage } from '@/hooks/useLanguage';
+import { MotionSection } from '@/components/MotionSection';
 
 const customers = [
   { image: '/고객사진/KakaoTalk_20250923_114705709_11.jpg', name: 'Maria from Italy', location: 'Seoul Tour', quote: 'The best way to see Seoul! Highly recommended.' },
@@ -81,7 +82,7 @@ export function CustomerGallery() {
   }, [Autoplay({ delay: 3000, stopOnInteraction: false })]);
 
   return (
-    <section className="py-20 lg:py-32 overflow-hidden">
+    <MotionSection className="py-20 lg:py-32 overflow-hidden">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16 px-4">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
@@ -108,6 +109,6 @@ export function CustomerGallery() {
           </div>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

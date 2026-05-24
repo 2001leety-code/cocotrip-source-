@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ArrowRight } from 'lucide-react';
 import type { Translations } from '@/i18n';
+import { MotionSection } from '@/components/MotionSection';
 
 interface RegionsProps {
   t: Translations;
@@ -30,7 +31,7 @@ export function Regions({ t }: RegionsProps) {
   };
 
   return (
-    <section id="regions" className="py-20 lg:py-32">
+    <MotionSection id="regions" className="py-20 lg:py-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-16">
@@ -111,6 +112,6 @@ export function Regions({ t }: RegionsProps) {
           </button>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

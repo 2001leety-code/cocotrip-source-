@@ -1,5 +1,6 @@
 import { Star, ExternalLink } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { MotionSection } from '@/components/MotionSection';
 
 const reviews = [
   {
@@ -38,7 +39,7 @@ export function GoogleReviews() {
   const { t } = useLanguage();
   const gr = (t as any).googleReviews || {};
   return (
-    <section className="py-20 overflow-hidden">
+    <MotionSection className="py-20 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header with Google Logo Colors and Overall Rating */}
@@ -129,6 +130,6 @@ export function GoogleReviews() {
           </a>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

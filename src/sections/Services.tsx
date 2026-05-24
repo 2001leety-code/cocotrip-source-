@@ -4,6 +4,7 @@ import useEmblaCarousel from 'embla-carousel-react';
 import { Link } from 'react-router-dom';
 import type { Translations } from '@/i18n';
 import type { LucideIcon } from 'lucide-react';
+import { MotionSection } from '@/components/MotionSection';
 
 interface ServiceDef {
   key: string;
@@ -63,7 +64,7 @@ export function Services({ t }: ServicesProps) {
   };
 
   return (
-    <section id="services" className="py-20 lg:py-32">
+    <MotionSection id="services" className="py-20 lg:py-32">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-16 px-4">
@@ -89,6 +90,6 @@ export function Services({ t }: ServicesProps) {
           </div>
         )}
       </div>
-    </section>
+    </MotionSection>
   );
 }

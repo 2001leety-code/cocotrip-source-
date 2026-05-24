@@ -1,6 +1,7 @@
 import { MessageCircle } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Translations } from '@/i18n';
+import { MotionSection } from '@/components/MotionSection';
 
 interface CTAProps {
   t: Translations;
@@ -10,7 +11,7 @@ export function CTA({ t }: CTAProps) {
   const isMobile = useIsMobile();
 
   return (
-    <section id="cta" className="py-20 lg:py-32 relative overflow-hidden">
+    <MotionSection id="cta" className="py-20 lg:py-32 relative overflow-hidden">
       {/* Decorative Elements */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#B668FC]/10 rounded-full blur-3xl" />
       
@@ -43,6 +44,6 @@ export function CTA({ t }: CTAProps) {
           </div>
         )}
       </div>
-    </section>
+    </MotionSection>
   );
 }

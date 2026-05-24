@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Bot, Car, Hotel, Plane, Map } from 'lucide-react';
 import type { Translations } from '@/i18n';
 import { buildAccommodationLinks, buildFlightLink } from '@/config/affiliateLinks';
+import { MotionSection } from '@/components/MotionSection';
 
 interface HeroCardsProps {
   t: Translations;
@@ -24,7 +25,7 @@ export function HeroCards({ t }: HeroCardsProps) {
   const flightLink = buildFlightLink('ICN').url;
 
   return (
-    <section className="py-16 lg:py-24 px-4">
+    <MotionSection className="py-16 lg:py-24 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-10">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
@@ -110,6 +111,6 @@ export function HeroCards({ t }: HeroCardsProps) {
           </Link>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

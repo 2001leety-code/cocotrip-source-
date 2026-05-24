@@ -1,5 +1,6 @@
 import { Percent, Car, Hotel, Gift, ArrowRight } from 'lucide-react';
 import type { Translations } from '@/i18n';
+import { MotionSection } from '@/components/MotionSection';
 
 interface MembershipBenefit {
   icon: string;
@@ -20,7 +21,7 @@ const iconMap: Record<string, React.ElementType> = {
 
 export function Membership({ t }: MembershipProps) {
   return (
-    <section className="py-20 lg:py-32 relative overflow-hidden">
+    <MotionSection className="py-20 lg:py-32 relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-0 left-0 w-96 h-96 bg-[#B668FC] rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
@@ -72,6 +73,6 @@ export function Membership({ t }: MembershipProps) {
           </div>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }
