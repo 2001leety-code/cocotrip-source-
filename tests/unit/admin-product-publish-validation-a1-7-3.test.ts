@@ -14,13 +14,28 @@
 //   4. photos >= 3 (썸네일 + 갤러리 합산) → media 탭
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
-import type { Tour, TourStop, TourSlot, TourPhoto, I18nString } from '@/data/tours';
+import type {
+  Tour,
+  TourStop,
+  TourSlot,
+  TourPhoto,
+  I18nString,
+  MeetingPoint,
+  CancellationPolicy,
+} from '@/data/tours';
 import {
   validateProductPublish,
   countProductPhotos,
+  validateStopNested,
+  validateSlotNumeric,
+  validateI18nLangs,
+  validateMeetingPoint,
+  validateCancellationPolicy,
+  checkI18nWarnings,
   MIN_STOPS,
   MIN_SLOTS,
   MIN_PHOTOS,
+  MIN_SLOT_CAPACITY,
 } from '@/lib/admin-product-publish-validation';
 
 // ───────── helper builders ──────────────────────────────────────────────────
@@ -369,5 +384,454 @@ describe('A1-7-3 constants', () => {
   });
   it('MIN_PHOTOS = 3', () => {
     expect(MIN_PHOTOS).toBe(3);
+  });
+  it('MIN_SLOT_CAPACITY = 1', () => {
+    expect(MIN_SLOT_CAPACITY).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A1-7-3 follow-up — nested 검증 5종 (PR #578 review 4번 발견 갭)
+//
+// 회귀 차단:
+//   - count-only 검증으로는 빈 stop 2개 / capacity=0 slot / lat 없는 meeting
+//     통과 → 손님에게 "잘못된 카드" 노출. 5종 nested 검증으로 매트릭스 완결.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ───────── 9. validateStopNested — stops nested 필드 ────────────────────────
+describe('A1-7-3 validateStopNested — stops nested', () => {
+  const baseStop = (): TourStop => ({
+    time: '09:00',
+    name: i18n('경복궁'),
+    stay_min: 60,
+    description: i18n('조선시대 정궁'),
+  });
+
+  it('빈 stops 배열 → null (검증 통과)', () => {
+    expect(validateStopNested([])).toBeNull();
+  });
+
+  it('모든 stop 의 name.ko/en + description.ko/en 있음 → null', () => {
+    expect(validateStopNested([baseStop(), baseStop()])).toBeNull();
+  });
+
+  it('첫 stop 의 name.ko 빈 값 → fail + stops 탭', () => {
+    const stops = [baseStop()];
+    stops[0].name = { ko: '', en: 'Gyeongbokgung', ja: 'x', zh: 'x' };
+    const r = validateStopNested(stops);
+    expect(r).not.toBeNull();
+    expect(r?.ok).toBe(false);
+    expect(r?.reason).toBe('stop_nested_missing');
+    expect(r?.suggestedTab).toBe('stops');
+    expect(r?.missingFields).toContain('stops[0].name.ko');
+  });
+
+  it('첫 stop 의 name.en 빈 값 → fail (외국인 손님 노출)', () => {
+    const stops = [baseStop()];
+    stops[0].name = { ko: '경복궁', en: '   ', ja: 'x', zh: 'x' };
+    const r = validateStopNested(stops);
+    expect(r?.reason).toBe('stop_nested_missing');
+    expect(r?.missingFields).toContain('stops[0].name.en');
+  });
+
+  it('첫 stop 의 description.ko 빈 값 → fail', () => {
+    const stops = [baseStop()];
+    stops[0].description = { ko: '', en: 'Joseon palace', ja: 'x', zh: 'x' };
+    const r = validateStopNested(stops);
+    expect(r?.reason).toBe('stop_nested_missing');
+    expect(r?.missingFields).toContain('stops[0].description.ko');
+  });
+
+  it('첫 stop 의 description.en 빈 값 → fail', () => {
+    const stops = [baseStop()];
+    stops[0].description = { ko: '조선시대 정궁', en: '', ja: 'x', zh: 'x' };
+    const r = validateStopNested(stops);
+    expect(r?.reason).toBe('stop_nested_missing');
+    expect(r?.missingFields).toContain('stops[0].description.en');
+  });
+
+  it('두 번째 stop 의 name.ko 빈 → fail + 메시지에 "2번째" 포함', () => {
+    const stops = [baseStop(), baseStop()];
+    stops[1].name = { ko: '', en: 'x', ja: 'x', zh: 'x' };
+    const r = validateStopNested(stops);
+    expect(r?.reason).toBe('stop_nested_missing');
+    expect(r?.missingFields).toContain('stops[1].name.ko');
+    expect(r?.message).toMatch(/2번째/);
+  });
+
+  it('첫 stop 통과 + 두 번째 stop 모든 필드 빈 → missingFields 4개', () => {
+    const stops = [baseStop(), baseStop()];
+    stops[1].name = { ko: '', en: '', ja: 'x', zh: 'x' };
+    stops[1].description = { ko: '', en: '', ja: 'x', zh: 'x' };
+    const r = validateStopNested(stops);
+    expect(r?.missingFields).toHaveLength(4);
+    expect(r?.missingFields).toContain('stops[1].name.ko');
+    expect(r?.missingFields).toContain('stops[1].name.en');
+    expect(r?.missingFields).toContain('stops[1].description.ko');
+    expect(r?.missingFields).toContain('stops[1].description.en');
+  });
+
+  it('validateProductPublish 가 nested 검증까지 chain (모든 count 통과 + nested 빈) → stop_nested_missing', () => {
+    const stops = validStops(MIN_STOPS);
+    stops[0].name = { ko: '', en: '', ja: '', zh: '' };
+    const draft: Partial<Tour> = {
+      ...fullyValidDraft,
+      stops,
+    };
+    const r = validateProductPublish(draft);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('stop_nested_missing');
+    expect(r.suggestedTab).toBe('stops');
+  });
+});
+
+// ───────── 10. validateSlotNumeric — slot 숫자 ──────────────────────────────
+describe('A1-7-3 validateSlotNumeric — slots numeric', () => {
+  const baseSlot = (overrides: Partial<TourSlot> = {}): TourSlot => ({
+    id: 'slot-1',
+    start_time: '09:00',
+    is_active: true,
+    ...overrides,
+  });
+
+  it('빈 slots 배열 → null', () => {
+    expect(validateSlotNumeric([])).toBeNull();
+  });
+
+  it('capacity 미설정 → null (Tour.maxPax 폴백 허용)', () => {
+    expect(validateSlotNumeric([baseSlot()])).toBeNull();
+  });
+
+  it('capacity=1 → null (MIN_SLOT_CAPACITY 충족)', () => {
+    expect(validateSlotNumeric([baseSlot({ capacity: 1 })])).toBeNull();
+  });
+
+  it('capacity=0 → fail + pricing 탭', () => {
+    const r = validateSlotNumeric([baseSlot({ capacity: 0 })]);
+    expect(r).not.toBeNull();
+    expect(r?.ok).toBe(false);
+    expect(r?.reason).toBe('slot_numeric_invalid');
+    expect(r?.suggestedTab).toBe('pricing');
+    expect(r?.missingFields?.[0]).toMatch(/slots\[0\]\.capacity=0/);
+  });
+
+  it('capacity=-1 → fail (음수 차단)', () => {
+    const r = validateSlotNumeric([baseSlot({ capacity: -1 })]);
+    expect(r?.reason).toBe('slot_numeric_invalid');
+    expect(r?.missingFields?.[0]).toMatch(/capacity=-1/);
+  });
+
+  it('price_modifier_krw=-5000 → fail (음수 차단)', () => {
+    const r = validateSlotNumeric([baseSlot({ price_modifier_krw: -5000 })]);
+    expect(r?.reason).toBe('slot_numeric_invalid');
+    expect(r?.missingFields?.[0]).toMatch(/price_modifier_krw=-5000/);
+  });
+
+  it('price_modifier_krw=0 → null (0 허용 — base price 사용)', () => {
+    expect(validateSlotNumeric([baseSlot({ price_modifier_krw: 0 })])).toBeNull();
+  });
+
+  it('두 번째 slot 의 capacity=0 → 메시지에 "2번째"', () => {
+    const r = validateSlotNumeric([baseSlot({ id: 's1', capacity: 5 }), baseSlot({ id: 's2', capacity: 0 })]);
+    expect(r?.message).toMatch(/2번째/);
+  });
+
+  it('validateProductPublish 가 slot numeric 검증 chain → slot_numeric_invalid', () => {
+    const slots = validSlots(MIN_SLOTS);
+    slots[0] = { ...slots[0], capacity: 0 };
+    const draft: Partial<Tour> = {
+      ...fullyValidDraft,
+      slots,
+    };
+    const r = validateProductPublish(draft);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('slot_numeric_invalid');
+    expect(r.suggestedTab).toBe('pricing');
+  });
+});
+
+// ───────── 11. validateI18nLangs — en 필수 + warnings ──────────────────────
+describe('A1-7-3 validateI18nLangs — en 필수 (ja/zh warning)', () => {
+  it('title/summary/description 모두 en 있음 → null', () => {
+    expect(validateI18nLangs(validI18n)).toBeNull();
+  });
+
+  it('title.en 빈 값 → fail + basic 탭', () => {
+    const draft: Partial<Tour> = {
+      ...validI18n,
+      title: { ko: '서울', en: '', ja: 'x', zh: 'x' },
+    };
+    const r = validateI18nLangs(draft);
+    expect(r?.ok).toBe(false);
+    expect(r?.reason).toBe('i18n_lang_missing');
+    expect(r?.suggestedTab).toBe('basic');
+    expect(r?.missingFields).toContain('title.en');
+  });
+
+  it('summary.en 빈 값 → fail', () => {
+    const draft: Partial<Tour> = {
+      ...validI18n,
+      summary: { ko: '서울', en: '   ', ja: 'x', zh: 'x' },
+    };
+    const r = validateI18nLangs(draft);
+    expect(r?.missingFields).toContain('summary.en');
+  });
+
+  it('description.en 빈 값 → fail', () => {
+    const draft: Partial<Tour> = {
+      ...validI18n,
+      description: { ko: '설명', en: '', ja: 'x', zh: 'x' },
+    };
+    const r = validateI18nLangs(draft);
+    expect(r?.missingFields).toContain('description.en');
+  });
+
+  it('title.en + summary.en + description.en 모두 빈 → 3개 missing', () => {
+    const draft: Partial<Tour> = {
+      title: { ko: 'k', en: '', ja: '', zh: '' },
+      summary: { ko: 'k', en: '', ja: '', zh: '' },
+      description: { ko: 'k', en: '', ja: '', zh: '' },
+    };
+    const r = validateI18nLangs(draft);
+    expect(r?.missingFields).toHaveLength(3);
+  });
+
+  it('한국어 메시지에 "외국인 손님 primary" 포함', () => {
+    const draft: Partial<Tour> = {
+      ...validI18n,
+      title: { ko: 'k', en: '', ja: '', zh: '' },
+    };
+    const r = validateI18nLangs(draft);
+    expect(r?.message).toMatch(/외국인 손님/);
+  });
+
+  it('validateProductPublish 가 i18n lang chain → i18n_lang_missing', () => {
+    const draft: Partial<Tour> = {
+      ...fullyValidDraft,
+      title: { ko: '서울', en: '', ja: '', zh: '' },
+    };
+    const r = validateProductPublish(draft);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('i18n_lang_missing');
+  });
+
+  // checkI18nWarnings 별도 함수
+  it('checkI18nWarnings — ja/zh 모두 있음 → []', () => {
+    expect(checkI18nWarnings(validI18n)).toEqual([]);
+  });
+
+  it('checkI18nWarnings — title.ja 빈 → ["title.ja"] 등 warning 반환', () => {
+    const draft: Partial<Tour> = {
+      ...validI18n,
+      title: { ko: '서울', en: 'Seoul', ja: '', zh: '' },
+    };
+    const ws = checkI18nWarnings(draft);
+    expect(ws).toContain('title.ja');
+    expect(ws).toContain('title.zh');
+  });
+
+  it('checkI18nWarnings — 빈 draft → 모든 warning (4개)', () => {
+    const ws = checkI18nWarnings({});
+    expect(ws).toHaveLength(4); // title.ja/zh + summary.ja/zh
+  });
+});
+
+// ───────── 12. validateMeetingPoint — kind 별 필수 ─────────────────────────
+describe('A1-7-3 validateMeetingPoint — meeting_point kind', () => {
+  it('meeting_point undefined → null (미설정 자체 허용)', () => {
+    expect(validateMeetingPoint(undefined)).toBeNull();
+  });
+
+  it('fixed_address: lat/lng + address.ko 있음 → null', () => {
+    const mp: MeetingPoint = {
+      kind: 'fixed_address',
+      lat: 37.5796,
+      lng: 126.9770,
+      address: i18n('서울 종로구 경복궁'),
+    };
+    expect(validateMeetingPoint(mp)).toBeNull();
+  });
+
+  it('fixed_address: lat 없음 → fail + meeting 탭', () => {
+    const mp: MeetingPoint = {
+      kind: 'fixed_address',
+      lng: 126.9770,
+      address: i18n('주소'),
+    };
+    const r = validateMeetingPoint(mp);
+    expect(r?.ok).toBe(false);
+    expect(r?.reason).toBe('meeting_point_invalid');
+    expect(r?.suggestedTab).toBe('meeting');
+    expect(r?.missingFields).toContain('meeting_point.lat');
+  });
+
+  it('fixed_address: lng 없음 → fail', () => {
+    const mp: MeetingPoint = {
+      kind: 'fixed_address',
+      lat: 37.5796,
+      address: i18n('주소'),
+    };
+    const r = validateMeetingPoint(mp);
+    expect(r?.missingFields).toContain('meeting_point.lng');
+  });
+
+  it('fixed_address: lat=NaN → fail (Number.isFinite 검증)', () => {
+    const mp: MeetingPoint = {
+      kind: 'fixed_address',
+      lat: NaN,
+      lng: 126.9770,
+      address: i18n('주소'),
+    };
+    const r = validateMeetingPoint(mp);
+    expect(r?.missingFields).toContain('meeting_point.lat');
+  });
+
+  it('fixed_address: address.ko 빈 → fail', () => {
+    const mp: MeetingPoint = {
+      kind: 'fixed_address',
+      lat: 37.5,
+      lng: 126.9,
+      address: { ko: '', en: 'addr', ja: '', zh: '' },
+    };
+    const r = validateMeetingPoint(mp);
+    expect(r?.missingFields).toContain('meeting_point.address.ko');
+  });
+
+  it('hotel_pickup: instructions.ko 있음 → null', () => {
+    const mp: MeetingPoint = {
+      kind: 'hotel_pickup',
+      instructions: i18n('호텔 로비'),
+    };
+    expect(validateMeetingPoint(mp)).toBeNull();
+  });
+
+  it('hotel_pickup: instructions.ko 없음 → fail', () => {
+    const mp: MeetingPoint = {
+      kind: 'hotel_pickup',
+    };
+    const r = validateMeetingPoint(mp);
+    expect(r?.ok).toBe(false);
+    expect(r?.missingFields).toContain('meeting_point.instructions.ko');
+  });
+
+  it('multi_zone: zones 1개 이상 → null', () => {
+    const mp: MeetingPoint = {
+      kind: 'multi_zone',
+      zones: [{ id: 'z1', name: i18n('명동'), area_label: i18n('명동역') }],
+    };
+    expect(validateMeetingPoint(mp)).toBeNull();
+  });
+
+  it('multi_zone: zones 빈 배열 → fail', () => {
+    const mp: MeetingPoint = {
+      kind: 'multi_zone',
+      zones: [],
+    };
+    const r = validateMeetingPoint(mp);
+    expect(r?.missingFields).toContain('meeting_point.zones');
+  });
+
+  it('multi_zone: zones undefined → fail', () => {
+    const mp: MeetingPoint = {
+      kind: 'multi_zone',
+    };
+    const r = validateMeetingPoint(mp);
+    expect(r?.missingFields).toContain('meeting_point.zones');
+  });
+
+  it('validateProductPublish 가 meeting_point chain → meeting_point_invalid', () => {
+    const draft: Partial<Tour> = {
+      ...fullyValidDraft,
+      meeting_point: {
+        kind: 'fixed_address',
+        address: i18n('주소만 있음 — lat/lng 누락'),
+      },
+    };
+    const r = validateProductPublish(draft);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('meeting_point_invalid');
+    expect(r.suggestedTab).toBe('meeting');
+  });
+});
+
+// ───────── 13. validateCancellationPolicy ──────────────────────────────────
+describe('A1-7-3 validateCancellationPolicy — 환불 정책', () => {
+  it('undefined → null (글로벌 inherit 기본)', () => {
+    expect(validateCancellationPolicy(undefined)).toBeNull();
+  });
+
+  it('kind=inherit_global → null', () => {
+    const cp: CancellationPolicy = { kind: 'inherit_global' };
+    expect(validateCancellationPolicy(cp)).toBeNull();
+  });
+
+  it('kind=custom + tiers 1개 → null', () => {
+    const cp: CancellationPolicy = {
+      kind: 'custom',
+      tiers: [{ hours_before: 24, refund_percent: { general: 100, gold: 100, platinum: 100 } }],
+    };
+    expect(validateCancellationPolicy(cp)).toBeNull();
+  });
+
+  it('kind=custom + tiers undefined → fail + cancellation 탭', () => {
+    const cp: CancellationPolicy = { kind: 'custom' };
+    const r = validateCancellationPolicy(cp);
+    expect(r?.ok).toBe(false);
+    expect(r?.reason).toBe('cancellation_policy_invalid');
+    expect(r?.suggestedTab).toBe('cancel');
+    expect(r?.missingFields).toContain('cancellation_policy.tiers');
+  });
+
+  it('kind=custom + tiers 빈 배열 → fail', () => {
+    const cp: CancellationPolicy = { kind: 'custom', tiers: [] };
+    const r = validateCancellationPolicy(cp);
+    expect(r?.reason).toBe('cancellation_policy_invalid');
+  });
+
+  it('알 수 없는 kind → fail (schema 깨짐)', () => {
+    const cp = { kind: 'unknown_kind' } as unknown as CancellationPolicy;
+    const r = validateCancellationPolicy(cp);
+    expect(r?.ok).toBe(false);
+    expect(r?.missingFields).toContain('cancellation_policy.kind');
+    expect(r?.message).toMatch(/inherit_global/);
+  });
+
+  it('validateProductPublish 가 cancellation chain → cancellation_policy_invalid', () => {
+    const draft: Partial<Tour> = {
+      ...fullyValidDraft,
+      cancellation_policy: { kind: 'custom' }, // tiers 누락
+    };
+    const r = validateProductPublish(draft);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('cancellation_policy_invalid');
+  });
+});
+
+// ───────── 14. 종합 — 모든 nested 통과 + 정상 ──────────────────────────────
+describe('A1-7-3 nested — 모든 검증 통과 정상 케이스', () => {
+  it('count + nested + i18n en + meeting + cancellation 모두 통과 → ok', () => {
+    const draft: Partial<Tour> = {
+      ...fullyValidDraft,
+      meeting_point: {
+        kind: 'fixed_address',
+        lat: 37.5796,
+        lng: 126.9770,
+        address: i18n('서울 종로구 경복궁'),
+      },
+      cancellation_policy: {
+        kind: 'custom',
+        tiers: [
+          { hours_before: 48, refund_percent: { general: 100, gold: 100, platinum: 100 } },
+          { hours_before: 24, refund_percent: { general: 50, gold: 75, platinum: 100 } },
+        ],
+      },
+    };
+    const r = validateProductPublish(draft);
+    expect(r.ok).toBe(true);
+  });
+
+  it('meeting_point + cancellation_policy 미설정 (옵셔널) → ok', () => {
+    const r = validateProductPublish(fullyValidDraft);
+    expect(r.ok).toBe(true);
   });
 });
