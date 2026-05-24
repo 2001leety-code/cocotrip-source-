@@ -41,7 +41,7 @@ export function Membership({ t }: MembershipProps) {
             {/* 멤버십 가입 흐름 미구축 — 우선 차터 페이지로 안내 (CTA 데드링크 방지) */}
             <a
               href="/charter"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-colors duration-300"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-[#B668FC] bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-colors duration-300"
             >
               <span>{t.membership.cta}</span>
               <ArrowRight className="w-5 h-5" />

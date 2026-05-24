@@ -123,7 +123,7 @@ export function GoogleReviews() {
             href="https://www.google.com/search?q=cocotrip+korea+reviews"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white px-8 py-4 rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-all group shadow-xl"
+            className="inline-flex items-center gap-2 bg-[#B668FC] bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white px-8 py-4 rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-all group shadow-xl"
           >
             {gr.seeAll || 'See all reviews on Google'}
             <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-1" />

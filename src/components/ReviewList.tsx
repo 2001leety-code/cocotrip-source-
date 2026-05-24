@@ -89,7 +89,7 @@ export function ReviewList({ targetType, targetId }: Props) {
         {user && !hasReviewed && (
           <button
             onClick={() => setShowModal(true)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            className="px-4 py-2 rounded-xl bg-[#7C5CFC] bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] text-white text-sm font-medium hover:opacity-90 transition-opacity"
           >
             {rl.writeButton}
           </button>

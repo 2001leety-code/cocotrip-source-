@@ -59,7 +59,7 @@ export function SeasonalBanner() {
               <p className="text-white/80 text-lg mb-6">{subtitle}</p>
               <button
                 onClick={() => navigate('/planner')}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-all active:scale-95"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[#B668FC] bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-bold hover:from-[#FF6B9D] hover:to-[#B668FC] transition-all active:scale-95"
               >
                 {ad.planCta}
                 <ArrowRight className="w-4 h-4" />
