@@ -939,8 +939,93 @@ export function repairAndParseJSON(rawText) {
       return result;
     } catch (parseErr3) {
       console.error('[ai-planner-full] JSON repair also failed:', parseErr3.message);
+      // P181 phase 2 (2026-05-24): last-resort fallback — days[] regex extract.
+      // 운영자 zero-tolerance ("플랜 만들었을때 오류 1도없이"). repair fail 시도
+      // 사용자가 minimal plan 받음 (guides 비어도 day-by-day stops 보존).
+      // 별도 alert + result.__repair_minimal_fallback flag — downstream awareness.
+      const minimal = tryExtractMinimalPlan(rawText);
+      if (minimal) {
+        console.warn('[planner P181 phase 2] Last-resort minimal plan extracted:', (minimal.days || []).length, 'days');
+        throttledTelegramAlert({
+          key: 'json-repair-minimal-fallback',
+          channel: 'admin',
+          severity: 'high',
+          message: [
+            `⚠️ <b>P181 last-resort minimal plan fallback 발동</b>`,
+            ``,
+            `<b>days extracted:</b> ${(minimal.days || []).length}`,
+            `<b>raw length:</b> ${rawText.length}`,
+            ``,
+            `→ JSON repair 까지 fail. minimal plan (days[] only) 추출 성공.`,
+            `→ user 가 plan 받음 (guides 없을 수 있음). zero-tolerance 보장.`,
+            `→ 빈도 ↑ 시 maxOutputTokens 추가 raise (P181 raise) 또는 prompt 추가 strict.`,
+          ].join('\n'),
+          context: { errorCode: 'minimal_fallback', step: 'repairAndParseJSON' },
+        }).catch(() => {});
+        minimal.__repair_minimal_fallback = true;
+        return minimal;
+      }
       throw new Error('Gemini returned invalid JSON (possibly truncated). Please try again.');
     }
+  }
+}
+
+/**
+ * P181 phase 2 (2026-05-24): Last-resort minimal plan extraction.
+ *
+ * raw Gemini text 에서 `"days":\s*\[...\]` regex extract → days array 만 추출 →
+ * minimal valid plan {days: [...]} 반환. parser 가 끝까지 못 가도 days[] 일부라도
+ * recovered 되면 user 가 plan 받음 (guides 없을 수 있음).
+ *
+ * @param {string} rawText
+ * @returns {object|null} minimal plan or null if even regex extraction fails
+ */
+function tryExtractMinimalPlan(rawText) {
+  // Conservative regex: capture from `"days":\s*[` to last matching `]`.
+  const start = rawText.search(/"days"\s*:\s*\[/);
+  if (start < 0) return null;
+  const arrStart = rawText.indexOf('[', start);
+  if (arrStart < 0) return null;
+  // bracket-count walk to find matching `]` (handle nested)
+  let depth = 0, inStr = false, end = -1;
+  for (let i = arrStart; i < rawText.length; i++) {
+    const ch = rawText[i];
+    if (ch === '\\' && inStr) { i++; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '[') depth++;
+    else if (ch === ']') {
+      depth--;
+      if (depth === 0) { end = i + 1; break; }
+    }
+  }
+  // If unmatched at EOF, close brackets up to balance.
+  let arrText = end > 0 ? rawText.slice(arrStart, end) : rawText.slice(arrStart);
+  if (end < 0) {
+    // count open braces inside (heuristic close)
+    let openBrace = 0, openBracket = depth;
+    inStr = false;
+    for (let i = 0; i < arrText.length; i++) {
+      const ch = arrText[i];
+      if (ch === '\\' && inStr) { i++; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') openBrace++;
+      else if (ch === '}') openBrace--;
+    }
+    // truncate to last `}` or `]` for safety
+    const lastClose = Math.max(arrText.lastIndexOf('}'), arrText.lastIndexOf(']'));
+    if (lastClose > 0) arrText = arrText.slice(0, lastClose + 1);
+    for (let i = 0; i < openBrace; i++) arrText += '}';
+    for (let i = 0; i < openBracket; i++) arrText += ']';
+  }
+  try {
+    const days = JSON.parse(arrText);
+    if (!Array.isArray(days) || days.length === 0) return null;
+    return { days };
+  } catch (e) {
+    console.warn('[planner P181 phase 2] minimal extract regex parse failed:', e.message);
+    return null;
   }
 }
 
