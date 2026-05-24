@@ -447,13 +447,15 @@ function buildPatternReinforcedPrompt(systemPrompt, patternErrors) {
  * @param {object} [args.adminDb]             P169: streaming 모드에서 Firestore progressive write 용.
  * @param {string} [args.planId]              P169: skeleton plan ID (streaming 모드에서만 사용).
  */
-export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body, isAdminBypass, adminDb, planId }) {
+export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, area, language, mode, dietary, body, isAdminBypass, adminDb, planId, identifierForBucketing }) {
   // P171 (2026-05-23): isAdminBypass propagate. admin Test Mode 만 GEMINI_ADMIN_BYPASS_MODEL
   // 우선 적용 (운영자 Pro→Flash 품질 비교용). 일반 사용자 (isAdminBypass=false) 영향 0.
-  const model = buildModel(apiKey, undefined, { isAdminBypass });
+  // P172 (2026-05-24): identifierForBucketing propagate. PLANNER_FLASH_PCT bucketing 의 입력
+  // (deterministic per-user). admin (P171) 이 PCT (P172) 보다 우선 — 위쪽 분기에서 처리.
+  const model = buildModel(apiKey, undefined, { isAdminBypass, identifierForBucketing });
   // PR #461 (X-H2): retry 전용 deterministic model. reinforced prompt 와 결합
   // 시 첫 retry 성공률 ↑ → 평균 Gemini quota 사용량 ↓.
-  const retryModel = buildModel(apiKey, RETRY_TEMPERATURE, { isAdminBypass });
+  const retryModel = buildModel(apiKey, RETRY_TEMPERATURE, { isAdminBypass, identifierForBucketing });
   const foodIndex = await loadFoodIndex();
   const geminiStart = Date.now();
   // P0-3: 빈 배열이면 검사 생략 (식이제한 없는 사용자). null/undefined 도 안전.

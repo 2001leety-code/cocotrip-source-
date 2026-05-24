@@ -1185,6 +1185,26 @@ function P171_adminBypassPropagation({ changed }) {
   return null;
 }
 
+// ── P172 (2026-05-24) — Flash PCT bucketing identifier propagation ─────────
+// handlerCore.js 의 runGeminiPipeline 호출에 identifierForBucketing 인자 누락 시
+// PCT bucketing (PLANNER_FLASH_PCT) 동작 안 함 → 일반 사용자 Flash bucket 진입 X
+// → 옵션 B prod A/B 측정 의미 손실.
+function P172_flashPctBucketingPropagation({ changed }) {
+  const file = 'api/_ai_core/handlerCore.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  // pickIdentifier import 확인
+  if (!/import\s+\{[^}]*\bpickIdentifier\b[^}]*\}\s+from\s+['"]\.\/plannerMode\.js['"]/.test(content)) {
+    return `R-P172: handlerCore.js pickIdentifier import 누락 — PCT bucketing identifier 생성 불가.`;
+  }
+  // runGeminiPipeline 호출에 identifierForBucketing 인자 포함 확인
+  const runMatch = content.match(/runGeminiPipeline\s*\(\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}/);
+  if (runMatch && !/\bidentifierForBucketing\b/.test(runMatch[1])) {
+    return `R-P172: handlerCore.js runGeminiPipeline 호출에 identifierForBucketing 누락 — PCT bucketing 일관성 손실 (main + Pass3 다른 model).`;
+  }
+  return null;
+}
+
 const RULES = [
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
@@ -1292,6 +1312,7 @@ const RULES = [
   ['P169_geminiStreaming', P169_geminiStreaming],
   ['P170_backgroundPipelinesExtract', P170_backgroundPipelinesExtract],
   ['P171_adminBypassPropagation', P171_adminBypassPropagation],
+  ['P172_flashPctBucketingPropagation', P172_flashPctBucketingPropagation],
 ];
 
 /**
