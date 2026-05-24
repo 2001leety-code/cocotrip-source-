@@ -201,18 +201,20 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
           );
           // match 미설정 → 아래 else 분기로 가서 verified=false + dbUnmatched++
         } else {
-          // We're matching a restaurant from a DIFFERENT city than the plan.
-          // Accept the match for the verified=true signal, but DON'T override
-          // stop.address/lat/lng (those would point the user to the wrong city).
-          match = fallback;
-          isCityMismatch = true;
+          // P183 phase 1 (2026-05-24): cross-city fallback HARD REJECT (P180 후속 강화).
+          // 이전: match=fallback + verified=false (P466 X-H8) + Gemini address 유지.
+          // 그러나 _dbMatchedName 메타 + isCityMismatch flag = 사용자 UI 가 "DB matched"
+          // 흔적 노출 가능. 운영자 "오류 좀 잡자 회귀법칙도 해놨는데" 강조 — prompt-only
+          // 회귀 차단 한계 인정 후 runtime hard reject. 변경: match=null + count++ +
+          // alert. unmatched 처리 → 명확한 verified=false (DB 메타 0).
           cityMismatchCount++;
           if (cityMismatchSamples.length < 5) {
-            cityMismatchSamples.push(`${stopName} (plan=${matchCity}, dbCity=${(match.city || '?').toLowerCase()})`);
+            cityMismatchSamples.push(`${stopName} (plan=${matchCity}, fallbackCity=${(fallback.city || '?').toLowerCase()}, REJECTED)`);
           }
           console.warn(
-            `[planner] DB city-mismatch: "${stopName}" plan=${matchCity} db=${(match.city || '?').toLowerCase()} — keeping Gemini address/coords`
+            `[planner P183 phase 1] DB cross-city HARD REJECT: "${stopName}" plan=${matchCity} fallback=${(fallback.city || '?').toLowerCase()} — match=null + verified=false (hallucination 차단)`
           );
+          // match 미설정 → 아래 else 분기 → verified=false + dbUnmatched++
         }
       } else if (fallback) {
         // No requested city, or fallback happened to be in the right city anyway.
@@ -259,8 +261,13 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
   // Indicates either a regional outage in foodIndex (city field missing for
   // a region's restaurants), a Gemini regression (outputting wrong-city
   // restaurant names), or a wizard mis-routing plans to the wrong region.
-  if (dbMatched >= CITY_MISMATCH_MIN_MATCHES) {
-    const ratio = cityMismatchCount / dbMatched;
+  // P183 phase 1 (2026-05-24): 분모 = same-city match + cross-city reject (cityMismatch)
+  // = "city-checked food stops". 이전 dbMatched 분모는 P183 cross-city reject 후
+  // dbMatched 에 cross-city 빠짐 → MIN_MATCHES 미달 + ratio 왜곡. totalFoodWithCity
+  // 가 직관적 의미 (5-stop plan 의 2 mismatch = 40%).
+  const totalFoodWithCityCheck = dbMatched + cityMismatchCount;
+  if (totalFoodWithCityCheck >= CITY_MISMATCH_MIN_MATCHES) {
+    const ratio = cityMismatchCount / totalFoodWithCityCheck;
     // P180 (2026-05-24): > 에서 >= 로 변경 — 정확히 20% (1/5 mismatch) 도 alert.
     // 이전 `>` 는 1/5 = 0.2 = 0.2 false → silent. 1+ mismatch in 5-stop plan
     // 시 alert 보장.
@@ -274,7 +281,7 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
           `⚠️ <b>DB matcher city-mismatch — ${ratioPct}% of food matches landed in wrong city</b>`,
           ``,
           `<b>requested city (trip):</b> ${tripMatchCity || '(none)'} <i>(P114: per-day matchCity 적용; samples 에 day별 city 포함)</i>`,
-          `<b>mismatched:</b> ${cityMismatchCount} / ${dbMatched} matched food stops (${ratioPct}%)`,
+          `<b>mismatched:</b> ${cityMismatchCount} / ${totalFoodWithCityCheck} city-checked food stops (${ratioPct}%)`,
           `<b>samples:</b>`,
           ...cityMismatchSamples.slice(0, 5).map((s) => `  • ${s.replace(/[<>&]/g, '_')}`),
           ``,

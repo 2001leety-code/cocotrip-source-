@@ -55,20 +55,21 @@ function makePlan(stops: Stop[]) {
 describe('PR #466 X-H8 — same-city match preferred over other-city', () => {
   beforeEach(() => { alertCalls.length = 0; });
 
-  it('exact-name match in DIFFERENT city is flagged + address preserved', () => {
+  it('P183 phase 1 (2026-05-24): exact-name in DIFFERENT city → HARD REJECT (no flag, no dbMatchedName)', () => {
     const stop = foodStop('본가');
     const itinerary = makePlan([stop]);
     const foodIndex = [
       { name: '본가', city: 'busan', address: 'Busan address', lat: 35.1, lng: 129.0, googleMapsUrl: 'https://maps?busan' },
     ];
     applyDBMatcher(itinerary, foodIndex, 'seoul', 'ko');
-    expect(stop._db_city_mismatch).toEqual({ dbCity: 'busan', requestedCity: 'seoul' });
-    expect(stop.address).toBe('Gemini address for 본가'); // NOT overwritten
-    expect(stop.lat).toBeUndefined(); // NOT overwritten
+    // P183: match=null → no _db_city_mismatch + no _dbMatchedName + no override
+    expect(stop._db_city_mismatch).toBeUndefined();
+    expect(stop._dbMatchedName).toBeUndefined();
+    expect(stop.address).toBe('Gemini address for 본가'); // Gemini 원본 유지
+    expect(stop.lat).toBeUndefined();
     expect(stop.lng).toBeUndefined();
     expect(stop.googleMapsUrl).toBeUndefined();
-    expect(stop.verified).toBe(false); // city-mismatch ≠ fully verified
-    expect(stop._dbMatchedName).toBe('본가');
+    expect(stop.verified).toBe(false); // unmatched
   });
 
   it('exact-name match in SAME city overrides address + coords (happy path)', () => {
@@ -86,25 +87,29 @@ describe('PR #466 X-H8 — same-city match preferred over other-city', () => {
     expect(stop.verified).toBe(true);
   });
 
-  it('partial-name match in DIFFERENT city is flagged (X-H8 specifically targeted tier 2)', () => {
+  it('P183 phase 1: partial-name in DIFFERENT city → HARD REJECT (X-H8 tier 2)', () => {
     const stop = foodStop('맛있는 본가 강남점');
     const itinerary = makePlan([stop]);
     const foodIndex = [
       { name: '본가', city: 'busan', address: 'Busan', lat: 35.1, lng: 129.0 },
     ];
     applyDBMatcher(itinerary, foodIndex, 'seoul', 'ko');
-    expect(stop._db_city_mismatch).toEqual({ dbCity: 'busan', requestedCity: 'seoul' });
+    expect(stop._db_city_mismatch).toBeUndefined();
+    expect(stop._dbMatchedName).toBeUndefined();
     expect(stop.lat).toBeUndefined();
+    expect(stop.verified).toBe(false);
   });
 
-  it('chain-brand match in DIFFERENT city is flagged (covers BHC-Busan when Seoul plan)', () => {
+  it('P183 phase 1: chain-brand in DIFFERENT city → HARD REJECT (BHC-Busan when Seoul plan)', () => {
     const stop = foodStop('BHC 치킨 해운대점');
     const itinerary = makePlan([stop]);
     const foodIndex = [
       { name: 'BHC 해운대점', city: 'busan', address: 'Busan', lat: 35.1, lng: 129.0 },
     ];
     applyDBMatcher(itinerary, foodIndex, 'seoul', 'ko');
-    expect(stop._db_city_mismatch).toEqual({ dbCity: 'busan', requestedCity: 'seoul' });
+    expect(stop._db_city_mismatch).toBeUndefined();
+    expect(stop._dbMatchedName).toBeUndefined();
+    expect(stop.verified).toBe(false);
   });
 
   it('no city provided (legacy/edge) → no mismatch flag even for cross-city match', () => {
