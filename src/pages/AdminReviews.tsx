@@ -42,12 +42,16 @@ export default function AdminReviews() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<'reported' | 'hidden' | 'all'>('reported');
   const [toast, setToast] = useState<string | null>(null);
+  // A1-5: silent fail fix — fetch 실패 시 운영자에게 빨간 banner 명시 표시.
+  // Before: catch {} + setReviews([]) → "신고 0건" 화면만 보고 fetch 실패 영영 모름.
+  const [error, setError] = useState<string | null>(null);
 
   const isAdmin = ADMIN_EMAILS.includes((user?.email || '').toLowerCase());
 
   const fetchReviews = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true);
+    setError(null); // A1-5: 재시도 시 이전 error 깨끗이 reset
     try {
       // PR #418 IDOR fix: Authorization Bearer — server uses verifyAdminToken.
       const res = await authFetch('/api/reviews', {
@@ -58,9 +62,29 @@ export default function AdminReviews() {
           filter,
         }),
       });
-      const data = await res.json();
-      setReviews(data.reviews || []);
-    } catch {
+      // A1-5: HTTP non-2xx 도 throw 처리 — 401/403/500 silent fail 차단.
+      // res.ok 먼저 검증 후 json 파싱 (error body 도 json 일 수 있으니 try-safe).
+      let data: { reviews?: unknown; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        // JSON 파싱 실패 — non-2xx 도 본문이 비어있을 수 있음
+      }
+      if (!res.ok) {
+        const serverMsg = typeof data?.error === 'string' ? data.error : res.statusText;
+        throw new Error(`HTTP ${res.status}: ${serverMsg}`);
+      }
+      // A1-5: data.reviews 가 array 가 아니면 명시적 error — undefined → [] silent fallback 차단.
+      if (!Array.isArray(data.reviews)) {
+        throw new Error(`Unexpected response shape: ${JSON.stringify(data).slice(0, 100)}`);
+      }
+      setReviews(data.reviews as ReportedReview[]);
+    } catch (err) {
+      // A1-5: catch (err) — error 변수 잡고 console.error + setError.
+      // Before: catch {} → console 에 아무것도 안 찍히고 UI 알림 없음.
+      const msg = err instanceof Error ? err.message : 'unknown error';
+      console.error('[AdminReviews] fetchReviews failed:', err);
+      setError(msg);
       setReviews([]);
     } finally {
       setLoading(false);
@@ -173,6 +197,25 @@ export default function AdminReviews() {
             </button>
           ))}
         </div>
+
+        {/* A1-5: silent fail fix — fetch 실패 시 빨간 banner + 다시 시도 버튼.
+            Before: error 발생해도 "신고 0건" empty state 만 노출 → 운영자 영영 모름.
+            loading 끝나고 error 있을 때만 노출 (loading 중에는 spinner 가 우선). */}
+        {!loading && error && (
+          <div className="flex items-start gap-3 mb-6 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-400" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-red-200">리뷰 목록을 불러오지 못했습니다</p>
+              <p className="text-red-300/80 text-xs mt-1 break-words">{error}</p>
+            </div>
+            <button
+              onClick={fetchReviews}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 text-xs font-medium transition-colors"
+            >
+              다시 시도
+            </button>
+          </div>
+        )}
 
         {/* List */}
         {loading ? (
