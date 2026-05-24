@@ -400,6 +400,36 @@ export default function Admin() {
             </div>
             <p className="text-xs text-gray-400">AI 플래너 수정 요청 intent classifier 정확도 + LLM 폴백률 + mutator 실패율 모니터링</p>
           </a>
+          <a
+            href="/admin/translations"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🌐</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">번역 검수</h3>
+            </div>
+            <p className="text-xs text-gray-400">AI 번역 어색한 영·일·중 단어 직접 수정 — 다음 손님부터 깔끔하게 표시</p>
+          </a>
+          <a
+            href="/admin/coupons"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🎫</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">쿠폰 발행</h3>
+            </div>
+            <p className="text-xs text-gray-400">특정 손님에게 즉시 % / 정액 쿠폰 발행 — 컴플레인 대응 + VIP 보너스</p>
+          </a>
+          <a
+            href="/admin/quality"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">📊</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">품질 대시보드</h3>
+            </div>
+            <p className="text-xs text-gray-400">지역·항목별 약점 시각화 — 어디부터 DB 보강할지 결정</p>
+          </a>
         </div>
 
         {/* ── Bookings Table (Firestore) ── */}
