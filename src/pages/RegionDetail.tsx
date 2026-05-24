@@ -233,7 +233,7 @@ export function RegionDetail() {
               <ArrowLeft className="w-5 h-5" />
               {t.regionDetail.backToRegions}
             </button>
-            <h1 className="text-4xl lg:text-6xl font-bold text-white mb-2">
+            <h1 className="text-4xl lg:text-7xl font-display font-normal text-white mb-2 tracking-tight">
               {regionData.title}
             </h1>
             <p className="text-xl text-white/90">{regionData.subtitle}</p>

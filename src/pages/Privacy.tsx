@@ -226,7 +226,7 @@ export default function Privacy() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className={`container mx-auto px-4 ${isMobile ? 'pt-6 pb-4' : 'py-16 sm:py-24'}`}>
         <div className={isMobile ? '' : 'max-w-4xl mx-auto bg-white/[0.04] backdrop-blur-md border border-white/[0.08] p-8 sm:p-12 rounded-lg shadow-lg'}>
-          <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-white text-3xl sm:text-4xl sm:mb-12'}`}>{content.pageTitle}</h1>
+          <h1 className={`text-2xl font-bold text-center mb-8 ${isMobile ? 'm-shimmer-text' : 'text-white text-4xl sm:text-5xl sm:mb-12 font-display font-normal tracking-tight'}`}>{content.pageTitle}</h1>
           
           {content.articles.map((article: ArticleData, idx: number) => {
             const a = article as PrivacyArticleExt;
