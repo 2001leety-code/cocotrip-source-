@@ -1171,16 +1171,24 @@ function P166_systemPromptStaticPrefix({ changed }) {
 // handlerCore.js 의 triggerPass3BackgroundIfPending 호출 시 isAdminBypass 인자
 // 누락되면 background Pass3 Gemini 호출이 Pro 로 고정 → 운영자 Pro vs Flash
 // 품질 비교 시 tip/recommended_items 만 Pro 로 일관성 깨짐.
+//
+// P173 (2026-05-24) 강화: shorthand `{ isAdminBypass }` 통과 시 runtime ReferenceError
+// (handler scope 에 변수 없음 — gate.isAdminBypass 만 정의). 따라서 explicit assignment
+// 강제. shorthand 매칭 시 fail.
 function P171_adminBypassPropagation({ changed }) {
   const file = 'api/_ai_core/handlerCore.js';
   if (!isModified(file, changed)) return null;
   const content = getChangedFileContent(file);
-  // triggerPass3BackgroundIfPending 호출이 isAdminBypass 인자 포함하는지 검사.
-  // 호출 형식: triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass })
   const callMatch = content.match(/triggerPass3BackgroundIfPending\s*\(\s*\{([^}]+)\}/);
   if (!callMatch) return null;
-  if (!/\bisAdminBypass\b/.test(callMatch[1])) {
+  const args = callMatch[1];
+  if (!/\bisAdminBypass\b/.test(args)) {
     return `R-P171: handlerCore.js triggerPass3BackgroundIfPending 호출에 isAdminBypass 누락 — admin Test Mode 의 background Pass3 Gemini 호출이 Pro 로 고정. Pro→Flash 품질 비교 시 tip 일관성 깨짐.`;
+  }
+  // P173: shorthand (`{ isAdminBypass }` 또는 `{ isAdminBypass, ... }`) 금지 — runtime
+  // ReferenceError 위험 (handler scope = `gate.isAdminBypass` 만 정의). explicit only.
+  if (!/\bisAdminBypass\s*:/.test(args)) {
+    return `R-P173: handlerCore.js triggerPass3BackgroundIfPending isAdminBypass 가 shorthand — runtime ReferenceError 위험 (scope 에 isAdminBypass 변수 없음, gate.isAdminBypass 만). explicit assignment 필수: 'isAdminBypass: !!gate.isAdminBypass'.`;
   }
   return null;
 }
