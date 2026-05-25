@@ -23,6 +23,16 @@ import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
 import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
+import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+
+// P203 (2026-05-26): routeEnrich 180s wall-clock cap.
+// 배경: 5/25 prod alert step elapsed 27분 (1.67M ms) — Vercel 600s cap 도달 전
+//   외부 API hang (Naver/ODsay) 또는 axios connect/TLS handshake 무한 대기.
+// 결정: 180s = 99th percentile (Sample 4 outlier 151s) + 안전마진. partial 결과는
+//   mutation-in-place 디자인으로 보존 (transit_from_prev 일부 누락).
+// 출처: deep-search 2026-05-26 Agent A — agents/RouteAgent.js DAY_CONCURRENCY=3 +
+//   Phase 2.4/2.5/2.6 sequential + Naver 5s + ODsay 12s × retry 누적 = 27분 가능.
+const ROUTE_ENRICH_TIMEOUT_MS = 180_000;
 
 /**
  * arrival_guide / departure_guide 정리 + RouteAgent enrichment.
@@ -59,14 +69,40 @@ export async function runRouteEnrichment(itinerary, ctx) {
   // 2026-05-03: routeHotelAddress = hotel_address || zone anchor. zone만 골랐어도
   // 공항↔zone 환승 경로(arrival_guide.route_to_hotel)가 정상 계산됨. 사용자가
   // Firestore에서 보는 hotel_address 필드는 그대로 빈 값 유지.
-  await enrichItineraryWithRoute(itinerary, {
-    apiKey,
-    body,
-    hotel_address,
-    arrival_airport,
-    departure_airport,
-    pax,
-  });
+  // P203 (2026-05-26): 180s wall-clock cap — 27분 hang 차단. timeout 시 partial
+  //   결과 mutation-in-place 보존 + telegram alert. plan 응답은 routeEnrich 일부
+  //   누락 상태로 정상 진행 (P83 'route-blind-fallback' alert 가 user-facing degradation 추적).
+  const enrichStart = Date.now();
+  let timeoutId;
+  try {
+    await Promise.race([
+      enrichItineraryWithRoute(itinerary, {
+        apiKey, body, hotel_address, arrival_airport, departure_airport, pax,
+      }),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('ROUTE_ENRICH_TIMEOUT')),
+          ROUTE_ENRICH_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } catch (err) {
+    if (err && err.message === 'ROUTE_ENRICH_TIMEOUT') {
+      const elapsed = Date.now() - enrichStart;
+      console.warn(`[routeEnrich P203] 180s timeout — partial mutation 보존 (elapsed=${elapsed}ms)`);
+      throttledTelegramAlert({
+        key: 'route-enrich-timeout',
+        channel: 'admin',
+        severity: 'high',
+        message: `🔴 <b>routeEnrich 180s wall-clock timeout (P203 cap)</b>\n\nelapsed=${elapsed}ms\npartial mutation-in-place 결과 보존, plan 응답 진행.\n\nVercel 600s cap 도달 전 fail-fast — 27분 hang 차단.`,
+      }).catch(() => {});
+      // throw 안 함 — fall through to remaining steps (lodging-bookend / backfills / persist)
+    } else {
+      throw err;
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   // arrival_guide / departure_guide의 route_to_hotel에 zone fallback이 적용됐음을
   // 표시 — UI가 "Lotte Hotel 기준" 대신 "홍대 지역 기준"으로 라벨링할 수 있게.

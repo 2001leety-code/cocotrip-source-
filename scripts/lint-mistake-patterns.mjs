@@ -1974,6 +1974,7 @@ const RULES = [
   ['P194_buildPromptSize', P194_buildPromptSize],
   ['P195_cacheInstrumentation', P195_cacheInstrumentation],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
+  ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
 ];
 
 /**
@@ -7552,6 +7553,52 @@ function P200_schemaPropertyOrdering({ changed }) {
     file: FILE,
     message:
       'R-P200: PLAN_RESPONSE_SCHEMA propertyOrdering + required 손상 — P196 회귀 위험 (P181 fallback ↑). ' +
+      '발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P203_routeEnrichTimeout — routeEnrich 180s wall-clock cap 회귀 차단 (2026-05-26)
+//
+// 5/25 prod alert: step elapsed 26-27분 (1.59-1.67M ms) — Vercel 600s cap 도달 전.
+// fix: postResponsePipeline.js 의 runRouteEnrichment 안에서 enrichItineraryWithRoute
+//   호출에 Promise.race(180s) wrap. timeout 시 partial 결과 보존 + telegram alert.
+// ----------------------------------------------------------------------------
+
+/**
+ * P203_routeEnrichTimeout — 180s cap + Promise.race + alert 유지 검증.
+ */
+function P203_routeEnrichTimeout({ changed }) {
+  const FILE = 'api/_ai_core/postResponsePipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+  if (!/ROUTE_ENRICH_TIMEOUT_MS\s*=\s*180_?000/.test(src)) {
+    issues.push("ROUTE_ENRICH_TIMEOUT_MS = 180_000 누락 (180s wall-clock cap)");
+  }
+  if (!/Promise\.race\(\s*\[\s*enrichItineraryWithRoute/.test(src)) {
+    issues.push("Promise.race wrap 누락 — enrichItineraryWithRoute timeout 미적용");
+  }
+  if (!/new Error\(['"]ROUTE_ENRICH_TIMEOUT['"]\)/.test(src)) {
+    issues.push("ROUTE_ENRICH_TIMEOUT error message 누락");
+  }
+  if (!/key:\s*['"]route-enrich-timeout['"]/.test(src)) {
+    issues.push("throttledTelegramAlert key 'route-enrich-timeout' 누락 — prod 모니터링 손상");
+  }
+  if (!/finally\s*{\s*clearTimeout/.test(src)) {
+    issues.push("clearTimeout in finally 누락 — timer leak 위험");
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P203_routeEnrichTimeout',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P203: routeEnrich 180s cap 손상 — 27분 hang 회귀 위험 (Vercel 600s cap 초과). ' +
       '발견: ' + issues.join(', '),
   };
 }
