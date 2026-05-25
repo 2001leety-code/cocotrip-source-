@@ -36,7 +36,16 @@ const KEEP_FIELDS = [
   // Phase 6 (Busan) — foreigner-friendly meta
   'hasEnglishMenu', 'wheelchairAccessible',
   'area', // collection zone meta (e.g. haeundae, gwangalli)
+  // P189 (2026-05-25) SAFETY-CRITICAL: allergens schema
+  // false = 알레르기 메뉴 없음 또는 정보 미확인 (default)
+  // true  = 해당 알레르기 유발 메뉴 있음 → 해당 알레르기 손님 제외
+  'allergens',
 ];
+
+// P189 (2026-05-25): allergens default — 모든 row 에 allergens 필드 보장.
+// source 데이터에 allergens 있으면 보존, 없으면 false default 채우기.
+// true 값은 식당 allergen 정보 실측 후 DB 수집 담당자가 retrofit.
+const ALLERGENS_DEFAULT = { nuts: false, shellfish: false, gluten: false, dairy: false };
 
 function loadJson(filePath) {
   if (!existsSync(filePath)) {
@@ -59,6 +68,19 @@ function pickFields(item) {
   for (const key of KEEP_FIELDS) {
     if (item[key] !== undefined && item[key] !== null && item[key] !== '') {
       result[key] = item[key];
+    }
+  }
+  // P189 (2026-05-25) SAFETY-CRITICAL: allergens 필드 보장
+  // source 데이터에 allergens 있으면 보존 (각 key 존재 시 override 아닌 merge),
+  // 없으면 false default 전체 채우기.
+  if (!result.allergens || typeof result.allergens !== 'object') {
+    result.allergens = { ...ALLERGENS_DEFAULT };
+  } else {
+    // 일부 key 누락 시 false default 보충 (partial allergens 허용)
+    for (const [k, v] of Object.entries(ALLERGENS_DEFAULT)) {
+      if (result.allergens[k] === undefined) {
+        result.allergens[k] = v;
+      }
     }
   }
   return result;

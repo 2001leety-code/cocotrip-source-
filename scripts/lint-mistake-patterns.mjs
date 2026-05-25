@@ -1787,6 +1787,7 @@ const RULES = [
   ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
   ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
   ['P188_cityMapDeadFallback', P188_cityMapDeadFallback],
+  ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
   ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
 ];
 
@@ -7035,6 +7036,82 @@ function P168_pass3BackgroundAsync({ changed }) {
   return null;
 }
 
+// ── P189 (2026-05-25) — Allergen Schema Safety (SAFETY-CRITICAL) ─────────────
+/**
+ * P189_allergenSchemaSafety — SAFETY-CRITICAL (2026-05-25)
+ *
+ * _food_helper.js 의 getTagsForDiet 에서 Nuts/Shellfish/Gluten/Dairy 가
+ * 'general' 로 fallback 되면 fail.
+ *
+ * 배경: 위자드 Step2 알레르기 4종 선택 → getTagsForDiet → 'general' 폴백 →
+ *       일반 식당 무작위 추천 → 견과 알레르기 손님께 견과 식당 추천 가능 = 건강 위험.
+ *
+ * 검사:
+ *   1. _food_helper.js 수정 시: Nuts/Shellfish/Gluten/Dairy case 에 'general' 폴백 없음
+ *   2. _food_helper.js 수정 시: filterByAllergens 함수 존재
+ *   3. _food_helper.js 수정 시: ALLERGEN_KEYS 상수 존재
+ */
+function P189_allergenSchemaSafety({ changed }) {
+  const FILE = 'api/_food_helper.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 검사 1: Nuts/Shellfish/Gluten/Dairy case 에서 'general' 로 폴백하는 패턴 금지.
+  const ALLERGEN_CASES = ['Nuts', 'Shellfish', 'Gluten', 'Dairy'];
+  for (const allergen of ALLERGEN_CASES) {
+    const caseStartRe = new RegExp(`case\\s+['"]${allergen}['"]\\s*:`);
+    const caseStart = caseStartRe.exec(content);
+    if (!caseStart) {
+      violations.push(
+        `${FILE}: '${allergen}' case 블록 없음 — 알레르기 처리 코드 누락 (P189 SAFETY-CRITICAL)`
+      );
+      continue;
+    }
+    const afterCase = content.slice(caseStart.index + caseStart[0].length);
+    const breakIdx = afterCase.indexOf('break;');
+    const caseBlock = breakIdx >= 0 ? afterCase.slice(0, breakIdx) : afterCase.slice(0, 300);
+
+    const hasAllergenHandling = /allergenPrefs|ALLERGEN_TAG_PREFIX/.test(caseBlock);
+    if (!hasAllergenHandling) {
+      violations.push(
+        `${FILE}: '${allergen}' case 블록에 allergenPrefs 또는 ALLERGEN_TAG_PREFIX 참조 없음 — 'general' 폴백 위험 (P189 SAFETY-CRITICAL)`
+      );
+    }
+
+    if (/tags\.add\(['"]general['"]\)/.test(caseBlock)) {
+      violations.push(
+        `${FILE}: '${allergen}' case 블록 내 tags.add('general') 직접 호출 — 알레르기 손님 일반 식당 추천 위험 (P189 SAFETY-CRITICAL)`
+      );
+    }
+  }
+
+  // 검사 2: filterByAllergens 함수 존재
+  if (!/function\s+filterByAllergens/.test(content)) {
+    violations.push(
+      `${FILE}: filterByAllergens 함수 누락 — allergens 필드 기반 식당 제외 불가 (P189)`
+    );
+  }
+
+  // 검사 3: ALLERGEN_KEYS 상수 존재
+  if (!/ALLERGEN_KEYS/.test(content)) {
+    violations.push(
+      `${FILE}: ALLERGEN_KEYS 상수 누락 — 알레르기 키 목록 관리 불가 (P189)`
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P189_allergenSchemaSafety',
+      violations.join(' | '),
+      'P189 SAFETY-CRITICAL — 알레르기 4종 (Nuts/Shellfish/Gluten/Dairy) 은 general 폴백 금지. allergen:<name> 태그 + filterByAllergens + ALLERGEN_KEYS 필수. 메뉴판에 알레르기 표시 없이 견과 손님께 견과 식당 추천 = 건강 위험.',
+    );
+  }
+  return null;
+}
+
 // ── P190 (2026-05-25) — Attractions helper usage guard ───────────────────────
 /**
  * P190_attractionsHelperUsage — 메모리 P190 (2026-05-25).
@@ -7042,15 +7119,6 @@ function P168_pass3BackgroundAsync({ changed }) {
  * buildPrompt.js 의 STYLE-DRIVEN 섹션에 Temple/FreeMuseum/Night 키워드가 있으면
  * handlerCore.js 에서 _attractions_helper import + getAttractionsContext 호출 필수.
  * 누락 시 dead data 130 row 가 다시 prompt 에 연결되지 않음 (silent hallucination 회귀).
- *
- * 검사:
- *   1. buildPrompt.js 에 STYLE-DRIVEN 섹션의 Temple/FreeMuseum/Night 중 하나 있으면
- *      handlerCore.js 에 _attractions_helper import 존재 확인.
- *   2. handlerCore.js 에 getAttractionsContext 호출 + styles 인자 전달 확인.
- *   3. userMessageBuilder.js 에 attractionsContext 파라미터 존재 확인.
- *
- * 트리거: api/_ai_core/buildPrompt.js, api/_ai_core/handlerCore.js,
- *         api/_ai_core/userMessageBuilder.js 변경 시.
  */
 function P190_attractionsHelperUsage({ changed }) {
   const BP = 'api/_ai_core/buildPrompt.js';
@@ -7061,7 +7129,6 @@ function P190_attractionsHelperUsage({ changed }) {
 
   const violations = [];
 
-  // Check buildPrompt.js has VERIFIED ATTRACTIONS DATABASE hint for Temple/FreeMuseum/Night
   const bpContent = getChangedFileContent(BP) || readFileExists(BP);
   if (bpContent) {
     const hasStyleDriven = /STYLE-DRIVEN/.test(bpContent);
@@ -7078,7 +7145,6 @@ function P190_attractionsHelperUsage({ changed }) {
     }
   }
 
-  // Check handlerCore.js imports _attractions_helper + calls getAttractionsContext with styles
   const hcContent = getChangedFileContent(HC) || readFileExists(HC);
   if (hcContent) {
     if (!/_attractions_helper/.test(hcContent)) {
@@ -7092,7 +7158,6 @@ function P190_attractionsHelperUsage({ changed }) {
     }
   }
 
-  // Check userMessageBuilder.js accepts + injects attractionsContext
   const umbContent = getChangedFileContent(UMB) || readFileExists(UMB);
   if (umbContent) {
     if (!/attractionsContext/.test(umbContent)) {
@@ -7118,7 +7183,6 @@ function readFileExists(filePath) {
     return null;
   }
 }
-
 // ----------------------------------------------------------------------------
 // 메인
 // ----------------------------------------------------------------------------
