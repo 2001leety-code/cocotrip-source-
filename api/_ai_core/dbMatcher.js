@@ -137,7 +137,24 @@ function findFoodIndexMatch(foodIndex, stopName, stopDisplayName, cityFilter) {
   return match;
 }
 
-export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
+// P189 (2026-05-25) SAFETY-CRITICAL: allergen 위반 검사 헬퍼
+// match.allergens.xxx === true → 해당 알레르기 손님에게 해당 식당 추천 = 건강 위험.
+// 현재 모든 row allergens = false (default) → 위반 0건 (DB retrofit 전 safe).
+// 효과 발휘: DB 수집 담당자가 allergen 정보 실측 후 true 값으로 retrofit 완료 후.
+function detectAllergenViolation(match, allergyPrefs) {
+  if (!allergyPrefs || allergyPrefs.length === 0) return null;
+  if (!match || !match.allergens || typeof match.allergens !== 'object') return null;
+  const violated = [];
+  for (const pref of allergyPrefs) {
+    const key = pref.toLowerCase(); // 'Nuts' → 'nuts'
+    if (match.allergens[key] === true) {
+      violated.push(pref);
+    }
+  }
+  return violated.length > 0 ? violated : null;
+}
+
+export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko', allergyPrefs = []) {
   if (!foodIndex || foodIndex.length === 0) {
     // foodIndex 없어도 다국어 sanitize는 수행
     const allStops = (itinerary.days || []).flatMap(d => d.stops || []);
@@ -248,6 +265,43 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko') {
           requestedCity: matchCity,
         };
       }
+
+      // P189 (2026-05-25) SAFETY-CRITICAL: allergen 위반 검사
+      // match 의 allergens.xxx === true + 사용자 해당 알레르기 선택 → 위반
+      // 현재: 모든 row allergens = false (default) → 위반 0 (DB retrofit 전 safe).
+      // 위반 발생 시: verified=false + _allergen_violation 마킹 + 경고 로그.
+      if (allergyPrefs.length > 0) {
+        const violated = detectAllergenViolation(match, allergyPrefs);
+        if (violated) {
+          stop.verified = false;
+          stop._allergen_violation = violated;
+          console.warn(
+            `[planner P189 SAFETY] allergen violation: "${dbName}" allergens.${violated.join('+')}=true — user allergy: ${violated.join(', ')} — verified=false`
+          );
+          throttledTelegramAlert({
+            key: `p189-allergen-violation:${dbName}`,
+            channel: 'admin',
+            severity: 'critical',
+            message: [
+              `🚨 <b>P189 SAFETY-CRITICAL — allergen violation in DB match</b>`,
+              ``,
+              `<b>식당:</b> ${dbName.replace(/[<>&]/g, '_')}`,
+              `<b>위반 알레르기:</b> ${violated.join(', ')}`,
+              `<b>도시:</b> ${matchCity || '(unknown)'}`,
+              `<b>조치:</b> stop.verified=false 처리`,
+              ``,
+              `→ _food_index.json 의 해당 식당 allergens 값 확인 후 DB 수정 또는 Gemini prompt 수정 필요.`,
+            ].join('\n'),
+            context: {
+              errorCode: 'p189_allergen_violation',
+              restaurant: dbName,
+              allergens: violated,
+              step: 'applyDBMatcher',
+            },
+          });
+        }
+      }
+
       dbMatched++;
     } else {
       stop.verified = false;
