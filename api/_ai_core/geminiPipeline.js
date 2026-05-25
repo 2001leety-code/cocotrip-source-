@@ -102,6 +102,95 @@ export function logCacheMetrics(stage, cm) {
   console.log(`[P195 CACHE_METRICS] stage=${stage} cached=${cm.cached} total=${cm.total} hit_rate=${hitRate}% output=${cm.output}`);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// P201 (2026-05-26): Pro escalate on P181 minimal fallback
+//
+// 배경: P200 (propertyOrdering + required) 후에도 P181 minimal fallback ~4건/5분 잔여.
+// root cause: Flash long output 한계 (5-day 다도시 plan 의 일부 case schema/JSON 준수 실패).
+// fix: P181 발동 시 Pro 2.5 escalate retry (ENV gate + circuit breaker).
+//
+// 비용 시뮬레이션 (deep-search 2026-05-26 Agent B):
+//   - 최악 $115/day (전부 escalate × success) = $3,450/월
+//   - circuit breaker 5분 5건 cap → 일별 max $144/day = $4,300/월
+//   - 운영자 base $175/월 → 9-20x 폭증 가능 — ENV default OFF 안전 의무
+//
+// 출처: LiteLLM Router fallback pattern + GitHub Issues (browser-use #3491 / gemini-cli #2104).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * P201: Pro escalate 활성 여부. ENV `P181_PRO_ESCALATE_ENABLED=true` 일 때만 활성.
+ * default OFF — 머지 자체 영향 0. 활성화 = 운영자 비용 confirm 후 명시.
+ */
+export function isProEscalateEnabled() {
+  return String(process.env.P181_PRO_ESCALATE_ENABLED || '').trim().toLowerCase() === 'true';
+}
+
+// P201: instance-local circuit breaker (5분 window).
+const PRO_ESCALATE_WINDOW_MS = 5 * 60 * 1000;
+const _proEscalateTimestamps = [];
+
+export function __resetProEscalateCircuitForTests() {
+  _proEscalateTimestamps.length = 0;
+}
+
+export function recordProEscalateAttempt(type) {
+  const now = Date.now();
+  _proEscalateTimestamps.push({ ts: now, type });
+  while (_proEscalateTimestamps.length && now - _proEscalateTimestamps[0].ts > PRO_ESCALATE_WINDOW_MS) {
+    _proEscalateTimestamps.shift();
+  }
+}
+
+/**
+ * P201: circuit breaker — 5분 N건 cap 도달 시 escalate 차단 (비용 폭주 방지).
+ * @returns {boolean} true = circuit broken (escalate 차단)
+ */
+export function checkProEscalateCircuit() {
+  const cap = Number(process.env.P181_PRO_ESCALATE_CAP_5MIN) || 5;
+  const now = Date.now();
+  while (_proEscalateTimestamps.length && now - _proEscalateTimestamps[0].ts > PRO_ESCALATE_WINDOW_MS) {
+    _proEscalateTimestamps.shift();
+  }
+  return _proEscalateTimestamps.length >= cap;
+}
+
+/**
+ * P201: P181 minimal fallback 감지 시 Pro 2.5 escalate retry.
+ * 성공 시 정상 itinerary (no minimal flag) 반환, 실패 시 null.
+ *
+ * @param {object} args
+ * @param {string} args.apiKey
+ * @param {string} args.systemPrompt
+ * @param {string} args.userMessage
+ * @param {boolean} [args.isAdminBypass]
+ * @param {string} [args.identifierForBucketing]
+ * @returns {Promise<object|null>}
+ */
+export async function tryProEscalate({ apiKey, systemPrompt, userMessage, isAdminBypass, identifierForBucketing }) {
+  const proModelId = process.env.P181_PRO_ESCALATE_MODEL || 'gemini-2.5-pro';
+  // P201: forceModelOverride 로 resolver 우회 — Flash → Pro 강제.
+  // temperature 0.3 = Pro instruction following + 약간의 variance (deep-search 권고).
+  const proModel = buildModel(apiKey, 0.3, { forceModelOverride: proModelId, isAdminBypass, identifierForBucketing });
+  recordProEscalateAttempt('start');
+  console.log(`[P201] Pro escalate triggered — model=${proModelId}`);
+  const result = await withTimeout(
+    proModel.generateContent({
+      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+      systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+    }),
+    GEMINI_TIMEOUT_MS,
+    'pro-escalate-p201',
+  );
+  const proRaw = result.response.text().trim();
+  const proItinerary = repairAndParseJSON(proRaw);
+  if (proItinerary && !proItinerary.__repair_minimal_fallback) {
+    // Pro success — cache metadata + response 부착 (호출자 추출)
+    Object.defineProperty(proItinerary, '_proResponse', { value: result.response, enumerable: false });
+    return proItinerary;
+  }
+  return null;
+}
+
 /**
  * P169: 누적 텍스트에서 best-effort partial JSON parse.
  * 기존 repairAndParseJSON 로직을 활용 — incomplete JSON 도 처리.
@@ -245,7 +334,8 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
   // 2026-05-21 P135: 2.5 Pro → resolveGeminiModel('main') default 3.5 Flash.
   // ENV GEMINI_MAIN_MODEL=gemini-3.5-pro 로 Pro 유지 가능 (운영자 명시).
   // P171 (2026-05-23): isAdminBypass=true 일 때 GEMINI_ADMIN_BYPASS_MODEL 우선.
-  const modelId = resolveGeminiModel('main', { isAdminBypass: opts.isAdminBypass, identifierForBucketing: opts.identifierForBucketing });
+  // P201 (2026-05-26): forceModelOverride 명시 시 resolver 우회 (Pro escalate 용).
+  const modelId = opts.forceModelOverride || resolveGeminiModel('main', { isAdminBypass: opts.isAdminBypass, identifierForBucketing: opts.identifierForBucketing });
 
   // P192 (2026-05-25): Flash vs Pro thinkingBudget 분기.
   // Flash 는 thinking 이 maxOutputTokens 안에서 차감 → thinkingBudget > 0 + maxOutputTokens 16K
@@ -870,6 +960,29 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     console.log('[ai-planner-full] Gemini raw length:', rawText.length);
 
     itinerary = repairAndParseJSON(rawText);
+    // P201 (2026-05-26): minimal fallback 감지 시 Pro escalate (ENV gate + circuit breaker).
+    // default ENV OFF — 머지 자체 영향 0. 활성화는 운영자 명시 (`P181_PRO_ESCALATE_ENABLED=true`).
+    if (itinerary && itinerary.__repair_minimal_fallback && isProEscalateEnabled() && !checkProEscalateCircuit()) {
+      try {
+        const proItinerary = await tryProEscalate({ apiKey, systemPrompt, userMessage, isAdminBypass, identifierForBucketing });
+        if (proItinerary) {
+          // Pro success — cache metadata 추출 + itinerary 교체
+          const proCm = extractCacheMetadata(proItinerary._proResponse);
+          delete proItinerary._proResponse;
+          cacheMetadata = accumulateCacheMetadata(cacheMetadata, proCm);
+          logCacheMetrics('pro-escalate-p201', proCm);
+          recordProEscalateAttempt('success');
+          itinerary = proItinerary;
+          console.log('[P201] Pro escalate SUCCESS — minimal fallback recovered');
+        } else {
+          recordProEscalateAttempt('fail');
+          console.warn('[P201] Pro escalate returned minimal — Flash + Pro 둘 다 fail');
+        }
+      } catch (escErr) {
+        recordProEscalateAttempt('error');
+        console.warn('[P201] Pro escalate threw:', escErr.message);
+      }
+    }
     console.log('[ai-planner-full] Parsed OK, days:', (itinerary.days || []).length);
 
     cleanAddresses(itinerary);

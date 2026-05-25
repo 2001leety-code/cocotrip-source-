@@ -1976,6 +1976,7 @@ const RULES = [
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
+  ['P201_proEscalate', P201_proEscalate],
 ];
 
 /**
@@ -7641,6 +7642,59 @@ function P202_lodgingCityConsistency({ changed }) {
     file: FILE,
     message:
       'R-P202: Day N city ↔ lodging.address 일관성 명시 손상 — B-13 cross-city lodging 회귀 위험. ' +
+      '발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// 메인
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// P201_proEscalate — Pro escalate on P181 minimal fallback 회귀 차단
+//
+// P200 후에도 P181 ~4건/5분 잔여 (Flash long output 한계). fix: P181 발동 시 Pro 2.5
+// escalate retry (ENV gate + circuit breaker). 비용 폭증 위험 ($175 → $3,450/월 9-20x)
+// 으로 ENV default OFF + circuit breaker 5분 5건 cap 강제 의무.
+// ----------------------------------------------------------------------------
+
+/**
+ * P201_proEscalate — geminiPipeline.js 변경 시 escalate helper + ENV gate + circuit breaker 유지.
+ */
+function P201_proEscalate({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+  if (!/export\s+function\s+isProEscalateEnabled/.test(src)) {
+    issues.push("isProEscalateEnabled helper 누락 — ENV gate 손상");
+  }
+  if (!/export\s+function\s+checkProEscalateCircuit/.test(src)) {
+    issues.push("checkProEscalateCircuit 누락 — circuit breaker 손상 (비용 폭증 위험)");
+  }
+  if (!/export\s+(async\s+)?function\s+tryProEscalate/.test(src)) {
+    issues.push("tryProEscalate 누락 — escalate 로직 없음");
+  }
+  if (!/P181_PRO_ESCALATE_ENABLED/.test(src)) {
+    issues.push("ENV P181_PRO_ESCALATE_ENABLED 미참조 — default OFF 안전성 손상");
+  }
+  if (!/PRO_ESCALATE_WINDOW_MS\s*=\s*5\s*\*\s*60\s*\*\s*1000/.test(src)) {
+    issues.push("circuit window 5분 (PRO_ESCALATE_WINDOW_MS) 누락");
+  }
+  if (!/forceModelOverride/.test(src)) {
+    issues.push("buildModel forceModelOverride 옵션 누락 — Pro 강제 우회 불가");
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P201_proEscalate',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P201: Pro escalate ENV gate / circuit breaker 손상 — P181 잔여 처리 + 비용 폭증 위험. ' +
       '발견: ' + issues.join(', '),
   };
 }
