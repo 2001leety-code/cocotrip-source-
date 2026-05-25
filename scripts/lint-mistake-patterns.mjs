@@ -1662,6 +1662,86 @@ function R_A1_7_3_meetingValidate({ changed }) {
   return null;
 }
 
+/**
+ * P191_mountainHelperSafety — 메모리 P191 (2026-05-25, SAFETY-CRITICAL).
+ *
+ * 외국인 visitor 가 잘못된 등산 정보 (거리/난이도/시간) 로 사고 위험.
+ * buildPrompt.js / handlerCore.js 의 Trekking/Hallasan/Mountain 키워드
+ * 분기에 _mountain_helper 함수 호출이 빠지면 100% Gemini 생성 = hallucination
+ * 안전 위험 회귀.
+ *
+ * 검사:
+ *   1. handlerCore.js 에 Trekking/Hallasan 분기 → getMountainContextForPrompt 호출 확인
+ *   2. handlerCore.js 에 _mountain_helper import 확인
+ *   3. userMessageBuilder.js 에 mountainContext 파라미터 확인
+ *   4. api/_mountain_index.json 존재 확인 (build-mountain-index.js 산출물)
+ *
+ * 트리거: handlerCore.js / userMessageBuilder.js / buildPrompt.js /
+ *          api/_mountain_helper.js 변경 시
+ */
+function P191_mountainHelperSafety({ changed }) {
+  const TRIGGER_FILES = [
+    'api/_ai_core/handlerCore.js',
+    'api/_ai_core/userMessageBuilder.js',
+    'api/_ai_core/buildPrompt.js',
+    'api/_mountain_helper.js',
+  ];
+  const triggered = changed.some(
+    (c) => c.status !== 'D' && TRIGGER_FILES.some((t) => c.file === t || c.file.endsWith(t)),
+  );
+  if (!triggered) return { skipped: true };
+
+  const localViolations = [];
+
+  // (1) handlerCore.js: _mountain_helper import 확인
+  const handlerContent = getChangedFileContent('api/_ai_core/handlerCore.js');
+  if (handlerContent) {
+    if (!/import\s+\{[^}]*getMountainContextForPrompt[^}]*\}\s+from\s+['"].*_mountain_helper/.test(handlerContent)) {
+      localViolations.push(
+        'api/_ai_core/handlerCore.js: getMountainContextForPrompt import 누락 — ' +
+        'Trekking/Hallasan 분기 _mountain_helper 미연결. P191 SAFETY-CRITICAL 회귀.',
+      );
+    }
+    // (2) Trekking/Hallasan 분기에서 getMountainContextForPrompt 호출
+    if (!/Trekking|Hallasan/.test(handlerContent) || !/getMountainContextForPrompt\s*\(/.test(handlerContent)) {
+      localViolations.push(
+        'api/_ai_core/handlerCore.js: Trekking/Hallasan 분기에 getMountainContextForPrompt() 호출 없음 ' +
+        '— 외국인 등산 hallucination 차단 불가. P191 SAFETY-CRITICAL.',
+      );
+    }
+  }
+
+  // (3) userMessageBuilder.js: mountainContext 파라미터
+  const builderContent = getChangedFileContent('api/_ai_core/userMessageBuilder.js');
+  if (builderContent) {
+    if (!/mountainContext/.test(builderContent)) {
+      localViolations.push(
+        'api/_ai_core/userMessageBuilder.js: mountainContext 파라미터 누락 — ' +
+        'handlerCore 가 계산한 mountain DB 가 Gemini prompt 에 전달되지 않음. P191 회귀.',
+      );
+    }
+  }
+
+  // (4) api/_mountain_index.json 존재
+  if (!existsSync('api/_mountain_index.json')) {
+    localViolations.push(
+      'api/_mountain_index.json 없음 — node scripts/build-mountain-index.js 로 생성 필요. ' +
+      'P191 SAFETY-CRITICAL: 60 row 등산 검증 DB 없으면 _mountain_helper 로드 불가.',
+    );
+  }
+
+  if (localViolations.length > 0) {
+    fail(
+      'P191_mountainHelperSafety',
+      `SAFETY-CRITICAL 회귀 ${localViolations.length}건 — ${localViolations.join(' | ')}`,
+      'P191 (2026-05-25) — 외국인 등산 사고 예방. Trekking/Hallasan 분기는 반드시 ' +
+      'getMountainContextForPrompt() (api/_mountain_helper.js) 호출 + mountainContext 를 ' +
+      'userMessageBuilder 에 전달해야 함. api/_mountain_index.json 삭제 금지.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -1787,6 +1867,7 @@ const RULES = [
   ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
   ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
   ['P188_cityMapDeadFallback', P188_cityMapDeadFallback],
+  ['P191_mountainHelperSafety', P191_mountainHelperSafety],
 ];
 
 /**

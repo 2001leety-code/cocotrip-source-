@@ -6,8 +6,12 @@
  * handlerCore 가 미리 계산해서 인자로 전달.
  *
  * 출력: Gemini user prompt — JSON.stringify(userInput) + spotContext +
- * foodContext + LODGING ZONE block + MULTI-CITY HOTELS block +
- * MULTI-CITY ENTRY/EXIT block + ACCOMMODATION block + VARIATION/ANGLE block.
+ * foodContext + mountainContext (P191) + LODGING ZONE block +
+ * MULTI-CITY HOTELS block + MULTI-CITY ENTRY/EXIT block +
+ * ACCOMMODATION block + VARIATION/ANGLE block.
+ *
+ * P191 (2026-05-25): mountainContext — SAFETY-CRITICAL. Trekking/Hallasan
+ * 옵션 선택 시 검증 DB 주입 (hallucination 차단, 외국인 등산 사고 예방).
  */
 import { buildFoodPrefSnippet } from '../_food_helper.js';
 
@@ -16,6 +20,7 @@ export function buildUserMessage({
   body,
   spotContext,
   foodContext,
+  mountainContext = '',  // P191: SAFETY-CRITICAL — Trekking/Hallasan 검증 DB
 }) {
   const {
     guestName, pax, startDate, durationDays, styles, area, regions, duration,
@@ -67,7 +72,7 @@ export function buildUserMessage({
     variation_seed: Math.floor(Math.random() * 100) + 1,
     want_accommodation: wantAccom || undefined,
     accommodation_budget: wantAccom ? accomBudget : undefined,
-  }) + spotContext + foodContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
+  }) + spotContext + foodContext + mountainContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
     + buildMultiCityHotelBlock(hotelByCity, regions)
     + buildMultiCityEntryExitBlock({ regions, arrivalCity, departureCity })
     + buildAccommodationBlock({ wantAccom, accomBudget })
