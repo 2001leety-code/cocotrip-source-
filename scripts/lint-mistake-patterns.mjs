@@ -7057,17 +7057,37 @@ function P189_allergenSchemaSafety({ changed }) {
 
   const violations = [];
 
-  // 검사 1: Nuts/Shellfish/Gluten/Dairy case 에서 'general' 로 폴백하는 패턴 금지
-  // 패턴: case 'Nuts': ... tags.add('general') 또는 case 'Nuts': ... default: tags.add('general')
+  // 검사 1: Nuts/Shellfish/Gluten/Dairy case 에서 'general' 로 폴백하는 패턴 금지.
+  // 각 case 블록 (break; 까지) 내에 allergenPrefs 참조 또는 ALLERGEN_TAG_PREFIX 사용이 있어야 함.
+  // 코드가 template literal `${ALLERGEN_TAG_PREFIX}nuts` 패턴을 쓸 경우 리터럴 'allergen:nuts' 없음 → 허용.
   const ALLERGEN_CASES = ['Nuts', 'Shellfish', 'Gluten', 'Dairy'];
   for (const allergen of ALLERGEN_CASES) {
-    // case 'AllergenKey' 가 default: tags.add('general') 와 같은 블록에 있으면 위반.
-    // 단순 체크: allergen case 가 없고 getTagsForDiet 에 default: 'general' 만 있으면 위반.
-    // 좀 더 정교하게: allergen:name 태그 추가 패턴이 있어야 함.
-    const allergenTag = `allergen:${allergen.toLowerCase()}`;
-    if (!content.includes(allergenTag)) {
+    // case 'AllergenKey': ... break; 블록 추출
+    const caseStartRe = new RegExp(`case\\s+['"]${allergen}['"]\\s*:`);
+    const caseStart = caseStartRe.exec(content);
+    if (!caseStart) {
+      // case 자체 없으면 → 알레르기 처리 코드 없음 위반
       violations.push(
-        `${FILE}: '${allergen}' 알레르기 case 에 allergen:${allergen.toLowerCase()} 태그 없음 — 'general' 폴백 가능성 (P189 SAFETY-CRITICAL)`
+        `${FILE}: '${allergen}' case 블록 없음 — 알레르기 처리 코드 누락 (P189 SAFETY-CRITICAL)`
+      );
+      continue;
+    }
+    const afterCase = content.slice(caseStart.index + caseStart[0].length);
+    const breakIdx = afterCase.indexOf('break;');
+    const caseBlock = breakIdx >= 0 ? afterCase.slice(0, breakIdx) : afterCase.slice(0, 300);
+
+    // case 블록 내에 allergenPrefs 또는 ALLERGEN_TAG_PREFIX 참조 있어야 함
+    const hasAllergenHandling = /allergenPrefs|ALLERGEN_TAG_PREFIX/.test(caseBlock);
+    if (!hasAllergenHandling) {
+      violations.push(
+        `${FILE}: '${allergen}' case 블록에 allergenPrefs 또는 ALLERGEN_TAG_PREFIX 참조 없음 — 'general' 폴백 위험 (P189 SAFETY-CRITICAL)`
+      );
+    }
+
+    // case 블록 내에 tags.add('general') 직접 호출 금지
+    if (/tags\.add\(['"]general['"]\)/.test(caseBlock)) {
+      violations.push(
+        `${FILE}: '${allergen}' case 블록 내 tags.add('general') 직접 호출 — 알레르기 손님 일반 식당 추천 위험 (P189 SAFETY-CRITICAL)`
       );
     }
   }
