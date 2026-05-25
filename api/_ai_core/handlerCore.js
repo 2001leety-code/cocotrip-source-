@@ -351,8 +351,18 @@ export default async function handler(req, res) {
     // 이후 RouteEnrich / persistPlan 은 background 에서 계속 (Vercel function 종료 전까지).
     // Vercel Node functions 은 res.end() 후에도 await 계속 실행 가능 (fire-after-response).
     // [P170] sendStreamingEarlyResponse → backgroundPipelines.js
+    // P186 (2026-05-25): streaming early response 에도 admin-bypass _debug 주입.
+    // 5/25 measure-p138 측정에서 _debug 가 empty 로 관찰됨 — streaming 분기가 L407
+    // 의 _debug 주입 SKIP 시키던 P177 회귀. buildAdminDebug 는 일반 user 에 undefined
+    // 반환 → 정보 leak 차단 유지.
     if (streamingPlanId && !streamingResponseSent) {
-      sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl });
+      const earlyDebug = buildAdminDebug({
+        gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing,
+        blockModeUsed, blocksUsed, useStreaming,
+      });
+      sendStreamingEarlyResponse({
+        res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug,
+      });
       streamingResponseSent = true;
     }
 

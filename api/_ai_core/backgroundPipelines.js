@@ -115,9 +115,14 @@ export async function tryInitStreamingSkeleton({
  * P169 (2026-05-23): streaming early response 전송.
  * Gemini 완료 직후, background pipeline 이 계속 실행되는 동안 클라이언트에 planId 전달.
  *
- * @param {{ res, CORS: object, planId: string, planUrl: string }} args
+ * P186 (2026-05-25): admin-bypass 한정 `_debug` payload 동봉. streaming 모드에서
+ * 비-streaming 분기 (handlerCore.js:407-415) 가 SKIP 되어 measure script 가 model /
+ * plannerMode / abReason 식별 불가했던 P177 회귀 해소. 일반 user `debug=undefined` →
+ * spread 시 미포함 (정보 leak 차단 유지).
+ *
+ * @param {{ res, CORS: object, planId: string, planUrl: string, debug?: object }} args
  */
-export function sendStreamingEarlyResponse({ res, CORS, planId, planUrl }) {
+export function sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }) {
   res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
   res.end(JSON.stringify({
     ok: true,
@@ -127,6 +132,7 @@ export function sendStreamingEarlyResponse({ res, CORS, planId, planUrl }) {
       status: 'streaming',
       firestoreSaved: false,
       emailSent: false,
+      ...(debug ? { _debug: debug } : {}),
     },
   }));
   console.log('[planner P169] Early streaming response sent. Continuing background pipeline...');
