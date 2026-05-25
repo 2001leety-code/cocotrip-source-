@@ -1342,6 +1342,46 @@ function P185_responseSchemaArrayItems({ changed }) {
   return null;
 }
 
+// ── P186 (2026-05-25) — streaming early response _debug 호환 ─────────────
+// 회귀: streaming 모드 (PLANNER_STREAMING_ENABLED=true) 가 handlerCore.js L407
+// 의 _debug 주입 분기를 SKIP 시켜 measure script 의 model / plannerMode /
+// abReason 자동 식별 불가. 5/25 P138 close-out 측정에서 발견.
+// fix: streaming 분기 (L354) 에서도 buildAdminDebug 호출 + sendStreamingEarlyResponse
+// 가 debug 매개변수 spread. buildAdminDebug 의 gate.isAdminBypass 조건부는 그대로
+// 유지 (일반 user 정보 leak 차단).
+function P186_streamingDebugInvisible({ changed }) {
+  // (1) handlerCore.js — buildAdminDebug 가 최소 2회 호출 (streaming + 비-streaming)
+  const hc = 'api/_ai_core/handlerCore.js';
+  if (isModified(hc, changed)) {
+    const content = getChangedFileContent(hc);
+    if (content && /sendStreamingEarlyResponse\s*\(/.test(content)) {
+      const callCount = (content.match(/buildAdminDebug\s*\(/g) || []).length;
+      if (callCount < 2) {
+        return `R-P186a: handlerCore.js streaming 분기에서 buildAdminDebug 미호출 — measure script 가 streaming 모드 plan 의 model/plannerMode 식별 불가. streaming early response 직전에도 buildAdminDebug 호출 후 sendStreamingEarlyResponse 의 debug 매개변수로 전달 필수.`;
+      }
+      // sendStreamingEarlyResponse 호출 시 debug 매개변수 전달 확인
+      if (!/sendStreamingEarlyResponse\s*\(\s*\{[^}]*\bdebug\s*:/.test(content)) {
+        return `R-P186a: handlerCore.js sendStreamingEarlyResponse 호출에 debug 매개변수 미전달 — streaming 모드에서 _debug 영원히 숨겨짐.`;
+      }
+    }
+  }
+  // (2) backgroundPipelines.js — sendStreamingEarlyResponse 시그니처에 debug 매개변수
+  const bg = 'api/_ai_core/backgroundPipelines.js';
+  if (isModified(bg, changed)) {
+    const content = getChangedFileContent(bg);
+    if (content && /export\s+function\s+sendStreamingEarlyResponse/.test(content)) {
+      if (!/export\s+function\s+sendStreamingEarlyResponse\s*\(\s*\{[^}]*\bdebug\b/.test(content)) {
+        return `R-P186b: backgroundPipelines.js sendStreamingEarlyResponse 시그니처에 debug 매개변수 없음 — P186 회귀 (streaming 모드 _debug 숨김).`;
+      }
+      // _debug spread 시 debug 조건부 (debug truthy 일 때만)
+      if (!/\.\.\.\(debug\s*\?\s*\{\s*_debug:\s*debug\s*\}\s*:\s*\{\}\)/.test(content)) {
+        return `R-P186b: backgroundPipelines.js sendStreamingEarlyResponse 가 debug 조건부 spread 미사용 — 일반 user 응답에 _debug 키 노출 가능 (security leak, P177 가드 위반).`;
+      }
+    }
+  }
+  return null;
+}
+
 // ── P183 phase 1 (2026-05-24) — dbMatcher cross-city HARD REJECT ─────────
 // P180 (prompt strict) + P179 (B-MEAL prompt) 후에도 telegram alert 잔존
 // (Gemini 비결정성). 운영자 "오류 좀 잡자 회귀법칙도 해놨는데" 강조 — prompt-only
@@ -1683,6 +1723,7 @@ const RULES = [
   ['P184_odsayTransitCache', P184_odsayTransitCache],
   ['P183Phase2_geminiResponseSchema', P183Phase2_geminiResponseSchema],
   ['P185_responseSchemaArrayItems', P185_responseSchemaArrayItems],
+  ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
 ];
 
 /**
