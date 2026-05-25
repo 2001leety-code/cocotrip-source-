@@ -1975,6 +1975,7 @@ const RULES = [
   ['P195_cacheInstrumentation', P195_cacheInstrumentation],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
+  ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
 ];
 
 /**
@@ -7599,6 +7600,47 @@ function P203_routeEnrichTimeout({ changed }) {
     file: FILE,
     message:
       'R-P203: routeEnrich 180s cap 손상 — 27분 hang 회귀 위험 (Vercel 600s cap 초과). ' +
+      '발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// 메인
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// P202_lodgingCityConsistency — buildPrompt 의 Day N city ↔ lodging.address 일관성 명시 회귀 차단
+//
+// 5/25 23:24 prod alert: Day 3 (city=Busan) + lodging "홍대 호텔|서울특별시 마포구" (B-13).
+// fix Phase 1: buildPrompt B-16 STRICT ENFORCEMENT 섹션 강화 + 도시 substring map + GOOD/BAD 예시.
+// 옵션 B (nested required) = browser-use #3491 직접 증거로 Flash 실패 패턴 → 보류.
+// ----------------------------------------------------------------------------
+
+/**
+ * P202_lodgingCityConsistency — prompt 강화 회귀 차단.
+ */
+function P202_lodgingCityConsistency({ changed }) {
+  const FILE = 'api/_ai_core/buildPrompt.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+  if (!/P202/.test(src)) issues.push("P202 섹션 헤더 누락");
+  if (!/Day N city.*lodging\.address/.test(src)) issues.push("Day N city ↔ lodging.address 명시 누락");
+  if (!/Seoul[\s\S]{0,20}서울/.test(src)) issues.push("도시 substring map (Seoul/서울) 누락");
+  if (!/Busan[\s\S]{0,20}부산/.test(src)) issues.push("도시 substring map (Busan/부산) 누락");
+  if (!/GOOD[\s\S]{0,300}Busan/.test(src)) issues.push("GOOD 예시 누락");
+  if (!/BAD[\s\S]{0,300}Busan/.test(src)) issues.push("BAD 예시 누락 (B-13 trigger)");
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P202_lodgingCityConsistency',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P202: Day N city ↔ lodging.address 일관성 명시 손상 — B-13 cross-city lodging 회귀 위험. ' +
       '발견: ' + issues.join(', '),
   };
 }
