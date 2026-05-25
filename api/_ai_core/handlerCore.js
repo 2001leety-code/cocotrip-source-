@@ -347,22 +347,14 @@ export default async function handler(req, res) {
       ...(streamingPlanId ? { adminDb, planId: streamingPlanId } : {}),
     }));
 
-    // P169: streaming 모드에서 Gemini 완료 시점에 response 먼저 반환.
-    // 이후 RouteEnrich / persistPlan 은 background 에서 계속 (Vercel function 종료 전까지).
-    // Vercel Node functions 은 res.end() 후에도 await 계속 실행 가능 (fire-after-response).
+    // P169: streaming 모드 — Gemini 완료 시점에 response 먼저 반환. RouteEnrich /
+    // persistPlan 은 background fire-and-forget (Vercel Node res.end() 후 await 가능).
     // [P170] sendStreamingEarlyResponse → backgroundPipelines.js
-    // P186 (2026-05-25): streaming early response 에도 admin-bypass _debug 주입.
-    // 5/25 measure-p138 측정에서 _debug 가 empty 로 관찰됨 — streaming 분기가 L407
-    // 의 _debug 주입 SKIP 시키던 P177 회귀. buildAdminDebug 는 일반 user 에 undefined
-    // 반환 → 정보 leak 차단 유지.
+    // [P186 5/25] early response 에도 admin-bypass _debug — P169 분기가 L407 의 _debug
+    //   주입 SKIP 시키던 P177 사각지대 보강 (buildAdminDebug 의 gate 조건부는 그대로).
     if (streamingPlanId && !streamingResponseSent) {
-      const earlyDebug = buildAdminDebug({
-        gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing,
-        blockModeUsed, blocksUsed, useStreaming,
-      });
-      sendStreamingEarlyResponse({
-        res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug,
-      });
+      const earlyDebug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming });
+      sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug });
       streamingResponseSent = true;
     }
 
