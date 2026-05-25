@@ -106,7 +106,7 @@ export function Regions({ t }: RegionsProps) {
 
         {/* View All Button */}
         <div className="text-center mt-12">
-          <button className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-medium hover:from-[#FF6B9D] hover:to-[#B668FC] transition-colors duration-300">
+          <button className="inline-flex items-center gap-2 px-8 py-4 bg-[#B668FC] bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full font-medium hover:from-[#FF6B9D] hover:to-[#B668FC] transition-colors duration-300">
             <span>{t.regions.viewAll}</span>
             <ArrowRight className="w-5 h-5" />
           </button>

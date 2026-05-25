@@ -97,7 +97,7 @@ export function RegionDetail() {
           <h1 className="text-2xl font-bold mb-4 text-white">{t.regionDetail?.notFound || 'Region not found'}</h1>
           <button
             onClick={() => navigate('/')}
-            className={isMobile ? 'm-cta px-6 py-3' : 'px-6 py-3 bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full'}
+            className={isMobile ? 'm-cta px-6 py-3' : 'px-6 py-3 bg-[#B668FC] bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] text-white rounded-full'}
           >
             {t.regionDetail?.goHome || 'Go Home'}
           </button>

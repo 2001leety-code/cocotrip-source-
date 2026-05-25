@@ -226,7 +226,7 @@ export function ReviewWriteModal({ targetType, targetId, onClose, onCreated }: P
               disabled={submitting || !rating}
               className={`w-full py-3 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 transition-all ${
                 rating
-                  ? 'bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] hover:opacity-90'
+                  ? 'bg-[#7C5CFC] bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] hover:opacity-90'
                   : 'bg-white/10 cursor-not-allowed opacity-40'
               }`}
             >

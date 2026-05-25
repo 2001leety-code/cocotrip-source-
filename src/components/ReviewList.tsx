@@ -7,6 +7,7 @@ import { ReviewCard } from './ReviewCard';
 import { ReviewWriteModal } from './ReviewWriteModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { authFetch } from '@/lib/authFetch';
 
 interface Props {
   targetType: 'plan' | 'tour';
@@ -35,7 +36,7 @@ export function ReviewList({ targetType, targetId }: Props) {
 
   const fetchReviews = useCallback(async () => {
     try {
-      const res = await fetch('/api/reviews', {
+      const res = await authFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'list', targetType, targetId }),
@@ -89,7 +90,7 @@ export function ReviewList({ targetType, targetId }: Props) {
         {user && !hasReviewed && (
           <button
             onClick={() => setShowModal(true)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            className="px-4 py-2 rounded-xl bg-[#7C5CFC] bg-gradient-to-r from-[#7C5CFC] to-[#EA537E] text-white text-sm font-medium hover:opacity-90 transition-opacity"
           >
             {rl.writeButton}
           </button>
