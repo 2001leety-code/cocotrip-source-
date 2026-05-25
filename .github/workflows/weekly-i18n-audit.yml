@@ -40,9 +40,14 @@ jobs:
         # iPhone 14 Pro 프로젝트가 webkit 엔진을 쓰므로 chromium + webkit 둘 다 설치.
         run: npx playwright install --with-deps chromium webkit
 
-      - name: Install Playwright system deps (cache hit)
+      - name: Install Playwright browsers + deps (cache hit verify)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium webkit
+        # P187 (2026-05-25): cache HIT 라도 restore-keys 로 partial restore 발생 가능 →
+        # browser binary 누락 (5/25 audit 실제 사고: webkit-2287/pw_run.sh missing).
+        # install 명령은 이미 있는 browser 는 fast skip → cache 효과 유지하며 회귀 차단.
+        run: |
+          npx playwright install chromium webkit
+          npx playwright install-deps chromium webkit
 
       - name: Check i18n key parity (4 locales aligned to ko.json)
         run: npm run check:i18n

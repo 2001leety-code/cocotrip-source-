@@ -119,11 +119,14 @@ jobs:
         # 이전엔 chromium만 설치 → iPhone 14 Pro 케이스 3ms 즉시 실패 (Executable not found at webkit-XXX/pw_run.sh).
         run: npx playwright install --with-deps chromium webkit
 
-      - name: Install Playwright system deps (cache hit)
+      - name: Install Playwright browsers + deps (cache hit verify)
         if: github.event_name == 'deployment_status' && steps.playwright-cache.outputs.cache-hit == 'true'
-        # 브라우저 바이너리는 ~/.cache/ms-playwright 에 캐시되지만 system deps
-        # (apt 패키지 — libnss3/libgbm1 등) 는 /var/lib 라서 매번 install-deps 필요.
-        run: npx playwright install-deps chromium webkit
+        # P187 (2026-05-25): cache HIT 라도 restore-keys 로 partial restore 발생 가능 →
+        # browser binary 누락. install 명령은 이미 있는 browser fast skip → cache 효과
+        # 유지하며 회귀 차단. system deps (libnss3/libgbm1 등 /var/lib) 도 동봉.
+        run: |
+          npx playwright install chromium webkit
+          npx playwright install-deps chromium webkit
 
       - name: Run i18n locale smoke against preview URL (3 viewports)
         if: github.event_name == 'deployment_status'
