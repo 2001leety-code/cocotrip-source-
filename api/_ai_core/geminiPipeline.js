@@ -43,6 +43,65 @@ export function isStreamingEnabled() {
   return String(process.env.PLANNER_STREAMING_ENABLED || '').trim().toLowerCase() === 'true';
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// P195 (2026-05-25): Gemini implicit cache metadata instrumentation
+//
+// Phase 0 — explicit caching 도입 전 prod hit rate 측정. Gemini 2.5+ implicit
+// caching 이 2025-05 부터 자동 활성화 → 우리 prompt prefix 가 일관되면 cached
+// token 자동 사용. usageMetadata.cachedContentTokenCount 로 hit 검증.
+//
+// 측정 결과 (1주일 prod log grep [P195 CACHE_METRICS]) 에 따라:
+//   - hit rate > 70%: explicit caching 도입 ROI 낮음 → P-pattern 보류 권장
+//   - hit rate < 30%: explicit caching 도입 진행 → Phase 1 PR 후속
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * P195: Gemini response 에서 cache metadata 추출.
+ *
+ * Gemini SDK 의 usageMetadata 구조:
+ *   - promptTokenCount: input 토큰 총합
+ *   - cachedContentTokenCount: implicit/explicit cache hit 토큰 (없으면 0)
+ *   - candidatesTokenCount: output 토큰
+ *
+ * @param {object} response  Gemini SDK response (result.response 또는 streamResult.response)
+ * @returns {{cached:number, total:number, output:number}}
+ */
+export function extractCacheMetadata(response) {
+  const um = response?.usageMetadata || {};
+  return {
+    cached: Number(um.cachedContentTokenCount) || 0,
+    total: Number(um.promptTokenCount) || 0,
+    output: Number(um.candidatesTokenCount) || 0,
+  };
+}
+
+/**
+ * P195: 누적 cache metadata 합산 — retry / multi-pass 케이스 대응.
+ * @param {{cached:number,total:number,output:number}|null} acc
+ * @param {{cached:number,total:number,output:number}|null} next
+ * @returns {{cached:number,total:number,output:number}}
+ */
+export function accumulateCacheMetadata(acc, next) {
+  const a = acc || { cached: 0, total: 0, output: 0 };
+  if (!next) return a;
+  return {
+    cached: a.cached + (next.cached || 0),
+    total: a.total + (next.total || 0),
+    output: a.output + (next.output || 0),
+  };
+}
+
+/**
+ * P195: cache metadata Vercel logs 한 줄 출력 — grep `[P195 CACHE_METRICS]`.
+ * @param {string} stage  호출 단계 라벨 (예: 'legacy' / 'streaming' / 'retry-dietary')
+ * @param {{cached:number,total:number,output:number}} cm
+ */
+export function logCacheMetrics(stage, cm) {
+  if (!cm || cm.total === 0) return;
+  const hitRate = cm.total > 0 ? (cm.cached / cm.total * 100).toFixed(1) : '0';
+  console.log(`[P195 CACHE_METRICS] stage=${stage} cached=${cm.cached} total=${cm.total} hit_rate=${hitRate}% output=${cm.output}`);
+}
+
 /**
  * P169: 누적 텍스트에서 best-effort partial JSON parse.
  * 기존 repairAndParseJSON 로직을 활용 — incomplete JSON 도 처리.
@@ -95,6 +154,8 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
   });
+  // P195: streamResult.response 는 stream 완료 후 await 가능 — usageMetadata 포함.
+  // runGeminiStreaming 호출자가 cache metadata 받을 수 있도록 반환값에 추가.
 
   for await (const chunk of streamResult.stream) {
     const chunkText = chunk.text();
@@ -116,7 +177,19 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
   }
 
   console.log('[geminiPipeline P169] Stream complete. Elapsed:', Date.now() - streamStart, 'ms. Accumulated:', accumulated.length, 'chars');
-  return accumulated;
+
+  // P195: stream 완료 후 streamResult.response 에서 cache metadata 추출.
+  // streamResult.response 는 Promise — await 으로 최종 response 객체 받음.
+  let cacheMetadata = { cached: 0, total: 0, output: 0 };
+  try {
+    const finalResponse = await streamResult.response;
+    cacheMetadata = extractCacheMetadata(finalResponse);
+    logCacheMetrics('streaming', cacheMetadata);
+  } catch (e) {
+    console.warn('[geminiPipeline P195] streaming cache metadata extract failed:', e.message);
+  }
+
+  return { text: accumulated, cacheMetadata };
 }
 
 const GEMINI_TIMEOUT_MS = 240000;
@@ -553,6 +626,9 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
   // P0-3: 빈 배열이면 검사 생략 (식이제한 없는 사용자). null/undefined 도 안전.
   const dietaryArr = Array.isArray(dietary) ? dietary : [];
   let itinerary;
+  // P195 (2026-05-25): implicit cache metadata 누적. legacy + streaming 분기 모두 누적.
+  // 3pass mode 는 본 PR scope 외 — 추후 follow-up (R-P195 lint 가 감지).
+  let cacheMetadata = { cached: 0, total: 0, output: 0 };
 
   if (mode === '3pass') {
     console.log('[planner] 🔀 3-pass mode activated');
@@ -728,11 +804,14 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     if (isStreamingEnabled() && mode !== '3pass') {
       console.log('[planner P169] streaming mode activated (PLANNER_STREAMING_ENABLED=true)');
       try {
-        rawText = await withTimeout(
+        // P195: runGeminiStreaming 이 { text, cacheMetadata } 반환.
+        const streamReturn = await withTimeout(
           runGeminiStreaming({ model, systemPrompt, userMessage, adminDb, planId, language }),
           GEMINI_TIMEOUT_MS,
           'legacy-streaming',
         );
+        rawText = streamReturn.text;
+        cacheMetadata = accumulateCacheMetadata(cacheMetadata, streamReturn.cacheMetadata);
       } catch (err) {
         throw mapGeminiError(err, geminiStart);
       }
@@ -752,6 +831,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         throw mapGeminiError(err, geminiStart);
       }
       rawText = result.response.text().trim();
+      // P195: legacy 1-pass response 의 cache metadata 추출 + 누적.
+      const cm = extractCacheMetadata(result.response);
+      cacheMetadata = accumulateCacheMetadata(cacheMetadata, cm);
+      logCacheMetrics('legacy', cm);
     }
 
     console.log('[planner] Gemini:', Date.now() - geminiStart, 'ms');
@@ -782,6 +865,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         );
         console.log('[planner] dietary retry Gemini:', Date.now() - retryStart, 'ms');
         const retryRaw = retryResult.response.text().trim();
+        // P195: dietary retry response 의 cache metadata 추출 + 누적.
+        const retryCm = extractCacheMetadata(retryResult.response);
+        cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
+        logCacheMetrics('dietary-retry', retryCm);
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
@@ -843,6 +930,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         );
         console.log('[planner] pattern retry Gemini:', Date.now() - retryStart, 'ms');
         const retryRaw = retryResult.response.text().trim();
+        // P195: pattern retry response 의 cache metadata 추출 + 누적.
+        const retryCm = extractCacheMetadata(retryResult.response);
+        cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
+        logCacheMetrics('pattern-retry', retryCm);
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
@@ -909,5 +1000,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     applyDBMatcher(itinerary, foodIndex, area, language);
   }
 
+  // P195: handlerCore.js 가 cacheMetadata 를 pop 후 buildAdminDebug 에 전달 → _debug
+  // 응답에 cachedInputTokens/totalInputTokens/cacheHitRate 노출 (admin-bypass 한정).
+  itinerary._cache_metadata = cacheMetadata;
   return itinerary;
 }
