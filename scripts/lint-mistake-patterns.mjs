@@ -1742,6 +1742,66 @@ function P191_mountainHelperSafety({ changed }) {
   return null;
 }
 
+// ── P193 (2026-05-25) — PDF recommended restaurants SAFETY-CRITICAL ──────────
+/**
+ * P193_pdfRecommendedRestaurantsSafety — 메모리 P193 (2026-05-25, SAFETY-CRITICAL).
+ *
+ * pdfGenerator.ts 에 buildRecommendedRestaurantsSection 함수 export 와
+ * generatePDF 본문 내 호출이 없으면 무슬림/비건 visitor 가 PDF 다운로드 시
+ * 식이제한 식당 정보 0건 위험 (건강 위험 — CLAUDE.md J).
+ *
+ * 트리거: src/pages/PlanDetailPage/pdfGenerator.ts 변경 시.
+ */
+function P193_pdfRecommendedRestaurantsSafety({ changed }) {
+  const PDF_FILE = 'src/pages/PlanDetailPage/pdfGenerator.ts';
+  if (!isModified(PDF_FILE, changed)) return { skipped: true };
+
+  const content = getChangedFileContent(PDF_FILE) || readFileExists(PDF_FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1. buildRecommendedRestaurantsSection export 존재
+  if (!/export function buildRecommendedRestaurantsSection/.test(content)) {
+    violations.push(
+      'pdfGenerator.ts: buildRecommendedRestaurantsSection export 없음 — ' +
+      '무슬림/비건 visitor PDF 에 식이제한 식당 섹션 누락 (SAFETY-CRITICAL)',
+    );
+  }
+
+  // 2. generatePDF 본문 내 buildRecommendedRestaurantsSection 호출 존재
+  if (!/buildRecommendedRestaurantsSection\s*\(/.test(content)) {
+    violations.push(
+      'pdfGenerator.ts: generatePDF 에서 buildRecommendedRestaurantsSection 호출 없음 — ' +
+      'halal/vegan 식당 섹션이 PDF 에 렌더링되지 않음',
+    );
+  }
+
+  // 3. PdfUiDict 에 pdfHalalSection 키 존재 (4-lang 의무)
+  if (!content.includes('pdfHalalSection')) {
+    violations.push(
+      'pdfGenerator.ts: PdfUiDict.pdfHalalSection 키 없음 — 할랄 섹션 4-lang 라벨 미정의',
+    );
+  }
+
+  // 4. PdfUiDict 에 pdfVeganSection 키 존재
+  if (!content.includes('pdfVeganSection')) {
+    violations.push(
+      'pdfGenerator.ts: PdfUiDict.pdfVeganSection 키 없음 — 비건 섹션 4-lang 라벨 미정의',
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P193_pdfRecommendedRestaurantsSafety',
+      violations.join(' | '),
+      'R-P193 SAFETY-CRITICAL: PDF 의 recommended_restaurants 섹션 누락 — ' +
+      '무슬림 visitor 식이제한 식당 정보 미표시 (건강 위험). CLAUDE.md J 준수 필수.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -1870,6 +1930,7 @@ const RULES = [
   ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
   ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
   ['P191_mountainHelperSafety', P191_mountainHelperSafety],
+  ['P193_pdfRecommendedRestaurantsSafety', P193_pdfRecommendedRestaurantsSafety],
 ];
 
 /**
