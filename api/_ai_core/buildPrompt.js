@@ -169,43 +169,16 @@ No markdown. No code blocks. No explanation. Pure JSON only.
     "steps": [
       {
         "step": 1, "title": "Immigration & Baggage",
-        "description": "Detailed walkthrough for first-time Korea visitors",
+        "description": "First-timer walkthrough: immigration → baggage claim",
         "est_min": 35
       },
       {
-        "step": 2, "title": "Get Connected (SIM / Wi-Fi)",
-        "description": "Where to buy and which option is best",
-        "est_min": 10,
-        "options": [
-          {"name": "Physical SIM (KT)", "price_krw": 33000, "note": "5-day unlimited data"},
-          {"name": "Portable Wi-Fi", "price_krw": 5500, "note": "per day rental"},
-          {"name": "eSIM (Klook)", "price_krw": 15000, "note": "pre-purchase recommended"}
-        ]
-      },
-      {
-        "step": 3, "title": "Get a T-money Card",
-        "description": "Buy at CU/GS25 convenience store (₩4,000). Load amount will be calculated by server.",
+        "step": 2, "title": "Get to Your Hotel",
+        "description": "AREX Express (₩9,500/43min) or Taxi (₩75,000/60min). T-money card at CU/GS25 (₩4,000). Recommend ₩50,000 cash from ATM.",
         "est_min": 5,
         "t_money_card_cost_krw": 4000,
-        "t_money_recommended_load_krw": 0
-      },
-      {
-        "step": 4, "title": "Currency & Payment Tips",
-        "description": "ATM locations, card acceptance, cash tips",
-        "est_min": 5,
+        "t_money_recommended_load_krw": 0,
         "recommended_cash_krw": 50000
-      },
-      {
-        "step": 5, "title": "Get to Your Hotel",
-        "description": "Best transport option based on group size",
-        "est_min": 0,
-        "transport_to_hotel": {
-          "arex_express": {"price_krw": 9500, "duration_min": 43, "instruction": ""},
-          "arex_all_stop": {"price_krw": 4150, "duration_min": 66, "instruction": ""},
-          "limousine_bus": {"price_krw": 17000, "duration_min": 70, "instruction": ""},
-          "taxi": {"est_price_krw": 75000, "duration_min": 60, "instruction": ""}
-        },
-        "recommendation": "Based on group size and luggage"
       }
     ]
   },
@@ -232,23 +205,6 @@ No markdown. No code blocks. No explanation. Pure JSON only.
         },
         {
           "order": 2,
-          "start_time": "09:30",
-          "name": "경복궁",
-          "display_name": "Gyeongbokgung Palace",
-          "category": "culture",
-          "address": "서울특별시 종로구 사직로 161",
-          "stay_min": 90,
-          "entry_fee_krw": 3000,
-          "entry_fee_note": "Free with hanbok",
-          "reservation_required": false,
-          "local_tag": "",
-          "tip": "Practical first-timer tip (1-2 sentences)",
-          "recommended_items": [
-            {"name": "Hanbok rental", "price_krw": 20000, "note": "Includes free palace entry"}
-          ]
-        },
-        {
-          "order": 3,
           "start_time": "12:00",
           "name": "토속촌",
           "display_name": "Tosokchon Samgyetang",
@@ -258,12 +214,12 @@ No markdown. No code blocks. No explanation. Pure JSON only.
           "entry_fee_krw": 0,
           "reservation_required": true,
           "reservation_phone": "02-737-7444",
-          "tip": "Order the original samgyetang (₩17,000). Cash preferred.",
+          "tip": "Order the original samgyetang (₩17,000).",
           "recommended_items": [
             {"name": "삼계탕", "price_krw": 17000, "note": "Signature dish"},
-            {"name": "파전", "price_krw": 15000, "note": "To share"},
-            {"name": "동동주", "price_krw": 10000, "note": "Traditional rice wine"}
-          ]
+            {"name": "파전", "price_krw": 15000, "note": "To share"}
+          ],
+          "personalization_reasoning": "버킷리스트 samgyetang 항목 충족."
         },
         {
           "order": 99,
@@ -276,7 +232,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
           "entry_fee_krw": 0,
           "reservation_required": false,
           "local_tag": "",
-          "tip": "Return to hotel for rest.",
+          "tip": "Return to hotel.",
           "personalization_reasoning": "당일 일정 마무리 숙소 복귀"
         }
       ]
@@ -290,21 +246,16 @@ No markdown. No code blocks. No explanation. Pure JSON only.
     "luggage_storage": {
       "available": true,
       "location": "Specific location",
-      "price_krw": 5000,
-      "options": [
-        {"name": "Subway coin locker", "price_krw": 1000, "note": "per 2hrs"},
-        {"name": "Seoul Station storage", "price_krw": 5000, "note": "full day"}
-      ]
+      "price_krw": 5000
     },
     "to_airport": {
       "method": "AREX Express",
-      "instruction": "Detailed transit instruction (high-level only — backend RouteAgent will overwrite with ODsay step-by-step)",
+      "instruction": "High-level only — backend RouteAgent overwrites with ODsay step-by-step",
       "cost_krw": 11000,
       "duration_min": 43
     },
     "tax_refund": {
       "threshold_krw": 30000,
-      "location": "Near check-in counter H, Tax Refund kiosk",
       "note": "Before check-in. Passport + original receipts required."
     },
     "last_minute_shopping": "Duty-free shopping tips"
@@ -383,173 +334,61 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - accessibility_note: required when mobility is "limited"
 
 ## ROUTE OPTIMIZATION — CRITICAL (HUB-AND-SPOKE + LODGING BOOKEND)
-- **HUB-AND-SPOKE 강제**: 매일은 숙소(또는 숙소 근처 지하철역)에서 시작 → 그 zone 내 stops 순회 → 다시 숙소 근처로 복귀.
-  - **🔴 LODGING BOOKEND — ABSOLUTE MUST (2026-05-12 강화, 위반 시 사용자 환불 사유)**:
-    사용자 input 에 'hotel_address' 또는 'recommended_zone' 둘 중 하나라도 있으면,
-    **모든 Day 의 stops 배열은 다음 패턴을 따라야 한다**:
-    \`\`\`
-    [lodging stop (출발)] → [관광/식사 stop] → [관광/식사 stop] → ... → [lodging stop (복귀)]
-    \`\`\`
-    구체적으로:
-    1. **stops[0] (첫 stop)** = **category="lodging" stop 필수**.
-       - "name" 선택 (P122, 2026-05-20 — 다도시 wrong-city 호텔 박힘 회귀 fix):
-         - **단도시 plan (regions.length === 1)**: 사용자 hotel_address (있으면) 또는
-           recommended_zone 영역 호텔 placeholder (예: "Hongdae area hotel" / "명동 호텔").
-           모든 day 동일 호텔.
-         - **다도시 plan (regions.length >= 2)** ⚠️ **모든 day 에 같은 호텔 박지 말 것**:
-           - 사용자 hotel_address = **첫 도시 (arrival_airport 가까운 도시) 의 호텔만** 간주.
-           - 각 도시 day 의 lodging name = **그 도시의 well-known 호텔 영역 placeholder**:
-             | day.city | lodging name 예시 |
-             |---|---|
-             | Seoul | 명동 호텔 / 홍대 호텔 / 강남 호텔 / 이태원 호텔 / 잠실 호텔 / 종로 호텔 |
-             | Busan | 해운대 호텔 / 광안리 호텔 / 서면 호텔 / 남포동 호텔 / 송도 호텔 |
-             | Jeju | 중문 호텔 / 노형 호텔 / 제주시청 호텔 / 성산 호텔 |
-             | Gyeongju | 보문 호텔 / 황남동 호텔 / 대릉원 호텔 |
-             | Jeonju | 한옥마을 호텔 / 객사 호텔 |
-             | Gangneung | 경포 호텔 / 강릉역 호텔 |
-             | Sokcho | 속초해변 호텔 / 설악산 호텔 |
-           - **BAD**: regions=["seoul","busan"], hotel_address="서울 명동...", Day 4 (city=Busan) stops[0].name="명동 호텔" ← wrong city, 사용자 짐 들고 부산 못 감.
-           - **GOOD**: Day 4 (city=Busan) stops[0].name="해운대 호텔", Day 5 (city=Seoul) stops[0].name="명동 호텔" (사용자 hotel_address 유지).
-           - B-13 validator (백엔드) 가 lodging name/address 도시 매칭 강제 — 위반 시 retry.
-       - "start_time" = "09:00" (계속 같은 호텔 머무는 경우) 또는 체크아웃 시각 (예: "10:00").
-       - "stay_min" = 0 (출발 stop — 머무는 시간 X).
-       - "category" = "lodging".
-       - 멀리 있는 명소를 첫 stop 으로 두지 말 것 — 첫 stop 은 반드시 숙소 자체.
-    2. **stops[last] (마지막 stop)** = **category="lodging" stop 필수**.
-       - "name" = 같은 day 의 숙소 (다음 day 도 같은 도시면 동일 호텔, 도시 이동 day
-         면 새 도시 호텔).
-       - "start_time" = "21:00"-"22:00" (저녁 체크인).
-       - "stay_min" = 0 (도착 stop).
-       - "category" = "lodging".
-    3. **stops[1] ~ stops[last-1] (중간 stops)** = 관광/식사/카페 등 **3-6개**.
-       - 모두 첫/마지막 lodging 으로부터 반경 5km 이내, 도보/지하철 30분 이내.
-       - 짐 들고 zigzag 이동 금지.
-    - 백엔드 RouteAgent (Phase 2.5/2.6) 가 ODsay 로 실제 환승 경로 계산해서
-      day.lodging_to_first (첫 stop 직전) / day.last_to_lodging (마지막 stop 직후)
-      필드에 attach 한다. Gemini 는 stops 만 위 규칙대로 배치하면 RouteAgent 가
-      나머지를 처리. **stops 가 잘못 배치되면 RouteAgent 도 의미 없는 경로 생성.**
-    - NEVER lodging stop 을 생략하지 말 것. NEVER 관광지부터 시작/종료하지 말 것.
-      짐+피로 누적 = 사용자 불만 1순위.
-    - **다도시 plan (regions.length>=2)**: 도시 변경 day 는 첫 lodging = origin city
-      체크아웃 (예: "Busan hotel checkout 09:00"), 마지막 lodging = destination city
-      체크인 (예: "Seoul hotel check-in 21:00"). intercity_transit 객체는 별도로 분리
-      (## MULTI-CITY HANDLING 참조).
+HUB-AND-SPOKE: 매일 숙소 출발 → zone 내 stops 순회 → 숙소 복귀.
 
-### 🔴 ARRIVAL DAY HANDLING — STRICT (P124, 2026-05-20)
-사용자 input 의 \`arrival_time\` (예: "23:05") 를 받으면 **Day 1 의 stops 시간 구성을
-강제 분기**. 늦은 도착 / 새벽 도착 시 새벽 stops 박지 말 것.
+**🔴 LODGING BOOKEND — ABSOLUTE MUST (위반 시 사용자 환불 사유)**:
+hotel_address 또는 recommended_zone 있으면 모든 day: \`[lodging(출발)] → [stops...] → [lodging(복귀)]\`
 
-**Logic**:
-- **stops[0]** (lodging 체크인) start_time = arrival_time + 60min (공항→호텔 transit)
-- **stops[1+]** (실제 활동) start_time **≥ arrival_time + 9h** (1h transit + 8h sleep buffer 강제)
-- arrival_time + 9h 가 다음날 새벽 (00:00-04:59) 으로 wrap 되면 → **Day 1 = lodging stop 2개만**
-  (체크인 + Day 2 부터 본격 일정)
+1. **stops[0]** = category="lodging", stay_min=0, start_time="09:00".
+   - 단도시: 모든 day 동일 hotel_address 또는 zone placeholder.
+   - 다도시: 각 도시 day 의 lodging = **그 도시** 호텔 (Seoul→명동호텔/홍대호텔, Busan→해운대호텔/광안리호텔, Jeju→중문호텔/성산호텔, Gyeongju→보문호텔, Jeonju→한옥마을호텔). **절대 같은 호텔 전 day 박지 말 것** — B-13 validator 위반 → retry.
+   - NEVER: 관광지를 첫 stop으로.
 
-**예시**:
-| arrival_time | Day 1 첫 활동 시작 | Day 1 stops 수 |
-|---|---|---|
-| 23:05 | 다음날 08:05 → Day 1 풀 day (아침 08:05 부터) | 5-7개 |
-| 03:00 | 12:00 (점심부터) | 4-5개 |
-| 06:00 | 15:00 (오후만) | 3-4개 |
-| 19:00 | 다음날 04:00 (wrap) → Day 1 = 체크인만 | 2개 (lodging 만) |
-| 12:00 | 21:00 → Day 1 저녁만 | 2-3개 |
+2. **stops[last]** = category="lodging", stay_min=0, start_time="21:00"-"22:00".
 
-**NEVER**:
-- Day 1 stops 의 start_time 이 \`arrival_time\` 과 \`arrival_time + 60min\` 사이 (transit 중)
-- Day 1 의 lodging 외 카테고리 stop start_time hour ∈ [00, 04] (새벽 활동)
-- Day 1 새벽 식당 / 새벽 관광 (한국 새벽 운영 시설 거의 없음)
+3. **stops[1..last-1]** = 관광/식사/카페 3-6개, 반경 5km/30min 이내. zigzag 금지.
 
-### 🔴 DEPARTURE DAY HANDLING — STRICT (P124, 2026-05-20)
-사용자 input 의 \`departure_time\` 을 받으면 **Day N (마지막 day) stops 의 시간 상한
-강제**.
+RouteAgent가 ODsay로 실제 환승 경로 계산 → stops만 올바르게 배치하면 됨.
+다도시 city-change day: 첫 lodging=origin checkout, 마지막 lodging=destination checkin. (## MULTI-CITY HANDLING 참조)
 
-**Logic**:
-- **stops 의 모든 start_time ≤ departure_time - 180min** (공항 buffer 3h 강제 — 체크인 + 보안 + 면세)
-- **stops[last]** (공항 이동 stop) start_time = departure_time - 180min (공항 도착 시각)
-- departure_time < 09:00 (red-eye / 새벽 출국) → **Day N = lodging 체크아웃 + airport 2 stops 만**
-  (사용자 잠은 Day N-1 저녁 후)
+### 🔴 ARRIVAL DAY HANDLING — STRICT (P124)
+- stops[0] start_time = arrival_time + 60min (공항→호텔)
+- stops[1+] start_time ≥ arrival_time + 9h (1h transit + 8h sleep buffer)
+- arrival_time+9h wraps to [00:00-04:59] → Day 1 = lodging 2stops only
+- 예시: 23:05착→08:05첫활동(5-7) | 03:00착→12:00(4-5) | 06:00착→15:00(3-4) | 19:00착→wrap→lodging2개 | 12:00착→21:00(2-3)
+- NEVER: Day 1 non-lodging stop hour ∈ [00,04]
 
-**예시**:
-| departure_time | Day N 마지막 활동 종료 | Day N stops 수 |
-|---|---|---|
-| 05:05 (red-eye) | 02:00 호텔 체크아웃 → 03:00 공항 | 2개 (lodging + airport) |
-| 09:00 | 06:00 (아침 식사만) → 06:30 공항 | 3-4개 |
-| 14:00 | 11:00 (점심) → 11:30 공항 | 5-6개 |
-| 22:00 | 19:00 (저녁) → 19:30 공항 | 풀 day 6-7개 |
+### 🔴 DEPARTURE DAY HANDLING — STRICT (P124)
+- 모든 stop start_time ≤ departure_time - 180min (공항 3h buffer 강제)
+- departure_time < 09:00 → Day N = lodging체크아웃 + airport 2stops only
+- 예시: 05:05출국→2stops | 09:00→아침+공항(3-4) | 14:00→점심+공항(5-6) | 22:00→저녁+공항(6-7)
+- NEVER: any stop start_time > departure_time - 180min
 
-**NEVER**:
-- Day N stops 의 start_time > \`departure_time - 180min\` (공항 buffer 무시)
-- Day N 의 lodging 외 카테고리 stop start_time hour ∈ [00, 04] (출국 직전 새벽 활동)
+### 🔴 GLOBAL TIME RULES — STRICT (P124-extended)
+모든 stop \`start_time\` hour ∈ [05, 23]. 중간 day(2~N-1)는 특히 [00,04] 완전 금지.
+예외: Day 1 lodging 체크인(arrival+60min), Day N airport_transfer(departure-180min).
+NEVER: 중간 day 01:57/03:06/04:45 같은 새벽 stops (한국 시설 새벽 미운영 + 안전 위험).
 
-### 🔴 GLOBAL TIME RULES — STRICT (P124-extended, 2026-05-21)
-모든 day 의 모든 stop \`start_time\` hour ∈ [05, 23] 만 허용. plan 54805380 회귀:
-중간 day (Day 2~N-1) 에 01:57/03:06/04:45 새벽 activity stops 발생. Gemini 가
-중간 day 룰을 모르면 RouteAgent time stitching wrap 의 직접 transcript 만든다.
+- First/last stop of EVERY day: within 30min of hotel. NEVER zigzag.
+- Seoul zones: Jongno/Gwanghwamun | Yongsan/Itaewon | Gangnam/COEX | Hongdae/Mapo | Myeongdong | Seongsu | Bukchon/Samcheong | Euljiro/Dongdaemun
+- Busan zones: Haeundae | Gwangalli | Seomyeon/Jeonpo | Nampo/BIFF/Jagalchi | Gamcheon | Gijang/Haedong
+- INTENSITY: relaxed=single zone/3stops; standard=2 adjacent zones/4-5stops; packed=5-7stops.
+- special_request must-visit → route AROUND those places. Transit ≤30min between stops.
 
-**EXCEPTION (이미 별도 처리됨)**:
-- Day 1 lodging 도착 체크인 (arrival_time + 60min) — ARRIVAL DAY HANDLING 참조
-- Day N airport_transfer (departure_time - 180min) — DEPARTURE DAY HANDLING 참조
+## MULTI-CITY HANDLING — CRITICAL (regions.length >= 2)
 
-**NEVER (어느 day 든)**:
-- 중간 day (Day 2 ~ Day N-1) 의 모든 stop start_time hour ∈ [00, 04]
-  - 새벽 식당 (한국 24h 운영 식당 거의 없음, 안전상 위험)
-  - 새벽 관광 (관광지 운영시간 외)
-  - 새벽 카페 / 새벽 산책 / 새벽 호텔 stop 모두 금지
-  - 중간 day 의 lodging stop 도 [00, 04] 금지 — 자정 호텔 stop = 회귀 패턴
+regions 있으면 도시 블록 분리 + city-change day에 intercity_transit 필수.
 
-**GOOD**: Day 2 stops 09:00 ~ 22:00 (정상 풀 day, 첫 stop 아침 식사 / 마지막 stop 호텔 복귀)
-**BAD (plan 54805380)**: Day 2 01:57 lodging / 03:06 갈비집 / 04:45 lodging — 모두 제거 필수
+### 1. Day 분배
+- 첫 도시: PUS→부산, ICN/GMP→서울, CJU→제주. 마지막 도시=departure_airport 인근.
+- 5일 trip = (2+3)/(3+2). 도시당 최소 1박.
+- **🔴 모든 region ≥1 day (P158)** — regions=["seoul","busan"] 3-day → Day1 Seoul, Day2 Busan, Day3 Seoul. 1개 도시라도 0 days → backend reject.
+- arrival_city/departure_city 명시 시 공항 inference보다 우선 (P125).
 
-  - First stop of EVERY day: near hotel or arrival point. 첫 stop은 숙소에서 30분 이내 이동 가능한 곳이어야 함.
-  - Last stop of EVERY day: must be within 30 min transit of hotel (저녁 식사 후 숙소 복귀 부담 X)
-  - 마지막 stop 종료 후 숙소까지 도보/지하철 30분 이상 걸리면 → 더 가까운 stop 으로 교체
-  - 사용자가 짐 들고 도시 횡단하지 않도록 — peace of mind
-- Group stops by geographic zone. NEVER zigzag across the city.
-  - Seoul zones: Jongno/Gwanghwamun → Yongsan/Itaewon → Gangnam/COEX → Hongdae/Mapo → Myeongdong/Jung-gu → Seongsu/Gwangjin → Bukchon/Samcheong-dong → Euljiro/Dongdaemun
-  - Busan zones: Haeundae/Songjeong → Gwangalli/Suyeong → Seomyeon/Bujeon → Nampo-dong/BIFF → Gamcheon/Songdo → Gijang/Haedong Yonggungsa
-- **INTENSITY-AWARE 구역 제약** (input의 \`pace\` 필드 기준):
-  - \`pace="relaxed"\` (느긋): 하루 stops 모두 **단일 zone 내**. 3 stops/day max. 점심 + 저녁은 같은 zone.
-  - \`pace="standard"\` (표준): 하루 **2개 인접 zone**까지. 4-5 stops/day. (기본값)
-  - \`pace="packed"\` (빡빡): 자유 이동 OK. 5-7 stops/day. zigzag 회피만 유지.
-- If the user specifies must-visit places in special_request, BUILD the route AROUND those places.
-  - Place them first, then fill gaps with nearby attractions.
-  - Example: user wants "HYBE" (Yongsan) → plan Yongsan/Itaewon zone that day.
-- Transit between consecutive stops should be under 30 minutes.
-- BAD: Hongdae → Gangnam → Yongsan (zigzag across city)
-- GOOD: Hongdae → Yeonnam-dong → Hapjeong → Mangwon (same zone, walkable, hub-and-spoke)
-
-## MULTI-CITY HANDLING — CRITICAL (B9-39, 2026-05-09 — regions.length >= 2)
-
-When the user message has multiple regions (e.g. \`regions=["busan","seoul"]\`),
-**you MUST split the trip into city-blocks and emit intercity_transit data on the
-city-change day**. 사용자 신고: 부산 입국 → 1-2일 부산 → 3-5일 서울 → 서울 출국 시,
-Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락되어 사용자가 추측해야 함.
-
-### 1. Day 분배 (city ordering rule)
-- 첫 도시 = arrival_airport 와 가까운 도시.
-  - PUS (김해) → 부산 먼저
-  - ICN/GMP → 서울 먼저
-  - CJU → 제주 먼저
-- 마지막 도시 = departure_airport 와 가까운 도시 (출국이 다른 공항이면 그 도시로 끝).
-- 합리적 일수 분배 — 5일 trip 이면 (2+3) 또는 (3+2). 도시당 최소 1박 보장.
-- **🔴 ABSOLUTE: 모든 region 은 최소 1 day 배정 (P158, 2026-05-22)**.
-  - 사용자가 regions=["seoul","busan"] 선택 = "두 도시 모두 방문하고 싶다"는 명시적 의도.
-  - 3-day trip 이라도 (예: Day1 Seoul + Day2 Busan + Day3 Seoul) 또는 (Day1 Busan + Day2-3 Seoul) 식으로 둘 다 포함.
-  - regions 중 1개 도시라도 day 0개면 백엔드 validator 가 reject + retry → 결국 fail.
-  - **BAD**: regions=["seoul","busan"] 3-day → 모든 day.city="Seoul" (부산 day 0개).
-  - **GOOD**: regions=["seoul","busan"] 3-day → Day1 Seoul, Day2 Busan (KTX), Day3 Seoul (KTX 복귀).
-- **(P125, 2026-05-21)** Wizard 가 \`arrival_city\` / \`departure_city\` 를 명시적으로
-  보내면 (\`MULTI-CITY ENTRY/EXIT\` block 참조), 사용자 의도가 공항 inference 보다 우선.
-  - arrival_city 가 명시되면 Day 1.city = arrival_city (공항도 자동 매핑).
-  - departure_city 가 명시되면 Day N.city = departure_city.
-  - 두 값 모두 명시되면 day 순서는 둘 사이를 만족해야 함 (intercity_transit 으로 잇는다).
-
-### 2. 각 Day 의 \`city\` 필드 명시 (필수)
-- \`days[].city\` = 'Busan' | 'Seoul' | 'Jeju' | 'Gyeongju' | 'Jeonju' 등.
-- \`theme\` 도 city prefix 권장: "Busan Day 1 — 해운대 & 광안리"
-- regions.length === 1 (단일 도시) 이면 \`city\` 필드 생략 가능 (frontend 가 regions[0] fallback).
-- **(PDF-issue-3, 2026-05-14)** 다도시 plan 의 각 day 에 \`days[].lodging_city\` 도 명시 (어느 city 에서 자는지). 보통 \`day.city\` 와 동일하지만 city-change day 의 lodging 이 도착 city 인 경우는 \`lodging_city = intercity_transit.to_city\` 로 일치시킴.
-- **(P119, 2026-05-20)** 모든 day 에 \`days[].lodging\` 객체 필드 (호텔 \`name\` + \`address\`) **반드시 명시**. \`day.lodging.name\` = 그 day stops[] 의 첫 \`category="lodging"\` stop name 과 동일. 단도시 plan 이면 모든 day 의 \`day.lodging\` 동일 호텔. 다도시 plan 의 도시 변경 day 는 \`day.lodging\` 이 **새 도시 호텔** (\`day.city\` 값과 일치). 누락 시 백엔드 RouteAgent Phase 2.4 가 \`prevDayHotelCoord\` 못 찾아 intercity KTX/Air bookend stop 생성 실패 → 사용자 동선 가이드 누락.
+### 2. 각 Day city 필드 (필수)
+- \`days[].city\` = 'Seoul'|'Busan'|'Jeju'|'Gyeongju'|'Jeonju' 등. theme에 city prefix 권장.
+- \`days[].lodging_city\` 명시 (보통 day.city 동일; city-change day는 to_city).
+- **(P119)** \`days[].lodging\` 객체 (name+address) 반드시 명시 — stops[0].name과 동일. 누락 시 RouteAgent intercity bookend 생성 실패.
 
 ### 3. 도시가 바뀌는 day 처리 (CRITICAL)
 - 그 day 첫 stop 으로 \`category:"transit"\` "KTX 부산→서울" 같은 가짜 stop **절대 추가하지 말 것**.
@@ -591,155 +430,68 @@ Day 2 마지막 stop → Day 3 첫 stop 사이에 KTX 이동이 plan 에 누락�
 - 전주 ↔ 서울: \`mode="KTX"\` 또는 \`mode="Bus"\`.
 
 ### 5. 표준 시간/요금 추정 (KRW, 1인)
-| 구간 | mode | est_min | est_fare_krw |
-|---|---|---|---|
-| 부산 ↔ 서울 | KTX | 165 | 59,800 |
-| 부산 ↔ 서울 | SRT | 165 | 53,000 |
-| 부산 ↔ 대전 | KTX | 95 | 36,000 |
-| 제주 ↔ 서울 | Air (LCC) | 65 | 70,000 |
-| 제주 ↔ 부산 | Air (LCC) | 50 | 60,000 |
-| 서울 ↔ 전주 | KTX | 90 | 35,000 |
-| 서울 ↔ 강릉 | KTX | 110 | 28,000 |
-| 부산 ↔ 경주 | Bus | 60 | 7,000 |
-| 부산 ↔ 포항 | Bus | 90 | 12,000 |
-| 서울 ↔ 가평 | ITX | 60 | 8,000 |
-| 서울 ↔ 춘천 | ITX | 75 | 9,000 |
+부산↔서울 KTX 165min ₩59,800 / SRT ₩53,000 | 부산↔대전 KTX 95min ₩36,000 | 제주↔서울 Air 65min ₩70,000 | 제주↔부산 Air 50min ₩60,000 | 서울↔전주 KTX 90min ₩35,000 | 서울↔강릉 KTX 110min ₩28,000 | 부산↔경주 Bus 60min ₩7,000 | 부산↔포항 Bus 90min ₩12,000 | 서울↔가평 ITX 60min ₩8,000 | 서울↔춘천 ITX 75min ₩9,000
 
 ### 6. booking_url 표준
-- KTX/ITX/일반열차: "https://www.letskorail.com"
-- SRT: "https://etk.srail.kr"
-- Air (제주 등): "https://www.trip.com" (CocoTrip Allianceid 적용 가능 페이지)
-- Bus (시외): "https://www.kobus.co.kr"
+KTX/ITX: "https://www.letskorail.com" | SRT: "https://etk.srail.kr" | Air: "https://www.trip.com" | Bus: "https://www.kobus.co.kr"
 
-### 7. instruction 작성 (사용자 언어로)
-- 한 줄, 출발지/도착지/소요시간/요금 명시.
-- 예 (ko): "부산역에서 KTX 탑승, 서울역 도착 약 2시간 45분 (₩59,800)"
-- 예 (en): "Take KTX from Busan Station to Seoul Station, ~2h 45m (₩59,800)"
-- 예 (ja): "釜山駅からKTXに乗車、ソウル駅まで約2時間45分（₩59,800）"
-- 예 (zh): "釜山站搭乘KTX前往首尔站，约2小时45分（₩59,800）"
+### 7. instruction: 1줄, 출발지/도착지/소요시간/요금 — 사용자 언어로.
+예(en): "Take KTX from Busan Station to Seoul Station, ~2h 45m (₩59,800)"
 
-### 8. HUB-AND-SPOKE 적용 (다도시 day 의 숙소 처리)
-- 도시 변경 day 의 lodging 은 새 도시의 임시 reference. 사용자가 hotel_address
-  를 단일로만 줬으면 LODGING BOOKEND 첫 stop 5km 반경 규칙은 **새 도시 내** 에서
-  적용. (RouteAgent 가 좌표 fallback 처리.)
+### 8. city-change day lodging
+city-change day lodging = 새 도시 임시 reference. LODGING BOOKEND 5km 규칙은 새 도시 내 적용.
 
-### 9. 🔴 LODGING NAME/ADDRESS 도시 매칭 — ABSOLUTE MUST (B-13, 2026-05-12 강화)
-다도시 plan 의 각 day 의 첫 lodging stop 은 **반드시 그 day 의 \`city\` 값과 일치**:
-- \`day.city = "Seoul"\` 인 day → lodging \`name\` 또는 \`address\` 에 **"서울" 또는 "Seoul"** 포함 필수.
-  - GOOD: \`name = "명동 호텔"\`, \`address = "서울특별시 중구 명동..."\`
-  - GOOD: \`name = "Seoul Station Hotel"\`, \`address = "서울 용산구..."\`
-  - BAD: \`name = "해운대 호텔"\`, \`address = "부산광역시 해운대구..."\` (day.city=Seoul 이면 위반)
-- \`day.city = "Busan"\` 인 day → lodging \`name\` 또는 \`address\` 에 **"부산" 또는 "Busan"** 포함 필수.
-- \`day.city = "Jeju"\` → "제주" 또는 "Jeju".
-- 사용자 신고: 부산 → 서울 전환 day 의 lodging 이 부산 호텔로 잘못 매칭 → 사용자가 짐 끌고 KTX 후 어디로 가야 할지 혼란.
-- 위반 시 백엔드 validator 가 즉시 1회 재시도 → 그래도 위반이면 plan 저장 차단 + 사용자 500 에러.
+### 9. 🔴 LODGING NAME/ADDRESS 도시 매칭 — B-13 ABSOLUTE MUST
+각 day 첫 lodging stop: day.city = Seoul → name/address에 "서울"/"Seoul" 포함. Busan → "부산"/"Busan". Jeju → "제주"/"Jeju".
+GOOD: day.city="Busan", lodging.name="해운대 호텔". BAD: day.city="Busan", lodging.name="명동 호텔" → B-13 즉시 retry. 위반 2회 → plan 저장 차단.
 
-### 9-bis. 🔴 FOOD STOP city 매칭 — ABSOLUTE MUST (P180, 2026-05-24)
-다도시 plan 의 each day food stop (\`category="food"\`) 은 **반드시 그 day 의 \`city\` 값과 일치하는 도시의 식당**:
-- \`day.city = "Seoul"\` → food stop name/address 가 **서울 식당** (서울/Seoul 포함 address)
-- \`day.city = "Busan"\` → 부산 식당 (부산/Busan)
-- \`day.city = "Jeju"\` → 제주 식당 (제주/Jeju)
-- **BAD** (P180 측정 발견): day.city="Jeju" 인 day stops[5].category="food", name="마초스테이크 본점" ← **서울 강남구 식당**. dbMatcher 가 cross-city 감지 + verified=false 처리. 사용자가 받은 plan 의 address (Gemini hallucination) 는 jeju 어딘가 가짜 위치 → **돈 받는 plan 의 신뢰 손상**.
-- **GOOD**: day.city="Jeju" 인 day stops[5].category="food", name="흑돼지 본점" (제주 식당, 실제 제주 위치).
-- **DB-injected food (\`recommended_restaurants_by_city\`) 우선 사용** — 그 day 의 city 에 해당하는 list 만 골라서 추천. Gemini 임의 식당 생성 X (verified=false 표시되어 사용자 신뢰 손상).
-- 위반 시 backend dbMatcher 가 city-mismatch 감지 + verified=false 처리 + admin alert (20% threshold).
+### 9-bis. 🔴 FOOD STOP city 매칭 — P180 ABSOLUTE MUST
+각 day food stop(category="food") = 반드시 그 day.city 식당. BAD: day.city="Jeju" + 서울 식당 → verified=false + admin alert. GOOD: day.city="Jeju" + 실제 제주 식당.
+DB-injected food(\`recommended_restaurants_by_city\`) 우선 — 해당 city 리스트만 사용.
 
-### 10. 🔴 호텔 미입력 도시 — zone 중심 bookend (P134, 2026-05-21)
-운영자 의도 (받아적기): **"AI 플랜 짤 때 호텔 > 이동 > 장소 > 이동 > 장소 > 호텔복귀 이걸 원해서 호텔을 넣었던 거야. 강제가 되면 안 되지 어디다 호텔을 잡을지 모르는데."**
-→ 호텔 = 매일 동선 anchor. **입력 강제 X (옵션)**. 호텔 입력 여부와 무관하게 동선 구조 (anchor → 이동 → 장소 → ... → anchor 복귀) 가 깨지지 않아야 함.
+### 10. 🔴 호텔 미입력 도시 — zone anchor (P134)
+호텔 = 동선 anchor (옵션). 호텔 없어도 anchor→stops→anchor 구조 유지.
+- 호텔 있음: hotel 좌표 anchor. §9 매칭 적용.
+- 호텔 없음: recommended_zones[cityKey] 중심 anchor. lodging.name="해운대 (호텔 미정)"/"Hotel near Haeundae". §9 도시 매칭 그대로.
+- 둘 다 없음: 첫 attraction 좌표 anchor. lodging.name="{도시} (위치 미정)".
+- NEVER: lodging=null (P119/P122 회귀). NEVER: 다른 도시 호텔 차용.
 
-다도시 plan 에서 \`hotelByCity\` Record 는 일부 도시만 채워질 수 있음 (운영자 의도: 사용자가 호텔 미정인 도시는 비워둠):
+If \`regions.length === 1\`: 본 섹션 무시. 단일 도시 규칙만 적용.
 
-**A. 호텔 입력된 도시** (예: \`hotelByCity['seoul'] = "명동 호텔 ..."\`):
-- 그 호텔 좌표를 anchor.
-- 매일 동선이 호텔에서 출발 → 호텔 복귀.
-- ### 9 도시 매칭 룰 적용.
+## TRANSIT DIVERSITY — CRITICAL
+- tour_pace=standard/packed: 매일 ≥1 zone 간 이동(>2km, 지하철/버스). all-walk = "게으른 plan".
+- tour_pace=relaxed: 한 동네 OK.
 
-**B. 호텔 미입력 도시** (예: hotelByCity 에 'busan' key 없음 또는 빈 문자열):
-- \`recommended_zones[cityKey]\` (예: 'haeundae') 의 zone 중심 좌표를 anchor.
-- \`day.lodging.name\` = zone 이름 + "(호텔 미정)" / "Hotel near {zone}" (사용자 언어). 예: "해운대 (호텔 미정)" or "Hotel near Haeundae".
-- \`day.lodging.address\` = zone 의 anchorAddress (RouteAgent 가 좌표 처리).
-- lodging bookend 룰 (첫 stop ≤ 30분 거리, 마지막 stop ≤ 30분 거리) **그대로 발동**.
-- ### 9 도시 매칭 룰도 그대로 — \`day.lodging.name/address\` 에 그 도시 이름 포함.
-
-**C. 호텔도 zone 도 미입력 도시** (양쪽 다 비어있음):
-- 그 도시의 첫 추천 attraction 좌표를 anchor.
-- \`day.lodging.name\` = "{도시 이름} (위치 미정)" / "Day start near {first stop}".
-- 첫 stop 과 마지막 stop 모두 그 좌표 30분 이내.
-
-**NEVER**:
-- ❌ 호텔 미입력 도시 = lodging bookend 생략. \`day.lodging\` 을 null 로 두면 P119/P122 회귀.
-- ❌ 호텔 없다고 day.city 의 다른 도시 호텔 (예: Seoul 호텔) 차용 (P122 placeholder 회귀).
-- ❌ "호텔 미정" 표시 = 동선 자유. 항상 zone 중심 또는 첫 추천 장소 anchor 로 결합.
-
-**GOOD (호텔 미입력 부산 day, recommended_zones={busan:'haeundae'})**:
-\`\`\`json
-{
-  "day": 3,
-  "city": "Busan",
-  "lodging": {"name": "해운대 일대 (호텔 미정)", "address": "부산광역시 해운대구 우동..."},
-  "stops": [
-    {"start_time":"10:00","name":"해운대 해변","address":"부산광역시 해운대구..."},
-    ...
-    {"start_time":"21:00","name":"해운대 야시장","address":"부산광역시 해운대구..."}
-  ]
-}
-\`\`\`
-**BAD**: \`day.lodging = null\` 또는 \`day.lodging.name = "명동 호텔"\` (Busan day 인데 Seoul 호텔).
-
-관련 회귀 메모리: P116 lodging bookend label / P119 day.lodging backfill (안전망) / P122 다도시 placeholder / P123 hotelByCity 3-layer / **P134 호텔 의도 (옵션 anchor, zone 중심 fallback)**.
-
-If \`regions.length === 1\`: **본 섹션 전체 무시**. 기존 단일 도시 규칙만 적용.
-
-## TRANSIT DIVERSITY — CRITICAL (사용자 신고 — 모든 segment가 walk면 plan이 빈약해 보임)
-- 사용자가 \`tour_pace\` 기본값(standard) 또는 packed 일 때:
-  - **매일 최소 1 segment는 zone 간 이동 (>2km, 지하철/버스 필요)**.
-  - 같은 동네 내부에서만 stops 묶지 말 것 — 적어도 한 번은 다른 zone으로 이동.
-  - 예: 명동 zone 3곳 → 종로 zone 1곳 (점심 후 지하철 이동) → 명동 1곳 (저녁 복귀).
-- 'tour_pace=relaxed' (느긋, 1-2 stops/day)는 예외 — 한 동네 OK.
-- 사용자 체감: 지하철/버스 1-2 segment = "여행 같다", all-walk = "AI가 게으른 plan".
-- BAD: Day all walks (사용자 신고 사례)
-- GOOD: Day 명동 walks → 지하철 한 정거장 종로 → 명동 복귀 walk
-
-## DIVERSITY — CRITICAL (THIS IS A PAID $9.90 PLAN — MAKE IT SPECIAL)
-- NEVER repeat the same itinerary. Each plan must feel personally curated and unique.
-- The variation_seed in the user message determines your creative angle. Use it to pick a DIFFERENT starting neighborhood, route direction, and restaurant mix each time.
-- Mix 50% well-known highlights + 50% LOCAL HIDDEN GEMS (places Korean locals love but tourists rarely visit).
-- LOCAL HIDDEN GEM examples: 익선동 한옥 카페골목, 신당동 떡볶이타운, 상봉동 야장골목, 홍제유연 지하폭포, 을지로 가맥집, 한남동 로스터리 카페, 사직동 인왕산 숲속쉼터, 노들섬 스페이스케, 성수동 소규모 에스프레소바, 망원시장, 레레플레이 카페
-- For Busan: include 흰여울문화마을, F1963, 아홉산숲, 이기대 해안산책로, 달맞이길 카페, 전포 카페거리, 기장 대게 — these are Korean locals' favorites; use busan_*.json DB for restaurant matching
-- For Jeju: include 구엄리 해안도로, 무수천, 소금막해변, 하효해안 산책로 — hidden spots tourists miss
-- Rotate restaurants: NEVER default to the same 3-4 famous spots. Use different DB restaurants each time.
-- Vary the starting area: if seed is odd start from a different zone than usual. Don't always begin at 경복궁 or 명동.
-- Each day needs personality: give it a vivid theme (e.g. "을지로 힙지로 골목 탐험", "성수동 카페 & 빈티지 탐방", "익선동 레트로 한옥 투어", "한남동 셀럽 카페 순례").
-- For food: vary cuisine types (Korean BBQ one meal, street food next, seafood, traditional, jjigae, tteokbokki, cafe dessert).
-- Include at least ONE unexpected/delightful LOCAL-ONLY recommendation per day — places that Korean friends would take you, NOT places from travel guidebooks.
+## DIVERSITY — CRITICAL (PAID $9.90 PLAN — MAKE IT SPECIAL)
+- NEVER repeat same itinerary. variation_seed → different zone, route, restaurant mix each time.
+- 50% highlights + 50% LOCAL HIDDEN GEMS. Hidden gems: 익선동한옥카페골목, 신당동떡볶이, 상봉동야장, 홍제유연, 을지로가맥집, 한남동로스터리, 성수동에스프레소바, 망원시장.
+- Busan: 흰여울문화마을, F1963, 이기대해안, 달맞이길, 전포카페거리, 기장대게.
+- Jeju: 구엄리해안, 무수천, 소금막해변, 하효해안.
+- Rotate restaurants — never same 3-4 spots. Vary starting area, don't always begin at 경복궁/명동.
+- Each day: vivid theme ("을지로힙지로", "성수동카페빈티지", "익선동한옥투어"). Vary cuisine daily.
+- ≥1 LOCAL-ONLY recommendation per day (Korean friends' picks, NOT guidebook).
 
 ## LOCAL TAG — MANDATORY for every stop
-For EVERY stop in the itinerary, set the "local_tag" field:
-- "" (empty) — standard tourist attraction (Gyeongbokgung, N Seoul Tower, etc.)
-- "Local Pick" — popular among Koreans but tourists rarely visit (e.g. 익선동, 상봉동 야장, 을지로 가맥집, 한남동 카페)
-- "Hidden Gem" — truly hidden spots only locals know (e.g. 홍제유연, 인왕산 숲속쉼터, 무수천, 소금막해변)
-- "Bakery Pilgrimage" — famous bakeries Korean foodies queue for (e.g. 런던베이글뮤지엄, 태극당, 나폴레옹과자점, 김영모과자점, 리치몬드과자점, 아티스트베이커리)
-- "Blue Ribbon" — restaurants recognized by Korea's Blue Ribbon Survey (한국판 미쉐린)
-At least 40% of stops should have a non-empty local_tag. This makes our paid plans feel curated by Korean insiders, not just a generic travel guide.
-- 🔴 **B-18 VALIDATOR ENFORCES THIS (2026-05-12)**: backend 가 stops 의 local_tag 비율을 측정한다.
-  비율 < 30% 면 자동으로 운영자 텔레그램 알림이 발송된다 (plan 저장 자체는 OK — 사용자
-  체감 품질만 저하). 안전 마진 위해 50%+ 를 목표로 작성하라. Local Pick / Hidden Gem /
-  Bakery Pilgrimage / Blue Ribbon 4 종을 골고루 섞어 다양성 확보. lodging / travel /
-  airport category 는 비율 계산에서 제외 (관광/식사/카페 stop 만 계산).
+- "" = standard (경복궁 등)
+- "Local Pick" = Korean locals' fave (익선동, 을지로가맥집, 한남동카페)
+- "Hidden Gem" = truly hidden (홍제유연, 무수천, 소금막해변)
+- "Bakery Pilgrimage" = famous bakeries (런던베이글뮤지엄, 태극당, 나폴레옹과자점)
+- "Blue Ribbon" = Blue Ribbon Survey 선정 식당
+
+🔴 **B-18**: backend measures local_tag ratio. <30% → 운영자 alert. Target ≥50%. lodging/travel/airport 제외.
 
 ## STYLE-DRIVEN PLANNING — MANDATORY (사용자 선택 스타일 반영)
-The user selected specific styles (activity preferences). You MUST tailor at least 60% of stops:
-- "Kpop": Include K-pop agency buildings (HYBE, SM, JYP), fan cafes, K-Star Road, album shops, music show venues
-- "Food": Increase food stops to 3 per day, include market tours, cooking classes, food alleys
-- "Night": Add night markets, Han River evening, rooftop bars, 야경 spots, 포장마차. If VERIFIED ATTRACTIONS DATABASE section is present, use EXACT night spot names from there. Set "verified": true on each.
-- "Shopping": Include Myeongdong, Gangnam underground, 동대문 DDP, outlet malls, 가로수길
-- "Temple": Include temple stays, major temples, meditation, Buddhist culture experiences. If VERIFIED ATTRACTIONS DATABASE section is present, use EXACT temple names from there (foreigner-popular, verified). Set "verified": true on each.
-- "Photo": Include Instagram-worthy cafes, 벽화마을, 감성카페, scenic viewpoints
-- "Drama": Include K-drama filming locations, drama-themed parks, filming studio tours
-- "Hanbok": Include hanbok rental zones, traditional villages, Bukchon, Jeonju Hanok Village
-- "Dmz": Reserve full day for DMZ tour — Imjingak, 제3땅굴, 도라전망대, 통일촌
-- "Kbeauty": Include beauty shops, skincare experiences, Apgujeong, Garosugil beauty street
+Tailor ≥60% of stops to user's selected styles:
+- Kpop: HYBE/SM/JYP, fan cafes, K-Star Road, album shops
+- Food: 3 food stops/day, markets, cooking classes
+- Night: night markets, Han River, rooftop bars, 포장마차. Use EXACT names from VERIFIED ATTRACTIONS DATABASE if present (verified:true).
+- Shopping: Myeongdong, Gangnam underground, DDP, 가로수길
+- Temple: temple stays, major temples. Use EXACT names from VERIFIED ATTRACTIONS DATABASE if present (verified:true).
+- Photo: Instagram cafes, 벽화마을, viewpoints
+- Drama: K-drama filming locations, drama parks
+- Hanbok: hanbok rental zones, Bukchon, Jeonju Hanok Village
+- Dmz: full day — Imjingak, 제3땅굴, 도라전망대, 통일촌
+- Kbeauty: Apgujeong, Garosugil beauty street, skincare experiences
 
 If "special_request" is present in the user message, treat it as HIGHEST PRIORITY:
 - If the user names specific places (e.g. "경복궁", "HYBE"), those places MUST appear in the itinerary
@@ -747,48 +499,11 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - Do NOT ignore or substitute the user's explicit requests
 
 ## MEAL PLANNING — STRICT RULES (NEVER VIOLATE)
-- 1 dedicated lunch + 1 dinner per full day (category: "food")
-- **Breakfast slot** (NEW): start_time hour ∈ [06:00, 10:59] — 호텔 조식 / 김밥천국 / 광장시장 등. arrival/departure day 의 이른 비행 시간대 수용.
-- **Lunch slot**: start_time hour ∈ [11:00, 14:59] — 점심은 12-14시 한국 식사 시간 흔함. Backend validator (B-MEAL-LUNCH) rejects plans missing lunch on full days.
-- **Snack/Afternoon meal slot**: start_time hour ∈ [15:00, 16:59] — 빙수/카페/디저트. lunch 와 같은 가중치 (lunch OR snack 만족).
-- **Dinner slot**: start_time hour ∈ [17:00, 21:59] — 저녁은 18-20시 표준, 21시 늦은 저녁 흔함. Backend validator (B-MEAL-DINNER) rejects plans missing dinner on full days.
-- **Full day** = middle days (not arrival, not departure). REQUIRES lunch/snack + dinner BOTH. Breakfast is bonus on full days.
-- **Arrival day (Day 1)**: 도착 시각에 따라 breakfast OR lunch/snack OR dinner 중 최소 1식. Late arrival (20:00+) 시 dinner 만으로 OK. Early arrival (10:00 도착) 시 lunch 부터 정상 진행.
-- **Departure day (last day) — P137 STRICT** (plan ba10d29b 회귀: Day 5 food 0건 reject):
-  Departure_time 기준 3-tier 분류 표 — backend responseValidator 와 동일 기준 (B-MEAL, P137):
-
-  | departure_time | 의무 식사 | 예시 |
-  |---|---|---|
-  | < 11:00 (이른 출국) | breakfast slot [06:00, 11:00) 1건 필수 | 08:00 호텔 조식 / 07:30 김밥천국 |
-  | 11:00-16:59 (낮 출국) | breakfast OR lunch/snack 중 최소 1건 | 08:00 조식 OR 12:30 점심 |
-  | >= 17:00 (저녁 출국) | breakfast + lunch/snack 둘 다 의무 | 08:00 조식 + 12:30 점심 |
-  | 미제공 | 아침·오후·저녁 중 최소 1건 (기존) | 아무 slot 1건 이상 |
-
-  GOOD (departure 09:00 — 이른 출국):
-  \`\`\`json
-  { "category": "food", "name": "호텔 조식", "start_time": "07:30" }
-  \`\`\`
-  GOOD (departure 14:00 — 낮 출국):
-  \`\`\`json
-  { "category": "food", "name": "김밥천국", "start_time": "11:30" }
-  \`\`\`
-  GOOD (departure 20:00 — 저녁 출국):
-  \`\`\`json
-  [
-    { "category": "food", "name": "호텔 조식", "start_time": "08:00" },
-    { "category": "food", "name": "점심 식당", "start_time": "12:30" }
-  ]
-  \`\`\`
-  BAD (plan ba10d29b 회귀 패턴 — IMMEDIATE B-MEAL reject):
-  \`\`\`json
-  // Day 5 (출국일): lodging 체크아웃 + travel 공항이동 만 있고 0 food stops → REJECTED
-  { "category": "lodging", "name": "호텔 체크아웃", "start_time": "09:00" }
-  { "category": "travel", "name": "인천공항 이동", "start_time": "11:00" }
-  // ZERO food stops = immediate B-MEAL reject by backend validator
-  \`\`\`
-- NEVER end a full day at hotel before 17:00 without including a dinner food stop. NEVER skip a meal slot. NEVER output departure day with 0 food stops.
-- 3-5 signature menu items with KRW prices
-- reservation_required + phone for popular spots
+- Full day = middle days. 필수: lunch/snack (11-16:59) ≥1 + dinner (17-21:59) ≥1. Breakfast (06-10:59) bonus.
+- Backend B-MEAL-LUNCH/DINNER validator: 누락 시 즉시 reject + retry.
+- Arrival day: ≥1 meal. Departure day (P137): <11:00→breakfast; 11-16:59→breakfast OR lunch; ≥17:00→breakfast+lunch 둘 다.
+- GOOD (dep 20:00): breakfast 08:00 + lunch 12:30. BAD: 출국일 0 food stops → IMMEDIATE reject.
+- 3-5 signature menu items with KRW prices. reservation_required + phone for popular spots.
 
 ## DAY COUNT — STRICT (B-DC)
 - Output EXACTLY \`duration_days\` day objects in itinerary.days array. NEVER drop or truncate the last day.
@@ -890,44 +605,40 @@ Place these as scheduled meals (lunch/dinner). Add personalization_reasoning exp
 Use daily_tour_hours value as the actual budget — fit stop durations + transit so total fits.
 
 ### P9 city-specific activity keys (sent in \`categories\`):
-The user picked cities; new activity keys are now city-aware. Map keys to scheduling cues:
-- Palace → 경복궁/창덕궁/덕수궁 (any one). Schedule near opening time (09:00) for fewer crowds.
-- Jagalchi → 자갈치 시장 (부산). Lunch slot — 회/조개구이 stalls.
-- Gamcheon → 감천문화마을 (부산). 2-hour photo stop, allow time for narrow alleys.
-- Haeundae → 해운대 해변 (부산). Sunset slot ideal.
-- BusanFood → 부산 명물 (밀면/돼지국밥/어묵). Pick one as a meal.
-- OlleTrail → 제주 올레길 (한 코스). Half-day commitment.
-- Hallasan → 한라산 (제주). Full-day — replaces other stops that day.
-- Haenyeo → 해녀 박물관 / 해녀 식당. Lunch slot.
-- JejuFood → 제주 명물 (흑돼지/갈치조림/오메기떡). Pick one.
-- Bulguksa → 불국사 (경주) + Seokguram. Half-day.
-- Anapji → 동궁과 월지. Sunset slot for 야경.
-- GyeongjuHanok → 교촌마을 한옥 산책.
-- HanokVillage → 전주 한옥마을.
-- Makgeolli → 전주 막걸리 골목 (저녁).
-- JeonjuFood → 전주 비빔밥 (가족회관 or local).
-- CoffeeStreet → 강릉 안목 커피거리.
+- Palace → 경복궁/창덕궁/덕수궁. 09:00 open.
+- Jagalchi → 자갈치시장(부산), lunch slot 회/조개구이.
+- Gamcheon → 감천문화마을(부산), 2h photo.
+- Haeundae → 해운대해변(부산), sunset ideal.
+- BusanFood → 밀면/돼지국밥/어묵, 1 meal.
+- OlleTrail → 제주올레길, half-day.
+- Hallasan → 한라산, full-day (replaces other stops). **SAFETY-CRITICAL: Trekking/Hallasan — check trail conditions; Witseoreum open Apr–Nov only. Alert user of altitude/weather risk.**
+- Haenyeo → 해녀박물관/해녀식당, lunch.
+- JejuFood → 흑돼지/갈치조림/오메기떡.
+- Bulguksa → 불국사+석굴암(경주), half-day.
+- Anapji → 동궁과월지(경주), sunset 야경.
+- GyeongjuHanok → 교촌마을 한옥.
+- HanokVillage → 전주한옥마을.
+- Makgeolli → 전주 막걸리골목(저녁).
+- JeonjuFood → 전주비빔밥.
+- CoffeeStreet → 강릉 안목커피거리.
 - GangneungBeach → 경포해변/주문진.
-- YeosuLights → 여수 밤바다 (해상케이블카 + 돌산공원).
+- YeosuLights → 여수밤바다(해상케이블카+돌산공원).
 - CableCar → 여수/통영 케이블카.
-- Hwaseong → 수원 화성 산책 (2-3h).
-- ChinaTown → 인천 차이나타운 + 송월동 동화마을.
+- Hwaseong → 수원화성(2-3h).
+- ChinaTown → 인천차이나타운+송월동동화마을.
 - DaeguTower → 대구타워/앞산.
-
-### Expanded activity keys (2026-05-09, UI variety) — free/active outdoor + free culture:
-These chips emphasize free or low-cost activities for budget-conscious foreign visitors.
-- Trekking → 북한산/관악산/인왕산 등 등산 코스 1개 (Half-day, free entry).
-- HangangBike → 한강 따릉이 자전거 대여 (₩1,000/hr 한강공원 — Yeouido/Banpo/Ttukseom).
-- HangangRun → 한강 러닝 코스 (Yeouido/Banpo, free).
-- CheonggyecheonWalk → 청계천 산책 (광장시장 끝→광화문, free, 1.5h).
-- SeoulDoolegil → 서울 둘레길 한 구간 (8 코스 중 하나, free).
-- NamsanHike → 남산 등산 (N서울타워 도보, free).
-- FreeMuseum → 국립중앙박물관/국립민속박물관/서울역사박물관 (free entry, 2-3h). If VERIFIED ATTRACTIONS DATABASE section is present, use EXACT free museum names from there (entry_fee_krw === 0). Set "verified": true on each.
-- GwangjangView → 광장시장 시장 구경 (먹지 않아도 OK, 30-60분 photo stop).
-- KpopStreetWatch → 홍대/신촌/강남 K-pop 댄스 거리 공연 관람 (free, 저녁 슬롯).
-- BookstoreCafe → 익선동/북촌/삼청동 북카페 (음료값만, ₩6-8K).
-- Jjimjilbang → 한국식 사우나 (드래곤힐 등, ₩12-15K, 외국인에게 cultural experience).
-- HangangPicnic → 한강공원 피크닉 (편의점 도시락 + 라면, free park entry).
+- Trekking → 북한산/관악산/인왕산, half-day, free. **SAFETY-CRITICAL: Trekking — trail conditions apply; sunset before descent required.**
+- HangangBike → 한강따릉이(₩1,000/hr, Yeouido/Banpo/Ttukseom).
+- HangangRun → 한강러닝(free).
+- CheonggyecheonWalk → 청계천산책(free, 1.5h).
+- SeoulDoolegil → 서울둘레길(free).
+- NamsanHike → 남산등산(free).
+- FreeMuseum → 국립중앙박물관/국립민속박물관/서울역사박물관(free, 2-3h). Use EXACT names from VERIFIED ATTRACTIONS DATABASE if present (verified:true).
+- GwangjangView → 광장시장(photo, 30-60min).
+- KpopStreetWatch → 홍대/신촌/강남 K-pop 거리공연(free, 저녁).
+- BookstoreCafe → 익선동/북촌 북카페(₩6-8K).
+- Jjimjilbang → 드래곤힐등(₩12-15K, cultural).
+- HangangPicnic → 한강공원피크닉(free).
 
 If the user's selected city doesn't match the activity key, treat as ambiguous — use user's main city.
 
@@ -974,17 +685,8 @@ If meal_budget is "Premium":
 - large_bus (16+): ₩650,000/8hrs
 
 ## ⚠️ DEFENSE RULES
-
-### ANTI-HALLUCINATION
-- NEVER invent restaurant names. Use ONLY restaurants from the VERIFIED DATABASE or nationwide chains listed above.
-- If address unknown, OMIT it. Backend resolves addresses automatically.
-- If unsure about any restaurant → pick one from the VERIFIED DATABASE instead.
-
-### ADDRESS FORMAT (when you DO include it)
-- Complete road address: "시/도 + 구/군 + 도로명 + 건물번호"
-  ✅ "서울특별시 종로구 사직로 161"
-  ❌ "서울 종로구" (too vague)
-  ❌ "서울특별시 중구 명동길" (missing number)
+- ANTI-HALLUCINATION: NEVER invent restaurant names. Use VERIFIED DATABASE or nationwide chains. If address unknown, OMIT — backend resolves.
+- ADDRESS FORMAT: 완전한 도로명주소 "시/도 + 구/군 + 도로명 + 건물번호". ✅ "서울특별시 종로구 사직로 161" ❌ "서울 종로구" (too vague).
 
 ### OUTPUT SIZE (prevent JSON truncation — P181 ZERO TOLERANCE, 2026-05-24)
 - **tip: 1 sentence MAX** (이전 1-2 sentences → 1 strict). 8-12 words. 운영자 강조 "오류 1도없이".
@@ -1004,24 +706,13 @@ If meal_budget is "Premium":
 - Palace: ₩3,000 (free with hanbok), N서울타워: ₩21,000
 - If price uncertain → note "가격 변동 가능" in tip
 
-### 🔴 FINAL SELF-CHECK BEFORE RESPONDING (P179, 2026-05-24)
-**돈 받는 plan (\$9.90) — 빠진 식사는 직접 신뢰 손상.** 응답 출력 직전 의무 self-check:
+### 🔴 FINAL SELF-CHECK BEFORE RESPONDING (P179)
+**돈 받는 plan ($9.90) — 빠진 식사는 신뢰 손상. Backend B-MEAL-LUNCH/DINNER validator가 reject → retry → latency +60s.**
 
-1. **모든 full day (도착일/출국일 외 middle day)** 마다:
-   - [ ] lunch slot (11:00-14:59) 또는 snack slot (15:00-16:59) 중 최소 1건 = \`category="food"\`
-   - [ ] dinner slot (17:00-21:59) 최소 1건 = \`category="food"\`
-   - **둘 중 하나라도 누락 시** → 그 day 의 plan 다시 작성 (no exception)
+출력 전 각 day 확인:
+- **middle day**: lunch slot (11-14:59) OR snack (15-16:59) ≥1 + dinner (17-21:59) ≥1 — 둘 다 필수.
+- **도착일**: arrival_time 기준 최소 1식.
+- **출국일**: <11:00 → breakfast; 11-16:59 → breakfast OR lunch 1건; ≥17:00 → breakfast + lunch 둘 다.
 
-2. **도착일 (Day 1)** — arrival_time 기준 최소 1식 (breakfast/lunch/snack/dinner 중 하나)
-3. **출국일 (last day)** — departure_time 기준 (B-MEAL, P137 3-tier 표):
-   - < 11:00 출국 → breakfast 의무
-   - 11:00-16:59 → breakfast OR lunch/snack 중 1건
-   - >= 17:00 → breakfast + lunch/snack 둘 다 의무
-
-**BAD (P179 측정 발견, 2026-05-24 telegram alert)**:
-- Day 2 저녁 누락 (17-21시 food stop 0건) — 사용자가 호텔 도착 후 굶음
-- Day 3 점심 누락 (11-16시 food stop 0건) — 사용자 점심 시간 빈 slot
-- 위 case = backend validator B-MEAL-LUNCH/DINNER 즉시 reject + retry → latency +60s + 일반 user throw 500
-
-**GOOD**: 모든 full day = MINIMUM 2 food stops (1 lunch/snack + 1 dinner). 자기 검증 후 빠진 day 발견 시 그 day stops 다시 작성하고 출력.`;
+누락 발견 시 그 day stops 다시 작성 후 출력. GOOD = 모든 full day ≥ 2 food stops.`;
 }

@@ -1870,6 +1870,7 @@ const RULES = [
   ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
   ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
   ['P191_mountainHelperSafety', P191_mountainHelperSafety],
+  ['P194_buildPromptSize', P194_buildPromptSize],
 ];
 
 /**
@@ -7264,6 +7265,53 @@ function readFileExists(filePath) {
     return null;
   }
 }
+// ----------------------------------------------------------------------------
+// P194_buildPromptSize — buildPrompt.js 크기 회귀 차단 (2026-05-25)
+// 5/25 sweep: buildSystemPrompt() 45,410 chars → 28,266 chars (-37.8%) 압축.
+// 이후 prompt 추가 시 50K 초과 warn / 55K 초과 fail.
+// ----------------------------------------------------------------------------
+/**
+ * P194_buildPromptSize — buildPrompt.js file size 회귀 차단.
+ * buildPrompt.js 가 변경됐을 때 파일 크기 기준:
+ *   > 50,000 chars → WARN (비용 증가 시작 구간)
+ *   > 55,000 chars → FAIL (Gemini latency +3~8s + input token 비용 급증)
+ *
+ * 트리거: api/_ai_core/buildPrompt.js 변경 시.
+ */
+function P194_buildPromptSize({ changed }) {
+  const FILE = 'api/_ai_core/buildPrompt.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const content = readFileExists(FILE);
+  if (!content) return { skipped: true };
+
+  const chars = content.length;
+
+  if (chars > 55000) {
+    return {
+      id: 'P194_buildPromptSize',
+      severity: 'error',
+      file: FILE,
+      message:
+        `R-P194: buildPrompt.js ${chars.toLocaleString()} chars > 55,000 — Gemini input token 비용 급증 + latency +3~8s. ` +
+        '5/25 sweep 기준 28K 목표. SAFETY-CRITICAL 섹션(P189/P190/P191/LODGING BOOKEND/dietary)만 유지하고 중복 강조 제거.',
+    };
+  }
+
+  if (chars > 50000) {
+    return {
+      id: 'P194_buildPromptSize',
+      severity: 'warn',
+      file: FILE,
+      message:
+        `R-P194: buildPrompt.js ${chars.toLocaleString()} chars > 50,000 — Gemini input token 비용 증가 구간. ` +
+        '압축 여지 검토 권장. SAFETY-CRITICAL 섹션은 보존 필수.',
+    };
+  }
+
+  return null;
+}
+
 // ----------------------------------------------------------------------------
 // 메인
 // ----------------------------------------------------------------------------
