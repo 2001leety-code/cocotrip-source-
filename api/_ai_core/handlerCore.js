@@ -31,9 +31,7 @@ import { captureError } from '../_shared/sentry.js';
 import { verifyUserToken } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
-// P191 (2026-05-25): SAFETY-CRITICAL — 외국인 등산 사고 예방. Trekking/Hallasan
-// 옵션 선택 시 검증 DB 주입 (hallucination 차단).
-import { getMountainContextForPrompt } from '../_mountain_helper.js';
+import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 (5/25) SAFETY: Trekking/Hallasan verified DB
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 import { CORS } from './constants.js';
@@ -262,30 +260,11 @@ export default async function handler(req, res) {
     } catch (foodErr) {
       console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);
     }
-
-    // P191 (2026-05-25): SAFETY-CRITICAL — Trekking/Hallasan 검증 DB 주입.
-    // 100% Gemini 생성(hallucination) → 검증 DB 주입으로 전환 (외국인 사고 예방).
-    let mountainContext = '';
-    try {
-      const stylesArr = Array.isArray(styles) ? styles : [];
-      const hasHallasan = stylesArr.includes('Hallasan');
-      const hasTrekking = stylesArr.includes('Trekking') || stylesArr.includes('NamsanHike');
-      if (hasHallasan || hasTrekking) {
-        mountainContext = getMountainContextForPrompt({
-          regions: Array.isArray(regions) && regions.length > 0 ? regions : [area],
-          difficulty: undefined,
-          hallaOnly: hasHallasan,
-          language,
-          maxItems: 5,
-        }) || '';
-        if (mountainContext) {
-          console.log('[ai-planner-full] P191 mountain context injected (SAFETY-CRITICAL):', mountainContext.length, 'chars', { hasHallasan, hasTrekking, regions });
-        }
-      }
-    } catch (mountainErr) {
-      console.warn('[ai-planner-full] getMountainContextForPrompt failed (P191):', mountainErr.message);
-    }
-
+    // P191 (5/25) SAFETY-CRITICAL: Trekking/Hallasan verified mountain DB 주입.
+    let mountainContext = ''; try {
+      const s = Array.isArray(styles) ? styles : []; const h = s.includes('Hallasan');
+      if (h || s.includes('Trekking') || s.includes('NamsanHike')) mountainContext = getMountainContextForPrompt({ regions: Array.isArray(regions) && regions.length > 0 ? regions : [area], hallaOnly: h, language, maxItems: 5 }) || '';
+    } catch (e) { console.warn('[ai-planner-full] getMountainContextForPrompt failed (P191):', e.message); }
     const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, mountainContext });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
