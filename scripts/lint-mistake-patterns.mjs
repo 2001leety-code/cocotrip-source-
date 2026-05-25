@@ -1742,6 +1742,95 @@ function P191_mountainHelperSafety({ changed }) {
   return null;
 }
 
+// ── P192 (2026-05-25) — Gemini thinkingBudget + maxOutputTokens 충돌 방지 ───────
+/**
+ * P192_geminiThinkingOutputConflict — 메모리 P192 (2026-05-25).
+ *
+ * 5/25 prod 회귀 root cause (GitHub Issue #609/#2062/#1039 deep-search 확인):
+ *   - Flash: thinking 이 maxOutputTokens 안에서 차감 → thinkingBudget > 0 이면 output cap 소진
+ *   - Pro: thinkingBudget 32K + maxOutputTokens 16K → thinking 토큰이 output 침범 가능
+ *   → responseSchema strict + max_tokens 초과 = null 반환 → repair throw → P181 fallback 빈도 ↑
+ *
+ * 룰 (geminiPipeline.js buildModel 변경 시 트리거):
+ *   1. Flash 모델 분기 시 thinkingBudget 이 0 이 아니면 fail
+ *   2. Pro/비-Flash 모델 분기 시 thinkingBudget 이 8000 초과면 fail (8K = 안전 상한)
+ *   3. maxOutputTokens 가 24000 미만이면 fail (edge case 안전마진 부족)
+ *   4. responseMimeType: 'application/json' + responseSchema 유지 확인
+ */
+function P192_geminiThinkingOutputConflict({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // Rule 1: Flash 분기에서 thinkingBudget: 0 확인
+  // isFlash = true 분기에서 0 이외의 값이면 위험
+  // 패턴: isFlash 체크 후 thinkingBudget = 0 (또는 isFlash ? 0 : N 형태)
+  const hasFlashZeroThinking =
+    /isFlash\s*\?\s*0/.test(content) ||
+    /isFlash.*thinkingBudget.*0/s.test(content) ||
+    (/isFlash/.test(content) && /thinkingBudget\s*=\s*0/.test(content));
+  if (!hasFlashZeroThinking) {
+    violations.push(
+      'buildModel: Flash 모델 분기에서 thinkingBudget = 0 미적용. Flash 는 thinking 이 maxOutputTokens 안에서 차감 — output cap 소진 위험 (GitHub Issue #609).',
+    );
+  }
+
+  // Rule 2: Pro thinkingBudget > 8000 이면 fail
+  // "thinkingBudget: 숫자" 패턴에서 숫자 추출 — Flash:0 분기는 제외하고 Pro 값만 체크
+  const proThinkingMatch = content.match(/thinkingBudget\s*[:=]\s*(\d+)/g) || [];
+  for (const m of proThinkingMatch) {
+    const numMatch = m.match(/(\d+)/);
+    if (numMatch) {
+      const val = parseInt(numMatch[1], 10);
+      // 0 = Flash 분기 허용, 0 초과 8K 초과 = fail
+      if (val > 0 && val > 8000) {
+        violations.push(
+          `buildModel: thinkingBudget: ${val} > 8K — Pro 도 thinking 이 output 침범 가능. 8K 이하로 낮춰야 함 (GitHub Issue #2062). R-P192.`,
+        );
+      }
+    }
+  }
+
+  // Rule 3: maxOutputTokens >= 24000 확인
+  const maxOutputMatch = content.match(/maxOutputTokens\s*:\s*(\d+)/);
+  if (maxOutputMatch) {
+    const val = parseInt(maxOutputMatch[1], 10);
+    if (val < 24000) {
+      violations.push(
+        `buildModel: maxOutputTokens: ${val} < 24K — 다도시 5-day Halal/알레르기 edge case 안전마진 부족. 24K 이상 필요 (P192).`,
+      );
+    }
+  } else {
+    violations.push(
+      'buildModel: maxOutputTokens 설정 없음 — Gemini default (무한) 또는 이전 값 잔존 위험 (P192).',
+    );
+  }
+
+  // Rule 4: responseMimeType + responseSchema 유지 확인 (P183 회귀 방지)
+  if (!/responseMimeType\s*:\s*['"]application\/json['"]/.test(content)) {
+    violations.push(
+      "buildModel: responseMimeType: 'application/json' 누락 — Gemini 가 plain text 반환 가능. P183 회귀.",
+    );
+  }
+  if (!/responseSchema/.test(content)) {
+    violations.push(
+      'buildModel: responseSchema 미적용 — typed validation 없음. P183 phase2 회귀.',
+    );
+  }
+
+  if (violations.length > 0) {
+    return createViolation(
+      'P192_geminiThinkingOutputConflict',
+      `R-P192 위반 ${violations.length}건 — ${violations.join(' | ')}`,
+      'R-P192: thinkingBudget > 8K + maxOutputTokens < 24K = Gemini output 침범 위험 (GitHub Issue #609/#2062 / 5/25 prod 회귀). Flash 는 thinkingBudget:0 강제.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -1870,6 +1959,7 @@ const RULES = [
   ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
   ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
   ['P191_mountainHelperSafety', P191_mountainHelperSafety],
+  ['P192_geminiThinkingOutputConflict', P192_geminiThinkingOutputConflict],
 ];
 
 /**

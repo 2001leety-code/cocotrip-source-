@@ -43,20 +43,26 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const sourcePath = resolve(__dirname, '../../api/_ai_core/geminiPipeline.js');
 
 describe('P164 geminiPipeline.js source — maxOutputTokens cap', () => {
-  it('maxOutputTokens 값이 12000 (또는 ≤ 16000 safety upper bound)', () => {
+  it('maxOutputTokens 값이 ≥ 24000 (P192 — 1.5x 안전마진)', () => {
+    // P192 (2026-05-25): 16K → 24K (Flash thinkingBudget:0 fix 와 함께 edge case 1.5x 마진).
     const src = readFileSync(sourcePath, 'utf8');
     const m = src.match(/maxOutputTokens:\s*(\d+)/);
     expect(m).not.toBeNull();
     const v = parseInt(m![1], 10);
-    expect(v).toBeLessThanOrEqual(16000);
-    expect(v).toBeGreaterThanOrEqual(8000); // 너무 낮으면 5-day 플랜 truncate 위험
+    expect(v).toBeGreaterThanOrEqual(24000); // P192: 24K 이상 필요
+    expect(v).toBeGreaterThanOrEqual(8000);  // 너무 낮으면 5-day 플랜 truncate 위험
   });
 
-  it('thinkingBudget 32000 유지 (P135 운영자 결정 영역)', () => {
+  it('thinkingBudget Flash:0 / Pro:≤8000 (P192 — 충돌 방지)', () => {
+    // P192 (2026-05-25): Flash:0 강제 + Pro ≤ 8K. 32K 회귀 = output 침범 위험.
     const src = readFileSync(sourcePath, 'utf8');
-    const m = src.match(/thinkingBudget:\s*(\d+)/);
-    expect(m).not.toBeNull();
-    const v = parseInt(m![1], 10);
-    expect(v).toBeGreaterThanOrEqual(16000); // P135 영역, 임의 ↓ 금지
+    // Flash 분기 0 확인
+    expect(/isFlash\s*\?\s*0/.test(src)).toBe(true);
+    // Pro 값 확인 — isFlash ? 0 : N 패턴
+    const proMatch = src.match(/isFlash\s*\?\s*0\s*:\s*(\d+)/);
+    if (proMatch) {
+      const v = parseInt(proMatch[1], 10);
+      expect(v).toBeLessThanOrEqual(8000); // P192: Pro 도 8K 이하
+    }
   });
 });
