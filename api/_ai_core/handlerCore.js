@@ -261,15 +261,10 @@ export default async function handler(req, res) {
       console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);
     }
 
-    // P190: Attractions context — Temple/FreeMuseum/Night 스타일 선택 시 verified DB 주입
+    // P190: Temple/FreeMuseum/Night 스타일 시 verified attractions DB 주입.
     let attractionsContext = '';
-    try {
-      attractionsContext = getAttractionsContext({ city: area, styles, language, maxLocations: 6 }) || '';
-      if (attractionsContext) console.log('[ai-planner-full] Attractions context injected:', attractionsContext.length, 'chars');
-    } catch (attrErr) {
-      console.warn('[ai-planner-full] getAttractionsContext failed:', attrErr.message);
-    }
-
+    try { attractionsContext = getAttractionsContext({ city: area, styles, language, maxLocations: 6 }) || ''; }
+    catch (attrErr) { console.warn('[ai-planner-full] getAttractionsContext failed:', attrErr.message); }
     const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
