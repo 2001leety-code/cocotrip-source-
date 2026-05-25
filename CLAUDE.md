@@ -150,7 +150,7 @@ npx tsc -b && npx vite build
 
 - **제주/경주/전주 맛집 DB 부족** → `_food_index.json`에 해당 지역 식당이 적어 `unverified_restaurant` 발생
 - **Gemini 비결정성** → 동일 조건에서도 결과 변동 (temperature=0.95)
-- **제주 비건 DB 0건** → 비건+제주 조합은 반드시 unverified 발생
+- **제주 비건 DB**: 5/25 sweep 기준 `tag=vegan + city=jeju` 26 row 존재. 이전 기재 '0건' 은 2026-04 이전 상태 — 이후 수집 완료. 제주 비건 plan 정상 추천 가능.
 - **`validatePatternStructure` strict validator + Gemini 비결정성 = intermittent PLAN_VALIDATION_FAILED 위험**
   - 5/12 자율 검증 시스템 (W2 agent) 가 prod 에서 자동 감지
   - 새 validator 추가 시 반드시 **multi-layer fallback** (substring + alternate field + lenient case) 적용
