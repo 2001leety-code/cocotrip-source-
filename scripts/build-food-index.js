@@ -145,19 +145,15 @@ function main() {
   const gyeongjuCurated = loadJson(join(FOOD_DATA_DIR, 'restaurants_gyeongju_2026-05-21.json'));
   const jeonjuCurated   = loadJson(join(FOOD_DATA_DIR, 'restaurants_jeonju_2026-05-21.json'));
 
-  // Load Busan Phase 6 files (from collect-busan.mjs + enrich-busan.mjs)
-  // These files are already rating-filtered (≥4.6) by enrich-busan.mjs
-  const busanSeafood    = loadJson(join(FOOD_DATA_DIR, 'busan_seafood.json'));
-  const busanCafe       = loadJson(join(FOOD_DATA_DIR, 'busan_cafe.json'));
-  const busanRestaurant = loadJson(join(FOOD_DATA_DIR, 'busan_restaurant.json'));
-  const busanAttraction = loadJson(join(FOOD_DATA_DIR, 'busan_attraction.json'));
+  // NOTE: Busan Phase 6 dedicated JSON files were removed (5/25 sweep —
+  // all 4 files confirmed missing). Re-add in a dedicated PR once the
+  // actual files are collected (collect-busan.mjs + enrich-busan.mjs).
 
   // Combine all
   const all = [
     ...general, ...halal, ...vegan,
     ...cityCollected,
     ...jejuCurated, ...gyeongjuCurated, ...jeonjuCurated,
-    ...busanSeafood, ...busanCafe, ...busanRestaurant, ...busanAttraction,
   ];
   console.log(`\n  📊 Total raw items: ${all.length}`);
 
