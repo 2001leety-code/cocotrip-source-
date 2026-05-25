@@ -1972,6 +1972,7 @@ const RULES = [
   ['P192_geminiThinkingOutputConflict', P192_geminiThinkingOutputConflict],
   ['P193_pdfRecommendedRestaurantsSafety', P193_pdfRecommendedRestaurantsSafety],
   ['P194_buildPromptSize', P194_buildPromptSize],
+  ['P195_cacheInstrumentation', P195_cacheInstrumentation],
 ];
 
 /**
@@ -7411,6 +7412,88 @@ function P194_buildPromptSize({ changed }) {
   }
 
   return null;
+}
+
+// ----------------------------------------------------------------------------
+// P195_cacheInstrumentation — Gemini implicit cache metadata 추출 회귀 차단 (2026-05-25)
+//
+// Phase 0 PR — explicit caching 도입 전 prod hit rate 측정 instrumentation.
+// geminiPipeline.js 의 generateContent + retry 호출 / debugInfo.js 의 buildAdminDebug
+// 에서 cache metadata 추출/노출 로직이 제거되면 1주일 측정 데이터가 무효 → Phase 1
+// 의사결정 (explicit caching 도입 여부) 불가.
+// ----------------------------------------------------------------------------
+
+/**
+ * P195_cacheInstrumentation — implicit cache metadata 추출/노출 유지 검사.
+ *
+ * 트리거:
+ *   - api/_ai_core/geminiPipeline.js 변경 시 → extractCacheMetadata / accumulateCacheMetadata / logCacheMetrics export 유지
+ *   - api/_ai_core/debugInfo.js 변경 시 → buildAdminDebug 가 cacheMetadata 매개변수 받고 cachedInputTokens/cacheHitRate 노출
+ */
+function P195_cacheInstrumentation({ changed }) {
+  const PIPELINE = 'api/_ai_core/geminiPipeline.js';
+  const DEBUG_INFO = 'api/_ai_core/debugInfo.js';
+
+  const pipelineChanged = isModified(PIPELINE, changed);
+  const debugChanged = isModified(DEBUG_INFO, changed);
+  if (!pipelineChanged && !debugChanged) return { skipped: true };
+
+  const issues = [];
+
+  if (pipelineChanged) {
+    const src = readFileExists(PIPELINE) || '';
+
+    // 1. extractCacheMetadata export 유지
+    if (!/export\s+function\s+extractCacheMetadata/.test(src)) {
+      issues.push('extractCacheMetadata helper export 누락 — P195 instrumentation 손상');
+    }
+    // 2. accumulateCacheMetadata export 유지
+    if (!/export\s+function\s+accumulateCacheMetadata/.test(src)) {
+      issues.push('accumulateCacheMetadata helper export 누락 — retry 누적 손상');
+    }
+    // 3. logCacheMetrics export 유지
+    if (!/export\s+function\s+logCacheMetrics/.test(src)) {
+      issues.push('logCacheMetrics helper export 누락 — Vercel logs grep 손상');
+    }
+    // 4. itinerary._cache_metadata 부착 유지
+    if (!/itinerary\._cache_metadata\s*=\s*cacheMetadata/.test(src)) {
+      issues.push('itinerary._cache_metadata 부착 누락 — handlerCore 가 cacheMetadata 받을 수 없음');
+    }
+    // 5. legacy + retry 분기에서 extractCacheMetadata 호출 (최소 2회 — legacy initial + 최소 1 retry)
+    const extractCalls = (src.match(/extractCacheMetadata\(/g) || []).length;
+    if (extractCalls < 3) {  // 정의 1 + legacy 1 + retry 최소 1 = 3
+      issues.push(`extractCacheMetadata 호출 ${extractCalls}회 — legacy + 2 retry 분기 누락 가능 (최소 3회 필요)`);
+    }
+  }
+
+  if (debugChanged) {
+    const src = readFileExists(DEBUG_INFO) || '';
+
+    // 1. itinerary 매개변수 수신 (handlerCore.js cap 500 위해 _cache_metadata pop 책임이 debugInfo 로 이동)
+    if (!/itinerary/.test(src) || !/_cache_metadata/.test(src)) {
+      issues.push('buildAdminDebug itinerary 매개변수 또는 _cache_metadata pop 누락 — _debug 응답에 cache 정보 노출 X');
+    }
+    // 2. cachedInputTokens 노출 유지
+    if (!/cachedInputTokens/.test(src)) {
+      issues.push('_debug.cachedInputTokens 노출 누락 — measure script 통계 수집 손상');
+    }
+    // 3. cacheHitRate 노출 유지
+    if (!/cacheHitRate/.test(src)) {
+      issues.push('_debug.cacheHitRate 노출 누락 — Phase 0 측정 판정 (70% / 30%) 불가');
+    }
+  }
+
+  if (issues.length === 0) return null;
+
+  return {
+    id: 'P195_cacheInstrumentation',
+    severity: 'error',
+    file: pipelineChanged ? PIPELINE : DEBUG_INFO,
+    message:
+      'R-P195: Gemini implicit cache metadata instrumentation 손상 — Phase 0 측정 무효. ' +
+      'explicit caching 도입 의사결정 (1주일 [P195 CACHE_METRICS] log grep + _debug.cacheHitRate 통계) 불가. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
 }
 
 // ----------------------------------------------------------------------------

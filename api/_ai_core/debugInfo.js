@@ -27,13 +27,22 @@ import { resolveGeminiModel } from './geminiModelResolver.js';
  * @param {boolean} args.blockModeUsed
  * @param {string[]} args.blocksUsed
  * @param {boolean} args.useStreaming
+ * @param {object} [args.itinerary]  P195: itinerary._cache_metadata 를 pop 해서 _debug 에 노출 + Firestore 저장 제외.
  * @returns {object|undefined}
  */
 export function buildAdminDebug({
   gate, plannerMode, abDecision, identifierForBucketing,
-  blockModeUsed, blocksUsed, useStreaming,
+  blockModeUsed, blocksUsed, useStreaming, itinerary,
 }) {
   if (!gate || !gate.isAdminBypass) return undefined;
+  // P195 (2026-05-25): itinerary._cache_metadata pop — admin _debug 노출 전용.
+  // Firestore 저장 / 응답 itinerary 에서 제거 (handlerCore 가 호출 후 즉시 persist).
+  // 3pass mode + block-mode 등 metadata 미수집 분기 = null fallback → 0 표시.
+  const cm = (itinerary && itinerary._cache_metadata) || { cached: 0, total: 0, output: 0 };
+  if (itinerary && '_cache_metadata' in itinerary) delete itinerary._cache_metadata;
+  const cacheHitRate = cm.total > 0
+    ? Math.round((cm.cached / cm.total) * 1000) / 10  // 0.1% 단위
+    : 0;
   return {
     isAdminBypass: true,
     plannerMode,
@@ -43,5 +52,10 @@ export function buildAdminDebug({
     blockModeUsed,
     ...(Array.isArray(blocksUsed) && blocksUsed.length > 0 ? { blocksUsed } : {}),
     streamingEnabled: useStreaming,
+    // P195: implicit cache instrumentation (Phase 0 — Gemini 2.5+ auto caching).
+    cachedInputTokens: cm.cached,
+    totalInputTokens: cm.total,
+    outputTokens: cm.output,
+    cacheHitRate,
   };
 }

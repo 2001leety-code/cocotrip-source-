@@ -358,7 +358,7 @@ export default async function handler(req, res) {
     // [P186 5/25] early response 에도 admin-bypass _debug — P169 분기가 L407 의 _debug
     //   주입 SKIP 시키던 P177 사각지대 보강 (buildAdminDebug 의 gate 조건부는 그대로).
     if (streamingPlanId && !streamingResponseSent) {
-      const earlyDebug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming });
+      const earlyDebug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
       sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug });
       streamingResponseSent = true;
     }
@@ -412,8 +412,8 @@ export default async function handler(req, res) {
     // P169: streaming 모드에서는 이미 early response 전송 완료 → skip.
     // 비스트리밍 모드 (기존 흐름) 에서만 여기서 response 전송.
     if (!streamingResponseSent) {
-      // P177: admin-bypass 한정 _debug 노출 (debugInfo.js#buildAdminDebug — 일반 user undefined).
-      const debug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming });
+      // P177/P195: admin-bypass 한정 _debug 노출 (model + cache hit rate). debugInfo.js#buildAdminDebug.
+      const debug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify(_ok({
         planId, planUrl, firestoreSaved: true, emailSent: !!email, itinerary,
