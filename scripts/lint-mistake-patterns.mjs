@@ -1342,6 +1342,44 @@ function P185_responseSchemaArrayItems({ changed }) {
   return null;
 }
 
+// ── P187 (2026-05-25) — Playwright cache HIT 분기 browser binary 누락 ──────
+// 회귀: actions/cache@v4 의 restore-keys fallback 으로 partial restore 발생 시
+// browser binary 일부 누락 가능 (예: chromium 만 있고 webkit 없음). cache HIT 분기가
+// install-deps 만 호출하면 binary 누락 시 runtime "Executable doesn't exist" 발생.
+// 실 사고: 2026-05-25 Weekly i18n Audit 실패 — webkit-2287/pw_run.sh missing (run
+// 26387169303). Fix: cache HIT 분기에서도 `npx playwright install` 호출 (이미
+// 있는 browser fast skip → cache 효과 유지 + 누락 회귀 차단).
+function P187_playwrightCacheHitBinaryMissing({ changed }) {
+  const files = [
+    '.github/workflows/weekly-i18n-audit.yml',
+    '.github/workflows/pr-i18n-smoke.yml',
+  ];
+  const violations = [];
+  for (const file of files) {
+    if (!isModified(file, changed)) continue;
+    const content = getChangedFileContent(file);
+    if (!content) continue;
+    // cache HIT 조건 분기 존재 시, 다음 15줄 안에 `playwright install ` (browser
+    // install, install-deps 아님) 명령 필수.
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (!/cache-hit['"]?\s*==\s*['"]true['"]/.test(lines[i])) continue;
+      const window = lines.slice(i, i + 15).join('\n');
+      // playwright install (deps 아님) — 'install' 뒤에 - 가 없어야 함
+      // 매치: `playwright install ` / `playwright install\n` / `playwright install\s+chromium`
+      const hasBrowserInstall = /npx\s+playwright\s+install(\s+[^-]|\s*$|\s+chromium|\s+webkit|\s+firefox)/m.test(window);
+      if (!hasBrowserInstall) {
+        violations.push(`${file}:L~${i + 1} cache-hit 분기에 'npx playwright install <browser>' 누락 (install-deps 만으론 binary 회복 불가)`);
+        break; // 같은 파일 중복 방지
+      }
+    }
+  }
+  if (violations.length > 0) {
+    return `R-P187: Playwright cache HIT 분기에서 browser install 누락 ${violations.length}건 — partial cache restore 시 binary 누락 회귀 (5/25 weekly i18n audit run 26387169303 사고). \`npx playwright install chromium webkit\` 명령 동봉 필수: ${violations.join(' | ')}`;
+  }
+  return null;
+}
+
 // ── P186 (2026-05-25) — streaming early response _debug 호환 ─────────────
 // 회귀: streaming 모드 (PLANNER_STREAMING_ENABLED=true) 가 handlerCore.js L407
 // 의 _debug 주입 분기를 SKIP 시켜 measure script 의 model / plannerMode /
@@ -1724,6 +1762,7 @@ const RULES = [
   ['P183Phase2_geminiResponseSchema', P183Phase2_geminiResponseSchema],
   ['P185_responseSchemaArrayItems', P185_responseSchemaArrayItems],
   ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
+  ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
 ];
 
 /**
