@@ -297,7 +297,35 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
  */
 const PLAN_RESPONSE_SCHEMA = {
   type: 'OBJECT',
-  required: ['days'],
+  // P200 (2026-05-25): P196 rollback (PR #606) 후 진짜 fix — propertyOrdering + required.
+  //
+  // 배경: P196 의 required:['days','arrival_guide','departure_guide'] 단독 fix 가
+  //   Gemini Flash 의 "satisfy required, then stop" 패턴 (GitHub #2104/#1020/#609)
+  //   + schema vs prompt property ordering mismatch (Google 공식 docs 경고:
+  //   "mismatch can lead to incorrect or malformed output") 로 P181 minimal fallback
+  //   빈도 5건→18건/5분 (3.6x ↑) 회귀.
+  //
+  // fix (deep-search 2026-05-25 Agent A 권고):
+  //   1. propertyOrdering 명시 — Gemini emit 순서 강제 (default alphabetical 회피)
+  //   2. **buildPrompt.js JSON example 순서와 정확 일치** — Google docs mismatch 경고 회피
+  //      현재 buildPrompt 순서: tour_title → vehicle → base_price_krw → arrival_guide →
+  //      days → departure_guide → daily_budget_summary → t_money_recommended_load
+  //   3. required 다시 적용 — guides 누락 차단 (B-16 환불 사유 회피)
+  //
+  // 출처: Google AI Dev "structured output property ordering" + langchain-google #1020
+  //   / gemini-cli #2104 / GDELT prod 사례 (deep-search 2026-05-25).
+  // truncation 안전: maxOutputTokens 24K (P192) >> 5-day plan ~15K → cap 도달 위험 거의 없음.
+  propertyOrdering: [
+    'tour_title',
+    'vehicle',
+    'base_price_krw',
+    'arrival_guide',
+    'days',
+    'departure_guide',
+    'daily_budget_summary',
+    't_money_recommended_load',
+  ],
+  required: ['days', 'arrival_guide', 'departure_guide'],
   properties: {
     tour_title: { type: 'STRING' },
     vehicle: { type: 'STRING' },

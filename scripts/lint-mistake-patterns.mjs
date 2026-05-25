@@ -1973,6 +1973,7 @@ const RULES = [
   ['P193_pdfRecommendedRestaurantsSafety', P193_pdfRecommendedRestaurantsSafety],
   ['P194_buildPromptSize', P194_buildPromptSize],
   ['P195_cacheInstrumentation', P195_cacheInstrumentation],
+  ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
 ];
 
 /**
@@ -7493,6 +7494,65 @@ function P195_cacheInstrumentation({ changed }) {
       'R-P195: Gemini implicit cache metadata instrumentation 손상 — Phase 0 측정 무효. ' +
       'explicit caching 도입 의사결정 (1주일 [P195 CACHE_METRICS] log grep + _debug.cacheHitRate 통계) 불가. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P200_schemaPropertyOrdering — Gemini responseSchema 의 propertyOrdering + required 회귀 차단
+//
+// P196 회귀 lesson (2026-05-25): required 단독 fix 가 Flash "satisfy required, then stop"
+// 패턴 + schema/prompt mismatch 로 P181 빈도 3.6x ↑.
+// P200 진짜 fix: propertyOrdering 명시 (buildPrompt JSON example 순서와 일치) + required 유지.
+// ----------------------------------------------------------------------------
+
+/**
+ * P200_schemaPropertyOrdering — propertyOrdering + required 회귀 차단.
+ *
+ * 트리거: api/_ai_core/geminiPipeline.js 변경 시 propertyOrdering 8 key + required 3 key 유지 검증.
+ */
+function P200_schemaPropertyOrdering({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  // 1. propertyOrdering 존재
+  const orderingMatch = src.match(/PLAN_RESPONSE_SCHEMA[\s\S]*?propertyOrdering:\s*\[([^\]]+)\]/);
+  if (!orderingMatch) {
+    issues.push("propertyOrdering 필드 누락 — schema/prompt mismatch 회귀 (Google docs 경고)");
+  } else {
+    const orderingContent = orderingMatch[1];
+    // 2. 8 key 모두 포함 (buildPrompt JSON example 순서)
+    ['tour_title', 'vehicle', 'base_price_krw', 'arrival_guide', 'days', 'departure_guide', 'daily_budget_summary', 't_money_recommended_load'].forEach(key => {
+      if (!new RegExp(`['"]${key}['"]`).test(orderingContent)) {
+        issues.push(`propertyOrdering 에 '${key}' 누락`);
+      }
+    });
+  }
+
+  // 3. required 3 key (P196 의도 복원 — guides 누락 차단)
+  const reqMatch = src.match(/PLAN_RESPONSE_SCHEMA[\s\S]*?required:\s*\[([^\]]+)\]/);
+  if (reqMatch) {
+    const reqContent = reqMatch[1];
+    if (!/['"]days['"]/.test(reqContent)) issues.push("required 에 'days' 누락 (P185 회귀)");
+    if (!/['"]arrival_guide['"]/.test(reqContent)) issues.push("required 에 'arrival_guide' 누락 (P196 의도 손실)");
+    if (!/['"]departure_guide['"]/.test(reqContent)) issues.push("required 에 'departure_guide' 누락 (P196 의도 손실)");
+  } else {
+    issues.push("required 배열 패턴 누락");
+  }
+
+  if (issues.length === 0) return null;
+
+  return {
+    id: 'P200_schemaPropertyOrdering',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P200: PLAN_RESPONSE_SCHEMA propertyOrdering + required 손상 — P196 회귀 위험 (P181 fallback ↑). ' +
+      '발견: ' + issues.join(', '),
   };
 }
 
