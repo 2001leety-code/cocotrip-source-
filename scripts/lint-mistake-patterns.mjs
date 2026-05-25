@@ -1380,6 +1380,29 @@ function P187_playwrightCacheHitBinaryMissing({ changed }) {
   return null;
 }
 
+// ── P188 (2026-05-25) — CITY_MAP dead fallback (yeosu/daegu/gangneung) ────
+// 회귀: api/_food_helper.js 의 CITY_MAP 에 yeosu→busan / daegu→busan /
+// gangneung→seoul 이 하드코딩돼 있었으나 _food_index.json 에 실제 row 존재:
+// yeosu 25 / daegu 43 / gangneung 26. 위자드 도시 선택이 DB 를 사용하지 않고
+// 부산/서울 식당을 추천하는 silent bug. 5/25 DB sweep 발견 (P188).
+// 룰: CITY_MAP 안에서 yeosu/daegu/gangneung 가 다른 도시 (busan/seoul) 로
+//   매핑되면 차단. 자기 자신 매핑 ('yeosu': 'yeosu') 또는 키 삭제만 허용.
+function P188_cityMapDeadFallback({ changed }) {
+  const file = 'api/_food_helper.js';
+  if (!isModified(file, changed)) return null;
+  const content = getChangedFileContent(file);
+  if (!content) return null;
+  const violations = [];
+  // CITY_MAP = { ... } 블록 추출
+  const map = content.match(/CITY_MAP\s*=\s*\{[\s\S]*?\}/);
+  if (!map) return null;
+  if (/yeosu\s*:\s*['"](?!yeosu)/.test(map[0])) violations.push('yeosu → 타도시 fallback');
+  if (/daegu\s*:\s*['"](?!daegu)/.test(map[0])) violations.push('daegu → 타도시 fallback');
+  if (/gangneung\s*:\s*['"](?!gangneung)/.test(map[0])) violations.push('gangneung → 타도시 fallback');
+  if (violations.length === 0) return null;
+  return `R-P188: CITY_MAP dead fallback ${violations.length}건 — DB row 1+ 존재 (yeosu 25 / daegu 43 / gangneung 26). 자기 매핑 또는 키 제거 필수. ${violations.join(' / ')}`;
+}
+
 // ── P186 (2026-05-25) — streaming early response _debug 호환 ─────────────
 // 회귀: streaming 모드 (PLANNER_STREAMING_ENABLED=true) 가 handlerCore.js L407
 // 의 _debug 주입 분기를 SKIP 시켜 measure script 의 model / plannerMode /
@@ -1763,6 +1786,7 @@ const RULES = [
   ['P185_responseSchemaArrayItems', P185_responseSchemaArrayItems],
   ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
   ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
+  ['P188_cityMapDeadFallback', P188_cityMapDeadFallback],
 ];
 
 /**

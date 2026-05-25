@@ -60,9 +60,9 @@ const CITY_MAP = {
   jeonju: 'jeonju', '전주': 'jeonju',
   suwon: 'seoul', '수원': 'seoul',   // Suwon restaurants grouped under seoul
   incheon: 'seoul', '인천': 'seoul', // Incheon restaurants grouped under seoul
-  gangneung: 'seoul', '강릉': 'seoul',
-  yeosu: 'busan', '여수': 'busan',
-  daegu: 'busan', '대구': 'busan',
+  gangneung: 'gangneung', '강릉': 'gangneung', // P188: DB 26 rows — 직접 매핑
+  yeosu: 'yeosu', '여수': 'yeosu',             // P188: DB 25 rows — 직접 매핑
+  daegu: 'daegu', '대구': 'daegu',             // P188: DB 43 rows — 직접 매핑
 };
 
 // ── Diet preference → tag mapping ───────────────────────────────────────
