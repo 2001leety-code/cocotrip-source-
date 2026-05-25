@@ -97,11 +97,11 @@ describe('PR #461 X-H2 — buildModel accepts temperature override', () => {
   it('still configures thinkingBudget/maxOutputTokens/responseMimeType', () => {
     buildModel('fake-key', 0.1);
     const cfg = genModelCalls[0].generationConfig;
-    expect(cfg.thinkingConfig.thinkingBudget).toBe(32000);
-    // P164 (2026-05-23): 32000 → 12000. 실측 plan JSON 2-5K 토큰 — 12K = 2x safety.
-    // 32K 할당은 generation overhead. -15~25% Gemini gen time.
-    // P181 (2026-05-24) raise: 12000 → 16000. zero-tolerance — 다도시 5-day Halal/Meat 응답 12K 근접 → INVALID_JSON 차단.
-    expect(cfg.maxOutputTokens).toBe(16000);
+    // P192 (5/25): thinkingBudget Pro 32K→4K, Flash 0 (GitHub Issue #609/#2062 — Pro 도 output 16K 침범).
+    // retry default model = Pro 이므로 ≤8K 안전 상한.
+    expect(cfg.thinkingConfig.thinkingBudget).toBeLessThanOrEqual(8000);
+    // P164 (5/23) 32K→12K. P181 (5/24) 12K→16K. P192 (5/25) 16K→24K — 다도시 edge case 1.5x 안전마진.
+    expect(cfg.maxOutputTokens).toBeGreaterThanOrEqual(24000);
     expect(cfg.responseMimeType).toBe('application/json');
   });
 });

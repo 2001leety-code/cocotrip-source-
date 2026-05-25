@@ -1742,53 +1742,92 @@ function P191_mountainHelperSafety({ changed }) {
   return null;
 }
 
+// ── P192 (2026-05-25) — Gemini thinkingBudget + maxOutputTokens 충돌 방지 ───────
+function P192_geminiThinkingOutputConflict({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // Rule 1: Flash 분기에서 thinkingBudget: 0 확인
+  const hasFlashZeroThinking =
+    /isFlash\s*\?\s*0/.test(content) ||
+    /isFlash.*thinkingBudget.*0/s.test(content) ||
+    (/isFlash/.test(content) && /thinkingBudget\s*=\s*0/.test(content));
+  if (!hasFlashZeroThinking) {
+    violations.push('buildModel: Flash 분기 thinkingBudget=0 미적용 (Issue #609)');
+  }
+
+  // Rule 2: thinkingBudget > 8000 차단 (Pro 도 침범 위험)
+  const proThinkingMatch = content.match(/thinkingBudget\s*[:=]\s*(\d+)/g) || [];
+  for (const m of proThinkingMatch) {
+    const numMatch = m.match(/(\d+)/);
+    if (numMatch) {
+      const val = parseInt(numMatch[1], 10);
+      if (val > 0 && val > 8000) {
+        violations.push(`buildModel: thinkingBudget: ${val} > 8K (Issue #2062)`);
+      }
+    }
+  }
+
+  // Rule 3: maxOutputTokens >= 24000
+  const maxOutputMatch = content.match(/maxOutputTokens\s*:\s*(\d+)/);
+  if (maxOutputMatch) {
+    const val = parseInt(maxOutputMatch[1], 10);
+    if (val < 24000) {
+      violations.push(`buildModel: maxOutputTokens: ${val} < 24K`);
+    }
+  } else {
+    violations.push('buildModel: maxOutputTokens 설정 없음');
+  }
+
+  // Rule 4: responseMimeType + responseSchema (P183 회귀 방지)
+  if (!/responseMimeType\s*:\s*['"]application\/json['"]/.test(content)) {
+    violations.push('buildModel: responseMimeType json 누락 (P183 회귀)');
+  }
+  if (!/responseSchema/.test(content)) {
+    violations.push('buildModel: responseSchema 미적용 (P183 phase2 회귀)');
+  }
+
+  if (violations.length > 0) {
+    return createViolation(
+      'P192_geminiThinkingOutputConflict',
+      `R-P192 위반 ${violations.length}건 — ${violations.join(' | ')}`,
+      'R-P192: thinkingBudget > 8K + maxOutputTokens < 24K = Gemini output 침범 위험 (GitHub Issue #609/#2062 / 5/25 prod 회귀). Flash 는 thinkingBudget:0 강제.',
+    );
+  }
+  return null;
+}
+
 // ── P193 (2026-05-25) — PDF recommended restaurants SAFETY-CRITICAL ──────────
 /**
- * P193_pdfRecommendedRestaurantsSafety — 메모리 P193 (2026-05-25, SAFETY-CRITICAL).
+ * P193_pdfRecommendedRestaurantsSafety — SAFETY-CRITICAL (2026-05-25).
  *
- * pdfGenerator.ts 에 buildRecommendedRestaurantsSection 함수 export 와
- * generatePDF 본문 내 호출이 없으면 무슬림/비건 visitor 가 PDF 다운로드 시
- * 식이제한 식당 정보 0건 위험 (건강 위험 — CLAUDE.md J).
- *
- * 트리거: src/pages/PlanDetailPage/pdfGenerator.ts 변경 시.
+ * pdfGenerator.ts 에 buildRecommendedRestaurantsSection export + generatePDF 본문
+ * 호출 + PdfUiDict pdfHalalSection/pdfVeganSection 4-lang 라벨 필수.
+ * 누락 시 무슬림/비건 visitor PDF 다운로드 시 식이제한 식당 정보 0건 위험.
  */
 function P193_pdfRecommendedRestaurantsSafety({ changed }) {
   const PDF_FILE = 'src/pages/PlanDetailPage/pdfGenerator.ts';
   if (!isModified(PDF_FILE, changed)) return { skipped: true };
-
   const content = getChangedFileContent(PDF_FILE) || readFileExists(PDF_FILE);
   if (!content) return { skipped: true };
 
   const violations = [];
 
-  // 1. buildRecommendedRestaurantsSection export 존재
   if (!/export function buildRecommendedRestaurantsSection/.test(content)) {
-    violations.push(
-      'pdfGenerator.ts: buildRecommendedRestaurantsSection export 없음 — ' +
-      '무슬림/비건 visitor PDF 에 식이제한 식당 섹션 누락 (SAFETY-CRITICAL)',
-    );
+    violations.push('pdfGenerator.ts: buildRecommendedRestaurantsSection export 없음 (SAFETY)');
   }
-
-  // 2. generatePDF 본문 내 buildRecommendedRestaurantsSection 호출 존재
   if (!/buildRecommendedRestaurantsSection\s*\(/.test(content)) {
-    violations.push(
-      'pdfGenerator.ts: generatePDF 에서 buildRecommendedRestaurantsSection 호출 없음 — ' +
-      'halal/vegan 식당 섹션이 PDF 에 렌더링되지 않음',
-    );
+    violations.push('pdfGenerator.ts: generatePDF 에서 buildRecommendedRestaurantsSection 호출 없음');
   }
-
-  // 3. PdfUiDict 에 pdfHalalSection 키 존재 (4-lang 의무)
   if (!content.includes('pdfHalalSection')) {
-    violations.push(
-      'pdfGenerator.ts: PdfUiDict.pdfHalalSection 키 없음 — 할랄 섹션 4-lang 라벨 미정의',
-    );
+    violations.push('pdfGenerator.ts: pdfHalalSection 4-lang 라벨 없음');
   }
-
-  // 4. PdfUiDict 에 pdfVeganSection 키 존재
   if (!content.includes('pdfVeganSection')) {
-    violations.push(
-      'pdfGenerator.ts: PdfUiDict.pdfVeganSection 키 없음 — 비건 섹션 4-lang 라벨 미정의',
-    );
+    violations.push('pdfGenerator.ts: pdfVeganSection 4-lang 라벨 없음');
   }
 
   if (violations.length > 0) {
@@ -1930,6 +1969,7 @@ const RULES = [
   ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
   ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
   ['P191_mountainHelperSafety', P191_mountainHelperSafety],
+  ['P192_geminiThinkingOutputConflict', P192_geminiThinkingOutputConflict],
   ['P193_pdfRecommendedRestaurantsSafety', P193_pdfRecommendedRestaurantsSafety],
 ];
 
