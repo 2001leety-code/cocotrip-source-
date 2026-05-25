@@ -456,7 +456,12 @@ city-change day lodging = 새 도시 임시 reference. LODGING BOOKEND 5km 규�
 GOOD: day.city="Busan", lodging.name="해운대 호텔". BAD: day.city="Busan", lodging.name="명동 호텔" → B-13 즉시 retry. 위반 2회 → plan 저장 차단.
 
 ### 9-bis. 🔴 FOOD STOP city 매칭 — P180 ABSOLUTE MUST
-각 day food stop(category="food") = 반드시 그 day.city 식당. BAD: day.city="Jeju" + 서울 식당 → verified=false + admin alert. GOOD: day.city="Jeju" + 실제 제주 식당.
+**FOOD STOP CITY 강제 (P180)** — 각 day food stop(category="food") = 반드시 그 day.city 식당:
+- day.city = "Seoul" → food = 서울 식당 (명동/홍대/강남 등)
+- day.city = "Busan" → food = 부산 식당 (해운대/광안리/서면 등)
+- day.city = "Jeju" → food = 제주 식당 (제주시/서귀포 등)
+- **BAD**: "마초스테이크 본점" (서울 강남구) on jeju day → verified=false + admin alert. 돈 받는 plan 의 신뢰 손상.
+- **GOOD**: day.city="Jeju" + 실제 제주 식당.
 DB-injected food(\`recommended_restaurants_by_city\`) 우선 — 해당 city 리스트만 사용.
 
 ### 10. 🔴 호텔 미입력 도시 — zone anchor (P134)
@@ -512,7 +517,7 @@ If "special_request" is present in the user message, treat it as HIGHEST PRIORIT
 - Full day = middle days. 필수: lunch/snack (11-16:59) ≥1 + dinner (17-21:59) ≥1. Breakfast (06-10:59) bonus.
 - Backend B-MEAL-LUNCH/DINNER validator: 누락 시 즉시 reject + retry.
 - Arrival day: ≥1 meal. Departure day (P137): <11:00→breakfast; 11-16:59→breakfast OR lunch; ≥17:00→breakfast+lunch 둘 다.
-- GOOD (dep 20:00): breakfast 08:00 + lunch 12:30. BAD: 출국일 0 food stops → IMMEDIATE reject.
+- GOOD (departure 20:00): breakfast 08:00 + lunch 12:30. BAD (departure day): 출국일 0 food stops → IMMEDIATE reject.
 - 3-5 signature menu items with KRW prices. reservation_required + phone for popular spots.
 
 ## DAY COUNT — STRICT (B-DC)
@@ -720,9 +725,13 @@ If meal_budget is "Premium":
 **돈 받는 plan ($9.90) — 빠진 식사는 신뢰 손상. Backend B-MEAL-LUNCH/DINNER validator가 reject → retry → latency +60s.**
 
 출력 전 각 day 확인:
-- **middle day**: lunch slot (11-14:59) OR snack (15-16:59) ≥1 + dinner (17-21:59) ≥1 — 둘 다 필수.
-- **도착일**: arrival_time 기준 최소 1식.
-- **출국일**: <11:00 → breakfast; 11-16:59 → breakfast OR lunch 1건; ≥17:00 → breakfast + lunch 둘 다.
+- **full day (middle)**: lunch slot (11:00-14:59) OR snack (15:00-16:59) ≥1 + dinner slot (17:00-21:59) ≥1 — **MINIMUM 2 food stops per full day** 필수.
+- **Day 1 (도착일)**: arrival_time 기준 breakfast / lunch / snack / dinner 중 시간 가능한 식사 최소 1식 (예: arrival 14:00 → snack + dinner; arrival 18:00 → dinner only).
+- **출국일 (P137)**: departure_time <11:00 → breakfast; 11-16:59 → breakfast OR lunch 1건; ≥17:00 → breakfast + lunch 둘 다.
 
-누락 발견 시 그 day stops 다시 작성 후 출력. GOOD = 모든 full day ≥ 2 food stops.`;
+**BAD 예시 (즉시 retry 트리거 — P179 측정 발견 2026-05-24)**:
+- Day 2 저녁 누락: full day 인데 dinner slot 17:00-21:59 식당 0건.
+- Day 3 점심 누락: full day 인데 lunch slot 11:00-14:59 식당 0건.
+
+누락 발견 시 그 day stops 다시 작성 후 출력. **GOOD = 모든 full day ≥ MINIMUM 2 food stops (lunch + dinner).**`;
 }
