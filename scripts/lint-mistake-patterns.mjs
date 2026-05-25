@@ -1787,6 +1787,7 @@ const RULES = [
   ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
   ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
   ['P188_cityMapDeadFallback', P188_cityMapDeadFallback],
+  ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
 ];
 
 /**
@@ -7032,6 +7033,90 @@ function P168_pass3BackgroundAsync({ changed }) {
     );
   }
   return null;
+}
+
+// ── P190 (2026-05-25) — Attractions helper usage guard ───────────────────────
+/**
+ * P190_attractionsHelperUsage — 메모리 P190 (2026-05-25).
+ *
+ * buildPrompt.js 의 STYLE-DRIVEN 섹션에 Temple/FreeMuseum/Night 키워드가 있으면
+ * handlerCore.js 에서 _attractions_helper import + getAttractionsContext 호출 필수.
+ * 누락 시 dead data 130 row 가 다시 prompt 에 연결되지 않음 (silent hallucination 회귀).
+ *
+ * 검사:
+ *   1. buildPrompt.js 에 STYLE-DRIVEN 섹션의 Temple/FreeMuseum/Night 중 하나 있으면
+ *      handlerCore.js 에 _attractions_helper import 존재 확인.
+ *   2. handlerCore.js 에 getAttractionsContext 호출 + styles 인자 전달 확인.
+ *   3. userMessageBuilder.js 에 attractionsContext 파라미터 존재 확인.
+ *
+ * 트리거: api/_ai_core/buildPrompt.js, api/_ai_core/handlerCore.js,
+ *         api/_ai_core/userMessageBuilder.js 변경 시.
+ */
+function P190_attractionsHelperUsage({ changed }) {
+  const BP = 'api/_ai_core/buildPrompt.js';
+  const HC = 'api/_ai_core/handlerCore.js';
+  const UMB = 'api/_ai_core/userMessageBuilder.js';
+  const anyModified = isModified(BP, changed) || isModified(HC, changed) || isModified(UMB, changed);
+  if (!anyModified) return null;
+
+  const violations = [];
+
+  // Check buildPrompt.js has VERIFIED ATTRACTIONS DATABASE hint for Temple/FreeMuseum/Night
+  const bpContent = getChangedFileContent(BP) || readFileExists(BP);
+  if (bpContent) {
+    const hasStyleDriven = /STYLE-DRIVEN/.test(bpContent);
+    if (hasStyleDriven) {
+      if (!/Temple.*VERIFIED ATTRACTIONS DATABASE/s.test(bpContent)) {
+        violations.push('buildPrompt.js: Temple 스타일 STYLE-DRIVEN 섹션에 VERIFIED ATTRACTIONS DATABASE 주입 지시 없음 — P190 hallucination 차단 무효');
+      }
+      if (!/FreeMuseum.*VERIFIED ATTRACTIONS DATABASE/s.test(bpContent)) {
+        violations.push('buildPrompt.js: FreeMuseum 스타일 STYLE-DRIVEN 섹션에 VERIFIED ATTRACTIONS DATABASE 주입 지시 없음 — P190 hallucination 차단 무효');
+      }
+      if (!/Night.*VERIFIED ATTRACTIONS DATABASE/s.test(bpContent)) {
+        violations.push('buildPrompt.js: Night 스타일 STYLE-DRIVEN 섹션에 VERIFIED ATTRACTIONS DATABASE 주입 지시 없음 — P190 hallucination 차단 무효');
+      }
+    }
+  }
+
+  // Check handlerCore.js imports _attractions_helper + calls getAttractionsContext with styles
+  const hcContent = getChangedFileContent(HC) || readFileExists(HC);
+  if (hcContent) {
+    if (!/_attractions_helper/.test(hcContent)) {
+      violations.push('handlerCore.js: _attractions_helper import 없음 — attractions context 주입 불가. P190 dead data 130 row 미사용.');
+    }
+    if (!/getAttractionsContext/.test(hcContent)) {
+      violations.push('handlerCore.js: getAttractionsContext 호출 없음 — Temple/FreeMuseum/Night 스타일 시 DB 활용 안 됨.');
+    }
+    if (!/getAttractionsContext\s*\(\s*\{[^}]*styles/.test(hcContent)) {
+      violations.push('handlerCore.js: getAttractionsContext 호출에 styles 인자 누락 — 스타일 필터링 불가.');
+    }
+  }
+
+  // Check userMessageBuilder.js accepts + injects attractionsContext
+  const umbContent = getChangedFileContent(UMB) || readFileExists(UMB);
+  if (umbContent) {
+    if (!/attractionsContext/.test(umbContent)) {
+      violations.push('userMessageBuilder.js: attractionsContext 파라미터 없음 — prompt 에 attractions context 미주입.');
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P190_attractionsHelperUsage',
+      violations.join(' | '),
+      'P190 회귀 — _attractions_helper.js 130 row DB 가 Gemini prompt 에 연결 안 됨. Temple/FreeMuseum/Night hallucination 차단 무효.',
+    );
+  }
+  return null;
+}
+
+/** 변경되지 않은 파일도 읽을 수 있는 헬퍼 (lint 규칙에서 다른 파일 cross-check 시). */
+function readFileExists(filePath) {
+  try {
+    return readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
 }
 
 // ----------------------------------------------------------------------------
