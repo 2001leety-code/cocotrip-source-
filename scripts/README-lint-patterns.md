@@ -57,6 +57,7 @@ CocoTrip 오답노트의 반복 실수 패턴을 PR diff 에 자동 lint. PR 머
 | `P124_arrivalDepartureSleepBuffer` | P124 + P124-extended (2026-05-21) | `buildPrompt.js` 의 ARRIVAL/DEPARTURE DAY HANDLING + GLOBAL TIME RULES (P124-extended) 3 block 누락 또는 8h sleep buffer (arrival+9h) logic 부재. 또는 `responseValidator.js` 의 B-LATE-ARRIVAL/B-EARLY-DEPARTURE/B-GLOBAL-DAWN (중간 day 새벽 stops) 3 rule 누락 | 변경된 file 의 block / rule grep |
 | `P127_lodgingBookendMultiCityAnchor` | P127 | `routeEnrichment.js` 의 validateLodgingBookend signature 에 isMultiCity 인자 누락. day-level anchor 분기 logic 또는 호출처에서 isMultiCity 전달 누락 — multi-city false-positive 5건 잔존 | 변경된 file 의 signature / 분기 grep |
 | `P133_catalogSync` | P133 (2026-05-21) | (a) data.tsx / WizardStep2Details.tsx 의 10개 상수 키 ↔ WIZARD-INPUT-CATALOG.md 누락. (b) buildPrompt.js reservation_status ↔ index.tsx payload 미전달. (c) reservationStatus 변경 시 arrivalTime/Airport 클리어 부재. (d) toggleCity setHotelByCity 누락 / wantAccom=true 시 setHotelByCity({}) 초기화 누락 | 변경된 file + docs/WIZARD-INPUT-CATALOG.md grep / lint-catalog-sync.mjs 위임 |
+| `P185_responseSchemaArrayItems` | P185 (2026-05-25) | `api/_ai_core/geminiPipeline.js` 의 PLAN_RESPONSE_SCHEMA 안에 `type: 'ARRAY'` 노드가 `items` 없이 존재 — Gemini 3.5 Flash strict schema 400 reject → admin-bypass HTTP 500. Pro 2.5 는 lenient 통과라 CI 못 잡고 admin-bypass 운영 시점만 발견 | PLAN_RESPONSE_SCHEMA 블록 추출 후 ARRAY/items 쌍 검증 |
 
 ## R-P133 — 카탈로그 ↔ DB ↔ 위자드 동기 매트릭스
 
