@@ -172,18 +172,33 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
   // 2026-05-21 P135: 2.5 Pro → resolveGeminiModel('main') default 3.5 Flash.
   // ENV GEMINI_MAIN_MODEL=gemini-3.5-pro 로 Pro 유지 가능 (운영자 명시).
   // P171 (2026-05-23): isAdminBypass=true 일 때 GEMINI_ADMIN_BYPASS_MODEL 우선.
+  const modelId = resolveGeminiModel('main', { isAdminBypass: opts.isAdminBypass, identifierForBucketing: opts.identifierForBucketing });
+
+  // P192 (2026-05-25): Flash vs Pro thinkingBudget 분기.
+  // Flash 는 thinking 이 maxOutputTokens 안에서 차감 → thinkingBudget > 0 + maxOutputTokens 16K
+  // = "thinking 만으로 output cap 소진" 상황 → responseSchema null 반환 → repair throw.
+  // (GitHub Issue #609/#2062/#1039 — deep-search 확인).
+  // Pro 도 thinkingBudget 32K + maxOutputTokens 16K 충돌 가능 (thinking 토큰이 output 침범).
+  // 해결:
+  //   Flash → thinkingBudget: 0 (thinking 완전 비활성 — 출력 안전)
+  //   Pro   → thinkingBudget: 4000 (5-day plan 추론 충분 + output 침범 X)
+  //   maxOutputTokens: 24000 (다도시 5-day Halal/알레르기 edge case 1.5x 안전마진)
+  const isFlash = modelId.toLowerCase().includes('flash');
+  const thinkingBudget = isFlash ? 0 : 4000;
+
   return genAI.getGenerativeModel({
-    model: resolveGeminiModel('main', { isAdminBypass: opts.isAdminBypass }),
+    model: modelId,
     generationConfig: {
       temperature: typeof temperatureOverride === 'number' ? temperatureOverride : 0.5,
-      thinkingConfig: { thinkingBudget: 32000 },
+      thinkingConfig: { thinkingBudget },
       // P164 (2026-05-23): 32K→12K. 5-day plan JSON 실측 평균 2-5K 토큰 — 32K 할당은
       // generation overhead. 12K = safety margin 2x.
       // P181 (2026-05-24) raise: 12K→16K. 측정 후 INVALID_JSON 발생 (오늘 3건 = 3-5%).
       // 다도시 5-day Halal/Meat + 자세한 tip → 12K 근접 가능. 운영자 zero-tolerance
       // 강조 ("플랜 만들었을때 오류 1도없이"). 16K = 단도시 4x / 다도시 5-day 2x 안전.
-      // generation overhead = Pro 의 max cap reserve 영향 미미 (실측 영향 0).
-      maxOutputTokens: 16000,
+      // P192 (2026-05-25) raise: 16K→24K. Flash thinkingBudget:0 fix 와 함께
+      // 다도시 edge case 1.5x 안전마진. truncated JSON -80% 예상.
+      maxOutputTokens: 24000,
       responseMimeType: 'application/json',
       // P183 phase 2 (2026-05-24): Gemini responseSchema — typed validation 강제.
       // 운영자 "회귀법칙도 해놨는데 그래도 못 잡네" 메타 lesson: prompt-only 회귀

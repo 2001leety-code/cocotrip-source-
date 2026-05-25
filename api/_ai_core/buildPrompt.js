@@ -341,7 +341,17 @@ hotel_address 또는 recommended_zone 있으면 모든 day: \`[lodging(출발)] 
 
 1. **stops[0]** = category="lodging", stay_min=0, start_time="09:00".
    - 단도시: 모든 day 동일 hotel_address 또는 zone placeholder.
-   - 다도시: 각 도시 day 의 lodging = **그 도시** 호텔 (Seoul→명동호텔/홍대호텔, Busan→해운대호텔/광안리호텔, Jeju→중문호텔/성산호텔, Gyeongju→보문호텔, Jeonju→한옥마을호텔). **절대 같은 호텔 전 day 박지 말 것** — B-13 validator 위반 → retry.
+   - 다도시 city-specific 호텔 영역 (P122) — **각 도시 day 의 lodging = 그 도시 호텔**:
+     | City | 예시 호텔 |
+     |---|---|
+     | Seoul | 명동 호텔 / 홍대 호텔 / 강남 호텔 |
+     | Busan | 해운대 호텔 / 광안리 호텔 |
+     | Jeju | 중문 호텔 / 성산 호텔 |
+     | Gyeongju | 보문 호텔 |
+     | Jeonju | 한옥마을 호텔 |
+     - **GOOD**: regions=["seoul","busan"] → Day 4 (city=Busan) stops[0].name="해운대 호텔".
+     - **BAD**: Day 4 (city=Busan) stops[0].name="명동 호텔" ← wrong city, B-13 retry. 2회 위반 = plan 저장 차단.
+   - **절대 같은 호텔 전 day 박지 말 것** — B-13 validator 위반 → retry.
    - NEVER: 관광지를 첫 stop으로.
 
 2. **stops[last]** = category="lodging", stay_min=0, start_time="21:00"-"22:00".
