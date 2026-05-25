@@ -16,6 +16,7 @@ export function buildUserMessage({
   body,
   spotContext,
   foodContext,
+  attractionsContext = '',
 }) {
   const {
     guestName, pax, startDate, durationDays, styles, area, regions, duration,
@@ -67,7 +68,7 @@ export function buildUserMessage({
     variation_seed: Math.floor(Math.random() * 100) + 1,
     want_accommodation: wantAccom || undefined,
     accommodation_budget: wantAccom ? accomBudget : undefined,
-  }) + spotContext + foodContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
+  }) + spotContext + foodContext + attractionsContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
     + buildMultiCityHotelBlock(hotelByCity, regions)
     + buildMultiCityEntryExitBlock({ regions, arrivalCity, departureCity })
     + buildAccommodationBlock({ wantAccom, accomBudget })

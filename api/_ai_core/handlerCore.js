@@ -31,6 +31,7 @@ import { captureError } from '../_shared/sentry.js';
 import { verifyUserToken } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
+import { getAttractionsContext } from '../_attractions_helper.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
 import { CORS } from './constants.js';
@@ -260,7 +261,11 @@ export default async function handler(req, res) {
       console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);
     }
 
-    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext });
+    // P190: Temple/FreeMuseum/Night 스타일 시 verified attractions DB 주입.
+    let attractionsContext = '';
+    try { attractionsContext = getAttractionsContext({ city: area, styles, language, maxLocations: 6 }) || ''; }
+    catch (attrErr) { console.warn('[ai-planner-full] getAttractionsContext failed:', attrErr.message); }
+    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
     const avoidClause = await withStep('avoidClause', () => buildAvoidClause(adminDb, { uid, requestEmail }));

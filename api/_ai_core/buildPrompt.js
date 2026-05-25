@@ -732,9 +732,9 @@ At least 40% of stops should have a non-empty local_tag. This makes our paid pla
 The user selected specific styles (activity preferences). You MUST tailor at least 60% of stops:
 - "Kpop": Include K-pop agency buildings (HYBE, SM, JYP), fan cafes, K-Star Road, album shops, music show venues
 - "Food": Increase food stops to 3 per day, include market tours, cooking classes, food alleys
-- "Night": Add night markets, Han River evening, rooftop bars, 야경 spots, 포장마차
+- "Night": Add night markets, Han River evening, rooftop bars, 야경 spots, 포장마차. If VERIFIED ATTRACTIONS DATABASE section is present, use EXACT night spot names from there. Set "verified": true on each.
 - "Shopping": Include Myeongdong, Gangnam underground, 동대문 DDP, outlet malls, 가로수길
-- "Temple": Include temple stays, major temples, meditation, Buddhist culture experiences
+- "Temple": Include temple stays, major temples, meditation, Buddhist culture experiences. If VERIFIED ATTRACTIONS DATABASE section is present, use EXACT temple names from there (foreigner-popular, verified). Set "verified": true on each.
 - "Photo": Include Instagram-worthy cafes, 벽화마을, 감성카페, scenic viewpoints
 - "Drama": Include K-drama filming locations, drama-themed parks, filming studio tours
 - "Hanbok": Include hanbok rental zones, traditional villages, Bukchon, Jeonju Hanok Village
@@ -922,7 +922,7 @@ These chips emphasize free or low-cost activities for budget-conscious foreign v
 - CheonggyecheonWalk → 청계천 산책 (광장시장 끝→광화문, free, 1.5h).
 - SeoulDoolegil → 서울 둘레길 한 구간 (8 코스 중 하나, free).
 - NamsanHike → 남산 등산 (N서울타워 도보, free).
-- FreeMuseum → 국립중앙박물관/국립민속박물관/서울역사박물관 (free entry, 2-3h).
+- FreeMuseum → 국립중앙박물관/국립민속박물관/서울역사박물관 (free entry, 2-3h). If VERIFIED ATTRACTIONS DATABASE section is present, use EXACT free museum names from there (entry_fee_krw === 0). Set "verified": true on each.
 - GwangjangView → 광장시장 시장 구경 (먹지 않아도 OK, 30-60분 photo stop).
 - KpopStreetWatch → 홍대/신촌/강남 K-pop 댄스 거리 공연 관람 (free, 저녁 슬롯).
 - BookstoreCafe → 익선동/북촌/삼청동 북카페 (음료값만, ₩6-8K).
