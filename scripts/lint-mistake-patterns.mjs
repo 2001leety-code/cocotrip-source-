@@ -1787,6 +1787,7 @@ const RULES = [
   ['P186_streamingDebugInvisible', P186_streamingDebugInvisible],
   ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
   ['P188_cityMapDeadFallback', P188_cityMapDeadFallback],
+  ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
 ];
 
 /**
@@ -7029,6 +7030,67 @@ function P168_pass3BackgroundAsync({ changed }) {
       'P168_pass3BackgroundAsync',
       violations.join(' | '),
       'P168 회귀 — Pass3 background flag 분기 누락. 다시 sync 호출 시 -30~60s 단축 효과 손실. tip/recommended_items 지연 표시 불가.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P189_allergenSchemaSafety — SAFETY-CRITICAL (2026-05-25)
+ *
+ * _food_helper.js 의 getTagsForDiet 에서 Nuts/Shellfish/Gluten/Dairy 가
+ * 'general' 로 fallback 되면 fail.
+ *
+ * 배경: 위자드 Step2 알레르기 4종 선택 → getTagsForDiet → 'general' 폴백 →
+ *       일반 식당 무작위 추천 → 견과 알레르기 손님께 견과 식당 추천 가능 = 건강 위험.
+ *
+ * 검사:
+ *   1. _food_helper.js 수정 시: Nuts/Shellfish/Gluten/Dairy case 에 'general' 폴백 없음
+ *   2. _food_helper.js 수정 시: filterByAllergens 함수 존재
+ *   3. _food_helper.js 수정 시: ALLERGEN_KEYS 상수 존재
+ */
+function P189_allergenSchemaSafety({ changed }) {
+  const FILE = 'api/_food_helper.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 검사 1: Nuts/Shellfish/Gluten/Dairy case 에서 'general' 로 폴백하는 패턴 금지
+  // 패턴: case 'Nuts': ... tags.add('general') 또는 case 'Nuts': ... default: tags.add('general')
+  const ALLERGEN_CASES = ['Nuts', 'Shellfish', 'Gluten', 'Dairy'];
+  for (const allergen of ALLERGEN_CASES) {
+    // case 'AllergenKey' 가 default: tags.add('general') 와 같은 블록에 있으면 위반.
+    // 단순 체크: allergen case 가 없고 getTagsForDiet 에 default: 'general' 만 있으면 위반.
+    // 좀 더 정교하게: allergen:name 태그 추가 패턴이 있어야 함.
+    const allergenTag = `allergen:${allergen.toLowerCase()}`;
+    if (!content.includes(allergenTag)) {
+      violations.push(
+        `${FILE}: '${allergen}' 알레르기 case 에 allergen:${allergen.toLowerCase()} 태그 없음 — 'general' 폴백 가능성 (P189 SAFETY-CRITICAL)`
+      );
+    }
+  }
+
+  // 검사 2: filterByAllergens 함수 존재
+  if (!/function\s+filterByAllergens/.test(content)) {
+    violations.push(
+      `${FILE}: filterByAllergens 함수 누락 — allergens 필드 기반 식당 제외 불가 (P189)`
+    );
+  }
+
+  // 검사 3: ALLERGEN_KEYS 상수 존재
+  if (!/ALLERGEN_KEYS/.test(content)) {
+    violations.push(
+      `${FILE}: ALLERGEN_KEYS 상수 누락 — 알레르기 키 목록 관리 불가 (P189)`
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P189_allergenSchemaSafety',
+      violations.join(' | '),
+      'P189 SAFETY-CRITICAL — 알레르기 4종 (Nuts/Shellfish/Gluten/Dairy) 은 general 폴백 금지. allergen:<name> 태그 + filterByAllergens + ALLERGEN_KEYS 필수. 메뉴판에 알레르기 표시 없이 견과 손님께 견과 식당 추천 = 건강 위험.',
     );
   }
   return null;
