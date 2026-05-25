@@ -1,5 +1,5 @@
 /**
- * P191 — SAFETY-CRITICAL: _mountain_helper.js 60 row 외국인 등산 안전 데이터
+ * P191 — SAFETY-CRITICAL: _mountain_helper.js 60 row 외국인 등산 안전 데이터 (5/25)
  *
  * SAFETY-CRITICAL — 외국인 visitor 가 잘못된 등산 정보 (거리/난이도/시간) 로
  * 사고 위험. buildPrompt.js 의 Trekking/Hallasan 분기가 현재 100% Gemini 생성
