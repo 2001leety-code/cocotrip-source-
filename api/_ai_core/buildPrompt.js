@@ -266,7 +266,16 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - \`departure_guide.to_airport.instruction\`은 백엔드 RouteAgent가 ODsay 실제 step-by-step으로 덮어쓴다 → Gemini는 1-2 문장 high-level만 (예: "Take AREX Express from Hongik Univ. Station to Incheon Airport").
 - airport 필드는 \`departure_airport\`(없으면 \`arrival_airport\`)를 그대로 사용.
 - arrival_airport가 "already_in_korea"이면 departure_guide 작성하되 airport는 "GMP" 또는 "ICN T1" 합리적 가정.
-- 🔴 **B-16 STRICT ENFORCEMENT (2026-05-12)**: \`departure_guide\` field 또는 \`departure_guide.airport\` 가 응답에 누락되면 backend validator 가 plan 을 거부하고 retry 한다. ALWAYS include the top-level \`departure_guide\` object AND set \`departure_guide.airport\` (예: "ICN T1", "GMP", "PUS"). Likewise \`arrival_guide.airport\` 는 \`arrival_airport != "already_in_korea"\` 일 때 반드시 채워야 한다. PDF 첫/마지막 페이지가 빈 페이지가 되는 사용자 신고 사유.
+- 🔴 **B-16 STRICT ENFORCEMENT (2026-05-12, P202 강화 2026-05-26)**: \`departure_guide\`, \`departure_guide.airport\`, \`arrival_guide.airport\` 각 필드 **모두 명시 의무**. 누락 시 backend validator 가 plan 을 거부하고 retry. ALWAYS include the top-level \`departure_guide\` object AND set \`departure_guide.airport\` (예: "ICN T1", "GMP", "PUS"). Likewise \`arrival_guide.airport\` 는 \`arrival_airport != "already_in_korea"\` 일 때 반드시 채워야 한다. PDF 첫/마지막 페이지가 빈 페이지가 되는 사용자 신고 사유.
+
+### 🔴 P202 (2026-05-26): Day N city ↔ Day N lodging.address **도시 일치 의무**
+다도시 plan 에서 각 \`day.city\` 와 해당 day 의 \`lodging.address\` (또는 lodging stop 의 address) 의 **도시 prefix 가 반드시 일치**:
+- **GOOD**: Day 3 \`city: "Busan"\` → lodging \`address: "부산광역시 해운대구 ..."\` (또는 \`"Busan"\` 포함)
+- **BAD**: Day 3 \`city: "Busan"\` + lodging \`"홍대 호텔|서울특별시 마포구 홍대입구역 인근"\` (= 서울/Seoul 명시 = retry 트리거)
+- **BAD**: Day 5 \`city: "Jeju"\` + lodging \`"제주공항 인근|서울 종로구"\` (= 다른 도시 substring 포함)
+- **검증 substring map**: Seoul/서울 / Busan/부산 / Jeju/제주 / Gyeongju/경주 / Jeonju/전주 / Daegu/대구 / Gwangju/광주 / Daejeon/대전 / Incheon/인천 / Sokcho/속초 / Gangneung/강릉 / Suwon/수원 / Yeosu/여수
+- 다른 도시 substring 이 lodging.name/address 에 포함되면 validator 가 즉시 retry (B-13). 운영자 환불 위험 → 사용자 환불 사유.
+- 예외: 명시적 day-trip stop (예: Day 3 city=Busan 인데 통영/거제 당일치기 venue 의 단일 stop) 은 OK — 다만 **lodging** 은 day.city 와 반드시 일치.
 
 ### 🔴 출국일 (마지막 day) 공항 STOP — ABSOLUTE MUST (B-15, 2026-05-12 강화)
 \`departure_airport\` 가 "already_in_korea" 가 아니면, **마지막 day 의 stops 배열에 반드시
