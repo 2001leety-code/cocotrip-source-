@@ -54,7 +54,228 @@ export interface PdfUiDict {
   budgetMeals?: string;
   budgetTotal?: string;
   minUnit?: string;
+  // P193 (2026-05-25) SAFETY-CRITICAL — Halal/Vegan recommended restaurants PDF section
+  pdfRecommendedRestaurants?: string;  // "추천 식당 / Recommended Restaurants / おすすめレストラン / 推荐餐厅"
+  pdfRecommendedRestaurantsSubtitle?: string;
+  pdfHalalSection?: string;           // "할랄 / Halal / ハラール / 清真"
+  pdfVeganSection?: string;           // "비건 / Vegan / ヴィーガン / 素食"
+  pdfGeneralSection?: string;         // "일반 / General / 一般 / 一般"
+  pdfRestaurantOpenMap?: string;
+  pdfRestaurantReviews?: string;
+  pdfRestaurantKmAway?: string;
+  pdfRestaurantNoneForDiet?: string;
   [key: string]: string | undefined;
+}
+
+// ── P193 (2026-05-25) SAFETY-CRITICAL ────────────────────────────────────────
+// PDF Halal/Vegan recommended restaurants section.
+// 무슬림/비건 외국인 visitor 가 PDF 다운로드 시 식이제한 식당 정보 0건 위험 제거.
+// CLAUDE.md J 준수: 식이제한 데이터는 건강 위험 등급 — silent drop 절대 금지.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type RecRestaurantForPdf = {
+  name: string;
+  nameEn?: string;
+  address?: string;
+  rating?: number;
+  reviewCount?: number;
+  cuisine?: string;
+  cuisineKo?: string;
+  priceLabel?: string;
+  dong?: string;
+  dongEn?: string;
+  nearestStopKm?: number;
+  googleMapsUrl?: string;
+  region?: string;
+};
+
+// Display order — dietary-priority: halal > vegan > general
+// (SAFETY-CRITICAL: 무슬림/비건 손님은 자신의 bucket 이 먼저 보여야 함)
+const REC_BUCKET_ORDER = ['halal', 'vegan', 'general'];
+
+/**
+ * P193 SAFETY-CRITICAL — buildRecommendedRestaurantsSection
+ *
+ * itinerary.recommended_restaurants (per-style map 또는 legacy flat array) 를
+ * PDF HTML 섹션으로 변환. halal/vegan/general 각 bucket 분리 렌더링.
+ *
+ * @param itinerary - plan.itinerary
+ * @param lang      - 'ko' | 'en' | 'ja' | 'zh'
+ * @param uiDict    - PdfUiDict (4-lang labels)
+ * @param C         - color tokens (PDF 컨테이너와 동일 토큰 사용)
+ * @returns HTML string | '' (빈 문자열 = 식당 데이터 없음)
+ */
+export function buildRecommendedRestaurantsSection(
+  itinerary: Record<string, unknown>,
+  lang: string,
+  uiDict: PdfUiDict | undefined,
+  C: { heading: string; sub: string; muted: string; accent: string; border: string; cardBg: string },
+): string {
+  const raw = itinerary.recommended_restaurants;
+  if (!raw || (typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw as object).length === 0)) {
+    return '';
+  }
+
+  // Normalize to per-style map
+  let styleMap: Record<string, RecRestaurantForPdf[]>;
+  if (Array.isArray(raw)) {
+    // Legacy flat array — treat as general
+    styleMap = { general: raw as RecRestaurantForPdf[] };
+  } else {
+    styleMap = raw as Record<string, RecRestaurantForPdf[]>;
+  }
+
+  // Build ordered buckets — dietary first (halal > vegan > general)
+  const buckets: { style: string; list: RecRestaurantForPdf[] }[] = [];
+  for (const style of REC_BUCKET_ORDER) {
+    const list = styleMap[style];
+    if (Array.isArray(list)) buckets.push({ style, list });
+  }
+  // Unknown extra styles appended last
+  for (const [style, list] of Object.entries(styleMap)) {
+    if (!REC_BUCKET_ORDER.includes(style) && Array.isArray(list) && list.length > 0) {
+      buckets.push({ style, list: list as RecRestaurantForPdf[] });
+    }
+  }
+
+  // Return '' if all buckets empty
+  const hasAny = buckets.some((b) => b.list.length > 0);
+  if (!hasAny) return '';
+
+  // 4-lang labels
+  const L4: Record<string, Record<string, string>> = {
+    ko: {
+      title: '추천 식당',
+      subtitle: '여정 정류장 5km 이내 고평점 식당 — 이미 플랜에 포함된 곳 제외',
+      halal: '할랄',
+      vegan: '비건',
+      general: '일반',
+      openMap: '지도에서 보기',
+      reviews: '리뷰',
+      kmAway: 'km 거리',
+      noneForDiet: '이 지역 DB 에 해당 식이제한 검증 식당이 아직 없습니다.',
+    },
+    en: {
+      title: 'Recommended Restaurants',
+      subtitle: 'Top-rated spots within 5 km of your stops — already-included places excluded',
+      halal: 'Halal',
+      vegan: 'Vegan',
+      general: 'General',
+      openMap: 'Open in Maps',
+      reviews: 'reviews',
+      kmAway: 'km away',
+      noneForDiet: 'No verified restaurants for this dietary requirement in our DB for this area yet.',
+    },
+    ja: {
+      title: 'おすすめレストラン',
+      subtitle: 'あなたの立ち寄り地から5km以内の高評価スポット',
+      halal: 'ハラール',
+      vegan: 'ヴィーガン',
+      general: '一般',
+      openMap: 'マップで開く',
+      reviews: 'レビュー',
+      kmAway: 'km先',
+      noneForDiet: 'この地域のDBには、この食事制限に対応した検証済みレストランがまだありません。',
+    },
+    zh: {
+      title: '推荐餐厅',
+      subtitle: '行程景点5公里范围内的高评分餐厅',
+      halal: '清真',
+      vegan: '素食',
+      general: '一般',
+      openMap: '在地图中打开',
+      reviews: '条评价',
+      kmAway: '公里',
+      noneForDiet: '该地区数据库中目前还没有符合此饮食要求的认证餐厅。',
+    },
+  };
+  const ll = (L4[lang] || L4['en']) as Record<string, string>;
+
+  const sectionTitle = uiDict?.pdfRecommendedRestaurants || ll['title'];
+  const sectionSubtitle = uiDict?.pdfRecommendedRestaurantsSubtitle || ll['subtitle'];
+  const openMapLabel = uiDict?.pdfRestaurantOpenMap || ll['openMap'];
+  const reviewsLabel = uiDict?.pdfRestaurantReviews || ll['reviews'];
+  const kmAwayLabel = uiDict?.pdfRestaurantKmAway || ll['kmAway'];
+  const noneLabel = uiDict?.pdfRestaurantNoneForDiet || ll['noneForDiet'];
+
+  const styleLabel = (style: string): string => {
+    if (style === 'halal') return uiDict?.pdfHalalSection || ll['halal'] || 'Halal';
+    if (style === 'vegan') return uiDict?.pdfVeganSection || ll['vegan'] || 'Vegan';
+    if (style === 'general') return uiDict?.pdfGeneralSection || ll['general'] || 'General';
+    return style.charAt(0).toUpperCase() + style.slice(1);
+  };
+
+  // Accent colors for dietary badges — SAFETY: distinct colors so dietary ≠ general
+  const STYLE_COLOR: Record<string, string> = {
+    halal: '#15803d', // green-700 — universal halal color
+    vegan: '#0369a1', // blue-700 — vegan
+    general: C.accent,
+  };
+
+  const isKo = lang === 'ko';
+
+  let html = `<div style="margin-bottom:20px;page-break-inside:avoid;" class="pdf-rec-restaurants">
+    <h3 style="font-size:15px;font-weight:700;color:${C.heading};margin:0 0 4px;">${sectionTitle}</h3>
+    <p style="font-size:10px;color:${C.muted};margin:0 0 12px;">${sectionSubtitle}</p>`;
+
+  for (const { style, list } of buckets) {
+    const color = STYLE_COLOR[style] || C.accent;
+    html += `<div style="margin-bottom:14px;">
+      <div style="display:inline-block;font-size:10px;font-weight:700;color:white;background:${color};padding:2px 8px;border-radius:3px;margin-bottom:8px;">${styleLabel(style)}</div>`;
+
+    if (!list || list.length === 0) {
+      // Dietary bucket empty — show hint (SAFETY: silence 금지)
+      if (style !== 'general') {
+        html += `<p style="font-size:10px;color:${C.muted};margin:0 0 4px;">${noneLabel}</p>`;
+      }
+      html += `</div>`;
+      continue;
+    }
+
+    // Cards — page break after 6 cards
+    const CARDS_PER_PAGE = 6;
+    html += `<table style="width:100%;border-collapse:collapse;">`;
+
+    list.forEach((r, idx) => {
+      const displayName = isKo ? r.name : (r.nameEn || r.name);
+      const cuisine = isKo ? (r.cuisineKo || r.cuisine) : (r.cuisine || r.cuisineKo);
+      const district = isKo ? (r.dong || '') : (r.dongEn || r.dong || '');
+
+      // Page break hint after every CARDS_PER_PAGE cards
+      const breakClass = idx > 0 && idx % CARDS_PER_PAGE === 0 ? ' pdf-day-break' : '';
+
+      html += `<tr${breakClass ? ` class="${breakClass.trim()}"` : ''}>
+        <td style="padding:4px 0;vertical-align:top;">
+          <div style="background:${C.cardBg};border:1px solid ${C.border};border-left:3px solid ${color};border-radius:6px;padding:8px 10px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="vertical-align:top;padding:0;">
+                  <p style="font-size:12px;font-weight:700;color:${C.heading};margin:0;">${displayName}</p>
+                  ${!isKo && r.name !== displayName ? `<p style="font-size:10px;color:${C.muted};margin:1px 0 0;">${r.name}</p>` : ''}
+                </td>
+                ${r.rating ? `<td style="vertical-align:top;text-align:right;padding:0 0 0 6px;white-space:nowrap;"><span style="font-size:11px;font-weight:700;color:#b45309;">&#9733; ${r.rating.toFixed(1)}</span></td>` : ''}
+              </tr>
+            </table>
+            <p style="font-size:10px;color:${C.sub};margin:3px 0 0;">
+              ${[
+                cuisine,
+                district,
+                r.reviewCount !== undefined ? `${r.reviewCount.toLocaleString()} ${reviewsLabel}` : '',
+                r.nearestStopKm !== undefined ? `${r.nearestStopKm}${kmAwayLabel}` : '',
+              ].filter(Boolean).join(' · ')}
+            </p>
+            ${r.address ? `<p style="font-size:9px;color:${C.muted};margin:2px 0 0;">${r.address}</p>` : ''}
+            ${r.googleMapsUrl ? `<p style="font-size:9px;margin:3px 0 0;"><a href="${r.googleMapsUrl}" style="color:${color};text-decoration:underline;">${openMapLabel}</a></p>` : ''}
+          </div>
+        </td>
+      </tr>`;
+    });
+
+    html += `</table></div>`;
+  }
+
+  html += `</div>`;
+  return html;
 }
 
 /**
@@ -843,6 +1064,19 @@ export async function generatePDF(
       html += `<p style="font-size:10px;color:${C.sub};margin:6px 0 0;"><strong>\uD83D\uDED2 ${uiDict?.lastMinuteShopping || 'Last-minute shopping'}:</strong> ${departure.last_minute_shopping}</p>`;
     }
     html += '</div>';
+  }
+
+  // P193 (2026-05-25) SAFETY-CRITICAL \u2014 Recommended restaurants section (Halal/Vegan/General)
+  // \uBB34\uC2AC\uB9BC/\uBE44\uAC74 \uC678\uAD6D\uC778 visitor PDF \uC5D0 \uC2DD\uC774\uC81C\uD55C \uC2DD\uB2F9 \uC815\uBCF4 0\uAC74 \uC704\uD5D8 \uC81C\uAC70.
+  // buildRecommendedRestaurantsSection \uC740 itinerary.recommended_restaurants \uAC00 \uC5C6\uC73C\uBA74 '' \uBC18\uD658.
+  const recRestHtml = buildRecommendedRestaurantsSection(
+    it as unknown as Record<string, unknown>,
+    lang,
+    uiDict,
+    C,
+  );
+  if (recRestHtml) {
+    html += recRestHtml;
   }
 
   // Footer
