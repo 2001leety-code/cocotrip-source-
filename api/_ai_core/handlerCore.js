@@ -31,6 +31,7 @@ import { captureError } from '../_shared/sentry.js';
 import { verifyUserToken } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
+import { getAttractionsContext } from '../_attractions_helper.js';
 import { getMountainContextForPrompt } from '../_mountain_helper.js'; // P191 (5/25) SAFETY: Trekking/Hallasan verified DB
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
@@ -260,12 +261,11 @@ export default async function handler(req, res) {
     } catch (foodErr) {
       console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);
     }
-    // P191 (5/25) SAFETY-CRITICAL: Trekking/Hallasan verified mountain DB 주입.
-    let mountainContext = ''; try {
-      const s = Array.isArray(styles) ? styles : []; const h = s.includes('Hallasan');
-      if (h || s.includes('Trekking') || s.includes('NamsanHike')) mountainContext = getMountainContextForPrompt({ regions: Array.isArray(regions) && regions.length > 0 ? regions : [area], hallaOnly: h, language, maxItems: 5 }) || '';
-    } catch (e) { console.warn('[ai-planner-full] getMountainContextForPrompt failed (P191):', e.message); }
-    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, mountainContext });
+    // P190 attractions + P191 (SAFETY: Trekking/Hallasan verified) 컨텍스트 주입.
+    let attractionsContext = '', mountainContext = '';
+    try { attractionsContext = getAttractionsContext({ city: area, styles, language, maxLocations: 6 }) || ''; } catch (e) { console.warn('[ai-planner-full] getAttractionsContext failed:', e.message); }
+    try { const s = Array.isArray(styles) ? styles : []; const h = s.includes('Hallasan'); if (h || s.includes('Trekking') || s.includes('NamsanHike')) mountainContext = getMountainContextForPrompt({ regions: Array.isArray(regions) && regions.length > 0 ? regions : [area], hallaOnly: h, language, maxItems: 5 }) || ''; } catch (e) { console.warn('[ai-planner-full] getMountainContextForPrompt failed (P191):', e.message); }
+    const userMessage = buildUserMessage({ shaped, body, spotContext, foodContext, attractionsContext, mountainContext });
 
     // ── AVOID 리스트 (최근 plan 식당 중복 방지) ────────────────────────────
     const avoidClause = await withStep('avoidClause', () => buildAvoidClause(adminDb, { uid, requestEmail }));

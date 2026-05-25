@@ -1868,6 +1868,7 @@ const RULES = [
   ['P187_playwrightCacheHitBinaryMissing', P187_playwrightCacheHitBinaryMissing],
   ['P188_cityMapDeadFallback', P188_cityMapDeadFallback],
   ['P189_allergenSchemaSafety', P189_allergenSchemaSafety],
+  ['P190_attractionsHelperUsage', P190_attractionsHelperUsage],
   ['P191_mountainHelperSafety', P191_mountainHelperSafety],
 ];
 
@@ -7116,6 +7117,7 @@ function P168_pass3BackgroundAsync({ changed }) {
   return null;
 }
 
+// ── P189 (2026-05-25) — Allergen Schema Safety (SAFETY-CRITICAL) ─────────────
 /**
  * P189_allergenSchemaSafety — SAFETY-CRITICAL (2026-05-25)
  *
@@ -7139,15 +7141,11 @@ function P189_allergenSchemaSafety({ changed }) {
   const violations = [];
 
   // 검사 1: Nuts/Shellfish/Gluten/Dairy case 에서 'general' 로 폴백하는 패턴 금지.
-  // 각 case 블록 (break; 까지) 내에 allergenPrefs 참조 또는 ALLERGEN_TAG_PREFIX 사용이 있어야 함.
-  // 코드가 template literal `${ALLERGEN_TAG_PREFIX}nuts` 패턴을 쓸 경우 리터럴 'allergen:nuts' 없음 → 허용.
   const ALLERGEN_CASES = ['Nuts', 'Shellfish', 'Gluten', 'Dairy'];
   for (const allergen of ALLERGEN_CASES) {
-    // case 'AllergenKey': ... break; 블록 추출
     const caseStartRe = new RegExp(`case\\s+['"]${allergen}['"]\\s*:`);
     const caseStart = caseStartRe.exec(content);
     if (!caseStart) {
-      // case 자체 없으면 → 알레르기 처리 코드 없음 위반
       violations.push(
         `${FILE}: '${allergen}' case 블록 없음 — 알레르기 처리 코드 누락 (P189 SAFETY-CRITICAL)`
       );
@@ -7157,7 +7155,6 @@ function P189_allergenSchemaSafety({ changed }) {
     const breakIdx = afterCase.indexOf('break;');
     const caseBlock = breakIdx >= 0 ? afterCase.slice(0, breakIdx) : afterCase.slice(0, 300);
 
-    // case 블록 내에 allergenPrefs 또는 ALLERGEN_TAG_PREFIX 참조 있어야 함
     const hasAllergenHandling = /allergenPrefs|ALLERGEN_TAG_PREFIX/.test(caseBlock);
     if (!hasAllergenHandling) {
       violations.push(
@@ -7165,7 +7162,6 @@ function P189_allergenSchemaSafety({ changed }) {
       );
     }
 
-    // case 블록 내에 tags.add('general') 직접 호출 금지
     if (/tags\.add\(['"]general['"]\)/.test(caseBlock)) {
       violations.push(
         `${FILE}: '${allergen}' case 블록 내 tags.add('general') 직접 호출 — 알레르기 손님 일반 식당 추천 위험 (P189 SAFETY-CRITICAL)`
@@ -7197,6 +7193,77 @@ function P189_allergenSchemaSafety({ changed }) {
   return null;
 }
 
+// ── P190 (2026-05-25) — Attractions helper usage guard ───────────────────────
+/**
+ * P190_attractionsHelperUsage — 메모리 P190 (2026-05-25).
+ *
+ * buildPrompt.js 의 STYLE-DRIVEN 섹션에 Temple/FreeMuseum/Night 키워드가 있으면
+ * handlerCore.js 에서 _attractions_helper import + getAttractionsContext 호출 필수.
+ * 누락 시 dead data 130 row 가 다시 prompt 에 연결되지 않음 (silent hallucination 회귀).
+ */
+function P190_attractionsHelperUsage({ changed }) {
+  const BP = 'api/_ai_core/buildPrompt.js';
+  const HC = 'api/_ai_core/handlerCore.js';
+  const UMB = 'api/_ai_core/userMessageBuilder.js';
+  const anyModified = isModified(BP, changed) || isModified(HC, changed) || isModified(UMB, changed);
+  if (!anyModified) return null;
+
+  const violations = [];
+
+  const bpContent = getChangedFileContent(BP) || readFileExists(BP);
+  if (bpContent) {
+    const hasStyleDriven = /STYLE-DRIVEN/.test(bpContent);
+    if (hasStyleDriven) {
+      if (!/Temple.*VERIFIED ATTRACTIONS DATABASE/s.test(bpContent)) {
+        violations.push('buildPrompt.js: Temple 스타일 STYLE-DRIVEN 섹션에 VERIFIED ATTRACTIONS DATABASE 주입 지시 없음 — P190 hallucination 차단 무효');
+      }
+      if (!/FreeMuseum.*VERIFIED ATTRACTIONS DATABASE/s.test(bpContent)) {
+        violations.push('buildPrompt.js: FreeMuseum 스타일 STYLE-DRIVEN 섹션에 VERIFIED ATTRACTIONS DATABASE 주입 지시 없음 — P190 hallucination 차단 무효');
+      }
+      if (!/Night.*VERIFIED ATTRACTIONS DATABASE/s.test(bpContent)) {
+        violations.push('buildPrompt.js: Night 스타일 STYLE-DRIVEN 섹션에 VERIFIED ATTRACTIONS DATABASE 주입 지시 없음 — P190 hallucination 차단 무효');
+      }
+    }
+  }
+
+  const hcContent = getChangedFileContent(HC) || readFileExists(HC);
+  if (hcContent) {
+    if (!/_attractions_helper/.test(hcContent)) {
+      violations.push('handlerCore.js: _attractions_helper import 없음 — attractions context 주입 불가. P190 dead data 130 row 미사용.');
+    }
+    if (!/getAttractionsContext/.test(hcContent)) {
+      violations.push('handlerCore.js: getAttractionsContext 호출 없음 — Temple/FreeMuseum/Night 스타일 시 DB 활용 안 됨.');
+    }
+    if (!/getAttractionsContext\s*\(\s*\{[^}]*styles/.test(hcContent)) {
+      violations.push('handlerCore.js: getAttractionsContext 호출에 styles 인자 누락 — 스타일 필터링 불가.');
+    }
+  }
+
+  const umbContent = getChangedFileContent(UMB) || readFileExists(UMB);
+  if (umbContent) {
+    if (!/attractionsContext/.test(umbContent)) {
+      violations.push('userMessageBuilder.js: attractionsContext 파라미터 없음 — prompt 에 attractions context 미주입.');
+    }
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P190_attractionsHelperUsage',
+      violations.join(' | '),
+      'P190 회귀 — _attractions_helper.js 130 row DB 가 Gemini prompt 에 연결 안 됨. Temple/FreeMuseum/Night hallucination 차단 무효.',
+    );
+  }
+  return null;
+}
+
+/** 변경되지 않은 파일도 읽을 수 있는 헬퍼 (lint 규칙에서 다른 파일 cross-check 시). */
+function readFileExists(filePath) {
+  try {
+    return readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
 // ----------------------------------------------------------------------------
 // 메인
 // ----------------------------------------------------------------------------

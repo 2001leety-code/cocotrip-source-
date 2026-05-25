@@ -20,6 +20,7 @@ export function buildUserMessage({
   body,
   spotContext,
   foodContext,
+  attractionsContext = '',
   mountainContext = '',  // P191: SAFETY-CRITICAL — Trekking/Hallasan 검증 DB
 }) {
   const {
@@ -72,7 +73,7 @@ export function buildUserMessage({
     variation_seed: Math.floor(Math.random() * 100) + 1,
     want_accommodation: wantAccom || undefined,
     accommodation_budget: wantAccom ? accomBudget : undefined,
-  }) + spotContext + foodContext + mountainContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
+  }) + spotContext + foodContext + attractionsContext + mountainContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
     + buildMultiCityHotelBlock(hotelByCity, regions)
     + buildMultiCityEntryExitBlock({ regions, arrivalCity, departureCity })
     + buildAccommodationBlock({ wantAccom, accomBudget })
