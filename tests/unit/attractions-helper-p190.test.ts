@@ -1,5 +1,5 @@
 /**
- * P190 regression: _attractions_helper.js 신규 — museums/temples/night_spots 130 row 활용
+ * P190 regression: _attractions_helper.js 신규 — museums/temples/night_spots 130 row 활용 (5/25)
  *
  * 5/25 sweep 발견: src/data/attractions/ 4 JSON 파일이 코드 import 0 (dead data 130 row).
  * 이 테스트는 다음 5가지를 보장한다:
