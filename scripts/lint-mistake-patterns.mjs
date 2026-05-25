@@ -1973,7 +1973,6 @@ const RULES = [
   ['P193_pdfRecommendedRestaurantsSafety', P193_pdfRecommendedRestaurantsSafety],
   ['P194_buildPromptSize', P194_buildPromptSize],
   ['P195_cacheInstrumentation', P195_cacheInstrumentation],
-  ['P196_schemaRequiredGuides', P196_schemaRequiredGuides],
 ];
 
 /**
@@ -7494,56 +7493,6 @@ function P195_cacheInstrumentation({ changed }) {
       'R-P195: Gemini implicit cache metadata instrumentation 손상 — Phase 0 측정 무효. ' +
       'explicit caching 도입 의사결정 (1주일 [P195 CACHE_METRICS] log grep + _debug.cacheHitRate 통계) 불가. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
-  };
-}
-
-// ----------------------------------------------------------------------------
-// P196_schemaRequiredGuides — Gemini responseSchema 의 required 에 guides 강제 emit 유지
-//
-// 5/25 21:35 prod alert "arrival_guide+departure_guide never-emitted" → Gemini Flash 3.5
-// 가 required:['days'] 만 → days 완료 후 stop → guides 누락 → PDF 빈 페이지 (B-16).
-// fix: required 에 arrival_guide + departure_guide 추가.
-//
-// 회귀 차단: geminiPipeline.js 변경 시 PLAN_RESPONSE_SCHEMA.required 의 3 key 모두 유지.
-// ----------------------------------------------------------------------------
-
-/**
- * P196_schemaRequiredGuides — schema required 회귀 차단.
- */
-function P196_schemaRequiredGuides({ changed }) {
-  const FILE = 'api/_ai_core/geminiPipeline.js';
-  if (!isModified(FILE, changed)) return { skipped: true };
-
-  const src = readFileExists(FILE);
-  if (!src) return { skipped: true };
-
-  // PLAN_RESPONSE_SCHEMA 의 required 배열 추출 (multi-line 가능).
-  // `required: ['days', 'arrival_guide', 'departure_guide']` 패턴 검사.
-  const reqMatch = src.match(/PLAN_RESPONSE_SCHEMA[\s\S]*?required:\s*\[([^\]]+)\]/);
-  if (!reqMatch) {
-    return {
-      id: 'P196_schemaRequiredGuides',
-      severity: 'error',
-      file: FILE,
-      message: 'R-P196: PLAN_RESPONSE_SCHEMA.required 배열 패턴 누락 — Gemini schema validation 손상',
-    };
-  }
-
-  const requiredArrayContent = reqMatch[1];
-  const issues = [];
-  if (!/['"]days['"]/.test(requiredArrayContent)) issues.push("'days' 누락 (P185 회귀)");
-  if (!/['"]arrival_guide['"]/.test(requiredArrayContent)) issues.push("'arrival_guide' 누락 (P196 회귀)");
-  if (!/['"]departure_guide['"]/.test(requiredArrayContent)) issues.push("'departure_guide' 누락 (P196 회귀)");
-
-  if (issues.length === 0) return null;
-
-  return {
-    id: 'P196_schemaRequiredGuides',
-    severity: 'error',
-    file: FILE,
-    message:
-      'R-P196: PLAN_RESPONSE_SCHEMA.required 손상 — Gemini Flash 3.5 가 누락 키 emit 안 함. ' +
-      'PDF 첫/마지막 페이지 빈 페이지 (B-16 환불 사유). 발견 항목: ' + issues.join(', '),
   };
 }
 
