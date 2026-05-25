@@ -297,7 +297,13 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
  */
 const PLAN_RESPONSE_SCHEMA = {
   type: 'OBJECT',
-  required: ['days'],
+  // P196 (2026-05-25): arrival_guide + departure_guide 추가 required.
+  // root cause (5/25 21:35 alert "never-emitted"): required:['days'] 만 → Gemini Flash
+  //   3.5 가 days 완료 후 "schema 충족" 으로 stop → guides 누락. 사용자 PDF 첫/마지막
+  //   페이지 빈 페이지 (B-16 환불 신고 사유, buildPrompt L269).
+  // already_in_korea 분기: prompt instruction 이 arrival_guide.airport="ICN T1"/"GMP"
+  //   합리적 가정 명시 (L268) → schema required 충돌 X (Gemini 가 placeholder 채움).
+  required: ['days', 'arrival_guide', 'departure_guide'],
   properties: {
     tour_title: { type: 'STRING' },
     vehicle: { type: 'STRING' },
