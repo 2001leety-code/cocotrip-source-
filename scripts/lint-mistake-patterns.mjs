@@ -1841,6 +1841,57 @@ function P193_pdfRecommendedRestaurantsSafety({ changed }) {
   return null;
 }
 
+// ── R-P206 (2026-05-26) — measure script status=ready polling 의무화 ─────────
+// 5/26 시각 검증 발견: HTTP 200 + 35초 = measure "성공" 기록이지만
+// data.status='streaming' → 실제 plan 미완성 (background pipeline 계속).
+// measure script 가 status=streaming 시 /api/plan-status polling 없으면 hang/timeout
+// plan 도 "성공"으로 기록 → 측정 데이터 신뢰성 0.
+//
+// 검사:
+//   1. scripts/measure-flash-stability-5sample.mjs 에 'plan-status' 참조 존재
+//   2. 'status.*ready' 또는 'finalStatus' polling 패턴 존재
+//   3. 'isSuccess' 변수 → HTTP 200 단순 판정 금지
+function P206_measureStatusReadyPolling({ changed }) {
+  const FILE = 'scripts/measure-flash-stability-5sample.mjs';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const violations = [];
+
+  // 1) /api/plan-status polling 엔드포인트 참조
+  if (!/plan-status/.test(content)) {
+    violations.push(
+      `${FILE}: /api/plan-status polling 참조 없음 — status=streaming plan 을 미완성으로 기록 못 함. P206 fix 회귀.`,
+    );
+  }
+
+  // 2) finalStatus 또는 status === 'ready' 확인 패턴
+  if (!/finalStatus|status\s*===\s*['"]ready['"]/.test(content)) {
+    violations.push(
+      `${FILE}: finalStatus 또는 status==='ready' 확인 패턴 없음 — polling 결과 미검증. P206 fix 회귀.`,
+    );
+  }
+
+  // 3) isSuccess 변수 (HTTP 200 단순 판정 대신 status=ready 확인 의무)
+  if (!/isSuccess/.test(content)) {
+    violations.push(
+      `${FILE}: isSuccess 변수 없음 — s.status===200 단순 판정 회귀 가능. P206 회귀 차단.`,
+    );
+  }
+
+  if (violations.length > 0) {
+    fail(
+      'P206_measureStatusReadyPolling',
+      `R-P206 위반 ${violations.length}건 — ${violations.join(' | ')}`,
+      'P206 (2026-05-26) — measure script HTTP 200 후 status=streaming 이면 /api/plan-status 5초 polling 의무. ' +
+      'OpenAI Background Mode / Replicate 동일 패턴. 10분 timeout = Vercel maxDuration 일치. ' +
+      '결과: httpSec + pollSec = totalSec 분리 컬럼.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -1980,6 +2031,7 @@ const RULES = [
   ['P204_streamingPartialNoRepair', P204_streamingPartialNoRepair],
   ['P205_airportNestedSelfHeal', P205_airportNestedSelfHeal],
   ['P207_pdfEmptyPlanGuard', P207_pdfEmptyPlanGuard],
+  ['P206_measureStatusReadyPolling', P206_measureStatusReadyPolling],
 ];
 
 /**
