@@ -58,11 +58,13 @@ describe('P216 maxOutputTokens 65K 회귀 차단', () => {
     expect(pipelineSrc).toMatch(/isFlash\s*\?\s*0\s*:/);
   });
 
-  it('P216-B2: Pro thinkingBudget > 0 유지 (Flash 만 0, Pro 는 사고 추론 유지)', () => {
-    const match = pipelineSrc.match(/isFlash\s*\?\s*0\s*:\s*(\d+)/);
+  it('P216-B2: Pro thinkingBudget 가 0 이 아님 유지 (Flash 만 0, Pro 는 사고 추론 활성)', () => {
+    // P217 (2026-05-26): Pro thinkingBudget 4000 → -1 (dynamic, Gemini 자율 결정).
+    // Pro 가 0 이면 P192 fix 가 Pro 까지 잘못 적용된 회귀 — -1 또는 양수 허용.
+    const match = pipelineSrc.match(/isFlash\s*\?\s*0\s*:\s*(-?\d+)/);
     expect(match, 'Pro thinkingBudget 값 파싱 불가').toBeTruthy();
     const proThinking = Number(match![1]);
-    expect(proThinking).toBeGreaterThan(0);
+    expect(proThinking).not.toBe(0);
   });
 
   // ── P200 propertyOrdering 보존 (P216 변경이 schema 에 영향 없는지) ────────
