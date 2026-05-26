@@ -94,8 +94,10 @@ describe('P214 Flash truncation mitigation', () => {
   // ── P214 코멘트 존재 검증 ─────────────────────────────────────────────────
 
   it('P214-D1: P214 코멘트 (raise 이유 + 외부 사례) 가 geminiPipeline.js 에 존재', () => {
-    // 의도 박제 — 나중에 "왜 32K 야?" 질문 시 코드에서 바로 이유 확인 가능.
+    // 의도 박제 — P214 가 24K→32K raise 였음을 코드 히스토리에서 확인 가능.
+    // P216 이후 실제 값은 65K — "32K" 는 코멘트로만 존재 (히스토리).
     expect(pipelineSrc).toMatch(/P214/);
-    expect(pipelineSrc).toMatch(/32[_,]?000/);
+    // P214 코멘트에 "32K" 또는 "32,000" 이 히스토리 코멘트로 존재해야 함
+    expect(pipelineSrc).toMatch(/32K|32,000/);
   });
 });
