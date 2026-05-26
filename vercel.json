@@ -81,6 +81,10 @@
     "api/cron-runner.js": {
       "maxDuration": 60
     },
+    "api/pdf/generate.js": {
+      "maxDuration": 60,
+      "includeFiles": "fonts/**"
+    },
     "api/*.js": {
       "maxDuration": 30
     }
