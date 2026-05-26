@@ -2036,6 +2036,7 @@ const RULES = [
   ['P208_notoSansKrBundle', P208_notoSansKrBundle],
   ['P210A_schemaAirportHint', P210A_schemaAirportHint],
   ['P209_serverPdfArrivalDeparture', P209_serverPdfArrivalDeparture],
+  ['P214_flashTruncationMitigation', P214_flashTruncationMitigation],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8113,6 +8114,58 @@ function P209_serverPdfArrivalDeparture({ changed }) {
     'P209_serverPdfArrivalDeparture',
     `R-P209: api/pdf/generate.js buildPlanHtml 에 arrival/departure 섹션 누락 또는 XSS 미방어 ${issues.length}건 — ${issues.join(' | ')}`,
     'P209 fix — buildPlanHtml 에 arrival_guide + departure_guide 섹션 추가 + escapeHtml 모든 동적 텍스트 적용. deep-search: reports/visual-2026-05-26/deepsearch-p209.md',
+  );
+  return null;
+}
+
+// ----------------------------------------------------------------------------
+// P214_flashTruncationMitigation — maxOutputTokens 다운그레이드 차단 (2026-05-26)
+//
+// 5/26 측정: Flash 5-day plan 2/5 sample (40%) 가 days=3 만 반환.
+// raw 47,597 chars (≈11,900 tokens) 에서 비결정적 truncation — maxOutputTokens 24K 대비 50%.
+// 외부 사례: Google AI Forum #81258 "Consistent truncation despite being under limits".
+// fix: maxOutputTokens 24K → 32K (실측 peak 의 2.7x — Flash 내부 token budget 여유 인지 개선).
+//
+// 룰: geminiPipeline.js 의 generationConfig.maxOutputTokens 가 32000 미만이면 fail.
+// thinkingBudget:0 보존 의무 (Flash thinking 토큰 competing 방지 — P192 안전장치).
+// ----------------------------------------------------------------------------
+
+/**
+ * P214_flashTruncationMitigation — maxOutputTokens ≥ 32000 + thinkingBudget Flash=0 유지 검증.
+ *
+ * 트리거: api/_ai_core/geminiPipeline.js 변경 시.
+ */
+function P214_flashTruncationMitigation({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  // 1. generationConfig 내 maxOutputTokens 값 확인
+  const tokenMatch = src.match(/generationConfig\s*:\s*\{[\s\S]*?maxOutputTokens\s*:\s*(\d+)/);
+  if (!tokenMatch) {
+    issues.push('generationConfig 내 maxOutputTokens 설정 없음');
+  } else {
+    const tokenVal = Number(tokenMatch[1]);
+    if (tokenVal < 32000) {
+      issues.push(`maxOutputTokens=${tokenVal} — 32000 미만 다운그레이드 감지. P214 Flash truncation 회귀 위험 (Google AI Forum #81258)`);
+    }
+  }
+
+  // 2. Flash thinkingBudget=0 보존 (P192 안전장치)
+  if (!/isFlash\s*\?\s*0\s*:/.test(src)) {
+    issues.push('Flash thinkingBudget=0 패턴 누락 — thinking 토큰이 output cap 침범 위험 (P192 회귀)');
+  }
+
+  if (issues.length === 0) return null;
+
+  fail(
+    'P214_flashTruncationMitigation',
+    `R-P214: geminiPipeline.js Flash truncation 완화 설정 손상 ${issues.length}건 — ${issues.join(' | ')}`,
+    'P214 fix — maxOutputTokens ≥ 32000 유지 + Flash thinkingBudget=0 보존. 외부 사례: Google AI Forum #81258 / LangChain #34100.',
   );
   return null;
 }

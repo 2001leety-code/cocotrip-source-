@@ -408,7 +408,7 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
   // 해결:
   //   Flash → thinkingBudget: 0 (thinking 완전 비활성 — 출력 안전)
   //   Pro   → thinkingBudget: 4000 (5-day plan 추론 충분 + output 침범 X)
-  //   maxOutputTokens: 24000 (다도시 5-day Halal/알레르기 edge case 1.5x 안전마진)
+  //   maxOutputTokens: 32000 (P214 raise: 24K→32K — Flash 비결정적 truncation 완화)
   const isFlash = modelId.toLowerCase().includes('flash');
   const thinkingBudget = isFlash ? 0 : 4000;
 
@@ -424,7 +424,11 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
       // 강조 ("플랜 만들었을때 오류 1도없이"). 16K = 단도시 4x / 다도시 5-day 2x 안전.
       // P192 (2026-05-25) raise: 16K→24K. Flash thinkingBudget:0 fix 와 함께
       // 다도시 edge case 1.5x 안전마진. truncated JSON -80% 예상.
-      maxOutputTokens: 24000,
+      // P214 (2026-05-26) raise: 24K→32K. 5/26 측정 결과 47,597 chars (≈11,900 tokens)
+      // 잘림 — cap (24K) 에 못 미치는데도 비결정적 truncation 발생 (Google AI Forum #81258).
+      // 32K = 실측 peak 11.9K 의 2.7x → Flash 내부 "token budget 여유" 인지 개선 기대.
+      // thinkingBudget=0 유지 (thinking 토큰 competing 없음) → 비용 영향: Flash free tier 0.
+      maxOutputTokens: 32000,
       responseMimeType: 'application/json',
       // P183 phase 2 (2026-05-24): Gemini responseSchema — typed validation 강제.
       // 운영자 "회귀법칙도 해놨는데 그래도 못 잡네" 메타 lesson: prompt-only 회귀
