@@ -2032,7 +2032,50 @@ const RULES = [
   ['P205_airportNestedSelfHeal', P205_airportNestedSelfHeal],
   ['P207_pdfEmptyPlanGuard', P207_pdfEmptyPlanGuard],
   ['P206_measureStatusReadyPolling', P206_measureStatusReadyPolling],
+  ['P210B_inspectStatusField', P210B_inspectStatusField],
 ];
+
+// ----------------------------------------------------------------------------
+// P210B_inspectStatusField — inspect-plans.mjs 에 status + _streaming_in_progress 출력 의무
+//
+// 5/26 sample 5 (eaccffbd, days=0 hang) 에서 inspect script 가 status / streaming flag
+// 출력 안 해 → skeleton stuck vs Gemini 완전 실패 판별 불가.
+// generic inspect-plans.mjs 에 extractStatusFields helper + 종합 통계 출력 의무.
+//
+// 룰:
+//   1. scripts/inspect-plans.mjs 가 존재해야 함.
+//   2. extractStatusFields 함수가 정의되어 있어야 함.
+//   3. status + _streaming_in_progress 출력 라인이 있어야 함.
+//   4. 종합 통계에 streaming/ready 분리 출력이 있어야 함.
+// ----------------------------------------------------------------------------
+function P210B_inspectStatusField({ changed }) {
+  const SCRIPT = 'scripts/inspect-plans.mjs';
+  if (!isModified(SCRIPT, changed)) return { skipped: true };
+
+  const src = readFileExists(SCRIPT) || '';
+  const issues = [];
+
+  if (!/export function extractStatusFields/.test(src)) {
+    issues.push('extractStatusFields 함수 누락 — Firestore REST 응답 파싱 helper 없음');
+  }
+  if (!/status.*streamingInProgress|status.*_streaming_in_progress/.test(src)) {
+    issues.push('status + _streaming_in_progress 출력 라인 누락 — skeleton stuck 판별 불가');
+  }
+  if (!/streaming 진행 중|streamingCount/.test(src)) {
+    issues.push('종합 통계 streaming/ready 분리 출력 누락 — 5 sample 집계 불완전');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P210B_inspectStatusField',
+    severity: 'error',
+    file: SCRIPT,
+    message:
+      'R-P210B: inspect-plans.mjs 에 status + _streaming_in_progress 출력 의무 — ' +
+      'sample 5 (eaccffbd, days=0 hang) 같은 skeleton stuck plan 즉시 판별 필수. ' +
+      '발견: ' + issues.join(', '),
+  };
+}
 
 /**
  * P167_blockModeMultiCitySupport — 메모리 P167 (2026-05-23).
