@@ -129,6 +129,11 @@ export function buildPlanAiCompletePayload(args) {
  */
 export async function tryDispatchOrFallback(args) {
   if (!shouldDispatchToInngest()) return false;
+  // P226 (2026-05-27): non-streaming 요청 보호 — streamingPlanId 없으면 worker 가 처리할
+  //   planId 가 없음. P222 가 early response 폐기 후 streaming 분기에서도 streamingPlanId
+  //   는 유지되므로 본 가드는 P226 의 maybeDispatchToInngest gate 제거 안전판 (non-streaming
+  //   path 에서 dispatch 시도 시 worker payload 가 invalid).
+  if (!args.streamingPlanId) return false;
   try {
     const payload = buildPlanAiCompletePayload(args);
     await publishPlanAiComplete(payload);
@@ -149,8 +154,11 @@ export async function tryDispatchOrFallback(args) {
  * @returns {Promise<boolean>} true = dispatched (handler 즉시 종료), false = inline 계속
  */
 export async function maybeDispatchToInngest(args) {
-  const { streamingResponseSent } = args;
-  if (!streamingResponseSent) return false;
+  // P226 (2026-05-27): streamingResponseSent 가드 제거. P222 가 early response 폐기 후
+  //   streamingResponseSent=false 가 default → 본 가드가 Inngest dispatch 차단 → inline +21s.
+  //   tryDispatchOrFallback 내부의 shouldDispatchToInngest() (ENV + PLANNER_INNGEST_ENABLED)
+  //   가 이미 guard 역할 + streamingPlanId null 보호 추가됨.
+  //   결과: Inngest 활성 시 dispatch + worker durable (status='ready' 보장) + HTTP latency 회복.
   return tryDispatchOrFallback(args);
 }
 
