@@ -24,20 +24,50 @@
 import { serve } from 'inngest/node';
 import { inngest } from './_inngest/client.js';
 import { processPlanAfterAI } from './_inngest/functions/processPlanAfterAI.js';
+import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 
 // Vercel runtime config — 본 endpoint 는 GET/POST/PUT 모두 지원해야 함.
 // maxDuration = 300 (Pro 기본 5분 cap). step.run 1회 cap — 누적 시간 무관.
 export const config = { runtime: 'nodejs' };
 export const maxDuration = 300;
 
+// P96 (PR #482) hang 진단 — withStep + hangWarnTimer 패턴 (ai-planner-full.js 동일).
+// 본 endpoint 는 Inngest 가 GET/POST/PUT 3종 호출. step.run instrumentation 은 worker
+// function 내부 자체 (Inngest SDK 가 step elapsed 로그 + retry). 본 wrapper 는 serve()
+// 호출 자체가 hang 하는 케이스 (Inngest API outage) 진단용.
+const HANG_WARN_MS = 270_000; // cap (300s) - 30s
+async function withStep(label, fn) {
+  const t0 = Date.now();
+  console.log(`[inngest-serve] step=${label} ENTER`);
+  try {
+    const result = await fn();
+    console.log(`[inngest-serve] step=${label} DONE ${Date.now() - t0}ms`);
+    return result;
+  } catch (err) {
+    console.error(`[inngest-serve] step=${label} FAILED ${Date.now() - t0}ms — ${err.message}`);
+    throw err;
+  }
+}
+
+const baseHandler = serve({ client: inngest, functions: [processPlanAfterAI] });
+
 /**
- * Vercel default export 는 (req, res) => void 시그니처.
- * `serve()` 는 http.RequestListener 반환 — 정확히 일치.
+ * Vercel default export — (req, res) => void. P96 hang alert wrapper 추가.
+ * serve() 자체가 long-running 하면 4분30초 시점에 admin telegram alert.
  */
-export default serve({
-  client: inngest,
-  functions: [
-    processPlanAfterAI,
-    // 추후 worker 추가 시 여기에 push (예: refundProcessor, scheduledEmail 등)
-  ],
-});
+export default async function handler(req, res) {
+  const hangWarnTimer = setTimeout(() => {
+    throttledTelegramAlert({
+      key: 'inngest-serve-hang',
+      channel: 'admin',
+      severity: 'high',
+      message: `Inngest serve() 4분30초 hang — method=${req.method} url=${req.url}`,
+    }).catch(() => {});
+  }, HANG_WARN_MS);
+  if (hangWarnTimer.unref) hangWarnTimer.unref();
+  try {
+    return await withStep(`serve:${req.method}`, () => baseHandler(req, res));
+  } finally {
+    clearTimeout(hangWarnTimer);
+  }
+}

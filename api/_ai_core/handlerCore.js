@@ -56,7 +56,7 @@ import {
 import { shapeRequest } from './requestShaper.js';
 import { buildUserMessage } from './userMessageBuilder.js';
 import { runRouteEnrichment, applyBackfillsAndTmoney, applyRecommendedRestaurants, computePricing, savePlan } from './postResponsePipeline.js';
-import { dispatchOrInlineForHandlerCore } from './inngestDispatch.js'; // P220 (2026-05-26) Inngest async — ENV/throw 시 false → inline fallback.
+import { dispatchOrInlineForHandlerCore } from './inngestDispatch.js';
 
 // Phase 4 A/B test (2026-05-13): mode resolved per-request via
 // decidePlannerMode (api/_ai_core/plannerMode.js). Inputs: uid / guestEmail /
@@ -367,12 +367,7 @@ export default async function handler(req, res) {
     console.log('[planner] Step 2: Running RouteAgent...');
 
     // ── RouteAgent enrichment (mutates itinerary in place) ────────────────
-    await withStep('routeEnrich', () => runRouteEnrichment(itinerary, {
-      apiKey, body, hotel_address: routeHotelAddress,
-      arrival_airport, departure_airport, pax,
-      recommendedZone, recommendedZoneAddress,
-      hotelAddressFromBody: hotel_address,
-    }));
+    await withStep('routeEnrich', () => runRouteEnrichment(itinerary, { apiKey, body, hotel_address: routeHotelAddress, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelAddressFromBody: hotel_address }));
 
     console.log('[planner] Step 3: Saving to Firestore...');
 
