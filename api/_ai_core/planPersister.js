@@ -496,8 +496,16 @@ export function selfHealArrivalGuide(itinerary, arrival_airport) {
   if (!arrival_airport || arrival_airport === 'ALREADY' || arrival_airport === 'already_in_korea') {
     return false;
   }
-  // 이미 arrival_guide 있고 steps 1개 이상이면 self-heal 불필요.
+  // P205 (2026-05-26): arrival_guide 있는데 airport nested field 누락 시 self-heal.
+  //   5/26 measure 5/5 sample 모두 arrival_guide.airport 정상이었지만 departure 누락.
+  //   대칭 안전성 — Gemini 가 airport nested 누락 시 입력값으로 채움 (B-16 SAFETY 보장).
   const existing = itinerary.arrival_guide;
+  if (existing && typeof existing === 'object' && !existing.airport) {
+    existing.airport = arrival_airport;
+    // steps 가 있으면 skeleton 재합성 불요 — airport 만 보충 후 return.
+    if (Array.isArray(existing.steps) && existing.steps.length > 0) return true;
+  }
+  // 이미 arrival_guide 있고 steps 1개 이상이면 skeleton 재합성 불필요.
   if (existing && Array.isArray(existing.steps) && existing.steps.length > 0) {
     return false;
   }
