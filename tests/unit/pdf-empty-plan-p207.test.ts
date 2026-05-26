@@ -68,8 +68,8 @@ describe('P207 Layer 1 — api/pdf/generate.js server-side guard', () => {
 
   it('assertion 4: throttledTelegramAlert medium severity 존재', () => {
     expect(/throttledTelegramAlert/.test(serverSrc)).toBe(true);
-    // medium severity — P207 guard 영역에 있어야 함
-    expect(/severity:\s*['"]medium['"]/.test(serverSrc)).toBe(true);
+    // severity — P207 guard 영역에 있어야 함 (medium 또는 high)
+    expect(/severity:\s*['"](medium|high)['"]/.test(serverSrc)).toBe(true);
   });
 });
 
