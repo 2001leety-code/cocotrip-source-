@@ -1977,6 +1977,7 @@ const RULES = [
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
   ['P201_proEscalate', P201_proEscalate],
+  ['P204_streamingPartialNoRepair', P204_streamingPartialNoRepair],
 ];
 
 /**
@@ -7695,6 +7696,61 @@ function P201_proEscalate({ changed }) {
     file: FILE,
     message:
       'R-P201: Pro escalate ENV gate / circuit breaker 손상 — P181 잔여 처리 + 비용 폭증 위험. ' +
+      '발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// 메인
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// P204_streamingPartialNoRepair — tryParsePartialJSON 안에서 repairAndParseJSON 호출 금지
+//
+// 5/26 root cause: tryParsePartialJSON (0.5초 chunk interval) 안에서 repairAndParseJSON
+// 호출 → partial chunk 마다 minimal fallback alert fire (fire-and-forget, swallow X)
+// → "직전 5분 누적 102건" false positive (실제 P181 발동 ~2-5건).
+// fix: tryParsePartialJSON 의 repairAndParseJSON 호출 제거 + _tryExtractPartialDays helper.
+// ----------------------------------------------------------------------------
+
+/**
+ * P204_streamingPartialNoRepair — tryParsePartialJSON 안에서 repairAndParseJSON 호출 금지.
+ */
+function P204_streamingPartialNoRepair({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  // tryParsePartialJSON 함수 범위 추출
+  const match = src.match(/export function tryParsePartialJSON[\s\S]*?(?=\nexport function|\nfunction [A-Z_])/);
+  if (!match) {
+    return {
+      id: 'P204_streamingPartialNoRepair',
+      severity: 'error',
+      file: FILE,
+      message: 'R-P204: tryParsePartialJSON 함수 추적 불가 — streaming partial parse 손상',
+    };
+  }
+  const fnBody = match[0];
+
+  const issues = [];
+  if (/repairAndParseJSON\(/.test(fnBody)) {
+    issues.push("tryParsePartialJSON 안에서 repairAndParseJSON 호출 재도입 — minimal fallback alert flood 회귀 (5분당 60-80건)");
+  }
+  // _tryExtractPartialDays helper 존재 (P204 의 대체 구현)
+  if (!/function _tryExtractPartialDays/.test(src)) {
+    issues.push("_tryExtractPartialDays helper 누락 — partial chunk 처리 손상");
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P204_streamingPartialNoRepair',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P204: streaming partial parse 가 repairAndParseJSON 호출 시 alert flood 회귀 위험. ' +
       '발견: ' + issues.join(', '),
   };
 }
