@@ -8,6 +8,8 @@ P93 (모바일 section 탭 horizontal overflow) 같은 layout 회귀가 사용�
 
 - `playwright.visual.config.ts` — visual 전용 Playwright 설정 (e2e 와 분리)
 - `tests/visual/*.spec.ts` — 페이지별 snapshot 검증
+  - `landing-mobile.spec.ts` — landing (/) 모바일 회귀 (P93)
+  - `plan-detail-mobile.spec.ts` — PlanDetailPage 모바일 회귀 (5/26 P206-P210 후속)
 - `tests/visual/*-snapshots/` — baseline PNG (Linux/chromium 기반)
 - `.github/workflows/pr-visual-regression.yml` — Vercel preview deploy 후 자동 비교
 
@@ -57,9 +59,29 @@ PR 코멘트에 `[visual-baseline-regenerate]` 포함 시 CI 가 자동 `--updat
 
 1. `tests/visual/<page>-mobile.spec.ts` 작성 (landing-mobile.spec.ts 참조)
 2. **above-the-fold viewport clip 만 capture** — full-page 는 동적 콘텐츠 (광고/가격/추천) 로 매번 baseline drift
-3. Docker 로 baseline 생성 (위 명령)
-4. baseline PNG 들 + spec 같이 commit
-5. PR 에서 CI 자동 비교 시작
+3. **인증 필요 페이지** (PlanDetailPage 등): `injectFirebaseAuth(page)` 헬퍼 패턴 사용 (plan-detail-mobile.spec.ts 참조).
+   - `VITE_FIREBASE_API_KEY`, `HEALTH_CHECK_EMAIL`, `HEALTH_CHECK_PASSWORD` env 필수.
+   - Firebase REST → idToken → localStorage `firebase:authUser:<apiKey>:[DEFAULT]` inject.
+4. Docker 로 baseline 생성 (위 명령). env 는 Docker `-e` 플래그로 주입:
+   ```bash
+   docker run --rm -it \
+     -e VITE_FIREBASE_API_KEY=xxx \
+     -e HEALTH_CHECK_EMAIL=xxx \
+     -e HEALTH_CHECK_PASSWORD=xxx \
+     -e PDF_GOLDEN_PLAN_ID=d064bbc6-dbe9-4bed-9e06-8db77f27ab4b \
+     -e BASE_URL=https://cocotripkr.com \
+     -v "${PWD}:/work" -w /work \
+     mcr.microsoft.com/playwright:v1.60.0-noble \
+     bash -c "npm ci && npx playwright test --config=playwright.visual.config.ts --update-snapshots"
+   ```
+5. baseline PNG 들 + spec 같이 commit
+6. PR 에서 CI 자동 비교 시작
+
+### PlanDetailPage baseline 생성 주의사항
+
+- `PDF_GOLDEN_PLAN_ID` fixture plan (`d064bbc6-...`) 이 `arrival_guide` / `departure_guide` 포함하는지 확인 (A5/A6 PDF assertion 연동).
+- 동적 콘텐츠 (광고 슬라이드 / 환율 가격) 는 clip 으로 제외. T1/T2/T3 clip 좌표 유지.
+- PlanDetailPage 핵심 파일 변경 시 `R_PlanDetailVisual` lint rule 이 spec 존재를 자동 검사.
 
 ## 위반 시
 

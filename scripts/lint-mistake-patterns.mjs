@@ -1892,6 +1892,47 @@ function P206_measureStatusReadyPolling({ changed }) {
   return null;
 }
 
+// ── R-PlanDetailVisual (2026-05-26) — PlanDetailPage 변경 시 visual spec 존재 의무 ──
+// 5/26 cycle close-out: 시각 검증 0 (자율 검증 사각지대). landing spec 만 있고
+// PlanDetailPage spec 없어 6건 sleeper bug 미발견. PlanDetailPage/index.tsx 등
+// PlanDetailPage 핵심 파일 변경 시 visual spec 존재 의무화.
+//
+// 트리거: src/pages/PlanDetailPage/ 하위 파일 변경 시.
+// 위반: tests/visual/plan-detail-mobile.spec.ts 가 존재하지 않으면 fail.
+function R_PlanDetailVisual({ changed }) {
+  const PLAN_DETAIL_DIR = 'src/pages/PlanDetailPage/';
+  const VISUAL_SPEC = 'tests/visual/plan-detail-mobile.spec.ts';
+
+  const hasPlanDetailChange = changed.some(
+    (c) => c.status !== 'D' && c.file.startsWith(PLAN_DETAIL_DIR),
+  );
+  if (!hasPlanDetailChange) return { skipped: true };
+
+  // visual spec 존재 여부 확인
+  if (!existsSync(VISUAL_SPEC)) {
+    fail(
+      'R_PlanDetailVisual',
+      `${PLAN_DETAIL_DIR} 변경 감지됐는데 ${VISUAL_SPEC} 가 없음 — PlanDetailPage 시각 회귀 사각지대 (5/26 cycle "시각 검증 0" 회귀).`,
+      `해결: tests/visual/plan-detail-mobile.spec.ts 작성 후 Docker 로 baseline PNG 생성 + commit. ` +
+      `README: tests/visual/README.md 참조.`,
+    );
+    return null;
+  }
+
+  // spec 에 최소 1개 toHaveScreenshot 호출 있는지 확인
+  const specContent = getChangedFileContent(VISUAL_SPEC) || (() => {
+    try { return readFileSync(VISUAL_SPEC, 'utf8'); } catch { return ''; }
+  })();
+  if (!/toHaveScreenshot/.test(specContent)) {
+    fail(
+      'R_PlanDetailVisual',
+      `${VISUAL_SPEC}: toHaveScreenshot 호출 없음 — 실제 visual assertion 없는 빈 spec.`,
+      `spec 에 expect(page).toHaveScreenshot(...) 호출 최소 1개 추가 필수.`,
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -2039,6 +2080,7 @@ const RULES = [
   ['P214_flashTruncationMitigation', P214_flashTruncationMitigation],
   ['P215_finishReasonDetect', P215_finishReasonDetect],
   ['P219_thoughtPartFilter', P219_thoughtPartFilter],
+  ['R_PlanDetailVisual', R_PlanDetailVisual],
 ];
 
 // ----------------------------------------------------------------------------
