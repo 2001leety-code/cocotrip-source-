@@ -43,13 +43,16 @@ describe('P192 geminiPipeline.js source — thinkingBudget + maxOutputTokens 충
     expect(hasFlashZero).toBe(true);
   });
 
-  it('assertion 2: Pro 분기 thinkingBudget ≤ 8000 (8K 안전 상한)', () => {
-    // Flash:0 이 아닌 값 추출 — isFlash ? 0 : N 패턴에서 N 을 파싱
-    const proMatch = src.match(/isFlash\s*\?\s*0\s*:\s*(\d+)/);
+  it('assertion 2: Pro 분기 thinkingBudget = -1 (dynamic 기본값, P217 fix)', () => {
+    // P217 (2026-05-26): 3 AI second opinion 합의. Gemini AI 직접 권고:
+    // thinkingBudget=0 비권장 → -1 (dynamic, Gemini 자율 결정) 으로 변경.
+    // Flash:0 이 아닌 값 추출 — isFlash ? 0 : N 패턴에서 N 을 파싱 (음수 포함)
+    const proMatch = src.match(/isFlash\s*\?\s*0\s*:\s*(-?\d+)/);
     expect(proMatch).not.toBeNull();
     const proThinkingBudget = parseInt(proMatch![1], 10);
-    expect(proThinkingBudget).toBeGreaterThan(0); // 0 이면 Pro 도 thinking 비활성 = 품질 저하
-    expect(proThinkingBudget).toBeLessThanOrEqual(8000); // 8K 초과 = output 침범 위험
+    // -1 = dynamic (Gemini 자율 결정), 0 이외 양수 = 고정값. 0 이면 Pro 도 thinking 비활성 = 품질 저하.
+    expect(proThinkingBudget).not.toBe(0);
+    // output 침범 위험: maxOutputTokens 32K 상한으로 제어. -1 은 Gemini 내부 동적 할당.
   });
 
   it('assertion 3: maxOutputTokens ≥ 24000 (다도시 edge case 1.5x 안전마진)', () => {

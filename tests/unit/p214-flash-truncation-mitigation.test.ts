@@ -54,12 +54,15 @@ describe('P214 Flash truncation mitigation', () => {
     expect(pipelineSrc).toMatch(/isFlash\s*\?\s*0\s*:/);
   });
 
-  it('P214-B2: Pro thinkingBudget > 0 유지 (Flash 만 0, Pro 는 사고 추론 유지)', () => {
-    // thinkingBudget = isFlash ? 0 : N (N > 0)
-    const match = pipelineSrc.match(/isFlash\s*\?\s*0\s*:\s*(\d+)/);
+  it('P214-B2: Pro thinkingBudget ≠ 0 (Flash 만 0, Pro 는 사고 추론 유지 — P217: -1 dynamic)', () => {
+    // P217 (2026-05-26): 3 AI second opinion 합의. Gemini AI 직접 권고: thinkingBudget=0 비권장.
+    // Pro 를 4000 → -1 (dynamic 기본값) 으로 변경. Flash 는 P192 고정(0).
+    // 음수 포함한 패턴으로 파싱.
+    const match = pipelineSrc.match(/isFlash\s*\?\s*0\s*:\s*(-?\d+)/);
     expect(match, 'Pro thinkingBudget 값 파싱 불가').toBeTruthy();
     const proThinking = Number(match![1]);
-    expect(proThinking).toBeGreaterThan(0);
+    // -1 (dynamic) 또는 양수 고정값 허용. 0 이면 Pro thinking 비활성 = 품질 저하.
+    expect(proThinking).not.toBe(0);
   });
 
   // ── P200 propertyOrdering 보존 검증 (P214 변경이 schema 에 영향 없는지) ──

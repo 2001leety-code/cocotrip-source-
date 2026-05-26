@@ -53,16 +53,19 @@ describe('P164 geminiPipeline.js source — maxOutputTokens cap', () => {
     expect(v).toBeGreaterThanOrEqual(8000);  // 너무 낮으면 5-day 플랜 truncate 위험
   });
 
-  it('thinkingBudget Flash:0 / Pro:≤8000 (P192 — 충돌 방지)', () => {
-    // P192 (2026-05-25): Flash:0 강제 + Pro ≤ 8K. 32K 회귀 = output 침범 위험.
+  it('thinkingBudget Flash:0 유지 / Pro:-1 (dynamic, P217)', () => {
+    // P192 (2026-05-25): Flash:0 강제 — Flash thinking=maxOutputTokens 차감 위험 유지.
+    // P217 (2026-05-26): Pro 4000 → -1 (dynamic). 3 AI second opinion 합의.
+    //   Gemini AI 직접 권고: thinkingBudget=0 비권장, -1=dynamic(기본값) 권장.
     const src = readFileSync(sourcePath, 'utf8');
-    // Flash 분기 0 확인
+    // Flash 분기 0 확인 (P192 고정)
     expect(/isFlash\s*\?\s*0/.test(src)).toBe(true);
-    // Pro 값 확인 — isFlash ? 0 : N 패턴
-    const proMatch = src.match(/isFlash\s*\?\s*0\s*:\s*(\d+)/);
+    // Pro 값 확인 — isFlash ? 0 : N 패턴 (음수 포함)
+    const proMatch = src.match(/isFlash\s*\?\s*0\s*:\s*(-?\d+)/);
     if (proMatch) {
       const v = parseInt(proMatch[1], 10);
-      expect(v).toBeLessThanOrEqual(8000); // P192: Pro 도 8K 이하
+      // P217: -1 (dynamic) 허용. 0 이면 Pro thinking 비활성 = 품질 저하.
+      expect(v).not.toBe(0);
     }
   });
 });

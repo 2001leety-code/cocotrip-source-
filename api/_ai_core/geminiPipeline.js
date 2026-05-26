@@ -406,11 +406,14 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
   // (GitHub Issue #609/#2062/#1039 — deep-search 확인).
   // Pro 도 thinkingBudget 32K + maxOutputTokens 16K 충돌 가능 (thinking 토큰이 output 침범).
   // 해결:
-  //   Flash → thinkingBudget: 0 (thinking 완전 비활성 — 출력 안전)
-  //   Pro   → thinkingBudget: 4000 (5-day plan 추론 충분 + output 침범 X)
+  //   Flash → thinkingBudget: 0 (thinking 완전 비활성 — 출력 안전, P192 고정)
+  //   Pro   → thinkingBudget: -1 (dynamic 기본값 — Gemini 자율 결정, P217 fix)
+  //            P217 (2026-05-26): 3 AI second opinion 합의. Gemini AI 직접 권고:
+  //            thinkingBudget=0 은 비권장/불안정. -1 = dynamic (Gemini 자율 결정).
+  //            4000 → -1 변경. maxOutputTokens 32K 상한으로 output 침범 위험 제어.
   //   maxOutputTokens: 32000 (P214 raise: 24K→32K — Flash 비결정적 truncation 완화)
   const isFlash = modelId.toLowerCase().includes('flash');
-  const thinkingBudget = isFlash ? 0 : 4000;
+  const thinkingBudget = isFlash ? 0 : -1;
 
   return genAI.getGenerativeModel({
     model: modelId,
