@@ -2038,6 +2038,7 @@ const RULES = [
   ['P209_serverPdfArrivalDeparture', P209_serverPdfArrivalDeparture],
   ['P214_flashTruncationMitigation', P214_flashTruncationMitigation],
   ['P215_finishReasonDetect', P215_finishReasonDetect],
+  ['P219_thoughtPartFilter', P219_thoughtPartFilter],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8228,6 +8229,88 @@ function P215_finishReasonDetect({ changed }) {
     'P215 fix — extractFinishReason + handleFinishReason + retryWithExpandedTokens 3종 세트. ' +
     '외부 사례: github.com/google-gemini/gemini-cli/issues/2104 (MAX_TOKENS 잘림 → silent partial plan 전달). ' +
     '비유: "5코스 요리 만들다 재료 떨어진 주방에서 웨이터가 확인도 안 하고 3코스만 들고 손님한테 나가는 상황".',
+  );
+  return null;
+}
+
+// ----------------------------------------------------------------------------
+// P219_thoughtPartFilter — Gemini thinking 모드 thought:true part 필터 회귀 차단
+//
+// 배경 (2026-05-26): Gemini 2.5/3.x thinking 모델은 candidates[0].content.parts[]
+// 에 `{thought: true, text: ...}` 메타 part 를 섞어 반환. SDK `response.text()` /
+// `chunk.text()` 는 thought 필터링하지 않고 모든 parts concat (공식 docs 확인:
+// EnhancedGenerateContentResponse.text "assembled from all Parts").
+//
+// 위험:
+//   - 보안: 모델 chain-of-thought 가 prod 응답에 leak (Raw Logic Leak)
+//   - 기능: thought + JSON 혼재 → repairAndParseJSON 실패 → P181 minimal fallback
+//   - Compliance: 시스템 prompt 단서 노출 = prompt injection 단서 제공
+//
+// 출처: googlecloudplatform/generative-ai gemini/getting-started/intro_gemini_2_5_*.ipynb
+//   ("for part in response.candidates[0].content.parts: if part.thought: # 메타").
+//
+// 룰:
+//   1. extractTextFromResponse export 존재 (geminiPipeline.js)
+//   2. extractTextFromChunk export 존재 (streaming 보안)
+//   3. helper 안에 `thought === true` 체크 존재
+//   4. geminiPipeline.js / threePassPipeline.js — 변경 시 `result.response.text()`
+//      가 가능한 plan 핵심 경로에서는 extractTextFromResponse 로 호출되도록 권장
+//      (warning only — 점진 마이그용 — strict 검사는 helper 존재 여부만)
+// ----------------------------------------------------------------------------
+
+/**
+ * P219_thoughtPartFilter — Gemini SDK thought:true part 필터 회귀 차단.
+ * 트리거: api/_ai_core/geminiPipeline.js 또는 threePassPipeline.js 변경 시.
+ */
+function P219_thoughtPartFilter({ changed }) {
+  const GEMINI = 'api/_ai_core/geminiPipeline.js';
+  const THREE = 'api/_ai_core/threePassPipeline.js';
+  const geminiTouched = isModified(GEMINI, changed);
+  const threeTouched = isModified(THREE, changed);
+  if (!geminiTouched && !threeTouched) return { skipped: true };
+
+  const geminiSrc = readFileExists(GEMINI) || getChangedFileContent(GEMINI);
+  if (!geminiSrc) return { skipped: true };
+
+  const issues = [];
+
+  // 1. extractTextFromResponse export 존재
+  if (!/export function extractTextFromResponse/.test(geminiSrc)) {
+    issues.push('extractTextFromResponse export 누락 — Gemini thought:true 필터 helper 회귀');
+  }
+
+  // 2. extractTextFromChunk export 존재 (streaming 보안 critical)
+  if (!/export function extractTextFromChunk/.test(geminiSrc)) {
+    issues.push('extractTextFromChunk export 누락 — streaming chunk thought 필터 helper 회귀');
+  }
+
+  // 3. helper 안에 thought === true 체크 존재
+  if (!/thought\s*===\s*true/.test(geminiSrc)) {
+    issues.push('`thought === true` 체크 누락 — Raw Logic Leak 방어 로직 회귀');
+  }
+
+  // 4. P219 주석 존재 (맥락 보존)
+  if (!/P219/.test(geminiSrc)) {
+    issues.push('P219 주석 누락 — fix 맥락 손실');
+  }
+
+  // 5. threePassPipeline.js 도 변경됐다면 extractTextFromResponse 사용 의무
+  if (threeTouched) {
+    const threeSrc = readFileExists(THREE) || getChangedFileContent(THREE);
+    if (threeSrc && !/extractTextFromResponse/.test(threeSrc)) {
+      issues.push('threePassPipeline.js 가 extractTextFromResponse import/사용 안 함 — Pass1/Pass3 응답에서 thought leak 위험');
+    }
+  }
+
+  if (issues.length === 0) return null;
+
+  fail(
+    'P219_thoughtPartFilter',
+    `R-P219: Gemini thought:true part 필터 설정 손상 ${issues.length}건 — ${issues.join(' | ')}`,
+    'P219 fix — 보안 critical. Gemini SDK response.text() / chunk.text() 는 thought 필터링 안 함 → ' +
+    'extractTextFromResponse / extractTextFromChunk helper 의무. 출처: 3 AI second opinion (Gemini AI 직접 권고) + ' +
+    'googlecloudplatform/generative-ai 공식 example. 비유: "녹취록에 발표 원고와 발표자 머릿속 메모가 같이 적혀 나오는 상황 — ' +
+    '필터 없이 그대로 청중에게 배포하면 영업비밀이 노출됨".',
   );
   return null;
 }

@@ -5,7 +5,13 @@
  *                   e.g. { "food_intent": "Korean BBQ lunch", "cuisine": "korean" }
  * Pass 2 (Resolve): DB matcher replaces intent slots with verified restaurant data.
  * Pass 3 (Enrich):  Gemini adds narrative tips for the resolved restaurants.
+ *
+ * P219 (2026-05-26): 모든 Gemini text 추출은 geminiPipeline.extractTextFromResponse
+ *   helper 사용 의무 — thought:true part 필터 (Raw Logic Leak / 파싱 실패 방어).
+ *   SDK `response.text()` 직접 호출 금지.
  */
+
+import { extractTextFromResponse } from './geminiPipeline.js';
 
 // ── Pass 1: Intent Generation ────────────────────────────────────────────────
 // Calls Gemini with an instruction to output food slots as "intent" objects
@@ -37,7 +43,8 @@ Non-food stops (culture, shopping, nature, etc.) should use real place names as 
     systemInstruction: { role: 'system', parts: [{ text: augmentedSystem }] },
   });
 
-  return result.response.text().trim();
+  // P219: thought:true part 필터 — Raw Logic Leak / 파싱 실패 방어 (보안).
+  return extractTextFromResponse(result.response).trim();
 }
 
 // ── Pass 2: DB Resolution ────────────────────────────────────────────────────
@@ -180,7 +187,8 @@ ${JSON.stringify(foodStops, null, 2)}`;
       },
     });
 
-    const rawEnrich = result.response.text().trim();
+    // P219: thought:true part 필터 — Pass3 enrich 응답에 thought leak 금지.
+    const rawEnrich = extractTextFromResponse(result.response).trim();
     let enrichData;
     try {
       enrichData = JSON.parse(rawEnrich.replace(/^```(?:json)?|```$/gm, '').trim());
