@@ -410,8 +410,8 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
   //   Pro   → thinkingBudget: -1 (dynamic 기본값 — Gemini 자율 결정, P217 fix)
   //            P217 (2026-05-26): 3 AI second opinion 합의. Gemini AI 직접 권고:
   //            thinkingBudget=0 은 비권장/불안정. -1 = dynamic (Gemini 자율 결정).
-  //            4000 → -1 변경. maxOutputTokens 32K 상한으로 output 침범 위험 제어.
-  //   maxOutputTokens: 32000 (P214 raise: 24K→32K — Flash 비결정적 truncation 완화)
+  //            4000 → -1 변경. maxOutputTokens 65K 상한으로 output 침범 위험 제어.
+  //   maxOutputTokens: 65535 (P216 raise: 32K→65K — Gemini 2.5 Flash 공식 한도 최대)
   const isFlash = modelId.toLowerCase().includes('flash');
   const thinkingBudget = isFlash ? 0 : -1;
 
@@ -431,7 +431,12 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
       // 잘림 — cap (24K) 에 못 미치는데도 비결정적 truncation 발생 (Google AI Forum #81258).
       // 32K = 실측 peak 11.9K 의 2.7x → Flash 내부 "token budget 여유" 인지 개선 기대.
       // thinkingBudget=0 유지 (thinking 토큰 competing 없음) → 비용 영향: Flash free tier 0.
-      maxOutputTokens: 32000,
+      // P216 (2026-05-26) raise: 32K→65K. Gemini 2.5 Flash 공식 최대 한도 = 65,535 tokens
+      // (Google AI Docs: https://ai.google.dev/gemini-api/docs/models).
+      // 3 AI second opinion (Claude + GPT-thinking + Gemini) 합의: 절반만 사용 중 →
+      // 다도시 5일 plan 시 MAX_TOKENS truncation 지속 가능성. 65K = 공식 상한 전체 활용.
+      // latency 영향: Flash free tier — 비용 0. 실제 출력 ~12K 토큰이면 latency 동일.
+      maxOutputTokens: 65535,
       responseMimeType: 'application/json',
       // P183 phase 2 (2026-05-24): Gemini responseSchema — typed validation 강제.
       // 운영자 "회귀법칙도 해놨는데 그래도 못 잡네" 메타 lesson: prompt-only 회귀
