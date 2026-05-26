@@ -4,7 +4,7 @@
 //   - auto-translate useEffect  -> ./useAutoTranslate.ts
 //   - handleDownloadPDF body    -> ./pdfGenerator.ts
 // PDF button keeps `disabled={isPdfGenerating || isTranslating}` exactly as before.
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -14,7 +14,14 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { AlertCircle, Flag } from 'lucide-react';
+import { AlertCircle, Flag, RefreshCw } from 'lucide-react';
+
+// P225: streaming hang timeout (default 5분). Vercel maxDuration=300s 기준.
+// ENV로 오버라이드 가능하지만 빌드타임 상수이므로 기본값 안전 default 보장.
+const STREAMING_PLACEHOLDER_TIMEOUT_MS =
+  typeof import.meta.env.VITE_STREAMING_PLACEHOLDER_TIMEOUT_MS === 'string'
+    ? parseInt(import.meta.env.VITE_STREAMING_PLACEHOLDER_TIMEOUT_MS, 10) || 300_000
+    : 300_000;
 import { trackEvent } from '@/lib/analytics';
 import { track as posthogTrack } from '@/lib/posthog';
 import { ReviewList } from '@/components/ReviewList';
@@ -58,6 +65,9 @@ export default function PlanDetailPage() {
   const [addStopDay, setAddStopDay] = useState<number | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  // P225: streaming hang timeout — 스트리밍 시작 시각 + timed-out 플래그
+  const streamingStartRef = useRef<number | null>(null);
+  const [streamingTimedOut, setStreamingTimedOut] = useState(false);
 
   // Plan editor (optimistic Firestore updates + auto transit recalc)
   const editor = usePlanEditor(planId || '', plan, setPlan);
@@ -183,6 +193,33 @@ export default function PlanDetailPage() {
   const streamingProgress = !loading && plan
     ? (plan as Record<string, unknown>)._streaming_progress as number | undefined
     : undefined;
+
+  // P225: streaming hang timeout — _streaming_in_progress 최초 감지 시 타이머 시작.
+  // STREAMING_PLACEHOLDER_TIMEOUT_MS 경과 후 streamingTimedOut=true → 오류 UI 표시.
+  // streaming 완료 시 cleanup으로 타이머 취소 + startRef 리셋.
+  // setState는 setTimeout callback(비동기) 및 cleanup(비동기)에서만 호출 — cascade 없음.
+  useEffect(() => {
+    if (!isStreamingInProgress) {
+      // 스트리밍 완료 또는 미시작 — startRef 리셋, cleanup에서 timedOut 상태 클리어
+      streamingStartRef.current = null;
+      return () => { setStreamingTimedOut(false); };
+    }
+    // 스트리밍 시작 — startRef 최초 설정 (재진입 시 유지)
+    if (streamingStartRef.current === null) {
+      streamingStartRef.current = Date.now();
+    }
+    const elapsed = Date.now() - streamingStartRef.current;
+    const remaining = STREAMING_PLACEHOLDER_TIMEOUT_MS - elapsed;
+    if (remaining <= 0) {
+      // 이미 timeout 경과 — requestAnimationFrame으로 defer (effect body 직접 setState 회피)
+      const raf = requestAnimationFrame(() => setStreamingTimedOut(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    const timer = window.setTimeout(() => {
+      setStreamingTimedOut(true);
+    }, remaining);
+    return () => { window.clearTimeout(timer); };
+  }, [isStreamingInProgress]);
 
   // Loading / Error states
   if (loading) {
@@ -310,7 +347,8 @@ export default function PlanDetailPage() {
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className="max-w-3xl mx-auto pt-20 pb-4 px-4">
         {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}
-        {isStreamingInProgress && (
+        {/* P225: streamingTimedOut 시 오류 배너 + 새로고침 버튼 */}
+        {isStreamingInProgress && !streamingTimedOut && (
           <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#7C5CFC]/30 bg-[#7C5CFC]/10 text-sm text-white/80">
             <div className="w-4 h-4 border-2 border-[#7C5CFC] border-t-transparent rounded-full animate-spin flex-shrink-0" />
             <span>
@@ -322,6 +360,30 @@ export default function PlanDetailPage() {
                 ? `AI正在创建行程${streamingProgress ? `（正在完成 Day ${streamingProgress}...）` : '...'}`
                 : `AI is building your itinerary${streamingProgress ? ` (Day ${streamingProgress} in progress...)` : '...'}`}
             </span>
+          </div>
+        )}
+        {isStreamingInProgress && streamingTimedOut && (
+          <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-sm text-white/80">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span>
+                {language === 'ko'
+                  ? '일정 생성에 시간이 오래 걸리고 있습니다. 페이지를 새로고침하거나 잠시 후 다시 시도해주세요.'
+                  : language === 'ja'
+                  ? '旅程の作成に時間がかかっています。ページを更新するか、しばらく経ってから再試行してください。'
+                  : language === 'zh'
+                  ? '行程创建花费的时间较长。请刷新页面或稍后重试。'
+                  : 'Plan generation is taking longer than expected. Please refresh the page or try again later.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white/90 text-xs font-semibold transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              {language === 'ko' ? '새로고침' : language === 'ja' ? '更新' : language === 'zh' ? '刷新' : 'Refresh'}
+            </button>
           </div>
         )}
 
