@@ -61,6 +61,9 @@ export default async function handler(req, res) {
     res.end(JSON.stringify(_ok({
       planId,
       status: data.status || 'unknown',
+      // P206: days 수 추가 — measure script 가 plan 완성도 확인 가능
+      days: (data.itinerary?.days || []).length,
+      _streaming_in_progress: data._streaming_in_progress !== undefined ? data._streaming_in_progress : null,
       createdAt: data.createdAt || null,
       tourTitle: data.itinerary?.tour_title || null,
       area: data.input?.area || null,
