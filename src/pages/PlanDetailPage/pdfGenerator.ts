@@ -328,6 +328,19 @@ export async function generatePDF(
 ): Promise<void> {
   if (!plan) return;
 
+  // P207 Layer 2 — frontend guard (client PDF path 도 막음).
+  // server 422 가 client fallback path 를 통해 우회되는 경우 대비.
+  // deep-search: reports/visual-2026-05-26/deepsearch-p207.md §5-1.
+  if (!plan?.itinerary?.days?.length) {
+    const isStreaming = (plan as Record<string, unknown>)._streaming_in_progress === true;
+    toast.error(
+      isStreaming
+        ? 'AI가 아직 플랜을 만들고 있어요. 완료 후 다시 시도해 주세요. / AI is still building your plan — please try again shortly.'
+        : '플랜이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요. / Plan is not ready yet — please try again.',
+    );
+    return;
+  }
+
   const pdfStartTs = Date.now();
   const planIdForTrack = (plan as { id?: string }).id;
 
