@@ -2037,6 +2037,7 @@ const RULES = [
   ['P210A_schemaAirportHint', P210A_schemaAirportHint],
   ['P209_serverPdfArrivalDeparture', P209_serverPdfArrivalDeparture],
   ['P214_flashTruncationMitigation', P214_flashTruncationMitigation],
+  ['P215_finishReasonDetect', P215_finishReasonDetect],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8166,6 +8167,67 @@ function P214_flashTruncationMitigation({ changed }) {
     'P214_flashTruncationMitigation',
     `R-P214: geminiPipeline.js Flash truncation 완화 설정 손상 ${issues.length}건 — ${issues.join(' | ')}`,
     'P214 fix — maxOutputTokens ≥ 32000 유지 + Flash thinkingBudget=0 보존. 외부 사례: Google AI Forum #81258 / LangChain #34100.',
+  );
+  return null;
+}
+
+// ----------------------------------------------------------------------------
+// P215_finishReasonDetect — finishReason 감지 코드 회귀 차단 (2026-05-26)
+//
+// 5/26 deep-search 발견: Gemini Flash 3.5 가 MAX_TOKENS 잘림 발생 시
+// finishReason='MAX_TOKENS' 신호를 보내지만 기존 코드는 STOP 과 구분 안 함.
+// → 잘린 plan 도 "정상" 처리 → repairAndParseJSON 수리 실패 → minimal fallback → P181 alert.
+//
+// 외부 사례: github.com/google-gemini/gemini-cli/issues/2104
+//
+// 룰:
+//   1. geminiPipeline.js 에 extractFinishReason export 존재
+//   2. handleFinishReason export 존재
+//   3. legacy 1-pass 분기 (result.response.text()) 직전에 handleFinishReason 호출
+//   4. MAX_TOKENS retry 로직 존재 (retryWithExpandedTokens)
+// ----------------------------------------------------------------------------
+
+/**
+ * P215_finishReasonDetect — geminiPipeline.js finishReason 감지 회귀 차단.
+ * 트리거: api/_ai_core/geminiPipeline.js 변경 시.
+ */
+function P215_finishReasonDetect({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE) || getChangedFileContent(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  // 1. extractFinishReason export 존재
+  if (!/export function extractFinishReason/.test(src)) {
+    issues.push('extractFinishReason export 누락 — Gemini finishReason 추출 함수 회귀');
+  }
+
+  // 2. handleFinishReason export 존재
+  if (!/export async function handleFinishReason/.test(src)) {
+    issues.push('handleFinishReason export 누락 — MAX_TOKENS/SAFETY/RECITATION 처리 함수 회귀');
+  }
+
+  // 3. legacy 1-pass 에 handleFinishReason 호출 (result.response.text() 전에)
+  if (!/handleFinishReason\s*\(/.test(src)) {
+    issues.push('handleFinishReason 호출 없음 — legacy 1-pass 에서 finishReason 감지 안 됨. 잘린 plan 도 STOP 과 동일 처리 회귀');
+  }
+
+  // 4. MAX_TOKENS retry 함수 (retryWithExpandedTokens) 존재
+  if (!/export async function retryWithExpandedTokens/.test(src)) {
+    issues.push('retryWithExpandedTokens export 누락 — MAX_TOKENS 65K retry 함수 회귀');
+  }
+
+  if (issues.length === 0) return null;
+
+  fail(
+    'P215_finishReasonDetect',
+    `R-P215: geminiPipeline.js finishReason 감지 설정 손상 ${issues.length}건 — ${issues.join(' | ')}`,
+    'P215 fix — extractFinishReason + handleFinishReason + retryWithExpandedTokens 3종 세트. ' +
+    '외부 사례: github.com/google-gemini/gemini-cli/issues/2104 (MAX_TOKENS 잘림 → silent partial plan 전달). ' +
+    '비유: "5코스 요리 만들다 재료 떨어진 주방에서 웨이터가 확인도 안 하고 3코스만 들고 손님한테 나가는 상황".',
   );
   return null;
 }

@@ -665,6 +665,153 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// P215 (2026-05-26): Gemini finishReason 감지 + MAX_TOKENS 자동 retry
+//
+// 비유: "5코스 요리 만들다 재료 떨어진 주방에서 웨이터가 확인도 안 하고
+//        3코스만 들고 손님한테 나가는 상황" — 잘린 plan 도 "정상" 처리 회귀.
+//
+// 배경:
+//   Gemini Flash 가 long output (5-day 다도시 plan) 에서 MAX_TOKENS 잘림 발생 시
+//   finishReason='MAX_TOKENS' 신호를 보내지만, 기존 코드는 STOP 과 구분 안 함.
+//   → repairAndParseJSON 이 잘린 JSON 수리 시도 → minimal fallback → P181 alert.
+//   외부 사례: github.com/google-gemini/gemini-cli/issues/2104
+//
+// fix:
+//   - MAX_TOKENS: maxOutputTokens 65K 로 1회 retry (옵션 A — 비용 0, Flash free tier)
+//   - SAFETY: alert 만, retry 안 함 (안전 필터 — 재시도 무의미)
+//   - RECITATION: alert + throw (저작권 — Pro escalate 는 별도)
+//   - 기타: alert + 기존 흐름 (non-fatal, 하위 호환)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * P215: Gemini response 에서 finishReason 추출.
+ * @param {object} result  model.generateContent() 반환값
+ * @returns {string}  'STOP' | 'MAX_TOKENS' | 'SAFETY' | 'RECITATION' | 'OTHER' | 'UNKNOWN'
+ */
+export function extractFinishReason(result) {
+  try {
+    return result?.response?.candidates?.[0]?.finishReason || 'UNKNOWN';
+  } catch {
+    return 'UNKNOWN';
+  }
+}
+
+/**
+ * P215: MAX_TOKENS 감지 시 maxOutputTokens 65K 로 재시도 (옵션 A).
+ * 비용 0 (Flash free tier). 시간 +30-60초 (잘림 케이스만).
+ *
+ * @param {object} args
+ * @param {object} args.apiKey
+ * @param {object} args.systemPrompt
+ * @param {object} args.userMessage
+ * @param {string} args.planId
+ * @param {boolean} [args.isAdminBypass]
+ * @param {string} [args.identifierForBucketing]
+ * @returns {Promise<{text:string, result:object}>}
+ */
+export async function retryWithExpandedTokens({ apiKey, systemPrompt, userMessage, isAdminBypass, identifierForBucketing }) {
+  const expandedModel = buildModel(apiKey, 0.95, { isAdminBypass, identifierForBucketing });
+  // Flash free tier 내에서 안전한 최대값 (65K).
+  // P214: 32K 는 P215 retry 기준값 — retry 시 65K 사용.
+  const expandedResult = await withTimeout(
+    expandedModel.generateContent({
+      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+      systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+      generationConfig: {
+        maxOutputTokens: 65000,
+      },
+    }),
+    GEMINI_TIMEOUT_MS,
+    'p215-max-tokens-retry',
+  );
+  const expandedReason = extractFinishReason(expandedResult);
+  return { text: expandedResult.response.text().trim(), result: expandedResult, finishReason: expandedReason };
+}
+
+/**
+ * P215: finishReason 에 따른 처리.
+ * MAX_TOKENS → 1회 retry (옵션 A).
+ * SAFETY / RECITATION → alert. RECITATION 은 throw.
+ * 기타 → alert 만 (non-fatal).
+ *
+ * @param {string} finishReason
+ * @param {string} stage  호출 단계 라벨 (예: 'legacy' / 'retry-dietary')
+ * @param {object} retryArgs  retryWithExpandedTokens 에 넘길 args (MAX_TOKENS 케이스 전용)
+ * @returns {Promise<{retryText:string|null, retryCm:object|null}>}
+ *   MAX_TOKENS retry 성공 시 retryText 반환. 그 외 null.
+ */
+export async function handleFinishReason(finishReason, stage, retryArgs) {
+  if (finishReason === 'STOP' || finishReason === 'UNKNOWN') return { retryText: null, retryCm: null };
+
+  console.warn(`[P215] finishReason=${finishReason} at stage=${stage}`);
+
+  if (finishReason === 'MAX_TOKENS') {
+    // 비유: 재료 다 채워서 5코스 다시 만들기 시도
+    sendErrorAlert({
+      title: '🟠 <b>P215: Gemini MAX_TOKENS 잘림 감지 — 65K retry</b>',
+      message: `stage=${stage} — maxOutputTokens 32K 초과. 65K 로 1회 재시도 중.`,
+      context: { stage, finishReason },
+    }).catch(() => {});
+
+    try {
+      const { text: retryText, result: retryResult, finishReason: retryReason } = await retryWithExpandedTokens(retryArgs);
+      const retryCm = extractCacheMetadata(retryResult.response);
+      logCacheMetrics(`p215-retry-${stage}`, retryCm);
+
+      if (retryReason === 'MAX_TOKENS') {
+        // 65K 에서도 잘림 — alert 후 잘린 결과 반환 (P201 Pro escalate 가 후속 처리 가능)
+        sendErrorAlert({
+          title: '🔴 <b>P215: 65K retry 에서도 MAX_TOKENS — 잘린 plan 진행</b>',
+          message: `stage=${stage} — Flash 65K 재시도 후에도 잘림. P201 Pro escalate 미활성 시 minimal fallback 가능.`,
+          context: { stage, retryReason },
+        }).catch(() => {});
+        console.warn('[P215] 65K retry 도 MAX_TOKENS — 잘린 plan 계속 처리');
+      } else {
+        console.log(`[P215] MAX_TOKENS retry 성공 — finishReason=${retryReason}, stage=${stage}`);
+      }
+      return { retryText, retryCm };
+    } catch (retryErr) {
+      console.error('[P215] MAX_TOKENS retry threw:', retryErr.message);
+      // retry 실패 — 원본 잘린 plan 으로 폴백 (기존 흐름)
+      return { retryText: null, retryCm: null };
+    }
+  }
+
+  if (finishReason === 'SAFETY') {
+    // Gemini 안전 필터 — retry 무의미, alert 만
+    sendErrorAlert({
+      title: '🔴 <b>P215: Gemini SAFETY 필터 차단</b>',
+      message: `stage=${stage} — Gemini 안전 필터 발동. plan 생성 불가.`,
+      context: { stage, finishReason },
+    }).catch(() => {});
+    console.error('[P215] SAFETY filter — plan 생성 불가');
+    return { retryText: null, retryCm: null };
+  }
+
+  if (finishReason === 'RECITATION') {
+    // 저작권 — alert 후 throw
+    sendErrorAlert({
+      title: '🟡 <b>P215: Gemini RECITATION (저작권 차단)</b>',
+      message: `stage=${stage} — Gemini 가 copyrighted content recitation 감지. plan 차단됨.`,
+      context: { stage, finishReason },
+    }).catch(() => {});
+    console.error('[P215] RECITATION — plan 차단');
+    const recErr = new Error('Gemini RECITATION block: plan could not be generated');
+    recErr.code = 'GEMINI_RECITATION';
+    recErr.statusCode = 500;
+    throw recErr;
+  }
+
+  // OTHER / 미지정 — alert 만, 기존 흐름 유지
+  sendErrorAlert({
+    title: `🟡 <b>P215: Gemini 알 수 없는 finishReason=${finishReason}</b>`,
+    message: `stage=${stage} — 알 수 없는 finishReason. 기존 흐름 유지.`,
+    context: { stage, finishReason },
+  }).catch(() => {});
+  return { retryText: null, retryCm: null };
+}
+
 function mapGeminiError(err, geminiStart) {
   console.error('[planner] Gemini timeout or error:', err.message, '| elapsed:', Date.now() - geminiStart, 'ms');
   const em = String(err.message || err.code || '');
@@ -1029,7 +1176,20 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       } catch (err) {
         throw mapGeminiError(err, geminiStart);
       }
-      rawText = result.response.text().trim();
+      // P215 (2026-05-26): finishReason 감지 — MAX_TOKENS 잘림 시 65K retry.
+      // "5코스 요리 만들다 재료 떨어진 주방" 비유 — 잘린 plan 도 STOP 과 구분 의무.
+      const legacyFinishReason = extractFinishReason(result);
+      const { retryText: p215RetryText, retryCm: p215RetryCm } = await handleFinishReason(
+        legacyFinishReason,
+        'legacy',
+        { apiKey, systemPrompt, userMessage, isAdminBypass, identifierForBucketing },
+      );
+      if (p215RetryText !== null) {
+        rawText = p215RetryText;
+        cacheMetadata = accumulateCacheMetadata(cacheMetadata, p215RetryCm);
+      } else {
+        rawText = result.response.text().trim();
+      }
       // P195: legacy 1-pass response 의 cache metadata 추출 + 누적.
       const cm = extractCacheMetadata(result.response);
       cacheMetadata = accumulateCacheMetadata(cacheMetadata, cm);
