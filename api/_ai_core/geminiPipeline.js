@@ -103,6 +103,119 @@ export function logCacheMetrics(stage, cm) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// P219 (2026-05-26): Gemini thinking 모드 thought part 필터 — 보안 critical
+//
+// 배경 (3 AI second opinion 합의 fix #2 — Gemini AI 직접 권고):
+//   - Gemini 2.5 / 3.x thinking 모델은 candidates[0].content.parts[] 에
+//     `{thought: true, text: "내부 추론..."}` 메타 part 를 섞어 반환할 수 있음.
+//   - SDK 의 `response.text()` 는 *모든* parts 의 text 를 단순 concat —
+//     thought 필터링하지 않음 (공식 docs 확인: EnhancedGenerateContentResponse.text
+//     "Returns the text string assembled from all Parts of the first candidate").
+//   - 결과: thought text 가 우리 JSON 파싱 입력에 섞임 → 파싱 실패 / 모델
+//     내부 chain-of-thought 가 사용자에게 노출 (Raw Logic Leak).
+//
+// 위험 등급:
+//   - 보안: 시스템 prompt 단서 / 모델 사고 과정이 prod plan 응답에 leak.
+//   - 기능: thought + JSON 혼재 → repairAndParseJSON 실패 → P181 minimal fallback.
+//   - Compliance: 내부 system instruction 노출 = prompt injection 단서 제공.
+//
+// fix:
+//   - extractTextFromResponse(response): candidates[0].content.parts 순회,
+//     `part.thought === true` 인 part 는 skip. 남은 TextPart 만 concat.
+//   - extractTextFromChunk(chunk): streaming chunk 도 동일 — chunk.text() 우회.
+//   - thought-only response (예: thinking budget 소진) → 빈 문자열 반환
+//     (호출자가 기존 empty-string fallback 으로 분기 — 안전).
+//
+// 출처 (deep-search):
+//   - Gemini 공식 example: `for part in response.candidates[0].content.parts:
+//     if part.thought: # 메타-thought / else: # 최종 답변`
+//     (googlecloudplatform/generative-ai gemini/getting-started/intro_gemini_2_5_flash_lite.ipynb 등 다수)
+//   - JS SDK 의 part shape 동일 (TextPart + thought boolean).
+//   - 3 AI 합의: Gemini AI 가 직접 "thought=true part 가 응답 본문에 섞임" 권고.
+//
+// 안전 보장:
+//   - thought 가 없는 일반 응답 (Flash 기본) = 기존 `response.text()` 와 동일.
+//   - thought 만 있는 case = 빈 문자열 (호출자가 empty fallback) — 기존 throw 동작 유지.
+//   - parts shape 누락 / 비정상 = catch → response.text() fallback (backward-compat).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * P219: Gemini response 에서 thought:true part 를 제외한 순수 text 만 추출.
+ *
+ * @param {object} response  Gemini SDK response (result.response 또는 awaited streamResult.response)
+ * @returns {string}  thought 제외된 text concat. parts 누락 시 response.text() fallback.
+ */
+export function extractTextFromResponse(response) {
+  try {
+    const parts = response?.candidates?.[0]?.content?.parts;
+    if (Array.isArray(parts) && parts.length > 0) {
+      let out = '';
+      let droppedThought = false;
+      for (const part of parts) {
+        // P219: thought:true → 메타-추론, 응답 본문 아님. 절대 concat 금지 (보안).
+        if (part && part.thought === true) {
+          droppedThought = true;
+          continue;
+        }
+        if (part && typeof part.text === 'string') {
+          out += part.text;
+        }
+      }
+      if (droppedThought) {
+        console.log('[P219 THOUGHT_FILTER] dropped thought:true part(s) from response');
+      }
+      return out;
+    }
+    // parts shape 없음 → SDK 의 response.text() 로 fallback (backward-compat).
+    if (typeof response?.text === 'function') {
+      return response.text();
+    }
+    return '';
+  } catch (e) {
+    // 비정상 response shape → SDK fallback 시도 (절대 throw 안 함).
+    try {
+      return typeof response?.text === 'function' ? response.text() : '';
+    } catch {
+      return '';
+    }
+  }
+}
+
+/**
+ * P219: streaming chunk 에서 thought:true part 를 제외한 text 만 추출.
+ *
+ * Gemini streaming chunk 도 candidates[0].content.parts[] 구조 동일 —
+ * chunk.text() 는 모든 parts concat (thought 포함). 보안 critical 분기에는
+ * 본 helper 사용 의무.
+ *
+ * @param {object} chunk  streamResult.stream async iterator 의 1개 chunk
+ * @returns {string}  thought 제외된 chunk text. parts 누락 시 chunk.text() fallback.
+ */
+export function extractTextFromChunk(chunk) {
+  try {
+    const parts = chunk?.candidates?.[0]?.content?.parts;
+    if (Array.isArray(parts) && parts.length > 0) {
+      let out = '';
+      for (const part of parts) {
+        if (part && part.thought === true) continue; // P219: thought skip
+        if (part && typeof part.text === 'string') out += part.text;
+      }
+      return out;
+    }
+    if (typeof chunk?.text === 'function') {
+      return chunk.text();
+    }
+    return '';
+  } catch {
+    try {
+      return typeof chunk?.text === 'function' ? chunk.text() : '';
+    } catch {
+      return '';
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // P201 (2026-05-26): Pro escalate on P181 minimal fallback
 //
 // 배경: P200 (propertyOrdering + required) 후에도 P181 minimal fallback ~4건/5분 잔여.
@@ -181,7 +294,8 @@ export async function tryProEscalate({ apiKey, systemPrompt, userMessage, isAdmi
     GEMINI_TIMEOUT_MS,
     'pro-escalate-p201',
   );
-  const proRaw = result.response.text().trim();
+  // P219: thought:true part 필터 — Raw Logic Leak / 파싱 실패 방어 (보안).
+  const proRaw = extractTextFromResponse(result.response).trim();
   const proItinerary = repairAndParseJSON(proRaw);
   if (proItinerary && !proItinerary.__repair_minimal_fallback) {
     // Pro success — cache metadata + response 부착 (호출자 추출)
@@ -310,7 +424,9 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
   // runGeminiStreaming 호출자가 cache metadata 받을 수 있도록 반환값에 추가.
 
   for await (const chunk of streamResult.stream) {
-    const chunkText = chunk.text();
+    // P219: thought:true part 필터 — streaming 시 thought 가 partial JSON 에
+    //   섞이면 progressive Firestore write 에 leak. 보안 critical.
+    const chunkText = extractTextFromChunk(chunk);
     if (chunkText) accumulated += chunkText;
 
     // 0.5초 간격으로 partial JSON parse + Firestore update (best-effort)
@@ -734,7 +850,8 @@ export async function retryWithExpandedTokens({ apiKey, systemPrompt, userMessag
     'p215-max-tokens-retry',
   );
   const expandedReason = extractFinishReason(expandedResult);
-  return { text: expandedResult.response.text().trim(), result: expandedResult, finishReason: expandedReason };
+  // P219: thought 필터 (Raw Logic Leak / 파싱 실패 방어).
+  return { text: extractTextFromResponse(expandedResult.response).trim(), result: expandedResult, finishReason: expandedReason };
 }
 
 /**
@@ -1196,7 +1313,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         rawText = p215RetryText;
         cacheMetadata = accumulateCacheMetadata(cacheMetadata, p215RetryCm);
       } else {
-        rawText = result.response.text().trim();
+        // P219: thought 필터 — Raw Logic Leak / 파싱 실패 방어 (보안).
+        rawText = extractTextFromResponse(result.response).trim();
       }
       // P195: legacy 1-pass response 의 cache metadata 추출 + 누적.
       const cm = extractCacheMetadata(result.response);
@@ -1254,7 +1372,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           'legacy-retry',
         );
         console.log('[planner] dietary retry Gemini:', Date.now() - retryStart, 'ms');
-        const retryRaw = retryResult.response.text().trim();
+        // P219: thought 필터 — SAFETY-CRITICAL dietary retry 응답에 thought leak 금지.
+        const retryRaw = extractTextFromResponse(retryResult.response).trim();
         // P195: dietary retry response 의 cache metadata 추출 + 누적.
         const retryCm = extractCacheMetadata(retryResult.response);
         cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
@@ -1319,7 +1438,8 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
           'legacy-retry-pattern',
         );
         console.log('[planner] pattern retry Gemini:', Date.now() - retryStart, 'ms');
-        const retryRaw = retryResult.response.text().trim();
+        // P219: thought 필터 — pattern retry 응답에 thought leak 금지.
+        const retryRaw = extractTextFromResponse(retryResult.response).trim();
         // P195: pattern retry response 의 cache metadata 추출 + 누적.
         const retryCm = extractCacheMetadata(retryResult.response);
         cacheMetadata = accumulateCacheMetadata(cacheMetadata, retryCm);
