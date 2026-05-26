@@ -184,14 +184,34 @@ export default async function handler(req, res) {
 
 // === Plan → HTML 변환 ===
 // 클라이언트 pdfGenerator.ts의 HTML build 로직을 단순화한 server-side 버전.
-// 추후 shared module로 통합 권장. CJK 폰트는 서버 Chromium이 자동 fallback.
+// 추후 shared module로 통합 권장.
+// P208 (2026-05-26): @sparticuz/chromium v147 = Open Sans 1개만 번들
+//   (CJK 자동 fallback 없음 — 기존 주석이 거짓). fonts/ 디렉토리 OTF 직접 번들.
 function buildPlanHtml(plan) {
   const it = plan.itinerary || {};
   const days = it.days || [];
   const input = plan.input || {};
 
+  // P208: @sparticuz/chromium 에 CJK 폰트 없음 → file:// URL 로 직접 로드.
+  // Vercel /var/task = project root → fonts/NotoSansKR-*.otf 번들됨.
+  const fontFaceDecl = `
+    @font-face {
+      font-family: 'Noto Sans KR';
+      font-weight: 400;
+      font-style: normal;
+      src: url('file:///var/task/fonts/NotoSansKR-Regular.otf') format('opentype');
+    }
+    @font-face {
+      font-family: 'Noto Sans KR';
+      font-weight: 700;
+      font-style: normal;
+      src: url('file:///var/task/fonts/NotoSansKR-Bold.otf') format('opentype');
+    }
+  `;
+
   const css = `
-    body { font-family: 'Noto Sans KR', 'Noto Sans JP', 'Noto Sans SC', system-ui, sans-serif; line-height: 1.6; color: #1a1a2e; padding: 0; margin: 0; }
+    ${fontFaceDecl}
+    body { font-family: 'Noto Sans KR', system-ui, sans-serif; line-height: 1.6; color: #1a1a2e; padding: 0; margin: 0; }
     .container { padding: 40px; max-width: 800px; margin: 0 auto; }
     h1 { font-size: 26px; color: #7C5CFC; margin: 0 0 6px; text-align: center; }
     h2 { font-size: 18px; color: #1a1a2e; margin: 16px 0 8px; }
