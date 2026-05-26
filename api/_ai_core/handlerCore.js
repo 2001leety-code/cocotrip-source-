@@ -55,10 +55,8 @@ import {
 
 import { shapeRequest } from './requestShaper.js';
 import { buildUserMessage } from './userMessageBuilder.js';
-import {
-  runRouteEnrichment, applyBackfillsAndTmoney, applyRecommendedRestaurants,
-  computePricing, savePlan,
-} from './postResponsePipeline.js';
+import { runRouteEnrichment, applyBackfillsAndTmoney, applyRecommendedRestaurants, computePricing, savePlan } from './postResponsePipeline.js';
+import { dispatchOrInlineForHandlerCore } from './inngestDispatch.js'; // P220 (2026-05-26) Inngest async — ENV/throw 시 false → inline fallback.
 
 // Phase 4 A/B test (2026-05-13): mode resolved per-request via
 // decidePlannerMode (api/_ai_core/plannerMode.js). Inputs: uid / guestEmail /
@@ -362,6 +360,9 @@ export default async function handler(req, res) {
       sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug });
       streamingResponseSent = true;
     }
+
+    // P220 (2026-05-26): Inngest dispatch — streaming + ENV + 토글 시 post-Gemini 를 별 invocation 으로. ENV/throw 시 inline fallback (silent fail 차단).
+    if (await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
