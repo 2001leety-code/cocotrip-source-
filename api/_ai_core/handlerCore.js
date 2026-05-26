@@ -355,7 +355,9 @@ export default async function handler(req, res) {
     // [P170] sendStreamingEarlyResponse → backgroundPipelines.js
     // [P186 5/25] early response 에도 admin-bypass _debug — P169 분기가 L407 의 _debug
     //   주입 SKIP 시키던 P177 사각지대 보강 (buildAdminDebug 의 gate 조건부는 그대로).
-    if (streamingPlanId && !streamingResponseSent) {
+    // [P222 5/26] Vercel serverless = res.end() 후 instance freeze 가능 (Sample 5 hang).
+    //   PLANNER_STREAMING_EARLY_RESPONSE ENV 토글 (default false = early response 폐기).
+    if (streamingPlanId && !streamingResponseSent && String(process.env.PLANNER_STREAMING_EARLY_RESPONSE || '').toLowerCase() === 'true') {
       const earlyDebug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
       sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug });
       streamingResponseSent = true;
