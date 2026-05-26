@@ -518,8 +518,22 @@ const PLAN_RESPONSE_SCHEMA = {
         },
       },
     },
-    arrival_guide: { type: 'OBJECT' },
-    departure_guide: { type: 'OBJECT' },
+    // P210-A (2026-05-26): Gemini Flash 2.0/2.5 은 OBJECT type 만 명시하면 nested field 를
+    // 선택적으로 누락함 (cookbook #539/#449). P205 backend self-heal 유지하면서
+    // schema 에 airport properties hint 추가 → emit 확률 상승.
+    // 주의: required 추가 X (P196 lesson: "satisfy required then stop" 패턴 + 3.6x fallback 회귀).
+    arrival_guide: {
+      type: 'OBJECT',
+      properties: {
+        airport: { type: 'STRING' },
+      },
+    },
+    departure_guide: {
+      type: 'OBJECT',
+      properties: {
+        airport: { type: 'STRING' },
+      },
+    },
     // P184 (2026-05-25): Gemini 3.5 Flash strict schema 는 ARRAY 에 items 필수.
     // 누락 시 GenerateContentRequest 400 "missing field items" → admin-bypass 전부 500.
     // Pro (2.5) 는 lenient → 누락해도 통과, Flash (3.5) 는 strict → reject.

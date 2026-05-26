@@ -2033,6 +2033,8 @@ const RULES = [
   ['P207_pdfEmptyPlanGuard', P207_pdfEmptyPlanGuard],
   ['P206_measureStatusReadyPolling', P206_measureStatusReadyPolling],
   ['P210B_inspectStatusField', P210B_inspectStatusField],
+  ['P208_notoSansKrBundle', P208_notoSansKrBundle],
+  ['P210A_schemaAirportHint', P210A_schemaAirportHint],
 ];
 
 // ----------------------------------------------------------------------------
@@ -7899,6 +7901,41 @@ function P205_airportNestedSelfHeal({ changed }) {
   };
 }
 
+// P210A_schemaAirportHint — arrival/departure_guide.properties.airport hint 존재 감시
+//
+// 5/26 deep-search RC-2: Gemini Flash 2.0/2.5 OBJECT type 만 명시 시 nested field 누락
+// (github.com/google-gemini/cookbook #539, #449).
+// P210-A fix: properties.airport: { type: 'STRING' } 명시 → emit 확률 상승.
+// 주의: required 추가 X — P196 lesson (3.6x fallback 회귀).
+// 감시: 누군가 properties 를 삭제하거나 required 를 추가하면 fail.
+// ----------------------------------------------------------------------------
+
+function P210A_schemaAirportHint({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE) || '';
+  const issues = [];
+
+  // arrival_guide.properties.airport 존재 여부
+  if (!/arrival_guide[\s\S]{0,200}properties[\s\S]{0,100}airport/.test(src)) {
+    issues.push('arrival_guide.properties.airport hint 누락 (Gemini Flash nested field emit 확률 하락)');
+  }
+
+  // departure_guide.properties.airport 존재 여부
+  if (!/departure_guide[\s\S]{0,200}properties[\s\S]{0,100}airport/.test(src)) {
+    issues.push('departure_guide.properties.airport hint 누락 (Gemini Flash nested field emit 확률 하락)');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P210A_schemaAirportHint',
+    severity: 'error',
+    file: FILE,
+    message: 'R-P210A: arrival_guide / departure_guide 의 airport properties hint 손상 — PDF 빈 페이지 (B-16) 위험. 발견: ' + issues.join(', '),
+  };
+}
+
 // ----------------------------------------------------------------------------
 // P207_pdfEmptyPlanGuard — 메모리 P207 (2026-05-26).
 // 5/26 시각 검증: api/pdf/generate.js 가 days=0 plan 도 "성공" PDF 생성 (16KB / header만).
@@ -7973,6 +8010,62 @@ function P207_pdfEmptyPlanGuard({ changed }) {
     file: serverChanged ? SERVER : CLIENT,
     message: 'R-P207: PDF 빈 plan guard 손상 — days=0 plan 이 16KB 빈 PDF 생성 회귀 위험. 발견: ' + issues.join(', '),
   };
+}
+
+// ----------------------------------------------------------------------------
+// P208_notoSansKrBundle — R-P208 (2026-05-26) cleanup add (squash merge bug 회복).
+// ----------------------------------------------------------------------------
+function P208_notoSansKrBundle({ changed }) {
+  const PDF_FILE = 'api/pdf/generate.js';
+  const VERCEL_FILE = 'vercel.json';
+  const pdfChanged = isModified(PDF_FILE, changed);
+  const vercelChanged = isModified(VERCEL_FILE, changed);
+  if (!pdfChanged && !vercelChanged) return { skipped: true };
+
+  const issues = [];
+
+  if (pdfChanged) {
+    const src = getChangedFileContent(PDF_FILE);
+    if (src) {
+      if (!src.includes("font-family: 'Noto Sans KR'") && !src.includes('font-family: "Noto Sans KR"')) {
+        issues.push(`${PDF_FILE}: @font-face 'Noto Sans KR' 선언 누락 — @sparticuz/chromium v147 CJK 없음, file:// URL 명시 의무`);
+      } else if (!src.includes('file:///var/task/fonts/NotoSansKR')) {
+        issues.push(`${PDF_FILE}: @font-face src 에 file:///var/task/fonts/NotoSansKR 경로 누락 — Vercel /var/task = project root, 절대 경로 필수`);
+      }
+    }
+  }
+
+  if (vercelChanged) {
+    const src = getChangedFileContent(VERCEL_FILE);
+    if (src) {
+      let parsed;
+      try { parsed = JSON.parse(src); } catch { /* JSON 파싱 실패면 skip */ }
+      if (parsed) {
+        const pdfFn = parsed?.functions?.['api/pdf/generate.js'];
+        if (!pdfFn || pdfFn.maxDuration !== 60) {
+          issues.push(`${VERCEL_FILE}: api/pdf/generate.js maxDuration 60 누락 — wildcard api/*.js 30초 적용 시 cold start 5-10s + render 30s = timeout`);
+        }
+      }
+    }
+  }
+
+  const regularPath = 'fonts/NotoSansKR-Regular.otf';
+  const boldPath = 'fonts/NotoSansKR-Bold.otf';
+  if (!existsSync(regularPath)) {
+    issues.push(`${regularPath} 파일 없음 — @sparticuz/chromium CJK 없으므로 OTF 번들 의무`);
+  }
+  if (!existsSync(boldPath)) {
+    issues.push(`${boldPath} 파일 없음 — Bold OTF 번들 의무`);
+  }
+
+  if (issues.length > 0) {
+    fail(
+      'P208_notoSansKrBundle',
+      `R-P208: Noto Sans KR 번들 ${issues.length}건 누락 — ${issues.slice(0, 3).join(' | ')}${issues.length > 3 ? ' …' : ''}`,
+      'P208 fix: fonts/ 디렉토리에 NotoSansKR OTF + @font-face file:///var/task/fonts/ + vercel.json maxDuration:60. sparticuz/chromium Issue #333 참조.',
+    );
+  }
+  return null;
 }
 
 // ----------------------------------------------------------------------------
