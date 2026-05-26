@@ -2035,6 +2035,7 @@ const RULES = [
   ['P210B_inspectStatusField', P210B_inspectStatusField],
   ['P208_notoSansKrBundle', P208_notoSansKrBundle],
   ['P210A_schemaAirportHint', P210A_schemaAirportHint],
+  ['P209_serverPdfArrivalDeparture', P209_serverPdfArrivalDeparture],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8065,6 +8066,54 @@ function P208_notoSansKrBundle({ changed }) {
       'P208 fix: fonts/ 디렉토리에 NotoSansKR OTF + @font-face file:///var/task/fonts/ + vercel.json maxDuration:60. sparticuz/chromium Issue #333 참조.',
     );
   }
+  return null;
+}
+
+// ----------------------------------------------------------------------------
+// P209_serverPdfArrivalDeparture — api/pdf/generate.js buildPlanHtml 에
+// arrival_guide + departure_guide 섹션 존재 보장.
+//
+// 5/26 시각 검증: server PDF (Puppeteer) 가 header + days + footer 만 렌더.
+// P205 self-heal 이 Firestore 에 ICN_T1/PUS 정상 저장해도 PDF 표시 코드 없음
+// → 결제 사용자 PDF 에 입국/출국 가이드 0건. P209 fix 로 추가.
+//
+// 트리거: api/pdf/generate.js 변경 시.
+// R-P209: buildPlanHtml 안에 arrival_guide + departure_guide 키 grep 의무.
+// ----------------------------------------------------------------------------
+
+function P209_serverPdfArrivalDeparture({ changed }) {
+  const FILE = 'api/pdf/generate.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+
+  const issues = [];
+
+  // buildPlanHtml 함수 body 추출 (대략 function 이름 이후)
+  const fnStart = content.indexOf('function buildPlanHtml');
+  const fnBody = fnStart >= 0 ? content.slice(fnStart) : content;
+
+  if (!fnBody.includes('arrival_guide')) {
+    issues.push('buildPlanHtml 에 arrival_guide 키 미참조 — 입국 가이드 PDF 누락 (P209 회귀)');
+  }
+  if (!fnBody.includes('departure_guide')) {
+    issues.push('buildPlanHtml 에 departure_guide 키 미참조 — 출국 가이드 PDF 누락 (P209 회귀)');
+  }
+
+  // escapeHtml 적용 의무 — arrival.airport / departure.airport
+  if (!/escapeHtml\(\s*arrival\.(airport|steps|steps\[)/.test(fnBody) &&
+      !/escapeHtml\(\s*step\.(title|description)/.test(fnBody)) {
+    issues.push('arrival steps 텍스트에 escapeHtml 미적용 — XSS 위험 (P209 규칙)');
+  }
+
+  if (issues.length === 0) return null;
+
+  fail(
+    'P209_serverPdfArrivalDeparture',
+    `R-P209: api/pdf/generate.js buildPlanHtml 에 arrival/departure 섹션 누락 또는 XSS 미방어 ${issues.length}건 — ${issues.join(' | ')}`,
+    'P209 fix — buildPlanHtml 에 arrival_guide + departure_guide 섹션 추가 + escapeHtml 모든 동적 텍스트 적용. deep-search: reports/visual-2026-05-26/deepsearch-p209.md',
+  );
   return null;
 }
 
