@@ -149,13 +149,36 @@ assertions.push({
 
 // A4: tofu glyph (□ U+25A1) 또는 unknown box (□ U+FFFD) 부재
 // 일부 fallback 글리프는 정상이므로 비율 cap (< 0.5%) 사용.
-const tofuCount = (text.match(/[□�]/g) || []).length;
+const tofuCount = (text.match(/[□\uFFFD]/g) || []).length;
 const tofuRatio = textLen > 0 ? tofuCount / textLen : 0;
 assertions.push({
   id: 'A4_tofu_glyph',
   label: 'tofu glyph (□ \\uFFFD) < 0.5% (한글 font 정상)',
   actual: `tofu=${tofuCount} (${(tofuRatio * 100).toFixed(3)}%)`,
   pass: tofuRatio < 0.005,
+});
+
+// A5: arrival 텍스트 존재 — P209 회귀 차단 (입국/공항 안내 누락).
+// fixture plan 이 arrival_guide 포함한다고 가정 (운영자 등록 의무).
+// 한국어 + 영문 OR 매칭: 어느 언어 플랜이든 arrival 관련 텍스트 필수.
+const arrivalRe = /도착|arrival|입국|immigration|baggage claim/i;
+const hasArrival = arrivalRe.test(text);
+assertions.push({
+  id: 'A5_arrival_text',
+  label: 'arrival 텍스트 존재 (P209 회귀 차단 — 도착/arrival/입국/Immigration/Baggage Claim)',
+  actual: `found=${hasArrival}`,
+  pass: hasArrival,
+});
+
+// A6: departure 텍스트 존재 — P209 회귀 차단 (출국/공항복귀 안내 누락).
+// 한국어 + 영문 OR 매칭.
+const departureRe = /출국|departure|return.*airport|get.*airport|공항.*출국|돌아가/i;
+const hasDeparture = departureRe.test(text);
+assertions.push({
+  id: 'A6_departure_text',
+  label: 'departure 텍스트 존재 (P209 회귀 차단 — 출국/departure/return airport)',
+  actual: `found=${hasDeparture}`,
+  pass: hasDeparture,
 });
 
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
