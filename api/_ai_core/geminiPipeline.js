@@ -192,9 +192,16 @@ export async function tryProEscalate({ apiKey, systemPrompt, userMessage, isAdmi
 }
 
 /**
- * P169: 누적 텍스트에서 best-effort partial JSON parse.
- * 기존 repairAndParseJSON 로직을 활용 — incomplete JSON 도 처리.
+ * P169 / P204: 누적 텍스트에서 best-effort partial JSON parse.
  * days[] 배열이 하나 이상 완성됐을 때만 의미있는 결과 반환 (null 반환 otherwise).
+ *
+ * P204 (2026-05-26): repairAndParseJSON 호출 제거 — partial chunk 마다 호출 시
+ *   minimal fallback alert (responseValidator.js:949 fire-and-forget) 가 0.5초 마다
+ *   trigger 됐음. streaming 1 user = 60-80 chunk = 60-80 alert fire → Firestore atomic
+ *   count++ → "직전 5분 누적 102건" false positive 폭증 (실제 P181 발동 ~2-5건).
+ *
+ * P204 fix: inline lightweight extract (_tryExtractPartialDays) — alert fire 없음.
+ *   완성 JSON 만 parse 시도, partial 은 balanced bracket counting 으로 days[] 추출.
  *
  * @param {string} accumulated  현재까지 수신한 텍스트
  * @returns {{ days: Array }|null}  days 배열 포함 partial object, 없으면 null
@@ -207,15 +214,71 @@ export function tryParsePartialJSON(accumulated) {
     if (obj && Array.isArray(obj.days) && obj.days.length > 0) return obj;
     return null;
   } catch {
-    // 2. 불완전 JSON repair
-    try {
-      const repaired = repairAndParseJSON(accumulated);
-      if (repaired && Array.isArray(repaired.days) && repaired.days.length > 0) return repaired;
-    } catch {
-      // best-effort: ignore
-    }
-    return null;
+    // 2. P204: inline lightweight partial extract — alert fire 없음 (repairAndParseJSON 호출 X)
+    return _tryExtractPartialDays(accumulated);
   }
+}
+
+/**
+ * P204 (2026-05-26): partial chunk 전용 days[] 추출 — alert fire 없음.
+ *
+ * repairAndParseJSON 의 minimal fallback alert flood 방지 (5분당 60-80건 → 0건).
+ *
+ * 로직:
+ *   - `"days": [` 부터 시작
+ *   - balanced bracket counting 으로 완성된 day object 만 JSON.parse 시도
+ *   - 완성 day 1개 이상 = return { days: [...] }, 없으면 null
+ *   - malformed day 는 silent skip
+ *
+ * @param {string} accumulated
+ * @returns {{ days: Array }|null}
+ */
+export function _tryExtractPartialDays(accumulated) {
+  const startIdx = accumulated.search(/"days"\s*:\s*\[/);
+  if (startIdx < 0) return null;
+  const arrayOpen = accumulated.indexOf('[', startIdx);
+  if (arrayOpen < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  const completedDays = [];
+  let dayStart = -1;
+
+  for (let i = arrayOpen + 1; i < accumulated.length; i++) {
+    const ch = accumulated[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === '{') {
+      if (depth === 0) dayStart = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && dayStart >= 0) {
+        const dayJson = accumulated.slice(dayStart, i + 1);
+        try {
+          const day = JSON.parse(dayJson);
+          if (day && (day.day !== undefined || day.stops !== undefined)) {
+            completedDays.push(day);
+          }
+        } catch {
+          // best-effort: skip malformed day
+        }
+        dayStart = -1;
+      }
+    } else if (ch === '[' && depth > 0) {
+      depth++;
+    } else if (ch === ']' && depth > 0) {
+      depth--;
+    } else if (ch === ']' && depth === 0) {
+      break; // array 종료
+    }
+  }
+
+  return completedDays.length > 0 ? { days: completedDays } : null;
 }
 
 /**
