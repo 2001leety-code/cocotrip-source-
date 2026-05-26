@@ -60,9 +60,18 @@ export async function runRouteEnrichment(itinerary, ctx) {
   // Gemini 가 departure_guide 자체를 생성 안 한 케이스에 대비해 빈 객체라도
   // 만들어 둔다. 그래야 RouteAgent 가 route_to_airport 를 attach 할 수 있고,
   // 프론트엔드는 호텔/zone fallback 좌표로 출국 경로 카드를 항상 노출함.
-  if (departure_airport && departure_airport !== 'ALREADY' && !itinerary.departure_guide) {
-    itinerary.departure_guide = { airport: departure_airport };
-    console.log('[planner] departure_guide synthesized (airport=', departure_airport, ')');
+  //
+  // P205 (2026-05-26): nested airport 누락 분기 추가. 5/26 measure 5/5 sample 모두
+  // departure_guide 객체는 있지만 airport field 누락. Gemini 가 객체 emit 후 nested
+  // field 누락 — backend 가 입력 departure_airport 로 보충 (B-16 SAFETY 보장).
+  if (departure_airport && departure_airport !== 'ALREADY') {
+    if (!itinerary.departure_guide) {
+      itinerary.departure_guide = { airport: departure_airport };
+      console.log('[planner] departure_guide synthesized (airport=', departure_airport, ')');
+    } else if (!itinerary.departure_guide.airport) {
+      itinerary.departure_guide.airport = departure_airport;
+      console.log('[planner P205] departure_guide.airport self-healed (=', departure_airport, ')');
+    }
   }
 
   // ── RouteAgent enrichment (mutates itinerary in place) ────────────────

@@ -1978,6 +1978,7 @@ const RULES = [
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
   ['P201_proEscalate', P201_proEscalate],
   ['P204_streamingPartialNoRepair', P204_streamingPartialNoRepair],
+  ['P205_airportNestedSelfHeal', P205_airportNestedSelfHeal],
 ];
 
 /**
@@ -7752,6 +7753,53 @@ function P204_streamingPartialNoRepair({ changed }) {
     message:
       'R-P204: streaming partial parse 가 repairAndParseJSON 호출 시 alert flood 회귀 위험. ' +
       '발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// 메인
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// P205_airportNestedSelfHeal — arrival/departure airport nested 누락 self-heal 유지
+//
+// 5/26 measure 5/5 sample: departure_guide 객체 있지만 .airport nested field 누락.
+// Gemini 가 객체 emit (P200 required 효과) 후 nested 누락 — backend self-heal 의무.
+// ----------------------------------------------------------------------------
+
+function P205_airportNestedSelfHeal({ changed }) {
+  const POST = 'api/_ai_core/postResponsePipeline.js';
+  const PERSIST = 'api/_ai_core/planPersister.js';
+  const postChanged = isModified(POST, changed);
+  const persistChanged = isModified(PERSIST, changed);
+  if (!postChanged && !persistChanged) return { skipped: true };
+
+  const issues = [];
+  if (postChanged) {
+    const src = readFileExists(POST) || '';
+    if (!/departure_guide\.airport\s*=\s*departure_airport/.test(src)) {
+      issues.push("postResponsePipeline departure_guide.airport self-heal 누락 (B-16 SAFETY 위반)");
+    }
+    if (!/!itinerary\.departure_guide\.airport/.test(src)) {
+      issues.push("postResponsePipeline nested airport 누락 조건 분기 누락");
+    }
+  }
+  if (persistChanged) {
+    const src = readFileExists(PERSIST) || '';
+    // selfHealArrivalGuide 안의 P205 분기 확인
+    const fnMatch = src.match(/export function selfHealArrivalGuide[\s\S]*?(?=\nexport (function|async function)|\nfunction [A-Z_])/);
+    const fnBody = fnMatch ? fnMatch[0] : '';
+    if (!/existing\.airport\s*=\s*arrival_airport/.test(fnBody)) {
+      issues.push("selfHealArrivalGuide arrival_guide.airport nested self-heal 누락 (B-16 SAFETY 대칭)");
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P205_airportNestedSelfHeal',
+    severity: 'error',
+    file: postChanged ? POST : PERSIST,
+    message: 'R-P205: airport nested self-heal 손상 — Gemini 가 객체 emit 후 .airport 누락 시 PDF 빈 페이지 (B-16). 발견: ' + issues.join(', '),
   };
 }
 
