@@ -1979,6 +1979,7 @@ const RULES = [
   ['P201_proEscalate', P201_proEscalate],
   ['P204_streamingPartialNoRepair', P204_streamingPartialNoRepair],
   ['P205_airportNestedSelfHeal', P205_airportNestedSelfHeal],
+  ['P207_pdfEmptyPlanGuard', P207_pdfEmptyPlanGuard],
 ];
 
 /**
@@ -7800,6 +7801,82 @@ function P205_airportNestedSelfHeal({ changed }) {
     severity: 'error',
     file: postChanged ? POST : PERSIST,
     message: 'R-P205: airport nested self-heal 손상 — Gemini 가 객체 emit 후 .airport 누락 시 PDF 빈 페이지 (B-16). 발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P207_pdfEmptyPlanGuard — 메모리 P207 (2026-05-26).
+// 5/26 시각 검증: api/pdf/generate.js 가 days=0 plan 도 "성공" PDF 생성 (16KB / header만).
+// 결제 사용자가 빈 PDF 받는 충격 경험 → 2-layer defense:
+//   Layer 1: server — days.length === 0 → 422 반환 (Puppeteer 호출 전)
+//   Layer 2: frontend — generatePDF() 상단 days=0 → toast + early return
+//
+// 룰:
+//   1. api/pdf/generate.js 에 `days.length === 0` 또는 `!daysArr?.length` 존재 의무
+//   2. api/pdf/generate.js 에 `.status(422)` 존재 의무
+//   3. api/pdf/generate.js 에 `streaming_in_progress` reason 존재 의무
+//   4. src/pages/PlanDetailPage/pdfGenerator.ts 에 P207 guard + toast.error 존재 의무
+//
+// 트리거: api/pdf/generate.js 또는 pdfGenerator.ts 변경 시.
+// ----------------------------------------------------------------------------
+function P207_pdfEmptyPlanGuard({ changed }) {
+  const SERVER = 'api/pdf/generate.js';
+  const CLIENT = 'src/pages/PlanDetailPage/pdfGenerator.ts';
+  const serverChanged = isModified(SERVER, changed);
+  const clientChanged = isModified(CLIENT, changed);
+  if (!serverChanged && !clientChanged) return { skipped: true };
+
+  const issues = [];
+
+  if (serverChanged) {
+    const src = getChangedFileContent(SERVER);
+    if (!src) return { skipped: true };
+
+    // days.length === 0 guard
+    const hasDaysGuard =
+      /Array\.isArray\(_daysArr\)/.test(src) ||
+      /!Array\.isArray/.test(src) ||
+      /daysArr\.length === 0/.test(src) ||
+      /!daysArr\?\.length/.test(src);
+    if (!hasDaysGuard) {
+      issues.push('server: days=0 guard 누락 (daysArr.length === 0 또는 !Array.isArray 조건)');
+    }
+
+    // 422 status
+    if (!/.status\(422\)/.test(src)) {
+      issues.push('server: 422 status 반환 누락');
+    }
+
+    // streaming_in_progress reason
+    if (!/streaming_in_progress/.test(src)) {
+      issues.push('server: streaming_in_progress reason 누락');
+    }
+  }
+
+  if (clientChanged) {
+    const src = getChangedFileContent(CLIENT);
+    if (!src) return { skipped: true };
+
+    // P207 guard 존재
+    const hasDaysCheck =
+      /plan\?\.itinerary\?\.days\?\.length/.test(src) ||
+      /itinerary\?\.days\?\.length/.test(src);
+    if (!hasDaysCheck) {
+      issues.push('client pdfGenerator.ts: P207 days=0 guard 누락');
+    }
+
+    // toast.error 동반
+    if (!/toast\.error/.test(src)) {
+      issues.push('client pdfGenerator.ts: toast.error 없이 days=0 guard 추가 (사용자 미통지)');
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P207_pdfEmptyPlanGuard',
+    severity: 'error',
+    file: serverChanged ? SERVER : CLIENT,
+    message: 'R-P207: PDF 빈 plan guard 손상 — days=0 plan 이 16KB 빈 PDF 생성 회귀 위험. 발견: ' + issues.join(', '),
   };
 }
 

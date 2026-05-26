@@ -91,6 +91,32 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'firestore_error', detail: e.message });
   }
 
+  // === P207: 빈 plan 검증 — Puppeteer 호출 전 Guard ===
+  // 5/26 시각 검증: days=0 plan 도 "성공" PDF 생성 (16KB / "Your Korea Itinerary"만). 결제 사용자 충격.
+  // deep-search: reports/visual-2026-05-26/deepsearch-p207.md — 422 선택 근거 + Puppeteer 커뮤니티 패턴.
+  const _daysArr = plan?.itinerary?.days;
+  const _isStreaming = plan?._streaming_in_progress === true;
+  if (!Array.isArray(_daysArr) || _daysArr.length === 0) {
+    const reason = _isStreaming ? 'streaming_in_progress' : 'itinerary_empty';
+    const detail = _isStreaming
+      ? 'Plan is still being generated — retry after streaming completes'
+      : 'Plan itinerary has no days — cannot generate PDF';
+    console.warn(`[PDF P207] 빈 plan guard 발동: planId=${planId} reason=${reason}`);
+    throttledTelegramAlert({
+      key: `pdf-generate-empty-plan-${planId}`,
+      channel: 'error',
+      message: `🟡 [pdf-generate P207] 빈 plan PDF 요청 차단: planId=${planId} reason=${reason}`,
+      severity: 'medium',
+      context: { planId, reason, isStreaming: _isStreaming },
+    }).catch(() => {});
+    return res.status(422).json({
+      error: 'plan_not_ready',
+      reason,
+      detail,
+      streaming: _isStreaming,
+    });
+  }
+
   // === Puppeteer + @sparticuz/chromium 으로 PDF 생성 ===
   let browser = null;
   try {

@@ -30,10 +30,12 @@ interface OutroSlideProps {
   isPdfGenerating: boolean;
   isTranslating: boolean;
   isOwner: boolean;
+  /** P207: streaming 진행 중 PDF 버튼 비활성화 */
+  isStreamingInProgress?: boolean;
   onDownloadPDF: () => void;
 }
 
-export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating, isOwner, onDownloadPDF }: OutroSlideProps) {
+export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating, isOwner, isStreamingInProgress, onDownloadPDF }: OutroSlideProps) {
   const { t, language } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
@@ -104,13 +106,16 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
 
       {/* Action buttons - LOCKED: PDF button disabled condition must stay exact */}
       <div className="mt-8 space-y-3">
-        <button onClick={onDownloadPDF} disabled={isPdfGenerating || isTranslating}
+        {/* P207: isStreamingInProgress 추가 — 빈 plan PDF 다운로드 차단 */}
+        <button onClick={onDownloadPDF} disabled={isPdfGenerating || isTranslating || !!isStreamingInProgress}
           className="w-full py-4 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
           style={{ background: BRAND.gradient.primary }}>
           {isPdfGenerating ? (
             <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.outroPdfCta || 'Generating PDF...'}</>
           ) : isTranslating ? (
             <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.translatingWait || 'Translating... please wait'}</>
+          ) : isStreamingInProgress ? (
+            <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {sw.streamingWait || 'Building itinerary...'}</>
           ) : (
             <><Download className="w-5 h-5" /> {sw.outroPdfCta || 'Download PDF itinerary'}</>
           )}

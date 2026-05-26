@@ -165,6 +165,9 @@ export default function PlanDetailPage() {
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const handleDownloadPDF = useCallback(async () => {
     if (!plan) return;
+    // P207 Layer 2 — button-level streaming guard (OutroSlide disabled prop 보완).
+    // pdfGenerator.ts 내부에도 동일 guard 존재 — 2중 방어.
+    if ((plan as Record<string, unknown>)._streaming_in_progress === true) return;
     setIsPdfGenerating(true);
     try {
       const uiDict = getPlanDetailUI(t);
@@ -280,6 +283,7 @@ export default function PlanDetailPage() {
             isPdfGenerating={isPdfGenerating}
             isTranslating={isTranslating}
             isOwner={isOwner}
+            isStreamingInProgress={!!isStreamingInProgress}
             onDownloadPDF={handleDownloadPDF}
           />
         );
