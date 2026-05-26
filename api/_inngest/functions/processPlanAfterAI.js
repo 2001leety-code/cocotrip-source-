@@ -78,10 +78,13 @@ export const processPlanAfterAI = inngest.createFunction(
   {
     id: 'process-plan-after-ai',
     name: 'Plan post-AI pipeline (routeEnrich + persist)',
+    // P221 (2026-05-26): Inngest v4 createFunction 시그니처 — triggers 를
+    // 첫 인자 안에 포함. v3 의 3-arg form (config, trigger, handler) 은 v4 에서
+    // throw "expected a handler function as the second argument".
+    triggers: [{ event: 'plan/ai.complete' }],
     // P220: 운영자 후속 액션 — Inngest 대시보드에서 동시 실행 제한 설정 가능.
     //   기본은 무제한. Vercel 동시 function invocation 한도 (Pro: 1000) 고려.
   },
-  { event: 'plan/ai.complete' },
   async ({ event, step, logger }) => {
     const { planId: eventPlanId, itinerary, ctx } = event.data;
     const startMs = Date.now();
