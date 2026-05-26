@@ -86,11 +86,11 @@ export default async function handler(req, res) {
   // try 안에서 decidePlannerMode 호출 후 덮어쓰기. body parse 전에 throw 하면
   // 'unknown' 그대로 sentry 에 기록.
   let resolvedPlannerMode = 'unknown';
-
   // P96 (2026-05-19): step-level elapsed instrumentation. 기존엔 START + TOTAL
   // 두 로그만 있어 hang 시 어느 step 에서 멈췄는지 prod logs 로도 진단 불가.
   // withStep 으로 핵심 await 마다 ENTER + DONE/FAILED elapsed 로그. catch 블록
-  // 의 hangWarn alert 는 5분 Vercel cap 도달 30초 전 (4분30초) 발사.
+  // 의 hangWarn alert 는 5분 Vercel cap 도달 30초 전 (4분30초) 발사. P218: ms → "NNNms (Xh Y분 Z초)".
+  function fmtMs(ms) { const n=Math.round(Number(ms)||0); if(n<1000) return `${n}ms`; const t=Math.floor(n/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60,p=[];if(h)p.push(`${h}h`);if(m)p.push(`${m}분`);p.push(`${s}초`);return `${n}ms (${p.join(' ')})`; }
   let currentStep = 'init';
   let currentStepStart = handlerStart;
   let lastUid = null;
@@ -122,8 +122,8 @@ export default async function handler(req, res) {
         `⚠️ <b>ai-planner-full 4분30초 경과 — Vercel 5분 cap 임박</b>`,
         ``,
         `<b>last step:</b> ${currentStep}`,
-        `<b>step elapsed:</b> ${Date.now() - currentStepStart}ms`,
-        `<b>total elapsed:</b> ${Date.now() - handlerStart}ms`,
+        `<b>step elapsed:</b> ${fmtMs(Date.now() - currentStepStart)}`,
+        `<b>total elapsed:</b> ${fmtMs(Date.now() - handlerStart)}`,
         `<b>mode:</b> ${resolvedPlannerMode}`,
         `<b>uid:</b> ${lastUid || '-'} <b>email:</b> ${lastEmail || '-'}`,
       ].join('\n'),

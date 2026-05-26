@@ -98,12 +98,14 @@ export async function runRouteEnrichment(itinerary, ctx) {
   } catch (err) {
     if (err && err.message === 'ROUTE_ENRICH_TIMEOUT') {
       const elapsed = Date.now() - enrichStart;
-      console.warn(`[routeEnrich P203] 180s timeout — partial mutation 보존 (elapsed=${elapsed}ms)`);
+      // P218: ms 원시값 + human 단위 병기 — 운영자 오해 ("63분 = 불가능") 제거.
+      const es=Math.round(elapsed/1000); const eh=es>=60?`${Math.floor(es/60)}분 ${es%60}초`:`${es}초`;
+      console.warn(`[routeEnrich P203] 180s timeout — partial mutation 보존 (elapsed=${elapsed}ms / ${eh})`);
       throttledTelegramAlert({
         key: 'route-enrich-timeout',
         channel: 'admin',
         severity: 'high',
-        message: `🔴 <b>routeEnrich 180s wall-clock timeout (P203 cap)</b>\n\nelapsed=${elapsed}ms\npartial mutation-in-place 결과 보존, plan 응답 진행.\n\nVercel 600s cap 도달 전 fail-fast — 27분 hang 차단.`,
+        message: `🔴 <b>routeEnrich 180s wall-clock timeout (P203 cap)</b>\n\nelapsed=${elapsed}ms (${eh})\npartial mutation-in-place 결과 보존, plan 응답 진행.\n\nVercel 600s cap 도달 전 fail-fast — 27분 hang 차단.`,
       }).catch(() => {});
       // throw 안 함 — fall through to remaining steps (lodging-bookend / backfills / persist)
     } else {
