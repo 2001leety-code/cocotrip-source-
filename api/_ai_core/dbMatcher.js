@@ -16,6 +16,40 @@
  */
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 
+// ── P227 (2026-05-27): 전국 체인 브랜드 목록 ──────────────────────────────
+// 이 브랜드들은 전국 매장이 있으나 foodIndex 에 1개 city 에만 row 가 존재하는 경우
+// cross-city fallback 시 HARD REJECT 대신 "chain match" 처리하여 alert noise 제거.
+// 이유: 굽네치킨/이삭토스트가 foodIndex 에 city=seoul 로만 1개 row → Busan plan 에서
+// Gemini 가 체인 이름 출력 → HARD REJECT → 40% mismatch alert. 체인은 전국 매장 존재
+// 사실이므로 wrong-city hallucination 이 아니다. verified=false + Gemini 좌표 유지.
+// 관리: 새 체인 추가 시 이 목록에 추가. SAFETY-CRITICAL 식이 제한 영역 건드리지 않음.
+const KNOWN_NATIONAL_CHAINS = new Set([
+  // 치킨
+  '굽네', '교촌', 'BHC', '비에이치씨', '네네치킨', '처갓집', '60계', '노랑통닭',
+  '맥시칸', '지코바', '멕시칸', '파파이스', '투다리',
+  // 패스트푸드/버거
+  '맥도날드', '롯데리아', '버거킹', 'KFC', '케이에프씨', '맘스터치', '서브웨이',
+  // 카페/베이커리
+  '스타벅스', '이디야', '빽다방', '메가커피', '메가MGC커피', '투썸플레이스', 'TOUS les JOURS',
+  '뚜레쥬르', '파리바게뜨', '던킨', '할리스', '탐앤탐스', '공차', '컴포즈커피',
+  // 분식/패밀리
+  '이삭토스트', '이삭', '한솥', '김밥천국', '죠스떡볶이', '신전떡볶이', '오너곰',
+  // 피자
+  '도미노', '피자헛', '미스터피자', '파파존스',
+  // 편의점 식당
+  'GS25', 'CU편의점', '세븐일레븐',
+]);
+
+// 정규화된 stop 이름에서 체인 브랜드 포함 여부 확인
+function isKnownNationalChain(stopName) {
+  if (!stopName) return false;
+  const lower = stopName.toLowerCase();
+  for (const chain of KNOWN_NATIONAL_CHAINS) {
+    if (lower.includes(chain.toLowerCase())) return true;
+  }
+  return false;
+}
+
 // ── 체인점 브랜드 추출 ──────────────────────────────────────────────────────
 // "BHC 치킨 홍대점" → "BHC", "교촌치킨 강남점" → "교촌"
 // 지점명(~점/~지점/~본점/~매장) 제거 + 위치/카테고리 키워드 제거
@@ -217,6 +251,22 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko', allergyP
             `[planner] DB city-mismatch SKIP (P114 후속): "${stopName}" landmark name — cross-city fallback 사용 X (verified=false)`
           );
           // match 미설정 → 아래 else 분기로 가서 verified=false + dbUnmatched++
+        } else if (isKnownNationalChain(stopName)) {
+          // P227 (2026-05-27): 전국 체인 브랜드는 HARD REJECT 예외.
+          // 굽네치킨 / 이삭토스트 등 전국 체인이 foodIndex 에 특정 city 1개 row 만 존재할 때
+          // cross-city fallback 발생 → 이전 HARD REJECT = alert noise (40% ratio 초과).
+          // 체인은 전국 매장 있으므로 wrong-city hallucination 아님 → match 허용하되:
+          //   - 좌표/주소 override 금지 (Gemini 원본 보존 = 실제 해당 city 지점 기준)
+          //   - verified=false (DB 검증 불충분)
+          //   - _isChainMatch: true 마킹 (체인 매칭 추적용)
+          //   - cityMismatchCount++ 미실행 (alert 미발동)
+          match = fallback;
+          isCityMismatch = true; // 좌표/주소 override 방지용 플래그
+          stop._isChainMatch = true; // P227: 체인 매칭 식별용 메타
+          console.info(
+            `[planner P227] chain match allowed: "${stopName}" plan=${matchCity} dbCity=${(fallback.city || '?').toLowerCase()} — 전국체인 cross-city (verified=false, coord 미override)`
+          );
+          // cityMismatchCount 미증가 → ratio 계산에 포함 안 됨 → alert 미발동
         } else {
           // P183 phase 1 (2026-05-24): cross-city fallback HARD REJECT (P180 후속 강화).
           // 이전: match=fallback + verified=false (P466 X-H8) + Gemini address 유지.
