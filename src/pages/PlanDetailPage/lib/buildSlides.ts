@@ -56,7 +56,10 @@ export function adApplies(category: AdCategory, plan: PlanDocument): boolean {
 }
 
 export function buildSlides(plan: PlanDocument): Slide[] {
-  const days = (plan && plan.itinerary && plan.itinerary.days) || [];
+  const rawDays = (plan && plan.itinerary && plan.itinerary.days) || [];
+  // P224: filter out null/undefined entries that can appear during streaming
+  // progressive updates — only count days that are actual objects.
+  const days = rawDays.filter((d): d is NonNullable<typeof d> => d != null);
   const slides: Slide[] = [];
 
   // 2026-05-03 사용자 결정: "광고 1페이지 그다음 인트로 데이 1 2 3 이렇게만"
@@ -67,7 +70,7 @@ export function buildSlides(plan: PlanDocument): Slide[] {
   // Slide 2: Intro
   slides.push({ type: 'intro' });
 
-  // Day slides
+  // Day slides — one tab per actual day object (dynamic, never static count)
   for (let i = 0; i < days.length; i++) {
     slides.push({ type: 'day', dayIndex: i });
   }

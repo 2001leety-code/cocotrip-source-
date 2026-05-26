@@ -238,7 +238,20 @@ export default function PlanDetailPage() {
       case 'intro':
         return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} />;
       case 'day': {
-        const dayIdx = slide.dayIndex || 0;
+        // P224: ?? instead of || so dayIndex=0 is preserved (|| treats 0 as falsy)
+        const dayIdx = slide.dayIndex ?? 0;
+        // P224: defensive guard — days[dayIdx] may be undefined during streaming
+        // race condition (Firestore snapshot arrives before itinerary.days is fully
+        // populated). Render a skeleton instead of crashing DayTimeline.
+        const dayData = days[dayIdx];
+        if (!dayData) {
+          return (
+            <div key={`day-${dayIdx}-skeleton`} className="py-8 flex flex-col items-center gap-3 text-white/40">
+              <div className="w-6 h-6 border-2 border-[#7C5CFC]/40 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm">{language === 'ko' ? `Day ${dayIdx + 1} 로딩 중...` : language === 'ja' ? `Day ${dayIdx + 1} 読み込み中...` : language === 'zh' ? `Day ${dayIdx + 1} 加载中...` : `Loading Day ${dayIdx + 1}...`}</span>
+            </div>
+          );
+        }
         return (
           <div key={`day-${dayIdx}`}>
             {/* Edit toggle floats at top of day slides */}
@@ -259,7 +272,7 @@ export default function PlanDetailPage() {
               }}
             >
               <DayTimeline
-                day={days[dayIdx]}
+                day={dayData}
                 dayIndex={dayIdx}
                 editMode={editMode}
                 isRecalculating={editor.isRecalculating}
