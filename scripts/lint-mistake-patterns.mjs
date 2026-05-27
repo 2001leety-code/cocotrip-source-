@@ -2000,6 +2000,60 @@ function P246_dmzCityMismatchGuard({ changed }) {
   };
 }
 
+// ── R-P248 (2026-05-27) — Haenyeo style 선택 시 city-mismatch 차단 ──────────────────────────────
+// P248 root cause: P246 follow-up. styles=Haenyeo 는 Jeju-only 경험 — _haenyeo_index.json 의
+// 모든 row 가 city='jeju'. area=seoul + styles=Haenyeo 조합에서 Gemini 가 서울 stops 생성 가능.
+//
+// 2-layer fix:
+//   (1) buildPrompt.js Haenyeo 라인에 "ALL Haenyeo stops MUST be in Jeju" 명시.
+//   (2) responseValidator.js R-P248 soft guard — Haenyeo style 시 서울/부산 address 감지 + Telegram alert.
+//
+// 트리거: buildPrompt.js / responseValidator.js / geminiPipeline.js 변경 시.
+// 위반 조건:
+//   1. buildPrompt.js 의 Haenyeo style 라인에 Jeju city guard 없음.
+//   2. responseValidator.js 에 haenyeo_city_mismatch 또는 P248 마커 없음.
+//
+// 검사 위치: api/_ai_core/buildPrompt.js, api/_ai_core/responseValidator.js.
+
+/**
+ * P248_haenyeoCityMismatchGuard — Haenyeo style + Jeju-only city guard 2-layer 유지 검증.
+ */
+function P248_haenyeoCityMismatchGuard({ changed }) {
+  const BP = 'api/_ai_core/buildPrompt.js';
+  const RV = 'api/_ai_core/responseValidator.js';
+  const anyChanged = [BP, RV].some((f) => isModified(f, changed));
+  if (!anyChanged) return { skipped: true };
+
+  const issues = [];
+
+  const bp = readFileExists(BP);
+  if (bp) {
+    // Layer 1: buildPrompt.js Haenyeo line 에 Jeju city guard 존재 확인.
+    if (!(/Haenyeo.*Jeju/s.test(bp) || /haenyeo.*Jeju/s.test(bp))) {
+      issues.push(`${BP}: Haenyeo style 라인에 Jeju city guard 누락 — 서울/부산 stops 생성 차단 불가 (P248 root cause)`);
+    }
+  }
+
+  const rv = readFileExists(RV);
+  if (rv) {
+    // Layer 2: responseValidator.js 에 haenyeo_city_mismatch 또는 P248 마커 확인.
+    if (!rv.includes('haenyeo_city_mismatch') && !rv.includes('P248')) {
+      issues.push(`${RV}: haenyeo_city_mismatch 또는 P248 validator 마커 누락 — styles=Haenyeo + 비Jeju stop 감지 불가`);
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P248_haenyeoCityMismatchGuard',
+    severity: 'error',
+    file: BP,
+    message:
+      'R-P248: Haenyeo city-mismatch guard 2-layer 손상 — styles=Haenyeo 인데 서울/부산 stops 생성 가능 (P246 follow-up). ' +
+      '_haenyeo_index.json 모든 row = jeju. ' +
+      'Layer 1 (buildPrompt Jeju guard) + Layer 2 (responseValidator haenyeo_city_mismatch) 반드시 동시 유지. 발견: ' + issues.join(', '),
+  };
+}
+
 // ── R-P244 (2026-05-27) — Playwright visual spec beforeEach networkidle 사용 금지 ──
 // P244 root cause: deployment_status trigger 에서 CI 가 auth 없이 실행됨.
 // section-tabs-scroll waitForSelector 는 plan 로드 성공 시만 → auth 없으면 항상 timeout.
@@ -2198,6 +2252,7 @@ const RULES = [
   ['P245_blockModeTourStartTime', P245_blockModeTourStartTime],
   ['P241_activityHelperIntegrity', P241_activityHelperIntegrity],
   ['P246_dmzCityMismatchGuard', P246_dmzCityMismatchGuard],
+  ['P248_haenyeoCityMismatchGuard', P248_haenyeoCityMismatchGuard],
   ['R_P244_playwrightPageReadySignal', R_P244_playwrightPageReadySignal],
   ['P243_zoneBlockStyleCoverage', P243_zoneBlockStyleCoverage],
 ];

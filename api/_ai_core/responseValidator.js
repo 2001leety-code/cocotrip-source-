@@ -908,6 +908,51 @@ export function validateResponse(data, request, foodIndex) {
     }
   }
 
+  // R-P248 (2026-05-27): Haenyeo city-mismatch guard — styles=Haenyeo 인데
+  // 비제주(서울/부산 등) stops 생성 차단 (P246 follow-up).
+  // SOFT check only (no retry/throw) — Telegram alert 발사 + issues 로그 기록.
+  // Haenyeo stops MUST be in Jeju (제주도). Never Seoul, Busan, Paju, etc.
+  if (reqStyles.some((s) => String(s).toLowerCase() === 'haenyeo')) {
+    // 비제주 주소 키워드 — 서울/경기/부산/기타 광역시 level.
+    const HAENYEO_CITY_VIOLATION_PATTERNS = [
+      '서울특별시', '서울시', '서울',
+      '경기도', '파주시', '고양시', '수원시', '성남시', '용인시', '인천광역시',
+      '부산광역시', '해운대구', '수영구', '부산',
+      '대구광역시', '대구', '광주광역시', '광주',
+      '대전광역시', '대전', '울산광역시', '울산',
+      '강원도', '속초시', '강릉시', '경주시', '전주시', '여수시',
+    ];
+    const haenyeoViolations = [];
+    for (const stop of allStops) {
+      // address 기준으로만 city 판단 — name 에 "해녀" 포함은 false-positive 가능.
+      const addr = String(stop.address || '');
+      if (!addr) continue; // 주소 없는 stop 은 skip (block-mode placeholder)
+      const matched = HAENYEO_CITY_VIOLATION_PATTERNS.find((p) => addr.includes(p));
+      if (matched) {
+        const stopLabel = stop.name || stop.display_name || '';
+        haenyeoViolations.push({
+          type: 'haenyeo_city_mismatch',
+          stop: stopLabel,
+          address: addr,
+          matched_keyword: matched,
+        });
+        issues.push({
+          type: 'haenyeo_city_mismatch',
+          stop: stopLabel,
+          matched_keyword: matched,
+        });
+      }
+    }
+    if (haenyeoViolations.length > 0) {
+      console.error('[P248 HAENYEO_CITY_MISMATCH]', JSON.stringify({ count: haenyeoViolations.length, violations: haenyeoViolations }));
+      // 비동기 alert — throw 막지 않음 (soft validator).
+      throttledTelegramAlert(
+        `🚨 P248 HAENYEO_CITY_MISMATCH: styles=Haenyeo 인데 ${haenyeoViolations.length}개 stop 이 서울/부산 등 비제주 지역.\n` +
+        haenyeoViolations.slice(0, 3).map((v) => `• ${v.stop} @ ${v.address}`).join('\n'),
+      ).catch(() => {});
+    }
+  }
+
   // P0-3: dietary_violation 별도 카운트 — 운영자가 prod log 에서 즉시 식별.
   const dietaryViolations = issues.filter((i) => i.type === 'dietary_violation').length;
   console.log('[RESPONSE_VALIDATION]', JSON.stringify({

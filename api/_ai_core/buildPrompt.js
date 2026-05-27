@@ -655,7 +655,7 @@ Use daily_tour_hours value as the actual budget — fit stop durations + transit
 - BusanFood → 밀면/돼지국밥/어묵, 1 meal.
 - OlleTrail → 제주올레길, half-day.
 - Hallasan → 한라산, full-day (replaces other stops). **SAFETY-CRITICAL: Trekking/Hallasan — check trail conditions; Witseoreum open Apr–Nov only. Alert user of altitude/weather risk.**
-- Haenyeo → 해녀박물관/해녀식당, lunch.
+- Haenyeo → 해녀박물관/해녀식당, lunch. **ALL Haenyeo stops MUST be in Jeju (제주도). NEVER place Seoul, Busan, or non-Jeju stops when Haenyeo style is selected. BAD: "임진각 (파주)" or "동대문 (서울)" on Haenyeo day — P248 alert fires.** Use EXACT names from VERIFIED HAENYEO DATABASE if present in the message.
 - JejuFood → 흑돼지/갈치조림/오메기떡.
 - Bulguksa → 불국사+석굴암(경주), half-day.
 - Anapji → 동궁과월지(경주), sunset 야경.
