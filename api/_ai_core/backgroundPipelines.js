@@ -16,12 +16,18 @@
  *
  *   - tryInitStreamingSkeleton({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body })
  *     planId + planUrl 생성 + Firestore skeleton 저장.
+ *     P231 (2026-05-27): PLANNER_SKELETON_IN_WORKER=true 시 stub doc 만 저장 (1-2s → ~150ms),
+ *     full skeleton data 는 skeletonCtx 로 반환 → Inngest worker Step 0 가 full skeleton 저장.
  *     실패 시 null 반환 (일반 모드로 fallback 하도록 설계).
  *
  *   - tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary })
  *     P230 (2026-05-27): block-mode + Inngest 통합. block-mode 결과를 _streaming_in_progress=true
  *     skeleton 으로 저장 + itinerary merge → handlerCore 가 streamingPlanId 확보 → Inngest dispatch.
+ *     P231 (2026-05-27): PLANNER_SKELETON_IN_WORKER=true 시 stub doc 만 저장.
  *     실패 시 null 반환 → handlerCore 의 inline pipeline 으로 fallback (silent fail 차단).
+ *
+ *   - isSkeletonInWorkerEnabled()
+ *     P231 (2026-05-27): PLANNER_SKELETON_IN_WORKER env 토글 체크. default false = 기존 동작 100% 유지.
  *
  *   - sendStreamingEarlyResponse({ res, CORS, planId, planUrl })
  *     status:'streaming' 응답 즉시 전송 (Gemini 완료 직후).
@@ -37,6 +43,13 @@ import { updatePlanEnrichment, savePlanSkeleton } from './planPersister.js';
 import { isPass3BackgroundEnabled, isStreamingEnabled, buildModel } from './geminiPipeline.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { calcPrice } from './vehicleAndPrice.js';
+import { randomUUID } from 'crypto';
+
+// P231 (2026-05-27): skeleton 저장을 Inngest worker 의 첫 step 으로 이동.
+// ENV off (default) = 기존 동작 100% 유지 (rollback 안전).
+export function isSkeletonInWorkerEnabled() {
+  return String(process.env.PLANNER_SKELETON_IN_WORKER || '').toLowerCase() === 'true';
+}
 
 // ── P168: Pass3 background trigger ───────────────────────────────────────────
 
@@ -92,10 +105,21 @@ export function shouldUseStreaming({ itinerary, plannerMode }) {
  * P169 (2026-05-23): planId + skeleton Firestore 저장.
  * 실패 시 null 반환 → handlerCore 가 일반 모드로 fallback.
  *
+ * P231 (2026-05-27): PLANNER_SKELETON_IN_WORKER=true 시 Firestore 에 stub doc 만
+ *   저장 (planId + _streaming_in_progress + status = ~150ms), full skeleton 저장은
+ *   Inngest worker Step 0 에서 수행 (savePlanSkeleton 전체 호출 1-2s 절감).
+ *   skeletonCtx 를 반환값에 포함 → inngestDispatch.buildPlanAiCompletePayload 가
+ *   payload 에 포함 → worker Step 0 가 받아서 Firestore 에 저장.
+ *   stub doc 은 404 차단 전용 — PlanDetailPage onSnapshot 이 즉시 _streaming_in_progress
+ *   감지 → 로딩 인디케이터 표시 (stub + full skeleton 공통 동작).
+ *   ENV off (default) = 기존 동작 100% 유지 (rollback 안전).
+ *
  * @param {{ adminDb, uid: string, email: string, area: string, startDate: string,
  *           guestName: string, pax: number, language: string,
  *           vehicle: string, durationDays: number, body: object }} args
- * @returns {Promise<{ planId: string, planUrl: string }|null>}
+ * @returns {Promise<{ planId: string, planUrl: string, skeletonCtx?: object }|null>}
+ *   skeletonCtx: P231 모드 시 worker Step 0 에 전달할 full skeleton 입력 파라미터.
+ *                ENV off (기존) 시 undefined (worker 에서 무시됨).
  */
 export async function tryInitStreamingSkeleton({
   adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body,
@@ -104,6 +128,30 @@ export async function tryInitStreamingSkeleton({
     const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
       try { return calcPrice(vehicle, durationDays); } catch { return { priceKRW: 0, priceUSD: 0 }; }
     })();
+
+    // P231: skeleton-in-worker 모드 — stub doc 만 저장해 HTTP 응답 경로에서 1-2s 절감.
+    if (isSkeletonInWorkerEnabled()) {
+      if (!adminDb) throw new Error('[P231] Firebase not configured — cannot save stub');
+      const planId = randomUUID();
+      const planUrl = `/my-plans/${planId}`;
+      // stub doc: 404 차단 전용. PlanDetailPage 가 _streaming_in_progress 감지 가능.
+      await adminDb.collection('plans').doc(planId).set({
+        planId,
+        status: 'streaming',
+        _streaming_in_progress: true,
+        _streaming_started_at: Date.now(),
+        _p231_stub: true, // P231 디버그용 — worker Step 0 가 full skeleton 으로 교체
+      });
+      console.log('[planner P231] Stub doc saved (skeleton-in-worker mode):', planId);
+      // skeletonCtx: worker Step 0 에서 savePlanSkeleton 호출 시 필요한 파라미터 전체.
+      const skeletonCtx = {
+        uid, email, area, startDate, guestName, pax, language,
+        vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+      };
+      return { planId, planUrl, skeletonCtx };
+    }
+
+    // 기존 동작: full skeleton Firestore 저장 (ENV off 시 100% 유지).
     const sk = await savePlanSkeleton(adminDb, {
       uid, email, area, startDate, guestName, pax, language,
       vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
@@ -144,15 +192,16 @@ export async function tryBlockModeInngestPath({
   if (!blockModeUsed || !itinerary || !isInngestEnabled) return null;
   const sk = await tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary });
   if (!sk) return null;
-  const dispatched = await dispatchFn({ streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl });
+  // P231: sk.skeletonCtx → dispatchFn 에 전달 → worker Step 0 가 full skeleton 저장.
+  const dispatched = await dispatchFn({ streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl, skeletonCtx: sk.skeletonCtx || null });
   if (dispatched) {
     sendEarlyResponse({ planId: sk.planId, planUrl: sk.planUrl, debug: buildDebug() });
     console.log('[planner P230] block-mode + Inngest dispatched. Response sent, worker handles enrichment.');
     if (handlerStart) console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms (P230 dispatched) ===');
-    return { dispatched: true, streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl };
+    return { dispatched: true, streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl, skeletonCtx: sk.skeletonCtx || null };
   }
   console.warn('[planner P230] block-mode Inngest dispatch failed — falling back to inline (skeleton kept).');
-  return { dispatched: false, streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl };
+  return { dispatched: false, streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl, skeletonCtx: sk.skeletonCtx || null };
 }
 
 /**
@@ -195,7 +244,30 @@ export async function tryInitBlockModeForInngest({
     const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
       try { return calcPrice(vehicle, durationDays); } catch { return { priceKRW: 0, priceUSD: 0 }; }
     })();
-    // savePlanSkeleton 의 기본 itinerary (empty days) 대신 block-mode 결과를 직접 set.
+
+    // P231: skeleton-in-worker 모드 — stub doc 만 저장 (full skeleton + itinerary merge 는 worker Step 0).
+    // 기존 2 Firestore 호출 (~2-3s) → stub 1 호출 (~150ms) 로 단축.
+    if (isSkeletonInWorkerEnabled()) {
+      const planId = randomUUID();
+      const planUrl = `/my-plans/${planId}`;
+      await adminDb.collection('plans').doc(planId).set({
+        planId,
+        status: 'streaming',
+        _streaming_in_progress: true,
+        _streaming_started_at: Date.now(),
+        _p231_stub: true,
+      });
+      console.log('[planner P231] block-mode stub doc saved (skeleton-in-worker mode):', planId);
+      // skeletonCtx: worker Step 0 에서 full skeleton + itinerary merge 수행.
+      const skeletonCtx = {
+        uid, email, area, startDate, guestName, pax, language,
+        vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+        blockModeItinerary: itinerary, // block-mode 결과 — worker 가 merge
+      };
+      return { planId, planUrl, skeletonCtx };
+    }
+
+    // 기존 동작: savePlanSkeleton 의 기본 itinerary (empty days) 대신 block-mode 결과를 직접 set.
     // savePlanSkeleton 은 _streaming_in_progress=true 와 planId 생성을 담당. 이후 별 doc.set merge
     // 로 block-mode itinerary 를 덮어쓰면 동일 planId 의 days 가 block-mode 결과로 채워짐.
     const sk = await savePlanSkeleton(adminDb, {

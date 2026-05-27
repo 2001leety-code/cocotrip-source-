@@ -2082,6 +2082,7 @@ const RULES = [
   ['P219_thoughtPartFilter', P219_thoughtPartFilter],
   ['R_PlanDetailVisual', R_PlanDetailVisual],
   ['P228_transitCacheIntegrity', P228_transitCacheIntegrity],
+  ['P231_skeletonInWorkerGuard', P231_skeletonInWorkerGuard],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8419,6 +8420,91 @@ function P228_transitCacheIntegrity({ changed }) {
     file: cacheChanged ? CACHE_FILE : ROUTE_FILE,
     message:
       'R-P228: Phase 3 transit cache 손상 — ODsay 절감 효과 0 + latency 회귀 위험 (P228 2026-05-27). ' +
+      '발견: ' + issues.join(' | '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P231_skeletonInWorkerGuard — skeleton-in-worker 구조 정합성 감시 (2026-05-27)
+//
+// 운영자 의도: HTTP 응답 경로에서 Firestore full skeleton 저장 1-2s 절감.
+//   PLANNER_SKELETON_IN_WORKER=true 시 HTTP handler = stub 저장만,
+//   worker Step 0 = full skeleton 저장. ENV off = 기존 동작 100% 보장.
+//
+// 비유: "접수 창구는 접수증만 발행 (빠름), 뒤에서 담당자가 풀 서류 작성 (worker)".
+//
+// 핵심 불변식:
+//   1. backgroundPipelines.js 에 isSkeletonInWorkerEnabled export 존재
+//   2. tryInitStreamingSkeleton 이 isSkeletonInWorkerEnabled() 조건 분기 존재
+//   3. processPlanAfterAI.js 에 'skeleton-write' step.run 호출 존재
+//   4. processPlanAfterAI.js 에 ctx.skeletonCtx 조건 분기 존재
+//   5. inngestDispatch.js buildPlanAiCompletePayload 에 skeletonCtx spread 존재
+//
+// R-P231 위반 시: HTTP handler 가 full skeleton 저장 + worker 가 중복 저장 →
+//   Firestore 2 write (비용 2x) 또는 worker 가 skeletonCtx 없이 stub 방치 → client 404.
+//
+// 트리거: backgroundPipelines.js / processPlanAfterAI.js / inngestDispatch.js 변경 시.
+// ----------------------------------------------------------------------------
+
+function P231_skeletonInWorkerGuard({ changed }) {
+  const BP_FILE = 'api/_ai_core/backgroundPipelines.js';
+  const WORKER_FILE = 'api/_inngest/functions/processPlanAfterAI.js';
+  const DISPATCH_FILE = 'api/_ai_core/inngestDispatch.js';
+  const bpChanged = isModified(BP_FILE, changed);
+  const workerChanged = isModified(WORKER_FILE, changed);
+  const dispatchChanged = isModified(DISPATCH_FILE, changed);
+  if (!bpChanged && !workerChanged && !dispatchChanged) return { skipped: true };
+
+  const issues = [];
+
+  if (bpChanged) {
+    const src = readFileExists(BP_FILE) || '';
+    // isSkeletonInWorkerEnabled export 존재
+    if (!/export function isSkeletonInWorkerEnabled/.test(src)) {
+      issues.push('backgroundPipelines.js: isSkeletonInWorkerEnabled export 누락 — ENV 토글 비활성 회귀');
+    }
+    // tryInitStreamingSkeleton 에 isSkeletonInWorkerEnabled() 분기 존재
+    if (!/isSkeletonInWorkerEnabled\(\)/.test(src)) {
+      issues.push('backgroundPipelines.js: isSkeletonInWorkerEnabled() 호출 누락 — stub 저장 분기 손상');
+    }
+    // PLANNER_SKELETON_IN_WORKER ENV 참조 존재
+    if (!/PLANNER_SKELETON_IN_WORKER/.test(src)) {
+      issues.push('backgroundPipelines.js: PLANNER_SKELETON_IN_WORKER ENV 참조 누락 — rollback 안전판 없음');
+    }
+  }
+
+  if (workerChanged) {
+    const src = readFileExists(WORKER_FILE) || '';
+    // 'skeleton-write' step.run 존재
+    if (!/'skeleton-write'/.test(src)) {
+      issues.push("processPlanAfterAI.js: 'skeleton-write' step.run 누락 — stub doc 방치 위험 (P231 regression)");
+    }
+    // ctx.skeletonCtx 조건 분기 존재
+    if (!/ctx\.skeletonCtx/.test(src)) {
+      issues.push('processPlanAfterAI.js: ctx.skeletonCtx 조건 분기 누락 — ENV off 시 불필요 step 실행');
+    }
+    // savePlanSkeleton import 존재
+    if (!/savePlanSkeleton/.test(src)) {
+      issues.push('processPlanAfterAI.js: savePlanSkeleton import 누락 — skeleton-write step 비활성');
+    }
+  }
+
+  if (dispatchChanged) {
+    const src = readFileExists(DISPATCH_FILE) || '';
+    // skeletonCtx spread 존재
+    if (!/skeletonCtx/.test(src)) {
+      issues.push('inngestDispatch.js: skeletonCtx 전달 코드 누락 — worker 가 ctx.skeletonCtx 못 받음 → stub 방치 위험');
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P231_skeletonInWorkerGuard',
+    severity: 'error',
+    file: bpChanged ? BP_FILE : workerChanged ? WORKER_FILE : DISPATCH_FILE,
+    message:
+      'R-P231: skeleton-in-worker 구조 정합성 손상 (P231 2026-05-27). ' +
+      '비유: "접수증→담당자 서류 완성" 연결이 끊어지면 client 가 404 또는 stub 방치. ' +
       '발견: ' + issues.join(' | '),
   };
 }

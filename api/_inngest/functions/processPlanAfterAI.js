@@ -4,6 +4,9 @@
  * Event: `plan/ai.complete` (handlerCore.js 에서 Gemini + DB match 완료 직후 발행)
  *
  * 흐름 (각 step 별도 retry + Inngest 자체 timeout):
+ *   0. skeleton-write     — P231 (2026-05-27): PLANNER_SKELETON_IN_WORKER=true 시만 실행.
+ *                           HTTP handler 가 저장한 stub doc 을 full skeleton 으로 업그레이드.
+ *                           skeletonCtx 없으면 (ENV off) skip. 실패해도 non-fatal.
  *   1. routeEnrich        — Naver Geocoding + ODsay Transit + lodging bookend
  *   2. backfillsAndTmoney — end_time / day.lodging / cross-city / T-money
  *   3. recommendedFood    — DB 기반 maxlocal-rating 식당 추천 (Gemini 미경유)
@@ -42,6 +45,7 @@ import {
   savePlan,
 } from '../../_ai_core/postResponsePipeline.js';
 import { triggerPass3BackgroundIfPending } from '../../_ai_core/backgroundPipelines.js';
+import { savePlanSkeleton } from '../../_ai_core/planPersister.js'; // P231: stub → full skeleton 업그레이드
 import { VEHICLE_LABELS } from '../../_ai_core/vehicleAndPrice.js';
 import { sendNotificationEmail, recordLeadToSheets } from '../../_ai_core/emailNotifier.js';
 import { throttledTelegramAlert } from '../../_shared/telegram-throttle.js';
@@ -71,6 +75,10 @@ const adminDb = initAdminDb();
  *       streamingPlanId,            // P169 skeleton 재사용
  *       // Pass3 background trigger input
  *       isAdminBypass, identifierForBucketing,
+ *       // P231: skeleton-in-worker — HTTP handler 가 stub doc 만 저장 후 full skeleton 파라미터 전달.
+ *       //   skeletonCtx 있으면 Step 0 에서 savePlanSkeleton 호출 (stub → full skeleton 업그레이드).
+ *       //   skeletonCtx 없으면 (ENV off, 기존 동작) Step 0 skip.
+ *       skeletonCtx?,               // { uid, email, area, startDate, guestName, pax, language, vehicle, priceKRW, priceUSD, body, blockModeItinerary? }
  *     },
  *   }
  */
@@ -89,6 +97,77 @@ export const processPlanAfterAI = inngest.createFunction(
     const { planId: eventPlanId, itinerary, ctx } = event.data;
     const startMs = Date.now();
     logger.info(`[P220] worker start: planId=${eventPlanId || '(new)'}, days=${(itinerary?.days || []).length}`);
+
+    // ── Step 0 (P231): skeleton-write — stub doc → full skeleton 업그레이드 ────
+    // HTTP handler 가 PLANNER_SKELETON_IN_WORKER=true 시 stub doc 만 저장하고 full skeleton
+    // 파라미터를 ctx.skeletonCtx 로 전달. 본 step 이 savePlanSkeleton 으로 full skeleton 을
+    // set merge 해서 stub 을 교체 → PlanDetailPage 가 tour_title / days 등 즉시 표시 가능.
+    //
+    // skeletonCtx 없으면 (ENV off = 기존 동작) step 전체 skip (step ID 'skeleton-write' 신규
+    // → 기존 replay 에서 memoized 값 없음 = 신규 실행). ENV off 시 ctx.skeletonCtx = undefined.
+    //
+    // SAFETY (CLAUDE.md J): dietary 흐름 무관 — 단순 Firestore meta write.
+    // 역할: "접수증 → 풀 인수인계 문서 교체" (stub 이 접수증, full skeleton 이 인수인계 문서).
+    if (ctx.skeletonCtx) {
+      await step.run('skeleton-write', async () => {
+        const planIdForSkeleton = ctx.streamingPlanId || eventPlanId;
+        if (!planIdForSkeleton) {
+          logger.warn('[P231] skeleton-write: planId 없음, skip');
+          return null;
+        }
+        try {
+          // savePlanSkeleton 은 새 planId 를 생성하므로 직접 호출 불가.
+          // 대신 skeletonCtx 의 파라미터로 full skeleton doc 을 merge 구성.
+          const { uid, email, area, startDate, guestName, pax, language,
+                  vehicle, priceKRW, priceUSD, body: skBody, blockModeItinerary } = ctx.skeletonCtx;
+          const fullDoc = {
+            planId: planIdForSkeleton,
+            status: 'streaming',
+            _streaming_in_progress: true,
+            _streaming_started_at: ctx.skeletonCtx._streaming_started_at || Date.now(),
+            isPublic: false,
+            createdAt: new Date().toISOString(),
+            createdAtMs: Date.now(),
+            uid: uid || null,
+            guestEmail: email || null,
+            input: {
+              guestName: guestName || 'Guest',
+              pax: pax || 2,
+              styles: Array.isArray(skBody?.styles) ? skBody.styles : [],
+              area: area || null,
+              startDate: startDate || null,
+              language: language || 'en',
+              vehicle: vehicle || null,
+              regions: Array.isArray(skBody?.regions) && skBody.regions.length > 0 ? skBody.regions : (area ? [area] : []),
+            },
+            pricing: { vehicle, priceKRW: priceKRW || 0, priceUSD: priceUSD || 0 },
+            revisionCredits: 2,
+            revisionCount: 0,
+            // block-mode itinerary 있으면 days 미리 채움 (PlanDetailPage 즉시 표시).
+            // 없으면 빈 skeleton (legacy streaming 경우).
+            itinerary: blockModeItinerary
+              ? { ...blockModeItinerary, _streaming_skeleton: true }
+              : { tour_title: null, days: [], _streaming_skeleton: true },
+            ...(blockModeItinerary ? { _block_mode_used: true } : {}),
+            _p231_stub: false, // stub 교체 완료 표시
+          };
+          await adminDb.collection('plans').doc(planIdForSkeleton).set(fullDoc, { merge: true });
+          logger.info(`[P231] skeleton-write done: planId=${planIdForSkeleton}`);
+          return { planId: planIdForSkeleton };
+        } catch (skErr) {
+          // full skeleton 저장 실패 — stub doc 은 살아있으므로 client 404 안 남.
+          // routeEnrich + persistPlan 은 계속 진행 (non-fatal).
+          logger.warn(`[P231] skeleton-write failed (non-fatal): ${skErr.message}`);
+          throttledTelegramAlert({
+            key: `p231-skeleton-write-fail:${planIdForSkeleton}`,
+            channel: 'admin',
+            severity: 'low',
+            message: `P231 skeleton-write step 실패 (non-fatal). planId=${planIdForSkeleton}, err=${skErr.message}. stub doc 유지 → persistPlan 이 set merge 로 완성.`,
+          }).catch(() => {});
+          return null;
+        }
+      });
+    }
 
     // ── Step 1: routeEnrich (180s wall-clock cap 유지) ────────────────────────
     // runRouteEnrichment 가 in-place mutation 이라 step.run 의 반환값은 사용 X.
