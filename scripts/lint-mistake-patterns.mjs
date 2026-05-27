@@ -2085,6 +2085,7 @@ const RULES = [
   ['P231_skeletonInWorkerGuard', P231_skeletonInWorkerGuard],
   ['P234_odsayDirectCallGuard', P234_odsayDirectCallGuard],
   ['P235_firestoreErrorDistinction', checkP235FirestoreErrorDistinction],
+  ['P237_runningHelperIntegrity', P237_runningHelperIntegrity],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8573,6 +8574,77 @@ function P234_odsayDirectCallGuard({ changed }) {
       'R-P234: ODsay 직접 호출 + cache wrapper 없음 감지 (P234 2026-05-27). ' +
       '비유: "메뉴판 확인 안 하고 매번 주방에 새 요리 주문 = quota 소진". ' +
       '허용 파일(시드/관리자/테스트) 외 신규 직접 호출은 lookupTransitCache() 먼저 호출 필요. ' +
+      '발견: ' + issues.join(' | '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P237_runningHelperIntegrity — Running 코스 DB 주입 체인 검증 (P237 2026-05-27)
+// ----------------------------------------------------------------------------
+/**
+ * P237_runningHelperIntegrity
+ *
+ * P237 (2026-05-27): Running/HangangRun 선택 시 _running_helper.js 주입 체인.
+ * 비유: "달리기 코스 지도 없이 외국인 서울 러닝 보냄 = 잘못된 거리/경로 hallucination"
+ *
+ * 검사:
+ *   1. _running_helper.js 변경 시 getRunningContextForPrompt export 존재
+ *   2. handlerCore.js 에 Running/HangangRun 분기 + getRunningContextForPrompt 호출
+ *   3. _running_index.json row count > 0
+ */
+function P237_runningHelperIntegrity({ changed, readFile, statFile }) {
+  const TARGET = 'api/_running_helper.js';
+  const HANDLER = 'api/_ai_core/handlerCore.js';
+  const INDEX = 'api/_running_index.json';
+
+  const changedFiles = (changed || []).map(c => typeof c === 'string' ? c : c.path || '');
+  const affected = changedFiles.some(f => f.includes('_running_helper') || f.includes('_running_index') || f.includes('handlerCore'));
+  if (!affected) return null;
+
+  const issues = [];
+
+  // (1) _running_helper.js export check
+  if (changedFiles.some(f => f.includes('_running_helper'))) {
+    try {
+      const src = readFile(TARGET);
+      if (!/export\s+function\s+getRunningContextForPrompt/.test(src)) {
+        issues.push(`${TARGET}: getRunningContextForPrompt export 누락 — Running 코스 DB 주입 불가`);
+      }
+    } catch { /* file may not exist yet */ }
+  }
+
+  // (2) handlerCore.js integration check
+  if (changedFiles.some(f => f.includes('handlerCore'))) {
+    try {
+      const handler = readFile(HANDLER);
+      if (!/getRunningContextForPrompt/.test(handler)) {
+        issues.push(`${HANDLER}: getRunningContextForPrompt 호출 없음 — Running/HangangRun DB 주입 미연결 (P237)`);
+      }
+      if (!/(HangangRun|Running)/.test(handler)) {
+        issues.push(`${HANDLER}: HangangRun/Running 분기 없음 — running 코스 조건부 주입 불가`);
+      }
+    } catch { /* handler might not be changed */ }
+  }
+
+  // (3) _running_index.json row count
+  if (changedFiles.some(f => f.includes('_running_index'))) {
+    try {
+      const raw = readFile(INDEX);
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr) || arr.length === 0) {
+        issues.push(`${INDEX}: 빈 배열 또는 파싱 실패 — 러닝 코스 DB row 0건`);
+      }
+    } catch { issues.push(`${INDEX}: 읽기 실패`); }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    rule: 'P237_runningHelperIntegrity',
+    file: issues[0].split(':')[0],
+    message:
+      'R-P237: Running 코스 DB 주입 체인 손상 감지 (P237 2026-05-27). ' +
+      '비유: "달리기 코스 지도 없이 외국인 러닝 보냄 = hallucination 위험". ' +
+      '_running_helper.js getRunningContextForPrompt + handlerCore 분기 + _running_index.json row > 0 필수. ' +
       '발견: ' + issues.join(' | '),
   };
 }
