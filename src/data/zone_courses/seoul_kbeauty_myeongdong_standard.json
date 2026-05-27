@@ -1,0 +1,215 @@
+{
+  "id": "SEOUL_DAY_KBEAUTY_MYEONGDONG_STANDARD",
+  "city": "seoul",
+  "zone": "Myeongdong K-beauty",
+  "theme": "K-뷰티 쇼핑 + 스킨케어 체험 (명동)",
+  "theme_i18n": {
+    "ko": "K-뷰티 쇼핑 + 스킨케어 체험 (명동)",
+    "en": "K-Beauty Shopping + Skincare Experience (Myeongdong)",
+    "ja": "K-ビューティ ショッピング + スキンケア体験 (明洞)",
+    "zh": "K-美妆购物 + 护肤体验 (明洞)"
+  },
+  "intensity": "standard",
+  "duration_min": 480,
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "올리브영 명동 플래그십",
+      "name_i18n": {
+        "ko": "올리브영 명동 플래그십",
+        "en": "Olive Young Myeongdong Flagship",
+        "ja": "オリーブヤング明洞フラッグシップ",
+        "zh": "橄榄少年明洞旗舰店"
+      },
+      "address": "서울 중구 명동2가 7-12",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 입장. 면세 환급 가능."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 최대 K-뷰티 플래그십 — 스킨케어/메이크업 전 브랜드 집결. 여권 지참 시 즉시 면세 환급.",
+        "en": "Korea's largest K-beauty flagship — all skincare & makeup brands. Bring passport for instant tax refund.",
+        "ja": "韓国最大のK-beautyフラッグシップ — スキンケア/メイク全ブランド集結。パスポート持参で即時免税還付。",
+        "zh": "韩国最大K-beauty旗舰店——护肤/彩妆全品牌汇聚。携带护照可即时退税。"
+      },
+      "lat": 37.5639,
+      "lng": 126.9853,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Myeongdong",
+        "en": "Verified lunch in Myeongdong",
+        "ja": "Verified lunch in Myeongdong",
+        "zh": "Verified lunch in Myeongdong"
+      },
+      "address": "서울특별시 중구 명동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "명동 — 명동교자 / 칼국수 / 닭한마리 (식이 제약 매칭).",
+        "en": "Myeongdong — Myeongdong Gyoja / kalguksu / whole chicken soup matched to diet.",
+        "ja": "明洞 — 明洞餃子 / カルグクス / タッカルビ (食事制限マッチング)。",
+        "zh": "明洞 — 明洞饺子 / 刀削面 / 炖全鸡 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 100
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "이니스프리 명동",
+      "name_i18n": {
+        "ko": "이니스프리 명동",
+        "en": "Innisfree Myeongdong",
+        "ja": "イニスフリー明洞",
+        "zh": "悦诗风吟明洞店"
+      },
+      "address": "서울 중구 명동8길 9",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "제주 자연 성분 기반 스킨케어 — 마스크팩 체험존. 전 제품 영문 라벨.",
+        "en": "Jeju natural skincare — try-on mask zone. All products have English labels.",
+        "ja": "済州産天然スキンケア — マスクパック体験ゾーン。全製品英語表記。",
+        "zh": "济州岛天然护肤——面膜体验区。所有产品有英文标签。"
+      },
+      "lat": 37.5634,
+      "lng": 126.9842,
+      "start_time_offset_min": 175
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "토니모리 명동",
+      "name_i18n": {
+        "ko": "토니모리 명동 + 기타 K-뷰티 편집샵",
+        "en": "Tony Moly Myeongdong + K-Beauty Multi-Brand Store",
+        "ja": "トニーモリー明洞 + K-beautyマルチブランドショップ",
+        "zh": "兔尼魅力明洞店 + K-beauty集合店"
+      },
+      "address": "서울 중구 명동8나길 10",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "토니모리 판다 패키지 + 주변 K-뷰티 브랜드 편집샵. 선물용 포장 서비스 가능.",
+        "en": "Tony Moly panda packaging + nearby K-beauty multi-brand stores. Gift wrapping available.",
+        "ja": "トニーモリーパンダパッケージ + 周辺K-beautyマルチブランドショップ。ギフトラッピングサービスあり。",
+        "zh": "兔尼魅力熊猫包装 + 周边K-beauty集合店。可提供礼品包装服务。"
+      },
+      "lat": 37.5631,
+      "lng": 126.9845,
+      "start_time_offset_min": 250
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Myeongdong",
+        "en": "Verified dinner in Myeongdong",
+        "ja": "Verified dinner in Myeongdong",
+        "zh": "Verified dinner in Myeongdong"
+      },
+      "address": "서울특별시 중구 명동길 야시장",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "명동 야시장 — 길거리 음식 + 쇼핑 마무리.",
+        "en": "Myeongdong night market — street food + final shopping.",
+        "ja": "明洞夜市 — 屋台フード + 最後のショッピング。",
+        "zh": "明洞夜市——街头美食 + 最后购物。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 360
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "명동 내 도보 이동",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 300, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "명동 내 도보 이동",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 300, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "명동 내 도보 이동",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "명동 내 도보 이동",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "kbeauty_lover",
+    "shopper",
+    "first_time_visitor",
+    "beauty_enthusiast"
+  ],
+  "unsuitable_for": [
+    "crowd_averse"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 K-뷰티 명동 블록 — 올리브영 플래그십 + 이니스프리 + 토니모리. Kbeauty style 매칭용. Mock transit/lat/lng — 운영자 재빌드 권장."
+}

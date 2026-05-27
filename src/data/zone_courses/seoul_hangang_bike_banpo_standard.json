@@ -1,0 +1,216 @@
+{
+  "id": "SEOUL_DAY_HANGANG_BIKE_BANPO_STANDARD",
+  "city": "seoul",
+  "zone": "Banpo Hangang Bike",
+  "theme": "한강 자전거 + 반포 달빛 무지개분수",
+  "theme_i18n": {
+    "ko": "한강 자전거 + 반포 달빛 무지개분수",
+    "en": "Hangang Bike + Banpo Moonlight Rainbow Fountain",
+    "ja": "漢江自転車 + 盤浦月光虹の噴水",
+    "zh": "汉江自行车 + 盘浦月光彩虹喷泉"
+  },
+  "intensity": "standard",
+  "duration_min": 480,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "따릉이 반포 한강공원 대여",
+      "name_i18n": {
+        "ko": "따릉이 대여 (반포 한강공원)",
+        "en": "Ttareungi Rental (Banpo Hangang Park)",
+        "ja": "タレンギレンタル (盤浦漢江公園)",
+        "zh": "租借公共自行车 (盘浦汉江公园)"
+      },
+      "address": "서울 서초구 반포동 반포한강공원",
+      "stay_min": 120,
+      "entry_fee_krw": 1000,
+      "entry_fee": {
+        "adult": 1000,
+        "child": 500,
+        "senior": 500,
+        "toddler": 0,
+        "notes": "따릉이 앱 1시간 ₩1,000. 반포대교 달빛 무지개분수 12:00-23:00 운영."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "반포 최고 라이딩 — 달빛 무지개분수 감상 + 이촌한강공원까지 왕복 약 12km. 황혼 시 장관.",
+        "en": "Best Banpo ride — Moonlight Rainbow Fountain + Ichon Hangang Park. ~12km roundtrip. Spectacular at dusk.",
+        "ja": "最高の盤浦ライド — 月光虹の噴水 + 二村漢江公園。往復約12km。夕暮れ時に圧巻。",
+        "zh": "最佳盘浦骑行——月光彩虹喷泉 + 二村汉江公园。约12公里往返。黄昏时分蔚为壮观。"
+      },
+      "lat": 37.5097,
+      "lng": 126.9981,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "반포대교 달빛 무지개분수",
+      "name_i18n": {
+        "ko": "반포대교 달빛 무지개분수 감상",
+        "en": "Banpo Bridge Moonlight Rainbow Fountain Viewing",
+        "ja": "盤浦橋月光虹の噴水鑑賞",
+        "zh": "盘浦桥月光彩虹喷泉观赏"
+      },
+      "address": "서울 서초구 반포동 반포대교",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "세계 최장 다리 분수 — 기네스 기록. 운영 시간: 12:00-23:00 (정시/30분마다). 야간 뷰 최고.",
+        "en": "World's longest bridge fountain — Guinness record. Operating: 12:00-23:00 (hourly/30min). Best at night.",
+        "ja": "世界最長の橋の噴水 — ギネス記録。運営：12:00-23:00（毎時/30分ごと）。夜が最高。",
+        "zh": "世界最长桥梁喷泉——吉尼斯记录。运营时间：12:00-23:00（每小时/30分钟）。夜景最佳。"
+      },
+      "lat": 37.5100,
+      "lng": 126.9942,
+      "start_time_offset_min": 135
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Banpo",
+        "en": "Verified lunch in Banpo",
+        "ja": "Verified lunch in Banpo",
+        "zh": "Verified lunch in Banpo"
+      },
+      "address": "서울 서초구 반포동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "반포 주변 식사 — 서초구 맛집 / 한식 (식이 제약 매칭).",
+        "en": "Banpo area lunch — Seocho neighborhood restaurants / Korean food matched to diet.",
+        "ja": "盤浦周辺のランチ — 瑞草区グルメ / 韓食 (食事制限マッチング)。",
+        "zh": "盘浦周边午餐——瑞草区美食 / 韩餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 215
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "이촌한강공원",
+      "name_i18n": {
+        "ko": "이촌한강공원 (자전거 코스 연장)",
+        "en": "Ichon Hangang Park (extended bike route)",
+        "ja": "二村漢江公園 (自転車コース延長)",
+        "zh": "二村汉江公园 (延伸自行车路线)"
+      },
+      "address": "서울 용산구 이촌동 이촌한강공원",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "반포에서 이촌까지 자전거 연장 — 조용한 한강 뷰. 국립중앙박물관 인근.",
+        "en": "Extend ride from Banpo to Ichon — quiet Han River views. Near National Museum of Korea.",
+        "ja": "盤浦から二村まで自転車コース延長 — 静かな漢江ビュー。国立中央博物館に近い。",
+        "zh": "从盘浦延伸骑行至二村——宁静汉江景色。靠近国立中央博物馆。"
+      },
+      "lat": 37.5127,
+      "lng": 126.9726,
+      "start_time_offset_min": 300
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Yongsan",
+        "en": "Verified dinner in Yongsan",
+        "ja": "Verified dinner in Yongsan",
+        "zh": "Verified dinner in Yongsan"
+      },
+      "address": "서울 용산구 이촌동 주변",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "이촌/용산 저녁 — 용산 맛집 / 일본 음식 거리 (식이 제약 매칭).",
+        "en": "Ichon/Yongsan evening — Yongsan restaurants / Japanese food street matched to diet.",
+        "ja": "二村/龍山の夜 — 龍山グルメ / 日本料理街 (食事制限マッチング)。",
+        "zh": "二村/龙山晚间——龙山美食 / 日本料理街 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 375
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "bike",
+      "duration_min": 15,
+      "distance_m": 2000,
+      "cost_krw": 500,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "따릉이 반포→반포대교",
+      "base": { "mode": "bike", "duration_min": 15, "distance_m": 2000, "cost_krw": 500 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "bike",
+      "duration_min": 10,
+      "distance_m": 1500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "반포대교→식당 구간 자전거/도보",
+      "base": { "mode": "bike", "duration_min": 10, "distance_m": 1500, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "bike",
+      "duration_min": 25,
+      "distance_m": 5000,
+      "cost_krw": 500,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "반포→이촌 따릉이",
+      "base": { "mode": "bike", "duration_min": 25, "distance_m": 5000, "cost_krw": 500 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "subway",
+      "duration_min": 15,
+      "distance_m": 2000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "이촌→용산 지하철",
+      "base": { "mode": "subway", "duration_min": 15, "distance_m": 2000, "cost_krw": 1500 }
+    }
+  },
+  "best_for": [
+    "outdoor_lover",
+    "active_traveler",
+    "hangang_explorer",
+    "couple_traveler",
+    "night_view_lover"
+  ],
+  "unsuitable_for": [
+    "mobility_impaired"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 한강 자전거 반포 블록 — 따릉이 라이딩 + 달빛 무지개분수 + 이촌. HangangBike style 매칭용. Mock transit — 운영자 재빌드 권장."
+}

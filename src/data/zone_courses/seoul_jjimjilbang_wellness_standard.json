@@ -1,0 +1,224 @@
+{
+  "id": "SEOUL_DAY_JJIMJILBANG_WELLNESS_STANDARD",
+  "city": "seoul",
+  "zone": "Seoul Jjimjilbang Wellness",
+  "theme": "찜질방 + 전통 웰니스 (서울)",
+  "theme_i18n": {
+    "ko": "찜질방 + 전통 웰니스 (서울)",
+    "en": "Jjimjilbang + Traditional Wellness (Seoul)",
+    "ja": "찜질방 + 伝統ウェルネス (ソウル)",
+    "zh": "汗蒸幕 + 传统养生 (首尔)"
+  },
+  "intensity": "standard",
+  "duration_min": 480,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "드래곤힐 스파",
+      "name_i18n": {
+        "ko": "드래곤힐 스파 (서울 최대 찜질방)",
+        "en": "Dragon Hill Spa (Seoul's largest jjimjilbang)",
+        "ja": "ドラゴンヒルスパ (ソウル最大の찜질방)",
+        "zh": "龙山汗蒸幕 (首尔最大汗蒸幕)"
+      },
+      "address": "서울 용산구 한강대로 40길 25",
+      "stay_min": 180,
+      "entry_fee_krw": 16000,
+      "entry_fee": {
+        "adult": 16000,
+        "child": 12000,
+        "senior": 14000,
+        "toddler": 0,
+        "notes": "입장료에 가운 대여 및 기본 시설 이용 포함. 타올/어메니티 별도."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "7층 규모 — 사우나 / 수영장 / 황토방 / 소금방 / 찜질방 / 수면실 / 푸드코트. 24시간 운영. 영문 안내 완비.",
+        "en": "7 floors — sauna / pool / clay room / salt room / jjimjilbang / sleep area / food court. 24h. English signs.",
+        "ja": "7フロア — サウナ / プール / 黄土部屋 / 塩部屋 / 찜질방 / 仮眠エリア / フードコート。24時間。英語案内完備。",
+        "zh": "7层楼——桑拿 / 泳池 / 黄土房 / 盐房 / 汗蒸房 / 休息区 / 美食广场。24小时营业。全程英文指示。"
+      },
+      "lat": 37.5275,
+      "lng": 126.9654,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Yongsan",
+        "en": "Verified lunch in Yongsan",
+        "ja": "Verified lunch in Yongsan",
+        "zh": "Verified lunch in Yongsan"
+      },
+      "address": "서울 용산구 한강대로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "용산 주변 식사 — 숯불구이 / 한식 (식이 제약 매칭).",
+        "en": "Yongsan area lunch — charcoal grill / Korean food matched to diet.",
+        "ja": "龍山周辺のランチ — 炭火焼き / 韓食 (食事制限マッチング)。",
+        "zh": "龙山周边午餐——炭火烧烤 / 韩餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 200
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "실로암 사우나",
+      "name_i18n": {
+        "ko": "실로암 사우나 (동대문 전통 사우나)",
+        "en": "Siloam Sauna (Dongdaemun traditional sauna)",
+        "ja": "シロアムサウナ (東大門の伝統サウナ)",
+        "zh": "实乐园桑拿 (东大门传统桑拿)"
+      },
+      "address": "서울 중구 퇴계로 264",
+      "stay_min": 120,
+      "entry_fee_krw": 12000,
+      "entry_fee": {
+        "adult": 12000,
+        "child": 9000,
+        "senior": 10000,
+        "toddler": 0,
+        "notes": "가성비 24시간 찜질방. 기본 어메니티 포함."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "동대문 근처 클래식 찜질방 — 장인 고수들의 이태리 타월 때밀이. 찜질방 본연의 로컬 경험.",
+        "en": "Classic jjimjilbang near Dongdaemun — professional Italy towel scrub. Authentic local experience.",
+        "ja": "東大門近くのクラシックな찜질방 — プロのイタリアタオルスクラブ。本物のローカル体験。",
+        "zh": "东大门附近经典汗蒸幕——专业意大利搓澡巾。正宗本地体验。"
+      },
+      "lat": 37.5614,
+      "lng": 127.0068,
+      "start_time_offset_min": 285
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified cafe in Dongdaemun",
+        "en": "Verified cafe in Dongdaemun",
+        "ja": "Verified cafe in Dongdaemun",
+        "zh": "Verified cafe in Dongdaemun"
+      },
+      "address": "서울 중구 동대문 주변",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "사우나 후 휴식 카페 — 동대문 인근 카페에서 힐링.",
+        "en": "Post-sauna cafe rest — relax at a Dongdaemun area cafe.",
+        "ja": "サウナ後の休憩カフェ — 東大門近くのカフェでリラックス。",
+        "zh": "桑拿后休息咖啡馆——在东大门附近咖啡馆放松。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 420
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Dongdaemun",
+        "en": "Verified dinner in Dongdaemun",
+        "ja": "Verified dinner in Dongdaemun",
+        "zh": "Verified dinner in Dongdaemun"
+      },
+      "address": "서울 중구 동대문",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "동대문 야식 — 순대국밥 / 설렁탕 / 야식 코스 (식이 제약 매칭).",
+        "en": "Dongdaemun late-night — sundae gukbap / seolleongtang / night food matched to diet.",
+        "ja": "東大門の夜食 — スンデクッパ / ソルロンタン / 夜食コース (食事制限マッチング)。",
+        "zh": "东大门夜宵——血肠汤饭 / 雪浓汤 / 夜宵套餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 415
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "드래곤힐 주변 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 600, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "subway",
+      "duration_min": 20,
+      "distance_m": 4000,
+      "cost_krw": 1500,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "용산→동대문 지하철",
+      "base": { "mode": "subway", "duration_min": 20, "distance_m": 4000, "cost_krw": 1500 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "동대문 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "동대문 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "wellness_seeker",
+    "local_experience",
+    "budget_traveler",
+    "cultural_explorer"
+  ],
+  "unsuitable_for": [
+    "crowd_averse"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 서울 찜질방 웰니스 블록 — 드래곤힐 스파 + 실로암 사우나. Jjimjilbang style 매칭용. Mock transit — 운영자 재빌드 권장."
+}

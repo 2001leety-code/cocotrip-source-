@@ -1,0 +1,215 @@
+{
+  "id": "BUSAN_DAY_KBEAUTY_SEOMYEON_STANDARD",
+  "city": "busan",
+  "zone": "Seomyeon K-beauty",
+  "theme": "K-뷰티 쇼핑 (부산 서면)",
+  "theme_i18n": {
+    "ko": "K-뷰티 쇼핑 (부산 서면)",
+    "en": "K-Beauty Shopping (Busan Seomyeon)",
+    "ja": "K-ビューティ ショッピング (釜山西面)",
+    "zh": "K-美妆购物 (釜山西面)"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "올리브영 부산 서면",
+      "name_i18n": {
+        "ko": "올리브영 부산 서면",
+        "en": "Olive Young Busan Seomyeon",
+        "ja": "オリーブヤング釜山西面",
+        "zh": "橄榄少年釜山西面店"
+      },
+      "address": "부산 부산진구 서전로 8-1",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 입장. 면세 환급 가능."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산 최대 K-뷰티 중심지 — 올리브영 + 주요 스킨케어 브랜드. 면세 혜택.",
+        "en": "Busan's largest K-beauty hub — Olive Young + major skincare brands. Tax-free.",
+        "ja": "釜山最大のK-beautyハブ — オリーブヤング + 主要スキンケアブランド。免税特典。",
+        "zh": "釜山最大K-beauty中心——橄榄少年 + 主要护肤品牌。免税优惠。"
+      },
+      "lat": 35.1577,
+      "lng": 129.0605,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "shopping",
+      "name": "서면 롯데백화점 면세 뷰티",
+      "name_i18n": {
+        "ko": "서면 롯데백화점 면세 뷰티존",
+        "en": "Seomyeon Lotte Dept. Duty-Free Beauty",
+        "ja": "西面ロッテ百貨店免税ビューティーゾーン",
+        "zh": "西面乐天百货免税美妆区"
+      },
+      "address": "부산 부산진구 부전로 185 롯데백화점 부산본점",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "롯데백화점 내 면세 뷰티존 — 설화수 / SK-II / 랑콤 등 고급 브랜드. 여권 지참 필수.",
+        "en": "Duty-free beauty zone inside Lotte Dept. — Sulwhasoo / SK-II / Lancome. Passport required.",
+        "ja": "ロッテ百貨店内免税ビューティーゾーン — 雪花秀 / SK-II / ランコム。パスポート必須。",
+        "zh": "乐天百货内免税美妆区——雪花秀 / SK-II / 兰蔻。需携带护照。"
+      },
+      "lat": 35.1560,
+      "lng": 129.0593,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Seomyeon",
+        "en": "Verified lunch in Seomyeon",
+        "ja": "Verified lunch in Seomyeon",
+        "zh": "Verified lunch in Seomyeon"
+      },
+      "address": "부산 부산진구 서면",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "서면 맛집 — 돼지국밥 / 밀면 / 부산식 해산물 (식이 제약 매칭).",
+        "en": "Seomyeon restaurants — pork soup / Busan noodles / Busan seafood matched to diet.",
+        "ja": "西面グルメ — ポクッパ / ミルミョン / 釜山式シーフード (食事制限マッチング)。",
+        "zh": "西面美食——猪肉汤饭 / 釜山面条 / 釜山海鲜 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 195
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "서면 인디 뷰티 편집샵",
+      "name_i18n": {
+        "ko": "서면 K-뷰티 편집샵 거리",
+        "en": "Seomyeon K-Beauty Boutique Street",
+        "ja": "西面K-beautyセレクトショップ街",
+        "zh": "西面K-beauty精品街"
+      },
+      "address": "부산 부산진구 전포대로 서면 번화가",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "서면 K-뷰티 골목 — 중소 인디 브랜드 + 부산 로컬 스킨케어 아이템.",
+        "en": "Seomyeon K-beauty alley — indie brands + Busan local skincare items.",
+        "ja": "西面K-beautyの路地 — インディブランド + 釜山ローカルスキンケアアイテム。",
+        "zh": "西面K-beauty小巷——独立品牌 + 釜山本地护肤品。"
+      },
+      "lat": 35.1570,
+      "lng": 129.0600,
+      "start_time_offset_min": 275
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Seomyeon",
+        "en": "Verified dinner in Seomyeon",
+        "ja": "Verified dinner in Seomyeon",
+        "zh": "Verified dinner in Seomyeon"
+      },
+      "address": "부산 부산진구 서면 먹자골목",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "서면 먹자골목 — 부산 야식 / 포차 문화. K-뷰티 쇼핑 마무리.",
+        "en": "Seomyeon food alley — Busan late-night / pojangmacha culture. End of K-beauty day.",
+        "ja": "西面フードアレー — 釜山夜食 / ポジャンマチャ文化。K-beautyショッピングの締めくくり。",
+        "zh": "西面美食街——釜山夜宵 / 路边摊文化。K-beauty购物收尾。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 365
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "서면 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "서면 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 300, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "서면 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "서면 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "kbeauty_lover",
+    "shopper",
+    "beauty_enthusiast",
+    "first_time_visitor"
+  ],
+  "unsuitable_for": [
+    "crowd_averse"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 K-뷰티 부산 서면 블록 — 올리브영 + 롯데 면세 뷰티 + 편집샵. Kbeauty style 매칭용. Mock transit — 운영자 재빌드 권장."
+}

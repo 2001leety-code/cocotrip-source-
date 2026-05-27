@@ -1,0 +1,216 @@
+{
+  "id": "SEOUL_DAY_KBEAUTY_HONGDAE_STANDARD",
+  "city": "seoul",
+  "zone": "Hongdae K-beauty",
+  "theme": "K-뷰티 + 패션 쇼핑 (홍대/합정)",
+  "theme_i18n": {
+    "ko": "K-뷰티 + 패션 쇼핑 (홍대/합정)",
+    "en": "K-Beauty + Fashion Shopping (Hongdae/Hapjeong)",
+    "ja": "K-ビューティ + ファッションショッピング (弘大/合井)",
+    "zh": "K-美妆 + 时尚购物 (弘大/合井)"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "스타일난다 3CE 홍대",
+      "name_i18n": {
+        "ko": "스타일난다 3CE 홍대",
+        "en": "Stylenanda 3CE Hongdae",
+        "ja": "スタイルナンダ3CEホンデ",
+        "zh": "3CE弘大旗舰店"
+      },
+      "address": "서울 마포구 어울마당로 38",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 입장. 면세 환급 가능."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "글로벌 인기 3CE 메이크업 브랜드 플래그십 — 체험 메이크업 쇼케이스. 선물용 패키징 인기.",
+        "en": "Globally popular 3CE makeup flagship — live makeup showcase. Popular for gift packaging.",
+        "ja": "グローバルに人気の3CEメイクフラッグシップ — ライブメイクショーケース。ギフト用パッケージが人気。",
+        "zh": "全球知名3CE彩妆旗舰店——现场美妆展示。礼品包装深受欢迎。"
+      },
+      "lat": 37.5518,
+      "lng": 126.9229,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "shopping",
+      "name": "홍대 K-뷰티 편집샵 투어",
+      "name_i18n": {
+        "ko": "홍대 K-뷰티 편집샵 투어",
+        "en": "Hongdae K-Beauty Multi-Brand Store Tour",
+        "ja": "弘大K-beautyマルチブランドストアツアー",
+        "zh": "弘大K-beauty集合店巡礼"
+      },
+      "address": "서울 마포구 와우산로 89 홍대 상상마당 주변",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "홍대 독립 뷰티 편집샵 + 소규모 스킨케어 브랜드. 명동보다 독특한 제품 많음.",
+        "en": "Hongdae indie beauty boutiques + small skincare brands. More unique finds than Myeongdong.",
+        "ja": "弘大インディービューティーセレクトショップ + 小規模スキンケアブランド。明洞より個性的な商品が多い。",
+        "zh": "弘大独立美妆精品店 + 小众护肤品牌。比明洞更多独特发现。"
+      },
+      "lat": 37.5527,
+      "lng": 126.9238,
+      "start_time_offset_min": 75
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Hongdae",
+        "en": "Verified lunch in Hongdae",
+        "ja": "Verified lunch in Hongdae",
+        "zh": "Verified lunch in Hongdae"
+      },
+      "address": "서울특별시 마포구 연남동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "연남동 브런치 카페 + 한식 — 쇼핑 중간 휴식.",
+        "en": "Yeonnam-dong brunch cafes + Korean food — rest between shopping.",
+        "ja": "延南洞ブランチカフェ + 韓食 — ショッピングの合間の休憩。",
+        "zh": "延南洞早午餐咖啡馆 + 韩餐——购物间歇的休息。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 165
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "홍대 버스킹 + 거리 아트",
+      "name_i18n": {
+        "ko": "홍대 버스킹 + 걷고싶은거리",
+        "en": "Hongdae Busking + Walking Street",
+        "ja": "弘大バスキング + 歩きたい通り",
+        "zh": "弘大街头表演 + 步行街"
+      },
+      "address": "서울특별시 마포구 양화로 160 홍대 걷고싶은거리",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "뷰티 쇼핑 후 힐링 — 버스킹 + 스트리트 아트 감상. 주말 오후 최고.",
+        "en": "Relax after beauty shopping — busking + street art. Best on weekend afternoons.",
+        "ja": "ビューティーショッピング後のリラックス — バスキング + ストリートアート鑑賞。週末午後が最高。",
+        "zh": "美妆购物后放松——街头表演 + 街头艺术欣赏。周末下午最佳。"
+      },
+      "lat": 37.5527,
+      "lng": 126.9229,
+      "start_time_offset_min": 250
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Hongdae",
+        "en": "Verified dinner in Hongdae",
+        "ja": "Verified dinner in Hongdae",
+        "zh": "Verified dinner in Hongdae"
+      },
+      "address": "서울특별시 마포구 홍대 클럽거리",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "홍대 저녁 — 치맥 / 삼겹살 / 라이브 음악 클럽 (식이 제약 매칭).",
+        "en": "Hongdae evening — chimaek / samgyeopsal / live music clubs matched to diet.",
+        "ja": "弘大の夜 — チメク / 豚バラ / ライブミュージッククラブ (食事制限マッチング)。",
+        "zh": "弘大晚间——炸鸡啤酒 / 五花肉 / 现场音乐俱乐部 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 330
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "홍대 내 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 600, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "홍대→연남동 도보",
+      "base": { "mode": "walk", "duration_min": 15, "distance_m": 800, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "연남동→홍대 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 600, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "홍대 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 300, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "kbeauty_lover",
+    "shopper",
+    "young_traveler",
+    "beauty_enthusiast"
+  ],
+  "unsuitable_for": [
+    "senior_traveler",
+    "family_with_young_kids"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 K-뷰티 홍대 블록 — 스타일난다 3CE + 편집샵 투어 + 홍대 버스킹. Kbeauty style 매칭용. Mock transit — 운영자 재빌드 권장."
+}

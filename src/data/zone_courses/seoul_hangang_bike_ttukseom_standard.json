@@ -1,0 +1,216 @@
+{
+  "id": "SEOUL_DAY_HANGANG_BIKE_TTUKSEOM_STANDARD",
+  "city": "seoul",
+  "zone": "Ttukseom Hangang Bike",
+  "theme": "한강 자전거 + 뚝섬/성수 (힙스터 코스)",
+  "theme_i18n": {
+    "ko": "한강 자전거 + 뚝섬/성수 (힙스터 코스)",
+    "en": "Hangang Bike + Ttukseom/Seongsu (Hipster Route)",
+    "ja": "漢江自転車 + 뚝섬/成水 (ヒップスターコース)",
+    "zh": "汉江自行车 + 纛岛/圣水 (潮人路线)"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "따릉이 뚝섬 한강공원 대여",
+      "name_i18n": {
+        "ko": "따릉이 대여 (뚝섬 한강공원)",
+        "en": "Ttareungi Rental (Ttukseom Hangang Park)",
+        "ja": "タレンギレンタル (뚝섬漢江公園)",
+        "zh": "租借公共自行车 (纛岛汉江公园)"
+      },
+      "address": "서울 광진구 강변북로 139 뚝섬한강공원",
+      "stay_min": 90,
+      "entry_fee_krw": 1000,
+      "entry_fee": {
+        "adult": 1000,
+        "child": 500,
+        "senior": 500,
+        "toddler": 0,
+        "notes": "따릉이 앱 1시간 ₩1,000. 여름 물놀이장 운영."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "뚝섬 출발 라이딩 — 광나루 → 암사생태공원. 약 10km. 성수동 카페 도보 연계 최적.",
+        "en": "Ttukseom start ride — Gwangnaru → Amsa Ecological Park. ~10km. Best combo with Seongsu-dong cafes.",
+        "ja": "뚝섬スタートライド — 広津渡 → 岩寺生態公園。約10km。성수洞カフェとの組み合わせが最高。",
+        "zh": "纛岛出发骑行——广津渡 → 岩寺生态公园。约10公里。与圣水洞咖啡馆完美结合。"
+      },
+      "lat": 37.5290,
+      "lng": 127.0652,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Seongsu",
+        "en": "Verified lunch in Seongsu",
+        "ja": "Verified lunch in Seongsu",
+        "zh": "Verified lunch in Seongsu"
+      },
+      "address": "서울 성동구 성수동",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "성수동 브런치 카페 + 맛집 — 힙스터 성수의 트렌디 식사 (식이 제약 매칭).",
+        "en": "Seongsu-dong brunch cafes + restaurants — trendy hipster Seongsu meal matched to diet.",
+        "ja": "성수洞のブランチカフェ + レストラン — ヒップスター성수のトレンディな食事 (食事制限マッチング)。",
+        "zh": "圣水洞早午餐咖啡馆 + 餐厅——潮人圣水时尚餐食 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "성수동 카페 거리",
+      "name_i18n": {
+        "ko": "성수동 카페 + 편집샵 거리",
+        "en": "Seongsu-dong Cafe + Boutique Street",
+        "ja": "성수洞カフェ + セレクトショップ街",
+        "zh": "圣水洞咖啡馆 + 精品店街"
+      },
+      "address": "서울 성동구 성수동1가",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "옛 공장 리모델링 공간 — 로스터리 카페 / 힙한 편집샵 / 갤러리. 인스타 성지.",
+        "en": "Repurposed old factories — roastery cafes / trendy boutiques / galleries. Instagram hotspot.",
+        "ja": "旧工場のリノベーション空間 — ロースタリーカフェ / おしゃれなセレクトショップ / ギャラリー。インスタ聖地。",
+        "zh": "旧工厂改造空间——烘焙咖啡馆 / 潮流精品店 / 画廊。Instagram打卡胜地。"
+      },
+      "lat": 37.5444,
+      "lng": 127.0557,
+      "start_time_offset_min": 205
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "서울숲",
+      "name_i18n": {
+        "ko": "서울숲 (성수 인근)",
+        "en": "Seoul Forest (near Seongsu)",
+        "ja": "ソウルの森 (성수近く)",
+        "zh": "首尔森林 (圣水附近)"
+      },
+      "address": "서울 성동구 뚝섬로 273 서울숲",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "성수동 인근 도심 공원 — 사슴 생태원 / 문화예술 공간. 피크닉 / 자전거 산책.",
+        "en": "Urban park near Seongsu — deer ecological garden / culture space. Picnic / bike trails.",
+        "ja": "성수洞近くの都市公園 — 鹿生態園 / 文化芸術空間。ピクニック / 自転車散策。",
+        "zh": "圣水附近城市公园——鹿生态园 / 文化艺术空间。野餐 / 自行车漫步。"
+      },
+      "lat": 37.5447,
+      "lng": 127.0374,
+      "start_time_offset_min": 315
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Seongsu",
+        "en": "Verified dinner in Seongsu",
+        "ja": "Verified dinner in Seongsu",
+        "zh": "Verified dinner in Seongsu"
+      },
+      "address": "서울 성동구 성수동",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "성수동 저녁 — 트렌디 레스토랑 / 크래프트 맥주 바 (식이 제약 매칭).",
+        "en": "Seongsu evening — trendy restaurants / craft beer bars matched to diet.",
+        "ja": "성수洞の夜 — トレンディレストラン / クラフトビアバー (食事制限マッチング)。",
+        "zh": "圣水晚间——时尚餐厅 / 精酿啤酒吧 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 390
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 700,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "뚝섬→성수동 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 700, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "성수동 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "성수동→서울숲 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 800, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "서울숲→성수동 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 800, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "outdoor_lover",
+    "active_traveler",
+    "hangang_explorer",
+    "young_traveler",
+    "hipster_traveler"
+  ],
+  "unsuitable_for": [
+    "mobility_impaired"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 한강 자전거 뚝섬/성수 블록 — 따릉이 라이딩 + 성수동 카페 + 서울숲. HangangBike style 매칭용. Mock transit — 운영자 재빌드 권장."
+}

@@ -1,0 +1,217 @@
+{
+  "id": "SEOUL_DAY_KBEAUTY_APGUJEONG_STANDARD",
+  "city": "seoul",
+  "zone": "Apgujeong K-beauty",
+  "theme": "프리미엄 K-뷰티 + 가로수길 (압구정/청담)",
+  "theme_i18n": {
+    "ko": "프리미엄 K-뷰티 + 가로수길 (압구정/청담)",
+    "en": "Premium K-Beauty + Garosugil (Apgujeong/Cheongdam)",
+    "ja": "プレミアムK-ビューティ + 가로수길 (狎鴎亭/清潭)",
+    "zh": "高端K-美妆 + 林荫道 (狎鸥亭/清潭)"
+  },
+  "intensity": "standard",
+  "duration_min": 480,
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "아리따움 압구정",
+      "name_i18n": {
+        "ko": "아리따움 압구정 (설화수/후 인근)",
+        "en": "Aritaum Apgujeong (Sulwhasoo/Whoo nearby)",
+        "ja": "アリタウム狎鴎亭 (雪花秀/后が近く)",
+        "zh": "爱花道狎鸥亭 (雪花秀/后附近)"
+      },
+      "address": "서울 강남구 압구정로 242",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "무료 입장. 면세 환급 가능."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "압구정 고급 K-뷰티 거리 — 설화수 / 후 / 오휘 등 프리미엄 한방 브랜드. 면세 혜택.",
+        "en": "Apgujeong premium K-beauty street — Sulwhasoo / Whoo / Ohui premium herbal brands. Tax-free.",
+        "ja": "狎鴎亭高級K-beautyストリート — 雪花秀 / 后 / OHUI などプレミアム漢方ブランド。免税特典。",
+        "zh": "狎鸥亭高端K-beauty街——雪花秀 / 后 / OHUI 等高端韩方品牌。免税优惠。"
+      },
+      "lat": 37.5271,
+      "lng": 127.0291,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Apgujeong",
+        "en": "Verified lunch in Apgujeong",
+        "ja": "Verified lunch in Apgujeong",
+        "zh": "Verified lunch in Apgujeong"
+      },
+      "address": "서울 강남구 압구정로 압구정 로데오 거리",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "압구정 로데오 거리 — 분위기 있는 레스토랑 + 카페 (식이 제약 매칭).",
+        "en": "Apgujeong Rodeo Street — upscale restaurants + cafes matched to diet.",
+        "ja": "狎鴎亭ロデオストリート — おしゃれなレストラン + カフェ (食事制限マッチング)。",
+        "zh": "狎鸥亭罗迪欧街——高端餐厅 + 咖啡馆 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "에뛰드 하우스 가로수길",
+      "name_i18n": {
+        "ko": "에뛰드 하우스 가로수길 + 럭셔리 K-뷰티",
+        "en": "Etude House Garosugil + Luxury K-Beauty",
+        "ja": "エチュードハウス가로수길 + ラグジュアリーK-beauty",
+        "zh": "伊蒂之屋林荫道 + 奢华K-美妆"
+      },
+      "address": "서울 강남구 가로수길 28",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "가로수길 K-뷰티 + 프리미엄 편집샵 — 에뛰드 하우스 + 주변 럭셔리 브랜드. 인스타 포토존.",
+        "en": "Garosugil K-beauty + premium boutiques — Etude House + surrounding luxury brands. Instagram photo spots.",
+        "ja": "가로수길K-beauty + プレミアムセレクトショップ — エチュードハウス + 周辺ラグジュアリーブランド。インスタ映えスポット。",
+        "zh": "林荫道K-beauty + 高端精品店——伊蒂之屋 + 周边奢华品牌。Instagram拍照胜地。"
+      },
+      "lat": 37.5191,
+      "lng": 127.0223,
+      "start_time_offset_min": 210
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified cafe in Garosugil",
+        "en": "Verified cafe in Garosugil",
+        "ja": "Verified cafe in Garosugil",
+        "zh": "Verified cafe in Garosugil"
+      },
+      "address": "서울 강남구 가로수길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_cafe",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "가로수길 프리미엄 카페 — 쇼핑 후 휴식. 스페셜티 커피 + 디저트.",
+        "en": "Garosugil premium cafe — rest after shopping. Specialty coffee + dessert.",
+        "ja": "가로수길プレミアムカフェ — ショッピング後の休憩。スペシャルティコーヒー + デザート。",
+        "zh": "林荫道高端咖啡馆——购物后休息。精品咖啡 + 甜点。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 315
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Cheongdam",
+        "en": "Verified dinner in Cheongdam",
+        "ja": "Verified dinner in Cheongdam",
+        "zh": "Verified dinner in Cheongdam"
+      },
+      "address": "서울 강남구 청담동",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "청담동 파인다이닝 / 트렌디 레스토랑 — 럭셔리 K-뷰티 여행 마무리.",
+        "en": "Cheongdam fine dining / trendy restaurants — perfect end to luxury K-beauty day.",
+        "ja": "清潭洞ファインダイニング / トレンディレストラン — ラグジュアリーK-beautyデーの締めくくりに最適。",
+        "zh": "清潭洞高端餐厅 / 时尚餐厅——奢华K-beauty之旅的完美收尾。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 390
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "압구정 내 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 600, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 900,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "압구정→가로수길 도보",
+      "base": { "mode": "walk", "duration_min": 15, "distance_m": 900, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "가로수길 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 300, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "taxi",
+      "duration_min": 10,
+      "distance_m": 1200,
+      "cost_krw": 4800,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "가로수길→청담동 택시",
+      "base": { "mode": "taxi", "duration_min": 10, "distance_m": 1200, "cost_krw": 4800 }
+    }
+  },
+  "best_for": [
+    "kbeauty_lover",
+    "luxury_shopper",
+    "premium_experience",
+    "beauty_enthusiast"
+  ],
+  "unsuitable_for": [
+    "budget_traveler"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 프리미엄 K-뷰티 압구정/가로수길 블록. Kbeauty style 매칭용. Mock transit — 운영자 재빌드 권장."
+}
