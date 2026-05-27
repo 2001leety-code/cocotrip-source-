@@ -1,8 +1,8 @@
 [
   {
-    "name": "Main bundle (eager — first paint critical, all index-* chunks). 2026-05-09 launch blocker fix: 260→270 KB. 2026-05-13 PR #388: 270→275 KB 임시 상향. 2026-05-13 PR #393: 275→250 KB 환원 (PR #392 -35 KB 효과). PR #395 Wizard step + zoneData lazy 추가: 실측 220.31 KB. 2026-05-13 PR #405: 250→225 KB 환원 (자율 검증 강화, 4.69 KB 마진). 2026-05-20 PR #495: 225→235 KB (P111~P116 plan audit + P115 Markdown export 실측 227.25 KB, ~7 KB 마진 확보). 2026-05-27 P228: 235→236 KB (실측 235.04 KB, 39B 초과 → 마진 확보). 후속 증가 시 lazy-split 또는 한도 조정 — 마진 5 KB 이하면 알람.",
+    "name": "Main bundle (eager — first paint critical, all index-* chunks). 2026-05-09 launch blocker fix: 260→270 KB. 2026-05-13 PR #388: 270→275 KB 임시 상향. 2026-05-13 PR #393: 275→250 KB 환원 (PR #392 -35 KB 효과). PR #395 Wizard step + zoneData lazy 추가: 실측 220.31 KB. 2026-05-13 PR #405: 250→225 KB 환원 (자율 검증 강화, 4.69 KB 마진). 2026-05-20 PR #495: 225→235 KB (P111~P116 plan audit + P115 Markdown export 실측 227.25 KB, ~7 KB 마진 확보). 2026-05-27 P228: 235→236 KB (실측 235.04 KB, 39B 초과 → 마진 확보). 2026-05-27 P239: 236→237 KB (architectural tourStartTime UI/state/handler — 실측 236.47 KB, 466B 초과). 후속 증가 시 lazy-split 또는 한도 조정 — 마진 5 KB 이하면 알람.",
     "path": "dist/assets/index-*.js",
-    "limit": "236 KB",
+    "limit": "237 KB",
     "gzip": true
   },
   {

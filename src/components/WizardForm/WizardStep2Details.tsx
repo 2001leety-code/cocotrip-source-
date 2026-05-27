@@ -45,6 +45,12 @@ interface Step2Props {
   setArrivalTime: (v: string) => void;
   departureTime: string;
   setDepartureTime: (v: string) => void;
+  /** P239 (2026-05-27): 투어 시작 시간 — 새벽 도착 시 호텔 transit 만 / 다음 stops 는
+   *  tourStartTime 부터. arrival_time 무관하게 Day1 stops 시작 시각을 고정.
+   *  default '09:00'. 운영자 의도: 새벽 01:30 도착해도 호텔만 가고 09:00 부터 투어 시작.
+   *  root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive. */
+  tourStartTime: string;
+  setTourStartTime: (v: string) => void;
   luggageSmall: number;
   setLuggageSmall: (v: number) => void;
   luggageMedium: number;
@@ -144,6 +150,7 @@ export function WizardStep2Details(props: Step2Props) {
     departureTerminal, setDepartureTerminal,
     hotelAddress, setHotelAddress,
     arrivalTime, setArrivalTime, departureTime, setDepartureTime,
+    tourStartTime, setTourStartTime,
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
@@ -602,6 +609,46 @@ export function WizardStep2Details(props: Step2Props) {
           <input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)}
             className="w-full bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]" />
         </div>
+      </div>
+
+      {/* P239 (2026-05-27): 투어 시작 시간 — 운영자 의도 박제.
+          "새벽 도착해도 호텔까지 경로만 알려주고 투어 시작시간을 정하면 거기에만 맞춰 작성"
+          arrival_time 무관하게 Day1 stops 시작 시각을 고정. default 09:00.
+          root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive.
+          UI 비유: "🌅 투어 시작 시간 09:00" — 호텔 체크인은 따로, 투어는 09:00 부터. */}
+      <div className="rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.04] p-3.5">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <p className="text-sm font-semibold text-white">
+            <span className="mr-1.5">🌅</span>
+            {(p as Record<string, string>).tourStartTimeLabel || 'Tour start time'}
+          </p>
+          <input
+            type="time"
+            value={tourStartTime || '09:00'}
+            onChange={e => setTourStartTime(e.target.value)}
+            min="04:00"
+            max="14:00"
+            className="bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]"
+            aria-label={(p as Record<string, string>).tourStartTimeLabel || 'Tour start time'}
+          />
+        </div>
+        <p className="text-[11px] text-white/55 leading-snug">
+          {(p as Record<string, string>).tourStartTimeHint
+            || 'Late-night arrival? Just rest at the hotel — your tour starts at this time.'}
+        </p>
+        {/* validation hint: tourStartTime 가 arrival_time 이전 또는 departure_time 이후일 때 amber */}
+        {tourStartTime && arrivalTime && tourStartTime <= arrivalTime && (
+          <p className="text-[11px] text-amber-300/80 mt-1.5">
+            {(p as Record<string, string>).tourStartTimeAfterArrival
+              || 'Tour start time should be after your arrival time.'}
+          </p>
+        )}
+        {tourStartTime && departureTime && tourStartTime >= departureTime && (
+          <p className="text-[11px] text-amber-300/80 mt-1.5">
+            {(p as Record<string, string>).tourStartTimeBeforeDeparture
+              || 'Tour start time should be before your departure time.'}
+          </p>
+        )}
       </div>
 
       {/* Luggage counters — heavy bags trigger taxi recommendation in arrival_guide.

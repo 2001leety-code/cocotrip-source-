@@ -245,8 +245,31 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
         </>
       )}
 
+      {/* P239 (2026-05-27): Day 1 = lodging only 안내 — 운영자 architectural fix.
+          새벽 도착 시 호텔만 transit + 다음날 09:00 (tour_start_time) 부터 stops 시작.
+          stops.length <= 1 AND day.day === 1 일 때만 노출 (다른 day 영향 0). */}
+      {(day.day === 1 || dayIndex === 0) && stops.length <= 1 && (
+        <div className="mb-3 rounded-xl border border-[#7C5CFC]/25 bg-[#7C5CFC]/[0.06] p-3.5">
+          <div className="flex items-start gap-2.5">
+            <span className="text-lg leading-none">🌙</span>
+            <div className="flex-1">
+              <p className="text-[13px] font-semibold text-white mb-1">
+                {pd.day1ArrivalOnlyTitle || 'Late arrival? Rest at your hotel'}
+              </p>
+              <p className="text-[11.5px] text-white/65 leading-relaxed">
+                {pd.day1ArrivalOnlyHint
+                  || (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tour_start_time
+                  ? `Your tour starts tomorrow at ${(plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tour_start_time || (plan?.input as { tour_start_time?: string; tourStartTime?: string } | undefined)?.tourStartTime || '09:00'}.`
+                  : 'Your tour starts tomorrow morning.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Charter CTA -- shown when transit is complex */}
       <CharterCTA day={day} />
+
 
       {/* Transit recalculating indicator */}
       {isRecalculating && (

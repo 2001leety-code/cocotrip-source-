@@ -30,6 +30,9 @@ export interface PlannerSnapshotContentShape {
   hotelAddress?: string;
   arrivalTime?: string;
   departureTime?: string;
+  /** P239 (2026-05-27): tourStartTime autosave content. default '09:00' 단독 입력은
+   *  meaningful content 아님 (resume modal 트리거 X — 다른 시그널 1개 이상과 함께일 때만). */
+  tourStartTime?: string;
   paxInput?: string;
 }
 

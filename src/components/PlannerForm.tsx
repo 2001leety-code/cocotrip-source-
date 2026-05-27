@@ -83,6 +83,10 @@ export interface PlannerFormValues {
   // Backend RouteAgent uses these to recommend the right transit option.
   arrival_time?: string;        // "HH:MM" 24h
   departure_time?: string;      // "HH:MM" 24h
+  // P239 (2026-05-27): 투어 시작 시간 — 운영자 architectural fix. arrival_time 무관하게
+  // Day1 stops 시작 시각 고정. 새벽 도착 시 호텔 transit only + tourStartTime 부터 stops.
+  // root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive.
+  tour_start_time?: string;     // "HH:MM" 24h (default '09:00')
   luggage?: { small: number; medium: number; large: number };
   wantAccom?: boolean;
   accomBudget?: string;

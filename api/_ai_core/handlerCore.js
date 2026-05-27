@@ -208,8 +208,7 @@ export default async function handler(req, res) {
       recommendedZone, recommendedZones, recommendedZoneAddress, routeHotelAddress,
       dietPrefs, allergies, priceRange,
       revisionReason, revisionNote, avoidListBody,
-      arrivalTime, departureTime,
-      sessionId,
+      arrivalTime, departureTime, tourStartTime, sessionId, // P239: tourStartTime architectural (default 09:00)
     } = shaped;
     lastUid = uid;
     const requestEmail = email; // 인증된 email — body.email 무시 (downstream single source).
@@ -291,8 +290,8 @@ export default async function handler(req, res) {
       injectedRestaurants: (foodContext.match(/•/g) || []).length,
     });
 
-    // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: allergies 반드시 포함 (외국인 알레르기 block 선택 반영 의무).
-    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime } })));
+    // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: allergies + P239: tour_start_time 의무.
+    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime } })));
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 

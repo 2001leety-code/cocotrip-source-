@@ -140,6 +140,12 @@ export function shapeRequest(body, authenticatedEmail) {
   // late-night/heavy-luggage 분기 + Gemini prompt 정확도 개선용.
   const arrivalTime = typeof body.arrivalTime === 'string' ? body.arrivalTime.slice(0, 5) : '';
   const departureTime = typeof body.departureTime === 'string' ? body.departureTime.slice(0, 5) : '';
+  // P239 (2026-05-27): tourStartTime — 운영자 architectural fix. arrival_time 무관하게
+  // Day1 stops 시작 시각 고정. body 미입력 (옛 client) 시 '09:00' default 폴백 (R-P239 lint).
+  // HH:MM 형식 검증 (잘못된 입력 시 default '09:00' 폴백 — silent fail 방지).
+  // root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive.
+  const _rawTourStart = typeof body.tourStartTime === 'string' ? body.tourStartTime.slice(0, 5) : '';
+  const tourStartTime = /^\d{2}:\d{2}$/.test(_rawTourStart) ? _rawTourStart : '09:00';
   const luggage = (body.luggage && typeof body.luggage === 'object') ? {
     small: Number(body.luggage.small) || 0,
     medium: Number(body.luggage.medium) || 0,
@@ -171,6 +177,9 @@ export function shapeRequest(body, authenticatedEmail) {
     revisionReason, revisionNote, avoidListBody,
     wantAccom, accomBudget,
     arrivalTime, departureTime, luggage, spiceLevel, bucketDishes, pace,
+    // P239 (2026-05-27): tourStartTime export — handlerCore destructure + userMessageBuilder
+    // inject + buildPrompt 의 tourStartTime instruction 분기. default '09:00' (옛 client 호환).
+    tourStartTime,
     arrivalAddress, departureAddress, sessionId,
   };
 }

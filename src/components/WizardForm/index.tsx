@@ -80,6 +80,9 @@ interface PlannerSnapshotValues {
   hotelAddress: string;
   arrivalTime: string;
   departureTime: string;
+  /** P239 (2026-05-27): 투어 시작 시각. default '09:00'. 새벽 도착 + Day1 stops 분리
+   *  architectural fix. arrival_time 무관하게 Day1 첫 stop 시각을 고정 (호텔 anchor 유지). */
+  tourStartTime: string;
   luggageSmall: number;
   luggageMedium: number;
   luggageLarge: number;
@@ -158,6 +161,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // heavy bags → taxi, otherwise AREX). All optional but improves accuracy.
   const [arrivalTime, setArrivalTime]         = useState('');     // "HH:MM" 24h
   const [departureTime, setDepartureTime]     = useState('');     // "HH:MM" 24h
+  // P239 (2026-05-27): tourStartTime — 새벽 도착 fix. default '09:00' (운영자 권장).
+  // arrival_time 과 별개로 Day1 stops 시작 시각을 고정 → 새벽 도착 시 호텔만 transit
+  // + 09:00 부터 stops 시작. root cause: P159 / P136 / B-13 false positive 해소.
+  const [tourStartTime, setTourStartTime]     = useState('09:00'); // "HH:MM" 24h (default 09:00)
   const [luggageSmall, setLuggageSmall]       = useState(0);
   const [luggageMedium, setLuggageMedium]     = useState(0);
   const [luggageLarge, setLuggageLarge]       = useState(0);
@@ -301,6 +308,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     setHotelAddress(v.hotelAddress ?? '');
     setArrivalTime(v.arrivalTime ?? '');
     setDepartureTime(v.departureTime ?? '');
+    // P239 (2026-05-27): tourStartTime resume — 없는 snapshot 은 default '09:00'.
+    // 옛 snapshot 호환 (architectural fix 도입 전 사용자) — undefined → '09:00'.
+    setTourStartTime(v.tourStartTime ?? '09:00');
     setLuggageSmall(typeof v.luggageSmall === 'number' ? v.luggageSmall : 0);
     setLuggageMedium(typeof v.luggageMedium === 'number' ? v.luggageMedium : 0);
     setLuggageLarge(typeof v.luggageLarge === 'number' ? v.luggageLarge : 0);
@@ -395,6 +405,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     mainCity, mainCityKey, extraCities,
     selectedActivities, freeText,
     dietPrefs, allergies, priceRange, spiceLevel, bucketDishes,
+    // P239 (2026-05-27): tourStartTime autosave — wizard reopen 시 복원.
+    tourStartTime,
     dateRangeFrom: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null,
     dateRangeTo: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : null,
     paxInput, arrivalTerminal, departureTerminal, hotelAddress,
@@ -636,6 +648,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         // New: airport-transport context (all optional)
         arrival_time: arrivalTime || undefined,
         departure_time: departureTime || undefined,
+        // P239 (2026-05-27): 투어 시작 시간 — 운영자 architectural fix.
+        // arrival_time 무관하게 Day1 stops 시작 시각을 고정 (default 09:00).
+        // 새벽 도착 시 호텔 transit 만 + tourStartTime 부터 stops 작성.
+        // root cause level 해결: P159 / P136 / B-13. snake_case → backend 가 camelCase 변환 처리.
+        tour_start_time: tourStartTime || '09:00',
         luggage: totalLuggage > 0 ? { small: luggageSmall, medium: luggageMedium, large: luggageLarge } : undefined,
         // Sprint 2 #5: zone hint when no hotel typed (string key like 'myeongdong').
         // 2026-05-11 (B-2): 단도시 또는 mainCity zone (= entry city) 우선. backend
@@ -795,6 +812,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   hotelAddress={hotelAddress} setHotelAddress={setHotelAddress}
                   arrivalTime={arrivalTime} setArrivalTime={setArrivalTime}
                   departureTime={departureTime} setDepartureTime={setDepartureTime}
+                  /* P239 (2026-05-27): tourStartTime — 새벽 도착 architectural fix */
+                  tourStartTime={tourStartTime} setTourStartTime={setTourStartTime}
                   luggageSmall={luggageSmall} setLuggageSmall={setLuggageSmall}
                   luggageMedium={luggageMedium} setLuggageMedium={setLuggageMedium}
                   luggageLarge={luggageLarge} setLuggageLarge={setLuggageLarge}

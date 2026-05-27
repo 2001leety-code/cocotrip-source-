@@ -659,6 +659,19 @@ export async function generatePDF(
       </div>`;
     }
 
+    // P239 (2026-05-27): Day 1 = lodging only 안내 PDF 카드 — 운영자 architectural fix.
+    // 새벽 도착 시 호텔만 + 다음날 tour_start_time (default 09:00) 부터 stops 시작.
+    // 클라이언트 UI (DayTimeline) 와 동일 카드. stopsLen <= 1 AND day.day === 1 만.
+    if ((day.day === 1 || di === 0) && (day.stops || []).length <= 1) {
+      const tourStart = (input as { tour_start_time?: string; tourStartTime?: string }).tour_start_time
+        || (input as { tour_start_time?: string; tourStartTime?: string }).tourStartTime
+        || '09:00';
+      html += `<div style="margin-bottom:14px;background:rgba(124,92,252,0.06);border:1px solid rgba(124,92,252,0.25);border-radius:6px;padding:10px 12px;page-break-inside:avoid;break-inside:avoid;">
+        <p style="font-size:12px;font-weight:700;color:${C.accent};margin:0 0 4px;">🌙 Late arrival? Rest at your hotel</p>
+        <p style="font-size:10.5px;color:${C.muted};margin:0;line-height:1.5;">Your tour starts tomorrow at ${tourStart}.</p>
+      </div>`;
+    }
+
     // === Sprint 1 Step 4: 일별 요약 박스 ===
     // 사용자 요청: 총 거리, 추정 비용, 추천 photo.
     //  - totalWalkM: 모든 stops의 transit_from_prev.total_walk_m 합 (없으면 skip).
