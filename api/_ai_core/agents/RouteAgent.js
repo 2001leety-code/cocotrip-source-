@@ -992,6 +992,41 @@ export class RouteAgent extends BaseAgent {
                 }
             } else {
                 currentTime = this._parseTime(places[0]?.start_time || "09:00");
+                // P239 (2026-05-27): Day 1 tour_start_time architectural fix.
+                // 운영자 의도: 새벽 도착 시 호텔까지 transit 만 + tour_start_time 부터 stops.
+                // root cause level 해소: P159 새벽 stops (00:00~04:59) / P136 24h wrap / B-13 false positive.
+                //
+                // 룰 (buildPrompt ARRIVAL DAY HANDLING 과 일치):
+                //   - stops[0] (lodging 체크인): arrival_time + 60min — Gemini 값 유지
+                //   - stops[1+] (활동): max(tour_start_time, arrival_time + 60min) 부터 시작
+                //   - tour_start_time hour < 5 또는 잘못된 값: '09:00' 폴백 (안전 + 시설 미운영)
+                //
+                // Day 1 검출: dayIdx === 0 또는 dayPlan.day === 1. 미식별 시 skip (보수적).
+                const isDay1 = dayIdx === 0 || dayPlan.day === 1 || dayPlan.day_index === 1;
+                if (isDay1 && places.length >= 2) {
+                    const firstCat = String(places[0]?.category || '').toLowerCase();
+                    const isLodgingFirst = firstCat === 'lodging';
+                    if (isLodgingFirst) {
+                        // tour_start_time 파싱 + hour<5 폴백 '09:00'.
+                        const tourStartRaw = data.tour_start_time || data.tourStartTime || '09:00';
+                        const tourStartMin = this._parseTime(tourStartRaw);
+                        const tourStartHour = Math.floor((tourStartMin || 0) / 60);
+                        const safeTourStartMin = (tourStartHour >= 5 && tourStartHour <= 23)
+                            ? tourStartMin
+                            : this._parseTime('09:00');
+                        // stops[1] 의 Gemini 시각 vs tour_start_time — 둘 중 늦은 것 사용.
+                        // (Gemini 가 14:00 도착 → 15:00 stops[1] 추천 시 그 값 우선.)
+                        const stop1GeminiMin = this._parseTime(places[1]?.start_time || tourStartRaw);
+                        const arrivalPlus60 = data.arrival_time
+                            ? this._parseTime(data.arrival_time) + 60
+                            : 0;
+                        const effectiveTourStart = Math.max(safeTourStartMin, stop1GeminiMin, arrivalPlus60);
+                        // currentTime 은 stops[0] (lodging) 시각 — 변경 X. stitch loop 가 places[1] 부터
+                        // 처리할 때 이 tour_start_time 을 사용하도록 dayPlan 에 cache.
+                        dayPlan._p239TourStartMin = effectiveTourStart;
+                        console.log(`  [Route] Day 1: P239 tour_start_time set = ${this._formatTime(effectiveTourStart)} (raw=${tourStartRaw}, safe=${this._formatTime(safeTourStartMin)}, gemini stop1=${this._formatTime(stop1GeminiMin)}, arrival+60=${this._formatTime(arrivalPlus60)})`);
+                    }
+                }
             }
             const BUFFER_MIN = 5; // 초행길 여유 시간
 
@@ -1365,6 +1400,17 @@ export class RouteAgent extends BaseAgent {
                     // 이전 장소 체류 후 이동 시간 + 버퍼
                     const prevStayMin = places[i - 1].stay_min || 60;
                     currentTime += prevStayMin + realTransitMin + BUFFER_MIN;
+
+                    // P239 (2026-05-27): Day 1 tour_start_time floor — i==1 (lodging → 첫 활동) 만.
+                    // 운영자 의도: 새벽 도착 시 lodging stops[0] 02:30 + stops[1] 09:00 (tour_start_time).
+                    // currentTime (02:30 + stay 60 + transit 30 + buffer 5 = 04:05) < tour_start_time (09:00).
+                    // 옛 코드: 04:05 그대로 사용 → P159 새벽 stop alert.
+                    // 신 코드: max(currentTime, tour_start_time) — 04:05 → 09:00 floor 적용.
+                    // 영향 영역: Day 1 의 i==1 만. Day 1 의 i>=2 는 prevStayMin chain 으로 자연 처리.
+                    if (i === 1 && Number.isFinite(dayPlan._p239TourStartMin) && currentTime < dayPlan._p239TourStartMin) {
+                        console.log(`  [Route] Day 1: P239 tour_start_time floor — ${this._formatTime(currentTime)} → ${this._formatTime(dayPlan._p239TourStartMin)} (lodging→첫 활동 시각 명시 lift)`);
+                        currentTime = dayPlan._p239TourStartMin;
+                    }
 
                     // P150 (2026-05-22): 24h wrap → Gemini 원본 시각 fallback (P136 22:30 cascade 차단).
                     // 이전: wrap 시 22:30 cap → 이후 stops 도 22:30+stay+transit → 재차 wrap → cascade.

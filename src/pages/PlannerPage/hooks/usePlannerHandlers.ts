@@ -233,6 +233,11 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // (camelCase) 로 읽으므로 read snake_case → send camelCase 변환.
           ...(values.arrival_time ? { arrivalTime: values.arrival_time } : {}),
           ...(values.departure_time ? { departureTime: values.departure_time } : {}),
+          // P239 (2026-05-27): tourStartTime — 운영자 architectural fix forward.
+          // 새벽 도착 시 호텔 transit only + tourStartTime 부터 stops 작성.
+          // snake_case input → camelCase backend (다른 시각 필드와 일관).
+          // default 09:00 → 옛 plan 호환: backend 가 명시 안 받아도 09:00 폴백.
+          ...(values.tour_start_time ? { tourStartTime: values.tour_start_time } : {}),
           ...(values.luggage ? { luggage: values.luggage } : {}),
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
@@ -385,6 +390,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // PlannerFormValues = snake_case, backend body 는 camelCase 기대.
           ...(values.arrival_time ? { arrivalTime: values.arrival_time } : {}),
           ...(values.departure_time ? { departureTime: values.departure_time } : {}),
+          // P239 (2026-05-27): revision path 도 tourStartTime forward (paid path 와 동일 영역 적용).
+          ...(values.tour_start_time ? { tourStartTime: values.tour_start_time } : {}),
           ...(values.luggage ? { luggage: values.luggage } : {}),
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),

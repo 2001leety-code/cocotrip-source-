@@ -370,12 +370,31 @@ hotel_address 또는 recommended_zone 있으면 모든 day: \`[lodging(출발)] 
 RouteAgent가 ODsay로 실제 환승 경로 계산 → stops만 올바르게 배치하면 됨.
 다도시 city-change day: 첫 lodging=origin checkout, 마지막 lodging=destination checkin. (## MULTI-CITY HANDLING 참조)
 
-### 🔴 ARRIVAL DAY HANDLING — STRICT (P124)
-- stops[0] start_time = arrival_time + 60min (공항→호텔)
-- stops[1+] start_time ≥ arrival_time + 9h (1h transit + 8h sleep buffer)
-- arrival_time+9h wraps to [00:00-04:59] → Day 1 = lodging 2stops only
-- 예시: 23:05착→08:05첫활동(5-7) | 03:00착→12:00(4-5) | 06:00착→15:00(3-4) | 19:00착→wrap→lodging2개 | 12:00착→21:00(2-3)
-- NEVER: Day 1 non-lodging stop hour ∈ [00,04]
+### 🔴 ARRIVAL DAY HANDLING — STRICT (P239, 2026-05-27 architectural rewrite)
+**핵심 원칙 (운영자 의도)**: 새벽 도착해도 호텔까지 transit 만 + tour_start_time 부터 stops 작성.
+P124 (arrival_time + 9h sleep buffer) 는 옛 룰. tour_start_time 입력 시 (default '09:00') 본 룰 우선.
+
+- stops[0] (호텔 체크인): start_time = arrival_time + 60min (공항→호텔) — arrival_time 무관 / red-eye 도 동일
+- stops[1+] (투어 활동): start_time ≥ max(tour_start_time, arrival_time + 60min) (사용자 명시 시각 — default 09:00)
+- tour_start_time 이 hour < 5 또는 잘못된 값: 보수적으로 '09:00' 처리 (안전 + 시설 미운영)
+- arrival_time 이 매우 늦으면 (저녁/밤 도착) Day 1 = lodging 1 stop only (다음 day 부터 tour_start_time stops)
+
+**예시 매트릭스 (tour_start_time=09:00 default)**:
+- arrival 01:30 (새벽) → stops[0] 02:30 lodging only, stops[1+] 09:00 부터 → Day 1 호텔 휴식 + 09:00~ 투어
+- arrival 03:00 (새벽) → stops[0] 04:00 lodging only, stops[1+] 09:00 부터
+- arrival 06:00 (아침) → stops[0] 07:00 lodging, stops[1+] 09:00 부터
+- arrival 12:00 (낮) → stops[0] 13:00 lodging, stops[1+] 13:00+ 부터 (arrival > tour_start_time → arrival+60 우선)
+- arrival 19:00 (저녁) → stops[0] 20:00 lodging only, Day 1 추가 stops 0 (Day 2 tour_start_time 부터)
+- arrival 23:05 (밤) → stops[0] 00:05 lodging only, Day 1 = lodging 1 stop only, Day 2 tour_start_time 부터
+
+**tour_start_time 명시 케이스 (사용자 11:00 지정 등)**:
+- arrival 01:30 + tour_start_time 11:00 → stops[0] 02:30 lodging, stops[1+] 11:00 부터
+- arrival 14:00 + tour_start_time 11:00 → stops[0] 15:00 lodging, stops[1+] 15:00+ (arrival+60 > tour_start_time → arrival+60 우선)
+
+- NEVER: Day 1 non-lodging stop hour ∈ [00,04] (P159 root cause 해소 — tour_start_time hour ≥5 강제)
+- NEVER: Day 1 stops[1+] start_time < tour_start_time AND < arrival_time + 60min
+- Day 2 ~ N-1: tour_start_time 무관 (각 day 의 첫 stop 은 그 day 호텔 9-10시 시작 권장)
+- arrival_time 미입력 시 tour_start_time 만 적용 (옛 plan / 미입력 호환)
 
 ### 🔴 DEPARTURE DAY HANDLING — STRICT (P124)
 - 모든 stop start_time ≤ departure_time - 180min (공항 3h buffer 강제)

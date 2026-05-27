@@ -621,29 +621,39 @@ export function validatePatternStructure(itinerary, request = {}) {
   };
   const arrivalMin = parseHHMM(request.arrival_time || request.arrivalTime);
   const departureMin = parseHHMM(request.departure_time || request.departureTime);
+  // P239 (2026-05-27): tour_start_time 도입 — 운영자 architectural fix.
+  // 옛 B-LATE-ARRIVAL (arrival + 9h sleep buffer 룰) 가 새벽 도착 시 다음날 새벽 wrap → P159 cascade.
+  // 신 룰 = tour_start_time 기준 (default '09:00') — arrival_time 무관하게 stops[1+] 시각 강제.
+  // root cause level 해소: P159 새벽 stops / P136 24h wrap / B-13 false positive 부분 완화.
+  const tourStartMin = parseHHMM(request.tour_start_time || request.tourStartTime || '09:00');
 
-  // B-LATE-ARRIVAL: Day 1 검증
+  // B-LATE-ARRIVAL: Day 1 검증 — P239 신 룰 (tour_start_time 기준)
   if (arrivalMin !== null) {
     const day1 = days[0];
     const day1Stops = Array.isArray(day1?.stops) ? day1.stops : [];
-    const minActivityMin = arrivalMin + 9 * 60; // arrival + 1h transit + 8h sleep
-    const wrapToNextDay = minActivityMin >= 24 * 60;
-    if (wrapToNextDay && day1Stops.length > 2) {
-      errors.push(`Day 1: arrival_time=${request.arrival_time || request.arrivalTime} + 9h sleep buffer = 다음날 새벽 → Day 1 = lodging 2 stops 만 의무. 현재 stops=${day1Stops.length} (B-LATE-ARRIVAL)`);
+    const arrivalPlus60 = arrivalMin + 60;
+    // P239: 18:00+ 도착 → Day 1 = lodging only 권장 (다음날 tour_start_time 부터 stops).
+    // 옛 룰 (arrival + 9h wrap) 은 새벽 wrap → cascade fallback 트리거. 신 룰 = 단순 시각 컷.
+    const isLateNightArrival = arrivalMin >= 18 * 60;
+    if (isLateNightArrival && day1Stops.length > 2) {
+      errors.push(`Day 1: arrival_time=${request.arrival_time || request.arrivalTime} (18:00 이후) → Day 1 = lodging only 권장. 현재 stops=${day1Stops.length} (B-LATE-ARRIVAL P239)`);
     }
     // Day 1 의 lodging 외 카테고리 stops 검증
     for (const stop of day1Stops) {
       if (stop?.category === 'lodging' || stop?.category === 'airport' || stop?.category === 'travel') continue;
       const stopMin = parseHHMM(stop?.start_time);
       if (stopMin === null) continue;
-      // Day 1 same-day 활동 stops (arrival 이후, 다음날 새벽 wrap 안 한 경우)
-      if (!wrapToNextDay && stopMin >= arrivalMin && stopMin < minActivityMin) {
-        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} < arrival+9h sleep buffer (B-LATE-ARRIVAL)`);
+      // P239: stops[1+] 시각이 tour_start_time 이전이면 ERROR.
+      // 단 arrival_time+60 > tour_start_time 인 경우 (낮 도착) arrival+60 우선 폴백.
+      const effectiveTourStart = Math.max(tourStartMin || 0, arrivalPlus60);
+      // stop 가 arrival_time 이후 + effective 시각 이전이면 ERROR. arrival 이전 stop 는 다른 룰.
+      if (stopMin >= arrivalMin && stopMin < effectiveTourStart) {
+        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} < tour_start_time=${request.tour_start_time || request.tourStartTime || '09:00'} (B-LATE-ARRIVAL P239)`);
       }
-      // 새벽 활동 (hour < 5) 일반 stops 금지 (단 lodging 도착 stop 만 허용)
+      // 새벽 활동 (hour < 5) 일반 stops 금지 — P239 도 동일 (tour_start_time hour < 5 폴백 09:00).
       const stopHour = Math.floor(stopMin / 60);
       if (stopHour < 5) {
-        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" 새벽 활동 (start_time=${stop.start_time}, hour<5, category=${stop.category}) (B-LATE-ARRIVAL)`);
+        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" 새벽 활동 (start_time=${stop.start_time}, hour<5, category=${stop.category}) (B-LATE-ARRIVAL P239)`);
       }
     }
   }

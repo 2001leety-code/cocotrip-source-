@@ -2086,6 +2086,7 @@ const RULES = [
   ['P234_odsayDirectCallGuard', P234_odsayDirectCallGuard],
   ['P235_firestoreErrorDistinction', checkP235FirestoreErrorDistinction],
   ['P237_runningHelperIntegrity', P237_runningHelperIntegrity],
+  ['P239_tourStartTimeFallback', P239_tourStartTimeFallback],
   ['P240_blockModeAllergenSafety', P240_blockModeAllergenSafety],
 ];
 
@@ -8702,7 +8703,6 @@ function checkP235FirestoreErrorDistinction({ changed }) {
   return null;
 }
 
-// ----------------------------------------------------------------------------
 // R-P240: block_mode allergies 미전달 SAFETY — handlerCore tryRunBlockMode userInput.allergies 의무
 // ----------------------------------------------------------------------------
 // P240 lesson (2026-05-27): tryRunBlockMode 호출 시 userInput 에 allergies 누락 →
@@ -8773,6 +8773,57 @@ function P240_blockModeAllergenSafety({ changed }) {
       'handlerCore.js shaped 구조분해 allergies + tryRunBlockMode userInput.allergies 의무. ' +
       'blockMode.js selectBlocksWithGemini/MultiCity userMessage food_allergies 의무. ' +
       '발견: ' + issues.join(' | '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P239_tourStartTimeFallback — 운영자 architectural fix (2026-05-27)
+//
+// 운영자 의도: "새벽 도착해도 호텔까지 경로만 + 투어 시작시간 부터 stops 작성".
+// requestShaper 의 tourStartTime 파싱이 default '09:00' 폴백 의무 — 옛 client 호환.
+// 누락 시 backend 가 undefined 전달 → buildPrompt 의 ARRIVAL DAY HANDLING 섹션이
+// tour_start_time 무효 처리 → Day1 새벽 stops 회귀 (P159 root cause 재현).
+//
+// 검사 위치: api/_ai_core/requestShaper.js 의 tourStartTime 변수 (default '09:00').
+// 검사 방법: '09:00' 폴백 + HH:MM 정규식 검증 둘 다 존재해야 PASS.
+// ----------------------------------------------------------------------------
+
+/**
+ * P239_tourStartTimeFallback — requestShaper 의 tourStartTime default '09:00' 폴백 유지.
+ */
+function P239_tourStartTimeFallback({ changed }) {
+  const FILE = 'api/_ai_core/requestShaper.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+  // tourStartTime 변수 존재 확인.
+  if (!/const\s+tourStartTime\s*=/.test(src)) {
+    issues.push("const tourStartTime 변수 누락 — backend 가 tour_start_time forward 못 함");
+  }
+  // default '09:00' 폴백 의무 (옛 client 호환).
+  if (!/['"]09:00['"]/.test(src)) {
+    issues.push("'09:00' default 폴백 누락 — 옛 client 호환성 손상 (architectural fix 회귀)");
+  }
+  // HH:MM 정규식 검증 의무 (잘못된 입력 silent fail 방지).
+  if (!/\/\^\\d\{2\}:\\d\{2\}\$\//.test(src)) {
+    issues.push("HH:MM 정규식 검증 누락 — 잘못된 입력 silent pass 위험");
+  }
+  // return 객체에 tourStartTime 노출 확인 (handlerCore destructure).
+  if (!/return\s*\{[\s\S]*tourStartTime[\s\S]*\}/.test(src)) {
+    issues.push("return 객체에 tourStartTime export 누락 — handlerCore 가 destructure 못 함");
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P239_tourStartTimeFallback',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P239: tourStartTime default 09:00 폴백 손상 — 운영자 architectural fix (P159 / P136 / B-13 root cause) 회귀 위험. ' +
+      '비유: "투어 시작시간 안 적은 사용자 = 새벽 stops 다시 받음". 발견: ' + issues.join(', '),
   };
 }
 
