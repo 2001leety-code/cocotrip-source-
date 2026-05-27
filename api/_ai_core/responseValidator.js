@@ -825,6 +825,49 @@ export function validateResponse(data, request, foodIndex) {
     }
   }
 
+  // R-P246 (2026-05-27): DMZ city-mismatch guard — input=seoul + styles=Dmz 인데
+  // 제주/부산 stops 생성 (한림공원/협재해변/해운대 등) 차단.
+  // SOFT check only (no retry/throw) — Telegram alert 발사 + issues 로그 기록.
+  // DMZ stops MUST be in Seoul/Gyeonggi-do (경기도 파주시). Never Jeju, Busan, etc.
+  const reqStyles = Array.isArray(request?.styles) ? request.styles : [];
+  if (reqStyles.some((s) => String(s).toLowerCase() === 'dmz')) {
+    // 제주/부산 관련 주소 키워드 (읍/리 level 포함).
+    const DMZ_CITY_VIOLATION_PATTERNS = [
+      '제주특별자치도', '제주시', '서귀포시', '제주도', '제주',
+      '부산광역시', '해운대구', '수영구', '부산',
+      '속초시', '강릉시', '여수시', '경주시',
+    ];
+    const dmzViolations = [];
+    for (const stop of allStops) {
+      // address 기준으로만 city 판단 — name 에 "제주" 포함은 false-positive 가능.
+      const addr = String(stop.address || '');
+      if (!addr) continue; // 주소 없는 stop 은 skip (block-mode placeholder)
+      const matched = DMZ_CITY_VIOLATION_PATTERNS.find((p) => addr.includes(p));
+      if (matched) {
+        const stopLabel = stop.name || stop.display_name || '';
+        dmzViolations.push({
+          type: 'dmz_city_mismatch',
+          stop: stopLabel,
+          address: addr,
+          matched_keyword: matched,
+        });
+        issues.push({
+          type: 'dmz_city_mismatch',
+          stop: stopLabel,
+          matched_keyword: matched,
+        });
+      }
+    }
+    if (dmzViolations.length > 0) {
+      console.error('[P246 DMZ_CITY_MISMATCH]', JSON.stringify({ count: dmzViolations.length, violations: dmzViolations }));
+      // 비동기 alert — throw 막지 않음 (soft validator).
+      throttledTelegramAlert(
+        `🚨 P246 DMZ_CITY_MISMATCH: styles=Dmz 인데 ${dmzViolations.length}개 stop 이 제주/부산 등 비DMZ 지역.\n` +
+        dmzViolations.slice(0, 3).map((v) => `• ${v.stop} @ ${v.address}`).join('\n'),
+      ).catch(() => {});
+    }
+  }
+
   // P0-3: dietary_violation 별도 카운트 — 운영자가 prod log 에서 즉시 식별.
   const dietaryViolations = issues.filter((i) => i.type === 'dietary_violation').length;
   console.log('[RESPONSE_VALIDATION]', JSON.stringify({
