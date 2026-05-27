@@ -1,0 +1,215 @@
+{
+  "id": "SEOUL_DAY_DMZ_ODUSAN_STANDARD",
+  "city": "seoul",
+  "zone": "Odusan DMZ",
+  "theme": "오두산 통일전망대 + DMZ 단독 방문",
+  "theme_i18n": {
+    "ko": "오두산 통일전망대 + DMZ 단독 방문",
+    "en": "Odusan Unification Observatory + Easy DMZ Visit",
+    "ja": "烏頭山統一展望台 + 簡単DMZ訪問",
+    "zh": "乌头山统一了望台 + 轻松DMZ参观"
+  },
+  "intensity": "standard",
+  "duration_min": 480,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "오두산통일전망대",
+      "name_i18n": {
+        "ko": "오두산통일전망대",
+        "en": "Odusan Unification Observatory",
+        "ja": "烏頭山統一展望台",
+        "zh": "乌头山统一了望台"
+      },
+      "address": "경기도 파주시 탄현면 필승로 369",
+      "stay_min": 90,
+      "entry_fee_krw": 3000,
+      "entry_fee": {
+        "adult": 3000,
+        "child": 1500,
+        "senior": 2000,
+        "toddler": 0,
+        "notes": "예약 불필요. 대중교통 접근 가능."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "도라전망대보다 방문 쉬움 — 투어 없이 직접 입장. 맑은 날 북한 마을 육안 확인. 한강+임진강 합류점.",
+        "en": "Easier than Dora Observatory — no tour required, direct entry. North Korean villages visible on clear days. Han-Imjin river confluence.",
+        "ja": "都羅展望台より簡単 — ツアー不要、直接入場。晴れた日は北朝鮮の村が見える。漢江と臨津江の合流地点。",
+        "zh": "比都罗山更容易参观——无需报团可直接入场。晴天可看到朝鲜村庄。汉江与临津江汇合处。"
+      },
+      "lat": 37.8439,
+      "lng": 126.7162,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "임진각 평화누리공원",
+      "name_i18n": {
+        "ko": "임진각 평화누리공원 + 자유의 다리",
+        "en": "Imjingak Peace Park + Freedom Bridge",
+        "ja": "臨津閣ピースパーク + 自由橋",
+        "zh": "临津阁和平公园 + 自由大桥"
+      },
+      "address": "경기도 파주시 문산읍 임진각로 148-40",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "자유의 다리 + 증기기관차 실물 전시 + 망배단. 한국 분단 역사 학습 최적.",
+        "en": "Freedom Bridge + real steam locomotive display + memorial altar. Best place to learn about Korea's division.",
+        "ja": "自由橋 + 蒸気機関車の実物展示 + 礼拝所。韓国の分断の歴史を学ぶ最良の場所。",
+        "zh": "自由大桥 + 真实蒸汽机车展示 + 朝拜台。了解韩国分裂历史的最佳地点。"
+      },
+      "lat": 37.8868,
+      "lng": 126.7342,
+      "start_time_offset_min": 110
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch near Imjingak",
+        "en": "Verified lunch near Imjingak",
+        "ja": "Verified lunch near Imjingak",
+        "zh": "Verified lunch near Imjingak"
+      },
+      "address": "경기도 파주시 임진각 주변",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "임진각 주변 파주 현지 식당 — 장단콩 두부 / 파주 쌀밥 (식이 제약 매칭).",
+        "en": "Paju local restaurants near Imjingak — Jangdan tofu / Paju rice matched to diet.",
+        "ja": "臨津閣近くの坡州地元レストラン — 長湍豆腐 / 坡州米飯 (食事制限マッチング)。",
+        "zh": "临津阁附近坡州当地餐厅——长湍豆腐 / 坡州米饭 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 225
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "헤이리 예술마을",
+      "name_i18n": {
+        "ko": "헤이리 예술마을 (파주 문화 탐방)",
+        "en": "Heyri Art Village (Paju cultural visit)",
+        "ja": "ヘイリ芸術村 (坡州文化探訪)",
+        "zh": "黑里艺术村 (坡州文化参观)"
+      },
+      "address": "경기도 파주시 탄현면 헤이리마을길 93-119",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "DMZ 방문 후 힐링 — 예술가 작업실 + 갤러리 + 독립 카페. 파주 북시티 인접.",
+        "en": "Relax after DMZ — artist studios + galleries + indie cafes. Near Paju Book City.",
+        "ja": "DMZ訪問後のリラックス — アーティストスタジオ + ギャラリー + インディーカフェ。坡州ブックシティに隣接。",
+        "zh": "DMZ参观后放松——艺术家工作室 + 画廊 + 独立咖啡馆。靠近坡州书城。"
+      },
+      "lat": 37.7873,
+      "lng": 126.7126,
+      "start_time_offset_min": 305
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Paju",
+        "en": "Verified dinner in Paju",
+        "ja": "Verified dinner in Paju",
+        "zh": "Verified dinner in Paju"
+      },
+      "address": "경기도 파주시 헤이리 예술마을 내",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "헤이리 예술마을 카페/레스토랑 — 분위기 있는 마무리 식사 (식이 제약 매칭).",
+        "en": "Heyri art village cafe/restaurant — atmospheric closing meal matched to diet.",
+        "ja": "ヘイリ芸術村カフェ/レストラン — 雰囲気のある締めくくりの食事 (食事制限マッチング)。",
+        "zh": "黑里艺术村咖啡馆/餐厅——氛围绝佳的收尾餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 415
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "bus",
+      "duration_min": 25,
+      "distance_m": 8000,
+      "cost_krw": 2000,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "오두산→임진각 버스",
+      "base": { "mode": "bus", "duration_min": 25, "distance_m": 8000, "cost_krw": 2000 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 300,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "임진각 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 300, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "taxi",
+      "duration_min": 20,
+      "distance_m": 12000,
+      "cost_krw": 12000,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "임진각→헤이리 택시",
+      "base": { "mode": "taxi", "duration_min": 20, "distance_m": 12000, "cost_krw": 12000 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "헤이리 내 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 600, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "history_buff",
+    "dmz_visitor",
+    "curious_traveler",
+    "art_lover"
+  ],
+  "unsuitable_for": [
+    "young_children"
+  ],
+  "dietary_options": [],
+  "passport_required": true,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 DMZ 오두산 블록 — 오두산전망대 + 임진각 + 헤이리. DMZ style 매칭용. 예약 불필요 코스. Mock transit — 운영자 재빌드 권장."
+}

@@ -21,6 +21,7 @@
 import { execSync } from 'node:child_process';
 import {
   readFileSync,
+  readdirSync,
   existsSync,
   mkdtempSync,
   writeFileSync,
@@ -2130,6 +2131,7 @@ const RULES = [
   ['P240_blockModeAllergenSafety', P240_blockModeAllergenSafety],
   ['P241_activityHelperIntegrity', P241_activityHelperIntegrity],
   ['R_P244_playwrightPageReadySignal', R_P244_playwrightPageReadySignal],
+  ['P243_zoneBlockStyleCoverage', P243_zoneBlockStyleCoverage],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8954,6 +8956,86 @@ function P239_tourStartTimeFallback({ changed }) {
     message:
       'R-P239: tourStartTime default 09:00 폴백 손상 — 운영자 architectural fix (P159 / P136 / B-13 root cause) 회귀 위험. ' +
       '비유: "투어 시작시간 안 적은 사용자 = 새벽 stops 다시 받음". 발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P243_zoneBlockStyleCoverage — P243 zone_courses block seeding 검증 (2026-05-27)
+// ----------------------------------------------------------------------------
+// P242 SB-1 lesson: _activity_helper.js 의 Kbeauty/DMZ/Jjimjilbang/HangangBike 인덱스가
+// block_mode 환경에서 zone_courses blocks 없이는 무시됨.
+// zone_courses JSON 에 각 스타일 매칭 블록이 있어야 Gemini 가 선택 가능.
+// 비유: "케이뷰티 안내원 고용했지만 케이뷰티 루트 지도를 안 만든 상태"
+//
+// 검사: src/data/zone_courses/ 에서 각 P243 스타일 카테고리 블록 존재 확인.
+//   - kbeauty: best_for 에 "kbeauty_lover" 포함 블록 ≥3
+//   - dmz: best_for 에 "dmz_visitor" 포함 블록 ≥2
+//   - jjimjilbang: best_for 에 "wellness_seeker" 포함 블록 ≥2
+//   - hangang_bike: best_for 에 "hangang_explorer" 포함 블록 ≥2
+// zone_courses JSON 파일 추가/삭제 시 재검증.
+// ----------------------------------------------------------------------------
+
+/**
+ * P243_zoneBlockStyleCoverage
+ *
+ * P243 (2026-05-27): Kbeauty/DMZ/Jjimjilbang/HangangBike 스타일 블록이
+ * zone_courses 에 충분히 시드됐는지 검증.
+ * src/data/zone_courses/ JSON 파일 변경 시 또는 전체 검사 시 확인.
+ */
+function P243_zoneBlockStyleCoverage({ changed }) {
+  const ZONE_DIR = 'src/data/zone_courses';
+  // JSON 파일 변경이 없고 all-files 모드도 아니면 skip
+  const hasZoneChange = changed.some((f) => f.includes(ZONE_DIR) && f.endsWith('.json'));
+  if (!hasZoneChange && changed.length > 0) return { skipped: true };
+
+  const zoneDir = path.join(process.cwd(), ZONE_DIR);
+  if (!existsSync(zoneDir)) {
+    return {
+      rule: 'P243_zoneBlockStyleCoverage',
+      severity: 'warning',
+      file: ZONE_DIR,
+      message: 'R-P243: zone_courses 디렉토리 없음 — src/data/zone_courses/ 필수.',
+    };
+  }
+
+  let files;
+  try {
+    files = readdirSync(zoneDir).filter((f) => f.endsWith('.json') && f !== 'templates');
+  } catch (e) {
+    return { skipped: true };
+  }
+
+  const counts = { kbeauty: 0, dmz: 0, jjimjilbang: 0, hangang_bike: 0 };
+  const REQUIRED = { kbeauty: ['kbeauty_lover'], dmz: ['dmz_visitor'], jjimjilbang: ['wellness_seeker'], hangang_bike: ['hangang_explorer'] };
+  const MINIMUMS = { kbeauty: 3, dmz: 2, jjimjilbang: 2, hangang_bike: 2 };
+
+  for (const file of files) {
+    try {
+      const data = JSON.parse(readFileSync(path.join(zoneDir, file), 'utf-8'));
+      const bestFor = Array.isArray(data.best_for) ? data.best_for : [];
+      for (const [style, keywords] of Object.entries(REQUIRED)) {
+        if (keywords.some((k) => bestFor.includes(k))) counts[style]++;
+      }
+    } catch (_) { /* skip malformed */ }
+  }
+
+  const issues = [];
+  for (const [style, min] of Object.entries(MINIMUMS)) {
+    if (counts[style] < min) {
+      issues.push(`${style}: ${counts[style]}/${min} 블록 (부족)`);
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    rule: 'P243_zoneBlockStyleCoverage',
+    severity: 'error',
+    file: ZONE_DIR,
+    message:
+      'R-P243: zone_courses 스타일 블록 부족 (P243 2026-05-27). ' +
+      '비유: "K뷰티 루트 지도 없이 K뷰티 안내원 채용" — block_mode 에서 style 매칭 불가. ' +
+      'src/data/zone_courses/ 에 Kbeauty/DMZ/Jjimjilbang/HangangBike best_for 블록 시드 의무. ' +
+      '발견: ' + issues.join(' | '),
   };
 }
 

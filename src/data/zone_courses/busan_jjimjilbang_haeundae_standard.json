@@ -1,0 +1,213 @@
+{
+  "id": "BUSAN_DAY_JJIMJILBANG_HAEUNDAE_STANDARD",
+  "city": "busan",
+  "zone": "Haeundae Jjimjilbang Wellness",
+  "theme": "해운대 찜질방 + 오션뷰 웰니스 (부산)",
+  "theme_i18n": {
+    "ko": "해운대 찜질방 + 오션뷰 웰니스 (부산)",
+    "en": "Haeundae Jjimjilbang + Ocean View Wellness (Busan)",
+    "ja": "海雲台찜질방 + オーシャンビューウェルネス (釜山)",
+    "zh": "海云台汗蒸幕 + 海景养生 (釜山)"
+  },
+  "intensity": "standard",
+  "duration_min": 480,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "스파 레이 부산 해운대",
+      "name_i18n": {
+        "ko": "스파 레이 부산 해운대 (오션뷰 찜질방)",
+        "en": "Spa Lei Busan Haeundae (Ocean View Jjimjilbang)",
+        "ja": "スパレイ釜山海雲台 (オーシャンビュー찜질방)",
+        "zh": "来易水疗中心釜山海云台 (海景汗蒸幕)"
+      },
+      "address": "부산 해운대구 마린시티1로 75 마린시티 G2",
+      "stay_min": 180,
+      "entry_fee_krw": 15000,
+      "entry_fee": {
+        "adult": 15000,
+        "child": 10000,
+        "senior": 12000,
+        "toddler": 0,
+        "notes": "오션뷰 고급 찜질방. 06:00-22:00 운영."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산 최고의 뷰 — 목욕 공간에서 오션 파노라마. 영어 가능 직원 상주. 해운대 해수욕장 걸어서 5분.",
+        "en": "Best views in Busan — ocean panorama from bathing area. English staff. 5-min walk to Haeundae Beach.",
+        "ja": "釜山最高の眺め — 浴場からの海パノラマ。英語対応スタッフ。海雲台ビーチまで徒歩5分。",
+        "zh": "釜山最佳景观——从浴区眺望大海全景。有英语服务人员。步行5分钟到海云台海水浴场。"
+      },
+      "lat": 35.1623,
+      "lng": 129.1568,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "해운대 해수욕장",
+      "name_i18n": {
+        "ko": "해운대 해수욕장 (해변 산책)",
+        "en": "Haeundae Beach (beachside walk)",
+        "ja": "海雲台ビーチ (ビーチ散歩)",
+        "zh": "海云台海水浴场 (海边散步)"
+      },
+      "address": "부산 해운대구 해운대해변로 264",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "찜질방 후 해변 산책 — 한국 최고 해수욕장. 해돋이 명소 / 여름 성수기 방문 추천.",
+        "en": "Beach walk after jjimjilbang — Korea's premier beach. Sunrise spot / highly recommended in summer.",
+        "ja": "찜질방後のビーチ散歩 — 韓国最高のビーチ。日の出スポット / 夏の訪問がおすすめ。",
+        "zh": "汗蒸幕后的海边散步——韩国最佳海水浴场。日出胜地 / 强烈推荐夏季游览。"
+      },
+      "lat": 35.1588,
+      "lng": 129.1597,
+      "start_time_offset_min": 195
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Haeundae",
+        "en": "Verified lunch in Haeundae",
+        "ja": "Verified lunch in Haeundae",
+        "zh": "Verified lunch in Haeundae"
+      },
+      "address": "부산 해운대구 해운대",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "해운대 신선 해산물 — 회 / 꼼장어 / 대게 (식이 제약 매칭).",
+        "en": "Haeundae fresh seafood — sashimi / eelpout / snow crab matched to diet.",
+        "ja": "海雲台の新鮮シーフード — 刺身 / コムジャンオ / 松葉ガニ (食事制限マッチング)。",
+        "zh": "海云台新鲜海鲜——生鱼片 / 泥鳅 / 雪蟹 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 275
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "해운대 달맞이고개",
+      "name_i18n": {
+        "ko": "달맞이고개 + 카페 거리 (산책)",
+        "en": "Dalmaji Hill + Cafe Street (walk)",
+        "ja": "月迎山 + カフェストリート (散策)",
+        "zh": "迎月岭 + 咖啡街 (散步)"
+      },
+      "address": "부산 해운대구 달맞이길",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "해운대 뒷길 산책 명소 — 시원한 바다 전망 + 갤러리 + 카페. 사진 명소 다수.",
+        "en": "Scenic hillside walk behind Haeundae — sea views + galleries + cafes. Many photo spots.",
+        "ja": "海雲台の裏山散策コース — 海の展望 + ギャラリー + カフェ。フォトスポット多数。",
+        "zh": "海云台后山散步胜地——海景 + 画廊 + 咖啡馆。多处拍照景点。"
+      },
+      "lat": 35.1642,
+      "lng": 129.1717,
+      "start_time_offset_min": 365
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Haeundae",
+        "en": "Verified dinner in Haeundae",
+        "ja": "Verified dinner in Haeundae",
+        "zh": "Verified dinner in Haeundae"
+      },
+      "address": "부산 해운대구 해운대 해변",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "해운대 석양 디너 — 오션뷰 레스토랑 / 부산 해산물 코스 (식이 제약 매칭).",
+        "en": "Haeundae sunset dinner — ocean-view restaurant / Busan seafood course matched to diet.",
+        "ja": "海雲台サンセットディナー — オーシャンビューレストラン / 釜山シーフードコース (食事制限マッチング)。",
+        "zh": "海云台日落晚餐——海景餐厅 / 釜山海鲜套餐 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 405
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "마린시티→해운대 해변 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 500,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "해운대 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 500, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 15,
+      "distance_m": 1000,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "해운대→달맞이고개 도보",
+      "base": { "mode": "walk", "duration_min": 15, "distance_m": 1000, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 20,
+      "distance_m": 1200,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "달맞이고개→해운대 해변 도보",
+      "base": { "mode": "walk", "duration_min": 20, "distance_m": 1200, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "wellness_seeker",
+    "beach_lover",
+    "couple_traveler",
+    "local_experience"
+  ],
+  "unsuitable_for": [],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 부산 해운대 찜질방 웰니스 블록 — 스파 레이 + 해운대 해변 + 달맞이고개. Jjimjilbang style 매칭용. Mock transit — 운영자 재빌드 권장."
+}

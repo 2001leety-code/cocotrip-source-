@@ -1,0 +1,235 @@
+{
+  "id": "SEOUL_DAY_DMZ_TOUR_STANDARD",
+  "city": "seoul",
+  "zone": "DMZ Paju Day Trip",
+  "theme": "DMZ + 임진각 역사 투어 (서울 출발)",
+  "theme_i18n": {
+    "ko": "DMZ + 임진각 역사 투어 (서울 출발)",
+    "en": "DMZ + Imjingak History Tour (from Seoul)",
+    "ja": "DMZ + 臨津閣歴史ツアー (ソウル発)",
+    "zh": "DMZ + 临津阁历史之旅 (首尔出发)"
+  },
+  "intensity": "standard",
+  "duration_min": 540,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "임진각 평화누리공원",
+      "name_i18n": {
+        "ko": "임진각 평화누리공원",
+        "en": "Imjingak Peace Park",
+        "ja": "臨津閣ピースパーク",
+        "zh": "临津阁和平公园"
+      },
+      "address": "경기도 파주시 문산읍 임진각로 148-40",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "공원 입장 무료. 일부 시설 별도 요금."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "DMZ 투어 베이스캠프 — 자유의 다리 + 망배단 + 증기기관차 전시. 여권 지참 의무.",
+        "en": "DMZ tour base — Freedom Bridge + memorial altar + steam locomotive exhibit. Passport mandatory.",
+        "ja": "DMZツアーベースキャンプ — 自由橋 + 礼拝所 + 蒸気機関車展示。パスポート必携。",
+        "zh": "DMZ游览基地——自由大桥 + 朝拜台 + 蒸汽机车展示。护照必备。"
+      },
+      "lat": 37.8868,
+      "lng": 126.7342,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "제3땅굴",
+      "name_i18n": {
+        "ko": "제3땅굴 (사전 예약 필요)",
+        "en": "3rd Infiltration Tunnel (advance booking required)",
+        "ja": "第3トンネル (事前予約必須)",
+        "zh": "第三地道 (需提前预约)"
+      },
+      "address": "경기도 파주시 조산리 산112",
+      "stay_min": 120,
+      "entry_fee_krw": 11000,
+      "entry_fee": {
+        "adult": 11000,
+        "child": 7000,
+        "senior": 9000,
+        "toddler": 0,
+        "notes": "셔틀 + 땅굴 입장 포함. 헬멧 현장 대여."
+      },
+      "reservation_required": true,
+      "tips_i18n": {
+        "ko": "⚠️ 사전 온라인 예약 필수 (imjingak.co.kr). 높이 1.6m 제한 — 편한 신발 필착. 헬멧 착용 의무.",
+        "en": "⚠️ Advance online booking required (imjingak.co.kr). Height 1.6m limit — comfortable shoes. Helmet mandatory.",
+        "ja": "⚠️ 事前オンライン予約必須 (imjingak.co.kr)。高さ1.6m制限 — 歩きやすい靴。ヘルメット着用義務。",
+        "zh": "⚠️ 须提前在线预约 (imjingak.co.kr)。高度限制1.6米——穿舒适鞋。必须佩戴头盔。"
+      },
+      "lat": 37.8939,
+      "lng": 126.7198,
+      "start_time_offset_min": 110
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Paju",
+        "en": "Verified lunch in Paju",
+        "ja": "Verified lunch in Paju",
+        "zh": "Verified lunch in Paju"
+      },
+      "address": "경기도 파주시 임진각 주변",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "임진각 주변 식당 — 파주 지역 한식 / 국밥 (식이 제약 매칭).",
+        "en": "Imjingak area restaurants — Paju local Korean / gukbap matched to diet.",
+        "ja": "臨津閣周辺のレストラン — 坡州地域韓食 / クッパ (食事制限マッチング)。",
+        "zh": "临津阁周边餐厅——坡州当地韩餐 / 汤饭 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 250
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "도라전망대",
+      "name_i18n": {
+        "ko": "도라전망대 (DMZ 투어 포함)",
+        "en": "Dora Observatory (included in DMZ tour)",
+        "ja": "都羅展望台 (DMZツアー込み)",
+        "zh": "都罗山观景台 (含DMZ导游)"
+      },
+      "address": "경기도 파주시 군내면 조산리",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "entry_fee": {
+        "adult": 0,
+        "child": 0,
+        "senior": 0,
+        "toddler": 0,
+        "notes": "DMZ 투어 패키지 포함 시 무료. 망원경 대여 ₩1,000."
+      },
+      "reservation_required": true,
+      "tips_i18n": {
+        "ko": "북한이 가장 잘 보이는 전망대 — 맑은 날 개성공단 망원경 조망. 반드시 공식 가이드 투어로.",
+        "en": "Closest view of North Korea — Kaesong Industrial Complex visible on clear days. Official guided tour only.",
+        "ja": "北朝鮮が最もよく見える展望台 — 晴れた日は双眼鏡で開城工業団地が見える。公式ガイドツアー必須。",
+        "zh": "最近距离观看朝鲜——晴天可通过望远镜看到开城工业区。必须参加官方导游团。"
+      },
+      "lat": 37.9045,
+      "lng": 126.7089,
+      "start_time_offset_min": 330
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "도라산역",
+      "name_i18n": {
+        "ko": "도라산역 (한반도 최남단 기차역)",
+        "en": "Dorasan Station (southernmost railway in Korea)",
+        "ja": "都羅山駅 (朝鮮半島最南端の鉄道駅)",
+        "zh": "都罗山站 (朝鲜半岛最南端铁路站)"
+      },
+      "address": "경기도 파주시 장단면 비무장지대",
+      "stay_min": 45,
+      "entry_fee_krw": 11000,
+      "entry_fee": {
+        "adult": 11000,
+        "child": 7000,
+        "senior": 9000,
+        "toddler": 0,
+        "notes": "임진각 DMZ 투어 패키지로만 방문 가능."
+      },
+      "reservation_required": true,
+      "tips_i18n": {
+        "ko": "더 이상 북쪽으로 가지 않는 열차 — 분단의 상징. 플랫폼 스탬프 기념 찍기.",
+        "en": "Trains that go no further north — symbol of division. Stamp your passport on the platform.",
+        "ja": "これより北に走らない列車 — 分断の象徴。プラットフォームでパスポートスタンプを。",
+        "zh": "不再向北行驶的列车——分裂的象征。在站台盖章留念。"
+      },
+      "lat": 37.9120,
+      "lng": 126.6934,
+      "start_time_offset_min": 410
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "shuttle",
+      "duration_min": 20,
+      "distance_m": 5000,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "임진각→3땅굴 DMZ 셔틀버스",
+      "base": { "mode": "shuttle", "duration_min": 20, "distance_m": 5000, "cost_krw": 0 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "shuttle",
+      "duration_min": 20,
+      "distance_m": 5000,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "3땅굴→임진각 복귀 후 식사",
+      "base": { "mode": "shuttle", "duration_min": 20, "distance_m": 5000, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "shuttle",
+      "duration_min": 15,
+      "distance_m": 8000,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "임진각→도라전망대 DMZ 투어 버스",
+      "base": { "mode": "shuttle", "duration_min": 15, "distance_m": 8000, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "shuttle",
+      "duration_min": 10,
+      "distance_m": 3000,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "도라전망대→도라산역 투어 버스",
+      "base": { "mode": "shuttle", "duration_min": 10, "distance_m": 3000, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "history_buff",
+    "dmz_visitor",
+    "curious_traveler",
+    "cultural_explorer"
+  ],
+  "unsuitable_for": [
+    "claustrophobic",
+    "young_children"
+  ],
+  "dietary_options": [],
+  "passport_required": true,
+  "requires_advance_booking": true,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 DMZ 투어 블록 — 임진각 + 제3땅굴 + 도라전망대 + 도라산역. DMZ style 매칭용. 여권 필수. 사전 예약 의무. Mock transit — 운영자 재빌드 권장."
+}

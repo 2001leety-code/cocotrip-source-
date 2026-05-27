@@ -1,0 +1,222 @@
+{
+  "id": "SEOUL_DAY_HANGANG_BIKE_YEOUIDO_STANDARD",
+  "city": "seoul",
+  "zone": "Yeouido Hangang Bike",
+  "theme": "한강 자전거 + 여의도 (따릉이 라이딩)",
+  "theme_i18n": {
+    "ko": "한강 자전거 + 여의도 (따릉이 라이딩)",
+    "en": "Hangang Bike + Yeouido (Ttareungi Cycling)",
+    "ja": "漢江自転車 + 汝矣島 (タレンギサイクリング)",
+    "zh": "汉江自行车 + 汝矣岛 (公共自行车骑行)"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "따릉이 여의도 한강공원 대여",
+      "name_i18n": {
+        "ko": "따릉이 대여 (여의도 한강공원)",
+        "en": "Ttareungi Rental (Yeouido Hangang Park)",
+        "ja": "タレンギレンタル (汝矣島漢江公園)",
+        "zh": "租借公共自行车 (汝矣岛汉江公园)"
+      },
+      "address": "서울 영등포구 여의도동 여의도한강공원",
+      "stay_min": 90,
+      "entry_fee_krw": 1000,
+      "entry_fee": {
+        "adult": 1000,
+        "child": 500,
+        "senior": 500,
+        "toddler": 0,
+        "notes": "따릉이 앱 1시간 ₩1,000. 30분 추가당 ₩500. 외국 카드 결제 가능."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "여의도 한강 라이딩 — 국회의사당 → 63빌딩 뷰 → 밤섬 전망. 왕복 약 8km. 헬멧 무료 대여.",
+        "en": "Yeouido Hangang ride — National Assembly → 63 Building view → Bamseom Island. ~8km roundtrip. Free helmet rental.",
+        "ja": "汝矣島漢江ライド — 国会 → 63ビュー → 蚕島眺望。往復約8km。ヘルメット無料レンタル。",
+        "zh": "汝矣岛汉江骑行——国会大厦 → 63大厦景观 → 蚕岛景色。约8公里往返。免费租借头盔。"
+      },
+      "lat": 37.5261,
+      "lng": 126.9346,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "여의도 한강공원 피크닉",
+      "name_i18n": {
+        "ko": "여의도 한강공원 피크닉 / 여의나루",
+        "en": "Yeouido Hangang Park Picnic / Yeoui Ferry",
+        "ja": "汝矣島漢江公園ピクニック / 汝矣渡し船",
+        "zh": "汝矣岛汉江公园野餐 / 汝矣渡口"
+      },
+      "address": "서울 영등포구 여의도동 여의나루역",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "자전거 반납 후 잔디밭 피크닉 — 봄 벚꽃 / 여름 야간 분수. 한강 뷰 최고.",
+        "en": "Post-ride picnic on the lawn — spring cherry blossoms / summer night fountains. Best Han River views.",
+        "ja": "自転車返却後の芝生ピクニック — 春の桜 / 夏の夜の噴水。漢江最高の眺め。",
+        "zh": "还车后草坪野餐——春天樱花 / 夏天夜晚喷泉。汉江最佳景观。"
+      },
+      "lat": 37.5259,
+      "lng": 126.9323,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified lunch in Yeouido",
+        "en": "Verified lunch in Yeouido",
+        "ja": "Verified lunch in Yeouido",
+        "zh": "Verified lunch in Yeouido"
+      },
+      "address": "서울 영등포구 여의도",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_lunch",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "여의도 점심 — 한강 편의점 도시락 / 주변 식당 (식이 제약 매칭).",
+        "en": "Yeouido lunch — Hangang convenience store picnic / nearby restaurants matched to diet.",
+        "ja": "汝矣島ランチ — 漢江コンビニ弁当 / 周辺レストラン (食事制限マッチング)。",
+        "zh": "汝矣岛午餐——汉江便利店野餐 / 周边餐厅 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 185
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "여의도 63빌딩",
+      "name_i18n": {
+        "ko": "63스퀘어 전망대",
+        "en": "63 Square Observatory",
+        "ja": "63スクエア展望台",
+        "zh": "63广场观景台"
+      },
+      "address": "서울 영등포구 63로 50",
+      "stay_min": 60,
+      "entry_fee_krw": 27000,
+      "entry_fee": {
+        "adult": 27000,
+        "child": 22000,
+        "senior": 22000,
+        "toddler": 0,
+        "notes": "전망대 + 씨월드 통합권 있음."
+      },
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "서울 전망 — 63층 전망대에서 한강 + 여의도 전경. 썬셋 타임 추천.",
+        "en": "Seoul panorama — 63rd floor observatory with Hangang + Yeouido views. Sunset timing recommended.",
+        "ja": "ソウルのパノラマ — 63階展望台から漢江 + 汝矣島の眺め。日没時間がおすすめ。",
+        "zh": "首尔全景——63层观景台俯瞰汉江 + 汝矣岛。推荐日落时分前往。"
+      },
+      "lat": 37.5196,
+      "lng": 126.9406,
+      "start_time_offset_min": 265
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": {
+        "ko": "Verified dinner in Yeouido",
+        "en": "Verified dinner in Yeouido",
+        "ja": "Verified dinner in Yeouido",
+        "zh": "Verified dinner in Yeouido"
+      },
+      "address": "서울 영등포구 여의도",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "placeholder": "verified_dinner",
+      "preferred_dietary": [],
+      "tips_i18n": {
+        "ko": "여의도 한강 야경 디너 — 스카이 레스토랑 / 한강변 식당 (식이 제약 매칭).",
+        "en": "Yeouido Hangang night view dinner — sky restaurant / riverside dining matched to diet.",
+        "ja": "汝矣島漢江夜景ディナー — スカイレストラン / 漢江沿いの食事 (食事制限マッチング)。",
+        "zh": "汝矣岛汉江夜景晚餐——天空餐厅 / 河边餐厅 (按饮食偏好匹配)。"
+      },
+      "lat": 0,
+      "lng": 0,
+      "start_time_offset_min": 345
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "from_order": 1,
+      "to_order": 2,
+      "mode": "bike",
+      "duration_min": 15,
+      "distance_m": 3000,
+      "cost_krw": 500,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "따릉이 라이딩",
+      "base": { "mode": "bike", "duration_min": 15, "distance_m": 3000, "cost_krw": 500 }
+    },
+    "2->3": {
+      "from_order": 2,
+      "to_order": 3,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 600,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "여의도 내 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 600, "cost_krw": 0 }
+    },
+    "3->4": {
+      "from_order": 3,
+      "to_order": 4,
+      "mode": "walk",
+      "duration_min": 10,
+      "distance_m": 800,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "여의도 내 도보",
+      "base": { "mode": "walk", "duration_min": 10, "distance_m": 800, "cost_krw": 0 }
+    },
+    "4->5": {
+      "from_order": 4,
+      "to_order": 5,
+      "mode": "walk",
+      "duration_min": 5,
+      "distance_m": 400,
+      "cost_krw": 0,
+      "source": "mock",
+      "fetched_at": "2026-05-27",
+      "notes": "여의도 내 도보",
+      "base": { "mode": "walk", "duration_min": 5, "distance_m": 400, "cost_krw": 0 }
+    }
+  },
+  "best_for": [
+    "outdoor_lover",
+    "active_traveler",
+    "hangang_explorer",
+    "couple_traveler"
+  ],
+  "unsuitable_for": [
+    "mobility_impaired"
+  ],
+  "dietary_options": [],
+  "passport_required": false,
+  "requires_advance_booking": false,
+  "source": "cocotrip_curated",
+  "verified_at": "2026-05-27",
+  "verified_by": "2001leety@gmail.com",
+  "last_review_date": "2026-05-27",
+  "block_type": "city_day",
+  "notes": "P243 한강 자전거 여의도 블록 — 따릉이 라이딩 + 63빌딩. HangangBike style 매칭용. Mock transit — 운영자 재빌드 권장."
+}
