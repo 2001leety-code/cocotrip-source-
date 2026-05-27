@@ -65,39 +65,8 @@ function parseCli(args) {
   return opts;
 }
 
-// ── Firebase Admin 초기화 (CLAUDE.md I 규칙 준수: replace 만, trim 금지) ─────
-function initFirebase() {
-  try {
-    const { initializeApp, cert, getApps } = await import('firebase-admin/app');
-    const { getFirestore } = await import('firebase-admin/firestore');
-
-    if (getApps().length === 0) {
-      const rawKey = (process.env.FIREBASE_PRIVATE_KEY || '')
-        .replace(/^﻿/, '')
-        .replace(/^["']|["']$/g, '')
-        .replace(/\\n/g, '\n');
-      const pemMatch = rawKey.match(/-----BEGIN[^-]*-----([^-]+)-----END[^-]*-----/s);
-      let privateKey = rawKey;
-      if (pemMatch) {
-        const base64Clean = pemMatch[1].replace(/\s+/g, '');
-        const lines = base64Clean.match(/.{1,64}/g) || [];
-        privateKey =
-          '-----BEGIN PRIVATE KEY-----\n' + lines.join('\n') + '\n-----END PRIVATE KEY-----\n';
-      }
-      initializeApp({
-        credential: cert({
-          projectId: (process.env.FIREBASE_PROJECT_ID || '').trim(),
-          clientEmail: (process.env.FIREBASE_CLIENT_EMAIL || '').trim(),
-          privateKey,
-        }),
-      });
-    }
-    return getFirestore();
-  } catch (e) {
-    console.error('[P234] Firebase 초기화 실패:', e.message);
-    return null;
-  }
-}
+// ── Firebase Admin 초기화는 메인 블록에서 top-level await 로 수행 ──────────────
+// (audit-transit.mjs 동일 패턴: 아래 메인 섹션 참조)
 
 // ── zone_courses Firestore 컬렉션 분석 ──────────────────────────────────────
 async function analyzeZoneCourses(db, citiesFilter) {
