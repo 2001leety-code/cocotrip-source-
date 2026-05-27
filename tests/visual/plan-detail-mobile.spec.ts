@@ -8,6 +8,9 @@
  * 인증 방식: Firebase REST signInWithPassword → idToken 발급 →
  *   localStorage firebase:authUser:<apiKey>:[DEFAULT] inject
  *   (capture-5-plans-screenshots.mjs 의 동일 패턴).
+ *   ⚠️ Firebase v12: IndexedDB primary → localStorage fallback 동작.
+ *   auth 미주입 시 (env 누락) → Firestore unauthorized → error 상태로 page settle.
+ *   → P244: window.__pageReady 는 그 경우에도 emit 됨 (plan/error 무관 loading=false emit).
  *
  * Baseline location: tests/visual/plan-detail-mobile.spec.ts-snapshots/
  *   - {projectName} = mobile-375 / mobile-375-dark
@@ -22,27 +25,37 @@
  *   - 문제: Firestore onSnapshot WebSocket + Sentry/Analytics beacon 이
  *     Vercel Preview 환경에서 networkidle 500ms idle 조건을 60s 안에 달성 불가.
  *     P230 (PR #637) + P231 (PR #638) 두 PR 연속 동일 실패 — chronically flaky.
- *   - 선택 옵션: B (waitForSelector, 기존 data-testid 활용) — frontend 코드 변경 0.
- *   - ready signal: [data-testid="section-tabs-scroll"] — SectionTabs.tsx:88.
- *     Firestore onSnapshot → loading=false → plan 존재 시 최초 노출.
- *     에러 상태(notfound/unauthorized) 에서는 미노출 → timeout = 회귀 감지 의도.
+ *
+ * P244 (2026-05-27): waitForSelector → window.__pageReady ready signal 패턴 교체.
+ *   - 새 root cause 발견: P237/P240/P241/P239 4 cycle 모두 deployment_status 에서 fail.
+ *     → [data-testid="section-tabs-scroll"] 는 plan 로드 성공 시만 노출.
+ *     → CI 가 HEALTH_CHECK_EMAIL / HEALTH_CHECK_PASSWORD 미보유 → injectFirebaseAuth() skip
+ *     → Firestore unauthorized → error 상태 → section-tabs-scroll 미노출 → 15s timeout.
+ *     → 비유: "문 앞에서 '주방 준비 완료' 간판만 기다리는데 실제 간판은 음식이 나와야 걸림"
+ *   - P244 fix: window.__pageReady = true — loading=false 즉시 emit (plan/error 무관).
+ *     frontend 에 emit signal 추가 (PlanDetailPage/index.tsx useEffect [loading]).
+ *     spec 에서 waitForFunction(() => window.__pageReady === true, { timeout: 20000 }) 대기.
  *   - 외부 사례 (deep-search 결과):
  *     1. Playwright 공식 문서: networkidle "discouraged" — web assertions 권고.
  *     2. BrowserStack 2026: "Avoid waitForLoadState('networkidle')" — SPA background
  *        polling, analytics beacon, WebSocket 이 idle 막음.
  *     3. Checkly Docs (playwright/waits-and-timeouts): waitForSelector preferred over
  *        networkidle for SPAs with real-time data sources.
- *     4. WebCrawlerAPI Glossary: "networkidle misuse causes test flakiness — use
- *        explicit element assertions instead."
- *     5. Playwright GitHub #22809: "React/Angular SPA best practice = wait for
- *        content element, not network state."
+ *     4. Playwright #35504 (2024): Firebase IndexedDB storageState serialize 실패 사례
+ *        — localStorage inject 단독으로는 Firebase v10+ auth 미작동 가능.
+ *     5. Better Stack (2025): SPA route transitions must wait for content element,
+ *        not URL change — window.__pageReady custom flag pattern preferred.
  */
 import { test, expect } from '@playwright/test';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 /**
  * Firebase REST signInWithPassword → idToken → localStorage inject.
- * env 누락 시 skip (테스트는 unauthenticated state 로 진행 — login redirect 포착).
+ * env 누락 시 skip (테스트는 unauthenticated state 로 진행 — window.__pageReady 가 에러 상태에서도 emit).
+ *
+ * P244: auth 주입 성공 시 → plan body 렌더 → section-tabs-scroll 표시.
+ *       auth 주입 실패/미주입 시 → Firestore unauthorized → error UI → window.__pageReady emit.
+ *       양쪽 모두 waitForFunction(__pageReady) 가 통과 — chronic timeout 해소.
  */
 async function injectFirebaseAuth(page: { addInitScript: Function }) {
   const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || '';
@@ -97,20 +110,21 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
     // Firebase auth inject 먼저 (page.goto 전에 addInitScript 해야 적용).
     await injectFirebaseAuth(page);
 
-    // P233: waitUntil='domcontentloaded' — networkidle 대신.
+    // P233/P244: waitUntil='domcontentloaded' — networkidle 대신.
     // Firestore onSnapshot WebSocket 이 Vercel Preview 에서 networkidle 500ms 조건
     // 도달 불가 → 60s timeout → chronically flaky (P230/P231 동일 실패 교훈).
     // domcontentloaded = HTML 파싱 + 초기 스크립트 실행 완료. React 렌더 트리거 시점.
     await page.goto(`/my-plans/${PLAN_ID}`, { waitUntil: 'domcontentloaded' });
 
-    // P233: Firestore onSnapshot 완료 ready signal — [data-testid="section-tabs-scroll"].
-    // SectionTabs.tsx 에 기존 존재하는 testid. loading=false + plan 존재 시만 노출.
-    // Firestore WebSocket 완료를 기다리지 않고, React state 갱신 결과만 확인.
-    // timeout=15000ms: cold Vercel Preview 환경 + Firestore 첫 응답 여유분.
-    await page.waitForSelector('[data-testid="section-tabs-scroll"]', {
-      state: 'visible',
-      timeout: 15000,
-    });
+    // P244: window.__pageReady ready signal 대기 (PlanDetailPage/index.tsx 에서 emit).
+    // loading=false 시점 (plan 렌더 완료 또는 error 상태 확정) 에 true 가 됨.
+    // plan/unauthorized/notfound/autherror 모든 terminal state 에서 emit → chronic timeout 해소.
+    // P233 의 waitForSelector('[data-testid="section-tabs-scroll"]') 는 plan 성공 시만 → auth 없으면 항상 timeout.
+    // timeout=20000ms: cold Vercel Preview 환경 + Firebase auth + Firestore 첫 응답 여유분.
+    await page.waitForFunction(
+      () => (window as unknown as Record<string, unknown>).__pageReady === true,
+      { timeout: 20000 },
+    );
 
     // React 리렌더 안정화 — streaming_in_progress 갱신 등 2차 Firestore 패치 여유.
     // framer-motion transition 은 playwright.visual.config.ts animations:'disabled' 가 처리.
