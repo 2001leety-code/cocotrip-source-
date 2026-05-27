@@ -2084,6 +2084,7 @@ const RULES = [
   ['P228_transitCacheIntegrity', P228_transitCacheIntegrity],
   ['P231_skeletonInWorkerGuard', P231_skeletonInWorkerGuard],
   ['P234_odsayDirectCallGuard', P234_odsayDirectCallGuard],
+  ['P235_firestoreErrorDistinction', checkP235FirestoreErrorDistinction],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8574,6 +8575,58 @@ function P234_odsayDirectCallGuard({ changed }) {
       '허용 파일(시드/관리자/테스트) 외 신규 직접 호출은 lookupTransitCache() 먼저 호출 필요. ' +
       '발견: ' + issues.join(' | '),
   };
+}
+
+// ----------------------------------------------------------------------------
+// R-P235: PWA stale cache — PlanDetailPage Firestore 오류 핸들러 구분
+// ----------------------------------------------------------------------------
+// P235 lesson (2026-05-27): onSnapshot error handler 가 모든 Firestore 에러를
+// 'notfound' 로 처리 → permission-denied (인증 만료 / PWA 스테일 캐시) 도
+// "플랜을 찾을 수 없습니다" 오표시. 비유: 열쇠가 맞지 않는데 "문이 없다" 고 안내.
+// 픽스: error code 'permission-denied' → 'autherror' 분기 (새로고침 유도).
+// 본 lint rule: PlanDetailPage onSnapshot error handler 에서 permission-denied
+// 구분 없이 직접 setError('notfound') 를 호출하지 않도록 감시.
+
+/**
+ * R-P235: PlanDetailPage onSnapshot error handler 에서 permission-denied 구분 없이
+ * setError('notfound') 직접 호출 감지.
+ */
+function checkP235FirestoreErrorDistinction({ changed }) {
+  // PlanDetailPage/index.tsx 만 검사 — 다른 파일은 무관
+  const PLAN_DETAIL = 'src/pages/PlanDetailPage/index.tsx';
+  const entry = changed.find(
+    (c) => c.status !== 'D' && (
+      c.file.replace(/\\/g, '/').endsWith(PLAN_DETAIL) ||
+      c.file.replace(/\\/g, '/').includes('PlanDetailPage/index')
+    ),
+  );
+  if (!entry) return { skipped: true };
+
+  const content = getChangedFileContent(entry.file);
+  if (!content) return null;
+
+  const lines = content.split('\n');
+  // 오류 핸들러 콜백 블록에서 직접 setError('notfound') 있고,
+  // permission-denied 분기 없으면 위반.
+  // 허용 패턴: code === 'permission-denied' 또는 'PERMISSION_DENIED' 분기가 반드시 있어야 함.
+  const hasPermissionCheck = lines.some(
+    (l) => l.includes('permission-denied') || l.includes('PERMISSION_DENIED'),
+  );
+  if (!hasPermissionCheck) {
+    // onSnapshot 에러 핸들러 내 setError('notfound') 있는지 확인
+    const hasDirectNotfound = lines.some(
+      (l) => l.includes("setError('notfound')") && !l.trim().startsWith('//'),
+    );
+    if (hasDirectNotfound) {
+      fail(
+        'P235_firestoreErrorDistinction',
+        `${entry.file}: onSnapshot error handler 에서 permission-denied 구분 없이 setError('notfound') 직접 호출 → P235 fix 후 회귀`,
+        'R-P235: PlanDetailPage onSnapshot 에러 핸들러에 permission-denied → autherror 분기 의무. ' +
+        '비유: "열쇠가 맞지 않는데 문이 없다고 안내" = 사용자 혼란. error code permission-denied 는 autherror 로 분기 (새로고침 안내) 필수.'
+      );
+    }
+  }
+  return null;
 }
 
 // ----------------------------------------------------------------------------

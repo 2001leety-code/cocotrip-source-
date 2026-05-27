@@ -4,15 +4,25 @@
 //   - 이 컴포넌트가 needRefresh 감지 → 사용자에게 토스트 → 클릭 시 reload
 // 별도 Toaster 의존성 없이 자체 UI (sonner 미사용 — 글로벌 Toaster 없음).
 //
+// P235: /my-plans/* 경로에서 needRefresh 감지 시 dismiss 없이 자동 업데이트 적용.
+// 운영자 plan 1b850044 처럼 결제 후 plan 화면에서 구 JS 가 서빙되면 Firestore
+// permission-denied → "플랜을 찾을 수 없습니다" 오표시. /my-plans 에서는 X 버튼 숨김.
+//
 // Usage: <App> 어디에든 한 번만 mount. CommandPaletteProvider 안쪽 권장.
 import { useEffect, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useLocation } from 'react-router-dom';
 import { RefreshCw, X } from 'lucide-react';
 
 export function PWAUpdatePrompt() {
   const { t } = useLanguage();
+  const location = useLocation();
   const [dismissed, setDismissed] = useState(false);
+
+  // P235: /my-plans/* 경로 = plan 상세 — SW 스테일 캐시가 결제한 plan 을 가림.
+  // 이 경로에서는 dismiss 버튼 없이 자동 업데이트 강제 (X 버튼 숨김 + 5분 재표시 없음).
+  const isOnPlanPage = location.pathname.startsWith('/my-plans/');
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -27,14 +37,25 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  // dismissed 후 5분 뒤 자동 재표시 (사용자가 X 누른 경우)
+  // P235: /my-plans 에서 needRefresh 감지 시 즉시 자동 업데이트 (dismiss 없음).
+  // 비교: 레스토랑에서 메뉴판(JS)이 바뀌었는데 웨이터가 구 메뉴판 가져오면 주문 오류 —
+  // 결제 후 plan 화면에서는 최신 메뉴판이 반드시 있어야 함.
+  useEffect(() => {
+    if (needRefresh && isOnPlanPage) {
+      console.log('[PWA P235] plan page + needRefresh → auto-update');
+      updateServiceWorker(true);
+    }
+  }, [needRefresh, isOnPlanPage, updateServiceWorker]);
+
+  // dismissed 후 5분 뒤 자동 재표시 (사용자가 X 누른 경우 — plan 페이지 외)
   useEffect(() => {
     if (!dismissed) return;
     const timer = setTimeout(() => setDismissed(false), 5 * 60 * 1000);
     return () => clearTimeout(timer);
   }, [dismissed]);
 
-  if (!needRefresh || dismissed) return null;
+  // plan 페이지에서는 auto-update 후 reload 되므로 토스트 렌더 불필요.
+  if (!needRefresh || dismissed || isOnPlanPage) return null;
 
   const message = (t.pwa as { updateAvailable?: string })?.updateAvailable
     || '새 버전이 있습니다';

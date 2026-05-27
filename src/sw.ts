@@ -4,7 +4,7 @@
 // 2) push 이벤트 핸들러 — _send-push.js 발송 payload {title,body,url,tag,icon} 표시
 // 3) notificationclick — 클릭 시 url로 focus/open
 // 빌드 시 self.__WB_MANIFEST 가 precache 매니페스트로 치환됨.
-import { precacheAndRoute } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
@@ -13,6 +13,11 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
 
 precacheAndRoute(self.__WB_MANIFEST || []);
+
+// P235: 이전 SW 버전이 캐시한 구 precache 항목 자동 삭제.
+// P230/P231 배포 후 구 JS 번들이 남아 Firestore permission-denied 유발 → "플랜을 찾을 수 없습니다"
+// 오표시를 방지. activate 시 구 precache (이전 SW 의 workbox-precache-v2 항목) 자동 정리.
+cleanupOutdatedCaches();
 
 registerRoute(
   ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
