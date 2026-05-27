@@ -8539,17 +8539,18 @@ function P234_odsayDirectCallGuard({ changed }) {
     'scripts/audit-transit.mjs',
   ]);
 
-  // api/ 또는 scripts/ 에서 변경된 JS/MJS 파일만 검사
-  const relevantFiles = changed.filter(
-    (f) =>
-      (f.startsWith('api/') || f.startsWith('scripts/')) &&
-      (f.endsWith('.js') || f.endsWith('.mjs')) &&
-      !ALLOWED_DIRECT_CALLERS.has(f)
+  // api/ 또는 scripts/ 에서 변경된 JS/MJS 파일만 검사 (changed = {file, status}[] 형식)
+  const relevantEntries = changed.filter(
+    (c) =>
+      c.status !== 'D' &&
+      (c.file.startsWith('api/') || c.file.startsWith('scripts/')) &&
+      (c.file.endsWith('.js') || c.file.endsWith('.mjs')) &&
+      !ALLOWED_DIRECT_CALLERS.has(c.file)
   );
-  if (relevantFiles.length === 0) return { skipped: true };
+  if (relevantEntries.length === 0) return { skipped: true };
 
   const issues = [];
-  for (const file of relevantFiles) {
+  for (const { file } of relevantEntries) {
     const src = readFileExists(file) || '';
     // ODsay API endpoint 직접 호출 여부: searchPubTransPathT 사용
     if (/searchPubTransPathT/.test(src)) {
