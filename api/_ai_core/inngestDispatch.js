@@ -96,6 +96,16 @@ export function buildPlanAiCompletePayload(args) {
     isAdminBypass, identifierForBucketing,
   } = args;
 
+  // P256 (2026-05-28): zone_id 도출 — Inngest worker 의 4번째 layer fix.
+  //   P253 가 sync path (handlerCore L376 → postResponsePipeline → routeEnrichment) 만 fix.
+  //   block_mode plan 은 Inngest worker (processPlanAfterAI.js) 가 runRouteEnrichment 호출
+  //   → ctx 에 zone_id 가 없어서 cache miss 계속 발생 (P251/P253 round 1+2 모두 cache 0%).
+  //   본 라인 = blocksUsed[0] 추출해서 ctx.zone_id 로 worker 에 전달.
+  //   다도시 plan 은 dayPlan.source_block_id per-day fallback (RouteAgent.js L787) 으로 보완.
+  const zone_id = (plannerMode === 'block_mode' && Array.isArray(blocksUsed) && blocksUsed.length > 0)
+    ? blocksUsed[0]
+    : null;
+
   return {
     planId: streamingPlanId,
     itinerary,
@@ -111,6 +121,7 @@ export function buildPlanAiCompletePayload(args) {
       uid, guestName, styles, duration, startDate, email,
       specialRequest, mobility, language,
       plannerMode, abReason, abBucket, blocksUsed,
+      zone_id,  // P256: Inngest worker layer 4 — transit cache hit 0% round 3 fix
       streamingPlanId,
       isAdminBypass: !!isAdminBypass,
       identifierForBucketing,

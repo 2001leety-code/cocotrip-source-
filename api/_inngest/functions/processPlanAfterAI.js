@@ -184,6 +184,11 @@ export const processPlanAfterAI = inngest.createFunction(
         recommendedZone: ctx.recommendedZone,
         recommendedZoneAddress: ctx.recommendedZoneAddress,
         hotelAddressFromBody: ctx.hotelAddressFromBody,
+        // P256 (2026-05-28): zone_id pass-through — Inngest worker layer 4 fix.
+        //   P253 가 sync path 만 fix 했고 block_mode plan 은 Inngest 경유 → cache 0% 유지.
+        //   ctx.zone_id 는 inngestDispatch.buildPlanAiCompletePayload 가 blocksUsed[0] 로 채움.
+        //   다도시는 RouteAgent dayPlan.source_block_id per-day fallback 으로 보완.
+        zone_id: ctx.zone_id || null,
       });
       return itinerary;
     });
