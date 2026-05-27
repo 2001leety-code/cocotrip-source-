@@ -44,6 +44,9 @@ export async function runRouteEnrichment(itinerary, ctx) {
     apiKey, body, hotel_address /* effective for RouteAgent */,
     arrival_airport, departure_airport, pax,
     recommendedZone, recommendedZoneAddress, hotelAddressFromBody,
+    // P253 (2026-05-27): block_mode 에서 첫 번째 blocksUsed 항목 = Firestore zone_courses doc ID.
+    // enrichItineraryWithRoute 의 wrapped 객체를 통해 RouteAgent data.zone_id 로 전달.
+    zone_id,
   } = ctx;
 
   // ALREADY 또는 미정 → arrival_guide / departure_guide 제거
@@ -87,6 +90,8 @@ export async function runRouteEnrichment(itinerary, ctx) {
     await Promise.race([
       enrichItineraryWithRoute(itinerary, {
         apiKey, body, hotel_address, arrival_airport, departure_airport, pax,
+        // P253: zone_id 전달 — RouteAgent 의 transitCache lookup 에 필요.
+        zone_id,
       }),
       new Promise((_, reject) => {
         timeoutId = setTimeout(
