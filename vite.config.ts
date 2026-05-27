@@ -47,6 +47,9 @@ export default defineConfig({
           '**/[가-힣]*.webp',
         ],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // P235 참고: cleanupOutdatedCaches 는 injectManifest 모드에서
+        // vite.config 에 넣을 수 없음 — workbox-build 스키마 미지원.
+        // 대신 src/sw.ts activate handler 에서 cleanupOutdatedCaches() 직접 호출.
       },
       devOptions: {
         enabled: false, // dev 모드에서 SW 비활성 (HMR 충돌 방지)

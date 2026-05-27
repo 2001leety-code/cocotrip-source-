@@ -59,7 +59,8 @@ export default function PlanDetailPage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const [plan, setPlan] = useState<PlanDocument | null>(null);
-  const [error, setError] = useState<'notfound' | 'unauthorized' | null>(null);
+  // P235: 'notfound' = 문서 없음 / 'unauthorized' = 접근 거부 / 'autherror' = 인증 만료·JS 캐시 불일치
+  const [error, setError] = useState<'notfound' | 'unauthorized' | 'autherror' | null>(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [addStopDay, setAddStopDay] = useState<number | null>(null);
@@ -122,8 +123,15 @@ export default function PlanDetailPage() {
       setPlan(data);
       setLoading(false);
     }, (err) => {
-      console.error('[PlanDetail] Firestore read error:', err);
-      setError('notfound');
+      // P235: permission-denied = 인증 만료 또는 PWA 스테일 캐시 → 재로그인/새로고침 안내.
+      // 그 외 (not-found, network 등) = 일반 notfound 처리.
+      const code = (err as { code?: string })?.code || '';
+      console.error('[PlanDetail] Firestore read error:', code, err);
+      if (code === 'permission-denied' || code === 'PERMISSION_DENIED') {
+        setError('autherror');
+      } else {
+        setError('notfound');
+      }
       setLoading(false);
     });
     return () => unsub();
@@ -258,6 +266,44 @@ export default function PlanDetailPage() {
         <AlertCircle className="w-16 h-16 text-yellow-400/40 mb-4" />
         <h1 className="text-xl font-bold mb-2">{ui.accessDenied || 'Access Denied'}</h1>
         <p className="text-white/55 text-sm mb-6">{ui.accessDeniedDesc || "You don't have permission to view this plan."}</p>
+      </div>
+    </div>
+  );
+  }
+
+  // P235: PWA stale cache 로 인한 인증 만료 에러 — 새로고침 유도.
+  // Firestore permission-denied = 옛 JS 의 Firebase 클라이언트 인증 상태 불일치 or 토큰 만료.
+  // 빗댄 표현: "문은 있는데 열쇠가 맞지 않음" — 사용자는 plan 을 삭제하지 않았으므로 notfound 아님.
+  // 새로고침 시 SW 가 새 JS 를 받아 Firebase 재인증 → 정상 표시.
+  if (error === 'autherror') {
+    return (
+    <div className="min-h-screen bg-[#0a0b14] text-white">
+      <Header language={language} t={t} onLanguageChange={changeLanguage} />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+        <RefreshCw className="w-16 h-16 text-[#7C5CFC]/40 mb-4" />
+        <h1 className="text-xl font-bold mb-2">
+          {language === 'ko' ? '세션이 만료되었습니다' :
+           language === 'ja' ? 'セッションの有効期限が切れました' :
+           language === 'zh' ? '会话已过期' :
+           'Session Expired'}
+        </h1>
+        <p className="text-white/55 text-sm mb-6 text-center max-w-xs">
+          {language === 'ko' ? '앱이 업데이트되었습니다. 새로고침하면 플랜을 다시 볼 수 있습니다.' :
+           language === 'ja' ? 'アプリが更新されました。再読み込みするとプランが表示されます。' :
+           language === 'zh' ? '应用已更新，刷新页面即可查看计划。' :
+           'The app has been updated. Refresh to see your plan again.'}
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-3 rounded-xl text-sm font-bold text-white flex items-center gap-2"
+          style={{ background: BRAND.gradient.primary }}
+        >
+          <RefreshCw className="w-4 h-4" />
+          {language === 'ko' ? '새로고침' :
+           language === 'ja' ? '再読み込み' :
+           language === 'zh' ? '刷新' :
+           'Refresh Page'}
+        </button>
       </div>
     </div>
   );
