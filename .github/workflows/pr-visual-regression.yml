@@ -105,6 +105,12 @@ jobs:
         env:
           BASE_URL: ${{ github.event.deployment_status.target_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          # P244: Firebase auth inject 용 — 미설정 시 unauthenticated 상태로 진행
+          # (window.__pageReady 가 error state 에서도 emit → 테스트는 항상 settle).
+          # 설정 시 plan body 를 실제 렌더링한 authenticated baseline 생성 가능.
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+          HEALTH_CHECK_PASSWORD: ${{ secrets.HEALTH_CHECK_PASSWORD }}
         run: npx playwright test --config=playwright.visual.config.ts
 
       - name: Upload visual diff report

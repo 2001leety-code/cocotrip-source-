@@ -202,6 +202,17 @@ export default function PlanDetailPage() {
     ? (plan as Record<string, unknown>)._streaming_progress as number | undefined
     : undefined;
 
+  // P244: window.__pageReady ready signal — Playwright visual spec 전용.
+  // loading=false 도달 시점 (plan 렌더 완료 또는 error 상태 확정) 에 emit.
+  // deployment_status trigger 에서 Firebase auth 미주입 → unauthorized 상태 포함 전체 케이스 커버.
+  // 비유: "요리가 나왔든 품절이든 — 주방이 '답변 완료' 간판 걸기"
+  // waitForSelector('[data-testid="section-tabs-scroll"]') 는 plan 로드 성공 시만 노출 → 인증 없는 CI 에서 항상 timeout.
+  useEffect(() => {
+    if (!loading && typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>).__pageReady = true;
+    }
+  }, [loading]);
+
   // P225: streaming hang timeout — _streaming_in_progress 최초 감지 시 타이머 시작.
   // STREAMING_PLACEHOLDER_TIMEOUT_MS 경과 후 streamingTimedOut=true → 오류 UI 표시.
   // streaming 완료 시 cleanup으로 타이머 취소 + startRef 리셋.

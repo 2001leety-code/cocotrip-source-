@@ -1933,6 +1933,46 @@ function R_PlanDetailVisual({ changed }) {
   return null;
 }
 
+// ── R-P244 (2026-05-27) — Playwright visual spec beforeEach networkidle 사용 금지 ──
+// P244 root cause: deployment_status trigger 에서 CI 가 auth 없이 실행됨.
+// section-tabs-scroll waitForSelector 는 plan 로드 성공 시만 → auth 없으면 항상 timeout.
+// 올바른 패턴: waitForFunction(__pageReady) — loading=false 모든 terminal state에서 emit.
+//
+// 트리거: tests/visual/*.spec.ts 변경 시.
+// 위반 조건:
+//   1. beforeEach 에 networkidle waitForLoadState 사용.
+//   2. beforeEach 에 waitForSelector 만 있고 waitForFunction(__pageReady) 없음.
+function R_P244_playwrightPageReadySignal({ changed }) {
+  const VISUAL_SPEC_GLOB = 'tests/visual/';
+  const violations = [];
+
+  for (const c of changed) {
+    if (c.status === 'D') continue;
+    if (!c.file.startsWith(VISUAL_SPEC_GLOB) || !c.file.endsWith('.spec.ts')) continue;
+
+    const content = getChangedFileContent(c.file) || (() => {
+      try { return readFileSync(c.file, 'utf8'); } catch { return ''; }
+    })();
+
+    // 위반 1: networkidle 직접 사용
+    if (/waitForLoadState\s*\(\s*['"]networkidle['"]/.test(content)) {
+      violations.push(`${c.file}: waitForLoadState('networkidle') 사용 — SPA Firestore WebSocket 이 idle 조건 달성 불가 (P244 root cause)`);
+    }
+
+    // 위반 2: beforeEach 내 waitForSelector 만 있고 waitForFunction(__pageReady) 없는 경우
+    // (plan-detail-mobile.spec.ts 에만 적용 — PlanDetailPage 에는 __pageReady 의무)
+    if (c.file.includes('plan-detail-mobile')) {
+      const hasPageReadyWait = /waitForFunction[\s\S]*?__pageReady/.test(content);
+      if (!hasPageReadyWait) {
+        violations.push(`${c.file}: waitForFunction(window.__pageReady) 누락 — auth 없는 CI 에서 section-tabs-scroll 미노출 시 timeout (P244 패턴 의무)`);
+      }
+    }
+  }
+
+  if (violations.length === 0) return null;
+  return `R-P244: Playwright visual spec beforeEach 패턴 위반 ${violations.length}건 — deployment_status trigger 에서 auth 없이 실행 시 chronic timeout 회귀 (P237/P240/P241/P239 4 cycle 동일). 올바른 패턴: waitForFunction(() => window.__pageReady === true): ${violations.join(' | ')}`;
+}
+
 const RULES = [
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -2089,6 +2129,7 @@ const RULES = [
   ['P239_tourStartTimeFallback', P239_tourStartTimeFallback],
   ['P240_blockModeAllergenSafety', P240_blockModeAllergenSafety],
   ['P241_activityHelperIntegrity', P241_activityHelperIntegrity],
+  ['R_P244_playwrightPageReadySignal', R_P244_playwrightPageReadySignal],
 ];
 
 // ----------------------------------------------------------------------------
