@@ -2195,6 +2195,7 @@ const RULES = [
   ['P237_runningHelperIntegrity', P237_runningHelperIntegrity],
   ['P239_tourStartTimeFallback', P239_tourStartTimeFallback],
   ['P240_blockModeAllergenSafety', P240_blockModeAllergenSafety],
+  ['P245_blockModeTourStartTime', P245_blockModeTourStartTime],
   ['P241_activityHelperIntegrity', P241_activityHelperIntegrity],
   ['P246_dmzCityMismatchGuard', P246_dmzCityMismatchGuard],
   ['R_P244_playwrightPageReadySignal', R_P244_playwrightPageReadySignal],
@@ -9023,6 +9024,78 @@ function P239_tourStartTimeFallback({ changed }) {
     message:
       'R-P239: tourStartTime default 09:00 폴백 손상 — 운영자 architectural fix (P159 / P136 / B-13 root cause) 회귀 위험. ' +
       '비유: "투어 시작시간 안 적은 사용자 = 새벽 stops 다시 받음". 발견: ' + issues.join(', '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P245_blockModeTourStartTime — block_mode 가 P239 tour_start_time 적용 의무 (2026-05-27)
+//
+// P239 효과 미완료 sleeper bug lesson:
+//   - P239 머지 (PR #646) 후에도 prod 에서 P159 새벽 stops alert 지속.
+//   - Root cause: blockMode.js (expandBlocksToItinerary + Multi) 가 옛 룰 (arrival + 9h)
+//     그대로 사용 → arrival=14:00 + 9h = 23:00 → stops cascade 00:45/02:23/04:10.
+//   - P239 fix 가 buildPrompt + RouteAgent 만 update — block_mode 누락 (sleeper bug).
+//
+// 검사 위치: api/_ai_core/blockMode.js
+// 검사 방법:
+//   - 옛 룰 (arrival + 9 * 60) 존재 시 FAIL
+//   - 신 룰 (arrivalPlus60 vs tourStartTime max) 부재 시 FAIL
+//   - tour_start_time pickup default '09:00' 누락 시 FAIL
+//
+// 동반 의무: planPersister.js 가 input.tour_start_time 저장해야 admin debug + 추적 가능.
+// ----------------------------------------------------------------------------
+
+/**
+ * P245_blockModeTourStartTime — block_mode 가 P239 tour_start_time 룰 적용.
+ */
+function P245_blockModeTourStartTime({ changed }) {
+  const BLOCK_FILE = 'api/_ai_core/blockMode.js';
+  const PERSIST_FILE = 'api/_ai_core/planPersister.js';
+  // 둘 중 하나라도 변경되면 검사 — 또는 all-files 모드
+  if (changed.length > 0 && !isModified(BLOCK_FILE, changed) && !isModified(PERSIST_FILE, changed)) {
+    return { skipped: true };
+  }
+
+  const issues = [];
+
+  const blockSrc = readFileExists(BLOCK_FILE);
+  if (blockSrc) {
+    // 옛 룰 잔존 시 FAIL — arrival + 9h cascade 위험
+    if (/addMinutesToHHMM\(\s*arrivalTime\s*,\s*9\s*\*\s*60\s*\)/.test(blockSrc)) {
+      issues.push("blockMode.js 옛 룰 (arrival + 9h) 잔존 — P159 새벽 stops cascade 위험");
+    }
+    // 신 룰 부재 시 FAIL — arrivalPlus60 vs tour_start_time max 비교 필요
+    if (!/arrivalPlus60\s*>\s*tourStartTime/.test(blockSrc)) {
+      issues.push("blockMode.js 신 룰 (max(tour_start_time, arrival+60)) 누락");
+    }
+    // tour_start_time pickup default '09:00' 누락 시 FAIL
+    if (!/tour_start_time\s*\|\|\s*userInput\?\.tourStartTime\s*\|\|\s*['"]09:00['"]/.test(blockSrc)) {
+      issues.push("blockMode.js tour_start_time default '09:00' pickup 누락");
+    }
+    // 양쪽 (단도시 + 다도시) 모두 적용됐는지 — pickup 2회 이상
+    const matches = blockSrc.match(/userInput\?\.tour_start_time\s*\|\|\s*userInput\?\.tourStartTime/g) || [];
+    if (matches.length < 2) {
+      issues.push(`blockMode.js tour_start_time pickup ${matches.length}회 (단도시 + 다도시 둘 다 필요, 2회 이상)`);
+    }
+  }
+
+  const persistSrc = readFileExists(PERSIST_FILE);
+  if (persistSrc) {
+    // planPersister.js 가 Firestore input 에 tour_start_time 저장 의무
+    if (!/tour_start_time:\s*body\.tourStartTime/.test(persistSrc)) {
+      issues.push("planPersister.js Firestore input.tour_start_time 저장 누락 — admin debug + 추적 불가");
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P245_blockModeTourStartTime',
+    severity: 'error',
+    file: BLOCK_FILE,
+    message:
+      'R-P245: block_mode 가 P239 tour_start_time 룰 미적용 — Day1 새벽 stops cascade 회귀 위험. ' +
+      '비유: "투어 시작시간 메뉴판에 적었는데 주방이 옛 시간표대로 요리". ' +
+      '운영자 prod alert (plan 39c7bd3f) arrival=14:00 → 00:45/02:23/04:10 cascade lesson. 발견: ' + issues.join(', '),
   };
 }
 
