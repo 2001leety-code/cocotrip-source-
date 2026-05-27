@@ -191,6 +191,27 @@ const CITY_KOR_ALIASES = {
   Cheonan: ['천안'],
 };
 
+// P247 (2026-05-27): 한글 도시명 → 영문 PascalCase 역방향 매핑.
+// regions 가 한글 ('서울','부산') 로 전달될 때 day.city ('Seoul','Busan' 영문) 와
+// 비교하려면 역방향 조회 필요. 예: '서울' → 'Seoul', '부산' → 'Busan'.
+// B-REGION-COVERAGE + B-13 L5 hasExplicitOtherCity 둘 다 사용.
+const CITY_KOR_TO_ENG = Object.fromEntries(
+  Object.entries(CITY_KOR_ALIASES).flatMap(([eng, kors]) =>
+    kors.map((kor) => [kor.toLowerCase(), eng.toLowerCase()])
+  )
+);
+
+/**
+ * P247: region 문자열 하나를 lowercase 정규화.
+ * 한글 ('서울') → 영문 lowercase ('seoul').
+ * 영문/알 수 없는 문자 → 그대로 lowercase.
+ * B-REGION-COVERAGE 와 B-13 L5 에서 regions 엔트리와 day.city 비교 시 사용.
+ */
+function normalizeRegionKey(r) {
+  const low = String(r || '').trim().toLowerCase();
+  return CITY_KOR_TO_ENG[low] || low;
+}
+
 // 잘 알려진 글로벌 호텔 체인 — 이름만으로는 city 모르지만 well-known 5성급 위치.
 // 다도시 plan 에서 Gemini 가 "Lotte L7 Gangnam" / "JW Marriott Dongdaemun" 처럼
 // city 토큰 없는 이름만 반환 시 B-13 false positive 방지. lodging name 에
@@ -239,13 +260,21 @@ export function validatePatternStructure(itinerary, request = {}) {
   // B-REGION-COVERAGE (P158, 2026-05-22): 다도시 plan 에서 각 region 이 최소 1 day 배정.
   // 사용자 신고: regions=["seoul","busan"] 3-day plan 에서 Gemini 가 모든 day=Seoul →
   // 부산 day 0개 → 결제했는데 부산 미방문. 사용자가 명시적으로 선택한 도시는 모두 방문 의무.
+  //
+  // P247 (2026-05-27): regions 가 한글 ('서울','부산') 로 전달되고 day.city 가 영문 ('Seoul')
+  // 일 때 cityHits['서울'] 가 0 으로 남아 false positive. normalizeRegionKey() 로
+  // regions + day.city 둘 다 영문 lowercase 정규화 후 비교.
   if (isMultiCity) {
-    const cityHits = Object.fromEntries(regions.map((r) => [r.toLowerCase(), 0]));
+    // 정규화 키 (영문 lowercase) → 원본 region 문자열 (오류 메시지용)
+    const normalizedToOriginal = Object.fromEntries(regions.map((r) => [normalizeRegionKey(r), r]));
+    const cityHits = Object.fromEntries(Object.keys(normalizedToOriginal).map((k) => [k, 0]));
     for (const d of days) {
-      const cityKey = String(d?.city || '').trim().toLowerCase();
+      const cityKey = normalizeRegionKey(String(d?.city || '').trim());
       if (cityKey && cityHits[cityKey] !== undefined) cityHits[cityKey]++;
     }
-    const missing = regions.filter((r) => cityHits[r.toLowerCase()] === 0);
+    const missing = Object.entries(cityHits)
+      .filter(([, count]) => count === 0)
+      .map(([k]) => normalizedToOriginal[k] || k);
     if (missing.length > 0) {
       errors.push(
         `Plan: regions [${missing.join(',')}] have 0 days assigned — 사용자가 선택한 모든 도시는 최소 1 day 배정 필수 (B-REGION-COVERAGE)`
@@ -305,13 +334,24 @@ export function validatePatternStructure(itinerary, request = {}) {
 
       // L5 helper: 다른 도시 명시적 언급 여부 (모든 path 에서 공용).
       // CITY_KOR_ALIASES 키는 PascalCase, regions 는 lowercase → normalize.
-      const otherCities = regions.filter((r) => r.toLowerCase() !== cityLow);
+      //
+      // P247 (2026-05-27): regions 가 한글 ('서울','부산') 이고 day.city 가 영문 ('Seoul')
+      // 일 때 기존 필터 r.toLowerCase() !== cityLow → '서울' !== 'seoul' = TRUE → 자기 도시가
+      // otherCities 에 포함 → hay.includes('서울') = TRUE (서울 주소에 '서울' 포함) →
+      // hasExplicitOtherCity = TRUE → **false positive**.
+      // Fix: normalizeRegionKey() 로 regions 엔트리를 영문 lowercase 로 정규화한 뒤 dayCity 와 비교.
+      const dayCityNorm = normalizeRegionKey(dayCity); // 'Seoul' → 'seoul'
+      const otherCities = regions.filter((r) => normalizeRegionKey(r) !== dayCityNorm);
       const hasExplicitOtherCity = otherCities.some((other) => {
-        const otherKey = other.charAt(0).toUpperCase() + other.slice(1).toLowerCase();
-        const otherAliases = CITY_KOR_ALIASES[other] || CITY_KOR_ALIASES[otherKey] || [];
+        // other 는 한글 또는 영문. 영문 alias + 한글 alias 모두 검사.
+        const otherNorm = normalizeRegionKey(other); // 정규화 영문 키
+        const otherEngKey = otherNorm.charAt(0).toUpperCase() + otherNorm.slice(1); // PascalCase
+        const otherKorKey = other.toLowerCase(); // 원본 한글 lowercase
+        const otherAliases = CITY_KOR_ALIASES[otherEngKey] || [];
         return (
-          hay.includes(other.toLowerCase()) ||
-          otherAliases.some((a) => hay.includes(a.toLowerCase()))
+          hay.includes(otherNorm) ||                                // 영문 ('busan')
+          hay.includes(other.toLowerCase()) ||                      // 원본 그대로 ('부산')
+          otherAliases.some((a) => hay.includes(a.toLowerCase()))   // 한글 alias
         );
       });
 
