@@ -8591,17 +8591,20 @@ function P234_odsayDirectCallGuard({ changed }) {
  * R-P235: PlanDetailPage onSnapshot error handler 에서 permission-denied 구분 없이
  * setError('notfound') 직접 호출 감지.
  */
-function checkP235FirestoreErrorDistinction(changed) {
-  const issues = [];
+function checkP235FirestoreErrorDistinction({ changed }) {
   // PlanDetailPage/index.tsx 만 검사 — 다른 파일은 무관
   const PLAN_DETAIL = 'src/pages/PlanDetailPage/index.tsx';
-  const target = changed.find(
-    (c) => c.file.replace(/\\/g, '/').endsWith(PLAN_DETAIL) ||
-            c.file.replace(/\\/g, '/').includes('PlanDetailPage/index'),
+  const entry = changed.find(
+    (c) => c.status !== 'D' && (
+      c.file.replace(/\\/g, '/').endsWith(PLAN_DETAIL) ||
+      c.file.replace(/\\/g, '/').includes('PlanDetailPage/index')
+    ),
   );
-  if (!target) return null;
+  if (!entry) return { skipped: true };
 
-  const content = target.content || '';
+  const content = getChangedFileContent(entry.file);
+  if (!content) return null;
+
   const lines = content.split('\n');
   // 오류 핸들러 콜백 블록에서 직접 setError('notfound') 있고,
   // permission-denied 분기 없으면 위반.
@@ -8615,23 +8618,15 @@ function checkP235FirestoreErrorDistinction(changed) {
       (l) => l.includes("setError('notfound')") && !l.trim().startsWith('//'),
     );
     if (hasDirectNotfound) {
-      issues.push(
-        `${target.file}: onSnapshot error handler 에서 permission-denied 구분 없이 setError('notfound') 직접 호출 → P235 fix 후 회귀`
+      fail(
+        'P235_firestoreErrorDistinction',
+        `${entry.file}: onSnapshot error handler 에서 permission-denied 구분 없이 setError('notfound') 직접 호출 → P235 fix 후 회귀`,
+        'R-P235: PlanDetailPage onSnapshot 에러 핸들러에 permission-denied → autherror 분기 의무. ' +
+        '비유: "열쇠가 맞지 않는데 문이 없다고 안내" = 사용자 혼란. error code permission-denied 는 autherror 로 분기 (새로고침 안내) 필수.'
       );
     }
   }
-
-  if (issues.length === 0) return null;
-  return {
-    id: 'P235_firestoreErrorDistinction',
-    severity: 'error',
-    file: target.file,
-    message:
-      'R-P235: PlanDetailPage onSnapshot 에러 핸들러 permission-denied 구분 누락 (P235 2026-05-27). ' +
-      '비유: "열쇠가 맞지 않는데 문이 없다고 안내" = 사용자 혼란. ' +
-      'error code permission-denied 는 autherror 로 분기 (새로고침 안내) 필수. ' +
-      '발견: ' + issues.join(' | '),
-  };
+  return null;
 }
 
 // ----------------------------------------------------------------------------
