@@ -1,0 +1,290 @@
+[
+  {
+    "key": "BUSAN_RUN_GWANGALLI_5KM",
+    "city": "busan",
+    "zone": "Gwangalli-Bridge",
+    "theme": {
+      "ko": "광안리 해변 5km",
+      "en": "Gwangalli 5km Night Run",
+      "ja": "広安里5km夜ラン",
+      "zh": "广安里5km夜跑"
+    },
+    "distance_km": 5,
+    "duration_min": 60,
+    "intensity": "short",
+    "start_lat": 35.1531,
+    "start_lng": 129.1183,
+    "block_type": "city_day",
+    "stop_count": 4
+  },
+  {
+    "key": "BUSAN_RUN_HAEUNDAE_5KM",
+    "city": "busan",
+    "zone": "Haeundae-Beach",
+    "theme": {
+      "ko": "해운대 해변 5km 러닝",
+      "en": "Haeundae Beach 5km Run",
+      "ja": "海雲台ビーチ5kmラン",
+      "zh": "海云台海滩5km跑步"
+    },
+    "distance_km": 5,
+    "duration_min": 60,
+    "intensity": "short",
+    "start_lat": 35.1583,
+    "start_lng": 129.1689,
+    "block_type": "city_day",
+    "stop_count": 4
+  },
+  {
+    "key": "BUSAN_RUN_IGIDAE_10KM",
+    "city": "busan",
+    "zone": "Igidae-Coastal",
+    "theme": {
+      "ko": "이기대 해안 10km",
+      "en": "Igidae Coastal 10km",
+      "ja": "二妓台海岸10km",
+      "zh": "二妓台海岸10km"
+    },
+    "distance_km": 10,
+    "duration_min": 120,
+    "intensity": "action",
+    "start_lat": 35.1067,
+    "start_lng": 129.1131,
+    "block_type": "city_day",
+    "stop_count": 4
+  },
+  {
+    "key": "DAEGU_RUN_SINCHEON_5KM",
+    "city": "daegu",
+    "zone": "Sincheon",
+    "theme": {
+      "ko": "신천 둔치 5km",
+      "en": "Sincheon Riverside 5km",
+      "ja": "新川河岸5km",
+      "zh": "新川河岸5km"
+    },
+    "distance_km": 5,
+    "duration_min": 60,
+    "intensity": "short",
+    "start_lat": 35.8689,
+    "start_lng": 128.6017,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "GANGNEUNG_RUN_GYEONGPO_5KM",
+    "city": "gangneung",
+    "zone": "Gyeongpo-Lake",
+    "theme": {
+      "ko": "경포호수 5km",
+      "en": "Gyeongpo Lake 5km",
+      "ja": "鏡浦湖5km",
+      "zh": "镜浦湖5km"
+    },
+    "distance_km": 5,
+    "duration_min": 60,
+    "intensity": "short",
+    "start_lat": 37.7975,
+    "start_lng": 128.9019,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "GWANGJU_RUN_518PARK_5KM",
+    "city": "gwangju",
+    "zone": "518-Park",
+    "theme": {
+      "ko": "5.18 기념공원 5km",
+      "en": "May 18 Park 5km",
+      "ja": "5.18記念公園5km",
+      "zh": "5.18纪念公园5km"
+    },
+    "distance_km": 5,
+    "duration_min": 55,
+    "intensity": "short",
+    "start_lat": 35.1525,
+    "start_lng": 126.8528,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "GYEONGJU_RUN_BOMUN_5KM",
+    "city": "gyeongju",
+    "zone": "Bomun-Lake",
+    "theme": {
+      "ko": "보문호수 5km",
+      "en": "Bomun Lake 5km",
+      "ja": "普門湖5km",
+      "zh": "普门湖5km"
+    },
+    "distance_km": 5,
+    "duration_min": 60,
+    "intensity": "short",
+    "start_lat": 35.8528,
+    "start_lng": 129.2528,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "INCHEON_RUN_SONGDO_5KM",
+    "city": "incheon",
+    "zone": "Songdo-Central-Park",
+    "theme": {
+      "ko": "송도 센트럴파크 5km",
+      "en": "Songdo Central Park 5km",
+      "ja": "松島セントラルパーク5km",
+      "zh": "松岛中央公园5km"
+    },
+    "distance_km": 5,
+    "duration_min": 55,
+    "intensity": "short",
+    "start_lat": 37.3942,
+    "start_lng": 126.6394,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "JEJU_RUN_OLLE_7_5KM_BEGINNER",
+    "city": "jeju",
+    "zone": "Jeju Olle Trail 7",
+    "theme": {
+      "ko": "제주 올레길 7코스 일부 (외돌개 → 법환포구) 5.5km",
+      "en": "Jeju Olle Trail 7 (Oedolgae → Beophwan Port) 5.5km",
+      "ja": "済州オルレ7コース一部 (外突介→法還浦口) 5.5km",
+      "zh": "济州偶来步道 7号 (外突介→法还浦口) 5.5km"
+    },
+    "distance_km": 5,
+    "duration_min": 85,
+    "intensity": "relaxed",
+    "start_lat": 0,
+    "start_lng": 0,
+    "block_type": "running_route",
+    "stop_count": 3
+  },
+  {
+    "key": "JEONJU_RUN_DEOKJIN_5KM",
+    "city": "jeonju",
+    "zone": "Deokjin-Park",
+    "theme": {
+      "ko": "덕진공원 5km",
+      "en": "Deokjin Park 5km",
+      "ja": "徳津公園5km",
+      "zh": "德津公园5km"
+    },
+    "distance_km": 5,
+    "duration_min": 55,
+    "intensity": "short",
+    "start_lat": 35.8528,
+    "start_lng": 127.1306,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "POHANG_RUN_YEONGILDAE_5KM",
+    "city": "pohang",
+    "zone": "Yeongildae-Beach",
+    "theme": {
+      "ko": "영일대 해변 5km",
+      "en": "Yeongildae Beach 5km",
+      "ja": "迎日台5km",
+      "zh": "迎日台5km"
+    },
+    "distance_km": 5,
+    "duration_min": 55,
+    "intensity": "short",
+    "start_lat": 36.0644,
+    "start_lng": 129.3833,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "SEOUL_DAY_HANGANG_MANGWON_RUNNING_5KM",
+    "city": "seoul",
+    "zone": "Hangang Mangwon",
+    "theme": {
+      "ko": "한강 망원지구 5km 러닝",
+      "en": "Hangang Mangwon 5km Running",
+      "ja": "漢江 望遠地区 5km ランニング",
+      "zh": "汉江望远区 5km 跑步"
+    },
+    "distance_km": 5,
+    "duration_min": 75,
+    "intensity": "relaxed",
+    "start_lat": 0,
+    "start_lng": 0,
+    "block_type": "running_route",
+    "stop_count": 3
+  },
+  {
+    "key": "SEOUL_RUN_JAMSIL_5KM",
+    "city": "seoul",
+    "zone": "Jamsil-Hangang",
+    "theme": {
+      "ko": "한강 잠실 5km",
+      "en": "Hangang Jamsil 5km",
+      "ja": "漢江蚕室5km",
+      "zh": "汉江蚕室5km"
+    },
+    "distance_km": 5,
+    "duration_min": 55,
+    "intensity": "short",
+    "start_lat": 37.517,
+    "start_lng": 127.0817,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "SOKCHO_RUN_CHEONGCHO_5KM",
+    "city": "sokcho",
+    "zone": "Cheongcho-Lake",
+    "theme": {
+      "ko": "청초호수 5km",
+      "en": "Cheongcho Lake 5km",
+      "ja": "青草湖5km",
+      "zh": "青草湖5km"
+    },
+    "distance_km": 5,
+    "duration_min": 55,
+    "intensity": "short",
+    "start_lat": 38.1972,
+    "start_lng": 128.5872,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "SUNCHEON_RUN_GARDEN_5KM",
+    "city": "suncheon",
+    "zone": "National-Garden",
+    "theme": {
+      "ko": "순천만 정원 5km",
+      "en": "Suncheonman Garden 5km",
+      "ja": "順天湾庭園5km",
+      "zh": "顺天湾园5km"
+    },
+    "distance_km": 5,
+    "duration_min": 60,
+    "intensity": "short",
+    "start_lat": 34.8753,
+    "start_lng": 127.5072,
+    "block_type": "city_day",
+    "stop_count": 3
+  },
+  {
+    "key": "YEOSU_RUN_DOLSAN_5KM",
+    "city": "yeosu",
+    "zone": "Dolsan",
+    "theme": {
+      "ko": "돌산공원 5km",
+      "en": "Dolsan Park 5km",
+      "ja": "突山公園5km",
+      "zh": "突山公园5km"
+    },
+    "distance_km": 5,
+    "duration_min": 60,
+    "intensity": "short",
+    "start_lat": 34.7378,
+    "start_lng": 127.7544,
+    "block_type": "city_day",
+    "stop_count": 3
+  }
+]
