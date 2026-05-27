@@ -17,6 +17,25 @@
  * 운영자 후속:
  *   1. Docker 또는 WSL2 에서 --update-snapshots 로 baseline PNG 생성 후 commit.
  *   2. PDF_GOLDEN_PLAN_ID fixture 가 arrival_guide/departure_guide 포함하는지 확인.
+ *
+ * P233 (2026-05-27): networkidle → waitForSelector 패턴 교체.
+ *   - 문제: Firestore onSnapshot WebSocket + Sentry/Analytics beacon 이
+ *     Vercel Preview 환경에서 networkidle 500ms idle 조건을 60s 안에 달성 불가.
+ *     P230 (PR #637) + P231 (PR #638) 두 PR 연속 동일 실패 — chronically flaky.
+ *   - 선택 옵션: B (waitForSelector, 기존 data-testid 활용) — frontend 코드 변경 0.
+ *   - ready signal: [data-testid="section-tabs-scroll"] — SectionTabs.tsx:88.
+ *     Firestore onSnapshot → loading=false → plan 존재 시 최초 노출.
+ *     에러 상태(notfound/unauthorized) 에서는 미노출 → timeout = 회귀 감지 의도.
+ *   - 외부 사례 (deep-search 결과):
+ *     1. Playwright 공식 문서: networkidle "discouraged" — web assertions 권고.
+ *     2. BrowserStack 2026: "Avoid waitForLoadState('networkidle')" — SPA background
+ *        polling, analytics beacon, WebSocket 이 idle 막음.
+ *     3. Checkly Docs (playwright/waits-and-timeouts): waitForSelector preferred over
+ *        networkidle for SPAs with real-time data sources.
+ *     4. WebCrawlerAPI Glossary: "networkidle misuse causes test flakiness — use
+ *        explicit element assertions instead."
+ *     5. Playwright GitHub #22809: "React/Angular SPA best practice = wait for
+ *        content element, not network state."
  */
 import { test, expect } from '@playwright/test';
 
@@ -78,11 +97,24 @@ test.describe('PlanDetailPage — mobile visual regression', () => {
     // Firebase auth inject 먼저 (page.goto 전에 addInitScript 해야 적용).
     await injectFirebaseAuth(page);
 
-    await page.goto(`/my-plans/${PLAN_ID}`, { waitUntil: 'load' });
-    // network idle 대기 — Firestore listener + framer-motion 안정화.
-    await page.waitForLoadState('networkidle');
-    // framer-motion 초기 animation 잔여 안정화.
-    await page.waitForTimeout(800);
+    // P233: waitUntil='domcontentloaded' — networkidle 대신.
+    // Firestore onSnapshot WebSocket 이 Vercel Preview 에서 networkidle 500ms 조건
+    // 도달 불가 → 60s timeout → chronically flaky (P230/P231 동일 실패 교훈).
+    // domcontentloaded = HTML 파싱 + 초기 스크립트 실행 완료. React 렌더 트리거 시점.
+    await page.goto(`/my-plans/${PLAN_ID}`, { waitUntil: 'domcontentloaded' });
+
+    // P233: Firestore onSnapshot 완료 ready signal — [data-testid="section-tabs-scroll"].
+    // SectionTabs.tsx 에 기존 존재하는 testid. loading=false + plan 존재 시만 노출.
+    // Firestore WebSocket 완료를 기다리지 않고, React state 갱신 결과만 확인.
+    // timeout=15000ms: cold Vercel Preview 환경 + Firestore 첫 응답 여유분.
+    await page.waitForSelector('[data-testid="section-tabs-scroll"]', {
+      state: 'visible',
+      timeout: 15000,
+    });
+
+    // React 리렌더 안정화 — streaming_in_progress 갱신 등 2차 Firestore 패치 여유.
+    // framer-motion transition 은 playwright.visual.config.ts animations:'disabled' 가 처리.
+    await page.waitForTimeout(400);
   });
 
   /**
