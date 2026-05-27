@@ -132,7 +132,7 @@ function validateLodgingBookend(itinerary, anchor, isMultiCity) {
   }
 }
 
-export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_address, arrival_airport, departure_airport, pax }) {
+export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_address, arrival_airport, departure_airport, pax, zone_id }) {
   const routeStart = Date.now();
   // B-11 diag (2026-05-12): root cause 진단용 — 어느 환경 변수가 없는지, 입력 stop
   // 수가 얼마나 되는지, 출력에 transit 가 attach 됐는지 한 줄에 요약. 머지 후
@@ -176,6 +176,11 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
       regions: Array.isArray(body.regions) && body.regions.length > 0
         ? body.regions
         : (body.area ? [body.area] : []),
+      // P253 (2026-05-27): zone_id = Firestore zone_courses doc ID (예: "SEOUL_DAY_MYEONGDONG_STANDARD").
+      // RouteAgent data.zone_id 로 읽어서 transitCache.lookupTransitCache(zoneId, ...) 호출.
+      // 단도시 block_mode 에서 blocksUsed[0] 값. legacy path + 다도시 = null → cache miss.
+      // 다도시는 RouteAgent 가 day.source_block_id 로 per-day zone_id 를 처리.
+      zone_id: zone_id || null,
     };
     console.log('[planner] RouteAgent input days:', wrapped.itinerary.days.length, '| stops/day:', wrapped.itinerary.days.map((d) => (d.places || d.stops || []).length));
     const enriched = await routeAgent.call(JSON.stringify(wrapped));

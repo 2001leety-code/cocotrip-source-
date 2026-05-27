@@ -372,8 +372,8 @@ export default async function handler(req, res) {
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
-    // ── RouteAgent enrichment (mutates itinerary; P251 zone_id for P228 cache hit) ──
-    await withStep('routeEnrich', () => runRouteEnrichment(itinerary, { apiKey, body, hotel_address: routeHotelAddress, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelAddressFromBody: hotel_address, zone_id: itinerary?.zone_id || null }));
+    // ── RouteAgent enrichment (mutates itinerary in place; P253: zone_id = blocksUsed[0]) ──
+    await withStep('routeEnrich', () => runRouteEnrichment(itinerary, { apiKey, body, hotel_address: routeHotelAddress, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelAddressFromBody: hotel_address, zone_id: blockModeUsed ? (blocksUsed[0] || null) : null }));
 
     console.log('[planner] Step 3: Saving to Firestore...');
 
