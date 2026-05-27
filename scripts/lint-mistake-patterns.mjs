@@ -2083,6 +2083,7 @@ const RULES = [
   ['R_PlanDetailVisual', R_PlanDetailVisual],
   ['P228_transitCacheIntegrity', P228_transitCacheIntegrity],
   ['P231_skeletonInWorkerGuard', P231_skeletonInWorkerGuard],
+  ['P234_odsayDirectCallGuard', P234_odsayDirectCallGuard],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8505,6 +8506,71 @@ function P231_skeletonInWorkerGuard({ changed }) {
     message:
       'R-P231: skeleton-in-worker 구조 정합성 손상 (P231 2026-05-27). ' +
       '비유: "접수증→담당자 서류 완성" 연결이 끊어지면 client 가 404 또는 stub 방치. ' +
+      '발견: ' + issues.join(' | '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P234_odsayDirectCallGuard — ODsay 직접 호출 (cache wrapper 없음) 감시 (2026-05-27)
+// ----------------------------------------------------------------------------
+//
+// 목적: ODsay searchPubTransPathT 를 transitCache lookup 없이 직접 호출하는
+//   새 site 추가 회귀 감시. P228 cache 우회 → quota 소진 원인.
+//
+// 허용된 직접 호출 파일:
+//   - scripts/build-zone-course.mjs         (시드 전용 — intentional)
+//   - api/admin-rebuild-zone-course-transit.js (관리자 API — intentional)
+//   - scripts/test-odsay.mjs                (테스트 전용)
+//   - api/recalc-transit.js                 (stale 구간 재계산 전용)
+//   - api/_ai_core/agents/RouteAgent.js     (P228 cache wrapper 내에 포함됨)
+//
+// 트리거: api/_ai_core/ 또는 api/ 의 JS 파일 변경 시.
+// ----------------------------------------------------------------------------
+
+function P234_odsayDirectCallGuard({ changed }) {
+  // 허용된 파일 목록 (ODsay 직접 호출 정당한 컨텍스트)
+  const ALLOWED_DIRECT_CALLERS = new Set([
+    'scripts/build-zone-course.mjs',
+    'api/admin-rebuild-zone-course-transit.js',
+    'scripts/test-odsay.mjs',
+    'api/recalc-transit.js',
+    'api/_ai_core/agents/RouteAgent.js', // cache lookup 내에 있음
+    'scripts/verify-odsay-fix.mjs',
+    'scripts/audit-transit.mjs',
+  ]);
+
+  // api/ 또는 scripts/ 에서 변경된 JS/MJS 파일만 검사
+  const relevantFiles = changed.filter(
+    (f) =>
+      (f.startsWith('api/') || f.startsWith('scripts/')) &&
+      (f.endsWith('.js') || f.endsWith('.mjs')) &&
+      !ALLOWED_DIRECT_CALLERS.has(f)
+  );
+  if (relevantFiles.length === 0) return { skipped: true };
+
+  const issues = [];
+  for (const file of relevantFiles) {
+    const src = readFileExists(file) || '';
+    // ODsay API endpoint 직접 호출 여부: searchPubTransPathT 사용
+    if (/searchPubTransPathT/.test(src)) {
+      // transitCache wrapper 를 같이 import 하면 OK
+      if (!/transitCache/.test(src) && !/lookupTransitCache/.test(src)) {
+        issues.push(
+          `${file}: searchPubTransPathT 직접 호출 + transitCache lookup 없음 → ODsay quota 소진 회귀 위험`
+        );
+      }
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P234_odsayDirectCallGuard',
+    severity: 'warning',
+    file: issues[0].split(':')[0],
+    message:
+      'R-P234: ODsay 직접 호출 + cache wrapper 없음 감지 (P234 2026-05-27). ' +
+      '비유: "메뉴판 확인 안 하고 매번 주방에 새 요리 주문 = quota 소진". ' +
+      '허용 파일(시드/관리자/테스트) 외 신규 직접 호출은 lookupTransitCache() 먼저 호출 필요. ' +
       '발견: ' + issues.join(' | '),
   };
 }
