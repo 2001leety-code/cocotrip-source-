@@ -1934,6 +1934,72 @@ function R_PlanDetailVisual({ changed }) {
   return null;
 }
 
+// ── R-P246 (2026-05-27) — DMZ style 선택 시 city-mismatch 차단 ──────────────────────────────
+// P246 root cause: input=seoul + styles=DMZ 인데 Gemini 가 제주(한림공원/협재해변) stops 생성.
+// 진짜 root cause: buildPrompt.js 의 DMZ style 라인에 city 강제 없음 → legacy Gemini path
+// 에서 Seoul area + DMZ style 조합이 Jeju stops 를 생성.
+//
+// 2-layer fix:
+//   (1) buildPrompt.js DMZ 라인에 "ALL DMZ stops MUST be in Gyeonggi-do/Paju" 명시.
+//   (2) responseValidator.js R-P246 soft guard — Dmz style 시 Jeju/Busan address 감지 + Telegram alert.
+//
+// 트리거: buildPrompt.js / responseValidator.js / geminiPipeline.js 변경 시.
+// 위반 조건:
+//   1. buildPrompt.js 의 Dmz style 라인에 "Gyeonggi" city guard 없음.
+//   2. responseValidator.js 에 R-P246 / dmz_city_mismatch 마커 없음.
+//   3. geminiPipeline.js 의 validateResponse 호출에 styles 미전달.
+//
+// 검사 위치: api/_ai_core/buildPrompt.js, api/_ai_core/responseValidator.js,
+//           api/_ai_core/geminiPipeline.js.
+
+/**
+ * P246_dmzCityMismatchGuard — DMZ style + city guard 2-layer 유지 검증.
+ */
+function P246_dmzCityMismatchGuard({ changed }) {
+  const BP = 'api/_ai_core/buildPrompt.js';
+  const RV = 'api/_ai_core/responseValidator.js';
+  const GP = 'api/_ai_core/geminiPipeline.js';
+  const anyChanged = [BP, RV, GP].some((f) => isModified(f, changed));
+  if (!anyChanged) return { skipped: true };
+
+  const issues = [];
+
+  const bp = readFileExists(BP);
+  if (bp) {
+    // Layer 1: buildPrompt.js DMZ line 에 Gyeonggi/Paju city guard 존재 확인.
+    if (!(/Dmz.*Gyeonggi/s.test(bp) || /DMZ.*Gyeonggi/s.test(bp))) {
+      issues.push(`${BP}: DMZ style 라인에 Gyeonggi city guard 누락 — Jeju/Busan stops 생성 차단 불가 (P246 root cause)`);
+    }
+  }
+
+  const rv = readFileExists(RV);
+  if (rv) {
+    // Layer 2: responseValidator.js 에 R-P246 / dmz_city_mismatch 마커 확인.
+    if (!rv.includes('dmz_city_mismatch') && !rv.includes('P246')) {
+      issues.push(`${RV}: dmz_city_mismatch 또는 P246 validator 마커 누락 — styles=Dmz + 비DMZ stop 감지 불가`);
+    }
+  }
+
+  const gp = readFileExists(GP);
+  if (gp) {
+    // geminiPipeline.js validateResponse 호출에 styles 전달 확인.
+    // body?.styles 또는 styles: 패턴 찾기.
+    if (!/validateResponse\s*\(itinerary,\s*\{[^}]*styles/.test(gp)) {
+      issues.push(`${GP}: validateResponse 호출에 styles 미전달 — R-P246 DMZ city guard 작동 불가`);
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P246_dmzCityMismatchGuard',
+    severity: 'error',
+    file: BP,
+    message:
+      'R-P246: DMZ city-mismatch guard 2-layer 손상 — input=seoul + styles=Dmz 인데 제주/부산 stops 생성 (prod 사고: 한림공원/곽지해수욕장). ' +
+      'Layer 1 (buildPrompt Gyeonggi guard) + Layer 2 (responseValidator dmz_city_mismatch) 반드시 동시 유지. 발견: ' + issues.join(', '),
+  };
+}
+
 // ── R-P244 (2026-05-27) — Playwright visual spec beforeEach networkidle 사용 금지 ──
 // P244 root cause: deployment_status trigger 에서 CI 가 auth 없이 실행됨.
 // section-tabs-scroll waitForSelector 는 plan 로드 성공 시만 → auth 없으면 항상 timeout.
@@ -2130,6 +2196,7 @@ const RULES = [
   ['P239_tourStartTimeFallback', P239_tourStartTimeFallback],
   ['P240_blockModeAllergenSafety', P240_blockModeAllergenSafety],
   ['P241_activityHelperIntegrity', P241_activityHelperIntegrity],
+  ['P246_dmzCityMismatchGuard', P246_dmzCityMismatchGuard],
   ['R_P244_playwrightPageReadySignal', R_P244_playwrightPageReadySignal],
   ['P243_zoneBlockStyleCoverage', P243_zoneBlockStyleCoverage],
 ];

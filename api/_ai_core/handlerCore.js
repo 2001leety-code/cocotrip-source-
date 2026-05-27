@@ -332,6 +332,7 @@ export default async function handler(req, res) {
         arrival_airport,
         departure_airport,
         durationDays,
+        styles, // P246: DMZ city-mismatch guard — validateResponse R-P246 needs styles
       },
       // P169: streaming 모드에서 progressive Firestore write 용
       ...(streamingPlanId ? { adminDb, planId: streamingPlanId } : {}),

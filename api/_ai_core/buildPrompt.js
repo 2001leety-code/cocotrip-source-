@@ -533,7 +533,7 @@ Tailor ≥60% of stops to user's selected styles:
 - Photo: Instagram cafes, 벽화마을, viewpoints
 - Drama: K-drama filming locations, drama parks
 - Hanbok: hanbok rental zones, Bukchon, Jeonju Hanok Village
-- Dmz: full day — Imjingak, 제3땅굴, 도라전망대, 통일촌
+- Dmz: full day — Imjingak, 제3땅굴, 도라전망대, 통일촌. **ALL DMZ stops MUST be in Gyeonggi-do / Paju area (경기도 파주시). NEVER place Jeju, Busan, or other non-Gyeonggi stops when Dmz style is selected. BAD: "한림공원 (제주)" or "해운대 (부산)" on DMZ day — P246 alert fires.** Use EXACT names from VERIFIED DMZ TOUR DATABASE if present in the message.
 - Kbeauty: Apgujeong, Garosugil beauty street, skincare experiences
 
 If "special_request" is present in the user message, treat it as HIGHEST PRIORITY:

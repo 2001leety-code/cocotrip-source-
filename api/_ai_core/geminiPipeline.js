@@ -1138,7 +1138,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     }
 
     // P0-3: dietary 전달 + violation 시 retry. 3pass 는 retry 비용 큼 — pass1 만 재호출.
-    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
       console.warn('[planner] 🚨 dietary_violation detected — retrying pass1 with reinforced prompt');
       recordRetryAttempt('dietary-3pass');
@@ -1156,7 +1156,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         } else {
           itinerary = await pass3Enrich(model, itinerary, language);
         }
-        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
       } catch (retryErr) {
         console.error('[planner] dietary retry failed:', retryErr.message);
       }
@@ -1355,7 +1355,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
     cleanAddresses(itinerary);
     sanitizeStops(itinerary, language);
     // P0-3 SAFETY-CRITICAL: dietary 전달 + violation 시 1회 retry → 그래도 violation 시 throw.
-    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+    let issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
     if (hasCriticalDietaryViolation(issues) && dietaryArr.length > 0) {
       console.warn('[planner] 🚨 dietary_violation detected — retrying with reinforced prompt');
       recordRetryAttempt('dietary-legacy');
@@ -1381,7 +1381,7 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         itinerary = repairAndParseJSON(retryRaw);
         cleanAddresses(itinerary);
         sanitizeStops(itinerary, language);
-        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr }, foodIndex);
+        issues = validateResponse(itinerary, { lang: language, dietary: dietaryArr, styles: body?.styles }, foodIndex);
       } catch (retryErr) {
         console.error('[planner] dietary retry failed:', retryErr.message);
         // retry 자체 실패 시에도 issues 는 직전 값 유지 → 아래 final check 가 throw.
