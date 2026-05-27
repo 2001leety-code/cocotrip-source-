@@ -372,8 +372,7 @@ export default async function handler(req, res) {
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
-    // ── RouteAgent enrichment (mutates itinerary in place) ────────────────
-    // P251 (2026-05-28): zone_id 전달 — P228 transitCache hit 의무 (P249 측정 hit rate 0% sleeper bug fix).
+    // ── RouteAgent enrichment (mutates itinerary; P251 zone_id for P228 cache hit) ──
     await withStep('routeEnrich', () => runRouteEnrichment(itinerary, { apiKey, body, hotel_address: routeHotelAddress, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelAddressFromBody: hotel_address, zone_id: itinerary?.zone_id || null }));
 
     console.log('[planner] Step 3: Saving to Firestore...');
