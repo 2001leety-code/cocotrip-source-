@@ -295,14 +295,15 @@ export default async function handler(req, res) {
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 
     // ── P169: Streaming 모드 — planId 먼저 + skeleton 저장. block-mode/3-pass 는 useStreaming=false.
-    //   PLANNER_STREAMING_ENABLED + legacy 1-pass 만 활성. [P170] 세부 로직은 backgroundPipelines.js.
+    //   PLANNER_STREAMING_ENABLED + legacy 1-pass 만 활성. [P170] 세부 로직은 backgroundPipelines.js. P231: sk.skeletonCtx 반환.
     const useStreaming = shouldUseStreaming({ itinerary, plannerMode: PLANNER_MODE });
     let streamingPlanId = null;
     let streamingPlanUrl = null;
     let streamingResponseSent = false;
+    let skeletonCtx = null; // P231: worker Step 0 에 전달할 full skeleton 파라미터 (ENV off 시 null)
     if (useStreaming) {
       const sk = await tryInitStreamingSkeleton({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body });
-      if (sk) { streamingPlanId = sk.planId; streamingPlanUrl = sk.planUrl; }
+      if (sk) { streamingPlanId = sk.planId; streamingPlanUrl = sk.planUrl; skeletonCtx = sk.skeletonCtx || null; }
     }
 
     // ── Gemini 파이프라인 (legacy or 3pass) ────────────────────────────────
@@ -343,13 +344,13 @@ export default async function handler(req, res) {
     }
 
     // P230 (2026-05-27): block-mode + Inngest 통합 — skeleton + dispatch + early response 단일 helper.
-    // 성공 시 handler return. dispatch 실패 시 streamingPlanId 만 받아 inline path 가 같은 planId 재사용 (savePlan planIdOverride).
+    // 성공 시 handler return. dispatch 실패 시 streamingPlanId 만 받아 inline path 재사용. P231: blkInn.skeletonCtx → dispatchFn 전달.
     const blkInn = blockModeUsed && !streamingPlanId
       ? await tryBlockModeInngestPath({
           adminDb, isInngestEnabled: shouldDispatchToInngest(), blockModeUsed, itinerary, uid, email, area,
           startDate, guestName, pax, language, vehicle, durationDays, body, handlerStart,
-          dispatchFn: ({ streamingPlanId: spid }) => dispatchOrInlineForHandlerCore({
-            streamingResponseSent: true, itinerary, streamingPlanId: spid, apiKey, body, routeHotelAddress, hotel_address,
+          dispatchFn: ({ streamingPlanId: spid, skeletonCtx: spCtx }) => dispatchOrInlineForHandlerCore({
+            streamingResponseSent: true, itinerary, streamingPlanId: spid, skeletonCtx: spCtx || null, apiKey, body, routeHotelAddress, hotel_address,
             arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
             area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
@@ -360,11 +361,12 @@ export default async function handler(req, res) {
         })
       : null;
     if (blkInn && blkInn.dispatched) { streamingResponseSent = true; return; }
-    if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; }
+    if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; skeletonCtx = blkInn.skeletonCtx || null; }
 
     // P220 (2026-05-26): Inngest dispatch — streaming + ENV + 토글 시 post-Gemini 를 별 invocation 으로. ENV/throw 시 inline fallback (silent fail 차단).
     // P230 (2026-05-27): block-mode 경로는 위에서 이미 처리 → skip. legacy streaming 만 본 분기 진입.
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
+    // P231 (2026-05-27): skeletonCtx 전달 — worker Step 0 가 full skeleton 저장 (PLANNER_SKELETON_IN_WORKER=true 시).
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
 
     console.log('[planner] Step 2: Running RouteAgent...');
 

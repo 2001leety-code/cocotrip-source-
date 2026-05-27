@@ -72,6 +72,9 @@ export async function publishPlanAiComplete(payload) {
  * handlerCore 의 inline pipeline 과 동일한 변수 그룹을 받아 inngestDispatch payload
  * 로 정규화. handlerCore.js 의 P129 line cap (500L) 보호 위해 별도 모듈로 추출.
  *
+ * P231 (2026-05-27): skeletonCtx 포함 — skeleton-in-worker 모드 시 worker Step 0
+ *   가 full skeleton 저장. skeletonCtx 없으면 (ENV off) worker 가 무시.
+ *
  * @param {object} args  - handlerCore scope 의 변수 집합 (shaped + computed)
  * @returns {{ planId, itinerary, ctx }} publishPlanAiComplete() 입력
  */
@@ -79,6 +82,7 @@ export function buildPlanAiCompletePayload(args) {
   const {
     itinerary,
     streamingPlanId,
+    skeletonCtx,      // P231: skeleton-in-worker 모드 시 full skeleton 파라미터. undefined = 기존 동작.
     apiKey, body,
     routeHotelAddress, hotelAddressFromBody,
     arrival_airport, departure_airport, pax,
@@ -110,6 +114,10 @@ export function buildPlanAiCompletePayload(args) {
       streamingPlanId,
       isAdminBypass: !!isAdminBypass,
       identifierForBucketing,
+      // P231: skeleton-in-worker 모드 시 full skeleton 파라미터 전달.
+      // worker Step 0 가 skeletonCtx 있으면 savePlanSkeleton 호출 (stub → full skeleton).
+      // skeletonCtx 없으면 (ENV off) worker 가 무시 — backward compat.
+      ...(skeletonCtx ? { skeletonCtx } : {}),
     },
   };
 }
@@ -183,14 +191,17 @@ export async function tryDispatchAndLog(scope, handlerStart) {
  * 들어오는 scope 객체는 호출자 책임 (handlerCore 가 단일 진입점).
  */
 export async function dispatchOrInlineForHandlerCore({
-  streamingResponseSent, itinerary, streamingPlanId, apiKey, body, routeHotelAddress, hotel_address,
+  streamingResponseSent, itinerary, streamingPlanId,
+  skeletonCtx,  // P231: skeleton-in-worker 모드 시 full skeleton 파라미터. null = 기존 동작.
+  apiKey, body, routeHotelAddress, hotel_address,
   arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
   area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
   specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed,
   abDecision, isAdminBypass, identifierForBucketing, handlerStart,
 }) {
   return tryDispatchAndLog({
-    streamingResponseSent, itinerary, streamingPlanId, apiKey, body, routeHotelAddress, hotelAddressFromBody: hotel_address,
+    streamingResponseSent, itinerary, streamingPlanId, skeletonCtx: skeletonCtx || undefined,
+    apiKey, body, routeHotelAddress, hotelAddressFromBody: hotel_address,
     arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
     area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
     specialRequest, mobility, language,
