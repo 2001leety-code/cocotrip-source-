@@ -2081,6 +2081,7 @@ const RULES = [
   ['P215_finishReasonDetect', P215_finishReasonDetect],
   ['P219_thoughtPartFilter', P219_thoughtPartFilter],
   ['R_PlanDetailVisual', R_PlanDetailVisual],
+  ['P228_transitCacheIntegrity', P228_transitCacheIntegrity],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8355,6 +8356,71 @@ function P219_thoughtPartFilter({ changed }) {
     '필터 없이 그대로 청중에게 배포하면 영업비밀이 노출됨".',
   );
   return null;
+}
+
+// ----------------------------------------------------------------------------
+// P228_transitCacheIntegrity — transit cache 핵심 구조 유지 감시 (2026-05-27)
+//
+// 운영자 의도: ODsay 매번 호출 안 하고 DB 에서 복붙 = 빠르고 안정.
+// Phase 3 transit cache 가 손상되면 ODsay 절감 효과 0 + latency 회귀.
+//
+// 트리거: api/_ai_core/transitCache.js 또는 RouteAgent.js 변경 시.
+// ----------------------------------------------------------------------------
+
+function P228_transitCacheIntegrity({ changed }) {
+  const CACHE_FILE = 'api/_ai_core/transitCache.js';
+  const ROUTE_FILE = 'api/_ai_core/agents/RouteAgent.js';
+  const cacheChanged = isModified(CACHE_FILE, changed);
+  const routeChanged = isModified(ROUTE_FILE, changed);
+  if (!cacheChanged && !routeChanged) return { skipped: true };
+
+  const issues = [];
+
+  if (cacheChanged) {
+    const src = readFileExists(CACHE_FILE) || '';
+    // lookupTransitCache export 존재
+    if (!/export async function lookupTransitCache/.test(src)) {
+      issues.push('lookupTransitCache export 누락 — cache lookup 불가');
+    }
+    // mock 데이터 miss 처리 (품질 보호 — 15분 기본값 차단)
+    if (!/source === 'mock'/.test(src) || !/return null/.test(src)) {
+      issues.push('source=mock → null 반환 로직 누락 — mock 데이터가 cache hit 으로 처리될 위험');
+    }
+    // ENV circuit breaker
+    if (!/ROUTE_TRANSIT_CACHE_ENABLED/.test(src)) {
+      issues.push('ROUTE_TRANSIT_CACHE_ENABLED circuit breaker 누락');
+    }
+    // invalidateTransitCache export 존재 (운영자 재시드 후 수동 flush 용)
+    if (!/export function invalidateTransitCache/.test(src)) {
+      issues.push('invalidateTransitCache export 누락 — 운영자 재시드 후 캐시 갱신 불가');
+    }
+  }
+
+  if (routeChanged) {
+    const src = readFileExists(ROUTE_FILE) || '';
+    // transitCache import 존재
+    if (!/from ['"]\.\.\/transitCache\.js['"]/.test(src)) {
+      issues.push('RouteAgent.js 에서 transitCache import 누락 — cache 비활성 회귀');
+    }
+    // lookupTransitCache 호출 존재
+    if (!/lookupTransitCache\(/.test(src)) {
+      issues.push('RouteAgent.js 에서 lookupTransitCache 호출 누락 — cache 완전 비활성');
+    }
+    // dayZoneId 사용 (day-level zone_id)
+    if (!/dayZoneId/.test(src)) {
+      issues.push('RouteAgent.js 에 dayZoneId 누락 — block mode zone_id 연결 손상');
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P228_transitCacheIntegrity',
+    severity: 'error',
+    file: cacheChanged ? CACHE_FILE : ROUTE_FILE,
+    message:
+      'R-P228: Phase 3 transit cache 손상 — ODsay 절감 효과 0 + latency 회귀 위험 (P228 2026-05-27). ' +
+      '발견: ' + issues.join(' | '),
+  };
 }
 
 // ----------------------------------------------------------------------------

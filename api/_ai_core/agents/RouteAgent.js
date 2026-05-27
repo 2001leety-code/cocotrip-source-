@@ -3,6 +3,8 @@ import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 import { AIRPORT_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
+// Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
+import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
 
 // ── intercity station coordinates (PDF-issue-2 fix, 2026-05-14) ─────────
 // KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
@@ -542,6 +544,9 @@ export class RouteAgent extends BaseAgent {
         const region = data.area || data.region || '';
         const charterProductType = regionToCharterProduct(region);
         const daysList = Array.isArray(rawItinerary) ? rawItinerary : (rawItinerary.days || []);
+        // Phase 3 (2026-05-27): block mode 에서 전달된 zone_id. legacy path = null.
+        // zone_id 가 있으면 _getTransitData 전 transitCache lookup → ODsay call 절감.
+        const zoneId = data.zone_id || null;
 
         // ════════════════════════════════════════════════════════
         // Trip-level: geocode hotel ONCE, route airport ↔ hotel
@@ -776,6 +781,10 @@ export class RouteAgent extends BaseAgent {
             // which we map to WEEK_TAG inside getSubwayTimetable.
             const dayDate = dayPlan.date ? new Date(dayPlan.date) : null;
             const dayOfWeek = (dayDate && !isNaN(dayDate.getTime())) ? dayDate.getDay() : null;
+            // Phase 3 (2026-05-27): day-level zone_id = block mode 의 source_block_id.
+            // trip-level zoneId (data.zone_id) 우선, 없으면 day-level source_block_id.
+            // legacy path = 둘 다 null → cache miss → 기존 ODsay 경로.
+            const dayZoneId = zoneId || dayPlan.source_block_id || null;
 
             // ════════════════════════════════════════════════════════
             // Phase 1: 모든 장소의 좌표 확보 (Naver Geocoding) — 병렬화 (P138)
@@ -895,14 +904,27 @@ export class RouteAgent extends BaseAgent {
 
             // ════════════════════════════════════════════════════════
             // Phase 2: ODsay + Naver 경로 병렬 호출
+            // Phase 3 (2026-05-27): transitCache lookup 먼저 — hit 시 ODsay skip.
+            // zoneId: block mode 에서 전달 (data.zone_id). legacy path = null → miss.
             // ════════════════════════════════════════════════════════
             const transitPromises = [];
             for (let i = 1; i < places.length; i++) {
                 const prev = places[i - 1];
                 const curr = places[i];
                 if (prev.lat && prev.lng && curr.lat && curr.lng) {
+                    // Phase 3: cache lookup — stop.order 기반 (zone_courses transit_matrix key: "N->M").
+                    // order 필드 없으면 index (i) 로 fallback (legacy Gemini plan 호환).
+                    const fromOrder = prev.order != null ? prev.order : i;
+                    const toOrder = curr.order != null ? curr.order : i + 1;
                     transitPromises.push(
-                        this._getTransitData(prev, curr, clientId, clientSecret, i, dayOfWeek)
+                        lookupTransitCache(dayZoneId, fromOrder, toOrder).then((cached) => {
+                            if (cached) {
+                                // Cache hit: ODsay skip. index 필드 추가 (caller 기대값).
+                                return { index: i, ...cached };
+                            }
+                            // Cache miss: 기존 ODsay 경로
+                            return this._getTransitData(prev, curr, clientId, clientSecret, i, dayOfWeek);
+                        })
                     );
                 } else {
                     transitPromises.push(Promise.resolve({
@@ -1498,7 +1520,11 @@ export class RouteAgent extends BaseAgent {
         this._enforceTransitCompleteness(data);
 
         const finalJsonStr = JSON.stringify(data, null, 2);
-        console.log("  [Route] enrichment complete (Naver + ODsay + Time Stitch + Completeness Gate)");
+        // Phase 3 (2026-05-27): transit cache 통계 로그 — prod log grep 으로 hit rate 추적.
+        // grep: "[P228 TRANSIT_CACHE]"
+        const cacheStats = getTransitCacheStats();
+        console.log(`  [P228 TRANSIT_CACHE] zoneId=${zoneId || 'null'} enabled=${cacheStats.enabled} zones_loaded=${cacheStats.zoneCount}`);
+        console.log("  [Route] enrichment complete (Naver + ODsay + Time Stitch + Completeness Gate + TransitCache)");
         return {
             agentName: this.agentKey,
             systemPrompt: this.systemPrompt,
