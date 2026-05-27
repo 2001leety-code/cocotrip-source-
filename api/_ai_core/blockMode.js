@@ -147,6 +147,9 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   const language = String(userInput.language || 'en');
   const specialRequest = String(userInput.special_request || '').slice(0, 800);
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
+  // P240 SAFETY-CRITICAL: allergies (Peanut/Nuts/Shellfish 등) block 선택 Gemini 에 명시 의무.
+  // 알레르기 미입력 사용자 = [] (빈 배열) → prompt 에 field 생략 (정상).
+  const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 압축된 block 카드만 prompt 에 넣음 — Gemini 가 ID 만 선택하면 되므로 stops/transit 풀 detail X.
   const blockCards = blocks.map((b) => ({
@@ -172,6 +175,8 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    // P240 SAFETY: 알레르기 정보 — Gemini 가 해당 식재료 포함 block 제외 의무.
+    food_allergies: allergies.length > 0 ? allergies : undefined,
     available_blocks: blockCards,
   });
 
@@ -696,6 +701,8 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
   const language = String(userInput.language || 'en');
   const specialRequest = String(userInput.special_request || '').slice(0, 800);
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
+  // P240 SAFETY-CRITICAL: allergies (Peanut/Nuts/Shellfish 등) 다도시 block 선택 Gemini 에 명시 의무.
+  const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 도시별 block 카드 + city-per-day 일정 조합
   const cityBlockCards = {};
@@ -733,6 +740,8 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     styles,
     special_request: specialRequest || undefined,
     diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    // P240 SAFETY: 알레르기 정보 — 다도시 block 선택 시 해당 식재료 포함 block 제외 의무.
+    food_allergies: allergies.length > 0 ? allergies : undefined,
     day_schedule: daySchedule,
   });
 
