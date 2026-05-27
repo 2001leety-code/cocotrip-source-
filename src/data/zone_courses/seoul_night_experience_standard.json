@@ -1,0 +1,90 @@
+{
+  "id": "SEOUL_DAY_NIGHT_EXPERIENCE_STANDARD",
+  "city": "seoul",
+  "zone": "Hangang-Namsan Night Belt",
+  "theme": "서울 야경 & 나이트라이프",
+  "theme_i18n": {
+    "ko": "서울 야경 & 나이트라이프",
+    "en": "Seoul Night View & Nightlife",
+    "ja": "ソウル夜景 & ナイトライフ",
+    "zh": "首尔夜景与夜生活"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 360,
+  "best_for": ["Night", "Romance", "Instagram", "Couple", "Friends"],
+  "dietary_options": ["standard", "halal", "vegetarian"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "N서울타워 야경",
+      "name_i18n": {
+        "ko": "N서울타워 야경",
+        "en": "N Seoul Tower Night View",
+        "ja": "Nソウルタワー夜景",
+        "zh": "N首尔塔夜景"
+      },
+      "address": "서울특별시 용산구 남산공원길 105",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5512,
+      "lng": 126.9882,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "케이블카 왕복 약 15분. 자물쇠 나무 사진 필수. 해질녘 방문 추천.",
+        "en": "Cable car round trip ~15min. Don't miss the love lock trees. Best at sunset.",
+        "ja": "ケーブルカー往復約15分。ラブロックの木は必見。夕暮れ時の訪問がおすすめ。",
+        "zh": "缆车往返约15分钟。必拍爱情锁之树。推荐日落时分前往。"
+      },
+      "local_tag": "love_locks | seoul_panorama"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "이태원 저녁",
+      "stay_min": 75,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 100
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "반포대교 무지개분수",
+      "name_i18n": {
+        "ko": "반포대교 무지개분수",
+        "en": "Banpo Rainbow Fountain",
+        "ja": "盤浦大橋虹噴水",
+        "zh": "盘浦大桥彩虹喷泉"
+      },
+      "address": "서울특별시 서초구 신반포로 지하 20",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5172,
+      "lng": 127.0094,
+      "start_time_offset_min": 195,
+      "tips_i18n": {
+        "ko": "분수쇼 20:00, 20:30, 21:00, 21:30 (4월~10월). 한강 남쪽 둔치에서 관람.",
+        "en": "Fountain shows at 20:00, 20:30, 21:00, 21:30 (Apr-Oct). View from south riverside.",
+        "ja": "噴水ショーは20:00, 20:30, 21:00, 21:30 (4月~10月)。南岸から観覧。",
+        "zh": "喷泉表演时间20:00/20:30/21:00/21:30（4-10月）。在南岸观看。"
+      },
+      "local_tag": "fountain | han_river | free"
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "한강 야식",
+      "stay_min": 45,
+      "placeholder": "verified_cafe",
+      "start_time_offset_min": 270
+    }
+  ],
+  "transit_matrix": {}
+}

@@ -1,0 +1,90 @@
+{
+  "id": "BUSAN_DAY_TEMPLE_SEA_STANDARD",
+  "city": "busan",
+  "zone": "Busan Temple & Coastal Belt",
+  "theme": "부산 사찰 & 해안 절경",
+  "theme_i18n": {
+    "ko": "부산 사찰 & 해안 절경",
+    "en": "Busan Temple & Coastal Views",
+    "ja": "釜山寺院 & 海岸絶景",
+    "zh": "釜山寺院与海岸风光"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 510,
+  "best_for": ["Temple", "Nature", "Instagram", "Culture", "Couple", "Solo"],
+  "dietary_options": ["standard", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "해동용궁사",
+      "name_i18n": {
+        "ko": "해동용궁사",
+        "en": "Haedong Yonggungsa Temple",
+        "ja": "海東龍宮寺",
+        "zh": "海东龙宫寺"
+      },
+      "address": "부산광역시 기장군 기장읍 용궁길 86",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1881,
+      "lng": 129.2233,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "바다 절벽 위의 절. 일출 명소. 이른 아침 방문 강력 추천 (붐비기 전).",
+        "en": "Temple perched on sea cliff. Famous sunrise spot. Highly recommend early morning visit.",
+        "ja": "海の崖上の寺院。日の出の名所。込む前の早朝訪問を強くおすすめ。",
+        "zh": "矗立于海边悬崖上的寺院。著名日出观赏地。强烈推荐清晨早到参观。"
+      },
+      "local_tag": "sea_cliff_temple | foreigner_popular | sunrise_famous | haeundae_adjacent"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "기장 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 100
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "범어사",
+      "name_i18n": {
+        "ko": "범어사",
+        "en": "Beomeosa Temple",
+        "ja": "梵魚寺",
+        "zh": "梵鱼寺"
+      },
+      "address": "부산광역시 금정구 범어사로 250",
+      "stay_min": 90,
+      "entry_fee_krw": 1500,
+      "reservation_required": false,
+      "lat": 35.2975,
+      "lng": 129.06,
+      "start_time_offset_min": 175,
+      "tips_i18n": {
+        "ko": "신라 시대 창건. 금정산 자락 울창한 숲 속 사찰. 가을 단풍 하이킹과 함께.",
+        "en": "Founded in Silla era. Forest temple in Geumjeongsan. Combine with autumn foliage hiking.",
+        "ja": "新羅時代創建。金井山のうっそうとした森の寺院。秋の紅葉ハイキングと合わせて。",
+        "zh": "新罗时期创建。金井山茂密森林中的寺院。可结合秋季赏枫徒步。"
+      },
+      "local_tag": "geumjeongsan | silla_era | national_treasure_gate | autumn_hiking"
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "금정 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 280
+    }
+  ],
+  "transit_matrix": {}
+}

@@ -1,0 +1,115 @@
+{
+  "id": "BUSAN_DAY_MUSEUM_CULTURE_STANDARD",
+  "city": "busan",
+  "zone": "Busan Museum & Heritage Belt",
+  "theme": "부산 역사 & 박물관",
+  "theme_i18n": {
+    "ko": "부산 역사 & 박물관",
+    "en": "Busan History & Museum",
+    "ja": "釜山歴史 & 博物館",
+    "zh": "釜山历史与博物馆"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["History", "Culture", "FreeMuseum", "Family", "Solo"],
+  "dietary_options": ["standard", "halal", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "부산현대미술관",
+      "name_i18n": {
+        "ko": "부산현대미술관",
+        "en": "Busan Museum of Contemporary Art",
+        "ja": "釜山現代美術館",
+        "zh": "釜山现代美术馆"
+      },
+      "address": "부산광역시 사하구 낙동남로 1191",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1067,
+      "lng": 128.9322,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "을숙도 자연과 함께 현대미술 감상. 바다 전망 조각 공원도 인접.",
+        "en": "Contemporary art alongside Eulsukdo nature. Outdoor sculpture park with sea views nearby.",
+        "ja": "乙淑島の自然と共に現代美術を鑑賞。海の眺めが楽しめる彫刻公園も隣接。",
+        "zh": "在乙淑岛自然环境中欣赏当代艺术。临近海景雕塑公园。"
+      },
+      "local_tag": "sea_view | eulsukdo_adjacent | contemporary"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 100
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "부산근대역사관",
+      "name_i18n": {
+        "ko": "부산근대역사관",
+        "en": "Busan Modern History Museum",
+        "ja": "釜山近代歴史館",
+        "zh": "釜山近代历史馆"
+      },
+      "address": "부산광역시 중구 대청로 104",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.102,
+      "lng": 129.0322,
+      "start_time_offset_min": 175,
+      "tips_i18n": {
+        "ko": "일제강점기 부산 무역관 건물. 개항 이후 부산 근현대사 전시.",
+        "en": "Former Japanese colonial trade building. Exhibits on Busan's modern history since port opening.",
+        "ja": "旧日本植民地時代の貿易館の建物。開港以降の釜山の近現代史を展示。",
+        "zh": "日据时期釜山贸易馆旧址。展示开港以来釜山近现代史。"
+      },
+      "local_tag": "colonial_era | port_history | downtown_busan"
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "임시수도기념관",
+      "name_i18n": {
+        "ko": "임시수도기념관",
+        "en": "Provisional Capital Memorial Museum",
+        "ja": "臨時首都記念館",
+        "zh": "临时首都纪念馆"
+      },
+      "address": "부산광역시 서구 임시수도기념로 45",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1019,
+      "lng": 128.9939,
+      "start_time_offset_min": 250,
+      "tips_i18n": {
+        "ko": "한국전쟁 당시 임시수도였던 부산의 역사. 이승만 대통령 집무실 복원.",
+        "en": "History of Busan as wartime provisional capital. Restored Syngman Rhee presidential office.",
+        "ja": "朝鮮戦争時の臨時首都だった釜山の歴史。李承晩大統領執務室を復元。",
+        "zh": "韩战时期釜山作为临时首都的历史。还原了李承晚总统的办公室。"
+      },
+      "local_tag": "korean_war | historical_residence"
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "부산 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 325
+    }
+  ],
+  "transit_matrix": {}
+}

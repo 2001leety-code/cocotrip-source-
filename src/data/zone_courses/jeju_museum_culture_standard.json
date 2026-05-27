@@ -1,0 +1,115 @@
+{
+  "id": "JEJU_DAY_MUSEUM_CULTURE_STANDARD",
+  "city": "jeju",
+  "zone": "Jeju City Museum Belt",
+  "theme": "제주 박물관 & 문화 탐방",
+  "theme_i18n": {
+    "ko": "제주 박물관 & 문화 탐방",
+    "en": "Jeju Museum & Culture Tour",
+    "ja": "済州博物館 & 文化探訪",
+    "zh": "济州博物馆与文化探访"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Culture", "FreeMuseum", "History", "Family", "Rainy Day"],
+  "dietary_options": ["standard", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "제주국립박물관",
+      "name_i18n": {
+        "ko": "제주국립박물관",
+        "en": "Jeju National Museum",
+        "ja": "済州国立博物館",
+        "zh": "济州国立博物馆"
+      },
+      "address": "제주특별자치도 제주시 일주동로 17",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 33.5078,
+      "lng": 126.5222,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "탐라 문화 전문 박물관. 제주 선사시대부터 현대까지. 무료 오디오 가이드.",
+        "en": "Specialized in Tamna culture. Jeju from prehistoric to modern. Free audio guide.",
+        "ja": "耽羅文化専門の博物館。済州の先史時代から現代まで。無料音声ガイドあり。",
+        "zh": "专注于耽罗文化的博物馆。从史前到现代全面展示济州历史。提供免费语音导览。"
+      },
+      "local_tag": "jeju_history | tamna_culture"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 100
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "제주민속자연사박물관",
+      "name_i18n": {
+        "ko": "제주민속자연사박물관",
+        "en": "Jeju Folklore and Natural History Museum",
+        "ja": "済州民俗自然史博物館",
+        "zh": "济州民俗自然史博物馆"
+      },
+      "address": "제주특별자치도 제주시 삼성로 40",
+      "stay_min": 75,
+      "entry_fee_krw": 2000,
+      "reservation_required": false,
+      "lat": 33.5111,
+      "lng": 126.5331,
+      "start_time_offset_min": 175,
+      "tips_i18n": {
+        "ko": "해양 표본과 민속 생활 자료 풍부. 제주 돌고래·고래상어 실물 표본 전시.",
+        "en": "Rich marine specimens and folk life displays. Life-size dolphin and whale shark specimens.",
+        "ja": "海洋標本と民俗生活資料が豊富。実物大のイルカとジンベイザメの標本を展示。",
+        "zh": "丰富的海洋标本和民俗生活资料。展有真实大小的海豚和鲸鲨标本。"
+      },
+      "local_tag": "jeju_nature | folk_life | marine_specimens"
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "넥슨컴퓨터박물관",
+      "name_i18n": {
+        "ko": "넥슨컴퓨터박물관",
+        "en": "Nexon Computer Museum",
+        "ja": "ネクソンコンピューターミュージアム",
+        "zh": "Nexon计算机博物馆"
+      },
+      "address": "제주특별자치도 제주시 1100로 3198-8",
+      "stay_min": 75,
+      "entry_fee_krw": 9000,
+      "reservation_required": false,
+      "lat": 33.4903,
+      "lng": 126.4861,
+      "start_time_offset_min": 265,
+      "tips_i18n": {
+        "ko": "레트로 컴퓨터 500여 대 전시. 어른들의 추억 여행, 아이들 신세계. 체험형 전시.",
+        "en": "Over 500 retro computers on display. Nostalgia for adults, wonder for kids. Interactive exhibits.",
+        "ja": "レトロコンピューター500台以上を展示。大人の懐かし旅、子どもには新世界。体験型展示。",
+        "zh": "展出500余台复古电脑。唤起成人回忆，带给孩子全新体验。互动式展览。"
+      },
+      "local_tag": "gaming_history | retro_computers | interactive"
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 355
+    }
+  ],
+  "transit_matrix": {}
+}

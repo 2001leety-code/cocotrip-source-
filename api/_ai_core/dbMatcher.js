@@ -308,8 +308,13 @@ export function applyDBMatcher(itinerary, foodIndex, city, lang = 'ko', allergyP
         if (match.googleMapsUrl) stop.googleMapsUrl = match.googleMapsUrl;
       }
       stop.verified = !isCityMismatch; // city-mismatch is NOT fully verified for the requested city
-      stop._dbMatchedName = dbName;
-      if (isCityMismatch) {
+      // P227 bugfix: chain match (전국 체인) 은 _dbMatchedName / _db_city_mismatch 미설정.
+      // isCityMismatch=true 는 coord override 방지용으로만 사용.
+      // 메타 설정하면 Telegram alert 발동 → P227 목적(alert noise 제거) 무효화.
+      if (!stop._isChainMatch) {
+        stop._dbMatchedName = dbName;
+      }
+      if (isCityMismatch && !stop._isChainMatch) {
         stop._db_city_mismatch = {
           dbCity: (match.city || '').toLowerCase(),
           requestedCity: matchCity,

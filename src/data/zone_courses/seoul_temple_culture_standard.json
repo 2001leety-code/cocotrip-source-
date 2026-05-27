@@ -1,0 +1,125 @@
+{
+  "id": "SEOUL_DAY_TEMPLE_CULTURE_STANDARD",
+  "city": "seoul",
+  "zone": "Jongno-Gangnam Temple Belt",
+  "theme": "서울 사찰 & 도심 힐링",
+  "theme_i18n": {
+    "ko": "서울 사찰 & 도심 힐링",
+    "en": "Seoul Temple & Urban Healing",
+    "ja": "ソウル寺院 & 都市癒し",
+    "zh": "首尔寺院与都市疗愈"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Temple", "Culture", "History", "Solo", "Couple", "Spiritual"],
+  "dietary_options": ["standard", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "조계사",
+      "name_i18n": {
+        "ko": "조계사",
+        "en": "Jogyesa Temple",
+        "ja": "曹渓寺",
+        "zh": "曹溪寺"
+      },
+      "address": "서울특별시 종로구 우정국로 55",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.574,
+      "lng": 126.981,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "한국 불교 조계종 총본산. 4월 연등회 때 방문하면 가장 아름다워요.",
+        "en": "Head temple of Korean Jogye Buddhist Order. Beautiful during Lotus Lantern Festival in April.",
+        "ja": "韓国仏教曹渓宗の総本山。4月の燃灯会の時期が最も美しい。",
+        "zh": "韩国佛教曹溪宗总本山。4月燃灯节时最为绚丽。"
+      },
+      "local_tag": "downtown_temple | lotus_lantern_festival | head_temple_jogye_order"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "종로 카페",
+      "stay_min": 45,
+      "placeholder": "verified_cafe",
+      "start_time_offset_min": 70
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "봉은사",
+      "name_i18n": {
+        "ko": "봉은사",
+        "en": "Bongeunsa Temple",
+        "ja": "奉恩寺",
+        "zh": "奉恩寺"
+      },
+      "address": "서울특별시 강남구 봉은사로 531",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5147,
+      "lng": 127.0571,
+      "start_time_offset_min": 130,
+      "tips_i18n": {
+        "ko": "강남 한복판에 위치. 거대 미륵불 입상. 템플스테이 외국인에게 인기.",
+        "en": "Located in the heart of Gangnam. Giant Mireuk Buddha statue. Popular templestay for foreigners.",
+        "ja": "江南の真ん中に位置。巨大弥勒仏立像。外国人に人気のテンプルステイ。",
+        "zh": "位于江南中心。巨大弥勒佛立像。外国人热爱的寺院住宿体验。"
+      },
+      "local_tag": "downtown_temple | gangnam | giant_mireuk_statue | templestay_popular"
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "강남 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 215
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "서울공예박물관",
+      "name_i18n": {
+        "ko": "서울공예박물관",
+        "en": "Seoul Museum of Craft Art",
+        "ja": "ソウル工芸博物館",
+        "zh": "首尔工艺博物馆"
+      },
+      "address": "서울특별시 종로구 율곡로3길 4",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5805,
+      "lng": 126.9854,
+      "start_time_offset_min": 290,
+      "tips_i18n": {
+        "ko": "북촌 바로 옆. 전통 공예부터 현대 공예까지. 체험 워크샵도 운영.",
+        "en": "Right next to Bukchon. Traditional to contemporary crafts. Craft workshops available.",
+        "ja": "北村のすぐ隣。伝統工芸から現代工芸まで。体験ワークショップも実施。",
+        "zh": "紧邻北村。展示传统至现代工艺。可参加体验工作坊。"
+      },
+      "local_tag": "traditional_crafts | korean_handicraft | bukchon_adjacent"
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "종로 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 365
+    }
+  ],
+  "transit_matrix": {}
+}

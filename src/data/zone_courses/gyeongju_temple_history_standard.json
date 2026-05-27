@@ -1,0 +1,115 @@
+{
+  "id": "GYEONGJU_DAY_TEMPLE_HISTORY_STANDARD",
+  "city": "gyeongju",
+  "zone": "Gyeongju Silla Temple Route",
+  "theme": "신라 고도 사찰 탐방",
+  "theme_i18n": {
+    "ko": "신라 고도 사찰 탐방",
+    "en": "Silla Ancient Capital Temple Tour",
+    "ja": "新羅古都寺院探訪",
+    "zh": "新罗古都寺院探访"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Temple", "History", "Culture", "Photography", "Solo"],
+  "dietary_options": ["standard", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "분황사",
+      "name_i18n": {
+        "ko": "분황사",
+        "en": "Bunhwangsa Temple",
+        "ja": "芬皇寺",
+        "zh": "芬皇寺"
+      },
+      "address": "경상북도 경주시 분황로 94-11",
+      "stay_min": 60,
+      "entry_fee_krw": 3000,
+      "reservation_required": false,
+      "lat": 35.8392,
+      "lng": 129.2244,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "원효대사가 주석했던 사찰. 한국 현존 최고(最古) 석탑 중 하나.",
+        "en": "Temple where Master Wonhyo resided. One of Korea's oldest surviving stone pagodas.",
+        "ja": "元暁大師が住した寺院。韓国現存最古の石塔の一つ。",
+        "zh": "元晓大师驻锡的寺院。韩国现存最古老的石塔之一。"
+      },
+      "local_tag": "silla_era | stone_pagoda | wonhyo_master"
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "황룡사지",
+      "name_i18n": {
+        "ko": "황룡사지",
+        "en": "Hwangnyongsa Temple Site",
+        "ja": "皇龍寺跡",
+        "zh": "皇龙寺遗址"
+      },
+      "address": "경상북도 경주시 구황동 320-1",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.835,
+      "lng": 129.2281,
+      "start_time_offset_min": 70,
+      "tips_i18n": {
+        "ko": "분황사 바로 옆. 9층 목탑이 있었던 자리. 광활한 터가 신라 위용을 보여줘요.",
+        "en": "Right next to Bunhwangsa. Site of the 9-story wooden pagoda. Vast ruins show Silla's grandeur.",
+        "ja": "芬皇寺のすぐ隣。9層の木塔があった場所。広大な遺址が新羅の威容を示す。",
+        "zh": "紧邻芬皇寺。曾有九层木塔的遗址。广阔的遗址尽显新罗威严。"
+      },
+      "local_tag": "silla_era | archaeological_ruins | 9_story_pagoda_ruins | adjacent_museum"
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "경주 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 140
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "기림사",
+      "name_i18n": {
+        "ko": "기림사",
+        "en": "Girimsa Temple",
+        "ja": "祇林寺",
+        "zh": "祇林寺"
+      },
+      "address": "경상북도 경주시 양북면 호국로 833",
+      "stay_min": 75,
+      "entry_fee_krw": 3000,
+      "reservation_required": false,
+      "lat": 35.8058,
+      "lng": 129.4167,
+      "start_time_offset_min": 215,
+      "tips_i18n": {
+        "ko": "함월산 깊은 골짜기. 관광객 적어 조용한 사찰 경험 가능.",
+        "en": "Deep in Hamwolsan valley. Few tourists — quiet authentic temple experience.",
+        "ja": "含月山の深い谷。観光客が少なく静かな寺院体験ができる。",
+        "zh": "位于含月山深谷。游客较少，可体验宁静的正宗寺院氛围。"
+      },
+      "local_tag": "silla_era | hamwolsan_mountain | remote_tranquil"
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "경주 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 305
+    }
+  ],
+  "transit_matrix": {}
+}

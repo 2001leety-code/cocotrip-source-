@@ -1,0 +1,125 @@
+{
+  "id": "SEOUL_DAY_MUSEUM_ART_STANDARD",
+  "city": "seoul",
+  "zone": "Jongno-Mapo Art Museum Belt",
+  "theme": "미술관 & 현대예술",
+  "theme_i18n": {
+    "ko": "미술관 & 현대예술",
+    "en": "Art Museum & Contemporary Art",
+    "ja": "美術館 & 現代アート",
+    "zh": "美术馆与当代艺术"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Art", "Culture", "FreeMuseum", "Instagram", "Solo", "Couple"],
+  "dietary_options": ["standard", "halal", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "국립현대미술관 서울관",
+      "name_i18n": {
+        "ko": "국립현대미술관 서울관",
+        "en": "MMCA Seoul",
+        "ja": "国立現代美術館ソウル館",
+        "zh": "国立现代美术馆首尔馆"
+      },
+      "address": "서울특별시 종로구 삼청로 30",
+      "stay_min": 90,
+      "entry_fee_krw": 4000,
+      "reservation_required": false,
+      "lat": 37.5786,
+      "lng": 126.9803,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "경복궁 바로 옆. 국내외 현대미술 기획전 상시 운영.",
+        "en": "Right next to Gyeongbokgung. Always features rotating contemporary art exhibitions.",
+        "ja": "景福宮のすぐ隣。国内外の現代美術企画展を常時開催。",
+        "zh": "紧邻景福宫。常年举办国内外当代艺术特展。"
+      },
+      "local_tag": "contemporary_art | gyeongbokgung_adjacent"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "종로 카페",
+      "stay_min": 45,
+      "placeholder": "verified_cafe",
+      "start_time_offset_min": 100
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "서울시립미술관",
+      "name_i18n": {
+        "ko": "서울시립미술관",
+        "en": "Seoul Museum of Art",
+        "ja": "ソウル市立美術館",
+        "zh": "首尔市立美术馆"
+      },
+      "address": "서울특별시 중구 덕수궁길 61",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.566,
+      "lng": 126.9749,
+      "start_time_offset_min": 160,
+      "tips_i18n": {
+        "ko": "덕수궁 바로 옆. 국내 현대 미술 작가 전시 무료.",
+        "en": "Next to Deoksugung Palace. Free exhibitions of Korean contemporary artists.",
+        "ja": "徳寿宮のすぐ隣。韓国現代美術家の展覧会が無料。",
+        "zh": "紧邻德寿宫。韩国当代艺术家展览免费参观。"
+      },
+      "local_tag": "contemporary_art | deoksugung_adjacent"
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "중구 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 250
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "동대문디자인플라자",
+      "name_i18n": {
+        "ko": "동대문디자인플라자",
+        "en": "Dongdaemun Design Plaza",
+        "ja": "東大門デザインプラザ",
+        "zh": "东大门设计广场"
+      },
+      "address": "서울특별시 중구 을지로 281",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5668,
+      "lng": 127.0092,
+      "start_time_offset_min": 325,
+      "tips_i18n": {
+        "ko": "자하 하디드 설계. 야경도 유명. 저녁 6시 이후 조명 점등.",
+        "en": "Designed by Zaha Hadid. Famous at night when lit up after 6pm.",
+        "ja": "ザハ・ハディド設計。夜6時以降のライトアップも有名。",
+        "zh": "扎哈·哈迪德设计。夜间6点后灯光秀也很著名。"
+      },
+      "local_tag": "zaha_hadid | design_exhibitions | night_view"
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "동대문 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 415
+    }
+  ],
+  "transit_matrix": {}
+}
