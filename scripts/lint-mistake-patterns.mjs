@@ -2086,6 +2086,7 @@ const RULES = [
   ['P234_odsayDirectCallGuard', P234_odsayDirectCallGuard],
   ['P235_firestoreErrorDistinction', checkP235FirestoreErrorDistinction],
   ['P237_runningHelperIntegrity', P237_runningHelperIntegrity],
+  ['P240_blockModeAllergenSafety', P240_blockModeAllergenSafety],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8699,6 +8700,80 @@ function checkP235FirestoreErrorDistinction({ changed }) {
     }
   }
   return null;
+}
+
+// ----------------------------------------------------------------------------
+// R-P240: block_mode allergies 미전달 SAFETY — handlerCore tryRunBlockMode userInput.allergies 의무
+// ----------------------------------------------------------------------------
+// P240 lesson (2026-05-27): tryRunBlockMode 호출 시 userInput 에 allergies 누락 →
+// block 선택 Gemini prompt 에 외국인 알레르기 정보 미전달 = 건강 위험.
+// 비유: "땅콩 알레르기 있는 손님 메뉴판에서 알레르기 정보 빼고 주문 받는 웨이터"
+// fix: handlerCore.js 구조분해 + tryRunBlockMode userInput 에 allergies 추가.
+//
+// 룰:
+//   1. handlerCore.js 변경 시 shaped 구조분해에 allergies 있어야 함.
+//   2. handlerCore.js 변경 시 tryRunBlockMode 호출 userInput 에 allergies 있어야 함.
+//   3. blockMode.js 변경 시 selectBlocksWithGemini / selectBlocksMultiCity 의 userMessage 에 food_allergies 있어야 함.
+
+/**
+ * R-P240: block_mode allergies 미전달 SAFETY 감시.
+ */
+function P240_blockModeAllergenSafety({ changed }) {
+  const HANDLER = 'api/_ai_core/handlerCore.js';
+  const BLOCK = 'api/_ai_core/blockMode.js';
+
+  const changedFiles = (changed || []).map(c => typeof c === 'string' ? c : c.path || c.file || '');
+  const handlerChanged = changedFiles.some(f => f.replace(/\\/g, '/').includes('handlerCore'));
+  const blockChanged = changedFiles.some(f => f.replace(/\\/g, '/').includes('blockMode'));
+
+  if (!handlerChanged && !blockChanged) return null;
+
+  const issues = [];
+
+  if (handlerChanged) {
+    try {
+      const handler = (changed || []).find(c => {
+        const f = typeof c === 'string' ? c : c.file || c.path || '';
+        return f.replace(/\\/g, '/').includes('handlerCore');
+      });
+      const src = handler && typeof handler === 'object' ? (handler.content || '') : '';
+      // 구조분해에 allergies 있어야 함
+      if (src && !/dietPrefs,\s*allergies/.test(src) && !/allergies,/.test(src.split('tryRunBlockMode')[0] || src)) {
+        issues.push(`${HANDLER}: shaped 구조분해에 allergies 없음 — P240 fix 후 회귀`);
+      }
+      // tryRunBlockMode 호출 userInput 에 allergies 있어야 함
+      const blockModeCall = src && src.match(/tryRunBlockMode\([^)]*userInput\s*:\s*\{[^}]*\}/);
+      if (blockModeCall && !/allergies/.test(blockModeCall[0])) {
+        issues.push(`${HANDLER}: tryRunBlockMode userInput 에 allergies 없음 — SAFETY-CRITICAL: 외국인 알레르기 block 선택 미반영`);
+      }
+    } catch { /* file read error — skip */ }
+  }
+
+  if (blockChanged) {
+    try {
+      const blockFile = (changed || []).find(c => {
+        const f = typeof c === 'string' ? c : c.file || c.path || '';
+        return f.replace(/\\/g, '/').includes('blockMode');
+      });
+      const src = blockFile && typeof blockFile === 'object' ? (blockFile.content || '') : '';
+      // selectBlocksWithGemini 의 userMessage 에 food_allergies 있어야 함
+      if (src && /selectBlocksWithGemini/.test(src) && !/food_allergies/.test(src)) {
+        issues.push(`${BLOCK}: selectBlocksWithGemini userMessage 에 food_allergies 없음 — P240 fix 후 회귀`);
+      }
+    } catch { /* skip */ }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    rule: 'P240_blockModeAllergenSafety',
+    file: HANDLER,
+    message:
+      'R-P240 SAFETY-CRITICAL: block_mode allergies 미전달 회귀 감지. ' +
+      '비유: "땅콩 알레르기 손님 메뉴판에서 알레르기 정보 뺀 주문" = 건강 위험. ' +
+      'handlerCore.js shaped 구조분해 allergies + tryRunBlockMode userInput.allergies 의무. ' +
+      'blockMode.js selectBlocksWithGemini/MultiCity userMessage food_allergies 의무. ' +
+      '발견: ' + issues.join(' | '),
+  };
 }
 
 // ----------------------------------------------------------------------------

@@ -206,7 +206,7 @@ export default async function handler(req, res) {
       arrival_airport, departure_airport, hotel_address, hotelByCity,
       mobility, uid,
       recommendedZone, recommendedZones, recommendedZoneAddress, routeHotelAddress,
-      dietPrefs, priceRange,
+      dietPrefs, allergies, priceRange,
       revisionReason, revisionNote, avoidListBody,
       arrivalTime, departureTime,
       sessionId,
@@ -291,8 +291,8 @@ export default async function handler(req, res) {
       injectedRestaurants: (foodContext.match(/•/g) || []).length,
     });
 
-    // Block-mode (P128) — tryRunBlockMode handles elig/dietary throw/legacy fallback. SAFETY-CRITICAL dietary unsatisfied = skipped→legacy.
-    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime } })));
+    // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: allergies 반드시 포함 (외국인 알레르기 block 선택 반영 의무).
+    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime } })));
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 
