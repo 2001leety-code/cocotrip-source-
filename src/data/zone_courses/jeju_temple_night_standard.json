@@ -1,0 +1,90 @@
+{
+  "id": "JEJU_DAY_TEMPLE_NIGHT_STANDARD",
+  "city": "jeju",
+  "zone": "Jeju Temple & Evening Belt",
+  "theme": "제주 사찰 & 저녁 시내",
+  "theme_i18n": {
+    "ko": "제주 사찰 & 저녁 시내",
+    "en": "Jeju Temple & Evening Downtown",
+    "ja": "済州寺院 & 夕方市内",
+    "zh": "济州寺院与傍晚市区"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 420,
+  "best_for": ["Temple", "Culture", "Night", "Relaxation", "Solo", "Couple"],
+  "dietary_options": ["standard", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "약천사",
+      "name_i18n": {
+        "ko": "약천사",
+        "en": "Yakcheonsa Temple",
+        "ja": "薬泉寺",
+        "zh": "药泉寺"
+      },
+      "address": "제주특별자치도 서귀포시 이어도로 293-28",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 33.2806,
+      "lng": 126.3631,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "제주 최대 사찰. 웅장한 5층 석탑과 외벽 벽화. 서귀포 바다 전망.",
+        "en": "Largest temple in Jeju. Grand 5-story stone pagoda and wall murals. Seogwipo sea views.",
+        "ja": "済州最大の寺院。雄大な5層石塔と外壁壁画。西帰浦の海の眺め。",
+        "zh": "济州最大寺院。雄伟的五层石塔和外墙壁画。可远眺西归浦海景。"
+      },
+      "local_tag": "largest_temple_jeju | grand_architecture | outdoor_murals"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "서귀포 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 85
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "제주 연동 야경",
+      "name_i18n": {
+        "ko": "제주 연동 야경",
+        "en": "Jeju Yeon-dong Night Scene",
+        "ja": "済州蓮洞夜景",
+        "zh": "济州莲洞夜景"
+      },
+      "address": "제주특별자치도 제주시 연동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 33.4992,
+      "lng": 126.5283,
+      "start_time_offset_min": 200,
+      "tips_i18n": {
+        "ko": "제주 최대 번화가. 젊음의 거리, 카페, 음식점 밀집. 제주 흑돼지 골목 인근.",
+        "en": "Jeju's main downtown. Cafes and restaurants. Near the famous black pork alley.",
+        "ja": "済州最大の繁華街。カフェや飲食店が密集。黒豚通り近く。",
+        "zh": "济州最大繁华街区。咖啡馆和餐厅云集。毗邻著名的黑猪肉街。"
+      },
+      "local_tag": "bars | clubs | downtown"
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "제주 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 275
+    }
+  ],
+  "transit_matrix": {}
+}

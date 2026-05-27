@@ -1,0 +1,116 @@
+{
+  "id": "SEOUL_DAY_MUSEUM_HISTORY_STANDARD",
+  "city": "seoul",
+  "zone": "Yongsan-Jongno Museum Belt",
+  "theme": "역사 박물관 투어",
+  "theme_i18n": {
+    "ko": "역사 박물관 투어",
+    "en": "History Museum Tour",
+    "ja": "歴史博物館ツアー",
+    "zh": "历史博物馆之旅"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 510,
+  "best_for": ["History", "Culture", "FreeMuseum", "Family", "Solo"],
+  "dietary_options": ["standard", "halal", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "국립중앙박물관",
+      "name_i18n": {
+        "ko": "국립중앙박물관",
+        "en": "National Museum of Korea",
+        "ja": "国立中央博物館",
+        "zh": "国立中央博物馆"
+      },
+      "address": "서울특별시 용산구 서빙고로 137",
+      "stay_min": 120,
+      "entry_fee_krw": 0,
+      "entry_fee_note": "상설 전시 무료",
+      "reservation_required": false,
+      "lat": 37.524,
+      "lng": 126.9806,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "외국인 오디오 가이드 무료 대여. 3개 층 상설 전시 중 1층부터 시작 추천.",
+        "en": "Free audio guide rental available in English. Start from 1F permanent galleries.",
+        "ja": "英語オーディオガイド無料貸出あり。1Fの常設展示からスタート推奨。",
+        "zh": "可免费租借英文语音导览。建议从1楼常设展开始参观。"
+      },
+      "local_tag": "foreigner_popular | world_class_collection"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "용산구 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 120
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "전쟁기념관",
+      "name_i18n": {
+        "ko": "전쟁기념관",
+        "en": "War Memorial of Korea",
+        "ja": "戦争記念館",
+        "zh": "战争纪念馆"
+      },
+      "address": "서울특별시 용산구 이태원로 29",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5365,
+      "lng": 126.9774,
+      "start_time_offset_min": 195,
+      "tips_i18n": {
+        "ko": "야외 전시 무기·전투기도 볼거리. 한국전쟁 역사 패널 영문 병기.",
+        "en": "Outdoor exhibits include tanks and fighter jets. War history panels in English.",
+        "ja": "屋外には戦車や戦闘機も展示。戦争史パネルは英語併記。",
+        "zh": "室外展有坦克和战斗机。战争史展板附英文说明。"
+      },
+      "local_tag": "history | outdoor_exhibits | korean_war"
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "국립한글박물관",
+      "name_i18n": {
+        "ko": "국립한글박물관",
+        "en": "National Hangeul Museum",
+        "ja": "国立ハングル博物館",
+        "zh": "国立韩文博物馆"
+      },
+      "address": "서울특별시 용산구 서빙고로 139",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.524,
+      "lng": 126.9821,
+      "start_time_offset_min": 300,
+      "tips_i18n": {
+        "ko": "국립중앙박물관 바로 옆. 한국어의 창제 원리 체험 가능.",
+        "en": "Right next to National Museum. Interactive exhibits on Hangul creation.",
+        "ja": "国立中央博物館のすぐ隣。ハングル創制の原理が体験できます。",
+        "zh": "紧邻国立中央博物馆。可互动体验韩文创制原理。"
+      },
+      "local_tag": "korean_language | korean_writing_history"
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "용산구 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 375
+    }
+  ],
+  "transit_matrix": {}
+}

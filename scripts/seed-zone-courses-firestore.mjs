@@ -47,12 +47,14 @@ const ODSAY_BASE = 'https://api.odsay.com/v1/api';
 function parseArgs(args) {
   const opts = {
     cities: ['seoul', 'busan', 'jeju'],
+    allCities: false,
     dryRun: false,
     force: false,
   };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--dry-run') opts.dryRun = true;
     else if (args[i] === '--force') opts.force = true;
+    else if (args[i] === '--all-cities') opts.allCities = true;
     else if (args[i] === '--cities' && args[i + 1]) {
       opts.cities = args[++i].split(',').map((c) => c.trim().toLowerCase());
     }
@@ -320,6 +322,13 @@ async function main() {
   const allFiles = (await readdir(ZONE_DIR)).filter(
     (f) => f.endsWith('.json') && statSync(join(ZONE_DIR, f)).isFile()
   );
+
+  // --all-cities 모드: zone_courses/ 의 모든 파일 첫 단어 prefix 수집
+  if (opts.allCities) {
+    const prefixes = new Set(allFiles.map((f) => f.split('_')[0]));
+    opts.cities = [...prefixes].filter(Boolean).sort();
+    console.log(`[seed] --all-cities 모드 — 감지된 도시 prefix: ${opts.cities.join(', ')}`);
+  }
 
   // 대상 도시 필터
   const targetFiles = allFiles.filter((f) => {

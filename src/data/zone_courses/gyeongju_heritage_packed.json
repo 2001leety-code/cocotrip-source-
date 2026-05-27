@@ -1,0 +1,115 @@
+{
+  "id": "GYEONGJU_DAY_HERITAGE_PACKED",
+  "city": "gyeongju",
+  "zone": "Gyeongju World Heritage Core",
+  "theme": "경주 유네스코 세계유산 핵심",
+  "theme_i18n": {
+    "ko": "경주 유네스코 세계유산 핵심",
+    "en": "Gyeongju UNESCO Heritage Core",
+    "ja": "慶州ユネスコ世界遺産コア",
+    "zh": "庆州联合国教科文组织世界遗产核心"
+  },
+  "intensity": "packed",
+  "block_type": "city_day",
+  "duration_min": 570,
+  "best_for": ["History", "Culture", "Temple", "UNESCO", "Photography", "Solo"],
+  "dietary_options": ["standard", "vegetarian", "vegan"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "불국사",
+      "name_i18n": {
+        "ko": "불국사",
+        "en": "Bulguksa Temple",
+        "ja": "仏国寺",
+        "zh": "佛国寺"
+      },
+      "address": "경상북도 경주시 불국로 385",
+      "stay_min": 90,
+      "entry_fee_krw": 6000,
+      "reservation_required": false,
+      "lat": 35.7903,
+      "lng": 129.3319,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "유네스코 세계유산. 청운교·백운교 국보 석조물 필수 관람. 9시 개장.",
+        "en": "UNESCO World Heritage. Must-see stone bridges Cheongun-gyo & Baekun-gyo. Opens 9am.",
+        "ja": "ユネスコ世界遺産。青雲橋・白雲橋の国宝石造物は必見。9時開館。",
+        "zh": "联合国教科文组织世界遗产。必看国宝青云桥与白云桥石造文物。9时开放。"
+      },
+      "local_tag": "unesco_world_heritage | silla_era | foreigner_popular | national_treasure_bridges"
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "석굴암",
+      "name_i18n": {
+        "ko": "석굴암",
+        "en": "Seokguram Grotto",
+        "ja": "石窟庵",
+        "zh": "石窟庵"
+      },
+      "address": "경상북도 경주시 불국로 873-243",
+      "stay_min": 60,
+      "entry_fee_krw": 6000,
+      "reservation_required": false,
+      "lat": 35.795,
+      "lng": 129.3489,
+      "start_time_offset_min": 100,
+      "tips_i18n": {
+        "ko": "불국사에서 버스 또는 도보 30분. 일출 보러 새벽 방문도 인기.",
+        "en": "30min bus/walk from Bulguksa. Pre-dawn visit popular for sunrise viewing.",
+        "ja": "仏国寺からバスか徒歩30分。日の出を見るための夜明け前訪問も人気。",
+        "zh": "从佛国寺乘车或步行30分钟。早晨观日出的拂晓参观也很受欢迎。"
+      },
+      "local_tag": "unesco_world_heritage | granite_buddha | sunrise_famous | silla_era"
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "경주 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 170
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "국립경주박물관",
+      "name_i18n": {
+        "ko": "국립경주박물관",
+        "en": "Gyeongju National Museum",
+        "ja": "国立慶州博物館",
+        "zh": "国立庆州博物馆"
+      },
+      "address": "경상북도 경주시 일정로 186",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.8342,
+      "lng": 129.2258,
+      "start_time_offset_min": 245,
+      "tips_i18n": {
+        "ko": "에밀레종(성덕대왕신종) 전시. 신라 황금 유물 필수 관람.",
+        "en": "Home of the Emille Bell (Sacred Bell of Deokseongdaewang). Must-see Silla golden artifacts.",
+        "ja": "エミレ鐘(聖徳大王神鐘)を展示。新羅の黄金遺物は必見。",
+        "zh": "展出圣德大王神钟（艾米丽钟）。必看新罗黄金文物。"
+      },
+      "local_tag": "silla_artifacts | emille_bell | foreigner_popular"
+    },
+    {
+      "order": 5,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "경주 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 350
+    }
+  ],
+  "transit_matrix": {}
+}
