@@ -8985,7 +8985,7 @@ function P239_tourStartTimeFallback({ changed }) {
 function P243_zoneBlockStyleCoverage({ changed }) {
   const ZONE_DIR = 'src/data/zone_courses';
   // JSON 파일 변경이 없고 all-files 모드도 아니면 skip
-  const hasZoneChange = changed.some((f) => f.includes(ZONE_DIR) && f.endsWith('.json'));
+  const hasZoneChange = changed.some((c) => c.file.includes(ZONE_DIR) && c.file.endsWith('.json'));
   if (!hasZoneChange && changed.length > 0) return { skipped: true };
 
   const zoneDir = path.join(process.cwd(), ZONE_DIR);
