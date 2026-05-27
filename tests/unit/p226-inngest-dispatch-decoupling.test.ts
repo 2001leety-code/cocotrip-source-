@@ -87,7 +87,7 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
 
     // 결과는 false (실제 send() throw) 이지만, 중요한 건 가드 통과 후 fallback 동작
     expect(typeof result).toBe('boolean');
-  });
+  }, 30000); // P231 note: 실제 Inngest API 호출 → 네트워크 응답 대기 (401). 30s timeout.
 
   it('P226-B2: streamingPlanId=null 시 dispatch skip (non-streaming 보호)', async () => {
     process.env.INNGEST_EVENT_KEY = 'test-event-key';
