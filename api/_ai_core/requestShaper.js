@@ -138,8 +138,14 @@ export function shapeRequest(body, authenticatedEmail) {
   const accomBudget = body.accomBudget || 'moderate';
   // 2026-05-10 (P1 launch blocker): WizardForm 누락 필드들 추출 — RouteAgent
   // late-night/heavy-luggage 분기 + Gemini prompt 정확도 개선용.
-  const arrivalTime = typeof body.arrivalTime === 'string' ? body.arrivalTime.slice(0, 5) : '';
-  const departureTime = typeof body.departureTime === 'string' ? body.departureTime.slice(0, 5) : '';
+  // P254 (2026-05-27): snake_case fallback 추가 — verify script / admin tool 이 arrival_time
+  // (snake_case) 로 직접 전달 시에도 처리. frontend(usePlannerHandlers) 는 camelCase 변환 정상.
+  const _rawArrivalTime = typeof body.arrivalTime === 'string' ? body.arrivalTime
+    : typeof body.arrival_time === 'string' ? body.arrival_time : '';
+  const arrivalTime = _rawArrivalTime.slice(0, 5);
+  const _rawDepartureTime = typeof body.departureTime === 'string' ? body.departureTime
+    : typeof body.departure_time === 'string' ? body.departure_time : '';
+  const departureTime = _rawDepartureTime.slice(0, 5);
   // P239 (2026-05-27): tourStartTime — 운영자 architectural fix. arrival_time 무관하게
   // Day1 stops 시작 시각 고정. body 미입력 (옛 client) 시 '09:00' default 폴백 (R-P239 lint).
   // HH:MM 형식 검증 (잘못된 입력 시 default '09:00' 폴백 — silent fail 방지).
