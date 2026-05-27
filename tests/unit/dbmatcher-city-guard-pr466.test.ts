@@ -100,16 +100,20 @@ describe('PR #466 X-H8 — same-city match preferred over other-city', () => {
     expect(stop.verified).toBe(false);
   });
 
-  it('P183 phase 1: chain-brand in DIFFERENT city → HARD REJECT (BHC-Busan when Seoul plan)', () => {
+  it('P183 phase 1 (P227 updated): chain-brand in DIFFERENT city → chain match allowed (BHC-Busan when Seoul plan)', () => {
+    // P227 (2026-05-27): BHC 는 KNOWN_NATIONAL_CHAINS — 전국 체인 HARD REJECT 예외.
+    // verified=false 유지 + Gemini 좌표 보존 (coord override X) — alert noise 제거 목적.
+    // 이전 기대값(_db_city_mismatch=undefined) 은 P227 이전 HARD REJECT 시나리오.
     const stop = foodStop('BHC 치킨 해운대점');
     const itinerary = makePlan([stop]);
     const foodIndex = [
       { name: 'BHC 해운대점', city: 'busan', address: 'Busan', lat: 35.1, lng: 129.0 },
     ];
     applyDBMatcher(itinerary, foodIndex, 'seoul', 'ko');
-    expect(stop._db_city_mismatch).toBeUndefined();
-    expect(stop._dbMatchedName).toBeUndefined();
-    expect(stop.verified).toBe(false);
+    // P227: chain match → _db_city_mismatch 존재 가능 (mismatch flag는 있지만 verified=false 유지)
+    expect(stop.verified).toBe(false); // 핵심: cross-city chain은 verified 안 됨
+    // lat/lng: P227 에서 chain match 시 coord override X → Gemini 좌표 유지.
+    // _dbMatchedName 은 체인 매칭 시 세팅될 수 있음 — strict 체크 제거 (P227 설계 허용).
   });
 
   it('no city provided (legacy/edge) → no mismatch flag even for cross-city match', () => {
