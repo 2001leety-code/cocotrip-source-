@@ -6,16 +6,25 @@
  * handlerCore 가 미리 계산해서 인자로 전달.
  *
  * 출력: Gemini user prompt — JSON.stringify(userInput) + spotContext +
- * foodContext + mountainContext (P191) + runningContext (P237) + LODGING ZONE block +
- * MULTI-CITY HOTELS block + MULTI-CITY ENTRY/EXIT block +
- * ACCOMMODATION block + VARIATION/ANGLE block.
+ * foodContext + mountainContext (P191) + runningContext (P237) +
+ * activityContext (P241) + hotelContext (P241) +
+ * LODGING ZONE block + MULTI-CITY HOTELS block + ...
  *
  * P191 (2026-05-25): mountainContext — SAFETY-CRITICAL. Trekking/Hallasan
  * 옵션 선택 시 검증 DB 주입 (hallucination 차단, 외국인 등산 사고 예방).
  * P237 (2026-05-27): runningContext — Running/HangangRun 옵션 선택 시
  * 검증 코스 16개 주입 (코스명·거리 hallucination 차단).
+ * P241 (2026-05-27): activityContext — Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike
+ * 옵션 선택 시 검증 DB 주입 (userMessageBuilder 내부에서 lazy 계산).
+ * P241 (2026-05-27): hotelContext — hotel_address 비어있을 때 외국인 친화 호텔 추천 DB 주입.
+ * handlerCore.js 는 미변경 — userMessageBuilder 가 shaped 에서 styles/area/language 직접 읽음.
  */
 import { buildFoodPrefSnippet } from '../_food_helper.js';
+import { getActivityContextForPrompt } from '../_activity_helper.js'; // P241
+import { getHotelContextForPrompt } from '../_hotel_helper.js';       // P241
+
+// P241: Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike
+const P241_ACTIVITY_STYLES = new Set(['Kbeauty', 'Dmz', 'Haenyeo', 'Jjimjilbang', 'HangangBike']);
 
 export function buildUserMessage({
   shaped,
@@ -33,7 +42,7 @@ export function buildUserMessage({
     recommendedZone, recommendedZones,
     mobility, luggage, specialRequest, dietPrefs, allergies,
     spiceLevel, bucketDishes, priceRange,
-    pace, wantAccom, accomBudget,
+    pace, wantAccom, accomBudget, language,
   } = shaped;
 
   const userMessage = JSON.stringify({
@@ -76,13 +85,44 @@ export function buildUserMessage({
     variation_seed: Math.floor(Math.random() * 100) + 1,
     want_accommodation: wantAccom || undefined,
     accommodation_budget: wantAccom ? accomBudget : undefined,
-  }) + spotContext + foodContext + attractionsContext + mountainContext + runningContext + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
+  }) + spotContext + foodContext + attractionsContext + mountainContext + runningContext + buildP241ActivityContext(styles, area, language) + buildP241HotelContext(area, hotel_address, language) + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
     + buildMultiCityHotelBlock(hotelByCity, regions)
     + buildMultiCityEntryExitBlock({ regions, arrivalCity, departureCity })
     + buildAccommodationBlock({ wantAccom, accomBudget })
     + buildVariationAngleBlock();
 
   return userMessage;
+}
+
+// ── P241: Activity + Hotel context builders ──────────────────────────────────
+
+/**
+ * P241: Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike style 선택 시 검증 DB 주입.
+ * userMessageBuilder 내부에서 lazy 계산 (handlerCore 미변경).
+ */
+function buildP241ActivityContext(styles, city, language = 'en') {
+  try {
+    const s = Array.isArray(styles) ? styles : [];
+    if (!s.some(st => P241_ACTIVITY_STYLES.has(st))) return '';
+    return getActivityContextForPrompt({ styles: s, city, language, maxItemsPerStyle: 3 }) || '';
+  } catch (e) {
+    console.warn('[userMessageBuilder] P241 activityContext failed:', e.message);
+    return '';
+  }
+}
+
+/**
+ * P241: hotel_address 비어있을 때 외국인 친화 호텔 추천 DB 주입.
+ * Gemini hallucination (없는 호텔 생성) 방지 용도. 강제 아님 — 추천 데이터.
+ */
+function buildP241HotelContext(city, hotelAddress, language = 'en') {
+  try {
+    if (hotelAddress) return ''; // hotel_address 있으면 skip
+    return getHotelContextForPrompt({ city, language, maxItems: 3 }) || '';
+  } catch (e) {
+    console.warn('[userMessageBuilder] P241 hotelContext failed:', e.message);
+    return '';
+  }
 }
 
 function buildLodgingZoneBlock({ hotel_address, recommendedZones, area }) {

@@ -1,0 +1,232 @@
+[
+  {
+    "key": "imjingak_park",
+    "name": {
+      "ko": "임진각 평화누리공원",
+      "en": "Imjingak Peace Park",
+      "ja": "臨津閣ピースパーク",
+      "zh": "临津阁和平公园"
+    },
+    "type": "dmz_attraction",
+    "city": "paju",
+    "area": "Paju DMZ",
+    "address": {
+      "ko": "경기도 파주시 문산읍 임진각로 148-40",
+      "en": "148-40 Imjingak-ro, Munsan-eup, Paju, Gyeonggi-do",
+      "ja": "京畿道坡州市汶山邑臨津閣路148-40",
+      "zh": "京畿道坡州市汶山邑临津阁路148-40"
+    },
+    "hours": "09:00-18:00",
+    "entry_fee": {
+      "adult_krw": 0,
+      "note": {
+        "en": "Free entry to the park. Additional fees for some facilities.",
+        "ja": "公園の入場無料。一部施設は追加料金あり。",
+        "zh": "公园免费入场。部分设施需额外收费。",
+        "ko": "공원 입장 무료. 일부 시설 별도 요금."
+      }
+    },
+    "reservation_required": false,
+    "foreigner_tips": {
+      "en": "No reservation needed for Imjingak itself. Freedom Bridge, 3rd Infiltration Tunnel tour requires advance booking. Bring passport for DMZ zone entry.",
+      "ja": "臨津閣自体は予約不要。自由橋、第3トンネルツアーは事前予約が必要。DMZゾーン入場にはパスポート持参。",
+      "zh": "临津阁本身无需预约。自由大桥、第3地道游览需提前预约。入DMZ区域需携带护照。",
+      "ko": "임진각 자체는 예약 불필요. 자유의 다리, 3땅굴 투어는 사전 예약 필요. DMZ 구역 입장 시 여권 필참."
+    },
+    "safety_note": {
+      "en": "Military restricted area — follow guide instructions strictly. Photography may be restricted in certain zones.",
+      "ja": "軍事制限区域 — ガイドの指示に必ず従うこと。一部ゾーンでは撮影制限あり。",
+      "zh": "军事管制区域——严格遵从导游指示。特定区域可能限制拍照。",
+      "ko": "군사 제한 구역 — 가이드 지시 엄수. 일부 구역 촬영 제한."
+    },
+    "tags": ["dmz", "historical", "peace_theme", "free_entry", "foreigner_popular"],
+    "duration_min": 90,
+    "transport_from_seoul": {
+      "en": "Bus 2200 or 2700 from Seoul (Hapjeong/Sinchon area) → ~60 min",
+      "ja": "ソウル（合井/新村エリア）からバス2200か2700 → 約60分",
+      "zh": "从首尔（合井/新村地区）乘坐2200或2700路公交 → 约60分钟",
+      "ko": "서울(합정/신촌) 버스 2200 또는 2700 → 약 60분"
+    },
+    "last_verified": "2026-05",
+    "lat": 37.8868,
+    "lng": 126.7342
+  },
+  {
+    "key": "dmz_3rd_tunnel",
+    "name": {
+      "ko": "제3땅굴",
+      "en": "3rd Infiltration Tunnel",
+      "ja": "第3トンネル",
+      "zh": "第三地道"
+    },
+    "type": "dmz_attraction",
+    "city": "paju",
+    "area": "Paju DMZ",
+    "address": {
+      "ko": "경기도 파주시 조산리 산112",
+      "en": "San 112, Josan-ri, Paju, Gyeonggi-do",
+      "ja": "京畿道坡州市鳥山里山112",
+      "zh": "京畿道坡州市鸟山里山112"
+    },
+    "hours": "09:00-17:00",
+    "entry_fee": {
+      "adult_krw": 11000,
+      "note": {
+        "en": "Includes shuttle and tunnel access. Helmet required (provided).",
+        "ja": "シャトル＋トンネルアクセス込み。ヘルメット必要（貸出あり）。",
+        "zh": "含班车和地道入场。需佩戴头盔（现场提供）。",
+        "ko": "셔틀 + 땅굴 입장료 포함. 헬멧 필착 (현장 대여)."
+      }
+    },
+    "reservation_required": true,
+    "reservation_note": {
+      "en": "Online booking mandatory at https://www.imjingak.co.kr — spaces limited, book 1 week ahead.",
+      "ja": "https://www.imjingak.co.kr でオンライン予約必須 — 定員制、1週間前の予約推奨。",
+      "zh": "必须在 https://www.imjingak.co.kr 在线预约 — 名额有限，建议提前1周。",
+      "ko": "온라인 예약 필수 https://www.imjingak.co.kr — 정원제, 1주일 전 예약 권장."
+    },
+    "safety_note": {
+      "en": "⚠️ SAFETY: Tunnel has low ceiling (1.6m height limit). Bring comfortable shoes. Not recommended for claustrophobic visitors.",
+      "ja": "⚠️ 安全注意: トンネルの天井が低い（高さ1.6m制限）。動きやすい靴を。閉所恐怖症の方は注意。",
+      "zh": "⚠️ 安全提示：隧道天花板低矮（净高1.6米）。穿舒适鞋。有幽闭恐惧症者请注意。",
+      "ko": "⚠️ 안전: 터널 천장 낮음 (높이 1.6m 제한). 편한 신발 착용. 폐소공포증 방문자 주의."
+    },
+    "tags": ["dmz", "historical", "underground_tunnel", "reservation_required", "foreigner_popular"],
+    "duration_min": 120,
+    "last_verified": "2026-05",
+    "lat": 37.8939,
+    "lng": 126.7198
+  },
+  {
+    "key": "dora_observatory",
+    "name": {
+      "ko": "도라전망대",
+      "en": "Dora Observatory",
+      "ja": "都羅展望台",
+      "zh": "都罗山观景台"
+    },
+    "type": "dmz_attraction",
+    "city": "paju",
+    "area": "Paju DMZ",
+    "address": {
+      "ko": "경기도 파주시 군내면 조산리",
+      "en": "Josan-ri, Gunnae-myeon, Paju, Gyeonggi-do",
+      "ja": "京畿道坡州市郡内面鳥山里",
+      "zh": "京畿道坡州市郡内面鸟山里"
+    },
+    "hours": "09:00-17:00",
+    "entry_fee": {
+      "adult_krw": 0,
+      "note": {
+        "en": "Free if visiting as part of DMZ tour package. Binoculars available for rent (₩1,000).",
+        "ja": "DMZツアーパッケージの一部として訪問する場合は無料。双眼鏡レンタル可（1,000ウォン）。",
+        "zh": "作为DMZ套餐游览时免费。望远镜可租用（1,000韩元）。",
+        "ko": "DMZ 투어 패키지 포함 시 무료. 망원경 대여 가능 (₩1,000)."
+      }
+    },
+    "reservation_required": true,
+    "reservation_note": {
+      "en": "Must be part of an official DMZ guided tour. Individual visits not permitted. Book tour at Imjingak.",
+      "ja": "公式DMZガイドツアーへの参加が必須。個人訪問不可。臨津閣でツアー予約。",
+      "zh": "必须参加官方DMZ导游团。不允许个人前往。在临津阁预约游览。",
+      "ko": "공식 DMZ 가이드 투어로만 방문 가능. 개인 방문 불가. 임진각에서 투어 예약."
+    },
+    "foreigner_tips": {
+      "en": "Closest point to see North Korea. On clear days, Kaesong Industrial Complex visible through binoculars.",
+      "ja": "北朝鮮を見渡せる最も近い場所。晴れた日は双眼鏡で開城工業団地が見える。",
+      "zh": "最近距离观看朝鲜的地点。晴天时可通过望远镜看到开城工业区。",
+      "ko": "북한을 가장 가까이서 볼 수 있는 곳. 맑은 날 망원경으로 개성공단 보임."
+    },
+    "tags": ["dmz", "historical", "north_korea_view", "reservation_required", "foreigner_popular"],
+    "duration_min": 60,
+    "last_verified": "2026-05",
+    "lat": 37.9045,
+    "lng": 126.7089
+  },
+  {
+    "key": "dorasan_station",
+    "name": {
+      "ko": "도라산역",
+      "en": "Dorasan Station",
+      "ja": "都羅山駅",
+      "zh": "都罗山站"
+    },
+    "type": "dmz_attraction",
+    "city": "paju",
+    "area": "Paju DMZ",
+    "address": {
+      "ko": "경기도 파주시 장단면 비무장지대 남방한계선",
+      "en": "Southern Limit Line, DMZ, Jangdan-myeon, Paju, Gyeonggi-do",
+      "ja": "京畿道坡州市長湍面南方限界線付近",
+      "zh": "京畿道坡州市长湍面非武装地带南方限制线"
+    },
+    "hours": "09:00-17:00",
+    "entry_fee": {
+      "adult_krw": 11000,
+      "note": {
+        "en": "Accessible only via DMZ tour package from Imjingak.",
+        "ja": "臨津閣からのDMZツアーパッケージでのみアクセス可能。",
+        "zh": "只能通过临津阁的DMZ套餐游览前往。",
+        "ko": "임진각 DMZ 투어 패키지로만 방문 가능."
+      }
+    },
+    "reservation_required": true,
+    "foreigner_tips": {
+      "en": "Southernmost station of the Korean railway, with no trains going further north. A poignant symbol of division.",
+      "ja": "朝鮮半島最南端の鉄道駅。これより北に列車は走らない。分断の象徴。",
+      "zh": "朝鲜半岛最南端的铁路站，没有列车再向北行驶。分裂的象征。",
+      "ko": "한반도 철도 최남단역. 더 이상 북쪽으로 가지 않는 열차. 분단의 상징."
+    },
+    "tags": ["dmz", "historical", "railway", "reservation_required", "symbolic_site"],
+    "duration_min": 45,
+    "last_verified": "2026-05",
+    "lat": 37.9120,
+    "lng": 126.6934
+  },
+  {
+    "key": "odusan_unification_observatory",
+    "name": {
+      "ko": "오두산통일전망대",
+      "en": "Odusan Unification Observatory",
+      "ja": "烏頭山統一展望台",
+      "zh": "乌头山统一了望台"
+    },
+    "type": "dmz_attraction",
+    "city": "paju",
+    "area": "Paju DMZ",
+    "address": {
+      "ko": "경기도 파주시 탄현면 필승로 369",
+      "en": "369 Pilseung-ro, Tanhyeon-myeon, Paju, Gyeonggi-do",
+      "ja": "京畿道坡州市炭峴面必勝路369",
+      "zh": "京畿道坡州市炭峴面必胜路369号"
+    },
+    "hours": "09:00-17:00",
+    "entry_fee": {
+      "adult_krw": 3000,
+      "note": {
+        "en": "No advance booking needed. Accessible by public transport.",
+        "ja": "事前予約不要。公共交通機関でアクセス可能。",
+        "zh": "无需提前预约。可乘坐公共交通前往。",
+        "ko": "사전 예약 불필요. 대중교통으로 접근 가능."
+      }
+    },
+    "reservation_required": false,
+    "foreigner_tips": {
+      "en": "Easier to visit than Dora Observatory — no tour required, just pay entry. North Korean villages visible on clear days.",
+      "ja": "都羅展望台より簡単に訪問可能 — ツアー不要、入場料を支払うだけ。晴れた日は北朝鮮の村が見える。",
+      "zh": "比都罗山观景台更容易参观——无需报团，只需买票入场。晴天可看到朝鲜村庄。",
+      "ko": "도라전망대보다 방문 쉬움 — 투어 불필요, 입장료만. 맑은 날 북한 마을 보임."
+    },
+    "tags": ["dmz", "historical", "north_korea_view", "no_reservation", "foreigner_popular"],
+    "duration_min": 60,
+    "transport_from_seoul": {
+      "en": "Bus 2200 from Hapjeong/Sinchon → get off at Imjingak, then local bus ~20 min",
+      "ja": "合井/新村から2200バスで臨津閣下車、その後ローカルバスで約20分",
+      "zh": "从合井/新村乘坐2200路公交到临津阁，再换乘当地公交约20分钟",
+      "ko": "합정/신촌에서 2200번 버스 → 임진각 하차, 이후 현지 버스 약 20분"
+    },
+    "last_verified": "2026-05",
+    "lat": 37.8439,
+    "lng": 126.7162
+  }
+]

@@ -1,0 +1,140 @@
+[
+  {
+    "key": "ttareungi_yeouido",
+    "name": {
+      "ko": "따릉이 여의도 한강공원",
+      "en": "Ttareungi Rental - Yeouido Hangang Park",
+      "ja": "タレンギ汝矣島漢江公園",
+      "zh": "首尔公共自行车-汝矣岛汉江公园"
+    },
+    "type": "bike_rental",
+    "city": "seoul",
+    "area": "Yeouido",
+    "address": {
+      "ko": "서울 영등포구 여의도동 여의도한강공원",
+      "en": "Yeouido Hangang Park, Yeongdeungpo-gu, Seoul",
+      "ja": "ソウル永登浦区汝矣島洞汝矣島漢江公園",
+      "zh": "首尔永登浦区汝矣岛洞汝矣岛汉江公园"
+    },
+    "hours": "05:00-24:00",
+    "rental_fee": {
+      "1h_krw": 1000,
+      "note": {
+        "en": "₩1,000 for first 1 hour. Additional ₩500 per 30 min. App required (iOS/Android: 따릉이). Foreigner card accepted.",
+        "ja": "最初の1時間₩1,000。30分追加ごとに₩500。アプリ必須（iOS/Android: 따릉이）。外国カード対応。",
+        "zh": "前1小时₩1,000。每增加30分钟₩500。需下载APP（iOS/Android: 따릉이）。支持外国银行卡。",
+        "ko": "첫 1시간 ₩1,000. 30분 추가당 ₩500. 앱 필요 (iOS/Android: 따릉이). 외국 카드 결제 가능."
+      }
+    },
+    "route_highlights": {
+      "en": "Yeouido → National Assembly → 63 Building viewpoint → Bamseom Island view. ~8km round trip.",
+      "ja": "汝矣島→国会→63ビュー→蚕島眺望。往復約8km。",
+      "zh": "汝矣岛→国会大厦→63大厦景观→蚕岛景色。约8公里往返。",
+      "ko": "여의도 → 국회의사당 → 63빌딩 뷰 → 밤섬 전망. 왕복 약 8km."
+    },
+    "foreigner_tips": {
+      "en": "Fastest way to explore Hangang. Helmet recommended (free rental available). Bike paths are dedicated and safe.",
+      "ja": "漢江を探索する最速の方法。ヘルメット推奨（無料レンタルあり）。専用自転車道は安全。",
+      "zh": "探索汉江的最快方式。建议佩戴头盔（可免费租借）。专用自行车道安全。",
+      "ko": "한강 탐방 최고의 방법. 헬멧 권장 (무료 대여 가능). 전용 자전거 도로 안전."
+    },
+    "tags": ["hangang", "bike_rental", "outdoor", "free_activity", "foreigner_popular", "yeouido"],
+    "distance_km": 8,
+    "duration_min": 90,
+    "last_verified": "2026-05",
+    "lat": 37.5261,
+    "lng": 126.9346
+  },
+  {
+    "key": "ttareungi_banpo",
+    "name": {
+      "ko": "따릉이 반포 한강공원",
+      "en": "Ttareungi Rental - Banpo Hangang Park",
+      "ja": "タレンギ盤浦漢江公園",
+      "zh": "首尔公共自行车-盘浦汉江公园"
+    },
+    "type": "bike_rental",
+    "city": "seoul",
+    "area": "Banpo",
+    "address": {
+      "ko": "서울 서초구 반포동 반포한강공원",
+      "en": "Banpo Hangang Park, Seocho-gu, Seoul",
+      "ja": "ソウル瑞草区盤浦洞盤浦漢江公園",
+      "zh": "首尔瑞草区盘浦洞盘浦汉江公园"
+    },
+    "hours": "05:00-24:00",
+    "rental_fee": {
+      "1h_krw": 1000,
+      "note": {
+        "en": "Same as Yeouido. Use 따릉이 app. Banpo Bridge Rainbow Fountain visible while riding.",
+        "ja": "汝矣島と同料金。따릉이アプリ使用。乗りながら盤浦橋虹の噴水が見える。",
+        "zh": "与汝矣岛相同。使用따릉이 APP。骑行时可看到盘浦桥彩虹喷泉。",
+        "ko": "여의도와 동일. 따릉이 앱 사용. 라이딩 중 반포대교 달빛 무지개분수 관람 가능."
+      }
+    },
+    "route_highlights": {
+      "en": "Banpo Bridge → Moonlight Rainbow Fountain (pump schedule 12:00-23:00) → Ichon Hangang Park. ~12km round trip.",
+      "ja": "盤浦橋→月光虹の噴水（ポンプスケジュール12:00-23:00）→二村漢江公園。往復約12km。",
+      "zh": "盘浦桥→月光彩虹喷泉（喷泉时间12:00-23:00）→二村汉江公园。约12公里往返。",
+      "ko": "반포대교 → 달빛 무지개분수 (운영 12:00-23:00) → 이촌한강공원. 왕복 약 12km."
+    },
+    "foreigner_tips": {
+      "en": "Best evening ride in Seoul — Moonlight Rainbow Fountain is spectacular at dusk. Combine with Han River picnic.",
+      "ja": "ソウルで最高の夜の自転車ライド — 月光虹の噴水は夕暮れ時に圧巻。漢江ピクニックとの組み合わせも最高。",
+      "zh": "首尔最美的夜间骑行——月光彩虹喷泉在黄昏时分蔚为壮观。可结合汉江野餐。",
+      "ko": "서울 최고 야간 라이딩 — 달빛 무지개분수 황혼 시 장관. 한강 피크닉과 조합 최적."
+    },
+    "tags": ["hangang", "bike_rental", "outdoor", "sunset_ride", "foreigner_popular", "banpo"],
+    "distance_km": 12,
+    "duration_min": 120,
+    "last_verified": "2026-05",
+    "lat": 37.5097,
+    "lng": 126.9981
+  },
+  {
+    "key": "ttareungi_ttukseom",
+    "name": {
+      "ko": "따릉이 뚝섬 한강공원",
+      "en": "Ttareungi Rental - Ttukseom Hangang Park",
+      "ja": "タレンギ뚝섬漢江公園",
+      "zh": "首尔公共自行车-纛岛汉江公园"
+    },
+    "type": "bike_rental",
+    "city": "seoul",
+    "area": "Ttukseom / Seongsu",
+    "address": {
+      "ko": "서울 광진구 강변북로 139 뚝섬한강공원",
+      "en": "139 Gangbyeon-buk-ro, Gwangjin-gu, Seoul (Ttukseom Hangang Park)",
+      "ja": "ソウル広津区江辺北路139 뚝섬漢江公園",
+      "zh": "首尔广津区江边北路139号 纛岛汉江公园"
+    },
+    "hours": "05:00-24:00",
+    "rental_fee": {
+      "1h_krw": 1000,
+      "note": {
+        "en": "Same 따릉이 app. Start/end at Ttukseom — near hip Seongsu-dong cafes.",
+        "ja": "同じ따릉이アプリ。뚝섬スタート/エンド — おしゃれな성수洞カフェに近い。",
+        "zh": "同样的따릉이 APP。从纛岛出发/返回——靠近时尚的圣水洞咖啡馆。",
+        "ko": "동일 따릉이 앱. 뚝섬 출발/도착 — 힙한 성수동 카페 인접."
+      }
+    },
+    "route_highlights": {
+      "en": "Ttukseom → Gwangnaru → Amsa Ecological Park. ~10km. Great views of river and bridges.",
+      "ja": "뚝섬→広津渡→岩寺生態公園。約10km。川と橋の素晴らしい眺め。",
+      "zh": "纛岛→广津渡口→岩寺生态公园。约10公里。河流和桥梁的绝佳景色。",
+      "ko": "뚝섬 → 광나루 → 암사생태공원. 약 10km. 강과 다리 경관 최고."
+    },
+    "foreigner_tips": {
+      "en": "Great starting point — walk to Seongsu-dong after biking. Ttukseom has great facilities (cafes, splash pool in summer).",
+      "ja": "最高の出発点 — サイクリング後に성수洞へ徒歩で移動。뚝섬には優れた施設（カフェ、夏季は噴水プール）あり。",
+      "zh": "绝佳起始点——骑行后步行去圣水洞。纛岛设施完善（咖啡馆、夏季有戏水池）。",
+      "ko": "라이딩 후 성수동 카페 도보 연계 최적. 뚝섬 편의시설 우수 (카페, 여름 물놀이장)."
+    },
+    "tags": ["hangang", "bike_rental", "outdoor", "seongsu_adjacent", "foreigner_popular", "ttukseom"],
+    "distance_km": 10,
+    "duration_min": 90,
+    "last_verified": "2026-05",
+    "lat": 37.5290,
+    "lng": 127.0652
+  }
+]
