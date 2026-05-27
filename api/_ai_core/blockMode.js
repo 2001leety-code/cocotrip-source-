@@ -402,6 +402,12 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   const startDate = userInput?.startDate || null;
   const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
   const departureTime = String(userInput?.departure_time || userInput?.departureTime || '');
+  // P245 (2026-05-27): tour_start_time architectural — block_mode 가 P239 tour_start_time 무시했던
+  // sleeper bug 진짜 fix. arrival=14:00 + 9h = 23:00 → Day1 stops cascade 00:45/02:23/04:10 (P159 alert).
+  // 운영자 의도 (P239): arrival_time 무관하게 Day1 stops 시작 시각을 고정 (default '09:00').
+  // 본 fix = buildPrompt + RouteAgent 와 동일 룰을 block_mode 에도 적용 (sleeper bug 해소).
+  const tourStartTimeRaw = String(userInput?.tour_start_time || userInput?.tourStartTime || '09:00');
+  const tourStartTime = /^\d{1,2}:\d{2}$/.test(tourStartTimeRaw) ? tourStartTimeRaw : DEFAULT_DAY_START_HHMM;
 
   const days = [];
   for (const sel of blockSelections.day_selections) {
@@ -411,16 +417,25 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       throw new Error(`expandBlocksToItinerary: block_id not found: ${sel.block_id}`);
     }
 
-    // start_time 결정 — Day 1 이면 arrival_time 우선 (+60min transit + 8h sleep 분기는
-    // legacy buildPrompt 가 처리하던 로직이지만, block-mode 에서는 단순 day-start fallback).
+    // start_time 결정 — Day 1 이면 P239/P245 룰 적용:
+    //   - dayStart = max(tour_start_time, arrival_time + 60min)
+    //   - 옛 룰 (arrival + 9h) 폐기 — 14:00 + 9h = 23:00 wrap 으로 P159 새벽 stops cascade 유발했음.
     // Day N (마지막) 이면 departure_time 으로 cap.
-    let dayStart = DEFAULT_DAY_START_HHMM;
+    let dayStart = tourStartTime;  // P245: default = tour_start_time (옛 '09:00' literal 대체)
     const isFirstDay = dayNum === 1;
     const isLastDay = dayNum === blockSelections.day_selections.length;
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
-      // arrival_time + 9h (transit 1h + sleep 8h) 가 일반 day_start 이전이면 그대로 사용.
-      const computed = addMinutesToHHMM(arrivalTime, 9 * 60);
-      if (computed) dayStart = computed;
+      // P245 (2026-05-27): max(tour_start_time, arrival_time + 60min) — P239 architectural fix.
+      // arrival=14:00 케이스: max(09:00, 15:00) = 15:00 → 23:00 cascade 차단.
+      // arrival=01:30 케이스: max(09:00, 02:30) = 09:00 → 새벽 stops 차단 (호텔만 + 09:00 부터).
+      // arrival=06:00 케이스: max(09:00, 07:00) = 09:00 → 너무 늦은 stops 방지.
+      const arrivalPlus60 = addMinutesToHHMM(arrivalTime, 60);
+      // HH:MM 문자열 비교 = 시간 비교 (lexical = numeric for zero-padded).
+      if (arrivalPlus60 && arrivalPlus60 > tourStartTime) {
+        dayStart = arrivalPlus60;
+      } else {
+        dayStart = tourStartTime;
+      }
     }
 
     // stops expand
@@ -874,6 +889,10 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   const startDate = userInput?.startDate || null;
   const arrivalTime = String(userInput?.arrival_time || userInput?.arrivalTime || '');
   const departureTime = String(userInput?.departure_time || userInput?.departureTime || '');
+  // P245 (2026-05-27): tour_start_time — multi-city block_mode 도 동일 룰 적용
+  // (단도시 expandBlocksToItinerary 와 일관). default '09:00' (P239 architectural).
+  const tourStartTimeRaw = String(userInput?.tour_start_time || userInput?.tourStartTime || '09:00');
+  const tourStartTime = /^\d{1,2}:\d{2}$/.test(tourStartTimeRaw) ? tourStartTimeRaw : DEFAULT_DAY_START_HHMM;
   // P123 학습: hotelByCity Record 로 도시별 lodging 정합성 보장.
   const hotelByCity = (userInput?.hotelByCity && typeof userInput.hotelByCity === 'object' && !Array.isArray(userInput.hotelByCity))
     ? userInput.hotelByCity
@@ -900,13 +919,19 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       );
     }
 
-    // start_time 결정
-    let dayStart = DEFAULT_DAY_START_HHMM;
+    // start_time 결정 — P245 (2026-05-27): tour_start_time architectural fix.
+    // 옛 룰 (arrival + 9h) 폐기 — 14:00 + 9h = 23:00 wrap → P159 새벽 stops cascade.
+    // 신 룰: dayStart = max(tour_start_time, arrival_time + 60min) — buildPrompt/RouteAgent 와 일치.
+    let dayStart = tourStartTime;
     const isFirstDay = dayNum === 1;
     const isLastDay = dayNum === blockSelections.day_selections.length;
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
-      const computed = addMinutesToHHMM(arrivalTime, 9 * 60);
-      if (computed) dayStart = computed;
+      const arrivalPlus60 = addMinutesToHHMM(arrivalTime, 60);
+      if (arrivalPlus60 && arrivalPlus60 > tourStartTime) {
+        dayStart = arrivalPlus60;
+      } else {
+        dayStart = tourStartTime;
+      }
     }
 
     // stops expand (단도시 expandBlocksToItinerary 와 동일 로직)

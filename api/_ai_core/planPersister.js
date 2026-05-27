@@ -1084,6 +1084,10 @@ export async function persistPlan(adminDb, {
       // 2026-05-10 (P1): 도착/출발 시각 — PlanDetailPage 시각 분기 + revision prefill.
       arrival_time: body.arrivalTime || null,
       departure_time: body.departureTime || null,
+      // P245 (2026-05-27): tour_start_time persist — P239 architectural fix 가 prod 에서
+      // 효과 미완료였던 근본 원인 = 본 필드 미저장 + block_mode 가 arrival+9h 룰 그대로 사용.
+      // PDF/UI/admin debug 분기 + 회귀 검증 (R-P245 lint regex) 용도.
+      tour_start_time: body.tourStartTime || null,
       // 2026-05-10 (P1): luggage — AirportToLodgingGuide heavyLoad 자동 추천 핵심.
       luggage: (body.luggage && typeof body.luggage === 'object') ? body.luggage : null,
       // 2026-05-10 (P1): 매운맛 / bucket 음식 — 식당 추천 정확도.
