@@ -50,13 +50,14 @@ import {
   triggerPass3BackgroundIfPending,
   shouldUseStreaming,
   tryInitStreamingSkeleton,
+  tryBlockModeInngestPath,
   sendStreamingEarlyResponse,
 } from './backgroundPipelines.js';
 
 import { shapeRequest } from './requestShaper.js';
 import { buildUserMessage } from './userMessageBuilder.js';
 import { runRouteEnrichment, applyBackfillsAndTmoney, applyRecommendedRestaurants, computePricing, savePlan } from './postResponsePipeline.js';
-import { dispatchOrInlineForHandlerCore } from './inngestDispatch.js';
+import { dispatchOrInlineForHandlerCore, shouldDispatchToInngest } from './inngestDispatch.js';
 
 // Phase 4 A/B test (2026-05-13): mode resolved per-request via
 // decidePlannerMode (api/_ai_core/plannerMode.js). Inputs: uid / guestEmail /
@@ -293,31 +294,15 @@ export default async function handler(req, res) {
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 
-    // ── P169: Streaming 모드 — planId 먼저 생성 + skeleton Firestore 저장 ─────
-    // PLANNER_STREAMING_ENABLED=true + legacy 1-pass 일 때만 활성.
-    // block-mode 는 skeleton 불필요 (이미 itinerary 있음). 3-pass 는 미지원.
-    // streaming 모드에서는:
-    //   1. tryInitStreamingSkeleton → planId 획득
-    //   2. Gemini 파이프라인 (streaming) → 점진 Firestore write (geminiPipeline 내부)
-    //   3. sendStreamingEarlyResponse → response 즉시 반환 (status: 'streaming')
-    //   4. background 에서 나머지 pipeline (RouteEnrich / persist) 계속
-    // env flag false (default) 시 기존 흐름 100% 유지 (변경 없음).
-    // [P170] 세부 로직은 backgroundPipelines.js 로 추출됨.
+    // ── P169: Streaming 모드 — planId 먼저 + skeleton 저장. block-mode/3-pass 는 useStreaming=false.
+    //   PLANNER_STREAMING_ENABLED + legacy 1-pass 만 활성. [P170] 세부 로직은 backgroundPipelines.js.
     const useStreaming = shouldUseStreaming({ itinerary, plannerMode: PLANNER_MODE });
     let streamingPlanId = null;
     let streamingPlanUrl = null;
     let streamingResponseSent = false;
-
     if (useStreaming) {
-      console.log('[planner P169] Streaming mode: saving skeleton plan...');
-      const sk = await tryInitStreamingSkeleton({
-        adminDb, uid, email, area, startDate, guestName, pax, language,
-        vehicle, durationDays, body,
-      });
-      if (sk) {
-        streamingPlanId = sk.planId;
-        streamingPlanUrl = sk.planUrl;
-      }
+      const sk = await tryInitStreamingSkeleton({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body });
+      if (sk) { streamingPlanId = sk.planId; streamingPlanUrl = sk.planUrl; }
     }
 
     // ── Gemini 파이프라인 (legacy or 3pass) ────────────────────────────────
@@ -350,21 +335,36 @@ export default async function handler(req, res) {
       ...(streamingPlanId ? { adminDb, planId: streamingPlanId } : {}),
     }));
 
-    // P169: streaming 모드 — Gemini 완료 시점에 response 먼저 반환. RouteEnrich /
-    // persistPlan 은 background fire-and-forget (Vercel Node res.end() 후 await 가능).
-    // [P170] sendStreamingEarlyResponse → backgroundPipelines.js
-    // [P186 5/25] early response 에도 admin-bypass _debug — P169 분기가 L407 의 _debug
-    //   주입 SKIP 시키던 P177 사각지대 보강 (buildAdminDebug 의 gate 조건부는 그대로).
-    // [P222 5/26] Vercel serverless = res.end() 후 instance freeze 가능 (Sample 5 hang).
-    //   PLANNER_STREAMING_EARLY_RESPONSE ENV 토글 (default false = early response 폐기).
+    // P169/P186/P222: PLANNER_STREAMING_EARLY_RESPONSE ENV 토글 (default false). Vercel serverless instance freeze 회피 (P222 hang lesson). admin-bypass _debug 포함.
     if (streamingPlanId && !streamingResponseSent && String(process.env.PLANNER_STREAMING_EARLY_RESPONSE || '').toLowerCase() === 'true') {
       const earlyDebug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
       sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug });
       streamingResponseSent = true;
     }
 
+    // P230 (2026-05-27): block-mode + Inngest 통합 — skeleton + dispatch + early response 단일 helper.
+    // 성공 시 handler return. dispatch 실패 시 streamingPlanId 만 받아 inline path 가 같은 planId 재사용 (savePlan planIdOverride).
+    const blkInn = blockModeUsed && !streamingPlanId
+      ? await tryBlockModeInngestPath({
+          adminDb, isInngestEnabled: shouldDispatchToInngest(), blockModeUsed, itinerary, uid, email, area,
+          startDate, guestName, pax, language, vehicle, durationDays, body, handlerStart,
+          dispatchFn: ({ streamingPlanId: spid }) => dispatchOrInlineForHandlerCore({
+            streamingResponseSent: true, itinerary, streamingPlanId: spid, apiKey, body, routeHotelAddress, hotel_address,
+            arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
+            area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
+            specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
+            isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart,
+          }),
+          sendEarlyResponse: ({ planId, planUrl, debug }) => sendStreamingEarlyResponse({ res, CORS, planId, planUrl, debug }),
+          buildDebug: () => buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary }),
+        })
+      : null;
+    if (blkInn && blkInn.dispatched) { streamingResponseSent = true; return; }
+    if (blkInn) { streamingPlanId = blkInn.streamingPlanId; streamingPlanUrl = blkInn.streamingPlanUrl; }
+
     // P220 (2026-05-26): Inngest dispatch — streaming + ENV + 토글 시 post-Gemini 를 별 invocation 으로. ENV/throw 시 inline fallback (silent fail 차단).
-    if (await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
+    // P230 (2026-05-27): block-mode 경로는 위에서 이미 처리 → skip. legacy streaming 만 본 분기 진입.
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
 
     console.log('[planner] Step 2: Running RouteAgent...');
 

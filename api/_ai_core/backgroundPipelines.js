@@ -18,6 +18,11 @@
  *     planId + planUrl 생성 + Firestore skeleton 저장.
  *     실패 시 null 반환 (일반 모드로 fallback 하도록 설계).
  *
+ *   - tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary })
+ *     P230 (2026-05-27): block-mode + Inngest 통합. block-mode 결과를 _streaming_in_progress=true
+ *     skeleton 으로 저장 + itinerary merge → handlerCore 가 streamingPlanId 확보 → Inngest dispatch.
+ *     실패 시 null 반환 → handlerCore 의 inline pipeline 으로 fallback (silent fail 차단).
+ *
  *   - sendStreamingEarlyResponse({ res, CORS, planId, planUrl })
  *     status:'streaming' 응답 즉시 전송 (Gemini 완료 직후).
  *
@@ -107,6 +112,113 @@ export async function tryInitStreamingSkeleton({
     return { planId: sk.planId, planUrl: sk.planUrl };
   } catch (skErr) {
     console.warn('[planner P169] Skeleton save failed, falling back to normal mode:', skErr.message);
+    return null;
+  }
+}
+
+/**
+ * P230 (2026-05-27): block-mode + Inngest 전체 path 통합 helper.
+ *
+ * handlerCore.js 의 P129 500L cap 보호 — skeleton init + dispatch + response 발사를
+ * 한 helper 로 wrap. handlerCore 는 `if (await tryBlockModeInngestPath(...)) return;`
+ * 한 줄로 호출.
+ *
+ * Flow:
+ *   1. shouldDispatchToInngest() false → return null (handlerCore inline 진행).
+ *   2. tryInitBlockModeForInngest() 실패 → return null.
+ *   3. dispatchOrInline... 실패 → { streamingPlanId, streamingPlanUrl, dispatched: false }
+ *      → handlerCore 의 inline path 가 같은 planId 재사용 (skeleton merge).
+ *   4. dispatch 성공 → sendEarlyResponse → { dispatched: true } → handlerCore return.
+ *
+ * 반환값:
+ *   - null: 본 path 미진입 (handlerCore inline 진행).
+ *   - { dispatched: true, streamingPlanId, streamingPlanUrl }: dispatched + response sent (handler return).
+ *   - { dispatched: false, streamingPlanId, streamingPlanUrl }: skeleton 만 저장 → handlerCore inline fallback (planId 재사용).
+ *
+ * @param {object} args - handlerCore scope + { adminDb, dispatchFn, sendEarlyResponse, buildDebug, isInngestEnabled }
+ */
+export async function tryBlockModeInngestPath({
+  adminDb, isInngestEnabled, blockModeUsed, itinerary, uid, email, area, startDate, guestName, pax,
+  language, vehicle, durationDays, body, dispatchFn, sendEarlyResponse, buildDebug, handlerStart,
+}) {
+  if (!blockModeUsed || !itinerary || !isInngestEnabled) return null;
+  const sk = await tryInitBlockModeForInngest({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary });
+  if (!sk) return null;
+  const dispatched = await dispatchFn({ streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl });
+  if (dispatched) {
+    sendEarlyResponse({ planId: sk.planId, planUrl: sk.planUrl, debug: buildDebug() });
+    console.log('[planner P230] block-mode + Inngest dispatched. Response sent, worker handles enrichment.');
+    if (handlerStart) console.log('[planner] === TOTAL:', Date.now() - handlerStart, 'ms (P230 dispatched) ===');
+    return { dispatched: true, streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl };
+  }
+  console.warn('[planner P230] block-mode Inngest dispatch failed — falling back to inline (skeleton kept).');
+  return { dispatched: false, streamingPlanId: sk.planId, streamingPlanUrl: sk.planUrl };
+}
+
+/**
+ * P230 (2026-05-27): block-mode + Inngest 통합용 skeleton init.
+ *
+ * 배경: block-mode (P128/P167) 가 itinerary 를 미리 생성하면 shouldUseStreaming() 이
+ *   false 를 반환 → streamingPlanId 가 null → tryDispatchOrFallback 의
+ *   `if (!args.streamingPlanId) return false` 가드가 Inngest dispatch 차단 →
+ *   inline routeEnrich (20s) 가 진행. block-mode 가 Inngest worker 우회.
+ *
+ * 본 helper 는 block-mode itinerary 를 skeleton 으로 Firestore 에 미리 저장 +
+ * streamingPlanId 확보 → handlerCore 가 dispatch 진행 가능. worker 는
+ * planIdOverride 로 동일 planId 의 doc 을 set merge 로 enrichment 완성.
+ *
+ * 차이점 (tryInitStreamingSkeleton 대비):
+ *   - itinerary 가 이미 존재 → skeleton 의 days 를 block-mode 결과로 채움
+ *     (사용자가 PlanDetailPage 진입 시 빈 days 가 아닌 block-mode 결과 표시).
+ *   - _streaming_in_progress=true 유지 → routeEnrich 완료 전 client 가 loading
+ *     인디케이터 표시 (PlanDetailPage._streaming_in_progress listener 그대로).
+ *   - Inngest worker 가 _inngest_status='ready' 마킹 시 client onSnapshot 자동 갱신.
+ *
+ * Inngest 미설정 / dispatch 실패 시 fallback 보장:
+ *   - 본 helper 호출 전에 handlerCore 가 shouldDispatchToInngest() 검사.
+ *   - skeleton save 실패 시 null → handlerCore 가 기존 inline pipeline 진행.
+ *
+ * SAFETY-CRITICAL (CLAUDE.md J):
+ *   - block-mode 자체가 이미 dietary 검증 통과 (eligible: false → legacy fallback 했음).
+ *   - 본 helper 는 dietary 재검증 안 함 — 단순 Firestore write.
+ *
+ * @param {{ adminDb, uid: string, email: string, area: string, startDate: string,
+ *           guestName: string, pax: number, language: string, vehicle: string,
+ *           durationDays: number, body: object, itinerary: object }} args
+ * @returns {Promise<{ planId: string, planUrl: string }|null>}
+ */
+export async function tryInitBlockModeForInngest({
+  adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body, itinerary,
+}) {
+  if (!adminDb || !itinerary) return null;
+  try {
+    const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
+      try { return calcPrice(vehicle, durationDays); } catch { return { priceKRW: 0, priceUSD: 0 }; }
+    })();
+    // savePlanSkeleton 의 기본 itinerary (empty days) 대신 block-mode 결과를 직접 set.
+    // savePlanSkeleton 은 _streaming_in_progress=true 와 planId 생성을 담당. 이후 별 doc.set merge
+    // 로 block-mode itinerary 를 덮어쓰면 동일 planId 의 days 가 block-mode 결과로 채워짐.
+    const sk = await savePlanSkeleton(adminDb, {
+      uid, email, area, startDate, guestName, pax, language,
+      vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+    });
+    // block-mode 결과를 skeleton 위에 merge — _streaming_in_progress / status / pricing 유지하면서
+    // itinerary.days 만 block-mode 결과로 덮어씀. 사용자는 PlanDetailPage 진입 시 빈 days 가
+    // 아닌 block-mode plan 즉시 표시. routeEnrich 진행은 _streaming_in_progress 로 표시.
+    try {
+      await adminDb.collection('plans').doc(sk.planId).set({
+        itinerary: { ...itinerary, _streaming_skeleton: true },
+        _block_mode_used: true,
+      }, { merge: true });
+    } catch (mergeErr) {
+      // skeleton 은 저장됐으나 itinerary merge 실패 — client 는 empty days 잠시 봤다가
+      // worker 완료 시 채워짐. non-fatal 처리.
+      console.warn('[planner P230] block-mode itinerary merge failed (non-fatal):', mergeErr.message);
+    }
+    console.log('[planner P230] block-mode skeleton saved for Inngest:', sk.planId);
+    return { planId: sk.planId, planUrl: sk.planUrl };
+  } catch (skErr) {
+    console.warn('[planner P230] block-mode skeleton save failed, falling back to inline pipeline:', skErr.message);
     return null;
   }
 }
