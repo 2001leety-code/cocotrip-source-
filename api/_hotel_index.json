@@ -1,0 +1,452 @@
+[
+  {
+    "key": "lotte_hotel_seoul",
+    "name": {
+      "ko": "롯데호텔 서울",
+      "en": "Lotte Hotel Seoul",
+      "ja": "ロッテホテルソウル",
+      "zh": "乐天酒店首尔"
+    },
+    "city": "seoul",
+    "region": "seoul",
+    "address": {
+      "ko": "서울 중구 을지로 30",
+      "en": "30 Eulji-ro, Jung-gu, Seoul",
+      "ja": "ソウル中区乙支路30",
+      "zh": "首尔中区乙支路30号"
+    },
+    "area": "Myeongdong",
+    "stars": 5,
+    "rating": 8.8,
+    "price_tier": "luxury",
+    "price_usd_min": 185,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "myeongdong_walk", "concierge_24h"],
+    "nearby": ["Myeongdong", "Namdaemun Market", "Deoksugung Palace"],
+    "last_verified": "2026-05",
+    "lat": 37.5638,
+    "lng": 126.9819,
+    "trip_url": "https://www.trip.com/hotels/seoul-hotel-detail-425884/"
+  },
+  {
+    "key": "signiel_seoul",
+    "name": {
+      "ko": "시그니엘 서울",
+      "en": "Signiel Seoul",
+      "ja": "シグニエルソウル",
+      "zh": "希格尼尔首尔酒店"
+    },
+    "city": "seoul",
+    "region": "seoul",
+    "address": {
+      "ko": "서울 송파구 올림픽로 300 롯데월드타워",
+      "en": "300 Olympic-ro, Songpa-gu, Seoul (Lotte World Tower)",
+      "ja": "ソウル松坡区オリンピック路300ロッテワールドタワー",
+      "zh": "首尔松坡区奥林匹克路300号乐天世界塔"
+    },
+    "area": "Jamsil",
+    "stars": 5,
+    "rating": 9.2,
+    "price_tier": "ultra_luxury",
+    "price_usd_min": 340,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "city_view", "lotte_world_tower"],
+    "nearby": ["Lotte World", "Lotte World Mall", "Stone Village"],
+    "last_verified": "2026-05",
+    "lat": 37.5126,
+    "lng": 127.1021,
+    "trip_url": "https://www.trip.com/hotels/seoul-hotel-detail-6976695/"
+  },
+  {
+    "key": "grand_hyatt_seoul",
+    "name": {
+      "ko": "그랜드 하얏트 서울",
+      "en": "Grand Hyatt Seoul",
+      "ja": "グランドハイアットソウル",
+      "zh": "首尔君悦大酒店"
+    },
+    "city": "seoul",
+    "region": "seoul",
+    "address": {
+      "ko": "서울 용산구 소월로 322",
+      "en": "322 Sowol-ro, Yongsan-gu, Seoul",
+      "ja": "ソウル龍山区素月路322",
+      "zh": "首尔龙山区素月路322号"
+    },
+    "area": "Itaewon",
+    "stars": 5,
+    "rating": 9.0,
+    "price_tier": "luxury",
+    "price_usd_min": 210,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "namsan_view", "itaewon_close"],
+    "nearby": ["Namsan Tower", "Itaewon", "Hannam-dong"],
+    "last_verified": "2026-05",
+    "lat": 37.5402,
+    "lng": 126.9968,
+    "trip_url": "https://www.trip.com/hotels/seoul-hotel-detail-425898/"
+  },
+  {
+    "key": "novotel_dongdaemun",
+    "name": {
+      "ko": "노보텔 앰배서더 서울 동대문",
+      "en": "Novotel Ambassador Seoul Dongdaemun",
+      "ja": "ノボテルアンバサダーソウル東大門",
+      "zh": "首尔东大门诺富特大使酒店"
+    },
+    "city": "seoul",
+    "region": "seoul",
+    "address": {
+      "ko": "서울 종로구 종로 270",
+      "en": "270 Jongno, Jongno-gu, Seoul",
+      "ja": "ソウル鍾路区鍾路270",
+      "zh": "首尔钟路区钟路270号"
+    },
+    "area": "Dongdaemun",
+    "stars": 4,
+    "rating": 8.5,
+    "price_tier": "mid_range",
+    "price_usd_min": 120,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "4star", "dongdaemun_walk", "shopping_hub"],
+    "nearby": ["Dongdaemun Design Plaza", "Gwangjang Market", "Cheonggyecheon"],
+    "last_verified": "2026-05",
+    "lat": 37.5695,
+    "lng": 127.0053,
+    "trip_url": "https://www.trip.com/hotels/seoul-hotel-detail-37603417/"
+  },
+  {
+    "key": "l7_hongdae",
+    "name": {
+      "ko": "L7 홍대 by LOTTE",
+      "en": "L7 Hongdae by LOTTE",
+      "ja": "L7 ホンデ by LOTTE",
+      "zh": "乐天L7弘大酒店"
+    },
+    "city": "seoul",
+    "region": "seoul",
+    "address": {
+      "ko": "서울 마포구 양화로 141",
+      "en": "141 Yanghwa-ro, Mapo-gu, Seoul",
+      "ja": "ソウル麻浦区楊花路141",
+      "zh": "首尔麻浦区杨花路141号"
+    },
+    "area": "Hongdae",
+    "stars": 4,
+    "rating": 8.7,
+    "price_tier": "mid_range",
+    "price_usd_min": 105,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "4star", "hongdae_3min", "youth_vibe"],
+    "nearby": ["Hongdae Park", "Hongdae Street", "Mangwon Market"],
+    "last_verified": "2026-05",
+    "lat": 37.5547,
+    "lng": 126.9219,
+    "trip_url": "https://www.trip.com/hotels/seoul-hotel-detail-6215498/"
+  },
+  {
+    "key": "hotel28_myeongdong",
+    "name": {
+      "ko": "호텔28 명동",
+      "en": "Hotel28 Myeongdong",
+      "ja": "ホテル28明洞",
+      "zh": "明洞28号酒店"
+    },
+    "city": "seoul",
+    "region": "seoul",
+    "address": {
+      "ko": "서울 중구 명동4길 9",
+      "en": "9 Myeongdong 4-gil, Jung-gu, Seoul",
+      "ja": "ソウル中区明洞4ギル9",
+      "zh": "首尔中区明洞4街9号"
+    },
+    "area": "Myeongdong",
+    "stars": 4,
+    "rating": 8.3,
+    "price_tier": "mid_range",
+    "price_usd_min": 78,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "4star", "myeongdong_center", "budget_friendly"],
+    "nearby": ["Myeongdong Cathedral", "Namdaemun Market", "N Seoul Tower"],
+    "last_verified": "2026-05",
+    "lat": 37.5607,
+    "lng": 126.9857,
+    "trip_url": "https://www.trip.com/hotels/seoul-hotel-detail-8515498/"
+  },
+  {
+    "key": "paradise_hotel_busan",
+    "name": {
+      "ko": "파라다이스 호텔 부산",
+      "en": "Paradise Hotel Busan",
+      "ja": "パラダイスホテル釜山",
+      "zh": "釜山天堂大酒店"
+    },
+    "city": "busan",
+    "region": "busan",
+    "address": {
+      "ko": "부산 해운대구 해운대해변로 296",
+      "en": "296 Haeundaehaebyeon-ro, Haeundae-gu, Busan",
+      "ja": "釜山海雲台区海雲台海辺路296",
+      "zh": "釜山海云台区海云台海滨路296号"
+    },
+    "area": "Haeundae",
+    "stars": 5,
+    "rating": 8.9,
+    "price_tier": "luxury",
+    "price_usd_min": 200,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "beachfront", "haeundae_beach"],
+    "nearby": ["Haeundae Beach", "Dongbaek Island", "BEXCO"],
+    "last_verified": "2026-05",
+    "lat": 35.1618,
+    "lng": 129.1641,
+    "trip_url": "https://www.trip.com/hotels/busan-hotel-detail-481398/"
+  },
+  {
+    "key": "hotel_aqua_palace_busan",
+    "name": {
+      "ko": "호텔 아쿠아팰리스 부산",
+      "en": "Hotel Aqua Palace Busan",
+      "ja": "ホテルアクアパレス釜山",
+      "zh": "釜山水宫酒店"
+    },
+    "city": "busan",
+    "region": "busan",
+    "address": {
+      "ko": "부산 해운대구 해운대해변로 187",
+      "en": "187 Haeundaehaebyeon-ro, Haeundae-gu, Busan",
+      "ja": "釜山海雲台区海雲台海辺路187",
+      "zh": "釜山海云台区海云台海滨路187号"
+    },
+    "area": "Haeundae",
+    "stars": 4,
+    "rating": 8.4,
+    "price_tier": "mid_range",
+    "price_usd_min": 110,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "4star", "haeundae_close", "ocean_view"],
+    "nearby": ["Haeundae Beach", "Haeundae Market", "Busan Aquarium"],
+    "last_verified": "2026-05",
+    "lat": 35.1579,
+    "lng": 129.1601,
+    "trip_url": "https://www.trip.com/hotels/busan-hotel-detail-2681398/"
+  },
+  {
+    "key": "lotte_hotel_busan",
+    "name": {
+      "ko": "롯데호텔 부산",
+      "en": "Lotte Hotel Busan",
+      "ja": "ロッテホテル釜山",
+      "zh": "釜山乐天酒店"
+    },
+    "city": "busan",
+    "region": "busan",
+    "address": {
+      "ko": "부산 부산진구 가야대로 772",
+      "en": "772 Gaya-daero, Busanjin-gu, Busan",
+      "ja": "釜山釜山鎮区伽耶大路772",
+      "zh": "釜山釜山镇区伽耶大路772号"
+    },
+    "area": "Seomyeon",
+    "stars": 5,
+    "rating": 8.7,
+    "price_tier": "luxury",
+    "price_usd_min": 160,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "seomyeon_center", "shopping_hub"],
+    "nearby": ["Seomyeon Shopping", "Lotte Department Store", "Bujeon Market"],
+    "last_verified": "2026-05",
+    "lat": 35.1568,
+    "lng": 129.0588,
+    "trip_url": "https://www.trip.com/hotels/busan-hotel-detail-425959/"
+  },
+  {
+    "key": "hyatt_regency_jeju",
+    "name": {
+      "ko": "현대 레지던스 제주",
+      "en": "Jeju Shinhwa World Marriott Resort",
+      "ja": "済州シンファワールドマリオットリゾート",
+      "zh": "济州神话世界万豪度假酒店"
+    },
+    "city": "jeju",
+    "region": "jeju",
+    "address": {
+      "ko": "제주 서귀포시 안덕면 신화역사로 304번길 38",
+      "en": "38, Sinhwa-yeoksa-ro 304beon-gil, Andeok-myeon, Seogwipo, Jeju",
+      "ja": "済州서귀포市安德面神話歴史路304番길38",
+      "zh": "济州西归浦市安德面神话历史路304番街38号"
+    },
+    "area": "Western Jeju",
+    "stars": 5,
+    "rating": 9.0,
+    "price_tier": "luxury",
+    "price_usd_min": 220,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "resort", "casino_adjacent"],
+    "nearby": ["Jeju Shinhwa World", "Oedolgae Rock", "Jeongbang Waterfall"],
+    "last_verified": "2026-05",
+    "lat": 33.3202,
+    "lng": 126.3042,
+    "trip_url": "https://www.trip.com/hotels/jeju-hotel-detail-8512645/"
+  },
+  {
+    "key": "lotte_hotel_jeju",
+    "name": {
+      "ko": "롯데호텔 제주",
+      "en": "Lotte Hotel Jeju",
+      "ja": "ロッテホテル済州",
+      "zh": "济州岛乐天酒店"
+    },
+    "city": "jeju",
+    "region": "jeju",
+    "address": {
+      "ko": "제주 서귀포시 중문관광로72번길 35",
+      "en": "35 Jungmun-gwangwang-ro 72beon-gil, Seogwipo, Jeju",
+      "ja": "済州서귀포市中文観光路72番길35",
+      "zh": "济州西归浦市中文观光路72番街35号"
+    },
+    "area": "Jungmun",
+    "stars": 5,
+    "rating": 8.8,
+    "price_tier": "luxury",
+    "price_usd_min": 190,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "jungmun_resort", "ocean_view", "casino"],
+    "nearby": ["Jungmun Beach", "Teddy Bear Museum", "Cheonjeyeon Waterfall"],
+    "last_verified": "2026-05",
+    "lat": 33.2484,
+    "lng": 126.4094,
+    "trip_url": "https://www.trip.com/hotels/jeju-hotel-detail-425973/"
+  },
+  {
+    "key": "jeju_sun_hotel",
+    "name": {
+      "ko": "제주 선호텔",
+      "en": "Jeju Sun Hotel",
+      "ja": "済州サンホテル",
+      "zh": "济州太阳酒店"
+    },
+    "city": "jeju",
+    "region": "jeju",
+    "address": {
+      "ko": "제주 제주시 연동 2가 339-1",
+      "en": "339-1 Yeondong 2-ga, Jeju City",
+      "ja": "済州제주시淵洞2街339-1",
+      "zh": "济州济州市渊洞2街339-1号"
+    },
+    "area": "Jeju City Center",
+    "stars": 4,
+    "rating": 8.2,
+    "price_tier": "mid_range",
+    "price_usd_min": 85,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "4star", "jeju_city_center", "budget_friendly"],
+    "nearby": ["Dongmun Market", "Jungang Underground Shopping", "Gwandeokjeong"],
+    "last_verified": "2026-05",
+    "lat": 33.4996,
+    "lng": 126.5312,
+    "trip_url": "https://www.trip.com/hotels/jeju-hotel-detail-2684921/"
+  },
+  {
+    "key": "hilton_gyeongju",
+    "name": {
+      "ko": "힐튼 경주",
+      "en": "Hilton Gyeongju",
+      "ja": "ヒルトン慶州",
+      "zh": "庆州希尔顿酒店"
+    },
+    "city": "gyeongju",
+    "region": "gyeongsang_buk",
+    "address": {
+      "ko": "경북 경주시 보문로 484-7",
+      "en": "484-7 Bomun-ro, Gyeongju, Gyeongsangbuk-do",
+      "ja": "慶尚北道慶州市普門路484-7",
+      "zh": "庆尚北道庆州市普门路484-7号"
+    },
+    "area": "Bomun Tourist Complex",
+    "stars": 5,
+    "rating": 8.6,
+    "price_tier": "luxury",
+    "price_usd_min": 150,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "5star", "bomun_lake", "resort", "heritage_adjacent"],
+    "nearby": ["Bomun Lake", "Gyeongju World", "Cheomseongdae Observatory"],
+    "last_verified": "2026-05",
+    "lat": 35.8302,
+    "lng": 129.2614,
+    "trip_url": "https://www.trip.com/hotels/gyeongju-hotel-detail-427921/"
+  },
+  {
+    "key": "commodore_hotel_gyeongju",
+    "name": {
+      "ko": "코모도 호텔 경주",
+      "en": "Commodore Hotel Gyeongju",
+      "ja": "コモドアホテル慶州",
+      "zh": "庆州准将大酒店"
+    },
+    "city": "gyeongju",
+    "region": "gyeongsang_buk",
+    "address": {
+      "ko": "경북 경주시 보문로 368",
+      "en": "368 Bomun-ro, Gyeongju, Gyeongsangbuk-do",
+      "ja": "慶尚北道慶州市普門路368",
+      "zh": "庆尚北道庆州市普门路368号"
+    },
+    "area": "Bomun Tourist Complex",
+    "stars": 4,
+    "rating": 8.1,
+    "price_tier": "mid_range",
+    "price_usd_min": 95,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "4star", "bomun_lake", "budget_luxury"],
+    "nearby": ["Bomun Lake", "Anapji Pond", "Tumuli Park"],
+    "last_verified": "2026-05",
+    "lat": 35.8261,
+    "lng": 129.2483,
+    "trip_url": "https://www.trip.com/hotels/gyeongju-hotel-detail-481523/"
+  },
+  {
+    "key": "hotel_aventree_jeonju",
+    "name": {
+      "ko": "호텔 어벤트리 전주",
+      "en": "Hotel Aventree Jeonju",
+      "ja": "ホテルアベントリー全州",
+      "zh": "全州安文奇酒店"
+    },
+    "city": "jeonju",
+    "region": "jeolla_buk",
+    "address": {
+      "ko": "전북 전주시 완산구 전주객사1길 33",
+      "en": "33 Jeonjugaeksa 1-gil, Wansangu, Jeonju, Jeollabuk-do",
+      "ja": "全羅北道全州市完山区全州客舎1街33",
+      "zh": "全罗北道全州市完山区全州客舍1街33号"
+    },
+    "area": "Jeonju Hanok Village",
+    "stars": 4,
+    "rating": 8.4,
+    "price_tier": "mid_range",
+    "price_usd_min": 90,
+    "foreigner_friendly": true,
+    "english_service": true,
+    "tags": ["foreigner_popular", "english_service", "4star", "hanok_village_walk", "heritage_stay"],
+    "nearby": ["Jeonju Hanok Village", "Jeonjuhyangyo", "Gyeonggijeon Shrine"],
+    "last_verified": "2026-05",
+    "lat": 35.8157,
+    "lng": 127.1534,
+    "trip_url": "https://www.trip.com/hotels/jeonju-hotel-detail-2683421/"
+  }
+]

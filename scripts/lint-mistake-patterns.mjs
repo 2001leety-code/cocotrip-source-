@@ -2087,6 +2087,7 @@ const RULES = [
   ['P235_firestoreErrorDistinction', checkP235FirestoreErrorDistinction],
   ['P237_runningHelperIntegrity', P237_runningHelperIntegrity],
   ['P240_blockModeAllergenSafety', P240_blockModeAllergenSafety],
+  ['P241_activityHelperIntegrity', P241_activityHelperIntegrity],
 ];
 
 // ----------------------------------------------------------------------------
@@ -8646,6 +8647,94 @@ function P237_runningHelperIntegrity({ changed, readFile, statFile }) {
       'R-P237: Running 코스 DB 주입 체인 손상 감지 (P237 2026-05-27). ' +
       '비유: "달리기 코스 지도 없이 외국인 러닝 보냄 = hallucination 위험". ' +
       '_running_helper.js getRunningContextForPrompt + handlerCore 분기 + _running_index.json row > 0 필수. ' +
+      '발견: ' + issues.join(' | '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P241_activityHelperIntegrity — Activity DB 주입 체인 검증 (P241 2026-05-27)
+// ----------------------------------------------------------------------------
+/**
+ * P241_activityHelperIntegrity
+ *
+ * P241 (2026-05-27): Kbeauty/DMZ/Haenyeo/Jjimjilbang/HangangBike 선택 시
+ * _activity_helper.js 주입 체인 + 각 index JSON 파일 로드 검증.
+ * 비유: "K뷰티 쇼핑 안내 없이 외국인 명동 보내는 것 = hallucination 위험"
+ *
+ * 검사:
+ *   1. _activity_helper.js 변경 시 getActivityContextForPrompt export 존재
+ *   2. userMessageBuilder.js 에 P241_ACTIVITY_STYLES + buildP241ActivityContext 존재
+ *   3. 각 index JSON (_kbeauty/dmz/haenyeo/jjimjilbang/hangang_bike) row > 0
+ *
+ * NOTE: P241 은 handlerCore.js 미변경 패턴 — userMessageBuilder.js 내부 주입.
+ */
+function P241_activityHelperIntegrity({ changed, readFile }) {
+  const HELPER = 'api/_activity_helper.js';
+  const BUILDER = 'api/_ai_core/userMessageBuilder.js';
+  const INDEXES = [
+    'api/_kbeauty_index.json',
+    'api/_dmz_index.json',
+    'api/_haenyeo_index.json',
+    'api/_jjimjilbang_index.json',
+    'api/_hangang_bike_index.json',
+  ];
+
+  const changedFiles = (changed || []).map(c => typeof c === 'string' ? c : c.path || '');
+  const affected = changedFiles.some(f =>
+    f.includes('_activity_helper') || f.includes('_hotel_helper') ||
+    f.includes('_kbeauty_index') || f.includes('_dmz_index') ||
+    f.includes('_haenyeo_index') || f.includes('_jjimjilbang_index') ||
+    f.includes('_hangang_bike_index') || f.includes('_hotel_index') ||
+    f.includes('userMessageBuilder'),
+  );
+  if (!affected) return null;
+
+  const issues = [];
+
+  // (1) _activity_helper.js export check
+  if (changedFiles.some(f => f.includes('_activity_helper'))) {
+    try {
+      const src = readFile(HELPER);
+      if (!/export\s+function\s+getActivityContextForPrompt/.test(src)) {
+        issues.push(`${HELPER}: getActivityContextForPrompt export 누락 — 활동 DB 주입 불가`);
+      }
+    } catch { /* file may not exist yet */ }
+  }
+
+  // (2) userMessageBuilder.js integration check (P241 handlerCore 미변경 패턴)
+  if (changedFiles.some(f => f.includes('userMessageBuilder'))) {
+    try {
+      const builder = readFile(BUILDER);
+      if (!/getActivityContextForPrompt/.test(builder)) {
+        issues.push(`${BUILDER}: getActivityContextForPrompt import 없음 — P241 활동 DB 주입 미연결`);
+      }
+      if (!/P241_ACTIVITY_STYLES/.test(builder)) {
+        issues.push(`${BUILDER}: P241_ACTIVITY_STYLES 없음 — Kbeauty/DMZ/Haenyeo 조건부 주입 불가`);
+      }
+    } catch { /* builder might not be changed */ }
+  }
+
+  // (3) index JSON row counts
+  for (const indexFile of INDEXES) {
+    if (changedFiles.some(f => f.includes(indexFile.replace('api/', '')))) {
+      try {
+        const raw = readFile(indexFile);
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr) || arr.length === 0) {
+          issues.push(`${indexFile}: 빈 배열 — 활동 DB row 0건`);
+        }
+      } catch { issues.push(`${indexFile}: 읽기/파싱 실패`); }
+    }
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    rule: 'P241_activityHelperIntegrity',
+    file: issues[0].split(':')[0],
+    message:
+      'R-P241: Activity DB 주입 체인 손상 감지 (P241 2026-05-27). ' +
+      '비유: "K뷰티 안내 없이 외국인 명동 보냄 = hallucination 위험". ' +
+      '_activity_helper.js getActivityContextForPrompt + handlerCore P241_STYLES 분기 + 각 index row > 0 필수. ' +
       '발견: ' + issues.join(' | '),
   };
 }

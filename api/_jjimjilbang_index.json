@@ -1,0 +1,186 @@
+[
+  {
+    "key": "dragon_hill_spa_seoul",
+    "name": {
+      "ko": "드래곤힐 스파",
+      "en": "Dragon Hill Spa",
+      "ja": "ドラゴンヒルスパ",
+      "zh": "龙山汗蒸幕"
+    },
+    "type": "jjimjilbang",
+    "city": "seoul",
+    "area": "Yongsan",
+    "address": {
+      "ko": "서울 용산구 한강대로 40길 25",
+      "en": "25 Hangang-daero 40-gil, Yongsan-gu, Seoul",
+      "ja": "ソウル龍山区漢江大路40ギル25",
+      "zh": "首尔龙山区汉江大路40街25号"
+    },
+    "hours": "24 hours (all week)",
+    "entry_fee": {
+      "adult_krw": 16000,
+      "note": {
+        "en": "Entrance fee includes gown rental and basic access. Towels, amenities extra.",
+        "ja": "入場料にはガウンレンタルと基本アクセスが含まれる。タオル、アメニティは別途。",
+        "zh": "门票含睡衣租借和基础设施使用。毛巾、洗漱用品另算。",
+        "ko": "입장료에 가운 대여 및 기본 시설 이용 포함. 타올, 어메니티 별도."
+      }
+    },
+    "foreigner_tips": {
+      "en": "Largest jjimjilbang in Seoul. 7 floors with sauna, pools, food court, and sleeping areas. English signs throughout. Very foreigner-friendly.",
+      "ja": "ソウル最大の찜질방。サウナ、プール、フードコート、仮眠エリアなど7フロア。英語案内あり。外国人に非常に優しい。",
+      "zh": "首尔最大的汗蒸幕。7层楼包含桑拿、泳池、美食广场和休息区。全程英文指示。非常适合外国游客。",
+      "ko": "서울 최대 찜질방. 사우나, 수영장, 푸드코트, 수면실 등 7층. 영문 안내 완비. 외국인 매우 친화적."
+    },
+    "gender_policy": {
+      "en": "Separate male/female bathing areas. Unisex common areas (sauna rooms, food court) — keep gowns on.",
+      "ja": "男女別入浴エリア。共用エリア（サウナ室、フードコート）はユニセックス — ガウン着用を維持。",
+      "zh": "男女浴区分开。公共区域（桑拿房、美食广场）男女混用——请保持穿着睡衣。",
+      "ko": "남녀 탕 분리. 공용 구역 (찜질방, 푸드코트) = 가운 착용 유지."
+    },
+    "tags": ["jjimjilbang", "24h", "foreigner_popular", "english_friendly", "largest_in_seoul", "wellness"],
+    "rating": 4.3,
+    "duration_min": 180,
+    "last_verified": "2026-05",
+    "lat": 37.5275,
+    "lng": 126.9654
+  },
+  {
+    "key": "spa_lei_busan",
+    "name": {
+      "ko": "스파 레이 부산 해운대",
+      "en": "Spa Lei Busan Haeundae",
+      "ja": "スパレイ釜山海雲台",
+      "zh": "来易水疗中心釜山海云台"
+    },
+    "type": "jjimjilbang",
+    "city": "busan",
+    "area": "Haeundae",
+    "address": {
+      "ko": "부산 해운대구 마린시티1로 75 마린시티 G2",
+      "en": "75 Marine City 1-ro, Haeundae-gu, Busan (Marine City G2)",
+      "ja": "釜山海雲台区マリンシティ1路75マリンシティG2",
+      "zh": "釜山海云台区海洋城市1路75号海洋城市G2"
+    },
+    "hours": "06:00-22:00",
+    "entry_fee": {
+      "adult_krw": 15000,
+      "note": {
+        "en": "Ocean view jjimjilbang with upscale facilities. Worth the premium.",
+        "ja": "海が見える高級찜질방。プレミアム料金の価値あり。",
+        "zh": "海景高档汗蒸幕。物超所值。",
+        "ko": "오션뷰 고급 찜질방. 프리미엄 가격의 가치 있음."
+      }
+    },
+    "foreigner_tips": {
+      "en": "Best views in Busan — ocean panorama from bathing area. English-speaking staff available.",
+      "ja": "釜山最高の眺め — 浴場からの海パノラマ。英語対応スタッフあり。",
+      "zh": "釜山最佳景观——从浴区眺望大海全景。有英语服务人员。",
+      "ko": "부산 최고의 뷰 — 목욕 공간에서 오션 파노라마. 영어 가능 직원 상주."
+    },
+    "gender_policy": {
+      "en": "Separate male/female bathing areas. Mixed seating area.",
+      "ja": "男女別入浴エリア。共用休憩エリアあり。",
+      "zh": "男女浴区分开。混合休息区。",
+      "ko": "남녀 탕 분리. 공용 휴식 공간."
+    },
+    "tags": ["jjimjilbang", "ocean_view", "busan", "haeundae", "premium", "wellness"],
+    "rating": 4.5,
+    "duration_min": 120,
+    "last_verified": "2026-05",
+    "lat": 35.1623,
+    "lng": 129.1568
+  },
+  {
+    "key": "siloam_sauna_seoul",
+    "name": {
+      "ko": "실로암 사우나",
+      "en": "Siloam Sauna",
+      "ja": "シロアムサウナ",
+      "zh": "实乐园桑拿"
+    },
+    "type": "jjimjilbang",
+    "city": "seoul",
+    "area": "Dongdaemun",
+    "address": {
+      "ko": "서울 중구 퇴계로 264",
+      "en": "264 Toegye-ro, Jung-gu, Seoul",
+      "ja": "ソウル中区退渓路264",
+      "zh": "首尔中区退溪路264号"
+    },
+    "hours": "24 hours (all week)",
+    "entry_fee": {
+      "adult_krw": 12000,
+      "note": {
+        "en": "Budget-friendly 24h jjimjilbang. Popular with young travelers.",
+        "ja": "リーズナブルな24時間찜질방。若い旅行者に人気。",
+        "zh": "实惠的24小时汗蒸幕。受年轻旅行者欢迎。",
+        "ko": "가성비 24시간 찜질방. 젊은 여행자에게 인기."
+      }
+    },
+    "foreigner_tips": {
+      "en": "Classic jjimjilbang near Dongdaemun. Traditional experience without frills. Basic English signage.",
+      "ja": "東大門近くのクラシックな찜질방。飾り気のない伝統体験。基本的な英語案内あり。",
+      "zh": "东大门附近的经典汗蒸幕。不加修饰的传统体验。基本英文指示。",
+      "ko": "동대문 근처 클래식 찜질방. 기본 전통 체험. 기본 영문 안내."
+    },
+    "gender_policy": {
+      "en": "Separate male/female sections. Some mixed areas.",
+      "ja": "男女別エリアあり。一部共用あり。",
+      "zh": "男女区域分开。部分区域混用。",
+      "ko": "남녀 구역 분리. 일부 공용."
+    },
+    "tags": ["jjimjilbang", "24h", "budget_friendly", "dongdaemun", "traditional", "wellness"],
+    "rating": 4.1,
+    "duration_min": 120,
+    "last_verified": "2026-05",
+    "lat": 37.5614,
+    "lng": 127.0068
+  },
+  {
+    "key": "spa_1899_lotte_seoul",
+    "name": {
+      "ko": "스파 1899 롯데호텔",
+      "en": "Spa 1899 Lotte Hotel Seoul",
+      "ja": "スパ1899ロッテホテルソウル",
+      "zh": "乐天酒店首尔1899水疗"
+    },
+    "type": "jjimjilbang",
+    "city": "seoul",
+    "area": "Myeongdong",
+    "address": {
+      "ko": "서울 중구 을지로 30 롯데호텔 지하",
+      "en": "B1, 30 Eulji-ro, Jung-gu, Seoul (Lotte Hotel)",
+      "ja": "ソウル中区乙支路30ロッテホテル地下",
+      "zh": "首尔中区乙支路30号乐天酒店地下层"
+    },
+    "hours": "06:00-22:00",
+    "entry_fee": {
+      "adult_krw": 80000,
+      "note": {
+        "en": "Premium hotel spa. Full amenities including sauna, pool, and treatment rooms.",
+        "ja": "プレミアムホテルスパ。サウナ、プール、トリートメントルームなどフル設備。",
+        "zh": "高端酒店水疗。配备桑拿、泳池和理疗室等完整设施。",
+        "ko": "프리미엄 호텔 스파. 사우나, 수영장, 트리트먼트 룸 등 풀 시설."
+      }
+    },
+    "foreigner_tips": {
+      "en": "Upscale option for visitors who want a world-class spa experience. English-speaking staff.",
+      "ja": "世界クラスのスパ体験を求める訪問者向けの上位オプション。英語対応スタッフあり。",
+      "zh": "适合寻求世界级水疗体验的游客。有英语服务人员。",
+      "ko": "프리미엄 스파 체험을 원하는 방문자를 위한 최고급 선택. 영어 가능 직원."
+    },
+    "gender_policy": {
+      "en": "Mixed facility — bathing suits required in pool area.",
+      "ja": "混合施設 — プールエリアでは水着着用必須。",
+      "zh": "混合设施——游泳区需穿泳装。",
+      "ko": "혼성 시설 — 수영장 구역 수영복 필착."
+    },
+    "tags": ["jjimjilbang", "premium", "hotel_spa", "english_service", "myeongdong", "wellness"],
+    "rating": 4.7,
+    "duration_min": 180,
+    "last_verified": "2026-05",
+    "lat": 37.5638,
+    "lng": 126.9819
+  }
+]

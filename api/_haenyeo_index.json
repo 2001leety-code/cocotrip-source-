@@ -1,0 +1,181 @@
+[
+  {
+    "key": "haenyeo_museum_jeju",
+    "name": {
+      "ko": "국립 제주해녀박물관",
+      "en": "Jeju Haenyeo (Women Divers) Museum",
+      "ja": "国立済州海女博物館",
+      "zh": "国立济州海女博物馆"
+    },
+    "type": "haenyeo_museum",
+    "city": "jeju",
+    "area": "Gujwa-eup, Jeju City",
+    "address": {
+      "ko": "제주도 제주시 구좌읍 해녀박물관길 26",
+      "en": "26 Haenyeobangmulgwan-gil, Gujwa-eup, Jeju City, Jeju",
+      "ja": "済州道済州市旧左邑海女博物館길26",
+      "zh": "济州道济州市旧左邑海女博物馆街26号"
+    },
+    "hours": "09:00-18:00",
+    "closed": "Monday",
+    "entry_fee": {
+      "adult_krw": 1100,
+      "note": {
+        "en": "Very affordable. Includes multimedia exhibits and haenyeo performance showings.",
+        "ja": "非常にリーズナブル。マルチメディア展示と海女パフォーマンス映像あり。",
+        "zh": "非常实惠。包含多媒体展示和海女表演影像。",
+        "ko": "저렴한 입장료. 멀티미디어 전시 + 해녀 공연 영상 포함."
+      }
+    },
+    "reservation_required": false,
+    "foreigner_tips": {
+      "en": "Multilingual exhibits (Korean/English/Japanese/Chinese). Learn about UNESCO-listed haenyeo culture. 2-3 hour visit recommended.",
+      "ja": "多言語展示（韓国語/英語/日本語/中国語）。ユネスコ無形文化遺産・海女文化について学べる。2〜3時間の見学を推奨。",
+      "zh": "多语言展示（韩/英/日/中文）。了解联合国教科文组织非遗的海女文化。建议参观2-3小时。",
+      "ko": "4개국어 전시 (한/영/일/중). 유네스코 무형문화유산 해녀 문화 학습. 2-3시간 관람 권장."
+    },
+    "unesco_status": {
+      "en": "UNESCO Intangible Cultural Heritage since 2016",
+      "ja": "2016年よりユネスコ無形文化遺産",
+      "zh": "2016年起列入联合国教科文组织非物质文化遗产",
+      "ko": "2016년 유네스코 무형문화유산 등재"
+    },
+    "tags": ["haenyeo", "unesco", "museum", "jeju", "cultural", "foreigner_popular", "multilingual"],
+    "duration_min": 120,
+    "last_verified": "2026-05",
+    "lat": 33.5621,
+    "lng": 126.8449
+  },
+  {
+    "key": "haenyeo_experience_seopjikoji",
+    "name": {
+      "ko": "섭지코지 해녀 체험",
+      "en": "Haenyeo Experience at Seopjikoji",
+      "ja": "摂地クジ海女体験",
+      "zh": "涉地可支海女体验"
+    },
+    "type": "haenyeo_experience",
+    "city": "jeju",
+    "area": "Seopjikoji, Seogwipo",
+    "address": {
+      "ko": "제주도 서귀포시 성산읍 섭지코지로 107",
+      "en": "107 Seopjikoji-ro, Seongsan-eup, Seogwipo, Jeju",
+      "ja": "済州道서귀포市城山邑섭지코지路107",
+      "zh": "济州道西归浦市城山邑涉地可支路107号"
+    },
+    "hours": "10:00-17:00",
+    "entry_fee": {
+      "adult_krw": 20000,
+      "note": {
+        "en": "Includes wetsuit rental, brief instruction, and supervised ocean diving with real haenyeo. Min group 2 people.",
+        "ja": "ウェットスーツレンタル、簡単な指導、本物の海女との海洋ダイビング体験込み。最少2名〜。",
+        "zh": "含潜水衣租用、简单培训和与真实海女一起海洋潜水体验。最少2人成团。",
+        "ko": "웨트슈트 대여, 간단 교육, 실제 해녀와 함께 바다 잠수 체험 포함. 최소 2명."
+      }
+    },
+    "reservation_required": true,
+    "reservation_note": {
+      "en": "Advance booking required — contact via Naver Smart Store or local operators. Min 1 day ahead.",
+      "ja": "事前予約必須 — Naver Smart StoreまたはローカルオペレーターにてTEL。最低1日前予約。",
+      "zh": "必须提前预约——通过Naver Smart Store或当地运营商联系。至少提前1天。",
+      "ko": "사전 예약 필수 — 네이버 스마트스토어 또는 현지 업체 연락. 최소 1일 전."
+    },
+    "foreigner_tips": {
+      "en": "One of the most memorable Jeju experiences. Actual haenyeo guide you in the ocean. Bring camera in waterproof case.",
+      "ja": "済州島で最も印象深い体験の一つ。実際の海女が海で案内してくれる。防水ケース付きカメラ持参を。",
+      "zh": "济州岛最令人难忘的体验之一。真正的海女在海中带领。请携带防水相机。",
+      "ko": "제주에서 가장 인상 깊은 체험. 실제 해녀가 바다에서 안내. 방수 케이스 카메라 지참 권장."
+    },
+    "tags": ["haenyeo", "experience", "ocean_diving", "reservation_required", "jeju", "foreigner_popular"],
+    "duration_min": 180,
+    "last_verified": "2026-05",
+    "lat": 33.4283,
+    "lng": 126.9296
+  },
+  {
+    "key": "haenyeo_restaurant_gujwa",
+    "name": {
+      "ko": "해녀의 집 구좌",
+      "en": "Haenyeo House Restaurant (Gujwa)",
+      "ja": "海女の家レストラン（旧左）",
+      "zh": "海女之家餐厅（旧左）"
+    },
+    "type": "haenyeo_restaurant",
+    "city": "jeju",
+    "area": "Gujwa-eup, Jeju City",
+    "address": {
+      "ko": "제주도 제주시 구좌읍 하도리 2700",
+      "en": "2700 Hado-ri, Gujwa-eup, Jeju City, Jeju",
+      "ja": "済州道済州市旧左邑下道里2700",
+      "zh": "济州道济州市旧左邑下道里2700号"
+    },
+    "hours": "08:00-19:00",
+    "entry_fee": {
+      "adult_krw": 0,
+      "note": {
+        "en": "Restaurant — food cost only. Haenyeo catch sold fresh daily.",
+        "ja": "レストラン — 飲食代のみ。海女の水揚げが毎日新鮮に並ぶ。",
+        "zh": "餐厅——仅收餐费。海女每天新鲜捕获的海鲜。",
+        "ko": "식당 — 식사 비용만. 해녀 당일 조업분 신선 판매."
+      }
+    },
+    "reservation_required": false,
+    "food_highlights": {
+      "en": "Abalone (전복), sea cucumber (해삼), sea urchin (성게), fresh octopus. All caught by haenyeo same day.",
+      "ja": "アワビ（전복）、ナマコ（해삼）、ウニ（성게）、タコ。すべて海女による当日の水揚げ物。",
+      "zh": "鲍鱼（전복）、海参（해삼）、海胆（성게）、鲜章鱼。全部由海女当天捕获。",
+      "ko": "전복, 해삼, 성게, 문어 등. 모두 해녀 당일 조업분."
+    },
+    "foreigner_tips": {
+      "en": "The most authentic haenyeo food experience. Prices vary daily based on catch. Arrive before noon for best selection.",
+      "ja": "最も本物の海女料理体験。価格は水揚げに応じて変動。最良の品揃えのためには正午前に到着を。",
+      "zh": "最原汁原味的海女美食体验。价格按当日捕获情况而定。建议中午前到达以获得最佳选择。",
+      "ko": "가장 정통 해녀 음식 체험. 가격은 당일 조업에 따라 변동. 최상 선택을 위해 정오 전 방문 권장."
+    },
+    "tags": ["haenyeo", "seafood", "restaurant", "authentic_jeju", "foreigner_popular"],
+    "duration_min": 90,
+    "last_verified": "2026-05",
+    "lat": 33.5599,
+    "lng": 126.8356
+  },
+  {
+    "key": "haenyeo_experience_seongsan",
+    "name": {
+      "ko": "성산 해녀 체험",
+      "en": "Haenyeo Experience at Seongsan",
+      "ja": "城山海女体験",
+      "zh": "城山海女体验"
+    },
+    "type": "haenyeo_experience",
+    "city": "jeju",
+    "area": "Seongsan, Seogwipo",
+    "address": {
+      "ko": "제주도 서귀포시 성산읍 성산리 해변",
+      "en": "Seongsan-ri Beach, Seongsan-eup, Seogwipo, Jeju",
+      "ja": "済州道서귀포市城山邑城山里海辺",
+      "zh": "济州道西归浦市城山邑城山里海边"
+    },
+    "hours": "09:00-16:00",
+    "entry_fee": {
+      "adult_krw": 15000,
+      "note": {
+        "en": "Includes haenyeo performance + brief education session + fresh seafood tasting.",
+        "ja": "海女パフォーマンス＋簡単な教育セッション＋新鮮な海産物の試食込み。",
+        "zh": "含海女表演+简短教育课程+新鲜海鲜品尝。",
+        "ko": "해녀 공연 + 간단한 교육 세션 + 신선한 해산물 시식 포함."
+      }
+    },
+    "reservation_required": false,
+    "foreigner_tips": {
+      "en": "Best combined with Seongsan Sunrise Peak visit. Haenyeo performance usually at 13:00 and 15:30.",
+      "ja": "城山日出峰観光と組み合わせるのがベスト。海女パフォーマンスは通常13:00と15:30。",
+      "zh": "最好与城山日出峰参观结合。海女表演通常在13:00和15:30。",
+      "ko": "성산일출봉 방문과 조합 추천. 해녀 공연 보통 13:00, 15:30."
+    },
+    "tags": ["haenyeo", "experience", "performance", "seongsan", "foreigner_popular"],
+    "duration_min": 90,
+    "last_verified": "2026-05",
+    "lat": 33.4583,
+    "lng": 126.9421
+  }
+]

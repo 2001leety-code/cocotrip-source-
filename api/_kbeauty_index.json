@@ -1,0 +1,225 @@
+[
+  {
+    "key": "olive_young_myeongdong_flagship",
+    "name": {
+      "ko": "올리브영 명동 플래그십",
+      "en": "Olive Young Myeongdong Flagship",
+      "ja": "オリーブヤング明洞フラッグシップ",
+      "zh": "橄榄少年明洞旗舰店"
+    },
+    "type": "beauty_store",
+    "city": "seoul",
+    "area": "Myeongdong",
+    "address": {
+      "ko": "서울 중구 명동2가 7-12",
+      "en": "7-12 Myeongdong 2-ga, Jung-gu, Seoul",
+      "ja": "ソウル中区明洞2街7-12",
+      "zh": "首尔中区明洞2街7-12号"
+    },
+    "hours": "10:00-23:00",
+    "hours_note": {
+      "en": "Open 7 days a week",
+      "ja": "年中無休",
+      "zh": "全年无休",
+      "ko": "연중무휴"
+    },
+    "tax_refund": true,
+    "foreigner_tips": {
+      "en": "Tax refund available. Use the app for English menus. Staff often speaks basic English.",
+      "ja": "税金還付可能。アプリに英語メニューあり。",
+      "zh": "可退税。使用APP查看英文菜单。",
+      "ko": "세금환급 가능. 외국인 직원 상주."
+    },
+    "tags": ["tax_refund", "foreigner_popular", "skincare", "kbeauty_flagship", "myeongdong"],
+    "rating": 4.6,
+    "last_verified": "2026-05",
+    "lat": 37.5639,
+    "lng": 126.9853
+  },
+  {
+    "key": "aritaum_apgujeong",
+    "name": {
+      "ko": "아리따움 압구정",
+      "en": "Aritaum Apgujeong",
+      "ja": "アリタウム狎鴎亭",
+      "zh": "爱花道狎鸥亭"
+    },
+    "type": "beauty_store",
+    "city": "seoul",
+    "area": "Apgujeong",
+    "address": {
+      "ko": "서울 강남구 압구정로 242",
+      "en": "242 Apgujeong-ro, Gangnam-gu, Seoul",
+      "ja": "ソウル江南区狎鴎亭路242",
+      "zh": "首尔江南区狎鸥亭路242号"
+    },
+    "hours": "10:30-21:00",
+    "tax_refund": true,
+    "foreigner_tips": {
+      "en": "Upscale K-beauty area. Sulwhasoo, Whoo, and premium Korean brands nearby.",
+      "ja": "高級K-beautyエリア。雪花秀、后などの高級ブランドが多数。",
+      "zh": "高端K-beauty区域。雪花秀、后等高端品牌云集。",
+      "ko": "고급 케이뷰티 거리. 설화수, 후 등 프리미엄 브랜드 밀집."
+    },
+    "tags": ["tax_refund", "premium_kbeauty", "apgujeong", "luxury_brands"],
+    "rating": 4.5,
+    "last_verified": "2026-05",
+    "lat": 37.5271,
+    "lng": 127.0291
+  },
+  {
+    "key": "stylenanda_3ce_hongdae",
+    "name": {
+      "ko": "스타일난다 3CE 홍대",
+      "en": "Stylenanda 3CE Hongdae",
+      "ja": "スタイルナンダ3CEホンデ",
+      "zh": "3CE弘大旗舰店"
+    },
+    "type": "beauty_fashion",
+    "city": "seoul",
+    "area": "Hongdae",
+    "address": {
+      "ko": "서울 마포구 어울마당로 38",
+      "en": "38 Eoulmadam-ro, Mapo-gu, Seoul",
+      "ja": "ソウル麻浦区어울마당路38",
+      "zh": "首尔麻浦区어울마당路38号"
+    },
+    "hours": "11:00-22:00",
+    "tax_refund": true,
+    "foreigner_tips": {
+      "en": "Popular K-beauty + fashion. 3CE makeup is globally famous. Great for gifts.",
+      "ja": "人気のK-beauty+ファッション。3CEメイクは世界的に有名。プレゼントにぴったり。",
+      "zh": "人气K-beauty+时尚。3CE彩妆全球知名。非常适合买礼品。",
+      "ko": "K뷰티+패션 명소. 3CE 글로벌 인기. 선물용으로 인기."
+    },
+    "tags": ["tax_refund", "foreigner_popular", "kbeauty", "makeup", "hongdae"],
+    "rating": 4.4,
+    "last_verified": "2026-05",
+    "lat": 37.5518,
+    "lng": 126.9229
+  },
+  {
+    "key": "innisfree_myeongdong",
+    "name": {
+      "ko": "이니스프리 명동",
+      "en": "Innisfree Myeongdong",
+      "ja": "イニスフリー明洞",
+      "zh": "悦诗风吟明洞店"
+    },
+    "type": "beauty_store",
+    "city": "seoul",
+    "area": "Myeongdong",
+    "address": {
+      "ko": "서울 중구 명동8길 9",
+      "en": "9 Myeongdong 8-gil, Jung-gu, Seoul",
+      "ja": "ソウル中区明洞8ギル9",
+      "zh": "首尔中区明洞8街9号"
+    },
+    "hours": "10:00-22:00",
+    "tax_refund": true,
+    "foreigner_tips": {
+      "en": "Jeju-based natural skincare brand. Very popular with tourists. English labels on all products.",
+      "ja": "済州産天然スキンケアブランド。観光客に大人気。全製品英語表記。",
+      "zh": "济州岛天然护肤品牌。游客超爱。所有产品有英文标签。",
+      "ko": "제주 자연 스킨케어 브랜드. 외국인 관광객 인기 1위. 영문 라벨 전 제품 제공."
+    },
+    "tags": ["tax_refund", "foreigner_popular", "natural_skincare", "jeju_based", "myeongdong"],
+    "rating": 4.5,
+    "last_verified": "2026-05",
+    "lat": 37.5634,
+    "lng": 126.9842
+  },
+  {
+    "key": "tony_moly_myeongdong",
+    "name": {
+      "ko": "토니모리 명동",
+      "en": "Tony Moly Myeongdong",
+      "ja": "トニーモリー明洞",
+      "zh": "兔尼魅力明洞店"
+    },
+    "type": "beauty_store",
+    "city": "seoul",
+    "area": "Myeongdong",
+    "address": {
+      "ko": "서울 중구 명동8나길 10",
+      "en": "10 Myeongdong 8na-gil, Jung-gu, Seoul",
+      "ja": "ソウル中区明洞8naギル10",
+      "zh": "首尔中区明洞8나街10号"
+    },
+    "hours": "10:00-22:30",
+    "tax_refund": true,
+    "foreigner_tips": {
+      "en": "Fun K-beauty brand with iconic panda/egg packaging. Great for affordable gifts.",
+      "ja": "パンダ/卵パッケージで有名な楽しいK-beauty。お手頃なお土産に最適。",
+      "zh": "熊猫/鸡蛋包装的趣味K-beauty。实惠礼品首选。",
+      "ko": "판다/달걀 패키지로 유명. 가성비 선물용 최적."
+    },
+    "tags": ["tax_refund", "foreigner_popular", "affordable_kbeauty", "gifts", "myeongdong"],
+    "rating": 4.3,
+    "last_verified": "2026-05",
+    "lat": 37.5631,
+    "lng": 126.9845
+  },
+  {
+    "key": "etude_house_garosugil",
+    "name": {
+      "ko": "에뛰드 하우스 가로수길",
+      "en": "Etude House Garosugil",
+      "ja": "エチュードハウス가로수길",
+      "zh": "伊蒂之屋林荫道店"
+    },
+    "type": "beauty_store",
+    "city": "seoul",
+    "area": "Garosugil",
+    "address": {
+      "ko": "서울 강남구 가로수길 28",
+      "en": "28 Garosu-gil, Gangnam-gu, Seoul",
+      "ja": "ソウル江南区がろ수ギル28",
+      "zh": "首尔江南区林荫道28号"
+    },
+    "hours": "11:00-22:00",
+    "tax_refund": true,
+    "foreigner_tips": {
+      "en": "Premium shopping street. Etude House + high-end K-beauty brands around. Great cafe + beauty combo.",
+      "ja": "高級ショッピングストリート。エチュードハウス+高級K-beauty。カフェとの組み合わせが最高。",
+      "zh": "高档购物街。伊蒂之屋+高端K-beauty。与咖啡馆完美结合。",
+      "ko": "프리미엄 쇼핑 거리. 에뛰드 하우스 + 고급 K뷰티. 카페 투어 병행 추천."
+    },
+    "tags": ["tax_refund", "foreigner_popular", "premium_area", "garosugil", "kbeauty"],
+    "rating": 4.4,
+    "last_verified": "2026-05",
+    "lat": 37.5191,
+    "lng": 127.0223
+  },
+  {
+    "key": "olive_young_busan_seomyeon",
+    "name": {
+      "ko": "올리브영 부산 서면",
+      "en": "Olive Young Busan Seomyeon",
+      "ja": "オリーブヤング釜山西面",
+      "zh": "橄榄少年釜山西面店"
+    },
+    "type": "beauty_store",
+    "city": "busan",
+    "area": "Seomyeon",
+    "address": {
+      "ko": "부산 부산진구 서전로 8-1",
+      "en": "8-1 Seojeon-ro, Busanjin-gu, Busan",
+      "ja": "釜山釜山鎮区西田路8-1",
+      "zh": "釜山釜山镇区西田路8-1号"
+    },
+    "hours": "10:00-23:00",
+    "tax_refund": true,
+    "foreigner_tips": {
+      "en": "Busan's main K-beauty hub. All major Korean skincare brands in one place.",
+      "ja": "釜山のメインK-beautyエリア。主要韓国スキンケアブランドが一堂に。",
+      "zh": "釜山主要K-beauty中心。所有主要韩国护肤品牌集中于此。",
+      "ko": "부산 K뷰티 중심지. 국내 주요 스킨케어 브랜드 모두 집결."
+    },
+    "tags": ["tax_refund", "foreigner_popular", "kbeauty", "busan", "seomyeon"],
+    "rating": 4.5,
+    "last_verified": "2026-05",
+    "lat": 35.1577,
+    "lng": 129.0605
+  }
+]
