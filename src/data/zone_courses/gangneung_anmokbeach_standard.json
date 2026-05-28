@@ -40,9 +40,10 @@
         "ja": "江陵コーヒー街の起点。テイクアウトコーヒーを持ってビーチ散策。日の出スポットとしても有名。",
         "zh": "江陵咖啡街起点。拿外带咖啡沿海滩散步。著名日出胜地。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 0
+      "lat": 37.771842,
+      "lng": 128.9504715,
+      "start_time_offset_min": 0,
+      "_geocode_source": "google_places"
     },
     {
       "order": 2,
@@ -59,16 +60,19 @@
       "entry_fee_krw": 0,
       "reservation_required": false,
       "placeholder": "verified_cafe",
-      "preferred_dietary": ["vegetarian"],
+      "preferred_dietary": [
+        "vegetarian"
+      ],
       "tips_i18n": {
         "ko": "한국 바리스타 대회 발상지. 로스터리 카페 집결. 오션뷰 자리 인기.",
         "en": "Birthplace of Korea's barista competition culture. Roastery cafes. Ocean view seating popular.",
         "ja": "韓国バリスタ大会発祥の地。ロースタリーカフェが集結。オーシャンビュー席が人気。",
         "zh": "韩国咖啡师大赛发源地。精品烘焙咖啡馆聚集。海景座位最受欢迎。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 75
+      "lat": 37.7907283,
+      "lng": 128.9237488,
+      "start_time_offset_min": 75,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -97,8 +101,8 @@
         "ja": "4.3km湖周回路。春は桜の名所。白鳥・ガンの飛来地 (冬)。",
         "zh": "4.3km环湖步道。春季樱花胜地。天鹅和大雁栖息地（冬季）。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7955573,
+      "lng": 128.8965419,
       "start_time_offset_min": 140
     },
     {
@@ -123,9 +127,10 @@
         "ja": "江陵郷土料理 — スンドゥブチゲ / 草堂豆腐 / ムルフェ (食事制限とマッチング)。",
         "zh": "江陵乡土料理 — 嫩豆腐锅 / 草堂豆腐 / 水拌鱼生 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 215
+      "lat": 37.78597080000001,
+      "lng": 128.8914987,
+      "start_time_offset_min": 215,
+      "_geocode_source": "google_places"
     },
     {
       "order": 5,
@@ -145,7 +150,9 @@
         "child": 1000,
         "senior": 0,
         "toddler": 0,
-        "free_with": ["cultural_heritage_day"],
+        "free_with": [
+          "cultural_heritage_day"
+        ],
         "notes": "율곡 이이·신사임당 생가. 5만원 지폐 도안 배경."
       },
       "reservation_required": false,
@@ -155,8 +162,8 @@
         "ja": "朝鮮時代の学者・栗谷李珥の生家。5万ウォン札・5千ウォン札の図柄の実物が確認できる。",
         "zh": "朝鲜时代大学者栗谷李珥故居。五万韩元和五千韩元纸币图案的原型地。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7782583,
+      "lng": 128.8766375,
       "start_time_offset_min": 290
     },
     {
@@ -181,101 +188,109 @@
         "ja": "江陵中央市場 — ジャガイモチヂミ / ヤンニョムチキン / 海鮮。",
         "zh": "江陵中央市场 — 土豆煎饼 / 韩式炸鸡 / 海鲜。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 365
+      "lat": 37.7539833,
+      "lng": 128.8985663,
+      "start_time_offset_min": 365,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
+      "cost_krw": 1530,
+      "source": "odsay_api",
       "from_order": 1,
-      "to_order": 2,
-      "mode": "walk",
-      "duration_min": 5,
-      "distance_m": 400,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "fetched_at": "2026-05-28",
+      "duration_min": 27,
       "base": {
-        "mode": "walk",
-        "duration_min": 5,
-        "distance_m": 400,
-        "cost_krw": 0
-      }
+        "cost_krw": 1530,
+        "distance_m": 3605,
+        "duration_min": 27,
+        "mode": "bus"
+      },
+      "mode": "bus",
+      "to_order": 2,
+      "naver_route_url": "https://map.naver.com/p/directions/128.9504715,37.771842,%EC%95%88%EB%AA%A9%ED%95%B4%EB%B3%80,,/128.9237488,37.7907283,%EA%B0%95%EB%A6%89%EC%BB%A4%ED%94%BC%EA%B1%B0%EB%A6%AC%20%EC%B9%B4%ED%8E%98%201,,/-/transit",
+      "distance_m": 3605
     },
     "2->3": {
-      "from_order": 2,
+      "naver_route_url": "https://map.naver.com/p/directions/128.9237488,37.7907283,%EA%B0%95%EB%A6%89%EC%BB%A4%ED%94%BC%EA%B1%B0%EB%A6%AC%20%EC%B9%B4%ED%8E%98%201,,/128.8965419,37.7955573,%EA%B2%BD%ED%8F%AC%ED%98%B8,,/-/transit",
+      "distance_m": 19027,
       "to_order": 3,
-      "mode": "taxi",
-      "duration_min": 15,
-      "distance_m": 4000,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
       "base": {
-        "mode": "taxi",
-        "duration_min": 15,
-        "distance_m": 4000,
-        "cost_krw": 5000
-      }
+        "mode": "bus",
+        "cost_krw": 1530,
+        "distance_m": 19027,
+        "duration_min": 75
+      },
+      "mode": "bus",
+      "fetched_at": "2026-05-28",
+      "duration_min": 75,
+      "source": "odsay_api",
+      "from_order": 2,
+      "cost_krw": 1530
     },
     "3->4": {
+      "source": "odsay_api",
       "from_order": 3,
+      "fetched_at": "2026-05-28",
+      "duration_min": 10,
+      "cost_krw": 1530,
       "to_order": 4,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "naver_route_url": "https://map.naver.com/p/directions/128.8965419,37.7955573,%EA%B2%BD%ED%8F%AC%ED%98%B8,,/128.8914987,37.78597080000001,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EA%B0%95%EB%A6%89%EC%8B%9C%20%EA%B2%BD%ED%8F%AC%EB%A1%9C,,/-/transit",
+      "distance_m": 1264,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 0
-      }
+        "cost_krw": 1530,
+        "distance_m": 1264,
+        "duration_min": 10,
+        "mode": "bus"
+      },
+      "mode": "bus"
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
-      "mode": "taxi",
-      "duration_min": 15,
-      "distance_m": 3000,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
       "base": {
-        "mode": "taxi",
-        "duration_min": 15,
-        "distance_m": 3000,
-        "cost_krw": 5000
-      }
+        "cost_krw": 1530,
+        "distance_m": 1837,
+        "duration_min": 18,
+        "mode": "bus"
+      },
+      "mode": "bus",
+      "to_order": 5,
+      "naver_route_url": "https://map.naver.com/p/directions/128.8914987,37.78597080000001,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EA%B0%95%EB%A6%89%EC%8B%9C%20%EA%B2%BD%ED%8F%AC%EB%A1%9C,,/128.8766375,37.7782583,%EC%98%A4%EC%A3%BD%ED%97%8C,,/-/transit",
+      "distance_m": 1837,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "from_order": 4,
+      "fetched_at": "2026-05-28",
+      "duration_min": 18
     },
     "5->6": {
+      "source": "odsay_api",
       "from_order": 5,
+      "fetched_at": "2026-05-28",
+      "duration_min": 23,
+      "cost_krw": 1530,
       "to_order": 6,
-      "mode": "taxi",
-      "duration_min": 15,
-      "distance_m": 2500,
-      "cost_krw": 4500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "naver_route_url": "https://map.naver.com/p/directions/128.8766375,37.7782583,%EC%98%A4%EC%A3%BD%ED%97%8C,,/128.8985663,37.7539833,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EA%B0%95%EB%A6%89%EC%8B%9C%20%EC%A4%91%EC%95%99%EC%8B%9C%EC%9E%A5,,/-/transit",
+      "distance_m": 4637,
       "base": {
-        "mode": "taxi",
-        "duration_min": 15,
-        "distance_m": 2500,
-        "cost_krw": 4500
-      }
+        "mode": "bus",
+        "cost_krw": 1530,
+        "distance_m": 4637,
+        "duration_min": 23
+      },
+      "mode": "bus"
     }
   },
-  "best_for": ["beach_lover", "coffee_enthusiast", "culture_lover", "nature_walker"],
+  "best_for": [
+    "beach_lover",
+    "coffee_enthusiast",
+    "culture_lover",
+    "nature_walker"
+  ],
   "unsuitable_for": [],
-  "dietary_options": ["vegetarian"],
+  "dietary_options": [
+    "vegetarian"
+  ],
   "passport_required": false,
   "requires_advance_booking": false,
   "source": "cocotrip_curated",

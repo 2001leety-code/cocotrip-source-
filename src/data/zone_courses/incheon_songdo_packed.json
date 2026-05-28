@@ -40,8 +40,8 @@
         "ja": "NYセントラルパーク参考の松島水辺公園。水上タクシー・カヤック体験。GタワーN夜景ポイント。",
         "zh": "参考纽约中央公园建造的松岛滨水公园。水上出租车/皮划艇体验。G塔夜景观赏点。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.3903605,
+      "lng": 126.643582,
       "start_time_offset_min": 0
     },
     {
@@ -71,8 +71,8 @@
         "ja": "松島国際都市+仁川空港方向の眺望。33階展望台。晴天時はソウル汝矣島も見える。",
         "zh": "松岛国际城市+仁川机场方向眺望。33层观景台。晴天可望首尔汝矣岛。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.3960863,
+      "lng": 126.6341499,
       "start_time_offset_min": 75
     },
     {
@@ -97,9 +97,10 @@
         "ja": "トリプルストリートランチ — 多国籍レストラン集結（韓食/和食/洋食）。食事制限マッチング。",
         "zh": "Triple Street午餐 — 多国餐厅云集（韩餐/日餐/西餐）。按饮食偏好匹配。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 140
+      "lat": 37.3808938,
+      "lng": 126.6591788,
+      "start_time_offset_min": 140,
+      "_geocode_source": "google_places"
     },
     {
       "order": 4,
@@ -128,8 +129,8 @@
         "ja": "松島大型複合ショッピングモール。3棟連結。ルーフトップ遊歩道。映画館・ボウリング・ルーフトップバー。",
         "zh": "松岛大型综合购物中心。3栋连体。屋顶步道。电影院/保龄球/屋顶酒吧。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.3891409,
+      "lng": 126.6444427,
       "start_time_offset_min": 215
     },
     {
@@ -159,8 +160,8 @@
         "ja": "松島ランドマーク文化施設。広場屋外彫刻展示。Gタワー隣接。公演スケジュール事前確認。",
         "zh": "松岛地标文化设施。广场户外雕塑展示。邻近G塔。请提前确认演出日程。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.3960863,
+      "lng": 126.6341499,
       "start_time_offset_min": 300
     },
     {
@@ -183,9 +184,10 @@
         "ja": "松島の夜散歩。セントラルパーク周辺夜景。カップル・ファミリー遊歩道。夜間照明。",
         "zh": "松岛傍晚散步。中央公园周边夜景。情侣/家庭步道。夜间灯光。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 355
+      "lat": 37.3919929,
+      "lng": 126.6468911,
+      "start_time_offset_min": 355,
+      "_geocode_source": "google_places"
     },
     {
       "order": 7,
@@ -209,96 +211,96 @@
         "ja": "松島の夕食 — 海鮮 / ステーキ（Gタワー近く）/ 韓食夕食。",
         "zh": "松岛晚餐 — 海鲜 / 牛排（G塔附近）/ 韩式晚餐。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.391047,
+      "lng": 126.652035,
       "start_time_offset_min": 415
     }
   ],
   "transit_matrix": {
     "1->2": {
+      "mode": "mixed",
       "from_order": 1,
+      "source": "odsay_api",
+      "distance_m": 3856,
+      "naver_route_url": "https://map.naver.com/p/directions/126.643582,37.3903605,%EC%86%A1%EB%8F%84%20%EC%84%BC%ED%8A%B8%EB%9F%B4%ED%8C%8C%ED%81%AC,,/126.6341499,37.3960863,G%ED%83%80%EC%9B%8C%20%EC%A0%84%EB%A7%9D%EB%8C%80,,/-/transit",
       "to_order": 2,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 800,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1200,
+      "fetched_at": "2026-05-27",
+      "duration_min": 22,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 800,
-        "cost_krw": 0
+        "cost_krw": 1200,
+        "duration_min": 22,
+        "distance_m": 3856,
+        "mode": "mixed"
       }
     },
     "2->3": {
+      "naver_route_url": "https://map.naver.com/p/directions/126.6341499,37.3960863,G%ED%83%80%EC%9B%8C%20%EC%A0%84%EB%A7%9D%EB%8C%80,,/126.6591788,37.3808938,%EC%9D%B8%EC%B2%9C%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%97%B0%EC%88%98%EA%B5%AC%20%EC%86%A1%EB%8F%84%EB%8F%99%20%ED%8A%B8%EB%A6%AC%ED%94%8C%EC%8A%A4%ED%8A%B8%EB%A6%AC%ED%8A%B8,,/-/transit",
+      "distance_m": 3965,
+      "source": "odsay_api",
       "from_order": 2,
-      "to_order": 3,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 500,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "mode": "subway",
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 500,
-        "cost_krw": 0
-      }
+        "distance_m": 3965,
+        "duration_min": 16,
+        "mode": "subway",
+        "cost_krw": 1550
+      },
+      "duration_min": 16,
+      "fetched_at": "2026-05-28",
+      "to_order": 3,
+      "cost_krw": 1550
     },
     "3->4": {
+      "naver_route_url": "https://map.naver.com/p/directions/126.6591788,37.3808938,%EC%9D%B8%EC%B2%9C%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%97%B0%EC%88%98%EA%B5%AC%20%EC%86%A1%EB%8F%84%EB%8F%99%20%ED%8A%B8%EB%A6%AC%ED%94%8C%EC%8A%A4%ED%8A%B8%EB%A6%AC%ED%8A%B8,,/126.6444427,37.3891409,%ED%8A%B8%EB%A6%AC%ED%94%8C%EC%8A%A4%ED%8A%B8%EB%A6%AC%ED%8A%B8,,/-/transit",
+      "distance_m": 1895,
+      "source": "odsay_api",
       "from_order": 3,
-      "to_order": 4,
-      "mode": "walk",
-      "duration_min": 5,
-      "distance_m": 200,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "mode": "bus",
       "base": {
-        "mode": "walk",
-        "duration_min": 5,
-        "distance_m": 200,
-        "cost_krw": 0
-      }
+        "distance_m": 1895,
+        "duration_min": 16,
+        "mode": "bus",
+        "cost_krw": 1500
+      },
+      "duration_min": 16,
+      "fetched_at": "2026-05-28",
+      "to_order": 4,
+      "cost_krw": 1500
     },
     "4->5": {
       "from_order": 4,
+      "source": "odsay_api",
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.6444427,37.3891409,%ED%8A%B8%EB%A6%AC%ED%94%8C%EC%8A%A4%ED%8A%B8%EB%A6%AC%ED%8A%B8,,/126.6341499,37.3960863,%EC%9D%B8%EC%B2%9C%20%EC%95%84%ED%8A%B8%EC%84%BC%ED%84%B0,,/-/transit",
+      "distance_m": 4003,
+      "fetched_at": "2026-05-27",
       "to_order": 5,
-      "mode": "walk",
-      "duration_min": 10,
-      "distance_m": 500,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1200,
       "base": {
-        "mode": "walk",
-        "duration_min": 10,
-        "distance_m": 500,
-        "cost_krw": 0
-      }
+        "duration_min": 24,
+        "distance_m": 4003,
+        "mode": "mixed",
+        "cost_krw": 1200
+      },
+      "duration_min": 24
     },
     "5->6": {
+      "source": "odsay_api",
       "from_order": 5,
+      "mode": "bus",
+      "naver_route_url": "https://map.naver.com/p/directions/126.6341499,37.3960863,%EC%9D%B8%EC%B2%9C%20%EC%95%84%ED%8A%B8%EC%84%BC%ED%84%B0,,/126.6468911,37.3919929,%EB%8B%AC%EB%B9%9B%EC%B6%95%EC%A0%9C%EA%B3%B5%EC%9B%90%20(%EC%86%A1%EB%8F%84),,/-/transit",
+      "distance_m": 3992,
+      "fetched_at": "2026-05-28",
+      "cost_krw": 1200,
       "to_order": 6,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 700,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 700,
-        "cost_krw": 0
-      }
+        "cost_krw": 1200,
+        "distance_m": 3992,
+        "duration_min": 19,
+        "mode": "bus"
+      },
+      "duration_min": 19
     },
     "6->7": {
       "from_order": 6,
@@ -318,7 +320,12 @@
       }
     }
   },
-  "best_for": ["urban_explorer", "family", "shopping_lover", "night_view_lover"],
+  "best_for": [
+    "urban_explorer",
+    "family",
+    "shopping_lover",
+    "night_view_lover"
+  ],
   "unsuitable_for": [],
   "dietary_options": [],
   "passport_required": false,

@@ -1,11 +1,130 @@
 {
-  "id":"POCHEON_DAY_SANJEONGHO_STANDARD","city":"pocheon","zone":"Sanjeongho",
-  "theme":"산정호수+허브아일랜드+평강식물원","theme_i18n":{"ko":"산정호수+허브아일랜드+평강식물원","en":"Sanjeong Lake+Herb Island+Pyeonggang Garden","ja":"山井湖+ハーブアイランド+平康植物園","zh":"山井湖+香草岛+平康植物园"},
-  "intensity":"standard","duration_min":450,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"nature","name":"산정호수","name_i18n":{"ko":"산정호수","en":"Sanjeong Lake","ja":"山井湖","zh":"山井湖"},"address":"경기 포천시 영북면","stay_min":90,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"산정호수 둘레길 4km. 케이블 페달보트.","en":"4km lake loop. Pedal boat.","ja":"山井湖周遊4km。ペダルボート。","zh":"山井湖环路4km。脚踏船。"},"lat":38.0728,"lng":127.3711,"start_time_offset_min":0},
-    {"order":2,"category":"culture","name":"허브아일랜드","name_i18n":{"ko":"허브아일랜드","en":"Herb Island","ja":"ハーブアイランド","zh":"香草岛"},"address":"경기 포천시 신북면","stay_min":120,"entry_fee_krw":12000,"reservation_required":false,"tips_i18n":{"ko":"국내 최대 허브 농원. 야간 조명.","en":"Korea's largest herb farm. Night lights.","ja":"国内最大ハーブ農園。夜景。","zh":"国内最大香草农园。夜灯。"},"lat":38.0186,"lng":127.2333,"start_time_offset_min":105},
-    {"order":3,"category":"food","name":"포천 이동막걸리","name_i18n":{"ko":"포천 이동막걸리","en":"Pocheon Idong Makgeolli","ja":"抱川利洞マッコリ","zh":"抱川利洞马格利"},"address":"경기 포천시 이동면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"포천 명물 막걸리 양조장.","en":"Pocheon famous makgeolli brewery.","ja":"抱川名物マッコリ醸造所。","zh":"抱川名菜马格利酿造所。"},"lat":38.0833,"lng":127.4583,"start_time_offset_min":240},
-    {"order":4,"category":"nature","name":"평강식물원","name_i18n":{"ko":"평강식물원","en":"Pyeonggang Botanic Garden","ja":"平康植物園","zh":"平康植物园"},"address":"경기 포천시 영북면","stay_min":90,"entry_fee_krw":9500,"reservation_required":false,"tips_i18n":{"ko":"한국 자생식물 위주. 고산식물원.","en":"Korean native plants. Alpine garden.","ja":"韓国自生植物。高山植物園。","zh":"韩国自生植物。高山植物园。"},"lat":38.1056,"lng":127.3611,"start_time_offset_min":315}
-  ]
+  "id": "POCHEON_DAY_SANJEONGHO_STANDARD",
+  "city": "pocheon",
+  "zone": "Sanjeongho",
+  "theme": "산정호수+허브아일랜드+평강식물원",
+  "theme_i18n": {
+    "ko": "산정호수+허브아일랜드+평강식물원",
+    "en": "Sanjeong Lake+Herb Island+Pyeonggang Garden",
+    "ja": "山井湖+ハーブアイランド+平康植物園",
+    "zh": "山井湖+香草岛+平康植物园"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "산정호수",
+      "name_i18n": {
+        "ko": "산정호수",
+        "en": "Sanjeong Lake",
+        "ja": "山井湖",
+        "zh": "山井湖"
+      },
+      "address": "경기 포천시 영북면",
+      "stay_min": 90,
+      "entry_fee_krw": 3000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "산정호수 둘레길 4km. 케이블 페달보트.",
+        "en": "4km lake loop. Pedal boat.",
+        "ja": "山井湖周遊4km。ペダルボート。",
+        "zh": "山井湖环路4km。脚踏船。"
+      },
+      "lat": 38.0728,
+      "lng": 127.3711,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "허브아일랜드",
+      "name_i18n": {
+        "ko": "허브아일랜드",
+        "en": "Herb Island",
+        "ja": "ハーブアイランド",
+        "zh": "香草岛"
+      },
+      "address": "경기 포천시 신북면",
+      "stay_min": 120,
+      "entry_fee_krw": 12000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "국내 최대 허브 농원. 야간 조명.",
+        "en": "Korea's largest herb farm. Night lights.",
+        "ja": "国内最大ハーブ農園。夜景。",
+        "zh": "国内最大香草农园。夜灯。"
+      },
+      "lat": 38.0186,
+      "lng": 127.2333,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "포천 이동막걸리",
+      "name_i18n": {
+        "ko": "포천 이동막걸리",
+        "en": "Pocheon Idong Makgeolli",
+        "ja": "抱川利洞マッコリ",
+        "zh": "抱川利洞马格利"
+      },
+      "address": "경기 포천시 이동면",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "포천 명물 막걸리 양조장.",
+        "en": "Pocheon famous makgeolli brewery.",
+        "ja": "抱川名物マッコリ醸造所。",
+        "zh": "抱川名菜马格利酿造所。"
+      },
+      "lat": 38.0833,
+      "lng": 127.4583,
+      "start_time_offset_min": 240
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "평강식물원",
+      "name_i18n": {
+        "ko": "평강식물원",
+        "en": "Pyeonggang Botanic Garden",
+        "ja": "平康植物園",
+        "zh": "平康植物园"
+      },
+      "address": "경기 포천시 영북면",
+      "stay_min": 90,
+      "entry_fee_krw": 9500,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 자생식물 위주. 고산식물원.",
+        "en": "Korean native plants. Alpine garden.",
+        "ja": "韓国自生植物。高山植物園。",
+        "zh": "韩国自生植物。高山植物园。"
+      },
+      "lat": 38.1056,
+      "lng": 127.3611,
+      "start_time_offset_min": 315
+    }
+  ],
+  "transit_matrix": {
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.2333,38.0186,%ED%97%88%EB%B8%8C%EC%95%84%EC%9D%BC%EB%9E%9C%EB%93%9C,,/127.4583,38.0833,%ED%8F%AC%EC%B2%9C%20%EC%9D%B4%EB%8F%99%EB%A7%89%EA%B1%B8%EB%A6%AC,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "source": "odsay_api",
+      "distance_m": 36240,
+      "from_order": 2,
+      "duration_min": 65,
+      "base": {
+        "mode": "mixed",
+        "distance_m": 36240,
+        "duration_min": 65
+      }
+    }
+  }
 }

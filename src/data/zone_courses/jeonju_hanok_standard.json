@@ -40,8 +40,8 @@
         "ja": "700棟以上の韓屋集落。韓服体験の名所。週末は混雑 — 平日午前推奨。",
         "zh": "700余栋韩屋聚落。韩服体验胜地。周末人多 — 建议平日上午前往。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8182717,
+      "lng": 127.1536194,
       "start_time_offset_min": 0
     },
     {
@@ -71,8 +71,8 @@
         "ja": "1914年建立のロマネスク様式聖堂。韓国初殉教の地。韓屋村との建築対比が見事。",
         "zh": "1914年建立的罗马式圣堂。韩国首次殉教地。与韩屋村形成鲜明建筑对比。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8131987,
+      "lng": 127.1495896,
       "start_time_offset_min": 100
     },
     {
@@ -97,8 +97,8 @@
         "ja": "全州ランチ — 全州ビビンバ / 豆もやしクッパ / 血腸。",
         "zh": "全州午餐 — 全州拌饭 / 豆芽汤饭 / 猪血肠。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.813667,
+      "lng": 127.148275,
       "start_time_offset_min": 145
     },
     {
@@ -128,8 +128,8 @@
         "ja": "太祖李成桂の肖像奉安所。竹林撮影スポット。韓服着用で無料入場。",
         "zh": "太祖李成桂画像奉安所。竹林拍照胜地。穿韩服免费入场。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8162368,
+      "lng": 127.149353,
       "start_time_offset_min": 220
     },
     {
@@ -152,8 +152,8 @@
         "ja": "全州最大の伝統市場。青年モール(2F)。スンデ・豆腐・韓菓ショッピング。金〜土夜市。",
         "zh": "全州最大传统市场。青年商场(2楼)。血肠/豆腐/韩式糕点购物。周五至周六夜市。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8183594,
+      "lng": 127.1427101,
       "start_time_offset_min": 285
     },
     {
@@ -178,9 +178,10 @@
         "ja": "全州の夕食 — 韓定食 / マッコリとジョン盛り合わせ / 全州ビビンバ。",
         "zh": "全州晚餐 — 韩定食 / 马格利酒配煎饼拼盘 / 全州拌饭。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 365
+      "lat": 35.8126868,
+      "lng": 127.1468566,
+      "start_time_offset_min": 365,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -254,23 +255,28 @@
     },
     "5->6": {
       "from_order": 5,
-      "to_order": 6,
-      "mode": "walk",
-      "duration_min": 5,
-      "distance_m": 200,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "naver_route_url": "https://map.naver.com/p/directions/127.1427101,35.8183594,%EB%82%A8%EB%B6%80%EC%8B%9C%EC%9E%A5,,/127.1468566,35.8126868,%EC%A0%84%EB%9D%BC%EB%B6%81%EB%8F%84%20%EC%A0%84%EC%A3%BC%EC%8B%9C%20%EC%99%84%EC%82%B0%EA%B5%AC%20%EB%82%A8%EB%B6%80%EC%8B%9C%EC%9E%A5%EA%B8%B8,,/-/transit",
+      "duration_min": 13,
+      "fetched_at": "2026-05-28",
+      "source": "odsay_api",
+      "distance_m": 1273,
       "base": {
-        "mode": "walk",
-        "duration_min": 5,
-        "distance_m": 200,
-        "cost_krw": 0
-      }
+        "distance_m": 1273,
+        "mode": "bus",
+        "cost_krw": 1650,
+        "duration_min": 13
+      },
+      "mode": "bus",
+      "cost_krw": 1650,
+      "to_order": 6
     }
   },
-  "best_for": ["culture_lover", "foodie", "history_buff", "first_time_visitor"],
+  "best_for": [
+    "culture_lover",
+    "foodie",
+    "history_buff",
+    "first_time_visitor"
+  ],
   "unsuitable_for": [],
   "dietary_options": [],
   "passport_required": false,

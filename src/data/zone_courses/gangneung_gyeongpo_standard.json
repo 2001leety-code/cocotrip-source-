@@ -40,9 +40,10 @@
         "ja": "朝鮮時代の楼閣。鏡浦湖に複数の月が映るという伝説。日の出スポット。",
         "zh": "朝鲜时代楼阁。传说镜浦湖中可见多个月影。著名日出观赏地。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 0
+      "lat": 37.8039567,
+      "lng": 128.9034226,
+      "start_time_offset_min": 0,
+      "_geocode_source": "google_places"
     },
     {
       "order": 2,
@@ -71,9 +72,10 @@
         "ja": "江陵の代表的な海水浴場。鏡浦湖と東海がつながる絶景。砂浜1.8km。",
         "zh": "江陵代表海滩。镜浦湖与东海交汇处绝景。沙滩长1.8km。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 70
+      "lat": 37.7933168,
+      "lng": 128.9173967,
+      "start_time_offset_min": 70,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -97,9 +99,10 @@
         "ja": "江陵郷土料理 — 草堂スンドゥブ / イカ水刺身 / 江陵チャンポン (食事制限とマッチング)。",
         "zh": "江陵乡土料理 — 草堂嫩豆腐 / 鱿鱼水刺身 / 江陵炒码面 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 135
+      "lat": 37.7725933,
+      "lng": 128.9472775,
+      "start_time_offset_min": 135,
+      "_geocode_source": "google_places"
     },
     {
       "order": 4,
@@ -128,8 +131,8 @@
         "ja": "東海オーシャンビューカフェ通り。江陵コーヒー文化の発祥地。自販機コーヒーも有名。",
         "zh": "东海海景咖啡街。江陵咖啡文化发源地。自动贩卖机咖啡也很有名。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7726658,
+      "lng": 128.9472417,
       "start_time_offset_min": 210
     },
     {
@@ -159,8 +162,8 @@
         "ja": "申師任堂と李珥(栗谷)の生家。朝鮮建築保存。5万ウォン紙幣の図案の場所。",
         "zh": "申师任堂与李珥（栗谷）故居。朝鲜时代建筑。五万韩元纸币图案所在地。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7782583,
+      "lng": 128.8766375,
       "start_time_offset_min": 285
     },
     {
@@ -185,45 +188,46 @@
         "ja": "草堂スンドゥブ村 — 江陵名物草堂スンドゥブチゲ / スンドゥブ鍋。",
         "zh": "草堂豆腐村 — 江陵特色草堂嫩豆腐汤 / 豆腐锅。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 365
+      "lat": 37.7925599,
+      "lng": 128.9170172,
+      "start_time_offset_min": 365,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
-      "to_order": 2,
-      "mode": "walk",
-      "duration_min": 10,
-      "distance_m": 700,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "duration_min": 16,
+      "naver_route_url": "https://map.naver.com/p/directions/128.9034226,37.8039567,%EA%B2%BD%ED%8F%AC%EB%8C%80,,/128.9173967,37.7933168,%EA%B2%BD%ED%8F%AC%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5,,/-/transit",
+      "distance_m": 2014,
       "base": {
-        "mode": "walk",
-        "duration_min": 10,
-        "distance_m": 700,
-        "cost_krw": 0
-      }
+        "distance_m": 2014,
+        "cost_krw": 1530,
+        "duration_min": 16,
+        "mode": "bus"
+      },
+      "from_order": 1,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "fetched_at": "2026-05-28",
+      "to_order": 2,
+      "mode": "bus"
     },
     "2->3": {
-      "from_order": 2,
+      "mode": "bus",
+      "fetched_at": "2026-05-28",
       "to_order": 3,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 1200,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "source": "odsay_api",
+      "cost_krw": 1530,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 1200,
-        "cost_krw": 0
-      }
+        "mode": "bus",
+        "cost_krw": 1530,
+        "duration_min": 36,
+        "distance_m": 4447
+      },
+      "from_order": 2,
+      "naver_route_url": "https://map.naver.com/p/directions/128.9173967,37.7933168,%EA%B2%BD%ED%8F%AC%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5,,/128.9472775,37.7725933,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EA%B0%95%EB%A6%89%EC%8B%9C%20%EC%95%88%EB%AA%A9%ED%95%B4%EB%B3%80%EB%A1%9C,,/-/transit",
+      "distance_m": 4447,
+      "duration_min": 36
     },
     "3->4": {
       "from_order": 3,
@@ -243,41 +247,46 @@
       }
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
-      "mode": "taxi",
-      "duration_min": 15,
-      "distance_m": 4000,
-      "cost_krw": 6000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
       "base": {
-        "mode": "taxi",
-        "duration_min": 15,
-        "distance_m": 4000,
-        "cost_krw": 6000
-      }
+        "distance_m": 12076,
+        "mode": "mixed",
+        "duration_min": 47,
+        "cost_krw": 1530
+      },
+      "from_order": 4,
+      "source": "odsay_api",
+      "cost_krw": 1530,
+      "mode": "mixed",
+      "to_order": 5,
+      "fetched_at": "2026-05-27",
+      "duration_min": 47,
+      "distance_m": 12076,
+      "naver_route_url": "https://map.naver.com/p/directions/128.9472417,37.7726658,%EC%95%88%EB%AA%A9%20%EC%BB%A4%ED%94%BC%EA%B1%B0%EB%A6%AC,,/128.8766375,37.7782583,%EC%98%A4%EC%A3%BD%ED%97%8C,,/-/transit"
     },
     "5->6": {
-      "from_order": 5,
-      "to_order": 6,
-      "mode": "taxi",
-      "duration_min": 10,
-      "distance_m": 3000,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
       "base": {
-        "mode": "taxi",
-        "duration_min": 10,
-        "distance_m": 3000,
-        "cost_krw": 5000
-      }
+        "mode": "bus",
+        "cost_krw": 1530,
+        "duration_min": 55,
+        "distance_m": 11919
+      },
+      "from_order": 5,
+      "source": "odsay_api",
+      "cost_krw": 1530,
+      "mode": "bus",
+      "fetched_at": "2026-05-28",
+      "to_order": 6,
+      "duration_min": 55,
+      "naver_route_url": "https://map.naver.com/p/directions/128.8766375,37.7782583,%EC%98%A4%EC%A3%BD%ED%97%8C,,/128.9170172,37.7925599,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EA%B0%95%EB%A6%89%EC%8B%9C%20%EC%84%B1%EC%82%B0%EB%A9%B4%20%EC%B4%88%EB%8B%B9%EC%88%9C%EB%91%90%EB%B6%80%EA%B8%B8,,/-/transit",
+      "distance_m": 11919
     }
   },
-  "best_for": ["nature_lover", "culture_lover", "foodie", "coffee_lover"],
+  "best_for": [
+    "nature_lover",
+    "culture_lover",
+    "foodie",
+    "coffee_lover"
+  ],
   "unsuitable_for": [],
   "dietary_options": [],
   "passport_required": false,

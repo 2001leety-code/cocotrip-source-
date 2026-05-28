@@ -3,14 +3,130 @@
   "city": "gangneung",
   "zone": "Jumunjin",
   "theme": "주문진+사천진해변",
-  "theme_i18n": {"ko":"주문진+사천진해변","en":"Jumunjin+Sacheonjin Beach","ja":"注文津+沙川津海岸","zh":"注文津+沙川津海滩"},
+  "theme_i18n": {
+    "ko": "주문진+사천진해변",
+    "en": "Jumunjin+Sacheonjin Beach",
+    "ja": "注文津+沙川津海岸",
+    "zh": "注文津+沙川津海滩"
+  },
   "intensity": "short",
   "duration_min": 270,
   "block_type": "city_day",
   "stops": [
-    {"order":1,"category":"food","name":"주문진 수산시장","name_i18n":{"ko":"주문진 수산시장","en":"Jumunjin Fish Market","ja":"注文津水産市場","zh":"注文津水产市场"},"address":"강원 강릉시 주문진읍","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"오징어+회+건어물. 도깨비 드라마 촬영지.","en":"Squid+sashimi+dried fish. Goblin drama site.","ja":"イカ+刺身+干物。トッケビロケ地。","zh":"鱿鱼+生鱼片+干鱼。鬼怪剧拍摄地。"},"lat":37.8911,"lng":128.8267,"start_time_offset_min":0},
-    {"order":2,"category":"nature","name":"주문진 등대해변","name_i18n":{"ko":"주문진 등대해변","en":"Jumunjin Lighthouse Beach","ja":"注文津灯台海岸","zh":"注文津灯塔海滩"},"address":"강원 강릉시 주문진읍","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"도깨비 촬영지 빨간 등대.","en":"Red lighthouse from Goblin drama.","ja":"トッケビロケ赤い灯台。","zh":"鬼怪剧红色灯塔。"},"lat":37.8942,"lng":128.8281,"start_time_offset_min":105},
-    {"order":3,"category":"nature","name":"사천진해변","name_i18n":{"ko":"사천진해변","en":"Sacheonjin Beach","ja":"沙川津海岸","zh":"沙川津海滩"},"address":"강원 강릉시 사천면","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한적한 백사장. 서핑 명소.","en":"Quiet sand beach. Surfing spot.","ja":"静かな砂浜。サーフィン名所。","zh":"安静沙滩。冲浪名所。"},"lat":37.8350,"lng":128.8867,"start_time_offset_min":175},
-    {"order":4,"category":"cafe","name":"사천진 서핑카페","name_i18n":{"ko":"사천진 서핑카페","en":"Sacheonjin Surf Cafe","ja":"沙川津サーフカフェ","zh":"沙川津冲浪咖啡"},"address":"강원 강릉시 사천면","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"서핑+카페 콤보. 보드 대여.","en":"Surf+cafe combo. Board rental.","ja":"サーフ+カフェ。ボードレンタル。","zh":"冲浪+咖啡。板租赁。"},"lat":37.8333,"lng":128.8889,"start_time_offset_min":250}
-  ]
+    {
+      "order": 1,
+      "category": "food",
+      "name": "주문진 수산시장",
+      "name_i18n": {
+        "ko": "주문진 수산시장",
+        "en": "Jumunjin Fish Market",
+        "ja": "注文津水産市場",
+        "zh": "注文津水产市场"
+      },
+      "address": "강원 강릉시 주문진읍",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "오징어+회+건어물. 도깨비 드라마 촬영지.",
+        "en": "Squid+sashimi+dried fish. Goblin drama site.",
+        "ja": "イカ+刺身+干物。トッケビロケ地。",
+        "zh": "鱿鱼+生鱼片+干鱼。鬼怪剧拍摄地。"
+      },
+      "lat": 37.8911,
+      "lng": 128.8267,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "주문진 등대해변",
+      "name_i18n": {
+        "ko": "주문진 등대해변",
+        "en": "Jumunjin Lighthouse Beach",
+        "ja": "注文津灯台海岸",
+        "zh": "注文津灯塔海滩"
+      },
+      "address": "강원 강릉시 주문진읍",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "도깨비 촬영지 빨간 등대.",
+        "en": "Red lighthouse from Goblin drama.",
+        "ja": "トッケビロケ赤い灯台。",
+        "zh": "鬼怪剧红色灯塔。"
+      },
+      "lat": 37.8942,
+      "lng": 128.8281,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "사천진해변",
+      "name_i18n": {
+        "ko": "사천진해변",
+        "en": "Sacheonjin Beach",
+        "ja": "沙川津海岸",
+        "zh": "沙川津海滩"
+      },
+      "address": "강원 강릉시 사천면",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한적한 백사장. 서핑 명소.",
+        "en": "Quiet sand beach. Surfing spot.",
+        "ja": "静かな砂浜。サーフィン名所。",
+        "zh": "安静沙滩。冲浪名所。"
+      },
+      "lat": 37.835,
+      "lng": 128.8867,
+      "start_time_offset_min": 175
+    },
+    {
+      "order": 4,
+      "category": "cafe",
+      "name": "사천진 서핑카페",
+      "name_i18n": {
+        "ko": "사천진 서핑카페",
+        "en": "Sacheonjin Surf Cafe",
+        "ja": "沙川津サーフカフェ",
+        "zh": "沙川津冲浪咖啡"
+      },
+      "address": "강원 강릉시 사천면",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "서핑+카페 콤보. 보드 대여.",
+        "en": "Surf+cafe combo. Board rental.",
+        "ja": "サーフ+カフェ。ボードレンタル。",
+        "zh": "冲浪+咖啡。板租赁。"
+      },
+      "lat": 37.8333,
+      "lng": 128.8889,
+      "start_time_offset_min": 250
+    }
+  ],
+  "transit_matrix": {
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.8281,37.8942,%EC%A3%BC%EB%AC%B8%EC%A7%84%20%EB%93%B1%EB%8C%80%ED%95%B4%EB%B3%80,,/128.8867,37.835,%EC%82%AC%EC%B2%9C%EC%A7%84%ED%95%B4%EB%B3%80,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "distance_m": 12656,
+      "from_order": 2,
+      "duration_min": 67,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1530,
+        "distance_m": 12656,
+        "duration_min": 67
+      }
+    }
+  }
 }

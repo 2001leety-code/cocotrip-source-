@@ -40,8 +40,8 @@
         "ja": "江陵コーヒー文化の発祥地。東海ビュー。自販機コーヒーは必体験。",
         "zh": "江陵咖啡文化发源地。东海海景。必试自动贩卖机咖啡。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7726658,
+      "lng": 128.9472417,
       "start_time_offset_min": 0
     },
     {
@@ -71,9 +71,10 @@
         "ja": "周囲4kmの散策・自転車コース。春の桜の名所。冬は渡り鳥の飛来地。",
         "zh": "周长4km散步/自行车路线。春季赏樱名地。冬季候鸟栖息地。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 65
+      "lat": 37.78597080000001,
+      "lng": 128.8914987,
+      "start_time_offset_min": 65,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -97,9 +98,10 @@
         "ja": "草堂スンドゥブ村ランチ — スンドゥブチゲ / 豆腐 / 江陵草堂豆腐。",
         "zh": "草堂豆腐村午餐 — 嫩豆腐汤 / 豆腐块 / 江陵草堂豆腐。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 130
+      "lat": 37.7925599,
+      "lng": 128.9170172,
+      "start_time_offset_min": 130,
+      "_geocode_source": "google_places"
     },
     {
       "order": 4,
@@ -128,8 +130,8 @@
         "ja": "申師任堂と栗谷李珥の生家。5万ウォン紙幣の図案地。市立博物館も見学可。",
         "zh": "申师任堂与栗谷李珥故居。五万韩元纸币图案地。可联合参观市立博物馆。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7782583,
+      "lng": 128.8766375,
       "start_time_offset_min": 205
     },
     {
@@ -159,8 +161,8 @@
         "ja": "300年の歴史を持つ朝鮮両班の屋敷。99室の大邸宅。活来亭の池が撮影スポット。",
         "zh": "有300年历史的朝鲜贵族宅第。99间大宅。活来亭水池拍照胜地。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7866796,
+      "lng": 128.8851259,
       "start_time_offset_min": 270
     },
     {
@@ -183,8 +185,8 @@
         "ja": "江陵の伝統市場。ジャガイモチヂミ・水刺身・ダッカンジョン。夜市(金〜日夕)。",
         "zh": "江陵传统市场。土豆煎饼/水刺身/韩式炸鸡。夜市(周五至周日晚)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.7539977,
+      "lng": 128.8986328,
       "start_time_offset_min": 340
     },
     {
@@ -209,96 +211,97 @@
         "ja": "江陵の夕食 — 水刺身 / チャンポン / イカプルコギ。",
         "zh": "江陵晚餐 — 水刺身 / 炒码面 / 辣鱿鱼。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 420
+      "lat": 37.75354350000001,
+      "lng": 128.8972832,
+      "start_time_offset_min": 420,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
+      "fetched_at": "2026-05-28",
       "from_order": 1,
       "to_order": 2,
-      "mode": "taxi",
-      "duration_min": 15,
-      "distance_m": 4500,
-      "cost_krw": 6000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
       "base": {
-        "mode": "taxi",
-        "duration_min": 15,
-        "distance_m": 4500,
-        "cost_krw": 6000
-      }
+        "distance_m": 11977,
+        "cost_krw": 1530,
+        "duration_min": 57,
+        "mode": "bus"
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/128.9472417,37.7726658,%EC%95%88%EB%AA%A9%20%EC%BB%A4%ED%94%BC%EA%B1%B0%EB%A6%AC,,/128.8914987,37.78597080000001,%EA%B2%BD%ED%8F%AC%ED%98%B8,,/-/transit",
+      "distance_m": 11977,
+      "source": "odsay_api",
+      "cost_krw": 1530,
+      "mode": "bus",
+      "duration_min": 57
     },
     "2->3": {
-      "from_order": 2,
-      "to_order": 3,
-      "mode": "taxi",
-      "duration_min": 10,
-      "distance_m": 2500,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
       "base": {
-        "mode": "taxi",
-        "duration_min": 10,
-        "distance_m": 2500,
-        "cost_krw": 5000
-      }
+        "mode": "bus",
+        "distance_m": 3204,
+        "cost_krw": 1530,
+        "duration_min": 26
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/128.8914987,37.78597080000001,%EA%B2%BD%ED%8F%AC%ED%98%B8,,/128.9170172,37.7925599,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EA%B0%95%EB%A6%89%EC%8B%9C%20%EC%84%B1%EC%82%B0%EB%A9%B4%20%EC%B4%88%EB%8B%B9%EC%88%9C%EB%91%90%EB%B6%80%EA%B8%B8,,/-/transit",
+      "source": "odsay_api",
+      "distance_m": 3204,
+      "to_order": 3,
+      "fetched_at": "2026-05-28",
+      "from_order": 2,
+      "mode": "bus",
+      "duration_min": 26,
+      "cost_krw": 1530
     },
     "3->4": {
-      "from_order": 3,
-      "to_order": 4,
-      "mode": "taxi",
-      "duration_min": 10,
-      "distance_m": 3000,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "source": "odsay_api",
+      "distance_m": 10492,
       "base": {
-        "mode": "taxi",
-        "duration_min": 10,
-        "distance_m": 3000,
-        "cost_krw": 5000
-      }
+        "distance_m": 10492,
+        "cost_krw": 1530,
+        "duration_min": 53,
+        "mode": "bus"
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/128.9170172,37.7925599,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EA%B0%95%EB%A6%89%EC%8B%9C%20%EC%84%B1%EC%82%B0%EB%A9%B4%20%EC%B4%88%EB%8B%B9%EC%88%9C%EB%91%90%EB%B6%80%EA%B8%B8,,/128.8766375,37.7782583,%EC%98%A4%EC%A3%BD%ED%97%8C,,/-/transit",
+      "to_order": 4,
+      "fetched_at": "2026-05-28",
+      "from_order": 3,
+      "duration_min": 53,
+      "mode": "bus",
+      "cost_krw": 1530
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 800,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "mode": "mixed",
+      "duration_min": 18,
+      "cost_krw": 1530,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 800,
-        "cost_krw": 0
-      }
+        "distance_m": 1358,
+        "duration_min": 18,
+        "cost_krw": 1530,
+        "mode": "mixed"
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/128.8766375,37.7782583,%EC%98%A4%EC%A3%BD%ED%97%8C,,/128.8851259,37.7866796,%EC%84%A0%EA%B5%90%EC%9E%A5,,/-/transit",
+      "source": "odsay_api",
+      "distance_m": 1358,
+      "to_order": 5,
+      "from_order": 4,
+      "fetched_at": "2026-05-27"
     },
     "5->6": {
       "from_order": 5,
+      "fetched_at": "2026-05-27",
       "to_order": 6,
-      "mode": "taxi",
-      "duration_min": 10,
-      "distance_m": 2000,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "distance_m": 4952,
+      "source": "odsay_api",
       "base": {
-        "mode": "taxi",
-        "duration_min": 10,
-        "distance_m": 2000,
-        "cost_krw": 5000
-      }
+        "mode": "mixed",
+        "distance_m": 4952,
+        "duration_min": 30,
+        "cost_krw": 1530
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/128.8851259,37.7866796,%EC%84%A0%EA%B5%90%EC%9E%A5,,/128.8986328,37.7539977,%EA%B0%95%EB%A6%89%EC%A4%91%EC%95%99%EC%8B%9C%EC%9E%A5,,/-/transit",
+      "cost_krw": 1530,
+      "duration_min": 30,
+      "mode": "mixed"
     },
     "6->7": {
       "from_order": 6,
@@ -318,8 +321,15 @@
       }
     }
   },
-  "best_for": ["coffee_lover", "culture_lover", "nature_lover", "foodie"],
-  "unsuitable_for": ["mobility_limited"],
+  "best_for": [
+    "coffee_lover",
+    "culture_lover",
+    "nature_lover",
+    "foodie"
+  ],
+  "unsuitable_for": [
+    "mobility_limited"
+  ],
   "dietary_options": [],
   "passport_required": false,
   "requires_advance_booking": false,

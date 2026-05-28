@@ -40,8 +40,8 @@
         "ja": "韓国最大のチャイナタウン。チャジャンミョン発祥地。三国志壁画通り。チャジャンミョン博物館（世界唯一）。",
         "zh": "韩国最大唐人街。炸酱面发源地。三国志壁画街。炸酱面博物馆（全球唯一）。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.4769086,
+      "lng": 126.6189725,
       "start_time_offset_min": 0
     },
     {
@@ -66,9 +66,10 @@
         "ja": "チャイナタウンランチ — チャジャンミョン / チャンポン / タンスユク (食事制限マッチング)。",
         "zh": "唐人街午餐 — 炸酱面 / 炒码面 / 糖醋肉 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 85
+      "lat": 37.4765322,
+      "lng": 126.6192921,
+      "start_time_offset_min": 85,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -97,9 +98,10 @@
         "ja": "1883年開港以来の近代建築保存。日本・清国・朝鮮建物が混在。トレンドカフェ+工房。",
         "zh": "1883年开港以来近代建筑保存。日本、清朝、朝鲜建筑混杂。潮流咖啡+工坊。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 160
+      "lat": 37.4728537,
+      "lng": 126.6224801,
+      "start_time_offset_min": 160,
+      "_geocode_source": "google_places"
     },
     {
       "order": 4,
@@ -128,8 +130,8 @@
         "ja": "韓国初の西洋式公園（1888年）。マッカーサー将軍像。仁川港+チャイナタウン全景。桜の名所（4月）。",
         "zh": "韩国首个西式公园（1888年）。麦克阿瑟将军铜像。仁川港+唐人街全景。赏樱胜地（4月）。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.4751749,
+      "lng": 126.6282049,
       "start_time_offset_min": 235
     },
     {
@@ -152,8 +154,8 @@
         "ja": "仁川伝統市場。ダッカンジョンの元祖スポット。新浦ダッカンジョンは行列必至。スナック通り。",
         "zh": "仁川传统市场。炸鸡原祖地。新浦炸鸡必排队。小吃街。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.4717561,
+      "lng": 126.6276906,
       "start_time_offset_min": 300
     },
     {
@@ -178,9 +180,10 @@
         "ja": "新浦の夕食 — 中華料理（冷菜・八宝菜）/ 仁川スタイル海鮮 / マッコリ。",
         "zh": "新浦晚餐 — 中式料理（凉菜、八宝菜）/ 仁川风格海鲜 / 马格利酒。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 365
+      "lat": 37.4712918,
+      "lng": 126.6252721,
+      "start_time_offset_min": 365,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -270,7 +273,12 @@
       }
     }
   },
-  "best_for": ["culture_lover", "history_buff", "foodie", "first_time_visitor"],
+  "best_for": [
+    "culture_lover",
+    "history_buff",
+    "foodie",
+    "first_time_visitor"
+  ],
   "unsuitable_for": [],
   "dietary_options": [],
   "passport_required": false,

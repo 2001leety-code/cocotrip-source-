@@ -3,16 +3,246 @@
   "city": "gangneung",
   "zone": "Central-Ojukheon",
   "theme": "오죽헌+경포대+선교장",
-  "theme_i18n": {"ko":"오죽헌+경포대+선교장","en":"Ojukheon+Gyeongpodae+Seongyojang","ja":"烏竹軒+鏡浦台+船橋荘","zh":"乌竹轩+镜浦台+船桥庄"},
+  "theme_i18n": {
+    "ko": "오죽헌+경포대+선교장",
+    "en": "Ojukheon+Gyeongpodae+Seongyojang",
+    "ja": "烏竹軒+鏡浦台+船橋荘",
+    "zh": "乌竹轩+镜浦台+船桥庄"
+  },
   "intensity": "standard",
   "duration_min": 450,
   "block_type": "city_day",
   "stops": [
-    {"order":1,"category":"culture","name":"오죽헌","name_i18n":{"ko":"오죽헌","en":"Ojukheon","ja":"烏竹軒","zh":"乌竹轩"},"address":"강원 강릉시 율곡로3139번길 24","stay_min":60,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"신사임당/율곡 생가. 보물 165호.","en":"Birthplace of Shin Saimdang/Yulgok. Treasure #165.","ja":"申師任堂/栗谷生家。宝物165号。","zh":"申师任堂/栗谷生家。宝物165号。"},"lat":37.7836,"lng":128.8783,"start_time_offset_min":0},
-    {"order":2,"category":"culture","name":"선교장","name_i18n":{"ko":"선교장","en":"Seongyojang","ja":"船橋荘","zh":"船桥庄"},"address":"강원 강릉시 운정길 63","stay_min":60,"entry_fee_krw":5000,"reservation_required":false,"tips_i18n":{"ko":"조선시대 사대부 99칸 한옥.","en":"Joseon-era 99-room hanok mansion.","ja":"朝鮮時代士大夫99間韓屋。","zh":"朝鲜时代士大夫99间韩屋。"},"lat":37.7833,"lng":128.8917,"start_time_offset_min":75},
-    {"order":3,"category":"food","name":"강릉 초당두부 거리","name_i18n":{"ko":"초당두부","en":"Chodang Tofu","ja":"草堂豆腐","zh":"草堂豆腐"},"address":"강원 강릉시 초당동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"강릉 명물 초당두부. 비건 친화.","en":"Gangneung specialty tofu. Vegan-friendly.","ja":"江陵名物草堂豆腐。ヴィーガン対応。","zh":"江陵名菜草堂豆腐。素食友好。"},"lat":37.7775,"lng":128.9156,"start_time_offset_min":150},
-    {"order":4,"category":"nature","name":"경포대","name_i18n":{"ko":"경포대","en":"Gyeongpodae","ja":"鏡浦台","zh":"镜浦台"},"address":"강원 강릉시 경포로 365","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"경포호 + 정자. 동해바다 인접.","en":"Gyeongpo Lake + pavilion. East Sea adjacent.","ja":"鏡浦湖+亭。東海近接。","zh":"镜浦湖+亭。东海近邻。"},"lat":37.7975,"lng":128.9019,"start_time_offset_min":240},
-    {"order":5,"category":"nature","name":"경포해변","name_i18n":{"ko":"경포해변","en":"Gyeongpo Beach","ja":"鏡浦海岸","zh":"镜浦海滩"},"address":"강원 강릉시 창해로","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"경포대 도보 5분. 백사장 1.8km.","en":"5min walk from Gyeongpodae. 1.8km sand beach.","ja":"鏡浦台徒歩5分。1.8km砂浜。","zh":"镜浦台步行5分。1.8km沙滩。"},"lat":37.7964,"lng":128.9128,"start_time_offset_min":330},
-    {"order":6,"category":"cafe","name":"안목해변 커피거리","name_i18n":{"ko":"안목해변 커피거리","en":"Anmok Coffee Street","ja":"安木コーヒー通り","zh":"安木咖啡街"},"address":"강원 강릉시 창해로14번길","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"강릉 커피 발상지. 카페 다수.","en":"Gangneung coffee origin. Many cafes.","ja":"江陵コーヒー発祥地。カフェ多数。","zh":"江陵咖啡发源地。咖啡多。"},"lat":37.7700,"lng":128.9472,"start_time_offset_min":405}
-  ]
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "오죽헌",
+      "name_i18n": {
+        "ko": "오죽헌",
+        "en": "Ojukheon",
+        "ja": "烏竹軒",
+        "zh": "乌竹轩"
+      },
+      "address": "강원 강릉시 율곡로3139번길 24",
+      "stay_min": 60,
+      "entry_fee_krw": 3000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "신사임당/율곡 생가. 보물 165호.",
+        "en": "Birthplace of Shin Saimdang/Yulgok. Treasure #165.",
+        "ja": "申師任堂/栗谷生家。宝物165号。",
+        "zh": "申师任堂/栗谷生家。宝物165号。"
+      },
+      "lat": 37.7836,
+      "lng": 128.8783,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "선교장",
+      "name_i18n": {
+        "ko": "선교장",
+        "en": "Seongyojang",
+        "ja": "船橋荘",
+        "zh": "船桥庄"
+      },
+      "address": "강원 강릉시 운정길 63",
+      "stay_min": 60,
+      "entry_fee_krw": 5000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "조선시대 사대부 99칸 한옥.",
+        "en": "Joseon-era 99-room hanok mansion.",
+        "ja": "朝鮮時代士大夫99間韓屋。",
+        "zh": "朝鲜时代士大夫99间韩屋。"
+      },
+      "lat": 37.7833,
+      "lng": 128.8917,
+      "start_time_offset_min": 75
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "강릉 초당두부 거리",
+      "name_i18n": {
+        "ko": "초당두부",
+        "en": "Chodang Tofu",
+        "ja": "草堂豆腐",
+        "zh": "草堂豆腐"
+      },
+      "address": "강원 강릉시 초당동",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "강릉 명물 초당두부. 비건 친화.",
+        "en": "Gangneung specialty tofu. Vegan-friendly.",
+        "ja": "江陵名物草堂豆腐。ヴィーガン対応。",
+        "zh": "江陵名菜草堂豆腐。素食友好。"
+      },
+      "lat": 37.7775,
+      "lng": 128.9156,
+      "start_time_offset_min": 150
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "경포대",
+      "name_i18n": {
+        "ko": "경포대",
+        "en": "Gyeongpodae",
+        "ja": "鏡浦台",
+        "zh": "镜浦台"
+      },
+      "address": "강원 강릉시 경포로 365",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "경포호 + 정자. 동해바다 인접.",
+        "en": "Gyeongpo Lake + pavilion. East Sea adjacent.",
+        "ja": "鏡浦湖+亭。東海近接。",
+        "zh": "镜浦湖+亭。东海近邻。"
+      },
+      "lat": 37.7975,
+      "lng": 128.9019,
+      "start_time_offset_min": 240
+    },
+    {
+      "order": 5,
+      "category": "nature",
+      "name": "경포해변",
+      "name_i18n": {
+        "ko": "경포해변",
+        "en": "Gyeongpo Beach",
+        "ja": "鏡浦海岸",
+        "zh": "镜浦海滩"
+      },
+      "address": "강원 강릉시 창해로",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "경포대 도보 5분. 백사장 1.8km.",
+        "en": "5min walk from Gyeongpodae. 1.8km sand beach.",
+        "ja": "鏡浦台徒歩5分。1.8km砂浜。",
+        "zh": "镜浦台步行5分。1.8km沙滩。"
+      },
+      "lat": 37.7964,
+      "lng": 128.9128,
+      "start_time_offset_min": 330
+    },
+    {
+      "order": 6,
+      "category": "cafe",
+      "name": "안목해변 커피거리",
+      "name_i18n": {
+        "ko": "안목해변 커피거리",
+        "en": "Anmok Coffee Street",
+        "ja": "安木コーヒー通り",
+        "zh": "安木咖啡街"
+      },
+      "address": "강원 강릉시 창해로14번길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "강릉 커피 발상지. 카페 다수.",
+        "en": "Gangneung coffee origin. Many cafes.",
+        "ja": "江陵コーヒー発祥地。カフェ多数。",
+        "zh": "江陵咖啡发源地。咖啡多。"
+      },
+      "lat": 37.77,
+      "lng": 128.9472,
+      "start_time_offset_min": 405
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.8783,37.7836,%EC%98%A4%EC%A3%BD%ED%97%8C,,/128.8917,37.7833,%EC%84%A0%EA%B5%90%EC%9E%A5,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 2,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "distance_m": 1435,
+      "from_order": 1,
+      "duration_min": 15,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1530,
+        "distance_m": 1435,
+        "duration_min": 15
+      }
+    },
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.8917,37.7833,%EC%84%A0%EA%B5%90%EC%9E%A5,,/128.9156,37.7775,%EA%B0%95%EB%A6%89%20%EC%B4%88%EB%8B%B9%EB%91%90%EB%B6%80%20%EA%B1%B0%EB%A6%AC,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "distance_m": 6279,
+      "from_order": 2,
+      "duration_min": 36,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1530,
+        "distance_m": 6279,
+        "duration_min": 36
+      }
+    },
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.9156,37.7775,%EA%B0%95%EB%A6%89%20%EC%B4%88%EB%8B%B9%EB%91%90%EB%B6%80%20%EA%B1%B0%EB%A6%AC,,/128.9019,37.7975,%EA%B2%BD%ED%8F%AC%EB%8C%80,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 3060,
+      "source": "odsay_api",
+      "distance_m": 11599,
+      "from_order": 3,
+      "duration_min": 54,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 3060,
+        "distance_m": 11599,
+        "duration_min": 54
+      }
+    },
+    "4->5": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.9019,37.7975,%EA%B2%BD%ED%8F%AC%EB%8C%80,,/128.9128,37.7964,%EA%B2%BD%ED%8F%AC%ED%95%B4%EB%B3%80,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "distance_m": 2701,
+      "from_order": 4,
+      "duration_min": 25,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1530,
+        "distance_m": 2701,
+        "duration_min": 25
+      }
+    },
+    "5->6": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.9128,37.7964,%EA%B2%BD%ED%8F%AC%ED%95%B4%EB%B3%80,,/128.9472,37.77,%EC%95%88%EB%AA%A9%ED%95%B4%EB%B3%80%20%EC%BB%A4%ED%94%BC%EA%B1%B0%EB%A6%AC,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 6,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "distance_m": 5013,
+      "from_order": 5,
+      "duration_min": 36,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1530,
+        "distance_m": 5013,
+        "duration_min": 36
+      }
+    }
+  }
 }
