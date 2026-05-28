@@ -40,8 +40,8 @@
         "ja": "早朝訪問で人出少なく撮影最適。最初に韓服レンタルして終日着用。",
         "zh": "清晨前往人少照片最佳。先租韩服全程穿着。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8182717,
+      "lng": 127.1536194,
       "start_time_offset_min": 0
     },
     {
@@ -62,7 +62,9 @@
         "child": 1500,
         "senior": 0,
         "toddler": 0,
-        "free_with": ["hanbok"],
+        "free_with": [
+          "hanbok"
+        ],
         "notes": "한복 착용 시 무료. 만 65세 이상 무료. 문화의 날 무료."
       },
       "reservation_required": false,
@@ -72,8 +74,8 @@
         "ja": "太祖肖像奉安。竹林撮影スポット。韓服着用で無料入場 — 必ず活用。",
         "zh": "太祖画像奉安。竹林拍照胜地。穿韩服免费入场 — 务必利用。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8162368,
+      "lng": 127.149353,
       "start_time_offset_min": 85
     },
     {
@@ -98,8 +100,8 @@
         "ja": "全州ランチ — 全州ビビンバ（韓定食含）/ 豆もやしクッパ。",
         "zh": "全州午餐 — 全州拌饭（含韩定食）/ 豆芽汤饭。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.813667,
+      "lng": 127.148275,
       "start_time_offset_min": 150
     },
     {
@@ -129,8 +131,8 @@
         "ja": "全州韓紙・扇子・漆器工芸展示。体験プログラムは事前予約推奨。",
         "zh": "全州韩纸/扇子/漆器工艺展示。体验课程建议提前预约。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8118035,
+      "lng": 127.1513588,
       "start_time_offset_min": 225
     },
     {
@@ -153,8 +155,8 @@
         "ja": "1914年ロマネスク聖堂。韓屋村背景写真ポイント。ミサ時間外は自由観覧。",
         "zh": "1914年罗马式圣堂。韩屋村背景拍照点。弥撒时间外自由参观。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8131987,
+      "lng": 127.1495896,
       "start_time_offset_min": 290
     },
     {
@@ -184,8 +186,8 @@
         "ja": "朝鮮時代の全州南門。宝物第308号。夜間ライトアップが美しい。殿洞聖堂から徒歩5分。",
         "zh": "朝鲜时代全州南门。宝物第308号。夜间灯光华美。距殿洞圣堂步行5分钟。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8135165,
+      "lng": 127.1475772,
       "start_time_offset_min": 335
     },
     {
@@ -208,8 +210,8 @@
         "ja": "南部市場2F青年モール。伝統市場+トレンドフード。金・土夜市が格別。",
         "zh": "南部市场2楼青年商场。传统市场+潮流美食。周五至周六夜市特色。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8183594,
+      "lng": 127.1427101,
       "start_time_offset_min": 380
     },
     {
@@ -234,9 +236,10 @@
         "ja": "全州の夕食 — マッコリ+チヂミ盛り合わせ / 石鍋ビビンバ / 血腸。",
         "zh": "全州晚餐 — 马格利酒+煎饼拼盘 / 石锅拌饭 / 猪血肠。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 445
+      "lat": 35.8126868,
+      "lng": 127.1468566,
+      "start_time_offset_min": 445,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -343,25 +346,32 @@
       }
     },
     "7->8": {
+      "naver_route_url": "https://map.naver.com/p/directions/127.1427101,35.8183594,%EB%82%A8%EB%B6%80%EC%8B%9C%EC%9E%A5%20%EC%B2%AD%EB%85%84%EB%AA%B0,,/127.1468566,35.8126868,%EC%A0%84%EB%9D%BC%EB%B6%81%EB%8F%84%20%EC%A0%84%EC%A3%BC%EC%8B%9C%20%EC%99%84%EC%82%B0%EA%B5%AC%20%EB%82%A8%EB%B6%80%EC%8B%9C%EC%9E%A5%EA%B8%B8,,/-/transit",
+      "fetched_at": "2026-05-28",
+      "mode": "bus",
+      "distance_m": 1273,
       "from_order": 7,
       "to_order": 8,
-      "mode": "walk",
-      "duration_min": 5,
-      "distance_m": 200,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1650,
+      "duration_min": 13,
       "base": {
-        "mode": "walk",
-        "duration_min": 5,
-        "distance_m": 200,
-        "cost_krw": 0
-      }
+        "distance_m": 1273,
+        "cost_krw": 1650,
+        "mode": "bus",
+        "duration_min": 13
+      },
+      "source": "odsay_api"
     }
   },
-  "best_for": ["culture_lover", "foodie", "history_buff", "hanbok_lover"],
-  "unsuitable_for": ["mobility_limited"],
+  "best_for": [
+    "culture_lover",
+    "foodie",
+    "history_buff",
+    "hanbok_lover"
+  ],
+  "unsuitable_for": [
+    "mobility_limited"
+  ],
   "dietary_options": [],
   "passport_required": false,
   "requires_advance_booking": false,
