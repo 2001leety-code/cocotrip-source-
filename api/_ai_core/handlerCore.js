@@ -397,11 +397,11 @@ export default async function handler(req, res) {
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,
       dietary: dietPrefs, foodIndex: foodIndexForQuality,
+      cacheMetadata: itinerary?._cache_metadata || null,  // P266: P195 cache instrumentation explicit pass-through (geminiPipeline:1515 attach → debugInfo:42 pop 전)
       plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,  // P128 block-mode trace
       abReason: abDecision.reason, abBucket: abDecision.bucket,
       blocksUsed: blockModeUsed ? blocksUsed : null,
-      // P169: streaming 모드에서 skeleton planId 재사용 (skeleton → 완성 plan 교체)
-      ...(streamingPlanId ? { planIdOverride: streamingPlanId } : {}),
+      ...(streamingPlanId ? { planIdOverride: streamingPlanId } : {}),  // P169: streaming 모드 skeleton planId 재사용
     }));
 
     // ── P168: Pass3 background trigger ───────────────────────────────────

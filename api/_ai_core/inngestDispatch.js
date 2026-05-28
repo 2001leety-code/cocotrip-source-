@@ -106,6 +106,13 @@ export function buildPlanAiCompletePayload(args) {
     ? blocksUsed[0]
     : null;
 
+  // P266 (2026-05-28): P195 cache instrumentation explicit pass-through —
+  //   itinerary._cache_metadata hidden mutation 이 Inngest event payload serialize/deserialize 통과
+  //   하지만 worker step.run 의 step output store 로 next step 에 넘어가는 과정에서 reconstruction
+  //   layer 가 stamped marker 누락 가능 (5/28 P259 lesson 와 동일 함정). ctx 의 명시적 field 로
+  //   pass-through 하면 worker savePlan 호출 site 가 itinerary 의 hidden field 의존 없이 안전 persist.
+  const cacheMetadata = (itinerary && itinerary._cache_metadata) || null;
+
   return {
     planId: streamingPlanId,
     itinerary,
@@ -125,6 +132,9 @@ export function buildPlanAiCompletePayload(args) {
       streamingPlanId,
       isAdminBypass: !!isAdminBypass,
       identifierForBucketing,
+      // P266: P195 cache instrumentation persistence — measure marker survives reconstruction layer.
+      //   null = block_mode / 3pass / non-Gemini path. numeric object = legacy 1-pass measurement.
+      ...(cacheMetadata ? { cacheMetadata } : {}),
       // P231: skeleton-in-worker 모드 시 full skeleton 파라미터 전달.
       // worker Step 0 가 skeletonCtx 있으면 savePlanSkeleton 호출 (stub → full skeleton).
       // skeletonCtx 없으면 (ENV off) worker 가 무시 — backward compat.
