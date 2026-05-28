@@ -2226,6 +2226,7 @@ const RULES = [
   ['P193_pdfRecommendedRestaurantsSafety', P193_pdfRecommendedRestaurantsSafety],
   ['P194_buildPromptSize', P194_buildPromptSize],
   ['P195_cacheInstrumentation', P195_cacheInstrumentation],
+  ['P266_cacheMetadataPersist', P266_cacheMetadataPersist],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -7816,6 +7817,94 @@ function P195_cacheInstrumentation({ changed }) {
     message:
       'R-P195: Gemini implicit cache metadata instrumentation 손상 — Phase 0 측정 무효. ' +
       'explicit caching 도입 의사결정 (1주일 [P195 CACHE_METRICS] log grep + _debug.cacheHitRate 통계) 불가. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P266_cacheMetadataPersist — P195 cache instrumentation persistence 회귀 차단 (2026-05-28)
+//
+// P266 cycle root cause (5/25 P195 머지 후 1주 prod 측정 0건):
+//   - planPersister.js docToSave 가 _debug.cacheMetrics root field persist 안 함
+//   - itinerary._cache_metadata hidden mutation (geminiPipeline.js:1515) 의존
+//   - Inngest worker dispatch path 의 step output store reconstruction layer 통과 시 marker 손실 가능
+//   - 결과: 100 plans 중 root _debug 0/100, itinerary._cache_metadata 10/100 (legacy 51 plans 의 20%)
+//
+// P266 진짜 fix: explicit `cacheMetadata` 인자 4-layer pass-through.
+//   1. planPersister.js#persistPlan: cacheMetadata 인자 + docToSave._debug.cacheMetrics root field
+//   2. handlerCore.js:394 savePlan call: cacheMetadata: itinerary?._cache_metadata || null
+//   3. inngestDispatch.js#buildPlanAiCompletePayload: ctx.cacheMetadata explicit field
+//   4. processPlanAfterAI.js:219 worker savePlan call: cacheMetadata: ctx.cacheMetadata || itinAfterBackfill?._cache_metadata || null
+//
+// 5/28 P259 lesson 재발 차단 (측정 marker reconstruction layer 함정).
+// ----------------------------------------------------------------------------
+
+function P266_cacheMetadataPersist({ changed }) {
+  const PERSISTER = 'api/_ai_core/planPersister.js';
+  const HANDLER = 'api/_ai_core/handlerCore.js';
+  const DISPATCH = 'api/_ai_core/inngestDispatch.js';
+  const WORKER = 'api/_inngest/functions/processPlanAfterAI.js';
+
+  const persisterChanged = isModified(PERSISTER, changed);
+  const handlerChanged = isModified(HANDLER, changed);
+  const dispatchChanged = isModified(DISPATCH, changed);
+  const workerChanged = isModified(WORKER, changed);
+  if (!persisterChanged && !handlerChanged && !dispatchChanged && !workerChanged) return { skipped: true };
+
+  const issues = [];
+
+  if (persisterChanged) {
+    const src = readFileExists(PERSISTER) || '';
+    if (!/persistPlan\s*\(\s*adminDb\s*,\s*\{[\s\S]*?cacheMetadata[\s\S]*?\}\s*\)/.test(src)) {
+      issues.push('planPersister.js: persistPlan 가 cacheMetadata 인자 누락 — P266 explicit pass-through 깨짐');
+    }
+    if (!/_debug:\s*\{[\s\S]*?cacheMetrics:\s*\{/.test(src)) {
+      issues.push('planPersister.js: docToSave._debug.cacheMetrics root field persist 코드 누락 — P265 measurement script 손상');
+    }
+    if (!/cacheHitRate:\s*cacheMetadata\.total\s*>\s*0/.test(src)) {
+      issues.push('planPersister.js: cacheHitRate 계산식 누락 — Phase 1 의사결정 baseline 손상');
+    }
+    if (!/persistedAt:\s*Date\.now\(\)/.test(src)) {
+      issues.push('planPersister.js: persistedAt timestamp 누락 — 측정 시점 추적 불가');
+    }
+    if (!/cacheMetadata\s*&&\s*typeof\s*cacheMetadata\s*===\s*['"]object['"]\s*&&\s*cacheMetadata\.total\s*>\s*0/.test(src)) {
+      issues.push('planPersister.js: cacheMetadata silent skip guard (null / total<=0) 누락 — block_mode false positive 위험');
+    }
+  }
+
+  if (handlerChanged) {
+    const src = readFileExists(HANDLER) || '';
+    if (!/cacheMetadata:\s*itinerary\?\._cache_metadata\s*\|\|\s*null/.test(src)) {
+      issues.push('handlerCore.js: savePlan call 의 cacheMetadata: itinerary?._cache_metadata || null 명시 누락 — 비스트리밍 분기 persist 손실');
+    }
+  }
+
+  if (dispatchChanged) {
+    const src = readFileExists(DISPATCH) || '';
+    if (!/const\s+cacheMetadata\s*=\s*\(itinerary\s*&&\s*itinerary\._cache_metadata\)\s*\|\|\s*null/.test(src)) {
+      issues.push('inngestDispatch.js: buildPlanAiCompletePayload 의 cacheMetadata 추출 코드 누락 — worker dispatch path persist 손실');
+    }
+    if (!/\.\.\.\(cacheMetadata\s*\?\s*\{\s*cacheMetadata\s*\}\s*:\s*\{\s*\}\)/.test(src)) {
+      issues.push('inngestDispatch.js: ctx.cacheMetadata explicit field 누락 — worker step output store reconstruction 통과 보장 손상');
+    }
+  }
+
+  if (workerChanged) {
+    const src = readFileExists(WORKER) || '';
+    if (!/cacheMetadata:\s*ctx\.cacheMetadata\s*\|\|\s*itinAfterBackfill\?\._cache_metadata\s*\|\|\s*null/.test(src)) {
+      issues.push('processPlanAfterAI.js: worker savePlan 의 cacheMetadata fallback chain (ctx → itinAfterBackfill → null) 누락');
+    }
+  }
+
+  if (issues.length === 0) return null;
+
+  return {
+    id: 'P266_cacheMetadataPersist',
+    severity: 'error',
+    file: persisterChanged ? PERSISTER : (handlerChanged ? HANDLER : (dispatchChanged ? DISPATCH : WORKER)),
+    message:
+      'R-P266: P195 cache instrumentation persistence 4-layer pass-through 깨짐 — 1주 prod 측정 0건 회귀 위험. ' +
+      '5/28 P266 cycle (100 plans inspect: root _debug 0/100, itinerary._cache_metadata 10/100) lesson 재발. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
   };
 }

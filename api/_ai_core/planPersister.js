@@ -1009,6 +1009,15 @@ export async function persistPlan(adminDb, {
   // P169 (2026-05-23): streaming 모드에서 skeleton 에서 미리 생성한 planId 재사용.
   // undefined 시 기존 randomUUID() 생성 (비스트리밍 호환).
   planIdOverride,
+  // P266 (2026-05-28): P195 cache instrumentation persistence — explicit cacheMetadata 인자.
+  //   기존: itinerary._cache_metadata hidden mutation 의존 → worker dispatch path 에서 80% 손실
+  //         (5/25~5/28 100 plans inspect: legacy 51 plans 중 10 plans 만 저장).
+  //   변경: 호출자 (handlerCore / processPlanAfterAI worker) 가 explicit cacheMetadata 전달
+  //         → docToSave._debug = { cacheMetrics } root field 로 persist. P265 measurement script path 일치.
+  //   값 = null → block_mode / 3pass / non-Gemini path (의도적 미생성) — _debug 미포함 (silent skip).
+  //   값 = { cached, total, output } → legacy / streaming legacy / 1-pass — _debug.cacheMetrics 저장.
+  //   P266 (R-lint): savePlan 호출 site 가 cacheMetadata 인자 누락 시 grep 알람.
+  cacheMetadata,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
@@ -1113,6 +1122,25 @@ export async function persistPlan(adminDb, {
     ...(typeof abBucket === 'number' ? { abBucket } : {}),
     // P128 (2026-05-21): block-mode trace. Only persisted on block-mode plans.
     ...(Array.isArray(blocksUsed) && blocksUsed.length > 0 ? { blocksUsed } : {}),
+    // P266 (2026-05-28): P195 cache instrumentation root field. P265 measurement script path 일치.
+    //   값이 numeric 객체일 때만 persist (block_mode / 3pass 미생성 = silent skip).
+    //   total=0 은 Gemini 호출 자체 미발생 → silent skip. >0 = legacy 1-pass measurement.
+    //   _debug.modelMain 은 buildAdminDebug 호출자가 별도 추가 가능 (admin-bypass response 노출과 동일 key prefix).
+    ...(cacheMetadata && typeof cacheMetadata === 'object' && cacheMetadata.total > 0
+      ? {
+          _debug: {
+            cacheMetrics: {
+              cached: Number(cacheMetadata.cached) || 0,
+              total: Number(cacheMetadata.total) || 0,
+              output: Number(cacheMetadata.output) || 0,
+              cacheHitRate: cacheMetadata.total > 0
+                ? Math.round((Number(cacheMetadata.cached) / Number(cacheMetadata.total)) * 1000) / 10
+                : 0,
+              persistedAt: Date.now(),
+            },
+          },
+        }
+      : {}),
   };
 
   // 2026-05-10 (P0-5 launch blocker): Firestore 1MB doc size 가드.

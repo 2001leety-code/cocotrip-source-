@@ -244,6 +244,11 @@ export const processPlanAfterAI = inngest.createFunction(
         abBucket: ctx.abBucket,
         blocksUsed: ctx.blocksUsed,
         ...(ctx.streamingPlanId ? { planIdOverride: ctx.streamingPlanId } : (eventPlanId ? { planIdOverride: eventPlanId } : {})),
+        // P266 (2026-05-28): P195 cache instrumentation persistence — worker savePlan explicit pass-through.
+        //   ctx.cacheMetadata = inngestDispatch.buildPlanAiCompletePayload 가 itinerary._cache_metadata 에서 추출.
+        //   fallback: itinAfterBackfill._cache_metadata (step output store reconstruction 통과한 경우)
+        //   둘 다 없으면 null → persistPlan silent skip (block_mode / non-Gemini).
+        cacheMetadata: ctx.cacheMetadata || itinAfterBackfill?._cache_metadata || null,
       });
     });
 
