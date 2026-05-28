@@ -35,11 +35,13 @@ export function buildAdminDebug({
   blockModeUsed, blocksUsed, useStreaming, itinerary,
 }) {
   if (!gate || !gate.isAdminBypass) return undefined;
-  // P195 (2026-05-25): itinerary._cache_metadata pop — admin _debug 노출 전용.
-  // Firestore 저장 / 응답 itinerary 에서 제거 (handlerCore 가 호출 후 즉시 persist).
+  // P195 (2026-05-25): itinerary._cache_metadata 를 admin _debug 에 노출.
+  // P268 (2026-05-29): delete 제거 — P266 chain 시점 issue (buildAdminDebug 가 streaming early response 시점에
+  //   line 343-347 에서 호출 → _cache_metadata pop → 후속 line 372 dispatch + line 394 savePlan 도달 시 undefined →
+  //   P266 fix layer 1 silent skip → Firestore _debug.cacheMetrics 미저장 → 1주 측정 0건).
+  //   _cache_metadata 는 numeric only (cached/total/output) — PII 없음 → response itinerary 노출 안전.
   // 3pass mode + block-mode 등 metadata 미수집 분기 = null fallback → 0 표시.
   const cm = (itinerary && itinerary._cache_metadata) || { cached: 0, total: 0, output: 0 };
-  if (itinerary && '_cache_metadata' in itinerary) delete itinerary._cache_metadata;
   const cacheHitRate = cm.total > 0
     ? Math.round((cm.cached / cm.total) * 1000) / 10  // 0.1% 단위
     : 0;
