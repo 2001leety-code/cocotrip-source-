@@ -40,8 +40,8 @@
         "ja": "百済金銅大香炉（国宝）を所蔵。百済の歴史・文化の核心展示。月曜休館。",
         "zh": "收藏百济金铜大香炉（国宝实物）。百济历史文化核心展示。周一闭馆。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.2764329,
+      "lng": 126.9189625,
       "start_time_offset_min": 0
     },
     {
@@ -71,8 +71,8 @@
         "ja": "百済最後の都城跡。落花岩・白馬江の眺望。森の散策路約2km。",
         "zh": "百济最后都城遗址。落花岩和白马江景观。约2km森林步道。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.2885008,
+      "lng": 126.9125614,
       "start_time_offset_min": 100
     },
     {
@@ -97,8 +97,8 @@
         "ja": "扶余郷土料理 — 蓮の葉ご飯 / レンコン定食 / 石釜ビビンバ (食事制限とマッチング)。",
         "zh": "扶余乡土料理 — 荷叶饭 / 莲藕套餐 / 石锅拌饭 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.275596,
+      "lng": 126.911164,
       "start_time_offset_min": 195
     },
     {
@@ -128,8 +128,8 @@
         "ja": "韓国最古の人工池（百済・武王時代）。7-8月は蓮の花が満開。浮龍亭のフォトスポット。",
         "zh": "韩国最古老人工池（百济武王时期）。7-8月荷花盛开。浮龙亭是拍照胜地。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.275042,
+      "lng": 126.909137,
       "start_time_offset_min": 270
     },
     {
@@ -159,8 +159,8 @@
         "ja": "百済五重石塔（国宝9号）。1400年の歴史。唐・蘇定方の戦勝碑が刻まれた歴史の皮肉。",
         "zh": "百济五层石塔（国宝9号）。1400年历史。刻有唐将苏定方战胜碑铭——历史的讽刺。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.2783264,
+      "lng": 126.9134342,
       "start_time_offset_min": 340
     },
     {
@@ -185,44 +185,45 @@
         "ja": "扶余の夕食 — カルビチム / チョングクジャン / どんぐりムク和え物。",
         "zh": "扶余晚餐 — 炖排骨 / 清麹酱 / 橡子凉粉拌菜。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 390
+      "lat": 36.2804738,
+      "lng": 126.9115855,
+      "start_time_offset_min": 390,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9189625,36.2764329,%EA%B5%AD%EB%A6%BD%EB%B6%80%EC%97%AC%EB%B0%95%EB%AC%BC%EA%B4%80,,/126.9125614,36.2885008,%EB%B6%80%EC%86%8C%EC%82%B0%EC%84%B1,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 2,
-      "mode": "walk",
-      "duration_min": 10,
-      "distance_m": 700,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1400,
+      "source": "odsay_api",
+      "distance_m": 2609,
+      "from_order": 1,
+      "duration_min": 22,
       "base": {
-        "mode": "walk",
-        "duration_min": 10,
-        "distance_m": 700,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1400,
+        "distance_m": 2609,
+        "duration_min": 22
       }
     },
     "2->3": {
-      "from_order": 2,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9125614,36.2885008,%EB%B6%80%EC%86%8C%EC%82%B0%EC%84%B1,,/126.911164,36.275596,%EC%B6%A9%EC%B2%AD%EB%82%A8%EB%8F%84%20%EB%B6%80%EC%97%AC%EA%B5%B0%20%EB%B6%80%EC%97%AC%EC%9D%8D,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 3,
-      "mode": "walk",
-      "duration_min": 10,
-      "distance_m": 600,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1400,
+      "source": "odsay_api",
+      "distance_m": 1638,
+      "from_order": 2,
+      "duration_min": 20,
       "base": {
-        "mode": "walk",
-        "duration_min": 10,
-        "distance_m": 600,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1400,
+        "distance_m": 1638,
+        "duration_min": 20
       }
     },
     "3->4": {
@@ -277,9 +278,17 @@
       }
     }
   },
-  "best_for": ["history_lover", "culture_lover", "nature_walker", "slow_travel"],
+  "best_for": [
+    "history_lover",
+    "culture_lover",
+    "nature_walker",
+    "slow_travel"
+  ],
   "unsuitable_for": [],
-  "dietary_options": ["vegetarian", "vegan"],
+  "dietary_options": [
+    "vegetarian",
+    "vegan"
+  ],
   "passport_required": false,
   "requires_advance_booking": false,
   "source": "cocotrip_curated",

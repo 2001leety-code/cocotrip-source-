@@ -40,8 +40,8 @@
         "ja": "1956年創業の大田名物。開店時間に訪問すると行列最小限。揚げソボロ・ニラパン必購入。",
         "zh": "大田1956年创业名物。开门时间前往排队最短。必买：炸酥粒面包/韭菜面包。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3275548,
+      "lng": 127.4268125,
       "start_time_offset_min": 0
     },
     {
@@ -71,8 +71,8 @@
         "ja": "1930〜40年代の近代建築集積。旧忠南道庁（現文化芸術空間）。中央市場近く。",
         "zh": "1930-40年代近代建筑聚集。旧忠南道厅（现文化艺术空间）。邻近中央市场。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.326717,
+      "lng": 127.420963,
       "start_time_offset_min": 55
     },
     {
@@ -97,9 +97,10 @@
         "ja": "大田原都心ランチ — 豆腐炒め / タニシ国飯 / カルグクス (食事制限マッチング)。",
         "zh": "大田原城区午餐 — 豆腐炒 / 田螺汤饭 / 手擀刀切面 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 130
+      "lat": 36.3261113,
+      "lng": 127.4182059,
+      "start_time_offset_min": 130,
+      "_geocode_source": "google_places"
     },
     {
       "order": 4,
@@ -128,8 +129,8 @@
         "ja": "大田の近現代100年史。旧忠南道庁を活用。大田鉄道都市の発展史。無料入場。",
         "zh": "大田近现代100年历史。利用旧忠南道厅。大田铁路城市发展史。免费参观。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.326717,
+      "lng": 127.420963,
       "start_time_offset_min": 205
     },
     {
@@ -159,8 +160,8 @@
         "ja": "大田・忠清の先史〜近現代遺物展示。大田のアイデンティティ理解。野外彫刻公園。",
         "zh": "大田与忠清史前至近代文物展示。了解大田城市身份认同。户外雕塑公园。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.336859,
+      "lng": 127.3353401,
       "start_time_offset_min": 290
     },
     {
@@ -183,8 +184,8 @@
         "ja": "市立博物館近くの都市型樹木園。夕方散歩コース。夜間照明。家族散歩道。",
         "zh": "市立博物馆附近城市树木园。傍晚散步路线。灯光夜景。家庭步道。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3688239,
+      "lng": 127.3879822,
       "start_time_offset_min": 375
     },
     {
@@ -209,8 +210,8 @@
         "ja": "儒城の夕食 — 豆腐炒め / タニシ解酒スープ / 大田サワガニスープ。",
         "zh": "儒城晚餐 — 豆腐炒 / 田螺醒酒汤 / 大田淡水蟹汤。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.353349,
+      "lng": 127.343825,
       "start_time_offset_min": 440
     }
   ],
@@ -267,58 +268,63 @@
       }
     },
     "4->5": {
-      "from_order": 4,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.420963,36.326717,%EB%8C%80%EC%A0%84%EA%B7%BC%ED%98%84%EB%8C%80%EC%82%AC%EC%A0%84%EC%8B%9C%EA%B4%80,,/127.3353401,36.336859,%EB%8C%80%EC%A0%84%EC%8B%9C%EB%A6%BD%EB%B0%95%EB%AC%BC%EA%B4%80,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 5,
-      "mode": "subway",
-      "duration_min": 20,
-      "distance_m": 6000,
-      "cost_krw": 1400,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 대전 지하철 1호선 이용. 운영자 prod 재빌드 후 정확화 필요",
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 12151,
+      "from_order": 4,
+      "duration_min": 38,
       "base": {
-        "mode": "subway",
-        "duration_min": 20,
-        "distance_m": 6000,
-        "cost_krw": 1400
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 12151,
+        "duration_min": 38
       }
     },
     "5->6": {
-      "from_order": 5,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.3353401,36.336859,%EB%8C%80%EC%A0%84%EC%8B%9C%EB%A6%BD%EB%B0%95%EB%AC%BC%EA%B4%80,,/127.3879822,36.3688239,%ED%95%9C%EB%B0%AD%EC%88%98%EB%AA%A9%EC%9B%90,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 6,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 800,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 시립박물관→한밭수목원 도보 근거리. 운영자 prod 재빌드 후 정확화 필요",
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 8096,
+      "from_order": 5,
+      "duration_min": 40,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 800,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 8096,
+        "duration_min": 40
       }
     },
     "6->7": {
-      "from_order": 6,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.3879822,36.3688239,%ED%95%9C%EB%B0%AD%EC%88%98%EB%AA%A9%EC%9B%90,,/127.343825,36.353349,%EB%8C%80%EC%A0%84%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%9C%A0%EC%84%B1%EA%B5%AC%20%EB%B4%89%EB%AA%85%EB%8F%99,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 7,
-      "mode": "taxi",
-      "duration_min": 15,
-      "distance_m": 4000,
-      "cost_krw": 6000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 6265,
+      "from_order": 6,
+      "duration_min": 27,
       "base": {
-        "mode": "taxi",
-        "duration_min": 15,
-        "distance_m": 4000,
-        "cost_krw": 6000
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 6265,
+        "duration_min": 27
       }
     }
   },
-  "best_for": ["culture_lover", "history_buff", "foodie", "urban_explorer"],
+  "best_for": [
+    "culture_lover",
+    "history_buff",
+    "foodie",
+    "urban_explorer"
+  ],
   "unsuitable_for": [],
   "dietary_options": [],
   "passport_required": false,

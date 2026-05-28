@@ -40,8 +40,8 @@
         "ja": "新羅王陵23基。天馬塚内部公開。早朝訪問で人出少なく霞の写真も。",
         "zh": "新罗王陵23座。天马冢内部开放。早上前往人少且可拍雾气照片。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8391674,
+      "lng": 129.2107107,
       "start_time_offset_min": 0
     },
     {
@@ -71,8 +71,8 @@
         "ja": "7世紀新羅の天文台。東アジア現存最古の天文台。春は菜の花畑、秋はコスモス。",
         "zh": "7世纪新罗天文台。东亚现存最古天文台。春季油菜花田，秋季波斯菊。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8346954,
+      "lng": 129.2190639,
       "start_time_offset_min": 75
     },
     {
@@ -97,8 +97,8 @@
         "ja": "慶州ランチ — サムパプ / 慶州ビビンバ / 皇南パンデザート。",
         "zh": "庆州午餐 — 包饭 / 庆州拌饭 / 皇南面包甜点。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8414,
+      "lng": 129.2184,
       "start_time_offset_min": 120
     },
     {
@@ -121,8 +121,8 @@
         "ja": "大陵苑隣の路地。韓屋カフェ+雑貨店。皇南パン。",
         "zh": "大陵苑旁网红街。韩屋咖啡+精品店。黄南面包。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8374083,
+      "lng": 129.2099537,
       "start_time_offset_min": 195
     },
     {
@@ -152,8 +152,8 @@
         "ja": "新羅王宮跡。発掘作業中。瞻星台に隣接。春の桜が見事。",
         "zh": "新罗王宫遗址。正在发掘中。邻近瞻星台。春季樱花胜地。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8309449,
+      "lng": 129.2262377,
       "start_time_offset_min": 270
     },
     {
@@ -183,8 +183,8 @@
         "ja": "新羅の別宮池。夜間ライトアップの水鏡 = 慶州最高の夜景。日没前到着を強く推奨。",
         "zh": "新罗别宫水池。夜间灯光倒影 = 庆州最美夜景。强烈建议日落前到达。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8347938,
+      "lng": 129.2265702,
       "start_time_offset_min": 325
     },
     {
@@ -209,78 +209,78 @@
         "ja": "東宮近くの夕食 — 慶州韓定食 / タッカルビ / 慶州法酒マッコリ。",
         "zh": "东宫附近晚餐 — 庆州韩定食 / 辣炒鸡 / 庆州法酒马格利。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8458,
+      "lng": 129.212,
       "start_time_offset_min": 435
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.2107107,35.8391674,%EB%8C%80%EB%A6%89%EC%9B%90,,/129.2190639,35.8346954,%EC%B2%A8%EC%84%B1%EB%8C%80,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 2,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 800,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1450,
+      "source": "odsay_api",
+      "distance_m": 1648,
+      "from_order": 1,
+      "duration_min": 12,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 800,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1450,
+        "distance_m": 1648,
+        "duration_min": 12
       }
     },
     "2->3": {
-      "from_order": 2,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.2190639,35.8346954,%EC%B2%A8%EC%84%B1%EB%8C%80,,/129.2184,35.8414,%EA%B2%BD%EC%83%81%EB%B6%81%EB%8F%84%20%EA%B2%BD%EC%A3%BC%EC%8B%9C%20%ED%99%A9%EC%98%A4%EB%8F%99,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 3,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 700,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1450,
+      "source": "odsay_api",
+      "distance_m": 801,
+      "from_order": 2,
+      "duration_min": 13,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 700,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1450,
+        "distance_m": 801,
+        "duration_min": 13
       }
     },
     "3->4": {
-      "from_order": 3,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.2184,35.8414,%EA%B2%BD%EC%83%81%EB%B6%81%EB%8F%84%20%EA%B2%BD%EC%A3%BC%EC%8B%9C%20%ED%99%A9%EC%98%A4%EB%8F%99,,/129.2099537,35.8374083,%ED%99%A9%EB%A6%AC%EB%8B%A8%EA%B8%B8,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 4,
-      "mode": "walk",
-      "duration_min": 10,
-      "distance_m": 500,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1450,
+      "source": "odsay_api",
+      "distance_m": 1181,
+      "from_order": 3,
+      "duration_min": 13,
       "base": {
-        "mode": "walk",
-        "duration_min": 10,
-        "distance_m": 500,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1450,
+        "distance_m": 1181,
+        "duration_min": 13
       }
     },
     "4->5": {
-      "from_order": 4,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.2099537,35.8374083,%ED%99%A9%EB%A6%AC%EB%8B%A8%EA%B8%B8,,/129.2262377,35.8309449,%EC%9B%94%EC%84%B1%20(%EB%B0%98%EC%9B%94%EC%84%B1),,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 5,
-      "mode": "walk",
-      "duration_min": 15,
-      "distance_m": 600,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1450,
+      "source": "odsay_api",
+      "distance_m": 3638,
+      "from_order": 4,
+      "duration_min": 24,
       "base": {
-        "mode": "walk",
-        "duration_min": 15,
-        "distance_m": 600,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1450,
+        "distance_m": 3638,
+        "duration_min": 24
       }
     },
     "5->6": {
@@ -301,24 +301,29 @@
       }
     },
     "6->7": {
-      "from_order": 6,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.2265702,35.8347938,%EB%8F%99%EA%B6%81%EA%B3%BC%EC%9B%94%EC%A7%80%20(%EC%95%88%EC%95%95%EC%A7%80),,/129.212,35.8458,%EA%B2%BD%EC%83%81%EB%B6%81%EB%8F%84%20%EA%B2%BD%EC%A3%BC%EC%8B%9C%20%EB%8F%99%EB%B6%80%EB%8F%99,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 7,
-      "mode": "walk",
-      "duration_min": 10,
-      "distance_m": 400,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1450,
+      "source": "odsay_api",
+      "distance_m": 2301,
+      "from_order": 6,
+      "duration_min": 14,
       "base": {
-        "mode": "walk",
-        "duration_min": 10,
-        "distance_m": 400,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1450,
+        "distance_m": 2301,
+        "duration_min": 14
       }
     }
   },
-  "best_for": ["culture_lover", "history_buff", "photographer", "night_view_lover"],
+  "best_for": [
+    "culture_lover",
+    "history_buff",
+    "photographer",
+    "night_view_lover"
+  ],
   "unsuitable_for": [],
   "dietary_options": [],
   "passport_required": false,

@@ -41,8 +41,8 @@
         "ja": "新羅真徳女王時代 (652年) 創建寺。青銅大仏が名所。登山前トイレ。",
         "zh": "新罗真德女王时期 (652年) 创建寺庙。青铜大佛名物。登山前洗手间。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 38.1758063,
+      "lng": 128.4845333,
       "start_time_offset_min": 0
     },
     {
@@ -67,8 +67,8 @@
         "ja": "雪嶽洞小公園 — 山菜ビビンバ / フンテ解酲スープ / マッコリ。",
         "zh": "雪岳洞小公园 — 山菜拌饭 / 明太鱼汤 / 米酒。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 38.1614,
+      "lng": 128.5039,
       "start_time_offset_min": 45
     },
     {
@@ -91,27 +91,28 @@
         "ja": "873mの花崗岩峰。808段の鉄階段 (最後の600m)。東海ビューが名所。",
         "zh": "873m 花岗岩峰。808 级铁梯 (最后 600m)。东海景观胜地。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 105
+      "lat": 38.1932756,
+      "lng": 128.4758112,
+      "start_time_offset_min": 105,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
-      "to_order": 2,
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.4845333,38.1758063,%EC%8B%A0%ED%9D%A5%EC%82%AC,,/128.5039,38.1614,%EA%B0%95%EC%9B%90%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%86%8D%EC%B4%88%EC%8B%9C%20%EC%84%A4%EC%95%85%EB%8F%99,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 2,
+      "cost_krw": 1530,
+      "source": "odsay_api",
+      "distance_m": 2687,
+      "from_order": 1,
+      "duration_min": 40,
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "cost_krw": 1530,
+        "distance_m": 2687,
+        "duration_min": 40
       }
     },
     "2->3": {

@@ -1,12 +1,190 @@
 {
-  "id":"TONGYEONG_DAY_CENTRAL_STANDARD","city":"tongyeong","zone":"Central",
-  "theme":"동피랑+강구안+케이블카","theme_i18n":{"ko":"동피랑+강구안+케이블카","en":"Dongpirang+Gangguan+Cable Car","ja":"東皮郎+江口岸+ロープウェイ","zh":"东皮浪+江口岸+缆车"},
-  "intensity":"standard","duration_min":450,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"culture","name":"동피랑 벽화마을","name_i18n":{"ko":"동피랑","en":"Dongpirang Mural Village","ja":"東皮郎壁画村","zh":"东皮浪壁画村"},"address":"경남 통영시 동호동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"통영 핫플. 벽화 + 바다 전망.","en":"Tongyeong hotspot. Murals + sea view.","ja":"統営ホットスポット。壁画+海眺望。","zh":"统营热点。壁画+海景。"},"lat":34.8453,"lng":128.4283,"start_time_offset_min":0},
-    {"order":2,"category":"food","name":"강구안 다찌집","name_i18n":{"ko":"강구안 다찌","en":"Gangguan Daji","ja":"江口岸ダジ","zh":"江口岸"},"address":"경남 통영시 중앙동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"술상+안주 코스 (수십 가지).","en":"Drink+side dish course (dozens).","ja":"酒席+ツマミコース。","zh":"酒席+下酒菜套餐。"},"lat":34.8483,"lng":128.4244,"start_time_offset_min":90},
-    {"order":3,"category":"nature","name":"통영 케이블카","name_i18n":{"ko":"통영 케이블카","en":"Tongyeong Cable Car","ja":"統営ロープウェイ","zh":"统营缆车"},"address":"경남 통영시 도남동","stay_min":120,"entry_fee_krw":17000,"reservation_required":false,"tips_i18n":{"ko":"한려수도 1.97km 케이블카.","en":"Hallyeosudo 1.97km cable car.","ja":"閑麗水道1.97kmロープウェイ。","zh":"闲丽水道1.97km缆车。"},"lat":34.8278,"lng":128.4097,"start_time_offset_min":180},
-    {"order":4,"category":"food","name":"통영 충무김밥","name_i18n":{"ko":"충무김밥","en":"Chungmu Gimbap","ja":"忠武キンパ","zh":"忠武紫菜卷"},"address":"경남 통영시 중앙동","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"통영 명물. 김밥+오징어무침.","en":"Tongyeong specialty. Gimbap+squid kimchi.","ja":"統営名物。キンパ+イカ和え物。","zh":"统营名菜。紫菜卷+鱿鱼。"},"lat":34.8500,"lng":128.4267,"start_time_offset_min":315},
-    {"order":5,"category":"nature","name":"이순신공원","name_i18n":{"ko":"이순신공원","en":"Yi Sun-sin Park","ja":"李舜臣公園","zh":"李舜臣公园"},"address":"경남 통영시 정량동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"이순신 동상+해안 산책.","en":"Yi Sun-sin statue+coastal walk.","ja":"李舜臣銅像+海岸散歩。","zh":"李舜臣铜像+海岸散步。"},"lat":34.8533,"lng":128.4517,"start_time_offset_min":375}
-  ]
+  "id": "TONGYEONG_DAY_CENTRAL_STANDARD",
+  "city": "tongyeong",
+  "zone": "Central",
+  "theme": "동피랑+강구안+케이블카",
+  "theme_i18n": {
+    "ko": "동피랑+강구안+케이블카",
+    "en": "Dongpirang+Gangguan+Cable Car",
+    "ja": "東皮郎+江口岸+ロープウェイ",
+    "zh": "东皮浪+江口岸+缆车"
+  },
+  "intensity": "standard",
+  "duration_min": 450,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "동피랑 벽화마을",
+      "name_i18n": {
+        "ko": "동피랑",
+        "en": "Dongpirang Mural Village",
+        "ja": "東皮郎壁画村",
+        "zh": "东皮浪壁画村"
+      },
+      "address": "경남 통영시 동호동",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "통영 핫플. 벽화 + 바다 전망.",
+        "en": "Tongyeong hotspot. Murals + sea view.",
+        "ja": "統営ホットスポット。壁画+海眺望。",
+        "zh": "统营热点。壁画+海景。"
+      },
+      "lat": 34.8453,
+      "lng": 128.4283,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "강구안 다찌집",
+      "name_i18n": {
+        "ko": "강구안 다찌",
+        "en": "Gangguan Daji",
+        "ja": "江口岸ダジ",
+        "zh": "江口岸"
+      },
+      "address": "경남 통영시 중앙동",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "술상+안주 코스 (수십 가지).",
+        "en": "Drink+side dish course (dozens).",
+        "ja": "酒席+ツマミコース。",
+        "zh": "酒席+下酒菜套餐。"
+      },
+      "lat": 34.8483,
+      "lng": 128.4244,
+      "start_time_offset_min": 90
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "통영 케이블카",
+      "name_i18n": {
+        "ko": "통영 케이블카",
+        "en": "Tongyeong Cable Car",
+        "ja": "統営ロープウェイ",
+        "zh": "统营缆车"
+      },
+      "address": "경남 통영시 도남동",
+      "stay_min": 120,
+      "entry_fee_krw": 17000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한려수도 1.97km 케이블카.",
+        "en": "Hallyeosudo 1.97km cable car.",
+        "ja": "閑麗水道1.97kmロープウェイ。",
+        "zh": "闲丽水道1.97km缆车。"
+      },
+      "lat": 34.8278,
+      "lng": 128.4097,
+      "start_time_offset_min": 180
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "통영 충무김밥",
+      "name_i18n": {
+        "ko": "충무김밥",
+        "en": "Chungmu Gimbap",
+        "ja": "忠武キンパ",
+        "zh": "忠武紫菜卷"
+      },
+      "address": "경남 통영시 중앙동",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "통영 명물. 김밥+오징어무침.",
+        "en": "Tongyeong specialty. Gimbap+squid kimchi.",
+        "ja": "統営名物。キンパ+イカ和え物。",
+        "zh": "统营名菜。紫菜卷+鱿鱼。"
+      },
+      "lat": 34.85,
+      "lng": 128.4267,
+      "start_time_offset_min": 315
+    },
+    {
+      "order": 5,
+      "category": "nature",
+      "name": "이순신공원",
+      "name_i18n": {
+        "ko": "이순신공원",
+        "en": "Yi Sun-sin Park",
+        "ja": "李舜臣公園",
+        "zh": "李舜臣公园"
+      },
+      "address": "경남 통영시 정량동",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "이순신 동상+해안 산책.",
+        "en": "Yi Sun-sin statue+coastal walk.",
+        "ja": "李舜臣銅像+海岸散歩。",
+        "zh": "李舜臣铜像+海岸散步。"
+      },
+      "lat": 34.8533,
+      "lng": 128.4517,
+      "start_time_offset_min": 375
+    }
+  ],
+  "transit_matrix": {
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.4244,34.8483,%EA%B0%95%EA%B5%AC%EC%95%88%20%EB%8B%A4%EC%B0%8C%EC%A7%91,,/128.4097,34.8278,%ED%86%B5%EC%98%81%20%EC%BC%80%EC%9D%B4%EB%B8%94%EC%B9%B4,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 3716,
+      "from_order": 2,
+      "duration_min": 22,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 3716,
+        "duration_min": 22
+      }
+    },
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.4097,34.8278,%ED%86%B5%EC%98%81%20%EC%BC%80%EC%9D%B4%EB%B8%94%EC%B9%B4,,/128.4267,34.85,%ED%86%B5%EC%98%81%20%EC%B6%A9%EB%AC%B4%EA%B9%80%EB%B0%A5,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 3812,
+      "from_order": 3,
+      "duration_min": 25,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 3812,
+        "duration_min": 25
+      }
+    },
+    "4->5": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.4267,34.85,%ED%86%B5%EC%98%81%20%EC%B6%A9%EB%AC%B4%EA%B9%80%EB%B0%A5,,/128.4517,34.8533,%EC%9D%B4%EC%88%9C%EC%8B%A0%EA%B3%B5%EC%9B%90,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 4104,
+      "from_order": 4,
+      "duration_min": 21,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 4104,
+        "duration_min": 21
+      }
+    }
+  }
 }
