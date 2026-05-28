@@ -2227,6 +2227,7 @@ const RULES = [
   ['P194_buildPromptSize', P194_buildPromptSize],
   ['P195_cacheInstrumentation', P195_cacheInstrumentation],
   ['P266_cacheMetadataPersist', P266_cacheMetadataPersist],
+  ['P267_streamingChunkUsageMetadataFallback', P267_streamingChunkUsageMetadataFallback],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -7905,6 +7906,50 @@ function P266_cacheMetadataPersist({ changed }) {
     message:
       'R-P266: P195 cache instrumentation persistence 4-layer pass-through 깨짐 — 1주 prod 측정 0건 회귀 위험. ' +
       '5/28 P266 cycle (100 plans inspect: root _debug 0/100, itinerary._cache_metadata 10/100) lesson 재발. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P267_streamingChunkUsageMetadataFallback — runGeminiStreaming chunk-level fallback (2026-05-29)
+//
+// Root cause (P266 cycle 진단):
+//   - prod plan faab8777 의 Inngest event payload 의 itinerary._cache_metadata=undefined
+//   - Vercel logs 의 [P195 CACHE_METRICS] log 0건
+//   - 진단: streamResult.response.usageMetadata=null (Google AI Forum #79312 — Pro streaming bug)
+//   - extractCacheMetadata({usageMetadata:null}) = {0,0,0} → logCacheMetrics total=0 skip
+//   - P266 fix 의 layer 1 (handler attach) 의 입력 데이터 자체가 손실
+//
+// P267 fix: chunk loop 안 chunk.usageMetadata 누적 + final null 시 chunk-level fallback.
+// ----------------------------------------------------------------------------
+
+function P267_streamingChunkUsageMetadataFallback({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE) || '';
+  const issues = [];
+
+  if (!/let\s+lastChunkUsageMetadata\s*=\s*null/.test(src)) {
+    issues.push('lastChunkUsageMetadata 변수 정의 누락 — Pro streaming final null bug 우회 불가');
+  }
+  if (!/if\s*\(chunk\?\.usageMetadata\)\s*lastChunkUsageMetadata\s*=\s*chunk\.usageMetadata/.test(src)) {
+    issues.push('chunk loop 안 usageMetadata 저장 코드 누락 — chunk-level fallback 의 데이터 source 손실');
+  }
+  if (!/cacheMetadata\.total\s*===\s*0\s*&&\s*lastChunkUsageMetadata/.test(src)) {
+    issues.push('final usageMetadata=null/0 시 chunk fallback 분기 누락 — Google AI Forum #79312 회귀');
+  }
+  if (!/logCacheMetrics\(`streaming-\$\{source\}`/.test(src)) {
+    issues.push('source label 분기 누락 — final vs chunk-fallback 구분 측정 불가');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P267_streamingChunkUsageMetadataFallback',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P267: runGeminiStreaming chunk-level usageMetadata fallback 깨짐 — Pro streaming final null bug 회귀. ' +
+      'P266 cycle 진단 (prod plan faab8777 [P195 CACHE_METRICS] log 0건) 재발 위험. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
   };
 }

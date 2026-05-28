@@ -412,6 +412,12 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
   let accumulated = '';
   let lastFirestoreUpdate = 0;
   const FIRESTORE_UPDATE_INTERVAL_MS = 500;
+  // P267 (2026-05-29): chunk loop 안에서 usageMetadata 누적 — Pro streaming SDK 의 final response
+  // usageMetadata=null bug 우회 (Google AI Forum #79312 — 2.5-pro-preview / 3.5-pro 동일 패턴).
+  // P266 진단: prod plan faab8777 의 itinerary._cache_metadata=undefined 원인 = finalResponse.usageMetadata=null
+  // → extractCacheMetadata={0,0,0} → logCacheMetrics total=0 skip → [P195 CACHE_METRICS] log 0건.
+  // fix: chunk 의 usageMetadata 가 not null 이면 last 값 저장 → final null 시 fallback.
+  let lastChunkUsageMetadata = null;
 
   console.log('[geminiPipeline P169] Starting generateContentStream...');
   const streamStart = Date.now();
@@ -420,14 +426,14 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
     contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
   });
-  // P195: streamResult.response 는 stream 완료 후 await 가능 — usageMetadata 포함.
-  // runGeminiStreaming 호출자가 cache metadata 받을 수 있도록 반환값에 추가.
 
   for await (const chunk of streamResult.stream) {
-    // P219: thought:true part 필터 — streaming 시 thought 가 partial JSON 에
-    //   섞이면 progressive Firestore write 에 leak. 보안 critical.
+    // P219: thought:true part 필터 — streaming 시 thought 가 partial JSON 에 섞이면 progressive Firestore write 에 leak. 보안 critical.
     const chunkText = extractTextFromChunk(chunk);
     if (chunkText) accumulated += chunkText;
+
+    // P267: chunk-level usageMetadata 가 있으면 last 값 보관 (Pro streaming final null bug 우회).
+    if (chunk?.usageMetadata) lastChunkUsageMetadata = chunk.usageMetadata;
 
     // 0.5초 간격으로 partial JSON parse + Firestore update (best-effort)
     const now = Date.now();
@@ -446,15 +452,25 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
 
   console.log('[geminiPipeline P169] Stream complete. Elapsed:', Date.now() - streamStart, 'ms. Accumulated:', accumulated.length, 'chars');
 
-  // P195: stream 완료 후 streamResult.response 에서 cache metadata 추출.
-  // streamResult.response 는 Promise — await 으로 최종 response 객체 받음.
+  // P195/P267: stream 완료 후 cache metadata 추출 — final response 우선, fallback chunk-level.
   let cacheMetadata = { cached: 0, total: 0, output: 0 };
+  let source = 'final';
   try {
     const finalResponse = await streamResult.response;
     cacheMetadata = extractCacheMetadata(finalResponse);
-    logCacheMetrics('streaming', cacheMetadata);
+    // P267: final usageMetadata 가 null/0 인데 chunk-level 이 있으면 fallback (Pro streaming bug).
+    if (cacheMetadata.total === 0 && lastChunkUsageMetadata) {
+      cacheMetadata = extractCacheMetadata({ usageMetadata: lastChunkUsageMetadata });
+      source = 'chunk-fallback';
+    }
+    logCacheMetrics(`streaming-${source}`, cacheMetadata);
   } catch (e) {
     console.warn('[geminiPipeline P195] streaming cache metadata extract failed:', e.message);
+    // P267: final await throw 시도 chunk-level fallback.
+    if (lastChunkUsageMetadata) {
+      cacheMetadata = extractCacheMetadata({ usageMetadata: lastChunkUsageMetadata });
+      logCacheMetrics('streaming-chunk-fallback-on-error', cacheMetadata);
+    }
   }
 
   return { text: accumulated, cacheMetadata };
