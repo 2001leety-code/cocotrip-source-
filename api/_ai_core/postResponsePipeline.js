@@ -18,6 +18,11 @@ import {
   correctCrossCityLodgingStops,
   selfHealArrivalGuide,
   selfHealDailyBudget,
+  // P270 (2026-05-28): dead code 복구 — selfHealLodgingBookend 가 planPersister 에
+  // define 됐지만 applyBackfillsAndTmoney 호출 chain 누락 → block_mode plan 의 Day
+  // 마지막 stop 이 lodging 아닐 때 (zone_courses JSON 자체에 lodging 없음) self_heal
+  // 발동 안 됨 → 운영자 의도 ("호텔=동선 anchor, Day 마지막 호텔 복귀") 위반.
+  selfHealLodgingBookend,
 } from './planPersister.js';
 import { pickRecommendedRestaurantsByStyle } from './recommendedRestaurants.js';
 import { loadFoodIndex } from './geminiPipeline.js';
@@ -167,6 +172,13 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   // Gemini 가 daily_budget_summary 통째 비우는 회귀 (plan 36c12df2). UI 빈 칸 →
   // 결제 가치 체감 저하. stop count 기반 추정값 생성.
   selfHealDailyBudget(itinerary);
+
+  // ── P270 (2026-05-28): lodging bookend self-heal (dead code 복구) ───
+  // 운영자 의도 "호텔=동선 anchor, Day 시작/마지막 호텔" SSOT 박제. block_mode plan
+  // (zone_courses JSON 의 stops 자체에 lodging 없음) 의 Day 마지막 stop 이 food 등
+  // non-lodging 일 때 synthesized lodging stop append. backfillDayLodging 이 day.lodging
+  // 채운 후 호출 (synthesized name 기본값 사용 가능).
+  selfHealLodgingBookend(itinerary);
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);
