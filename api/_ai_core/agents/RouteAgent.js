@@ -1430,6 +1430,11 @@ export class RouteAgent extends BaseAgent {
 
                     // ── 통합 transit_from_prev (ODsay 우선, Gemini fallback) ──
                     const pt = transit.publicTransit;
+                    // P259 (2026-05-28): cache hit 마커 보존 — transitCache.js:121-124 가 stamp 한
+                    // _fromCache + _cacheSource 가 transit_from_prev 재구성 단계에서 손실되면
+                    // 모든 측정 도구가 hit rate 0% misreport (P258 lesson — plan 14c7bac1).
+                    // source 도 'odsay' 하드코딩 X — cache hit 시 'cache' 분기 표시.
+                    const isCacheHit = pt && pt._fromCache === true;
                     if (pt && pt.method !== 'walk') {
                         // ODsay 실제 데이터로 transit_from_prev 교체.
                         // steps_detail은 ODsay raw steps로 UI가 호선/출구/배차/중간정거장
@@ -1446,7 +1451,9 @@ export class RouteAgent extends BaseAgent {
                             last_station: pt.lastStation || null,
                             est_min: pt.duration || realTransitMin,
                             est_fare_krw: pt.fare || 0,
-                            source: 'odsay',
+                            source: isCacheHit ? 'cache' : 'odsay',
+                            // P259 (2026-05-28): cache marker 보존 의무. 누락 시 측정 false negative.
+                            ...(isCacheHit ? { _fromCache: true, _cacheSource: pt._cacheSource || 'odsay_api' } : {}),
                         };
                     } else if (pt && pt.method === 'walk') {
                         place.transit_from_prev = {
@@ -1456,7 +1463,9 @@ export class RouteAgent extends BaseAgent {
                             step_by_step: [],
                             est_min: pt.duration || realTransitMin,
                             est_fare_krw: 0,
-                            source: 'odsay',
+                            source: isCacheHit ? 'cache' : 'odsay',
+                            // P259 (2026-05-28): walk 도 zone_courses transit_matrix 에 cache 가능 — 마커 보존.
+                            ...(isCacheHit ? { _fromCache: true, _cacheSource: pt._cacheSource || 'zone_courses' } : {}),
                         };
                     } else {
                         // ODsay 실패 → Gemini 원본 유지하되 시간은 Naver 기준 보정
