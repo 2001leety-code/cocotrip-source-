@@ -1,12 +1,173 @@
 {
-  "id":"CHANGWON_DAY_MASAN_PACKED","city":"changwon","zone":"Masan",
-  "theme":"마산 어시장+창동예술촌+가포해안","theme_i18n":{"ko":"마산어시장+창동예술촌+가포해안","en":"Masan Fish Market+Changdong Arts+Gapo","ja":"馬山魚市場+昌洞芸術村+加浦海岸","zh":"马山鱼市场+昌洞艺术村+加浦海岸"},
-  "intensity":"packed","duration_min":510,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"shopping","name":"마산 어시장","name_i18n":{"ko":"마산어시장","en":"Masan Fish Market","ja":"馬山魚市場","zh":"马山鱼市场"},"address":"경남 창원시 마산합포구","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"남해 최대 수산시장.","en":"South coast's largest fish market.","ja":"南海最大水産市場。","zh":"南海最大水产市场。"},"lat":35.1958,"lng":128.5708,"start_time_offset_min":0},
-    {"order":2,"category":"food","name":"마산 아구찜 골목","name_i18n":{"ko":"마산 아구찜","en":"Masan Agujjim","ja":"馬山アグチム","zh":"马山辣鮟鱇"},"address":"경남 창원시 마산합포구","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"마산 발상지 아구찜.","en":"Birthplace of agujjim.","ja":"馬山発祥アグチム。","zh":"马山发源辣鮟鱇。"},"lat":35.1953,"lng":128.5731,"start_time_offset_min":90},
-    {"order":3,"category":"culture","name":"창동예술촌","name_i18n":{"ko":"창동예술촌","en":"Changdong Arts Village","ja":"昌洞芸術村","zh":"昌洞艺术村"},"address":"경남 창원시 마산합포구 창동","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"빈 점포→예술공간 재생. 마산 핫플.","en":"Empty stores→art space regen. Masan hotspot.","ja":"空き店舗→芸術空間再生。馬山ホットスポット。","zh":"空店面→艺术空间再生。马山热点。"},"lat":35.1972,"lng":128.5750,"start_time_offset_min":180},
-    {"order":4,"category":"nature","name":"가포해안","name_i18n":{"ko":"가포해안","en":"Gapo Coast","ja":"加浦海岸","zh":"加浦海岸"},"address":"경남 창원시 마산합포구 가포동","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"마산만 해안 산책로.","en":"Masan Bay coastal trail.","ja":"馬山湾海岸散歩道。","zh":"马山湾海岸步道。"},"lat":35.1722,"lng":128.5417,"start_time_offset_min":285},
-    {"order":5,"category":"cafe","name":"창원 상남 카페","name_i18n":{"ko":"창원 카페","en":"Changwon Cafe","ja":"昌原カフェ","zh":"昌原咖啡"},"address":"경남 창원시 성산구 상남동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"창원 신도심 카페거리.","en":"Changwon new downtown cafes.","ja":"昌原新都心カフェ。","zh":"昌原新城咖啡。"},"lat":35.2261,"lng":128.6831,"start_time_offset_min":375}
-  ]
+  "id": "CHANGWON_DAY_MASAN_PACKED",
+  "city": "changwon",
+  "zone": "Masan",
+  "theme": "마산 어시장+창동예술촌+가포해안",
+  "theme_i18n": {
+    "ko": "마산어시장+창동예술촌+가포해안",
+    "en": "Masan Fish Market+Changdong Arts+Gapo",
+    "ja": "馬山魚市場+昌洞芸術村+加浦海岸",
+    "zh": "马山鱼市场+昌洞艺术村+加浦海岸"
+  },
+  "intensity": "packed",
+  "duration_min": 510,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "shopping",
+      "name": "마산 어시장",
+      "name_i18n": {
+        "ko": "마산어시장",
+        "en": "Masan Fish Market",
+        "ja": "馬山魚市場",
+        "zh": "马山鱼市场"
+      },
+      "address": "경남 창원시 마산합포구",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "남해 최대 수산시장.",
+        "en": "South coast's largest fish market.",
+        "ja": "南海最大水産市場。",
+        "zh": "南海最大水产市场。"
+      },
+      "lat": 35.1958,
+      "lng": 128.5708,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "마산 아구찜 골목",
+      "name_i18n": {
+        "ko": "마산 아구찜",
+        "en": "Masan Agujjim",
+        "ja": "馬山アグチム",
+        "zh": "马山辣鮟鱇"
+      },
+      "address": "경남 창원시 마산합포구",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "마산 발상지 아구찜.",
+        "en": "Birthplace of agujjim.",
+        "ja": "馬山発祥アグチム。",
+        "zh": "马山发源辣鮟鱇。"
+      },
+      "lat": 35.1953,
+      "lng": 128.5731,
+      "start_time_offset_min": 90
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "창동예술촌",
+      "name_i18n": {
+        "ko": "창동예술촌",
+        "en": "Changdong Arts Village",
+        "ja": "昌洞芸術村",
+        "zh": "昌洞艺术村"
+      },
+      "address": "경남 창원시 마산합포구 창동",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "빈 점포→예술공간 재생. 마산 핫플.",
+        "en": "Empty stores→art space regen. Masan hotspot.",
+        "ja": "空き店舗→芸術空間再生。馬山ホットスポット。",
+        "zh": "空店面→艺术空间再生。马山热点。"
+      },
+      "lat": 35.1972,
+      "lng": 128.575,
+      "start_time_offset_min": 180
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "가포해안",
+      "name_i18n": {
+        "ko": "가포해안",
+        "en": "Gapo Coast",
+        "ja": "加浦海岸",
+        "zh": "加浦海岸"
+      },
+      "address": "경남 창원시 마산합포구 가포동",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "마산만 해안 산책로.",
+        "en": "Masan Bay coastal trail.",
+        "ja": "馬山湾海岸散歩道。",
+        "zh": "马山湾海岸步道。"
+      },
+      "lat": 35.1722,
+      "lng": 128.5417,
+      "start_time_offset_min": 285
+    },
+    {
+      "order": 5,
+      "category": "cafe",
+      "name": "창원 상남 카페",
+      "name_i18n": {
+        "ko": "창원 카페",
+        "en": "Changwon Cafe",
+        "ja": "昌原カフェ",
+        "zh": "昌原咖啡"
+      },
+      "address": "경남 창원시 성산구 상남동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "창원 신도심 카페거리.",
+        "en": "Changwon new downtown cafes.",
+        "ja": "昌原新都心カフェ。",
+        "zh": "昌原新城咖啡。"
+      },
+      "lat": 35.2261,
+      "lng": 128.6831,
+      "start_time_offset_min": 375
+    }
+  ],
+  "transit_matrix": {
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.575,35.1972,%EC%B0%BD%EB%8F%99%EC%98%88%EC%88%A0%EC%B4%8C,,/128.5417,35.1722,%EA%B0%80%ED%8F%AC%ED%95%B4%EC%95%88,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 6184,
+      "from_order": 3,
+      "duration_min": 31,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 6184,
+        "duration_min": 31
+      }
+    },
+    "4->5": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.5417,35.1722,%EA%B0%80%ED%8F%AC%ED%95%B4%EC%95%88,,/128.6831,35.2261,%EC%B0%BD%EC%9B%90%20%EC%83%81%EB%82%A8%20%EC%B9%B4%ED%8E%98,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1950,
+      "source": "odsay_api",
+      "distance_m": 22499,
+      "from_order": 4,
+      "duration_min": 67,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1950,
+        "distance_m": 22499,
+        "duration_min": 67
+      }
+    }
+  }
 }

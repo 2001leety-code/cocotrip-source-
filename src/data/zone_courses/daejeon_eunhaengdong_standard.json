@@ -40,8 +40,8 @@
         "ja": "1956年創業の大田を代表するベーカリー。揚げソボロとパンタロン韮パンは必買い。午前中の早い時間がおすすめ。",
         "zh": "大田标志性面包店，创立于1956年。必买：炸酥皮面包、韭菜面包。建议早上去。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3275548,
+      "lng": 127.4268125,
       "start_time_offset_min": 0
     },
     {
@@ -64,9 +64,10 @@
         "ja": "大田最大の繁華街。カフェ・レストラン・ショッピングが集結。週末はバスキングも。",
         "zh": "大田最大繁华街区。咖啡馆、餐厅、购物聚集。周末有街头表演。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 50
+      "lat": 36.3283766,
+      "lng": 127.4282393,
+      "start_time_offset_min": 50,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -90,8 +91,8 @@
         "ja": "大田郷土料理 — 豆腐トゥルチギ / カルグクス / ソルロンタン (食事制限とマッチング)。",
         "zh": "大田乡土料理 — 豆腐炒锅 / 刀削面 / 牛骨汤 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.330108,
+      "lng": 127.4263,
       "start_time_offset_min": 115
     },
     {
@@ -112,7 +113,10 @@
         "child": 500,
         "senior": 0,
         "toddler": 0,
-        "free_with": ["cultural_heritage_day", "first_wednesday"],
+        "free_with": [
+          "cultural_heritage_day",
+          "first_wednesday"
+        ],
         "notes": "월요일 휴관. 천문대 별도 요금."
       },
       "reservation_required": false,
@@ -122,8 +126,8 @@
         "ja": "韓国を代表する科学館。常設・企画展示が豊富。家族連れに最適。屋外樹木園も。",
         "zh": "韩国代表性科学馆。常设和特别展览丰富。最适合家庭出游。含户外植物园。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3754358,
+      "lng": 127.3751156,
       "start_time_offset_min": 190
     },
     {
@@ -153,8 +157,8 @@
         "ja": "1993年大田エキスポ会場跡地。ハンビットタワー + 屋外公園散策。夜の噴水ショー（季節限定）。",
         "zh": "1993年大田世博会场地。韩光塔 + 户外公园散步。夜晚喷泉表演（季节性）。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3766263,
+      "lng": 127.3871992,
       "start_time_offset_min": 295
     },
     {
@@ -179,8 +183,8 @@
         "ja": "儒城の夕食 — カルビチム / サムギョプサル / コンナムルクッパブ。",
         "zh": "儒城晚餐 — 炖排骨 / 五花肉烤肉 / 豆芽汤饭。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.362322,
+      "lng": 127.356268,
       "start_time_offset_min": 370
     }
   ],
@@ -220,60 +224,67 @@
       }
     },
     "3->4": {
-      "from_order": 3,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.4263,36.330108,%EB%8C%80%EC%A0%84%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%A4%91%EA%B5%AC%20%EC%9D%80%ED%96%89%EB%8F%99,,/127.3751156,36.3754358,%EA%B5%AD%EB%A6%BD%EC%A4%91%EC%95%99%EA%B3%BC%ED%95%99%EA%B4%80,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 4,
-      "mode": "subway",
-      "duration_min": 20,
-      "distance_m": 5000,
-      "cost_krw": 1400,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1500,
+      "source": "odsay_api",
+      "distance_m": 9411,
+      "from_order": 3,
+      "duration_min": 37,
       "base": {
-        "mode": "subway",
-        "duration_min": 20,
-        "distance_m": 5000,
-        "cost_krw": 1400
+        "mode": "mixed",
+        "cost_krw": 1500,
+        "distance_m": 9411,
+        "duration_min": 37
       }
     },
     "4->5": {
-      "from_order": 4,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.3751156,36.3754358,%EA%B5%AD%EB%A6%BD%EC%A4%91%EC%95%99%EA%B3%BC%ED%95%99%EA%B4%80,,/127.3871992,36.3766263,%EB%8C%80%EC%A0%84%20%EC%97%91%EC%8A%A4%ED%8F%AC%20%EA%B3%BC%ED%95%99%EA%B3%B5%EC%9B%90,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 5,
-      "mode": "walk",
-      "duration_min": 5,
-      "distance_m": 500,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1500,
+      "source": "odsay_api",
+      "distance_m": 1455,
+      "from_order": 4,
+      "duration_min": 17,
       "base": {
-        "mode": "walk",
-        "duration_min": 5,
-        "distance_m": 500,
-        "cost_krw": 0
+        "mode": "mixed",
+        "cost_krw": 1500,
+        "distance_m": 1455,
+        "duration_min": 17
       }
     },
     "5->6": {
-      "from_order": 5,
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.3871992,36.3766263,%EB%8C%80%EC%A0%84%20%EC%97%91%EC%8A%A4%ED%8F%AC%20%EA%B3%BC%ED%95%99%EA%B3%B5%EC%9B%90,,/127.356268,36.362322,%EB%8C%80%EC%A0%84%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%9C%A0%EC%84%B1%EA%B5%AC,,/-/transit",
+      "fetched_at": "2026-05-27",
       "to_order": 6,
-      "mode": "taxi",
-      "duration_min": 15,
-      "distance_m": 3000,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "cost_krw": 1500,
+      "source": "odsay_api",
+      "distance_m": 3640,
+      "from_order": 5,
+      "duration_min": 21,
       "base": {
-        "mode": "taxi",
-        "duration_min": 15,
-        "distance_m": 3000,
-        "cost_krw": 5000
+        "mode": "mixed",
+        "cost_krw": 1500,
+        "distance_m": 3640,
+        "duration_min": 21
       }
     }
   },
-  "best_for": ["family", "science_lover", "food_lover", "culture_lover"],
+  "best_for": [
+    "family",
+    "science_lover",
+    "food_lover",
+    "culture_lover"
+  ],
   "unsuitable_for": [],
-  "dietary_options": ["vegetarian"],
+  "dietary_options": [
+    "vegetarian"
+  ],
   "passport_required": false,
   "requires_advance_booking": false,
   "source": "cocotrip_curated",

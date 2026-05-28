@@ -1,12 +1,173 @@
 {
-  "id":"CHANGWON_DAY_JINHAE_STANDARD","city":"changwon","zone":"Jinhae",
-  "theme":"진해 벚꽃+여좌천+장복산","theme_i18n":{"ko":"진해+여좌천+장복산","en":"Jinhae+Yeojwacheon+Jangboksan","ja":"鎮海+余左川+長福山","zh":"镇海+余佐川+长福山"},
-  "intensity":"standard","duration_min":420,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"nature","name":"진해 여좌천 벚꽃","name_i18n":{"ko":"여좌천","en":"Yeojwacheon","ja":"余左川","zh":"余佐川"},"address":"경남 창원시 진해구 여좌동","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"4월 벚꽃 명소. 로맨스 그대 촬영지.","en":"April cherry blossoms. Romance drama site.","ja":"4月桜名所。ロマンスロケ地。","zh":"4月樱花名所。罗曼史拍摄地。"},"lat":35.1431,"lng":128.6772,"start_time_offset_min":0},
-    {"order":2,"category":"culture","name":"진해 군항제 (4월)","name_i18n":{"ko":"진해 군항제","en":"Jinhae Naval Festival","ja":"鎮海軍港祭","zh":"镇海军港节"},"address":"경남 창원시 진해구","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"4월 한정. 한국 최대 벚꽃축제.","en":"April only. Korea's biggest cherry festival.","ja":"4月限定。韓国最大桜祭。","zh":"4月限定。韩国最大樱花节。"},"lat":35.1414,"lng":128.6794,"start_time_offset_min":105},
-    {"order":3,"category":"food","name":"진해 회","name_i18n":{"ko":"진해 회","en":"Jinhae Sashimi","ja":"鎮海刺身","zh":"镇海生鱼片"},"address":"경남 창원시 진해구","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"진해만 활어회.","en":"Jinhae Bay sashimi.","ja":"鎮海湾活魚刺身。","zh":"镇海湾活鱼生鱼片。"},"lat":35.1394,"lng":128.6794,"start_time_offset_min":180},
-    {"order":4,"category":"nature","name":"장복산공원","name_i18n":{"ko":"장복산공원","en":"Jangboksan Park","ja":"長福山公園","zh":"长福山公园"},"address":"경남 창원시 진해구 장복산길","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"진해만 조망 공원.","en":"Jinhae Bay view park.","ja":"鎮海湾眺望公園。","zh":"镇海湾眺望公园。"},"lat":35.1622,"lng":128.6478,"start_time_offset_min":270},
-    {"order":5,"category":"shopping","name":"창원 상남시장","name_i18n":{"ko":"창원 상남시장","en":"Changwon Sangnam Market","ja":"昌原上南市場","zh":"昌原上南市场"},"address":"경남 창원시 성산구","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"창원 도심 전통시장.","en":"Changwon downtown traditional market.","ja":"昌原市内伝統市場。","zh":"昌原市内传统市场。"},"lat":35.2272,"lng":128.6822,"start_time_offset_min":360}
-  ]
+  "id": "CHANGWON_DAY_JINHAE_STANDARD",
+  "city": "changwon",
+  "zone": "Jinhae",
+  "theme": "진해 벚꽃+여좌천+장복산",
+  "theme_i18n": {
+    "ko": "진해+여좌천+장복산",
+    "en": "Jinhae+Yeojwacheon+Jangboksan",
+    "ja": "鎮海+余左川+長福山",
+    "zh": "镇海+余佐川+长福山"
+  },
+  "intensity": "standard",
+  "duration_min": 420,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "진해 여좌천 벚꽃",
+      "name_i18n": {
+        "ko": "여좌천",
+        "en": "Yeojwacheon",
+        "ja": "余左川",
+        "zh": "余佐川"
+      },
+      "address": "경남 창원시 진해구 여좌동",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "4월 벚꽃 명소. 로맨스 그대 촬영지.",
+        "en": "April cherry blossoms. Romance drama site.",
+        "ja": "4月桜名所。ロマンスロケ地。",
+        "zh": "4月樱花名所。罗曼史拍摄地。"
+      },
+      "lat": 35.1431,
+      "lng": 128.6772,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "진해 군항제 (4월)",
+      "name_i18n": {
+        "ko": "진해 군항제",
+        "en": "Jinhae Naval Festival",
+        "ja": "鎮海軍港祭",
+        "zh": "镇海军港节"
+      },
+      "address": "경남 창원시 진해구",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "4월 한정. 한국 최대 벚꽃축제.",
+        "en": "April only. Korea's biggest cherry festival.",
+        "ja": "4月限定。韓国最大桜祭。",
+        "zh": "4月限定。韩国最大樱花节。"
+      },
+      "lat": 35.1414,
+      "lng": 128.6794,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "진해 회",
+      "name_i18n": {
+        "ko": "진해 회",
+        "en": "Jinhae Sashimi",
+        "ja": "鎮海刺身",
+        "zh": "镇海生鱼片"
+      },
+      "address": "경남 창원시 진해구",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "진해만 활어회.",
+        "en": "Jinhae Bay sashimi.",
+        "ja": "鎮海湾活魚刺身。",
+        "zh": "镇海湾活鱼生鱼片。"
+      },
+      "lat": 35.1394,
+      "lng": 128.6794,
+      "start_time_offset_min": 180
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "장복산공원",
+      "name_i18n": {
+        "ko": "장복산공원",
+        "en": "Jangboksan Park",
+        "ja": "長福山公園",
+        "zh": "长福山公园"
+      },
+      "address": "경남 창원시 진해구 장복산길",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "진해만 조망 공원.",
+        "en": "Jinhae Bay view park.",
+        "ja": "鎮海湾眺望公園。",
+        "zh": "镇海湾眺望公园。"
+      },
+      "lat": 35.1622,
+      "lng": 128.6478,
+      "start_time_offset_min": 270
+    },
+    {
+      "order": 5,
+      "category": "shopping",
+      "name": "창원 상남시장",
+      "name_i18n": {
+        "ko": "창원 상남시장",
+        "en": "Changwon Sangnam Market",
+        "ja": "昌原上南市場",
+        "zh": "昌原上南市场"
+      },
+      "address": "경남 창원시 성산구",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "창원 도심 전통시장.",
+        "en": "Changwon downtown traditional market.",
+        "ja": "昌原市内伝統市場。",
+        "zh": "昌原市内传统市场。"
+      },
+      "lat": 35.2272,
+      "lng": 128.6822,
+      "start_time_offset_min": 360
+    }
+  ],
+  "transit_matrix": {
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.6794,35.1394,%EC%A7%84%ED%95%B4%20%ED%9A%8C,,/128.6478,35.1622,%EC%9E%A5%EB%B3%B5%EC%82%B0%EA%B3%B5%EC%9B%90,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 4526,
+      "from_order": 3,
+      "duration_min": 44,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 4526,
+        "duration_min": 44
+      }
+    },
+    "4->5": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.6478,35.1622,%EC%9E%A5%EB%B3%B5%EC%82%B0%EA%B3%B5%EC%9B%90,,/128.6822,35.2272,%EC%B0%BD%EC%9B%90%20%EC%83%81%EB%82%A8%EC%8B%9C%EC%9E%A5,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 13588,
+      "from_order": 4,
+      "duration_min": 61,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 13588,
+        "duration_min": 61
+      }
+    }
+  }
 }

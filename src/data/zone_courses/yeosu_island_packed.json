@@ -1,12 +1,156 @@
 {
-  "id":"YEOSU_DAY_ISLAND_PACKED","city":"yeosu","zone":"Island-Hopping",
-  "theme":"향일암+백야도+오동도","theme_i18n":{"ko":"향일암+백야도+사도","en":"Hyangiram+Baekyado+Sado","ja":"向日庵+白也島+沙島","zh":"向日庵+白也岛+沙岛"},
-  "intensity":"packed","duration_min":540,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"culture","name":"향일암","name_i18n":{"ko":"향일암","en":"Hyangiram","ja":"向日庵","zh":"向日庵"},"address":"전남 여수시 돌산읍 향일암로","stay_min":120,"entry_fee_krw":2000,"reservation_required":false,"tips_i18n":{"ko":"바다 위 절벽 사찰. 일출 명소.","en":"Cliff temple on sea. Sunrise spot.","ja":"海の絶壁寺院。日の出名所。","zh":"海上绝壁寺院。日出名所。"},"lat":34.6028,"lng":127.8347,"start_time_offset_min":0},
-    {"order":2,"category":"food","name":"여수 돌게장정식","name_i18n":{"ko":"여수 돌게장","en":"Yeosu Stone Crab Soy","ja":"麗水石ケジャン","zh":"丽水石蟹酱"},"address":"전남 여수시 돌산읍","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"돌산갓김치+돌게장 한상.","en":"Dolsan kimchi+stone crab set.","ja":"突山キムチ+石ケジャン膳。","zh":"突山泡菜+石蟹酱套餐。"},"lat":34.6500,"lng":127.7833,"start_time_offset_min":135},
-    {"order":3,"category":"nature","name":"백야도","name_i18n":{"ko":"백야도","en":"Baekyado Island","ja":"白也島","zh":"白也岛"},"address":"전남 여수시 화정면","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"등대섬. 해안 산책로.","en":"Lighthouse island. Coastal trail.","ja":"灯台島。海岸散歩道。","zh":"灯塔岛。海岸步道。"},"lat":34.5972,"lng":127.5694,"start_time_offset_min":225},
-    {"order":4,"category":"nature","name":"여수 안도 (안도해상레저)","name_i18n":{"ko":"여수 안도","en":"Yeosu Ando Island","ja":"麗水安島","zh":"丽水安岛"},"address":"전남 여수시 남면","stay_min":120,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한적한 작은 섬. 트레킹.","en":"Quiet small island. Trekking.","ja":"静かな小島。トレッキング。","zh":"安静小岛。徒步。"},"lat":34.5917,"lng":127.7889,"start_time_offset_min":360},
-    {"order":5,"category":"cafe","name":"여수 카페거리","name_i18n":{"ko":"여수 카페","en":"Yeosu Cafe","ja":"麗水カフェ","zh":"丽水咖啡"},"address":"전남 여수시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"바다뷰 카페.","en":"Sea view cafes.","ja":"海ビューカフェ。","zh":"海景咖啡。"},"lat":34.7383,"lng":127.7500,"start_time_offset_min":495}
-  ]
+  "id": "YEOSU_DAY_ISLAND_PACKED",
+  "city": "yeosu",
+  "zone": "Island-Hopping",
+  "theme": "향일암+백야도+오동도",
+  "theme_i18n": {
+    "ko": "향일암+백야도+사도",
+    "en": "Hyangiram+Baekyado+Sado",
+    "ja": "向日庵+白也島+沙島",
+    "zh": "向日庵+白也岛+沙岛"
+  },
+  "intensity": "packed",
+  "duration_min": 540,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "향일암",
+      "name_i18n": {
+        "ko": "향일암",
+        "en": "Hyangiram",
+        "ja": "向日庵",
+        "zh": "向日庵"
+      },
+      "address": "전남 여수시 돌산읍 향일암로",
+      "stay_min": 120,
+      "entry_fee_krw": 2000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "바다 위 절벽 사찰. 일출 명소.",
+        "en": "Cliff temple on sea. Sunrise spot.",
+        "ja": "海の絶壁寺院。日の出名所。",
+        "zh": "海上绝壁寺院。日出名所。"
+      },
+      "lat": 34.6028,
+      "lng": 127.8347,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "여수 돌게장정식",
+      "name_i18n": {
+        "ko": "여수 돌게장",
+        "en": "Yeosu Stone Crab Soy",
+        "ja": "麗水石ケジャン",
+        "zh": "丽水石蟹酱"
+      },
+      "address": "전남 여수시 돌산읍",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "돌산갓김치+돌게장 한상.",
+        "en": "Dolsan kimchi+stone crab set.",
+        "ja": "突山キムチ+石ケジャン膳。",
+        "zh": "突山泡菜+石蟹酱套餐。"
+      },
+      "lat": 34.65,
+      "lng": 127.7833,
+      "start_time_offset_min": 135
+    },
+    {
+      "order": 3,
+      "category": "nature",
+      "name": "백야도",
+      "name_i18n": {
+        "ko": "백야도",
+        "en": "Baekyado Island",
+        "ja": "白也島",
+        "zh": "白也岛"
+      },
+      "address": "전남 여수시 화정면",
+      "stay_min": 120,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "등대섬. 해안 산책로.",
+        "en": "Lighthouse island. Coastal trail.",
+        "ja": "灯台島。海岸散歩道。",
+        "zh": "灯塔岛。海岸步道。"
+      },
+      "lat": 34.5972,
+      "lng": 127.5694,
+      "start_time_offset_min": 225
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "여수 안도 (안도해상레저)",
+      "name_i18n": {
+        "ko": "여수 안도",
+        "en": "Yeosu Ando Island",
+        "ja": "麗水安島",
+        "zh": "丽水安岛"
+      },
+      "address": "전남 여수시 남면",
+      "stay_min": 120,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한적한 작은 섬. 트레킹.",
+        "en": "Quiet small island. Trekking.",
+        "ja": "静かな小島。トレッキング。",
+        "zh": "安静小岛。徒步。"
+      },
+      "lat": 34.5917,
+      "lng": 127.7889,
+      "start_time_offset_min": 360
+    },
+    {
+      "order": 5,
+      "category": "cafe",
+      "name": "여수 카페거리",
+      "name_i18n": {
+        "ko": "여수 카페",
+        "en": "Yeosu Cafe",
+        "ja": "麗水カフェ",
+        "zh": "丽水咖啡"
+      },
+      "address": "전남 여수시",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "바다뷰 카페.",
+        "en": "Sea view cafes.",
+        "ja": "海ビューカフェ。",
+        "zh": "海景咖啡。"
+      },
+      "lat": 34.7383,
+      "lng": 127.75,
+      "start_time_offset_min": 495
+    }
+  ],
+  "transit_matrix": {
+    "4->5": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.7889,34.5917,%EC%97%AC%EC%88%98%20%EC%95%88%EB%8F%84%20(%EC%95%88%EB%8F%84%ED%95%B4%EC%83%81%EB%A0%88%EC%A0%80),,/127.75,34.7383,%EC%97%AC%EC%88%98%20%EC%B9%B4%ED%8E%98%EA%B1%B0%EB%A6%AC,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1600,
+      "source": "odsay_api",
+      "distance_m": 38163,
+      "from_order": 4,
+      "duration_min": 147,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1600,
+        "distance_m": 38163,
+        "duration_min": 147
+      }
+    }
+  }
 }

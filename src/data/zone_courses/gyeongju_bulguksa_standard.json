@@ -40,8 +40,8 @@
         "ja": "ユネスコ世界遺産。新羅仏教美術の粋。青雲橋・多宝塔・釈迦塔は必見。",
         "zh": "联合国教科文组织世界遗产。新罗佛教艺术精华。必拍：青云桥、多宝塔、释迦塔。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.7903819,
+      "lng": 129.3318695,
       "start_time_offset_min": 0
     },
     {
@@ -71,9 +71,10 @@
         "ja": "8世紀新羅の石造仏像。ユネスコ世界遺産。吐含山頂近く。シャトルバスまたは徒歩20分。",
         "zh": "8世纪新罗石造佛像。联合国教科文组织世界遗产。近吐含山顶。有班车或步行20分钟。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 105
+      "lat": 35.7840427,
+      "lng": 129.3164107,
+      "start_time_offset_min": 105,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -97,8 +98,8 @@
         "ja": "慶州郷土料理 — サムパプ / 慶州法酒おつまみ / 皇南パンデザート。",
         "zh": "庆州乡土料理 — 包饭 / 庆州法酒下酒菜 / 皇南面包甜点。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8414,
+      "lng": 129.2184,
       "start_time_offset_min": 180
     },
     {
@@ -128,8 +129,8 @@
         "ja": "大陵苑隣の慶州版路地。伝統瓦屋根 + トレンドカフェ。皇南パン・麦パン購入。",
         "zh": "大陵苑旁庆州版网红街。传统瓦房 + 潮流咖啡。黄南面包购物胜地。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8374083,
+      "lng": 129.2099537,
       "start_time_offset_min": 255
     },
     {
@@ -159,8 +160,8 @@
         "ja": "新羅王陵23基。天馬塚内部公開。夕暮れのライトアップがおすすめ。",
         "zh": "新罗王陵23座。天马冢内部开放。傍晚灯光亮起时参观最佳。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.8391674,
+      "lng": 129.2107107,
       "start_time_offset_min": 345
     },
     {
@@ -185,61 +186,62 @@
         "ja": "ファンリダンギル夕食 — 慶州トッカルビ / ビビンバ / 伝統マッコリ。",
         "zh": "黄里街晚餐 — 庆州年糕排骨 / 拌饭 / 传统马格利酒。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 410
+      "lat": 35.8376609,
+      "lng": 129.209724,
+      "start_time_offset_min": 410,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
-      "to_order": 2,
-      "mode": "bus",
-      "duration_min": 15,
-      "distance_m": 3000,
-      "cost_krw": 1300,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 셔틀버스 이용 또는 도보 20분. 운영자 prod 재빌드 후 정확화 필요",
       "base": {
+        "duration_min": 19,
         "mode": "bus",
-        "duration_min": 15,
-        "distance_m": 3000,
-        "cost_krw": 1300
-      }
+        "cost_krw": 1450,
+        "distance_m": 1943
+      },
+      "distance_m": 1943,
+      "naver_route_url": "https://map.naver.com/p/directions/129.3318695,35.7903819,%EB%B6%88%EA%B5%AD%EC%82%AC,,/129.3164107,35.7840427,%EC%84%9D%EA%B5%B4%EC%95%94,,/-/transit",
+      "source": "odsay_api",
+      "duration_min": 19,
+      "mode": "bus",
+      "fetched_at": "2026-05-28",
+      "to_order": 2,
+      "from_order": 1,
+      "cost_krw": 1450
     },
     "2->3": {
-      "from_order": 2,
-      "to_order": 3,
-      "mode": "taxi",
-      "duration_min": 20,
-      "distance_m": 8000,
-      "cost_krw": 8000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "distance_m": 14261,
       "base": {
-        "mode": "taxi",
-        "duration_min": 20,
-        "distance_m": 8000,
-        "cost_krw": 8000
-      }
+        "distance_m": 14261,
+        "cost_krw": 1450,
+        "mode": "bus",
+        "duration_min": 47
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/129.3164107,35.7840427,%EC%84%9D%EA%B5%B4%EC%95%94,,/129.2184,35.8414,%EA%B2%BD%EC%83%81%EB%B6%81%EB%8F%84%20%EA%B2%BD%EC%A3%BC%EC%8B%9C%20%ED%99%A9%EC%98%A4%EB%8F%99,,/-/transit",
+      "mode": "bus",
+      "source": "odsay_api",
+      "duration_min": 47,
+      "cost_krw": 1450,
+      "fetched_at": "2026-05-28",
+      "to_order": 3,
+      "from_order": 2
     },
     "3->4": {
+      "cost_krw": 1450,
       "from_order": 3,
       "to_order": 4,
-      "mode": "walk",
-      "duration_min": 10,
-      "distance_m": 600,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "fetched_at": "2026-05-27",
+      "mode": "mixed",
+      "duration_min": 13,
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/129.2184,35.8414,%EA%B2%BD%EC%83%81%EB%B6%81%EB%8F%84%20%EA%B2%BD%EC%A3%BC%EC%8B%9C%20%ED%99%A9%EC%98%A4%EB%8F%99,,/129.2099537,35.8374083,%ED%99%A9%EB%A6%AC%EB%8B%A8%EA%B8%B8,,/-/transit",
+      "distance_m": 1181,
       "base": {
-        "mode": "walk",
-        "duration_min": 10,
-        "distance_m": 600,
-        "cost_krw": 0
+        "mode": "mixed",
+        "duration_min": 13,
+        "distance_m": 1181,
+        "cost_krw": 1450
       }
     },
     "4->5": {
@@ -277,8 +279,14 @@
       }
     }
   },
-  "best_for": ["culture_lover", "history_buff", "first_time_visitor"],
-  "unsuitable_for": ["mobility_limited"],
+  "best_for": [
+    "culture_lover",
+    "history_buff",
+    "first_time_visitor"
+  ],
+  "unsuitable_for": [
+    "mobility_limited"
+  ],
   "dietary_options": [],
   "passport_required": false,
   "requires_advance_booking": false,

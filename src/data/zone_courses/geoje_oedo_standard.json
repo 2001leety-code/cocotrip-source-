@@ -1,12 +1,173 @@
 {
-  "id":"GEOJE_DAY_OEDO_STANDARD","city":"geoje","zone":"Oedo-Haegeumgang",
-  "theme":"외도 보타니아+해금강+학동몽돌해변","theme_i18n":{"ko":"외도+해금강+학동몽돌해변","en":"Oedo+Haegeumgang+Hakdong Pebble Beach","ja":"外島+海金剛+鶴洞玉石海岸","zh":"外岛+海金刚+鹤洞玉石海滩"},
-  "intensity":"standard","duration_min":480,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"nature","name":"외도 보타니아","name_i18n":{"ko":"외도 보타니아","en":"Oedo Botania","ja":"外島ボタニア","zh":"外岛博塔尼亚"},"address":"경남 거제시 일운면 외도","stay_min":180,"entry_fee_krw":11000,"reservation_required":true,"tips_i18n":{"ko":"섬 전체가 정원. 페리 25분.","en":"Island-wide garden. 25min ferry.","ja":"島全体庭園。フェリー25分。","zh":"全岛花园。渡轮25分。"},"lat":34.7611,"lng":128.7167,"start_time_offset_min":0},
-    {"order":2,"category":"nature","name":"해금강","name_i18n":{"ko":"해금강","en":"Haegeumgang","ja":"海金剛","zh":"海金刚"},"address":"경남 거제시 남부면","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"명승 2호 기암절벽. 유람선 추천.","en":"Scenic site #2 cliffs. Cruise recommended.","ja":"名勝2号奇岩絶壁。遊覧船推奨。","zh":"名胜2号奇岩绝壁。推荐游船。"},"lat":34.7333,"lng":128.6917,"start_time_offset_min":195},
-    {"order":3,"category":"food","name":"거제 멍게비빔밥","name_i18n":{"ko":"거제 멍게비빔밥","en":"Geoje Sea Pineapple Bibimbap","ja":"巨済ホヤビビンバ","zh":"巨济海菠萝拌饭"},"address":"경남 거제시","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"거제 명물. 멍게+밥.","en":"Geoje specialty. Sea pineapple+rice.","ja":"巨済名物。ホヤ+ご飯。","zh":"巨济名菜。海菠萝+饭。"},"lat":34.8806,"lng":128.6219,"start_time_offset_min":285},
-    {"order":4,"category":"nature","name":"학동몽돌해변","name_i18n":{"ko":"학동몽돌해변","en":"Hakdong Pebble Beach","ja":"鶴洞玉石海岸","zh":"鹤洞玉石海滩"},"address":"경남 거제시 동부면 학동리","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"검은 몽돌 1.5km 해변. 파도 소리.","en":"1.5km black pebble beach. Wave sound.","ja":"黒い玉石1.5km。波音。","zh":"黑卵石1.5km。海浪声。"},"lat":34.7544,"lng":128.6661,"start_time_offset_min":360},
-    {"order":5,"category":"cafe","name":"거제 바람의 언덕","name_i18n":{"ko":"바람의 언덕","en":"Wind Hill","ja":"風の丘","zh":"风之丘"},"address":"경남 거제시 남부면 갈곶리","stay_min":45,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"풍차+초원+바다.","en":"Windmill+grassland+sea.","ja":"風車+草原+海。","zh":"风车+草原+海。"},"lat":34.7167,"lng":128.6750,"start_time_offset_min":435}
-  ]
+  "id": "GEOJE_DAY_OEDO_STANDARD",
+  "city": "geoje",
+  "zone": "Oedo-Haegeumgang",
+  "theme": "외도 보타니아+해금강+학동몽돌해변",
+  "theme_i18n": {
+    "ko": "외도+해금강+학동몽돌해변",
+    "en": "Oedo+Haegeumgang+Hakdong Pebble Beach",
+    "ja": "外島+海金剛+鶴洞玉石海岸",
+    "zh": "外岛+海金刚+鹤洞玉石海滩"
+  },
+  "intensity": "standard",
+  "duration_min": 480,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "외도 보타니아",
+      "name_i18n": {
+        "ko": "외도 보타니아",
+        "en": "Oedo Botania",
+        "ja": "外島ボタニア",
+        "zh": "外岛博塔尼亚"
+      },
+      "address": "경남 거제시 일운면 외도",
+      "stay_min": 180,
+      "entry_fee_krw": 11000,
+      "reservation_required": true,
+      "tips_i18n": {
+        "ko": "섬 전체가 정원. 페리 25분.",
+        "en": "Island-wide garden. 25min ferry.",
+        "ja": "島全体庭園。フェリー25分。",
+        "zh": "全岛花园。渡轮25分。"
+      },
+      "lat": 34.7611,
+      "lng": 128.7167,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "해금강",
+      "name_i18n": {
+        "ko": "해금강",
+        "en": "Haegeumgang",
+        "ja": "海金剛",
+        "zh": "海金刚"
+      },
+      "address": "경남 거제시 남부면",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "명승 2호 기암절벽. 유람선 추천.",
+        "en": "Scenic site #2 cliffs. Cruise recommended.",
+        "ja": "名勝2号奇岩絶壁。遊覧船推奨。",
+        "zh": "名胜2号奇岩绝壁。推荐游船。"
+      },
+      "lat": 34.7333,
+      "lng": 128.6917,
+      "start_time_offset_min": 195
+    },
+    {
+      "order": 3,
+      "category": "food",
+      "name": "거제 멍게비빔밥",
+      "name_i18n": {
+        "ko": "거제 멍게비빔밥",
+        "en": "Geoje Sea Pineapple Bibimbap",
+        "ja": "巨済ホヤビビンバ",
+        "zh": "巨济海菠萝拌饭"
+      },
+      "address": "경남 거제시",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "거제 명물. 멍게+밥.",
+        "en": "Geoje specialty. Sea pineapple+rice.",
+        "ja": "巨済名物。ホヤ+ご飯。",
+        "zh": "巨济名菜。海菠萝+饭。"
+      },
+      "lat": 34.8806,
+      "lng": 128.6219,
+      "start_time_offset_min": 285
+    },
+    {
+      "order": 4,
+      "category": "nature",
+      "name": "학동몽돌해변",
+      "name_i18n": {
+        "ko": "학동몽돌해변",
+        "en": "Hakdong Pebble Beach",
+        "ja": "鶴洞玉石海岸",
+        "zh": "鹤洞玉石海滩"
+      },
+      "address": "경남 거제시 동부면 학동리",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "검은 몽돌 1.5km 해변. 파도 소리.",
+        "en": "1.5km black pebble beach. Wave sound.",
+        "ja": "黒い玉石1.5km。波音。",
+        "zh": "黑卵石1.5km。海浪声。"
+      },
+      "lat": 34.7544,
+      "lng": 128.6661,
+      "start_time_offset_min": 360
+    },
+    {
+      "order": 5,
+      "category": "cafe",
+      "name": "거제 바람의 언덕",
+      "name_i18n": {
+        "ko": "바람의 언덕",
+        "en": "Wind Hill",
+        "ja": "風の丘",
+        "zh": "风之丘"
+      },
+      "address": "경남 거제시 남부면 갈곶리",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "풍차+초원+바다.",
+        "en": "Windmill+grassland+sea.",
+        "ja": "風車+草原+海。",
+        "zh": "风车+草原+海。"
+      },
+      "lat": 34.7167,
+      "lng": 128.675,
+      "start_time_offset_min": 435
+    }
+  ],
+  "transit_matrix": {
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.6917,34.7333,%ED%95%B4%EA%B8%88%EA%B0%95,,/128.6219,34.8806,%EA%B1%B0%EC%A0%9C%20%EB%A9%8D%EA%B2%8C%EB%B9%84%EB%B9%94%EB%B0%A5,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 35471,
+      "from_order": 2,
+      "duration_min": 127,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 35471,
+        "duration_min": 127
+      }
+    },
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/128.6219,34.8806,%EA%B1%B0%EC%A0%9C%20%EB%A9%8D%EA%B2%8C%EB%B9%84%EB%B9%94%EB%B0%A5,,/128.6661,34.7544,%ED%95%99%EB%8F%99%EB%AA%BD%EB%8F%8C%ED%95%B4%EB%B3%80,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1650,
+      "source": "odsay_api",
+      "distance_m": 33978,
+      "from_order": 3,
+      "duration_min": 121,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1650,
+        "distance_m": 33978,
+        "duration_min": 121
+      }
+    }
+  }
 }

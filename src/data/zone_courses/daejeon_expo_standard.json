@@ -40,8 +40,8 @@
         "ja": "1993年大田世界博覧会の跡地。エキスポタワー（93m展望）。科学館・野外公園。子連れにおすすめ。",
         "zh": "1993年大田世博会场址。世博塔（93m观景）。科学馆+户外公园。带小朋友推荐。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3766263,
+      "lng": 127.3871992,
       "start_time_offset_min": 0
     },
     {
@@ -71,8 +71,8 @@
         "ja": "国内最大の都市型樹木園。79万㎡。バラ園（5〜6月）+アジサイ（7月）+紅葉（10月）。ジョギングコース。",
         "zh": "国内最大城市树木园。79万㎡。玫瑰园（5-6月）+绣球花（7月）+红叶（10月）。慢跑路线。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3688239,
+      "lng": 127.3879822,
       "start_time_offset_min": 95
     },
     {
@@ -97,8 +97,8 @@
         "ja": "儒城ランチ — 豆腐炒め / タニシ解酒スープ / 聖心堂ケーキおやつ (食事制限マッチング)。",
         "zh": "儒城午餐 — 豆腐炒 / 田螺醒酒汤 / 圣心堂蛋糕点心 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.353349,
+      "lng": 127.343825,
       "start_time_offset_min": 170
     },
     {
@@ -128,9 +128,10 @@
         "ja": "55〜68度アルカリ性硫黄泉。ラドン成分含有。大田唯一の温泉地区。ホテル温泉浴推奨。",
         "zh": "55-68度碱性硫磺泉。含氡成分。大田唯一温泉区。推荐酒店温泉浴。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 245
+      "lat": 36.3551002,
+      "lng": 127.3442076,
+      "start_time_offset_min": 245,
+      "_geocode_source": "google_places"
     },
     {
       "order": 5,
@@ -159,8 +160,8 @@
         "ja": "大田名物パン屋、1956年創業。揚げソボロ・ニラパンは行列必至。週末は30分以上待ち。",
         "zh": "大田名物面包店，创业于1956年。炸酥粒面包/韭菜面包必排队。周末排队30分钟以上。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 36.3275548,
+      "lng": 127.4268125,
       "start_time_offset_min": 340
     },
     {
@@ -185,45 +186,46 @@
         "ja": "大田原都心夕食 — 豆腐炒め / タニシごはんスープ / 魚粥。",
         "zh": "大田原城区晚餐 — 豆腐炒 / 田螺汤饭 / 鱼粥。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 395
+      "lat": 36.3205105,
+      "lng": 127.4310987,
+      "start_time_offset_min": 395,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
+      "distance_m": 2578,
+      "naver_route_url": "https://map.naver.com/p/directions/127.3871992,36.3766263,%EB%8C%80%EC%A0%84%20%EC%97%91%EC%8A%A4%ED%8F%AC%EA%B3%BC%ED%95%99%EA%B3%B5%EC%9B%90,,/127.3879822,36.3688239,%ED%95%9C%EB%B0%AD%EC%88%98%EB%AA%A9%EC%9B%90,,/-/transit",
+      "duration_min": 20,
+      "cost_krw": 1500,
+      "fetched_at": "2026-05-27",
       "from_order": 1,
+      "mode": "mixed",
+      "source": "odsay_api",
       "to_order": 2,
-      "mode": "subway",
-      "duration_min": 15,
-      "distance_m": 3000,
-      "cost_krw": 1400,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 대전 지하철 1호선 이용. 운영자 prod 재빌드 후 정확화 필요",
       "base": {
-        "mode": "subway",
-        "duration_min": 15,
-        "distance_m": 3000,
-        "cost_krw": 1400
+        "mode": "mixed",
+        "duration_min": 20,
+        "cost_krw": 1500,
+        "distance_m": 2578
       }
     },
     "2->3": {
-      "from_order": 2,
-      "to_order": 3,
-      "mode": "taxi",
-      "duration_min": 10,
-      "distance_m": 3000,
-      "cost_krw": 5000,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "duration_min": 27,
+      "cost_krw": 1550,
+      "fetched_at": "2026-05-27",
+      "distance_m": 6264,
+      "naver_route_url": "https://map.naver.com/p/directions/127.3879822,36.3688239,%ED%95%9C%EB%B0%AD%EC%88%98%EB%AA%A9%EC%9B%90,,/127.343825,36.353349,%EB%8C%80%EC%A0%84%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%9C%A0%EC%84%B1%EA%B5%AC%20%EB%B4%89%EB%AA%85%EB%8F%99,,/-/transit",
       "base": {
-        "mode": "taxi",
-        "duration_min": 10,
-        "distance_m": 3000,
-        "cost_krw": 5000
-      }
+        "distance_m": 6264,
+        "duration_min": 27,
+        "cost_krw": 1550,
+        "mode": "mixed"
+      },
+      "from_order": 2,
+      "mode": "mixed",
+      "source": "odsay_api",
+      "to_order": 3
     },
     "3->4": {
       "from_order": 3,
@@ -243,41 +245,46 @@
       }
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
-      "mode": "subway",
-      "duration_min": 15,
-      "distance_m": 4000,
-      "cost_krw": 1400,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 유성온천→대전역 방향. 운영자 prod 재빌드 후 정확화 필요",
       "base": {
-        "mode": "subway",
-        "duration_min": 15,
-        "distance_m": 4000,
-        "cost_krw": 1400
-      }
+        "distance_m": 11035,
+        "cost_krw": 1650,
+        "duration_min": 27,
+        "mode": "subway"
+      },
+      "mode": "subway",
+      "from_order": 4,
+      "source": "odsay_api",
+      "to_order": 5,
+      "fetched_at": "2026-05-28",
+      "cost_krw": 1650,
+      "duration_min": 27,
+      "naver_route_url": "https://map.naver.com/p/directions/127.3442076,36.3551002,%EC%9C%A0%EC%84%B1%EC%98%A8%EC%B2%9C,,/127.4268125,36.3275548,%EC%84%B1%EC%8B%AC%EB%8B%B9%20%EB%B3%B8%EC%A0%90,,/-/transit",
+      "distance_m": 11035
     },
     "5->6": {
-      "from_order": 5,
+      "source": "odsay_api",
       "to_order": 6,
-      "mode": "walk",
-      "duration_min": 5,
-      "distance_m": 200,
-      "cost_krw": 0,
-      "source": "mock",
-      "fetched_at": "2026-05-22",
-      "notes": "placeholder — 운영자 prod 재빌드 후 좌표/transit 정확화 필요",
+      "mode": "bus",
+      "from_order": 5,
       "base": {
-        "mode": "walk",
-        "duration_min": 5,
-        "distance_m": 200,
-        "cost_krw": 0
-      }
+        "distance_m": 892,
+        "cost_krw": 1500,
+        "duration_min": 10,
+        "mode": "bus"
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/127.4268125,36.3275548,%EC%84%B1%EC%8B%AC%EB%8B%B9%20%EB%B3%B8%EC%A0%90,,/127.4310987,36.3205105,%EB%8C%80%EC%A0%84%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%A4%91%EA%B5%AC%20%EB%8C%80%EC%A2%85%EB%A1%9C,,/-/transit",
+      "distance_m": 892,
+      "fetched_at": "2026-05-28",
+      "cost_krw": 1500,
+      "duration_min": 10
     }
   },
-  "best_for": ["family", "nature_lover", "relaxation", "foodie"],
+  "best_for": [
+    "family",
+    "nature_lover",
+    "relaxation",
+    "foodie"
+  ],
   "unsuitable_for": [],
   "dietary_options": [],
   "passport_required": false,
