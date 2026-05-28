@@ -608,27 +608,75 @@ export class RouteAgent extends BaseAgent {
         const arrivalAirportKey = this._normalizeAirportKey(rawItinerary.arrival_guide?.airport || data.arrival_airport);
         const departureAirportKey = this._normalizeAirportKey(rawItinerary.departure_guide?.airport || data.departure_airport || arrivalAirportKey);
 
-        if (hotelLat && hotelLng && arrivalAirportKey && AIRPORT_COORDS[arrivalAirportKey]) {
+        // P269 (2026-05-28): arrival_guide.route_to_hotel 4-fallback chain 적용.
+        // 이전: hotelLat/Lng 둘 다 있을 때만 route 생성 → hotel_address='' 케이스 (운영자
+        // dispatch admin-bypass 또는 일반 사용자 hotel 미입력) 시 5/5 plan 모두 route_to_hotel
+        // 누락 (5/28 P266 결과물 검증 cycle). departure 측 (line 642+) 은 이미
+        // `_resolveHotelOrFallback` 4-fallback chain (hotel 좌표 → arrival_guide.address →
+        // zone anchor → 도시 중심) + _failed 마커 적용 — arrival 측만 누락.
+        // 동일 패턴 + _failed 마커 적용으로 사용자 도착 후 호텔 경로 무조건 표시 정책 (운영자 의도).
+        if (arrivalAirportKey && AIRPORT_COORDS[arrivalAirportKey] && rawItinerary.arrival_guide) {
             const ap = AIRPORT_COORDS[arrivalAirportKey];
-            const route = await this._routeAirportHotel(ap, { lat: hotelLat, lng: hotelLng }, 'arrival');
-            if (route && rawItinerary.arrival_guide) {
-                const rec = pickRecommendedTransport({
-                    arrivalTimeHHMM: data.arrival_time,
-                    luggage: data.luggage,
-                    paxCount: data.pax || 2,
-                });
-                // B9-15/25: anchor_lat/lng/label 명시 attach — routeEnrichment.js
-                // 의 validateLodgingBookend 가 이걸 사용. anchor_source 는 분석용
-                // (naver_geocode / zone_lookup / zone_key) — UI 는 무시 가능.
+            const { coord: arrFromCoord, source: arrFromSource, label: arrFromLabel } = await this._resolveHotelOrFallback({
+                hotelLat,
+                hotelLng,
+                hotelAddress,
+                arrivalGuide: rawItinerary.arrival_guide,
+                recommendedZone: data.recommended_zone,
+                region,
+                clientId,
+                clientSecret,
+            });
+
+            if (arrFromCoord) {
+                const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival');
+                if (route) {
+                    const rec = pickRecommendedTransport({
+                        arrivalTimeHHMM: data.arrival_time,
+                        luggage: data.luggage,
+                        paxCount: data.pax || 2,
+                    });
+                    if (arrFromSource !== 'hotel') {
+                        route.fallback_origin = arrFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
+                        route.fallback_label = arrFromLabel || null;
+                    }
+                    // B9-15/25 + P269: anchor 우선순위 — hotel 좌표 있으면 그것, 없으면 fallback chain 결과.
+                    rawItinerary.arrival_guide.route_to_hotel = {
+                        ...route,
+                        recommended_option: rec,
+                        anchor_lat: arrFromCoord.lat,
+                        anchor_lng: arrFromCoord.lng,
+                        anchor_label: arrFromLabel || anchorLabel || null,
+                        anchor_source: arrFromSource === 'hotel' ? (anchorSource || 'hotel') : arrFromSource,
+                    };
+                    console.log(`  - [Airport→Hotel] ${route.est_min}min via ${route.method}, recommended=${rec.key}, origin=${arrFromSource}, anchor=${route.anchor_source}/${route.anchor_label}`);
+                } else {
+                    // ODsay 끝까지 실패 — _failed 마커로 graceful 표시.
+                    rawItinerary.arrival_guide.route_to_hotel = {
+                        _failed: true,
+                        _odsay_failed: true,
+                        fallbackReason: 'odsay_unavailable',
+                        fallback_origin: arrFromSource,
+                        fallback_label: arrFromLabel || null,
+                        method: 'unknown',
+                        mode: 'unknown',
+                        source: 'failed',
+                        direction: 'arrival',
+                    };
+                    console.warn('  - [Airport→Hotel] ODsay all attempts failed → _failed=true');
+                }
+            } else {
+                // 좌표 자체 못 잡음 (모든 fallback 실패) — _failed 마커.
                 rawItinerary.arrival_guide.route_to_hotel = {
-                    ...route,
-                    recommended_option: rec,
-                    anchor_lat: hotelLat,
-                    anchor_lng: hotelLng,
-                    anchor_label: anchorLabel,
-                    anchor_source: anchorSource,
+                    _failed: true,
+                    _odsay_failed: false,
+                    fallbackReason: 'no_destination_coord',
+                    method: 'unknown',
+                    mode: 'unknown',
+                    source: 'failed',
+                    direction: 'arrival',
                 };
-                console.log(`  - [Airport→Hotel] ${route.est_min}min via ${route.method}, recommended=${rec.key}, anchor=${anchorSource}/${anchorLabel}`);
+                console.warn('  - [Airport→Hotel] no destination coord (region/zone fallback unmapped)');
             }
         }
 

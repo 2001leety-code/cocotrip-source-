@@ -291,7 +291,8 @@ export default async function handler(req, res) {
     });
 
     // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: allergies + P239: tour_start_time 의무.
-    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime } })));
+    // P271: userInput 에 arrival_airport/departure_airport/pax 추가 — expand 가 arrival_guide/departure_guide minimal default 채움 (self_heal placeholder 회피).
+    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, arrival_airport, departure_airport, pax } })));
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 
