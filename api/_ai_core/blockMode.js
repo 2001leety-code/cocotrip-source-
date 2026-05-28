@@ -534,11 +534,33 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     });
   }
 
-  return {
+  // P271 (2026-05-28): arrival_guide / departure_guide / daily_budget_summary minimal default.
+  // 이전: 3 field 누락 → backend self_heal (postResponsePipeline.selfHealArrivalGuide /
+  // selfHealDailyBudget) 가 generic 5-step placeholder 합성 (5/28 P266 5/5 plan _self_healed 발동).
+  // 본 fix = expand 가 user input 받은 airport/regions/durationDays 로 user-aware minimal default 채움
+  // → self_heal 가 already-filled 인식 + step 5 transport_to_hotel/route_to_hotel 만 enrich.
+  const arrivalAirport = String(userInput?.arrival_airport || '').trim();
+  const departureAirport = String(userInput?.departure_airport || arrivalAirport).trim();
+  const itinerary = {
     tour_title: `Pre-curated ${area || 'Korea'} ${days.length}-day plan`,
     days,
     planner_pipeline: 'block_mode',
   };
+  if (arrivalAirport && arrivalAirport.toLowerCase() !== 'already_in_korea') {
+    itinerary.arrival_guide = { airport: arrivalAirport };
+  }
+  if (departureAirport && departureAirport.toLowerCase() !== 'already_in_korea') {
+    itinerary.departure_guide = { airport: departureAirport };
+  }
+  // daily_budget_summary: per-day skeleton (selfHealDailyBudget 가 정확값 계산 — 본 default 는 array shape 만).
+  itinerary.daily_budget_summary = days.map((d) => ({
+    day: d.day,
+    transport_krw: 0,
+    food_krw: 0,
+    activity_krw: 0,
+    total_krw: 0,
+  }));
+  return itinerary;
 }
 
 // P10 inclusive/exclusive 컨벤션 (P1 lint rule 요구):
@@ -1027,11 +1049,28 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   }
 
   const cityList = [...new Set(blockSelections.day_selections.map((s) => s.city))].join('/');
-  return {
+  // P271 (2026-05-28): 다도시 expand 도 arrival_guide / departure_guide / daily_budget_summary minimal default.
+  const mcArrivalAirport = String(userInput?.arrival_airport || '').trim();
+  const mcDepartureAirport = String(userInput?.departure_airport || mcArrivalAirport).trim();
+  const mcItinerary = {
     tour_title: `Pre-curated ${cityList} ${days.length}-day plan`,
     days,
     planner_pipeline: 'block_mode',
   };
+  if (mcArrivalAirport && mcArrivalAirport.toLowerCase() !== 'already_in_korea') {
+    mcItinerary.arrival_guide = { airport: mcArrivalAirport };
+  }
+  if (mcDepartureAirport && mcDepartureAirport.toLowerCase() !== 'already_in_korea') {
+    mcItinerary.departure_guide = { airport: mcDepartureAirport };
+  }
+  mcItinerary.daily_budget_summary = days.map((d) => ({
+    day: d.day,
+    transport_krw: 0,
+    food_krw: 0,
+    activity_krw: 0,
+    total_krw: 0,
+  }));
+  return mcItinerary;
 }
 
 /**
