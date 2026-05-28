@@ -48,3 +48,15 @@ audit_*.json
 
 # L3 quality monitor CI status file (uploaded as artifact, not committed)
 quality-alert-status.json
+
+# Ad-hoc P-cycle measurement scripts (2026-05-28 cleanup) — keep only operational tools
+# (p258-dispatch / p260-fill / inspect-operator-recent / transit-cache-stats are tracked).
+scripts/inspect-p[0-9]*.mjs
+scripts/p245-*.mjs
+scripts/p256-*.mjs
+scripts/p258-measure-*.mjs
+scripts/verify-p[0-9]*.mjs
+scripts/pdf-golden-*.mjs
+scripts/compare-5-plans*.mjs
+scripts/dump-pdf-text.mjs
+scripts/capture-5-plans*.mjs
