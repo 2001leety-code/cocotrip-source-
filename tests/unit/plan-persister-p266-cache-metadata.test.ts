@@ -208,11 +208,14 @@ describe('P266 — source-level invariants (R-P266 lint)', () => {
     expect(workerSrc).toMatch(/cacheMetadata:\s*ctx\.cacheMetadata\s*\|\|\s*itinAfterBackfill\?\._cache_metadata\s*\|\|\s*null/);
   });
 
-  it('debugInfo.js#buildAdminDebug 의 itinerary._cache_metadata pop & delete 유지 (response noise 방지)', () => {
+  it('debugInfo.js#buildAdminDebug 의 itinerary._cache_metadata delete 제거 (P268 — chain 시점 issue fix)', () => {
     const debugInfoSrc = readFileSync(
       resolve(process.cwd(), 'api/_ai_core/debugInfo.js'),
       'utf8',
     );
-    expect(debugInfoSrc).toMatch(/delete\s+itinerary\._cache_metadata/);
+    // P268: delete 제거 (chain 시점 issue fix). _cache_metadata 는 final layer 까지 유지.
+    expect(debugInfoSrc).not.toMatch(/delete\s+itinerary\._cache_metadata/);
+    // itinerary._cache_metadata 읽기는 유지 (admin _debug 노출용).
+    expect(debugInfoSrc).toMatch(/itinerary\._cache_metadata/);
   });
 });

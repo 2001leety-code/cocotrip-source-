@@ -2228,6 +2228,7 @@ const RULES = [
   ['P195_cacheInstrumentation', P195_cacheInstrumentation],
   ['P266_cacheMetadataPersist', P266_cacheMetadataPersist],
   ['P267_streamingChunkUsageMetadataFallback', P267_streamingChunkUsageMetadataFallback],
+  ['P268_debugInfoNoCachePop', P268_debugInfoNoCachePop],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -7950,6 +7951,45 @@ function P267_streamingChunkUsageMetadataFallback({ changed }) {
     message:
       'R-P267: runGeminiStreaming chunk-level usageMetadata fallback 깨짐 — Pro streaming final null bug 회귀. ' +
       'P266 cycle 진단 (prod plan faab8777 [P195 CACHE_METRICS] log 0건) 재발 위험. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P268_debugInfoNoCachePop — buildAdminDebug 의 _cache_metadata delete 제거 (2026-05-29)
+//
+// Root cause (P266 → P267 → P268 chain):
+//   - P267 fix 후 handler 가 cacheMetadata 추출 성공 (response _debug.totalInputTokens=33123 확인)
+//   - Inngest event payload 의 itinerary._cache_metadata=undefined → P266 silent skip
+//   - 원인: handlerCore.js:343-347 streaming early response 시점에 buildAdminDebug 호출
+//           → debugInfo.js:42 의 delete itinerary._cache_metadata → pop
+//           → 이후 line 372 dispatch + line 394 savePlan 도달 시 undefined
+//
+// P268 fix: debugInfo.js 의 delete 제거 — itinerary._cache_metadata 가 final layer 까지 유지.
+// _cache_metadata 는 numeric (PII 없음) → response 노출 안전.
+// ----------------------------------------------------------------------------
+
+function P268_debugInfoNoCachePop({ changed }) {
+  const FILE = 'api/_ai_core/debugInfo.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE) || '';
+  const issues = [];
+
+  if (/delete\s+itinerary\._cache_metadata/.test(src)) {
+    issues.push('debugInfo.js: delete itinerary._cache_metadata 코드 잔재 — P266 chain 시점 issue 재발 위험');
+  }
+  if (!/itinerary\._cache_metadata/.test(src)) {
+    issues.push('debugInfo.js: itinerary._cache_metadata 읽기 누락 — admin _debug 노출 손상');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P268_debugInfoNoCachePop',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P268: buildAdminDebug 가 _cache_metadata 를 pop — P266 fix layer 1 silent skip 회귀. ' +
+      '5/29 P266→P267→P268 chain (Vercel logs + Inngest event payload 자동 fetch 진단) lesson 재발 위험. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
   };
 }
