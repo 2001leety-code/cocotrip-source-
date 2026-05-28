@@ -1,14 +1,289 @@
 {
-  "id":"SEOUL_DAY_FULL_ACTION","city":"seoul","zone":"Action-Multi-Zone",
-  "theme":"강남+홍대+종로+한강 야경 action","theme_i18n":{"ko":"강남+홍대+종로+한강 야경","en":"Gangnam+Hongdae+Jongno+Han River Night","ja":"江南+弘大+鍾路+漢江夜景","zh":"江南+弘大+钟路+汉江夜景"},
-  "intensity":"action","duration_min":660,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"culture","name":"경복궁","name_i18n":{"ko":"경복궁","en":"Gyeongbokgung","ja":"景福宮","zh":"景福宫"},"address":"서울 종로구 사직로 161","stay_min":90,"entry_fee_krw":3000,"reservation_required":false,"tips_i18n":{"ko":"한복 입으면 무료. 수문장 교대식 10시/14시.","en":"Free with hanbok. Guard change 10am/2pm.","ja":"韓服無料。守門将交代式10/14時。","zh":"穿韩服免费。守门将换岗10/14时。"},"lat":37.5796,"lng":126.9770,"start_time_offset_min":0},
-    {"order":2,"category":"culture","name":"북촌 한옥마을","name_i18n":{"ko":"북촌 한옥마을","en":"Bukchon Hanok","ja":"北村韓屋村","zh":"北村韩屋村"},"address":"서울 종로구 계동길","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"전통 한옥 골목. 사진 명소.","en":"Traditional hanok alleys. Photo spot.","ja":"伝統韓屋路地。写真名所。","zh":"传统韩屋小巷。摄影名所。"},"lat":37.5828,"lng":126.9844,"start_time_offset_min":105},
-    {"order":3,"category":"shopping","name":"인사동","name_i18n":{"ko":"인사동","en":"Insadong","ja":"仁寺洞","zh":"仁寺洞"},"address":"서울 종로구 인사동길","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"전통 공예+카페+갤러리.","en":"Traditional crafts+cafes+galleries.","ja":"伝統工芸+カフェ+ギャラリー。","zh":"传统工艺+咖啡+画廊。"},"lat":37.5728,"lng":126.9869,"start_time_offset_min":195},
-    {"order":4,"category":"food","name":"명동교자","name_i18n":{"ko":"명동교자","en":"Myeongdong Kyoja","ja":"明洞餃子","zh":"明洞饺子"},"address":"서울 중구 명동10길 29","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"명동 칼국수 명물.","en":"Myeongdong kalguksu famous.","ja":"明洞カルグクス名物。","zh":"明洞刀削面名物。"},"lat":37.5639,"lng":126.9858,"start_time_offset_min":275},
-    {"order":5,"category":"shopping","name":"홍대 거리","name_i18n":{"ko":"홍대 거리","en":"Hongdae","ja":"弘大","zh":"弘大"},"address":"서울 마포구 홍익로","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"청춘 문화. 길거리 공연+쇼핑.","en":"Youth culture. Street performances+shopping.","ja":"若者文化。路上公演+買物。","zh":"年轻人文化。街头表演+购物。"},"lat":37.5563,"lng":126.9233,"start_time_offset_min":365},
-    {"order":6,"category":"food","name":"강남 한정식","name_i18n":{"ko":"강남 한정식","en":"Gangnam Hanjeongsik","ja":"江南韓定食","zh":"江南韩定食"},"address":"서울 강남구","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"강남 고급 한정식.","en":"Gangnam premium hanjeongsik.","ja":"江南高級韓定食。","zh":"江南高级韩定食。"},"lat":37.5172,"lng":127.0473,"start_time_offset_min":485},
-    {"order":7,"category":"nature","name":"한강 반포대교 무지개분수","name_i18n":{"ko":"반포대교 무지개분수","en":"Banpodaegyo Rainbow Fountain","ja":"盤浦大橋虹噴水","zh":"盘浦大桥彩虹喷泉"},"address":"서울 서초구 반포대교","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"세계 최장 분수다리. 4-10월 야간.","en":"World's longest bridge fountain. Apr-Oct nights.","ja":"世界最長橋噴水。4-10月夜。","zh":"世界最长桥喷泉。4-10月夜。"},"lat":37.5172,"lng":127.0094,"start_time_offset_min":580}
-  ]
+  "id": "SEOUL_DAY_FULL_ACTION",
+  "city": "seoul",
+  "zone": "Action-Multi-Zone",
+  "theme": "강남+홍대+종로+한강 야경 action",
+  "theme_i18n": {
+    "ko": "강남+홍대+종로+한강 야경",
+    "en": "Gangnam+Hongdae+Jongno+Han River Night",
+    "ja": "江南+弘大+鍾路+漢江夜景",
+    "zh": "江南+弘大+钟路+汉江夜景"
+  },
+  "intensity": "action",
+  "duration_min": 660,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "경복궁",
+      "name_i18n": {
+        "ko": "경복궁",
+        "en": "Gyeongbokgung",
+        "ja": "景福宮",
+        "zh": "景福宫"
+      },
+      "address": "서울 종로구 사직로 161",
+      "stay_min": 90,
+      "entry_fee_krw": 3000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한복 입으면 무료. 수문장 교대식 10시/14시.",
+        "en": "Free with hanbok. Guard change 10am/2pm.",
+        "ja": "韓服無料。守門将交代式10/14時。",
+        "zh": "穿韩服免费。守门将换岗10/14时。"
+      },
+      "lat": 37.5796,
+      "lng": 126.977,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "culture",
+      "name": "북촌 한옥마을",
+      "name_i18n": {
+        "ko": "북촌 한옥마을",
+        "en": "Bukchon Hanok",
+        "ja": "北村韓屋村",
+        "zh": "北村韩屋村"
+      },
+      "address": "서울 종로구 계동길",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "전통 한옥 골목. 사진 명소.",
+        "en": "Traditional hanok alleys. Photo spot.",
+        "ja": "伝統韓屋路地。写真名所。",
+        "zh": "传统韩屋小巷。摄影名所。"
+      },
+      "lat": 37.5828,
+      "lng": 126.9844,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "shopping",
+      "name": "인사동",
+      "name_i18n": {
+        "ko": "인사동",
+        "en": "Insadong",
+        "ja": "仁寺洞",
+        "zh": "仁寺洞"
+      },
+      "address": "서울 종로구 인사동길",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "전통 공예+카페+갤러리.",
+        "en": "Traditional crafts+cafes+galleries.",
+        "ja": "伝統工芸+カフェ+ギャラリー。",
+        "zh": "传统工艺+咖啡+画廊。"
+      },
+      "lat": 37.5728,
+      "lng": 126.9869,
+      "start_time_offset_min": 195
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "명동교자",
+      "name_i18n": {
+        "ko": "명동교자",
+        "en": "Myeongdong Kyoja",
+        "ja": "明洞餃子",
+        "zh": "明洞饺子"
+      },
+      "address": "서울 중구 명동10길 29",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "명동 칼국수 명물.",
+        "en": "Myeongdong kalguksu famous.",
+        "ja": "明洞カルグクス名物。",
+        "zh": "明洞刀削面名物。"
+      },
+      "lat": 37.5639,
+      "lng": 126.9858,
+      "start_time_offset_min": 275
+    },
+    {
+      "order": 5,
+      "category": "shopping",
+      "name": "홍대 거리",
+      "name_i18n": {
+        "ko": "홍대 거리",
+        "en": "Hongdae",
+        "ja": "弘大",
+        "zh": "弘大"
+      },
+      "address": "서울 마포구 홍익로",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "청춘 문화. 길거리 공연+쇼핑.",
+        "en": "Youth culture. Street performances+shopping.",
+        "ja": "若者文化。路上公演+買物。",
+        "zh": "年轻人文化。街头表演+购物。"
+      },
+      "lat": 37.5563,
+      "lng": 126.9233,
+      "start_time_offset_min": 365
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "강남 한정식",
+      "name_i18n": {
+        "ko": "강남 한정식",
+        "en": "Gangnam Hanjeongsik",
+        "ja": "江南韓定食",
+        "zh": "江南韩定食"
+      },
+      "address": "서울 강남구",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "강남 고급 한정식.",
+        "en": "Gangnam premium hanjeongsik.",
+        "ja": "江南高級韓定食。",
+        "zh": "江南高级韩定食。"
+      },
+      "lat": 37.5172,
+      "lng": 127.0473,
+      "start_time_offset_min": 485
+    },
+    {
+      "order": 7,
+      "category": "nature",
+      "name": "한강 반포대교 무지개분수",
+      "name_i18n": {
+        "ko": "반포대교 무지개분수",
+        "en": "Banpodaegyo Rainbow Fountain",
+        "ja": "盤浦大橋虹噴水",
+        "zh": "盘浦大桥彩虹喷泉"
+      },
+      "address": "서울 서초구 반포대교",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "세계 최장 분수다리. 4-10월 야간.",
+        "en": "World's longest bridge fountain. Apr-Oct nights.",
+        "ja": "世界最長橋噴水。4-10月夜。",
+        "zh": "世界最长桥喷泉。4-10月夜。"
+      },
+      "lat": 37.5172,
+      "lng": 127.0094,
+      "start_time_offset_min": 580
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.977,37.5796,%EA%B2%BD%EB%B3%B5%EA%B6%81,,/126.9844,37.5828,%EB%B6%81%EC%B4%8C%20%ED%95%9C%EC%98%A5%EB%A7%88%EC%9D%84,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 2,
+      "cost_krw": 1200,
+      "source": "odsay_api",
+      "distance_m": 1114,
+      "from_order": 1,
+      "duration_min": 15,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1200,
+        "distance_m": 1114,
+        "duration_min": 15
+      }
+    },
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9844,37.5828,%EB%B6%81%EC%B4%8C%20%ED%95%9C%EC%98%A5%EB%A7%88%EC%9D%84,,/126.9869,37.5728,%EC%9D%B8%EC%82%AC%EB%8F%99,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 1200,
+      "source": "odsay_api",
+      "distance_m": 1222,
+      "from_order": 2,
+      "duration_min": 13,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1200,
+        "distance_m": 1222,
+        "duration_min": 13
+      }
+    },
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9869,37.5728,%EC%9D%B8%EC%82%AC%EB%8F%99,,/126.9858,37.5639,%EB%AA%85%EB%8F%99%EA%B5%90%EC%9E%90,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1100,
+      "source": "odsay_api",
+      "distance_m": 1078,
+      "from_order": 3,
+      "duration_min": 13,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1100,
+        "distance_m": 1078,
+        "duration_min": 13
+      }
+    },
+    "4->5": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9858,37.5639,%EB%AA%85%EB%8F%99%EA%B5%90%EC%9E%90,,/126.9233,37.5563,%ED%99%8D%EB%8C%80%20%EA%B1%B0%EB%A6%AC,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 6096,
+      "from_order": 4,
+      "duration_min": 21,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 6096,
+        "duration_min": 21
+      }
+    },
+    "5->6": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9233,37.5563,%ED%99%8D%EB%8C%80%20%EA%B1%B0%EB%A6%AC,,/127.0473,37.5172,%EA%B0%95%EB%82%A8%20%ED%95%9C%EC%A0%95%EC%8B%9D,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 6,
+      "cost_krw": 1750,
+      "source": "odsay_api",
+      "distance_m": 16524,
+      "from_order": 5,
+      "duration_min": 46,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1750,
+        "distance_m": 16524,
+        "duration_min": 46
+      }
+    },
+    "6->7": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/127.0473,37.5172,%EA%B0%95%EB%82%A8%20%ED%95%9C%EC%A0%95%EC%8B%9D,,/127.0094,37.5172,%ED%95%9C%EA%B0%95%20%EB%B0%98%ED%8F%AC%EB%8C%80%EA%B5%90%20%EB%AC%B4%EC%A7%80%EA%B0%9C%EB%B6%84%EC%88%98,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 7,
+      "cost_krw": 1500,
+      "source": "odsay_api",
+      "distance_m": 5441,
+      "from_order": 6,
+      "duration_min": 29,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1500,
+        "distance_m": 5441,
+        "duration_min": 29
+      }
+    }
+  }
 }

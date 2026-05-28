@@ -32,8 +32,8 @@
         "ja": "ストレッチ + 外突介ビュー撮影。トイレ + 水飲み場有り。",
         "zh": "拉伸 + 外突介景观拍照。设有洗手间与饮水器。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.2415396,
+      "lng": 126.5497439,
       "start_time_offset_min": 0
     },
     {
@@ -56,9 +56,10 @@
         "ja": "約1.5km地点。海岸絶景 — 短い撮影休憩。",
         "zh": "约 1.5km 处。海岸绝景 — 短暂拍照休息。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 30
+      "lat": 33.2400718,
+      "lng": 126.5333708,
+      "start_time_offset_min": 30,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -80,45 +81,45 @@
         "ja": "法還浦口エリアカフェ — リカバリー飲料 + ハルラボンジュース。",
         "zh": "法还浦口一带咖啡馆 — 补水饮料 + 汉拿峰果汁。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.242764,
+      "lng": 126.51065,
       "start_time_offset_min": 55
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
+      "cost_krw": 1150,
+      "fetched_at": "2026-05-28",
+      "source": "odsay_api",
+      "distance_m": 2652,
+      "mode": "bus",
       "to_order": 2,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "duration_min": 21,
+      "naver_route_url": "https://map.naver.com/p/directions/126.5497439,33.2415396,%EC%99%B8%EB%8F%8C%EA%B0%9C%20(%EC%B6%9C%EB%B0%9C),,/126.5333708,33.2400718,%EB%8F%94%EB%B2%A0%EB%82%AD%EA%B8%B8%20%ED%95%B4%EC%95%88%EC%A0%88%EB%B2%BD,,/-/transit",
+      "from_order": 1,
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "distance_m": 2652,
+        "duration_min": 21,
+        "cost_krw": 1150,
+        "mode": "bus"
       }
     },
     "2->3": {
       "from_order": 2,
-      "to_order": 3,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.5333708,33.2400718,%EB%8F%94%EB%B2%A0%EB%82%AD%EA%B8%B8%20%ED%95%B4%EC%95%88%EC%A0%88%EB%B2%BD,,/126.51065,33.242764,%EB%B2%95%ED%99%98%ED%8F%AC%EA%B5%AC%20%EB%8F%84%EC%B0%A9%20%EC%B9%B4%ED%8E%98,,/-/transit",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "cost_krw": 1150,
+        "mode": "bus",
+        "duration_min": 28,
+        "distance_m": 2961
+      },
+      "mode": "bus",
+      "to_order": 3,
+      "duration_min": 28,
+      "cost_krw": 1150,
+      "source": "odsay_api",
+      "distance_m": 2961,
+      "fetched_at": "2026-05-28"
     }
   },
   "best_for": [

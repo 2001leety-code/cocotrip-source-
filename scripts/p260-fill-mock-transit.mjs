@@ -74,11 +74,16 @@ async function sleep(ms) {
 }
 
 async function searchOdsay(sx, sy, ex, ey) {
-  const url = `${ODSAY_BASE}/searchPubTransPathT?apiKey=${odsayKey}&SX=${sx}&SY=${sy}&EX=${ex}&EY=${ey}&OPT=0&SearchType=0&SearchPathType=0`;
-  const res = await fetch(url, { method: 'GET' });
+  // P261 lesson: ODsay API key 가 Referer-bound. seed-zone-courses-firestore.mjs:91 patterns 일치.
+  const url = `${ODSAY_BASE}/searchPubTransPathT?SX=${sx}&SY=${sy}&EX=${ex}&EY=${ey}&apiKey=${encodeURIComponent(odsayKey)}&output=json`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Referer: 'https://cocotripkr.com' },
+    signal: AbortSignal.timeout(12000),
+  });
   if (!res.ok) throw new Error(`ODsay HTTP ${res.status}`);
   const data = await res.json();
-  if (!data.result?.path?.[0]) return null;
+  if (data.error || !data.result?.path?.[0]) return null;
   const p = data.result.path[0];
   return {
     pathType: p.pathType,

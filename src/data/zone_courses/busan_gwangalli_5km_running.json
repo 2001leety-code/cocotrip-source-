@@ -1,11 +1,149 @@
 {
-  "id":"BUSAN_RUN_GWANGALLI_5KM","city":"busan","zone":"Gwangalli-Bridge",
-  "theme":"광안리 해변 5km 야간 러닝","theme_i18n":{"ko":"광안리 해변 5km","en":"Gwangalli 5km Night Run","ja":"広安里5km夜ラン","zh":"广安里5km夜跑"},
-  "intensity":"short","duration_min":60,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"sports","name":"광안리 시작점","name_i18n":{"ko":"광안리 시작","en":"Gwangalli Start","ja":"広安里スタート","zh":"广安里起点"},"address":"부산 수영구","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광안대교 조망. 야간 추천.","en":"Diamond Bridge view. Night recommended.","ja":"広安大橋眺望。夜推奨。","zh":"广安大桥眺望。推荐夜跑。"},"lat":35.1531,"lng":129.1183,"start_time_offset_min":0},
-    {"order":2,"category":"nature","name":"광안리 해변 2.5km","name_i18n":{"ko":"광안리 해변","en":"Gwangalli Beach","ja":"広安里海岸","zh":"广安里海滩"},"address":"부산 수영구","stay_min":25,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광안대교 야경 + 모래.","en":"Diamond Bridge night view + sand.","ja":"広安大橋夜景+砂。","zh":"广安大桥夜景+沙。"},"lat":35.1531,"lng":129.1183,"start_time_offset_min":5},
-    {"order":3,"category":"sports","name":"민락수변공원","name_i18n":{"ko":"민락수변공원","en":"Millak Waterside","ja":"民楽水辺公園","zh":"民乐水边公园"},"address":"부산 수영구","stay_min":15,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"광안대교 바로 옆 데크.","en":"Deck next to Diamond Bridge.","ja":"広安大橋横デッキ。","zh":"广安大桥旁栈道。"},"lat":35.1500,"lng":129.1278,"start_time_offset_min":35},
-    {"order":4,"category":"sports","name":"광안리 종료점","name_i18n":{"ko":"광안리 종료","en":"Gwangalli Finish","ja":"広安里ゴール","zh":"广安里终点"},"address":"부산 수영구","stay_min":15,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"카페+포장마차 야시장.","en":"Cafe+night market.","ja":"カフェ+夜市。","zh":"咖啡+夜市。"},"lat":35.1531,"lng":129.1183,"start_time_offset_min":50}
-  ]
+  "id": "BUSAN_RUN_GWANGALLI_5KM",
+  "city": "busan",
+  "zone": "Gwangalli-Bridge",
+  "theme": "광안리 해변 5km 야간 러닝",
+  "theme_i18n": {
+    "ko": "광안리 해변 5km",
+    "en": "Gwangalli 5km Night Run",
+    "ja": "広安里5km夜ラン",
+    "zh": "广安里5km夜跑"
+  },
+  "intensity": "short",
+  "duration_min": 60,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "sports",
+      "name": "광안리 시작점",
+      "name_i18n": {
+        "ko": "광안리 시작",
+        "en": "Gwangalli Start",
+        "ja": "広安里スタート",
+        "zh": "广安里起点"
+      },
+      "address": "부산 수영구",
+      "stay_min": 5,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "광안대교 조망. 야간 추천.",
+        "en": "Diamond Bridge view. Night recommended.",
+        "ja": "広安大橋眺望。夜推奨。",
+        "zh": "广安大桥眺望。推荐夜跑。"
+      },
+      "lat": 35.1531,
+      "lng": 129.1183,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "광안리 해변 2.5km",
+      "name_i18n": {
+        "ko": "광안리 해변",
+        "en": "Gwangalli Beach",
+        "ja": "広安里海岸",
+        "zh": "广安里海滩"
+      },
+      "address": "부산 수영구",
+      "stay_min": 25,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "광안대교 야경 + 모래.",
+        "en": "Diamond Bridge night view + sand.",
+        "ja": "広安大橋夜景+砂。",
+        "zh": "广安大桥夜景+沙。"
+      },
+      "lat": 35.1531,
+      "lng": 129.1183,
+      "start_time_offset_min": 5
+    },
+    {
+      "order": 3,
+      "category": "sports",
+      "name": "민락수변공원",
+      "name_i18n": {
+        "ko": "민락수변공원",
+        "en": "Millak Waterside",
+        "ja": "民楽水辺公園",
+        "zh": "民乐水边公园"
+      },
+      "address": "부산 수영구",
+      "stay_min": 15,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "광안대교 바로 옆 데크.",
+        "en": "Deck next to Diamond Bridge.",
+        "ja": "広安大橋横デッキ。",
+        "zh": "广安大桥旁栈道。"
+      },
+      "lat": 35.15,
+      "lng": 129.1278,
+      "start_time_offset_min": 35
+    },
+    {
+      "order": 4,
+      "category": "sports",
+      "name": "광안리 종료점",
+      "name_i18n": {
+        "ko": "광안리 종료",
+        "en": "Gwangalli Finish",
+        "ja": "広安里ゴール",
+        "zh": "广安里终点"
+      },
+      "address": "부산 수영구",
+      "stay_min": 15,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "카페+포장마차 야시장.",
+        "en": "Cafe+night market.",
+        "ja": "カフェ+夜市。",
+        "zh": "咖啡+夜市。"
+      },
+      "lat": 35.1531,
+      "lng": 129.1183,
+      "start_time_offset_min": 50
+    }
+  ],
+  "transit_matrix": {
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.1183,35.1531,%EA%B4%91%EC%95%88%EB%A6%AC%20%ED%95%B4%EB%B3%80%202.5km,,/129.1278,35.15,%EB%AF%BC%EB%9D%BD%EC%88%98%EB%B3%80%EA%B3%B5%EC%9B%90,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 3582,
+      "from_order": 2,
+      "duration_min": 28,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 3582,
+        "duration_min": 28
+      }
+    },
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.1278,35.15,%EB%AF%BC%EB%9D%BD%EC%88%98%EB%B3%80%EA%B3%B5%EC%9B%90,,/129.1183,35.1531,%EA%B4%91%EC%95%88%EB%A6%AC%20%EC%A2%85%EB%A3%8C%EC%A0%90,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 3331,
+      "from_order": 3,
+      "duration_min": 27,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 3331,
+        "duration_min": 27
+      }
+    }
+  }
 }

@@ -1,14 +1,272 @@
 {
-  "id":"BUSAN_DAY_FULL_ACTION","city":"busan","zone":"Action-Multi-Zone",
-  "theme":"해운대+감천+자갈치+광안리 야경","theme_i18n":{"ko":"해운대+감천+자갈치+광안리","en":"Haeundae+Gamcheon+Jagalchi+Gwangalli","ja":"海雲台+甘川+チャガルチ+広安里","zh":"海云台+甘川+扎嘎其+广安里"},
-  "intensity":"action","duration_min":660,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"nature","name":"해운대 해변","name_i18n":{"ko":"해운대 해변","en":"Haeundae Beach","ja":"海雲台海岸","zh":"海云台海滩"},"address":"부산 해운대구","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"부산 대표 해변. 1.5km 백사장.","en":"Busan main beach. 1.5km sand.","ja":"釜山代表海岸。1.5km砂浜。","zh":"釜山代表海滩。1.5km沙滩。"},"lat":35.1586,"lng":129.1603,"start_time_offset_min":0},
-    {"order":2,"category":"nature","name":"동백섬","name_i18n":{"ko":"동백섬","en":"Dongbaekseom","ja":"椿島","zh":"山茶岛"},"address":"부산 해운대구 우동","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"누리마루 APEC 하우스. 산책로 1.5km.","en":"Nurimaru APEC House. 1.5km trail.","ja":"ヌリマルAPECハウス。1.5km散歩道。","zh":"努里玛鲁APEC馆。1.5km步道。"},"lat":35.1539,"lng":129.1500,"start_time_offset_min":105},
-    {"order":3,"category":"culture","name":"감천문화마을","name_i18n":{"ko":"감천문화마을","en":"Gamcheon Culture Village","ja":"甘川文化村","zh":"甘川文化村"},"address":"부산 사하구 감내2로","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한국의 마추픽추. 알록달록 마을.","en":"Korea's Machu Picchu. Colorful village.","ja":"韓国のマチュピチュ。カラフル村。","zh":"韩国马丘比丘。色彩村。"},"lat":35.0975,"lng":129.0103,"start_time_offset_min":210},
-    {"order":4,"category":"food","name":"자갈치 시장","name_i18n":{"ko":"자갈치 시장","en":"Jagalchi Market","ja":"チャガルチ市場","zh":"扎嘎其市场"},"address":"부산 중구 자갈치해안로 52","stay_min":90,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"한국 최대 수산시장. 활어회.","en":"Korea's largest fish market. Live sashimi.","ja":"韓国最大水産市場。活魚刺身。","zh":"韩国最大水产市场。活鱼生鱼片。"},"lat":35.0969,"lng":129.0306,"start_time_offset_min":315},
-    {"order":5,"category":"culture","name":"부산타워","name_i18n":{"ko":"부산타워","en":"Busan Tower","ja":"釜山タワー","zh":"釜山塔"},"address":"부산 중구 용두산길 37-55","stay_min":60,"entry_fee_krw":12000,"reservation_required":false,"tips_i18n":{"ko":"용두산공원 위. 부산 시내 조망.","en":"On Yongdusan Park. Busan panorama.","ja":"龍頭山公園上。釜山眺望。","zh":"龙头山公园上。釜山眺望。"},"lat":35.1003,"lng":129.0319,"start_time_offset_min":420},
-    {"order":6,"category":"food","name":"부산 회국수","name_i18n":{"ko":"부산 회국수","en":"Busan Sashimi Noodles","ja":"釜山刺身うどん","zh":"釜山生鱼片面"},"address":"부산 해운대구","stay_min":60,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"부산 명물 회국수.","en":"Busan specialty sashimi noodles.","ja":"釜山名物刺身うどん。","zh":"釜山名菜生鱼片面。"},"lat":35.1633,"lng":129.1622,"start_time_offset_min":495},
-    {"order":7,"category":"nature","name":"광안리 야경","name_i18n":{"ko":"광안리 광안대교","en":"Gwangalli Diamond Bridge","ja":"広安里広安大橋","zh":"广安里广安大桥"},"address":"부산 수영구 광안해변로","stay_min":75,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"부산 야경 1번지. 광안대교+해변.","en":"Busan's #1 night view. Diamond Bridge+beach.","ja":"釜山夜景1位。広安大橋+海岸。","zh":"釜山夜景1位。广安大桥+海滩。"},"lat":35.1531,"lng":129.1183,"start_time_offset_min":585}
-  ]
+  "id": "BUSAN_DAY_FULL_ACTION",
+  "city": "busan",
+  "zone": "Action-Multi-Zone",
+  "theme": "해운대+감천+자갈치+광안리 야경",
+  "theme_i18n": {
+    "ko": "해운대+감천+자갈치+광안리",
+    "en": "Haeundae+Gamcheon+Jagalchi+Gwangalli",
+    "ja": "海雲台+甘川+チャガルチ+広安里",
+    "zh": "海云台+甘川+扎嘎其+广安里"
+  },
+  "intensity": "action",
+  "duration_min": 660,
+  "block_type": "city_day",
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "해운대 해변",
+      "name_i18n": {
+        "ko": "해운대 해변",
+        "en": "Haeundae Beach",
+        "ja": "海雲台海岸",
+        "zh": "海云台海滩"
+      },
+      "address": "부산 해운대구",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산 대표 해변. 1.5km 백사장.",
+        "en": "Busan main beach. 1.5km sand.",
+        "ja": "釜山代表海岸。1.5km砂浜。",
+        "zh": "釜山代表海滩。1.5km沙滩。"
+      },
+      "lat": 35.1586,
+      "lng": 129.1603,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "동백섬",
+      "name_i18n": {
+        "ko": "동백섬",
+        "en": "Dongbaekseom",
+        "ja": "椿島",
+        "zh": "山茶岛"
+      },
+      "address": "부산 해운대구 우동",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "누리마루 APEC 하우스. 산책로 1.5km.",
+        "en": "Nurimaru APEC House. 1.5km trail.",
+        "ja": "ヌリマルAPECハウス。1.5km散歩道。",
+        "zh": "努里玛鲁APEC馆。1.5km步道。"
+      },
+      "lat": 35.1539,
+      "lng": 129.15,
+      "start_time_offset_min": 105
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "감천문화마을",
+      "name_i18n": {
+        "ko": "감천문화마을",
+        "en": "Gamcheon Culture Village",
+        "ja": "甘川文化村",
+        "zh": "甘川文化村"
+      },
+      "address": "부산 사하구 감내2로",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국의 마추픽추. 알록달록 마을.",
+        "en": "Korea's Machu Picchu. Colorful village.",
+        "ja": "韓国のマチュピチュ。カラフル村。",
+        "zh": "韩国马丘比丘。色彩村。"
+      },
+      "lat": 35.0975,
+      "lng": 129.0103,
+      "start_time_offset_min": 210
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "자갈치 시장",
+      "name_i18n": {
+        "ko": "자갈치 시장",
+        "en": "Jagalchi Market",
+        "ja": "チャガルチ市場",
+        "zh": "扎嘎其市场"
+      },
+      "address": "부산 중구 자갈치해안로 52",
+      "stay_min": 90,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "한국 최대 수산시장. 활어회.",
+        "en": "Korea's largest fish market. Live sashimi.",
+        "ja": "韓国最大水産市場。活魚刺身。",
+        "zh": "韩国最大水产市场。活鱼生鱼片。"
+      },
+      "lat": 35.0969,
+      "lng": 129.0306,
+      "start_time_offset_min": 315
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "부산타워",
+      "name_i18n": {
+        "ko": "부산타워",
+        "en": "Busan Tower",
+        "ja": "釜山タワー",
+        "zh": "釜山塔"
+      },
+      "address": "부산 중구 용두산길 37-55",
+      "stay_min": 60,
+      "entry_fee_krw": 12000,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "용두산공원 위. 부산 시내 조망.",
+        "en": "On Yongdusan Park. Busan panorama.",
+        "ja": "龍頭山公園上。釜山眺望。",
+        "zh": "龙头山公园上。釜山眺望。"
+      },
+      "lat": 35.1003,
+      "lng": 129.0319,
+      "start_time_offset_min": 420
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "부산 회국수",
+      "name_i18n": {
+        "ko": "부산 회국수",
+        "en": "Busan Sashimi Noodles",
+        "ja": "釜山刺身うどん",
+        "zh": "釜山生鱼片面"
+      },
+      "address": "부산 해운대구",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산 명물 회국수.",
+        "en": "Busan specialty sashimi noodles.",
+        "ja": "釜山名物刺身うどん。",
+        "zh": "釜山名菜生鱼片面。"
+      },
+      "lat": 35.1633,
+      "lng": 129.1622,
+      "start_time_offset_min": 495
+    },
+    {
+      "order": 7,
+      "category": "nature",
+      "name": "광안리 야경",
+      "name_i18n": {
+        "ko": "광안리 광안대교",
+        "en": "Gwangalli Diamond Bridge",
+        "ja": "広安里広安大橋",
+        "zh": "广安里广安大桥"
+      },
+      "address": "부산 수영구 광안해변로",
+      "stay_min": 75,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "부산 야경 1번지. 광안대교+해변.",
+        "en": "Busan's #1 night view. Diamond Bridge+beach.",
+        "ja": "釜山夜景1位。広安大橋+海岸。",
+        "zh": "釜山夜景1位。广安大桥+海滩。"
+      },
+      "lat": 35.1531,
+      "lng": 129.1183,
+      "start_time_offset_min": 585
+    }
+  ],
+  "transit_matrix": {
+    "1->2": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.1603,35.1586,%ED%95%B4%EC%9A%B4%EB%8C%80%20%ED%95%B4%EB%B3%80,,/129.15,35.1539,%EB%8F%99%EB%B0%B1%EC%84%AC,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 2,
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 1275,
+      "from_order": 1,
+      "duration_min": 17,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 1275,
+        "duration_min": 17
+      }
+    },
+    "2->3": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.15,35.1539,%EB%8F%99%EB%B0%B1%EC%84%AC,,/129.0103,35.0975,%EA%B0%90%EC%B2%9C%EB%AC%B8%ED%99%94%EB%A7%88%EC%9D%84,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 2100,
+      "source": "odsay_api",
+      "distance_m": 19848,
+      "from_order": 2,
+      "duration_min": 67,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 2100,
+        "distance_m": 19848,
+        "duration_min": 67
+      }
+    },
+    "3->4": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.0103,35.0975,%EA%B0%90%EC%B2%9C%EB%AC%B8%ED%99%94%EB%A7%88%EC%9D%84,,/129.0306,35.0969,%EC%9E%90%EA%B0%88%EC%B9%98%20%EC%8B%9C%EC%9E%A5,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1050,
+      "source": "odsay_api",
+      "distance_m": 2554,
+      "from_order": 3,
+      "duration_min": 18,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1050,
+        "distance_m": 2554,
+        "duration_min": 18
+      }
+    },
+    "5->6": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.0319,35.1003,%EB%B6%80%EC%82%B0%ED%83%80%EC%9B%8C,,/129.1622,35.1633,%EB%B6%80%EC%82%B0%20%ED%9A%8C%EA%B5%AD%EC%88%98,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 6,
+      "cost_krw": 2100,
+      "source": "odsay_api",
+      "distance_m": 18744,
+      "from_order": 5,
+      "duration_min": 53,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 2100,
+        "distance_m": 18744,
+        "duration_min": 53
+      }
+    },
+    "6->7": {
+      "mode": "mixed",
+      "naver_route_url": "https://map.naver.com/p/directions/129.1622,35.1633,%EB%B6%80%EC%82%B0%20%ED%9A%8C%EA%B5%AD%EC%88%98,,/129.1183,35.1531,%EA%B4%91%EC%95%88%EB%A6%AC%20%EC%95%BC%EA%B2%BD,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 7,
+      "cost_krw": 1550,
+      "source": "odsay_api",
+      "distance_m": 5334,
+      "from_order": 6,
+      "duration_min": 28,
+      "base": {
+        "mode": "mixed",
+        "cost_krw": 1550,
+        "distance_m": 5334,
+        "duration_min": 28
+      }
+    }
+  }
 }

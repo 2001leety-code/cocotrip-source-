@@ -39,8 +39,8 @@
         "ja": "バスキング + ストリートアート名所 — 週末午後が最も活気あり。",
         "zh": "街头表演 + 街头艺术胜地 — 周末下午最热闹。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5568904,
+      "lng": 126.9236743,
       "start_time_offset_min": 0
     },
     {
@@ -65,8 +65,8 @@
         "ja": "延南洞 — ベーカリー + ブランチ + モダン韓食 (食事制限とマッチング)。",
         "zh": "延南洞 — 烘焙 + 早午餐 + 现代韩餐 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.564501,
+      "lng": 126.922027,
       "start_time_offset_min": 75
     },
     {
@@ -89,8 +89,8 @@
         "ja": "ローカルな雰囲気 + 屋台フード (ホットク / ヤンニョムチキン / トッポッキ)。",
         "zh": "本地氛围 + 街头小吃 (糖饼 / 炸鸡 / 辣炒年糕)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5562399,
+      "lng": 126.9056261,
       "start_time_offset_min": 150
     },
     {
@@ -115,8 +115,8 @@
         "ja": "合井洞 — ロースタリーカフェ + デザート名店。",
         "zh": "合井洞 — 烘焙咖啡馆 + 甜品名店。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.551656,
+      "lng": 126.911889,
       "start_time_offset_min": 225
     },
     {
@@ -141,79 +141,80 @@
         "ja": "弘大クラブ通り — パブ + ライブハウス + 夜食 (食事制限とマッチング)。",
         "zh": "弘大夜店街 — 酒吧 + Live House + 夜宵 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 300
+      "lat": 37.5505997,
+      "lng": 126.9232061,
+      "start_time_offset_min": 300,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
-      "to_order": 2,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
       "base": {
+        "duration_min": 10,
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 976,
+        "cost_krw": 1200
+      },
+      "cost_krw": 1200,
+      "fetched_at": "2026-05-27",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9236743,37.5568904,%ED%99%8D%EB%8C%80%EC%9E%85%EA%B5%AC%20%EA%B1%B0%EB%A6%AC,,/126.922027,37.564501,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%EC%97%B0%EB%82%A8%EB%8F%99,,/-/transit",
+      "from_order": 1,
+      "duration_min": 10,
+      "source": "odsay_api",
+      "mode": "mixed",
+      "to_order": 2,
+      "distance_m": 976
     },
     "2->3": {
-      "from_order": 2,
-      "to_order": 3,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.922027,37.564501,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%EC%97%B0%EB%82%A8%EB%8F%99,,/126.9056261,37.5562399,%EB%A7%9D%EC%9B%90%EC%8B%9C%EC%9E%A5,,/-/transit",
+      "cost_krw": 1400,
+      "fetched_at": "2026-05-27",
       "base": {
+        "duration_min": 12,
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 1836,
+        "cost_krw": 1400
+      },
+      "from_order": 2,
+      "duration_min": 12,
+      "source": "odsay_api",
+      "distance_m": 1836,
+      "to_order": 3,
+      "mode": "mixed"
     },
     "3->4": {
-      "from_order": 3,
-      "to_order": 4,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 1220,
+        "cost_krw": 1500,
+        "duration_min": 11,
+        "mode": "mixed"
+      },
+      "cost_krw": 1500,
+      "fetched_at": "2026-05-27",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9056261,37.5562399,%EB%A7%9D%EC%9B%90%EC%8B%9C%EC%9E%A5,,/126.911889,37.551656,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%ED%95%A9%EC%A0%95%EB%8F%99,,/-/transit",
+      "from_order": 3,
+      "duration_min": 11,
+      "source": "odsay_api",
+      "mode": "mixed",
+      "to_order": 4,
+      "distance_m": 1220
     },
     "4->5": {
-      "from_order": 4,
+      "mode": "bus",
       "to_order": 5,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "distance_m": 1518,
+      "source": "odsay_api",
+      "duration_min": 13,
+      "from_order": 4,
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
+        "duration_min": 13,
+        "mode": "bus",
+        "distance_m": 1518,
         "cost_krw": 1500
-      }
+      },
+      "fetched_at": "2026-05-28",
+      "cost_krw": 1500,
+      "naver_route_url": "https://map.naver.com/p/directions/126.911889,37.551656,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%ED%95%A9%EC%A0%95%EB%8F%99,,/126.9232061,37.5505997,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%EC%99%80%EC%9A%B0%EC%82%B0%EB%A1%9C%20%ED%99%8D%EB%8C%80%20%ED%81%B4%EB%9F%BD%EA%B1%B0%EB%A6%AC,,/-/transit"
     }
   },
   "best_for": [

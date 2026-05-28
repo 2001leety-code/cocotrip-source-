@@ -32,8 +32,8 @@
         "ja": "事前予約必須 (reservation.knps.or.kr)。最終トイレ + 給水。",
         "zh": "需提前预约 (reservation.knps.or.kr)。最后洗手间 + 补水点。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.3845019,
+      "lng": 126.6194078,
       "start_time_offset_min": 0
     },
     {
@@ -58,9 +58,10 @@
         "ja": "城板岳近隣 — キンパ / 弁当スタイル食堂。登山前にしっかり。",
         "zh": "城板岳附近 — 紫菜包饭 / 便当式餐厅。登山前吃饱。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 45
+      "lat": 33.38628,
+      "lng": 126.6183294,
+      "start_time_offset_min": 45,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -82,9 +83,10 @@
         "ja": "韓国最高峰 (1947m)。白鹿潭火口ビュー。山頂で弁当推奨 (食堂無し)。",
         "zh": "韩国最高峰 (1947m)。白鹿潭火山口景观。山顶仅可便当 (无餐厅)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 105
+      "lat": 33.362247,
+      "lng": 126.5334223,
+      "start_time_offset_min": 105,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {

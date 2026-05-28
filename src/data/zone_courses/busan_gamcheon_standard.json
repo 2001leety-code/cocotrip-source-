@@ -39,8 +39,8 @@
         "ja": "韓国のマチュピチュ。星の王子さま撮影スポット。急な路地 — 歩きやすい靴。",
         "zh": "韩国马丘比丘。小王子拍照胜地。陡峭巷弄 — 请穿舒适鞋。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.0974932,
+      "lng": 129.010604,
       "start_time_offset_min": 0
     },
     {
@@ -67,9 +67,10 @@
         "ja": "甘川村カフェ通り — ビューカフェ + 韓食 (食事制限とマッチング)。",
         "zh": "甘川村咖啡街 — 景观咖啡 + 韩餐 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 135
+      "lat": 35.0966983,
+      "lng": 129.0087065,
+      "start_time_offset_min": 135,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -98,8 +99,8 @@
         "ja": "ガラス底の海上散歩道。松島海上ケーブルカー (別途) と一緒に推奨。",
         "zh": "玻璃底海上步道。建议结合松岛海上缆车 (另付) 体验。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.0708471,
+      "lng": 129.018884,
       "start_time_offset_min": 210
     },
     {
@@ -122,8 +123,8 @@
         "ja": "韓国初の公設ビーチ (1913年)。海雲台より空いている。",
         "zh": "韩国首座公共海水浴场 (1913年)。比海云台清静。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.0768199,
+      "lng": 129.0180495,
       "start_time_offset_min": 270
     },
     {
@@ -148,9 +149,10 @@
         "ja": "松島ビーチ — 刺身 / 海産物 + オーシャンビューレストラン。",
         "zh": "松岛海滩 — 生鱼片 / 海鲜 + 海景餐厅。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 345
+      "lat": 35.0751757,
+      "lng": 129.0195666,
+      "start_time_offset_min": 345,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -172,21 +174,21 @@
       }
     },
     "2->3": {
-      "from_order": 2,
-      "to_order": 3,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "mode": "bus",
+      "distance_m": 4297,
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 4297,
+        "cost_krw": 1550,
+        "duration_min": 32,
+        "mode": "bus"
+      },
+      "cost_krw": 1550,
+      "from_order": 2,
+      "duration_min": 32,
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/129.0087065,35.0966983,%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%82%AC%ED%95%98%EA%B5%AC%20%EA%B0%90%EB%82%B42%EB%A1%9C,,/129.018884,35.0708471,%EC%86%A1%EB%8F%84%20%EC%8A%A4%EC%B9%B4%EC%9D%B4%EC%9B%8C%ED%81%AC,,/-/transit",
+      "fetched_at": "2026-05-28",
+      "to_order": 3
     },
     "3->4": {
       "from_order": 3,

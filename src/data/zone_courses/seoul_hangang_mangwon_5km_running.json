@@ -32,8 +32,8 @@
         "ja": "ストレッチしてからスタート。トイレ + 水飲み場有り。",
         "zh": "出发前先做拉伸。备有洗手间与饮水器。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5581326,
+      "lng": 126.9075185,
       "start_time_offset_min": 0
     },
     {
@@ -56,9 +56,10 @@
         "ja": "正確な折り返し地点。小休止して戻る。",
         "zh": "准确折返点。短暂休息后返回。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 25
+      "lat": 37.524203,
+      "lng": 126.963121,
+      "start_time_offset_min": 25,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -80,45 +81,45 @@
         "ja": "ラン後のリカバリー飲料 + プロテイン。",
         "zh": "跑后补水 + 蛋白质补充。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5579572,
+      "lng": 126.9078315,
       "start_time_offset_min": 45
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
-      "to_order": 2,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9075185,37.5581326,%EB%A7%9D%EC%9B%90%ED%95%9C%EA%B0%95%EA%B3%B5%EC%9B%90%20%EC%8B%9C%EC%9E%91%EC%A0%90,,/126.963121,37.524203,%ED%95%9C%EA%B0%95%EB%8C%80%EA%B5%90%20turn-back,,/-/transit",
+      "source": "odsay_api",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "cost_krw": 1550,
+        "distance_m": 8516,
+        "duration_min": 29,
+        "mode": "subway+bus"
+      },
+      "to_order": 2,
+      "fetched_at": "2026-05-28",
+      "duration_min": 29,
+      "mode": "subway+bus",
+      "cost_krw": 1550,
+      "from_order": 1,
+      "distance_m": 8516
     },
     "2->3": {
-      "from_order": 2,
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/126.963121,37.524203,%ED%95%9C%EA%B0%95%EB%8C%80%EA%B5%90%20turn-back,,/126.9078315,37.5579572,%EB%A7%9D%EC%9B%90%EC%A7%80%EA%B5%AC%20%EC%B9%B4%ED%8E%98,,/-/transit",
       "to_order": 3,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "duration_min": 28,
+        "mode": "subway+bus",
+        "cost_krw": 1550,
+        "distance_m": 8403
+      },
+      "cost_krw": 1550,
+      "fetched_at": "2026-05-28",
+      "duration_min": 28,
+      "mode": "subway+bus",
+      "distance_m": 8403,
+      "from_order": 2
     }
   },
   "best_for": [

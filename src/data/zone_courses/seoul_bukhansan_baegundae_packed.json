@@ -32,8 +32,8 @@
         "ja": "白雲台ルート前の韓国伝統寺。トイレ利用推奨。",
         "zh": "登白云台前的韩国传统寺庙。建议在此使用洗手间。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.655283,
+      "lng": 126.9897302,
       "start_time_offset_min": 0
     },
     {
@@ -56,8 +56,8 @@
         "ja": "ソウル最高峰 (836m)。鉄柵区間は注意 — ゆっくり。山頂で弁当推奨。",
         "zh": "首尔最高峰 (836m)。铁栏杆段需慢行。建议在山顶享用便当。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.6628263,
+      "lng": 127.0068704,
       "start_time_offset_min": 45
     },
     {
@@ -80,27 +80,27 @@
         "ja": "仁寿峰 (810m) ロッククライミングの名所 — 観察ポイント。",
         "zh": "仁寿峰 (810m) 攀岩名胜 — 最佳观察点。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.6622234,
+      "lng": 127.004512,
       "start_time_offset_min": 120
     }
   ],
   "transit_matrix": {
     "1->2": {
-      "from_order": 1,
-      "to_order": 2,
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
+      "naver_route_url": "https://map.naver.com/p/directions/126.9897302,37.655283,%EB%8F%84%EC%84%A0%EC%82%AC,,/127.0068704,37.6628263,%EB%B0%B1%EC%9A%B4%EB%8C%80%20%EC%A0%95%EC%83%81,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 2,
       "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "source": "odsay_api",
+      "distance_m": 4567,
+      "from_order": 1,
+      "duration_min": 54,
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "cost_krw": 1500,
+        "distance_m": 4567,
+        "duration_min": 54
       }
     },
     "2->3": {
