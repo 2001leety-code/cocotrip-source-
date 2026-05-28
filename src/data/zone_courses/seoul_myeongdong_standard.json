@@ -39,8 +39,8 @@
         "ja": "韓国カトリックの母教会 — ゴシック様式の建築。ミサの時間は避けて訪問。",
         "zh": "韩国天主教母堂 — 哥特式建筑。建议避开弥撒时间参观。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5633352,
+      "lng": 126.9872743,
       "start_time_offset_min": 0
     },
     {
@@ -65,8 +65,8 @@
         "ja": "明洞エリア — 明洞餃子 / カルグクス / カルビタン (食事制限とマッチング)。",
         "zh": "明洞一带 — 明洞饺子 / 刀削面 / 排骨汤 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.558251,
+      "lng": 126.985229,
       "start_time_offset_min": 45
     },
     {
@@ -89,9 +89,10 @@
         "ja": "K-ビューティ旗艦店 + 免税店 + 屋台 — 観光客に優しい街。パスポート持参で免税。",
         "zh": "K-美妆旗舰店 + 免税店 + 街头小吃 — 适合游客。携带护照可免税。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 120
+      "lat": 37.5635916,
+      "lng": 126.9856943,
+      "start_time_offset_min": 120,
+      "_geocode_source": "google_places"
     },
     {
       "order": 4,
@@ -121,8 +122,8 @@
         "ja": "ケーブルカー + 展望台 — 日没時間帯がベスト (ソウルの夜景)。愛の鍵スポット。",
         "zh": "缆车 + 观景台 — 日落时分最佳 (首尔全景)。爱情锁名胜。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5510548,
+      "lng": 126.9878822,
       "start_time_offset_min": 255
     },
     {
@@ -147,9 +148,10 @@
         "ja": "明洞夜市 — 屋台フード (トルネードポテト / 鶏串 / ホットク / トッポッキ)。",
         "zh": "明洞夜市 — 街头小吃 (旋风薯 / 鸡肉串 / 糖饼 / 辣炒年糕)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 390
+      "lat": 37.5616685,
+      "lng": 126.9858438,
+      "start_time_offset_min": 390,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -188,38 +190,38 @@
       }
     },
     "3->4": {
-      "from_order": 3,
-      "to_order": 4,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9856943,37.5635916,%EB%AA%85%EB%8F%99%20%EC%87%BC%ED%95%91%20%EA%B1%B0%EB%A6%AC,,/126.9878822,37.5510548,N%EC%84%9C%EC%9A%B8%ED%83%80%EC%9B%8C,,/-/transit",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 4496,
+        "mode": "bus",
+        "cost_krw": 1500,
+        "duration_min": 27
+      },
+      "cost_krw": 1500,
+      "duration_min": 27,
+      "to_order": 4,
+      "distance_m": 4496,
+      "fetched_at": "2026-05-28",
+      "mode": "bus",
+      "from_order": 3
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "source": "odsay_api",
+      "duration_min": 22,
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 3568,
+        "mode": "bus",
+        "cost_krw": 1400,
+        "duration_min": 22
+      },
+      "cost_krw": 1400,
+      "naver_route_url": "https://map.naver.com/p/directions/126.9878822,37.5510548,N%EC%84%9C%EC%9A%B8%ED%83%80%EC%9B%8C,,/126.9858438,37.5616685,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EC%A4%91%EA%B5%AC%20%EB%AA%85%EB%8F%99%EA%B8%B8%20%EC%95%BC%EC%8B%9C%EC%9E%A5,,/-/transit",
+      "fetched_at": "2026-05-28",
+      "distance_m": 3568,
+      "to_order": 5,
+      "from_order": 4,
+      "mode": "bus"
     }
   },
   "best_for": [

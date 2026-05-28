@@ -39,8 +39,8 @@
         "ja": "広安大橋ビュー最高。土曜夜のドローンショー要確認。",
         "zh": "广安大桥最佳观赏点。建议查询周六晚间无人机表演。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.1537872,
+      "lng": 129.1185235,
       "start_time_offset_min": 0
     },
     {
@@ -67,9 +67,10 @@
         "ja": "広安里ビーチ周辺 — 刺身 / 海産物 / カフェ (食事制限とマッチング)。",
         "zh": "广安里海滩一带 — 生鱼片 / 海鲜 / 咖啡 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 105
+      "lat": 35.1511234,
+      "lng": 129.122288,
+      "start_time_offset_min": 105,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -91,8 +92,8 @@
         "ja": "地元のピクニック名所。刺身を買って公園で食べられる。",
         "zh": "当地野餐胜地。可买生鱼片在公园食用。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.1389888,
+      "lng": 129.1149041,
       "start_time_offset_min": 180
     },
     {
@@ -115,8 +116,8 @@
         "ja": "春 (4月初) の桜の名所。普段はカフェ通り。",
         "zh": "春季 (4月初) 樱花胜地。平日为咖啡街。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.142702,
+      "lng": 129.110324,
       "start_time_offset_min": 255
     },
     {
@@ -143,9 +144,10 @@
         "ja": "広安里夜景を見ながら夕食 — 広安大橋ビューレストラン。",
         "zh": "光看广安里夜景享用晚餐 — 广安大桥景观餐厅。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 330
+      "lat": 35.1511234,
+      "lng": 129.122288,
+      "start_time_offset_min": 330,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -167,21 +169,21 @@
       }
     },
     "2->3": {
+      "duration_min": 26,
+      "distance_m": 2178,
       "from_order": 2,
+      "fetched_at": "2026-05-28",
+      "source": "odsay_api",
       "to_order": 3,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 2178,
+        "cost_krw": 1480,
+        "duration_min": 26,
+        "mode": "bus"
+      },
+      "cost_krw": 1480,
+      "naver_route_url": "https://map.naver.com/p/directions/129.122288,35.1511234,%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%88%98%EC%98%81%EA%B5%AC%20%EA%B4%91%EC%95%88%ED%95%B4%EB%B3%80%EB%A1%9C,,/129.1149041,35.1389888,%EB%AF%BC%EB%9D%BD%EC%88%98%EB%B3%80%EA%B3%B5%EC%9B%90,,/-/transit",
+      "mode": "bus"
     },
     "3->4": {
       "from_order": 3,
@@ -201,21 +203,21 @@
       }
     },
     "4->5": {
+      "cost_krw": 1550,
+      "mode": "bus",
+      "naver_route_url": "https://map.naver.com/p/directions/129.110324,35.142702,%EB%82%A8%EC%B2%9C%EB%8F%99%20%EB%B2%9A%EA%BD%83%EA%B1%B0%EB%A6%AC,,/129.122288,35.1511234,%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%88%98%EC%98%81%EA%B5%AC%20%EA%B4%91%EC%95%88%ED%95%B4%EB%B3%80%EB%A1%9C,,/-/transit",
       "from_order": 4,
-      "to_order": 5,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "distance_m": 1828,
+      "duration_min": 18,
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "mode": "bus",
+        "cost_krw": 1550,
+        "duration_min": 18,
+        "distance_m": 1828
+      },
+      "to_order": 5,
+      "fetched_at": "2026-05-28",
+      "source": "odsay_api"
     }
   },
   "best_for": [

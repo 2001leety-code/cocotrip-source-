@@ -32,9 +32,10 @@
         "ja": "ロッテ百貨店本店 + 地下商店街 + 市内ショッピング。",
         "zh": "乐天百货总店 + 地下商店街 + 市区购物。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 0
+      "lat": 35.1605219,
+      "lng": 129.064458,
+      "start_time_offset_min": 0,
+      "_geocode_source": "google_places"
     },
     {
       "order": 2,
@@ -60,8 +61,8 @@
         "ja": "西面エリア — 豚クッパ / ミルミョン / 韓食 (食事制限とマッチング)。",
         "zh": "西面一带 — 猪肉汤饭 / 小麦冷面 / 韩餐 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.163524,
+      "lng": 129.063001,
       "start_time_offset_min": 105
     },
     {
@@ -84,8 +85,8 @@
         "ja": "釜山を代表する伝統市場。新鮮な農水産物 + 屋台。",
         "zh": "釜山代表传统市场。新鲜农水产 + 街头小吃。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.1546708,
+      "lng": 129.0551467,
       "start_time_offset_min": 180
     },
     {
@@ -113,9 +114,10 @@
         "ja": "田浦カフェ通り — トレンディカフェ + デザート。ヴィーガン対応有り。",
         "zh": "田浦咖啡街 — 潮流咖啡馆 + 甜品。提供素食选项。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 255
+      "lat": 35.1550032,
+      "lng": 129.0657183,
+      "start_time_offset_min": 255,
+      "_geocode_source": "google_places"
     },
     {
       "order": 5,
@@ -141,9 +143,10 @@
         "ja": "西面エリア — カルビ / 韓定食 / 和食 (食事制限とマッチング)。",
         "zh": "西面一带 — 烤排骨 / 韩定食 / 日料 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 330
+      "lat": 35.15781570000001,
+      "lng": 129.0600331,
+      "start_time_offset_min": 330,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -166,37 +169,37 @@
     },
     "2->3": {
       "from_order": 2,
-      "to_order": 3,
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "distance_m": 1334,
+      "source": "odsay_api",
+      "fetched_at": "2026-05-27",
+      "cost_krw": 1550,
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "cost_krw": 1550,
+        "duration_min": 13,
+        "distance_m": 1334
+      },
+      "duration_min": 13,
+      "naver_route_url": "https://map.naver.com/p/directions/129.063001,35.163524,%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EB%B6%80%EC%82%B0%EC%A7%84%EA%B5%AC%20%EB%B6%80%EC%A0%84%EB%8F%99,,/129.0551467,35.1546708,%EB%B6%80%EC%A0%84%EC%8B%9C%EC%9E%A5,,/-/transit",
+      "to_order": 3
     },
     "3->4": {
-      "from_order": 3,
       "to_order": 4,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "mode": "subway",
+        "distance_m": 1776,
+        "duration_min": 13,
+        "cost_krw": 1600
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/129.0551467,35.1546708,%EB%B6%80%EC%A0%84%EC%8B%9C%EC%9E%A5,,/129.0657183,35.1550032,%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EB%B6%80%EC%82%B0%EC%A7%84%EA%B5%AC%20%EC%A0%84%ED%8F%AC%EB%8C%80%EB%A1%9C,,/-/transit",
+      "duration_min": 13,
+      "mode": "subway",
+      "from_order": 3,
+      "cost_krw": 1600,
+      "fetched_at": "2026-05-28",
+      "source": "odsay_api",
+      "distance_m": 1776
     },
     "4->5": {
       "from_order": 4,

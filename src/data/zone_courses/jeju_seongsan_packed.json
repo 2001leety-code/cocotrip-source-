@@ -42,8 +42,8 @@
         "ja": "UNESCO世界自然遺産。30分の登山。日の出名所。",
         "zh": "UNESCO 世界自然遗产。30 分钟登山。日出名胜。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.4583815,
+      "lng": 126.9424915,
       "start_time_offset_min": 0
     },
     {
@@ -74,8 +74,8 @@
         "ja": "城山港から15分。自転車 + 電動車レンタル人気。ピーナッツアイス名物。",
         "zh": "城山港乘船 15 分钟。脚踏车 + 电动车租赁热门。花生冰淇淋名物。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.506483,
+      "lng": 126.953051,
       "start_time_offset_min": 105
     },
     {
@@ -100,8 +100,8 @@
         "ja": "牛島 — 海産物 / ボマルカルククス / 黒豚 (食事制限とマッチング)。",
         "zh": "牛岛 — 海鲜 / 螺贝刀切面 / 黑猪肉 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.506483,
+      "lng": 126.953051,
       "start_time_offset_min": 300
     },
     {
@@ -124,8 +124,8 @@
         "ja": "菜の花 + 灯台 + ドラマロケ地。春/秋がおすすめ。",
         "zh": "油菜花 + 灯塔 + 韩剧拍摄地。推荐春/秋。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.4329769,
+      "lng": 126.9277955,
       "start_time_offset_min": 375
     },
     {
@@ -150,8 +150,8 @@
         "ja": "城山エリア — 黒豚焼肉 / 刺身 (食事制限とマッチング)。",
         "zh": "城山一带 — 黑猪烤肉 / 生鱼片 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.442176,
+      "lng": 126.910976,
       "start_time_offset_min": 465
     }
   ],
@@ -208,20 +208,20 @@
       }
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.9277955,33.4329769,%EC%84%AD%EC%A7%80%EC%BD%94%EC%A7%80,,/126.910976,33.442176,%EC%A0%9C%EC%A3%BC%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%84%9C%EA%B7%80%ED%8F%AC%EC%8B%9C%20%EC%84%B1%EC%82%B0%EC%9D%8D,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1150,
+      "source": "odsay_api",
+      "distance_m": 2461,
+      "from_order": 4,
+      "duration_min": 24,
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "cost_krw": 1150,
+        "distance_m": 2461,
+        "duration_min": 24
       }
     }
   },

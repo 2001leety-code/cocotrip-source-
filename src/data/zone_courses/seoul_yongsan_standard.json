@@ -41,8 +41,8 @@
         "ja": "HYBE 本社展示館 — BTS / SEVENTEEN / LE SSERAFIM。事前予約必須。",
         "zh": "HYBE 总部展览馆 — BTS / SEVENTEEN / LE SSERAFIM。需提前预约。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5245526,
+      "lng": 126.96419,
       "start_time_offset_min": 0
     },
     {
@@ -70,8 +70,8 @@
         "ja": "梨泰院 — ハラル / ヴィーガン店多数。",
         "zh": "梨泰院 — 多家清真 / 素食餐厅。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.532523,
+      "lng": 126.995038,
       "start_time_offset_min": 105
     },
     {
@@ -102,8 +102,8 @@
         "ja": "韓国唯一のモスク。梨泰院モスク通り散策推奨。",
         "zh": "韩国唯一清真寺。推荐梨泰院清真寺街散步。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.5334158,
+      "lng": 126.9975304,
       "start_time_offset_min": 180
     },
     {
@@ -128,8 +128,8 @@
         "ja": "漢南洞カフェ通り — 外国人フレンドリー + 韓国スイーツ。",
         "zh": "汉南洞咖啡街 — 外国人友好 + 韩式甜品。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 37.53455,
+      "lng": 127.0005,
       "start_time_offset_min": 255
     },
     {
@@ -157,28 +157,29 @@
         "ja": "梨泰院パブ / 各国料理 / 韓食 全部選べる。ハラル / ヴィーガン推奨。",
         "zh": "梨泰院酒吧 / 异国料理 / 韩食 都有。推荐清真 / 素食。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 330
+      "lat": 37.5354891,
+      "lng": 126.9902791,
+      "start_time_offset_min": 330,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
     "1->2": {
       "from_order": 1,
       "to_order": 2,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
       "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "duration_min": 24,
+      "fetched_at": "2026-05-27",
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
+        "duration_min": 24,
+        "distance_m": 5190,
         "cost_krw": 1500
-      }
+      },
+      "distance_m": 5190,
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/126.96419,37.5245526,HYBE%20Insight,,/126.995038,37.532523,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EC%9A%A9%EC%82%B0%EA%B5%AC%20%EC%9D%B4%ED%83%9C%EC%9B%90%EB%8F%99,,/-/transit",
+      "mode": "mixed"
     },
     "2->3": {
       "from_order": 2,
@@ -215,20 +216,20 @@
       }
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
+      "fetched_at": "2026-05-28",
+      "duration_min": 14,
       "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "to_order": 5,
+      "from_order": 4,
+      "mode": "bus",
+      "naver_route_url": "https://map.naver.com/p/directions/127.0005,37.53455,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EC%9A%A9%EC%82%B0%EA%B5%AC%20%ED%95%9C%EB%82%A8%EB%8F%99,,/126.9902791,37.5354891,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EC%9A%A9%EC%82%B0%EA%B5%AC%20%EC%9D%B4%ED%83%9C%EC%9B%90%EB%A1%9C,,/-/transit",
+      "source": "odsay_api",
+      "distance_m": 1370,
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "duration_min": 14,
+        "mode": "bus",
+        "cost_krw": 1500,
+        "distance_m": 1370
       }
     }
   },

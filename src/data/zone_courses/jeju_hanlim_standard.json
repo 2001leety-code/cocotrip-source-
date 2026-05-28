@@ -32,8 +32,8 @@
         "ja": "済州の代表的なエメラルド海。飛揚島ビュー名所。",
         "zh": "济州代表绿宝石海滩。飞扬岛景观胜地。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.3924638,
+      "lng": 126.2389734,
       "start_time_offset_min": 0
     },
     {
@@ -66,8 +66,8 @@
         "ja": "ヤシの木 + 挾才洞窟 + 盆栽庭園。飛揚島が見えるカフェ。",
         "zh": "棕榈树 + 挾才洞窟 + 盆景花园。飞扬岛景观咖啡厅。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.38939,
+      "lng": 126.240282,
       "start_time_offset_min": 105
     },
     {
@@ -94,8 +94,8 @@
         "ja": "挾才 / 翰林エリア — 海産物 / ボマルカルククス / 韓食 (食事制限とマッチング)。",
         "zh": "挾才 / 翰林一带 — 海鲜 / 螺贝刀切面 / 韩餐 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.4106395,
+      "lng": 126.2666705,
       "start_time_offset_min": 210
     },
     {
@@ -118,8 +118,8 @@
         "ja": "挾才より空いている。夕日の名所。カフェ通り隣接。",
         "zh": "比挾才清静。日落胜地。临近咖啡街。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.4502184,
+      "lng": 126.3048351,
       "start_time_offset_min": 285
     },
     {
@@ -144,8 +144,8 @@
         "ja": "涯月 / 郭支 — 黒豚 / 刺身 / オーシャンビューカフェ (食事制限とマッチング)。",
         "zh": "涯月 / 郭支 — 黑猪肉 / 生鱼片 / 海景咖啡 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.462046,
+      "lng": 126.329235,
       "start_time_offset_min": 360
     }
   ],
@@ -168,54 +168,54 @@
       }
     },
     "2->3": {
-      "from_order": 2,
-      "to_order": 3,
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.240282,33.38939,%ED%95%9C%EB%A6%BC%EA%B3%B5%EC%9B%90,,/126.2666705,33.4106395,%EC%A0%9C%EC%A3%BC%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%A0%9C%EC%A3%BC%EC%8B%9C%20%ED%95%9C%EB%A6%BC%EC%9D%8D,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 3,
+      "cost_krw": 1150,
+      "source": "odsay_api",
+      "distance_m": 5468,
+      "from_order": 2,
+      "duration_min": 26,
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "cost_krw": 1150,
+        "distance_m": 5468,
+        "duration_min": 26
       }
     },
     "3->4": {
-      "from_order": 3,
-      "to_order": 4,
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.2666705,33.4106395,%EC%A0%9C%EC%A3%BC%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%A0%9C%EC%A3%BC%EC%8B%9C%20%ED%95%9C%EB%A6%BC%EC%9D%8D,,/126.3048351,33.4502184,%EA%B3%BD%EC%A7%80%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 4,
+      "cost_krw": 1150,
+      "source": "odsay_api",
+      "distance_m": 7985,
+      "from_order": 3,
+      "duration_min": 33,
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "cost_krw": 1150,
+        "distance_m": 7985,
+        "duration_min": 33
       }
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "naver_route_url": "https://map.naver.com/p/directions/126.3048351,33.4502184,%EA%B3%BD%EC%A7%80%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5,,/126.329235,33.462046,%EC%A0%9C%EC%A3%BC%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%A0%9C%EC%A3%BC%EC%8B%9C%20%EC%95%A0%EC%9B%94%EC%9D%8D,,/-/transit",
+      "fetched_at": "2026-05-27",
+      "to_order": 5,
+      "cost_krw": 1150,
+      "source": "odsay_api",
+      "distance_m": 3902,
+      "from_order": 4,
+      "duration_min": 22,
       "base": {
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
+        "cost_krw": 1150,
+        "distance_m": 3902,
+        "duration_min": 22
       }
     }
   },

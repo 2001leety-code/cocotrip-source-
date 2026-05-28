@@ -41,8 +41,8 @@
         "ja": "3段滝。7月七仙女祭り (隔年)。仙臨橋ビュー推奨。",
         "zh": "3 层瀑布。7月七仙女节 (隔年)。推荐仙临桥观景。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.2526755,
+      "lng": 126.4183742,
       "start_time_offset_min": 0
     },
     {
@@ -69,9 +69,10 @@
         "ja": "中文観光団地 — 黒豚 / タチウオ / 韓食 (食事制限とマッチング)。",
         "zh": "中文旅游区 — 黑猪肉 / 带鱼 / 韩餐 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 90
+      "lat": 33.2494178,
+      "lng": 126.4206311,
+      "start_time_offset_min": 90,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -103,8 +104,8 @@
         "ja": "温室 + 屋上展望台。アジア最大級の単一温室。雨の日にも最適。",
         "zh": "温室 + 顶楼观景台。亚洲最大单一温室。雨天首选。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.2526509,
+      "lng": 126.4142189,
       "start_time_offset_min": 165
     },
     {
@@ -127,8 +128,8 @@
         "ja": "中文ビーチ。サーフィン名所。夕日ビュー推奨。",
         "zh": "中文海滩。冲浪胜地。推荐日落观景。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.242916,
+      "lng": 126.4202933,
       "start_time_offset_min": 270
     },
     {
@@ -153,9 +154,10 @@
         "ja": "中文エリア — 黒豚焼肉 / 刺身 / オーシャンビューレストラン。",
         "zh": "中文一带 — 黑猪烤肉 / 生鱼片 / 海景餐厅。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 345
+      "lat": 33.2494178,
+      "lng": 126.4206311,
+      "start_time_offset_min": 345,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -194,38 +196,38 @@
       }
     },
     "3->4": {
+      "source": "odsay_api",
+      "cost_krw": 1150,
+      "duration_min": 12,
+      "base": {
+        "mode": "mixed",
+        "duration_min": 12,
+        "distance_m": 1352,
+        "cost_krw": 1150
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/126.4142189,33.2526509,%EC%97%AC%EB%AF%B8%EC%A7%80%EC%8B%9D%EB%AC%BC%EC%9B%90,,/126.4202933,33.242916,%EC%83%89%EB%8B%AC%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5,,/-/transit",
       "from_order": 3,
       "to_order": 4,
+      "fetched_at": "2026-05-27",
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
-      "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+      "distance_m": 1352
     },
     "4->5": {
-      "from_order": 4,
+      "fetched_at": "2026-05-28",
+      "mode": "bus",
+      "distance_m": 1062,
       "to_order": 5,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "from_order": 4,
       "base": {
-        "mode": "mixed",
+        "cost_krw": 1150,
+        "distance_m": 1062,
         "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "mode": "bus"
+      },
+      "naver_route_url": "https://map.naver.com/p/directions/126.4202933,33.242916,%EC%83%89%EB%8B%AC%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5,,/126.4206311,33.2494178,%EC%A0%9C%EC%A3%BC%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%84%9C%EA%B7%80%ED%8F%AC%EC%8B%9C%20%EC%A4%91%EB%AC%B8%EA%B4%80%EA%B4%91%EB%A1%9C,,/-/transit",
+      "duration_min": 15,
+      "source": "odsay_api",
+      "cost_krw": 1150
     }
   },
   "best_for": [

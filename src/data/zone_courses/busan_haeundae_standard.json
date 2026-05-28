@@ -39,8 +39,8 @@
         "ja": "釜山の代表的なビーチ。冬柏島散歩道おすすめ。7-8月が最も混雑。",
         "zh": "釜山最具代表性的海滩。推荐冬柏岛步道。7-8 月人潮最多。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.159107,
+      "lng": 129.1602838,
       "start_time_offset_min": 0
     },
     {
@@ -67,9 +67,10 @@
         "ja": "海雲台クナムロ — 刺身 / 豚クッパ / ミルミョン (食事制限とマッチング)。",
         "zh": "海云台九南路 — 生鱼片 / 猪肉汤饭 / 小麦冷面 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 105
+      "lat": 35.1616873,
+      "lng": 129.1606971,
+      "start_time_offset_min": 105,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -101,8 +102,8 @@
         "ja": "海底トンネルが見どころ。雨の日の屋内代替として人気。",
         "zh": "海底隧道为亮点。雨天最佳室内备选。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 35.1593434,
+      "lng": 129.1609912,
       "start_time_offset_min": 180
     },
     {
@@ -125,9 +126,10 @@
         "ja": "高層ビル夜景の名所。広安大橋ビューが撮影スポット。",
         "zh": "高楼夜景胜地。广安大桥拍摄最佳点。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 285
+      "lat": 35.1570863,
+      "lng": 129.1459258,
+      "start_time_offset_min": 285,
+      "_geocode_source": "google_places"
     },
     {
       "order": 5,
@@ -151,9 +153,10 @@
         "ja": "月見の道 — 刺身 / 韓牛 / オーシャンビューレストラン。",
         "zh": "月见路 — 生鱼片 / 韩牛 / 海景餐厅。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 360
+      "lat": 35.1665774,
+      "lng": 129.1820554,
+      "start_time_offset_min": 360,
+      "_geocode_source": "google_places"
     }
   ],
   "transit_matrix": {
@@ -192,38 +195,38 @@
       }
     },
     "3->4": {
+      "duration_min": 14,
+      "mode": "bus",
       "from_order": 3,
-      "to_order": 4,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "fetched_at": "2026-05-28",
+      "distance_m": 1677,
+      "cost_krw": 1550,
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "mode": "bus",
+        "cost_krw": 1550,
+        "duration_min": 14,
+        "distance_m": 1677
+      },
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/129.1609912,35.1593434,SEA%20LIFE%20%EB%B6%80%EC%82%B0%EC%95%84%EC%BF%A0%EC%95%84%EB%A6%AC%EC%9B%80,,/129.1459258,35.1570863,%EB%A7%88%EB%A6%B0%EC%8B%9C%ED%8B%B0,,/-/transit",
+      "to_order": 4
     },
     "4->5": {
-      "from_order": 4,
-      "to_order": 5,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "duration_min": 19,
+        "distance_m": 4237,
+        "mode": "bus",
+        "cost_krw": 2100
+      },
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/129.1459258,35.1570863,%EB%A7%88%EB%A6%B0%EC%8B%9C%ED%8B%B0,,/129.1820554,35.1665774,%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%ED%95%B4%EC%9A%B4%EB%8C%80%EA%B5%AC%20%EB%8B%AC%EB%A7%9E%EC%9D%B4%EA%B8%B8,,/-/transit",
+      "to_order": 5,
+      "mode": "bus",
+      "from_order": 4,
+      "duration_min": 19,
+      "cost_krw": 2100,
+      "fetched_at": "2026-05-28",
+      "distance_m": 4237
     }
   },
   "best_for": [

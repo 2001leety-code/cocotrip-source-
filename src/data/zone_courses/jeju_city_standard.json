@@ -32,8 +32,8 @@
         "ja": "済州を代表する市場。黒豚 / 海産物 / ハルラボン / 夜市 (夕方)。",
         "zh": "济州代表市场。黑猪肉 / 海鲜 / 汉拿峰 / 夜市 (傍晚)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.5115903,
+      "lng": 126.5260182,
       "start_time_offset_min": 0
     },
     {
@@ -58,9 +58,10 @@
         "ja": "済州市内 — 黒豚 / タチウオ / 肉ククス (食事制限とマッチング)。",
         "zh": "济州市内 — 黑猪肉 / 带鱼 / 肉刀切面 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
-      "start_time_offset_min": 105
+      "lat": 33.5130053,
+      "lng": 126.5226785,
+      "start_time_offset_min": 105,
+      "_geocode_source": "google_places"
     },
     {
       "order": 3,
@@ -82,8 +83,8 @@
         "ja": "龍の頭の形をした火山岩。夕日の名所。隣の龍淵散策推奨。",
         "zh": "龙头形火山岩。日落胜地。建议在旁边的龙渊散步。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.514892,
+      "lng": 126.5114,
       "start_time_offset_min": 180
     },
     {
@@ -118,8 +119,8 @@
         "ja": "済州自然 + 海女文化 + 火山形成展示。",
         "zh": "济州自然 + 海女文化 + 火山形成展览。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.506392,
+      "lng": 126.5313379,
       "start_time_offset_min": 240
     },
     {
@@ -144,8 +145,8 @@
         "ja": "済州市内 — 黒豚焼肉 / 海鮮鍋 / タチウオ煮 (食事制限とマッチング)。",
         "zh": "济州市内 — 黑猪烤肉 / 海鲜锅 / 烧带鱼 (按饮食偏好匹配)。"
       },
-      "lat": 0,
-      "lng": 0,
+      "lat": 33.483085,
+      "lng": 126.477175,
       "start_time_offset_min": 330
     }
   ],
@@ -168,55 +169,55 @@
       }
     },
     "2->3": {
+      "duration_min": 18,
+      "mode": "bus",
       "from_order": 2,
-      "to_order": 3,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "source": "odsay_api",
+      "naver_route_url": "https://map.naver.com/p/directions/126.5226785,33.5130053,%EC%A0%9C%EC%A3%BC%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%A0%9C%EC%A3%BC%EC%8B%9C%20%EA%B4%80%EB%8D%95%EB%A1%9C,,/126.5114,33.514892,%EC%9A%A9%EB%91%90%EC%95%94,,/-/transit",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "distance_m": 1477,
+        "mode": "bus",
+        "cost_krw": 1150,
+        "duration_min": 18
+      },
+      "cost_krw": 1150,
+      "fetched_at": "2026-05-28",
+      "to_order": 3,
+      "distance_m": 1477
     },
     "3->4": {
       "from_order": 3,
-      "to_order": 4,
+      "source": "odsay_api",
       "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "duration_min": 28,
+      "fetched_at": "2026-05-27",
+      "distance_m": 3069,
+      "to_order": 4,
+      "naver_route_url": "https://map.naver.com/p/directions/126.5114,33.514892,%EC%9A%A9%EB%91%90%EC%95%94,,/126.5313379,33.506392,%EC%A0%9C%EC%A3%BC%EB%AF%BC%EC%86%8D%EC%9E%90%EC%97%B0%EC%82%AC%EB%B0%95%EB%AC%BC%EA%B4%80,,/-/transit",
       "base": {
-        "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "duration_min": 28,
+        "cost_krw": 1150,
+        "distance_m": 3069,
+        "mode": "mixed"
+      },
+      "cost_krw": 1150
     },
     "4->5": {
-      "from_order": 4,
       "to_order": 5,
-      "mode": "mixed",
-      "duration_min": 15,
-      "distance_m": 1000,
-      "cost_krw": 1500,
-      "source": "mock",
-      "fetched_at": "2026-05-21",
-      "notes": "API call skipped, manual verification needed",
+      "distance_m": 6796,
+      "fetched_at": "2026-05-27",
       "base": {
+        "distance_m": 6796,
         "mode": "mixed",
-        "duration_min": 15,
-        "distance_m": 1000,
-        "cost_krw": 1500
-      }
+        "duration_min": 33,
+        "cost_krw": 1150
+      },
+      "cost_krw": 1150,
+      "naver_route_url": "https://map.naver.com/p/directions/126.5313379,33.506392,%EC%A0%9C%EC%A3%BC%EB%AF%BC%EC%86%8D%EC%9E%90%EC%97%B0%EC%82%AC%EB%B0%95%EB%AC%BC%EA%B4%80,,/126.477175,33.483085,%EC%A0%9C%EC%A3%BC%ED%8A%B9%EB%B3%84%EC%9E%90%EC%B9%98%EB%8F%84%20%EC%A0%9C%EC%A3%BC%EC%8B%9C%20%EB%85%B8%ED%98%95%EB%8F%99,,/-/transit",
+      "source": "odsay_api",
+      "from_order": 4,
+      "duration_min": 33,
+      "mode": "mixed"
     }
   },
   "best_for": [
