@@ -2246,6 +2246,7 @@ const RULES = [
   ['P291_responseSchemaHintFull', P291_responseSchemaHintFull],
   ['P292_planStreamingSweepCron', P292_planStreamingSweepCron],
   ['P297_crossCityLodgingPersonalize', P297_crossCityLodgingPersonalize],
+  ['P298_dietaryAllergiesMerge', P298_dietaryAllergiesMerge],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -8423,6 +8424,42 @@ function P290_selfHealLodgingBookendPersonalize({ changed }) {
   if (issues.length === 0) return null;
   return { id: 'P290_selfHealLodgingBookendPersonalize', severity: 'error', file: FILE_PERSISTER,
     message: 'R-P290: selfHealLodgingBookend personalize 깨짐 — placeholder generic 회귀 (P276+P277 buildPrompt 대안 손실). 발견: ' + issues.join(' | ') };
+}
+
+// ----------------------------------------------------------------------------
+// P298_dietaryAllergiesMerge — 할랄/비건 allergies 통합 회귀 차단 (SAFETY-CRITICAL)
+//
+// 6월 상용화 audit B1: 할랄/비건이 WizardForm ALLERGY_KEYS(P10 4/24) → allergies 배열.
+// handlerCore 가 dietPrefs 만 식이 체인 전달 → 할랄/비건 검증 죽음 (건강위험 1등급).
+// P298 fix: dietaryAll = dietPrefs ∪ allergies (None 제외) → 7지점 전달.
+// 회귀 = 7지점 중 하나라도 dietPrefs 단독 → 그 경로 할랄/비건 누락 (CLAUDE.md J).
+// ----------------------------------------------------------------------------
+function P298_dietaryAllergiesMerge({ changed }) {
+  const FILE = 'api/_ai_core/handlerCore.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  // dietaryAll 합집합 선언 (dietPrefs ∪ allergies, None 제외)
+  if (!/const dietaryAll\s*=\s*\[\.\.\.new Set/.test(src)) {
+    issues.push('dietaryAll 합집합 선언 손실 (할랄/비건 검증 죽음)');
+  }
+  if (!/!==\s*['"]None['"]/.test(src)) {
+    issues.push("'None' 제외 필터 손실");
+  }
+  // 회귀 차단: 식이 체인 dietPrefs 단독 사용 금지
+  if (/getFoodContext\(area,\s*dietPrefs,/.test(src)) {
+    issues.push('getFoodContext 가 dietPrefs 단독 (dietaryAll 아님) — 할랄/비건 음식필터 누락');
+  }
+  if (/dietary:\s*dietPrefs\b/.test(src)) {
+    issues.push('runGeminiPipeline/savePlan dietary: dietPrefs 단독 — 할랄/비건 검증/저장 누락');
+  }
+  if (/applyRecommendedRestaurants\(itinerary,\s*\{\s*area,\s*dietPrefs,/.test(src)) {
+    issues.push('applyRecommendedRestaurants dietPrefs 단독 — 할랄/비건 추천 누락');
+  }
+  if (issues.length === 0) return null;
+  return { id: 'P298_dietaryAllergiesMerge', severity: 'error', file: FILE,
+    message: 'R-P298 SAFETY-CRITICAL: 할랄/비건 allergies 통합 깨짐 — 무슬림/비건 plan 무검증 통과 회귀 (CLAUDE.md J 건강위험 1등급). 발견: ' + issues.join(' | ') };
 }
 
 // ----------------------------------------------------------------------------
