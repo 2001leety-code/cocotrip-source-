@@ -2235,6 +2235,13 @@ const RULES = [
   ['P276_arrivalGuideRequired', P276_arrivalGuideRequired],
   ['P278_blockModeCacheMetadata', P278_blockModeCacheMetadata],
   ['P279_vercelLogsNdjson', P279_vercelLogsNdjson],
+  ['P280_dietaryCoverage', P280_dietaryCoverage],
+  ['P281_blockModePlaceholderName', P281_blockModePlaceholderName],
+  ['P282_nicheStyleCityMismatch', P282_nicheStyleCityMismatch],
+  ['P283_lodgingZoneMultiDay', P283_lodgingZoneMultiDay],
+  ['P284_hotelAddressSingleCity', P284_hotelAddressSingleCity],
+  ['P285_bdcSoftLog', P285_bdcSoftLog],
+  ['P286_arrivalWrapEdge', P286_arrivalWrapEdge],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -8282,6 +8289,105 @@ function P279_vercelLogsNdjson({ changed }) {
       'Vercel runtime-logs API NDJSON 응답 → res.json() SyntaxError. text + split + per-line parse 의무. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
   };
+}
+
+// ----------------------------------------------------------------------------
+// P280-P286 cycle lint rules (2026-05-29) — Agent 1+2 deep-search sleeper bug
+// ----------------------------------------------------------------------------
+
+function P280_dietaryCoverage({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  if (!/function\s+checkDietaryCoverage/.test(src)) issues.push('checkDietaryCoverage function 누락');
+  if (!/dietary_coverage_low/.test(src)) issues.push('dietary_coverage_low issue type 누락');
+  if (!/COVERAGE_THRESHOLD\s*=\s*0\.5/.test(src)) issues.push('COVERAGE_THRESHOLD 0.5 누락');
+  if (issues.length === 0) return null;
+  return { id: 'P280_dietaryCoverage', severity: 'error', file: FILE,
+    message: 'R-P280: dietary coverage depth check 깨짐 — SAFETY-CRITICAL 사용자 건강 위험 회귀. 발견: ' + issues.join(' | ') };
+}
+
+function P281_blockModePlaceholderName({ changed }) {
+  const FILE = 'api/_ai_core/blockMode.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  if (!/\[추천\s+\$\{placeholderType\}/.test(src)) issues.push('명시적 placeholder text 패턴 누락');
+  if (/resolvedName\s*=\s*bs\.address\s*\|\|\s*'Local restaurant'/.test(src)) issues.push('이전 행정 주소 fallback 회귀');
+  if (!/block_mode_placeholder_synthesized/.test(src)) issues.push('quality_warnings 박제 누락');
+  if (issues.length === 0) return null;
+  return { id: 'P281_blockModePlaceholderName', severity: 'error', file: FILE,
+    message: 'R-P281: block_mode placeholder fallback 깨짐 — 68% plan stop.name 행정 주소 노출 회귀. 발견: ' + issues.join(' | ') };
+}
+
+function P282_nicheStyleCityMismatch({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  if (!/HANGANGBIKE_CITY_VIOLATION_PATTERNS/.test(src)) issues.push('HANGANGBIKE_CITY_VIOLATION_PATTERNS 누락');
+  if (!/hangangbike_city_mismatch/.test(src)) issues.push('hangangbike_city_mismatch issue type 누락');
+  if (!/jjimjilbang_coverage_zero/.test(src)) issues.push('jjimjilbang_coverage_zero (P282-B) 누락');
+  if (issues.length === 0) return null;
+  return { id: 'P282_nicheStyleCityMismatch', severity: 'error', file: FILE,
+    message: 'R-P282: niche style city/coverage 검증 깨짐 — HangangBike/Jjimjilbang 환불 클레임 회귀. 발견: ' + issues.join(' | ') };
+}
+
+function P283_lodgingZoneMultiDay({ changed }) {
+  const FILE = 'api/_ai_core/userMessageBuilder.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  if (!/EVERY day from Day 1 to Day N/.test(src)) issues.push('EVERY day stops enforce 명시 누락');
+  if (!/Day 2 ~ Day N-1.*middle days/.test(src)) issues.push('middle days 명시 누락');
+  if (!/P283/.test(src)) issues.push('P283 reference 누락');
+  if (issues.length === 0) return null;
+  return { id: 'P283_lodgingZoneMultiDay', severity: 'error', file: FILE,
+    message: 'R-P283: LODGING ZONE Day 2+ enforce 깨짐 — recommended_zone 무력화 (4/4 myeongdong plan) 회귀. 발견: ' + issues.join(' | ') };
+}
+
+function P284_hotelAddressSingleCity({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  if (!/hotel_address_single_city_mismatch/.test(src)) issues.push('hotel_address_single_city_mismatch 누락');
+  if (!/GENERIC_TOKENS/.test(src)) issues.push('GENERIC_TOKENS exclude logic 누락 (false positive risk)');
+  if (issues.length === 0) return null;
+  return { id: 'P284_hotelAddressSingleCity', severity: 'error', file: FILE,
+    message: 'R-P284: hotel single-city mismatch validator 깨짐 — 사용자 호텔 mismatch silent fail 회귀. 발견: ' + issues.join(' | ') };
+}
+
+function P285_bdcSoftLog({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  if (!/P285 B-DC mismatch/.test(src)) issues.push('P285 B-DC mismatch console.error 누락');
+  if (!/silent mode 차단/.test(src)) issues.push('silent mode 차단 reference 누락');
+  if (issues.length === 0) return null;
+  return { id: 'P285_bdcSoftLog', severity: 'error', file: FILE,
+    message: 'R-P285: B-DC SOFT circuit breaker log 깨짐 — env disabled 시 silent mode 회귀. 발견: ' + issues.join(' | ') };
+}
+
+function P286_arrivalWrapEdge({ changed }) {
+  const FILE = 'api/_ai_core/responseValidator.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  if (!/arrival-wrap edge/.test(src)) issues.push('arrival-wrap edge 명시 누락');
+  if (!/wrapHint/.test(src)) issues.push('wrapHint variable 누락');
+  if (issues.length === 0) return null;
+  return { id: 'P286_arrivalWrapEdge', severity: 'error', file: FILE,
+    message: 'R-P286: arrival-wrap edge 검증 깨짐 — Day 1 새벽 wrap stop 미감지 회귀. 발견: ' + issues.join(' | ') };
 }
 
 // ----------------------------------------------------------------------------
