@@ -135,12 +135,20 @@ export async function tryInitStreamingSkeleton({
       const planId = randomUUID();
       const planUrl = `/my-plans/${planId}`;
       // stub doc: 404 차단 전용. PlanDetailPage 가 _streaming_in_progress 감지 가능.
+      // P295 (2026-05-29): SAFETY-CRITICAL — uid 즉시 저장 의무.
+      //   Firestore Security Rules (request.auth.uid == resource.data.uid) 통과 위해
+      //   stub doc 시점부터 uid 필요. uid 없으면 사용자가 stub 시점 (worker Step 0 전,
+      //   ~1-3초 race window) 에 PlanDetailPage 진입 시 permission-denied → autherror
+      //   화면 = "세션이 만료되었습니다" 잘못된 표시.
+      //   guest plan 은 uid=null (Firestore Rules 의 별도 guest 분기 통과).
       await adminDb.collection('plans').doc(planId).set({
         planId,
         status: 'streaming',
         _streaming_in_progress: true,
         _streaming_started_at: Date.now(),
         _p231_stub: true, // P231 디버그용 — worker Step 0 가 full skeleton 으로 교체
+        uid: uid || null, // P295 SAFETY
+        guestEmail: email || null, // P295 SAFETY — guest plan 도 Rules 통과
       });
       console.log('[planner P231] Stub doc saved (skeleton-in-worker mode):', planId);
       // skeletonCtx: worker Step 0 에서 savePlanSkeleton 호출 시 필요한 파라미터 전체.
@@ -250,12 +258,16 @@ export async function tryInitBlockModeForInngest({
     if (isSkeletonInWorkerEnabled()) {
       const planId = randomUUID();
       const planUrl = `/my-plans/${planId}`;
+      // P295 (2026-05-29): SAFETY-CRITICAL — uid 즉시 저장 (block-mode 도 동일 fix).
+      //   Firestore Rules race window 차단 (sync path 의 stub fix 와 동일 의도).
       await adminDb.collection('plans').doc(planId).set({
         planId,
         status: 'streaming',
         _streaming_in_progress: true,
         _streaming_started_at: Date.now(),
         _p231_stub: true,
+        uid: uid || null, // P295 SAFETY
+        guestEmail: email || null, // P295 SAFETY
       });
       console.log('[planner P231] block-mode stub doc saved (skeleton-in-worker mode):', planId);
       // skeletonCtx: worker Step 0 에서 full skeleton + itinerary merge 수행.
