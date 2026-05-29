@@ -127,84 +127,13 @@ function checkDietaryViolation(stop, dietary) {
 }
 
 /**
- * P280 (2026-05-29): SAFETY-CRITICAL — dietary coverage depth check.
- *
- * P0-3 의 checkDietaryViolation 은 stop 별 fire-and-forget — 사용자 dietary=['halal'] 인데
- * food stops 중 0개 가 halal-claim 인 sleeper bug 미감지 (모든 stop unverified 시).
- *
- * P280 fix: dietary 입력 있을 때 food stops 중 dietary-claim ratio < 50% → coverage_low 박제.
- * 사용자 건강 위험 등급 (CLAUDE.md J SAFETY-CRITICAL).
- *
- * @param {Array} allStops — 모든 stops flat list
- * @param {Array<string>} dietary — 사용자 식이제한 (['halal', 'vegan', ...])
- * @returns {Array<{dietary_pref, coverage, match_count, food_stops_count}>|null}
- */
-function checkDietaryCoverage(allStops, dietary) {
-  if (!Array.isArray(dietary) || dietary.length === 0) return null;
-  const foodStops = (allStops || []).filter(s => s && s.category === 'food');
-  if (foodStops.length === 0) return null; // food stops 0 = N/A (별개 issue: B-MEAL 가 검증)
-
-  const dietPrefs = [];
-  if (dietary.some(d => /halal/i.test(String(d)))) dietPrefs.push('halal');
-  if (dietary.some(d => /vegan/i.test(String(d)))) dietPrefs.push('vegan');
-  if (dietary.some(d => /vegetarian/i.test(String(d))) && !dietPrefs.includes('vegan')) dietPrefs.push('vegetarian');
-
-  if (dietPrefs.length === 0) return null;
-
-  const claimsDiet = (stop, dietName) => {
-    const tags = []
-      .concat(stop.dietary_tags || [])
-      .concat(stop.dietary || [])
-      .concat(stop.tags || [])
-      .map(t => String(t).toLowerCase());
-    const hay = `${stop.name || ''} ${stop.display_name || ''} ${stop.tip || ''} ${stop.reason || ''}`.toLowerCase();
-    if (dietName === 'halal') {
-      const claims = tags.some(t => t.includes('halal')) || /halal|할랄/i.test(hay);
-      const conflicts = /pork|돼지|삼겹/i.test(hay);
-      return claims && !conflicts;
-    }
-    if (dietName === 'vegan') {
-      const claims = tags.some(t => t.includes('vegan')) || /vegan|비건/i.test(hay);
-      const conflicts = /beef|chicken|pork|fish|seafood|소고기|돼지|닭|생선|해산물/i.test(hay);
-      return claims && !conflicts;
-    }
-    if (dietName === 'vegetarian') {
-      const claims = tags.some(t => t.includes('vegetarian') || t.includes('vegan'))
-        || /vegetarian|vegan|채식|비건/i.test(hay);
-      const conflicts = /beef|chicken|pork|소고기|돼지|닭/i.test(hay);
-      return claims && !conflicts;
-    }
-    return false;
-  };
-
-  const COVERAGE_THRESHOLD = 0.5; // food stops 중 50% 미만이 dietary-claim → 위반
-
-  const lowCoverageIssues = [];
-  for (const dietName of dietPrefs) {
-    const matchCount = foodStops.filter(s => claimsDiet(s, dietName)).length;
-    const coverage = matchCount / foodStops.length;
-    if (coverage < COVERAGE_THRESHOLD) {
-      lowCoverageIssues.push({
-        dietary_pref: dietName,
-        coverage,
-        match_count: matchCount,
-        food_stops_count: foodStops.length,
-      });
-    }
-  }
-  return lowCoverageIssues.length > 0 ? lowCoverageIssues : null;
-}
-
-/**
  * P0-3: validateResponse 결과에서 critical dietary violation 존재 여부.
  * 사용자가 식이제한 입력했는데 violation 이 있으면 plan 그대로 저장하면 안 됨.
  * Caller (geminiPipeline) 가 1회 retry → 그래도 violation 이면 throw.
- * P280 (2026-05-29): dietary_coverage_low 도 critical → caller 가 retry.
  */
 export function hasCriticalDietaryViolation(issues) {
   if (!Array.isArray(issues)) return false;
-  // P280: dietary_coverage_low (SAFETY-CRITICAL coverage depth) 도 critical 로 인식 → retry trigger.
-  return issues.some((i) => i && i.severity === 'critical' && (i.type === 'dietary_violation' || i.type === 'dietary_coverage_low'));
+  return issues.some((i) => i && i.type === 'dietary_violation' && i.severity === 'critical');
 }
 
 /**
@@ -886,24 +815,6 @@ export function validateResponse(data, request, foodIndex) {
   // P0-3: request.dietary — 호출자가 사용자 식이제한 (Halal/Vegan/...) 전달 시 위반 검사.
   // 누락이면 검사 skip — 기존 caller 호환 (geminiPipeline 만 dietary 전달).
   const dietary = Array.isArray(request?.dietary) ? request.dietary : [];
-
-  // P280 (2026-05-29): SAFETY-CRITICAL — dietary coverage depth check.
-  // checkDietaryViolation 의 fire-and-forget 한계 보완. food stops 중 dietary-claim ratio
-  // < 50% 시 coverage_low 박제 (0개 halal restaurant 인데 dietary=['halal'] sleeper bug).
-  const coverageIssues = checkDietaryCoverage(allStops, dietary);
-  if (coverageIssues) {
-    for (const ci of coverageIssues) {
-      issues.push({
-        type: 'dietary_coverage_low',
-        severity: 'critical',
-        dietary_pref: ci.dietary_pref,
-        coverage: ci.coverage,
-        match_count: ci.match_count,
-        food_stops_count: ci.food_stops_count,
-        message: `P280: ${ci.dietary_pref} coverage ${Math.round(ci.coverage * 100)}% (${ci.match_count}/${ci.food_stops_count} food stops). SAFETY-CRITICAL — 사용자 건강 위험.`,
-      });
-    }
-  }
 
   for (const stop of allStops) {
     // 주소 형식 — 시/도로 시작하는지
