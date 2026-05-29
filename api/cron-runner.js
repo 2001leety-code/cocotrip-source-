@@ -22,6 +22,8 @@ import processorRetrySweep from './_crons/processor-retry-sweep.js';
 import emailRetrySweep from './_crons/email-retry-sweep.js';
 import aiPlannerRetrySweep from './_crons/ai-planner-retry-sweep.js';
 import slotPendingSweep from './_crons/slot-pending-sweep.js';
+// P292 (2026-05-29): plans.status='streaming' stuck sweep — 5/29 핸드오프 큐 #1.
+import planStreamingSweep from './_crons/plan-streaming-sweep.js';
 // Track B trend cron foundation (2026-05-21) — zone_courses placeholder data.
 import scanNaverRising from './_crons/scan-naver-rising.js';
 import scanRedditPainpoints from './_crons/scan-reddit-painpoints.js';
@@ -44,6 +46,8 @@ const JOBS = {
   'email-retry-sweep':       emailRetrySweep,
   'ai-planner-retry-sweep':  aiPlannerRetrySweep,
   'slot-pending-sweep':      slotPendingSweep,
+  // P292 (2026-05-29)
+  'plan-streaming-sweep':    planStreamingSweep,
   // Track B trend cron foundation (2026-05-21)
   'scan-naver-rising':           scanNaverRising,
   'scan-reddit-painpoints':      scanRedditPainpoints,

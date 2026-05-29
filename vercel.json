@@ -46,6 +46,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron-runner?job=plan-streaming-sweep",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron-runner?job=scan-naver-rising",
       "schedule": "0 18 * * 0"
     },
