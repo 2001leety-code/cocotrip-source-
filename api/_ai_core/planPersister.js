@@ -491,11 +491,22 @@ export function selfHealLodgingBookend(itinerary) {
  * @param {string} arrival_airport - "ICN T1" / "ICN T2" / "GMP" / "PUS" 등 (ALREADY 아님)
  * @returns {boolean} true = self-healed, false = no-op
  */
-export function selfHealArrivalGuide(itinerary, arrival_airport) {
+export function selfHealArrivalGuide(itinerary, arrival_airport, ctx = {}) {
   if (!itinerary || typeof itinerary !== 'object') return false;
   if (!arrival_airport || arrival_airport === 'ALREADY' || arrival_airport === 'already_in_korea') {
     return false;
   }
+  // P288 (2026-05-29): ctx 활용 — Gemini prompt 변경 0 (cache miss risk 0).
+  // P276+P277 (buildPrompt 강화) 의 대안: backend self_heal 시 user input 으로 step 5 personalize.
+  const { hotel_address, recommendedZone, arrival_time } = ctx;
+  const hotelLabel = (hotel_address && String(hotel_address).trim())
+    || (recommendedZone && String(recommendedZone).trim())
+    || 'your hotel';
+  // late-night arrival (>=23:00) hint
+  const arrivalHour = arrival_time && /^\d{1,2}:/.test(arrival_time) ? parseInt(String(arrival_time).slice(0, 2), 10) : null;
+  const lateNightHint = arrivalHour !== null && (arrivalHour >= 23 || arrivalHour < 5)
+    ? ' Late-night arrival — recommend taxi (no AREX after 23:00).'
+    : '';
   // P205 (2026-05-26): arrival_guide 있는데 airport nested field 누락 시 self-heal.
   //   5/26 measure 5/5 sample 모두 arrival_guide.airport 정상이었지만 departure 누락.
   //   대칭 안전성 — Gemini 가 airport nested 누락 시 입력값으로 채움 (B-16 SAFETY 보장).
@@ -548,7 +559,8 @@ export function selfHealArrivalGuide(itinerary, arrival_airport) {
       {
         step: 5,
         title: 'Get to Your Hotel',
-        description: 'Best transport option depends on group size + luggage. Backend RouteAgent will populate transport_to_hotel with ODsay step-by-step routes.',
+        // P288 personalize: hotel/zone 명 + late-night hint 추가 (P276+P277 buildPrompt 대안).
+        description: `Best transport option from ${arrival_airport} to ${hotelLabel}, based on group size + luggage.${lateNightHint} Backend RouteAgent populates transport_to_hotel with ODsay step-by-step routes.`,
         est_min: 0,
         transport_to_hotel: {
           arex_express: { price_krw: 9500, duration_min: 43, instruction: '' },
