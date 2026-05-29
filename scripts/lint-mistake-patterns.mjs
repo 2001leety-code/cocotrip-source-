@@ -2229,6 +2229,7 @@ const RULES = [
   ['P266_cacheMetadataPersist', P266_cacheMetadataPersist],
   ['P267_streamingChunkUsageMetadataFallback', P267_streamingChunkUsageMetadataFallback],
   ['P268_debugInfoNoCachePop', P268_debugInfoNoCachePop],
+  ['P273_userMessageCachePrefixOrder', P273_userMessageCachePrefixOrder],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -7990,6 +7991,68 @@ function P268_debugInfoNoCachePop({ changed }) {
     message:
       'R-P268: buildAdminDebug 가 _cache_metadata 를 pop — P266 fix layer 1 silent skip 회귀. ' +
       '5/29 P266→P267→P268 chain (Vercel logs + Inngest event payload 자동 fetch 진단) lesson 재발 위험. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P273_userMessageCachePrefixOrder — userMessage cache-friendly 순서 회귀 차단 (2026-05-29)
+//
+// Root cause (P195 baseline prod 측정, plan 696b273d):
+//   - _debug.cacheMetrics.cacheHitRate = 0% (Gemini implicit cache 0건)
+//   - userMessage 가 JSON.stringify(userInput) 으로 시작 → 매 요청 user-unique prefix
+//     → Gemini implicit caching (prefix exact match 필요) 0% hit
+//
+// P273 fix: userMessage 순서 = STATIC PREFIX (spotContext+foodContext+...) → SEMI-STATIC MIDDLE
+//   → DYNAMIC SUFFIX (userInput JSON) → RANDOM TAIL (variation_angle).
+//   동일 city+styles+diet+language 요청의 prefix 가 byte-level identical → 90% 할인 활성.
+//
+// 회귀 시: cacheHitRate 0% 회귀 → 일 100 plan × $0.48/day 비용 (현재 90% 할인 대비).
+// ----------------------------------------------------------------------------
+
+function P273_userMessageCachePrefixOrder({ changed }) {
+  const FILE = 'api/_ai_core/userMessageBuilder.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  // 1. return statement 가 staticPrefix + semiStaticMiddle + userInputJson + variationTail 순서
+  if (!/return\s+staticPrefix\s*\+\s*semiStaticMiddle\s*\+\s*userInputJson\s*\+\s*variationTail/.test(src)) {
+    issues.push('return statement 가 P273 순서 (staticPrefix + semiStaticMiddle + userInputJson + variationTail) 아님');
+  }
+
+  // 2. staticPrefix 변수 정의 + spotContext 로 시작
+  if (!/const\s+staticPrefix\s*=\s*[\s\S]{0,80}spotContext/.test(src)) {
+    issues.push('staticPrefix 변수 누락 또는 spotContext prefix 아님 (cache key 결정성 깨짐)');
+  }
+
+  // 3. userInputJson 변수 정의 + JSON.stringify 사용
+  if (!/const\s+userInputJson\s*=\s*JSON\.stringify/.test(src)) {
+    issues.push('userInputJson 변수 누락 — userInput 이 명시적 suffix 분리 안 됨');
+  }
+
+  // 4. 회귀 차단: return JSON.stringify (이전 패턴) 직접 검사
+  if (/return\s+JSON\.stringify/.test(src)) {
+    issues.push('return JSON.stringify(...) — P273 이전 prefix=userInput 패턴 회귀 (cache hit 0% 회귀 위험)');
+  }
+
+  // 5. P273 reference 명시
+  if (!/P273/.test(src)) {
+    issues.push('P273 reference 명시 누락 — 후속 lesson 추적 깨짐');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P273_userMessageCachePrefixOrder',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P273: userMessage cache-friendly 순서 깨짐 — Gemini implicit cache 0% hit 회귀. ' +
+      'P195 baseline (plan 696b273d, cacheHitRate=0%) → P273 fix (STATIC PREFIX → DYNAMIC SUFFIX) 의도 손실. ' +
+      '운영자 비용 박제 ~$0.48/day → 0.05/day (90% 할인 활성) ROI 손실 위험. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
   };
 }
