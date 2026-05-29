@@ -1143,6 +1143,10 @@ export async function persistPlan(adminDb, {
       // 는 wizard ALLERGY_KEYS (Halal/Vegan/Nuts/Shellfish/Gluten/Dairy/None).
       dietary: Array.isArray(dietaryRaw) ? dietaryRaw : null,
       allergies: Array.isArray(body.allergies) ? body.allergies : null,
+      // B3 S0 (P311, 2026-05-30): paypalOrderId persist — plan-발급 멱등성 추적 + 재시도
+      // 식별. 실패한 plan 재시도 시 같은 orderId 로 기존 ready plan 조회 가능. PayPal 17자
+      // orderId / ADMIN-BYPASS-/TEST-/MANUAL- prefix 모두 보존 (audit 용도).
+      paypalOrderId: body.paypalOrderId || null,
       // 2026-05-10 (P1): 도착/출발 시각 — PlanDetailPage 시각 분기 + revision prefill.
       arrival_time: body.arrivalTime || null,
       departure_time: body.departureTime || null,
@@ -1273,6 +1277,22 @@ export async function persistPlan(adminDb, {
     // throw 시 ai-planner-full handler 가 catch 해서 사용자에게 명확한 에러 + 환불 안내.
     console.error('[planPersister] Firestore set failed:', saveErr.message);
     throw new Error(`Plan save failed (${saveErr.code || saveErr.name}). Contact WhatsApp for refund.`);
+  }
+
+  // B3 S1-b (P311, 2026-05-30): plan 발급 *성공 후* plan_issued_orders 멱등성 마킹.
+  // 실제 PayPal 결제 (17자 orderId) 만 — ADMIN-BYPASS/TEST/MANUAL prefix 는 제외.
+  //   - paymentGate 가 진입 시 plan_issued_orders 검사 (존재 시 DUPLICATE 403 → 이중 plan 차단).
+  //   - write 는 여기 (plan set 성공 후) → plan 발급 *완료 전* 실패 시 doc 없음 → 재시도 통과 (B3 옵션 a).
+  //   - 결제 capture 멱등성 (used_paypal_orders, capturePaypalOrder) 과 별도 컬렉션 → capture 불변.
+  // non-fatal: plan 은 이미 저장됨. 멱등성 마킹 실패해도 plan loss 없음 (paymentGate 가 다음 호출 차단).
+  const ppOrderId = body?.paypalOrderId;
+  if (ppOrderId && !/^(ADMIN-BYPASS-|TEST-|MANUAL-)/.test(ppOrderId)) {
+    adminDb.collection('plan_issued_orders').doc(ppOrderId).set({
+      planId,
+      issuedAt: new Date().toISOString(),
+      uid: uid || null,
+      provider: 'paypal',
+    }).catch((e) => console.warn('[planPersister] plan_issued_orders mark failed (non-fatal):', e.message));
   }
 
   if (uid) {
