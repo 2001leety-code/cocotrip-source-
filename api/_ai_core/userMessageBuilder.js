@@ -178,27 +178,18 @@ function buildLodgingZoneBlock({ hotel_address, recommendedZones, area }) {
     const [, singleZone] = zoneEntries[0];
     return `
 
-[LODGING ZONE PREFERENCE — STRICT (P283 강화 2026-05-29)]
+[LODGING ZONE PREFERENCE — STRICT]
 The user has not booked a hotel and chose "${singleZone}" as their preferred lodging district within ${area}.
 This is a HARD anchor — assume they will sleep in or near "${singleZone}" every night.
 
 REQUIREMENTS:
 - 80%+ of all stops MUST be within 3km of "${singleZone}" centroid.
-- **EVERY day from Day 1 to Day N**: stops[0] (first) AND stops[last] (last) MUST be within 3km of "${singleZone}" (hub-and-spoke from lodging) — NOT only Day 1 first / Day N last.
-- Day 1: first stop in "${singleZone}" (arrival convenience).
-- Day N (last day): last stop in "${singleZone}" (departure convenience).
-- **Day 2 ~ Day N-1 (middle days)**: first AND last stops also within 3km of "${singleZone}" — 사용자가 매일 zone 호텔에서 출발하고 복귀 (HUB-AND-SPOKE pattern, 운영자 의도).
+- Day 1: first stop MUST be in "${singleZone}" (arrival convenience).
+- Day N (last day): last stop MUST be in "${singleZone}" (departure convenience).
 - Food stops (lunch/dinner): 90%+ within 3km of "${singleZone}".
 - Outside-zone stops: maximum 20% per day, AND only if the spot is genuinely iconic (major palace, must-see landmark, signature experience that cannot be substituted nearby).
 - DO NOT scatter stops across multiple distant districts — that defeats the purpose of choosing a base zone.
-- If "${singleZone}" lacks options for a category, prefer the closest adjacent neighborhood over a distant one.
-
-**🔴 P283 BAD 예시 (회귀 차단, Agent 2 deep-search 4/4 plans 영향)**:
-- input \`recommended_zone="myeongdong"\` (명동) → Day 1 stops 모두 명동 매칭 (Day 1 100%) + Day 2 stops 모두 강남구 (Day 2 0% 매칭) = **사용자 매일 명동↔강남 1시간 왕복** = 추천 zone 무력화 ❌
-- 사용자 신고: "명동에 묵으라고 추천했는데 매일 강남까지 1시간씩 가야해서 시간 낭비"
-
-**🟢 P283 GOOD 예시**:
-- input \`recommended_zone="myeongdong"\` → 모든 Day stops[0] AND stops[last] 가 명동 / 중구 (~3km) 내 + 80%+ stops 명동 zone 매칭 ✓`;
+- If "${singleZone}" lacks options for a category, prefer the closest adjacent neighborhood over a distant one.`;
   }
 
   // 다도시: 도시별 zone anchor. 도시 변경 day 마다 그 도시 zone 중심 5km 반경.
