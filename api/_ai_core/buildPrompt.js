@@ -266,35 +266,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - \`departure_guide.to_airport.instruction\`은 백엔드 RouteAgent가 ODsay 실제 step-by-step으로 덮어쓴다 → Gemini는 1-2 문장 high-level만 (예: "Take AREX Express from Hongik Univ. Station to Incheon Airport").
 - airport 필드는 \`departure_airport\`(없으면 \`arrival_airport\`)를 그대로 사용.
 - arrival_airport가 "already_in_korea"이면 departure_guide 작성하되 airport는 "GMP" 또는 "ICN T1" 합리적 가정.
-- 🔴 **B-16 STRICT ENFORCEMENT (2026-05-12, P202 강화 2026-05-26, P276 강화 2026-05-29)**: \`departure_guide\`, \`departure_guide.airport\`, \`arrival_guide.airport\` 각 필드 **모두 명시 의무**. 누락 시 backend validator 가 plan 을 거부하고 retry. ALWAYS include the top-level \`departure_guide\` object AND set \`departure_guide.airport\` (예: "ICN T1", "GMP", "PUS"). Likewise \`arrival_guide.airport\` 는 \`arrival_airport != "already_in_korea"\` 일 때 반드시 채워야 한다. PDF 첫/마지막 페이지가 빈 페이지가 되는 사용자 신고 사유.
-
-### 🔴 P276 (2026-05-29) — arrival_guide STEPS 통째 누락 차단 (SAFETY-CRITICAL)
-**사용자 신고 패턴**: prod plan 6c807c03 등 다수 — Gemini 가 \`arrival_guide\` 통째 누락 → backend selfHealArrivalGuide 가 generic 5-step skeleton 자동 합성. UI 표시는 되지만 **사용자 personalize 안 된 generic 안내** = quality 저하 + 운영자 환불 risk.
-
-**규칙**:
-1. \`arrival_guide\` 객체 **반드시** 포함 (responseSchema required 강제 + buildPrompt 의무)
-2. \`arrival_guide.steps\` 배열 **반드시 5개 step** (Immigration / SIM / T-money / Currency / Get to Hotel)
-3. 각 step 의 \`description\` 은 사용자 언어로 1-2 문장 + 호텔/zone 명시 (generic skeleton 회피)
-4. step 5 \`transport_to_hotel\` 은 빈 객체여도 됨 (backend RouteAgent 가 ODsay 채움) — **객체 자체는 emit**
-5. arrival_airport='already_in_korea' 인 경우만 SKIP 가능
-
-### 🔴 P277 (2026-05-29) — daily_budget_summary 통째 누락 차단
-**사용자 신고 패턴**: prod plan 6c807c03 등 다수 — Gemini 가 \`daily_budget_summary\` 통째 누락 → backend selfHealDailyBudget (P162) 가 stop count 기반 추정값 자동 생성. 사용자 결제 UI 의 "Day 별 예상 비용" 카드가 generic.
-
-**규칙**:
-1. \`daily_budget_summary\` 배열 **반드시 포함** (Day 수 만큼 element)
-2. 각 Day 의 \`{day, transport_krw, entry_fees_krw, meals_krw, activities_krw, shopping_estimate_krw, total_krw}\` 모두 emit
-3. \`transport_krw\` 는 0 으로 emit (backend 가 RouteAgent 계산 후 override) — 다른 항목은 stops 의 entry_fee_krw / 식당 가격 합산 추정
-4. 1-day plan = 1 element, 5-day plan = 5 element. 누락 시 backend self-heal — quality_warnings 박제
-
-**BAD (회귀 차단)**:
-- \`arrival_guide\` 통째 누락 → backend skeleton (generic) ❌
-- \`daily_budget_summary\` 통째 누락 → backend 추정값 (generic) ❌
-- \`arrival_guide.steps\` 가 1-2개 (5개 미만) → 사용자 안내 부족 ❌
-
-**GOOD**:
-- \`arrival_guide\` + steps 5개 + 각 step description 사용자 언어 personalize ✓
-- \`daily_budget_summary\` Day 수만큼 element + transport 0 + 다른 항목 추정 ✓
+- 🔴 **B-16 STRICT ENFORCEMENT (2026-05-12, P202 강화 2026-05-26)**: \`departure_guide\`, \`departure_guide.airport\`, \`arrival_guide.airport\` 각 필드 **모두 명시 의무**. 누락 시 backend validator 가 plan 을 거부하고 retry. ALWAYS include the top-level \`departure_guide\` object AND set \`departure_guide.airport\` (예: "ICN T1", "GMP", "PUS"). Likewise \`arrival_guide.airport\` 는 \`arrival_airport != "already_in_korea"\` 일 때 반드시 채워야 한다. PDF 첫/마지막 페이지가 빈 페이지가 되는 사용자 신고 사유.
 
 ### 🔴 P274 (2026-05-29) — TERMINAL CONSISTENCY: arrival/departure airport input 정확 echo 의무
 **사용자 신고 SAFETY-CRITICAL**: prod plan 696b273d 등 4건 — input \`arrival_airport: 'ICN'\` (terminal 미지정) 인데
