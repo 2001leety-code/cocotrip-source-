@@ -124,16 +124,20 @@ export function planToMarkdown(
     out.push('');
 
     // Intercity transit (KTX/항공/버스) — 도시 간 이동
+    // B7 (P308): mode/est_min/est_fare_krw 우선, P291~P308 오명명 plan 은 method/duration_min/cost_krw 폴백.
     const ict = day.intercity_transit;
-    if (ict && ict.mode) {
+    if (ict && (ict.mode || ict.method)) {
+      const ictMode = ict.mode || ict.method;
+      const ictEstMin = ict.est_min ?? ict.duration_min;
+      const ictEstFare = ict.est_fare_krw ?? ict.cost_krw;
       out.push(`### 🚆 도시 간 이동 (${escapeMd(ict.from_city_display || ict.from_city || '?')} → ${escapeMd(ict.to_city_display || ict.to_city || '?')})`);
       const intercityLines = nonEmpty([
-        `- **수단**: ${escapeMd(ict.mode)}`,
+        `- **수단**: ${escapeMd(ictMode)}`,
         ict.from_station && ict.to_station ? `- **${escapeMd(ict.from_station)} → ${escapeMd(ict.to_station)}**` : null,
         ict.recommended_depart ? `- 출발 시간: ${escapeMd(ict.recommended_depart)}` : null,
         ict.arrival_at ? `- 도착 시간: ${escapeMd(ict.arrival_at)}` : null,
-        ict.est_min ? `- 소요: ${ict.est_min}분` : null,
-        ict.est_fare_krw ? `- 요금: ${ict.est_fare_krw.toLocaleString()}원` : null,
+        ictEstMin ? `- 소요: ${ictEstMin}분` : null,
+        ictEstFare ? `- 요금: ${ictEstFare.toLocaleString()}원` : null,
         ict.booking_url ? `- 예매: ${ict.booking_url}` : null,
         ict.instruction ? `- ${escapeMd(ict.instruction)}` : null,
       ]);

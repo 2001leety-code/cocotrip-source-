@@ -71,6 +71,11 @@ export interface IntercityTransitSegment {
   station_to_lodging?: TransitSegment | null;
   est_min?: number;
   est_fare_krw?: number;
+  /** B7 (P308 2026-05-30): P291~P308 사이 schema 오명명으로 저장된 plan 의 legacy 필드.
+   *  frontend 가 mode/est_min/est_fare_krw 우선, 부재 시 이 3개로 폴백. */
+  method?: string;
+  duration_min?: number;
+  cost_krw?: number;
   recommended_depart?: string;
   arrival_at?: string;
   instruction?: string;

@@ -656,13 +656,18 @@ const PLAN_RESPONSE_SCHEMA = {
           },
           intercity_transit: {
             type: 'OBJECT',
-            propertyOrdering: ['from_city', 'to_city', 'method', 'duration_min', 'cost_krw'],
+            // B7 (P308, 2026-05-30): 필드명을 frontend/buildPrompt/RouteAgent 와 통일.
+            // P291 PR #703 이 method/duration_min/cost_krw 로 잘못 명명 → 다도시 KTX 빈칸.
+            // 실제 5개 layer (buildPrompt 예시+텍스트 / DayTimeline / pdfGenerator /
+            // planToMarkdown / RouteAgent fallback) 모두 mode/est_min/est_fare_krw.
+            // 스키마는 responseSchema (generationConfig) 라 prompt body 무관 = cache miss 0.
+            propertyOrdering: ['from_city', 'to_city', 'mode', 'est_min', 'est_fare_krw'],
             properties: {
               from_city: { type: 'STRING' },
               to_city: { type: 'STRING' },
-              method: { type: 'STRING' },
-              duration_min: { type: 'INTEGER' },
-              cost_krw: { type: 'NUMBER' },
+              mode: { type: 'STRING' },
+              est_min: { type: 'INTEGER' },
+              est_fare_krw: { type: 'NUMBER' },
             },
           },
           stops: {

@@ -123,11 +123,14 @@ describe('P291 PLAN_RESPONSE_SCHEMA properties hint 확장 (cache miss 0 대안)
     const daysItems = PLAN_RESPONSE_SCHEMA.properties.days.items;
     expect(daysItems.properties.lodging.propertyOrdering).toEqual(['name', 'address', 'check_in', 'check_out']);
     expect(daysItems.properties.lodging.properties.name.type).toBe('STRING');
+    // B7 (P308): intercity_transit 필드명을 frontend/buildPrompt/RouteAgent 와 통일.
+    // 이전 method/duration_min/cost_krw (P291 오명명) → mode/est_min/est_fare_krw.
     expect(daysItems.properties.intercity_transit.propertyOrdering).toEqual([
-      'from_city', 'to_city', 'method', 'duration_min', 'cost_krw',
+      'from_city', 'to_city', 'mode', 'est_min', 'est_fare_krw',
     ]);
-    expect(daysItems.properties.intercity_transit.properties.duration_min.type).toBe('INTEGER');
-    expect(daysItems.properties.intercity_transit.properties.cost_krw.type).toBe('NUMBER');
+    expect(daysItems.properties.intercity_transit.properties.est_min.type).toBe('INTEGER');
+    expect(daysItems.properties.intercity_transit.properties.est_fare_krw.type).toBe('NUMBER');
+    expect(daysItems.properties.intercity_transit.properties.mode.type).toBe('STRING');
   });
 
   it('R4 — lodging / intercity_transit 의 required 추가 X', () => {
