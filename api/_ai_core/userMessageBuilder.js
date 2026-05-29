@@ -5,10 +5,19 @@
  * 순수 string concatenation — 부수효과 없음. spotContext / foodContext 는
  * handlerCore 가 미리 계산해서 인자로 전달.
  *
- * 출력: Gemini user prompt — JSON.stringify(userInput) + spotContext +
- * foodContext + mountainContext (P191) + runningContext (P237) +
- * activityContext (P241) + hotelContext (P241) +
- * LODGING ZONE block + MULTI-CITY HOTELS block + ...
+ * P273 (2026-05-29): cache-friendly 순서 — STATIC PREFIX → SEMI-STATIC MIDDLE → DYNAMIC SUFFIX → RANDOM TAIL.
+ *   이전: JSON.stringify(userInput) 가 prefix (매 요청 unique) → Gemini implicit cache 0% hit.
+ *   현재: spotContext+foodContext+... (도시+styles+diet 별 same) 가 prefix → 동일 city/styles/diet 요청 시 cache prefix match → 90% 할인 활성.
+ *   ※ P195 baseline prod 측정 (plan 696b273d) = cacheHitRate 0% root cause = prompt prefix 결정성 부족.
+ *   ※ Gemini 2.5 implicit caching = prefix exact match 필요 (2025-10 Logan Kilpatrick: 75% → 90% 상향).
+ *
+ * 출력 순서 (P273):
+ *   1. STATIC PREFIX: spotContext + foodContext + attractionsContext + mountainContext + runningContext
+ *      + activityContext (P241) + hotelContext (P241)
+ *   2. SEMI-STATIC MIDDLE: LODGING ZONE block + MULTI-CITY HOTELS block + MULTI-CITY ENTRY/EXIT block
+ *      + ACCOMMODATION block
+ *   3. DYNAMIC SUFFIX: JSON.stringify(userInput) — guest_name/date/styles/special_request 등 user-unique
+ *   4. RANDOM TAIL: variation_angle block (Math.random, cache miss 의도)
  *
  * P191 (2026-05-25): mountainContext — SAFETY-CRITICAL. Trekking/Hallasan
  * 옵션 선택 시 검증 DB 주입 (hallucination 차단, 외국인 등산 사고 예방).
@@ -50,7 +59,30 @@ export function buildUserMessage({
     pace, wantAccom, accomBudget, language,
   } = shaped;
 
-  const userMessage = JSON.stringify({
+  // P273 (2026-05-29): cache-friendly 순서 재배치.
+  // STATIC PREFIX (1) → SEMI-STATIC MIDDLE (2) → DYNAMIC SUFFIX (3) → RANDOM TAIL (4).
+  // Gemini implicit cache hit (90% 할인) trigger 위해 동일 city/language/styles/diet 요청의
+  // prefix 가 byte-level identical 가져야 함. 이전: JSON.stringify(userInput) 가 prefix → 0% hit.
+
+  // (1) STATIC PREFIX — 도시+styles+diet+language 별 동일 (cache key 후보)
+  const staticPrefix =
+    spotContext +
+    foodContext +
+    attractionsContext +
+    mountainContext +
+    runningContext +
+    buildP241ActivityContext(styles, area, language) +
+    buildP241HotelContext(area, hotel_address, language);
+
+  // (2) SEMI-STATIC MIDDLE — 호텔/도시 의존 (partial cache)
+  const semiStaticMiddle =
+    buildLodgingZoneBlock({ hotel_address, recommendedZones, area }) +
+    buildMultiCityHotelBlock(hotelByCity, regions) +
+    buildMultiCityEntryExitBlock({ regions, arrivalCity, departureCity }) +
+    buildAccommodationBlock({ wantAccom, accomBudget });
+
+  // (3) DYNAMIC SUFFIX — 사용자 입력 JSON (매 요청 unique)
+  const userInputJson = JSON.stringify({
     guest_name: guestName,
     guest_count: pax,
     date: startDate,
@@ -95,13 +127,12 @@ export function buildUserMessage({
     variation_seed: Math.floor(Math.random() * 100) + 1,
     want_accommodation: wantAccom || undefined,
     accommodation_budget: wantAccom ? accomBudget : undefined,
-  }) + spotContext + foodContext + attractionsContext + mountainContext + runningContext + buildP241ActivityContext(styles, area, language) + buildP241HotelContext(area, hotel_address, language) + buildLodgingZoneBlock({ hotel_address, recommendedZones, area })
-    + buildMultiCityHotelBlock(hotelByCity, regions)
-    + buildMultiCityEntryExitBlock({ regions, arrivalCity, departureCity })
-    + buildAccommodationBlock({ wantAccom, accomBudget })
-    + buildVariationAngleBlock();
+  });
 
-  return userMessage;
+  // (4) RANDOM TAIL — Gemini 응답 다양성. cache 영향 X (suffix 변동만, prefix hit 유지).
+  const variationTail = buildVariationAngleBlock();
+
+  return staticPrefix + semiStaticMiddle + userInputJson + variationTail;
 }
 
 // ── P241: Activity + Hotel context builders ──────────────────────────────────
