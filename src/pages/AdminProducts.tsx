@@ -220,9 +220,9 @@ function ProductRow({ tour }: { tour: Tour & { _docId: string } }) {
 
   const statusBadge = (s: TourStatus | undefined) => {
     const cfg = {
-      draft:     { bg: 'bg-amber-50',   text: 'text-amber-700',  label: 'Draft', icon: EyeOff },
-      published: { bg: 'bg-green-50',   text: 'text-green-700',  label: 'Published', icon: Eye },
-      archived:  { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Archived', icon: EyeOff },
+      draft:     { bg: 'bg-amber-50',   text: 'text-amber-700',  label: '초안', icon: EyeOff },
+      published: { bg: 'bg-green-50',   text: 'text-green-700',  label: '발행됨', icon: Eye },
+      archived:  { bg: 'bg-gray-100',   text: 'text-gray-600',   label: '보관됨', icon: EyeOff },
     }[s ?? 'draft'];
     const Icon = cfg.icon;
     return (

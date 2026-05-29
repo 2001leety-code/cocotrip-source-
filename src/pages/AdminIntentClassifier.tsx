@@ -27,11 +27,11 @@ import {
 } from '@/lib/intent-classifier-logs';
 
 const INTENT_LABEL: Record<string, string> = {
-  block_swap: 'block_swap',
-  stop_swap: 'stop_swap',
-  stop_add: 'stop_add',
-  stop_remove: 'stop_remove',
-  no_change: 'no_change',
+  block_swap: '블록 교체',
+  stop_swap: '정류지 교체',
+  stop_add: '정류지 추가',
+  stop_remove: '정류지 삭제',
+  no_change: '변경 없음',
 };
 
 function formatPercent(rate: number | null | undefined): string {

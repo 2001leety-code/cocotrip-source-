@@ -31,15 +31,32 @@ const CITY_FILTERS: Array<ZoneCourseCity | 'all'> = [
   'daejeon', 'chungcheong',
 ];
 
+const CITY_LABEL: Record<string, string> = {
+  all: '전체',
+  seoul: '서울', suwon: '수원',
+  busan: '부산', gyeongju: '경주', andong: '안동', daegu: '대구', pohang: '포항', gyeongsang: '경상',
+  jeju: '제주',
+  jeonju: '전주',
+  gangneung: '강릉', sokcho: '속초', gangwon: '강원',
+  daejeon: '대전', chungcheong: '충청',
+};
+
 const SOURCE_FILTERS: Array<ZoneCourseSource | 'all'> = [
   'all', 'cocotrip_curated', 'operator_verified', 'user_validated',
 ];
 
+const SOURCE_LABEL: Record<string, string> = {
+  all: '전체',
+  cocotrip_curated: '코코트립 큐레이션',
+  operator_verified: '오퍼레이터 검증',
+  user_validated: '사용자 검증',
+};
+
 function statusBadge(s: ZoneCourseStatus | undefined) {
   const cfg = {
-    draft:     { bg: 'bg-amber-50',   text: 'text-amber-700',  label: 'Draft', icon: EyeOff },
-    published: { bg: 'bg-green-50',   text: 'text-green-700',  label: 'Published', icon: Eye },
-    archived:  { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Archived', icon: EyeOff },
+    draft:     { bg: 'bg-amber-50',   text: 'text-amber-700',  label: '초안', icon: EyeOff },
+    published: { bg: 'bg-green-50',   text: 'text-green-700',  label: '발행됨', icon: Eye },
+    archived:  { bg: 'bg-gray-100',   text: 'text-gray-600',   label: '보관됨', icon: EyeOff },
   }[s || 'draft'];
   const Icon = cfg.icon;
   return (
@@ -151,9 +168,9 @@ export default function AdminZoneCourses() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {([
             { label: '전체', value: counts.total, color: 'text-gray-800' },
-            { label: 'Published', value: counts.published, color: 'text-green-700' },
-            { label: 'Draft', value: counts.draft, color: 'text-amber-700' },
-            { label: 'Archived', value: counts.archived, color: 'text-gray-500' },
+            { label: '발행됨', value: counts.published, color: 'text-green-700' },
+            { label: '초안', value: counts.draft, color: 'text-amber-700' },
+            { label: '보관됨', value: counts.archived, color: 'text-gray-500' },
           ] as const).map((c) => (
             <div key={c.label} className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-[11px] text-gray-500 mb-0.5">{c.label}</p>
@@ -172,7 +189,7 @@ export default function AdminZoneCourses() {
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
             >
               {CITY_FILTERS.map((c) => (
-                <option key={c} value={c}>{c === 'all' ? '전체' : c}</option>
+                <option key={c} value={c}>{CITY_LABEL[c] || c}</option>
               ))}
             </select>
           </div>
@@ -184,7 +201,7 @@ export default function AdminZoneCourses() {
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
             >
               {SOURCE_FILTERS.map((s) => (
-                <option key={s} value={s}>{s === 'all' ? '전체' : s}</option>
+                <option key={s} value={s}>{SOURCE_LABEL[s] || s}</option>
               ))}
             </select>
           </div>
@@ -242,14 +259,14 @@ function BlockRow({ block }: { block: ZoneCourseDoc }) {
             {statusBadge(block.status)}
             {block.source && (
               <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full">
-                {block.source}
+                {SOURCE_LABEL[block.source] || block.source}
               </span>
             )}
           </div>
           <p className="text-[11px] text-gray-500 truncate">
             <span className="font-mono">{blockId}</span>
             {' · '}
-            <span>{(block.city || '?').toUpperCase()}</span>
+            <span>{CITY_LABEL[block.city || ''] || block.city || '?'}</span>
             {' · '}
             <span>{block.zone || '?'}</span>
             {' · '}
@@ -258,7 +275,7 @@ function BlockRow({ block }: { block: ZoneCourseDoc }) {
               <> {' · '} <span>{Math.round(block.duration_min / 60 * 10) / 10}h</span></>
             )}
             {block.stops && (
-              <> {' · '} <span><MapPin className="w-2.5 h-2.5 inline" /> {block.stops.length} stops</span></>
+              <> {' · '} <span><MapPin className="w-2.5 h-2.5 inline" /> {block.stops.length}개 정류지</span></>
             )}
           </p>
         </button>
