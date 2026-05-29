@@ -208,12 +208,25 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       }
 
       if (adminDb) {
-        const usedRef = adminDb.collection('used_paypal_orders').doc(paypalOrderId);
-        const usedDoc = await usedRef.get();
-        if (usedDoc.exists) {
+        // B3 S1-a (P311, 2026-05-30): plan-발급 멱등성을 plan_issued_orders 로 분리 (검사만).
+        //
+        // 이전 BUG (출시 blocker): used_paypal_orders 를 capturePaypalOrder (결제 capture
+        // 멱등성) 와 공유. capturePaypalOrder.js:233 이 capture 성공 시 used_paypal_orders/
+        // {orderID}='captured' 를 먼저 만드는데, 여기서 같은 doc 존재를 DUPLICATE 로 오인
+        // → 실제 유료 첫 plan 도 100% DUPLICATE_ORDER 403. 현재는 전 트래픽이 ADMIN-BYPASS
+        // 라 미발현이나, 6월 상용화 실제 PayPal 결제 시작 시 즉시 터짐.
+        //
+        // Fix: plan-발급 멱등성을 plan_issued_orders 별도 컬렉션으로 분리.
+        //   - 검사만 여기서 (존재 시 DUPLICATE → 이중 plan 차단).
+        //   - write 는 planPersister set 성공 후 (B3 S1-b) → plan 발급 완료 전 실패 시 doc
+        //     없음 → 재시도 통과 (B3 옵션 a: 재시도만, 환불 X).
+        //   - used_paypal_orders (capturePaypalOrder 결제 capture 멱등성) 는 절대 불변.
+        const issuedRef = adminDb.collection('plan_issued_orders').doc(paypalOrderId);
+        const issuedDoc = await issuedRef.get();
+        if (issuedDoc.exists) {
           return reject(403, 'DUPLICATE_ORDER', 'Order already used', 'This payment has already been used to generate a plan.');
         }
-        await usedRef.set({ usedAt: new Date().toISOString(), status: orderData.status, provider: 'paypal' });
+        // write 제거 — planPersister 가 plan set 성공 후 plan_issued_orders 마킹 (재시도 허용).
       }
     }
   }
