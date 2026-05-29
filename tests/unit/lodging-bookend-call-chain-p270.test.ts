@@ -43,8 +43,9 @@ describe('P270 selfHealLodgingBookend call chain dead code 복구', () => {
   });
 
   it('postResponsePipeline.js: applyBackfillsAndTmoney 안에서 호출', () => {
-    // selfHealLodgingBookend(itinerary) 호출 패턴 (전체 source 안 어디든 OK — import + call 둘 다 검증)
-    expect(pipelineSrc).toMatch(/selfHealLodgingBookend\s*\(\s*itinerary\s*\)/);
+    // P290 (2026-05-29): ctx personalize 도입 → 호출 시 `selfHealLodgingBookend(itinerary, { ... })`
+    //   형태 가능. close paren 또는 콤마 둘 다 허용 (backward + forward compat).
+    expect(pipelineSrc).toMatch(/selfHealLodgingBookend\s*\(\s*itinerary\s*[,)]/);
   });
 
   it('호출 순서: backfillDayLodging → selfHealLodgingBookend → calculateTmoney', () => {

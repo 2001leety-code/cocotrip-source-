@@ -388,11 +388,24 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
  *
  * Quality_warnings 박제 — 운영자 가 Gemini 누락 빈도 추적 가능.
  *
+ * P290 (2026-05-29): ctx personalize — P288/P289 패턴 동일. 단일 도시 plan +
+ *   사용자 hotel_address / recommendedZone 입력 시 placeholder 대신 user input 사용.
+ *   day.lodging?.name 우선 (multi-city plan 의 city-별 호텔 보존). day.lodging
+ *   없을 때만 ctx fallback. Gemini prompt 변경 0 = cache miss risk 0.
+ *
+ * @param {object} itinerary - mutated in-place
+ * @param {object} ctx - { hotel_address, recommendedZone } (optional)
  * @returns {Array<object>} prepend/append 이력
  */
-export function selfHealLodgingBookend(itinerary) {
+export function selfHealLodgingBookend(itinerary, ctx = {}) {
   const healed = [];
   const days = itinerary?.days || [];
+  // P290 (2026-05-29): ctx fallback — day.lodging 없을 때 사용. day.lodging?.name
+  //   우선 (multi-city 보존). hotel_address 가 정확 주소 형태이므로 synName/synAddress
+  //   둘 다 사용 (placeholder "해운대 호텔" 보다 "OO 호텔" 이 user-meaningful).
+  //   recommendedZone (예: "Myeongdong") 은 synName 만 "{zone} 호텔 (위치 미정)" 형태.
+  const ctxHotelLabel = (ctx.hotel_address && String(ctx.hotel_address).trim()) || '';
+  const ctxZoneLabel = (ctx.recommendedZone && String(ctx.recommendedZone).trim()) || '';
   for (let d = 0; d < days.length; d++) {
     const day = days[d];
     const stops = Array.isArray(day?.stops) ? day.stops : [];
@@ -401,11 +414,20 @@ export function selfHealLodgingBookend(itinerary) {
     const dayCityLc = String(day?.city || '').trim().toLowerCase();
     const defaultMeta = CITY_LODGING_DEFAULT[dayCityLc];
     const dayCityKor = CITY_KOR_MAP_FULL[dayCityLc] || '';
+    // P290 fallback chain (day.lodging 없을 때만 발동):
+    //   1. ctxHotelLabel (사용자 입력 호텔 주소/명)
+    //   2. ctxZoneLabel 가공 → "{zone} 호텔 (위치 미정)"
+    //   3. defaultMeta.placeholder (CITY_LODGING_DEFAULT)
+    //   4. generic "{city} 호텔 (위치 미정)"
+    const ctxFallbackName = ctxHotelLabel
+      || (ctxZoneLabel ? `${ctxZoneLabel} 호텔 (위치 미정)` : '');
+    const ctxFallbackAddress = ctxHotelLabel
+      || (ctxZoneLabel ? `${dayCityKor || dayCityLc} ${ctxZoneLabel}` : '');
 
     // 첫 stop 이 lodging 이 아니면 prepend
     if (stops[0]?.category !== 'lodging') {
-      const synName    = day?.lodging?.name    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
-      const synAddress = day?.lodging?.address || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
+      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
+      const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
       // 첫 stop start_time 보다 1시간 이르게 설정 (logical 출발 시각)
       let synStart = '09:00';
       const firstTimeMatch = /^(\d{1,2}):(\d{2})$/.exec(String(stops[0]?.start_time || ''));
@@ -436,8 +458,8 @@ export function selfHealLodgingBookend(itinerary) {
     // 마지막 stop 이 lodging/travel/airport 가 아니면 append (lodging)
     const last = stops[stops.length - 1];
     if (last && !['lodging', 'travel', 'airport'].includes(last.category)) {
-      const synName    = day?.lodging?.name    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
-      const synAddress = day?.lodging?.address || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
+      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
+      const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
       // 마지막 stop end_time 또는 start_time 후 1시간
       let synStart = '21:00';
       const lastTimeStr = String(last.end_time || last.start_time || '');
