@@ -2242,6 +2242,8 @@ const RULES = [
   ['P284_hotelAddressSingleCity', P284_hotelAddressSingleCity],
   ['P285_bdcSoftLog', P285_bdcSoftLog],
   ['P286_arrivalWrapEdge', P286_arrivalWrapEdge],
+  ['P290_selfHealLodgingBookendPersonalize', P290_selfHealLodgingBookendPersonalize],
+  ['P292_planStreamingSweepCron', P292_planStreamingSweepCron],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -8388,6 +8390,82 @@ function P286_arrivalWrapEdge({ changed }) {
   if (issues.length === 0) return null;
   return { id: 'P286_arrivalWrapEdge', severity: 'error', file: FILE,
     message: 'R-P286: arrival-wrap edge 검증 깨짐 — Day 1 새벽 wrap stop 미감지 회귀. 발견: ' + issues.join(' | ') };
+}
+
+// ----------------------------------------------------------------------------
+// P290_selfHealLodgingBookendPersonalize — selfHealLodgingBookend ctx 확장 회귀 차단
+//
+// P288 (#697) + P289 (#698) + P290 (#699) = buildPrompt 변경 0 backend self_heal personalize.
+// P290 fix: selfHealLodgingBookend(itinerary, ctx = {}) — ctx.hotel_address + ctx.recommendedZone
+//   fallback chain (day.lodging 없을 때만 발동). 회귀 = ctx 파라미터 손실 → placeholder generic.
+// ----------------------------------------------------------------------------
+function P290_selfHealLodgingBookendPersonalize({ changed }) {
+  const FILE_PERSISTER = 'api/_ai_core/planPersister.js';
+  const FILE_PIPELINE = 'api/_ai_core/postResponsePipeline.js';
+  if (!isModified(FILE_PERSISTER, changed) && !isModified(FILE_PIPELINE, changed)) return { skipped: true };
+  const persisterSrc = readFileExists(FILE_PERSISTER);
+  const pipelineSrc = readFileExists(FILE_PIPELINE);
+  if (!persisterSrc || !pipelineSrc) return { skipped: true };
+  const issues = [];
+  // 1. selfHealLodgingBookend signature 확장
+  if (!/selfHealLodgingBookend\(itinerary,\s*ctx\s*=\s*\{\}\)/.test(persisterSrc)) {
+    issues.push('selfHealLodgingBookend signature (itinerary, ctx = {}) 손실');
+  }
+  // 2. ctxFallbackName / ctxFallbackAddress 사용
+  if (!/ctxFallbackName/.test(persisterSrc)) issues.push('ctxFallbackName fallback chain 손실');
+  if (!/ctxFallbackAddress/.test(persisterSrc)) issues.push('ctxFallbackAddress fallback chain 손실');
+  // 3. postResponsePipeline 가 ctx 전달
+  if (!/selfHealLodgingBookend\(\s*itinerary,\s*\{/.test(pipelineSrc)) {
+    issues.push('postResponsePipeline selfHealLodgingBookend ctx 전달 손실');
+  }
+  if (issues.length === 0) return null;
+  return { id: 'P290_selfHealLodgingBookendPersonalize', severity: 'error', file: FILE_PERSISTER,
+    message: 'R-P290: selfHealLodgingBookend personalize 깨짐 — placeholder generic 회귀 (P276+P277 buildPrompt 대안 손실). 발견: ' + issues.join(' | ') };
+}
+
+// ----------------------------------------------------------------------------
+// P292_planStreamingSweepCron — plans status='streaming' 30분+ stuck 정리 cron 회귀 차단
+//
+// 5/29 P287 cycle: P280 v1 무한 retry loop → plan 1h30m+ stuck = SAFETY-CRITICAL.
+// P292 fix: api/_crons/plan-streaming-sweep.js + cron-runner.js JOBS map + vercel.json crons.
+// 회귀 = 자동 sweep 부재 → 사용자 결제 후 plan 영구 미수령.
+// ----------------------------------------------------------------------------
+function P292_planStreamingSweepCron({ changed }) {
+  const FILE_CRON = 'api/_crons/plan-streaming-sweep.js';
+  const FILE_RUNNER = 'api/cron-runner.js';
+  const FILE_VERCEL = 'vercel.json';
+  if (!isModified(FILE_CRON, changed) && !isModified(FILE_RUNNER, changed) && !isModified(FILE_VERCEL, changed)) {
+    return { skipped: true };
+  }
+  const cronSrc = readFileExists(FILE_CRON);
+  const runnerSrc = readFileExists(FILE_RUNNER);
+  const vercelSrc = readFileExists(FILE_VERCEL);
+  if (!cronSrc || !runnerSrc || !vercelSrc) return { skipped: true };
+  const issues = [];
+  // 1. cron file 의 핵심 패턴
+  if (!/STUCK_THRESHOLD_MS\s*=\s*30\s*\*\s*60\s*\*\s*1000/.test(cronSrc)) {
+    issues.push('STUCK_THRESHOLD_MS=30분 default 손실 (Vercel max 800s × 2.25 안전마진)');
+  }
+  if (!/['"]streaming_timeout_sweep_p292['"]/.test(cronSrc)) {
+    issues.push('_streaming_error="streaming_timeout_sweep_p292" 마커 손실');
+  }
+  if (/triggerAiPlanner|pending_ai_planner_retries/.test(cronSrc)) {
+    issues.push('retry trigger 추가 위반 (P280 v1 무한 loop lesson)');
+  }
+  if (!/notify\(\s*['"]booking['"]/.test(cronSrc)) {
+    issues.push('Telegram alert 호출 손실 (운영자 환불 안내 SAFETY)');
+  }
+  // 2. cron-runner.js JOBS map 등록
+  if (!/['"]plan-streaming-sweep['"]:\s*planStreamingSweep/.test(runnerSrc)) {
+    issues.push('cron-runner JOBS map "plan-streaming-sweep" 등록 손실');
+  }
+  // 3. vercel.json crons 배열 entry
+  if (!/plan-streaming-sweep/.test(vercelSrc)) {
+    issues.push('vercel.json crons 배열 entry 손실');
+  }
+  if (issues.length === 0) return null;
+  return { id: 'P292_planStreamingSweepCron', severity: 'error', file: FILE_CRON,
+    message: 'R-P292: plan-streaming-sweep cron 깨짐 — 사용자 결제 후 plan 영구 미수령 회귀 (SAFETY-CRITICAL). 발견: ' + issues.join(' | ') };
 }
 
 // ----------------------------------------------------------------------------
