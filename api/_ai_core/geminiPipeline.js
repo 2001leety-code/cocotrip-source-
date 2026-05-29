@@ -1376,7 +1376,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       console.error('[planner] soft warning check failed:', warnErr.message);
     }
 
-    applyDBMatcher(itinerary, foodIndex, area, language);
+    // B6 (P310 2026-05-30): allergyPrefs(dietaryArr) 전달 — P189 allergen DB 필터 활성 (GAP B).
+    // detectAllergenViolation 이 pref.toLowerCase() 처리 + Halal/Vegan 은 allergens 키 없어 무시.
+    // 현재 DB allergens 전 행 false → 실효 0 이나 dead code 활성 + retrofit 후 효과 (R-P189 정합).
+    applyDBMatcher(itinerary, foodIndex, area, language, dietaryArr);
 
     console.log('[planner] 3-pass total:', Date.now() - geminiStart, 'ms');
   } else {
@@ -1621,7 +1624,10 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
       console.error('[planner] soft warning check failed:', warnErr.message);
     }
 
-    applyDBMatcher(itinerary, foodIndex, area, language);
+    // B6 (P310 2026-05-30): allergyPrefs(dietaryArr) 전달 — P189 allergen DB 필터 활성 (GAP B).
+    // detectAllergenViolation 이 pref.toLowerCase() 처리 + Halal/Vegan 은 allergens 키 없어 무시.
+    // 현재 DB allergens 전 행 false → 실효 0 이나 dead code 활성 + retrofit 후 효과 (R-P189 정합).
+    applyDBMatcher(itinerary, foodIndex, area, language, dietaryArr);
   }
 
   // P195: handlerCore.js 가 cacheMetadata 를 pop 후 buildAdminDebug 에 전달 → _debug
