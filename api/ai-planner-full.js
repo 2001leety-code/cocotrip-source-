@@ -20,9 +20,11 @@
  */
 // P165 (2026-05-23): 300→600 안전망. Vercel Fluid Compute (2025-04-23 default) 으로
 // Pro 800s 까지 가능. 단축 효과 0 — 5분 cap fail 위험만 차단 (P138 routeEnrich 39s +
-// Gemini 90-150s + retry 발동 시 5분 초과 risk). 운영자 액션: Vercel Dashboard 의
-// Settings → Functions → Fluid Compute 활성화 토글 확인.
-export const maxDuration = 600;
+// Gemini 90-150s + retry 발동 시 5분 초과 risk).
+// P270 (2026-05-29): 600 → 800 + vercel.json:71 동기화. faab8777 plan (legacy 1-pass 다도시)
+//   가 vercel.json maxDuration:300 (export 보다 우선) 직격 296s timeout 검증 (P266 cycle 진단).
+//   Vercel Fluid Compute 한도 800s 활용. 운영자 액션 (Dashboard Functions Fluid Compute 활성화 토글) 동일.
+export const maxDuration = 800;
 export const config = { runtime: 'nodejs' };
 
 export { inferDepartureAirport } from './_ai_core/airportInference.js';
