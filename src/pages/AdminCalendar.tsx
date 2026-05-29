@@ -283,6 +283,46 @@ export default function AdminCalendar() {
     };
   }, [year, month, monthRangeEnd]);
 
+  // P305 (2026-05-30, audit 3): 수동 예약 모달의 vehicle/driver dropdown 을
+  // Firestore drivers 컬렉션 fetch 로 변경. 이전 하드코딩 (김기사·이기사·스타리아 1호)
+  // 은 실제 drivers 컬렉션과 불일치 → 배차 텔레그램 chat_id 매칭 불가.
+  // active=true 기사만 표시. driver.vehicle 가 같이 들어있어 vehicle dropdown 도
+  // 자동 매칭 (drivers 컬렉션 doc 1개 = name + vehicle 1쌍).
+  useEffect(() => {
+    let cancelled = false;
+    setDriversLoading(true);
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'drivers'));
+        if (cancelled) return;
+        const list: Driver[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          if (data.active === false) return;
+          list.push({
+            chatId: d.id,
+            name: data.name || '',
+            vehicle: data.vehicle || '',
+            active: data.active !== false,
+          });
+        });
+        setDrivers(list);
+      } catch (err) {
+        console.error('[AdminCalendar] drivers mount fetch failed:', err);
+        if (!cancelled) setDrivers([]);
+      } finally {
+        if (!cancelled) setDriversLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // 차량 목록 — drivers 의 vehicle 필드 unique set (수동 예약 dropdown 용)
+  const uniqueVehicles = useMemo(
+    () => Array.from(new Set(drivers.map((d) => d.vehicle).filter(Boolean))),
+    [drivers],
+  );
+
   const allItems = useMemo(() => [...bookings, ...blocks], [bookings, blocks]);
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
@@ -845,25 +885,40 @@ export default function AdminCalendar() {
                         </div>
                       </div>
 
+                      {/* P305: drivers Firestore 컬렉션 fetch (active=true 만). 이전 하드코딩 (스타리아 1호/김기사) 제거. */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">배정 차량</label>
-                          <select value={formData.vehicle || ''} onChange={e => setFormData({...formData, vehicle: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]">
-                            <option value="">미지정</option>
-                            <option value="스타리아 1호">스타리아 1호</option>
-                            <option value="스타리아 2호">스타리아 2호</option>
-                            <option value="카니발 1호">카니발 1호</option>
-                            <option value="쏠라티 1호">쏠라티 1호</option>
+                          <select value={formData.vehicle || ''} onChange={e => setFormData({...formData, vehicle: e.target.value})} disabled={driversLoading} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px] disabled:opacity-50">
+                            <option value="">{driversLoading ? '로드 중...' : '미지정'}</option>
+                            {uniqueVehicles.map((v) => (
+                              <option key={v} value={v}>{v}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">담당 기사</label>
-                          <select value={formData.driver || ''} onChange={e => setFormData({...formData, driver: e.target.value})} className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px]">
-                            <option value="">미지정</option>
-                            <option value="김기사">김기사</option>
-                            <option value="이기사">이기사</option>
-                            <option value="박기사">박기사</option>
-                            <option value="최기사">최기사</option>
+                          <select
+                            value={formData.driver || ''}
+                            onChange={(e) => {
+                              // 기사 선택 시 해당 driver 의 vehicle 자동 매칭 (drivers 컬렉션 1 row = name+vehicle).
+                              const selectedName = e.target.value;
+                              const matched = drivers.find((d) => d.name === selectedName);
+                              setFormData({
+                                ...formData,
+                                driver: selectedName,
+                                vehicle: matched?.vehicle || formData.vehicle,
+                              });
+                            }}
+                            disabled={driversLoading}
+                            className="w-full bg-[#0a0b14] border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-[#FBBF24] min-h-[44px] disabled:opacity-50"
+                          >
+                            <option value="">{driversLoading ? '로드 중...' : drivers.length === 0 ? '등록된 기사 없음' : '미지정'}</option>
+                            {drivers.map((d) => (
+                              <option key={d.chatId} value={d.name}>
+                                {d.name}{d.vehicle ? ` · ${d.vehicle}` : ''}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>
