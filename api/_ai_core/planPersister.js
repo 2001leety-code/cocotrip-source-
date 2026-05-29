@@ -150,9 +150,12 @@ export function backfillDayLodging(itinerary, hotelByCity = {}) {
  * @param {object} itinerary - mutated in-place
  * @returns {number} heal 된 day 수
  */
-export function selfHealDailyBudget(itinerary) {
+export function selfHealDailyBudget(itinerary, ctx = {}) {
   if (!itinerary || typeof itinerary !== 'object') return 0;
   const days = Array.isArray(itinerary.days) ? itinerary.days : [];
+  // P289 (2026-05-29): pax 기반 personalize — generic 추정 → 인원 곱셈.
+  // Gemini prompt 변경 0 (cache miss risk 0). P277 buildPrompt 대안.
+  const pax = Math.max(1, Math.min(20, Number(ctx?.pax) || 2));
   let healed = 0;
   for (const day of days) {
     const existing = day.daily_budget_summary || day.daily_budget || {};
@@ -172,14 +175,17 @@ export function selfHealDailyBudget(itinerary) {
       if (cat === 'food') foodCount++;
       else if (cat === 'attraction') attrCount++;
     }
-    const food = foodCount * 15000;
-    const attraction = attrCount * 10000;
+    // P289: pax 곱셈 — 1인 default 15000 → pax 명 = 15000 * pax.
+    // 식사/입장료/잡비 모두 인원 비례. transport 만 server T-money 별도 계산.
+    const food = foodCount * 15000 * pax;
+    const attraction = attrCount * 10000 * pax;
     const transport = 0; // server 가 T-money + ODsay 로 채움
-    const misc = 10000;
+    const misc = 10000 * pax;
     const total = food + attraction + transport + misc;
     day.daily_budget_summary = {
       food, transport, attraction, misc, total,
       _self_healed: true,
+      _pax: pax,  // P289: 박제 (admin panel 추적용)
     };
     healed++;
   }

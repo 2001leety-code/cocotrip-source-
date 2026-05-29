@@ -216,7 +216,8 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   // ── P162 (2026-05-23): daily_budget_summary self-heal ────────────────
   // Gemini 가 daily_budget_summary 통째 비우는 회귀 (plan 36c12df2). UI 빈 칸 →
   // 결제 가치 체감 저하. stop count 기반 추정값 생성.
-  selfHealDailyBudget(itinerary);
+  // P289 (2026-05-29): pax 기반 personalize — ctx 전달 (Gemini prompt 변경 X).
+  selfHealDailyBudget(itinerary, { pax: ctx.body?.pax });
 
   // ── P270 (2026-05-28): lodging bookend self-heal (dead code 복구) ───
   // 운영자 의도 "호텔=동선 anchor, Day 시작/마지막 호텔" SSOT 박제. block_mode plan
