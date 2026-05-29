@@ -594,24 +594,29 @@ export function buildModel(apiKey, temperatureOverride, opts = {}) {
  */
 const PLAN_RESPONSE_SCHEMA = {
   type: 'OBJECT',
-  // P200 (2026-05-25): P196 rollback (PR #606) 후 진짜 fix — propertyOrdering + required.
+  // P291 (2026-05-29): properties hint 확장 — P276+P277 의도 (arrival_guide.steps /
+  //   daily_budget_summary 통째 누락 차단) 의 cache miss 0 대안.
+  //   buildPrompt 변경 0 (Gemini implicit cache prefix 변경 0). P210-A 패턴 nested 확장.
+  //   required 추가 X (P196 회귀 root cause = Flash "satisfy required, then stop" 회피).
   //
-  // 배경: P196 의 required:['days','arrival_guide','departure_guide'] 단독 fix 가
-  //   Gemini Flash 의 "satisfy required, then stop" 패턴 (GitHub #2104/#1020/#609)
-  //   + schema vs prompt property ordering mismatch (Google 공식 docs 경고:
-  //   "mismatch can lead to incorrect or malformed output") 로 P181 minimal fallback
-  //   빈도 5건→18건/5분 (3.6x ↑) 회귀.
+  // Phase 0 baseline (2026-05-29, 189 plan/7일):
+  //   - daily_budget_self_healed 22.71/day (84.1% plans) — R3 ARM
+  //   - arrival_guide_self_healed 17.14/day (63.5% plans) — R1 ARM
+  //   - P181 minimal_fallback 0% — 회귀 monitoring base 양호
   //
-  // fix (deep-search 2026-05-25 Agent A 권고):
-  //   1. propertyOrdering 명시 — Gemini emit 순서 강제 (default alphabetical 회피)
-  //   2. **buildPrompt.js JSON example 순서와 정확 일치** — Google docs mismatch 경고 회피
-  //      현재 buildPrompt 순서: tour_title → vehicle → base_price_krw → arrival_guide →
-  //      days → departure_guide → daily_budget_summary → t_money_recommended_load
-  //   3. required 다시 적용 — guides 누락 차단 (B-16 환불 사유 회피)
+  // P200 (2026-05-25): propertyOrdering + required (P196 회귀 rollback 후 진짜 fix).
   //
-  // 출처: Google AI Dev "structured output property ordering" + langchain-google #1020
-  //   / gemini-cli #2104 / GDELT prod 사례 (deep-search 2026-05-25).
-  // truncation 안전: maxOutputTokens 24K (P192) >> 5-day plan ~15K → cap 도달 위험 거의 없음.
+  // fix (deep-search 2026-05-29):
+  //   R1: arrival_guide.properties.steps array hint + nested propertyOrdering
+  //   R2: departure_guide 7 fields + 3 nested OBJECT 확장 (대칭성)
+  //   R3: daily_budget_summary.items 6 NUMBER fields hint
+  //   R4: days.items 확장 (date + nested propertyOrdering + lodging/intercity_transit)
+  //   R5: stops.items propertyOrdering 추가
+  //
+  // 출처: Google AI Dev structured output docs / Google blog 2.5+ ordering / Firebase AI
+  //   Logic docs (default optional) / langchain-google #1020 / gemini-cli #2104.
+  // truncation 안전: maxOutputTokens 24K + schema bytes ~+800B (2-3% 증가).
+  // cache 영향: 0 (schema 는 generationConfig.responseSchema, prompt body 별개).
   propertyOrdering: [
     'tour_title',
     'vehicle',
@@ -631,17 +636,41 @@ const PLAN_RESPONSE_SCHEMA = {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
+        // P291 R4: nested propertyOrdering 추가 + date hint + lodging/intercity_transit nested 확장.
+        propertyOrdering: ['day', 'date', 'city', 'theme', 'lodging', 'intercity_transit', 'stops'],
         required: ['day', 'stops'],
         properties: {
           day: { type: 'INTEGER' },
+          date: { type: 'STRING' },
           city: { type: 'STRING' },
           theme: { type: 'STRING' },
-          lodging: { type: 'OBJECT' },
-          intercity_transit: { type: 'OBJECT' },
+          lodging: {
+            type: 'OBJECT',
+            propertyOrdering: ['name', 'address', 'check_in', 'check_out'],
+            properties: {
+              name: { type: 'STRING' },
+              address: { type: 'STRING' },
+              check_in: { type: 'STRING' },
+              check_out: { type: 'STRING' },
+            },
+          },
+          intercity_transit: {
+            type: 'OBJECT',
+            propertyOrdering: ['from_city', 'to_city', 'method', 'duration_min', 'cost_krw'],
+            properties: {
+              from_city: { type: 'STRING' },
+              to_city: { type: 'STRING' },
+              method: { type: 'STRING' },
+              duration_min: { type: 'INTEGER' },
+              cost_krw: { type: 'NUMBER' },
+            },
+          },
           stops: {
             type: 'ARRAY',
             items: {
               type: 'OBJECT',
+              // P291 R5: stops.items propertyOrdering 추가 (기존 12 fields 유지, alphabetical default 회피).
+              propertyOrdering: ['order', 'start_time', 'name', 'display_name', 'category', 'stay_min', 'address', 'tip', 'lat', 'lng', 'entry_fee_krw', 'verified'],
               required: ['name', 'category', 'start_time'],
               properties: {
                 order: { type: 'INTEGER' },
@@ -662,26 +691,90 @@ const PLAN_RESPONSE_SCHEMA = {
         },
       },
     },
-    // P210-A (2026-05-26): Gemini Flash 2.0/2.5 은 OBJECT type 만 명시하면 nested field 를
-    // 선택적으로 누락함 (cookbook #539/#449). P205 backend self-heal 유지하면서
-    // schema 에 airport properties hint 추가 → emit 확률 상승.
-    // 주의: required 추가 X (P196 lesson: "satisfy required then stop" 패턴 + 3.6x fallback 회귀).
+    // P210-A (2026-05-26): airport hint. P291 R1 (2026-05-29): steps array hint 확장.
+    //   주의: required 추가 X (P196 lesson). self_heal 안전망 그대로 유지 (planPersister.js:522).
     arrival_guide: {
       type: 'OBJECT',
+      propertyOrdering: ['airport', 'steps'],
       properties: {
         airport: { type: 'STRING' },
+        steps: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            propertyOrdering: ['step', 'title', 'description', 'est_min', 't_money_card_cost_krw', 't_money_recommended_load_krw', 'recommended_cash_krw'],
+            properties: {
+              step: { type: 'INTEGER' },
+              title: { type: 'STRING' },
+              description: { type: 'STRING' },
+              est_min: { type: 'INTEGER' },
+              t_money_card_cost_krw: { type: 'NUMBER' },
+              t_money_recommended_load_krw: { type: 'NUMBER' },
+              recommended_cash_krw: { type: 'NUMBER' },
+            },
+          },
+        },
       },
     },
+    // P291 R2 (2026-05-29): departure_guide 7 fields + 3 nested OBJECT 확장.
+    //   buildPrompt L242-262 JSON example 와 정확 일치. P205 self-heal 안전망 유지.
     departure_guide: {
       type: 'OBJECT',
+      propertyOrdering: ['airport', 'recommended_departure_time', 'latest_leave_hotel', 'luggage_storage', 'to_airport', 'tax_refund', 'last_minute_shopping'],
       properties: {
         airport: { type: 'STRING' },
+        recommended_departure_time: { type: 'STRING' },
+        latest_leave_hotel: { type: 'STRING' },
+        luggage_storage: {
+          type: 'OBJECT',
+          propertyOrdering: ['available', 'location', 'price_krw'],
+          properties: {
+            available: { type: 'BOOLEAN' },
+            location: { type: 'STRING' },
+            price_krw: { type: 'NUMBER' },
+          },
+        },
+        to_airport: {
+          type: 'OBJECT',
+          propertyOrdering: ['method', 'instruction', 'cost_krw', 'duration_min'],
+          properties: {
+            method: { type: 'STRING' },
+            instruction: { type: 'STRING' },
+            cost_krw: { type: 'NUMBER' },
+            duration_min: { type: 'INTEGER' },
+          },
+        },
+        tax_refund: {
+          type: 'OBJECT',
+          propertyOrdering: ['threshold_krw', 'note'],
+          properties: {
+            threshold_krw: { type: 'NUMBER' },
+            note: { type: 'STRING' },
+          },
+        },
+        last_minute_shopping: { type: 'STRING' },
       },
     },
-    // P184 (2026-05-25): Gemini 3.5 Flash strict schema 는 ARRAY 에 items 필수.
-    // 누락 시 GenerateContentRequest 400 "missing field items" → admin-bypass 전부 500.
-    // Pro (2.5) 는 lenient → 누락해도 통과, Flash (3.5) 는 strict → reject.
-    daily_budget_summary: { type: 'ARRAY', items: { type: 'OBJECT' } },
+    // P184 (2026-05-25): Flash strict schema ARRAY 는 items 필수.
+    // P291 R3 (2026-05-29): items 6 NUMBER fields hint (buildPrompt L319-329 와 일치).
+    //   selfHealDailyBudget (planPersister.js:153) 의 field 이름 (`food/transport/attraction/misc/total`)
+    //   과 mismatch — 별도 sleeper bug (spawn task 권고). 본 R3 = schema/buildPrompt 일치 유지.
+    daily_budget_summary: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        propertyOrdering: ['day', 'transport_krw', 'entry_fees_krw', 'meals_krw', 'activities_krw', 'shopping_estimate_krw', 'total_krw'],
+        properties: {
+          day: { type: 'INTEGER' },
+          transport_krw: { type: 'NUMBER' },
+          entry_fees_krw: { type: 'NUMBER' },
+          meals_krw: { type: 'NUMBER' },
+          activities_krw: { type: 'NUMBER' },
+          shopping_estimate_krw: { type: 'NUMBER' },
+          total_krw: { type: 'NUMBER' },
+        },
+      },
+    },
     t_money_recommended_load: { type: 'NUMBER' },
   },
 };
