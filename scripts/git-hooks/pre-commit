@@ -90,6 +90,9 @@ if [ -n "$SCAN_FILES" ]; then
       // 등 정당한 nullish coalescing (예산 0원 유효값 보존, || 변환 시 0 fallback 회귀).
       if (f === "src/pages/PlanDetailPage/components/BudgetTable.tsx") continue;
       if (f === "src/pages/PlanDetailPage/lib/planToMarkdown.ts") continue;
+      // P302 (2026-05-30): AdminProducts.tsx 의 ?? — s ?? 'draft' (TourStatus|undefined fallback)
+      // + tour.title?.ko ?? '' + tour.slug ?? tour._docId 모두 legitimate (id/i18n fallback).
+      if (f === "src/pages/AdminProducts.tsx") continue;
       // 2026-05-20 (P118): lint-mistake-patterns.mjs 자체는 legitimate ?? (BASE_REF_DEFAULT fallback)
       // + regex 안의 \?? (optional) 가 mojibake check 의 /\?\?/ 와 충돌. lint 도구 스크립트는
       // 코드 grep 룰을 *코드 안에* 표현하므로 ?? 사용이 정상.

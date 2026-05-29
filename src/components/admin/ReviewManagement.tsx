@@ -67,7 +67,7 @@ interface DriverRating {
 }
 
 const STATUS_STYLE: Record<CSTicketStatus, { label: string; color: string }> = {
-  open: { label: 'Open', color: 'text-red-400' },
+  open: { label: '미해결', color: 'text-red-400' },
   in_progress: { label: '처리중', color: 'text-yellow-400' },
   resolved: { label: '해결', color: 'text-emerald-400' },
 };
