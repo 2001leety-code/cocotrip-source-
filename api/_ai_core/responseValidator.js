@@ -127,9 +127,82 @@ function checkDietaryViolation(stop, dietary) {
 }
 
 /**
+ * P280 v2 (2026-05-29): dietary coverage depth check — severity='warning' (retry 안 함).
+ *
+ * 배경 (P280 v1 lesson, PR #680 → revert PR #693):
+ *   P280 v1 가 severity='critical' + hasCriticalDietaryViolation retry trigger 로 추가.
+ *   그러나 Korea halal 식당 매칭 거의 0 (foodIndex 한계) → Gemini 가 retry 후도 coverage_low →
+ *   무한 retry loop → plan stuck (status='streaming' 영원). 사용자 영향 SAFETY-CRITICAL.
+ *
+ * P280 v2 fix:
+ *   - severity='warning' (critical 아님 — retry trigger 안 됨)
+ *   - quality_warnings 박제만 (admin panel P121 즉시 노출)
+ *   - 사용자 plan 생성 보장 (stuck 차단) + 운영자가 admin panel 에서 발견 + 운영자 manual 정정
+ *
+ * threshold 50% 유지 (lenient 변경 보류 — warning 박제 빈도 운영자 인식 필요).
+ */
+function checkDietaryCoverage(allStops, dietary) {
+  if (!Array.isArray(dietary) || dietary.length === 0) return null;
+  const foodStops = (allStops || []).filter(s => s && s.category === 'food');
+  if (foodStops.length === 0) return null;
+
+  const dietPrefs = [];
+  if (dietary.some(d => /halal/i.test(String(d)))) dietPrefs.push('halal');
+  if (dietary.some(d => /vegan/i.test(String(d)))) dietPrefs.push('vegan');
+  if (dietary.some(d => /vegetarian/i.test(String(d))) && !dietPrefs.includes('vegan')) dietPrefs.push('vegetarian');
+
+  if (dietPrefs.length === 0) return null;
+
+  const claimsDiet = (stop, dietName) => {
+    const tags = []
+      .concat(stop.dietary_tags || [])
+      .concat(stop.dietary || [])
+      .concat(stop.tags || [])
+      .map(t => String(t).toLowerCase());
+    const hay = `${stop.name || ''} ${stop.display_name || ''} ${stop.tip || ''} ${stop.reason || ''}`.toLowerCase();
+    if (dietName === 'halal') {
+      const claims = tags.some(t => t.includes('halal')) || /halal|할랄/i.test(hay);
+      const conflicts = /pork|돼지|삼겹/i.test(hay);
+      return claims && !conflicts;
+    }
+    if (dietName === 'vegan') {
+      const claims = tags.some(t => t.includes('vegan')) || /vegan|비건/i.test(hay);
+      const conflicts = /beef|chicken|pork|fish|seafood|소고기|돼지|닭|생선|해산물/i.test(hay);
+      return claims && !conflicts;
+    }
+    if (dietName === 'vegetarian') {
+      const claims = tags.some(t => t.includes('vegetarian') || t.includes('vegan'))
+        || /vegetarian|vegan|채식|비건/i.test(hay);
+      const conflicts = /beef|chicken|pork|소고기|돼지|닭/i.test(hay);
+      return claims && !conflicts;
+    }
+    return false;
+  };
+
+  const COVERAGE_THRESHOLD = 0.5;
+  const lowCoverageIssues = [];
+  for (const dietName of dietPrefs) {
+    const matchCount = foodStops.filter(s => claimsDiet(s, dietName)).length;
+    const coverage = matchCount / foodStops.length;
+    if (coverage < COVERAGE_THRESHOLD) {
+      lowCoverageIssues.push({
+        dietary_pref: dietName,
+        coverage,
+        match_count: matchCount,
+        food_stops_count: foodStops.length,
+      });
+    }
+  }
+  return lowCoverageIssues.length > 0 ? lowCoverageIssues : null;
+}
+
+/**
  * P0-3: validateResponse 결과에서 critical dietary violation 존재 여부.
  * 사용자가 식이제한 입력했는데 violation 이 있으면 plan 그대로 저장하면 안 됨.
  * Caller (geminiPipeline) 가 1회 retry → 그래도 violation 이면 throw.
+ *
+ * P280 v2 (2026-05-29): dietary_coverage_low 는 severity='warning' (retry 안 함, 박제만).
+ * 본 함수 = dietary_violation critical 만 retry trigger. P280 v1 의 retry loop bug 회피.
  */
 export function hasCriticalDietaryViolation(issues) {
   if (!Array.isArray(issues)) return false;
@@ -815,6 +888,24 @@ export function validateResponse(data, request, foodIndex) {
   // P0-3: request.dietary — 호출자가 사용자 식이제한 (Halal/Vegan/...) 전달 시 위반 검사.
   // 누락이면 검사 skip — 기존 caller 호환 (geminiPipeline 만 dietary 전달).
   const dietary = Array.isArray(request?.dietary) ? request.dietary : [];
+
+  // P280 v2 (2026-05-29): dietary coverage depth check — severity='warning' (P280 v1 retry loop 회피).
+  // food stops 중 dietary-claim ratio < 50% → 'dietary_coverage_low' warning 박제 (admin panel 노출).
+  // SAFETY-CRITICAL 부분 보호 — Gemini retry 없이 운영자 가시화.
+  const coverageIssues = checkDietaryCoverage(allStops, dietary);
+  if (coverageIssues) {
+    for (const ci of coverageIssues) {
+      issues.push({
+        type: 'dietary_coverage_low',
+        severity: 'warning',  // P280 v2: critical → warning (retry loop 차단)
+        dietary_pref: ci.dietary_pref,
+        coverage: ci.coverage,
+        match_count: ci.match_count,
+        food_stops_count: ci.food_stops_count,
+        message: `P280 v2: ${ci.dietary_pref} coverage ${Math.round(ci.coverage * 100)}% (${ci.match_count}/${ci.food_stops_count} food stops). 운영자 admin panel 확인 + 사용자 수동 회피 권고.`,
+      });
+    }
+  }
 
   for (const stop of allStops) {
     // 주소 형식 — 시/도로 시작하는지
