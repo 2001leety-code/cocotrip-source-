@@ -59,29 +59,6 @@ export const AIRPORT_COORDS = {
   ALREADY: null,
 };
 
-// ── P275 Phase B (2026-05-29): 공항 인접 지하철역 좌표 — ODsay strict match 전용 ───
-// SAFETY-CRITICAL: AIRPORT_COORDS 가 공항 lobby 좌표 (T1 ↔ T2 ~260m 인접) → ODsay 가 임의
-// station 추천 → 사용자 비행기 놓침 risk (prod plan 696b273d 등 4건 자가 모순).
-//
-// 분리 export 이유: AIRPORT_COORDS 는 airport↔hotel 직거리 / fallback 좌표 등에 사용.
-// STATION_COORDS 는 ODsay 호출 (subway) 전용 — strict station match 보장.
-//
-// 좌표 source (ko.wikipedia 공식 infobox):
-//   - ICN_T1 station: 인천공항1터미널역 (공항철도)
-//   - ICN_T2 station: 인천공항2터미널역 (공항철도) — T1 ↔ T2 station ~2.6km 떨어짐 (공항 동서)
-//   - GMP station: 김포공항역 (5호선/9호선/공항철도/김포골드라인)
-//   - PUS station: 공항역 (부산김해경전철)
-//
-// CJU/TAE/MWX/YNY = 지하철 없음 → undefined (RouteAgent 가 AIRPORT_COORDS fallback)
-// KWJ = 광주1호선 단일 노선 → 효과 제한적, 현재 미적용
-export const AIRPORT_STATION_COORDS = {
-  ICN_T1: { lat: 37.4475, lng: 126.4528, station_name: '인천공항1터미널역' },
-  ICN_T2: { lat: 37.4677, lng: 126.4341, station_name: '인천공항2터미널역' },
-  ICN:    { lat: 37.4475, lng: 126.4528, station_name: '인천공항1터미널역' }, // generic = T1 alias
-  GMP:    { lat: 37.5625, lng: 126.8008, station_name: '김포공항역' },
-  PUS:    { lat: 35.1667, lng: 128.9514, station_name: '공항역(부산김해경전철)' },
-};
-
 // ── 도시 중심 좌표 (Hotel/Zone 좌표 모두 없을 때 fallback) ─────────────────
 // 호텔→공항 경로를 무조건 표시하기 위한 last-resort fallback. 정확하진 않지만
 // "공항 가는 길" 카드를 끝까지 비우지 않도록 ODsay 호출은 가능하게 한다.

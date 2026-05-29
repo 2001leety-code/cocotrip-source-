@@ -1,7 +1,7 @@
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
 import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
+import { AIRPORT_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
@@ -647,11 +647,7 @@ export class RouteAgent extends BaseAgent {
         // zone anchor → 도시 중심) + _failed 마커 적용 — arrival 측만 누락.
         // 동일 패턴 + _failed 마커 적용으로 사용자 도착 후 호텔 경로 무조건 표시 정책 (운영자 의도).
         if (arrivalAirportKey && AIRPORT_COORDS[arrivalAirportKey] && rawItinerary.arrival_guide) {
-            // P275 Phase B (2026-05-29): ODsay 호출 시 station 좌표 우선 사용 (strict match).
-            // SAFETY-CRITICAL — AIRPORT_COORDS (lobby) 사용 시 T1↔T2 ~260m 인접 → ODsay 임의 station
-            // 추천 (prod plan 696b273d 사건). AIRPORT_STATION_COORDS (subway station) = T1↔T2 ~2.6km
-            // 떨어진 strict station match. fallback: AIRPORT_COORDS (CJU/TAE/MWX/YNY 지하철 없음).
-            const ap = AIRPORT_STATION_COORDS[arrivalAirportKey] || AIRPORT_COORDS[arrivalAirportKey];
+            const ap = AIRPORT_COORDS[arrivalAirportKey];
             const { coord: arrFromCoord, source: arrFromSource, label: arrFromLabel } = await this._resolveHotelOrFallback({
                 hotelLat,
                 hotelLng,
@@ -740,8 +736,7 @@ export class RouteAgent extends BaseAgent {
         // geocode → 도시 중심 좌표. 모두 실패해도 _failed=true 객체를 셋해서
         // 프론트가 graceful 메시지를 띄울 수 있게 한다.
         if (departureAirportKey && AIRPORT_COORDS[departureAirportKey] && rawItinerary.departure_guide) {
-            // P275 Phase B: station 좌표 우선 사용 (arrival 측과 동일 패턴).
-            const ap = AIRPORT_STATION_COORDS[departureAirportKey] || AIRPORT_COORDS[departureAirportKey];
+            const ap = AIRPORT_COORDS[departureAirportKey];
             const { coord: depFromCoord, source: depFromSource, label: depFromLabel } = await this._resolveHotelOrFallback({
                 hotelLat,
                 hotelLng,
