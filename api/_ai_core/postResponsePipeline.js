@@ -64,6 +64,29 @@ export async function runRouteEnrichment(itinerary, ctx) {
   // 패턴 동일 — arrival_airport 가 있고 ALREADY 아니면 항상 호출 (이미 채워졌으면 no-op).
   selfHealArrivalGuide(itinerary, arrival_airport);
 
+  // ── P274 (2026-05-29): SAFETY-CRITICAL — arrival_guide.airport 가 input mismatch 시 강제 override ──
+  // 운영자 신고 (prod plan 696b273d 등 4건): input='ICN' (terminal 미지정) → Gemini 가
+  //   departure_guide.airport='ICN T1' hallucinate + arrival_guide.route_to_hotel
+  //   .fromStationName='인천공항2터미널' (ODsay 가 T1/T2 좌표 ~260m 인접 — 임의 선택) → 자가 모순.
+  // selfHealArrivalGuide 는 airport 누락만 채움 (planPersister.js:503 `!existing.airport`
+  //   분기) — Gemini hallucinate 한 airport 는 override 안 함. 본 fix 가 input truth source.
+  // 비교: trim + uppercase + whitespace→underscore 정규화 → 'ICN T1' = 'ICN_T1'.
+  if (arrival_airport && arrival_airport !== 'ALREADY' && itinerary.arrival_guide?.airport) {
+    const normIn = String(arrival_airport).trim().toUpperCase().replace(/\s+/g, '_');
+    const normOut = String(itinerary.arrival_guide.airport).trim().toUpperCase().replace(/\s+/g, '_');
+    if (normOut !== normIn) {
+      console.warn(`[planner P274] arrival_guide.airport mismatch (input='${arrival_airport}' vs output='${itinerary.arrival_guide.airport}') → override with input`);
+      itinerary.arrival_guide.airport = arrival_airport;
+      itinerary.quality_warnings = itinerary.quality_warnings || [];
+      itinerary.quality_warnings.push({
+        kind: 'arrival_airport_overridden',
+        type: 'arrival_airport_overridden',
+        severity: 'high',
+        message: `P274: arrival_guide.airport input='${arrival_airport}' vs Gemini output='${normOut}' → input 으로 override (terminal mismatch 자가 모순 차단)`,
+      });
+    }
+  }
+
   // 2026-05-05 (운영자 요청): 숙소→공항 경로 무조건 표시 정책 강화.
   // Gemini 가 departure_guide 자체를 생성 안 한 케이스에 대비해 빈 객체라도
   // 만들어 둔다. 그래야 RouteAgent 가 route_to_airport 를 attach 할 수 있고,
@@ -79,6 +102,22 @@ export async function runRouteEnrichment(itinerary, ctx) {
     } else if (!itinerary.departure_guide.airport) {
       itinerary.departure_guide.airport = departure_airport;
       console.log('[planner P205] departure_guide.airport self-healed (=', departure_airport, ')');
+    } else {
+      // P274: departure_guide.airport 가 input mismatch 시 override (arrival 패턴 동일).
+      // plan 696b273d 4건: input='ICN' → Gemini='ICN T1' (added terminal) hallucinate.
+      const normIn = String(departure_airport).trim().toUpperCase().replace(/\s+/g, '_');
+      const normOut = String(itinerary.departure_guide.airport).trim().toUpperCase().replace(/\s+/g, '_');
+      if (normOut !== normIn) {
+        console.warn(`[planner P274] departure_guide.airport mismatch (input='${departure_airport}' vs output='${itinerary.departure_guide.airport}') → override with input`);
+        itinerary.departure_guide.airport = departure_airport;
+        itinerary.quality_warnings = itinerary.quality_warnings || [];
+        itinerary.quality_warnings.push({
+          kind: 'departure_airport_overridden',
+          type: 'departure_airport_overridden',
+          severity: 'high',
+          message: `P274: departure_guide.airport input='${departure_airport}' vs Gemini output='${normOut}' → input 으로 override (terminal mismatch 자가 모순 차단)`,
+        });
+      }
     }
   }
 

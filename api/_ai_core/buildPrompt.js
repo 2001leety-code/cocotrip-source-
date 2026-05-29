@@ -268,6 +268,27 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - arrival_airport가 "already_in_korea"이면 departure_guide 작성하되 airport는 "GMP" 또는 "ICN T1" 합리적 가정.
 - 🔴 **B-16 STRICT ENFORCEMENT (2026-05-12, P202 강화 2026-05-26)**: \`departure_guide\`, \`departure_guide.airport\`, \`arrival_guide.airport\` 각 필드 **모두 명시 의무**. 누락 시 backend validator 가 plan 을 거부하고 retry. ALWAYS include the top-level \`departure_guide\` object AND set \`departure_guide.airport\` (예: "ICN T1", "GMP", "PUS"). Likewise \`arrival_guide.airport\` 는 \`arrival_airport != "already_in_korea"\` 일 때 반드시 채워야 한다. PDF 첫/마지막 페이지가 빈 페이지가 되는 사용자 신고 사유.
 
+### 🔴 P274 (2026-05-29) — TERMINAL CONSISTENCY: arrival/departure airport input 정확 echo 의무
+**사용자 신고 SAFETY-CRITICAL**: prod plan 696b273d 등 4건 — input \`arrival_airport: 'ICN'\` (terminal 미지정) 인데
+Gemini 가 \`departure_guide.airport: 'ICN T1'\` (T1 추가 hallucinate) + \`arrival_guide.route_to_hotel.fromStationName: '인천공항2터미널'\` (T2)
+= 자가 모순 → 사용자 비행기 놓침 risk.
+
+**규칙**:
+1. \`arrival_guide.airport\` = input \`arrival_airport\` **정확히 그대로** (T1/T2 변경 금지, generic 'ICN' 이면 'ICN' 유지)
+2. \`departure_guide.airport\` = input \`departure_airport\` **정확히 그대로**
+3. Day 1 마지막 stop 또는 Day N 첫/마지막 stop 이 공항일 때 → name/address 의 terminal (T1/T2) 가 input 과 일치 (input 'ICN_T1' → '인천국제공항 T1', input 'ICN_T2' → '인천국제공항 T2', input 'ICN' → '인천국제공항' (terminal 표기 X))
+4. \`arrival_guide.steps[].description\` 텍스트 안 'T1'/'T2'/'터미널 1'/'터미널 2'/'Terminal 1'/'Terminal 2' 언급 시 input terminal 과 정확히 일치
+5. input 'ICN_T1' 와 input 'ICN_T2' 는 별개 — Gemini 가 임의로 swap 금지
+
+**BAD (회귀 차단)**:
+- input \`arrival_airport: 'ICN_T1'\` → output \`arrival_guide.airport: 'ICN T2'\` ❌
+- input \`arrival_airport: 'ICN'\` → output \`departure_guide.airport: 'ICN T1'\` ❌ (T1 추가 hallucinate)
+- input \`arrival_airport: 'ICN_T1'\` → output Day N 마지막 stop \`name: '인천국제공항 T2'\` ❌
+
+**GOOD**:
+- input \`'ICN_T1'\` → arrival_guide.airport \`'ICN T1'\` + departure_guide.airport \`'ICN T1'\` + Day N stop \`'인천국제공항 T1'\` ✓
+- input \`'ICN'\` (generic) → 모든 출력에 'ICN' (terminal 표기 없음) ✓
+
 ### 🔴 P202 (2026-05-26): Day N city ↔ Day N lodging.address **도시 일치 의무**
 다도시 plan 에서 각 \`day.city\` 와 해당 day 의 \`lodging.address\` (또는 lodging stop 의 address) 의 **도시 prefix 가 반드시 일치**:
 - **GOOD**: Day 3 \`city: "Busan"\` → lodging \`address: "부산광역시 해운대구 ..."\` (또는 \`"Busan"\` 포함)
