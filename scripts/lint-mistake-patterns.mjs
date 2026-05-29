@@ -2247,6 +2247,7 @@ const RULES = [
   ['P292_planStreamingSweepCron', P292_planStreamingSweepCron],
   ['P297_crossCityLodgingPersonalize', P297_crossCityLodgingPersonalize],
   ['P298_dietaryAllergiesMerge', P298_dietaryAllergiesMerge],
+  ['P300_dailyBudgetFieldUnify', P300_dailyBudgetFieldUnify],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -8424,6 +8425,51 @@ function P290_selfHealLodgingBookendPersonalize({ changed }) {
   if (issues.length === 0) return null;
   return { id: 'P290_selfHealLodgingBookendPersonalize', severity: 'error', file: FILE_PERSISTER,
     message: 'R-P290: selfHealLodgingBookend personalize 깨짐 — placeholder generic 회귀 (P276+P277 buildPrompt 대안 손실). 발견: ' + issues.join(' | ') };
+}
+
+// ----------------------------------------------------------------------------
+// P300_dailyBudgetFieldUnify — daily_budget_summary 필드명/위치 통일 회귀 차단
+//
+// 6월 상용화 audit B2: daily_budget_summary 필드명 5갈래 (BudgetTable transport_krw/
+// entry_fees_krw/meals_krw vs selfHeal food/transport vs blockMode food_krw/activity_krw vs
+// planToMarkdown food_krw/transit_krw/entry_krw) + selfHeal per-day vs frontend root array
+// → 예산표 전부 0원. SSOT = root array + BudgetTable 필드명.
+// 회귀 = selfHeal per-day 할당 / blockMode food_krw / BudgetTable 폴백 손실.
+// ----------------------------------------------------------------------------
+function P300_dailyBudgetFieldUnify({ changed }) {
+  const FILE_PERSIST = 'api/_ai_core/planPersister.js';
+  const FILE_BLOCK = 'api/_ai_core/blockMode.js';
+  const FILE_TABLE = 'src/pages/PlanDetailPage/components/BudgetTable.tsx';
+  if (!isModified(FILE_PERSIST, changed) && !isModified(FILE_BLOCK, changed) && !isModified(FILE_TABLE, changed)) {
+    return { skipped: true };
+  }
+  const issues = [];
+  const pSrc = readFileExists(FILE_PERSIST);
+  if (pSrc) {
+    // selfHealDailyBudget root array 할당 + 필드명
+    if (!/itinerary\.daily_budget_summary\s*=\s*rows/.test(pSrc)) {
+      issues.push('selfHealDailyBudget root array 할당 (itinerary.daily_budget_summary = rows) 손실');
+    }
+    if (!/meals_krw\s*=\s*foodCount/.test(pSrc)) issues.push('meals_krw 필드명 손실 (food → meals_krw)');
+    if (!/entry_fees_krw\s*=\s*attrCount/.test(pSrc)) issues.push('entry_fees_krw 필드명 손실');
+    // per-day day.daily_budget_summary 할당 = frontend 0원 회귀
+    if (/day\.daily_budget_summary\s*=\s*\{/.test(pSrc)) {
+      issues.push('per-day day.daily_budget_summary 할당 회귀 (frontend root array 못 읽음 = 0원)');
+    }
+  }
+  const bSrc = readFileExists(FILE_BLOCK);
+  if (bSrc && /daily_budget_summary\s*=\s*days\.map/.test(bSrc)) {
+    if (/food_krw:|activity_krw:/.test(bSrc)) {
+      issues.push('blockMode food_krw/activity_krw 회귀 (meals_krw/entry_fees_krw 이어야 — BudgetTable 미일치)');
+    }
+  }
+  const tSrc = readFileExists(FILE_TABLE);
+  if (tSrc && !/row\.meals_krw\s*\?\?/.test(tSrc)) {
+    issues.push('BudgetTable 레거시 폴백 (row.meals_krw ??) 손실 — 옛 Firestore plan 0원');
+  }
+  if (issues.length === 0) return null;
+  return { id: 'P300_dailyBudgetFieldUnify', severity: 'error', file: FILE_PERSIST,
+    message: 'R-P300: daily_budget_summary 필드명/위치 통일 깨짐 — 결제 후 예산표 0원 회귀 (audit B2). 발견: ' + issues.join(' | ') };
 }
 
 // ----------------------------------------------------------------------------

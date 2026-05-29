@@ -592,11 +592,13 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   }
 
   // daily_budget_summary: per-day skeleton (selfHealDailyBudget 가 정확값 계산 — 본 default 는 array shape 만).
+  // P300/B2 (2026-05-29): 필드명 BudgetTable.tsx:9-15 일치 (food_krw→meals_krw, activity_krw→entry_fees_krw).
+  //   기존 food_krw/activity_krw 는 frontend 가 안 읽어 예산표 0원. selfHealDailyBudget 가 rootValid=false 판정 시 덮어씀.
   itinerary.daily_budget_summary = days.map((d) => ({
     day: d.day,
     transport_krw: 0,
-    food_krw: 0,
-    activity_krw: 0,
+    entry_fees_krw: 0,
+    meals_krw: 0,
     total_krw: 0,
   }));
   return itinerary;

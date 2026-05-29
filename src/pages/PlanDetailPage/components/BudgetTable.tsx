@@ -12,6 +12,10 @@ interface BudgetRow {
   entry_fees_krw: number;
   meals_krw: number;
   total_krw: number;
+  // P300/B2 (2026-05-29): legacy Firestore plan fallback (past field name variants:
+  //   selfHeal food/transport/attraction, blockMode food_krw/activity_krw, MD transit_krw/entry_krw).
+  transport?: number; food?: number; attraction?: number; total?: number;
+  food_krw?: number; activity_krw?: number; transit_krw?: number; entry_krw?: number;
 }
 
 export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: number }) {
@@ -48,10 +52,10 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
               {budget.map((row: BudgetRow, i: number) => (
                 <tr key={i} className="border-b border-white/[0.04]">
                   <td className="py-1.5 px-1.5 sm:py-2 sm:px-2 font-semibold">{ui.budgetDay || 'Day'} {row.day}</td>
-                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.transport_krw)}</td>
-                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.entry_fees_krw)}</td>
-                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.meals_krw)}</td>
-                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 font-bold text-[#7C5CFC]">{formatKRW(row.total_krw)}</td>
+                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.transport_krw ?? row.transit_krw ?? row.transport ?? 0)}</td>
+                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.entry_fees_krw ?? row.entry_krw ?? row.activity_krw ?? row.attraction ?? 0)}</td>
+                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.meals_krw ?? row.food_krw ?? row.food ?? 0)}</td>
+                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 font-bold text-[#7C5CFC]">{formatKRW(row.total_krw ?? row.total ?? 0)}</td>
                 </tr>
               ))}
             </tbody>
