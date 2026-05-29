@@ -1137,6 +1137,12 @@ export async function persistPlan(adminDb, {
       departure_airport: departure_airport || null,
       hotel_address: hotel_address || null,
       mobility: mobility || null,
+      // P304 (2026-05-30): dietary + allergies persist (admin AdminPlans 가시성 + 미래
+      // 시각검증). P298 SAFETY 작동은 입증 완료 → 본 필드는 admin 표시 + audit 용도.
+      // dietaryRaw 는 위 L1085-1091 에서 dietPrefs/dietary 정규화 완료. body.allergies
+      // 는 wizard ALLERGY_KEYS (Halal/Vegan/Nuts/Shellfish/Gluten/Dairy/None).
+      dietary: Array.isArray(dietaryRaw) ? dietaryRaw : null,
+      allergies: Array.isArray(body.allergies) ? body.allergies : null,
       // 2026-05-10 (P1): 도착/출발 시각 — PlanDetailPage 시각 분기 + revision prefill.
       arrival_time: body.arrivalTime || null,
       departure_time: body.departureTime || null,
