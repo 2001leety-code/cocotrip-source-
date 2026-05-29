@@ -121,9 +121,9 @@ export function MetaTab({ draft, onChange }: Props) {
         <h3 className="text-sm font-bold text-gray-800 mb-3">상태</h3>
         <div className="flex gap-2">
           {([
-            { v: 'draft',     label: 'Draft' },
-            { v: 'published', label: 'Published' },
-            { v: 'archived',  label: 'Archived' },
+            { v: 'draft',     label: '초안' },
+            { v: 'published', label: '발행됨' },
+            { v: 'archived',  label: '보관됨' },
           ] as const).map((opt) => (
             <button
               key={opt.v}
@@ -140,7 +140,7 @@ export function MetaTab({ draft, onChange }: Props) {
           ))}
         </div>
         <p className="mt-2 text-[10px] text-gray-400">
-          Published 가 AI 플래너 후보. Draft 는 admin only. Archived 는 후보 제외.
+          '발행됨' 이 AI 플래너 후보. '초안' 은 관리자 전용. '보관됨' 은 후보 제외.
         </p>
       </section>
     </div>

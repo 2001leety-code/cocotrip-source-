@@ -114,9 +114,9 @@ export function MetaTab({ draft, onChange }: Props) {
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">상태</label>
             <div className="flex gap-2">
               {([
-                { v: 'draft', label: 'Draft' },
-                { v: 'published', label: 'Published' },
-                { v: 'archived', label: 'Archived' },
+                { v: 'draft', label: '초안' },
+                { v: 'published', label: '발행됨' },
+                { v: 'archived', label: '보관됨' },
               ] as const).map((opt) => (
                 <button
                   key={opt.v}

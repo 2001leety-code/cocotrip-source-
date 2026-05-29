@@ -93,6 +93,10 @@ if [ -n "$SCAN_FILES" ]; then
       // P302 (2026-05-30): AdminProducts.tsx 의 ?? — s ?? 'draft' (TourStatus|undefined fallback)
       // + tour.title?.ko ?? '' + tour.slug ?? tour._docId 모두 legitimate (id/i18n fallback).
       if (f === "src/pages/AdminProducts.tsx") continue;
+      // P303 (2026-05-30): ProductEditor/MetaTab.tsx 의 ?? — suitability ?? {} / min_age ?? ''
+      // / max_age ?? '' / fitness_level ?? '' / draft.status ?? 'draft' 모두 legitimate
+      // (optional payload + status TourStatus|undefined fallback).
+      if (f === "src/components/admin/ProductEditor/MetaTab.tsx") continue;
       // 2026-05-20 (P118): lint-mistake-patterns.mjs 자체는 legitimate ?? (BASE_REF_DEFAULT fallback)
       // + regex 안의 \?? (optional) 가 mojibake check 의 /\?\?/ 와 충돌. lint 도구 스크립트는
       // 코드 grep 룰을 *코드 안에* 표현하므로 ?? 사용이 정상.
