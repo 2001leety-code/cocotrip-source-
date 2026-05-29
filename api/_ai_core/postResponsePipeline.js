@@ -62,7 +62,13 @@ export async function runRouteEnrichment(itinerary, ctx) {
   // 5-step skeleton 합성. plan 8e767d9c (2026-05-23) 사용자 신고: "도착하면 어떻게
   // 한국 입국하는 안내가 없어" — Intro 다음 빈 영역. P160 selfHealLodgingBookend
   // 패턴 동일 — arrival_airport 가 있고 ALREADY 아니면 항상 호출 (이미 채워졌으면 no-op).
-  selfHealArrivalGuide(itinerary, arrival_airport);
+  // P288 (2026-05-29): selfHeal personalize — ctx 전달 (hotel_address / recommendedZone / arrival_time).
+  // Gemini prompt 변경 0 = cache miss risk 0. P276+P277 buildPrompt 강화 대안.
+  selfHealArrivalGuide(itinerary, arrival_airport, {
+    hotel_address: hotel_address || hotelAddressFromBody,
+    recommendedZone,
+    arrival_time: body?.arrival_time || body?.arrivalTime,
+  });
 
   // ── P274 (2026-05-29): SAFETY-CRITICAL — arrival_guide.airport 가 input mismatch 시 강제 override ──
   // 운영자 신고 (prod plan 696b273d 등 4건): input='ICN' (terminal 미지정) → Gemini 가
