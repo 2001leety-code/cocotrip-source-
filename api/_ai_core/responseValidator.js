@@ -322,10 +322,18 @@ export function validatePatternStructure(itinerary, request = {}) {
   // 운영자 비상 circuit breaker — Gemini 가 일관되게 day count 틀리면 일시 비활성.
   const bdcEnabled = process.env.VALIDATOR_BDC_ENABLED !== 'false';
   const requestedDays = Number(request.durationDays || request.duration_days);
-  if (bdcEnabled && Number.isFinite(requestedDays) && requestedDays > 0 && days.length !== requestedDays) {
-    errors.push(
-      `Plan: itinerary.days.length=${days.length} ≠ requested durationDays=${requestedDays} (B-DC)`
-    );
+  if (Number.isFinite(requestedDays) && requestedDays > 0 && days.length !== requestedDays) {
+    // P285 (2026-05-29): env disabled 여도 log + Telegram alert — silent mode 차단 (Agent 1 audit #3).
+    // 운영자 비상 circuit breaker (VALIDATOR_BDC_ENABLED=false) 활성 시에도 mismatch 측정 + admin 노출.
+    console.error('[P285 B-DC mismatch]', JSON.stringify({ requestedDays, actualDays: days.length, bdcEnabled }));
+    throttledTelegramAlert(
+      `🚨 P285 B-DC mismatch: requested=${requestedDays}, actual=${days.length}, env_enabled=${bdcEnabled}`,
+    ).catch(() => {});
+    if (bdcEnabled) {
+      errors.push(
+        `Plan: itinerary.days.length=${days.length} ≠ requested durationDays=${requestedDays} (B-DC)`
+      );
+    }
   }
 
   // B-REGION-COVERAGE (P158, 2026-05-22): 다도시 plan 에서 각 region 이 최소 1 day 배정.
@@ -761,10 +769,14 @@ export function validatePatternStructure(itinerary, request = {}) {
       if (stopMin >= arrivalMin && stopMin < effectiveTourStart) {
         errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} < tour_start_time=${request.tour_start_time || request.tourStartTime || '09:00'} (B-LATE-ARRIVAL P239)`);
       }
-      // 새벽 활동 (hour < 5) 일반 stops 금지 — P239 도 동일 (tour_start_time hour < 5 폴백 09:00).
+      // P286 (2026-05-29): arrival-wrap edge — stop time < arrival 이면서 hour < 5 면 new-day wrap 의심.
+      // 이전 코드 = 새벽 체크가 outer if (stopMin >= arrivalMin) 안 → stopMin < arrivalMin 인 wrap stop 누락.
+      // Agent 1 audit #5: arrival='23:15' + stop='01:10' = wrap stop → 새벽 활동 미감지 sleeper bug.
+      // Fix: 새벽 체크를 outer if 밖으로 move — stopMin < arrivalMin 시에도 (wrap 의심) error 박제.
       const stopHour = Math.floor(stopMin / 60);
       if (stopHour < 5) {
-        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" 새벽 활동 (start_time=${stop.start_time}, hour<5, category=${stop.category}) (B-LATE-ARRIVAL P239)`);
+        const wrapHint = stopMin < arrivalMin ? ' — arrival-wrap edge 의심 (P286)' : '';
+        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" 새벽 활동 (start_time=${stop.start_time}, hour<5, category=${stop.category}) (B-LATE-ARRIVAL P239)${wrapHint}`);
       }
     }
   }
@@ -1084,6 +1096,73 @@ export function validateResponse(data, request, foodIndex) {
         `🚨 P282 HANGANGBIKE_CITY_MISMATCH: styles=HangangBike 인데 ${hangangBikeViolations.length}개 stop 이 서울/경기 외 지역.\n` +
         hangangBikeViolations.slice(0, 3).map((v) => `• ${v.stop} @ ${v.address}`).join('\n'),
       ).catch(() => {});
+    }
+  }
+
+  // P284 (2026-05-29): hotel_address single-city mismatch — Agent 1 audit #1.
+  // B-13 multi-city 만 검증 → single-city plan 미검증 sleeper bug.
+  // SOFT validator (warning 박제, retry trigger X — false positive risk, P196 lesson).
+  // 호텔 토큰 (≥2자) 하나라도 lodging stop name/address 에 매칭 안 되면 mismatch.
+  const reqHotelAddr = String(request?.hotel_address || request?.body?.hotel_address || '').trim();
+  const reqRegions = Array.isArray(request?.regions)
+    ? request.regions
+    : (Array.isArray(request?.body?.regions) ? request.body.regions : []);
+  const isMultiCityReq = reqRegions.length >= 2;
+  if (reqHotelAddr && reqHotelAddr.length >= 3 && !isMultiCityReq) {
+    // 광역 token 제외 — "서울" 같은 city-level token 매칭은 false positive (어느 stop 도 매칭).
+    // specific token (동/구/호텔명) 만 사용 → strict 매칭.
+    const GENERIC_TOKENS = new Set([
+      '서울', '부산', '제주', '인천', '대구', '대전', '광주', '울산',
+      '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남',
+      '서울특별시', '부산광역시', '제주특별자치도', '인천광역시', '대구광역시',
+      '대전광역시', '광주광역시', '울산광역시', '경기도', '강원도',
+      '호텔', 'hotel', 'inn', 'hostel', '리조트', 'resort',
+    ]);
+    const hotelTokens = reqHotelAddr
+      .split(/[\s,]+/)
+      .filter((t) => t.length >= 2 && !GENERIC_TOKENS.has(t.toLowerCase()) && !GENERIC_TOKENS.has(t));
+    const lodgingStops = allStops.filter((s) => s && s.category === 'lodging');
+    if (hotelTokens.length > 0 && lodgingStops.length > 0) {
+      const hotelMismatches = [];
+      for (const stop of lodgingStops) {
+        const hay = `${stop.name || ''} ${stop.display_name || ''} ${stop.address || ''}`.toLowerCase();
+        const matched = hotelTokens.some((t) => hay.includes(t.toLowerCase()));
+        if (!matched) {
+          hotelMismatches.push({
+            stop_name: stop.name || stop.display_name || '?',
+            stop_address: stop.address || '',
+          });
+        }
+      }
+      if (hotelMismatches.length > 0) {
+        issues.push({
+          type: 'hotel_address_single_city_mismatch',
+          severity: 'medium',
+          hotel_address: reqHotelAddr,
+          mismatch_count: hotelMismatches.length,
+          mismatches: hotelMismatches.slice(0, 3),
+          message: `P284: input hotel_address='${reqHotelAddr}' but ${hotelMismatches.length} lodging stops 미매칭 (사용자 시점 호텔 mismatch).`,
+        });
+        console.warn('[P284 hotel_address_single_city_mismatch]', JSON.stringify({ hotel: reqHotelAddr, mismatches: hotelMismatches.slice(0, 3) }));
+      }
+    }
+  }
+
+  // P282-B (2026-05-29): Jjimjilbang keyword coverage — niche style stop ≥ 1 강제.
+  // 전국 분포라 city-mismatch 어려움 — keyword check (찜질방/jjimjilbang/sauna).
+  // SOFT (warning 박제, retry trigger X).
+  if (reqStyles.some((s) => String(s).toLowerCase() === 'jjimjilbang')) {
+    const jjimjilbangMatched = allStops.filter((s) => {
+      const hay = `${s.name || ''} ${s.display_name || ''} ${s.tip || ''}`.toLowerCase();
+      return /찜질방|jjimjilbang|sauna|spa land/i.test(hay);
+    });
+    if (jjimjilbangMatched.length === 0) {
+      issues.push({
+        type: 'jjimjilbang_coverage_zero',
+        severity: 'medium',
+        message: `P282-B: styles=['Jjimjilbang'] but 0 stops match keyword (찜질방/jjimjilbang/sauna). niche style coverage missing — 사용자가 골랐는데 결과물에 안 보임.`,
+      });
+      console.warn('[P282-B jjimjilbang_coverage_zero] 0 stops match keyword');
     }
   }
 
