@@ -269,7 +269,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 - 🔴 **B-16 STRICT ENFORCEMENT (2026-05-12, P202 강화 2026-05-26, P276 강화 2026-05-29)**: \`departure_guide\`, \`departure_guide.airport\`, \`arrival_guide.airport\` 각 필드 **모두 명시 의무**. 누락 시 backend validator 가 plan 을 거부하고 retry. ALWAYS include the top-level \`departure_guide\` object AND set \`departure_guide.airport\` (예: "ICN T1", "GMP", "PUS"). Likewise \`arrival_guide.airport\` 는 \`arrival_airport != "already_in_korea"\` 일 때 반드시 채워야 한다. PDF 첫/마지막 페이지가 빈 페이지가 되는 사용자 신고 사유.
 
 ### 🔴 P276 (2026-05-29) — arrival_guide STEPS 통째 누락 차단 (SAFETY-CRITICAL)
-**사용자 신고 패턴**: prod plan `6c807c03` 등 다수 — Gemini 가 \`arrival_guide\` 통째 누락 → backend selfHealArrivalGuide 가 generic 5-step skeleton 자동 합성. UI 표시는 되지만 **사용자 personalize 안 된 generic 안내** = quality 저하 + 운영자 환불 risk.
+**사용자 신고 패턴**: prod plan 6c807c03 등 다수 — Gemini 가 \`arrival_guide\` 통째 누락 → backend selfHealArrivalGuide 가 generic 5-step skeleton 자동 합성. UI 표시는 되지만 **사용자 personalize 안 된 generic 안내** = quality 저하 + 운영자 환불 risk.
 
 **규칙**:
 1. \`arrival_guide\` 객체 **반드시** 포함 (responseSchema required 강제 + buildPrompt 의무)
@@ -279,7 +279,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 5. arrival_airport='already_in_korea' 인 경우만 SKIP 가능
 
 ### 🔴 P277 (2026-05-29) — daily_budget_summary 통째 누락 차단
-**사용자 신고 패턴**: prod plan `6c807c03` 등 다수 — Gemini 가 \`daily_budget_summary\` 통째 누락 → backend selfHealDailyBudget (P162) 가 stop count 기반 추정값 자동 생성. 사용자 결제 UI 의 "Day 별 예상 비용" 카드가 generic.
+**사용자 신고 패턴**: prod plan 6c807c03 등 다수 — Gemini 가 \`daily_budget_summary\` 통째 누락 → backend selfHealDailyBudget (P162) 가 stop count 기반 추정값 자동 생성. 사용자 결제 UI 의 "Day 별 예상 비용" 카드가 generic.
 
 **규칙**:
 1. \`daily_budget_summary\` 배열 **반드시 포함** (Day 수 만큼 element)
