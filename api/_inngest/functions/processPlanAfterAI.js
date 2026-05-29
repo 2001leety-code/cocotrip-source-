@@ -92,6 +92,43 @@ export const processPlanAfterAI = inngest.createFunction(
     triggers: [{ event: 'plan/ai.complete' }],
     // P220: 운영자 후속 액션 — Inngest 대시보드에서 동시 실행 제한 설정 가능.
     //   기본은 무제한. Vercel 동시 function invocation 한도 (Pro: 1000) 고려.
+    // P307 (2026-05-30, audit B8): worker 모든 step retry 소진 후 최종 실패 시
+    // Inngest 가 onFailure 호출. status='error' + _streaming_in_progress=false 즉시
+    // 마킹 → 사용자 stuck 노출 단축 (P292 30분 sweep net 보완).
+    // SAFETY (CLAUDE.md J): dietary validation 무관 — Firestore status mark 만.
+    onFailure: async ({ event, error }) => {
+      const planId = event?.data?.event?.data?.planId || event?.data?.planId;
+      if (!planId) {
+        console.warn('[P307] onFailure: planId 없음 — skip');
+        return;
+      }
+      try {
+        await adminDb.collection('plans').doc(planId).set(
+          {
+            status: 'error',
+            _streaming_in_progress: false,
+            _streaming_error: 'inngest_worker_failure_p307',
+            _streaming_error_message: (error?.message || 'unknown').slice(0, 500),
+            _failed_at: new Date().toISOString(),
+          },
+          { merge: true },
+        );
+        console.warn(`[P307] onFailure marked plan ${planId} as error: ${error?.message?.slice(0, 100)}`);
+      } catch (markErr) {
+        console.error(`[P307] onFailure mark failed (P292 cron sweep 가 30분 후 정리): ${markErr.message}`);
+      }
+      // 운영자 escalation — sweep 30분 net 보다 빠르게 manual 환불 안내 시작 가능.
+      try {
+        await throttledTelegramAlert({
+          key: `inngest-worker-fail:${planId}`,
+          channel: 'admin',
+          severity: 'high',
+          message: `🔴 <b>Inngest worker 최종 실패 (P307 onFailure)</b>\n\nplanId=<code>${planId.slice(0, 8)}</code>\nerror=${(error?.message || 'unknown').slice(0, 200)}\n\n→ 운영자 manual: 사용자 결제 후 plan 안 받음 → 환불 안내 + 원인 분석 (Vercel logs / Inngest run).`,
+        });
+      } catch (alertErr) {
+        console.warn(`[P307] onFailure alert failed: ${alertErr.message}`);
+      }
+    },
   },
   async ({ event, step, logger }) => {
     const { planId: eventPlanId, itinerary, ctx } = event.data;
