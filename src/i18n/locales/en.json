@@ -1663,6 +1663,18 @@
       "minUnit": "min",
       "adultsLabel": "adults",
       "paxLabel": "pax"
+    },
+    "notices": {
+      "title": "Plan Auto-Corrections Applied",
+      "subtitle": "AI automatically supplemented these items based on your inputs.",
+      "countSuffix": "items",
+      "arrivalGuideSelfHealed": "Airport arrival guide (Immigration / SIM / T-money / Currency) 5-step skeleton auto-generated",
+      "lodgingBookendSelfHealed": "Day start/end hotel anchor auto-added (prevents broken route)",
+      "crossCityLodgingCorrected": "Hotel in different city than day's city auto-corrected",
+      "arrivalAirportOverridden": "Arrival airport terminal auto-corrected to match your input (T1/T2 mismatch prevention)",
+      "departureAirportOverridden": "Departure airport terminal auto-corrected to match your input (T1/T2 mismatch prevention)",
+      "dietaryCoverageLow": "Dietary restriction (halal/vegan/allergy) restaurant matches insufficient — please verify menus before visiting",
+      "dailyBudgetSelfHealed": "Daily budget estimates auto-generated (multiplied by party size)"
     }
   },
   "mypage": {

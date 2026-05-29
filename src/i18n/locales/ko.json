@@ -1663,6 +1663,18 @@
       "minUnit": "분",
       "adultsLabel": "성인",
       "paxLabel": "명"
+    },
+    "notices": {
+      "title": "플랜 자동 보정 안내",
+      "subtitle": "AI 가 입력 정보를 바탕으로 자동 보완한 항목입니다.",
+      "countSuffix": "건",
+      "arrivalGuideSelfHealed": "공항 도착 안내 (입국·SIM·T-money·환전) 5단계 자동 합성",
+      "lodgingBookendSelfHealed": "Day 시작·마지막 호텔 anchor 자동 추가 (동선 끊김 차단)",
+      "crossCityLodgingCorrected": "Day 도시와 다른 도시 호텔 자동 교정",
+      "arrivalAirportOverridden": "도착 공항 터미널 입력값 기준 자동 정정 (T1/T2 mismatch 차단)",
+      "departureAirportOverridden": "출발 공항 터미널 입력값 기준 자동 정정 (T1/T2 mismatch 차단)",
+      "dietaryCoverageLow": "식이제한 (할랄·비건·알레르기) 매칭 식당 부족 — 방문 전 메뉴 재확인 권장",
+      "dailyBudgetSelfHealed": "일별 예산 추정값 자동 생성 (인원수 곱셈)"
     }
   },
   "mypage": {

@@ -42,6 +42,7 @@ import { IntroSlide } from './components/IntroSlide';
 import { OutroSlide } from './components/OutroSlide';
 import { AdSlide } from './components/AdSlide';
 import { QualityWarningsPanel } from './components/QualityWarningsPanel';
+import { UserPlanNoticesPanel } from './components/UserPlanNoticesPanel';
 import { usePlanEditor } from './hooks/usePlanEditor';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { buildSlides } from './lib/buildSlides';
@@ -517,6 +518,13 @@ export default function PlanDetailPage() {
         <div className="max-w-4xl mx-auto px-4">
           <ReviewList targetType="plan" targetId={planId || ''} />
         </div>
+
+        {/* P294 (2026-05-29): 사용자 UI quality_warnings 노출 panel.
+            화이트리스트 (positive notices 만) + 4lang i18n + purple/pink 디자인 토큰.
+            QualityWarningsPanel (admin amber) 와 구분. severity='critical' 제외. */}
+        <UserPlanNoticesPanel
+          qualityWarnings={plan.itinerary?.quality_warnings as never}
+        />
 
         {/* P121 (2026-05-20): 운영자 전용 quality_warnings + qualityScore 노출.
             isAdminEmail 가드 — 일반 사용자에게는 null 반환. */}

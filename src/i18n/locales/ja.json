@@ -1663,6 +1663,18 @@
       "adultsLabel": "大人",
       "paxLabel": "名",
       "minUnit": "分"
+    },
+    "notices": {
+      "title": "プラン自動補正のお知らせ",
+      "subtitle": "AIが入力情報をもとに自動補完した項目です。",
+      "countSuffix": "件",
+      "arrivalGuideSelfHealed": "空港到着ガイド (入国・SIM・T-money・両替) 5ステップを自動生成",
+      "lodgingBookendSelfHealed": "Day 開始・終了のホテルアンカーを自動追加 (動線途切れ防止)",
+      "crossCityLodgingCorrected": "Day の都市と異なる都市のホテルを自動補正",
+      "arrivalAirportOverridden": "到着空港ターミナルを入力値基準で自動補正 (T1/T2 mismatch 防止)",
+      "departureAirportOverridden": "出発空港ターミナルを入力値基準で自動補正 (T1/T2 mismatch 防止)",
+      "dietaryCoverageLow": "食事制限 (ハラル・ビーガン・アレルギー) 対応店舗が不足 — 訪問前にメニュー再確認推奨",
+      "dailyBudgetSelfHealed": "日別予算の推定値を自動生成 (人数掛算)"
     }
   },
   "mypage": {
