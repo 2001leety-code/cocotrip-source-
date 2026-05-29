@@ -2231,6 +2231,10 @@ const RULES = [
   ['P268_debugInfoNoCachePop', P268_debugInfoNoCachePop],
   ['P273_userMessageCachePrefixOrder', P273_userMessageCachePrefixOrder],
   ['P274_airportTerminalConsistency', P274_airportTerminalConsistency],
+  ['P275_airportStationMismatch', P275_airportStationMismatch],
+  ['P276_arrivalGuideRequired', P276_arrivalGuideRequired],
+  ['P278_blockModeCacheMetadata', P278_blockModeCacheMetadata],
+  ['P279_vercelLogsNdjson', P279_vercelLogsNdjson],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -8121,6 +8125,161 @@ function P274_airportTerminalConsistency({ changed }) {
       'R-P274: airport terminal consistency 깨짐 — 사용자 비행기 놓침 risk (SAFETY-CRITICAL). ' +
       'prod plan 696b273d 등 4건 자가 모순 (input ICN → arrival route T2 + departure T1 + Day N stop T1) 회귀 위험. ' +
       'fix 3-layer (RouteAgent normalize + postPipeline override + buildPrompt rule) 모두 유지 의무. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P275_airportStationMismatch — ODsay station mismatch 측정 회귀 차단 (2026-05-29)
+//
+// P274 (PR #673) 가 우회 fix. 진짜 root cause = AIRPORT_COORDS T1↔T2 ~260m 인접 → ODsay 임의 station.
+// P275 Phase A: _routeAirportHotel fromStationName/toStationName extract + _verifyAirportStation +
+//   호출 site mismatch quality_warnings 박제. Phase B (별도 cycle): AIRPORT_STATION_COORDS 자동 fix.
+// ----------------------------------------------------------------------------
+
+function P275_airportStationMismatch({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  if (!/function\s+_verifyAirportStation\s*\(/.test(src)) {
+    issues.push('_verifyAirportStation function 누락 — P275 Phase A 측정 logic 회귀');
+  }
+  if (!/fromStationName\s*=\s*firstStep/.test(src)) {
+    issues.push('_routeAirportHotel fromStationName extract 누락');
+  }
+  if (!/arrival_station_terminal_mismatch/.test(src) || !/departure_station_terminal_mismatch/.test(src)) {
+    issues.push('quality_warnings 박제 (arrival/departure_station_terminal_mismatch) 누락');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P275_airportStationMismatch',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P275: ODsay station mismatch 측정 깨짐 — 사용자 비행기 놓침 risk 검출 불가 (SAFETY-CRITICAL). ' +
+      'P274 우회 fix 의 측정 강화 — Phase B 자동 fix 도입 전 sleeper bug 잠복. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P276_arrivalGuideRequired — buildPrompt arrival_guide / daily_budget_summary 통째 누락 차단 (P276+P277)
+// ----------------------------------------------------------------------------
+
+function P276_arrivalGuideRequired({ changed }) {
+  const FILE = 'api/_ai_core/buildPrompt.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  if (!/P276[^]*TERMINAL CONSISTENCY|P276[^]*arrival_guide STEPS/.test(src)) {
+    issues.push('P276 arrival_guide STEPS 통째 누락 차단 section 누락');
+  }
+  if (!/P277[^]*daily_budget_summary/.test(src)) {
+    issues.push('P277 daily_budget_summary 누락 차단 section 누락');
+  }
+  if (!/반드시 5개 step/.test(src)) {
+    issues.push('arrival_guide.steps 5개 명시 누락');
+  }
+  if (!/transport_krw|entry_fees_krw/.test(src)) {
+    issues.push('daily_budget_summary 6 field 명시 누락');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P276_arrivalGuideRequired',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P276+P277: buildPrompt arrival_guide / daily_budget_summary REQUIRED 강화 깨짐 — Gemini self_heal 빈도 ↑ 회귀. ' +
+      '사용자 personalize 안 된 generic 안내 = quality 저하 + 환불 risk. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P278_blockModeCacheMetadata — block_mode plan _cache_metadata persist sleeper bug 회귀 차단
+//
+// P266 chain (PR #665-#667) 가 legacy 만 적용 — block_mode 46% plan 측정 누락 1주일 잠복.
+// blockMode.js 의 selectBlocksWithGemini / selectBlocksMultiCity 의 cacheMetadata 추출 + itinerary attach.
+// ----------------------------------------------------------------------------
+
+function P278_blockModeCacheMetadata({ changed }) {
+  const FILE = 'api/_ai_core/blockMode.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  // cacheMetadata 추출 (cachedContentTokenCount + promptTokenCount + candidatesTokenCount)
+  if (!/cachedContentTokenCount/.test(src)) {
+    issues.push('Gemini usageMetadata.cachedContentTokenCount 추출 누락 (P266 chain layer 1 호환 깨짐)');
+  }
+  // itinerary._cache_metadata attach (runBlockModePipeline + runBlockModeMultiCity)
+  const attachMatches = (src.match(/itinerary\._cache_metadata\s*=\s*selections\.cacheMetadata/g) || []).length;
+  if (attachMatches < 2) {
+    issues.push(`itinerary._cache_metadata attach ${attachMatches}/2 spot — runBlockModePipeline / runBlockModeMultiCity 둘 다 의무`);
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P278_blockModeCacheMetadata',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P278: block_mode plan _cache_metadata persist 깨짐 — P266 chain sleeper bug 회귀 위험. ' +
+      'block_mode 46% plan 측정 누락 → 운영자 P273/P274 효과 측정 불가. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P279_vercelLogsNdjson — scripts/fetch-vercel-logs.mjs NDJSON 파싱 회귀 차단
+//
+// Vercel runtime-logs API NDJSON 응답 → res.json() SyntaxError. text + split + per-line parse.
+// ----------------------------------------------------------------------------
+
+function P279_vercelLogsNdjson({ changed }) {
+  const FILE = 'scripts/fetch-vercel-logs.mjs';
+  if (!isModified(FILE, changed)) return { skipped: true };
+
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+
+  const issues = [];
+
+  // runtime-logs URL 직접 fetch (api() 안 거침)
+  if (!/const\s+logsUrl\s*=\s*`https:\/\/api\.vercel\.com\/v1\/projects\//.test(src)) {
+    issues.push('runtime-logs 직접 fetch URL pattern 누락');
+  }
+  // text() + split('\n') + per-line JSON.parse
+  if (!/\.split\('\\n'\)[\s\S]{0,200}JSON\.parse\(line\)/.test(src)) {
+    issues.push('NDJSON 처리 패턴 (text + split + per-line JSON.parse) 누락');
+  }
+  // 회귀: api() 직접 호출 (이전 broken pattern)
+  if (/const\s+logsRaw\s*=\s*await\s+api\(`\/v1\/projects\/.*runtime-logs/.test(src)) {
+    issues.push('이전 pattern (const logsRaw = await api(...runtime-logs)) 회귀 — SyntaxError 재발');
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P279_vercelLogsNdjson',
+    severity: 'error',
+    file: FILE,
+    message:
+      'R-P279: fetch-vercel-logs NDJSON 파싱 회귀 — 다음 cycle 진단 도구 broken. ' +
+      'Vercel runtime-logs API NDJSON 응답 → res.json() SyntaxError. text + split + per-line parse 의무. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
   };
 }
