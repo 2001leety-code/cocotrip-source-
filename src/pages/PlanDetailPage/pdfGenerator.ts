@@ -628,9 +628,12 @@ export async function generatePDF(
     // B9-39 (2026-05-09): 도시 간 이동 카드 (KTX/SRT/Air/Bus) — 다도시 plan.
     // intercity_transit 가 있을 때만 노출. page-break-inside:avoid 로 카드 단위 보존.
     const ic = day.intercity_transit as Record<string, unknown> | undefined;
-    if (ic && ic.mode) {
+    // B7 (P308): mode/est_min/est_fare_krw 우선, P291~P308 오명명 plan 은 method/duration_min/cost_krw 폴백.
+    if (ic && (ic.mode || ic.method)) {
       const icLabels = (uiDict as { intercity?: Record<string, string> } | undefined)?.intercity || {};
-      const modeStr = String(ic.mode);
+      const modeStr = String(ic.mode || ic.method);
+      const icEstMin = ic.est_min ?? ic.duration_min;
+      const icEstFare = ic.est_fare_krw ?? ic.cost_krw;
       const titleTpl = icLabels.title || 'Intercity Transit — {{mode}}';
       const departTpl = icLabels.depart || 'Depart {{time}}';
       const arriveTpl = icLabels.arrive || 'Arrive {{time}}';
@@ -642,8 +645,8 @@ export async function generatePDF(
       const toCity = String(ic.to_city_display || ic.to_city || '');
       const departText = ic.recommended_depart ? departTpl.replace('{{time}}', String(ic.recommended_depart)) : '';
       const arriveText = ic.arrival_at ? arriveTpl.replace('{{time}}', String(ic.arrival_at)) : '';
-      const durationText = ic.est_min ? durationTpl.replace('{{min}}', String(ic.est_min)) : '';
-      const fareText = ic.est_fare_krw ? fareTpl.replace('{{krw}}', Number(ic.est_fare_krw).toLocaleString()) : '';
+      const durationText = icEstMin ? durationTpl.replace('{{min}}', String(icEstMin)) : '';
+      const fareText = icEstFare ? fareTpl.replace('{{krw}}', Number(icEstFare).toLocaleString()) : '';
       const instruction = ic.instruction ? `<p style="font-size:10.5px;color:${C.muted};margin:6px 0 0;line-height:1.4;">${String(ic.instruction)}</p>` : '';
       const bookLink = ic.booking_url
         ? `<a href="${String(ic.booking_url)}" style="display:inline-block;margin-top:6px;font-size:10px;color:${C.accent};font-weight:600;text-decoration:none;">${bookTpl} →</a>`

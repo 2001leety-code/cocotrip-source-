@@ -221,7 +221,7 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
           PDF-issue-2 (2026-05-14): 전후 bookend segment 표시 — 사용자 PDF "부산호텔→
           부산역" + "서울역→명동호텔" transit 누락 회귀 fix. RouteAgent 가 intercity_transit
           .lodging_to_station + station_to_lodging 채우면 LodgingBookend 로 표시. */}
-      {intercity && intercity.mode && (
+      {intercity && (intercity.mode || intercity.method) && (
         <>
           {/* 전 bookend: 이전 day 호텔 → from_station */}
           {(intercity as IntercityTransitSegment & { lodging_to_station?: TransitFromPrev }).lodging_to_station && (
@@ -467,7 +467,10 @@ function IntercityTransitCard({
       : language === 'zh' ? '预订'
       : 'Book');
 
-  const mode = intercity.mode || 'KTX';
+  // B7 (P308): mode/est_min/est_fare_krw 우선, P291~P308 오명명 plan 은 method/duration_min/cost_krw 폴백.
+  const mode = intercity.mode || intercity.method || 'KTX';
+  const estMin = intercity.est_min ?? intercity.duration_min;
+  const estFareKrw = intercity.est_fare_krw ?? intercity.cost_krw;
   const fromCity = intercity.from_city_display || intercity.from_city || '';
   const toCity = intercity.to_city_display || intercity.to_city || '';
   const Icon = /air|flight|plane/i.test(mode) ? Plane : TrainFront;
@@ -479,11 +482,11 @@ function IntercityTransitCard({
   const arriveText = intercity.arrival_at
     ? arriveLabel.replace('{{time}}', intercity.arrival_at)
     : '';
-  const durationText = intercity.est_min
-    ? durationLabel.replace('{{min}}', String(intercity.est_min))
+  const durationText = estMin
+    ? durationLabel.replace('{{min}}', String(estMin))
     : '';
-  const fareText = intercity.est_fare_krw
-    ? fareLabel.replace('{{krw}}', intercity.est_fare_krw.toLocaleString())
+  const fareText = estFareKrw
+    ? fareLabel.replace('{{krw}}', estFareKrw.toLocaleString())
     : '';
 
   return (
