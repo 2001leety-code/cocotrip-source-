@@ -33,7 +33,7 @@ Total `.js` files in `api/` root: **53** (excludes subdirs `_ai_core/`, `_shared
 
 | Endpoint | Purpose |
 |---|---|
-| `api/ai-planner-full.js` | Full AI planner pipeline (Gemini + DB matcher + RouteAgent + persist). `maxDuration=300`, `memory=768`. |
+| `api/ai-planner-full.js` | Full AI planner pipeline (Gemini + DB matcher + RouteAgent + persist). `maxDuration=800`, `memory=768`. P270 (2026-05-29). |
 | `api/ai-planner-quick.js` | Quick/preview planner. `maxDuration=60`, `memory=512`. |
 | `api/translate-plan.js` | Per-language translation cache for stored plans. |
 | `api/recalc-transit.js` | Re-run Naver+ODsay enrichment on an existing plan. |
@@ -267,7 +267,7 @@ WizardForm (frontend)
 PlanDetailPage.tsx → render + html2pdf
 ```
 
-`maxDuration = 300s` (Vercel Pro). Sentry `captureError` wraps the handler.
+`maxDuration = 800s` (Vercel Pro Fluid Compute, P270 2026-05-29). Sentry `captureError` wraps the handler.
 
 ---
 
