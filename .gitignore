@@ -57,6 +57,10 @@ scripts/p256-*.mjs
 scripts/p258-measure-*.mjs
 scripts/p266-*.mjs
 scripts/p267-*.mjs
+# P293 (2026-05-29): 5/29 cycle ad-hoc scripts.
+scripts/p273-*.mjs
+scripts/p280-*.mjs
+scripts/p287-*.mjs
 scripts/verify-p[0-9]*.mjs
 scripts/pdf-golden-*.mjs
 scripts/compare-5-plans*.mjs
