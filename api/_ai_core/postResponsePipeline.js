@@ -224,7 +224,13 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   // (zone_courses JSON 의 stops 자체에 lodging 없음) 의 Day 마지막 stop 이 food 등
   // non-lodging 일 때 synthesized lodging stop append. backfillDayLodging 이 day.lodging
   // 채운 후 호출 (synthesized name 기본값 사용 가능).
-  selfHealLodgingBookend(itinerary);
+  // P290 (2026-05-29): personalize — ctx 전달 (P288/P289 패턴 동일).
+  //   단일 도시 plan + 사용자 hotel/zone 입력 시 placeholder 대신 user input 사용.
+  //   day.lodging?.name 우선 (multi-city 보존). Gemini prompt 변경 0 = cache miss risk 0.
+  selfHealLodgingBookend(itinerary, {
+    hotel_address: ctx.hotel_address || ctx.hotelAddressFromBody,
+    recommendedZone: ctx.recommendedZone,
+  });
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);

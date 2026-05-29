@@ -194,8 +194,17 @@ export const processPlanAfterAI = inngest.createFunction(
     });
 
     // ── Step 2: backfills + T-money ──────────────────────────────────────────
+    // P290 (2026-05-29): selfHealLodgingBookend personalize 위해 ctx 확장.
+    //   Inngest worker path 도 sync path 와 동일 ctx 전달 (block_mode plan 의
+    //   주요 처리 경로 — day.lodging 없는 zone_courses JSON 의 lodging anchor 보강).
     const itinAfterBackfill = await step.run('backfillsAndTmoney', () => {
-      applyBackfillsAndTmoney(itinAfterRoute, { hotelByCity: ctx.hotelByCity, body: ctx.body });
+      applyBackfillsAndTmoney(itinAfterRoute, {
+        hotelByCity: ctx.hotelByCity,
+        body: ctx.body,
+        hotel_address: ctx.hotel_address,
+        hotelAddressFromBody: ctx.hotelAddressFromBody,
+        recommendedZone: ctx.recommendedZone,
+      });
       return itinAfterRoute;
     });
 

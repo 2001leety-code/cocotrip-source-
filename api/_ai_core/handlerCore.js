@@ -379,7 +379,8 @@ export default async function handler(req, res) {
     console.log('[planner] Step 3: Saving to Firestore...');
 
     // ── Backfills + T-money + recommended restaurants + pricing ───────────
-    applyBackfillsAndTmoney(itinerary, { hotelByCity, body });
+    // P290 (2026-05-29): ctx 확장 (hotel_address / hotelAddressFromBody / recommendedZone) — selfHealLodgingBookend personalize. day.lodging 없는 block_mode plan 의 synthesized lodging stop 에 사용자 입력 호텔 반영.
+    applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs, regions });
