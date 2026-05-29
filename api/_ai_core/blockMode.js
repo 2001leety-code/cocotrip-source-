@@ -199,6 +199,20 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
     systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
   });
 
+  // P278 (2026-05-29): cache instrumentation (P266 chain 의 block_mode 측정 누락 fix).
+  // Gemini usageMetadata 추출 — implicit cache hit 측정. legacy 만 측정되던 sleeper bug 해소.
+  // 측정 100 plan 중 block_mode 46건 _cache_metadata 0% = handlerCore:400 의 itinerary._cache_metadata
+  // 가 null (block_mode 가 attach 안 함) → P266 chain layer 2-5 silent skip.
+  const cacheMetadata = (() => {
+    const um = result?.response?.usageMetadata;
+    if (!um) return { cached: 0, total: 0, output: 0 };
+    return {
+      cached: Number(um.cachedContentTokenCount) || 0,
+      total: Number(um.promptTokenCount) || 0,
+      output: Number(um.candidatesTokenCount) || 0,
+    };
+  })();
+
   const raw = (result && result.response && typeof result.response.text === 'function')
     ? result.response.text().trim()
     : '';
@@ -231,7 +245,7 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
         safe.push({ day: i, block_id: fallback.id, tweak_notes: 'auto-fallback (Gemini omitted day)' });
       }
     }
-    return { day_selections: safe, language };
+    return { day_selections: safe, language, cacheMetadata };
   }
 
   // Validate block IDs.
@@ -248,7 +262,7 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
       tweak_notes: typeof d?.tweak_notes === 'string' ? d.tweak_notes.slice(0, 400) : '',
     };
   });
-  return { day_selections: cleaned, language };
+  return { day_selections: cleaned, language, cacheMetadata };
 }
 
 /**
@@ -612,6 +626,13 @@ export async function runBlockModePipeline({ adminDb, city, userInput, geminiCli
 
   const selections = await selectBlocksWithGemini(blocks, userInput, geminiClient);
   const itinerary = expandBlocksToItinerary(selections, blocks, userInput);
+  // P278 (2026-05-29): block_mode 의 _cache_metadata 측정 (P266 chain layer 1 호환).
+  // handlerCore:400 가 itinerary?._cache_metadata 를 explicit pass-through → P266 chain layer 2-5
+  // (savePlan / Inngest dispatch / worker / planPersister _debug.cacheMetrics) 자동 작동.
+  // 이전: block_mode 46/100 plan _cache_metadata 0% (legacy 만 측정) sleeper bug.
+  if (selections.cacheMetadata) {
+    itinerary._cache_metadata = selections.cacheMetadata;
+  }
   return {
     itinerary,
     eligible: true,
@@ -798,6 +819,18 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
   });
 
+  // P278 (2026-05-29): cache instrumentation — multi-city block selection.
+  // selectBlocksWithGemini 와 동일 패턴 (block_mode sleeper bug fix).
+  const cacheMetadata = (() => {
+    const um = result?.response?.usageMetadata;
+    if (!um) return { cached: 0, total: 0, output: 0 };
+    return {
+      cached: Number(um.cachedContentTokenCount) || 0,
+      total: Number(um.promptTokenCount) || 0,
+      output: Number(um.candidatesTokenCount) || 0,
+    };
+  })();
+
   const raw = (result && result.response && typeof result.response.text === 'function')
     ? result.response.text().trim()
     : '';
@@ -841,7 +874,7 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     });
   }
 
-  return { day_selections: safe, language };
+  return { day_selections: safe, language, cacheMetadata };
 }
 
 /**
@@ -1104,6 +1137,10 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
 
   const selections = await selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay);
   const itinerary = expandBlocksToItineraryMultiCity(selections, cityBlocksList, userInput);
+  // P278 (2026-05-29): multi-city block_mode cache_metadata attach (P266 chain layer 1 호환).
+  if (selections.cacheMetadata) {
+    itinerary._cache_metadata = selections.cacheMetadata;
+  }
 
   return {
     itinerary,
