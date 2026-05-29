@@ -212,6 +212,8 @@ export default async function handler(req, res) {
     } = shaped;
     lastUid = uid;
     const requestEmail = email; // 인증된 email — body.email 무시 (downstream single source).
+    // P298 (2026-05-29) SAFETY-CRITICAL: 할랄/비건이 allergies 칸으로 들어옴 (WizardForm P10 4/24 ALLERGY_KEYS). dietPrefs 만 보던 검증·필터·추천·저장·dispatch 체인에 합집합 전달 ('None' 제외). 검증 함수(responseValidator/_food_helper)는 'Halal'/'Vegan' 문자열 처리 가능 — 값 도달만 하면 즉시 작동.
+    const dietaryAll = [...new Set([...(Array.isArray(dietPrefs) ? dietPrefs : []), ...(Array.isArray(allergies) ? allergies : [])])].filter((d) => d && d !== 'None');
 
     // ── Phase 4 A/B test: planner mode 결정 (uid > guestEmail > sessionId) ───
     // sessionId 는 client 가 보낼 수 있는 anonymous 식별자 (현재 미사용이지만 향후
@@ -255,7 +257,7 @@ export default async function handler(req, res) {
 
     let foodContext = '';
     try {
-      foodContext = getFoodContext(area, dietPrefs, priceRange, 10) || '';
+      foodContext = getFoodContext(area, dietaryAll, priceRange, 10) || '';
       if (foodContext) console.log('[ai-planner-full] Food context injected:', foodContext.length, 'chars');
     } catch (foodErr) {
       console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);
@@ -285,14 +287,14 @@ export default async function handler(req, res) {
     logPromptMetrics(systemPrompt + finalUserMessage, {
       city: area,
       days: durationDays,
-      diet: dietPrefs.join(',') || 'none',
+      diet: dietaryAll.join(',') || 'none',
       lang: language,
       injectedRestaurants: (foodContext.match(/•/g) || []).length,
     });
 
     // Block-mode (P128) — SAFETY-CRITICAL dietary unsatisfied = skipped→legacy. P240: allergies + P239: tour_start_time 의무.
     // P271: userInput 에 arrival_airport/departure_airport/pax 추가 — expand 가 arrival_guide/departure_guide minimal default 채움 (self_heal placeholder 회피).
-    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, arrival_airport, departure_airport, pax } })));
+    const _blkR = await loadFoodIndex().then((fi) => withStep('blockMode', () => tryRunBlockMode({ adminDb, regions, area, apiKey, foodIndex: fi, userInput: { durationDays, dietPrefs: dietaryAll, allergies, styles, special_request: specialRequest, language, startDate, arrival_time: arrivalTime, departure_time: departureTime, tour_start_time: tourStartTime, arrival_airport, departure_airport, pax } })));
     const blockModeUsed = !!(_blkR && !_blkR.skipped), blocksUsed = blockModeUsed ? (_blkR.blocks_used || []) : [];
     let itinerary = blockModeUsed ? _blkR.itinerary : null;
 
@@ -321,7 +323,7 @@ export default async function handler(req, res) {
       area,
       language,
       mode: PLANNER_MODE,
-      dietary: dietPrefs,
+      dietary: dietaryAll,
       // 2026-05-19: admin Test Mode (ADMIN-BYPASS- orderId) downgrades the strict
       // validatePatternStructure throw to a soft telegram alert — admin testing
       // shouldn't be blocked by Gemini non-determinism (CLAUDE.md §F intermittent
@@ -355,7 +357,7 @@ export default async function handler(req, res) {
           dispatchFn: ({ streamingPlanId: spid, skeletonCtx: spCtx }) => dispatchOrInlineForHandlerCore({
             streamingResponseSent: true, itinerary, streamingPlanId: spid, skeletonCtx: spCtx || null, apiKey, body, routeHotelAddress, hotel_address,
             arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
-            area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
+            area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
             isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart,
           }),
@@ -369,7 +371,7 @@ export default async function handler(req, res) {
     // P220 (2026-05-26): Inngest dispatch — streaming + ENV + 토글 시 post-Gemini 를 별 invocation 으로. ENV/throw 시 inline fallback (silent fail 차단).
     // P230 (2026-05-27): block-mode 경로는 위에서 이미 처리 → skip. legacy streaming 만 본 분기 진입.
     // P231 (2026-05-27): skeletonCtx 전달 — worker Step 0 가 full skeleton 저장 (PLANNER_SKELETON_IN_WORKER=true 시).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -383,7 +385,7 @@ export default async function handler(req, res) {
     applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
-    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs, regions });
+    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions });
 
     // ── 가격 계산 ────────────────────────────────────────────────────────
     const { priceKRW, priceUSD } = computePricing(vehicle, durationDays);
@@ -397,7 +399,7 @@ export default async function handler(req, res) {
       guestName, pax, styles, area, duration, startDate, email,
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,
-      dietary: dietPrefs, foodIndex: foodIndexForQuality,
+      dietary: dietaryAll, foodIndex: foodIndexForQuality,
       cacheMetadata: itinerary?._cache_metadata || null,  // P266: P195 cache instrumentation explicit pass-through (geminiPipeline:1515 attach → debugInfo:42 pop 전)
       plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,  // P128 block-mode trace
       abReason: abDecision.reason, abBucket: abDecision.bucket,
