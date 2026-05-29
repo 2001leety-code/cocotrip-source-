@@ -1981,6 +1981,13 @@ export class RouteAgent extends BaseAgent {
     /**
      * Normalize Gemini's "ICN T1" / "ICN T2" / "GMP" form to constants key.
      * Returns null if unrecognized so callers can skip routing.
+     *
+     * P274 (2026-05-29): SAFETY-CRITICAL — input 'ICN' (terminal 미지정) → 'ICN' 유지
+     *   이전: 'ICN' (generic) → 'ICN_T1' hardcode default → ODsay 가 T1/T2 좌표 매우 가까워 (~260m)
+     *     임의로 'T2' station 추천 → arrival_guide.route_to_hotel.fromStationName='인천공항2터미널'
+     *     + departure_guide.airport='ICN T1' (Gemini hallucinate) = 자가 모순 (비행기 놓침 risk).
+     *   현재: 'ICN' 입력은 'ICN' 그대로 유지 (constants.js AIRPORT_COORDS['ICN'] entry 활용).
+     *     terminal 명시 (ICN_T1/T2) 시만 strict matching. 사용자 신고 plan 696b273d 등 4건 회귀 차단.
      */
     _normalizeAirportKey(raw) {
         if (!raw) return null;
@@ -1988,7 +1995,8 @@ export class RouteAgent extends BaseAgent {
         if (AIRPORT_COORDS[k]) return k;
         if (k.startsWith('ICN_T1') || k === 'ICN1' || k === 'INCHEON_T1') return 'ICN_T1';
         if (k.startsWith('ICN_T2') || k === 'ICN2' || k === 'INCHEON_T2') return 'ICN_T2';
-        if (k.startsWith('ICN') || k === 'INCHEON') return 'ICN_T1';
+        // P274: 'ICN' (generic) → 'ICN' 유지 (이전 T1 hardcode 제거). AIRPORT_COORDS['ICN'] 활용.
+        if (k.startsWith('ICN') || k === 'INCHEON') return 'ICN';
         if (k === 'GIMPO') return 'GMP';
         if (k === 'BUSAN' || k === 'GIMHAE') return 'PUS';
         if (k === 'JEJU') return 'CJU';

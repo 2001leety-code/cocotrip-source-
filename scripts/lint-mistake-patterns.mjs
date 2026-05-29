@@ -2230,6 +2230,7 @@ const RULES = [
   ['P267_streamingChunkUsageMetadataFallback', P267_streamingChunkUsageMetadataFallback],
   ['P268_debugInfoNoCachePop', P268_debugInfoNoCachePop],
   ['P273_userMessageCachePrefixOrder', P273_userMessageCachePrefixOrder],
+  ['P274_airportTerminalConsistency', P274_airportTerminalConsistency],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -8053,6 +8054,73 @@ function P273_userMessageCachePrefixOrder({ changed }) {
       'R-P273: userMessage cache-friendly 순서 깨짐 — Gemini implicit cache 0% hit 회귀. ' +
       'P195 baseline (plan 696b273d, cacheHitRate=0%) → P273 fix (STATIC PREFIX → DYNAMIC SUFFIX) 의도 손실. ' +
       '운영자 비용 박제 ~$0.48/day → 0.05/day (90% 할인 활성) ROI 손실 위험. ' +
+      '발견 항목:\n  - ' + issues.join('\n  - '),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// P274_airportTerminalConsistency — arrival/departure airport terminal mismatch 회귀 차단 (2026-05-29)
+//
+// Root cause (운영자 신고 SAFETY-CRITICAL, prod plan 696b273d 등 4건):
+//   - input arrival_airport='ICN' (terminal 미지정) → Gemini hallucinate 'ICN T1' (departure 측)
+//     + ODsay 가 T1/T2 좌표 ~260m 인접 → 임의로 '인천공항2터미널' station 추천
+//   - 결과 자가 모순: arrival route='T2 station', departure='T1', Day N last stop='T1'
+//   - 사용자 비행기 놓침 risk (도착 T2 안내 받고 출국 T1 으로 잘못 이동)
+//
+// P274 fix 3-layer:
+//   1. RouteAgent._normalizeAirportKey: 'ICN' (generic) → 'ICN' 유지 (이전 T1 hardcode 제거)
+//   2. postResponsePipeline: arrival/departure_guide.airport mismatch 시 input 으로 override
+//   3. buildPrompt: TERMINAL CONSISTENCY rule (Gemini 가 input 정확 echo, terminal swap 금지)
+// ----------------------------------------------------------------------------
+
+function P274_airportTerminalConsistency({ changed }) {
+  const ROUTE_AGENT = 'api/_ai_core/agents/RouteAgent.js';
+  const POST_PIPELINE = 'api/_ai_core/postResponsePipeline.js';
+  const BUILD_PROMPT = 'api/_ai_core/buildPrompt.js';
+
+  // 셋 중 하나라도 변경됐을 때 검사
+  const anyChanged = isModified(ROUTE_AGENT, changed) || isModified(POST_PIPELINE, changed) || isModified(BUILD_PROMPT, changed);
+  if (!anyChanged) return { skipped: true };
+
+  const routeAgentSrc = readFileExists(ROUTE_AGENT);
+  const postPipelineSrc = readFileExists(POST_PIPELINE);
+  const buildPromptSrc = readFileExists(BUILD_PROMPT);
+  if (!routeAgentSrc || !postPipelineSrc || !buildPromptSrc) return { skipped: true };
+
+  const issues = [];
+
+  // Layer 1: RouteAgent._normalizeAirportKey — 'ICN' → 'ICN' (T1 hardcode 회귀 차단)
+  if (/if\s*\(k\.startsWith\('ICN'\)\s*\|\|\s*k\s*===\s*'INCHEON'\)\s*return\s+'ICN_T1'\s*;/.test(routeAgentSrc)) {
+    issues.push("RouteAgent._normalizeAirportKey: 'ICN' (generic) → 'ICN_T1' hardcode 회귀 (T1/T2 ~260m 임의 station 자가 모순 risk)");
+  }
+
+  // Layer 2: postResponsePipeline — arrival/departure airport mismatch override
+  if (!/itinerary\.arrival_guide\.airport\s*=\s*arrival_airport/.test(postPipelineSrc) ||
+      !/arrival_airport_overridden/.test(postPipelineSrc)) {
+    issues.push("postResponsePipeline: arrival_guide.airport mismatch 시 input override (P274) 누락 — Gemini hallucinate 자가 모순 차단 깨짐");
+  }
+  if (!/itinerary\.departure_guide\.airport\s*=\s*departure_airport/.test(postPipelineSrc) ||
+      !/departure_airport_overridden/.test(postPipelineSrc)) {
+    issues.push("postResponsePipeline: departure_guide.airport mismatch 시 input override (P274) 누락");
+  }
+
+  // Layer 3: buildPrompt — TERMINAL CONSISTENCY rule + 핵심 keyword
+  if (!/P274.*TERMINAL CONSISTENCY/.test(buildPromptSrc)) {
+    issues.push("buildPrompt: P274 TERMINAL CONSISTENCY section 누락 — Gemini 가 input airport echo 강제 안 됨");
+  }
+  if (!/696b273d/.test(buildPromptSrc) || !/hallucinate/.test(buildPromptSrc)) {
+    issues.push("buildPrompt: P274 사용자 신고 plan 696b273d 또는 'hallucinate' 키워드 누락 (lesson 추적 깨짐)");
+  }
+
+  if (issues.length === 0) return null;
+  return {
+    id: 'P274_airportTerminalConsistency',
+    severity: 'error',
+    file: ROUTE_AGENT + ' | ' + POST_PIPELINE + ' | ' + BUILD_PROMPT,
+    message:
+      'R-P274: airport terminal consistency 깨짐 — 사용자 비행기 놓침 risk (SAFETY-CRITICAL). ' +
+      'prod plan 696b273d 등 4건 자가 모순 (input ICN → arrival route T2 + departure T1 + Day N stop T1) 회귀 위험. ' +
+      'fix 3-layer (RouteAgent normalize + postPipeline override + buildPrompt rule) 모두 유지 의무. ' +
       '발견 항목:\n  - ' + issues.join('\n  - '),
   };
 }
