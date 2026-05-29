@@ -115,7 +115,7 @@
 ### AI 플래너 코어 (`api/_ai_core/` 18 modules)
 
 ```
-ai-planner-full.js (307L, maxDuration=300)
+ai-planner-full.js (307L, maxDuration=800)
   → buildPrompt.js          (Gemini system prompt 조립)
   → geminiPipeline.js       (Gemini 호출 + 파싱 + 수리, legacy 1-pass)
     └ threePassPipeline.js  (PLANNER_MODE='3pass' 시)

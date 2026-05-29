@@ -71,7 +71,7 @@ stop.tip || stop.tip_en
 
 | 모듈 | 주요 기능 |
 |---|---|
-| `api/ai-planner-full.js` (307L) | 핸들러 진입점, `maxDuration = 300` (Vercel Pro 5분), PLANNER_MODE 분기 |
+| `api/ai-planner-full.js` (307L) | 핸들러 진입점, `maxDuration = 800` (Vercel Pro Fluid Compute, P270 2026-05-29), PLANNER_MODE 분기 |
 | `api/_ai_core/buildPrompt.js` | Gemini system prompt 조립, logPromptMetrics |
 | `api/_ai_core/responseValidator.js` | validateResponse — 식이제한·언어·필드 검증 |
 | `api/_ai_core/dbMatcher.js` | Gemini 응답 → `_food_index.json` 매칭 |
@@ -116,9 +116,10 @@ stop.tip || stop.tip_en
 - MCP 서버 (Claude 에이전트용): `claude mcp add qmd -- qmd mcp` (사용자 본인이 1회 등록)
 
 ### Vercel 플랜 정보
-- **Pro 사용 중** — `maxDuration` 최대 300초 (5분)까지 가능
-- ai-planner-full.js: `maxDuration = 300` 사용 중 (Gemini 호출 + 다중 단계 처리)
+- **Pro 사용 중** — `maxDuration` 최대 800초 (Fluid Compute) 까지 가능
+- ai-planner-full.js: `maxDuration = 800` 사용 중 (P270 2026-05-29 — vercel.json + export 동기화, legacy 1-pass 다도시 296s timeout 해소)
 - 일반 endpoint: `maxDuration = 15`로 통일 권장 (cold start 비용 + 무한 루프 방지)
+- 운영자 액션: Vercel Dashboard → Settings → Functions → **Fluid Compute** 토글 ON 확인 (800s 한도 활용)
 
 ---
 
