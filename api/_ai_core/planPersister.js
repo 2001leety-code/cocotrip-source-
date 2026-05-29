@@ -153,20 +153,23 @@ export function backfillDayLodging(itinerary, hotelByCity = {}) {
 export function selfHealDailyBudget(itinerary, ctx = {}) {
   if (!itinerary || typeof itinerary !== 'object') return 0;
   const days = Array.isArray(itinerary.days) ? itinerary.days : [];
-  // P289 (2026-05-29): pax 기반 personalize — generic 추정 → 인원 곱셈.
-  // Gemini prompt 변경 0 (cache miss risk 0). P277 buildPrompt 대안.
+  if (days.length === 0) return 0;
+  // P289 (2026-05-29): pax 기반 personalize — generic 추정 → 인원 곱셈. cache miss risk 0.
   const pax = Math.max(1, Math.min(20, Number(ctx?.pax) || 2));
-  let healed = 0;
-  for (const day of days) {
-    const existing = day.daily_budget_summary || day.daily_budget || {};
-    const existingTotal =
-      (Number(existing.food) || 0) +
-      (Number(existing.transport) || 0) +
-      (Number(existing.attraction) || 0) +
-      (Number(existing.misc) || 0) +
-      (Number(existing.total) || 0);
-    if (existingTotal > 0) continue; // 이미 채워짐 — skip
 
+  // P299/B2 (2026-05-29) — SSOT = root level itinerary.daily_budget_summary 배열.
+  //   BudgetTable.tsx:9-15 + pdfGenerator:392 + OutroSlide:72 모두 root array 를 읽음.
+  //   필드명 = transport_krw / entry_fees_krw / meals_krw / total_krw (BudgetTable + Gemini P291 schema 일치).
+  //   기존 P162/P289 가 per-day day.daily_budget_summary 에 food/transport (suffix 없음) 채워
+  //   frontend 가 못 읽고 예산표 전부 0원 (6월 상용화 audit B2). → root array + 필드명 통일.
+  //   Gemini (P291 schema) 가 root array 를 이미 유효하게 채웠으면 skip (덮어쓰기 금지 — P196 역효과 회피).
+  const existingRoot = Array.isArray(itinerary.daily_budget_summary) ? itinerary.daily_budget_summary : null;
+  const rootValid = !!existingRoot && existingRoot.length > 0 &&
+    existingRoot.some((b) => ((Number(b?.total_krw) || 0) + (Number(b?.meals_krw) || 0) + (Number(b?.transport_krw) || 0) + (Number(b?.entry_fees_krw) || 0)) > 0);
+  if (rootValid) return 0;
+
+  // root array 생성 (stop count 기반 추정 + pax 곱셈).
+  const rows = days.map((day) => {
     const stops = Array.isArray(day.stops) ? day.stops : [];
     let foodCount = 0;
     let attrCount = 0;
@@ -175,31 +178,30 @@ export function selfHealDailyBudget(itinerary, ctx = {}) {
       if (cat === 'food') foodCount++;
       else if (cat === 'attraction') attrCount++;
     }
-    // P289: pax 곱셈 — 1인 default 15000 → pax 명 = 15000 * pax.
-    // 식사/입장료/잡비 모두 인원 비례. transport 만 server T-money 별도 계산.
-    const food = foodCount * 15000 * pax;
-    const attraction = attrCount * 10000 * pax;
-    const transport = 0; // server 가 T-money + ODsay 로 채움
-    const misc = 10000 * pax;
-    const total = food + attraction + transport + misc;
-    day.daily_budget_summary = {
-      food, transport, attraction, misc, total,
+    // pax 곱셈 — 식사/입장료/잡비 인원 비례. transport 만 server T-money + ODsay 별도 계산.
+    const meals_krw = foodCount * 15000 * pax;
+    const entry_fees_krw = attrCount * 10000 * pax;
+    const transport_krw = 0;
+    const misc_krw = 10000 * pax; // 잡비 — BudgetTable 미표시, total 합산만.
+    const total_krw = meals_krw + entry_fees_krw + transport_krw + misc_krw;
+    return {
+      day: day.day,
+      transport_krw, entry_fees_krw, meals_krw, total_krw,
       _self_healed: true,
-      _pax: pax,  // P289: 박제 (admin panel 추적용)
+      _pax: pax, // P289: admin panel 추적용
     };
-    healed++;
-  }
-  if (healed > 0) {
-    itinerary.quality_warnings = itinerary.quality_warnings || [];
-    itinerary.quality_warnings.push({
-      kind: 'daily_budget_self_healed',
-      severity: 'low',
-      message: `daily_budget_summary 누락 ${healed} 일 → stop count 기반 추정값 자동 생성 (P162)`,
-      healed_days: healed,
-    });
-    console.log(`[planPersister] P162 daily_budget self-healed: ${healed} days`);
-  }
-  return healed;
+  });
+  itinerary.daily_budget_summary = rows;
+  itinerary.quality_warnings = itinerary.quality_warnings || [];
+  itinerary.quality_warnings.push({
+    kind: 'daily_budget_self_healed',
+    type: 'daily_budget_self_healed',
+    severity: 'low',
+    message: `daily_budget_summary 누락 → ${rows.length}일 root array 추정값 자동 생성 (P162/B2, pax=${pax})`,
+    healed_days: rows.length,
+  });
+  console.log(`[planPersister] P162/B2 daily_budget self-healed (root array): ${rows.length} days, pax=${pax}`);
+  return rows.length;
 }
 
 // ── P152 (2026-05-22): cross-city lodging 강제 교정용 도시 메타 ────────────────

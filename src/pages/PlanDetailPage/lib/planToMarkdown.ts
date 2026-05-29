@@ -201,7 +201,11 @@ export function planToMarkdown(
     out.push('| Day | Food | Transit | Entry | Total |');
     out.push('|-----|------|---------|-------|-------|');
     for (const b of it.daily_budget_summary) {
-      out.push(`| Day ${b.day ?? '?'} | ${(b.food_krw ?? 0).toLocaleString()}원 | ${(b.transit_krw ?? 0).toLocaleString()}원 | ${(b.entry_krw ?? 0).toLocaleString()}원 | **${(b.total_krw ?? 0).toLocaleString()}원** |`);
+      // P300/B2 (2026-05-29): SSOT field names (meals_krw/transport_krw/entry_fees_krw) first + legacy fallback.
+      const meals = (b as Record<string, number>).meals_krw ?? b.food_krw ?? 0;
+      const transit = (b as Record<string, number>).transport_krw ?? b.transit_krw ?? 0;
+      const entry = (b as Record<string, number>).entry_fees_krw ?? b.entry_krw ?? 0;
+      out.push(`| Day ${b.day ?? '?'} | ${meals.toLocaleString()}원 | ${transit.toLocaleString()}원 | ${entry.toLocaleString()}원 | **${(b.total_krw ?? 0).toLocaleString()}원** |`);
     }
     if (it.t_money_recommended_load) {
       out.push('');
