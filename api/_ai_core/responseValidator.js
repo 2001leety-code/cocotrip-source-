@@ -127,13 +127,84 @@ function checkDietaryViolation(stop, dietary) {
 }
 
 /**
+ * P280 (2026-05-29): SAFETY-CRITICAL — dietary coverage depth check.
+ *
+ * P0-3 의 checkDietaryViolation 은 stop 별 fire-and-forget — 사용자 dietary=['halal'] 인데
+ * food stops 중 0개 가 halal-claim 인 sleeper bug 미감지 (모든 stop unverified 시).
+ *
+ * P280 fix: dietary 입력 있을 때 food stops 중 dietary-claim ratio < 50% → coverage_low 박제.
+ * 사용자 건강 위험 등급 (CLAUDE.md J SAFETY-CRITICAL).
+ *
+ * @param {Array} allStops — 모든 stops flat list
+ * @param {Array<string>} dietary — 사용자 식이제한 (['halal', 'vegan', ...])
+ * @returns {Array<{dietary_pref, coverage, match_count, food_stops_count}>|null}
+ */
+function checkDietaryCoverage(allStops, dietary) {
+  if (!Array.isArray(dietary) || dietary.length === 0) return null;
+  const foodStops = (allStops || []).filter(s => s && s.category === 'food');
+  if (foodStops.length === 0) return null; // food stops 0 = N/A (별개 issue: B-MEAL 가 검증)
+
+  const dietPrefs = [];
+  if (dietary.some(d => /halal/i.test(String(d)))) dietPrefs.push('halal');
+  if (dietary.some(d => /vegan/i.test(String(d)))) dietPrefs.push('vegan');
+  if (dietary.some(d => /vegetarian/i.test(String(d))) && !dietPrefs.includes('vegan')) dietPrefs.push('vegetarian');
+
+  if (dietPrefs.length === 0) return null;
+
+  const claimsDiet = (stop, dietName) => {
+    const tags = []
+      .concat(stop.dietary_tags || [])
+      .concat(stop.dietary || [])
+      .concat(stop.tags || [])
+      .map(t => String(t).toLowerCase());
+    const hay = `${stop.name || ''} ${stop.display_name || ''} ${stop.tip || ''} ${stop.reason || ''}`.toLowerCase();
+    if (dietName === 'halal') {
+      const claims = tags.some(t => t.includes('halal')) || /halal|할랄/i.test(hay);
+      const conflicts = /pork|돼지|삼겹/i.test(hay);
+      return claims && !conflicts;
+    }
+    if (dietName === 'vegan') {
+      const claims = tags.some(t => t.includes('vegan')) || /vegan|비건/i.test(hay);
+      const conflicts = /beef|chicken|pork|fish|seafood|소고기|돼지|닭|생선|해산물/i.test(hay);
+      return claims && !conflicts;
+    }
+    if (dietName === 'vegetarian') {
+      const claims = tags.some(t => t.includes('vegetarian') || t.includes('vegan'))
+        || /vegetarian|vegan|채식|비건/i.test(hay);
+      const conflicts = /beef|chicken|pork|소고기|돼지|닭/i.test(hay);
+      return claims && !conflicts;
+    }
+    return false;
+  };
+
+  const COVERAGE_THRESHOLD = 0.5; // food stops 중 50% 미만이 dietary-claim → 위반
+
+  const lowCoverageIssues = [];
+  for (const dietName of dietPrefs) {
+    const matchCount = foodStops.filter(s => claimsDiet(s, dietName)).length;
+    const coverage = matchCount / foodStops.length;
+    if (coverage < COVERAGE_THRESHOLD) {
+      lowCoverageIssues.push({
+        dietary_pref: dietName,
+        coverage,
+        match_count: matchCount,
+        food_stops_count: foodStops.length,
+      });
+    }
+  }
+  return lowCoverageIssues.length > 0 ? lowCoverageIssues : null;
+}
+
+/**
  * P0-3: validateResponse 결과에서 critical dietary violation 존재 여부.
  * 사용자가 식이제한 입력했는데 violation 이 있으면 plan 그대로 저장하면 안 됨.
  * Caller (geminiPipeline) 가 1회 retry → 그래도 violation 이면 throw.
+ * P280 (2026-05-29): dietary_coverage_low 도 critical → caller 가 retry.
  */
 export function hasCriticalDietaryViolation(issues) {
   if (!Array.isArray(issues)) return false;
-  return issues.some((i) => i && i.type === 'dietary_violation' && i.severity === 'critical');
+  // P280: dietary_coverage_low (SAFETY-CRITICAL coverage depth) 도 critical 로 인식 → retry trigger.
+  return issues.some((i) => i && i.severity === 'critical' && (i.type === 'dietary_violation' || i.type === 'dietary_coverage_low'));
 }
 
 /**
@@ -251,10 +322,18 @@ export function validatePatternStructure(itinerary, request = {}) {
   // 운영자 비상 circuit breaker — Gemini 가 일관되게 day count 틀리면 일시 비활성.
   const bdcEnabled = process.env.VALIDATOR_BDC_ENABLED !== 'false';
   const requestedDays = Number(request.durationDays || request.duration_days);
-  if (bdcEnabled && Number.isFinite(requestedDays) && requestedDays > 0 && days.length !== requestedDays) {
-    errors.push(
-      `Plan: itinerary.days.length=${days.length} ≠ requested durationDays=${requestedDays} (B-DC)`
-    );
+  if (Number.isFinite(requestedDays) && requestedDays > 0 && days.length !== requestedDays) {
+    // P285 (2026-05-29): env disabled 여도 log + Telegram alert — silent mode 차단 (Agent 1 audit #3).
+    // 운영자 비상 circuit breaker (VALIDATOR_BDC_ENABLED=false) 활성 시에도 mismatch 측정 + admin 노출.
+    console.error('[P285 B-DC mismatch]', JSON.stringify({ requestedDays, actualDays: days.length, bdcEnabled }));
+    throttledTelegramAlert(
+      `🚨 P285 B-DC mismatch: requested=${requestedDays}, actual=${days.length}, env_enabled=${bdcEnabled}`,
+    ).catch(() => {});
+    if (bdcEnabled) {
+      errors.push(
+        `Plan: itinerary.days.length=${days.length} ≠ requested durationDays=${requestedDays} (B-DC)`
+      );
+    }
   }
 
   // B-REGION-COVERAGE (P158, 2026-05-22): 다도시 plan 에서 각 region 이 최소 1 day 배정.
@@ -690,10 +769,14 @@ export function validatePatternStructure(itinerary, request = {}) {
       if (stopMin >= arrivalMin && stopMin < effectiveTourStart) {
         errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" start_time=${stop.start_time} < tour_start_time=${request.tour_start_time || request.tourStartTime || '09:00'} (B-LATE-ARRIVAL P239)`);
       }
-      // 새벽 활동 (hour < 5) 일반 stops 금지 — P239 도 동일 (tour_start_time hour < 5 폴백 09:00).
+      // P286 (2026-05-29): arrival-wrap edge — stop time < arrival 이면서 hour < 5 면 new-day wrap 의심.
+      // 이전 코드 = 새벽 체크가 outer if (stopMin >= arrivalMin) 안 → stopMin < arrivalMin 인 wrap stop 누락.
+      // Agent 1 audit #5: arrival='23:15' + stop='01:10' = wrap stop → 새벽 활동 미감지 sleeper bug.
+      // Fix: 새벽 체크를 outer if 밖으로 move — stopMin < arrivalMin 시에도 (wrap 의심) error 박제.
       const stopHour = Math.floor(stopMin / 60);
       if (stopHour < 5) {
-        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" 새벽 활동 (start_time=${stop.start_time}, hour<5, category=${stop.category}) (B-LATE-ARRIVAL P239)`);
+        const wrapHint = stopMin < arrivalMin ? ' — arrival-wrap edge 의심 (P286)' : '';
+        errors.push(`Day 1 stop "${stop.name || stop.display_name || '?'}" 새벽 활동 (start_time=${stop.start_time}, hour<5, category=${stop.category}) (B-LATE-ARRIVAL P239)${wrapHint}`);
       }
     }
   }
@@ -803,6 +886,24 @@ export function validateResponse(data, request, foodIndex) {
   // P0-3: request.dietary — 호출자가 사용자 식이제한 (Halal/Vegan/...) 전달 시 위반 검사.
   // 누락이면 검사 skip — 기존 caller 호환 (geminiPipeline 만 dietary 전달).
   const dietary = Array.isArray(request?.dietary) ? request.dietary : [];
+
+  // P280 (2026-05-29): SAFETY-CRITICAL — dietary coverage depth check.
+  // checkDietaryViolation 의 fire-and-forget 한계 보완. food stops 중 dietary-claim ratio
+  // < 50% 시 coverage_low 박제 (0개 halal restaurant 인데 dietary=['halal'] sleeper bug).
+  const coverageIssues = checkDietaryCoverage(allStops, dietary);
+  if (coverageIssues) {
+    for (const ci of coverageIssues) {
+      issues.push({
+        type: 'dietary_coverage_low',
+        severity: 'critical',
+        dietary_pref: ci.dietary_pref,
+        coverage: ci.coverage,
+        match_count: ci.match_count,
+        food_stops_count: ci.food_stops_count,
+        message: `P280: ${ci.dietary_pref} coverage ${Math.round(ci.coverage * 100)}% (${ci.match_count}/${ci.food_stops_count} food stops). SAFETY-CRITICAL — 사용자 건강 위험.`,
+      });
+    }
+  }
 
   for (const stop of allStops) {
     // 주소 형식 — 시/도로 시작하는지
@@ -950,6 +1051,118 @@ export function validateResponse(data, request, foodIndex) {
         `🚨 P248 HAENYEO_CITY_MISMATCH: styles=Haenyeo 인데 ${haenyeoViolations.length}개 stop 이 서울/부산 등 비제주 지역.\n` +
         haenyeoViolations.slice(0, 3).map((v) => `• ${v.stop} @ ${v.address}`).join('\n'),
       ).catch(() => {});
+    }
+  }
+
+  // R-P282 (2026-05-29): HangangBike city-mismatch guard — styles=HangangBike 인데
+  // 비-서울/경기 (제주/부산/속초 등) stops 생성 차단 (P246/P248 follow-up).
+  // SOFT check only (no retry/throw) — Telegram alert 발사 + issues 로그 기록.
+  // 한강 bike 코스 MUST be in Seoul/경기 (한강 본류). Never Jeju, Busan, etc.
+  // Agent 2 deep-search 발견: prod plan `7431b522` (styles=['HangangBike']) 한강/bike 키워드 stop 0/7.
+  if (reqStyles.some((s) => String(s).toLowerCase() === 'hangangbike')) {
+    // 비-서울/경기 주소 키워드 — 광역시/도 level + 시 level (서울/경기 외).
+    const HANGANGBIKE_CITY_VIOLATION_PATTERNS = [
+      '부산광역시', '해운대구', '수영구', '부산',
+      '대구광역시', '대구', '광주광역시', '광주',
+      '대전광역시', '대전', '울산광역시', '울산',
+      '제주특별자치도', '제주시', '서귀포시', '제주도', '제주',
+      '강원도', '속초시', '강릉시',
+      '경주시', '전주시', '여수시',
+      '충청남도', '충청북도', '전라남도', '전라북도', '경상남도', '경상북도',
+    ];
+    const hangangBikeViolations = [];
+    for (const stop of allStops) {
+      const addr = String(stop.address || '');
+      if (!addr) continue;
+      const matched = HANGANGBIKE_CITY_VIOLATION_PATTERNS.find((p) => addr.includes(p));
+      if (matched) {
+        const stopLabel = stop.name || stop.display_name || '';
+        hangangBikeViolations.push({
+          type: 'hangangbike_city_mismatch',
+          stop: stopLabel,
+          address: addr,
+          matched_keyword: matched,
+        });
+        issues.push({
+          type: 'hangangbike_city_mismatch',
+          stop: stopLabel,
+          matched_keyword: matched,
+        });
+      }
+    }
+    if (hangangBikeViolations.length > 0) {
+      console.error('[P282 HANGANGBIKE_CITY_MISMATCH]', JSON.stringify({ count: hangangBikeViolations.length, violations: hangangBikeViolations }));
+      throttledTelegramAlert(
+        `🚨 P282 HANGANGBIKE_CITY_MISMATCH: styles=HangangBike 인데 ${hangangBikeViolations.length}개 stop 이 서울/경기 외 지역.\n` +
+        hangangBikeViolations.slice(0, 3).map((v) => `• ${v.stop} @ ${v.address}`).join('\n'),
+      ).catch(() => {});
+    }
+  }
+
+  // P284 (2026-05-29): hotel_address single-city mismatch — Agent 1 audit #1.
+  // B-13 multi-city 만 검증 → single-city plan 미검증 sleeper bug.
+  // SOFT validator (warning 박제, retry trigger X — false positive risk, P196 lesson).
+  // 호텔 토큰 (≥2자) 하나라도 lodging stop name/address 에 매칭 안 되면 mismatch.
+  const reqHotelAddr = String(request?.hotel_address || request?.body?.hotel_address || '').trim();
+  const reqRegions = Array.isArray(request?.regions)
+    ? request.regions
+    : (Array.isArray(request?.body?.regions) ? request.body.regions : []);
+  const isMultiCityReq = reqRegions.length >= 2;
+  if (reqHotelAddr && reqHotelAddr.length >= 3 && !isMultiCityReq) {
+    // 광역 token 제외 — "서울" 같은 city-level token 매칭은 false positive (어느 stop 도 매칭).
+    // specific token (동/구/호텔명) 만 사용 → strict 매칭.
+    const GENERIC_TOKENS = new Set([
+      '서울', '부산', '제주', '인천', '대구', '대전', '광주', '울산',
+      '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남',
+      '서울특별시', '부산광역시', '제주특별자치도', '인천광역시', '대구광역시',
+      '대전광역시', '광주광역시', '울산광역시', '경기도', '강원도',
+      '호텔', 'hotel', 'inn', 'hostel', '리조트', 'resort',
+    ]);
+    const hotelTokens = reqHotelAddr
+      .split(/[\s,]+/)
+      .filter((t) => t.length >= 2 && !GENERIC_TOKENS.has(t.toLowerCase()) && !GENERIC_TOKENS.has(t));
+    const lodgingStops = allStops.filter((s) => s && s.category === 'lodging');
+    if (hotelTokens.length > 0 && lodgingStops.length > 0) {
+      const hotelMismatches = [];
+      for (const stop of lodgingStops) {
+        const hay = `${stop.name || ''} ${stop.display_name || ''} ${stop.address || ''}`.toLowerCase();
+        const matched = hotelTokens.some((t) => hay.includes(t.toLowerCase()));
+        if (!matched) {
+          hotelMismatches.push({
+            stop_name: stop.name || stop.display_name || '?',
+            stop_address: stop.address || '',
+          });
+        }
+      }
+      if (hotelMismatches.length > 0) {
+        issues.push({
+          type: 'hotel_address_single_city_mismatch',
+          severity: 'medium',
+          hotel_address: reqHotelAddr,
+          mismatch_count: hotelMismatches.length,
+          mismatches: hotelMismatches.slice(0, 3),
+          message: `P284: input hotel_address='${reqHotelAddr}' but ${hotelMismatches.length} lodging stops 미매칭 (사용자 시점 호텔 mismatch).`,
+        });
+        console.warn('[P284 hotel_address_single_city_mismatch]', JSON.stringify({ hotel: reqHotelAddr, mismatches: hotelMismatches.slice(0, 3) }));
+      }
+    }
+  }
+
+  // P282-B (2026-05-29): Jjimjilbang keyword coverage — niche style stop ≥ 1 강제.
+  // 전국 분포라 city-mismatch 어려움 — keyword check (찜질방/jjimjilbang/sauna).
+  // SOFT (warning 박제, retry trigger X).
+  if (reqStyles.some((s) => String(s).toLowerCase() === 'jjimjilbang')) {
+    const jjimjilbangMatched = allStops.filter((s) => {
+      const hay = `${s.name || ''} ${s.display_name || ''} ${s.tip || ''}`.toLowerCase();
+      return /찜질방|jjimjilbang|sauna|spa land/i.test(hay);
+    });
+    if (jjimjilbangMatched.length === 0) {
+      issues.push({
+        type: 'jjimjilbang_coverage_zero',
+        severity: 'medium',
+        message: `P282-B: styles=['Jjimjilbang'] but 0 stops match keyword (찜질방/jjimjilbang/sauna). niche style coverage missing — 사용자가 골랐는데 결과물에 안 보임.`,
+      });
+      console.warn('[P282-B jjimjilbang_coverage_zero] 0 stops match keyword');
     }
   }
 

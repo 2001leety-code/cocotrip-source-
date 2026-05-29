@@ -408,6 +408,11 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   }
   const blockMap = new Map(blocks.map((b) => [b.id, b]));
 
+  // P281 (2026-05-29): placeholder fallback 카운터 — itinerary.quality_warnings 박제용.
+  // Agent 2 deep-search 결과 68% (15/22 post-P245) block_mode plan 영향. 운영자 admin panel
+  // (P121) 즉시 발견 → seed block 정정 trigger.
+  let placeholderSynthesizedCount = 0;
+
   const language = String(userInput?.language || 'en');
   const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
   const dietCritical = dietPrefs.filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
@@ -485,9 +490,17 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
           err.statusCode = 422;
           throw err;
         } else {
-          // placeholder 매칭 실패 + dietary 강제 X → graceful: 표시명 비워두고 진행.
-          resolvedName = bs.address || 'Local restaurant';
+          // P281 (2026-05-29): placeholder 매칭 실패 + dietary 강제 X → 명시적 placeholder text.
+          // 이전: `resolvedName = bs.address || 'Local restaurant'` → 행정 주소 (예: "서울특별시
+          //   종로구 가회동") 가 stop.name 으로 직접 노출 → 운영자 시점 "이름이 빠진 가게" sleeper bug.
+          //   prod 측정 68% (15/22 post-P245 plan) block_mode 영향 (Agent 2 deep-search).
+          // 현재: `[추천 venue - <지역명>]` 명시적 placeholder text + quality_warnings 박제.
+          //   사용자 혼란 차단 + 운영자 admin panel (P121) 즉시 발견 → seed block 정정 trigger.
+          const placeholderType = bs.placeholder || 'venue';
+          const addrShort = String(bs.address || area || '').split(' ').slice(0, 2).join(' ') || area;
+          resolvedName = `[추천 ${placeholderType} - ${addrShort}]`;
           resolvedDisplay = resolvedName;
+          placeholderSynthesizedCount++;
         }
       }
 
@@ -566,6 +579,18 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   if (departureAirport && departureAirport.toLowerCase() !== 'already_in_korea') {
     itinerary.departure_guide = { airport: departureAirport };
   }
+  // P281 (2026-05-29): placeholder 매칭 실패 박제 — quality_warnings 에 운영자 admin panel 노출.
+  if (placeholderSynthesizedCount > 0) {
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    itinerary.quality_warnings.push({
+      kind: 'block_mode_placeholder_synthesized',
+      type: 'block_mode_placeholder_synthesized',
+      severity: 'medium',
+      count: placeholderSynthesizedCount,
+      message: `P281: block_mode seed block 의 placeholder ${placeholderSynthesizedCount}개 매칭 실패 → '[추천 venue - ...]' 명시. seed block 정정 권고 (Agent 2 deep-search 68% plan 영향).`,
+    });
+  }
+
   // daily_budget_summary: per-day skeleton (selfHealDailyBudget 가 정확값 계산 — 본 default 는 array shape 만).
   itinerary.daily_budget_summary = days.map((d) => ({
     day: d.day,
