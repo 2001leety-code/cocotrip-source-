@@ -95,7 +95,7 @@ describe('P195 buildAdminDebug — itinerary._cache_metadata pop + _debug 노출
     useStreaming: false,
   };
 
-  it('assertion 6: itinerary._cache_metadata → _debug 에 cachedInputTokens + cacheHitRate 노출', () => {
+  it('assertion 6: itinerary._cache_metadata → _debug 에 cachedInputTokens + cacheHitRate 노출 (P268: 보존)', () => {
     const itinerary: any = { _cache_metadata: { cached: 7500, total: 10000, output: 5000 }, days: [] };
     const debug = buildAdminDebug({ ...baseArgs, itinerary });
     expect(debug).toBeDefined();
@@ -103,8 +103,11 @@ describe('P195 buildAdminDebug — itinerary._cache_metadata pop + _debug 노출
     expect(debug!.totalInputTokens).toBe(10000);
     expect(debug!.outputTokens).toBe(5000);
     expect(debug!.cacheHitRate).toBe(75.0);  // 7500/10000 = 75%
-    // P195: pop 검증 — Firestore 저장 시 _cache_metadata 누출 방지.
-    expect(itinerary._cache_metadata).toBeUndefined();
+    // P268 (2026-05-29): delete 제거 — itinerary._cache_metadata 보존 (P266 chain 시점 issue fix).
+    // 보존 이유: _cache_metadata 가 final layer (Inngest dispatch + savePlan) 까지 살아있어야
+    // P266 fix layer 1 (cacheMetadata: itinerary?._cache_metadata || null) 작동.
+    expect(itinerary._cache_metadata).toBeDefined();
+    expect(itinerary._cache_metadata.cached).toBe(7500);
   });
 
   it('assertion 6b: cacheHitRate 0.1% 단위 round (75.12% → 75.1%)', () => {
