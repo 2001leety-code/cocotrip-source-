@@ -197,6 +197,70 @@ function checkDietaryCoverage(allStops, dietary) {
 }
 
 /**
+ * B6 (P310, 2026-05-30): 알레르기 4종 (Nuts/Shellfish/Gluten/Dairy) 텍스트 기반 검출.
+ *
+ * 배경 (audit B6):
+ *   P189 이 allergen DB 필터 (filterByAllergens) 코드는 준비했으나 _food_index.json
+ *   allergens 필드가 전 행 false (실측 미수집) → DB 기반 검출 0건. checkDietaryViolation
+ *   은 halal/vegan/vegetarian 만 분기 → Nuts/Shellfish/Gluten/Dairy 검사 전무.
+ *   견과류 알레르기 손님이 견과 식당 추천받을 위험 (SAFETY-CRITICAL).
+ *
+ * 설계 (P280 v1 무한 retry 사고 회피 — 핵심):
+ *   - severity='warning' 고정. hasCriticalDietaryViolation 에 안 들어감 (retry trigger X).
+ *     critical 로 하면 한식 hidden allergen (간장=밀, 비빔밥=잣) false-positive 폭발 →
+ *     매 retry 마다 한식 대부분 위반 → P280 v1 보다 광범위한 무한 loop. 절대 금지.
+ *   - 명시적 재료명만 검출 (보수적). 광역 조미료 (간장/고추장 단독) 제외 — 거의 모든
+ *     한식 = false-positive. 단일 음절 한글 ('게'/'굴'/'면') 제외 — 다른 단어 오검출.
+ *   - name/display_name/tip 만 검사 (reason 제외, 보수적).
+ *   - admin panel 가시화 우선. critical 승격은 false-positive rate 측정 + DB retrofit 후.
+ *
+ * 외부 사례 (allergymenu / FSSAI / Big-9) + buildPrompt.js:732-740 한식 hidden allergen
+ * 가이드 교차 검증한 키워드 사전.
+ */
+const ALLERGEN_KEYWORDS = {
+  // 견과류 — 강정/약과 (견과 다량 한과) 포함. \bnut\b 로 'donut' 등 오검출 회피.
+  nuts: /peanut|almond|walnut|cashew|pistachio|hazelnut|macadamia|pecan|\bnut\b|땅콩|아몬드|호두|캐슈|피스타치오|견과|강정|약과/i,
+  // 갑각류/조개 — 단일 음절 제외, 구체 재료명 (게장/대게/게살/생굴/굴구이).
+  shellfish: /shrimp|prawn|\bcrab\b|lobster|clam|oyster|mussel|scallop|새우|게장|대게|꽃게|게살|랍스터|조개|생굴|굴구이|홍합|가리비|꼬막/i,
+  // 글루텐 — 면/빵/밀 명시. 간장/고추장 (광역 조미료) 제외 (false-positive 회피).
+  gluten: /\bwheat\b|noodle|ramen|ramyeon|\bbread\b|pancake|dumpling|냉면|밀면|라면|칼국수|수제비|만두|부침개|파전|밀가루/i,
+  // 유제품 — 치즈/크림/우유 명시.
+  dairy: /\bmilk\b|butter|cheese|cream|latte|yogurt|우유|버터|치즈|크림|라떼|요거트|빙수|아이스크림/i,
+};
+
+const ALLERGEN_PREF_MAP = { Nuts: 'nuts', Shellfish: 'shellfish', Gluten: 'gluten', Dairy: 'dairy' };
+
+/**
+ * food stop 들에서 활성 알레르기 유발 재료 가능성 검출. severity='warning' (retry X).
+ * @returns {Array<{stop, allergen}>|null}
+ */
+function checkAllergenWarnings(allStops, dietary) {
+  if (!Array.isArray(dietary) || dietary.length === 0) return null;
+  // dietary 에서 알레르기 4종만 추출 (Halal/Vegan 은 checkDietaryViolation 담당).
+  const activeAllergens = [];
+  for (const d of dietary) {
+    const key = ALLERGEN_PREF_MAP[d];
+    if (key) activeAllergens.push(key);
+  }
+  if (activeAllergens.length === 0) return null;
+
+  const foodStops = (allStops || []).filter((s) => s && s.category === 'food');
+  if (foodStops.length === 0) return null;
+
+  const warnings = [];
+  for (const stop of foodStops) {
+    // name/display_name/tip 만 검사 (reason 제외 — 보수적 false-positive 회피).
+    const hay = `${stop.name || ''} ${stop.display_name || ''} ${stop.tip || ''}`;
+    for (const allergen of activeAllergens) {
+      if (ALLERGEN_KEYWORDS[allergen].test(hay)) {
+        warnings.push({ stop: stop.name || stop.display_name || '', allergen });
+      }
+    }
+  }
+  return warnings.length > 0 ? warnings : null;
+}
+
+/**
  * P0-3: validateResponse 결과에서 critical dietary violation 존재 여부.
  * 사용자가 식이제한 입력했는데 violation 이 있으면 plan 그대로 저장하면 안 됨.
  * Caller (geminiPipeline) 가 1회 retry → 그래도 violation 이면 throw.
@@ -903,6 +967,22 @@ export function validateResponse(data, request, foodIndex) {
         match_count: ci.match_count,
         food_stops_count: ci.food_stops_count,
         message: `P280 v2: ${ci.dietary_pref} coverage ${Math.round(ci.coverage * 100)}% (${ci.match_count}/${ci.food_stops_count} food stops). 운영자 admin panel 확인 + 사용자 수동 회피 권고.`,
+      });
+    }
+  }
+
+  // B6 (P310 2026-05-30): 알레르기 4종 (Nuts/Shellfish/Gluten/Dairy) 텍스트 기반 검출.
+  // SAFETY-CRITICAL 이지만 severity='warning' (P280 v1 무한 retry 사고 회피). 명시적
+  // 재료명만 → admin 가시화 우선. critical 승격은 false-positive rate 측정 + DB retrofit 후.
+  const allergenWarnings = checkAllergenWarnings(allStops, dietary);
+  if (allergenWarnings) {
+    for (const aw of allergenWarnings) {
+      issues.push({
+        type: 'allergen_warning',
+        severity: 'warning',  // 절대 critical 금지 (retry loop 차단)
+        stop: aw.stop,
+        allergen: aw.allergen,
+        message: `B6: '${aw.stop}' 에 ${aw.allergen} 알레르기 유발 재료 가능성 — 사용자 확인 권고 (운영자 admin panel).`,
       });
     }
   }
