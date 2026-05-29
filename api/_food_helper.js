@@ -77,13 +77,19 @@ export const ALLERGEN_KEYS = ['Nuts', 'Shellfish', 'Gluten', 'Dairy'];
 // ── Diet preference → tag mapping ───────────────────────────────────────
 // WizardForm FOOD_STYLE_KEYS: 'Vegan', 'Halal', 'Seafood', 'Meat', 'Spicy', 'Street'
 // WizardForm ALLERGY_KEYS (P189): 'Nuts', 'Shellfish', 'Gluten', 'Dairy'
-function getTagsForDiet(dietPrefs) {
+export function getTagsForDiet(dietPrefs) {
   if (!dietPrefs || dietPrefs.length === 0) return ['general'];
 
   const tags = new Set();
   // P189 (2026-05-25): SAFETY-CRITICAL — 알레르기 4종은 'general' 폴백 금지.
   // allergen:<name> 태그로 분리하여 필터링 체인이 구분할 수 있게 함.
   const allergenPrefs = [];
+  // B5 (P309, 2026-05-30): SAFETY tag (halal/vegan) 존재 여부 선판단.
+  // 존재 시 cuisine 선호(Meat/Seafood 등)가 'general' 을 추가하지 못하게 막는다.
+  // 이유: Halal+Meat 조합이 ['halal','general'] 이 되면 Step 2 tag filter 에서 일반식당
+  // (돼지/소고기집)이 통과 → "Verified Halal" 오표기 (busan '돼지나무사랑걸렸네' 사례).
+  // cuisine 선호는 getFoodContext Step 4 cuisine filter 가 halal/vegan 명단 *내부에서* 처리.
+  const hasSafetyTag = dietPrefs.includes('Halal') || dietPrefs.includes('Vegan');
   for (const pref of dietPrefs) {
     switch (pref) {
       case 'Vegan':    tags.add('vegan'); break;
@@ -97,7 +103,10 @@ function getTagsForDiet(dietPrefs) {
       case 'Meat':
       case 'Spicy':
       case 'Street':
-      default:         tags.add('general'); break;
+      default:
+        // B5 (P309): SAFETY tag 존재 시 general 추가 금지 (위 주석 참조).
+        if (!hasSafetyTag) tags.add('general');
+        break;
     }
   }
   // allergen 만 선택됐고 food style 미선택 → general 도 함께 포함 (식당 추천 가능해야 함)
@@ -233,13 +242,22 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   // ── Step 2: Tag filtering (vegan/halal/general) ───────────────────────
   let tagFiltered = candidates.filter(r => tags.includes(r.tag || 'general'));
 
+  // B5 (P309, 2026-05-30): SAFETY tag (halal/vegan) 존재 여부 — general 폴백 게이트.
+  const hasSafetyTag = dietPrefs.includes('Halal') || dietPrefs.includes('Vegan');
+
   // If Vegan/Halal selected but few results, keep whatever we have
   if (tagFiltered.length < maxItems && tags.length === 1 && tags[0] !== 'general') {
     console.log(`[food-helper] Only ${tagFiltered.length} ${tags[0]} results for ${cityCode}, using all`);
   }
 
   // If too few, add general as fallback (only when original was specific tag)
-  if (tagFiltered.length < maxItems && !tags.includes('general')) {
+  // B5 (P309) SAFETY-CRITICAL: halal/vegan 요청 시 general 폴백 절대 금지.
+  // 할랄/비건 부족을 일반식당(돼지/소고기집)으로 채우면 헤더 "Recommended Halal
+  // Restaurants" + verified:true 도장이 일반식당에 찍힘 → 무슬림/비건 건강·종교 위험.
+  // 차라리 빈 명단 (출력 안 함, Step 끝 `if(!final.length) return ''`) > 위험한 오표기.
+  // recommendedRestaurants.js pickBucket 의 "no general fallback inside dietary bucket"
+  // SSOT 패턴과 정합 (SAFETY tag 는 절대 섞지 않음).
+  if (tagFiltered.length < maxItems && !tags.includes('general') && !hasSafetyTag) {
     const generalFallback = candidates
       .filter(r => (r.tag || 'general') === 'general')
       .slice(0, maxItems);
