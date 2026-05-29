@@ -1,16 +1,13 @@
 /**
  * P162 (2026-05-23): daily_budget_summary self-heal.
  * Gemini 가 daily_budget_summary 통째 비우는 회귀 (plan 36c12df2) — UI 빈 칸 차단.
- *
- * P289 (2026-05-29): pax 곱셈 도입 (default pax=2). 본 test 기대값 ctx 명시 pax=1
- *   로 유지 (P162 의도 = base 추정값 검증).
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — JS module
 import { selfHealDailyBudget } from '../../api/_ai_core/planPersister.js';
 
 describe('P162 selfHealDailyBudget', () => {
-  it('빈 daily_budget_summary → stop count 기반 추정값 (pax=1 base)', () => {
+  it('빈 daily_budget_summary → stop count 기반 추정값 (pax=1)', () => {
     const itinerary = {
       days: [
         {
@@ -33,7 +30,7 @@ describe('P162 selfHealDailyBudget', () => {
     const b = itinerary.days[0].daily_budget_summary;
     // food: 2 × 15000 × pax(1) = 30000
     expect(b.food).toBe(30000);
-    // attraction: 3 × 10000 × pax(1) = 30000
+    // attraction: 3 × 10000 = 30000
     expect(b.attraction).toBe(30000);
     expect(b.transport).toBe(0);
     expect(b.misc).toBe(10000);

@@ -1663,6 +1663,18 @@
       "adultsLabel": "成人",
       "paxLabel": "人",
       "minUnit": "分钟"
+    },
+    "notices": {
+      "title": "行程自动校正提示",
+      "subtitle": "AI 基于您的输入信息自动补充了以下项目。",
+      "countSuffix": "项",
+      "arrivalGuideSelfHealed": "机场入境指南 (入境·SIM·T-money·换钱) 5步骤自动生成",
+      "lodgingBookendSelfHealed": "Day 起止酒店锚点自动添加 (防止动线断裂)",
+      "crossCityLodgingCorrected": "与当日城市不同的酒店自动校正",
+      "arrivalAirportOverridden": "到达机场航站楼以输入值为准自动校正 (T1/T2 mismatch 防止)",
+      "departureAirportOverridden": "出发机场航站楼以输入值为准自动校正 (T1/T2 mismatch 防止)",
+      "dietaryCoverageLow": "饮食限制 (清真/素食/过敏) 匹配餐厅不足 — 建议访问前再次确认菜单",
+      "dailyBudgetSelfHealed": "每日预算估算自动生成 (按人数计算)"
     }
   },
   "mypage": {
