@@ -67,11 +67,25 @@ if (!deploymentId) {
 }
 
 // 2. runtime-logs fetch
+// P279 (2026-05-29): Vercel runtime-logs API 가 NDJSON (newline-delimited JSON) 응답 →
+//   `res.json()` (api() 안) 가 SyntaxError. text() + split('\n') + per-line JSON.parse 패턴 적용.
+//   fetch-vercel-logs-v2.mjs 의 streaming 패턴 (line 38-66) 와 동일 원리, 본 v1 은 simple non-streaming.
 console.log(`[2/3] fetching runtime logs for deployment ${deploymentId}...`);
-const logsRaw = await api(`/v1/projects/${PROJECT_ID}/deployments/${deploymentId}/runtime-logs${TEAM_QS_ONLY}`);
-// API 가 NDJSON stream 일 수 있어 array 또는 object {logs:[...]} 둘 다 처리
-const logs = Array.isArray(logsRaw) ? logsRaw : (logsRaw.logs || logsRaw.records || []);
-console.log(`     fetched ${logs.length} log entries`);
+const logsUrl = `https://api.vercel.com/v1/projects/${PROJECT_ID}/deployments/${deploymentId}/runtime-logs${TEAM_QS_ONLY}`;
+const logsRes = await fetch(logsUrl, { headers });
+if (!logsRes.ok) {
+  const text = await logsRes.text();
+  throw new Error(`${logsRes.status} ${logsRes.statusText}: ${text.slice(0, 500)}`);
+}
+const logsText = await logsRes.text();
+const logs = logsText
+  .split('\n')
+  .filter(line => line.trim())
+  .map(line => {
+    try { return JSON.parse(line); } catch { return null; }
+  })
+  .filter(l => l !== null);
+console.log(`     fetched ${logs.length} log entries (NDJSON)`);
 
 // 3. 필터 + 출력
 console.log(`[3/3] filtering + printing...\n`);
