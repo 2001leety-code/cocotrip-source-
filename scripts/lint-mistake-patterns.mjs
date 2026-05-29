@@ -2243,6 +2243,7 @@ const RULES = [
   ['P285_bdcSoftLog', P285_bdcSoftLog],
   ['P286_arrivalWrapEdge', P286_arrivalWrapEdge],
   ['P290_selfHealLodgingBookendPersonalize', P290_selfHealLodgingBookendPersonalize],
+  ['P291_responseSchemaHintFull', P291_responseSchemaHintFull],
   ['P292_planStreamingSweepCron', P292_planStreamingSweepCron],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
@@ -8421,6 +8422,58 @@ function P290_selfHealLodgingBookendPersonalize({ changed }) {
   if (issues.length === 0) return null;
   return { id: 'P290_selfHealLodgingBookendPersonalize', severity: 'error', file: FILE_PERSISTER,
     message: 'R-P290: selfHealLodgingBookend personalize 깨짐 — placeholder generic 회귀 (P276+P277 buildPrompt 대안 손실). 발견: ' + issues.join(' | ') };
+}
+
+// ----------------------------------------------------------------------------
+// P291_responseSchemaHintFull — PLAN_RESPONSE_SCHEMA properties hint 확장 회귀 차단
+//
+// 5/29 P291 deep-search Option A (R1-R5): arrival_guide.steps + departure_guide
+// nested + daily_budget_summary.items + days.items 확장 + stops.items propertyOrdering.
+// 회귀 = self_heal 의존 ↑ (Gemini 가 통째 누락 = arrival_guide_self_healed 빈도 ↑).
+// SAFETY: required 추가 X (P196 회귀 root cause = Flash "satisfy required then stop").
+// ----------------------------------------------------------------------------
+function P291_responseSchemaHintFull({ changed }) {
+  const FILE = 'api/_ai_core/geminiPipeline.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  // R1: arrival_guide.steps array hint
+  if (!/arrival_guide:[\s\S]{0,400}propertyOrdering:\s*\[['"]airport['"],\s*['"]steps['"]\]/.test(src)) {
+    issues.push('R1: arrival_guide.propertyOrdering airport+steps 손실');
+  }
+  if (!/arrival_guide:[\s\S]{0,800}steps:\s*\{[\s\S]{0,200}type:\s*['"]ARRAY['"]/.test(src)) {
+    issues.push('R1: arrival_guide.properties.steps ARRAY hint 손실');
+  }
+  // R2: departure_guide nested 확장
+  if (!/departure_guide:[\s\S]{0,200}propertyOrdering:[\s\S]{0,300}luggage_storage[\s\S]{0,100}to_airport[\s\S]{0,100}tax_refund/.test(src)) {
+    issues.push('R2: departure_guide.propertyOrdering 7 fields 손실');
+  }
+  if (!/luggage_storage:\s*\{[\s\S]{0,200}propertyOrdering/.test(src)) {
+    issues.push('R2: departure_guide.luggage_storage nested propertyOrdering 손실');
+  }
+  // R3: daily_budget_summary.items 확장
+  if (!/daily_budget_summary:\s*\{[\s\S]{0,300}items:\s*\{[\s\S]{0,400}propertyOrdering:\s*\[['"]day['"],\s*['"]transport_krw['"]/.test(src)) {
+    issues.push('R3: daily_budget_summary.items.propertyOrdering 7 fields 손실');
+  }
+  // R4: days.items 확장
+  if (!/days:[\s\S]{0,300}items:[\s\S]{0,300}propertyOrdering:\s*\[['"]day['"],\s*['"]date['"],\s*['"]city['"]/.test(src)) {
+    issues.push('R4: days.items.propertyOrdering 7 fields 손실');
+  }
+  // R5: stops.items propertyOrdering
+  if (!/stops:[\s\S]{0,500}items:[\s\S]{0,500}propertyOrdering:\s*\[['"]order['"],\s*['"]start_time['"],\s*['"]name['"]/.test(src)) {
+    issues.push('R5: stops.items.propertyOrdering 12 fields 손실');
+  }
+  // SAFETY: nested required 추가 회귀 차단 (P196 패턴)
+  // arrival_guide / departure_guide / arrival_guide.steps / nested OBJECT 의 required 추가는 P196 회귀.
+  // top-level + days.items.required + stops.items.required 만 허용 (P200 유지).
+  const arrivalGuideBlock = src.match(/arrival_guide:\s*\{[\s\S]{0,1500}?(?=\n    (?:departure_guide|daily_budget))/);
+  if (arrivalGuideBlock && /\brequired:\s*\[/.test(arrivalGuideBlock[0])) {
+    issues.push('SAFETY 위반: arrival_guide nested 에 required 추가됨 (P196 회귀 root cause)');
+  }
+  if (issues.length === 0) return null;
+  return { id: 'P291_responseSchemaHintFull', severity: 'error', file: FILE,
+    message: 'R-P291: PLAN_RESPONSE_SCHEMA properties hint 손상 — self_heal 의존 ↑ 회귀 (P276+P277 의도 손상). 발견: ' + issues.join(' | ') };
 }
 
 // ----------------------------------------------------------------------------
