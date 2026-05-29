@@ -2245,6 +2245,7 @@ const RULES = [
   ['P290_selfHealLodgingBookendPersonalize', P290_selfHealLodgingBookendPersonalize],
   ['P291_responseSchemaHintFull', P291_responseSchemaHintFull],
   ['P292_planStreamingSweepCron', P292_planStreamingSweepCron],
+  ['P297_crossCityLodgingPersonalize', P297_crossCityLodgingPersonalize],
   ['P200_schemaPropertyOrdering', P200_schemaPropertyOrdering],
   ['P203_routeEnrichTimeout', P203_routeEnrichTimeout],
   ['P202_lodgingCityConsistency', P202_lodgingCityConsistency],
@@ -8422,6 +8423,37 @@ function P290_selfHealLodgingBookendPersonalize({ changed }) {
   if (issues.length === 0) return null;
   return { id: 'P290_selfHealLodgingBookendPersonalize', severity: 'error', file: FILE_PERSISTER,
     message: 'R-P290: selfHealLodgingBookend personalize 깨짐 — placeholder generic 회귀 (P276+P277 buildPrompt 대안 손실). 발견: ' + issues.join(' | ') };
+}
+
+// ----------------------------------------------------------------------------
+// P297_crossCityLodgingPersonalize — cross-city 교정 시 generic placeholder 회귀 차단
+//
+// 5/29 P296 발견 (plan 03cac32d Day 5): correctCrossCityLodgingStops 가 hbc[dayCityLc]
+// 있을 때 newAddress 는 사용자 호텔, newName 은 generic "${city} 호텔" → 자가 불일치.
+// P297 fix: hbc 분기에서 newName 도 userHotel 사용 (P290 패턴 동일).
+// 회귀 = 사용자 입력 호텔이 cross-city 교정 후 generic placeholder 로 표시.
+// ----------------------------------------------------------------------------
+function P297_crossCityLodgingPersonalize({ changed }) {
+  const FILE = 'api/_ai_core/planPersister.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const src = readFileExists(FILE);
+  if (!src) return { skipped: true };
+  const issues = [];
+  // hbc 분기 (correctCrossCityLodgingStops 안) 에서 userHotel 변수 + newName = userHotel
+  const hbcBlock = src.match(/if \(hbc\[dayCityLc\][\s\S]{0,800}?\} else if \(rz\[dayCityLc\]\)/);
+  if (!hbcBlock) {
+    issues.push('correctCrossCityLodgingStops hbc 분기 패턴 손실');
+  } else {
+    if (!/const\s+userHotel\s*=\s*hbc\[dayCityLc\]\.trim\(\)/.test(hbcBlock[0])) {
+      issues.push('userHotel 변수 손실 (hbc[dayCityLc] 사용자 호텔)');
+    }
+    if (!/newName\s*=\s*userHotel/.test(hbcBlock[0])) {
+      issues.push('newName = userHotel 손실 (generic placeholder 회귀 risk)');
+    }
+  }
+  if (issues.length === 0) return null;
+  return { id: 'P297_crossCityLodgingPersonalize', severity: 'error', file: FILE,
+    message: 'R-P297: cross-city 교정 personalize 깨짐 — 사용자 호텔이 generic "서울 호텔" placeholder 회귀 (P290 패턴 위반). 발견: ' + issues.join(' | ') };
 }
 
 // ----------------------------------------------------------------------------

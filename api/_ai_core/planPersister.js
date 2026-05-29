@@ -323,8 +323,13 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
       let newName, newAddress;
       const defaultMeta = CITY_LODGING_DEFAULT[dayCityLc];
       if (hbc[dayCityLc] && typeof hbc[dayCityLc] === 'string' && hbc[dayCityLc].trim()) {
-        newAddress = hbc[dayCityLc].trim();
-        newName    = `${dayCityKor || dayCityLc} 호텔`;
+        // P297 (2026-05-29): personalize — 사용자 입력 호텔명/주소를 name 에도 사용.
+        //   기존엔 newName 을 generic "서울 호텔" 로 박아 plan 03cac32d Day 5 처럼
+        //   addr="명동 신라스테이" 인데 name="서울 호텔" 자가 불일치 발생 (P290 패턴 누락).
+        //   사용자가 "명동 신라스테이" 입력 → cross-city 교정 후에도 그 호텔명 유지.
+        const userHotel = hbc[dayCityLc].trim();
+        newAddress = userHotel;
+        newName    = userHotel;
       } else if (rz[dayCityLc]) {
         const zone = String(rz[dayCityLc]).trim();
         newName    = `${zone} 일대 호텔 (위치 미정)`;
