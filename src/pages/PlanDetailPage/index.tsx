@@ -199,6 +199,11 @@ export default function PlanDetailPage() {
 
   // P169: streaming 진행 중 여부 (Firestore _streaming_in_progress 필드)
   const isStreamingInProgress = !loading && plan && (plan as Record<string, unknown>)._streaming_in_progress === true;
+  // P312 (2026-05-30, B3 S2-a): plan.status === 'error' (P292 sweep / P307 onFailure 가
+  // streaming stuck/worker 실패를 마킹). 이전엔 빈/부분 itinerary 가 그대로 렌더 (사용자
+  // 가 결제 후 빈 화면). 명확한 안내 배너로 대체 (빈 화면 방지). 자동 재시도(S2-b)는
+  // Gemini 재호출 비용 + error plan 처리 정책 운영자 결정 필요 → 별도.
+  const isPlanError = !loading && plan && (plan as Record<string, unknown>).status === 'error';
   const streamingProgress = !loading && plan
     ? (plan as Record<string, unknown>)._streaming_progress as number | undefined
     : undefined;
@@ -442,6 +447,31 @@ export default function PlanDetailPage() {
               <RefreshCw className="w-3.5 h-3.5" />
               {language === 'ko' ? '새로고침' : language === 'ja' ? '更新' : language === 'zh' ? '刷新' : 'Refresh'}
             </button>
+          </div>
+        )}
+        {/* P312 (B3 S2-a): plan.status === 'error' 안내 배너 — 빈 화면 방지.
+            결제 확인 + 새로 만들기 경로. 자동 재시도(S2-b)는 비용/정책 운영자 결정 후. */}
+        {isPlanError && (
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-sm text-white/80">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span>
+                {language === 'ko'
+                  ? 'AI 일정 생성에 실패했습니다. 결제는 정상 확인되었으니 걱정 마세요 — 아래 버튼으로 다시 만들거나 WhatsApp으로 문의해 주세요.'
+                  : language === 'ja'
+                  ? 'AI旅程の作成に失敗しました。お支払いは正常に確認されていますのでご安心ください — 下のボタンで再作成するか、WhatsAppでお問い合わせください。'
+                  : language === 'zh'
+                  ? 'AI行程创建失败。您的付款已正常确认，请放心 — 请点击下方按钮重新创建，或通过WhatsApp联系我们。'
+                  : 'AI itinerary generation failed. Your payment is confirmed, so no worries — please recreate using the button below or contact us on WhatsApp.'}
+              </span>
+            </div>
+            <Link
+              to="/planner"
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white/90 text-xs font-semibold transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              {language === 'ko' ? '다시 만들기' : language === 'ja' ? '再作成' : language === 'zh' ? '重新创建' : 'Recreate'}
+            </Link>
           </div>
         )}
 
