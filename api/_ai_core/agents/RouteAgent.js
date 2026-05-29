@@ -354,37 +354,6 @@ export function methodToMode(method) {
     return m; // subway / bus / walk / car / unknown 그대로
 }
 
-// ── P275 (2026-05-29): airport station mismatch verify (terminal 일치 검증) ─────
-// SAFETY-CRITICAL: input airport key (ICN_T1 / ICN_T2 / ICN) 과 ODsay 추천 station name
-// 의 terminal 일치 검증. mismatch 시 사용자 비행기 놓침 risk. Phase A (측정) — Phase B
-// (station 좌표 별도 dict + 자동 fix) 는 별도 cycle.
-//
-// 반환: { match: boolean, reason: string }
-//   - reason 종류: 't1_match' / 't1_input_t2_station' / 't2_match' / 't2_input_t1_station'
-//                  / 'generic_match' / 'unspecified' / 'no_terminal_check' / 'no_data'
-function _verifyAirportStation(inputAirportKey, stationName) {
-    if (!inputAirportKey || !stationName) return { match: true, reason: 'no_data' };
-    const ak = String(inputAirportKey).toUpperCase();
-    const sn = String(stationName);
-
-    if (ak === 'ICN_T1') {
-        if (/T1|1터미널|제1여객터미널|terminal 1/i.test(sn)) return { match: true, reason: 't1_match' };
-        if (/T2|2터미널|제2여객터미널|terminal 2/i.test(sn)) return { match: false, reason: 't1_input_t2_station' };
-        return { match: true, reason: 'unspecified' };
-    }
-    if (ak === 'ICN_T2') {
-        if (/T2|2터미널|제2여객터미널|terminal 2/i.test(sn)) return { match: true, reason: 't2_match' };
-        if (/T1|1터미널|제1여객터미널|terminal 1/i.test(sn)) return { match: false, reason: 't2_input_t1_station' };
-        return { match: true, reason: 'unspecified' };
-    }
-    // ICN (generic) — terminal 명시 없어도 OK. 명시 있어도 자가 모순 아님 (input 자체 unspecified).
-    if (ak === 'ICN') {
-        return { match: true, reason: 'generic_input' };
-    }
-    // GMP / PUS / CJU — terminal 구분 없음, station 명시 다양해도 OK.
-    return { match: true, reason: 'no_terminal_check' };
-}
-
 // ── Haversine helper (module-level pure fn) ─────────────────────────────
 // _haversineKm 은 RouteAgent 인스턴스 메서드라 reorderStopsByProximity 의
 // pure helper 호출을 위해 module-level 복제. 동일 공식 (R=6371 km).
@@ -671,23 +640,6 @@ export class RouteAgent extends BaseAgent {
                         route.fallback_origin = arrFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
                         route.fallback_label = arrFromLabel || null;
                     }
-
-                    // P275 (2026-05-29): ODsay station mismatch 측정 + quality_warnings 박제.
-                    // P274 우회 fix (input 'ICN' echo) 의 측정 강화 — input terminal vs ODsay 추천
-                    // station 의 terminal 일치 검증. mismatch 시 운영자 admin panel (P121) 즉시 노출.
-                    // 추후 Phase B (station 좌표 별도 dict + 호출 시 strict match) 에서 자동 fix.
-                    const arrV = _verifyAirportStation(arrivalAirportKey, route.fromStationName);
-                    if (!arrV.match) {
-                        rawItinerary.quality_warnings = rawItinerary.quality_warnings || [];
-                        rawItinerary.quality_warnings.push({
-                            kind: 'arrival_station_terminal_mismatch',
-                            type: 'arrival_station_terminal_mismatch',
-                            severity: 'high',
-                            message: `P275: input arrival_airport='${arrivalAirportKey}' but ODsay station='${route.fromStationName}' (${arrV.reason}). 사용자 비행기 놓침 risk.`,
-                        });
-                        console.warn(`[RouteAgent P275] arrival station mismatch: input='${arrivalAirportKey}' station='${route.fromStationName}' (${arrV.reason})`);
-                    }
-
                     // B9-15/25 + P269: anchor 우선순위 — hotel 좌표 있으면 그것, 없으면 fallback chain 결과.
                     rawItinerary.arrival_guide.route_to_hotel = {
                         ...route,
@@ -755,21 +707,6 @@ export class RouteAgent extends BaseAgent {
                         route.fallback_origin = depFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
                         route.fallback_label = depFromLabel || null;
                     }
-
-                    // P275 (2026-05-29): departure side station mismatch 측정.
-                    // 사용자 출국 시 잘못된 terminal station 으로 가면 비행기 놓침 risk.
-                    const depV = _verifyAirportStation(departureAirportKey, route.toStationName);
-                    if (!depV.match) {
-                        rawItinerary.quality_warnings = rawItinerary.quality_warnings || [];
-                        rawItinerary.quality_warnings.push({
-                            kind: 'departure_station_terminal_mismatch',
-                            type: 'departure_station_terminal_mismatch',
-                            severity: 'high',
-                            message: `P275: input departure_airport='${departureAirportKey}' but ODsay station='${route.toStationName}' (${depV.reason}). 사용자 비행기 놓침 risk.`,
-                        });
-                        console.warn(`[RouteAgent P275] departure station mismatch: input='${departureAirportKey}' station='${route.toStationName}' (${depV.reason})`);
-                    }
-
                     // B9-16/25: anchor_lat/lng/label 명시 attach — UI 가 "Seoul City
                     // Center" generic 대신 정확한 출발지명 노출 가능. trip-level
                     // hotelLat/Lng 가 있으면 그것을, 없으면 fallback chain 결과를 사용.
@@ -2162,18 +2099,6 @@ export class RouteAgent extends BaseAgent {
                     }
                     return null;
                 }
-                // P275 (2026-05-29): ODsay station name extract — input terminal 일치 검증용.
-                // 호출 site (line 632, 704) 에서 input airport key (ICN_T1/ICN_T2/ICN) 와
-                // 비교 → mismatch 시 quality_warnings 박제 (P274 우회 fix 의 측정 강화).
-                // ODsay steps[0] 의 startName / startX,startY 좌표 / startID — 첫 station 정보.
-                const firstStep = (pt.steps && pt.steps[0]) || null;
-                const fromStationName = firstStep
-                    ? (firstStep.startName || firstStep.fromName || firstStep.start || null)
-                    : null;
-                const lastStep = (pt.steps && pt.steps[pt.steps.length - 1]) || null;
-                const toStationName = lastStep
-                    ? (lastStep.endName || lastStep.toName || lastStep.end || null)
-                    : null;
                 return {
                     method: pt.method || 'subway',
                     mode: methodToMode(pt.method) || 'subway',
@@ -2186,9 +2111,6 @@ export class RouteAgent extends BaseAgent {
                     est_fare_krw: pt.fare || 0,
                     source: 'odsay',
                     direction,
-                    // P275: station name 노출 — 호출 site 가 input terminal 과 verify
-                    fromStationName,
-                    toStationName,
                 };
             } catch (e) {
                 lastErr = e;
