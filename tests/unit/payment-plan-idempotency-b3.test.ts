@@ -20,6 +20,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // PayPal API + Sentry mock (PayPal 분기 진입 위해).
 vi.mock('../../api/_shared/paypal.js', () => ({
   getPaypalAccessToken: async () => ({ accessToken: 'mock-token', baseUrl: 'https://api.mock' }),
+  // P314 (2026-05-30): paymentGate.js 가 resolveIsSandbox 도 import → mock 에 추가 (없으면 3건 실패).
+  resolveIsSandbox: () => false,
 }));
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: async () => {} }));
 
