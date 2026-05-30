@@ -232,6 +232,8 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     // 등록) 일 때 sandbox client-id 로 SDK 로드. prod 빌드엔 VITE_PAYPAL_ENV 미등록 → live.
     // 백엔드 resolveIsSandbox 와 대칭 (백엔드는 런타임 VERCEL_ENV, 프론트는 빌드타임 분리).
     // 가짜 미국 buyer 로그인하려면 SDK 도 sandbox client-id 여야 함 (live SDK ↔ sandbox buyer 불가).
+    // P314 rebuild marker (2026-05-30): VITE_PAYPAL_ENV=sandbox 를 Vercel Preview 에 확정한 후
+    // 재빌드 트리거용 (Vite env 는 빌드타임 박힘 — env 변경 후 재빌드 안 하면 옛 번들 서빙).
     const sandboxMode = String(import.meta.env.VITE_PAYPAL_ENV || '').toLowerCase() === 'sandbox';
     const clientId = sandboxMode
       ? import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID
