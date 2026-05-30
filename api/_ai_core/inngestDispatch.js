@@ -28,7 +28,26 @@ import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
  */
 export function shouldDispatchToInngest() {
   if (!isInngestConfigured()) return false;
-  // 운영자가 명시적으로 토글한 경우만 true. 기본은 OFF (점진 ramp).
+  // P318 (2026-05-31): dispatch only when ALL three hold — otherwise inline
+  // (handlerCore persistPlan, the PROVEN delivery path). Background:
+  //   (a) VERCEL_ENV='production' — preview/branch deploys use a SEPARATE Inngest
+  //       env (별도 INNGEST_EVENT_KEY) with NO synced worker → dispatched events sit
+  //       unhandled → plan stub never finalized (days=0) → P292 sweep → error
+  //       ("결제했는데 plan 안 나옴"). Confirmed in the 2026-05-31 P311 sandbox e2e:
+  //       preview plans dispatched but never persisted (0 worker events).
+  //   (b) PLANNER_INNGEST_WORKER_SYNCED='true' — explicit confirmation that the prod
+  //       Inngest app is synced AND a worker run has succeeded. This is P220 ramp
+  //       "Phase A" (dispatch-arrival 검증) which was skipped when the toggle was
+  //       enabled. Default UNSET → inline everywhere → guaranteed delivery. Flip to
+  //       'true' only AFTER verifying Inngest Cloud sync + one successful
+  //       processPlanAfterAI run (app.inngest.com → prod env → Apps).
+  //   (c) PLANNER_INNGEST_ENABLED='true' — operator ramp toggle (P220).
+  // Current prod traffic is admin-bypass LEGACY (never dispatches) → this gate has
+  // ZERO impact on existing traffic; it only routes future real-payment streaming
+  // plans onto the proven inline path until the worker is verified.
+  if (String(process.env.VERCEL_ENV || '').toLowerCase() !== 'production') return false;
+  const synced = String(process.env.PLANNER_INNGEST_WORKER_SYNCED || '').toLowerCase();
+  if (synced !== 'true' && synced !== '1') return false;
   const enabled = String(process.env.PLANNER_INNGEST_ENABLED || '').toLowerCase();
   return enabled === 'true' || enabled === '1';
 }
