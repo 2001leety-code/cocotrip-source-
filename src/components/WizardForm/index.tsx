@@ -18,7 +18,7 @@ import { haptic } from '@/lib/haptic';
 import { requestNotifyPermission } from '@/lib/notify';
 import {
   useWizardPersistence,
-  loadWizardSnapshot,
+  loadFreshestWizardSnapshot,
   clearWizardSnapshot,
 } from '@/hooks/useWizardPersistence';
 import { ResumeWizardModal } from '@/components/ResumeWizardModal';
@@ -262,18 +262,33 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // dietPrefs / allergies / paxInput≠default / dateRangeTo 등) 모두 확인.
   useEffect(() => {
     if (initialValues) return; // revision prefill 우선
-    const snap = loadWizardSnapshot<PlannerSnapshotValues>('planner');
-    if (!snap) return;
-    const v = snap.values;
+    // P316 (2026-05-30): 'planner' + 'planner_paused' 중 ts 최신 snapshot 채택.
+    // (paused = resume modal 떠 있던 중 편집분. 이전엔 읽는 곳이 없어 새로고침 시
+    //  silent 손실됐음 = write-only dead key.) 결제 단계(PlanDetailPage)에서 SDK
+    //  멈춤/광고차단으로 막혀 새로고침 → /planner 재진입 시에도 직전 입력 복원 +
+    //  resume modal 노출 (handleGenerate 성공 시점에 더 이상 snapshot 을 지우지 않음
+    //  — 아래 handleGenerate else 분기 주석 참고).
+    const fresh = loadFreshestWizardSnapshot<PlannerSnapshotValues>('planner', 'planner_paused');
+    if (!fresh) return;
+    const v = fresh.snapshot.values;
     // P126 (2026-05-21): 명시적 사용자 입력 시그널만 hasContent 로 인정. dateRangeFrom 은
     // mount 시 tomorrow auto-init 이라 false positive — 제외. helper 는 testable.
+    // (과노출 방지 규칙 유지: clicker-only/무의미 snapshot 은 여전히 modal 미노출.)
     const hasContent = hasMeaningfulWizardContent(v);
     if (!hasContent) {
+      // 의미 없는 snapshot — 양쪽 키 모두 정리.
       clearWizardSnapshot('planner');
+      clearWizardSnapshot('planner_paused');
       return;
     }
+    // paused 가 더 최신이라 채택됐다면 stale 'planner' 키 정리 (모달 결정 일관성).
+    // applyResumeSnapshot/discardResumeSnapshot 는 'planner' 만 지우므로, 채택분이
+    // paused 였다면 반대편 stale 키를 미리 치워 다음 마운트 혼선 방지.
+    if (fresh.staleSource) {
+      clearWizardSnapshot(fresh.staleSource);
+    }
     setPendingSnap(v);
-    setPendingStep(snap.step || 0);
+    setPendingStep(fresh.snapshot.step || 0);
     setResumeOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -675,9 +690,21 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
           setErrorMsg(data.error || 'Something went wrong. Please try again.');
         }
       } else {
-        // 2026-05-09 (B9-35): 제출 성공 → autosave snapshot 정리.
-        // (실패 시엔 유지 — 사용자가 다시 시도 가능하도록)
-        clearWizardSnapshot('planner');
+        // P316 (2026-05-30): 제출(quick preview 생성) 성공 시점에는 'planner'
+        // snapshot 을 지우지 '않는다'. 운영자 신고 — 생성 성공 → 결제 단계
+        // (PlanDetailPage / PurchaseSection 의 PayPal) 로 진행하는데, 결제 SDK
+        // 로딩 실패 / 광고차단 / 멈춤으로 막힌 뒤 사용자가 새로고침하거나 /planner
+        // 로 되돌아오면, 이전엔 여기서 이미 snapshot 을 지워버려 위저드가 빈 1페이지로
+        // 초기화 + resume modal 도 안 떴음 (입력 전부 소실).
+        //
+        // 결제 완료 전까지 plan 은 "끝난" 게 아니므로 snapshot 유지 → 재진입 시
+        // resume modal 노출 (생성까지 간 입력은 hasMeaningfulWizardContent 항상 통과).
+        // 'planner' 정리는 (a) 사용자 '새로 시작' discard, (b) 24h 만료
+        // (loadWizardSnapshot STALE_MS), (c) 결제 완료 후 PlanDetailPage 의
+        // clearPlannerWizardSnapshot() 이 담당.
+        //
+        // paused 는 modal 격리 저장용 임시 키라 성공 시점에 정리해도 무방 (정식
+        // 'planner' 만 위 사유로 보존).
         clearWizardSnapshot('planner_paused');
       }
     } catch {

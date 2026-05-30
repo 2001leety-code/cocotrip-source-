@@ -10,8 +10,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Language, Translations } from '@/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
-import { auth } from '@/lib/firebase';
+import { auth, signInWithGoogle } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
+import { PhoneSignInModal } from '@/components/PhoneSignInModal';
 import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
@@ -43,6 +44,22 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   const { toggle: toggleCommandPalette } = useCommandPalette();
   const [langToast, setLangToast] = useState<string | null>(null);
   const langToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // P315: desktop login entry. signInWithGoogle (firebase.js) handles the popup +
+  // in-app-browser redirect fallback internally — same flow the mobile /mypage
+  // (AuthRequired) login uses. Phone modal is the secondary option for parity.
+  const [signingIn, setSigningIn] = useState(false);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const handleSignIn = async () => {
+    if (signingIn) return;
+    setSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      console.warn('[Header] Google sign-in failed:', e instanceof Error ? e.message : e);
+    } finally {
+      setSigningIn(false);
+    }
+  };
 
   const handleLangChange = (code: Language) => {
     onLanguageChange(code);
@@ -270,6 +287,40 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* P315: Desktop Sign In (logged-out only — logged-in users see the
+                MyPage avatar above). The hamburger menu is mobile-only, so before
+                this fix desktop guests had no visible login entry and could reach
+                the paid planner unauthenticated → verifyUserToken 401 after paying. */}
+            {!isMobile && !user && (
+              <div className="hidden lg:flex items-center gap-1.5">
+                <button
+                  onClick={handleSignIn}
+                  disabled={signingIn}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 2px 12px rgba(124,92,252,0.3)' }}
+                  title={t.nav.signIn ?? 'Sign In'}
+                >
+                  {signingIn ? (
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <LogIn className="w-4 h-4" />
+                  )}
+                  <span>{t.nav.signIn ?? 'Sign In'}</span>
+                </button>
+                {/* Phone sign-in fallback (no Google account) — mirrors AuthRequired options. */}
+                <button
+                  onClick={() => setPhoneModalOpen(true)}
+                  className="p-2 rounded-lg transition-all duration-200 text-white/55 hover:text-white hover:bg-white/[0.06]"
+                  title={t.nav.phoneSignIn ?? 'Sign in with phone'}
+                  aria-label={t.nav.phoneSignIn ?? 'Sign in with phone'}
+                >
+                  <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.95.68l1.5 4.49a1 1 0 01-.5 1.21l-2.26 1.13a11 11 0 005.52 5.52l1.13-2.26a1 1 0 011.21-.5l4.49 1.5a1 1 0 01.68.95V19a2 2 0 01-2 2h-1C9.72 21 3 14.28 3 6V5z" />
+                  </svg>
+                </button>
+              </div>
+            )}
 
             {/* CTA: 1:1 Inquiry (desktop) */}
             {!isMobile && (
@@ -546,6 +597,16 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* P315: Phone sign-in modal (desktop login fallback). signInWithGoogle
+          handles Google; this covers users without a Google account. */}
+      {phoneModalOpen && (
+        <PhoneSignInModal
+          language={(['ko', 'en', 'ja', 'zh'] as const).includes(language as 'ko' | 'en' | 'ja' | 'zh') ? (language as 'ko' | 'en' | 'ja' | 'zh') : 'en'}
+          onClose={() => setPhoneModalOpen(false)}
+          onSuccess={() => setPhoneModalOpen(false)}
+        />
       )}
 
       {/* Language Toast */}

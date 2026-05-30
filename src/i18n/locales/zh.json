@@ -15,6 +15,7 @@
     "login": "登录",
     "signIn": "登录",
     "signInSub": "登录管理您的旅行",
+    "phoneSignIn": "使用电话号码登录",
     "signOut": "退出登录",
     "navigation": "导航",
     "myAccount": "我的账户",
@@ -553,6 +554,9 @@
       "UNKNOWN_ERROR": "发生未知错误，请重试或通过WhatsApp联系我们。"
     },
     "retry": "重新尝试",
+    "loginRequired": "登录后可付款",
+    "loginToPay": "登录后继续",
+    "loginToPayDesc": "请先登录，以便我们安全地向您发送行程。",
     "resetBtn": "重新开始",
     "dayLabel": "Day",
     "placesVisit": "个景点",
