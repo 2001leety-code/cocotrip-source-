@@ -2,15 +2,18 @@
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
-import { type MutableRefObject } from 'react';
+import { type MutableRefObject, useState } from 'react';
 import {
-  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail,
+  Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, LogIn, Phone,
 } from 'lucide-react';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { formatPrice } from '@/lib/exchange-rate';
+import { useAuth } from '@/hooks/useAuth';
+import { signInWithGoogle } from '@/lib/firebase';
+import { PhoneSignInModal } from '@/components/PhoneSignInModal';
 
 interface QuickPreviewData {
   themes?: string[];
@@ -42,6 +45,25 @@ export function PurchaseSection({
 }: PurchaseSectionProps) {
   // 5/7 변경: PayPalBookingButton 이 PayPal Smart Buttons (live) + SDK 차단 시 paypal.me QR
   // fallback 통합. PurchaseSection 은 단순히 button 렌더만.
+  //
+  // P315 (출시 blocker): 비로그인 결제 차단. 데스크탑 손님이 로그인 진입점을 못 찾고
+  // 비로그인으로 결제 → backend verifyUserToken 401 "Bearer token required" → "돈 내고
+  // 일정표 못 받음" 사고. 운영자 정책: 비로그인 결제 금지. 결제창(PayPal) 뜨기 전에
+  // 막아서 결제 후 실패를 원천 차단. (backend verifyUserToken 은 의도된 인증 — 무변경.)
+  const { user, loading: authLoading } = useAuth();
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const handleSignIn = async () => {
+    if (signingIn) return;
+    setSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      console.warn('[PurchaseSection] Google sign-in failed:', e instanceof Error ? e.message : e);
+    } finally {
+      setSigningIn(false);
+    }
+  };
   return (
     <div className={isMobile
       ? 'm-card m-appear p-6 text-center relative overflow-hidden'
@@ -145,6 +167,47 @@ export function PurchaseSection({
             style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}>
             {p.freeRegeneration || 'Free Regeneration'} {'—'} {p.createNewPlan || 'Create New Plan'}
           </button>
+        ) : authLoading ? (
+          /* P315: auth 확정 전 깜빡임 방지 — guest 에게 PayPal 버튼이 잠깐 보였다가
+             사라지는 것 차단. 보통 수십 ms. */
+          <div className="flex items-center justify-center py-4 text-sm text-white/55">
+            <span className="w-4 h-4 border-2 border-white/30 border-t-[#7C5CFC] rounded-full animate-spin mr-2" />
+            {p.loading || '로딩 중...'}
+          </div>
+        ) : !user ? (
+          /* P315: 비로그인 결제 차단 — 결제창 뜨기 전에 로그인 유도. backend
+             verifyUserToken 이 무조건 401 이라 비로그인 결제는 "돈 내고 실패" 가 됨. */
+          <div className="space-y-3 rounded-2xl border border-[#7C5CFC]/30 p-4 text-center"
+            style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(234,83,126,0.06))' }}>
+            <p className="text-sm text-white/75 leading-relaxed">
+              {p.loginToPayDesc || '일정표를 안전하게 받아보려면 먼저 로그인해 주세요.'}
+            </p>
+            <button
+              onClick={handleSignIn}
+              disabled={signingIn}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)', boxShadow: '0 4px 20px rgba(124,92,252,0.3)' }}
+            >
+              {signingIn ? (
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : (
+                <LogIn className="w-4 h-4" />
+              )}
+              <span>{p.loginToPay || '로그인 후 결제하기'}</span>
+            </button>
+            <button
+              onClick={() => setPhoneModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-white/80 border border-white/20 hover:border-[#7C5CFC]/50 hover:text-white transition-all"
+            >
+              <Phone className="w-4 h-4" />
+              <span>
+                {language === 'ja' ? '電話番号でログイン'
+                  : language === 'zh' ? '使用电话号码登录'
+                  : language === 'en' ? 'Sign in with phone'
+                  : '전화번호로 로그인'}
+              </span>
+            </button>
+          </div>
         ) : (
           <>
             <PayPalBookingButton
@@ -179,6 +242,16 @@ export function PurchaseSection({
           <span>{p.upgradeNotice}</span>
         </div>
       </div>
+
+      {/* P315: 전화번호 로그인 모달 (비로그인 결제 게이트 fallback). signInWithGoogle
+          이 Google 처리, 이건 Google 계정 없는 손님용. position:fixed 라 DOM 위치 무관. */}
+      {phoneModalOpen && (
+        <PhoneSignInModal
+          language={language === 'ko' || language === 'en' || language === 'ja' || language === 'zh' ? language : 'en'}
+          onClose={() => setPhoneModalOpen(false)}
+          onSuccess={() => setPhoneModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

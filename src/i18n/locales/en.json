@@ -15,6 +15,7 @@
     "login": "Login",
     "signIn": "Sign In",
     "signInSub": "Login to manage your trips",
+    "phoneSignIn": "Sign in with phone",
     "signOut": "Sign Out",
     "navigation": "Navigation",
     "myAccount": "My Account",
@@ -553,6 +554,9 @@
       "UNKNOWN_ERROR": "Something unexpected happened. Please try again or contact us on WhatsApp."
     },
     "retry": "Try Again",
+    "loginRequired": "Sign in to pay",
+    "loginToPay": "Sign in to continue",
+    "loginToPayDesc": "Please sign in first so we can securely deliver your itinerary.",
     "resetBtn": "Start Over",
     "dayLabel": "Day",
     "placesVisit": "places",
