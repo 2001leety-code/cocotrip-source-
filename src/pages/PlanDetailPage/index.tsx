@@ -9,6 +9,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
+import { clearPlannerWizardSnapshot } from '@/hooks/useWizardPersistence';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Header } from '@/sections/Header';
@@ -218,6 +219,16 @@ export default function PlanDetailPage() {
       (window as unknown as Record<string, unknown>).__pageReady = true;
     }
   }, [loading]);
+
+  // P316 (2026-05-30): 결제 완료 + 소유자 확인 시 planner 위저드 autosave 정리.
+  // WizardForm 의 handleGenerate 성공 시점에는 결제 미완료 가능성(SDK 멈춤/광고차단/
+  // 새로고침) 때문에 snapshot 을 보존하지만, plan 이 확정 결제(plan.paid)되면 더 이상
+  // resume 가 필요 없다 → 결제 후 /planner 재진입 시 stale "이어서 작성" modal 미노출.
+  // isOwner 는 onSnapshot listener 가 ownerCheck 로 set (uid === data.uid).
+  const isPaid = !loading && !!(plan && (plan as Record<string, unknown>).paid);
+  useEffect(() => {
+    if (isPaid && isOwner) clearPlannerWizardSnapshot();
+  }, [isPaid, isOwner]);
 
   // P225: streaming hang timeout — _streaming_in_progress 최초 감지 시 타이머 시작.
   // STREAMING_PLACEHOLDER_TIMEOUT_MS 경과 후 streamingTimedOut=true → 오류 UI 표시.

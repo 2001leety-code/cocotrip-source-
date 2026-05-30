@@ -167,6 +167,59 @@ export function clearWizardSnapshot(type: string): void {
   try { localStorage.removeItem(STORAGE_PREFIX + type); } catch { /* silent */ }
 }
 
+// P316 (2026-05-30): planner 위저드 namespace 상수. 결제 단계에서 막혀 새로고침 →
+// 입력 소실 + resume 미노출 회귀 fix 의 일부.
+export const PLANNER_WIZARD_NS = 'planner';
+export const PLANNER_WIZARD_PAUSED_NS = 'planner_paused';
+
+export interface FreshestSnapshotResult<T> {
+  snapshot: WizardSnapshot<T>;
+  /** 채택된 namespace (호출처가 반대편 stale 키 정리에 사용). */
+  source: string;
+  /** 채택되지 않은 다른 namespace (둘 다 존재했을 때만). 정리 대상. */
+  staleSource: string | null;
+}
+
+/**
+ * P316 (2026-05-30): 두 namespace 중 ts(저장 시각) 가 더 최신인 snapshot 반환.
+ *
+ * 배경: resume modal 이 떠 있는 동안의 편집은 'planner_paused' 로 격리 저장되는데
+ * (WizardForm 의 useWizardPersistence 호출처가 resumeOpen 일 때 namespace 전환),
+ * 그 키를 읽는 곳이 없어 새로고침 시 그 편집이 silent 손실 + orphan 키로 남던
+ * write-only dead key 였음. 이제 modal 이 열린 채 새로고침해도 가장 최근 편집 복원.
+ *
+ * 동작: 한쪽만 존재하면 그쪽 (staleSource=null). 둘 다 존재하면 ts 최신 우선,
+ * 동률이면 primary (정식 키) 우선 + 반대편을 staleSource 로 반환 (호출처 정리용).
+ * 둘 다 없거나 만료면 null. (loadWizardSnapshot 이 24h 만료를 자체 처리.)
+ */
+export function loadFreshestWizardSnapshot<T>(
+  primary: string,
+  paused: string,
+): FreshestSnapshotResult<T> | null {
+  const a = loadWizardSnapshot<T>(primary);
+  const b = loadWizardSnapshot<T>(paused);
+  if (!a && !b) return null;
+  if (a && !b) return { snapshot: a, source: primary, staleSource: null };
+  if (b && !a) return { snapshot: b, source: paused, staleSource: null };
+  // 둘 다 존재 — ts 최신 우선. 동률이면 primary (정식 키) 우선.
+  if ((b as WizardSnapshot<T>).ts > (a as WizardSnapshot<T>).ts) {
+    return { snapshot: b as WizardSnapshot<T>, source: paused, staleSource: primary };
+  }
+  return { snapshot: a as WizardSnapshot<T>, source: primary, staleSource: paused };
+}
+
+/**
+ * P316 (2026-05-30): planner 위저드 autosave 두 namespace 를 한 번에 정리.
+ * 생성 성공 시점에는 결제 미완료 가능성(SDK 멈춤/광고차단/새로고침) 때문에 'planner'
+ * 를 보존하지만, 결제가 끝나 plan 이 확정되면 (PlanDetailPage paid+owner) 더 이상
+ * resume 가 필요 없으므로 여기서 둘 다 제거 → 결제 완료 후 /planner 재진입 시
+ * stale "이어서 작성" modal 미노출.
+ */
+export function clearPlannerWizardSnapshot(): void {
+  clearWizardSnapshot(PLANNER_WIZARD_NS);
+  clearWizardSnapshot(PLANNER_WIZARD_PAUSED_NS);
+}
+
 // Test-only exports — kept off the default surface so they don't appear
 // in IDE autocomplete for product code.
 export const __testing = { isQuotaError, sweepStaleWizardSnapshots, safeWizardSetItem, STORAGE_PREFIX, STALE_MS };
