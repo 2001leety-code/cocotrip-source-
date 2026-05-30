@@ -1,10 +1,14 @@
-import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle, signInWithLine, handleRedirectResult, db } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
-import { PhoneSignInModal } from '@/components/PhoneSignInModal';
+// P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
+// keep it out of eager bundles; the chunk loads only when the user opens it.
+const PhoneSignInModal = lazy(() =>
+  import('@/components/PhoneSignInModal').then((m) => ({ default: m.PhoneSignInModal })),
+);
 
 const TEXT = {
   ko: {
@@ -208,10 +212,12 @@ export function AuthRequired({ children }: { children: ReactNode }) {
         </div>
 
         {phoneModalOpen && (
-          <PhoneSignInModal
-            language={(language as 'ko' | 'en' | 'ja' | 'zh') in TEXT ? (language as 'ko' | 'en' | 'ja' | 'zh') : 'en'}
-            onClose={() => setPhoneModalOpen(false)}
-          />
+          <Suspense fallback={null}>
+            <PhoneSignInModal
+              language={(language as 'ko' | 'en' | 'ja' | 'zh') in TEXT ? (language as 'ko' | 'en' | 'ja' | 'zh') : 'en'}
+              onClose={() => setPhoneModalOpen(false)}
+            />
+          </Suspense>
         )}
       </div>
     );
