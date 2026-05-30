@@ -1165,6 +1165,19 @@ export async function persistPlan(adminDb, {
       // "Stay" 가 아니라 zone 명("명동" 등) 을 보여주려면 이 필드가 필수.
       recommended_zone: body.recommended_zone || null,
       recommended_zone_address: body.recommended_zone_address || null,
+      // B3 S2-b 선행 (P313, 2026-05-30): 재시도(retryOf) 시 plan.input 만으로 정확 재생성
+      // 하려면 전체 wizard 입력 보존 필요. 특히 다도시 — durationDays/hotelByCity/
+      // recommended_zones/arrival_city/departure_city/want_accom 누락 시 재시도 plan 이
+      // 원본과 달라짐 (deep-search 확인). admin AdminPlans 가시성에도 유용. 결제 무관 데이터.
+      durationDays: body.durationDays || null,
+      hotelByCity: (body.hotelByCity && typeof body.hotelByCity === 'object') ? body.hotelByCity : null,
+      recommended_zones: (body.recommended_zones && typeof body.recommended_zones === 'object') ? body.recommended_zones : null,
+      arrival_city: body.arrival_city || null,
+      departure_city: body.departure_city || null,
+      entry_city: body.entry_city || null,
+      price_range: body.priceRange || null,
+      want_accom: !!body.wantAccom,
+      accom_budget: body.accomBudget || null,
     },
     itinerary,
     pricing: { vehicle, priceKRW, priceUSD },
