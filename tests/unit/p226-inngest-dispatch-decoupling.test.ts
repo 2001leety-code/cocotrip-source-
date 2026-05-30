@@ -59,7 +59,15 @@ describe('P226 Inngest dispatch streaming decoupling 회귀 차단', () => {
       INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY,
       INNGEST_SIGNING_KEY: process.env.INNGEST_SIGNING_KEY,
       PLANNER_INNGEST_ENABLED: process.env.PLANNER_INNGEST_ENABLED,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      PLANNER_INNGEST_WORKER_SYNCED: process.env.PLANNER_INNGEST_WORKER_SYNCED,
     };
+    // P318 (2026-05-31): dispatch now also requires production runtime + verified
+    // worker sync. These runtime tests exercise the P226 dispatch-decoupling path,
+    // so set both here (afterEach restores). The P318 gate itself is covered by the
+    // p220 shouldDispatchToInngest assertions (3/3b/3c).
+    process.env.VERCEL_ENV = 'production';
+    process.env.PLANNER_INNGEST_WORKER_SYNCED = 'true';
   });
   afterEach(() => {
     for (const [k, v] of Object.entries(savedEnv)) {
