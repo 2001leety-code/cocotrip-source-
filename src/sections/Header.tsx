@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Menu, X, MessageCircle, Globe, ChevronDown, ChevronRight, User, FileText, Headphones, Map, Package, LogOut, LogIn, Check, Search, ShieldCheck } from 'lucide-react';
 import {
   DropdownMenu,
@@ -12,11 +12,18 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, signInWithGoogle } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
-import { PhoneSignInModal } from '@/components/PhoneSignInModal';
 import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
 import { useCommandPalette } from '@/components/CommandPalette';
+
+// P317 (2026-05-30): lazy-load phone sign-in modal. Header is in the eager main
+// bundle; deferring the firebase phone-auth modal until the user opens it keeps
+// that code out of the main chunk (size-limit 환원). Rendered behind a guard so
+// the chunk only loads on demand.
+const PhoneSignInModal = lazy(() =>
+  import('@/components/PhoneSignInModal').then((m) => ({ default: m.PhoneSignInModal })),
+);
 
 interface HeaderProps {
   language: Language;
@@ -602,11 +609,13 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
       {/* P315: Phone sign-in modal (desktop login fallback). signInWithGoogle
           handles Google; this covers users without a Google account. */}
       {phoneModalOpen && (
-        <PhoneSignInModal
-          language={(['ko', 'en', 'ja', 'zh'] as const).includes(language as 'ko' | 'en' | 'ja' | 'zh') ? (language as 'ko' | 'en' | 'ja' | 'zh') : 'en'}
-          onClose={() => setPhoneModalOpen(false)}
-          onSuccess={() => setPhoneModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <PhoneSignInModal
+            language={(['ko', 'en', 'ja', 'zh'] as const).includes(language as 'ko' | 'en' | 'ja' | 'zh') ? (language as 'ko' | 'en' | 'ja' | 'zh') : 'en'}
+            onClose={() => setPhoneModalOpen(false)}
+            onSuccess={() => setPhoneModalOpen(false)}
+          />
+        </Suspense>
       )}
 
       {/* Language Toast */}

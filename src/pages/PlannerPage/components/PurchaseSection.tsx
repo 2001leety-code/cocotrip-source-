@@ -2,7 +2,7 @@
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
-import { type MutableRefObject, useState } from 'react';
+import { type MutableRefObject, useState, lazy, Suspense } from 'react';
 import {
   Briefcase, UtensilsCrossed, Camera, Train, Check, Mail, LogIn, Phone,
 } from 'lucide-react';
@@ -13,7 +13,11 @@ import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { formatPrice } from '@/lib/exchange-rate';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
-import { PhoneSignInModal } from '@/components/PhoneSignInModal';
+// P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
+// keep it out of the PlannerPage chunk; loads only when the user opens it.
+const PhoneSignInModal = lazy(() =>
+  import('@/components/PhoneSignInModal').then((m) => ({ default: m.PhoneSignInModal })),
+);
 
 interface QuickPreviewData {
   themes?: string[];
@@ -246,11 +250,13 @@ export function PurchaseSection({
       {/* P315: 전화번호 로그인 모달 (비로그인 결제 게이트 fallback). signInWithGoogle
           이 Google 처리, 이건 Google 계정 없는 손님용. position:fixed 라 DOM 위치 무관. */}
       {phoneModalOpen && (
-        <PhoneSignInModal
-          language={language === 'ko' || language === 'en' || language === 'ja' || language === 'zh' ? language : 'en'}
-          onClose={() => setPhoneModalOpen(false)}
-          onSuccess={() => setPhoneModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <PhoneSignInModal
+            language={language === 'ko' || language === 'en' || language === 'ja' || language === 'zh' ? language : 'en'}
+            onClose={() => setPhoneModalOpen(false)}
+            onSuccess={() => setPhoneModalOpen(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
