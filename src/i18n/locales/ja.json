@@ -15,6 +15,7 @@
     "login": "ログイン",
     "signIn": "ログイン",
     "signInSub": "ログインして旅行を管理",
+    "phoneSignIn": "電話番号でログイン",
     "signOut": "ログアウト",
     "navigation": "ナビゲーション",
     "myAccount": "マイアカウント",
@@ -553,6 +554,9 @@
       "UNKNOWN_ERROR": "予期しない問題が発生しました。再試行またはWhatsAppでお問い合わせください。"
     },
     "retry": "もう一度試す",
+    "loginRequired": "ログイン後に決済可能",
+    "loginToPay": "ログインして続行",
+    "loginToPayDesc": "旅程表を安全にお届けするため、先にログインしてください。",
     "resetBtn": "やり直す",
     "dayLabel": "Day",
     "placesVisit": "ヶ所",
