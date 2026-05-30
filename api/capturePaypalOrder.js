@@ -2,7 +2,7 @@
  * Vercel API Route: Capture PayPal Order + trigger booking-processor
  * POST /api/capturePaypalOrder
  */
-import { getPaypalAccessToken } from './_shared/paypal.js';
+import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { checkAiPlannerCouponPolicy } from './_shared/ai-planner-policy.js';
 import { confirmSlotLock } from './_shared/slot-capacity.js';
@@ -93,8 +93,13 @@ export default async function handler(req, res) {
 
     console.log('[capturePaypalOrder] LIVE mode | email:', userEmail);
 
-    // 1. Access Token + baseUrl from shared helper (live only)
-    const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(false);
+    // 1. Access Token + baseUrl from shared helper.
+    // P314 (2026-05-30): sandbox e2e 토글. capture = 실제 돈 빠지는 곳 → resolveIsSandbox
+    // 이중 가드 (VERCEL_ENV!=='production' AND PAYPAL_ENV==='sandbox') 로 prod 무조건 live.
+    // sandbox 결정 시 prod 로그에서 즉시 감지되도록 경고 (prod 에 찍히면 안 됨).
+    const _isSandboxCapture = resolveIsSandbox();
+    if (_isSandboxCapture) console.warn('[capturePaypalOrder] ⚠️ SANDBOX MODE — 실제 결제 아님 (preview e2e)');
+    const { accessToken, baseUrl: PAYPAL_BASE_URL } = await getPaypalAccessToken(_isSandboxCapture);
 
     // 1.5 Duplicate orderID guard — used_paypal_orders 중복 방지.
     //
