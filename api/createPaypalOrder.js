@@ -9,7 +9,7 @@ import { Buffer } from 'buffer';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { getPaypalAccessToken } from './_shared/paypal.js';
+import { getPaypalAccessToken, resolveIsSandbox } from './_shared/paypal.js';
 import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
 import { acquireSlotLock } from './_shared/slot-capacity.js';
@@ -183,13 +183,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2026-05-03: TEST 계정도 실제 결제는 LIVE PayPal로 진행 (sandbox 분기 제거).
-    // TEST 우회는 frontend의 🧪 Test Mode 버튼이 'TEST-' prefix orderId를 직접 보내며,
-    // ai-planner-full의 paymentGate가 그걸 받아 PayPal 검증 자체를 skip.
-    // 여기서는 sandbox 사용 안 함 — 항상 LIVE order 생성.
-    const isSandbox = false;
-    void TEST_ACCOUNTS; void userEmail; // 의도적 무시 (PayPal API 호출은 항상 LIVE)
-    console.log('[createPaypalOrder] mode: LIVE (always) | email:', userEmail, '| product:', productType);
+    // P314 (2026-05-30): sandbox e2e 토글. resolveIsSandbox 이중 가드 (VERCEL_ENV !==
+    // 'production' AND PAYPAL_ENV==='sandbox') → prod 는 무조건 LIVE. preview 배포에서만
+    // sandbox order 생성 가능 (가짜 미국 buyer e2e). TEST- prefix 우회와는 별개 — 그건
+    // paymentGate 가 PayPal 검증 자체를 skip, 이건 진짜 PayPal sandbox API 를 거침.
+    const isSandbox = resolveIsSandbox();
+    void TEST_ACCOUNTS; void userEmail;
+    console.log(`[createPaypalOrder] mode: ${isSandbox ? 'SANDBOX (preview e2e)' : 'LIVE'} | email:`, userEmail, '| product:', productType);
 
     let krwAmount = resolveKrwAmount(productType, passengers, durationDays);
     if (!krwAmount) {

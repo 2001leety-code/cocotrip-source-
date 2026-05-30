@@ -9,7 +9,7 @@
  *   { isRevision: boolean, isAdminBypass: boolean }         // caller proceeds
  */
 import { FieldValue } from 'firebase-admin/firestore';
-import { getPaypalAccessToken } from '../_shared/paypal.js';
+import { getPaypalAccessToken, resolveIsSandbox } from '../_shared/paypal.js';
 import { captureError } from '../_shared/sentry.js';
 
 // Audit P0-#2 (2026-05-04): TEST_ACCOUNTS hardcoded admin email 제거.
@@ -188,7 +188,8 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
 
       let ppToken, ppBase;
       try {
-        const auth = await getPaypalAccessToken(false);
+        // P314 (2026-05-30): sandbox e2e 토글 (prod 무조건 live — resolveIsSandbox 이중 가드).
+        const auth = await getPaypalAccessToken(resolveIsSandbox());
         ppToken = auth.accessToken;
         ppBase = auth.baseUrl;
       } catch (e) {
