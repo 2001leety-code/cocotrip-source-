@@ -1,3 +1,8 @@
+// @vitest-environment jsdom
+// (jsdom 제공 localStorage 사용. vitest.config.ts 기본 env=node 라 헤더로 override —
+//  레포 관례: 주석 첫 줄 `// @vitest-environment jsdom`. 순수 함수지만 헬퍼가
+//  localStorage 전역에 접근하므로 polyfill 대신 jsdom 채택.)
+//
 // P316 (2026-05-30): 결제 단계에서 막혀 새로고침 → 위저드 입력 소실 + resume modal
 // 미노출 회귀 방지.
 //
