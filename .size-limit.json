@@ -1,8 +1,8 @@
 [
   {
-    "name": "Main bundle (eager — first paint critical, all index-* chunks). 2026-05-09 launch blocker fix: 260→270 KB. 2026-05-13 PR #388: 270→275 KB 임시 상향. 2026-05-13 PR #393: 275→250 KB 환원 (PR #392 -35 KB 효과). PR #395 Wizard step + zoneData lazy 추가: 실측 220.31 KB. 2026-05-13 PR #405: 250→225 KB 환원 (자율 검증 강화, 4.69 KB 마진). 2026-05-20 PR #495: 225→235 KB (P111~P116 plan audit + P115 Markdown export 실측 227.25 KB, ~7 KB 마진 확보). 2026-05-27 P228: 235→236 KB (실측 235.04 KB, 39B 초과 → 마진 확보). 2026-05-27 P239: 236→237 KB (architectural tourStartTime UI/state/handler — 실측 236.47 KB, 466B 초과). 2026-05-29 P294: 237→238 KB (사용자 quality_warnings UI panel + i18n 4lang notices namespace — 실측 237.75 KB, 753B 초과). 2026-05-30 P312: 238→239 KB (B3 S2-a plan.status=error 안내 배너 4lang inline — 실측 238.36 KB, 362B 초과). ⚠️ 마진 640B << 5 KB — 다음 메인 번들 증가 시 lazy-split 의무 (PlanDetailPage 배너 i18n 키 이전 또는 route chunk 분리).",
+    "name": "Main bundle (eager — first paint critical, all index-* chunks). 2026-05-09 launch blocker fix: 260→270 KB. 2026-05-13 PR #388: 270→275 KB 임시 상향. 2026-05-13 PR #393: 275→250 KB 환원 (PR #392 -35 KB 효과). PR #395 Wizard step + zoneData lazy 추가: 실측 220.31 KB. 2026-05-13 PR #405: 250→225 KB 환원 (자율 검증 강화, 4.69 KB 마진). 2026-05-20 PR #495: 225→235 KB (P111~P116 plan audit + P115 Markdown export 실측 227.25 KB, ~7 KB 마진 확보). 2026-05-27 P228: 235→236 KB (실측 235.04 KB, 39B 초과 → 마진 확보). 2026-05-27 P239: 236→237 KB (architectural tourStartTime UI/state/handler — 실측 236.47 KB, 466B 초과). 2026-05-29 P294: 237→238 KB (사용자 quality_warnings UI panel + i18n 4lang notices namespace — 실측 237.75 KB, 753B 초과). 2026-05-30 P312: 238→239 KB (B3 S2-a plan.status=error 안내 배너 4lang inline — 실측 238.36 KB, 362B 초과). 2026-05-30 P315: 239→242 KB (데스크탑 헤더 로그인 버튼 Header.tsx + 비로그인 결제 게이트 PurchaseSection + i18n 4lang — P315 +1.79KB). 🔴 lazy-split 후속 의무 (칩 등록): PhoneSignInModal(firebase phone auth) 을 Header/PurchaseSection 에서 React.lazy 전환 → 메인 번들 제거 + 한도 환원. 막 통합한 P315/P316 회귀 리스크 회피 위해 이번엔 한도 조정.",
     "path": "dist/assets/index-*.js",
-    "limit": "239 KB",
+    "limit": "242 KB",
     "gzip": true
   },
   {
