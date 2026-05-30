@@ -73,6 +73,8 @@ describe('P220 shouldDispatchToInngest — toggle ramp 안전', () => {
   const ORIG_EVENT = process.env.INNGEST_EVENT_KEY;
   const ORIG_SIGNING = process.env.INNGEST_SIGNING_KEY;
   const ORIG_ENABLED = process.env.PLANNER_INNGEST_ENABLED;
+  const ORIG_VERCEL_ENV = process.env.VERCEL_ENV;
+  const ORIG_SYNCED = process.env.PLANNER_INNGEST_WORKER_SYNCED;
 
   afterEach(() => {
     if (ORIG_EVENT === undefined) delete process.env.INNGEST_EVENT_KEY;
@@ -81,14 +83,42 @@ describe('P220 shouldDispatchToInngest — toggle ramp 안전', () => {
     else process.env.INNGEST_SIGNING_KEY = ORIG_SIGNING;
     if (ORIG_ENABLED === undefined) delete process.env.PLANNER_INNGEST_ENABLED;
     else process.env.PLANNER_INNGEST_ENABLED = ORIG_ENABLED;
+    if (ORIG_VERCEL_ENV === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = ORIG_VERCEL_ENV;
+    if (ORIG_SYNCED === undefined) delete process.env.PLANNER_INNGEST_WORKER_SYNCED;
+    else process.env.PLANNER_INNGEST_WORKER_SYNCED = ORIG_SYNCED;
   });
 
-  it('assertion 3: ENV 둘 다 set + PLANNER_INNGEST_ENABLED=true → dispatch true', async () => {
+  // P318 (2026-05-31): dispatch now also requires production runtime + explicit
+  // worker-sync confirmation (preview/unverified → inline, the proven delivery path).
+  it('assertion 3: ENV + production + WORKER_SYNCED + ENABLED=true → dispatch true', async () => {
     process.env.INNGEST_EVENT_KEY = 'k1';
     process.env.INNGEST_SIGNING_KEY = 'k2';
+    process.env.VERCEL_ENV = 'production';
+    process.env.PLANNER_INNGEST_WORKER_SYNCED = 'true';
     process.env.PLANNER_INNGEST_ENABLED = 'true';
     const { shouldDispatchToInngest } = await import('../../api/_ai_core/inngestDispatch.js');
     expect(shouldDispatchToInngest()).toBe(true);
+  });
+
+  it('assertion 3b (P318): preview 런타임 → dispatch false (preview Inngest 미sync → inline)', async () => {
+    process.env.INNGEST_EVENT_KEY = 'k1';
+    process.env.INNGEST_SIGNING_KEY = 'k2';
+    process.env.VERCEL_ENV = 'preview';
+    process.env.PLANNER_INNGEST_WORKER_SYNCED = 'true';
+    process.env.PLANNER_INNGEST_ENABLED = 'true';
+    const { shouldDispatchToInngest } = await import('../../api/_ai_core/inngestDispatch.js');
+    expect(shouldDispatchToInngest()).toBe(false);
+  });
+
+  it('assertion 3c (P318): production+ENABLED 이지만 WORKER_SYNCED 미설정 → dispatch false (sync 미검증 default inline)', async () => {
+    process.env.INNGEST_EVENT_KEY = 'k1';
+    process.env.INNGEST_SIGNING_KEY = 'k2';
+    process.env.VERCEL_ENV = 'production';
+    delete process.env.PLANNER_INNGEST_WORKER_SYNCED;
+    process.env.PLANNER_INNGEST_ENABLED = 'true';
+    const { shouldDispatchToInngest } = await import('../../api/_ai_core/inngestDispatch.js');
+    expect(shouldDispatchToInngest()).toBe(false);
   });
 
   it('assertion 4: ENV 있어도 PLANNER_INNGEST_ENABLED=false → dispatch false (ramp 안전 default)', async () => {
