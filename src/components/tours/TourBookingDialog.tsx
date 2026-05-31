@@ -2,6 +2,12 @@
 // productType 매핑 있으면 (대부분) PayPalBookingButton, 없으면 (multicity-3d) charter 페이지 redirect.
 // 2026-05-10 (B9-35 잔여, P3): tour:${id} 별 24h autosave (silent prefill) — Dialog 가 modal
 // UX 라 ResumeWizardModal 중첩 대신 자연스러운 prefill + 24h TTL 자동 expire.
+//
+// PR-F (2026-06-01): 투어 예약 결제 마찰 축소 — 기능 플래그.
+// VITE_FEATURE_TOUR_BOOKING_MINIMAL=true 시 Step 2 에서 전화번호 1개만 필수,
+// 나머지 4개(픽업주소·WhatsApp·LINE·메모) 는 선택 입력.
+// 미설정(OFF/기본) = 기존 5개 필수 동작 byte-identical.
+
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -18,6 +24,41 @@ import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
 import { loadWizardSnapshot, useWizardPersistence } from '@/hooks/useWizardPersistence';
+
+// PR-F (2026-06-01): 투어 예약 결제 마찰 축소 — 기능 플래그.
+// VITE_FEATURE_TOUR_BOOKING_MINIMAL=true 시 Step 2 에서 전화번호 1개만 필수.
+// 미설정(OFF/기본) = 기존 5개 필수 동작 byte-identical.
+
+/** PR-F 기능 플래그: 전화 1개만 필수로 축소. OFF = 현재 동작 유지. */
+export const FEATURE_TOUR_BOOKING_MINIMAL =
+  import.meta.env.VITE_FEATURE_TOUR_BOOKING_MINIMAL === 'true';
+
+/**
+ * PR-F — Step 2 완료 여부 순수 헬퍼 (테스트 가능 추출).
+ *
+ * - minimal=true (VITE_FEATURE_TOUR_BOOKING_MINIMAL=true):
+ *     전화 1개만 필수. 나머지 4개는 선택.
+ * - minimal=false (기본/OFF):
+ *     전화·픽업주소·WhatsApp·LINE·메모 5개 전부 필수 (기존 동작 byte-identical).
+ */
+export function isTourStep2Complete(fields: {
+  phone: string;
+  pickupAddress: string;
+  whatsappId: string;
+  lineId: string;
+  memoText: string;
+}, minimal: boolean): boolean {
+  if (minimal) {
+    return fields.phone.trim().length > 0;
+  }
+  return (
+    fields.phone.trim().length > 0 &&
+    fields.pickupAddress.trim().length > 0 &&
+    fields.whatsappId.trim().length > 0 &&
+    fields.lineId.trim().length > 0 &&
+    fields.memoText.trim().length > 0
+  );
+}
 
 // tour booking 자동저장 snapshot — Set<string> 은 JSON 직렬화 불가라 array 로 변환 보존.
 type TourBookingSnapshot = {
@@ -134,6 +175,8 @@ const I18N: Record<Language, {
   line: string; linePh: string;
   memo: string; memoPh: string;
   required: string; missingFields: string;
+  /** PR-F: 선택 필드 표기 — 플래그 ON 시에만 사용 */
+  optional: string;
 }> = {
   ko: { title: '투어 예약', pax: '인원수', date: '투어 날짜', lang: '기사 언어', addons: '추가 옵션',
         priceBase: '기본', priceAddons: '추가옵션', priceTotal: '총액 (예상)',
@@ -145,7 +188,8 @@ const I18N: Record<Language, {
         whatsapp: 'WhatsApp ID', whatsappPh: '+82 10 1234 5678',
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: '특별 요청 / 메모', memoPh: '알레르기, 아동 동반, 접근성 등',
-        required: '필수', missingFields: '필수 항목을 모두 입력해주세요' },
+        required: '필수', missingFields: '필수 항목을 모두 입력해주세요',
+        optional: '선택' },
   en: { title: 'Book This Tour', pax: 'Passengers', date: 'Tour date', lang: 'Driver language', addons: 'Add-ons',
         priceBase: 'Base', priceAddons: 'Add-ons', priceTotal: 'Estimated total',
         cancel: 'Cancel', submit: 'Continue to payment', pickDate: 'Select date',
@@ -156,7 +200,8 @@ const I18N: Record<Language, {
         whatsapp: 'WhatsApp ID', whatsappPh: '+1 555 123 4567',
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: 'Special requests / notes', memoPh: 'Allergies, kids, accessibility, etc.',
-        required: 'required', missingFields: 'Please fill in all required fields' },
+        required: 'required', missingFields: 'Please fill in all required fields',
+        optional: 'optional' },
   ja: { title: 'ツアー予約', pax: '人数', date: 'ツアー日', lang: 'ドライバー言語', addons: '追加オプション',
         priceBase: '基本', priceAddons: 'オプション', priceTotal: '合計（予想）',
         cancel: 'キャンセル', submit: '決済ページへ', pickDate: '日付を選択',
@@ -167,7 +212,8 @@ const I18N: Record<Language, {
         whatsapp: 'WhatsApp ID', whatsappPh: '+81 90 1234 5678',
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: '特別なリクエスト / メモ', memoPh: 'アレルギー、お子様連れ、バリアフリーなど',
-        required: '必須', missingFields: '必須項目をすべて入力してください' },
+        required: '必須', missingFields: '必須項目をすべて入力してください',
+        optional: '任意' },
   zh: { title: '预订旅游', pax: '人数', date: '旅游日期', lang: '司机语言', addons: '附加选项',
         priceBase: '基本', priceAddons: '附加选项', priceTotal: '估计总额',
         cancel: '取消', submit: '继续到付款页', pickDate: '选择日期',
@@ -178,7 +224,8 @@ const I18N: Record<Language, {
         whatsapp: 'WhatsApp ID', whatsappPh: '+86 138 1234 5678',
         line: 'LINE ID', linePh: 'cocotrip_user',
         memo: '特别要求 / 备注', memoPh: '过敏、儿童同行、无障碍需求等',
-        required: '必填', missingFields: '请填写所有必填项' },
+        required: '必填', missingFields: '请填写所有必填项',
+        optional: '选填' },
 };
 
 const DRIVER_LANG_LABELS: Record<DriverLanguage, Record<Language, string>> = {
@@ -328,15 +375,11 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   //   activeSlots.length > 1 이면 사용자가 직접 선택 필요.
   const slotRequirementMet = activeSlots.length === 0 || !!selectedSlotId;
   const canAdvanceStep1 = productType !== null && totalKRW > 0 && !!date && availability.available && slotRequirementMet;
-  // Step 2 → checkout gate: all four contact fields populated (whatsapp/line both,
-  // phone, pickup). Memo is required per spec ("둘다 메모 필수"). Trim ensures the
-  // user actually typed something rather than just spaces.
-  const step2Complete = (
-    phone.trim().length > 0 &&
-    pickupAddress.trim().length > 0 &&
-    whatsappId.trim().length > 0 &&
-    lineId.trim().length > 0 &&
-    memoText.trim().length > 0
+  // Step 2 → checkout gate. isTourStep2Complete 헬퍼에 위임 (테스트 가능).
+  // PR-F: minimal=true = 전화 1개만 필수. minimal=false = 5개 전부 필수 (기본).
+  const step2Complete = isTourStep2Complete(
+    { phone, pickupAddress, whatsappId, lineId, memoText },
+    FEATURE_TOUR_BOOKING_MINIMAL,
   );
 
   // Bundled memo payload — backend's PayPalBookingButton accepts `memo` and
@@ -617,7 +660,8 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
         </div>
         )}
 
-        {/* Step 2 — Contact + Pickup. All fields required. */}
+        {/* Step 2 — Contact + Pickup.
+            PR-F: 플래그 ON = 전화 필수, 나머지 선택. OFF = 전부 필수. */}
         {step === 2 && (
         <div className="space-y-3 mt-2">
           <ContactField
@@ -630,7 +674,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           />
           <ContactField
             icon={<MapPin className="w-3.5 h-3.5" />}
-            label={`${labels.pickup} *`}
+            label={FEATURE_TOUR_BOOKING_MINIMAL
+              ? `${labels.pickup} (${labels.optional})`
+              : `${labels.pickup} *`}
             placeholder={labels.pickupPh}
             value={pickupAddress}
             onChange={setPickupAddress}
@@ -638,7 +684,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           <div className="grid grid-cols-2 gap-2.5">
             <ContactField
               icon={<MessageCircle className="w-3.5 h-3.5" />}
-              label={`${labels.whatsapp} *`}
+              label={FEATURE_TOUR_BOOKING_MINIMAL
+                ? `${labels.whatsapp} (${labels.optional})`
+                : `${labels.whatsapp} *`}
               placeholder={labels.whatsappPh}
               value={whatsappId}
               onChange={setWhatsappId}
@@ -646,7 +694,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             />
             <ContactField
               icon={<MessageCircle className="w-3.5 h-3.5" />}
-              label={`${labels.line} *`}
+              label={FEATURE_TOUR_BOOKING_MINIMAL
+                ? `${labels.line} (${labels.optional})`
+                : `${labels.line} *`}
               placeholder={labels.linePh}
               value={lineId}
               onChange={setLineId}
@@ -655,7 +705,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           </div>
           <div>
             <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
-              <FileText className="w-3.5 h-3.5" />{labels.memo} *
+              <FileText className="w-3.5 h-3.5" />
+              {FEATURE_TOUR_BOOKING_MINIMAL
+                ? `${labels.memo} (${labels.optional})`
+                : `${labels.memo} *`}
             </label>
             <textarea
               rows={3}

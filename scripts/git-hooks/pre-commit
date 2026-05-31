@@ -60,6 +60,8 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/hooks/useQuoteCalculator.ts") continue;
       if (f === "src/data/charterPricing.ts") continue;
       if (f === "src/components/tours/TourCard.tsx") continue;
+      // PR-F (2026-06-01): TourBookingDialog.tsx ?? 15건 = pre-existing 정당 nullish (autosave resume). PR-F 신규 ?? 0.
+      if (f === "src/components/tours/TourBookingDialog.tsx") continue;
       if (f === "api/createPaypalOrder.js") continue;
       if (f === "api/capturePaypalOrder.js") continue;
       // Booking-management batch (2026-04-24): cancel/modify/my-bookings + airport pickup.
@@ -78,6 +80,8 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/pages/TourDetailPage.tsx") continue;
       if (f === "src/components/tours/TourStopList.tsx") continue;
       if (f === "src/components/tours/TourCard.tsx") continue;
+      // PR-F (2026-06-01): TourBookingDialog.tsx ?? 15건 = pre-existing 정당 nullish (autosave resume). PR-F 신규 ?? 0.
+      if (f === "src/components/tours/TourBookingDialog.tsx") continue;
       // Booking page (2026-04-25): ?? used for optional form payload (totalSeats ?? 0, title ?? 'Unknown').
       if (f === "src/pages/Booking.tsx") continue;
       // Round 12 WCAG batch (2026-04-26): pre-existing ?? in these files surfaced when
