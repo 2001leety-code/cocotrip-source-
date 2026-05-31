@@ -2291,6 +2291,35 @@ function R_Phase0_resumeStrictGate(ctx) {
 }
 
 /**
+ * R_Phase1_testNoFirebaseClientImport (2026-06-01): 단위 테스트(tests/unit/*.test.ts(x))가
+ * firebase 끌어오는 클라이언트 컴포넌트(TourDetailPage/TourBookingDialog/PayPalBookingButton/
+ * lib/firebase)를 static/dynamic import 하면 CI(firebase 키 없음) getAuth() throw → "0 test" crash.
+ * PR-B(#741)·PR-F(#746) 2회 재발 → 일반화. 순수함수는 firebase-free 모듈로 분리 후 그것만 import.
+ */
+function R_Phase1_testNoFirebaseClientImport(ctx) {
+  const LADEN = ['pages/TourDetailPage', 'tours/TourBookingDialog', 'components/PayPalBookingButton', 'lib/firebase'];
+  const tests = (ctx.changed || []).filter((c) => c.status !== 'D' && /tests\/unit\/.*\.test\.tsx?$/.test(c.file));
+  const violations = [];
+  for (const c of tests) {
+    let src = '';
+    try { src = readFileSync(c.file, 'utf8'); } catch { continue; }
+    for (const mod of LADEN) {
+      if (new RegExp(`from\\s+['"][^'"]*${mod}['"]|import\\(\\s*['"][^'"]*${mod}['"]`).test(src)) {
+        violations.push(`${c.file}: firebase 의존 클라이언트 모듈(...${mod}) import → CI(firebase 키 없음) "0 test" crash (PR-B/PR-F 재발 class)`);
+      }
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'R_Phase1_testNoFirebaseClientImport',
+      violations.join(' | '),
+      '순수함수는 firebase-free 모듈로 분리(buildTourJsonLd.ts / tourBookingValidation.ts 처럼) 후 테스트가 그 모듈만 import. 클라이언트 컴포넌트 직접 import 금지.',
+    );
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2368,6 +2397,7 @@ const RULES = [
   ['R_Phase0_jsonldTestNoFirebase', R_Phase0_jsonldTestNoFirebase],
   ['R_Phase0_charterPriceSSOT', R_Phase0_charterPriceSSOT],
   ['R_Phase0_resumeStrictGate', R_Phase0_resumeStrictGate],
+  ['R_Phase1_testNoFirebaseClientImport', R_Phase1_testNoFirebaseClientImport],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
