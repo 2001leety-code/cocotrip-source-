@@ -62,7 +62,8 @@ describe('P298 dietary/allergies 합집합 통합 (SAFETY-CRITICAL)', () => {
   });
 
   it('지점7 — applyRecommendedRestaurants dietPrefs: dietaryAll', () => {
-    expect(src).toMatch(/applyRecommendedRestaurants\(itinerary,\s*\{\s*area,\s*dietPrefs:\s*dietaryAll,\s*regions\s*\}\)/);
+    // P324: regions 뒤 blockModeUsed 인자 추가 허용 (dietPrefs: dietaryAll 전달이 지점7 핵심).
+    expect(src).toMatch(/applyRecommendedRestaurants\(itinerary,\s*\{\s*area,\s*dietPrefs:\s*dietaryAll,\s*regions\b[^}]*\}\)/);
   });
 
   it('지점8 — savePlan dietary: dietaryAll', () => {

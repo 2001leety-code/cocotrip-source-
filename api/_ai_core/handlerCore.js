@@ -385,7 +385,7 @@ export default async function handler(req, res) {
     applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
-    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions });
+    const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed });
 
     // ── 가격 계산 ────────────────────────────────────────────────────────
     const { priceKRW, priceUSD } = computePricing(vehicle, durationDays);

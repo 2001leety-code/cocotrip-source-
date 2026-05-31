@@ -946,6 +946,52 @@ export function checkSoftQualityWarnings(itinerary) {
   return warnings;
 }
 
+/**
+ * P324 (2026-05-31): block_mode dietary SAFETY — block_mode 는 handlerCore:319 `if(!itinerary)` 가드로
+ * runGeminiPipeline(= validateResponse, 유일한 dietary/allergen 검증처)을 우회 → dietary_coverage_low /
+ * allergen_warning 0건 → 알레르기(견과/갑각류/글루텐/유제품) 무방비 + 할랄/비건 coverage 미박제.
+ * fix: 후처리에서 동일 검증 함수 재사용 (warning-only, P280 retry loop 회피, buildPrompt 변경 0).
+ * violation critical-retry 는 제외 — block_mode 3중 게이트(fetch/eligible/placeholder throw)가 식당
+ * 매칭 보장하므로 알레르기 가시화가 최우선 gap. legacy 는 validateResponse 가 이미 처리하므로 본 helper 미호출.
+ *
+ * @param {object} itinerary - mutated in-place (quality_warnings push)
+ * @param {string[]} dietary - dietaryAll (dietPrefs + allergies 합집합, P298)
+ * @returns {number} 박제된 warning 수
+ */
+export function applyBlockModeDietaryWarnings(itinerary, dietary) {
+  if (!itinerary || typeof itinerary !== 'object') return 0;
+  if (!Array.isArray(dietary) || dietary.length === 0) return 0;
+  const allStops = (itinerary.days || []).flatMap((d) => (d.stops || []));
+  const out = [];
+  const coverageIssues = checkDietaryCoverage(allStops, dietary) || [];
+  for (const ci of coverageIssues) {
+    out.push({
+      type: 'dietary_coverage_low',
+      severity: 'warning',
+      dietary_pref: ci.dietary_pref,
+      coverage: ci.coverage,
+      match_count: ci.match_count,
+      food_stops_count: ci.food_stops_count,
+      message: `P324(block_mode): ${ci.dietary_pref} coverage ${Math.round(ci.coverage * 100)}% (${ci.match_count}/${ci.food_stops_count} food stops). 운영자 admin 확인 + 사용자 수동 회피 권고.`,
+    });
+  }
+  const allergenWarnings = checkAllergenWarnings(allStops, dietary) || [];
+  for (const aw of allergenWarnings) {
+    out.push({
+      type: 'allergen_warning',
+      severity: 'warning',
+      stop: aw.stop,
+      allergen: aw.allergen,
+      message: `P324(block_mode): '${aw.stop}' 에 ${aw.allergen} 알레르기 유발 재료 가능성 — 사용자 확인 권고 (운영자 admin panel).`,
+    });
+  }
+  if (out.length > 0) {
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    itinerary.quality_warnings.push(...out);
+  }
+  return out.length;
+}
+
 export function validateResponse(data, request, foodIndex) {
   const issues = [];
   const allStops = (data.days || []).flatMap(d => (d.stops || []));
