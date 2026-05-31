@@ -61,6 +61,8 @@ const TRANSPORT_META: Record<string, { icon: typeof Train; color: string; label:
   limousine_bus:    { icon: Bus,   color: '#34d399', label: 'Limousine Bus' },
   taxi:             { icon: Car,   color: '#fb923c', label: 'Taxi' },
   cocotrip_charter: { icon: Car,   color: '#EA537E', label: 'CocoTrip Charter' },
+  // P-launch (2026-05-31): AREX 직통 합성 실패 시 중립 추천(라벨↔데이터 모순 방지).
+  public_transit:   { icon: Train, color: '#7C5CFC', label: 'Public Transit' },
 };
 
 const STEP_ICON: Record<number, typeof Plane> = {

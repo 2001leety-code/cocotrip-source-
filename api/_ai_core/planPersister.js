@@ -677,8 +677,11 @@ export function selfHealDepartureGuide(itinerary, departure_airport, ctx = {}) {
   if (!departure_airport || departure_airport === 'ALREADY' || departure_airport === 'already_in_korea') {
     return false;
   }
-  const { hotel_address, recommendedZone } = ctx;
-  const hotelLabel = (hotel_address && String(hotel_address).trim())
+  const { hotel_address, recommendedZone, departureHotelLabel } = ctx;
+  // P-launch (2026-05-31): 멀티시티 departure 는 마지막 도시 호텔 우선 (부산서 끝나면 "부산 호텔에서
+  //   출발", 첫 도시 "명동" X — route_to_airport 와 일치). 단도시면 departureHotelLabel 없어 기존 동작.
+  const hotelLabel = (departureHotelLabel && String(departureHotelLabel).trim())
+    || (hotel_address && String(hotel_address).trim())
     || (recommendedZone && String(recommendedZone).trim())
     || 'your hotel';
   const existing = (itinerary.departure_guide && typeof itinerary.departure_guide === 'object')

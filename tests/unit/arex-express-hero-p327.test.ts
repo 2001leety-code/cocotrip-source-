@@ -79,9 +79,18 @@ describe('P327 게이트 — early return (ODsay 미호출 = 안전)', () => {
     expect(await a._buildArexExpressHero('ICN_T1', null)).toBeNull();
     expect(await a._buildArexExpressHero('ICN_T1', { lat: null, lng: null })).toBeNull();
   });
-  it('last-mile ODsay 실패(null) → null = 기존 route 유지 fallback', async () => {
+  it('P-launch: last-mile ODsay 실패 + 도보권(≤2.5km, 명동) → walk fallback 으로 직통 빌드', async () => {
+    const a = makeAgent(null); // _routeAirportHotel → null
+    const r = await a._buildArexExpressHero('ICN_T1', MYEONGDONG);
+    expect(r).not.toBeNull(); // 도보 last-mile 합성 (이전엔 null)
+    const sd = r!.steps_detail as Array<Record<string, unknown>>;
+    expect(sd[sd.length - 1].mode).toBe('walk');
+    expect(r!.transfers).toBe(0);
+  });
+  it('P-launch: last-mile 실패 + 도보 불가(>2.5km) → null (안전, 기존 route 유지)', async () => {
     const a = makeAgent(null);
-    expect(await a._buildArexExpressHero('ICN_T1', MYEONGDONG)).toBeNull();
+    const HONGDAE_FAR = { lat: 37.5563, lng: 126.9236 }; // 서울역 ~4.1km (6km 게이트 안, 도보 cap 밖)
+    expect(await a._buildArexExpressHero('ICN_T1', HONGDAE_FAR)).toBeNull();
   });
 });
 

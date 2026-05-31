@@ -522,6 +522,7 @@ export async function generatePDF(
           arex_express: 'AREX Express',
           arex_all_stop: 'AREX All Stop',
           limousine_bus: 'Limousine Bus',
+          public_transit: 'Public Transit', // P-launch: AREX 직통 합성 실패 시 중립 추천
         };
         const recLabel = labels[rec.key] || rec.key;
         html += `<div style="background:linear-gradient(135deg,rgba(124,92,252,0.10),rgba(234,83,126,0.06));border:1px solid ${C.accent};border-radius:8px;padding:12px;margin-bottom:12px;">
@@ -557,6 +558,7 @@ export async function generatePDF(
           arex_all_stop: 'AREX All Stop',
           limousine_bus: 'Limousine Bus',
           taxi: 'Taxi',
+          public_transit: 'Public Transit', // P-launch: AREX 직통 합성 실패 시 중립 추천
         };
         const opts = Object.entries(step.transport_to_hotel).filter(([, v]) => v != null);
         if (opts.length > 0) {

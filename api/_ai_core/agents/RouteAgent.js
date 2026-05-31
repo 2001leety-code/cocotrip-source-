@@ -709,12 +709,25 @@ export class RouteAgent extends BaseAgent {
                     // 가장 빠름" 과 모순이었다. heavy-luggage(charter)/late-night(limousine) 추천은
                     // 그대로 두고, 표준 arex_express 추천일 때만 직통+last-mile 합성으로 라벨↔데이터 정합.
                     let heroRoute = route;
+                    let effectiveRec = rec;
                     const isIcnArrival = arrivalAirportKey === 'ICN' || arrivalAirportKey === 'ICN_T1' || arrivalAirportKey === 'ICN_T2';
                     if (isIcnArrival && rec.key === 'arex_express') {
                         const express = await this._buildArexExpressHero(arrivalAirportKey, arrFromCoord, clientId, clientSecret);
                         if (express) {
                             heroRoute = express;
                             console.log(`  - [Airport→Hotel] P327 AREX 직통 HERO: ${express.est_min}min / ₩${express.est_fare_krw} / ${express.transfers}tr (ODsay path[0] 는 ${route.est_min}min/${route.transfers}tr 였음)`);
+                        } else {
+                            // P-launch (2026-05-31): 직통 합성 실패(>6km 또는 경로 없음) → route 는 ODsay indirect.
+                            //   "AREX Express 가장 빠름" 라벨을 그대로 두면 라벨↔데이터 모순(plan db7fae92).
+                            //   실제 경로(대중교통 indirect)에 맞는 중립 추천으로 강등 → 모순 제거.
+                            effectiveRec = {
+                                key: 'public_transit',
+                                reason_ko: '대중교통(공항철도+환승) 경로 — 짐·도착 시각에 따라 리무진 버스/택시도 고려하세요',
+                                reason_en: 'Public transit (airport rail + transfer). Consider limousine bus or taxi depending on luggage/time',
+                                reason_ja: '公共交通（空港鉄道＋乗換）。荷物や到着時刻に応じてリムジンバス・タクシーもご検討ください',
+                                reason_zh: '公共交通（机场铁路+换乘）。可根据行李和到达时间考虑机场大巴或出租车',
+                            };
+                            console.warn(`  - [Airport→Hotel] P327 직통 합성 실패 → rec arex_express→public_transit (route ${route.est_min}min/${route.transfers}tr/${route.source})`);
                         }
                     }
 
@@ -743,13 +756,13 @@ export class RouteAgent extends BaseAgent {
                     // B9-15/25 + P269: anchor 우선순위 — hotel 좌표 있으면 그것, 없으면 fallback chain 결과.
                     rawItinerary.arrival_guide.route_to_hotel = {
                         ...heroRoute,
-                        recommended_option: rec,
+                        recommended_option: effectiveRec,
                         anchor_lat: arrFromCoord.lat,
                         anchor_lng: arrFromCoord.lng,
                         anchor_label: arrFromLabel || anchorLabel || null,
                         anchor_source: arrFromSource === 'hotel' ? (anchorSource || 'hotel') : arrFromSource,
                     };
-                    console.log(`  - [Airport→Hotel] ${heroRoute.est_min}min via ${heroRoute.method}, recommended=${rec.key}, origin=${arrFromSource}, source=${heroRoute.source}`);
+                    console.log(`  - [Airport→Hotel] ${heroRoute.est_min}min via ${heroRoute.method}, recommended=${effectiveRec.key}, origin=${arrFromSource}, source=${heroRoute.source}`);
                 } else {
                     // ODsay 끝까지 실패 — _failed 마커로 graceful 표시.
                     rawItinerary.arrival_guide.route_to_hotel = {
@@ -790,13 +803,35 @@ export class RouteAgent extends BaseAgent {
         if (departureAirportKey && AIRPORT_COORDS[departureAirportKey] && rawItinerary.departure_guide) {
             // P275 Phase B: station 좌표 우선 사용 (arrival 측과 동일 패턴).
             const ap = AIRPORT_STATION_COORDS[departureAirportKey] || AIRPORT_COORDS[departureAirportKey];
+            // ── P-launch (2026-05-31): 멀티시티 departure origin fix (비행기 놓침 risk) ──
+            //   departure_guide 는 마지막 도시 호텔에서 출발해야 한다. plan a8b96f91 처럼 부산서 끝나는데
+            //   "명동 출발 85분" 안내 → 부산 손님이 비행기 시간 오해(부산→ICN 4-5h). regions[마지막]=출발도시
+            //   (inferDepartureAirport 동일 convention). 기존 getDayHotelCoord 재사용. 단도시/동일도시 무영향.
+            let depHotelLat = hotelLat, depHotelLng = hotelLng, depHotelAddr = hotelAddress, departureCity = null;
+            const depRegions = Array.isArray(data.regions) ? data.regions : (Array.isArray(rawItinerary.regions) ? rawItinerary.regions : []);
+            const depFirstRegion = depRegions[0] ? String(depRegions[0]).toLowerCase().trim() : null;
+            const depLastRegion = depRegions.length >= 2 ? String(depRegions[depRegions.length - 1]).trim() : null;
+            if (depLastRegion && !isSameAsFirstCity(depLastRegion, depFirstRegion)) {
+                const depZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones)) ? data.recommended_zones : null;
+                const depHotel = getDayHotelCoord({ city: depLastRegion }, {
+                    isMultiCity: true, recommendedZonesMap: depZonesMap, tripFirstRegion: depFirstRegion,
+                    tripHotel: { lat: hotelLat, lng: hotelLng, label: anchorLabel, source: anchorSource },
+                });
+                if (depHotel.lat != null && depHotel.lng != null) {
+                    depHotelLat = depHotel.lat; depHotelLng = depHotel.lng;
+                    depHotelAddr = depHotel.label || depLastRegion; departureCity = depLastRegion;
+                    console.log(`  - [Hotel→Airport] 멀티시티 departure origin = ${depLastRegion} (${depHotel.source}/${depHotel.label})`);
+                }
+            }
             const { coord: depFromCoord, source: depFromSource, label: depFromLabel } = await this._resolveHotelOrFallback({
-                hotelLat,
-                hotelLng,
-                hotelAddress,
+                hotelLat: depHotelLat,
+                hotelLng: depHotelLng,
+                hotelAddress: depHotelAddr,
                 arrivalGuide: rawItinerary.arrival_guide,
-                recommendedZone: data.recommended_zone,
-                region,
+                recommendedZone: departureCity
+                    ? ((data.recommended_zones && data.recommended_zones[String(departureCity).toLowerCase()]) || data.recommended_zone)
+                    : data.recommended_zone,
+                region: departureCity || region,
                 clientId,
                 clientSecret,
             });
@@ -2287,9 +2322,26 @@ export class RouteAgent extends BaseAgent {
         // 중심부 게이트: 서울역 반경 이내만 (명동/종로/중구/마포 등). 그 밖은 기존 route 유지.
         const kmFromSeoulStn = _haversineKmPure(seoul.lat, seoul.lng, destCoord.lat, destCoord.lng);
         if (!(kmFromSeoulStn <= AREX_EXPRESS_MAX_KM_FROM_SEOUL_STN)) return null;
-        // last-mile: 서울역 → 호텔 (실 ODsay — 명동=4호선 2정거장 등). 실패 시 직통 HERO 포기.
-        const lastMile = await this._routeAirportHotel({ lat: seoul.lat, lng: seoul.lng }, destCoord, 'arrival');
-        if (!lastMile) return null;
+        // last-mile: 서울역 → 호텔 (실 ODsay — 명동=4호선 2정거장 등).
+        let lastMile = await this._routeAirportHotel({ lat: seoul.lat, lng: seoul.lng }, destCoord, 'arrival');
+        if (!lastMile) {
+            // P-launch (2026-05-31): ODsay 가 서울역→목적지(짧은 거리) 경로를 안 주는 dead-band(1.5~6km)
+            //   에선 직통 HERO 가 null → indirect 79분 + arex_express 라벨 모순(plan db7fae92) 재발.
+            //   ~2.5km 이내면 도보 last-mile 합성해 직통을 살린다. 그 밖은 기존 route 유지(안전).
+            if (kmFromSeoulStn <= 2.5) {
+                const walkM = Math.round(kmFromSeoulStn * 1000 * 1.3);
+                const walkMin = Math.max(3, Math.round(walkM / 70));
+                lastMile = {
+                    method: 'walk', mode: 'walk', instruction: `서울역 → 목적지 도보 약 ${walkMin}분`,
+                    step_by_step: [`도보 약 ${walkMin}분 (약 ${walkM}m)`],
+                    steps_detail: [{ mode: 'walk', duration: walkMin, distance: walkM, from: '서울역', to: '목적지' }],
+                    transfers: 0, total_walk_m: walkM, est_min: walkMin, est_fare_krw: 0,
+                    source: 'walk_synth', direction: 'arrival', fromStationName: null, toStationName: null,
+                };
+            } else {
+                return null;
+            }
+        }
         const lastIsWalk = lastMile.method === 'walk';
         const fare = AREX_EXPRESS_FARE_KRW;
         // 직통 구간 step (rich card 용 — SubwayStep 최소 필드. stationCount:0 = 무정차).
