@@ -55,6 +55,68 @@ const VEHICLE_FALLBACK: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// JSON-LD 빌더 — 순수함수, 테스트 가능.
+// VITE_FEATURE_REAL_TOUR_RATINGS === 'true' 일 때만 실 평점 사용.
+// OFF(기본) 또는 리뷰 없음 → 하드코딩 4.9/32 유지.
+export function buildTourJsonLd(params: {
+  slug: string;
+  tourTitle: string;
+  tourSummary: string;
+  tourImage: string;
+  tourPrice: number | string;
+  rating?: number;
+  reviewCount?: number;
+  featureFlag?: boolean;
+}): Record<string, unknown> {
+  const {
+    slug, tourTitle, tourSummary, tourImage, tourPrice,
+    rating, reviewCount, featureFlag,
+  } = params;
+
+  const useRealRatings = featureFlag === true;
+  const hasValidRating =
+    useRealRatings &&
+    typeof rating === 'number' &&
+    rating > 0 &&
+    typeof reviewCount === 'number' &&
+    reviewCount >= 1;
+
+  const aggregateRating: Record<string, string> | null = hasValidRating
+    ? {
+        '@type': 'AggregateRating',
+        ratingValue: String(rating),
+        reviewCount: String(reviewCount),
+      }
+    : useRealRatings
+      ? null  // 플래그 ON + 리뷰 없음 → omit
+      : {
+          '@type': 'AggregateRating',
+          ratingValue: '4.9',
+          reviewCount: '32',
+        };
+
+  const jsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: tourTitle,
+    description: tourSummary,
+    image: tourImage,
+    brand: { '@type': 'Brand', name: 'CocoTrip' },
+    offers: {
+      '@type': 'Offer',
+      url: `https://cocotripkr.com/tours/${slug}`,
+      priceCurrency: 'USD',
+      price: tourPrice,
+      availability: 'https://schema.org/InStock',
+    },
+  };
+  if (aggregateRating !== null) {
+    jsonLd.aggregateRating = aggregateRating;
+  }
+  return jsonLd;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function TourDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const { language, t, changeLanguage } = useLanguage();
@@ -96,34 +158,25 @@ export default function TourDetailPage() {
   // Schema.org Product JSON-LD (inject/cleanup)
   useEffect(() => {
     if (!tour || !slug) return;
+    const featureFlag = import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true';
     const script = document.createElement('script');
     script.type = 'application/ld+json';
     script.id = 'tour-jsonld';
-    script.textContent = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@type': 'Product',
-      name: txt(tour.title, 'en'),
-      description: txt(tour.summary, 'en'),
-      image: tour.images[0] || 'https://cocotripkr.com/og-image.png',
-      brand: { '@type': 'Brand', name: 'CocoTrip' },
-      offers: {
-        '@type': 'Offer',
-        url: `https://cocotripkr.com/tours/${slug}`,
-        priceCurrency: 'USD',
-        price: tour.priceFrom,
-        availability: 'https://schema.org/InStock',
-      },
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: '4.9',
-        reviewCount: '32',
-      },
-    });
+    script.textContent = JSON.stringify(buildTourJsonLd({
+      slug,
+      tourTitle: txt(tour.title, 'en'),
+      tourSummary: txt(tour.summary, 'en'),
+      tourImage: tour.images[0] || 'https://cocotripkr.com/og-image.png',
+      tourPrice: tour.priceFrom,
+      rating: resolvedRating.rating,
+      reviewCount: resolvedRating.reviewCount,
+      featureFlag,
+    }));
     // Remove old if exists
     document.getElementById('tour-jsonld')?.remove();
     document.head.appendChild(script);
     return () => { script.remove(); };
-  }, [slug, tour]);
+  }, [slug, tour, resolvedRating]);
 
   // ── 404 ──────────────────────────────────────────────────────────────────
   if (!tour) {
