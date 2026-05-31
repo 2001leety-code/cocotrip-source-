@@ -31,7 +31,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { repairAndParseJSON } from './responseValidator.js';
+import { repairAndParseJSON, normalizeRegionKey } from './responseValidator.js';
 
 /** 기본 ENV mode — 운영자가 PLANNER_BLOCK_MODE 미설정 시 'auto' (자동 폴백). */
 export function getBlockModeEnv() {
@@ -1200,10 +1200,14 @@ export async function tryRunBlockMode({ adminDb, regions, area, userInput, apiKe
   const env = getBlockModeEnv();
   if (env === 'disabled') return { skipped: true, reason: 'env_disabled' };
 
-  // P167: regions 정규화 — 도시 key 추출 (예: 'seoul_city' → 'seoul').
+  // P167+P321: regions 정규화 — 도시 key 추출 (예: 'seoul_city' → 'seoul', '서울' → 'seoul').
+  // P321 (2026-05-31): normalizeRegionKey 로 한/영/일/중 → 영문 cityKey. 기존 .toLowerCase() 만으론
+  // 한국어 regions(['서울','부산'])가 Firestore zone_courses 영문 키('seoul')와 mismatch → 블록 0건
+  // → block_mode silent legacy 폴백 (ko/ja/zh 다도시 사용자 100% 영향 = 5일+ 느림 직접 원인).
+  // 영문/unmapped 는 그대로 반환 → en 사용자 동작 불변(회귀 0). split('_')[0] 로 area-key 선처리.
   const cities = Array.isArray(regions) && regions.length > 0
-    ? regions.map((r) => String(r || '').split('_')[0].toLowerCase()).filter(Boolean)
-    : [String(area || '').split('_')[0].toLowerCase()].filter(Boolean);
+    ? regions.map((r) => normalizeRegionKey(String(r || '').split('_')[0])).filter(Boolean)
+    : [normalizeRegionKey(String(area || '').split('_')[0])].filter(Boolean);
 
   if (cities.length === 0) return { skipped: true, reason: 'no_city' };
 
