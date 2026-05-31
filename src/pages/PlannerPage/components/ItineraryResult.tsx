@@ -18,6 +18,7 @@ import { AccommodationCard } from './AccommodationCard';
 import { BudgetCard } from './BudgetCard';
 import { SeasonalSpotsBanner } from './SeasonalSpotsBanner';
 import { TourRecommendationsSection } from './TourRecommendationsSection';
+import { OwnTourUpsellSection } from './OwnTourUpsellSection';
 import { FlightSearchSection } from './FlightSearchSection';
 import { EsimSection } from './EsimSection';
 import { CustomerSupportSection } from './CustomerSupportSection';
@@ -191,6 +192,8 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
       {/* 광고 노출 순서 (2026-04-27): 정보 → 자체 상품 → 외부 어필리에이트 → 마지막 안전망.
           자체 수익(차터·공항픽업·투어·콤보)을 외부 어필리(Trip.com·eSIM)보다 우선 노출. */}
       <SeasonalSpotsBanner result={result} lang={lang} p={p} />
+      {/* PR-A: 자사 투어 업셀 — 플래그 OFF 시 null 반환(현재 동작 보존) */}
+      <OwnTourUpsellSection result={result} p={p} lang={lang} />
       <TourRecommendationsSection result={result} p={p} />
       {!enriching && <div id="charter-banner-section"><CharterBanner result={result} p={p} lang={lang} vehicleType={transport} /></div>}
       <div id="airport-pickup-section"><AirportPickupCard arrivalAirport={arrivalAirport} p={p} lang={lang} /></div>
