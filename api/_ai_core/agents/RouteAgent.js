@@ -867,7 +867,7 @@ export class RouteAgent extends BaseAgent {
         // inter-day dep 인 prevDayHotelCoord 는 getDayHotelCoord (pure 함수) 결과 →
         // 사전 일괄 계산하여 race condition 회피. P148 CITY_CENTER fallback 도 deterministic.
         //
-        // NCP/ODsay rate limit 안전: 동시 days 수 제한 (DAY_CONCURRENCY=3).
+        // NCP/ODsay rate limit 안전: 동시 days 수 제한 (DAY_CONCURRENCY=ROUTE_DAY_CONCURRENCY env, 기본 5 — P320).
         // 3 days 씩 batch 처리.
         const dayHotels = daysList.map((dayPlan) => {
             const dh = getDayHotelCoord(dayPlan, dayHotelCtx);
@@ -887,7 +887,12 @@ export class RouteAgent extends BaseAgent {
             return dh;
         });
 
-        const DAY_CONCURRENCY = 3;
+        // P320 (2026-05-31): 5일+ plan latency fix. 기존 3 = 5일이 2배치(ceil(5/3)) →
+        // RouteAgent 시간 ~2배("5일 절벽"). env화 기본 5 = 5일 1배치. day 내부는 이미
+        // 완전 병렬(geocode/transit Promise.all)이라 day간 동시성↑ 시 외부 API 동시호출도↑
+        // (Naver NCP 50req/s + ODsay Referer-bound quota). ROUTE_DAY_CONCURRENCY 로 즉시
+        // 조정/롤백(재배포 불필요). 측정 후 상향, rate limit 문제 시 env 다운 = 안전망.
+        const DAY_CONCURRENCY = Math.max(1, Math.min(7, Number(process.env.ROUTE_DAY_CONCURRENCY) || 5));
         const processDayFn = async (dayPlan, dayIdx) => {
             const dayHotel = dayHotels[dayIdx];
             const prevDayHotelCoord = dayIdx > 0 ? dayHotels[dayIdx - 1] : null;
