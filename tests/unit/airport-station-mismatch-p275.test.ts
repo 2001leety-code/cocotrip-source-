@@ -35,7 +35,9 @@ describe('P275 airport station mismatch verify + quality_warnings 박제', () =>
   });
 
   it('arrival side — verify + quality_warnings 박제', () => {
-    expect(src).toMatch(/_verifyAirportStation\(arrivalAirportKey,\s*route\.fromStationName\)/);
+    // P327 (2026-05-31): arrival HERO 가 route → heroRoute(직통 합성 가능) 로 rename.
+    // P275 station 가드는 heroRoute.fromStationName 검증 (직통 HERO 는 fromStationName=공항역 → 통과).
+    expect(src).toMatch(/_verifyAirportStation\(arrivalAirportKey,\s*heroRoute\.fromStationName\)/);
     expect(src).toContain('arrival_station_terminal_mismatch');
     expect(src).toContain('비행기 놓침 risk');
   });
