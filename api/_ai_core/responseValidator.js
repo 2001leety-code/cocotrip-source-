@@ -344,7 +344,7 @@ const CITY_KOR_TO_ENG = Object.fromEntries(
  * 영문/알 수 없는 문자 → 그대로 lowercase.
  * B-REGION-COVERAGE 와 B-13 L5 에서 regions 엔트리와 day.city 비교 시 사용.
  */
-function normalizeRegionKey(r) {
+export function normalizeRegionKey(r) {
   const low = String(r || '').trim().toLowerCase();
   return CITY_KOR_TO_ENG[low] || low;
 }
