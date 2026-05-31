@@ -216,14 +216,37 @@ const CITY_KOR_MAP_FULL = {
 };
 
 const CITY_LODGING_DEFAULT = {
-  seoul:     { defaultZone: '명동',     placeholder: '명동 호텔 (위치 미정)' },
-  busan:     { defaultZone: '해운대',   placeholder: '해운대 호텔 (위치 미정)' },
-  jeju:      { defaultZone: '제주시',   placeholder: '제주시 호텔 (위치 미정)' },
-  gyeongju:  { defaultZone: '보문',     placeholder: '보문 호텔 (위치 미정)' },
-  jeonju:    { defaultZone: '한옥마을', placeholder: '한옥마을 호텔 (위치 미정)' },
-  gangneung: { defaultZone: '경포',     placeholder: '경포 호텔 (위치 미정)' },
-  sokcho:    { defaultZone: '속초해변', placeholder: '속초해변 호텔 (위치 미정)' },
+  seoul:     { defaultZone: '명동',     placeholder: '명동 지역 숙소' },
+  busan:     { defaultZone: '해운대',   placeholder: '해운대 지역 숙소' },
+  jeju:      { defaultZone: '제주시',   placeholder: '제주시 지역 숙소' },
+  gyeongju:  { defaultZone: '보문',     placeholder: '보문 지역 숙소' },
+  jeonju:    { defaultZone: '한옥마을', placeholder: '한옥마을 지역 숙소' },
+  gangneung: { defaultZone: '경포',     placeholder: '경포 지역 숙소' },
+  sokcho:    { defaultZone: '속초해변', placeholder: '속초해변 지역 숙소' },
 };
+
+// P-launch (2026-05-31): 합성 lodging bookend stop 용 4개국어 generic tip.
+// block_mode 는 zone_courses 블록에 lodging stop 이 없어 backend 가 호텔 bookend 를 합성하는데,
+// 합성 stop 에 tip 이 없어 호텔 카드가 빈약해 보였다(plan a8b96f91 호텔 10 stop tip 0). 정적 generic
+// tip 으로 채움 (venue-specific 주장 없음 = 사실 오류 위험 0, buildPrompt 변경 0 = cache-safe).
+const LODGING_BOOKEND_TIP = {
+  depart: {
+    ko: '체크아웃 후 짐은 호텔 프런트에 맡기면 당일 일정이 한결 가볍습니다.',
+    en: 'Leave your luggage at the front desk after check-out to explore the day lighter.',
+    ja: 'チェックアウト後、荷物はフロントに預けると当日の観光が身軽になります。',
+    zh: '退房后可将行李寄存在前台，当天行程更轻松。',
+  },
+  return: {
+    ko: '늦게 도착할 예정이면 호텔에 체크인 시간을 미리 알려두면 편합니다.',
+    en: 'If you expect to arrive late, let the hotel know your check-in time in advance.',
+    ja: '遅い到着の場合は、ホテルにチェックイン時間を事前に伝えておくと安心です。',
+    zh: '若预计较晚到达，建议提前告知酒店入住时间。',
+  },
+};
+function lodgingBookendTip(role, lang) {
+  const t = LODGING_BOOKEND_TIP[role] || LODGING_BOOKEND_TIP.return;
+  return t[lang] || t.en;
+}
 
 // P156 (2026-05-22): 동네/랜드마크 → 도시 매핑. P152 의 도시명 매칭이 못 잡는
 // "황리단길 호텔" (Gyeongju 동네명만 있고 "경주" 미명시) 같은 케이스 보강.
@@ -338,13 +361,13 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
         newName    = userHotel;
       } else if (rz[dayCityLc]) {
         const zone = String(rz[dayCityLc]).trim();
-        newName    = `${zone} 일대 호텔 (위치 미정)`;
+        newName    = `${zone} 일대 숙소`;
         newAddress = `${dayCityKor || dayCityLc} ${zone}`;
       } else if (defaultMeta) {
         newName    = defaultMeta.placeholder;
         newAddress = `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}`;
       } else {
-        newName    = `${dayCityKor || dayCityLc} 호텔 (위치 미정)`;
+        newName    = `${dayCityKor || dayCityLc} 지역 숙소`;
         newAddress = dayCityKor || dayCityLc;
       }
 
@@ -411,10 +434,13 @@ export function correctCrossCityLodgingStops(itinerary, hotelByCity = {}, recomm
 export function selfHealLodgingBookend(itinerary, ctx = {}) {
   const healed = [];
   const days = itinerary?.days || [];
+  // P-launch (2026-05-31): 합성 호텔 stop tip 언어 + block_mode 정상 bookend 표시.
+  const language = (ctx.language && ['ko', 'en', 'ja', 'zh'].includes(ctx.language)) ? ctx.language : 'ko';
+  const isBlockMode = !!ctx.blockMode;
   // P290 (2026-05-29): ctx fallback — day.lodging 없을 때 사용. day.lodging?.name
   //   우선 (multi-city 보존). hotel_address 가 정확 주소 형태이므로 synName/synAddress
   //   둘 다 사용 (placeholder "해운대 호텔" 보다 "OO 호텔" 이 user-meaningful).
-  //   recommendedZone (예: "Myeongdong") 은 synName 만 "{zone} 호텔 (위치 미정)" 형태.
+  //   recommendedZone (예: "Myeongdong") 은 synName 만 "{zone} 지역 숙소" 형태.
   const ctxHotelLabel = (ctx.hotel_address && String(ctx.hotel_address).trim()) || '';
   const ctxZoneLabel = (ctx.recommendedZone && String(ctx.recommendedZone).trim()) || '';
   for (let d = 0; d < days.length; d++) {
@@ -427,17 +453,17 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
     const dayCityKor = CITY_KOR_MAP_FULL[dayCityLc] || '';
     // P290 fallback chain (day.lodging 없을 때만 발동):
     //   1. ctxHotelLabel (사용자 입력 호텔 주소/명)
-    //   2. ctxZoneLabel 가공 → "{zone} 호텔 (위치 미정)"
+    //   2. ctxZoneLabel 가공 → "{zone} 지역 숙소"
     //   3. defaultMeta.placeholder (CITY_LODGING_DEFAULT)
-    //   4. generic "{city} 호텔 (위치 미정)"
+    //   4. generic "{city} 지역 숙소"
     const ctxFallbackName = ctxHotelLabel
-      || (ctxZoneLabel ? `${ctxZoneLabel} 호텔 (위치 미정)` : '');
+      || (ctxZoneLabel ? `${ctxZoneLabel} 지역 숙소` : '');
     const ctxFallbackAddress = ctxHotelLabel
       || (ctxZoneLabel ? `${dayCityKor || dayCityLc} ${ctxZoneLabel}` : '');
 
     // 첫 stop 이 lodging 이 아니면 prepend
     if (stops[0]?.category !== 'lodging') {
-      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
+      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 지역 숙소`);
       const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
       // 첫 stop start_time 보다 1시간 이르게 설정 (logical 출발 시각)
       let synStart = '09:00';
@@ -457,6 +483,7 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
         start_time: synStart,
         stay_min: 0,
         order: 0,
+        tip: lodgingBookendTip('depart', language),
         _self_healed: true,
       });
       // 후속 order 재매핑
@@ -469,7 +496,7 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
     // 마지막 stop 이 lodging/travel/airport 가 아니면 append (lodging)
     const last = stops[stops.length - 1];
     if (last && !['lodging', 'travel', 'airport'].includes(last.category)) {
-      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 호텔 (위치 미정)`);
+      const synName    = day?.lodging?.name    || ctxFallbackName    || (defaultMeta ? defaultMeta.placeholder : `${dayCityKor || dayCityLc || '여행지'} 지역 숙소`);
       const synAddress = day?.lodging?.address || ctxFallbackAddress || (defaultMeta ? `${dayCityKor || dayCityLc} ${defaultMeta.defaultZone}` : (dayCityKor || dayCityLc || ''));
       // 마지막 stop end_time 또는 start_time 후 1시간
       let synStart = '21:00';
@@ -490,6 +517,7 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
         start_time: synStart,
         stay_min: 0,
         order: stops.length + 1,
+        tip: lodgingBookendTip('return', language),
         _self_healed: true,
       });
       healed.push({ day: day?.day || d + 1, kind: 'append_last_lodging', synthesized_name: synName });
@@ -506,6 +534,10 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
         type: 'lodging_bookend_self_healed',
         sub_kind: h.kind,
         severity: 'low',
+        // P-launch (2026-05-31): block_mode 는 zone_courses 블록에 lodging 이 없어 호텔 bookend
+        //   추가가 정상 동작 → 손님 패널(UserPlanNoticesPanel)에서 숨김. 관리자 패널엔 유지.
+        //   legacy/Gemini plan 의 bookend 누락(expected_block_mode 미설정)은 진짜 이슈 → 노출.
+        expected_block_mode: isBlockMode,
         message: `Day ${h.day}: ${h.kind === 'prepend_first_lodging' ? '첫' : '마지막'} stop lodging 누락 → "${h.synthesized_name}" 자동 prepend/append (P160)`,
       });
     }

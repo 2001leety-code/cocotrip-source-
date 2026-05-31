@@ -243,6 +243,9 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
   selfHealLodgingBookend(itinerary, {
     hotel_address: ctx.hotel_address || ctx.hotelAddressFromBody,
     recommendedZone: ctx.recommendedZone,
+    // P-launch (2026-05-31): 합성 호텔 stop 4lang tip + block_mode 정상 bookend 표시 suppress.
+    language: ctx.language,
+    blockMode: ctx.blockMode,
   });
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────

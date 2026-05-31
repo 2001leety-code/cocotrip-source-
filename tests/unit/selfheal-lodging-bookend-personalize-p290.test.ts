@@ -104,7 +104,7 @@ describe('P290 selfHealLodgingBookend personalize (Gemini prompt 변경 X)', () 
     const lastLodging = stops[stops.length - 1];
     expect(lastLodging.category).toBe('lodging');
     expect(lastLodging.name).toContain('myeongdong');
-    expect(lastLodging.name).toContain('호텔');
+    expect(lastLodging.name).toContain('숙소'); // P-launch: 호텔(위치 미정)→지역 숙소
     expect(lastLodging.address).toContain('myeongdong');
   });
 
@@ -143,8 +143,8 @@ describe('P290 selfHealLodgingBookend personalize (Gemini prompt 변경 X)', () 
     const stops = itinerary.days[0].stops;
     const lastLodging = stops[stops.length - 1];
     expect(lastLodging.category).toBe('lodging');
-    // CITY_LODGING_DEFAULT['seoul'].placeholder 또는 generic
-    expect(lastLodging.name).toMatch(/호텔|hotel/i);
+    // CITY_LODGING_DEFAULT['seoul'].placeholder 또는 generic (P-launch: 호텔(위치 미정)→지역 숙소)
+    expect(lastLodging.name).toMatch(/숙소|hotel/i);
     expect(lastLodging._self_healed).toBe(true);
   });
 

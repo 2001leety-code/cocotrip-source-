@@ -175,6 +175,6 @@ describe('P160 selfHealLodgingBookend', () => {
     } as any;
     const healed = selfHealLodgingBookend(itinerary);
     expect(healed).toHaveLength(1);
-    expect(itinerary.days[0].stops[0].name).toContain('호텔');
+    expect(itinerary.days[0].stops[0].name).toContain('숙소'); // P-launch: 호텔(위치 미정)→지역 숙소
   });
 });

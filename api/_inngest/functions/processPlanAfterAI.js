@@ -241,6 +241,9 @@ export const processPlanAfterAI = inngest.createFunction(
         hotel_address: ctx.hotel_address,
         hotelAddressFromBody: ctx.hotelAddressFromBody,
         recommendedZone: ctx.recommendedZone,
+        // P-launch (2026-05-31): worker path 도 tip 언어 + block_mode bookend suppress 전달.
+        language: ctx.language,
+        blockMode: ctx.blockModeUsed,
       });
       return itinAfterRoute;
     });
