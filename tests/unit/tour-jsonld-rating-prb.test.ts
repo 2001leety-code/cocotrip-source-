@@ -11,7 +11,7 @@
  * 7. 항상: aggregateRating 있으면 @type=AggregateRating 포함
  */
 import { describe, it, expect } from 'vitest';
-import { buildTourJsonLd } from '@/pages/TourDetailPage';
+import { buildTourJsonLd } from '@/pages/buildTourJsonLd';
 
 const BASE_PARAMS = {
   slug: 'seoul-private-tour',
