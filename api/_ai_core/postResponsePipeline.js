@@ -30,6 +30,7 @@ import { loadFoodIndex } from './geminiPipeline.js';
 import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { applyBlockModeDietaryWarnings } from './responseValidator.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
 // 배경: 5/25 prod alert step elapsed 27분 (1.67M ms) — Vercel 600s cap 도달 전
@@ -253,7 +254,7 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
  * @returns foodIndex (handlerCore 가 persistPlan 에 forward).
  */
 export async function applyRecommendedRestaurants(itinerary, ctx) {
-  const { area, dietPrefs, regions } = ctx;
+  const { area, dietPrefs, regions, blockModeUsed } = ctx;
   // 동선 5km 이내 + plan 미포함 식당 중 rating × log(reviews) 상위 10개씩.
   // dietPrefs 기준 per-style bucket: { general, vegan?, halal? } — 섞지 않음.
   // 2026-05-05 regression fix: 이전엔 general만 노출 → vegan/halal 사용자도
@@ -275,6 +276,10 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
     console.warn('[planner] recommended_restaurants failed:', recErr.message);
     itinerary.recommended_restaurants = { general: [] };
   }
+  // P324 (2026-05-31): block_mode dietary SAFETY — block_mode 는 validateResponse(legacy 의 dietary/
+  //   allergen 검증처)를 handlerCore:319 `if(!itinerary)` 가드로 우회 → food stop 최종 후 coverage +
+  //   알레르기 warning 재검증 (warning-only, P280 retry loop 회피). legacy 는 validateResponse 가 처리.
+  if (blockModeUsed) applyBlockModeDietaryWarnings(itinerary, dietPrefs);
   return foodIndexForQuality;
 }
 
