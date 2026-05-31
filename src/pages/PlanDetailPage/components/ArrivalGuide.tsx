@@ -33,6 +33,13 @@ interface RecommendedOption {
   reason_ja?: string;
   reason_zh?: string;
   cta_link?: string;
+  // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE backend flag): charter HERO 가격+구간.
+  // 백엔드(RouteAgent)가 플래그 ON 일 때만 채움. 가격은 SSOT(공항픽업 요금)만 — null/미존재면
+  // 가격 줄 자체를 숨김 (0/빈칸 노출 금지). 플래그 OFF 면 필드 부재 = 현재 동작.
+  est_price_krw?: number;
+  from?: string;
+  to?: string;
+  est_min?: number;
 }
 
 interface RouteToHotel extends TransitFromPrev {
@@ -128,6 +135,20 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                   <p className="text-[11px] text-white/60">{ui.charterRecSub || 'Door-to-door · driver loads all luggage · English-speaking'}</p>
                 </div>
               </div>
+              {/* PR-C (2026-06-01): 가격+구간 1줄 — 백엔드 플래그 ON 시에만 필드 존재.
+                  from→to · est_min · ₩price. 각 세그먼트는 값 있을 때만, 가격은 양수일 때만
+                  (null/0 → 미노출, 오노출 방지). 숫자·기존 라벨(formatKRW/minUnit)만 사용. */}
+              {(rec.from || rec.to || (rec.est_min || 0) > 0 || (rec.est_price_krw || 0) > 0) && (
+                <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2 mb-3">
+                  <p className="text-[12px] font-semibold text-white/90 leading-relaxed">
+                    {[
+                      rec.from && rec.to ? `${rec.from} → ${rec.to}` : (rec.from || rec.to || ''),
+                      (rec.est_min || 0) > 0 ? `${rec.est_min}${ui.minUnit || 'min'}` : '',
+                      (rec.est_price_krw || 0) > 0 ? formatKRW(rec.est_price_krw || 0) : '',
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              )}
               {recReason && (
                 <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2 mb-3">
                   <p className="text-[12px] text-white/85 leading-relaxed">⚠️ {recReason}</p>
