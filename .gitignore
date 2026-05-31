@@ -66,3 +66,13 @@ scripts/pdf-golden-*.mjs
 scripts/compare-5-plans*.mjs
 scripts/dump-pdf-text.mjs
 scripts/capture-5-plans*.mjs
+# P319 cleanup (2026-05-31): 5/30~31 streaming blocker + audit cycle ad-hoc 진단 스크립트.
+# 재사용 운영 도구(inspect-inngest-sync / inspect-vercel-env-inngest / inspect-preview-deploys / monitor-newest-plan)는 tracked 유지.
+scripts/b3-*.mjs
+scripts/b5*.mjs
+scripts/fetch-preview-validation-logs.mjs
+scripts/inspect-error-plan-detail.mjs
+scripts/inspect-live-plan-state.mjs
+scripts/inspect-streaming-plans.mjs
+scripts/p[0-9][0-9][0-9]-*.mjs
+.claude/worktrees/
