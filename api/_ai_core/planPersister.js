@@ -626,6 +626,66 @@ export function selfHealArrivalGuide(itinerary, arrival_airport, ctx = {}) {
 }
 
 /**
+ * P323 (2026-05-31): departure_guide 6필드 self-heal — block_mode 가 Gemini itinerary 를
+ * 안 거쳐 departure_guide 가 airport(+route_to_airport)만 있고 나머지 6필드 누락 → 프론트
+ * DepartureGuide.tsx 의 짐보관/세금환급/권장출발/막판쇼핑 카드가 안 보임 (prod plan b3ade000 = 1/7).
+ * selfHealArrivalGuide(P161/P288) 대칭 — postResponsePipeline 의 departure_airport 보장 직후 호출.
+ * RouteAgent 의 route_to_airport 는 보존(spread). Gemini prompt 변경 0 = cache miss 0 (P288/P289/P290 패턴).
+ *
+ * shape = 프론트 DepartureGuide.tsx 실제 렌더 필드 기준 (types.ts 는 일부 stale):
+ *   luggage_storage.{available,location}, tax_refund.{location,threshold_krw}.
+ *
+ * @param {object} itinerary - mutated in-place
+ * @param {string} departure_airport - "ICN T2" 등 (ALREADY 아님)
+ * @param {object} ctx - { hotel_address, recommendedZone }
+ * @returns {boolean} true = self-healed
+ */
+export function selfHealDepartureGuide(itinerary, departure_airport, ctx = {}) {
+  if (!itinerary || typeof itinerary !== 'object') return false;
+  if (!departure_airport || departure_airport === 'ALREADY' || departure_airport === 'already_in_korea') {
+    return false;
+  }
+  const { hotel_address, recommendedZone } = ctx;
+  const hotelLabel = (hotel_address && String(hotel_address).trim())
+    || (recommendedZone && String(recommendedZone).trim())
+    || 'your hotel';
+  const existing = (itinerary.departure_guide && typeof itinerary.departure_guide === 'object')
+    ? itinerary.departure_guide : {};
+  // 이미 6필드 풍부 (recommended_departure_time + tax_refund) → no-op (Gemini legacy 응답 보존).
+  if (existing.recommended_departure_time && existing.tax_refund) return false;
+  // route_to_airport (RouteAgent attach) + airport 보존하며 6필드 합성.
+  itinerary.departure_guide = {
+    ...existing,
+    airport: existing.airport || departure_airport,
+    recommended_departure_time: existing.recommended_departure_time || '3 hours before your international flight',
+    latest_leave_hotel: existing.latest_leave_hotel
+      || `Leave ${hotelLabel} about 3.5 hours before departure (airport transit + check-in + security buffer).`,
+    luggage_storage: existing.luggage_storage || {
+      available: true,
+      location: `${hotelLabel} front desk, or paid storage at ${departure_airport}.`,
+    },
+    tax_refund: existing.tax_refund || {
+      location: `Tax refund kiosks at ${departure_airport} (before security / near check-in).`,
+      threshold_krw: 30000,
+    },
+    last_minute_shopping: existing.last_minute_shopping
+      || `Duty-free shopping at ${departure_airport} — Korean snacks, K-beauty, and gifts.`,
+    _self_healed: true,
+  };
+  // quality_warnings 박제 (arrival 대칭, admin trace).
+  itinerary.quality_warnings = itinerary.quality_warnings || [];
+  itinerary.quality_warnings.push({
+    kind: 'departure_guide_self_healed',
+    type: 'departure_guide_self_healed',
+    severity: 'medium',
+    message: `departure_guide 6필드 누락 (block_mode/Gemini 미생성) → ${departure_airport} 기본 정보 자동 합성 (짐보관/세금환급/권장출발/막판쇼핑).`,
+    airport: departure_airport,
+  });
+  console.log(`[planPersister] P323 departure_guide self-healed: airport=${departure_airport}`);
+  return true;
+}
+
+/**
  * P120 (2026-05-20): 새벽 시간대 stops detect. plan 4792076e 의 Day3 00:31,
  * Day4 01:24, 03:26 같은 start_time = 사용자 실현 불가능 (새벽 관광 X). 회귀의
  * root cause 는 RouteAgent Phase 2.5/2.6 시간 stitching 의 transit time 누적

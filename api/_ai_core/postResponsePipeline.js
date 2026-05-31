@@ -17,6 +17,7 @@ import {
   pushIntercityGapWarnings,
   correctCrossCityLodgingStops,
   selfHealArrivalGuide,
+  selfHealDepartureGuide,
   selfHealDailyBudget,
   // P270 (2026-05-28): dead code 복구 — selfHealLodgingBookend 가 planPersister 에
   // define 됐지만 applyBackfillsAndTmoney 호출 chain 누락 → block_mode plan 의 Day
@@ -125,6 +126,17 @@ export async function runRouteEnrichment(itinerary, ctx) {
         });
       }
     }
+  }
+
+  // P323 (2026-05-31): departure_guide 6필드 self-heal — block_mode 는 Gemini 가 departure_guide
+  //   6필드(짐보관/세금환급/권장출발/막판쇼핑 등) 안 만들어 1/7 emit → 프론트 카드 누락.
+  //   selfHealArrivalGuide 대칭. departure_airport/airport 보장 직후 + RouteAgent route_to_airport
+  //   attach 전 호출 (route_to_airport 는 selfHeal 이 spread 보존). Gemini prompt 변경 0 = cache miss 0.
+  if (departure_airport && departure_airport !== 'ALREADY') {
+    selfHealDepartureGuide(itinerary, departure_airport, {
+      hotel_address: hotel_address || hotelAddressFromBody,
+      recommendedZone,
+    });
   }
 
   // ── RouteAgent enrichment (mutates itinerary in place) ────────────────
