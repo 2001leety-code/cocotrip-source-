@@ -4,6 +4,8 @@ import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "
 // P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP. 출력 shape 동일.
 import { searchTransit } from "../../_transit_provider.js";
 import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
+// P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
+import { normalizeRegionKey } from "../responseValidator.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
@@ -809,8 +811,10 @@ export class RouteAgent extends BaseAgent {
             //   (inferDepartureAirport 동일 convention). 기존 getDayHotelCoord 재사용. 단도시/동일도시 무영향.
             let depHotelLat = hotelLat, depHotelLng = hotelLng, depHotelAddr = hotelAddress, departureCity = null;
             const depRegions = Array.isArray(data.regions) ? data.regions : (Array.isArray(rawItinerary.regions) ? rawItinerary.regions : []);
-            const depFirstRegion = depRegions[0] ? String(depRegions[0]).toLowerCase().trim() : null;
-            const depLastRegion = depRegions.length >= 2 ? String(depRegions[depRegions.length - 1]).trim() : null;
+            // P-launch (2026-05-31): normalizeRegionKey — 한글 '부산' → 'busan' (P321 trap). 이거 없으면
+            //   getDayHotelCoord/CITY_CENTER_COORDS 영문 키 mismatch → silent 첫 도시(명동) 폴백.
+            const depFirstRegion = depRegions[0] ? normalizeRegionKey(depRegions[0]) : null;
+            const depLastRegion = depRegions.length >= 2 ? normalizeRegionKey(depRegions[depRegions.length - 1]) : null;
             if (depLastRegion && !isSameAsFirstCity(depLastRegion, depFirstRegion)) {
                 const depZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones)) ? data.recommended_zones : null;
                 const depHotel = getDayHotelCoord({ city: depLastRegion }, {

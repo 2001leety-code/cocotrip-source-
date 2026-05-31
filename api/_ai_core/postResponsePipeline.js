@@ -30,7 +30,7 @@ import { loadFoodIndex } from './geminiPipeline.js';
 import { enrichItineraryWithRoute } from './routeEnrichment.js';
 import { calcPrice } from './vehicleAndPrice.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { applyBlockModeDietaryWarnings } from './responseValidator.js';
+import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseValidator.js';
 
 // P203 (2026-05-26): routeEnrich 180s wall-clock cap.
 // 배경: 5/25 prod alert step elapsed 27분 (1.67M ms) — Vercel 600s cap 도달 전
@@ -136,7 +136,9 @@ export async function runRouteEnrichment(itinerary, ctx) {
   if (departure_airport && departure_airport !== 'ALREADY') {
     // P-launch (2026-05-31): 멀티시티 departure = 마지막 도시 호텔 라벨 (route 와 일치, "명동 출발" 모순 제거).
     const _depRegions = Array.isArray(body?.regions) ? body.regions : [];
-    const _depCity = _depRegions.length >= 2 ? String(_depRegions[_depRegions.length - 1]).toLowerCase().trim() : null;
+    // P-launch (2026-05-31): normalizeRegionKey — 한글 '부산' → 'busan'. hotelByCity 키는 영문(seoul/busan)
+    //   이므로 정규화 없이 '부산' 조회하면 undefined → 첫 도시(명동) 폴백 = 비행기 놓침 risk (P321 trap).
+    const _depCity = _depRegions.length >= 2 ? normalizeRegionKey(_depRegions[_depRegions.length - 1]) : null;
     const _departureHotelLabel = _depCity ? (body?.hotelByCity?.[_depCity] || null) : null;
     selfHealDepartureGuide(itinerary, departure_airport, {
       hotel_address: hotel_address || hotelAddressFromBody,
