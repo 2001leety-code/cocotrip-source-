@@ -3,12 +3,15 @@ import { BaseAgent } from "./BaseAgent.js";
 import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 // P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP. 출력 shape 동일.
 import { searchTransit } from "../../_transit_provider.js";
-import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
+import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey } from "../responseValidator.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
 import { lookupTransitCache, getTransitCacheStats } from "../transitCache.js";
+// PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE OFF default): 공항픽업 가격 SSOT.
+// 차터 도착 HERO 가격 표시용 — airport_transfer_prices[zoneKey].priceKRW (읽기 전용).
+import { loadPricingSpec } from "../../_shared/pricing.js";
 
 // ── intercity station coordinates (PDF-issue-2 fix, 2026-05-14) ─────────
 // KTX/Air/Bus 의 from_station/to_station 좌표 — RouteAgent 가 city-change day
@@ -263,7 +266,12 @@ async function reportError(err, ctx) {
 // Heavy threshold:
 //   ≥3 large bags, OR (≥2 large bags AND ≥4 pax), OR (≥2 mediums AND ≥1 large
 //   AND ≥3 pax) — anything that clearly won't fit in a sedan trunk.
-function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount }) {
+// PR-C (2026-06-01): heavyLoad(charter) HERO 가격+구간 표시용 context 는 선택 인자.
+//   region/airportKey/fromLabel/toLabel/estMin 는 FEATURE_CHARTER_HERO_PRICE='true'
+//   일 때만 charter 반환에 est_price_krw/from/to/est_min + prefill cta_link 추가.
+//   추천 *판단* (hour/lateNight/large/medium/heavyLoad) 은 불변 — 새 인자 영향 0.
+//   플래그 OFF / 기존 호출(인자 미전달) 시 반환 객체 byte-identical.
+export function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount, region, airportKey, fromLabel, toLabel, estMin } = {}) {
   // 2026-05-13 PR (Critical C3 — Agent X audit): HH:MM 형식 검증.
   // 기존: arrivalTimeHHMM 형식 검증 없음 → "9:30 " / "오전 9시" / "ABCDE" 등
   // 비정상 입력 시 parseInt 가 NaN 반환 → lateNight=false 가정 → 잘못된 추천.
@@ -282,7 +290,7 @@ function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount }) {
     || (paxCount >= 4 && large >= 2)
     || (paxCount >= 3 && medium >= 2 && large >= 1);
   if (heavyLoad) {
-    return {
+    const rec = {
       key: 'cocotrip_charter',
       reason_ko: '한국 택시는 캐리어 1개만 가능 — 짐이 많아 코코트립 전용 차량을 추천합니다 (기사가 모든 짐 적재)',
       reason_en: 'Korean taxis can only fit 1 suitcase — book a CocoTrip charter; your driver loads all luggage',
@@ -290,6 +298,23 @@ function pickRecommendedTransport({ arrivalTimeHHMM, luggage, paxCount }) {
       reason_zh: '韩国出租车只能放1个行李箱 — 行李较多请预订CocoTrip包车（司机协助装载所有行李）',
       cta_link: '/charter',
     };
+    // FEATURE_CHARTER_HERO_PRICE='true' 일 때만 가격/구간 + prefill 딥링크 채움.
+    // OFF = 위 객체 그대로 (현재 동작 byte-identical).
+    if (process.env.FEATURE_CHARTER_HERO_PRICE === 'true') {
+      const priceKRW = airportTransferPriceKRW(region); // SSOT lookup, 미매핑 → null
+      // 🔴 가격은 null 이면 필드 자체를 넣지 않음 (프론트가 0/빈칸 노출 못 하도록).
+      if (priceKRW != null) rec.est_price_krw = priceKRW;
+      if (fromLabel) rec.from = fromLabel;
+      if (toLabel) rec.to = toLabel;
+      if (typeof estMin === 'number' && estMin > 0) rec.est_min = estMin;
+      // prefill 딥링크 — origin=공항키, destinationKey=region, pax. 값 있을 때만.
+      const params = new URLSearchParams({ service: 'airport_transfer' });
+      if (airportKey) params.set('origin', String(airportKey));
+      if (region) params.set('destinationKey', String(region));
+      if (paxCount) params.set('pax', String(paxCount));
+      rec.cta_link = `/charter?${params.toString()}`;
+    }
+    return rec;
   }
   if (lateNight) {
     return {
@@ -344,6 +369,45 @@ function regionToCharterProduct(region) {
     const key = String(region).toLowerCase();
     // 매핑 없으면 null — client 가 차터 CTA 자체를 숨김 (잘못된 지역 권유 방지).
     return REGION_TO_CHARTER_PRODUCT[key] || null;
+}
+
+// ── PR-C (2026-06-01): 공항픽업 가격 SSOT lookup (FEATURE_CHARTER_HERO_PRICE) ────
+// arrival region (normalizeRegionKey 영문 lowercase: 'seoul'/'busan'/'jeju'...) →
+// pricing_spec.json airport_transfer_prices zone key.
+//
+// 🔴 가격 오노출 = 신뢰 치명. 매핑은 "지리적으로 확실한 region 만" 등록 — 애매하면
+// 누락(=null) 시켜 가격 자체를 숨긴다. 임의 추정/근사 금지. zone 키는 SSOT 의
+// airport_transfer_prices 키와 1:1 (seoul-central / busan / jeju-metro / ...).
+//
+// Seoul 세부 zone(중심부 vs 강남)은 region='seoul' 단일값에서 구분 불가 → 보수적으로
+// 'seoul-central'(도심 기본, 기존 charter seoul_city 기본 패턴과 동일) 사용.
+// gangnam 전용 zone(seoul-gangnam) / gimpo-* combo zone 은 region 만으론 판별 불가라 미사용.
+// 매핑 없는 region(gwangju/daejeon/ulsan/yeosu/andong/...)은 null → HERO 가격 숨김.
+const REGION_TO_AIRPORT_TRANSFER_ZONE = {
+    seoul: 'seoul-central',
+    incheon: 'seoul-central',   // 인천 도착·서울권 이동 = 서울 도심 기준 (기존 charter 매핑과 동일 정책)
+    suwon: 'suwon-yongin',
+    yongin: 'suwon-yongin',
+    chuncheon: 'chuncheon',
+    gangneung: 'gangneung-sokcho',
+    sokcho: 'gangneung-sokcho',
+    busan: 'busan',
+    jeju: 'jeju-metro',
+};
+
+/**
+ * arrival region → 공항픽업 편도 요금(KRW). SSOT(airport_transfer_prices) 단일 출처.
+ * 매핑 없거나 spec 부재 시 null (HERO 가격 숨김 — 오노출 방지).
+ * @param {string} region normalizeRegionKey 영문 lowercase 권장 ('seoul'/'busan')
+ * @returns {number|null} priceKRW 또는 null
+ */
+export function airportTransferPriceKRW(region) {
+    if (!region) return null;
+    const zoneKey = REGION_TO_AIRPORT_TRANSFER_ZONE[String(region).toLowerCase()];
+    if (!zoneKey) return null;
+    const spec = loadPricingSpec();
+    const price = spec?.airport_transfer_prices?.[zoneKey]?.priceKRW;
+    return (typeof price === 'number' && price > 0) ? price : null;
 }
 
 // B-11 fix (2026-05-12): transit_from_prev.mode 명시 보존.
@@ -700,10 +764,26 @@ export class RouteAgent extends BaseAgent {
             if (arrFromCoord) {
                 const route = await this._routeAirportHotel(ap, arrFromCoord, 'arrival');
                 if (route) {
+                    // PR-C (2026-06-01, FEATURE_CHARTER_HERO_PRICE): charter HERO 가격/구간 context.
+                    //   region 은 한글('서울') 가능 → normalizeRegionKey 로 영문 키('seoul') 변환
+                    //   (가격 zone 매핑 키와 일치). 공항 라벨은 AIRPORT_NAMES, generic 'ICN' 은 항목
+                    //   없어 'Incheon Airport' fallback, 그래도 없으면 plan 의 airport 문자열.
+                    //   est_min/to 는 이미 계산된 route + hotel/zone 라벨 재사용. 플래그 OFF 면
+                    //   pickRecommendedTransport 가 이 인자들을 전부 무시 (반환 byte-identical).
+                    const heroRegionKey = normalizeRegionKey(region) || null;
+                    const heroFromLabel = AIRPORT_NAMES[arrivalAirportKey]
+                        || (arrivalAirportKey && String(arrivalAirportKey).startsWith('ICN') ? 'Incheon Airport' : null)
+                        || rawItinerary.arrival_guide.airport
+                        || null;
                     const rec = pickRecommendedTransport({
                         arrivalTimeHHMM: data.arrival_time,
                         luggage: data.luggage,
                         paxCount: data.pax || 2,
+                        region: heroRegionKey,
+                        airportKey: arrivalAirportKey,
+                        fromLabel: heroFromLabel,
+                        toLabel: arrFromLabel || null,
+                        estMin: route.est_min,
                     });
 
                     // P327 (2026-05-31): ICN→서울 중심부 + arex_express 추천 시 직통 HERO 로 교체.
