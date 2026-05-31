@@ -382,7 +382,7 @@ export default async function handler(req, res) {
 
     // ── Backfills + T-money + recommended restaurants + pricing ───────────
     // P290 (2026-05-29): ctx 확장 (hotel_address / hotelAddressFromBody / recommendedZone) — selfHealLodgingBookend personalize. day.lodging 없는 block_mode plan 의 synthesized lodging stop 에 사용자 입력 호텔 반영.
-    applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone });
+    applyBackfillsAndTmoney(itinerary, { hotelByCity, body, hotel_address: routeHotelAddress, hotelAddressFromBody: hotel_address, recommendedZone, language, blockMode: blockModeUsed });
 
     // ── Must-visit 맛집 추천 ──────────────────────────────────────────────
     const foodIndexForQuality = await applyRecommendedRestaurants(itinerary, { area, dietPrefs: dietaryAll, regions, blockModeUsed });

@@ -96,9 +96,9 @@ describe('P297 correctCrossCityLodgingStops personalize (generic placeholder →
     // hbc 없음, rz[busan]='haeundae'
     correctCrossCityLodgingStops(itinerary, {}, { busan: 'haeundae' });
     const lodging = itinerary.days[0].stops[0];
-    // rz 분기는 여전히 "{zone} 일대 호텔" placeholder (사용자 호텔명 입력 없음)
+    // rz 분기는 "{zone} 일대 숙소" placeholder (P-launch 2026-05-31: 호텔(위치 미정) → 숙소)
     expect(lodging.name).toContain('haeundae');
-    expect(lodging.name).toContain('호텔');
+    expect(lodging.name).toContain('숙소');
   });
 
   it('runtime — hbc/rz 모두 없으면 default placeholder (회귀 차단)', () => {

@@ -43,6 +43,8 @@ interface QualityWarningLike {
   kind?: string;
   message?: string;
   severity?: string;
+  // P-launch (2026-05-31): block_mode 정상 lodging bookend 추가 표시 (손님 패널 suppress 용).
+  expected_block_mode?: boolean;
   [key: string]: unknown;
 }
 
@@ -60,6 +62,10 @@ export function UserPlanNoticesPanel({ qualityWarnings }: Props) {
     const k = String(w?.type || w?.kind || '');
     if (!USER_VISIBLE_KINDS[k]) return false;
     if (w?.severity === 'critical') return false;
+    // P-launch (2026-05-31): block_mode 는 zone_courses 블록에 lodging 이 없어 호텔 bookend
+    //   추가가 정상 동작 → 손님에게 노이즈(plan a8b96f91 5일 10건). 손님 패널에서만 숨김.
+    //   관리자 패널(QualityWarningsPanel)엔 유지 + legacy plan 진짜 누락(flag 없음)은 노출.
+    if (k === 'lodging_bookend_self_healed' && w?.expected_block_mode === true) return false;
     return true;
   });
   if (visible.length === 0) return null;
