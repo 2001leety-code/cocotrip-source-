@@ -16,7 +16,7 @@
  *     9. FEATURE_TOUR_BOOKING_MINIMAL export 값은 boolean 타입.
  */
 import { describe, it, expect } from 'vitest';
-import { isTourStep2Complete } from '../../src/components/tours/TourBookingDialog';
+import { isTourStep2Complete, FEATURE_TOUR_BOOKING_MINIMAL } from '../../src/components/tours/tourBookingValidation';
 
 // --- 테스트용 보조 헬퍼 ---
 const allFilled = {
@@ -115,8 +115,7 @@ describe('isTourStep2Complete — minimal=false (기본/OFF)', () => {
 
 // --- 기능 플래그 독립성 ---
 describe('FEATURE_TOUR_BOOKING_MINIMAL export 타입', () => {
-  it('9. boolean 타입으로 export 됨', async () => {
-    const mod = await import('../../src/components/tours/TourBookingDialog');
-    expect(typeof mod.FEATURE_TOUR_BOOKING_MINIMAL).toBe('boolean');
+  it('9. boolean 타입으로 export 됨 (firebase-free 순수 모듈)', () => {
+    expect(typeof FEATURE_TOUR_BOOKING_MINIMAL).toBe('boolean');
   });
 });

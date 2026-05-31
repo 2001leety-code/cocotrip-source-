@@ -19,46 +19,16 @@ import { getTourProductType, getTourPriceKRW } from '@/data/tours';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
+import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
 import { useAuth } from '@/hooks/useAuth';
 import type { Tour, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
 import { loadWizardSnapshot, useWizardPersistence } from '@/hooks/useWizardPersistence';
 
-// PR-F (2026-06-01): 투어 예약 결제 마찰 축소 — 기능 플래그.
-// VITE_FEATURE_TOUR_BOOKING_MINIMAL=true 시 Step 2 에서 전화번호 1개만 필수.
-// 미설정(OFF/기본) = 기존 5개 필수 동작 byte-identical.
-
-/** PR-F 기능 플래그: 전화 1개만 필수로 축소. OFF = 현재 동작 유지. */
-export const FEATURE_TOUR_BOOKING_MINIMAL =
-  import.meta.env.VITE_FEATURE_TOUR_BOOKING_MINIMAL === 'true';
-
-/**
- * PR-F — Step 2 완료 여부 순수 헬퍼 (테스트 가능 추출).
- *
- * - minimal=true (VITE_FEATURE_TOUR_BOOKING_MINIMAL=true):
- *     전화 1개만 필수. 나머지 4개는 선택.
- * - minimal=false (기본/OFF):
- *     전화·픽업주소·WhatsApp·LINE·메모 5개 전부 필수 (기존 동작 byte-identical).
- */
-export function isTourStep2Complete(fields: {
-  phone: string;
-  pickupAddress: string;
-  whatsappId: string;
-  lineId: string;
-  memoText: string;
-}, minimal: boolean): boolean {
-  if (minimal) {
-    return fields.phone.trim().length > 0;
-  }
-  return (
-    fields.phone.trim().length > 0 &&
-    fields.pickupAddress.trim().length > 0 &&
-    fields.whatsappId.trim().length > 0 &&
-    fields.lineId.trim().length > 0 &&
-    fields.memoText.trim().length > 0
-  );
-}
+// PR-F (2026-06-01): FEATURE_TOUR_BOOKING_MINIMAL + isTourStep2Complete →
+//   src/components/tours/tourBookingValidation.ts 로 분리 (firebase-free 순수 모듈, CI fix:
+//   테스트가 TourBookingDialog import 시 PayPalBookingButton→firebase getAuth() CI throw).
 
 // tour booking 자동저장 snapshot — Set<string> 은 JSON 직렬화 불가라 array 로 변환 보존.
 type TourBookingSnapshot = {
