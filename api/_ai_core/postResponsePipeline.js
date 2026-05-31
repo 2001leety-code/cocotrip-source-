@@ -134,9 +134,14 @@ export async function runRouteEnrichment(itinerary, ctx) {
   //   selfHealArrivalGuide 대칭. departure_airport/airport 보장 직후 + RouteAgent route_to_airport
   //   attach 전 호출 (route_to_airport 는 selfHeal 이 spread 보존). Gemini prompt 변경 0 = cache miss 0.
   if (departure_airport && departure_airport !== 'ALREADY') {
+    // P-launch (2026-05-31): 멀티시티 departure = 마지막 도시 호텔 라벨 (route 와 일치, "명동 출발" 모순 제거).
+    const _depRegions = Array.isArray(body?.regions) ? body.regions : [];
+    const _depCity = _depRegions.length >= 2 ? String(_depRegions[_depRegions.length - 1]).toLowerCase().trim() : null;
+    const _departureHotelLabel = _depCity ? (body?.hotelByCity?.[_depCity] || null) : null;
     selfHealDepartureGuide(itinerary, departure_airport, {
       hotel_address: hotel_address || hotelAddressFromBody,
       recommendedZone,
+      departureHotelLabel: _departureHotelLabel,
     });
   }
 
