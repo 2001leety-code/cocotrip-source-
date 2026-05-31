@@ -192,6 +192,14 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
 
     if (enrichedDays.length > 0) {
       enrichedDays.forEach((enrichedDay, i) => {
+        // P326 (2026-05-31): intercity_transit day-level merge — block_mode 다도시는 RouteAgent
+        //   _enrichMultiCityDays(KTX 등 생성)의 출력이 이 enrichedDay(shallow-copy)에만 붙는데, 아래
+        //   stops/lodging merge 처럼 원본으로 복사 안 하면 persist 전에 손실됨 (생성됐다 버려짐 =
+        //   다도시 서울→부산 KTX 0건 root cause). legacy 는 Gemini 가 원본에 직접 써서 살아남음.
+        //   도시전환일은 stops 0 일 수도 있어 아래 enrichedStops>0 조건 밖에서 복사.
+        if (itinerary.days[i] && enrichedDay.intercity_transit) {
+          itinerary.days[i].intercity_transit = enrichedDay.intercity_transit;
+        }
         const enrichedStops = enrichedDay.stops || enrichedDay.places || [];
         if (itinerary.days[i] && enrichedStops.length > 0) {
           const odsayCount = enrichedStops.filter((p) => p.transit_from_prev?.source === 'odsay').length;
