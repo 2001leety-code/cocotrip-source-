@@ -2185,6 +2185,31 @@ function P326_intercityMergeBack({ changed }) {
 }
 
 /**
+ * R_Plaunch_departureAirportDerive (2026-05-31, SAFETY-CRITICAL): WizardForm index.tsx 의
+ * 출국 공항이 미선택 시 *입국 공항*을 강제하면 안 됨(`departureTerminal || arrivalTerminal`).
+ * 그러면 backend inferDepartureAirport(부산→PUS/김해, 제주→CJU) 가 죽은 코드가 되어 다도시 출국이
+ * 잘못된 공항(부산→인천 ICN 143분 = 지리적 불가) 으로 안내 = 비행기 놓침 risk. FIX: 사용자
+ * 명시값(미선택 시 '') 만 전달 → requestShaper inferDepartureAirport 가 마지막 도시 기준 도출.
+ * 회귀 슬롯: tests/unit/departure-airport-derive-launch.test.ts.
+ */
+function R_Plaunch_departureAirportDerive(ctx) {
+  const FILE = 'src/components/WizardForm/index.tsx';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  // 출국 공항 도출 라인이 존재할 때만 검사 (라인 자체가 리팩터로 사라지면 무관).
+  if (!/departureAirport\s*=\s*departureTerminal/.test(src)) return null;
+  if (/departureAirport\s*=\s*departureTerminal\s*\|\|\s*arrivalTerminal/.test(src)) {
+    fail(
+      'R_Plaunch_departureAirportDerive',
+      'WizardForm index.tsx 출국 공항이 미선택 시 입국 공항 강제 폴백(departureTerminal || arrivalTerminal) — backend inferDepartureAirport(부산→김해 PUS) 죽은 코드화 → 다도시 출국 잘못된 공항 안내 (비행기 놓침 risk, SAFETY-CRITICAL, P-launch 회귀)',
+      'const departureAirport = departureTerminal; (미선택 시 "" 전달). tests/unit/departure-airport-derive-launch.test.ts.',
+    );
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2257,6 +2282,7 @@ function P330_transitProviderSwitch({ changed }) {
 const RULES = [
   ['P326_cacheGeoValidation', P326_cacheGeoValidation],
   ['P326_intercityMergeBack', P326_intercityMergeBack],
+  ['R_Plaunch_departureAirportDerive', R_Plaunch_departureAirportDerive],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
