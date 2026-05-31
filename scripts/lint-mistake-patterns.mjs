@@ -2094,7 +2094,30 @@ function R_P244_playwrightPageReadySignal({ changed }) {
   return `R-P244: Playwright visual spec beforeEach 패턴 위반 ${violations.length}건 — deployment_status trigger 에서 auth 없이 실행 시 chronic timeout 회귀 (P237/P240/P241/P239 4 cycle 동일). 올바른 패턴: waitForFunction(() => window.__pageReady === true): ${violations.join(' | ')}`;
 }
 
+/**
+ * R_P321 (2026-05-31): blockMode.js tryRunBlockMode 의 regions→cityKey 정규화가 normalizeRegionKey
+ * (한/영/일/중→영문) 를 써야 함. raw `.split('_')[0].toLowerCase()` 만 쓰면 한국어 regions('서울')
+ * 가 Firestore zone_courses 영문키('seoul') 와 mismatch → 블록 0건 → block_mode silent legacy 폴백
+ * (ko/ja/zh 다도시 100% 영향, 5일+ 느림 직접 원인). #727 회귀 차단.
+ */
+function R_P321_blockModeRegionNormalize(ctx) {
+  if (!isModified('api/_ai_core/blockMode.js', ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync('api/_ai_core/blockMode.js', 'utf8'); } catch { return { skipped: true }; }
+  const hasRegionsMap = /regions\s*\.\s*map\(/.test(src);
+  const usesNormalize = /normalizeRegionKey/.test(src);
+  if (hasRegionsMap && !usesNormalize) {
+    fail(
+      'R_P321_blockModeRegionNormalize',
+      'blockMode.js regions 정규화에 normalizeRegionKey 미사용 — 한국어 regions 가 Firestore 영문 cityKey 와 mismatch → block_mode silent legacy 폴백 (P321/#727 회귀)',
+      'regions.map((r) => normalizeRegionKey(String(r).split("_")[0])) 패턴 유지 (responseValidator normalizeRegionKey).',
+    );
+  }
+  return null;
+}
+
 const RULES = [
+  ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
   ['P1_dateInclusiveExclusive', P1_dateInclusiveExclusive],
@@ -6754,6 +6777,12 @@ function runRulesInDir(dir, base) {
 
 function runSelfTest() {
   const cases = [
+    {
+      label: 'R_P321: blockMode regions 정규화 누락 (raw toLowerCase → 한글 silent legacy)',
+      base: { 'api/_ai_core/blockMode.js': 'const cities = regions.map((r) => String(r).split("_")[0].toLowerCase());\n' },
+      head: { 'api/_ai_core/blockMode.js': 'const cities = regions.map((r) => String(r).split("_")[0].toLowerCase()); // edit\n' },
+      expectRule: 'R_P321_blockModeRegionNormalize',
+    },
     {
       label: 'P5: api/_food_index.json 삭제',
       base: { 'api/_food_index.json': '{"city":"seoul"}\n', 'README.md': 'x' },
