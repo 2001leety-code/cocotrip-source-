@@ -341,8 +341,8 @@ export default async function handler(req, res) {
       ...(streamingPlanId ? { adminDb, planId: streamingPlanId } : {}),
     }));
 
-    // P169/P186/P222: PLANNER_STREAMING_EARLY_RESPONSE ENV 토글 (default false). Vercel serverless instance freeze 회피 (P222 hang lesson). admin-bypass _debug 포함.
-    if (streamingPlanId && !streamingResponseSent && String(process.env.PLANNER_STREAMING_EARLY_RESPONSE || '').toLowerCase() === 'true') {
+    // P169/P186/P222/P319: PLANNER_STREAMING_EARLY_RESPONSE ENV 토글 (default false). Vercel serverless instance freeze 회피 (P222 hang lesson). admin-bypass _debug 포함. P319(2026-05-31): early-response=freeze 유발 → 뒤처리 워커 있을 때만(shouldDispatchToInngest) 전송, 없으면 동기(P222 ready 100% 보장) — 워커 미sync 시 stub-stuck 출시 blocker fix(P311 e2e), P318 dispatch 게이트와 동일 조건.
+    if (streamingPlanId && !streamingResponseSent && shouldDispatchToInngest() && String(process.env.PLANNER_STREAMING_EARLY_RESPONSE || '').toLowerCase() === 'true') {
       const earlyDebug = buildAdminDebug({ gate, plannerMode: PLANNER_MODE, abDecision, identifierForBucketing, blockModeUsed, blocksUsed, useStreaming, itinerary });
       sendStreamingEarlyResponse({ res, CORS, planId: streamingPlanId, planUrl: streamingPlanUrl, debug: earlyDebug });
       streamingResponseSent = true;
