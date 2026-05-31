@@ -124,6 +124,9 @@ if [ -n "$SCAN_FILES" ]; then
       // (autosave snapshot resume — 0/false 보존 + B-1 preset dateRange).
       if (f === "src/components/WizardForm/index.tsx") continue;
       if (f === "src/components/WizardForm/WizardStep0Destination.tsx") continue;
+      // P314 (2026-05-31): PayPalBookingButton.tsx 의 i18n nullish coalescing(번역 키 폴백)
+      // 13건 pre-existing legitimate. sandbox 토글 추가 시 동일 스킵 유지.
+      if (f === "src/components/PayPalBookingButton.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

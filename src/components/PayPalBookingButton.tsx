@@ -228,19 +228,26 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   // 재로드를 안 함 → 같은 timeout 재발. loadPaypalSdk를 함수로 추출해 force=true
   // 모드 추가 (script element 강제 제거 후 재생성).
   function loadPaypalSdk(force = false) {
-    const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
-    console.log('[PayPal SDK] VITE_PAYPAL_CLIENT_ID:', clientId ? clientId.substring(0, 8) + '...' : '❌ 없음', '| force:', force);
+    // P314 (2026-05-30): sandbox e2e 모드 — VITE_PAYPAL_ENV==='sandbox' (preview 빌드에만
+    // 등록) 일 때 sandbox client-id 로 SDK 로드. prod 빌드엔 VITE_PAYPAL_ENV 미등록 → live.
+    // 백엔드 resolveIsSandbox 와 대칭 (백엔드는 런타임 VERCEL_ENV, 프론트는 빌드타임 분리).
+    // 가짜 미국 buyer 로그인하려면 SDK 도 sandbox client-id 여야 함 (live SDK ↔ sandbox buyer 불가).
+    // P314 rebuild marker (2026-05-30): VITE_PAYPAL_ENV=sandbox 를 Vercel Preview 에 확정한 후
+    // 재빌드 트리거용 (Vite env 는 빌드타임 박힘 — env 변경 후 재빌드 안 하면 옛 번들 서빙).
+    const sandboxMode = String(import.meta.env.VITE_PAYPAL_ENV || '').toLowerCase() === 'sandbox';
+    const clientId = sandboxMode
+      ? import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID
+      : import.meta.env.VITE_PAYPAL_CLIENT_ID;
+    console.log(`[PayPal SDK] mode: ${sandboxMode ? 'SANDBOX' : 'LIVE'} | clientId:`, clientId ? clientId.substring(0, 8) + '...' : '❌ 없음', '| force:', force);
     if (!clientId) {
       setError(p.paypalSdkError ?? 'PayPal client ID not configured.');
       return;
     }
 
-    // 2026-05-03 사용자 정책: TEST 계정도 SDK는 항상 LIVE 사용 (sandbox 분기 제거).
-    // 이유: sandbox SDK 키 미설정/오설정 시 SDK 자체 로딩 실패 → 결제 테스트 불가.
-    // TEST 계정은 별도 🧪 Test Mode 버튼으로 결제 우회 (SDK 무관). 실제 PayPal 결제는
-    // 항상 LIVE → backend도 LIVE 검증.
+    // 2026-05-03 사용자 정책: 실제 결제는 LIVE. TEST 계정은 🧪 Test Mode 버튼으로 결제 우회.
+    // P314: sandbox e2e 는 별도 — VITE_PAYPAL_ENV 빌드 플래그로만 활성 (preview 전용).
     void isSandboxAccount; // 의도적으로 무시 (Test Mode 버튼 노출 분기에만 사용)
-    const expectedMode = 'live';
+    const expectedMode = sandboxMode ? 'sandbox' : 'live';
     let existing = document.getElementById('paypal-sdk') as HTMLScriptElement | null;
 
     if (existing) {
