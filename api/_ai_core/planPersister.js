@@ -84,7 +84,11 @@ export function backfillDayLodging(itinerary, hotelByCity = {}) {
     const dayCityLc = String(day?.city || '').trim().toLowerCase();
     // P123: 사용자 명시 hotelByCity 우선 — Gemini stops 보다 신뢰.
     if (dayCityLc && hbc[dayCityLc] && typeof hbc[dayCityLc] === 'string' && hbc[dayCityLc].trim()) {
-      day.lodging = { name: null, address: hbc[dayCityLc].trim() };
+      // P322 (2026-05-31): name 도 도시 호텔로 세팅 (기존 name:null → selfHealLodgingBookend 이
+      // 전역 ctx.hotel_address[첫도시] 로 fallback → 부산 day 에 서울 호텔명 박히는 자가모순).
+      // block_mode 다도시 SAFETY: name=address=해당 도시 호텔. legacy 는 day.lodging 존재로 skip(L83).
+      const _cityHotel = hbc[dayCityLc].trim();
+      day.lodging = { name: _cityHotel, address: _cityHotel };
       filled += 1;
       continue;
     }
