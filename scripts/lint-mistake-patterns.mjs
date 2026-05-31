@@ -2184,9 +2184,45 @@ function P326_intercityMergeBack({ changed }) {
   return null;
 }
 
+/**
+ * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
+ * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
+ * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
+ * heavy-luggage(charter)/late-night(limousine) 추천 덮어씀, (2) write 가 heroRoute 대신 route
+ * 직접 쓰면 합성 무시, (3) fromStationName 미설정 시 P274 terminal mismatch false-positive.
+ * 회귀 슬롯: tests/unit/arex-express-hero-p327.test.ts.
+ */
+function P327_arexExpressHero({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  // _buildArexExpressHero helper 가 있을 때만 검사 (없으면 P327 미적용 = 무관).
+  if (!/_buildArexExpressHero/.test(content)) return null;
+  const violations = [];
+  if (!/rec\.key\s*===\s*['"]arex_express['"]/.test(content)) {
+    violations.push(`${FILE}: AREX 직통 HERO 주입이 rec.key==='arex_express' 게이트 없이 적용 — heavy-luggage(charter)/late-night(limousine) 추천 덮어쓸 위험 (P327 회귀)`);
+  }
+  if (!/route_to_hotel\s*=\s*\{\s*\.\.\.heroRoute/.test(content)) {
+    violations.push(`${FILE}: arrival_guide.route_to_hotel 가 heroRoute 아닌 route 직접 사용 — P327 직통 HERO 합성 결과 누락 (회귀)`);
+  }
+  if (!/fromStationName:\s*ax\.from_station/.test(content)) {
+    violations.push(`${FILE}: _buildArexExpressHero 가 fromStationName=ax.from_station(공항 station) 미설정 — P274 terminal mismatch false-positive (회귀)`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P327_arexExpressHero',
+      violations.join(' | '),
+      '메모리 P327 — _buildArexExpressHero 직통 HERO 합성, rec.key==="arex_express" 게이트, heroRoute 로 write/P275, fromStationName=ax.from_station. tests/unit/arex-express-hero-p327.test.ts.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P326_cacheGeoValidation', P326_cacheGeoValidation],
   ['P326_intercityMergeBack', P326_intercityMergeBack],
+  ['P327_arexExpressHero', P327_arexExpressHero],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -6912,6 +6948,40 @@ function runSelfTest() {
           + '});\n',
       },
       expectRule: 'P326_intercityMergeBack',
+      expectClean: true,
+    },
+    {
+      label: 'P327 (true positive): write 가 heroRoute 아닌 route 직접 사용 (직통 합성 무시)',
+      base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
+      head: {
+        'api/_ai_core/agents/RouteAgent.js':
+          'async _buildArexExpressHero() { return { fromStationName: ax.from_station }; }\n'
+          + 'if (isIcnArrival && rec.key === "arex_express") { heroRoute = await this._buildArexExpressHero(); }\n'
+          + 'rawItinerary.arrival_guide.route_to_hotel = { ...route, recommended_option: rec };\n',
+      },
+      expectRule: 'P327_arexExpressHero',
+    },
+    {
+      label: 'P327 (true positive): rec.key 게이트 누락 (charter/limousine 추천 덮어쓸 위험)',
+      base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
+      head: {
+        'api/_ai_core/agents/RouteAgent.js':
+          'async _buildArexExpressHero() { return { fromStationName: ax.from_station }; }\n'
+          + 'heroRoute = await this._buildArexExpressHero();\n'
+          + 'rawItinerary.arrival_guide.route_to_hotel = { ...heroRoute, recommended_option: rec };\n',
+      },
+      expectRule: 'P327_arexExpressHero',
+    },
+    {
+      label: 'P327 (false positive 차단): 게이트+heroRoute+fromStationName 정상 — 룰 silent',
+      base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
+      head: {
+        'api/_ai_core/agents/RouteAgent.js':
+          'async _buildArexExpressHero() { return { fromStationName: ax.from_station }; }\n'
+          + 'if (isIcnArrival && rec.key === "arex_express") { heroRoute = await this._buildArexExpressHero(); }\n'
+          + 'rawItinerary.arrival_guide.route_to_hotel = { ...heroRoute, recommended_option: rec };\n',
+      },
+      expectRule: 'P327_arexExpressHero',
       expectClean: true,
     },
     {

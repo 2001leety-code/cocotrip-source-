@@ -41,6 +41,22 @@ export const STATION_COORDS = {
   '경주고속버스터미널':   { lat: 35.8489, lng: 129.2143, label: '경주고속버스터미널' },
 };
 
+// P327 (2026-05-31): AREX 직통열차(Express) — 인천공항 공항철도 직통(무정차) → 서울역.
+// ODsay 는 express 를 별도 path 로 모델링 못 함(일반열차→홍대입구→2호선 환승 79분 indirect
+// 경로만 path[0] 로 반환) → HERO 가 자가모순(recommended_option 라벨 "AREX Express 가장 빠름"
+// ↔ route 데이터 79분 일반경로). ICN→서울 중심부일 때 직통(고정) + 서울역→호텔 last-mile(실
+// ODsay)을 이어붙여 라벨과 일치하는 직통 HERO 를 합성한다. 요금/시간 = 공식 AREX express
+// (T1 43분 / T2 51분, ₩9,500 — planPersister selfHeal default 와 동일값).
+export const AREX_EXPRESS = {
+  ICN_T1: { express_min: 43, from_station: '인천공항1터미널역' },
+  ICN_T2: { express_min: 51, from_station: '인천공항2터미널역' },
+  ICN:    { express_min: 43, from_station: '인천공항1터미널역' }, // generic = T1 alias
+};
+export const AREX_EXPRESS_FARE_KRW = 9500;
+// 직통 HERO 게이트: 목적지가 서울역 반경 이내(중심부)일 때만. 그 밖(강남/잠실 등)은 기존
+// ODsay route 유지 — 먼 거리는 직통+last-mile 이 직선 경로보다 유리하지 않을 수 있어 보수적.
+export const AREX_EXPRESS_MAX_KM_FROM_SEOUL_STN = 6;
+
 // P155 (2026-05-22): Station 이름 정규화 매핑 — Gemini 출력 변형 (괄호 suffix /
 // 공백 / 동/노포 위치명) 처리. lookupStationCoord 이 정규화 후 매칭.
 const STATION_ALIAS = {
@@ -685,37 +701,53 @@ export class RouteAgent extends BaseAgent {
                         luggage: data.luggage,
                         paxCount: data.pax || 2,
                     });
+
+                    // P327 (2026-05-31): ICN→서울 중심부 + arex_express 추천 시 직통 HERO 로 교체.
+                    // ODsay path[0] 가 일반열차→홍대입구→2호선 79분 indirect 라 라벨 "AREX Express
+                    // 가장 빠름" 과 모순이었다. heavy-luggage(charter)/late-night(limousine) 추천은
+                    // 그대로 두고, 표준 arex_express 추천일 때만 직통+last-mile 합성으로 라벨↔데이터 정합.
+                    let heroRoute = route;
+                    const isIcnArrival = arrivalAirportKey === 'ICN' || arrivalAirportKey === 'ICN_T1' || arrivalAirportKey === 'ICN_T2';
+                    if (isIcnArrival && rec.key === 'arex_express') {
+                        const express = await this._buildArexExpressHero(arrivalAirportKey, arrFromCoord, clientId, clientSecret);
+                        if (express) {
+                            heroRoute = express;
+                            console.log(`  - [Airport→Hotel] P327 AREX 직통 HERO: ${express.est_min}min / ₩${express.est_fare_krw} / ${express.transfers}tr (ODsay path[0] 는 ${route.est_min}min/${route.transfers}tr 였음)`);
+                        }
+                    }
+
                     if (arrFromSource !== 'hotel') {
-                        route.fallback_origin = arrFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
-                        route.fallback_label = arrFromLabel || null;
+                        heroRoute.fallback_origin = arrFromSource; // 'arrival_guide' | 'zone_anchor' | 'city_center'
+                        heroRoute.fallback_label = arrFromLabel || null;
                     }
 
                     // P275 (2026-05-29): ODsay station mismatch 측정 + quality_warnings 박제.
                     // P274 우회 fix (input 'ICN' echo) 의 측정 강화 — input terminal vs ODsay 추천
                     // station 의 terminal 일치 검증. mismatch 시 운영자 admin panel (P121) 즉시 노출.
                     // 추후 Phase B (station 좌표 별도 dict + 호출 시 strict match) 에서 자동 fix.
-                    const arrV = _verifyAirportStation(arrivalAirportKey, route.fromStationName);
+                    // P327: 직통 HERO 는 fromStationName=인천공항N터미널역 → terminal match 통과.
+                    const arrV = _verifyAirportStation(arrivalAirportKey, heroRoute.fromStationName);
                     if (!arrV.match) {
                         rawItinerary.quality_warnings = rawItinerary.quality_warnings || [];
                         rawItinerary.quality_warnings.push({
                             kind: 'arrival_station_terminal_mismatch',
                             type: 'arrival_station_terminal_mismatch',
                             severity: 'high',
-                            message: `P275: input arrival_airport='${arrivalAirportKey}' but ODsay station='${route.fromStationName}' (${arrV.reason}). 사용자 비행기 놓침 risk.`,
+                            message: `P275: input arrival_airport='${arrivalAirportKey}' but ODsay station='${heroRoute.fromStationName}' (${arrV.reason}). 사용자 비행기 놓침 risk.`,
                         });
-                        console.warn(`[RouteAgent P275] arrival station mismatch: input='${arrivalAirportKey}' station='${route.fromStationName}' (${arrV.reason})`);
+                        console.warn(`[RouteAgent P275] arrival station mismatch: input='${arrivalAirportKey}' station='${heroRoute.fromStationName}' (${arrV.reason})`);
                     }
 
                     // B9-15/25 + P269: anchor 우선순위 — hotel 좌표 있으면 그것, 없으면 fallback chain 결과.
                     rawItinerary.arrival_guide.route_to_hotel = {
-                        ...route,
+                        ...heroRoute,
                         recommended_option: rec,
                         anchor_lat: arrFromCoord.lat,
                         anchor_lng: arrFromCoord.lng,
                         anchor_label: arrFromLabel || anchorLabel || null,
                         anchor_source: arrFromSource === 'hotel' ? (anchorSource || 'hotel') : arrFromSource,
                     };
-                    console.log(`  - [Airport→Hotel] ${route.est_min}min via ${route.method}, recommended=${rec.key}, origin=${arrFromSource}, anchor=${route.anchor_source}/${route.anchor_label}`);
+                    console.log(`  - [Airport→Hotel] ${heroRoute.est_min}min via ${heroRoute.method}, recommended=${rec.key}, origin=${arrFromSource}, source=${heroRoute.source}`);
                 } else {
                     // ODsay 끝까지 실패 — _failed 마커로 graceful 표시.
                     rawItinerary.arrival_guide.route_to_hotel = {
@@ -2234,6 +2266,61 @@ export class RouteAgent extends BaseAgent {
             await reportError(lastErr, { route: 'RouteAgent._routeAirportHotel', direction });
         }
         return null;
+    }
+
+    /**
+     * P327 (2026-05-31): AREX 직통열차(Express) HERO 합성 — ICN→서울 중심부 전용.
+     * ODsay 가 express 를 못 줘서(일반열차→홍대입구→2호선 79분 indirect 경로만) HERO 가 라벨
+     * "AREX Express 가장 빠름" ↔ 데이터 79분 일반경로 로 자가모순이었다. 인천공항→서울역 무정차
+     * 직통(고정 시간/요금) + 서울역→호텔 last-mile(실 ODsay)을 이어붙여 라벨과 일치하는 직통
+     * HERO 를 만든다. buildPrompt 변경 0 (백엔드 합성, Gemini 안 거침 = cache miss 0).
+     * 게이트 밖(비-ICN / 서울역 6km 초과 / last-mile 실패)이면 null → 호출부가 기존 route 유지(안전).
+     * @returns {Promise<object|null>} route_to_hotel 호환 객체 또는 null
+     */
+    async _buildArexExpressHero(arrivalAirportKey, destCoord, clientId, clientSecret) {
+        const ax = AREX_EXPRESS[arrivalAirportKey];
+        const seoul = STATION_COORDS['서울역'];
+        if (!ax || !seoul || !destCoord || destCoord.lat == null || destCoord.lng == null) return null;
+        // 중심부 게이트: 서울역 반경 이내만 (명동/종로/중구/마포 등). 그 밖은 기존 route 유지.
+        const kmFromSeoulStn = _haversineKmPure(seoul.lat, seoul.lng, destCoord.lat, destCoord.lng);
+        if (!(kmFromSeoulStn <= AREX_EXPRESS_MAX_KM_FROM_SEOUL_STN)) return null;
+        // last-mile: 서울역 → 호텔 (실 ODsay — 명동=4호선 2정거장 등). 실패 시 직통 HERO 포기.
+        const lastMile = await this._routeAirportHotel({ lat: seoul.lat, lng: seoul.lng }, destCoord, 'arrival');
+        if (!lastMile) return null;
+        const lastIsWalk = lastMile.method === 'walk';
+        const fare = AREX_EXPRESS_FARE_KRW;
+        // 직통 구간 step (rich card 용 — SubwayStep 최소 필드. stationCount:0 = 무정차).
+        const expressStep = {
+            mode: 'subway',
+            line: 'AREX 직통', lineKo: 'AREX 직통(공항철도)', lineEn: 'AREX Express',
+            from: ax.from_station, fromRoman: 'Incheon Airport',
+            to: '서울역', toRoman: 'Seoul Station',
+            duration: ax.express_min,
+            stationCount: 0,
+        };
+        const totalMin = ax.express_min + (lastMile.est_min || 0);
+        const totalFare = fare + (lastMile.est_fare_krw || 0);
+        // 환승 횟수: 서울역에서 last-mile 로 갈아탐(직통 자체는 무정차 0환승). 도보 last-mile 이면 환승 0.
+        const transfers = lastIsWalk ? 0 : (lastMile.transfers || 0) + 1;
+        return {
+            method: 'subway',
+            mode: 'subway',
+            instruction: `🚄 AREX 직통 ${ax.from_station}→서울역 ${ax.express_min}분(무정차) → 서울역→목적지 ${lastMile.est_min || 0}분`,
+            step_by_step: [
+                `AREX 직통열차: ${ax.from_station} → 서울역 (${ax.express_min}분, 무정차·지정좌석, ₩${fare.toLocaleString()})`,
+                ...(lastMile.step_by_step || []),
+            ],
+            steps_detail: [expressStep, ...(lastMile.steps_detail || [])],
+            transfers,
+            total_walk_m: lastMile.total_walk_m || 0,
+            est_min: totalMin,
+            est_fare_krw: totalFare,
+            source: 'arex_express_synth', // P327 합성 마커 (source!=='naver_fallback' → fallback 경고 미노출)
+            direction: 'arrival',
+            fromStationName: ax.from_station, // P274/P275 가드 통과 (인천공항N터미널역 → terminal match)
+            toStationName: lastMile.toStationName || null,
+            _arex_express: true, // 측정/디버깅 마커
+        };
     }
 
     /** "HH:MM" → 분(number) */
