@@ -21,7 +21,9 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import axios from 'axios';
-import { searchTransitRoute, formatTransitSummary } from './_odsay_helper.js';
+import { formatTransitSummary } from './_odsay_helper.js';
+// P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP.
+import { searchTransit } from './_transit_provider.js';
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -154,7 +156,7 @@ export default async function handler(req, res) {
             },
             timeout: 5000,
           }) : Promise.reject(new Error('no credentials')),
-          searchTransitRoute(prev.lng, prev.lat, curr.lng, curr.lat),
+          searchTransit(prev.lng, prev.lat, curr.lng, curr.lat),
         ]);
 
         let durationMin = 25;

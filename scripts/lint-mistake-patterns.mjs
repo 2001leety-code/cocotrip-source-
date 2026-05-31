@@ -2219,10 +2219,46 @@ function P327_arexExpressHero({ changed }) {
   return null;
 }
 
+/**
+ * P330_transitProviderSwitch — 메모리 P330 (2026-05-31, ODsay↔TMAP provider 스위치).
+ * 운영자 의도: "전환 아직, 구현만 — 언제든 env 로 교체." 회귀 위험: (1) provider 기본값이
+ * 'odsay' 아니면 prod 가 의도치 않게 TMAP 으로 ship, (2) 호출부가 _transit_provider.searchTransit
+ * 대신 searchTransitRoute 직접 호출하면 스위치 우회. 회귀 슬롯: tests/unit/transit-provider-tmap-p330.test.ts.
+ */
+function P330_transitProviderSwitch({ changed }) {
+  const PROVIDER = 'api/_transit_provider.js';
+  const CALLERS = ['api/_ai_core/agents/RouteAgent.js', 'api/recalc-transit.js'];
+  const violations = [];
+  if (isModified(PROVIDER, changed)) {
+    const c = getChangedFileContent(PROVIDER);
+    if (c && !/TRANSIT_PROVIDER\s*\|\|\s*['"]odsay['"]/.test(c)) {
+      violations.push(`${PROVIDER}: provider 기본값이 'odsay' 아님 — prod 가 의도치 않게 TMAP 으로 ship 될 위험 (P330: 기본 ODsay, 교체는 env TRANSIT_PROVIDER 로만)`);
+    }
+  }
+  for (const FILE of CALLERS) {
+    if (!isModified(FILE, changed)) continue;
+    const c = getChangedFileContent(FILE);
+    if (!c) continue;
+    // provider 도입된 파일인데 searchTransitRoute 직접 호출 잔존 = 스위치 우회.
+    if (/_transit_provider/.test(c) && /searchTransitRoute\s*\(/.test(c)) {
+      violations.push(`${FILE}: provider 도입 후 searchTransitRoute 직접 호출 잔존 — _transit_provider.searchTransit 으로 통일 필요 (P330 스위치 우회)`);
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'P330_transitProviderSwitch',
+      violations.join(' | '),
+      '메모리 P330 — 대중교통 provider 스위치. 기본 odsay, 호출부는 _transit_provider.searchTransit, 교체는 TRANSIT_PROVIDER env 로만. tests/unit/transit-provider-tmap-p330.test.ts.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
   ['P326_cacheGeoValidation', P326_cacheGeoValidation],
   ['P326_intercityMergeBack', P326_intercityMergeBack],
   ['P327_arexExpressHero', P327_arexExpressHero],
+  ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -6982,6 +7018,25 @@ function runSelfTest() {
           + 'rawItinerary.arrival_guide.route_to_hotel = { ...heroRoute, recommended_option: rec };\n',
       },
       expectRule: 'P327_arexExpressHero',
+      expectClean: true,
+    },
+    {
+      label: 'P330 (true positive): provider 기본값이 odsay 아닌 tmap (prod 의도치 않게 ship)',
+      base: { 'api/_transit_provider.js': '// stub\n' },
+      head: { 'api/_transit_provider.js': "export function getTransitProvider() { return (process.env.TRANSIT_PROVIDER || 'tmap').trim().toLowerCase() === 'tmap' ? 'tmap' : 'odsay'; }\n" },
+      expectRule: 'P330_transitProviderSwitch',
+    },
+    {
+      label: 'P330 (true positive): 호출부에 searchTransitRoute 직접 호출 잔존 (스위치 우회)',
+      base: { 'api/recalc-transit.js': '// stub\n' },
+      head: { 'api/recalc-transit.js': "import { searchTransit } from './_transit_provider.js';\nconst r = await searchTransitRoute(a, b, c, d);\n" },
+      expectRule: 'P330_transitProviderSwitch',
+    },
+    {
+      label: 'P330 (false positive 차단): provider 기본 odsay 정상 — 룰 silent',
+      base: { 'api/_transit_provider.js': '// stub\n' },
+      head: { 'api/_transit_provider.js': "export function getTransitProvider() { return (process.env.TRANSIT_PROVIDER || 'odsay').trim().toLowerCase() === 'tmap' ? 'tmap' : 'odsay'; }\n" },
+      expectRule: 'P330_transitProviderSwitch',
       expectClean: true,
     },
     {

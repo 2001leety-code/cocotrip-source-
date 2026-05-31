@@ -1,6 +1,8 @@
 import axios from "axios";
 import { BaseAgent } from "./BaseAgent.js";
-import { searchTransitRoute, formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
+import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
+// P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP. 출력 shape 동일.
+import { searchTransit } from "../../_transit_provider.js";
 import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
 import { throttledTelegramAlert } from "../../_shared/telegram-throttle.js";
 // Phase 3 (2026-05-27): zone_courses Firestore transit_matrix cache — ODsay 호출 절감.
@@ -2061,7 +2063,8 @@ export class RouteAgent extends BaseAgent {
     async _searchOdsayWithRetry(sx, sy, ex, ey) {
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
-                const result = await searchTransitRoute(sx, sy, ex, ey);
+                // P330: provider-aware (ODsay 기본 / TMAP env 스위치). 출력 shape 동일.
+                const result = await searchTransit(sx, sy, ex, ey);
                 return result;
             } catch (e) {
                 if (attempt === 0) {
