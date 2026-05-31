@@ -8,8 +8,8 @@ import pricingSpec from './pricing_spec.json';
 
 // P1 #5 fix (2026-05-13): 환율 SSOT — pricing_spec.policy_krw_per_usd (1430) 우선.
 // Vercel env (VITE_KRW_PER_USD) > SSOT > hardcoded fallback. 실 결제 환산은 backend live rate 사용.
-const POLICY_RATE = (pricingSpec as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
-const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD ?? POLICY_RATE);
+const POLICY_RATE = (pricingSpec as { policy_krw_per_usd?: number }).policy_krw_per_usd || 1430;
+const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD || POLICY_RATE);
 
 /** Tour ID → pricing_spec.daily_tour_prices key. null이면 spec에 없음 (fallback 사용). */
 const TOUR_TO_CHARTER_KEY: Record<string, string | null> = {
@@ -1168,6 +1168,41 @@ export function getTourBySlug(slug: string): Tour | undefined {
 export function getToursByRegion(region: TourRegion | 'All'): Tour[] {
   if (region === 'All') return TOURS;
   return TOURS.filter(t => t.region === region);
+}
+
+// PR-A: own-tour upsell matcher (flag: VITE_FEATURE_OWN_TOUR_UPSELL)
+// Match itinerary place names against tour stop names (ko).
+// Priority: stop overlap >= minOverlap, fallback: region name substring match.
+// Returns empty array when no match => nothing rendered.
+//
+// @param itineraryPlaceNames  all stop names from the generated plan
+// @param regionName           result.meta.regions[0]
+// @param minOverlap           overlap threshold, default 2
+export function getMatchedOwnTours(
+  itineraryPlaceNames: string[],
+  regionName: string,
+  minOverlap = 2,
+): Tour[] {
+  const normalise = (s: string) => s.replace(/\s/g, '').toLowerCase();
+  const planSet = new Set(itineraryPlaceNames.map(normalise));
+
+  // Pass 1: stop name overlap >= minOverlap
+  const byStop = TOURS.filter(tour => {
+    const stops = tour.stops || TOUR_STOPS_BY_ID[tour.id] || [];
+    const overlap = stops.filter(st => planSet.has(normalise(st.name.ko))).length;
+    return overlap >= minOverlap;
+  });
+
+  if (byStop.length > 0) return byStop;
+
+  // Pass 2: region fallback (substring match both ways)
+  const regionNorm = normalise(regionName);
+  const byRegion = TOURS.filter(tour => {
+    const reg = normalise(tour.region);
+    return reg.includes(regionNorm) || regionNorm.includes(reg);
+  });
+
+  return byRegion;
 }
 
 export const TOUR_REGIONS: Array<{ key: TourRegion | 'All'; label: I18nString }> = [
