@@ -2116,7 +2116,77 @@ function R_P321_blockModeRegionNormalize(ctx) {
   return null;
 }
 
+/**
+ * P326_cacheGeoValidation — 메모리 P326 #1 (2026-05-31, transit 경로 품질).
+ * block_mode transit cache(P228) hit 을 venue 좌표 지리 검증 없이 재사용하면 food placeholder
+ * 치환(matchFoodPlaceholder) 시 옛 거리/시간 오적용("6km 를 23분/3959m") + subway→car 강등.
+ * fix: cache hit 후 isCacheGeoConsistent(haversine 실거리 vs cached 거리 ±50%) 게이트 → 벗어나면
+ * ODsay 실측 fall-through. 회귀 슬롯: tests/unit/transit-quality-p326.test.ts.
+ */
+function P326_cacheGeoValidation({ changed }) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  // transit cache lookup 을 쓰는 경우에만 검사 (lookup 자체가 빠지면 무관).
+  if (!/lookupTransitCache/.test(content)) return null;
+  const violations = [];
+  if (!/isCacheGeoConsistent/.test(content)) {
+    violations.push(`${FILE}: transit cache hit 이 isCacheGeoConsistent 지리 검증 없이 재사용 — food placeholder 치환 시 옛 거리/시간 오적용("6km 를 23분") + subway→car 강등 (P326 #1 회귀)`);
+  } else if (!/if\s*\(\s*isCacheGeoConsistent\([^)]*\)\s*\)/.test(content)) {
+    // helper 는 정의됐는데 cache hit 게이트로 안 쓰는 경우 (연결 누락).
+    violations.push(`${FILE}: isCacheGeoConsistent 가 cache hit 게이트(if (isCacheGeoConsistent(...))) 로 사용 안 됨 — cache 폐기 로직 미연결 (P326 #1 회귀)`);
+  }
+  if (violations.length > 0) {
+    fail(
+      'P326_cacheGeoValidation',
+      violations.join(' | '),
+      '메모리 P326 #1 — cache hit 후 _haversineKmPure(prev,curr) vs cached 거리 ±50% 벗어나면 cache 폐기 → _getTransitData ODsay 실측. tests/unit/transit-quality-p326.test.ts.',
+    );
+  }
+  return null;
+}
+
+/**
+ * P326_intercityMergeBack — 메모리 P326 #2 (2026-05-31, transit 경로 품질).
+ * block_mode 다도시는 RouteAgent _enrichMultiCityDays 가 intercity_transit(KTX) 생성하나,
+ * routeEnrichment merge-back 루프가 stops/lodging 만 원본 복사하고 intercity_transit 누락 →
+ * 생성됐다 손실(서울→부산 KTX 0건). fix: 머지백 상단(enrichedStops>0 가드 **밖** —
+ * 도시전환일 stops 0 가능) 에서 복사. 회귀 슬롯: tests/unit/transit-quality-p326.test.ts.
+ */
+function P326_intercityMergeBack({ changed }) {
+  const FILE = 'api/_ai_core/routeEnrichment.js';
+  if (!isModified(FILE, changed)) return { skipped: true };
+  const content = getChangedFileContent(FILE);
+  if (!content) return { skipped: true };
+  // merge-back 루프가 존재할 때만 검사 (루프 자체가 사라지면 무관).
+  const hasMergeBackLoop = /enrichedDays\.forEach/.test(content) || /enrichedDay\.lodging_to_first/.test(content);
+  if (!hasMergeBackLoop) return null;
+  const violations = [];
+  const copyRe = /itinerary\.days\[i\]\.intercity_transit\s*=\s*enrichedDay\.intercity_transit/;
+  if (!copyRe.test(content)) {
+    violations.push(`${FILE}: merge-back 루프가 enrichedDay.intercity_transit 를 원본 itinerary.days 로 복사 안 함 — block_mode 다도시 KTX 손실(생성됐다 버려짐, P326 #2 회귀)`);
+  } else {
+    // 배치 불변식: 복사문이 enrichedStops 가드보다 위(앞)에 있어야 도시전환일(stops 0) 손실 방지.
+    const copyIdx = content.search(copyRe);
+    const stopsGuardIdx = content.search(/const\s+enrichedStops\s*=\s*enrichedDay\.stops/);
+    if (stopsGuardIdx >= 0 && copyIdx > stopsGuardIdx) {
+      violations.push(`${FILE}: intercity_transit 복사가 enrichedStops 가드 뒤로 이동됨 — 도시전환일 stops 0 시 KTX 손실 위험 (P326 #2 배치 불변식 회귀)`);
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'P326_intercityMergeBack',
+      violations.join(' | '),
+      '메모리 P326 #2 — enrichedDays.forEach 상단(enrichedStops>0 조건 밖)에 if (itinerary.days[i] && enrichedDay.intercity_transit) itinerary.days[i].intercity_transit = enrichedDay.intercity_transit 유지. tests/unit/transit-quality-p326.test.ts.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
+  ['P326_cacheGeoValidation', P326_cacheGeoValidation],
+  ['P326_intercityMergeBack', P326_intercityMergeBack],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
   ['R_A1_7_2_runningRouteValidator', R_A1_7_2_runningRouteValidator],
   ['Z01_blockTypeMetaConsistency', Z01_blockTypeMetaConsistency],
@@ -6782,6 +6852,67 @@ function runSelfTest() {
       base: { 'api/_ai_core/blockMode.js': 'const cities = regions.map((r) => String(r).split("_")[0].toLowerCase());\n' },
       head: { 'api/_ai_core/blockMode.js': 'const cities = regions.map((r) => String(r).split("_")[0].toLowerCase()); // edit\n' },
       expectRule: 'R_P321_blockModeRegionNormalize',
+    },
+    {
+      label: 'P326 #1 (true positive): RouteAgent transit cache hit 이 isCacheGeoConsistent 지리 검증 없이 재사용',
+      base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
+      head: {
+        'api/_ai_core/agents/RouteAgent.js':
+          'const cached = await lookupTransitCache(z, a, b);\n'
+          + 'if (cached) return { index: i, ...cached };\n',
+      },
+      expectRule: 'P326_cacheGeoValidation',
+    },
+    {
+      label: 'P326 #1 (false positive 차단): isCacheGeoConsistent 게이트 정상 — 룰 silent',
+      base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
+      head: {
+        'api/_ai_core/agents/RouteAgent.js':
+          'const cached = await lookupTransitCache(z, a, b);\n'
+          + 'if (cached) {\n'
+          + '  const actualKm = _haversineKmPure(prev.lat, prev.lng, curr.lat, curr.lng);\n'
+          + '  if (isCacheGeoConsistent(actualKm, cached)) return { index: i, ...cached };\n'
+          + '}\n',
+      },
+      expectRule: 'P326_cacheGeoValidation',
+      expectClean: true,
+    },
+    {
+      label: 'P326 #2 (true positive): routeEnrichment merge-back 가 intercity_transit 복사 누락',
+      base: { 'api/_ai_core/routeEnrichment.js': '// stub\n' },
+      head: {
+        'api/_ai_core/routeEnrichment.js':
+          'enrichedDays.forEach((enrichedDay, i) => {\n'
+          + '  const enrichedStops = enrichedDay.stops || [];\n'
+          + '  if (enrichedDay.lodging_to_first) itinerary.days[i].lodging_to_first = enrichedDay.lodging_to_first;\n'
+          + '});\n',
+      },
+      expectRule: 'P326_intercityMergeBack',
+    },
+    {
+      label: 'P326 #2 (true positive): intercity_transit 복사가 enrichedStops 가드 뒤로 이동 (배치 불변식 위반)',
+      base: { 'api/_ai_core/routeEnrichment.js': '// stub\n' },
+      head: {
+        'api/_ai_core/routeEnrichment.js':
+          'enrichedDays.forEach((enrichedDay, i) => {\n'
+          + '  const enrichedStops = enrichedDay.stops || [];\n'
+          + '  if (itinerary.days[i] && enrichedDay.intercity_transit) itinerary.days[i].intercity_transit = enrichedDay.intercity_transit;\n'
+          + '});\n',
+      },
+      expectRule: 'P326_intercityMergeBack',
+    },
+    {
+      label: 'P326 #2 (false positive 차단): intercity 복사가 enrichedStops 앞 — 룰 silent',
+      base: { 'api/_ai_core/routeEnrichment.js': '// stub\n' },
+      head: {
+        'api/_ai_core/routeEnrichment.js':
+          'enrichedDays.forEach((enrichedDay, i) => {\n'
+          + '  if (itinerary.days[i] && enrichedDay.intercity_transit) itinerary.days[i].intercity_transit = enrichedDay.intercity_transit;\n'
+          + '  const enrichedStops = enrichedDay.stops || [];\n'
+          + '});\n',
+      },
+      expectRule: 'P326_intercityMergeBack',
+      expectClean: true,
     },
     {
       label: 'P5: api/_food_index.json 삭제',

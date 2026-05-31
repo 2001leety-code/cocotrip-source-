@@ -398,6 +398,20 @@ function _haversineKmPure(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ── P326 (2026-05-31): transit cache 지리 정합 검증 (pure, 회귀 테스트용 export) ──
+// block_mode transit cache(P228) 는 stop order 만 key 로 쓴다. food placeholder 치환
+// (matchFoodPlaceholder) 으로 venue 좌표가 바뀌면 같은 order 에 옛 거리/시간이 붙어
+// "6km 를 23분/3959m" + subway→car 강등 같은 틀린 transit 을 노출한다. 실거리(haversine)
+// 가 cache 거리와 ±50% 이상 벗어나면 venue 치환을 의심해 cache 를 폐기(false)하고
+// 호출부가 ODsay 실측으로 fall-through 하게 한다.
+// 거리 정보가 없거나(actualKm/cachedKm ≤ 0) 검증 불가하면 보수적으로 cache 신뢰(true).
+export function isCacheGeoConsistent(actualKm, cached) {
+    const cachedKm = cached && cached.distanceKm != null ? cached.distanceKm
+        : (cached && cached.distance_m != null ? cached.distance_m / 1000 : null);
+    if (cachedKm == null || cachedKm <= 0 || actualKm <= 0) return true;
+    return actualKm <= cachedKm * 1.5 && actualKm >= cachedKm * 0.5;
+}
+
 // 좌표 배열의 총 traversal 거리 (km) — TSP fitness 평가용.
 function _totalRouteKm(stops) {
     let total = 0;
@@ -1040,10 +1054,18 @@ export class RouteAgent extends BaseAgent {
                     transitPromises.push(
                         lookupTransitCache(dayZoneId, fromOrder, toOrder).then((cached) => {
                             if (cached) {
-                                // Cache hit: ODsay skip. index 필드 추가 (caller 기대값).
-                                return { index: i, ...cached };
+                                // P326 (2026-05-31): cache 지리 검증 — food placeholder 치환(matchFoodPlaceholder)으로
+                                //   stop venue 가 바뀌면 order key 는 같아도 실제 좌표가 달라짐. cache 는 order 만 보고
+                                //   옛 거리/시간을 붙여 "6km 를 23분" 처럼 틀린 transit + subway→car 강등 유발.
+                                //   haversine(prev,curr) 가 cache 거리와 ±50% 벗어나면 cache 폐기 → ODsay 실측.
+                                const actualKm = _haversineKmPure(prev.lat, prev.lng, curr.lat, curr.lng);
+                                if (isCacheGeoConsistent(actualKm, cached)) {
+                                    // Cache hit (지리 정합): ODsay skip. index 필드 추가 (caller 기대값).
+                                    return { index: i, ...cached };
+                                }
+                                // 지리 mismatch (venue 치환 의심) → cache 폐기, 아래 ODsay 실측으로.
                             }
-                            // Cache miss: 기존 ODsay 경로
+                            // Cache miss 또는 geo mismatch: 기존 ODsay 경로
                             return this._getTransitData(prev, curr, clientId, clientSecret, i, dayOfWeek);
                         })
                     );
