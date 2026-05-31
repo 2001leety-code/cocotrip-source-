@@ -376,9 +376,13 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const datesPicked = !!(dateRange?.from && dateRange?.to);
   const durationDays = datesPicked ? Math.max(1, nights + 1) : 3;
   const pax = parseInt(paxInput) || 2;
-  // P142 (2026-05-22): 출국 공항. 사용자가 명시 안 했으면 입국 공항으로 폴백
-  // (단도시 plan + 같은 터미널 입출국 = 절대다수 케이스).
-  const departureAirport = departureTerminal || arrivalTerminal;
+  // P142 (2026-05-22) → P-launch (2026-05-31): 출국 공항.
+  //   ⚠️ 이전엔 `departureTerminal || arrivalTerminal` 로 미선택 시 *입국 공항*을 강제 →
+  //   다도시(서울→부산) plan 에서 출국이 '부산→인천(ICN)' 으로 잘못 안내 = 비행기 놓침 risk.
+  //   FIX: 사용자가 명시 안 했으면 '' 를 보내 backend inferDepartureAirport 가
+  //   *마지막 도시* 기준 도출하게 위임 (부산→김해 PUS / 제주→CJU / 단도시·미매핑→입국 공항).
+  //   사용자가 dropdown 에서 명시 선택하면 그 값 그대로 존중 (override 안 함 = 안전).
+  const departureAirport = departureTerminal;
 
   const airportOptions = getAirportOptions(mainCityKey || 'seoul');
 
