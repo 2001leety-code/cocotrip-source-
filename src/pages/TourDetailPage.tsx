@@ -6,6 +6,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { trackViewItem } from '@/lib/analytics';
+import { buildTourJsonLd } from './buildTourJsonLd';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
   CalendarCheck, Package, ChevronRight, Languages,
@@ -55,6 +56,10 @@ const VEHICLE_FALLBACK: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// buildTourJsonLd → src/pages/buildTourJsonLd.ts 로 분리 (firebase-free 순수 모듈, PR-B CI fix:
+//   테스트가 TourDetailPage 전체 import 시 firebase getAuth() CI throw → 순수 모듈 격리).
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function TourDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const { language, t, changeLanguage } = useLanguage();
@@ -96,34 +101,25 @@ export default function TourDetailPage() {
   // Schema.org Product JSON-LD (inject/cleanup)
   useEffect(() => {
     if (!tour || !slug) return;
+    const featureFlag = import.meta.env.VITE_FEATURE_REAL_TOUR_RATINGS === 'true';
     const script = document.createElement('script');
     script.type = 'application/ld+json';
     script.id = 'tour-jsonld';
-    script.textContent = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@type': 'Product',
-      name: txt(tour.title, 'en'),
-      description: txt(tour.summary, 'en'),
-      image: tour.images[0] || 'https://cocotripkr.com/og-image.png',
-      brand: { '@type': 'Brand', name: 'CocoTrip' },
-      offers: {
-        '@type': 'Offer',
-        url: `https://cocotripkr.com/tours/${slug}`,
-        priceCurrency: 'USD',
-        price: tour.priceFrom,
-        availability: 'https://schema.org/InStock',
-      },
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: '4.9',
-        reviewCount: '32',
-      },
-    });
+    script.textContent = JSON.stringify(buildTourJsonLd({
+      slug,
+      tourTitle: txt(tour.title, 'en'),
+      tourSummary: txt(tour.summary, 'en'),
+      tourImage: tour.images[0] || 'https://cocotripkr.com/og-image.png',
+      tourPrice: tour.priceFrom,
+      rating: resolvedRating.rating,
+      reviewCount: resolvedRating.reviewCount,
+      featureFlag,
+    }));
     // Remove old if exists
     document.getElementById('tour-jsonld')?.remove();
     document.head.appendChild(script);
     return () => { script.remove(); };
-  }, [slug, tour]);
+  }, [slug, tour, resolvedRating]);
 
   // ── 404 ──────────────────────────────────────────────────────────────────
   if (!tour) {
