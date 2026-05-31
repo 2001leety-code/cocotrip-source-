@@ -20,12 +20,22 @@ import {
   useWizardPersistence,
   loadFreshestWizardSnapshot,
   clearWizardSnapshot,
+  clearPlannerWizardSnapshot,
+  markWizardDirtyExit,
 } from '@/hooks/useWizardPersistence';
 import { ResumeWizardModal } from '@/components/ResumeWizardModal';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
-import { hasMeaningfulWizardContent } from './snapshotContent';
+import { hasMeaningfulWizardContent, hasMeaningfulWizardContentStrict } from './snapshotContent';
+
+// PR-D (2026-06-01): resume "이어서 작성" modal 과노출 fix 의 기능 플래그.
+// OFF(기본) = 기존 동작 byte-identical. ON 일 때만 좁힌 트리거 적용:
+//   (1) 임계값 ≥2 신호 (식이/알레르기는 단독 허용 — SAFETY)
+//   (2) "사고 이탈(dirtyExit)" 마커가 있을 때만 modal 노출
+//   (3) discard 가 planner + planner_paused 양쪽 키 정리
+// string === 'true' 비교 — Vite env 는 항상 문자열.
+const RESUME_DIRTY_EXIT_ON = import.meta.env.VITE_FEATURE_RESUME_DIRTY_EXIT === 'true';
 // 2026-05-13 PR #393 후속: getZoneByKey 는 handleGenerate 안에서 dynamic import.
 // cityNameToZoneKey + CITY_NAME_BY_KEY 는 zoneHelpers (light) 에서 직접 import →
 // main planner chunk 에서 heavy zone arrays 분리.
@@ -92,6 +102,11 @@ interface PlannerSnapshotValues {
   // 기존 사용자는 recommendedZone (legacy) 만 갖고 있을 수 있어 복원 시 fallback 처리.
   recommendedZones: Record<string, string>;
   tourPace: TourPace;
+  /** PR-D (2026-06-01): "사고 이탈" 마커. pagehide 가 동기 기록 → resume modal 의
+   *  좁힌 트리거(flag ON)가 dirtyExit 있을 때만 노출. 사용자 입력 시그널이 아니라
+   *  라이프사이클 신호 — autosaveValues 에는 직렬화하지 않고(markWizardDirtyExit 가
+   *  저장된 snapshot 에 직접 기록), 복원(applyResumeSnapshot) 시에도 무시. optional. */
+  dirtyExit?: boolean;
 }
 
 // 2026-05-09 (B9-37): RevisionCard → PlannerPage → WizardForm 으로 흘러오는
@@ -274,11 +289,23 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // P126 (2026-05-21): 명시적 사용자 입력 시그널만 hasContent 로 인정. dateRangeFrom 은
     // mount 시 tomorrow auto-init 이라 false positive — 제외. helper 는 testable.
     // (과노출 방지 규칙 유지: clicker-only/무의미 snapshot 은 여전히 modal 미노출.)
-    const hasContent = hasMeaningfulWizardContent(v);
+    // PR-D (2026-06-01, flag ON): 임계값을 ≥2 신호로 상향 (strict). 식이/알레르기 단독 허용.
+    //   플래그 OFF = 기존 hasMeaningfulWizardContent (단일 시그널) 그대로 → byte-identical.
+    const hasContent = RESUME_DIRTY_EXIT_ON
+      ? hasMeaningfulWizardContentStrict(v)
+      : hasMeaningfulWizardContent(v);
     if (!hasContent) {
       // 의미 없는 snapshot — 양쪽 키 모두 정리.
       clearWizardSnapshot('planner');
       clearWizardSnapshot('planner_paused');
+      return;
+    }
+    // PR-D (2026-06-01, flag ON): 콘텐츠는 의미있지만 "사고 이탈(dirtyExit)" 마커가 없으면
+    // modal 미노출 — "정상 이탈"(둘러보다 나감)일 가능성. 단 snapshot 은 보존(삭제 X):
+    //  - P316 결제 단계 retention 을 깨면 안 됨.
+    //  - 이후 진짜 중단(새로고침/탭닫힘) 시 pagehide 가 dirtyExit 를 켜면 그때 노출.
+    // 플래그 OFF 에선 이 게이트가 없어 기존처럼 dirtyExit 무관하게 노출 → byte-identical.
+    if (RESUME_DIRTY_EXIT_ON && !v.dirtyExit) {
       return;
     }
     // paused 가 더 최신이라 채택됐다면 stale 'planner' 키 정리 (모달 결정 일관성).
@@ -291,6 +318,27 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     setPendingStep(fresh.snapshot.step || 0);
     setResumeOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // PR-D (2026-06-01): "사고 이탈" 감지 — 입력 도중 페이지가 teardown(새로고침/탭닫힘/
+  // 뒤로가기로 SPA 이탈)될 때 pagehide 가 동기적으로 dirtyExit 마커를 저장.
+  // 다음 /planner 진입 시 좁힌 트리거(flag ON)가 이 마커가 있을 때만 resume modal 노출 →
+  // "잠깐 둘러보다 정상적으로 나간" 경우의 과노출 제거.
+  //
+  // - 리스너는 항상 등록(플래그 무관) — 마커 기록 자체는 무해(트리거 판정만 플래그 분기).
+  // - unmount 시 cleanup 필수 (결제 페이지로 client 전이 시 리스너 누수 방지).
+  // - markWizardDirtyExit 는 저장된 snapshot 이 있을 때만 동작(없으면 noop) → 빈 noise X.
+  // - 활성 namespace(planner / planner_paused) 둘 다 마킹 → 어느 쪽이 채택되든 마커 보존.
+  //   (다음 마운트의 loadFreshestWizardSnapshot 가 ts 로 freshest 를 고름.)
+  // - beforeunload 대신 pagehide: bfcache 친화 + 모바일 신뢰도 높음 (Safari/iOS).
+  useEffect(() => {
+    const onPageHide = () => {
+      markWizardDirtyExit('planner', true);
+      markWizardDirtyExit('planner_paused', true);
+    };
+    window.addEventListener('pagehide', onPageHide);
+    return () => window.removeEventListener('pagehide', onPageHide);
+    // 등록/해제 1회 — onPageHide 는 클로저 변수에 의존하지 않음(고정 키 마킹).
   }, []);
 
   function applyResumeSnapshot() {
@@ -353,7 +401,15 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   }
 
   function discardResumeSnapshot() {
-    clearWizardSnapshot('planner');
+    // PR-D (2026-06-01, flag ON): "새로 시작" 시 양쪽 키 모두 정리.
+    // 기존 버그: 'planner' 만 지워 'planner_paused' 잔존 → 다음 마운트에서
+    // freshest 로 다시 채택돼 modal 재노출 가능. flag ON 에서 clearPlannerWizardSnapshot()
+    // 로 둘 다 제거. 플래그 OFF = 기존 동작('planner' 만) 보존 → byte-identical.
+    if (RESUME_DIRTY_EXIT_ON) {
+      clearPlannerWizardSnapshot();
+    } else {
+      clearWizardSnapshot('planner');
+    }
     setResumeOpen(false);
     setPendingSnap(null);
   }
@@ -432,6 +488,11 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     arrivalTime, departureTime,
     luggageSmall, luggageMedium, luggageLarge,
     wantAccom, accomBudget, recommendedZones, tourPace,
+    // PR-D 주의: dirtyExit 는 일부러 여기 넣지 않는다. 이 라이프사이클 마커는
+    // markWizardDirtyExit 가 저장된 snapshot 에 직접(out-of-band) 기록한다. 여기에
+    // 넣으면(예: false 고정) autosave 가 디바운스마다 마커를 덮어써 사고 이탈 신호가
+    // 사라진다. autosave 는 [autosaveValues, step] 변경 시에만 도므로, 마커를 켠 뒤
+    // 사용자 입력이 없으면(=teardown 직전, 결제 단계 진입 직후) 덮어쓰지 않는다.
   };
   // resume modal 활성 시 'planner_paused' namespace 로 저장 → real snapshot 유지.
   // (사용자가 모달 띄운 채 다른 input 만지면 새 snap 으로 덮이는 일 방지)
@@ -710,6 +771,16 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         // paused 는 modal 격리 저장용 임시 키라 성공 시점에 정리해도 무방 (정식
         // 'planner' 만 위 사유로 보존).
         clearWizardSnapshot('planner_paused');
+        // PR-D (2026-06-01, flag ON): 생성 성공 → 결제 단계로 진행은 "정상 전이" 가
+        // 아니라 "아직 안 끝남". 결제 중단(SDK 멈춤/광고차단/새로고침) 후 /planner
+        // 재진입 시 좁힌 트리거가 dirtyExit AND 를 요구하므로, 여기서 'planner' 에
+        // dirtyExit 마커를 켜 둔다 → P316 결제-창 retention + resume 노출 보존.
+        // (결제 페이지로의 client 전이는 pagehide 를 발생시키지 않아 WizardForm
+        //  리스너가 마킹할 기회가 없으므로, 이 시점에 명시적으로 켠다.)
+        // 플래그 OFF 에선 dirtyExit 트리거 게이트 자체가 없으므로 이 마킹도 불필요.
+        if (RESUME_DIRTY_EXIT_ON) {
+          markWizardDirtyExit('planner', true);
+        }
       }
     } catch {
       setErrorMsg('Network error. Please check your connection and try again.');

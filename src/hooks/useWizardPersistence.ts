@@ -167,6 +167,35 @@ export function clearWizardSnapshot(type: string): void {
   try { localStorage.removeItem(STORAGE_PREFIX + type); } catch { /* silent */ }
 }
 
+/**
+ * PR-D (2026-06-01): 이미 저장돼 있는 snapshot 의 values.dirtyExit 플래그를 동기 기록.
+ *
+ * 용도: WizardForm 의 pagehide 리스너가 "입력 도중 페이지가 teardown 됨(새로고침/탭닫힘)"
+ * 신호를 남기기 위함. pagehide 핸들러는 동기적으로 끝나야 하므로(비동기/디바운스 불가)
+ * 여기서 즉시 read-modify-write 한다. resume modal 의 좁힌 트리거가 이 마커로
+ * "정상 이탈 vs 사고 이탈" 을 구분한다.
+ *
+ * 설계 원칙:
+ *  - snapshot 이 없으면 아무것도 하지 않음 (새로 만들지 않음 — 빈 noise 방지).
+ *  - dirty=false 로도 호출 가능 (정상 전이 시 마커 해제용). 단 snapshot 자체는 보존
+ *    (P316: 결제 단계 retention 깨지 않음).
+ *  - ts(저장 시각) 는 건드리지 않음 — stale 판정/최신 선택 로직 영향 0.
+ *  - try/catch — private mode / quota / SSR silent.
+ */
+export function markWizardDirtyExit(type: string, dirty: boolean = true): void {
+  try {
+    const key = STORAGE_PREFIX + type;
+    const raw = localStorage.getItem(key);
+    if (!raw) return; // snapshot 없음 → 만들지 않음.
+    const snap = JSON.parse(raw) as WizardSnapshot<Record<string, unknown>>;
+    if (!snap || typeof snap !== 'object' || !snap.values || typeof snap.values !== 'object') return;
+    (snap.values as Record<string, unknown>).dirtyExit = dirty;
+    localStorage.setItem(key, JSON.stringify(snap));
+  } catch {
+    // 파싱/quota/SSR 실패 — silent (마커 누락 시 trigger 가 보수적으로 modal 미노출).
+  }
+}
+
 // P316 (2026-05-30): planner 위저드 namespace 상수. 결제 단계에서 막혀 새로고침 →
 // 입력 소실 + resume 미노출 회귀 fix 의 일부.
 export const PLANNER_WIZARD_NS = 'planner';
