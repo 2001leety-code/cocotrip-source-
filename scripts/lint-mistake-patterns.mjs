@@ -2210,6 +2210,87 @@ function R_Plaunch_departureAirportDerive(ctx) {
 }
 
 /**
+ * R_Phase0_flagStringCompare (2026-06-01): Vite env 플래그는 항상 string → boolean truthy 비교 금지,
+ * 반드시 `=== 'true'`. 안 그러면 OFF(미설정)가 안 되어 swap-in 패턴 깨짐. PR-A own-tour upsell.
+ */
+function R_Phase0_flagStringCompare(ctx) {
+  const FILE = 'src/pages/PlannerPage/components/OwnTourUpsellSection.tsx';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  if (!/VITE_FEATURE_OWN_TOUR_UPSELL/.test(src)) return null;
+  if (!/VITE_FEATURE_OWN_TOUR_UPSELL\s*===\s*['"]true['"]/.test(src)) {
+    fail(
+      'R_Phase0_flagStringCompare',
+      "OwnTourUpsellSection: VITE_FEATURE_OWN_TOUR_UPSELL 를 === 'true' 로 비교 안 함 — Vite env 는 항상 string 이라 truthy 비교 시 OFF(미설정)가 안 됨 (PR-A 플래그 무력화)",
+      "const FLAG_ON = import.meta.env.VITE_FEATURE_OWN_TOUR_UPSELL === 'true';",
+    );
+  }
+  return null;
+}
+
+/**
+ * R_Phase0_jsonldTestNoFirebase (2026-06-01): tour-jsonld 테스트는 순수 모듈 buildTourJsonLd 에서
+ * import — TourDetailPage(클라이언트 컴포넌트 → src/lib/firebase getAuth) import 시 CI(키 없음)
+ * "0 test" crash. PR-B CI 실패 재발 차단. (교훈: 순수함수 테스트는 firebase-free 모듈만 import.)
+ */
+function R_Phase0_jsonldTestNoFirebase(ctx) {
+  const FILE = 'tests/unit/tour-jsonld-rating-prb.test.ts';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  if (/from\s+['"]@\/pages\/TourDetailPage['"]/.test(src)) {
+    fail(
+      'R_Phase0_jsonldTestNoFirebase',
+      'tour-jsonld 테스트가 TourDetailPage(클라이언트 컴포넌트, firebase getAuth 의존) import — CI(firebase 키 없음) "0 test" crash 재발 (PR-B 회귀)',
+      "import { buildTourJsonLd } from '@/pages/buildTourJsonLd'; (firebase-free 순수 모듈)",
+    );
+  }
+  return null;
+}
+
+/**
+ * R_Phase0_charterPriceSSOT (2026-06-01, SAFETY-가격): RouteAgent est_price_krw 는 반드시
+ * airportTransferPriceKRW(loadPricingSpec SSOT) 경유 — 가격 literal/임의 계산 = 신뢰 치명.
+ * PR-C 가격 오노출 차단 (미매핑 → null 숨김).
+ */
+function R_Phase0_charterPriceSSOT(ctx) {
+  const FILE = 'api/_ai_core/agents/RouteAgent.js';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  if (!/est_price_krw/.test(src)) return null;
+  if (!/airportTransferPriceKRW/.test(src)) {
+    fail(
+      'R_Phase0_charterPriceSSOT',
+      'RouteAgent est_price_krw 가 airportTransferPriceKRW(SSOT) 없이 설정 — 가격 literal/임의 계산 위험 (PR-C 가격 오노출, 신뢰 치명)',
+      'rec.est_price_krw = airportTransferPriceKRW(region) (loadPricingSpec SSOT, 미매핑 → null 숨김).',
+    );
+  }
+  return null;
+}
+
+/**
+ * R_Phase0_resumeStrictGate (2026-06-01): snapshotContent.ts 는 countMeaningfulWizardSignals(≥2 신호
+ * 게이트)를 유지해야 함 — 단일 신호 트리거로 회귀 시 resume 과노출 재발. dirtyExit(라이프사이클 신호)는
+ * 콘텐츠 카운트/autosave 에 넣지 말 것(500ms clobber + 과노출). PR-D.
+ */
+function R_Phase0_resumeStrictGate(ctx) {
+  const FILE = 'src/components/WizardForm/snapshotContent.ts';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  if (!/countMeaningfulWizardSignals/.test(src)) {
+    fail(
+      'R_Phase0_resumeStrictGate',
+      'snapshotContent.ts 에서 countMeaningfulWizardSignals(≥2 신호 게이트) 제거 — resume 단일신호 과노출 재발 (PR-D 회귀)',
+      'export function countMeaningfulWizardSignals(...) + hasMeaningfulWizardContentStrict (>= 2) 유지.',
+    );
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2283,6 +2364,10 @@ const RULES = [
   ['P326_cacheGeoValidation', P326_cacheGeoValidation],
   ['P326_intercityMergeBack', P326_intercityMergeBack],
   ['R_Plaunch_departureAirportDerive', R_Plaunch_departureAirportDerive],
+  ['R_Phase0_flagStringCompare', R_Phase0_flagStringCompare],
+  ['R_Phase0_jsonldTestNoFirebase', R_Phase0_jsonldTestNoFirebase],
+  ['R_Phase0_charterPriceSSOT', R_Phase0_charterPriceSSOT],
+  ['R_Phase0_resumeStrictGate', R_Phase0_resumeStrictGate],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
