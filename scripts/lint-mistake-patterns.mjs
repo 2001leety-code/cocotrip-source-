@@ -2320,6 +2320,34 @@ function R_Phase1_testNoFirebaseClientImport(ctx) {
 }
 
 /**
+ * R_PRE_activityBlockGate (2026-06-01, SAFETY): blockMode.js 트레킹/러닝 편입은
+ * (1) isAllowedBlockType (블록 타입 게이트 — FEATURE_ACTIVITY_BLOCKS OFF=byte-identical 보장) +
+ * (2) buildActivityMeta (트레킹 난이도/체력/hazards/unsuitable_for → day.activity_meta SAFETY 보존)
+ * 둘 다 유지해야 함. 제거 시 플래그 우회 회귀 또는 SAFETY 표기 누락(외국인 사고 risk). PR-E(#748).
+ */
+function R_PRE_activityBlockGate(ctx) {
+  const FILE = 'api/_ai_core/blockMode.js';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  const violations = [];
+  if (!/isAllowedBlockType/.test(src)) {
+    violations.push('isAllowedBlockType 게이트 제거 — block_type 필터가 FEATURE_ACTIVITY_BLOCKS 플래그 우회 (OFF=byte-identical 깨짐)');
+  }
+  if (!/buildActivityMeta/.test(src)) {
+    violations.push('buildActivityMeta 제거 — 트레킹/러닝 day 의 난이도·체력·hazards·unsuitable_for(activity_meta) SAFETY 표기 누락 (외국인 사고 risk)');
+  }
+  if (violations.length > 0) {
+    fail(
+      'R_PRE_activityBlockGate',
+      violations.join(' | '),
+      'isAllowedBlockType(블록 게이트) + buildActivityMeta(활동 SAFETY 메타) 유지. tests/unit/activity-blocks-pre.test.ts.',
+    );
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2398,6 +2426,7 @@ const RULES = [
   ['R_Phase0_charterPriceSSOT', R_Phase0_charterPriceSSOT],
   ['R_Phase0_resumeStrictGate', R_Phase0_resumeStrictGate],
   ['R_Phase1_testNoFirebaseClientImport', R_Phase1_testNoFirebaseClientImport],
+  ['R_PRE_activityBlockGate', R_PRE_activityBlockGate],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
