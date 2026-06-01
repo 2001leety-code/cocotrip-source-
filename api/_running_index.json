@@ -156,8 +156,8 @@
     "distance_km": 5,
     "duration_min": 85,
     "intensity": "relaxed",
-    "start_lat": 0,
-    "start_lng": 0,
+    "start_lat": 33.2415396,
+    "start_lng": 126.5497439,
     "block_type": "running_route",
     "stop_count": 3
   },
@@ -210,8 +210,8 @@
     "distance_km": 5,
     "duration_min": 75,
     "intensity": "relaxed",
-    "start_lat": 0,
-    "start_lng": 0,
+    "start_lat": 37.5581326,
+    "start_lng": 126.9075185,
     "block_type": "running_route",
     "stop_count": 3
   },
