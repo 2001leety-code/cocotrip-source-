@@ -416,8 +416,13 @@ export default function PlanDetailPage() {
     }
   });
 
+  // 정제 퍼플·핑크 (시각만 — PDF 무관: pdfGenerator 가 document.body 에 자체 Noto 폰트 DOM 빌드).
+  // 실플랜 없이 시각검증 어려워 안전한 글로우 제거 + 소프트 액센트만(세리프 생략). OFF=현재 그대로.
+  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
+
   return (
-    <div className={`min-h-screen text-white ${isMobile ? 'bg-[#0a0412]' : 'bg-[#0a0b14]'}`}>
+    <div className={`min-h-screen text-white ${isMobile ? 'bg-[#0a0412]' : 'bg-[#0a0b14]'} ${REFINED ? 'refined-plandetail' : ''}`}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
       <main className="max-w-3xl mx-auto pt-20 pb-4 px-4">
         {/* P169: Streaming 진행 중 인디케이터 배너 (onSnapshot 자동 감지) */}

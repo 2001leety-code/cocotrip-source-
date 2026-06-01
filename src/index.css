@@ -765,3 +765,9 @@ html[data-menu-open="true"] .early-bird-banner {
 .refined-planner .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
 .refined-planner .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
 .refined-planner .shadow-glow-cta, .refined-planner [class*="shadow-glow"] { box-shadow: none !important; }
+
+/* 정제 퍼플·핑크 — 플랜 결과 페이지 (.refined-plandetail). PDF 무관(pdfGenerator 별도 DOM, 자체 Noto 폰트).
+   한글 본문 多 + 실플랜 없이 시각검증 어려워 안전한 글로우 제거 + 소프트 액센트만(세리프 생략). OFF=완전 무효. */
+.refined-plandetail .m-shimmer, .refined-plandetail .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-plandetail .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-plandetail .shadow-glow-cta, .refined-plandetail [class*="shadow-glow"] { box-shadow: none !important; }
