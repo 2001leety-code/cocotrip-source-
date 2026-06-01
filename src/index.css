@@ -621,9 +621,9 @@ html[data-menu-open="true"] .early-bird-banner {
     animation: m-pulse-glow 3s ease-in-out infinite;
   }
 
-  /* Button with spring touch feedback */
+  /* Button touch feedback — standard easing (DESIGN.md: no overshoot/spring) */
   .m-btn {
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .m-btn:active {
     transform: scale(0.93);
@@ -636,7 +636,7 @@ html[data-menu-open="true"] .early-bird-banner {
     font-weight: 700;
     border-radius: 1rem;
     box-shadow: 0 4px 20px rgba(182,104,252,0.3);
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .m-cta:active {
     transform: scale(0.95);

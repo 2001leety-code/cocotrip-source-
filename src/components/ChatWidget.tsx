@@ -800,7 +800,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 10000,
-          transition: 'transform 0.3s cubic-bezier(.34,1.56,.64,1), box-shadow 0.3s ease',
+          transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s ease',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.1)';

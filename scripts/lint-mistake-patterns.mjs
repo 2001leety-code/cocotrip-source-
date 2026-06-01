@@ -2444,7 +2444,37 @@ function P330_transitProviderSwitch({ changed }) {
   return null;
 }
 
+/**
+ * R_S6_noOvershootEasing (2026-06-01): DESIGN.md 모션 규칙 = overshoot/스프링 easing 금지
+ * (일관 리듬 + impeccable 'bounce-easing' AI-slop 회피). cubic-bezier(x1,y1,x2,y2) 에서 y1>1 이면
+ * 목표를 지나쳤다 돌아오는 바운스. 실측(2026-06-01) cubic-bezier(0.34,1.56,0.64,1) 5개소 교체 →
+ * 재발 차단. 표준 easing: cubic-bezier(0.4,0,0.2,1)/decelerate(0,0,0.2,1). 슬롯: tests/unit/no-overshoot-easing.test.ts.
+ */
+function R_S6_noOvershootEasing(ctx) {
+  const SPRING = /cubic-bezier\(\s*[\d.]+\s*,\s*(?:1\.[1-9]\d*|[2-9])/;
+  const targets = (ctx.changed || []).filter(
+    (c) => c.status !== 'D' && /\.(css|tsx?)$/.test(c.file) && c.file.startsWith('src/'),
+  );
+  const violations = [];
+  for (const c of targets) {
+    let src = '';
+    try { src = readFileSync(c.file, 'utf8'); } catch { continue; }
+    if (SPRING.test(src)) {
+      violations.push(`${c.file}: cubic-bezier overshoot easing(y1>1, 스프링/바운스) — DESIGN.md 모션 금지 + impeccable bounce-easing slop`);
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'R_S6_noOvershootEasing',
+      violations.join(' | '),
+      'overshoot easing 금지 — cubic-bezier 2번째(y1) 파라미터 ≤1. 표준 cubic-bezier(0.4,0,0.2,1) 또는 decelerate(0,0,0.2,1). tests/unit/no-overshoot-easing.test.ts.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
+  ['R_S6_noOvershootEasing', R_S6_noOvershootEasing],
   ['P326_cacheGeoValidation', P326_cacheGeoValidation],
   ['P326_intercityMergeBack', P326_intercityMergeBack],
   ['R_Plaunch_departureAirportDerive', R_Plaunch_departureAirportDerive],
@@ -7117,6 +7147,19 @@ function runRulesInDir(dir, base) {
 
 function runSelfTest() {
   const cases = [
+    {
+      label: 'R_S6 (true positive): src CSS 에 overshoot easing(cubic-bezier y1>1) 잔존',
+      base: { 'src/index.css': '.x { transition: all 0.3s ease; }\n' },
+      head: { 'src/index.css': '.x { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }\n' },
+      expectRule: 'R_S6_noOvershootEasing',
+    },
+    {
+      label: 'R_S6 (false positive 차단): 표준 easing(y1≤1) — 룰 silent',
+      base: { 'src/index.css': '.x { transition: all 0.3s ease; }\n' },
+      head: { 'src/index.css': '.x { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }\n' },
+      expectRule: 'R_S6_noOvershootEasing',
+      expectClean: true,
+    },
     {
       label: 'R_P321: blockMode regions 정규화 누락 (raw toLowerCase → 한글 silent legacy)',
       base: { 'api/_ai_core/blockMode.js': 'const cities = regions.map((r) => String(r).split("_")[0].toLowerCase());\n' },
