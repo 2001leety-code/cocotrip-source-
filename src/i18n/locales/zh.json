@@ -1520,6 +1520,17 @@
       "viewCharterCTA": "查看包车选项",
       "hoursLabel": "小时"
     },
+    "transitVsCharter": {
+      "cardTitle": "今日出行对比",
+      "transitCol": "公共交通",
+      "charterCol": "包车",
+      "minUnit": "分钟",
+      "transfersUnit": "次换乘",
+      "perPerson": "每人",
+      "doorToDoor": "门到门直达",
+      "noLuggage": "无需担心行李",
+      "savedMin": "节省{min}分钟"
+    },
     "swipe": {
       "slideCounter": "{n} / {total}",
       "swipeHint": "左右滑动导航",
