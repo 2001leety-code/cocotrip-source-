@@ -759,3 +759,9 @@ html[data-menu-open="true"] .early-bird-banner {
 .refined-home h1, .refined-home h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
 .refined-home .shadow-glow-cta, .refined-home [class*="shadow-glow"] { box-shadow: none !important; }
 .refined-home .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+
+/* 정제 퍼플·핑크 — 위저드(플래너) 페이지 (.refined-planner; PlannerPage 가 REFINED 시 부여). OFF=완전 무효. */
+.refined-planner h1, .refined-planner h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-planner .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-planner .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-planner .shadow-glow-cta, .refined-planner [class*="shadow-glow"] { box-shadow: none !important; }
