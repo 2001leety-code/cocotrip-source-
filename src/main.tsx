@@ -11,6 +11,13 @@ import { initSentry } from './lib/sentry'
 // false-positive on index.html (html2canvas comment trigger).
 document.documentElement.classList.add('dark');
 
+// 2026-06-01: Fraunces 세리프 (정제 퍼플·핑크 디자인 — hero/제목/가격). main.tsx 주입
+// (index.html 미수정 — 위와 동일한 PDF_KOREAN_FONT lint false-positive 회피). display=swap.
+const frauncesLink = document.createElement('link');
+frauncesLink.rel = 'stylesheet';
+frauncesLink.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,1,500;9..144,1,600&display=swap';
+document.head.appendChild(frauncesLink);
+
 // ── Sentry 에러 모니터링 (프로덕션 전용) ──
 initSentry();
 
