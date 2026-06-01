@@ -772,6 +772,12 @@ html[data-menu-open="true"] .early-bird-banner {
 .refined-plandetail .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
 .refined-plandetail .shadow-glow-cta, .refined-plandetail [class*="shadow-glow"] { box-shadow: none !important; }
 
+/* 정제 퍼플·핑크 — 차터(전세차량) 페이지 (.refined-charter; PDF 없음 → 세리프 OK). OFF=완전 무효. */
+.refined-charter h1, .refined-charter h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-charter .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-charter .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-charter .shadow-glow-cta, .refined-charter [class*="shadow-glow"] { box-shadow: none !important; }
+
 /* 정제 퍼플·핑크 — 공용 헤더 (전역 .refined; main.tsx 가 REFINED 시 <html> 에 부여). 인라인 글로우(로고/BETA 배지) 제거. OFF=완전 무효. */
 .refined header [style*="box-shadow"] { box-shadow: none !important; }
 
