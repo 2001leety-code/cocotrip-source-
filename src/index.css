@@ -753,3 +753,9 @@ html[data-menu-open="true"] .early-bird-banner {
     font-size: 0.75rem;
   }
 }
+
+/* 정제 퍼플·핑크 — 데스크탑 홈 cascade (.refined-home; App.tsx HomePage 가 REFINED 시 부여). OFF=완전 무효.
+   index.css 에 둠(App.tsx <style> 가 메인 JS 번들 size-limit 초과 → CSS 파일로 이동). */
+.refined-home h1, .refined-home h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-home .shadow-glow-cta, .refined-home [class*="shadow-glow"] { box-shadow: none !important; }
+.refined-home .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }

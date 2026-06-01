@@ -97,6 +97,9 @@ import { trackPageView } from '@/lib/analytics';
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
   const isMobile = useIsMobile();
+  // 정제 퍼플·핑크 (운영자 2026-06-01 채택). OFF=현재 그대로. env VITE_FEATURE_REFINED_UI / ?refined.
+  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
 
   usePageMeta({
     title: t.pageMeta?.home?.title ||'CocoTrip — Premium Korea Travel',
@@ -122,7 +125,7 @@ function HomePage() {
 
   // 데스크톱: 모바일과 통일된 다크 gradient (D1: 통일성)
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210]">
+    <div className={`min-h-screen bg-gradient-to-b from-[#0a0412] via-[#0d0618] to-[#080210] ${REFINED ? 'refined-home' : ''}`}>
       <Header
         language={language}
         t={t}
