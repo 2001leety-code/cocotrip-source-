@@ -268,7 +268,8 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
       )}
 
       {/* Charter CTA -- shown when transit is complex */}
-      <CharterCTA day={day} />
+      {/* PR-C2: pass plan prop for real-route prefill (flag ON only) */}
+      <CharterCTA day={day} plan={plan} />
 
 
       {/* Transit recalculating indicator */}
