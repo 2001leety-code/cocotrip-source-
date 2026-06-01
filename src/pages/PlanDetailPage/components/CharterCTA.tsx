@@ -1,14 +1,20 @@
 // Charter CTA card -- shown on days with complex transit (3+ subway/bus, or downgraded routes).
 // Reuses detectCharterRecommendation from charterPricing.ts (no duplicate logic).
+// PR-C2 (2026-06-01): when VITE_FEATURE_CHARTER_CTA_REALROUTE=true,
+//   prefills destinationKey from the day's actual region/city (not hardcoded Seoul).
+//   Flag OFF (unset) -> current hardcoded URL byte-identical.
 import { Car } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { detectCharterRecommendation } from '@/data/charterPricing';
 import { formatKRW } from '../constants';
-import type { PlanDay, PlanStop } from '../types';
+import type { PlanDay, PlanStop, PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
+import { buildCharterCTAUrl } from '../lib/charterCtaPrefill';
 
 interface CharterCTAProps {
   day: PlanDay;
+  /** PR-C2: plan.input (area/adults) -> region extraction + pax prefill. undefined -> fallback. */
+  plan?: PlanDocument;
 }
 
 function shouldShowCharterCTA(day: PlanDay): boolean {
@@ -25,7 +31,7 @@ function shouldShowCharterCTA(day: PlanDay): boolean {
   return transitCount >= 3 || downgradedCount >= 1 || totalTransitMin >= 120;
 }
 
-export function CharterCTA({ day }: CharterCTAProps) {
+export function CharterCTA({ day, plan }: CharterCTAProps) {
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const ch = pd.charter || {};
@@ -38,6 +44,14 @@ export function CharterCTA({ day }: CharterCTAProps) {
   }));
   const detection = detectCharterRecommendation(stops);
   const pricing = detection.pricing;
+
+  // PR-C2: flag ON/OFF delegated to pure module (no firebase dependency)
+  const { url: charterHref } = buildCharterCTAUrl({
+    day,
+    planInput: plan?.input as { area?: string; adults?: number; pax?: number } | undefined,
+    detectedTourType: detection.tourType,
+    pricingHours: pricing?.hours,
+  });
 
   return (
     <div className="mb-4 rounded-2xl p-4 border border-white/[0.08] backdrop-blur-sm"
@@ -56,23 +70,17 @@ export function CharterCTA({ day }: CharterCTAProps) {
           </p>
           {pricing && (
             <p className="text-[#7C5CFC] text-xs mt-2 font-medium">
-              {pricing.en} {'\u00B7'} {pricing.hours}{ch.hoursLabel || 'hours'} {'\u00B7'} {formatKRW(pricing.priceKRW)}
+              {pricing.en} {'·'} {pricing.hours}{ch.hoursLabel || 'hours'} {'·'} {formatKRW(pricing.priceKRW)}
             </p>
           )}
         </div>
       </div>
       <a
-        href={(() => {
-          // AI 플래너는 현재 서울 시내 기반 → SEL_METRO 출발 + 당일투어로 wizard prefill
-          const qs = new URLSearchParams({ from: 'planDetail', day: String(day.day || 1), origin: 'SEL_METRO', service: 'day_tour' });
-          if (detection.tourType) qs.set('destinationKey', detection.tourType);
-          if (pricing) qs.set('hours', String(pricing.hours));
-          return `/charter?${qs.toString()}`;
-        })()}
+        href={charterHref}
         className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] hover:border-[#7C5CFC]/50"
         style={{ background: 'linear-gradient(135deg,#7C5CFC,#a855f7)' }}
       >
-        {ch.viewCharterCTA || 'View Charter Options'} {'\u2192'}
+        {ch.viewCharterCTA || 'View Charter Options'} {'→'}
       </a>
     </div>
   );
