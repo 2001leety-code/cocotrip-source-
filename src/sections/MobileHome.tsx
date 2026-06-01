@@ -100,12 +100,15 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
   ];
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}>
+    <div className={`min-h-screen pb-24 ${REFINED ? 'm-refined' : ''}`} style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}>
       <style>{`
         /* 정제 퍼플·핑크 (2026-06-01 채택) — REFINED 플래그 ON 일 때만 적용 */
         .m-hero-serif { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif; font-weight: 600; letter-spacing: -0.01em; }
         .m-accent-soft { background: linear-gradient(100deg,#caa9ff,#f4a9cf); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .m-cta-refined { background: linear-gradient(100deg,#caa9ff,#f4a9cf) !important; color: #1a0f1e !important; box-shadow: none !important; }
+        /* 정제 cascade — 페이지 전역 하드 핑크/shimmer 를 소프트 톤으로 (작은 아이콘 배경은 흰 아이콘 대비 위해 유지) */
+        .m-refined .m-shimmer { background: linear-gradient(100deg,#caa9ff,#f4a9cf) !important; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent !important; animation: none !important; }
+        .m-refined .text-pink-400 { color: #f0a6c8 !important; }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         @keyframes hero-orb { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; } 50% { transform: translate(8px, -10px) scale(1.05); opacity: 0.7; } }
         @keyframes hero-orb-2 { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; } 50% { transform: translate(-10px, 8px) scale(1.08); opacity: 0.6; } }

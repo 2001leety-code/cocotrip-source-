@@ -35,4 +35,10 @@ describe('MobileHome 정제 디자인 플래그 (step1)', () => {
     expect(SRC).toMatch(/\.m-cta-refined\s*\{[^}]*box-shadow:\s*none/);
     expect(SRC).toMatch(/\.m-cta-refined\s*\{[^}]*color:\s*#1a0f1e/);
   });
+
+  it('REFINED root = m-refined cascade (전역 soft: 브랜드 shimmer + 핫핑크 텍스트)', () => {
+    expect(SRC).toMatch(/REFINED\s*\?\s*'m-refined'\s*:\s*''/);
+    expect(SRC).toMatch(/\.m-refined \.m-shimmer\s*\{[^}]*caa9ff/);
+    expect(SRC).toMatch(/\.m-refined \.text-pink-400\s*\{[^}]*#f0a6c8/);
+  });
 });
