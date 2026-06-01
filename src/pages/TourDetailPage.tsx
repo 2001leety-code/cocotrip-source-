@@ -193,9 +193,12 @@ export default function TourDetailPage() {
                        : 'Booking closes 24h before departure (multi-day: 48h)';
 
   // ─────────────────────────────────────────────────────────────────────────
+  // 정제 퍼플·핑크 (시각만). OFF=현재 그대로.
+  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
   return (
     <div
-      className="min-h-screen pb-36"
+      className={`min-h-screen pb-36 ${REFINED ? 'refined-page' : ''}`}
       style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}
     >
       <style>{`

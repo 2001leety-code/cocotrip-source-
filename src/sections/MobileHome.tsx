@@ -26,6 +26,11 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
 
   const m = _t.mobileHome || {};
 
+  // 정제 퍼플·핑크 디자인 (운영자 2026-06-01 채택). 플래그 OFF = 현재와 byte-identical.
+  // 활성: Vercel env VITE_FEATURE_REFINED_UI=true, 또는 ?refined 쿼리(검증용).
+  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
+
   // Tour marquee — show 8 featured tours (alternating regions for visual variety).
   // Memoized to keep the duplicated array stable across rerenders so the CSS
   // animation doesn't reset every time React rerenders the parent.
@@ -95,8 +100,15 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
   ];
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}>
+    <div className={`min-h-screen pb-24 ${REFINED ? 'm-refined' : ''}`} style={{ background: 'linear-gradient(180deg, #0a0412 0%, #0d0618 50%, #080210 100%)' }}>
       <style>{`
+        /* 정제 퍼플·핑크 (2026-06-01 채택) — REFINED 플래그 ON 일 때만 적용 */
+        .m-hero-serif { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif; font-weight: 600; letter-spacing: -0.01em; }
+        .m-accent-soft { background: linear-gradient(100deg,#caa9ff,#f4a9cf); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .m-cta-refined { background: linear-gradient(100deg,#caa9ff,#f4a9cf) !important; color: #1a0f1e !important; box-shadow: none !important; }
+        /* 정제 cascade — 페이지 전역 하드 핑크/shimmer 를 소프트 톤으로 (작은 아이콘 배경은 흰 아이콘 대비 위해 유지) */
+        .m-refined .m-shimmer { background: linear-gradient(100deg,#caa9ff,#f4a9cf) !important; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent !important; animation: none !important; }
+        .m-refined .text-pink-400 { color: #f0a6c8 !important; }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         @keyframes hero-orb { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; } 50% { transform: translate(8px, -10px) scale(1.05); opacity: 0.7; } }
         @keyframes hero-orb-2 { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; } 50% { transform: translate(-10px, 8px) scale(1.08); opacity: 0.6; } }
@@ -125,10 +137,10 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
           <span className="m-hero-fade inline-block text-[10px] font-bold tracking-[0.2em] text-white/55 px-2.5 py-1 rounded-full border border-white/[0.08] bg-white/[0.03]">
             {m.heroBadge || 'PREMIUM KOREA TRAVEL'}
           </span>
-          <h1 className="m-hero-fade mt-3 text-[28px] sm:text-[32px] leading-[1.15] font-black text-white" style={{ animationDelay: '0.05s' }}>
+          <h1 className={`m-hero-fade mt-3 text-[28px] sm:text-[32px] leading-[1.15] text-white ${REFINED ? 'm-hero-serif' : 'font-black'}`} style={{ animationDelay: '0.05s' }}>
             {m.heroHeadline1 || 'Your Korea trip,'}
             <br />
-            <span className="m-shimmer">{m.heroHeadline2 || 'planned in 60 seconds'}</span>
+            <span className={REFINED ? 'm-accent-soft' : 'm-shimmer'}>{m.heroHeadline2 || 'planned in 60 seconds'}</span>
           </h1>
           <p className="m-hero-fade mt-2.5 text-[13px] text-white/55 leading-relaxed" style={{ animationDelay: '0.1s' }}>
             {m.heroSubtitle || 'AI plans the days. Private chauffeur + 24/7 English support included.'}
@@ -136,12 +148,14 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
           <Link
             to="/planner"
             onClick={() => haptic('select')}
-            className="m-hero-fade m-btn mt-5 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-[14px] font-bold text-white shadow-lg"
-            style={{
-              background: 'linear-gradient(135deg, #B668FC 0%, #FF6B9D 100%)',
-              boxShadow: '0 10px 32px rgba(182,104,252,0.35)',
-              animationDelay: '0.18s',
-            }}
+            className={`m-hero-fade m-btn mt-5 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-[14px] font-bold ${REFINED ? 'm-cta-refined' : 'text-white shadow-lg'}`}
+            style={REFINED
+              ? { animationDelay: '0.18s' }
+              : {
+                  background: 'linear-gradient(135deg, #B668FC 0%, #FF6B9D 100%)',
+                  boxShadow: '0 10px 32px rgba(182,104,252,0.35)',
+                  animationDelay: '0.18s',
+                }}
           >
             <Wand2 className="w-4 h-4" />
             {m.heroCta || 'Get Started'}

@@ -753,3 +753,60 @@ html[data-menu-open="true"] .early-bird-banner {
     font-size: 0.75rem;
   }
 }
+
+/* 정제 퍼플·핑크 — 데스크탑 홈 cascade (.refined-home; App.tsx HomePage 가 REFINED 시 부여). OFF=완전 무효.
+   index.css 에 둠(App.tsx <style> 가 메인 JS 번들 size-limit 초과 → CSS 파일로 이동). */
+.refined-home h1, .refined-home h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-home .shadow-glow-cta, .refined-home [class*="shadow-glow"] { box-shadow: none !important; }
+.refined-home .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+
+/* 정제 퍼플·핑크 — 위저드(플래너) 페이지 (.refined-planner; PlannerPage 가 REFINED 시 부여). OFF=완전 무효. */
+.refined-planner h1, .refined-planner h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-planner .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-planner .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-planner .shadow-glow-cta, .refined-planner [class*="shadow-glow"] { box-shadow: none !important; }
+
+/* 정제 퍼플·핑크 — 플랜 결과 페이지 (.refined-plandetail). PDF 무관(pdfGenerator 별도 DOM, 자체 Noto 폰트).
+   한글 본문 多 + 실플랜 없이 시각검증 어려워 안전한 글로우 제거 + 소프트 액센트만(세리프 생략). OFF=완전 무효. */
+.refined-plandetail .m-shimmer, .refined-plandetail .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-plandetail .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-plandetail .shadow-glow-cta, .refined-plandetail [class*="shadow-glow"] { box-shadow: none !important; }
+
+/* 정제 퍼플·핑크 — 차터(전세차량) 페이지 (.refined-charter; PDF 없음 → 세리프 OK). OFF=완전 무효. */
+.refined-charter h1, .refined-charter h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-charter .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-charter .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-charter .shadow-glow-cta, .refined-charter [class*="shadow-glow"] { box-shadow: none !important; }
+
+/* 정제 퍼플·핑크 — 투어 목록 페이지 (.refined-tours; PDF 없음 → 세리프 OK). OFF=완전 무효. */
+.refined-tours h1, .refined-tours h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-tours .tours-shimmer { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-tours .shadow-glow-cta, .refined-tours [class*="shadow-glow"] { box-shadow: none !important; }
+
+/* 정제 퍼플·핑크 — 공통 페이지 스코프 (.refined-page; 신규 페이지 재사용, PDF 없는 페이지만). OFF=완전 무효. */
+.refined-page h1, .refined-page h2 { font-family: 'Fraunces', Georgia, 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: -0.01em; }
+.refined-page .m-shimmer-text, .refined-page .tours-shimmer, .refined-page .m-shimmer { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-page .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
+.refined-page .shadow-glow-cta, .refined-page [class*="shadow-glow"] { box-shadow: none !important; }
+
+/* 정제 퍼플·핑크 — 공용 헤더 (전역 .refined; main.tsx 가 REFINED 시 <html> 에 부여). 인라인 글로우(로고/BETA 배지) 제거. OFF=완전 무효. */
+.refined header [style*="box-shadow"] { box-shadow: none !important; }
+
+/* 정제 — 버튼 마이크로 인터랙션 (2026 best practice: 절제·120~220ms·transform/opacity GPU·포커스 가시성·터치타겟).
+   전역 .refined. 크기는 기존 반응형 유지 + 모바일 CTA 최소 44px 만 보강. OFF=완전 무효. */
+.refined .m-btn, .refined .m-cta, .refined .m-cta-refined {
+  transition: transform .15s cubic-bezier(.2,0,.2,1), box-shadow .15s ease, background-color .15s ease, opacity .15s ease !important;
+}
+.refined .m-btn:active, .refined .m-cta:active, .refined .m-cta-refined:active {
+  transform: scale(.98) !important;
+}
+.refined .m-cta-refined:hover { transform: translateY(-1px); filter: brightness(1.04); }
+/* 키보드 포커스 가시성 (접근성) — 버튼/링크에 보라 링 */
+.refined a:focus-visible, .refined button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(202, 169, 255, 0.45);
+}
+/* 모바일 주요 CTA 터치 타겟 ≥44px (데스크탑 크기는 그대로) */
+@media (max-width: 767px) {
+  .refined .m-cta-refined, .refined .m-cta { min-height: 44px; }
+}

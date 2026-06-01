@@ -100,8 +100,12 @@ export default function PlannerPage() {
     prevStatus.current = status;
   }, [status, p]);
 
+  // 정제 퍼플·핑크 (운영자 2026-06-01 채택). 시각만 — 위저드 로직/payload 무관. OFF=현재 그대로.
+  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
+
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
+    <div className={`${isMobile ? 'm-page' : 'min-h-screen'} ${REFINED ? 'refined-planner' : ''}`} style={isMobile ? undefined : { background: '#080b14' }}>
       <style>{PAGE_STYLE}</style>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 

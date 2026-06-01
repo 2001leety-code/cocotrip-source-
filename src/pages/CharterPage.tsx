@@ -144,8 +144,12 @@ export default function CharterPage() {
     { id: 'other',    label: c.serviceOther ?? '기타 문의' },
   ];
 
+  // 정제 퍼플·핑크 (시각만 — 견적 로직 무관). OFF=현재 그대로.
+  const REFINED = import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'));
+
   return (
-    <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>
+    <div className={`${isMobile ? 'm-page' : 'min-h-screen'} ${REFINED ? 'refined-charter' : ''}`} style={isMobile ? undefined : { background: '#080b14' }}>
       <Header language={language} t={t} onLanguageChange={changeLanguage} />
 
       {/* Hero */}
