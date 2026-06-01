@@ -443,6 +443,14 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
   //   recommendedZone (예: "Myeongdong") 은 synName 만 "{zone} 지역 숙소" 형태.
   const ctxHotelLabel = (ctx.hotel_address && String(ctx.hotel_address).trim()) || '';
   const ctxZoneLabel = (ctx.recommendedZone && String(ctx.recommendedZone).trim()) || '';
+  // P-multicity-lodging (2026-06-02): ctx.hotel_address / recommendedZone 은 trip-level 단일값
+  //   (첫 도시 기준 1개). 다도시 plan 의 다른 도시 day 에 그대로 쓰면 "부산인데 서울 중구 명동역"
+  //   지리 파탄 (운영자 신고 plan 4d214e83: D4·D5 busan 인데 lodging=서울 명동역). → trip-level
+  //   단일 ctx 는 첫 도시(days[0].city) day 에만 적용하고, 다른 도시 day 는 day.city 별
+  //   CITY_LODGING_DEFAULT(도시별 한국어 zone, 예: busan→해운대) 로 폴백. 좌표/transit 은
+  //   RouteAgent.getDayHotelCoord 가 이미 도시별 → 이름만 정합시키면 일관.
+  //   legacy(day.city 없음)/단도시 plan → 전 day 가 첫 도시로 판정 = 기존 동작 byte-identical(회귀 0).
+  const firstCityLc = String(days[0]?.city || '').trim().toLowerCase();
   for (let d = 0; d < days.length; d++) {
     const day = days[d];
     const stops = Array.isArray(day?.stops) ? day.stops : [];
@@ -451,15 +459,19 @@ export function selfHealLodgingBookend(itinerary, ctx = {}) {
     const dayCityLc = String(day?.city || '').trim().toLowerCase();
     const defaultMeta = CITY_LODGING_DEFAULT[dayCityLc];
     const dayCityKor = CITY_KOR_MAP_FULL[dayCityLc] || '';
+    // trip-level 단일 ctx(hotel/zone)는 첫 도시 day 에만. 다른 도시 day 는 CITY_LODGING_DEFAULT.
+    const isFirstCityDay = !firstCityLc || !dayCityLc || dayCityLc === firstCityLc;
+    const tripCtxHotel = isFirstCityDay ? ctxHotelLabel : '';
+    const tripCtxZone = isFirstCityDay ? ctxZoneLabel : '';
     // P290 fallback chain (day.lodging 없을 때만 발동):
-    //   1. ctxHotelLabel (사용자 입력 호텔 주소/명)
-    //   2. ctxZoneLabel 가공 → "{zone} 지역 숙소"
-    //   3. defaultMeta.placeholder (CITY_LODGING_DEFAULT)
+    //   1. tripCtxHotel (사용자 입력 호텔 — 첫 도시 day 만)
+    //   2. tripCtxZone 가공 → "{zone} 지역 숙소" (첫 도시 day 만)
+    //   3. defaultMeta.placeholder (CITY_LODGING_DEFAULT — day.city 별, 다도시 다른 도시 핵심 경로)
     //   4. generic "{city} 지역 숙소"
-    const ctxFallbackName = ctxHotelLabel
-      || (ctxZoneLabel ? `${ctxZoneLabel} 지역 숙소` : '');
-    const ctxFallbackAddress = ctxHotelLabel
-      || (ctxZoneLabel ? `${dayCityKor || dayCityLc} ${ctxZoneLabel}` : '');
+    const ctxFallbackName = tripCtxHotel
+      || (tripCtxZone ? `${tripCtxZone} 지역 숙소` : '');
+    const ctxFallbackAddress = tripCtxHotel
+      || (tripCtxZone ? `${dayCityKor || dayCityLc} ${tripCtxZone}` : '');
 
     // 첫 stop 이 lodging 이 아니면 prepend
     if (stops[0]?.category !== 'lodging') {

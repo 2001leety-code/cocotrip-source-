@@ -433,7 +433,7 @@ function addMinutesToHHMM(hhmm, minutes) {
  * @param {string[]} userDietPrefs
  * @returns {object|null} foodIndex entry 또는 null (매칭 실패)
  */
-export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = []) {
+export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null) {
   if (!placeholderStop || !placeholderStop.placeholder) return null;
   if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
   const cityLc = String(city || '').trim().toLowerCase();
@@ -491,6 +491,15 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     return rb * Math.log10(vb) - ra * Math.log10(va);
   });
 
+  // 중복 방지 (2026-06-02, plan 4d214e83 신고 "같은 식당 6번 반복"): 이미 배정한 식당 제외하고
+  // 차순위 선택. 전부 소진(작은 도시 식당 부족) 시에만 1순위 재사용 허용 (graceful).
+  if (excludeNames instanceof Set && excludeNames.size > 0) {
+    const fresh = candidates.find((c) => {
+      const nm = String((c && (c.name || c.name_ko || c.display_name)) || '').trim();
+      return nm && !excludeNames.has(nm);
+    });
+    if (fresh) return fresh;
+  }
   return candidates[0];
 }
 
@@ -563,6 +572,8 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   // Agent 2 deep-search 결과 68% (15/22 post-P245) block_mode plan 영향. 운영자 admin panel
   // (P121) 즉시 발견 → seed block 정정 trigger.
   let placeholderSynthesizedCount = 0;
+  // 중복 식당 방지 (2026-06-02 plan 4d214e83): plan 전체에서 이미 배정한 식당명 추적.
+  const usedFoodNames = new Set();
   // PR-E: 활동 블록(트레킹/러닝) day 수집 — SAFETY quality_warning 박제용 (난이도/체력 표기 의무).
   const activityDays = [];
 
@@ -624,12 +635,13 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
       if (bs.placeholder && !resolvedName) {
-        const matched = matchFoodPlaceholder(bs, foodIndex, area, dietPrefs);
+        const matched = matchFoodPlaceholder(bs, foodIndex, area, dietPrefs, usedFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
           resolvedAddress = matched.address || resolvedAddress;
           verified = true;
+          if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
           if (Array.isArray(matched.dietary_tags)) {
             dietaryTags = matched.dietary_tags.slice();
           }
@@ -679,6 +691,26 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         source_block_id: block.id,
         // P112: end_time backfill 은 planPersister 가 처리 — 여기서는 skip.
       });
+    }
+
+    // Day 1 (arrival day) late-arrival cutoff (2026-06-02, plan 4d214e83 운영자 신고):
+    //   밤 늦은 도착(dayStart 늦음)인데 block 전체 배치 → 새벽 관광 cascade. 마지막 날 departure
+    //   cap 과 대칭으로 도착 당일도 22:00 이후 관광 stop trim. 정상 09:00 plan 무영향, lodging/
+    //   airport/travel 보존. 다도시 expandBlocksToItineraryMultiCity 와 동일 룰.
+    if (isFirstDay) {
+      const toMin = (hhmm) => { const mm = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return mm ? (+mm[1]) * 60 + (+mm[2]) : -1; };
+      const capMin = toMin('22:00');
+      const dayStartMin = toMin(dayStart);
+      while (stops.length > 1) {
+        const last = stops[stops.length - 1];
+        if (last.category === 'lodging' || last.category === 'airport' || last.category === 'travel') break;
+        const lastMin = toMin(last.start_time);
+        if (lastMin < 0) break;
+        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 당일 22:00 이후 → trim.
+        const pastMidnight = dayStartMin >= 0 && lastMin < dayStartMin;
+        if (pastMidnight || lastMin > capMin) stops.pop();
+        else break;
+      }
     }
 
     // Day N (departure day) 의 마지막 활동 stop start_time > departure_time - 180min 이면 trim.
@@ -1155,6 +1187,8 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
     : {};
   // PR-E: 활동 블록(트레킹/러닝) day 수집 — SAFETY quality_warning 박제용 (단도시 expand 와 동일).
   const activityDays = [];
+  // 중복 식당 방지 (2026-06-02 plan 4d214e83): plan 전체 배정 식당명 추적 (단도시 expand 와 동일).
+  const usedFoodNames = new Set();
 
   const days = [];
   for (const sel of blockSelections.day_selections) {
@@ -1206,12 +1240,13 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
 
       if (bs.placeholder && !resolvedName) {
-        const matched = matchFoodPlaceholder(bs, foodIndex, dayCityKey, dietPrefs);
+        const matched = matchFoodPlaceholder(bs, foodIndex, dayCityKey, dietPrefs, usedFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
           resolvedAddress = matched.address || resolvedAddress;
           verified = true;
+          if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
           if (Array.isArray(matched.dietary_tags)) dietaryTags = matched.dietary_tags.slice();
         } else if (dietCritical.length > 0) {
           const err = new Error(
@@ -1222,7 +1257,12 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           err.statusCode = 422;
           throw err;
         } else {
-          resolvedName = bs.address || 'Local restaurant';
+          // P281 (2026-05-29) 다도시 적용 (2026-06-02 plan 4d214e83): 단도시 expandBlocksToItinerary
+          //   와 동일 — 행정 주소("서울특별시 종로구 가회동")를 stop.name 으로 직접 노출 금지.
+          //   "[추천 venue - <지역명>]" 명시 placeholder text 로 사용자 혼란 차단.
+          const placeholderType = bs.placeholder || 'venue';
+          const addrShort = String(bs.address || dayCityKey || '').split(' ').slice(0, 2).join(' ') || dayCityKey;
+          resolvedName = `[추천 ${placeholderType} - ${addrShort}]`;
           resolvedDisplay = resolvedName;
         }
       }
@@ -1247,6 +1287,27 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           : `Pre-curated ${block.zone} block — ${block.theme}`,
         source_block_id: block.id,
       });
+    }
+
+    // Day 1 (arrival day) late-arrival cutoff (2026-06-02, plan 4d214e83 운영자 신고):
+    //   밤 늦은 도착(dayStart = max(tour_start, arrival+60) 가 늦음)인데 block 전체를 그 시각부터
+    //   배치 → 새벽 관광 cascade (20:29 도착 → 02:16 북촌 / 05:39 홍대). 마지막 날 departure cap 과
+    //   대칭으로 도착 당일도 ARRIVAL_DAY_CAP 이후 관광 stop trim (체크인 + 가벼운 일정만). 정상
+    //   09:00 시작 plan 은 stops 가 22:00 이전이라 무영향. lodging/airport/travel 은 보존.
+    if (isFirstDay) {
+      const toMin = (hhmm) => { const mm = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return mm ? (+mm[1]) * 60 + (+mm[2]) : -1; };
+      const capMin = toMin('22:00');
+      const dayStartMin = toMin(dayStart);
+      while (stops.length > 1) {
+        const last = stops[stops.length - 1];
+        if (last.category === 'lodging' || last.category === 'airport' || last.category === 'travel') break;
+        const lastMin = toMin(last.start_time);
+        if (lastMin < 0) break;
+        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 당일 22:00 이후 → trim.
+        const pastMidnight = dayStartMin >= 0 && lastMin < dayStartMin;
+        if (pastMidnight || lastMin > capMin) stops.pop();
+        else break;
+      }
     }
 
     // departure day tail trim
