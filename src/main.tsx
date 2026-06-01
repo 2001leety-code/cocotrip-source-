@@ -18,6 +18,12 @@ frauncesLink.rel = 'stylesheet';
 frauncesLink.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,1,500;9..144,1,600&display=swap';
 document.head.appendChild(frauncesLink);
 
+// 2026-06-01: 정제 퍼플·핑크 전역 스코프 (공용 헤더 등 — 페이지 스코프 밖 요소). OFF=현재 그대로.
+if (import.meta.env.VITE_FEATURE_REFINED_UI === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('refined'))) {
+  document.documentElement.classList.add('refined');
+}
+
 // ── Sentry 에러 모니터링 (프로덕션 전용) ──
 initSentry();
 

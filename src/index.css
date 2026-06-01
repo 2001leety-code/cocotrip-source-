@@ -771,3 +771,6 @@ html[data-menu-open="true"] .early-bird-banner {
 .refined-plandetail .m-shimmer, .refined-plandetail .m-shimmer-text { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
 .refined-plandetail .bg-clip-text.text-transparent { background-image: linear-gradient(100deg, #caa9ff, #f4a9cf) !important; }
 .refined-plandetail .shadow-glow-cta, .refined-plandetail [class*="shadow-glow"] { box-shadow: none !important; }
+
+/* 정제 퍼플·핑크 — 공용 헤더 (전역 .refined; main.tsx 가 REFINED 시 <html> 에 부여). 인라인 글로우(로고/BETA 배지) 제거. OFF=완전 무효. */
+.refined header [style*="box-shadow"] { box-shadow: none !important; }
