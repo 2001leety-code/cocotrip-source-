@@ -2444,7 +2444,39 @@ function P330_transitProviderSwitch({ changed }) {
   return null;
 }
 
+/**
+ * R_S2_ownTourUpsellLazy (2026-06-01): ItineraryResult.tsx 의 자사 투어 업셀 섹션은
+ * React.lazy() + 플래그 게이트(VITE_FEATURE_OWN_TOUR_UPSELL === 'true' && <Suspense>)로 유지해야 함 (S2 번들 lazy-split).
+ * static import 로 회귀 시 OwnTourUpsellSection 청크가 main 번들에 다시 포함 → 플래그 OFF(prod 기본)에서도
+ * 로드 = 번들 size 증가 + byte-identical 보장 깨짐. 회귀 슬롯: tests/unit/own-tour-upsell-lazy.test.ts.
+ */
+function R_S2_ownTourUpsellLazy(ctx) {
+  const FILE = 'src/pages/PlannerPage/components/ItineraryResult.tsx';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  const violations = [];
+  if (/import\s*\{[^}]*\bOwnTourUpsellSection\b[^}]*\}\s*from/.test(src)) {
+    violations.push('OwnTourUpsellSection 을 static import — lazy-split(S2) 회귀, 플래그 OFF 여도 main 번들에 청크 포함');
+  }
+  if (!/lazy\(\s*\(\)\s*=>\s*import\(\s*['"][^'"]*OwnTourUpsellSection['"]/.test(src)) {
+    violations.push('OwnTourUpsellSection lazy() 동적 import 누락 — 코드 스플릿 깨짐');
+  }
+  if (!/VITE_FEATURE_OWN_TOUR_UPSELL\s*===\s*['"]true['"]/.test(src)) {
+    violations.push('플래그 게이트(VITE_FEATURE_OWN_TOUR_UPSELL === "true") 누락 — OFF 에서도 lazy chunk 로드 (byte-identical 깨짐)');
+  }
+  if (violations.length > 0) {
+    fail(
+      'R_S2_ownTourUpsellLazy',
+      violations.join(' | '),
+      'ItineraryResult.tsx 는 OwnTourUpsellSection 을 lazy()+Suspense+플래그 게이트로 유지, static import 금지. tests/unit/own-tour-upsell-lazy.test.ts.',
+    );
+  }
+  return null;
+}
+
 const RULES = [
+  ['R_S2_ownTourUpsellLazy', R_S2_ownTourUpsellLazy],
   ['P326_cacheGeoValidation', P326_cacheGeoValidation],
   ['P326_intercityMergeBack', P326_intercityMergeBack],
   ['R_Plaunch_departureAirportDerive', R_Plaunch_departureAirportDerive],
@@ -7117,6 +7149,24 @@ function runRulesInDir(dir, base) {
 
 function runSelfTest() {
   const cases = [
+    {
+      label: 'R_S2 (true positive): ItineraryResult 가 OwnTourUpsellSection 을 static import (lazy-split 회귀)',
+      base: { 'src/pages/PlannerPage/components/ItineraryResult.tsx': '// stub\n' },
+      head: { 'src/pages/PlannerPage/components/ItineraryResult.tsx': "import { OwnTourUpsellSection } from './OwnTourUpsellSection';\n" },
+      expectRule: 'R_S2_ownTourUpsellLazy',
+    },
+    {
+      label: 'R_S2 (false positive 차단): lazy()+플래그 게이트 정상 — 룰 silent',
+      base: { 'src/pages/PlannerPage/components/ItineraryResult.tsx': '// stub\n' },
+      head: {
+        'src/pages/PlannerPage/components/ItineraryResult.tsx':
+          "const FLAG_OWN_TOUR_UPSELL = import.meta.env.VITE_FEATURE_OWN_TOUR_UPSELL === 'true';\n"
+          + "const OwnTourUpsellSection = lazy(() => import('./OwnTourUpsellSection').then(m => ({ default: m.OwnTourUpsellSection })));\n"
+          + '// {FLAG_OWN_TOUR_UPSELL && <Suspense><OwnTourUpsellSection /></Suspense>}\n',
+      },
+      expectRule: 'R_S2_ownTourUpsellLazy',
+      expectClean: true,
+    },
     {
       label: 'R_P321: blockMode regions 정규화 누락 (raw toLowerCase → 한글 silent legacy)',
       base: { 'api/_ai_core/blockMode.js': 'const cities = regions.map((r) => String(r).split("_")[0].toLowerCase());\n' },
