@@ -1520,6 +1520,17 @@
       "viewCharterCTA": "チャーター車を見る",
       "hoursLabel": "時間"
     },
+    "transitVsCharter": {
+      "cardTitle": "本日の移動比較",
+      "transitCol": "公共交通",
+      "charterCol": "チャーター車",
+      "minUnit": "分",
+      "transfersUnit": "乗換",
+      "perPerson": "1人あたり",
+      "doorToDoor": "ドアツードア",
+      "noLuggage": "荷物の心配なし",
+      "savedMin": "{min}分短縮"
+    },
     "swipe": {
       "slideCounter": "{n} / {total}",
       "swipeHint": "左右にスワイプしてナビゲート",

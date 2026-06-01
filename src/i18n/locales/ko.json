@@ -1520,6 +1520,17 @@
       "viewCharterCTA": "차량 옵션 보기",
       "hoursLabel": "시간"
     },
+    "transitVsCharter": {
+      "cardTitle": "오늘 이동 비교",
+      "transitCol": "대중교통",
+      "charterCol": "전세차량",
+      "minUnit": "분",
+      "transfersUnit": "환승",
+      "perPerson": "인당",
+      "doorToDoor": "도어투도어",
+      "noLuggage": "짐 걱정 0",
+      "savedMin": "{min}분 단축"
+    },
     "swipe": {
       "slideCounter": "{n} / {total}",
       "swipeHint": "좌우로 스와이프하여 탐색하세요",

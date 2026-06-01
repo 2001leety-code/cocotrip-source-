@@ -3,6 +3,7 @@
 // PR-C2 (2026-06-01): when VITE_FEATURE_CHARTER_CTA_REALROUTE=true,
 //   prefills destinationKey from the day's actual region/city (not hardcoded Seoul).
 //   Flag OFF (unset) -> current hardcoded URL byte-identical.
+// PR-C3 (2026-06-01): TransitVsCharterCard 비교 카드 (flag: VITE_FEATURE_TRANSIT_VS_CHARTER).
 import { Car } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { detectCharterRecommendation } from '@/data/charterPricing';
@@ -10,6 +11,7 @@ import { formatKRW } from '../constants';
 import type { PlanDay, PlanStop, PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
 import { buildCharterCTAUrl } from '../lib/charterCtaPrefill';
+import { TransitVsCharterCard } from './TransitVsCharterCard';
 
 interface CharterCTAProps {
   day: PlanDay;
@@ -53,7 +55,16 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
     pricingHours: pricing?.hours,
   });
 
+  // PR-C3: pax from plan.input (adults || pax)
+  const planInput = plan?.input as { adults?: number; pax?: number } | undefined;
+  const pax = (typeof planInput?.adults === 'number' && planInput.adults > 0 ? planInput.adults : 0)
+    || (typeof planInput?.pax === 'number' && planInput.pax > 0 ? planInput.pax : 0)
+    || 1;
+
   return (
+    <>
+    {/* PR-C3: 비교 카드 (flag ON 시만 노출, OFF = 현재 동작 byte-identical) */}
+    <TransitVsCharterCard day={day} pax={pax} />
     <div className="mb-4 rounded-2xl p-4 border border-white/[0.08] backdrop-blur-sm"
       style={{ background: 'rgba(255,255,255,0.04)' }}
     >
@@ -83,5 +94,6 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
         {ch.viewCharterCTA || 'View Charter Options'} {'→'}
       </a>
     </div>
+    </>
   );
 }

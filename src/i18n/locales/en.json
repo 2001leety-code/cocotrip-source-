@@ -1520,6 +1520,17 @@
       "viewCharterCTA": "View Charter Options",
       "hoursLabel": "hours"
     },
+    "transitVsCharter": {
+      "cardTitle": "Today's Transit Comparison",
+      "transitCol": "Public Transit",
+      "charterCol": "Charter Car",
+      "minUnit": "min",
+      "transfersUnit": " transfers",
+      "perPerson": "per person",
+      "doorToDoor": "Door-to-door",
+      "noLuggage": "No luggage hassle",
+      "savedMin": "Save {min} min"
+    },
     "swipe": {
       "slideCounter": "{n} / {total}",
       "swipeHint": "Swipe left/right to navigate",
