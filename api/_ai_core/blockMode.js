@@ -41,6 +41,85 @@ export function getBlockModeEnv() {
 }
 
 /**
+ * PR-E (2026-06-01): 트레킹/러닝 block_type 을 block_mode 에 편입하는 feature flag.
+ *
+ * 끊긴 고리 #1 — 위저드 칩·4lang·백엔드 헬퍼·zone_courses 블록(trekking 3 + running_route 2)
+ * 인프라는 prod 가동 중이나, fetchAvailableBlocks 가 block_type !== 'city_day' 를 명시적 제외
+ * → P321 전환된 빠른 block_mode 경로에서 트레킹/러닝 day 선택 불가.
+ *
+ * OFF (FEATURE_ACTIVITY_BLOCKS 미설정/'false') → 현재처럼 city_day 만 (byte-identical 절대 보장).
+ * ON  ('true')                                  → trekking / running_route 블록도 허용.
+ *
+ * P102 패턴 (CRLF strip + case-insensitive) 동일 적용 — Vercel env 줄바꿈 오염 방지.
+ *
+ * @returns {boolean}
+ */
+export function isActivityBlocksEnabled() {
+  const raw = String(process.env.FEATURE_ACTIVITY_BLOCKS || '').trim().toLowerCase().replace(/[\r\n]/g, '');
+  return raw === 'true';
+}
+
+/**
+ * PR-E: flag ON 시 block_mode 가 허용하는 block_type 집합 (city_day + 활동 블록).
+ * flag OFF 시 city_day 단독 (현재 동작 byte-identical).
+ *
+ * 활동 블록은 stops 가 충분하므로 (trekking/running 모두 3 stops) 기존 stops.length>=3 가드 통과.
+ */
+const ACTIVITY_BLOCK_TYPES = ['trekking', 'running_route'];
+function isAllowedBlockType(blockType, activityEnabled) {
+  if (blockType === 'city_day') return true;
+  if (activityEnabled && ACTIVITY_BLOCK_TYPES.includes(blockType)) return true;
+  return false;
+}
+
+/**
+ * PR-E: Gemini block 선택용 압축 카드 1개 생성.
+ *
+ * flag OFF → 기존 카드 shape byte-identical (block_type / activity 키 없음).
+ * flag ON  → block_type + (활동 블록이면) activity 요약(difficulty/distance/unsuitable_for) 추가
+ *            → Gemini 가 트레킹/러닝 day 를 적절히 배치 (full-day / 도착·출국일 회피).
+ *
+ * @param {object} b — raw block
+ * @param {boolean} activityEnabled
+ * @returns {object} block card
+ */
+function toBlockCard(b, activityEnabled) {
+  const card = {
+    id: b.id,
+    zone: b.zone,
+    theme: b.theme,
+    intensity: b.intensity,
+    duration_min: b.duration_min,
+    best_for: Array.isArray(b.best_for) ? b.best_for.slice(0, 6) : [],
+    dietary_options: Array.isArray(b.dietary_options) ? b.dietary_options : [],
+    stops_summary: Array.isArray(b.stops)
+      ? b.stops.slice(0, 8).map((s) => ({
+          order: s.order,
+          category: s.category,
+          name: s.name || (s.placeholder ? `[placeholder:${s.placeholder}]` : '???'),
+        }))
+      : [],
+  };
+  if (activityEnabled) {
+    const blockType = b.block_type || 'city_day';
+    card.block_type = blockType;
+    const am = buildActivityMeta(b);
+    if (am) {
+      // 활동 블록은 full-day 성격 — Gemini 배치 판단용 핵심 요약만 (난이도/거리/부적합 대상).
+      card.activity = {
+        type: am.activity_type,
+        difficulty: am.difficulty,
+        distance_km: am.distance_km,
+        elevation_gain_m: am.elevation_gain_m,
+        unsuitable_for: am.unsuitable_for,
+        requires_advance_booking: am.requires_advance_booking,
+      };
+    }
+  }
+  return card;
+}
+
+/**
  * Firestore 의 zone_courses 컬렉션에서 city 의 published city_day blocks 가져오기.
  *
  * @param {object} adminDb — Firebase Admin Firestore instance
@@ -62,13 +141,17 @@ export async function fetchAvailableBlocks(adminDb, city, opts = {}) {
       .get();
     if (snap.empty) return [];
 
+    // PR-E (2026-06-01): 활동 블록(trekking/running_route) flag — OFF 시 city_day 단독 (byte-identical).
+    const activityEnabled = isActivityBlocksEnabled();
+
     let blocks = [];
     snap.forEach((doc) => {
       const data = doc.data();
       if (!data || typeof data !== 'object') return;
       // block_type 누락 시 default 'city_day' (backward compat — PR-A 의 schema 확장 전 block).
       const blockType = data.block_type || 'city_day';
-      if (blockType !== 'city_day') return; // trekking / running_route 등은 별도 분기
+      // PR-E: flag OFF → city_day 만 (현재 동작). flag ON → trekking / running_route 추가 허용.
+      if (!isAllowedBlockType(blockType, activityEnabled)) return;
       if (!Array.isArray(data.stops) || data.stops.length < 3) return; // 너무 적은 stops 는 invalid block
       blocks.push({ ...data, id: doc.id });
     });
@@ -82,6 +165,25 @@ export async function fetchAvailableBlocks(adminDb, city, opts = {}) {
         const opts2 = Array.isArray(b.dietary_options) ? b.dietary_options : [];
         return critical.every((d) => opts2.some((o) => String(o).toLowerCase() === String(d).toLowerCase()));
       });
+    }
+
+    // PR-E SAFETY (2026-06-01): 거동 제약(mobility) 손님은 활동 블록의 unsuitable_for 매칭 시 제외.
+    //   trekking_meta 난이도/체력은 보존 의무지만, 휠체어/중증 거동제약 손님에게 트레킹 day 자체를
+    //   배정하면 외국인 사고 risk → 사전 제외. pax 는 단순 count(연령/거동 breakdown 없음)라
+    //   structured signal 부재 → 유일하게 확보 가능한 mobility 신호로 보수적 가드.
+    //   flag OFF 시 활동 블록 자체가 없으므로 이 분기 무효과 (byte-identical 유지).
+    if (activityEnabled) {
+      const mobility = String(opts.mobility || '').trim().toLowerCase();
+      const limited = mobility && mobility !== 'ok' && mobility !== 'none';
+      if (limited) {
+        const UNSAFE_FOR_LIMITED = new Set(['wheelchair_user', 'severe_mobility_limitation']);
+        blocks = blocks.filter((b) => {
+          const bt = b.block_type || 'city_day';
+          if (bt === 'city_day') return true; // 시티 블록은 mobility 필터 비대상 (현재 동작 유지)
+          const unsuit = Array.isArray(b.unsuitable_for) ? b.unsuitable_for.map((x) => String(x).toLowerCase()) : [];
+          return !unsuit.some((x) => UNSAFE_FOR_LIMITED.has(x));
+        });
+      }
     }
 
     return blocks;
@@ -152,24 +254,11 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
   const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 압축된 block 카드만 prompt 에 넣음 — Gemini 가 ID 만 선택하면 되므로 stops/transit 풀 detail X.
-  const blockCards = blocks.map((b) => ({
-    id: b.id,
-    zone: b.zone,
-    theme: b.theme,
-    intensity: b.intensity,
-    duration_min: b.duration_min,
-    best_for: Array.isArray(b.best_for) ? b.best_for.slice(0, 6) : [],
-    dietary_options: Array.isArray(b.dietary_options) ? b.dietary_options : [],
-    stops_summary: Array.isArray(b.stops)
-      ? b.stops.slice(0, 8).map((s) => ({
-          order: s.order,
-          category: s.category,
-          name: s.name || (s.placeholder ? `[placeholder:${s.placeholder}]` : '???'),
-        }))
-      : [],
-  }));
+  // PR-E: flag OFF → 카드 shape byte-identical. flag ON → block_type + activity 요약 추가.
+  const activityEnabled = isActivityBlocksEnabled();
+  const blockCards = blocks.map((b) => toBlockCard(b, activityEnabled));
 
-  const systemPrompt = buildBlockSelectionSystemPrompt(language);
+  const systemPrompt = buildBlockSelectionSystemPrompt(language, { activityEnabled });
   const userMessage = JSON.stringify({
     duration_days: durationDays,
     styles,
@@ -267,8 +356,22 @@ export async function selectBlocksWithGemini(blocks, userInput, geminiClient) {
 
 /**
  * block-mode 전용 system prompt — Gemini 가 block ID 선택만 책임짐.
+ *
+ * PR-E: opts.activityEnabled=true (FEATURE_ACTIVITY_BLOCKS ON) 시 트레킹/러닝 day 배치 규칙 추가.
+ *   flag OFF (default) → 반환 문자열 byte-identical (회귀 0). ON 시에만 ## ACTIVITY BLOCKS 섹션 append.
  */
-export function buildBlockSelectionSystemPrompt(language = 'en') {
+export function buildBlockSelectionSystemPrompt(language = 'en', opts = {}) {
+  const activityEnabled = !!opts.activityEnabled;
+  const activityRules = activityEnabled
+    ? `
+
+## ACTIVITY BLOCKS (trekking / running_route)
+Some available_blocks carry block_type "trekking" or "running_route" with an "activity" summary (difficulty, distance_km, elevation_gain_m, unsuitable_for). Treat these as physically demanding FULL-DAY blocks:
+- A trekking block occupies the ENTIRE day — do NOT combine it with a city_day block on the same day. Pick at most ONE activity block per day.
+- NEVER place a trekking block on the arrival day (day 1 if the user just landed) or the departure day (last day) — fatigue + flight risk. Prefer a middle day.
+- Only select an activity block when the user's styles indicate it (e.g. "Trekking", "Hallasan", "Running", "HangangRun") or special_request asks for it. Otherwise prefer city_day blocks.
+- The block's difficulty / elevation / hazards / unsuitable_for are preserved downstream and shown to the user — do NOT hide or downplay them in tweak_notes.`
+    : '';
   return `You are CocoTrip's block selector — pick the best pre-curated day-blocks for the user.
 
 ## OUTPUT FORMAT — STRICT JSON ONLY
@@ -291,7 +394,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 4. Match user's styles (e.g. "Food", "Kpop") to block.best_for and block.theme.
 5. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs (halal/vegan/vegetarian). The system already filtered the available_blocks to dietary-compatible ones; you only need to focus on preference variety.
 6. tweak_notes is optional and short. NEVER use it to invent new stops — actual stop substitutions happen later.
-7. Day 1 should be an easy / standard intensity block (arrival fatigue). Day N can be packed if styles indicate. Otherwise alternate intensity.
+7. Day 1 should be an easy / standard intensity block (arrival fatigue). Day N can be packed if styles indicate. Otherwise alternate intensity.${activityRules}
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -392,6 +495,54 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
 }
 
 /**
+ * PR-E SAFETY (2026-06-01): 활동 블록(trekking/running_route) 의 안전 메타데이터를 day 에 보존.
+ *
+ * 트레킹/러닝 day 는 난이도·체력·고도·hazards·부적합 대상이 plan 에 반드시 표기되어야 함
+ * (외국인 사고 예방 — 표기 누락 금지). zone_courses 의 trekking_meta / running_meta /
+ * unsuitable_for / requires_advance_booking 을 day.activity_meta 로 정규화.
+ *
+ * city_day 블록 또는 메타 부재 시 null 반환 → 호출자가 day 에 attach 안 함 (현재 동작 유지).
+ *
+ * @param {object} block — fetchAvailableBlocks 의 raw block (block_type / *_meta 포함)
+ * @returns {object|null} activity_meta 또는 null
+ */
+export function buildActivityMeta(block) {
+  if (!block || typeof block !== 'object') return null;
+  const blockType = block.block_type || 'city_day';
+  if (blockType !== 'trekking' && blockType !== 'running_route') return null;
+
+  const meta = blockType === 'trekking'
+    ? (block.trekking_meta && typeof block.trekking_meta === 'object' ? block.trekking_meta : null)
+    : (block.running_meta && typeof block.running_meta === 'object' ? block.running_meta : null);
+
+  const unsuitableFor = Array.isArray(block.unsuitable_for)
+    ? block.unsuitable_for.map((x) => String(x)).filter(Boolean)
+    : [];
+
+  // 난이도/체력/고도/hazards — 두 meta 타입 공통/개별 필드를 보존 (값 없으면 생략).
+  const out = {
+    activity_type: blockType,
+    // SAFETY 핵심 — 난이도/체력/고도 (표기 누락 금지).
+    difficulty: meta && meta.difficulty != null ? String(meta.difficulty) : undefined,
+    elevation_gain_m: meta && Number.isFinite(Number(meta.elevation_gain_m)) ? Number(meta.elevation_gain_m) : undefined,
+    distance_km: meta && Number.isFinite(Number(meta.total_distance_km || meta.total_km))
+      ? Number(meta.total_distance_km || meta.total_km)
+      : undefined,
+    estimated_duration_min: meta && Number.isFinite(Number(meta.estimated_duration_min))
+      ? Number(meta.estimated_duration_min)
+      : undefined,
+    hazards: meta && Array.isArray(meta.hazards) && meta.hazards.length > 0 ? meta.hazards.slice() : undefined,
+    recommended_gear: meta && Array.isArray(meta.recommended_gear) && meta.recommended_gear.length > 0
+      ? meta.recommended_gear.slice()
+      : undefined,
+    // 부적합 대상 — 휠체어/노약자/유아/고산 민감 (SAFETY 노출 의무).
+    unsuitable_for: unsuitableFor.length > 0 ? unsuitableFor : undefined,
+    requires_advance_booking: !!block.requires_advance_booking,
+  };
+  return out;
+}
+
+/**
  * block-mode 의 핵심: blockSelections 를 받아 itinerary.days[] 형식으로 변환.
  *
  * @param {{day_selections: Array}} blockSelections
@@ -412,6 +563,8 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   // Agent 2 deep-search 결과 68% (15/22 post-P245) block_mode plan 영향. 운영자 admin panel
   // (P121) 즉시 발견 → seed block 정정 trigger.
   let placeholderSynthesizedCount = 0;
+  // PR-E: 활동 블록(트레킹/러닝) day 수집 — SAFETY quality_warning 박제용 (난이도/체력 표기 의무).
+  const activityDays = [];
 
   const language = String(userInput?.language || 'en');
   const dietPrefs = Array.isArray(userInput?.dietPrefs) ? userInput.dietPrefs : [];
@@ -546,6 +699,11 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       }
     }
 
+    // PR-E SAFETY: 트레킹/러닝 블록이면 난이도/체력/hazards/부적합 대상을 day 에 보존 (표기 누락 금지).
+    //   buildActivityMeta 는 city_day / 메타 부재 시 null → city_day plan 은 day shape 불변 (byte-identical).
+    const dayActivityMeta = buildActivityMeta(block);
+    if (dayActivityMeta) activityDays.push({ day: dayNum, activity_type: dayActivityMeta.activity_type, difficulty: dayActivityMeta.difficulty });
+
     days.push({
       day: dayNum,
       date: startDate ? offsetDate(startDate, dayNum - 1) : undefined,
@@ -558,6 +716,8 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       source_block_zone: block.zone,
       source_block_intensity: block.intensity,
       tweak_notes: sel.tweak_notes || '',
+      // PR-E SAFETY: 활동 블록 day 에만 존재 (city_day day 는 undefined → JSON 직렬화 시 생략).
+      ...(dayActivityMeta ? { activity_meta: dayActivityMeta } : {}),
     });
   }
 
@@ -588,6 +748,18 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       severity: 'medium',
       count: placeholderSynthesizedCount,
       message: `P281: block_mode seed block 의 placeholder ${placeholderSynthesizedCount}개 매칭 실패 → '[추천 venue - ...]' 명시. seed block 정정 권고 (Agent 2 deep-search 68% plan 영향).`,
+    });
+  }
+  // PR-E SAFETY: 활동 블록(트레킹/러닝) day 포함 시 박제 — 난이도/체력 표기 의무 + 운영자 admin panel 노출.
+  if (activityDays.length > 0) {
+    itinerary.quality_warnings = itinerary.quality_warnings || [];
+    itinerary.quality_warnings.push({
+      kind: 'block_mode_activity_day',
+      type: 'block_mode_activity_day',
+      severity: 'info',
+      count: activityDays.length,
+      days: activityDays,
+      message: `PR-E: 활동 블록(트레킹/러닝) ${activityDays.length}개 day 편입. 난이도·체력·hazards·부적합 대상은 day.activity_meta 에 보존 (SAFETY 표기 의무).`,
     });
   }
 
@@ -642,7 +814,8 @@ export async function runBlockModePipeline({ adminDb, city, userInput, geminiCli
   if (!userInput) throw new Error('runBlockModePipeline: userInput required');
 
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
-  const blocks = await fetchAvailableBlocks(adminDb, city, { dietaryRequired: dietPrefs });
+  // PR-E: mobility 전달 — 활동 블록 SAFETY 거동 제약 필터 (flag ON 시에만 효과).
+  const blocks = await fetchAvailableBlocks(adminDb, city, { dietaryRequired: dietPrefs, mobility: userInput.mobility });
   const elig = shouldUseBlockMode(city, userInput.durationDays, dietPrefs, blocks);
   if (!elig.eligible) {
     const err = new Error(`block-mode ineligible: ${elig.reason}`);
@@ -683,11 +856,12 @@ export async function runBlockModePipeline({ adminDb, city, userInput, geminiCli
  * @param {string[]} dietPrefs — 사용자 dietary preferences
  * @returns {Promise<Array<{city: string, blocks: Array<object>, ok: boolean, error?: Error}>>}
  */
-export async function fetchAvailableBlocksMultiCity(adminDb, cities, dietPrefs = []) {
+export async function fetchAvailableBlocksMultiCity(adminDb, cities, dietPrefs = [], opts = {}) {
   const results = await Promise.all(
     cities.map(async (city) => {
       try {
-        const blocks = await fetchAvailableBlocks(adminDb, city, { dietaryRequired: dietPrefs });
+        // PR-E: mobility 전달 — 활동 블록 SAFETY 거동 제약 필터 (flag ON 시에만 효과).
+        const blocks = await fetchAvailableBlocks(adminDb, city, { dietaryRequired: dietPrefs, mobility: opts.mobility });
         return { city, blocks, ok: true };
       } catch (err) {
         console.warn(`[blockMode] fetchAvailableBlocksMultiCity failed for ${city}:`, err && err.message ? err.message : err);
@@ -790,25 +964,12 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
   const allergies = Array.isArray(userInput.allergies) ? userInput.allergies : [];
 
   // 도시별 block 카드 + city-per-day 일정 조합
+  // PR-E: flag OFF → 카드 shape byte-identical. flag ON → block_type + activity 요약 추가.
+  const activityEnabled = isActivityBlocksEnabled();
   const cityBlockCards = {};
   const allValidIds = new Set();
   for (const { city, blocks } of cityBlocksList) {
-    cityBlockCards[city] = blocks.map((b) => ({
-      id: b.id,
-      zone: b.zone,
-      theme: b.theme,
-      intensity: b.intensity,
-      duration_min: b.duration_min,
-      best_for: Array.isArray(b.best_for) ? b.best_for.slice(0, 6) : [],
-      dietary_options: Array.isArray(b.dietary_options) ? b.dietary_options : [],
-      stops_summary: Array.isArray(b.stops)
-        ? b.stops.slice(0, 8).map((s) => ({
-            order: s.order,
-            category: s.category,
-            name: s.name || (s.placeholder ? `[placeholder:${s.placeholder}]` : '???'),
-          }))
-        : [],
-    }));
+    cityBlockCards[city] = blocks.map((b) => toBlockCard(b, activityEnabled));
     blocks.forEach((b) => allValidIds.add(b.id));
   }
 
@@ -819,7 +980,7 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
     available_blocks: cityBlockCards[city] || [],
   }));
 
-  const systemPrompt = buildBlockSelectionMultiCitySystemPrompt(language);
+  const systemPrompt = buildBlockSelectionMultiCitySystemPrompt(language, { activityEnabled });
   const userMessage = JSON.stringify({
     duration_days: durationDays,
     styles,
@@ -906,8 +1067,21 @@ export async function selectBlocksMultiCity(cityBlocksList, userInput, geminiCli
 
 /**
  * 다도시 block-mode 전용 system prompt.
+ *
+ * PR-E: opts.activityEnabled=true 시 트레킹/러닝 day 배치 규칙 추가. OFF (default) → byte-identical.
  */
-export function buildBlockSelectionMultiCitySystemPrompt(language = 'en') {
+export function buildBlockSelectionMultiCitySystemPrompt(language = 'en', opts = {}) {
+  const activityEnabled = !!opts.activityEnabled;
+  const activityRules = activityEnabled
+    ? `
+
+## ACTIVITY BLOCKS (trekking / running_route)
+Some available_blocks carry block_type "trekking" or "running_route" with an "activity" summary (difficulty, distance_km, elevation_gain_m, unsuitable_for). Treat these as physically demanding FULL-DAY blocks:
+- A trekking block occupies the ENTIRE day — pick at most ONE activity block per day, never alongside a city_day block.
+- NEVER place a trekking block on the arrival day (day 1) or the departure day (last day). Prefer a middle day in the relevant city.
+- Only select an activity block when the user's styles (e.g. "Trekking", "Hallasan", "Running", "HangangRun") or special_request indicate it.
+- difficulty / elevation / hazards / unsuitable_for are preserved downstream and shown to the user — do NOT hide them.`
+    : '';
   return `You are CocoTrip's multi-city block selector — pick the best pre-curated day-blocks for each city in a multi-city trip.
 
 ## OUTPUT FORMAT — STRICT JSON ONLY
@@ -931,7 +1105,7 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 4. Prefer variety within each city — do NOT repeat the same block_id for the same city unless blocks run out.
 5. Match user styles to block.best_for and block.theme.
 6. Honor diet_preferences strictly — every selected block's dietary_options MUST cover all user dietary needs.
-7. Day 1 should be standard intensity. Last day can be lighter for departure prep.
+7. Day 1 should be standard intensity. Last day can be lighter for departure prep.${activityRules}
 
 ## OUTPUT LANGUAGE
 - tweak_notes text MUST be in language=${language}.
@@ -979,6 +1153,8 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   const hotelByCity = (userInput?.hotelByCity && typeof userInput.hotelByCity === 'object' && !Array.isArray(userInput.hotelByCity))
     ? userInput.hotelByCity
     : {};
+  // PR-E: 활동 블록(트레킹/러닝) day 수집 — SAFETY quality_warning 박제용 (단도시 expand 와 동일).
+  const activityDays = [];
 
   const days = [];
   for (const sel of blockSelections.day_selections) {
@@ -1094,6 +1270,10 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
     // hotelByCity 가 있으면 해당 도시 호텔을 hint 로 남겨둠.
     const lodgingHint = hotelByCity[dayCityKey] || hotelByCity[block.city] || undefined;
 
+    // PR-E SAFETY: 트레킹/러닝 블록이면 난이도/체력/hazards/부적합 대상 보존 (단도시 expand 와 동일).
+    const dayActivityMeta = buildActivityMeta(block);
+    if (dayActivityMeta) activityDays.push({ day: dayNum, activity_type: dayActivityMeta.activity_type, difficulty: dayActivityMeta.difficulty });
+
     days.push({
       day: dayNum,
       date: startDate ? offsetDate(startDate, dayNum - 1) : undefined,
@@ -1105,6 +1285,8 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       source_block_zone: block.zone,
       source_block_intensity: block.intensity,
       tweak_notes: sel.tweak_notes || '',
+      // PR-E SAFETY: 활동 블록 day 에만 존재 (city_day day 는 생략 → byte-identical).
+      ...(dayActivityMeta ? { activity_meta: dayActivityMeta } : {}),
     });
   }
 
@@ -1122,6 +1304,18 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   }
   if (mcDepartureAirport && mcDepartureAirport.toLowerCase() !== 'already_in_korea') {
     mcItinerary.departure_guide = { airport: mcDepartureAirport };
+  }
+  // PR-E SAFETY: 활동 블록(트레킹/러닝) day 포함 시 박제 — 난이도/체력 표기 의무 (단도시 expand 와 동일).
+  if (activityDays.length > 0) {
+    mcItinerary.quality_warnings = mcItinerary.quality_warnings || [];
+    mcItinerary.quality_warnings.push({
+      kind: 'block_mode_activity_day',
+      type: 'block_mode_activity_day',
+      severity: 'info',
+      count: activityDays.length,
+      days: activityDays,
+      message: `PR-E: 활동 블록(트레킹/러닝) ${activityDays.length}개 day 편입. 난이도·체력·hazards·부적합 대상은 day.activity_meta 에 보존 (SAFETY 표기 의무).`,
+    });
   }
   mcItinerary.daily_budget_summary = days.map((d) => ({
     day: d.day,
@@ -1150,7 +1344,8 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   }
 
   const dietPrefs = Array.isArray(userInput.dietPrefs) ? userInput.dietPrefs : [];
-  const cityBlocksList = await fetchAvailableBlocksMultiCity(adminDb, cities, dietPrefs);
+  // PR-E: mobility 전달 — 활동 블록 SAFETY 거동 제약 필터 (flag ON 시에만 효과).
+  const cityBlocksList = await fetchAvailableBlocksMultiCity(adminDb, cities, dietPrefs, { mobility: userInput.mobility });
   const elig = shouldUseBlockModeMultiCity(cityBlocksList, dietPrefs);
   if (!elig.eligible) {
     const err = new Error(`block-mode multi-city ineligible: ${elig.reason}`);
