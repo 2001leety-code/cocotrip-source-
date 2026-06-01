@@ -48,6 +48,15 @@ describe('PR-C airportTransferPriceKRW — region → 공항픽업 요금 SSOT l
     expect(airportTransferPriceKRW('BUSAN')).toBe(ATP['busan'].priceKRW);
   });
 
+  it('area 세분 키(_city/_suburb)는 base 도시 가격으로 폴백 (라이브 버그: seoul_city 가격 누락)', () => {
+    // CITY_CENTER_COORDS 의 'seoul_city'/'seoul_suburb' 같은 area 키도 도시 가격 SSOT 적용.
+    expect(airportTransferPriceKRW('seoul_city')).toBe(ATP['seoul-central'].priceKRW);
+    expect(airportTransferPriceKRW('seoul_suburb')).toBe(ATP['seoul-central'].priceKRW);
+    expect(airportTransferPriceKRW('busan_city')).toBe(ATP['busan'].priceKRW);
+    // base 도시도 미매핑이면 여전히 null (오노출 방지 유지).
+    expect(airportTransferPriceKRW('gwangju_city')).toBeNull();
+  });
+
   it('미매핑 region 은 null (가격 숨김 — 임의 추정/근사 금지)', () => {
     // airport_transfer_prices 에 대응 zone 이 없는 region 들.
     expect(airportTransferPriceKRW('gwangju')).toBeNull();

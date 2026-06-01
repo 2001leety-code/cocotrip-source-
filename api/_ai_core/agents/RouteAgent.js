@@ -403,7 +403,11 @@ const REGION_TO_AIRPORT_TRANSFER_ZONE = {
  */
 export function airportTransferPriceKRW(region) {
     if (!region) return null;
-    const zoneKey = REGION_TO_AIRPORT_TRANSFER_ZONE[String(region).toLowerCase()];
+    const low = String(region).toLowerCase();
+    // area 키('seoul_city'/'seoul_suburb' 등 CITY_CENTER_COORDS 세분 키)는 base city('seoul')로
+    //   환원 — 공항픽업 가격은 도시 단위 SSOT. (정확 키 우선, 없으면 '_' 앞 base 도시로 폴백.)
+    const zoneKey = REGION_TO_AIRPORT_TRANSFER_ZONE[low]
+        || (low.includes('_') ? REGION_TO_AIRPORT_TRANSFER_ZONE[low.split('_')[0]] : undefined);
     if (!zoneKey) return null;
     const spec = loadPricingSpec();
     const price = spec?.airport_transfer_prices?.[zoneKey]?.priceKRW;
