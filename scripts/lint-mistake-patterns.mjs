@@ -2348,6 +2348,33 @@ function R_PRE_activityBlockGate(ctx) {
 }
 
 /**
+ * R_PRC2_charterCtaModules (2026-06-01): CharterCTA.tsx 의 일자별 차터 prefill 은 순수 모듈
+ * buildCharterCTAUrl(../lib/charterCtaPrefill) 경유 의무. 하드코딩(origin:'SEL_METRO'/day_tour)으로
+ * 회귀 시 부산/제주 plan 도 서울 차터 견적 (오견적). PR-C2(#750).
+ */
+function R_PRC2_charterCtaModules(ctx) {
+  const FILE = 'src/pages/PlanDetailPage/components/CharterCTA.tsx';
+  if (!isModified(FILE, ctx.changed)) return { skipped: true };
+  let src = '';
+  try { src = readFileSync(FILE, 'utf8'); } catch { return { skipped: true }; }
+  const violations = [];
+  if (!/buildCharterCTAUrl/.test(src)) {
+    violations.push('buildCharterCTAUrl(charterCtaPrefill 순수 모듈) 미사용 — 차터 CTA prefill 하드코딩 회귀 → 부산/제주 plan 도 서울 견적 (PR-C2)');
+  }
+  if (/origin:\s*['"]SEL_METRO['"]/.test(src)) {
+    violations.push("CharterCTA.tsx 에 origin:'SEL_METRO' 하드코딩 잔존 — charterCtaPrefill.ts 경유해야 함 (PR-C2)");
+  }
+  if (violations.length > 0) {
+    fail(
+      'R_PRC2_charterCtaModules',
+      violations.join(' | '),
+      'CharterCTA 는 buildCharterCTAUrl(../lib/charterCtaPrefill) 경유, 하드코딩 prefill 금지. tests/unit/charter-cta-realroute-prc2.test.ts.',
+    );
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2427,6 +2454,7 @@ const RULES = [
   ['R_Phase0_resumeStrictGate', R_Phase0_resumeStrictGate],
   ['R_Phase1_testNoFirebaseClientImport', R_Phase1_testNoFirebaseClientImport],
   ['R_PRE_activityBlockGate', R_PRE_activityBlockGate],
+  ['R_PRC2_charterCtaModules', R_PRC2_charterCtaModules],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
