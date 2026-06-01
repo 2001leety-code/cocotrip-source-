@@ -1,4 +1,5 @@
-#!/usr/bin/env node
+// (shebang 제거 2026-06-02: vitest transform 이 #! 를 invalid token 으로 파싱 → design-audit.test.ts
+//  suite 로드 SyntaxError. node 직접 실행(`node scripts/design-audit.mjs`)이라 CLI 무영향. pre-existing #759.)
 /**
  * design-audit.mjs — impeccable detector wrapper, CocoTrip-tuned (2026-06-01).
  *
