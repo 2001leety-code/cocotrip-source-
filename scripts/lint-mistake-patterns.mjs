@@ -2375,6 +2375,45 @@ function R_PRC2_charterCtaModules(ctx) {
 }
 
 /**
+ * R_plan4d214e83_blockModeQuality (2026-06-02, 운영자 신고 "플랜 개판"): 다도시 block_mode plan
+ * 품질 3종 fix 회귀 가드. ① planPersister.selfHealLodgingBookend 가 day.city 별 lodging
+ * (isFirstCityDay 게이트) — 단일 trip-level zone 을 부산 day 에 쓰면 "부산인데 서울 명동역" 지리
+ * 파탄. ② blockMode Day1 late-arrival cutoff (pastMidnight 자정 처리) — 밤 도착 새벽 일정 cascade
+ * 차단. ③ matchFoodPlaceholder excludeNames(dedup) — 같은 식당 6회 반복 차단 + 다도시 P281
+ * (bs.address 직할당 금지) — 식당명에 행정주소("서울특별시 종로구 가회동") 노출 차단.
+ * 회귀 슬롯: tests/unit/plan-quality-4d214e83.test.ts + selfheal-lodging-multicity.test.ts.
+ */
+function R_plan4d214e83_blockModeQuality(ctx) {
+  const violations = [];
+  if (isModified('api/_ai_core/planPersister.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/_ai_core/planPersister.js', 'utf8'); } catch {}
+    if (/function selfHealLodgingBookend/.test(src) && !/isFirstCityDay/.test(src)) {
+      violations.push('selfHealLodgingBookend 에 isFirstCityDay 게이트 누락 — 다도시 다른 도시 day 가 첫 도시 lodging 폴백 회귀 (부산인데 서울 명동역)');
+    }
+  }
+  if (isModified('api/_ai_core/blockMode.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/_ai_core/blockMode.js', 'utf8'); } catch {}
+    if (src && !/pastMidnight/.test(src)) {
+      violations.push('blockMode Day1 late-arrival cutoff(pastMidnight 자정 처리) 누락 — 밤 도착 새벽 일정 cascade 회귀 (plan 4d214e83)');
+    }
+    if (src && !/excludeNames/.test(src)) {
+      violations.push('matchFoodPlaceholder excludeNames(dedup) 누락 — 같은 식당 반복 회귀 (홍대 깃뜰 6회)');
+    }
+    if (/^\s+resolvedName = bs\.address \|\| 'Local restaurant'/m.test(src)) {
+      violations.push('다도시 expand 행정주소 직할당(bs.address) 잔존 — 식당명에 행정주소 노출 회귀 (P281 다도시 미적용)');
+    }
+  }
+  if (violations.length > 0) {
+    fail(
+      'R_plan4d214e83_blockModeQuality',
+      violations.join(' | '),
+      'plan 4d214e83 다도시 품질 fix 유지: selfHealLodgingBookend isFirstCityDay 게이트 + blockMode Day1 pastMidnight cutoff + matchFoodPlaceholder excludeNames dedup + 다도시 P281 placeholder text. tests/unit/plan-quality-4d214e83.test.ts.',
+    );
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2455,6 +2494,7 @@ const RULES = [
   ['R_Phase1_testNoFirebaseClientImport', R_Phase1_testNoFirebaseClientImport],
   ['R_PRE_activityBlockGate', R_PRE_activityBlockGate],
   ['R_PRC2_charterCtaModules', R_PRC2_charterCtaModules],
+  ['R_plan4d214e83_blockModeQuality', R_plan4d214e83_blockModeQuality],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7117,6 +7157,19 @@ function runRulesInDir(dir, base) {
 
 function runSelfTest() {
   const cases = [
+    {
+      label: 'R_plan4d214e83 (true positive): blockMode Day1 cutoff(pastMidnight) 누락',
+      base: { 'api/_ai_core/blockMode.js': '// stub\n' },
+      head: { 'api/_ai_core/blockMode.js': 'export function matchFoodPlaceholder(a, b, c, d, excludeNames) { return null; }\nfunction x() { const r = `[추천 ${t}]`; }\n' },
+      expectRule: 'R_plan4d214e83_blockModeQuality',
+    },
+    {
+      label: 'R_plan4d214e83 (false positive 차단): pastMidnight + excludeNames + P281 정상 — silent',
+      base: { 'api/_ai_core/blockMode.js': '// stub\n' },
+      head: { 'api/_ai_core/blockMode.js': 'export function matchFoodPlaceholder(a, b, c, d, excludeNames) {}\nconst pastMidnight = lm < dsm;\nconst r = `[추천 ${t}]`;\n' },
+      expectRule: 'R_plan4d214e83_blockModeQuality',
+      expectClean: true,
+    },
     {
       label: 'R_P321: blockMode regions 정규화 누락 (raw toLowerCase → 한글 silent legacy)',
       base: { 'api/_ai_core/blockMode.js': 'const cities = regions.map((r) => String(r).split("_")[0].toLowerCase());\n' },
