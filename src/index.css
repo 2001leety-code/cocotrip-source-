@@ -774,3 +774,22 @@ html[data-menu-open="true"] .early-bird-banner {
 
 /* 정제 퍼플·핑크 — 공용 헤더 (전역 .refined; main.tsx 가 REFINED 시 <html> 에 부여). 인라인 글로우(로고/BETA 배지) 제거. OFF=완전 무효. */
 .refined header [style*="box-shadow"] { box-shadow: none !important; }
+
+/* 정제 — 버튼 마이크로 인터랙션 (2026 best practice: 절제·120~220ms·transform/opacity GPU·포커스 가시성·터치타겟).
+   전역 .refined. 크기는 기존 반응형 유지 + 모바일 CTA 최소 44px 만 보강. OFF=완전 무효. */
+.refined .m-btn, .refined .m-cta, .refined .m-cta-refined {
+  transition: transform .15s cubic-bezier(.2,0,.2,1), box-shadow .15s ease, background-color .15s ease, opacity .15s ease !important;
+}
+.refined .m-btn:active, .refined .m-cta:active, .refined .m-cta-refined:active {
+  transform: scale(.98) !important;
+}
+.refined .m-cta-refined:hover { transform: translateY(-1px); filter: brightness(1.04); }
+/* 키보드 포커스 가시성 (접근성) — 버튼/링크에 보라 링 */
+.refined a:focus-visible, .refined button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(202, 169, 255, 0.45);
+}
+/* 모바일 주요 CTA 터치 타겟 ≥44px (데스크탑 크기는 그대로) */
+@media (max-width: 767px) {
+  .refined .m-cta-refined, .refined .m-cta { min-height: 44px; }
+}
