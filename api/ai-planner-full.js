@@ -2,6 +2,9 @@
  * Vercel API Route: AI Planner Full v2
  * POST /api/ai-planner-full
  *
+ * 2026-06-01: 오픈 후 개선 기능 플래그 8종 롤아웃 — fresh 배포로 Production env 반영
+ *   (Vercel "Redeploy" 는 원본 배포의 env 스냅샷 재사용 → 신규 commit 으로 현재 env 적용).
+ *
  * Gemini 2.5 Pro → RouteAgent → T-money 계산 → Firestore 저장 (blocking)
  * → planId + planUrl 응답 → 알림 이메일 (non-blocking)
  *
