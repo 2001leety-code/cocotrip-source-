@@ -74,11 +74,10 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
     }
   }
 
-  // 도시간 transfer 영수증 (2026-06-02, VITE_FEATURE_TRANSFER_CHECKOUT): transfer + km>0 + staria/sprinter.
+  // 도시간 transfer 영수증 (2026-06-02, VITE_FEATURE_TRANSFER_CHECKOUT): service='transfer' + km>0 + staria/sprinter.
   const transferOn = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true';
-  const tripType = (state as Record<string, unknown> | undefined)?.tripType as 'oneway' | 'roundtrip' | undefined;
-  if (transferOn && quote.mode === 'multi_day' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
-    return <TransferReceipt km={km} tripType={tripType ?? 'oneway'} vehicle={tourVehicle} language={language} />;
+  if (transferOn && quote.mode === 'transfer' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
+    return <TransferReceipt km={km} tripType={state?.tripType ?? 'oneway'} vehicle={tourVehicle} language={language} />;
   }
 
   return (

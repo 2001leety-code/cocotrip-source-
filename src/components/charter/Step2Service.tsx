@@ -1,5 +1,5 @@
 // Step 2: 서비스 유형 선택 (4지선다) — i18n 사전 기반
-import { Plane, MapIcon, Mountain, Music2 } from 'lucide-react';
+import { Plane, MapIcon, Mountain, Music2, ArrowLeftRight } from 'lucide-react';
 import type { WizardState, ServiceMode } from './types';
 import { getWizardI18n } from './wizard-i18n';
 
@@ -11,11 +11,14 @@ interface Props {
 
 export function Step2Service({ state, patch, language = 'en' }: Props) {
   const i18n = getWizardI18n(language ?? 'en');
+  // 도시간 transfer 타일은 VITE_FEATURE_TRANSFER_CHECKOUT ON 일 때만 노출 (OFF=기존 4지선다 byte-identical).
+  const transferOn = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true';
   const OPTIONS: Array<{ id: ServiceMode; title: string; desc: string; Icon: typeof Plane }> = [
     { id: 'airport_transfer', title: i18n.svcAirport,  desc: i18n.svcAirportDesc,  Icon: Plane },
     { id: 'day_tour',         title: i18n.svcDayTour,  desc: i18n.svcDayTourDesc,  Icon: MapIcon },
     { id: 'multi_day',        title: i18n.svcMultiDay, desc: i18n.svcMultiDayDesc, Icon: Mountain },
     { id: 'kpop_shuttle',     title: i18n.svcKpop,     desc: i18n.svcKpopDesc,     Icon: Music2 },
+    ...(transferOn ? [{ id: 'transfer' as ServiceMode, title: i18n.svcTransfer, desc: i18n.svcTransferDesc, Icon: ArrowLeftRight }] : []),
   ];
   return (
     <div className="grid grid-cols-2 gap-3">

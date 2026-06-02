@@ -67,6 +67,7 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
   const today = toISO(new Date());
   const isAirport = state.service === 'airport_transfer';
   const isMulti   = state.service === 'multi_day';
+  const isTransfer = state.service === 'transfer';
   const isICN     = state.origin === 'ICN';
 
   // batch 9 fix (B9-1+B9-2): 픽업 시각은 Step 5 type="time" 직접 입력 (날짜 아래).
@@ -153,6 +154,24 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 flex items-start gap-2">
           <span className="text-base leading-none">⚠️</span>
           <span>{i18n.bookingClosedMessage}</span>
+        </div>
+      )}
+
+      {isTransfer && (
+        <div>
+          <Label>{i18n.tripTypeLabel}</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {(['oneway', 'roundtrip'] as const).map(tt => {
+              const selected = (state.tripType ?? 'oneway') === tt;
+              return (
+                <button key={tt} type="button"
+                  onClick={() => patch({ tripType: tt })}
+                  className={`py-3 px-3 rounded-xl text-sm font-medium border transition-colors ${selected ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#B668FC]/40'}`}>
+                  {tt === 'oneway' ? i18n.tripOneway : i18n.tripRoundtrip}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

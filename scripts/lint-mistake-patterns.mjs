@@ -2645,8 +2645,21 @@ function R_transferCheckoutSSOT(ctx) {
       violations.push('calcTransferQuote 가 TRANSFER_RATE_PER_KM SSOT 상수 미참조 — 단가 하드코딩 분산');
     }
   }
+  // 프론트 wiring 가드 (2026-06-02 transfer 결제 wiring): resolveProductType 가 charter_transfer 가격을
+  // calcTransferQuote(SSOT, 편도/왕복+쿠폰+VAT) 로 산출 + 엄격 플래그. (originKey/destKey forward 는 R_multidayCheckoutSSOT 공통 가드.)
+  if (isModified('src/components/charter/resolveProductType.ts', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/components/charter/resolveProductType.ts', 'utf8'); } catch {}
+    if (/charter_transfer/.test(src)) {
+      if (!/calcTransferQuote/.test(src)) {
+        violations.push('resolveProductType 가 charter_transfer 가격을 calcTransferQuote(SSOT lib) 미경유 — 표시가≠청구가 위험(P311)');
+      }
+      if (!/VITE_FEATURE_TRANSFER_CHECKOUT\s*===\s*'true'/.test(src)) {
+        violations.push("charter_transfer 가 VITE_FEATURE_TRANSFER_CHECKOUT === 'true' 엄격 게이트 없음 — 플래그 OFF byte-identical 미보장");
+      }
+    }
+  }
   if (violations.length > 0) {
-    fail('R_transferCheckoutSSOT', violations.join(' | '), '차터 transfer 결제는 resolveTransferCheckoutKrw(플래그+matrix backend SSOT) 경유. tests/unit/transfer-price.test.ts.');
+    fail('R_transferCheckoutSSOT', violations.join(' | '), '차터 transfer 결제는 resolveTransferCheckoutKrw(플래그+matrix backend SSOT) 경유, 프론트 resolveProductType=calcTransferQuote+엄격 플래그. tests/unit/transfer-price.test.ts + resolveProductType.test.ts.');
   }
   return null;
 }
@@ -7555,6 +7568,19 @@ function runSelfTest() {
       label: 'R_transferCheckoutSSOT (false positive 차단): resolveTransferCheckoutKrw + FEATURE_TRANSFER_CHECKOUT — silent',
       base: { 'api/createPaypalOrder.js': '// stub\n' },
       head: { 'api/createPaypalOrder.js': 'krwAmount = resolveTransferCheckoutKrw(SPEC, body, String(process.env.FEATURE_TRANSFER_CHECKOUT).toLowerCase() === "true");\n' },
+      expectRule: 'R_transferCheckoutSSOT',
+      expectClean: true,
+    },
+    {
+      label: 'R_transferCheckoutSSOT 프론트 (true positive): resolveProductType charter_transfer 가 calcTransferQuote 미경유',
+      base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
+      head: { 'src/components/charter/resolveProductType.ts': "if (x) { return { productType: 'charter_transfer', priceKRW: body.priceKRW, payable: true }; }\n" },
+      expectRule: 'R_transferCheckoutSSOT',
+    },
+    {
+      label: 'R_transferCheckoutSSOT 프론트 (false positive 차단): calcTransferQuote + 엄격 플래그 — silent',
+      base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
+      head: { 'src/components/charter/resolveProductType.ts': "const ON = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true'; if (ON) { const q = calcTransferQuote({ km, tripType, vehicle }); return { productType: 'charter_transfer', priceKRW: q.total, payable: true }; }\n" },
       expectRule: 'R_transferCheckoutSSOT',
       expectClean: true,
     },

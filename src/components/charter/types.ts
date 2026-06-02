@@ -6,7 +6,8 @@ export type OriginCode =
   | 'CJJ' | 'MWX' | 'KWJ' | 'RSU' | 'USN'
   | 'SEL_METRO' | 'BUS_METRO' | 'CUSTOM';
 
-export type ServiceMode = 'airport_transfer' | 'day_tour' | 'multi_day' | 'kpop_shuttle';
+// 'transfer' = 도시간 1회 이동(편도/왕복, 숙박 없음). 2026-06-02 추가 — multi_day(여러 날 동행)와 별개.
+export type ServiceMode = 'airport_transfer' | 'day_tour' | 'multi_day' | 'kpop_shuttle' | 'transfer';
 
 // 'vip' = 의전 차량 (행사 픽업 전용, 항상 협의 — Bus와 동일하게 결제 비활성).
 export type VehicleType = 'staria' | 'sprinter' | 'bus' | 'vip';
@@ -28,6 +29,8 @@ export interface WizardState {
   originName?: string;          // business name (확정 시)
   originCategory?: string;      // 카테고리 (호텔/식당/관광 등)
   service?: ServiceMode;
+  // transfer(도시간 1회 이동) 전용 — 편도/왕복. 미설정 시 'oneway' (2026-06-02).
+  tripType?: 'oneway' | 'roundtrip';
   destinationKey?: string;      // 매트릭스 키(예: 'SEL_METRO'), 패키지 id(예: 'dmz'), 또는 'CUSTOM'
   destinationCustom?: string;
   destinationCustomMatched?: string;  // KR→EN 정규화 결과 (있으면 매트릭스 lookup 가능)

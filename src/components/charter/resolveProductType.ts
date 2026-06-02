@@ -3,6 +3,7 @@
 import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE } from '@/data/charterPricing';
 import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
 import { calcTourQuote } from '@/lib/tourQuote';
+import { calcTransferQuote } from '@/lib/transferQuote';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
 
@@ -55,6 +56,7 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
   // 차터 즉시결제 플래그 (빌드타임, 기본 OFF). ON 일 때만 새 productType 활성 → OFF=현행 byte-identical.
   const MULTIDAY_CHECKOUT_ON = import.meta.env.VITE_FEATURE_MULTIDAY_CHECKOUT === 'true';
   const TOUR_HOURLY_ON = import.meta.env.VITE_FEATURE_TOUR_HOURLY === 'true';
+  const TRANSFER_CHECKOUT_ON = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true';
 
   // 공항 픽업 — 운영자 P0-Q2 (2026-05-12) 결정: ICN/PUS/GMP/CJU/TAE 4 공항 모두 PayPal 허용.
   //   조건: AIRPORT_TRANSFER_PRICES SSOT 에 등재된 destinationKey 만 결제 가능.
@@ -120,6 +122,28 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
       passengers: pax,
       payable: true,
     };
+  }
+
+  // 도시간 transfer(편도/왕복 1회 이동) 즉시결제 (2026-06-02). VITE_FEATURE_TRANSFER_CHECKOUT(프론트) +
+  // FEATURE_TRANSFER_CHECKOUT(백엔드) 둘 다 ON. 매트릭스 매칭 + staria/sprinter. 가격 = calcTransferQuote
+  // (편도 km×1500 / 왕복 ×2, 쿠폰 5%/10% + VAT) = backend SSOT (P311). service='transfer' 는 항상 여기서 종료.
+  if (state.service === 'transfer') {
+    if (vehicle === 'bus' || vehicle === 'vip') {
+      return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    }
+    if (TRANSFER_CHECKOUT_ON && (vehicle === 'staria' || vehicle === 'sprinter')) {
+      const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
+      const destKey = resolveDestMatrixKey(state);
+      const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
+      if (km != null && km > 0) {
+        const tripType: 'oneway' | 'roundtrip' = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
+        const q = calcTransferQuote({ km, tripType, vehicle });
+        if (q) {
+          return { productType: 'charter_transfer', priceKRW: q.total, passengers: pax, payable: true, originKey, destKey, tripType };
+        }
+      }
+    }
+    return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: '도시간 이동 견적 (협의)' };
   }
 
   // 멀티데이(1박+) 차터 즉시결제 (2026-06-02). VITE_FEATURE_MULTIDAY_CHECKOUT(프론트) + FEATURE_MULTIDAY_CHECKOUT(백엔드)

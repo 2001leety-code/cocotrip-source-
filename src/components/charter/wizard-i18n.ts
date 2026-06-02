@@ -23,6 +23,9 @@ export interface WizardI18n {
   svcDayTour: string;  svcDayTourDesc: string;
   svcMultiDay: string; svcMultiDayDesc: string;
   svcKpop: string;     svcKpopDesc: string;
+  svcTransfer: string; svcTransferDesc: string;
+  // transfer 편도/왕복 (Step5)
+  tripTypeLabel: string; tripOneway: string; tripRoundtrip: string;
 
   // Step 3 — 목적지
   destCustomLabel: string;
@@ -201,6 +204,11 @@ export function getWizardI18n(language: string): WizardI18n {
     svcDayTour: get('svcDayTour'), svcDayTourDesc: get('svcDayTourDesc'),
     svcMultiDay: get('svcMultiDay'), svcMultiDayDesc: get('svcMultiDayDesc'),
     svcKpop: get('svcKpop'), svcKpopDesc: get('svcKpopDesc'),
+    svcTransfer: get('svcTransfer') || (lang === 'ko' ? '도시간 이동' : lang === 'ja' ? '都市間移動' : lang === 'zh' ? '城际接送' : 'Intercity Transfer'),
+    svcTransferDesc: get('svcTransferDesc') || (lang === 'ko' ? '편도·왕복 1회 이동 (숙박 없음)' : lang === 'ja' ? '片道・往復の1回移動（宿泊なし）' : lang === 'zh' ? '单程/往返一次接送（无住宿）' : 'One-way or round-trip ride (no overnight)'),
+    tripTypeLabel: get('tripTypeLabel') || (lang === 'ko' ? '이동 방식' : lang === 'ja' ? '移動タイプ' : lang === 'zh' ? '行程类型' : 'Trip type'),
+    tripOneway: get('tripOneway') || (lang === 'ko' ? '편도' : lang === 'ja' ? '片道' : lang === 'zh' ? '单程' : 'One-way'),
+    tripRoundtrip: get('tripRoundtrip') || (lang === 'ko' ? '왕복' : lang === 'ja' ? '往復' : lang === 'zh' ? '往返' : 'Round-trip'),
 
     destCustomLabel: get('destCustomLabel'),
     destCustomPlaceholder: get('destCustomPlaceholder'),

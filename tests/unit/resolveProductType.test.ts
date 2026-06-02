@@ -14,6 +14,7 @@ import { resolveProductType } from '../../src/components/charter/resolveProductT
 import type { WizardState } from '../../src/components/charter/types';
 import { calcMultiDayCharterKrw as beMultiday, lookupMatrixKm } from '../../api/_shared/charter-multiday-price.js';
 import { calcTourQuote as beTourQuote } from '../../api/_shared/tour-price.js';
+import { calcTransferQuote as beTransferQuote } from '../../api/_shared/charter-transfer-price.js';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
 
@@ -146,6 +147,55 @@ describe('resolveProductType — 투어 시간제 (VITE_FEATURE_TOUR_HOURLY)', (
   it('플래그 ON + 비매트릭스 custom 목적지 → 결제 불가 (WhatsApp)', () => {
     vi.stubEnv('VITE_FEATURE_TOUR_HOURLY', 'true');
     const r = resolveProductType(tourState({ destinationKey: undefined, destinationCustom: '없는동네ZZZ' }));
+    expect(r.payable).toBe(false);
+  });
+});
+
+describe('resolveProductType — 도시간 transfer (VITE_FEATURE_TRANSFER_CHECKOUT)', () => {
+  const transferState = (over: Partial<WizardState> = {}): WizardState => base({
+    service: 'transfer', origin: 'SEL_METRO', destinationKey: 'BUSAN', ...over,
+  });
+
+  it('플래그 OFF: transfer → 협의 (payable=false, 현행 무영향)', () => {
+    const r = resolveProductType(transferState());
+    expect(r.payable).toBe(false);
+    expect(r.productType).toBeNull();
+  });
+
+  it('플래그 ON + 매트릭스(SEL_METRO→BUSAN) + staria + 편도 → charter_transfer, 가격 == 백엔드', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    const km = lookupMatrixKm(SPEC, 'SEL_METRO', 'BUSAN')!;
+    expect(km).toBeGreaterThan(0);
+    const r = resolveProductType(transferState({ tripType: 'oneway' }));
+    expect(r.productType).toBe('charter_transfer');
+    expect(r.payable).toBe(true);
+    expect(r.priceKRW).toBe(beTransferQuote({ km, tripType: 'oneway', vehicle: 'staria' })!.total);
+    expect(r.tripType).toBe('oneway');
+    expect(r.originKey).toBe('SEL_METRO');
+    expect(r.destKey).toBe('BUSAN');
+  });
+
+  it('플래그 ON + 왕복 → 가격 == 백엔드 (km×2 + 쿠폰 10%)', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    const km = lookupMatrixKm(SPEC, 'SEL_METRO', 'BUSAN')!;
+    const r = resolveProductType(transferState({ tripType: 'roundtrip' }));
+    expect(r.priceKRW).toBe(beTransferQuote({ km, tripType: 'roundtrip', vehicle: 'staria' })!.total);
+    expect(r.tripType).toBe('roundtrip');
+  });
+
+  it('tripType 미설정 → oneway 기본', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    expect(resolveProductType(transferState({ tripType: undefined })).tripType).toBe('oneway');
+  });
+
+  it('플래그 ON + bus → 결제 불가 (협의)', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    expect(resolveProductType(transferState({ vehicle: 'bus' })).payable).toBe(false);
+  });
+
+  it('플래그 ON + 비매트릭스 목적지 → 결제 불가 (WhatsApp)', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    const r = resolveProductType(transferState({ destinationKey: undefined, destinationCustom: '없는곳ZZZ' }));
     expect(r.payable).toBe(false);
   });
 });
