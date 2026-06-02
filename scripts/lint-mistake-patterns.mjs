@@ -2586,6 +2586,37 @@ function R_wizardAnimatePresenceWait(ctx) {
 }
 
 /**
+ * R_transferCheckoutSSOT (2026-06-02, P311 SAFETY): 도시간 차터 transfer(편도/왕복) 즉시결제는
+ * 결제 금액을 backend SSOT(matrix km + TRANSFER_RATE_PER_KM)에서 재계산해야 함(client 변조 차단).
+ * charter_transfer 경로는 resolveTransferCheckoutKrw 경유 + FEATURE_TRANSFER_CHECKOUT 게이트 의무.
+ * 회귀: tests/unit/transfer-price.test.ts.
+ */
+function R_transferCheckoutSSOT(ctx) {
+  const violations = [];
+  if (isModified('api/createPaypalOrder.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/createPaypalOrder.js', 'utf8'); } catch {}
+    if (/charter_transfer/.test(src)) {
+      if (!/resolveTransferCheckoutKrw/.test(src)) {
+        violations.push('charter_transfer 결제가 resolveTransferCheckoutKrw(backend SSOT) 미경유 — client km/price 변조 위험(P311)');
+      }
+      if (!/FEATURE_TRANSFER_CHECKOUT/.test(src)) {
+        violations.push('charter_transfer 가 FEATURE_TRANSFER_CHECKOUT 플래그 게이트 없음 — 미검증 결제 노출 위험');
+      }
+    }
+  }
+  if (isModified('api/_shared/charter-transfer-price.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/_shared/charter-transfer-price.js', 'utf8'); } catch {}
+    if (/function calcTransferQuote/.test(src) && !/TRANSFER_RATE_PER_KM/.test(src)) {
+      violations.push('calcTransferQuote 가 TRANSFER_RATE_PER_KM SSOT 상수 미참조 — 단가 하드코딩 분산');
+    }
+  }
+  if (violations.length > 0) {
+    fail('R_transferCheckoutSSOT', violations.join(' | '), '차터 transfer 결제는 resolveTransferCheckoutKrw(플래그+matrix backend SSOT) 경유. tests/unit/transfer-price.test.ts.');
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2673,6 +2704,7 @@ const RULES = [
   ['R_tourHourlySSOT', R_tourHourlySSOT],
   ['R_hallasanReservationUrl', R_hallasanReservationUrl],
   ['R_wizardAnimatePresenceWait', R_wizardAnimatePresenceWait],
+  ['R_transferCheckoutSSOT', R_transferCheckoutSSOT],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7437,6 +7469,19 @@ function runSelfTest() {
       base: { 'src/components/WizardForm/index.tsx': '// stub\n' },
       head: { 'src/components/WizardForm/index.tsx': 'return (<AnimatePresence mode="wait" initial={false}><motion.div /></AnimatePresence>);\n' },
       expectRule: 'R_wizardAnimatePresenceWait',
+      expectClean: true,
+    },
+    {
+      label: 'R_transferCheckoutSSOT (true positive): charter_transfer 가 client priceKRW 직접 사용',
+      base: { 'api/createPaypalOrder.js': '// stub\n' },
+      head: { 'api/createPaypalOrder.js': 'if (productType === "charter_transfer") { krwAmount = body.priceKRW; }\n' },
+      expectRule: 'R_transferCheckoutSSOT',
+    },
+    {
+      label: 'R_transferCheckoutSSOT (false positive 차단): resolveTransferCheckoutKrw + FEATURE_TRANSFER_CHECKOUT — silent',
+      base: { 'api/createPaypalOrder.js': '// stub\n' },
+      head: { 'api/createPaypalOrder.js': 'krwAmount = resolveTransferCheckoutKrw(SPEC, body, String(process.env.FEATURE_TRANSFER_CHECKOUT).toLowerCase() === "true");\n' },
+      expectRule: 'R_transferCheckoutSSOT',
       expectClean: true,
     },
     {

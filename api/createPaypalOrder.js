@@ -16,6 +16,7 @@ import { acquireSlotLock } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
+import { resolveTransferCheckoutKrw } from './_shared/charter-transfer-price.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -204,6 +205,9 @@ export default async function handler(req, res) {
     } else if (productType === 'tour_hourly') {
       // 투어 시간제(기본 9h + 거리추가 + 오버타임) — VAT·쿠폰 전 순수가. 플래그 OFF 기본(현행 권역 고정가 유지).
       krwAmount = resolveTourCheckoutKrw(SPEC, body, String(process.env.FEATURE_TOUR_HOURLY).toLowerCase() === 'true');
+    } else if (productType === 'charter_transfer') {
+      // 도시간 transfer(편도/왕복 1회 이동) — backend SSOT 재계산(matrix km, client 불신). 플래그 OFF 기본.
+      krwAmount = resolveTransferCheckoutKrw(SPEC, body, String(process.env.FEATURE_TRANSFER_CHECKOUT).toLowerCase() === 'true');
     } else {
       krwAmount = resolveKrwAmount(productType, passengers, durationDays);
     }
