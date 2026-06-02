@@ -76,3 +76,4 @@ scripts/inspect-live-plan-state.mjs
 scripts/inspect-streaming-plans.mjs
 scripts/p[0-9][0-9][0-9]-*.mjs
 .claude/worktrees/
+outputs/

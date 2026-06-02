@@ -23,7 +23,9 @@ import { StopCard, type LodgingRole } from './StopCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { LodgingBookend } from './LodgingBookend';
+import { ActivityMetaChips } from './ActivityMetaChips';
 import { useLanguage } from '@/hooks/useLanguage';
+import type { Language } from '@/i18n';
 import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '../types';
 import { getPlanDetailDict } from '../types';
 import type { TransitFromPrev } from '@/types/plan';
@@ -213,6 +215,12 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
               </span>
             )}
           </div>
+
+          {/* PR-E SAFETY (2026-06-02): 트레킹/러닝 day 난이도·위험·부적합 칩.
+              activity_meta 있을 때만(FEATURE_ACTIVITY_BLOCKS ON + 활동 블록) → flag OFF/city_day = byte-identical. */}
+          {day.activity_meta && (
+            <ActivityMetaChips meta={day.activity_meta} language={language as Language} />
+          )}
         </div>
       </div>
 

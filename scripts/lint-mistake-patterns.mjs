@@ -2417,6 +2417,36 @@ function R_plan4d214e83_blockModeQuality(ctx) {
 }
 
 /**
+ * R_activityMetaDisplay (2026-06-02, SAFETY): 트레킹/러닝 day.activity_meta(난이도/위험/부적합)
+ * 사용자 화면 노출 유지. backend buildActivityMeta 가 채우나 그동안 admin 패널(TrekkingMetaTab)에만
+ * 있고 사용자 plan 화면 미렌더 + plan.ts 타입도 없었음. ActivityMetaChips(unsuitable_for 경고 배너 +
+ * data-testid) + DayTimeline falsy guard(day.activity_meta &&, flag OFF byte-identical) 유지.
+ * 회귀 슬롯: tests/unit/activity-meta-chips.component.test.tsx.
+ */
+function R_activityMetaDisplay(ctx) {
+  const violations = [];
+  if (isModified('src/pages/PlanDetailPage/components/ActivityMetaChips.tsx', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/pages/PlanDetailPage/components/ActivityMetaChips.tsx', 'utf8'); } catch {}
+    if (src && !/unsuitable_for/.test(src)) {
+      violations.push('ActivityMetaChips 에 unsuitable_for(부적합 경고 배너) 누락 — SAFETY 노출 의무 (외국인 사고 예방)');
+    }
+    if (src && !/data-testid="activity-meta"/.test(src)) {
+      violations.push('ActivityMetaChips data-testid="activity-meta" 누락 — 회귀 테스트 guard 깨짐');
+    }
+  }
+  if (isModified('src/pages/PlanDetailPage/components/DayTimeline.tsx', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/pages/PlanDetailPage/components/DayTimeline.tsx', 'utf8'); } catch {}
+    if (/ActivityMetaChips/.test(src) && !/day\.activity_meta &&/.test(src)) {
+      violations.push('DayTimeline ActivityMetaChips falsy guard(day.activity_meta &&) 누락 — flag OFF/city_day byte-identical 깨짐');
+    }
+  }
+  if (violations.length > 0) {
+    fail('R_activityMetaDisplay', violations.join(' | '), 'ActivityMetaChips(unsuitable_for 배너 + data-testid) + DayTimeline falsy guard 유지. tests/unit/activity-meta-chips.component.test.tsx.');
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2498,6 +2528,7 @@ const RULES = [
   ['R_PRE_activityBlockGate', R_PRE_activityBlockGate],
   ['R_PRC2_charterCtaModules', R_PRC2_charterCtaModules],
   ['R_plan4d214e83_blockModeQuality', R_plan4d214e83_blockModeQuality],
+  ['R_activityMetaDisplay', R_activityMetaDisplay],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7184,6 +7215,19 @@ function runSelfTest() {
       base: { 'api/_ai_core/blockMode.js': '// stub\n' },
       head: { 'api/_ai_core/blockMode.js': 'export function matchFoodPlaceholder(a, b, c, d, excludeNames) {}\nconst pastMidnight = 1;\nconst rType = String(r.type || r.category || r.cuisine || "").toLowerCase();\nconst x = `[추천 ${t}]`;\n' },
       expectRule: 'R_plan4d214e83_blockModeQuality',
+      expectClean: true,
+    },
+    {
+      label: 'R_activityMetaDisplay (true positive): ActivityMetaChips unsuitable_for 배너 누락',
+      base: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': '// stub\n' },
+      head: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': 'export function ActivityMetaChips() { return <div data-testid="activity-meta" />; }\n' },
+      expectRule: 'R_activityMetaDisplay',
+    },
+    {
+      label: 'R_activityMetaDisplay (false positive 차단): unsuitable_for + data-testid 정상 — silent',
+      base: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': '// stub\n' },
+      head: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': 'export function ActivityMetaChips() { const u = meta.unsuitable_for; return <div data-testid="activity-meta">{u}</div>; }\n' },
+      expectRule: 'R_activityMetaDisplay',
       expectClean: true,
     },
     {
