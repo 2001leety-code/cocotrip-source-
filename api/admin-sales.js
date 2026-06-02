@@ -19,7 +19,7 @@
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
-import { isAdminBypassBooking } from './_shared/admin-bypass-detector.js';
+import { aggregateAdminSales } from './_shared/adminSalesAggregate.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -40,41 +40,6 @@ function getDb() {
 
 function todayKST() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000);
-}
-
-function isoDay(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function startOfWeekKST(date) {
-  const d = new Date(date);
-  const day = d.getUTCDay();  // 0=Sunday
-  d.setUTCDate(d.getUTCDate() - day);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-function startOfMonthKST(date) {
-  const d = new Date(date);
-  d.setUTCDate(1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-function startOfYearKST(date) {
-  const d = new Date(date);
-  d.setUTCMonth(0, 1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-function classifyProduct(productType = '') {
-  const p = productType.toString();
-  if (/픽업|pickup/i.test(p)) return '픽업';
-  if (/셔틀|shuttle/i.test(p)) return '셔틀';
-  if (/planner|ai/i.test(p)) return 'AI플래너';
-  if (/tour-/i.test(p)) return '투어';
-  return '전세';
 }
 
 function bookingDateMs(b) {
@@ -126,112 +91,23 @@ export default async function handler(req, res) {
       rawAll.push({ id: doc.id, ...b, _createdAtMs: bookingDateMs(b) });
     });
 
-    // A1-7-1 (2026-05-24): 운영자 본인 테스트 결제 (TEST-/ADMIN-BYPASS- prefix) 제외.
-    // 비유: "식당 매출 계산기가 사장님 본인 시식까지 합산하던 것 → 분리".
-    // paymentGate.js / planPersister.js / booking-processor.js 와 동일 prefix 규약 사용
-    // (SSOT: _shared/admin-bypass-detector.js).
-    const adminBypassBookings = rawAll.filter((b) => isAdminBypassBooking(b));
-    const canceledBookings = rawAll.filter(
-      (b) => b.status === 'CANCELED' && !isAdminBypassBooking(b)
-    );
-    const all = rawAll.filter((b) => !isAdminBypassBooking(b));
-
-    const excludedMeta = {
-      adminBypass: adminBypassBookings.length,
-      canceled: canceledBookings.length,
-    };
-
-    const now = todayKST();
-    const todayStart = new Date(now); todayStart.setUTCHours(0, 0, 0, 0);
-    const weekStart = startOfWeekKST(now);
-    const monthStart = startOfMonthKST(now);
-    const yearStart = startOfYearKST(now);
-
-    const inWindow = (b, fromTs) => {
-      if (!b._createdAtMs) return false;
-      return b._createdAtMs >= fromTs;
-    };
-
-    const sumBucket = (rows) => {
-      let usd = 0, count = 0;
-      for (const b of rows) {
-        if (b.status === 'CANCELED') continue;  // 취소 제외
-        const a = parseFloat(b.amountUSD || '0') || 0;
-        usd += a;
-        count++;
-      }
-      return { usd: Math.round(usd * 100) / 100, count };
-    };
-
-    const kpi = {
-      today: sumBucket(all.filter((b) => inWindow(b, todayStart.getTime()))),
-      week:  sumBucket(all.filter((b) => inWindow(b, weekStart.getTime()))),
-      month: sumBucket(all.filter((b) => inWindow(b, monthStart.getTime()))),
-      ytd:   sumBucket(all.filter((b) => inWindow(b, yearStart.getTime()))),
-    };
-
-    // 일별 (최근 N일)
-    const dailyMap = new Map();
-    for (let i = 0; i < days; i++) {
-      const d = new Date(now); d.setUTCDate(d.getUTCDate() - i); d.setUTCHours(0, 0, 0, 0);
-      dailyMap.set(isoDay(d), { date: isoDay(d), usd: 0, count: 0 });
-    }
-    for (const b of all) {
-      if (b.status === 'CANCELED') continue;
-      if (!b._createdAtMs) continue;
-      const d = new Date(b._createdAtMs); d.setUTCHours(0, 0, 0, 0);
-      const key = isoDay(d);
-      const entry = dailyMap.get(key);
-      if (entry) {
-        entry.usd += parseFloat(b.amountUSD || '0') || 0;
-        entry.count++;
-      }
-    }
-    const daily = Array.from(dailyMap.values())
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((e) => ({ ...e, usd: Math.round(e.usd * 100) / 100 }));
-
-    // 상품별 (이번달 기준)
-    const byProductMap = {};
-    for (const b of all) {
-      if (b.status === 'CANCELED') continue;
-      if (!inWindow(b, monthStart.getTime())) continue;
-      const cat = classifyProduct(b.productType);
-      if (!byProductMap[cat]) byProductMap[cat] = { usd: 0, count: 0 };
-      byProductMap[cat].usd += parseFloat(b.amountUSD || '0') || 0;
-      byProductMap[cat].count++;
-    }
-    for (const k of Object.keys(byProductMap)) {
-      byProductMap[k].usd = Math.round(byProductMap[k].usd * 100) / 100;
-    }
-
-    // 최근 20건
-    const recent = all
-      .filter((b) => b._createdAtMs)
-      .sort((a, b) => b._createdAtMs - a._createdAtMs)
-      .slice(0, 20)
-      .map((b) => ({
-        bookingRef: b.bookingRef || b.id,
-        tourDate: b.tourDate || '',
-        productType: b.productType || '',
-        paxCount: b.paxCount || 0,
-        amountUSD: parseFloat(b.amountUSD || '0') || 0,
-        status: b.status || 'UNKNOWN',
-        customerEmail: b.userEmail || b.payerEmail || '',
-        createdAt: b._createdAtMs ? new Date(b._createdAtMs).toISOString() : null,
-      }));
+    // A1-7-1 (2026-05-24): 운영자 본인 테스트 결제 (TEST-/ADMIN-BYPASS- prefix) 제외 +
+    // KPI / 일별 / 상품별 / 최근 집계는 순수 함수로 추출 (test/admin-financial-coverage,
+    // byte-identical). 시계(now) 만 handler 가 주입 — 나머지 계산은 deterministic.
+    // SSOT 제외 규칙: _shared/admin-bypass-detector.js.
+    const aggregate = aggregateAdminSales(rawAll, { now: todayKST(), days });
 
     const exchangeRate = await getExchangeRate();
 
     return json(req, res, 200, {
-      kpi,
-      daily,
-      byProduct: byProductMap,
-      recent,
+      kpi: aggregate.kpi,
+      daily: aggregate.daily,
+      byProduct: aggregate.byProduct,
+      recent: aggregate.recent,
       exchangeRate,
-      totalBookings: all.length,
+      totalBookings: aggregate.totalBookings,
       // A1-7-1: 매출 집계에서 제외된 건수 메타 — 운영자가 "왜 KPI 가 줄었는지" 즉시 인지.
-      excluded: excludedMeta,
+      excluded: aggregate.excluded,
       generatedAt: new Date().toISOString(),
     });
   } catch (err) {
