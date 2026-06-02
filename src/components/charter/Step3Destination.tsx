@@ -86,6 +86,16 @@ export function Step3Destination({ state, patch, language = 'en' }: Props) {
         const destKey = k.split('→')[1];
         list.push({ key: destKey, title: destKey, sub: `${v.km}km · ~${v.hours}h` });
       }
+    } else if (state.service === 'transfer') {
+      // 도시간 transfer — 매트릭스 도착 도시 (multi_day 와 동일하되 거리 하한 없음: 짧은 도시간 이동도 허용).
+      const matrix = DISTANCE_MATRIX as Record<string, { km?: number; hours?: number; priceKRW?: number }>;
+      for (const k of Object.keys(matrix)) {
+        if (k === 'comment') continue;
+        if (!k.startsWith(`${state.origin ?? 'SEL_METRO'}→`)) continue;
+        const v = matrix[k];
+        const destKey = k.split('→')[1];
+        list.push({ key: destKey, title: destKey, sub: `${v.km}km · ~${v.hours}h` });
+      }
     } else if (state.service === 'kpop_shuttle') {
       for (const venue of KPOP_SHUTTLE.venues) {
         list.push({ key: venue.name, title: lang === 'ko' ? venue.name : venue.nameEn, sub: lang === 'ko' ? venue.location : venue.locationEn });

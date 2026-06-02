@@ -19,7 +19,7 @@ import { formatPrice } from '@/lib/exchange-rate';
 import type { WizardState, OriginCode, ServiceMode } from '@/components/charter/types';
 
 const VALID_ORIGINS: OriginCode[] = ['ICN','GMP','PUS','CJU','TAE','CJJ','MWX','KWJ','RSU','USN','SEL_METRO','BUS_METRO','CUSTOM'];
-const VALID_SERVICES: ServiceMode[] = ['airport_transfer','day_tour','multi_day','kpop_shuttle'];
+const VALID_SERVICES: ServiceMode[] = ['airport_transfer','day_tour','multi_day','kpop_shuttle','transfer'];
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -213,6 +213,10 @@ function PaymentPanel({
           pickupLocation={state.origin ?? state.originCustom ?? ''}
           dropoffLocation={state.destinationKey ?? state.destinationCustom ?? ''}
           vehicleType={state.vehicle ?? 'staria'}
+          originKey={resolved.originKey ?? undefined}
+          destKey={resolved.destKey ?? undefined}
+          tripType={resolved.tripType}
+          vehicle={state.vehicle ?? 'staria'}
           memo={state.notes ?? ''}
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}

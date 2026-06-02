@@ -31,6 +31,7 @@ import {
 } from '@/components/charter/destinationKeyMap';
 import { resolveKm, resolveKmFromCoords } from '@/lib/calculatorDistance';
 import { calcSimpleByVehicle, tollEstimate } from '@/lib/calculator';
+import { calcTransferQuote } from '@/lib/transferQuote';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
 // 2026-05-03 사용자 정책: sprinter 1.45→2.0, bus 2.3→3.0. resolveProductType.ts와 동기화.
@@ -281,6 +282,24 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
         const intercity = calcIntercityFormula(vehicle, kmForFormula);
         vehicleChargeKRW = intercity + daily * tourDays + overnight * nights;
         receiptIsPackage = true;
+      } else if (state.destinationCustom) {
+        needsCustomQuote = true;
+      }
+    } else if (mode === 'transfer') {
+      // 도시간 transfer(편도/왕복 1회 이동, 2026-06-02). 가격 표시는 Step6 TransferReceipt(calcTransferQuote),
+      // 결제가는 resolveProductType(charter_transfer)=calcTransferQuote 가 권위. 여기 vehicleChargeKRW 는
+      // canAdvance(subtotalKRW>0) + displayKRW fallback 용. multiDayDiscount/lodging 미적용(transfer=숙박 없음).
+      let kmT: number | null = null;
+      if (state.origin && resolvedDest) {
+        const m = matrixLookup(state.origin, resolvedDest);
+        if (m?.km) { kmT = m.km; distanceKm = m.km; durationHours = m.hours; source = 'matrix'; }
+      }
+      if (kmT == null && externalKm != null && externalKm > 0) { kmT = externalKm; distanceKm = externalKm; source = 'formula'; }
+      if (kmT != null) {
+        const tripType = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
+        const tq = calcTransferQuote({ km: kmT, tripType, vehicle });
+        if (tq) { vehicleChargeKRW = tq.total; receiptIsPackage = true; }
+        else needsCustomQuote = true;
       } else if (state.destinationCustom) {
         needsCustomQuote = true;
       }

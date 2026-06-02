@@ -6,6 +6,8 @@
 import type { QuoteBreakdown, WizardState } from './types';
 import { TourReceipt } from './TourReceipt';
 import { TransferReceipt } from './TransferReceipt';
+import { MultiDayReceipt } from './MultiDayReceipt';
+import { resolveProductType } from './resolveProductType';
 import { getWizardI18n } from './wizard-i18n';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 
@@ -62,11 +64,20 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
     return <TourReceipt km={km} vehicle={tourVehicle} language={language} />;
   }
 
-  // 도시간 transfer 영수증 (2026-06-02, VITE_FEATURE_TRANSFER_CHECKOUT): transfer + km>0 + staria/sprinter.
+  // 멀티데이(1박+) 차터 영수증 (2026-06-02, VITE_FEATURE_MULTIDAY_CHECKOUT): resolveProductType 가
+  // charter_multiday 로 판정하면(매트릭스+staria/sprinter+1박+, 플래그 ON) backend 와 동일한 base 가격 영수증 표시.
+  // transfer 보다 먼저 — 멀티데이(1박+)가 우선. 표시가 == 결제가 (P311).
+  if (state) {
+    const md = resolveProductType(state);
+    if (md.productType === 'charter_multiday' && md.payable) {
+      return <MultiDayReceipt originKey={md.originKey} destKey={md.destKey} vehicle={tourVehicle ?? 'staria'} durationDays={md.durationDays ?? 1} language={language} />;
+    }
+  }
+
+  // 도시간 transfer 영수증 (2026-06-02, VITE_FEATURE_TRANSFER_CHECKOUT): service='transfer' + km>0 + staria/sprinter.
   const transferOn = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true';
-  const tripType = (state as Record<string, unknown> | undefined)?.tripType as 'oneway' | 'roundtrip' | undefined;
-  if (transferOn && quote.mode === 'multi_day' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
-    return <TransferReceipt km={km} tripType={tripType ?? 'oneway'} vehicle={tourVehicle} language={language} />;
+  if (transferOn && quote.mode === 'transfer' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
+    return <TransferReceipt km={km} tripType={state?.tripType ?? 'oneway'} vehicle={tourVehicle} language={language} />;
   }
 
   return (
