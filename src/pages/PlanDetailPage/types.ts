@@ -49,6 +49,14 @@ export interface PlanDocument {
   customerSupport?: Record<string, unknown>;
   accommodation?: Record<string, unknown>;
   budgetSummary?: Record<string, unknown>;
+  // 2026-06-02: 런타임 상태 필드 명시 — 이전엔 (plan as Record<string, unknown>).X 캐스트로 접근(index signature
+  //   덕에 컴파일은 됐으나 타입 무방비). 타입 추가로 오타/잘못된 비교를 컴파일타임에 잡음 (P169/P225/P292/P312 필드).
+  status?: 'ready' | 'streaming' | 'error';
+  paid?: boolean;
+  qualityScore?: number;
+  plannerMode?: string;
+  _streaming_in_progress?: boolean;
+  _streaming_progress?: number;
   [key: string]: unknown;
 }
 
