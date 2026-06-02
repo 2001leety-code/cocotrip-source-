@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Receipt, Edit3, Check, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, setDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 // 손익 산수(매출/비용/순이익/마진/환율)는 순수 함수로 추출 — byte-identical (test/admin-financial-coverage).
-import { type CostRow, EMPTY_COST, enrichBooking, summarizeSettlement } from '@/lib/profitSettlement';
+import { type CostRow, EMPTY_COST, enrichBooking, summarizeSettlement, DEFAULT_KRW_PER_USD } from '@/lib/profitSettlement';
 
 interface BookingRow {
   bookingId: string;
@@ -24,7 +25,10 @@ function shiftMonth(ym: string, delta: number): string {
 }
 
 export default function ProfitSettlement() {
-  const [exchangeRate, setExchangeRate] = useState(1380);
+  const { user } = useAuth();
+  // 환율 기본값 = 실시간 (아래 useEffect 가 /api/exchange-rate 로 채움). fetch 전/실패 시 DEFAULT_KRW_PER_USD(정책 floor 1450).
+  const [exchangeRate, setExchangeRate] = useState(DEFAULT_KRW_PER_USD);
+  const [rateSource, setRateSource] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<CostRow>(EMPTY_COST);
   const [saving, setSaving] = useState(false);
@@ -33,6 +37,29 @@ export default function ProfitSettlement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => formatYM(new Date()));
+
+  // 실시간 환율 — 매출 대시보드(admin-sales)·결제(createPaypalOrder)와 동일 SSOT (backend _exchange-rate.js,
+  // 운영자 floor 1450 정책 적용). 손익 정산은 운영자 내부 리포트라 기본값을 live 로 채우되,
+  // 아래 input 으로 수동 덮어쓰기 가능. fetch 실패 시 DEFAULT_KRW_PER_USD 유지 (stale 1380 아님).
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/exchange-rate', { headers: { Authorization: `Bearer ${idToken}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (alive && Number.isFinite(data?.krwPerUsd) && data.krwPerUsd > 0) {
+          setExchangeRate(data.krwPerUsd);
+          setRateSource(typeof data.source === 'string' ? data.source : 'live');
+        }
+      } catch (err) {
+        console.error('[ProfitSettlement] exchange rate fetch failed:', err);
+      }
+    })();
+    return () => { alive = false; };
+  }, [user]);
 
   // bookings 실시간
   useEffect(() => {
@@ -182,6 +209,11 @@ export default function ProfitSettlement() {
             className="w-20 bg-[#0a0b14] border border-gray-700 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-[#FBBF24]"
           />
           <span className="text-[10px] text-gray-500">$1 = {exchangeRate.toLocaleString()}원</span>
+          {rateSource && (
+            <span className="text-[9px] text-emerald-400/80 bg-emerald-400/10 rounded px-1.5 py-0.5" title={`실시간 환율 (${rateSource})`}>
+              실시간
+            </span>
+          )}
         </div>
       </div>
 

@@ -15,7 +15,7 @@ import {
   type CostRow,
 } from '../../src/lib/profitSettlement';
 
-const FX = 1380; // ProfitSettlement.tsx useState 기본값
+const FX = 1380; // 임의 환율 — 손익 산수는 환율 무관(파라미터). 기본값은 이제 실시간 fetch (폴백 DEFAULT_KRW_PER_USD=1450).
 
 function cost(over: Partial<CostRow> = {}): CostRow {
   return { ...EMPTY_COST, ...over };

@@ -12,7 +12,7 @@
  *     daily: [{ date, usd, count }, ...],         // 최근 N일
  *     byProduct: { '픽업': {usd,count}, ... },
  *     recent: [{ bookingRef, tourDate, productType, paxCount, amountUSD, status, customerEmail, createdAt }, ...],
- *     exchangeRate: 1380,
+ *     exchangeRate: 1452,                          // 실시간 (_exchange-rate.js, floor 1450 정책)
  *     generatedAt: ISO,
  *   }
  */
@@ -20,6 +20,7 @@ import { verifyAdminToken } from './_shared/admin-auth.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
 import { aggregateAdminSales } from './_shared/adminSalesAggregate.js';
+import { getUsdToKrwRaw } from './_exchange-rate.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -49,15 +50,6 @@ function bookingDateMs(b) {
   if (typeof b.createdAt === 'string') return new Date(b.createdAt).getTime();
   if (b.createdAt._seconds) return b.createdAt._seconds * 1000;
   return null;
-}
-
-async function getExchangeRate() {
-  try {
-    const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
-    return await getUsdToKrwRaw();
-  } catch {
-    return 1380;
-  }
 }
 
 export default async function handler(req, res) {
@@ -97,7 +89,10 @@ export default async function handler(req, res) {
     // SSOT 제외 규칙: _shared/admin-bypass-detector.js.
     const aggregate = aggregateAdminSales(rawAll, { now: todayKST(), days });
 
-    const exchangeRate = await getExchangeRate();
+    // 실시간 환율 (단일 SSOT: _exchange-rate.js — Firestore 6h 캐시 + 4-소스 폴백,
+    // 운영자 floor 1450 정책). 결제(createPaypalOrder)·손익정산(ProfitSettlement)과 동일.
+    // getUsdToKrwRaw 자체가 실패 시 FALLBACK_RATE(1450) 반환 — 이전 로컬 래퍼의 stale 1380 제거.
+    const exchangeRate = await getUsdToKrwRaw();
 
     return json(req, res, 200, {
       kpi: aggregate.kpi,
