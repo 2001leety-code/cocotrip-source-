@@ -15,6 +15,7 @@ import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-pla
 import { acquireSlotLock } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js';
+import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -197,9 +198,15 @@ export default async function handler(req, res) {
     void TEST_ACCOUNTS; void userEmail;
     console.log(`[createPaypalOrder] mode: ${isSandbox ? 'SANDBOX (preview e2e)' : 'LIVE'} | email:`, userEmail, '| product:', productType);
 
-    let krwAmount = productType === 'charter_multiday'
-      ? resolveMultiDayCheckoutKrw(SPEC, body, String(process.env.FEATURE_MULTIDAY_CHECKOUT).toLowerCase() === 'true')
-      : resolveKrwAmount(productType, passengers, durationDays);
+    let krwAmount;
+    if (productType === 'charter_multiday') {
+      krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, String(process.env.FEATURE_MULTIDAY_CHECKOUT).toLowerCase() === 'true');
+    } else if (productType === 'tour_hourly') {
+      // 투어 시간제(기본 9h + 거리추가 + 오버타임) — VAT·쿠폰 전 순수가. 플래그 OFF 기본(현행 권역 고정가 유지).
+      krwAmount = resolveTourCheckoutKrw(SPEC, body, String(process.env.FEATURE_TOUR_HOURLY).toLowerCase() === 'true');
+    } else {
+      krwAmount = resolveKrwAmount(productType, passengers, durationDays);
+    }
     if (!krwAmount) {
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT')));

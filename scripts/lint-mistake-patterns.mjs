@@ -2510,6 +2510,37 @@ function R_multidayCheckoutSSOT(ctx) {
 }
 
 /**
+ * R_tourHourlySSOT (2026-06-02, P311 SAFETY): 투어 시간제(기본 9h + 거리추가 + 오버타임) 즉시결제는
+ * 결제 금액을 backend 가 SSOT(_pricing_spec.json distance_matrix + tour-price 상수)에서 재계산해야 함
+ * (client priceKRW/km 신뢰 = 변조 위험). tour_hourly 경로는 resolveTourCheckoutKrw(플래그 + matrix km
+ * 조회 + 재계산) 경유 + FEATURE_TOUR_HOURLY 게이트 의무. 회귀: tests/unit/tour-price.test.ts.
+ */
+function R_tourHourlySSOT(ctx) {
+  const violations = [];
+  if (isModified('api/createPaypalOrder.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/createPaypalOrder.js', 'utf8'); } catch {}
+    if (/tour_hourly/.test(src)) {
+      if (!/resolveTourCheckoutKrw/.test(src)) {
+        violations.push('tour_hourly 결제가 resolveTourCheckoutKrw(backend SSOT 재계산) 미경유 — client km/price 변조 위험(P311)');
+      }
+      if (!/FEATURE_TOUR_HOURLY/.test(src)) {
+        violations.push('tour_hourly 가 FEATURE_TOUR_HOURLY 플래그 게이트 없음 — 미검증 결제 노출 위험');
+      }
+    }
+  }
+  if (isModified('api/_shared/tour-price.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/_shared/tour-price.js', 'utf8'); } catch {}
+    if (/function calcTourKrw/.test(src) && !/TOUR_BASE_9H_KRW/.test(src)) {
+      violations.push('calcTourKrw 가 TOUR_BASE_9H_KRW SSOT 상수 미참조 — 가격 하드코딩 분산 위험');
+    }
+  }
+  if (violations.length > 0) {
+    fail('R_tourHourlySSOT', violations.join(' | '), '투어 시간제 결제는 resolveTourCheckoutKrw(플래그+matrix backend SSOT) 경유. tests/unit/tour-price.test.ts.');
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2594,6 +2625,7 @@ const RULES = [
   ['R_activityMetaDisplay', R_activityMetaDisplay],
   ['R_airportPickupSSOT', R_airportPickupSSOT],
   ['R_multidayCheckoutSSOT', R_multidayCheckoutSSOT],
+  ['R_tourHourlySSOT', R_tourHourlySSOT],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7319,6 +7351,19 @@ function runSelfTest() {
       base: { 'api/createPaypalOrder.js': '// stub\n' },
       head: { 'api/createPaypalOrder.js': 'krwAmount = productType === "charter_multiday" ? resolveMultiDayCheckoutKrw(SPEC, body, String(process.env.FEATURE_MULTIDAY_CHECKOUT).toLowerCase() === "true") : resolveKrwAmount(productType, passengers, durationDays);\n' },
       expectRule: 'R_multidayCheckoutSSOT',
+      expectClean: true,
+    },
+    {
+      label: 'R_tourHourlySSOT (true positive): tour_hourly 결제가 client priceKRW 직접 사용(backend 게이트 우회)',
+      base: { 'api/createPaypalOrder.js': '// stub\n' },
+      head: { 'api/createPaypalOrder.js': 'if (productType === "tour_hourly") { krwAmount = body.priceKRW; }\n' },
+      expectRule: 'R_tourHourlySSOT',
+    },
+    {
+      label: 'R_tourHourlySSOT (false positive 차단): resolveTourCheckoutKrw + FEATURE_TOUR_HOURLY 플래그 — silent',
+      base: { 'api/createPaypalOrder.js': '// stub\n' },
+      head: { 'api/createPaypalOrder.js': 'krwAmount = resolveTourCheckoutKrw(SPEC, body, String(process.env.FEATURE_TOUR_HOURLY).toLowerCase() === "true");\n' },
+      expectRule: 'R_tourHourlySSOT',
       expectClean: true,
     },
     {
