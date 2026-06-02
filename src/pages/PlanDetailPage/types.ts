@@ -1,4 +1,5 @@
 // Shared types for PlanDetailPage module.
+import type { ActivityMeta } from '@/types/plan';
 
 /** Firestore plan document — minimal typed shape for type-safe component props.
  *  Fields are optional because the document structure varies (legacy vs enriched plans). */
@@ -98,6 +99,8 @@ export interface PlanDay {
   /** B9-39 (2026-05-09): 직전 day 와 도시가 다르면 채워짐. 그 day 첫 stop 보다
    *  앞에 "🚄 KTX 부산→서울" 카드로 렌더. */
   intercity_transit?: IntercityTransitSegment | null;
+  /** PR-E SAFETY (2026-06-02): 트레킹/러닝 활동 블록 난이도·위험·부적합 메타 (FEATURE_ACTIVITY_BLOCKS ON 시). */
+  activity_meta?: ActivityMeta | null;
   [key: string]: unknown;
 }
 

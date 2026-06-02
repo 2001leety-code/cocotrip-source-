@@ -214,6 +214,22 @@ export interface IntercityTransit {
   booking_url?: string;
 }
 
+/**
+ * 활동 블록(트레킹/러닝) 안전 메타 — buildActivityMeta(api/_ai_core/blockMode.js) 출력.
+ * SAFETY-CRITICAL: 난이도/위험/부적합 대상 표기 의무 (외국인 사고 예방).
+ */
+export interface ActivityMeta {
+  activity_type: 'trekking' | 'running_route';
+  difficulty?: string;
+  elevation_gain_m?: number;
+  distance_km?: number;
+  estimated_duration_min?: number;
+  hazards?: string[];
+  recommended_gear?: string[];
+  unsuitable_for?: string[];
+  requires_advance_booking?: boolean;
+}
+
 export interface Day {
   day: number;
   date: string;
@@ -234,6 +250,10 @@ export interface Day {
   /** B9-39 (2026-05-09): 이 day 의 시작이 직전 day 와 다른 도시면 채워짐.
    *  Gemini 가 1차로 채우고 RouteAgent 가 fallback. legacy plan 은 undefined. */
   intercity_transit?: IntercityTransit | null;
+  /** PR-E SAFETY (2026-06-02): 트레킹/러닝 활동 블록 day 의 난이도·위험·부적합 메타.
+   *  block_mode 가 활동 블록 선택(FEATURE_ACTIVITY_BLOCKS ON) 시만 채워짐.
+   *  flag OFF / city_day day = undefined → UI falsy guard (미렌더, byte-identical). */
+  activity_meta?: ActivityMeta | null;
 }
 
 export interface ArrivalStep {
