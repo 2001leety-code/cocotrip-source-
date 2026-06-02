@@ -2567,6 +2567,25 @@ function R_hallasanReservationUrl(ctx) {
 }
 
 /**
+ * R_wizardAnimatePresenceWait (2026-06-02, A3): WizardForm step 전환 AnimatePresence 는 mode="wait".
+ * 누락 시 sync 기본 모드로 나가는 step + 들어오는 step 동시 렌더 → "이어서 하기" 점프 깜빡임/밀림.
+ * App.tsx 라우트 전환부(이미 mode="wait")와 일관. 회귀: tests/unit/wizard-animatepresence-mode.test.ts.
+ */
+function R_wizardAnimatePresenceWait(ctx) {
+  const violations = [];
+  if (isModified('src/components/WizardForm/index.tsx', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/components/WizardForm/index.tsx', 'utf8'); } catch {}
+    if (/<AnimatePresence/.test(src) && !/<AnimatePresence\s+mode="wait"/.test(src)) {
+      violations.push('WizardForm AnimatePresence 에 mode="wait" 누락 — sync 모드 두 step 동시렌더 깜빡임(App.tsx 라우트 전환부와 일관 필요)');
+    }
+  }
+  if (violations.length > 0) {
+    fail('R_wizardAnimatePresenceWait', violations.join(' | '), 'WizardForm step 전환 AnimatePresence 는 mode="wait". tests/unit/wizard-animatepresence-mode.test.ts.');
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2653,6 +2672,7 @@ const RULES = [
   ['R_multidayCheckoutSSOT', R_multidayCheckoutSSOT],
   ['R_tourHourlySSOT', R_tourHourlySSOT],
   ['R_hallasanReservationUrl', R_hallasanReservationUrl],
+  ['R_wizardAnimatePresenceWait', R_wizardAnimatePresenceWait],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7404,6 +7424,19 @@ function runSelfTest() {
       base: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{}\n' },
       head: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{"tips":"사전예약 visithalla.jeju.go.kr"}\n' },
       expectRule: 'R_hallasanReservationUrl',
+      expectClean: true,
+    },
+    {
+      label: 'R_wizardAnimatePresenceWait (true positive): mode="wait" 누락',
+      base: { 'src/components/WizardForm/index.tsx': '// stub\n' },
+      head: { 'src/components/WizardForm/index.tsx': 'return (<AnimatePresence initial={false}><motion.div /></AnimatePresence>);\n' },
+      expectRule: 'R_wizardAnimatePresenceWait',
+    },
+    {
+      label: 'R_wizardAnimatePresenceWait (false positive 차단): mode="wait" 있음 — silent',
+      base: { 'src/components/WizardForm/index.tsx': '// stub\n' },
+      head: { 'src/components/WizardForm/index.tsx': 'return (<AnimatePresence mode="wait" initial={false}><motion.div /></AnimatePresence>);\n' },
+      expectRule: 'R_wizardAnimatePresenceWait',
       expectClean: true,
     },
     {

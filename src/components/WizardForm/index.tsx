@@ -850,7 +850,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
               fallback 은 step 컨테이너 최소 높이 유지하는 spinner — layout shift
               방지. fetch 가 통상 < 100ms (preload + prefetch 가능) 이므로 UX 영향
               미미하나, 첫 진입 시 main planner chunk 가 가장 작아짐. */}
-          <AnimatePresence initial={false}>
+          {/* mode="wait" (2026-06-02, A3 진단): App.tsx 라우트 전환부와 일관 — 나가는 step exit
+              완료 후 새 step mount. 빠져 있어서 sync 모드로 두 step 이 동시 렌더돼 "이어서 하기"
+              점프 시 깜빡임/밀림 발생했음. */}
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={`step-${step}`}
               initial={{ opacity: 0, x: 16 }}
