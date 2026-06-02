@@ -187,7 +187,7 @@ export default function PlanDetailPage() {
     if (!plan) return;
     // P207 Layer 2 — button-level streaming guard (OutroSlide disabled prop 보완).
     // pdfGenerator.ts 내부에도 동일 guard 존재 — 2중 방어.
-    if ((plan as Record<string, unknown>)._streaming_in_progress === true) return;
+    if (plan._streaming_in_progress === true) return;
     setIsPdfGenerating(true);
     try {
       const uiDict = getPlanDetailUI(t);
@@ -199,14 +199,14 @@ export default function PlanDetailPage() {
   }, [plan, t]);
 
   // P169: streaming 진행 중 여부 (Firestore _streaming_in_progress 필드)
-  const isStreamingInProgress = !loading && plan && (plan as Record<string, unknown>)._streaming_in_progress === true;
+  const isStreamingInProgress = !loading && plan && plan._streaming_in_progress === true;
   // P312 (2026-05-30, B3 S2-a): plan.status === 'error' (P292 sweep / P307 onFailure 가
   // streaming stuck/worker 실패를 마킹). 이전엔 빈/부분 itinerary 가 그대로 렌더 (사용자
   // 가 결제 후 빈 화면). 명확한 안내 배너로 대체 (빈 화면 방지). 자동 재시도(S2-b)는
   // Gemini 재호출 비용 + error plan 처리 정책 운영자 결정 필요 → 별도.
-  const isPlanError = !loading && plan && (plan as Record<string, unknown>).status === 'error';
+  const isPlanError = !loading && plan && plan.status === 'error';
   const streamingProgress = !loading && plan
-    ? (plan as Record<string, unknown>)._streaming_progress as number | undefined
+    ? plan._streaming_progress
     : undefined;
 
   // P244: window.__pageReady ready signal — Playwright visual spec 전용.
@@ -225,7 +225,7 @@ export default function PlanDetailPage() {
   // 새로고침) 때문에 snapshot 을 보존하지만, plan 이 확정 결제(plan.paid)되면 더 이상
   // resume 가 필요 없다 → 결제 후 /planner 재진입 시 stale "이어서 작성" modal 미노출.
   // isOwner 는 onSnapshot listener 가 ownerCheck 로 set (uid === data.uid).
-  const isPaid = !loading && !!(plan && (plan as Record<string, unknown>).paid);
+  const isPaid = !loading && !!(plan && plan.paid);
   useEffect(() => {
     if (isPaid && isOwner) clearPlannerWizardSnapshot();
   }, [isPaid, isOwner]);
@@ -579,7 +579,7 @@ export default function PlanDetailPage() {
           qualityWarnings={plan.itinerary?.quality_warnings as never}
           qualityScore={(plan as Record<string, unknown>).qualityScore as never}
           planId={planId || ''}
-          plannerMode={(plan as Record<string, unknown>).plannerMode as string | undefined}
+          plannerMode={plan.plannerMode}
         />
 
         {/* 2026-05-04: 플랜 신고 버튼 (Tier 1-A 학습 루프). 인라인 — floating 보다 덜 방해적. */}
