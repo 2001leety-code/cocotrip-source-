@@ -1,6 +1,8 @@
 // resolveProductType — wizard state → PayPal productType 매핑 + 가격
 // createPaypalOrder.js의 CHARTER_MAP/COMBO_MAP와 1:1로 동기화됨.
 import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE } from '@/data/charterPricing';
+import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
+import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
 
 // 당일 투어 destinationKey → PayPal productType
@@ -23,18 +25,34 @@ const VEHICLE_MULTIPLIER: Record<string, number> = {
   bus: 3.0,
 };
 
+// 매트릭스 도착 키 정규화 — destinationKey('CUSTOM' 제외) → destinationCustomMatched → 자유입력 정규화.
+function resolveDestMatrixKey(state: WizardState): string | null {
+  if (state.destinationKey && state.destinationKey !== 'CUSTOM') return state.destinationKey;
+  if (state.destinationCustomMatched) return state.destinationCustomMatched;
+  if (state.destinationCustom) return normalizeDestinationToMatrixKey(state.destinationCustom);
+  return null;
+}
+
 export interface ResolvedPayment {
   productType: string | null;     // PayPal 인덱스 키
   priceKRW: number | null;         // PayPal order 금액
   passengers: number;
   payable: boolean;                // PayPal로 즉시 결제 가능 여부
   reason?: string;                 // payable=false일 때 사유
+  // 2026-06-02 차터 즉시결제 wiring — backend(createPaypalOrder) 재계산용. PaymentPanel 이 PayPalBookingButton 으로 forward.
+  // 멀티데이/transfer/투어 시간제는 priceKRW 를 영수증 lib(=backend SSOT)에서 산출 → 표시가==청구가 (P311).
+  originKey?: string | null;       // 매트릭스 출발 키 (state.origin)
+  destKey?: string | null;         // 매트릭스 도착 키 (정규화 결과)
+  tripType?: 'oneway' | 'roundtrip'; // charter_transfer 전용
+  durationDays?: number;           // charter_multiday 전용 (1박+ 일수)
 }
 
 export function resolveProductType(state: WizardState): ResolvedPayment {
   const pax = state.paxCount ?? 1;
   const vehicle = state.vehicle ?? 'staria';
   const mult = VEHICLE_MULTIPLIER[vehicle] ?? 1.0;
+  // 차터 즉시결제 플래그 (빌드타임, 기본 OFF). ON 일 때만 새 productType 활성 → OFF=현행 byte-identical.
+  const MULTIDAY_CHECKOUT_ON = import.meta.env.VITE_FEATURE_MULTIDAY_CHECKOUT === 'true';
 
   // 공항 픽업 — 운영자 P0-Q2 (2026-05-12) 결정: ICN/PUS/GMP/CJU/TAE 4 공항 모두 PayPal 허용.
   //   조건: AIRPORT_TRANSFER_PRICES SSOT 에 등재된 destinationKey 만 결제 가능.
@@ -88,6 +106,27 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
     };
   }
 
-  // 1박 이상 장거리 — 아직 하드코딩 상품 없음. WhatsApp 견적.
+  // 멀티데이(1박+) 차터 즉시결제 (2026-06-02). VITE_FEATURE_MULTIDAY_CHECKOUT(프론트) + FEATURE_MULTIDAY_CHECKOUT(백엔드)
+  // 둘 다 ON 이어야 실제 결제 통과. 매트릭스 매칭 + staria/sprinter + 1박+ 만 결제 가능. 그 외 = 아래 WhatsApp.
+  // 가격 = calcMultiDayCharterKrw (= backend SSOT, 할인 전) → 표시가==청구가 (P311). matrix km 으로 산출.
+  if (MULTIDAY_CHECKOUT_ON && state.service === 'multi_day' && (vehicle === 'staria' || vehicle === 'sprinter')) {
+    const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
+    const destKey = resolveDestMatrixKey(state);
+    const durationDays = state.startDate && state.endDate
+      ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000) + 1)
+      : 1;
+    const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
+    if (km != null && km > 0 && durationDays >= 2) {
+      const price = calcMultiDayCharterKrw({ vehicle, km, durationDays });
+      if (price != null) {
+        return {
+          productType: 'charter_multiday', priceKRW: price, passengers: pax, payable: true,
+          originKey, destKey, durationDays,
+        };
+      }
+    }
+  }
+
+  // 1박 이상 장거리 — 위 즉시결제 조건 미충족(플래그 OFF / 비매트릭스 / bus·vip 등). WhatsApp 견적.
   return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: '장거리 투어는 맞춤 견적' };
 }

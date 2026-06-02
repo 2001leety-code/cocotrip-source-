@@ -2503,8 +2503,30 @@ function R_multidayCheckoutSSOT(ctx) {
       violations.push('calcMultiDayCharterKrw 거리부가 staria.intercity SSOT 미참조 — 프론트 calcIntercityFormula(staria 고정 × MULT) 와 불일치 위험');
     }
   }
+  // 프론트 wiring 가드 (2026-06-02 멀티데이 결제 wiring): resolveProductType 가 charter_multiday 가격을
+  // calcMultiDayCharterKrw(SSOT, 할인 전) 로만 산출 + 엄격 플래그 + CharterNewPage 가 backend 재계산 키 forward.
+  if (isModified('src/components/charter/resolveProductType.ts', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/components/charter/resolveProductType.ts', 'utf8'); } catch {}
+    if (/charter_multiday/.test(src)) {
+      if (!/calcMultiDayCharterKrw/.test(src)) {
+        violations.push('resolveProductType 가 charter_multiday 가격을 calcMultiDayCharterKrw(SSOT lib) 미경유 — 표시가≠청구가 위험(P311)');
+      }
+      if (/subtotalKRW/.test(src)) {
+        violations.push('resolveProductType 가 subtotalKRW 참조 — charter_multiday 는 calcMultiDayCharterKrw(−10% 할인 전) 만 사용해야 표시가==청구가(P311)');
+      }
+      if (!/VITE_FEATURE_MULTIDAY_CHECKOUT\s*===\s*'true'/.test(src)) {
+        violations.push("charter_multiday 가 VITE_FEATURE_MULTIDAY_CHECKOUT === 'true' 엄격 게이트 없음 — 플래그 OFF byte-identical 미보장");
+      }
+    }
+  }
+  if (isModified('src/pages/CharterNewPage.tsx', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/pages/CharterNewPage.tsx', 'utf8'); } catch {}
+    if (/resolved\.productType/.test(src) && !(/originKey=\{resolved\.originKey/.test(src) && /destKey=\{resolved\.destKey/.test(src))) {
+      violations.push('CharterNewPage PaymentPanel 이 originKey/destKey(resolved) 를 PayPalBookingButton 으로 forward 안 함 — 플래그 ON 해도 backend km=null → 결제 0');
+    }
+  }
   if (violations.length > 0) {
-    fail('R_multidayCheckoutSSOT', violations.join(' | '), '멀티데이 결제는 resolveMultiDayCheckoutKrw(플래그+matrix backend SSOT) 경유, calcMultiDayCharterKrw 거리부 staria 고정. tests/unit/charter-multiday-price.test.ts.');
+    fail('R_multidayCheckoutSSOT', violations.join(' | '), '멀티데이 결제는 resolveMultiDayCheckoutKrw(플래그+matrix backend SSOT) 경유, calcMultiDayCharterKrw 거리부 staria 고정, 프론트 resolveProductType=SSOT lib+엄격 플래그+키 forward. tests/unit/charter-multiday-price.test.ts + resolveProductType.test.ts.');
   }
   return null;
 }
@@ -7429,6 +7451,32 @@ function runSelfTest() {
       label: 'R_multidayCheckoutSSOT (false positive 차단): resolveMultiDayCheckoutKrw + FEATURE_MULTIDAY_CHECKOUT 플래그 — silent',
       base: { 'api/createPaypalOrder.js': '// stub\n' },
       head: { 'api/createPaypalOrder.js': 'krwAmount = productType === "charter_multiday" ? resolveMultiDayCheckoutKrw(SPEC, body, String(process.env.FEATURE_MULTIDAY_CHECKOUT).toLowerCase() === "true") : resolveKrwAmount(productType, passengers, durationDays);\n' },
+      expectRule: 'R_multidayCheckoutSSOT',
+      expectClean: true,
+    },
+    {
+      label: 'R_multidayCheckoutSSOT 프론트 (true positive): resolveProductType charter_multiday 가 subtotalKRW(−10% 포함) 사용',
+      base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
+      head: { 'src/components/charter/resolveProductType.ts': "if (x) { return { productType: 'charter_multiday', priceKRW: quote.subtotalKRW, payable: true }; }\n" },
+      expectRule: 'R_multidayCheckoutSSOT',
+    },
+    {
+      label: 'R_multidayCheckoutSSOT 프론트 (false positive 차단): calcMultiDayCharterKrw + 엄격 플래그 — silent',
+      base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
+      head: { 'src/components/charter/resolveProductType.ts': "const ON = import.meta.env.VITE_FEATURE_MULTIDAY_CHECKOUT === 'true'; if (ON) { const price = calcMultiDayCharterKrw({ vehicle, km, durationDays }); return { productType: 'charter_multiday', priceKRW: price, payable: true }; }\n" },
+      expectRule: 'R_multidayCheckoutSSOT',
+      expectClean: true,
+    },
+    {
+      label: 'R_multidayCheckoutSSOT CharterNewPage (true positive): resolved.productType 결제버튼이 originKey/destKey 미forward',
+      base: { 'src/pages/CharterNewPage.tsx': '// stub\n' },
+      head: { 'src/pages/CharterNewPage.tsx': '<PayPalBookingButton productType={resolved.productType} priceKRW={resolved.priceKRW} />\n' },
+      expectRule: 'R_multidayCheckoutSSOT',
+    },
+    {
+      label: 'R_multidayCheckoutSSOT CharterNewPage (false positive 차단): originKey/destKey forward — silent',
+      base: { 'src/pages/CharterNewPage.tsx': '// stub\n' },
+      head: { 'src/pages/CharterNewPage.tsx': '<PayPalBookingButton productType={resolved.productType} originKey={resolved.originKey ?? undefined} destKey={resolved.destKey ?? undefined} />\n' },
       expectRule: 'R_multidayCheckoutSSOT',
       expectClean: true,
     },

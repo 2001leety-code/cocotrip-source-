@@ -213,6 +213,10 @@ function PaymentPanel({
           pickupLocation={state.origin ?? state.originCustom ?? ''}
           dropoffLocation={state.destinationKey ?? state.destinationCustom ?? ''}
           vehicleType={state.vehicle ?? 'staria'}
+          originKey={resolved.originKey ?? undefined}
+          destKey={resolved.destKey ?? undefined}
+          tripType={resolved.tripType}
+          vehicle={state.vehicle ?? 'staria'}
           memo={state.notes ?? ''}
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}
