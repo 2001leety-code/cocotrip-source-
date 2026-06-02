@@ -13,6 +13,7 @@ import { join } from 'path';
 import { resolveProductType } from '../../src/components/charter/resolveProductType';
 import type { WizardState } from '../../src/components/charter/types';
 import { calcMultiDayCharterKrw as beMultiday, lookupMatrixKm } from '../../api/_shared/charter-multiday-price.js';
+import { calcTourQuote as beTourQuote } from '../../api/_shared/tour-price.js';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
 
@@ -104,5 +105,47 @@ describe('resolveProductType — VITE_FEATURE_MULTIDAY_CHECKOUT ON', () => {
     const be = beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 })!;
     expect(r.priceKRW).toBe(be);
     expect(r.priceKRW).not.toBe(Math.round(be * 0.9)); // 할인 적용 안 됨 명시
+  });
+});
+
+describe('resolveProductType — 투어 시간제 (VITE_FEATURE_TOUR_HOURLY)', () => {
+  // 매트릭스 해석 가능한 day_tour 목적지 (SEL_METRO→GANGNEUNG, 강릉 당일투어)
+  const tourState = (over: Partial<WizardState> = {}): WizardState => base({
+    service: 'day_tour', origin: 'SEL_METRO', destinationKey: 'GANGNEUNG', ...over,
+  });
+
+  it('플래그 OFF: 비패키지 day_tour → 패키지 미선택 (payable=false, 현행 byte-identical)', () => {
+    const r = resolveProductType(tourState());
+    expect(r.payable).toBe(false);
+    expect(r.productType).toBeNull();
+  });
+
+  it('플래그 ON + 매트릭스 목적지(SEL_METRO→GANGNEUNG) + staria → tour_hourly, 가격 == 백엔드', () => {
+    vi.stubEnv('VITE_FEATURE_TOUR_HOURLY', 'true');
+    const km = lookupMatrixKm(SPEC, 'SEL_METRO', 'GANGNEUNG')!;
+    expect(km).toBeGreaterThan(0);
+    const r = resolveProductType(tourState());
+    expect(r.productType).toBe('tour_hourly');
+    expect(r.payable).toBe(true);
+    expect(r.priceKRW).toBe(beTourQuote({ km, vehicle: 'staria' })!.total);
+    expect(r.originKey).toBe('SEL_METRO');
+    expect(r.destKey).toBe('GANGNEUNG');
+  });
+
+  it('플래그 ON + 패키지(dmz) → 기존 charter_dmz 유지 (tour_hourly 아님)', () => {
+    vi.stubEnv('VITE_FEATURE_TOUR_HOURLY', 'true');
+    const r = resolveProductType(tourState({ destinationKey: 'dmz' }));
+    expect(r.productType).toBe('charter_dmz');
+  });
+
+  it('플래그 ON + bus → 결제 불가 (협의)', () => {
+    vi.stubEnv('VITE_FEATURE_TOUR_HOURLY', 'true');
+    expect(resolveProductType(tourState({ vehicle: 'bus' })).payable).toBe(false);
+  });
+
+  it('플래그 ON + 비매트릭스 custom 목적지 → 결제 불가 (WhatsApp)', () => {
+    vi.stubEnv('VITE_FEATURE_TOUR_HOURLY', 'true');
+    const r = resolveProductType(tourState({ destinationKey: undefined, destinationCustom: '없는동네ZZZ' }));
+    expect(r.payable).toBe(false);
   });
 });

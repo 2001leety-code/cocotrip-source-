@@ -2,6 +2,7 @@
 // createPaypalOrder.js의 CHARTER_MAP/COMBO_MAP와 1:1로 동기화됨.
 import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE } from '@/data/charterPricing';
 import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
+import { calcTourQuote } from '@/lib/tourQuote';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
 
@@ -53,6 +54,7 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
   const mult = VEHICLE_MULTIPLIER[vehicle] ?? 1.0;
   // 차터 즉시결제 플래그 (빌드타임, 기본 OFF). ON 일 때만 새 productType 활성 → OFF=현행 byte-identical.
   const MULTIDAY_CHECKOUT_ON = import.meta.env.VITE_FEATURE_MULTIDAY_CHECKOUT === 'true';
+  const TOUR_HOURLY_ON = import.meta.env.VITE_FEATURE_TOUR_HOURLY === 'true';
 
   // 공항 픽업 — 운영자 P0-Q2 (2026-05-12) 결정: ICN/PUS/GMP/CJU/TAE 4 공항 모두 PayPal 허용.
   //   조건: AIRPORT_TRANSFER_PRICES SSOT 에 등재된 destinationKey 만 결제 가능.
@@ -78,6 +80,20 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
     // 운영자 P0-Q4 (2026-05-12): Bus/VIP 가격 숨김.
     if (vehicle === 'bus' || vehicle === 'vip') {
       return { productType: null, priceKRW: null, passengers: pax, payable: false, reason: 'Bus/VIP 별도 견적 (협의)' };
+    }
+    // 투어 시간제 즉시결제 (2026-06-02). VITE_FEATURE_TOUR_HOURLY(프론트) + FEATURE_TOUR_HOURLY(백엔드) 둘 다 ON.
+    // 매트릭스 해석 가능한 목적지(km>0) + staria/sprinter 만. 패키지(DAY_TOUR_PRODUCT_MAP, dmz 등)는 매트릭스 키가
+    // 아니므로 아래 패키지 경로 유지(자동 fall-through). 가격 = calcTourQuote(쿠폰5%+VAT 포함) = backend SSOT (P311).
+    if (TOUR_HOURLY_ON && (vehicle === 'staria' || vehicle === 'sprinter') && !DAY_TOUR_PRODUCT_MAP[state.destinationKey ?? '']) {
+      const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
+      const destKey = resolveDestMatrixKey(state);
+      const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
+      if (km != null && km > 0) {
+        const q = calcTourQuote({ km, vehicle });
+        if (q) {
+          return { productType: 'tour_hourly', priceKRW: q.total, passengers: pax, payable: true, originKey, destKey };
+        }
+      }
     }
     const dest = state.destinationKey;
     if (!dest || !DAY_TOUR_PRODUCT_MAP[dest] || !DAILY_TOUR_PRICES[dest]) {

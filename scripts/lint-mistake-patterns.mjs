@@ -2556,8 +2556,21 @@ function R_tourHourlySSOT(ctx) {
       violations.push('calcTourKrw 가 TOUR_BASE_9H_KRW SSOT 상수 미참조 — 가격 하드코딩 분산 위험');
     }
   }
+  // 프론트 wiring 가드 (2026-06-02 투어 시간제 결제 wiring): resolveProductType 가 tour_hourly 가격을
+  // calcTourQuote(SSOT, 쿠폰+VAT 포함) 로 산출 + 엄격 플래그. (originKey/destKey forward 는 R_multidayCheckoutSSOT 가 공통 가드.)
+  if (isModified('src/components/charter/resolveProductType.ts', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/components/charter/resolveProductType.ts', 'utf8'); } catch {}
+    if (/tour_hourly/.test(src)) {
+      if (!/calcTourQuote/.test(src)) {
+        violations.push('resolveProductType 가 tour_hourly 가격을 calcTourQuote(SSOT lib) 미경유 — 표시가≠청구가 위험(P311)');
+      }
+      if (!/VITE_FEATURE_TOUR_HOURLY\s*===\s*'true'/.test(src)) {
+        violations.push("tour_hourly 가 VITE_FEATURE_TOUR_HOURLY === 'true' 엄격 게이트 없음 — 플래그 OFF byte-identical 미보장");
+      }
+    }
+  }
   if (violations.length > 0) {
-    fail('R_tourHourlySSOT', violations.join(' | '), '투어 시간제 결제는 resolveTourCheckoutKrw(플래그+matrix backend SSOT) 경유. tests/unit/tour-price.test.ts.');
+    fail('R_tourHourlySSOT', violations.join(' | '), '투어 시간제 결제는 resolveTourCheckoutKrw(플래그+matrix backend SSOT) 경유, 프론트 resolveProductType=calcTourQuote+엄격 플래그. tests/unit/tour-price.test.ts + resolveProductType.test.ts.');
   }
   return null;
 }
@@ -7490,6 +7503,19 @@ function runSelfTest() {
       label: 'R_tourHourlySSOT (false positive 차단): resolveTourCheckoutKrw + FEATURE_TOUR_HOURLY 플래그 — silent',
       base: { 'api/createPaypalOrder.js': '// stub\n' },
       head: { 'api/createPaypalOrder.js': 'krwAmount = resolveTourCheckoutKrw(SPEC, body, String(process.env.FEATURE_TOUR_HOURLY).toLowerCase() === "true");\n' },
+      expectRule: 'R_tourHourlySSOT',
+      expectClean: true,
+    },
+    {
+      label: 'R_tourHourlySSOT 프론트 (true positive): resolveProductType tour_hourly 가 calcTourQuote 미경유',
+      base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
+      head: { 'src/components/charter/resolveProductType.ts': "if (x) { return { productType: 'tour_hourly', priceKRW: body.priceKRW, payable: true }; }\n" },
+      expectRule: 'R_tourHourlySSOT',
+    },
+    {
+      label: 'R_tourHourlySSOT 프론트 (false positive 차단): calcTourQuote + 엄격 플래그 — silent',
+      base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
+      head: { 'src/components/charter/resolveProductType.ts': "const ON = import.meta.env.VITE_FEATURE_TOUR_HOURLY === 'true'; if (ON) { const q = calcTourQuote({ km, vehicle }); return { productType: 'tour_hourly', priceKRW: q.total, payable: true }; }\n" },
       expectRule: 'R_tourHourlySSOT',
       expectClean: true,
     },
