@@ -28,6 +28,19 @@ export const EMPTY_COST: CostRow = {
   overtimeKRW: 0, driverFee: 0, fuelCost: 0, tollCost: 0, parkingCost: 0, mealCost: 0, otherCost: 0,
 };
 
+/**
+ * USD→KRW 환율 폴백 (실시간 fetch 실패 시에만 사용).
+ *
+ * ⚠️ 정상 동작 시 ProfitSettlement 는 마운트 시 `/api/exchange-rate` 로 **실시간 환율**을 받아
+ * 기본값을 채운다 (매출 대시보드 admin-sales / 결제 createPaypalOrder 와 동일 SSOT =
+ * backend `api/_exchange-rate.js`). 이 상수는 그 fetch 가 실패했을 때의 안전망일 뿐.
+ *
+ * 값 1450 = 운영자 환율 정책 floor (`_exchange-rate.js` RATE_FLOOR / FALLBACK_RATE, 2026-05-13).
+ * ❌ 출시 초기 잔재였던 stale 1380 으로 되돌리지 말 것 — 실시세·정책과 불일치해 두 화면이 다른
+ * 환율을 보이는 drift 의 원인이었음 (2026-06-02 운영자 "환율은 실시간 아냐?" 지적으로 정정).
+ */
+export const DEFAULT_KRW_PER_USD = 1450;
+
 /** enrichBooking 가 계산하는 건별 손익 파생값 (KRW). */
 export interface EnrichedFinancials {
   revenueKRW: number;    // round(USD × 환율) — 투어가의 원화 환산

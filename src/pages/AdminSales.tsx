@@ -340,7 +340,7 @@ export default function AdminSales() {
             <RecentBookingsTable recent={data.recent} />
 
             <p className="text-[11px] text-white/55 text-center mt-6">
-              전체 예약 수: {data.totalBookings.toLocaleString()}건 · 환율: ₩{data.exchangeRate.toLocaleString()}/USD
+              전체 예약(취소 포함): {data.totalBookings.toLocaleString()}건 · 환율: ₩{data.exchangeRate.toLocaleString()}/USD (실시간)
             </p>
           </>
         ) : null}
