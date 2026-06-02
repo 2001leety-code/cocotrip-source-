@@ -14,6 +14,7 @@ import { isPastCutoff, getCutoffHours } from './_shared/booking-cutoff.js';
 import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-planner-policy.js';
 import { acquireSlotLock } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -125,6 +126,11 @@ function resolveKrwAmount(productType, passengers, durationDays) {
 // Launch (2026-04-30) 부터 live 결제만 사용. sandbox 분기 필요 시 이메일 추가.
 const TEST_ACCOUNTS = [];
 
+// 멀티데이(1박+) 차터 즉시결제 가격 backend SSOT 재계산은 _shared/charter-multiday-price.js 로 이동
+// (resolveMultiDayCheckoutKrw — 플래그 + matrix km 조회 + 재계산). ⚠️ FEATURE_MULTIDAY_CHECKOUT
+// 플래그 OFF 기본 → prod 멀티데이 즉시결제 비활성(현행 WhatsApp 협의 유지). 운영자가 (1) WhatsApp→
+// 즉시결제 정책 전환 결정 + (2) 실 PayPal e2e 검증 후 ON.
+
 // PayPal token + baseUrl resolution moved to api/_shared/paypal.js
 // (shared with cancelBooking.js + capturePaypalOrder.js).
 
@@ -191,7 +197,9 @@ export default async function handler(req, res) {
     void TEST_ACCOUNTS; void userEmail;
     console.log(`[createPaypalOrder] mode: ${isSandbox ? 'SANDBOX (preview e2e)' : 'LIVE'} | email:`, userEmail, '| product:', productType);
 
-    let krwAmount = resolveKrwAmount(productType, passengers, durationDays);
+    let krwAmount = productType === 'charter_multiday'
+      ? resolveMultiDayCheckoutKrw(SPEC, body, String(process.env.FEATURE_MULTIDAY_CHECKOUT).toLowerCase() === 'true')
+      : resolveKrwAmount(productType, passengers, durationDays);
     if (!krwAmount) {
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT')));

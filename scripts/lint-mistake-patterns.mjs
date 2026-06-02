@@ -2478,6 +2478,38 @@ function R_airportPickupSSOT(ctx) {
 }
 
 /**
+ * R_multidayCheckoutSSOT (2026-06-02, P311 SAFETY): 멀티데이(1박+) 차터 즉시결제는 결제 금액을
+ * backend 가 SSOT(_pricing_spec.json distance_matrix + vehicles.intercity)에서 재계산해야 함
+ * (client priceKRW/km 신뢰 = 변조 위험). charter_multiday 경로는 resolveMultiDayCheckoutKrw
+ * (플래그 + matrix km 조회 + 재계산) 경유 + FEATURE_MULTIDAY_CHECKOUT 게이트 의무. 거리부 공식은
+ * 항상 staria.intercity × MULT(프론트 calcIntercityFormula 일치). 회귀: tests/unit/charter-multiday-price.test.ts.
+ */
+function R_multidayCheckoutSSOT(ctx) {
+  const violations = [];
+  if (isModified('api/createPaypalOrder.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/createPaypalOrder.js', 'utf8'); } catch {}
+    if (/charter_multiday/.test(src)) {
+      if (!/resolveMultiDayCheckoutKrw/.test(src)) {
+        violations.push('charter_multiday 결제가 resolveMultiDayCheckoutKrw(backend SSOT 재계산) 미경유 — client km/price 변조 위험(P311)');
+      }
+      if (!/FEATURE_MULTIDAY_CHECKOUT/.test(src)) {
+        violations.push('charter_multiday 가 FEATURE_MULTIDAY_CHECKOUT 플래그 게이트 없음 — 미검증 결제 노출 위험');
+      }
+    }
+  }
+  if (isModified('api/_shared/charter-multiday-price.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/_shared/charter-multiday-price.js', 'utf8'); } catch {}
+    if (/function calcMultiDayCharterKrw/.test(src) && !/vehicles\.staria\.intercity/.test(src)) {
+      violations.push('calcMultiDayCharterKrw 거리부가 staria.intercity SSOT 미참조 — 프론트 calcIntercityFormula(staria 고정 × MULT) 와 불일치 위험');
+    }
+  }
+  if (violations.length > 0) {
+    fail('R_multidayCheckoutSSOT', violations.join(' | '), '멀티데이 결제는 resolveMultiDayCheckoutKrw(플래그+matrix backend SSOT) 경유, calcMultiDayCharterKrw 거리부 staria 고정. tests/unit/charter-multiday-price.test.ts.');
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2561,6 +2593,7 @@ const RULES = [
   ['R_plan4d214e83_blockModeQuality', R_plan4d214e83_blockModeQuality],
   ['R_activityMetaDisplay', R_activityMetaDisplay],
   ['R_airportPickupSSOT', R_airportPickupSSOT],
+  ['R_multidayCheckoutSSOT', R_multidayCheckoutSSOT],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7273,6 +7306,19 @@ function runSelfTest() {
       base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
       head: { 'api/_ai_core/agents/RouteAgent.js': 'export function airportTransferPriceKRW(region) { const spec = loadPricingSpec(); const regions = spec?.airport_transfer_regions || {}; return regions[region]; }\n' },
       expectRule: 'R_airportPickupSSOT',
+      expectClean: true,
+    },
+    {
+      label: 'R_multidayCheckoutSSOT (true positive): charter_multiday 결제가 client priceKRW 직접 사용(backend 게이트 우회)',
+      base: { 'api/createPaypalOrder.js': '// stub\n' },
+      head: { 'api/createPaypalOrder.js': 'if (productType === "charter_multiday") { krwAmount = body.priceKRW; }\n' },
+      expectRule: 'R_multidayCheckoutSSOT',
+    },
+    {
+      label: 'R_multidayCheckoutSSOT (false positive 차단): resolveMultiDayCheckoutKrw + FEATURE_MULTIDAY_CHECKOUT 플래그 — silent',
+      base: { 'api/createPaypalOrder.js': '// stub\n' },
+      head: { 'api/createPaypalOrder.js': 'krwAmount = productType === "charter_multiday" ? resolveMultiDayCheckoutKrw(SPEC, body, String(process.env.FEATURE_MULTIDAY_CHECKOUT).toLowerCase() === "true") : resolveKrwAmount(productType, passengers, durationDays);\n' },
+      expectRule: 'R_multidayCheckoutSSOT',
       expectClean: true,
     },
     {
