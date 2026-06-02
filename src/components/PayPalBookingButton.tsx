@@ -61,6 +61,15 @@ interface Props {
   pickupTime?: string;
   /** PR-R (2026-05-08): 투어 일수. >= 2 일 때 multi_day cutoff (48h) 적용. */
   durationDays?: number;
+  /** 2026-06-02: 도시간 transfer/멀티데이/투어 시간제 backend 재계산용 — matrix km 조회 키.
+   *  createPaypalOrder body 에 전달. 미전달 시 backend resolveXxxCheckoutKrw 에서 km=null → total null → 결제 불가.
+   *  ⚠️ 플래그 ON + 이 값 미전달 = 활성화해도 결제 0. 각 서비스 UI 에서 state.origin/dest 기반 전달 필수. */
+  originKey?: string;
+  destKey?: string;
+  /** 'oneway' | 'roundtrip' — transfer service 전용. 미전달 시 'oneway' fallback. */
+  tripType?: 'oneway' | 'roundtrip';
+  /** transfer/tour_hourly 결제 시 backend 차종 재계산용 */
+  vehicle?: string;
 }
 
 interface RateInfo {
@@ -92,7 +101,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -457,6 +466,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           // PR-R (2026-05-08): 마감 검증용 — pickupTime + durationDays
           ...(pickupTime ? { pickupTime } : {}),
           ...(typeof durationDays === 'number' ? { durationDays } : {}),
+          // 2026-06-02: transfer/multiday/tour_hourly backend 재계산용 (끊긴 고리 수정)
+          ...(originKey ? { originKey } : {}),
+          ...(destKey ? { destKey } : {}),
+          ...(tripType ? { tripType } : {}),
+          ...(vehicle ? { vehicle } : {}),
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
         }),
       });

@@ -5,6 +5,7 @@
 //   - 항상 하단에 "예약 후 출발 3일 전에 전담 기사가 배차됩니다" 박스
 import type { QuoteBreakdown, WizardState } from './types';
 import { TourReceipt } from './TourReceipt';
+import { TransferReceipt } from './TransferReceipt';
 import { getWizardI18n } from './wizard-i18n';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 
@@ -59,6 +60,13 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const tourVehicle = state?.vehicle;
   if (tourHourlyOn && quote.mode === 'day_tour' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
     return <TourReceipt km={km} vehicle={tourVehicle} language={language} />;
+  }
+
+  // 도시간 transfer 영수증 (2026-06-02, VITE_FEATURE_TRANSFER_CHECKOUT): transfer + km>0 + staria/sprinter.
+  const transferOn = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true';
+  const tripType = (state as Record<string, unknown> | undefined)?.tripType as 'oneway' | 'roundtrip' | undefined;
+  if (transferOn && quote.mode === 'multi_day' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
+    return <TransferReceipt km={km} tripType={tripType ?? 'oneway'} vehicle={tourVehicle} language={language} />;
   }
 
   return (

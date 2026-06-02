@@ -260,8 +260,13 @@ export const AIRPORT_TRANSFER_PRICING_FORMULA = {
 // vehicles.{staria,sprinter}.intercity 노출 — useQuoteCalculator.multi_day 분기에서 사용.
 // P1 #6 fix (옵션 C-FINAL): sprinter multi_day 가 staria 값 200K/130K 으로 계산되던 underprice 해결.
 type VehicleIntercity = {
+  /** ⚠️ DEAD CONFIG (2026-06-02): 거리부 계산은 항상 staria.base_fee/rate_per_km × MULT 사용.
+   *  sprinter.base_fee(70000)/rate_per_km(1300)은 코드에서 읽지 않음(charter-multiday-price.js 주석 참조).
+   *  pricing_spec 에 존재하지만 수정해도 가격 변화 없음 — silent no-op. 향후 sprinter 독자 거리단가 필요 시 활성화 가능. */
   base_fee: number;
   rate_per_km: number;
+  /** ⚠️ DEAD CONFIG (2026-06-02): 어떤 계산 코드에서도 참조 안 됨(실효 deadhead = ×2 hardcoded).
+   *  운영자가 이 값 수정해도 가격 변화 없음 — silent no-op. (audit: a4a1e97 딥서치 확인) */
   deadhead_factor: number;
   daily_service_fee: number;
   overnight_driver_fee: number;
