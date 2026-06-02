@@ -15,6 +15,7 @@ import type { WizardState } from '../../src/components/charter/types';
 import { calcMultiDayCharterKrw as beMultiday, lookupMatrixKm } from '../../api/_shared/charter-multiday-price.js';
 import { calcTourQuote as beTourQuote } from '../../api/_shared/tour-price.js';
 import { calcTransferQuote as beTransferQuote } from '../../api/_shared/charter-transfer-price.js';
+import { calcMultiDayQuote } from '../../src/lib/multidayQuote';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
 
@@ -99,13 +100,15 @@ describe('resolveProductType — VITE_FEATURE_MULTIDAY_CHECKOUT ON', () => {
     expect(r.payable).toBe(false);
   });
 
-  it('표시가 == 청구가: priceKRW 가 −10% 할인 미적용 (백엔드 SSOT 와 동일)', () => {
+  it('표시가 == 청구가 + 3일 10% 할인 반영 (운영자 정책 2026-06-02, P311)', () => {
     vi.stubEnv('VITE_FEATURE_MULTIDAY_CHECKOUT', 'true');
-    const r = resolveProductType(multidayState());
+    const r = resolveProductType(multidayState()); // 3일 (2026-07-01~07-03)
     const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
-    const be = beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 })!;
-    expect(r.priceKRW).toBe(be);
-    expect(r.priceKRW).not.toBe(Math.round(be * 0.9)); // 할인 적용 안 됨 명시
+    const q = calcMultiDayQuote({ vehicle: 'staria', km, durationDays: 3 })!;
+    expect(q.discountPct).toBe(10);
+    expect(r.priceKRW).toBe(q.total);                                                  // 프론트 영수증 == resolveProductType
+    expect(r.priceKRW).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 })); // == 백엔드 청구가
+    expect(r.priceKRW).toBe(Math.round(q.base * 0.9));                                 // 10% 할인 실제 반영
   });
 });
 

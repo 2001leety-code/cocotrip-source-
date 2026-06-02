@@ -1,7 +1,7 @@
 // MultiDayReceipt — 멀티데이(1박+) 차터 견적 영수증 (2026-06-02). TransferReceipt 패턴 복제.
-// 거리 운행 + 일일 운영비×일수 + 숙박 기사비×박수 = 총액 (할인 전 = 백엔드 결제 SSOT).
+// 거리 운행 + 일일 운영비×일수 + 숙박 기사비×박수 = 소계, 3일 이상 10% 할인 → 총액 (= 백엔드 결제 SSOT).
 // 가격은 src/lib/multidayQuote (백엔드 charter-multiday-price 와 1:1). 표시가 == 결제가 (P311).
-// ⚠️ 멀티데이 −10% 견적 할인 / 가이드·카시트 옵션 / 야간할증은 온라인 즉시결제 base 에 미포함 (운영자 정책 확인 대상).
+// ⚠️ 가이드·카시트 옵션 / 야간할증은 온라인 즉시결제 base 에 미포함 (현장/별도). 할인은 운영자 정책(3일+ 10%) 반영.
 import { lookupMatrixKm, calcMultiDayQuote } from '@/lib/multidayQuote';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -13,6 +13,9 @@ const L: Record<string, Record<Lang, string>> = {
   distance:  { ko: '거리 운행', en: 'Distance', ja: '距離運行', zh: '行驶距离' },
   daily:     { ko: '일일 운영비', en: 'Daily service', ja: '日次運営費', zh: '每日服务费' },
   overnight: { ko: '숙박 기사비', en: 'Overnight driver', ja: '宿泊運転手費', zh: '司机住宿费' },
+  subtotal:  { ko: '소계', en: 'Subtotal', ja: '小計', zh: '小计' },
+  discount:  { ko: '할인', en: 'Discount', ja: '割引', zh: '折扣' },
+  discountNote: { ko: '3일 이상', en: '3+ days', ja: '3日以上', zh: '3天以上' },
   total:     { ko: '총액', en: 'Total', ja: '合計', zh: '总额' },
   note:      {
     ko: '출발 3일 전 전담 기사 배차. 식사·입장료·고객 숙박은 별도.',
@@ -50,6 +53,12 @@ export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, lan
       <Row label={`${lbl('daily')} × ${q.days}`} value={KRW(q.dailyFee * q.days)} accent="muted" />
       {q.nights > 0 && <Row label={`${lbl('overnight')} × ${q.nights}`} value={KRW(q.overnightFee * q.nights)} accent="muted" />}
       <div className="border-t border-white/10 my-2" />
+      {q.discount > 0 && (
+        <>
+          <Row label={lbl('subtotal')} value={KRW(q.base)} accent="muted" />
+          <Row label={`${lbl('discount')} ${q.discountPct}% (${lbl('discountNote')})`} value={`−${KRW(q.discount)}`} accent="good" />
+        </>
+      )}
       <Row label={lbl('total')} value={KRW(q.total)} accent="bold" />
       <p className="mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>
     </div>
