@@ -2541,6 +2541,32 @@ function R_tourHourlySSOT(ctx) {
 }
 
 /**
+ * R_hallasanReservationUrl (2026-06-02, SAFETY): 한라산(성판악/관음사) 탐방예약은 국립공원공단
+ * (knps.or.kr)이 아니라 **제주도청 visithalla.jeju.go.kr** 별도 시스템. 잘못된 URL = 외국인 예약 실패.
+ * 지리산·북한산 등은 knps 가 맞으므로 이 가드는 한라산 zone_course 파일에만 적용.
+ * 회귀: tests/unit/hallasan-reservation-url.test.ts.
+ */
+function R_hallasanReservationUrl(ctx) {
+  const violations = [];
+  const files = [
+    'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json',
+    'src/data/zone_courses/templates/jeju_hallasan_seongpanak.json',
+  ];
+  for (const f of files) {
+    if (isModified(f, ctx.changed)) {
+      let src = ''; try { src = readFileSync(f, 'utf8'); } catch {}
+      if (/reservation\.knps\.or\.kr/.test(src)) {
+        violations.push(`${f}: 한라산 예약 URL 이 reservation.knps.or.kr — 실제는 visithalla.jeju.go.kr(제주도청). 외국인 예약 실패`);
+      }
+    }
+  }
+  if (violations.length > 0) {
+    fail('R_hallasanReservationUrl', violations.join(' | '), '한라산 예약 = visithalla.jeju.go.kr(제주도청). 지리산/북한산 등은 knps 유지. tests/unit/hallasan-reservation-url.test.ts.');
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2626,6 +2652,7 @@ const RULES = [
   ['R_airportPickupSSOT', R_airportPickupSSOT],
   ['R_multidayCheckoutSSOT', R_multidayCheckoutSSOT],
   ['R_tourHourlySSOT', R_tourHourlySSOT],
+  ['R_hallasanReservationUrl', R_hallasanReservationUrl],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7364,6 +7391,19 @@ function runSelfTest() {
       base: { 'api/createPaypalOrder.js': '// stub\n' },
       head: { 'api/createPaypalOrder.js': 'krwAmount = resolveTourCheckoutKrw(SPEC, body, String(process.env.FEATURE_TOUR_HOURLY).toLowerCase() === "true");\n' },
       expectRule: 'R_tourHourlySSOT',
+      expectClean: true,
+    },
+    {
+      label: 'R_hallasanReservationUrl (true positive): 한라산이 reservation.knps.or.kr (제주도청 아님)',
+      base: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{}\n' },
+      head: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{"tips":"사전예약 reservation.knps.or.kr"}\n' },
+      expectRule: 'R_hallasanReservationUrl',
+    },
+    {
+      label: 'R_hallasanReservationUrl (false positive 차단): visithalla.jeju.go.kr — silent',
+      base: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{}\n' },
+      head: { 'src/data/zone_courses/jeju_hallasan_seongpanak_packed.json': '{"tips":"사전예약 visithalla.jeju.go.kr"}\n' },
+      expectRule: 'R_hallasanReservationUrl',
       expectClean: true,
     },
     {
