@@ -433,6 +433,16 @@ function addMinutesToHHMM(hhmm, minutes) {
  * @param {string[]} userDietPrefs
  * @returns {object|null} foodIndex entry 또는 null (매칭 실패)
  */
+/** 두 좌표 간 거리(km) — food 근접 가중용 haversine. 호출 측에서 좌표 유효성 가드. */
+function foodDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null) {
   if (!placeholderStop || !placeholderStop.placeholder) return null;
   if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
@@ -484,14 +494,25 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     return null;
   }
 
-  // rating × log(reviews) 정렬 — pickRecommendedRestaurants 와 동일 가중치.
-  candidates.sort((a, b) => {
-    const ra = Number(a.rating) || 0;
-    const rb = Number(b.rating) || 0;
-    const va = Number(a.reviews) || 1;
-    const vb = Number(b.reviews) || 1;
-    return rb * Math.log10(vb) - ra * Math.log10(va);
-  });
+  // 근접 가중 정렬 (2026-06-02, plan b720d6db/9c0c2eaa 운영자 "동선 이상" + PR #760 후속 "③거리필터").
+  //   기존: rating × log(reviews) 만 → 도시(seoul/jeju) 전체 1등 → 종로 코스에 강남 식당 박힘 = 동선 zigzag.
+  //   (게다가 food_index 필드는 reviewCount 라 r.reviews 는 undefined → 기존 가중치가 죽어 사실상 배열순 선택.)
+  //   개선: placeholder 앵커 좌표(빌드 시 geocoding)에서 가까울수록 가산. score = base / (1 + dist_km/DECAY).
+  //   앵커 좌표 0/누락(mock seed·비-block 호출) 또는 후보 좌표 누락 시 base 만 = 현행 폴백(회귀 0).
+  const DECAY_KM = 4.5; // 이 거리에서 가중치 ~절반 — 서울 구·제주 클러스터 모두 합리적(원거리만 강하게 배제).
+  const aLat = Number(placeholderStop.lat);
+  const aLng = Number(placeholderStop.lng);
+  const hasAnchor = Number.isFinite(aLat) && Number.isFinite(aLng) && (aLat !== 0 || aLng !== 0);
+  const scoreOf = (r) => {
+    const base = (Number(r.rating) || 0) * Math.log10(Number(r.reviewCount || r.reviews) || 1);
+    if (!hasAnchor) return base;
+    const rLat = Number(r.lat);
+    const rLng = Number(r.lng);
+    const hasRC = Number.isFinite(rLat) && Number.isFinite(rLng) && (rLat !== 0 || rLng !== 0);
+    const dist = hasRC ? foodDistanceKm(aLat, aLng, rLat, rLng) : 50; // 좌표 없는 후보 = 멀리 취급(배제 아님, sparse graceful)
+    return base / (1 + dist / DECAY_KM);
+  };
+  candidates.sort((a, b) => scoreOf(b) - scoreOf(a));
 
   // 중복 방지 (2026-06-02, plan 4d214e83 신고 "같은 식당 6번 반복"): 이미 배정한 식당 제외하고
   // 차순위 선택. 전부 소진(작은 도시 식당 부족) 시에만 1순위 재사용 허용 (graceful).
