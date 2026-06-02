@@ -199,6 +199,19 @@
     "jeju-metro":           { "name_ko": "제주 시내 (CJU 픽업)",           "name_en": "Jeju Metro (CJU pickup)",                        "priceKRW":  72800, "priceUSD":  51, "durationMin":  30 }
   },
 
+  "airport_transfer_regions": {
+    "comment": "region/area → airport_transfer_prices zone key 매핑 (charter HERO 가격용 SSOT). 지리적으로 확실한 region 만 등록 — 애매하면 누락(=가격 숨김, 오노출 방지). RouteAgent.airportTransferPriceKRW 가 조회 (2026-06-02 RouteAgent 하드코딩 이원화 제거·이동).",
+    "seoul":      "seoul-central",
+    "incheon":    "seoul-central",
+    "suwon":      "suwon-yongin",
+    "yongin":     "suwon-yongin",
+    "chuncheon":  "chuncheon",
+    "gangneung":  "gangneung-sokcho",
+    "sokcho":     "gangneung-sokcho",
+    "busan":      "busan",
+    "jeju":       "jeju-metro"
+  },
+
   "daily_tour_prices": {
     "comment": "P1 #5 fix (2026-05-13): 환율 1430 통일 — priceUSD = round(priceKRW / 1430). 기존 charterPricing.ts DAILY_TOUR_PRICES 그대로. 패키지 차량비 하드코딩 우선, 커스텀 일정은 공식 fallback.",
     "seoul-city": {
