@@ -148,7 +148,7 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
 
   // 멀티데이(1박+) 차터 즉시결제 (2026-06-02). VITE_FEATURE_MULTIDAY_CHECKOUT(프론트) + FEATURE_MULTIDAY_CHECKOUT(백엔드)
   // 둘 다 ON 이어야 실제 결제 통과. 매트릭스 매칭 + staria/sprinter + 1박+ 만 결제 가능. 그 외 = 아래 WhatsApp.
-  // 가격 = calcMultiDayCharterKrw (= backend SSOT, 할인 전) → 표시가==청구가 (P311). matrix km 으로 산출.
+  // 가격 = calcMultiDayCharterKrw (= backend SSOT, 3일+ durationDays>=3 시 10% 할인 반영) → 표시가==청구가 (P311). matrix km 으로 산출.
   if (MULTIDAY_CHECKOUT_ON && state.service === 'multi_day' && (vehicle === 'staria' || vehicle === 'sprinter')) {
     const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
     const destKey = resolveDestMatrixKey(state);

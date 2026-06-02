@@ -24,7 +24,9 @@ function frontendMultiDay(spec: any, vehicle: string, km: number, tourDays: numb
   // multi_day 분기 (L261-282)
   const ic = spec.vehicles[vehicle].intercity;
   const nights = Math.max(0, tourDays - 1);
-  return intercity + ic.daily_service_fee * tourDays + ic.overnight_driver_fee * nights;
+  const base = intercity + ic.daily_service_fee * tourDays + ic.overnight_driver_fee * nights;
+  // 운영자 정책 2026-06-02: 3일(durationDays>=3) 이상 10% 할인.
+  return tourDays >= 3 ? Math.round(base * 0.9) : base;
 }
 
 describe('calcMultiDayCharterKrw — 프론트 공식 1:1 일치 (P311 backend SSOT)', () => {
@@ -42,6 +44,16 @@ describe('calcMultiDayCharterKrw — 프론트 공식 1:1 일치 (P311 backend S
   it('SSOT 일치: STARIA_BASE_FEE(50000)/RATE(1000) == spec.vehicles.staria.intercity (하드코딩 동기화 확인)', () => {
     expect(SPEC.vehicles.staria.intercity.base_fee).toBe(STARIA_BASE_FEE);
     expect(SPEC.vehicles.staria.intercity.rate_per_km).toBe(STARIA_RATE_PER_KM);
+  });
+
+  it('3일 이상 10% 할인 (운영자 정책 2026-06-02): 3일=base×0.9, 2일=무할인', () => {
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    const ic = SPEC.vehicles.staria.intercity;
+    const distancePart = Math.round((STARIA_BASE_FEE + km * 2 * STARIA_RATE_PER_KM) * 1.0);
+    const base3 = distancePart + ic.daily_service_fee * 3 + ic.overnight_driver_fee * 2;
+    const base2 = distancePart + ic.daily_service_fee * 2 + ic.overnight_driver_fee * 1;
+    expect(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km, durationDays: 3 })).toBe(Math.round(base3 * 0.9));
+    expect(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km, durationDays: 2 })).toBe(base2); // 2일 무할인
   });
 
   it('알려진 matrix 케이스: ICN→BUSAN staria 3일 (회귀 고정 + 프론트 일치)', () => {

@@ -20,6 +20,11 @@
 // 프론트 src/hooks/useQuoteCalculator.ts:38 VEHICLE_MULTIPLIER 와 일치 (결제 가능 차종만).
 const VEHICLE_MULTIPLIER = { staria: 1.0, sprinter: 2.0 };
 
+// 운영자 정책 (2026-06-02): 3일(durationDays>=3) 이상 멀티데이 차터 10% 할인.
+// 프론트 src/lib/multidayQuote.ts 의 동일 상수와 byte-identical (multiday-quote-frontend-parity.test.ts 가드).
+const MULTIDAY_DISCOUNT_MIN_DAYS = 3;
+const MULTIDAY_DISCOUNT_PCT = 10;
+
 /**
  * SSOT distance_matrix 에서 origin→dest km 조회. 편도 대칭 가정(프론트 동일, 비대칭 ~5% 허용).
  * client 가 키를 위조해도 matrix 에 실재하는 키쌍 가격만 반환 → 임의 금액 생성 불가.
@@ -56,7 +61,9 @@ export function calcMultiDayCharterKrw(spec, { vehicle, km, durationDays } = {})
   const days = Math.min(30, Math.max(1, Math.floor(Number(durationDays) || 1))); // 1~30 cap
   const nights = Math.max(0, days - 1);
 
-  return distancePart + vIc.daily_service_fee * days + vIc.overnight_driver_fee * nights;
+  const base = distancePart + vIc.daily_service_fee * days + vIc.overnight_driver_fee * nights;
+  // 3일 이상 10% 할인 (운영자 정책 2026-06-02). 프론트 multidayQuote.calcMultiDayQuote 와 동일.
+  return days >= MULTIDAY_DISCOUNT_MIN_DAYS ? Math.round(base * (1 - MULTIDAY_DISCOUNT_PCT / 100)) : base;
 }
 
 /**

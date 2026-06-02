@@ -2,19 +2,23 @@
  * 멀티데이(1박+) 차터 견적 — 프론트. api/_shared/charter-multiday-price.js `calcMultiDayCharterKrw` 와 **1:1 동일 공식**.
  * (투어 #770 / transfer #772 패턴: 프론트/백엔드 공식 분리 + multiday-quote-frontend-parity.test.ts 일치 가드.)
  *
- * ⚠️ 멀티데이 −10% 할인(useQuoteCalculator.ts subtotalKRW 에 포함)은 **여기 미포함** — 결제 backend SSOT 와
- *    동일하게 할인/옵션/할증 전 base 금액(거리부+운영비)만 반환한다. resolveProductType / 결제 영수증은 이 값을
- *    써야 표시가 == 청구가 (P311). 온라인 즉시결제 = base 정책(−10%·가이드옵션·야간할증 제외)은 운영자 정책 확인 대상.
+ * 운영자 정책 (2026-06-02): **3일(durationDays>=3) 이상 멀티데이 차터 10% 할인.** 백엔드 SSOT 와 동일하게
+ *   base(거리부+운영비) 산출 후 3일+ 면 ×0.9. resolveProductType / 결제 영수증은 이 total 을 써야 표시가 == 청구가 (P311).
+ *   ⚠️ 가이드옵션·야간할증은 온라인 즉시결제 base 에 미포함(현장/별도) — 할인만 정책 반영.
  *
  * 공식 (백엔드와 byte-identical):
  *   거리부 = round((staria.base_fee + km×2×staria.rate_per_km) × MULT[vehicle])  ← 거리부는 항상 staria 상수
  *   운영비 = vehicle.daily_service_fee × days + vehicle.overnight_driver_fee × nights
- *   MULT  = staria 1.0 / sprinter 2.0 (bus/vip = inquiry-only → null)
+ *   total = days>=3 ? round(base × 0.9) : base   /   MULT = staria 1.0 / sprinter 2.0 (bus/vip → null)
  */
 import { VEHICLE_INTERCITY, DISTANCE_MATRIX } from '@/data/charterPricing';
 
-// 백엔드 charter-multiday-price.js:21 VEHICLE_MULTIPLIER 와 일치 (결제 가능 차종만).
+// 백엔드 charter-multiday-price.js VEHICLE_MULTIPLIER 와 일치 (결제 가능 차종만).
 const VEHICLE_MULT: Record<string, number> = { staria: 1.0, sprinter: 2.0 };
+
+// 백엔드 charter-multiday-price.js MULTIDAY_DISCOUNT_* 와 byte-identical (운영자 정책 2026-06-02).
+const MULTIDAY_DISCOUNT_MIN_DAYS = 3;
+const MULTIDAY_DISCOUNT_PCT = 10;
 
 /**
  * SSOT distance_matrix km 조회 — 백엔드 _shared/charter-multiday-price.js lookupMatrixKm 와 동일 (fwd/rev 만).
@@ -32,17 +36,19 @@ export function lookupMatrixKm(originKey: string, destKey: string): number | nul
 }
 
 export interface MultiDayQuote {
-  distancePart: number;   // 거리 운행료 (할인 전)
+  distancePart: number;   // 거리 운행료
   days: number;           // 결제 일수 (1~30 cap)
   nights: number;         // days - 1
   dailyFee: number;       // 1일 운영비 (차종별)
   overnightFee: number;   // 1박 기사비 (차종별)
-  total: number;          // distancePart + dailyFee×days + overnightFee×nights (할인 전)
+  base: number;           // 할인 전 = distancePart + dailyFee×days + overnightFee×nights
+  discountPct: number;    // 3일+ = 10, 그 외 0
+  discount: number;       // base - total
+  total: number;          // 할인 후 결제 금액 (= backend resolveMultiDayCheckoutKrw)
 }
 
 /**
- * 멀티데이 견적 breakdown (할인 전, 백엔드 SSOT). 차종 불가/거리 무효 시 null.
- * total 은 calcMultiDayCharterKrw 와 동일(= backend resolveMultiDayCheckoutKrw).
+ * 멀티데이 견적 breakdown. total 은 calcMultiDayCharterKrw 와 동일(= backend SSOT). 차종 불가/거리 무효 시 null.
  */
 export function calcMultiDayQuote(
   { vehicle, km, durationDays }: { vehicle: string; km: number; durationDays?: number },
@@ -58,12 +64,16 @@ export function calcMultiDayQuote(
   const days = Math.min(30, Math.max(1, Math.floor(Number(durationDays) || 1))); // 1~30 cap
   const nights = Math.max(0, days - 1);
   const distancePart = Math.round((sIc.base_fee + km * 2 * sIc.rate_per_km) * mult);
-  const total = distancePart + vIc.daily_service_fee * days + vIc.overnight_driver_fee * nights;
-  return { distancePart, days, nights, dailyFee: vIc.daily_service_fee, overnightFee: vIc.overnight_driver_fee, total };
+  const base = distancePart + vIc.daily_service_fee * days + vIc.overnight_driver_fee * nights;
+  // 3일 이상 10% 할인 (운영자 정책 2026-06-02). 백엔드 calcMultiDayCharterKrw 와 동일 연산.
+  const discountPct = days >= MULTIDAY_DISCOUNT_MIN_DAYS ? MULTIDAY_DISCOUNT_PCT : 0;
+  const total = discountPct > 0 ? Math.round(base * (1 - discountPct / 100)) : base;
+  const discount = base - total;
+  return { distancePart, days, nights, dailyFee: vIc.daily_service_fee, overnightFee: vIc.overnight_driver_fee, base, discountPct, discount, total };
 }
 
 /**
- * 멀티데이 차터 결제 금액(KRW, 할인 전) 재계산. 백엔드 calcMultiDayCharterKrw 와 byte-identical.
+ * 멀티데이 차터 결제 금액(KRW, 3일+ 10% 할인 반영) 재계산. 백엔드 calcMultiDayCharterKrw 와 byte-identical.
  * @returns 결제 금액, 또는 결제 불가(차종/거리 무효) 시 null.
  */
 export function calcMultiDayCharterKrw(

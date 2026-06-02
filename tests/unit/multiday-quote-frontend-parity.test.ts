@@ -8,12 +8,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { calcMultiDayCharterKrw as feMultiday } from '../../src/lib/multidayQuote';
+import { calcMultiDayCharterKrw as feMultiday, calcMultiDayQuote as feQuote } from '../../src/lib/multidayQuote';
 import { calcMultiDayCharterKrw as beMultiday, lookupMatrixKm } from '../../api/_shared/charter-multiday-price.js';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
 
-describe('멀티데이 견적 — 프론트 == 백엔드 (byte-identical, 할인 전)', () => {
+describe('멀티데이 견적 — 프론트 == 백엔드 (byte-identical, 3일+ 10% 할인 포함)', () => {
   for (const vehicle of ['staria', 'sprinter']) {
     for (const km of [50, 120, 325, 450]) {
       for (const days of [2, 3, 5, 7]) {
@@ -50,13 +50,18 @@ describe('멀티데이 견적 — 프론트 == 백엔드 (byte-identical, 할인
       .toBe(beMultiday(SPEC, { vehicle: 'staria', km: 100, durationDays: 35 }));
   });
 
-  it('할인 미포함 확인: 멀티데이 −10% 할인은 결제가에 적용 안 됨 (백엔드 == 프론트 lib)', () => {
-    // useQuoteCalculator subtotalKRW 는 −10% 포함이지만, 결제 SSOT 는 할인 전. 이 lib 도 할인 전.
+  it('3일 이상 10% 할인 (운영자 정책 2026-06-02): 2일=무할인, 3일=base×0.9, 프론트==백엔드', () => {
     const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
-    const fe = feMultiday({ vehicle: 'staria', km, durationDays: 2 })!;
-    const be = beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 2 })!;
-    expect(fe).toBe(be);
-    // 할인이 적용됐다면 fe == round(be*0.9) 일 것 — 그렇지 않음을 명시.
-    expect(fe).not.toBe(Math.round(be * 0.9));
+    // 2일: 할인 0 (base == total)
+    const q2 = feQuote({ vehicle: 'staria', km, durationDays: 2 })!;
+    expect(q2.discountPct).toBe(0);
+    expect(q2.discount).toBe(0);
+    expect(q2.total).toBe(q2.base);
+    expect(q2.total).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 2 }));
+    // 3일: base×0.9, 프론트 lib total == 백엔드
+    const q3 = feQuote({ vehicle: 'staria', km, durationDays: 3 })!;
+    expect(q3.discountPct).toBe(10);
+    expect(q3.total).toBe(Math.round(q3.base * 0.9));
+    expect(q3.total).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 }));
   });
 });
