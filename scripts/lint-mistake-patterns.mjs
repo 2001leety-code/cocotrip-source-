@@ -2440,8 +2440,16 @@ function R_activityMetaDisplay(ctx) {
       violations.push('DayTimeline ActivityMetaChips falsy guard(day.activity_meta &&) 누락 — flag OFF/city_day byte-identical 깨짐');
     }
   }
+  // PDF SAFETY parity (2026-06-02): 오프라인 등산객이 PDF 에서도 안전정보를 봐야 함 — pdfGenerator 는
+  // buildActivityMetaHtml(src/lib/activityMetaLabels SSOT) 로 activity_meta 렌더 유지. 제거 시 = 안전경고 손실.
+  if (isModified('src/pages/PlanDetailPage/pdfGenerator.ts', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/pages/PlanDetailPage/pdfGenerator.ts', 'utf8'); } catch {}
+    if (src && !/buildActivityMetaHtml/.test(src)) {
+      violations.push('pdfGenerator 가 buildActivityMetaHtml 미사용 — PDF 에 트레킹 난이도/위험/컷오프 누락 = 오프라인 등산객 안전경고 손실(SAFETY)');
+    }
+  }
   if (violations.length > 0) {
-    fail('R_activityMetaDisplay', violations.join(' | '), 'ActivityMetaChips(unsuitable_for 배너 + data-testid) + DayTimeline falsy guard 유지. tests/unit/activity-meta-chips.component.test.tsx.');
+    fail('R_activityMetaDisplay', violations.join(' | '), 'ActivityMetaChips(unsuitable_for 배너 + data-testid) + DayTimeline falsy guard + pdfGenerator buildActivityMetaHtml(PDF SAFETY parity) 유지. tests/unit/activity-meta-chips.component.test.tsx + activity-meta-pdf.test.ts.');
   }
   return null;
 }
@@ -7451,6 +7459,19 @@ function runSelfTest() {
       label: 'R_activityMetaDisplay (false positive 차단): unsuitable_for + data-testid 정상 — silent',
       base: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': '// stub\n' },
       head: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': 'export function ActivityMetaChips() { const u = meta.unsuitable_for; return <div data-testid="activity-meta">{u}</div>; }\n' },
+      expectRule: 'R_activityMetaDisplay',
+      expectClean: true,
+    },
+    {
+      label: 'R_activityMetaDisplay PDF (true positive): pdfGenerator 가 buildActivityMetaHtml 미사용 (PDF 안전정보 누락)',
+      base: { 'src/pages/PlanDetailPage/pdfGenerator.ts': '// old\n' },
+      head: { 'src/pages/PlanDetailPage/pdfGenerator.ts': 'function buildHtml() { return "<div>day</div>"; }\n' },
+      expectRule: 'R_activityMetaDisplay',
+    },
+    {
+      label: 'R_activityMetaDisplay PDF (false positive 차단): buildActivityMetaHtml 사용 — silent',
+      base: { 'src/pages/PlanDetailPage/pdfGenerator.ts': '// old\n' },
+      head: { 'src/pages/PlanDetailPage/pdfGenerator.ts': 'html += buildActivityMetaHtml(day.activity_meta, lang);\n' },
       expectRule: 'R_activityMetaDisplay',
       expectClean: true,
     },

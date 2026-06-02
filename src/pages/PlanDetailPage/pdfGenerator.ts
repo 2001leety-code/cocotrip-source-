@@ -18,6 +18,7 @@ import { normalizeRecommendedItem } from '@/types/plan';
 import { track as posthogTrack } from '@/lib/posthog';
 import { openBlobSafely } from '@/lib/openBlobSafely';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
+import { buildActivityMetaHtml } from '@/lib/activityMetaLabels';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
 // PDF는 dark theme 토큰을 못 쓰므로 web bar gradient의 진한 쪽 hex 만 추출.
@@ -626,6 +627,10 @@ export async function generatePDF(
           ${day.date ? `<p style="font-size:10px;color:${C.muted};margin:0;">${day.date}</p>` : ''}
         </div>
       </div>`;
+
+    // 2026-06-02 SAFETY: 트레킹/러닝 day 의 난이도·위험·부적합·컷오프를 PDF 에도 렌더 (오프라인 등산객 안전 —
+    // 화면 ActivityMetaChips 와 동일 라벨 src/lib/activityMetaLabels SSOT). activity_meta 없으면 '' (additive, byte-identical).
+    html += buildActivityMetaHtml(day.activity_meta, lang as 'ko' | 'en' | 'ja' | 'zh');
 
     // B9-39 (2026-05-09): 도시 간 이동 카드 (KTX/SRT/Air/Bus) — 다도시 plan.
     // intercity_transit 가 있을 때만 노출. page-break-inside:avoid 로 카드 단위 보존.
