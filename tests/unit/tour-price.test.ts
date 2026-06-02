@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { calcTourKrw, tourDistanceSurcharge, resolveTourCheckoutKrw } from '../../api/_shared/tour-price.js';
+import { calcTourKrw, calcTourQuote, tourDistanceSurcharge, resolveTourCheckoutKrw } from '../../api/_shared/tour-price.js';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
 
@@ -68,20 +68,46 @@ describe('calcTourKrw — 기본 9h + 오버타임 + 거리추가 (VAT·쿠폰 �
   });
 });
 
-describe('resolveTourCheckoutKrw — 결제 게이트 (플래그 + matrix backend + client 불신)', () => {
+describe('calcTourQuote — 영수증 breakdown (오버타임 현장결제 제외)', () => {
+  it('춘천 85km staria → 항목별 영수증 (총 527,725)', () => {
+    const q = calcTourQuote({ km: 85, vehicle: 'staria' })!;
+    expect(q.base).toBe(405_000);
+    expect(q.distance).toBe(100_000);
+    expect(q.subtotal).toBe(505_000);
+    expect(q.coupon).toBe(25_250);   // 쿠폰 5%
+    expect(q.vat).toBe(47_975);      // (505,000 − 25,250) × 10%
+    expect(q.total).toBe(527_725);
+  });
+  it('오버타임은 total 제외 + overtimeHourly(현장결제 안내)만', () => {
+    const q = calcTourQuote({ km: 0, vehicle: 'staria' })!;
+    expect(q.overtimeHourly).toBe(54_000);  // staria 현장 시간당(+20%)
+    expect(q.total).toBe(423_225);          // 405,000 −20,250 +38,475 (오버타임 0)
+  });
+  it('스프린터: 기본 ×2 / 거리추가 정액 / 오버타임 ×2 안내', () => {
+    const q = calcTourQuote({ km: 85, vehicle: 'sprinter' })!;
+    expect(q.base).toBe(810_000);
+    expect(q.distance).toBe(100_000);       // 정액(차종 무관)
+    expect(q.overtimeHourly).toBe(108_000); // 54,000 × 2
+  });
+  it('bus → null (협의)', () => {
+    expect(calcTourQuote({ km: 50, vehicle: 'bus' })).toBeNull();
+  });
+});
+
+describe('resolveTourCheckoutKrw — 결제 게이트 (플래그 + matrix backend + client 불신, 오버타임 현장결제 제외)', () => {
   const body = { originKey: 'SEL_METRO', destKey: 'CHUNCHEON', hours: 9, vehicle: 'staria' };
 
   it('플래그 OFF → null (현행 권역 고정가 유지, prod 기본)', () => {
     expect(resolveTourCheckoutKrw(SPEC, body, false)).toBeNull();
   });
 
-  it('플래그 ON + matrix 목적지(춘천 85km) → 기본9h + 거리추가 = 50.5만', () => {
-    // SEL_METRO→CHUNCHEON 85km → calcTourKrw(85,9,staria)=405,000+100,000
-    expect(resolveTourCheckoutKrw(SPEC, body, true)).toBe(505_000);
+  it('플래그 ON + 춘천 85km → 영수증 총액 527,725 (오버타임 현장결제 제외)', () => {
+    // 기본 405,000 + 거리 100,000 = 505,000 → 쿠폰5% −25,250 → VAT10% +47,975
+    expect(resolveTourCheckoutKrw(SPEC, body, true)).toBe(527_725);
   });
 
-  it('플래그 ON + 시내/matrix 미존재 → 거리추가 0(기본 9h만)', () => {
-    expect(resolveTourCheckoutKrw(SPEC, { ...body, destKey: 'VOID_CITY' }, true)).toBe(405_000);
+  it('플래그 ON + 시내/matrix 미존재 → 거리추가 0 총액 423,225', () => {
+    expect(resolveTourCheckoutKrw(SPEC, { ...body, destKey: 'VOID_CITY' }, true)).toBe(423_225);
   });
 
   it('client km/priceKRW 변조 무시 (backend matrix km만)', () => {
