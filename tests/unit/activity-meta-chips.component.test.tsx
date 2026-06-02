@@ -30,8 +30,8 @@ describe('ActivityMetaChips — 트레킹/러닝 SAFETY 노출', () => {
     expect(screen.getByText(/12km/)).toBeInTheDocument();
     expect(screen.getByText(/850m/)).toBeInTheDocument();
     // SAFETY: 부적합 + 위험 + 장비 노출 (외국인 사고 예방)
-    expect(screen.getByText(/Wheelchair User/)).toBeInTheDocument();
-    expect(screen.getByText(/Steep Rock Climb/)).toBeInTheDocument();
+    expect(screen.getByText(/Wheelchair users/)).toBeInTheDocument();
+    expect(screen.getByText(/Steep rock climb/)).toBeInTheDocument();
     expect(screen.getByText(/Trekking Pole/)).toBeInTheDocument();
   });
 
@@ -54,5 +54,28 @@ describe('ActivityMetaChips — 트레킹/러닝 SAFETY 노출', () => {
   it('unsuitable_for 없으면 경고 배너 미표시 (조건부 SAFETY)', () => {
     render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'easy' }} language="en" />);
     expect(screen.queryByText(/Not suitable for/)).toBeNull();
+  });
+
+  it('컷오프 토큰 → 전용 시간 배너 (한라산 12:30, 깨진 영어 아님)', () => {
+    render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'expert', hazards: ['12_30_pm_cutoff_at_jindallae'] }} language="en" />);
+    expect(screen.getByText(/Time cutoff/)).toBeInTheDocument();
+    expect(screen.getByText(/12:30 PM/)).toBeInTheDocument();
+    expect(screen.getByText(/Jindallae/)).toBeInTheDocument();
+  });
+
+  it('위험 토큰 4-lang — ko 고산 날씨 급변', () => {
+    render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'expert', hazards: ['high_altitude_weather_change'] }} language="ko" />);
+    expect(screen.getByText(/고산 날씨 급변/)).toBeInTheDocument();
+  });
+
+  it('미등록 위험 토큰 → humanize 폴백 (라벨 없다고 위험 숨김 금지)', () => {
+    render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'hard', hazards: ['totally_new_token'] }} language="en" />);
+    expect(screen.getByText(/Totally New Token/)).toBeInTheDocument();
+  });
+
+  it('부적합 4-lang — ko 휠체어 이용자 + 고산증 민감자 (절대 누락 금지)', () => {
+    render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'expert', unsuitable_for: ['wheelchair_user', 'altitude_sensitive'] }} language="ko" />);
+    expect(screen.getByText(/휠체어 이용자/)).toBeInTheDocument();
+    expect(screen.getByText(/고산증 민감자/)).toBeInTheDocument();
   });
 });
