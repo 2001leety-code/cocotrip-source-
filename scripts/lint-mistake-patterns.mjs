@@ -2402,6 +2402,9 @@ function R_plan4d214e83_blockModeQuality(ctx) {
     if (/^\s+resolvedName = bs\.address \|\| 'Local restaurant'/m.test(src)) {
       violations.push('다도시 expand 행정주소 직할당(bs.address) 잔존 — 식당명에 행정주소 노출 회귀 (P281 다도시 미적용)');
     }
+    if (/matchFoodPlaceholder/.test(src) && /r\.type \|\| r\.category/.test(src) && !/r\.cuisine/.test(src)) {
+      violations.push('matchFoodPlaceholder type 필터에 r.cuisine 폴백 누락 — food_index.json 은 cuisine 필드("Dessert"/"Cafe") → verified_cafe 전부 placeholder (plan 279c7ce0)');
+    }
   }
   if (violations.length > 0) {
     fail(
@@ -7167,6 +7170,19 @@ function runSelfTest() {
       label: 'R_plan4d214e83 (false positive 차단): pastMidnight + excludeNames + P281 정상 — silent',
       base: { 'api/_ai_core/blockMode.js': '// stub\n' },
       head: { 'api/_ai_core/blockMode.js': 'export function matchFoodPlaceholder(a, b, c, d, excludeNames) {}\nconst pastMidnight = lm < dsm;\nconst r = `[추천 ${t}]`;\n' },
+      expectRule: 'R_plan4d214e83_blockModeQuality',
+      expectClean: true,
+    },
+    {
+      label: 'R_plan4d214e83 cuisine (true positive): matchFoodPlaceholder type 필터 r.cuisine 폴백 누락',
+      base: { 'api/_ai_core/blockMode.js': '// stub\n' },
+      head: { 'api/_ai_core/blockMode.js': 'export function matchFoodPlaceholder(a, b, c, d, excludeNames) {}\nconst pastMidnight = 1;\nconst rType = String(r.type || r.category || "").toLowerCase();\nconst x = `[추천 ${t}]`;\n' },
+      expectRule: 'R_plan4d214e83_blockModeQuality',
+    },
+    {
+      label: 'R_plan4d214e83 cuisine (false positive 차단): r.cuisine 폴백 있음 — silent',
+      base: { 'api/_ai_core/blockMode.js': '// stub\n' },
+      head: { 'api/_ai_core/blockMode.js': 'export function matchFoodPlaceholder(a, b, c, d, excludeNames) {}\nconst pastMidnight = 1;\nconst rType = String(r.type || r.category || r.cuisine || "").toLowerCase();\nconst x = `[추천 ${t}]`;\n' },
       expectRule: 'R_plan4d214e83_blockModeQuality',
       expectClean: true,
     },
