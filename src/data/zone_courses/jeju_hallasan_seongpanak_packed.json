@@ -27,10 +27,10 @@
       "entry_fee_krw": 0,
       "reservation_required": true,
       "tips_i18n": {
-        "ko": "탐방예약제 사전 예약 필수 (홈페이지 reservation.knps.or.kr). 화장실 + 물 보충.",
-        "en": "Advance reservation required (reservation.knps.or.kr). Last restroom + water refill.",
-        "ja": "事前予約必須 (reservation.knps.or.kr)。最終トイレ + 給水。",
-        "zh": "需提前预约 (reservation.knps.or.kr)。最后洗手间 + 补水点。"
+        "ko": "탐방예약제 사전 예약 필수 (홈페이지 visithalla.jeju.go.kr). 화장실 + 물 보충.",
+        "en": "Advance reservation required (visithalla.jeju.go.kr). Last restroom + water refill.",
+        "ja": "事前予約必須 (visithalla.jeju.go.kr)。最終トイレ + 給水。",
+        "zh": "需提前预约 (visithalla.jeju.go.kr)。最后洗手间 + 补水点。"
       },
       "lat": 33.3845019,
       "lng": 126.6194078,
