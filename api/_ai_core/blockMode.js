@@ -459,7 +459,9 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     if (!r || typeof r !== 'object') return false;
     const rCity = String(r.city || '').toLowerCase();
     if (cityLc && rCity && !rCity.includes(cityLc) && !cityLc.includes(rCity)) return false;
-    const rType = String(r.type || r.category || '').toLowerCase();
+    // food_index.json 은 cuisine 필드 사용 (type/category 없음) — verified_cafe 매칭 누락 fix
+    // (2026-06-02, plan 279c7ce0: 서울 cafe/dessert 356개 있는데 r.type 부재로 전부 탈락했음).
+    const rType = String(r.type || r.category || r.cuisine || '').toLowerCase();
     if (isCafe) {
       if (!cafeTypes.some((t) => rType.includes(t))) return false;
     }
