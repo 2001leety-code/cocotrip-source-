@@ -43,21 +43,18 @@ import { cityNameToZoneKey } from './zoneHelpers';
 // 2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 lazy. 한 번에 하나만 마운트되므로
 // 다음 step 으로 이동 시점에 fetch — 초기 planner chunk 에서 step 코드 분리.
 // type-only re-export 는 컴파일 시 사라져 main chunk 영향 없음.
-const WizardStep0Reservation = lazy(() =>
-  import('./WizardStep0Reservation').then(m => ({ default: m.WizardStep0Reservation })),
-);
-const WizardStep0Destination = lazy(() =>
-  import('./WizardStep0Destination').then(m => ({ default: m.WizardStep0Destination })),
-);
-const WizardStep1Food = lazy(() =>
-  import('./WizardStep1Food').then(m => ({ default: m.WizardStep1Food })),
-);
-const WizardStep2Details = lazy(() =>
-  import('./WizardStep2Details').then(m => ({ default: m.WizardStep2Details })),
-);
-const WizardStep3Review = lazy(() =>
-  import('./WizardStep3Review').then(m => ({ default: m.WizardStep3Review })),
-);
+// step import 함수 추출 — lazy() + preload(idle 마운트) 둘 다 재사용. (2026-06-02 A3: 깜빡임 완성)
+const importStep0Reservation = () => import('./WizardStep0Reservation');
+const importStep0Destination = () => import('./WizardStep0Destination');
+const importStep1Food = () => import('./WizardStep1Food');
+const importStep2Details = () => import('./WizardStep2Details');
+const importStep3Review = () => import('./WizardStep3Review');
+const STEP_IMPORTS = [importStep0Reservation, importStep0Destination, importStep1Food, importStep2Details, importStep3Review];
+const WizardStep0Reservation = lazy(() => importStep0Reservation().then(m => ({ default: m.WizardStep0Reservation })));
+const WizardStep0Destination = lazy(() => importStep0Destination().then(m => ({ default: m.WizardStep0Destination })));
+const WizardStep1Food = lazy(() => importStep1Food().then(m => ({ default: m.WizardStep1Food })));
+const WizardStep2Details = lazy(() => importStep2Details().then(m => ({ default: m.WizardStep2Details })));
+const WizardStep3Review = lazy(() => importStep3Review().then(m => ({ default: m.WizardStep3Review })));
 import type { ReservationStatus } from './WizardStep0Reservation';
 import type { TourPace } from './WizardStep2Details';
 
@@ -128,6 +125,19 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const { t, language } = useLanguage();
   const p = t.planner as unknown as WizardDict;
   const [step, setStep] = useState(0);
+
+  // step 청크 preload — 마운트 후 idle 시 모든 step import 선로드 → 전환/이어서하기 점프 시
+  // Suspense fallback flash(깜빡임) 제거 (2026-06-02 A3 후보2, #768 mode="wait" 후속).
+  useEffect(() => {
+    const preloadAll = () => { STEP_IMPORTS.forEach((fn) => { fn().catch(() => {}); }); };
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (id: number) => void };
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(preloadAll);
+      return () => { w.cancelIdleCallback?.(id); };
+    }
+    const t = setTimeout(preloadAll, 1500);
+    return () => clearTimeout(t);
+  }, []);
   const { user } = useAuth();
   const [errorMsg, setErrorMsg] = useState('');
 
