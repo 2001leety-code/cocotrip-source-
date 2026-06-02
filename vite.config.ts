@@ -65,6 +65,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
+        // 2026-06-02: eager 엔트리 청크만 entry-* 로 리네임. size-limit "Main bundle" glob(dist/assets/index-*.js)
+        //   이 lazy index-* 청크(PlanDetailPage/index.tsx · PlannerPage/index.tsx · WizardForm/index.tsx — 전부
+        //   folder/index 컨벤션이라 index-[hash].js 로 명명)까지 합산해 first-paint 를 ~2배 과대측정하던 버그 해소.
+        //   엔트리(=HTML 참조 청크)만 entryFileNames 대상이고 import() async 청크는 chunkFileNames(Vite 기본 유지)
+        //   라, 이 한 줄로 entry-* 만 분리됨. .size-limit.json "Main bundle" path 도 entry-* 로 변경.
+        entryFileNames: 'assets/entry-[hash].js',
         // 모바일 첫 로드 속도 최적화 — vendor를 작은 단위로 쪼개 병렬 다운로드.
         // 라우트별 lazy chunk와 함께 캐싱 효율 향상 (firebase 업데이트 시 react는 캐시 hit).
         // 2026-05-06: i18n locale chunk 파일명 명시화 (i18n-ko / i18n-ja / i18n-zh) —
