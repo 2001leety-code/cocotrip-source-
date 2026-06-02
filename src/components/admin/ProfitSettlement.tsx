@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Receipt, Edit3, Check, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, setDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+// 손익 산수(매출/비용/순이익/마진/환율)는 순수 함수로 추출 — byte-identical (test/admin-financial-coverage).
+import { type CostRow, EMPTY_COST, enrichBooking, summarizeSettlement } from '@/lib/profitSettlement';
 
 interface BookingRow {
   bookingId: string;
@@ -10,20 +12,6 @@ interface BookingRow {
   customer: string;
   tourPriceUSD: number;
 }
-
-interface CostRow {
-  overtimeKRW: number;
-  driverFee: number;
-  fuelCost: number;
-  tollCost: number;
-  parkingCost: number;
-  mealCost: number;
-  otherCost: number;
-}
-
-const EMPTY_COST: CostRow = {
-  overtimeKRW: 0, driverFee: 0, fuelCost: 0, tollCost: 0, parkingCost: 0, mealCost: 0, otherCost: 0,
-};
 
 function formatYM(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -124,19 +112,11 @@ export default function ProfitSettlement() {
   const enriched = useMemo(() => {
     return bookings.map((b) => {
       const c = costs.get(b.bookingId) || EMPTY_COST;
-      const revenueKRW = Math.round(b.tourPriceUSD * exchangeRate);
-      const totalRevenue = revenueKRW + c.overtimeKRW;
-      const totalCost = c.driverFee + c.fuelCost + c.tollCost + c.parkingCost + c.mealCost + c.otherCost;
-      const netProfit = totalRevenue - totalCost;
-      const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
-      return { ...b, ...c, revenueKRW, totalRevenue, totalCost, netProfit, margin };
+      return { ...b, ...c, ...enrichBooking(b.tourPriceUSD, c, exchangeRate) };
     });
   }, [bookings, costs, exchangeRate]);
 
-  const totalRev = enriched.reduce((s, e) => s + e.totalRevenue, 0);
-  const totalCost = enriched.reduce((s, e) => s + e.totalCost, 0);
-  const totalProfit = totalRev - totalCost;
-  const avgMargin = totalRev > 0 ? Math.round((totalProfit / totalRev) * 100) : 0;
+  const { totalRev, totalCost, totalProfit, avgMargin } = summarizeSettlement(enriched);
 
   function startEdit(bookingId: string) {
     setEditDraft(costs.get(bookingId) || { ...EMPTY_COST });
