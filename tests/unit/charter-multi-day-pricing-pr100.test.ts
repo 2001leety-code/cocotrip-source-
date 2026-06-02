@@ -58,8 +58,10 @@ describe('P100 — Charter multi-day pricing', () => {
 
   it('회귀 방지: 기존 (durationDays 누락) 시그너처 부재', () => {
     // 단순 `resolveKrwAmount(productType, passengers)` 만 있는 호출은 회귀.
-    // (시그너처 정의 라인은 위 it 으로 cover, 여기서는 handler 호출 라인의 인자 3개 확인)
-    const handlerCallMatch = src.match(/let\s+krwAmount\s*=\s*resolveKrwAmount\(([^)]+)\)/);
+    // handler 호출 라인의 인자 3개 확인. 2026-06-02 charter_multiday 삼항 분기 추가 →
+    // 호출이 `= resolveKrwAmount(...)` (단순) 또는 `: resolveKrwAmount(...)` (삼항 else) 형태.
+    // [=:] 로 둘 다 매치하되 `function resolveKrwAmount(` 정의 라인은 제외(앞에 =/: 없음).
+    const handlerCallMatch = src.match(/[=:]\s*resolveKrwAmount\(([^)]+)\)/);
     expect(handlerCallMatch).not.toBeNull();
     const args = (handlerCallMatch![1] || '').split(',').map(s => s.trim());
     expect(args.length).toBe(3); // productType, passengers, durationDays
