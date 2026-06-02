@@ -373,43 +373,27 @@ function regionToCharterProduct(region) {
 
 // ── PR-C (2026-06-01): 공항픽업 가격 SSOT lookup (FEATURE_CHARTER_HERO_PRICE) ────
 // arrival region (normalizeRegionKey 영문 lowercase: 'seoul'/'busan'/'jeju'...) →
-// pricing_spec.json airport_transfer_prices zone key.
-//
-// 🔴 가격 오노출 = 신뢰 치명. 매핑은 "지리적으로 확실한 region 만" 등록 — 애매하면
-// 누락(=null) 시켜 가격 자체를 숨긴다. 임의 추정/근사 금지. zone 키는 SSOT 의
-// airport_transfer_prices 키와 1:1 (seoul-central / busan / jeju-metro / ...).
-//
-// Seoul 세부 zone(중심부 vs 강남)은 region='seoul' 단일값에서 구분 불가 → 보수적으로
-// 'seoul-central'(도심 기본, 기존 charter seoul_city 기본 패턴과 동일) 사용.
-// gangnam 전용 zone(seoul-gangnam) / gimpo-* combo zone 은 region 만으론 판별 불가라 미사용.
-// 매핑 없는 region(gwangju/daejeon/ulsan/yeosu/andong/...)은 null → HERO 가격 숨김.
-const REGION_TO_AIRPORT_TRANSFER_ZONE = {
-    seoul: 'seoul-central',
-    incheon: 'seoul-central',   // 인천 도착·서울권 이동 = 서울 도심 기준 (기존 charter 매핑과 동일 정책)
-    suwon: 'suwon-yongin',
-    yongin: 'suwon-yongin',
-    chuncheon: 'chuncheon',
-    gangneung: 'gangneung-sokcho',
-    sokcho: 'gangneung-sokcho',
-    busan: 'busan',
-    jeju: 'jeju-metro',
-};
-
+// 지역→zone 매핑은 SSOT(pricing_spec.json airport_transfer_regions)로 이동 (2026-06-02 이원화 제거).
+// 기존 RouteAgent 하드코딩 REGION_TO_AIRPORT_TRANSFER_ZONE 을 pricing_spec.json 으로 옮겨 운영자가
+// 1곳(pricing_spec)만 수정 → backend/frontend 자동 동기화. zone 키는 SSOT airport_transfer_prices
+// 키와 1:1. 매핑 없는 region(gwangju/daejeon/ulsan/...)은 null → HERO 가격 숨김(오노출 방지).
 /**
- * arrival region → 공항픽업 편도 요금(KRW). SSOT(airport_transfer_prices) 단일 출처.
- * 매핑 없거나 spec 부재 시 null (HERO 가격 숨김 — 오노출 방지).
+ * arrival region → 공항픽업 편도 요금(KRW). SSOT(pricing_spec.json) 단일 출처.
+ * airport_transfer_regions[region] → airport_transfer_prices[zoneKey].priceKRW.
+ * 매핑/spec 부재 시 null (HERO 가격 숨김 — 오노출 방지).
  * @param {string} region normalizeRegionKey 영문 lowercase 권장 ('seoul'/'busan')
  * @returns {number|null} priceKRW 또는 null
  */
 export function airportTransferPriceKRW(region) {
     if (!region) return null;
     const low = String(region).toLowerCase();
-    // area 키('seoul_city'/'seoul_suburb' 등 CITY_CENTER_COORDS 세분 키)는 base city('seoul')로
-    //   환원 — 공항픽업 가격은 도시 단위 SSOT. (정확 키 우선, 없으면 '_' 앞 base 도시로 폴백.)
-    const zoneKey = REGION_TO_AIRPORT_TRANSFER_ZONE[low]
-        || (low.includes('_') ? REGION_TO_AIRPORT_TRANSFER_ZONE[low.split('_')[0]] : undefined);
-    if (!zoneKey) return null;
     const spec = loadPricingSpec();
+    const regions = spec?.airport_transfer_regions || {};
+    // area 키('seoul_city'/'seoul_suburb' 등 세분 키)는 base city('seoul')로 환원 — 공항픽업
+    //   가격은 도시 단위 SSOT. (정확 키 우선, 없으면 '_' 앞 base 도시로 폴백.)
+    const zoneKey = regions[low]
+        || (low.includes('_') ? regions[low.split('_')[0]] : undefined);
+    if (!zoneKey) return null;
     const price = spec?.airport_transfer_prices?.[zoneKey]?.priceKRW;
     return (typeof price === 'number' && price > 0) ? price : null;
 }

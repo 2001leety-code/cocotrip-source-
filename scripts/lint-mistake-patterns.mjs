@@ -2447,6 +2447,37 @@ function R_activityMetaDisplay(ctx) {
 }
 
 /**
+ * R_airportPickupSSOT (2026-06-02): 공항픽업 가격 region→zone 매핑은 SSOT(pricing_spec.json
+ * airport_transfer_regions) 단일 출처. RouteAgent.airportTransferPriceKRW 는 SSOT 조회 의무
+ * (하드코딩 REGION_TO_AIRPORT_TRANSFER_ZONE 이원화 금지 — 운영자 2곳 수정 = 가격 불일치 위험).
+ * 회귀 슬롯: tests/unit/airport-pickup-ssot.test.ts.
+ */
+function R_airportPickupSSOT(ctx) {
+  const violations = [];
+  if (isModified('api/_ai_core/agents/RouteAgent.js', ctx.changed)) {
+    let src = ''; try { src = readFileSync('api/_ai_core/agents/RouteAgent.js', 'utf8'); } catch {}
+    if (/function airportTransferPriceKRW/.test(src)) {
+      if (/const REGION_TO_AIRPORT_TRANSFER_ZONE\s*=/.test(src)) {
+        violations.push('RouteAgent REGION_TO_AIRPORT_TRANSFER_ZONE 하드코딩 잔존 — pricing_spec.json airport_transfer_regions SSOT 로 이동해야 (가격 매핑 이원화)');
+      }
+      if (!/airport_transfer_regions/.test(src)) {
+        violations.push('airportTransferPriceKRW 가 airport_transfer_regions SSOT 미조회 — region→zone 매핑 이원화');
+      }
+    }
+  }
+  if (isModified('src/data/pricing_spec.json', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/data/pricing_spec.json', 'utf8'); } catch {}
+    if (/airport_transfer_prices/.test(src) && !/airport_transfer_regions/.test(src)) {
+      violations.push('pricing_spec airport_transfer_regions 섹션 누락 — RouteAgent SSOT 조회 깨짐(HERO 가격 숨김)');
+    }
+  }
+  if (violations.length > 0) {
+    fail('R_airportPickupSSOT', violations.join(' | '), 'region→zone 매핑은 pricing_spec.json airport_transfer_regions SSOT, RouteAgent.airportTransferPriceKRW 가 조회. tests/unit/airport-pickup-ssot.test.ts.');
+  }
+  return null;
+}
+
+/**
  * P327_arexExpressHero — 메모리 P327 (2026-05-31, AREX 직통 HERO).
  * ICN→서울 중심부 + arex_express 추천 시 ODsay path[0](일반열차→홍대입구→2호선 79분 indirect)
  * 대신 직통 HERO 를 _buildArexExpressHero 로 합성. 회귀 위험: (1) rec.key 게이트 빠지면
@@ -2529,6 +2560,7 @@ const RULES = [
   ['R_PRC2_charterCtaModules', R_PRC2_charterCtaModules],
   ['R_plan4d214e83_blockModeQuality', R_plan4d214e83_blockModeQuality],
   ['R_activityMetaDisplay', R_activityMetaDisplay],
+  ['R_airportPickupSSOT', R_airportPickupSSOT],
   ['P327_arexExpressHero', P327_arexExpressHero],
   ['P330_transitProviderSwitch', P330_transitProviderSwitch],
   ['R_P321_blockModeRegionNormalize', R_P321_blockModeRegionNormalize],
@@ -7228,6 +7260,19 @@ function runSelfTest() {
       base: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': '// stub\n' },
       head: { 'src/pages/PlanDetailPage/components/ActivityMetaChips.tsx': 'export function ActivityMetaChips() { const u = meta.unsuitable_for; return <div data-testid="activity-meta">{u}</div>; }\n' },
       expectRule: 'R_activityMetaDisplay',
+      expectClean: true,
+    },
+    {
+      label: 'R_airportPickupSSOT (true positive): RouteAgent 하드코딩 REGION_TO_AIRPORT_TRANSFER_ZONE 잔존',
+      base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
+      head: { 'api/_ai_core/agents/RouteAgent.js': 'const REGION_TO_AIRPORT_TRANSFER_ZONE = { seoul: "seoul-central" };\nexport function airportTransferPriceKRW(region) { return REGION_TO_AIRPORT_TRANSFER_ZONE[region]; }\n' },
+      expectRule: 'R_airportPickupSSOT',
+    },
+    {
+      label: 'R_airportPickupSSOT (false positive 차단): airport_transfer_regions SSOT 조회 — silent',
+      base: { 'api/_ai_core/agents/RouteAgent.js': '// stub\n' },
+      head: { 'api/_ai_core/agents/RouteAgent.js': 'export function airportTransferPriceKRW(region) { const spec = loadPricingSpec(); const regions = spec?.airport_transfer_regions || {}; return regions[region]; }\n' },
+      expectRule: 'R_airportPickupSSOT',
       expectClean: true,
     },
     {
