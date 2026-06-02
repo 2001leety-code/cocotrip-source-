@@ -18,4 +18,10 @@ describe('WizardForm AnimatePresence — mode="wait" (깜빡임 방지)', () => 
     // mode="wait" 가 빠진 채 initial 만 있는 AnimatePresence 가 없어야 함
     expect(src).not.toMatch(/<AnimatePresence\s+initial=\{false\}>/);
   });
+
+  it('step preload — STEP_IMPORTS + idle preload 존재 (깜빡임 완성, A3 후보2)', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/WizardForm/index.tsx'), 'utf-8');
+    expect(src).toMatch(/STEP_IMPORTS/);
+    expect(src).toMatch(/requestIdleCallback/);
+  });
 });
