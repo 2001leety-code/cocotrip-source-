@@ -4,6 +4,7 @@
 //   - package/matrix priceKRW 견적: 단일 패키지 행 + 톨비 안내 + 배차 안내 박스
 //   - 항상 하단에 "예약 후 출발 3일 전에 전담 기사가 배차됩니다" 박스
 import type { QuoteBreakdown, WizardState } from './types';
+import { TourReceipt } from './TourReceipt';
 import { getWizardI18n } from './wizard-i18n';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 
@@ -51,6 +52,14 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const r = quote.receipt;
   const useFormulaRows = !!r && r.baseFeeKRW != null && r.distanceFeeKRW != null && !r.isPackage;
   const km = quote.distanceKm ?? 0;
+
+  // 투어 시간제 영수증 (2026-06-02, VITE_FEATURE_TOUR_HOURLY): day_tour + custom 목적지(km>0) +
+  // staria/sprinter. 플래그 OFF 기본 = 기존 견적 유지(prod 무영향). 권역(묶음, km 없음)은 미적용(별도 정책).
+  const tourHourlyOn = import.meta.env.VITE_FEATURE_TOUR_HOURLY === 'true';
+  const tourVehicle = state?.vehicle;
+  if (tourHourlyOn && quote.mode === 'day_tour' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
+    return <TourReceipt km={km} vehicle={tourVehicle} language={language} />;
+  }
 
   return (
     <div className="space-y-5">
