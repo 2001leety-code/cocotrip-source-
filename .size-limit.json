@@ -40,5 +40,11 @@
     "path": "dist/assets/html2pdf-*.js",
     "limit": "300 KB",
     "gzip": true
+  },
+  {
+    "name": "write-excel-file (lazy — 어드민 회계 엑셀 내보내기 전용, 2026-06-02). 버튼 클릭 시에만 로드, entry 무영향. 실측 ~9 KB gzip → 30 KB 가드.",
+    "path": "dist/assets/write-excel-file-*.js",
+    "limit": "30 KB",
+    "gzip": true
   }
 ]

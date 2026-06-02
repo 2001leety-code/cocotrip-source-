@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Receipt, Edit3, Check, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Receipt, Edit3, Check, Loader2, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, setDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +12,11 @@ interface BookingRow {
   date: string;
   customer: string;
   tourPriceUSD: number;
+  // 회계 엑셀(거래일 환율 기준)용 — capture 시점 저장값 (PR #425). 구버전 booking 은 미보유 가능.
+  capturedExchangeRate?: number;
+  amountKRW?: number;
+  status?: string;
+  paymentMethod?: string;
 }
 
 function formatYM(d: Date): string {
@@ -29,6 +34,7 @@ export default function ProfitSettlement() {
   // 환율 기본값 = 실시간 (아래 useEffect 가 /api/exchange-rate 로 채움). fetch 전/실패 시 DEFAULT_KRW_PER_USD(정책 floor 1450).
   const [exchangeRate, setExchangeRate] = useState(DEFAULT_KRW_PER_USD);
   const [rateSource, setRateSource] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<CostRow>(EMPTY_COST);
   const [saving, setSaving] = useState(false);
@@ -86,6 +92,11 @@ export default function ProfitSettlement() {
             date: (data.tourDate || '').slice(0, 10),
             customer: data.payerName || data.userEmail || '-',
             tourPriceUSD: parseFloat(String(data.amountUSD || 0)),
+            // 회계 엑셀용 거래일 환율/원화 (capturePaypalOrder.js 저장값, PR #425). 없으면 export 가 현재 환율로 추정.
+            capturedExchangeRate: Number(data.capturedExchangeRate) || undefined,
+            amountKRW: Number(data.amountKRW) || undefined,
+            status: data.adminStatus || data.status || '',
+            paymentMethod: data.paymentMethod || 'PayPal',
           });
         });
         list.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -215,6 +226,43 @@ export default function ProfitSettlement() {
             </span>
           )}
         </div>
+
+        {/* 회계자료 엑셀 내보내기 (법인 세무사 제출용) — 거래일 환율 기준, 세무 판단은 잠정+세무사확인 */}
+        <button
+          onClick={async () => {
+            if (bookings.length === 0 || exporting) return;
+            setExporting(true);
+            try {
+              const { exportAccountingXlsx } = await import('./accountingExport');
+              await exportAccountingXlsx(
+                bookings.map((b) => ({
+                  bookingId: b.bookingId,
+                  productType: b.tourName,
+                  tourDate: b.date,
+                  customer: b.customer,
+                  amountUSD: b.tourPriceUSD,
+                  amountKRW: b.amountKRW,
+                  capturedExchangeRate: b.capturedExchangeRate,
+                  status: b.status,
+                  paymentMethod: b.paymentMethod,
+                })),
+                costs,
+                { period: month, fallbackRate: exchangeRate },
+              );
+            } catch (err) {
+              console.error('[ProfitSettlement] excel export failed:', err);
+              alert('엑셀 생성 실패: ' + (err instanceof Error ? err.message : 'unknown'));
+            } finally {
+              setExporting(false);
+            }
+          }}
+          disabled={exporting || bookings.length === 0}
+          title="법인 세무사 제출용 회계자료 (매출장/비용장/월별손익/환율) — 거래일 환율 기준"
+          className="flex items-center gap-2 bg-emerald-600/90 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl px-3 py-2.5 transition-colors"
+        >
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+          {exporting ? '생성 중…' : '회계 엑셀'}
+        </button>
       </div>
 
       {/* KPI Cards */}

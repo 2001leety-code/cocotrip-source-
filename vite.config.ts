@@ -89,6 +89,9 @@ export default defineConfig({
           if (id.includes('node_modules/framer-motion')) return 'vendor-motion';
           if (id.includes('node_modules/html2canvas')) return 'vendor-pdf';
           if (id.includes('node_modules/sonner')) return 'vendor-sonner';
+          // 2026-06-02: 어드민 회계 엑셀 내보내기 전용 (write-excel-file). 동적 import 라 lazy 유지되며,
+          //   안정적 청크명(write-excel-file-*)으로 size-limit 가드 부착. 기본 명명은 'browser-*'(범용)이라 변경.
+          if (id.includes('node_modules/write-excel-file')) return 'write-excel-file';
           return undefined;
         },
       },
