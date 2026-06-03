@@ -60,6 +60,81 @@ export function isActivityBlocksEnabled() {
 }
 
 /**
+ * (2026-06-03) "선택한 취미 = 전용 day 1개 보장" feature flag.
+ * 운영자 신고/실측(plan c7192a27): HangangBike(따릉이) 스타일을 선택해도 plan 에 안 나옴.
+ *   따릉이 블록은 block_type='city_day' 라 서울 city_day ~15개와 동등 경쟁 → Gemini 선택기가 탈락시킴
+ *   (블록↔스타일 결정론적 매핑 부재, 순수 LLM theme 추론에만 의존).
+ * OFF (미설정/'false') → Gemini 선택 그대로 (현행 byte-identical 절대 보장).
+ * ON  ('true')        → Gemini 선택 후 day_selections 후처리로 선택 취미 블록을 안전 day 에 강제 pin.
+ */
+export function isPinnedActivityDayEnabled() {
+  const raw = String(process.env.FEATURE_PINNED_ACTIVITY_DAY || '').trim().toLowerCase().replace(/[\r\n]/g, '');
+  return raw === 'true';
+}
+
+/**
+ * 위저드 취미 스타일 키 → 후보 블록 매칭 predicate (결정론적 pin 용).
+ * zone_courses 블록에 구조화된 style 필드가 없어(best_for 컨벤션 오염) id/block_type/theme 로 매칭.
+ * 향후 개선: 블록에 activity_styles:[] 필드 추가 후 그걸로 대체하면 더 견고 (재시드 필요).
+ */
+const PINNED_ACTIVITY_STYLES = {
+  HangangBike: (b) => /hangang.?bike|따릉이|ttareungi/i.test(`${b && b.id || ''} ${b && b.zone || ''} ${b && b.theme || ''}`),
+  Trekking:    (b) => (b && b.block_type) === 'trekking',
+  Hallasan:    (b) => (b && b.block_type) === 'trekking' && /halla/i.test(`${b && b.id || ''} ${b && b.theme || ''}`),
+  HangangRun:  (b) => (b && b.block_type) === 'running_route' || /hangang.?run/i.test(`${b && b.id || ''} ${b && b.theme || ''}`),
+  Running:     (b) => (b && b.block_type) === 'running_route',
+};
+
+/**
+ * "선택한 취미 = 전용 day 1개 보장" — Gemini 블록 선택 후처리. selections.day_selections in-place 보정.
+ *
+ * flag OFF / 취미 미선택 / day < 3 / hard dietary / 매칭 블록 부재 → no-op (현행 byte-identical).
+ * 안전 day(도착=첫날, 출국=마지막날 제외)의 그 도시 후보에서 취미 블록을 찾아 교체 → expand 의 city 정합
+ * 가드(cityValidBlockIds)를 자연 통과 (그 도시 후보 풀에서 골랐으므로). 취미 1종당 최대 1 day.
+ *
+ * @param {object} selections — { day_selections: [{day, block_id, city?, tweak_notes}] } (in-place mutate)
+ * @param {(cityKey: string) => Array<object>} getBlocksForCity — 도시별 후보 블록 (단도시는 city 무시 단일 pool)
+ * @param {object} userInput — { styles, dietPrefs }
+ * @returns {string[]} pin 된 스타일 목록 (로깅/테스트용)
+ */
+export function pinActivityDays(selections, getBlocksForCity, userInput) {
+  const pinnedStyles = [];
+  if (!isPinnedActivityDayEnabled()) return pinnedStyles;
+  const ds = selections && selections.day_selections;
+  if (!Array.isArray(ds) || ds.length < 3) return pinnedStyles; // 도착=출국 사이 중간 day 없으면 skip (cap)
+  const styles = Array.isArray(userInput && userInput.styles) ? userInput.styles : [];
+  const wanted = styles.filter((s) => typeof PINNED_ACTIVITY_STYLES[s] === 'function');
+  if (wanted.length === 0) return pinnedStyles;
+  // 식이 가드: 취미/활동 블록은 dietary_options 빈약 → hard dietary(halal/vegan/veg) 면 식당 매칭 throw 위험 → skip.
+  const hardDiet = (Array.isArray(userInput && userInput.dietPrefs) ? userInput.dietPrefs : [])
+    .some((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
+  if (hardDiet) return pinnedStyles;
+
+  const n = ds.length;
+  const candsFor = (sel) => getBlocksForCity(String((sel && sel.city) || '').toLowerCase()) || [];
+  const blockOf = (sel) => candsFor(sel).find((b) => b && b.id === sel.block_id) || null;
+  const pinnedIdx = new Set();
+
+  for (const style of wanted) {
+    const match = PINNED_ACTIVITY_STYLES[style];
+    // 이미 그 취미 블록이 plan 에 있으면 skip (중복 방지)
+    if (ds.some((sel) => { const b = blockOf(sel); return b && match(b); })) continue;
+    // 안전 day (첫날·마지막날 제외, 미pin) 중 그 도시 후보에 매칭 블록 있는 첫 day 교체
+    for (let i = 1; i < n - 1; i++) {
+      if (pinnedIdx.has(i)) continue;
+      const hobby = candsFor(ds[i]).find((b) => b && match(b));
+      if (hobby) {
+        ds[i] = { ...ds[i], block_id: hobby.id, tweak_notes: `취미 전용 day 확정 배정 (${style})` };
+        pinnedIdx.add(i);
+        pinnedStyles.push(style);
+        break;
+      }
+    }
+  }
+  return pinnedStyles;
+}
+
+/**
  * PR-E: flag ON 시 block_mode 가 허용하는 block_type 집합 (city_day + 활동 블록).
  * flag OFF 시 city_day 단독 (현재 동작 byte-identical).
  *
@@ -880,6 +955,8 @@ export async function runBlockModePipeline({ adminDb, city, userInput, geminiCli
   }
 
   const selections = await selectBlocksWithGemini(blocks, userInput, geminiClient);
+  // (2026-06-03) 선택한 취미 = 전용 day 보장 (flag OFF 기본 = no-op). 단도시는 city 무시 단일 pool.
+  pinActivityDays(selections, () => blocks, userInput);
   const itinerary = expandBlocksToItinerary(selections, blocks, userInput);
   // P278 (2026-05-29): block_mode 의 _cache_metadata 측정 (P266 chain layer 1 호환).
   // handlerCore:400 가 itinerary?._cache_metadata 를 explicit pass-through → P266 chain layer 2-5
@@ -1442,6 +1519,8 @@ export async function runBlockModeMultiCity({ adminDb, cities, userInput, gemini
   const cityPerDay = buildCityPerDay(cities, durationDays, userInput.perDayCity || null);
 
   const selections = await selectBlocksMultiCity(cityBlocksList, userInput, geminiClient, cityPerDay);
+  // (2026-06-03) 선택한 취미 = 전용 day 보장 (flag OFF 기본 = no-op). 도시별 후보에서 매칭 → city 정합 가드 통과.
+  pinActivityDays(selections, (cityKey) => (cityBlocksList.find((c) => String(c.city).toLowerCase() === cityKey)?.blocks || []), userInput);
   const itinerary = expandBlocksToItineraryMultiCity(selections, cityBlocksList, userInput);
   // P278 (2026-05-29): multi-city block_mode cache_metadata attach (P266 chain layer 1 호환).
   if (selections.cacheMetadata) {
