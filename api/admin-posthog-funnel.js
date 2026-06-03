@@ -24,7 +24,7 @@
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
-import { resolvePosthogQueryHost, formatPosthogError } from './_shared/posthog-host.js';
+import { resolvePosthogQueryHost, formatPosthogError, escapeHogQLString } from './_shared/posthog-host.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -43,11 +43,24 @@ function json(req, res, status, body) {
 const HOST = resolvePosthogQueryHost(process.env.POSTHOG_HOST);
 
 const FUNNEL_STEPS = [
-  { id: 'pageview', label: '플래너 페이지 진입', event: '$pageview', filter: { properties: [{ key: '$pathname', value: '/planner', operator: 'icontains' }] } },
+  { id: 'pageview', label: '플래너 페이지 진입', event: '$pageview', pathContains: '/planner' },
   { id: 'plan_generated', label: 'AI 일정 생성 완료', event: 'plan_generated' },
   { id: 'payment_started', label: '예약/결제창 진입', event: 'payment_started' },
   { id: 'payment_completed', label: '결제 완료', event: 'payment_completed' },
 ];
+
+// 2026-06-03: PostHog 신규 계정 legacy insight endpoint 차단 → 신 Query API(HogQL) 전환.
+async function posthogQuery({ apiKey, projectId, sql }) {
+  const r = await fetch(`${HOST}/api/projects/${projectId}/query/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ query: { kind: 'HogQLQuery', query: sql } }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(formatPosthogError('query', r.status, t)); }
+  const data = await r.json();
+  return Array.isArray(data?.results) ? data.results : [];
+}
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(200, buildAdminCors(req, { methods: CORS_METHODS })); return res.end(); }
@@ -65,33 +78,16 @@ export default async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const days = parseInt(url.searchParams.get('days') || '30', 10);
 
-  // PostHog Funnel insight 생성 후 결과 조회
-  // 간편화를 위해 events 카운트만 별도 query 4번 (PostHog 동시 요청 OK)
+  // 단계별 고유 사용자 수(uniq person)를 HogQL 로 4번 조회 (간편 퍼널 — 원본 동작 보존).
   try {
-    const dateFrom = `-${days}d`;
+    const d = Math.max(1, Math.min(366, Number(days) || 30));
     const counts = await Promise.all(
       FUNNEL_STEPS.map(async (step) => {
-        const body = {
-          insight: 'TRENDS',
-          events: [{ id: step.event, type: 'events', math: 'dau', ...(step.filter || {}) }],
-          date_from: dateFrom,
-          interval: 'day',
-        };
-        const r = await fetch(`${HOST}/api/projects/${projectId}/insights/trend/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(body),
-        });
-        if (!r.ok) {
-          const text = await r.text().catch(() => '');
-          throw new Error(formatPosthogError(`funnel:${step.id}`, r.status, text));
-        }
-        const data = await r.json();
-        // result[0].count = 합계
-        const total = data.result?.[0]?.count || 0;
+        let sql = `SELECT uniq(person_id) AS c FROM events WHERE event = '${escapeHogQLString(step.event)}'`;
+        if (step.pathContains) sql += ` AND properties.$pathname ILIKE '%${escapeHogQLString(step.pathContains)}%'`;
+        sql += ` AND timestamp >= now() - INTERVAL ${d} DAY`;
+        const rows = await posthogQuery({ apiKey, projectId, sql });
+        const total = Number(rows?.[0]?.[0]) || 0;
         return { id: step.id, label: step.label, count: total };
       }),
     );
