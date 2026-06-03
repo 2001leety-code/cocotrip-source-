@@ -220,6 +220,18 @@ export async function fetchAvailableBlocks(adminDb, city, opts = {}) {
     // PR-E (2026-06-01): 활동 블록(trekking/running_route) flag — OFF 시 city_day 단독 (byte-identical).
     const activityEnabled = isActivityBlocksEnabled();
 
+    // [P-DEBUG-ENV TEMP 2026-06-04] 활동 플래그 런타임 주입 진단 — 확인 후 제거 예정.
+    try {
+      console.log('[P-DEBUG-ENV]', JSON.stringify({
+        FEATURE_ACTIVITY_BLOCKS: process.env.FEATURE_ACTIVITY_BLOCKS ?? null,
+        FEATURE_PINNED_ACTIVITY_DAY: process.env.FEATURE_PINNED_ACTIVITY_DAY ?? null,
+        PLANNER_BLOCK_MODE: process.env.PLANNER_BLOCK_MODE ?? null,
+        activityEnabled,
+        flagKeys: Object.keys(process.env).filter((k) => /^(FEATURE_|VITE_FEATURE|PLANNER_)/.test(k)).sort(),
+        VERCEL_ENV: process.env.VERCEL_ENV ?? null,
+      }));
+    } catch (e) { console.log('[P-DEBUG-ENV] err', e.message); }
+
     let blocks = [];
     snap.forEach((doc) => {
       const data = doc.data();
