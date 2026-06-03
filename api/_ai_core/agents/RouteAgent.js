@@ -64,6 +64,14 @@ export const AREX_EXPRESS_FARE_KRW = 9500;
 // ODsay route 유지 — 먼 거리는 직통+last-mile 이 직선 경로보다 유리하지 않을 수 있어 보수적.
 export const AREX_EXPRESS_MAX_KM_FROM_SEOUL_STN = 6;
 
+// P790 (2026-06-03): geocoding 좌표 parseFloat NaN 가드. parseFloat 실패(비수치 응답)면 NaN 인데
+// NaN 은 `== null` 가드를 통과해 haversine 까지 전파(거리 NaN → 비교 항상 false → cache 지리검증/
+// 거리 로직 silent 오작동). 유한수 아니면 null 반환 → 기존 null fallback 체인이 정상 처리.
+export function finiteCoord(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 // P155 (2026-05-22): Station 이름 정규화 매핑 — Gemini 출력 변형 (괄호 suffix /
 // 공백 / 동/노포 위치명) 처리. lookupStationCoord 이 정규화 후 매칭.
 const STATION_ALIAS = {
@@ -685,10 +693,15 @@ export class RouteAgent extends BaseAgent {
                     timeout: 5000,
                 });
                 if (geoRes.status === 200 && geoRes.data.addresses?.length > 0) {
-                    hotelLng = parseFloat(geoRes.data.addresses[0].x);
-                    hotelLat = parseFloat(geoRes.data.addresses[0].y);
-                    anchorSource = 'naver_geocode';
-                    anchorLabel = hotelAddress;
+                    // P790: parseFloat NaN 가드 — 좌표 유한할 때만 anchor 확정 (NaN 이면 zone fallback 으로).
+                    const hx = finiteCoord(geoRes.data.addresses[0].x);
+                    const hy = finiteCoord(geoRes.data.addresses[0].y);
+                    if (hx != null && hy != null) {
+                        hotelLng = hx;
+                        hotelLat = hy;
+                        anchorSource = 'naver_geocode';
+                        anchorLabel = hotelAddress;
+                    }
                 }
             } catch (e) {
                 console.warn(`  - Hotel geocoding failed: ${e.message}`);
@@ -1101,9 +1114,14 @@ export class RouteAgent extends BaseAgent {
                                 timeout: 5000,
                             });
                             if (res.status === 200 && res.data.addresses && res.data.addresses.length > 0) {
-                                lng = parseFloat(res.data.addresses[0].x);
-                                lat = parseFloat(res.data.addresses[0].y);
-                                break;
+                                // P790: 좌표 유한할 때만 채택 + break (NaN 이면 다음 fallback query 시도).
+                                const px = finiteCoord(res.data.addresses[0].x);
+                                const py = finiteCoord(res.data.addresses[0].y);
+                                if (px != null && py != null) {
+                                    lng = px;
+                                    lat = py;
+                                    break;
+                                }
                             }
                         } catch (e) {
                             console.error(`  - [${name}] geocoding fallback failed for "${query}": ${e.message}`);
@@ -2275,7 +2293,10 @@ export class RouteAgent extends BaseAgent {
                     timeout: 5000,
                 });
                 if (res.status === 200 && res.data.addresses?.length > 0) {
-                    return { lat: parseFloat(res.data.addresses[0].y), lng: parseFloat(res.data.addresses[0].x) };
+                    // P790: NaN 좌표면 null 반환 (함수 실패=null 계약 일관) — NaN {lat,lng} 전파 차단.
+                    const gy = finiteCoord(res.data.addresses[0].y);
+                    const gx = finiteCoord(res.data.addresses[0].x);
+                    if (gy != null && gx != null) return { lat: gy, lng: gx };
                 }
             } catch (e) {
                 console.warn(`  - fallback geocode "${q}" failed: ${e.message}`);

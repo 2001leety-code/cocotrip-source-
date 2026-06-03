@@ -62,7 +62,8 @@ describe('P138 — RouteAgent Phase 1 (Naver Geocoding) 병렬화', () => {
     // sequential fallback 의도 유지 (Naver address → name+region → display_name).
     expect(ROUTE_AGENT).toMatch(/Promise\.all\(places\.map\(async \(place\)[\s\S]+?for \(const query of queries\)/);
     // break 키워드 (성공 시 fallback loop 탈출) 도 안에 존재.
-    expect(ROUTE_AGENT).toMatch(/lat = parseFloat\(res\.data\.addresses\[0\]\.y\);[\s\S]{0,100}break;/);
+    // P790 (2026-06-03): parseFloat → finiteCoord NaN 가드 refactor 후 앵커 갱신 (break-on-success 의도 동일).
+    expect(ROUTE_AGENT).toMatch(/finiteCoord\(res\.data\.addresses\[0\]\.y\);[\s\S]{0,200}break;/);
   });
 
   it('F. place mutation (lat/lng/_geocoded/naverMapUrl) 은 Promise.all 콜백 안에서', () => {
