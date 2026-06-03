@@ -53,3 +53,37 @@ export function formatPosthogError(label, status, detail) {
   }
   return `PostHog ${label} ${status}: ${snippet}`;
 }
+
+// ── HogQL 쿼리 빌더 (2026-06-03) ─────────────────────────────────────────────
+// PostHog 신규 계정은 legacy insight endpoint("/insights/trend/") 차단:
+//   "Legacy insight endpoints are not available for this user."
+// → 신 Query API(POST /api/projects/:id/query/ { query:{kind:'HogQLQuery', query:<SQL>} }) 로 전환.
+// SQL 빌더는 순수 함수(firebase 무관) — 단위 테스트 가능. env adminEmail 만 보간되므로 escape 필수.
+
+/** HogQL 문자열 리터럴 이스케이프 — 작은따옴표 차단 (SQL injection 방지). */
+export function escapeHogQLString(s) {
+  return String(s == null ? '' : s).replace(/'/g, "''");
+}
+
+/** 운영자 본인 제외 절. null(익명 외부 방문자)은 유지(coalesce → ''). excludeEmail 없으면 빈 문자열. */
+function emailExcludeClause(excludeEmail) {
+  if (!excludeEmail) return '';
+  return ` AND coalesce(person.properties.email, '') != '${escapeHogQLString(excludeEmail)}'`;
+}
+
+/** 방문자(uniq person) + 페이지뷰 윈도우 SQL. days 1~366 clamp. */
+export function buildVisitorSQL(days, excludeEmail) {
+  const d = Math.max(1, Math.min(366, Number(days) || 1));
+  return `SELECT uniq(person_id) AS visitors, count() AS pageviews FROM events `
+    + `WHERE event = '$pageview' AND timestamp >= now() - INTERVAL ${d} DAY`
+    + emailExcludeClause(excludeEmail);
+}
+
+/** TOP 페이지($pathname) SQL. */
+export function buildTopPagesSQL(days, excludeEmail) {
+  const d = Math.max(1, Math.min(366, Number(days) || 7));
+  return `SELECT properties.$pathname AS path, count() AS views FROM events `
+    + `WHERE event = '$pageview' AND timestamp >= now() - INTERVAL ${d} DAY`
+    + emailExcludeClause(excludeEmail)
+    + ` GROUP BY path ORDER BY views DESC LIMIT 5`;
+}

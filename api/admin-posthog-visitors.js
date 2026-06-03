@@ -35,7 +35,7 @@
  */
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { buildAdminCors, buildAdminJsonCors } from './_shared/cors.js';
-import { resolvePosthogQueryHost, formatPosthogError } from './_shared/posthog-host.js';
+import { resolvePosthogQueryHost, formatPosthogError, buildVisitorSQL, buildTopPagesSQL } from './_shared/posthog-host.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -60,65 +60,35 @@ function adminEmailToExclude() {
   return list.length > 0 ? list[0].toLowerCase() : null;
 }
 
-async function posthogTrend({ apiKey, projectId, dateFrom, dateTo, excludeEmail }) {
-  const body = {
-    insight: 'TRENDS',
-    events: [{ id: '$pageview', type: 'events', math: 'dau' }],
-    date_from: dateFrom,
-    ...(dateTo ? { date_to: dateTo } : {}),
-    interval: 'day',
-    ...(excludeEmail ? {
-      properties: [
-        { key: 'email', value: excludeEmail, operator: 'is_not', type: 'person' },
-      ],
-    } : {}),
-  };
-  const r = await fetch(`${HOST}/api/projects/${projectId}/insights/trend/`, {
+// A1-2 후속 (2026-06-03): PostHog 신규 계정은 legacy insight endpoint 차단
+//   ("Legacy insight endpoints are not available for this user") → 신 Query API(HogQL) 로 전환.
+//   SQL 빌더(buildVisitorSQL/buildTopPagesSQL)는 _shared/posthog-host.js (순수 모듈, 테스트 가능).
+
+/** PostHog 신 Query API (HogQL). 응답 data.results = 행 배열(각 행 = 컬럼값 배열). */
+async function posthogQuery({ apiKey, projectId, sql }) {
+  const r = await fetch(`${HOST}/api/projects/${projectId}/query/`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10000),
+    body: JSON.stringify({ query: { kind: 'HogQLQuery', query: sql } }),
+    signal: AbortSignal.timeout(15000),
   });
   if (!r.ok) {
     const detail = await r.text().catch(() => '');
-    throw new Error(formatPosthogError('trend', r.status, detail));
+    throw new Error(formatPosthogError('query', r.status, detail));
   }
   const data = await r.json();
-  const series = data?.result?.[0]?.data || [];
-  const total = series.reduce((s, n) => s + (Number(n) || 0), 0);
-  return { uniqueVisitors: total, pageviews: total, perDay: series };
+  return Array.isArray(data?.results) ? data.results : [];
 }
 
-async function posthogTopPages({ apiKey, projectId, dateFrom, excludeEmail }) {
-  const body = {
-    insight: 'TRENDS',
-    events: [{ id: '$pageview', type: 'events', math: 'total' }],
-    breakdown: '$pathname',
-    breakdown_type: 'event',
-    date_from: dateFrom,
-    interval: 'day',
-    ...(excludeEmail ? {
-      properties: [
-        { key: 'email', value: excludeEmail, operator: 'is_not', type: 'person' },
-      ],
-    } : {}),
-  };
-  const r = await fetch(`${HOST}/api/projects/${projectId}/insights/trend/`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!r.ok) {
-    const detail = await r.text().catch(() => '');
-    throw new Error(formatPosthogError('breakdown', r.status, detail));
-  }
-  const data = await r.json();
-  const results = data?.result || [];
-  return results
-    .map((r) => ({ path: r.breakdown_value || '(unknown)', pageviews: r.aggregated_value || 0 }))
-    .sort((a, b) => b.pageviews - a.pageviews)
-    .slice(0, 5);
+async function posthogTrend({ apiKey, projectId, days, excludeEmail }) {
+  const rows = await posthogQuery({ apiKey, projectId, sql: buildVisitorSQL(days, excludeEmail) });
+  const row = rows[0] || [0, 0];
+  return { uniqueVisitors: Number(row[0]) || 0, pageviews: Number(row[1]) || 0 };
+}
+
+async function posthogTopPages({ apiKey, projectId, days, excludeEmail }) {
+  const rows = await posthogQuery({ apiKey, projectId, sql: buildTopPagesSQL(days, excludeEmail) });
+  return rows.map((row) => ({ path: row[0] || '(unknown)', pageviews: Number(row[1]) || 0 }));
 }
 
 export default async function handler(req, res) {
@@ -138,10 +108,10 @@ export default async function handler(req, res) {
 
   try {
     const [today, week, month, topPages] = await Promise.all([
-      posthogTrend({ apiKey, projectId, dateFrom: '-1d', excludeEmail }),
-      posthogTrend({ apiKey, projectId, dateFrom: '-7d', excludeEmail }),
-      posthogTrend({ apiKey, projectId, dateFrom: '-30d', excludeEmail }),
-      posthogTopPages({ apiKey, projectId, dateFrom: '-7d', excludeEmail }),
+      posthogTrend({ apiKey, projectId, days: 1, excludeEmail }),
+      posthogTrend({ apiKey, projectId, days: 7, excludeEmail }),
+      posthogTrend({ apiKey, projectId, days: 30, excludeEmail }),
+      posthogTopPages({ apiKey, projectId, days: 7, excludeEmail }),
     ]);
 
     return json(req, res, 200, _ok({

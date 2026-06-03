@@ -137,8 +137,19 @@ describe('A1-2 source-level guard — visitors.js + funnel.js 가 helper 사용'
   });
 
   it('visitors.js — formatPosthogError 호출 (운영자 actionable error)', () => {
-    expect(visitorsSrc).toMatch(/formatPosthogError\(\s*['"]trend['"]/);
-    expect(visitorsSrc).toMatch(/formatPosthogError\(\s*['"]breakdown['"]/);
+    // 2026-06-03: legacy insights/trend → 신 Query API(HogQL) 전환 → label 'query'.
+    expect(visitorsSrc).toMatch(/formatPosthogError\(\s*['"]query['"]/);
+  });
+
+  it('visitors.js — 신 Query API(HogQL) 사용 + legacy insights/trend 미사용 (회귀 차단)', () => {
+    expect(visitorsSrc).toMatch(/\/query\//);
+    expect(visitorsSrc).toMatch(/HogQLQuery/);
+    expect(visitorsSrc).not.toMatch(/insights\/trend/);
+  });
+
+  it('funnel.js — 신 Query API(HogQL) 사용 + legacy insights/trend 미사용', () => {
+    expect(funnelSrc).toMatch(/HogQLQuery/);
+    expect(funnelSrc).not.toMatch(/insights\/trend/);
   });
 
   it('funnel.js — formatPosthogError 호출', () => {
