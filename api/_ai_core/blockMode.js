@@ -7,13 +7,14 @@
  *
  * 진입 조건:
  *   shouldUseBlockMode(city, durationDays, dietPrefs)
- *     - Firestore zone_courses where city == ? AND block_type == 'city_day'
+ *     - Firestore zone_courses where city == ? AND status == 'published'
+ *       (block_type 은 FEATURE_ACTIVITY_BLOCKS 플래그로 in-code 필터: OFF=city_day 만 / ON=+trekking/running_route)
  *     - count >= 3 이면 block-mode 가능. 부족하면 legacy path 로 폴백.
  *     - dietPrefs 가 비어있거나 (none) 또는 block 의 dietary_options 가 매칭 가능한
  *       경우만 (예: vegan plan + vegan block 없음 = block-mode 불가, legacy 폴백).
  *
  * Pipeline:
- *   1. fetchAvailableBlocks(city) — Firestore 에서 published city_day blocks 가져오기
+ *   1. fetchAvailableBlocks(city) — Firestore published blocks (FEATURE_ACTIVITY_BLOCKS OFF=city_day 만 / ON=+활동 블록)
  *   2. selectBlocksWithGemini(blocks, userInput, geminiClient) — Gemini 빠른 모델 호출.
  *      block ID 배열 (day 별) + tweak instructions 반환.
  *   3. expandBlocksToItinerary(blockSelections, blocks, userInput) — block stops 를
