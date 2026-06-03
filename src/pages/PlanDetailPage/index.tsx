@@ -41,6 +41,7 @@ import { PreTripSlide } from './components/PreTripSlide';
 import { SectionTabs } from './components/SectionTabs';
 import { IntroSlide } from './components/IntroSlide';
 import { OutroSlide } from './components/OutroSlide';
+import { ActivityGuideSlide } from './components/ActivityGuideSlide';
 import { AdSlide } from './components/AdSlide';
 import { QualityWarningsPanel } from './components/QualityWarningsPanel';
 import { UserPlanNoticesPanel } from './components/UserPlanNoticesPanel';
@@ -397,6 +398,8 @@ export default function PlanDetailPage() {
       }
       case 'ad':
         return <AdSlide key={`ad-${idx}`} adType={slide.adType || 'hotel'} plan={plan} />;
+      case 'activityGuide':
+        return <ActivityGuideSlide key={`activityGuide-${idx}`} plan={plan} language={language} />;
       case 'outro':
         return (
           <OutroSlide

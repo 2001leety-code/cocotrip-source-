@@ -12,7 +12,7 @@
 // Earlier P2 (2026-04-24, same day) version interleaved mid-trip ads
 // between Day slides — superseded.
 
-export type SlideType = 'preTrip' | 'intro' | 'day' | 'ad' | 'outro';
+export type SlideType = 'preTrip' | 'intro' | 'day' | 'ad' | 'activityGuide' | 'outro';
 export type AdCategory = 'flight' | 'hotel' | 'charter' | 'esim' | 'carRental' | 'airportPickup' | 'train';
 
 export interface Slide {
@@ -22,6 +22,7 @@ export interface Slide {
 }
 
 import type { PlanDocument } from '../types';
+import { hasActivityGuide } from '@/lib/activityGuides';
 
 // Whether an ad should run at all for this plan's context.
 export function adApplies(category: AdCategory, plan: PlanDocument): boolean {
@@ -73,6 +74,13 @@ export function buildSlides(plan: PlanDocument): Slide[] {
   // Day slides — one tab per actual day object (dynamic, never static count)
   for (let i = 0; i < days.length; i++) {
     slides.push({ type: 'day', dayIndex: i });
+  }
+
+  // 2026-06-03: 활동 가이드 탭 (따릉이/러닝/트레킹 how-to) — Wrap-up 직전.
+  // flag OFF 기본(VITE_FEATURE_ACTIVITY_GUIDE) → 미노출 = 현행 byte-identical. 활동 day 있을 때만.
+  const activityGuideOn = String(import.meta.env.VITE_FEATURE_ACTIVITY_GUIDE || '').trim() === 'true';
+  if (activityGuideOn && hasActivityGuide(plan)) {
+    slides.push({ type: 'activityGuide' });
   }
 
   // Outro (share, PDF, revision card, Trip Extras)
