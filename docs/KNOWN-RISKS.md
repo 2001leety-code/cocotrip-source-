@@ -185,18 +185,18 @@ P311(2026-05-30)로 capture 멱등성(`used_paypal_orders`)과 plan 발급 멱�
 ### ✅ 이중청구(double-charge) 없음 — 확인됨
 capture 는 `used_paypal_orders` Firestore 트랜잭션 락(status pending→captured + 30s stale, `capturePaypalOrder.js:118-139,238`) + **PayPal 서버측이 완료(COMPLETED) 주문 재-capture 거부** → 이중청구 불가. (외부 딥서치의 "PayPal-Request-Id 없어서 이중청구 CRITICAL" 은 **과장** — PayPal 자체 enforcement + 우리 락으로 막힘.)
 
-### ⚠️ 잔여 robustness gap (financial 인접 — 운영자 결정 후 수정, 출시 blocker 아님)
-영향 = **돈 이중청구 아님**, plan **중복 발급**(Gemini 비용 + 중복 plan doc + 사용자 혼란).
+### robustness gap (영향 = **돈 이중청구 아님**, plan **중복발급** = Gemini 비용 + 중복 doc)
 
-1. **fire-and-forget 마킹** — `planPersister.js:1414` 가 `plan_issued_orders.set()` 을 **await 안 함**(`.catch` 만). serverless 응답 후 instance freeze(P222/P319 교훈) 시 마킹 미완 가능 → 재시도가 `paymentGate.js:225` 검사 통과 → plan 재발급. 주석(L1411 "마킹 실패해도 paymentGate 차단")의 전제는 마킹 성공 시에만 성립.
-   - 제안(운영자 승인 후): `await` 또는 plan set 과 동일 batch/transaction.
-2. **check-then-set race** — `paymentGate.js:225` 읽기 ↔ `planPersister.js:1414` 쓰기 사이(plan 생성 ~수십초) 동시 같은 orderId ai-planner-full 요청 둘 다 통과 가능 → 중복 plan.
-   - 제안: `plan_issued_orders` Firestore 트랜잭션 원자적 check+set, 또는 plan 생성 전 선마킹.
-3. **PayPal-Request-Id 미적용**(defense-in-depth) — `capturePaypalOrder.js:207`. 현 락+PayPal enforcement 로 이중청구는 막히나, 네트워크 timeout 재시도 robustness 위해 추가 권장(헤더 1줄 + ALREADY_CAPTURED graceful 처리).
+1. ✅ **RESOLVED (PR #791, 2026-06-03)** — fire-and-forget 마킹 → **await** 로 변경. `planPersister.js` `markPlanIssued()` 헬퍼 추출 + `await` (serverless freeze 전 persist 보장). 회귀 가드 `tests/unit/plan-issued-mark-p790.test.ts`.
+2. ⏳ **OPEN (운영자 트레이드오프 결정 대기)** — check-then-set race: `paymentGate.js:225` 읽기 ↔ `planPersister` 쓰기 사이(plan 생성 ~수십초) 동시 같은 orderId 요청 둘 다 통과 가능 → 중복 plan.
+   - 미해결 이유: 해결책(plan 생성 전 pre-claim + stale-TTL)은 **실패한 gen 의 즉시-재시도를 차단**하는 트레이드오프(race 안전 ↔ 재시도 즉시성). 페이먼트 retry 의미 변경 = 운영자 결정 사안.
+   - 제안 패턴: capturePaypalOrder 의 used_paypal_orders 락(pending→captured + 30s stale + 실패 시 delete) 미러링.
+3. ✅ **RESOLVED (PR #791)** — `PayPal-Request-Id` 헤더 추가(`capturePaypalOrder.js`, orderID 기반 키). defense-in-depth. 🔴 운영자 실 PayPal e2e 로 검증 권장.
 
 ### 향후 개선 (운영자 우선순위)
-- 상용 결제 전 동시성 부하 테스트(같은 orderId 동시 ai-planner-full 주입).
-- 1·2 는 plan 중복(비용)만 영향 → 출시 blocker 아님. 실 결제량 늘면 우선순위 상향.
+- 상용 결제 전 동시성 부하 테스트(같은 orderId 동시 ai-planner-full 주입) — 특히 #2 race 검증.
+- #2 는 plan 중복(비용)만 영향 → 출시 blocker 아님. 실 결제량 늘면 트레이드오프 결정 + 우선순위 상향.
+- ①③ 머지됨 — 실 PayPal e2e(운영자) 로 capture 헤더 동작 최종 확인.
 
 ---
 
