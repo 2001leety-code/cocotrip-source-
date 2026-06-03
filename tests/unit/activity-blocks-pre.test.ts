@@ -25,6 +25,7 @@ import {
   expandBlocksToItinerary,
   buildBlockSelectionSystemPrompt,
   isActivityBlocksEnabled,
+  isLimitedMobility,
 } from '../../api/_ai_core/blockMode.js';
 
 // ── fixtures ──────────────────────────────────────────────────────────────
@@ -278,6 +279,20 @@ describe('[PR-E SAFETY] mobility 거동 제약 → wheelchair-unsuitable 활동 
     expect(blocks.map((b) => b.id).sort()).toEqual(['CITY', 'TREK']);
   });
 
+  // 2026-06-04 trap 회귀가드: 과거 화이트리스트가 'ok'/'none' 뿐 → 'normal' 등 benign 값이 limited 오판
+  //   → 트레킹/러닝 silent 제외(활동 day 0). isLimitedMobility 화이트리스트 확장으로 fix.
+  it('flag ON + mobility=normal/good/빈값 (benign) → 활동 블록 유지', async () => {
+    process.env[ENV_KEY] = 'true';
+    const db = makeMockDb([
+      { id: 'CITY', data: makeCityDayBlock('CITY', 'jeju') },
+      { id: 'TREK', data: makeTrekkingBlock('TREK', 'jeju') },
+    ]);
+    for (const mob of ['normal', 'good', '', undefined]) {
+      const blocks = await fetchAvailableBlocks(db, 'jeju', { mobility: mob });
+      expect(blocks.map((b) => b.id).sort(), `mobility='${mob}'`).toEqual(['CITY', 'TREK']);
+    }
+  });
+
   it('flag OFF + mobility=wheelchair → mobility 필터 무효과 (활동 블록 자체가 없음, byte-identical)', async () => {
     delete process.env[ENV_KEY];
     const db = makeMockDb([
@@ -308,5 +323,19 @@ describe('[PR-E] block selection prompt — OFF byte-identical, ON 시 활동 �
     expect(p).toContain('departure day');
     // 기존 RULES 7 + OUTPUT LANGUAGE 도 유지 (append-only)
     expect(p).toContain('## OUTPUT LANGUAGE');
+  });
+});
+
+// ── isLimitedMobility 화이트리스트 (2026-06-04 'normal' trap fix) ─────────────
+describe('isLimitedMobility — 정상 거동 화이트리스트', () => {
+  it('benign/정상 값 → limited=false (활동 블록 유지)', () => {
+    for (const m of ['ok', 'none', 'normal', 'good', 'full', 'fine', 'OK', 'Normal', ' normal ', '', null, undefined]) {
+      expect(isLimitedMobility(m as any), `mobility='${m}'`).toBe(false);
+    }
+  });
+  it('실제 거동 제약 값 → limited=true (보수적 제외)', () => {
+    for (const m of ['wheelchair', 'wheelchair_user', 'severe_mobility_limitation', 'limited', 'mobility_impaired']) {
+      expect(isLimitedMobility(m), `mobility='${m}'`).toBe(true);
+    }
   });
 });
