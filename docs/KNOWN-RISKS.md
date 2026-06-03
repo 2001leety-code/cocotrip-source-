@@ -200,5 +200,21 @@ capture 는 `used_paypal_orders` Firestore 트랜잭션 락(status pending→cap
 
 ---
 
+## 10. 러닝 zone_course 블록 block_type 불일치 (2026-06-03 자율 감사 발견)
+
+### 현상
+`src/data/zone_courses/*_running.json` **16개 중 2개만 `block_type=running_route`, 14개는 `city_day`**(오타이핑). 정상=jeju_olle_7_5km_running, seoul_hangang_mangwon_5km_running. 따릉이(3/3 city_day=의도된 정상), 트레킹(trekking=정상).
+
+### 영향
+- 14개 러닝 블록이 **running 활동으로 미감지** → #786 활동가이드 러닝 how-to 안 뜸 + #784 취미day 핀 안 됨 + buildActivityMeta 러닝 SAFETY 메타(난이도/위험) 누락.
+- FEATURE_ACTIVITY_BLOCKS OFF(현 prod)는 city_day 만 사용 → 14개 러닝이 **일반 관광 플랜에 day 로 leak**(안 시킨 "5km 러닝"이 sightseeing day 로 노출 — 특히 블록 적은 소도시에서 빈도↑).
+
+### 🔴 fix = 운영자 결정 (트레이드오프, 단독 수정 보류)
+14개 → `running_route` retype 시: ✅ 러닝 정상 감지 + 일반 플랜 leak 제거. ⚠️ **소도시 eligibility 위험** — city_day 풀에서 빠짐 → suncheon(총 2블록), yeosu/pohang/gwangju/incheon/jeonju/sokcho(총 3블록)가 너무 얇아져 block_mode ineligible → legacy 폴백(느림·P321 품질저하).
+- 권장 경로: (a) 대도시(seoul 22 / busan 13 / jeju 9 / daegu 5 / gangneung 7 / gyeongju 5)는 retype 안전 → 먼저 적용 가능. (b) 소도시는 **real city_day 블록 추가 시드 후** retype.
+- 선행 확인: block_mode min-block eligibility 임계값(shouldUseBlockMode).
+
+---
+
 ## 변경 시 이 문서도 갱신
 새 risk/compromise 추가하거나 기존 사항 해소되면 이 문서 갱신 필수. CLAUDE.md 와 함께 코드베이스 메타 룰의 source of truth.
