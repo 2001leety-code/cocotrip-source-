@@ -177,5 +177,28 @@ destructive 전환 (특히 → cancelled) 에 confirm 추가.
 
 ---
 
+## 9. 결제 plan 발급 멱등성 robustness (P311 후속, 2026-06-03 자율 감사)
+
+### 배경
+P311(2026-05-30)로 capture 멱등성(`used_paypal_orders`)과 plan 발급 멱등성(`plan_issued_orders`)을 분리 → 출시 blocker 해소. 회귀 테스트 `tests/unit/payment-plan-idempotency-b3.test.ts` 존재. **실 PayPal e2e 0건**(전 트래픽 admin-bypass).
+
+### ✅ 이중청구(double-charge) 없음 — 확인됨
+capture 는 `used_paypal_orders` Firestore 트랜잭션 락(status pending→captured + 30s stale, `capturePaypalOrder.js:118-139,238`) + **PayPal 서버측이 완료(COMPLETED) 주문 재-capture 거부** → 이중청구 불가. (외부 딥서치의 "PayPal-Request-Id 없어서 이중청구 CRITICAL" 은 **과장** — PayPal 자체 enforcement + 우리 락으로 막힘.)
+
+### ⚠️ 잔여 robustness gap (financial 인접 — 운영자 결정 후 수정, 출시 blocker 아님)
+영향 = **돈 이중청구 아님**, plan **중복 발급**(Gemini 비용 + 중복 plan doc + 사용자 혼란).
+
+1. **fire-and-forget 마킹** — `planPersister.js:1414` 가 `plan_issued_orders.set()` 을 **await 안 함**(`.catch` 만). serverless 응답 후 instance freeze(P222/P319 교훈) 시 마킹 미완 가능 → 재시도가 `paymentGate.js:225` 검사 통과 → plan 재발급. 주석(L1411 "마킹 실패해도 paymentGate 차단")의 전제는 마킹 성공 시에만 성립.
+   - 제안(운영자 승인 후): `await` 또는 plan set 과 동일 batch/transaction.
+2. **check-then-set race** — `paymentGate.js:225` 읽기 ↔ `planPersister.js:1414` 쓰기 사이(plan 생성 ~수십초) 동시 같은 orderId ai-planner-full 요청 둘 다 통과 가능 → 중복 plan.
+   - 제안: `plan_issued_orders` Firestore 트랜잭션 원자적 check+set, 또는 plan 생성 전 선마킹.
+3. **PayPal-Request-Id 미적용**(defense-in-depth) — `capturePaypalOrder.js:207`. 현 락+PayPal enforcement 로 이중청구는 막히나, 네트워크 timeout 재시도 robustness 위해 추가 권장(헤더 1줄 + ALREADY_CAPTURED graceful 처리).
+
+### 향후 개선 (운영자 우선순위)
+- 상용 결제 전 동시성 부하 테스트(같은 orderId 동시 ai-planner-full 주입).
+- 1·2 는 plan 중복(비용)만 영향 → 출시 blocker 아님. 실 결제량 늘면 우선순위 상향.
+
+---
+
 ## 변경 시 이 문서도 갱신
 새 risk/compromise 추가하거나 기존 사항 해소되면 이 문서 갱신 필수. CLAUDE.md 와 함께 코드베이스 메타 룰의 source of truth.
