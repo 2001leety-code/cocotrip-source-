@@ -48,6 +48,10 @@ export function SectionTabs({ slides, current, onJump }: SectionTabsProps) {
           key = `day-${s.dayIndex}`;
           label = `${sw.tabDay || 'Day'} ${(typeof s.dayIndex === 'number' ? s.dayIndex : 0) + 1}`;
           break;
+        case 'activityGuide':
+          key = 'activityGuide';
+          label = (sw as Record<string, string | undefined>).tabActivityGuide || 'Activity Guide';
+          break;
         case 'outro':
           key = 'outro';
           label = sw.tabOutro || 'Wrap-up';
