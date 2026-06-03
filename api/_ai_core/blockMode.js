@@ -1049,11 +1049,17 @@ export function shouldUseBlockModeMultiCity(cityBlocksList, dietPrefs = []) {
  * @param {object|null} perDayCity — { 1: 'seoul', 2: 'seoul', 3: 'busan', ... } 명시 매핑
  * @returns {string[]} 길이 = durationDays, 각 day 의 city (1-indexed array[day-1])
  */
-function buildCityPerDay(cities, durationDays, perDayCity = null) {
+export function buildCityPerDay(cities, durationDays, perDayCity = null) {
   if (perDayCity && typeof perDayCity === 'object') {
     const result = [];
     for (let d = 1; d <= durationDays; d++) {
-      const explicit = String(perDayCity[d] || perDayCity[String(d)] || '').toLowerCase();
+      // P321 standing obligation: city 키 흐르는 모든 경로 normalizeRegionKey 필수.
+      // perDayCity 값도 한/영/일/중 → 영문 cityKey 로 정규화 (기존 .toLowerCase() 만으론
+      // 한글 '서울' 이 Firestore/cityBlocksList 영문 키 'seoul' 과 mismatch → daySchedule
+      // available_blocks 빈 배열 + day_selections.city 한글 → 취미 pin 실패).
+      // 현재 perDayCity 는 미wiring(dead input)=fallback 만 사용 → byte-identical.
+      // 향후 per-day 도시 위저드 wiring 시 P321 재발 예방용 선제 하드닝. split('_')[0] = L1567 패턴 동일.
+      const explicit = normalizeRegionKey(String(perDayCity[d] || perDayCity[String(d)] || '').split('_')[0]);
       result.push(explicit || cities[0]);
     }
     return result;
