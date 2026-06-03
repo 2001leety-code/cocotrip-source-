@@ -298,3 +298,55 @@ export const ACTIVITY_GUIDES: Record<ActivityKind, Record<Language, GuideContent
     },
   },
 };
+
+const GUIDE_HEADING: Record<Language, string> = {
+  ko: '활동 가이드',
+  en: 'Activity Guide',
+  ja: 'アクティビティガイド',
+  zh: '活动指南',
+};
+
+/**
+ * PDF 렌더용 활동 가이드 HTML (2026-06-03) — 화면 ActivityGuideSlide 와 **동일 콘텐츠 SSOT**(ACTIVITY_GUIDES).
+ *
+ * 오프라인 여행 참조용: 사용자가 다운로드한 PDF 로 현장에서 따라 하므로, 따릉이 외국카드 3D Secure
+ * SAFETY 경고가 화면뿐 아니라 PDF 에도 포함돼야 함(#786 화면 전용 → PDF 누락 갭 봉합).
+ *
+ * 게이트: VITE_FEATURE_ACTIVITY_GUIDE 는 호출자(pdfGenerator)가 검사. 활동 없으면 '' (additive, byte-identical).
+ * 이모지 미사용(이모지 금지 + PDF emoji 폰트 회피) — amber 좌측 보더로 경고 표시.
+ *
+ * @param plan — itinerary.days 를 가진 plan
+ * @param lang — ko/en/ja/zh
+ * @returns HTML 문자열 (활동 없으면 '')
+ */
+export function buildActivityGuideHtml(plan: PlanLike | null | undefined, lang: Language): string {
+  const acts = detectActivities(plan);
+  if (acts.length === 0) return '';
+  const seen = new Set<ActivityKind>();
+  const unique = acts.filter((a) => (seen.has(a.kind) ? false : (seen.add(a.kind), true)));
+  const esc = (s: unknown) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const heading = GUIDE_HEADING[lang] || GUIDE_HEADING.en;
+  let html = `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:16px;page-break-inside:avoid;break-inside:avoid;">
+    <h3 style="font-size:15px;font-weight:700;color:#7C5CFC;margin:0 0 12px;">${esc(heading)}</h3>`;
+  for (const a of unique) {
+    const byKind = ACTIVITY_GUIDES[a.kind];
+    const g = byKind && (byKind[lang] || byKind.en);
+    if (!g) continue;
+    const mapUrl = buildMapLink(a.startName);
+    const steps = g.steps
+      .map((s) => `<li style="font-size:11px;color:#374151;margin:0 0 3px;">${esc(s)}</li>`)
+      .join('');
+    const warns = g.warnings
+      .map((w) => `<div style="font-size:10px;color:#92400e;background:rgba(245,158,11,0.10);border-left:3px solid rgba(245,158,11,0.5);border-radius:4px;padding:5px 9px;margin:3px 0;">${esc(w)}</div>`)
+      .join('');
+    html += `<div style="margin:0 0 14px;page-break-inside:avoid;break-inside:avoid;">
+      <h4 style="font-size:13px;font-weight:700;color:#111827;margin:0 0 3px;">${esc(g.title)}</h4>
+      <p style="font-size:11px;color:#6b7280;margin:0 0 6px;">${esc(g.intro)}</p>
+      <ol style="margin:0 0 6px;padding-left:18px;">${steps}</ol>
+      ${warns}
+      <a href="${mapUrl}" style="font-size:11px;color:#0369a1;text-decoration:underline;">${esc(g.mapLabel)}</a>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
