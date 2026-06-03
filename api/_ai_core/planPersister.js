@@ -1147,6 +1147,30 @@ export async function finalizeStreamingPlan(adminDb, planId, finalDoc) {
 }
 
 /**
+ * plan 발급 멱등성 마킹 (P311 / P790). 실 PayPal 결제(17자 orderId)만 plan_issued_orders 기록.
+ * ADMIN-BYPASS/TEST/MANUAL prefix 제외. paymentGate 가 다음 호출 시 이 doc 으로 중복 plan 차단.
+ *
+ * P790 (2026-06-03): await 가능하도록 추출 — 기존 fire-and-forget 은 serverless 응답 후 instance
+ * freeze(P222/P319) 시 마킹 미완 → 재시도 plan 중복발급. 호출자가 plan set 성공 후 await → persist 보장.
+ * non-fatal: set 실패해도 throw 안 함(.catch). plan 은 이미 저장됨 → plan loss 없음.
+ *
+ * @param {object} adminDb
+ * @param {string} ppOrderId — body.paypalOrderId
+ * @param {{planId?: string, uid?: string}} fields
+ * @returns {Promise<boolean>} 마킹 시도 여부 (prefix 제외/빈값 시 false)
+ */
+export async function markPlanIssued(adminDb, ppOrderId, { planId, uid } = {}) {
+  if (!ppOrderId || /^(ADMIN-BYPASS-|TEST-|MANUAL-)/.test(ppOrderId)) return false;
+  await adminDb.collection('plan_issued_orders').doc(ppOrderId).set({
+    planId: planId || null,
+    issuedAt: new Date().toISOString(),
+    uid: uid || null,
+    provider: 'paypal',
+  }).catch((e) => console.warn('[planPersister] plan_issued_orders mark failed (non-fatal):', e.message));
+  return true;
+}
+
+/**
  * Persist plan to Firestore + update user subcollection + API stats + loyalty.
  * Returns { planId, planUrl }.
  */
@@ -1403,21 +1427,11 @@ export async function persistPlan(adminDb, {
     throw new Error(`Plan save failed (${saveErr.code || saveErr.name}). Contact WhatsApp for refund.`);
   }
 
-  // B3 S1-b (P311, 2026-05-30): plan 발급 *성공 후* plan_issued_orders 멱등성 마킹.
-  // 실제 PayPal 결제 (17자 orderId) 만 — ADMIN-BYPASS/TEST/MANUAL prefix 는 제외.
-  //   - paymentGate 가 진입 시 plan_issued_orders 검사 (존재 시 DUPLICATE 403 → 이중 plan 차단).
-  //   - write 는 여기 (plan set 성공 후) → plan 발급 *완료 전* 실패 시 doc 없음 → 재시도 통과 (B3 옵션 a).
-  //   - 결제 capture 멱등성 (used_paypal_orders, capturePaypalOrder) 과 별도 컬렉션 → capture 불변.
-  // non-fatal: plan 은 이미 저장됨. 멱등성 마킹 실패해도 plan loss 없음 (paymentGate 가 다음 호출 차단).
-  const ppOrderId = body?.paypalOrderId;
-  if (ppOrderId && !/^(ADMIN-BYPASS-|TEST-|MANUAL-)/.test(ppOrderId)) {
-    adminDb.collection('plan_issued_orders').doc(ppOrderId).set({
-      planId,
-      issuedAt: new Date().toISOString(),
-      uid: uid || null,
-      provider: 'paypal',
-    }).catch((e) => console.warn('[planPersister] plan_issued_orders mark failed (non-fatal):', e.message));
-  }
+  // B3 S1-b (P311, 2026-05-30) + P790 (2026-06-03): plan 발급 *성공 후* plan_issued_orders 멱등성 마킹.
+  //   - paymentGate 가 진입 시 검사 (존재 시 DUPLICATE 403 → 이중 plan 차단). write 는 여기 (plan set 성공
+  //     후) → 발급 완료 전 실패 시 doc 없음 → 재시도 통과 (B3 옵션 a). capture 멱등성(used_paypal_orders) 과 별도.
+  //   - P790: await — 기존 fire-and-forget 은 serverless freeze(P222/P319) 시 마킹 유실 → 재시도 plan 중복발급.
+  await markPlanIssued(adminDb, body?.paypalOrderId, { planId, uid });
 
   if (uid) {
     await adminDb

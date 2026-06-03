@@ -206,7 +206,14 @@ export default async function handler(req, res) {
     try {
       const captureRes = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          // P790 (2026-06-03): PayPal 공식 멱등성 헤더 — 네트워크 timeout 재시도 시 PayPal 이 새 capture
+          // 대신 캐시 응답 반환. orderID 기반 키 = 재시도 동일 키. (이중청구는 used_paypal_orders 락 +
+          // PayPal 서버측 완료주문 재-capture 거부로 이미 차단 — 본 헤더는 defense-in-depth.)
+          'PayPal-Request-Id': `${orderID}-cap`,
+        },
       });
       capture = await captureRes.json();
       if (capture.status !== 'COMPLETED') {
