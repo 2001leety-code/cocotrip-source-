@@ -221,16 +221,19 @@ export async function fetchAvailableBlocks(adminDb, city, opts = {}) {
     const activityEnabled = isActivityBlocksEnabled();
 
     // [P-DEBUG-ENV TEMP 2026-06-04] 활동 플래그 런타임 주입 진단 — 확인 후 제거 예정.
-    try {
-      console.log('[P-DEBUG-ENV]', JSON.stringify({
-        FEATURE_ACTIVITY_BLOCKS: process.env.FEATURE_ACTIVITY_BLOCKS ?? null,
-        FEATURE_PINNED_ACTIVITY_DAY: process.env.FEATURE_PINNED_ACTIVITY_DAY ?? null,
-        PLANNER_BLOCK_MODE: process.env.PLANNER_BLOCK_MODE ?? null,
-        activityEnabled,
-        flagKeys: Object.keys(process.env).filter((k) => /^(FEATURE_|VITE_FEATURE|PLANNER_)/.test(k)).sort(),
-        VERCEL_ENV: process.env.VERCEL_ENV ?? null,
-      }));
-    } catch (e) { console.log('[P-DEBUG-ENV] err', e.message); }
+    // 런타임 logs 스트리밍은 캡처 불안정 → adminDb 로 고정 진단 doc 에 기록(결정적 read).
+    const _envProbe = {
+      FEATURE_ACTIVITY_BLOCKS: process.env.FEATURE_ACTIVITY_BLOCKS ?? null,
+      FEATURE_PINNED_ACTIVITY_DAY: process.env.FEATURE_PINNED_ACTIVITY_DAY ?? null,
+      PLANNER_BLOCK_MODE: process.env.PLANNER_BLOCK_MODE ?? null,
+      activityEnabled,
+      flagKeys: Object.keys(process.env).filter((k) => /^(FEATURE_|VITE_FEATURE|PLANNER_)/.test(k)).sort(),
+      VERCEL_ENV: process.env.VERCEL_ENV ?? null,
+      cityLc,
+      at: new Date().toISOString(),
+    };
+    try { console.log('[P-DEBUG-ENV]', JSON.stringify(_envProbe)); } catch {}
+    try { await adminDb.collection('_diagnostics').doc('env_probe').set(_envProbe); } catch (e) { console.log('[P-DEBUG-ENV] fs err', e.message); }
 
     let blocks = [];
     snap.forEach((doc) => {
