@@ -19,6 +19,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { openBlobSafely } from '@/lib/openBlobSafely';
 import type { PlanDocument, PlanDay, PlanStop, BudgetRow } from './types';
 import { buildActivityMetaHtml } from '@/lib/activityMetaLabels';
+import { buildActivityGuideHtml } from '@/lib/activityGuides';
 
 // Sprint 1 Step 4 — 카테고리별 카드 좌측 accent bar 색 (web `CAT_COLORS.bar` parity, #136).
 // PDF는 dark theme 토큰을 못 쓰므로 web bar gradient의 진한 쪽 hex 만 추출.
@@ -820,8 +821,12 @@ export async function generatePDF(
               <p style="font-size:10px;color:#fbbf24;font-weight:600;margin:0;">${walkText}</p>
             </div>`;
           } else {
-            const prevName = ((prevStop as { display_name?: string; name?: string }).display_name || (prevStop as { display_name?: string; name?: string }).name || '');
-            const currName = ((stop as { display_name?: string; name?: string }).display_name || (stop as { display_name?: string; name?: string }).name || '');
+            // 빈 파라미터 방지 (구 plan 호환): 기존 순서(display_name || name) 보존 + name_en/name_ko 를
+            // 둘 다 없을 때만 last-resort 로 추가 → 공통 경로 byte-identical, 깨진 네이버 링크만 방지.
+            const ps = prevStop as { display_name?: string; name?: string; name_en?: string; name_ko?: string };
+            const cs = stop as { display_name?: string; name?: string; name_en?: string; name_ko?: string };
+            const prevName = ps.display_name || ps.name || ps.name_en || ps.name_ko || '';
+            const currName = cs.display_name || cs.name || cs.name_en || cs.name_ko || '';
             const enc = encodeURIComponent;
             const naverUrl = `https://map.naver.com/v5/directions/${pLng},${pLat},${enc(prevName)}/${cLng},${cLat},${enc(currName)}/-/transit?c=15`;
             const linkText = linkTpl.replace('{dist}', distKm.toFixed(1));
@@ -1059,6 +1064,13 @@ export async function generatePDF(
       <td style="text-align:right;padding:8px;">${formatKRW(grandTotal)}</td>
     </tr>`;
     html += '</table></div>';
+  }
+
+  // Activity Guide (#786) — 화면 activityGuide 슬라이드와 동일 콘텐츠(ACTIVITY_GUIDES SSOT).
+  // 화면과 동일 플래그 게이트 → OFF 시 미출력(byte-identical). 오프라인 여행 참조용 — 따릉이/러닝/
+  // 트레킹 how-to + 따릉이 외국카드 SAFETY 경고가 다운로드 PDF 에도 포함되도록(#786 PDF 누락 갭 봉합).
+  if (String(import.meta.env.VITE_FEATURE_ACTIVITY_GUIDE || '').trim() === 'true') {
+    html += buildActivityGuideHtml(plan, lang as 'ko' | 'en' | 'ja' | 'zh');
   }
 
   // Departure Guide

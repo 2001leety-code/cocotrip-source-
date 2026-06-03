@@ -3,7 +3,7 @@
  * 6살용 how-to 탭. 가드: 활동 감지(activity_meta + 따릉이 키워드) + 콘텐츠 4개국어 완전성.
  */
 import { describe, it, expect } from 'vitest';
-import { detectActivities, hasActivityGuide, ACTIVITY_GUIDES, buildMapLink } from '../../src/lib/activityGuides';
+import { detectActivities, hasActivityGuide, ACTIVITY_GUIDES, buildMapLink, buildActivityGuideHtml } from '../../src/lib/activityGuides';
 
 const LANGS = ['ko', 'en', 'ja', 'zh'] as const;
 const day = (over: Record<string, unknown> = {}) => ({ day: 1, theme: '', stops: [], ...over });
@@ -71,5 +71,51 @@ describe('ACTIVITY_GUIDES — 4개국어 완전성 (누락 시 fail)', () => {
       const w = ACTIVITY_GUIDES.bike[lang].warnings.join(' ');
       expect(/Discover Seoul Pass|Climate|기후동행|気候|气候/i.test(w), `bike/${lang} 카드 우회 누락`).toBe(true);
     }
+  });
+});
+
+describe('buildActivityGuideHtml — PDF 렌더 (화면과 동일 SSOT, #786 PDF 누락 갭 봉합)', () => {
+  const bikePlan = { itinerary: { days: [day({ theme: '한강 자전거 + 여의도 (따릉이 라이딩)', stops: [{ display_name: '따릉이 여의도 대여', lat: 37.5, lng: 126.9 }] })] } };
+
+  it('활동 없으면 빈 문자열 (additive, byte-identical)', () => {
+    expect(buildActivityGuideHtml({ itinerary: { days: [day({ theme: '경복궁', stops: [{ display_name: '경복궁' }] })] } }, 'en')).toBe('');
+    expect(buildActivityGuideHtml(null, 'en')).toBe('');
+  });
+
+  it('따릉이 day → 제목·단계·지도링크 포함 HTML', () => {
+    const html = buildActivityGuideHtml(bikePlan, 'en');
+    expect(html.length).toBeGreaterThan(0);
+    expect(html).toContain('<h4'); // 활동 카드
+    expect(html).toContain('<ol'); // 번호 단계
+    expect(html).toContain('map.naver.com'); // 코스 지도 링크
+  });
+
+  it('🔴 SAFETY: 따릉이 외국카드 경고가 PDF HTML 에 렌더 (오프라인 여행 참조 — 결제 막힘 예방)', () => {
+    // 화면뿐 아니라 다운로드 PDF 에도 외국카드 우회 안내가 들어가야 함 (#786 갭의 핵심)
+    expect(/Discover Seoul Pass|Climate/i.test(buildActivityGuideHtml(bikePlan, 'en'))).toBe(true);
+    expect(buildActivityGuideHtml(bikePlan, 'ko')).toContain('기후동행');
+  });
+
+  it('4개국어 heading 렌더', () => {
+    expect(buildActivityGuideHtml(bikePlan, 'ko')).toContain('활동 가이드');
+    expect(buildActivityGuideHtml(bikePlan, 'en')).toContain('Activity Guide');
+    expect(buildActivityGuideHtml(bikePlan, 'ja')).toContain('アクティビティガイド');
+    expect(buildActivityGuideHtml(bikePlan, 'zh')).toContain('活动指南');
+  });
+
+  it('같은 종류 day 2개 → 카드 1개로 dedup (kind 당 1회)', () => {
+    const two = { itinerary: { days: [
+      day({ day: 1, theme: '따릉이 라이딩 A', stops: [{ display_name: '여의도' }] }),
+      day({ day: 2, theme: '따릉이 라이딩 B', stops: [{ display_name: '뚝섬' }] }),
+    ] } };
+    const html = buildActivityGuideHtml(two, 'en');
+    expect((html.match(/<h4/g) || []).length).toBe(1); // bike 카드 1개만
+  });
+
+  it('트레킹 day → 트레킹 가이드 + 경고(겨울 아이젠/일몰) 렌더', () => {
+    const trek = { itinerary: { days: [day({ activity_meta: { activity_type: 'trekking' }, theme: '북한산', stops: [{ display_name: '북한산우이역' }] })] } };
+    const html = buildActivityGuideHtml(trek, 'ko');
+    expect(html.length).toBeGreaterThan(0);
+    expect(html).toContain('<h4');
   });
 });
