@@ -1,10 +1,110 @@
 {
-  "id":"GYEONGJU_RUN_BOMUN_5KM","city":"gyeongju","zone":"Bomun-Lake",
-  "theme":"보문호수 5km 러닝","theme_i18n":{"ko":"보문호수 5km","en":"Bomun Lake 5km","ja":"普門湖5km","zh":"普门湖5km"},
-  "intensity":"short","duration_min":60,"block_type":"city_day",
-  "stops":[
-    {"order":1,"category":"sports","name":"보문호수 시작","name_i18n":{"ko":"보문호수 시작","en":"Bomun Start","ja":"普門湖スタート","zh":"普门湖起点"},"address":"경북 경주시 보문관광단지","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"보문관광단지 메인.","en":"Bomun Tourist Complex main.","ja":"普門観光団地メイン。","zh":"普门观光区主要。"},"lat":35.8528,"lng":129.2528,"start_time_offset_min":0},
-    {"order":2,"category":"nature","name":"보문호수 둘레","name_i18n":{"ko":"보문호수 둘레","en":"Bomun Lake Loop","ja":"普門湖周遊","zh":"普门湖环路"},"address":"경북 경주시","stay_min":50,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"평지 5km. 호수+ 정자.","en":"Flat 5km. Lake+pavilions.","ja":"平地5km。湖+亭。","zh":"平地5km。湖+亭。"},"lat":35.8528,"lng":129.2528,"start_time_offset_min":5},
-    {"order":3,"category":"sports","name":"보문호수 종료","name_i18n":{"ko":"보문호수 종료","en":"Bomun Finish","ja":"普門湖ゴール","zh":"普门湖终点"},"address":"경북 경주시","stay_min":5,"entry_fee_krw":0,"reservation_required":false,"tips_i18n":{"ko":"리조트+카페.","en":"Resort+cafe.","ja":"リゾート+カフェ。","zh":"度假村+咖啡。"},"lat":35.8528,"lng":129.2528,"start_time_offset_min":55}
+  "id": "GYEONGJU_RUN_BOMUN_5KM",
+  "city": "gyeongju",
+  "zone": "Bomun-Lake",
+  "theme": "보문호수 5km 러닝",
+  "theme_i18n": {
+    "ko": "보문호수 5km",
+    "en": "Bomun Lake 5km",
+    "ja": "普門湖5km",
+    "zh": "普门湖5km"
+  },
+  "intensity": "short",
+  "duration_min": 60,
+  "block_type": "running_route",
+  "stops": [
+    {
+      "order": 1,
+      "category": "sports",
+      "name": "보문호수 시작",
+      "name_i18n": {
+        "ko": "보문호수 시작",
+        "en": "Bomun Start",
+        "ja": "普門湖スタート",
+        "zh": "普门湖起点"
+      },
+      "address": "경북 경주시 보문관광단지",
+      "stay_min": 5,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "보문관광단지 메인.",
+        "en": "Bomun Tourist Complex main.",
+        "ja": "普門観光団地メイン。",
+        "zh": "普门观光区主要。"
+      },
+      "lat": 35.8528,
+      "lng": 129.2528,
+      "start_time_offset_min": 0
+    },
+    {
+      "order": 2,
+      "category": "nature",
+      "name": "보문호수 둘레",
+      "name_i18n": {
+        "ko": "보문호수 둘레",
+        "en": "Bomun Lake Loop",
+        "ja": "普門湖周遊",
+        "zh": "普门湖环路"
+      },
+      "address": "경북 경주시",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "평지 5km. 호수+ 정자.",
+        "en": "Flat 5km. Lake+pavilions.",
+        "ja": "平地5km。湖+亭。",
+        "zh": "平地5km。湖+亭。"
+      },
+      "lat": 35.8528,
+      "lng": 129.2528,
+      "start_time_offset_min": 5
+    },
+    {
+      "order": 3,
+      "category": "sports",
+      "name": "보문호수 종료",
+      "name_i18n": {
+        "ko": "보문호수 종료",
+        "en": "Bomun Finish",
+        "ja": "普門湖ゴール",
+        "zh": "普门湖终点"
+      },
+      "address": "경북 경주시",
+      "stay_min": 5,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "tips_i18n": {
+        "ko": "리조트+카페.",
+        "en": "Resort+cafe.",
+        "ja": "リゾート+カフェ。",
+        "zh": "度假村+咖啡。"
+      },
+      "lat": 35.8528,
+      "lng": 129.2528,
+      "start_time_offset_min": 55
+    }
+  ],
+  "running_meta": {
+    "total_km": 5,
+    "surface_type": "asphalt",
+    "elevation_gain_m": 10,
+    "loop_or_out_and_back": "out_and_back",
+    "recommended_time": [
+      "morning",
+      "evening"
+    ],
+    "lighting_quality": "well_lit",
+    "difficulty": "beginner",
+    "water_stations_count": 2,
+    "pace_target": {
+      "easy_min_per_km": 7,
+      "tempo_min_per_km": 5
+    }
+  },
+  "unsuitable_for": [
+    "wheelchair_user",
+    "elderly"
   ]
 }

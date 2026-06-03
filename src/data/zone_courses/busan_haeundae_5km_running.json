@@ -11,7 +11,7 @@
   },
   "intensity": "short",
   "duration_min": 60,
-  "block_type": "city_day",
+  "block_type": "running_route",
   "stops": [
     {
       "order": 1,
@@ -145,5 +145,26 @@
         "duration_min": 17
       }
     }
-  }
+  },
+  "running_meta": {
+    "total_km": 5,
+    "surface_type": "asphalt",
+    "elevation_gain_m": 10,
+    "loop_or_out_and_back": "out_and_back",
+    "recommended_time": [
+      "morning",
+      "evening"
+    ],
+    "lighting_quality": "well_lit",
+    "difficulty": "beginner",
+    "water_stations_count": 2,
+    "pace_target": {
+      "easy_min_per_km": 7,
+      "tempo_min_per_km": 5
+    }
+  },
+  "unsuitable_for": [
+    "wheelchair_user",
+    "elderly"
+  ]
 }

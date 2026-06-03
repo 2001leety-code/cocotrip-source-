@@ -202,8 +202,12 @@ capture 는 `used_paypal_orders` Firestore 트랜잭션 락(status pending→cap
 
 ## 10. 러닝 zone_course 블록 block_type 불일치 (2026-06-03 자율 감사 발견)
 
-### 현상
-`src/data/zone_courses/*_running.json` **16개 중 2개만 `block_type=running_route`, 14개는 `city_day`**(오타이핑). 정상=jeju_olle_7_5km_running, seoul_hangang_mangwon_5km_running. 따릉이(3/3 city_day=의도된 정상), 트레킹(trekking=정상).
+### 현상 / 진행 (2026-06-03 #794 부분 정정)
+`src/data/zone_courses/*_running.json` 16개 중 원래 14개가 `block_type=city_day` 오타이핑이었음.
+- ✅ **6개 정정됨**(#794, running_route + running_meta): seoul_jamsil, daegu_sincheon, gangneung_gyeongpo, gyeongju_bomun, busan_gwangalli, busan_haeundae (대도시 평지 urban — eligibility 안전 + 난이도 평가 명확).
+- ⏳ **8개 보류**(여전히 city_day): **igidae_10km**(해안·지형 위험 → 운영자 실측 필요) + **소도시 7**(gwangju/incheon/jeonju/pohang/sokcho/suncheon/yeosu — retype 시 city_day < 3 → block_mode ineligible).
+- (기존 정상 2: jeju_olle, seoul_hangang_mangwon. 따릉이 3/3 city_day=의도된 정상. 트레킹=정상.)
+- 가드: `tests/unit/running-block-type-p794.test.ts` (정정/보류 분류 잠금).
 
 ### 영향
 - 14개 러닝 블록이 **running 활동으로 미감지** → #786 활동가이드 러닝 how-to 안 뜸 + #784 취미day 핀 안 됨 + buildActivityMeta 러닝 SAFETY 메타(난이도/위험) 누락.
