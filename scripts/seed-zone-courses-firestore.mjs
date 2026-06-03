@@ -31,10 +31,23 @@
  */
 
 import { readFile, readdir } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
+
+// 2026-06-03: 로컬 실행 지원 — .env 파일에서 FIREBASE/NCP/ODSAY env 로드. CI 는 process.env 사용
+// (파일 없으면 try/catch skip → CI 무영향). 기존엔 로더가 없어 로컬 실행 시 env 미주입으로 종료됐음.
+for (const _f of ['.env', '.env.admin.local', '.env.test.local']) {
+  try {
+    const _t = readFileSync(_f, 'utf8');
+    for (const _m of _t.matchAll(/^([A-Z0-9_]+)\s*=\s*(.*)$/gm)) {
+      let _v = _m[2].trim();
+      if ((_v.startsWith('"') && _v.endsWith('"')) || (_v.startsWith("'") && _v.endsWith("'"))) _v = _v.slice(1, -1).replace(/\\n/g, '\n');
+      if (!process.env[_m[1]]) process.env[_m[1]] = _v;
+    }
+  } catch { /* 파일 없음 = CI/prod, process.env 사용 */ }
+}
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = resolve(__dirname, '..');
