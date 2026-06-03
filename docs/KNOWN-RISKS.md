@@ -220,5 +220,33 @@ capture 는 `used_paypal_orders` Firestore 트랜잭션 락(status pending→cap
 
 ---
 
+## 11. mobility 화이트리스트 'normal' trap (2026-06-04 자율 — fix 완료)
+
+### 현상 / root cause
+`fetchAvailableBlocks` mobility 안전 가드가 `limited = mobility && mobility !== 'ok' && mobility !== 'none'` →
+**'ok'/'none' 외 모든 값을 거동제약(limited)으로 오판**. limited=true 면 `unsuitable_for` 에 `wheelchair_user`/
+`severe_mobility_limitation` 가진 활동 블록(트레킹·러닝) 제외. 따릉이 블록은 `unsuitable_for=['mobility_impaired']`
+(UNSAFE set 밖)라 통과 → "따릉이만 나오고 트레킹/러닝은 0" 비대칭 발생.
+
+### prod 영향 = **없음** (latent only)
+prod 위저드는 `mobility='ok'` 하드코딩([WizardForm/index.tsx:213](../src/components/WizardForm/index.tsx#L213),
+handlers 디폴트도 `|| 'ok'`) → 실사용자는 항상 'ok' → 가드 정상(limited=false). **'normal' 은 검증 스크립트만
+보내던 값** → 활동블록 검증이 거짓 음성(false negative)이었을 뿐, 실사용 plan 은 정상.
+
+### ✅ fix (2026-06-04)
+`isLimitedMobility(mobility)` 추출 + 화이트리스트 `{ok,none,normal,good,full,fine}` 확장 → benign 값 보존,
+미지의 값은 보수적으로 limited 유지. 가드: `tests/unit/activity-blocks-pre.test.ts` (normal/good/빈값 → 유지,
+wheelchair/severe → 제외). prod 동작 byte-identical(항상 'ok').
+
+### 메타 lesson (효율적 자율 검증)
+**검증 스크립트는 prod 와 동일 input 을 보내야 한다.** 임의 값('normal')으로 검증 시 prod 엔 없는 코드 경로를
+타 거짓 음성/양성 발생. 신규 검증 dispatch 작성 시 프론트가 실제 보내는 값(grep WizardForm/handlers)을 확인 후 사용.
+
+### mobility 가드 자체는 prod 에서 dead (참고)
+위저드가 mobility 를 수집하지 않고 'ok' 고정 → 가드는 prod 에서 한 번도 fire 안 함(휠체어 손님 트레킹 제외 SAFETY
+의도가 미작동). 실제 mobility 수집 UI 추가는 운영자 기능 결정(별건).
+
+---
+
 ## 변경 시 이 문서도 갱신
 새 risk/compromise 추가하거나 기존 사항 해소되면 이 문서 갱신 필수. CLAUDE.md 와 함께 코드베이스 메타 룰의 source of truth.

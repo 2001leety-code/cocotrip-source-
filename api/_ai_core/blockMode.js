@@ -74,6 +74,24 @@ export function isPinnedActivityDayEnabled() {
 }
 
 /**
+ * 거동 제약(mobility) 여부 — 활동 블록(트레킹/러닝)의 unsuitable_for 안전 필터 게이트.
+ *
+ * prod 위저드는 mobility='ok' 하드코딩(WizardForm/index.tsx:213, handlers 디폴트도 'ok').
+ * 'normal'/'good' 등 benign 값도 정상 거동 → 활동 블록 유지해야 함(과거 화이트리스트가 'ok'/'none'
+ *   뿐이라 'normal' 을 limited 오판 → 트레킹/러닝 silent 제외 trap, 2026-06-04 발견).
+ * 화이트리스트 밖(wheelchair_user/severe_mobility_limitation 등 실제 제약값)만 limited=true →
+ *   보수적 SAFETY 디폴트(미지의 값 = 안전하게 제외) 유지.
+ *
+ * @param {string} mobility
+ * @returns {boolean}
+ */
+const NON_LIMITED_MOBILITY = new Set(['ok', 'none', 'normal', 'good', 'full', 'fine']);
+export function isLimitedMobility(mobility) {
+  const m = String(mobility || '').trim().toLowerCase();
+  return !!m && !NON_LIMITED_MOBILITY.has(m);
+}
+
+/**
  * 위저드 취미 스타일 키 → 후보 블록 매칭 predicate (결정론적 pin 용).
  * zone_courses 블록에 구조화된 style 필드가 없어(best_for 컨벤션 오염) id/block_type/theme 로 매칭.
  * 향후 개선: 블록에 activity_styles:[] 필드 추가 후 그걸로 대체하면 더 견고 (재시드 필요).
@@ -220,21 +238,6 @@ export async function fetchAvailableBlocks(adminDb, city, opts = {}) {
     // PR-E (2026-06-01): 활동 블록(trekking/running_route) flag — OFF 시 city_day 단독 (byte-identical).
     const activityEnabled = isActivityBlocksEnabled();
 
-    // [P-DEBUG-ENV TEMP 2026-06-04] 활동 플래그 런타임 주입 진단 — 확인 후 제거 예정.
-    // 런타임 logs 스트리밍은 캡처 불안정 → adminDb 로 고정 진단 doc 에 기록(결정적 read).
-    const _envProbe = {
-      FEATURE_ACTIVITY_BLOCKS: process.env.FEATURE_ACTIVITY_BLOCKS ?? null,
-      FEATURE_PINNED_ACTIVITY_DAY: process.env.FEATURE_PINNED_ACTIVITY_DAY ?? null,
-      PLANNER_BLOCK_MODE: process.env.PLANNER_BLOCK_MODE ?? null,
-      activityEnabled,
-      flagKeys: Object.keys(process.env).filter((k) => /^(FEATURE_|VITE_FEATURE|PLANNER_)/.test(k)).sort(),
-      VERCEL_ENV: process.env.VERCEL_ENV ?? null,
-      cityLc,
-      at: new Date().toISOString(),
-    };
-    try { console.log('[P-DEBUG-ENV]', JSON.stringify(_envProbe)); } catch {}
-    try { await adminDb.collection('_diagnostics').doc('env_probe').set(_envProbe); } catch (e) { console.log('[P-DEBUG-ENV] fs err', e.message); }
-
     let blocks = [];
     snap.forEach((doc) => {
       const data = doc.data();
@@ -264,8 +267,7 @@ export async function fetchAvailableBlocks(adminDb, city, opts = {}) {
     //   structured signal 부재 → 유일하게 확보 가능한 mobility 신호로 보수적 가드.
     //   flag OFF 시 활동 블록 자체가 없으므로 이 분기 무효과 (byte-identical 유지).
     if (activityEnabled) {
-      const mobility = String(opts.mobility || '').trim().toLowerCase();
-      const limited = mobility && mobility !== 'ok' && mobility !== 'none';
+      const limited = isLimitedMobility(opts.mobility);
       if (limited) {
         const UNSAFE_FOR_LIMITED = new Set(['wheelchair_user', 'severe_mobility_limitation']);
         blocks = blocks.filter((b) => {
