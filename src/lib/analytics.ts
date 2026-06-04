@@ -141,6 +141,36 @@ export function trackAddToWishlist(itemId: string, itemName: string) {
   trackEvent('add_to_wishlist', { items_id: itemId, items_name: itemName });
 }
 
+/**
+ * 유료 전환(결제 완료) — GA4 표준 'purchase' 이벤트 (AI 플랜 / 차터 / 투어 공통).
+ * 홍보 실행안 1순위: PayPal capture 성공 시 발화 → GA4 'purchase' 를 Google Ads 가
+ *   전환으로 import(value+currency+transaction_id 로 중복 제거). UTM 은 GA4 세션 소스로 자동 귀속.
+ * trackEvent(GtagEvent=primitive-only)로는 items[] 배열을 못 보내므로 gtag 직접 호출.
+ * GA_ID 미설정 시 no-op(빌드/preview 무해). transactionId=PayPal orderID(거래당 유니크, dedup 안전).
+ */
+export function trackPaidConversion(params: {
+  transactionId: string;
+  productType: string;
+  value: number;
+  currency: string;
+}) {
+  if (!GA_ID || typeof window === 'undefined' || !window.gtag) return;
+  // 결제 성공 경로에서 호출됨 — analytics 가 절대 결제 흐름을 깨면 안 됨(방어적 try/catch).
+  try {
+    window.gtag('event', 'purchase', {
+      transaction_id: params.transactionId,
+      value: params.value,
+      currency: params.currency,
+      items: [{
+        item_id: params.productType,
+        item_name: params.productType,
+        price: params.value,
+        quantity: 1,
+      }],
+    });
+  } catch { /* analytics 실패는 결제에 영향 없음 */ }
+}
+
 /** User signs up / first login */
 export function trackSignUp(method: string) {
   trackEvent('sign_up', { method });
