@@ -44,6 +44,16 @@ describe('trackPaidConversion — GA4 purchase 전환 발화', () => {
   });
 });
 
+describe('GA4 gtag 스텁 형식 가드 (2026-06-04 GA 데이터 0 버그 회귀 방지)', () => {
+  const src = readFileSync(join(process.cwd(), 'src', 'lib', 'analytics.ts'), 'utf8');
+  it('initGA 가 dataLayer 에 arguments 객체를 push (실제 배열 push 시 gtag.js 명령 미인식 → collect 0)', () => {
+    expect(src).toMatch(/window\.dataLayer!?\.push\(arguments\)/);
+  });
+  it('회귀 형태(배열 push) 부재', () => {
+    expect(src).not.toMatch(/window\.dataLayer!?\.push\(args\)/);
+  });
+});
+
 describe('PayPalBookingButton — GA4 전환 배선 가드 (dead-code 회귀 방지)', () => {
   const src = readFileSync(join(process.cwd(), 'src', 'components', 'PayPalBookingButton.tsx'), 'utf8');
   it('analytics trackPaidConversion 을 import', () => {
