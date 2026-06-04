@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
+import { trackPaidConversion } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
@@ -375,6 +376,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               amount: priceKRW,
               currency: 'KRW',
               planId: (result && typeof result === 'object' && 'planId' in result) ? (result as { planId?: string }).planId : undefined,
+            });
+            // 홍보 실행안 1순위: GA4 표준 'purchase' 전환 발화 → Google Ads import(value+currency+orderID dedup).
+            //   PostHog payment_completed 와 동일 데이터(KRW). GA_ID 미설정 시 no-op. orderID=거래당 유니크.
+            trackPaidConversion({
+              transactionId: data.orderID,
+              productType,
+              value: priceKRW,
+              currency: 'KRW',
             });
             if (onPaymentSuccess) {
               setShowPaypal(false);
