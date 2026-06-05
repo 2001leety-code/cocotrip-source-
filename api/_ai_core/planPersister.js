@@ -7,6 +7,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore } from './qualityMetrics.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { detectPaymentSource, isAdminBypassOrderId } from '../_shared/admin-bypass-detector.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -1057,6 +1058,9 @@ export async function savePlanSkeleton(adminDb, {
     _streaming_in_progress: true,
     _streaming_started_at: Date.now(),
     isPublic: false,
+    // #payment-separation (2026-06-05): streaming/에러 단계에서도 테스트/실결제 구분 보존.
+    paymentSource: detectPaymentSource(body?.paypalOrderId),
+    isAdminBypass: isAdminBypassOrderId(body?.paypalOrderId),
     createdAt: new Date().toISOString(),
     createdAtMs: Date.now(),
     uid: uid || null,
@@ -1254,6 +1258,10 @@ export async function persistPlan(adminDb, {
     planId,
     status: 'ready',
     isPublic: false,
+    // #payment-separation (2026-06-05): 어드민 테스트 vs 실결제 명시 구분 — admin 쿼리/필터용.
+    // paypalOrderId prefix SSOT 분류. used_paypal_orders/capture 멱등성(P311)과 무관 = 표시 전용.
+    paymentSource: detectPaymentSource(body.paypalOrderId), // 'test'|'admin-bypass'|'manual'|'paypal'
+    isAdminBypass: isAdminBypassOrderId(body.paypalOrderId), // true = 운영자 테스트(매출 제외 대상)
     createdAt: new Date().toISOString(),
     createdAtMs: Date.now(),
     uid: uid || null,

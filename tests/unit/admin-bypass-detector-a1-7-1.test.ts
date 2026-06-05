@@ -18,6 +18,8 @@ import {
   isAdminBypassBooking,
   countAdminBypassBookings,
   ADMIN_BYPASS_PREFIXES,
+  detectPaymentSource,
+  isAdminBypassOrderId,
 } from '../../api/_shared/admin-bypass-detector.js';
 
 describe('A1-7-1 isAdminBypassBooking', () => {
@@ -136,5 +138,56 @@ describe('A1-7-1 ADMIN_BYPASS_PREFIXES 규약', () => {
     // MANUAL- 는 admin 이 PayPal QR 입금 확인 후 마크 → 실제 매출.
     // 매출 KPI 에서 제외하면 운영자 손해.
     expect(ADMIN_BYPASS_PREFIXES).not.toContain('MANUAL-');
+  });
+});
+
+describe('#payment-separation detectPaymentSource (orderId 문자열 분류 — plan 저장용)', () => {
+  it('TEST- → "test"', () => {
+    expect(detectPaymentSource('TEST-abc')).toBe('test');
+  });
+  it('ADMIN-BYPASS- → "admin-bypass"', () => {
+    expect(detectPaymentSource('ADMIN-BYPASS-xyz')).toBe('admin-bypass');
+  });
+  it('MANUAL- → "manual" (실 입금 = 실제 매출)', () => {
+    expect(detectPaymentSource('MANUAL-CT-1')).toBe('manual');
+  });
+  it('실 PayPal 17자 / 그 외 → "paypal"', () => {
+    expect(detectPaymentSource('5O190127TN364715T')).toBe('paypal');
+    expect(detectPaymentSource('PAY-real')).toBe('paypal');
+  });
+  it('null / undefined / 비문자열 → "paypal" (방어적 기본값)', () => {
+    expect(detectPaymentSource(null)).toBe('paypal');
+    expect(detectPaymentSource(undefined)).toBe('paypal');
+    expect(detectPaymentSource(12345 as unknown as string)).toBe('paypal');
+  });
+  it('paymentGate.js detectProvider 와 동일 출력 (규약 동기화 잠금 — drift 시 결제 분류 불일치)', () => {
+    const cases: Array<[string, string]> = [
+      ['TEST-1', 'test'],
+      ['ADMIN-BYPASS-1', 'admin-bypass'],
+      ['MANUAL-1', 'manual'],
+      ['5O190127TN364715T', 'paypal'],
+    ];
+    for (const [id, expected] of cases) expect(detectPaymentSource(id)).toBe(expected);
+  });
+});
+
+describe('#payment-separation isAdminBypassOrderId (plan.isAdminBypass 필드용)', () => {
+  it('TEST- / ADMIN-BYPASS- → true (운영자 테스트)', () => {
+    expect(isAdminBypassOrderId('TEST-1')).toBe(true);
+    expect(isAdminBypassOrderId('ADMIN-BYPASS-1')).toBe(true);
+  });
+  it('MANUAL- (실 입금) / 실 PayPal → false (실제 매출)', () => {
+    expect(isAdminBypassOrderId('MANUAL-CT-1')).toBe(false);
+    expect(isAdminBypassOrderId('5O190127TN364715T')).toBe(false);
+  });
+  it('null / undefined → false', () => {
+    expect(isAdminBypassOrderId(null)).toBe(false);
+    expect(isAdminBypassOrderId(undefined)).toBe(false);
+  });
+  it('isAdminBypassBooking 의 prefix 규약(ADMIN_BYPASS_PREFIXES)과 일치 — 문자열/객체 판정 동기화', () => {
+    for (const prefix of ADMIN_BYPASS_PREFIXES) {
+      expect(isAdminBypassOrderId(`${prefix}sample`)).toBe(true);
+    }
+    expect(isAdminBypassOrderId('MANUAL-sample')).toBe(false);
   });
 });
