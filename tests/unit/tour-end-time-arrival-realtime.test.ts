@@ -199,3 +199,54 @@ describe('#arrival-realtime runtime — 야간 도착 시 Day1 호텔 휴식', (
     expect(stops[0].category).toBe('lodging');
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// 5. RUNTIME — prod 9f9f37a1/f80d7219 검증에서 노출된 Day1 엣지 케이스 (2026-06-05 후속 fix)
+// ────────────────────────────────────────────────────────────────────────────
+describe('#tour-end runtime — 엣지: trailing lodging 보호 + 휴식일 정확-cap', () => {
+  // 종료 초과 관광 뒤에 호텔복귀(lodging) stop 이 있는 블록 (prod 9f9f37a1 Day1 = 20:15 인사동 + 호텔복귀).
+  const trailingLodgingBlocks = [{
+    id: 'T1', city: 'seoul', zone: 'Test', theme: 'T', intensity: 'standard',
+    stops: [
+      { order: 1, name: 'Hotel checkin', category: 'lodging', start_time_offset_min: 0, stay_min: 30 },
+      { order: 2, name: 'Sight A', category: 'culture', start_time_offset_min: 240, stay_min: 90 }, // 13:00
+      { order: 3, name: 'Sight B', category: 'culture', start_time_offset_min: 600, stay_min: 90 }, // 19:00
+      { order: 4, name: 'Insadong', category: 'culture', start_time_offset_min: 720, stay_min: 60 }, // 21:00 (cap 20:00 초과)
+      { order: 5, name: 'Hotel return', category: 'lodging', start_time_offset_min: 800, stay_min: 0 }, // 22:20
+    ],
+  }];
+
+  it('종료 초과 관광이 trailing lodging 에 보호되지 않고 trim됨 (tail-pop→filter)', async () => {
+    const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
+    const itin = expandBlocksToItinerary(baseSelections, trailingLodgingBlocks, {
+      ...baseInput, arrival_time: '', tour_start_time: '09:00', tour_end_time: '20:00',
+    });
+    const stops = itin.days[0].stops;
+    const sights = stops.filter((s) => s.category === 'culture');
+    // 21:00 인사동(초과)은 제거, 13:00/19:00 은 보존.
+    expect(sights.every((s) => toMin(s.start_time) <= toMin('20:00')), '초과 관광이 안 잘림 (trailing lodging 보호 버그)').toBe(true);
+    expect(stops.some((s) => s.name === 'Insadong'), '21:00 인사동이 trim 안 됨').toBe(false);
+    // 호텔복귀(trailing lodging)는 보존 (bookend).
+    expect(stops.some((s) => s.name === 'Hotel return'), '호텔복귀 lodging 이 잘못 trim됨').toBe(true);
+    expect(stops[stops.length - 1].category, '마지막은 호텔복귀(lodging)').toBe('lodging');
+  });
+
+  it('휴식일: dayStart=종료시각과 정확히 같은 관광 stop 도 제거 (prod f80d7219 20:00 잔존 버그)', async () => {
+    const { expandBlocksToItinerary } = await import('../../api/_ai_core/blockMode.js');
+    const restBlocks = [{
+      id: 'T1', city: 'seoul', zone: 'Test', theme: 'T', intensity: 'standard',
+      stops: [
+        { order: 1, name: 'Hotel', category: 'lodging', start_time_offset_min: 0, stay_min: 30 },
+        { order: 2, name: 'Sight at cap', category: 'culture', start_time_offset_min: 0, stay_min: 60 }, // dayStart(=20:00)와 동일
+        { order: 3, name: 'Sight later', category: 'culture', start_time_offset_min: 120, stay_min: 60 },
+      ],
+    }];
+    // ICN 22:00 도착 + 종료 20:00 → ready 25:00 ≥ cap → 휴식일 → dayStart=20:00, 관광 전부 제거.
+    const itin = expandBlocksToItinerary(baseSelections, restBlocks, {
+      ...baseInput, arrival_time: '22:00', arrival_airport: 'ICN', tour_start_time: '09:00', tour_end_time: '20:00',
+    });
+    const stops = itin.days[0].stops;
+    expect(stops.filter((s) => s.category === 'culture').length, '휴식일에 관광 stop 잔존 (정확-cap 누락)').toBe(0);
+    expect(stops.every((s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel'), 'Day1 은 보호 stop 만').toBe(true);
+  });
+});
