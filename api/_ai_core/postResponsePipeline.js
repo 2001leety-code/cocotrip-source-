@@ -44,10 +44,12 @@ const ROUTE_ENRICH_TIMEOUT_MS = 180_000;
 /**
  * #tour-end (2026-06-05): RouteAgent time-stitch 후 최종 종료 시각 cap (권위 enforcer).
  *
- * 왜 여기인가 (prod 9f9f37a1 / f80d7219 lesson):
+ * 왜 여기인가 (prod 9f9f37a1 / f80d7219 / 61e8405d 마커 ground truth):
  *   - expandBlocksToItinerary 의 cutoff 는 block offset 시각(pre-stitch)에 돌아, RouteAgent 가
  *     실제 transit 으로 밀어낸 최종 시각을 못 잡음 (예: offset 20:00 → 재-stitch 20:15 인사동).
- *   - 따라서 cap 은 RouteAgent enrichment "후" 최종 start_time 기준으로 적용해야 정확.
+ *   - 또 야간 도착 시 expand 가 Day1 을 비우면(arrivalRestDay) RouteAgent 직후엔 1-stop day 라
+ *     skip → 그 후 selfHealLodgingBookend 이 [호텔, 잔여 관광, 호텔] 로 bookend 재구성 → cap 빠져나감.
+ *   - 따라서 cap 은 RouteAgent stitch + selfHealLodgingBookend "후"(applyBackfillsAndTmoney 끝)에 적용해야 정확.
  *
  * 규칙: 각 day 의 관광(non-lodging/airport/travel) stop 중 start_time >= tour_end_time 이면 trim.
  *   - 관광은 종료 시각 "전"에 시작해야 함 (>= cap = 종료시각에 시작/이후 = 제거).
@@ -63,7 +65,6 @@ export function applyTourEndCap(itinerary, tourEndTime) {
   if (capMin < 0) return;
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
   const isProtected = (s) => s?.category === 'lodging' || s?.category === 'airport' || s?.category === 'travel';
-  const _dbg = { cap, capMin, days: [] }; // #tour-end-debug (임시 계측 — ground truth 확보 후 제거)
   for (const day of days) {
     const stops = Array.isArray(day?.stops) ? day.stops : [];
     if (stops.length <= 1) continue;
@@ -73,20 +74,9 @@ export function applyTourEndCap(itinerary, tourEndTime) {
       if (m < 0) return true;                 // 시각 없음 = 보존 (안전)
       return m < capMin;                      // 관광은 종료 시각 전에 시작 (>= cap = trim)
     });
-    const removed = stops.filter((s) => !kept.includes(s));
-    if ((day?.day || 0) <= 2) {
-      _dbg.days.push({
-        day: day?.day || 0,
-        saw: stops.map((s) => `${s?.start_time}|${s?.category}|${toMin(s?.start_time)}`),
-        removed: removed.map((s) => `${s?.start_time}|${s?.category}`),
-      });
-    }
     // 최소 1개 보장 + 실제 trim 발생 시에만 교체 (불필요 mutation 회피).
     if (kept.length && kept.length < stops.length) day.stops = kept;
   }
-  // #tour-end-debug: prod ground truth — applyTourEndCap 이 본 stops + cap 을 persist.
-  itinerary.quality_warnings = itinerary.quality_warnings || [];
-  itinerary.quality_warnings.push({ kind: 'tour_end_cap_debug', type: 'tour_end_cap_debug', severity: 'info', cap: _dbg.cap, capMin: _dbg.capMin, snapshot: _dbg.days });
 }
 
 /**
@@ -250,10 +240,6 @@ export async function runRouteEnrichment(itinerary, ctx) {
       itinerary.departure_guide.route_to_airport.anchor_address = recommendedZoneAddress;
     }
   }
-
-  // #tour-end (2026-06-05): RouteAgent time-stitch 후 최종 종료 시각 cap — offset 기반 expand cutoff 가
-  // 못 잡는 stitched 시각 enforce (prod 9f9f37a1 Day1 20:15 인사동 lesson). ctx.tourEndTime 기준 관광 trim.
-  applyTourEndCap(itinerary, ctx?.tourEndTime);
 }
 
 /**
@@ -306,6 +292,14 @@ export function applyBackfillsAndTmoney(itinerary, ctx) {
     language: ctx.language,
     blockMode: ctx.blockMode,
   });
+
+  // ── #tour-end (2026-06-05): 종료 시각 cap — selfHealLodgingBookend "후" 적용 (권위 enforcer) ──
+  // ground truth (plan 61e8405d 마커): 야간 도착 시 expand 가 Day1 을 비우면(arrivalRestDay)
+  //   applyTourEndCap 을 RouteAgent 직후에 두면 1-stop day 라 skip → 이후 selfHealLodgingBookend 이
+  //   [호텔, 잔여 관광(20:00), 호텔] 로 bookend 재구성 → cap 빠져나감. bookend 추가 "후" 여기서 최종 trim.
+  //   관광 start_time >= tour_end_time 제거, lodging/airport/travel 보존. RouteAgent stitch + selfHeal 후
+  //   최종 시각 기준이라 9f9f37a1(20:15 인사동) + f80d7219(20:00 경복궁) 모두 enforce. T-money 전 호출 = 정합.
+  applyTourEndCap(itinerary, ctx.body?.tourEndTime);
 
   // ── T-money 서버 계산 ─────────────────────────────────────────────────
   calculateTmoney(itinerary);
