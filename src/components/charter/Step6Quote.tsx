@@ -9,7 +9,7 @@ import { TransferReceipt } from './TransferReceipt';
 import { MultiDayReceipt } from './MultiDayReceipt';
 import { resolveProductType } from './resolveProductType';
 import { getWizardI18n } from './wizard-i18n';
-import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
+import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 interface Props {
   quote: QuoteBreakdown | null;
@@ -18,7 +18,8 @@ interface Props {
 }
 
 const KRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
-const USD = (krw: number) => `≈ $${Math.round(krw / CALCULATOR_KRW_PER_USD).toLocaleString('en-US')}`;
+// 차터 USD 표시 = 백 createPaypalOrder 청구와 동일 고정환율(CHARTER_USD_FIX_RATE 1400) → 표시가==청구가.
+const USD = (krw: number) => `≈ $${Math.round(krw / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}`;
 
 export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);

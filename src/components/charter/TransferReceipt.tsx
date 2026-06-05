@@ -3,6 +3,7 @@
 // 가격은 src/lib/transferQuote (백엔드 charter-transfer-price.js 와 1:1). 표시가 == 결제가 (P311).
 import { calcTransferQuote, curatedStariaKRW } from '@/lib/transferQuote';
 import type { TripType } from '@/lib/transferQuote';
+import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -14,7 +15,8 @@ const L: Record<string, Record<Lang, string>> = {
   roundtrip:{ ko: '왕복 이동', en: 'Round-trip transfer', ja: '往復送迎', zh: '往返接送' },
   base:     { ko: '차량 요금 (통행료·세금 포함)', en: 'Vehicle fare (tolls & tax incl.)', ja: '車両料金（通行料・税込）', zh: '车辆费用（含过路费·税）' },
   coupon:   { ko: '쿠폰', en: 'Coupon', ja: 'クーポン', zh: '优惠券' },
-  total:    { ko: '총액', en: 'Total', ja: '合計', zh: '总额' },
+  total:    { ko: '총액 (원화)', en: 'Total (KRW)', ja: '合計 (KRW)', zh: '总额 (KRW)' },
+  pay_usd:  { ko: '결제 금액 (USD 고정)', en: 'Payment (USD, fixed)', ja: 'お支払い (USD固定)', zh: '支付金额 (USD固定)' },
   note:     { ko: '출발 3일 전 전담 기사 배차 안내', en: 'Dedicated driver assigned 3 days before departure', ja: '出発3日前に専任ドライバーをご案内', zh: '出发前3天安排专属司机' },
 };
 
@@ -48,7 +50,8 @@ export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehic
       <div className="border-t border-white/10 my-2" />
       <Row label={`${lbl('coupon')} ${q.couponPct}%`} value={`−${KRW(q.coupon)}`} accent="good" />
       <div className="border-t border-white/10 my-2" />
-      <Row label={lbl('total')} value={KRW(q.total)} accent="bold" />
+      <Row label={lbl('total')} value={KRW(q.total)} accent="muted" />
+      <Row label={lbl('pay_usd')} value={`$${(q.total / CHARTER_USD_FIX_RATE).toFixed(2)}`} accent="bold" />
       <p className="mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>
     </div>
   );

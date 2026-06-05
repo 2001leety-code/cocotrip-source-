@@ -18,6 +18,7 @@ import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js'
 import { featureEnabled } from './_shared/feature-flag.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
 import { resolveTransferCheckoutKrw } from './_shared/charter-transfer-price.js';
+import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
 
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
@@ -260,8 +261,16 @@ export default async function handler(req, res) {
       }
     }
 
-    const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
-    const usdToKrw = await getUsdToKrwRaw();
+    // 2026-06-05 (운영자 결정): 차터 전체(ai_planner_full 제외)는 정책 고정환율(charter_usd_fix_rate=1400)로
+    //   USD 청구 → live 환율 변동 무관 안정 USD. AI 플래너($9.90)만 live 환율. (프론트 Step6Quote ≈$ 표시도 동일 rate.)
+    //   원화 약세장 헤지를 고객 USD 안정으로 이전 — 손익분기 ~1400, 실 환율 높을수록 운영자 KRW 수령 ↑.
+    let usdToKrw;
+    if (usesFixedUsdRate(productType)) {
+      usdToKrw = (SPEC && SPEC.charter_usd_fix_rate) || 1400;
+    } else {
+      const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
+      usdToKrw = await getUsdToKrwRaw();
+    }
     const usdAmount = (krwAmount / usdToKrw).toFixed(2);
 
     const { accessToken, baseUrl } = await getPaypalAccessToken(isSandbox);
