@@ -591,7 +591,9 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     ? placeholderStop.preferred_dietary.map((d) => String(d).toLowerCase())
     : [];
 
-  const candidates = foodIndex.filter((r) => {
+  // 1) SAFETY 후보 — city + cafe + dietRequired(사용자 실제 식이) hard filter.
+  //    dietRequired 는 SAFETY-CRITICAL (CLAUDE.md J) — 절대 relax 금지.
+  const safetyCandidates = foodIndex.filter((r) => {
     if (!r || typeof r !== 'object') return false;
     const rCity = String(r.city || '').toLowerCase();
     if (cityLc && rCity && !rCity.includes(cityLc) && !cityLc.includes(rCity)) return false;
@@ -601,23 +603,31 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     if (isCafe) {
       if (!cafeTypes.some((t) => rType.includes(t))) return false;
     }
-    // dietary tags 필터.
     const tags = Array.isArray(r.dietary_tags) ? r.dietary_tags.map((t) => String(t).toLowerCase()) : [];
     for (const d of dietRequired) {
-      if (!tags.includes(d)) return false;
-    }
-    for (const d of preferred) {
       if (!tags.includes(d)) return false;
     }
     return true;
   });
 
-  if (candidates.length === 0) {
-    if (dietRequired.length > 0) {
-      // SAFETY-CRITICAL — caller (expandBlocksToItinerary) 가 throw 해야 함.
-      return null;
-    }
+  if (safetyCandidates.length === 0) {
+    // dietRequired 불만족 (또는 city 후보 0) → caller(expandBlocksToItinerary)가 dietCritical 시 throw.
+    // SAFETY-CRITICAL: 사용자 식이 못 맞추면 placeholder/임의식당 대신 null → legacy fallback.
     return null;
+  }
+
+  // 2) preferred_dietary(seed 블록의 soft 힌트, 사용자 SAFETY 아님) — 후보 있으면 우선, 없으면 relax.
+  //    2026-06-05 (plan b6b2fd9b Day5 "[추천 verified_lunch - 부산광역시 사하구]"): seed 의 preferred_dietary
+  //    (vegetarian 등)가 부산 식당 323개를 0으로 만들어 placeholder 양산 → 사용자엔 "이름 빠진 가게".
+  //    soft 힌트는 못 맞춰도 실제 식당 추천이 placeholder 보다 나음 (SAFETY=dietRequired 는 위 1)에서 이미 보존).
+  let candidates = safetyCandidates;
+  if (preferred.length > 0) {
+    const preferredMatch = safetyCandidates.filter((r) => {
+      const tags = Array.isArray(r.dietary_tags) ? r.dietary_tags.map((t) => String(t).toLowerCase()) : [];
+      return preferred.every((d) => tags.includes(d));
+    });
+    if (preferredMatch.length > 0) candidates = preferredMatch;
+    // else: relax — safetyCandidates 유지 (preferred 못 맞춰도 실제 식당 > placeholder).
   }
 
   // 근접 가중 정렬 (2026-06-02, plan b720d6db/9c0c2eaa 운영자 "동선 이상" + PR #760 후속 "③거리필터").
