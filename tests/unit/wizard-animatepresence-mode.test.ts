@@ -24,4 +24,15 @@ describe('WizardForm AnimatePresence — mode="wait" (깜빡임 방지)', () => 
     expect(src).toMatch(/STEP_IMPORTS/);
     expect(src).toMatch(/requestIdleCallback/);
   });
+
+  it('#resume-instant — "이어서" 점프 시 애니 억제(noStepAnim) 제자리 즉시 복원 (강제 새로고침 느낌 제거)', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/WizardForm/index.tsx'), 'utf-8');
+    // 점프 시 transition duration 0 + initial false 로 exit/enter 빈틈 없이 즉시.
+    expect(src).toMatch(/duration:\s*noStepAnim\s*\?\s*0\s*:/);
+    expect(src).toMatch(/initial=\{noStepAnim\s*\?\s*false\s*:/);
+    // applyResumeSnapshot 이 직접 setStep 하지 않고 jumpToStep 으로 1틱 지연 (현재 step 먼저 instant 재렌더).
+    expect(src).toMatch(/setJumpToStep\(pendingStep\)/);
+    // mode="wait" 는 유지(다른 깜빡임 회귀 가드) — 점프만 0ms 로.
+    expect(src).toMatch(/<AnimatePresence\s+mode="wait"/);
+  });
 });
