@@ -14,6 +14,7 @@ import { downloadPlanAsMarkdown } from '../lib/planToMarkdown';
 // CharterBanner) 에서 인라인 결제 패턴 (CharterInlineAd) 으로 통일. PreTripSlide
 // 와 동일 funnel — 사용자가 wrap-up / pre-trip 어디서든 같은 흐름으로 결제 가능.
 import { CharterInlineAd } from './ads/CharterInlineAd';
+import { TourPackageInlineAd } from './ads/TourPackageInlineAd';
 import { CarRentalAd } from './ads/CarRentalAd';
 import { FlightAd } from './ads/FlightAd';
 import { AccommodationRecommendation } from './AccommodationRecommendation';
@@ -161,6 +162,18 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
           />
         );
       })()}
+
+      {/* 투어+공항 콤보 업셀 — 2026-06-06 가시성: 출발/wrap-up 에도 노출 (기존 PreTrip 외).
+          운영자 "Day4 투어+공항 = 콤보로 묶으면" 대응. region 무관 시 self-gate(null 반환). */}
+      <div className="mt-6">
+        <TourPackageInlineAd
+          region={rawRegion}
+          arrivalAirport={arrivalAirport}
+          defaultDate={startDate}
+          defaultPax={pax}
+          planId={planId}
+        />
+      </div>
 
       {/* Trip Extras (D-option ad cards moved out of slides) */}
       {extras.length > 0 && (
