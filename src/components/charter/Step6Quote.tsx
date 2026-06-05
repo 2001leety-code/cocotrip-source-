@@ -9,7 +9,7 @@ import { TransferReceipt } from './TransferReceipt';
 import { MultiDayReceipt } from './MultiDayReceipt';
 import { resolveProductType } from './resolveProductType';
 import { getWizardI18n } from './wizard-i18n';
-import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
+import { CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 
 interface Props {
   quote: QuoteBreakdown | null;
@@ -18,7 +18,8 @@ interface Props {
 }
 
 const KRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
-const USD = (krw: number) => `≈ $${Math.round(krw / CALCULATOR_KRW_PER_USD).toLocaleString('en-US')}`;
+// 차터 USD 표시 = 백 createPaypalOrder 청구와 동일 고정환율(CHARTER_USD_FIX_RATE 1400) → 표시가==청구가.
+const USD = (krw: number) => `≈ $${Math.round(krw / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}`;
 
 export function Step6Quote({ quote, state, language = 'en' }: Props) {
   const i18n = getWizardI18n(language);
@@ -74,10 +75,13 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
     }
   }
 
-  // 도시간 transfer 영수증 (2026-06-02, VITE_FEATURE_TRANSFER_CHECKOUT): service='transfer' + km>0 + staria/sprinter.
-  const transferOn = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true';
-  if (transferOn && quote.mode === 'transfer' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
-    return <TransferReceipt km={km} tripType={state?.tripType ?? 'oneway'} vehicle={tourVehicle} language={language} />;
+  // 도시간 transfer 영수증 (VITE_FEATURE_TRANSFER_CHECKOUT): resolveProductType=charter_transfer 판정 시
+  // backend 와 동일하게 originKey/destKey 로 curatedKRW 재계산 (4-tier ‖ 매트릭스 priceKRW). 표시가==결제가 (P311).
+  if (state) {
+    const tf = resolveProductType(state);
+    if (tf.productType === 'charter_transfer' && tf.payable && tf.originKey && tf.destKey) {
+      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} language={language} />;
+    }
   }
 
   return (

@@ -220,6 +220,8 @@ export const CITIES_CATALOG = spec.cities;
 export const DISTANCE_MATRIX = spec.distance_matrix;
 export const ATTRACTION_FEES = spec.attraction_fees;
 export const PRICING_SPEC_VERSION = spec.version;
+// 차터 전체 USD 청구·표시 고정환율 (2026-06-05 운영자 1400). 백 createPaypalOrder SPEC.charter_usd_fix_rate 와 동일 SSOT → 표시가==청구가.
+export const CHARTER_USD_FIX_RATE: number = (spec as { charter_usd_fix_rate?: number }).charter_usd_fix_rate ?? 1400;
 
 // ────────────────────────────────────────
 // 옵션 C-FINAL (2026-05-12): SSOT 단일화

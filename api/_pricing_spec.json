@@ -7,6 +7,8 @@
 
   "policy_krw_per_usd": 1430,
   "policy_krw_per_usd_comment": "P1 #5 fix (2026-05-13 운영자 정책 B 확정) — priceUSD 환산 기준 환율. 실시세 ~1430. 실제 결제 시 backend (api/_exchange-rate.js) 가 live rate 사용. 이 값은 UI 표시 priceUSD 의 기준일 뿐.",
+  "charter_usd_fix_rate": 1400,
+  "charter_usd_fix_rate_comment": "차터 전체(transfer/airport/tour/multiday) USD 청구 고정환율 (2026-06-05 운영자 결정 1400). 환율 변동 무관 안정 USD. AI 플래너(ai_planner_full)는 제외 = live 환율 유지. createPaypalOrder 가 차터 결제 시 이 rate 로 KRW→USD 변환(live 대신). 손익분기 ~1400 — 실 환율 높을수록(원 약세) 운영자 KRW 수령 ↑.",
 
   "includes": ["fuel", "tolls", "parking"],
   "excludes": ["meals", "attractions", "drinks", "shopping"],

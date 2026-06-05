@@ -3,7 +3,7 @@
 import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE } from '@/data/charterPricing';
 import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
 import { calcTourQuote } from '@/lib/tourQuote';
-import { calcTransferQuote } from '@/lib/transferQuote';
+import { calcTransferQuote, curatedStariaKRW } from '@/lib/transferQuote';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
 
@@ -134,10 +134,11 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
     if (TRANSFER_CHECKOUT_ON && (vehicle === 'staria' || vehicle === 'sprinter')) {
       const originKey = state.origin && state.origin !== 'CUSTOM' ? state.origin : null;
       const destKey = resolveDestMatrixKey(state);
-      const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
-      if (km != null && km > 0) {
+      // 2026-06-05 통일: curatedKRW = 매트릭스 priceKRW ‖ 4-tier(km)+톨 (백 charter-transfer-price 와 동일).
+      const curatedKRW = originKey && destKey ? curatedStariaKRW(originKey, destKey) : null;
+      if (curatedKRW != null) {
         const tripType: 'oneway' | 'roundtrip' = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
-        const q = calcTransferQuote({ km, tripType, vehicle });
+        const q = calcTransferQuote({ curatedKRW, tripType, vehicle });
         if (q) {
           return { productType: 'charter_transfer', priceKRW: q.total, passengers: pax, payable: true, originKey, destKey, tripType };
         }
