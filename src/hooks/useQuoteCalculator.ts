@@ -31,7 +31,7 @@ import {
 } from '@/components/charter/destinationKeyMap';
 import { resolveKm, resolveKmFromCoords } from '@/lib/calculatorDistance';
 import { calcSimpleByVehicle, tollEstimate } from '@/lib/calculator';
-import { calcTransferQuote } from '@/lib/transferQuote';
+import { calcTransferQuote, curatedStariaKRW, fourTierStariaKRW } from '@/lib/transferQuote';
 
 // 차종별 배수 — 권역 정의 가격(daily_tour_prices / matrix.priceKRW)에 곱해서 적용.
 // 2026-05-03 사용자 정책: sprinter 1.45→2.0, bus 2.3→3.0. resolveProductType.ts와 동기화.
@@ -297,7 +297,9 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
       if (kmT == null && externalKm != null && externalKm > 0) { kmT = externalKm; distanceKm = externalKm; source = 'formula'; }
       if (kmT != null) {
         const tripType = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
-        const tq = calcTransferQuote({ km: kmT, tripType, vehicle });
+        // 2026-06-05 통일: curatedKRW = 매트릭스 priceKRW ‖ 4-tier(km)+톨 (백 charter-transfer-price 와 동일).
+        const curatedKRW = (state.origin && resolvedDest ? curatedStariaKRW(state.origin, resolvedDest) : null) ?? fourTierStariaKRW(kmT);
+        const tq = curatedKRW != null ? calcTransferQuote({ curatedKRW, tripType, vehicle }) : null;
         if (tq) { vehicleChargeKRW = tq.total; receiptIsPackage = true; }
         else needsCustomQuote = true;
       } else if (state.destinationCustom) {

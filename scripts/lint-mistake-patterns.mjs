@@ -2629,8 +2629,8 @@ function R_wizardAnimatePresenceWait(ctx) {
 }
 
 /**
- * R_transferCheckoutSSOT (2026-06-02, P311 SAFETY): 도시간 차터 transfer(편도/왕복) 즉시결제는
- * 결제 금액을 backend SSOT(matrix km + TRANSFER_RATE_PER_KM)에서 재계산해야 함(client 변조 차단).
+ * R_transferCheckoutSSOT (2026-06-02, P311 SAFETY; 2026-06-05 4-tier 통일): 도시간/공항 차터 transfer
+ * 즉시결제는 결제 금액을 backend SSOT(curatedStariaKRW = 매트릭스 priceKRW ‖ 4-tier+톨)에서 재계산(client 변조 차단).
  * charter_transfer 경로는 resolveTransferCheckoutKrw 경유 + FEATURE_TRANSFER_CHECKOUT 게이트 의무.
  * 회귀: tests/unit/transfer-price.test.ts.
  */
@@ -2649,8 +2649,9 @@ function R_transferCheckoutSSOT(ctx) {
   }
   if (isModified('api/_shared/charter-transfer-price.js', ctx.changed)) {
     let src = ''; try { src = readFileSync('api/_shared/charter-transfer-price.js', 'utf8'); } catch {}
-    if (/function calcTransferQuote/.test(src) && !/TRANSFER_RATE_PER_KM/.test(src)) {
-      violations.push('calcTransferQuote 가 TRANSFER_RATE_PER_KM SSOT 상수 미참조 — 단가 하드코딩 분산');
+    // 2026-06-05 4-tier 통일: SSOT = curatedStariaKRW(매트릭스 priceKRW ‖ 4-tier+톨). 단가 literal 분산 금지.
+    if (/function calcTransferQuote/.test(src) && !/curatedStariaKRW/.test(src)) {
+      violations.push('charter-transfer-price.js 가 curatedStariaKRW(매트릭스 priceKRW ‖ 4-tier SSOT) 미참조 — 단가 하드코딩 분산');
     }
   }
   // 프론트 wiring 가드 (2026-06-02 transfer 결제 wiring): resolveProductType 가 charter_transfer 가격을

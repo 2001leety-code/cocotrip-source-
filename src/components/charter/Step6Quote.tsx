@@ -74,10 +74,13 @@ export function Step6Quote({ quote, state, language = 'en' }: Props) {
     }
   }
 
-  // 도시간 transfer 영수증 (2026-06-02, VITE_FEATURE_TRANSFER_CHECKOUT): service='transfer' + km>0 + staria/sprinter.
-  const transferOn = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true';
-  if (transferOn && quote.mode === 'transfer' && km > 0 && (tourVehicle === 'staria' || tourVehicle === 'sprinter')) {
-    return <TransferReceipt km={km} tripType={state?.tripType ?? 'oneway'} vehicle={tourVehicle} language={language} />;
+  // 도시간 transfer 영수증 (VITE_FEATURE_TRANSFER_CHECKOUT): resolveProductType=charter_transfer 판정 시
+  // backend 와 동일하게 originKey/destKey 로 curatedKRW 재계산 (4-tier ‖ 매트릭스 priceKRW). 표시가==결제가 (P311).
+  if (state) {
+    const tf = resolveProductType(state);
+    if (tf.productType === 'charter_transfer' && tf.payable && tf.originKey && tf.destKey) {
+      return <TransferReceipt originKey={tf.originKey} destKey={tf.destKey} tripType={tf.tripType ?? 'oneway'} vehicle={tourVehicle ?? 'staria'} language={language} />;
+    }
   }
 
   return (

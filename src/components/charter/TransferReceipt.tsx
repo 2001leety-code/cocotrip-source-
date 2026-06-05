@@ -1,7 +1,7 @@
-// TransferReceipt — 도시간 차터 transfer 편도/왕복 영수증 (운영자 2026-06-02).
-// TourReceipt.tsx 패턴 복제. 편도 km×1500 / 왕복 ×2 + 쿠폰(편도5%/왕복10%) + VAT 10%.
-// 가격은 src/lib/transferQuote (백엔드 1:1 일치). 플래그 ON + charter_transfer 시 Step6Quote 표시.
-import { calcTransferQuote } from '@/lib/transferQuote';
+// TransferReceipt — 도시간/공항 차터 transfer 편도/왕복 영수증.
+// 2026-06-05 통일: 4-tier(톨 포함) ‖ 매트릭스 priceKRW × 차종 × 편도5%/왕복(×2)10%. 거리·VAT 별도행 폐기(curatedKRW 내장).
+// 가격은 src/lib/transferQuote (백엔드 charter-transfer-price.js 와 1:1). 표시가 == 결제가 (P311).
+import { calcTransferQuote, curatedStariaKRW } from '@/lib/transferQuote';
 import type { TripType } from '@/lib/transferQuote';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
@@ -12,9 +12,8 @@ const L: Record<string, Record<Lang, string>> = {
   title:    { ko: '차터 견적 영수증', en: 'Transfer Receipt', ja: '送迎見積書', zh: '包车报价单' },
   oneway:   { ko: '편도 이동', en: 'One-way transfer', ja: '片道送迎', zh: '单程接送' },
   roundtrip:{ ko: '왕복 이동', en: 'Round-trip transfer', ja: '往復送迎', zh: '往返接送' },
-  distance: { ko: '이동거리', en: 'Distance', ja: '移動距離', zh: '行驶距离' },
+  base:     { ko: '차량 요금 (통행료·세금 포함)', en: 'Vehicle fare (tolls & tax incl.)', ja: '車両料金（通行料・税込）', zh: '车辆费用（含过路费·税）' },
   coupon:   { ko: '쿠폰', en: 'Coupon', ja: 'クーポン', zh: '优惠券' },
-  vat:      { ko: '부가세', en: 'VAT', ja: '消費税', zh: '增值税' },
   total:    { ko: '총액', en: 'Total', ja: '合計', zh: '总额' },
   note:     { ko: '출발 3일 전 전담 기사 배차 안내', en: 'Dedicated driver assigned 3 days before departure', ja: '出発3日前に専任ドライバーをご案内', zh: '出发前3天安排专属司机' },
 };
@@ -29,24 +28,25 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-export function TransferReceipt({ km, tripType = 'oneway', vehicle, language = 'en' }: {
-  km: number;
+export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehicle, language = 'en' }: {
+  originKey: string;
+  destKey: string;
   tripType?: TripType;
   vehicle: string;
   language?: Lang;
 }) {
-  const q = calcTransferQuote({ km, tripType, vehicle });
+  const curatedKRW = curatedStariaKRW(originKey, destKey);
+  const q = curatedKRW != null ? calcTransferQuote({ curatedKRW, tripType, vehicle }) : null;
   if (!q) return null;
   const lbl = (k: string): string => L[k]?.[language] ?? L[k]?.en ?? k;
   const modeLabel = tripType === 'roundtrip' ? lbl('roundtrip') : lbl('oneway');
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-1">
-      <p className="text-base font-bold text-white/85 mb-4">{lbl('title')}</p>
-      <Row label={modeLabel} value={`${q.km}km`} />
-      <Row label={`${lbl('distance')} (${q.distanceKm}km × ₩1,500)`} value={KRW(q.base)} />
+      <p className="text-base font-bold text-white/85 mb-1">{lbl('title')}</p>
+      <p className="text-xs text-white/45 mb-3">{modeLabel}</p>
+      <Row label={lbl('base')} value={KRW(q.tripBase)} />
       <div className="border-t border-white/10 my-2" />
       <Row label={`${lbl('coupon')} ${q.couponPct}%`} value={`−${KRW(q.coupon)}`} accent="good" />
-      <Row label={`${lbl('vat')} 10%`} value={`+${KRW(q.vat)}`} accent="muted" />
       <div className="border-t border-white/10 my-2" />
       <Row label={lbl('total')} value={KRW(q.total)} accent="bold" />
       <p className="mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>

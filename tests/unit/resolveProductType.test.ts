@@ -14,7 +14,7 @@ import { resolveProductType } from '../../src/components/charter/resolveProductT
 import type { WizardState } from '../../src/components/charter/types';
 import { calcMultiDayCharterKrw as beMultiday, lookupMatrixKm } from '../../api/_shared/charter-multiday-price.js';
 import { calcTourQuote as beTourQuote } from '../../api/_shared/tour-price.js';
-import { calcTransferQuote as beTransferQuote } from '../../api/_shared/charter-transfer-price.js';
+import { calcTransferQuote as beTransferQuote, curatedStariaKRW as beCuratedStaria } from '../../api/_shared/charter-transfer-price.js';
 import { calcMultiDayQuote } from '../../src/lib/multidayQuote';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
@@ -167,22 +167,22 @@ describe('resolveProductType — 도시간 transfer (VITE_FEATURE_TRANSFER_CHECK
 
   it('플래그 ON + 매트릭스(SEL_METRO→BUSAN) + staria + 편도 → charter_transfer, 가격 == 백엔드', () => {
     vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
-    const km = lookupMatrixKm(SPEC, 'SEL_METRO', 'BUSAN')!;
-    expect(km).toBeGreaterThan(0);
+    const curatedKRW = beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!;
+    expect(curatedKRW).toBeGreaterThan(0);
     const r = resolveProductType(transferState({ tripType: 'oneway' }));
     expect(r.productType).toBe('charter_transfer');
     expect(r.payable).toBe(true);
-    expect(r.priceKRW).toBe(beTransferQuote({ km, tripType: 'oneway', vehicle: 'staria' })!.total);
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' })!.total);
     expect(r.tripType).toBe('oneway');
     expect(r.originKey).toBe('SEL_METRO');
     expect(r.destKey).toBe('BUSAN');
   });
 
-  it('플래그 ON + 왕복 → 가격 == 백엔드 (km×2 + 쿠폰 10%)', () => {
+  it('플래그 ON + 왕복 → 가격 == 백엔드 (×2 + 쿠폰 10%)', () => {
     vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
-    const km = lookupMatrixKm(SPEC, 'SEL_METRO', 'BUSAN')!;
+    const curatedKRW = beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!;
     const r = resolveProductType(transferState({ tripType: 'roundtrip' }));
-    expect(r.priceKRW).toBe(beTransferQuote({ km, tripType: 'roundtrip', vehicle: 'staria' })!.total);
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' })!.total);
     expect(r.tripType).toBe('roundtrip');
   });
 
