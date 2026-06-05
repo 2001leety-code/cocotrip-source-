@@ -499,6 +499,39 @@ No markdown. No code blocks. No explanation. Pure JSON only.
 // ─────────────────────────────────────────────────────────────────────
 
 const DEFAULT_DAY_START_HHMM = '09:00';
+const DEFAULT_TOUR_END_HHMM = '21:00';
+
+// #arrival-realtime (2026-06-05, 운영자): 도착일 시작 시각을 현실적으로 계산.
+// 옛 '도착+60분' 은 비현실 — 국제선 입국심사+짐+세관(~90분) + 공항→권역 이동(공항별)이 빠짐.
+// block_mode 는 RouteAgent(정밀 이동시간) 전 단계라 공항별 보수적 추정치 사용. RouteAgent 가 이후 정밀 보정.
+const IMMIGRATION_BUFFER_MIN = 90; // 국제선 입국심사 + 짐 + 세관 (보수적)
+
+/** 공항 → 권역(시내/호텔) 이동 현실 추정(분). 공항 코드/한글명 부분일치. */
+function estimateAirportTransitMin(airport) {
+  const a = String(airport || '').toUpperCase();
+  if (a.includes('ICN') || a.includes('인천')) return 90;   // 인천 → 서울권
+  if (a.includes('GMP') || a.includes('김포')) return 45;   // 김포 → 서울권
+  if (a.includes('PUS') || a.includes('김해') || a.includes('GIMHAE')) return 55; // 김해 → 부산
+  if (a.includes('CJU') || a.includes('제주')) return 25;   // 제주공항 → 제주시
+  if (a.includes('TAE') || a.includes('대구')) return 40;   // 대구
+  if (a.includes('CJJ') || a.includes('청주')) return 70;   // 청주 → 서울/대전
+  if (a.includes('RSU') || a.includes('여수')) return 30;
+  if (a.includes('USN') || a.includes('울산')) return 35;
+  return 70; // 기본 (모르는 공항 — 보수적)
+}
+
+/** "HH:mm" → 분(0~1439). 실패 시 -1. */
+function hhmmToMin(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  return m ? (+m[1]) * 60 + (+m[2]) : -1;
+}
+
+/** 도착 후 "투어 시작 가능" 절대 분(자정 넘김 시 1440 초과 — wrap 안 함). 도착 + 입국수속 + 공항이동. */
+function arrivalReadyMinutes(arrivalHHMM, airport) {
+  const base = hhmmToMin(arrivalHHMM);
+  if (base < 0) return null;
+  return base + IMMIGRATION_BUFFER_MIN + estimateAirportTransitMin(airport);
+}
 
 /**
  * "HH:mm" + minutes → "HH:mm" (24h wrap-around).
@@ -707,6 +740,10 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   // 본 fix = buildPrompt + RouteAgent 와 동일 룰을 block_mode 에도 적용 (sleeper bug 해소).
   const tourStartTimeRaw = String(userInput?.tour_start_time || userInput?.tourStartTime || '09:00');
   const tourStartTime = /^\d{1,2}:\d{2}$/.test(tourStartTimeRaw) ? tourStartTimeRaw : DEFAULT_DAY_START_HHMM;
+  // #arrival-realtime/tour-end (2026-06-05, 운영자): 종료 시간 cap + 도착 현실 계산용 공항.
+  const tourEndTimeRaw = String(userInput?.tour_end_time || userInput?.tourEndTime || DEFAULT_TOUR_END_HHMM);
+  const tourEndTime = /^\d{1,2}:\d{2}$/.test(tourEndTimeRaw) ? tourEndTimeRaw : DEFAULT_TOUR_END_HHMM;
+  const arrivalAirportInput = String(userInput?.arrival_airport || '').trim();
 
   const days = [];
   for (const sel of blockSelections.day_selections) {
@@ -724,16 +761,17 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     const isFirstDay = dayNum === 1;
     const isLastDay = dayNum === blockSelections.day_selections.length;
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
-      // P245 (2026-05-27): max(tour_start_time, arrival_time + 60min) — P239 architectural fix.
-      // arrival=14:00 케이스: max(09:00, 15:00) = 15:00 → 23:00 cascade 차단.
-      // arrival=01:30 케이스: max(09:00, 02:30) = 09:00 → 새벽 stops 차단 (호텔만 + 09:00 부터).
-      // arrival=06:00 케이스: max(09:00, 07:00) = 09:00 → 너무 늦은 stops 방지.
-      const arrivalPlus60 = addMinutesToHHMM(arrivalTime, 60);
-      // HH:MM 문자열 비교 = 시간 비교 (lexical = numeric for zero-padded).
-      if (arrivalPlus60 && arrivalPlus60 > tourStartTime) {
-        dayStart = arrivalPlus60;
+      // #arrival-realtime (2026-06-05, 운영자): 도착 + 입국수속(~90분) + 공항→권역 이동(공항별 추정).
+      // 옛 '+60분' 은 비현실(입국심사+짐+세관+이동 = 2~3시간). 예: ICN 14:00 도착 → 17:00 시작.
+      const readyMin = arrivalReadyMinutes(arrivalTime, arrivalAirportInput);
+      const tourStartMin = hhmmToMin(tourStartTime);
+      const capMin = hhmmToMin(tourEndTime);
+      const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);
+      if (effMin >= capMin) {
+        // 수속+이동 후 종료시간까지 투어 시간 없음 → Day1 = 호텔 휴식 (활동 stop 은 아래 종료 cap 이 전부 trim).
+        dayStart = tourEndTime;
       } else {
-        dayStart = tourStartTime;
+        dayStart = `${String(Math.floor(effMin / 60)).padStart(2, '0')}:${String(effMin % 60).padStart(2, '0')}`;
       }
     }
 
@@ -809,20 +847,21 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       });
     }
 
-    // Day 1 (arrival day) late-arrival cutoff (2026-06-02, plan 4d214e83 운영자 신고):
-    //   밤 늦은 도착(dayStart 늦음)인데 block 전체 배치 → 새벽 관광 cascade. 마지막 날 departure
-    //   cap 과 대칭으로 도착 당일도 22:00 이후 관광 stop trim. 정상 09:00 plan 무영향, lodging/
-    //   airport/travel 보존. 다도시 expandBlocksToItineraryMultiCity 와 동일 룰.
-    if (isFirstDay) {
+    // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff
+    //   (2026-06-05 운영자: 종료시간 정확 설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고):
+    //   - 모든 날: 사용자 지정 tour_end_time(기본 21:00) 이후 관광 stop trim → 종료시간 준수.
+    //   - 도착일: 밤 늦은 도착으로 자정 넘어간 새벽 stop(pastMidnight)도 trim.
+    //   lodging/airport/travel 은 보존. 마지막 날 departure cap 은 아래 별도 처리.
+    {
       const toMin = (hhmm) => { const mm = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return mm ? (+mm[1]) * 60 + (+mm[2]) : -1; };
-      const capMin = toMin('22:00');
+      const capMin = toMin(tourEndTime);
       const dayStartMin = toMin(dayStart);
       while (stops.length > 1) {
         const last = stops[stops.length - 1];
         if (last.category === 'lodging' || last.category === 'airport' || last.category === 'travel') break;
         const lastMin = toMin(last.start_time);
         if (lastMin < 0) break;
-        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 당일 22:00 이후 → trim.
+        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 tour_end_time 이후 → trim.
         const pastMidnight = dayStartMin >= 0 && lastMin < dayStartMin;
         if (pastMidnight || lastMin > capMin) stops.pop();
         else break;
@@ -1305,6 +1344,10 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
   // (단도시 expandBlocksToItinerary 와 일관). default '09:00' (P239 architectural).
   const tourStartTimeRaw = String(userInput?.tour_start_time || userInput?.tourStartTime || '09:00');
   const tourStartTime = /^\d{1,2}:\d{2}$/.test(tourStartTimeRaw) ? tourStartTimeRaw : DEFAULT_DAY_START_HHMM;
+  // #arrival-realtime/tour-end (2026-06-05, 운영자): 종료시간 cap + 도착 현실 계산용 공항 (loop 전 hoist).
+  const tourEndTimeRaw = String(userInput?.tour_end_time || userInput?.tourEndTime || DEFAULT_TOUR_END_HHMM);
+  const tourEndTime = /^\d{1,2}:\d{2}$/.test(tourEndTimeRaw) ? tourEndTimeRaw : DEFAULT_TOUR_END_HHMM;
+  const mcArrivalAirport = String(userInput?.arrival_airport || '').trim();
   // P123 학습: hotelByCity Record 로 도시별 lodging 정합성 보장.
   const hotelByCity = (userInput?.hotelByCity && typeof userInput.hotelByCity === 'object' && !Array.isArray(userInput.hotelByCity))
     ? userInput.hotelByCity
@@ -1342,11 +1385,16 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
     const isFirstDay = dayNum === 1;
     const isLastDay = dayNum === blockSelections.day_selections.length;
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
-      const arrivalPlus60 = addMinutesToHHMM(arrivalTime, 60);
-      if (arrivalPlus60 && arrivalPlus60 > tourStartTime) {
-        dayStart = arrivalPlus60;
+      // #arrival-realtime (2026-06-05, 운영자): 도착 + 입국수속(~90분) + 공항→권역 이동(공항별 추정).
+      // 옛 '+60분' 비현실(입국심사+짐+세관+이동 2~3시간). 단도시 expandBlocksToItinerary 와 동일 룰.
+      const readyMin = arrivalReadyMinutes(arrivalTime, mcArrivalAirport);
+      const tourStartMin = hhmmToMin(tourStartTime);
+      const capMin = hhmmToMin(tourEndTime);
+      const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);
+      if (effMin >= capMin) {
+        dayStart = tourEndTime;
       } else {
-        dayStart = tourStartTime;
+        dayStart = `${String(Math.floor(effMin / 60)).padStart(2, '0')}:${String(effMin % 60).padStart(2, '0')}`;
       }
     }
 
@@ -1413,21 +1461,20 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       });
     }
 
-    // Day 1 (arrival day) late-arrival cutoff (2026-06-02, plan 4d214e83 운영자 신고):
-    //   밤 늦은 도착(dayStart = max(tour_start, arrival+60) 가 늦음)인데 block 전체를 그 시각부터
-    //   배치 → 새벽 관광 cascade (20:29 도착 → 02:16 북촌 / 05:39 홍대). 마지막 날 departure cap 과
-    //   대칭으로 도착 당일도 ARRIVAL_DAY_CAP 이후 관광 stop trim (체크인 + 가벼운 일정만). 정상
-    //   09:00 시작 plan 은 stops 가 22:00 이전이라 무영향. lodging/airport/travel 은 보존.
-    if (isFirstDay) {
+    // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff (2026-06-05 운영자: 종료시간 정확
+    //   설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고 20:29 도착→02:16 북촌). 모든 날 사용자 지정
+    //   tour_end_time(기본 21:00) 이후 관광 stop trim → 종료시간 준수. 도착일은 자정 넘어간 새벽 stop 도
+    //   trim. lodging/airport/travel 보존. 단도시 expandBlocksToItinerary 와 동일 룰.
+    {
       const toMin = (hhmm) => { const mm = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return mm ? (+mm[1]) * 60 + (+mm[2]) : -1; };
-      const capMin = toMin('22:00');
+      const capMin = toMin(tourEndTime);
       const dayStartMin = toMin(dayStart);
       while (stops.length > 1) {
         const last = stops[stops.length - 1];
         if (last.category === 'lodging' || last.category === 'airport' || last.category === 'travel') break;
         const lastMin = toMin(last.start_time);
         if (lastMin < 0) break;
-        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 당일 22:00 이후 → trim.
+        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 tour_end_time 이후 → trim.
         const pastMidnight = dayStartMin >= 0 && lastMin < dayStartMin;
         if (pastMidnight || lastMin > capMin) stops.pop();
         else break;
@@ -1477,7 +1524,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
 
   const cityList = [...new Set(blockSelections.day_selections.map((s) => s.city))].join('/');
   // P271 (2026-05-28): 다도시 expand 도 arrival_guide / departure_guide / daily_budget_summary minimal default.
-  const mcArrivalAirport = String(userInput?.arrival_airport || '').trim();
+  // mcArrivalAirport 는 위(loop 전)에서 hoist 됨 (#arrival-realtime).
   const mcDepartureAirport = String(userInput?.departure_airport || mcArrivalAirport).trim();
   const mcItinerary = {
     tour_title: `Pre-curated ${cityList} ${days.length}-day plan`,

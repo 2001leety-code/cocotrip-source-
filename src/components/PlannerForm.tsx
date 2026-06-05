@@ -87,6 +87,8 @@ export interface PlannerFormValues {
   // Day1 stops 시작 시각 고정. 새벽 도착 시 호텔 transit only + tourStartTime 부터 stops.
   // root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive.
   tour_start_time?: string;     // "HH:MM" 24h (default '09:00')
+  // #tour-end (2026-06-05): 투어 종료 시각 cap — 모든 day 관광 stop 을 이 시각 이후 trim.
+  tour_end_time?: string;       // "HH:MM" 24h (default '21:00')
   luggage?: { small: number; medium: number; large: number };
   wantAccom?: boolean;
   accomBudget?: string;

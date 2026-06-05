@@ -56,11 +56,17 @@ describe('P245 architectural: blockMode tour_start_time', () => {
       '옛 9h 룰 잔존 — P159 cascade 위험').toBe(false);
   });
 
-  it('arrival + 60min vs tour_start_time max 비교 룰 존재', () => {
+  it('도착 현실 계산(arrivalReadyMinutes) vs tour_start_time max 비교 룰 존재 (#arrival-realtime 대체)', () => {
     const src = readFile('api/_ai_core/blockMode.js');
-    // dayStart = arrivalPlus60 > tourStartTime ? arrivalPlus60 : tourStartTime
-    expect(/arrivalPlus60\s*>\s*tourStartTime/.test(src),
-      'arrival+60 vs tour_start_time max 비교 룰 누락').toBe(true);
+    // 2026-06-05 #arrival-realtime: 옛 max(tour_start, arrival+60) 룰을 입국수속(90분) +
+    // 공항→권역 이동(공항별) 현실 계산으로 대체. dayStart = max(tourStartMin, arrivalReadyMinutes(...)).
+    expect(/arrivalReadyMinutes\(/.test(src),
+      'arrivalReadyMinutes 도착 현실 계산 누락 — #arrival-realtime 회귀').toBe(true);
+    expect(/Math\.max\(\s*tourStartMin\s*,\s*readyMin\s*\)/.test(src),
+      'max(tour_start, ready) 비교 룰 누락').toBe(true);
+    // 옛 +60분 룰(arrivalPlus60) 잔존 금지 (회귀 차단)
+    expect(/arrivalPlus60/.test(src),
+      '옛 arrivalPlus60(+60분) 룰 잔존 — #arrival-realtime 회귀').toBe(false);
   });
 
   it('default tour_start_time = 09:00 (옛 client 호환)', () => {
@@ -121,7 +127,10 @@ describe('P245 architectural: handlerCore tour_start_time passthrough (regressio
 // ────────────────────────────────────────────────────────────────────────────
 // 4. Integration scenario — 운영자 prod alert plan (39c7bd3f) reproduction
 // ────────────────────────────────────────────────────────────────────────────
-describe('P245 reproduction: arrival=14:00 should NOT cascade past midnight', () => {
+describe('P245 reproduction: arrival should NOT cascade past midnight (max concept)', () => {
+  // NOTE: 2026-06-05 #arrival-realtime 가 arrival+60 → 입국수속(90)+공항이동 현실 계산으로 대체.
+  // 아래 산술은 P245 max() 개념 demo (frozen). 실제 expand 동작 검증은
+  // tests/unit/tour-end-time-arrival-realtime.test.ts (동작 테스트) 참조.
   it('arrival=14:00 + tour_start=09:00 → dayStart=15:00 (NOT 23:00 wrap)', () => {
     // 본 test는 fix 로직의 산술 검증.
     // dayStart 계산: max(tour_start_time, arrival+60) = max(09:00, 15:00) = 15:00
