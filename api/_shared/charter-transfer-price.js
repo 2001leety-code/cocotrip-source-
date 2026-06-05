@@ -90,16 +90,46 @@ export function calcTransferQuote({ curatedKRW = 0, tripType = 'oneway', vehicle
 }
 
 /**
- * 결제 핸들러 게이트 — 플래그 + matrix curated 가격 + total 재계산.
+ * transfer 추정 원가 (최소마진 가드용) — spec.transfer_margin_guard.cost_model 기반.
+ * 편도: 적재 km + 공차복귀(deadhead_factor). 왕복: 양방향 적재(복귀=fare, deadhead 없음).
+ * staria 기준(스프린터는 가격 2배 ≫ 원가라 항상 통과). cost_model 미설정 시 null(가드 skip).
+ * ⚠️ 기본 cost_model 은 추정치 — 운영자 실 기사일당/연료로 교체 권장.
+ * @returns {number|null} 추정 원가 KRW, 또는 산정 불가 시 null
+ */
+export function estimateTransferCostKrw(spec, km, tripType) {
+  const cm = spec && spec.transfer_margin_guard && spec.transfer_margin_guard.cost_model;
+  if (!cm || !Number.isFinite(km) || km <= 0) return null;
+  const isRound = tripType === 'roundtrip';
+  const dh = cm.deadhead_factor || 1.8;
+  const distance = isRound ? km * 2 : km * dh;
+  const fuel = distance * (cm.fuel_krw_per_km || 170);
+  const hours = distance / (cm.avg_speed_kmh || 60) + (cm.overhead_hours || 1);
+  const driver = hours * (cm.driver_krw_per_hour || 25000);
+  const toll = tollEstimate(km) * (isRound ? 2 : dh);
+  return Math.round(fuel + driver + toll);
+}
+
+/**
+ * 결제 핸들러 게이트 — 플래그 + matrix curated 가격 + total 재계산 (+ 선택적 최소마진 가드).
  * client 는 originKey/destKey/tripType/vehicle 만 전달(priceKRW/km 무시 = 변조 차단).
- * @returns {number|null} 결제 총액, 또는 비활성/미존재 시 null
+ * spec.transfer_margin_guard.enabled=true 시 total < 추정원가×margin_multiple 이면 결제 차단(→협의/null).
+ * @returns {number|null} 결제 총액, 또는 비활성/미존재/마진미달 시 null
  */
 export function resolveTransferCheckoutKrw(spec, body, featureEnabled) {
   if (!featureEnabled || !body) return null;
-  const curatedKRW = curatedStariaKRW(spec, body.originKey, body.destKey);
+  const o = String(body.originKey || '').trim();
+  const d = String(body.destKey || '').trim();
+  const curatedKRW = curatedStariaKRW(spec, o, d);
   if (curatedKRW == null) return null; // 경로 미존재 → 결제 불가(협의)
   const q = calcTransferQuote({ curatedKRW, tripType: body.tripType, vehicle: String(body.vehicle || '').trim() });
-  return q ? q.total : null;
+  if (!q) return null;
+  const guard = spec && spec.transfer_margin_guard;
+  if (guard && guard.enabled) {
+    const km = lookupMatrixKm(spec, o, d);
+    const cost = km != null ? estimateTransferCostKrw(spec, km, body.tripType) : null;
+    if (cost != null && q.total < cost * (guard.margin_multiple || 1.2)) return null; // 마진 미달 → 협의
+  }
+  return q.total;
 }
 
 export { VEHICLE_MULT as TRANSFER_VEHICLE_MULT };

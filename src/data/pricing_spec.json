@@ -9,6 +9,18 @@
   "policy_krw_per_usd_comment": "P1 #5 fix (2026-05-13 운영자 정책 B 확정) — priceUSD 환산 기준 환율. 실시세 ~1430. 실제 결제 시 backend (api/_exchange-rate.js) 가 live rate 사용. 이 값은 UI 표시 priceUSD 의 기준일 뿐.",
   "charter_usd_fix_rate": 1400,
   "charter_usd_fix_rate_comment": "차터 전체(transfer/airport/tour/multiday) USD 청구 고정환율 (2026-06-05 운영자 결정 1400). 환율 변동 무관 안정 USD. AI 플래너(ai_planner_full)는 제외 = live 환율 유지. createPaypalOrder 가 차터 결제 시 이 rate 로 KRW→USD 변환(live 대신). 손익분기 ~1400 — 실 환율 높을수록(원 약세) 운영자 KRW 수령 ↑.",
+  "transfer_margin_guard": {
+    "enabled": false,
+    "margin_multiple": 1.2,
+    "comment": "차터 transfer 최소마진 가드 (2026-06-05). enabled=true 시 resolveTransferCheckoutKrw 가 total < 추정원가×margin_multiple 이면 결제 차단(→협의). 기본 OFF — 활성화는 운영자 실비(cost_model) 입력 + 마진정책 결정 필요. ⚠️ margin_multiple 1.2(20%마진)는 장거리 편도(deadhead 로 시장 margin 얇음)를 협의로 보냄 = 장거리 왕복/멀티데이 유도 효과. cost_model 은 추정치 — 운영자 실 기사일당/연료로 교체 권장.",
+    "cost_model": {
+      "fuel_krw_per_km": 170,
+      "driver_krw_per_hour": 25000,
+      "avg_speed_kmh": 60,
+      "deadhead_factor": 1.8,
+      "overhead_hours": 1
+    }
+  },
 
   "includes": ["fuel", "tolls", "parking"],
   "excludes": ["meals", "attractions", "drinks", "shopping"],

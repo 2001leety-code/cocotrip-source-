@@ -13,11 +13,14 @@
 import type { VehicleType } from '@/components/charter/types';
 import spec from '@/data/pricing_spec.json';
 
-// P1 #5 fix (2026-05-13): 환율 SSOT 통일 — pricing_spec.json policy_krw_per_usd 우선.
-// 우선순위: Vercel env (VITE_KRW_PER_USD) > pricing_spec.json (1430) > hardcoded fallback (1430).
-// 실제 결제 환산은 backend (api/_exchange-rate.js) 의 live rate 사용. 이 상수는 UI 표시 estimate 용.
-const POLICY_RATE = (spec as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
-const KRW_PER_USD = Number(import.meta.env.VITE_KRW_PER_USD ?? POLICY_RATE);
+// 2026-06-05: 차터 전체 USD 청구 = charter_usd_fix_rate(1400) 고정 (운영자 결정) → UI 표시 estimate 도 동일 rate = 표시==청구.
+// 우선순위: Vercel env (VITE_KRW_PER_USD) > charter_usd_fix_rate (1400) > policy_krw_per_usd (1430) > 1430.
+// 실제 결제: 차터 = 이 고정 rate(createPaypalOrder), AI 플래너 = backend live rate (api/_exchange-rate.js).
+const _specRates = spec as { charter_usd_fix_rate?: number; policy_krw_per_usd?: number };
+const POLICY_RATE = typeof _specRates.charter_usd_fix_rate === 'number' ? _specRates.charter_usd_fix_rate
+  : (typeof _specRates.policy_krw_per_usd === 'number' ? _specRates.policy_krw_per_usd : 1430);
+const _envRate = import.meta.env.VITE_KRW_PER_USD;
+const KRW_PER_USD = Number(_envRate === undefined || _envRate === null ? POLICY_RATE : _envRate);
 
 interface VehicleFormula {
   base: number;

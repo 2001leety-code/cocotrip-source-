@@ -1203,22 +1203,25 @@ import { CALCULATOR_KRW_PER_USD } from '../../src/lib/calculator';
 import { applyRatePolicy } from '../../api/_exchange-rate.js';
 
 const POLICY_RATE = (pricingSpecRaw as { policy_krw_per_usd?: number }).policy_krw_per_usd ?? 1430;
+// 2026-06-05: 차터 카드/영수증 priceUSD 는 charter_usd_fix_rate(1400)로 산출 (P1 #5 1430 supersede — 표시==청구가).
+const CHARTER_FIX = (pricingSpecRaw as { charter_usd_fix_rate?: number }).charter_usd_fix_rate ?? 1400;
 
 describe('B-CHT20 — 환율 SSOT 통일 (P1 #5 fix)', () => {
   it('pricing_spec.policy_krw_per_usd = 1430 (운영자 정책 B 확정)', () => {
     expect(POLICY_RATE).toBe(1430);
   });
 
-  it('CALCULATOR_KRW_PER_USD = POLICY_RATE (env override 없을 때)', () => {
+  it('CALCULATOR_KRW_PER_USD = charter_usd_fix_rate 1400 (2026-06-05, env override 없을 때 = 표시==청구)', () => {
+    expect(CALCULATOR_KRW_PER_USD).toBe(CHARTER_FIX);
     expect(CALCULATOR_KRW_PER_USD).toBeGreaterThanOrEqual(1300);
     expect(CALCULATOR_KRW_PER_USD).toBeLessThanOrEqual(1500);
   });
 });
 
-describe('B-CHT21 — airport_transfer_prices priceUSD = round(priceKRW / 1430) (P1 #5 fix)', () => {
+describe('B-CHT21 — airport_transfer_prices priceUSD = round(priceKRW / charter_usd_fix_rate 1400) (2026-06-05)', () => {
   for (const [zone, entry] of Object.entries(AIRPORT_TRANSFER_PRICES)) {
-    it(`zone=${zone} priceUSD ≈ ${entry.priceKRW} / 1430`, () => {
-      const expectedUSD = Math.round(entry.priceKRW / 1430);
+    it(`zone=${zone} priceUSD ≈ ${entry.priceKRW} / ${CHARTER_FIX}`, () => {
+      const expectedUSD = Math.round(entry.priceKRW / CHARTER_FIX);
       expect(entry.priceUSD, `zone=${zone} KRW=${entry.priceKRW} expectedUSD=${expectedUSD} actualUSD=${entry.priceUSD}`)
         .toBeGreaterThanOrEqual(expectedUSD - 1);
       expect(entry.priceUSD).toBeLessThanOrEqual(expectedUSD + 1);
@@ -1226,10 +1229,10 @@ describe('B-CHT21 — airport_transfer_prices priceUSD = round(priceKRW / 1430) 
   }
 });
 
-describe('B-CHT22 — daily_tour_prices priceUSD = round(priceKRW / 1430) (P1 #5 fix)', () => {
+describe('B-CHT22 — daily_tour_prices priceUSD = round(priceKRW / charter_usd_fix_rate 1400) (2026-06-05)', () => {
   for (const [tour, entry] of Object.entries(DAILY_TOUR_PRICES)) {
-    it(`tour=${tour} priceUSD ≈ ${entry.priceKRW} / 1430`, () => {
-      const expectedUSD = Math.round(entry.priceKRW / 1430);
+    it(`tour=${tour} priceUSD ≈ ${entry.priceKRW} / ${CHARTER_FIX}`, () => {
+      const expectedUSD = Math.round(entry.priceKRW / CHARTER_FIX);
       expect(entry.priceUSD, `tour=${tour} KRW=${entry.priceKRW} expectedUSD=${expectedUSD} actualUSD=${entry.priceUSD}`)
         .toBeGreaterThanOrEqual(expectedUSD - 1);
       expect(entry.priceUSD).toBeLessThanOrEqual(expectedUSD + 1);

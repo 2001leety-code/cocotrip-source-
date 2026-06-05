@@ -16,6 +16,7 @@ import {
   fourTierStariaKRW as beFourTier,
   curatedStariaKRW as beCurated,
   resolveTransferCheckoutKrw,
+  estimateTransferCostKrw,
 } from '../../api/_shared/charter-transfer-price.js';
 
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
@@ -117,5 +118,29 @@ describe('resolveTransferCheckoutKrw — 결제 게이트', () => {
     const honest = resolveTransferCheckoutKrw(SPEC, body, true);
     const tampered = resolveTransferCheckoutKrw(SPEC, { ...body, km: 99999, priceKRW: 1 } as never, true);
     expect(tampered).toBe(honest);
+  });
+});
+
+describe('estimateTransferCostKrw + 최소마진 가드 (transfer_margin_guard)', () => {
+  it('추정 원가 산정 (ICN→강남 65km 편도 = 105,340)', () => {
+    // 65×1.8=117km / fuel 117×170=19,890 / hours 117/60+1=2.95 driver 73,750 / toll 6500×1.8=11,700
+    expect(estimateTransferCostKrw(SPEC, 65, 'oneway')).toBe(105_340);
+  });
+  it('cost_model 없으면 null (가드 skip)', () => {
+    expect(estimateTransferCostKrw({}, 65, 'oneway')).toBeNull();
+  });
+  it('가드 OFF (기본) → 현행 무영향 (가격 그대로)', () => {
+    expect(SPEC.transfer_margin_guard.enabled).toBe(false);
+    expect(resolveTransferCheckoutKrw(SPEC, { originKey: 'ICN', destKey: 'BUSAN', tripType: 'oneway', vehicle: 'staria' }, true)).toBeGreaterThan(0);
+  });
+  it('가드 ON + 1.2배 → 장거리 편도(ICN→부산) 차단 (deadhead 로 마진 미달 → null 협의)', () => {
+    const specOn = { ...SPEC, transfer_margin_guard: { ...SPEC.transfer_margin_guard, enabled: true, margin_multiple: 1.2 } };
+    // ICN→부산 total 627,000 < cost 621,700 × 1.2 = 746,040 → 차단
+    expect(resolveTransferCheckoutKrw(specOn, { originKey: 'ICN', destKey: 'BUSAN', tripType: 'oneway', vehicle: 'staria' }, true)).toBeNull();
+  });
+  it('가드 ON + 1.2배 → 단거리(ICN→강남)는 통과 (마진 충분)', () => {
+    const specOn = { ...SPEC, transfer_margin_guard: { ...SPEC.transfer_margin_guard, enabled: true, margin_multiple: 1.2 } };
+    // ICN→강남 total 138,320 ≥ cost 105,340 × 1.2 = 126,408 → 통과
+    expect(resolveTransferCheckoutKrw(specOn, { originKey: 'ICN', destKey: 'SEL_GANGNAM', tripType: 'oneway', vehicle: 'staria' }, true)).toBe(138_320);
   });
 });
