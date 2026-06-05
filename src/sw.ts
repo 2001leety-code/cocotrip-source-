@@ -104,8 +104,14 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   })());
 });
 
-// VitePWA autoUpdate가 등록 후 즉시 활성화 — generateSW 기본 동작과 동일.
-self.addEventListener('install', () => { self.skipWaiting(); });
+// #pwa-prompt (2026-06-05): autoUpdate→prompt 전환. install 시 즉시 skipWaiting 하지 않음 —
+// 새 SW 는 "대기(waiting)" 상태로 머물다가, 사용자가 업데이트 토스트의 [새로고침] 클릭 시
+// (updateServiceWorker(true) → 아래 SKIP_WAITING 메시지) 그때 활성화. 배포-중-세션에서 옛 청크가
+// cleanupOutdatedCaches 로 삭제되어 작성 중 강제 리로드되던 문제 제거.
+// (/my-plans 결제 경로는 PWAUpdatePrompt 가 즉시 updateServiceWorker(true) 호출 = 강제 최신 유지.)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     // PR #428 (CZ4): purge the legacy `api-runtime` cache from previous SW

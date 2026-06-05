@@ -11,7 +11,11 @@ export default defineConfig({
     // PWA — 홈 화면에 추가 + 오프라인 캐싱 + 자동 업데이트.
     // 기존 public/sw.js + index.html 수동 등록 코드 대체.
     VitePWA({
-      registerType: 'autoUpdate',
+      // #pwa-prompt (2026-06-05): autoUpdate→prompt — 배포-중-세션 강제 리로드 방지.
+      // autoUpdate 는 새 SW 를 즉시 활성화(skipWaiting)하며 옛 청크를 cleanup → 위저드 작성 중
+      // 다음 스텝 청크가 stale → 강제 리로드 + 복구모달(운영자 #4 신고). prompt = 새 SW 대기 +
+      // PWAUpdatePrompt 토스트로 사용자가 직접 [새로고침] 선택 (/my-plans 는 즉시 강제 최신 유지).
+      registerType: 'prompt',
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
