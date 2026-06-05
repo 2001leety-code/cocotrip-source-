@@ -42,6 +42,42 @@ import { applyBlockModeDietaryWarnings, normalizeRegionKey } from './responseVal
 const ROUTE_ENRICH_TIMEOUT_MS = 180_000;
 
 /**
+ * #tour-end (2026-06-05): RouteAgent time-stitch 후 최종 종료 시각 cap (권위 enforcer).
+ *
+ * 왜 여기인가 (prod 9f9f37a1 / f80d7219 lesson):
+ *   - expandBlocksToItinerary 의 cutoff 는 block offset 시각(pre-stitch)에 돌아, RouteAgent 가
+ *     실제 transit 으로 밀어낸 최종 시각을 못 잡음 (예: offset 20:00 → 재-stitch 20:15 인사동).
+ *   - 따라서 cap 은 RouteAgent enrichment "후" 최종 start_time 기준으로 적용해야 정확.
+ *
+ * 규칙: 각 day 의 관광(non-lodging/airport/travel) stop 중 start_time >= tour_end_time 이면 trim.
+ *   - 관광은 종료 시각 "전"에 시작해야 함 (>= cap = 종료시각에 시작/이후 = 제거).
+ *   - lodging(호텔 체크인·복귀) / airport / travel 은 보존 → 호텔 bookend + 귀가 유지.
+ *   - 야간 도착으로 Day1 첫 관광이 종료시각 이후로 stitch 되면 전부 trim = 호텔 휴식 (운영자 의도).
+ *   - legacy(Gemini) + block_mode 공통. 정상 09:00 시작 plan 은 관광이 종료시각 전이라 무영향.
+ * @param itinerary - in-place mutation. @param tourEndTime - 'HH:MM' (default '21:00').
+ */
+export function applyTourEndCap(itinerary, tourEndTime) {
+  const toMin = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
+  const cap = /^\d{1,2}:\d{2}$/.test(String(tourEndTime || '')) ? tourEndTime : '21:00';
+  const capMin = toMin(cap);
+  if (capMin < 0) return;
+  const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
+  const isProtected = (s) => s?.category === 'lodging' || s?.category === 'airport' || s?.category === 'travel';
+  for (const day of days) {
+    const stops = Array.isArray(day?.stops) ? day.stops : [];
+    if (stops.length <= 1) continue;
+    const kept = stops.filter((s) => {
+      if (isProtected(s)) return true;        // 호텔/공항/이동 = 보존 (bookend·귀가)
+      const m = toMin(s?.start_time);
+      if (m < 0) return true;                 // 시각 없음 = 보존 (안전)
+      return m < capMin;                      // 관광은 종료 시각 전에 시작 (>= cap = trim)
+    });
+    // 최소 1개 보장 + 실제 trim 발생 시에만 교체 (불필요 mutation 회피).
+    if (kept.length && kept.length < stops.length) day.stops = kept;
+  }
+}
+
+/**
  * arrival_guide / departure_guide 정리 + RouteAgent enrichment.
  * @param itinerary - Gemini 응답 (in-place mutation).
  * @param ctx - { apiKey, body, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelAddressFromBody }
@@ -202,6 +238,10 @@ export async function runRouteEnrichment(itinerary, ctx) {
       itinerary.departure_guide.route_to_airport.anchor_address = recommendedZoneAddress;
     }
   }
+
+  // #tour-end (2026-06-05): RouteAgent time-stitch 후 최종 종료 시각 cap — offset 기반 expand cutoff 가
+  // 못 잡는 stitched 시각 enforce (prod 9f9f37a1 Day1 20:15 인사동 lesson). ctx.tourEndTime 기준 관광 trim.
+  applyTourEndCap(itinerary, ctx?.tourEndTime);
 }
 
 /**
