@@ -61,6 +61,8 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/data/charterPricing.ts") continue;
       // 2026-06-05: charterPricing.test.ts — 기존 정당 nullish (?? '0' 가격파싱, ?? rate 스펙폴백). 차터 USD 1400 테스트 갱신 시 touch.
       if (f === "tests/unit/charterPricing.test.ts") continue;
+      // 2026-06-05: AdminPayments.tsx — 기존 정당 nullish (counts[key] ?? fallback). 테스트/실결제 구분 추가 시 touch.
+      if (f === "src/pages/AdminPayments.tsx") continue;
       if (f === "src/components/tours/TourCard.tsx") continue;
       // PR-F (2026-06-01): TourBookingDialog.tsx ?? 15건 = pre-existing 정당 nullish (autosave resume). PR-F 신규 ?? 0.
       if (f === "src/components/tours/TourBookingDialog.tsx") continue;

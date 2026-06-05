@@ -245,15 +245,43 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
               </Link>
             )}
 
-            {/* MyPage (desktop, logged-in) */}
+            {/* MyPage + Logout (desktop, logged-in) — 드롭다운 (2026-06-05: 데스크탑 로그아웃 추가.
+                기존엔 로그아웃이 모바일 햄버거 메뉴에만 있어 데스크탑 웹 사용자는 로그아웃 불가였음) */}
             {user && !isMobile && (
-              <Link
-                to="/mypage"
-                className="p-2 rounded-lg transition-all duration-200 text-white/55 hover:text-white hover:bg-white/[0.06]"
-                title="My Page"
-              >
-                <User className="w-[18px] h-[18px]" />
-              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="p-2 rounded-lg transition-all duration-200 text-white/55 hover:text-white hover:bg-white/[0.06] outline-none"
+                    title={t.nav.myPage ?? 'My Page'}
+                  >
+                    <User className="w-[18px] h-[18px]" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={8}
+                  className="w-40 rounded-xl border-white/[0.08] bg-[#0f1220]/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] p-1.5"
+                >
+                  <DropdownMenuItem
+                    onClick={() => navigate('/mypage')}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium cursor-pointer transition-all focus:bg-white/[0.04] text-white/70"
+                  >
+                    <User className="w-4 h-4" />
+                    <span>{t.nav.myPage ?? 'My Page'}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      await signOut(auth);
+                      navigate('/');
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium cursor-pointer transition-all focus:bg-red-500/10"
+                    style={{ color: 'rgba(255,100,100,0.85)' }}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>{t.nav.signOut ?? 'Sign Out'}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
 
             {/* Divider */}
