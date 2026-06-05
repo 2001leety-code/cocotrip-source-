@@ -24,6 +24,7 @@ import {
   markWizardDirtyExit,
 } from '@/hooks/useWizardPersistence';
 import { ResumeWizardModal } from '@/components/ResumeWizardModal';
+import { WizardStepHint } from './WizardStepHint';
 
 import { CITY_CHIPS, LOCALE_MAP } from './data';
 import { getAirportOptions } from './helpers';
@@ -853,6 +854,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         </div>
 
         <div className="max-w-2xl mx-auto">
+          {/* #wizard-step-hints (운영자 #3): 스텝별 친절 설명 — 첫 도달 시 1회 + "?" 재보기 (비차단). */}
+          <WizardStepHint step={step} />
           {/* AnimatePresence + motion.div로 step 전환 시 슬라이드/페이드.
               key={step}로 React가 unmount/mount 인식 → exit 애니 발동.
               2026-05-13 PR #393 후속: 5 step 컴포넌트 모두 React.lazy. 한 번에 한
