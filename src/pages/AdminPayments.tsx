@@ -79,6 +79,14 @@ function statusBadge(status: string) {
   return <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold border ${s.className}`}>{s.label}</span>;
 }
 
+// 어드민 테스트 예약(결제 우회) vs 실결제 구분 (2026-06-05) — booking-processor 가 ADMIN-BYPASS- orderID 에
+// paymentMethod:'admin-bypass' 기록. 다중 신호로 robust 감지 (기존 예약 호환).
+function isTestBooking(b: PendingBooking): boolean {
+  return b.paymentMethod === 'admin-bypass'
+    || String(b.paypalTransactionId || '').startsWith('ADMIN-BYPASS-')
+    || String(b.id || '').startsWith('ADMIN-BYPASS-');
+}
+
 export default function AdminPayments() {
   const { user } = useAuth();
   const [filter, setFilter] = useState<StatusFilter>('AWAITING_VERIFICATION');
@@ -86,6 +94,7 @@ export default function AdminPayments() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [hideTest, setHideTest] = useState(false); // 테스트(결제우회) 예약 숨기기 토글
 
   const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
 
@@ -109,9 +118,10 @@ export default function AdminPayments() {
   }, [isAdmin]);
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return rows;
-    return rows.filter((r) => r.status === filter);
-  }, [rows, filter]);
+    let r = hideTest ? rows.filter((b) => !isTestBooking(b)) : rows;
+    if (filter !== 'all') r = r.filter((b) => b.status === filter);
+    return r;
+  }, [rows, filter, hideTest]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: rows.length };
@@ -247,6 +257,23 @@ export default function AdminPayments() {
           })}
         </div>
 
+        {/* 테스트/실결제 구분 토글 (2026-06-05: 어드민 테스트 예약 vs 실결제 나누기) */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] text-white/45">
+            실결제 <b className="text-emerald-300">{rows.filter((b) => !isTestBooking(b)).length}</b>건 · 테스트 <b className="text-amber-300">{rows.filter(isTestBooking).length}</b>건
+          </p>
+          <button
+            onClick={() => setHideTest((v) => !v)}
+            className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition-all min-h-[36px] ${
+              hideTest
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                : 'bg-white/[0.04] border-white/[0.08] text-white/55 hover:border-white/20'
+            }`}
+          >
+            {hideTest ? '✓ 실결제만 보는 중' : '테스트 숨기기'}
+          </button>
+        </div>
+
         {/* 안내 */}
         <div className="bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-3 sm:px-4 py-3 text-[12px] sm:text-[12px] text-amber-100/80 leading-relaxed">
           <strong className="text-amber-200">운영 안내</strong>: 사용자 PayPal 결제 후 [결제 완료 신고] 누르면 여기 표시됩니다.
@@ -281,6 +308,9 @@ export default function AdminPayments() {
                       {copiedId === b.id ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3 text-white/40" />}
                     </button>
                     {statusBadge(b.status)}
+                    {isTestBooking(b)
+                      ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">🧪 테스트</span>
+                      : <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">💳 실결제</span>}
                   </div>
                   <div className="text-[11px] text-white/45 shrink-0">
                     신고: {formatTs(b.createdAt)}
