@@ -18,6 +18,7 @@ import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js'
 import { featureEnabled } from './_shared/feature-flag.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
 import { resolveTransferCheckoutKrw } from './_shared/charter-transfer-price.js';
+import { getRuntimeFlags } from './_shared/runtime-flags.js';
 import { usesFixedUsdRate } from './_shared/usd-rate-policy.js';
 
 export const maxDuration = 30;
@@ -208,8 +209,10 @@ export default async function handler(req, res) {
       // 투어 시간제(기본 9h + 거리추가 + 오버타임) — VAT·쿠폰 전 순수가. 플래그 OFF 기본(현행 권역 고정가 유지).
       krwAmount = resolveTourCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TOUR_HOURLY));
     } else if (productType === 'charter_transfer') {
-      // 도시간 transfer(편도/왕복 1회 이동) — backend SSOT 재계산(matrix km, client 불신). 플래그 OFF 기본.
-      krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT));
+      // 도시간 transfer — backend SSOT 재계산(matrix km, client 불신). 플래그 OFF 기본.
+      // 2026-06-06 어드민 조종석: 마진가드는 런타임 토글(admin-runtime-flags) 우선. fail-safe → OFF.
+      const _rtFlags = await getRuntimeFlags(initAdminDb('createPaypalOrder-rtflags'));
+      krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled });
     } else {
       krwAmount = resolveKrwAmount(productType, passengers, durationDays);
     }

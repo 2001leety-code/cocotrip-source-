@@ -112,10 +112,12 @@ export function estimateTransferCostKrw(spec, km, tripType) {
 /**
  * 결제 핸들러 게이트 — 플래그 + matrix curated 가격 + total 재계산 (+ 선택적 최소마진 가드).
  * client 는 originKey/destKey/tripType/vehicle 만 전달(priceKRW/km 무시 = 변조 차단).
- * spec.transfer_margin_guard.enabled=true 시 total < 추정원가×margin_multiple 이면 결제 차단(→협의/null).
+ * 마진가드 enabled: opts.marginGuardEnabled(어드민 조종석 런타임 토글) 우선, 없으면 spec.transfer_margin_guard.enabled.
+ * enabled 시 total < 추정원가×margin_multiple 이면 결제 차단(→협의/null).
+ * @param {{marginGuardEnabled?:boolean}} [opts] - 런타임 override (admin-runtime-flags)
  * @returns {number|null} 결제 총액, 또는 비활성/미존재/마진미달 시 null
  */
-export function resolveTransferCheckoutKrw(spec, body, featureEnabled) {
+export function resolveTransferCheckoutKrw(spec, body, featureEnabled, opts = {}) {
   if (!featureEnabled || !body) return null;
   const o = String(body.originKey || '').trim();
   const d = String(body.destKey || '').trim();
@@ -124,7 +126,9 @@ export function resolveTransferCheckoutKrw(spec, body, featureEnabled) {
   const q = calcTransferQuote({ curatedKRW, tripType: body.tripType, vehicle: String(body.vehicle || '').trim() });
   if (!q) return null;
   const guard = spec && spec.transfer_margin_guard;
-  if (guard && guard.enabled) {
+  // 2026-06-06 어드민 조종석: 런타임 토글(opts.marginGuardEnabled) 우선, 미지정 시 spec 기본값.
+  const guardEnabled = typeof opts.marginGuardEnabled === 'boolean' ? opts.marginGuardEnabled : (guard && guard.enabled);
+  if (guard && guardEnabled) {
     const km = lookupMatrixKm(spec, o, d);
     const cost = km != null ? estimateTransferCostKrw(spec, km, body.tripType) : null;
     if (cost != null && q.total < cost * (guard.margin_multiple || 1.2)) return null; // 마진 미달 → 협의
