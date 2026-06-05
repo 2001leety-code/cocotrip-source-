@@ -225,6 +225,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const [resumeOpen, setResumeOpen] = useState(false);
   const [pendingSnap, setPendingSnap] = useState<PlannerSnapshotValues | null>(null);
   const [pendingStep, setPendingStep] = useState<number>(0);
+  // #resume-instant (2026-06-05): "이어서" 점프 시 step 전환 애니 1회 억제 → 제자리 즉시 복원.
+  // mode="wait" exit→enter 빈틈이 "강제 새로고침 느낌"의 주범(운영자 #4). 일반 next/prev 는 슬라이드 유지.
+  const [noStepAnim, setNoStepAnim] = useState(false);
+  const [jumpToStep, setJumpToStep] = useState<number | null>(null);
 
   // 2026-05-09 (B9-37): revision 으로 진입 시 plan.input 핵심 필드 prefill.
   // 첫 마운트 1회만 — 사용자가 이후 수정한 값을 덮어쓰지 않게 deps=[].
@@ -351,6 +355,27 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // 등록/해제 1회 — onPageHide 는 클로저 변수에 의존하지 않음(고정 키 마킹).
   }, []);
 
+  // #resume-instant: noStepAnim 켜진 "다음" 커밋에서 step 점프 수행 — 현재 step 이 먼저 instant(0ms)
+  // 로 재렌더된 뒤 exit 되므로 exit/enter 둘 다 빈틈 없이 즉시. jumpToStep 은 1회용 트리거.
+  useEffect(() => {
+    if (jumpToStep === null) return;
+    setStep(jumpToStep);
+    setJumpToStep(null);
+  }, [jumpToStep]);
+
+  // 점프 완료(jumpToStep 소진 + step 갱신) 후 애니 복원 — 일반 네비게이션은 다시 0.25s 슬라이드.
+  useEffect(() => {
+    if (!noStepAnim || jumpToStep !== null) return;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setNoStepAnim(false));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      if (inner) cancelAnimationFrame(inner);
+    };
+  }, [step, noStepAnim, jumpToStep]);
+
   function applyResumeSnapshot() {
     if (!pendingSnap) return;
     const v = pendingSnap;
@@ -405,7 +430,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       }
     }
     setTourPace((v.tourPace as TourPace) ?? 'full');
-    setStep(pendingStep);
+    // #resume-instant: 애니 억제 플래그를 먼저 켜(현재 step 이 instant 로 재렌더된 뒤),
+    // 다음 커밋에서 step 점프(jumpToStep) → exit/enter 둘 다 0ms = 제자리 즉시 (mode="wait" 빈틈 제거).
+    setNoStepAnim(true);
+    setJumpToStep(pendingStep);
     setResumeOpen(false);
     setPendingSnap(null);
   }
@@ -866,10 +894,10 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={`step-${step}`}
-              initial={{ opacity: 0, x: 16 }}
+              initial={noStepAnim ? false : { opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -16 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: noStepAnim ? 0 : 0.25 }}
             >
               <Suspense fallback={
                 <div className="min-h-[320px] flex items-center justify-center">
