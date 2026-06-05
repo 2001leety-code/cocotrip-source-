@@ -20,7 +20,7 @@ describe('TransferReceipt — 편도/왕복 영수증 표시', () => {
     expect(txt).toContain('577,600');
     expect(txt).toContain('608,000');  // 차량 요금 (톨·세금 포함)
     expect(txt).toContain('편도');
-    expect(txt).toContain('$412.57');  // USD 고정환율 1400 (577,600/1400) = 실제 청구가
+    expect(txt).toContain('$413');  // USD 고정환율 1400 정수 라운드 (577,600/1400=412.57→413) = 실제 청구가
   });
 
   it('왕복 staria → 총액 1,094,400', () => {

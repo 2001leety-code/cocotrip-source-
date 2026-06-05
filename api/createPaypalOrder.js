@@ -265,13 +265,16 @@ export default async function handler(req, res) {
     //   USD 청구 → live 환율 변동 무관 안정 USD. AI 플래너($9.90)만 live 환율. (프론트 Step6Quote ≈$ 표시도 동일 rate.)
     //   원화 약세장 헤지를 고객 USD 안정으로 이전 — 손익분기 ~1400, 실 환율 높을수록 운영자 KRW 수령 ↑.
     let usdToKrw;
+    let roundUsdWhole = false;
     if (usesFixedUsdRate(productType)) {
       usdToKrw = (SPEC && SPEC.charter_usd_fix_rate) || 1400;
+      roundUsdWhole = true; // 차터 = 깔끔한 정수 USD ($99·$448). AI 플래너는 센트 단위 유지.
     } else {
       const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
       usdToKrw = await getUsdToKrwRaw();
     }
-    const usdAmount = (krwAmount / usdToKrw).toFixed(2);
+    const _usdRaw = krwAmount / usdToKrw;
+    const usdAmount = (roundUsdWhole ? Math.round(_usdRaw) : _usdRaw).toFixed(2);
 
     const { accessToken, baseUrl } = await getPaypalAccessToken(isSandbox);
     const orderRes = await fetch(`${baseUrl}/v2/checkout/orders`, {

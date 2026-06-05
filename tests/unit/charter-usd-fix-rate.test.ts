@@ -43,17 +43,17 @@ describe('usesFixedUsdRate — 상품 스코핑 (차터=고정 / AI플래너만=
   });
 });
 
-describe('USD 변환 — 고정 1400 = 환율 변동 무관 안정', () => {
-  it('ICN→강남 편도 ₩138,320 → $98.80 (고정)', () => {
-    expect((138_320 / CHARTER_USD_FIX_RATE).toFixed(2)).toBe('98.80');
+describe('USD 변환 — 고정 1400 + 차터 정수 라운드 = 환율 변동 무관 안정', () => {
+  // 차터 청구 USD = Math.round(krw / 1400) (깔끔한 정수 달러). createPaypalOrder roundUsdWhole + TransferReceipt 동일.
+  const charterUsd = (krw: number) => Math.round(krw / CHARTER_USD_FIX_RATE);
+  it('ICN→강남 편도 ₩138,320 → $99 (98.80 반올림)', () => {
+    expect(charterUsd(138_320)).toBe(99);
   });
-  it('ICN→부산 편도 ₩627,000 → $447.86 (고정)', () => {
-    expect((627_000 / CHARTER_USD_FIX_RATE).toFixed(2)).toBe('447.86');
+  it('ICN→부산 편도 ₩627,000 → $448 (447.86 반올림)', () => {
+    expect(charterUsd(627_000)).toBe(448);
   });
-  it('live 환율(1300~1600)이 변해도 USD 불변 (고정 1400 사용)', () => {
-    const krw = 138_320;
-    const usdFixed = (krw / CHARTER_USD_FIX_RATE).toFixed(2);
-    // 고정환율이므로 live 와 무관하게 항상 동일
-    expect(usdFixed).toBe('98.80');
+  it('live 환율 변해도 USD 불변 (고정 1400 → 항상 동일 정수)', () => {
+    expect(charterUsd(138_320)).toBe(99);
+    expect(charterUsd(577_600)).toBe(413); // 서울→부산
   });
 });

@@ -51,7 +51,7 @@ export function TransferReceipt({ originKey, destKey, tripType = 'oneway', vehic
       <Row label={`${lbl('coupon')} ${q.couponPct}%`} value={`−${KRW(q.coupon)}`} accent="good" />
       <div className="border-t border-white/10 my-2" />
       <Row label={lbl('total')} value={KRW(q.total)} accent="muted" />
-      <Row label={lbl('pay_usd')} value={`$${(q.total / CHARTER_USD_FIX_RATE).toFixed(2)}`} accent="bold" />
+      <Row label={lbl('pay_usd')} value={`$${Math.round(q.total / CHARTER_USD_FIX_RATE).toLocaleString('en-US')}`} accent="bold" />
       <p className="mt-3 text-xs text-white/45">ℹ️ {lbl('note')}</p>
     </div>
   );
