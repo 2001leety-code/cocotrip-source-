@@ -758,6 +758,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     //   - 옛 룰 (arrival + 9h) 폐기 — 14:00 + 9h = 23:00 wrap 으로 P159 새벽 stops cascade 유발했음.
     // Day N (마지막) 이면 departure_time 으로 cap.
     let dayStart = tourStartTime;  // P245: default = tour_start_time (옛 '09:00' literal 대체)
+    let arrivalRestDay = false; // #tour-end: 도착이 너무 늦어 Day1 투어 시간 0 → 호텔 휴식 (아래 cutoff 가 관광 전부 trim)
     const isFirstDay = dayNum === 1;
     const isLastDay = dayNum === blockSelections.day_selections.length;
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
@@ -768,8 +769,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       const capMin = hhmmToMin(tourEndTime);
       const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);
       if (effMin >= capMin) {
-        // 수속+이동 후 종료시간까지 투어 시간 없음 → Day1 = 호텔 휴식 (활동 stop 은 아래 종료 cap 이 전부 trim).
+        // 수속+이동 후 종료시간까지 투어 시간 없음 → Day1 = 호텔 휴식 (아래 cutoff 가 관광 stop 전부 trim).
         dayStart = tourEndTime;
+        arrivalRestDay = true;
       } else {
         dayStart = `${String(Math.floor(effMin / 60)).padStart(2, '0')}:${String(effMin % 60).padStart(2, '0')}`;
       }
@@ -847,25 +849,29 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       });
     }
 
-    // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff
+    // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff + 휴식일
     //   (2026-06-05 운영자: 종료시간 정확 설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고):
-    //   - 모든 날: 사용자 지정 tour_end_time(기본 21:00) 이후 관광 stop trim → 종료시간 준수.
-    //   - 도착일: 밤 늦은 도착으로 자정 넘어간 새벽 stop(pastMidnight)도 trim.
-    //   lodging/airport/travel 은 보존. 마지막 날 departure cap 은 아래 별도 처리.
+    //   - 모든 날: tour_end_time(기본 21:00) 초과 관광(non-lodging) stop trim → 종료시간 준수.
+    //   - 도착일: 자정 넘어간 새벽 stop(pastMidnight)도 trim. 휴식일(arrivalRestDay)이면 관광 0.
+    //   - tail-pop 아닌 filter: 뒤에 호텔복귀(lodging) stop 이 있어도 그 앞 초과 관광 trim
+    //     (prod 9f9f37a1 Day1 20:15 인사동이 trailing lodging 에 보호돼 안 잘린 lesson).
+    //   lodging/airport/travel 보존(휴식·귀가·체크인). 마지막 날 departure cap 은 아래 별도 처리.
     {
       const toMin = (hhmm) => { const mm = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return mm ? (+mm[1]) * 60 + (+mm[2]) : -1; };
       const capMin = toMin(tourEndTime);
       const dayStartMin = toMin(dayStart);
-      while (stops.length > 1) {
-        const last = stops[stops.length - 1];
-        if (last.category === 'lodging' || last.category === 'airport' || last.category === 'travel') break;
-        const lastMin = toMin(last.start_time);
-        if (lastMin < 0) break;
-        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 tour_end_time 이후 → trim.
-        const pastMidnight = dayStartMin >= 0 && lastMin < dayStartMin;
-        if (pastMidnight || lastMin > capMin) stops.pop();
-        else break;
-      }
+      const isProtected = (s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel';
+      const orig = stops.slice();
+      const kept = orig.filter((s) => {
+        if (isProtected(s)) return true;            // 호텔/공항/이동 = 보존
+        if (arrivalRestDay) return false;           // 휴식일 = 모든 관광 제거
+        const m = toMin(s.start_time);
+        if (m < 0) return true;
+        const pastMidnight = dayStartMin >= 0 && m < dayStartMin;
+        return !(pastMidnight || m > capMin);       // 종료 초과 / 자정 넘김 = 제거
+      });
+      stops.length = 0;
+      stops.push(...(kept.length ? kept : orig.slice(0, 1))); // 최소 1개(anchor) 보장
     }
 
     // Day N (departure day) 의 마지막 활동 stop start_time > departure_time - 180min 이면 trim.
@@ -1382,6 +1388,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
     // 옛 룰 (arrival + 9h) 폐기 — 14:00 + 9h = 23:00 wrap → P159 새벽 stops cascade.
     // 신 룰: dayStart = max(tour_start_time, arrival_time + 60min) — buildPrompt/RouteAgent 와 일치.
     let dayStart = tourStartTime;
+    let arrivalRestDay = false; // #tour-end: 야간 도착 → Day1 호텔 휴식 (단도시 expand 와 동일)
     const isFirstDay = dayNum === 1;
     const isLastDay = dayNum === blockSelections.day_selections.length;
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
@@ -1393,6 +1400,7 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       const effMin = readyMin === null ? tourStartMin : Math.max(tourStartMin, readyMin);
       if (effMin >= capMin) {
         dayStart = tourEndTime;
+        arrivalRestDay = true;
       } else {
         dayStart = `${String(Math.floor(effMin / 60)).padStart(2, '0')}:${String(effMin % 60).padStart(2, '0')}`;
       }
@@ -1461,24 +1469,26 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       });
     }
 
-    // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff (2026-06-05 운영자: 종료시간 정확
-    //   설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고 20:29 도착→02:16 북촌). 모든 날 사용자 지정
-    //   tour_end_time(기본 21:00) 이후 관광 stop trim → 종료시간 준수. 도착일은 자정 넘어간 새벽 stop 도
-    //   trim. lodging/airport/travel 보존. 단도시 expandBlocksToItinerary 와 동일 룰.
+    // 일별 tour_end_time cap + Day1(도착일) late-arrival 새벽 cutoff + 휴식일 (2026-06-05 운영자: 종료시간
+    //   정확 설정 / 2026-06-02 plan 4d214e83 새벽 cascade 신고 20:29 도착→02:16 북촌). 모든 날 tour_end_time
+    //   (기본 21:00) 초과 관광 stop trim. 도착일은 새벽 stop·휴식일(arrivalRestDay) 관광 0. tail-pop 아닌
+    //   filter — trailing lodging 에 보호된 초과 관광도 trim (prod 9f9f37a1 lesson). 단도시 expand 와 동일 룰.
     {
       const toMin = (hhmm) => { const mm = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return mm ? (+mm[1]) * 60 + (+mm[2]) : -1; };
       const capMin = toMin(tourEndTime);
       const dayStartMin = toMin(dayStart);
-      while (stops.length > 1) {
-        const last = stops[stops.length - 1];
-        if (last.category === 'lodging' || last.category === 'airport' || last.category === 'travel') break;
-        const lastMin = toMin(last.start_time);
-        if (lastMin < 0) break;
-        // 자정 넘어간 새벽 stop(lastMin < dayStartMin = 다음날) 또는 tour_end_time 이후 → trim.
-        const pastMidnight = dayStartMin >= 0 && lastMin < dayStartMin;
-        if (pastMidnight || lastMin > capMin) stops.pop();
-        else break;
-      }
+      const isProtected = (s) => s.category === 'lodging' || s.category === 'airport' || s.category === 'travel';
+      const orig = stops.slice();
+      const kept = orig.filter((s) => {
+        if (isProtected(s)) return true;
+        if (arrivalRestDay) return false;
+        const m = toMin(s.start_time);
+        if (m < 0) return true;
+        const pastMidnight = dayStartMin >= 0 && m < dayStartMin;
+        return !(pastMidnight || m > capMin);
+      });
+      stops.length = 0;
+      stops.push(...(kept.length ? kept : orig.slice(0, 1)));
     }
 
     // departure day tail trim
