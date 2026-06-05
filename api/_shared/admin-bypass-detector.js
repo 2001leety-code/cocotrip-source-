@@ -84,4 +84,34 @@ export function countAdminBypassBookings(bookings) {
   return n;
 }
 
+/**
+ * #payment-separation (2026-06-05): 주문 ID 문자열의 결제 출처 분류 (SSOT).
+ * paymentGate.js detectProvider 와 동일 규약 — 단, 여기는 booking 객체가 아니라
+ * orderId 문자열을 받아 plan 저장(planPersister) 등에서 명시 필드로 쓰기 위함.
+ *   TEST- → 'test' / ADMIN-BYPASS- → 'admin-bypass' / MANUAL- → 'manual' / 그 외 → 'paypal'
+ * (paymentGate.detectProvider 와 반드시 동일 출력 — 본 모듈 test 가 규약 잠금.)
+ *
+ * @param {string|null|undefined} orderId
+ * @returns {'test'|'admin-bypass'|'manual'|'paypal'}
+ */
+export function detectPaymentSource(orderId) {
+  const id = typeof orderId === 'string' ? orderId : '';
+  if (id.startsWith('TEST-')) return 'test';
+  if (id.startsWith('ADMIN-BYPASS-')) return 'admin-bypass';
+  if (id.startsWith('MANUAL-')) return 'manual';
+  return 'paypal';
+}
+
+/**
+ * 주문 ID 가 운영자 테스트(어드민 우회 / TEST)인지 — plan/booking 의 isAdminBypass 명시 필드용.
+ * MANUAL-(실 입금) 과 일반 PayPal 은 false (= 실제 매출). isAdminBypassBooking 의 prefix 규약과 일치.
+ *
+ * @param {string|null|undefined} orderId
+ * @returns {boolean}
+ */
+export function isAdminBypassOrderId(orderId) {
+  const src = detectPaymentSource(orderId);
+  return src === 'test' || src === 'admin-bypass';
+}
+
 export { ADMIN_BYPASS_PREFIXES };
