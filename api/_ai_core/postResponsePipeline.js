@@ -63,6 +63,7 @@ export function applyTourEndCap(itinerary, tourEndTime) {
   if (capMin < 0) return;
   const days = Array.isArray(itinerary?.days) ? itinerary.days : [];
   const isProtected = (s) => s?.category === 'lodging' || s?.category === 'airport' || s?.category === 'travel';
+  const _dbg = { cap, capMin, days: [] }; // #tour-end-debug (임시 계측 — ground truth 확보 후 제거)
   for (const day of days) {
     const stops = Array.isArray(day?.stops) ? day.stops : [];
     if (stops.length <= 1) continue;
@@ -72,9 +73,20 @@ export function applyTourEndCap(itinerary, tourEndTime) {
       if (m < 0) return true;                 // 시각 없음 = 보존 (안전)
       return m < capMin;                      // 관광은 종료 시각 전에 시작 (>= cap = trim)
     });
+    const removed = stops.filter((s) => !kept.includes(s));
+    if ((day?.day || 0) <= 2) {
+      _dbg.days.push({
+        day: day?.day || 0,
+        saw: stops.map((s) => `${s?.start_time}|${s?.category}|${toMin(s?.start_time)}`),
+        removed: removed.map((s) => `${s?.start_time}|${s?.category}`),
+      });
+    }
     // 최소 1개 보장 + 실제 trim 발생 시에만 교체 (불필요 mutation 회피).
     if (kept.length && kept.length < stops.length) day.stops = kept;
   }
+  // #tour-end-debug: prod ground truth — applyTourEndCap 이 본 stops + cap 을 persist.
+  itinerary.quality_warnings = itinerary.quality_warnings || [];
+  itinerary.quality_warnings.push({ kind: 'tour_end_cap_debug', type: 'tour_end_cap_debug', severity: 'info', cap: _dbg.cap, capMin: _dbg.capMin, snapshot: _dbg.days });
 }
 
 /**
