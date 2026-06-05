@@ -152,6 +152,10 @@ export function shapeRequest(body, authenticatedEmail) {
   // root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive.
   const _rawTourStart = typeof body.tourStartTime === 'string' ? body.tourStartTime.slice(0, 5) : '';
   const tourStartTime = /^\d{2}:\d{2}$/.test(_rawTourStart) ? _rawTourStart : '09:00';
+  // #tour-end (2026-06-05, 운영자): tourEndTime — 매일 관광 종료 시각 cap. body 미입력 (옛 client) 시
+  // '21:00' default 폴백. HH:MM 형식 검증 (잘못된 입력 시 default — silent fail 방지). tourStartTime 와 대칭.
+  const _rawTourEnd = typeof body.tourEndTime === 'string' ? body.tourEndTime.slice(0, 5) : '';
+  const tourEndTime = /^\d{2}:\d{2}$/.test(_rawTourEnd) ? _rawTourEnd : '21:00';
   const luggage = (body.luggage && typeof body.luggage === 'object') ? {
     small: Number(body.luggage.small) || 0,
     medium: Number(body.luggage.medium) || 0,
@@ -186,6 +190,8 @@ export function shapeRequest(body, authenticatedEmail) {
     // P239 (2026-05-27): tourStartTime export — handlerCore destructure + userMessageBuilder
     // inject + buildPrompt 의 tourStartTime instruction 분기. default '09:00' (옛 client 호환).
     tourStartTime,
+    // #tour-end (2026-06-05): tourEndTime export — handlerCore destructure + userMessageBuilder inject + blockMode cap.
+    tourEndTime,
     arrivalAddress, departureAddress, sessionId,
   };
 }

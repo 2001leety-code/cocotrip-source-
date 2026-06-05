@@ -35,8 +35,8 @@ describe('P271 block_mode arrival_guide / daily_budget minimal default', () => {
   it('handlerCore.js: tryRunBlockMode userInput 에 arrival_airport/departure_airport/pax 추가', () => {
     // tryRunBlockMode 호출 라인 안에 3 field 모두 포함
     expect(handlerCoreSrc).toMatch(/tryRunBlockMode/);
-    // arrival_airport 키 명시 (shorthand)
-    expect(handlerCoreSrc).toMatch(/tour_start_time:\s*tourStartTime,\s*arrival_airport,\s*departure_airport,\s*pax/);
+    // arrival_airport 키 명시 (shorthand). #tour-end (2026-06-05): tour_end_time 가 tour_start_time 뒤 삽입.
+    expect(handlerCoreSrc).toMatch(/tour_start_time:\s*tourStartTime,\s*tour_end_time:\s*tourEndTime,\s*arrival_airport,\s*departure_airport,\s*pax/);
   });
 
   it('blockMode.js: expandBlocksToItinerary — arrival_guide 추가 ("already_in_korea" 시 skip)', () => {

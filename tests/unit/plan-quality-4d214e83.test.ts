@@ -52,9 +52,11 @@ describe('plan 4d214e83 ③ — food dedup (matchFoodPlaceholder excludeNames)',
 });
 
 describe('plan 4d214e83 ② — Day 1 late-arrival cutoff', () => {
-  it('단도시+다도시 양쪽에 isFirstDay cutoff + pastMidnight 처리 존재', () => {
+  it('단도시+다도시 양쪽에 late-arrival cutoff + pastMidnight 처리 존재', () => {
     expect((src.match(/pastMidnight/g) || []).length, '단도시+다도시 cutoff (pastMidnight 2곳)').toBeGreaterThanOrEqual(2);
-    expect(/if \(isFirstDay\)\s*\{/.test(src), 'isFirstDay cutoff 블록 존재').toBe(true);
+    // #tour-end (2026-06-05): 옛 isFirstDay 전용 cutoff 가 모든 day tour_end_time cap 으로 일반화.
+    // pastMidnight 보존(도착일 새벽 cascade 차단). cutoff 블록 자체는 capMin=toMin(tourEndTime) 로 존재.
+    expect((src.match(/const capMin = toMin\(tourEndTime\)/g) || []).length, 'cutoff 블록(단+다도시)').toBeGreaterThanOrEqual(2);
   });
   it('자정 넘김 처리(pastMidnight) 존재 — "00:29">"22:00" lexical 함정 회피', () => {
     expect(/pastMidnight/.test(src)).toBe(true);

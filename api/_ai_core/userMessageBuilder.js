@@ -52,6 +52,8 @@ export function buildUserMessage({
     // buildPrompt 의 TOUR START TIME 섹션이 본 값 기준으로 Day1 stops 시각 계산.
     // default '09:00' (requestShaper 보장) — 옛 client 호환.
     tourStartTime,
+    // #tour-end (2026-06-05): tourEndTime — Gemini userInput JSON 에 tour_end_time inject (매일 종료 cap).
+    tourEndTime,
     hotel_address, hotelByCity, arrivalCity, departureCity,
     recommendedZone, recommendedZones,
     mobility, luggage, specialRequest, dietPrefs, allergies,
@@ -106,6 +108,8 @@ export function buildUserMessage({
     // 새벽 도착 시 호텔만 transit + tour_start_time 부터 stops 작성.
     // buildPrompt 의 ARRIVAL DAY HANDLING 섹션이 본 값으로 stops[1+] start_time 계산.
     tour_start_time: tourStartTime || '09:00',
+    // #tour-end (2026-06-05): 매일 관광 종료 시각 cap (default '21:00'). buildPrompt TOUR END TIME 섹션이 사용.
+    tour_end_time: tourEndTime || '21:00',
     hotel_address: hotel_address || undefined,
     // Sprint 2 #5: zone hint passed only when hotel_address absent.
     recommended_zone: !hotel_address && recommendedZone ? recommendedZone : undefined,

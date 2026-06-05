@@ -10881,10 +10881,11 @@ function P239_tourStartTimeFallback({ changed }) {
 // 검사 위치: api/_ai_core/blockMode.js
 // 검사 방법:
 //   - 옛 룰 (arrival + 9 * 60) 존재 시 FAIL
-//   - 신 룰 (arrivalPlus60 vs tourStartTime max) 부재 시 FAIL
+//   - #arrival-realtime: arrivalReadyMinutes(입국수속+공항이동) 부재 / 옛 arrivalPlus60 잔존 시 FAIL
 //   - tour_start_time pickup default '09:00' 누락 시 FAIL
+//   - #tour-end: 하드코딩 22:00 cap 잔존 / capMin=toMin(tourEndTime) 2회 미만 / tour_end_time pickup 누락 시 FAIL
 //
-// 동반 의무: planPersister.js 가 input.tour_start_time 저장해야 admin debug + 추적 가능.
+// 동반 의무: planPersister.js 가 input.tour_start_time + tour_end_time 저장해야 admin debug + 추적 가능.
 // ----------------------------------------------------------------------------
 
 /**
@@ -10906,9 +10907,14 @@ function P245_blockModeTourStartTime({ changed }) {
     if (/addMinutesToHHMM\(\s*arrivalTime\s*,\s*9\s*\*\s*60\s*\)/.test(blockSrc)) {
       issues.push("blockMode.js 옛 룰 (arrival + 9h) 잔존 — P159 새벽 stops cascade 위험");
     }
-    // 신 룰 부재 시 FAIL — arrivalPlus60 vs tour_start_time max 비교 필요
-    if (!/arrivalPlus60\s*>\s*tourStartTime/.test(blockSrc)) {
-      issues.push("blockMode.js 신 룰 (max(tour_start_time, arrival+60)) 누락");
+    // #arrival-realtime (2026-06-05): 옛 +60분(arrivalPlus60) → 입국수속(90분)+공항→권역 이동 현실 계산 대체.
+    //   신 룰 부재 시 FAIL — arrivalReadyMinutes(arrival, airport) 도착 현실 계산 필요.
+    if (!/arrivalReadyMinutes\(/.test(blockSrc)) {
+      issues.push("blockMode.js 신 룰 (arrivalReadyMinutes 도착 현실 계산) 누락 — #arrival-realtime 회귀");
+    }
+    // 옛 +60분 룰(arrivalPlus60) 잔존 금지 — #arrival-realtime 가 대체 (회귀 차단)
+    if (/arrivalPlus60/.test(blockSrc)) {
+      issues.push("blockMode.js 옛 +60분 룰(arrivalPlus60) 잔존 — #arrival-realtime 미반영 (회귀)");
     }
     // tour_start_time pickup default '09:00' 누락 시 FAIL
     if (!/tour_start_time\s*\|\|\s*userInput\?\.tourStartTime\s*\|\|\s*['"]09:00['"]/.test(blockSrc)) {
@@ -10919,6 +10925,18 @@ function P245_blockModeTourStartTime({ changed }) {
     if (matches.length < 2) {
       issues.push(`blockMode.js tour_start_time pickup ${matches.length}회 (단도시 + 다도시 둘 다 필요, 2회 이상)`);
     }
+    // #tour-end (2026-06-05): 종료 cap 이 하드코딩 22:00 대신 tour_end_time 사용 (단도시 + 다도시).
+    if (/toMin\(\s*['"]22:00['"]\s*\)/.test(blockSrc)) {
+      issues.push("blockMode.js 하드코딩 22:00 cap 잔존 — tour_end_time(종료 시각) 미반영");
+    }
+    const capMatches = blockSrc.match(/const capMin = toMin\(tourEndTime\)/g) || [];
+    if (capMatches.length < 2) {
+      issues.push(`blockMode.js tour_end_time cap ${capMatches.length}회 (단도시 + 다도시 둘 다 필요, 2회 이상)`);
+    }
+    // tour_end_time pickup default 누락 시 FAIL (DEFAULT_TOUR_END_HHMM = '21:00')
+    if (!/tour_end_time\s*\|\|\s*userInput\?\.tourEndTime\s*\|\|\s*DEFAULT_TOUR_END_HHMM/.test(blockSrc)) {
+      issues.push("blockMode.js tour_end_time default pickup 누락");
+    }
   }
 
   const persistSrc = readFileExists(PERSIST_FILE);
@@ -10926,6 +10944,10 @@ function P245_blockModeTourStartTime({ changed }) {
     // planPersister.js 가 Firestore input 에 tour_start_time 저장 의무
     if (!/tour_start_time:\s*body\.tourStartTime/.test(persistSrc)) {
       issues.push("planPersister.js Firestore input.tour_start_time 저장 누락 — admin debug + 추적 불가");
+    }
+    // #tour-end (2026-06-05): tour_end_time 도 Firestore 저장 의무 (PDF/UI/admin debug + 추적).
+    if (!/tour_end_time:\s*body\.tourEndTime/.test(persistSrc)) {
+      issues.push("planPersister.js Firestore input.tour_end_time 저장 누락");
     }
   }
 
@@ -10935,9 +10957,9 @@ function P245_blockModeTourStartTime({ changed }) {
     severity: 'error',
     file: BLOCK_FILE,
     message:
-      'R-P245: block_mode 가 P239 tour_start_time 룰 미적용 — Day1 새벽 stops cascade 회귀 위험. ' +
-      '비유: "투어 시작시간 메뉴판에 적었는데 주방이 옛 시간표대로 요리". ' +
-      '운영자 prod alert (plan 39c7bd3f) arrival=14:00 → 00:45/02:23/04:10 cascade lesson. 발견: ' + issues.join(', '),
+      'R-P245: block_mode 투어 시각 룰(tour_start/end + 현실 도착) 미적용 — Day1 새벽 cascade / 종료시간 미준수 회귀 위험. ' +
+      '비유: "투어 시작·종료 시간 메뉴판에 적었는데 주방이 옛 시간표대로 요리". ' +
+      '운영자 prod alert (plan 39c7bd3f) arrival=14:00 → 00:45/02:23/04:10 cascade + #arrival-realtime/#tour-end lesson. 발견: ' + issues.join(', '),
   };
 }
 

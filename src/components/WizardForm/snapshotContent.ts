@@ -33,6 +33,8 @@ export interface PlannerSnapshotContentShape {
   /** P239 (2026-05-27): tourStartTime autosave content. default '09:00' 단독 입력은
    *  meaningful content 아님 (resume modal 트리거 X — 다른 시그널 1개 이상과 함께일 때만). */
   tourStartTime?: string;
+  /** #tour-end (2026-06-05): tourEndTime autosave content. default '21:00'. */
+  tourEndTime?: string;
   paxInput?: string;
   /** PR-D (2026-06-01): 페이지가 입력 도중 비정상 teardown(새로고침/탭닫힘)될 때
    *  pagehide 리스너가 동기 기록하는 "사고 이탈" 마커. resume modal 의 좁힌 트리거가

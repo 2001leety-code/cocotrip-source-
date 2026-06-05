@@ -91,6 +91,9 @@ interface PlannerSnapshotValues {
   /** P239 (2026-05-27): 투어 시작 시각. default '09:00'. 새벽 도착 + Day1 stops 분리
    *  architectural fix. arrival_time 무관하게 Day1 첫 stop 시각을 고정 (호텔 anchor 유지). */
   tourStartTime: string;
+  /** #tour-end (2026-06-05): 투어 종료 시각 cap. default '21:00'. 모든 day 의 관광 stop 을
+   *  이 시각 이후 trim → 사용자가 원하는 시간에 일정 종료 (호텔 복귀·휴식). */
+  tourEndTime: string;
   luggageSmall: number;
   luggageMedium: number;
   luggageLarge: number;
@@ -191,6 +194,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   // arrival_time 과 별개로 Day1 stops 시작 시각을 고정 → 새벽 도착 시 호텔만 transit
   // + 09:00 부터 stops 시작. root cause: P159 / P136 / B-13 false positive 해소.
   const [tourStartTime, setTourStartTime]     = useState('09:00'); // "HH:MM" 24h (default 09:00)
+  // #tour-end (2026-06-05): tourEndTime — 매일 관광 종료 시각 cap. default '21:00' (운영자 권장).
+  // 모든 day 의 마지막 관광 stop 이 이 시각 이전이도록 → 사용자 지정 종료시간 준수 (호텔 복귀).
+  const [tourEndTime, setTourEndTime]         = useState('21:00'); // "HH:MM" 24h (default 21:00)
   const [luggageSmall, setLuggageSmall]       = useState(0);
   const [luggageMedium, setLuggageMedium]     = useState(0);
   const [luggageLarge, setLuggageLarge]       = useState(0);
@@ -410,6 +416,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     // P239 (2026-05-27): tourStartTime resume — 없는 snapshot 은 default '09:00'.
     // 옛 snapshot 호환 (architectural fix 도입 전 사용자) — undefined → '09:00'.
     setTourStartTime(v.tourStartTime ?? '09:00');
+    // #tour-end (2026-06-05): tourEndTime resume — 없는 snapshot 은 default '21:00' (옛 snapshot 호환).
+    setTourEndTime(v.tourEndTime ?? '21:00');
     setLuggageSmall(typeof v.luggageSmall === 'number' ? v.luggageSmall : 0);
     setLuggageMedium(typeof v.luggageMedium === 'number' ? v.luggageMedium : 0);
     setLuggageLarge(typeof v.luggageLarge === 'number' ? v.luggageLarge : 0);
@@ -521,6 +529,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
     dietPrefs, allergies, priceRange, spiceLevel, bucketDishes,
     // P239 (2026-05-27): tourStartTime autosave — wizard reopen 시 복원.
     tourStartTime,
+    // #tour-end (2026-06-05): tourEndTime autosave — wizard reopen 시 복원.
+    tourEndTime,
     dateRangeFrom: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null,
     dateRangeTo: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : null,
     paxInput, arrivalTerminal, departureTerminal, hotelAddress,
@@ -772,6 +782,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         // 새벽 도착 시 호텔 transit 만 + tourStartTime 부터 stops 작성.
         // root cause level 해결: P159 / P136 / B-13. snake_case → backend 가 camelCase 변환 처리.
         tour_start_time: tourStartTime || '09:00',
+        // #tour-end (2026-06-05): 투어 종료 시각 cap — 모든 day 관광 stop 을 이 시각 이후 trim.
+        // snake_case → backend requestShaper 가 camelCase(tourEndTime) 변환 처리. default 21:00.
+        tour_end_time: tourEndTime || '21:00',
         luggage: totalLuggage > 0 ? { small: luggageSmall, medium: luggageMedium, large: luggageLarge } : undefined,
         // Sprint 2 #5: zone hint when no hotel typed (string key like 'myeongdong').
         // 2026-05-11 (B-2): 단도시 또는 mainCity zone (= entry city) 우선. backend
@@ -960,6 +973,8 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                   departureTime={departureTime} setDepartureTime={setDepartureTime}
                   /* P239 (2026-05-27): tourStartTime — 새벽 도착 architectural fix */
                   tourStartTime={tourStartTime} setTourStartTime={setTourStartTime}
+                  /* #tour-end (2026-06-05): tourEndTime — 매일 관광 종료 cap */
+                  tourEndTime={tourEndTime} setTourEndTime={setTourEndTime}
                   luggageSmall={luggageSmall} setLuggageSmall={setLuggageSmall}
                   luggageMedium={luggageMedium} setLuggageMedium={setLuggageMedium}
                   luggageLarge={luggageLarge} setLuggageLarge={setLuggageLarge}

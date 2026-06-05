@@ -417,6 +417,13 @@ P124 (arrival_time + 9h sleep buffer) 는 옛 룰. tour_start_time 입력 시 (d
 - Day 2 ~ N-1: tour_start_time 무관 (각 day 의 첫 stop 은 그 day 호텔 9-10시 시작 권장)
 - arrival_time 미입력 시 tour_start_time 만 적용 (옛 plan / 미입력 호환)
 
+### 🔴 TOUR END TIME — STRICT (#tour-end, 2026-06-05 운영자)
+**핵심 원칙**: 모든 day 의 관광 활동(non-lodging) stop start_time ≤ tour_end_time (default '21:00').
+- 사용자가 tour_end_time 지정 (예 '18:00') 시 모든 day 의 마지막 관광 stop 이 그 시각 이전이어야 함.
+- 호텔 복귀(lodging) / 공항(airport) / 이동(travel) stop 은 tour_end_time 이후도 허용 (휴식·귀가·체크인).
+- 저녁 식사(food)는 tour_end_time 직전까지 가능 — 그 이후는 호텔 복귀(lodging)로 마무리.
+- NEVER: 관광 stop start_time > tour_end_time (사용자가 밤 늦게 돌아다니길 원치 않음).
+
 ### 🔴 DEPARTURE DAY HANDLING — STRICT (P124)
 - 모든 stop start_time ≤ departure_time - 180min (공항 3h buffer 강제)
 - departure_time < 09:00 → Day N = lodging체크아웃 + airport 2stops only

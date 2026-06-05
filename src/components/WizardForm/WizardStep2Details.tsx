@@ -51,6 +51,10 @@ interface Step2Props {
    *  root cause level 해결: P159 새벽 stops / P136 RouteAgent 24h wrap / B-13 false positive. */
   tourStartTime: string;
   setTourStartTime: (v: string) => void;
+  /** #tour-end (2026-06-05): 투어 종료 시각 cap. default '21:00'. 모든 day 의 관광 stop 을
+   *  이 시각 이후 trim → 사용자가 원하는 시간에 일정 종료 (호텔 복귀·휴식). */
+  tourEndTime: string;
+  setTourEndTime: (v: string) => void;
   luggageSmall: number;
   setLuggageSmall: (v: number) => void;
   luggageMedium: number;
@@ -151,6 +155,7 @@ export function WizardStep2Details(props: Step2Props) {
     hotelAddress, setHotelAddress,
     arrivalTime, setArrivalTime, departureTime, setDepartureTime,
     tourStartTime, setTourStartTime,
+    tourEndTime, setTourEndTime,
     luggageSmall, setLuggageSmall, luggageMedium, setLuggageMedium, luggageLarge, setLuggageLarge,
     wantAccom, setWantAccom, accomBudget, setAccomBudget,
     tourPace, setTourPace,
@@ -632,6 +637,22 @@ export function WizardStep2Details(props: Step2Props) {
             aria-label={(p as Record<string, string>).tourStartTimeLabel || 'Tour start time'}
           />
         </div>
+        {/* #tour-end (2026-06-05): 투어 종료 시각 — 매일 관광 일정을 이 시각 이후 종료 (호텔 복귀·휴식). */}
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <p className="text-sm font-semibold text-white">
+            <span className="mr-1.5">🌆</span>
+            {(p as Record<string, string>).tourEndTimeLabel || 'Tour end time'}
+          </p>
+          <input
+            type="time"
+            value={tourEndTime || '21:00'}
+            onChange={e => setTourEndTime(e.target.value)}
+            min="15:00"
+            max="23:59"
+            className="bg-white/[0.06] border border-white/[0.12] text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#7C5CFC]/70 transition-colors [color-scheme:dark]"
+            aria-label={(p as Record<string, string>).tourEndTimeLabel || 'Tour end time'}
+          />
+        </div>
         <p className="text-[11px] text-white/55 leading-snug">
           {(p as Record<string, string>).tourStartTimeHint
             || 'Late-night arrival? Just rest at the hotel — your tour starts at this time.'}
@@ -647,6 +668,13 @@ export function WizardStep2Details(props: Step2Props) {
           <p className="text-[11px] text-amber-300/80 mt-1.5">
             {(p as Record<string, string>).tourStartTimeBeforeDeparture
               || 'Tour start time should be before your departure time.'}
+          </p>
+        )}
+        {/* #tour-end validation: 종료 시각이 시작 시각보다 빠르거나 같으면 amber */}
+        {tourStartTime && tourEndTime && tourEndTime <= tourStartTime && (
+          <p className="text-[11px] text-amber-300/80 mt-1.5">
+            {(p as Record<string, string>).tourEndTimeAfterStart
+              || 'Tour end time should be after the start time.'}
           </p>
         )}
       </div>

@@ -238,6 +238,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           // snake_case input → camelCase backend (다른 시각 필드와 일관).
           // default 09:00 → 옛 plan 호환: backend 가 명시 안 받아도 09:00 폴백.
           ...(values.tour_start_time ? { tourStartTime: values.tour_start_time } : {}),
+          // #tour-end (2026-06-05): tourEndTime forward — 매일 관광 종료 cap (snake→camel).
+          ...(values.tour_end_time ? { tourEndTime: values.tour_end_time } : {}),
           ...(values.luggage ? { luggage: values.luggage } : {}),
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
@@ -392,6 +394,8 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
           ...(values.departure_time ? { departureTime: values.departure_time } : {}),
           // P239 (2026-05-27): revision path 도 tourStartTime forward (paid path 와 동일 영역 적용).
           ...(values.tour_start_time ? { tourStartTime: values.tour_start_time } : {}),
+          // #tour-end (2026-06-05): revision path 도 tourEndTime forward.
+          ...(values.tour_end_time ? { tourEndTime: values.tour_end_time } : {}),
           ...(values.luggage ? { luggage: values.luggage } : {}),
           ...(values.spiceLevel ? { spiceLevel: values.spiceLevel } : {}),
           ...(Array.isArray(values.bucketDishes) && values.bucketDishes.length ? { bucketDishes: values.bucketDishes } : {}),
