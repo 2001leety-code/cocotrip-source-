@@ -569,6 +569,21 @@ function foodDistanceKm(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
+// 도시별 대략 중심 좌표 (lat, lng) — 좌표-city 정합 검사용 (2026-06-05).
+// foodIndex 오태깅 감사: city 태그는 맞는데 좌표가 다른 도시인 entry 25개 발견 (23개가 서울/수도권
+// 식당인데 city='busan' — 부산 zone명 '송도'로 인천 송도 식당 수집 등). 예: '한국이슬람교 서울중앙성원'
+// city=busan lat=37.5(서울). 부산 day 에 서울 식당 노출 = 지리 파탄. 70km+ 배제 (오태깅 25개 전부 ≥77km,
+// 정상 도시권 entry 는 <60km → false 배제 0). 좌표 없는 entry 는 미적용 (graceful).
+const FOOD_CITY_CENTROID = {
+  seoul: [37.55, 126.99], busan: [35.16, 129.07], jeju: [33.45, 126.55], incheon: [37.45, 126.70],
+  daegu: [35.87, 128.60], gyeongju: [35.84, 129.21], jeonju: [35.82, 127.15], gwangju: [35.15, 126.85],
+  daejeon: [36.35, 127.38], gangneung: [37.75, 128.90], sokcho: [38.20, 128.59], suwon: [37.26, 127.03],
+  changwon: [35.23, 128.68], ulsan: [35.54, 129.31], pohang: [36.02, 129.36], chuncheon: [37.88, 127.73],
+  andong: [36.57, 128.73], yeosu: [34.76, 127.66], tongyeong: [34.85, 128.43], geoje: [34.88, 128.62],
+  wonju: [37.34, 127.92], cheongju: [36.64, 127.49], gunsan: [35.97, 126.74], mokpo: [34.81, 126.39],
+};
+const FOOD_CITY_MAX_KM = 70; // 같은 도시권 최대 반경 — 이 이상 = 오태깅. 좌표 없으면 미적용.
+
 export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null) {
   if (!placeholderStop || !placeholderStop.placeholder) return null;
   if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
@@ -597,6 +612,15 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     if (!r || typeof r !== 'object') return false;
     const rCity = String(r.city || '').toLowerCase();
     if (cityLc && rCity && !rCity.includes(cityLc) && !cityLc.includes(rCity)) return false;
+    // 좌표-city 정합 (2026-06-05): city 태그 맞아도 좌표가 그 도시 중심에서 70km+ 면 오태깅 → 배제
+    //   (예: '한국이슬람교 서울중앙성원' city=busan 좌표=서울 → 부산 day 노출 = 지리 파탄). 좌표 없으면 통과.
+    const _cen = FOOD_CITY_CENTROID[cityLc];
+    if (_cen) {
+      const rLat = Number(r.lat), rLng = Number(r.lng);
+      if (Number.isFinite(rLat) && Number.isFinite(rLng) && (rLat !== 0 || rLng !== 0)) {
+        if (foodDistanceKm(rLat, rLng, _cen[0], _cen[1]) > FOOD_CITY_MAX_KM) return false;
+      }
+    }
     // food_index.json 은 cuisine 필드 사용 (type/category 없음) — verified_cafe 매칭 누락 fix
     // (2026-06-02, plan 279c7ce0: 서울 cafe/dessert 356개 있는데 r.type 부재로 전부 탈락했음).
     const rType = String(r.type || r.category || r.cuisine || '').toLowerCase();

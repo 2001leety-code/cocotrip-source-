@@ -62,3 +62,35 @@ describe('matchFoodPlaceholder — seed preferred_dietary relax (placeholder 회
     expect(r, 'jeju 식당 없음 → NULL').toBeNull();
   });
 });
+
+// 좌표-city 정합 필터 (2026-06-05) — foodIndex 오태깅(서울 식당 city=busan) 배제.
+//   prod plan 0a02b686 Day5 부산 day 에 "한국이슬람교 서울중앙성원"(서울 모스크, city=busan 오태깅,
+//   reviewCount 4686 최고점) 노출 → 지리 파탄. 좌표가 도시 centroid 70km+ 면 배제.
+describe('matchFoodPlaceholder — 좌표-city 정합 필터 (오태깅 배제)', () => {
+  const COORD_FOOD = [
+    { name: '진짜부산식당', city: 'busan', cuisine: 'korean', rating: 4.6, reviewCount: 100, dietary_tags: [], lat: 35.10, lng: 129.03 }, // 부산 중구 (정합)
+    { name: '오태깅서울모스크', city: 'busan', cuisine: 'halal', rating: 4.9, reviewCount: 9999, dietary_tags: ['halal'], lat: 37.53, lng: 126.99 }, // 서울 좌표 (오태깅, 최고점)
+  ];
+
+  it('오태깅(좌표 320km+) 고평점 entry 배제 → 실제 부산 식당 반환', () => {
+    const r = matchFoodPlaceholder({ placeholder: 'verified_lunch' }, COORD_FOOD, 'busan', [], new Set());
+    expect(r?.name, '서울 좌표 오태깅 entry 가 부산 day 에 안 나와야 함').toBe('진짜부산식당');
+  });
+
+  it('halal preferred 여도 오태깅 모스크 배제 (좌표 우선)', () => {
+    const r = matchFoodPlaceholder({ placeholder: 'verified_lunch', preferred_dietary: ['halal'] }, COORD_FOOD, 'busan', [], new Set());
+    // halal 태그는 오태깅 모스크만 있지만 좌표로 배제 → relax → 진짜부산식당.
+    expect(r?.name).toBe('진짜부산식당');
+  });
+
+  it('좌표 없는 entry 는 graceful 통과 (필터 미적용)', () => {
+    const noCoord = [{ name: '좌표없음식당', city: 'busan', cuisine: 'korean', rating: 4.7, reviewCount: 200, dietary_tags: [] }];
+    const r = matchFoodPlaceholder({ placeholder: 'verified_lunch' }, noCoord, 'busan', [], new Set());
+    expect(r?.name).toBe('좌표없음식당');
+  });
+
+  it('정합 도시권 내 entry 는 보존 (false 배제 0)', () => {
+    const r = matchFoodPlaceholder({ placeholder: 'verified_lunch' }, [COORD_FOOD[0]], 'busan', [], new Set());
+    expect(r?.name, '부산 중구 좌표는 정합 → 보존').toBe('진짜부산식당');
+  });
+});
