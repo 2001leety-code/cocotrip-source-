@@ -1896,6 +1896,16 @@
     "tapToSave": "Tap the ❤ on any tour photo to save it here",
     "signInHint": "💡 Sign in to sync your wishlist across devices"
   },
+  "cart": {
+    "title": "Cart",
+    "empty": "Your cart is empty",
+    "add": "Add to cart",
+    "added": "In cart",
+    "remove": "Remove",
+    "clear": "Clear cart",
+    "checkoutSoon": "One-click checkout for multiple items is coming soon",
+    "signInHint": "💡 Sign in to keep your cart across devices"
+  },
   "a11y": {
     "openChat": "Open chat",
     "previousImage": "Previous image",
