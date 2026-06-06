@@ -19,6 +19,7 @@ import { getTourProductType, getTourPriceKRW } from '@/data/tours';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
+import { CartAddButton } from '@/components/CartButton';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
 import { useAuth } from '@/hooks/useAuth';
@@ -745,23 +746,46 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             <div className="w-full space-y-2">
               {/* PayPal direct — bundled memo carries phone/pickup/WA/LINE/notes */}
               {step2Complete ? (
-                <PayPalBookingButton
-                  productType={productType}
-                  passengers={pax}
-                  dateStart={date}
-                  dateEnd={date}
-                  priceKRW={totalKRW}
-                  p={{}}
-                  lang={language}
-                  pickupLocation={pickupAddress}
-                  vehicleType={tour.vehicleType.toLowerCase()}
-                  memo={fullMemo}
-                  userEmail={userEmail}
-                  // PR-R (2026-05-08): 마감 검증 — 투어는 별도 시간 입력 X, 09:00 기본
-                  // durationDays >= 2 면 multi_day cutoff (48h) 자동 적용.
-                  pickupTime="09:00"
-                  durationDays={days}
-                />
+                <>
+                  <PayPalBookingButton
+                    productType={productType}
+                    passengers={pax}
+                    dateStart={date}
+                    dateEnd={date}
+                    priceKRW={totalKRW}
+                    p={{}}
+                    lang={language}
+                    pickupLocation={pickupAddress}
+                    vehicleType={tour.vehicleType.toLowerCase()}
+                    memo={fullMemo}
+                    userEmail={userEmail}
+                    // PR-R (2026-05-08): 마감 검증 — 투어는 별도 시간 입력 X, 09:00 기본
+                    // durationDays >= 2 면 multi_day cutoff (48h) 자동 적용.
+                    pickupTime="09:00"
+                    durationDays={days}
+                  />
+                  {/* 2026-06-06 PR2b: 장바구니 담기 (VITE_FEATURE_CART OFF=null 미렌더).
+                      예약 상세(productType/날짜/인원/픽업/메모) 채운 뒤 = 완전한 결제 항목
+                      (PR1 카드 담기는 productType만이라 결제 불가였음 → 올바른 진입점).
+                      운영자 "위시리스트=장바구니, 투어 담아 한번에 결제" 비전. */}
+                  <CartAddButton
+                    id={`${tour.id}-${date}-${pax}`}
+                    booking={{
+                      productType,
+                      passengers: pax,
+                      dateStart: date,
+                      dateEnd: date,
+                      durationDays: days,
+                      pickupLocation: pickupAddress,
+                      vehicleType: tour.vehicleType.toLowerCase(),
+                      memo: fullMemo,
+                    }}
+                    displayName={`${tour.title[language] || tour.title.en} (${date})`}
+                    thumbnailUrl={tour.thumbnail}
+                    priceKRW={totalKRW}
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-3 rounded-xl text-[13px] font-semibold bg-white/[0.05] text-white/75 border border-white/12 hover:bg-white/[0.09] transition-colors"
+                  />
+                </>
               ) : (
                 <button
                   type="button"

@@ -10,34 +10,36 @@
  *    client 가 priceKRW 를 위조해도 청구액 영향 0 (resolveLineItemKrw).
  */
 
-// 즉시결제(cart) 가능 상품 타입. AI 플래너(ai_planner_full)는 cart 제외:
-//  - live 환율(usd-rate-policy) vs 차터 고정1400 → 단일 USD 변환 불가
-//  - 쿠폰 reject 정책 + 생성 트리거(onPaymentSuccess) 상이 + 알레르기=SAFETY input(~40개)
-export type CartProductType =
-  | 'charter_transfer'
-  | 'charter_multiday'
-  | 'tour_hourly'
-  | 'tour'
-  | 'combo'
-  | 'kpop';
-
 /**
- * 결제 식별 키 — 2차 PR 의 resolveLineItemKrw(SPEC, booking) 가 이 키로 backend 재계산.
- * 표시가가 아닌 이 식별자만 신뢰 (P311 변조 차단). 타입별 사용 키만 채움.
+ * 결제 식별 + fulfillment 페이로드 — createCartOrder(PR2c)가 productType+가격키로 backend
+ * 재계산, captureCartOrder(PR2d)가 fulfillment 필드를 booking-processor 로 fan-out.
+ * ⚠️ 표시가(CartItem.priceKRW)는 불신, 이 식별자만 신뢰 (P311 변조 차단).
+ *
+ * productType = 실제 결제 productType (예약 dialog 의 getTourProductType 결과:
+ *   charter_seoul_city · airport_* · charter_transfer · charter_multiday · tour_hourly ·
+ *   combo_* · kpop_shuttle_* 등). 'tour' 같은 표시 카테고리가 아니라 backend 가 가격을
+ *   해석하는 실제 키. AI 플래너(ai_planner_full)는 cart 제외(isAiPlannerProduct 가드).
  */
 export interface CartItemBooking {
-  productType: CartProductType;
-  // 차터 (transfer/multiday)
+  productType: string;
+  passengers?: number;
+  durationDays?: number;
+  dateStart?: string;
+  dateEnd?: string;
+  // 차터 transfer/multiday (distance_matrix 키)
   originKey?: string;
   destKey?: string;
   vehicle?: string;
   tripType?: string;
-  durationDays?: number;
-  // 투어
+  // 투어 슬롯
   tourId?: string;
-  date?: string;
-  // 공통
-  passengers?: number;
+  tourSlotId?: string;
+  bookingDate?: string;
+  slotCapacity?: number;
+  // fulfillment (booking-processor 전달)
+  pickupLocation?: string;
+  vehicleType?: string;
+  memo?: string;
 }
 
 export interface CartItem {

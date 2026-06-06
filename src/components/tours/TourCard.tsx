@@ -7,7 +7,6 @@ import { Clock, Users, ChevronRight, Star, Moon, Images, Languages } from 'lucid
 import type { Tour, I18nString, DriverLanguage } from '@/data/tours';
 import { translations, type Language } from '@/i18n';
 import { WishlistToggle } from '@/components/WishlistButton';
-import { CartAddButton } from '@/components/CartButton';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 
@@ -177,15 +176,6 @@ export function TourCard({ tour, language }: TourCardProps) {
               size={16}
             />
           </div>
-          {/* 장바구니 담기 (VITE_FEATURE_CART OFF 면 null=미렌더). 위시리스트 하트 옆 패리티. */}
-          <CartAddButton
-            compact
-            id={tour.id}
-            booking={{ productType: 'tour', tourId: tour.id }}
-            displayName={txt(tour.title, language)}
-            priceUSD={tour.priceFrom}
-            thumbnailUrl={tour.thumbnail}
-          />
         </div>
 
         {/* 가격 (우하단) USD + 근사 KRW 병기 */}
