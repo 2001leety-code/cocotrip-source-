@@ -42,6 +42,7 @@ import { generateVoucherPDF } from './_generate-voucher.js';
 import { createWalletPass }   from './_create-wallet-pass.js';
 import { getUsdToKrwRaw } from './_exchange-rate.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
+import { bookingStepGuards, BOOKING_STEP_MARKERS } from './_shared/booking-idempotency.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -76,6 +77,24 @@ function detectLanguage(email = '', name = '') {
   if (email.endsWith('.cn') || /[\u4E00-\u9FFF]/.test(name)) return 'zh';
   if (/[\uAC00-\uD7AF]/.test(name)) return 'ko';
   return 'en';
+}
+
+// \u2500\u2500 \uBA71\uB4F1 \uB9C8\uCEE4 \uAE30\uB85D (\uB2E8\uACC4 \uC131\uACF5 \uD6C4 set \u2192 \uC7AC\uD638\uCD9C \uC2DC \uD574\uB2F9 \uB2E8\uACC4 \uC2A4\uD0B5) \u2500\u2500
+// \uBE44\uCE58\uBA85\uC801: \uAE30\uB85D \uC2E4\uD328\uD574\uB3C4 \uCC98\uB9AC\uB294 \uACC4\uC18D (\uCD5C\uC545\uC758 \uACBD\uC6B0 retry \uC2DC 1\uD68C \uC911\uBCF5).
+async function setBookingMarker(orderID, field) {
+  if (!orderID || !field) return;
+  try {
+    const db = initAdminDb('booking-processor');
+    if (db) {
+      const { FieldValue } = await import('firebase-admin/firestore');
+      await db.collection('bookings').doc(orderID).set(
+        { [field]: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    }
+  } catch (e) {
+    console.warn(`[booking-processor] \uBA71\uB4F1 \uB9C8\uCEE4 ${field} \uAE30\uB85D \uC2E4\uD328 (\uBE44\uCE58\uBA85\uC801):`, e.message);
+  }
 }
 
 // ── 메인 핸들러 ──────────────────────────────────────────────────────────
@@ -159,6 +178,19 @@ const originalHandler = async (event) => {
   let exchangeRate = USD_TO_KRW;
   let amountKRW = 0;
 
+  // ── 멱등 가드: 이미 끝낸 단계 스킵 (retry 큐 sweep / admin-replay / cart fan-out 중복 방지) ──
+  // 안전 기본: 읽기 실패/마커 없음 = 전 단계 처리. 첫 호출엔 마커 없음 → 기존 단일상품 동작 100% 불변.
+  let stepGuards = bookingStepGuards(null);
+  try {
+    const db = initAdminDb('booking-processor');
+    if (db && orderID) {
+      const snap = await db.collection('bookings').doc(orderID).get();
+      if (snap.exists) stepGuards = bookingStepGuards(snap.data());
+    }
+  } catch (guardErr) {
+    console.warn('[booking-processor] 멱등 마커 읽기 실패 (전 단계 처리):', guardErr.message);
+  }
+
   // PR #452 (Audit Z-H9): malformed `amount` (e.g. 'abc') previously NaN-
   // propagated through KRW conversion + booking record + loyalty earn,
   // surfacing as $NaN in Sheets / email / voucher and silent loss of
@@ -234,22 +266,28 @@ const originalHandler = async (event) => {
   const language = detectLanguage(payerEmail, payerName);
   const results = { bookingRef, steps: {} };
 
-  // ── Step 2: Google Sheets 예약 기록 추가 ────────────────────────────
+  // ── Step 2: Google Sheets 예약 기록 추가 (멱등: 이미 append 됐으면 스킵) ──
   let sheetsRowHint = null;
-  try {
-    const sheetsResult = await appendBooking(booking);
-    sheetsRowHint = sheetsResult.appendedRow || null;
-    results.steps.sheets = 'ok';
-    console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
-  } catch (err) {
-    // B9-31: env 미설정(SheetsEnvSkipped) 시 silent — _google-sheets.js 가 이미 1회 info 로그 출력.
-    if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
-      results.steps.sheets = 'skipped (env not configured)';
-    } else {
-      results.steps.sheets = `error: ${err.message}`;
-      console.error('[booking-processor] Sheets 기록 실패:', err.message);
+  if (stepGuards.skipSheets) {
+    results.steps.sheets = 'skip: already appended (idempotent)';
+    console.log('[booking-processor] Sheets 스킵 (멱등 — 이미 기록):', orderID);
+  } else {
+    try {
+      const sheetsResult = await appendBooking(booking);
+      sheetsRowHint = sheetsResult.appendedRow || null;
+      results.steps.sheets = 'ok';
+      console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
+      await setBookingMarker(orderID, BOOKING_STEP_MARKERS.sheets);
+    } catch (err) {
+      // B9-31: env 미설정(SheetsEnvSkipped) 시 silent — _google-sheets.js 가 이미 1회 info 로그 출력.
+      if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
+        results.steps.sheets = 'skipped (env not configured)';
+      } else {
+        results.steps.sheets = `error: ${err.message}`;
+        console.error('[booking-processor] Sheets 기록 실패:', err.message);
+      }
+      // 비치명적 오류 — 계속 진행
     }
-    // 비치명적 오류 — 계속 진행
   }
 
   // ── Step 3: 텔레그램 알림 전송 (2026-05-04: 2-채널 분리) ─────────────
@@ -328,53 +366,67 @@ const originalHandler = async (event) => {
   // operator-todo-reminder 가 이 필드로 미발송 booking 정확 검출 (bookingRef proxy 한계 보완).
   let voucherEmailOk = false;
   let voucherEmailErr = null;
-  try {
-    let emailContent;
-    let voucherText = '';
-
-    // Gemini로 이메일 + 바우처 생성 시도
-    try {
-      [emailContent, voucherText] = await Promise.all([
-        generateConfirmationEmail(booking, language),
-        generateVoucherText(booking),
-      ]);
-    } catch (aiErr) {
-      console.warn('[booking-processor] AI 이메일 생성 실패, 기본 템플릿 사용:', aiErr.message);
-      emailContent = buildDefaultConfirmationEmail(booking, walletUrl, itineraryData);
-    }
-
-    await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
-    results.steps.email = 'ok';
+  let voucherSkipped = false;
+  if (stepGuards.skipVoucher) {
+    // 멱등: 이미 발송됨 (voucherSentAt 존재) → 재발송 안 함.
+    voucherSkipped = true;
     voucherEmailOk = true;
-    console.log('[booking-processor] 고객 이메일 발송 완료:', payerEmail);
-  } catch (err) {
-    results.steps.email = `error: ${err.message}`;
-    voucherEmailErr = err.message || 'unknown';
-    console.error('[booking-processor] 이메일 발송 실패:', err.message);
+    results.steps.email = 'skip: already sent (idempotent)';
+    console.log('[booking-processor] 이메일 스킵 (멱등 — 이미 발송):', orderID);
+  } else {
+    try {
+      let emailContent;
+      let voucherText = '';
+
+      // Gemini로 이메일 + 바우처 생성 시도
+      try {
+        [emailContent, voucherText] = await Promise.all([
+          generateConfirmationEmail(booking, language),
+          generateVoucherText(booking),
+        ]);
+      } catch (aiErr) {
+        console.warn('[booking-processor] AI 이메일 생성 실패, 기본 템플릿 사용:', aiErr.message);
+        emailContent = buildDefaultConfirmationEmail(booking, walletUrl, itineraryData);
+      }
+
+      await sendBookingConfirmation(payerEmail, emailContent, voucherText, pdfBuffer, walletUrl);
+      results.steps.email = 'ok';
+      voucherEmailOk = true;
+      console.log('[booking-processor] 고객 이메일 발송 완료:', payerEmail);
+    } catch (err) {
+      results.steps.email = `error: ${err.message}`;
+      voucherEmailErr = err.message || 'unknown';
+      console.error('[booking-processor] 이메일 발송 실패:', err.message);
+    }
   }
 
   // ── Step 6.5: voucher 발송 결과를 Firestore booking 도큐먼트에 기록 ──
   // PR-L: operator-todo-reminder 가 voucherSentAt 빈 booking 검출용. 부분 실패도
   // 포함 (voucherFailedAt + voucherError) — 어드민이 명시적으로 인지 가능.
   // 비치명적 — Firestore unavailable 이어도 전체 처리는 계속.
-  try {
-    const db = initAdminDb('booking-processor');
-    if (db && orderID) {
-      const { FieldValue } = await import('firebase-admin/firestore');
-      const patch = voucherEmailOk
-        ? { voucherSentAt: FieldValue.serverTimestamp() }
-        : {
-            voucherFailedAt: FieldValue.serverTimestamp(),
-            voucherError: String(voucherEmailErr || 'unknown').slice(0, 500),
-          };
-      await db.collection('bookings').doc(orderID).set(patch, { merge: true });
-      results.steps.voucherStatus = voucherEmailOk ? 'ok' : 'failed-recorded';
-    } else {
-      results.steps.voucherStatus = 'skip: firestore unavailable';
+  if (voucherSkipped) {
+    // 멱등: voucherSentAt 이미 기록됨 → 재기록 불필요.
+    results.steps.voucherStatus = 'skip: already recorded (idempotent)';
+  } else {
+    try {
+      const db = initAdminDb('booking-processor');
+      if (db && orderID) {
+        const { FieldValue } = await import('firebase-admin/firestore');
+        const patch = voucherEmailOk
+          ? { voucherSentAt: FieldValue.serverTimestamp() }
+          : {
+              voucherFailedAt: FieldValue.serverTimestamp(),
+              voucherError: String(voucherEmailErr || 'unknown').slice(0, 500),
+            };
+        await db.collection('bookings').doc(orderID).set(patch, { merge: true });
+        results.steps.voucherStatus = voucherEmailOk ? 'ok' : 'failed-recorded';
+      } else {
+        results.steps.voucherStatus = 'skip: firestore unavailable';
+      }
+    } catch (statusErr) {
+      results.steps.voucherStatus = `error: ${statusErr.message}`;
+      console.error('[booking-processor] voucherStatus 기록 실패:', statusErr.message);
     }
-  } catch (statusErr) {
-    results.steps.voucherStatus = `error: ${statusErr.message}`;
-    console.error('[booking-processor] voucherStatus 기록 실패:', statusErr.message);
   }
 
   // ── Step 7: Google Sheets 상태 '확정'으로 업데이트 (이슈#3 fix: rowHint로 전체 스캔 회피) ──
@@ -416,7 +468,10 @@ const originalHandler = async (event) => {
     // amountNum=0 + skip loyalty earn (the operator-alerted path above
     // already fired for the same NaN).
     const amountNum = amountUSDSafe;
-    if (amountNum > 0 && body.userId) {
+    if (stepGuards.skipLoyalty) {
+      // 멱등: 이미 적립됨 → 재적립 안 함 (retry 중복 포인트 방지).
+      results.loyalty = { skipped: 'already earned (idempotent)' };
+    } else if (amountNum > 0 && body.userId) {
       const loyaltyRes = await fetch(`https://cocotripkr.com/api/loyalty`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -431,6 +486,10 @@ const originalHandler = async (event) => {
       const loyaltyData = await loyaltyRes.json();
       console.log('[booking-processor] 포인트 적립:', loyaltyData);
       results.loyalty = loyaltyData;
+      // 적립 성공(2xx)시에만 마커 set → 실패 시 마커 없음 = retry 재적립 (포인트 누락 방지).
+      if (loyaltyRes.ok) {
+        await setBookingMarker(orderID, BOOKING_STEP_MARKERS.loyalty);
+      }
     }
   } catch (loyaltyErr) {
     console.warn('[booking-processor] 포인트 적립 실패 (비치명적):', loyaltyErr.message);
