@@ -7,10 +7,10 @@
  *     2. phone 없으면 차단 (다른 필드 모두 채워져 있어도).
  *     3. phone 공백만이면 차단.
  *     4. 나머지 4개 필드 비어있어도 phone 있으면 통과 (선택 필드).
- *   minimal=false (기본/OFF):
- *     5. 5개 전부 채워야 통과.
+ *   minimal=false (기본/OFF) [2026-06-06: 전화 형식검증 + 메신저 WhatsApp/LINE one-of]:
+ *     5. 전화(형식)+픽업+메신저(둘 중 하나)+메모 채우면 통과.
  *     6. phone만 있고 나머지 비어있으면 차단.
- *     7. 4개 채워도 1개 빠지면 차단.
+ *     7. 메신저는 둘 중 하나만 있어도 통과 / 둘 다 없으면 차단.
  *     8. 공백만인 필드는 미입력 취급.
  *   기능 플래그 독립성:
  *     9. FEATURE_TOUR_BOOKING_MINIMAL export 값은 boolean 타입.
@@ -72,6 +72,11 @@ describe('isTourStep2Complete — minimal=true (플래그 ON)', () => {
   it('4b. 5개 전부 채워도 통과 (역방향 확인)', () => {
     expect(isTourStep2Complete(allFilled, true)).toBe(true);
   });
+
+  it('4c. 오타 전화(글자/너무 짧음)면 차단 (형식 검증 — 2026-06-06)', () => {
+    expect(isTourStep2Complete({ ...onlyPhone, phone: 'abc123' }, true)).toBe(false);
+    expect(isTourStep2Complete({ ...onlyPhone, phone: '123' }, true)).toBe(false);
+  });
 });
 
 // --- minimal=false (기본/OFF) ---
@@ -88,12 +93,16 @@ describe('isTourStep2Complete — minimal=false (기본/OFF)', () => {
     expect(isTourStep2Complete({ ...allFilled, pickupAddress: '' }, false)).toBe(false);
   });
 
-  it('7b. whatsappId 누락 시 차단', () => {
-    expect(isTourStep2Complete({ ...allFilled, whatsappId: '' }, false)).toBe(false);
+  it('7b. whatsappId 누락이어도 lineId 있으면 통과 (메신저 둘 중 하나)', () => {
+    expect(isTourStep2Complete({ ...allFilled, whatsappId: '' }, false)).toBe(true);
   });
 
-  it('7c. lineId 누락 시 차단', () => {
-    expect(isTourStep2Complete({ ...allFilled, lineId: '' }, false)).toBe(false);
+  it('7c. lineId 누락이어도 whatsappId 있으면 통과 (메신저 둘 중 하나)', () => {
+    expect(isTourStep2Complete({ ...allFilled, lineId: '' }, false)).toBe(true);
+  });
+
+  it('7c-2. 메신저(WhatsApp/LINE) 둘 다 누락이면 차단', () => {
+    expect(isTourStep2Complete({ ...allFilled, whatsappId: '', lineId: '' }, false)).toBe(false);
   });
 
   it('7d. memoText 누락 시 차단', () => {

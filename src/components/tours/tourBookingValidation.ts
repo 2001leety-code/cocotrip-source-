@@ -5,13 +5,19 @@
 //
 // 플래그 VITE_FEATURE_TOUR_BOOKING_MINIMAL=true 시 Step 2 에서 전화번호 1개만 필수.
 // OFF(기본) 시 전화·픽업주소·WhatsApp·LINE·메모 5개 전부 필수 (기존 동작 byte-identical).
+import { isValidInternationalPhone } from '@/lib/phone-validation';
+
 export const FEATURE_TOUR_BOOKING_MINIMAL =
   import.meta.env.VITE_FEATURE_TOUR_BOOKING_MINIMAL === 'true';
 
 /**
  * Step 2(연락처·픽업) 완료 여부.
- * - minimal=true: 전화 1개만 필수.
- * - minimal=false (기본/OFF): 5개 전부 필수 (기존 동작 byte-identical).
+ * - 공통: 전화 **형식 검증**(isValidInternationalPhone — 오타·가짜번호 차단). 딥서치(2026-06-06):
+ *   기사 배차는 닿는 번호가 이행 전제 → 기존 length>0 만으론 오타가 그대로 통과했음.
+ * - minimal=true: 전화(형식검증)만 필수.
+ * - minimal=false: + 픽업주소 + 메신저(WhatsApp **OR** LINE, 둘 중 하나) + 메모.
+ *   ⚠️ WhatsApp+LINE 둘 다 필수(기존)는 과수집 → 둘 중 하나(외국인은 보통 하나만 씀,
+ *   딥서치 "전화 OR 메신저 ≥1 reachable").
  */
 export function isTourStep2Complete(fields: {
   phone: string;
@@ -20,14 +26,12 @@ export function isTourStep2Complete(fields: {
   lineId: string;
   memoText: string;
 }, minimal: boolean): boolean {
-  if (minimal) {
-    return fields.phone.trim().length > 0;
-  }
+  // 전화 형식 검증 (두 모드 공통)
+  if (!isValidInternationalPhone(fields.phone)) return false;
+  if (minimal) return true;
   return (
-    fields.phone.trim().length > 0 &&
     fields.pickupAddress.trim().length > 0 &&
-    fields.whatsappId.trim().length > 0 &&
-    fields.lineId.trim().length > 0 &&
+    (fields.whatsappId.trim().length > 0 || fields.lineId.trim().length > 0) &&
     fields.memoText.trim().length > 0
   );
 }
