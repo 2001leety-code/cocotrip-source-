@@ -56,12 +56,16 @@ export async function triggerBookingProcessor({
   notify,
   persistRetry,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  retryDocId,
 }) {
   if (!siteUrl || !payload || !payload.orderID) {
     return { ok: false, reason: 'invalid-args' };
   }
 
   const orderID = String(payload.orderID);
+  // retry 큐 doc id — 단건은 orderID(기존 동작 불변), cart fan-out 은 orderID__lineId 전달해
+  // 라인별 독립 retry (단일 doc 충돌/덮어쓰기 회피). 미전달 시 orderID 폴백.
+  const retryQueueDocId = retryDocId || orderID;
 
   // 1. Call booking-processor with abort timeout.
   const controller = new AbortController();
@@ -104,8 +108,9 @@ export async function triggerBookingProcessor({
         await persistRetry(orderID, payload, result.reason);
       } else {
         const { FieldValue } = await import('firebase-admin/firestore');
-        await db.collection(RETRY_COLLECTION).doc(orderID).set({
+        await db.collection(RETRY_COLLECTION).doc(retryQueueDocId).set({
           orderID,
+          retryDocId: retryQueueDocId,
           payload,
           source,
           firstFailureAt: FieldValue.serverTimestamp(),
