@@ -1904,7 +1904,15 @@
     "remove": "削除",
     "clear": "カートを空にする",
     "checkoutSoon": "複数商品の一括決済機能は近日公開予定です",
-    "signInHint": "💡 ログインすると端末間でカートが同期されます"
+    "signInHint": "💡 ログインすると端末間でカートが同期されます",
+    "checkout": "決済に進む",
+    "total": "合計",
+    "preparing": "注文を準備中...",
+    "processing": "決済を確認中...",
+    "loadingPay": "決済手段を読み込み中...",
+    "checkoutDone": "予約が確定しました！",
+    "checkoutDoneSub": "確認メールを送信中です。",
+    "close": "確認"
   },
   "a11y": {
     "openChat": "チャットを開く",
