@@ -1904,7 +1904,15 @@
     "remove": "移除",
     "clear": "清空购物车",
     "checkoutSoon": "多商品一键结算功能即将推出",
-    "signInHint": "💡 登录后可在不同设备间同步购物车"
+    "signInHint": "💡 登录后可在不同设备间同步购物车",
+    "checkout": "去结算",
+    "total": "合计",
+    "preparing": "正在准备订单...",
+    "processing": "正在确认付款...",
+    "loadingPay": "正在加载支付方式...",
+    "checkoutDone": "预订已确认！",
+    "checkoutDoneSub": "确认邮件即将发送。",
+    "close": "确认"
   },
   "a11y": {
     "openChat": "打开聊天",

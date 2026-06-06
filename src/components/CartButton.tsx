@@ -12,6 +12,7 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { isCartEnabled, type CartItemBooking } from '@/lib/cart-types';
+import { CartCheckout } from './CartCheckout';
 
 interface CartAddProps {
   id: string;
@@ -92,6 +93,7 @@ function CartPanelInner() {
   const { t } = useLanguage();
   const c = (t as { cart?: Record<string, string> }).cart || {};
   const [isOpen, setIsOpen] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -189,19 +191,25 @@ function CartPanelInner() {
                   </div>
                 ))}
 
-                {/* 1차 PR FOUNDATION: 결제 버튼 없음 — sum-one-order 결제는 2차 PR.
-                    비우기 + "결제 준비 중" 안내만. */}
-                <div className="pt-1">
-                  <button
-                    onClick={() => clear()}
-                    className="text-xs text-red-400/70 hover:text-red-400 inline-flex items-center gap-1"
-                  >
-                    <Trash2 size={12} /> {c.clear || 'Clear cart'}
-                  </button>
-                </div>
-                <p className="text-[11px] text-white/40 text-center pt-1">
-                  {c.checkoutSoon || 'One-click checkout for multiple items is coming soon'}
-                </p>
+                {/* PR2e: 결제 (createCartOrder → PayPal → captureCartOrder). flag OFF 면 패널 자체 미렌더. */}
+                {showCheckout ? (
+                  <CartCheckout onClose={() => { setShowCheckout(false); setIsOpen(false); }} />
+                ) : (
+                  <div className="pt-1 space-y-2">
+                    <button
+                      onClick={() => setShowCheckout(true)}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#7C5CFC] hover:bg-[#6a4ce0] transition-colors"
+                    >
+                      {c.checkout || 'Proceed to checkout'}
+                    </button>
+                    <button
+                      onClick={() => clear()}
+                      className="text-xs text-red-400/70 hover:text-red-400 inline-flex items-center gap-1"
+                    >
+                      <Trash2 size={12} /> {c.clear || 'Clear cart'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

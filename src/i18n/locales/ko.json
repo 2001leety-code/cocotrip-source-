@@ -1904,7 +1904,15 @@
     "remove": "제거",
     "clear": "비우기",
     "checkoutSoon": "여러 상품 한번에 결제 기능 준비 중입니다",
-    "signInHint": "💡 로그인하면 기기 간 장바구니가 유지됩니다"
+    "signInHint": "💡 로그인하면 기기 간 장바구니가 유지됩니다",
+    "checkout": "결제하기",
+    "total": "합계",
+    "preparing": "주문 준비 중...",
+    "processing": "결제 확인 중...",
+    "loadingPay": "결제 수단 로딩 중...",
+    "checkoutDone": "예약이 확정되었습니다!",
+    "checkoutDoneSub": "상품별 확인 이메일을 발송 중입니다.",
+    "close": "확인"
   },
   "a11y": {
     "openChat": "채팅 열기",

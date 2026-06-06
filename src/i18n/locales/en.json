@@ -1904,7 +1904,15 @@
     "remove": "Remove",
     "clear": "Clear cart",
     "checkoutSoon": "One-click checkout for multiple items is coming soon",
-    "signInHint": "💡 Sign in to keep your cart across devices"
+    "signInHint": "💡 Sign in to keep your cart across devices",
+    "checkout": "Proceed to checkout",
+    "total": "Total",
+    "preparing": "Preparing order...",
+    "processing": "Confirming payment...",
+    "loadingPay": "Loading payment...",
+    "checkoutDone": "Booking confirmed!",
+    "checkoutDoneSub": "Confirmation emails are on the way.",
+    "close": "Done"
   },
   "a11y": {
     "openChat": "Open chat",
