@@ -460,6 +460,8 @@ service cloud.firestore {
     //   클라이언트는 접근 불가
     // ─────────────────────────────────────────────────────────
     match /used_paypal_orders/{orderId} { allow read, write: if false; }
+    // cart 2차 (2026-06-06): createCartOrder 서버 재계산 스냅샷 (captureCartOrder 가 신뢰할 SSOT).
+    match /cart_orders/{orderID}        { allow read, write: if false; }
     match /api_stats/{document=**}      { allow read, write: if false; }
     match /availability/{date}          { allow read, write: if false; }
     match /reservations/{id}            { allow read, write: if false; }
