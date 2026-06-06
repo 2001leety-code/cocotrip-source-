@@ -112,6 +112,7 @@ service cloud.firestore {
 
       // 클라이언트 관리 리스트
       match /wishlist/{itemId}        { allow read, write: if isOwner(uid); }
+      match /cart/{itemId}            { allow read, write: if isOwner(uid); }
       match /recentlyViewed/{itemId}  { allow read, write: if isOwner(uid); }
       match /itineraries/{itineraryId}{ allow read, write: if isOwner(uid); }
 

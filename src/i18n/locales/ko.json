@@ -1896,6 +1896,16 @@
     "tapToSave": "투어 사진의 ❤ 버튼을 눌러 저장하세요",
     "signInHint": "💡 로그인하면 기기 간 위시리스트가 동기화됩니다"
   },
+  "cart": {
+    "title": "장바구니",
+    "empty": "장바구니가 비어 있어요",
+    "add": "장바구니 담기",
+    "added": "담김",
+    "remove": "제거",
+    "clear": "비우기",
+    "checkoutSoon": "여러 상품 한번에 결제 기능 준비 중입니다",
+    "signInHint": "💡 로그인하면 기기 간 장바구니가 유지됩니다"
+  },
   "a11y": {
     "openChat": "채팅 열기",
     "previousImage": "이전 이미지",

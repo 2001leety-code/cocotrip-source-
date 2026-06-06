@@ -14,6 +14,7 @@ import { auth, signInWithGoogle } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { LoyaltyBadge } from '@/components/LoyaltyBadge';
 import { WishlistPanel } from '@/components/WishlistButton';
+import { CartPanel } from '@/components/CartButton';
 import { PwaInstallButton } from '@/components/PwaInstallButton';
 import { useCommandPalette } from '@/components/CommandPalette';
 
@@ -232,6 +233,10 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 so mobile users have a parity entry point. The panel itself
                 handles its own slide-in animation + outside-click dismiss. */}
             <WishlistPanel />
+
+            {/* Cart (장바구니) — VITE_FEATURE_CART OFF 면 null 렌더(무영향).
+                멀티상품 "한번에 결제" FOUNDATION. WishlistPanel 옆 패리티 위치. */}
+            <CartPanel />
 
             {/* Admin Home (desktop, admin only) */}
             {isAdmin && !isMobile && (

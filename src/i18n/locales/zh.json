@@ -1896,6 +1896,16 @@
     "tapToSave": "点击旅游照片上的 ❤ 即可收藏",
     "signInHint": "💡 登录后心愿单将在设备间同步"
   },
+  "cart": {
+    "title": "购物车",
+    "empty": "购物车是空的",
+    "add": "加入购物车",
+    "added": "已加入",
+    "remove": "移除",
+    "clear": "清空购物车",
+    "checkoutSoon": "多商品一键结算功能即将推出",
+    "signInHint": "💡 登录后可在不同设备间同步购物车"
+  },
   "a11y": {
     "openChat": "打开聊天",
     "previousImage": "上一张图片",
