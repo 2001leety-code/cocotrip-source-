@@ -16,7 +16,7 @@ const DISMISS_KEY = 'coco_promo_banner_dismissed_v1';
 // 🚨 운영자: 오픈 프로모 마감일 표시 문자열 (예: '6/30', 'Jun 30').
 //    비우면('') → "선착순"만 표시(현행). 넣으면 자동으로 "~6/30 마감" 등 4언어 표시(긴급성).
 //    🚨 마감일이 지나면 반드시 비우거나 새 날짜로 교체 — 가짜 긴급성 금지(신뢰·규제, Booking €413M 벌금 사례).
-const PROMO_END_DATE = '';
+const PROMO_END_DATE = '6/28';
 
 // CTA 클릭 이동 — 할인 적용 상품(차터/투어) 목록
 const CTA_HREF = '/tours';

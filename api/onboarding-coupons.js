@@ -35,7 +35,20 @@ const JSON_HEADERS = {
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
 };
 
-const COUPON_VALIDITY_MS = 90 * 24 * 3600 * 1000; // 90일
+// 운영자 2026-06-07: 90일 → 1년. 외국인은 몇 달 전부터 여행 계획 → 90일은 짧음(만료 위험).
+export const COUPON_VALIDITY_MS = 365 * 24 * 3600 * 1000; // 1년
+
+// 🚨 운영자: 오픈기념 가입 쿠폰 발급 마감일(KST). 3주 가입창 = 이 날짜까지 가입자만 WELCOME 쿠폰 발급.
+//    '' = 제한 없음(상시 발급). 배너 PROMO_END_DATE 와 맞추세요. 마감 후 신규 가입자는 쿠폰 미발급.
+const ONBOARDING_PROMO_END = '2026-06-28';
+
+/** 가입 쿠폰 발급 창이 열려있는지 (마감일 미설정/파싱실패 → 안전하게 발급). */
+export function isOnboardingPromoOpen(now = Date.now()) {
+  if (!ONBOARDING_PROMO_END) return true;
+  const end = new Date(`${ONBOARDING_PROMO_END}T23:59:59+09:00`).getTime();
+  if (!Number.isFinite(end)) return true;
+  return now <= end;
+}
 
 function randomSuffix(len = 6) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 문자 (I, O, 0, 1) 제외
@@ -52,6 +65,10 @@ function randomSuffix(len = 6) {
  */
 export async function issueOnboardingCouponsForUid(db, uid) {
   if (!db || !uid) throw new Error('db and uid required');
+  // 3주 오픈 프로모 창 게이트 — 마감 후 가입자는 WELCOME 쿠폰 미발급 (운영자 2026-06-07).
+  if (!isOnboardingPromoOpen()) {
+    return { issued: 0, promoClosed: true };
+  }
   const userRef = db.collection('users').doc(uid);
 
   return db.runTransaction(async (tx) => {
