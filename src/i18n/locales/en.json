@@ -1,4 +1,4 @@
-{
+﻿{
   "nav": {
     "home": "Home",
     "privateTour": "Private Tour",
@@ -2044,6 +2044,8 @@
     "customerNamePlaceholder": "Your full name",
     "customerPhone": "Phone",
     "customerPhonePlaceholder": "+82 10-1234-5678",
+    "customerMessenger": "Messenger (optional)",
+    "customerMessengerPlaceholder": "WhatsApp / LINE / KakaoTalk ID",
     "lodgingLabel": "Lodging location (operational)",
     "lodgingSeoul": "Seoul stay",
     "lodgingLocal": "Local stay",

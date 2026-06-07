@@ -1,4 +1,4 @@
-// CharterWizard — 공용 타입 정의
+﻿// CharterWizard — 공용 타입 정의
 // Phase B 위저드가 참조하는 6단계 상태 + 견적 결과
 
 export type OriginCode =
@@ -52,6 +52,7 @@ export interface WizardState {
   // 고객 정보 (Step 5에서 수집)
   customerName?: string;
   customerPhone?: string;
+  customerMessenger?: string;  // WhatsApp / LINE / 카카오 ID (선택, non-blocking)
   // multi_day 전용 — 숙소 위치 (운영 정보)
   lodgingLocation?: LodgingLocation;
   lodgingCustom?: string;        // lodgingLocation = 'custom' 일 때

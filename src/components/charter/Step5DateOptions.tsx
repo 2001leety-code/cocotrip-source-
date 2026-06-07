@@ -1,4 +1,4 @@
-// Step 5: 날짜 + 이름/연락처 + 공항/일정 필수 필드 · i18n
+﻿// Step 5: 날짜 + 이름/연락처 + 공항/일정 필수 필드 · i18n
 // 2026-05-09 (batch 9 fix B9-19): 운영자 결정 — Staria=6/Sprinter=10 cap 제거.
 //   캐리어 카운터 무제한 (99). 7개 초과 시 amber 안내 "차량 N대 권장 — 운영자 견적".
 // 2026-05-09 (batch 9 fix B9-1+B9-2): 픽업 시각 입력을 Step 3 select 에서
@@ -120,6 +120,18 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         />
       </div>
 
+      {/* 메신저 연락처 (선택) */}
+      <div>
+        <Label>{i18n.customerMessenger}</Label>
+        <input
+          type="text"
+          value={state.customerMessenger != null ? state.customerMessenger : ''}
+          onChange={e => patch({ customerMessenger: e.target.value })}
+          placeholder={i18n.customerMessengerPlaceholder}
+          className={inputCls}
+          maxLength={60}
+        />
+      </div>
       {/* 날짜 */}
       <div>
         <Label>{i18n.date}</Label>
