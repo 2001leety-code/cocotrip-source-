@@ -202,9 +202,12 @@ export default async function handler(req, res) {
     void TEST_ACCOUNTS; void userEmail;
     console.log(`[createPaypalOrder] mode: ${isSandbox ? 'SANDBOX (preview e2e)' : 'LIVE'} | email:`, userEmail, '| product:', productType);
 
+    // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복/다일 5% + 가입 WELCOME 쿠폰 5% = 10%, EARLY50 비활성.
+    // OFF(기본) = 현행 동작(다일/왕복 10%, EARLY50 20%, 쿠폰 미적용). 라이브 전 운영자 검토 후 활성화.
+    const discountV2 = featureEnabled(process.env.FEATURE_DISCOUNT_V2);
     let krwAmount;
     if (productType === 'charter_multiday') {
-      krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT));
+      krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { discountV2 });
     } else if (productType === 'tour_hourly') {
       // 투어 시간제(기본 9h + 거리추가 + 오버타임) — VAT·쿠폰 전 순수가. 플래그 OFF 기본(현행 권역 고정가 유지).
       krwAmount = resolveTourCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TOUR_HOURLY));
@@ -221,7 +224,8 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT')));
     }
 
-    if (promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
+    // v2 ON 시 EARLY50 비활성 (운영자 2026-06-07 '일단 끄기'). OFF 시 현행 20%.
+    if (!discountV2 && promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
 
     // P108 (2026-05-20): 슬롯 사용 투어 pre-lock — body 에 tourId/tourSlotId/
     // bookingDate/slotCapacity 모두 있으면 PayPal order 생성 전에 capacity

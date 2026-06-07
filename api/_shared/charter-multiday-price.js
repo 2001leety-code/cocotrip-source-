@@ -24,6 +24,9 @@ const VEHICLE_MULTIPLIER = { staria: 1.0, sprinter: 2.0 };
 // 프론트 src/lib/multidayQuote.ts 의 동일 상수와 byte-identical (multiday-quote-frontend-parity.test.ts 가드).
 const MULTIDAY_DISCOUNT_MIN_DAYS = 3;
 const MULTIDAY_DISCOUNT_PCT = 10;
+// FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 다일 기본할인 5% (+ 가입 WELCOME 쿠폰 5% 는 결제 시 별도 가산).
+// 플래그 ON 시 resolveMultiDayCheckoutKrw 가 이 값을 calc 에 전달. 프론트 multidayQuote.ts 동일 상수와 parity.
+const DISCOUNT_V2_MULTIDAY_PCT = 5;
 
 /**
  * SSOT distance_matrix 에서 origin→dest km 조회. 편도 대칭 가정(프론트 동일, 비대칭 ~5% 허용).
@@ -46,7 +49,7 @@ export function lookupMatrixKm(spec, originKey, destKey) {
  * @param {{vehicle:string, km:number, durationDays:number}} args
  * @returns {number|null} 결제 금액, 또는 결제 불가 조건(차종/거리 무효) 시 null
  */
-export function calcMultiDayCharterKrw(spec, { vehicle, km, durationDays } = {}) {
+export function calcMultiDayCharterKrw(spec, { vehicle, km, durationDays, discountPct = MULTIDAY_DISCOUNT_PCT } = {}) {
   if (!spec || !spec.vehicles || !spec.vehicles.staria || !spec.vehicles.staria.intercity) return null;
   const mult = VEHICLE_MULTIPLIER[vehicle];
   if (!mult) return null; // staria/sprinter 만 즉시결제 가능 (bus/vip = inquiry-only)
@@ -62,8 +65,8 @@ export function calcMultiDayCharterKrw(spec, { vehicle, km, durationDays } = {})
   const nights = Math.max(0, days - 1);
 
   const base = distancePart + vIc.daily_service_fee * days + vIc.overnight_driver_fee * nights;
-  // 3일 이상 10% 할인 (운영자 정책 2026-06-02). 프론트 multidayQuote.calcMultiDayQuote 와 동일.
-  return days >= MULTIDAY_DISCOUNT_MIN_DAYS ? Math.round(base * (1 - MULTIDAY_DISCOUNT_PCT / 100)) : base;
+  // 3일 이상 할인 (기본 10% / v2 5%). discountPct 는 호출처가 플래그에 따라 전달, 기본값=현행 10% (하위호환).
+  return days >= MULTIDAY_DISCOUNT_MIN_DAYS ? Math.round(base * (1 - discountPct / 100)) : base;
 }
 
 /**
@@ -74,7 +77,7 @@ export function calcMultiDayCharterKrw(spec, { vehicle, km, durationDays } = {})
  * @param {boolean} featureEnabled  FEATURE_MULTIDAY_CHECKOUT (운영자 플래그). false 면 null(현행 WhatsApp 유지).
  * @returns {number|null} 결제 금액, 또는 비활성/미존재 시 null
  */
-export function resolveMultiDayCheckoutKrw(spec, body, featureEnabled) {
+export function resolveMultiDayCheckoutKrw(spec, body, featureEnabled, opts = {}) {
   if (!featureEnabled) return null; // 플래그 OFF = 멀티데이 즉시결제 비활성 (운영자 정책 + 실 e2e 후 ON)
   if (!body) return null;
   const originKey = typeof body.originKey === 'string' ? body.originKey.trim() : '';
@@ -82,7 +85,9 @@ export function resolveMultiDayCheckoutKrw(spec, body, featureEnabled) {
   const vehicle   = typeof body.vehicle === 'string' ? body.vehicle.trim() : '';
   const km = lookupMatrixKm(spec, originKey, destKey);
   if (km == null) return null; // matrix 미존재 custom 목적지 → 결제 불가(협의)
-  return calcMultiDayCharterKrw(spec, { vehicle, km, durationDays: body.durationDays });
+  // FEATURE_DISCOUNT_V2 ON → 다일 기본할인 5% (기본 10%). 쿠폰 5% 는 createPaypalOrder 가 별도 가산.
+  const discountPct = opts.discountV2 ? DISCOUNT_V2_MULTIDAY_PCT : MULTIDAY_DISCOUNT_PCT;
+  return calcMultiDayCharterKrw(spec, { vehicle, km, durationDays: body.durationDays, discountPct });
 }
 
 export { VEHICLE_MULTIPLIER as MULTIDAY_VEHICLE_MULTIPLIER };
