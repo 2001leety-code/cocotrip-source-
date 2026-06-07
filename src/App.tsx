@@ -5,6 +5,7 @@ import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
 import { PromoBanner } from '@/components/PromoBanner';
+import { PromoPopup } from '@/components/PromoPopup';
 import { HeroSlider } from '@/sections/HeroSlider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Services } from '@/sections/Services';
@@ -529,6 +530,7 @@ function App() {
         <CommandPaletteProvider>
         <GlobalWidgets />
         <PromoBanner />
+        <PromoPopup />
         <AnimatedRoutes />
         <MobileBottomSpacer />
         </CommandPaletteProvider>
