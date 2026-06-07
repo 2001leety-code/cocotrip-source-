@@ -1,4 +1,4 @@
-﻿// CharterWizard i18n 어댑터 — 정적 텍스트는 src/i18n/locales/{ko,en,ja,zh}.json
+// CharterWizard i18n 어댑터 — 정적 텍스트는 src/i18n/locales/{ko,en,ja,zh}.json
 // 의 charterWizard namespace 에 중앙화되어 있고, 이 파일은 함수형 포맷터(템플릿
 // 치환·plural·toFixed 등)를 다시 입혀 기존 WizardI18n 인터페이스를 그대로 노출한다.
 //

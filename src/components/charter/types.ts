@@ -1,4 +1,4 @@
-﻿// CharterWizard — 공용 타입 정의
+// CharterWizard — 공용 타입 정의
 // Phase B 위저드가 참조하는 6단계 상태 + 견적 결과
 
 export type OriginCode =
