@@ -1,13 +1,18 @@
 /**
- * GET/POST /api/admin-promo-config — 프로모 배너 설정 어드민 관리.
- *   GET         : 현재 설정 읽기.
- *   POST {config}: 화이트리스트 필드 검증 후 저장, 갱신된 설정 반환.
+ * GET/POST /api/admin-promo-config — 프로모 배너 + 팝업 설정 어드민 관리.
+ *   GET                           : 현재 설정 읽기 (banner + popup 모두).
+ *   POST {target:'banner', config}: 배너 설정 저장.
+ *   POST {target:'popup',  config}: 팝업 설정 저장.
+ *   POST {config} (target 없음)   : 배너 호환 (기존 PromoBannerPanel 클라이언트 호환).
  * admin 인증 필수 (verifyAdminToken). admin-runtime-flags.js 패턴 동일.
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyAdminToken } from './_shared/admin-auth.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
-import { getPromoConfig, setPromoConfig } from './_shared/promo-config.js';
+import {
+  getPromoConfig, setPromoConfig,
+  getPopupConfig, setPopupConfig,
+} from './_shared/promo-config.js';
 
 export const config = { runtime: 'nodejs' };
 const CORS_METHODS = 'GET, POST, OPTIONS';
@@ -35,9 +40,10 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const promoConfig = await getPromoConfig(db);
+    // 배너 + 팝업 병렬 조회
+    const [banner, popup] = await Promise.all([getPromoConfig(db), getPopupConfig(db)]);
     res.writeHead(200, HEADERS);
-    return res.end(JSON.stringify({ ok: true, config: promoConfig }));
+    return res.end(JSON.stringify({ ok: true, banner, popup }));
   }
 
   // POST — 설정 저장
@@ -49,14 +55,22 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, error: '{ config: {...} } 형식 필요' }));
   }
 
-  const result = await setPromoConfig(db, inputConfig, auth.email);
+  // target 분기: 'popup' → 팝업, 그 외(없거나 'banner') → 배너 (기존 호환)
+  const target = body.target || 'banner';
+  let result;
+  if (target === 'popup') {
+    result = await setPopupConfig(db, inputConfig, auth.email);
+  } else {
+    result = await setPromoConfig(db, inputConfig, auth.email);
+  }
   if (!result.ok) {
     res.writeHead(400, HEADERS);
     return res.end(JSON.stringify({ ok: false, error: result.error }));
   }
 
-  console.log('[admin-promo-config] updated by', auth.email, 'keys:', Object.keys(inputConfig).join(','));
-  const promoConfig = await getPromoConfig(db);
+  console.log('[admin-promo-config] updated by', auth.email, 'target:', target, 'keys:', Object.keys(inputConfig).join(','));
+  // 갱신 후 banner + popup 모두 반환
+  const [banner, popup] = await Promise.all([getPromoConfig(db), getPopupConfig(db)]);
   res.writeHead(200, HEADERS);
-  return res.end(JSON.stringify({ ok: true, config: promoConfig }));
+  return res.end(JSON.stringify({ ok: true, banner, popup }));
 }

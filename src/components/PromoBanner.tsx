@@ -82,8 +82,10 @@ export function PromoBanner() {
     fetch('/api/promo-config')
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json && json.ok && json.config) {
-          setRemoteConfig(json.config as PromoConfig);
+        if (!cancelled && json && json.ok) {
+          // 신 구조: { banner, popup } / 구 구조: { config } — 하위 호환
+          const cfg = json.banner || json.config;
+          if (cfg) setRemoteConfig(cfg as PromoConfig);
         }
       })
       .catch(() => { /* fail-safe: 코드상수 폴백 */ });

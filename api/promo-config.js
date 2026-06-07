@@ -1,15 +1,18 @@
 /**
- * GET /api/promo-config — 배너 설정 공개 읽기 (인증 불필요).
+ * GET /api/promo-config — 배너 + 팝업 설정 공개 읽기 (인증 불필요).
  *
- * 프론트엔드 PromoBanner.tsx 가 마운트 시 호출. 배너 표시값(enabled/copy/ctaText/ctaHref/endDate)만 반환.
- * 에러 / Firestore 없으면 DEFAULT_PROMO_CONFIG 반환 (배너 항상 표시 보장).
+ * 프론트엔드 PromoBanner.tsx / PromoPopup.tsx 가 마운트 시 호출.
+ * 표시값만 반환: { banner: {...}, popup: {...} }
+ * 에러 / Firestore 없으면 DEFAULT 반환 (배너/팝업 항상 안전 보장).
+ *
+ * 하위 호환: PromoBanner.tsx 는 json.config.banner 를 읽도록 업데이트됨.
  *
  * 보안:
- *   - GET만 (쓰기 불가). 배너 표시값 외 내부 데이터 미노출.
- *   - CORS: 공개 wildcard — 파트너 임베드 지원 (cors.js 주석 참고, public endpoints 는 wildcard 유지).
+ *   - GET만 (쓰기 불가). 표시값 외 내부 데이터 미노출.
+ *   - CORS: 공개 wildcard — 파트너 임베드 지원.
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { getPromoConfig } from './_shared/promo-config.js';
+import { getPromoConfig, getPopupConfig } from './_shared/promo-config.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -34,7 +37,12 @@ export default async function handler(req, res) {
   }
 
   const db = initAdminDb('promo-config');
-  const promoConfig = await getPromoConfig(db);
+  // 배너 + 팝업 병렬 조회 (독립적, 한쪽 실패해도 다른 쪽 영향 없음)
+  const [banner, popup] = await Promise.all([
+    getPromoConfig(db),
+    getPopupConfig(db),
+  ]);
   res.writeHead(200, PUBLIC_HEADERS);
-  return res.end(JSON.stringify({ ok: true, config: promoConfig }));
+  // { banner, popup } 구조로 반환. PromoBanner/PromoPopup 모두 각 키 읽음.
+  return res.end(JSON.stringify({ ok: true, banner, popup }));
 }
