@@ -27,17 +27,19 @@ function detectInitialLanguage(): Language {
     }
   } catch { /* localStorage unavailable */ }
 
-  // 2. Auto-detect from browser — English is the true default if nothing matches
+  // 2. Auto-detect from browser — 기본 언어 = 영어 (운영자 정책 2026-06-07).
+  //    서비스 타깃 = 외국인 인바운드 → 일/중/영 관광객은 자기 언어 자동, 그 외(한국어 포함)는
+  //    영어로 폴백. 한국어는 자동설정 안 함 — 운영자 검수용으로 수동 전환(언어 스위처).
   try {
     if (typeof navigator !== 'undefined') {
       const langs = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language]) || [];
       for (const raw of langs) {
         if (!raw) continue;
         const lower = raw.toLowerCase();
-        if (lower.startsWith('ko')) return 'ko';
         if (lower.startsWith('ja')) return 'ja';
         if (lower.startsWith('zh')) return 'zh';
         if (lower.startsWith('en')) return 'en';
+        // ko 는 의도적으로 자동감지 제외 → 아래 'en' 폴백 (한국어 브라우저도 기본 영어)
       }
     }
   } catch { /* navigator unavailable */ }

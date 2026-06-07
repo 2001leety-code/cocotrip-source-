@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Header } from '@/sections/Header';
+import { PromoBanner } from '@/components/PromoBanner';
 import { HeroSlider } from '@/sections/HeroSlider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Services } from '@/sections/Services';
@@ -527,6 +528,7 @@ function App() {
       <BrowserRouter>
         <CommandPaletteProvider>
         <GlobalWidgets />
+        <PromoBanner />
         <AnimatedRoutes />
         <MobileBottomSpacer />
         </CommandPaletteProvider>
