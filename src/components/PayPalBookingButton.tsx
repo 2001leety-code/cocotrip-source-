@@ -481,6 +481,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           ...(tripType ? { tripType } : {}),
           ...(vehicle ? { vehicle } : {}),
           ...(promoApplied ? { promoCode, discountedPrice: effectiveKRW } : {}),
+          // v2(2026-06-07): 개인 쿠폰을 createOrder 에도 전달 → 백엔드가 실제 청구가에 적용(표시=청구).
+          // OFF 시 백엔드가 무시 → 현행 동작. capture 의 couponDocId 전달(소진)과 별개.
+          ...(couponDocId ? { couponDocId, couponUserId } : {}),
         }),
       });
       const json = await res.json();
