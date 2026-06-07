@@ -12,6 +12,8 @@ import { AIRPORT_TRANSFER_PRICING_FORMULA, DISTANCE_MATRIX } from '@/data/charte
 import { tollEstimate } from '@/lib/calculator';
 
 const VEHICLE_MULT: Record<string, number> = { staria: 1.0, sprinter: 2.0 };
+// FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복 할인 10→5%. oneway 5% 유지. 백엔드 charter-transfer-price.js 와 byte-identical.
+const TRANSFER_DISCOUNT_V2_ROUNDTRIP_PCT = 5;
 
 export type TripType = 'oneway' | 'roundtrip';
 
@@ -60,9 +62,14 @@ export interface TransferQuote {
   total: number;
 }
 
-/** transfer 영수증 breakdown. curatedKRW(staria, VAT 내장) → 차종배수 → 편도5%/왕복(×2)10%. 백엔드와 byte-identical. */
+export interface TransferQuoteOpts {
+  discountV2?: boolean;   // FEATURE_DISCOUNT_V2: true=왕복5%, false/undefined=현행10%
+}
+
+/** transfer 영수증 breakdown. curatedKRW(staria, VAT 내장) → 차종배수 → 편도5%/왕복(×2)10%(v1)/5%(v2). 백엔드와 byte-identical. */
 export function calcTransferQuote(
   { curatedKRW = 0, tripType = 'oneway', vehicle }: { curatedKRW?: number; tripType?: TripType; vehicle: string },
+  opts: TransferQuoteOpts = {},
 ): TransferQuote | null {
   const mult = VEHICLE_MULT[vehicle];
   if (!mult) return null;
@@ -70,7 +77,8 @@ export function calcTransferQuote(
   const isRound = tripType === 'roundtrip';
   const vehicleBase = Math.round(curatedKRW * mult);
   const tripBase = isRound ? vehicleBase * 2 : vehicleBase;
-  const couponPct = isRound ? 10 : 5;
+  // v2: 왕복 10→5% (편도 5% 유지). 플래그 OFF(기본)=현행 10%.
+  const couponPct = isRound ? (opts.discountV2 ? TRANSFER_DISCOUNT_V2_ROUNDTRIP_PCT : 10) : 5;
   const coupon = Math.round((tripBase * couponPct) / 100);
   const total = tripBase - coupon; // VAT 는 curatedKRW 에 이미 포함
   return { curatedKRW, vehicleBase, tripType, tripBase, couponPct, coupon, total };

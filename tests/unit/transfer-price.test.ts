@@ -144,3 +144,48 @@ describe('estimateTransferCostKrw + 최소마진 가드 (transfer_margin_guard)'
     expect(resolveTransferCheckoutKrw(specOn, { originKey: 'ICN', destKey: 'SEL_GANGNAM', tripType: 'oneway', vehicle: 'staria' }, true)).toBe(138_320);
   });
 });
+
+describe('FEATURE_DISCOUNT_V2 — transfer 왕복 할인 10→5% (편도 5% 유지)', () => {
+  const curatedKRW = 145_600; // ICN→강남
+
+  it('v1(기본): 왕복 10% → 262,080', () => {
+    const q = beQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' })!;
+    expect(q.couponPct).toBe(10);
+    expect(q.total).toBe(262_080);
+  });
+
+  it('v2(discountV2=true): 왕복 5% → 277,240 (145,600 ×2 −5%)', () => {
+    const q = beQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, { discountV2: true })!;
+    expect(q.couponPct).toBe(5);
+    expect(q.tripBase).toBe(291_200);
+    expect(q.coupon).toBe(14_560);
+    expect(q.total).toBe(276_640); // 291,200 - 14,560
+  });
+
+  it('v2(discountV2=true): 편도 5% 유지 → 138,320 (변경 없음)', () => {
+    const q = beQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' }, { discountV2: true })!;
+    expect(q.couponPct).toBe(5);
+    expect(q.total).toBe(138_320); // oneway 는 항상 5%
+  });
+
+  it('v2: 프론트(feQuote) == 백엔드(beQuote) byte-identical', () => {
+    const bq = beQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, { discountV2: true })!;
+    const fq = feQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, { discountV2: true })!;
+    expect(fq).toEqual(bq);
+  });
+
+  it('v2: 플래그 OFF(opts 없음)=현행 10% 무영향', () => {
+    const v1 = beQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' });
+    const v2off = beQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, {});
+    expect(v2off).toEqual(v1);
+  });
+
+  it('v2: resolveTransferCheckoutKrw discountV2 게이트 — 플래그 ON 시 왕복 5%', () => {
+    const body = { originKey: 'ICN', destKey: 'SEL_GANGNAM', tripType: 'roundtrip', vehicle: 'staria' };
+    const v1 = resolveTransferCheckoutKrw(SPEC, body, true);          // 262,080
+    const v2 = resolveTransferCheckoutKrw(SPEC, body, true, { discountV2: true }); // 276,640
+    expect(v1).toBe(262_080);
+    expect(v2).toBe(276_640);
+    expect(v2).toBeGreaterThan(v1!); // 5% < 10% 할인 → 청구액 더 큼
+  });
+});
