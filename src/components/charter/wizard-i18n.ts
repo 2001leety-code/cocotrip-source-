@@ -1,4 +1,4 @@
-// CharterWizard i18n 어댑터 — 정적 텍스트는 src/i18n/locales/{ko,en,ja,zh}.json
+﻿// CharterWizard i18n 어댑터 — 정적 텍스트는 src/i18n/locales/{ko,en,ja,zh}.json
 // 의 charterWizard namespace 에 중앙화되어 있고, 이 파일은 함수형 포맷터(템플릿
 // 치환·plural·toFixed 등)를 다시 입혀 기존 WizardI18n 인터페이스를 그대로 노출한다.
 //
@@ -57,6 +57,7 @@ export interface WizardI18n {
   date: string; time: string; returnDate: string;
   customerName: string; customerNamePlaceholder: string;
   customerPhone: string; customerPhonePlaceholder: string;
+  customerMessenger: string; customerMessengerPlaceholder: string;
   lodgingLabel: string; lodgingSeoul: string; lodgingLocal: string; lodgingDailyReturn: string; lodgingNote: string;
   addons: string;
   englishGuide: string;     // 레거시 — 사용 안 함, 호환을 위해 유지
@@ -239,6 +240,7 @@ export function getWizardI18n(language: string): WizardI18n {
     date: get('date'), time: get('time'), returnDate: get('returnDate'),
     customerName: get('customerName'), customerNamePlaceholder: get('customerNamePlaceholder'),
     customerPhone: get('customerPhone'), customerPhonePlaceholder: get('customerPhonePlaceholder'),
+    customerMessenger: get('customerMessenger'), customerMessengerPlaceholder: get('customerMessengerPlaceholder'),
     lodgingLabel: get('lodgingLabel'),
     lodgingSeoul: get('lodgingSeoul'),
     lodgingLocal: get('lodgingLocal'),

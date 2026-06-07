@@ -1,4 +1,4 @@
-{
+﻿{
   "nav": {
     "home": "首页",
     "privateTour": "私人旅游",
@@ -2044,6 +2044,8 @@
     "customerNamePlaceholder": "张三",
     "customerPhone": "联系电话",
     "customerPhonePlaceholder": "+86 138-1234-5678",
+    "customerMessenger": "即时通讯（选填）",
+    "customerMessengerPlaceholder": "WhatsApp / LINE / KakaoTalk ID",
     "lodgingLabel": "住宿地点（运营信息）",
     "lodgingSeoul": "首尔住宿",
     "lodgingLocal": "当地住宿",
