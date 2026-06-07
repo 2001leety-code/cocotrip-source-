@@ -10,6 +10,9 @@
  *   거리부 = round((staria.base_fee + km×2×staria.rate_per_km) × MULT[vehicle])  ← 거리부는 항상 staria 상수
  *   운영비 = vehicle.daily_service_fee × days + vehicle.overnight_driver_fee × nights
  *   total = days>=3 ? round(base × 0.9) : base   /   MULT = staria 1.0 / sprinter 2.0 (bus/vip → null)
+ *
+ * FEATURE_DISCOUNT_V2 (운영자 2026-06-07): v2 ON 시 3일+ 기본할인 5% (기존 10%). 백엔드 DISCOUNT_V2_MULTIDAY_PCT 와 byte-identical.
+ *   calcMultiDayQuote/calcMultiDayCharterKrw 는 선택적 opts.discountV2=true 를 받아 5% 적용 — 플래그 OFF(기본) = 무영향.
  */
 import { VEHICLE_INTERCITY, DISTANCE_MATRIX } from '@/data/charterPricing';
 
@@ -19,6 +22,8 @@ const VEHICLE_MULT: Record<string, number> = { staria: 1.0, sprinter: 2.0 };
 // 백엔드 charter-multiday-price.js MULTIDAY_DISCOUNT_* 와 byte-identical (운영자 정책 2026-06-02).
 const MULTIDAY_DISCOUNT_MIN_DAYS = 3;
 const MULTIDAY_DISCOUNT_PCT = 10;
+// FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 다일 기본할인 5%. 백엔드 DISCOUNT_V2_MULTIDAY_PCT 와 byte-identical.
+const DISCOUNT_V2_MULTIDAY_PCT = 5;
 
 /**
  * SSOT distance_matrix km 조회 — 백엔드 _shared/charter-multiday-price.js lookupMatrixKm 와 동일 (fwd/rev 만).
@@ -42,16 +47,22 @@ export interface MultiDayQuote {
   dailyFee: number;       // 1일 운영비 (차종별)
   overnightFee: number;   // 1박 기사비 (차종별)
   base: number;           // 할인 전 = distancePart + dailyFee×days + overnightFee×nights
-  discountPct: number;    // 3일+ = 10, 그 외 0
+  discountPct: number;    // 3일+ = 10(v1) / 5(v2), 그 외 0
   discount: number;       // base - total
   total: number;          // 할인 후 결제 금액 (= backend resolveMultiDayCheckoutKrw)
 }
 
+export interface MultiDayQuoteOpts {
+  discountV2?: boolean;   // FEATURE_DISCOUNT_V2: true=5%, false/undefined=10% (현행)
+}
+
 /**
  * 멀티데이 견적 breakdown. total 은 calcMultiDayCharterKrw 와 동일(= backend SSOT). 차종 불가/거리 무효 시 null.
+ * opts.discountV2=true 시 3일+ 기본할인 5% (백엔드 v2 동일). 플래그 OFF(기본) = 현행 10% 무영향.
  */
 export function calcMultiDayQuote(
   { vehicle, km, durationDays }: { vehicle: string; km: number; durationDays?: number },
+  opts: MultiDayQuoteOpts = {},
 ): MultiDayQuote | null {
   const mult = VEHICLE_MULT[vehicle];
   if (!mult) return null; // staria/sprinter 만 즉시결제 (bus/vip = inquiry-only)
@@ -65,20 +76,23 @@ export function calcMultiDayQuote(
   const nights = Math.max(0, days - 1);
   const distancePart = Math.round((sIc.base_fee + km * 2 * sIc.rate_per_km) * mult);
   const base = distancePart + vIc.daily_service_fee * days + vIc.overnight_driver_fee * nights;
-  // 3일 이상 10% 할인 (운영자 정책 2026-06-02). 백엔드 calcMultiDayCharterKrw 와 동일 연산.
-  const discountPct = days >= MULTIDAY_DISCOUNT_MIN_DAYS ? MULTIDAY_DISCOUNT_PCT : 0;
+  // 3일 이상 할인 (v1=10% / v2=5%). 백엔드 calcMultiDayCharterKrw discountPct 와 동일 연산.
+  const basePct = opts.discountV2 ? DISCOUNT_V2_MULTIDAY_PCT : MULTIDAY_DISCOUNT_PCT;
+  const discountPct = days >= MULTIDAY_DISCOUNT_MIN_DAYS ? basePct : 0;
   const total = discountPct > 0 ? Math.round(base * (1 - discountPct / 100)) : base;
   const discount = base - total;
   return { distancePart, days, nights, dailyFee: vIc.daily_service_fee, overnightFee: vIc.overnight_driver_fee, base, discountPct, discount, total };
 }
 
 /**
- * 멀티데이 차터 결제 금액(KRW, 3일+ 10% 할인 반영) 재계산. 백엔드 calcMultiDayCharterKrw 와 byte-identical.
+ * 멀티데이 차터 결제 금액(KRW) 재계산. 백엔드 calcMultiDayCharterKrw 와 byte-identical.
+ * opts.discountV2=true: 3일+ 기본할인 5% (FEATURE_DISCOUNT_V2). 기본=현행 10%.
  * @returns 결제 금액, 또는 결제 불가(차종/거리 무효) 시 null.
  */
 export function calcMultiDayCharterKrw(
   args: { vehicle: string; km: number; durationDays?: number },
+  opts: MultiDayQuoteOpts = {},
 ): number | null {
-  const q = calcMultiDayQuote(args);
+  const q = calcMultiDayQuote(args, opts);
   return q ? q.total : null;
 }

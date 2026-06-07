@@ -122,4 +122,22 @@ describe('resolveMultiDayCheckoutKrw — 결제 핸들러 게이트 (플래그 +
     expect(resolveMultiDayCheckoutKrw(SPEC, {}, true)).toBeNull();
     expect(resolveMultiDayCheckoutKrw(SPEC, null, true)).toBeNull();
   });
+
+  it('v2(discountV2=true): 3일+ 기본할인 5% (플래그 ON 시)', () => {
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    const v1 = resolveMultiDayCheckoutKrw(SPEC, validBody, true);
+    const v2 = resolveMultiDayCheckoutKrw(SPEC, validBody, true, { discountV2: true });
+    // v2 = 5% < v1 = 10% (= 더 저렴)
+    expect(v2).toBeDefined();
+    expect(v2!).toBeGreaterThan(v1!); // 5% 할인 < 10% 할인 → 청구가 더 큼
+    expect(v2).toBe(calcMultiDayCharterKrw(SPEC, { vehicle: 'staria', km, durationDays: 3, discountPct: 5 }));
+  });
+
+  it('v2 플래그 OFF(기본)=현행 10% 무영향 (opts 없음 / discountV2=false)', () => {
+    const r1 = resolveMultiDayCheckoutKrw(SPEC, validBody, true);
+    const r2 = resolveMultiDayCheckoutKrw(SPEC, validBody, true, { discountV2: false });
+    const r3 = resolveMultiDayCheckoutKrw(SPEC, validBody, true, {});
+    expect(r1).toBe(r2);
+    expect(r1).toBe(r3);
+  });
 });

@@ -216,7 +216,7 @@ export default async function handler(req, res) {
       // 도시간 transfer — backend SSOT 재계산(matrix km, client 불신). 플래그 OFF 기본.
       // 2026-06-06 어드민 조종석: 마진가드는 런타임 토글(admin-runtime-flags) 우선. fail-safe → OFF.
       const _rtFlags = await getRuntimeFlags(initAdminDb('createPaypalOrder-rtflags'));
-      krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled });
+      krwAmount = resolveTransferCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT), { marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled, discountV2 });
     } else {
       krwAmount = resolveKrwAmount(productType, passengers, durationDays);
     }

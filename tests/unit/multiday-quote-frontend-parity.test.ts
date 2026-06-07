@@ -50,18 +50,36 @@ describe('멀티데이 견적 — 프론트 == 백엔드 (byte-identical, 3일+ 
       .toBe(beMultiday(SPEC, { vehicle: 'staria', km: 100, durationDays: 35 }));
   });
 
-  it('3일 이상 10% 할인 (운영자 정책 2026-06-02): 2일=무할인, 3일=base×0.9, 프론트==백엔드', () => {
+  it('v1: 3일 이상 10% 할인 (운영자 정책 2026-06-02): 2일=무할인, 3일=base×0.9, 프론트==백엔드', () => {
     const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
-    // 2일: 할인 0 (base == total)
     const q2 = feQuote({ vehicle: 'staria', km, durationDays: 2 })!;
     expect(q2.discountPct).toBe(0);
     expect(q2.discount).toBe(0);
     expect(q2.total).toBe(q2.base);
     expect(q2.total).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 2 }));
-    // 3일: base×0.9, 프론트 lib total == 백엔드
     const q3 = feQuote({ vehicle: 'staria', km, durationDays: 3 })!;
     expect(q3.discountPct).toBe(10);
     expect(q3.total).toBe(Math.round(q3.base * 0.9));
     expect(q3.total).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 }));
+  });
+
+  it('v2(discountV2=true): 3일+ 기본할인 5%, 백엔드 5% 와 일치 (표시=청구 P311)', () => {
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    expect(km).toBeGreaterThan(0);
+    const q3 = feQuote({ vehicle: 'staria', km, durationDays: 3 }, { discountV2: true })!;
+    expect(q3.discountPct).toBe(5);
+    expect(q3.total).toBe(Math.round(q3.base * 0.95));
+    expect(q3.total).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3, discountPct: 5 }));
+    const q2 = feQuote({ vehicle: 'staria', km, durationDays: 2 }, { discountV2: true })!;
+    expect(q2.discountPct).toBe(0);
+    expect(q2.total).toBe(q2.base);
+  });
+
+  it('v2: 플래그 OFF(기본)=v1 10% 무영향', () => {
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    expect(feMultiday({ vehicle: 'staria', km, durationDays: 3 }))
+      .toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 }));
+    expect(feMultiday({ vehicle: 'staria', km, durationDays: 3 }, { discountV2: false }))
+      .toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3, discountPct: 10 }));
   });
 });
