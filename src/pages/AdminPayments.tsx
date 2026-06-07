@@ -17,6 +17,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, type DocumentData } from 'firebase/firestore';
 import { RuntimeFlagsPanel } from '@/components/admin/RuntimeFlagsPanel';
+import { PromoBannerPanel } from '@/components/admin/PromoBannerPanel';
 import {
   Wallet, ArrowLeft, CheckCircle2, XCircle, RefreshCw, Loader2, ExternalLink,
   Mail, Phone, Calendar, Users, Tag, Copy, Check,
@@ -228,6 +229,8 @@ export default function AdminPayments() {
       <div className="max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-6 space-y-4 sm:space-y-5">
         {/* 어드민 조종석 런타임 토글 (2026-06-06) */}
         <RuntimeFlagsPanel />
+        {/* 프로모 배너 어드민 설정 (2026-06-07) */}
+        <PromoBannerPanel />
 
         {/* 필터 탭 — 모바일 가로 스크롤 가능 */}
         <div className="flex gap-2 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 pb-1 flex-nowrap sm:flex-wrap">

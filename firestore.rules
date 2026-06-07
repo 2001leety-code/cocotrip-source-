@@ -459,6 +459,15 @@ service cloud.firestore {
     // 서버 전용 컬렉션 (Admin SDK가 rules 우회)
     //   클라이언트는 접근 불가
     // ─────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    // admin_config/runtime_flags — 런타임 토글 (2026-06-06, PR #820)
+    // admin_config/promo_banner  — 프로모 배너 설정 (2026-06-07)
+    //   두 문서 모두: read/write 서버 전용 (Admin SDK 우회).
+    //   클라이언트 직접 write 절대 금지 — 서버 admin-runtime-flags / admin-promo-config 경유만.
+    //   공개 read (promo-config.js)도 서버 경유 — 클라이언트가 admin_config 직접 읽기 불가.
+    // ─────────────────────────────────────────────────────────
+    match /admin_config/{docId} { allow read, write: if false; }
+
     match /used_paypal_orders/{orderId} { allow read, write: if false; }
     // cart 2차 (2026-06-06): createCartOrder 서버 재계산 스냅샷 (captureCartOrder 가 신뢰할 SSOT).
     match /cart_orders/{orderID}        { allow read, write: if false; }
