@@ -541,3 +541,5 @@ function App() {
 }
 
 export default App;
+
+// 배포 트리거: 할인 v2 env(FEATURE_DISCOUNT_V2) 활성화 fresh 배포 — 운영자 env 적용 2026-06-07
