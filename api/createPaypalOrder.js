@@ -15,6 +15,7 @@ import { checkAiPlannerCouponPolicy, isAiPlannerProduct } from './_shared/ai-pla
 import { acquireSlotLock } from './_shared/slot-capacity.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { resolveMultiDayCheckoutKrw } from './_shared/charter-multiday-price.js';
+import { verifyCouponForCharge } from './_shared/coupon-charge.js';
 import { featureEnabled } from './_shared/feature-flag.js';
 import { resolveTourCheckoutKrw } from './_shared/tour-price.js';
 import { resolveTransferCheckoutKrw } from './_shared/charter-transfer-price.js';
@@ -153,7 +154,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { productType, passengers = 1, dateStart = '', dateEnd = '', pickupTime = '', durationDays, language = 'en', promoCode, userEmail = '', couponDocId } = body;
+    const { productType, passengers = 1, dateStart = '', dateEnd = '', pickupTime = '', durationDays, language = 'en', promoCode, userEmail = '', couponDocId, couponUserId } = body;
     if (!productType) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('productType is required', 'MISSING_FIELDS'))); }
 
     // AI 플래너 = 디지털 상품 — 모든 쿠폰/프로모 reject (운영자 정책 2026-05-05).
@@ -202,9 +203,12 @@ export default async function handler(req, res) {
     void TEST_ACCOUNTS; void userEmail;
     console.log(`[createPaypalOrder] mode: ${isSandbox ? 'SANDBOX (preview e2e)' : 'LIVE'} | email:`, userEmail, '| product:', productType);
 
+    // FEATURE_DISCOUNT_V2 (운영자 2026-06-07): 왕복/다일 5% + 가입 WELCOME 쿠폰 5% = 10%, EARLY50 비활성.
+    // OFF(기본) = 현행 동작(다일/왕복 10%, EARLY50 20%, 쿠폰 미적용). 라이브 전 운영자 검토 후 활성화.
+    const discountV2 = featureEnabled(process.env.FEATURE_DISCOUNT_V2);
     let krwAmount;
     if (productType === 'charter_multiday') {
-      krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT));
+      krwAmount = resolveMultiDayCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_MULTIDAY_CHECKOUT), { discountV2 });
     } else if (productType === 'tour_hourly') {
       // 투어 시간제(기본 9h + 거리추가 + 오버타임) — VAT·쿠폰 전 순수가. 플래그 OFF 기본(현행 권역 고정가 유지).
       krwAmount = resolveTourCheckoutKrw(SPEC, body, featureEnabled(process.env.FEATURE_TOUR_HOURLY));
@@ -221,7 +225,18 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT')));
     }
 
-    if (promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
+    // v2 ON 시 EARLY50 비활성 (운영자 2026-06-07 '일단 끄기'). OFF 시 현행 20%.
+    if (!discountV2 && promoCode === 'EARLY50') krwAmount = Math.round(krwAmount * 0.8);
+
+    // v2: WELCOME 개인 쿠폰을 실제 청구가에 적용 (표시=청구 버그 fix). 검증 실패=정가(안전).
+    // 소진(isUsed)은 capturePaypalOrder 트랜잭션 락이 담당 — 여기선 할인%만 반영.
+    if (discountV2 && couponDocId && couponUserId && !isAiPlanner) {
+      const cv = await verifyCouponForCharge(initAdminDb('createPaypalOrder-coupon'), couponUserId, couponDocId, productType);
+      if (cv.valid) {
+        krwAmount = Math.round(krwAmount * (1 - cv.discountPct / 100));
+        console.log('[createPaypalOrder] coupon applied:', couponDocId, cv.discountPct + '%');
+      }
+    }
 
     // P108 (2026-05-20): 슬롯 사용 투어 pre-lock — body 에 tourId/tourSlotId/
     // bookingDate/slotCapacity 모두 있으면 PayPal order 생성 전에 capacity

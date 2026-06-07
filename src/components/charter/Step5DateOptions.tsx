@@ -120,6 +120,18 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         />
       </div>
 
+      {/* 메신저 연락처 (선택) */}
+      <div>
+        <Label>{i18n.customerMessenger}</Label>
+        <input
+          type="text"
+          value={state.customerMessenger != null ? state.customerMessenger : ''}
+          onChange={e => patch({ customerMessenger: e.target.value })}
+          placeholder={i18n.customerMessengerPlaceholder}
+          className={inputCls}
+          maxLength={60}
+        />
+      </div>
       {/* 날짜 */}
       <div>
         <Label>{i18n.date}</Label>

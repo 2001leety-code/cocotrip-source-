@@ -15,6 +15,7 @@ import { Step5DateOptions } from './Step5DateOptions';
 import { Step6Quote } from './Step6Quote';
 import { InquiryForm } from './InquiryForm';
 import { getWizardI18n } from './wizard-i18n';
+import { isValidInternationalPhone } from '@/lib/phone-validation';
 import {
   loadWizardSnapshot,
   useWizardPersistence,
@@ -149,8 +150,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         // PR-W4 (이슈 35): 픽업 시각은 Step 3 select 입력. INITIAL_WIZARD_STATE 가 09:00 기본값.
         if (!state.pickupTime && !state.startTime) return false;
         if (!state.customerName || state.customerName.trim().length < 2) return false;
-        const phoneDigits = (state.customerPhone ?? '').replace(/\D/g, '');
-        if (phoneDigits.length < 7) return false;
+        // 2026-06-07: 약한 ≥7자리 → 투어와 동일 형식검증(isValidInternationalPhone, 8~15자리).
+        // 기사 배차 연락이 닿는 번호 보장 (오타·가짜번호 차단). 통합 예약정보 정책.
+        if (!isValidInternationalPhone(state.customerPhone ?? '')) return false;
         if (state.service === 'airport_transfer') {
           if (!state.airport?.flightNumber || state.airport.flightNumber.length < 3) return false;
           if (state.origin === 'ICN' && !state.airport?.terminal) return false;

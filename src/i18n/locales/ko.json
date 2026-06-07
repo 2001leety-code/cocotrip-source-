@@ -2044,6 +2044,8 @@
     "customerNamePlaceholder": "홍길동",
     "customerPhone": "연락처",
     "customerPhonePlaceholder": "010-1234-5678",
+    "customerMessenger": "메신저 (선택)",
+    "customerMessengerPlaceholder": "WhatsApp / LINE / KakaoTalk ID",
     "lodgingLabel": "숙소 위치 (운영 안내용)",
     "lodgingSeoul": "서울 숙박",
     "lodgingLocal": "현지 숙박",

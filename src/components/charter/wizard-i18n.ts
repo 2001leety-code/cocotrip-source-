@@ -57,6 +57,7 @@ export interface WizardI18n {
   date: string; time: string; returnDate: string;
   customerName: string; customerNamePlaceholder: string;
   customerPhone: string; customerPhonePlaceholder: string;
+  customerMessenger: string; customerMessengerPlaceholder: string;
   lodgingLabel: string; lodgingSeoul: string; lodgingLocal: string; lodgingDailyReturn: string; lodgingNote: string;
   addons: string;
   englishGuide: string;     // 레거시 — 사용 안 함, 호환을 위해 유지
@@ -239,6 +240,7 @@ export function getWizardI18n(language: string): WizardI18n {
     date: get('date'), time: get('time'), returnDate: get('returnDate'),
     customerName: get('customerName'), customerNamePlaceholder: get('customerNamePlaceholder'),
     customerPhone: get('customerPhone'), customerPhonePlaceholder: get('customerPhonePlaceholder'),
+    customerMessenger: get('customerMessenger'), customerMessengerPlaceholder: get('customerMessengerPlaceholder'),
     lodgingLabel: get('lodgingLabel'),
     lodgingSeoul: get('lodgingSeoul'),
     lodgingLocal: get('lodgingLocal'),

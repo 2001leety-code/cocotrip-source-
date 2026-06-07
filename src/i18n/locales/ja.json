@@ -2044,6 +2044,8 @@
     "customerNamePlaceholder": "山田太郎",
     "customerPhone": "連絡先",
     "customerPhonePlaceholder": "+81 90-1234-5678",
+    "customerMessenger": "メッセンジャー（任意）",
+    "customerMessengerPlaceholder": "WhatsApp / LINE / KakaoTalk ID",
     "lodgingLabel": "宿泊地（運用情報）",
     "lodgingSeoul": "ソウル泊",
     "lodgingLocal": "現地泊",
