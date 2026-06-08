@@ -14,6 +14,7 @@
  *   'todo'               — 일일 운영자 to-do 종합
  *   'refund'             — 환불 요청/처리
  *   'coupon-warning'     — 쿠폰 race fix 후 수동 환불 대상
+ *   'coupon-race'        — 쿠폰 선점 race (capture 전 차단 / 프로모 한도 자동환불)
  *   'cs-overdue'         — 미답변 CS 티켓
  *   'complaint-overdue'  — 미응답 plan 신고
  *
@@ -31,6 +32,7 @@ const CATEGORY_LABELS = {
   'todo':              '일일 to-do',
   'refund':            '환불',
   'coupon-warning':    '쿠폰 경고',
+  'coupon-race':       '쿠폰 레이스',
   'cs-overdue':        'CS 미답변',
   'complaint-overdue': '신고 미응답',
 };
