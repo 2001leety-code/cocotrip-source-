@@ -8,6 +8,7 @@
  */
 
 import { notify } from './_shared/notify.js';
+import { productDisplayLabel } from './_shared/pricing.js';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
@@ -110,7 +111,7 @@ export async function sendBookingAlert(booking) {
 ━━━━━━━━━━━━━━━
 고객명: ${booking.customerName || '-'}
 이메일: ${booking.customerEmail || '-'}
-상품: ${booking.product || '-'}
+상품: ${(booking.product || booking.productType) ? productDisplayLabel(booking.product || booking.productType) : '-'}
 날짜: ${booking.tourDate || '-'}
 인원: ${booking.paxCount || '-'}명${airportSectionHtml(booking.airport)}
 
@@ -153,7 +154,7 @@ export async function sendDispatchAlert(booking) {
 ━━━━━━━━━━━━━━━
 고객: ${booking.customerName || '-'}
 연락처: ${booking.customerPhone || '-'}
-상품: ${booking.product || '-'}
+상품: ${(booking.product || booking.productType) ? productDisplayLabel(booking.product || booking.productType) : '-'}
 날짜: <b>${booking.tourDate || '-'}</b>
 인원: ${booking.paxCount || '-'}명
 차종: ${booking.vehicleType || '-'}
@@ -181,7 +182,7 @@ export async function sendBookingPaymentAlert(booking) {
 ━━━━━━━━━━━━━━━
 고객: ${booking.customerName || '-'}
 이메일: ${booking.customerEmail || '-'}
-상품: ${booking.product || '-'}
+상품: ${(booking.product || booking.productType) ? productDisplayLabel(booking.product || booking.productType) : '-'}
 
 💰 결제 금액: <b>$${booking.amountUSD || '0'} USD</b>
 원화 환산: ₩${amountKRW.toLocaleString()} (환율 ${rate})
