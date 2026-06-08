@@ -454,9 +454,11 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
 
   // P195/P267: stream 완료 후 cache metadata 추출 — final response 우선, fallback chunk-level.
   let cacheMetadata = { cached: 0, total: 0, output: 0 };
+  let finishReason = 'UNKNOWN'; // P215 streaming parity (2026-06-08): MAX_TOKENS 잘림 감지용
   let source = 'final';
   try {
     const finalResponse = await streamResult.response;
+    finishReason = extractFinishReason({ response: finalResponse });
     cacheMetadata = extractCacheMetadata(finalResponse);
     // P267: final usageMetadata 가 null/0 인데 chunk-level 이 있으면 fallback (Pro streaming bug).
     if (cacheMetadata.total === 0 && lastChunkUsageMetadata) {
@@ -473,7 +475,7 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
     }
   }
 
-  return { text: accumulated, cacheMetadata };
+  return { text: accumulated, cacheMetadata, finishReason };
 }
 
 const GEMINI_TIMEOUT_MS = 240000;
@@ -1400,6 +1402,18 @@ export async function runGeminiPipeline({ apiKey, systemPrompt, userMessage, are
         );
         rawText = streamReturn.text;
         cacheMetadata = accumulateCacheMetadata(cacheMetadata, streamReturn.cacheMetadata);
+        // P215 streaming parity (2026-06-08): legacy 가 하던 finishReason 감지를 streaming 에도 적용.
+        // MAX_TOKENS 잘림 시 65K retry → P181 minimal fallback (~50회/일) 의 주원인 제거.
+        // 기존 검증된 handleFinishReason 재사용 (legacy L1424 와 동일 머신). retry 는 non-streaming.
+        const { retryText: p215RetryText, retryCm: p215RetryCm } = await handleFinishReason(
+          streamReturn.finishReason,
+          'legacy-streaming',
+          { apiKey, systemPrompt, userMessage, isAdminBypass, identifierForBucketing },
+        );
+        if (p215RetryText !== null) {
+          rawText = p215RetryText;
+          cacheMetadata = accumulateCacheMetadata(cacheMetadata, p215RetryCm);
+        }
       } catch (err) {
         throw mapGeminiError(err, geminiStart);
       }
