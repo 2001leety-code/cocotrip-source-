@@ -33,6 +33,9 @@ const CHANNEL_ENV = {
   error:    'TELEGRAM_ERROR_BOT_TOKEN',
   inquiry:  'TELEGRAM_INQUIRY_BOT_TOKEN',
   report:   'TELEGRAM_REPORT_BOT_TOKEN',
+  // 'admin' = operator-alerts 등 32곳에서 쓰는 채널. CHANNEL_ENV 미정의 시 TELEGRAM_BOT_TOKEN
+  // fallback 에만 의존(취약)해서 명시 등록. unset 이면 기존 동작 동일(무변화). 2026-06-08
+  admin:    'TELEGRAM_ADMIN_BOT_TOKEN',
 };
 
 const TELEGRAM_API = 'https://api.telegram.org';
