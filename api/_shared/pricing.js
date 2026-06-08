@@ -95,9 +95,41 @@ export function isCustomEstimateProduct(productType) {
  */
 export function productDisplayLabel(productType) {
   if (!productType) return 'CocoTrip Service';
-  if (isCustomEstimateProduct(productType)) {
-    return 'Custom Charter (Estimate — pending reconciliation)';
-  }
+  const t = String(productType).replace(/-/g, '_');
+
+  // 운영자/어드민 표면(텔레그램, 어드민, 바우처) 한글 라벨. 신규 상품까지 일괄 매핑.
+  // 2026-06-08: charter_custom_estimate 만 있던 placeholder 를 전 상품 한글 라벨로 확장.
+  const EXACT = {
+    ai_planner_full:         'AI 플래너 (Full)',
+    charter_custom_estimate: '맞춤 차터 (견적, 정산 대기)',
+    charter_multiday:        '다일 차터',
+    charter_transfer:        '편도 이동 (차터)',
+    tour_hourly:             '시간제 투어',
+    cart:                    '장바구니 (다건 예약)',
+    kpop_shuttle_oneway:     'K팝 셔틀 (편도)',
+    kpop_shuttle_roundtrip:  'K팝 셔틀 (왕복)',
+    charter_seoul_city:      '전세 투어 (서울 시내)',
+    charter_seoul_suburb:    '전세 투어 (서울 근교)',
+    charter_dmz:             '전세 투어 (DMZ)',
+    charter_gangwon:         '전세 투어 (강원)',
+    charter_ski:             '전세 투어 (스키 리조트)',
+    charter_gyeongju:        '전세 투어 (경주/전주)',
+    charter_busan:           '전세 투어 (부산)',
+    combo_airport_seoul:     '콤보 (공항 + 서울 시내)',
+    combo_airport_nami:      '콤보 (공항 + 남이섬)',
+    combo_airport_dmz:       '콤보 (공항 + DMZ)',
+    combo_airport_gangwon:   '콤보 (공항 + 강원)',
+    combo_airport_busan:     '콤보 (공항 + 부산)',
+  };
+  if (EXACT[t]) return EXACT[t];
+
+  // 프리픽스 폴백: 매트릭스/롱테일(도시별 공항 픽업, 미등록 콤보/차터 등).
+  if (t.startsWith('airport_')) return '공항 픽업/이동';
+  if (t.startsWith('combo_'))   return '콤보 패키지';
+  if (t.startsWith('charter_')) return '전세 차터';
+  if (t.startsWith('kpop_'))    return 'K팝 셔틀';
+
+  // 인식 못한 키 = 이미 라벨이거나 신규 미등록, 그대로 통과(idempotent).
   return String(productType);
 }
 
