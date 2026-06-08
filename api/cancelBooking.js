@@ -55,14 +55,19 @@ function getDb() {
 // PayPal token + baseUrl resolution moved to api/_shared/paypal.js
 // (shared with capturePaypalOrder.js + createPaypalOrder.js).
 
+// HTML parse_mode 용 이스케이프: user/동적 필드(<>&)가 HTML 파싱을 깨지 않게 변환.
+function escHtml(v) {
+  return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function airportPlainLine(airport) {
   if (!airport || typeof airport !== 'object') return '';
   const { terminal, flightNumber, luggage } = airport;
   const lug = luggage || {};
   const lugTotal = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
   const parts = [];
-  if (terminal) parts.push(`터미널 ${terminal}`);
-  if (flightNumber) parts.push(`편명 ${flightNumber}`);
+  if (terminal) parts.push(`터미널 ${escHtml(terminal)}`);
+  if (flightNumber) parts.push(`편명 ${escHtml(flightNumber)}`);
   if (lugTotal > 0) parts.push(`수하물 ${lugTotal}개(S${lug.small ?? 0}·M${lug.medium ?? 0}·L${lug.large ?? 0})`);
   return parts.length ? `\n공항: ${parts.join(' · ')}` : '';
 }
@@ -72,30 +77,30 @@ function airportPlainLine(airport) {
 async function sendRefundTelegram({ bookingRef, productType, paxCount, tourDate, userEmail, refundUSD, refundPercent, reason, airport, pickupLocation, dropoffLocation }) {
   // (1) booking 채널 — 환불 재무 영수증
   const refundMsg =
-    `🔴 [예약 취소·환불 처리]\n` +
-    `${bookingRef}\n` +
-    `상품: ${productType} · ${paxCount}명 · ${tourDate}\n` +
-    `고객: ${userEmail}\n` +
-    `환불액: $${refundUSD} (${refundPercent}%)\n` +
-    `사유: ${reason || '-'}`;
+    `🔴 <b>예약 취소·환불 처리</b>\n` +
+    `<code>${escHtml(bookingRef)}</code>\n` +
+    `상품: ${escHtml(productType)} · ${paxCount}명 · ${escHtml(tourDate)}\n` +
+    `고객: ${escHtml(userEmail)}\n` +
+    `환불액: <b>$${refundUSD} (${refundPercent}%)</b>\n` +
+    `사유: ${escHtml(reason) || '-'}`;
   // (2) dispatch 채널 — 배차에서 빼라는 알림 (운행 정보 포함)
   const route = [pickupLocation, dropoffLocation].filter(Boolean).join(' → ') || '-';
   const dispatchMsg =
-    `❌ [배차 취소]\n` +
-    `${bookingRef}\n` +
-    `상품: ${productType} · ${paxCount}명\n` +
-    `날짜: ${tourDate}\n` +
-    `경로: ${route}\n` +
-    `사유: ${reason || '-'}` +
+    `❌ <b>배차 취소</b>\n` +
+    `<code>${escHtml(bookingRef)}</code>\n` +
+    `상품: ${escHtml(productType)} · ${paxCount}명\n` +
+    `날짜: ${escHtml(tourDate)}\n` +
+    `경로: ${escHtml(route)}\n` +
+    `사유: ${escHtml(reason) || '-'}` +
     airportPlainLine(airport);
 
   // (3) operator A 채널 — admin 본인 즉시 가시성 (PR-G). booking 봇 분리 운영 중에도 메인 봇으로
   // 환불은 무조건 들어와야 함 (사용자 정책).
   const operatorMsg =
-    `💸 환불 처리 — <code>${bookingRef}</code>\n` +
-    `${userEmail}\n` +
+    `💸 환불 처리 — <code>${escHtml(bookingRef)}</code>\n` +
+    `${escHtml(userEmail)}\n` +
     `$${refundUSD} (${refundPercent}%)\n` +
-    `사유: ${reason || '-'}\n` +
+    `사유: ${escHtml(reason) || '-'}\n` +
     `→ /admin/refunds 에서 확인`;
 
   // PR #457 (Audit Y-H13 — 2026-05-16): inspect Promise.allSettled results.
@@ -106,8 +111,8 @@ async function sendRefundTelegram({ bookingRef, productType, paxCount, tourDate,
   // Now: per-channel inspection, fallback alert via admin channel (separate
   // token) so at least one path delivers.
   const [bookingResult, dispatchResult, operatorResult] = await Promise.allSettled([
-    notify('booking',  refundMsg,  { parseMode: undefined }),
-    notify('dispatch', dispatchMsg, { parseMode: undefined }),
+    notify('booking',  refundMsg),
+    notify('dispatch', dispatchMsg),
     notifyOperator('refund', operatorMsg).catch((err) => {
       console.error('[cancelBooking] notifyOperator failed (silent fail 방지):', err.message);
       return { ok: false, error: err.message };
