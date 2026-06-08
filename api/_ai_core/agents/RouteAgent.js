@@ -831,7 +831,7 @@ export class RouteAgent extends BaseAgent {
                             kind: 'arrival_station_terminal_mismatch',
                             type: 'arrival_station_terminal_mismatch',
                             severity: 'high',
-                            message: `P275: input arrival_airport='${arrivalAirportKey}' but ODsay station='${heroRoute.fromStationName}' (${arrV.reason}). 사용자 비행기 놓침 risk.`,
+                            message: `P275: input arrival_airport='${arrivalAirportKey}' but ODsay station='${heroRoute.fromStationName}' (${arrV.reason}). 사용자 비행기 놓침 risk. 운영자 조치: 해당 plan 도착 경로 수동 확인 후 손님에게 정확한 터미널 안내.`,
                         });
                         console.warn(`[RouteAgent P275] arrival station mismatch: input='${arrivalAirportKey}' station='${heroRoute.fromStationName}' (${arrV.reason})`);
                     }
@@ -938,7 +938,7 @@ export class RouteAgent extends BaseAgent {
                             kind: 'departure_station_terminal_mismatch',
                             type: 'departure_station_terminal_mismatch',
                             severity: 'high',
-                            message: `P275: input departure_airport='${departureAirportKey}' but ODsay station='${route.toStationName}' (${depV.reason}). 사용자 비행기 놓침 risk.`,
+                            message: `P275: input departure_airport='${departureAirportKey}' but ODsay station='${route.toStationName}' (${depV.reason}). 사용자 비행기 놓침 risk. 운영자 조치: 해당 plan 출국 경로 수동 확인 후 손님에게 정확한 터미널 안내.`,
                         });
                         console.warn(`[RouteAgent P275] departure station mismatch: input='${departureAirportKey}' station='${route.toStationName}' (${depV.reason})`);
                     }

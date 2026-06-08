@@ -117,7 +117,6 @@ visual (Telegram groups messages per-bot in the app).
 | API/automation error | `error` | `TELEGRAM_ERROR_BOT_TOKEN` | `sendErrorAlert(funcName, error)` — 함수명 + 메시지 + 시각 | `api/_telegram.js:201`, used by 28+ files |
 | Daily report (cron) | `report` | `TELEGRAM_REPORT_BOT_TOKEN` | `api/_crons/daily-report.js` — 매출/AI 비용 등, 07:00 KST | `api/_crons/daily-report.js` |
 | Plan complaint submitted | `booking` | (booking) | "사용자가 플랜 신고: {reason}" | `api/submit-plan-complaint.js:121` |
-| Tomorrow's tour weather OK | `report` | (report) | `sendWeatherOkAlert` | `api/_telegram.js:217` |
 | Misc cron fire-and-forget | `report` / `error` | per-channel | refund-reminder, traffic-alert, content-generator, reddit-monitor, retarget-scheduler, weather-check, review-scheduler, competitor-monitor, blog-publisher | `api/_crons/*.js` |
 
 **Channel summary** = 5 logical channels (`booking`, `dispatch`, `error`, `inquiry`, `report`) × N triggers above.

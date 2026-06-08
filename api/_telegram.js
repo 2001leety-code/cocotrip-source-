@@ -212,20 +212,6 @@ export async function sendErrorAlert(funcName, error) {
   return notify('error', msg);
 }
 
-/**
- * 날씨 정상 알림 → report 채널
- */
-export async function sendWeatherOkAlert(tourInfo, weather) {
-  const msg = `☀️ <b>내일 날씨 OK</b>
-
-투어: ${tourInfo.tourName || '-'}
-지역: ${tourInfo.region || '-'}
-날씨: ${weather.description || '-'} / ${weather.temperature || '-'}°C
-특이사항: 없음`;
-
-  return notify('report', msg);
-}
-
 export default {
   sendMessage,
   sendLongMessage,
@@ -234,5 +220,4 @@ export default {
   sendBookingPaymentAlert,
   airportSectionHtml,
   sendErrorAlert,
-  sendWeatherOkAlert,
 };
