@@ -11,6 +11,7 @@
  * await 가 step instrumentation 의 핵심. 그래서 본 모듈은 함수 합성만
  * 노출하고, withStep wrapping 은 handlerCore 에서 한다.
  */
+import { USD_TO_KRW } from '../_shared/exchange-rate.js';
 import {
   calculateTmoney, persistPlan, backfillStopEndTimes, backfillDayLodging,
   runUnreasonableStopTimesCheck,
@@ -344,7 +345,7 @@ export async function applyRecommendedRestaurants(itinerary, ctx) {
  */
 export function computePricing(vehicle, durationDays) {
   const priceKRW = calcPrice(vehicle, durationDays);
-  const exchangeRate = Number(process.env.KRW_USD_RATE) || 1380;
+  const exchangeRate = Number(process.env.KRW_USD_RATE) || USD_TO_KRW;
   const priceUSD = Math.round(priceKRW / exchangeRate * 100) / 100;
   return { priceKRW, priceUSD };
 }
