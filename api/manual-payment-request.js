@@ -32,6 +32,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { notify } from './_shared/notify.js';
 import { confirmBookingAsPaid } from './_shared/booking-confirm.js';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
+import { USD_TO_KRW } from './_shared/exchange-rate.js';
 
 // ── 어드민 bypass 허용 이메일 목록 ──────────────────────────────────────
 // paymentGate.js / capturePaypalOrder.js 와 동일 패턴.
@@ -273,7 +274,7 @@ export default async function handler(req, res) {
         '',
         `<b>예약번호:</b> <code>${bookingRef}</code>`,
         `<b>상품:</b> ${productType}`,
-        `<b>금액:</b> ₩${krw.toLocaleString('ko-KR')} ($${priceUSD || (krw / 1380).toFixed(2)} USD)`,
+        `<b>금액:</b> ₩${krw.toLocaleString('ko-KR')} ($${priceUSD || (krw / USD_TO_KRW).toFixed(2)} USD)`,
         `<b>인원:</b> ${Number(passengers) || 1}명`,
         dateStart ? `<b>날짜:</b> ${dateStart}${dateEnd && dateEnd !== dateStart ? ` ~ ${dateEnd}` : ''}` : null,
         `<b>이메일:</b> ${customerEmail}`,

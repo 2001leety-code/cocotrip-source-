@@ -12,6 +12,7 @@
 import { getYesterdayBookings, getTodayTours, getWeekSummary } from '../_google-sheets.js';
 import { sendLongMessage, sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { USD_TO_KRW } from '../_shared/exchange-rate.js';
 
 // ── API 가격 정보 (2026-04 기준) ─────────────────────────────────────
 const PRICING = {
@@ -78,7 +79,7 @@ async function getUSDKRWRate() {
     };
   } catch (e) {
     console.warn('[daily-report] exchange rate fetch failed:', e.message);
-    return { rate: 1380, source: 'fallback-hardcoded', fetchedAt: new Date() };
+    return { rate: USD_TO_KRW, source: 'fallback-hardcoded', fetchedAt: new Date() };
   }
 }
 
@@ -153,7 +154,7 @@ const dailyReportTask = async () => {
     const yesterday = yRows.status === 'fulfilled' ? yRows.value : [];
     const today = tTours.status === 'fulfilled' ? tTours.value : [];
     const week = wSum.status === 'fulfilled' ? wSum.value : { totalUSD: 0, count: 0 };
-    const rate = rateInfo.status === 'fulfilled' ? rateInfo.value : { rate: 1380, source: 'fallback-hardcoded', fetchedAt: new Date() };
+    const rate = rateInfo.status === 'fulfilled' ? rateInfo.value : { rate: USD_TO_KRW, source: 'fallback-hardcoded', fetchedAt: new Date() };
     const f = fs.status === 'fulfilled' ? fs.value : null;
 
     const totalUSD = yesterday.reduce((s, r) => s + (parseFloat(r[10]) || 0), 0);

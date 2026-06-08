@@ -9,6 +9,7 @@
 
 import { notify } from './_shared/notify.js';
 import { productDisplayLabel } from './_shared/pricing.js';
+import { USD_TO_KRW } from './_shared/exchange-rate.js';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
@@ -102,7 +103,7 @@ export function airportSectionHtml(airport) {
  */
 export async function sendBookingAlert(booking) {
   const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-  const rate = booking.exchangeRate || 1380;
+  const rate = booking.exchangeRate || USD_TO_KRW;
   const amountKRW = booking.amountKRW || Math.round(parseFloat(booking.amountUSD || 0) * rate);
 
   const msg = `🔔 <b>새 예약이 들어왔습니다!</b>
@@ -173,7 +174,7 @@ export async function sendDispatchAlert(booking) {
  */
 export async function sendBookingPaymentAlert(booking) {
   const kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-  const rate = booking.exchangeRate || 1380;
+  const rate = booking.exchangeRate || USD_TO_KRW;
   const amountKRW = booking.amountKRW || Math.round(parseFloat(booking.amountUSD || 0) * rate);
 
   const msg = `💳 <b>결제 완료</b>
