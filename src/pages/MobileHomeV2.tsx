@@ -39,20 +39,9 @@ export default function MobileHomeV2() {
 
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
-      {/* ── Header (마스코트 로고 + 브랜드명) ── */}
+      {/* ── Header (C+비행기 로고 lockup) ── */}
       <header className="flex items-center justify-between px-5 pt-5 pb-1">
-        <div className="flex items-center gap-2.5">
-          <img
-            src="/images/mascot/logo.png"
-            alt="CocoTrip"
-            className="h-10 w-10 rounded-full bg-white object-cover ring-2 ring-purple-400/40"
-            width={190}
-            height={190}
-          />
-          <span className="text-lg font-bold tracking-tight">
-            Coco<span className="text-purple-300">Trip</span>
-          </span>
-        </div>
+        <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-8 w-auto" />
         <button aria-label="Language" className="rounded-full bg-white/[0.07] p-2 active:opacity-70">
           <Globe size={20} className="text-white/70" />
         </button>
