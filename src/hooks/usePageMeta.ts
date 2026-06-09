@@ -60,5 +60,18 @@ export function usePageMeta({ title, description, ogImage, ogUrl }: PageMeta) {
       }
       ogUrlMeta.content = ogUrl;
     }
+
+    // Canonical (per-route) — index.html 정적 canonical(홈)이 전 라우트에 남아 자기잠식하던 것 해소.
+    // 2026-06-09: 클라이언트 세팅이라 JS 렌더 크롤러(Google)용. 무JS 크롤러는 프리렌더 후 반영.
+    if (typeof window !== 'undefined') {
+      const canonicalHref = ogUrl || `https://cocotripkr.com${window.location.pathname}`;
+      let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (!canonical) {
+        canonical = document.createElement('link');
+        canonical.rel = 'canonical';
+        document.head.appendChild(canonical);
+      }
+      canonical.href = canonicalHref;
+    }
   }, [title, description, ogImage, ogUrl]);
 }
