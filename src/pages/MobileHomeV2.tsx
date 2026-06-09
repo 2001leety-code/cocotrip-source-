@@ -41,7 +41,7 @@ export default function MobileHomeV2() {
     <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
       {/* ── Header (C+비행기 로고 lockup) ── */}
       <header className="flex items-center justify-between px-5 pt-5 pb-1">
-        <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-8 w-auto" />
+        <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-6 w-auto" />
         <button aria-label="Language" className="rounded-full bg-white/[0.07] p-2 active:opacity-70">
           <Globe size={20} className="text-white/70" />
         </button>
