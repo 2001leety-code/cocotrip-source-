@@ -7,7 +7,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { computeQualityScore } from './qualityMetrics.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
-import { detectPaymentSource, isAdminBypassOrderId } from '../_shared/admin-bypass-detector.js';
+import { detectPaymentSource, isAdminBypassOrderId, isOperatorTestEmail } from '../_shared/admin-bypass-detector.js';
 
 /**
  * P112 (2026-05-20): end_time backfill. plan 4792076e dump 결과 29/29 stops 의
@@ -1467,7 +1467,9 @@ export async function persistPlan(adminDb, {
   // 2026-06-09: admin-bypass(운영자 테스트) 결제는 매출 카운터에서 제외 — 실매출만 집계.
   //   AdminPayments isTestBooking(#846) 과 동일한 테스트/실결제 분리. 테스트 plan 이 fullCount/
   //   fullRevenue 를 부풀려 모닝 리포트 "AI 매출"이 과대 표시되던 문제 fix (priceUSD=추정 여행가).
-  if (!isAdminBypassOrderId(body?.paypalOrderId)) {
+  //   2026-06-09 v2: 운영자 테스트 이메일도 제외(실 PayPal 로 테스트하면 접두사 미매칭, dlxodbs147 사고).
+  //   실고객 = (admin-bypass/test 아님) AND (운영자 이메일 아님). MANUAL-/일반 PayPal = 실매출 유지.
+  if (!isAdminBypassOrderId(body?.paypalOrderId) && !isOperatorTestEmail(email)) {
     const inc = FieldValue.increment(1);
     const incRevenue = FieldValue.increment(priceUSD);
     // 월별
