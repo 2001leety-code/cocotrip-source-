@@ -70,7 +70,7 @@ export default function MobilePlannerResultV2() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white pb-8 max-w-md mx-auto">
+    <div className="min-h-screen bg-[#0a0b14] text-white pt-[max(env(safe-area-inset-top),0.75rem)] pb-8 max-w-md mx-auto">
       {/* -- 축하 헤더 (퍼플->핑크 그라데이션 영역) -- */}
       <header className="relative overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 px-5 pt-6 pb-5">
         <div className="pointer-events-none absolute -top-10 -right-10 h-44 w-44 rounded-full bg-white/15 blur-3xl" />

@@ -38,7 +38,7 @@ export default function MobileHomeV2() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
+    <div className="min-h-screen bg-[#0a0b14] text-white pt-[max(env(safe-area-inset-top),0.75rem)] pb-24 max-w-md mx-auto">
       {/* ── Header (C+비행기 로고 lockup) ── */}
       <header className="flex items-center justify-between px-5 pt-4 pb-1">
         <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-6 w-auto" />

@@ -49,7 +49,7 @@ export default function MobileTourDetailV2() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
+    <div className="min-h-screen bg-[#0a0b14] text-white pt-[max(env(safe-area-inset-top),0.75rem)] pb-24 max-w-md mx-auto">
       {/* -- 풀폭 히어로 사진 + 오버레이 컨트롤 -- */}
       <div className="relative h-56 w-full overflow-hidden">
         <img

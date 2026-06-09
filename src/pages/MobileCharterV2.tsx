@@ -55,7 +55,7 @@ export default function MobileCharterV2() {
   const selected = VEHICLES.find((v) => v.id === selectedId) || VEHICLES[0];
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
+    <div className="min-h-screen bg-[#0a0b14] text-white pt-[max(env(safe-area-inset-top),0.75rem)] pb-24 max-w-md mx-auto">
       {/* -- Header (퍼플 글로우 blob + 타이틀) -- */}
       <header className="relative overflow-hidden px-5 pt-4 pb-3">
         <div className="pointer-events-none absolute -top-14 -right-12 h-56 w-56 rounded-full bg-purple-600/25 blur-3xl" />
