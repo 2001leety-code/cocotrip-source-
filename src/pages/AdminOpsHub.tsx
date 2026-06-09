@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Calendar, BarChart3, Truck, MessageSquare, DollarSign, Filter, Star, Wallet, ArrowLeft } from 'lucide-react';
 import DispatchTimeline from '@/components/admin/DispatchTimeline';
 import TelegramLogs from '@/components/admin/TelegramLogs';
@@ -19,7 +19,10 @@ const TABS = [
 type TabId = typeof TABS[number]['id'];
 
 export default function AdminOpsHub() {
-  const [activeTab, setActiveTab] = useState<TabId>('dispatch');
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab: TabId = TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : 'dispatch';
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
 
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white pt-20 px-4 pb-12 lg:px-8 font-sans">
