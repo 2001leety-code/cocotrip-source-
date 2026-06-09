@@ -171,9 +171,10 @@ const dailyReportTask = async () => {
     if (f) {
       // ── 어제 AI 플래너 ──
       const yTotal = f.yesterday.quick + f.yesterday.full + f.yesterday.chat;
+      const AI_FEE_USD = 9.90; // AI 플래너 정책가(launch promo, KRW 13,300. 쿠폰 불가라 고정). priceUSD=추정 여행가와 별개.
       msg += `\n\n━━━ 🤖 AI 플래너 (어제) ━━━`;
       msg += `\n🆓 무료 Quick: <b>${f.yesterday.quick}회</b>`;
-      msg += `\n💰 유료 Full: <b>${f.yesterday.full}건</b> ($${f.yesterday.fullRevenue.toFixed(2)})`;
+      msg += `\n💰 유료 Full: <b>${f.yesterday.full}건</b> (수수료 $${(f.yesterday.full * AI_FEE_USD).toFixed(2)})`;
       msg += `\n💬 채팅: <b>${f.yesterday.chat}회</b>`;
       msg += `\n📊 Gemini 총 호출: ${yTotal}회 / 1,500회 무료한도 (${((yTotal/1500)*100).toFixed(1)}%)`;
 
@@ -205,7 +206,9 @@ const dailyReportTask = async () => {
       msg += `\n🆓 무료 Quick: <b>${f.month.quick}회</b>`;
       msg += `\n💰 유료 Full: <b>${f.month.full}건</b>`;
       msg += `\n💬 채팅: <b>${f.month.chat}회</b>`;
-      msg += `\n💵 AI 매출: <b>$${f.month.fullRevenue.toFixed(2)}</b> (₩${Math.round(f.month.fullRevenue * rate.rate).toLocaleString()})`;
+      const aiFeeRevenue = f.month.full * AI_FEE_USD;
+      msg += `\n💵 AI 플래너 매출(실수령): <b>$${aiFeeRevenue.toFixed(2)}</b> (₩${Math.round(aiFeeRevenue * rate.rate).toLocaleString()}) · ${f.month.full}건×$${AI_FEE_USD}`;
+      msg += `\n💎 플랜 추정 여행가치: $${f.month.fullRevenue.toFixed(2)} (참고용 · 실매출 아님)`;
       msg += `\n📈 전환율: <b>${convRate}%</b> (무료→유료)`;
 
       // ── API 비용 ──
@@ -222,13 +225,9 @@ const dailyReportTask = async () => {
       msg += `\nNaver Maps / ODsay: 무료`;
 
       // ── 순이익 ──
-      const profit = f.month.fullRevenue - geminiActualCost;
-      msg += `\n\n💰 <b>순이익: $${profit.toFixed(2)} (₩${Math.round(profit * rate.rate).toLocaleString()})</b>`;
-
-      // ── 호출당 단가 ──
-      msg += `\n\n📋 호출당 Gemini 비용 (유료 시):`;
-      msg += `\n  Quick: $${geminiCostPerCall('quick').toFixed(4)}/회`;
-      msg += `\n  Full: $${geminiCostPerCall('full').toFixed(4)}/회`;
+      const profit = aiFeeRevenue - geminiActualCost;
+      msg += `\n\n💰 <b>AI 순이익(수수료-API): $${profit.toFixed(2)} (₩${Math.round(profit * rate.rate).toLocaleString()})</b>`;
+      // (호출당 Gemini 단가 섹션 제거 2026-06-09 — 매일 볼 정보 아님, 리포트 슬림화)
     } else {
       msg += `\n\n⚠️ Firestore 연결 안 됨`;
     }
