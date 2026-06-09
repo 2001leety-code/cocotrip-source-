@@ -54,6 +54,7 @@ const MobileHomeV2 = lazy(() => import('@/pages/MobileHomeV2'));
 const MobileTourDetailV2 = lazy(() => import('@/pages/MobileTourDetailV2'));
 const MobilePlannerResultV2 = lazy(() => import('@/pages/MobilePlannerResultV2'));
 const MobileCharterV2 = lazy(() => import('@/pages/MobileCharterV2'));
+const MobileIconsPreview = lazy(() => import('@/pages/MobileIconsPreview'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
 import { TrustBadges } from '@/components/TrustBadges';
@@ -220,6 +221,7 @@ function AnimatedRoutes() {
           <Route path="/preview/mobile-tour" element={<Suspense fallback={<PlannerSkeleton />}><MobileTourDetailV2 /></Suspense>} />
           <Route path="/preview/mobile-planner" element={<Suspense fallback={<PlannerSkeleton />}><MobilePlannerResultV2 /></Suspense>} />
           <Route path="/preview/mobile-charter" element={<Suspense fallback={<PlannerSkeleton />}><MobileCharterV2 /></Suspense>} />
+          <Route path="/preview/icons" element={<Suspense fallback={<PlannerSkeleton />}><MobileIconsPreview /></Suspense>} />
           <Route
             path="/admin"
             element={
