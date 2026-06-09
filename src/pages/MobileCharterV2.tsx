@@ -57,12 +57,12 @@ export default function MobileCharterV2() {
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
       {/* -- Header (퍼플 글로우 blob + 타이틀) -- */}
-      <header className="relative overflow-hidden px-5 pt-7 pb-5">
+      <header className="relative overflow-hidden px-5 pt-4 pb-3">
         <div className="pointer-events-none absolute -top-14 -right-12 h-56 w-56 rounded-full bg-purple-600/25 blur-3xl" />
         <div className="pointer-events-none absolute top-10 -left-12 h-44 w-44 rounded-full bg-pink-500/20 blur-3xl" />
         <div className="relative">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight">Private Charter</h1>
-          <p className="mt-1.5 text-sm text-white/60">Your own vehicle + driver, all day</p>
+          <h1 className="text-xl font-bold leading-tight tracking-tight">Private Charter</h1>
+          <p className="mt-1 text-sm text-white/60">Your own vehicle + driver, all day</p>
         </div>
       </header>
 
@@ -73,12 +73,12 @@ export default function MobileCharterV2() {
             <button
               key={row.label}
               type="button"
-              className={`flex w-full items-center gap-3 px-3 py-3 text-left active:opacity-70 ${
+              className={`flex w-full items-center gap-3 px-3 py-2 text-left active:opacity-70 ${
                 i < TRIP_ROWS.length - 1 ? 'border-b border-white/[0.06]' : ''
               }`}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
-                <row.icon size={17} className="text-purple-300" />
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
+                <row.icon size={15} className="text-purple-300" />
               </span>
               <span className="flex-1 text-xs text-white/50">{row.label}</span>
               <span className="text-sm font-medium text-white">{row.value}</span>
@@ -89,9 +89,9 @@ export default function MobileCharterV2() {
       </section>
 
       {/* -- Vehicle selection -- */}
-      <section className="px-5 pt-7">
-        <h2 className="mb-3 text-lg font-bold">Choose your vehicle</h2>
-        <div className="flex flex-col gap-3">
+      <section className="px-5 pt-4">
+        <h2 className="mb-2 text-base font-bold">Choose your vehicle</h2>
+        <div className="flex flex-col gap-2">
           {VEHICLES.map((v) => {
             const isSelected = v.id === selectedId;
             return (
@@ -100,25 +100,25 @@ export default function MobileCharterV2() {
                 type="button"
                 onClick={() => setSelectedId(v.id)}
                 aria-pressed={isSelected}
-                className={`flex items-center gap-3.5 rounded-2xl p-4 text-left transition-all active:scale-[0.98] ${
+                className={`flex items-center gap-3 rounded-2xl p-3 text-left transition-all active:scale-[0.98] ${
                   isSelected
                     ? 'bg-gradient-to-r from-purple-500/15 to-pink-500/15 ring-2 ring-purple-500'
                     : 'border border-white/[0.07] bg-white/[0.03] ring-2 ring-transparent'
                 }`}
               >
                 <span
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                     isSelected
                       ? 'bg-gradient-to-br from-purple-500 to-pink-500 shadow-md shadow-purple-500/30'
                       : 'bg-white/[0.07]'
                   }`}
                 >
-                  <v.icon size={22} className={isSelected ? 'text-white' : 'text-purple-300'} />
+                  <v.icon size={19} className={isSelected ? 'text-white' : 'text-purple-300'} />
                 </span>
 
                 <div className="flex-1">
                   <p className="text-sm font-semibold leading-tight">{v.name}</p>
-                  <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-2 py-0.5 text-[11px] text-white/70">
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-2 py-0.5 text-[11px] text-white/70">
                     <Users size={12} className="text-purple-300" />
                     {v.capacity}
                   </span>
@@ -132,7 +132,7 @@ export default function MobileCharterV2() {
       </section>
 
       {/* -- Included (미니 줄) -- */}
-      <section className="px-5 pt-5">
+      <section className="px-5 pt-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {INCLUDED.map((item) => (
             <span key={item} className="inline-flex items-center gap-1.5 text-xs text-white/60">

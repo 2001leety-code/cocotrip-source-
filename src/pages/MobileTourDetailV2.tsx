@@ -51,69 +51,69 @@ export default function MobileTourDetailV2() {
   return (
     <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
       {/* -- 풀폭 히어로 사진 + 오버레이 컨트롤 -- */}
-      <div className="relative h-80 w-full overflow-hidden">
+      <div className="relative h-56 w-full overflow-hidden">
         <img
           src="/region-seoul.jpg"
           alt="Seoul City Full-Day Tour"
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover object-[center_65%]"
         />
         {/* 하단 그라데이션 오버레이 (페이지 bg 로 자연스럽게 연결) */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0b14] via-[#0a0b14]/20 to-black/30" />
 
         {/* 상단 컨트롤: 뒤로가기 / 하트 */}
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-5 pt-5">
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-4">
           <button
             type="button"
             aria-label="Back"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm active:scale-95 transition-transform"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm active:scale-95 transition-transform"
           >
-            <ChevronLeft size={22} className="text-white" />
+            <ChevronLeft size={20} className="text-white" />
           </button>
           <button
             type="button"
             aria-label="Save to favorites"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm active:scale-95 transition-transform"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm active:scale-95 transition-transform"
           >
-            <Heart size={20} className="text-white" />
+            <Heart size={18} className="text-white" />
           </button>
         </div>
       </div>
 
       {/* -- 투어 정보 블록 -- */}
-      <section className="-mt-6 relative px-5">
-        <h1 className="text-2xl font-bold leading-tight tracking-tight">
+      <section className="-mt-5 relative px-5">
+        <h1 className="text-xl font-bold leading-tight tracking-tight">
           Seoul City Full-Day Tour
         </h1>
 
         {/* 별점 줄 */}
-        <div className="mt-2 flex items-center gap-1.5">
-          <Star size={16} className="fill-yellow-400 text-yellow-400" />
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <Star size={14} className="fill-yellow-400 text-yellow-400" />
           <span className="text-sm font-semibold">4.9</span>
           <span className="text-sm text-white/50">(128 reviews)</span>
         </div>
 
         {/* 칩 3개 */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.07] px-3 py-1.5 text-xs font-medium text-white/80">
-            <Clock size={14} className="text-purple-300" /> 8 hours
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-white/80">
+            <Clock size={12} className="text-purple-300" /> 8 hours
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.07] px-3 py-1.5 text-xs font-medium text-white/80">
-            <Users size={14} className="text-purple-300" /> 1-7 people
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-white/80">
+            <Users size={12} className="text-purple-300" /> 1-7 people
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.07] px-3 py-1.5 text-xs font-medium text-white/80">
-            <MapPin size={14} className="text-purple-300" /> Seoul
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-white/80">
+            <MapPin size={12} className="text-purple-300" /> Seoul
           </span>
         </div>
       </section>
 
       {/* -- 하이라이트 (What's included) -- */}
-      <section className="px-5 pt-7">
-        <h2 className="mb-3 text-lg font-bold">What's included</h2>
-        <ul className="space-y-3">
+      <section className="px-5 pt-5">
+        <h2 className="mb-2.5 text-base font-bold">What's included</h2>
+        <ul className="space-y-2">
           {HIGHLIGHTS.map((item) => (
-            <li key={item} className="flex items-center gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shadow-sm shadow-purple-500/30">
-                <Check size={15} className="text-white" />
+            <li key={item} className="flex items-center gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shadow-sm shadow-purple-500/30">
+                <Check size={13} className="text-white" />
               </span>
               <span className="text-sm text-white/85">{item}</span>
             </li>
@@ -122,14 +122,14 @@ export default function MobileTourDetailV2() {
       </section>
 
       {/* -- 리뷰 -- */}
-      <section className="px-5 pt-7">
-        <h2 className="mb-3 text-lg font-bold">Reviews</h2>
-        <div className="space-y-3">
+      <section className="px-5 pt-5">
+        <h2 className="mb-2.5 text-base font-bold">Reviews</h2>
+        <div className="space-y-2">
           {REVIEWS.map((r) => (
-            <div key={r.name} className="rounded-2xl bg-white/[0.05] p-4">
-              <div className="flex items-center gap-3">
+            <div key={r.name} className="rounded-2xl bg-white/[0.05] p-3.5">
+              <div className="flex items-center gap-2.5">
                 <span
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${r.gradient} text-sm font-bold text-white`}
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${r.gradient} text-sm font-bold text-white`}
                 >
                   {r.initials}
                 </span>
@@ -139,7 +139,7 @@ export default function MobileTourDetailV2() {
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star
                         key={i}
-                        size={12}
+                        size={11}
                         className={
                           i < r.rating
                             ? 'fill-yellow-400 text-yellow-400'
@@ -150,22 +150,22 @@ export default function MobileTourDetailV2() {
                   </div>
                 </div>
               </div>
-              <p className="mt-3 text-sm leading-relaxed text-white/70">{r.text}</p>
+              <p className="mt-2.5 text-sm leading-relaxed text-white/70">{r.text}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* -- sticky 하단 예약 바 -- */}
-      <div className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md border-t border-white/10 bg-[#0a0b14]/95 px-5 py-3 backdrop-blur-md">
+      <div className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md border-t border-white/10 bg-[#0a0b14]/95 px-5 py-2.5 backdrop-blur-md">
         <div className="flex items-center justify-between">
           <div className="leading-tight">
             <span className="block text-[11px] text-white/50">from</span>
-            <span className="text-2xl font-bold">$129</span>
+            <span className="text-xl font-bold">$129</span>
           </div>
           <button
             type="button"
-            className="rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-8 py-3 text-sm font-semibold shadow-lg shadow-purple-500/30 active:scale-95 transition-transform"
+            className="rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-7 py-2.5 text-sm font-semibold shadow-lg shadow-purple-500/30 active:scale-95 transition-transform"
           >
             Book Now
           </button>
