@@ -57,3 +57,12 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// 프리렌더(빌드후 puppeteer) 캡처 신호 — 초기 렌더 + usePageMeta(useEffect) settle 후 dispatch.
+// @prerenderer 가 PRERENDER 빌드에서 이 이벤트를 기다렸다 HTML 캡처. 일반 런타임엔 무해(1회 발생).
+if (typeof window !== 'undefined') {
+  const signal = () => document.dispatchEvent(new Event('prerender-ready'));
+  // 2.5s 고정 settle — 비동기 데이터(투어/지역) + usePageMeta(title/canonical useEffect) 완료 보장.
+  // 프리렌더 캡처 타이밍용. 런타임 사용자엔 무해(리스너 없는 이벤트 1회).
+  setTimeout(signal, 2500);
+}

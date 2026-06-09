@@ -2,6 +2,18 @@ import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
+import prerender from "@prerenderer/rollup-plugin"
+
+// 프리렌더(빌드후 SSG) 대상 라우트 — public.sitemap.xml 과 동기(/charter=로그인벽 제외).
+// 투어/지역 추가 시 갱신. PRERENDER=1 빌드에서만 사용.
+const PRERENDER_ROUTES = [
+  '/', '/tours', '/planner', '/about', '/terms', '/privacy', '/travel-terms',
+  '/tours/seoul-city-full-day', '/tours/seoul-night-tour', '/tours/danyang-day-tour',
+  '/tours/incheon-ganghwa-tour', '/tours/dmz-paju-tour', '/tours/nami-island-chuncheon',
+  '/tours/gyeongju-day-tour', '/tours/busan-day-tour', '/tours/korea-multicity-3d2n',
+  '/region/seoul', '/region/chuncheon', '/region/paju', '/region/ganghwa', '/region/busan',
+  '/region/danyang', '/region/incheon', '/region/gyeongju', '/region/jeonju',
+];
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -59,6 +71,24 @@ export default defineConfig({
         enabled: false, // dev 모드에서 SW 비활성 (HMR 충돌 방지)
       },
     }),
+    // 프리렌더(빌드후 SSG) — PRERENDER=1 일 때만 (OFF 기본 = prod 빌드 무변).
+    // 무JS 크롤러(Naver/카톡/AI엔진) 빈 본문 fix. 26 라우트를 puppeteer 로 렌더 후 정적 HTML.
+    // executablePath=PUPPETEER_EXECUTABLE_PATH env (로컬=Chrome / Vercel=@sparticuz/chromium).
+    ...(process.env.PRERENDER === '1' ? [prerender({
+      routes: PRERENDER_ROUTES,
+      renderer: '@prerenderer/renderer-puppeteer',
+      rendererOptions: {
+        renderAfterDocumentEvent: 'prerender-ready',
+        maxConcurrentRoutes: 2,
+        timeout: 60000,
+        headless: true,
+        launchOptions: {
+          headless: true,
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        },
+      },
+    })] : []),
   ],
   resolve: {
     alias: {
