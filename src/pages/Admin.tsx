@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { toast, Toaster } from 'sonner';
 import { RefreshCw, Plus, List, ChevronDown, ChevronUp, Bell, Users, TrendingUp } from 'lucide-react';
 
@@ -141,6 +141,46 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading]);
 
+  // ── 결제 KPI + 입금 확인 대기 (pending_bookings 실시간, AdminPayments 와 동일 컬렉션) ──
+  interface PendingRow {
+    id: string; bookingRef?: string; customerEmail?: string; priceUSD?: string | null;
+    status?: string; paymentMethod?: string; paypalTransactionId?: string;
+    createdAt?: { toMillis(): number }; confirmedAt?: { toMillis(): number }; refundedAt?: { toMillis(): number };
+  }
+  const [pending, setPending] = useState<PendingRow[]>([]);
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'pending_bookings'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => setPending(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) })) as PendingRow[]),
+      (err) => console.error('[admin] pending_bookings listen error:', err),
+    );
+    return () => unsub();
+  }, [user]);
+
+  const kpi = useMemo(() => {
+    const isTest = (b: PendingRow) =>
+      b.paymentMethod === 'admin-bypass'
+      || String(b.paypalTransactionId || '').startsWith('ADMIN-BYPASS-')
+      || String(b.id || '').startsWith('ADMIN-BYPASS-');
+    const ymd = (ms?: number) => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const todayStr = ymd(Date.now());
+    const monthStr = todayStr.slice(0, 7);
+    const usd = (b: PendingRow) => parseFloat(String(b.priceUSD || 0)) || 0;
+    const real = pending.filter((b) => !isTest(b));
+    const awaiting = real.filter((b) => b.status === 'AWAITING_VERIFICATION');
+    const paidToday = real.filter((b) => b.status === 'CONFIRMED' && ymd(b.confirmedAt?.toMillis()) === todayStr);
+    const refundToday = real.filter((b) => b.status === 'REFUNDED' && ymd(b.refundedAt?.toMillis()) === todayStr);
+    const monthRevenue = real.filter((b) => b.status === 'CONFIRMED' && ymd(b.confirmedAt?.toMillis()).slice(0, 7) === monthStr).reduce((s, b) => s + usd(b), 0);
+    return {
+      paidTodayCount: paidToday.length, paidTodayUSD: paidToday.reduce((s, b) => s + usd(b), 0),
+      awaitingCount: awaiting.length, awaiting,
+      refundTodayCount: refundToday.length, monthRevenueUSD: monthRevenue,
+      testCount: pending.length - real.length,
+    };
+  }, [pending]);
+
   const handleCreateTour = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -211,6 +251,51 @@ export default function Admin() {
 
         {error ? <p className="text-sm text-red-500">{error}</p> : null}
 
+        {/* ── 오늘 한눈에 (결제 KPI) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-gray-500">오늘 실결제</span><span className="text-lg">💳</span></div>
+            <p className="text-2xl font-extrabold text-[#1a1a2e]">{kpi.paidTodayCount}건</p>
+            <p className="text-xs text-gray-400 mt-1"><span className="text-emerald-600 font-bold">${kpi.paidTodayUSD.toLocaleString()}</span> 확인됨</p>
+          </div>
+          <a href="/admin/payments" className="block bg-gradient-to-b from-amber-50 to-white rounded-2xl border border-amber-200 shadow-sm p-4 hover:border-amber-300 transition-colors">
+            <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-gray-500">입금 확인 대기</span><span className="text-lg">⏳</span></div>
+            <p className="text-2xl font-extrabold text-amber-600">{kpi.awaitingCount}건</p>
+            <p className="text-xs text-gray-400 mt-1">{kpi.awaitingCount > 0 ? '클릭해 확인하기' : '대기 없음'}</p>
+          </a>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-gray-500">오늘 환불</span><span className="text-lg">↩️</span></div>
+            <p className="text-2xl font-extrabold text-[#1a1a2e]">{kpi.refundTodayCount}건</p>
+            <p className="text-xs text-gray-400 mt-1">실결제 기준</p>
+          </div>
+          <a href="/admin/sales" className="block bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:border-[#7C5CFC]/30 transition-colors">
+            <div className="flex items-center justify-between mb-2"><span className="text-xs font-semibold text-gray-500">이번 달 매출</span><span className="text-lg">📈</span></div>
+            <p className="text-2xl font-extrabold text-[#1a1a2e]">${Math.round(kpi.monthRevenueUSD).toLocaleString()}</p>
+            <p className="text-xs text-gray-400 mt-1">확정 결제 합 (자세히)</p>
+          </a>
+        </div>
+
+        {/* ── 지금 확인할 것 (입금 대기 실결제) ── */}
+        {kpi.awaitingCount > 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-[#1a1a2e] flex items-center gap-2">🔔 입금 확인 대기 <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">{kpi.awaitingCount}</span></h2>
+              <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">✓ 실결제만{kpi.testCount > 0 ? ` · 테스트 ${kpi.testCount} 숨김` : ''}</span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {kpi.awaiting.slice(0, 6).map((b) => (
+                <a key={b.id} href="/admin/payments" className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors">
+                  <span className="font-mono text-sm font-bold text-[#1a1a2e]">{b.bookingRef || b.id}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">💳 실결제</span>
+                  <span className="text-xs text-gray-500 flex-1 truncate">{b.customerEmail || '-'}</span>
+                  <span className="text-sm font-bold text-[#1a1a2e] shrink-0">{b.priceUSD ? `$${b.priceUSD}` : '-'}</span>
+                  <span className="text-xs font-bold text-white bg-[#7C5CFC] px-3 py-1.5 rounded-lg shrink-0">입금 확인</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {/* ── 방문자 통계 (PostHog, 운영자 본인 제외) ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
@@ -278,7 +363,34 @@ export default function Admin() {
           ) : null}
         </div>
 
-        {/* ── Quick Links ── */}
+        {/* ── 자주 쓰는 (빠른 접근) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <a href="/admin/payments" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-[#7C5CFC]/40 hover:shadow-md transition-all text-center group">
+            <span className="text-2xl block mb-1.5">💳</span>
+            <h3 className="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC]">예약·결제</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">입금 확인·환불</p>
+          </a>
+          <a href="/admin/sales" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-[#7C5CFC]/40 hover:shadow-md transition-all text-center group">
+            <span className="text-2xl block mb-1.5">💰</span>
+            <h3 className="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC]">매출</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">기간별 매출·정산</p>
+          </a>
+          <a href="/admin/ops?tab=profit" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-[#7C5CFC]/40 hover:shadow-md transition-all text-center group">
+            <span className="text-2xl block mb-1.5">🧾</span>
+            <h3 className="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC]">회계·손익</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">손익·세무 엑셀</p>
+          </a>
+          <a href="/admin/ops" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-[#7C5CFC]/40 hover:shadow-md transition-all text-center group">
+            <span className="text-2xl block mb-1.5">🛠️</span>
+            <h3 className="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC]">운영 허브</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">배차·텔레그램·시스템</p>
+          </a>
+        </div>
+
+        {/* ── 전체 메뉴 ── */}
+        <div>
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-1">전체 메뉴</h2>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <a
             href="/admin/reviews"
