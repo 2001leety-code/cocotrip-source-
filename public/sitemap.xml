@@ -1,38 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- 2026-06-09: 정적 7 URL -> 26 URL (투어 상세 9 + 지역 9 추가). 투어/지역 추가 시 갱신.
+     소스: src/data/tours.ts(slug) + src/sections/Regions.tsx(regionId). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://cocotripkr.com/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://cocotripkr.com/tours</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://cocotripkr.com/planner</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://cocotripkr.com/about</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://cocotripkr.com/privacy</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://cocotripkr.com/terms</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://cocotripkr.com/travel-terms</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
+  <!-- 핵심 -->
+  <url><loc>https://cocotripkr.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://cocotripkr.com/tours</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://cocotripkr.com/planner</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <!-- /charter 제외: AuthRequired 로그인벽이라 색인 부적합 (sitemap-canonical-consistency.test 가 강제) -->
+
+  <!-- 투어 상세 (src/data/tours.ts) -->
+  <url><loc>https://cocotripkr.com/tours/seoul-city-full-day</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/seoul-night-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/danyang-day-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/incheon-ganghwa-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/dmz-paju-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/nami-island-chuncheon</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/gyeongju-day-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/busan-day-tour</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cocotripkr.com/tours/korea-multicity-3d2n</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+
+  <!-- 지역 (src/sections/Regions.tsx) -->
+  <url><loc>https://cocotripkr.com/region/seoul</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/chuncheon</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/paju</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/ganghwa</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/busan</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/danyang</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/incheon</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/gyeongju</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cocotripkr.com/region/jeonju</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- 정책 -->
+  <url><loc>https://cocotripkr.com/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://cocotripkr.com/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://cocotripkr.com/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://cocotripkr.com/travel-terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>
