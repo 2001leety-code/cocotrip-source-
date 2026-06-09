@@ -114,4 +114,23 @@ export function isAdminBypassOrderId(orderId) {
   return src === 'test' || src === 'admin-bypass';
 }
 
+// 2026-06-09: 운영자 본인 테스트 이메일. 실 PayPal 주문번호로 테스트해도(접두사 미매칭,
+// dlxodbs147 사고) 매출 집계에서 빼기 위함. 모닝 리포트 'AI 매출' 오염 재발 방지.
+// 하드코딩 운영자 계정 + ADMIN_BYPASS_EMAILS env(쉼표 구분). case-insensitive.
+export const HARDCODED_OPERATOR_EMAILS = ['cocotripkr@gmail.com', 'dlxodbs147@gmail.com', '2001leety@gmail.com'];
+
+/**
+ * 이메일이 운영자 본인 테스트 계정인지 판정. 실고객 매출 집계에서 제외용.
+ * @param {string|null|undefined} email
+ * @returns {boolean}
+ */
+export function isOperatorTestEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return false;
+  if (HARDCODED_OPERATOR_EMAILS.includes(e)) return true;
+  const envList = String(process.env.ADMIN_BYPASS_EMAILS || '')
+    .split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+  return envList.includes(e);
+}
+
 export { ADMIN_BYPASS_PREFIXES };

@@ -20,6 +20,7 @@ import {
   ADMIN_BYPASS_PREFIXES,
   detectPaymentSource,
   isAdminBypassOrderId,
+  isOperatorTestEmail,
 } from '../../api/_shared/admin-bypass-detector.js';
 
 describe('A1-7-1 isAdminBypassBooking', () => {
@@ -189,5 +190,26 @@ describe('#payment-separation isAdminBypassOrderId (plan.isAdminBypass 필드용
       expect(isAdminBypassOrderId(`${prefix}sample`)).toBe(true);
     }
     expect(isAdminBypassOrderId('MANUAL-sample')).toBe(false);
+  });
+});
+
+describe('2026-06-09 isOperatorTestEmail (운영자 본인 테스트 이메일 — 실 PayPal 테스트도 매출 제외)', () => {
+  // dlxodbs147 사고: 운영자가 본인 이메일 + 실 PayPal orderId 로 테스트 → prefix 미매칭으로
+  // 모닝 리포트 "AI 매출"에 섞임. 이메일 기반 제외로 잠금.
+  it('하드코딩 운영자 계정 3개 → true', () => {
+    expect(isOperatorTestEmail('cocotripkr@gmail.com')).toBe(true);
+    expect(isOperatorTestEmail('dlxodbs147@gmail.com')).toBe(true);
+    expect(isOperatorTestEmail('2001leety@gmail.com')).toBe(true);
+  });
+  it('대소문자/공백 무관 (normalize)', () => {
+    expect(isOperatorTestEmail('  DLXODBS147@Gmail.COM  ')).toBe(true);
+  });
+  it('실고객 이메일 → false (실매출 집계 유지)', () => {
+    expect(isOperatorTestEmail('realcustomer@gmail.com')).toBe(false);
+  });
+  it('빈값 / null / 비문자열 → false (방어적)', () => {
+    expect(isOperatorTestEmail('')).toBe(false);
+    expect(isOperatorTestEmail(null)).toBe(false);
+    expect(isOperatorTestEmail(undefined)).toBe(false);
   });
 });
