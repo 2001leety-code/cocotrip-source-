@@ -50,6 +50,7 @@ const AdminZoneCourses = lazy(() => import('@/pages/AdminZoneCourses'));
 const AdminZoneCourseEditor = lazy(() => import('@/pages/AdminZoneCourseEditor'));
 const AdminIntentClassifier = lazy(() => import('@/pages/AdminIntentClassifier'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
+const MobileHomeV2 = lazy(() => import('@/pages/MobileHomeV2'));
 import { AdminRoute } from '@/components/AdminRoute';
 import { HeroCards } from '@/sections/HeroCards';
 import { TrustBadges } from '@/components/TrustBadges';
@@ -211,6 +212,8 @@ function AnimatedRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route path="/region/:regionId" element={<Suspense fallback={<PlannerSkeleton />}><RegionDetail /></Suspense>} />
           <Route path="/booking" element={<Navigate to="/tours" replace />} />
+          {/* 모바일 v2 홈 미리보기 (증분1, 라이브 무영향) — 운영자 검토용 */}
+          <Route path="/preview/mobile-home" element={<Suspense fallback={<PlannerSkeleton />}><MobileHomeV2 /></Suspense>} />
           <Route
             path="/admin"
             element={
