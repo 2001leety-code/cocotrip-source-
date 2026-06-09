@@ -1464,19 +1464,24 @@ export async function persistPlan(adminDb, {
   const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const monthKey = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}`;
   const dayKey = `${monthKey}-${String(kst.getDate()).padStart(2, '0')}`;
-  const inc = FieldValue.increment(1);
-  const incRevenue = FieldValue.increment(priceUSD);
-  // 월별
-  adminDb.collection('api_stats').doc(monthKey).set(
-    { fullCount: inc, fullRevenue: incRevenue, lastUpdated: new Date().toISOString() },
-    { merge: true }
-  ).catch(e => console.warn('[full] counter error:', e.message));
-  // 일별
-  adminDb.collection('api_stats').doc(monthKey)
-    .collection('daily').doc(dayKey).set(
+  // 2026-06-09: admin-bypass(운영자 테스트) 결제는 매출 카운터에서 제외 — 실매출만 집계.
+  //   AdminPayments isTestBooking(#846) 과 동일한 테스트/실결제 분리. 테스트 plan 이 fullCount/
+  //   fullRevenue 를 부풀려 모닝 리포트 "AI 매출"이 과대 표시되던 문제 fix (priceUSD=추정 여행가).
+  if (!isAdminBypassOrderId(body?.paypalOrderId)) {
+    const inc = FieldValue.increment(1);
+    const incRevenue = FieldValue.increment(priceUSD);
+    // 월별
+    adminDb.collection('api_stats').doc(monthKey).set(
       { fullCount: inc, fullRevenue: incRevenue, lastUpdated: new Date().toISOString() },
       { merge: true }
-    ).catch(e => console.warn('[full] daily counter error:', e.message));
+    ).catch(e => console.warn('[full] counter error:', e.message));
+    // 일별
+    adminDb.collection('api_stats').doc(monthKey)
+      .collection('daily').doc(dayKey).set(
+        { fullCount: inc, fullRevenue: incRevenue, lastUpdated: new Date().toISOString() },
+        { merge: true }
+      ).catch(e => console.warn('[full] daily counter error:', e.message));
+  }
 
   // ── Loyalty 포인트 적립 (non-blocking — uid가 있는 로그인 사용자만) ────
   if (uid) {
