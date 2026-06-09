@@ -15,6 +15,16 @@ const PRERENDER_ROUTES = [
   '/region/danyang', '/region/incheon', '/region/gyeongju', '/region/jeonju',
 ];
 
+// Vercel 빌드 시 @sparticuz/chromium 경로 resolve (PRERENDER=1 한정). 로컬은 PUPPETEER_EXECUTABLE_PATH env.
+// 이걸로 운영자는 Vercel env PRERENDER=1 만 켜면 활성화(executablePath 수동 불필요).
+let PRERENDER_EXEC_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+let PRERENDER_LAUNCH_ARGS = ['--no-sandbox', '--disable-setuid-sandbox'];
+if (process.env.PRERENDER === '1' && !PRERENDER_EXEC_PATH && process.env.VERCEL) {
+  const chromium = (await import('@sparticuz/chromium')).default;
+  PRERENDER_EXEC_PATH = await chromium.executablePath();
+  PRERENDER_LAUNCH_ARGS = chromium.args;
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
@@ -84,8 +94,8 @@ export default defineConfig({
         headless: true,
         launchOptions: {
           headless: true,
-          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+          executablePath: PRERENDER_EXEC_PATH,
+          args: PRERENDER_LAUNCH_ARGS,
         },
       },
     })] : []),
