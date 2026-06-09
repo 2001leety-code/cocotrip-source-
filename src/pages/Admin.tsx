@@ -341,6 +341,16 @@ export default function Admin() {
             <p className="text-xs text-gray-400">기간별 매출 · 환불 · 정산 요약</p>
           </a>
           <a
+            href="/admin/ops?tab=profit"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🧾</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">회계 · 손익</h3>
+            </div>
+            <p className="text-xs text-gray-400">월별 손익 · 건별 비용 입력 · 회계자료 엑셀(세무사 제출용)</p>
+          </a>
+          <a
             href="/admin/analytics"
             className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
           >

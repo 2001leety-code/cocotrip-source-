@@ -96,7 +96,7 @@ export default function AdminPayments() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [hideTest, setHideTest] = useState(false); // 테스트(결제우회) 예약 숨기기 토글
+  const [hideTest, setHideTest] = useState(true); // 기본=실결제만 보기(테스트 숨김). 운영자 매일 결제확인 시 실결제 우선 (2026-06-09 재설계)
 
   const isAdmin = user?.email === (import.meta.env.VITE_ADMIN_EMAIL || '2001leety@gmail.com');
 
