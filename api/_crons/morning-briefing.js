@@ -15,6 +15,7 @@ import {
   aggregateMorningBriefing, kstYesterdayWindow, kstWeekStartMs, kstMonthStartMs,
 } from '../_shared/morningBriefingAggregate.js';
 import { fetchMarketingMetrics } from '../_shared/morningBriefingMarketing.js';
+import { aggregateDecisionSummary, DECISION_COLLECTION } from '../_shared/decisionQueue.js';
 
 const FALLBACK_RATE = 1450;
 
@@ -29,7 +30,7 @@ function ymdKST(ms) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} (${wd})`;
 }
 
-function buildMessage(agg, rate, marketing, failedSections) {
+function buildMessage(agg, rate, marketing, decisions, failedSections) {
   const { revenue, trends, byProduct, aiPlanner, newUsers, errors, customer, meta, window } = agg;
   const L = [
     '☀️ <b>코코트립 모닝 브리핑</b>',
@@ -68,6 +69,16 @@ function buildMessage(agg, rate, marketing, failedSections) {
   L.push('', '━━━ 💬 고객 ━━━',
     `신규 문의 <b>${customer.newTickets}건</b> · 리뷰요청 발송 <b>${customer.reviewsSent}건</b>`);
 
+  // 📥 결정 대기 (운영자 승인/거절)
+  L.push('', '━━━ 📥 결정 대기 ━━━');
+  if (decisions && decisions.total > 0) {
+    L.push(`승인/거절 대기 <b>${decisions.total}건</b>`);
+    if (decisions.top.length) L.push(...decisions.top.map((d) => `  · ${esc(d.title)}`));
+    L.push('🌐 cocotripkr.com/admin/decisions');
+  } else {
+    L.push('대기 중인 결정 없음 ✅');
+  }
+
   // footer
   const foot = [`환율 ₩${rate.toLocaleString()}/$`, `제외 ${meta.excludedBypass + meta.excludedCanceled}건(테스트·취소)`];
   if (failedSections.length) foot.push(`⚠️ 조회실패: ${failedSections.join(',')}`);
@@ -93,12 +104,13 @@ async function morningBriefingTask() {
   const sinceY = Timestamp.fromMillis(yStartMs);
   const untilY = Timestamp.fromMillis(todayStartMs);
 
-  const [bk, pl, us, er, cs] = await Promise.allSettled([
+  const [bk, pl, us, er, cs, dq] = await Promise.allSettled([
     db.collection('bookings').where('createdAt', '>=', sinceTrend).get(),                                  // 추세용 ~한달치
     db.collection('plans').where('createdAtMs', '>=', yStartMs).where('createdAtMs', '<', todayStartMs).get(),
     db.collection('users').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(),
     db.collection('error_log').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(), // number
     db.collection('cs_tickets').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(), // number
+    db.collection(DECISION_COLLECTION).where('status', '==', 'pending').limit(50).get(),                   // 📥 결정 대기(현재)
   ]);
 
   const failed = [];
@@ -117,13 +129,15 @@ async function morningBriefingTask() {
     cstDocs: docs(cs, '문의'),
   }, { now });
 
+  const decisions = aggregateDecisionSummary(docs(dq, '결정'));
+
   // 마케팅 — graceful (네트워크).
   const marketing = await fetchMarketingMetrics(yStartMs, todayStartMs).catch((e) => ({ skipped: true, reason: (e && e.message) || 'error' }));
 
   let rate = FALLBACK_RATE;
   try { const r = await getUsdToKrwRaw(); if (Number.isFinite(r) && r > 0) rate = r; } catch { /* fallback */ }
 
-  const msg = buildMessage(agg, rate, marketing, failed);
+  const msg = buildMessage(agg, rate, marketing, decisions, failed);
   const result = await notifyOperatorLong('todo', msg, { skipPrefix: true });
   if (!result.ok) {
     console.error('[morning-briefing] 텔레그램 발송 실패:', result.error);
