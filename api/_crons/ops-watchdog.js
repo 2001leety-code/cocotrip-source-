@@ -16,7 +16,8 @@ import { initAdminDb } from '../_shared/firebase-admin.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { enqueueDecision } from '../_shared/decisionQueue.js';
 import { kstYesterdayWindow } from '../_shared/morningBriefingAggregate.js';
-import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge } from '../_shared/opsWatchdogChecks.js';
+import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, checkTransitService } from '../_shared/opsWatchdogChecks.js';
+import { TRANSIT_SERVICES, CALLS_PER_PLAN, activeServiceKey } from '../_shared/transitServiceConfig.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -33,6 +34,8 @@ function cardFor(f, dateLabel) {
   if (f.kind === 'overcharge') return { type: 'payment-audit', title: `결제 금액 초과 — ${esc(f.productType)}`, summary: esc(f.msg), dedupeKey: `overcharge-${f.orderID}` };
   if (f.kind === 'integrity') return { type: 'payment-audit', title: `결제액 이상 — ${esc(f.productType)}`, summary: esc(f.msg), dedupeKey: `integrity-${f.orderID}` };
   if (f.kind === 'error-surge') return { type: 'error-surge', title: `에러 폭증 — ${esc(f.key)}`, summary: esc(f.msg), dedupeKey: `error-surge-${f.key}-${dateLabel}` };
+  if (f.kind === 'transit-expiry') return { type: 'transit', title: '🚦 교통 서비스 만료 임박', summary: esc(f.msg), dedupeKey: `transit-expiry-${f.severity}` };       // severity별 1회(만료까지 지속)
+  if (f.kind === 'transit-quota') return { type: 'transit', title: '🚦 교통 API 한도 임박', summary: esc(f.msg), dedupeKey: `transit-quota-${dateLabel}` };               // 일별
   return { type: 'ops', title: esc(f.msg || '점검 필요'), summary: esc(f.msg || ''), dedupeKey: `ops-${f.kind}-${dateLabel}` };
 }
 
@@ -52,10 +55,11 @@ async function opsWatchdogTask() {
   const sinceY = Timestamp.fromMillis(yStartMs);
   const untilY = Timestamp.fromMillis(todayStartMs);
 
-  const [bk, pl, er] = await Promise.allSettled([
+  const [bk, pl, er, pc] = await Promise.allSettled([
     db.collection('bookings').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(),  // 어제 결제(상태는 체크가 필터)
     db.collection('plans').where('status', '==', 'streaming').limit(100).get(),                         // stuck(시점 무관)
     db.collection('error_log').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(), // number
+    db.collection('plans').where('createdAtMs', '>=', yStartMs).where('createdAtMs', '<', todayStartMs).get(), // 어제 플랜수(교통 한도 추정)
   ]);
 
   const failed = [];
@@ -69,8 +73,10 @@ async function opsWatchdogTask() {
   const pay = SPEC ? checkPaymentInvariants(docs(bk, '결제'), SPEC, {}) : { findings: [], blindspot: 0, audited: 0 };
   const stuck = checkStuckStreamingPlans(docs(pl, 'plan'), { nowMs: now.getTime() });
   const errs = checkErrorSurge(docs(er, '오류'), {});
+  const plansYesterday = pc.status === 'fulfilled' ? pc.value.size : 0;
+  const transit = checkTransitService(TRANSIT_SERVICES, { nowMs: now.getTime(), activeKey: activeServiceKey(), plansYesterday, callsPerPlan: CALLS_PER_PLAN });
 
-  const findings = [...pay.findings, ...stuck.findings, ...errs.findings];
+  const findings = [...pay.findings, ...stuck.findings, ...errs.findings, ...transit.findings];
 
   // 결정큐 카드 (멱등). 발견만 — 수정/환불 자동 X.
   let enq = 0;

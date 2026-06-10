@@ -23,6 +23,7 @@ const TYPE_LABEL: Record<string, string> = {
   'payment-audit': '💰 결제 감사',
   'plan-stuck': '🚨 plan 미생성',
   'error-surge': '🛠️ 에러 폭증',
+  transit: '🚦 교통 서비스',
   ops: '🛠️ 운영',
   general: '📥 일반',
 };
