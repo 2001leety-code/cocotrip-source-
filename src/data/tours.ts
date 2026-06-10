@@ -981,7 +981,7 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     },
     {
       time: '22:00', name: { ko: '해방촌', en: 'Haebangchon', ja: '解放村', zh: '解放村' },
-      stay_min: 60, photo: '/서울/서울 (18).jpg',
+      stay_min: 60, photo: '/서울/해방촌-남산야경.jpg',
       description: { ko: '남산 자락 옛 달동네에 자리잡은 핫플 골목. 루프탑 바, 빈티지 카페, 외국인 친화 펍이 모인 야경 산책 코스.', en: "Trendy hillside neighborhood under Namsan — rooftop bars, vintage cafés, expat-friendly pubs lit up at night.", ja: '南山の麓、レトロな路地に若者文化が集う街。ルーフトップバーやヴィンテージカフェの夜景散策。', zh: '南山脚下的潮人街区，云集天台酒吧、复古咖啡馆、外国人友好酒馆的夜景漫步路线。' },
       entry_fee_krw: 0,
       tip: { ko: '신흥시장·해방촌 오거리 추천. 카페/바 1잔 별도 결제. 가이드가 추천 코스 안내.', en: 'Sinheung Market and HBC 5-way junction recommended. Drinks paid separately. Guide will suggest spots.', ja: '新興市場・解放村五差路がおすすめ。カフェ・バー代は別途。', zh: '推荐新兴市场和解放村五路口。饮品另付。导游会推荐路线。' },
@@ -1001,7 +1001,7 @@ const TOUR_STOPS_BY_ID: Record<string, TourStop[]> = {
     { time: '09:30', name: { ko: '도담삼봉', en: 'Dodamsambong', ja: '島潭三峯', zh: '岛潭三峰' }, stay_min: 60, photo: '/Type1_도담삼봉_한국관광공사 김지호_m9M3Ka(2).jpg',
       description: { ko: '남한강 위 세 봉우리. 단양의 상징적 풍경, 정도전 일화 유명.', en: 'Three rocky peaks rising from Namhangang River, the icon of Danyang.', ja: '南漢江に三つの岩峰がそびえる丹陽の象徴。', zh: '南汉江上三座岩峰，丹阳的标志景观。' },
       entry_fee_krw: 0, tip: { ko: '유람선 ₩13,000으로 가까이 감상 가능.', en: 'Sightseeing boat ₩13,000 for closer view.', ja: '遊覧船₩13,000で近くから観賞可能。', zh: '可乘游船₩13,000近距离观赏。' } },
-    { time: '10:45', name: { ko: '단양강 잔도', en: 'Danyanggang Cliff Trail', ja: '丹陽江桟道', zh: '丹阳江栈道' }, stay_min: 90, photo: '/Type1_만천하스카이워크_한국관광공사 김지호_dAeuea(1).jpg',
+    { time: '10:45', name: { ko: '단양강 잔도', en: 'Danyanggang Cliff Trail', ja: '丹陽江桟道', zh: '丹阳江栈道' }, stay_min: 90, photo: '/Type1_단양강 잔도_한국관광공사 김지호_6yEHMa(1).jpg',
       description: { ko: '절벽 위 1.2km 데크길. 남한강 절경을 따라 걸으며 사진 명소.', en: '1.2km cliff-side deck along the Namhangang River — a scenic photo trail.', ja: '崖沿いに1.2kmのデッキ歩道。南漢江の絶景。', zh: '崖边1.2km栈道，沿南汉江绝景拍照。' },
       entry_fee_krw: 0, transit_from_prev: { method: 'car', minutes: 10, distance_km: 7 } },
     { time: '12:30', name: { ko: '점심 — 마늘정식', en: 'Garlic-Set Lunch', ja: 'ニンニク定食ランチ', zh: '大蒜套餐午餐' }, stay_min: 60,
