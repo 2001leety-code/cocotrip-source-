@@ -56,8 +56,15 @@ const BLOCKMODE_SRC = readFileSync(
   'utf8',
 );
 describe('blockMode 앵커 wiring 락', () => {
-  it('matchFoodPlaceholder 호출이 anchorBs(직전 명소 좌표) 사용', () => {
+  it('단도시·다도시 expand 둘 다 anchorBs 사용 (호출부 2개 모두)', () => {
+    // 2026-06-10 교훈: 단도시 expandBlocksToItinerary 만 고치고 다도시
+    //   expandBlocksToItineraryMultiCity(L1382, 서울+부산 plan) 누락 → prod 식당 여전히 멂.
+    //   matchFoodPlaceholder 호출 2개(단/다도시) 전부 anchorBs 여야 한다.
+    const anchored = (BLOCKMODE_SRC.match(/matchFoodPlaceholder\(anchorBs,/g) || []).length;
+    expect(anchored, '앵커된 matchFoodPlaceholder 호출이 2개 미만').toBeGreaterThanOrEqual(2);
+    // un-anchored 호출(matchFoodPlaceholder(bs,) 직접)이 남아있으면 회귀.
+    const unanchored = (BLOCKMODE_SRC.match(/matchFoodPlaceholder\(bs,/g) || []).length;
+    expect(unanchored, 'un-anchored matchFoodPlaceholder(bs, ...) 잔존').toBe(0);
     expect(BLOCKMODE_SRC).toMatch(/lastAnchorLat/);
-    expect(BLOCKMODE_SRC).toMatch(/matchFoodPlaceholder\(anchorBs,/);
   });
 });
