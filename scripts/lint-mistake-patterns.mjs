@@ -424,6 +424,12 @@ function PDF_KOREAN_FONT({ changed }) {
 
   for (const t of touched) {
     const c = getChangedFileContent(t);
+    // 2026-06-11: 주석 속 'html2canvas' 언급 FP 방지 (index.html 폰트설명 주석 = 실제 코드 아님).
+    // html2canvas 탐지는 주석 제거본(codeOnly)으로. display=swap 등 마크업 검사는 원본 c 유지.
+    const codeOnly = c
+      .replace(/<!--[\s\S]*?-->/g, '')          // HTML 주석
+      .replace(/\/\*[\s\S]*?\*\//g, '')          // JS 블록 주석
+      .replace(/(^|[^:"'`])\/\/[^\n]*/g, '$1');  // JS 라인 주석 (URL/문자열 // 보호)
     if (/family=Noto[^"'\s]*display=swap/i.test(c)) {
       fail(
         'PDF_KOREAN_FONT',
@@ -434,7 +440,7 @@ function PDF_KOREAN_FONT({ changed }) {
     // html2canvas / html2pdf 사용 모듈 — 글리프 측정 필수
     const isHtmlToPdfModule =
       t.endsWith('pdfGenerator.ts')
-      || /html2canvas|html2pdf|html-to-image/.test(c);
+      || /html2canvas|html2pdf|html-to-image/.test(codeOnly);
     if (isHtmlToPdfModule) {
       const usesReady = /document\.fonts\.ready/.test(c);
       const measuresGlyph = /(offsetWidth|getBoundingClientRect)/.test(c);
@@ -457,7 +463,7 @@ function PDF_KOREAN_FONT({ changed }) {
       }
       // PR #400 신규 검사: html2canvas/html2pdf 사용 모듈이 fonts.ready 자체를 안 함
       // (가장 흔한 회귀 — Phase 1 PDF 백지 사고)
-      if (/html2(canvas|pdf)|html-to-image/.test(c) && !usesReady) {
+      if (/html2(canvas|pdf)|html-to-image/.test(codeOnly) && !usesReady) {
         fail(
           'PDF_KOREAN_FONT',
           `${t}: html2canvas/html2pdf 사용하나 document.fonts.ready 대기 부재 — 한글 폰트 로딩 전 캡처 → tofu (□)`,
