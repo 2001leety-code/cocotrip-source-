@@ -8,6 +8,7 @@
  *
  * 🔒 안전: REVIEW_REQUEST_ENABLED='true' 일 때만 실제 발송. 미설정/false = 강제 dryRun(매칭만, 발송 0).
  *   운영자가 dryRun 으로 매칭 확인 + 발송 타이밍 정책 확정 후 env 플래그 ON. (깜짝 고객 메일 방지.)
+ * 🟢 2026-06-10: 운영자 REVIEW_REQUEST_ENABLED=true 설정 → prod 활성. (env 반영엔 설정 이후 fresh 배포 필수 — #754.)
  *
  * 수동: GET /api/cron-runner?job=review-request&dryRun=1  (매칭만)
  *   refund-reminder.js 미러 — getDb/detectLanguage/sendOperatorSummary 동일 패턴.
