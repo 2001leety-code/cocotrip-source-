@@ -27,8 +27,24 @@ export function getTransitProvider() {
  * @returns {Promise<object|null>} ODsay 호환 raw route 또는 null.
  */
 export async function searchTransit(sx, sy, ex, ey, opts = {}) {
-  if (getTransitProvider() === 'tmap') {
-    return searchTransitRouteTmap(sx, sy, ex, ey, opts);
+  const primary = getTransitProvider();
+  const callPrimary = () => (primary === 'tmap' ? searchTransitRouteTmap(sx, sy, ex, ey, opts) : searchTransitRoute(sx, sy, ex, ey));
+
+  // 기본: 현행 동작(throw 전파, byte-identical). 운영자 받적(2026-06-10) — TRANSIT_FALLBACK=true 면
+  // primary 가 throw(5xx/네트워크 장애) 시 다른 provider 로 자동 전환 = "오류없게 전환" 안전망.
+  // (4xx/null = no-route 또는 한도 → fallback 안 함: 한도 doubling·중복호출 방지. 한도는 수정팀이 별도 알림.)
+  if (String(process.env.TRANSIT_FALLBACK || '').toLowerCase() !== 'true') {
+    return callPrimary();
   }
-  return searchTransitRoute(sx, sy, ex, ey);
+  try {
+    return await callPrimary();
+  } catch (e) {
+    console.warn(`[transit] ${primary} 실패 → fallback:`, e && e.message);
+    try {
+      return primary === 'tmap' ? await searchTransitRoute(sx, sy, ex, ey) : await searchTransitRouteTmap(sx, sy, ex, ey, opts);
+    } catch (e2) {
+      console.error('[transit] fallback 도 실패:', e2 && e2.message);
+      return null; // 둘 다 실패 → null (구간 교통 없음, 플랜은 계속)
+    }
+  }
 }

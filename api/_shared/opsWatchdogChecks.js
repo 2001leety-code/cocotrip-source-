@@ -97,3 +97,39 @@ export function checkErrorSurge(errorDocs = [], opts = {}) {
   }
   return { findings };
 }
+
+/**
+ * ④ 🚦 교통 서비스 만료·한도 감시 — 만료/소진 전에 미리 알림(매끄러운 전환). 운영자 받적(2026-06-10).
+ * @param {object} services - transitServiceConfig.TRANSIT_SERVICES
+ * @param {{nowMs?:number, activeKey?:string, plansYesterday?:number, callsPerPlan?:number, warnDays?:number, critDays?:number}} opts
+ */
+export function checkTransitService(services, opts = {}) {
+  const nowMs = opts.nowMs != null ? opts.nowMs : Date.now();
+  const activeKey = opts.activeKey || 'odsay';
+  const plansYesterday = Number(opts.plansYesterday) || 0;
+  const callsPerPlan = opts.callsPerPlan != null ? opts.callsPerPlan : 18.8;
+  const warnDays = opts.warnDays != null ? opts.warnDays : 30;
+  const critDays = opts.critDays != null ? opts.critDays : 7;
+  const findings = [];
+  const svc = services && services[activeKey];
+  if (!svc) return { findings };
+
+  // 만료 임박 (활성 서비스). KST 자정 기준.
+  if (svc.expiryDate) {
+    const expMs = Date.parse(`${svc.expiryDate}T00:00:00+09:00`);
+    if (Number.isFinite(expMs)) {
+      const daysLeft = Math.floor((expMs - nowMs) / 86_400_000);
+      if (daysLeft <= critDays) findings.push({ severity: 'critical', kind: 'transit-expiry', daysLeft, msg: `${svc.label} ${daysLeft}일 후 만료(${svc.expiryDate}) — 갱신/전환 필요` });
+      else if (daysLeft <= warnDays) findings.push({ severity: 'warning', kind: 'transit-expiry', daysLeft, msg: `${svc.label} ${daysLeft}일 후 만료(${svc.expiryDate}) — 갱신/전환 준비` });
+    }
+  }
+
+  // 일 한도 사용량 추정 (어제 플랜수 × 호출/플랜). 유료(dailyQuotaCalls=null)는 감시 제외.
+  if (svc.dailyQuotaCalls) {
+    const estCalls = Math.round(plansYesterday * callsPerPlan);
+    const ratio = estCalls / svc.dailyQuotaCalls;
+    if (ratio >= 0.9) findings.push({ severity: 'critical', kind: 'transit-quota', estCalls, msg: `${svc.label} 한도 임박 — 어제 추정 ${estCalls}회 / ${svc.dailyQuotaCalls}회 (${Math.round(ratio * 100)}%) — 유료 전환 필요` });
+    else if (ratio >= 0.7) findings.push({ severity: 'warning', kind: 'transit-quota', estCalls, msg: `${svc.label} 한도 ${Math.round(ratio * 100)}% — 어제 추정 ${estCalls}회 / ${svc.dailyQuotaCalls}회 — 유료 준비` });
+  }
+  return { findings };
+}

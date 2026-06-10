@@ -4,7 +4,9 @@ import { join } from 'path';
 // @ts-expect-error — ESM .js
 import { resolveKrwAmount } from '../../api/_shared/resolve-line-item.js';
 // @ts-expect-error — ESM .js
-import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, priceAuditKind } from '../../api/_shared/opsWatchdogChecks.js';
+import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, priceAuditKind, checkTransitService } from '../../api/_shared/opsWatchdogChecks.js';
+// @ts-expect-error — ESM .js
+import { TRANSIT_SERVICES } from '../../api/_shared/transitServiceConfig.js';
 
 // 2026-06-10 수정팀(운영 감시원) — 순수 체크 머지 전 검증($0). 발견만, 수정 자동 X.
 const SPEC = JSON.parse(readFileSync(join(process.cwd(), 'api/_pricing_spec.json'), 'utf-8'));
@@ -85,5 +87,32 @@ describe('checkErrorSurge — 절대 임계 4/10, 일시오류 제외', () => {
   });
   it('빈 입력 → 0 (throw 없음)', () => {
     expect(checkErrorSurge([], {}).findings).toHaveLength(0);
+  });
+});
+
+describe('checkTransitService — 만료·한도 감시 (매끄러운 전환)', () => {
+  const SVC = TRANSIT_SERVICES; // odsay: 만료 2026-10-14, 1000회/일
+  const FAR = Date.parse('2026-06-10T00:00:00+09:00'); // 만료 한참 전
+  it('만료 7일 이내 → critical', () => {
+    const r = checkTransitService(SVC, { nowMs: Date.parse('2026-10-10T00:00:00+09:00'), activeKey: 'odsay', plansYesterday: 0 });
+    expect(r.findings.find((f: any) => f.kind === 'transit-expiry').severity).toBe('critical');
+  });
+  it('만료 30일 이내 → warning', () => {
+    const r = checkTransitService(SVC, { nowMs: Date.parse('2026-09-20T00:00:00+09:00'), activeKey: 'odsay', plansYesterday: 0 });
+    expect(r.findings.find((f: any) => f.kind === 'transit-expiry').severity).toBe('warning');
+  });
+  it('만료 한참 남음 → 만료 finding 없음', () => {
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 0 }).findings.find((f: any) => f.kind === 'transit-expiry')).toBeUndefined();
+  });
+  it('한도 추정 90%+ → critical / 70%+ → warning / 낮으면 없음', () => {
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 50, callsPerPlan: 18.8 }).findings.find((f: any) => f.kind === 'transit-quota').severity).toBe('critical'); // 940/1000
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 40, callsPerPlan: 18.8 }).findings.find((f: any) => f.kind === 'transit-quota').severity).toBe('warning'); // 752/1000
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'odsay', plansYesterday: 10, callsPerPlan: 18.8 }).findings.find((f: any) => f.kind === 'transit-quota')).toBeUndefined();
+  });
+  it('유료(tmap_paid, quota null) → 한도 finding 없음', () => {
+    expect(checkTransitService(SVC, { nowMs: FAR, activeKey: 'tmap_paid', plansYesterday: 9999 }).findings.find((f: any) => f.kind === 'transit-quota')).toBeUndefined();
+  });
+  it('알 수 없는 provider → findings 0', () => {
+    expect(checkTransitService(SVC, { activeKey: 'bogus' }).findings).toHaveLength(0);
   });
 });
