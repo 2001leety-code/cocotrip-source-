@@ -1466,6 +1466,11 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
     // stops expand (단도시 expandBlocksToItinerary 와 동일 로직)
     const stops = [];
     const blockStops = Array.isArray(block.stops) ? block.stops : [];
+    // 2026-06-10: 식당 placeholder 근접 앵커 — 단도시 expandBlocksToItinerary 와 동일.
+    //   다도시(서울+부산 등)는 본 함수를 타므로 여기에도 적용해야 식당이 동선 위에 온다
+    //   (단도시만 고치고 누락 시 다도시 plan 식당 여전히 도시 전체 1등=먼 식당. plan 550fb532 Day3).
+    let lastAnchorLat = null;
+    let lastAnchorLng = null;
     for (const bs of blockStops) {
       const offsetMin = Number(bs.start_time_offset_min) || 0;
       const startTime = addMinutesToHHMM(dayStart, offsetMin) || dayStart;
@@ -1477,7 +1482,13 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
 
       if (bs.placeholder && !resolvedName) {
-        const matched = matchFoodPlaceholder(bs, foodIndex, dayCityKey, dietPrefs, usedFoodNames);
+        // 앵커 주입: placeholder 좌표 없으면 직전 명소 좌표로 근접 매칭 활성화 (단도시와 동일).
+        const _phLat = Number(bs.lat);
+        const _phHasOwn = Number.isFinite(_phLat) && _phLat !== 0;
+        const anchorBs = (!_phHasOwn && lastAnchorLat != null)
+          ? { ...bs, lat: lastAnchorLat, lng: lastAnchorLng }
+          : bs;
+        const matched = matchFoodPlaceholder(anchorBs, foodIndex, dayCityKey, dietPrefs, usedFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
@@ -1502,6 +1513,14 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           resolvedName = `[추천 ${placeholderType} - ${addrShort}]`;
           resolvedDisplay = resolvedName;
         }
+      }
+
+      // 다음 food placeholder 앵커용 — 좌표 있는 명소면 기억 (단도시와 동일).
+      const _bsLat = Number(bs.lat);
+      const _bsLng = Number(bs.lng);
+      if (Number.isFinite(_bsLat) && Number.isFinite(_bsLng) && (_bsLat !== 0 || _bsLng !== 0)) {
+        lastAnchorLat = _bsLat;
+        lastAnchorLng = _bsLng;
       }
 
       stops.push({
