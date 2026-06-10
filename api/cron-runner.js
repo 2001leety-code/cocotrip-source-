@@ -32,6 +32,7 @@ import scanVisitkoreaAttractions from './_crons/scan-visitkorea-attractions.js';
 import intentClassifierSummary from './_crons/intent-classifier-summary.js';
 import morningBriefing from './_crons/morning-briefing.js';
 import reviewRequest from './_crons/review-request.js';
+import contentDraft from './_crons/content-draft.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -60,6 +61,8 @@ const JOBS = {
   'morning-briefing':            morningBriefing,
   // 2026-06-10 자가운영 에이전시 배치B — 투어 후 리뷰요청 (🔒 REVIEW_REQUEST_ENABLED 플래그 OFF=dryRun).
   'review-request':              reviewRequest,
+  // 2026-06-10 자가운영 에이전시 P3 — 마케팅 콘텐츠 직원 (🔒 CONTENT_WORKER_ENABLED 플래그 OFF=비활성, draft만).
+  'content-draft':               contentDraft,
 };
 
 const CORS = {

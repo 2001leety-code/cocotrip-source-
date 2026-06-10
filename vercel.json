@@ -72,6 +72,10 @@
     {
       "path": "/api/cron-runner?job=review-request",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron-runner?job=content-draft",
+      "schedule": "0 23 * * *"
     }
   ],
   "functions": {
