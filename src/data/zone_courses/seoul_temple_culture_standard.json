@@ -1,7 +1,7 @@
 {
   "id": "SEOUL_DAY_TEMPLE_CULTURE_STANDARD",
   "city": "seoul",
-  "zone": "Jongno-Gangnam Temple Belt",
+  "zone": "Jongno Temple & Palace",
   "theme": "서울 사찰 & 도심 힐링",
   "theme_i18n": {
     "ko": "서울 사찰 & 도심 힐링",
@@ -53,34 +53,34 @@
     {
       "order": 3,
       "category": "culture",
-      "name": "봉은사",
+      "name": "창덕궁",
       "name_i18n": {
-        "ko": "봉은사",
-        "en": "Bongeunsa Temple",
-        "ja": "奉恩寺",
-        "zh": "奉恩寺"
+        "ko": "창덕궁",
+        "en": "Changdeokgung Palace",
+        "ja": "昌徳宮",
+        "zh": "昌德宫"
       },
-      "address": "서울특별시 강남구 봉은사로 531",
+      "address": "서울특별시 종로구 율곡로 99",
       "stay_min": 75,
-      "entry_fee_krw": 0,
+      "entry_fee_krw": 3000,
       "reservation_required": false,
-      "lat": 37.5147,
-      "lng": 127.0571,
+      "lat": 37.5794,
+      "lng": 126.991,
       "start_time_offset_min": 130,
       "tips_i18n": {
-        "ko": "강남 한복판에 위치. 거대 미륵불 입상. 템플스테이 외국인에게 인기.",
-        "en": "Located in the heart of Gangnam. Giant Mireuk Buddha statue. Popular templestay for foreigners.",
-        "ja": "江南の真ん中に位置。巨大弥勒仏立像。外国人に人気のテンプルステイ。",
-        "zh": "位于江南中心。巨大弥勒佛立像。外国人热爱的寺院住宿体验。"
+        "ko": "조계사에서 도보 15분. UNESCO 세계유산. 비원(후원) 가이드 투어는 도심 속 힐링 정원 — 사전예약 추천.",
+        "en": "15-min walk from Jogyesa. UNESCO World Heritage. The Secret Garden (Huwon) guided tour is a serene urban escape — book ahead.",
+        "ja": "曹渓寺から徒歩15分。UNESCO世界遺産。秘苑(後苑)のガイドツアーは都心の癒しの庭園 — 事前予約推奨。",
+        "zh": "曹溪寺步行15分钟。UNESCO世界遗产。秘苑(后苑)导览是都市中的疗愈庭园 — 建议提前预约。"
       },
-      "local_tag": "downtown_temple | gangnam | giant_mireuk_statue | templestay_popular"
+      "local_tag": "unesco_heritage | secret_garden_huwon | joseon_palace | jongno_walkable"
     },
     {
       "order": 4,
       "category": "food",
       "name": "",
       "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
-      "address": "강남 점심",
+      "address": "종로 점심",
       "stay_min": 60,
       "placeholder": "verified_lunch",
       "start_time_offset_min": 215
