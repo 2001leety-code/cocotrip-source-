@@ -1,0 +1,80 @@
+{
+  "id": "SEOUL_DAY_IKSEONDONG_LOCAL_STANDARD",
+  "city": "seoul",
+  "zone": "Ikseon-dong Hanok Alleys",
+  "theme": "익선동 한옥골목 뉴트로 산책",
+  "theme_i18n": {
+    "ko": "서울에서 가장 오래된 한옥 골목이 카페·공방으로 재생된 뉴트로 미로 — 종묘 돌담길과 무료 궁궐을 잇는 도심 슬로 산책",
+    "en": "Seoul's oldest hanok alleys reborn as a 'newtro' maze of cafes and craft studios, threaded with a Jongmyo stone-wall lane and a free palace — a slow walk in old Seoul",
+    "ja": "ソウル最古の韓屋路地がカフェと工房に生まれ変わったニュートロな迷路 — 宗廟の石垣道と無料の宮殿を結ぶ旧市街のスロー散歩",
+    "zh": "首尔最古老的韩屋小巷重生为咖啡馆与工坊的'新复古'迷宫 — 串联宗庙石墙路与免费宫殿的老城慢步"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Culture", "Photo", "Local", "Shopping", "Couple", "Solo"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1, "category": "culture", "name": "익선동 한옥골목",
+      "name_i18n": { "ko": "익선동 한옥골목", "en": "Ikseon-dong Hanok Alleys", "ja": "益善洞 韓屋路地", "zh": "益善洞韩屋小巷" },
+      "address": "서울 종로구 삼일대로26길 16", "stay_min": 60, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5736, "lng": 126.9905, "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "지도가 잘 안 통하는 좁은 그물망 골목이라 길을 잃듯 천천히 걸으세요. 약 100채 한옥이 카페·소품샵으로 재생됐고 골목 자체가 포토스팟입니다. 실거주민이 있으니 조용히. 종로3가역 4·6번 출구 도보 2분.",
+        "en": "Maps barely help in this tight web of lanes — wander slowly and let yourself get pleasantly lost. ~100 hanoks reborn as cafes and tiny shops; the alley itself is the photo spot. Residents still live here, so keep noise down. 2-min walk from Jongno 3-ga Stn Exit 4/6.",
+        "ja": "地図がほぼ役に立たない細い路地網。あえて迷うようにゆっくり歩いて。約100軒の韓屋がカフェや雑貨店に再生され、路地そのものがフォトスポット。住民が暮らすので静かに。鍾路3街駅4・6番出口から徒歩2分。",
+        "zh": "巷弄密如蛛网、地图几乎无用，请放慢脚步任意漫游。约100栋韩屋改造成咖啡馆与小店，巷子本身就是拍照点。仍有居民居住，请保持安静。钟路3街站4/6号出口步行2分钟。"
+      },
+      "local_tag": "newtro_hanok_alley | photo_walk"
+    },
+    {
+      "order": 2, "category": "shopping", "name": "서순라길",
+      "name_i18n": { "ko": "서순라길 (종묘 돌담 공예거리)", "en": "Seosunra-gil Craft Lane", "ja": "西巡邏路（ソスンラギル）", "zh": "西巡逻路（宗庙石墙工艺街）" },
+      "address": "서울 종로구 서순라길 89", "stay_min": 40, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5728, "lng": 126.993, "start_time_offset_min": 75,
+      "tips_i18n": {
+        "ko": "종묘 서쪽 돌담을 따라 약 800m 이어지는 공예 특화 거리. 금속·자수·종이 등 개인 공방과 주얼리 작업실이 골목마다 숨어 있어요. 주말 오전 10시~오후 6시는 차 없는 거리. 익선동에서 도보 3~5분, 종로3가역 7·8번 출구.",
+        "en": "A craft-focused lane running ~800m along Jongmyo's western stone wall. Independent metal, embroidery, paper and jewelry studios hide down each side alley. Car-free on weekends 10:00–18:00. 3–5 min on foot from Ikseon-dong; Jongno 3-ga Stn Exit 7/8.",
+        "ja": "宗廟西側の石垣に沿って約800m続く工芸の通り。金属・刺繍・紙・ジュエリーの個人工房が路地ごとに点在。週末10:00〜18:00は歩行者天国。益善洞から徒歩3〜5分、鍾路3街駅7・8番出口。",
+        "zh": "沿宗庙西侧石墙延伸约800米的工艺街，金属、刺绣、纸艺与首饰个人工坊散落各巷。周末10:00–18:00为无车街。从益善洞步行3–5分钟，钟路3街站7/8号出口。"
+      },
+      "local_tag": "jongmyo_wall_craft_lane | artisan_studios"
+    },
+    {
+      "order": 3, "category": "food", "name": "", "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "익선동 점심", "stay_min": 60, "placeholder": "verified_lunch", "start_time_offset_min": 125
+    },
+    {
+      "order": 4, "category": "culture", "name": "운현궁",
+      "name_i18n": { "ko": "운현궁", "en": "Unhyeongung Palace", "ja": "雲峴宮", "zh": "云岘宫" },
+      "address": "서울 종로구 삼일대로 464", "stay_min": 40, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5747, "lng": 126.9856, "start_time_offset_min": 195,
+      "tips_i18n": {
+        "ko": "흥선대원군의 사저이자 고종이 태어난 곳. 5대 궁궐보다 작고 한적해 사람에 치이지 않고 전통 한옥 마당을 즐길 수 있어요. 입장 무료, 09:00~19:00(11~3월 18:00까지), 입장마감 폐장 30분 전, 월요일 휴무(공휴일이면 개관). 안국역(3호선) 4번 출구 도보 3분.",
+        "en": "Once the residence of regent Heungseon Daewongun and birthplace of Emperor Gojong. Smaller and far calmer than the five grand palaces — traditional hanok courtyards without the crowds. Free, 09:00–19:00 (until 18:00 Nov–Mar), last admission 30 min before closing, closed Mondays (open if a holiday). 3-min walk from Anguk Stn (Line 3) Exit 4.",
+        "ja": "興宣大院君の私邸で、高宗が生まれた場所。五大宮より小さく静かで、人混みなく伝統韓屋の中庭を楽しめます。入場無料、09:00〜19:00（11〜3月は18:00まで）、入場締切は閉館30分前、月曜休（祝日は開館）。安国駅（3号線）4番出口から徒歩3分。",
+        "zh": "兴宣大院君私邸，也是高宗诞生之地。比五大宫殿更小更清静，可避开人潮欣赏传统韩屋庭院。免费，09:00–19:00（11–3月至18:00），入场截止为闭馆前30分钟，周一休馆（逢公休则开放）。安国站（3号线）4号出口步行3分钟。"
+      },
+      "local_tag": "free_quiet_palace | regent_residence"
+    },
+    {
+      "order": 5, "category": "nature", "name": "탑골공원",
+      "name_i18n": { "ko": "탑골공원", "en": "Tapgol Park", "ja": "塔骨公園（タプコル公園）", "zh": "塔谷公园" },
+      "address": "서울 종로구 종로 99", "stay_min": 25, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5713, "lng": 126.9882, "start_time_offset_min": 250,
+      "tips_i18n": {
+        "ko": "서울 최초의 근대식 공원이자 1919년 3·1 독립운동이 시작된 역사적 장소. 국보 원각사지 십층석탑이 유리관 안에 보존돼 있어요. 무료, 도심 한복판의 조용한 쉼터로 골목 산책 후 다리 쉬기 좋습니다. 익선동·인사동에서 도보 5분.",
+        "en": "Seoul's first modern park and the very spot where the March 1st Independence Movement began in 1919. The National Treasure ten-story Wongaksa pagoda is preserved under glass here. Free, a quiet green breather to rest your feet after the alleys. 5 min from Ikseon-dong/Insadong.",
+        "ja": "ソウル初の近代公園で、1919年の三・一独立運動が始まった歴史的な場所。国宝の円覚寺址十層石塔がガラスケースで保存。無料、都心の静かな憩いの場で路地散策後の休憩に最適。益善洞・仁寺洞から徒歩5分。",
+        "zh": "首尔首座近代公园，也是1919年三一独立运动的起点。国宝圆觉寺址十层石塔在此以玻璃罩保存。免费，市中心难得的静谧绿地，巷弄漫步后正好歇脚。从益善洞/仁寺洞步行5分钟。"
+      },
+      "local_tag": "march_1st_movement | first_modern_park"
+    },
+    {
+      "order": 6, "category": "food", "name": "", "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "익선동 저녁", "stay_min": 60, "placeholder": "verified_dinner", "start_time_offset_min": 320
+    }
+  ],
+  "transit_matrix": {}
+}

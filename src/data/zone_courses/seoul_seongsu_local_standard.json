@@ -1,0 +1,80 @@
+{
+  "id": "SEOUL_DAY_SEONGSU_LOCAL_STANDARD",
+  "city": "seoul",
+  "zone": "Seongsu Factory Lanes",
+  "theme": "성수동 공장골목 카페 산책",
+  "theme_i18n": {
+    "ko": "서울의 브루클린 — 붉은벽돌 공장을 개조한 카페·갤러리·편집샵을 걷는 성수 산책 (서울숲에서 연무장길까지)",
+    "en": "Brooklyn of Seoul — red-brick factories reborn as cafes, galleries and concept shops, walked from Seoul Forest to Yeonmujang-gil",
+    "ja": "ソウルのブルックリン — 赤レンガ工場をリノベしたカフェ・ギャラリー・セレクトショップを歩く聖水散歩（ソウルの森から演武場通りへ）",
+    "zh": "首尔的布鲁克林 — 红砖工厂改造的咖啡馆、画廊与买手店，从首尔林散步到演武场路"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Culture", "Photo", "Local", "Shopping", "Couple", "Solo"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1, "category": "nature", "name": "서울숲",
+      "name_i18n": { "ko": "서울숲", "en": "Seoul Forest", "ja": "ソウルの森", "zh": "首尔林" },
+      "address": "서울특별시 성동구 뚝섬로 273", "stay_min": 55, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5444, "lng": 127.0374, "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "입장 무료, 24시간 개방. 생태숲 사슴방사장(5:30~21:30)에서 꽃사슴을 가까이 볼 수 있어요. 수인분당선 서울숲역 4번 출구 도보 2~5분, 또는 2호선 뚝섬역 8번 출구 도보 10분. 봄 벚꽃·가을 단풍 포토스팟. 성수 공장골목 산책의 시작점.",
+        "en": "Free entry, open 24h. See deer up close at the Eco Forest enclosure (5:30am–9:30pm). 2–5 min from Seoul Forest Stn (Suin-Bundang Line) Exit 4, or 10 min from Ttukseom Stn (Line 2) Exit 8. Best photos along the cherry-blossom (spring) and ginkgo (autumn) avenues — the start of the Seongsu factory-lane walk.",
+        "ja": "入場無料、24時間開放。生態の森の鹿放飼場（5:30~21:30）で花鹿を間近に。水仁・盆唐線ソウルの森駅4番出口から徒歩2〜5分、または2号線トゥクソム駅8番出口から徒歩10分。春は桜・秋は紅葉が撮影スポット。聖水散歩の出発点。",
+        "zh": "免费入园，24小时开放。生态林鹿苑(5:30~21:30)可近距离看梅花鹿。水仁盆唐线首尔林站4号出口步行2~5分钟，或2号线纛岛站8号出口步行10分钟。春樱秋枫为拍照热点，是圣水工厂巷漫步的起点。"
+      },
+      "local_tag": "city_forest | deer_park | walk_anchor"
+    },
+    {
+      "order": 2, "category": "culture", "name": "언더스탠드에비뉴",
+      "name_i18n": { "ko": "언더스탠드에비뉴", "en": "Under Stand Avenue", "ja": "アンダースタンドアベニュー", "zh": "Under Stand Avenue 集装箱文化村" },
+      "address": "서울특별시 성동구 왕십리로 63", "stay_min": 30, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5435, "lng": 127.0445, "start_time_offset_min": 65,
+      "tips_i18n": {
+        "ko": "서울숲 진입로 양쪽에 늘어선 116개 컨테이너 복합문화공간. 무료, 누구나 자유롭게 구경 가능. 알록달록 컨테이너가 포토존이라 서울숲에서 바로 이어 걷기 좋아요. 입점 매장은 늦은 오전~저녁 운영.",
+        "en": "116 colorful shipping containers lining both sides of the Seoul Forest entrance — a free culture village. Great photo backdrop and a natural walk straight from the park. Shops run roughly late-morning to evening.",
+        "ja": "ソウルの森入口の両側に並ぶ116個のコンテナ複合文化空間。無料で誰でも見学可。カラフルなコンテナがフォトスポット。公園からそのまま歩けます。店舗は午前遅め~夕方営業。",
+        "zh": "首尔林入口两侧116个彩色集装箱组成的文化园区，免费开放。缤纷集装箱是拍照背景，从公园可直接步行抵达。店铺约上午晚些到傍晚营业。"
+      },
+      "local_tag": "container_culture_village | free_photo"
+    },
+    {
+      "order": 3, "category": "food", "name": "", "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "성수동 점심", "stay_min": 60, "placeholder": "verified_lunch", "start_time_offset_min": 105
+    },
+    {
+      "order": 4, "category": "culture", "name": "디뮤지엄 성수",
+      "name_i18n": { "ko": "디뮤지엄 성수", "en": "D Museum Seongsu", "ja": "Dミュージアム聖水", "zh": "D Museum 圣水" },
+      "address": "서울특별시 성동구 왕십리로 83-21", "stay_min": 70, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5453, "lng": 127.0438, "start_time_offset_min": 175,
+      "tips_i18n": {
+        "ko": "감각적인 기획전으로 유명한 미술관(아크로 서울포레스트 내). 월요일 휴무라 월요일엔 코스 전체 비추천. 화~일 11:00 오픈, 평일·일 18:00 마감·토 19:00 마감(입장은 마감 1시간 전까지). 전시별로 관람료가 달라 사전 예매 권장. 인스타 감성 전시라 사진 찍기 좋아요.",
+        "en": "Trendy exhibition museum famous for immersive, Instagrammable shows (inside Acro Seoul Forest). Closed Mondays — skip this whole course on a Monday. Open Tue–Sun 11:00; closes 18:00 (Sat 19:00), last entry 1 hour before. Ticket price varies by exhibition — book online in advance. Very photogenic.",
+        "ja": "感覚的な企画展で人気の美術館(アクロ・ソウルフォレスト内)。月曜休館なので月曜はコース全体非推奨。火~日11:00開館、平日・日18:00閉館・土19:00閉館(入場は閉館1時間前まで)。展示ごとに料金が異なり事前予約推奨。映える展示で撮影向き。",
+        "zh": "以沉浸式时尚展览闻名的美术馆(位于Acro首尔林内)。周一闭馆，周一不建议走此行程。周二至周日11:00开放，平日及周日18:00闭馆、周六19:00闭馆(入场至闭馆前1小时)。票价依展览而定，建议提前网上预订。展览很出片。"
+      },
+      "local_tag": "trendy_art_museum | immersive_exhibition"
+    },
+    {
+      "order": 5, "category": "shopping", "name": "대림창고 & 연무장길",
+      "name_i18n": { "ko": "대림창고 & 연무장길", "en": "Daelim Changgo & Yeonmujang-gil", "ja": "大林倉庫 & ヨンムジャンギル", "zh": "大林仓库 & 演武场路" },
+      "address": "서울특별시 성동구 성수이로 78", "stay_min": 75, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5447, "lng": 127.0556, "start_time_offset_min": 255,
+      "tips_i18n": {
+        "ko": "1970년대 정미소·창고를 개조한 대림창고(갤러리+카페, 11:00~23:00)에서 시작해 공장 골목 연무장길을 걷는 코스. 수제화 공장·인쇄소 사이로 편집샵·팝업스토어·갤러리가 빼곡해요. 디뮤지엄에서 도보 약 12~15분(또는 지하철 1정거장). 성수역 3번 출구 도보 4분. 노출 벽돌·철골이 그대로라 사진 명소.",
+        "en": "Start at Daelim Changgo, a 1970s rice-mill warehouse turned gallery-cafe (11:00–23:00), then wander Yeonmujang-gil — the converted-factory alley packed with concept shops, pop-ups and galleries between working print shops and shoe factories. About 12–15 min on foot from D Museum (or one subway stop). 4-min walk from Seongsu Stn Exit 3. Raw brick and steel make it a top photo street.",
+        "ja": "1970年代の精米所・倉庫を改装した大林倉庫(ギャラリー+カフェ、11:00~23:00)から、工場路地ヨンムジャンギルを歩くコース。手作り靴工場や印刷所の間にセレクトショップ・ポップアップ・ギャラリーがびっしり。Dミュージアムから徒歩約12〜15分(または地下鉄1駅)。聖水駅3番出口から徒歩4分。むき出しのレンガと鉄骨が撮影名所。",
+        "zh": "从1970年代碾米厂改造的大林仓库(画廊+咖啡馆，11:00~23:00)出发，漫步演武场路这条工厂改造小巷，手工鞋厂与印刷厂之间密布买手店、快闪店与画廊。距D Museum步行约12–15分钟(或地铁一站)。圣水站3号出口步行4分钟。裸露红砖与钢架是绝佳拍照街。"
+      },
+      "local_tag": "red_brick_factory_alley | concept_shops"
+    },
+    {
+      "order": 6, "category": "food", "name": "", "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "성수동 저녁", "stay_min": 60, "placeholder": "verified_dinner", "start_time_offset_min": 350
+    }
+  ],
+  "transit_matrix": {}
+}

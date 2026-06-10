@@ -1,0 +1,80 @@
+{
+  "id": "SEOUL_DAY_MANGWON_LOCAL_STANDARD",
+  "city": "seoul",
+  "zone": "Mangwon Alleys",
+  "theme": "망원동 망리단길 & 한강노을",
+  "theme_i18n": {
+    "ko": "홍대 옆 진짜 동네 감성 — 골목 카페·빈티지샵·로컬 시장·한강 노을 하루 코스",
+    "en": "Seoul's coolest local neighborhood — backstreet cafes, vintage shops, a real market, and a Han River sunset",
+    "ja": "弘大の隣の本物のローカル感 — 路地カフェ・古着屋・在来市場・漢江の夕日",
+    "zh": "弘大旁的真实在地街区 — 巷弄咖啡、复古小店、传统市场与汉江日落"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Local", "Photo", "Shopping", "Couple", "Solo"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1, "category": "culture", "name": "망리단길",
+      "name_i18n": { "ko": "망리단길 (포은로 골목 카페거리)", "en": "Mangridan-gil Cafe Street", "ja": "マンリダンギル（カフェ路地）", "zh": "望理团街（咖啡巷弄）" },
+      "address": "서울 마포구 포은로 일대 (망원역 2번 출구)", "stay_min": 50, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5559, "lng": 126.9072, "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "망원역 2번 출구에서 도보 3분. '망원+경리단길' 별칭의 골목 카페·소품 거리. 평일 오후나 오전이 한적해 사진 찍기 좋고, 주말은 젊은 로컬로 붐빔. 정해진 가게보다 골목을 천천히 걸으며 마음에 드는 카페에 들어가는 게 정석.",
+        "en": "3-min walk from Mangwon Stn Exit 2. A nickname mashup of 'Mangwon + Gyeongnidan-gil' — a backstreet lined with indie cafes and gift shops. Weekday mornings/afternoons are calm and photo-friendly; weekends get busy with young locals. Don't chase one shop — wander the lanes and duck into whatever cafe you like.",
+        "ja": "望遠駅2番出口から徒歩3分。「望遠+経理団通り」の造語で、路地に個性派カフェや雑貨店が並ぶ。平日の午前・午後は空いていて撮影向き、週末は若いローカルで賑わう。決め打ちせず路地を歩いて気に入った店に入るのがコツ。",
+        "zh": "望远站2号出口步行3分钟。名字是'望远+经理团街'的合成，巷弄里满是独立咖啡馆与小物店。平日上午/下午较清静适合拍照，周末年轻在地人很多。别只盯一家店，慢慢逛巷子挑顺眼的咖啡馆进去最对。"
+      },
+      "local_tag": "mangridan_gil | indie_cafe_street"
+    },
+    {
+      "order": 2, "category": "shopping", "name": "망원동 빈티지·소품샵 골목",
+      "name_i18n": { "ko": "망원동 빈티지·소품샵 골목", "en": "Mangwon Vintage & Object Shop Alley", "ja": "望遠洞 古着・雑貨ショップ路地", "zh": "望远洞复古·小物店巷" },
+      "address": "서울 마포구 포은로 인근 골목 (망원역 2번 출구)", "stay_min": 45, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5554, "lng": 126.9061, "start_time_offset_min": 60,
+      "tips_i18n": {
+        "ko": "망리단길 안쪽 골목에 빈티지 의류·세컨핸즈·소품샵이 촘촘. 색감 쨍한 옷, 레트로 그릇, 디자인 소품 쇼핑에 좋다. 가게마다 휴무·오픈시간이 제각각(보통 13시~20시, 월·화 휴무 잦음)이라 영업 여부는 인스타 확인 권장. 가게가 닫혀 있어도 골목 산책·외관 구경 자체가 코스니 부담 없이.",
+        "en": "Tucked just off Mangridan-gil — a dense cluster of vintage clothing, second-hand, and design-object shops. Great for bold-colored apparel, retro tableware, and quirky homeware. Hours vary by shop (often 1pm–8pm, frequently closed Mon/Tue), so check each store's Instagram. Even if shops are closed, the alley stroll itself is the experience — no pressure.",
+        "ja": "マンリダンギルの一本入った路地に、古着・セカンドハンド・雑貨店が密集。発色の良い服やレトロ食器、デザイン雑貨探しに最適。営業時間は店ごとに異なり（13〜20時が多く、月・火休みが多い）、インスタ確認推奨。閉まっていても路地散策・外観見物自体がコース。",
+        "zh": "就在望理团街内侧巷弄，复古服饰、二手与设计小物店密集。适合找鲜色衣物、复古餐具与设计家居。各店营业时间不一（多为13–20点，周一二常休），建议查Instagram。即使店家没开，逛巷子、看外观本身就是行程，无需有压力。"
+      },
+      "local_tag": "vintage_shop_alley | second_hand"
+    },
+    {
+      "order": 3, "category": "culture", "name": "망원시장",
+      "name_i18n": { "ko": "망원시장", "en": "Mangwon Market", "ja": "望遠市場", "zh": "望远市场" },
+      "address": "서울 마포구 포은로8길 14 (망원동)", "stay_min": 45, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5556, "lng": 126.9038, "start_time_offset_min": 120,
+      "tips_i18n": {
+        "ko": "1970년대부터 이어진 진짜 로컬 전통시장. 아케이드 지붕이라 비·더위에도 쾌적. 닭강정·고로케·칼국수 등 길거리 먹거리 천국이라 점심·간식 타이밍에 최적. 운영 09:00~21:00(점포별 상이), 현금 챙기면 편하고 소액은 카드도 가능. 망리단길의 트렌디함과 정반대인 정겨운 분위기가 매력.",
+        "en": "A genuine local market running since the 1970s, roofed arcade so it's comfy rain or shine. Street-food heaven — sweet crispy chicken (dakgangjeong), croquettes, kalguksu — best at lunch or snack time. Open 09:00–21:00 (varies by stall); bring some cash though cards work for many. The homey vibe is the perfect contrast to trendy Mangridan-gil.",
+        "ja": "1970年代から続く本物のローカル市場。アーケード屋根で雨も暑さも快適。ヤンニョムチキンやコロッケ、カルグクスなど屋台グルメの宝庫で昼食・おやつ時に最適。営業09:00〜21:00（店舗ごと異なる）。現金があると安心、カード可の店も多い。",
+        "zh": "自1970年代延续至今的真实在地市场，有顶棚拱廊，雨天酷暑都舒适。街头小吃天堂——糖醋炸鸡、可乐饼、刀削面——午餐或点心时段最棒。营业09:00–21:00（各摊不一）；带点现金更方便，多数也可刷卡。"
+      },
+      "local_tag": "local_traditional_market | street_food"
+    },
+    {
+      "order": 4, "category": "food", "name": "", "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "망원동 점심", "stay_min": 50, "placeholder": "verified_lunch", "start_time_offset_min": 170
+    },
+    {
+      "order": 5, "category": "nature", "name": "망원한강공원",
+      "name_i18n": { "ko": "망원한강공원", "en": "Mangwon Hangang Park", "ja": "望遠漢江公園", "zh": "望远汉江公园" },
+      "address": "서울 마포구 마포나루길 467 (망원동 205-4)", "stay_min": 50, "entry_fee_krw": 0, "reservation_required": false,
+      "lat": 37.5527, "lng": 126.8987, "start_time_offset_min": 240,
+      "tips_i18n": {
+        "ko": "시장에서 한강 방향으로 도보 10~12분, 나들목(지하보도)로 강변 진입. 잔디밭·자전거길·노을 명소로 로컬의 휴식처. 편의점에서 라면·맥주 사서 강 보며 쉬는 게 국룰. 해질녘 성산대교 노을이 절경이라 코스 마지막에 배치. 무료·24시간 개방이지만 화장실·편의점 위치만 미리 확인.",
+        "en": "A 10–12 min walk riverward from the market; enter via the pedestrian underpass. Lawns, a bike path, and a top sunset spot — the locals' chill zone. The done thing: grab instant ramen and a beer from the convenience store and watch the river. Sunset over Seongsan Bridge is stunning, so save this for last. Free and open 24h; just note where the restrooms and shops are.",
+        "ja": "市場から漢江方向へ徒歩10〜12分、地下歩道で河川敷へ。芝生・サイクリングロード・夕日スポットがあるローカルの憩い場。コンビニでインスタントラーメンとビールを買い川を眺めるのが定番。城山大橋越しの夕日が絶景なので最後に。無料・24時間開放、トイレと売店の位置だけ確認を。",
+        "zh": "从市场往汉江方向步行10–12分钟，经地下通道进入河滨。草坪、自行车道与绝佳日落点，是在地人的放松地。标准玩法：便利店买泡面加啤酒看江景。城山大桥的日落极美，建议安排在最后。免费、24小时开放；先确认洗手间与商店位置即可。"
+      },
+      "local_tag": "han_river_sunset | local_chill"
+    },
+    {
+      "order": 6, "category": "food", "name": "", "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "망원동 저녁", "stay_min": 60, "placeholder": "verified_dinner", "start_time_offset_min": 330
+    }
+  ],
+  "transit_matrix": {}
+}
