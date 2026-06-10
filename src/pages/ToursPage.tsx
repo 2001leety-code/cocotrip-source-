@@ -204,7 +204,7 @@ export default function ToursPage() {
           -webkit-text-fill-color: transparent;
           animation: shimmer 3s linear infinite;
         }
-        .tour-chip { transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .tour-chip { transition: all 0.22s cubic-bezier(0.2, 0, 0.2, 1); }
         .tour-chip:active { transform: scale(0.93); }
         .hotel-card-hover { transition: border-color 0.22s ease, box-shadow 0.22s ease; }
         .hotel-card-hover:hover {

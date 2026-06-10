@@ -114,7 +114,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
         @keyframes hero-orb-2 { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; } 50% { transform: translate(-10px, 8px) scale(1.08); opacity: 0.6; } }
         @keyframes hero-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .m-btn { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .m-btn { transition: all 0.3s cubic-bezier(0.2, 0, 0.2, 1); }
         .m-btn:active { transform: scale(0.93); }
         .m-shimmer { background: linear-gradient(90deg, #B668FC 0%, #FF6B9D 40%, #B668FC 80%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; }
         .m-hero-fade { animation: hero-fade 0.5s ease-out forwards; opacity: 0; }
