@@ -55,15 +55,10 @@
     <!-- 2026-05-04: PayPal SDK preconnect 제거. PR #216 이후 결제 흐름은 Braintree
          drop-in 으로 일원화됨 (api/braintreeCheckout.js). PayPal SDK 직접 로드 없음. -->
 
-    <!-- Travelpayouts affiliate tracking -->
-    <script>
-      (function () {
-          var script = document.createElement("script");
-          script.async = 1;
-          script.src = 'https://emrldtp.cc/NTE2OTY3.js?t=516967';
-          document.head.appendChild(script);
-      })();
-    </script>
+    <!-- Travelpayouts 제휴 리타겟팅 스크립트 제거 (2026-06-11):
+         "최근 검색한 여행" 팝업이 Klook 등 경쟁사 "Book now" 광고를 자기 사이트에 노출 →
+         우리 투어 사러 온 손님을 경쟁사로 보내 전환 손해. 제휴 수수료(푼돈) < 이탈 손실 → 제거.
+         복원하려면 emrldtp.cc/NTE2OTY3.js 스크립트 재삽입. -->
 
     <!-- Schema.org JSON-LD: TravelAgency -->
     <script type="application/ld+json">
