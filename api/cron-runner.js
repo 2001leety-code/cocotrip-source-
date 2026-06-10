@@ -30,6 +30,7 @@ import scanRedditPainpoints from './_crons/scan-reddit-painpoints.js';
 import scanVisitkoreaAttractions from './_crons/scan-visitkorea-attractions.js';
 // P130 (2026-05-21) — weekly intent classifier 모니터링.
 import intentClassifierSummary from './_crons/intent-classifier-summary.js';
+import morningBriefing from './_crons/morning-briefing.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -54,6 +55,8 @@ const JOBS = {
   'scan-visitkorea-attractions': scanVisitkoreaAttractions,
   // P130 (2026-05-21) — weekly intent classifier 모니터링.
   'intent-classifier-summary':   intentClassifierSummary,
+  // 2026-06-10 자가운영 에이전시 P1 — 매일 아침 운영자 텔레그램 브리핑 (AI 0, Firestore 집계).
+  'morning-briefing':            morningBriefing,
 };
 
 const CORS = {
