@@ -16,8 +16,9 @@ import { initAdminDb } from '../_shared/firebase-admin.js';
 import { notifyOperatorLong } from '../_shared/operator-alerts.js';
 import { enqueueDecision } from '../_shared/decisionQueue.js';
 import { kstYesterdayWindow } from '../_shared/morningBriefingAggregate.js';
-import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, checkTransitService } from '../_shared/opsWatchdogChecks.js';
+import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, checkTransitService, checkServiceRenewals } from '../_shared/opsWatchdogChecks.js';
 import { TRANSIT_SERVICES, CALLS_PER_PLAN, activeServiceKey } from '../_shared/transitServiceConfig.js';
+import { SERVICE_REGISTRY } from '../_shared/serviceRegistry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -36,6 +37,7 @@ function cardFor(f, dateLabel) {
   if (f.kind === 'error-surge') return { type: 'error-surge', title: `에러 폭증 — ${esc(f.key)}`, summary: esc(f.msg), dedupeKey: `error-surge-${f.key}-${dateLabel}` };
   if (f.kind === 'transit-expiry') return { type: 'transit', title: '🚦 교통 서비스 만료 임박', summary: esc(f.msg), dedupeKey: `transit-expiry-${f.severity}` };       // severity별 1회(만료까지 지속)
   if (f.kind === 'transit-quota') return { type: 'transit', title: '🚦 교통 API 한도 임박', summary: esc(f.msg), dedupeKey: `transit-quota-${dateLabel}` };               // 일별
+  if (f.kind === 'service-renewal') return { type: 'service', title: `🔐 서비스 갱신 — ${esc(f.service)}`, summary: esc(f.msg), dedupeKey: f.undated ? `service-undated-${f.service}` : `service-renewal-${f.service}-${f.severity}` };
   return { type: 'ops', title: esc(f.msg || '점검 필요'), summary: esc(f.msg || ''), dedupeKey: `ops-${f.kind}-${dateLabel}` };
 }
 
@@ -75,8 +77,9 @@ async function opsWatchdogTask() {
   const errs = checkErrorSurge(docs(er, '오류'), {});
   const plansYesterday = pc.status === 'fulfilled' ? pc.value.size : 0;
   const transit = checkTransitService(TRANSIT_SERVICES, { nowMs: now.getTime(), activeKey: activeServiceKey(), plansYesterday, callsPerPlan: CALLS_PER_PLAN });
+  const renewals = checkServiceRenewals(SERVICE_REGISTRY, { nowMs: now.getTime() }); // 🔐 자격증명/서비스 수명(날짜 기반, Firestore 무관)
 
-  const findings = [...pay.findings, ...stuck.findings, ...errs.findings, ...transit.findings];
+  const findings = [...pay.findings, ...stuck.findings, ...errs.findings, ...transit.findings, ...renewals.findings];
 
   // 결정큐 카드 (멱등). 발견만 — 수정/환불 자동 X.
   let enq = 0;

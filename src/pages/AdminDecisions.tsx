@@ -24,6 +24,7 @@ const TYPE_LABEL: Record<string, string> = {
   'plan-stuck': '🚨 plan 미생성',
   'error-surge': '🛠️ 에러 폭증',
   transit: '🚦 교통 서비스',
+  service: '🔐 서비스 갱신',
   ops: '🛠️ 운영',
   general: '📥 일반',
 };

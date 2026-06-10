@@ -4,7 +4,7 @@ import { join } from 'path';
 // @ts-expect-error — ESM .js
 import { resolveKrwAmount } from '../../api/_shared/resolve-line-item.js';
 // @ts-expect-error — ESM .js
-import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, priceAuditKind, checkTransitService } from '../../api/_shared/opsWatchdogChecks.js';
+import { checkPaymentInvariants, checkStuckStreamingPlans, checkErrorSurge, priceAuditKind, checkTransitService, checkServiceRenewals } from '../../api/_shared/opsWatchdogChecks.js';
 // @ts-expect-error — ESM .js
 import { TRANSIT_SERVICES } from '../../api/_shared/transitServiceConfig.js';
 
@@ -114,5 +114,29 @@ describe('checkTransitService — 만료·한도 감시 (매끄러운 전환)', 
   });
   it('알 수 없는 provider → findings 0', () => {
     expect(checkTransitService(SVC, { activeKey: 'bogus' }).findings).toHaveLength(0);
+  });
+});
+
+describe('checkServiceRenewals — 자격증명/서비스 수명 감시', () => {
+  const NOW = Date.parse('2026-06-10T00:00:00+09:00');
+  it('만료일 미기록 → "기록 필요" warning(undated)', () => {
+    const r = checkServiceRenewals([{ key: 'domain', label: '도메인', kind: 'expiry', expiryDate: null }], { nowMs: NOW });
+    expect(r.findings[0].undated).toBe(true);
+    expect(r.findings[0].severity).toBe('warning');
+  });
+  it('rotation 7일 이내 도래 → critical', () => {
+    // lastRotated 2026-03-12 + 90일 = 2026-06-10 → daysLeft 0
+    const r = checkServiceRenewals([{ key: 'paypal_secret', label: 'PayPal', kind: 'rotation', rotationDays: 90, lastRotated: '2026-03-13' }], { nowMs: NOW });
+    expect(r.findings[0].severity).toBe('critical');
+  });
+  it('rotation 30일 이내 → warning, 한참 남으면 없음', () => {
+    expect(checkServiceRenewals([{ key: 'k', label: 'K', kind: 'rotation', rotationDays: 365, lastRotated: '2025-07-01' }], { nowMs: NOW }).findings[0].severity).toBe('warning'); // 2026-07-01 도래 = 21일
+    expect(checkServiceRenewals([{ key: 'k', label: 'K', kind: 'rotation', rotationDays: 365, lastRotated: '2026-04-01' }], { nowMs: NOW }).findings).toHaveLength(0); // 2027-04-01 도래
+  });
+  it('expiry 만료일 기반 + info kind 제외 + 빈 입력', () => {
+    expect(checkServiceRenewals([{ key: 'd', label: 'D', kind: 'expiry', expiryDate: '2026-06-15' }], { nowMs: NOW }).findings[0].severity).toBe('critical'); // 5일 후
+    expect(checkServiceRenewals([{ key: 'i', label: 'I', kind: 'info' }], { nowMs: NOW }).findings).toHaveLength(0);
+    expect(checkServiceRenewals([], { nowMs: NOW }).findings).toHaveLength(0);
+    expect(checkServiceRenewals(undefined, { nowMs: NOW }).findings).toHaveLength(0);
   });
 });
