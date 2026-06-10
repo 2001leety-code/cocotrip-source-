@@ -552,10 +552,10 @@ const TOURS_RAW: Tour[] = [
     images: [
       '/J7FqPa_서울 밤도깨비 야시장(1).webp',
       '/1uA0qa_반포대교(1).webp',
-      '/Type1_반포대교_한국관광공사 이범수_1uA0qa(1).jpg',
+      '/서울/서울 (2).jpg',
       '/서울/서울 (14).jpg',
       '/서울/서울 (15).jpg',
-      '/서울/서울 (18).jpg',
+      '/서울/해방촌-남산야경.jpg',
       '/Type1_광장시장_한국관광공사 이범수_84cpaa(1).jpg',
     ],
     tags: ['Popular', 'Night Tour'],
