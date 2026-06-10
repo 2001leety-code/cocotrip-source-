@@ -33,6 +33,7 @@ import intentClassifierSummary from './_crons/intent-classifier-summary.js';
 import morningBriefing from './_crons/morning-briefing.js';
 import reviewRequest from './_crons/review-request.js';
 import contentDraft from './_crons/content-draft.js';
+import opsWatchdog from './_crons/ops-watchdog.js';
 import { verifyCronRequest } from './_shared/cron-auth.js';
 
 export const maxDuration = 60;
@@ -63,6 +64,8 @@ const JOBS = {
   'review-request':              reviewRequest,
   // 2026-06-10 자가운영 에이전시 P3 — 마케팅 콘텐츠 직원 (🔒 CONTENT_WORKER_ENABLED 플래그 OFF=비활성, draft만).
   'content-draft':               contentDraft,
+  // 2026-06-10 자가운영 에이전시 P2심화 — 수정팀(운영 감시원). 어제 데이터 재검산→의사결정 큐 (🔒 OPS_WATCHDOG_ENABLED OFF, 발견만/수정 X).
+  'ops-watchdog':                opsWatchdog,
 };
 
 const CORS = {
