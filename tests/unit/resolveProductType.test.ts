@@ -202,3 +202,42 @@ describe('resolveProductType — 도시간 transfer (VITE_FEATURE_TRANSFER_CHECK
     expect(r.payable).toBe(false);
   });
 });
+
+// 2026-06-10 오과금 버그 회귀 가드 — 호출처가 discountV2 를 calc 에 전달하는지 검증.
+//   버그: resolveProductType/영수증/useQuoteCalculator 가 VITE_FEATURE_DISCOUNT_V2 를 안 읽어
+//   표시=10% 인데 백엔드 청구=5% → +5.56% 오과금. 기존 parity 테스트(함수끼리)는 호출처 누락을 못 잡음.
+describe('resolveProductType — FEATURE_DISCOUNT_V2 호출처 parity (표시==청구 P311)', () => {
+  it('멀티데이 v2 ON: priceKRW = 5% 할인 = 백엔드 청구가 (버그면 10%라 실패)', () => {
+    vi.stubEnv('VITE_FEATURE_MULTIDAY_CHECKOUT', 'true');
+    vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    const q5 = calcMultiDayQuote({ vehicle: 'staria', km, durationDays: 3 }, { discountV2: true })!;
+    expect(q5.discountPct).toBe(5);
+    const r = resolveProductType(multidayState());
+    expect(r.priceKRW).toBe(q5.total);
+    expect(r.priceKRW).toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3, discountPct: 5 }));
+  });
+
+  it('멀티데이 v2 OFF(기본): 10% 유지 (무영향)', () => {
+    vi.stubEnv('VITE_FEATURE_MULTIDAY_CHECKOUT', 'true');
+    const km = lookupMatrixKm(SPEC, 'ICN', 'BUSAN')!;
+    expect(resolveProductType(multidayState()).priceKRW)
+      .toBe(beMultiday(SPEC, { vehicle: 'staria', km, durationDays: 3 }));
+  });
+
+  it('왕복 transfer v2 ON: priceKRW = 5% = 백엔드 청구가 (버그면 10%라 실패)', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
+    const curatedKRW = beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!;
+    const r = resolveProductType(base({ service: 'transfer', origin: 'SEL_METRO', destinationKey: 'BUSAN', tripType: 'roundtrip' }));
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'roundtrip', vehicle: 'staria' }, { discountV2: true })!.total);
+  });
+
+  it('편도 transfer v2 ON: 5% 유지 (편도는 v2 무관, 무영향)', () => {
+    vi.stubEnv('VITE_FEATURE_TRANSFER_CHECKOUT', 'true');
+    vi.stubEnv('VITE_FEATURE_DISCOUNT_V2', 'true');
+    const curatedKRW = beCuratedStaria(SPEC, 'SEL_METRO', 'BUSAN')!;
+    const r = resolveProductType(base({ service: 'transfer', origin: 'SEL_METRO', destinationKey: 'BUSAN', tripType: 'oneway' }));
+    expect(r.priceKRW).toBe(beTransferQuote({ curatedKRW, tripType: 'oneway', vehicle: 'staria' }, { discountV2: true })!.total);
+  });
+});

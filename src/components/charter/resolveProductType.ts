@@ -4,6 +4,7 @@ import { AIRPORT_TRANSFER_PRICES, DAILY_TOUR_PRICES, KPOP_SHUTTLE } from '@/data
 import { calcMultiDayCharterKrw, lookupMatrixKm } from '@/lib/multidayQuote';
 import { calcTourQuote } from '@/lib/tourQuote';
 import { calcTransferQuote, curatedStariaKRW } from '@/lib/transferQuote';
+import { discountV2Enabled } from '@/lib/discountFlags';
 import { normalizeDestinationToMatrixKey } from './destinationKeyMap';
 import type { WizardState } from './types';
 
@@ -138,7 +139,7 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
       const curatedKRW = originKey && destKey ? curatedStariaKRW(originKey, destKey) : null;
       if (curatedKRW != null) {
         const tripType: 'oneway' | 'roundtrip' = state.tripType === 'roundtrip' ? 'roundtrip' : 'oneway';
-        const q = calcTransferQuote({ curatedKRW, tripType, vehicle });
+        const q = calcTransferQuote({ curatedKRW, tripType, vehicle }, { discountV2: discountV2Enabled() });
         if (q) {
           return { productType: 'charter_transfer', priceKRW: q.total, passengers: pax, payable: true, originKey, destKey, tripType };
         }
@@ -158,7 +159,7 @@ export function resolveProductType(state: WizardState): ResolvedPayment {
       : 1;
     const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
     if (km != null && km > 0 && durationDays >= 2) {
-      const price = calcMultiDayCharterKrw({ vehicle, km, durationDays });
+      const price = calcMultiDayCharterKrw({ vehicle, km, durationDays }, { discountV2: discountV2Enabled() });
       if (price != null) {
         return {
           productType: 'charter_multiday', priceKRW: price, passengers: pax, payable: true,
