@@ -1,3 +1,4 @@
+// 2026-06-11: 장바구니+sandbox e2e preview 배포 트리거 (운영자 sandbox 결제 검증용 — 이 브랜치는 머지 안 함).
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
