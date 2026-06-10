@@ -114,8 +114,21 @@ function HomePage() {
     ogImage: '/hero-seoul-real.webp',
   });
 
+  // 모바일 v2 홈 (2026-06-10): 플래그 OFF 기본 = 기존 MobileHome 그대로 (prod 무변).
+  // 활성: Vercel env VITE_FEATURE_MOBILE_V2=true, 또는 ?v2 쿼리(검증용).
+  // v2 는 자체 헤더(로고+언어 전환)를 가지므로 전역 Header 없이 렌더.
+  const MOBILE_V2 = import.meta.env.VITE_FEATURE_MOBILE_V2 === 'true'
+    || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('v2'));
+
   // 모바일: 앱 스타일 홈
   if (isMobile) {
+    if (MOBILE_V2) {
+      return (
+        <Suspense fallback={<div className="min-h-screen" style={{ background: '#0a0b14' }} aria-hidden />}>
+          <MobileHomeV2 />
+        </Suspense>
+      );
+    }
     return (
       <div className="min-h-screen bg-[#0a0b14]">
         <Header language={language} t={t} onLanguageChange={changeLanguage} />

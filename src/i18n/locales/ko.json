@@ -1280,6 +1280,21 @@
     "trustLicense": "관광 등록\n사업자",
     "brandSlogan": "Premium Korea Travel — cocotripkr.com"
   },
+  "mobileHomeV2": {
+    "tagline": "한국, 어디로 떠날까요?",
+    "headline1": "딱 맞는 한국 여행,",
+    "headline2": "제가 짜드릴게요",
+    "cta": "플랜 만들기",
+    "catPlanner": "AI 플래너",
+    "catTours": "투어",
+    "catCharter": "차터",
+    "catAirport": "공항픽업",
+    "catKpop": "K-pop",
+    "exploreTitle": "한국 둘러보기",
+    "seeAll": "전체보기",
+    "toursTitle": "인기 투어",
+    "from": "최저"
+  },
   "pwaInstall": {
     "modalTitle": "코코트립 바로가기 추가",
     "modalDesc": "홈 화면에 바로가기를 추가하면 앱처럼 빠르게 접속할 수 있습니다.",
