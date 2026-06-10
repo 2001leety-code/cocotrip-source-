@@ -1,0 +1,120 @@
+{
+  "id": "BUSAN_DAY_CHORYANG_LOCAL_STANDARD",
+  "city": "busan",
+  "zone": "Choryang Ibagu-gil",
+  "theme": "초량 이바구길 산복도로 & 차이나타운",
+  "theme_i18n": {
+    "ko": "초량 이바구길 — 부산역 뒤 피란 산복도로 골목과 다국적 거리",
+    "en": "Choryang Ibagu-gil — refugee hillside alleys and multicultural streets behind Busan Station",
+    "ja": "草梁イバグギル — 釜山駅裏の避難民の丘の路地と多国籍ストリート",
+    "zh": "草梁故事路 — 釜山站后的避难山坡巷弄与多国文化街"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Culture", "Photo", "Local", "History", "Solo", "Couple"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "부산 차이나타운 상해거리",
+      "name_i18n": { "ko": "부산 차이나타운 상해거리 (상해문)", "en": "Busan Chinatown Shanghai Street (Shanghai Gate)", "ja": "釜山チャイナタウン 上海通り(上海門)", "zh": "釜山中华街 上海街(上海门)" },
+      "address": "부산광역시 동구 중앙대로 206",
+      "stay_min": 35,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1155,
+      "lng": 129.0405,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "부산역 광장 길 건너 붉은 패루(상해문)가 입구. 평지라 휠체어·캐리어도 OK. 한국전쟁 후 외국인 거리 '텍사스촌'과 청나라 화교 거리가 한 골목에 겹쳐 있어 간판 구경이 핵심 포토. 오전엔 한산해 사진 찍기 좋다.",
+        "en": "The red paifang (Shanghai Gate) directly across from Busan Station plaza is the entrance. Flat and stroller/luggage-friendly. A single alley layers the post-Korean-War foreigner 'Texas Town' with the old Qing-era Chinese diaspora street — the mismatched signage is the photo. Quiet and shootable in the morning.",
+        "ja": "釜山駅広場の道路を渡った赤い牌楼(上海門)が入口。平地でベビーカー・スーツケースもOK。朝鮮戦争後の外国人街「テキサス村」と華僑の街が一本の路地に重なり、看板の風景が撮影の見どころ。午前中は空いていて撮りやすい。",
+        "zh": "釜山站广场对面的红色牌楼(上海门)即入口。地势平坦，推车和行李箱皆可通行。朝鲜战争后的外国人街'德州村'与清代华侨街重叠于同一巷弄，错落的招牌正是拍照亮点。上午人少，适合拍摄。"
+      },
+      "local_tag": "chinatown | texas_town | multicultural_alley"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "초량 차이나타운 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 40
+    },
+    {
+      "order": 3,
+      "category": "photo",
+      "name": "옛 백제병원",
+      "name_i18n": { "ko": "옛 백제병원 (브라운핸즈 백제)", "en": "Old Baekje Hospital (Brown Hands Baekje)", "ja": "旧百済病院(ブラウンハンズ百済)", "zh": "旧百济医院(Brown Hands 百济)" },
+      "address": "부산광역시 동구 중앙대로209번길 16",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1162,
+      "lng": 129.0415,
+      "start_time_offset_min": 130,
+      "tips_i18n": {
+        "ko": "1922년 부산 최초 근대식 종합병원 건물(등록문화재 제647호)이 카페로 재생. 병원→중국요리점→카페로 이어진 100년 레이어가 벽돌·철계단에 남아 있다. 차이나타운에서 150m, 평지. 빈티지 실내 포토스팟이라 비 오는 날 대피처로도 좋다.",
+        "en": "Busan's first modern general hospital (1922, Registered Cultural Heritage No. 647) reborn as a cafe. A century of layers — hospital, then Chinese restaurant, then cafe — survives in the brick and iron staircase. 150m from Chinatown, flat. A vintage indoor photo spot and a good rain shelter.",
+        "ja": "1922年、釜山初の近代総合病院(登録文化財第647号)がカフェに再生。病院→中華料理店→カフェへと続く100年の層がレンガと鉄階段に残る。チャイナタウンから150m、平地。ヴィンテージな室内撮影スポットで雨宿りにも最適。",
+        "zh": "1922年釜山首座近代综合医院建筑(登录文化财第647号)改造为咖啡馆。医院→中餐馆→咖啡馆的百年层次保留在红砖与铁楼梯上。距中华街150米，平地。复古室内拍照点，雨天也是避雨好去处。"
+      },
+      "local_tag": "adaptive_reuse_heritage | 1922_hospital | vintage_cafe"
+    },
+    {
+      "order": 4,
+      "category": "photo",
+      "name": "168계단 & 김민부 전망대",
+      "name_i18n": { "ko": "168계단 & 김민부 전망대", "en": "168 Stairs & Kim Min-bu Observatory", "ja": "168階段&キム・ミンブ展望台", "zh": "168阶梯&金敏夫观景台" },
+      "address": "부산광역시 동구 영초길191번길 8-1",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1175,
+      "lng": 129.042,
+      "start_time_offset_min": 175,
+      "tips_i18n": {
+        "ko": "경사 45도, 168칸 가파른 계단이 산복도로 윗동네와 아랫동네를 잇는 길. 체력 약하면 옆 경사형 엘리베이터 '초량168하늘길'(2025년 신설, 06:00~23:00 운영)을 이용하세요 — 다리 아픈 어르신·아이도 OK. 계단 중턱 김민부 전망대에서 북항·부산항대교가 한눈에. 부산 산복도로의 진짜 포토 1번지.",
+        "en": "A 45-degree, 168-step climb linking the upper and lower hillside neighborhoods. If short on energy, use the inclined elevator beside it, 'Choryang 168 Sky-gil' (opened 2025, runs 06:00–23:00) — fine for elders and kids. Halfway up, Kim Min-bu Observatory frames North Port and Busan Harbor Bridge. The definitive sanbok-doro photo spot.",
+        "ja": "傾斜45度、168段の急な階段が丘の上町と下町を結ぶ道。体力に自信がなければ隣の斜行エレベーター「草梁168ハヌルギル」(2025年新設、06:00~23:00運行)を(高齢者・子どもも安心)。階段中腹のキム・ミンブ展望台から北港と釜山港大橋が一望。釜山の丘の道を象徴する撮影スポット。",
+        "zh": "45度陡坡、168级台阶连接山坡上下村落。体力不足可乘旁边的斜行电梯'草梁168天路'(2025年新设，06:00~23:00运行)，老人小孩皆宜。台阶半途的金敏夫观景台可俯瞰北港与釜山港大桥。山坡路最具代表性的拍照地。"
+      },
+      "local_tag": "steep_stairs_viewpoint | inclined_elevator | harbor_view"
+    },
+    {
+      "order": 5,
+      "category": "culture",
+      "name": "유치환의 우체통",
+      "name_i18n": { "ko": "유치환의 우체통 (옥상 전망대)", "en": "Yu Chi-hwan's Mailbox (Rooftop Viewpoint)", "ja": "柳致環の郵便ポスト(屋上展望台)", "zh": "柳致环邮筒(屋顶观景台)" },
+      "address": "부산광역시 동구 망양로580번길 2",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.118,
+      "lng": 129.0418,
+      "start_time_offset_min": 225,
+      "tips_i18n": {
+        "ko": "168계단을 다 오르면 닿는 옥상 전망대. 시인 유치환을 기린 빨간 '느린 우체통'에 엽서를 넣으면 1년 뒤 집 주소로 배달됩니다 — 여행 기념 강추. 망양로 산복도로에서 부산항이 가장 시원하게 트이는 마무리 뷰. 운영 10:00~19:00, 월요일 휴무라 방문 요일 확인.",
+        "en": "The rooftop viewpoint at the top of the 168 stairs. Drop a postcard in the red 'slow mailbox' honoring poet Yu Chi-hwan and it's delivered to your home a year later — a great keepsake. The most open Busan Port panorama on the Mangyang-ro hillside. Open 10:00–19:00, closed Mondays, so check the day.",
+        "ja": "168階段を上りきった先の屋上展望台。詩人・柳致環を称える赤い「遅い郵便ポスト」に葉書を入れると1年後に自宅へ届く — 旅の記念に最適。望洋路の丘の道で釜山港が最も開ける眺め。営業10:00~19:00、月曜休なので曜日確認を。",
+        "zh": "登完168阶梯即达的屋顶观景台。在纪念诗人柳致环的红色'慢邮筒'投入明信片，一年后会寄到你家 — 绝佳旅行纪念。望洋路山坡线上釜山港视野最开阔。营业10:00~19:00，周一休，请确认日期。"
+      },
+      "local_tag": "slow_mailbox_rooftop | poet_yu_chihwan | harbor_panorama"
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "초량 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 320
+    }
+  ],
+  "transit_matrix": {}
+}

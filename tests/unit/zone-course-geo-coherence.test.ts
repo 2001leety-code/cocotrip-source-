@@ -36,8 +36,11 @@ describe('zone_course 지리 정합 (block_mode zigzag 차단)', () => {
     expect(names).not.toContain('봉은사');
   });
 
-  // 2026-06-10: 히든젬 블록(서촌·연남) 신규 — 지오밀집 + 식이 SAFETY(dietary_options) + i18n 잠금.
-  for (const f of ['seoul_seochon_local_standard', 'seoul_yeonnam_local_standard']) {
+  // 2026-06-10: 히든젬 블록(서울 2 + 부산 3) 신규 — 지오밀집 + 식이 SAFETY(dietary_options) + i18n 잠금.
+  for (const f of [
+    'seoul_seochon_local_standard', 'seoul_yeonnam_local_standard',
+    'busan_yeongdo_local_standard', 'busan_jeonpo_local_standard', 'busan_choryang_local_standard',
+  ]) {
     it(`${f} = 초밀집 히든젬 (<3km, 비인접 zone 혼합 금지)`, () => {
       const j = load(f);
       const m = computeDayRouteMetrics(koreaStops(j));
