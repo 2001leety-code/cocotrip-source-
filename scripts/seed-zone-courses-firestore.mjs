@@ -71,6 +71,10 @@ function parseArgs(args) {
     else if (args[i] === '--cities' && args[i + 1]) {
       opts.cities = args[++i].split(',').map((c) => c.trim().toLowerCase());
     }
+    // --file <name.json>: 단일 블록 파일만 재시드 (도시 전체 덮어쓰기 회피 — 어드민 편집 보호).
+    else if (args[i] === '--file' && args[i + 1]) {
+      opts.file = args[++i];
+    }
   }
   return opts;
 }
@@ -343,11 +347,13 @@ async function main() {
     console.log(`[seed] --all-cities 모드 — 감지된 도시 prefix: ${opts.cities.join(', ')}`);
   }
 
-  // 대상 도시 필터
-  const targetFiles = allFiles.filter((f) => {
-    const city = opts.cities.find((c) => f.startsWith(c + '_'));
-    return !!city;
-  });
+  // 대상 도시 필터 (--file 단일 파일 우선 — 단일 블록만 안전 재시드, 어드민 편집 보호)
+  const targetFiles = opts.file
+    ? allFiles.filter((f) => f === opts.file)
+    : allFiles.filter((f) => {
+        const city = opts.cities.find((c) => f.startsWith(c + '_'));
+        return !!city;
+      });
 
   console.log(
     `[seed] 대상 도시: ${opts.cities.join(', ')} → ${targetFiles.length}개 파일`
