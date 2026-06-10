@@ -133,3 +133,31 @@ export function checkTransitService(services, opts = {}) {
   }
   return { findings };
 }
+
+/**
+ * ⑤ 🔐 서비스/자격증명 수명 감시 — 만료·rotation 갱신 N일 전 미리 알림(조용히 터지는 것 방지). 운영자 받적(2026-06-10).
+ * @param {Array} registry - serviceRegistry.SERVICE_REGISTRY
+ * @param {{nowMs?:number, warnDays?:number, critDays?:number}} opts
+ */
+export function checkServiceRenewals(registry = [], opts = {}) {
+  const nowMs = opts.nowMs != null ? opts.nowMs : Date.now();
+  const warnDays = opts.warnDays != null ? opts.warnDays : 30;
+  const critDays = opts.critDays != null ? opts.critDays : 7;
+  const findings = [];
+  for (const s of (Array.isArray(registry) ? registry : [])) {
+    if (!s || !s.key || s.kind === 'info') continue;
+    const dateStr = s.kind === 'rotation' ? s.lastRotated : s.expiryDate;
+    if (!dateStr) {
+      // 날짜 미기록 → 1회 안내(운영자가 날짜 채우면 자동 감시 시작). 멱등 dedupe 로 1회만.
+      findings.push({ severity: 'warning', kind: 'service-renewal', service: s.key, undated: true, msg: `${s.label} ${s.kind === 'rotation' ? '마지막 갱신일' : '만료일'} 미기록 — 날짜 기록하면 자동 알림. ${s.note || ''}`.trim() });
+      continue;
+    }
+    const base = Date.parse(`${dateStr}T00:00:00+09:00`);
+    if (!Number.isFinite(base)) continue;
+    const dueMs = s.kind === 'rotation' ? base + (s.rotationDays || 365) * 86_400_000 : base;
+    const daysLeft = Math.floor((dueMs - nowMs) / 86_400_000);
+    if (daysLeft <= critDays) findings.push({ severity: 'critical', kind: 'service-renewal', service: s.key, daysLeft, msg: `${s.label} ${daysLeft <= 0 ? '갱신/만료 경과 — 즉시 조치' : daysLeft + '일 후 갱신/만료'} — ${s.note || ''}`.trim() });
+    else if (daysLeft <= warnDays) findings.push({ severity: 'warning', kind: 'service-renewal', service: s.key, daysLeft, msg: `${s.label} ${daysLeft}일 후 갱신/만료 — ${s.note || ''}`.trim() });
+  }
+  return { findings };
+}
