@@ -1133,6 +1133,13 @@ export async function generatePDF(
     <p style="font-size:9px;color:#bbb;margin:4px 0 0;">\u00A9 CocoTrip \u00B7 Korea Private Tour Specialist</p>
   </div>`;
 
+  // 2026-06-10 end-sentinel: \uBB38\uC11C \uB9E8 \uB05D \uC5B4\uB450\uC6B4 \uBC14. \uCEA1\uCC98 \uD6C4 canvas \uD558\uB2E8 \uC2A4\uCE94\uC73C\uB85C \uC2E4\uC7AC \uD655\uC778 \u2014
+  // pagebreak \uC778\uD50C\uB808\uC774\uC158\uC73C\uB85C \uAF2C\uB9AC(Day \uD6C4\uBC18/\uC608\uC0B0/\uC2DD\uB2F9/\uCD9C\uAD6D)\uAC00 \uD074\uB9AC\uD551\uB418\uBA74 \uC774 \uBC14\uAC00 canvas \uC5D0
+  // \uC5C6\uC74C -> \uBD88\uC644\uC804 PDF \uB2E4\uC6B4\uB85C\uB4DC\uB97C \uACB0\uC815\uC801\uC73C\uB85C \uCC28\uB2E8 (pdfGenerator end-sentinel check \uCC38\uC870).
+  html += `<div class="pdf-end-sentinel" style="padding:10px 0 2px;display:flex;justify-content:center;">
+    <div style="width:260px;height:6px;background:#444;border-radius:3px;"></div>
+  </div>`;
+
   container.innerHTML = html;
 
   // 2026-05-12 (PDF P0 root cause fix): DOM settle + selector match validation.
@@ -1512,31 +1519,41 @@ export async function generatePDF(
     // 약화: safety margin +200 만 추가. measuredHeight 가 이미 정상이면 그대로 사용.
     // (PR #353 의 buildPrompt min stops + PR #355 의 RouteAgent TDZ fix 적용으로
     //  measuredHeight 가 7500-8500 정상 범위 회복됨 → 강제 10000 불필요.)
-    const forcedWindowHeight = measuredHeight + 200;
-    console.log('[PDF] html2pdf windowHeight forced:', forcedWindowHeight, '(measuredHeight:', measuredHeight, ')');
+    // 2026-06-10 (5일 plan 꼬리 잘림 fix): html2pdf 는 pagebreak(before/avoid) 여백을 클론에
+    // "삽입한 뒤" html2canvas 를 돌린다 -> 캡처 시점 실제 높이가 measuredHeight 보다 커짐
+    // (5일 실측 +2400px). 기존 height:measuredHeight 강제가 그 인플레이션만큼 canvas 바닥을
+    // 클리핑 -> Day 후반/예산표/추천식당/출국가이드 소실(B9-34 day-break 도입 후 잠재).
+    // fix: height 강제 제거 = html2canvas 가 인플레이션 반영된 클론 scrollHeight 사용.
+    // windowHeight 는 viewport 힌트 용도만(미지정 시 일부 환경 0 — 2026-05-12 rev3) ->
+    // 인플레이션 상한(x1.5+800)으로 여유. 꼬리 누락은 아래 end-sentinel 검사가 fail-closed 차단.
+    const forcedWindowHeight = Math.ceil(measuredHeight * 1.5) + 800;
+    // html2canvas 옵션 — 1차(placeholder 높이)와 2차(클론 실높이) set 에서 공유.
+    // height 를 measuredHeight 로 두면 pagebreak 인플레이션만큼 바닥 클리핑(꼬리 소실),
+    // 아예 빼면 일부 환경에서 canvas h=0 (2026-05-12 + 2026-06-10 로컬 재확인) —
+    // 그래서 toContainer() 후 "pagebreak 적용된 클론의 실높이" 를 측정해 2차 set 으로 주입.
+    const html2canvasBase = {
+      scale: pdfScale,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      // 2026-05-09 (B9-30) 한글 깨짐 방지 강화:
+      // - letterRendering: true → 글자별 렌더링 (느리지만 폭/메트릭 정확)
+      // - foreignObjectRendering: false → SVG-foreignObject 비활성 (Safari iOS 깨짐 보고)
+      // - allowTaint: false → 취약한 이미지 차단 (CORS 우회 안전성)
+      letterRendering: true,
+      foreignObjectRendering: false,
+      allowTaint: false,
+      windowWidth: 800,
+      windowHeight: forcedWindowHeight,
+      width: 800,
+      scrollX: 0,
+      scrollY: 0,
+    };
     const worker = html2pdf().set({
       margin: [8, 8, 8, 8],
       filename,
       image: { type: 'jpeg', quality: 0.92 },
-      html2canvas: {
-        scale: pdfScale,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        // 2026-05-09 (B9-30) 한글 깨짐 방지 강화:
-        // - letterRendering: true → 글자별 렌더링 (느리지만 폭/메트릭 정확)
-        // - foreignObjectRendering: false → SVG-foreignObject 비활성 (Safari iOS 깨짐 보고)
-        // - allowTaint: false → 취약한 이미지 차단 (CORS 우회 안전성)
-        letterRendering: true,
-        foreignObjectRendering: false,
-        allowTaint: false,
-        windowWidth: 800,
-        windowHeight: forcedWindowHeight,
-        height: measuredHeight,
-        width: 800,
-        scrollX: 0,
-        scrollY: 0,
-      },
+      html2canvas: { ...html2canvasBase, height: measuredHeight },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
       // 2026-05-03 사용자 신고: PDF 페이지 사이 큰 빈 공간 (Day 2→Day 3 사이).
       // 원인: 'avoid-all' 모드가 ALL element에 page-break-inside:avoid를 강제로
@@ -1556,6 +1573,23 @@ export async function generatePDF(
         before: ['.pdf-day-break'],
       },
     } as Record<string, unknown>).from(container);
+
+    // 2026-06-10 (5일 plan 꼬리 잘림 fix): html2pdf 는 pagebreak(before/avoid) 여백을 클론에
+    // "삽입한 뒤" html2canvas 를 돌린다 → 캡처해야 할 실높이가 measuredHeight 보다 커짐
+    // (5일 실측 +2400px). 기존 height:measuredHeight 단일 set 은 그 인플레이션만큼 canvas
+    // 바닥을 클리핑 → Day 후반/예산표/추천식당 소실(B9-34 day-break 도입 후 잠재).
+    // fix = 2-pass: toContainer() 로 pagebreak 적용된 클론을 먼저 만들고 실높이를 측정,
+    // 그 값으로 height/windowHeight 를 재설정한 뒤 toCanvas(). 측정 실패 시 보수적 fallback.
+    await worker.toContainer();
+    let clonedH = 0;
+    try {
+      const clonedEl = (await worker.get('container')) as HTMLElement | undefined;
+      clonedH = clonedEl?.scrollHeight || 0;
+    } catch { /* fallback below */ }
+    const captureH = clonedH >= measuredHeight ? clonedH : forcedWindowHeight;
+    console.log('[PDF] capture height (pagebreak 인플레이션 반영):', captureH,
+      '(clonedH=', clonedH, ', measuredHeight=', measuredHeight, ')');
+    await worker.set({ html2canvas: { ...html2canvasBase, height: captureH, windowHeight: captureH + 200 } });
 
     // === 캔버스 픽셀 검사: blob 크기 가드만으론 못 잡음 (3KB 백지 PDF 발생 사례) ===
     // html2pdf 파이프라인을 toCanvas 단계에서 일시 중단해 canvas pixel 샘플링.
@@ -1658,6 +1692,34 @@ export async function generatePDF(
           'globalRate=', nonWhiteRate.toFixed(3), 'bands=',
           bandStats.map((s) => `${s.band}:${s.rate.toFixed(2)}`).join(','),
           '→ continuing (blob.size 가드 + 운영자 Sentry 알림으로 추후 회귀 회피)');
+      }
+
+      // 2026-06-10 end-sentinel 검사 (fail-closed): pagebreak 인플레이션 잘림은 위 휴리스틱
+      // (전역/밴드)으로 못 잡음 — 잘린 canvas 도 콘텐츠 비율은 정상이라서. 빌더 맨 끝
+      // .pdf-end-sentinel(중앙 260px 어두운 바)가 canvas 하단 25% 안에 실재하는지 결정적 확인.
+      // 없으면 = 꼬리(Day 후반/예산/식당/출국) 소실 — 불완전 PDF 다운로드 차단(데이터 손실급).
+      // (white-canvas 휴리스틱과 달리 결정적 마커라 false-positive 없음 -> fail-closed 안전.)
+      {
+        const scanRows = Math.floor(H * 0.4);
+        let sentinelDark = 0;
+        let foundDepth = -1;
+        for (let dy = 0; dy < scanRows && sentinelDark < 3; dy += 3) {
+          const y = H - 1 - dy;
+          for (const fx of [0.4, 0.45, 0.5, 0.55, 0.6]) {
+            const d = ctx.getImageData(Math.floor(W * fx), y, 1, 1).data;
+            if (d[0] < 120 && d[1] < 120 && d[2] < 120 && d[3] !== 0) {
+              sentinelDark++;
+              if (foundDepth < 0) foundDepth = dy;
+            }
+          }
+        }
+        if (sentinelDark < 3) {
+          console.error('[PDF] end-sentinel missing — tail truncated. canvasH=', H,
+            'measuredHeight=', measuredHeight, 'scale=', pdfScale);
+          offerWhatsapp('PDF was cut off at the end.');
+          return;
+        }
+        console.log('[PDF] end-sentinel OK — depth', foundDepth, 'px from bottom');
       }
     }
     // 캔버스 검증 통과 → PDF blob 생성
