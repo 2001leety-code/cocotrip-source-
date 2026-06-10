@@ -1,7 +1,6 @@
-// (shebang 제거 2026-06-02: vitest transform 이 #! 를 invalid token 으로 파싱 → design-audit.test.ts
-//  suite 로드 SyntaxError. node 직접 실행(`node scripts/design-audit.mjs`)이라 CLI 무영향. pre-existing #759.)
 /**
  * design-audit.mjs — impeccable detector wrapper, CocoTrip-tuned (2026-06-01).
+ * 실행: `node scripts/design-audit.mjs [url]` (shebang 제거 — vitest 가 순수함수 import 가능하게).
  *
  * `npx impeccable detect` 는 우리 브랜드(보라 그라데/글로우)와 측정 아티팩트(gradient-clip
  * 텍스트, backdrop-filter, 둥근모서리 클리핑)를 slop 으로 과다 보고한다. 이 래퍼는 2026-06-01
