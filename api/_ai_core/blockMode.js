@@ -814,6 +814,14 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     // stops expand
     const stops = [];
     const blockStops = Array.isArray(block.stops) ? block.stops : [];
+    // 2026-06-10: 식당 placeholder 근접 매칭 앵커. matchFoodPlaceholder 의 근접 가중(score=
+    //   base/(1+dist/DECAY))은 placeholderStop.lat/lng 가 있어야 작동하는데, seed 블록의 food
+    //   placeholder 는 좌표가 없어(주소만) hasAnchor=false → 평점만으로 도시 전체 1등 선택 →
+    //   종로 day 에 잠실/대학로 식당 박힘(plan 550fb532 Day3 24.9km). 주석상 "빌드 시 geocoding"
+    //   앵커는 실재하지 않음(#783 가 공식만 추가, 앵커 입력 누락). 직전 named 명소(landmark)
+    //   좌표를 앵커로 넘겨 "그날 동선 위 식당"을 고르게 한다. SAFETY(dietRequired) 필터는 불변.
+    let lastAnchorLat = null;
+    let lastAnchorLng = null;
     for (const bs of blockStops) {
       const offsetMin = Number(bs.start_time_offset_min) || 0;
       const startTime = addMinutesToHHMM(dayStart, offsetMin) || dayStart;
@@ -825,7 +833,13 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
       let verified = false;
       let dietaryTags = Array.isArray(bs.preferred_dietary) ? bs.preferred_dietary.slice() : [];
       if (bs.placeholder && !resolvedName) {
-        const matched = matchFoodPlaceholder(bs, foodIndex, area, dietPrefs, usedFoodNames);
+        // 앵커 주입: placeholder 자체 좌표 없으면 직전 명소(landmark) 좌표를 넘겨 근접 매칭 활성화.
+        const _phLat = Number(bs.lat);
+        const _phHasOwn = Number.isFinite(_phLat) && _phLat !== 0;
+        const anchorBs = (!_phHasOwn && lastAnchorLat != null)
+          ? { ...bs, lat: lastAnchorLat, lng: lastAnchorLng }
+          : bs;
+        const matched = matchFoodPlaceholder(anchorBs, foodIndex, area, dietPrefs, usedFoodNames);
         if (matched) {
           resolvedName = matched.name || matched.name_ko || matched.display_name || '';
           resolvedDisplay = matched.display_name || matched.name_en || resolvedName;
@@ -857,6 +871,15 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
           resolvedDisplay = resolvedName;
           placeholderSynthesizedCount++;
         }
+      }
+
+      // 다음 food placeholder 앵커용 — 이 stop 이 좌표 있는 명소(landmark)면 기억.
+      // (placeholder 자체는 좌표 없어 lastAnchor 갱신 안 함 → 직전 명소가 유지됨.)
+      const _bsLat = Number(bs.lat);
+      const _bsLng = Number(bs.lng);
+      if (Number.isFinite(_bsLat) && Number.isFinite(_bsLng) && (_bsLat !== 0 || _bsLng !== 0)) {
+        lastAnchorLat = _bsLat;
+        lastAnchorLng = _bsLng;
       }
 
       stops.push({
