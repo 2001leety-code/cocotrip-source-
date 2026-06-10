@@ -1,6 +1,6 @@
 import { usePageMeta } from '@/hooks/usePageMeta';
 
-// 커스텀 아이콘 미리보기 (운영자 검토용). public/images/icons/ 의 35종을 다크 테마에 표시.
+// 커스텀 아이콘 미리보기 (운영자 검토용). public/images/icons/ 의 47종을 다크 테마에 표시.
 // 별도 프리뷰 라우트 /preview/icons 에서만 렌더. 라이브 무영향.
 
 type Icon = { name: string; label: string };
@@ -52,6 +52,22 @@ const SERVICES: Icon[] = [
   { name: 'cafe', label: 'Cafe' },
 ];
 
+// 예약·지원 12종 (2026-06-10 추가) — 결제/예약 플로우 + 고객지원용.
+const BOOKING: Icon[] = [
+  { name: 'taxi', label: 'Taxi' },
+  { name: 'luggage', label: 'Luggage Storage' },
+  { name: 'coupon', label: 'Coupon' },
+  { name: 'review', label: 'Review' },
+  { name: 'calendar', label: 'Calendar' },
+  { name: 'group', label: 'Group / Travelers' },
+  { name: 'chat', label: 'Chat' },
+  { name: 'support', label: 'Support' },
+  { name: 'driver', label: 'Driver' },
+  { name: 'payment', label: 'Payment' },
+  { name: 'passport', label: 'Passport' },
+  { name: 'pharmacy', label: 'Pharmacy' },
+];
+
 export default function MobileIconsPreview() {
   usePageMeta({
     title: 'Custom Icons Preview',
@@ -62,13 +78,14 @@ export default function MobileIconsPreview() {
     <div className="min-h-screen bg-[#0a0b14] text-white pt-[max(env(safe-area-inset-top),0.75rem)] pb-12 max-w-md mx-auto">
       <header className="px-5 pt-4 pb-1">
         <h1 className="text-xl font-bold">Custom Icons</h1>
-        <p className="mt-0.5 text-sm text-white/50">35 icons (purple theme, transparent PNG)</p>
+        <p className="mt-0.5 text-sm text-white/50">47 icons (purple theme, transparent PNG)</p>
       </header>
 
       <IconSection title="Categories" icons={CATEGORIES} />
       <IconSection title="Activities" icons={ACTIVITIES} />
       <IconSection title="Places" icons={PLACES} />
       <IconSection title="Services" icons={SERVICES} />
+      <IconSection title="Booking & Support" icons={BOOKING} />
 
       <p className="px-5 pt-6 text-center text-xs text-white/30">
         public/images/icons/&lt;name&gt;.png
