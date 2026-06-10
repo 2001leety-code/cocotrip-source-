@@ -35,4 +35,23 @@ describe('zone_course 지리 정합 (block_mode zigzag 차단)', () => {
     const names = (j.stops || []).map((s: any) => s.name);
     expect(names).not.toContain('봉은사');
   });
+
+  // 2026-06-10: 히든젬 블록(서촌·연남) 신규 — 지오밀집 + 식이 SAFETY(dietary_options) + i18n 잠금.
+  for (const f of ['seoul_seochon_local_standard', 'seoul_yeonnam_local_standard']) {
+    it(`${f} = 초밀집 히든젬 (<3km, 비인접 zone 혼합 금지)`, () => {
+      const j = load(f);
+      const m = computeDayRouteMetrics(koreaStops(j));
+      expect(m.coordCount).toBeGreaterThanOrEqual(3);
+      expect(m.pathKm).toBeLessThan(3); // 한 골목 안 도보권
+      expect(isExcessiveDayRoute(m)).toBe(false);
+      // 식이 SAFETY: dietary_options 명시 (block 선택 게이트)
+      expect(Array.isArray(j.dietary_options) && j.dietary_options.includes('standard')).toBe(true);
+      // 모든 명소 stop 4-lang 이름 완비
+      for (const s of koreaStops(j)) {
+        for (const lng of ['ko', 'en', 'ja', 'zh']) {
+          expect(s.name_i18n?.[lng], `${f} ${s.name} ${lng} 누락`).toBeTruthy();
+        }
+      }
+    });
+  }
 });

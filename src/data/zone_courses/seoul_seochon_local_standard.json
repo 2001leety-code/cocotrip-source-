@@ -1,0 +1,120 @@
+{
+  "id": "SEOUL_DAY_SEOCHON_LOCAL_STANDARD",
+  "city": "seoul",
+  "zone": "Seochon Hanok Alleys",
+  "theme": "서촌 한옥골목 로컬 산책",
+  "theme_i18n": {
+    "ko": "경복궁 서측 서촌 한옥골목 히든젬 도보 산책 — 엽전시장부터 인왕산 계곡까지",
+    "en": "Seochon Hidden Hanok Alleys — a local walk from a brass-coin market to a mountain valley west of Gyeongbokgung",
+    "ja": "西村（ソチョン）隠れ家路地さんぽ — 真鍮コイン市場から仁王山の渓谷まで",
+    "zh": "西村隐巷漫步 — 从铜钱市场到仁王山溪谷，景福宫西侧的在地一日游"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Culture", "Photo", "Local", "Couple", "Solo"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "통인시장",
+      "name_i18n": { "ko": "통인시장", "en": "Tongin Market (Brass-Coin Lunchbox Market)", "ja": "通仁市場", "zh": "通仁市场" },
+      "address": "서울특별시 종로구 자하문로15길 18",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5805,
+      "lng": 126.97,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "도시락카페에서 1만원에 엽전 10닢으로 바꿔 시장 반찬가게를 돌며 직접 도시락을 채우는 체험. 엽전 판매 마감이 평일 15시·주말 16시로 이르니 점심 전 도착 권장. 화요일·매달 셋째 일요일 휴무.",
+        "en": "Swap 10,000 KRW for 10 brass coins (yeopjeon) at the lunchbox cafe, then buy side dishes stall-to-stall to build your own tray — a hands-on local meal, not a tourist trap. Coin sales close early (weekdays 15:00, weekends 16:00), so come before lunch. Closed Tuesdays and every 3rd Sunday.",
+        "ja": "弁当カフェで1万ウォンを真鍮コイン10枚に両替し、市場のおかず店を回って自分だけの弁当を作る体験。コイン販売は平日15時・週末16時で早めに終了するため昼前到着推奨。火曜と毎月第3日曜は休み。",
+        "zh": "在便当咖啡用1万韩元换10枚铜钱，再到市场各摊位买小菜自由组合便当，是真正的在地体验而非游客陷阱。铜钱售卖结束早（平日15点、周末16点），建议午前抵达。周二及每月第三个周日休息。"
+      },
+      "local_tag": "yeopjeon_lunchbox | local_market | seochon_anchor"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "서촌 점심",
+      "stay_min": 50,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 60
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "대오서점",
+      "name_i18n": { "ko": "대오서점", "en": "Daeo Bookstore (Seoul's Oldest Used Bookshop)", "ja": "デオ書店（大悟書店）", "zh": "大悟书店" },
+      "address": "서울특별시 종로구 자하문로7길 55",
+      "stay_min": 30,
+      "entry_fee_krw": 2500,
+      "reservation_required": false,
+      "lat": 37.579,
+      "lng": 126.9705,
+      "start_time_offset_min": 120,
+      "tips_i18n": {
+        "ko": "1951년 개업한 서울 최고(最古)의 헌책방, 지금은 외손자가 운영하는 레트로 한옥 북카페. 관람만 하면 입장료 2,500원(기념엽서로 대체 가능), 또는 음료(아메리카노 약 5,000원) 주문 시 별도 입장료 없이 착석 가능. 빛바랜 고서가 가득한 좁은 내부가 대표 포토스팟. 영업 12:00~21:00.",
+        "en": "Seoul's oldest used bookshop (opened 1951), now a tiny retro hanok book-cafe. Browsing only costs a 2,500 KRW entry (swappable for a postcard set), or order a drink (americano ~5,000 KRW) to sit with no separate entry — the drink is not the entry fee. The cramped interior of faded old books is the signature photo spot. Open 12:00–21:00.",
+        "ja": "1951年開業のソウル最古の古書店、今は孫が営むレトロ韓屋ブックカフェ。見学のみは入場料2,500ウォン（記念ポストカードで代替可）、またはドリンク（アメリカーノ約5,000ウォン）注文で入場料なしで着席可。色あせた古書が並ぶ狭い店内が名物フォトスポット。営業12:00〜21:00。",
+        "zh": "1951年开业的首尔最古老旧书店，现为复古韩屋书咖。仅参观需门票2,500韩元（可用纪念明信片代替），或点饮料（美式约5,000韩元）即可入座、无需另付门票。满是泛黄旧书的狭小室内是招牌拍照点。营业12:00–21:00。"
+      },
+      "local_tag": "1951_used_bookshop | retro_hanok_cafe | photo_facade"
+    },
+    {
+      "order": 4,
+      "category": "culture",
+      "name": "종로구립 박노수미술관",
+      "name_i18n": { "ko": "종로구립 박노수미술관", "en": "Park No-soo Art Museum (1930s painter's hanok-villa)", "ja": "鍾路区立 朴魯壽美術館", "zh": "钟路区立朴鲁寿美术馆" },
+      "address": "서울특별시 종로구 옥인1길 34",
+      "stay_min": 45,
+      "entry_fee_krw": 3000,
+      "reservation_required": false,
+      "lat": 37.5825,
+      "lng": 126.9695,
+      "start_time_offset_min": 175,
+      "tips_i18n": {
+        "ko": "한국화가 박노수가 살던 1930년대 한·양 절충식 가옥을 미술관으로 개관. 정원과 뒤편 언덕에서 서촌 지붕이 내려다보이는 한적한 공간. 10:00~18:00(17:30 입장마감), 월요일·1/1·설·추석 휴관이라 방문 요일 확인 필수.",
+        "en": "The 1930s Korean-Western hybrid house of painter Park No-soo, now a quiet city museum with a garden and a small hill out back overlooking Seochon's rooftops. Open 10:00-18:00 (last entry 17:30); closed Mondays, Jan 1 and major holidays — check the day before you go.",
+        "ja": "韓国画家・朴魯壽が暮らした1930年代の韓洋折衷邸宅を改装した美術館。庭園と裏の丘から西村の屋根並みを見渡せる静かな空間。10:00〜18:00（入場17:30まで）、月曜・1/1・旧正月・秋夕は休館。",
+        "zh": "韩国画家朴鲁寿居住的1930年代韩洋折衷宅邸改建的美术馆，带庭院，后方小坡可俯瞰西村屋顶。开放10:00-18:00（17:30停止入场）；周一、元旦及春节中秋休馆，请提前确认日期。"
+      },
+      "local_tag": "painter_house_museum | korean_garden | hanok_western_hybrid"
+    },
+    {
+      "order": 5,
+      "category": "nature",
+      "name": "수성동계곡",
+      "name_i18n": { "ko": "수성동계곡", "en": "Suseong Valley (Inwangsan stream gorge)", "ja": "水声洞渓谷", "zh": "水声洞溪谷" },
+      "address": "서울특별시 종로구 옥인동 179-1",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5845,
+      "lng": 126.965,
+      "start_time_offset_min": 230,
+      "tips_i18n": {
+        "ko": "인왕산에서 내려오는 물소리로 동네 이름이 붙은 도심 속 계곡. 겸재 정선의 그림에도 등장하는 돌다리(기린교)가 그대로 남아 있다. 옥인동 골목 끝 오르막이라 박노수미술관에서 도보로 이어 걷기 좋고, 여름엔 시원하다. 입장 무료·24시간 개방.",
+        "en": "A real stream gorge inside the city, named for the sound of water down Inwangsan; the old stone bridge here appears in 18th-century painter Jeong Seon's work. At the uphill end of Okin-dong's alleys — an easy walk on from the art museum, and cool in summer. Free and open 24h.",
+        "ja": "仁王山から流れ落ちる水音から地名がついた都心の渓谷。18世紀の画家・鄭敾の絵にも描かれた石橋（麒麟橋）が今も残る。玉仁洞の路地を上り切った先にあり、美術館から徒歩で繋げて歩きやすい。入場無料・24時間開放。",
+        "zh": "因仁王山流水之声而得名的城中溪谷，谷中石桥曾入18世纪画家郑敾的画作。位于玉仁洞巷弄尽头的上坡处，从美术馆步行可顺道前往，夏日清凉。免费、24小时开放。"
+      },
+      "local_tag": "inwangsan_stream | jeong_seon_painting | quiet_viewpoint"
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "서촌 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 320
+    }
+  ],
+  "transit_matrix": {}
+}

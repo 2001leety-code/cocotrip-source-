@@ -1,0 +1,120 @@
+{
+  "id": "SEOUL_DAY_YEONNAM_LOCAL_STANDARD",
+  "city": "seoul",
+  "zone": "Yeonnam Alleys",
+  "theme": "연남동 골목 로컬 산책",
+  "theme_i18n": {
+    "ko": "연트럴파크 골목 산책 — 독립서점·제로웨이스트·소품샵 로컬 하루",
+    "en": "Yeonnam Alley Walk — indie bookstores, zero-waste and craft shops off the forest path",
+    "ja": "延南洞の路地さんぽ — 独立書店・ゼロウェイスト・雑貨めぐり",
+    "zh": "延南洞小巷漫步 — 独立书店·零废弃·杂货小店的在地一日"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Local", "Solo", "Couple", "Photo", "Culture"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "nature",
+      "name": "경의선숲길 연남동 구간",
+      "name_i18n": { "ko": "경의선숲길 연남동 구간 (연트럴파크)", "en": "Gyeongui Line Forest Park (Yeontral Park)", "ja": "京義線森の道 延南洞区間（ヨントラルパーク）", "zh": "京义线林荫路 延南洞段（延特尔公园）" },
+      "address": "서울특별시 마포구 연남동 동교로 일대",
+      "stay_min": 40,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5603,
+      "lng": 126.9251,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "홍대입구역 3번 출구에서 바로 시작. 옛 철길을 공원으로 바꾼 1.3km 산책로로, 잔디밭과 벚나무가 포토스팟. 주말 오전이 한산해서 사진 찍기 좋아요. 여기를 동선의 중심축으로 삼아 양옆 골목으로 빠지면 됩니다.",
+        "en": "Start right at Hongik Univ. Station Exit 3. A 1.3km former-railway park lined with lawns and cherry trees — best photos on weekend mornings before crowds. Use this as your spine and dip into the side alleys on either side.",
+        "ja": "弘大入口駅3番出口からすぐ。旧鉄道を公園にした1.3kmの遊歩道で、芝生と桜が撮影スポット。週末の午前は空いていて写真向き。ここを軸に左右の路地へ。",
+        "zh": "弘大入口站3号出口即到。由旧铁道改造的1.3km步道，草坪与樱花是拍照点。周末上午人少最适合拍照。以此为主轴，再钻进两侧小巷。"
+      },
+      "local_tag": "former_railway | cherry_blossom | photo_walk | hongdae_adjacent"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "연남동 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 55
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "헬로인디북스",
+      "name_i18n": { "ko": "헬로인디북스", "en": "Hello Indiebooks", "ja": "ハロー・インディーブックス", "zh": "Hello Indiebooks 独立书店" },
+      "address": "서울특별시 마포구 동교로46길 33",
+      "stay_min": 30,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5618,
+      "lng": 126.9248,
+      "start_time_offset_min": 130,
+      "tips_i18n": {
+        "ko": "연트럴파크에서 골목 1~2분. 간판이 거의 없고 유리창에 새겨진 상호로 찾는 진짜 동네 독립서점. 독립출판물·진(zine)이 가득하고 무알콜 음료도 팝니다. 작은 공간이라 조용히 둘러보세요. 인스타 @helloindiebooks 로 휴무 확인 권장.",
+        "en": "1-2 min into the alley from the park. A genuinely local indie bookstore with almost no signage — find it by the name etched on the glass. Packed with zines and small-press books; sells non-alcoholic drinks too. Tiny space, browse quietly. Check @helloindiebooks for closing days.",
+        "ja": "公園から路地へ1~2分。看板がほぼなく、ガラスに刻まれた店名で見つける本物の地元書店。ZINEや独立出版物が充実、ノンアル飲料も。狭いので静かに。休みは@helloindiebooksで確認を。",
+        "zh": "从公园进巷子1~2分钟。几乎没有招牌，靠玻璃上的店名辨认，是真正的在地独立书店。满是独立出版物与zine，也卖无酒精饮品。空间小，请安静浏览。休息日可看@helloindiebooks。"
+      },
+      "local_tag": "indie_bookstore | zine | no_signage | hidden_alley"
+    },
+    {
+      "order": 4,
+      "category": "shopping",
+      "name": "지구샵 연남점",
+      "name_i18n": { "ko": "지구샵 연남점 (제로웨이스트)", "en": "Jigu Shop Yeonnam (Zero-Waste)", "ja": "チグショップ 延南店（ゼロウェイスト）", "zh": "地球商店 延南店（零废弃）" },
+      "address": "서울특별시 마포구 성미산로 155 1층",
+      "stay_min": 25,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5639,
+      "lng": 126.9243,
+      "start_time_offset_min": 180,
+      "tips_i18n": {
+        "ko": "국내 최초 제로웨이스트 인증을 받은 친환경 편집샵. 리필 스테이션에서 샴푸·세제를 용기에 담아 사고, 고체 비누·대나무 칫솔 같은 가벼운 기념품 사기 좋아요. 화요일 휴무. 영업 11:00~21:30로 늦게까지 열어 동선 끝에 넣기 좋습니다.",
+        "en": "Korea's first zero-waste certified eco concept store. Refill station for shampoo/detergent, plus solid soap and bamboo brushes that make light, packable souvenirs. Closed Tuesdays. Open 11:00-21:30 — handy as a later stop.",
+        "ja": "国内初のゼロウェイスト認証エコ雑貨店。リフィルステーションでシャンプーや洗剤を量り売り、固形石けんや竹歯ブラシは軽いお土産に最適。火曜休。11:00~21:30と遅くまで営業。",
+        "zh": "韩国首家获零废弃认证的环保选物店。补充站可自带容器买洗发水、洗涤剂，固体皂、竹牙刷是轻便伴手礼。周二休。营业11:00~21:30，适合放在行程后段。"
+      },
+      "local_tag": "zero_waste | eco_concept_store | refill_station | sustainable_souvenir"
+    },
+    {
+      "order": 5,
+      "category": "shopping",
+      "name": "홈어스",
+      "name_i18n": { "ko": "홈어스", "en": "Home Urs (Yeonnam craft & home-goods shop)", "ja": "ホームアース", "zh": "Home Urs 杂货店" },
+      "address": "서울특별시 마포구 성미산로29안길 19-4 1층",
+      "stay_min": 25,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 37.5635,
+      "lng": 126.9252,
+      "start_time_offset_min": 220,
+      "tips_i18n": {
+        "ko": "성미산로 소품샵 골목에 있는 취향 가득한 핸드메이드·홈·생활소품 편집샵. 주변에 비슷한 작은 소품샵이 모여 있어 골목 자체를 천천히 도는 게 핵심. 월~금 11:00~19:00 / 토 13:00~20:30 / 일 휴무라 평일 오전~오후 방문 권장. 방문 전 인스타로 영업 확인 권장.",
+        "en": "A taste-packed handmade, home and lifestyle goods shop on the Seongmisan-ro craft-shop alley. Several similar tiny shops cluster nearby — the alley itself is the experience. Mon-Fri 11:00-19:00 / Sat 13:00-20:30 / closed Sun, so come on a weekday. Worth a quick Instagram check for hours before you go.",
+        "ja": "城美山路の雑貨通りにあるハンドメイド・生活雑貨のセンス編集ショップ。近くに似た小店が集まり、路地歩き自体が醍醐味。月~金11:00~19:00／土13:00~20:30／日休なので平日向き。訪問前にインスタで営業確認を。",
+        "zh": "位于城美山路杂货巷的手作与生活选物店。附近聚集多家同类小店，慢逛这条巷子才是重点。周一至五11:00~19:00／周六13:00~20:30／周日休，建议平日前往。出发前可查Instagram确认营业。"
+      },
+      "local_tag": "home_goods | craft_alley | yeonnam_local | curated_shop"
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "연남동 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 300
+    }
+  ],
+  "transit_matrix": {}
+}
