@@ -1357,6 +1357,21 @@
     "trustLicense": "Licensed\nOperator",
     "brandSlogan": "Premium Korea Travel — cocotripkr.com"
   },
+  "mobileHomeV2": {
+    "tagline": "Where to in Korea?",
+    "headline1": "Let me plan your",
+    "headline2": "perfect Korea trip",
+    "cta": "Start planning",
+    "catPlanner": "AI Planner",
+    "catTours": "Tours",
+    "catCharter": "Charter",
+    "catAirport": "Airport",
+    "catKpop": "K-pop",
+    "exploreTitle": "Explore Korea",
+    "seeAll": "See all",
+    "toursTitle": "Popular Tours",
+    "from": "from"
+  },
   "pwaInstall": {
     "modalTitle": "Add CocoTrip Shortcut",
     "modalDesc": "Add a shortcut to your home screen for quick access, just like an app.",
