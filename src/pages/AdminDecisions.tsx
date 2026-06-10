@@ -20,6 +20,10 @@ const TYPE_LABEL: Record<string, string> = {
   content_publish: '📣 콘텐츠 발행',
   cs_reply: '💬 문의 응대',
   ops_alert: '🛠️ 운영 경보',
+  'payment-audit': '💰 결제 감사',
+  'plan-stuck': '🚨 plan 미생성',
+  'error-surge': '🛠️ 에러 폭증',
+  ops: '🛠️ 운영',
   general: '📥 일반',
 };
 
