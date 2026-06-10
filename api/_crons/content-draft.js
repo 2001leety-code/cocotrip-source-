@@ -21,6 +21,7 @@ import { resolveGeminiModel } from '../_ai_core/geminiModelResolver.js';
 import { selectFoodMaterials, pickDailyMaterial, kstDayIndex } from '../_shared/contentDraftSelector.js';
 import { buildContentPrompt } from '../_shared/contentPromptBuilder.js';
 import { parseContentJson, sanitizeDraft, formatDraftMessage } from '../_shared/contentDraftFormat.js';
+import { enqueueDecision } from '../_shared/decisionQueue.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -66,6 +67,16 @@ async function contentDraftTask() {
         material, draft: draft || null, hasDraft: !!draft,
         createdAtMs: Date.now(), channel: 'instagram', published: false,
       });
+      // P5 의사결정 큐: "발행 검토" 카드 enqueue (멱등=하루 1건). draft 가 있을 때만.
+      if (draft) {
+        await enqueueDecision(db, {
+          type: 'content_publish',
+          title: `오늘 콘텐츠 발행 검토 — ${material.name}`,
+          summary: `${material.cityLabel}${material.dong ? ' ' + material.dong : ''} 맛집 캡션 초안 ${draft.variants.length}안. 검토 후 인스타 발행.`,
+          link: '/admin/decisions',
+          dedupeKey: `content-${kstDayIndex(new Date())}`,
+        }).catch(() => {});
+      }
     }
   } catch (e) { console.error('[content-draft] Firestore 저장 실패:', e && e.message); }
 

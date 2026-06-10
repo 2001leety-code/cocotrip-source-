@@ -39,6 +39,7 @@ const AdminPlans = lazy(() => import('@/pages/AdminPlans'));
 const AdminTourAvailability = lazy(() => import('@/pages/AdminTourAvailability'));
 const AdminSales = lazy(() => import('@/pages/AdminSales'));
 const AdminBriefing = lazy(() => import('@/pages/AdminBriefing'));
+const AdminDecisions = lazy(() => import('@/pages/AdminDecisions'));
 const AdminCalendar = lazy(() => import('@/pages/AdminCalendar'));
 const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
 const AdminOpsHub = lazy(() => import('@/pages/AdminOpsHub'));
@@ -322,6 +323,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminBriefing />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/decisions"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminDecisions />
                 </Suspense>
               </AdminRoute>
             }
