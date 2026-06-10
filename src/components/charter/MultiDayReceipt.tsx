@@ -3,6 +3,7 @@
 // 가격은 src/lib/multidayQuote (백엔드 charter-multiday-price 와 1:1). 표시가 == 결제가 (P311).
 // ⚠️ 가이드·카시트 옵션 / 야간할증은 온라인 즉시결제 base 에 미포함 (현장/별도). 할인은 운영자 정책(3일+ 10%) 반영.
 import { lookupMatrixKm, calcMultiDayQuote } from '@/lib/multidayQuote';
+import { discountV2Enabled } from '@/lib/discountFlags';
 
 type Lang = 'ko' | 'en' | 'ja' | 'zh';
 
@@ -43,7 +44,7 @@ export function MultiDayReceipt({ originKey, destKey, vehicle, durationDays, lan
   language?: Lang;
 }) {
   const km = originKey && destKey ? lookupMatrixKm(originKey, destKey) : null;
-  const q = km != null ? calcMultiDayQuote({ vehicle, km, durationDays }) : null;
+  const q = km != null ? calcMultiDayQuote({ vehicle, km, durationDays }, { discountV2: discountV2Enabled() }) : null;
   if (!q) return null;
   const lbl = (k: string): string => L[k]?.[language] ?? L[k]?.en ?? k;
   return (

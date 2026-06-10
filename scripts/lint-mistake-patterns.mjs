@@ -2525,6 +2525,17 @@ function R_multidayCheckoutSSOT(ctx) {
       if (!/VITE_FEATURE_MULTIDAY_CHECKOUT\s*===\s*'true'/.test(src)) {
         violations.push("charter_multiday 가 VITE_FEATURE_MULTIDAY_CHECKOUT === 'true' 엄격 게이트 없음 — 플래그 OFF byte-identical 미보장");
       }
+      // 2026-06-10 오과금 버그: 표시(프론트)가 discountV2 미전달 → 10% 할인 표시, 백엔드 청구 5% → +5.56% 오과금.
+      if (!/discountV2/.test(src)) {
+        violations.push('resolveProductType charter_multiday 가 discountV2 미전달 — v2 ON 시 표시10%≠청구5% 오과금(P311). discountV2Enabled() 전달 필수.');
+      }
+    }
+  }
+  // 멀티데이 영수증 표시도 청구가와 동일 할인율이어야 함 (표시==청구 P311).
+  if (isModified('src/components/charter/MultiDayReceipt.tsx', ctx.changed)) {
+    let src = ''; try { src = readFileSync('src/components/charter/MultiDayReceipt.tsx', 'utf8'); } catch {}
+    if (/calcMultiDayQuote/.test(src) && !/discountV2/.test(src)) {
+      violations.push('MultiDayReceipt 가 calcMultiDayQuote 에 discountV2 미전달 — 표시 10%≠청구 5% 오과금(P311, 2026-06-10)');
     }
   }
   if (isModified('src/pages/CharterNewPage.tsx', ctx.changed)) {
@@ -2665,6 +2676,18 @@ function R_transferCheckoutSSOT(ctx) {
       if (!/VITE_FEATURE_TRANSFER_CHECKOUT\s*===\s*'true'/.test(src)) {
         violations.push("charter_transfer 가 VITE_FEATURE_TRANSFER_CHECKOUT === 'true' 엄격 게이트 없음 — 플래그 OFF byte-identical 미보장");
       }
+      // 2026-06-10 오과금 버그: 왕복 transfer 표시가 discountV2 미전달 → 10% 표시, 백엔드 청구 5% → +5.56% 오과금.
+      if (!/discountV2/.test(src)) {
+        violations.push('resolveProductType charter_transfer 가 discountV2 미전달 — v2 ON 시 왕복 표시10%≠청구5% 오과금(P311). discountV2Enabled() 전달 필수.');
+      }
+    }
+  }
+  // transfer 영수증·견적 계산기 표시도 청구가와 동일 할인율이어야 함 (표시==청구 P311).
+  for (const _f of ['src/components/charter/TransferReceipt.tsx', 'src/hooks/useQuoteCalculator.ts']) {
+    if (!isModified(_f, ctx.changed)) continue;
+    let src = ''; try { src = readFileSync(_f, 'utf8'); } catch {}
+    if (/calcTransferQuote/.test(src) && !/discountV2/.test(src)) {
+      violations.push(`${_f} 가 calcTransferQuote 에 discountV2 미전달 — 왕복 표시 10%≠청구 5% 오과금(P311, 2026-06-10)`);
     }
   }
   if (violations.length > 0) {
@@ -7511,7 +7534,7 @@ function runSelfTest() {
     {
       label: 'R_multidayCheckoutSSOT 프론트 (false positive 차단): calcMultiDayCharterKrw + 엄격 플래그 — silent',
       base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
-      head: { 'src/components/charter/resolveProductType.ts': "const ON = import.meta.env.VITE_FEATURE_MULTIDAY_CHECKOUT === 'true'; if (ON) { const price = calcMultiDayCharterKrw({ vehicle, km, durationDays }); return { productType: 'charter_multiday', priceKRW: price, payable: true }; }\n" },
+      head: { 'src/components/charter/resolveProductType.ts': "const ON = import.meta.env.VITE_FEATURE_MULTIDAY_CHECKOUT === 'true'; if (ON) { const price = calcMultiDayCharterKrw({ vehicle, km, durationDays }, { discountV2: discountV2Enabled() }); return { productType: 'charter_multiday', priceKRW: price, payable: true }; }\n" },
       expectRule: 'R_multidayCheckoutSSOT',
       expectClean: true,
     },
@@ -7602,7 +7625,7 @@ function runSelfTest() {
     {
       label: 'R_transferCheckoutSSOT 프론트 (false positive 차단): calcTransferQuote + 엄격 플래그 — silent',
       base: { 'src/components/charter/resolveProductType.ts': '// stub\n' },
-      head: { 'src/components/charter/resolveProductType.ts': "const ON = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true'; if (ON) { const q = calcTransferQuote({ km, tripType, vehicle }); return { productType: 'charter_transfer', priceKRW: q.total, payable: true }; }\n" },
+      head: { 'src/components/charter/resolveProductType.ts': "const ON = import.meta.env.VITE_FEATURE_TRANSFER_CHECKOUT === 'true'; if (ON) { const q = calcTransferQuote({ km, tripType, vehicle }, { discountV2: discountV2Enabled() }); return { productType: 'charter_transfer', priceKRW: q.total, payable: true }; }\n" },
       expectRule: 'R_transferCheckoutSSOT',
       expectClean: true,
     },
