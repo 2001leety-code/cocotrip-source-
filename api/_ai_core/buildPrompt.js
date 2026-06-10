@@ -436,9 +436,21 @@ P124 (arrival_time + 9h sleep buffer) 는 옛 룰. tour_start_time 입력 시 (d
 NEVER: 중간 day 01:57/03:06/04:45 같은 새벽 stops (한국 시설 새벽 미운영 + 안전 위험).
 
 - First/last stop of EVERY day: within 30min of hotel. NEVER zigzag.
-- Seoul zones: Jongno/Gwanghwamun | Yongsan/Itaewon | Gangnam/COEX | Hongdae/Mapo | Myeongdong | Seongsu | Bukchon/Samcheong | Euljiro/Dongdaemun
-- Busan zones: Haeundae | Gwangalli | Seomyeon/Jeonpo | Nampo/BIFF/Jagalchi | Gamcheon | Gijang/Haedong
-- INTENSITY: relaxed=single zone/3stops; standard=2 adjacent zones/4-5stops; packed=5-7stops.
+
+### 🔴 ZONE CLUSTERING — STRICT (2026-06-10, 동선 X자 횡단 근본 차단)
+**핵심 원칙**: 하루의 ALL stops (관광·식사·카페 전부) = 단 1개 zone, 또는 직접 인접한 2개 zone 안에만 배치. 비인접 zone 혼합 = 도시 횡단 zigzag = 절대 금지. 같은 명소라도 동선이 엉키면 무료 블로그보다 못한 플랜이 된다.
+- Seoul zones + 인접관계:
+  - 도심권: Jongno/Gwanghwamun ↔ Bukchon/Samcheong ↔ Insadong ↔ Myeongdong ↔ Euljiro/Dongdaemun (서로 인접, 지하철 10분/도보권)
+  - 서북권: Hongdae ↔ Mapo ↔ Yeonnam ↔ Yeouido
+  - 동남권: Gangnam ↔ COEX/Bongeunsa ↔ Apgujeong ↔ Jamsil/Lotte
+  - 용산권: Yongsan ↔ Itaewon ↔ Hannam (Myeongdong 과 인접)
+  - 성수권: Seongsu ↔ Konkuk
+- Busan zones + 인접관계: (원도심) Nampo/BIFF/Jagalchi ↔ Gamcheon ↔ Songdo / (동부) Haeundae ↔ Gwangalli ↔ Gijang / (중부) Seomyeon/Jeonpo
+- **🍽️ 식당·카페도 그날 zone 안에서 선택** — 도시 전체 top-rated 식당을 다른 zone 에서 끌어오지 말 것. 점심·저녁은 그날 관광지와 같은(또는 인접) zone.
+- **GOOD** (도심 day): 경복궁(Jongno) → 광장시장 점심(Euljiro) → 북촌한옥(Bukchon) → 인사동(Insadong) → 저녁(Jongno). 전부 인접, 이동 5-15분.
+- **BAD** (도시 횡단 — 절대 금지): 조계사(Jongno) → 점심(한남) → 봉은사(Gangnam, 8km) → 서울공예박물관(Jongno 복귀!) → 홍대(Mapo, 6km). 도심↔강남↔서북 X자 횡단.
+- 강남 명소(봉은사·코엑스·가로수길·롯데월드)는 **강남 day 에 모아라**. 도심 day 에 강남 명소 1개만 끼우지 말 것 (그 1개가 하루 동선을 두 배로 늘림).
+- INTENSITY: relaxed=1 zone/3stops; standard=2 인접 zone/4-5stops; packed=2-3 인접 zone/5-7stops. **비인접 zone 혼합은 intensity 무관 금지.**
 - special_request must-visit → route AROUND those places. Transit ≤30min between stops.
 
 ## MULTI-CITY HANDLING — CRITICAL (regions.length >= 2)

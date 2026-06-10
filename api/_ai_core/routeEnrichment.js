@@ -15,6 +15,7 @@
  */
 import { RouteAgent } from './agents/RouteAgent.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
+import { computeDayRouteMetrics, isExcessiveDayRoute } from './routeQuality.js';
 
 /** Haversine distance in meters between two {lat, lng} points. */
 function distanceMeters(a, b) {
@@ -277,6 +278,23 @@ export async function enrichItineraryWithRoute(itinerary, { apiKey, body, hotel_
     // anchor (첫 도시 호텔) 기준 검증이 도시 전환 day false-positive 5건+ 발생.
     const isMultiCityForBookend = Array.isArray(body?.regions) && body.regions.length >= 2;
     validateLodgingBookend(itinerary, anchorCoord, isMultiCityForBookend);
+
+    // 2026-06-10: 동선 compactness 측정 (관찰 전용 — stop 재정렬/시각 변경 X).
+    // buildPrompt ZONE CLUSTERING STRICT 룰의 효과를 prod 로그로 추적. 식당이 meal
+    // 시각에 고정돼 reorder 로는 못 푸는 zigzag(Day2 26km 류)를 측정만 한다.
+    // 자체 try — routeQuality 가 throw 해도 위 outer catch(=route FAILED telegram 오발)로
+    // 새지 않도록 격리. 측정 실패는 plan 에 무해.
+    try {
+      (itinerary.days || []).forEach((d, i) => {
+        const m = computeDayRouteMetrics(d.stops || []);
+        if (m.coordCount >= 3) {
+          const flag = isExcessiveDayRoute(m) ? ' ZIGZAG' : '';
+          console.log(`[routeQuality] Day ${i + 1} (${d.city || '?'}): path=${m.pathKm}km span=${m.spanKm}km ratio=${m.pathPerSpan} maxLeg=${m.maxLegKm}km${flag}`);
+        }
+      });
+    } catch (rqErr) {
+      console.warn('[routeQuality] skip:', rqErr.message);
+    }
 
     // B-11 diag (2026-05-12): RouteAgent 후 최종 결과 요약. validate-prod-baseline
     // B-7 검증과 대응 — transit_from_prev attach 비율 출력. 0/N 이면 RouteAgent
