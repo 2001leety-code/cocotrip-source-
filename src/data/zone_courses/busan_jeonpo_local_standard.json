@@ -1,0 +1,120 @@
+{
+  "id": "BUSAN_DAY_JEONPO_LOCAL_STANDARD",
+  "city": "busan",
+  "zone": "Jeonpo Cafe Street",
+  "theme": "전포 전리단길 카페골목 & 도시재생",
+  "theme_i18n": {
+    "ko": "옛 공구골목이 카페·소품샵·벽화 골목으로 재생된 전포동을 걷는 서면 로컬 MZ 하루 — 관광지 대신 진짜 동네 골목과 시민공원으로 마무리",
+    "en": "A local MZ-vibe day through Jeonpo-dong, where old hardware alleys were reborn as cafe, vintage-shop and mural lanes near Seomyeon — ending in a city park, not a tourist trap",
+    "ja": "古い工具横丁がカフェや雑貨店、壁画路地に生まれ変わった西面近くの田浦洞を歩くローカルなMZ感性の一日 — 観光地ではなく本物の路地と市民公園で締めくくる",
+    "zh": "沿着由旧五金巷再生为咖啡、复古小店与壁画街区的田浦洞漫步，体验西面本地年轻人氛围的一天 — 不去网红景点，以真实小巷与市民公园收尾"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Culture", "Photo", "Local", "Couple", "Solo"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "전포카페거리",
+      "name_i18n": { "ko": "전포카페거리", "en": "Jeonpo Cafe Street", "ja": "田浦カフェ通り", "zh": "田浦咖啡街" },
+      "address": "부산광역시 부산진구 전포대로209번길 26",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1551,
+      "lng": 129.0661,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "NYT·CNN이 꼽은 골목이지만 평일 오전엔 한산해요. 큰 길 하나가 아니라 골목 그물망이니 지도만 보지 말고 샛길로 들어가 보세요. 평지라 휠체어·유모차도 편합니다.",
+        "en": "Picked by NYT & CNN, but quiet on weekday mornings. It's a web of lanes, not one main street — wander side alleys instead of following the map. Flat and stroller/wheelchair friendly.",
+        "ja": "NYT・CNNが選んだ路地ですが、平日午前は空いています。一本道ではなく路地の網なので、地図に頼らず脇道へ。平坦でベビーカーも安心。",
+        "zh": "曾被NYT与CNN选中，但工作日上午很安静。这里是小巷网络而非一条主街，别只看地图，钻进岔路探索。地面平坦，婴儿车轮椅也方便。"
+      },
+      "local_tag": "jeonpo_alley_regeneration | nyt_cnn_picked | mz_local"
+    },
+    {
+      "order": 2,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "전포 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 60
+    },
+    {
+      "order": 3,
+      "category": "culture",
+      "name": "놀이마루",
+      "name_i18n": { "ko": "놀이마루 (청소년창의복합센터)", "en": "Norimaru Creative Complex", "ja": "ノリマル(青少年複合文化センター)", "zh": "Norimaru创意文化中心" },
+      "address": "부산광역시 부산진구 전포대로209번길 26",
+      "stay_min": 20,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1549,
+      "lng": 129.0658,
+      "start_time_offset_min": 130,
+      "tips_i18n": {
+        "ko": "옛 학교 건물을 개조한 무료 복합문화공간으로 카페거리 한복판에 있어요. 레트로한 외관과 운동장 마당이 조용한 포토스팟. 전시·프로그램이 있는 날 위주로 내부 개방하니, 없는 날은 외관·운동장 사진 위주로 짧게 둘러보세요.",
+        "en": "A free culture complex in a converted old school, right in the middle of the cafe street. Its retro facade and schoolyard make a calm photo spot. The interior opens mainly on exhibition/program days, so on off-days just shoot the facade and yard quickly.",
+        "ja": "旧校舎を改装した無料の複合文化空間で、カフェ通りの真ん中にあります。レトロな外観とグラウンドが静かな撮影スポット。展示・プログラムのある日中心に内部開放なので、ない日は外観・グラウンドの撮影を。",
+        "zh": "由旧校舍改造的免费文化空间，就在咖啡街中央。复古外观与操场是安静的拍照点。内部主要在有展览/活动的日子开放，没有的日子拍拍外观与操场即可。"
+      },
+      "local_tag": "urban_regeneration | free_space | old_school_reuse"
+    },
+    {
+      "order": 4,
+      "category": "photo",
+      "name": "전포공구길",
+      "name_i18n": { "ko": "전포공구길 (전리단길)", "en": "Jeonpo Tool Alley (Jeon-ridan-gil)", "ja": "田浦工具通り(チョンリダンギル)", "zh": "田浦工具巷(田里团街)" },
+      "address": "부산광역시 부산진구 서전로37번길 20",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.1563,
+      "lng": 129.0638,
+      "start_time_offset_min": 165,
+      "tips_i18n": {
+        "ko": "아직 영업 중인 진짜 공구·철물점 사이로 벽화·트릭아트·빈티지샵이 섞인 진짜 로컬 골목. 빨간벽돌·테라스가 인생샷 배경. 영업 중인 가게 셔터·간판은 함부로 찍지 말고 한마디 양해를 구하세요.",
+        "en": "Real working hardware shops sit beside murals, trick-art and vintage stores — the most authentic lane here. Red brick and terraces make great photos; ask before shooting an open shop's storefront.",
+        "ja": "今も営業中の工具・金物店の間に壁画やトリックアート、古着店が混在する一番ローカルな路地。赤レンガとテラスが映え背景。営業中の店を撮る時は一言断って。",
+        "zh": "仍在营业的真五金店与壁画、错觉艺术、复古店交错，是这里最地道的小巷。红砖与露台是绝佳背景；拍营业中的店面前请先打声招呼。"
+      },
+      "local_tag": "tool_shop_regeneration | mural_alley | photo_walk"
+    },
+    {
+      "order": 5,
+      "category": "nature",
+      "name": "부산시민공원",
+      "name_i18n": { "ko": "부산시민공원", "en": "Busan Citizens Park", "ja": "釜山市民公園", "zh": "釜山市民公园" },
+      "address": "부산광역시 부산진구 시민공원로 73",
+      "stay_min": 60,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.165,
+      "lng": 129.0581,
+      "start_time_offset_min": 220,
+      "tips_i18n": {
+        "ko": "전리단길에서 북쪽으로 도보 약 15분, 옛 미군기지(캠프 하야리아)를 개조한 도심 속 대형 공원. 분수·수경시설과 너른 잔디로 골목 산책 뒤 쉬기 좋아요. 05:00~24:00 무료 개방, 평지라 걷기 편합니다.",
+        "en": "About a 15-min walk north of the tool alley, a huge city park on a former U.S. army base (Camp Hialeah). Fountains and wide lawns make it the perfect cool-down after the alleys. Free, open 05:00–24:00, all flat.",
+        "ja": "工具通りから北へ徒歩約15分、旧米軍基地(キャンプ・ハヤリア)を再生した都心の大型公園。噴水と広い芝生で路地散策後の休憩に最適。無料、5:00~24:00開園、平坦で歩きやすい。",
+        "zh": "从工具巷向北步行约15分钟，是由旧美军基地(海厄利亚营)改建的市中心大型公园。喷泉与大片草坪适合逛完小巷后放松。免费开放05:00–24:00，地势平坦好走。"
+      },
+      "local_tag": "former_army_base | city_park | flat_walk"
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "전포 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 320
+    }
+  ],
+  "transit_matrix": {}
+}

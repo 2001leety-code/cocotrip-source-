@@ -1,0 +1,120 @@
+{
+  "id": "BUSAN_DAY_YEONGDO_LOCAL_STANDARD",
+  "city": "busan",
+  "zone": "Yeongdo Huinnyeoul Coast",
+  "theme": "영도 흰여울 절벽마을 & 해안 산책",
+  "theme_i18n": {
+    "ko": "절벽 위 피란민 골목과 바다 산책로 — 감천보다 한적한 영도 로컬 하루",
+    "en": "Cliffside refugee alleys and a sea-hugging boardwalk — Yeongdo's quieter local answer to Gamcheon",
+    "ja": "崖の上の避難民路地と海沿いの散歩道 — 甘川より静かな影島ローカルの一日",
+    "zh": "悬崖上的避难民巷弄与海边步道 — 比甘川更清静的影岛在地一日游"
+  },
+  "intensity": "standard",
+  "block_type": "city_day",
+  "duration_min": 480,
+  "best_for": ["Photo", "Culture", "Local", "Nature", "Couple", "Solo"],
+  "dietary_options": ["standard", "vegetarian"],
+  "stops": [
+    {
+      "order": 1,
+      "category": "culture",
+      "name": "흰여울문화마을",
+      "name_i18n": { "ko": "흰여울문화마을", "en": "Huinnyeoul Culture Village", "ja": "フィニョウル文化村", "zh": "白浅滩文化村" },
+      "address": "부산광역시 영도구 절영로 194",
+      "stay_min": 50,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.0772,
+      "lng": 129.0432,
+      "start_time_offset_min": 0,
+      "tips_i18n": {
+        "ko": "한국전쟁 피란민이 절벽에 다닥다닥 지은 마을. 영화 '변호인' 촬영지로, 안내소(절영로 194, 10:00~18:00)에서 무료 마을지도를 받아 흰여울길 본 골목을 따라 걸으면 좁은 계단 사이로 부산항과 남항대교가 보입니다. 주민 거주지라 조용히, 창문·빨래 사진은 자제. 휠체어·고령자는 가파른 피아노계단 대신 흰여울 해안터널로 우회하면 안전합니다.",
+        "en": "A village Korean War refugees stacked onto the cliff; filming site of the movie 'The Attorney'. Grab a free map at the info center (Jeoryeong-ro 194, 10:00-18:00) and follow the main Huinnyeoul-gil alley — gaps between the houses frame Busan Harbor and Namhang Bridge. People still live here, so keep voices low and don't photograph windows or laundry. Wheelchair users and seniors should skip the steep piano stairs and detour via the Huinnyeoul coastal tunnel.",
+        "ja": "朝鮮戦争の避難民が崖に密集して建てた村。映画『弁護人』のロケ地で、案内所(絶影路194、10:00~18:00)で無料マップをもらい、フィニョウル路の路地を歩くと家々の隙間から釜山港と南港大橋が見えます。住民の生活圏なので静かに、窓や洗濯物の撮影は控えめに。車椅子・高齢の方は急なピアノ階段を避けフィニョウル海岸トンネル経由で。",
+        "zh": "韩国战争避难民密密麻麻盖在悬崖上的村落，电影《辩护人》取景地。在游客中心(绝影路194，10:00~18:00)领免费地图，沿白浅滩路主巷弄行走，房屋间隙能望见釜山港与南港大桥。仍有居民居住，请轻声，勿拍窗户与晾晒衣物。轮椅与长者可避开陡峭钢琴阶梯，改经白浅滩海岸隧道。"
+      },
+      "local_tag": "refugee_cliff_village | the_attorney_filming | sea_view"
+    },
+    {
+      "order": 2,
+      "category": "photo",
+      "name": "피아노계단·무지개계단",
+      "name_i18n": { "ko": "피아노계단·무지개계단", "en": "Piano Stairs & Rainbow Stairs", "ja": "ピアノ階段・虹の階段", "zh": "钢琴阶梯·彩虹阶梯" },
+      "address": "부산광역시 영도구 흰여울길 379-1",
+      "stay_min": 20,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.0768,
+      "lng": 129.0436,
+      "start_time_offset_min": 70,
+      "tips_i18n": {
+        "ko": "흰여울길 본 골목에서 바다 쪽으로 내려가는 컬러풀한 계단. 위에서 바다를 배경으로 찍는 대표 포토스팟이며, 내려가면 흰여울 해안터널로 연결됩니다. 경사가 가파르니 미끄러운 신발은 피하세요.",
+        "en": "Colorful steps descending from the main alley toward the sea — the signature shot is from the top with the ocean behind you. Down these stairs is the Huinnyeoul coastal tunnel. The grade is steep, so skip slippery shoes.",
+        "ja": "メイン路地から海へ下りるカラフルな階段。上から海を背景に撮るのが定番フォトスポット。下ればフィニョウル海岸トンネルへ。傾斜が急なので滑りやすい靴は避けて。",
+        "zh": "从主巷弄向海边而下的彩色阶梯，从上方以大海为背景拍摄是经典机位。往下走通向白浅滩海岸隧道。坡度陡峭，请勿穿易滑鞋。"
+      },
+      "local_tag": "color_stairs | photo_spot"
+    },
+    {
+      "order": 3,
+      "category": "photo",
+      "name": "흰여울 해안터널",
+      "name_i18n": { "ko": "흰여울 해안터널", "en": "Huinnyeoul Coastal Tunnel", "ja": "フィニョウル海岸トンネル", "zh": "白浅滩海岸隧道" },
+      "address": "부산광역시 영도구 흰여울길 379",
+      "stay_min": 15,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.0762,
+      "lng": 129.0438,
+      "start_time_offset_min": 100,
+      "tips_i18n": {
+        "ko": "2018년 절벽 암반을 약 70m 뚫어 만든 보행 터널. 가파른 계단을 피해 노약자도 해안으로 갈 수 있는 길로, 터널 안에서 입구를 바라보며 푸른 바다·방파제를 프레임에 담는 인생샷이 유명합니다. 일몰·야경 때 특히 예쁨.",
+        "en": "A ~70m walking tunnel bored through the cliff in 2018 so the elderly could reach the shore without the steep stairs. The famous shot is from inside looking out, framing the blue sea and breakwater in the tunnel mouth. Best at sunset and after dark.",
+        "ja": "2018年に崖を約70m掘って造った歩行トンネル。急な階段を避けて高齢者も海岸へ行ける道で、トンネル内から出口越しに青い海と防波堤を切り取る一枚が有名。夕暮れと夜景が特に美しい。",
+        "zh": "2018年凿穿悬崖约70米的步行隧道，让长者也能避开陡梯抵达海岸。经典机位是从隧道内向外拍，把蓝海与防波堤框进洞口。日落与夜景时尤其美。"
+      },
+      "local_tag": "cliff_tunnel | photo_spot | accessible_detour"
+    },
+    {
+      "order": 4,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "영도 흰여울 점심",
+      "stay_min": 60,
+      "placeholder": "verified_lunch",
+      "start_time_offset_min": 125
+    },
+    {
+      "order": 5,
+      "category": "nature",
+      "name": "절영해안산책로",
+      "name_i18n": { "ko": "절영해안산책로", "en": "Jeoryeong Coastal Walk", "ja": "絶影海岸散策路", "zh": "绝影海岸步道" },
+      "address": "부산광역시 영도구 해안산책길 52",
+      "stay_min": 45,
+      "entry_fee_krw": 0,
+      "reservation_required": false,
+      "lat": 35.0748,
+      "lng": 129.0445,
+      "start_time_offset_min": 200,
+      "tips_i18n": {
+        "ko": "흰여울 절벽 아래로 이어지는 해안 데크길. 2014년 대한민국 5대 해안누리길로 선정, 바위·파도·남항 전망을 끼고 걷습니다. 무료·24시간 개방이지만 그늘이 적으니 여름엔 물·모자 필수. 끝까지 갈 필요 없이 중간에서 돌아와도 충분합니다.",
+        "en": "A wooden coastal deck path along the base of the Huinnyeoul cliff — named one of Korea's top-5 coastal trails in 2014. You walk past rocks, waves and Namhang harbor views. Free and open 24h, but little shade, so bring water and a hat in summer. No need to finish it — turn back midway.",
+        "ja": "フィニョウルの崖の下を続く木製の海岸デッキ。2014年に韓国5大海岸路に選定され、岩・波・南港の眺めを横に歩きます。無料・24時間開放ですが日陰が少なく、夏は水と帽子必須。途中で引き返しても十分。",
+        "zh": "沿白浅滩悬崖下方延伸的木栈道海岸步道，2014年获选韩国五大海岸路之一，一路是礁石、海浪与南港景致。免费、24小时开放，但遮荫少，夏天务必带水与帽子。中途折返也已饱览精华。"
+      },
+      "local_tag": "coastal_deck_trail | top5_coastal | sea_view"
+    },
+    {
+      "order": 6,
+      "category": "food",
+      "name": "",
+      "name_i18n": { "ko": "", "en": "", "ja": "", "zh": "" },
+      "address": "영도 저녁",
+      "stay_min": 60,
+      "placeholder": "verified_dinner",
+      "start_time_offset_min": 320
+    }
+  ],
+  "transit_matrix": {}
+}
