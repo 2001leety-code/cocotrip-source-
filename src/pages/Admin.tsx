@@ -375,6 +375,11 @@ export default function Admin() {
             <h3 className="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC]">매출</h3>
             <p className="text-[11px] text-gray-400 mt-0.5">기간별 매출·정산</p>
           </a>
+          <a href="/admin/briefing" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-[#7C5CFC]/40 hover:shadow-md transition-all text-center group">
+            <span className="text-2xl block mb-1.5">☀️</span>
+            <h3 className="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC]">모닝 브리핑</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">어제 회사 한 장</p>
+          </a>
           <a href="/admin/ops?tab=profit" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-[#7C5CFC]/40 hover:shadow-md transition-all text-center group">
             <span className="text-2xl block mb-1.5">🧾</span>
             <h3 className="text-sm font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC]">회계·손익</h3>
