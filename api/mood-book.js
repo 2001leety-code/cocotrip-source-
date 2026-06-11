@@ -24,6 +24,8 @@ import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail } from './_shared/mood-allowlist.js';
 import { computeAmountKRW, isValidServiceType, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { notify } from './_shared/notify.js';
+import { buildMoodReceiptEmail } from './_shared/mood-receipt.js';
+import { sendEmail } from './_send-email.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -177,6 +179,28 @@ export default async function handler(req, res) {
     } catch (notifyErr) {
       // 알림 실패는 비치명적 — 로그만.
       console.warn('[mood-book] notify failed:', notifyErr?.message);
+    }
+
+    // ── 7) 예약자(고객) 확정메일 + 영수증 (best-effort — 실패해도 예약은 확정됨) ──
+    // 예약자(광고사 직원) = 이 흐름의 고객. 텔레그램(운영자 알림)과 별개로
+    // 예약자 본인에게 예약 확정 + 영수증을 보낸다. 트랜잭션 밖 / try-catch 로
+    // 감싸 메일 발송 실패가 예약 확정에 영향 주지 않도록 한다 (notify 와 동일 패턴).
+    try {
+      const receipt = buildMoodReceiptEmail({
+        bookingId: txResult.bookingId,
+        clientName: txResult.clientName,
+        date,
+        startTime,
+        durationHours: hours,
+        serviceType,
+        ratePerHour: txResult.ratePerHour,
+        amountKRW: txResult.amountKRW,
+        newBalance: txResult.newBalance,
+      });
+      await sendEmail({ to: email, subject: receipt.subject, html: receipt.html, text: receipt.text });
+    } catch (mailErr) {
+      // 메일 실패는 비치명적 — 로그만. (Gmail 쿼터 초과 GMAIL_QUOTA_EXCEEDED 포함)
+      console.warn('[mood-book] receipt email failed:', mailErr?.message);
     }
 
     res.writeHead(200, JSON_HEADERS);
