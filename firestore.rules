@@ -468,6 +468,21 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
     match /admin_config/{docId} { allow read, write: if false; }
 
+    // ─────────────────────────────────────────────────────────
+    // MOOD B2B 선불 예약 포털 (숨은 /mood 모듈, 2026-06-11)
+    //   mood_clients   — 광고사 client + 선불 잔액 (balanceKRW)
+    //   mood_bookings  — 예약 (잔액 차감 결과)
+    //   mood_topups    — 충전 이력
+    //   mood_config    — allowlist (emails/admins/clientId)
+    //   전부 read/write: if false — 클라이언트 SDK 직접 접근 절대 금지.
+    //   모든 read/write 는 백엔드 API (admin SDK) 경유: /api/mood-data, mood-book,
+    //   mood-topup. 돈(잔액) 차감은 runTransaction 으로만 → 더블스펜드/음수 불가.
+    // ─────────────────────────────────────────────────────────
+    match /mood_clients/{clientId}  { allow read, write: if false; }
+    match /mood_bookings/{bookingId} { allow read, write: if false; }
+    match /mood_topups/{topupId}     { allow read, write: if false; }
+    match /mood_config/{docId}       { allow read, write: if false; }
+
     match /used_paypal_orders/{orderId} { allow read, write: if false; }
     // cart 2차 (2026-06-06): createCartOrder 서버 재계산 스냅샷 (captureCartOrder 가 신뢰할 SSOT).
     match /cart_orders/{orderID}        { allow read, write: if false; }

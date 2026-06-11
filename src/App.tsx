@@ -66,6 +66,9 @@ const MyPage = lazy(() => import('@/pages/MyPage'));
 import { PlannerSkeleton, CharterSkeleton } from '@/components/PageSkeleton';
 const MyPlansPage = lazy(() => import('@/pages/MyPlansPage'));
 const SignupOnboarding = lazy(() => import('@/pages/SignupOnboarding'));
+// MOOD B2B 선불 예약 포털 — 숨은 내부 모듈. 공개 네비/프리렌더에 절대 추가 금지.
+// 접근은 로그인 + mood_config/allowlist 게이트로만 (페이지 자체가 권한 검증).
+const MoodPortal = lazy(() => import('@/pages/MoodPortal'));
 
 // Retry dynamic import — if chunk is stale after deploy, force one page reload
 function lazyRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
@@ -540,6 +543,15 @@ function AnimatedRoutes() {
             element={
               <Suspense fallback={<PlannerSkeleton />}>
                 <PlanDetailPage />
+              </Suspense>
+            }
+          />
+          {/* MOOD 포털 — 숨은 내부 모듈. 사이트맵/프리렌더/네비 미노출. 권한은 페이지 내부 게이트. */}
+          <Route
+            path="/mood"
+            element={
+              <Suspense fallback={<PlannerSkeleton />}>
+                <MoodPortal />
               </Suspense>
             }
           />
