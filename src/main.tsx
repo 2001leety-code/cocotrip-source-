@@ -1,3 +1,4 @@
+// 2026-06-11 cart 최종(검수·가시성·번호·sandbox·차터일관성) + MOOD. feat-p3-775af5.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
