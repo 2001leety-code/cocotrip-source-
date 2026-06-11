@@ -25,7 +25,8 @@ describe('cart PR2e — CartCheckout 결제 흐름', () => {
     expect(src).toMatch(/body:\s*JSON\.stringify\(\{\s*items/);
   });
   it('CartPanel 이 CartCheckout 사용 (결제하기 버튼)', () => {
-    expect(panelSrc).toMatch(/import\s*\{[^}]*CartCheckout[^}]*\}/);
+    // 2026-06-11: CartCheckout lazy split (결제 진입 시에만 로드, main 번들 환원) — 정적 import → 동적 import().
+    expect(panelSrc).toMatch(/import\(['"]\.\/CartCheckout['"]\)/);
     expect(panelSrc).toMatch(/<CartCheckout/);
     expect(panelSrc).toMatch(/setShowCheckout/);
   });
