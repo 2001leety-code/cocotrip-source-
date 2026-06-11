@@ -15,6 +15,7 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { buildCharterCartItem } from '@/components/charter/charterCartItem';
 import { CartAddButton } from '@/components/CartButton';
+import { isFeatureFlagOn } from '@/lib/featureFlag';
 import { EditFieldModal, type EditFieldSpec } from '@/components/charter/ReviewEditModals';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
@@ -161,7 +162,7 @@ function PaymentPanel({
   // 저장 → onPatchState → CharterNewPage state patch → useQuoteCalculator/resolveProductType 자동 재계산.
   // 가격구조(서비스/차종/출발/목적지)는 위저드 재진입(onBack) — payable 판정 깨짐 방지.
   // 🔒 플래그 OFF(기본) = 기존 요약 그대로(byte-identical). ON 시에만 인라인 편집/추가 필드 노출.
-  const reviewEditOn = import.meta.env.VITE_FEATURE_REVIEW_EDIT === 'true';
+  const reviewEditOn = isFeatureFlagOn(import.meta.env.VITE_FEATURE_REVIEW_EDIT); // trim 방어 — env 앞 공백/탭 (2026-06-11 사고)
   const [editing, setEditing] = useState<EditFieldSpec | null>(null);
   const applyEdit = (v: string) => {
     if (!editing) return;
