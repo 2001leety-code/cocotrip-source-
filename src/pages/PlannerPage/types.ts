@@ -1,4 +1,5 @@
 // Type definitions for PlannerPage -- extracted verbatim from legacy PlannerPage.tsx.
+import type { ActivityMeta } from '@/types/plan';
 
 /** i18n planner dictionary — replaces `p: any` across all planner components */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +47,10 @@ export interface DayItinerary {
   dailyTips?: string[];
   places: Place[];
   meals?: Meal[];
+  /** PR-E SAFETY: 트레킹/러닝 활동 블록 day 의 난이도·위험·부적합 메타.
+   *  backend buildActivityMeta(blockMode.js)가 채움 (FEATURE_ACTIVITY_BLOCKS ON + 활동 블록).
+   *  flag OFF / city_day = undefined → UI falsy guard (미렌더). */
+  activity_meta?: ActivityMeta | null;
 }
 
 export interface Accommodation {

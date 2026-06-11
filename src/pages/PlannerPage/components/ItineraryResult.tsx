@@ -25,6 +25,8 @@ import { CustomerSupportSection } from './CustomerSupportSection';
 import { ComboPackageBanner } from './ComboPackageBanner';
 import { CharterBanner } from './CharterBanner';
 import { AirportPickupCard } from './AirportPickupCard';
+import { ActivityMetaChips } from '@/pages/PlanDetailPage/components/ActivityMetaChips';
+import type { Language } from '@/i18n';
 
 export function ItineraryResult({ result, onReset, p, lang, transport, enriching, arrivalAirport }: {
   result: PlannerResponse; onReset: () => void; p: PlannerDict; lang: string; transport?: string; enriching?: boolean; arrivalAirport?: string;
@@ -101,6 +103,11 @@ export function ItineraryResult({ result, onReset, p, lang, transport, enriching
               <span className="text-white/15">{'\u00B7'}</span>
               <span>{current.places.length} {p.placesUnit}</span>
             </p>
+            {/* PR-E SAFETY (2026-06-12): 트레킹/러닝 day 난이도·위험·부적합 칩 — PlanDetailPage 와
+                동일 컴포넌트. activity_meta 있을 때만(FEATURE_ACTIVITY_BLOCKS ON + 활동 블록) → 없으면 미렌더. */}
+            {current.activity_meta && (
+              <ActivityMetaChips meta={current.activity_meta} language={lang as Language} />
+            )}
             <DailyTipsSection tips={current.dailyTips} p={p} />
             <div className="space-y-0.5 mb-2">
               {current.places.map((place, idx) => (
