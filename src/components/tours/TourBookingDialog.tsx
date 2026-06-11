@@ -8,8 +8,10 @@
 // 나머지 4개(픽업주소·WhatsApp·LINE·메모) 는 선택 입력.
 // 미설정(OFF/기본) = 기존 5개 필수 동작 byte-identical.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { normalizeProfilePhone, isEmptyVal } from '@/lib/profilePrefill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
@@ -245,6 +247,17 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const [whatsappId, setWhatsappId] = useState<string>(initialSnap?.whatsappId ?? '');
   const [lineId, setLineId] = useState<string>(initialSnap?.lineId ?? '');
   const [memoText, setMemoText] = useState<string>(initialSnap?.memoText ?? '');
+
+  // 2026-06-11 가입 프로필 prefill — phone 만 빈칸일 때 채움 (픽업/WhatsApp/LINE/메모는 프로필 미수집 → 무변경).
+  // localStorage 직전입력/사용자 타이핑은 절대 안 덮음(functional update 로 최신 phone 확인). 실패/로그아웃=빈칸 graceful.
+  const { profile: prefillProfile } = useUserProfile();
+  const phonePrefilled = useRef(false);
+  useEffect(() => {
+    if (phonePrefilled.current || !prefillProfile) return;
+    phonePrefilled.current = true; // 프로필 도착 후 1회만 (지운 빈칸 재주입 방지 — critique #4)
+    const p = normalizeProfilePhone(prefillProfile.phone, prefillProfile.countryCode);
+    if (!isEmptyVal(p)) setPhone((cur) => (isEmptyVal(cur) ? p : cur));
+  }, [prefillProfile]);
 
   // Phase 1 (2026-05-19): 시간 슬롯 선택 (tour.slots 가 정의된 어드민 투어용)
   const activeSlots = useMemo(

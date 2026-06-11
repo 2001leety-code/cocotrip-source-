@@ -1,10 +1,12 @@
 // CharterWizard — 6단계 스테퍼.
 // 2026-05-07 정책 B: matrix miss → Geocoding 우선. Bus/VIP 차량은 가격 카드 대신 InquiryForm.
 // 2026-05-10 (B9-35 잔여): wizard 진행 자동 저장 + 24h 이내 재진입 시 ResumeWizardModal.
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
 import { Step1Origin } from './Step1Origin';
@@ -89,6 +91,19 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const [resumeOpen, setResumeOpen] = useState<boolean>(!!initialSnap);
 
   const { quote, loading, geocodingFailed, distanceSource } = useQuoteCalculator(state, manualKm);
+
+  // 2026-06-11 가입 프로필 prefill — customerName/customerPhone 빈 필드만 (메신저는 프로필 미수집 → 무변경).
+  // resume 결정 전(resumeOpen)엔 주입 안 함(snapshot 복원 충돌 방지) + 마운트당 1회 + fill-only-empty(사용자/snapshot 안 덮음).
+  const { profile: prefillProfile } = useUserProfile();
+  const profilePrefilled = useRef(false);
+  useEffect(() => {
+    if (profilePrefilled.current || !prefillProfile || resumeOpen) return;
+    profilePrefilled.current = true; // 프로필 도착 + resume 결정 후 1회만 (critique #4)
+    setState((prev) => mergeProfileDefaults(prev, {
+      customerName: prefillProfile.name || prefillProfile.nickname,
+      customerPhone: normalizeProfilePhone(prefillProfile.phone, prefillProfile.countryCode),
+    }, ['customerName', 'customerPhone']));
+  }, [prefillProfile, resumeOpen]);
 
   // Resume modal 활성 시 'charter_paused' namespace 로 저장 → 사용자가 '새로 시작'
   // 누르기 전까지 원본 snapshot 유지. WizardForm/index.tsx 와 동일 패턴.
