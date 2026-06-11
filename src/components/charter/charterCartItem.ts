@@ -25,33 +25,48 @@ export function buildCharterCartItem(state: WizardState, resolved: ResolvedPayme
   if (resolved.productType === 'charter_custom_estimate') return null; // backend 미해석 → cart 전체거부 회피
   if (isAiPlannerProduct(resolved.productType)) return null;            // 방어적(차터엔 미발생)
 
-  const vehicle = state.vehicle ?? 'staria';
+  const vehicle = state.vehicle || 'staria';
   const durationDays = resolved.durationDays
-    ?? (state.service === 'multi_day' && state.endDate && state.startDate
+    || (state.service === 'multi_day' && state.endDate && state.startDate
       ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000) + 1)
       : 1);
-  const origin = state.origin ?? state.originCustom ?? '';
-  const dest = state.destinationKey ?? state.destinationCustom ?? '';
+  const origin = state.origin || state.originCustom || '';
+  const dest = state.destinationKey || state.destinationCustom || '';
+  const routeLabel = origin && dest ? `${origin} → ${dest}` : (origin || dest || resolved.productType);
+
+  // 2026-06-11: 검수 화면 일관성(운영자) — 투어처럼 풍부한 memo(경로·차종·항공편·연락처·메모)로
+  //   번호 리스트 표시. 구조적 booking 필드와 일부 중복은 투어 포맷과 동일. memo 는 가격 키 아님(P311 무관).
+  const memo = [
+    `Charter: ${routeLabel}`,
+    resolved.passengers ? `${resolved.passengers} pax` : '',
+    `Vehicle: ${vehicle}`,
+    state.startDate ? `Date: ${state.startDate}` : '',
+    state.airport?.terminal ? `Terminal: ${state.airport.terminal}` : '',
+    state.airport?.flightNumber ? `Flight: ${state.airport.flightNumber}` : '',
+    state.customerName ? `Name: ${state.customerName}` : '',
+    state.customerPhone ? `Phone: ${state.customerPhone}` : '',
+    state.customerMessenger ? `Messenger: ${state.customerMessenger}` : '',
+    state.notes ? `Notes: ${state.notes}` : '',
+  ].filter(Boolean).join(' | ');
 
   // ⚠️ backend resolveLineItemKrw 가 읽는 키만 신뢰됨 (priceKRW 는 표시 전용 = 재계산 시 무시).
   const booking: CartItemBooking = {
     productType: resolved.productType,
     passengers: resolved.passengers,
     durationDays,
-    dateStart: state.startDate ?? undefined,
-    dateEnd: state.endDate ?? state.startDate ?? undefined,
-    originKey: resolved.originKey ?? undefined,
-    destKey: resolved.destKey ?? undefined,
+    dateStart: state.startDate || undefined,
+    dateEnd: state.endDate || state.startDate || undefined,
+    originKey: resolved.originKey || undefined,
+    destKey: resolved.destKey || undefined,
     vehicle,
     tripType: resolved.tripType,
     pickupLocation: origin,
     vehicleType: vehicle,
-    memo: state.notes ?? '',
+    memo,
   };
 
   // 같은 조건 중복 담기 방지 합성 키 (TourBookingDialog `${tour.id}-${date}-${pax}` 패턴 따름).
-  const id = `charter-${resolved.productType}-${origin}-${dest}-${state.startDate ?? ''}-${state.paxCount ?? ''}`;
-  const routeLabel = origin && dest ? `${origin} → ${dest}` : (origin || dest || resolved.productType);
+  const id = `charter-${resolved.productType}-${origin}-${dest}-${state.startDate || ''}-${state.paxCount || ''}`;
   const displayName = state.startDate ? `${routeLabel} (${state.startDate})` : routeLabel;
 
   return { id, booking, displayName, priceKRW: resolved.priceKRW };
