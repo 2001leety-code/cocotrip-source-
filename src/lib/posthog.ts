@@ -76,6 +76,9 @@ export function bootPostHog(): void {
 }
 
 export type PostHogEventName =
+  // 깔때기 상단(funnel top): 플래너 위저드 진입. 이게 없으면 시작→생성→결제 전환율의
+  // 분모(시작)가 안 보임. WizardForm 첫 마운트 1회 발화 (2026-06-12).
+  | 'wizard_started'
   | 'plan_generated'
   | 'plan_downloaded'
   | 'transit_clicked'
