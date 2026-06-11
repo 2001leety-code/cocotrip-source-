@@ -39,14 +39,15 @@ const REVIEW_TEXT: Record<string, L4> = {
   sub:     { ko: '아래 내용이 모두 맞는지 확인 후 결제해 주세요.', en: 'Please check every detail below before paying.', ja: '以下の内容をご確認のうえお支払いください。', zh: '请确认以下所有内容后再付款。' },
   confirm: { ko: '내용 확인 — 결제 진행', en: 'Confirm & pay', ja: '確認して支払う', zh: '确认并付款' },
   back:    { ko: '← 장바구니 수정', en: '← Edit cart', ja: '← カートを編集', zh: '← 编辑购物车' },
+  totalPending: { ko: '결제 진행 시 확정', en: 'Shown at payment', ja: 'お支払い時に確定', zh: '付款时确认' },
 };
 function pickLang(language: string): Lang {
   return language === 'ko' || language === 'ja' || language === 'zh' ? language : 'en';
 }
 /** booking 의 채워진 필드만 라벨/값 쌍으로 (검수 표시용). */
-function formatBookingDetails(b: CartItemBooking, language: string): { label: string; value: string }[] {
+function formatBookingDetails(b: CartItemBooking, language: string): { label: string; value: string; full?: boolean }[] {
   const lng = pickLang(language);
-  const rows: { label: string; value: string }[] = [];
+  const rows: { label: string; value: string; full?: boolean }[] = [];
   const lab = (m: L4) => m[lng];
   if (b.dateStart) {
     let d = b.dateStart;
@@ -59,7 +60,7 @@ function formatBookingDetails(b: CartItemBooking, language: string): { label: st
   const veh = b.vehicle || b.vehicleType;
   if (veh) rows.push({ label: lab(DETAIL_LABELS.vehicle), value: veh });
   if (b.pickupLocation) rows.push({ label: lab(DETAIL_LABELS.pickup), value: b.pickupLocation });
-  if (b.memo) rows.push({ label: lab(DETAIL_LABELS.notes), value: b.memo });
+  if (b.memo) rows.push({ label: lab(DETAIL_LABELS.notes), value: b.memo, full: true });
   return rows;
 }
 
@@ -102,16 +103,25 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
 
   // 2) PayPal SDK 로드 (전역 #paypal-sdk 재사용 간소 로더).
   function loadSdk() {
-    if (getPaypal()) { setPaypalReady(true); return; }
+    // sandbox/live — PayPalBookingButton 과 동일 토글. preview(sandbox)에서 cart 결제가 live SDK 로
+    // 떠서 "Things don't appear to be working" 나던 버그 fix (2026-06-11). 단건 결제가 다른 모드로
+    // 먼저 로드했으면 제거 후 올바른 모드로 재로드(전역 #paypal-sdk 공유).
+    const sandboxMode = import.meta.env.VITE_PAYPAL_ENV === 'sandbox';
+    const clientId = sandboxMode ? import.meta.env.VITE_PAYPAL_SANDBOX_CLIENT_ID : import.meta.env.VITE_PAYPAL_CLIENT_ID;
+    const expectedMode = sandboxMode ? 'sandbox' : 'live';
+    if (!clientId) { setError('PayPal client ID not configured'); setStatus('error'); return; }
     const existing = document.getElementById('paypal-sdk') as HTMLScriptElement | null;
-    if (existing) {
+    if (existing && existing.dataset.mode !== expectedMode) {
+      existing.remove();
+      (window as unknown as { paypal?: unknown }).paypal = undefined;
+    } else if (getPaypal()) {
+      setPaypalReady(true); return;
+    } else if (existing) {
       existing.addEventListener('load', () => { if (getPaypal()) setPaypalReady(true); });
       return;
     }
-    const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
-    if (!clientId) { setError('PayPal client ID not configured'); setStatus('error'); return; }
     const s = document.createElement('script');
-    s.id = 'paypal-sdk'; s.async = true; s.dataset.mode = 'live';
+    s.id = 'paypal-sdk'; s.async = true; s.dataset.mode = expectedMode;
     s.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&intent=capture&components=buttons`;
     s.onload = () => {
       if (getPaypal()) setPaypalReady(true);
@@ -163,6 +173,7 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
   }
 
   const displaySumUSD = items.reduce((s, it) => s + (Number(it.priceUSD) || 0), 0);
+  const displaySumKRW = items.reduce((s, it) => s + (Number(it.priceKRW) || 0), 0);
 
   return (
     <div className="p-5">
@@ -180,12 +191,22 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
               <p className="text-white text-sm font-medium break-words">{item.displayName}</p>
               {item.priceUSD ? <span className="text-[#C4956A] text-sm font-semibold shrink-0">${item.priceUSD}</span> : null}
             </div>
-            <div className="mt-1.5 space-y-1">
+            <div className="mt-2 space-y-1.5">
               {formatBookingDetails(item.booking, language).map((row, i) => (
-                <div key={i} className="flex justify-between gap-3 text-xs">
-                  <span className="text-white/45 shrink-0">{row.label}</span>
-                  <span className="text-white/75 text-right break-words">{row.value}</span>
-                </div>
+                row.full ? (
+                  // 긴 메모/요청사항 — 우측 좁은 칸 X, 전체폭 stacked + " | " 줄바꿈으로 가독성.
+                  <div key={i} className="text-xs pt-1 border-t border-white/5">
+                    <span className="text-white/60 block mb-1">{row.label}</span>
+                    <span className="text-white/90 whitespace-pre-line break-words block leading-relaxed">
+                      {row.value.split(' | ').join('\n')}
+                    </span>
+                  </div>
+                ) : (
+                  <div key={i} className="flex justify-between gap-3 text-xs">
+                    <span className="text-white/60 shrink-0">{row.label}</span>
+                    <span className="text-white/90 text-right break-words font-medium">{row.value}</span>
+                  </div>
+                )
               ))}
             </div>
           </div>
@@ -196,8 +217,15 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
       <div className="mb-4 flex items-baseline justify-between border-t border-white/10 pt-3">
         <span className="text-white/70 text-sm">{c.total || 'Total'}</span>
         <span className="text-white font-bold text-lg">
-          ${total ? total.usd : displaySumUSD.toFixed(2)}
-          {total ? <span className="text-white/45 text-xs"> ({total.krw.toLocaleString('ko-KR')}원)</span> : null}
+          {total ? (
+            <>${total.usd}<span className="text-white/55 text-xs"> ({total.krw.toLocaleString('ko-KR')}원)</span></>
+          ) : displaySumUSD > 0 ? (
+            <>${displaySumUSD.toFixed(2)}</>
+          ) : displaySumKRW > 0 ? (
+            <>{displaySumKRW.toLocaleString('ko-KR')}원</>
+          ) : (
+            <span className="text-white/55 text-sm font-normal">{REVIEW_TEXT.totalPending[lng]}</span>
+          )}
         </span>
       </div>
 
