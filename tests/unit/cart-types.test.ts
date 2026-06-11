@@ -3,7 +3,7 @@
  * 플래그 OFF 가 기본 = 현행 무영향의 핵심 안전장치 → 엄격 검증.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { isCartEnabled, isAiPlannerProduct } from '@/lib/cart-types';
+import { isCartEnabled, isAiPlannerProduct, stripUndefined } from '@/lib/cart-types';
 
 describe('cart-types — isCartEnabled 플래그 게이트', () => {
   afterEach(() => { vi.unstubAllEnvs(); });
@@ -39,5 +39,19 @@ describe('cart-types — isAiPlannerProduct (cart 제외 가드)', () => {
     expect(isAiPlannerProduct('charter_transfer')).toBe(false);
     expect(isAiPlannerProduct('charter_multiday')).toBe(false);
     expect(isAiPlannerProduct('')).toBe(false);
+  });
+});
+
+describe('stripUndefined — Firestore undefined 거부 방어 (2026-06-11 cart 담기 사고)', () => {
+  it('top-level + 중첩(booking) undefined 제거', () => {
+    const r = stripUndefined({
+      id: 'x', priceUSD: undefined,
+      booking: { productType: 'airport_seoul-central', originKey: undefined, tripType: undefined, passengers: 4 },
+    });
+    expect(r).toEqual({ id: 'x', booking: { productType: 'airport_seoul-central', passengers: 4 } });
+  });
+  it('null 은 보존 (Firestore 허용), 0/빈문자열/false 도 보존', () => {
+    expect(stripUndefined({ a: null, b: undefined })).toEqual({ a: null });
+    expect(stripUndefined({ a: 0, b: '', c: false, d: undefined })).toEqual({ a: 0, b: '', c: false });
   });
 });
