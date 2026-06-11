@@ -1244,7 +1244,7 @@
     "heroHeadline2": "60초 안에 완성",
     "heroSubtitle": "AI가 일정을 짜고, 프라이빗 차량과 24/7 영어 지원까지",
     "heroCta": "지금 시작하기",
-    "heroProofReviews": "5.0 Google",
+    "heroProofReviews": "실제 게스트 후기",
     "heroProofSupport": "24/7 영어 지원",
     "heroProofLicensed": "관광 등록 사업자",
     "tourMarqueeTitle": "추천 투어",
@@ -1275,6 +1275,7 @@
     "loginCta": "Google로 로그인",
     "loginBenefit": "첫 예약 {n}% 할인 + Trip Coins",
     "googleReview": "Google 리뷰",
+    "googleReviewSub": "Google에 경험을 남겨주세요",
     "trustPaypal": "PayPal\n안전결제",
     "trustSupport": "24시간\n고객지원",
     "trustLicense": "관광 등록\n사업자",
@@ -1332,11 +1333,12 @@
     "verifiedTraveler": "검증된 여행자"
   },
   "googleReviews": {
-    "subtitle": "전 세계 게스트들이 우리에 대해 말하는 것",
-    "basedOn": "150+ 리뷰 기준",
-    "verified": "검증됨",
-    "seeAll": "Google에서 모든 리뷰 보기",
-    "reviewsLabel": "리뷰"
+    "subtitle": "함께 여행하셨나요? Google에 솔직한 후기를 남겨 다음 게스트에게 도움을 주세요.",
+    "reviewsLabel": "리뷰",
+    "trustLicensed": "관광 등록 사업자",
+    "trustSupport": "24/7 영어 지원",
+    "trustPrivate": "전용 가이드 & 차량",
+    "leaveReview": "Google에 후기 남기기"
   },
   "charterPage": {
     "backToHome": "홈으로",

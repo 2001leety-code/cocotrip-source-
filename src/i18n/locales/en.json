@@ -1321,7 +1321,7 @@
     "heroHeadline2": "planned in 60 seconds",
     "heroSubtitle": "AI plans the days. Private chauffeur + 24/7 English support included.",
     "heroCta": "Get Started",
-    "heroProofReviews": "5.0 Google",
+    "heroProofReviews": "Real Guest Reviews",
     "heroProofSupport": "24/7 English",
     "heroProofLicensed": "Licensed Operator",
     "tourMarqueeTitle": "Featured Tours",
@@ -1352,6 +1352,7 @@
     "loginCta": "Sign in with Google",
     "loginBenefit": "{n}% off first booking + Trip Coins",
     "googleReview": "Google Reviews",
+    "googleReviewSub": "Share your experience on Google",
     "trustPaypal": "PayPal\nSecure Pay",
     "trustSupport": "24/7\nSupport",
     "trustLicense": "Licensed\nOperator",
@@ -1409,11 +1410,12 @@
     "verifiedTraveler": "Verified Traveler"
   },
   "googleReviews": {
-    "subtitle": "What our global guests are saying about us",
-    "basedOn": "Based on 150+ reviews",
-    "verified": "Verified",
-    "seeAll": "See all reviews on Google",
-    "reviewsLabel": "Reviews"
+    "subtitle": "Travelled with us? Share your honest experience on Google to help future guests.",
+    "reviewsLabel": "Reviews",
+    "trustLicensed": "Licensed tour operator",
+    "trustSupport": "24/7 English support",
+    "trustPrivate": "Private guide & van",
+    "leaveReview": "Review us on Google"
   },
   "ads": {
     "kpopConcert": {
