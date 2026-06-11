@@ -7,6 +7,7 @@
  *    priceKRW/priceUSD 표시 전용 — 결제는 booking 키로 backend 재계산 (P311).
  */
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ShoppingCart, X, Trash2, Calendar } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
@@ -122,8 +123,9 @@ function CartPanelInner() {
         )}
       </button>
 
-      {/* 슬라이드 패널 */}
-      {isOpen && (
+      {/* 슬라이드 패널 — createPortal 로 document.body 렌더: 헤더의 transform/filter(브랜드 글로우) 조상에
+          position:fixed 가 갇혀 화면 전체를 못 덮고 본문이 잘리던 사고 방지 (2026-06-11). */}
+      {isOpen && createPortal(
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">
           <div
             ref={panelRef}
@@ -213,7 +215,8 @@ function CartPanelInner() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <style>{`
