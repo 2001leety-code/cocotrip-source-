@@ -6,14 +6,15 @@
  * ⚠️ 1차 PR(FOUNDATION): 담기/보기/제거만. 결제 버튼 없음 (2차 PR sum-one-order).
  *    priceKRW/priceUSD 표시 전용 — 결제는 booking 키로 backend 재계산 (P311).
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { ShoppingCart, X, Trash2, Calendar } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { isCartEnabled, type CartItemBooking } from '@/lib/cart-types';
-import { CartCheckout } from './CartCheckout';
+// CartCheckout 는 결제 진입(showCheckout) 시에만 필요 → lazy split (main 번들 환원, size-limit 130KB).
+const CartCheckout = lazy(() => import('./CartCheckout').then((m) => ({ default: m.CartCheckout })));
 
 interface CartAddProps {
   id: string;
@@ -159,6 +160,13 @@ function CartPanelInner() {
                 <ShoppingCart size={40} className="mb-3 opacity-30" />
                 <p className="text-sm">{c.empty || 'Your cart is empty'}</p>
               </div>
+            ) : showCheckout ? (
+              <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-[#7C5CFC] border-t-transparent animate-spin rounded-full" /></div>}>
+                <CartCheckout
+                  onClose={() => { setShowCheckout(false); setIsOpen(false); }}
+                  onBack={() => setShowCheckout(false)}
+                />
+              </Suspense>
             ) : (
               <div className="p-4 space-y-3">
                 {items.map(item => (
@@ -193,25 +201,21 @@ function CartPanelInner() {
                   </div>
                 ))}
 
-                {/* PR2e: 결제 (createCartOrder → PayPal → captureCartOrder). flag OFF 면 패널 자체 미렌더. */}
-                {showCheckout ? (
-                  <CartCheckout onClose={() => { setShowCheckout(false); setIsOpen(false); }} />
-                ) : (
-                  <div className="pt-1 space-y-2">
-                    <button
-                      onClick={() => setShowCheckout(true)}
-                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#7C5CFC] hover:bg-[#6a4ce0] transition-colors"
-                    >
-                      {c.checkout || 'Proceed to checkout'}
-                    </button>
-                    <button
-                      onClick={() => clear()}
-                      className="text-xs text-red-400/70 hover:text-red-400 inline-flex items-center gap-1"
-                    >
-                      <Trash2 size={12} /> {c.clear || 'Clear cart'}
-                    </button>
-                  </div>
-                )}
+                {/* PR2e: 결제 트리거 — showCheckout 시 위 분기에서 CartCheckout(검수)만 렌더(단순 목록 숨김). */}
+                <div className="pt-1 space-y-2">
+                  <button
+                    onClick={() => setShowCheckout(true)}
+                    className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#7C5CFC] hover:bg-[#6a4ce0] transition-colors"
+                  >
+                    {c.checkout || 'Proceed to checkout'}
+                  </button>
+                  <button
+                    onClick={() => clear()}
+                    className="text-xs text-red-400/70 hover:text-red-400 inline-flex items-center gap-1"
+                  >
+                    <Trash2 size={12} /> {c.clear || 'Clear cart'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
