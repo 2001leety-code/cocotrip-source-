@@ -15,7 +15,7 @@ import {
   collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { CartItem } from '@/lib/cart-types';
+import { stripUndefined, type CartItem } from '@/lib/cart-types';
 import {
   getLocalCart, addToLocalCart, removeFromLocalCart, clearLocalCart, mergeGuestCart,
 } from '@/lib/cart-storage';
@@ -38,7 +38,7 @@ export function useCart() {
     // 게스트 cart → 로그인 머지 (1회, 멱등). writer = Firestore setDoc 주입.
     void mergeGuestCart((item) => setDoc(
       doc(db, 'users', uid, 'cart', item.id),
-      { ...item, serverAddedAt: serverTimestamp() },
+      { ...stripUndefined(item), serverAddedAt: serverTimestamp() },
       { merge: true },
     ));
 
@@ -60,7 +60,7 @@ export function useCart() {
     if (user?.uid) {
       try {
         await setDoc(doc(db, 'users', user.uid, 'cart', item.id), {
-          ...full,
+          ...stripUndefined(full),
           serverAddedAt: serverTimestamp(),
         });
       } catch (err) {
