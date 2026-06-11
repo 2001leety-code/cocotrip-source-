@@ -13,6 +13,8 @@ import { CharterWizard } from '@/components/charter/CharterWizard';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { resolveProductType } from '@/components/charter/resolveProductType';
+import { buildCharterCartItem } from '@/components/charter/charterCartItem';
+import { CartAddButton } from '@/components/CartButton';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { formatPrice } from '@/lib/exchange-rate';
@@ -149,6 +151,8 @@ function PaymentPanel({
   const estimateKRW = quote && !quote.needsCustomQuote && quote.subtotalKRW > 0 ? quote.subtotalKRW : null;
   const displayKRW = resolved.priceKRW ?? estimateKRW;
   const isEstimateOnly = !resolved.payable && estimateKRW != null;
+  // 2026-06-11 장바구니 담기 — 결제 가능 항목만(estimate/AI플래너/비결제=null). CartAddButton 은 플래그 OFF 시 자체 null.
+  const cartItem = buildCharterCartItem(state, resolved);
 
   // WhatsApp 견적 요청 본문 (이름/연락처/airport/숙소 정보 포함)
   const adultPart = state.adultCount != null ? `어른${state.adultCount}` : '';
@@ -202,6 +206,7 @@ function PaymentPanel({
 
       {/* 결제 가능한 경우 — PayPal/Braintree 버튼 (확정 가격) */}
       {resolved.payable && resolved.productType && resolved.priceKRW ? (
+        <>
         <PayPalBookingButton
           productType={resolved.productType}
           passengers={resolved.passengers}
@@ -226,6 +231,17 @@ function PaymentPanel({
             ? Math.max(1, Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86400000) + 1)
             : 1}
         />
+        {/* 2026-06-11 장바구니 담기 (PayPal 옆) — flag OFF=null, estimate/AI플래너 제외. 표시가 무시·booking키로 backend 재계산(P311). */}
+        {cartItem && (
+          <CartAddButton
+            id={cartItem.id}
+            booking={cartItem.booking}
+            displayName={cartItem.displayName}
+            priceKRW={cartItem.priceKRW}
+            className="w-full inline-flex items-center justify-center gap-1.5 py-3 mt-2 rounded-xl text-[13px] font-semibold bg-white/[0.05] text-white/75 border border-white/12 hover:bg-white/[0.09] transition-colors"
+          />
+        )}
+        </>
       ) : isEstimateOnly && estimateKRW != null ? (
         // 2026-05-04 URGENT-1: quote 가 산출됐으면 바로 결제 가능. 약관 체크박스 단계 제거 —
         // 사용자 요청: "요금 자동 책정해서 바로 결제하면 되잖아". 부산/대구/광주 등 zone
