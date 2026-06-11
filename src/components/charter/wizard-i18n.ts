@@ -97,6 +97,8 @@ export interface WizardI18n {
   payField_service: string; payField_origin: string; payField_destination: string;
   payField_vehiclePax: string; payField_date: string;
   payField_terminal: string; payField_flight: string;
+  payFieldName: string; payFieldPhone: string; payFieldNotes: string; payFieldTime: string;
+  reviewEditHint: string; reviewSave: string; reviewCancel: string;
   payPrepayAmount: string;
   payCustomQuoteMsg: string;
   estimateOnlyNote: string;
@@ -293,6 +295,14 @@ export function getWizardI18n(language: string): WizardI18n {
     payField_date: get('payField_date'),
     payField_terminal: get('payField_terminal'),
     payField_flight: get('payField_flight'),
+    // 2026-06-11 검수 인라인 편집 — locale JSON 무수정, 인라인 4-lang fallback (svcTransfer 패턴).
+    payFieldName: get('payFieldName') || (lang === 'ko' ? '이름' : lang === 'ja' ? 'お名前' : lang === 'zh' ? '姓名' : 'Name'),
+    payFieldPhone: get('payFieldPhone') || (lang === 'ko' ? '연락처' : lang === 'ja' ? '連絡先' : lang === 'zh' ? '联系电话' : 'Phone'),
+    payFieldNotes: get('payFieldNotes') || (lang === 'ko' ? '요청사항' : lang === 'ja' ? 'ご要望' : lang === 'zh' ? '备注' : 'Notes'),
+    payFieldTime: get('payFieldTime') || (lang === 'ko' ? '픽업 시각' : lang === 'ja' ? 'ピックアップ時刻' : lang === 'zh' ? '上车时间' : 'Pickup time'),
+    reviewEditHint: get('reviewEditHint') || (lang === 'ko' ? '✏️ 정보를 확인하고, 잘못된 항목은 눌러서 수정하세요.' : lang === 'ja' ? '✏️ 内容をご確認のうえ、誤りがあれば項目をタップして修正してください。' : lang === 'zh' ? '✏️ 请确认信息，如有错误请点击项目修改。' : '✏️ Review your details — tap any item to fix a mistake.'),
+    reviewSave: get('reviewSave') || (lang === 'ko' ? '저장' : lang === 'ja' ? '保存' : lang === 'zh' ? '保存' : 'Save'),
+    reviewCancel: get('reviewCancel') || (lang === 'ko' ? '취소' : lang === 'ja' ? 'キャンセル' : lang === 'zh' ? '取消' : 'Cancel'),
     payPrepayAmount: get('payPrepayAmount'),
     payCustomQuoteMsg: get('payCustomQuoteMsg'),
     estimateOnlyNote: get('estimateOnlyNote'),

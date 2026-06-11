@@ -15,6 +15,7 @@ import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { buildCharterCartItem } from '@/components/charter/charterCartItem';
 import { CartAddButton } from '@/components/CartButton';
+import { EditFieldModal, type EditFieldSpec } from '@/components/charter/ReviewEditModals';
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { formatPrice } from '@/lib/exchange-rate';
@@ -107,6 +108,7 @@ export default function CharterNewPage() {
             userEmail={user?.email ?? ''}
             language={language as 'ko' | 'en' | 'ja' | 'zh'}
             onBack={() => setCompletedState(null)}
+            onPatchState={(patch) => setCompletedState((prev) => (prev ? { ...prev, ...patch } : prev))}
           />
         )}
 
@@ -129,12 +131,13 @@ export default function CharterNewPage() {
 
 // ─────────────────────────────────────────────────────────
 function PaymentPanel({
-  state, userEmail, language, onBack,
+  state, userEmail, language, onBack, onPatchState,
 }: {
   state: WizardState;
   userEmail: string;
   language: 'ko' | 'en' | 'ja' | 'zh';
   onBack: () => void;
+  onPatchState: (patch: Partial<WizardState>) => void;
 }) {
   const i18n = getWizardI18n(language);
   const resolved = resolveProductType(state);
@@ -153,6 +156,20 @@ function PaymentPanel({
   const isEstimateOnly = !resolved.payable && estimateKRW != null;
   // 2026-06-11 장바구니 담기 — 결제 가능 항목만(estimate/AI플래너/비결제=null). CartAddButton 은 플래그 OFF 시 자체 null.
   const cartItem = buildCharterCartItem(state, resolved);
+
+  // 2026-06-11 검수 인라인 편집 — 가격무영향(이름/연락처/메모/항공편) + 가벼운 재계산(날짜/시각) 필드만.
+  // 저장 → onPatchState → CharterNewPage state patch → useQuoteCalculator/resolveProductType 자동 재계산.
+  // 가격구조(서비스/차종/출발/목적지)는 위저드 재진입(onBack) — payable 판정 깨짐 방지.
+  // 🔒 플래그 OFF(기본) = 기존 요약 그대로(byte-identical). ON 시에만 인라인 편집/추가 필드 노출.
+  const reviewEditOn = import.meta.env.VITE_FEATURE_REVIEW_EDIT === 'true';
+  const [editing, setEditing] = useState<EditFieldSpec | null>(null);
+  const applyEdit = (v: string) => {
+    if (!editing) return;
+    if (editing.key === 'terminal') onPatchState({ airport: { ...(state.airport ?? {}), terminal: (v || undefined) as 'T1' | 'T2' | undefined } });
+    else if (editing.key === 'flightNumber') onPatchState({ airport: { ...(state.airport ?? {}), flightNumber: v } });
+    else onPatchState({ [editing.key]: v } as Partial<WizardState>);
+    setEditing(null);
+  };
 
   // WhatsApp 견적 요청 본문 (이름/연락처/airport/숙소 정보 포함)
   const adultPart = state.adultCount != null ? `어른${state.adultCount}` : '';
@@ -190,9 +207,29 @@ function PaymentPanel({
         <Row label={i18n.payField_origin} value={state.origin ?? state.originCustom ?? '-'} />
         <Row label={i18n.payField_destination} value={state.destinationKey ?? state.destinationCustom ?? '-'} />
         <Row label={i18n.payField_vehiclePax} value={`${state.vehicle} · ${state.paxCount}${i18n.maxUnit}`} />
+        {/* 2026-06-11 검수 인라인 편집 (🔒 VITE_FEATURE_REVIEW_EDIT OFF=기존 요약 byte-identical). */}
+        {reviewEditOn ? (
+        <>
+        <Row label={i18n.payField_date} value={state.startDate ?? '-'} onEdit={() => setEditing({ key: 'startDate', label: i18n.payField_date, type: 'date', value: state.startDate ?? '' })} />
+        <Row label={i18n.payFieldTime} value={state.pickupTime ?? state.startTime ?? '-'} onEdit={() => setEditing({ key: 'pickupTime', label: i18n.payFieldTime, type: 'time', value: state.pickupTime ?? state.startTime ?? '' })} />
+        <Row label={i18n.payFieldName} value={state.customerName || '-'} onEdit={() => setEditing({ key: 'customerName', label: i18n.payFieldName, type: 'text', value: state.customerName ?? '' })} />
+        <Row label={i18n.payFieldPhone} value={state.customerPhone || '-'} onEdit={() => setEditing({ key: 'customerPhone', label: i18n.payFieldPhone, type: 'tel', value: state.customerPhone ?? '' })} />
+        {state.airport && (
+          <>
+            <Row label={i18n.payField_terminal} value={state.airport.terminal ?? '-'} onEdit={() => setEditing({ key: 'terminal', label: i18n.payField_terminal, type: 'text', value: state.airport?.terminal ?? '' })} />
+            <Row label={i18n.payField_flight} value={state.airport.flightNumber ?? '-'} onEdit={() => setEditing({ key: 'flightNumber', label: i18n.payField_flight, type: 'text', value: state.airport?.flightNumber ?? '' })} />
+          </>
+        )}
+        <Row label={i18n.payFieldNotes} value={state.notes || '-'} onEdit={() => setEditing({ key: 'notes', label: i18n.payFieldNotes, type: 'textarea', value: state.notes ?? '' })} />
+        <p className="text-[11px] text-white/45 pt-1 leading-relaxed">{i18n.reviewEditHint}</p>
+        </>
+        ) : (
+        <>
         <Row label={i18n.payField_date} value={`${state.startDate ?? '-'} ${state.pickupTime ?? state.startTime ?? ''}`} />
         {state.airport?.terminal && <Row label={i18n.payField_terminal} value={state.airport.terminal} />}
         {state.airport?.flightNumber && <Row label={i18n.payField_flight} value={state.airport.flightNumber} />}
+        </>
+        )}
         <div className="border-t border-white/10 pt-2 mt-2 flex items-center justify-between">
           <span className="text-white/60">{i18n.payPrepayAmount}</span>
           <span className="text-lg font-bold text-white">{KRW(displayKRW)}</span>
@@ -292,15 +329,33 @@ function PaymentPanel({
           <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>
         </p>
       )}
+
+      {/* 2026-06-11 검수 인라인 편집 모달 (가격무영향/가벼운재계산 필드) */}
+      {editing && (
+        <EditFieldModal
+          spec={editing}
+          onSave={applyEdit}
+          onClose={() => setEditing(null)}
+          saveLabel={i18n.reviewSave}
+          cancelLabel={i18n.reviewCancel}
+        />
+      )}
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, onEdit }: { label: string; value: string; onEdit?: () => void }) {
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-white/55 text-xs uppercase tracking-wider">{label}</span>
-      <span className="text-white/85">{value}</span>
+    <div className="flex items-center justify-between text-sm gap-2">
+      <span className="text-white/55 text-xs uppercase tracking-wider shrink-0">{label}</span>
+      {onEdit ? (
+        <button onClick={onEdit} className="inline-flex items-center gap-1.5 text-white/85 hover:text-white min-w-0 group" type="button">
+          <span className="truncate">{value}</span>
+          <Pencil className="w-3 h-3 text-white/40 group-hover:text-[#B668FC] shrink-0" />
+        </button>
+      ) : (
+        <span className="text-white/85 truncate">{value}</span>
+      )}
     </div>
   );
 }
