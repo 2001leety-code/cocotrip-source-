@@ -197,9 +197,14 @@ export function CartCheckout({ onClose, onBack }: { onClose: () => void; onBack?
                   // 긴 메모/요청사항 — 우측 좁은 칸 X, 전체폭 stacked + " | " 줄바꿈으로 가독성.
                   <div key={i} className="text-xs pt-1 border-t border-white/5">
                     <span className="text-white/60 block mb-1">{row.label}</span>
-                    <span className="text-white/90 whitespace-pre-line break-words block leading-relaxed">
-                      {row.value.split(' | ').join('\n')}
-                    </span>
+                    <ol className="text-white/90 leading-relaxed space-y-0.5">
+                      {row.value.split(' | ').map((part, j) => (
+                        <li key={j} className="flex gap-1.5">
+                          <span className="text-white/45 shrink-0 tabular-nums">{j + 1}.</span>
+                          <span className="break-words">{part}</span>
+                        </li>
+                      ))}
+                    </ol>
                   </div>
                 ) : (
                   <div key={i} className="flex justify-between gap-3 text-xs">
