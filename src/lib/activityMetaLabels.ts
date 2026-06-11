@@ -41,10 +41,19 @@ export const HAZARD_LABEL: Record<Language, Record<string, string>> = {
 
 // 부적합 대상 토큰 4-lang (SAFETY 최고 — 절대 누락 금지).
 export const UNSUITABLE_LABEL: Record<Language, Record<string, string>> = {
-  ko: { wheelchair_user: '휠체어 이용자', elderly: '노약자', young_children: '어린이', altitude_sensitive: '고산증 민감자', winter_first_time: '겨울 초보자', vertigo_sensitive: '고소공포증 민감자', pregnant: '임산부', heart_condition: '심장질환자' },
-  en: { wheelchair_user: 'Wheelchair users', elderly: 'Elderly', young_children: 'Young children', altitude_sensitive: 'Altitude-sensitive', winter_first_time: 'Winter first-timers', vertigo_sensitive: 'Vertigo-sensitive', pregnant: 'Pregnant', heart_condition: 'Heart conditions' },
-  ja: { wheelchair_user: '車椅子利用者', elderly: '高齢者', young_children: '幼児', altitude_sensitive: '高山病に敏感な方', winter_first_time: '冬山初心者', vertigo_sensitive: '高所恐怖症の方', pregnant: '妊婦', heart_condition: '心臓疾患のある方' },
-  zh: { wheelchair_user: '轮椅使用者', elderly: '老年人', young_children: '幼童', altitude_sensitive: '高原反应敏感者', winter_first_time: '冬季初次者', vertigo_sensitive: '恐高者', pregnant: '孕妇', heart_condition: '心脏病患者' },
+  ko: { wheelchair_user: '휠체어 이용자', elderly: '노약자', young_children: '어린이', altitude_sensitive: '고산증 민감자', winter_first_time: '겨울 초보자', vertigo_sensitive: '고소공포증 민감자', pregnant: '임산부', heart_condition: '심장질환자', mobility_impaired: '거동 불편자', mobility_limited: '거동 제한자', senior_traveler: '고령 여행자', family_with_young_kids: '어린아이 동반 가족', claustrophobic: '폐소공포증 민감자', crowd_averse: '혼잡 기피자', budget_traveler: '저예산 여행자', vegan_only: '비건 전용 식단' },
+  en: { wheelchair_user: 'Wheelchair users', elderly: 'Elderly', young_children: 'Young children', altitude_sensitive: 'Altitude-sensitive', winter_first_time: 'Winter first-timers', vertigo_sensitive: 'Vertigo-sensitive', pregnant: 'Pregnant', heart_condition: 'Heart conditions', mobility_impaired: 'Mobility-impaired', mobility_limited: 'Limited mobility', senior_traveler: 'Senior travelers', family_with_young_kids: 'Families with young kids', claustrophobic: 'Claustrophobic', crowd_averse: 'Crowd-averse', budget_traveler: 'Budget travelers', vegan_only: 'Vegan-only diets' },
+  ja: { wheelchair_user: '車椅子利用者', elderly: '高齢者', young_children: '幼児', altitude_sensitive: '高山病に敏感な方', winter_first_time: '冬山初心者', vertigo_sensitive: '高所恐怖症の方', pregnant: '妊婦', heart_condition: '心臓疾患のある方', mobility_impaired: '歩行が困難な方', mobility_limited: '歩行に制限のある方', senior_traveler: '高齢の旅行者', family_with_young_kids: '小さな子供連れ家族', claustrophobic: '閉所恐怖症の方', crowd_averse: '混雑が苦手な方', budget_traveler: '低予算の旅行者', vegan_only: 'ビーガン専用の食事' },
+  zh: { wheelchair_user: '轮椅使用者', elderly: '老年人', young_children: '幼童', altitude_sensitive: '高原反应敏感者', winter_first_time: '冬季初次者', vertigo_sensitive: '恐高者', pregnant: '孕妇', heart_condition: '心脏病患者', mobility_impaired: '行动不便者', mobility_limited: '行动受限者', senior_traveler: '年长旅客', family_with_young_kids: '带幼童的家庭', claustrophobic: '幽闭恐惧者', crowd_averse: '不喜拥挤者', budget_traveler: '低预算旅客', vegan_only: '纯素饮食者' },
+};
+
+// 준비물(장비) 토큰 4-lang. advisory 지만 외국인은 영어 token(예: 'crampons_winter')을 못 읽음
+//  → humanize 로는 '겨울 아이젠' 같은 의미 전달 불가. 미등록 토큰은 humanize 폴백(미표시 금지).
+export const GEAR_LABEL: Record<Language, Record<string, string>> = {
+  ko: { trekking_pole: '등산 스틱', crampons_winter: '겨울 아이젠', headlamp: '헤드랜턴', rain_gear: '우비·비옷', wind_breaker: '바람막이', gloves: '장갑', hat: '모자', ankle_support_shoes: '발목 보호 등산화', water_1_5L: '식수 1.5L', water_2L: '식수 2L', sunscreen: '자외선 차단제', first_aid: '구급약', spare_socks: '여분 양말', thermal_layer: '보온 내의' },
+  en: { trekking_pole: 'Trekking poles', crampons_winter: 'Winter crampons', headlamp: 'Headlamp', rain_gear: 'Rain gear', wind_breaker: 'Windbreaker', gloves: 'Gloves', hat: 'Hat', ankle_support_shoes: 'Ankle-support boots', water_1_5L: 'Water 1.5L', water_2L: 'Water 2L', sunscreen: 'Sunscreen', first_aid: 'First-aid kit', spare_socks: 'Spare socks', thermal_layer: 'Thermal layer' },
+  ja: { trekking_pole: 'トレッキングポール', crampons_winter: '冬用アイゼン', headlamp: 'ヘッドランプ', rain_gear: 'レインウェア', wind_breaker: 'ウインドブレーカー', gloves: '手袋', hat: '帽子', ankle_support_shoes: '足首保護の登山靴', water_1_5L: '飲料水1.5L', water_2L: '飲料水2L', sunscreen: '日焼け止め', first_aid: '救急セット', spare_socks: '替えの靴下', thermal_layer: '防寒インナー' },
+  zh: { trekking_pole: '登山杖', crampons_winter: '冬季冰爪', headlamp: '头灯', rain_gear: '雨具', wind_breaker: '防风外套', gloves: '手套', hat: '帽子', ankle_support_shoes: '护踝登山鞋', water_1_5L: '饮用水1.5L', water_2L: '饮用水2L', sunscreen: '防晒霜', first_aid: '急救包', spare_socks: '备用袜子', thermal_layer: '保暖内层' },
 };
 
 export const humanize = (s: string): string => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -105,9 +114,9 @@ export function buildActivityMetaHtml(meta: ActivityMeta | null | undefined, lan
     rows.push(`<p style="font-size:10px;margin:0 0 3px;color:#b91c1c;"><b>${esc(t.hazards)}:</b> ${list}</p>`);
   }
 
-  // 준비물 (advisory)
+  // 준비물 (advisory — 4개국어, 미등록은 humanize 폴백)
   if (Array.isArray(meta.recommended_gear) && meta.recommended_gear.length > 0) {
-    const list = meta.recommended_gear.map((g) => esc(humanize(g))).join(', ');
+    const list = meta.recommended_gear.map((g) => esc(labelToken(GEAR_LABEL, g, lang))).join(', ');
     rows.push(`<p style="font-size:10px;margin:0;color:#6b7280;"><b>${esc(t.gear)}:</b> ${list}</p>`);
   }
 

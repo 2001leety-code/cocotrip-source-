@@ -6,7 +6,7 @@
 import { AlertTriangle, Mountain, Footprints, Clock, TrendingUp, Ruler } from 'lucide-react';
 import type { Language } from '@/i18n';
 import type { ActivityMeta } from '@/types/plan';
-import { DIFF_STYLE, T, DIFF_LABEL, HAZARD_LABEL, UNSUITABLE_LABEL, humanize, labelToken, isCutoff, parseCutoff } from '@/lib/activityMetaLabels';
+import { DIFF_STYLE, T, DIFF_LABEL, HAZARD_LABEL, UNSUITABLE_LABEL, GEAR_LABEL, humanize, labelToken, isCutoff, parseCutoff } from '@/lib/activityMetaLabels';
 
 const metric = 'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] text-white/60 bg-white/[0.05] border border-white/[0.08]';
 
@@ -78,12 +78,12 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
         </div>
       )}
 
-      {/* 준비물 칩 (advisory — humanize 폴백) */}
+      {/* 준비물 칩 (advisory — 4개국어, 미등록 토큰은 humanize 폴백) */}
       {Array.isArray(meta.recommended_gear) && meta.recommended_gear.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
           <span className="text-[10px] text-white/50 font-medium">{t.gear}:</span>
           {meta.recommended_gear.map((g) => (
-            <span key={g} className="rounded px-1.5 py-0.5 text-[10px] text-white/60 bg-white/[0.05] border border-white/[0.08]">{humanize(g)}</span>
+            <span key={g} className="rounded px-1.5 py-0.5 text-[10px] text-white/60 bg-white/[0.05] border border-white/[0.08]">{labelToken(GEAR_LABEL, g, language)}</span>
           ))}
         </div>
       )}

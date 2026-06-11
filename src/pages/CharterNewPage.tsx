@@ -20,10 +20,8 @@ import { EditFieldModal, type EditFieldSpec } from '@/components/charter/ReviewE
 import { getWizardI18n } from '@/components/charter/wizard-i18n';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { formatPrice } from '@/lib/exchange-rate';
-import type { WizardState, OriginCode, ServiceMode } from '@/components/charter/types';
-
-const VALID_ORIGINS: OriginCode[] = ['ICN','GMP','PUS','CJU','TAE','CJJ','MWX','KWJ','RSU','USN','SEL_METRO','BUS_METRO','CUSTOM'];
-const VALID_SERVICES: ServiceMode[] = ['airport_transfer','day_tour','multi_day','kpop_shuttle','transfer'];
+import type { WizardState } from '@/components/charter/types';
+import { buildCharterPrefill } from '@/components/charter/charterQueryPrefill';
 
 export default function CharterNewPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -45,35 +43,9 @@ export default function CharterNewPage() {
   //   /charter?origin=ICN&service=airport_transfer&destinationKey=seoul-central
   //   /charter?service=day_tour&destinationKey=dmz                 (최신, CharterCTA가 사용)
   //   /charter?tour=dmz                                             (레거시: tour 값이 패키지 key면 day_tour로 자동 해석)
-  const initial = useMemo<Partial<WizardState>>(() => {
-    const origin = params.get('origin');
-    const serviceParam = params.get('service');
-    const tourLegacy = params.get('tour');
-    const destParam = params.get('destination') || params.get('destinationKey');
-    const pax = params.get('pax');
-
-    // service 결정: 명시적 service → 그대로 / tour 값이 서비스가 아니고 패키지면 day_tour / 그 외 undefined
-    let service: ServiceMode | undefined;
-    if (serviceParam && VALID_SERVICES.includes(serviceParam as ServiceMode)) {
-      service = serviceParam as ServiceMode;
-    } else if (tourLegacy) {
-      // tourLegacy가 'day_tour' 같은 서비스 키가 아니라면 패키지 key로 간주
-      service = VALID_SERVICES.includes(tourLegacy as ServiceMode)
-        ? (tourLegacy as ServiceMode)
-        : 'day_tour';
-    }
-
-    // destinationKey: 명시적 파라미터 → 그 값. 없고 tour가 패키지 key면 그걸로 대체
-    const destinationKey = destParam
-      ?? (tourLegacy && !VALID_SERVICES.includes(tourLegacy as ServiceMode) ? tourLegacy : undefined);
-
-    return {
-      origin: origin && VALID_ORIGINS.includes(origin as OriginCode) ? (origin as OriginCode) : undefined,
-      service,
-      destinationKey,
-      paxCount: pax ? parseInt(pax, 10) : undefined,
-    };
-  }, [params]);
+  // ⚠️ buildCharterPrefill 은 값이 있는 키만 반환한다 — 빈 진입에서 항상 4키를 넣으면
+  //    CharterWizard 의 resume(이어서하기) modal 억제 로직이 영구 발동하는 버그. 상세 주석은 helper 참고.
+  const initial = useMemo<Partial<WizardState>>(() => buildCharterPrefill(params), [params]);
 
   return (
     <div className={isMobile ? 'm-page' : 'min-h-screen'} style={isMobile ? undefined : { background: '#080b14' }}>

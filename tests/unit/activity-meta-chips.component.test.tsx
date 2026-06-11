@@ -32,7 +32,8 @@ describe('ActivityMetaChips — 트레킹/러닝 SAFETY 노출', () => {
     // SAFETY: 부적합 + 위험 + 장비 노출 (외국인 사고 예방)
     expect(screen.getByText(/Wheelchair users/)).toBeInTheDocument();
     expect(screen.getByText(/Steep rock climb/)).toBeInTheDocument();
-    expect(screen.getByText(/Trekking Pole/)).toBeInTheDocument();
+    // 장비도 4-lang 라벨 — humanize('Trekking Pole') 가 아니라 GEAR_LABEL.en 'Trekking poles'
+    expect(screen.getByText(/Trekking poles/)).toBeInTheDocument();
   });
 
   it('난이도 4-lang — ko 는 "어려움"', () => {
@@ -77,5 +78,16 @@ describe('ActivityMetaChips — 트레킹/러닝 SAFETY 노출', () => {
     render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'expert', unsuitable_for: ['wheelchair_user', 'altitude_sensitive'] }} language="ko" />);
     expect(screen.getByText(/휠체어 이용자/)).toBeInTheDocument();
     expect(screen.getByText(/고산증 민감자/)).toBeInTheDocument();
+  });
+
+  it('장비(gear) 4-lang — ko 겨울 아이젠 + 헤드랜턴 (humanize 깨진 영어 방지)', () => {
+    render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'expert', recommended_gear: ['crampons_winter', 'headlamp'] }} language="ko" />);
+    expect(screen.getByText(/겨울 아이젠/)).toBeInTheDocument();
+    expect(screen.getByText(/헤드랜턴/)).toBeInTheDocument();
+  });
+
+  it('미등록 장비 토큰 → humanize 폴백 (라벨 없다고 미표시 금지)', () => {
+    render(<ActivityMetaChips meta={{ activity_type: 'trekking', difficulty: 'hard', recommended_gear: ['totally_new_gear'] }} language="en" />);
+    expect(screen.getByText(/Totally New Gear/)).toBeInTheDocument();
   });
 });
