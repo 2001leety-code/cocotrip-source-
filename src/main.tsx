@@ -1,4 +1,4 @@
-// 2026-06-11: 장바구니 활성화(VITE_FEATURE_CART/REVIEW_EDIT) preview 검증용 배포 트리거 (머지 X).
+// 2026-06-11 (rebuild): 장바구니 Preview 스코프 확정 후 fresh 빌드 — cart/검수 활성 검증.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
