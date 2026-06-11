@@ -10,6 +10,8 @@
  *    client 가 priceKRW 를 위조해도 청구액 영향 0 (resolveLineItemKrw).
  */
 
+import { isFeatureFlagOn } from './featureFlag';
+
 /**
  * 결제 식별 + fulfillment 페이로드 — createCartOrder(PR2c)가 productType+가격키로 backend
  * 재계산, captureCartOrder(PR2d)가 fulfillment 필드를 booking-processor 로 fan-out.
@@ -67,7 +69,8 @@ export interface Cart {
  * 백 FEATURE_CART 와 쌍 (2차 PR 결제 경로). VITE_FEATURE_CART='true' 시 활성.
  */
 export function isCartEnabled(): boolean {
-  return import.meta.env.VITE_FEATURE_CART === 'true';
+  // trim+lowercase (isFeatureFlagOn) — Vercel env 값에 앞 공백/탭 섞여도 안 깨지게 (2026-06-11 " true" 사고).
+  return isFeatureFlagOn(import.meta.env.VITE_FEATURE_CART);
 }
 
 /** AI 플래너 상품 여부 — cart 담기 제외 가드 (위 주석 사유). */
