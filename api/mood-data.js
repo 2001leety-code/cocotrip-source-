@@ -1,7 +1,7 @@
 /**
  * GET /api/mood-data?clientId=... — MOOD 포털 조회
  *
- * 잔액 카드 + 공유 캘린더용 데이터를 반환.
+ * 잔액 카드 + 공유 캘린더 + 차감 리스트(ledger)용 데이터를 반환.
  *
  * 인증: Authorization: Bearer <Firebase ID token>.
  *   - 토큰 email 이 mood_config/allowlist.emails 에 없으면 403.
@@ -11,7 +11,11 @@
  *   - query clientId 가 오면 그걸 우선 사용하되, 광고사 직원은 allowlist.clientId
  *     (자기 회사) 만 조회 가능하도록 제한 (admin 은 임의 clientId 조회 허용).
  *
- * 반환: { client: { name, balanceKRW }, bookings: [...], isAdmin, clientId }
+ * 차감 리스트(ledger): 각 예약의 breakdown(시급/거리추가/톨비/km/경로) + 그 예약
+ *   직후 running 잔액(runningBalanceKRW) 을 최신순으로 반환. 직원/운영자가
+ *   "얼마 빠졌고 잔액 얼마" 를 한눈에 본다 (외상 = 음수 잔액 포함).
+ *
+ * 반환: { client: { name, balanceKRW }, bookings: [...ledger], isAdmin, clientId }
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
@@ -81,24 +85,34 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: `CLIENT_NOT_FOUND: ${clientId}` }));
     }
     const clientData = clientSnap.data() || {};
+    const currentBalanceKRW = Number(clientData.balanceKRW) || 0;
 
-    // 캘린더용 예약 목록 — 해당 client, 최근순. (인덱스 회피: clientId equality +
-    // createdAt desc 단일 필드 정렬은 자동 인덱스로 충분.)
+    // 캘린더 + 차감 리스트용 예약 목록 — 해당 client, 최근순. (인덱스 회피: clientId
+    // equality + createdAt desc 단일 필드 정렬은 자동 인덱스로 충분.)
     const bookingsSnap = await db.collection('mood_bookings')
       .where('clientId', '==', clientId)
       .orderBy('createdAt', 'desc')
       .limit(200)
       .get();
 
+    // running 잔액(예약 직후 잔액):
+    //   - 예약 doc 에 balanceAfterKRW 가 저장돼 있으면(신규 예약) 그대로 사용 = 정확.
+    //   - 없으면(레거시) null. 충전(topup) 이력은 이 컬렉션에 없어 역산에 반영 못 하므로
+    //     amountKRW 만으로 거슬러 올라가면 충전액만큼 틀어진다 → 틀린 숫자 대신 null
+    //     (프론트가 '잔액' 줄을 숨김 = 빈칸). 정확값 필요하면 백필로 balanceAfterKRW 채울 것.
     const bookings = bookingsSnap.docs.map((d) => {
       const b = d.data() || {};
+      const amount = Number(b.amountKRW) || 0;
+      const runningBalanceKRW = typeof b.balanceAfterKRW === 'number' ? b.balanceAfterKRW : null;
       return {
         id: d.id,
         date: b.date,
         startTime: b.startTime,
         durationHours: b.durationHours,
         serviceType: b.serviceType,
-        amountKRW: b.amountKRW,
+        amountKRW: amount,
+        breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
+        runningBalanceKRW,               // 이 예약 직후 잔액 (외상 = 음수 가능)
         status: b.status,
         createdByEmail: b.createdByEmail,
         createdAt: b.createdAt,
@@ -110,7 +124,7 @@ export default async function handler(req, res) {
       ok: true,
       data: {
         clientId,
-        client: { name: clientData.name || clientId, balanceKRW: Number(clientData.balanceKRW) || 0 },
+        client: { name: clientData.name || clientId, balanceKRW: currentBalanceKRW },
         bookings,
         isAdmin: admin,
       },
@@ -119,6 +133,6 @@ export default async function handler(req, res) {
     console.error('[mood-data] failed:', err.message);
     await captureError(err, { route: '/api/mood-data', email });
     res.writeHead(500, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: err.message }));
+    return res.end(JSON.stringify({ ok: false, error: '서버 오류' }));
   }
 }

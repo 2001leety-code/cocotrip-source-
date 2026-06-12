@@ -1,28 +1,40 @@
 /**
- * POST /api/mood-book — MOOD 선불 예약 (잔액 차감)
+ * POST /api/mood-book — MOOD 선불 예약 (잔액 차감, 외상 허용)
  *
  * MOOD B2B 포털: 광고사 직원이 매니저/차량을 예약. 선불 충전된 잔액에서 차감.
  *
  * 🔴 돈 원자성 (이 파일이 핵심):
  *   Firestore runTransaction 안에서 ① 잔액 읽기 ② 백엔드 금액 재계산
- *   ③ 잔액 < 금액 이면 abort + INSUFFICIENT_BALANCE ④ 충분하면 예약 doc 생성 +
- *   잔액 차감을 "한 트랜잭션" 으로 수행. → 동시 예약 더블스펜드 / 음수 잔액 불가.
- *   (Firestore 트랜잭션은 read 한 doc 이 commit 전 변경되면 자동 재시도 → race-safe.)
+ *   ③ 예약 doc 생성 ④ 잔액 차감을 "한 트랜잭션" 으로 수행.
+ *   (Firestore 트랜잭션은 read 한 doc 이 commit 전 변경되면 자동 재시도 → race-safe.
+ *    동시 예약이 같은 잔액을 두 번 읽어 어긋나는 일 없음.)
+ *
+ * 🟡 외상(음수 잔액) 정책 (운영자 2026-06-12):
+ *   잔액이 부족해도 예약을 막지 않는다. INSUFFICIENT_BALANCE 차단 제거 →
+ *   항상 차감 (newBalance 가 음수가 될 수 있음 = 외상). 운영자가 차감 리스트
+ *   (mood-data) 로 외상분을 확인하고 추후 정산.
+ *
+ * 🔴 클라이언트 금액 무시 (P311): body 로 amountKRW/km/tollKRW 가 와도 전부 무시.
+ *   origin/destination 으로 computeRoute (Naver) → computeMoodTotalKRW 로 백엔드
+ *   재계산. → 클라이언트가 금액/거리/톨비를 조작해도 무력화.
  *
  * 인증: Authorization: Bearer <Firebase ID token>.
  *   - 토큰 email 이 mood_config/allowlist.emails 에 없으면 403.
  *
- * Body: { clientId, date(YYYY-MM-DD), startTime(HH:mm), durationHours, serviceType }
- *   - amountKRW 는 body 로 받아도 무시 — 백엔드 computeAmountKRW 로 재계산.
+ * Body: { clientId, date(YYYY-MM-DD), startTime(HH:mm), durationHours, serviceType,
+ *         origin?, destination?, waypoints?(string[] | "A|B") }
+ *   - origin/destination 이 있으면 경로 기반 거리/톨비 추가요금 반영.
+ *   - 없으면 거리/톨비 0 (시간 단가 base 만).
  *
- * 성공 시 notifyOperator 텔레그램 알림 (best-effort, 실패해도 예약은 확정).
+ * 성공 시 notifyOperator 텔레그램 알림 + 예약자 영수증 메일 (best-effort).
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
-import { getMoodAllowlist, isAllowedEmail } from './_shared/mood-allowlist.js';
-import { computeAmountKRW, isValidServiceType, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
+import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
+import { computeMoodTotalKRW, isValidServiceType, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
+import { computeRoute } from './_shared/mood-route.js';
 import { notify } from './_shared/notify.js';
 import { buildMoodReceiptEmail } from './_shared/mood-receipt.js';
 import { sendEmail } from './_send-email.js';
@@ -34,6 +46,13 @@ const CORS_METHODS = 'POST, OPTIONS';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;       // YYYY-MM-DD
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/; // HH:mm (00:00 ~ 23:59)
+
+/** body.waypoints 정규화 — 배열 또는 "A|B" 문자열 둘 다 허용. */
+function normalizeWaypoints(wp) {
+  if (Array.isArray(wp)) return wp.map((w) => String(w || '').trim()).filter(Boolean);
+  if (typeof wp === 'string') return wp.split('|').map((w) => w.trim()).filter(Boolean);
+  return [];
+}
 
 export default async function handler(req, res) {
   const JSON_HEADERS = { 'Cache-Control': 'no-store', ...buildAdminJsonCors(req, { methods: CORS_METHODS, headers: 'Authorization, Content-Type' }) };
@@ -54,11 +73,19 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, error: auth.error }));
   }
   const email = auth.email;
+  // 돈 변경 경계 — 미검증 이메일 토큰 차단 (defense-in-depth; Google 로그인은 항상 verified).
+  if (!auth.emailVerified) {
+    res.writeHead(403, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: '이메일 미검증' }));
+  }
 
   // ── 2) body 파싱 + 검증 ──────────────────────────────────
   let body = req.body || {};
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
   const { clientId, date, startTime, durationHours, serviceType } = body;
+  const origin = String(body.origin || '').trim();
+  const destination = String(body.destination || '').trim();
+  const waypoints = normalizeWaypoints(body.waypoints);
 
   if (!clientId || typeof clientId !== 'string') {
     res.writeHead(400, JSON_HEADERS);
@@ -81,14 +108,11 @@ export default async function handler(req, res) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: `durationHours 는 0 초과 ${MOOD_MAX_DURATION_HOURS} 이하` }));
   }
-
-  // ── 3) 백엔드 금액 재계산 (body.amountKRW 는 무시) ────────
-  const priced = computeAmountKRW(serviceType, hours);
-  if (!priced.ok) {
+  // origin/destination 은 같이 오거나 같이 비어야 함 (한쪽만 = 모호).
+  if ((origin && !destination) || (!origin && destination)) {
     res.writeHead(400, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: priced.error }));
+    return res.end(JSON.stringify({ ok: false, error: 'origin·destination 은 함께 입력' }));
   }
-  const { amountKRW, ratePerHour } = priced;
 
   try {
     const db = initAdminDb('mood-book');
@@ -97,20 +121,63 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'Firestore unavailable' }));
     }
 
-    // ── 4) allowlist 게이트 ───────────────────────────────
+    // ── 3) allowlist 게이트 ───────────────────────────────
     const allowlist = await getMoodAllowlist(db);
     if (!isAllowedEmail(allowlist, email)) {
       res.writeHead(403, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: '접근 권한 없음' }));
     }
+    // 🔴 IDOR 방지 — 비-admin 은 자기 회사(allowlist.clientId) 만 예약 가능.
+    // (mood-data.js 조회 가드와 동일 정책. 이게 없으면 직원이 body.clientId 로 타 회사
+    //  잔액을 차감하는 예약을 만들 수 있음 — 외상 정책상 무제한 음수까지.)
+    const isAdmin = isAdminEmail(allowlist, email);
+    if (!isAdmin && clientId !== allowlist.clientId) {
+      res.writeHead(403, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: '본인 회사만 예약 가능' }));
+    }
+
+    // ── 4) 경로 계산 (origin/destination 있을 때만) ─────────
+    // 클라이언트가 보낸 km/tollKRW 는 무시 — 백엔드에서 Naver 로 직접 측정.
+    let km = 0;
+    let tollKRW = 0;
+    if (origin && destination) {
+      const route = await computeRoute({ origin, destination, waypoints });
+      if (route.ok) {
+        km = route.km;
+        tollKRW = route.tollKRW;
+      } else {
+        // 경로 계산 실패 = 비치명적 → base-only(km=0, tollKRW=0) 로 진행.
+        // UI 가 "경로 실패 시 거리 추가요금 제외하고 예약 가능" 이라 약속하므로 일치시킨다
+        // (외상 "막지 않는다" 철학과도 일관). breakdown 에 origin/destination 은 남아 추적 가능.
+        console.warn('[mood-book] computeRoute failed → base-only:', route.error, route.detail || '');
+      }
+    }
+
+    // ── 5) 백엔드 금액 재계산 (body.amountKRW 무시) ─────────
+    const priced = computeMoodTotalKRW({ serviceType, durationHours: hours, km, tollKRW });
+    if (!priced.ok) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: priced.error }));
+    }
+    const { amountKRW, baseKRW, ratePerHour, distanceSurchargeKRW } = priced;
+    // 예약 doc 에 저장할 breakdown (mood-data 차감 리스트에서 노출).
+    const breakdown = {
+      baseKRW,
+      distanceSurchargeKRW,
+      tollKRW: priced.tollKRW,
+      km: priced.km,
+      origin: origin || null,
+      destination: destination || null,
+      waypoints: waypoints.length ? waypoints : null,
+    };
 
     const clientRef = db.collection('mood_clients').doc(clientId);
     const bookingRef = db.collection('mood_bookings').doc(); // 새 doc id 미리 확보
 
-    // ── 5) 🔴 원자적 잔액 차감 + 예약 생성 ─────────────────
-    // runTransaction 안에서 read→check→write. balanceKRW 가 commit 전 변경되면
-    // Firestore 가 트랜잭션 전체를 재실행 → 동시 예약이 같은 잔액을 두 번 쓰는
-    // 더블스펜드 / 음수 잔액 불가능.
+    // ── 6) 🔴 원자적 잔액 차감 + 예약 생성 (외상 허용) ─────
+    // runTransaction 안에서 read→write. balanceKRW 가 commit 전 변경되면 Firestore
+    // 가 트랜잭션 전체를 재실행 → 동시 예약 더블카운트 불가.
+    // 🟡 외상 정책: 잔액 부족해도 abort 하지 않고 항상 차감 (newBalance 음수 가능).
     const txResult = await db.runTransaction(async (tx) => {
       const clientSnap = await tx.get(clientRef);
       if (!clientSnap.exists) {
@@ -119,15 +186,18 @@ export default async function handler(req, res) {
       const clientData = clientSnap.data() || {};
       const balanceKRW = Number(clientData.balanceKRW) || 0;
 
-      if (balanceKRW < amountKRW) {
-        // 잔액 부족 → 아무것도 쓰지 않고 abort (write 없이 return = 차감 안 됨).
-        return { ok: false, status: 402, error: 'INSUFFICIENT_BALANCE', balanceKRW, amountKRW };
-      }
-
+      // 외상 허용 — 잔액 부족해도 차단하지 않고 항상 차감 (newBalance 음수 가능, 운영자 정책).
       const newBalance = balanceKRW - amountKRW;
+      // 🟡 신용한도 가드 (opt-in): client doc 에 creditLimitKRW(양수) 가 설정돼 있으면
+      // 그만큼까지만 외상 허용. 미설정 = 무한 외상(기본 정책 유지). 폭주(토큰탈취/재시도
+      // 루프/버그)로 잔액이 -수억까지 내려가는 걸 운영자가 회사별로 막는 안전장치.
+      const creditLimitKRW = Number(clientData.creditLimitKRW);
+      if (Number.isFinite(creditLimitKRW) && creditLimitKRW > 0 && newBalance < -creditLimitKRW) {
+        return { ok: false, status: 409, error: 'CREDIT_LIMIT_EXCEEDED', creditLimitKRW, balanceKRW };
+      }
       const createdAt = Date.now();
 
-      // 예약 doc 생성
+      // 예약 doc 생성 (breakdown + 차감 후 잔액 running 포함)
       tx.set(bookingRef, {
         clientId,
         date,
@@ -136,6 +206,8 @@ export default async function handler(req, res) {
         serviceType,
         ratePerHour,
         amountKRW,
+        breakdown,
+        balanceAfterKRW: newBalance, // 이 예약 후 잔액 (외상 추적용)
         status: 'confirmed',
         createdByEmail: email,
         createdAt,
@@ -156,23 +228,19 @@ export default async function handler(req, res) {
 
     if (!txResult.ok) {
       res.writeHead(txResult.status, JSON_HEADERS);
-      return res.end(JSON.stringify({
-        ok: false,
-        error: txResult.error,
-        ...(txResult.error === 'INSUFFICIENT_BALANCE'
-          ? { balanceKRW: txResult.balanceKRW, amountKRW: txResult.amountKRW }
-          : {}),
-      }));
+      return res.end(JSON.stringify({ ok: false, error: txResult.error }));
     }
 
-    // ── 6) 텔레그램 알림 (best-effort — 실패해도 예약은 확정됨) ──
+    // ── 7) 텔레그램 알림 (best-effort — 실패해도 예약은 확정됨) ──
     const fmt = (n) => Number(n).toLocaleString('ko-KR');
     const serviceLabel = serviceType === 'vehicle' ? '차량' : '매니저';
+    const routeLine = origin && destination ? `\n${origin} → ${destination} (${priced.km}km)` : '';
+    const overdraftLine = txResult.newBalance < 0 ? ' ⚠️외상' : '';
     const msg =
       `<b>MOOD 예약</b>\n` +
       `${txResult.clientName} · ${date} ${startTime}\n` +
-      `${serviceLabel} ${hours}시간 — ${fmt(txResult.amountKRW)}원\n` +
-      `잔액 ${fmt(txResult.newBalance)}원\n` +
+      `${serviceLabel} ${hours}시간 — ${fmt(txResult.amountKRW)}원${routeLine}\n` +
+      `잔액 ${fmt(txResult.newBalance)}원${overdraftLine}\n` +
       `예약자: ${email}`;
     try {
       await notify('booking', msg);
@@ -181,10 +249,7 @@ export default async function handler(req, res) {
       console.warn('[mood-book] notify failed:', notifyErr?.message);
     }
 
-    // ── 7) 예약자(고객) 확정메일 + 영수증 (best-effort — 실패해도 예약은 확정됨) ──
-    // 예약자(광고사 직원) = 이 흐름의 고객. 텔레그램(운영자 알림)과 별개로
-    // 예약자 본인에게 예약 확정 + 영수증을 보낸다. 트랜잭션 밖 / try-catch 로
-    // 감싸 메일 발송 실패가 예약 확정에 영향 주지 않도록 한다 (notify 와 동일 패턴).
+    // ── 8) 예약자(고객) 확정메일 + 영수증 (best-effort) ──
     try {
       const receipt = buildMoodReceiptEmail({
         bookingId: txResult.bookingId,
@@ -211,12 +276,14 @@ export default async function handler(req, res) {
         amountKRW: txResult.amountKRW,
         ratePerHour: txResult.ratePerHour,
         balanceKRW: txResult.newBalance,
+        breakdown,
       },
     }));
   } catch (err) {
+    // 내부 예외 메시지(Firestore 인덱스 URL·경로·자격증명 힌트)를 클라이언트에 노출하지 않음.
     console.error('[mood-book] failed:', err.message);
     await captureError(err, { route: '/api/mood-book', email });
     res.writeHead(500, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: err.message }));
+    return res.end(JSON.stringify({ ok: false, error: '서버 오류' }));
   }
 }
