@@ -929,19 +929,24 @@ const TOURS_RAW: Tour[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 투어별 메타 오버라이드 (rating + 추가 driverLanguages)
+// 투어별 메타 오버라이드 (추가 driverLanguages)
 // 본문 객체에 일일이 박지 않고 한 곳에서 관리. v2 amendment 2026-04-25.
+//
+// ⚠️ 평점(rating/reviewCount/reviewSource)은 의도적으로 제거됨 (#898 후속, 법적 위험).
+// 이전 값(4.7~4.9 + 후기 수)은 실제 집계 근거 없는 허구 수치였음 → 소비자 보호/허위광고 리스크.
+// 검증 가능한 실제 평점은 useTourRating → external-reviews.ts (Google Places, 키 발급 후)
+// 또는 ReviewList(Firestore 실후기)로만 노출. 가짜 집계 숫자 재유입 금지.
+// (회귀 방지: tests/unit/no-fake-tour-ratings.test.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 const TOUR_META: Record<string, Partial<Tour>> = {
-  'tour-seoul-city':     { rating: 4.9, reviewCount: 87,  reviewSource: 'internal' },
-  'tour-seoul-night':    { driverLanguages: ['en', 'ja', 'zh'], rating: 4.8, reviewCount: 54,  reviewSource: 'internal' },
-  'tour-danyang':        { driverLanguages: ['en', 'ja', 'zh'], rating: 4.7, reviewCount: 31,  reviewSource: 'internal' },
-  'tour-ganghwa':        { driverLanguages: ['en', 'ja', 'zh'], rating: 4.7, reviewCount: 28,  reviewSource: 'internal' },
-  'tour-dmz':            { driverLanguages: ['en', 'ja', 'zh'], rating: 4.9, reviewCount: 142, reviewSource: 'internal' },
-  'tour-nami-chuncheon': { driverLanguages: ['en', 'ja', 'zh'], rating: 4.8, reviewCount: 96,  reviewSource: 'internal' },
-  'tour-gyeongju':       { driverLanguages: ['en', 'ja', 'zh'], rating: 4.8, reviewCount: 47,  reviewSource: 'internal' },
-  'tour-busan-day':      { driverLanguages: ['en', 'ja', 'zh'], rating: 4.7, reviewCount: 38,  reviewSource: 'internal' },
-  'tour-multicity-3d':   { driverLanguages: ['en', 'ja', 'zh'], rating: 4.9, reviewCount: 23,  reviewSource: 'internal' },
+  'tour-seoul-night':    { driverLanguages: ['en', 'ja', 'zh'] },
+  'tour-danyang':        { driverLanguages: ['en', 'ja', 'zh'] },
+  'tour-ganghwa':        { driverLanguages: ['en', 'ja', 'zh'] },
+  'tour-dmz':            { driverLanguages: ['en', 'ja', 'zh'] },
+  'tour-nami-chuncheon': { driverLanguages: ['en', 'ja', 'zh'] },
+  'tour-gyeongju':       { driverLanguages: ['en', 'ja', 'zh'] },
+  'tour-busan-day':      { driverLanguages: ['en', 'ja', 'zh'] },
+  'tour-multicity-3d':   { driverLanguages: ['en', 'ja', 'zh'] },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

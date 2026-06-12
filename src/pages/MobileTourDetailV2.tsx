@@ -1,5 +1,5 @@
 import {
-  ChevronLeft, Heart, Star, Clock, Users, MapPin, Check,
+  ChevronLeft, Heart, Clock, Users, MapPin, Check,
 } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
@@ -16,30 +16,6 @@ const HIGHLIGHTS = [
   'Bukchon Hanok Village',
   'Myeongdong shopping',
   'Private vehicle + driver',
-];
-
-const REVIEWS = [
-  {
-    name: 'Emma L.',
-    initials: 'EL',
-    rating: 5,
-    text: 'Our driver was so kind and the palace was breathtaking. Felt completely taken care of all day.',
-    gradient: 'from-purple-500 to-pink-500',
-  },
-  {
-    name: 'Kenji T.',
-    initials: 'KT',
-    rating: 5,
-    text: 'Perfect pace, no rushing. Bukchon at golden hour was unforgettable. Highly recommend.',
-    gradient: 'from-pink-500 to-purple-500',
-  },
-  {
-    name: 'Sofia M.',
-    initials: 'SM',
-    rating: 4,
-    text: 'Great private tour, very flexible with our schedule. Myeongdong was packed but fun.',
-    gradient: 'from-purple-500 to-indigo-500',
-  },
 ];
 
 export default function MobileTourDetailV2() {
@@ -85,13 +61,6 @@ export default function MobileTourDetailV2() {
           Seoul City Full-Day Tour
         </h1>
 
-        {/* 별점 줄 */}
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <Star size={14} className="fill-yellow-400 text-yellow-400" />
-          <span className="text-sm font-semibold">4.9</span>
-          <span className="text-sm text-white/50">(128 reviews)</span>
-        </div>
-
         {/* 칩 3개 */}
         <div className="mt-3 flex flex-wrap gap-1.5">
           <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-white/80">
@@ -121,38 +90,16 @@ export default function MobileTourDetailV2() {
         </ul>
       </section>
 
-      {/* -- 리뷰 -- */}
+      {/* -- 리뷰 (실제 후기만 노출 — 가짜 후기/평점 미사용) -- */}
       <section className="px-5 pt-5">
         <h2 className="mb-2.5 text-base font-bold">Reviews</h2>
-        <div className="space-y-2">
-          {REVIEWS.map((r) => (
-            <div key={r.name} className="rounded-2xl bg-white/[0.05] p-3.5">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${r.gradient} text-sm font-bold text-white`}
-                >
-                  {r.initials}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold leading-tight">{r.name}</p>
-                  <div className="mt-0.5 flex items-center gap-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        size={11}
-                        className={
-                          i < r.rating
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'fill-white/15 text-white/15'
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <p className="mt-2.5 text-sm leading-relaxed text-white/70">{r.text}</p>
-            </div>
-          ))}
+        <div className="rounded-2xl bg-white/[0.05] p-4 text-center">
+          <p className="text-sm text-white/70">
+            Verified reviews from completed bookings appear here.
+          </p>
+          <p className="mt-1 text-xs text-white/45">
+            Be the first to share your experience after your tour.
+          </p>
         </div>
       </section>
 
