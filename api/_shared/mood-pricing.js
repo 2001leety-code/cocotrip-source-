@@ -63,3 +63,40 @@ export function computeAmountKRW(serviceType, durationHours) {
   const amountKRW = Math.round(ratePerHour * hours);
   return { ok: true, amountKRW, ratePerHour };
 }
+
+/**
+ * 거리 추가요금 — 50km 이상부터 km × 660원 (= 33,000 ÷ 50, 부가세 포함, 비례).
+ * 50km 미만 = 0. 운영자 정책 2026-06-12: 50km=33,000 / 100km=66,000 (비례).
+ */
+export const MOOD_DISTANCE_THRESHOLD_KM = 50;
+export const MOOD_SURCHARGE_PER_KM = 660; // 33,000 / 50km
+
+export function computeDistanceSurchargeKRW(km) {
+  const d = Number(km);
+  if (!Number.isFinite(d) || d < MOOD_DISTANCE_THRESHOLD_KM) return 0;
+  return Math.round(d * MOOD_SURCHARGE_PER_KM);
+}
+
+/**
+ * 예약 총액 = 시급×시간(base) + 거리 추가요금(50km↑) + 톨비. 전부 부가세 포함.
+ * mood-book.js 가 이 함수로 잔액 차감액을 재계산한다 (클라이언트가 보낸 금액 무시).
+ *
+ * @param {{ serviceType: MoodServiceType, durationHours: number, km?: number, tollKRW?: number }} input
+ * @returns {{ ok:true, amountKRW, baseKRW, ratePerHour, distanceSurchargeKRW, tollKRW, km } | { ok:false, error }}
+ */
+export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0 } = {}) {
+  const base = computeAmountKRW(serviceType, durationHours);
+  if (!base.ok) return base;
+  const distanceSurchargeKRW = computeDistanceSurchargeKRW(km);
+  const toll = Math.max(0, Math.round(Number(tollKRW) || 0));
+  const kmNum = Number.isFinite(Number(km)) ? Math.max(0, Number(km)) : 0;
+  return {
+    ok: true,
+    amountKRW: base.amountKRW + distanceSurchargeKRW + toll,
+    baseKRW: base.amountKRW,
+    ratePerHour: base.ratePerHour,
+    distanceSurchargeKRW,
+    tollKRW: toll,
+    km: kmNum,
+  };
+}
