@@ -13,36 +13,38 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { HAZARD_LABEL, UNSUITABLE_LABEL, isCutoff } from '../../src/lib/activityMetaLabels';
+import { HAZARD_LABEL, UNSUITABLE_LABEL, GEAR_LABEL, isCutoff } from '../../src/lib/activityMetaLabels';
 
 const DIR = join(process.cwd(), 'src', 'data', 'zone_courses');
 const LANGS = ['ko', 'en', 'ja', 'zh'] as const;
 const ACTIVITY_TYPES = new Set(['trekking', 'running_route']);
 
-// JSON 재귀 수집 — 모든 hazards[] / unsuitable_for[] (top-level + trekking_meta/running_meta 중첩).
-function collect(obj: any, haz: Set<string>, uns: Set<string>): void {
+// JSON 재귀 수집 — 모든 hazards[] / unsuitable_for[] / recommended_gear[] (top-level + 중첩 meta).
+function collect(obj: unknown, haz: Set<string>, uns: Set<string>, gear: Set<string>): void {
   if (!obj || typeof obj !== 'object') return;
-  if (Array.isArray(obj)) { obj.forEach((x) => collect(x, haz, uns)); return; }
+  if (Array.isArray(obj)) { obj.forEach((x) => collect(x, haz, uns, gear)); return; }
   for (const [k, v] of Object.entries(obj)) {
     if (k === 'hazards' && Array.isArray(v)) v.forEach((t) => typeof t === 'string' && haz.add(t));
     else if (k === 'unsuitable_for' && Array.isArray(v)) v.forEach((t) => typeof t === 'string' && uns.add(t));
-    else collect(v, haz, uns);
+    else if (k === 'recommended_gear' && Array.isArray(v)) v.forEach((t) => typeof t === 'string' && gear.add(t));
+    else collect(v, haz, uns, gear);
   }
 }
 
 const files = readdirSync(DIR).filter((f) => f.endsWith('.json'));
-const haz = new Set<string>(), uns = new Set<string>();
+const haz = new Set<string>(), uns = new Set<string>(), gear = new Set<string>();
 let activityBlocks = 0;
 const tokenFiles: Record<string, string[]> = {};
 for (const f of files) {
-  let data: any;
+  let data: { block_type?: string } & Record<string, unknown>;
   try { data = JSON.parse(readFileSync(join(DIR, f), 'utf8')); } catch { continue; }
-  if (!ACTIVITY_TYPES.has(data.block_type)) continue;
+  if (!ACTIVITY_TYPES.has(data.block_type as string)) continue;
   activityBlocks++;
-  const h = new Set<string>(), u = new Set<string>();
-  collect(data, h, u);
+  const h = new Set<string>(), u = new Set<string>(), g = new Set<string>();
+  collect(data, h, u, g);
   for (const t of h) { haz.add(t); (tokenFiles[t] ||= []).push(f); }
   for (const t of u) { uns.add(t); (tokenFiles[t] ||= []).push(f); }
+  for (const t of g) { gear.add(t); (tokenFiles[t] ||= []).push(f); }
 }
 
 describe('활동 블록 SAFETY 토큰 4개국어 라벨 커버리지', () => {
@@ -63,6 +65,14 @@ describe('활동 블록 SAFETY 토큰 4개국어 라벨 커버리지', () => {
     for (const t of uns) {
       for (const lang of LANGS) {
         expect(UNSUITABLE_LABEL[lang][t], `unsuitable '${t}' (${(tokenFiles[t] || []).join(',')}) — ${lang} 라벨 누락 → 외국인 영어 폴백`).toBeTruthy();
+      }
+    }
+  });
+
+  it('모든 recommended_gear 토큰이 GEAR_LABEL 4개국어 전부에 등록', () => {
+    for (const t of gear) {
+      for (const lang of LANGS) {
+        expect(GEAR_LABEL[lang][t], `gear '${t}' (${(tokenFiles[t] || []).join(',')}) — ${lang} 라벨 누락 → 외국인 영어 폴백`).toBeTruthy();
       }
     }
   });
