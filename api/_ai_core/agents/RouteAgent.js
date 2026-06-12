@@ -2361,14 +2361,19 @@ export class RouteAgent extends BaseAgent {
                 // 호출 site (line 632, 704) 에서 input airport key (ICN_T1/ICN_T2/ICN) 와
                 // 비교 → mismatch 시 quality_warnings 박제 (P274 우회 fix 의 측정 강화).
                 // ODsay steps[0] 의 startName / startX,startY 좌표 / startID — 첫 station 정보.
+                // 🔴 SAFETY fix (2026-06-12): parseSubPath(_odsay_helper.js)가 emit 하는 필드는
+                //    `from`/`to`(=sub.startName/endName) 이지 startName/fromName/start 가 아니다.
+                //    이전엔 미존재 필드만 읽어 fromStationName/toStationName 이 항상 null →
+                //    _verifyAirportStation(L446 !stationName→match:true)이 절대 발화 안 함 = P275
+                //    터미널 불일치(비행기 놓침) 가드 死. 실제 필드 from/to 먼저 읽고 구필드 폴백.
                 const firstStep = (pt.steps && pt.steps[0]) || null;
                 const fromStationName = firstStep
-                    ? (firstStep.startName || firstStep.fromName || firstStep.start || null)
-                    : null;
+                    ? (firstStep.from || firstStep.fromRoman || firstStep.startName || firstStep.fromName || null)
+                    : (pt.firstStation || null);
                 const lastStep = (pt.steps && pt.steps[pt.steps.length - 1]) || null;
                 const toStationName = lastStep
-                    ? (lastStep.endName || lastStep.toName || lastStep.end || null)
-                    : null;
+                    ? (lastStep.to || lastStep.toRoman || lastStep.endName || lastStep.toName || null)
+                    : (pt.lastStation || null);
                 return {
                     method: pt.method || 'subway',
                     mode: methodToMode(pt.method) || 'subway',
