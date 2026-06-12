@@ -133,4 +133,23 @@ describe('createCartOrder 핸들러 — 안전 wiring 가드', () => {
     expect(createCartSrc).toMatch(/cart_orders/);
     expect(createCartSrc).toMatch(/SNAPSHOT_FAILED/);
   });
+  it('discountV2 를 opts 에 전달 (v2 ON 시 cart 라인 표시==청구, #876 클래스 재발 방지)', () => {
+    // createCartOrder 가 discountV2 를 누락하면 cart 라인은 v1(10%)로 청구되는데 표시가는
+    // v2(5%) → 표시≠청구. createPaypalOrder 와 동일하게 discountV2 를 opts 로 넘겨야 한다.
+    expect(createCartSrc).toMatch(/discountV2:\s*featureEnabled\(process\.env\.FEATURE_DISCOUNT_V2\)/);
+  });
+});
+
+describe('resolveLineItemKrw — discountV2 forward (멀티데이/트랜스퍼 표시==청구)', () => {
+  // FEATURE_DISCOUNT_V2 ON 이면 멀티데이 3일+ 가 v2(5%)·v1(10%) 으로 갈리므로, opts.discountV2 가
+  // resolveMultiDayCheckoutKrw 까지 forward 되면 두 호출 결과가 달라야 한다(미forward=동일=버그).
+  const mdBooking = { productType: 'charter_multiday', vehicle: 'staria', originKey: 'ICN', destKey: 'BUSAN', durationDays: 3 };
+  it('multiday: discountV2 true(5%) > false(10%) — forward 되면 가격 다름', () => {
+    const v2 = resolveLineItemKrw(SPEC, mdBooking, { multidayEnabled: true, discountV2: true });
+    const v1 = resolveLineItemKrw(SPEC, mdBooking, { multidayEnabled: true, discountV2: false });
+    expect(typeof v2).toBe('number');
+    expect(typeof v1).toBe('number');
+    // 5% 할인 < 10% 할인 → v2 청구가 > v1 청구가. forward 안 되면 둘 다 10%=동일(이 단언 실패).
+    expect(v2 as number).toBeGreaterThan(v1 as number);
+  });
 });

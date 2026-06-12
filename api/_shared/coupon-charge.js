@@ -60,6 +60,11 @@ export async function verifyCouponForCharge(db, couponUserId, couponDocId, produ
     if (c.isUsed === true) return { valid: false };
     if (typeof c.expiresAt === 'number' && c.expiresAt < Date.now()) return { valid: false };
     if (!couponMatchesProduct(c.productScope, productType)) return { valid: false };
+    // 정액(fixed) 쿠폰은 청구 경로에서 미적용 → 정가(안전). 이 함수는 c.value 를 퍼센트로
+    // 읽으므로 fixed($X off)면 X% 로 오해석된다(예: $8 off → 8% off, 표시≠청구). v1 은
+    // 정가 청구로 수렴(과/오할인 방지). 표시단(applyPromoCode)도 fixed 쿠폰을 이 경로로
+    // 넘기지 않도록 호출처에서 방어 권장.
+    if (c.type && c.type !== 'percent') return { valid: false };
     const pct = typeof c.value === 'number' ? c.value : 0;
     if (!(pct > 0)) return { valid: false };
     // 안전 상한 10% — 개인 쿠폰 단일 적용 (운영자 정책: 쿠폰 5%). 변조/이상치 방어.

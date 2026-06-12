@@ -12,6 +12,7 @@
 import { getUsdToKrw } from './_exchange-rate.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
+import { featureEnabled } from './_shared/feature-flag.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -35,6 +36,14 @@ const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 // (capturePaypalOrder 의 incrementGlobalPromoUsage 가 transaction 으로 cap-check 후 +1).
 import { GLOBAL_PROMO_DEFAULTS, resolveGlobalPromoLimit } from './_shared/global-promo.js';
 const GLOBAL_PROMOS = GLOBAL_PROMO_DEFAULTS;
+
+// FEATURE_DISCOUNT_V2 ON 시 EARLY50 비활성 — 청구 경로(createPaypalOrder.js L229
+// `if (!discountV2 && promoCode === 'EARLY50')`)는 v2 ON 에서 EARLY50 을 청구가에 반영하지
+// 않는다. 표시 경로(이 핸들러)도 동일하게 막지 않으면 손님은 20% 할인 화면을 보고 정가
+// 청구된다(표시≠청구=오과금) + 캠페인 한도만 헛소진. 같은 플래그로 두 경로를 일치시킨다.
+function isPromoDisabledByV2(code) {
+  return code === 'EARLY50' && featureEnabled(process.env.FEATURE_DISCOUNT_V2);
+}
 
 // global_promo_usage/{code}.usedCount < maxUses 검증 (read-only). 실제 increment 는
 // capturePaypalOrder 의 트랜잭션 내에서 수행 — 여기는 사용자 UX gate.
@@ -255,7 +264,8 @@ export default async function handler(req, res) {
     const upper = code.toUpperCase();
 
     // 1. 글로벌 프로모 확인 (limit 도달 시 reject)
-    const promo = GLOBAL_PROMOS[upper];
+    // v2 ON 시 EARLY50 비활성 (청구 경로와 일치) — promo=null 처리해 아래 INVALID_CODE 폴백.
+    const promo = isPromoDisabledByV2(upper) ? null : GLOBAL_PROMOS[upper];
     if (promo) {
       const limitGate = await checkGlobalPromoLimit(db, upper);
       if (!limitGate.ok) {

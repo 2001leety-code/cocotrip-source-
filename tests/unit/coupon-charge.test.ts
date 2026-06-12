@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Firestore mockDb 스캐폴딩. */
 /**
  * coupon-charge — 결제 시점 개인 쿠폰 검증 (FEATURE_DISCOUNT_V2, 운영자 2026-06-07).
  * createPaypalOrder 가 v2 에서 WELCOME 쿠폰을 실제 청구가에 적용하기 위한 서버측 검증.
@@ -60,5 +61,15 @@ describe('verifyCouponForCharge — docId 기준 결제 검증', () => {
   it('value 안전 상한 10% (변조/이상치 방어)', async () => {
     const db = mockDb({ value: 50, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
     expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, discountPct: 10 });
+  });
+  it('fixed(정액) 쿠폰 → invalid (percent 오해석 방지, 정가 안전)', async () => {
+    // admin-issue-coupon 이 type:'fixed'($8 off) 쿠폰을 발행할 수 있는데 이 함수는 value 를
+    // 퍼센트로 읽으므로 fixed 면 8% 로 오해석 → 표시($8)≠청구. fixed 는 청구 경로에서 거부(정가).
+    const db = mockDb({ type: 'fixed', currency: 'USD', value: 8, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: false });
+  });
+  it('type:"percent" 명시 쿠폰 → 정상 valid (게이트 무영향)', async () => {
+    const db = mockDb({ type: 'percent', value: 5, isUsed: false, expiresAt: FUTURE, productScope: 'charter' });
+    expect(await verifyCouponForCharge(db, 'uid1', 'doc1', 'charter_busan')).toEqual({ valid: true, discountPct: 5 });
   });
 });
