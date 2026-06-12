@@ -304,25 +304,15 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
     // reviews — 사용자 리뷰 (공개 읽기, 인증 작성)
     // ─────────────────────────────────────────────────────────
+    // 🔴 SAFETY (2026-06-12 인증/PII 버그헌트): 이전 `read: if true` 는 클라이언트 SDK 직접 read 로
+    //   리뷰 전체 doc(기사 Telegram chatId·실명·신고자 uid 등)을 노출 → reviews.js list 의 화이트리스트
+    //   (PR #909)를 우회하는 PII 경로였다. 공개 리뷰 표시는 whitelisted API(/api/reviews list)만 쓰고,
+    //   SDK 직접 read 는 admin(ReviewManagement 모더레이션, 전체 doc 필요)만 허용.
+    //   생성/수정/삭제는 전부 /api/reviews(Admin SDK rules 우회)가 status·필드를 통제 — 클라 SDK 직접
+    //   write 는 status='published' 자가발행·임의필드 주입·스팸을 허용하므로 차단(서버 전용).
     match /reviews/{reviewId} {
-      allow read: if true;
-      allow create: if isSignedIn()
-                    && request.resource.data.authorUid == request.auth.uid
-                    && request.resource.data.rating >= 1
-                    && request.resource.data.rating <= 5
-                    && request.resource.data.text is string
-                    && request.resource.data.text.size() >= 5
-                    && request.resource.data.text.size() <= 500
-                    && request.resource.data.keys().hasAll(['authorUid', 'rating', 'text', 'tourSlug']);
-      allow update: if isSignedIn()
-                    && resource.data.authorUid == request.auth.uid
-                    && request.resource.data.authorUid == resource.data.authorUid
-                    && request.resource.data.rating >= 1
-                    && request.resource.data.rating <= 5
-                    && request.resource.data.text.size() >= 5
-                    && request.resource.data.text.size() <= 500;
-      allow delete: if isSignedIn()
-                    && (resource.data.authorUid == request.auth.uid || isAdminEmail());
+      allow read: if isAdminEmail();
+      allow create, update, delete: if false;
     }
 
     // ─────────────────────────────────────────────────────────
