@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { trackShare } from '@/lib/analytics';
+import { authFetch } from '@/lib/authFetch';
 import { toast } from 'sonner';
 import type { PlanDocument } from '../types';
 import { getPlanDetailDict } from '../types';
@@ -20,18 +21,17 @@ interface ShareButtonProps {
 
 /** Fire-and-forget share reward call */
 async function claimShareReward(
-  userId: string,
   planId: string,
   shareMethod: string,
   rewardLabel: string,
 ) {
   try {
-    const res = await fetch('/api/loyalty', {
+    // 서버가 토큰(auth.uid)으로 본인+플랜 소유 확인 — body.userId 제거 (loyalty IDOR fix).
+    const res = await authFetch('/api/loyalty', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'earn-share',
-        userId,
         planId,
         shareMethod,
       }),
@@ -83,7 +83,7 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
 
     // 리워드 지급 (fire-and-forget, 소유자만)
     if (isOwner && user?.uid && shareMethod) {
-      claimShareReward(user.uid, planId, shareMethod, sh.shareReward);
+      claimShareReward(planId, shareMethod, sh.shareReward);
     }
   };
 
@@ -176,7 +176,7 @@ export function ShareMiniIcon({ planId, plan }: { planId: string; plan: PlanDocu
 
     // 리워드 지급 (소유자만 — plan.uid == user.uid)
     if (user?.uid && plan?.uid === user.uid && shareMethod) {
-      claimShareReward(user.uid, planId, shareMethod, sh.shareReward);
+      claimShareReward(planId, shareMethod, sh.shareReward);
     }
   };
 
