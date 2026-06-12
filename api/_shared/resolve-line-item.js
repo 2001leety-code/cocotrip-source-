@@ -98,7 +98,7 @@ export function resolveKrwAmount(SPEC, productType, passengers, durationDays) {
  * 라인 dispatch — createPaypalOrder.js L205-218 와 동일 분기. flag 는 opts 로 주입(순수).
  * @param {object} SPEC
  * @param {object} booking  CartItemBooking (productType + 식별 키)
- * @param {object} [opts]  {multidayEnabled, tourHourlyEnabled, transferEnabled, marginGuardEnabled}
+ * @param {object} [opts]  {multidayEnabled, tourHourlyEnabled, transferEnabled, marginGuardEnabled, discountV2}
  * @returns {number|null}
  */
 export function resolveLineItemKrw(SPEC, booking, opts = {}) {
@@ -107,13 +107,13 @@ export function resolveLineItemKrw(SPEC, booking, opts = {}) {
   if (!productType) return null;
 
   if (productType === 'charter_multiday') {
-    return resolveMultiDayCheckoutKrw(SPEC, booking, !!opts.multidayEnabled);
+    return resolveMultiDayCheckoutKrw(SPEC, booking, !!opts.multidayEnabled, { discountV2: opts.discountV2 });
   }
   if (productType === 'tour_hourly') {
     return resolveTourCheckoutKrw(SPEC, booking, !!opts.tourHourlyEnabled);
   }
   if (productType === 'charter_transfer') {
-    return resolveTransferCheckoutKrw(SPEC, booking, !!opts.transferEnabled, { marginGuardEnabled: opts.marginGuardEnabled });
+    return resolveTransferCheckoutKrw(SPEC, booking, !!opts.transferEnabled, { marginGuardEnabled: opts.marginGuardEnabled, discountV2: opts.discountV2 });
   }
   return resolveKrwAmount(SPEC, productType, booking.passengers, booking.durationDays);
 }

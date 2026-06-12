@@ -66,6 +66,9 @@ export default async function handler(req, res) {
       tourHourlyEnabled: featureEnabled(process.env.FEATURE_TOUR_HOURLY),
       transferEnabled:   featureEnabled(process.env.FEATURE_TRANSFER_CHECKOUT),
       marginGuardEnabled: _rtFlags.transfer_margin_guard_enabled,
+      // discountV2 누락 시 cart 라인은 v1 할인(10%)으로 청구되는데 표시가는 v2(5%) → 표시≠청구.
+      // createPaypalOrder L208 과 동일 — 모든 호출처는 calc 에 discountV2 를 넘겨야 한다(discountFlags 불변식).
+      discountV2:        featureEnabled(process.env.FEATURE_DISCOUNT_V2),
     };
 
     // P311 SSOT 합산 — client priceKRW 무시, productType+식별키만으로 재계산.
