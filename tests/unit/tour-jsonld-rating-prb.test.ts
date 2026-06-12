@@ -2,7 +2,7 @@
  * PR-B: 투어 JSON-LD 가짜 평점 제거 회귀 테스트
  *
  * 검증 항목:
- * 1. 플래그 OFF(기본) → aggregateRating 하드코딩 4.9/32 유지 (byte-identical)
+ * 1. 플래그 OFF(기본) → aggregateRating omit (#898 후속: 가짜 4.9/32 송출 제거)
  * 2. 플래그 ON + 실평점(rating>0, reviewCount>=1) → aggregateRating 실값
  * 3. 플래그 ON + 리뷰 없음(reviewCount=0) → aggregateRating 키 omit
  * 4. 플래그 ON + rating undefined → aggregateRating 키 omit
@@ -22,33 +22,24 @@ const BASE_PARAMS = {
 };
 
 describe('buildTourJsonLd — 플래그 OFF (기본)', () => {
-  it('aggregateRating 이 하드코딩 4.9/32 를 반환함', () => {
+  it('aggregateRating 키를 omit 함 (가짜 4.9/32 미송출)', () => {
     const result = buildTourJsonLd({ ...BASE_PARAMS, featureFlag: false });
-    expect(result.aggregateRating).toEqual({
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      reviewCount: '32',
-    });
+    expect(result).not.toHaveProperty('aggregateRating');
   });
 
-  it('featureFlag 미전달 시에도 하드코딩 4.9/32 를 반환함', () => {
+  it('featureFlag 미전달 시에도 aggregateRating omit', () => {
     const result = buildTourJsonLd({ ...BASE_PARAMS });
-    expect(result.aggregateRating).toEqual({
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      reviewCount: '32',
-    });
+    expect(result).not.toHaveProperty('aggregateRating');
   });
 
-  it('실평점 인자가 있어도 플래그 OFF면 하드코딩 유지', () => {
+  it('실평점 인자가 있어도 플래그 OFF면 aggregateRating omit', () => {
     const result = buildTourJsonLd({
       ...BASE_PARAMS,
       rating: 4.3,
       reviewCount: 7,
       featureFlag: false,
     });
-    expect((result.aggregateRating as Record<string, string>).ratingValue).toBe('4.9');
-    expect((result.aggregateRating as Record<string, string>).reviewCount).toBe('32');
+    expect(result).not.toHaveProperty('aggregateRating');
   });
 });
 
@@ -139,8 +130,8 @@ describe('buildTourJsonLd — Schema.org 필수 필드 (플래그 무관)', () =
     });
   }
 
-  it('aggregateRating 있으면 @type=AggregateRating 포함', () => {
-    const result = buildTourJsonLd({ ...BASE_PARAMS, featureFlag: false });
+  it('실평점(플래그 ON)일 때 aggregateRating @type=AggregateRating 포함', () => {
+    const result = buildTourJsonLd({ ...BASE_PARAMS, rating: 4.5, reviewCount: 12, featureFlag: true });
     const ar = result.aggregateRating as Record<string, string>;
     expect(ar['@type']).toBe('AggregateRating');
   });

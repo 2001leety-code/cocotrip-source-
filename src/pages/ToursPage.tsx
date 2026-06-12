@@ -19,7 +19,7 @@ import { HOTELS } from '@/data/hotels';
 import type { TourRegion, DriverLanguage } from '@/data/tours';
 import type { Language } from '@/i18n';
 
-type SortKey = 'default' | 'rating-desc' | 'price-asc' | 'price-desc';
+type SortKey = 'default' | 'price-asc' | 'price-desc';
 
 // ── 로컬 i18n ─────────────────────────────────────────────────────────────────
 // 통합 시 이 객체를 src/i18n/index.ts 의 translations.*.tours 로 이전하고
@@ -133,8 +133,7 @@ export default function ToursPage() {
 
   const visibleTours = (() => {
     const arr = [...filteredTours];
-    if (sortBy === 'rating-desc') arr.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    else if (sortBy === 'price-asc')  arr.sort((a, b) => a.priceFrom - b.priceFrom);
+    if (sortBy === 'price-asc')  arr.sort((a, b) => a.priceFrom - b.priceFrom);
     else if (sortBy === 'price-desc') arr.sort((a, b) => b.priceFrom - a.priceFrom);
     return arr;
   })();
@@ -355,7 +354,6 @@ export default function ToursPage() {
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.65)' }}
             >
               <option value="default">{language === 'ko' ? '추천순' : language === 'ja' ? 'おすすめ順' : language === 'zh' ? '推荐排序' : 'Recommended'}</option>
-              <option value="rating-desc">{language === 'ko' ? '평점 높은순' : language === 'ja' ? '評価順' : language === 'zh' ? '评分排序' : 'Rating'}</option>
               <option value="price-asc">{language === 'ko' ? '가격 낮은순' : language === 'ja' ? '価格安い順' : language === 'zh' ? '价格升序' : 'Price ↑'}</option>
               <option value="price-desc">{language === 'ko' ? '가격 높은순' : language === 'ja' ? '価格高い順' : language === 'zh' ? '价格降序' : 'Price ↓'}</option>
             </select>
