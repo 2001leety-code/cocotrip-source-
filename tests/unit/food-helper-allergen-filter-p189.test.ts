@@ -18,6 +18,8 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+// @ts-expect-error — ESM .js (Vercel serverless 공유 모듈)
+import { getFoodContext } from '../../api/_food_helper.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../../');
@@ -334,5 +336,37 @@ describe('P189 dbMatcher — allergen 위반 감지 코드', () => {
     const src = readFileSync(resolve(ROOT, 'api/_ai_core/dbMatcher.js'), 'utf-8');
     // P189 SAFETY 주석과 함께 verified=false 처리
     expect(src).toMatch(/P189[\s\S]{0,300}verified\s*=\s*false/);
+  });
+});
+
+// ── 안전게이트 (2026-06-13): allergen DB 0% 실측 → "verified" 오인 차단 ────────
+// 헤더가 알레르겐을 "Recommended Nuts Restaurants … VERIFIED" 로 오표기 + verified(=실재)
+// 가 알레르겐 안전으로 오인되던 갭. 헤더 라벨에서 알레르겐 제외 + 명시 미검증 면책.
+describe('안전게이트 — getFoodContext 알레르겐 헤더 오표기 차단 + 미검증 면책 (동작)', () => {
+  it("Nuts 선택: 'Recommended Nuts' 헤더 오표기 없음 + ALLERGEN SAFETY 면책 포함", () => {
+    const ctx = getFoodContext('seoul', ['Nuts'], 'Any', 10);
+    expect(ctx).toBeTruthy();
+    expect(ctx).not.toContain('Recommended Nuts');
+    expect(ctx).toContain('ALLERGEN SAFETY (Nuts)');
+    expect(ctx).toContain('NOT allergen-screened');
+  });
+
+  it('Vegan+Nuts 혼합: 헤더는 Vegan 만, 알레르겐은 면책으로 분리', () => {
+    const ctx = getFoodContext('seoul', ['Vegan', 'Nuts'], 'Any', 10);
+    expect(ctx).toBeTruthy();
+    expect(ctx).not.toContain('Nuts Restaurants');
+    expect(ctx).toContain('ALLERGEN SAFETY (Nuts)');
+  });
+
+  it('알레르겐 미선택(Vegan만): 면책 없음 — 현행 무변경', () => {
+    const ctx = getFoodContext('seoul', ['Vegan'], 'Any', 10);
+    if (ctx) expect(ctx).not.toContain('ALLERGEN SAFETY');
+  });
+});
+
+describe('안전게이트 — buildPrompt verified≠allergen-safe 명시 (소스 가드)', () => {
+  it('buildPrompt.js P237 섹션에 verified 가 알레르겐 안전 아님 명시', () => {
+    const src = readFileSync(resolve(ROOT, 'api/_ai_core/buildPrompt.js'), 'utf-8');
+    expect(src).toContain('does NOT confirm allergen safety');
   });
 });
