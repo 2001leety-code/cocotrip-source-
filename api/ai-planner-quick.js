@@ -6,6 +6,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getSpotContext } from './_spots_helper.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdminDb } from './_shared/firebase-admin.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 
 // ── Firebase Admin (카운터 전용, 공유 헬퍼 사용) ──────────────────────
 const counterDb = initAdminDb('quick');
@@ -106,6 +107,14 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') { res.writeHead(405, { ...CORS, 'Content-Type': 'application/json' }); return res.end(JSON.stringify(_err('Method Not Allowed', 'METHOD_NOT_ALLOWED'))); }
 
   try {
+    // 비용 DoS 방지: 무인증 + Gemini 호출 엔드포인트라 무한 호출 시 API 비용 폭주.
+    // per-IP 시간당 10건(정상 미리보기엔 충분). 초과 429. counterDb null/장애 시 fail-open(정상 유저 보호).
+    const rate = await checkIpRateLimit({ db: counterDb, ip: getClientIp(req), collection: 'quick_plan_rate_limits', maxRequests: 10, errorLabel: 'plan previews' });
+    if (!rate.ok) {
+      res.writeHead(rate.status, { ...CORS, 'Content-Type': 'application/json', 'Retry-After': String(rate.retryAfterSec) });
+      return res.end(JSON.stringify(_err(rate.error, 'RATE_LIMITED')));
+    }
+
     let rawBody = req.body;
     if (typeof rawBody === 'string') { try { rawBody = JSON.parse(rawBody); } catch { rawBody = {}; } }
     rawBody = rawBody || {};
