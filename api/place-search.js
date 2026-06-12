@@ -31,6 +31,10 @@
 import axios from 'axios';
 import { translatePlaceName } from './_shared/translator.js';
 
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
+const _rateDb = initAdminDb('place-search');
+
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
@@ -132,6 +136,13 @@ export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.writeHead(405, JSON_CORS);
     return res.end(JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
+  }
+
+  // 비용 DoS: 무인증 + Naver Local Search(호출당 비용). per-IP 시간당 30건. db 없으면 fail-open.
+  const _rate = await checkIpRateLimit({ db: _rateDb, ip: getClientIp(req), collection: 'place_search_rate_limits', maxRequests: 30, errorLabel: 'searches' });
+  if (!_rate.ok) {
+    res.writeHead(_rate.status, { ...JSON_CORS, 'Retry-After': String(_rate.retryAfterSec) });
+    return res.end(JSON.stringify({ error: _rate.error, code: 'RATE_LIMITED' }));
   }
 
   const queryRaw = (req.query?.query ?? req.query?.q ?? '').toString().trim();
