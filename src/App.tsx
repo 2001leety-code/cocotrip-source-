@@ -182,11 +182,17 @@ function HomePage() {
 
 function GlobalWidgets() {
   const { language } = useLanguage();
+  const location = useLocation();
 
   // Google Redirect 로그인 결과 처리 (signInWithRedirect 폴백 후 페이지 복귀 시)
   useEffect(() => {
     handleRedirectResult().catch(console.error);
   }, []);
+
+  // MOOD 포털(/mood)은 고객 비노출 내부 사이트 — 마케팅/공용 chrome(프로모배너·챗위젯·
+  // K-pop 팝업·쿠폰모달·PWA 프롬프트·하단 네비) 전부 숨김(별도 사이트 느낌).
+  // 위 리다이렉트 로그인 useEffect 는 hooks 라 early-return 이어도 계속 실행됨.
+  if (location.pathname.startsWith('/mood')) return null;
 
   return (
     <>
@@ -598,14 +604,25 @@ function App() {
       <BrowserRouter>
         <CommandPaletteProvider>
         <GlobalWidgets />
-        <PromoBanner />
-        <PromoPopup />
+        <NonMoodChrome />
         <AnimatedRoutes />
         <MobileBottomSpacer />
         </CommandPaletteProvider>
       </BrowserRouter>
       </ErrorBoundary>
     </LanguageProvider>
+  );
+}
+
+// 상단 프로모 배너/팝업 — MOOD 포털(/mood)에선 숨김(고객 비노출 내부 사이트).
+function NonMoodChrome() {
+  const location = useLocation();
+  if (location.pathname.startsWith('/mood')) return null;
+  return (
+    <>
+      <PromoBanner />
+      <PromoPopup />
+    </>
   );
 }
 
