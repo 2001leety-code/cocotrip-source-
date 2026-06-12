@@ -584,6 +584,23 @@ const FOOD_CITY_CENTROID = {
 };
 const FOOD_CITY_MAX_KM = 70; // 같은 도시권 최대 반경 — 이 이상 = 오태깅. 좌표 없으면 미적용.
 
+// 식당 dietary 태그 정규화 — 프로덕션 _food_index.json 은 r.tag (단일 문자열, 예 "halal"),
+// 일부 mock/legacy 데이터는 r.dietary_tags (배열). 둘 다 읽어 소문자 배열로 반환.
+// ⚠️ SAFETY (CLAUDE.md J): 과거 이 매칭이 r.dietary_tags 만 읽어, 프로덕션(r.tag)에선 halal/vegan
+//    후보가 항상 0 → dietRequired 사용자는 매번 throw→legacy 폴백(fail-closed=안전하나 block_mode
+//    식이 매칭이 죽어 품질 저하)이었다. 두 필드 모두 읽어 실제로 동작하게 한다.
+function dietaryTagsOf(r) {
+  if (!r || typeof r !== 'object') return [];
+  const out = [];
+  const dt = r.dietary_tags;
+  if (Array.isArray(dt)) out.push(...dt);
+  else if (dt) out.push(dt);
+  const tg = r.tag;
+  if (Array.isArray(tg)) out.push(...tg);
+  else if (tg) out.push(tg);
+  return out.map((t) => String(t).toLowerCase());
+}
+
 export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null) {
   if (!placeholderStop || !placeholderStop.placeholder) return null;
   if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
@@ -627,7 +644,7 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     if (isCafe) {
       if (!cafeTypes.some((t) => rType.includes(t))) return false;
     }
-    const tags = Array.isArray(r.dietary_tags) ? r.dietary_tags.map((t) => String(t).toLowerCase()) : [];
+    const tags = dietaryTagsOf(r); // r.tag(문자열) + r.dietary_tags(배열) 정규화 — SAFETY hard-filter
     for (const d of dietRequired) {
       if (!tags.includes(d)) return false;
     }
@@ -647,7 +664,7 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
   let candidates = safetyCandidates;
   if (preferred.length > 0) {
     const preferredMatch = safetyCandidates.filter((r) => {
-      const tags = Array.isArray(r.dietary_tags) ? r.dietary_tags.map((t) => String(t).toLowerCase()) : [];
+      const tags = dietaryTagsOf(r); // r.tag(문자열) + r.dietary_tags(배열) 정규화
       return preferred.every((d) => tags.includes(d));
     });
     if (preferredMatch.length > 0) candidates = preferredMatch;
@@ -846,9 +863,10 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
           resolvedAddress = matched.address || resolvedAddress;
           verified = true;
           if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
-          if (Array.isArray(matched.dietary_tags)) {
-            dietaryTags = matched.dietary_tags.slice();
-          }
+          // 매칭된 식당의 실제 dietary 태그(r.tag/r.dietary_tags)를 stop 에 전파 — seed 의
+          // soft preferred_dietary 보다 매칭 식당의 검증된 속성이 정확.
+          const mTags = dietaryTagsOf(matched);
+          if (mTags.length) dietaryTags = mTags;
         } else if (dietCritical.length > 0) {
           // SAFETY-CRITICAL: dietary 사용자에게 매칭 안 됨 = throw (block-mode 폐기 + legacy fallback).
           const err = new Error(

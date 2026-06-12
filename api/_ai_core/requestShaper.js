@@ -127,6 +127,16 @@ export function shapeRequest(body, authenticatedEmail) {
   // 안 했으면 zone anchor 사용. 둘 다 없으면 빈 문자열 (route_to_hotel 생성 안 됨).
   const routeHotelAddress = hotel_address || recommendedZoneAddress;
 
+  // SAFETY (CLAUDE.md J): 식이/알레르기는 silent 빈배열 폴백 금지. 키가 "있는데 비배열"(전송 손상)
+  // 이면 throw — 알레르기 누락이 "제한 없음"으로 처리돼 위반 plan 이 가는 것을 차단(누락 자체가 에러).
+  // 키 부재(미선택)는 정상 → []. (정상 프론트는 array-or-absent 보장. throw 는 handlerCore catch→500:
+  // 위험 plan 대신 명시적 실패가 안전.)
+  if (body.dietPrefs != null && !Array.isArray(body.dietPrefs)) {
+    const e = new Error('INVALID_DIETARY_PAYLOAD: dietPrefs must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
+  }
+  if (body.allergies != null && !Array.isArray(body.allergies)) {
+    const e = new Error('INVALID_DIETARY_PAYLOAD: allergies must be an array'); e.code = 'INVALID_DIETARY_PAYLOAD'; throw e;
+  }
   const dietPrefs = Array.isArray(body.dietPrefs) ? body.dietPrefs : [];
   const allergies = Array.isArray(body.allergies) ? body.allergies : [];
   const priceRange = body.priceRange || 'Any';
