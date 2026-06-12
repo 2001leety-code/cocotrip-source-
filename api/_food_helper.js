@@ -321,7 +321,12 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   if (!final.length) return '';
 
   // ── Format output ─────────────────────────────────────────────────────
-  const dietLabel = dietPrefs.length > 0 ? dietPrefs.join(' & ') : 'Korean';
+  // P189 SAFETY: 알레르겐 키(Nuts/Shellfish/Gluten/Dairy)는 DB allergen 데이터가 미수집
+  //   (전부 false=미확인)이라 filterByAllergens 가 무력하다. 헤더 라벨에 넣으면
+  //   "Recommended Nuts Restaurants … VERIFIED" = 알레르겐 검증 추천으로 오표기되므로 제외.
+  const allergenSelected = dietPrefs.filter(p => ALLERGEN_KEYS.includes(p));
+  const labelPrefs = dietPrefs.filter(p => !ALLERGEN_KEYS.includes(p));
+  const dietLabel = labelPrefs.length > 0 ? labelPrefs.join(' & ') : 'Korean';
   // Phase 6: Busan DB uses 4.6 threshold; others use 4.5
   const ratingThresholdLabel = cityCode === 'busan' ? '4.6' : '4.5';
   const lines = final.map(r => {
@@ -340,5 +345,12 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
   const cityLabel = cityCode.charAt(0).toUpperCase() + cityCode.slice(1);
   const header = `## Recommended ${dietLabel} Restaurants in ${cityLabel} (Rating ≥ ${ratingThresholdLabel})`;
 
-  return `\n\n--- VERIFIED RESTAURANT DATABASE (MUST use restaurants from this list for meals) ---\n${header}\n${lines.join('\n\n')}\n\nIMPORTANT: Use the EXACT name and address from the above list. Set "verified": true on each food stop from this list.\n---`;
+  // P189 SAFETY-CRITICAL: "verified": true = 식당 실재(DB 등재) 확인일 뿐, 알레르겐 안전
+  //   검증이 아니다. allergen DB 미수집(0% 실측) 상태라 이 명단은 알레르겐 스크리닝 안 됨.
+  //   알레르겐 선택 시 "검증된 추천"으로 오인되지 않게 명시 면책 + 매 stop 현장확인 지시.
+  const allergenNotice = allergenSelected.length > 0
+    ? `\n\nALLERGEN SAFETY (${allergenSelected.join(', ')}): "verified": true confirms the restaurant EXISTS in our database — it does NOT confirm the restaurant is safe for these allergies. This list is NOT allergen-screened. NEVER state or imply any stop is allergy-safe; for EVERY food stop add a per-stop caution telling the guest to confirm ${allergenSelected.join('/')} ingredients with the restaurant before eating.`
+    : '';
+
+  return `\n\n--- VERIFIED RESTAURANT DATABASE (MUST use restaurants from this list for meals) ---\n${header}\n${lines.join('\n\n')}\n\nIMPORTANT: Use the EXACT name and address from the above list. Set "verified": true on each food stop from this list.${allergenNotice}\n---`;
 }

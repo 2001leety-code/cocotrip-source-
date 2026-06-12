@@ -747,6 +747,7 @@ NEVER omit this field.
 ### Allergy safety (P237 강화 — SAFETY-CRITICAL):
 If food_allergies includes any allergen, NEVER recommend dishes containing that allergen.
 Add warning in tip: "⚠️ Inform restaurant about your [allergen] allergy"
+NOTE: "verified": true confirms the restaurant EXISTS — it does NOT confirm allergen safety. Our database is NOT allergen-screened. NEVER imply any stop is safe for the guest's allergy; the per-stop warning above is MANDATORY for every food stop whenever food_allergies is present.
 
 Korean food hidden allergen guide (P237 세분화):
 - Nuts → 땅콩(peanut sauce), 호두(walnut), 잣(pine nut), 아몬드(almond), 캐슈너트.
