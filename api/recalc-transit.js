@@ -20,6 +20,7 @@
 
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 import axios from 'axios';
 import { formatTransitSummary } from './_odsay_helper.js';
 // P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP.
@@ -43,6 +44,13 @@ const db = getFirestore();
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // 비용 DoS: ODsay 대중교통 재계산(quota/비용, 운영자 80% quota 이력). per-IP 시간당 15건. fail-open.
+  const _rate = await checkIpRateLimit({ db, ip: getClientIp(req), collection: 'recalc_transit_rate_limits', maxRequests: 15, errorLabel: 'transit recalcs' });
+  if (!_rate.ok) {
+    res.setHeader('Retry-After', String(_rate.retryAfterSec));
+    return res.status(_rate.status).json({ error: _rate.error, code: 'RATE_LIMITED' });
   }
 
   const { planId, dayIndex, token } = req.body || {};

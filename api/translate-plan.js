@@ -22,6 +22,9 @@
 // every invocation ("FUNCTION_INVOCATION_FAILED"), masking earlier ja/zh
 // translation failures behind warm Firestore cache hits.
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
+const _rateDb = initAdminDb('translate-plan');
 
 export const maxDuration = 60;
 export const config = { runtime: 'nodejs' };
@@ -41,6 +44,13 @@ const TRANSLATE_ITEM_FIELDS = ['name', 'note'];
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json(_err('POST only', 'METHOD_NOT_ALLOWED'));
+
+  // 비용 DoS: 무인증 + Gemini 번역(호출당 비용). per-IP 시간당 20건. db 없으면 fail-open.
+  const _rate = await checkIpRateLimit({ db: _rateDb, ip: getClientIp(req), collection: 'translate_plan_rate_limits', maxRequests: 20, errorLabel: 'translations' });
+  if (!_rate.ok) {
+    res.setHeader('Retry-After', String(_rate.retryAfterSec));
+    return res.status(_rate.status).json(_err(_rate.error, 'RATE_LIMITED'));
+  }
 
   const { plan, targetLang } = req.body;
   if (!plan || !targetLang) return res.status(400).json(_err('plan and targetLang required', 'MISSING_FIELDS'));
