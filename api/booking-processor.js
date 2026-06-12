@@ -474,7 +474,9 @@ const originalHandler = async (event) => {
     } else if (amountNum > 0 && body.userId) {
       const loyaltyRes = await fetch(`https://cocotripkr.com/api/loyalty`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // earn 은 내부 전용 — 서비스 토큰 동봉 (loyalty.js earn 게이트). 미설정 시 earn 403
+        // → 적립 일시 중단(비치명적, best-effort). 운영자 INTERNAL_API_TOKEN 설정 필요.
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim() },
         body: JSON.stringify({
           action: 'earn',
           userId: body.userId,
