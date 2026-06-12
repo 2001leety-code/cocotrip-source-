@@ -82,6 +82,12 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
     .map((w) => String(w || '').trim())
     .filter(Boolean);
 
+  // Naver Directions Driving 경유지 최대 5개 — 초과 시 명시적 거부.
+  // (silent slice 금지: 돈 경로라 의도한 경유지가 조용히 누락되면 거리/요금 오류.)
+  if (wpQueries.length > 5) {
+    return { ok: false, status: 400, error: 'TOO_MANY_WAYPOINTS', detail: '경유지는 최대 5개' };
+  }
+
   try {
     // ── 1) geocode (origin + destination + waypoints) 병렬 ──────────
     const [originCoord, destCoord, ...wpCoords] = await Promise.all([
@@ -104,8 +110,10 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
       option: 'traoptimal',
     };
     if (wpCoords.length > 0) {
-      // Naver waypoints: "lng,lat:lng,lat" (콜론 구분).
-      params.waypoints = wpCoords.map(coordParam).join(':');
+      // Naver waypoints: 경유지 사이는 "|" 로 구분 ("lng,lat|lng,lat").
+      // 콜론(:)은 "한 경유지 안의 대체 좌표쌍" 용도라 다중 경유지에 쓰면 Naver 가
+      // 단일 경유지의 좌표쌍으로 오해석 → 경로/거리/톨비가 틀어진다.
+      params.waypoints = wpCoords.map(coordParam).join('|');
     }
 
     const res = await axios.get(DIRECTIONS_URL, {

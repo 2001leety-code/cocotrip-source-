@@ -64,7 +64,7 @@ describe('mood-route — computeRoute (Naver Directions)', () => {
     expect(r.km).toBe(5);
   });
 
-  it('경유지: waypoints 가 "lng,lat:lng,lat" 콜론 포맷으로 전달', async () => {
+  it('경유지: waypoints 가 "lng,lat|lng,lat" 파이프 포맷으로 전달 (Naver 명세)', async () => {
     mockGet
       .mockResolvedValueOnce(geocodeOK(37.5, 127.0))  // origin
       .mockResolvedValueOnce(geocodeOK(37.3, 127.2))  // destination
@@ -76,9 +76,18 @@ describe('mood-route — computeRoute (Naver Directions)', () => {
     // 마지막 호출 = directions. waypoints 파라미터 검증.
     const dirCall = mockGet.mock.calls.at(-1)!;
     const params = (dirCall[1] as { params: Record<string, string> }).params;
-    expect(params.waypoints).toBe('127.05,37.45:127.1,37.4');
+    expect(params.waypoints).toBe('127.05,37.45|127.1,37.4');
     expect(params.start).toBe('127,37.5');
     expect(params.goal).toBe('127.2,37.3');
+  });
+
+  it('경유지 5개 초과 → TOO_MANY_WAYPOINTS (400, geocode 호출 전 거부)', async () => {
+    const r = await computeRoute({ origin: 'O', destination: 'D', waypoints: ['1', '2', '3', '4', '5', '6'] });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.status).toBe(400);
+    expect(r.error).toBe('TOO_MANY_WAYPOINTS');
+    expect(mockGet).not.toHaveBeenCalled(); // 가드가 geocode/directions 호출 전에 차단
   });
 
   it('geocode 실패(origin) → GEOCODING_FAILED detail=origin', async () => {

@@ -64,8 +64,8 @@ interface MoodBooking {
   createdByEmail: string;
   createdAt: number;
   breakdown?: MoodBreakdown;
-  /** 이 예약 직후 잔액 (백엔드 mood-data 가 최신순으로 running 계산해 내려줌). */
-  running?: number;
+  /** 이 예약 직후 잔액 (백엔드 mood-data 가 내려줌). 레거시 예약은 null = 화면 미표시. */
+  runningBalanceKRW?: number | null;
 }
 
 interface MoodData {
@@ -75,7 +75,7 @@ interface MoodData {
   isAdmin: boolean;
 }
 
-/** /api/mood-route 응답 (계약: { ok, km, tollKRW, durationMin } | { ok:false, error }). */
+/** /api/mood-route 응답 (계약: { ok, data:{ km, tollKRW, durationMin } } | { ok:false, error }). */
 interface MoodRoute {
   km: number;
   tollKRW: number;
@@ -205,10 +205,12 @@ export default function MoodPortal() {
         const json = await res.json().catch(() => ({}));
         if (seq !== routeSeq.current) return; // 더 최신 요청이 있으면 폐기
         if (json?.ok) {
+          // 백엔드 응답은 { ok, data:{ km, tollKRW, durationMin } } 중첩 — data 에서 읽는다.
+          const dd = json.data || {};
           setRoute({
-            km: Number(json.km) || 0,
-            tollKRW: Number(json.tollKRW) || 0,
-            durationMin: Number(json.durationMin) || 0,
+            km: Number(dd.km) || 0,
+            tollKRW: Number(dd.tollKRW) || 0,
+            durationMin: Number(dd.durationMin) || 0,
           });
           setRouteError(null);
         } else {
@@ -571,9 +573,9 @@ export default function MoodPortal() {
                         <span className="text-sm font-bold" style={{ color: C.danger }}>
                           −{formatKRW(b.amountKRW)}
                         </span>
-                        {typeof b.running === 'number' && (
-                          <p className="text-[11px]" style={{ color: b.running < 0 ? C.danger : C.textDim }}>
-                            잔액 {formatBalance(b.running)}
+                        {typeof b.runningBalanceKRW === 'number' && (
+                          <p className="text-[11px]" style={{ color: b.runningBalanceKRW < 0 ? C.danger : C.textDim }}>
+                            잔액 {formatBalance(b.runningBalanceKRW)}
                           </p>
                         )}
                       </div>

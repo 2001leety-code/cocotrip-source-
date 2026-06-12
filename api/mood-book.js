@@ -32,7 +32,7 @@ import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
-import { getMoodAllowlist, isAllowedEmail } from './_shared/mood-allowlist.js';
+import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
 import { computeMoodTotalKRW, isValidServiceType, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { notify } from './_shared/notify.js';
@@ -73,6 +73,11 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, error: auth.error }));
   }
   const email = auth.email;
+  // 돈 변경 경계 — 미검증 이메일 토큰 차단 (defense-in-depth; Google 로그인은 항상 verified).
+  if (!auth.emailVerified) {
+    res.writeHead(403, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: '이메일 미검증' }));
+  }
 
   // ── 2) body 파싱 + 검증 ──────────────────────────────────
   let body = req.body || {};
@@ -122,6 +127,14 @@ export default async function handler(req, res) {
       res.writeHead(403, JSON_HEADERS);
       return res.end(JSON.stringify({ ok: false, error: '접근 권한 없음' }));
     }
+    // 🔴 IDOR 방지 — 비-admin 은 자기 회사(allowlist.clientId) 만 예약 가능.
+    // (mood-data.js 조회 가드와 동일 정책. 이게 없으면 직원이 body.clientId 로 타 회사
+    //  잔액을 차감하는 예약을 만들 수 있음 — 외상 정책상 무제한 음수까지.)
+    const isAdmin = isAdminEmail(allowlist, email);
+    if (!isAdmin && clientId !== allowlist.clientId) {
+      res.writeHead(403, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: '본인 회사만 예약 가능' }));
+    }
 
     // ── 4) 경로 계산 (origin/destination 있을 때만) ─────────
     // 클라이언트가 보낸 km/tollKRW 는 무시 — 백엔드에서 Naver 로 직접 측정.
@@ -129,12 +142,15 @@ export default async function handler(req, res) {
     let tollKRW = 0;
     if (origin && destination) {
       const route = await computeRoute({ origin, destination, waypoints });
-      if (!route.ok) {
-        res.writeHead(route.status || 502, JSON_HEADERS);
-        return res.end(JSON.stringify({ ok: false, error: route.error, ...(route.detail ? { detail: route.detail } : {}) }));
+      if (route.ok) {
+        km = route.km;
+        tollKRW = route.tollKRW;
+      } else {
+        // 경로 계산 실패 = 비치명적 → base-only(km=0, tollKRW=0) 로 진행.
+        // UI 가 "경로 실패 시 거리 추가요금 제외하고 예약 가능" 이라 약속하므로 일치시킨다
+        // (외상 "막지 않는다" 철학과도 일관). breakdown 에 origin/destination 은 남아 추적 가능.
+        console.warn('[mood-book] computeRoute failed → base-only:', route.error, route.detail || '');
       }
-      km = route.km;
-      tollKRW = route.tollKRW;
     }
 
     // ── 5) 백엔드 금액 재계산 (body.amountKRW 무시) ─────────
@@ -170,8 +186,15 @@ export default async function handler(req, res) {
       const clientData = clientSnap.data() || {};
       const balanceKRW = Number(clientData.balanceKRW) || 0;
 
-      // 외상 허용 — 잔액 부족 차단 없음. 항상 차감 (음수 가능).
+      // 외상 허용 — 잔액 부족해도 차단하지 않고 항상 차감 (newBalance 음수 가능, 운영자 정책).
       const newBalance = balanceKRW - amountKRW;
+      // 🟡 신용한도 가드 (opt-in): client doc 에 creditLimitKRW(양수) 가 설정돼 있으면
+      // 그만큼까지만 외상 허용. 미설정 = 무한 외상(기본 정책 유지). 폭주(토큰탈취/재시도
+      // 루프/버그)로 잔액이 -수억까지 내려가는 걸 운영자가 회사별로 막는 안전장치.
+      const creditLimitKRW = Number(clientData.creditLimitKRW);
+      if (Number.isFinite(creditLimitKRW) && creditLimitKRW > 0 && newBalance < -creditLimitKRW) {
+        return { ok: false, status: 409, error: 'CREDIT_LIMIT_EXCEEDED', creditLimitKRW, balanceKRW };
+      }
       const createdAt = Date.now();
 
       // 예약 doc 생성 (breakdown + 차감 후 잔액 running 포함)
@@ -257,9 +280,10 @@ export default async function handler(req, res) {
       },
     }));
   } catch (err) {
+    // 내부 예외 메시지(Firestore 인덱스 URL·경로·자격증명 힌트)를 클라이언트에 노출하지 않음.
     console.error('[mood-book] failed:', err.message);
     await captureError(err, { route: '/api/mood-book', email });
     res.writeHead(500, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: err.message }));
+    return res.end(JSON.stringify({ ok: false, error: '서버 오류' }));
   }
 }

@@ -91,6 +91,6 @@ export default async function handler(req, res) {
     console.error('[mood-route] failed:', err.message);
     await captureError(err, { route: '/api/mood-route', email });
     res.writeHead(500, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: err.message }));
+    return res.end(JSON.stringify({ ok: false, error: '서버 오류' }));
   }
 }

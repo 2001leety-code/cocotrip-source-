@@ -41,6 +41,11 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, error: auth.error }));
   }
   const email = auth.email;
+  // 돈 변경 경계 — 미검증 이메일 토큰 차단 (defense-in-depth).
+  if (!auth.emailVerified) {
+    res.writeHead(403, JSON_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: '이메일 미검증' }));
+  }
 
   let body = req.body || {};
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
@@ -110,6 +115,6 @@ export default async function handler(req, res) {
     console.error('[mood-topup] failed:', err.message);
     await captureError(err, { route: '/api/mood-topup', email });
     res.writeHead(500, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: err.message }));
+    return res.end(JSON.stringify({ ok: false, error: '서버 오류' }));
   }
 }

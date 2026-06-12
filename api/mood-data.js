@@ -95,22 +95,15 @@ export default async function handler(req, res) {
       .limit(200)
       .get();
 
-    // running 잔액 재구성:
-    //   - 예약 doc 에 balanceAfterKRW 가 저장돼 있으면(신규 예약) 그대로 사용.
-    //   - 없으면(레거시) 현재 잔액에서 최신순으로 amountKRW 를 역산해 채운다.
-    //     최신 예약 직후 잔액 = 현재 잔액(이후 차감 없다는 가정). 그 위로 누적 복원.
-    let runningCursor = currentBalanceKRW;
+    // running 잔액(예약 직후 잔액):
+    //   - 예약 doc 에 balanceAfterKRW 가 저장돼 있으면(신규 예약) 그대로 사용 = 정확.
+    //   - 없으면(레거시) null. 충전(topup) 이력은 이 컬렉션에 없어 역산에 반영 못 하므로
+    //     amountKRW 만으로 거슬러 올라가면 충전액만큼 틀어진다 → 틀린 숫자 대신 null
+    //     (프론트가 '잔액' 줄을 숨김 = 빈칸). 정확값 필요하면 백필로 balanceAfterKRW 채울 것.
     const bookings = bookingsSnap.docs.map((d) => {
       const b = d.data() || {};
       const amount = Number(b.amountKRW) || 0;
-      let runningBalanceKRW;
-      if (typeof b.balanceAfterKRW === 'number') {
-        runningBalanceKRW = b.balanceAfterKRW;
-      } else {
-        // 레거시 폴백 — 최신부터 역산 (이 예약 직후 잔액 = runningCursor).
-        runningBalanceKRW = runningCursor;
-        runningCursor = runningCursor + amount; // 이 예약 이전 잔액
-      }
+      const runningBalanceKRW = typeof b.balanceAfterKRW === 'number' ? b.balanceAfterKRW : null;
       return {
         id: d.id,
         date: b.date,
@@ -140,6 +133,6 @@ export default async function handler(req, res) {
     console.error('[mood-data] failed:', err.message);
     await captureError(err, { route: '/api/mood-data', email });
     res.writeHead(500, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: err.message }));
+    return res.end(JSON.stringify({ ok: false, error: '서버 오류' }));
   }
 }
