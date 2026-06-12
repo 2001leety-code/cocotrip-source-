@@ -92,11 +92,21 @@ export default async function handler(req, res) {
     // ACTION: earn — 투어 완료 시 포인트 적립
     // ════════════════════════════════════════════════════════
     if (action === 'earn') {
-      const { amountUSD, bookingRef, description } = body;
-
-      if (!amountUSD) {
+      // 🔴 SAFETY (CRITICAL): earn = 코인 발급 경로 = 실 할인(돈). 인증 없이 amountUSD 를
+      //   신뢰하면 외부에서 무제한 코인 minting → redeem-coupon 으로 할인쿠폰 교환 → 결제 할인.
+      //   earn 은 서버(booking-processor)가 결제 검증 후 호출하는 신뢰 경로뿐이므로 내부 서비스
+      //   토큰 필수. 토큰 미설정/불일치(외부 호출) = 403 (fail-closed).
+      const internalToken = (process.env.INTERNAL_API_TOKEN || '').trim();
+      const reqToken = String(req.headers['x-internal-token'] || '').trim();
+      if (!internalToken || reqToken !== internalToken) {
+        res.writeHead(403, JSON_CORS);
+        return res.end(JSON.stringify(_err('earn is internal-only', 'FORBIDDEN')));
+      }
+      const { bookingRef, description } = body;
+      const amountUSD = Number(body.amountUSD);
+      if (!Number.isFinite(amountUSD) || amountUSD <= 0) {
         res.writeHead(400, JSON_CORS);
-        return res.end(JSON.stringify(_err('Missing amountUSD for earn', 'MISSING_FIELDS')));
+        return res.end(JSON.stringify(_err('Invalid amountUSD for earn', 'INVALID_AMOUNT')));
       }
 
       const result = await db.runTransaction(async (tx) => {

@@ -241,7 +241,24 @@ export default async function handler(req, res) {
       if (cursor) query = query.startAfter(Number(cursor));
 
       const snap = await query.get();
-      const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // 🔴 PII: list 는 무인증(public). 전체 doc 스프레드(...d.data()) 는 기사 Telegram chatId
+      //   (driverChatId — 내부 연락/스푸핑 표적)·기사 실명(driverName)·신고자 uid(reportedBy/
+      //   reporterUid/reports)·bookingId 까지 노출했음. 공개 안전 필드만 화이트리스트.
+      const reviews = snap.docs.map(d => {
+        const x = d.data();
+        return {
+          id: d.id,
+          authorName: x.authorName,
+          authorPhotoURL: x.authorPhotoURL,
+          targetType: x.targetType,
+          targetId: x.targetId,
+          rating: x.rating,
+          text: x.text,
+          photos: x.photos,
+          language: x.language,
+          createdAt: x.createdAt,
+        };
+      });
       const nextCursor = reviews.length === pageSize ? reviews[reviews.length - 1].createdAt : null;
 
       res.writeHead(200, JSON_CORS);
