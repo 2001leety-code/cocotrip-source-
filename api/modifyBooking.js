@@ -32,7 +32,10 @@ const JSON_CORS = { ...CORS, 'Content-Type': 'application/json' };
 const _ok  = (data) => ({ ok: true, data });
 const _err = (error, code = 'UNKNOWN_ERROR') => ({ ok: false, error, code });
 
-const ALLOWED_FIELDS = ['tourDate', 'paxCount', 'pickupLocation', 'dropoffLocation', 'memo', 'airport'];
+// SAFETY: 가격에 영향 주는 필드(paxCount/pickup/dropoff/tourDate)는 차액 결제가 없어
+// 무료 업그레이드(1인 결제→7인 변경 등)가 가능했음 → 차등 청구 도입 전까지 제외.
+// 비-가격 메타데이터(memo, airport[편명/터미널])만 자가 변경 허용.
+const ALLOWED_FIELDS = ['memo', 'airport'];
 
 function airportPlainLine(airport) {
   if (!airport || typeof airport !== 'object') return '';
@@ -88,7 +91,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { bookingID, changes = {}, tier = 'Bronze' } = body;
+    const { bookingID, changes = {} } = body;
     if (!bookingID) {
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err('bookingID required', 'MISSING_FIELDS')));
@@ -130,8 +133,7 @@ export default async function handler(req, res) {
     const policy = evaluateRefundPolicy({
       tourDate: booking.tourDate,
       tourTime: booking.tourTime || undefined,
-      tier,
-    });
+    }); // tier 미전달 — modify 창은 시간 기반(canModify)이라 tier 무관. body.tier IDOR 제거.
     if (!policy.canModify) {
       res.writeHead(409, JSON_CORS);
       return res.end(JSON.stringify(_err('Modification deadline passed (24h before tour)', 'MODIFY_WINDOW_CLOSED')));
@@ -146,10 +148,13 @@ export default async function handler(req, res) {
       requestedBy: userEmail,
     };
 
+    // status 를 'MODIFIED' 로 덮지 않음 — CONFIRMED 유지. (이전: status='MODIFIED' 가
+    // cancel/modify 게이트(status!=='CONFIRMED'→409)를 막아 수정한 예약은 영구히 취소·재수정
+    // 불가했음. 변경 이력은 modifications 배열에 보존.)
     const updatePayload = {
       ...cleanChanges,
-      status: 'MODIFIED',
       modifications: FieldValue.arrayUnion(modEntry),
+      lastModifiedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
     await ref.update(updatePayload);
@@ -168,7 +173,7 @@ export default async function handler(req, res) {
     res.writeHead(200, JSON_CORS);
     return res.end(JSON.stringify(_ok({
       bookingID,
-      status: 'MODIFIED',
+      status: booking.status, // CONFIRMED 유지 (cancel/재수정 가능하게)
       applied: cleanChanges,
       hoursUntilTour: policy.hoursUntilTour,
     })));

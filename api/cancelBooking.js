@@ -178,7 +178,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { bookingID, reason = '', tier = 'Bronze' } = body;
+    const { bookingID, reason = '' } = body;
     if (!bookingID) {
       res.writeHead(400, JSON_CORS);
       return res.end(JSON.stringify(_err('bookingID required', 'MISSING_FIELDS')));
@@ -220,6 +220,18 @@ export default async function handler(req, res) {
         'AI Plans are digital products delivered immediately and are non-refundable.',
         'NO_REFUND_DIGITAL',
       )));
+    }
+
+    // SAFETY (PR #418 패턴 확장): tier 도 body 신뢰 종료. 클라가 tier:'Platinum' 위조 시
+    // 0% 환불 창에서 100% 환불받는 IDOR(직접 자금 손실). 인증 uid 의 서버 저장 tier
+    // (users/{uid}.tier — loyalty.js 가 totalSpent/bookings 로 계산) 만 사용. 조회 실패=Bronze(최소권한).
+    let tier = 'Bronze';
+    try {
+      const uSnap = await db.collection('users').doc(auth.uid).get();
+      const serverTier = uSnap.exists ? (uSnap.data() || {}).tier : null;
+      if (typeof serverTier === 'string' && serverTier) tier = serverTier;
+    } catch (tierErr) {
+      console.warn('[cancelBooking] tier lookup failed → Bronze:', tierErr.message);
     }
 
     // 2. 환불 정책 평가
