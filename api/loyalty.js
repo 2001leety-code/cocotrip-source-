@@ -96,6 +96,7 @@ export default async function handler(req, res) {
       //   신뢰하면 외부에서 무제한 코인 minting → redeem-coupon 으로 할인쿠폰 교환 → 결제 할인.
       //   earn 은 서버(booking-processor)가 결제 검증 후 호출하는 신뢰 경로뿐이므로 내부 서비스
       //   토큰 필수. 토큰 미설정/불일치(외부 호출) = 403 (fail-closed).
+      //   운영자 셋업: Vercel env INTERNAL_API_TOKEN 설정 후 fresh 배포 1회 필요(#754).
       const internalToken = (process.env.INTERNAL_API_TOKEN || '').trim();
       const reqToken = String(req.headers['x-internal-token'] || '').trim();
       if (!internalToken || reqToken !== internalToken) {
