@@ -247,29 +247,57 @@ async function handleCallback(botToken, p) {
   }
 }
 
-async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) {
+// export: 동시성 회귀 테스트(dispatch-accept-race)에서 직접 구동.
+export async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) {
   const db = initAdminDb('telegram-driver');
+  const bookingRef = db.collection('bookings').doc(orderID);
 
-  // 1. dispatch_messages 상태 갱신
-  await dispatchRef.update({
-    status: 'accepted',
-    respondedAt: FieldValue.serverTimestamp(),
-  });
+  // 🔴 경합 fix: accept claim 을 runTransaction 으로 원자화 (이전엔 status 확인~쓰기가
+  //   비원자 read-then-write). 같은 dispatch 에 콜백 2건 동시 진입(Telegram 재전송 / 기사
+  //   더블탭) 또는 broadcast 시 서로 다른 두 기사가 거의 동시에 수락하면, 이전 가드는 둘 다
+  //   통과 → bookings.dispatchedDriverId last-write-wins = 한 예약에 기사 2명 배정.
+  //   트랜잭션으로 단 1명만 'sent'→'accepted' 통과 (first-to-accept wins 보장).
+  try {
+    await db.runTransaction(async (tx) => {
+      const freshDispatch = await tx.get(dispatchRef);
+      if (!freshDispatch.exists || freshDispatch.data().status !== 'sent') {
+        throw new Error('ALREADY_TAKEN');
+      }
+      // broadcast first-to-accept: 같은 예약을 다른 dispatch 행이 이미 수락했으면 차단.
+      const bookingSnap = await tx.get(bookingRef);
+      if (bookingSnap.exists && bookingSnap.data().dispatchStatus === 'accepted') {
+        throw new Error('ALREADY_TAKEN');
+      }
+      // 1. dispatch_messages 상태 갱신
+      tx.update(dispatchRef, {
+        status: 'accepted',
+        respondedAt: FieldValue.serverTimestamp(),
+      });
+      // 2. bookings 에 기사 배정 확정 (2026-05-04 C2: dispatchStatus/dispatchedDriverId).
+      //    set(merge): capture 직후 broadcast 가 매우 빠르면 bookings 문서가 아직 없을 수
+      //    있음 → tx.update 는 NOT_FOUND throw 로 정상 첫 수락을 막는다. merge 로 미존재도 안전.
+      tx.set(bookingRef, {
+        driver: dispatch.driverName,
+        driverChatId: dispatch.driverChatId,
+        vehicleType: dispatch.driverVehicle || null,
+        dispatchStatus: 'accepted',
+        dispatchedDriverId: Number(p.chatId),
+        acceptedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+  } catch (e) {
+    if (e.message === 'ALREADY_TAKEN') {
+      await callBot(botToken, 'answerCallbackQuery', {
+        callback_query_id: p.callbackId,
+        text: '이미 다른 기사가 수락했습니다',
+      });
+      return;
+    }
+    throw e;
+  }
 
-  // 2. bookings에 기사 배정 확정
-  // 2026-05-04 (C2): dispatchStatus / dispatchedDriverId 추가 — broadcast 시
-  // 어떤 기사가 first-to-accept 인지 어드민 대시보드에서 즉시 식별 가능하게.
-  await db.collection('bookings').doc(orderID).update({
-    driver: dispatch.driverName,
-    driverChatId: dispatch.driverChatId,
-    vehicleType: dispatch.driverVehicle || null,
-    dispatchStatus: 'accepted',
-    dispatchedDriverId: Number(p.chatId),
-    acceptedAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-
-  // 3. 기사에게 토스트 + 메시지 편집 (버튼 제거 후 확정 텍스트만 남김)
+  // 3. claim 성공 후에만 부수효과 (트랜잭션 밖 — 재실행 시 텔레그램 중복 발송 방지).
   await callBot(botToken, 'answerCallbackQuery', {
     callback_query_id: p.callbackId,
     text: '배차 수락 완료',
