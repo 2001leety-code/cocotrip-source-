@@ -1321,7 +1321,7 @@
     "heroHeadline2": "60秒で完成",
     "heroSubtitle": "AIが日程を組み、プライベートカーと24時間英語サポートも",
     "heroCta": "今すぐ始める",
-    "heroProofReviews": "5.0 Google",
+    "heroProofReviews": "実際のゲストレビュー",
     "heroProofSupport": "24時間サポート",
     "heroProofLicensed": "観光登録業者",
     "tourMarqueeTitle": "おすすめツアー",
@@ -1352,6 +1352,7 @@
     "loginCta": "Googleでログイン",
     "loginBenefit": "初回予約{n}%割引 + Trip Coins",
     "googleReview": "Googleレビュー",
+    "googleReviewSub": "Googleで体験を共有",
     "trustPaypal": "PayPal\n安全決済",
     "trustSupport": "24時間\nサポート",
     "trustLicense": "観光登録\n事業者",
@@ -1409,11 +1410,12 @@
     "verifiedTraveler": "認証済み旅行者"
   },
   "googleReviews": {
-    "subtitle": "世界中のお客様が私たちについて語っていること",
-    "basedOn": "150件以上のレビューに基づく",
-    "verified": "認証済み",
-    "seeAll": "Googleですべてのレビューを見る",
-    "reviewsLabel": "レビュー"
+    "subtitle": "ご利用いただいた方は、Googleに率直なご感想をお寄せください。今後のお客様の参考になります。",
+    "reviewsLabel": "レビュー",
+    "trustLicensed": "登録旅行業者",
+    "trustSupport": "24時間英語サポート",
+    "trustPrivate": "専用ガイド＆車両",
+    "leaveReview": "Googleにレビューを書く"
   },
   "ads": {
     "kpopConcert": {

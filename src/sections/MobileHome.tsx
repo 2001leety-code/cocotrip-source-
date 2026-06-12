@@ -162,7 +162,7 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
             <ArrowRight className="w-4 h-4" />
           </Link>
           <div className="m-hero-fade mt-3.5 flex items-center justify-center gap-3 text-[10.5px] text-white/45" style={{ animationDelay: '0.25s' }}>
-            <span className="flex items-center gap-1"><Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />{m.heroProofReviews || '5.0 Google'}</span>
+            <span className="flex items-center gap-1"><Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />{m.heroProofReviews || 'Real Guest Reviews'}</span>
             <span className="text-white/15">·</span>
             <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{m.heroProofSupport || '24/7 English'}</span>
             <span className="text-white/15">·</span>
@@ -312,15 +312,15 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
             <ArrowRight className="w-4 h-4 text-pink-400/30 shrink-0" />
           </Link>
         )}
-        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/[0.05] bg-white/[0.02]">
+        {/* Invite guests to leave a genuine Google review. No fabricated rating or count is shown. */}
+        <a href="https://www.google.com/search?q=cocotrip+korea+reviews" target="_blank" rel="noopener noreferrer" onClick={() => haptic('tap')} className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/[0.05] bg-white/[0.02] m-btn">
           <Star className="w-5 h-5 text-yellow-400/70 shrink-0" />
-          <div className="flex items-center gap-1.5 flex-1">
-            <span className="text-[13px] font-bold text-white">{m.googleReview || 'Google Reviews'}</span>
-            <span className="text-[12px] font-black text-yellow-400">5.0</span>
-            <div className="flex">{[...Array(5)].map((_, i) => (<Star key={i} className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />))}</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-bold text-white">{m.googleReview || 'Google Reviews'}</p>
+            <p className="text-[10px] text-white/55 mt-0.5">{m.googleReviewSub || 'Share your experience on Google'}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-white/10 shrink-0" />
-        </div>
+        </a>
       </section>
 
       {/* TRUST + BRAND */}

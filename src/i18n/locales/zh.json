@@ -1321,7 +1321,7 @@
     "heroHeadline2": "60秒内完成",
     "heroSubtitle": "AI 规划行程，私人包车和24小时英文支持全包",
     "heroCta": "立即开始",
-    "heroProofReviews": "5.0 Google",
+    "heroProofReviews": "真实客人评价",
     "heroProofSupport": "24小时支持",
     "heroProofLicensed": "观光登记业者",
     "tourMarqueeTitle": "精选之旅",
@@ -1352,6 +1352,7 @@
     "loginCta": "使用Google登录",
     "loginBenefit": "首次预订{n}%折扣 + Trip Coins",
     "googleReview": "Google评价",
+    "googleReviewSub": "在Google分享您的体验",
     "trustPaypal": "PayPal\n安全支付",
     "trustSupport": "24小时\n客服支持",
     "trustLicense": "旅游注册\n运营商",
@@ -1409,11 +1410,12 @@
     "verifiedTraveler": "认证旅行者"
   },
   "googleReviews": {
-    "subtitle": "全球客人对我们的评价",
-    "basedOn": "基于150+条评价",
-    "verified": "已认证",
-    "seeAll": "在Google查看所有评价",
-    "reviewsLabel": "评价"
+    "subtitle": "与我们同行过吗？欢迎在Google分享您的真实体验，帮助未来的客人。",
+    "reviewsLabel": "评价",
+    "trustLicensed": "持牌旅游运营商",
+    "trustSupport": "24小时英语支持",
+    "trustPrivate": "专属向导与车辆",
+    "leaveReview": "在Google上评价我们"
   },
   "ads": {
     "kpopConcert": {

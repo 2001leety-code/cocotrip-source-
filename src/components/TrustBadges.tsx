@@ -1,10 +1,10 @@
 // D5: trust signal row — appears between HeroSlider and HeroCards.
 // 5 trust badges (외국인 visitor 첫 화면 신뢰 신호 시각화):
-//   - 5.0 Google rating (150+ reviews)
+//   - Real Google reviews (links out, no fabricated rating/count)
 //   - 24/7 English support
 //   - KTO registered (관광 등록 사업자)
 //   - PayPal secure payment
-//   - 1,000+ tours completed
+//   - Private licensed guide
 // Glass dark + brand accent (D1 톤). Icon: lucide-react (project standard).
 import { Star, Globe, ShieldCheck, CreditCard, Award } from 'lucide-react';
 
@@ -17,8 +17,8 @@ interface Badge {
 const BADGES: Badge[] = [
   {
     icon: <Star className="w-4 h-4 fill-[#FBBC05] text-[#FBBC05]" />,
-    label: '5.0 Google',
-    sublabel: '150+ reviews',
+    label: 'Private Tours',
+    sublabel: 'Your own guide & van',
   },
   {
     icon: <Globe className="w-4 h-4 text-[#B668FC]" />,
@@ -37,8 +37,8 @@ const BADGES: Badge[] = [
   },
   {
     icon: <ShieldCheck className="w-4 h-4 text-[#FF6B9D]" />,
-    label: '1,000+ Tours',
-    sublabel: 'Verified guests',
+    label: 'Licensed Guide',
+    sublabel: 'Vetted professionals',
   },
 ];
 
