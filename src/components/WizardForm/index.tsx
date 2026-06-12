@@ -1,7 +1,7 @@
 // WizardForm container: holds shared wizard state + routes between steps.
 // Previously src/components/WizardForm.tsx (798L) — split into step components
 // under src/components/WizardForm/* for P3 Lock release.
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   MapPin, Calendar, Wand2, UtensilsCrossed, Check, Plane,
@@ -15,6 +15,7 @@ import type { PlannerFormValues } from '../PlannerForm';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
+import { track as posthogTrack } from '@/lib/posthog';
 import { requestNotifyPermission } from '@/lib/notify';
 import {
   useWizardPersistence,
@@ -129,6 +130,21 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
   const { t, language } = useLanguage();
   const p = t.planner as unknown as WizardDict;
   const [step, setStep] = useState(0);
+
+  // wizard_started (PostHog) — 깔때기 상단 진입 지표. WizardForm 이 처음 마운트될 때
+  // 1회만 발화 → 시작→생성→결제 전환율의 분모(시작 수) 확보. payment_started 등 기존
+  // 이벤트 패턴(void posthogTrack)과 동일. StrictMode 의 이중 마운트로 두 번 발화하는
+  // 것을 막기 위해 ref 가드 사용(키 미설정 빌드에서는 track 이 no-op).
+  const wizardStartedRef = useRef(false);
+  useEffect(() => {
+    if (wizardStartedRef.current) return;
+    wizardStartedRef.current = true;
+    void posthogTrack('wizard_started', {
+      language,
+      started_at: new Date().toISOString(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // step 청크 preload — 마운트 후 idle 시 모든 step import 선로드 → 전환/이어서하기 점프 시
   // Suspense fallback flash(깜빡임) 제거 (2026-06-02 A3 후보2, #768 mode="wait" 후속).
