@@ -11,6 +11,7 @@
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -77,11 +78,33 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { action, userId } = body;
+    const { action } = body;
 
-    if (!action || !userId) {
+    if (!action) {
       res.writeHead(400, JSON_CORS);
-      return res.end(JSON.stringify(_err('Missing action or userId', 'MISSING_FIELDS')));
+      return res.end(JSON.stringify(_err('Missing action', 'MISSING_FIELDS')));
+    }
+
+    // 🔴 IDOR fix (보안): 신원(userId)을 액션별 신뢰 경계에 맞춰 해소한다.
+    //   - earn: 내부 서비스 토큰 경로(아래 INTERNAL_API_TOKEN 게이트). booking-processor 가
+    //           결제 검증 후 "대상 게스트 uid" 를 body.userId 로 전달하므로 body.userId 사용.
+    //   - 그 외(spend/use-coupon/earn-share/redeem-coupon): 클라이언트 호출 = 본인 코인/쿠폰만
+    //           조작 가능해야 함. body.userId 신뢰 시 타인 uid 로 코인 탈취/쿠폰 소각(IDOR).
+    //           verifyUserToken 의 auth.uid 로만 본인 문서 조작. (PR #418 "body 신뢰 종료" 패턴.)
+    let userId;
+    if (action === 'earn') {
+      userId = body.userId;
+      if (!userId) {
+        res.writeHead(400, JSON_CORS);
+        return res.end(JSON.stringify(_err('Missing userId', 'MISSING_FIELDS')));
+      }
+    } else {
+      const auth = await verifyUserToken(req);
+      if (!auth.ok) {
+        res.writeHead(auth.status, JSON_CORS);
+        return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
+      }
+      userId = auth.uid;
     }
 
     const db = await getFirestoreAdmin();

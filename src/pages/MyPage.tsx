@@ -152,10 +152,11 @@ export default function MyPage() {
 
     setRedeeming(coins);
     try {
-      const res = await fetch('/api/loyalty', {
+      // 서버가 토큰(auth.uid)으로 본인 확인 — body.userId 제거 (loyalty IDOR fix).
+      const res = await authFetch('/api/loyalty', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'redeem-coupon', userId: user.uid, coins }),
+        body: JSON.stringify({ action: 'redeem-coupon', coins }),
       });
       const data = await res.json();
       if (data.success) {
