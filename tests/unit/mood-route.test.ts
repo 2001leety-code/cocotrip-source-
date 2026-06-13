@@ -36,6 +36,8 @@ describe('mood-route — computeRoute (Naver Directions)', () => {
   afterEach(() => {
     delete process.env.NCP_CLIENT_ID;
     delete process.env.NCP_CLIENT_SECRET;
+    delete process.env.NAVER_CLIENT_ID;
+    delete process.env.NAVER_CLIENT_SECRET;
   });
 
   it('성공: geocode×2 + directions → km/tollKRW/durationMin', async () => {
@@ -122,14 +124,36 @@ describe('mood-route — computeRoute (Naver Directions)', () => {
     expect(mockGet).not.toHaveBeenCalled();
   });
 
-  it('NCP 키 미설정 → NCP_NOT_CONFIGURED (500, 네트워크 호출 0)', async () => {
+  it('NCP/NAVER 키 모두 미설정 → NCP_NOT_CONFIGURED (500, 네트워크 호출 0)', async () => {
     delete process.env.NCP_CLIENT_ID;
     delete process.env.NCP_CLIENT_SECRET;
+    delete process.env.NAVER_CLIENT_ID;
+    delete process.env.NAVER_CLIENT_SECRET;
     const r = await computeRoute({ origin: 'A', destination: 'B' });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toBe('NCP_NOT_CONFIGURED');
     expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('변수명 폴백: NCP_CLIENT_* 없고 NAVER_CLIENT_* 만 있어도 동작 (prod 시나리오)', async () => {
+    delete process.env.NCP_CLIENT_ID;
+    delete process.env.NCP_CLIENT_SECRET;
+    process.env.NAVER_CLIENT_ID = 'naver-id';
+    process.env.NAVER_CLIENT_SECRET = 'naver-secret';
+    mockGet
+      .mockResolvedValueOnce(geocodeOK(37.5, 127.0))
+      .mockResolvedValueOnce(geocodeOK(37.4, 127.1))
+      .mockResolvedValueOnce(directionsOK(8000, 900_000, 1200));
+    const r = await computeRoute({ origin: 'A', destination: 'B' });
+    expect(r.ok).toBe(true);              // NCP_NOT_CONFIGURED 아님 — NAVER_CLIENT_* 폴백 사용
+    if (!r.ok) return;
+    expect(r.km).toBe(8);
+    expect(r.tollKRW).toBe(1200);
+    // geocode 헤더에 NAVER 키가 실림 확인
+    const firstCall = mockGet.mock.calls[0];
+    const headers = (firstCall[1] as { headers: Record<string, string> }).headers;
+    expect(headers['X-NCP-APIGW-API-KEY-ID']).toBe('naver-id');
   });
 
   it('axios throw → DIRECTIONS_FAILED (502, 예외 안전)', async () => {

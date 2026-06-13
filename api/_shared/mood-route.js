@@ -71,8 +71,11 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
   }
 
   // CLAUDE.md I — NCP 키는 .trim() 필수 (\n 손상 방지).
-  const clientId = (process.env.NCP_CLIENT_ID || '').trim();
-  const clientSecret = (process.env.NCP_CLIENT_SECRET || '').trim();
+  // 변수명 폴백: 메인 플래너(RouteAgent/recalc-transit)는 NAVER_CLIENT_*, MOOD/calculator 는
+  // NCP_CLIENT_* 로 같은 네이버 클라우드 Maps 키를 읽던 이원화 → 어느 이름으로 등록돼도 동작
+  // (prod 는 NAVER_CLIENT_* 만 설정돼 MOOD 가 NCP_NOT_CONFIGURED 였음, 2026-06-13).
+  const clientId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
   if (!clientId || !clientSecret) {
     return { ok: false, status: 500, error: 'NCP_NOT_CONFIGURED' };
   }
