@@ -292,6 +292,29 @@ export default function MoodPortal() {
     }
   }, [topupClientId, topupAmount, data, loadData]);
 
+  // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
+  // ⚠️ 훅은 반드시 아래 early-return 게이트보다 위에서 호출 (rules-of-hooks:
+  //    게이트 아래 두면 loading/미로그인 렌더 땐 안 불려 "더 많은 훅" 크래시).
+  const addWaypoint = useCallback(() => {
+    setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
+  }, []);
+  const removeWaypoint = useCallback((i: number) => {
+    setWaypoints((w) => w.filter((_, idx) => idx !== i));
+  }, []);
+  const setWaypointAt = useCallback((i: number, val: string) => {
+    setWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
+  }, []);
+
+  // 다음 우편번호 팝업 → 선택 주소를 콜백으로 적용. 로드 실패/취소는 무시(수동 입력 가능).
+  const searchAddress = useCallback(async (apply: (addr: string) => void) => {
+    try {
+      const addr = await openDaumPostcode();
+      if (addr) apply(addr);
+    } catch {
+      // 스크립트 로드 실패 — 수동 입력으로 진행
+    }
+  }, []);
+
   // ── 로딩 / 미로그인 / 권한없음 게이트 ─────────────────────────
   if (loading) {
     return (
@@ -339,27 +362,6 @@ export default function MoodPortal() {
   const willGoNegative = balance - estimate < 0;
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
-
-  // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
-  const addWaypoint = useCallback(() => {
-    setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
-  }, []);
-  const removeWaypoint = useCallback((i: number) => {
-    setWaypoints((w) => w.filter((_, idx) => idx !== i));
-  }, []);
-  const setWaypointAt = useCallback((i: number, val: string) => {
-    setWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
-  }, []);
-
-  // 다음 우편번호 팝업 → 선택 주소를 콜백으로 적용. 로드 실패/취소는 무시(수동 입력 가능).
-  const searchAddress = useCallback(async (apply: (addr: string) => void) => {
-    try {
-      const addr = await openDaumPostcode();
-      if (addr) apply(addr);
-    } catch {
-      // 스크립트 로드 실패 — 수동 입력으로 진행
-    }
-  }, []);
 
   return (
     <div className="min-h-screen px-4 py-6" style={{ background: C.bgGradient }}>
