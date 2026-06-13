@@ -183,6 +183,25 @@ export default async function handler(req, res) {
       const bookingData = bookingSnap.exists ? (bookingSnap.data() || {}) : {};
       const captureID = bookingData.captureID || pending.paypalCaptureId || null;
 
+      // 🔴 money 가드: 입력 환불액이 결제 원금을 초과하면 차단.
+      //   초과 시 captureID 경로에서 refundKrw<originalKRW 가 false → refundUSD=null →
+      //   refundPaypalCapture 가 부분 의도임에도 silent 전액 환불 + Firestore refundedKRW 과대기록.
+      //   refundKrw===originalKRW(전액) / refundKrw<originalKRW(부분) 은 정상.
+      const originalKRW = Number(bookingData.amountKRW || pending.priceKRW || 0);
+      if (originalKRW > 0 && refundKrw > originalKRW) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(
+          `환불액(₩${refundKrw.toLocaleString('ko-KR')})이 결제 원금(₩${originalKRW.toLocaleString('ko-KR')})을 초과합니다`,
+          'REFUND_EXCEEDS_ORIGINAL')));
+      }
+      // 부분환불 명시(refundedKRW 입력)인데 원금 정보가 없어 비례 검증 불가 → 자동 전액환불 대신 차단.
+      if (originalKRW <= 0 && refundedKRW != null) {
+        res.writeHead(400, JSON_HEADERS);
+        return res.end(JSON.stringify(_err(
+          '결제 원금 정보가 없어 부분환불 금액을 검증할 수 없습니다 (전액환불은 금액 미지정으로 재시도)',
+          'REFUND_ORIGINAL_UNKNOWN')));
+      }
+
       // PayPal API 호출 — captureID 가 있을 때만. 없으면 manual booking
       // (paypal.me QR 수동 입금 등) 으로 간주하고 운영자가 별도 환불 진행.
       let paypalRefund = null;
@@ -192,7 +211,6 @@ export default async function handler(req, res) {
           || 1430;
         // refundKrw → refundUSD 환산. 부분환불 (refundedKRW < priceKRW) 일 때 비례 계산.
         let refundUSD = null;
-        const originalKRW = Number(bookingData.amountKRW || pending.priceKRW || 0);
         if (originalKRW > 0 && refundKrw < originalKRW) {
           const originalUSD = parseFloat(bookingData.amountUSD || '0');
           if (originalUSD > 0) {

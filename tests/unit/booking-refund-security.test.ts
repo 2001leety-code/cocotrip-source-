@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 
 const cancelSrc = readFileSync(resolve(process.cwd(), 'api/cancelBooking.js'), 'utf8');
 const modifySrc = readFileSync(resolve(process.cwd(), 'api/modifyBooking.js'), 'utf8');
+const adminBookingSrc = readFileSync(resolve(process.cwd(), 'api/admin-booking-action.js'), 'utf8');
 
 // ── 소스 가드 (보안 속성 박제) ──────────────────────────────────────────────
 describe('cancelBooking — tier IDOR 차단 (소스 가드)', () => {
@@ -32,6 +33,28 @@ describe('modifyBooking — 무료 업그레이드 + 상태락 차단 (소스 �
   });
   it('body 에서 tier 를 destructure 하지 않음', () => {
     expect(modifySrc).not.toMatch(/const\s*\{[^}]*\btier\b[^}]*\}\s*=\s*body/);
+  });
+});
+
+describe('admin-booking-action mark-refunded — 과환불 가드 (소스 가드, 2026-06-13)', () => {
+  it('환불액 > 원금 → REFUND_EXCEEDS_ORIGINAL 차단 (silent 전액환불 폴백 방지)', () => {
+    // 버그: refundedKRW>originalKRW 면 refundKrw<originalKRW 가 false → refundUSD=null →
+    //   refundPaypalCapture 가 부분 의도임에도 전액 환불. 가드로 차단.
+    expect(adminBookingSrc).toMatch(/refundKrw\s*>\s*originalKRW/);
+    expect(adminBookingSrc).toContain('REFUND_EXCEEDS_ORIGINAL');
+  });
+  it('원금 정보 부재 + 부분환불 명시 → REFUND_ORIGINAL_UNKNOWN 차단', () => {
+    expect(adminBookingSrc).toMatch(/originalKRW\s*<=\s*0\s*&&\s*refundedKRW\s*!=\s*null/);
+    expect(adminBookingSrc).toContain('REFUND_ORIGINAL_UNKNOWN');
+  });
+  it('originalKRW 가 refundPaypalCapture 호출 전(captureID 분기 전)에 1회 계산 (hoist)', () => {
+    const idxOrig = adminBookingSrc.indexOf('const originalKRW =');
+    const idxRefund = adminBookingSrc.indexOf('refundPaypalCapture({');
+    expect(idxOrig).toBeGreaterThan(-1);
+    expect(idxRefund).toBeGreaterThan(-1);
+    expect(idxOrig).toBeLessThan(idxRefund);
+    // 중복 선언 없음 (hoist 후 captureID 블록 내 재선언 제거)
+    expect(adminBookingSrc.split('const originalKRW =').length - 1).toBe(1);
   });
 });
 
