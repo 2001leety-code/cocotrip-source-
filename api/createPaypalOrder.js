@@ -84,11 +84,13 @@ function resolveKrwAmount(productType, passengers, durationDays) {
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
 
   // K-pop 셔틀 — 인원수 곱셈 (one-way / round-trip 자체가 일자 무관)
-  if (normalized === 'kpop_shuttle_oneway') {
-    return (passengers || 1) * SPEC.kpop_shuttle.price_one_way;
-  }
-  if (normalized === 'kpop_shuttle_roundtrip') {
-    return (passengers || 1) * SPEC.kpop_shuttle.price_round_trip;
+  if (normalized === 'kpop_shuttle_oneway' || normalized === 'kpop_shuttle_roundtrip') {
+    // 🔴 가격 가드: passengers 를 양의 정수로 정규화 — 소수(0.5→비례 과소청구)·음수(음수
+    //   금액)·0·NaN 차단. (이전 `passengers || 1` 은 0.5·음수를 truthy 로 통과시켰음.)
+    const pax = Math.max(1, Math.floor(Number(passengers) || 1));
+    return pax * (normalized === 'kpop_shuttle_oneway'
+      ? SPEC.kpop_shuttle.price_one_way
+      : SPEC.kpop_shuttle.price_round_trip);
   }
 
   // 차터/투어 — daily price × 일수.
@@ -220,9 +222,11 @@ export default async function handler(req, res) {
     } else {
       krwAmount = resolveKrwAmount(productType, passengers, durationDays);
     }
-    if (!krwAmount) {
+    // 🔴 음수/0/NaN 금액 차단 — cart(resolve-line-item.js) 와 정합. 이전 `!krwAmount` 는
+    //   음수를 truthy 로 통과시켜 PayPal 에 음수/잘못된 금액이 도달할 수 있었다.
+    if (!(krwAmount > 0)) {
       res.writeHead(400, JSON_CORS);
-      return res.end(JSON.stringify(_err(`Unknown productType: ${productType}`, 'INVALID_PRODUCT')));
+      return res.end(JSON.stringify(_err(`Unknown productType or invalid amount: ${productType}`, 'INVALID_PRODUCT')));
     }
 
     // v2 ON 시 EARLY50 비활성 (운영자 2026-06-07 '일단 끄기'). OFF 시 현행 20%.

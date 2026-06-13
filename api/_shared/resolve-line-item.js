@@ -47,11 +47,13 @@ export function resolveKrwAmount(SPEC, productType, passengers, durationDays) {
 
   if (normalized === 'ai_planner_full') return AI_PLANNER_FULL_KRW;
 
-  if (normalized === 'kpop_shuttle_oneway') {
-    return (passengers || 1) * SPEC.kpop_shuttle.price_one_way;
-  }
-  if (normalized === 'kpop_shuttle_roundtrip') {
-    return (passengers || 1) * SPEC.kpop_shuttle.price_round_trip;
+  if (normalized === 'kpop_shuttle_oneway' || normalized === 'kpop_shuttle_roundtrip') {
+    // 🔴 가격 가드 (createPaypalOrder.js 정본 미러): passengers 를 양의 정수로 정규화 —
+    //   소수(0.5→과소청구)·음수·0·NaN 차단. FEATURE_CART 활성화 시 cart 도 동일 보호.
+    const pax = Math.max(1, Math.floor(Number(passengers) || 1));
+    return pax * (normalized === 'kpop_shuttle_oneway'
+      ? SPEC.kpop_shuttle.price_one_way
+      : SPEC.kpop_shuttle.price_round_trip);
   }
 
   // 차터/투어 — daily price × 일수 (P100: ×durationDays 필수).
