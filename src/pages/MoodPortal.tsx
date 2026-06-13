@@ -85,6 +85,7 @@ interface MoodRoute {
 
 const SERVICE_LABEL: Record<MoodServiceType, string> = {
   vehicle: '차량',
+  airport: '공항',
   manager: '매니저',
 };
 
@@ -114,6 +115,7 @@ export default function MoodPortal() {
   const [startTime, setStartTime] = useState('10:00');
   const [durationHours, setDurationHours] = useState(2);
   const [serviceType, setServiceType] = useState<MoodServiceType>('manager');
+  const [airportDirection, setAirportDirection] = useState<'pickup' | 'sending'>('pickup');
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -228,6 +230,11 @@ export default function MoodPortal() {
     return () => clearTimeout(t);
   }, [origin, waypoints, destination]);
 
+  // 공항은 편도 2시간 고정 — 선택 시 시간 잠금(백엔드도 강제하지만 UI 즉시 반영).
+  useEffect(() => {
+    if (serviceType === 'airport') setDurationHours(2);
+  }, [serviceType]);
+
   const handleBook = useCallback(async () => {
     if (!data) return;
     setSubmitting(true);
@@ -249,6 +256,7 @@ export default function MoodPortal() {
           origin: origin.trim() || undefined,
           destination: destination.trim() || undefined,
           waypoints: wp.length ? wp : undefined,
+          airportDirection: serviceType === 'airport' ? airportDirection : undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -266,7 +274,7 @@ export default function MoodPortal() {
     } finally {
       setSubmitting(false);
     }
-  }, [data, date, startTime, durationHours, serviceType, origin, destination, waypoints, loadData]);
+  }, [data, date, startTime, durationHours, serviceType, airportDirection, origin, destination, waypoints, loadData]);
 
   const handleTopup = useCallback(async () => {
     setTopupSubmitting(true);
@@ -394,7 +402,7 @@ export default function MoodPortal() {
           <h2 className="text-sm font-bold" style={{ color: C.text }}>예약하기</h2>
 
           {/* 서비스 토글 */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {(Object.keys(MOOD_RATES) as MoodServiceType[]).map((st) => {
               const active = serviceType === st;
               return (
@@ -410,12 +418,39 @@ export default function MoodPortal() {
                 >
                   {SERVICE_LABEL[st]}
                   <span className="block text-[11px] font-normal mt-0.5 opacity-80">
-                    {formatKRW(MOOD_RATES[st])}/시간
+                    {st === 'airport' ? '2시간 고정' : `${formatKRW(MOOD_RATES[st])}/시간`}
                   </span>
                 </button>
               );
             })}
           </div>
+
+          {/* 공항 픽업/샌딩 방향 — 공항 선택 시만 표시 */}
+          {serviceType === 'airport' && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs" style={{ color: C.textDim }}>공항 방향</span>
+              <div className="grid grid-cols-2 gap-2">
+                {([['pickup', '픽업 (공항 → 목적지)'], ['sending', '샌딩 (출발지 → 공항)']] as const).map(([dir, label]) => {
+                  const active = airportDirection === dir;
+                  return (
+                    <button
+                      key={dir}
+                      type="button"
+                      onClick={() => setAirportDirection(dir)}
+                      className="py-2.5 rounded-xl text-xs font-semibold transition-all"
+                      style={{
+                        background: active ? C.accent : C.inputBg,
+                        color: active ? '#fff' : C.textDim,
+                        border: active ? '1px solid transparent' : C.inputBorder,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 날짜 */}
           <label className="flex flex-col gap-1.5">
@@ -443,11 +478,14 @@ export default function MoodPortal() {
 
           {/* 시간 (duration) */}
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs" style={{ color: C.textDim }}>이용 시간</span>
-            <div className="flex items-center gap-3">
+            <span className="text-xs" style={{ color: C.textDim }}>
+              이용 시간{serviceType === 'airport' && <span className="opacity-70"> · 공항 2시간 고정</span>}
+            </span>
+            <div className="flex items-center gap-3" style={{ opacity: serviceType === 'airport' ? 0.5 : 1 }}>
               <button
                 onClick={() => setDurationHours((h) => Math.max(1, h - 1))}
-                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0"
+                disabled={serviceType === 'airport'}
+                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0 disabled:cursor-not-allowed"
                 style={inputStyle}
                 aria-label="시간 감소"
               >
@@ -458,17 +496,19 @@ export default function MoodPortal() {
                 min={1}
                 max={MOOD_MAX_DURATION_HOURS}
                 value={durationHours}
+                disabled={serviceType === 'airport'}
                 onChange={(e) => {
                   const v = Math.round(Number(e.target.value));
                   if (Number.isFinite(v)) setDurationHours(Math.min(MOOD_MAX_DURATION_HOURS, Math.max(1, v)));
                 }}
-                className="flex-1 text-center rounded-xl px-3 py-2.5 text-sm"
+                className="flex-1 text-center rounded-xl px-3 py-2.5 text-sm disabled:cursor-not-allowed"
                 style={inputStyle}
               />
               <span className="text-sm shrink-0" style={{ color: C.textDim }}>시간</span>
               <button
                 onClick={() => setDurationHours((h) => Math.min(MOOD_MAX_DURATION_HOURS, h + 1))}
-                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0"
+                disabled={serviceType === 'airport'}
+                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0 disabled:cursor-not-allowed"
                 style={inputStyle}
                 aria-label="시간 증가"
               >

@@ -6,15 +6,30 @@
  *     재계산한다 (api/mood-book.js). 두 단가/공식은 반드시 동일하게 유지할 것.
  */
 
-export type MoodServiceType = 'vehicle' | 'manager';
+export type MoodServiceType = 'vehicle' | 'airport' | 'manager';
 
-/** 서비스별 시급 (원). 부가세 포함. 백엔드 MOOD_RATES 와 동일해야 함. */
+/** 서비스별 시급 (원). 부가세 포함. 백엔드 MOOD_RATES 와 동일해야 함. 순서=UI 탭 순서. */
 export const MOOD_RATES: Record<MoodServiceType, number> = {
   vehicle: 33000,
+  airport: 33000,
   manager: 44000,
 };
 
 export const MOOD_MAX_DURATION_HOURS = 15;
+
+/**
+ * 시간 고정 서비스 — 공항은 편도 2시간 고정. 백엔드 MOOD_FIXED_DURATION_HOURS 와 동일.
+ * (UI 는 이 서비스 선택 시 시간 컨트롤을 잠그고, 백엔드는 입력 무시하고 강제.)
+ */
+export const MOOD_FIXED_DURATION_HOURS: Partial<Record<MoodServiceType, number>> = {
+  airport: 2,
+};
+
+/** serviceType 에 고정 시간이 있으면 그 값, 없으면 입력 durationHours 그대로. */
+export function effectiveDurationHours(serviceType: MoodServiceType, durationHours: number): number {
+  const fixed = MOOD_FIXED_DURATION_HOURS[serviceType];
+  return fixed === undefined ? durationHours : fixed;
+}
 
 /**
  * 거리 추가요금 — 50km 이상부터 km × 660원 (= 33,000 ÷ 50, 부가세 포함, 비례).
@@ -32,7 +47,8 @@ export function computeDistanceSurchargeKRW(km: number): number {
 /** 예상 금액 (원). 표시 전용 — 실제 청구는 백엔드 재계산. (base = 시급×시간) */
 export function estimateMoodAmountKRW(serviceType: MoodServiceType, durationHours: number): number {
   const rate = MOOD_RATES[serviceType] || 0;
-  const hours = Number(durationHours);
+  // 공항 등 고정 시간 서비스는 입력 무시하고 고정값(2h) 사용 (백엔드 SSOT 와 동일).
+  const hours = Number(effectiveDurationHours(serviceType, durationHours));
   if (!Number.isFinite(hours) || hours <= 0) return 0;
   return Math.round(rate * hours);
 }

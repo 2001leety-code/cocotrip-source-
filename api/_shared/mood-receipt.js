@@ -15,7 +15,7 @@
 import { escapeHtml } from './escape.js';
 
 const KRW = (n) => `${Number(n || 0).toLocaleString('ko-KR')}원`;
-const SERVICE_LABEL = { vehicle: '차량', manager: '매니저' };
+const SERVICE_LABEL = { vehicle: '차량', airport: '공항', manager: '매니저' };
 
 /**
  * 예약 확정 영수증 이메일 콘텐츠 생성.

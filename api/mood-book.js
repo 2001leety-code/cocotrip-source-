@@ -33,7 +33,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
-import { computeMoodTotalKRW, isValidServiceType, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
+import { computeMoodTotalKRW, isValidServiceType, effectiveDurationHours, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { notify } from './_shared/notify.js';
 import { buildMoodReceiptEmail } from './_shared/mood-receipt.js';
@@ -86,6 +86,11 @@ export default async function handler(req, res) {
   const origin = String(body.origin || '').trim();
   const destination = String(body.destination || '').trim();
   const waypoints = normalizeWaypoints(body.waypoints);
+  // 공항 픽업/샌딩 방향 — airport 일 때만 의미. 'pickup'(도착편) | 'sending'(출발편).
+  //   가격엔 영향 없음(출발/도착 주소가 거리 결정). 기사·운영자용 메타.
+  const airportDirection = serviceType === 'airport'
+    ? (body.airportDirection === 'sending' ? 'sending' : 'pickup')
+    : null;
 
   if (!clientId || typeof clientId !== 'string') {
     res.writeHead(400, JSON_HEADERS);
@@ -101,9 +106,11 @@ export default async function handler(req, res) {
   }
   if (!isValidServiceType(serviceType)) {
     res.writeHead(400, JSON_HEADERS);
-    return res.end(JSON.stringify({ ok: false, error: "serviceType 은 'vehicle' 또는 'manager'" }));
+    return res.end(JSON.stringify({ ok: false, error: "serviceType 은 'vehicle' · 'airport' · 'manager' 중 하나" }));
   }
-  const hours = Number(durationHours);
+  // 공항 등 고정 시간 서비스는 입력 무시하고 고정값(2h) 사용 — UI 가 잠그지만 API 직접 호출 대비.
+  //   이후 storage/표시/가격 전부 이 effective hours 로 통일.
+  const hours = effectiveDurationHours(serviceType, Number(durationHours));
   if (!Number.isFinite(hours) || hours <= 0 || hours > MOOD_MAX_DURATION_HOURS) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: `durationHours 는 0 초과 ${MOOD_MAX_DURATION_HOURS} 이하` }));
@@ -204,6 +211,7 @@ export default async function handler(req, res) {
         startTime,
         durationHours: hours,
         serviceType,
+        airportDirection, // 공항 픽업/샌딩 (그 외 null)
         ratePerHour,
         amountKRW,
         breakdown,
@@ -233,13 +241,15 @@ export default async function handler(req, res) {
 
     // ── 7) 텔레그램 알림 (best-effort — 실패해도 예약은 확정됨) ──
     const fmt = (n) => Number(n).toLocaleString('ko-KR');
-    const serviceLabel = serviceType === 'vehicle' ? '차량' : '매니저';
+    const SERVICE_LABELS = { vehicle: '차량', airport: '공항', manager: '매니저' };
+    const serviceLabel = SERVICE_LABELS[serviceType] || serviceType;
+    const directionLabel = airportDirection === 'pickup' ? ' (픽업)' : airportDirection === 'sending' ? ' (샌딩)' : '';
     const routeLine = origin && destination ? `\n${origin} → ${destination} (${priced.km}km)` : '';
     const overdraftLine = txResult.newBalance < 0 ? ' ⚠️외상' : '';
     const msg =
       `<b>MOOD 예약</b>\n` +
       `${txResult.clientName} · ${date} ${startTime}\n` +
-      `${serviceLabel} ${hours}시간 — ${fmt(txResult.amountKRW)}원${routeLine}\n` +
+      `${serviceLabel}${directionLabel} ${hours}시간 — ${fmt(txResult.amountKRW)}원${routeLine}\n` +
       `잔액 ${fmt(txResult.newBalance)}원${overdraftLine}\n` +
       `예약자: ${email}`;
     try {

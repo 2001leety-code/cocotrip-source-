@@ -10,25 +10,41 @@
  *
  * 단가 (부가세 포함, 원/시간):
  *   - vehicle : 33,000원/시간 (차량)
+ *   - airport : 33,000원/시간 (공항) · 2시간 고정 = 66,000 기본 + km + 톨비
  *   - manager : 44,000원/시간 (매니저)
  *
  * ESM — Vercel serverless (api/*) + Vitest 양쪽에서 import 가능.
  */
 
-/** @typedef {'vehicle' | 'manager'} MoodServiceType */
+/** @typedef {'vehicle' | 'airport' | 'manager'} MoodServiceType */
 
-/** 서비스별 시급 (원). 부가세 포함. */
+/** 서비스별 시급 (원). 부가세 포함. 순서 = UI 탭 순서(차량/공항/매니저). */
 export const MOOD_RATES = Object.freeze({
   vehicle: 33000,
+  airport: 33000,
   manager: 44000,
 });
+
+/**
+ * 시간 고정 서비스 — 공항(airport)은 편도 운행이라 2시간 고정(운영자 2026-06-14).
+ * 클라이언트가 보낸 durationHours 는 무시하고 이 값으로 강제(가격 위조 방지).
+ */
+export const MOOD_FIXED_DURATION_HOURS = Object.freeze({ airport: 2 });
+
+/** serviceType 에 고정 시간이 있으면 그 값, 없으면 입력 durationHours 그대로. */
+export function effectiveDurationHours(serviceType, durationHours) {
+  if (Object.prototype.hasOwnProperty.call(MOOD_FIXED_DURATION_HOURS, serviceType)) {
+    return MOOD_FIXED_DURATION_HOURS[serviceType];
+  }
+  return durationHours;
+}
 
 /** 예약 1건 최대 시간 (mood-book.js maxDuration 가드와 동일 의미의 비즈 한도). */
 export const MOOD_MAX_DURATION_HOURS = 15;
 
 /** 유효 서비스 타입인지 검사. */
 export function isValidServiceType(serviceType) {
-  return serviceType === 'vehicle' || serviceType === 'manager';
+  return serviceType === 'vehicle' || serviceType === 'manager' || serviceType === 'airport';
 }
 
 /** 서비스 타입의 시급 (원). 유효하지 않으면 null. */
@@ -52,7 +68,8 @@ export function computeAmountKRW(serviceType, durationHours) {
   if (ratePerHour === null) {
     return { ok: false, error: `INVALID_SERVICE_TYPE: ${String(serviceType)}` };
   }
-  const hours = Number(durationHours);
+  // 공항 등 고정 시간 서비스는 입력 durationHours 무시하고 고정값(2h) 강제 — 가격 위조 방지.
+  const hours = Number(effectiveDurationHours(serviceType, durationHours));
   if (!Number.isFinite(hours) || hours <= 0) {
     return { ok: false, error: 'INVALID_DURATION: must be a positive number' };
   }
