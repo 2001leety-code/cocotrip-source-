@@ -556,9 +556,16 @@ export default async function handler(req, res) {
         || Number(process.env.VITE_USD_KRW_RATE)
         || 1430;
       const refundedKRW = Math.round(refundedUSD * usdToKrw);
+      // 🟡 부분/전체 판별: 이번 환불액이 원결제 KRW 보다 (1% 이상) 작으면 부분환불 →
+      //   status='REFUNDED'(전액) 로 오기록하지 않고 'PARTIALLY_REFUNDED' 로 기록.
+      //   (이전엔 부분환불도 무조건 REFUNDED → 운영자/고객 화면에 전액환불로 오표시.)
+      //   ⚠️ refundedKRW 누적(increment) 은 도입 안 함: admin mark-refunded 가
+      //   refundPaypalCapture 로 PayPal 환불을 트리거하면 이 webhook 도 같은 환불로 발사되어
+      //   admin set + webhook increment 이중합산 위험. 이번 이벤트 금액(set) 유지가 안전.
+      const isPartialRefund = priceKRW > 0 && refundedKRW < Math.round(priceKRW * 0.99);
 
       const updates = {
-        status: 'REFUNDED',
+        status: isPartialRefund ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
         refundedKRW,
         refundReason: 'PayPal webhook auto-refund',
         refundedAt: FieldValue.serverTimestamp(),
