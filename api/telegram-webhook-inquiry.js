@@ -49,10 +49,10 @@ const INQUIRY_EXPLAIN_TEXT = `<b>📖 InquiryCHAT_BOT 가이드</b>
 
 <b>5. 어드민 명령은 여기 안 됨</b>
 이 봇은 답장만 받습니다.
-명령(/예약, /매출 등)은 <b>COCOTRIPKR (메인 봇)</b>에서 사용.
+명령(<code>예약</code>, <code>매출</code> 등)은 <b>COCOTRIPKR (메인 봇)</b>에서 사용.
 
 <b>6. 명령</b>
-<code>/설명</code> 또는 <code>설명</code> (이 가이드)`;
+<code>설명</code> (이 가이드)`;
 
 // 한글 alias — slash 명령 없을 때만 매핑
 const INQUIRY_ALIASES = [
@@ -152,7 +152,7 @@ export default async function handler(req, res) {
         `2. <b>답장 (Reply)</b> 선택\n` +
         `3. 답변 입력 후 전송\n\n` +
         `→ 그래야 그 고객에게만 메시지가 전달됩니다.\n\n` +
-        `자세한 가이드: <code>/설명</code>`);
+        `자세한 가이드: <code>설명</code>`);
     }
     res.status(200).json({ ok: true });
   } catch (err) {

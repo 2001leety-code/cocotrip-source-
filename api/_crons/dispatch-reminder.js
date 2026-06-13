@@ -47,7 +47,7 @@ function diffDaysISO(targetISO, baseISO) {
  * 배차 미입력 booking 검출.
  * driver / driverChatId / acceptedAt 모두 비어있으면 미배차로 간주.
  */
-function isUnassigned(booking) {
+export function isUnassigned(booking) {
   const hasDriver = !!(booking.driver && String(booking.driver).trim());
   const hasDriverChatId = !!booking.driverChatId;
   const hasAcceptedAt = !!booking.acceptedAt;

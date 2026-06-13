@@ -28,15 +28,12 @@ const BOT_TAG = 'driver';
 
 const HELP_TEXT = `<b>CocoTrip 기사용 봇</b>
 
-<i>📖 처음이면: <code>/설명</code> 입력 (역할 + 등록 절차 + 배차 흐름)</i>
+<i>📖 처음이면: <code>설명</code> 입력 (역할 + 등록 절차 + 배차 흐름)</i>
 
 이 봇은 배차 요청 수락/거절을 위해 사용됩니다.
 
-<b>명령어 (영문 또는 한글)</b>
-/start    또는  시작
-/help     또는  도움말 / 도움 / 사용법
-/explain  또는  설명 / 가이드 / 매뉴얼
-/id       또는  내아이디 / 아이디
+<b>명령어 (한글)</b>
+<code>시작</code> · <code>도움말</code> · <code>설명</code> · <code>아이디</code>
 
 <b>배차 흐름</b>
 1. 관리자가 배차 메시지 발송
@@ -44,7 +41,7 @@ const HELP_TEXT = `<b>CocoTrip 기사용 봇</b>
 3. 10분 무응답 시 자동 거절 + 정보 파기
 
 <b>최초 등록</b>
-1. <code>아이디</code> 또는 /id 입력
+1. <code>아이디</code> 입력
 2. 표시되는 chat_id를 관리자(태연님)에게 전달
 3. 등록 완료 후 배차 메시지 수신 가능`;
 
@@ -121,7 +118,7 @@ const DRIVER_EXPLAIN_TEXT = `<b>📖 Driver_Chat 봇 가이드</b>
 배차 요청을 [✓ 수락] / [✗ 거절] 버튼으로 응답하는 곳.
 
 <b>2. 등록 절차 (최초 1회)</b>
-1) 이 봇에서 <code>아이디</code> 또는 <code>/id</code> 입력
+1) 이 봇에서 <code>아이디</code> 입력
 2) 봇이 내 chat_id를 알려줌 (예: 1234567890)
 3) 그 chat_id를 관리자(태연님)에게 카톡/문자로 전달
 4) 관리자가 등록하면 배차 메시지 받기 시작
@@ -133,10 +130,7 @@ const DRIVER_EXPLAIN_TEXT = `<b>📖 Driver_Chat 봇 가이드</b>
 4) 수락 시 → 관리자에게 즉시 알림, 본인 일정 확정
 
 <b>4. 자주 쓰는 명령</b>
-<code>/start</code> 또는 <code>시작</code>
-<code>/help</code> 또는 <code>도움말</code>
-<code>/id</code> 또는 <code>아이디</code>
-<code>/설명</code> 또는 <code>설명</code> (이 가이드)
+<code>시작</code> · <code>도움말</code> · <code>아이디</code> · <code>설명</code> (이 가이드)
 
 <b>5. 일반 문의는 어디로?</b>
 이 봇은 배차 응답 전용입니다.
@@ -162,9 +156,9 @@ async function routeCommand(botToken, p) {
     case '/start':
       await sendBotMessage(botToken, p.chatId,
         `안녕하세요, CocoTrip 기사용 봇입니다.\n` +
-        `<b>아이디</b> 또는 <code>/id</code> 입력 → 본인 chat_id 확인 후\n` +
+        `<b>아이디</b> 입력 → 본인 chat_id 확인 후\n` +
         `관리자(태연님)에게 등록을 요청해 주세요.\n\n` +
-        `사용법: <b>도움말</b> 또는 /help`);
+        `사용법: <b>도움말</b> 입력`);
       break;
 
     case '/help':
@@ -184,7 +178,7 @@ async function routeCommand(botToken, p) {
     default:
       if (p.text) {
         await sendBotMessage(botToken, p.chatId,
-          `명령어를 사용해 주세요: /help`);
+          `명령어를 사용해 주세요. <code>도움말</code> 입력`);
       }
   }
 }
@@ -388,8 +382,8 @@ export async function handleReject(botToken, p, dispatchRef, dispatch, orderID) 
     `⚠️ <b>기사 거절 — 수동 재배차 필요</b>\n` +
     `예약번호: <code>${orderID}</code>\n` +
     `거절 기사: ${dispatch.driverName || '-'}\n\n` +
-    `<code>/drivers</code> 로 다른 기사 확인 후\n` +
-    `<code>/dispatch ${orderID} &lt;driverChatId&gt;</code> 실행`;
+    `<code>기사</code> 로 다른 기사 확인 후\n` +
+    `<code>배차 ${orderID} &lt;driverChatId&gt;</code> 실행`;
 
   // admin 봇 직접 발송 (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
   try {
