@@ -71,8 +71,13 @@ export default async function handler(req, res) {
     const uid = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     const isOwner = uid && plan.uid === uid;
     const hasToken = plan.accessToken && plan.accessToken === token;
-    const isGuest = !plan.uid;
-    if (!isOwner && !hasToken && !isGuest) {
+    // 🔴 보안: 이전엔 isGuest=!plan.uid 로 "소유자 없는 plan" 을 자격 없이 누구나 변조 가능했다
+    //   (accessToken 보유 게스트 plan 도 토큰 없이 통과 = 무인증 plan 변조). 이제 accessToken 이
+    //   있는 plan 은 owner 또는 token 일치만 허용. accessToken 자체가 없는 legacy 게스트 plan
+    //   (보호수단 부재)만 하위호환으로 통과 — 정상 게스트 편집은 token 전달이므로 무영향.
+    //   (raw uid 를 verifyIdToken 없이 비교하는 owner 경로 강화는 프론트 getIdToken 동반 필요 = 후속.)
+    const unprotectedGuestPlan = !plan.uid && !plan.accessToken;
+    if (!isOwner && !hasToken && !unprotectedGuestPlan) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
