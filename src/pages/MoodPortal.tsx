@@ -55,6 +55,7 @@ interface MoodBreakdown {
   km?: number;
   origin?: string;
   destination?: string;
+  waypoints?: string[] | null;
 }
 
 interface MoodBooking {
@@ -152,6 +153,10 @@ export default function MoodPortal() {
   const [settleHours, setSettleHours] = useState('');
   const [settling, setSettling] = useState(false);
   const [settleMsg, setSettleMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // 정산 시 추가 방문지(실제 경로) — 정확한 거리 재측정용. 예약 경로로 prefill 후 매니저가 수정/추가.
+  const [settleOrigin, setSettleOrigin] = useState('');
+  const [settleWaypoints, setSettleWaypoints] = useState<string[]>([]);
+  const [settleDestination, setSettleDestination] = useState('');
 
   // 예상 금액 분해 — base + 거리추가 + 톨비. 경로 없으면 거리/톨비 0 (base 만).
   const breakdown = useMemo(
@@ -342,28 +347,37 @@ export default function MoodPortal() {
     }
   }, [newClientName, newClientId, loadData]);
 
-  // 운행 종료 정산 — 실제 시간으로 최종 금액 재계산 + 잔액 조정 + 정산 영수증.
+  // 운행 종료 정산 — 실제 시간 + (추가 방문지로) 실제 거리 재측정 → 최종 금액·잔액 조정 + 영수증.
   const handleSettle = useCallback(async (bookingId: string) => {
     const hours = Number(settleHours);
     if (!Number.isFinite(hours) || hours <= 0) {
       setSettleMsg({ kind: 'err', text: '실제 시간을 입력하세요' });
       return;
     }
+    // 실제 경로 — 출발·도착이 둘 다 있을 때만 백엔드가 Naver 로 거리 재측정. 경유지는 빈 칸 제외.
+    const o = settleOrigin.trim();
+    const d = settleDestination.trim();
+    const wp = settleWaypoints.map((s) => s.trim()).filter(Boolean);
+    const routePayload = o && d ? { origin: o, destination: d, waypoints: wp } : {};
     setSettling(true);
     setSettleMsg(null);
     try {
       const res = await authFetch('/api/mood-settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId, actualHours: hours }),
+        body: JSON.stringify({ bookingId, actualHours: hours, ...routePayload }),
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
         const adj = json.data.adjustmentKRW;
         const adjTxt = adj > 0 ? `추가 ${formatKRW(adj)}` : adj < 0 ? `환원 ${formatKRW(-adj)}` : '조정 없음';
-        setSettleMsg({ kind: 'ok', text: `정산 완료 — 최종 ${formatKRW(json.data.finalAmountKRW)} (${adjTxt})` });
+        const kmTxt = json.data.routeRecomputed ? ` · 거리 ${json.data.km}km 재측정` : '';
+        setSettleMsg({ kind: 'ok', text: `정산 완료 — 최종 ${formatKRW(json.data.finalAmountKRW)} (${adjTxt})${kmTxt}` });
         setSettleId(null);
         setSettleHours('');
+        setSettleOrigin('');
+        setSettleDestination('');
+        setSettleWaypoints([]);
         await loadData(data?.clientId);
       } else {
         setSettleMsg({ kind: 'err', text: json?.error || `정산 실패 (${res.status})` });
@@ -373,7 +387,18 @@ export default function MoodPortal() {
     } finally {
       setSettling(false);
     }
-  }, [settleHours, data, loadData]);
+  }, [settleHours, settleOrigin, settleDestination, settleWaypoints, data, loadData]);
+
+  // ── 정산 경유지 배열 조작 (예약 폼과 동일 규칙, 최대 5 = 백엔드 한도) ──
+  const addSettleWaypoint = useCallback(() => {
+    setSettleWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
+  }, []);
+  const removeSettleWaypoint = useCallback((i: number) => {
+    setSettleWaypoints((w) => w.filter((_, idx) => idx !== i));
+  }, []);
+  const setSettleWaypointAt = useCallback((i: number, val: string) => {
+    setSettleWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
+  }, []);
 
   // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
   // ⚠️ 훅은 반드시 아래 early-return 게이트보다 위에서 호출 (rules-of-hooks:
@@ -801,39 +826,103 @@ export default function MoodPortal() {
                     {data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport' && (
                       <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(124,92,252,0.12)' }}>
                         {settleId === b.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min={MOOD_MIN_DURATION_HOURS}
-                              max={MOOD_MAX_DURATION_HOURS}
-                              value={settleHours}
-                              onChange={(e) => setSettleHours(e.target.value)}
-                              placeholder="실제 시간"
-                              className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
-                              style={inputStyle}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => { void handleSettle(b.id); }}
-                              disabled={settling}
-                              className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-                              style={{ background: C.accent, color: '#fff' }}
-                            >
-                              {settling ? '정산 중…' : '확정'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setSettleId(null); setSettleMsg(null); }}
-                              className="rounded-lg px-2.5 py-1.5 text-xs"
-                              style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
-                            >
-                              취소
-                            </button>
+                          <div className="flex flex-col gap-2">
+                            {/* 실제 시간 */}
+                            <label className="flex items-center gap-2">
+                              <span className="text-[11px] shrink-0" style={{ color: C.textDim }}>실제 시간</span>
+                              <input
+                                type="number"
+                                min={MOOD_MIN_DURATION_HOURS}
+                                max={MOOD_MAX_DURATION_HOURS}
+                                value={settleHours}
+                                onChange={(e) => setSettleHours(e.target.value)}
+                                placeholder="실제 시간"
+                                className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                                style={inputStyle}
+                              />
+                            </label>
+
+                            {/* 실제 방문 경로 — 추가 방문지 넣으면 정확한 거리 재측정 (Naver) */}
+                            <div className="rounded-lg p-2.5 flex flex-col gap-1.5" style={{ background: C.inputBg, border: C.inputBorder }}>
+                              <p className="text-[11px] font-semibold" style={{ color: C.textDim }}>
+                                실제 방문 경로 <span className="font-normal">— 추가 방문지 넣으면 정확한 거리로 재측정</span>
+                              </p>
+                              {/* 출발 */}
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  value={settleOrigin}
+                                  onChange={(e) => setSettleOrigin(e.target.value)}
+                                  placeholder="출발지"
+                                  className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                                  style={inputStyle}
+                                />
+                                <button type="button" onClick={() => { void searchAddress(setSettleOrigin); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label="출발지 주소 검색">검색</button>
+                              </div>
+                              {/* 경유(방문)지 */}
+                              {settleWaypoints.map((wp, i) => (
+                                <div key={i} className="flex items-center gap-1.5">
+                                  <input
+                                    value={wp}
+                                    onChange={(e) => setSettleWaypointAt(i, e.target.value)}
+                                    placeholder={`방문지 ${i + 1}`}
+                                    className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                                    style={inputStyle}
+                                  />
+                                  <button type="button" onClick={() => { void searchAddress((v) => setSettleWaypointAt(i, v)); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label={`방문지 ${i + 1} 주소 검색`}>검색</button>
+                                  <button type="button" onClick={() => removeSettleWaypoint(i)} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.danger }} aria-label={`방문지 ${i + 1} 삭제`}>✕</button>
+                                </div>
+                              ))}
+                              {settleWaypoints.length < 5 && (
+                                <button type="button" onClick={addSettleWaypoint} className="self-start text-[11px] underline" style={{ color: C.accentSolid }}>
+                                  + 방문지 추가
+                                </button>
+                              )}
+                              {/* 도착 */}
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  value={settleDestination}
+                                  onChange={(e) => setSettleDestination(e.target.value)}
+                                  placeholder="도착지"
+                                  className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                                  style={inputStyle}
+                                />
+                                <button type="button" onClick={() => { void searchAddress(setSettleDestination); }} className="rounded-lg px-2 py-1.5 text-[11px] shrink-0" style={{ background: C.card, border: C.inputBorder, color: C.accentSolid }} aria-label="도착지 주소 검색">검색</button>
+                              </div>
+                              <p className="text-[10px]" style={{ color: C.textDim }}>* 비워두면 예약 시 측정한 거리로 정산됩니다.</p>
+                            </div>
+
+                            {/* 확정 / 취소 */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { void handleSettle(b.id); }}
+                                disabled={settling}
+                                className="flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                                style={{ background: C.accent, color: '#fff' }}
+                              >
+                                {settling ? '정산 중…' : '정산 확정'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setSettleId(null); setSettleMsg(null); }}
+                                className="rounded-lg px-2.5 py-1.5 text-xs"
+                                style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                              >
+                                취소
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => { setSettleId(b.id); setSettleHours(String(b.durationHours || MOOD_MIN_DURATION_HOURS)); setSettleMsg(null); }}
+                            onClick={() => {
+                              setSettleId(b.id);
+                              setSettleHours(String(b.durationHours || MOOD_MIN_DURATION_HOURS));
+                              setSettleOrigin(b.breakdown?.origin || '');
+                              setSettleDestination(b.breakdown?.destination || '');
+                              setSettleWaypoints(Array.isArray(b.breakdown?.waypoints) ? b.breakdown.waypoints.slice() : []);
+                              setSettleMsg(null);
+                            }}
                             className="text-[11px] underline"
                             style={{ color: C.accentSolid }}
                           >
