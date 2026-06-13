@@ -68,6 +68,10 @@ interface MoodBooking {
   createdByEmail: string;
   createdAt: number;
   breakdown?: MoodBreakdown;
+  /** 운행 종료 정산(status='completed') 시 채워짐. */
+  actualHours?: number | null;
+  finalAmountKRW?: number | null;
+  adjustmentKRW?: number | null;
   /** 이 예약 직후 잔액 (백엔드 mood-data 가 내려줌). 레거시 예약은 null = 화면 미표시. */
   runningBalanceKRW?: number | null;
 }
@@ -142,6 +146,12 @@ export default function MoodPortal() {
   const [newClientId, setNewClientId] = useState('');
   const [creatingClient, setCreatingClient] = useState(false);
   const [createMsg, setCreateMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  // 운행 종료 정산 상태 (admin) — settleId = 입력칸 열린 예약 id
+  const [settleId, setSettleId] = useState<string | null>(null);
+  const [settleHours, setSettleHours] = useState('');
+  const [settling, setSettling] = useState(false);
+  const [settleMsg, setSettleMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   // 예상 금액 분해 — base + 거리추가 + 톨비. 경로 없으면 거리/톨비 0 (base 만).
   const breakdown = useMemo(
@@ -331,6 +341,39 @@ export default function MoodPortal() {
       setCreatingClient(false);
     }
   }, [newClientName, newClientId, loadData]);
+
+  // 운행 종료 정산 — 실제 시간으로 최종 금액 재계산 + 잔액 조정 + 정산 영수증.
+  const handleSettle = useCallback(async (bookingId: string) => {
+    const hours = Number(settleHours);
+    if (!Number.isFinite(hours) || hours <= 0) {
+      setSettleMsg({ kind: 'err', text: '실제 시간을 입력하세요' });
+      return;
+    }
+    setSettling(true);
+    setSettleMsg(null);
+    try {
+      const res = await authFetch('/api/mood-settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, actualHours: hours }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        const adj = json.data.adjustmentKRW;
+        const adjTxt = adj > 0 ? `추가 ${formatKRW(adj)}` : adj < 0 ? `환원 ${formatKRW(-adj)}` : '조정 없음';
+        setSettleMsg({ kind: 'ok', text: `정산 완료 — 최종 ${formatKRW(json.data.finalAmountKRW)} (${adjTxt})` });
+        setSettleId(null);
+        setSettleHours('');
+        await loadData(data?.clientId);
+      } else {
+        setSettleMsg({ kind: 'err', text: json?.error || `정산 실패 (${res.status})` });
+      }
+    } catch (e) {
+      setSettleMsg({ kind: 'err', text: e instanceof Error ? e.message : '정산 실패' });
+    } finally {
+      setSettling(false);
+    }
+  }, [settleHours, data, loadData]);
 
   // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
   // ⚠️ 훅은 반드시 아래 early-return 게이트보다 위에서 호출 (rules-of-hooks:
@@ -751,6 +794,65 @@ export default function MoodPortal() {
                           <span>거리 +{formatKRW(bd.distanceSurchargeKRW)}{bd.km ? ` (${bd.km}km)` : ''}</span>
                         )}
                         {!!bd.tollKRW && <span>톨비 +{formatKRW(bd.tollKRW)}</span>}
+                      </div>
+                    )}
+
+                    {/* 운행 종료 정산 (admin · 시간제 · 미정산) */}
+                    {data?.isAdmin && b.status === 'confirmed' && b.serviceType !== 'airport' && (
+                      <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(124,92,252,0.12)' }}>
+                        {settleId === b.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={MOOD_MIN_DURATION_HOURS}
+                              max={MOOD_MAX_DURATION_HOURS}
+                              value={settleHours}
+                              onChange={(e) => setSettleHours(e.target.value)}
+                              placeholder="실제 시간"
+                              className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs"
+                              style={inputStyle}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => { void handleSettle(b.id); }}
+                              disabled={settling}
+                              className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                              style={{ background: C.accent, color: '#fff' }}
+                            >
+                              {settling ? '정산 중…' : '확정'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setSettleId(null); setSettleMsg(null); }}
+                              className="rounded-lg px-2.5 py-1.5 text-xs"
+                              style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => { setSettleId(b.id); setSettleHours(String(b.durationHours || MOOD_MIN_DURATION_HOURS)); setSettleMsg(null); }}
+                            className="text-[11px] underline"
+                            style={{ color: C.accentSolid }}
+                          >
+                            운행 종료 · 정산
+                          </button>
+                        )}
+                        {settleId === b.id && settleMsg && (
+                          <p className="text-[11px] mt-1" style={{ color: settleMsg.kind === 'ok' ? C.ok : C.danger }}>{settleMsg.text}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 정산 완료 배지 */}
+                    {b.status === 'completed' && (
+                      <div className="mt-2 pt-2 text-[11px]" style={{ borderTop: '1px solid rgba(110,231,183,0.15)', color: C.ok }}>
+                        ✓ 정산 완료 · 실제 {b.actualHours || '?'}시간 · 최종 {formatKRW(b.finalAmountKRW || b.amountKRW)}
+                        {typeof b.adjustmentKRW === 'number' && b.adjustmentKRW !== 0 && (
+                          <span style={{ color: C.textDim }}> ({b.adjustmentKRW > 0 ? '+' : ''}{formatKRW(b.adjustmentKRW)})</span>
+                        )}
                       </div>
                     )}
                   </li>

@@ -114,6 +114,10 @@ export default async function handler(req, res) {
         breakdown: b.breakdown || null, // { baseKRW, distanceSurchargeKRW, tollKRW, km, origin, destination, waypoints }
         runningBalanceKRW,               // 이 예약 직후 잔액 (외상 = 음수 가능)
         status: b.status,
+        // 운행 종료 정산(completed) — 실제시간·최종금액·조정액 (mood-settle.js)
+        actualHours: typeof b.actualHours === 'number' ? b.actualHours : null,
+        finalAmountKRW: typeof b.finalAmountKRW === 'number' ? b.finalAmountKRW : null,
+        adjustmentKRW: typeof b.adjustmentKRW === 'number' ? b.adjustmentKRW : null,
         createdByEmail: b.createdByEmail,
         createdAt: b.createdAt,
       };
