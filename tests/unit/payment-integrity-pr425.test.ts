@@ -80,7 +80,7 @@ describe('PR #425 CY5 — admin mark-refunded calls PayPal API when captureID pr
     // Pull the mark-refunded section and assert the call appears there.
     const idx = adminAction.indexOf("action === 'mark-refunded'");
     expect(idx).toBeGreaterThan(-1);
-    const section = adminAction.slice(idx, idx + 3500);
+    const section = adminAction.slice(idx, idx + 5000); // mark-refunded 섹션 전체 (가드 추가로 확장)
     expect(section).toMatch(/refundPaypalCapture\s*\(/);
   });
 
@@ -89,14 +89,14 @@ describe('PR #425 CY5 — admin mark-refunded calls PayPal API when captureID pr
     // mypage/email say "refunded" but the money is still with the merchant
     // (exactly the CY5 production bug we are fixing).
     const idx = adminAction.indexOf("action === 'mark-refunded'");
-    const section = adminAction.slice(idx, idx + 3500);
+    const section = adminAction.slice(idx, idx + 5000); // mark-refunded 섹션 전체 (가드 추가로 확장)
     expect(section).toMatch(/if\s*\(\s*!result\.ok\s*\)/);
     expect(section).toMatch(/return\s+res\.end\(JSON\.stringify\(_err/);
   });
 
   it('records refundSource=paypal-api vs manual on the Firestore doc', () => {
     const idx = adminAction.indexOf("action === 'mark-refunded'");
-    const section = adminAction.slice(idx, idx + 3500);
+    const section = adminAction.slice(idx, idx + 5000); // mark-refunded 섹션 전체 (가드 추가로 확장)
     expect(section).toMatch(/refundSource:\s*['"]paypal-api['"]/);
     expect(section).toMatch(/refundSource:\s*['"]manual['"]/);
   });
