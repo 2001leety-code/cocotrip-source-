@@ -1513,7 +1513,11 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
           resolvedAddress = matched.address || resolvedAddress;
           verified = true;
           if (resolvedName) usedFoodNames.add(String(resolvedName).trim());
-          if (Array.isArray(matched.dietary_tags)) dietaryTags = matched.dietary_tags.slice();
+          // SAFETY (단도시 L868 정합): 매칭 식당의 dietary 태그를 dietaryTagsOf(r.tag 문자열 +
+          //   r.dietary_tags 배열 정규화)로 전파. 이전엔 matched.dietary_tags(배열)만 읽어
+          //   프로덕션(r.tag=문자열)에선 항상 undefined → halal/vegan 검증태그가 stop 에 미전파.
+          const mTags = dietaryTagsOf(matched);
+          if (mTags.length) dietaryTags = mTags;
         } else if (dietCritical.length > 0) {
           const err = new Error(
             `Block-mode multi-city unable to satisfy dietary (${dietCritical.join(', ')}) ` +
