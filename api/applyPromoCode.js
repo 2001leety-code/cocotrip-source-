@@ -13,6 +13,7 @@ import { getUsdToKrw } from './_exchange-rate.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { captureError } from './_shared/sentry.js';
 import { featureEnabled } from './_shared/feature-flag.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -177,7 +178,14 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { code, originalPrice, userId, codes, productType } = body;
+    const { code, originalPrice, codes, productType } = body;
+
+    // 🔴 IDOR fix: 개인 쿠폰 조회 신원을 body.userId 가 아니라 verifyUserToken 의 auth.uid 로
+    //   바인딩한다. 토큰 있으면 본인 uid, 없으면 null → 개인 쿠폰 조회 skip(글로벌 프로모만).
+    //   (이전엔 body.userId 로 타인 users/{uid}/coupons 조회 = read-only 할인정보 노출 IDOR.)
+    let userId = null;
+    const _promoAuth = await verifyUserToken(req);
+    if (_promoAuth.ok) userId = _promoAuth.uid;
 
     // 실시간 환율 조회 (공통 유틸 — cap 1350 적용)
     const usdToKrw = await getUsdToKrw();

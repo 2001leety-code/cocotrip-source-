@@ -6,6 +6,7 @@ import { trackPaidConversion } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
+import { authFetch } from '@/lib/authFetch';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
 
@@ -195,12 +196,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
     setPromoLoading(true);
     setPromoError(null);
     try {
-      const res = await fetch('/api/applyPromoCode', {
+      // 서버가 토큰(auth.uid)으로 본인 확인 후 개인 쿠폰 조회 — body.userId 제거(IDOR fix).
+      // authFetch 가 로그인 시 Firebase ID 토큰을 Bearer 로 첨부. 비로그인은 글로벌 프로모만.
+      const res = await authFetch('/api/applyPromoCode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // 이슈 18 fix: userId 추가 — Firestore 개인 쿠폰(Trip Coins 5% 등) 검증에 필수.
-        // userId 없으면 backend verifyFirestoreCoupon()이 null 반환 → INVALID_CODE.
-        body: JSON.stringify({ code, productType, originalPrice: priceKRW, userId: authUserId }),
+        body: JSON.stringify({ code, productType, originalPrice: priceKRW }),
       });
       const json = await res.json();
       const d = json.data;
