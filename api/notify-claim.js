@@ -13,9 +13,14 @@
  */
 import { callBot } from './_shared/telegram-bot.js';
 import { captureError } from './_shared/sentry.js';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
+
+// 비용/스팸 DoS 가드용 — 무인증 + Telegram 발송이라 per-IP rate-limit.
+const _rateDb = initAdminDb('notify-claim');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -32,6 +37,18 @@ export default async function handler(req, res) {
   const { claimId, email, flightRef, hotelRef, tripDates, receipts } = body;
   if (!claimId || !email) {
     res.status(400).json({ ok: false, error: 'claimId and email required' });
+    return;
+  }
+
+  // 비용/스팸 DoS 가드 — 무인증 + Telegram 발송 → per-IP rate-limit (fail-open).
+  const rl = await checkIpRateLimit({
+    db: _rateDb, ip: getClientIp(req),
+    collection: 'claim_notify_rate_limits',
+    maxRequests: 10, errorLabel: 'claim notifications',
+  });
+  if (!rl.ok) {
+    res.setHeader('Retry-After', String(rl.retryAfterSec));
+    res.status(rl.status).json({ ok: false, error: rl.error, code: 'RATE_LIMITED' });
     return;
   }
 

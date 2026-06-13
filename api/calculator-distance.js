@@ -12,9 +12,14 @@
  */
 
 import axios from 'axios';
+import { initAdminDb } from './_shared/firebase-admin.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
+
+// 비용 DoS 가드용 — 무인증 + 호출당 Naver Geocoding 2건이라 per-IP rate-limit.
+const _rateDb = initAdminDb('calculator-distance');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -71,6 +76,18 @@ export default async function handler(req, res) {
   if (!origin || !destination) {
     res.writeHead(400, JSON_CORS);
     return res.end(JSON.stringify({ error: 'MISSING_PARAMS' }));
+  }
+
+  // 비용 DoS 가드 — 무인증 + 자유입력(캐시 효과 낮음) + 호출당 Naver Geocoding 2건.
+  // place-search/recalc-transit/translate-plan 과 동일 per-IP rate-limit (fail-open).
+  const rl = await checkIpRateLimit({
+    db: _rateDb, ip: getClientIp(req),
+    collection: 'calc_distance_rate_limits',
+    maxRequests: 30, errorLabel: 'distance lookups',
+  });
+  if (!rl.ok) {
+    res.writeHead(rl.status, { ...JSON_CORS, 'Retry-After': String(rl.retryAfterSec) });
+    return res.end(JSON.stringify({ error: 'RATE_LIMITED', detail: rl.error }));
   }
 
   // CLAUDE.md I 섹션 — NCP 키는 .trim() 필수 (\n 손상 방지).

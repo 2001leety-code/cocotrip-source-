@@ -26,6 +26,7 @@ import { captureError } from './_shared/sentry.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { detectAndTranslate } from './_shared/translator.js';
+import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
@@ -194,6 +195,18 @@ export default async function handler(req, res) {
       console.error('[inquiry-submit] Firestore admin unavailable');
       res.writeHead(500, JSON_HEADERS);
       return res.end(JSON.stringify(_err('Firestore unavailable', 'FIRESTORE_UNAVAILABLE')));
+    }
+
+    // 비용 DoS 가드 — 무인증(옵션 토큰) + Gemini 번역 + Telegram 발송 + Firestore write.
+    // 입력 검증 통과 후, 고비용 작업 전에 per-IP rate-limit (fail-open).
+    const rl = await checkIpRateLimit({
+      db: adminDb, ip: getClientIp(req),
+      collection: 'inquiry_rate_limits',
+      maxRequests: 5, errorLabel: 'inquiry submissions',
+    });
+    if (!rl.ok) {
+      res.writeHead(rl.status, { ...JSON_HEADERS, 'Retry-After': String(rl.retryAfterSec) });
+      return res.end(JSON.stringify(_err(rl.error, 'RATE_LIMITED')));
     }
 
     const inquiryId = genInquiryId();

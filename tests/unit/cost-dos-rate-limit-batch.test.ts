@@ -12,6 +12,10 @@ const ENDPOINTS = [
   { file: 'api/place-search.js', collection: 'place_search_rate_limits' },
   { file: 'api/recalc-transit.js', collection: 'recalc_transit_rate_limits' },
   { file: 'api/translate-plan.js', collection: 'translate_plan_rate_limits' },
+  // 2026-06-13 2차 비용 헌트 — 무인증 Naver/Gemini/Telegram 호출 엔드포인트 추가 배선.
+  { file: 'api/calculator-distance.js', collection: 'calc_distance_rate_limits' },
+  { file: 'api/inquiry-submit.js', collection: 'inquiry_rate_limits' },
+  { file: 'api/notify-claim.js', collection: 'claim_notify_rate_limits' },
 ];
 
 describe('비용 DoS — IP rate-limit 배선 (소스 가드)', () => {
@@ -36,6 +40,8 @@ vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => ({}) 
 vi.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: class { getGenerativeModel() { return { generateContent: () => { throw new Error('Gemini reached — rate-limit not before cost'); } }; } },
 }));
+// calculator-distance 행동검증용 — rate-limit 차단 시 Naver Geocoding(axios) 도달하면 실패.
+vi.mock('axios', () => ({ default: { get: () => { throw new Error('Naver geocode reached — rate-limit not before cost'); } } }));
 
 function makeRes(): any {
   const res: any = {
@@ -58,5 +64,17 @@ describe('translate-plan — 429 가 Gemini 호출 전 (status().json 스타일)
     expect(res.statusCode).toBe(429);
     expect(JSON.parse(res.body).code).toBe('RATE_LIMITED');
     expect(res.headers['Retry-After']).toBe('1800');
+  });
+});
+
+describe('calculator-distance — 429 가 Naver Geocoding 호출 전 (writeHead 스타일)', () => {
+  it('rate-limit 초과 → 429 RATE_LIMITED + Retry-After (axios 미도달)', async () => {
+    checkIpRateLimitMock.mockResolvedValueOnce({ ok: false, status: 429, retryAfterSec: 3600, error: 'Too many distance lookups' });
+    const handler = (await import('../../api/calculator-distance.js')).default;
+    const res = makeRes();
+    await handler({ method: 'GET', query: { origin: '강남', destination: '판교' }, headers: { host: 'unit.test' }, socket: {} } as any, res as any);
+    expect(res.statusCode).toBe(429);
+    expect(JSON.parse(res.body).error).toBe('RATE_LIMITED');
+    expect(res.headers['Retry-After']).toBe('3600');
   });
 });
