@@ -30,6 +30,7 @@ import { sendEmail } from './_send-email.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
 import { translate } from './_shared/translator.js';
 import { sendDispatchToDriver } from './_shared/dispatch-helpers.js';
+import { isUnassigned } from './_crons/dispatch-reminder.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -118,6 +119,9 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 <code>추이</code> · <code>추이 30</code> — 일별 매출 추이
 <code>문의</code> — 미응답 고객·차터 문의
 <code>환불</code> — 환불·취소 현황
+<code>배차현황</code> — 오늘 배차 수락/거절/대기 분포
+<code>대기배차</code> — 기사 응답 대기 중 배차
+<code>미배차</code> · <code>미배차 14</code> — 미배정 운행
 
 <b>빠른 예약</b>
 <code>빠른예약</code> — 양식 출력 → 채워서 전송
@@ -267,6 +271,11 @@ const KOREAN_ALIASES = [
   { re: /^(추이|매출추이|매출 추이)(?:\s+(.+))?$/i, cmd: '/trend', argGroup: 2 },
   { re: /^(문의|미응답문의|미응답 문의|고객문의|고객 문의)(?:\s+(.+))?$/i, cmd: '/inquiries', argGroup: 2 },
   { re: /^(환불|환불현황|환불 현황|취소현황|취소 현황)(?:\s+(.+))?$/i, cmd: '/refunds', argGroup: 2 },
+
+  // 배차 운영 조회 (읽기 전용) — 인자 없음. '배차현황'은 인자 필수인 '배차'(/dispatch)와 충돌 안 함.
+  { re: /^(배차현황|오늘배차|오늘 배차)$/, cmd: '/today_dispatch', argGroup: -1 },
+  { re: /^(대기배차|응답대기|대기 배차|응답 대기)$/, cmd: '/pending_dispatch', argGroup: -1 },
+  { re: /^(미배차|미배정|미배차예약)(?:\s+(.+))?$/, cmd: '/unassigned', argGroup: 2 },
 
   // 조회 (인자 선택 — 생략 시 오늘/이번달)
   { re: /^(예약목록|예약|오늘예약|오늘 예약)(?:\s+(.+))?$/, cmd: '/bookings', argGroup: 2 },
@@ -434,6 +443,18 @@ async function routeCommand(botToken, p) {
 
     case '/refunds':
       await handleRefundsCommand(botToken, p);
+      break;
+
+    case '/today_dispatch':
+      await handleTodayDispatchCommand(botToken, p);
+      break;
+
+    case '/pending_dispatch':
+      await handlePendingDispatchCommand(botToken, p);
+      break;
+
+    case '/unassigned':
+      await handleUnassignedCommand(botToken, p);
       break;
 
     default:
@@ -1130,6 +1151,163 @@ async function handleRefundsCommand(botToken, p) {
       lines.push(` <code>${b.id.slice(0, 18)}</code> · ${String(b.cancelReason || '-').slice(0, 40)}`);
     });
   }
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /today_dispatch — 오늘(KST) 발송된 배차 분포 (status별 + 기사별 집계) (읽기 전용)
+async function handleTodayDispatchCommand(botToken, p) {
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  // todayKstDate()는 'YYYY-MM-DD' 문자열이라 Timestamp 쿼리에 못 씀.
+  // KST 자정의 실제 UTC 시각을 직접 계산해 sentAt(Timestamp) range 쿼리.
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const realKstMidnightMs = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()) - 9 * 60 * 60 * 1000;
+
+  let snap;
+  try {
+    snap = await db.collection('dispatch_messages')
+      .where('sentAt', '>=', new Date(realKstMidnightMs))
+      .get();
+  } catch (err) {
+    await sendBotMessage(botToken, p.chatId, `배차현황 조회 실패: ${escapeHtmlLocal(err.message)}`);
+    return;
+  }
+
+  if (snap.empty) {
+    await sendBotMessage(botToken, p.chatId, `🚖 오늘(${todayKstDate()}) 발송된 배차 없음.`);
+    return;
+  }
+
+  const counts = { sent: 0, accepted: 0, rejected: 0, expired: 0 };
+  // driverChatId(문자열) → { name, sent, accepted, rejected, expired }. plain object 사용
+  // (Map.set 은 읽기전용 가드 정규식 /\.set\(/ 에 걸리므로 의도적으로 회피).
+  const byDriver = {};
+  snap.forEach((doc) => {
+    const d = doc.data();
+    const st = d.status || 'sent';
+    if (counts[st] !== undefined) counts[st]++;
+    const key = d.driverChatId != null ? String(d.driverChatId) : '?';
+    if (!byDriver[key]) byDriver[key] = { name: d.driverName || key, sent: 0, accepted: 0, rejected: 0, expired: 0 };
+    const entry = byDriver[key];
+    if (entry[st] !== undefined) entry[st]++;
+    if ((!entry.name || entry.name === key) && d.driverName) entry.name = d.driverName;
+  });
+
+  const lines = [
+    `🚖 <b>오늘 배차 현황 (${todayKstDate()}, 총 ${snap.size}건)</b>`,
+    ``,
+    `수락 ${counts.accepted} · 거절 ${counts.rejected} · 대기 ${counts.sent} · 만료 ${counts.expired}`,
+    ``,
+    `<b>기사별</b>`,
+  ];
+  const driversSorted = Object.values(byDriver)
+    .sort((a, b) => (b.sent + b.accepted + b.rejected + b.expired) - (a.sent + a.accepted + a.rejected + a.expired));
+  driversSorted.forEach((d) => {
+    const tot = d.sent + d.accepted + d.rejected + d.expired;
+    lines.push(` 🚗 ${d.name}: ${tot}건 (수락 ${d.accepted}·거절 ${d.rejected}·대기 ${d.sent}·만료 ${d.expired})`);
+  });
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /pending_dispatch — 지금 기사 응답 대기 중(status='sent') 배차 + 만료까지 남은 시간 (읽기 전용)
+async function handlePendingDispatchCommand(botToken, p) {
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  let snap;
+  try {
+    snap = await db.collection('dispatch_messages')
+      .where('status', '==', 'sent')
+      .get();
+  } catch (err) {
+    await sendBotMessage(botToken, p.chatId, `대기배차 조회 실패: ${escapeHtmlLocal(err.message)}`);
+    return;
+  }
+
+  if (snap.empty) {
+    await sendBotMessage(botToken, p.chatId, `⏳ 응답 대기 중인 배차 없음. 👍`);
+    return;
+  }
+
+  const nowMs = Date.now();
+  const rows = [];
+  snap.forEach((doc) => {
+    const d = doc.data();
+    const expMs = (d.expiresAt && typeof d.expiresAt.toMillis === 'function') ? d.expiresAt.toMillis() : 0;
+    const remainMin = expMs ? Math.round((expMs - nowMs) / 60000) : 0;
+    rows.push({
+      orderID: d.orderID || doc.id,
+      driverName: d.driverName || (d.driverChatId != null ? String(d.driverChatId) : '?'),
+      expMs,
+      remainMin,
+    });
+  });
+  // 만료 임박순 (expiresAt 오름차순). expiresAt 없으면(0) 맨 뒤로.
+  rows.sort((a, b) => (a.expMs || Infinity) - (b.expMs || Infinity));
+
+  const lines = [`⏳ <b>응답 대기 중 배차 (${rows.length}건)</b>`, ''];
+  rows.forEach((r) => {
+    const remainLabel = r.remainMin > 0 ? `남은 ${r.remainMin}분` : (r.expMs ? '만료 임박' : '만료시각 미상');
+    lines.push(` <code>${String(r.orderID).slice(0, 20)}</code> · ${r.driverName} · ${remainLabel}`);
+  });
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /unassigned [일수] — 다가오는 운행 중 기사 미배정 (기본 7일, 1~30 clamp) (읽기 전용)
+//   isUnassigned SSOT = dispatch-reminder cron 과 동일 판정. 쿼리도 fetchUnassignedBookings 와 동일 패턴.
+async function handleUnassignedCommand(botToken, p) {
+  let days = 7;
+  const arg = (p.args[0] || '').trim();
+  if (/^\d+$/.test(arg)) days = Math.min(Math.max(parseInt(arg, 10), 1), 30);
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  // tourDate 범위 = today(inclusive) ~ until(inclusive). 둘 다 '>='/'<=' 라 양끝 포함.
+  const today = todayKstDate();
+  const until = addDaysKst(today, days);
+
+  let snap;
+  try {
+    // dispatch-reminder fetchUnassignedBookings 와 동일 쿼리 (status+tourDate composite index 재사용).
+    // 인덱스 미존재/오류 시 graceful (dispatch-reminder.js L73-77 패턴).
+    snap = await db.collection('bookings')
+      .where('status', '==', 'CONFIRMED')
+      .where('tourDate', '>=', today)
+      .where('tourDate', '<=', until)
+      .get();
+  } catch (err) {
+    await sendBotMessage(botToken, p.chatId, `미배차 조회 실패: ${escapeHtmlLocal(err.message)}`);
+    return;
+  }
+
+  const rows = [];
+  snap.forEach((doc) => {
+    const b = doc.data();
+    if (!isUnassigned(b)) return;
+    rows.push({
+      id: doc.id,
+      bookingRef: b.bookingRef || doc.id,
+      customerName: b.payerName || b.customerName || '-',
+      productType: b.productType || b.product || '-',
+      tourDate: b.tourDate || '-',
+      paxCount: b.paxCount || '?',
+    });
+  });
+  rows.sort((a, b) => String(a.tourDate).localeCompare(String(b.tourDate)));
+
+  if (rows.length === 0) {
+    await sendBotMessage(botToken, p.chatId, `✅ ${today} ~ ${until} 미배정 운행 없음. 👍`);
+    return;
+  }
+
+  const lines = [`⚠️ <b>미배정 운행 (${today} ~ ${until}, ${rows.length}건)</b>`, ''];
+  let curDate = '';
+  rows.forEach((b) => {
+    if (b.tourDate !== curDate) { curDate = b.tourDate; lines.push(`<b>${curDate}</b>`); }
+    lines.push(` <code>${String(b.bookingRef).slice(0, 20)}</code> · ${b.customerName} · ${b.productType} · ${b.paxCount}명`);
+  });
   await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
 }
 
