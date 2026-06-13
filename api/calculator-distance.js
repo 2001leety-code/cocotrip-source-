@@ -91,8 +91,10 @@ export default async function handler(req, res) {
   }
 
   // CLAUDE.md I 섹션 — NCP 키는 .trim() 필수 (\n 손상 방지).
-  const clientId = (process.env.NCP_CLIENT_ID || '').trim();
-  const clientSecret = (process.env.NCP_CLIENT_SECRET || '').trim();
+  // 변수명 폴백(2026-06-13): 같은 네이버 클라우드 Maps 키가 NCP_CLIENT_* 또는 NAVER_CLIENT_*
+  // 어느 이름으로 등록돼도 동작 (메인 플래너는 NAVER_CLIENT_* 사용).
+  const clientId = (process.env.NCP_CLIENT_ID || process.env.NAVER_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.NCP_CLIENT_SECRET || process.env.NAVER_CLIENT_SECRET || '').trim();
   if (!clientId || !clientSecret) {
     res.writeHead(500, JSON_CORS);
     return res.end(JSON.stringify({ error: 'NCP_NOT_CONFIGURED' }));
