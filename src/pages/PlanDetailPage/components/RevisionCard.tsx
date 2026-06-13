@@ -12,9 +12,8 @@
 //   - 첫 클릭 즉시 setModalOpen(true) — Firestore 같은 무거운 작업 없음
 import { useState, useEffect } from 'react';
 import { RefreshCw, Sparkles, Lock } from 'lucide-react';
-import { doc, updateDoc, arrayUnion, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useLanguage } from '@/hooks/useLanguage';
+import { authFetch } from '@/lib/authFetch';
 import type { PlanDocument } from '../types';
 import { RevisionReasonModal, type RevisionReasonPayload } from './RevisionReasonModal';
 
@@ -105,29 +104,19 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
       (payload.customNote && payload.customNote.length > 0)
     );
 
-    // Best-effort fire-and-forget: log reasons to Firestore. Never block the regenerate flow.
+    // Best-effort fire-and-forget: 서버 API 경유 로깅(Admin SDK, rules 우회). 재생성 흐름 무차단.
+    // 이전엔 클라 SDK 직접 write 2개[plans.revisionReasons updateDoc + plan_complaints addDoc]를
+    // 했으나, plans update allowlist(revisionReasons 미포함) + plan_complaints 룰 부재(catch-all
+    // deny)로 둘 다 silent 거부되어 분석 데이터가 전부 손실됐다 → log-revision-reason 엔드포인트로 라우팅.
     if (hasContent && planId) {
       const { reasons, customNote } = payload!;
-      const stamped = JSON.stringify({ reasons, customNote, ts: new Date().toISOString() });
-      updateDoc(doc(db, 'plans', planId), {
-        revisionReasons: arrayUnion(stamped),
+      const reasonStr = (reasons && reasons.length > 0) ? reasons.join(',') : 'other';
+      authFetch('/api/log-revision-reason', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId, reason: reasonStr, freeText: customNote || '', language }),
       }).catch((err) => {
-        console.warn('[RevisionCard] revisionReasons log failed (non-fatal):', err?.message || err);
-      });
-
-      // Also write to plan_complaints for operator-todo cron + admin visibility.
-      // type='revision' distinguishes from quality reports (type='quality_report').
-      addDoc(collection(db, 'plan_complaints'), {
-        planId,
-        type: 'revision',
-        reasons,
-        customNote: (customNote || '').slice(0, 300),
-        uid: (plan as { uid?: string }).uid || null,
-        userEmail: (plan as { guestEmail?: string }).guestEmail || null,
-        status: 'open',
-        createdAt: serverTimestamp(),
-      }).catch((err) => {
-        console.warn('[RevisionCard] plan_complaints write failed (non-fatal):', err?.message || err);
+        console.warn('[RevisionCard] revision reason log failed (non-fatal):', err?.message || err);
       });
     }
 
