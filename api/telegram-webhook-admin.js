@@ -31,11 +31,18 @@ import { USD_TO_KRW } from './_shared/exchange-rate.js';
 import { translate } from './_shared/translator.js';
 import { sendDispatchToDriver } from './_shared/dispatch-helpers.js';
 import { isUnassigned } from './_crons/dispatch-reminder.js';
+import { morningBriefingTask } from './_crons/morning-briefing.js';
+import { resolveDecision, DECISION_COLLECTION } from './_shared/decisionQueue.js';
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
 
 const BOT_TAG = 'admin';
+
+// 온디맨드 모닝 브리핑 스로틀 (인메모리, cold start 리셋 허용 — Firestore fan-out 비용/스팸 방지).
+//   60초 이내 재호출 시 task 미실행. 시각 비교만 (날짜 헬퍼 아님 — inclusive/exclusive 무관).
+let lastBriefingMs = 0;
+const BRIEFING_THROTTLE_MS = 60 * 1000;
 
 // 운영 가이드 — admin 봇 역할 + 자주 헷갈리는 배차 흐름
 // driver/inquiry 봇에도 각자 자기 역할 가이드(/설명) 있음
@@ -125,6 +132,10 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 
 <b>빠른 예약</b>
 <code>빠른예약</code> — 양식 출력 → 채워서 전송
+
+<b>사무실 연동</b>
+<code>브리핑</code> — 어제 회사 한 장 즉시
+<code>결정</code> — 대기 결정 승인/거절
 
 <b>CS 티켓</b>
 <code>이슈</code> · <code>이슈 open</code> (상태별)
@@ -295,6 +306,10 @@ const KOREAN_ALIASES = [
 
   // 빠른 예약
   { re: /^(빠른예약|빠른 예약|퀵예약|퀵북|quick_book)$/i, cmd: '/quick_book', argGroup: -1 },
+
+  // 사무실 연동 (읽기/상태기록 — 인자 없음)
+  { re: /^(브리핑|브리핑지금|모닝브리핑|모닝 브리핑)$/, cmd: '/briefing', argGroup: -1 },
+  { re: /^(결정|결정큐|의사결정|결정 큐|승인대기)$/, cmd: '/decisions', argGroup: -1 },
 ];
 
 function resolveKoreanAlias(p) {
@@ -321,6 +336,11 @@ async function routeCommand(botToken, p) {
     }
     if (data.startsWith('qb_confirm:') || data.startsWith('qb_cancel:') || data.startsWith('qb_dispatch:')) {
       await handleQuickBookCallback(botToken, p);
+      return;
+    }
+    // 의사결정 큐 승인/거절 — 새 네임스페이스(dec:). status flip 만(자동실행 없음).
+    if (data.startsWith('dec:')) {
+      await handleDecisionCallback(botToken, p);
       return;
     }
     await callBot(botToken, 'answerCallbackQuery', {
@@ -455,6 +475,14 @@ async function routeCommand(botToken, p) {
 
     case '/unassigned':
       await handleUnassignedCommand(botToken, p);
+      break;
+
+    case '/briefing':
+      await handleBriefingCommand(botToken, p);
+      break;
+
+    case '/decisions':
+      await handleDecisionsCommand(botToken, p);
       break;
 
     default:
@@ -1843,6 +1871,149 @@ async function handleRateCommand(botToken, p) {
 
 // 2026-05-03: 옵션 B — 무료 클레임 텔레그램 1-click 승인/거부.
 // notify-claim.js 가 발송한 메시지의 [✓승인][✗거부] 버튼 콜백 핸들러.
+// ─────────────────────────────────────────────────────────────────────────────
+// 사무실 연동 — 온디맨드 모닝 브리핑 + 의사결정 큐 [승인/거절]
+//   안전선: 금융/발행/배포 자동실행 없음. 브리핑=순수 집계 발송, 결정=status flip 만.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// /briefing — cron(08:30) 안 기다리고 "어제 회사 한 장" 즉시. AI 0원(순수 집계).
+//   morningBriefingTask 가 내부에서 운영자 텔레그램으로 직접 발송(send-type)하므로
+//   여기서는 task 호출만 — 별도 본문 재전송 금지(중복 발송 방지).
+async function handleBriefingCommand(botToken, p) {
+  const nowMs = Date.now();
+  const sinceMs = nowMs - lastBriefingMs;
+  if (lastBriefingMs > 0 && sinceMs < BRIEFING_THROTTLE_MS) {
+    const agoSec = Math.round(sinceMs / 1000);
+    await sendBotMessage(botToken, p.chatId,
+      `⏳ 방금 생성됨 (${agoSec}초 전). 잠시 후 다시 시도해 주세요.`);
+    return;
+  }
+  // 짧은 ack 1개(생성 시간 동안 무응답 방지) — task 가 본문을 별도 발송.
+  await sendBotMessage(botToken, p.chatId, '📊 브리핑 생성 중...');
+  lastBriefingMs = nowMs; // task 실행 직전에 갱신 (동시 재호출 스로틀).
+  try {
+    await morningBriefingTask();
+  } catch (err) {
+    console.error('[briefing] task 실패:', err.message);
+    await sendBotMessage(botToken, p.chatId, `⚠️ 브리핑 생성 실패: ${escapeHtmlLocal(err.message)}`);
+  }
+}
+
+// /decisions — pending 결정 목록을 각 건마다 [승인/거절] 인라인 버튼으로 발송 (읽기).
+//   실제 status 변경은 콜백(handleDecisionCallback)에서 resolveDecision 만 호출.
+async function handleDecisionsCommand(botToken, p) {
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const snap = await db.collection(DECISION_COLLECTION)
+    .where('status', '==', 'pending').limit(20).get();
+
+  if (snap.empty) {
+    await sendBotMessage(botToken, p.chatId, '📥 대기 중 결정 없음 👍');
+    return;
+  }
+
+  await sendBotMessage(botToken, p.chatId, `📥 <b>승인/거절 대기 ${snap.size}건</b>`);
+
+  // 각 결정마다 별도 메시지 + 인라인 키보드. callback_data='dec:{id}:{action}'.
+  //   Firestore auto-id(~20자)면 'dec:{id}:approve'(~32바이트) — 64바이트 한도 안전.
+  for (const doc of snap.docs) {
+    const d = doc.data() || {};
+    const title = truncTelegram(String(d.title || '(제목 없음)').slice(0, 200));
+    const typeLine = d.type ? `\n유형: <code>${escapeHtmlLocal(String(d.type))}</code>` : '';
+    const summaryLine = d.summary ? `\n${escapeHtmlLocal(String(d.summary).slice(0, 200))}` : '';
+    await sendBotMessage(botToken, p.chatId,
+      `• <b>${escapeHtmlLocal(title)}</b>${typeLine}${summaryLine}`,
+      {
+        replyMarkup: {
+          inline_keyboard: [[
+            { text: '✓ 승인', callback_data: `dec:${doc.id}:approve` },
+            { text: '✕ 거절', callback_data: `dec:${doc.id}:reject` },
+          ]],
+        },
+      });
+  }
+}
+
+// dec:{id}:{action} 콜백 — 승인/거절. resolveDecision(status flip) 외 다운스트림
+//   동작(발행/환불/배포/이메일 등) 절대 트리거 금지. 멱등: 이미 pending 아니면 no-op.
+async function handleDecisionCallback(botToken, p) {
+  const data = p.callbackData || '';
+  const parts = data.split(':'); // dec:{id}:{action}
+  const id = parts[1];
+  const action = parts[2];
+
+  if (!id || (action !== 'approve' && action !== 'reject')) {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId, text: '잘못된 결정 데이터', show_alert: true,
+    });
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin-decision');
+  if (!db) {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId, text: 'Firestore 연결 실패', show_alert: true,
+    });
+    return;
+  }
+
+  const ref = db.collection(DECISION_COLLECTION).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId, text: '결정을 찾을 수 없음', show_alert: true,
+    });
+    return;
+  }
+
+  const decision = snap.data() || {};
+  // 멱등: 이미 처리됨(pending 아님)이면 no-op (중복 클릭 보호, handleClaimCallback 패턴 차용).
+  if (decision.status && decision.status !== 'pending') {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId, text: `이미 ${decision.status} 처리됨`, show_alert: true,
+    });
+    return;
+  }
+
+  const isApprove = action === 'approve';
+  const newStatus = isApprove ? 'approved' : 'rejected';
+
+  // ⚠️ status flip 만 — 발행/환불/배포/이메일 등 자동실행 절대 추가 금지.
+  const result = await resolveDecision(db, id, newStatus);
+  if (!result || !result.ok) {
+    await callBot(botToken, 'answerCallbackQuery', {
+      callback_query_id: p.callbackId,
+      text: `처리 실패: ${(result && result.reason) || 'unknown'}`,
+      show_alert: true,
+    });
+    return;
+  }
+
+  const title = escapeHtmlLocal(String(decision.title || '(제목 없음)').slice(0, 200));
+  const statusLabel = isApprove ? '✓ 승인 처리됨' : '✕ 거절 처리됨';
+
+  // 원본 메시지 갱신 (버튼 제거 + 처리 결과 표시).
+  if (p.messageId) {
+    try {
+      await callBot(botToken, 'editMessageText', {
+        chat_id: p.chatId,
+        message_id: p.messageId,
+        text: `${statusLabel} — ${title}\n<i>${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</i>`,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+      });
+    } catch (err) {
+      console.warn('[decision-callback] editMessageText 실패:', err.message);
+    }
+  }
+
+  await callBot(botToken, 'answerCallbackQuery', {
+    callback_query_id: p.callbackId,
+    text: isApprove ? '승인됨' : '거절됨',
+  });
+}
+
 async function handleClaimCallback(botToken, p) {
   const data = p.callbackData || '';
   const isApprove = data.startsWith('claim_approve:');
