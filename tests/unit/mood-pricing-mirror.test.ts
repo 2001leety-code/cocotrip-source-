@@ -12,11 +12,23 @@ import { MOOD_RATES as BE_RATES, MOOD_MAX_DURATION_HOURS as BE_MAX, computeDista
 // 🔴 프론트 미러(src/lib/moodPricing.ts)가 백엔드 SSOT(api/_shared/mood-pricing.js)와
 //    동일한 단가·공식을 유지하는지 검증. 어긋나면 "표시가 ≠ 청구가" → 신뢰 붕괴(P311).
 describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
-  it('단가 상수 동일 (차량 33,000 / 매니저 44,000)', () => {
+  it('단가 상수 동일 (차량 33,000 / 공항 33,000 / 매니저 44,000)', () => {
     expect(FE_RATES.vehicle).toBe(BE_RATES.vehicle);
+    expect(FE_RATES.airport).toBe(BE_RATES.airport);
     expect(FE_RATES.manager).toBe(BE_RATES.manager);
     expect(FE_RATES.vehicle).toBe(33000);
+    expect(FE_RATES.airport).toBe(33000);
     expect(FE_RATES.manager).toBe(44000);
+  });
+
+  it('공항 = 2시간 고정 — durationHours 입력 무시하고 66,000 기본 (위조 방지, FE=BE)', () => {
+    for (const dh of [1, 2, 5, 99, 0, NaN]) {
+      const fe = feTotal({ serviceType: 'airport', durationHours: dh });
+      const be = beTotal({ serviceType: 'airport', durationHours: dh });
+      expect(fe.baseKRW).toBe(66000); // 33,000 × 2 (입력 dh 무시)
+      expect(be.baseKRW).toBe(66000);
+      expect(fe.amountKRW).toBe(be.amountKRW);
+    }
   });
 
   it('최대 시간 한도 동일', () => {
@@ -40,6 +52,8 @@ describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
       { serviceType: 'vehicle' as const, durationHours: 1.5, km: 60, tollKRW: 3300 },
       { serviceType: 'manager' as const, durationHours: 8, km: 0, tollKRW: 0 },
       { serviceType: 'manager' as const, durationHours: 5, km: 49, tollKRW: 1000 },
+      { serviceType: 'airport' as const, durationHours: 2, km: 60, tollKRW: 3300 },
+      { serviceType: 'airport' as const, durationHours: 1, km: 0, tollKRW: 0 },
     ];
     for (const c of cases) {
       const fe = feTotal(c);
