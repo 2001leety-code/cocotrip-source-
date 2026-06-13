@@ -840,7 +840,7 @@ export class RouteAgent extends BaseAgent {
                             channel: 'admin',
                             severity: 'high',
                             message: `⚠️ <b>도착 터미널 mismatch — 비행기 놓침 risk</b>\n\ninput arrival='${arrivalAirportKey}' but station='${heroRoute.fromStationName}' (${arrV.reason})\n운영자 조치: 해당 plan 도착 경로 수동 확인 후 손님에게 정확한 터미널 안내.`,
-                        });
+                        }).catch(() => {});
                     }
 
                     // B9-15/25 + P269: anchor 우선순위 — hotel 좌표 있으면 그것, 없으면 fallback chain 결과.
@@ -955,7 +955,7 @@ export class RouteAgent extends BaseAgent {
                             channel: 'admin',
                             severity: 'high',
                             message: `⚠️ <b>출국 터미널 mismatch — 비행기 놓침 risk</b>\n\ninput departure='${departureAirportKey}' but station='${route.toStationName}' (${depV.reason})\n운영자 조치: 해당 plan 출국 경로 수동 확인 후 손님에게 정확한 터미널 안내.`,
-                        });
+                        }).catch(() => {});
                     }
 
                     // B9-16/25: anchor_lat/lng/label 명시 attach — UI 가 "Seoul City
