@@ -1,6 +1,7 @@
 #!/bin/sh
-# CocoTrip pre-push hook — 4-piece Vercel parity verification.
-# Checks: full build (tsc -b && vite build), vitest run, size-limit, mistake-lint.
+# CocoTrip pre-push hook — 5-piece Vercel parity verification.
+# Checks: full build (tsc -b && vite build), vitest run, size-limit, mistake-lint,
+#         react-hooks/rules-of-hooks (변경 파일 — 런타임 크래시 차단).
 # Goal: 같은 명령을 push 전 로컬에서 실행해 Vercel preview build 회귀 차단.
 # Bypass (explicit user approval 만): SKIP_PREPUSH=1 git push  OR  git push --no-verify
 
@@ -16,7 +17,7 @@ if [ "$SKIP_PREPUSH" = "1" ]; then
   exit 0
 fi
 
-echo "[pre-push] Running 4-piece full verification (Vercel parity)..."
+echo "[pre-push] Running 5-piece full verification (Vercel parity)..."
 START=$(date +%s)
 
 LOGDIR="${TMPDIR:-/tmp}"
@@ -27,7 +28,7 @@ run_step() {
   step_label="$2"
   shift 2
   log="$LOGDIR/cocotrip-prepush-step-$step_num.log"
-  echo "[pre-push] ($step_num/4) $step_label..."
+  echo "[pre-push] ($step_num/5) $step_label..."
   if ! "$@" >"$log" 2>&1; then
     echo "[pre-push] STEP $step_num FAILED ($step_label). tail of $log:"
     tail -50 "$log" 2>/dev/null || cat "$log"
@@ -50,6 +51,10 @@ run_step 3 "npx size-limit" npx --no-install size-limit
 # 4. lint-mistake-patterns (오답노트 P-pattern grep 게이트)
 run_step 4 "node scripts/lint-mistake-patterns.mjs origin/main" node scripts/lint-mistake-patterns.mjs origin/main
 
+# 5. react-hooks/rules-of-hooks (변경 파일 — 훅 순서 런타임 크래시 차단)
+#    전체 eslint 는 기존 에러 다수라 게이트 불가 → 크래시 유발 규칙만 변경분에 적용.
+run_step 5 "node scripts/check-hooks-rule.mjs origin/main" node scripts/check-hooks-rule.mjs origin/main
+
 END=$(date +%s)
-echo "[pre-push] All 4 checks passed in $((END - START))s."
+echo "[pre-push] All 5 checks passed in $((END - START))s."
 exit 0
