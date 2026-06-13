@@ -56,7 +56,12 @@ export function sendBotMessage(botToken, chatId, text, options = {}) {
  */
 export function verifyWebhookSecret(req, expectedSecret) {
   if (!expectedSecret) {
-    // secret 미설정 시 검증 스킵 — 개발 단계 한정. 프로덕션 필수.
+    // 🔴 fail-CLOSED (prod): secret 미설정은 미스컨피그 — 프로덕션에선 거부한다(무인증 봇
+    //   명령/배차 콜백 실행 차단). 이전엔 무조건 true(fail-open) → TELEGRAM_WEBHOOK_SECRET
+    //   미설정 시 임의 Telegram 사용자가 admin/driver/inquiry webhook 을 무인증 호출 가능했음.
+    //   dev/preview 만 스킵 허용(로컬 테스트 편의). 이 단일 변경이 3개 webhook 동시 보호.
+    //   ⚠️ prod 인데 봇이 안 돌면 = TELEGRAM_WEBHOOK_SECRET 미설정 신호 → 즉시 등록.
+    if (String(process.env.VERCEL_ENV) === 'production') return false;
     return true;
   }
   const got = req.headers['x-telegram-bot-api-secret-token'];
