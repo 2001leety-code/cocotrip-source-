@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
 import { openDaumPostcode } from '@/lib/daumPostcode';
+import { MoodRouteMap } from '@/components/MoodRouteMap';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
@@ -612,6 +613,17 @@ export default function MoodPortal() {
                 {route.durationMin > 0 ? ` · ${route.durationMin}분` : ''}
               </p>
             )}
+
+            {/* 경로 미니맵 — 주소 맞는지 시각 확인 (키 없으면 지도 링크 폴백) */}
+            <MoodRouteMap
+              origin={origin}
+              waypoints={waypoints}
+              destination={destination}
+              accent={C.accentSolid}
+              inputBg={C.inputBg}
+              inputBorder={C.inputBorder}
+              textDim={C.textDim}
+            />
           </div>
 
           {/* 예상 금액 분해 */}
