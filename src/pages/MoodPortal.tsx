@@ -136,6 +136,12 @@ export default function MoodPortal() {
   const [topupSubmitting, setTopupSubmitting] = useState(false);
   const [topupMsg, setTopupMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
+  // 광고사 생성 폼 상태 (admin)
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientId, setNewClientId] = useState('');
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [createMsg, setCreateMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
   // 예상 금액 분해 — base + 거리추가 + 톨비. 경로 없으면 거리/톨비 0 (base 만).
   const breakdown = useMemo(
     () =>
@@ -297,6 +303,33 @@ export default function MoodPortal() {
       setTopupSubmitting(false);
     }
   }, [topupClientId, topupAmount, data, loadData]);
+
+  // 광고사(client) 생성 — 성공 시 충전 폼 clientId 자동 채움 + 데이터 reload.
+  const handleCreateClient = useCallback(async () => {
+    setCreatingClient(true);
+    setCreateMsg(null);
+    try {
+      const res = await authFetch('/api/mood-create-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newClientName.trim(), clientId: newClientId.trim() || undefined }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        setCreateMsg({ kind: 'ok', text: `생성됨 — ID: ${json.data.clientId}${json.data.setAsDefault ? ' (기본 지정)' : ''}` });
+        setTopupClientId(json.data.clientId); // 충전 폼에 자동 채움
+        setNewClientName('');
+        setNewClientId('');
+        await loadData(json.data.clientId);
+      } else {
+        setCreateMsg({ kind: 'err', text: json?.error || `생성 실패 (${res.status})` });
+      }
+    } catch (e) {
+      setCreateMsg({ kind: 'err', text: e instanceof Error ? e.message : '생성 실패' });
+    } finally {
+      setCreatingClient(false);
+    }
+  }, [newClientName, newClientId, loadData]);
 
   // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
   // ⚠️ 훅은 반드시 아래 early-return 게이트보다 위에서 호출 (rules-of-hooks:
@@ -725,6 +758,46 @@ export default function MoodPortal() {
             </ul>
           )}
         </div>
+
+        {/* 광고사 만들기 (admin 전용) — 충전·예약 대상 client 생성 */}
+        {data?.isAdmin && (
+          <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.card, border: C.cardBorder }}>
+            <h2 className="text-sm font-bold" style={{ color: C.text }}>광고사 만들기 <span className="text-[11px] font-normal" style={{ color: C.textDim }}>(운영자)</span></h2>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs" style={{ color: C.textDim }}>광고사 이름</span>
+              <input
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                placeholder="예: MOOD"
+                className="rounded-xl px-3 py-2.5 text-sm"
+                style={inputStyle}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs" style={{ color: C.textDim }}>ID <span className="opacity-70">(선택 · 영문/숫자, 미입력 시 자동)</span></span>
+              <input
+                value={newClientId}
+                onChange={(e) => setNewClientId(e.target.value)}
+                placeholder="예: mood"
+                className="rounded-xl px-3 py-2.5 text-sm"
+                style={inputStyle}
+              />
+            </label>
+            <button
+              onClick={() => { void handleCreateClient(); }}
+              disabled={creatingClient || !newClientName.trim()}
+              className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-50"
+              style={{ background: C.accent, color: '#fff' }}
+            >
+              {creatingClient ? '생성 중…' : '광고사 만들기'}
+            </button>
+            {createMsg && (
+              <p className="text-xs text-center" style={{ color: createMsg.kind === 'ok' ? C.ok : C.danger }}>
+                {createMsg.text}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* 충전 (admin 전용) */}
         {data?.isAdmin && (
