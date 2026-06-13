@@ -20,6 +20,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
+import { openDaumPostcode } from '@/lib/daumPostcode';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
@@ -116,9 +117,9 @@ export default function MoodPortal() {
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
-  // 경로(주소) 입력 상태
+  // 경로(주소) 입력 상태 — 경유지는 네이버 지도처럼 개별 추가/삭제(최대 5, 백엔드 한도).
   const [origin, setOrigin] = useState('');
-  const [waypoints, setWaypoints] = useState(''); // "A | B" — 선택, | 구분
+  const [waypoints, setWaypoints] = useState<string[]>([]);
   const [destination, setDestination] = useState('');
   const [route, setRoute] = useState<MoodRoute | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -196,7 +197,6 @@ export default function MoodPortal() {
       try {
         const params = new URLSearchParams({ origin: o, destination: d });
         const wp = waypoints
-          .split('|')
           .map((s) => s.trim())
           .filter(Boolean)
           .join('|');
@@ -234,7 +234,6 @@ export default function MoodPortal() {
     setFormMsg(null);
     try {
       const wp = waypoints
-        .split('|')
         .map((s) => s.trim())
         .filter(Boolean);
       const res = await authFetch('/api/mood-book', {
@@ -340,6 +339,27 @@ export default function MoodPortal() {
   const willGoNegative = balance - estimate < 0;
 
   const inputStyle = { background: C.inputBg, border: C.inputBorder, color: C.text } as const;
+
+  // ── 경유지 배열 조작 (네이버 지도식 추가/삭제, 최대 5 = 백엔드 한도) ──
+  const addWaypoint = useCallback(() => {
+    setWaypoints((w) => (w.length >= 5 ? w : [...w, '']));
+  }, []);
+  const removeWaypoint = useCallback((i: number) => {
+    setWaypoints((w) => w.filter((_, idx) => idx !== i));
+  }, []);
+  const setWaypointAt = useCallback((i: number, val: string) => {
+    setWaypoints((w) => w.map((x, idx) => (idx === i ? val : x)));
+  }, []);
+
+  // 다음 우편번호 팝업 → 선택 주소를 콜백으로 적용. 로드 실패/취소는 무시(수동 입력 가능).
+  const searchAddress = useCallback(async (apply: (addr: string) => void) => {
+    try {
+      const addr = await openDaumPostcode();
+      if (addr) apply(addr);
+    } catch {
+      // 스크립트 로드 실패 — 수동 입력으로 진행
+    }
+  }, []);
 
   return (
     <div className="min-h-screen px-4 py-6" style={{ background: C.bgGradient }}>
@@ -455,30 +475,89 @@ export default function MoodPortal() {
             </div>
           </div>
 
-          {/* 경로 (출발 / 경유 / 도착) — 거리/톨비 자동 계산 */}
+          {/* 경로 (출발 / 경유지 N / 도착) — 다음 우편번호 주소검색 + 거리/톨비 자동 계산 */}
           <div className="flex flex-col gap-2 pt-1">
             <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">(거리 추가요금·톨비 자동 계산)</span></span>
-            <input
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
-              placeholder="출발지 (예: 강남역)"
-              className="rounded-xl px-3 py-2.5 text-sm"
-              style={inputStyle}
-            />
-            <input
-              value={waypoints}
-              onChange={(e) => setWaypoints(e.target.value)}
-              placeholder="경유지 (선택, | 로 구분)"
-              className="rounded-xl px-3 py-2.5 text-sm"
-              style={inputStyle}
-            />
-            <input
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="도착지 (예: 인천공항)"
-              className="rounded-xl px-3 py-2.5 text-sm"
-              style={inputStyle}
-            />
+
+            {/* 출발지 */}
+            <div className="flex gap-2">
+              <input
+                value={origin}
+                onChange={(e) => setOrigin(e.target.value)}
+                placeholder="출발지 (예: 강남역, 도로명주소)"
+                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
+                style={inputStyle}
+              />
+              <button
+                type="button"
+                onClick={() => searchAddress(setOrigin)}
+                className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
+                style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+              >
+                🔍 주소
+              </button>
+            </div>
+
+            {/* 경유지 — 네이버 지도처럼 추가/삭제 */}
+            {waypoints.map((wp, i) => (
+              <div key={i} className="flex gap-2">
+                <input
+                  value={wp}
+                  onChange={(e) => setWaypointAt(i, e.target.value)}
+                  placeholder={`경유지 ${i + 1}`}
+                  className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => searchAddress((v) => setWaypointAt(i, v))}
+                  aria-label={`경유지 ${i + 1} 주소 검색`}
+                  className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
+                  style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+                >
+                  🔍
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeWaypoint(i)}
+                  aria-label={`경유지 ${i + 1} 삭제`}
+                  className="rounded-xl px-3 py-2.5 text-xs shrink-0"
+                  style={{ background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)', color: C.danger }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+
+            {waypoints.length < 5 && (
+              <button
+                type="button"
+                onClick={addWaypoint}
+                className="rounded-xl px-3 py-2 text-xs self-start"
+                style={{ background: C.inputBg, border: C.inputBorder, color: C.textDim }}
+              >
+                + 경유지 추가
+              </button>
+            )}
+
+            {/* 도착지 */}
+            <div className="flex gap-2">
+              <input
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="도착지 (예: 인천공항)"
+                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm"
+                style={inputStyle}
+              />
+              <button
+                type="button"
+                onClick={() => searchAddress(setDestination)}
+                className="rounded-xl px-3 py-2.5 text-xs whitespace-nowrap shrink-0"
+                style={{ background: C.inputBg, border: C.inputBorder, color: C.accentSolid }}
+              >
+                🔍 주소
+              </button>
+            </div>
             {routeLoading && (
               <p className="text-[11px]" style={{ color: C.textDim }}>경로 계산 중…</p>
             )}
