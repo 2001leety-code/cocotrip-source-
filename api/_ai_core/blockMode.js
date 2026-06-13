@@ -617,6 +617,8 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     ? userDietPrefs.map((d) => String(d).toLowerCase())
     : [];
   const dietRequired = dietary.filter((d) => /halal|vegan|vegetarian/i.test(d));
+  // 선택 알레르겐(nuts/shellfish/gluten/dairy) — dbMatcher detectAllergenViolation 경로와 정합.
+  const allergenSel = dietary.filter((d) => ['nuts', 'shellfish', 'gluten', 'dairy'].includes(d));
 
   // preferred_dietary 가 명시되면 (block stop 운영자 의도) 추가 필터.
   const preferred = Array.isArray(placeholderStop.preferred_dietary)
@@ -647,6 +649,13 @@ export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietP
     const tags = dietaryTagsOf(r); // r.tag(문자열) + r.dietary_tags(배열) 정규화 — SAFETY hard-filter
     for (const d of dietRequired) {
       if (!tags.includes(d)) return false;
+    }
+    // 🔴 알레르겐 게이트 (2026-06-13 SAFE, dbMatcher detectAllergenViolation 경로와 정합):
+    //   선택 알레르겐에 대해 r.allergens[key]===true 면 제외. 현재 allergens 전부 false default
+    //   = no-op이나, 실측 retrofit(수동 큐레이션) 시 block_mode 식당매칭도 자동 보호된다.
+    //   (이전엔 dbMatcher 만 allergen 위반 차단, block_mode 식당매칭은 gap이었음.)
+    for (const a of allergenSel) {
+      if (r.allergens && r.allergens[a] === true) return false;
     }
     return true;
   });
