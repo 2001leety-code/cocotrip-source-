@@ -29,7 +29,7 @@ import { relayAdminReply } from './_shared/chat-relay.js';
 import { sendEmail } from './_send-email.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
 import { translate } from './_shared/translator.js';
-import { sendDispatchToDriver } from './_shared/dispatch-helpers.js';
+import { sendDispatchToDriver, broadcastDispatchToDrivers } from './_shared/dispatch-helpers.js';
 import { isUnassigned } from './_crons/dispatch-reminder.js';
 import { morningBriefingTask } from './_crons/morning-briefing.js';
 import { resolveDecision, DECISION_COLLECTION } from './_shared/decisionQueue.js';
@@ -112,6 +112,9 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 
 <b>배차</b>
 <code>배차 &lt;예약ID&gt; &lt;기사chatId&gt;</code>
+<code>전체배차 &lt;예약ID&gt;</code> — 전 기사 동시 배차 (먼저 수락 우선)
+<code>재배차 &lt;예약ID&gt; &lt;기사chatId&gt;</code> — 특정 기사에게 재발송
+<code>기사연락처 &lt;chatId&gt; &lt;전화&gt; [카톡]</code> — 연락처 저장·조회
 
 <b>조회</b>
 <code>예약</code> · <code>예약 2026-05-15</code> (날짜별)
@@ -272,8 +275,11 @@ const KOREAN_ALIASES = [
   { re: /^(기사휴무|기사 휴무|기사비활성|기사 비활성|기사오프|기사 오프)\s+(.+)$/, cmd: '/driver_off', argGroup: 2 },
   { re: /^(기사출근|기사 출근|기사활성|기사 활성|기사온|기사 온)\s+(.+)$/, cmd: '/driver_on', argGroup: 2 },
 
-  // 배차 (인자 필수)
+  // 배차 (인자 필수) — "전체배차"/"재배차"는 다른 단어라 충돌 없음
   { re: /^(배차|배차발송|배차 발송)\s+(.+)$/, cmd: '/dispatch', argGroup: 2 },
+  { re: /^(전체배차|전체 배차|전수배차|브로드캐스트)\s+(.+)$/, cmd: '/broadcast_dispatch', argGroup: 2 },
+  { re: /^(재배차|재 배차|다시배차|다시 배차)\s+(.+)$/, cmd: '/redispatch', argGroup: 2 },
+  { re: /^(기사연락처|기사 연락처|연락처추가)\s+(.+)$/, cmd: '/driver_contact', argGroup: 2 },
 
   // 조회 확장 (읽기 전용) — '예약 상세'가 '예약'(/bookings)보다 먼저 매칭되도록 앞에 배치
   { re: /^(검색|찾기)\s+(.+)$/i, cmd: '/search', argGroup: 2 },
@@ -403,6 +409,18 @@ async function routeCommand(botToken, p) {
 
     case '/dispatch':
       await handleDispatchCommand(botToken, p);
+      break;
+
+    case '/broadcast_dispatch':
+      await handleBroadcastDispatchCommand(botToken, p);
+      break;
+
+    case '/redispatch':
+      await handleRedispatchCommand(botToken, p);
+      break;
+
+    case '/driver_contact':
+      await handleDriverContactCommand(botToken, p);
       break;
 
     case '/bookings':
@@ -712,6 +730,178 @@ async function handleDispatchCommand(botToken, p) {
     `기사: ${driver.name} (${driver.vehicle || '-'})\n` +
     `메시지ID: ${sent.result?.message_id || '-'}\n\n` +
     `기사 응답을 기다리는 중...`);
+}
+
+// /broadcast_dispatch <orderID> — 활성 기사 전원에게 동시 배차 (first-to-accept wins)
+async function handleBroadcastDispatchCommand(botToken, p) {
+  const driverBotToken = process.env.TELEGRAM_DRIVER_BOT_TOKEN;
+  if (!driverBotToken) {
+    await sendBotMessage(botToken, p.chatId,
+      `오류: TELEGRAM_DRIVER_BOT_TOKEN 미설정.`);
+    return;
+  }
+
+  if (p.args.length < 1) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>전체배차 &lt;예약ID&gt;</code>\n` +
+      `예: <code>전체배차 CT-20260502-123</code>`);
+    return;
+  }
+
+  const [orderID] = p.args;
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  // 예약 존재 검증 (오타로 전 기사 스팸 방지)
+  const bookingDoc = await db.collection('bookings').doc(orderID).get();
+  if (!bookingDoc.exists) {
+    await sendBotMessage(botToken, p.chatId,
+      `예약을 찾을 수 없습니다: <code>${orderID}</code>\n` +
+      `(<code>예약</code>으로 예약번호 확인)`);
+    return;
+  }
+  const booking = bookingDoc.data();
+
+  await sendBotMessage(botToken, p.chatId,
+    `⏳ 전체 기사 배차 발송 중...\n예약: <code>${orderID}</code>`);
+
+  const result = await broadcastDispatchToDrivers({ orderID, booking, driverBotToken });
+
+  if (!result.ok && result.sent === 0) {
+    const errDetail = result.errors.length ? result.errors[0] : '알 수 없는 오류';
+    await sendBotMessage(botToken, p.chatId,
+      `⚠️ 전체배차 실패\n` +
+      `예약: <code>${orderID}</code>\n` +
+      `사유: ${errDetail}`);
+    return;
+  }
+
+  await sendBotMessage(botToken, p.chatId,
+    `✓ 전체배차 발송 완료\n` +
+    `예약: <code>${orderID}</code>\n` +
+    `발송: ${result.sent}명` +
+    (result.failed > 0 ? ` · 실패: ${result.failed}명` : '') +
+    `\n\n먼저 수락하는 기사에게 배정됩니다.`);
+}
+
+// /redispatch <orderID> <driverChatId> — 특정 기사에게 재발송
+async function handleRedispatchCommand(botToken, p) {
+  const driverBotToken = process.env.TELEGRAM_DRIVER_BOT_TOKEN;
+  if (!driverBotToken) {
+    await sendBotMessage(botToken, p.chatId,
+      `오류: TELEGRAM_DRIVER_BOT_TOKEN 미설정.`);
+    return;
+  }
+
+  if (p.args.length < 2) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>재배차 &lt;예약ID&gt; &lt;기사chatId&gt;</code>\n` +
+      `예: <code>재배차 CT-20260502-123 1234567890</code>`);
+    return;
+  }
+
+  const [orderID, driverChatId] = p.args;
+
+  if (!/^\d+$/.test(driverChatId)) {
+    await sendBotMessage(botToken, p.chatId,
+      `기사 chatId는 숫자만 가능합니다: <code>${driverChatId}</code>`);
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  // 예약 존재 검증
+  const bookingDoc = await db.collection('bookings').doc(orderID).get();
+  if (!bookingDoc.exists) {
+    await sendBotMessage(botToken, p.chatId,
+      `예약을 찾을 수 없습니다: <code>${orderID}</code>`);
+    return;
+  }
+  const booking = bookingDoc.data();
+
+  // 기사 존재 + active 검증
+  const driverDoc = await db.collection('drivers').doc(driverChatId).get();
+  if (!driverDoc.exists) {
+    await sendBotMessage(botToken, p.chatId,
+      `기사를 찾을 수 없습니다: <code>${driverChatId}</code>\n` +
+      `<code>기사</code> 로 등록된 기사 확인`);
+    return;
+  }
+  const driver = driverDoc.data();
+
+  if (driver.active === false) {
+    await sendBotMessage(botToken, p.chatId,
+      `기사가 비활성 상태입니다: ${driver.name}`);
+    return;
+  }
+
+  const result = await sendDispatchToDriver({
+    orderID,
+    booking,
+    driverChatId,
+    driver,
+    driverBotToken,
+  });
+
+  if (!result.ok) {
+    await sendBotMessage(botToken, p.chatId,
+      `⚠️ 재배차 발송 실패\n` +
+      `예약: <code>${orderID}</code>\n` +
+      `기사: ${driver.name || driverChatId}\n` +
+      `사유: ${result.error || '알 수 없는 오류'}`);
+    return;
+  }
+
+  await sendBotMessage(botToken, p.chatId,
+    `✓ 재배차 발송 완료\n` +
+    `예약: <code>${orderID}</code>\n` +
+    `기사: ${driver.name} (${driver.vehicle || '-'})\n` +
+    `메시지ID: ${result.messageId || '-'}\n\n` +
+    `기사 응답을 기다리는 중...`);
+}
+
+// /driver_contact <chatId> <phone> [kakao] — 기사 전화/카톡 저장·조회
+async function handleDriverContactCommand(botToken, p) {
+  if (p.args.length < 2) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>기사연락처 &lt;chatId&gt; &lt;전화&gt; [카톡]</code>\n` +
+      `예: <code>기사연락처 1234567890 010-1234-5678 kakao_id123</code>`);
+    return;
+  }
+
+  const [chatId, phone, ...kakaoParts] = p.args;
+
+  if (!/^\d+$/.test(chatId)) {
+    await sendBotMessage(botToken, p.chatId,
+      `chatId는 숫자만 가능합니다: <code>${chatId}</code>`);
+    return;
+  }
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const driverDoc = await db.collection('drivers').doc(chatId).get();
+  if (!driverDoc.exists) {
+    await sendBotMessage(botToken, p.chatId,
+      `등록되지 않은 chatId: <code>${chatId}</code>\n` +
+      `먼저 <code>기사추가 ${chatId} 이름 차량</code> 으로 등록`);
+    return;
+  }
+
+  const kakao = kakaoParts.join(' ').trim();
+  const updateData = { phone };
+  if (kakao) updateData.kakao = kakao;
+
+  // merge:true — 다른 필드(name, vehicle, active 등) 보존
+  await db.collection('drivers').doc(chatId).set(updateData, { merge: true });
+
+  const d = driverDoc.data();
+  await sendBotMessage(botToken, p.chatId,
+    `✓ 연락처 저장 완료\n` +
+    `기사: ${d.name || '?'} (<code>${chatId}</code>)\n` +
+    `전화: ${phone}\n` +
+    (kakao ? `카톡: ${kakao}` : `(카톡 미입력)`));
 }
 
 // 오늘 KST 날짜 (YYYY-MM-DD)
@@ -1770,12 +1960,17 @@ async function handleWhois(botToken, p) {
     if (stats[s] !== undefined) stats[s]++;
   });
 
+  const contactLine = (d.phone || d.kakao)
+    ? `\n전화: ${d.phone || '-'}\n카톡: ${d.kakao || '-'}`
+    : '';
+
   await sendBotMessage(botToken, p.chatId,
     `<b>${d.name || '?'}</b>\n` +
     `chatId: <code>${chatId}</code>\n` +
     `차량: ${d.vehicle || '-'}\n` +
-    `상태: ${d.active === false ? '⏸ 비활성' : '✓ 활성'}\n` +
-    `\n<b>최근 7일 배차</b>\n` +
+    `상태: ${d.active === false ? '⏸ 비활성' : '✓ 활성'}` +
+    contactLine +
+    `\n\n<b>최근 7일 배차</b>\n` +
     `발송: ${stats.sent}건\n` +
     `수락: ${stats.accepted}건\n` +
     `거절: ${stats.rejected}건\n` +
