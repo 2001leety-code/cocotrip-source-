@@ -86,7 +86,10 @@ function buildMessage(agg, rate, marketing, decisions, failedSections) {
   return L.join('\n');
 }
 
-async function morningBriefingTask() {
+// onDemand: 텔레그램 어드민봇 /briefing 에서 직접 호출 가능하도록 export.
+//   내부에서 notifyOperatorLong 으로 운영자 텔레그램에 직접 발송(send-type) — 호출자는
+//   별도 재전송 금지(중복 발송 방지). cron-runner / vercelHandler 경로는 무변경.
+export async function morningBriefingTask() {
   const db = initAdminDb();
   if (!db) {
     await notifyOperatorLong('todo', '⚠️ <b>모닝 브리핑</b>\nFirestore 연결 안 됨 (env 확인 필요).', { skipPrefix: true }).catch(() => {});
