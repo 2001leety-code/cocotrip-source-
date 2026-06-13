@@ -161,8 +161,18 @@ export default async function handler(req, res) {
     return;
   }
 
+  // 🔴 chat_id fail-closed (prod, 2026-06-13 ADM-1): TELEGRAM_CHAT_ID 미설정은 미스컨피그 →
+  //   prod 에선 모든 chat 거부(어드민 명령이 pin 없이 누구에게나 열리던 fail-open 차단).
+  //   설정 시 불일치 chat 거부(현행). dev/preview 만 미설정 통과(로컬). 알림이 이 chat 으로
+  //   가므로 prod 에선 항상 설정됨 = 정상 동작 무변경. (webhook secret 대안 — 봇 토큰 불필요.)
   const adminChatId = process.env.TELEGRAM_CHAT_ID;
-  if (adminChatId && String(parsed.chatId) !== String(adminChatId)) {
+  if (!adminChatId) {
+    if (String(process.env.VERCEL_ENV) === 'production') {
+      console.error(`[${BOT_TAG}-webhook] TELEGRAM_CHAT_ID unset in prod — rejecting all`);
+      res.status(200).json({ ok: true });
+      return;
+    }
+  } else if (String(parsed.chatId) !== String(adminChatId)) {
     console.warn(`[${BOT_TAG}-webhook] unauthorized chat_id:`, parsed.chatId);
     res.status(200).json({ ok: true });
     return;
