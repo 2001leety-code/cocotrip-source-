@@ -322,11 +322,24 @@ service cloud.firestore {
     //   update/delete: 어드민만
     // ─────────────────────────────────────────────────────────
     match /charter_inquiries/{inquiryId} {
+      // 2026-06-13 (DoS 헌트): 익명 create 가 사용자-제어 free-text(notes/name/phone) 를
+      //   무제한 허용 → 오버사이즈 spam-write 로 Firestore quota/storage 소진 가능(bookings
+      //   PR#445 패턴). 합법 writer(CharterInquireModal)는 notes/name/phone 를 string|null 로
+      //   전송하므로 size cap 은 정상 write 무영향 — 오버사이즈만 거부(additive, 폼 안 깨짐).
       allow create: if request.resource.data.keys().hasAll(['email', 'status', 'createdAt'])
                     && request.resource.data.status == 'pending'
                     && request.resource.data.email is string
                     && request.resource.data.email.size() >= 5
-                    && request.resource.data.email.size() <= 200;
+                    && request.resource.data.email.size() <= 200
+                    && (!('notes' in request.resource.data)
+                        || request.resource.data.notes == null
+                        || (request.resource.data.notes is string && request.resource.data.notes.size() <= 5000))
+                    && (!('name' in request.resource.data)
+                        || request.resource.data.name == null
+                        || (request.resource.data.name is string && request.resource.data.name.size() <= 200))
+                    && (!('phone' in request.resource.data)
+                        || request.resource.data.phone == null
+                        || (request.resource.data.phone is string && request.resource.data.phone.size() <= 50));
       allow read:   if isAdminEmail()
                     || (isSignedIn() && resource.data.email == request.auth.token.email);
       allow update, delete: if isAdminEmail();
