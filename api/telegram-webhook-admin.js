@@ -49,7 +49,7 @@ const EXPLAIN_TEXT = `<b>📖 COCOTRIPKR (메인) 봇 가이드</b>
 <b>2. 다른 봇과의 차이</b>
 🚗 Driver_Chat — 기사용 (배차 [수락/거절])
 💬 InquiryCHAT_BOT — 고객 채팅 위젯 답장 릴레이
-각 봇에서 <code>/설명</code> 입력하면 자기 역할 가이드 나옴.
+각 봇에서 <code>설명</code> 입력하면 자기 역할 가이드 나옴.
 
 <b>3. 배차 3단계 (자주 헷갈림)</b>
 
@@ -80,45 +80,43 @@ const EXPLAIN_TEXT = `<b>📖 COCOTRIPKR (메인) 봇 가이드</b>
 기사: <code>기사</code> · <code>기사추가 ...</code> · <code>누구 1234567890</code>
 배차: <code>배차 CT-... 1234567890</code>
 CS:   <code>이슈</code> · <code>이슈추가 ...</code> · <code>해결 ...</code>
-전체: <code>/help</code> 또는 <code>도움말</code>
+전체: <code>도움말</code>
 
 <b>5. 다시 보려면</b>
-<code>/설명</code> 또는 <code>설명</code>`;
+<code>설명</code>`;
 
 const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 
-<i>📖 처음이거나 헷갈리면: <code>/설명</code> 입력 (전체 운영 가이드)</i>
+<i>📖 처음이거나 헷갈리면: <code>설명</code> 입력 (전체 운영 가이드)</i>
 
-<i>모든 명령은 영문 슬래시 또는 한글 단어로 사용 가능 (인자도 한글 OK)</i>
+<i>명령·인자 모두 한글로 입력하세요.</i>
 
 <b>기본</b>
-/start  /help  /explain  /id  /status
-한글:  시작  도움말  설명  아이디  상태
+<code>시작</code> · <code>도움말</code> · <code>설명</code> · <code>아이디</code> · <code>상태</code>
 
 <b>기사 관리</b>
-/drivers — <b>기사</b>, 기사목록
-/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle] — <b>기사추가 ...</b>
-/driver_remove &lt;chatId&gt; — <b>기사삭제 ...</b>
-/driver_off &lt;chatId&gt; — <b>기사휴무 ...</b>
-/driver_on &lt;chatId&gt; — <b>기사출근 ...</b>
-/whois &lt;chatId&gt; — <b>누구 ...</b> (기사 정보 + 최근 7일 배차)
+<code>기사</code> — 등록 기사 목록
+<code>기사추가 &lt;chatId&gt; &lt;이름&gt; [차종]</code>
+<code>기사삭제 &lt;chatId&gt;</code>
+<code>기사휴무 &lt;chatId&gt;</code> · <code>기사출근 &lt;chatId&gt;</code>
+<code>누구 &lt;chatId&gt;</code> — 기사 정보 + 최근 7일 배차
 
 <b>배차</b>
-/dispatch &lt;orderID&gt; &lt;driverChatId&gt; — <b>배차 ...</b>
+<code>배차 &lt;예약ID&gt; &lt;기사chatId&gt;</code>
 
 <b>조회</b>
-/bookings [YYYY-MM-DD] — <b>예약</b> 또는 예약 2026-05-15
-/sales [YYYY-MM] — <b>매출</b> 또는 매출 2026-05
-/stats [YYYY-MM] — <b>통계</b> 또는 통계 2026-05 (기사별/상품별 분해)
-/rate — <b>환율</b> (USD↔KRW 즉시 조회)
+<code>예약</code> · <code>예약 2026-05-15</code> (날짜별)
+<code>매출</code> · <code>매출 2026-05</code> (월별)
+<code>통계</code> · <code>통계 2026-05</code> (기사별/상품별 분해)
+<code>환율</code> — USD↔KRW 즉시 조회
 
 <b>빠른 예약</b>
-/quick_book — <b>빠른예약</b> (양식 출력 → 채워서 전송)
+<code>빠른예약</code> — 양식 출력 → 채워서 전송
 
 <b>CS 티켓</b>
-/cs_list [open|in_progress|resolved|all] — <b>이슈</b> 또는 이슈 open
-/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt; [plan:&lt;planId&gt;] — <b>이슈추가 ...</b>
-/cs_resolve &lt;ticketId&gt; — <b>이슈해결 ...</b> (또는 해결)
+<code>이슈</code> · <code>이슈 open</code> (상태별)
+<code>이슈추가 &lt;예약ID&gt; &lt;우선순위&gt; &lt;내용...&gt;</code>
+<code>이슈해결 &lt;티켓ID&gt;</code> (또는 <code>해결 ...</code>)
 
 <b>한글 사용 예시</b>
 <code>예약</code> → 오늘 예약 목록
@@ -127,9 +125,10 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 <code>기사추가 1234567890 김기사 스타리아1호</code>
 <code>배차 CT-20260502-123 1234567890</code>
 <code>이슈추가 CT-20260502-123 high 픽업 30분 지연</code>
-<code>이슈추가 CT-20260502-123 high plan:abc123 음식 알레르기 누락</code>
 <code>해결 abc123def456</code>
-<code>누구 1234567890</code>`;
+<code>누구 1234567890</code>
+
+<i>(기존 영문 슬래시 명령도 그대로 작동합니다.)</i>`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -312,7 +311,7 @@ async function routeCommand(botToken, p) {
     case '/start':
       await sendBotMessage(botToken, p.chatId,
         `CocoTrip 관리자 봇입니다.\n\n` +
-        `/help 로 명령어 목록 확인.`);
+        `<code>도움말</code> 입력하면 명령어 목록이 나옵니다.`);
       break;
 
     case '/help':
@@ -404,7 +403,7 @@ async function routeCommand(botToken, p) {
       }
       if (p.text) {
         await sendBotMessage(botToken, p.chatId,
-          `Echo: ${p.text}\n\n명령어를 사용하시려면 /help`);
+          `입력: ${p.text}\n\n명령어 목록은 <code>도움말</code> 입력.`);
       }
   }
 }
@@ -418,8 +417,8 @@ async function handleDriversCommand(botToken, p) {
     await sendBotMessage(botToken, p.chatId,
       `등록된 기사 없음.\n\n` +
       `등록 방법:\n` +
-      `1. 기사가 기사봇에 /id 입력 후 chat_id 확인\n` +
-      `2. <code>/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle]</code>`);
+      `1. 기사가 기사봇에 <code>아이디</code> 입력 후 chat_id 확인\n` +
+      `2. <code>기사추가 &lt;chatId&gt; &lt;이름&gt; [차종]</code>`);
     return;
   }
 
@@ -436,8 +435,8 @@ async function handleDriversCommand(botToken, p) {
 async function handleDriverAdd(botToken, p) {
   if (p.args.length < 2) {
     await sendBotMessage(botToken, p.chatId,
-      `사용법: <code>/driver_add &lt;chatId&gt; &lt;name&gt; [vehicle]</code>\n` +
-      `예: <code>/driver_add 1234567890 김기사 스타리아1호</code>`);
+      `사용법: <code>기사추가 &lt;chatId&gt; &lt;이름&gt; [차종]</code>\n` +
+      `예: <code>기사추가 1234567890 김기사 스타리아1호</code>`);
     return;
   }
 
@@ -456,7 +455,7 @@ async function handleDriverAdd(botToken, p) {
   if (existing.exists) {
     await sendBotMessage(botToken, p.chatId,
       `이미 등록된 기사입니다: <code>${chatId}</code>\n` +
-      `정보 수정은 <code>/driver_remove</code> 후 다시 등록 또는 Firestore Console에서 직접.`);
+      `정보 수정은 <code>기사삭제</code> 후 다시 등록 또는 Firestore Console에서 직접.`);
     return;
   }
 
@@ -479,7 +478,7 @@ async function handleDriverAdd(botToken, p) {
 // /driver_remove <chatId>
 async function handleDriverRemove(botToken, p) {
   if (p.args.length < 1) {
-    await sendBotMessage(botToken, p.chatId, `사용법: <code>/driver_remove &lt;chatId&gt;</code>`);
+    await sendBotMessage(botToken, p.chatId, `사용법: <code>기사삭제 &lt;chatId&gt;</code>`);
     return;
   }
 
@@ -506,7 +505,7 @@ async function handleDriverRemove(botToken, p) {
 async function handleDriverActive(botToken, p, active) {
   if (p.args.length < 1) {
     await sendBotMessage(botToken, p.chatId,
-      `사용법: <code>${active ? '/driver_on' : '/driver_off'} &lt;chatId&gt;</code>`);
+      `사용법: <code>${active ? '기사출근' : '기사휴무'} &lt;chatId&gt;</code>`);
     return;
   }
 
@@ -540,8 +539,8 @@ async function handleDispatchCommand(botToken, p) {
 
   if (p.args.length < 2) {
     await sendBotMessage(botToken, p.chatId,
-      `사용법: <code>/dispatch &lt;orderID&gt; &lt;driverChatId&gt;</code>\n` +
-      `예: <code>/dispatch CT-20260502-123 1234567890</code>`);
+      `사용법: <code>배차 &lt;예약ID&gt; &lt;기사chatId&gt;</code>\n` +
+      `예: <code>배차 CT-20260502-123 1234567890</code>`);
     return;
   }
 
@@ -562,7 +561,7 @@ async function handleDispatchCommand(botToken, p) {
   if (!driverDoc.exists) {
     await sendBotMessage(botToken, p.chatId,
       `기사를 찾을 수 없습니다: <code>${driverChatId}</code>\n` +
-      `<code>/drivers</code> 로 등록된 기사 확인`);
+      `<code>기사</code> 로 등록된 기사 확인`);
     return;
   }
   const driver = driverDoc.data();
@@ -642,7 +641,7 @@ async function handleBookingsCommand(botToken, p) {
   const date = p.args[0] || todayKstDate();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     await sendBotMessage(botToken, p.chatId,
-      `날짜 형식 오류. <code>YYYY-MM-DD</code> 형태로 입력.\n예: <code>/bookings 2026-05-15</code>`);
+      `날짜 형식 오류. <code>YYYY-MM-DD</code> 형태로 입력.\n예: <code>예약 2026-05-15</code>`);
     return;
   }
 
@@ -696,7 +695,7 @@ async function handleSalesCommand(botToken, p) {
   const month = p.args[0] || thisMonthKst();
   if (!/^\d{4}-\d{2}$/.test(month)) {
     await sendBotMessage(botToken, p.chatId,
-      `형식 오류. <code>YYYY-MM</code> 형태로 입력.\n예: <code>/sales 2026-05</code>`);
+      `형식 오류. <code>YYYY-MM</code> 형태로 입력.\n예: <code>매출 2026-05</code>`);
     return;
   }
 
@@ -946,7 +945,7 @@ async function handleStatsCommand(botToken, p) {
   const month = p.args[0] || thisMonthKst();
   if (!/^\d{4}-\d{2}$/.test(month)) {
     await sendBotMessage(botToken, p.chatId,
-      `형식 오류. <code>YYYY-MM</code> 형태로 입력.\n예: <code>/stats 2026-05</code>`);
+      `형식 오류. <code>YYYY-MM</code> 형태로 입력.\n예: <code>통계 2026-05</code>`);
     return;
   }
 
@@ -1005,10 +1004,10 @@ async function handleCsList(botToken, p) {
 async function handleCsAdd(botToken, p) {
   if (p.args.length < 3) {
     await sendBotMessage(botToken, p.chatId,
-      `사용법: <code>/cs_add &lt;orderID&gt; &lt;priority&gt; &lt;issue...&gt; [plan:&lt;planId&gt;]</code>\n` +
-      `priority: <code>low</code> | <code>medium</code> | <code>high</code> | <code>critical</code>\n` +
-      `예: <code>/cs_add CT-20260502-123 high 픽업 30분 지연</code>\n` +
-      `예: <code>/cs_add CT-20260502-123 high plan:abc123 음식 알레르기 누락</code>`);
+      `사용법: <code>이슈추가 &lt;예약ID&gt; &lt;우선순위&gt; &lt;내용...&gt; [plan:&lt;planId&gt;]</code>\n` +
+      `우선순위: <code>low</code> | <code>medium</code> | <code>high</code> | <code>critical</code>\n` +
+      `예: <code>이슈추가 CT-20260502-123 high 픽업 30분 지연</code>\n` +
+      `예: <code>이슈추가 CT-20260502-123 high plan:abc123 음식 알레르기 누락</code>`);
     return;
   }
 
@@ -1026,8 +1025,8 @@ async function handleCsAdd(botToken, p) {
 
   if (filteredArgs.length < 3) {
     await sendBotMessage(botToken, p.chatId,
-      `인자 부족 (orderID priority issue 필요).\n` +
-      `예: <code>/cs_add CT-20260502-123 high plan:abc123 픽업 지연</code>`);
+      `인자 부족 (예약ID 우선순위 내용 필요).\n` +
+      `예: <code>이슈추가 CT-20260502-123 high plan:abc123 픽업 지연</code>`);
     return;
   }
 
@@ -1087,8 +1086,8 @@ async function handleCsAdd(botToken, p) {
 async function handleWhois(botToken, p) {
   if (p.args.length < 1) {
     await sendBotMessage(botToken, p.chatId,
-      `사용법: <code>/whois &lt;chatId&gt;</code>\n` +
-      `한글: <code>누구 1234567890</code>`);
+      `사용법: <code>누구 &lt;chatId&gt;</code>\n` +
+      `예: <code>누구 1234567890</code>`);
     return;
   }
   const [chatId] = p.args;
@@ -1104,7 +1103,7 @@ async function handleWhois(botToken, p) {
   if (!driverDoc.exists) {
     await sendBotMessage(botToken, p.chatId,
       `<code>${chatId}</code> 등록 안 됨.\n\n` +
-      `등록: <code>/driver_add ${chatId} 이름 차량</code>`);
+      `등록: <code>기사추가 ${chatId} 이름 차량</code>`);
     return;
   }
   const d = driverDoc.data();
@@ -1138,8 +1137,8 @@ async function handleWhois(botToken, p) {
 async function handleCsResolve(botToken, p) {
   if (p.args.length < 1) {
     await sendBotMessage(botToken, p.chatId,
-      `사용법: <code>/cs_resolve &lt;ticketId&gt;</code>\n` +
-      `ticketId는 <code>/cs_list</code>로 확인 (앞 12자리만 입력 가능 — fullId 우선)`);
+      `사용법: <code>이슈해결 &lt;티켓ID&gt;</code> (또는 <code>해결 ...</code>)\n` +
+      `티켓ID는 <code>이슈</code>로 확인 (앞 12자리만 입력 가능 — fullId 우선)`);
     return;
   }
 
@@ -1654,7 +1653,7 @@ async function handleQuickBookCallback(botToken, p) {
         await callBot(botToken, 'editMessageText', {
           chat_id: p.chatId,
           message_id: p.messageId,
-          text: `${reason}\n\n<code>/quick_book</code> 으로 다시 시작하세요.`,
+          text: `${reason}\n\n<code>빠른예약</code> 으로 다시 시작하세요.`,
           parse_mode: 'HTML',
         });
       } catch {}
