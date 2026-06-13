@@ -21,7 +21,8 @@
  */
 import { callBot, sendBotMessage, verifyWebhookSecret, parseUpdate } from './_shared/telegram-bot.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { aggregateAdminSales } from './_shared/adminSalesAggregate.js';
 import { sweepExpiredDispatches, computeExpiryDate } from './_shared/dispatch-sweep.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 import { relayAdminReply } from './_shared/chat-relay.js';
@@ -109,6 +110,14 @@ const HELP_TEXT = `<b>CocoTrip 관리자 봇</b>
 <code>매출</code> · <code>매출 2026-05</code> (월별)
 <code>통계</code> · <code>통계 2026-05</code> (기사별/상품별 분해)
 <code>환율</code> — USD↔KRW 즉시 조회
+
+<b>조회 확장</b>
+<code>검색 &lt;검색어&gt;</code> — 고객명·예약번호·전화·기사 통합 검색
+<code>예약상세 &lt;예약번호&gt;</code> — 1건 전체 정보 + 배차이력
+<code>운행</code> · <code>운행 14</code> — 다가오는 운행 (기본 7일)
+<code>추이</code> · <code>추이 30</code> — 일별 매출 추이
+<code>문의</code> — 미응답 고객·차터 문의
+<code>환불</code> — 환불·취소 현황
 
 <b>빠른 예약</b>
 <code>빠른예약</code> — 양식 출력 → 채워서 전송
@@ -250,6 +259,14 @@ const KOREAN_ALIASES = [
 
   // 배차 (인자 필수)
   { re: /^(배차|배차발송|배차 발송)\s+(.+)$/, cmd: '/dispatch', argGroup: 2 },
+
+  // 조회 확장 (읽기 전용) — '예약 상세'가 '예약'(/bookings)보다 먼저 매칭되도록 앞에 배치
+  { re: /^(검색|찾기)\s+(.+)$/i, cmd: '/search', argGroup: 2 },
+  { re: /^(예약상세|예약 상세|상세보기)\s+(.+)$/i, cmd: '/booking', argGroup: 2 },
+  { re: /^(운행|다가오는운행|다가오는 운행|예정운행|예정 운행)(?:\s+(.+))?$/i, cmd: '/upcoming', argGroup: 2 },
+  { re: /^(추이|매출추이|매출 추이)(?:\s+(.+))?$/i, cmd: '/trend', argGroup: 2 },
+  { re: /^(문의|미응답문의|미응답 문의|고객문의|고객 문의)(?:\s+(.+))?$/i, cmd: '/inquiries', argGroup: 2 },
+  { re: /^(환불|환불현황|환불 현황|취소현황|취소 현황)(?:\s+(.+))?$/i, cmd: '/refunds', argGroup: 2 },
 
   // 조회 (인자 선택 — 생략 시 오늘/이번달)
   { re: /^(예약목록|예약|오늘예약|오늘 예약)(?:\s+(.+))?$/, cmd: '/bookings', argGroup: 2 },
@@ -393,6 +410,30 @@ async function routeCommand(botToken, p) {
 
     case '/quick_book':
       await handleQuickBook(botToken, p);
+      break;
+
+    case '/search':
+      await handleSearchCommand(botToken, p);
+      break;
+
+    case '/booking':
+      await handleBookingDetailCommand(botToken, p);
+      break;
+
+    case '/upcoming':
+      await handleUpcomingCommand(botToken, p);
+      break;
+
+    case '/trend':
+      await handleTrendCommand(botToken, p);
+      break;
+
+    case '/inquiries':
+      await handleInquiriesCommand(botToken, p);
+      break;
+
+    case '/refunds':
+      await handleRefundsCommand(botToken, p);
       break;
 
     default:
@@ -688,6 +729,408 @@ async function handleBookingsCommand(botToken, p) {
   // 4096자 초과 방지
   const text = lines.join('\n');
   await sendBotMessage(botToken, p.chatId, text.length > 3900 ? text.slice(0, 3900) + '\n...(잘림)' : text);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 조회 확장 명령 (전부 읽기 전용 — 환불/캡처/송금 등 금융 자동실행 없음.
+//   어드민 chat_id fail-closed 게이트로 운영자 본인만 접근 → PII 노출 안전.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 텔레그램 4096자 제한 가드 (기존 handleBookingsCommand 패턴 공용화)
+function truncTelegram(text) {
+  return text.length > 3900 ? text.slice(0, 3900) + '\n...(잘림)' : text;
+}
+
+// createdAt(Timestamp|string|epoch) → epoch ms (admin-sales.js bookingDateMs 와 동일 규약)
+function bookingCreatedMs(b) {
+  if (!b || !b.createdAt) return null;
+  if (typeof b.createdAt.toDate === 'function') return b.createdAt.toDate().getTime();
+  if (typeof b.createdAt === 'string') return new Date(b.createdAt).getTime();
+  if (b.createdAt._seconds) return b.createdAt._seconds * 1000;
+  return null;
+}
+
+// 'YYYY-MM-DD' + N일 → 'YYYY-MM-DD'.
+// 컨벤션: 반환값은 운행 조회의 **inclusive** 상한으로 사용 (today..addDaysKst(today,N) 양끝 포함).
+// 즉 N=0 이면 오늘 하루(inclusive), N=7 이면 오늘~7일 뒤까지 8일분(inclusive). exclusive 아님.
+function addDaysKst(isoDate, n) {
+  const d = new Date(isoDate + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// Firestore Timestamp|string|epoch → 경과 시간(시간 단위) | null
+function ageHours(ts, nowMs) {
+  let ms = null;
+  if (ts && typeof ts.toMillis === 'function') ms = ts.toMillis();
+  else if (typeof ts === 'string') ms = new Date(ts).getTime();
+  else if (ts && ts._seconds) ms = ts._seconds * 1000;
+  return ms ? Math.round((nowMs - ms) / 3600000) : null;
+}
+
+// /search <검색어> — 고객명·예약번호·이메일·전화·기사명 통합 검색 (최근 500건 + 기사 전수)
+async function handleSearchCommand(botToken, p) {
+  const query = (p.args || []).join(' ').trim();
+  if (!query || query.length < 2) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>검색 &lt;검색어&gt;</code>\n` +
+      `예: <code>검색 김철수</code> · <code>검색 CT-2026</code> · <code>검색 010-1234</code>`);
+    return;
+  }
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const q = query.toLowerCase();
+  const matches = [];
+
+  // 예약번호로 보이면 단건 doc 직접 조회 (오래된 건도 잡음)
+  if (/^ct-/i.test(query)) {
+    try {
+      const direct = await db.collection('bookings').doc(query).get();
+      if (direct.exists) matches.push({ id: direct.id, ...direct.data() });
+    } catch { /* ignore */ }
+  }
+
+  // 최근 bookings 스캔 (읽기비용 가드: createdAt desc 500건, 부분일치는 Firestore 불가→인메모리)
+  const snap = await db.collection('bookings').orderBy('createdAt', 'desc').limit(500).get();
+  snap.forEach((doc) => {
+    if (matches.some((m) => m.id === doc.id)) return;
+    const b = doc.data();
+    const hay = [
+      doc.id, b.payerName, b.customerName,
+      b.userEmail, b.payerEmail, b.customerEmail,
+      b.customerPhone, b.phone,
+    ].map((v) => String(v || '').toLowerCase()).join(' | ');
+    if (hay.includes(q)) matches.push({ id: doc.id, ...b });
+  });
+
+  // 기사명 검색 (drivers 소량 — 전수)
+  const driverHits = [];
+  const driverSnap = await db.collection('drivers').get();
+  driverSnap.forEach((doc) => {
+    const d = doc.data();
+    if (String(d.name || '').toLowerCase().includes(q) || doc.id.includes(query)) {
+      driverHits.push({ id: doc.id, ...d });
+    }
+  });
+
+  if (matches.length === 0 && driverHits.length === 0) {
+    await sendBotMessage(botToken, p.chatId,
+      `🔍 "<b>${escapeHtmlLocal(query)}</b>" 검색 결과 없음.\n(최근 500건 예약 + 기사 기준)`);
+    return;
+  }
+
+  const lines = [`🔍 "<b>${escapeHtmlLocal(query)}</b>" 검색 결과`, ''];
+  if (matches.length) {
+    lines.push(`<b>예약 ${matches.length}건</b>`);
+    matches.slice(0, 15).forEach((b) => {
+      lines.push(
+        `<code>${b.id.slice(0, 20)}</code> · ${b.tourDate || '-'}\n` +
+        `  ${b.payerName || b.customerName || b.userEmail || '-'} · ${b.productType || '-'} · $${b.amountUSD || '0'}`
+      );
+    });
+    if (matches.length > 15) lines.push(`… 외 ${matches.length - 15}건`);
+    lines.push('');
+  }
+  if (driverHits.length) {
+    lines.push(`<b>기사 ${driverHits.length}명</b>`);
+    driverHits.slice(0, 10).forEach((d) => {
+      lines.push(`<code>${d.id}</code> · ${d.name || '?'} · ${d.vehicle || '-'}`);
+    });
+    lines.push('');
+  }
+  lines.push(`상세: <code>예약상세 &lt;예약번호&gt;</code>`);
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /booking <orderID> — 단일 예약 상세 + 배차 이력 (읽기 전용)
+async function handleBookingDetailCommand(botToken, p) {
+  const orderID = (p.args[0] || '').trim();
+  if (!orderID) {
+    await sendBotMessage(botToken, p.chatId,
+      `사용법: <code>예약상세 &lt;예약번호&gt;</code>\n예: <code>예약상세 CT-20260502-123</code>`);
+    return;
+  }
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const snap = await db.collection('bookings').doc(orderID).get();
+  if (!snap.exists) {
+    await sendBotMessage(botToken, p.chatId,
+      `예약 없음: <code>${escapeHtmlLocal(orderID)}</code>\n(<code>검색 &lt;고객명&gt;</code>으로 찾아보세요)`);
+    return;
+  }
+  const b = snap.data();
+  const status = b.adminStatus || b.status || '-';
+  const lines = [
+    `<b>예약 상세</b> <code>${snap.id}</code>`,
+    ``,
+    `상태: <b>${status}</b>`,
+    `상품: ${b.productType || '-'}`,
+    `투어일: ${b.tourDate || '-'}${b.tourTime ? ' ' + b.tourTime : ''}`,
+    `인원: ${b.paxCount || '?'}명`,
+    `고객: ${b.payerName || b.customerName || '-'}`,
+    `연락처: ${b.customerPhone || b.phone || '-'}`,
+    `이메일: ${b.userEmail || b.payerEmail || b.customerEmail || '-'}`,
+    `픽업: ${b.pickupLocation || '-'}`,
+    `드롭: ${b.dropoffLocation || '-'}`,
+    b.flightNumber ? `항공편: ${b.flightNumber}` : null,
+    `금액: $${b.amountUSD || '0'}`,
+    b.memo ? `메모: ${String(b.memo).slice(0, 300)}` : null,
+    `배차: ${b.driver ? `${b.driver} (${b.dispatchStatus || '-'})` : '미배정'}`,
+  ].filter(Boolean);
+
+  // 배차 이력 (doc id 가 {orderID}_{driverChatId} 라 where 로 조회)
+  try {
+    const dispSnap = await db.collection('dispatch_messages').where('orderID', '==', orderID).get();
+    if (!dispSnap.empty) {
+      const hist = [];
+      dispSnap.forEach((d) => hist.push(d.data()));
+      hist.sort((a, b2) => {
+        const am = a.sentAt && a.sentAt.toMillis ? a.sentAt.toMillis() : 0;
+        const bm = b2.sentAt && b2.sentAt.toMillis ? b2.sentAt.toMillis() : 0;
+        return bm - am;
+      });
+      lines.push('');
+      lines.push(`<b>배차 이력 (${hist.length})</b>`);
+      hist.slice(0, 8).forEach((h) => {
+        const icon = h.status === 'accepted' ? '✓' : h.status === 'rejected' ? '✗' : h.status === 'expired' ? '⌛' : '●';
+        lines.push(`${icon} ${h.driverName || h.driverChatId || '-'} · ${h.status || '-'}`);
+      });
+    }
+  } catch { /* 배차 조회 실패는 무시 (본문은 표시) */ }
+
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /upcoming [일수|오늘|내일] — 다가오는 운행 (기본 7일) (읽기 전용)
+async function handleUpcomingCommand(botToken, p) {
+  let days = 7;
+  const arg = (p.args[0] || '').trim();
+  if (/^\d+$/.test(arg)) days = Math.min(Math.max(parseInt(arg, 10), 0), 60);
+  else if (/^(오늘|today)$/i.test(arg)) days = 0;
+  else if (/^(내일|tomorrow)$/i.test(arg)) days = 1;
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const today = todayKstDate();
+  const until = addDaysKst(today, days);
+
+  let snap;
+  try {
+    // tourDate 범위 = today(inclusive) ~ until(inclusive). 둘 다 '>='/'<=' 라 양끝 포함.
+    // 단일 필드(tourDate) range 라 composite index 불필요.
+    snap = await db.collection('bookings')
+      .where('tourDate', '>=', today)
+      .where('tourDate', '<=', until)
+      .get();
+  } catch (err) {
+    await sendBotMessage(botToken, p.chatId, `운행 조회 실패: ${escapeHtmlLocal(err.message)}`);
+    return;
+  }
+
+  // status 는 대/소문자·빈값 혼재(CONFIRMED/confirmed/legacy) → lowercase 후 취소만 제외
+  const rows = [];
+  snap.forEach((doc) => {
+    const b = doc.data();
+    const st = (b.adminStatus || b.status || '').toLowerCase();
+    if (st === 'canceled' || st === 'cancelled') return;
+    rows.push({ id: doc.id, ...b });
+  });
+  rows.sort((a, b2) => String(a.tourDate).localeCompare(String(b2.tourDate)));
+
+  if (rows.length === 0) {
+    await sendBotMessage(botToken, p.chatId, `📅 ${today} ~ ${until} 예정 운행 없음.`);
+    return;
+  }
+
+  const lines = [`📅 <b>다가오는 운행 (${today} ~ ${until}, ${rows.length}건)</b>`, ''];
+  let curDate = '';
+  rows.forEach((b) => {
+    if (b.tourDate !== curDate) { curDate = b.tourDate; lines.push(`<b>${curDate}</b>`); }
+    const driverInfo = b.driver ? `🚗 ${b.driver}` : '⚠️ 미배차';
+    lines.push(
+      ` <code>${b.id.slice(0, 18)}</code> ${b.tourTime || ''}\n` +
+      `   ${b.productType || '-'} · ${b.paxCount || '?'}명 · ${b.payerName || b.customerName || '-'} · ${driverInfo}\n` +
+      `   픽업: ${b.pickupLocation || '-'}`
+    );
+  });
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /trend [일수] — 일별 매출 추이 (기본 30, 7~90). SSOT=aggregateAdminSales (테스트/취소 제외 동일)
+async function handleTrendCommand(botToken, p) {
+  const days = Math.min(Math.max(parseInt((p.args[0] || '30'), 10) || 30, 7), 90);
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000); // todayKST (admin-sales.js 동일 규약)
+  const sinceCutoff = new Date(now);
+  sinceCutoff.setUTCDate(sinceCutoff.getUTCDate() - days);
+
+  let snap;
+  try {
+    snap = await db.collection('bookings')
+      .where('createdAt', '>=', Timestamp.fromDate(sinceCutoff))
+      .get();
+  } catch (err) {
+    await sendBotMessage(botToken, p.chatId, `추이 조회 실패: ${escapeHtmlLocal(err.message)}`);
+    return;
+  }
+
+  const rawAll = [];
+  snap.forEach((doc) => {
+    const b = doc.data();
+    rawAll.push({ id: doc.id, ...b, _createdAtMs: bookingCreatedMs(b) });
+  });
+
+  const agg = aggregateAdminSales(rawAll, { now, days });
+  const daily = agg.daily || [];
+
+  // 추세 = 전반 절반 합 vs 후반 절반 합
+  const half = Math.floor(daily.length / 2);
+  const firstSum = daily.slice(0, half).reduce((s, d) => s + d.usd, 0);
+  const lastSum = daily.slice(half).reduce((s, d) => s + d.usd, 0);
+  const trendIcon = lastSum > firstSum * 1.1 ? '📈 상승' : lastSum < firstSum * 0.9 ? '📉 하락' : '➡️ 보합';
+
+  const totalUsd = daily.reduce((s, d) => s + d.usd, 0);
+  const totalCnt = daily.reduce((s, d) => s + d.count, 0);
+
+  const lines = [
+    `📊 <b>일별 매출 추이 (최근 ${days}일)</b>`,
+    ``,
+    `합계: <b>$${totalUsd.toFixed(2)}</b> · ${totalCnt}건 · ${trendIcon}`,
+    `(테스트·취소 제외 — 손익 SSOT 동일 기준)`,
+    ``,
+  ];
+  // 최근 14일만 막대 (너무 길면 잘림)
+  const recentDays = daily.slice(-14);
+  const maxUsd = Math.max(1, ...recentDays.map((d) => d.usd));
+  recentDays.forEach((d) => {
+    const barLen = Math.round((d.usd / maxUsd) * 10);
+    const bar = '█'.repeat(barLen) + '░'.repeat(Math.max(0, 10 - barLen));
+    lines.push(`${d.date.slice(5)} ${bar} $${d.usd.toFixed(0)} (${d.count})`);
+  });
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /inquiries — 미응답 문의 (cs_tickets open/in_progress + charter_inquiries pending/NEW)
+async function handleInquiriesCommand(botToken, p) {
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const csOpen = [];
+  try {
+    const csSnap = await db.collection('cs_tickets')
+      .where('status', 'in', ['open', 'in_progress']).limit(50).get();
+    csSnap.forEach((doc) => csOpen.push({ id: doc.id, ...doc.data() }));
+  } catch { /* graceful */ }
+
+  // 차터 문의: writer 2종 — 인앱 모달='pending', 버스/VIP inquiry-submit='NEW'.
+  //   'pending'만 매칭하면 버스/VIP 문의 전량 누락 → 반드시 ['pending','NEW'] in 매칭.
+  const charterOpen = [];
+  try {
+    const chSnap = await db.collection('charter_inquiries')
+      .where('status', 'in', ['pending', 'NEW']).limit(50).get();
+    chSnap.forEach((doc) => charterOpen.push({ id: doc.id, ...doc.data() }));
+  } catch { /* graceful */ }
+
+  const nowMs = Date.now();
+  csOpen.sort((a, b) => (ageHours(b.createdAt, nowMs) || 0) - (ageHours(a.createdAt, nowMs) || 0));
+  charterOpen.sort((a, b) => (ageHours(b.createdAt, nowMs) || 0) - (ageHours(a.createdAt, nowMs) || 0));
+
+  const total = csOpen.length + charterOpen.length;
+  if (total === 0) {
+    await sendBotMessage(botToken, p.chatId, `💬 미응답 문의 없음. 👍`);
+    return;
+  }
+
+  const lines = [`💬 <b>미응답 문의 ${total}건</b>`, ''];
+  if (csOpen.length) {
+    lines.push(`<b>CS 티켓 ${csOpen.length}건</b> (오래된 순)`);
+    csOpen.slice(0, 15).forEach((t) => {
+      const h = ageHours(t.createdAt, nowMs);
+      const aged = h != null ? (h >= 24 ? ` ⏰${h}h` : ` ${h}h`) : '';
+      const icon = t.priority === 'critical' ? '🔴' : t.priority === 'high' ? '🟠' : '⚪';
+      lines.push(` ${icon} <code>${t.id.slice(0, 12)}</code> ${t.customer || t.bookingId || '-'}${aged}\n   ${String(t.issue || '').slice(0, 60)}`);
+    });
+    lines.push('');
+  }
+  if (charterOpen.length) {
+    lines.push(`<b>차터 견적 문의 ${charterOpen.length}건</b>`);
+    charterOpen.slice(0, 15).forEach((c) => {
+      const h = ageHours(c.createdAt, nowMs);
+      const aged = h != null ? ` ${h}h` : '';
+      lines.push(` 🚐 <code>${c.id.slice(0, 12)}</code> ${c.name || c.customerName || '-'}${aged}\n   ${String(c.message || c.notes || c.route || '').slice(0, 60)}`);
+    });
+  }
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
+}
+
+// /refunds [일수] — 환불·취소 현황 (기본 90, 7~365) (읽기 전용)
+async function handleRefundsCommand(botToken, p) {
+  const days = Math.min(Math.max(parseInt((p.args[0] || '90'), 10) || 90, 7), 365);
+
+  const db = initAdminDb('telegram-admin');
+  if (!db) throw new Error('Firestore unavailable');
+
+  const sinceCutoff = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  sinceCutoff.setUTCDate(sinceCutoff.getUTCDate() - days);
+
+  let snap;
+  try {
+    snap = await db.collection('bookings')
+      .where('createdAt', '>=', Timestamp.fromDate(sinceCutoff))
+      .get();
+  } catch (err) {
+    await sendBotMessage(botToken, p.chatId, `환불 조회 실패: ${escapeHtmlLocal(err.message)}`);
+    return;
+  }
+
+  // status 대문자 enum: CANCELED/CANCELLED, REFUNDED/PARTIALLY_REFUNDED/REFUND_PENDING.
+  //   환불액은 refundedKRW(KRW) — USD 직접 필드 없음.
+  const canceled = [];
+  const refunded = [];
+  let refundKRW = 0;
+  snap.forEach((doc) => {
+    const b = doc.data();
+    const st = String(b.adminStatus || b.status || '').toUpperCase();
+    if (st === 'CANCELED' || st === 'CANCELLED') {
+      canceled.push({ id: doc.id, ...b });
+    } else if (st.includes('REFUND')) {
+      refunded.push({ id: doc.id, ...b });
+      refundKRW += Number(b.refundedKRW || 0);
+    }
+  });
+
+  if (canceled.length === 0 && refunded.length === 0) {
+    await sendBotMessage(botToken, p.chatId, `💸 최근 ${days}일 환불·취소 없음.`);
+    return;
+  }
+
+  const lines = [
+    `💸 <b>환불·취소 현황 (최근 ${days}일)</b>`,
+    ``,
+    `취소: <b>${canceled.length}건</b>`,
+    `환불: <b>${refunded.length}건</b> · 환불액 <b>₩${refundKRW.toLocaleString()}</b>`,
+    ``,
+  ];
+  if (refunded.length) {
+    lines.push(`<b>환불 내역</b>`);
+    refunded.slice(0, 12).forEach((b) => {
+      lines.push(` <code>${b.id.slice(0, 18)}</code> · ₩${Number(b.refundedKRW || 0).toLocaleString()} · ${String(b.refundReason || b.cancelReason || '-').slice(0, 40)}`);
+    });
+    lines.push('');
+  }
+  if (canceled.length) {
+    lines.push(`<b>취소 내역</b>`);
+    canceled.slice(0, 12).forEach((b) => {
+      lines.push(` <code>${b.id.slice(0, 18)}</code> · ${String(b.cancelReason || '-').slice(0, 40)}`);
+    });
+  }
+  await sendBotMessage(botToken, p.chatId, truncTelegram(lines.join('\n')));
 }
 
 // /sales [YYYY-MM] — 월별 매출 요약
