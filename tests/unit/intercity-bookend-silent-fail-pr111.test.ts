@@ -81,7 +81,9 @@ describe('RouteAgent — P111 intercity bookend silent-fail telemetry', () => {
 
   it('alert channel=admin + severity=high (P83 pattern)', () => {
     // Locate the throttledTelegramAlert call block (not the earlier comment ref).
-    const callIdx = ROUTE_AGENT.indexOf('throttledTelegramAlert({');
+    // bookend alert 를 key 로 특정(다른 throttledTelegramAlert 호출이 앞에 있어도 정확히).
+    const keyIdx = ROUTE_AGENT.lastIndexOf('intercity-bookend-fail'); // 주석(L1379) 말고 실제 key
+    const callIdx = ROUTE_AGENT.lastIndexOf('throttledTelegramAlert({', keyIdx);
     expect(callIdx).toBeGreaterThan(0);
     const alertBlock = ROUTE_AGENT.slice(callIdx, callIdx + 3000);
     expect(alertBlock).toMatch(/channel:\s*['"]admin['"]/);
@@ -89,7 +91,9 @@ describe('RouteAgent — P111 intercity bookend silent-fail telemetry', () => {
   });
 
   it('alert context includes day + fromCity + toCity + reasons array', () => {
-    const callIdx = ROUTE_AGENT.indexOf('throttledTelegramAlert({');
+    // bookend alert 를 key 로 특정(다른 throttledTelegramAlert 호출이 앞에 있어도 정확히).
+    const keyIdx = ROUTE_AGENT.lastIndexOf('intercity-bookend-fail'); // 주석(L1379) 말고 실제 key
+    const callIdx = ROUTE_AGENT.lastIndexOf('throttledTelegramAlert({', keyIdx);
     expect(callIdx).toBeGreaterThan(0);
     const alertBlock = ROUTE_AGENT.slice(callIdx, callIdx + 3500);
     expect(alertBlock).toMatch(/context:\s*\{/);
