@@ -8,13 +8,15 @@ describe('mood-pricing — 단가 SSOT (부가세 포함)', () => {
     expect(MOOD_RATES.vehicle).toBe(33000);
     expect(MOOD_RATES.manager).toBe(44000);
   });
-  it('computeAmountKRW = rate × hours', () => {
-    expect(computeAmountKRW('vehicle', 2)).toEqual({ ok: true, amountKRW: 66000, ratePerHour: 33000 });
-    expect(computeAmountKRW('manager', 3)).toEqual({ ok: true, amountKRW: 132000, ratePerHour: 44000 });
+  it('computeAmountKRW = rate × max(3, hours) — 최소 3시간 고정', () => {
+    expect(computeAmountKRW('vehicle', 3)).toEqual({ ok: true, amountKRW: 99000, ratePerHour: 33000 });   // 3h
+    expect(computeAmountKRW('manager', 5)).toEqual({ ok: true, amountKRW: 220000, ratePerHour: 44000 });  // 5h
   });
-  it('소수 시간 허용 + 정수 원 반올림 (1.5h)', () => {
-    expect(computeAmountKRW('vehicle', 1.5).amountKRW).toBe(49500);
-    expect(computeAmountKRW('manager', 1.5).amountKRW).toBe(66000);
+  it('3시간 미만은 3시간 청구(floor), 그 이상만 추가', () => {
+    expect(computeAmountKRW('vehicle', 1).amountKRW).toBe(99000);    // 1h → 3h 청구
+    expect(computeAmountKRW('vehicle', 2).amountKRW).toBe(99000);    // 2h → 3h 청구
+    expect(computeAmountKRW('manager', 1.5).amountKRW).toBe(132000); // 1.5h → 3h 청구
+    expect(computeAmountKRW('vehicle', 4.5).amountKRW).toBe(148500); // 4.5h → 33000×4.5 (floor 무관, 소수 허용)
   });
   it('잘못된 serviceType → ok:false', () => {
     expect(computeAmountKRW('bus', 1).ok).toBe(false);
@@ -44,13 +46,13 @@ describe('mood-pricing — 거리 추가요금 + 총액', () => {
     expect(computeDistanceSurchargeKRW(75)).toBe(49500);
     expect(computeDistanceSurchargeKRW(120)).toBe(79200);
   });
-  it('총액 = 시급×시간 + 거리추가 + 톨비', () => {
+  it('총액 = 시급×max(3,시간) + 거리추가 + 톨비', () => {
     const r = computeMoodTotalKRW({ serviceType: 'manager', durationHours: 2, km: 100, tollKRW: 5000 });
     expect(r.ok).toBe(true);
-    expect(r.baseKRW).toBe(88000);            // 44000 × 2
+    expect(r.baseKRW).toBe(132000);           // 44000 × max(3,2) = 44000×3 (최소 3시간)
     expect(r.distanceSurchargeKRW).toBe(66000); // 100km
     expect(r.tollKRW).toBe(5000);
-    expect(r.amountKRW).toBe(159000);          // 88000 + 66000 + 5000
+    expect(r.amountKRW).toBe(203000);          // 132000 + 66000 + 5000
   });
   it('단거리(50km 미만)·톨비 0 = base 만', () => {
     const r = computeMoodTotalKRW({ serviceType: 'vehicle', durationHours: 3, km: 20 });
