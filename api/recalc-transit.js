@@ -21,6 +21,7 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { checkIpRateLimit, getClientIp } from './_shared/ip-rate-limit.js';
+import { verifyUserToken } from './_shared/user-auth.js';
 import axios from 'axios';
 import { formatTransitSummary } from './_odsay_helper.js';
 // P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP.
@@ -66,9 +67,17 @@ export default async function handler(req, res) {
     }
     const plan = snap.data();
 
-    // Auth check: owner or token
+    // Auth check: owner(verified token) or accessToken or unprotected legacy guest.
+    // 🔴 보안: 이전엔 Authorization: Bearer 원문을 verifyIdToken 없이 raw uid 로 비교 →
+    //   피해자 Firebase uid 만 알면 owned plan 의 transit 을 무단 재계산(변조) 가능했다.
+    //   이제 verifyUserToken 으로 검증된 auth.uid 만 owner 로 인정한다.
+    //   (프론트 usePlanEditor 가 user.getIdToken() 을 authFetch 로 전송하도록 동반 변경.)
+    let uid = null;
     const authHeader = req.headers.authorization || '';
-    const uid = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (authHeader.startsWith('Bearer ')) {
+      const auth = await verifyUserToken(req);
+      if (auth.ok) uid = auth.uid;
+    }
     const isOwner = uid && plan.uid === uid;
     const hasToken = plan.accessToken && plan.accessToken === token;
     // 🔴 보안: 이전엔 isGuest=!plan.uid 로 "소유자 없는 plan" 을 자격 없이 누구나 변조 가능했다

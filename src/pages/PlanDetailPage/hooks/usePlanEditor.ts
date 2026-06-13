@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
+import { authFetch } from '@/lib/authFetch';
 import type { PlanDocument, PlanDay, PlanStop, SetPlanFn } from '../types';
 
 interface StopData {
@@ -26,7 +26,6 @@ export function usePlanEditor(
   plan: PlanDocument | null,
   setPlan: SetPlanFn,
 ) {
-  const { user } = useAuth();
   const [isRecalculating, setIsRecalculating] = useState(false);
   const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -64,20 +63,18 @@ export function usePlanEditor(
     recalcTimerRef.current = setTimeout(() => {
       recalcTransit(dayIdx, token);
     }, 2000);
-  }, [planId, user]);
+  }, [planId]);
 
   // Call /api/recalc-transit to refresh stale segments
   const recalcTransit = useCallback(async (dayIdx: number, token: string | null) => {
     if (!planId) return;
     setIsRecalculating(true);
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (user && user.uid) {
-        headers['Authorization'] = `Bearer ${user.uid}`;
-      }
-      const res = await fetch('/api/recalc-transit', {
+      // authFetch 가 로그인 시 검증 가능한 Firebase ID 토큰을 Bearer 로 첨부(서버 verifyUserToken
+      // 으로 owner 검증). 비로그인(게스트)은 토큰 없이 전송 → 서버는 body.token(accessToken) 인증.
+      const res = await authFetch('/api/recalc-transit', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId, dayIndex: dayIdx, token }),
       });
       const data = await res.json();
@@ -92,7 +89,7 @@ export function usePlanEditor(
     } finally {
       setIsRecalculating(false);
     }
-  }, [planId, user]);
+  }, [planId]);
 
   async function deleteStop(dayIdx: number, stopIdx: number, token?: string | null) {
     if (!plan || !plan.itinerary) return;
