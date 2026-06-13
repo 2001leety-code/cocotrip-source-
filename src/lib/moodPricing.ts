@@ -18,17 +18,17 @@ export const MOOD_RATES: Record<MoodServiceType, number> = {
 export const MOOD_MAX_DURATION_HOURS = 15;
 
 /**
- * 시간 고정 서비스 — 공항은 편도 2시간 고정. 백엔드 MOOD_FIXED_DURATION_HOURS 와 동일.
- * (UI 는 이 서비스 선택 시 시간 컨트롤을 잠그고, 백엔드는 입력 무시하고 강제.)
+ * 정액 서비스 — 공항 픽업/샌딩은 거리·시간 무관 110,000원 고정. 백엔드 MOOD_FIXED_PRICE_KRW 와 동일.
+ * (UI 는 이 서비스 선택 시 시간/거리 표시를 숨기고, 백엔드는 정액만 청구.)
  */
-export const MOOD_FIXED_DURATION_HOURS: Partial<Record<MoodServiceType, number>> = {
-  airport: 2,
+export const MOOD_FIXED_PRICE_KRW: Partial<Record<MoodServiceType, number>> = {
+  airport: 110000,
 };
 
-/** serviceType 에 고정 시간이 있으면 그 값, 없으면 입력 durationHours 그대로. */
-export function effectiveDurationHours(serviceType: MoodServiceType, durationHours: number): number {
-  const fixed = MOOD_FIXED_DURATION_HOURS[serviceType];
-  return fixed === undefined ? durationHours : fixed;
+/** serviceType 이 정액 서비스면 그 정액(원), 아니면 null. */
+export function fixedPriceFor(serviceType: MoodServiceType): number | null {
+  const fixed = MOOD_FIXED_PRICE_KRW[serviceType];
+  return fixed === undefined ? null : fixed;
 }
 
 /**
@@ -46,9 +46,11 @@ export function computeDistanceSurchargeKRW(km: number): number {
 
 /** 예상 금액 (원). 표시 전용 — 실제 청구는 백엔드 재계산. (base = 시급×시간) */
 export function estimateMoodAmountKRW(serviceType: MoodServiceType, durationHours: number): number {
+  // 정액 서비스(공항)는 시간 무관 정액.
+  const fixed = fixedPriceFor(serviceType);
+  if (fixed !== null) return fixed;
   const rate = MOOD_RATES[serviceType] || 0;
-  // 공항 등 고정 시간 서비스는 입력 무시하고 고정값(2h) 사용 (백엔드 SSOT 와 동일).
-  const hours = Number(effectiveDurationHours(serviceType, durationHours));
+  const hours = Number(durationHours);
   if (!Number.isFinite(hours) || hours <= 0) return 0;
   return Math.round(rate * hours);
 }
@@ -80,6 +82,11 @@ export function computeMoodTotalKRW(input: {
   tollKRW?: number;
 }): MoodTotalBreakdown {
   const { serviceType, durationHours, km = 0, tollKRW = 0 } = input;
+  // 정액 서비스(공항) — 시간/거리/톨비 무시하고 정액만 (백엔드 SSOT 와 동일).
+  const fixed = fixedPriceFor(serviceType);
+  if (fixed !== null) {
+    return { ok: true, amountKRW: fixed, baseKRW: fixed, ratePerHour: 0, distanceSurchargeKRW: 0, tollKRW: 0, km: 0 };
+  }
   const ratePerHour = MOOD_RATES[serviceType] || 0;
   const baseKRW = estimateMoodAmountKRW(serviceType, durationHours);
   const distanceSurchargeKRW = computeDistanceSurchargeKRW(km);

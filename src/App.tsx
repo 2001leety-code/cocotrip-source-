@@ -567,7 +567,9 @@ function AnimatedRoutes() {
           <Route
             path="/mood"
             element={
-              <Suspense fallback={<PlannerSkeleton />}>
+              // MOOD 청크 로딩 중 코코트립(planner) 스켈레톤이 깜빡이던 문제 → MOOD 다크 배경
+              // placeholder(MoodPortal 자체 로딩 bg=#0a0412 와 동일)로 교체해 매끄럽게.
+              <Suspense fallback={<div className="min-h-screen" style={{ background: '#0a0412' }} aria-hidden />}>
                 <MoodPortal />
               </Suspense>
             }

@@ -18,7 +18,8 @@
 
 /** @typedef {'vehicle' | 'airport' | 'manager'} MoodServiceType */
 
-/** 서비스별 시급 (원). 부가세 포함. 순서 = UI 탭 순서(차량/공항/매니저). */
+/** 서비스별 시급 (원). 부가세 포함. 순서 = UI 탭 순서(차량/공항/매니저).
+ *  ⚠️ airport 는 정액 서비스라 시급 미사용(MOOD_FIXED_PRICE_KRW 참조) — 탭 존재용 placeholder. */
 export const MOOD_RATES = Object.freeze({
   vehicle: 33000,
   airport: 33000,
@@ -26,17 +27,16 @@ export const MOOD_RATES = Object.freeze({
 });
 
 /**
- * 시간 고정 서비스 — 공항(airport)은 편도 운행이라 2시간 고정(운영자 2026-06-14).
- * 클라이언트가 보낸 durationHours 는 무시하고 이 값으로 강제(가격 위조 방지).
+ * 정액 서비스 — 공항(airport) 픽업/샌딩은 거리·시간 무관 110,000원 고정(운영자 2026-06-14).
+ * 부가세 포함. 시급×시간/거리추가/톨비 전부 무시하고 이 정액만 청구.
  */
-export const MOOD_FIXED_DURATION_HOURS = Object.freeze({ airport: 2 });
+export const MOOD_FIXED_PRICE_KRW = Object.freeze({ airport: 110000 });
 
-/** serviceType 에 고정 시간이 있으면 그 값, 없으면 입력 durationHours 그대로. */
-export function effectiveDurationHours(serviceType, durationHours) {
-  if (Object.prototype.hasOwnProperty.call(MOOD_FIXED_DURATION_HOURS, serviceType)) {
-    return MOOD_FIXED_DURATION_HOURS[serviceType];
-  }
-  return durationHours;
+/** serviceType 이 정액 서비스면 그 정액(원), 아니면 null. */
+export function fixedPriceFor(serviceType) {
+  return Object.prototype.hasOwnProperty.call(MOOD_FIXED_PRICE_KRW, serviceType)
+    ? MOOD_FIXED_PRICE_KRW[serviceType]
+    : null;
 }
 
 /** 예약 1건 최대 시간 (mood-book.js maxDuration 가드와 동일 의미의 비즈 한도). */
@@ -68,8 +68,7 @@ export function computeAmountKRW(serviceType, durationHours) {
   if (ratePerHour === null) {
     return { ok: false, error: `INVALID_SERVICE_TYPE: ${String(serviceType)}` };
   }
-  // 공항 등 고정 시간 서비스는 입력 durationHours 무시하고 고정값(2h) 강제 — 가격 위조 방지.
-  const hours = Number(effectiveDurationHours(serviceType, durationHours));
+  const hours = Number(durationHours);
   if (!Number.isFinite(hours) || hours <= 0) {
     return { ok: false, error: 'INVALID_DURATION: must be a positive number' };
   }
@@ -102,6 +101,13 @@ export function computeDistanceSurchargeKRW(km) {
  * @returns {{ ok:true, amountKRW, baseKRW, ratePerHour, distanceSurchargeKRW, tollKRW, km } | { ok:false, error }}
  */
 export function computeMoodTotalKRW({ serviceType, durationHours, km = 0, tollKRW = 0 } = {}) {
+  // 정액 서비스(공항) — 시간/거리/톨비 전부 무시하고 정액만 청구.
+  if (isValidServiceType(serviceType)) {
+    const fixed = fixedPriceFor(serviceType);
+    if (fixed !== null) {
+      return { ok: true, amountKRW: fixed, baseKRW: fixed, ratePerHour: 0, distanceSurchargeKRW: 0, tollKRW: 0, km: 0 };
+    }
+  }
   const base = computeAmountKRW(serviceType, durationHours);
   if (!base.ok) return base;
   const distanceSurchargeKRW = computeDistanceSurchargeKRW(km);

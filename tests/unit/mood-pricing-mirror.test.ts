@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   MOOD_RATES as FE_RATES,
   MOOD_MAX_DURATION_HOURS as FE_MAX,
+  MOOD_FIXED_PRICE_KRW as FE_FIXED,
   computeDistanceSurchargeKRW as feSurcharge,
   computeMoodTotalKRW as feTotal,
   estimateMoodAmountKRW,
 } from '../../src/lib/moodPricing';
 // @ts-expect-error — ESM .js (Vercel serverless 공유 모듈, 백엔드 SSOT)
-import { MOOD_RATES as BE_RATES, MOOD_MAX_DURATION_HOURS as BE_MAX, computeDistanceSurchargeKRW as beSurcharge, computeMoodTotalKRW as beTotal } from '../../api/_shared/mood-pricing.js';
+import { MOOD_RATES as BE_RATES, MOOD_MAX_DURATION_HOURS as BE_MAX, MOOD_FIXED_PRICE_KRW as BE_FIXED, computeDistanceSurchargeKRW as beSurcharge, computeMoodTotalKRW as beTotal } from '../../api/_shared/mood-pricing.js';
 
 // 🔴 프론트 미러(src/lib/moodPricing.ts)가 백엔드 SSOT(api/_shared/mood-pricing.js)와
 //    동일한 단가·공식을 유지하는지 검증. 어긋나면 "표시가 ≠ 청구가" → 신뢰 붕괴(P311).
@@ -21,12 +22,22 @@ describe('mood-pricing 미러 — 프론트 ↔ 백엔드 동등성', () => {
     expect(FE_RATES.manager).toBe(44000);
   });
 
-  it('공항 = 2시간 고정 — durationHours 입력 무시하고 66,000 기본 (위조 방지, FE=BE)', () => {
-    for (const dh of [1, 2, 5, 99, 0, NaN]) {
-      const fe = feTotal({ serviceType: 'airport', durationHours: dh });
-      const be = beTotal({ serviceType: 'airport', durationHours: dh });
-      expect(fe.baseKRW).toBe(66000); // 33,000 × 2 (입력 dh 무시)
-      expect(be.baseKRW).toBe(66000);
+  it('공항 = 정액 110,000 — 시간/거리/톨비 전부 무시 (위조 방지, FE=BE)', () => {
+    expect(FE_FIXED.airport).toBe(BE_FIXED.airport);
+    expect(FE_FIXED.airport).toBe(110000);
+    const cases = [
+      { durationHours: 1, km: 0, tollKRW: 0 },
+      { durationHours: 2, km: 60, tollKRW: 3300 },
+      { durationHours: 99, km: 250, tollKRW: 9000 }, // 시간/거리 조작해도 정액
+      { durationHours: 0, km: 0, tollKRW: 0 },
+    ];
+    for (const c of cases) {
+      const fe = feTotal({ serviceType: 'airport', ...c });
+      const be = beTotal({ serviceType: 'airport', ...c });
+      expect(fe.amountKRW).toBe(110000);
+      expect(be.amountKRW).toBe(110000);
+      expect(fe.distanceSurchargeKRW).toBe(0);
+      expect(fe.tollKRW).toBe(0);
       expect(fe.amountKRW).toBe(be.amountKRW);
     }
   });
