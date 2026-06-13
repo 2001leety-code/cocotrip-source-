@@ -42,6 +42,10 @@ export function fixedPriceFor(serviceType) {
 /** 예약 1건 최대 시간 (mood-book.js maxDuration 가드와 동일 의미의 비즈 한도). */
 export const MOOD_MAX_DURATION_HOURS = 15;
 
+/** 최소 시간 (차량/매니저) — 3시간 고정 base. 3h 미만도 3h 청구, 그 이상만 시간당 추가.
+ *  운영자 2026-06-14. 공항(정액)은 무관. */
+export const MOOD_MIN_DURATION_HOURS = 3;
+
 /** 유효 서비스 타입인지 검사. */
 export function isValidServiceType(serviceType) {
   return serviceType === 'vehicle' || serviceType === 'manager' || serviceType === 'airport';
@@ -75,8 +79,9 @@ export function computeAmountKRW(serviceType, durationHours) {
   if (hours > MOOD_MAX_DURATION_HOURS) {
     return { ok: false, error: `INVALID_DURATION: max ${MOOD_MAX_DURATION_HOURS}h` };
   }
-  // rate × hours. 소수 시간 (예: 1.5h) 도 허용 — 반올림해 정수 원 단위.
-  const amountKRW = Math.round(ratePerHour * hours);
+  // 최소 3시간 고정 — 3h 미만도 3h 청구(그 이상만 시간당 추가). rate × max(3, hours).
+  const billableHours = Math.max(MOOD_MIN_DURATION_HOURS, hours);
+  const amountKRW = Math.round(ratePerHour * billableHours);
   return { ok: true, amountKRW, ratePerHour };
 }
 

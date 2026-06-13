@@ -17,6 +17,9 @@ export const MOOD_RATES: Record<MoodServiceType, number> = {
 
 export const MOOD_MAX_DURATION_HOURS = 15;
 
+/** 최소 시간 (차량/매니저) — 3시간 고정 base. 백엔드 MOOD_MIN_DURATION_HOURS 와 동일. */
+export const MOOD_MIN_DURATION_HOURS = 3;
+
 /**
  * 정액 서비스 — 공항 픽업/샌딩은 거리·시간 무관 110,000원 고정. 백엔드 MOOD_FIXED_PRICE_KRW 와 동일.
  * (UI 는 이 서비스 선택 시 시간/거리 표시를 숨기고, 백엔드는 정액만 청구.)
@@ -52,7 +55,9 @@ export function estimateMoodAmountKRW(serviceType: MoodServiceType, durationHour
   const rate = MOOD_RATES[serviceType] || 0;
   const hours = Number(durationHours);
   if (!Number.isFinite(hours) || hours <= 0) return 0;
-  return Math.round(rate * hours);
+  // 최소 3시간 고정 (백엔드 SSOT 와 동일).
+  const billableHours = Math.max(MOOD_MIN_DURATION_HOURS, hours);
+  return Math.round(rate * billableHours);
 }
 
 export interface MoodTotalBreakdown {

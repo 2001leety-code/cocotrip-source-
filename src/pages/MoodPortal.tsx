@@ -25,6 +25,7 @@ import { MoodRouteMap } from '@/components/MoodRouteMap';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
+  MOOD_MIN_DURATION_HOURS,
   MOOD_FIXED_PRICE_KRW,
   computeMoodTotalKRW,
   formatKRW,
@@ -115,7 +116,7 @@ export default function MoodPortal() {
   // 예약 폼 상태
   const [date, setDate] = useState(todayISO());
   const [startTime, setStartTime] = useState('10:00');
-  const [durationHours, setDurationHours] = useState(2);
+  const [durationHours, setDurationHours] = useState(3); // 차량/매니저 최소 3시간
   const [serviceType, setServiceType] = useState<MoodServiceType>('manager');
   const [airportDirection, setAirportDirection] = useState<'pickup' | 'sending'>('pickup');
   const [submitting, setSubmitting] = useState(false);
@@ -510,10 +511,10 @@ export default function MoodPortal() {
           {/* 시간 (duration) — 공항은 정액이라 시간 개념 없음 → 숨김 */}
           {serviceType !== 'airport' && (
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs" style={{ color: C.textDim }}>이용 시간</span>
+            <span className="text-xs" style={{ color: C.textDim }}>이용 시간 <span className="opacity-70">· 최소 3시간</span></span>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setDurationHours((h) => Math.max(1, h - 1))}
+                onClick={() => setDurationHours((h) => Math.max(MOOD_MIN_DURATION_HOURS, h - 1))}
                 className="w-10 h-10 rounded-xl text-lg font-bold shrink-0"
                 style={inputStyle}
                 aria-label="시간 감소"
@@ -522,12 +523,12 @@ export default function MoodPortal() {
               </button>
               <input
                 type="number"
-                min={1}
+                min={MOOD_MIN_DURATION_HOURS}
                 max={MOOD_MAX_DURATION_HOURS}
                 value={durationHours}
                 onChange={(e) => {
                   const v = Math.round(Number(e.target.value));
-                  if (Number.isFinite(v)) setDurationHours(Math.min(MOOD_MAX_DURATION_HOURS, Math.max(1, v)));
+                  if (Number.isFinite(v)) setDurationHours(Math.min(MOOD_MAX_DURATION_HOURS, Math.max(MOOD_MIN_DURATION_HOURS, v)));
                 }}
                 className="flex-1 text-center rounded-xl px-3 py-2.5 text-sm"
                 style={inputStyle}
