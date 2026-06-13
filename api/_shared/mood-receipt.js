@@ -46,7 +46,9 @@ export function buildMoodReceiptEmail(booking) {
   } = booking;
 
   const serviceLabel = SERVICE_LABEL[serviceType] || serviceType || '-';
-  const subject = `MOOD 예약 확정 — ${date} ${startTime} (${serviceLabel} ${durationHours}시간)`;
+  // 정액 서비스(공항)는 durationHours=0 → "정액" 표기 (0시간 방지).
+  const durationLabel = Number(durationHours) > 0 ? `${durationHours}시간 (시급 ${KRW(ratePerHour)})` : '정액';
+  const subject = `MOOD 예약 확정 — ${date} ${startTime} (${serviceLabel}${Number(durationHours) > 0 ? ` ${durationHours}시간` : ''})`;
 
   const html = `<!DOCTYPE html>
 <html lang="ko">
@@ -77,7 +79,7 @@ export function buildMoodReceiptEmail(booking) {
         <tr><td style="padding:7px 8px;color:#6b7280;width:120px;font-size:13px;">예약 번호</td><td style="padding:7px 8px;font-family:monospace;font-size:13px;">${escapeHtml(bookingId)}</td></tr>
         <tr style="background:#fff;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">예약일</td><td style="padding:7px 8px;font-weight:bold;font-size:13px;">${escapeHtml(date)} ${escapeHtml(startTime)}</td></tr>
         <tr><td style="padding:7px 8px;color:#6b7280;font-size:13px;">서비스</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(serviceLabel)}</td></tr>
-        <tr style="background:#fff;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">시간</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(durationHours)}시간 (시급 ${escapeHtml(KRW(ratePerHour))})</td></tr>
+        <tr style="background:#fff;"><td style="padding:7px 8px;color:#6b7280;font-size:13px;">시간</td><td style="padding:7px 8px;font-size:13px;">${escapeHtml(durationLabel)}</td></tr>
       </table>
     </div>
 
@@ -110,7 +112,7 @@ ${clientName} 님, 예약이 정상 확정되었습니다.
 예약 번호 : ${bookingId}
 예약일     : ${date} ${startTime}
 서비스     : ${serviceLabel}
-시간       : ${durationHours}시간 (시급 ${KRW(ratePerHour)})
+시간       : ${durationLabel}
 
 [영수증]
 청구 금액  : ${KRW(amountKRW)}

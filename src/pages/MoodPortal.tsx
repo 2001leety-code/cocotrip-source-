@@ -25,6 +25,7 @@ import { MoodRouteMap } from '@/components/MoodRouteMap';
 import {
   MOOD_RATES,
   MOOD_MAX_DURATION_HOURS,
+  MOOD_FIXED_PRICE_KRW,
   computeMoodTotalKRW,
   formatKRW,
   type MoodServiceType,
@@ -189,7 +190,8 @@ export default function MoodPortal() {
     const seq = ++routeSeq.current;
     const t = setTimeout(async () => {
       if (seq !== routeSeq.current) return;
-      if (!o || !d) {
+      // 공항=정액이라 거리계산 불필요 → 스킵(경로 표시도 숨김).
+      if (!o || !d || serviceType === 'airport') {
         setRoute(null);
         setRouteError(null);
         setRouteLoading(false);
@@ -229,12 +231,7 @@ export default function MoodPortal() {
       }
     }, o && d ? 600 : 0);
     return () => clearTimeout(t);
-  }, [origin, waypoints, destination]);
-
-  // 공항은 편도 2시간 고정 — 선택 시 시간 잠금(백엔드도 강제하지만 UI 즉시 반영).
-  useEffect(() => {
-    if (serviceType === 'airport') setDurationHours(2);
-  }, [serviceType]);
+  }, [origin, waypoints, destination, serviceType]);
 
   const handleBook = useCallback(async () => {
     if (!data) return;
@@ -419,7 +416,7 @@ export default function MoodPortal() {
                 >
                   {SERVICE_LABEL[st]}
                   <span className="block text-[11px] font-normal mt-0.5 opacity-80">
-                    {st === 'airport' ? '2시간 고정' : `${formatKRW(MOOD_RATES[st])}/시간`}
+                    {st === 'airport' ? `${formatKRW(MOOD_FIXED_PRICE_KRW.airport || 0)} 고정` : `${formatKRW(MOOD_RATES[st])}/시간`}
                   </span>
                 </button>
               );
@@ -477,16 +474,14 @@ export default function MoodPortal() {
             />
           </label>
 
-          {/* 시간 (duration) */}
+          {/* 시간 (duration) — 공항은 정액이라 시간 개념 없음 → 숨김 */}
+          {serviceType !== 'airport' && (
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs" style={{ color: C.textDim }}>
-              이용 시간{serviceType === 'airport' && <span className="opacity-70"> · 공항 2시간 고정</span>}
-            </span>
-            <div className="flex items-center gap-3" style={{ opacity: serviceType === 'airport' ? 0.5 : 1 }}>
+            <span className="text-xs" style={{ color: C.textDim }}>이용 시간</span>
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setDurationHours((h) => Math.max(1, h - 1))}
-                disabled={serviceType === 'airport'}
-                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0 disabled:cursor-not-allowed"
+                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0"
                 style={inputStyle}
                 aria-label="시간 감소"
               >
@@ -497,19 +492,17 @@ export default function MoodPortal() {
                 min={1}
                 max={MOOD_MAX_DURATION_HOURS}
                 value={durationHours}
-                disabled={serviceType === 'airport'}
                 onChange={(e) => {
                   const v = Math.round(Number(e.target.value));
                   if (Number.isFinite(v)) setDurationHours(Math.min(MOOD_MAX_DURATION_HOURS, Math.max(1, v)));
                 }}
-                className="flex-1 text-center rounded-xl px-3 py-2.5 text-sm disabled:cursor-not-allowed"
+                className="flex-1 text-center rounded-xl px-3 py-2.5 text-sm"
                 style={inputStyle}
               />
               <span className="text-sm shrink-0" style={{ color: C.textDim }}>시간</span>
               <button
                 onClick={() => setDurationHours((h) => Math.min(MOOD_MAX_DURATION_HOURS, h + 1))}
-                disabled={serviceType === 'airport'}
-                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0 disabled:cursor-not-allowed"
+                className="w-10 h-10 rounded-xl text-lg font-bold shrink-0"
                 style={inputStyle}
                 aria-label="시간 증가"
               >
@@ -517,10 +510,11 @@ export default function MoodPortal() {
               </button>
             </div>
           </div>
+          )}
 
           {/* 경로 (출발 / 경유지 N / 도착) — 다음 우편번호 주소검색 + 거리/톨비 자동 계산 */}
           <div className="flex flex-col gap-2 pt-1">
-            <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">(거리 추가요금·톨비 자동 계산)</span></span>
+            <span className="text-xs" style={{ color: C.textDim }}>경로 <span className="opacity-70">{serviceType === 'airport' ? '(픽업·샌딩 위치)' : '(거리 추가요금·톨비 자동 계산)'}</span></span>
 
             {/* 출발지 */}
             <div className="flex gap-2">
@@ -629,7 +623,9 @@ export default function MoodPortal() {
           {/* 예상 금액 분해 */}
           <div className="rounded-xl px-3 py-3 flex flex-col gap-1.5" style={{ background: C.inputBg, border: C.inputBorder }}>
             <div className="flex items-center justify-between text-xs" style={{ color: C.textDim }}>
-              <span>{SERVICE_LABEL[serviceType]} {durationHours}시간 ({formatKRW(MOOD_RATES[serviceType])}/시간)</span>
+              <span>{serviceType === 'airport'
+                ? `${SERVICE_LABEL[serviceType]} ${airportDirection === 'pickup' ? '픽업' : '샌딩'} (정액)`
+                : `${SERVICE_LABEL[serviceType]} ${durationHours}시간 (${formatKRW(MOOD_RATES[serviceType])}/시간)`}</span>
               <span style={{ color: C.text }}>{formatKRW(breakdown.baseKRW)}</span>
             </div>
             {breakdown.distanceSurchargeKRW > 0 && (

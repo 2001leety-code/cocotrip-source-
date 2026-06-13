@@ -33,7 +33,7 @@ import { verifyUserToken } from './_shared/user-auth.js';
 import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAllowedEmail, isAdminEmail } from './_shared/mood-allowlist.js';
-import { computeMoodTotalKRW, isValidServiceType, effectiveDurationHours, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
+import { computeMoodTotalKRW, isValidServiceType, fixedPriceFor, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
 import { computeRoute } from './_shared/mood-route.js';
 import { notify } from './_shared/notify.js';
 import { buildMoodReceiptEmail } from './_shared/mood-receipt.js';
@@ -108,10 +108,10 @@ export default async function handler(req, res) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: "serviceType 은 'vehicle' · 'airport' · 'manager' 중 하나" }));
   }
-  // 공항 등 고정 시간 서비스는 입력 무시하고 고정값(2h) 사용 — UI 가 잠그지만 API 직접 호출 대비.
-  //   이후 storage/표시/가격 전부 이 effective hours 로 통일.
-  const hours = effectiveDurationHours(serviceType, Number(durationHours));
-  if (!Number.isFinite(hours) || hours <= 0 || hours > MOOD_MAX_DURATION_HOURS) {
+  // 정액 서비스(공항)는 시간 무관 → durationHours 검증 스킵(저장 0). 그 외만 검증.
+  const isFixedPrice = fixedPriceFor(serviceType) !== null;
+  const hours = isFixedPrice ? 0 : Number(durationHours);
+  if (!isFixedPrice && (!Number.isFinite(hours) || hours <= 0 || hours > MOOD_MAX_DURATION_HOURS)) {
     res.writeHead(400, JSON_HEADERS);
     return res.end(JSON.stringify({ ok: false, error: `durationHours 는 0 초과 ${MOOD_MAX_DURATION_HOURS} 이하` }));
   }
@@ -147,7 +147,7 @@ export default async function handler(req, res) {
     // 클라이언트가 보낸 km/tollKRW 는 무시 — 백엔드에서 Naver 로 직접 측정.
     let km = 0;
     let tollKRW = 0;
-    if (origin && destination) {
+    if (origin && destination && !isFixedPrice) {
       const route = await computeRoute({ origin, destination, waypoints });
       if (route.ok) {
         km = route.km;
@@ -244,12 +244,14 @@ export default async function handler(req, res) {
     const SERVICE_LABELS = { vehicle: '차량', airport: '공항', manager: '매니저' };
     const serviceLabel = SERVICE_LABELS[serviceType] || serviceType;
     const directionLabel = airportDirection === 'pickup' ? ' (픽업)' : airportDirection === 'sending' ? ' (샌딩)' : '';
-    const routeLine = origin && destination ? `\n${origin} → ${destination} (${priced.km}km)` : '';
+    const routeLine = origin && destination
+      ? `\n${origin} → ${destination}${isFixedPrice ? '' : ` (${priced.km}km)`}`
+      : '';
     const overdraftLine = txResult.newBalance < 0 ? ' ⚠️외상' : '';
     const msg =
       `<b>MOOD 예약</b>\n` +
       `${txResult.clientName} · ${date} ${startTime}\n` +
-      `${serviceLabel}${directionLabel} ${hours}시간 — ${fmt(txResult.amountKRW)}원${routeLine}\n` +
+      `${serviceLabel}${directionLabel}${hours > 0 ? ` ${hours}시간` : ''} — ${fmt(txResult.amountKRW)}원${routeLine}\n` +
       `잔액 ${fmt(txResult.newBalance)}원${overdraftLine}\n` +
       `예약자: ${email}`;
     try {
