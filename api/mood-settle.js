@@ -2,13 +2,19 @@
  * POST /api/mood-settle — MOOD 운행 종료 정산 (운영자 전용)
  *
  * 예약(가예약, status='confirmed')을 실제 운행시간으로 최종 정산:
- *   최종금액 = 시급 × max(3, 실제시간) + (원래 거리추가 + 톨비)  ← 거리/톨비는 예약 시 측정값 재사용
+ *   최종금액 = 시급 × max(3, 실제시간) + (실제 거리추가 + 톨비)
  *   차액 = 최종 − 선결제(원래 차감액) → 잔액 조정(초과면 추가차감 / 적으면 환원), 한 트랜잭션.
- *   status → 'completed', 실제시간·최종금액·조정액 저장 + 최종 정산 영수증 메일.
+ *   status → 'completed', 실제시간·최종금액·조정액·실제 경로 저장 + 최종 정산 영수증 메일.
+ *
+ * 🛣️ 거리 재측정 (추가 방문지): origin/destination(+waypoints) 가 body 로 오면
+ *   운행 중 실제로 들른 경로로 Naver Directions 를 다시 호출해 정확한 km/톨비를 구한다.
+ *   (운행 종료 시 매니저가 "추가 방문지" 를 넣으면 정확한 거리 합산이 나온다.)
+ *   route 가 안 오면 예약 시 측정값(breakdown.km/tollKRW) 재사용. 클라가 보낸 km/금액은 무시.
  *
  * 🔴 멱등성: status!=='confirmed' 면 거부(이미 정산/취소). 공항(정액)은 정산 무관.
+ * 🔴 금액 SSOT: 최종 금액은 백엔드 computeMoodTotalKRW 로만 계산 (P311).
  * 인증: Bearer Firebase ID token, allowlist.admins (mood-topup 동일 게이트).
- * Body: { bookingId, actualHours }
+ * Body: { bookingId, actualHours, origin?, destination?, waypoints?(string[] | "A|B") }
  */
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { verifyUserToken } from './_shared/user-auth.js';
@@ -16,9 +22,17 @@ import { captureError } from './_shared/sentry.js';
 import { buildAdminJsonCors } from './_shared/cors.js';
 import { getMoodAllowlist, isAdminEmail } from './_shared/mood-allowlist.js';
 import { computeMoodTotalKRW, fixedPriceFor, MOOD_MAX_DURATION_HOURS } from './_shared/mood-pricing.js';
+import { computeRoute } from './_shared/mood-route.js';
 import { notify } from './_shared/notify.js';
 import { buildMoodSettlementReceiptEmail } from './_shared/mood-receipt.js';
 import { sendEmail } from './_send-email.js';
+
+/** body.waypoints 정규화 — 배열 또는 "A|B" 문자열 둘 다 허용 (mood-book 과 동일 규칙). */
+function normalizeWaypoints(raw) {
+  if (Array.isArray(raw)) return raw.map((w) => String(w || '').trim()).filter(Boolean);
+  if (typeof raw === 'string') return raw.split('|').map((w) => w.trim()).filter(Boolean);
+  return [];
+}
 
 export const maxDuration = 15;
 export const config = { runtime: 'nodejs' };
@@ -74,23 +88,77 @@ export default async function handler(req, res) {
 
     const bookingRef = db.collection('mood_bookings').doc(bookingId);
 
+    // ── 1) 사전 read — serviceType + 기존 경로/거리 (route 기본값·재사용·정액 게이트) ──
+    // computeRoute(네트워크)는 Firestore 트랜잭션 안에서 돌릴 수 없어 먼저 읽고 밖에서 측정.
+    // serviceType·예약 거리는 불변이라 트랜잭션 밖 사전 read 로 충분 (멱등성은 tx 안에서 재확인).
+    const preSnap = await bookingRef.get();
+    if (!preSnap.exists) {
+      res.writeHead(404, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'BOOKING_NOT_FOUND' }));
+    }
+    const pre = preSnap.data() || {};
+    if (pre.status !== 'confirmed') {
+      res.writeHead(409, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'ALREADY_SETTLED' }));
+    }
+    if (fixedPriceFor(pre.serviceType) !== null) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: 'AIRPORT_NO_SETTLE' }));
+    }
+    const preBd = pre.breakdown || {};
+
+    // ── 2) 거리/톨비 — 추가 방문지(route) 오면 Naver 재측정, 없으면 예약값 재사용 ──
+    const newOrigin = String(body.origin || '').trim();
+    const newDest = String(body.destination || '').trim();
+    const newWaypoints = normalizeWaypoints(body.waypoints);
+    const hasRouteOverride = !!(newOrigin && newDest);
+
+    let km = Number(preBd.km) || 0;
+    let tollKRW = Number(preBd.tollKRW) || 0;
+    let routeMeta = {
+      origin: preBd.origin || null,
+      destination: preBd.destination || null,
+      waypoints: preBd.waypoints || null,
+      recomputed: false,
+    };
+    let routeError = null;
+    if (hasRouteOverride) {
+      const route = await computeRoute({ origin: newOrigin, destination: newDest, waypoints: newWaypoints });
+      if (route.ok) {
+        km = route.km;
+        tollKRW = route.tollKRW;
+        routeMeta = {
+          origin: newOrigin,
+          destination: newDest,
+          waypoints: newWaypoints.length ? newWaypoints : null,
+          recomputed: true,
+        };
+      } else {
+        // 경로 재측정 실패 = 비치명적 → 예약 시 거리값 유지 (외상 "막지 않는다" 철학과 일관).
+        routeError = route.error;
+        console.warn('[mood-settle] route 재측정 실패:', route.error, route.detail || '');
+      }
+    }
+
+    // ── 3) 최종 금액 (백엔드 SSOT — 클라 금액 무시) ──
+    const finalPriced = computeMoodTotalKRW({
+      serviceType: pre.serviceType,
+      durationHours: actualHours,
+      km,
+      tollKRW,
+    });
+    if (!finalPriced.ok) {
+      res.writeHead(400, JSON_HEADERS);
+      return res.end(JSON.stringify({ ok: false, error: finalPriced.error }));
+    }
+
+    // ── 4) 트랜잭션 — 멱등 재확인 + 잔액 조정 (모든 read 를 write 전에) ──
     const result = await db.runTransaction(async (tx) => {
-      // ── 모든 read 를 write 전에 (Firestore tx 규칙) ──
       const bSnap = await tx.get(bookingRef);
       if (!bSnap.exists) return { ok: false, status: 404, error: 'BOOKING_NOT_FOUND' };
       const b = bSnap.data() || {};
-      if (b.status !== 'confirmed') return { ok: false, status: 409, error: 'ALREADY_SETTLED' }; // 멱등
+      if (b.status !== 'confirmed') return { ok: false, status: 409, error: 'ALREADY_SETTLED' }; // 멱등(동시정산 방지)
       if (fixedPriceFor(b.serviceType) !== null) return { ok: false, status: 400, error: 'AIRPORT_NO_SETTLE' };
-
-      const bd = b.breakdown || {};
-      // 거리/톨비는 예약 시 측정값 재사용 — 시간만 실제값으로 재계산. (백엔드 SSOT, 클라 금액 무시.)
-      const finalPriced = computeMoodTotalKRW({
-        serviceType: b.serviceType,
-        durationHours: actualHours,
-        km: Number(bd.km) || 0,
-        tollKRW: Number(bd.tollKRW) || 0,
-      });
-      if (!finalPriced.ok) return { ok: false, status: 400, error: finalPriced.error };
 
       const finalAmount = finalPriced.amountKRW;
       const originalAmount = Number(b.amountKRW) || 0;
@@ -112,6 +180,7 @@ export default async function handler(req, res) {
           distanceSurchargeKRW: finalPriced.distanceSurchargeKRW,
           tollKRW: finalPriced.tollKRW,
           km: finalPriced.km,
+          ...routeMeta,
         },
         adjustmentKRW: diff,
         settledAt: Date.now(),
@@ -140,7 +209,7 @@ export default async function handler(req, res) {
         `잔액 ${result.newBalance.toLocaleString('ko-KR')}원`);
     } catch (e) { console.warn('[mood-settle] notify 실패:', e?.message); }
 
-    // ── 고객 최종 정산 영수증 메일 (best-effort) ──
+    // ── 고객 최종 정산 영수증 메일 (best-effort) — 예약↔실제 비교 + 항목별 분해 ──
     try {
       const toEmail = b.createdByEmail;
       if (toEmail) {
@@ -150,20 +219,44 @@ export default async function handler(req, res) {
           date: b.date,
           startTime: b.startTime,
           serviceType: b.serviceType,
+          // 예약 vs 실제 비교
+          bookedHours: Number(b.durationHours) || 0,
           actualHours,
+          bookedKm: Number(preBd.km) || 0,
+          actualKm: finalPriced.km,
+          // 최종 항목별 분해
+          ratePerHour: finalPriced.ratePerHour,
+          baseKRW: finalPriced.baseKRW,
+          distanceSurchargeKRW: finalPriced.distanceSurchargeKRW,
+          tollKRW: finalPriced.tollKRW,
+          bookedAmountKRW: result.originalAmount,
           finalAmountKRW: result.finalAmount,
           adjustmentKRW: result.diff,
           newBalance: result.newBalance,
+          // 거리 재측정 여부 (추가 방문지)
+          routeRecomputed: routeMeta.recomputed,
+          waypointCount: Array.isArray(routeMeta.waypoints) ? routeMeta.waypoints.length : 0,
         });
         await sendEmail({ to: toEmail, subject: receipt.subject, html: receipt.html, text: receipt.text });
       }
     } catch (e) { console.warn('[mood-settle] receipt 메일 실패:', e?.message); }
 
-    console.log('[mood-settle]', email, '→', bookingId, '| 실제', actualHours, 'h | 최종', result.finalAmount, '| 차액', result.diff);
+    console.log('[mood-settle]', email, '→', bookingId, '| 실제', actualHours, 'h |',
+      routeMeta.recomputed ? `거리재측정 ${finalPriced.km}km` : `거리재사용 ${finalPriced.km}km`,
+      '| 최종', result.finalAmount, '| 차액', result.diff, routeError ? `| routeErr=${routeError}` : '');
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({
       ok: true,
-      data: { bookingId, actualHours, finalAmountKRW: result.finalAmount, adjustmentKRW: result.diff, balanceKRW: result.newBalance },
+      data: {
+        bookingId,
+        actualHours,
+        finalAmountKRW: result.finalAmount,
+        adjustmentKRW: result.diff,
+        balanceKRW: result.newBalance,
+        km: finalPriced.km,
+        routeRecomputed: routeMeta.recomputed,
+        ...(routeError ? { routeWarning: routeError } : {}),
+      },
     }));
   } catch (err) {
     console.error('[mood-settle] failed:', err.message);
