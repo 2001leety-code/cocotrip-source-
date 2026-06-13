@@ -328,7 +328,8 @@ export async function handleAccept(botToken, p, dispatchRef, dispatch, orderID) 
   }
 }
 
-async function handleReject(botToken, p, dispatchRef, dispatch, orderID) {
+// export: 경합 회귀 테스트(dispatch-accept-race)에서 직접 구동.
+export async function handleReject(botToken, p, dispatchRef, dispatch, orderID) {
   const db = initAdminDb('telegram-driver');
 
   // 1. dispatch_messages 상태 갱신
@@ -342,14 +343,19 @@ async function handleReject(botToken, p, dispatchRef, dispatch, orderID) {
   if (db) {
     try {
       const bookingRef = db.collection('bookings').doc(orderID);
-      const bookingSnap = await bookingRef.get();
-      const existing = bookingSnap.exists ? bookingSnap.data() : null;
-      if (existing && existing.dispatchStatus !== 'accepted') {
-        await bookingRef.update({
+      // 🔴 경합 fix: read-then-write 를 runTransaction 으로 원자화. broadcast 시 한 기사
+      //   reject 와 다른 기사 accept 가 동시면, 비원자 가드(get→검사→update)는 reject 가
+      //   accepted 를 덮어쓸 미세 창이 있었다. 트랜잭션 내 재확인으로 accepted 는 절대 덮지
+      //   않는다(#916 accept 원자화와 동일 패턴 — first-to-accept wins 보장).
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(bookingRef);
+        if (!snap.exists) return;
+        if (snap.data().dispatchStatus === 'accepted') return; // 이미 수락 — 덮지 않음
+        tx.update(bookingRef, {
           dispatchStatus: 'rejected',
           updatedAt: FieldValue.serverTimestamp(),
         });
-      }
+      });
     } catch (err) {
       console.warn('[driver-webhook] bookings dispatchStatus 갱신 실패 (무시):', err.message);
     }

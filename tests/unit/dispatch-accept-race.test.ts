@@ -24,7 +24,7 @@ let dbImpl: any;
 vi.mock('../../api/_shared/firebase-admin.js', () => ({ initAdminDb: () => dbImpl }));
 
 // @ts-expect-error — ESM .js (Vercel serverless 모듈)
-import { handleAccept } from '../../api/telegram-webhook-driver.js';
+import { handleAccept, handleReject } from '../../api/telegram-webhook-driver.js';
 
 // 상태 저장 firestore mock — dispatch_messages(여러 건 id별) + bookings 1건 in-memory.
 // runTransaction 은 콜백 동기 실행(순차 호출 = 첫 commit 후 둘째가 갱신 상태를 본다 → 가드 검증).
@@ -33,7 +33,8 @@ function makeWorld(initialBooking: any = null) {
   let booking: any = initialBooking;
   function dispatchRef(id: string) {
     if (!(id in dispatches)) dispatches[id] = { status: 'sent' };
-    return { __kind: 'dispatch', __id: id };
+    // handleReject 는 dispatchRef.update 를 직접(non-tx) 호출 → .update 제공.
+    return { __kind: 'dispatch', __id: id, update: async (patch: any) => { Object.assign(dispatches[id], patch); } };
   }
   const bookingRef = { __kind: 'booking' };
   const db: any = {
@@ -116,5 +117,31 @@ describe('dispatch accept 경합 — runTransaction first-to-accept (FIX1)', () 
     notifyMock.mockReset();
     await handleAccept('tok', { chatId: 333, callbackId: 'cb2' }, ref, drvA, 'ord3');
     expect(notifyMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('dispatch reject 경합 — runTransaction (accepted 덮어쓰기 차단)', () => {
+  beforeEach(() => { callBotMock.mockReset(); notifyMock.mockReset(); });
+
+  it('이미 accepted 인 예약을 다른 기사가 reject → accepted 유지(안 덮음)', async () => {
+    const w = makeWorld({ dispatchStatus: 'accepted', dispatchedDriverId: 111, driver: '기사A' });
+    dbImpl = w.db;
+    await handleReject('tok', { chatId: 222, callbackId: 'cbR' }, w.dispatchRef('d2'), drvB, 'ord1');
+    expect(w.getBooking().dispatchStatus).toBe('accepted'); // reject 가 accepted 안 덮음
+    expect(w.getBooking().dispatchedDriverId).toBe(111);
+  });
+
+  it('미수락 예약 reject → dispatchStatus=rejected', async () => {
+    const w = makeWorld({ dispatchStatus: 'sent' });
+    dbImpl = w.db;
+    await handleReject('tok', { chatId: 222, callbackId: 'cbR' }, w.dispatchRef('d2'), drvB, 'ord1');
+    expect(w.getBooking().dispatchStatus).toBe('rejected');
+  });
+
+  it('booking 문서 미존재 → no-op (throw 없음)', async () => {
+    const w = makeWorld(null);
+    dbImpl = w.db;
+    await handleReject('tok', { chatId: 222, callbackId: 'cbR' }, w.dispatchRef('d2'), drvB, 'ord1');
+    expect(w.getBooking()).toBeNull();
   });
 });
