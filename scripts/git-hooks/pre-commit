@@ -139,6 +139,10 @@ if [ -n "$SCAN_FILES" ]; then
       // query/limit/lang 파싱) pre-existing legitimate. 내 변경(rate-limit) 아님 + || 변환 시
       // 빈문자열 처리 미세 변경되므로 스킵 (비용 DoS rate-limit PR 에서 처음 staged 됨).
       if (f === "api/place-search.js") continue;
+      // 2026-06-13: RevisionCard.tsx 의 ?? — plan.revisionCredits ?? 0 / inp.pax ?? inp.adults
+      // / dietary ?? dietPrefs 등 pre-existing legitimate nullish (0/falsy 보존). 내 변경
+      // (revision reason 서버 라우팅) 아님 + 이 PR 에서 처음 staged 됨.
+      if (f === "src/pages/PlanDetailPage/components/RevisionCard.tsx") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);
