@@ -88,9 +88,15 @@ export default async function handler(req, res) {
     return;
   }
 
-  // chat_id pin (관리자만)
+  // chat_id pin (관리자만) — 🔴 fail-closed (prod, 2026-06-13 ADM-2): TELEGRAM_CHAT_ID 미설정
+  //   시 prod 에선 모든 chat 거부(fail-open 차단). 설정 시 불일치 거부. dev/preview 만 통과.
   const adminChatId = process.env.TELEGRAM_CHAT_ID;
-  if (adminChatId && String(parsed.chatId) !== String(adminChatId)) {
+  if (!adminChatId) {
+    if (String(process.env.VERCEL_ENV) === 'production') {
+      res.status(200).json({ ok: true });
+      return;
+    }
+  } else if (String(parsed.chatId) !== String(adminChatId)) {
     res.status(200).json({ ok: true });
     return;
   }
