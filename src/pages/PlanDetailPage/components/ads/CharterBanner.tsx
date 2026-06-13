@@ -79,6 +79,9 @@ function buildWhatsappPrefill(opts: {
 
 export function CharterBanner({ days, plan }: CharterBannerProps) {
   const { t } = useLanguage();
+  // ⚠️ 훅은 아래 detection early-return 보다 위 (rules-of-hooks: return 아래 두면
+  //    추천 여부에 따라 훅 개수 달라져 "더 많은 훅" 크래시).
+  const [inquireOpen, setInquireOpen] = useState(false);
   const p = (t.planner as unknown as Record<string, string | undefined>) || {};
   const allStops = days.flatMap((d: PlanDay) => d.stops || []);
   const detection = detectCharterRecommendation(allStops as any);
@@ -89,7 +92,6 @@ export function CharterBanner({ days, plan }: CharterBannerProps) {
   const planId = getPlanIdFromUrl();
   const prefillText = buildWhatsappPrefill({ planId, tourLabel, pricing, days, plan });
   const waUrl = `https://wa.me/821087140611?text=${encodeURIComponent(prefillText)}`;
-  const [inquireOpen, setInquireOpen] = useState(false);
 
   return (
     <div className="mb-6 rounded-2xl overflow-hidden border border-cyan-500/25" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.08), rgba(59,130,246,0.05))' }}>
