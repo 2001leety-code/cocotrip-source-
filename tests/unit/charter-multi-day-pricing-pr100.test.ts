@@ -53,7 +53,9 @@ describe('P100 — Charter multi-day pricing', () => {
   });
 
   it('kpop_shuttle 은 passengers 곱셈만 (durationDays X)', () => {
-    expect(src).toMatch(/kpop_shuttle_oneway[\s\S]{0,120}\(\s*passengers\s*\|\|\s*1\s*\)\s*\*\s*SPEC\.kpop_shuttle\.price_one_way/);
+    // 2026-06-13: passengers 정규화(Math.floor(Number(passengers)…)) 추가 — 여전히
+    // passengers 곱셈(durationDays 무관)이고 소수/음수 과소청구만 차단.
+    expect(src).toMatch(/kpop_shuttle_oneway[\s\S]{0,260}Math\.floor\(Number\(passengers\)[\s\S]{0,160}price_one_way/);
   });
 
   it('회귀 방지: 기존 (durationDays 누락) 시그너처 부재', () => {

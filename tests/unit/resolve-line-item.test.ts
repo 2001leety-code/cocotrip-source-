@@ -22,6 +22,14 @@ describe('resolveKrwAmount — 정본 복제 correctness', () => {
   it('kpop_shuttle = pax × price', () => {
     expect(resolveKrwAmount(SPEC, 'kpop_shuttle_oneway', 3, 1)).toBe(3 * SPEC.kpop_shuttle.price_one_way);
   });
+  it('kpop_shuttle passengers sanitize — 소수/음수/0/NaN → 1 (과소청구·음수 차단)', () => {
+    const unit = SPEC.kpop_shuttle.price_one_way;
+    expect(resolveKrwAmount(SPEC, 'kpop_shuttle_oneway', 0.5, 1)).toBe(unit);   // 소수 → 1
+    expect(resolveKrwAmount(SPEC, 'kpop_shuttle_oneway', -2, 1)).toBe(unit);    // 음수 → 1
+    expect(resolveKrwAmount(SPEC, 'kpop_shuttle_oneway', 0, 1)).toBe(unit);     // 0 → 1
+    expect(resolveKrwAmount(SPEC, 'kpop_shuttle_oneway', NaN, 1)).toBe(unit);   // NaN → 1
+    expect(resolveKrwAmount(SPEC, 'kpop_shuttle_roundtrip', 2.9, 1)).toBe(2 * SPEC.kpop_shuttle.price_round_trip); // floor
+  });
   it('charter × durationDays (P100) + hyphen 정규화', () => {
     const daily = SPEC.daily_tour_prices['seoul-city'].priceKRW;
     expect(resolveKrwAmount(SPEC, 'charter_seoul_city', 1, 1)).toBe(daily);
@@ -97,6 +105,15 @@ describe('computeCartTotalKrw — 합산 + 거부 (P311)', () => {
     const r = computeCartTotalKrw(SPEC, [{ booking: { productType: 'charter_seoul_city', durationDays: 1 }, priceKRW: 999999999 }], {});
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.totalKRW).toBe(daily); // 위조된 priceKRW 무시
+  });
+});
+
+describe('createPaypalOrder — passenger sanitize + 음수금액 가드 (소스 가드)', () => {
+  it('kpop passengers 를 Math.max(1, Math.floor(Number)) 로 정규화 (소수/음수 과소청구 차단)', () => {
+    expect(createOrderSrc).toMatch(/Math\.max\(1,\s*Math\.floor\(Number\(passengers\)\s*\|\|\s*1\)\)/);
+  });
+  it('음수/0/NaN 금액 차단: if (!(krwAmount > 0))', () => {
+    expect(createOrderSrc).toMatch(/!\(krwAmount\s*>\s*0\)/);
   });
 });
 
