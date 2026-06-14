@@ -85,11 +85,20 @@ interface MoodData {
   isAdmin: boolean;
 }
 
-/** /api/mood-route 응답 (계약: { ok, data:{ km, tollKRW, durationMin } } | { ok:false, error }). */
+/** 경로 마커 좌표 (출발/경유/도착) — 지도 핀용. */
+interface MoodRoutePoint {
+  lat: number;
+  lng: number;
+  role: 'origin' | 'waypoint' | 'destination';
+  index?: number;
+}
+/** /api/mood-route 응답 (계약: { ok, data:{ km, tollKRW, durationMin, path, points } } | { ok:false, error }). */
 interface MoodRoute {
   km: number;
   tollKRW: number;
   durationMin: number;
+  path: [number, number][]; // 경로 선 좌표 [[lng,lat],...] — 지도에 실제 경로 그리기용
+  points: MoodRoutePoint[]; // 출발/경유/도착 마커
 }
 
 const SERVICE_LABEL: Record<MoodServiceType, string> = {
@@ -239,6 +248,8 @@ export default function MoodPortal() {
             km: Number(dd.km) || 0,
             tollKRW: Number(dd.tollKRW) || 0,
             durationMin: Number(dd.durationMin) || 0,
+            path: Array.isArray(dd.path) ? dd.path : [],
+            points: Array.isArray(dd.points) ? dd.points : [],
           });
           setRouteError(null);
         } else {
@@ -720,6 +731,7 @@ export default function MoodPortal() {
               origin={origin}
               waypoints={waypoints}
               destination={destination}
+              route={route}
               accent={C.accentSolid}
               inputBg={C.inputBg}
               inputBorder={C.inputBorder}

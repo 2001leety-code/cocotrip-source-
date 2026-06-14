@@ -22,6 +22,8 @@ interface NaverMapsNamespace {
   Marker: new (opts: Record<string, unknown>) => unknown;
   LatLng: new (lat: number, lng: number) => NaverLatLng;
   LatLngBounds: new () => { extend(c: NaverLatLng): void };
+  Polyline: new (opts: Record<string, unknown>) => unknown; // 경로 선
+  Point: new (x: number, y: number) => unknown; // 마커 앵커
   Service: NaverMapsService;
 }
 type NaverGlobal = { maps: NaverMapsNamespace };
