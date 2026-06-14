@@ -192,6 +192,7 @@ export function selfHealDailyBudget(itinerary, ctx = {}) {
     return {
       day: day.day,
       transport_krw, entry_fees_krw, meals_krw, total_krw,
+      activities_krw: 0, shopping_estimate_krw: 0,
       _self_healed: true,
       _pax: pax, // P289: admin panel 추적용
     };

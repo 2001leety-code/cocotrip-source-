@@ -492,7 +492,7 @@ export default async function handler(req, res) {
                 captureID,
                 refundUSD: amount,
                 note: `PROMO_LIMIT_EXCEEDED race (${upper}) — auto refund`,
-                isSandbox: false,
+                isSandbox: _isSandboxCapture,
               });
               refundOk = !!refundRes?.ok;
             } catch (refundErr) {

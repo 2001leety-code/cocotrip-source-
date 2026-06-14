@@ -95,15 +95,20 @@ export function mapTmapItineraryToRoute(it) {
   };
 }
 
-/** 출발시각(yyyymmddhhmi). opts.departDttm 우선, 미지정 시 야간/새벽이면 당일 10:00 보정(관광 기준, 야간버스 추천 방지). */
+/**
+ * 출발시각(yyyymmddhhmi). opts.departDttm 우선, 미지정 시 야간/새벽이면 당일 10:00 보정(관광 기준, 야간버스 추천 방지).
+ * ⚠️ KST 기준: now(서버시계, Vercel serverless=UTC)를 +9h 한 뒤 getUTC* 로 KST 연/월/일/시/분 도출.
+ *   (recordRecalcStat / adminSalesAggregate 의 +9h 패턴과 동일.) UTC 시계로 야간/주간 보정하면 KST 와 9h 어긋남.
+ */
 export function buildSearchDttm(opts = {}, now = new Date()) {
   if (opts.departDttm && /^\d{12}$/.test(opts.departDttm)) return opts.departDttm;
-  const y = now.getFullYear();
-  const mo = String(now.getMonth() + 1).padStart(2, '0');
-  const da = String(now.getDate()).padStart(2, '0');
-  const hh = now.getHours();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const mo = String(kst.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(kst.getUTCDate()).padStart(2, '0');
+  const hh = kst.getUTCHours();
   if (hh < 7 || hh >= 22) return `${y}${mo}${da}1000`; // daytime 보정
-  return `${y}${mo}${da}${String(hh).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+  return `${y}${mo}${da}${String(hh).padStart(2, '0')}${String(kst.getUTCMinutes()).padStart(2, '0')}`;
 }
 
 /**

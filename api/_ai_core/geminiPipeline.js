@@ -440,6 +440,21 @@ export async function runGeminiStreaming({ model, systemPrompt, userMessage, adm
     if (adminDb && planId && (now - lastFirestoreUpdate) > FIRESTORE_UPDATE_INTERVAL_MS) {
       const partial = tryParsePartialJSON(accumulated);
       if (partial && Array.isArray(partial.days) && partial.days.length > 0) {
+        // LOW (2026-06-14): progressive write 전에 표시 정제만 적용.
+        // tryParsePartialJSON 의 raw partial.days 를 그대로 'itinerary.days' 로 set 하면
+        // 'Pig Co. ... 강남 돼지상회 ... 明洞' 같은 다국어 concat 이름이 스트리밍 중
+        // 사용자에게 일시 노출됨 (최종 정제본이 덮기 전까지의 flash).
+        // sanitizeStops 는 name/display_name 의 다국어 concat 만 정리 (display-only) —
+        // dietary(halal/vegan) 검증 로직은 건드리지 않음 (SAFETY 불변). 부분 데이터라
+        // sanitizeStops 가 깨질 수 있으니 try/catch — 실패 시 기존대로 raw partial.days 로
+        // write (스트리밍 절대 중단 안 함). 최종 write 경로는 변경 없음.
+        try {
+          // sanitizeStops 는 data.days 를 in-place 변형 — { days: partial.days } 래퍼로
+          // partial.days 배열 참조를 그대로 정제.
+          sanitizeStops({ days: partial.days }, language || 'ko');
+        } catch (sanitizeErr) {
+          console.warn('[geminiPipeline P169] partial sanitize skipped (raw write):', sanitizeErr.message);
+        }
         // fire-and-forget — streaming 중단 방지
         updatePlanProgressive(adminDb, planId, {
           'itinerary.days': partial.days,
