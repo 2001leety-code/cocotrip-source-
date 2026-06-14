@@ -15,14 +15,25 @@
 // 누를 때만 갱신". (딥서치: vite-plugin-pwa register.ts + workbox cleanupOutdatedCaches 소스 검증.)
 //
 // Usage: <App> 어디에든 한 번만 mount.
-import { useEffect, useState } from 'react';
+//
+// 2026-06-14 (운영자 요청 "앱 들어갈 때마다 새 버전이면 자동 업데이트"):
+//   - 앱 진입(콜드 스타트) 직후 감지된 새 버전 = 자동 적용(skipWaiting+reload). 아직 사용자가
+//     아무것도 안 한 상태라 강제 리로드해도 잃을 게 없음(URL 보존).
+//   - 세션 중(진입 한참 뒤, 작업 중) 감지된 새 버전 = 토스트로 사용자 선택 — #pwa-prompt 의
+//     "위저드·결제 화면 갑자기 새로고침" 회귀를 막던 보호 유지. (둘의 경계 = 로드 후 경과시간.)
+import { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { RefreshCw, X } from 'lucide-react';
 
+// 진입 직후 이 시간(ms) 안에 감지된 업데이트 = "콜드 스타트" 로 보고 자동 적용. 이후 = 토스트.
+const AUTO_UPDATE_WINDOW_MS = 10_000;
+
 export function PWAUpdatePrompt() {
   const { t } = useLanguage();
   const [dismissed, setDismissed] = useState(false);
+  const loadedAtRef = useRef(Date.now());
+  const autoUpdatedRef = useRef(false);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -37,6 +48,15 @@ export function PWAUpdatePrompt() {
     },
   });
 
+  // 앱 진입 직후 새 버전 대기 감지 → 자동 업데이트(작업 전이라 안전). 페이지당 1회.
+  useEffect(() => {
+    if (!needRefresh || autoUpdatedRef.current) return;
+    if (Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS) {
+      autoUpdatedRef.current = true;
+      void updateServiceWorker(true); // skipWaiting + 자동 reload → 최신 버전
+    }
+  }, [needRefresh, updateServiceWorker]);
+
   // dismissed 후 5분 뒤 자동 재표시 (사용자가 X 누른 경우).
   useEffect(() => {
     if (!dismissed) return;
@@ -45,6 +65,8 @@ export function PWAUpdatePrompt() {
   }, [dismissed]);
 
   if (!needRefresh || dismissed) return null;
+  // 자동 업데이트 창 안에서는 토스트 대신 위 effect 가 리로드 → 깜빡임 방지로 숨김.
+  if (Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS) return null;
 
   const message = (t.pwa as { updateAvailable?: string })?.updateAvailable
     || '새 버전이 있습니다';

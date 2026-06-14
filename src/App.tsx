@@ -191,7 +191,8 @@ function GlobalWidgets() {
   }, []);
 
   // MOOD 포털(/mood)은 고객 비노출 내부 사이트 — 마케팅/공용 chrome(프로모배너·챗위젯·
-  // K-pop 팝업·쿠폰모달·PWA 프롬프트·하단 네비) 전부 숨김(별도 사이트 느낌).
+  // K-pop 팝업·쿠폰모달·하단 네비) 전부 숨김(별도 사이트 느낌).
+  // ※ PWA 업데이트 토스트는 예외 — 무드도 새 버전 알림 받게 App 레벨에서 전역 렌더(운영자 요청).
   // 위 리다이렉트 로그인 useEffect 는 hooks 라 early-return 이어도 계속 실행됨.
   if (location.pathname.startsWith('/mood')) return null;
 
@@ -205,7 +206,6 @@ function GlobalWidgets() {
       <MobileBottomNav />
       <Suspense fallback={null}>
         <CookieBanner />
-        <PWAUpdatePrompt />
         <ChatWidget language={language} />
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
         <OnboardingCouponModal />
@@ -607,6 +607,10 @@ function App() {
       <BrowserRouter>
         <CommandPaletteProvider>
         <ManifestSwitcher />
+        {/* PWA 업데이트 토스트 — 전역(코코트립 + 무드 모두). 새 빌드 배포 시 "새 버전" 알림 → 새로고침. */}
+        <Suspense fallback={null}>
+          <PWAUpdatePrompt />
+        </Suspense>
         <GlobalWidgets />
         <NonMoodChrome />
         <AnimatedRoutes />
