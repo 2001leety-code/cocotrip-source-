@@ -36,25 +36,13 @@ describe('PWA 자산 존재', () => {
   });
 });
 
-describe('index.html 인라인 스플래시 — standalone·경로별·검정갭 방지', () => {
+describe('커스텀 인라인 스플래시 제거됨 (2026-06-14)', () => {
+  // Android PWA 는 OS 가 아이콘 스플래시를 강제로 먼저 띄움(끌 수 없음) → 그 위에 커스텀 풀이미지
+  // 스플래시를 또 띄우면 "두 번" 떠 보임(운영자 신고). 커스텀 제거 → OS 아이콘 스플래시 하나만.
   const html = readFileSync(r('index.html'), 'utf8');
-  it('설치 PWA(standalone)에서만 — display-mode standalone 체크', () => {
-    expect(html).toContain('#app-splash');
-    expect(html).toContain("display-mode: standalone");
-    expect(html).toMatch(/if\s*\(!standalone\)\s*return/); // 일반 웹 방문이면 미표시
-  });
-  it('진입 경로 /mood → 무드 풀 이미지(태그라인X) / 그 외 → 코코트립 풀 이미지 + 태그라인', () => {
-    expect(html).toMatch(/location\.pathname\.indexOf\('\/mood'\)\s*===\s*0/);
-    // 잘린 아이콘이 아니라 폰화면 풀 이미지(splash-*.png) 를 배경으로
-    expect(html).toContain('/splash-mood.png');
-    expect(html).toContain('/splash-cocotrip.png');
-    expect(html).toContain('background-size:cover');
-    expect(html).toContain('60 seconds');
-  });
-  it('앱 준비 신호까지 유지(검정 갭 방지) + 안전 캡', () => {
-    expect(html).toContain('window.__appReady');
-    expect(html).toMatch(/MIN\s*=\s*1400/);
-    expect(html).toMatch(/setTimeout\(hide,\s*MAX\)/); // 신호 없어도 사라짐
+  it('index.html 에 커스텀 스플래시 오버레이(#app-splash) 없음', () => {
+    expect(html).not.toContain('id="app-splash"');
+    expect(html).not.toContain('window.__appReady');
   });
 });
 

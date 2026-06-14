@@ -41,15 +41,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CocoTrip" />
 
-    <!-- PWA 실행 스플래시 (설치 standalone 에서만) — 폰화면에 맞춘 풀 이미지(미크롭) 그대로 노출.
-         앱이 준비될 때까지 유지(검정 갭 방지) 후 페이드. 일반 웹(브라우저 탭)에선 안 보임.
-         (#948 에서 잘린 아이콘 쓰던 것 → 풀 이미지로 환원, 운영자 요청 2026-06-14) -->
-    <style id="app-splash-style">
-      #app-splash{position:fixed;inset:0;z-index:99999;display:none;align-items:flex-end;justify-content:center;background-color:#0a0b14;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:1;transition:opacity .45s ease;pointer-events:none}
-      #app-splash.mood{background-color:#0a0412}
-      #app-splash .tag{margin-bottom:13%;color:#fff;font-size:15px;font-weight:600;opacity:.95;text-align:center;padding:0 32px;max-width:340px;line-height:1.45;letter-spacing:.2px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;text-shadow:0 2px 12px rgba(0,0,0,.7)}
-      #app-splash.hide{opacity:0}
-    </style>
+    <!-- PWA 실행 스플래시 제거 (2026-06-14): Android PWA 는 OS 가 아이콘 스플래시를 강제로 먼저
+         띄우는데(끌 수 없음), 그 위에 커스텀 풀이미지 스플래시를 또 띄우면 "두 번" 떠 보임(운영자
+         신고). 풀스크린 단일 스플래시는 네이티브 앱만 가능 → 커스텀 스플래시 제거하고 OS 아이콘
+         스플래시(=브랜드 로고) 하나만 사용. -->
 
     <!-- CJK 웹폰트 프리로드 — PDF 렌더 시 한국어/일본어/중국어 글자 깨짐 방지 -->
     <!-- 2026-05-09 (B9-30): display=swap → display=block 변경.
@@ -122,44 +117,6 @@
     </script>
   </head>
   <body>
-    <!-- 설치 PWA 실행 스플래시 — 인라인이라 React 마운트 전 즉시 페인트(깜빡임 없음). 풀 이미지. -->
-    <div id="app-splash" aria-hidden="true">
-      <div class="tag" id="app-splash-tag"></div>
-    </div>
-    <script>
-      (function () {
-        try {
-          var standalone =
-            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-            window.navigator.standalone === true;
-          if (!standalone) return; // 일반 웹 방문이면 스플래시 안 띄움
-          var el = document.getElementById('app-splash');
-          var tag = document.getElementById('app-splash-tag');
-          var isMood = location.pathname.indexOf('/mood') === 0;
-          if (isMood) {
-            // 무드: 폰화면 풀 이미지만 (태그라인 없음)
-            el.className = 'mood';
-            el.style.backgroundImage = "url('/splash-mood.png')";
-            tag.textContent = '';
-          } else {
-            // 코코트립: 폰화면 풀 이미지 + 하단 영어 태그라인
-            el.style.backgroundImage = "url('/splash-cocotrip.png')";
-            tag.textContent = 'Plan your Korea trip in 60 seconds with AI ✈️';
-          }
-          el.style.display = 'flex';
-          var t0 = Date.now();
-          var MIN = 1400, MAX = 4500, done = false;
-          function hide() {
-            if (done) return; done = true;
-            el.classList.add('hide');
-            setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 520);
-          }
-          // 앱이 첫 화면을 그릴 준비가 되면 호출 (홈/무드 포털) — 최소 표시시간 보장 후 페이드.
-          window.__appReady = function () { setTimeout(hide, Math.max(0, MIN - (Date.now() - t0))); };
-          setTimeout(hide, MAX); // 안전 캡: 신호 없어도 사라짐
-        } catch (e) { /* 스플래시는 비핵심 — 실패해도 앱은 정상 */ }
-      })();
-    </script>
     <!-- PWA 설치 프롬프트 조기 캡처 — beforeinstallprompt 가 React 마운트 전에 발화하면 놓쳐서
          [홈 화면에 추가] 버튼이 무반응이 됨. window 에 저장해 PwaInstallButton 이 읽어 쓰게. -->
     <script>
