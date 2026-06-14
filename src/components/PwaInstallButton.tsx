@@ -19,6 +19,8 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isInApp, setIsInApp] = useState(false); // 카톡·인스타 등 인앱 브라우저 — PWA 설치 이벤트 안 뜸
+  const [showManual, setShowManual] = useState(false); // 설치 프롬프트 없을 때 수동 안내 노출
   const push = usePushSubscription();
   const { user } = useAuth();
   const [pushOn, setPushOn] = useState(false);
@@ -44,6 +46,13 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
     setIsIOS(ios);
 
+    // 인앱 브라우저(카톡·인스타·라인·페북 등) — 여기선 PWA 설치 이벤트가 원천적으로 안 떠서 수동 안내 필요.
+    setIsInApp(/KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|Line\/|NAVER\(inapp/i.test(navigator.userAgent));
+
+    // index.html 에서 React 마운트 전에 미리 잡아둔 프롬프트가 있으면 사용 (이벤트 놓침 방지).
+    const early = (window as unknown as { __deferredInstallPrompt?: BeforeInstallPromptEvent }).__deferredInstallPrompt;
+    if (early) setDeferredPrompt(early);
+
     // Android/Chrome: beforeinstallprompt 캡처
     const handler = (e: Event) => {
       e.preventDefault();
@@ -61,20 +70,26 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
   if (isInstalled) return null;
 
   const handleInstall = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
+    const prompt = deferredPrompt
+      || (window as unknown as { __deferredInstallPrompt?: BeforeInstallPromptEvent }).__deferredInstallPrompt;
+    if (prompt) {
+      prompt.prompt();
+      const { outcome } = await prompt.userChoice;
       if (outcome === 'accepted') setIsInstalled(true);
       setDeferredPrompt(null);
+      (window as unknown as { __deferredInstallPrompt?: BeforeInstallPromptEvent | null }).__deferredInstallPrompt = null;
+      setShowModal(false);
+    } else {
+      // 프롬프트 없음(이벤트 미발화 / 이미 무시 / 미지원) → 모달 닫지 말고 수동 안내 노출.
+      setShowManual(true);
     }
-    setShowModal(false);
   };
 
   return (
     <>
       {/* 다운로드 아이콘 버튼 */}
       <button
-        onClick={() => setShowModal(true)}
+        onClick={() => { setShowModal(true); setShowManual(false); }}
         className="p-1.5 rounded-lg transition-all duration-200 text-white/55 hover:text-white/80 hover:bg-white/[0.06] ml-1"
         title={m.modalTitle || 'Add to Home Screen'}
       >
@@ -204,6 +219,20 @@ export function PwaInstallButton({ t }: PwaInstallButtonProps) {
                       {m.iosAddBtn || '"Add to Home Screen"'}
                     </span>
                   </div>
+                </div>
+              ) : isInApp ? (
+                /* 인앱 브라우저(카톡·인스타 등) — PWA 설치 불가 → 외부 브라우저로 열기 안내 */
+                <div className="px-4 py-3.5 rounded-xl text-center" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                  <p className="text-[12px] text-white/70 leading-relaxed">
+                    {(m as { inAppHint?: string }).inAppHint || 'In-app browsers (KakaoTalk, Instagram, etc.) cannot install apps. Open the menu and choose "Open in external browser" (Chrome / Samsung Internet), then try again.'}
+                  </p>
+                </div>
+              ) : showManual ? (
+                /* 설치 프롬프트 미발화 — 수동 안내 */
+                <div className="px-4 py-3.5 rounded-xl text-center" style={{ background: 'rgba(182,104,252,0.08)', border: '1px solid rgba(182,104,252,0.15)' }}>
+                  <p className="text-[12px] text-white/70 leading-relaxed">
+                    {(m as { manualHint?: string }).manualHint || 'Open your browser menu and tap "Add to Home screen" or "Install app".'}
+                  </p>
                 </div>
               ) : (
                 /* Android/Chrome: 자동 설치 */

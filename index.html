@@ -160,6 +160,17 @@
         } catch (e) { /* 스플래시는 비핵심 — 실패해도 앱은 정상 */ }
       })();
     </script>
+    <!-- PWA 설치 프롬프트 조기 캡처 — beforeinstallprompt 가 React 마운트 전에 발화하면 놓쳐서
+         [홈 화면에 추가] 버튼이 무반응이 됨. window 에 저장해 PwaInstallButton 이 읽어 쓰게. -->
+    <script>
+      (function () {
+        window.addEventListener('beforeinstallprompt', function (e) {
+          e.preventDefault();
+          window.__deferredInstallPrompt = e;
+        });
+        window.addEventListener('appinstalled', function () { window.__deferredInstallPrompt = null; });
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <!-- Service Worker는 vite-plugin-pwa가 자동 등록 (registerType: 'autoUpdate').
