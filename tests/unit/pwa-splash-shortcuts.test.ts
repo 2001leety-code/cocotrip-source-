@@ -72,6 +72,29 @@ describe('App / 진입 페이지 — 스플래시 배선', () => {
   });
 });
 
+describe('PWA 업데이트 토스트 — 무드 포함 전역(운영자 요청)', () => {
+  const app = readFileSync(r('src/App.tsx'), 'utf8');
+  it('PWAUpdatePrompt 는 App 레벨에서 1회 렌더 (GlobalWidgets 밖 = /mood 에서도 노출)', () => {
+    const occurrences = app.match(/<PWAUpdatePrompt\s*\/>/g) || [];
+    expect(occurrences.length).toBe(1);
+    // App 레벨(=GlobalWidgets 보다 먼저) 에 위치해야 /mood 에서도 뜸
+    const promptIdx = app.indexOf('<PWAUpdatePrompt');
+    const globalIdx = app.indexOf('<GlobalWidgets');
+    expect(promptIdx).toBeGreaterThan(0);
+    expect(promptIdx).toBeLessThan(globalIdx);
+  });
+
+  it('진입(콜드 스타트) 자동 업데이트 + 세션 중엔 토스트 (#pwa-prompt 보호 유지)', () => {
+    const src = readFileSync(r('src/components/PWAUpdatePrompt.tsx'), 'utf8');
+    expect(src).toContain('AUTO_UPDATE_WINDOW_MS');
+    // 진입 창 안에서 자동 적용 (skipWaiting+reload)
+    expect(src).toMatch(/updateServiceWorker\(true\)/);
+    expect(src).toMatch(/loadedAtRef/);
+    // 페이지당 1회 가드
+    expect(src).toMatch(/autoUpdatedRef/);
+  });
+});
+
 describe('ManifestSwitcher — /mood 매니페스트 교체', () => {
   const src = readFileSync(r('src/components/ManifestSwitcher.tsx'), 'utf8');
   it('/mood 진입 시 manifest-mood 로 swap', () => {
