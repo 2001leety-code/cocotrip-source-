@@ -67,10 +67,15 @@ export default function MobileHomeV2() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-white pt-[max(env(safe-area-inset-top),0.75rem)] pb-24 max-w-md mx-auto">
-      {/* Header: C+비행기 로고 lockup + 언어 전환 */}
-      <header className="flex items-center justify-between px-5 pt-4 pb-1">
-        <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-6 w-auto" />
+    <div className="min-h-screen bg-[#0a0b14] text-white pb-24 max-w-md mx-auto">
+      {/* Header: C+비행기 로고 lockup + 언어 전환.
+          로고 주변 여백을 사방 균일하게(운영자: 위=아래=왼쪽 여백 동일). 로고·EN 둘 다 h-9(36px),
+          헤더 패딩 = 위·아래·좌·우 모두 12px(px-3 pb-3) → items-center 라 로고 위/아래 여백 12px 동일,
+          왼쪽 여백 12px 동일. 상단 노치 안전영역은 헤더 pt 에 흡수(max(safe-area,0.75rem)) — 일반
+          화면(노치 없음/브라우저)에선 12px 균일, 노치 폰에선 상태바만큼만 위가 늘어남(시스템 강제, 불가피).
+          (로고 PNG 내부 투명여백 상하 2.8/좌 2.4px 이라 보이는 여백도 0.4px 내 균일.) */}
+      <header className="flex items-center justify-between px-3 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
+        <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-9 w-auto" />
         <button
           onClick={cycleLanguage}
           aria-label="Language"
