@@ -1,8 +1,10 @@
 /**
- * PWA 바로가기 2종 + 2초 스플래시 — 자산 존재 + 배선/안전 소스가드 (2026-06-14).
+ * PWA 바로가기 2종 + 실행 스플래시 — 자산 + 인라인 스플래시(index.html) 배선/안전 소스가드.
  *
- * 코코트립 바로가기(스플래시 C+비행기, /) / 무드 바로가기(스플래시 C×M, /mood).
- * 설치 PWA(standalone) 실행 시 진입 경로별 2초 스플래시 → 페이지. 일반 웹 방문 땐 안 뜸.
+ * 코코트립 바로가기(아이콘 C+비행기, /) / 무드 바로가기(아이콘 C×M, /mood).
+ * 설치 PWA(standalone) 실행 시 OS 스플래시와 동일한 아이콘+태그라인을 인라인으로 즉시 그려
+ * 매끄럽게 이어받고, 앱 준비될 때까지 유지(검정 갭 방지) 후 페이드. 일반 웹 방문 땐 안 뜸.
+ * (2026-06-14 회귀 수정: React AppSplash 늦은 마운트 → 인라인으로 교체.)
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -11,10 +13,8 @@ import { resolve } from 'node:path';
 const r = (p: string) => resolve(process.cwd(), p);
 
 describe('PWA 자산 존재', () => {
-  it('스플래시 2종 + 무드 아이콘 + 무드 매니페스트', () => {
+  it('아이콘 2종(코코트립·무드, 패딩본) + 무드 매니페스트', () => {
     for (const f of [
-      'public/splash-cocotrip.png',
-      'public/splash-mood.png',
       'public/icons/icon-192.png',
       'public/icons/icon-512.png',
       'public/icons/mood-192.png',
@@ -34,23 +34,41 @@ describe('PWA 자산 존재', () => {
   });
 });
 
-describe('AppSplash — standalone·경로별·안전 (소스가드)', () => {
-  const src = readFileSync(r('src/components/AppSplash.tsx'), 'utf8');
+describe('index.html 인라인 스플래시 — standalone·경로별·검정갭 방지', () => {
+  const html = readFileSync(r('index.html'), 'utf8');
   it('설치 PWA(standalone)에서만 — display-mode standalone 체크', () => {
-    expect(src).toContain("display-mode: standalone");
-    expect(src).toMatch(/useState\(\(\)\s*=>\s*isStandalone\(\)\)/);
+    expect(html).toContain('#app-splash');
+    expect(html).toContain("display-mode: standalone");
+    expect(html).toMatch(/if\s*\(!standalone\)\s*return/); // 일반 웹 방문이면 미표시
   });
-  it('진입 경로 /mood → 무드 스플래시 / 그 외 → 코코트립', () => {
-    expect(src).toMatch(/launchPath\.current\.startsWith\('\/mood'\)/);
-    expect(src).toContain('/splash-mood.png');
-    expect(src).toContain('/splash-cocotrip.png');
+  it('진입 경로 /mood → 무드 아이콘 / 그 외 → 코코트립 + 태그라인', () => {
+    expect(html).toMatch(/location\.pathname\.indexOf\('\/mood'\)\s*===\s*0/);
+    expect(html).toContain('/icons/mood-192.png');
+    expect(html).toContain('/icons/icon-192.png');
+    expect(html).toContain('60 seconds');
   });
-  it('2초 후 제거 (2000ms) + 훅 early-return 위', () => {
-    expect(src).toMatch(/setShow\(false\)[\s\S]{0,20}2000/);
-    const ret = src.indexOf('if (!show) return null');
-    const eff = src.indexOf('useEffect(');
-    expect(eff).toBeGreaterThan(0);
-    expect(eff).toBeLessThan(ret);
+  it('앱 준비 신호까지 유지(검정 갭 방지) + 안전 캡', () => {
+    expect(html).toContain('window.__appReady');
+    expect(html).toMatch(/MIN\s*=\s*1400/);
+    expect(html).toMatch(/setTimeout\(hide,\s*MAX\)/); // 신호 없어도 사라짐
+  });
+});
+
+describe('App / 진입 페이지 — 스플래시 배선', () => {
+  it('App 은 ManifestSwitcher 렌더 (AppSplash 컴포넌트는 제거됨)', () => {
+    const app = readFileSync(r('src/App.tsx'), 'utf8');
+    expect(app).toMatch(/<ManifestSwitcher\s*\/>/);
+    expect(app).not.toContain('AppSplash');
+  });
+  it('signalAppReady 헬퍼 존재 + __appReady 호출', () => {
+    const lib = readFileSync(r('src/lib/appReady.ts'), 'utf8');
+    expect(lib).toContain('__appReady');
+  });
+  it('홈(MobileHomeV2) + 무드 포털이 signalAppReady 호출', () => {
+    expect(readFileSync(r('src/pages/MobileHomeV2.tsx'), 'utf8')).toContain('signalAppReady');
+    const mood = readFileSync(r('src/pages/MoodPortal.tsx'), 'utf8');
+    expect(mood).toContain('signalAppReady');
+    expect(mood).toMatch(/if\s*\(!loading\)\s*signalAppReady\(\)/);
   });
 });
 
@@ -60,13 +78,5 @@ describe('ManifestSwitcher — /mood 매니페스트 교체', () => {
     expect(src).toMatch(/startsWith\('\/mood'\)/);
     expect(src).toContain('/manifest-mood.webmanifest');
     expect(src).toContain('/icons/mood-192.png');
-  });
-});
-
-describe('App — 스플래시·스위처 배선', () => {
-  const app = readFileSync(r('src/App.tsx'), 'utf8');
-  it('AppSplash + ManifestSwitcher 렌더', () => {
-    expect(app).toMatch(/<AppSplash\s*\/>/);
-    expect(app).toMatch(/<ManifestSwitcher\s*\/>/);
   });
 });

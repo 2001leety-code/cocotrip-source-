@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
-import { AppSplash } from '@/components/AppSplash';
 import { ManifestSwitcher } from '@/components/ManifestSwitcher';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage, LanguageProvider } from '@/hooks/useLanguage';
@@ -607,7 +606,6 @@ function App() {
       <ErrorBoundary>
       <BrowserRouter>
         <CommandPaletteProvider>
-        <AppSplash />
         <ManifestSwitcher />
         <GlobalWidgets />
         <NonMoodChrome />
