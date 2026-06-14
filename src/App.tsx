@@ -491,11 +491,11 @@ function AnimatedRoutes() {
           <Route
             path="/charter"
             element={
-              <AuthRequired>
-                <Suspense fallback={<CharterSkeleton />}>
-                  <CharterNewPage />
-                </Suspense>
-              </AuthRequired>
+              // 비로그인도 견적(1~5단계)까지 구경 가능 — 광고 트래픽 안 튕김. 로그인은 6단계(견적)
+              // 진입 시 CharterWizard 가 요구(리드 캡처), 결제도 백엔드 미로그인 401 로 일관 차단.
+              <Suspense fallback={<CharterSkeleton />}>
+                <CharterNewPage />
+              </Suspense>
             }
           />
           <Route

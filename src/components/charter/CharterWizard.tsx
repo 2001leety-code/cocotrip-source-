@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useQuoteCalculator } from '@/hooks/useQuoteCalculator';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useAuth } from '@/hooks/useAuth';
+import { signInWithGoogle } from '@/lib/firebase';
 import { mergeProfileDefaults, normalizeProfilePhone } from '@/lib/profilePrefill';
 import { INITIAL_WIZARD_STATE } from './types';
 import type { WizardState } from './types';
@@ -64,6 +66,14 @@ function manualKmLabel(lang: string): string {
   return 'Enter distance (km)';
 }
 
+// 6단계(견적) 진입 직전 로그인 게이트 버튼 라벨 — 비로그인은 1~5단계 구경 후 견적 보기 전 로그인(리드 캡처).
+const LOGIN_QUOTE_LABEL: Record<string, string> = {
+  en: 'Sign in to see your quote',
+  ko: '로그인하고 견적 보기',
+  ja: 'ログインして見積もりを見る',
+  zh: '登录查看报价',
+};
+
 export function CharterWizard({ initialState, onComplete, language = 'en' }: CharterWizardProps) {
   // 2026-05-10 (B9-35 잔여): 마운트 시 24h 이내 미완 snapshot 있으면 modal 노출.
   // initialState (caller 가 명시 prefill) 이 있으면 snapshot 무시 — caller intent 우선.
@@ -85,6 +95,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     return { ...INITIAL_WIZARD_STATE, ...filtered };
   });
   const [currentStep, setCurrentStep] = useState(1);
+  // 견적(6단계) 진입 게이트용 — 비로그인이면 견적 보기 전 로그인 요구(리드 캡처 + 봇/저관심 거름).
+  const { user } = useAuth();
   // 사용자 manual km override — Geocoding 실패 또는 직접 보정.
   const [manualKm, setManualKm] = useState<number | null>(null);
   // Resume modal — 사용자가 '이어서/새로 시작' 결정할 때까지 main snapshot 보존.
@@ -188,7 +200,15 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     }
   }, [currentStep, state, quote, isInquiryVehicle]);
 
-  const goNext = () => setCurrentStep(s => Math.min(6, s + 1));
+  const goNext = () => {
+    // 5→6(견적) 진입 직전 로그인 게이트 — 비로그인이면 견적 보기 전 Google 로그인(리드 캡처).
+    // 백엔드 결제도 미로그인 401 이라 일관. 로그인 후 다시 [다음] 누르면 6단계 견적으로.
+    if (currentStep === 5 && !user) {
+      void signInWithGoogle();
+      return;
+    }
+    setCurrentStep(s => Math.min(6, s + 1));
+  };
   const goPrev = () => setCurrentStep(s => Math.max(1, s - 1));
 
   const i18n = getWizardI18n(language);
@@ -301,7 +321,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
             style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
           >
-            {i18n.next} <ChevronRight className="w-4 h-4" />
+            {currentStep === 5 && !user ? (LOGIN_QUOTE_LABEL[language] || LOGIN_QUOTE_LABEL.en) : i18n.next} <ChevronRight className="w-4 h-4" />
           </button>
         )}
         {currentStep === 6 && onComplete && !isInquiryVehicle && (
