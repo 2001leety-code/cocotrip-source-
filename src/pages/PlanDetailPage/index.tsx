@@ -111,8 +111,12 @@ export default function PlanDetailPage() {
       const isGuestPlan = !data.uid;
       const isPublicShared = data.isPublic === true;
       if (!ownerCheck && !hasToken && !isGuestPlan && !isPublicShared) { setError('unauthorized'); setLoading(false); return; }
-      // PII masking for non-owner viewing public plan
-      if (isPublicShared && !ownerCheck && !hasToken && !isGuestPlan) {
+      // PII masking — 소유자도 유효 토큰 보유자도 아닌 접근(공유 링크 또는 게스트 플랜 planId 노출).
+      // 버그헌트 2026-06-14: 게스트 플랜(uid 없음)을 토큰 없이 보면 PII(이메일·주소·알레르기·토큰)가
+      // 그대로 노출되던 것 → 마스킹. itinerary 뷰는 유지(안 깨짐). rule-레벨 raw SDK read 차단은
+      // onSnapshot 스트리밍 의존 때문에 별도 아키텍처 과제(익명 auth / API 스트리밍).
+      const noPiiAccess = !ownerCheck && !hasToken;
+      if (noPiiAccess && (isPublicShared || isGuestPlan)) {
         delete data.uid; delete data.guestEmail;
         delete data.accessToken;
         if (data.input) {
