@@ -98,7 +98,8 @@ export function PurchaseSection({
           <span className="text-white/55">{'·'}</span>
           <span className="text-white/60 text-xs">{p.launchPrice}</span>
         </div>
-        <p className="text-amber-400/80 text-[11px] mt-3 font-medium">{p.limitedTimeOffer}</p>
+        {/* "First 100 customers" 가짜 한정 문구 제거 (2026-06-14) — 실제 카운터가 없어 구글 광고
+            "허위 긴급성/가짜 재고" 정책 위반 소지. 50% OFF(실 할인)·launchPrice 배지는 유지. */}
 
         {/* W4: 가치 강조 배너 — "1회 결제 = 총 3개 버전 일정" */}
         <div className="mt-3 mx-auto max-w-xs px-3.5 py-2.5 rounded-xl border border-amber-400/30"

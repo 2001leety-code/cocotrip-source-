@@ -85,7 +85,11 @@ export default async function handler(req, res) {
     res.writeHead(200, JSON_HEADERS);
     return res.end(JSON.stringify({
       ok: true,
-      data: { km: route.km, tollKRW: route.tollKRW, durationMin: route.durationMin },
+      // path/points = 지도에 실제 경로 선 + 출발/경유/도착 마커 그리기용 (가격은 km/tollKRW 그대로).
+      data: {
+        km: route.km, tollKRW: route.tollKRW, durationMin: route.durationMin,
+        path: route.path || [], points: route.points || [],
+      },
     }));
   } catch (err) {
     console.error('[mood-route] failed:', err.message);

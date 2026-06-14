@@ -139,39 +139,20 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
 
           {/* ═══ Left: Logo ═══ */}
           <Link to="/" className="flex items-center gap-2 md:gap-2.5 shrink-0">
-            <div
-              className="w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center"
+            {/* 브랜드 로고 — 홈(MobileHomeV2)과 동일한 이미지로 통일(전 페이지 일관). */}
+            <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-7 md:h-8 w-auto" />
+            {/* Beta badge — 상용화 전 사용자 기대치 조절. 런칭 후 안정화+매출 검증되면 제거. */}
+            <span
+              className="text-[8px] md:text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-white"
               style={{
-                background: 'linear-gradient(135deg, #7C5CFC, #EA537E)',
-                boxShadow: '0 2px 12px rgba(124,92,252,0.3)',
+                background: 'linear-gradient(135deg, #B668FC, #FF6B9D)',
+                boxShadow: '0 1px 4px rgba(182,104,252,0.4)',
+                lineHeight: '1',
               }}
+              title="베타 서비스 — 환영 의견 + 개선 진행 중"
             >
-              <span className="text-white font-black text-[9px] md:text-[10px] tracking-wider">COCO</span>
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-[15px] md:text-[17px] leading-none tracking-tight text-white">
-                  COCOTRIP
-                </span>
-                {/* Beta badge — 상용화 전 사용자 기대치 조절 (PMF 검증 단계 포지셔닝).
-                    런칭 후 안정화 + 매출 검증되면 제거. */}
-                <span
-                  className="text-[8px] md:text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-white"
-                  style={{
-                    background: 'linear-gradient(135deg, #B668FC, #FF6B9D)',
-                    boxShadow: '0 1px 4px rgba(182,104,252,0.4)',
-                    lineHeight: '1',
-                  }}
-                  title="베타 서비스 — 환영 의견 + 개선 진행 중"
-                >
-                  BETA
-                </span>
-              </div>
-              {/* Subtitle decorative — hide on mobile for vertical density */}
-              <span className="hidden md:block text-[9px] font-semibold tracking-[0.2em] text-[#7C5CFC]/80 leading-none mt-0.5">
-                KOREA PRIVATE TOUR
-              </span>
-            </div>
+              BETA
+            </span>
           </Link>
 
           {/* ═══ PWA Install (mobile only) ═══ */}
