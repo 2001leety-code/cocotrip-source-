@@ -46,7 +46,7 @@ export function PWAUpdatePrompt() {
   const standaloneRef = useRef(isStandalone());
 
   const {
-    needRefresh: [needRefresh, setNeedRefresh],
+    needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
@@ -110,7 +110,7 @@ export function PWAUpdatePrompt() {
         {refreshLabel}
       </button>
       <button
-        onClick={() => { setNeedRefresh(false); setDismissed(true); }}
+        onClick={() => setDismissed(true)}
         className="shrink-0 p-1 rounded-md hover:bg-white/15 text-white/85 transition-colors"
         aria-label="Dismiss"
       >

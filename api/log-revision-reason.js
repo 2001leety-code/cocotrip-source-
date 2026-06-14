@@ -17,8 +17,9 @@
  *     language?: 'ko'|'en'|'ja'|'zh'
  *   }
  *
- * Auth: optional Bearer Firebase token. plan owner uid 매칭 시 audit log 강화.
- *       비로그인/공개 plan 도 push 허용 (revisionToken 검증은 ai-planner-full 에서 후속).
+ * Auth: plan 소유권 필수 (쓰기 IDOR 차단, bughunt LOW fix). owner(Bearer uid) 또는
+ *       유효 accessToken(body.token / x-plan-token 헤더) 보유자만 push 허용. uid·accessToken
+ *       둘 다 없는 legacy 게스트 plan 만 하위호환으로 익명 허용. 비소유자 쓰기 = 403.
  *
  * 부수효과 X — 단순 메타데이터 로깅. 재생성 자체는 별도 endpoint (/api/ai-planner-full).
  *
@@ -91,7 +92,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    const { planId, reason: rawReason, freeText = '', language = 'en' } = body;
+    const { planId, reason: rawReason, freeText = '', language = 'en', token: bodyToken } = body;
 
     if (!planId || typeof planId !== 'string') {
       res.writeHead(400, JSON_HEADERS);
@@ -106,7 +107,11 @@ export default async function handler(req, res) {
       )));
     }
 
-    // 옵션 인증 — 토큰 있으면 uid 추출 (audit log 용, 검증 강제 X)
+    // 인증 — Bearer 토큰 있으면 검증된 uid 추출 (owner 판정 + audit log 용).
+    // 🔴 보안 (bughunt LOW, 쓰기 IDOR): 이전엔 토큰을 audit log 용으로만 쓰고
+    //   plan 소유권 검사 없이 누구나 임의 planId 의 revisionReasons 에 append 가능했다
+    //   (문서 비대화 + 운영 학습데이터 오염). 이제 plan 의 uid/accessToken 과 대조해
+    //   owner 또는 유효 token 보유자만 쓰게 한다 (recalc-transit.js:70-91 패턴).
     let userId = null;
     const authHeader = req.headers?.authorization || req.headers?.Authorization || '';
     const tokenMatch = String(authHeader).match(/^Bearer\s+(.+)$/i);
@@ -137,6 +142,23 @@ export default async function handler(req, res) {
     if (!planSnap.exists) {
       res.writeHead(404, JSON_HEADERS);
       return res.end(JSON.stringify(_err('Plan not found', 'PLAN_NOT_FOUND')));
+    }
+
+    // 🔴 쓰기 IDOR 차단 — plan 소유권 검증 (recalc-transit.js 패턴).
+    //   accessToken 은 body.token 또는 x-plan-token 헤더로 전달 (게스트 plan 편집 경로).
+    //   - isOwner: 검증된 uid 가 plan.uid 와 일치 (로그인 소유자)
+    //   - hasToken: plan.accessToken 과 요청 token 일치 (게스트 plan 소유자)
+    //   - unprotectedGuestPlan: uid·accessToken 둘 다 없는 legacy 게스트 plan (보호수단 부재 → 하위호환 허용)
+    //   셋 중 무엇도 아니면 비소유자 쓰기 = 403.
+    const planData = planSnap.data() || {};
+    const headerToken = req.headers?.['x-plan-token'] || req.headers?.['X-Plan-Token'] || '';
+    const requestToken = (typeof bodyToken === 'string' && bodyToken) || String(headerToken || '') || '';
+    const isOwner = userId && planData.uid === userId;
+    const hasToken = planData.accessToken && requestToken && planData.accessToken === requestToken;
+    const unprotectedGuestPlan = !planData.uid && !planData.accessToken;
+    if (!isOwner && !hasToken && !unprotectedGuestPlan) {
+      res.writeHead(403, JSON_HEADERS);
+      return res.end(JSON.stringify(_err('Not authorized for this plan', 'FORBIDDEN')));
     }
 
     const trimmedFreeText = String(freeText || '').slice(0, MAX_FREE_TEXT_LEN).trim();

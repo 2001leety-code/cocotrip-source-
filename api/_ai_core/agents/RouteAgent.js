@@ -3,6 +3,8 @@ import { BaseAgent } from "./BaseAgent.js";
 import { formatTransitSummary, getSubwayStationInfo, getSubwayTimetable } from "../../_odsay_helper.js";
 // P330 (2026-05-31): provider 스위치 — 기본 ODsay, TRANSIT_PROVIDER=tmap 시 TMAP. 출력 shape 동일.
 import { searchTransit } from "../../_transit_provider.js";
+// BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성을 ODsay 일 때만 발동시키는 게이트용 (TMAP native 급행 보존).
+import { getTransitProvider } from "../../_transit_provider.js";
 import { AIRPORT_COORDS, AIRPORT_STATION_COORDS, AIRPORT_NAMES, CITY_CENTER_COORDS, lookupZoneCoord } from "../constants.js";
 // P-launch (2026-05-31): 한글 regions('부산') → 영문 키('busan') 정규화 (멀티시티 departure city 해석용).
 import { normalizeRegionKey } from "../responseValidator.js";
@@ -794,11 +796,24 @@ export class RouteAgent extends BaseAgent {
                     let heroRoute = route;
                     let effectiveRec = rec;
                     const isIcnArrival = arrivalAirportKey === 'ICN' || arrivalAirportKey === 'ICN_T1' || arrivalAirportKey === 'ICN_T2';
+                    // BUGHUNT-LOW (2026-06-14): AREX 직통 HERO 합성은 ODsay 가 express 를 모델 못 해서
+                    //   만든 우회책이다. TMAP 은 ICN→명동을 native 로 ₩4,600(공항철도 급행+4호선) 코히어런트
+                    //   하게 반환하므로, TMAP 활성 시 합성(₩9,500 직통 + 서울역→호텔 last-mile)으로 덮으면
+                    //   서울 중심부 호텔에서 더 비싸고 덜 정확해진다. → ODsay 일 때만 합성, TMAP 일 땐
+                    //   _buildArexExpressHero 를 호출하지 않고(express=null) _routeAirportHotel 이 이미 반환한
+                    //   native 경로(route)를 그대로 HERO 로 사용. ODsay(폴백 포함) primary 면 기존대로 합성.
                     if (isIcnArrival && rec.key === 'arex_express') {
-                        const express = await this._buildArexExpressHero(arrivalAirportKey, arrFromCoord, clientId, clientSecret);
+                        const arexProviderOdsay = getTransitProvider() === 'odsay';
+                        const express = arexProviderOdsay
+                            ? await this._buildArexExpressHero(arrivalAirportKey, arrFromCoord, clientId, clientSecret)
+                            : null;
                         if (express) {
                             heroRoute = express;
                             console.log(`  - [Airport→Hotel] P327 AREX 직통 HERO: ${express.est_min}min / ₩${express.est_fare_krw} / ${express.transfers}tr (ODsay path[0] 는 ${route.est_min}min/${route.transfers}tr 였음)`);
+                        } else if (!arexProviderOdsay) {
+                            // BUGHUNT-LOW (2026-06-14): TMAP 활성 → 합성 의도적 skip. TMAP 의 native route 는
+                            //   공항철도 급행을 코히어런트하게 모델하므로 ODsay 같은 강등 불필요. route/rec 그대로 유지.
+                            console.log(`  - [Airport→Hotel] AREX 합성 skip (provider=tmap) → TMAP native 경로 사용 (${route.est_min}min/₩${route.est_fare_krw}/${route.transfers}tr/${route.source})`);
                         } else {
                             // P-launch (2026-05-31): 직통 합성 실패(>6km 또는 경로 없음) → route 는 ODsay indirect.
                             //   "AREX Express 가장 빠름" 라벨을 그대로 두면 라벨↔데이터 모순(plan db7fae92).

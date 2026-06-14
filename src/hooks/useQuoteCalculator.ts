@@ -341,11 +341,17 @@ function calculateQuoteWithKm(state: WizardState, externalKm: number | null): Qu
   let multiDayDiscountKRW = 0;
   let multiDayDiscountPercent = 0;
   if (mode === 'multi_day') {
+    // dayDiff = 박수. endDate 는 inclusive(마지막 여행일) → dayDiff = endDate - startDate 일수,
+    // 체류 일수(durationDays) = dayDiff + 1. (1박2일: dayDiff=1, 2박3일: dayDiff=2.)
+    // 백엔드 SSOT (src/lib/multidayQuote.ts MULTIDAY_DISCOUNT_MIN_DAYS=3, 즉 3일+=2박+):
+    //   할인 조건: durationDays >= 3  ↔  dayDiff >= 2
+    // 이전 dayDiff >= 1 (1박=2일~)은 백엔드보다 과도한 할인 → 표시/청구 불일치.
+    const MULTIDAY_DISCOUNT_MIN_NIGHTS = 2; // multidayQuote.ts MULTIDAY_DISCOUNT_MIN_DAYS(3) - 1
     const dayDiff = state.startDate && state.endDate
       ? Math.round((new Date(state.endDate).getTime() - new Date(state.startDate).getTime()) / 86_400_000)
       : 0;
-    if (dayDiff >= 1) {
-      const pct = EXTRA_CHARGES.multiDayDiscountPercent ?? 10;
+    if (dayDiff >= MULTIDAY_DISCOUNT_MIN_NIGHTS) {
+      const pct = EXTRA_CHARGES.multiDayDiscountPercent || 10;
       multiDayDiscountPercent = pct;
       multiDayDiscountKRW = Math.round((vehicleChargeKRW + addonsSum + surchargeKRW) * (pct / 100));
     }

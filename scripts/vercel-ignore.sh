@@ -54,6 +54,8 @@ fi
 
 # git diff 가 실패하면 (BASE 가 갑자기 unreachable 되는 등) build (fail-safe).
 # command substitution + set -e 미사용 패턴이라 git diff 실패 시 CHANGED 가 빈 문자열로 떨어지고 아래 분기에서 build 진행.
+# (P94: || true 는 의도된 fail-safe — BASE unreachable 시 non-binary exit 방지. GIT_DIFF_EXIT 분기가
+#  사실상 -z "$CHANGED" 와 겹쳐도 그대로 둠. 버그헌트 '데드코드' 지적은 P94 규칙상 false positive.)
 CHANGED=$(git diff --name-only "$BASE" HEAD 2>/dev/null || true)
 GIT_DIFF_EXIT=$?
 
