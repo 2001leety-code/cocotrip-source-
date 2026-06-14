@@ -34,13 +34,26 @@ describe('PWA 자산 존재', () => {
   });
 });
 
-describe('커스텀 인라인 스플래시 제거됨 (2026-06-14)', () => {
-  // Android PWA 는 OS 가 아이콘 스플래시를 강제로 먼저 띄움(끌 수 없음) → 그 위에 커스텀 풀이미지
-  // 스플래시를 또 띄우면 "두 번" 떠 보임(운영자 신고). 커스텀 제거 → OS 아이콘 스플래시 하나만.
+describe('매끄러운 브랜드 스플래시 복원 (2026-06-14 운영자 선택)', () => {
+  // 운영자 선택: "매끄러운 브랜드 스플래시". OS 아이콘 스플래시와 배경색을 이어받아(깜빡임 0)
+  // 워드마크(로고)+태그라인으로 전환 → "아이콘 2개" 회귀(#951/#953) 방지. standalone 전용.
   const html = readFileSync(r('index.html'), 'utf8');
-  it('index.html 에 커스텀 스플래시 오버레이(#app-splash) 없음', () => {
-    expect(html).not.toContain('id="app-splash"');
-    expect(html).not.toContain('window.__appReady');
+  it('index.html 에 인라인 스플래시 오버레이(#app-splash) + __appReady 배선', () => {
+    expect(html).toContain('id="app-splash"');
+    expect(html).toContain('window.__appReady');
+  });
+  it('배경색 = manifest background_color 동일 (seamless): cocotrip #0a0b14 / mood #0a0412', () => {
+    expect(html).toContain('background:#0a0b14');
+    expect(html).toContain('#0a0412');
+  });
+  it('아이콘 중복 없이 워드마크(로고)+태그라인 — "아이콘 2개" 회귀 방지', () => {
+    expect(html).toContain('app-splash-wm');
+    expect(html).toContain('/images/logo-cocotrip.png');
+    // 별도 아이콘(icon-192)을 splash 에서 또 그리지 않음
+    expect(html).not.toMatch(/app-splash[\s\S]{0,400}icon-192\.png/);
+  });
+  it('standalone(설치 앱) 전용 — 일반 웹 탭에선 안 뜸', () => {
+    expect(html).toContain("display-mode: standalone");
   });
 });
 

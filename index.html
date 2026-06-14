@@ -45,10 +45,22 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CocoTrip" />
 
-    <!-- PWA 실행 스플래시 제거 (2026-06-14): Android PWA 는 OS 가 아이콘 스플래시를 강제로 먼저
-         띄우는데(끌 수 없음), 그 위에 커스텀 풀이미지 스플래시를 또 띄우면 "두 번" 떠 보임(운영자
-         신고). 풀스크린 단일 스플래시는 네이티브 앱만 가능 → 커스텀 스플래시 제거하고 OS 아이콘
-         스플래시(=브랜드 로고) 하나만 사용. -->
+    <!-- PWA 실행 스플래시 — "매끄러운 브랜드 스플래시" (2026-06-14 운영자 선택).
+         Android PWA 는 OS 가 [background_color 배경 + 앱 아이콘] 스플래시를 강제로 먼저 띄움(끌 수
+         없음). 과거 회귀(#951/#953): 그 위에 "다른" 풀이미지/아이콘을 또 띄워 "두 번 떠" 보였음.
+         이번 방식 = OS 스플래시와 **배경색 동일**(#0a0b14=manifest background_color, 무드 #0a0412)로
+         이어받아 깜빡임 0 + OS 가 보여준 "아이콘" 대신 **워드마크(C마크 포함 로고)+태그라인**으로
+         전환 = "아이콘 2개" 아님(아이콘→로고 자연스러운 전개). standalone(설치 앱)에서만, 일반 웹
+         탭에선 안 뜸. 앱 첫 화면 준비(signalAppReady) 까지 유지해 lazy 로딩 검정 갭을 가린 뒤 페이드. -->
+    <style id="app-splash-style">
+      #app-splash{position:fixed;inset:0;z-index:99999;display:none;flex-direction:column;align-items:center;justify-content:center;background:#0a0b14;opacity:1;transition:opacity .5s ease;pointer-events:none}
+      #app-splash.mood{background:#0a0412}
+      #app-splash .wm{width:230px;max-width:62vw;height:auto;opacity:0;transform:translateY(7px);animation:appSplashIn .55s cubic-bezier(.22,.61,.36,1) .12s forwards}
+      #app-splash .wordtext{font-size:42px;font-weight:800;letter-spacing:3px;color:#fff;opacity:0;transform:translateY(7px);animation:appSplashIn .55s cubic-bezier(.22,.61,.36,1) .12s forwards;font-family:system-ui,-apple-system,sans-serif}
+      #app-splash .tag{margin-top:20px;color:#fff;opacity:0;font-size:14px;font-weight:500;text-align:center;padding:0 32px;max-width:330px;line-height:1.5;letter-spacing:.2px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;text-shadow:0 2px 10px rgba(0,0,0,.45);animation:appSplashIn .55s ease .28s forwards}
+      #app-splash.hide{opacity:0}
+      @keyframes appSplashIn{to{opacity:.96;transform:none}}
+    </style>
 
     <!-- CJK 웹폰트 프리로드 — PDF 렌더 시 한국어/일본어/중국어 글자 깨짐 방지 -->
     <!-- 2026-05-09 (B9-30): display=swap → display=block 변경.
@@ -121,6 +133,47 @@
     </script>
   </head>
   <body>
+    <!-- 매끄러운 브랜드 스플래시 (설치 standalone 전용). OS 아이콘 스플래시와 배경색을 이어받아
+         워드마크+태그라인으로 전환. 일반 웹 탭에선 standalone 아니라 안 뜸. signalAppReady 까지 유지. -->
+    <div id="app-splash" aria-hidden="true">
+      <img id="app-splash-wm" class="wm" src="/images/logo-cocotrip.png" alt="" />
+      <div class="wordtext" id="app-splash-moodtext" style="display:none">MOOD</div>
+      <div class="tag" id="app-splash-tag"></div>
+    </div>
+    <script>
+      (function () {
+        try {
+          var standalone =
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            window.navigator.standalone === true;
+          if (!standalone) return; // 일반 웹 방문(브라우저 탭)이면 스플래시 안 띄움
+          var el = document.getElementById('app-splash');
+          var wm = document.getElementById('app-splash-wm');
+          var moodText = document.getElementById('app-splash-moodtext');
+          var tag = document.getElementById('app-splash-tag');
+          var isMood = location.pathname.indexOf('/mood') === 0;
+          if (isMood) {
+            el.className = 'mood';          // 배경 #0a0412 (무드 manifest 와 동일)
+            wm.style.display = 'none';        // 코코트립 로고 숨김
+            moodText.style.display = 'block'; // 무드는 'MOOD' 텍스트 워드마크 (무드 워드마크 이미지 없음)
+            tag.textContent = '';
+          } else {
+            tag.textContent = 'Plan your Korea trip in 60 seconds with AI ✈️';
+          }
+          el.style.display = 'flex';
+          var t0 = Date.now();
+          var MIN = 1300, MAX = 4500, done = false;
+          function hide() {
+            if (done) return; done = true;
+            el.classList.add('hide');
+            setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 560);
+          }
+          // 앱 첫 화면(홈/무드 포털) 준비 시 호출 — 최소 표시시간 보장 후 페이드. (검정 갭 가림)
+          window.__appReady = function () { setTimeout(hide, Math.max(0, MIN - (Date.now() - t0))); };
+          setTimeout(hide, MAX); // 안전 캡: 신호 없어도 사라짐
+        } catch (e) { /* 스플래시는 비핵심 — 실패해도 앱은 정상 */ }
+      })();
+    </script>
     <!-- PWA 설치 프롬프트 조기 캡처 — beforeinstallprompt 가 React 마운트 전에 발화하면 놓쳐서
          [홈 화면에 추가] 버튼이 무반응이 됨. window 에 저장해 PwaInstallButton 이 읽어 쓰게. -->
     <script>
