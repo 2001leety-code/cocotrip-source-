@@ -52,7 +52,7 @@ function reject(statusCode, code, message, details) {
   return { rejection: { statusCode, code, message, ...(details ? { details } : {}) } };
 }
 
-export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail) {
+export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid) {
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
   let isRevision = false;
@@ -66,7 +66,10 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
       return reject(404, 'NOT_FOUND', 'Original plan not found');
     }
     const origData = origDoc.data();
-    const uid = body.uid || null;
+    // SECURITY (버그헌트 2026-06-14): 소유권은 검증된 토큰 uid 로만 판정. 이전엔 body.uid 를
+    // 신뢰해 임의 로그인 사용자가 body.uid=피해자uid 로 isOwner 우회 → 남의 plan revision +
+    // revisionCredit 소각(IDOR). ai-planner-modify.js:573 / recalc-transit.js:78 와 동일 패턴.
+    const uid = authenticatedUid || null;
     const isOwner = uid && origData.uid === uid;
     const hasToken = origData.accessToken && origData.accessToken === revisionToken;
     // Launch P1-4 (2026-05-10): origData.uid truthy check 강화.

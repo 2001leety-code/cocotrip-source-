@@ -168,7 +168,7 @@ export default async function handler(req, res) {
     lastEmail = authenticatedEmail;
 
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────
-    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail));
+    const gate = await withStep('paymentGate', () => enforcePaymentAndRevision(body, adminDb, authenticatedEmail, auth.uid));
     if (gate.rejection) {
       const { statusCode, code, message, details } = gate.rejection;
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });

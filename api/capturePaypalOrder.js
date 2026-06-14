@@ -13,6 +13,7 @@ import { throttledTelegramAlert } from './_shared/telegram-throttle.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { notifyOperator } from './_shared/operator-alerts.js';
 import { notify } from './_shared/notify.js';
+import { featureEnabled } from './_shared/feature-flag.js';
 
 // ── Admin bypass 허용 이메일 목록 ─────────────────────────────────────────
 // ADMIN_BYPASS_EMAILS env var (쉼표 구분) 우선, 없으면 ADMIN_EMAIL env var,
@@ -161,7 +162,14 @@ export default async function handler(req, res) {
     // 실패 시 즉시 409 반환 + used_paypal_orders lock 해제 → 사용자가 다른
     // 쿠폰 / 쿠폰 없이 재시도 가능. capture 실패 시 쿠폰 + lock 둘 다 해제 →
     // 정상적인 재시도 흐름 보장.
-    const couponLockRef = (couponDocId && couponUserId)
+    // 🔴 돈 버그 fix (2026-06-14): 쿠폰 소진(isUsed=true)을 createPaypalOrder 청구 게이트와
+    //   동일한 FEATURE_DISCOUNT_V2 조건으로 게이트. v2 OFF(현 prod 기본)면 createPaypalOrder.js:237
+    //   가 청구가에 할인을 반영 안 함(=정가 청구) → capture 가 v2 게이트 없이 쿠폰을 burn 하면
+    //   화면 5%할인가/실제 정가청구/1회용 쿠폰 소진 = 표시≠청구 + 쿠폰 손실. v2 OFF 시 couponLockRef
+    //   를 null 로 유지 → 소진 스킵(쿠폰 보존). v2 ON 시에만 정상 pre-lock/소진. (프론트 피커도
+    //   discountV2 OFF면 숨김 → 3경로 일관: 정가·미노출·미소진.)
+    const discountV2 = featureEnabled(process.env.FEATURE_DISCOUNT_V2);
+    const couponLockRef = (discountV2 && couponDocId && couponUserId)
       ? dbForLock.collection('users').doc(couponUserId)
           .collection('coupons').doc(couponDocId)
       : null;
@@ -282,9 +290,21 @@ export default async function handler(req, res) {
     // 저장. 이전엔 amountUSD 만 저장 → cancelBooking.js:167 의
     // `(booking.amountKRW || 0) * policy.refundRatio` 가 항상 0 → 마이페이지
     // 환불 영수증에 "₩0 환불" 표기 → 사용자 신고 폭주.
-    const usdToKrw = Number(process.env.KRW_USD_RATE)
-      || Number(process.env.VITE_USD_KRW_RATE)
-      || 1430;
+    // 🔴 회계 버그 fix (2026-06-14): 거래일 환율을 시스템 FX SSOT 라이브 환율로 통일.
+    //   이전엔 정적 env 두 개를 OR 로 묶고 마지막에 상수 폴백 → booking-processor.js:224 는
+    //   getUsdToKrwRaw() 라이브를 쓰는데 Firestore bookings 엔 정적값 저장 → 같은 거래에 두 KRW
+    //   공존 + 회계 부정확. 이제 getUsdToKrwRaw()(라이브 4소스 + floor 1450) 로 통일.
+    //   ⚠️ best-effort — 환율 조회 실패/타임아웃 시에도 결제(capture)는 절대 막지 않고 정책 floor
+    //   (1450)로 폴백(이전 정적 상수 의존 제거). 라이브 경로 자체가 _exchange-rate.js 내부에서
+    //   try/catch + 폴백을 보장하지만, import 실패 등 만일에 대비해 외곽도 try/catch.
+    let usdToKrw = 1450; // 정책 floor (RATE_FLOOR) — 라이브 실패 시 안전 폴백.
+    try {
+      const { getUsdToKrwRaw } = await import('./_exchange-rate.js');
+      const liveRate = await getUsdToKrwRaw();
+      if (Number.isFinite(liveRate) && liveRate > 0) usdToKrw = liveRate;
+    } catch (rateErr) {
+      console.warn('[capturePaypalOrder] live FX fetch failed, using floor 1450:', rateErr.message);
+    }
     const amountKRW = Math.round(parseFloat(amount || '0') * usdToKrw);
     //
     // PR #444 (Audit Y-H14 — 2026-05-16): bookings doc write was best-effort

@@ -79,21 +79,65 @@ function detectLanguage(email = '', name = '') {
   return 'en';
 }
 
-// \u2500\u2500 \uBA71\uB4F1 \uB9C8\uCEE4 \uAE30\uB85D (\uB2E8\uACC4 \uC131\uACF5 \uD6C4 set \u2192 \uC7AC\uD638\uCD9C \uC2DC \uD574\uB2F9 \uB2E8\uACC4 \uC2A4\uD0B5) \u2500\u2500
-// \uBE44\uCE58\uBA85\uC801: \uAE30\uB85D \uC2E4\uD328\uD574\uB3C4 \uCC98\uB9AC\uB294 \uACC4\uC18D (\uCD5C\uC545\uC758 \uACBD\uC6B0 retry \uC2DC 1\uD68C \uC911\uBCF5).
-async function setBookingMarker(orderID, field) {
+// ── 버그 #17 fix: 부수효과 단계 원자 선점 (atomically-claim) ──
+// 기존 'check stepGuards → do → setBookingMarker' 는 순차 retry 만 막고 동시 호출
+// (cart fan-out + retry-sweep, capture 25s timeout 후 원본 계속 도는 중 retry 재발화)은
+// 못 막음 → 두 인스턴스가 둘 다 마커 없음 읽어 sheets/email/loyalty 각각 실행 → 중복.
+//
+// 해결: 부수효과 진입 전에 해당 마커를 db.runTransaction 으로 원자 선점(CAS).
+//  - 트랜잭션은 read + set 만 (외부 I/O 금지) → 실제 append/email/loyalty 는 밖에서.
+//  - 마커 없으면 마커 set 하고 claimed=true 반환(내가 선점) → 그 단계 실행.
+//  - 마커 있으면 claimed=false (이미 처리됨) → 스킵.
+//  - db/orderID 없거나 트랜잭션 실패 시 안전 기본 = claimed=true (처리 진행). 기존
+//    단일상품/Firestore-unavailable 동작 100% 불변 (첫 호출은 항상 선점 성공).
+//  - 선점 성공 후 단계가 실패하면 마커가 이미 박혀 retry 가 재실행 안 함—
+//    기존 setBookingMarker 동작과 동일(성공한 단계만 마커). loyalty 는 실패 시
+//    재적립 위해 명시적으로 마커 해제(아래 참조).
+async function claimBookingStep(orderID, field) {
+  if (!orderID || !field) return true; // db/orderID 없으면 처리 진행 (안전 기본)
+  let db;
+  try {
+    db = initAdminDb('booking-processor');
+  } catch {
+    return true;
+  }
+  if (!db) return true; // Firestore unavailable → 기존 동작(전 단계 처리)
+  try {
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const ref = db.collection('bookings').doc(orderID);
+    const claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      if (data[field]) return false; // 이미 처리됨 → 선점 실패
+      tx.set(ref, { [field]: FieldValue.serverTimestamp() }, { merge: true });
+      return true; // 내가 선점
+    });
+    return claimed;
+  } catch (e) {
+    // 트랜잭션 자체 실패(Firestore 오류) → 안전 기본 = 처리 진행.
+    // (기존도 마커 읽기 실패 시 전 단계 처리) — 극도의 race 중복보다
+    // 고객 메일 누락이 더 낫다. 트랜잭션 실패 시 처리 진행은 기존 가드 동작을 계승.
+    console.warn(`[booking-processor] 단계 선점 ${field} 트랜잭션 실패 (처리 진행):`, e.message);
+    return true;
+  }
+}
+
+// 버그 #17: loyalty 는 선점 후 earn 실패 시 재적립을 위해 마커를 풀어야 한다
+// (기존: 성공 시에만 setBookingMarker = 실패 시 마커 없음 → retry 재적립).
+// 선점은 미리 마커를 박으므로, earn 실패 시 명시적으로 delete 해야 동일 의미 유지.
+async function releaseBookingStep(orderID, field) {
   if (!orderID || !field) return;
   try {
     const db = initAdminDb('booking-processor');
     if (db) {
       const { FieldValue } = await import('firebase-admin/firestore');
       await db.collection('bookings').doc(orderID).set(
-        { [field]: FieldValue.serverTimestamp() },
+        { [field]: FieldValue.delete() },
         { merge: true },
       );
     }
   } catch (e) {
-    console.warn(`[booking-processor] \uBA71\uB4F1 \uB9C8\uCEE4 ${field} \uAE30\uB85D \uC2E4\uD328 (\uBE44\uCE58\uBA85\uC801):`, e.message);
+    console.warn(`[booking-processor] 단계 마커 ${field} 해제 실패 (비치명적):`, e.message);
   }
 }
 
@@ -266,19 +310,28 @@ const originalHandler = async (event) => {
   const language = detectLanguage(payerEmail, payerName);
   const results = { bookingRef, steps: {} };
 
-  // ── Step 2: Google Sheets 예약 기록 추가 (멱등: 이미 append 됐으면 스킵) ──
+  // ── Step 2: Google Sheets 예약 기록 추가 (멱등: 원자 선점으로 동시 호출 중복 방지) ──
+  // 버그 #17: read-then-write 가드 대신 claimBookingStep 으로 마커를 트랜잭션 선점.
+  //   stepGuards.skipSheets = 빠른 경로(이미 기록된 게 명백) / claim 실패 = 동시 호출이
+  //   먼저 선점함 → 둘 다 'skip'. 선점 성공한 인스턴스만 appendBooking 1회 실행.
   let sheetsRowHint = null;
-  if (stepGuards.skipSheets) {
+  const claimedSheets = stepGuards.skipSheets
+    ? false
+    : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
+  if (!claimedSheets) {
     results.steps.sheets = 'skip: already appended (idempotent)';
-    console.log('[booking-processor] Sheets 스킵 (멱등 — 이미 기록):', orderID);
+    console.log('[booking-processor] Sheets 스킵 (멱등 — 이미 기록/선점됨):', orderID);
   } else {
     try {
       const sheetsResult = await appendBooking(booking);
       sheetsRowHint = sheetsResult.appendedRow || null;
       results.steps.sheets = 'ok';
       console.log('[booking-processor] Sheets 기록 완료, row:', sheetsRowHint);
-      await setBookingMarker(orderID, BOOKING_STEP_MARKERS.sheets);
+      // 마커는 claimBookingStep 트랜잭션에서 이미 set 됨 → 별도 setBookingMarker 불필요.
     } catch (err) {
+      // 버그 #17: 선점만 하고 append 실패/env-skip → 마커를 풀어 retry 가 재append 하도록.
+      //   (기존: 성공 후에만 마커 set = 실패/env-skip 시 마커 없음 → retry 재시도.)
+      await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.sheets);
       // B9-31: env 미설정(SheetsEnvSkipped) 시 silent — _google-sheets.js 가 이미 1회 info 로그 출력.
       if (err?.skipped || err?.name === 'SheetsEnvSkipped') {
         results.steps.sheets = 'skipped (env not configured)';
@@ -367,12 +420,19 @@ const originalHandler = async (event) => {
   let voucherEmailOk = false;
   let voucherEmailErr = null;
   let voucherSkipped = false;
-  if (stepGuards.skipVoucher) {
-    // 멱등: 이미 발송됨 (voucherSentAt 존재) → 재발송 안 함.
+  // 버그 #17: voucherSentAt 마커를 발송 전에 트랜잭션 선점 → 동시 호출 시 한 인스턴스만
+  //   확인메일 발송 (중복 메일 방지). 선점 실패(stepGuards 빠른 경로 포함) = 이미 발송/선점됨.
+  //   원래 voucherSentAt 은 Step 6.5 성공 시에만 set 됐으나, 이제 선점이 미리 박는다.
+  //   발송 실패 시 releaseBookingStep 으로 마커를 풀어 retry 재발송 보장(기존 의미 유지).
+  const claimedVoucher = stepGuards.skipVoucher
+    ? false
+    : await claimBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
+  if (!claimedVoucher) {
+    // 멱등: 이미 발송됨/선점됨 (voucherSentAt 존재) → 재발송 안 함.
     voucherSkipped = true;
     voucherEmailOk = true;
     results.steps.email = 'skip: already sent (idempotent)';
-    console.log('[booking-processor] 이메일 스킵 (멱등 — 이미 발송):', orderID);
+    console.log('[booking-processor] 이메일 스킵 (멱등 — 이미 발송/선점됨):', orderID);
   } else {
     try {
       let emailContent;
@@ -397,6 +457,8 @@ const originalHandler = async (event) => {
       results.steps.email = `error: ${err.message}`;
       voucherEmailErr = err.message || 'unknown';
       console.error('[booking-processor] 이메일 발송 실패:', err.message);
+      // 버그 #17: 선점만 하고 발송 실패 → 마커를 풀어 retry 가 재발송하도록 (메일 누락 방지).
+      await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.voucher);
     }
   }
 
@@ -407,19 +469,22 @@ const originalHandler = async (event) => {
   if (voucherSkipped) {
     // 멱등: voucherSentAt 이미 기록됨 → 재기록 불필요.
     results.steps.voucherStatus = 'skip: already recorded (idempotent)';
+  } else if (voucherEmailOk) {
+    // 버그 #17: voucherSentAt 은 claimBookingStep 선점 트랜잭션에서 이미 set 됨 →
+    //   Step 6.5 에서 재기록 불필요. (기존엔 여기서 처음 박았으나 이제 선점이 담당.)
+    results.steps.voucherStatus = 'ok';
   } else {
+    // 발송 실패 — voucherFailedAt + voucherError 기록 (operator-todo-reminder 검출용).
+    //   voucherSentAt 선점 마커는 위에서 releaseBookingStep 으로 이미 해제됨 → retry 재발송.
     try {
       const db = initAdminDb('booking-processor');
       if (db && orderID) {
         const { FieldValue } = await import('firebase-admin/firestore');
-        const patch = voucherEmailOk
-          ? { voucherSentAt: FieldValue.serverTimestamp() }
-          : {
-              voucherFailedAt: FieldValue.serverTimestamp(),
-              voucherError: String(voucherEmailErr || 'unknown').slice(0, 500),
-            };
-        await db.collection('bookings').doc(orderID).set(patch, { merge: true });
-        results.steps.voucherStatus = voucherEmailOk ? 'ok' : 'failed-recorded';
+        await db.collection('bookings').doc(orderID).set({
+          voucherFailedAt: FieldValue.serverTimestamp(),
+          voucherError: String(voucherEmailErr || 'unknown').slice(0, 500),
+        }, { merge: true });
+        results.steps.voucherStatus = 'failed-recorded';
       } else {
         results.steps.voucherStatus = 'skip: firestore unavailable';
       }
@@ -468,29 +533,44 @@ const originalHandler = async (event) => {
     // amountNum=0 + skip loyalty earn (the operator-alerted path above
     // already fired for the same NaN).
     const amountNum = amountUSDSafe;
-    if (stepGuards.skipLoyalty) {
-      // 멱등: 이미 적립됨 → 재적립 안 함 (retry 중복 포인트 방지).
+    // 버그 #17: loyaltyEarnedAt 마커를 earn 호출 전에 트랜잭션 선점 → 동시 호출 시
+    //   한 인스턴스만 적립 (중복 포인트 방지). earn 가능 조건(amount>0 && userId)일 때만
+    //   선점 시도. 선점 실패(stepGuards 빠른 경로 포함) = 이미 적립/선점됨 → 스킵.
+    //   earn 실패(non-2xx/예외) 시 releaseBookingStep 으로 마커를 풀어 retry 재적립 보장
+    //   (기존 '성공 시에만 마커' 의미 유지).
+    let loyaltyClaimed = false;
+    if (!stepGuards.skipLoyalty && amountNum > 0 && body.userId) {
+      loyaltyClaimed = await claimBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
+    }
+    if (stepGuards.skipLoyalty || (amountNum > 0 && body.userId && !loyaltyClaimed)) {
+      // 멱등: 이미 적립됨/선점됨 → 재적립 안 함 (retry 중복 포인트 방지).
       results.loyalty = { skipped: 'already earned (idempotent)' };
-    } else if (amountNum > 0 && body.userId) {
-      const loyaltyRes = await fetch(`https://cocotripkr.com/api/loyalty`, {
-        method: 'POST',
-        // earn 은 내부 전용 — 서비스 토큰 동봉 (loyalty.js earn 게이트). 미설정 시 earn 403
-        // → 적립 일시 중단(비치명적, best-effort). 운영자 INTERNAL_API_TOKEN 설정 필요.
-        headers: { 'Content-Type': 'application/json', 'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim() },
-        body: JSON.stringify({
-          action: 'earn',
-          userId: body.userId,
-          amountUSD: amountNum,
-          bookingRef,
-          description: `Booking confirmed: ${product || 'Charter'} $${amountNum}`,
-        }),
-      });
-      const loyaltyData = await loyaltyRes.json();
-      console.log('[booking-processor] 포인트 적립:', loyaltyData);
-      results.loyalty = loyaltyData;
-      // 적립 성공(2xx)시에만 마커 set → 실패 시 마커 없음 = retry 재적립 (포인트 누락 방지).
-      if (loyaltyRes.ok) {
-        await setBookingMarker(orderID, BOOKING_STEP_MARKERS.loyalty);
+    } else if (loyaltyClaimed) {
+      let loyaltyOk = false;
+      try {
+        const loyaltyRes = await fetch(`https://cocotripkr.com/api/loyalty`, {
+          method: 'POST',
+          // earn 은 내부 전용 — 서비스 토큰 동봉 (loyalty.js earn 게이트). 미설정 시 earn 403
+          // → 적립 일시 중단(비치명적, best-effort). 운영자 INTERNAL_API_TOKEN 설정 필요.
+          headers: { 'Content-Type': 'application/json', 'x-internal-token': (process.env.INTERNAL_API_TOKEN || '').trim() },
+          body: JSON.stringify({
+            action: 'earn',
+            userId: body.userId,
+            amountUSD: amountNum,
+            bookingRef,
+            description: `Booking confirmed: ${product || 'Charter'} $${amountNum}`,
+          }),
+        });
+        const loyaltyData = await loyaltyRes.json();
+        console.log('[booking-processor] 포인트 적립:', loyaltyData);
+        results.loyalty = loyaltyData;
+        loyaltyOk = loyaltyRes.ok;
+      } finally {
+        // 적립 실패(non-2xx/예외) 시 선점 마커 해제 → retry 재적립 (포인트 누락 방지).
+        // 성공 시엔 선점 트랜잭션에서 박은 마커 유지.
+        if (!loyaltyOk) {
+          await releaseBookingStep(orderID, BOOKING_STEP_MARKERS.loyalty);
+        }
       }
     }
   } catch (loyaltyErr) {

@@ -243,10 +243,28 @@ Confidence 0-1. day_index 1-based. stop_order 1-based.`;
 // Mutators
 // ─────────────────────────────────────────────────────────────────────
 
-function checkDietary(stop, dietPrefs) {
+// 식당/stop 의 dietary 태그 정규화 — blockMode.js 의 dietaryTagsOf 와 동일 규칙.
+// 프로덕션 _food_index.json 은 식이태그를 r.tag (단일 문자열, 예 "halal") 에 저장하고
+// r.dietary_tags 는 없다 (build-food-index.js). 일부 mock/legacy 데이터·기존 plan stop 은
+// dietary_tags(배열) 만 가진다. ⚠️ SAFETY (CLAUDE.md J): 둘 다 읽지 않으면 stop_swap 이
+// matchFoodPlaceholder 로 정상 hard-filter 한 halal/vegan 식당을 checkDietary 가 태그 0으로 보고
+// false-reject → 식이 손님 수정이 사실상 불가했다. tag(문자열)·dietary_tags(배열) 모두 소문자 배열로.
+function dietaryTagsOf(stop) {
+  if (!stop || typeof stop !== 'object') return [];
+  const out = [];
+  const dt = stop.dietary_tags;
+  if (Array.isArray(dt)) out.push(...dt);
+  else if (dt) out.push(dt);
+  const tg = stop.tag;
+  if (Array.isArray(tg)) out.push(...tg);
+  else if (tg) out.push(tg);
+  return out.map((t) => String(t).toLowerCase());
+}
+
+export function checkDietary(stop, dietPrefs) {
   const dietCritical = (dietPrefs || []).filter((d) => /halal|vegan|vegetarian/i.test(String(d || '')));
   if (dietCritical.length === 0) return { ok: true };
-  const tags = Array.isArray(stop?.dietary_tags) ? stop.dietary_tags.map((t) => String(t).toLowerCase()) : [];
+  const tags = dietaryTagsOf(stop); // r.tag(문자열) + dietary_tags(배열) 둘 다 — SAFETY
   for (const d of dietCritical) {
     if (!tags.includes(String(d).toLowerCase())) {
       return { ok: false, missing: d };
@@ -309,7 +327,7 @@ async function applyBlockSwap({ itinerary, classified, dietPrefs, language, city
 /**
  * stop_swap — Day 의 특정 stop 1개를 다른 식당/카페로 교체.
  */
-function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, area }) {
+export function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, area }) {
   const dayIndex = classified.target?.day_index;
   const stopOrder = classified.target?.stop_order;
   const categoryHint = String(classified.target?.stop_name || '').toLowerCase(); // e.g. '식당' / 'cafe'
@@ -356,13 +374,19 @@ function applyStopSwap({ itinerary, classified, dietPrefs, foodIndex, area }) {
     Object.assign(matched, matched2);
   }
   // mutate stop in place — preserve order/start_time/stay_min.
+  // ⚠️ SAFETY (CLAUDE.md J): 프로덕션 _food_index.json 은 식이태그를 matched.tag(단일 문자열) 에
+  // 저장하고 matched.dietary_tags 는 없다. dietaryTagsOf 로 tag·dietary_tags 둘 다 정규화해 승격
+  // 해야 직후 checkDietary 가 halal/vegan 적합 식당을 인식한다 (이전엔 oldStop.dietary_tags 폴백 →
+  // oldStop 에 식이태그 없으면 정상 교체인데 DIETARY_UNSATISFIED false-reject).
+  const matchedTags = dietaryTagsOf(matched);
   const swapped = {
     ...oldStop,
     name: matched.name || oldStop.name,
     display_name: matched.display_name || matched.name_en || matched.name,
     address: matched.address || oldStop.address,
     verified: true,
-    dietary_tags: Array.isArray(matched.dietary_tags) ? matched.dietary_tags.slice() : oldStop.dietary_tags,
+    dietary_tags: matchedTags.length > 0 ? matchedTags : oldStop.dietary_tags,
+    tag: matched.tag || oldStop.tag, // 프로덕션 원본 필드 보존 (downstream 일관성)
     tip: matched.tip || oldStop.tip,
     personalization_reasoning: `Swap (user-requested): ${classified.raw_text.slice(0, 60)}`,
   };

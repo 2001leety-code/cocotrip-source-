@@ -43,11 +43,12 @@ export const DEFAULT_KRW_PER_USD = 1450;
 
 /** enrichBooking 가 계산하는 건별 손익 파생값 (KRW). */
 export interface EnrichedFinancials {
-  revenueKRW: number;    // round(USD × 환율) — 투어가의 원화 환산
-  totalRevenue: number;  // revenueKRW + OT수금(현장 추가 수금)
-  totalCost: number;     // 기사비 + 유류 + 톨 + 주차 + 식비 + 기타
-  netProfit: number;     // totalRevenue - totalCost
-  margin: number;        // round(netProfit / totalRevenue × 100), 매출 0 이면 0
+  revenueKRW: number;       // 투어가 원화 환산 — capturedAmountKRW 우선, 없으면 round(USD × 유효환율)
+  totalRevenue: number;     // revenueKRW + OT수금(현장 추가 수금)
+  totalCost: number;        // 기사비 + 유류 + 톨 + 주차 + 식비 + 기타
+  netProfit: number;        // totalRevenue - totalCost
+  margin: number;           // round(netProfit / totalRevenue × 100), 매출 0 이면 0
+  usedExchangeRate: number; // 실제 계산에 사용된 환율 (capturedRate > capturedAmountKRW역산 > fallback 순)
 }
 
 /** 합계 KPI. */
@@ -63,19 +64,37 @@ export interface SettlementTotals {
  *
  * @param tourPriceUSD 투어가 (USD)
  * @param cost 건별 비용 (KRW). 미입력 시 EMPTY_COST.
- * @param exchangeRate USD→KRW 환율 (기본 1380, 운영자가 화면에서 조정 가능)
+ * @param exchangeRate USD→KRW 환율 폴백 (화면 라이브 환율 또는 DEFAULT_KRW_PER_USD).
+ *   거래시점 값이 있을 때는 아래 옵션 인자가 우선하고 이 값은 무시된다.
+ * @param capturedAmountKRW (옵션) capturePaypalOrder 가 저장한 실제 청구 KRW.
+ *   있으면 USD×환율 재환산 없이 이 값을 그대로 revenueKRW 로 사용 (가장 정확).
+ * @param capturedRate (옵션) capturePaypalOrder 가 저장한 거래시점 환율.
+ *   capturedAmountKRW 가 없고 이 값이 있으면 round(USD × capturedRate) 로 계산.
+ *   둘 다 없으면 fallback exchangeRate 사용.
+ *
+ * 하위호환: 기존 호출부(옵션 인자 없음)는 동작 변경 없음.
  */
 export function enrichBooking(
   tourPriceUSD: number,
   cost: CostRow,
   exchangeRate: number,
+  capturedAmountKRW?: number,
+  capturedRate?: number,
 ): EnrichedFinancials {
-  const revenueKRW = Math.round(tourPriceUSD * exchangeRate);
+  // 거래시점 KRW 우선 → 거래시점 환율 → 현재 라이브 환율(폴백)
+  const effectiveRate = (capturedRate && capturedRate > 0) ? capturedRate : exchangeRate;
+  const revenueKRW = (capturedAmountKRW && capturedAmountKRW > 0)
+    ? capturedAmountKRW
+    : Math.round(tourPriceUSD * effectiveRate);
   const totalRevenue = revenueKRW + cost.overtimeKRW;
   const totalCost = cost.driverFee + cost.fuelCost + cost.tollCost + cost.parkingCost + cost.mealCost + cost.otherCost;
   const netProfit = totalRevenue - totalCost;
   const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
-  return { revenueKRW, totalRevenue, totalCost, netProfit, margin };
+  // usedExchangeRate: capturedAmountKRW 를 그대로 쓴 경우에는 역산(소수점 버림), 아니면 effectiveRate
+  const usedExchangeRate = (capturedAmountKRW && capturedAmountKRW > 0 && tourPriceUSD > 0)
+    ? Math.round(capturedAmountKRW / tourPriceUSD)
+    : effectiveRate;
+  return { revenueKRW, totalRevenue, totalCost, netProfit, margin, usedExchangeRate };
 }
 
 /**

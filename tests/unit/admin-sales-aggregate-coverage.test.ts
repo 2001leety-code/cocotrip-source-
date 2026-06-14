@@ -174,9 +174,11 @@ describe('adminSalesAggregate — 일별 (daily, 최근 N일)', () => {
 
   it('같은 날 여러 건 → daily 셀에 합산 + round', () => {
     const rawAll = [
-      booking({ orderID: 'PAY-a', amountUSD: '9.90', _createdAtMs: ms('2026-06-15T01:00:00Z') }),
-      booking({ orderID: 'PAY-b', amountUSD: '9.90', _createdAtMs: ms('2026-06-15T09:00:00Z') }),
-      booking({ orderID: 'PAY-c', amountUSD: '0.20', _createdAtMs: ms('2026-06-15T20:00:00Z') }),
+      // 버그헌트 #6: daily 버킷이 이제 KST 달력일 기준. 세 건 모두 KST 2026-06-15 가 되도록
+      // (이전 20:00Z = KST 익일 05:00 이라 06-16 버킷으로 분리됨 — 의도된 KST 정확성).
+      booking({ orderID: 'PAY-a', amountUSD: '9.90', _createdAtMs: ms('2026-06-15T01:00:00Z') }), // KST 10:00 06-15
+      booking({ orderID: 'PAY-b', amountUSD: '9.90', _createdAtMs: ms('2026-06-15T09:00:00Z') }), // KST 18:00 06-15
+      booking({ orderID: 'PAY-c', amountUSD: '0.20', _createdAtMs: ms('2026-06-15T10:00:00Z') }), // KST 19:00 06-15
     ];
     const r = aggregateAdminSales(rawAll, { now: NOW, days: 7 });
     const todayCell = r.daily.find((d: { date: string }) => d.date === '2026-06-15');

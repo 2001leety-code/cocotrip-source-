@@ -60,8 +60,10 @@ describe('PR #425 CY1 — capturePaypalOrder lock is transactional + releasable'
 });
 
 describe('PR #425 CY2 — capturePaypalOrder persists amountKRW', () => {
-  it('computes amountKRW from amountUSD and exchange rate env vars', () => {
-    expect(capture).toMatch(/KRW_USD_RATE|VITE_USD_KRW_RATE/);
+  it('computes amountKRW from amountUSD and live FX rate (getUsdToKrwRaw, floor 1450)', () => {
+    // 버그헌트 #15 (2026-06-14): 정적 env(KRW_USD_RATE/VITE_USD_KRW_RATE) 의존 제거 →
+    // 시스템 FX SSOT 라이브 환율(booking-processor 와 동일 소스), 실패 시 정책 floor 1450.
+    expect(capture).toMatch(/getUsdToKrwRaw/);
     expect(capture).toMatch(/amountKRW\s*=\s*Math\.round\(/);
   });
 

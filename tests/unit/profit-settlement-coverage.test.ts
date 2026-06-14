@@ -96,7 +96,8 @@ describe('profitSettlement — enrichBooking 건별 손익', () => {
 describe('profitSettlement — enrichBooking 엣지 케이스', () => {
   it('매출 0 + 비용 0 → 모두 0, 마진 0 (0 나눗셈 가드)', () => {
     const r = enrichBooking(0, EMPTY_COST, FX);
-    expect(r).toEqual({ revenueKRW: 0, totalRevenue: 0, totalCost: 0, netProfit: 0, margin: 0 });
+    // 버그헌트 #16: enrichBooking 에 usedExchangeRate 필드 추가됨 → 핵심 필드만 subset 검증.
+    expect(r).toMatchObject({ revenueKRW: 0, totalRevenue: 0, totalCost: 0, netProfit: 0, margin: 0 });
   });
 
   it('매출 0 인데 비용만 있음 → 마진 0 (NaN/Infinity 방지)', () => {

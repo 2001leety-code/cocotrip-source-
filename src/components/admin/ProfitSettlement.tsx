@@ -150,7 +150,9 @@ export default function ProfitSettlement() {
   const enriched = useMemo(() => {
     return bookings.map((b) => {
       const c = costs.get(b.bookingId) || EMPTY_COST;
-      return { ...b, ...c, ...enrichBooking(b.tourPriceUSD, c, exchangeRate) };
+      // Bug #16 fix: 거래시점 KRW(amountKRW) 또는 거래시점 환율(capturedExchangeRate) 우선 사용.
+      // 현재 라이브 환율(exchangeRate)은 두 값 모두 없는 구버전 booking 에만 폴백으로 사용됨.
+      return { ...b, ...c, ...enrichBooking(b.tourPriceUSD, c, exchangeRate, b.amountKRW, b.capturedExchangeRate) };
     });
   }, [bookings, costs, exchangeRate]);
 

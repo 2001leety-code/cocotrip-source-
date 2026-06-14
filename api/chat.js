@@ -47,35 +47,51 @@ async function checkRateLimit(userId, _ip) {
   if (!counterDb) return { allowed: true }; // graceful skip if Firestore down
   const now = Date.now();
 
-  // 1. user 슬라이딩 윈도우 5min
+  // 버그 #19 fix: 이전엔 get → cap검사 → fire-and-forget write(await 안 함) 였음.
+  // 같은 userId 동시 요청 N건이 쓰기 전 동일 스냅샷을 읽어 전부 캡 통과(5/5min·50/day
+  // 우회) → Gemini 호출비 증폭. _shared/ip-rate-limit.js 와 동일하게 read→cap검사→
+  // increment 를 db.runTransaction() 안에서 atomic 하게 수행하고 await 한다.
+  // 슬라이딩 윈도우(user 5분 최근 N) + 일 캡(50) 둘 다 한 트랜잭션으로 직렬화.
   const userRef = counterDb.collection('chat_rate_limits').doc(`u:${userId}`);
-  const userSnap = await userRef.get();
-  const stamps = userSnap.exists ? (userSnap.data().t || []) : [];
-  const fresh = stamps.filter((t) => now - t < RATE_USER_WINDOW_MS);
-  if (fresh.length >= RATE_USER_MAX) {
-    const oldest = Math.min(...fresh);
-    const retry = Math.ceil((RATE_USER_WINDOW_MS - (now - oldest)) / 1000);
-    return { allowed: false, code: 'RATE_LIMIT_USER', retryAfter: retry };
-  }
-
-  // 2. user daily cap (KST 기준). PR #448 — 이전엔 IP 기준이라 NAT 공유 시 무력.
   const kst = new Date(now + 9 * 60 * 60 * 1000);
   const dayKey = kst.toISOString().slice(0, 10);
   const dailyRef = counterDb.collection('chat_rate_limits').doc(`usr:${userId}:${dayKey}`);
-  const dailySnap = await dailyRef.get();
-  const dailyCount = dailySnap.exists ? (dailySnap.data().c || 0) : 0;
-  if (dailyCount >= RATE_USER_DAILY_MAX) {
-    return { allowed: false, code: 'RATE_LIMIT_USER_DAILY', retryAfter: 3600 };
+
+  try {
+    return await counterDb.runTransaction(async (tx) => {
+      // Firestore 트랜잭션 규칙: 모든 read 가 모든 write 보다 먼저.
+      const userSnap = await tx.get(userRef);
+      const dailySnap = await tx.get(dailyRef);
+
+      // 1. user 슬라이딩 윈도우 5min
+      const stamps = userSnap.exists ? (userSnap.data().t || []) : [];
+      const fresh = stamps.filter((t) => now - t < RATE_USER_WINDOW_MS);
+      if (fresh.length >= RATE_USER_MAX) {
+        const oldest = Math.min(...fresh);
+        const retry = Math.ceil((RATE_USER_WINDOW_MS - (now - oldest)) / 1000);
+        return { allowed: false, code: 'RATE_LIMIT_USER', retryAfter: retry };
+      }
+
+      // 2. user daily cap (KST 기준). PR #448 — 이전엔 IP 기준이라 NAT 공유 시 무력.
+      const dailyCount = dailySnap.exists ? (dailySnap.data().c || 0) : 0;
+      if (dailyCount >= RATE_USER_DAILY_MAX) {
+        return { allowed: false, code: 'RATE_LIMIT_USER_DAILY', retryAfter: 3600 };
+      }
+
+      // 두 캡 모두 통과 — 이 트랜잭션 안에서 atomic 하게 증가시키고 커밋.
+      // 동시 요청은 트랜잭션 충돌 시 Firestore 가 재시도하므로 이중 통과 불가.
+      fresh.push(now);
+      tx.set(userRef, { t: fresh, updatedAt: now }, { merge: true });
+      tx.set(dailyRef, { c: dailyCount + 1, lastUpdated: now }, { merge: true });
+
+      return { allowed: true };
+    });
+  } catch (e) {
+    // 트랜잭션 실패 → fail-OPEN (ip-rate-limit.js 와 동일 정책: abuse 방어가
+    // Firestore 장애 때 정상 사용자를 막으면 안 됨). 다음 호출에서 다시 측정.
+    console.warn('[chat] rate-limit tx failed (allowing):', e.message);
+    return { allowed: true };
   }
-
-  // 기록 (await 안 함 — 응답 지연 최소화. fail은 무시 가능, 다음 호출에서 다시 측정됨)
-  fresh.push(now);
-  Promise.all([
-    userRef.set({ t: fresh, updatedAt: now }, { merge: true }),
-    dailyRef.set({ c: FieldValue.increment(1), lastUpdated: now }, { merge: true }),
-  ]).catch((e) => console.warn('[chat] rate-limit write failed:', e.message));
-
-  return { allowed: true };
 }
 
 const CORS = {

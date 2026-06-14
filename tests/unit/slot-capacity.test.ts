@@ -46,7 +46,7 @@ function makeMockDb(initialDocs: Record<string, Record<string, unknown> | undefi
         const cur = store.get(ref.path);
         return Promise.resolve({
           exists: cur !== undefined,
-          data: () => structuredClone(cur ?? {}),
+          data: () => structuredClone(cur || {}),
         });
       },
       set(ref: { path: string }, data: Record<string, unknown>, opts: { merge?: boolean } = {}) {
@@ -127,8 +127,8 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
     expect(r.ok).toBe(true);
     expect(r.remaining).toBe(5);
     const doc = db._peek(PATH)!;
-    expect((doc.slot_pending as any)['slot-a'].count).toBe(2);
-    expect((doc.slot_pending as any)['slot-a'].orderId).toBe('ORD-1');
+    // 버그헌트 #18: slot_pending 이 orderId 별 중첩 구조 — slot_pending[slotId][orderId].count.
+    expect((doc.slot_pending as any)['slot-a']['ORD-1'].count).toBe(2);
   });
 
   it('rejects when confirmed + pending + pax exceeds capacity', async () => {
@@ -169,9 +169,9 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
     });
     expect(r.ok).toBe(true);
     const doc = db._peek(PATH)!;
-    // stale 99 gone, only our 3 remains.
-    expect((doc.slot_pending as any)['slot-a'].count).toBe(3);
-    expect((doc.slot_pending as any)['slot-a'].orderId).toBe('NEW');
+    // stale OLD(99) 만료 제거, NEW 3 만 남음 (orderId 별 중첩).
+    expect((doc.slot_pending as any)['slot-a']['NEW'].count).toBe(3);
+    expect((doc.slot_pending as any)['slot-a']['OLD']).toBeUndefined();
   });
 
   it('stacks pending with active lock from different orderId', async () => {
@@ -193,7 +193,9 @@ describe('acquireSlotLock — capacity gate + pending increment', () => {
     });
     expect(r.ok).toBe(true);
     const doc = db._peek(PATH)!;
-    expect((doc.slot_pending as any)['slot-a'].count).toBe(4); // 2 + 2
+    // 두 주문이 각자 엔트리로 공존 (덮어쓰기 아님) → 합 4.
+    expect((doc.slot_pending as any)['slot-a']['ORD-1'].count).toBe(2);
+    expect((doc.slot_pending as any)['slot-a']['ORD-2'].count).toBe(2);
   });
 
   it('rejects when status=fully_booked regardless of slot capacity', async () => {
@@ -318,7 +320,7 @@ describe('confirmSlotLock — pending → confirmed transition', () => {
     });
     expect(r.confirmed).toBe(2);
     const doc = db._peek(PATH)!;
-    expect((doc.slot_pending as any)['slot-a'].count).toBe(3); // 5 - 2
+    expect((doc.slot_pending as any)['slot-a']['ORD-1'].count).toBe(3); // 5 - 2
   });
 });
 
@@ -342,9 +344,9 @@ describe('sweepExpiredPending — cron logic', () => {
     expect(r.swept).toBe(2);
     const doc = db._peek(PATH)!;
     const pending = doc.slot_pending as any;
-    expect(pending['slot-a']).toBeUndefined();
-    expect(pending['slot-c']).toBeUndefined();
-    expect(pending['slot-b'].count).toBe(1);
+    expect(pending['slot-a']).toBeUndefined(); // 만료 제거
+    expect(pending['slot-c']).toBeUndefined(); // malformed(만료 취급) 제거
+    expect(pending['slot-b']).toBeDefined();    // active → 보존 (내부 구조는 bughunt-slot-pending 가 검증)
 
     // 2nd sweep: idempotent (no expired left).
     const r2 = await sweepExpiredPending({

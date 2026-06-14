@@ -66,13 +66,14 @@ service cloud.firestore {
     //            tier='Bronze' / tripCoins=0 / totalSpentUSD=0 / bookingCount=0
     //            기본값 강제. 그 외 default 변조 차단.
     //   update — 프로필 (displayName/photoURL/phoneNumber/needsOnboarding/name/
-    //            email/role/lastLoginAt). tier/tripCoins/totalSpentUSD/
-    //            bookingCount/createdAt 등 server-managed 필드 제외.
+    //            email/lastLoginAt). tier/tripCoins/totalSpentUSD/
+    //            bookingCount/createdAt/role 등 server-managed 필드 제외.
     // ─────────────────────────────────────────────────────────
     match /users/{uid} {
       allow read: if isOwner(uid);
 
       // 신규 가입 — saveUserToFirestore() 호출. 기본값 강제 검증.
+      // create 흐름은 role:'user' 로 setDoc 하므로 role 은 create 에서만 허용 (자가발급).
       allow create: if isOwner(uid)
                  && request.resource.data.tier == 'Bronze'
                  && request.resource.data.tripCoins == 0
@@ -82,11 +83,15 @@ service cloud.firestore {
       // 프로필 업데이트 — sensitive 필드 (tier/tripCoins/totalSpentUSD/
       // bookingCount/createdAt) 변경 차단. 서버 SDK 가 loyalty.js 등에서
       // rules 우회로 정상 갱신.
+      // 보안 fix (LOW): allowlist 에서 'role' 제거. 이전엔 본인이 자기 role 을
+      // 'admin' 등으로 self-set 가능 → morningBriefingAggregate 신규가입 집계
+      // 왜곡 + 향후 role 기반 인가 도입 시 즉시 권한상승. role 은 서버 Admin SDK
+      // 만 기록 (create 시 'user' 자가발급은 위 create 룰에서 허용).
       allow update: if isOwner(uid)
                  && request.resource.data.diff(resource.data).affectedKeys()
                       .hasOnly([
                         'displayName', 'photoURL', 'phoneNumber',
-                        'needsOnboarding', 'name', 'email', 'role',
+                        'needsOnboarding', 'name', 'email',
                         'lastLoginAt', 'uid',
                       ]);
 
@@ -132,9 +137,8 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────
     // tours — 공개 카탈로그, 어드민 관리
     //   read:   전체 공개 (비로그인 카탈로그 조회)
-    //   update: 어드민(수동 편집) 또는 로그인 사용자 — but only the
-    //           `currentBookings` counter (PR #420 / WC7: 예전엔 어느 필드든
-    //           수정 가능 → 카탈로그 변조 risk).
+    //   update: 어드민만 (수동 편집). 좌석 카운트(currentBookings)는 서버
+    //           (capturePaypalOrder, Admin SDK)가 갱신 — 클라이언트 직접 쓰기 X.
     //   create/delete: 어드민만
     // ─────────────────────────────────────────────────────────
     match /tours/{tourId} {
@@ -149,6 +153,9 @@ service cloud.firestore {
       //   - 음수 → counter underflow + 다른 booking 들의 한도 의미 변질
       //   - 거대 값 (예: 9999999999) → DoS — 다른 정상 user 의 capacity check
       //     계산 시 거대 정수 연산 + 표시 UI 깨짐 + Firestore quota 폭주
+      // (버그헌트 2026-06-14: currentBookings 클라 write 제거 검토했으나, PR #420/#445가
+      //  의도적으로 캡과 함께 허용한 것 + 라이브 write 회귀 위험 > LOW 이득 → 유지. role
+      //  자가변경 제거[users update]만 적용.)
       allow update: if isAdminEmail()
                  || (isSignedIn()
                      && request.resource.data.diff(resource.data).affectedKeys()
