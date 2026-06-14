@@ -308,7 +308,28 @@ export default async function handler(req, res) {
       }),
     });
     const order = await orderRes.json();
-    if (!order.id) throw new Error(order.message ?? 'Order creation failed');
+    if (!order.id) throw new Error(order.message || 'Order creation failed');
+
+    // SECURITY (버그헌트 #11 2026-06-14): 주문 스냅샷 영속화 → capturePaypalOrder 가 capture-time 클라
+    // body 대신 이 스냅샷의 product/pax/date 를 booking 에 사용해 위조(저가결제로 고가서비스 기록)
+    // 무력화. best-effort — 쓰기 실패해도 주문 생성은 진행(결제 차단 금지). 스냅샷 없으면 capture graceful.
+    try {
+      const _snapDb = initAdminDb('createPaypalOrder-snapshot');
+      if (_snapDb) {
+        await _snapDb.collection('paypal_order_snapshots').doc(order.id).set({
+          productType,
+          expectedKRW: krwAmount,
+          expectedUSD: usdAmount,
+          passengers,
+          durationDays: durationDays || null,
+          dateStart: dateStart || null,
+          dateEnd: dateEnd || null,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (_snapErr) {
+      console.warn('[createPaypalOrder] order snapshot write failed (non-fatal):', _snapErr.message);
+    }
 
     res.writeHead(200, JSON_CORS);
     res.end(JSON.stringify(_ok({ orderID: order.id, usdAmount, krwAmount, currentRate: Math.round(usdToKrw), displayKRW: krwAmount.toLocaleString('ko-KR') + '원', displayUSD: '$' + usdAmount + ' USD' })));

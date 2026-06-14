@@ -75,9 +75,29 @@ export default async function handler(req, res) {
     //
     // P108 (2026-05-20): tourId/tourSlotId/bookingDate/slotCapacity 도 추출 —
     // 슬롯 capacity confirm 용. createPaypalOrder 의 pre-lock 과 짝.
-    const { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode,
+    let { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode,
       tourId, tourSlotId, bookingDate, slotCapacity } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
+
+    // SECURITY (버그헌트 #11 2026-06-14): createPaypalOrder 가 저장한 주문 스냅샷에서 product/pax/date 를
+    // 가져와 capture-time body 위조(저가결제로 고가서비스 booking 기록)를 무력화. AI-planner-gate 등 모든
+    // 후속 로직이 보정된 product 를 쓰도록 gate 전에 수행. 스냅샷 없으면(client-side 주문/legacy/쓰기실패)
+    // body 유지 = graceful(결제 차단 금지). PayPal 이 capture 금액을 order amount 로 강제하므로 금액은 위조 불가.
+    try {
+      const _snapDb = initAdminDb('capturePaypalOrder-snapshot');
+      if (_snapDb) {
+        const _snap = await _snapDb.collection('paypal_order_snapshots').doc(orderID).get();
+        if (_snap.exists) {
+          const _s = _snap.data() || {};
+          if (_s.productType) product = _s.productType;
+          if (_s.passengers != null) paxCount = _s.passengers;
+          if (!tourDate && _s.dateStart) tourDate = _s.dateStart;
+          console.log('[capturePaypalOrder] order snapshot applied:', { orderID, product: _s.productType });
+        }
+      }
+    } catch (_snapErr) {
+      console.warn('[capturePaypalOrder] order snapshot read failed (graceful, body 유지):', _snapErr.message);
+    }
 
     // PR #433 (Audit Y-H10 — 2026-05-16): AI Planner = 디지털 상품 → 쿠폰/프로모
     // reject. 이전엔 createPaypalOrder.js 만 검증해서 product='ai_planner_full'
