@@ -13,14 +13,12 @@ import { resolve } from 'node:path';
 const r = (p: string) => resolve(process.cwd(), p);
 
 describe('PWA 자산 존재', () => {
-  it('아이콘 2종(코코트립·무드, 패딩본) + 풀 스플래시 2종 + 무드 매니페스트', () => {
+  it('아이콘 2종(코코트립·무드) + 무드 매니페스트', () => {
     for (const f of [
       'public/icons/icon-192.png',
       'public/icons/icon-512.png',
       'public/icons/mood-192.png',
       'public/icons/mood-512.png',
-      'public/splash-cocotrip.png',
-      'public/splash-mood.png',
       'public/manifest-mood.webmanifest',
     ]) {
       expect(existsSync(r(f)), `${f} 존재`).toBe(true);
