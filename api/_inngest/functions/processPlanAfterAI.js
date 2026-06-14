@@ -35,6 +35,7 @@
  *   - 단, Inngest 는 각 step.run() 을 별도 invocation 으로 호출 → 누적 시간 무관.
  *     1 step 당 300s 이내면 OK (routeEnrich 180s cap 으로 안전).
  */
+import { randomUUID } from 'crypto'; // FEATURE_GUEST_ANON_AUTH: 게스트 익명 skeleton accessToken 발급용
 import { inngest } from '../client.js';
 import { initAdminDb } from '../../_ai_core/firestoreAdmin.js';
 import {
@@ -156,7 +157,13 @@ export const processPlanAfterAI = inngest.createFunction(
           // savePlanSkeleton 은 새 planId 를 생성하므로 직접 호출 불가.
           // 대신 skeletonCtx 의 파라미터로 full skeleton doc 을 merge 구성.
           const { uid, email, area, startDate, guestName, pax, language,
-                  vehicle, priceKRW, priceUSD, body: skBody, blockModeItinerary } = ctx.skeletonCtx;
+                  vehicle, priceKRW, priceUSD, body: skBody, blockModeItinerary,
+                  forceGuestToken } = ctx.skeletonCtx;
+          // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 면 stub→full skeleton 교체 시점에
+          //   accessToken 발급 (streaming window 동안 게스트 공유 접근). forceGuestToken 이 truthy
+          //   (= 플래그 ON + 익명 uid) 일 때만 accessToken 키 추가 → 아래 spread 로 조건부 포함.
+          //   플래그 OFF (forceGuestToken falsy) 시 fullDoc 에 accessToken 키 자체가 없음 = 기존 동작
+          //   byte-identical (이전엔 accessToken 미설정, persistPlan 이 최종 set). nullish 금지, OR 사용.
           const fullDoc = {
             planId: planIdForSkeleton,
             status: 'streaming',
@@ -166,6 +173,7 @@ export const processPlanAfterAI = inngest.createFunction(
             createdAt: new Date().toISOString(),
             createdAtMs: Date.now(),
             uid: uid || null,
+            ...(forceGuestToken ? { accessToken: randomUUID() } : {}),
             guestEmail: email || null,
             input: {
               guestName: guestName || 'Guest',
@@ -292,6 +300,10 @@ export const processPlanAfterAI = inngest.createFunction(
         abReason: ctx.abReason,
         abBucket: ctx.abBucket,
         blocksUsed: ctx.blocksUsed,
+        // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 면 accessToken 발급. ctx.forceGuestToken
+        //   = inngestDispatch.buildPlanAiCompletePayload 가 채움. undefined (플래그 OFF) → persistPlan
+        //   기본 false → 기존 (uid ? null : random) byte-identical.
+        forceGuestToken: !!ctx.forceGuestToken,
         ...(ctx.streamingPlanId ? { planIdOverride: ctx.streamingPlanId } : (eventPlanId ? { planIdOverride: eventPlanId } : {})),
         // P266 (2026-05-28): P195 cache instrumentation persistence — worker savePlan explicit pass-through.
         //   ctx.cacheMetadata = inngestDispatch.buildPlanAiCompletePayload 가 itinerary._cache_metadata 에서 추출.

@@ -113,6 +113,7 @@ export function buildPlanAiCompletePayload(args) {
     specialRequest, mobility, language,
     plannerMode, abReason, abBucket, blocksUsed,
     isAdminBypass, identifierForBucketing,
+    forceGuestToken,  // FEATURE_GUEST_ANON_AUTH: worker persistPlan accessToken 발급용.
   } = args;
 
   // P256 (2026-05-28): zone_id 도출 — Inngest worker 의 4번째 layer fix.
@@ -151,6 +152,9 @@ export function buildPlanAiCompletePayload(args) {
       streamingPlanId,
       isAdminBypass: !!isAdminBypass,
       identifierForBucketing,
+      // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 면 true → worker persistPlan/skeleton 이
+      // accessToken 발급. undefined/false (플래그 OFF) = 기존 동작 byte-identical.
+      forceGuestToken: !!forceGuestToken,
       // P266: P195 cache instrumentation persistence — measure marker survives reconstruction layer.
       //   null = block_mode / 3pass / non-Gemini path. numeric object = legacy 1-pass measurement.
       ...(cacheMetadata ? { cacheMetadata } : {}),
@@ -238,6 +242,9 @@ export async function dispatchOrInlineForHandlerCore({
   area, dietPrefs, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
   specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed,
   abDecision, isAdminBypass, identifierForBucketing, handlerStart,
+  // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid (=planOwnerUid) 가 부여된 경우 true.
+  // worker persistPlan/skeleton 이 accessToken 발급. 플래그 OFF (handlerCore 기본) 시 false.
+  forceGuestToken = false,
 }) {
   return tryDispatchAndLog({
     streamingResponseSent, itinerary, streamingPlanId, skeletonCtx: skeletonCtx || undefined,
@@ -248,6 +255,6 @@ export async function dispatchOrInlineForHandlerCore({
     plannerMode: blockModeUsed ? 'block_mode' : PLANNER_MODE,
     abReason: abDecision.reason, abBucket: abDecision.bucket,
     blocksUsed: blockModeUsed ? blocksUsed : null,
-    isAdminBypass, identifierForBucketing,
+    isAdminBypass, identifierForBucketing, forceGuestToken,
   }, handlerStart);
 }

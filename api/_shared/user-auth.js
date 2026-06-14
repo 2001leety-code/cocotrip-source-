@@ -55,4 +55,49 @@ export async function verifyUserToken(req) {
   }
 }
 
+/**
+ * 게스트 전용 익명 Firebase idToken 검증. 결제 인증(verifyUserToken)과 분리된 채널.
+ * x-guest-anon-token 헤더에서 토큰을 읽어 sign_in_provider==='anonymous' 인 경우만 uid 반환.
+ * 익명 토큰만 허용 = 실제 계정 uid 사칭(plan.uid 주입)으로 남의 플랜 목록에 주입하는 것 방지.
+ *
+ * @param {object} req - HTTP request (Vercel/Next)
+ * @returns {Promise<{ok: true, uid: string} | {ok: false}>}
+ */
+export async function verifyGuestAnonToken(req) {
+  const raw = req.headers?.['x-guest-anon-token'] || '';
+  const tokenStr = Array.isArray(raw) ? raw[0] : String(raw || '');
+  if (!tokenStr) return { ok: false };
+  try {
+    const decoded = await (await getAuthInstance()).verifyIdToken(tokenStr, true);
+    const provider = decoded.firebase && decoded.firebase.sign_in_provider;
+    if (provider !== 'anonymous') return { ok: false };
+    return { ok: true, uid: decoded.uid };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * FEATURE_GUEST_ANON_AUTH: 게스트(비로그인) 플랜 소유자 uid 해석.
+ * 플래그 ON + 로그인 uid 없음 + 유효한 익명 토큰일 때만 격리된 익명 uid 부여.
+ * 그 외 전부 { planOwnerUid: uid(원본), forceGuestToken: false } = 기존 동작 byte-identical.
+ *
+ * 결제/버킷팅/로깅 이후 호출 = 그 경로엔 영향 0 (planOwnerUid 는 persistence 4곳에서만 사용).
+ * graceful: verifyGuestAnonToken throw 시 게스트 uid=null 로 진행 (기존 동작).
+ *
+ * @param {object} req
+ * @param {string|null|undefined} uid - 로그인 사용자 uid (없으면 게스트)
+ * @returns {Promise<{ planOwnerUid: string|null|undefined, forceGuestToken: boolean }>}
+ */
+export async function resolveGuestAnonOwner(req, uid) {
+  if (uid || String(process.env.FEATURE_GUEST_ANON_AUTH || '').toLowerCase() !== 'true') {
+    return { planOwnerUid: uid, forceGuestToken: false };
+  }
+  try {
+    const guestAnon = await verifyGuestAnonToken(req);
+    if (guestAnon.ok) return { planOwnerUid: guestAnon.uid, forceGuestToken: true };
+  } catch { /* graceful */ }
+  return { planOwnerUid: uid, forceGuestToken: false };
+}
+
 export default verifyUserToken;

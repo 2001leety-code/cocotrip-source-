@@ -1047,11 +1047,16 @@ export function calculateTmoney(itinerary) {
  */
 export async function savePlanSkeleton(adminDb, {
   uid, email, area, startDate, guestName, pax, language, vehicle, priceKRW, priceUSD, body,
+  // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 가 부여된 경우 true. non-null uid 라도
+  // accessToken 을 발급해 기존 게스트 공유 링크 흐름 유지. 플래그 OFF 시 항상 false 로 전달
+  // → accessToken 식이 기존 (uid ? null : random) 과 동일 (byte-identical).
+  forceGuestToken = false,
 }) {
   if (!adminDb) throw new Error('[P169] Firebase not configured — cannot save skeleton');
 
   const planId = randomUUID();
-  const accessToken = uid ? null : randomUUID();
+  // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
+  const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
   const skeletonDoc = {
     planId,
@@ -1205,13 +1210,18 @@ export async function persistPlan(adminDb, {
   //   값 = { cached, total, output } → legacy / streaming legacy / 1-pass — _debug.cacheMetrics 저장.
   //   P266 (R-lint): savePlan 호출 site 가 cacheMetadata 인자 누락 시 grep 알람.
   cacheMetadata,
+  // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 가 부여된 plan 이면 true. non-null uid
+  // (격리된 익명 uid) 라도 accessToken 발급 — 게스트는 로그인 세션이 없어 공유 링크/접근 토큰
+  // 필요. 플래그 OFF 시 항상 false → accessToken 식이 기존 (uid ? null : random) 과 동일.
+  forceGuestToken = false,
 }) {
   if (!adminDb) {
     throw new Error('Firebase not configured — cannot save plan');
   }
 
   const planId = planIdOverride || randomUUID();
-  const accessToken = uid ? null : randomUUID();
+  // forceGuestToken=true → uid 있어도 token 발급. false → 기존 (uid ? null : random). nullish 금지, OR 사용.
+  const accessToken = (forceGuestToken || !uid) ? randomUUID() : null;
 
   // ── Tier 2-D: 9-metric quality score (admin-only, not user-visible) ────
   // P0-3 (2026-05-10, CLAUDE.md J): 빈 배열 fallback 제거.

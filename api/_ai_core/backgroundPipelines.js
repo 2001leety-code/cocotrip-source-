@@ -123,6 +123,9 @@ export function shouldUseStreaming({ itinerary, plannerMode }) {
  */
 export async function tryInitStreamingSkeleton({
   adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body,
+  // FEATURE_GUEST_ANON_AUTH: 게스트 익명 소유자 uid 부여 시 true → savePlanSkeleton 이
+  // accessToken 발급. 플래그 OFF (handlerCore 기본) 시 false → 기존 동작 byte-identical.
+  forceGuestToken = false,
 }) {
   try {
     const { priceKRW: skPriceKRW, priceUSD: skPriceUSD } = (() => {
@@ -152,9 +155,10 @@ export async function tryInitStreamingSkeleton({
       });
       console.log('[planner P231] Stub doc saved (skeleton-in-worker mode):', planId);
       // skeletonCtx: worker Step 0 에서 savePlanSkeleton 호출 시 필요한 파라미터 전체.
+      // FEATURE_GUEST_ANON_AUTH: forceGuestToken 포함 → worker skeleton-write 가 accessToken 발급.
       const skeletonCtx = {
         uid, email, area, startDate, guestName, pax, language,
-        vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+        vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body, forceGuestToken,
       };
       return { planId, planUrl, skeletonCtx };
     }
@@ -162,7 +166,7 @@ export async function tryInitStreamingSkeleton({
     // 기존 동작: full skeleton Firestore 저장 (ENV off 시 100% 유지).
     const sk = await savePlanSkeleton(adminDb, {
       uid, email, area, startDate, guestName, pax, language,
-      vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body,
+      vehicle, priceKRW: skPriceKRW, priceUSD: skPriceUSD, body, forceGuestToken,
     });
     console.log('[planner P169] Skeleton saved:', sk.planId);
     return { planId: sk.planId, planUrl: sk.planUrl };
