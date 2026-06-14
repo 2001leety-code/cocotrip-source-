@@ -28,7 +28,7 @@
  * critical violation throw.
  */
 import { captureError } from '../_shared/sentry.js';
-import { verifyUserToken } from '../_shared/user-auth.js';
+import { verifyUserToken, resolveGuestAnonOwner } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
 import { getAttractionsContext } from '../_attractions_helper.js';
@@ -241,7 +241,7 @@ export default async function handler(req, res) {
       `mode=${abDecision.mode} reason=${abDecision.reason} ` +
       `bucket=${abDecision.bucket ?? '-'}`,
     );
-
+    const { planOwnerUid, forceGuestToken } = await resolveGuestAnonOwner(req, uid); // FEATURE_GUEST_ANON_AUTH (OFF=기존 동작, 상세 user-auth.js)
     console.log('[ai-planner-full] Request:', JSON.stringify({ styles, area, duration, pax, vehicle, arrival_airport, mobility }));
     console.log('[ai-planner-full] ENV:', { gemini: !!process.env.GEMINI_API_KEY, firebase: !!adminDb, gmail: !!process.env.GMAIL_USER });
 
@@ -306,7 +306,7 @@ export default async function handler(req, res) {
     let streamingResponseSent = false;
     let skeletonCtx = null; // P231: worker Step 0 에 전달할 full skeleton 파라미터 (ENV off 시 null)
     if (useStreaming) {
-      const sk = await tryInitStreamingSkeleton({ adminDb, uid, email, area, startDate, guestName, pax, language, vehicle, durationDays, body });
+      const sk = await tryInitStreamingSkeleton({ adminDb, uid: planOwnerUid, forceGuestToken, email, area, startDate, guestName, pax, language, vehicle, durationDays, body });
       if (sk) { streamingPlanId = sk.planId; streamingPlanUrl = sk.planUrl; skeletonCtx = sk.skeletonCtx || null; }
     }
 
@@ -357,7 +357,7 @@ export default async function handler(req, res) {
           dispatchFn: ({ streamingPlanId: spid, skeletonCtx: spCtx }) => dispatchOrInlineForHandlerCore({
             streamingResponseSent: true, itinerary, streamingPlanId: spid, skeletonCtx: spCtx || null, apiKey, body, routeHotelAddress, hotel_address,
             arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity,
-            area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email,
+            area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email,
             specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision,
             isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart,
           }),
@@ -371,7 +371,7 @@ export default async function handler(req, res) {
     // P220 (2026-05-26): Inngest dispatch — streaming + ENV + 토글 시 post-Gemini 를 별 invocation 으로. ENV/throw 시 inline fallback (silent fail 차단).
     // P230 (2026-05-27): block-mode 경로는 위에서 이미 처리 → skip. legacy streaming 만 본 분기 진입.
     // P231 (2026-05-27): skeletonCtx 전달 — worker Step 0 가 full skeleton 저장 (PLANNER_SKELETON_IN_WORKER=true 시).
-    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
+    if (!blockModeUsed && await dispatchOrInlineForHandlerCore({ streamingResponseSent, itinerary, streamingPlanId, skeletonCtx, apiKey, body, routeHotelAddress, hotel_address, arrival_airport, departure_airport, pax, recommendedZone, recommendedZoneAddress, hotelByCity, area, dietPrefs: dietaryAll, regions, vehicle, durationDays, uid: planOwnerUid, forceGuestToken, guestName, styles, duration, startDate, email, specialRequest, mobility, language, PLANNER_MODE, blockModeUsed, blocksUsed, abDecision, isAdminBypass: gate.isAdminBypass, identifierForBucketing, handlerStart })) return;
 
     console.log('[planner] Step 2: Running RouteAgent...');
 
@@ -395,7 +395,7 @@ export default async function handler(req, res) {
     // dashboard 에서 mode 별 qualityScore 비교 위함. legacy vs 3-pass 평균
     // 차이 + diet/unverified/route 카운트 차이를 운영자가 직접 확인 가능.
     const { planId, planUrl } = await withStep('persistPlan', () => savePlan(adminDb, {
-      body, itinerary, uid, vehicle, priceKRW, priceUSD,
+      body, itinerary, uid: planOwnerUid, forceGuestToken, vehicle, priceKRW, priceUSD,
       guestName, pax, styles, area, duration, startDate, email,
       specialRequest, arrival_airport, departure_airport,
       hotel_address, mobility, language,

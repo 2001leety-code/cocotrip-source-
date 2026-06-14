@@ -7,7 +7,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, getGuestDb, getGuestAuth, ensureGuestAnon } from '@/lib/firebase';
+import { chooseReaderContext, isGuestAnonEnabled } from '@/lib/guestReader';
 import { useAuth } from '@/hooks/useAuth';
 import { clearPlannerWizardSnapshot } from '@/hooks/useWizardPersistence';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -103,10 +104,17 @@ export default function PlanDetailPage() {
     if (authLoading) return;
     setError(null);
     setLoading(true);
-    const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
-      if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
-      const data = snap.data() as PlanDocument;
-      const ownerCheck = !!(uid && data.uid === uid);
+
+    // feat/guest-anon-auth-pii (2026-06-15): 플래그 ON + 비로그인 게스트면 격리된 익명
+    // 인스턴스(getGuestDb/getGuestAuth)로 읽는다 → Firestore 룰 owner-read 통과.
+    // 플래그 OFF 또는 로그인 사용자면 useGuestReader=false → 기존 메인 db/uid 경로 그대로.
+    const flagOn = isGuestAnonEnabled();
+    const { useGuestReader } = chooseReaderContext({ loggedInUid: uid, flagOn });
+
+    // snapshot 처리 — viewerUid 는 ownerCheck 용 (로그인=uid, 게스트=익명 uid).
+    // 플래그 OFF 면 useGuestReader=false → viewerUid=uid → 기존 ownerCheck 동일.
+    const handleSnap = (data: PlanDocument, viewerUid: string | null | undefined) => {
+      const ownerCheck = !!(viewerUid && data.uid === viewerUid);
       const hasToken = data.accessToken && data.accessToken === token;
       const isGuestPlan = !data.uid;
       const isPublicShared = data.isPublic === true;
@@ -130,7 +138,10 @@ export default function PlanDetailPage() {
       setIsOwner(ownerCheck);
       setPlan(data);
       setLoading(false);
-    }, (err) => {
+    };
+
+    // 비-게스트(기존) 경로의 에러 핸들러 — 동작 100% 동일.
+    const handleErrLegacy = (err: unknown) => {
       // P235: permission-denied = 인증 만료 또는 PWA 스테일 캐시 → 재로그인/새로고침 안내.
       // 그 외 (not-found, network 등) = 일반 notfound 처리.
       const code = (err as { code?: string })?.code || '';
@@ -141,8 +152,56 @@ export default function PlanDetailPage() {
         setError('notfound');
       }
       setLoading(false);
-    });
-    return () => unsub();
+    };
+
+    // 플래그 OFF 또는 로그인 사용자 = 기존 동기 경로 (변경 없음).
+    if (!useGuestReader) {
+      const unsub = onSnapshot(doc(db, 'plans', planId), (snap) => {
+        if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
+        handleSnap(snap.data() as PlanDocument, uid);
+      }, handleErrLegacy);
+      return () => unsub();
+    }
+
+    // 플래그 ON + 비로그인 게스트 = 격리 익명 인스턴스 경로.
+    // ensureGuestAnon 은 비동기이므로 effect 내 async IIFE + cancelled 가드 + unsub ref.
+    let cancelled = false;
+    let unsub: (() => void) | null = null;
+    (async () => {
+      await ensureGuestAnon(); // 실패해도 graceful(null) — 아래 onSnapshot 이 permission-denied → API fallback.
+      if (cancelled) return;
+      const guestDb = getGuestDb();
+      unsub = onSnapshot(doc(guestDb, 'plans', planId), (snap) => {
+        if (cancelled) return;
+        if (!snap.exists()) { setError('notfound'); setLoading(false); return; }
+        const viewerUid = getGuestAuth().currentUser?.uid;
+        handleSnap(snap.data() as PlanDocument, viewerUid);
+      }, async (err) => {
+        if (cancelled) return;
+        const code = (err as { code?: string })?.code || '';
+        console.error('[PlanDetail] Guest Firestore read error:', code, err);
+        // permission-denied + URL token 보유 → 서버 경유 읽기(/api/get-plan) fallback.
+        // 실패 시에만 기존 autherror 로 폴백 (rule 거부지만 토큰 일치면 서버가 반환).
+        if ((code === 'permission-denied' || code === 'PERMISSION_DENIED') && token) {
+          try {
+            const resp = await fetch(`/api/get-plan?planId=${encodeURIComponent(planId)}&token=${encodeURIComponent(token)}`);
+            const json = await resp.json().catch(() => ({}));
+            if (cancelled) return;
+            if (resp.ok && json && json.ok && json.plan) {
+              const data = json.plan as PlanDocument;
+              const viewerUid = getGuestAuth().currentUser?.uid;
+              handleSnap(data, viewerUid);
+              return;
+            }
+          } catch (fetchErr) {
+            console.error('[PlanDetail] get-plan fallback failed:', fetchErr);
+          }
+          if (cancelled) return;
+        }
+        handleErrLegacy(err);
+      });
+    })();
+    return () => { cancelled = true; if (unsub) unsub(); };
   }, [planId, token, uid, authLoading]);
 
   // share_visit tracking

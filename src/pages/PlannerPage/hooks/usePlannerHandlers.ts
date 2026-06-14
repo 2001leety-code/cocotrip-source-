@@ -5,6 +5,21 @@ import { useNavigate } from 'react-router-dom';
 import type { PlannerFormValues } from '@/components/PlannerForm';
 import { cityNameToAreaKey } from '../lib/formatters';
 import { auth as firebaseAuth } from '@/lib/firebase';
+import { isGuestAnonEnabled, shouldAttachGuestAnonToken } from '@/lib/guestReader';
+
+// feat/guest-anon-auth-pii (2026-06-15): 비로그인 게스트 + 플래그 ON 이면 격리된
+// 익명 Firebase 인스턴스(guestReader)로 로그인해 idToken 을 x-guest-anon-token 헤더로
+// 첨부한다. 결제용 Authorization 헤더는 절대 건드리지 않는다 (게스트는 그대로 없음 →
+// 결제 경로 불변). 플래그 OFF(기본) = 빈 객체 반환 → 헤더/동작 동일.
+async function getGuestAnonHeader(hasAuthorization: boolean): Promise<Record<string, string>> {
+  if (!shouldAttachGuestAnonToken(hasAuthorization, isGuestAnonEnabled())) return {};
+  try {
+    const { ensureGuestAnon } = await import('@/lib/firebase');
+    const gUser = await ensureGuestAnon();
+    if (gUser) return { 'x-guest-anon-token': await gUser.getIdToken() };
+  } catch { /* graceful — 실패해도 기존 게스트 결제 경로 그대로 진행 */ }
+  return {};
+}
 
 // Audit P0-#2 (2026-05-04): /api/ai-planner-full 가 Authorization: Bearer <idToken>
 // 필수. 패턴 출처: src/pages/AdminReconciliation.tsx:43-45 (`await user.getIdToken();
@@ -196,9 +211,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         e.code = 'AUTH_REQUIRED';
         throw e;
       }
+      // feat/guest-anon-auth-pii: 비로그인 게스트 + 플래그 ON 일 때만 별도 익명 토큰 헤더.
+      // 플래그 OFF 또는 로그인 사용자 = {} → fetch 헤더 동일 (기존 동작 불변).
+      const guestAnonHeaders = await getGuestAnonHeader(!!authHeaders.Authorization);
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        headers: { 'Content-Type': 'application/json', ...authHeaders, ...guestAnonHeaders },
         signal: controller.signal,
         body: JSON.stringify({
           paypalOrderId,
@@ -359,9 +377,12 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         e.code = 'AUTH_REQUIRED';
         throw e;
       }
+      // feat/guest-anon-auth-pii: revision 경로는 Authorization 필수(위에서 throw)이므로
+      // guestAnonHeaders 는 항상 {} = 동작 불변. 호출처 parity 위해 동일하게 spread.
+      const guestAnonHeaders = await getGuestAnonHeader(!!authHeaders.Authorization);
       const res = await fetch('/api/ai-planner-full', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        headers: { 'Content-Type': 'application/json', ...authHeaders, ...guestAnonHeaders },
         signal: controller.signal,
         body: JSON.stringify({
           revisionOf: revisionPlanId,

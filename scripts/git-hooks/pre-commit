@@ -143,6 +143,13 @@ if [ -n "$SCAN_FILES" ]; then
       // / dietary ?? dietPrefs 등 pre-existing legitimate nullish (0/falsy 보존). 내 변경
       // (revision reason 서버 라우팅) 아님 + 이 PR 에서 처음 staged 됨.
       if (f === "src/pages/PlanDetailPage/components/RevisionCard.tsx") continue;
+      // 2026-06-15: firebase.js 의 firebaseConfig nullish (VITE_FIREBASE_* 폴백) +
+      // user.email/displayName/photoURL nullish 등 pre-existing legitimate. guest-anon
+      // 격리 인스턴스 추가로 re-staged 됐을 뿐 — 내 신규 코드는 전부 || 사용.
+      if (f === "src/lib/firebase.js") continue;
+      // 2026-06-15: plan-detail-listener-leak-pr450.test.ts 의 주석/테스트명이 소스 패턴
+      // user?.uid 의 nullish 폴백을 인용(PR#450 불변식 문서화) — pre-existing legitimate.
+      if (f === "tests/unit/plan-detail-listener-leak-pr450.test.ts") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

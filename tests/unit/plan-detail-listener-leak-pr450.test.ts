@@ -56,11 +56,21 @@ describe('PR #450 W-H16 — onSnapshot effect deps use uid (stable string), not 
     expect(deps).toMatch(/\bauthLoading\b/);
   });
 
-  it('owner-check inside the snapshot callback uses uid (not user.uid via object ref)', () => {
-    // The ownerCheck line should reference `uid` (the hoisted const), not
-    // re-read `user.uid` inside the closure (would be stale if user ref
-    // changes between renders).
-    expect(src).toMatch(/const\s+ownerCheck\s*=\s*!!\(\s*uid\s+&&\s+data\.uid\s*===\s*uid\s*\)/);
+  it('owner-check uses a stable viewer uid param (not user.uid via object ref)', () => {
+    // PR #450 invariant: ownerCheck must compare against a STABLE identity
+    // (the hoisted `uid` const), never re-read `user.uid` inside the closure
+    // (would be stale if the user object ref changes between renders).
+    //
+    // feat/guest-anon-auth-pii (2026-06-15): ownerCheck moved into a
+    // `handleSnap(data, viewerUid)` helper so the login/legacy path can pass
+    // the hoisted `uid` while the isolated guest-anon path passes the
+    // anonymous uid. The invariant (stable identity, no user-object re-read)
+    // is unchanged — only the parameter name.
+    expect(src).toMatch(/const\s+ownerCheck\s*=\s*!!\(\s*viewerUid\s*&&\s+data\.uid\s*===\s*viewerUid\s*\)/);
+    // login/legacy path must feed the hoisted stable `uid` into handleSnap.
+    expect(src).toMatch(/handleSnap\(\s*snap\.data\(\)[^,]*,\s*uid\s*\)/);
+    // never re-read the user object's uid inside the snapshot closure.
+    expect(src).not.toMatch(/data\.uid\s*===\s*user\.uid/);
   });
 
   it('cleanup return-unsub still in place (no listener leak path)', () => {

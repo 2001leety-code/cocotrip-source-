@@ -7,6 +7,7 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signInWithPhoneNumber,
+  signInAnonymously,
   RecaptchaVerifier,
 } from 'firebase/auth';
 import {
@@ -328,4 +329,31 @@ export async function handleRedirectResult() {
 
 export async function signOutUser() {
   await auth.signOut();
+}
+
+// 게스트 전용 격리 Firebase 앱 — 메인 auth/useAuth 에 영향 0 (플랜 소유자 익명 read 전용).
+let _guestApp = null, _guestAuth = null, _guestDb = null, _guestAnonPromise = null;
+function getGuestApp() {
+  if (_guestApp) return _guestApp;
+  _guestApp = getApps().find((a) => a.name === 'guestReader') || initializeApp(firebaseConfig, 'guestReader');
+  return _guestApp;
+}
+export function getGuestDb() {
+  if (!_guestDb) _guestDb = getFirestore(getGuestApp());
+  return _guestDb;
+}
+export function getGuestAuth() {
+  if (!_guestAuth) _guestAuth = getAuth(getGuestApp());
+  return _guestAuth;
+}
+/** 게스트 익명 로그인 보장(멱등). 성공 시 익명 user, 실패 시 null (graceful — 호출자가 폴백). */
+export async function ensureGuestAnon() {
+  const gAuth = getGuestAuth();
+  if (gAuth.currentUser) return gAuth.currentUser;
+  if (!_guestAnonPromise) {
+    _guestAnonPromise = signInAnonymously(gAuth)
+      .then((cred) => cred.user)
+      .catch((e) => { console.warn('[guestAnon] sign-in failed:', e && e.message); _guestAnonPromise = null; return null; });
+  }
+  return _guestAnonPromise;
 }
