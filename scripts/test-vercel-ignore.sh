@@ -127,6 +127,25 @@ run_case "VERCEL_GIT_PREVIOUS_SHA unreachable + origin/main valid → fallback" 
   export VERCEL_GIT_PREVIOUS_SHA="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 '
 
+# Case 13: public/ 자산(이미지)-only change → exit 1 (build) — #954/#955 로고 회귀 가드.
+# public/ 밑 자산은 배포돼야 prod 반영 → 이미지여도 빌드해야 함 (Case 10 루트 png 스킵과 대비).
+run_case "public/ image-only change → build" 1 '
+  mkdir -p public/images && echo "x" > public/images/logo.png && git add . && git commit -q -m "init"
+  echo "y" > public/images/logo.png && git add . && git commit -q -m "logo update"
+'
+
+# Case 14: public/ 매니페스트/favicon 변경 → exit 1 (build)
+run_case "public/ manifest change → build" 1 '
+  mkdir -p public && echo "x" > public/favicon.png && git add . && git commit -q -m "init"
+  printf "%s" "{}" > public/manifest.webmanifest && git add . && git commit -q -m "manifest"
+'
+
+# Case 15: public/ 변경 + 루트 잡png 섞임 → exit 1 (public 가 빌드 트리거, 루트 png 스킵에도 우선)
+run_case "public/ asset + root png → build" 1 '
+  mkdir -p public/icons && echo "x" > public/icons/icon.png && git add . && git commit -q -m "init"
+  echo "y" > public/icons/icon.png && echo "z" > screenshot.png && git add . && git commit -q -m "mixed"
+'
+
 # Summary
 echo
 echo "== Summary =="

@@ -34,6 +34,10 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://cocotripkr.com" />
     <meta name="theme-color" content="#B668FC" />
+    <!-- 브랜드 자산 v2 (2026-06-14): 운영자 공식 로고/앱아이콘 적용
+         (public/images/logo-cocotrip.png, public/icons/icon-{192,512}.png, favicon.png).
+         public/ 자산-only 변경이 빌드 스킵되던 회귀(#954/#955 .png-only → 4회 CANCELED)를
+         scripts/vercel-ignore.sh public/ 가드로 fix. 이 주석은 그 fix 배포 트리거 겸 마커. -->
     <link rel="icon" type="image/png" href="/favicon.png" />
     <!-- manifest는 vite-plugin-pwa가 자동 주입 (manifest.webmanifest). 수동 link 제거. -->
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
