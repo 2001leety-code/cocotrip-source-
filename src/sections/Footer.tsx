@@ -34,6 +34,8 @@ export function Footer({ t }: FooterProps) {
             <Link to="/terms" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.terms}</Link>
             <span className="text-white/15 self-center">·</span>
             <Link to="/privacy" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.privacy}</Link>
+            <span className="text-white/15 self-center">·</span>
+            <Link to="/travel-terms" className="inline-flex items-center min-h-[44px] px-2 text-white/55 hover:text-[#B668FC] transition-colors">{t.footer.travelTerms}</Link>
           </div>
 
           {/* Info - compact */}
