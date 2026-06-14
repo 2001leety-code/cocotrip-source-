@@ -49,7 +49,8 @@ export function MoodRouteMap({ origin, waypoints, destination, accent, inputBg, 
 
         const map = new naver.maps.Map(mapRef.current, {
           center: new naver.maps.LatLng(coords[0].lat, coords[0].lng),
-          zoom: 11,
+          zoom: 12,
+          zoomControl: true,
         });
         const bounds = new naver.maps.LatLngBounds();
         const markers: unknown[] = [];
@@ -78,7 +79,7 @@ export function MoodRouteMap({ origin, waypoints, destination, accent, inputBg, 
         <div
           ref={mapRef}
           className="w-full rounded-xl overflow-hidden"
-          style={{ height: 200, border: inputBorder, background: inputBg }}
+          style={{ height: 340, border: inputBorder, background: inputBg }}
         />
       )}
       <div className="flex items-center gap-2">

@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, MapPin, ChevronRight } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useLanguage } from '@/hooks/useLanguage';
+import { signalAppReady } from '@/lib/appReady';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { Language } from '@/i18n';
@@ -46,6 +48,9 @@ export default function MobileHomeV2() {
     title: `${m.headline1} ${m.headline2}`,
     description: 'AI travel planner, private tours & charter across Korea - CocoTrip.',
   });
+
+  // PWA 실행 스플래시 페이드아웃 — 홈 첫 화면 준비됨 신호 (코코트립 standalone 진입점).
+  useEffect(() => { signalAppReady(); }, []);
 
   const featuredTours = TOURS.slice(0, 6);
   const priceLabel = (tourId: string, priceFrom: number, unit: 'group' | 'per_person') => {

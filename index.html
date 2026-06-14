@@ -41,6 +41,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CocoTrip" />
 
+    <!-- PWA 실행 스플래시 (설치 standalone 에서만) — OS 스플래시(아이콘)와 동일한 비주얼로
+         이어받아 매끄러운 단일 전환. 앱이 준비될 때까지 유지(검정 갭 방지) 후 페이드.
+         일반 웹 방문(브라우저 탭)에선 display:none 으로 안 보임. (회귀 #946→수정) -->
+    <style id="app-splash-style">
+      #app-splash{position:fixed;inset:0;z-index:99999;display:none;flex-direction:column;align-items:center;justify-content:center;background:#0a0b14;opacity:1;transition:opacity .45s ease;pointer-events:none}
+      #app-splash.mood{background:#0a0412}
+      #app-splash img{width:128px;height:128px;border-radius:28px;filter:drop-shadow(0 10px 34px rgba(182,104,252,.4))}
+      #app-splash .tag{margin-top:22px;color:#fff;font-size:15px;font-weight:600;opacity:.92;text-align:center;padding:0 30px;max-width:330px;line-height:1.45;letter-spacing:.2px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+      #app-splash.hide{opacity:0}
+    </style>
+
     <!-- CJK 웹폰트 프리로드 — PDF 렌더 시 한국어/일본어/중국어 글자 깨짐 방지 -->
     <!-- 2026-05-09 (B9-30): display=swap → display=block 변경.
          이유: swap은 fallback 폰트로 즉시 그리고 → Noto 다운로드 완료 후 swap.
@@ -112,6 +123,43 @@
     </script>
   </head>
   <body>
+    <!-- 설치 PWA 실행 스플래시 — 인라인이라 React 마운트 전 즉시 페인트(깜빡임 없음). -->
+    <div id="app-splash" aria-hidden="true">
+      <img id="app-splash-img" src="/icons/icon-192.png" alt="" />
+      <div class="tag" id="app-splash-tag"></div>
+    </div>
+    <script>
+      (function () {
+        try {
+          var standalone =
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            window.navigator.standalone === true;
+          if (!standalone) return; // 일반 웹 방문이면 스플래시 안 띄움
+          var el = document.getElementById('app-splash');
+          var img = document.getElementById('app-splash-img');
+          var tag = document.getElementById('app-splash-tag');
+          var isMood = location.pathname.indexOf('/mood') === 0;
+          if (isMood) {
+            el.className = 'mood';
+            img.src = '/icons/mood-192.png';
+            tag.textContent = '';
+          } else {
+            tag.textContent = 'Plan your Korea trip in 60 seconds with AI ✈️';
+          }
+          el.style.display = 'flex';
+          var t0 = Date.now();
+          var MIN = 1400, MAX = 4500, done = false;
+          function hide() {
+            if (done) return; done = true;
+            el.classList.add('hide');
+            setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 520);
+          }
+          // 앱이 첫 화면을 그릴 준비가 되면 호출 (홈/무드 포털) — 최소 표시시간 보장 후 페이드.
+          window.__appReady = function () { setTimeout(hide, Math.max(0, MIN - (Date.now() - t0))); };
+          setTimeout(hide, MAX); // 안전 캡: 신호 없어도 사라짐
+        } catch (e) { /* 스플래시는 비핵심 — 실패해도 앱은 정상 */ }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <!-- Service Worker는 vite-plugin-pwa가 자동 등록 (registerType: 'autoUpdate').

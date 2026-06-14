@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
 import { authFetch } from '@/lib/authFetch';
 import { openDaumPostcode } from '@/lib/daumPostcode';
+import { signalAppReady } from '@/lib/appReady';
 import { MoodRouteMap } from '@/components/MoodRouteMap';
 import {
   MOOD_RATES,
@@ -422,6 +423,10 @@ export default function MoodPortal() {
       // 스크립트 로드 실패 — 수동 입력으로 진행
     }
   }, []);
+
+  // PWA 실행 스플래시 페이드아웃 — 인증 끝나 포털/로그인 화면이 그려질 때 신호(무드 standalone 진입점).
+  // (인증 대기 중엔 스플래시가 유지되어 "검정 갭" 을 가린다. 훅은 게이트보다 위 = rules-of-hooks.)
+  useEffect(() => { if (!loading) signalAppReady(); }, [loading]);
 
   // ── 로딩 / 미로그인 / 권한없음 게이트 ─────────────────────────
   if (loading) {
