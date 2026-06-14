@@ -13,12 +13,14 @@ import { resolve } from 'node:path';
 const r = (p: string) => resolve(process.cwd(), p);
 
 describe('PWA 자산 존재', () => {
-  it('아이콘 2종(코코트립·무드, 패딩본) + 무드 매니페스트', () => {
+  it('아이콘 2종(코코트립·무드, 패딩본) + 풀 스플래시 2종 + 무드 매니페스트', () => {
     for (const f of [
       'public/icons/icon-192.png',
       'public/icons/icon-512.png',
       'public/icons/mood-192.png',
       'public/icons/mood-512.png',
+      'public/splash-cocotrip.png',
+      'public/splash-mood.png',
       'public/manifest-mood.webmanifest',
     ]) {
       expect(existsSync(r(f)), `${f} 존재`).toBe(true);
@@ -41,10 +43,12 @@ describe('index.html 인라인 스플래시 — standalone·경로별·검정갭
     expect(html).toContain("display-mode: standalone");
     expect(html).toMatch(/if\s*\(!standalone\)\s*return/); // 일반 웹 방문이면 미표시
   });
-  it('진입 경로 /mood → 무드 아이콘 / 그 외 → 코코트립 + 태그라인', () => {
+  it('진입 경로 /mood → 무드 풀 이미지(태그라인X) / 그 외 → 코코트립 풀 이미지 + 태그라인', () => {
     expect(html).toMatch(/location\.pathname\.indexOf\('\/mood'\)\s*===\s*0/);
-    expect(html).toContain('/icons/mood-192.png');
-    expect(html).toContain('/icons/icon-192.png');
+    // 잘린 아이콘이 아니라 폰화면 풀 이미지(splash-*.png) 를 배경으로
+    expect(html).toContain('/splash-mood.png');
+    expect(html).toContain('/splash-cocotrip.png');
+    expect(html).toContain('background-size:cover');
     expect(html).toContain('60 seconds');
   });
   it('앱 준비 신호까지 유지(검정 갭 방지) + 안전 캡', () => {
@@ -92,6 +96,15 @@ describe('PWA 업데이트 토스트 — 무드 포함 전역(운영자 요청)'
     expect(src).toMatch(/loadedAtRef/);
     // 페이지당 1회 가드
     expect(src).toMatch(/autoUpdatedRef/);
+  });
+
+  it('PC/모바일 웹 탭(비-standalone)에선 알림·자동리로드 안 뜸 — 설치 앱에서만', () => {
+    const src = readFileSync(r('src/components/PWAUpdatePrompt.tsx'), 'utf8');
+    expect(src).toContain("display-mode: standalone");
+    expect(src).toMatch(/standaloneRef/);
+    // 비-standalone 이면 렌더 null + 자동업데이트 effect early-return
+    expect(src).toMatch(/if\s*\(!standaloneRef\.current\)\s*return null/);
+    expect(src).toMatch(/if\s*\(!standaloneRef\.current\)\s*return;/);
   });
 });
 

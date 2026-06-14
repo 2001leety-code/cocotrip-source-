@@ -29,11 +29,21 @@ import { RefreshCw, X } from 'lucide-react';
 // 진입 직후 이 시간(ms) 안에 감지된 업데이트 = "콜드 스타트" 로 보고 자동 적용. 이후 = 토스트.
 const AUTO_UPDATE_WINDOW_MS = 10_000;
 
+// 설치된 PWA(standalone) 실행 여부. PC/모바일 브라우저 탭에선 false.
+function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  const mm = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  const ios = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+  return mm || ios;
+}
+
 export function PWAUpdatePrompt() {
   const { t } = useLanguage();
   const [dismissed, setDismissed] = useState(false);
   const loadedAtRef = useRef(Date.now());
   const autoUpdatedRef = useRef(false);
+  // PC 웹(브라우저 탭)에선 업데이트 알림·자동 리로드 불필요(그냥 새로고침) → 설치 앱에서만 노출.
+  const standaloneRef = useRef(isStandalone());
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -49,7 +59,9 @@ export function PWAUpdatePrompt() {
   });
 
   // 앱 진입 직후 새 버전 대기 감지 → 자동 업데이트(작업 전이라 안전). 페이지당 1회.
+  // PC/모바일 브라우저 탭(비-standalone)에선 자동 리로드 안 함.
   useEffect(() => {
+    if (!standaloneRef.current) return;
     if (!needRefresh || autoUpdatedRef.current) return;
     if (Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS) {
       autoUpdatedRef.current = true;
@@ -64,6 +76,8 @@ export function PWAUpdatePrompt() {
     return () => clearTimeout(timer);
   }, [dismissed]);
 
+  // PC/모바일 브라우저 탭에선 토스트 안 띄움(설치 앱에서만). 운영자 요청 2026-06-14.
+  if (!standaloneRef.current) return null;
   if (!needRefresh || dismissed) return null;
   // 자동 업데이트 창 안에서는 토스트 대신 위 effect 가 리로드 → 깜빡임 방지로 숨김.
   if (Date.now() - loadedAtRef.current < AUTO_UPDATE_WINDOW_MS) return null;

@@ -41,14 +41,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CocoTrip" />
 
-    <!-- PWA 실행 스플래시 (설치 standalone 에서만) — OS 스플래시(아이콘)와 동일한 비주얼로
-         이어받아 매끄러운 단일 전환. 앱이 준비될 때까지 유지(검정 갭 방지) 후 페이드.
-         일반 웹 방문(브라우저 탭)에선 display:none 으로 안 보임. (회귀 #946→수정) -->
+    <!-- PWA 실행 스플래시 (설치 standalone 에서만) — 폰화면에 맞춘 풀 이미지(미크롭) 그대로 노출.
+         앱이 준비될 때까지 유지(검정 갭 방지) 후 페이드. 일반 웹(브라우저 탭)에선 안 보임.
+         (#948 에서 잘린 아이콘 쓰던 것 → 풀 이미지로 환원, 운영자 요청 2026-06-14) -->
     <style id="app-splash-style">
-      #app-splash{position:fixed;inset:0;z-index:99999;display:none;flex-direction:column;align-items:center;justify-content:center;background:#0a0b14;opacity:1;transition:opacity .45s ease;pointer-events:none}
-      #app-splash.mood{background:#0a0412}
-      #app-splash img{width:128px;height:128px;border-radius:28px;filter:drop-shadow(0 10px 34px rgba(182,104,252,.4))}
-      #app-splash .tag{margin-top:22px;color:#fff;font-size:15px;font-weight:600;opacity:.92;text-align:center;padding:0 30px;max-width:330px;line-height:1.45;letter-spacing:.2px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+      #app-splash{position:fixed;inset:0;z-index:99999;display:none;align-items:flex-end;justify-content:center;background-color:#0a0b14;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:1;transition:opacity .45s ease;pointer-events:none}
+      #app-splash.mood{background-color:#0a0412}
+      #app-splash .tag{margin-bottom:13%;color:#fff;font-size:15px;font-weight:600;opacity:.95;text-align:center;padding:0 32px;max-width:340px;line-height:1.45;letter-spacing:.2px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;text-shadow:0 2px 12px rgba(0,0,0,.7)}
       #app-splash.hide{opacity:0}
     </style>
 
@@ -123,9 +122,8 @@
     </script>
   </head>
   <body>
-    <!-- 설치 PWA 실행 스플래시 — 인라인이라 React 마운트 전 즉시 페인트(깜빡임 없음). -->
+    <!-- 설치 PWA 실행 스플래시 — 인라인이라 React 마운트 전 즉시 페인트(깜빡임 없음). 풀 이미지. -->
     <div id="app-splash" aria-hidden="true">
-      <img id="app-splash-img" src="/icons/icon-192.png" alt="" />
       <div class="tag" id="app-splash-tag"></div>
     </div>
     <script>
@@ -136,14 +134,16 @@
             window.navigator.standalone === true;
           if (!standalone) return; // 일반 웹 방문이면 스플래시 안 띄움
           var el = document.getElementById('app-splash');
-          var img = document.getElementById('app-splash-img');
           var tag = document.getElementById('app-splash-tag');
           var isMood = location.pathname.indexOf('/mood') === 0;
           if (isMood) {
+            // 무드: 폰화면 풀 이미지만 (태그라인 없음)
             el.className = 'mood';
-            img.src = '/icons/mood-192.png';
+            el.style.backgroundImage = "url('/splash-mood.png')";
             tag.textContent = '';
           } else {
+            // 코코트립: 폰화면 풀 이미지 + 하단 영어 태그라인
+            el.style.backgroundImage = "url('/splash-cocotrip.png')";
             tag.textContent = 'Plan your Korea trip in 60 seconds with AI ✈️';
           }
           el.style.display = 'flex';
