@@ -62,6 +62,16 @@ if [ "$GIT_DIFF_EXIT" -ne 0 ] || [ -z "$CHANGED" ]; then
   exit 1
 fi
 
+# public/ 정적 자산(로고·아이콘·favicon·매니페스트 등)은 빌드+배포돼야 prod 에 반영됨.
+# 이미지(.png 등)여도 public/ 밑이면 스킵하면 안 됨 — 스킵하면 CDN 이 옛 자산을 계속 서빙해서
+# 변경이 영영 prod 에 안 뜸. 회귀: #954/#955 (공식 로고·아이콘 교체)가 .png-only 라 아래
+# IGNORE_RE 이미지 규칙에 걸려 4회 연속 빌드 스킵(CANCELED) → prod 미반영 → 이 가드 추가.
+# (루트의 잡다한 스크린샷 png 는 여전히 스킵 — public/ 밑만 빌드.)
+if echo "$CHANGED" | grep -qE '^public/'; then
+  echo "[ignore] public/ asset changed → build (deploy needed)"
+  exit 1
+fi
+
 # 빌드 무관 패턴 (모든 변경이 이 패턴이면 스킵)
 IGNORE_RE='^(docs/|\.github/|\.agent/|\.claude/|\.idx/|\.vscode/|tests/|scripts/|reports/|outputs/|food_data/|preview/)'
 IGNORE_RE="${IGNORE_RE}|^(deploys\.txt|error\.log|\.gitignore|\.gitattributes|\.editorconfig|\.claudeignore)$"
