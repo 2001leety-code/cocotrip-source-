@@ -169,32 +169,62 @@ export async function confirmBookingAsPaid({
   }
 
   const pendingRef = db.collection('pending_bookings').doc(bookingRef);
-  const pendingSnap = await pendingRef.get();
-  if (!pendingSnap.exists) {
-    return { ok: false, code: 'NOT_FOUND', error: `pending_bookings/${bookingRef} not found` };
-  }
-  const pending = pendingSnap.data();
-
-  // 멱등 — 이미 CONFIRMED 면 부수효과 스킵
-  if (pending.status === 'CONFIRMED') {
-    const existingId = pending.paypalTransactionId || bookingRef;
-    return { ok: true, bookingId: existingId, alreadyConfirmed: true };
-  }
 
   const bookingId = paypalTransactionId || bookingRef;
 
-  // 1. pending_bookings 갱신
-  const updatePayload = {
-    status: 'CONFIRMED',
-    paypalTransactionId: paypalTransactionId || null,
-    confirmedAt: FieldValue.serverTimestamp(),
-    confirmedBySource: source,
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-  if (source === 'admin') {
-    updatePayload.confirmedByUid = adminUid;
+  // 1. pending_bookings 갱신 — 원자적 멱등 게이트 (버그 #8 fix)
+  //
+  //   webhook(자동) 과 admin mark-paid(운영자 클릭) 가 동시에 호출되면 (또는
+  //   webhook 중복 전달), 둘 다 트랜잭션 밖에서 status!=='CONFIRMED' 를 읽고
+  //   각자 update 후 부수효과(booking-processor / AI 플래너 / 확정 이메일)를
+  //   실행 → 이중 부수효과. read → 상태확인 → update 를 단일 트랜잭션으로 감싸
+  //   'PENDING/sent → CONFIRMED' 전이를 단 한 호출만 통과하게 만든다.
+  //   Firestore 트랜잭션은 read 한 문서가 commit 전 변경되면 자동 재시도하므로
+  //   경합한 두 번째 호출은 재시도 시 status==='CONFIRMED' 를 보고 멱등 처리된다.
+  //   ⚠️ 트랜잭션 콜백 안에서는 read+update 만 — 외부 I/O(이메일/HTTP/텔레그램)
+  //   금지(재시도 시 중복 실행됨). 부수효과는 트랜잭션 밖에서 didTransition 일 때만.
+  const txResult = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(pendingRef);
+    if (!snap.exists) {
+      return { notFound: true };
+    }
+    const data = snap.data();
+
+    // 멱등 — 이미 CONFIRMED 면 (다른 호출이 이미 전이시킴) 전이 스킵
+    if (data.status === 'CONFIRMED') {
+      return {
+        pending: data,
+        didTransition: false,
+        existingId: data.paypalTransactionId || bookingRef,
+      };
+    }
+
+    const updatePayload = {
+      status: 'CONFIRMED',
+      paypalTransactionId: paypalTransactionId || null,
+      confirmedAt: FieldValue.serverTimestamp(),
+      confirmedBySource: source,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (source === 'admin') {
+      updatePayload.confirmedByUid = adminUid;
+    }
+    tx.update(pendingRef, updatePayload);
+
+    // 이 호출이 전이를 성사시킨 유일한 호출 → 부수효과 실행 권한 획득
+    return { pending: data, didTransition: true, existingId: null };
+  });
+
+  if (txResult.notFound) {
+    return { ok: false, code: 'NOT_FOUND', error: `pending_bookings/${bookingRef} not found` };
   }
-  await pendingRef.update(updatePayload);
+
+  const pending = txResult.pending;
+
+  // 멱등 — 전이를 통과하지 못한 호출(이미 CONFIRMED 였음)은 부수효과 모두 스킵
+  if (!txResult.didTransition) {
+    return { ok: true, bookingId: txResult.existingId, alreadyConfirmed: true };
+  }
 
   // 2. bookings mirror
   await db.collection('bookings').doc(bookingId).set({

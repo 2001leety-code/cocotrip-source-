@@ -55,6 +55,36 @@ export default async function handler(req, res) {
   const { plan, targetLang } = req.body;
   if (!plan || !targetLang) return res.status(400).json(_err('plan and targetLang required', 'MISSING_FIELDS'));
 
+  // ── 입력 크기 상한 — Gemini 호출당 비용 증폭 방지 ──
+  // 정상 6일 plan: days≤7, stops≤56, items≤200 → 여유 5~7배 상한.
+  const MAX_PLAN_DAYS        = 30;    // 정상 최대 7일의 4배
+  const MAX_PLAN_STOPS       = 400;   // 정상 ~56의 7배 (다도시 감안)
+  const MAX_TRANSLATE_TEXTS  = 2000;  // descTexts+transitTexts 합산 (정상 ~340의 5배)
+  const MAX_PLAN_JSON_BYTES  = 500_000; // 500 KB — Gemini 입력 토큰 비용 상한
+
+  const planJsonBytes = Buffer.byteLength(JSON.stringify(plan), 'utf8');
+  if (planJsonBytes > MAX_PLAN_JSON_BYTES) {
+    return res.status(400).json(_err(
+      `plan JSON too large (${planJsonBytes} bytes, max ${MAX_PLAN_JSON_BYTES})`,
+      'PLAN_TOO_LARGE',
+    ));
+  }
+  if (Array.isArray(plan.days) && plan.days.length > MAX_PLAN_DAYS) {
+    return res.status(400).json(_err(
+      `plan.days too many (${plan.days.length}, max ${MAX_PLAN_DAYS})`,
+      'PLAN_TOO_LARGE',
+    ));
+  }
+  const totalStops = Array.isArray(plan.days)
+    ? plan.days.reduce((s, d) => s + (Array.isArray(d.stops) ? d.stops.length : 0), 0)
+    : 0;
+  if (totalStops > MAX_PLAN_STOPS) {
+    return res.status(400).json(_err(
+      `plan stops too many (${totalStops}, max ${MAX_PLAN_STOPS})`,
+      'PLAN_TOO_LARGE',
+    ));
+  }
+
   const LANG_NAMES = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Chinese (Simplified)' };
   const langName = LANG_NAMES[targetLang] || 'English';
   const isCJKTarget = targetLang === 'ja' || targetLang === 'zh';
@@ -159,6 +189,15 @@ export default async function handler(req, res) {
 
     if (descTexts.length === 0 && transitTexts.length === 0) {
       return res.status(200).json(_ok({ translated: plan, translatorVersion: TRANSLATOR_VERSION, message: 'Nothing to translate' }));
+    }
+
+    // 텍스트 배열 합산 상한 — Gemini 프롬프트 크기 비용 방어
+    const totalTexts = descTexts.length + transitTexts.length;
+    if (totalTexts > MAX_TRANSLATE_TEXTS) {
+      return res.status(400).json(_err(
+        `plan translate texts too many (${totalTexts}, max ${MAX_TRANSLATE_TEXTS})`,
+        'PLAN_TOO_LARGE',
+      ));
     }
 
     // ── Single Gemini call with two arrays ──

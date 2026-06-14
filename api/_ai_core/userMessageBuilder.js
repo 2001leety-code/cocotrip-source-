@@ -61,6 +61,25 @@ export function buildUserMessage({
     pace, wantAccom, accomBudget, language,
   } = shaped;
 
+  // 버그헌트 #5 (halal) — SAFETY-CRITICAL (CLAUDE.md J).
+  // P10 이후 WizardForm 은 Halal/Vegan 을 ALLERGY_KEYS(=allergies 배열)에 둔다(data.tsx).
+  // buildSystemPrompt 의 가장 구체적 식이 지시(buildPrompt.js `### Diet preferences:`:
+  //   Halal → ONLY halal-certified / NEVER pork, Vegan → ONLY plant-based / NEVER fish sauce·anchovy)
+  // 는 Gemini userMessage 의 `diet_preferences` 키 포함 여부에 게이트된다.
+  // Halal/Vegan 이 food_allergies 로만 전달되면 이 강한 지시가 첫 Gemini 호출서 미발화 →
+  // 첫 응답에 돼지/주류·동물성이 섞일 위험. (validateResponse checkDietaryViolation backstop 은
+  // 사후 retry 로 받지만, 첫 응답부터 안전하게 하려면 지시가 발화돼야 함.)
+  // FIX: allergies 안의 Halal/Vegan(/Vegetarian) 을 diet_preferences 에도 합쳐 노출해
+  //      `### Diet preferences:` 게이트가 첫 응답서 발화하게 한다.
+  //      food_allergies 는 그대로 둔다 — 알레르기 비스크리닝 notice + SAFETY 백스톱 유지.
+  const safeDietPrefs = Array.isArray(dietPrefs) ? dietPrefs : [];
+  const safeAllergies = Array.isArray(allergies) ? allergies : [];
+  const dietGatedFromAllergies = safeAllergies.filter(
+    (a) => /^(halal|vegan|vegetarian)$/i.test(String(a || '')),
+  );
+  // 중복 무해 — Set 으로 정규화. dietPrefs 가 우선 순서 유지.
+  const dietPreferencesForPrompt = [...new Set([...safeDietPrefs, ...dietGatedFromAllergies])];
+
   // P273 (2026-05-29): cache-friendly 순서 재배치.
   // STATIC PREFIX (1) → SEMI-STATIC MIDDLE (2) → DYNAMIC SUFFIX (3) → RANDOM TAIL (4).
   // Gemini implicit cache hit (90% 할인) trigger 위해 동일 city/language/styles/diet 요청의
@@ -121,7 +140,9 @@ export function buildUserMessage({
     // 2026-05-10 (P1): luggage — RouteAgent late-night/heavy-luggage 분기 + Gemini.
     luggage: luggage || undefined,
     special_request: specialRequest || undefined,
-    diet_preferences: dietPrefs.length > 0 ? dietPrefs : undefined,
+    // 버그헌트 #5: Halal/Vegan(ALLERGY_KEYS 경유) 을 합친 배열 — buildPrompt `### Diet preferences:`
+    // 게이트가 첫 응답서 발화. food_allergies 는 원본 allergies 그대로(알레르기 백스톱 무손상).
+    diet_preferences: dietPreferencesForPrompt.length > 0 ? dietPreferencesForPrompt : undefined,
     food_allergies: allergies.length > 0 ? allergies : undefined,
     // 2026-05-10 (P1): 매운맛 / 한국 음식 bucket — 식당 매칭 정확도 개선.
     spice_level: spiceLevel || undefined,

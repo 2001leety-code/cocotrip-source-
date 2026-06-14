@@ -107,6 +107,7 @@ import { handleRedirectResult } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 // ChatFAB 제거됨 — 텔레그램 봇으로 대체
 import { trackPageView } from '@/lib/analytics';
+import { signalAppReady } from '@/lib/appReady';
 
 function HomePage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -601,6 +602,14 @@ function AnimatedRoutes() {
 }
 
 function App() {
+  // Bug #10: 모든 진입 경로(MOBILE_V2 OFF, 데스크탑, 어드민, 홈 외 라우트 등)에서
+  // signalAppReady 가 호출되지 않아 PWA 스플래시가 안전 캡(4.5s) 까지 강제 노출되는 문제 수정.
+  // App 마운트 = React 첫 페인트 직후이므로 여기서 1회 호출이 모든 경로를 커버.
+  // MobileHomeV2/MoodPortal 의 기존 호출은 appReady.ts 멱등성 가드로 무해하게 흡수됨.
+  useEffect(() => {
+    signalAppReady();
+  }, []);
+
   return (
     <LanguageProvider>
       <ErrorBoundary>

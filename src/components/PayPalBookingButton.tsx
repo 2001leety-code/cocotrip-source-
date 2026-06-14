@@ -9,6 +9,7 @@ import { haptic } from '@/lib/haptic';
 import { authFetch } from '@/lib/authFetch';
 import { CALCULATOR_KRW_PER_USD } from '@/lib/calculator';
 import { formatPrice } from '@/lib/exchange-rate';
+import { discountV2Enabled } from '@/lib/discountFlags';
 
 // SDK 차단·로드 실패 시 fallback — paypal.me QR (외부 redirect, paypalobjects.com 무관).
 // lazy import 로 첫 paint 영향 0.
@@ -114,6 +115,12 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
   const adminEmailMatched = TEST_ACCOUNTS.includes(userEmail.toLowerCase().trim());
   const firebaseEmailMatched = !!(authUser?.email && TEST_ACCOUNTS.includes(authUser.email.toLowerCase().trim()));
   const isSandboxAccount = adminEmailMatched && firebaseEmailMatched;
+  // 🔴 돈 버그 fix (2026-06-14): 쿠폰 피커는 FEATURE_DISCOUNT_V2 활성 시에만 노출.
+  //   v2 OFF(현 prod 기본)면 createPaypalOrder 가 쿠폰 할인을 청구가에 미반영(정가 청구)하므로
+  //   피커를 보이면 화면 할인가 ≠ 실제 정가 청구 + 1회용 쿠폰 소진(capture) = 초과청구·쿠폰 손실.
+  //   백엔드 청구·소진 게이트(createPaypalOrder.js:237, capturePaypalOrder coupon pre-lock)와
+  //   동일 플래그로 일관 — v2 OFF: 정가·쿠폰 미노출·미소진 / v2 ON: 정상 동작.
+  const showCouponPicker = discountV2Enabled();
   // customAmountKRW (charter_custom_estimate) 가 있으면 priceKRW override — 5/4 추가
   const priceKRW = customAmountKRW != null && customAmountKRW > 0 ? customAmountKRW : rawPriceKRW;
   console.log('[PayPal Props]', { productType, passengers, dateStart, dateEnd, priceKRW });
@@ -656,7 +663,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           the existing /api/applyPromoCode with the coupon's code, so the
           backend stays unchanged. The legacy promoCode state is still
           populated downstream for purchase metadata back-compat. */}
-      {!showPaypal && !promoApplied && (
+      {showCouponPicker && !showPaypal && !promoApplied && (
         <div>
           <button
             type="button"

@@ -59,10 +59,31 @@ export async function sweepExpiredDispatches(opts = {}) {
     const d = doc.data();
     try {
       // 1. Firestore status 갱신 (re-entry 방지)
-      await doc.ref.update({
-        status: 'expired',
-        respondedAt: FieldValue.serverTimestamp(),
+      //   🔴 경합 fix (2026-06-14 버그헌트 #9 — sweep-accept-race): 쿼리 스냅샷 시점엔
+      //   'sent' 였어도, 기사가 만료 직전 [수락] 을 누르면 handleAccept 트랜잭션이
+      //   sent→accepted + bookings.dispatchStatus='accepted' 를 먼저 커밋할 수 있다.
+      //   비트랜잭션 update 는 이를 무시하고 'expired' 로 덮어써 dispatch_messages=expired
+      //   인데 bookings=accepted 불일치 + 허위 '재배차 필요' 알림 → 한 예약에 기사 2명 배정.
+      //   handleAccept 의 CAS 패턴과 동형으로 트랜잭션 내 재확인 — freshStatus==='sent'
+      //   일 때만 'expired' 로 전이(accept 가 먼저 커밋했으면 스킵).
+      let transitioned = false;
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(doc.ref);
+        if (!fresh.exists || fresh.data().status !== 'sent') {
+          // accept/reject 가 먼저 커밋 — 덮어쓰지 않고 스킵
+          return;
+        }
+        tx.update(doc.ref, {
+          status: 'expired',
+          respondedAt: FieldValue.serverTimestamp(),
+        });
+        transitioned = true;
       });
+
+      if (!transitioned) {
+        // 실제로 expired 전이가 일어나지 않음 (accept 가 이김) → PII 편집·삭제·알림 모두 스킵
+        continue;
+      }
 
       // 2. Telegram 메시지 편집 → PII 제거 (48h 이후엔 실패해도 이미 status는 expired)
       if (d.telegramMessageId && d.driverChatId) {

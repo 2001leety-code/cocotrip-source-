@@ -19,30 +19,35 @@
  */
 import { isAdminBypassBooking } from './admin-bypass-detector.js';
 
-function isoDay(date) {
-  return date.toISOString().slice(0, 10);
+// KST 자정 오프셋. KST 달력일(UTC 필드로 표현) → 실 UTC epoch 경계 = Date.UTC(Y,M,D,...) − 9h.
+// (morningBriefingAggregate.js 의 kstYesterdayWindow 와 동일 SSOT 로직 — off-by-9h trap 회피.)
+const KST_OFFSET_MS = 9 * 3600 * 1000;
+
+// KST 벽시계 Date(kstWall) 의 달력일 → 그 날 00:00 의 실 UTC epoch (ms).
+// kstWall 은 handler 가 넘긴 todayKST() = new Date(Date.now()+9h) — UTC 필드 = KST 벽시계.
+function kstMidnightEpoch(kstWall, { year, month, day } = {}) {
+  const Y = year != null ? year : kstWall.getUTCFullYear();
+  const M = month != null ? month : kstWall.getUTCMonth();
+  const D = day != null ? day : kstWall.getUTCDate();
+  return Date.UTC(Y, M, D, 0, 0, 0) - KST_OFFSET_MS;
 }
 
-function startOfWeekKST(date) {
-  const d = new Date(date);
-  const day = d.getUTCDay();  // 0=Sunday
-  d.setUTCDate(d.getUTCDate() - day);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+// 실 UTC epoch(ms) → KST 달력일 라벨 YYYY-MM-DD. (+9h 후 UTC 필드 추출.)
+function isoKstDay(ms) {
+  return new Date(ms + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-function startOfMonthKST(date) {
-  const d = new Date(date);
-  d.setUTCDate(1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+function startOfWeekKST(kstWall) {
+  const day = kstWall.getUTCDay();  // 0=Sunday (KST 벽시계 기준)
+  return kstMidnightEpoch(kstWall) - day * 24 * 3600 * 1000;
 }
 
-function startOfYearKST(date) {
-  const d = new Date(date);
-  d.setUTCMonth(0, 1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+function startOfMonthKST(kstWall) {
+  return kstMidnightEpoch(kstWall, { day: 1 });
+}
+
+function startOfYearKST(kstWall) {
+  return kstMidnightEpoch(kstWall, { month: 0, day: 1 });
 }
 
 export function classifyProduct(productType = '') {
@@ -79,11 +84,14 @@ export function aggregateAdminSales(rawAll, { now, days }) {
     canceled: canceledBookings.length,
   };
 
+  // now = handler 의 todayKST() (= new Date(Date.now()+9h)) → UTC 필드가 KST 벽시계.
+  // 모든 경계는 'KST 달력일 추출 → Date.UTC(...) − 9h = 실 UTC epoch' 로 산출 (off-by-9h fix).
+  // _createdAtMs 는 진짜 UTC epoch 이므로 동일 시간축에서 비교됨.
   const nowDate = new Date(now);
-  const todayStart = new Date(nowDate); todayStart.setUTCHours(0, 0, 0, 0);
-  const weekStart = startOfWeekKST(nowDate);
-  const monthStart = startOfMonthKST(nowDate);
-  const yearStart = startOfYearKST(nowDate);
+  const todayStartMs = kstMidnightEpoch(nowDate);
+  const weekStartMs = startOfWeekKST(nowDate);
+  const monthStartMs = startOfMonthKST(nowDate);
+  const yearStartMs = startOfYearKST(nowDate);
 
   const inWindow = (b, fromTs) => {
     if (!b._createdAtMs) return false;
@@ -102,23 +110,22 @@ export function aggregateAdminSales(rawAll, { now, days }) {
   };
 
   const kpi = {
-    today: sumBucket(all.filter((b) => inWindow(b, todayStart.getTime()))),
-    week:  sumBucket(all.filter((b) => inWindow(b, weekStart.getTime()))),
-    month: sumBucket(all.filter((b) => inWindow(b, monthStart.getTime()))),
-    ytd:   sumBucket(all.filter((b) => inWindow(b, yearStart.getTime()))),
+    today: sumBucket(all.filter((b) => inWindow(b, todayStartMs))),
+    week:  sumBucket(all.filter((b) => inWindow(b, weekStartMs))),
+    month: sumBucket(all.filter((b) => inWindow(b, monthStartMs))),
+    ytd:   sumBucket(all.filter((b) => inWindow(b, yearStartMs))),
   };
 
-  // 일별 (최근 N일)
+  // 일별 (최근 N일) — KST 달력일 버킷. 키 = 오늘 KST 자정 epoch 에서 i*24h 씩 뒤로 → KST 라벨.
   const dailyMap = new Map();
   for (let i = 0; i < days; i++) {
-    const d = new Date(nowDate); d.setUTCDate(d.getUTCDate() - i); d.setUTCHours(0, 0, 0, 0);
-    dailyMap.set(isoDay(d), { date: isoDay(d), usd: 0, count: 0 });
+    const key = isoKstDay(todayStartMs - i * 24 * 3600 * 1000);
+    dailyMap.set(key, { date: key, usd: 0, count: 0 });
   }
   for (const b of all) {
     if (b.status === 'CANCELED') continue;
     if (!b._createdAtMs) continue;
-    const d = new Date(b._createdAtMs); d.setUTCHours(0, 0, 0, 0);
-    const key = isoDay(d);
+    const key = isoKstDay(b._createdAtMs);  // 실 UTC epoch → KST 달력일 (KST 00:00~09:00 도 오늘로)
     const entry = dailyMap.get(key);
     if (entry) {
       entry.usd += parseFloat(b.amountUSD || '0') || 0;
@@ -133,7 +140,7 @@ export function aggregateAdminSales(rawAll, { now, days }) {
   const byProductMap = {};
   for (const b of all) {
     if (b.status === 'CANCELED') continue;
-    if (!inWindow(b, monthStart.getTime())) continue;
+    if (!inWindow(b, monthStartMs)) continue;
     const cat = classifyProduct(b.productType);
     if (!byProductMap[cat]) byProductMap[cat] = { usd: 0, count: 0 };
     byProductMap[cat].usd += parseFloat(b.amountUSD || '0') || 0;

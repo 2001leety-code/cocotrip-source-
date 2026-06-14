@@ -14,8 +14,17 @@
 //   {
 //     tourId, date, status,
 //     slot_bookings: { [slotId]: confirmedCount },  // optional, P106
-//     slot_pending:  { [slotId]: { count, expiresAt: ISO, orderId } },
+//     slot_pending:  { [slotId]: { [orderId]: { count, expiresAt: ISO } } },  // 버그#18 후 orderId 별 엔트리
 //   }
+//
+// 버그 #18 (2026-06-14) 회계 누수 수정:
+//   기존 구조 slot_pending[slotId] = { count, expiresAt, orderId } 는 한 슬롯에
+//   여러 주문이 들어오면 count 는 누적되지만 orderId 는 마지막 주문만 보존 →
+//   먼저 capture 하는 주문의 orderId 가 불일치 → pending 미차감 → pax 영구 잔류
+//   → 후속 예약 SLOT_FULL 오차단(매출손실). 해결: orderId 별 엔트리로 구조화
+//   (slot_pending[slotId] = { [orderId]: { count, expiresAt } }) → acquire/
+//   confirm/sweep/summarize 가 주문별로 정확히 가감. 하위호환: 읽을 때 옛 단일
+//   엔트리(count/expiresAt/orderId 보유)도 정규화하여 처리.
 //
 // SAFETY-CRITICAL:
 //   - 모든 read-modify-write 는 runTransaction 안에서 (race condition 차단).
@@ -26,6 +35,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PENDING_TTL_MS = 10 * 60 * 1000; // 10분 — PayPal capture 평균 + safety margin
+
+// 하위호환: orderId 없는 옛 단일 엔트리를 식별하는 합성 키. acquire 가 새로
+// 쓰는 엔트리는 항상 실제(또는 PRELOCK) orderId 키를 사용하므로 충돌 없음.
+const LEGACY_ENTRY_KEY = '__legacy__';
 
 /**
  * pending 항목이 expired 인지 확인. expiresAt 미설정/잘못된 값은 expired 로 간주.
@@ -41,19 +54,63 @@ export function isPendingExpired(entry, now = Date.now()) {
 }
 
 /**
+ * slot_pending[slotId] 값을 orderId→{count,expiresAt} 맵으로 정규화.
+ * 하위호환: 옛 단일 엔트리({count,expiresAt,orderId}) 는 단일 orderId 키 맵으로
+ * 변환. orderId 미보유 옛 엔트리는 LEGACY_ENTRY_KEY 로 보존. 신규 맵 구조는
+ * 그대로 반환(얕은 복제). 입력 미존재/형태 불명은 빈 맵.
+ *
+ * @param {*} slotPendingForSlot   slot_pending[slotId] 원본
+ * @returns {Record<string, { count: number, expiresAt?: string }>}
+ */
+export function normalizeSlotPendingEntry(slotPendingForSlot) {
+  if (!slotPendingForSlot || typeof slotPendingForSlot !== 'object') return {};
+  // 옛 단일 엔트리 판별: count/expiresAt 를 직접 보유(=값이 숫자/문자열).
+  const looksLegacySingle =
+    typeof slotPendingForSlot.count === 'number'
+    || typeof slotPendingForSlot.expiresAt === 'string';
+  if (looksLegacySingle) {
+    const key = typeof slotPendingForSlot.orderId === 'string' && slotPendingForSlot.orderId
+      ? slotPendingForSlot.orderId
+      : LEGACY_ENTRY_KEY;
+    return {
+      [key]: {
+        count: Number(slotPendingForSlot.count || 0),
+        expiresAt: slotPendingForSlot.expiresAt,
+      },
+    };
+  }
+  // 이미 orderId→entry 맵. 얕은 복제(엔트리 객체는 공유 — 호출부에서 교체).
+  return { ...slotPendingForSlot };
+}
+
+/**
+ * 한 슬롯의 유효(non-expired) pending pax 합산. orderId 별 엔트리 전부 합산하며
+ * 옛 단일 엔트리도 normalizeSlotPendingEntry 로 동일 처리.
+ * @param {*} slotPendingForSlot   slot_pending[slotId] 원본
+ * @param {number} now
+ * @returns {number}
+ */
+function sumActivePending(slotPendingForSlot, now) {
+  const entries = normalizeSlotPendingEntry(slotPendingForSlot);
+  let total = 0;
+  for (const entry of Object.values(entries)) {
+    if (isPendingExpired(entry, now)) continue;
+    total += Number(entry?.count || 0);
+  }
+  return total;
+}
+
+/**
  * confirmed + 유효(non-expired) pending 합산 — capacity 비교 기준.
+ * pending 은 슬롯의 모든 주문별 엔트리 합(버그#18). 옛 단일 엔트리도 동일 처리.
  * @param {object} data       availability doc data
  * @param {string} slotId
  * @param {number} now
  * @returns {{ confirmed: number, pending: number, total: number }}
  */
 export function summarizeSlot(data, slotId, now = Date.now()) {
-  const confirmed = Number(data?.slot_bookings?.[slotId] ?? 0);
-  const rawPending = data?.slot_pending?.[slotId];
-  if (!rawPending || isPendingExpired(rawPending, now)) {
-    return { confirmed, pending: 0, total: confirmed };
-  }
-  const pending = Number(rawPending.count ?? 0);
+  const confirmed = Number(data?.slot_bookings?.[slotId] || 0);
+  const pending = sumActivePending(data?.slot_pending?.[slotId], now);
   return { confirmed, pending, total: confirmed + pending };
 }
 
@@ -67,7 +124,7 @@ export function summarizeSlot(data, slotId, now = Date.now()) {
  * @param {string} args.date        YYYY-MM-DD
  * @param {string} args.slotId
  * @param {number} args.pax         예약 인원
- * @param {number} args.capacity    슬롯 정원 (tour.slots[].capacity ?? tour.maxPax)
+ * @param {number} args.capacity    슬롯 정원 (tour.slots[].capacity 또는 tour.maxPax)
  * @param {string} args.orderId     PayPal order id (또는 pre-PayPal 식별자)
  * @param {Date}   [args.now]       (테스트용)
  * @returns {Promise<{ ok: true, remaining: number }>}
@@ -103,16 +160,23 @@ export async function acquireSlotLock({ adminDb, tourId, date, slotId, pax, capa
     }
 
     const slotPending = { ...(data.slot_pending || {}) };
-    const existingPending = slotPending[slotId];
-    // pending 합산: 만료된 기존 lock 은 무시 (덮어쓰기), 유효하면 누적.
-    const baseCount = existingPending && !isPendingExpired(existingPending, nowMs)
-      ? Number(existingPending.count ?? 0)
+    // 버그#18: 슬롯의 pending 을 orderId 별 엔트리 맵으로 정규화(옛 단일 엔트리도
+    // 처리). 만료된 엔트리는 신규 acquire 기회에 정리(드리프트 방지). 그 후 이
+    // 주문의 orderId 키에만 +pax — 다른 주문 pending 을 덮어쓰지 않음.
+    const entries = normalizeSlotPendingEntry(slotPending[slotId]);
+    const nextEntries = {};
+    for (const [eid, entry] of Object.entries(entries)) {
+      if (!isPendingExpired(entry, nowMs)) nextEntries[eid] = entry;
+    }
+    const key = orderId || LEGACY_ENTRY_KEY;
+    const baseCount = nextEntries[key] && !isPendingExpired(nextEntries[key], nowMs)
+      ? Number(nextEntries[key].count || 0)
       : 0;
-    slotPending[slotId] = {
+    nextEntries[key] = {
       count: baseCount + pax,
       expiresAt: new Date(nowMs + PENDING_TTL_MS).toISOString(),
-      orderId: orderId || existingPending?.orderId || null,
     };
+    slotPending[slotId] = nextEntries;
 
     tx.set(ref, {
       tourId,
@@ -148,18 +212,21 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
     const snap = await tx.get(ref);
     const data = snap.exists ? snap.data() : { tourId, date, status: 'available' };
 
-    const confirmed = Number(data.slot_bookings?.[slotId] ?? 0);
+    const confirmed = Number(data.slot_bookings?.[slotId] || 0);
 
-    // 만료된 pending 또는 다른 orderId pending 이라면 capacity 재검증.
-    // 같은 orderId pending (정상 흐름) 이면 lock 안의 pax 가 우리 것이라
-    // capacity check 무조건 통과 — confirmed += pax + pending -= pax.
-    const rawPending = data.slot_pending?.[slotId];
-    const ourPending = rawPending
-      && rawPending.orderId === orderId
-      && !isPendingExpired(rawPending, nowMs);
+    // 버그#18: slot_pending 을 orderId 별 엔트리로 정규화(옛 단일 엔트리도 처리).
+    const entries = normalizeSlotPendingEntry(data.slot_pending?.[slotId]);
+    const myKey = orderId || LEGACY_ENTRY_KEY;
+    const myEntry = entries[myKey];
+    // 우리 lock = 같은 orderId 키의 유효 pending. 이 경로면 우리 pax 가 이미
+    // pending 에 포함돼 있어 capacity check 무조건 통과 — confirmed += pax 하고
+    // 우리 엔트리만 -pax(주문별 격리 → 다른 주문 pending 잔류 누수 방지).
+    const ourPending = !!myEntry && !isPendingExpired(myEntry, nowMs);
 
     if (!ourPending) {
-      // lock 잃었음 — 재검증.
+      // lock 잃었음(만료/sweep) 또는 orderId 키 불일치(정상 PRELOCK 흐름:
+      // acquire 는 PRELOCK-* 키, capture 는 실제 PayPal orderId) — 재검증.
+      // 기존 동작 보존: confirmed + pax 만으로 capacity 판정.
       if (confirmed + pax > capacity) {
         const e = new Error(
           `Slot full at capture: confirmed=${confirmed}, pax=${pax}, capacity=${capacity}`,
@@ -173,14 +240,40 @@ export async function confirmSlotLock({ adminDb, tourId, date, slotId, pax, capa
     const slotBookings = { ...(data.slot_bookings || {}) };
     slotBookings[slotId] = newConfirmed;
 
-    const slotPending = { ...(data.slot_pending || {}) };
+    // pending 차감(버그#18 회계 누수 핵심):
+    //   - ourPending: 우리 orderId 엔트리에서만 -pax.
+    //   - 키 불일치(PRELOCK 정상 흐름 등): 만료 엔트리는 정리하고, 활성 pending
+    //     에서 pax 만큼 소비(만료 임박 순) → PRELOCK pending 이 confirmed 로
+    //     전환되며 영구 잔류하지 않게 함.
+    const nextEntries = {};
+    for (const [eid, entry] of Object.entries(entries)) {
+      if (!isPendingExpired(entry, nowMs)) nextEntries[eid] = { ...entry };
+    }
     if (ourPending) {
-      const remaining = Math.max(0, Number(rawPending.count ?? pax) - pax);
-      if (remaining > 0) {
-        slotPending[slotId] = { ...rawPending, count: remaining };
-      } else {
-        delete slotPending[slotId];
+      const remaining = Math.max(0, Number(nextEntries[myKey].count || 0) - pax);
+      if (remaining > 0) nextEntries[myKey].count = remaining;
+      else delete nextEntries[myKey];
+    } else {
+      // 활성 pending 을 만료 임박 순(가장 오래된 lock 먼저)으로 pax 소비.
+      let toConsume = pax;
+      const ordered = Object.entries(nextEntries).sort(
+        (a, b) => Date.parse(a[1].expiresAt || '') - Date.parse(b[1].expiresAt || ''),
+      );
+      for (const [eid, entry] of ordered) {
+        if (toConsume <= 0) break;
+        const take = Math.min(toConsume, Number(entry.count || 0));
+        const left = Number(entry.count || 0) - take;
+        toConsume -= take;
+        if (left > 0) nextEntries[eid].count = left;
+        else delete nextEntries[eid];
       }
+    }
+
+    const slotPending = { ...(data.slot_pending || {}) };
+    if (Object.keys(nextEntries).length > 0) {
+      slotPending[slotId] = nextEntries;
+    } else {
+      delete slotPending[slotId];
     }
 
     tx.set(ref, {
@@ -216,14 +309,22 @@ export async function sweepExpiredPending({ adminDb, tourId, date, now }) {
     if (!snap.exists) return { ok: true, swept: 0 };
     const data = snap.data();
     const rawPending = data.slot_pending || {};
+    // 버그#18: slot_pending[slotId] 가 orderId 별 엔트리 맵이 됐으므로 슬롯
+    // 단위가 아니라 orderId 엔트리 단위로 만료 검사. 옛 단일 엔트리도
+    // normalizeSlotPendingEntry 로 동일 처리. swept = 만료된 엔트리(주문) 수.
     let swept = 0;
     const next = {};
-    for (const [slotId, entry] of Object.entries(rawPending)) {
-      if (isPendingExpired(entry, nowMs)) {
-        swept += 1;
-        continue;
+    for (const [slotId, slotVal] of Object.entries(rawPending)) {
+      const entries = normalizeSlotPendingEntry(slotVal);
+      const kept = {};
+      for (const [eid, entry] of Object.entries(entries)) {
+        if (isPendingExpired(entry, nowMs)) {
+          swept += 1;
+          continue;
+        }
+        kept[eid] = entry;
       }
-      next[slotId] = entry;
+      if (Object.keys(kept).length > 0) next[slotId] = kept;
     }
     if (swept === 0) return { ok: true, swept: 0 };
 
