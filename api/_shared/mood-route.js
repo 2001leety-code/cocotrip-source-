@@ -129,7 +129,8 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
     });
 
     // Naver Directions 성공 = data.code === 0 + route.traoptimal[0].summary 존재.
-    const summary = res.data?.code === 0 ? res.data?.route?.traoptimal?.[0]?.summary : null;
+    const route0 = res.data?.code === 0 ? res.data?.route?.traoptimal?.[0] : null;
+    const summary = route0?.summary || null;
     if (!summary) {
       return {
         ok: false,
@@ -143,7 +144,16 @@ export async function computeRoute({ origin, destination, waypoints = [] } = {})
     const durationMin = Math.max(1, Math.round(Number(summary.duration) / 60000)); // ms → 분
     const tollKRW = Math.max(0, Math.round(Number(summary.tollFare) || 0)); // tollFare 없으면 0
 
-    return { ok: true, km, tollKRW, durationMin };
+    // 경로 선(폴리라인) 좌표 [[lng,lat],...] + 출발/경유/도착 마커 좌표 — 지도에 실제 경로 그리기용.
+    // (추가 필드: 기존 km/tollKRW/durationMin 은 그대로 = 가격 계산 무영향.)
+    const path = Array.isArray(route0.path) ? route0.path : [];
+    const points = [
+      { lat: originCoord.lat, lng: originCoord.lng, role: 'origin' },
+      ...wpCoords.map((c, i) => ({ lat: c.lat, lng: c.lng, role: 'waypoint', index: i })),
+      { lat: destCoord.lat, lng: destCoord.lng, role: 'destination' },
+    ];
+
+    return { ok: true, km, tollKRW, durationMin, path, points };
   } catch (err) {
     return { ok: false, status: 502, error: 'DIRECTIONS_FAILED', detail: err?.message };
   }
