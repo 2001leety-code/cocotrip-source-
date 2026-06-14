@@ -263,6 +263,27 @@ export default async function handler(req, res) {
         'LEGACY_BRAINTREE_BOOKING',
       )));
     }
+    // SECURITY (버그헌트 2026-06-14): 환불 호출 전 status CONFIRMED→CANCELING 을 트랜잭션으로
+    // 원자 선점. 이전엔 read-check(L205)와 refund 사이에 락이 없어 더블클릭/동시요청 시 두 요청이
+    // 모두 CONFIRMED 가드를 통과 → 부분환불(ratio<1)이 2회 발사돼 원금 초과 환불(직접 자금 손실).
+    // 선점에 성공한 단 한 요청만 refund. (capturePaypalOrder 의 used_paypal_orders 락과 동형.)
+    try {
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        const f = fresh.exists ? fresh.data() : null;
+        if (!f || f.status !== 'CONFIRMED') {
+          throw new Error('ALREADY_CLAIMED'); // 동시/중복 취소 — 다른 요청이 이미 선점
+        }
+        tx.update(ref, { status: 'CANCELING', cancelClaimedAt: FieldValue.serverTimestamp() });
+      });
+    } catch (claimErr) {
+      if (claimErr && claimErr.message === 'ALREADY_CLAIMED') {
+        res.writeHead(409, JSON_CORS);
+        return res.end(JSON.stringify(_err('Cancellation already in progress or completed', 'CANCEL_IN_PROGRESS')));
+      }
+      throw claimErr;
+    }
+
     // PR #425 (Audit CY5 prep): shared paypal-refund helper. Same flow as
     // admin-booking-action.js mark-refunded path, so both surfaces stay in
     // sync if PayPal's API ever shifts.
@@ -275,6 +296,8 @@ export default async function handler(req, res) {
       isSandbox,
     });
     if (!refundResult.ok) {
+      // 환불 실패 → 선점(CANCELING) 해제해 CONFIRMED 복구(사용자 재시도 가능). best-effort.
+      try { await ref.update({ status: 'CONFIRMED', cancelClaimedAt: FieldValue.delete() }); } catch { /* non-critical */ }
       res.writeHead(refundResult.status || 502, JSON_CORS);
       return res.end(JSON.stringify(_err(refundResult.error, refundResult.code || 'REFUND_FAILED')));
     }
