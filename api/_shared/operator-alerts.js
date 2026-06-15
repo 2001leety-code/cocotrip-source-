@@ -25,6 +25,8 @@
  *   await notifyOperator('refund', `BK-XXXX user@email 환불 요청`);
  */
 
+import { sendDiscord } from './notify.js';
+
 const TELEGRAM_API = 'https://api.telegram.org';
 
 const CATEGORY_LABELS = {
@@ -54,39 +56,46 @@ export async function notifyOperator(category, body, options = {}) {
     return { ok: false, category, error: 'invalid_category' };
   }
 
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!token || !chatId) {
-    console.error(`[operator-alerts:${category}] TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 미설정 — skip`);
-    return { ok: false, category, error: 'no_token_or_chat' };
-  }
-
   const label = CATEGORY_LABELS[category];
   const prefix = options.skipPrefix ? '' : `<b>[운영자 알림 · ${label}]</b>\n`;
   const text = `${prefix}${body}`;
 
+  // 디스코드 미러: DISCORD_WEBHOOK_URL 설정 시 운영자 알림을 디스코드에도 전송(텔레그램과 병렬, 미설정=no-op).
+  // 병렬 시작 → 텔레그램 지연 0 → finally 에서 완료 보장(서버리스 drop 방지).
+  const discordMirror = sendDiscord(text);
   try {
-    const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
-      }),
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      console.error(`[operator-alerts:${category}] Telegram error:`, data.description);
-      return { ok: false, category, error: data.description };
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+
+    if (!token || !chatId) {
+      console.error(`[operator-alerts:${category}] TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 미설정 — skip`);
+      return { ok: false, category, error: 'no_token_or_chat' };
     }
-    return { ok: true, category, messageId: data.result?.message_id };
-  } catch (err) {
-    console.error(`[operator-alerts:${category}] fetch failed:`, err.message);
-    return { ok: false, category, error: err.message };
+
+    try {
+      const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+          ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        console.error(`[operator-alerts:${category}] Telegram error:`, data.description);
+        return { ok: false, category, error: data.description };
+      }
+      return { ok: true, category, messageId: data.result?.message_id };
+    } catch (err) {
+      console.error(`[operator-alerts:${category}] fetch failed:`, err.message);
+      return { ok: false, category, error: err.message };
+    }
+  } finally {
+    await discordMirror.catch(() => {});
   }
 }
 

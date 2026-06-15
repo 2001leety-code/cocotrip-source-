@@ -102,7 +102,8 @@ export async function morningBriefingTask() {
   const monthStartMs = kstMonthStartMs(now);
   const trendStartMs = Math.min(weekStartMs, monthStartMs); // 추세용 bookings fetch 시작(이른 쪽).
 
-  // createdAt 타입: bookings/users = Firestore Timestamp / plans = createdAtMs(number) / error_log·cs_tickets = number.
+  // createdAt 타입: bookings/users/cs_tickets = Firestore Timestamp / plans = createdAtMs(number) / error_log = number(Date.now()).
+  //   ⚠️ cs_tickets 는 serverTimestamp(Timestamp) — number 로 쿼리하면 타입버킷 불일치로 0건(신규문의 항상 0이던 버그, 2026-06-15 fix).
   const sinceTrend = Timestamp.fromMillis(trendStartMs);
   const sinceY = Timestamp.fromMillis(yStartMs);
   const untilY = Timestamp.fromMillis(todayStartMs);
@@ -112,7 +113,7 @@ export async function morningBriefingTask() {
     db.collection('plans').where('createdAtMs', '>=', yStartMs).where('createdAtMs', '<', todayStartMs).get(),
     db.collection('users').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(),
     db.collection('error_log').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(), // number
-    db.collection('cs_tickets').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(), // number
+    db.collection('cs_tickets').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(), // Timestamp
     db.collection(DECISION_COLLECTION).where('status', '==', 'pending').limit(50).get(),                   // 📥 결정 대기(현재)
   ]);
 

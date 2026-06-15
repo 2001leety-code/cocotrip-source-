@@ -15,6 +15,7 @@
  */
 import { Buffer } from 'buffer';
 import { sendEmail } from '../_send-email.js';
+import { sendDiscord } from '../_shared/notify.js';
 
 async function getDb() {
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
@@ -136,6 +137,7 @@ async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorC
     const chatId = process.env.TELEGRAM_CHAT_ID;
     if (!token || !chatId) return;
     const msg = `🌸 [리뷰 요청 발송${dryRun ? ' · DRYRUN' : ''}]\n대상일(투어): ${targetDate}\n발송: ${sentCount}건\n스킵: ${skippedCount}건\n오류: ${errorCount}건`;
+    await sendDiscord(msg); // 디스코드 미러 (DISCORD_WEBHOOK_URL 설정 시)
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: msg }),

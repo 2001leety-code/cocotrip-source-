@@ -40,6 +40,46 @@ const CHANNEL_ENV = {
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
+// ── 디스코드 미러 (2026-06-15) ──
+// DISCORD_WEBHOOK_URL 설정 시, 텔레그램과 별개로 모든 알림을 디스코드 채널에도 전송.
+// 미설정(기본)이면 no-op → 기존 동작 byte-identical. 텔레그램 HTML → 디스코드 마크다운 변환.
+function htmlToDiscord(html) {
+  return String(html || '')
+    .replace(/<b>|<strong>/gi, '**').replace(/<\/b>|<\/strong>/gi, '**')
+    .replace(/<i>|<em>/gi, '*').replace(/<\/i>|<\/em>/gi, '*')
+    .replace(/<\/?code>/gi, String.fromCharCode(96)) // 96 = backtick for <code> tag (P91 lint: no literal backtick)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+}
+
+export async function sendDiscord(text) {
+  const url = process.env.DISCORD_WEBHOOK_URL;
+  if (!url) return; // 미설정 = no-op (기존 동작 무변화)
+  const content = htmlToDiscord(text);
+  for (let i = 0; i < content.length; i += 1900) {
+    try {
+      // 4초 타임아웃 — 디스코드가 느려도 중요한 텔레그램 알림(예약/결제)이 지연되지 않게.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+      try {
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: content.slice(i, i + 1900) || '​' }),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (err) {
+      console.warn('[notify:discord] webhook failed:', err.message);
+      break;
+    }
+    if (i + 1900 < content.length) await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
 // PR #451 (Audit Z-H13 — 2026-05-16): Telegram sendMessage hard-caps text at
 // 4096 chars. Pre-fix, notify() forwarded oversized text unchanged; Telegram
 // rejected with "MESSAGE_TOO_LONG" → notify() returned ok:false but the alert
@@ -54,7 +94,8 @@ const TELEGRAM_TEXT_SAFE_LIMIT = 4090; // 6-char margin for suffix bytes
 const TRUNCATE_SUFFIX = '\n…(truncated, full text in error_log)';
 
 export function safeTruncateForTelegram(text) {
-  if (typeof text !== 'string') return { text: String(text ?? ''), truncated: false };
+  // nullish 폴백(== null 삼항): text 가 string 이 아닐 때만(null/undefined→'', 0/숫자는 그대로) 안전 변환.
+  if (typeof text !== 'string') return { text: String(text == null ? '' : text), truncated: false };
   if (text.length <= TELEGRAM_TEXT_HARD_LIMIT) return { text, truncated: false };
   // Prefer truncation at the last newline within the safe limit so we don't
   // chop mid-line and orphan an HTML tag.
@@ -81,46 +122,53 @@ function resolveToken(channel) {
  * @returns {Promise<{ ok: boolean, channel: string, fallback?: boolean, error?: string }>}
  */
 export async function notify(channel, text, options = {}) {
-  const token = resolveToken(channel);
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!token || !chatId) {
-    console.warn(`[notify:${channel}] 토큰 또는 chat_id 미설정 — skip`);
-    return { ok: false, channel, error: 'no_token_or_chat' };
-  }
-
-  const channelEnv = CHANNEL_ENV[channel];
-  const isFallback = channelEnv && !process.env[channelEnv];
-
-  // PR #451 (Z-H13): hard-cap text at Telegram's 4096-char limit.
-  // Truncating is better than silent-dropping the alert.
-  const { text: safeText, truncated, originalLength } = safeTruncateForTelegram(text);
-  if (truncated) {
-    console.warn(`[notify:${channel}] text truncated for Telegram 4096-cap: ${originalLength} → ${safeText.length} chars`);
-  }
-
+  // 디스코드 미러: DISCORD_WEBHOOK_URL 설정 시 텔레그램과 "병렬"로 디스코드에도 전송(미설정=no-op).
+  // 병렬 시작(await 안 함) → 텔레그램이 디스코드를 기다리지 않음(지연 0) → finally 에서 완료 보장(서버리스 drop 방지).
+  const discordMirror = sendDiscord(text);
   try {
-    const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: safeText,
-        parse_mode: options.parseMode || 'HTML',
-        disable_web_page_preview: true,
-        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
-      }),
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      console.error(`[notify:${channel}] Telegram error:`, data.description);
-      return { ok: false, channel, error: data.description };
+    const token = resolveToken(channel);
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+
+    if (!token || !chatId) {
+      console.warn(`[notify:${channel}] 토큰 또는 chat_id 미설정 — skip`);
+      return { ok: false, channel, error: 'no_token_or_chat' };
     }
-    // result.message_id를 호출자가 알 수 있어야 추후 reply_to_message 매핑 가능
-    return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id, truncated };
-  } catch (err) {
-    console.error(`[notify:${channel}] fetch failed:`, err.message);
-    return { ok: false, channel, error: err.message };
+
+    const channelEnv = CHANNEL_ENV[channel];
+    const isFallback = channelEnv && !process.env[channelEnv];
+
+    // PR #451 (Z-H13): hard-cap text at Telegram's 4096-char limit.
+    // Truncating is better than silent-dropping the alert.
+    const { text: safeText, truncated, originalLength } = safeTruncateForTelegram(text);
+    if (truncated) {
+      console.warn(`[notify:${channel}] text truncated for Telegram 4096-cap: ${originalLength} → ${safeText.length} chars`);
+    }
+
+    try {
+      const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: safeText,
+          parse_mode: options.parseMode || 'HTML',
+          disable_web_page_preview: true,
+          ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        console.error(`[notify:${channel}] Telegram error:`, data.description);
+        return { ok: false, channel, error: data.description };
+      }
+      // result.message_id를 호출자가 알 수 있어야 추후 reply_to_message 매핑 가능
+      return { ok: true, channel, fallback: isFallback, messageId: data.result?.message_id, truncated };
+    } catch (err) {
+      console.error(`[notify:${channel}] fetch failed:`, err.message);
+      return { ok: false, channel, error: err.message };
+    }
+  } finally {
+    await discordMirror.catch(() => {}); // 모든 반환 경로에서 디스코드 완료 보장(텔레그램은 이미 끝난 뒤)
   }
 }
 
