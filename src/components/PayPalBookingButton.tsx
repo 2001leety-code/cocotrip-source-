@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Tag, Check, AlertCircle, Ticket, Sparkles, ChevronDown, ChevronUp, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { track as posthogTrack } from '@/lib/posthog';
-import { trackPaidConversion } from '@/lib/analytics';
+import { trackPaidConversion, trackBeginCheckout } from '@/lib/analytics';
 import { useLoyalty } from '@/hooks/useLoyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
@@ -386,12 +386,14 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               planId: (result && typeof result === 'object' && 'planId' in result) ? (result as { planId?: string }).planId : undefined,
             });
             // 홍보 실행안 1순위: GA4 표준 'purchase' 전환 발화 → Google Ads import(value+currency+orderID dedup).
-            //   PostHog payment_completed 와 동일 데이터(KRW). GA_ID 미설정 시 no-op. orderID=거래당 유니크.
+            //   value=USD (PayPal 실제 청구통화 currency=USD 와 일치 — 운영자 "달러로 맞춰" 2026-06-15.
+            //   KRW/CALCULATOR_KRW_PER_USD = 표시 USD 동일. begin_checkout 과 통화 일치 = 깔때기 정합).
+            //   GA_ID 미설정 시 no-op. orderID=거래당 유니크.
             trackPaidConversion({
               transactionId: data.orderID,
               productType,
-              value: priceKRW,
-              currency: 'KRW',
+              value: Math.round((effectiveKRW / CALCULATOR_KRW_PER_USD) * 100) / 100,
+              currency: 'USD',
             });
             if (onPaymentSuccess) {
               setShowPaypal(false);
@@ -517,6 +519,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
       if (!res.ok || !json.ok) throw new Error(json.error ?? d?.error ?? 'Order creation failed');
       setRateInfo(d);
       setPaypalReady(true);
+      // GA4 begin_checkout: 주문 생성 성공 → 결제창 진입 시점. "결제진입→구매" 전환율 측정(GA_ID 미설정 시 no-op).
+      //   value=USD (PayPal 이 USD 로 청구 — currency=USD. KRW/CALCULATOR_KRW_PER_USD = 표시 USD 와 동일).
+      trackBeginCheckout(productType, productType, passengers, Math.round((effectiveKRW / CALCULATOR_KRW_PER_USD) * 100) / 100);
       setShowPaypal(true);
     } catch (err) {
       console.error('[PayPal handleBookClick] catch:', err);
