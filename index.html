@@ -71,6 +71,9 @@
          body 텍스트는 일반 system-ui/Inter 사용중이므로 LCP 영향 미미. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- 히어로 첫 슬라이드 LCP preload (반응형: 데스크탑/모바일 1장만) — CSS background-image 라 늦게 발견되는 걸 앞당겨 광고 첫화면 속도↑ (2026-06-15) -->
+    <link rel="preload" as="image" href="/hero-seoul.webp" media="(min-width: 768px)" fetchpriority="high" />
+    <link rel="preload" as="image" href="/hero-seoul-real.webp" media="(max-width: 767px)" fetchpriority="high" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=block" />
 
     <!-- 2026-05-04: PayPal SDK preconnect 제거. PR #216 이후 결제 흐름은 Braintree
