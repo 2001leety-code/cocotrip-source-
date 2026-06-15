@@ -56,10 +56,15 @@ describe('GA4 gtag 스텁 형식 가드 (2026-06-04 GA 데이터 0 버그 회귀
 
 describe('PayPalBookingButton — GA4 전환 배선 가드 (dead-code 회귀 방지)', () => {
   const src = readFileSync(join(process.cwd(), 'src', 'components', 'PayPalBookingButton.tsx'), 'utf8');
-  it('analytics trackPaidConversion 을 import', () => {
-    expect(src).toMatch(/import\s*\{\s*trackPaidConversion\s*\}\s*from\s*'@\/lib\/analytics'/);
+  it('analytics trackPaidConversion + trackBeginCheckout 를 import', () => {
+    expect(src).toMatch(/import\s*\{[^}]*\btrackPaidConversion\b[^}]*\}\s*from\s*'@\/lib\/analytics'/);
+    expect(src).toMatch(/import\s*\{[^}]*\btrackBeginCheckout\b[^}]*\}\s*from\s*'@\/lib\/analytics'/);
   });
-  it('결제 성공 경로에서 orderID + priceKRW 로 호출', () => {
-    expect(src).toMatch(/trackPaidConversion\(\{[\s\S]*?transactionId:\s*data\.orderID[\s\S]*?value:\s*priceKRW/);
+  it("결제 성공(purchase) 경로에서 orderID + USD(effectiveKRW 환산) 로 호출", () => {
+    // 운영자 "달러로 맞춰"(2026-06-15): PayPal 청구통화=USD 와 일치. value=쿠폰/할인 후 실제 낸 금액.
+    expect(src).toMatch(/trackPaidConversion\(\{[\s\S]*?transactionId:\s*data\.orderID[\s\S]*?value:\s*Math\.round\(\(effectiveKRW[\s\S]*?currency:\s*'USD'/);
+  });
+  it('결제창 진입(begin_checkout) 시점에 trackBeginCheckout 호출 — 깔때기 측정', () => {
+    expect(src).toMatch(/trackBeginCheckout\(productType,\s*productType,\s*passengers,\s*Math\.round\(\(effectiveKRW/);
   });
 });
