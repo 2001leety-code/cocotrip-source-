@@ -17,6 +17,7 @@
 
 import { Buffer } from 'buffer';
 import { sendEmail } from '../_send-email.js';
+import { sendDiscord } from '../_shared/notify.js';
 
 // ── Firebase Admin 초기화 (daily-report.js 패턴 — FIREBASE_* / GOOGLE_SERVICE_ACCOUNT_KEY fallback) ──
 async function getDb() {
@@ -281,6 +282,7 @@ async function sendOperatorSummary({ targetDate, sentCount, skippedCount, errorC
       `발송 성공: ${sentCount}건\n` +
       `이미 발송됨: ${skippedCount}건\n` +
       `오류: ${errorCount}건`;
+    await sendDiscord(msg); // 디스코드 미러 (DISCORD_WEBHOOK_URL 설정 시)
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

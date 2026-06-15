@@ -97,12 +97,14 @@ describe('P330 buildSearchDttm — 출발시각 (야간 daytime 보정)', () => 
   it('departDttm 명시 시 그대로', () => {
     expect(buildSearchDttm({ departDttm: '202607101030' })).toBe('202607101030');
   });
-  it('주간(14:30)은 현재 시각', () => {
-    expect(buildSearchDttm({}, new Date(2026, 6, 10, 14, 30))).toBe('202607101430');
+  // Date.UTC 로 KST 벽시계 앵커(러너 TZ 독립). buildSearchDttm 은 절대시각+9h → KST.
+  // 예: 14:30 KST = 05:30 UTC. new Date(2026,6,10,14,30)(로컬TZ)은 UTC 러너(CI)에서 깨짐 → 고정.
+  it('주간(14:30 KST)은 현재 시각', () => {
+    expect(buildSearchDttm({}, new Date(Date.UTC(2026, 6, 10, 5, 30)))).toBe('202607101430');
   });
-  it('새벽(03:00)·심야(23:00)는 당일 10:00 보정 (야간버스 추천 방지)', () => {
-    expect(buildSearchDttm({}, new Date(2026, 6, 10, 3, 0))).toBe('202607101000');
-    expect(buildSearchDttm({}, new Date(2026, 6, 10, 23, 0))).toBe('202607101000');
+  it('새벽(03:00)·심야(23:00 KST)는 당일 10:00 보정 (야간버스 추천 방지)', () => {
+    expect(buildSearchDttm({}, new Date(Date.UTC(2026, 6, 9, 18, 0)))).toBe('202607101000');  // 03:00 KST
+    expect(buildSearchDttm({}, new Date(Date.UTC(2026, 6, 10, 14, 0)))).toBe('202607101000'); // 23:00 KST
   });
 });
 

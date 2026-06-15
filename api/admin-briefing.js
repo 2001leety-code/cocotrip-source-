@@ -47,8 +47,8 @@ export default async function handler(req, res) {
       db.collection('bookings').where('createdAt', '>=', sinceTrend).get(),
       db.collection('plans').where('createdAtMs', '>=', yStartMs).where('createdAtMs', '<', todayStartMs).get(),
       db.collection('users').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(),
-      db.collection('error_log').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(),
-      db.collection('cs_tickets').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(),
+      db.collection('error_log').where('createdAt', '>=', yStartMs).where('createdAt', '<', todayStartMs).get(), // number
+      db.collection('cs_tickets').where('createdAt', '>=', sinceY).where('createdAt', '<', untilY).get(), // Timestamp(serverTimestamp) — number 쿼리시 0건 버그 fix 2026-06-15
     ]);
     const docs = (r) => (r.status === 'fulfilled' ? r.value.docs.map((d) => ({ id: d.id, ...d.data() })) : []);
 

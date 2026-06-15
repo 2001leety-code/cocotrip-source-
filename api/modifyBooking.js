@@ -18,6 +18,7 @@ import { evaluateRefundPolicy } from './_refund-policy.js';
 import { initAdminDb } from './_shared/firebase-admin.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureError } from './_shared/sentry.js';
+import { sendDiscord } from './_shared/notify.js';
 import { verifyUserToken } from './_shared/user-auth.js';
 
 export const config = { runtime: 'nodejs' };
@@ -56,6 +57,7 @@ function getDb() {
 }
 
 async function notifyTelegram(msg) {
+  const discordMirror = sendDiscord(msg); // 디스코드 미러 (병렬 — 텔레그램/예약수정 응답 지연 0)
   try {
     const token  = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -67,6 +69,8 @@ async function notifyTelegram(msg) {
     });
   } catch (err) {
     console.error('[modifyBooking] telegram skipped:', err.message);
+  } finally {
+    await discordMirror.catch(() => {});
   }
 }
 

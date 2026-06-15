@@ -7,7 +7,7 @@
  * CONTEXT: CocoTripKR 자동화 유틸리티
  */
 
-import { notify } from './_shared/notify.js';
+import { notify, sendDiscord } from './_shared/notify.js';
 import { productDisplayLabel } from './_shared/pricing.js';
 import { USD_TO_KRW } from './_shared/exchange-rate.js';
 
@@ -20,36 +20,42 @@ const TELEGRAM_API = 'https://api.telegram.org';
  * @returns {object} API 응답
  */
 export async function sendMessage(text, options = {}) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  // 디스코드 미러 (DISCORD_WEBHOOK_URL 설정 시). 텔레그램과 병렬 — 지연 0, finally 에서 완료 보장.
+  const discordMirror = sendDiscord(text);
+  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
-  if (!botToken || !chatId) {
-    console.error('[telegram] TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 미설정');
-    throw new Error('Telegram 환경변수가 설정되지 않았습니다.');
+    if (!botToken || !chatId) {
+      console.error('[telegram] TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID 미설정');
+      throw new Error('Telegram 환경변수가 설정되지 않았습니다.');
+    }
+
+    const payload = {
+      chat_id: chatId,
+      text,
+      parse_mode: options.parseMode || 'HTML',  // HTML 파싱 (굵게, 이탤릭 등)
+      disable_web_page_preview: true,
+      ...options,
+    };
+
+    const res = await fetch(`${TELEGRAM_API}/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (!data.ok) {
+      console.error('[telegram] 전송 실패:', data);
+      throw new Error(`Telegram 전송 실패: ${data.description}`);
+    }
+
+    console.log('[telegram] 메시지 전송 성공, message_id:', data.result?.message_id);
+    return data;
+  } finally {
+    await discordMirror.catch(() => {});
   }
-
-  const payload = {
-    chat_id: chatId,
-    text,
-    parse_mode: options.parseMode || 'HTML',  // HTML 파싱 (굵게, 이탤릭 등)
-    disable_web_page_preview: true,
-    ...options,
-  };
-
-  const res = await fetch(`${TELEGRAM_API}/bot${botToken}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await res.json();
-  if (!data.ok) {
-    console.error('[telegram] 전송 실패:', data);
-    throw new Error(`Telegram 전송 실패: ${data.description}`);
-  }
-
-  console.log('[telegram] 메시지 전송 성공, message_id:', data.result?.message_id);
-  return data;
 }
 
 /**
