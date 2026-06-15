@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Translations } from '@/i18n';
 
@@ -123,6 +124,13 @@ export function HeroSlider({ t }: HeroSliderProps) {
                   <p className="text-base md:text-lg text-white/90 mb-8 max-w-xs md:max-w-2xl mx-auto drop-shadow-md">
                     {getSlideContent(slide.subtitle)}
                   </p>
+                  {/* CTA → AI 플래너 (광고 랜딩 전환. 모바일 홈은 이미 보유, 데스크탑 히어로 갭 해소) */}
+                  <Link
+                    to="/planner"
+                    className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-base md:text-lg shadow-lg shadow-purple-500/30 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
+                  >
+                    <Sparkles className="w-5 h-5" /> {t.hero.cta}
+                  </Link>
                 </>
               )}
             </div>
