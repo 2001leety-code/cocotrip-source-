@@ -28,7 +28,7 @@
  * critical violation throw.
  */
 import { captureError } from '../_shared/sentry.js';
-import { verifyUserToken, resolveGuestAnonOwner } from '../_shared/user-auth.js';
+import { verifyUserToken, resolveGuestAnonOwner, isGuestCheckoutAllowed } from '../_shared/user-auth.js';
 import { getSpotContext } from '../_spots_helper.js';
 import { getFoodContext } from '../_food_helper.js';
 import { getAttractionsContext } from '../_attractions_helper.js';
@@ -156,15 +156,15 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
     body = body || {};
 
-    // ── Audit P0-#2 (2026-05-04): Firebase ID token 검증 ─────────────────────
-    // body.email 신뢰 종료 — 이전 버전에서 admin email 위장으로 TEST mode bypass 가능.
-    // 클라이언트는 Authorization: Bearer <idToken> 필수 (api/_shared/admin-auth.js 패턴 동일).
+    // Audit P0-#2(2026-05-04): Firebase ID token 검증 (body.email 신뢰 종료). 게스트 결제 가드는 user-auth.js.
     const auth = await withStep('verifyAuth', () => verifyUserToken(req));
-    if (!auth.ok) {
+    const guestCheckoutAllowed = isGuestCheckoutAllowed({ authOk: auth.ok, flagOn: String(process.env.FEATURE_GUEST_ANON_AUTH || '').toLowerCase() === 'true', revisionOf: body.revisionOf, paypalOrderId: body.paypalOrderId });
+    if (!auth.ok && !guestCheckoutAllowed) {
       res.writeHead(auth.status, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(_err(auth.error, 'AUTH_REQUIRED')));
     }
-    const authenticatedEmail = auth.email;
+    if (guestCheckoutAllowed) body.uid = null; // 게스트 IDOR 방지 — plan 소유자는 익명 토큰(resolveGuestAnonOwner)으로만
+    const authenticatedEmail = auth.ok ? auth.email : null;
     lastEmail = authenticatedEmail;
 
     // ── 결제 + 재생성 게이트 (인증된 email 전달) ──────────────────────────

@@ -556,6 +556,8 @@
     "retry": "Try Again",
     "loginRequired": "Sign in to pay",
     "loginToPay": "Sign in to continue",
+    "guestSignupNudge": "Sign up free — save your plan, 2 free revisions + 5% off charters",
+    "guestSignupCta": "Sign up free",
     "loginToPayDesc": "Please sign in first so we can securely deliver your itinerary.",
     "resetBtn": "Start Over",
     "dayLabel": "Day",

@@ -13,6 +13,7 @@ import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { formatPrice } from '@/lib/exchange-rate';
 import { useAuth } from '@/hooks/useAuth';
 import { signInWithGoogle } from '@/lib/firebase';
+import { isGuestAnonEnabled } from '@/lib/guestReader';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
 // keep it out of the PlannerPage chunk; loads only when the user opens it.
 const PhoneSignInModal = lazy(() =>
@@ -55,6 +56,10 @@ export function PurchaseSection({
   // 일정표 못 받음" 사고. 운영자 정책: 비로그인 결제 금지. 결제창(PayPal) 뜨기 전에
   // 막아서 결제 후 실패를 원천 차단. (backend verifyUserToken 은 의도된 인증 — 무변경.)
   const { user, loading: authLoading } = useAuth();
+  // 게스트 결제 (FEATURE_GUEST_ANON_AUTH): ON 이면 비로그인 손님도 가입 없이 바로 결제
+  //   (벽 → 당근). 백엔드 handlerCore 가 같은 플래그로 게스트 PayPal 결제를 받는다.
+  //   OFF(기본) = P315 로그인 벽 그대로 (현행 byte-identical).
+  const guestCheckoutEnabled = isGuestAnonEnabled();
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const handleSignIn = async () => {
@@ -179,9 +184,10 @@ export function PurchaseSection({
             <span className="w-4 h-4 border-2 border-white/30 border-t-[#7C5CFC] rounded-full animate-spin mr-2" />
             {p.loading || '로딩 중...'}
           </div>
-        ) : !user ? (
-          /* P315: 비로그인 결제 차단 — 결제창 뜨기 전에 로그인 유도. backend
-             verifyUserToken 이 무조건 401 이라 비로그인 결제는 "돈 내고 실패" 가 됨. */
+        ) : (!user && !guestCheckoutEnabled) ? (
+          /* P315: flag OFF 시 비로그인 결제 차단(현행 — backend verifyUserToken 401 → "돈 내고
+             실패" 방지). flag ON 이면 아래 else 로 빠져 게스트 결제 + 가입 당근(backend handlerCore
+             가 같은 플래그로 게스트 PayPal 결제를 받아줌 → "돈 내고 실패" 없음). */
           <div className="space-y-3 rounded-2xl border border-[#7C5CFC]/30 p-4 text-center"
             style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(234,83,126,0.06))' }}>
             <p className="text-sm text-white/75 leading-relaxed">
@@ -215,6 +221,20 @@ export function PurchaseSection({
           </div>
         ) : (
           <>
+            {!user && (
+              /* 게스트 결제 (flag ON): 가입은 당근(선택) — 벽 아님, 결제는 누구나. */
+              <div className="rounded-xl border border-[#7C5CFC]/25 px-3.5 py-2.5 text-center"
+                style={{ background: 'rgba(124,92,252,0.06)' }}>
+                <p className="text-white/70 text-[12px] leading-snug">
+                  {'💡 '}{(p as { guestSignupNudge?: string }).guestSignupNudge
+                    || 'Sign up free — save your plan + 2 revisions + 5% off charters'}
+                </p>
+                <button onClick={handleSignIn} disabled={signingIn}
+                  className="mt-1 text-[#B8A0FF] text-[12px] font-semibold underline underline-offset-2 hover:text-white transition-colors disabled:opacity-60">
+                  {(p as { guestSignupCta?: string }).guestSignupCta || 'Sign up free'}
+                </button>
+              </div>
+            )}
             <PayPalBookingButton
               productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""
               priceKRW={13300} p={p} lang={language}

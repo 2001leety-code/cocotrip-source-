@@ -556,6 +556,8 @@
     "retry": "もう一度試す",
     "loginRequired": "ログイン後に決済可能",
     "loginToPay": "ログインして続行",
+    "guestSignupNudge": "無料登録で — プラン保存 + 無料修正2回 + チャーター5%クーポン",
+    "guestSignupCta": "無料登録",
     "loginToPayDesc": "旅程表を安全にお届けするため、先にログインしてください。",
     "resetBtn": "やり直す",
     "dayLabel": "Day",
