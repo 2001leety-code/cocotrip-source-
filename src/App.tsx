@@ -197,6 +197,10 @@ function GlobalWidgets() {
   // 위 리다이렉트 로그인 useEffect 는 hooks 라 early-return 이어도 계속 실행됨.
   if (location.pathname.startsWith('/mood')) return null;
 
+  // 위저드/예약 흐름(플래너·차터)에선 플로팅 채팅이 CTA(옵션 카드·결제·날짜 선택)를
+  // 덮어 모바일 전환 방해 → 채팅만 숨김 (운영자 #1, 다른 글로벌 위젯은 유지).
+  const hideChatOnFlow = ['/planner', '/charter'].some(p => location.pathname.startsWith(p));
+
   return (
     <>
       <PageViewTracker />
@@ -207,7 +211,7 @@ function GlobalWidgets() {
       <MobileBottomNav />
       <Suspense fallback={null}>
         <CookieBanner />
-        <ChatWidget language={language} />
+        {!hideChatOnFlow && <ChatWidget language={language} />}
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
         <OnboardingCouponModal />
       </Suspense>

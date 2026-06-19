@@ -905,7 +905,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
                 }`} style={i === step ? { background: 'linear-gradient(135deg,#7C5CFC,#EA537E)', boxShadow: '0 0 12px rgba(124,92,252,.5)' } : {}}>
                   {i < step ? <Check className="w-3 h-3" /> : i + 1}
                 </span>
-                <span className="hidden sm:inline">{s.label}</span>
+                <span className={i === step ? 'hidden sm:inline' : 'hidden'}>{s.label}</span>
               </button>
               {i < STEPS.length - 1 && (
                 <div className={`w-6 sm:w-14 h-0.5 rounded-full mx-1 transition-colors ${i < step ? 'bg-[#7C5CFC]/50' : 'bg-white/[0.06]'}`} />
