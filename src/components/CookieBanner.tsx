@@ -39,7 +39,7 @@ export default function CookieBanner() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-[9999] p-4 animate-in slide-in-from-bottom duration-500"
+      className="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 z-[10001] p-4 animate-in slide-in-from-bottom duration-500"
       style={{ animation: 'slideUp 0.4s ease-out' }}
     >
       <div className="max-w-lg mx-auto bg-[#1a1b2e]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl">
