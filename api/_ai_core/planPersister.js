@@ -1501,29 +1501,33 @@ export async function persistPlan(adminDb, {
     (async () => {
       try {
         const userRef = adminDb.collection('users').doc(uid);
-        const userSnap = await userRef.get();
-        if (userSnap.exists) {
+        // 🔴 동시성 fix (버그헌트 2026-06-19): read-modify-write 비트랜잭션 → 동일 uid 동시구매 시
+        //   last-writer-wins 로 tripCoins/totalSpentUSD/bookingCount/등급 유실. loyalty.js 처럼
+        //   트랜잭션으로 재읽기→계산→쓰기 원자화. (등급이 새 합계 의존이라 increment 단독 불가)
+        let earnRate = 0.01, tierName = 'Bronze', earnedCoins = 0, newBalance = 0, applied = false;
+        await adminDb.runTransaction(async (tx) => {
+          const userSnap = await tx.get(userRef);
+          if (!userSnap.exists) return;
           const userData = userSnap.data() || {};
           const currentCoins = userData.tripCoins || 0;
           const newSpent = (userData.totalSpentUSD || 0) + priceUSD;
           const newCount = (userData.bookingCount || 0) + 1;
-
-          // 등급 + 적립률 계산
-          let earnRate = 0.01, tierName = 'Bronze';
+          earnRate = 0.01; tierName = 'Bronze';
           if (newSpent >= 1000 || newCount >= 15) { earnRate = 0.03; tierName = 'Platinum'; }
           else if (newSpent >= 500 || newCount >= 7) { earnRate = 0.02; tierName = 'Gold'; }
           else if (newSpent >= 200 || newCount >= 3) { earnRate = 0.015; tierName = 'Silver'; }
-
-          const earnedCoins = Math.round(priceUSD * 100 * earnRate);
-          const newBalance = currentCoins + earnedCoins;
-
-          await userRef.update({
+          earnedCoins = Math.round(priceUSD * 100 * earnRate);
+          newBalance = currentCoins + earnedCoins;
+          tx.update(userRef, {
             tripCoins: newBalance,
             totalSpentUSD: newSpent,
             bookingCount: newCount,
             tier: tierName,
             tierUpdatedAt: new Date().toISOString(),
           });
+          applied = true;
+        });
+        if (applied) {
 
           // 포인트 이력 기록
           await adminDb.collection('users').doc(uid).collection('pointHistory').doc().set({
