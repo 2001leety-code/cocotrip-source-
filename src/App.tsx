@@ -197,19 +197,27 @@ function GlobalWidgets() {
   // 위 리다이렉트 로그인 useEffect 는 hooks 라 early-return 이어도 계속 실행됨.
   if (location.pathname.startsWith('/mood')) return null;
 
+  // 2026-06-16: 공유 플랜(고객 제안서, /my-plans/{id}?shared=1)에서는 앱/마케팅 chrome
+  //   (하단탭·채팅버튼·K-pop 팝업·가입쿠폰)을 숨겨 "프리미엄 여행 제안서"처럼 보이게.
+  //   문의는 OutroSlide 의 WhatsApp CTA 로 유도. (쿠키배너는 GDPR 이라 유지.)
+  const isSharedPlan = location.pathname.startsWith('/my-plans/') &&
+    new URLSearchParams(location.search).get('shared') === '1';
+
   return (
     <>
       <PageViewTracker />
 
-      <Suspense fallback={null}>
-        <KpopConcertPopup />
-      </Suspense>
-      <MobileBottomNav />
+      {!isSharedPlan && (
+        <Suspense fallback={null}>
+          <KpopConcertPopup />
+        </Suspense>
+      )}
+      {!isSharedPlan && <MobileBottomNav />}
       <Suspense fallback={null}>
         <CookieBanner />
-        <ChatWidget language={language} />
-        {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
-        <OnboardingCouponModal />
+        {!isSharedPlan && <ChatWidget language={language} />}
+        {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반 */}
+        {!isSharedPlan && <OnboardingCouponModal />}
       </Suspense>
     </>
   );

@@ -446,10 +446,12 @@ export default function PlanDetailPage() {
         }
         return (
           <div key={`day-${dayIdx}`}>
-            {/* Edit toggle floats at top of day slides */}
-            <div className="flex justify-end mb-3">
-              <EditModeToggle editMode={editMode} onToggle={() => setEditMode(!editMode)} />
-            </div>
+            {/* Edit toggle — 소유자만 (공유 링크 고객에겐 미노출). */}
+            {isOwner && (
+              <div className="flex justify-end mb-3">
+                <EditModeToggle editMode={editMode} onToggle={() => setEditMode(!editMode)} />
+              </div>
+            )}
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
