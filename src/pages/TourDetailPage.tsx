@@ -21,6 +21,7 @@ import { getRecommendedHotels } from '@/data/hotels';
 import { ReviewList } from '@/components/ReviewList';
 import { TourStopList } from '@/components/tours/TourStopList';
 import { TourBookingDialog } from '@/components/tours/TourBookingDialog';
+import { TrustBadges } from '@/components/TrustBadges';
 import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { IncludedExcluded } from '@/components/tours/IncludedExcluded';
 import { MeetingPointCard } from '@/components/tours/MeetingPointCard';
@@ -560,6 +561,9 @@ export default function TourDetailPage() {
             </div>
           )}
           <ReviewList targetType="tour" targetId={slug || ''} />
+        {/* 결제 직전 신뢰 신호 — 홈 TrustBadges 재사용(투어상세 전환 보강). 마진은 페이지용으로 조정,
+            mb 는 하단 고정 CTA 바에 안 가리게 여유. */}
+        <TrustBadges className="relative z-10 mt-8 mb-32 px-4" />
         </div>
 
       {/* ── 하단 고정 CTA 바 ── */}

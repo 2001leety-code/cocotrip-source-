@@ -42,10 +42,10 @@ const BADGES: Badge[] = [
   },
 ];
 
-export function TrustBadges() {
+export function TrustBadges({ className }: { className?: string }) {
   return (
     <section
-      className="relative z-10 -mt-8 lg:-mt-12 mb-8 lg:mb-12 px-4"
+      className={className || "relative z-10 -mt-8 lg:-mt-12 mb-8 lg:mb-12 px-4"}
       aria-label="Trust signals"
     >
       <div className="max-w-6xl mx-auto">
