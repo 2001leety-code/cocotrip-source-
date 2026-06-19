@@ -443,7 +443,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               <button
                 type="button"
                 onClick={() => setPax(p => Math.max(1, p - 1))}
-                className="w-8 h-8 rounded-full flex items-center justify-center"
+                className="w-11 h-11 rounded-full flex items-center justify-center"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)' }}
                 aria-label={translations[language].a11y?.decreasePax ||'Decrease passengers'}
               >
@@ -453,7 +453,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
               <button
                 type="button"
                 onClick={() => setPax(p => Math.min(tour.maxPax, p + 1))}
-                className="w-8 h-8 rounded-full flex items-center justify-center"
+                className="w-11 h-11 rounded-full flex items-center justify-center"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)' }}
                 aria-label={translations[language].a11y?.increasePax ||'Increase passengers'}
               >

@@ -16,6 +16,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/hooks/useAuth';
 import { haptic } from '@/lib/haptic';
 import { track as posthogTrack } from '@/lib/posthog';
+import { trackEvent } from '@/lib/analytics';
 import { requestNotifyPermission } from '@/lib/notify';
 import {
   useWizardPersistence,
@@ -143,6 +144,9 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
       language,
       started_at: new Date().toISOString(),
     });
+    // GA4 planner_start — 위저드 진입 = 고의향 신호. Google Ads Smart Bidding 이 깔때기 상단
+    //   (방문→위저드시작→결제진입→구매)을 인식하게. trackEvent 는 GA 미설정 시 no-op.
+    trackEvent('planner_start', { language });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
