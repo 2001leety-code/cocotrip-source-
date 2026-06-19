@@ -51,14 +51,26 @@ export default async function handler(req, res) {
     const userEmail = auth.email;
 
     const url = new URL(req.url, `https://${req.headers.host}`);
-    const tier = url.searchParams.get('tier') || 'Bronze';
+    let tier = 'Bronze'; // 🔴 #9: tier 는 query 신뢰 종료 — 아래에서 서버 조회(조작 차단).
 
     const db = getDb();
-    const snap = await db.collection('bookings')
-      .where('userEmail', '==', userEmail)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
+    // 🔴 #9 (버그헌트 2026-06-19): tier 쿼리파라미터 신뢰 → Bronze 가 ?tier=Platinum 으로 UI 환불%
+    //   표시 조작 가능(cancelBooking 은 이미 서버조회 fix). 인증 uid 의 users/{uid}.tier 사용.
+    try {
+      if (auth.uid) {
+        const uSnap = await db.collection('users').doc(auth.uid).get();
+        if (uSnap.exists && uSnap.data() && uSnap.data().tier) tier = uSnap.data().tier;
+      }
+    } catch { /* tier 조회 실패 → Bronze(보수적) */ }
+    // 🔴 #13 (버그헌트 2026-06-19): 게스트 차터 결제(#972)는 userEmail='' + payerEmail=실이메일 저장
+    //   → userEmail 쿼리만으론 게스트가 같은 이메일로 가입해도 조회 단절. payerEmail 폴백(단일필드
+    //   인덱스, orderBy 없이) + dedup. 정상 userEmail 결과는 정렬 유지, 게스트분만 뒤에 추가.
+    const [snapByEmail, snapByPayer] = await Promise.all([
+      db.collection('bookings').where('userEmail', '==', userEmail).orderBy('createdAt', 'desc').limit(50).get(),
+      db.collection('bookings').where('payerEmail', '==', userEmail).limit(50).get(),
+    ]);
+    const _seenIds = new Set(snapByEmail.docs.map(d => d.id));
+    const snap = { docs: [...snapByEmail.docs, ...snapByPayer.docs.filter(d => !_seenIds.has(d.id))] };
 
     const now = new Date();
     const bookings = snap.docs.map(doc => {
