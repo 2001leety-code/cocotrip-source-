@@ -140,6 +140,10 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
     setIsFav(!!set[stopKey]);
   }, [planId, stopKey]);
 
+  // 공유 제안서(/my-plans/{id}?shared=1)에선 장소별 Favorite/Share(앱 기능)를 숨기고 Directions만
+  //   남겨 고객 핵심 동선(지도 열기)에 집중. 일반(소유자) 화면은 3버튼 유지.
+  const isShared = typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('shared') === '1';
   const toggleFav: React.MouseEventHandler = (e) => {
     e.stopPropagation();
     if (!planId) return;
@@ -446,6 +450,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
 
           {/* Sprint 1 Step 5: Action row — favorite, share, directions */}
           <div className="flex items-center gap-2 pt-1">
+            {!isShared && (<>
             <button
               type="button"
               onClick={toggleFav}
@@ -468,6 +473,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
               <Share2 className="w-3.5 h-3.5" />
               {ui.shareLabel || 'Share'}
             </button>
+            </>)}
             <button
               type="button"
               onClick={handleDirections}
