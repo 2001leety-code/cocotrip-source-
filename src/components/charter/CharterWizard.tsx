@@ -66,12 +66,26 @@ function manualKmLabel(lang: string): string {
   return 'Enter distance (km)';
 }
 
-// 6단계(견적) 진입 직전 로그인 게이트 버튼 라벨 — 비로그인은 1~5단계 구경 후 견적 보기 전 로그인(리드 캡처).
-const LOGIN_QUOTE_LABEL: Record<string, string> = {
-  en: 'Sign in to see your quote',
-  ko: '로그인하고 견적 보기',
-  ja: 'ログインして見積もりを見る',
-  zh: '登录查看报价',
+// 2026-06-19 (운영자 B 결정): 비로그인도 견적 보게 — 하드 로그인 게이트 제거하고 6단계에
+// "가입하면 최대 10% 할인" 소프트 유도 카드로 전환. 가입 5% 웰컴쿠폰 + 왕복 공항 5% = 최대 10%
+// (곱연산 실제 ~9.75% → #968 따라 '최대 10%' 정직 표기, 표시=청구 일치, 광고법 안전).
+const CARROT_TITLE: Record<string, string> = {
+  en: 'Sign up & save up to 10%',
+  ko: '가입하고 최대 10% 할인 받기',
+  ja: '登録して最大10%割引',
+  zh: '注册立享最高10%折扣',
+};
+const CARROT_BODY: Record<string, string> = {
+  en: '5% welcome coupon + 5% on round-trip airport pickup & drop-off = up to 10% off',
+  ko: '5% 웰컴 쿠폰 + 공항 픽업·샌딩 왕복 예약 5% = 최대 10% 할인',
+  ja: '5%ウェルカムクーポン + 空港送迎往復予約5% = 最大10%割引',
+  zh: '5%欢迎优惠券 + 机场接送往返预订5% = 最高10%折扣',
+};
+const CARROT_CTA: Record<string, string> = {
+  en: 'Sign up to save',
+  ko: '가입하고 할인 받기',
+  ja: '登録して割引を受ける',
+  zh: '注册领取折扣',
 };
 
 export function CharterWizard({ initialState, onComplete, language = 'en' }: CharterWizardProps) {
@@ -95,7 +109,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     return { ...INITIAL_WIZARD_STATE, ...filtered };
   });
   const [currentStep, setCurrentStep] = useState(1);
-  // 견적(6단계) 진입 게이트용 — 비로그인이면 견적 보기 전 로그인 요구(리드 캡처 + 봇/저관심 거름).
+  // user — 6단계 가입 유도 카드 노출 판단(!user) + 프로필 prefill. (구 로그인 게이트는 2026-06-19 제거)
   const { user } = useAuth();
   // 사용자 manual km override — Geocoding 실패 또는 직접 보정.
   const [manualKm, setManualKm] = useState<number | null>(null);
@@ -201,12 +215,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   }, [currentStep, state, quote, isInquiryVehicle]);
 
   const goNext = () => {
-    // 5→6(견적) 진입 직전 로그인 게이트 — 비로그인이면 견적 보기 전 Google 로그인(리드 캡처).
-    // 백엔드 결제도 미로그인 401 이라 일관. 로그인 후 다시 [다음] 누르면 6단계 견적으로.
-    if (currentStep === 5 && !user) {
-      void signInWithGoogle();
-      return;
-    }
+    // 2026-06-19 (운영자 B 결정): 하드 로그인 게이트 제거 — 비로그인도 견적(6단계) 본다.
+    // 강제 리드캡처 대신 6단계 "가입하면 최대 10% 할인" 카드로 소프트 유도("가입유도 하되 게스트 가능").
     setCurrentStep(s => Math.min(6, s + 1));
   };
   const goPrev = () => setCurrentStep(s => Math.max(1, s - 1));
@@ -282,6 +292,21 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 </p>
               )}
               <Step6Quote quote={quote} state={state} language={language} />
+              {/* 2026-06-19 (운영자 B): 비로그인 게스트에게 견적은 보여주되 가입 시 최대 10% 할인 소프트 유도. */}
+              {!user && (
+                <div className="rounded-xl border border-[#B668FC]/40 bg-gradient-to-br from-[#B668FC]/15 to-[#FF6B9D]/10 p-4">
+                  <p className="text-sm font-bold text-white mb-1">🎁 {CARROT_TITLE[language] || CARROT_TITLE.en}</p>
+                  <p className="text-xs text-white/70 mb-3 leading-relaxed">{CARROT_BODY[language] || CARROT_BODY.en}</p>
+                  <button
+                    type="button"
+                    onClick={() => void signInWithGoogle()}
+                    className="w-full py-2.5 rounded-lg text-sm font-bold text-white transition-all active:scale-[0.99]"
+                    style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+                  >
+                    {CARROT_CTA[language] || CARROT_CTA.en}
+                  </button>
+                </div>
+              )}
               {geocodingFailed && (
                 <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
                   <p className="text-sm text-amber-200/85 mb-2">⚠ {geocodingFailedLabel(language)}</p>
@@ -321,7 +346,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
             style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
           >
-            {currentStep === 5 && !user ? (LOGIN_QUOTE_LABEL[language] || LOGIN_QUOTE_LABEL.en) : i18n.next} <ChevronRight className="w-4 h-4" />
+            {i18n.next} <ChevronRight className="w-4 h-4" />
           </button>
         )}
         {currentStep === 6 && onComplete && !isInquiryVehicle && (
