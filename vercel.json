@@ -160,6 +160,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/planstest", "destination": "/api/planstest" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
