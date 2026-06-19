@@ -47,7 +47,11 @@ export function usePageMeta({ title, description, ogImage, ogUrl }: PageMeta) {
         ogImg.setAttribute('property', 'og:image');
         document.head.appendChild(ogImg);
       }
-      ogImg.content = ogImage;
+      // 소셜 공유(카카오톡·페이스북·트위터) 미리보기는 절대 URL 필요 — 상대경로면
+      //   크롤러가 이미지를 못 불러와 빈 썸네일. '/hero.webp' → 'https://cocotripkr.com/hero.webp'.
+      ogImg.content = ogImage.startsWith('http')
+        ? ogImage
+        : `https://cocotripkr.com${ogImage.startsWith('/') ? '' : '/'}${ogImage}`;
     }
 
     // OG URL
