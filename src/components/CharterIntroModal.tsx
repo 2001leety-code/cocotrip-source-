@@ -20,7 +20,6 @@ const STORAGE_KEY = 'COCO_CHARTER_INTRO_SEEN_v1';
 
 export function CharterIntroModal() {
   const [open, setOpen] = useState(false);
-  const [dontShow, setDontShow] = useState(false);
   const { t } = useLanguage();
 
   // i18n — charterPage 네임스페이스 (4개 언어 모두 키 존재)
@@ -31,7 +30,8 @@ export function CharterIntroModal() {
     try {
       const seen = localStorage.getItem(STORAGE_KEY);
       if (!seen) {
-        const timer = window.setTimeout(() => setOpen(true), 350);
+        // 모바일(광고 유입 다수)은 첫 진입 강제 모달이 전환 방해 → 데스크탑만 자동 노출.
+        const timer = window.setTimeout(() => { if (window.innerWidth >= 768) setOpen(true); }, 350);
         return () => window.clearTimeout(timer);
       }
     } catch { /* SSR / private mode */ }
@@ -168,19 +168,6 @@ export function CharterIntroModal() {
             {c.charterIntroDeadline ?? 'Booking cutoff: 12 hours before departure.'}
           </span>
         </div>
-
-        {/* Don't show again */}
-        <label className="flex items-center gap-2 px-6 pt-4 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={dontShow}
-            onChange={(e) => setDontShow(e.target.checked)}
-            className="w-4 h-4 rounded border-white/20 bg-white/[0.04] accent-[#7c5cfc]"
-          />
-          <span className="text-white/55 text-xs">
-            {c.charterIntroDontShow ?? "Don't show again"}
-          </span>
-        </label>
 
         {/* CTA */}
         <div className="p-6 pt-3">

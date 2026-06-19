@@ -16,7 +16,6 @@ const STORAGE_KEY = 'COCO_AI_INTRO_SEEN_v1';
 
 export function AIIntroModal() {
   const [open, setOpen] = useState(false);
-  const [dontShow, setDontShow] = useState(false);
   const { t } = useLanguage();
 
   // i18n — planner 네임스페이스 (4개 언어 모두 키 존재). useLanguage 의 t 는 Translations 타입.
@@ -27,8 +26,9 @@ export function AIIntroModal() {
     try {
       const seen = localStorage.getItem(STORAGE_KEY);
       if (!seen) {
-        // 살짝 지연시켜 페이지 hero 렌더 후 노출 (UX)
-        const timer = window.setTimeout(() => setOpen(true), 350);
+        // 살짝 지연 후 노출 (UX). 모바일(광고 유입 다수)은 첫 진입 강제 모달이 전환을
+        // 방해하므로 데스크탑(>=768px)에서만 자동 노출 — 모바일은 위저드가 직접 안내.
+        const timer = window.setTimeout(() => { if (window.innerWidth >= 768) setOpen(true); }, 350);
         return () => window.clearTimeout(timer);
       }
     } catch { /* SSR / private mode → 노출 안함이 안전 */ }
@@ -59,7 +59,7 @@ export function AIIntroModal() {
     >
       {/* Modal card */}
       <div
-        className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
+        className="relative w-full max-w-md rounded-2xl overflow-hidden overflow-y-auto shadow-2xl max-h-[92vh]"
         style={{ background: 'linear-gradient(135deg, #1a1b2e 0%, #16213e 60%, #0f3460 100%)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -138,19 +138,6 @@ export function AIIntroModal() {
             </div>
           </div>
         </div>
-
-        {/* Don't show again */}
-        <label className="flex items-center gap-2 px-6 pt-4 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={dontShow}
-            onChange={(e) => setDontShow(e.target.checked)}
-            className="w-4 h-4 rounded border-white/20 bg-white/[0.04] accent-[#7c5cfc]"
-          />
-          <span className="text-white/55 text-xs">
-            {p.aiIntroDontShow ?? "Don't show again"}
-          </span>
-        </label>
 
         {/* CTA */}
         <div className="p-6 pt-3">

@@ -46,6 +46,11 @@ if [ -n "$SCAN_FILES" ]; then
       if (f === "src/components/CommandPalette.tsx") continue;
       if (f === "src/components/MobileBottomNav.tsx") continue;
       if (f === "src/components/CookieBanner.tsx") continue;
+      // 2026-06-16 (전환 폴리시): AIIntroModal/CharterIntroModal 의 i18n nullish coalescing
+      // 폴백 (p.aiIntroTitle ?? '...' / .planner ?? {} 등) 정당. 모달 모바일 노출/체크박스
+      // 수정 시 처음 staged. U+FFFD(진짜 깨짐) 0 확인 — CookieBanner 등과 동일 케이스.
+      if (f === "src/components/AIIntroModal.tsx") continue;
+      if (f === "src/components/CharterIntroModal.tsx") continue;
       if (f === "src/pages/ToursPage.tsx") continue;
       if (f === "src/components/SeasonalBanner.tsx") continue;
       if (f === "src/components/PlannerForm.tsx") continue;

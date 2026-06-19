@@ -153,7 +153,7 @@ const I18N: Record<Language, {
 }> = {
   ko: { title: '투어 예약', pax: '인원수', date: '투어 날짜', lang: '기사 언어', addons: '추가 옵션',
         priceBase: '기본', priceAddons: '추가옵션', priceTotal: '총액 (예상)',
-        cancel: '취소', submit: '결제 페이지로 이동', pickDate: '날짜 선택',
+        cancel: '취소', submit: '견적 받기', pickDate: '날짜 선택',
         step1Title: '1단계 — 옵션 선택', step2Title: '2단계 — 연락처·픽업',
         next: '다음', back: '이전',
         phone: '휴대폰 번호', phonePh: '예: +82 10 1234 5678',
@@ -165,7 +165,7 @@ const I18N: Record<Language, {
         optional: '선택' },
   en: { title: 'Book This Tour', pax: 'Passengers', date: 'Tour date', lang: 'Driver language', addons: 'Add-ons',
         priceBase: 'Base', priceAddons: 'Add-ons', priceTotal: 'Estimated total',
-        cancel: 'Cancel', submit: 'Continue to payment', pickDate: 'Select date',
+        cancel: 'Cancel', submit: 'Get a quote', pickDate: 'Select date',
         step1Title: 'Step 1 — Options', step2Title: 'Step 2 — Contact & Pickup',
         next: 'Next', back: 'Back',
         phone: 'Mobile number', phonePh: 'e.g. +1 555 123 4567',
@@ -177,7 +177,7 @@ const I18N: Record<Language, {
         optional: 'optional' },
   ja: { title: 'ツアー予約', pax: '人数', date: 'ツアー日', lang: 'ドライバー言語', addons: '追加オプション',
         priceBase: '基本', priceAddons: 'オプション', priceTotal: '合計（予想）',
-        cancel: 'キャンセル', submit: '決済ページへ', pickDate: '日付を選択',
+        cancel: 'キャンセル', submit: '見積もりを取得', pickDate: '日付を選択',
         step1Title: 'ステップ 1 — オプション', step2Title: 'ステップ 2 — 連絡先・ピックアップ',
         next: '次へ', back: '戻る',
         phone: '携帯番号', phonePh: '例: +81 90 1234 5678',
@@ -189,7 +189,7 @@ const I18N: Record<Language, {
         optional: '任意' },
   zh: { title: '预订旅游', pax: '人数', date: '旅游日期', lang: '司机语言', addons: '附加选项',
         priceBase: '基本', priceAddons: '附加选项', priceTotal: '估计总额',
-        cancel: '取消', submit: '继续到付款页', pickDate: '选择日期',
+        cancel: '取消', submit: '获取报价', pickDate: '选择日期',
         step1Title: '第 1 步 — 选项', step2Title: '第 2 步 — 联系方式·接送',
         next: '下一步', back: '上一步',
         phone: '手机号码', phonePh: '例: +86 138 1234 5678',
@@ -729,13 +729,17 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 <ChevronRight className="w-4 h-4" />
               </button>
             ) : productType ? (
-              <Link
-                to={submitUrl}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white"
+              /* 날짜 미선택 + 결제 가능 투어(productType): /charter 로 점프하지 않고 비활성 —
+                 날짜를 선택해야 Next(Step2 결제)로 진행 (아래 "날짜 선택" 안내와 함께). */
+              <button
+                type="button"
+                disabled
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-[14px] text-white opacity-40 cursor-not-allowed"
                 style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
               >
-                {labels.submit}
-              </Link>
+                {labels.next}
+                <ChevronRight className="w-4 h-4" />
+              </button>
             ) : (
               <Link
                 to={submitUrl}
