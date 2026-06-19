@@ -556,6 +556,8 @@
     "retry": "다시 시도하기",
     "loginRequired": "로그인 후 결제 가능",
     "loginToPay": "로그인 후 결제하기",
+    "guestSignupNudge": "무료 가입하면 — 플랜 저장 + 무료 수정 2회 + 차터 5% 쿠폰",
+    "guestSignupCta": "무료 가입",
     "loginToPayDesc": "일정표를 안전하게 받아보려면 먼저 로그인해 주세요.",
     "resetBtn": "다시 만들기",
     "dayLabel": "Day",
