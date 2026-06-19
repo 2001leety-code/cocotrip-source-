@@ -12,7 +12,7 @@ import { Header } from '@/sections/Header';
 import { Footer } from '@/sections/Footer';
 import { WizardForm } from '@/components/WizardForm';
 import { AIIntroModal } from '@/components/AIIntroModal';
-import { Sparkles, AlertTriangle } from 'lucide-react';
+import { Sparkles, AlertTriangle, MapPin, Navigation, ShieldCheck } from 'lucide-react';
 import { PAGE_STYLE } from './constants';
 import { usePlannerHandlers } from './hooks/usePlannerHandlers';
 import { resolveErrorMessage } from './hooks/errorMessages';
@@ -129,6 +129,30 @@ export default function PlannerPage() {
             style={{ animation: 'fade-slide-up 0.6s ease forwards', animationDelay: '0.2s', opacity: 0 }}>{p.heroSubtitle}</p>
         </div>
       </section>
+
+      {/* VP strip — "검증된 코스·동선 최적화·AI 환각 방지" 3항목 (Part 1) */}
+      <div className={`max-w-3xl mx-auto px-4 ${isMobile ? 'py-3' : 'py-5'}`}>
+        <p className={`text-center text-white/45 leading-snug mb-3 ${isMobile ? 'text-[10px]' : 'text-[11px]'}`}>
+          {(p as unknown as Record<string, string>).vpStripTagline || ''}
+        </p>
+        <div className={`grid grid-cols-3 gap-2 ${isMobile ? 'gap-1.5' : 'gap-3'}`}>
+          {([
+            { Icon: MapPin,      titleKey: 'vpCourseTitle',      descKey: 'vpCourseDesc' },
+            { Icon: Navigation,  titleKey: 'vpRouteTitle',       descKey: 'vpRouteDesc'  },
+            { Icon: ShieldCheck, titleKey: 'vpNoHallucinationTitle', descKey: 'vpNoHallucinationDesc' },
+          ] as { Icon: React.ComponentType<{ className?: string }>; titleKey: string; descKey: string }[]).map(({ Icon, titleKey, descKey }) => (
+            <div key={titleKey} className={`flex flex-col items-center text-center rounded-xl border border-white/[0.07] bg-white/[0.03] ${isMobile ? 'px-1.5 py-2' : 'px-3 py-3'}`}>
+              <Icon className={`mb-1 shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />
+              <p className={`font-semibold text-white leading-tight ${isMobile ? 'text-[9px]' : 'text-[11px]'}`}>
+                {(p as unknown as Record<string, string>)[titleKey] || ''}
+              </p>
+              <p className={`text-white/45 leading-snug mt-0.5 ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>
+                {(p as unknown as Record<string, string>)[descKey] || ''}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <main className={`max-w-3xl mx-auto px-4 ${isMobile ? 'py-5 space-y-5' : 'py-12 space-y-8'}`}>
         {/* Wizard form */}
