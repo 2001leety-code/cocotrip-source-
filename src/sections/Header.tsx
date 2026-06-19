@@ -120,6 +120,10 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
   ];
 
   const isActive = (path: string) => location.pathname === path;
+  // 공유 플랜(고객 제안서, /my-plans/{id}?shared=1)에서는 앱 chrome(BETA·검색·Wishlist·Cart) 숨김 —
+  //   외국인 고객에겐 의미 없는 내부 요소. 다른 페이지는 영향 0(이 경로+shared=1 일 때만 true).
+  const isPublicView = location.pathname.startsWith('/my-plans/') &&
+    new URLSearchParams(location.search).get('shared') === '1';
 
   return (
     <>
@@ -141,7 +145,8 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           <Link to="/" className="flex items-center gap-2 md:gap-2.5 shrink-0">
             {/* 브랜드 로고 — 홈(MobileHomeV2)과 동일한 이미지로 통일(전 페이지 일관). */}
             <img src="/images/logo-cocotrip.png" alt="CocoTrip" className="h-7 md:h-8 w-auto" />
-            {/* Beta badge — 상용화 전 사용자 기대치 조절. 런칭 후 안정화+매출 검증되면 제거. */}
+            {/* Beta badge — 상용화 전 기대치 조절. 공유 제안서(isPublicView)에선 숨김. */}
+            {!isPublicView && (
             <span
               className="text-[8px] md:text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-white"
               style={{
@@ -153,6 +158,7 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
             >
               BETA
             </span>
+            )}
           </Link>
 
           {/* ═══ PWA Install (mobile only) ═══ */}
@@ -192,7 +198,8 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
           {/* ═══ Right: Utilities ═══ */}
           <div className="flex items-center gap-1.5 sm:gap-2 ml-auto lg:ml-0 shrink-0">
 
-            {/* Global Search (Cmd/Ctrl+K) */}
+            {/* Global Search (Cmd/Ctrl+K) — 공유 제안서에선 숨김 */}
+            {!isPublicView && (
             <button
               onClick={toggleCommandPalette}
               className="flex items-center gap-2 px-2 py-1.5 md:px-2.5 rounded-lg transition-all duration-200 text-white/50 hover:text-white hover:bg-white/[0.06]"
@@ -206,18 +213,14 @@ export function Header({ language, t, onLanguageChange }: HeaderProps) {
                 </kbd>
               )}
             </button>
+            )}
 
             {/* Loyalty Badge (desktop, logged-in) */}
             {user && !isMobile && <LoyaltyBadge />}
 
-            {/* Wishlist (desktop + mobile) — both surfaces now exposed
-                so mobile users have a parity entry point. The panel itself
-                handles its own slide-in animation + outside-click dismiss. */}
-            <WishlistPanel />
-
-            {/* Cart (장바구니) — VITE_FEATURE_CART OFF 면 null 렌더(무영향).
-                멀티상품 "한번에 결제" FOUNDATION. WishlistPanel 옆 패리티 위치. */}
-            <CartPanel />
+            {/* Wishlist + Cart — 공유 제안서(고객)에선 숨김 (앱 내부 요소). */}
+            {!isPublicView && <WishlistPanel />}
+            {!isPublicView && <CartPanel />}
 
             {/* Admin Home (desktop, admin only) */}
             {isAdmin && !isMobile && (
