@@ -297,15 +297,22 @@ export default async function handler(req, res) {
       throw captureErr;
     }
     // Mark lock as captured so future retries are correctly rejected.
-    lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() }).catch((e) => {
-      console.warn('[capturePaypalOrder] lock status update failed (non-fatal):', e.message);
-    });
+    // 🟡 동시성 fix (버그헌트 #10 2026-06-19): await — fire-and-forget 면 Firestore 일시장애 시 lock 이
+    //   'pending' 으로 남아 30초 후 재캡처(ALREADY_CAPTURED)→쿠폰 오롤백·사용자 오류. 실패 시 운영자 알림.
+    try {
+      await lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() });
+    } catch (e) {
+      console.warn('[capturePaypalOrder] lock status update failed:', e.message);
+      notifyOperator('lock-update-fail', `<code>${orderID}</code> capture 성공 후 lock status 갱신 실패 — 재시도 시 재캡처 위험, 수동 확인 권장.`).catch(() => {});
+    }
     // PR #427 (CY4): finalise coupon — clear the pendingCapture flag so the
     // coupon is unambiguously "spent" rather than "in-flight".
     if (couponLockRef) {
-      couponLockRef.update({ pendingCapture: false }).catch((e) => {
-        console.warn('[capturePaypalOrder] coupon finalise failed (non-fatal):', e.message);
-      });
+      try {
+        await couponLockRef.update({ pendingCapture: false });
+      } catch (e) {
+        console.warn('[capturePaypalOrder] coupon finalise failed:', e.message);
+      }
     }
 
     // 필드 추출 + 누락 시 명시 로그 (LIVE 응답 누락이 admin 로그 미노출의 첫 번째 원인 후보).
@@ -536,6 +543,16 @@ export default async function handler(req, res) {
               }, { merge: true });
             } catch (markErr) {
               console.error('[capturePaypalOrder] booking refund-mark failed (non-fatal):', markErr.message);
+            }
+            // 2.5) 🔴 쿠폰 복구 (버그헌트 #2 2026-06-19): PROMO 한도초과 자동환불 시, capture 성공으로
+            //      이미 소진(isUsed=true)된 개인 쿠폰을 복구하지 않으면 사용자는 환불받아도 1회용 쿠폰
+            //      영구 손실. capture-fail 경로(위)와 동일하게 복구.
+            if (couponLockRef) {
+              try {
+                await couponLockRef.update({ isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false });
+              } catch (cErr) {
+                console.warn('[capturePaypalOrder] coupon restore after promo-refund failed (non-fatal):', cErr.message);
+              }
             }
             // 3) Operator alert — even though we auto-refunded, operator should
             //    know the cap is being hit (may want to extend the campaign).
