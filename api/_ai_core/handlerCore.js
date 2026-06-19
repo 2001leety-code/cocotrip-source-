@@ -447,7 +447,7 @@ export default async function handler(req, res) {
     import('../_plan-ready-push.js').then(({ sendPlanCreatedTelegram, sendPlanReadyPush }) => {
       sendPlanCreatedTelegram({ guestName, email, area, durationDays, pax, planId });
       if (uid) sendPlanReadyPush(adminDb, uid, { planId, planUrl, tourTitle: itinerary.tour_title, language });
-    });
+    }).catch((e) => console.warn('[ai-planner-full] plan-ready-push import/dispatch failed:', e?.message)); // 버그헌트 #12: unhandled rejection 차단
 
   } catch (error) {
     console.error('[ai-planner-full] UNHANDLED ERROR:', error.message, error.stack);
