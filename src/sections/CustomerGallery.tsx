@@ -102,7 +102,7 @@ export function CustomerGallery() {
                 className="flex-grow-0 flex-shrink-0 w-[85%] sm:w-1/2 md:w-1/3 lg:w-1/4 pl-4 sm:pl-5 md:pl-6"
               >
                 <div className="h-full">
-                  <CustomerCard customer={customer} verifiedLabel={g.verifiedTraveler || 'Verified Traveler'} />
+                  <CustomerCard customer={customer} verifiedLabel={g.verifiedTraveler || 'Guest Photo'} />
                 </div>
               </div>
             ))}

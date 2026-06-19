@@ -4,6 +4,7 @@ import { translations, type Language } from '@/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { signInWithGoogle } from '@/lib/firebase';
+import { trackChatOpen } from '@/lib/analytics';
 
 interface Message {
   id: string;
@@ -783,7 +784,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
 
       {/* ── 토글 버튼 ─────────────────────────────────────────── */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { const next = !open; if (next) trackChatOpen(); setOpen(next); }}
         aria-label={translations[language].a11y?.openChat ||'Open chat'}
         style={{
           position: 'fixed',

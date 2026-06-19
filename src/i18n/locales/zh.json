@@ -1403,6 +1403,7 @@
     "bodyBefore": "我们使用Cookie来改善您的体验。继续使用本站即表示您同意我们的",
     "bodyMiddle": "。如需请求删除数据，请联系 ",
     "bodyAfter": "。",
+    "bodyShort": "我们使用Cookie来改善您的体验。",
     "accept": "同意",
     "dismiss": "关闭"
   },
@@ -1983,7 +1984,7 @@
     },
     "planner": {
       "title": "AI 旅行规划 — 定制韩国行程",
-      "description": "使用 AI 创建您的个性化韩国旅行行程。免费、即时、多语言支持。首尔、釜山、济州等。"
+      "description": "使用 AI 创建您的个性化韩国旅行行程。AI 驱动、即时、多语言支持。首尔、釜山、济州等。"
     },
     "privacy": {
       "description": "CocoTrip 隐私政策 — 我们如何收集、使用和保护您的个人信息。"

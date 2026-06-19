@@ -18,6 +18,7 @@ import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Calendar, Users, Languages, Plus, Minus, Check, Phone, MapPin, MessageCircle, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
+import { trackDateSelect } from '@/lib/analytics';
 import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
@@ -155,7 +156,7 @@ const I18N: Record<Language, {
         priceBase: '기본', priceAddons: '추가옵션', priceTotal: '총액 (예상)',
         cancel: '취소', submit: '견적 받기', pickDate: '날짜 선택',
         step1Title: '1단계 — 옵션 선택', step2Title: '2단계 — 연락처·픽업',
-        next: '다음', back: '이전',
+        next: '결제 단계로', back: '이전',
         phone: '휴대폰 번호', phonePh: '예: +82 10 1234 5678',
         pickup: '픽업 호텔/주소', pickupPh: '예: 명동 롯데호텔, 종로구 ○○○',
         whatsapp: 'WhatsApp ID', whatsappPh: '+82 10 1234 5678',
@@ -167,7 +168,7 @@ const I18N: Record<Language, {
         priceBase: 'Base', priceAddons: 'Add-ons', priceTotal: 'Estimated total',
         cancel: 'Cancel', submit: 'Get a quote', pickDate: 'Select date',
         step1Title: 'Step 1 — Options', step2Title: 'Step 2 — Contact & Pickup',
-        next: 'Next', back: 'Back',
+        next: 'Continue to payment', back: 'Back',
         phone: 'Mobile number', phonePh: 'e.g. +1 555 123 4567',
         pickup: 'Pickup hotel / address', pickupPh: 'e.g. Lotte Hotel Myeongdong',
         whatsapp: 'WhatsApp ID', whatsappPh: '+1 555 123 4567',
@@ -179,7 +180,7 @@ const I18N: Record<Language, {
         priceBase: '基本', priceAddons: 'オプション', priceTotal: '合計（予想）',
         cancel: 'キャンセル', submit: '見積もりを取得', pickDate: '日付を選択',
         step1Title: 'ステップ 1 — オプション', step2Title: 'ステップ 2 — 連絡先・ピックアップ',
-        next: '次へ', back: '戻る',
+        next: '決済へ進む', back: '戻る',
         phone: '携帯番号', phonePh: '例: +81 90 1234 5678',
         pickup: 'ピックアップホテル / 住所', pickupPh: '例: 明洞ロッテホテル',
         whatsapp: 'WhatsApp ID', whatsappPh: '+81 90 1234 5678',
@@ -191,7 +192,7 @@ const I18N: Record<Language, {
         priceBase: '基本', priceAddons: '附加选项', priceTotal: '估计总额',
         cancel: '取消', submit: '获取报价', pickDate: '选择日期',
         step1Title: '第 1 步 — 选项', step2Title: '第 2 步 — 联系方式·接送',
-        next: '下一步', back: '上一步',
+        next: '前往支付', back: '上一步',
         phone: '手机号码', phonePh: '例: +86 138 1234 5678',
         pickup: '接送酒店 / 地址', pickupPh: '例: 明洞乐天酒店',
         whatsapp: 'WhatsApp ID', whatsappPh: '+86 138 1234 5678',
@@ -493,7 +494,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 <CalendarPicker
                   mode="single"
                   selected={dateFromIso(date)}
-                  onSelect={(d) => setDate(isoFromDate(d))}
+                  onSelect={(d) => { setDate(isoFromDate(d)); trackDateSelect('tour'); }}
                   onMonthChange={setCalendarMonth}
                   disabled={(d) => {
                     const iso = isoFromDate(d);
