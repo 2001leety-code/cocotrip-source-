@@ -12,6 +12,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { CharterWizard } from '@/components/charter/CharterWizard';
 import { CharterIntroModal } from '@/components/CharterIntroModal';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
+import { RefundPolicyModal } from '@/components/tours/RefundPolicyModal';
 import { resolveProductType } from '@/components/charter/resolveProductType';
 import { buildCharterCartItem } from '@/components/charter/charterCartItem';
 import { CartAddButton } from '@/components/CartButton';
@@ -301,6 +302,21 @@ function PaymentPanel({
         <p className="mt-3 text-center text-xs text-white/55">
           <a href={waUrl} target="_blank" rel="noopener noreferrer" className="text-white/50 underline">{i18n.payWhatsappAlt}</a>
         </p>
+      )}
+
+      {/* 고단가 차터 결제 직전 환불정책 노출 — 투어상세와 동일 RefundPolicyModal 재사용(신뢰).
+          "취소하면 어떻게 되지?" 확인 욕구 해소 = 결제 중단 방지. */}
+      {(resolved.payable || isEstimateOnly) && (
+        <div className="mt-2 text-center">
+          <RefundPolicyModal
+            language={language}
+            trigger={
+              <button className="text-[10px] text-white/55 hover:text-white/70 underline-offset-2 hover:underline">
+                {language === 'ko' ? '취소·환불 정책' : language === 'ja' ? 'キャンセル・返金' : language === 'zh' ? '取消政策' : 'Cancellation policy'}
+              </button>
+            }
+          />
+        </div>
       )}
 
       {/* 2026-06-11 검수 인라인 편집 모달 (가격무영향/가벼운재계산 필드) */}

@@ -103,6 +103,13 @@ async function saveUserToFirestore(user) {
     //    로 거부되므로 절대 사용 금지.
     //    재시도: 최대 2회 (초기 1회 + 1회 retry, 1초 대기) — 네트워크 일시 장애 대비.
     if (isNewUser) {
+      // GA4 sign_up — 신규 가입을 Google Ads 신규고객 전환으로 카운트(Smart Bidding 최적화).
+      //   provider 도출(google.com→google). analytics 실패가 가입/쿠폰 흐름 막지 않게 try/catch.
+      try {
+        const provider = (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'unknown';
+        const { trackSignUp } = await import('./analytics');
+        trackSignUp(provider.replace('.com', ''));
+      } catch { /* analytics 실패 무시 */ }
       const MAX_ATTEMPTS = 2;
       let lastErr = null;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

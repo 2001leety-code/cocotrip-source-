@@ -315,12 +315,12 @@ function LuggageCounter({ label, value, onChange }: { label: string; value: numb
     <div className="flex flex-col gap-2">
       <span className="text-xs text-white/55 truncate">{label}</span>
       <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/10 bg-white/[0.03]">
-        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-white/70 hover:text-white w-6 h-6 text-base disabled:opacity-30" disabled={value === 0}>−</button>
+        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-white/70 hover:text-white w-11 h-11 text-base disabled:opacity-30" disabled={value === 0}>−</button>
         <span className="text-base font-bold text-white">{value}</span>
         <button
           type="button"
           onClick={() => onChange(Math.min(99, value + 1))}
-          className="text-white/70 hover:text-white w-6 h-6 text-base"
+          className="text-white/70 hover:text-white w-11 h-11 text-base"
         >+</button>
       </div>
     </div>

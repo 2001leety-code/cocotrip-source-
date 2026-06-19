@@ -89,6 +89,9 @@ export default function TourDetailPage() {
     description: tour
       ? txt(tour.summary, language)
       : 'This tour could not be found.',
+    // 투어 공유(카톡·페북·X) 미리보기에 투어 사진 노출 — 미전달 시 홈 og-image 로 고정됨.
+    ogImage: tour?.images?.[0],
+    ogUrl: slug ? `https://cocotripkr.com/tours/${slug}` : undefined,
   });
 
   // GA4: view_item
