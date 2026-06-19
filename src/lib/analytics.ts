@@ -68,6 +68,21 @@ export function trackEvent(eventName: string, params?: GtagEvent) {
   window.gtag('event', eventName, params);
 }
 
+// ── 전역 WhatsApp 클릭 추적 ──────────────────────────────────────────────
+// 16곳에 흩어진 wa.me 링크를 위임 리스너 1개로 GA4에 잡는다. PostHog는 autocapture로
+// 이미 잡지만 GA4(=Google Ads 광고 귀속 채널)엔 없어 추가 — WhatsApp 문의가 어느
+// 캠페인에서 왔는지 측정해 광고 최적화. idempotent(여러 번 호출돼도 리스너 1개).
+let waTrackingAttached = false;
+export function initWhatsAppTracking() {
+  if (typeof document === 'undefined' || waTrackingAttached) return;
+  waTrackingAttached = true;
+  document.addEventListener('click', (e) => {
+    const el = e.target as HTMLElement | null;
+    const link = el && el.closest ? (el.closest('a[href*="wa.me"]') as HTMLAnchorElement | null) : null;
+    if (link) trackEvent('whatsapp_click', { page_path: window.location.pathname });
+  }, { capture: true });
+}
+
 // ── Predefined Events ───────────────────────────────────────────────────
 
 /** Ad impression (viewed) */
