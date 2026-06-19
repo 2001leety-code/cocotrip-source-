@@ -133,7 +133,7 @@ export function AIIntroModal() {
                 {p.aiIntroStep3Title ?? '3. Download & share the PDF'}
               </p>
               <p className="text-white/55 text-xs mt-1 leading-relaxed">
-                {p.aiIntroStep3Body ?? 'After checkout, download a polished PDF itinerary in your language and share it with your travel companions.'}
+                {p.aiIntroStep3Body || 'After payment, download a polished PDF itinerary in your language and share it with your travel companions.'}
               </p>
             </div>
           </div>

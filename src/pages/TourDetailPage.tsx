@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { trackViewItem } from '@/lib/analytics';
+import { trackViewItem, trackBookNow } from '@/lib/analytics';
 import { buildTourJsonLd } from './buildTourJsonLd';
 import {
   ArrowLeft, Clock, Users, Star, CheckCircle2,
@@ -627,6 +627,7 @@ export default function TourDetailPage() {
                 type="button"
                 className="flex items-center gap-2 px-5 py-4 rounded-2xl font-bold text-[14px] text-white"
                 style={{ background: 'linear-gradient(135deg, #B668FC, #FF6B9D)' }}
+                onClick={() => trackBookNow('tour')}
               >
                 <CalendarCheck className="w-4 h-4" />
                 {bookLabel}

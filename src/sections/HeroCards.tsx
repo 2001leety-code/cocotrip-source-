@@ -103,7 +103,7 @@ export function HeroCards({ t }: HeroCardsProps) {
             </div>
             <h3 className="text-xl font-bold text-white mb-2">{hc.plannerTitle || 'AI 여행 플래너'}</h3>
             <p className="text-white/50 text-sm leading-relaxed mb-1">{hc.plannerLine1 || 'AI가 맞춤 일정을 자동으로 생성'}</p>
-            <p className="text-[#FF6B9D] text-sm font-medium mb-6">{hc.plannerLine2 || '무료 · 즉시 · 4개 언어 지원'}</p>
+            <p className="text-[#FF6B9D] text-sm font-medium mb-6">{hc.plannerLine2 || '$9.90 · 즉시 · 4개 언어 지원'}</p>
             <div className="mt-auto flex items-center gap-2 text-[#B668FC] font-semibold text-sm group-hover:gap-3 group-hover:text-[#FF6B9D] transition-all duration-300">
               <span>{hc.plannerCta || '일정 만들기'}</span>
               <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />

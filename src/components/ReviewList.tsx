@@ -80,9 +80,11 @@ export function ReviewList({ targetType, targetId }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <MessageSquare className="w-5 h-5 text-[#7C5CFC]" />
-          <h3 className="text-white text-lg font-bold">
-            {rl.count?.replace('{count}', String(reviews.length)) || `${reviews.length} reviews`}
-          </h3>
+          {reviews.length > 0 && (
+            <h3 className="text-white text-lg font-bold">
+              {rl.count?.replace('{count}', String(reviews.length)) || `${reviews.length} reviews`}
+            </h3>
+          )}
           {reviews.length > 0 && (
             <span className="text-[#FFD700] text-sm font-semibold">★ {avgRating}</span>
           )}

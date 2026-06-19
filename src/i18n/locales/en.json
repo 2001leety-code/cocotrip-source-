@@ -1236,7 +1236,7 @@
     "aiIntroStep2Title": "2. AI builds your itinerary",
     "aiIntroStep2Body": "Gemini AI analyzes routing, restaurants, and transit to propose a tailored plan in under a minute.",
     "aiIntroStep3Title": "3. Download & share the PDF",
-    "aiIntroStep3Body": "After checkout, download a polished PDF itinerary in your language and share it with your travel companions.",
+    "aiIntroStep3Body": "After payment, download a polished PDF itinerary in your language and share it with your travel companions.",
     "aiIntroDontShow": "Don't show again",
     "aiIntroClose": "Get started"
   },
@@ -1403,6 +1403,7 @@
     "bodyBefore": "We use cookies to improve your experience. By continuing to use this site, you agree to our ",
     "bodyMiddle": ". To request data deletion, contact us at ",
     "bodyAfter": ".",
+    "bodyShort": "We use cookies to improve your experience.",
     "accept": "Accept",
     "dismiss": "Dismiss"
   },
@@ -1983,7 +1984,7 @@
     },
     "planner": {
       "title": "AI Travel Planner — Custom Korea Itinerary",
-      "description": "Create your personalized Korea travel itinerary with AI. Free, instant, multi-language support. Seoul, Busan, Jeju and more."
+      "description": "Create your personalized Korea travel itinerary with AI. AI-powered, instant, multi-language support. Seoul, Busan, Jeju and more."
     },
     "privacy": {
       "description": "CocoTrip privacy policy — how we collect, use and protect your personal information."
