@@ -199,7 +199,7 @@ export default async function handler(req, res) {
     }
 
     // ── 입력 정규화 (requestShaper) ────────────────────────────────────────
-    const shaped = shapeRequest(body, authenticatedEmail);
+    const shaped = shapeRequest(body, authenticatedEmail, guestCheckoutAllowed); // #8: 게스트 알림 email 폴백
     const {
       guestName, pax, styles, area, regions, duration, durationDays, startDate,
       email, specialRequest, vehicle, language,

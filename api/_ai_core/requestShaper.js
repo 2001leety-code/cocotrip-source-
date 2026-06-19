@@ -13,7 +13,7 @@ import { AIRPORT_ADDRESSES } from './constants.js';
 import { inferDepartureAirport } from './airportInference.js';
 import { selectVehicle } from './vehicleAndPrice.js';
 
-export function shapeRequest(body, authenticatedEmail) {
+export function shapeRequest(body, authenticatedEmail, guestCheckoutAllowed = false) {
   // ── 입력 파싱 ──────────────────────────────────────────────────────────
   const guestName = body.guest_name || body.guestName || 'Guest';
   const paxRaw = Number(body.pax) || Number(body.guest_count) || 2;
@@ -43,8 +43,11 @@ export function shapeRequest(body, authenticatedEmail) {
   // durationDays is also inclusive — 1박2일 = durationDays:2 (Day 1 + Day 2).
   // RouteAgent/buildPrompt 가 동일 inclusive 컨벤션 가정 (P10 lesson).
   const startDate = body.date || body.startDate || new Date().toISOString().split('T')[0];
-  // Audit P0-#2: email은 인증된 값 (authenticatedEmail). body.email 무시.
-  const email = authenticatedEmail;
+  // Audit P0-#2: email은 인증된 값 (authenticatedEmail). body.email 무시(스푸핑 차단).
+  // 🔴 #8 (버그헌트 2026-06-19): 단 게스트 결제(authenticatedEmail null + guestCheckoutAllowed)는
+  //   본인 입력 body.email 을 알림 전용으로 사용 — UI "준비되면 이메일로 보내드려요" 약속 이행.
+  //   결제 게이트는 authenticatedEmail 별도 사용(handlerCore L171)이라 P0-#2 스푸핑 영향 없음.
+  const email = authenticatedEmail || (guestCheckoutAllowed ? ((body.email || '').toLowerCase().trim() || null) : null);
   // 2026-05-13 PR (Critical C1 — Agent X audit): special_request 길이 cap 1000자.
   // 기존: 무제한 → Gemini 32K maxOutputTokens 도달 → JSON truncation → days 누락 →
   // Firestore 900KB 한계 트리거 → 사용자 결제 후 plan 짧음/실패.
