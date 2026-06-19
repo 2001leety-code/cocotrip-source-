@@ -42,6 +42,21 @@ async function verifyTokenEmail(authHeader) {
   }
 }
 
+// Firebase ID token에서 uid 추출 (쿠폰 소유자 검증 — body couponUserId 위조 IDOR 차단).
+async function verifyTokenUid(authHeader) {
+  const m = /^Bearer\s+(.+)$/.exec(authHeader || '');
+  if (!m) return null;
+  try {
+    const { getAuth } = await import('firebase-admin/auth');
+    const { getApps } = await import('firebase-admin/app');
+    if (!getApps().length) return null;
+    const decoded = await getAuth().verifyIdToken(m[1], true);
+    return decoded.uid || null;
+  } catch {
+    return null;
+  }
+}
+
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
@@ -189,7 +204,19 @@ export default async function handler(req, res) {
     //   를 null 로 유지 → 소진 스킵(쿠폰 보존). v2 ON 시에만 정상 pre-lock/소진. (프론트 피커도
     //   discountV2 OFF면 숨김 → 3경로 일관: 정가·미노출·미소진.)
     const discountV2 = featureEnabled(process.env.FEATURE_DISCOUNT_V2);
-    const couponLockRef = (discountV2 && couponDocId && couponUserId)
+    // 🔴 IDOR fix (버그헌트 2026-06-19): couponUserId 는 body 값. 정의만 있고 미호출이던
+    //   토큰 검증(verifyTokenUid)을 연결 — 요청자 토큰 uid 가 couponUserId 와 일치할 때만 쿠폰
+    //   경로 허용. 불일치/토큰없음이면 쿠폰 소진 스킵(결제는 계속) → 타인 1회용 쿠폰 강제소진 차단.
+    //   프론트는 authFetch 로 토큰 전송 = 정상 쿠폰 결제 무영향, 게스트(#969)는 쿠폰 없어 무관.
+    let _couponOwnerVerified = false;
+    if (couponDocId && couponUserId) {
+      const _authUid = await verifyTokenUid(req.headers?.authorization);
+      _couponOwnerVerified = !!_authUid && _authUid === couponUserId;
+      if (!_couponOwnerVerified) {
+        console.warn('[capturePaypalOrder] coupon ownership mismatch — 쿠폰 경로 스킵(IDOR 가드):', orderID);
+      }
+    }
+    const couponLockRef = (discountV2 && couponDocId && couponUserId && _couponOwnerVerified)
       ? dbForLock.collection('users').doc(couponUserId)
           .collection('coupons').doc(couponDocId)
       : null;
