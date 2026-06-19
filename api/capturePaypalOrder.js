@@ -42,6 +42,21 @@ async function verifyTokenEmail(authHeader) {
   }
 }
 
+// Firebase ID token에서 uid 추출 (쿠폰 소유자 검증 — body couponUserId 위조 IDOR 차단).
+async function verifyTokenUid(authHeader) {
+  const m = /^Bearer\s+(.+)$/.exec(authHeader || '');
+  if (!m) return null;
+  try {
+    const { getAuth } = await import('firebase-admin/auth');
+    const { getApps } = await import('firebase-admin/app');
+    if (!getApps().length) return null;
+    const decoded = await getAuth().verifyIdToken(m[1], true);
+    return decoded.uid || null;
+  } catch {
+    return null;
+  }
+}
+
 export const maxDuration = 30;
 export const config = { runtime: 'nodejs' };
 
@@ -189,7 +204,19 @@ export default async function handler(req, res) {
     //   를 null 로 유지 → 소진 스킵(쿠폰 보존). v2 ON 시에만 정상 pre-lock/소진. (프론트 피커도
     //   discountV2 OFF면 숨김 → 3경로 일관: 정가·미노출·미소진.)
     const discountV2 = featureEnabled(process.env.FEATURE_DISCOUNT_V2);
-    const couponLockRef = (discountV2 && couponDocId && couponUserId)
+    // 🔴 IDOR fix (버그헌트 2026-06-19): couponUserId 는 body 값. 정의만 있고 미호출이던
+    //   토큰 검증(verifyTokenUid)을 연결 — 요청자 토큰 uid 가 couponUserId 와 일치할 때만 쿠폰
+    //   경로 허용. 불일치/토큰없음이면 쿠폰 소진 스킵(결제는 계속) → 타인 1회용 쿠폰 강제소진 차단.
+    //   프론트는 authFetch 로 토큰 전송 = 정상 쿠폰 결제 무영향, 게스트(#969)는 쿠폰 없어 무관.
+    let _couponOwnerVerified = false;
+    if (couponDocId && couponUserId) {
+      const _authUid = await verifyTokenUid(req.headers?.authorization);
+      _couponOwnerVerified = !!_authUid && _authUid === couponUserId;
+      if (!_couponOwnerVerified) {
+        console.warn('[capturePaypalOrder] coupon ownership mismatch — 쿠폰 경로 스킵(IDOR 가드):', orderID);
+      }
+    }
+    const couponLockRef = (discountV2 && couponDocId && couponUserId && _couponOwnerVerified)
       ? dbForLock.collection('users').doc(couponUserId)
           .collection('coupons').doc(couponDocId)
       : null;
@@ -270,15 +297,22 @@ export default async function handler(req, res) {
       throw captureErr;
     }
     // Mark lock as captured so future retries are correctly rejected.
-    lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() }).catch((e) => {
-      console.warn('[capturePaypalOrder] lock status update failed (non-fatal):', e.message);
-    });
+    // 🟡 동시성 fix (버그헌트 #10 2026-06-19): await — fire-and-forget 면 Firestore 일시장애 시 lock 이
+    //   'pending' 으로 남아 30초 후 재캡처(ALREADY_CAPTURED)→쿠폰 오롤백·사용자 오류. 실패 시 운영자 알림.
+    try {
+      await lockRef.update({ status: 'captured', capturedAt: FieldValue.serverTimestamp() });
+    } catch (e) {
+      console.warn('[capturePaypalOrder] lock status update failed:', e.message);
+      notifyOperator('lock-update-fail', `<code>${orderID}</code> capture 성공 후 lock status 갱신 실패 — 재시도 시 재캡처 위험, 수동 확인 권장.`).catch(() => {});
+    }
     // PR #427 (CY4): finalise coupon — clear the pendingCapture flag so the
     // coupon is unambiguously "spent" rather than "in-flight".
     if (couponLockRef) {
-      couponLockRef.update({ pendingCapture: false }).catch((e) => {
-        console.warn('[capturePaypalOrder] coupon finalise failed (non-fatal):', e.message);
-      });
+      try {
+        await couponLockRef.update({ pendingCapture: false });
+      } catch (e) {
+        console.warn('[capturePaypalOrder] coupon finalise failed:', e.message);
+      }
     }
 
     // 필드 추출 + 누락 시 명시 로그 (LIVE 응답 누락이 admin 로그 미노출의 첫 번째 원인 후보).
@@ -509,6 +543,16 @@ export default async function handler(req, res) {
               }, { merge: true });
             } catch (markErr) {
               console.error('[capturePaypalOrder] booking refund-mark failed (non-fatal):', markErr.message);
+            }
+            // 2.5) 🔴 쿠폰 복구 (버그헌트 #2 2026-06-19): PROMO 한도초과 자동환불 시, capture 성공으로
+            //      이미 소진(isUsed=true)된 개인 쿠폰을 복구하지 않으면 사용자는 환불받아도 1회용 쿠폰
+            //      영구 손실. capture-fail 경로(위)와 동일하게 복구.
+            if (couponLockRef) {
+              try {
+                await couponLockRef.update({ isUsed: false, usedAt: null, usedOrderID: null, pendingCapture: false });
+              } catch (cErr) {
+                console.warn('[capturePaypalOrder] coupon restore after promo-refund failed (non-fatal):', cErr.message);
+              }
             }
             // 3) Operator alert — even though we auto-refunded, operator should
             //    know the cap is being hit (may want to extend the campaign).

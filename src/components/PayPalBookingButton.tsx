@@ -353,7 +353,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           if (promoApplied && !promoCode) {
             console.warn('[PayPal onApprove] promoApplied=true but promoCode empty — global promo increment will be skipped');
           }
-          const res = await fetch('/api/capturePaypalOrder', {
+          // 버그헌트 2026-06-19 IDOR fix: 쿠폰 소유자 검증용 토큰 전송(authFetch — 로그인 시 자동
+          //   Bearer 첨부, 게스트는 헤더 없이 진행). 백엔드가 토큰 uid===couponUserId 확인.
+          const res = await authFetch('/api/capturePaypalOrder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -53,12 +53,15 @@ describe('버그 #2 — 쿠폰 소진은 FEATURE_DISCOUNT_V2 로 게이트 (crea
     expect(captureSrc).toMatch(/featureEnabled\(\s*process\.env\.FEATURE_DISCOUNT_V2\s*\)/);
   });
 
-  it('couponLockRef 생성이 discountV2 게이트로 보호된다 (v2 OFF면 null → 소진 스킵)', () => {
-    // 핵심 회귀 가드: couponLockRef 삼항 조건이 discountV2 를 포함해야 함.
-    // 이게 빠지면 v2 OFF 인데도 쿠폰을 소진 → 표시≠청구 + 쿠폰 손실 버그 재발.
+  it('couponLockRef 생성이 discountV2 게이트 + 소유자 검증(IDOR)으로 보호된다', () => {
+    // 핵심 회귀 가드: couponLockRef 삼항이 (1) discountV2(v2 OFF면 null → 소진 스킵) +
+    //   (2) _couponOwnerVerified(버그헌트 #1 IDOR — 토큰 uid===couponUserId)를 포함해야 함.
+    //   discountV2 빠지면 v2 OFF인데 쿠폰 소진(표시≠청구). 소유자검증 빠지면 타인 쿠폰 강제소진.
     expect(captureSrc).toMatch(
-      /const\s+couponLockRef\s*=\s*\(\s*discountV2\s*&&\s*couponDocId\s*&&\s*couponUserId\s*\)/,
+      /const\s+couponLockRef\s*=\s*\(\s*discountV2\s*&&\s*couponDocId\s*&&\s*couponUserId/,
     );
+    expect(captureSrc).toContain('_couponOwnerVerified');
+    expect(captureSrc).toMatch(/verifyTokenUid\s*\(\s*req\.headers/);
   });
 
   it('discountV2 게이트는 쿠폰 pre-lock(runTransaction) 보다 먼저 선언된다', () => {

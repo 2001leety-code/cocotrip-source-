@@ -85,11 +85,26 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
     if (credits <= 0) {
       return reject(403, 'REVISION_EXHAUSTED', 'No revision credits remaining', 'You have already used your free revision.');
     }
-    await origRef.update({
-      revisionCredits: FieldValue.increment(-1),
-      revisionCount: FieldValue.increment(1),
-      lastRevisionAt: new Date().toISOString(),
-    });
+    // 🔴 동시성 fix (버그헌트 2026-06-19): 위 credits 체크는 fast-path(이미 읽은 값). 실제 감소는
+    //   트랜잭션으로 원자화 — 더블클릭/동시요청이 둘 다 fast-path 통과해도 트랜잭션이 재읽기·재확인해
+    //   1크레딧으로 plan 2개 생성(돈손실)을 차단. 한쪽은 retry 시 credits=0 → REVISION_EXHAUSTED.
+    try {
+      await adminDb.runTransaction(async (tx) => {
+        const snap = await tx.get(origRef);
+        const c = (snap.data()?.revisionCredits) || 0;
+        if (c <= 0) throw new Error('REVISION_EXHAUSTED');
+        tx.update(origRef, {
+          revisionCredits: FieldValue.increment(-1),
+          revisionCount: FieldValue.increment(1),
+          lastRevisionAt: new Date().toISOString(),
+        });
+      });
+    } catch (txErr) {
+      if (txErr && txErr.message === 'REVISION_EXHAUSTED') {
+        return reject(403, 'REVISION_EXHAUSTED', 'No revision credits remaining', 'You have already used your free revision.');
+      }
+      throw txErr;
+    }
     isRevision = true;
     console.log('[planner] ✅ Revision credit consumed. Remaining:', credits - 1);
   }
