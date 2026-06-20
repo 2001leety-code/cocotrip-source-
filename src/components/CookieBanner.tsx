@@ -50,7 +50,7 @@ export default function CookieBanner() {
               <span className="sm:hidden">
                 {cb?.bodyShort || 'We use cookies. See our '}
                 <a href="/privacy" className="text-purple-400 underline hover:text-purple-300">{footer?.privacy || 'Privacy Policy'}</a>
-                {cb?.bodyShortAfter || '.'}
+                {cb?.bodyShortAfter || ''}
               </span>
               <span className="hidden sm:inline">
                 {cb?.bodyBefore || 'We use cookies to improve your experience. By continuing to use this site, you agree to our '}

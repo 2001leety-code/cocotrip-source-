@@ -211,7 +211,7 @@ function GlobalWidgets() {
       <MobileBottomNav />
       <Suspense fallback={null}>
         <CookieBanner />
-        {!hideChatOnFlow && <ChatWidget language={language} />}
+        <ChatWidget language={language} hideTrigger={hideChatOnFlow} />
         {/* 회원가입 직후 1회 노출 — sessionStorage flag 기반, 어느 페이지서도 노출 */}
         <OnboardingCouponModal />
       </Suspense>

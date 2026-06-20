@@ -494,7 +494,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 <CalendarPicker
                   mode="single"
                   selected={dateFromIso(date)}
-                  onSelect={(d) => { setDate(isoFromDate(d)); trackDateSelect('tour'); }}
+                  onSelect={(d) => { setDate(isoFromDate(d)); if (d) trackDateSelect('tour'); }}
                   onMonthChange={setCalendarMonth}
                   disabled={(d) => {
                     const iso = isoFromDate(d);
