@@ -104,6 +104,22 @@ export default function PlanDetailPage() {
     setError(null);
     setLoading(true);
 
+    // DEV-only (로컬 플랜 하네스): /my-plans/x?localPlan=<scenario> → vite dev 가 서빙하는
+    //   /local-plans/<scenario>.json(= scripts/plan-local/outputs/plan-<scenario>.json) 을 fetch 해
+    //   PlanDetailPage 로 렌더. `npm run plan:test -- <scenario>` 출력을 prod 처럼 눈으로 확인용.
+    //   import.meta.env.DEV 가드 → prod 빌드서 통째 tree-shake(무영향). 소유자로 표시(마스킹 없이 full).
+    if (import.meta.env.DEV) {
+      const localScenario = searchParams.get('localPlan');
+      if (localScenario && /^[a-z0-9-]+$/i.test(localScenario)) {
+        let devCancelled = false;
+        fetch(`/local-plans/${localScenario}.json`)
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error('not found'))))
+          .then((p) => { if (devCancelled) return; setIsOwner(true); setPlan(p as PlanDocument); setLoading(false); })
+          .catch(() => { if (devCancelled) return; setError('notfound'); setLoading(false); });
+        return () => { devCancelled = true; };
+      }
+    }
+
     // fix/plan-pii-wire-leak (2026-06-20): 공유 플랜 PII wire 누출 차단.
     //   이전엔 비소유자/공개/게스트 플랜도 클라이언트 onSnapshot 으로 읽어(룰 19-21 이 허용)
     //   원본 doc(accessToken·guestEmail·pricing·hotel_address 등)이 JS 마스킹 전에 WebSocket

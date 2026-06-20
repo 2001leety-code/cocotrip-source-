@@ -28,7 +28,9 @@
     "prepare": "node scripts/setup-git-hooks.mjs",
     "audit:ux": "node scripts/audit-ux.mjs http://localhost:5173",
     "audit:ux:quick": "node scripts/audit-ux.mjs http://localhost:5173 --quick",
-    "audit:ux:prod": "node scripts/audit-ux.mjs https://cocotripkr.com"
+    "audit:ux:prod": "node scripts/audit-ux.mjs https://cocotripkr.com",
+    "plan:test": "node scripts/plan-local/run.mjs",
+    "plan:record": "node scripts/plan-local/record.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

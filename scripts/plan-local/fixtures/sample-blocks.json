@@ -1,0 +1,1294 @@
+[
+  {
+    "id": "SEOUL_DAY_GANGNAM_STANDARD",
+    "city": "seoul",
+    "zone": "Gangnam",
+    "theme": "현대적 쇼핑 + 카페",
+    "theme_i18n": {
+      "ko": "현대적 쇼핑 + 카페",
+      "en": "Modern Shopping + Cafe",
+      "ja": "モダンショッピング + カフェ",
+      "zh": "现代购物 + 咖啡"
+    },
+    "intensity": "standard",
+    "duration_min": 420,
+    "stops": [
+      {
+        "order": 1,
+        "category": "culture",
+        "name": "별마당 도서관",
+        "name_i18n": {
+          "ko": "별마당 도서관 (코엑스)",
+          "en": "Starfield Library (COEX)",
+          "ja": "ピョルマダン図書館 (COEX)",
+          "zh": "星空图书馆 (COEX)"
+        },
+        "address": "서울특별시 강남구 영동대로 513 코엑스몰",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "entry_fee": {
+          "adult": 0,
+          "child": 0,
+          "senior": 0,
+          "toddler": 0,
+          "notes": "무료 개방 — 코엑스몰 1F 중앙광장."
+        },
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "13m 높이 거대 책장 — 인생샷 명소. 평일 오전이 한산해요.",
+          "en": "Iconic 13m-tall bookshelf — top photo spot. Less crowded on weekday mornings.",
+          "ja": "13mの巨大本棚 — 撮影スポット。平日午前が空いています。",
+          "zh": "13米巨型书架 — 拍照胜地。建议工作日上午前往。"
+        },
+        "lat": 37.5118239,
+        "lng": 127.0591591,
+        "start_time_offset_min": 0
+      },
+      {
+        "order": 2,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "Verified lunch in Gangnam",
+          "en": "Verified lunch in Gangnam",
+          "ja": "Verified lunch in Gangnam",
+          "zh": "Verified lunch in Gangnam"
+        },
+        "address": "서울특별시 강남구 강남대로",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_lunch",
+        "preferred_dietary": [],
+        "tips_i18n": {
+          "ko": "강남역 일대 — 한정식 / 라멘 / 모던 한식 중 식이 제약 매칭.",
+          "en": "Gangnam Station area — Korean set / ramen / modern Korean matched by dietary needs.",
+          "ja": "江南駅エリア — 韓定食 / ラーメン / モダン韓食を食事制限とマッチング。",
+          "zh": "江南站一带 — 韩定食 / 拉面 / 现代韩餐 (按饮食偏好匹配)。"
+        },
+        "lat": 37.5061648,
+        "lng": 127.0257813,
+        "start_time_offset_min": 75,
+        "_geocode_source": "google_places"
+      },
+      {
+        "order": 3,
+        "category": "shopping",
+        "name": "가로수길",
+        "name_i18n": {
+          "ko": "가로수길",
+          "en": "Garosu-gil",
+          "ja": "カロスキル",
+          "zh": "林荫道 (Garosu-gil)"
+        },
+        "address": "서울특별시 강남구 신사동 가로수길",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "신사역 8번 출구 — 디자이너 부티크 + 편집숍 + K-뷰티 플래그십.",
+          "en": "Sinsa Stn Exit 8 — designer boutiques + select shops + K-beauty flagships.",
+          "ja": "新沙駅8番出口 — デザイナーブティック + セレクトショップ + K-ビューティ。",
+          "zh": "新沙站8号出口 — 设计师精品店 + 买手店 + K-美妆旗舰店。"
+        },
+        "lat": 37.5210566,
+        "lng": 127.0228686,
+        "start_time_offset_min": 150,
+        "_geocode_source": "google_places"
+      },
+      {
+        "order": 4,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "Verified cafe in Gangnam",
+          "en": "Verified cafe in Gangnam",
+          "ja": "Verified cafe in Gangnam",
+          "zh": "Verified cafe in Gangnam"
+        },
+        "address": "서울특별시 강남구 청담동",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_cafe",
+        "preferred_dietary": [],
+        "tips_i18n": {
+          "ko": "청담동 — 디자이너 카페 + 디저트 명소.",
+          "en": "Cheongdam-dong — designer cafes + dessert hotspots.",
+          "ja": "清潭洞 — デザイナーカフェ + デザート名店。",
+          "zh": "清潭洞 — 设计师咖啡馆 + 甜品名店。"
+        },
+        "lat": 37.525107,
+        "lng": 127.049291,
+        "start_time_offset_min": 255
+      },
+      {
+        "order": 5,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "Verified dinner in Gangnam",
+          "en": "Verified dinner in Gangnam",
+          "ja": "Verified dinner in Gangnam",
+          "zh": "Verified dinner in Gangnam"
+        },
+        "address": "서울특별시 강남구 강남대로",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_dinner",
+        "preferred_dietary": [],
+        "tips_i18n": {
+          "ko": "강남 일대 — 한우 / 모던 한식 / 미슐랭 비스트로 (식이 제약 매칭).",
+          "en": "Gangnam area — Hanwoo beef / modern Korean / Michelin bistros matched to diet.",
+          "ja": "江南エリア — 韓牛 / モダン韓食 / ミシュランビストロ (食事制限とマッチング)。",
+          "zh": "江南一带 — 韩牛 / 现代韩餐 / 米其林餐厅 (按饮食偏好匹配)。"
+        },
+        "lat": 37.5061648,
+        "lng": 127.0257813,
+        "start_time_offset_min": 330,
+        "_geocode_source": "google_places"
+      }
+    ],
+    "transit_matrix": {
+      "1->2": {
+        "from_order": 1,
+        "base": {
+          "cost_krw": 1550,
+          "mode": "subway",
+          "duration_min": 13,
+          "distance_m": 3704
+        },
+        "naver_route_url": "https://map.naver.com/p/directions/127.0591591,37.5118239,%EB%B3%84%EB%A7%88%EB%8B%B9%20%EB%8F%84%EC%84%9C%EA%B4%80,,/127.0257813,37.5061648,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EA%B0%95%EB%82%A8%EA%B5%AC%20%EA%B0%95%EB%82%A8%EB%8C%80%EB%A1%9C,,/-/transit",
+        "source": "odsay_api",
+        "fetched_at": "2026-05-28",
+        "mode": "subway",
+        "cost_krw": 1550,
+        "distance_m": 3704,
+        "to_order": 2,
+        "duration_min": 13
+      },
+      "2->3": {
+        "base": {
+          "cost_krw": 1200,
+          "mode": "bus",
+          "duration_min": 17,
+          "distance_m": 2234
+        },
+        "naver_route_url": "https://map.naver.com/p/directions/127.0257813,37.5061648,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EA%B0%95%EB%82%A8%EA%B5%AC%20%EA%B0%95%EB%82%A8%EB%8C%80%EB%A1%9C,,/127.0228686,37.5210566,%EA%B0%80%EB%A1%9C%EC%88%98%EA%B8%B8,,/-/transit",
+        "source": "odsay_api",
+        "from_order": 2,
+        "fetched_at": "2026-05-28",
+        "mode": "bus",
+        "cost_krw": 1200,
+        "distance_m": 2234,
+        "duration_min": 17,
+        "to_order": 3
+      },
+      "3->4": {
+        "source": "odsay_api",
+        "base": {
+          "mode": "bus",
+          "cost_krw": 1500,
+          "distance_m": 3560,
+          "duration_min": 21
+        },
+        "naver_route_url": "https://map.naver.com/p/directions/127.0228686,37.5210566,%EA%B0%80%EB%A1%9C%EC%88%98%EA%B8%B8,,/127.049291,37.525107,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EA%B0%95%EB%82%A8%EA%B5%AC%20%EC%B2%AD%EB%8B%B4%EB%8F%99,,/-/transit",
+        "from_order": 3,
+        "cost_krw": 1500,
+        "fetched_at": "2026-05-28",
+        "mode": "bus",
+        "distance_m": 3560,
+        "duration_min": 21,
+        "to_order": 4
+      },
+      "4->5": {
+        "duration_min": 25,
+        "to_order": 5,
+        "distance_m": 5122,
+        "cost_krw": 1550,
+        "fetched_at": "2026-05-28",
+        "mode": "subway+bus",
+        "source": "odsay_api",
+        "base": {
+          "duration_min": 25,
+          "distance_m": 5122,
+          "cost_krw": 1550,
+          "mode": "subway+bus"
+        },
+        "naver_route_url": "https://map.naver.com/p/directions/127.049291,37.525107,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EA%B0%95%EB%82%A8%EA%B5%AC%20%EC%B2%AD%EB%8B%B4%EB%8F%99,,/127.0257813,37.5061648,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EA%B0%95%EB%82%A8%EA%B5%AC%20%EA%B0%95%EB%82%A8%EB%8C%80%EB%A1%9C,,/-/transit",
+        "from_order": 4
+      }
+    },
+    "best_for": [
+      "shopper",
+      "k_pop_fan",
+      "cafe_hopper"
+    ],
+    "unsuitable_for": [
+      "budget_traveler"
+    ],
+    "dietary_options": [],
+    "passport_required": false,
+    "requires_advance_booking": false,
+    "source": "cocotrip_curated",
+    "verified_at": "2026-05-21",
+    "verified_by": "2001leety@gmail.com",
+    "last_review_date": "2026-05-21",
+    "block_type": "city_day",
+    "notes": "Gangnam 신규 PoC — 강남역/코엑스 + 가로수길 + 청담동 카페 + 강남 저녁. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env.",
+    "status": "published"
+  },
+  {
+    "id": "SEOUL_DAY_HONGDAE_STANDARD",
+    "city": "seoul",
+    "zone": "Hongdae",
+    "theme": "젊은 거리 + 클럽 + 라이브",
+    "theme_i18n": {
+      "ko": "젊은 거리 + 클럽 + 라이브",
+      "en": "Youth Street + Club + Live",
+      "ja": "若者の街 + クラブ + ライブ",
+      "zh": "年轻街区 + 夜店 + Live"
+    },
+    "intensity": "standard",
+    "duration_min": 420,
+    "stops": [
+      {
+        "order": 1,
+        "category": "culture",
+        "name": "홍대입구 거리",
+        "name_i18n": {
+          "ko": "홍대입구 거리 (걷고싶은거리)",
+          "en": "Hongdae Walking Street",
+          "ja": "弘大入口の街 (歩きたい通り)",
+          "zh": "弘大入口街 (步行街)"
+        },
+        "address": "서울특별시 마포구 양화로 160 홍대 걷고싶은거리",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "entry_fee": {
+          "adult": 0,
+          "child": 0,
+          "senior": 0,
+          "toddler": 0,
+          "notes": "거리 산책 무료."
+        },
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "버스킹 + 스트리트 아트 명소 — 주말 오후 활기 최고.",
+          "en": "Buskers + street art hotspot — most vibrant on weekend afternoons.",
+          "ja": "バスキング + ストリートアート名所 — 週末午後が最も活気あり。",
+          "zh": "街头表演 + 街头艺术胜地 — 周末下午最热闹。"
+        },
+        "lat": 37.5568904,
+        "lng": 126.9236743,
+        "start_time_offset_min": 0
+      },
+      {
+        "order": 2,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "Verified lunch in Hongdae",
+          "en": "Verified lunch in Hongdae",
+          "ja": "Verified lunch in Hongdae",
+          "zh": "Verified lunch in Hongdae"
+        },
+        "address": "서울특별시 마포구 연남동",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_lunch",
+        "preferred_dietary": [],
+        "tips_i18n": {
+          "ko": "연남동 — 베이커리 + 브런치 + 모던 한식 (식이 제약 매칭).",
+          "en": "Yeonnam-dong — bakeries + brunch + modern Korean matched to diet.",
+          "ja": "延南洞 — ベーカリー + ブランチ + モダン韓食 (食事制限とマッチング)。",
+          "zh": "延南洞 — 烘焙 + 早午餐 + 现代韩餐 (按饮食偏好匹配)。"
+        },
+        "lat": 37.564501,
+        "lng": 126.922027,
+        "start_time_offset_min": 75
+      },
+      {
+        "order": 3,
+        "category": "shopping",
+        "name": "망원시장",
+        "name_i18n": {
+          "ko": "망원시장",
+          "en": "Mangwon Market",
+          "ja": "望遠市場",
+          "zh": "望远市场"
+        },
+        "address": "서울특별시 마포구 포은로8길 14 망원시장",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "로컬 분위기 + 길거리 음식 (호떡 / 닭강정 / 떡볶이).",
+          "en": "Local vibe + street food (hotteok / chicken / tteokbokki).",
+          "ja": "ローカルな雰囲気 + 屋台フード (ホットク / ヤンニョムチキン / トッポッキ)。",
+          "zh": "本地氛围 + 街头小吃 (糖饼 / 炸鸡 / 辣炒年糕)。"
+        },
+        "lat": 37.5562399,
+        "lng": 126.9056261,
+        "start_time_offset_min": 150
+      },
+      {
+        "order": 4,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "Verified cafe in Hongdae",
+          "en": "Verified cafe in Hongdae",
+          "ja": "Verified cafe in Hongdae",
+          "zh": "Verified cafe in Hongdae"
+        },
+        "address": "서울특별시 마포구 합정동",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_cafe",
+        "preferred_dietary": [],
+        "tips_i18n": {
+          "ko": "합정동 — 로스터리 카페 + 디저트 명소.",
+          "en": "Hapjeong-dong — roastery cafes + dessert hotspots.",
+          "ja": "合井洞 — ロースタリーカフェ + デザート名店。",
+          "zh": "合井洞 — 烘焙咖啡馆 + 甜品名店。"
+        },
+        "lat": 37.551656,
+        "lng": 126.911889,
+        "start_time_offset_min": 225
+      },
+      {
+        "order": 5,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "Verified dinner in Hongdae",
+          "en": "Verified dinner in Hongdae",
+          "ja": "Verified dinner in Hongdae",
+          "zh": "Verified dinner in Hongdae"
+        },
+        "address": "서울특별시 마포구 와우산로 홍대 클럽거리",
+        "stay_min": 120,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_dinner",
+        "preferred_dietary": [],
+        "tips_i18n": {
+          "ko": "홍대 클럽거리 — 펍 + 라이브하우스 + 야식 (식이 제약 매칭).",
+          "en": "Hongdae club street — pubs + live houses + late-night eats matched to diet.",
+          "ja": "弘大クラブ通り — パブ + ライブハウス + 夜食 (食事制限とマッチング)。",
+          "zh": "弘大夜店街 — 酒吧 + Live House + 夜宵 (按饮食偏好匹配)。"
+        },
+        "lat": 37.5505997,
+        "lng": 126.9232061,
+        "start_time_offset_min": 300,
+        "_geocode_source": "google_places"
+      }
+    ],
+    "transit_matrix": {
+      "1->2": {
+        "base": {
+          "duration_min": 10,
+          "mode": "mixed",
+          "distance_m": 976,
+          "cost_krw": 1200
+        },
+        "cost_krw": 1200,
+        "fetched_at": "2026-05-27",
+        "naver_route_url": "https://map.naver.com/p/directions/126.9236743,37.5568904,%ED%99%8D%EB%8C%80%EC%9E%85%EA%B5%AC%20%EA%B1%B0%EB%A6%AC,,/126.922027,37.564501,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%EC%97%B0%EB%82%A8%EB%8F%99,,/-/transit",
+        "from_order": 1,
+        "duration_min": 10,
+        "source": "odsay_api",
+        "mode": "mixed",
+        "to_order": 2,
+        "distance_m": 976
+      },
+      "2->3": {
+        "naver_route_url": "https://map.naver.com/p/directions/126.922027,37.564501,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%EC%97%B0%EB%82%A8%EB%8F%99,,/126.9056261,37.5562399,%EB%A7%9D%EC%9B%90%EC%8B%9C%EC%9E%A5,,/-/transit",
+        "cost_krw": 1400,
+        "fetched_at": "2026-05-27",
+        "base": {
+          "duration_min": 12,
+          "mode": "mixed",
+          "distance_m": 1836,
+          "cost_krw": 1400
+        },
+        "from_order": 2,
+        "duration_min": 12,
+        "source": "odsay_api",
+        "distance_m": 1836,
+        "to_order": 3,
+        "mode": "mixed"
+      },
+      "3->4": {
+        "base": {
+          "distance_m": 1220,
+          "cost_krw": 1500,
+          "duration_min": 11,
+          "mode": "mixed"
+        },
+        "cost_krw": 1500,
+        "fetched_at": "2026-05-27",
+        "naver_route_url": "https://map.naver.com/p/directions/126.9056261,37.5562399,%EB%A7%9D%EC%9B%90%EC%8B%9C%EC%9E%A5,,/126.911889,37.551656,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%ED%95%A9%EC%A0%95%EB%8F%99,,/-/transit",
+        "from_order": 3,
+        "duration_min": 11,
+        "source": "odsay_api",
+        "mode": "mixed",
+        "to_order": 4,
+        "distance_m": 1220
+      },
+      "4->5": {
+        "mode": "bus",
+        "to_order": 5,
+        "distance_m": 1518,
+        "source": "odsay_api",
+        "duration_min": 13,
+        "from_order": 4,
+        "base": {
+          "duration_min": 13,
+          "mode": "bus",
+          "distance_m": 1518,
+          "cost_krw": 1500
+        },
+        "fetched_at": "2026-05-28",
+        "cost_krw": 1500,
+        "naver_route_url": "https://map.naver.com/p/directions/126.911889,37.551656,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%ED%95%A9%EC%A0%95%EB%8F%99,,/126.9232061,37.5505997,%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C%20%EB%A7%88%ED%8F%AC%EA%B5%AC%20%EC%99%80%EC%9A%B0%EC%82%B0%EB%A1%9C%20%ED%99%8D%EB%8C%80%20%ED%81%B4%EB%9F%BD%EA%B1%B0%EB%A6%AC,,/-/transit"
+      }
+    },
+    "best_for": [
+      "young_traveler",
+      "nightlife",
+      "k_pop_fan"
+    ],
+    "unsuitable_for": [
+      "senior_traveler",
+      "family_with_young_kids"
+    ],
+    "dietary_options": [],
+    "passport_required": false,
+    "requires_advance_booking": false,
+    "source": "cocotrip_curated",
+    "verified_at": "2026-05-21",
+    "verified_by": "2001leety@gmail.com",
+    "last_review_date": "2026-05-21",
+    "block_type": "city_day",
+    "notes": "Hongdae 신규 PoC — 홍대입구 + 연남동 + 망원시장 + 합정 카페 + 홍대 클럽거리. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env.",
+    "status": "published"
+  },
+  {
+    "id": "SEOUL_DAY_FULL_ACTION",
+    "city": "seoul",
+    "zone": "Action-Multi-Zone",
+    "theme": "강남+홍대+종로+한강 야경 action",
+    "theme_i18n": {
+      "ko": "강남+홍대+종로+한강 야경",
+      "en": "Gangnam+Hongdae+Jongno+Han River Night",
+      "ja": "江南+弘大+鍾路+漢江夜景",
+      "zh": "江南+弘大+钟路+汉江夜景"
+    },
+    "intensity": "action",
+    "duration_min": 660,
+    "block_type": "city_day",
+    "stops": [
+      {
+        "order": 1,
+        "category": "culture",
+        "name": "경복궁",
+        "name_i18n": {
+          "ko": "경복궁",
+          "en": "Gyeongbokgung",
+          "ja": "景福宮",
+          "zh": "景福宫"
+        },
+        "address": "서울 종로구 사직로 161",
+        "stay_min": 90,
+        "entry_fee_krw": 3000,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "한복 입으면 무료. 수문장 교대식 10시/14시.",
+          "en": "Free with hanbok. Guard change 10am/2pm.",
+          "ja": "韓服無料。守門将交代式10/14時。",
+          "zh": "穿韩服免费。守门将换岗10/14时。"
+        },
+        "lat": 37.5796,
+        "lng": 126.977,
+        "start_time_offset_min": 0
+      },
+      {
+        "order": 2,
+        "category": "culture",
+        "name": "북촌 한옥마을",
+        "name_i18n": {
+          "ko": "북촌 한옥마을",
+          "en": "Bukchon Hanok",
+          "ja": "北村韓屋村",
+          "zh": "北村韩屋村"
+        },
+        "address": "서울 종로구 계동길",
+        "stay_min": 75,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "전통 한옥 골목. 사진 명소.",
+          "en": "Traditional hanok alleys. Photo spot.",
+          "ja": "伝統韓屋路地。写真名所。",
+          "zh": "传统韩屋小巷。摄影名所。"
+        },
+        "lat": 37.5828,
+        "lng": 126.9844,
+        "start_time_offset_min": 105
+      },
+      {
+        "order": 3,
+        "category": "shopping",
+        "name": "인사동",
+        "name_i18n": {
+          "ko": "인사동",
+          "en": "Insadong",
+          "ja": "仁寺洞",
+          "zh": "仁寺洞"
+        },
+        "address": "서울 종로구 인사동길",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "전통 공예+카페+갤러리.",
+          "en": "Traditional crafts+cafes+galleries.",
+          "ja": "伝統工芸+カフェ+ギャラリー。",
+          "zh": "传统工艺+咖啡+画廊。"
+        },
+        "lat": 37.5728,
+        "lng": 126.9869,
+        "start_time_offset_min": 195
+      },
+      {
+        "order": 4,
+        "category": "food",
+        "name": "명동교자",
+        "name_i18n": {
+          "ko": "명동교자",
+          "en": "Myeongdong Kyoja",
+          "ja": "明洞餃子",
+          "zh": "明洞饺子"
+        },
+        "address": "서울 중구 명동10길 29",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "명동 칼국수 명물.",
+          "en": "Myeongdong kalguksu famous.",
+          "ja": "明洞カルグクス名物。",
+          "zh": "明洞刀削面名物。"
+        },
+        "lat": 37.5639,
+        "lng": 126.9858,
+        "start_time_offset_min": 275
+      },
+      {
+        "order": 5,
+        "category": "shopping",
+        "name": "홍대 거리",
+        "name_i18n": {
+          "ko": "홍대 거리",
+          "en": "Hongdae",
+          "ja": "弘大",
+          "zh": "弘大"
+        },
+        "address": "서울 마포구 홍익로",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "청춘 문화. 길거리 공연+쇼핑.",
+          "en": "Youth culture. Street performances+shopping.",
+          "ja": "若者文化。路上公演+買物。",
+          "zh": "年轻人文化。街头表演+购物。"
+        },
+        "lat": 37.5563,
+        "lng": 126.9233,
+        "start_time_offset_min": 365
+      },
+      {
+        "order": 6,
+        "category": "food",
+        "name": "강남 한정식",
+        "name_i18n": {
+          "ko": "강남 한정식",
+          "en": "Gangnam Hanjeongsik",
+          "ja": "江南韓定食",
+          "zh": "江南韩定食"
+        },
+        "address": "서울 강남구",
+        "stay_min": 75,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "강남 고급 한정식.",
+          "en": "Gangnam premium hanjeongsik.",
+          "ja": "江南高級韓定食。",
+          "zh": "江南高级韩定食。"
+        },
+        "lat": 37.5172,
+        "lng": 127.0473,
+        "start_time_offset_min": 485
+      },
+      {
+        "order": 7,
+        "category": "nature",
+        "name": "한강 반포대교 무지개분수",
+        "name_i18n": {
+          "ko": "반포대교 무지개분수",
+          "en": "Banpodaegyo Rainbow Fountain",
+          "ja": "盤浦大橋虹噴水",
+          "zh": "盘浦大桥彩虹喷泉"
+        },
+        "address": "서울 서초구 반포대교",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "세계 최장 분수다리. 4-10월 야간.",
+          "en": "World's longest bridge fountain. Apr-Oct nights.",
+          "ja": "世界最長橋噴水。4-10月夜。",
+          "zh": "世界最长桥喷泉。4-10月夜。"
+        },
+        "lat": 37.5172,
+        "lng": 127.0094,
+        "start_time_offset_min": 580
+      }
+    ],
+    "transit_matrix": {
+      "1->2": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/126.977,37.5796,%EA%B2%BD%EB%B3%B5%EA%B6%81,,/126.9844,37.5828,%EB%B6%81%EC%B4%8C%20%ED%95%9C%EC%98%A5%EB%A7%88%EC%9D%84,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 2,
+        "cost_krw": 1200,
+        "source": "odsay_api",
+        "distance_m": 1114,
+        "from_order": 1,
+        "duration_min": 15,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1200,
+          "distance_m": 1114,
+          "duration_min": 15
+        }
+      },
+      "2->3": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/126.9844,37.5828,%EB%B6%81%EC%B4%8C%20%ED%95%9C%EC%98%A5%EB%A7%88%EC%9D%84,,/126.9869,37.5728,%EC%9D%B8%EC%82%AC%EB%8F%99,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 3,
+        "cost_krw": 1200,
+        "source": "odsay_api",
+        "distance_m": 1222,
+        "from_order": 2,
+        "duration_min": 13,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1200,
+          "distance_m": 1222,
+          "duration_min": 13
+        }
+      },
+      "3->4": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/126.9869,37.5728,%EC%9D%B8%EC%82%AC%EB%8F%99,,/126.9858,37.5639,%EB%AA%85%EB%8F%99%EA%B5%90%EC%9E%90,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 4,
+        "cost_krw": 1100,
+        "source": "odsay_api",
+        "distance_m": 1078,
+        "from_order": 3,
+        "duration_min": 13,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1100,
+          "distance_m": 1078,
+          "duration_min": 13
+        }
+      },
+      "4->5": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/126.9858,37.5639,%EB%AA%85%EB%8F%99%EA%B5%90%EC%9E%90,,/126.9233,37.5563,%ED%99%8D%EB%8C%80%20%EA%B1%B0%EB%A6%AC,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 5,
+        "cost_krw": 1550,
+        "source": "odsay_api",
+        "distance_m": 6096,
+        "from_order": 4,
+        "duration_min": 21,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1550,
+          "distance_m": 6096,
+          "duration_min": 21
+        }
+      },
+      "5->6": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/126.9233,37.5563,%ED%99%8D%EB%8C%80%20%EA%B1%B0%EB%A6%AC,,/127.0473,37.5172,%EA%B0%95%EB%82%A8%20%ED%95%9C%EC%A0%95%EC%8B%9D,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 6,
+        "cost_krw": 1750,
+        "source": "odsay_api",
+        "distance_m": 16524,
+        "from_order": 5,
+        "duration_min": 46,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1750,
+          "distance_m": 16524,
+          "duration_min": 46
+        }
+      },
+      "6->7": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/127.0473,37.5172,%EA%B0%95%EB%82%A8%20%ED%95%9C%EC%A0%95%EC%8B%9D,,/127.0094,37.5172,%ED%95%9C%EA%B0%95%20%EB%B0%98%ED%8F%AC%EB%8C%80%EA%B5%90%20%EB%AC%B4%EC%A7%80%EA%B0%9C%EB%B6%84%EC%88%98,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 7,
+        "cost_krw": 1500,
+        "source": "odsay_api",
+        "distance_m": 5441,
+        "from_order": 6,
+        "duration_min": 29,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1500,
+          "distance_m": 5441,
+          "duration_min": 29
+        }
+      }
+    },
+    "status": "published"
+  },
+  {
+    "id": "BUSAN_DAY_FULL_ACTION",
+    "city": "busan",
+    "zone": "Action-Multi-Zone",
+    "theme": "해운대+감천+자갈치+광안리 야경",
+    "theme_i18n": {
+      "ko": "해운대+감천+자갈치+광안리",
+      "en": "Haeundae+Gamcheon+Jagalchi+Gwangalli",
+      "ja": "海雲台+甘川+チャガルチ+広安里",
+      "zh": "海云台+甘川+扎嘎其+广安里"
+    },
+    "intensity": "action",
+    "duration_min": 660,
+    "block_type": "city_day",
+    "stops": [
+      {
+        "order": 1,
+        "category": "nature",
+        "name": "해운대 해변",
+        "name_i18n": {
+          "ko": "해운대 해변",
+          "en": "Haeundae Beach",
+          "ja": "海雲台海岸",
+          "zh": "海云台海滩"
+        },
+        "address": "부산 해운대구",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "부산 대표 해변. 1.5km 백사장.",
+          "en": "Busan main beach. 1.5km sand.",
+          "ja": "釜山代表海岸。1.5km砂浜。",
+          "zh": "釜山代表海滩。1.5km沙滩。"
+        },
+        "lat": 35.1586,
+        "lng": 129.1603,
+        "start_time_offset_min": 0
+      },
+      {
+        "order": 2,
+        "category": "nature",
+        "name": "동백섬",
+        "name_i18n": {
+          "ko": "동백섬",
+          "en": "Dongbaekseom",
+          "ja": "椿島",
+          "zh": "山茶岛"
+        },
+        "address": "부산 해운대구 우동",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "누리마루 APEC 하우스. 산책로 1.5km.",
+          "en": "Nurimaru APEC House. 1.5km trail.",
+          "ja": "ヌリマルAPECハウス。1.5km散歩道。",
+          "zh": "努里玛鲁APEC馆。1.5km步道。"
+        },
+        "lat": 35.1539,
+        "lng": 129.15,
+        "start_time_offset_min": 105
+      },
+      {
+        "order": 3,
+        "category": "culture",
+        "name": "감천문화마을",
+        "name_i18n": {
+          "ko": "감천문화마을",
+          "en": "Gamcheon Culture Village",
+          "ja": "甘川文化村",
+          "zh": "甘川文化村"
+        },
+        "address": "부산 사하구 감내2로",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "한국의 마추픽추. 알록달록 마을.",
+          "en": "Korea's Machu Picchu. Colorful village.",
+          "ja": "韓国のマチュピチュ。カラフル村。",
+          "zh": "韩国马丘比丘。色彩村。"
+        },
+        "lat": 35.0975,
+        "lng": 129.0103,
+        "start_time_offset_min": 210
+      },
+      {
+        "order": 4,
+        "category": "food",
+        "name": "자갈치 시장",
+        "name_i18n": {
+          "ko": "자갈치 시장",
+          "en": "Jagalchi Market",
+          "ja": "チャガルチ市場",
+          "zh": "扎嘎其市场"
+        },
+        "address": "부산 중구 자갈치해안로 52",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "한국 최대 수산시장. 활어회.",
+          "en": "Korea's largest fish market. Live sashimi.",
+          "ja": "韓国最大水産市場。活魚刺身。",
+          "zh": "韩国最大水产市场。活鱼生鱼片。"
+        },
+        "lat": 35.0969,
+        "lng": 129.0306,
+        "start_time_offset_min": 315
+      },
+      {
+        "order": 5,
+        "category": "culture",
+        "name": "부산타워",
+        "name_i18n": {
+          "ko": "부산타워",
+          "en": "Busan Tower",
+          "ja": "釜山タワー",
+          "zh": "釜山塔"
+        },
+        "address": "부산 중구 용두산길 37-55",
+        "stay_min": 60,
+        "entry_fee_krw": 12000,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "용두산공원 위. 부산 시내 조망.",
+          "en": "On Yongdusan Park. Busan panorama.",
+          "ja": "龍頭山公園上。釜山眺望。",
+          "zh": "龙头山公园上。釜山眺望。"
+        },
+        "lat": 35.1003,
+        "lng": 129.0319,
+        "start_time_offset_min": 420
+      },
+      {
+        "order": 6,
+        "category": "food",
+        "name": "부산 회국수",
+        "name_i18n": {
+          "ko": "부산 회국수",
+          "en": "Busan Sashimi Noodles",
+          "ja": "釜山刺身うどん",
+          "zh": "釜山生鱼片面"
+        },
+        "address": "부산 해운대구",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "부산 명물 회국수.",
+          "en": "Busan specialty sashimi noodles.",
+          "ja": "釜山名物刺身うどん。",
+          "zh": "釜山名菜生鱼片面。"
+        },
+        "lat": 35.1633,
+        "lng": 129.1622,
+        "start_time_offset_min": 495
+      },
+      {
+        "order": 7,
+        "category": "nature",
+        "name": "광안리 야경",
+        "name_i18n": {
+          "ko": "광안리 광안대교",
+          "en": "Gwangalli Diamond Bridge",
+          "ja": "広安里広安大橋",
+          "zh": "广安里广安大桥"
+        },
+        "address": "부산 수영구 광안해변로",
+        "stay_min": 75,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "부산 야경 1번지. 광안대교+해변.",
+          "en": "Busan's #1 night view. Diamond Bridge+beach.",
+          "ja": "釜山夜景1位。広安大橋+海岸。",
+          "zh": "釜山夜景1位。广安大桥+海滩。"
+        },
+        "lat": 35.1531,
+        "lng": 129.1183,
+        "start_time_offset_min": 585
+      }
+    ],
+    "transit_matrix": {
+      "1->2": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/129.1603,35.1586,%ED%95%B4%EC%9A%B4%EB%8C%80%20%ED%95%B4%EB%B3%80,,/129.15,35.1539,%EB%8F%99%EB%B0%B1%EC%84%AC,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 2,
+        "cost_krw": 1550,
+        "source": "odsay_api",
+        "distance_m": 1275,
+        "from_order": 1,
+        "duration_min": 17,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1550,
+          "distance_m": 1275,
+          "duration_min": 17
+        }
+      },
+      "2->3": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/129.15,35.1539,%EB%8F%99%EB%B0%B1%EC%84%AC,,/129.0103,35.0975,%EA%B0%90%EC%B2%9C%EB%AC%B8%ED%99%94%EB%A7%88%EC%9D%84,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 3,
+        "cost_krw": 2100,
+        "source": "odsay_api",
+        "distance_m": 19848,
+        "from_order": 2,
+        "duration_min": 67,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 2100,
+          "distance_m": 19848,
+          "duration_min": 67
+        }
+      },
+      "3->4": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/129.0103,35.0975,%EA%B0%90%EC%B2%9C%EB%AC%B8%ED%99%94%EB%A7%88%EC%9D%84,,/129.0306,35.0969,%EC%9E%90%EA%B0%88%EC%B9%98%20%EC%8B%9C%EC%9E%A5,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 4,
+        "cost_krw": 1050,
+        "source": "odsay_api",
+        "distance_m": 2554,
+        "from_order": 3,
+        "duration_min": 18,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1050,
+          "distance_m": 2554,
+          "duration_min": 18
+        }
+      },
+      "5->6": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/129.0319,35.1003,%EB%B6%80%EC%82%B0%ED%83%80%EC%9B%8C,,/129.1622,35.1633,%EB%B6%80%EC%82%B0%20%ED%9A%8C%EA%B5%AD%EC%88%98,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 6,
+        "cost_krw": 2100,
+        "source": "odsay_api",
+        "distance_m": 18744,
+        "from_order": 5,
+        "duration_min": 53,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 2100,
+          "distance_m": 18744,
+          "duration_min": 53
+        }
+      },
+      "6->7": {
+        "mode": "mixed",
+        "naver_route_url": "https://map.naver.com/p/directions/129.1622,35.1633,%EB%B6%80%EC%82%B0%20%ED%9A%8C%EA%B5%AD%EC%88%98,,/129.1183,35.1531,%EA%B4%91%EC%95%88%EB%A6%AC%20%EC%95%BC%EA%B2%BD,,/-/transit",
+        "fetched_at": "2026-05-27",
+        "to_order": 7,
+        "cost_krw": 1550,
+        "source": "odsay_api",
+        "distance_m": 5334,
+        "from_order": 6,
+        "duration_min": 28,
+        "base": {
+          "mode": "mixed",
+          "cost_krw": 1550,
+          "distance_m": 5334,
+          "duration_min": 28
+        }
+      }
+    },
+    "status": "published"
+  },
+  {
+    "id": "BUSAN_DAY_HAEUNDAE_STANDARD",
+    "city": "busan",
+    "zone": "Haeundae",
+    "theme": "해운대 + 마린시티 + 아쿠아리움",
+    "theme_i18n": {
+      "ko": "해운대 + 마린시티 + 아쿠아리움",
+      "en": "Haeundae + Marine City + Aquarium",
+      "ja": "海雲台 + マリンシティ + 水族館",
+      "zh": "海云台 + 海洋城 + 水族馆"
+    },
+    "intensity": "standard",
+    "duration_min": 450,
+    "stops": [
+      {
+        "order": 1,
+        "category": "nature",
+        "name": "해운대 해수욕장",
+        "name_i18n": {
+          "ko": "해운대 해수욕장",
+          "en": "Haeundae Beach",
+          "ja": "海雲台ビーチ",
+          "zh": "海云台海水浴场"
+        },
+        "address": "부산광역시 해운대구 해운대해변로 264",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "entry_fee": {
+          "adult": 0,
+          "child": 0,
+          "senior": 0,
+          "toddler": 0,
+          "notes": "무료 개방. 여름철 (7-8월) 매우 혼잡."
+        },
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "부산 최고의 해변. 동백섬 산책로 추천. 여름 7-8월 인파 최대.",
+          "en": "Busan's top beach. Dongbaek Island walking trail recommended. Peak crowds July-August.",
+          "ja": "釜山の代表的なビーチ。冬柏島散歩道おすすめ。7-8月が最も混雑。",
+          "zh": "釜山最具代表性的海滩。推荐冬柏岛步道。7-8 月人潮最多。"
+        },
+        "lat": 35.159107,
+        "lng": 129.1602838,
+        "start_time_offset_min": 0
+      },
+      {
+        "order": 2,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "",
+          "en": "",
+          "ja": "",
+          "zh": ""
+        },
+        "address": "부산광역시 해운대구 구남로",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_lunch",
+        "preferred_dietary": [
+          "vegetarian"
+        ],
+        "tips_i18n": {
+          "ko": "해운대 구남로 — 회 / 돼지국밥 / 밀면 (식이 제약 매칭).",
+          "en": "Haeundae Gunamro — sashimi / dwaeji gukbap / milmyeon matched by dietary needs.",
+          "ja": "海雲台クナムロ — 刺身 / 豚クッパ / ミルミョン (食事制限とマッチング)。",
+          "zh": "海云台九南路 — 生鱼片 / 猪肉汤饭 / 小麦冷面 (按饮食偏好匹配)。"
+        },
+        "lat": 35.1616873,
+        "lng": 129.1606971,
+        "start_time_offset_min": 105,
+        "_geocode_source": "google_places"
+      },
+      {
+        "order": 3,
+        "category": "culture",
+        "name": "SEA LIFE 부산아쿠아리움",
+        "name_i18n": {
+          "ko": "SEA LIFE 부산아쿠아리움",
+          "en": "SEA LIFE Busan Aquarium",
+          "ja": "SEA LIFE 釜山アクアリウム",
+          "zh": "SEA LIFE 釜山水族馆"
+        },
+        "address": "부산광역시 해운대구 해운대해변로 266",
+        "stay_min": 90,
+        "entry_fee_krw": 32000,
+        "entry_fee": {
+          "adult": 32000,
+          "child": 26000,
+          "senior": 26000,
+          "toddler": 0,
+          "group_discount_min_pax": 15,
+          "free_with": [],
+          "reservation_required_for_group": true,
+          "notes": "온라인 사전 예매 시 약 10-15% 할인. 만 3세 미만 무료."
+        },
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "해저터널 명소. 비 오는 날 실내 대안 1순위.",
+          "en": "Underwater tunnel highlight. Top indoor option on rainy days.",
+          "ja": "海底トンネルが見どころ。雨の日の屋内代替として人気。",
+          "zh": "海底隧道为亮点。雨天最佳室内备选。"
+        },
+        "lat": 35.1593434,
+        "lng": 129.1609912,
+        "start_time_offset_min": 180
+      },
+      {
+        "order": 4,
+        "category": "culture",
+        "name": "마린시티",
+        "name_i18n": {
+          "ko": "마린시티",
+          "en": "Marine City",
+          "ja": "マリンシティ",
+          "zh": "海洋城"
+        },
+        "address": "부산광역시 해운대구 마린시티1로",
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "tips_i18n": {
+          "ko": "고층 빌딩 야경 명소. 광안대교 view 포토 스팟.",
+          "en": "Skyscraper night view spot. Best Gwangan Bridge photo angle.",
+          "ja": "高層ビル夜景の名所。広安大橋ビューが撮影スポット。",
+          "zh": "高楼夜景胜地。广安大桥拍摄最佳点。"
+        },
+        "lat": 35.1570863,
+        "lng": 129.1459258,
+        "start_time_offset_min": 285,
+        "_geocode_source": "google_places"
+      },
+      {
+        "order": 5,
+        "category": "food",
+        "name": "",
+        "name_i18n": {
+          "ko": "",
+          "en": "",
+          "ja": "",
+          "zh": ""
+        },
+        "address": "부산광역시 해운대구 달맞이길",
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "reservation_required": false,
+        "placeholder": "verified_dinner",
+        "preferred_dietary": [],
+        "tips_i18n": {
+          "ko": "달맞이길 — 회 / 한우 / 오션뷰 레스토랑.",
+          "en": "Dalmaji-gil — sashimi / Hanwoo beef / ocean view restaurants.",
+          "ja": "月見の道 — 刺身 / 韓牛 / オーシャンビューレストラン。",
+          "zh": "月见路 — 生鱼片 / 韩牛 / 海景餐厅。"
+        },
+        "lat": 35.1665774,
+        "lng": 129.1820554,
+        "start_time_offset_min": 360,
+        "_geocode_source": "google_places"
+      }
+    ],
+    "transit_matrix": {
+      "1->2": {
+        "from_order": 1,
+        "to_order": 2,
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500,
+        "source": "mock",
+        "fetched_at": "2026-05-21",
+        "notes": "API call skipped, manual verification needed",
+        "base": {
+          "mode": "mixed",
+          "duration_min": 15,
+          "distance_m": 1000,
+          "cost_krw": 1500
+        }
+      },
+      "2->3": {
+        "from_order": 2,
+        "to_order": 3,
+        "mode": "mixed",
+        "duration_min": 15,
+        "distance_m": 1000,
+        "cost_krw": 1500,
+        "source": "mock",
+        "fetched_at": "2026-05-21",
+        "notes": "API call skipped, manual verification needed",
+        "base": {
+          "mode": "mixed",
+          "duration_min": 15,
+          "distance_m": 1000,
+          "cost_krw": 1500
+        }
+      },
+      "3->4": {
+        "duration_min": 14,
+        "mode": "bus",
+        "from_order": 3,
+        "fetched_at": "2026-05-28",
+        "distance_m": 1677,
+        "cost_krw": 1550,
+        "base": {
+          "mode": "bus",
+          "cost_krw": 1550,
+          "duration_min": 14,
+          "distance_m": 1677
+        },
+        "source": "odsay_api",
+        "naver_route_url": "https://map.naver.com/p/directions/129.1609912,35.1593434,SEA%20LIFE%20%EB%B6%80%EC%82%B0%EC%95%84%EC%BF%A0%EC%95%84%EB%A6%AC%EC%9B%80,,/129.1459258,35.1570863,%EB%A7%88%EB%A6%B0%EC%8B%9C%ED%8B%B0,,/-/transit",
+        "to_order": 4
+      },
+      "4->5": {
+        "base": {
+          "duration_min": 19,
+          "distance_m": 4237,
+          "mode": "bus",
+          "cost_krw": 2100
+        },
+        "source": "odsay_api",
+        "naver_route_url": "https://map.naver.com/p/directions/129.1459258,35.1570863,%EB%A7%88%EB%A6%B0%EC%8B%9C%ED%8B%B0,,/129.1820554,35.1665774,%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%ED%95%B4%EC%9A%B4%EB%8C%80%EA%B5%AC%20%EB%8B%AC%EB%A7%9E%EC%9D%B4%EA%B8%B8,,/-/transit",
+        "to_order": 5,
+        "mode": "bus",
+        "from_order": 4,
+        "duration_min": 19,
+        "cost_krw": 2100,
+        "fetched_at": "2026-05-28",
+        "distance_m": 4237
+      }
+    },
+    "best_for": [
+      "beach_lover",
+      "family",
+      "first_time_visitor"
+    ],
+    "unsuitable_for": [],
+    "dietary_options": [
+      "vegetarian"
+    ],
+    "passport_required": false,
+    "requires_advance_booking": false,
+    "source": "cocotrip_curated",
+    "verified_at": "2026-05-21",
+    "verified_by": "2001leety@gmail.com",
+    "last_review_date": "2026-05-21",
+    "block_type": "city_day",
+    "notes": "부산 해운대 zone — 비치 + 마린시티 + SEA LIFE 아쿠아리움. Mock transit / lat/lng 검증 필요 — 운영자 재빌드 권장. | NCP_CLIENT_ID/SECRET not set — lat/lng will be 0 placeholders. Re-run in prod env. | ODSAY_API_KEY not set — transit_matrix entries will use mock data. Re-run in prod env.",
+    "status": "published"
+  }
+]

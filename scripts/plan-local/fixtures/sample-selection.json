@@ -1,0 +1,35 @@
+{
+  "language": "en",
+  "day_selections": [
+    {
+      "day": 1,
+      "city": "seoul",
+      "block_id": "SEOUL_DAY_GANGNAM_STANDARD",
+      "tweak_notes": "Arrival day — Gangnam, easy pace."
+    },
+    {
+      "day": 2,
+      "city": "seoul",
+      "block_id": "SEOUL_DAY_HONGDAE_STANDARD",
+      "tweak_notes": "Youth culture + nightlife."
+    },
+    {
+      "day": 3,
+      "city": "seoul",
+      "block_id": "SEOUL_DAY_FULL_ACTION",
+      "tweak_notes": "Packed Seoul highlights."
+    },
+    {
+      "day": 4,
+      "city": "busan",
+      "block_id": "BUSAN_DAY_FULL_ACTION",
+      "tweak_notes": "KTX to Busan AM, packed Busan."
+    },
+    {
+      "day": 5,
+      "city": "busan",
+      "block_id": "BUSAN_DAY_HAEUNDAE_STANDARD",
+      "tweak_notes": "Haeundae beach, depart PM."
+    }
+  ]
+}
