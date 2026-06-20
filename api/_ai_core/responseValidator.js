@@ -230,6 +230,30 @@ const ALLERGEN_KEYWORDS = {
 
 const ALLERGEN_PREF_MAP = { Nuts: 'nuts', Shellfish: 'shellfish', Gluten: 'gluten', Dairy: 'dairy' };
 
+// #9 (2026-06-20) SAFETY-CRITICAL: block_mode food stop 에 박는 "사용자 표시" 알레르기 고지.
+//   기존 applyBlockModeDietaryWarnings 의 allergen_warning 은 quality_warnings (admin-only) 라
+//   손님이 못 봤다. legacy _food_helper.js:352 는 Gemini 에게 per-stop caution 을 tip 에 넣게
+//   지시 → 손님이 본다. block_mode 는 Gemini per-stop tip 통제가 없으므로 직접 tip 에 주입한다.
+//   4언어 (ko/en/ja/zh) — 손님 언어로. allergen 라벨도 언어별로 번역해 붙인다.
+const BLOCKMODE_ALLERGEN_NOTICE = {
+  ko: (labels) => `⚠️ 알레르기 안내(${labels}): 이 식당은 알레르겐 검증이 되어 있지 않습니다. 식사 전 식당에 ${labels} 알레르기를 반드시 알리고 재료를 직접 확인하세요.`,
+  en: (labels) => `⚠️ Allergy notice (${labels}): this restaurant is not allergen-screened. Before eating, inform the restaurant about your ${labels} allergy and confirm the ingredients yourself.`,
+  ja: (labels) => `⚠️ アレルギー注意(${labels}): この店舗はアレルゲン検査がされていません。食事の前に必ず店舗へ${labels}アレルギーを伝え、食材を直接確認してください。`,
+  zh: (labels) => `⚠️ 过敏提示(${labels})：本餐厅未经过敏原筛查。用餐前请务必告知餐厅您的${labels}过敏情况，并自行确认食材。`,
+};
+// allergen 4종 언어별 라벨 (사용자 표시용). 키 = ALLERGEN_PREF_MAP value.
+const ALLERGEN_LABELS = {
+  nuts: { ko: '견과류', en: 'nuts', ja: 'ナッツ', zh: '坚果' },
+  shellfish: { ko: '갑각류·조개', en: 'shellfish', ja: '甲殻類・貝類', zh: '甲壳类·贝类' },
+  gluten: { ko: '글루텐', en: 'gluten', ja: 'グルテン', zh: '麸质' },
+  dairy: { ko: '유제품', en: 'dairy', ja: '乳製品', zh: '乳制品' },
+};
+function allergenLabel(allergen, lang) {
+  const t = ALLERGEN_LABELS[allergen];
+  if (!t) return allergen;
+  return t[lang] || t.en;
+}
+
 /**
  * food stop 들에서 활성 알레르기 유발 재료 가능성 검출. severity='warning' (retry X).
  * @returns {Array<{stop, allergen}>|null}
@@ -691,9 +715,16 @@ export function validatePatternStructure(itinerary, request = {}) {
           }
         } else {
           const depHour = Math.floor(depMin / 60);
+          // #7 (2026-06-20): red-eye (출국 < 09:00) B-MEAL ↔ B-EARLY-DEPARTURE 충돌 해소.
+          //   B-EARLY-DEPARTURE 는 red-eye 시 마지막날 stops ≤ 2 (체크아웃 + 공항) 만 허용.
+          //   동시에 B-MEAL 이 조식(food stop) 1건을 강제하면 stops=3 → B-EARLY-DEPARTURE fail,
+          //   조식 빼면 B-MEAL fail → "넣어도 빼도 실패" trap. red-eye 손님은 새벽 출국으로
+          //   조식 먹을 시간 자체가 없으므로 조식 요구를 면제한다 (depHour >= 9 인 이른 출국만 조식 강제).
+          const isRedEyeDeparture = depHour < 9;
           if (depHour < 11) {
-            // 이른 출국 (< 11:00): breakfast slot [06,11) 1건 필수
-            if (breakfastCount === 0) {
+            // 이른 출국 (09:00-10:59): breakfast slot [06,11) 1건 필수.
+            // red-eye (< 09:00) 는 조식 면제 (B-EARLY-DEPARTURE 2-stop 룰과 정합).
+            if (breakfastCount === 0 && !isRedEyeDeparture) {
               errors.push(
                 `Day ${dayNum} (출국일): departure_time=${request.departure_time || request.departureTime} 이른 출국 — 조식(06-10시) 누락 (B-MEAL, P137)`
               );
@@ -954,11 +985,19 @@ export function checkSoftQualityWarnings(itinerary) {
  * violation critical-retry 는 제외 — block_mode 3중 게이트(fetch/eligible/placeholder throw)가 식당
  * 매칭 보장하므로 알레르기 가시화가 최우선 gap. legacy 는 validateResponse 가 이미 처리하므로 본 helper 미호출.
  *
- * @param {object} itinerary - mutated in-place (quality_warnings push)
+ * #9 (2026-06-20) SAFETY-CRITICAL: 위 allergen_warning 은 admin-only (quality_warnings) 라
+ *   손님이 못 본다. 알레르기 선택 손님의 block_mode food stop 에 **사용자 표시** 고지
+ *   ('inform restaurant about your allergy') 를 tip 에 주입 (legacy _food_helper.js:352 와 동등).
+ *   list 가 allergen-screened 가 아니므로 keyword 매칭 stop 만이 아니라 **모든 food stop** 에 박는다
+ *   (누락=SAFETY 위반). 4언어 (language) — 손님 언어로.
+ *
+ * @param {object} itinerary - mutated in-place (quality_warnings push + food stop tip 주입)
  * @param {string[]} dietary - dietaryAll (dietPrefs + allergies 합집합, P298)
+ * @param {object} [opts]
+ * @param {string} [opts.language] - 손님 언어 (ko/en/ja/zh). 사용자 표시 고지 언어 선택.
  * @returns {number} 박제된 warning 수
  */
-export function applyBlockModeDietaryWarnings(itinerary, dietary) {
+export function applyBlockModeDietaryWarnings(itinerary, dietary, opts = {}) {
   if (!itinerary || typeof itinerary !== 'object') return 0;
   if (!Array.isArray(dietary) || dietary.length === 0) return 0;
   const allStops = (itinerary.days || []).flatMap((d) => (d.stops || []));
@@ -985,6 +1024,27 @@ export function applyBlockModeDietaryWarnings(itinerary, dietary) {
       message: `P324(block_mode): '${aw.stop}' 에 ${aw.allergen} 알레르기 유발 재료 가능성 — 사용자 확인 권고 (운영자 admin panel).`,
     });
   }
+
+  // #9: 사용자 표시 알레르기 고지 — 손님이 선택한 알레르기 4종 중 활성된 것만 라벨에 표기.
+  const activeAllergens = [];
+  for (const d of dietary) {
+    const key = ALLERGEN_PREF_MAP[d];
+    if (key && !activeAllergens.includes(key)) activeAllergens.push(key);
+  }
+  if (activeAllergens.length > 0) {
+    const lang = (opts.language && ['ko', 'en', 'ja', 'zh'].includes(opts.language)) ? opts.language : 'en';
+    const labels = activeAllergens.map((a) => allergenLabel(a, lang)).join(', ');
+    const noticeFn = BLOCKMODE_ALLERGEN_NOTICE[lang] || BLOCKMODE_ALLERGEN_NOTICE.en;
+    const noticeText = noticeFn(labels);
+    for (const stop of allStops) {
+      if (!stop || stop.category !== 'food') continue;
+      const existingTip = typeof stop.tip === 'string' ? stop.tip : '';
+      // 멱등성: 재실행/재dispatch 시 중복 주입 방지 (⚠️ 마커 + label 동일 조각 검사).
+      if (existingTip.includes(noticeText)) continue;
+      stop.tip = existingTip ? `${existingTip}\n\n${noticeText}` : noticeText;
+    }
+  }
+
   if (out.length > 0) {
     itinerary.quality_warnings = itinerary.quality_warnings || [];
     itinerary.quality_warnings.push(...out);
@@ -1332,6 +1392,33 @@ export function repairAndParseJSON(rawText) {
     console.warn('[ai-planner-full] Attempting truncated JSON repair...');
     let repaired = cleaned;
 
+    // #6 (2026-06-20): forward pass — index 별 "문자열 내부" 여부 마킹.
+    //   backward walk 가 inString 을 추적 안 해서 `"address":"강남구 123` 처럼 문자열
+    //   내부 숫자(또는 true/false/null 부분문자열)에서 cut → 열린 따옴표가 닫히지 않은
+    //   조각을 JSON.parse 에 넘김 → 수리 실패. 숫자/리터럴 기반 cut 은 "문자열 밖"에서만
+    //   유효한 JSON 종료점이다. 구조 토큰(}/]) 과 unescaped quote 는 backward 단독으로도
+    //   안전하므로 inString 가드는 숫자/리터럴 cut 에만 적용한다.
+    const inStringAt = new Array(repaired.length).fill(false);
+    {
+      let fwdInStr = false;
+      for (let i = 0; i < repaired.length; i++) {
+        const ch = repaired[i];
+        if (ch === '\\' && fwdInStr) {
+          inStringAt[i] = true;
+          if (i + 1 < repaired.length) inStringAt[i + 1] = true; // escaped char stays in-string
+          i++;
+          continue;
+        }
+        if (ch === '"') {
+          // 여는 따옴표는 문자열 시작(밖→안), 닫는 따옴표는 문자열 끝(안→밖).
+          // 두 경우 모두 따옴표 자체 위치는 "경계"라 in-string 가드 대상이 아니다.
+          fwdInStr = !fwdInStr;
+          continue;
+        }
+        inStringAt[i] = fwdInStr;
+      }
+    }
+
     // Walk backward to find the last "safe" cut point
     let cutIdx = repaired.length;
     for (let i = repaired.length - 1; i > 0; i--) {
@@ -1340,8 +1427,15 @@ export function repairAndParseJSON(rawText) {
       if (ch === '"') {
         let bs = 0;
         for (let j = i - 1; j >= 0 && repaired[j] === '\\'; j--) bs++;
-        if (bs % 2 === 0) { cutIdx = i + 1; break; } // unescaped quote = valid end
+        // #6 (2026-06-20): unescaped quote 라도 "여는" 따옴표면 cut 하면 안 된다
+        //   (`"address":"강남구 123` 의 여는 `"` 에서 cut → 값 미닫힘 dangling). 직전 문자가
+        //   문자열 내부(inStringAt[i-1]=true)면 = "닫는" 따옴표 = valid string end → cut OK.
+        //   직전이 문자열 밖이면 = "여는" 따옴표 → skip (계속 backward walk).
+        if (bs % 2 === 0 && inStringAt[i - 1]) { cutIdx = i + 1; break; }
+        continue;
       }
+      // 문자열 내부면 숫자/리터럴 cut 발동 금지 (열린 따옴표 미닫힘 방지).
+      if (inStringAt[i]) continue;
       if (/[0-9]/.test(ch)) { cutIdx = i + 1; break; }
       if (i >= 3 && repaired.slice(i - 3, i + 1) === 'true') { cutIdx = i + 1; break; }
       if (i >= 4 && repaired.slice(i - 4, i + 1) === 'false') { cutIdx = i + 1; break; }

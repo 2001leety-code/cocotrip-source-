@@ -601,6 +601,95 @@ function dietaryTagsOf(r) {
   return out.map((t) => String(t).toLowerCase());
 }
 
+// stop 좌표 추출 — 유효(finite, 0/0 아님)하면 [lat, lng], 아니면 null. (zone_course 큐레이션 좌표.)
+function stopCoord(s) {
+  if (!s || typeof s !== 'object') return null;
+  const lat = Number(s.lat);
+  const lng = Number(s.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat === 0 && lng === 0) return null;
+  return [lat, lng];
+}
+
+// 보호 stop 판정 — lodging/airport/travel 은 위치·순서 불변(체크인·공항·이동).
+function isProtectedCategory(cat) {
+  return cat === 'lodging' || cat === 'airport' || cat === 'travel';
+}
+
+/**
+ * #arrival-needle (운영자 신고) — 도착일에 한해, 숙소에서 먼 큐레이션 첫 stop 이 짧은 저녁 window 에
+ *   들어가 호텔→먼stop→호텔 왕복 needle 을 만드는 것을 막는다. 보호 아닌(관광) stop 들을 숙소 근접순으로
+ *   재정렬하되, 각 관광 stop 이 차지하던 start_time_offset_min 슬롯(오름차순)은 그대로 두어 "가장 가까운
+ *   stop 이 가장 이른 슬롯" 을 갖게 한다 → cutoff 가 짧은 window 로 자를 때 가까운 stop 이 살아남는다.
+ *   보호 stop(lodging/airport/travel)은 위치·offset 불변.
+ *
+ *   안전 가드:
+ *   - enabled=false (도착일 아님 / 휴식일 / 도착이 시작을 안 밀었음) → 원본 그대로 반환.
+ *   - 숙소 좌표(보호 stop 중 lodging 우선)를 모르면 → 원본 그대로 (좌표 없으면 무변).
+ *   - 좌표 있는 관광 stop 이 2개 미만 → 재정렬 의미 없음 → 원본 그대로.
+ *   - 정렬은 stable: 좌표 없는 관광 stop 은 원래 상대순서 유지(끝쪽으로 밀지 않음 — 보수적).
+ *
+ * @param {Array<object>} blockStops
+ * @param {{enabled:boolean}} opts
+ * @returns {Array<object>} 재정렬된 (또는 원본) stop 배열
+ */
+export function reorderArrivalStopsByLodgingProximity(blockStops, opts = {}) {
+  const stops = Array.isArray(blockStops) ? blockStops : [];
+  if (!opts.enabled || stops.length < 3) return stops;
+
+  // 숙소 좌표: lodging 우선, 없으면 다른 보호 stop(airport/travel) 의 좌표.
+  let lodgingCoord = null;
+  for (const s of stops) {
+    if (s && s.category === 'lodging') {
+      const c = stopCoord(s);
+      if (c) { lodgingCoord = c; break; }
+    }
+  }
+  if (!lodgingCoord) {
+    for (const s of stops) {
+      if (s && isProtectedCategory(s.category)) {
+        const c = stopCoord(s);
+        if (c) { lodgingCoord = c; break; }
+      }
+    }
+  }
+  if (!lodgingCoord) return stops; // 숙소 좌표 모름 → 무변 (안전)
+
+  // 관광(비보호) stop 의 원본 인덱스 수집.
+  const sightIdx = [];
+  for (let i = 0; i < stops.length; i++) {
+    if (stops[i] && !isProtectedCategory(stops[i].category)) sightIdx.push(i);
+  }
+  const coordCount = sightIdx.filter((i) => stopCoord(stops[i]) !== null).length;
+  if (coordCount < 2) return stops; // 좌표 있는 관광 stop < 2 → 재정렬 의미 없음
+
+  // 관광 stop 을 숙소 근접순(가까운 것 먼저)으로 stable sort.
+  //   좌표 없는 stop 은 거리=+Infinity 로 뒤로(원래 상대순서 유지). 동거리는 원래 순서 유지.
+  const orderRank = new Map(sightIdx.map((idx, rank) => [idx, rank]));
+  const distOf = (idx) => {
+    const c = stopCoord(stops[idx]);
+    if (!c) return Number.POSITIVE_INFINITY;
+    return foodDistanceKm(lodgingCoord[0], lodgingCoord[1], c[0], c[1]);
+  };
+  const sortedSightIdx = sightIdx.slice().sort((a, b) => {
+    const da = distOf(a);
+    const db = distOf(b);
+    if (da !== db) return da - db;
+    return orderRank.get(a) - orderRank.get(b); // stable: 동거리/무좌표는 원래 순서
+  });
+
+  // 관광 stop 이 차지하던 슬롯(원본 위치 + start_time_offset_min)에 근접순 stop 을 끼워 넣는다.
+  //   offset 은 슬롯의 것(오름차순 유지)으로 덮어써 "가까운 stop = 이른 슬롯".
+  const result = stops.slice();
+  for (let k = 0; k < sightIdx.length; k++) {
+    const slotIdx = sightIdx[k];          // 원본 슬롯 위치
+    const srcStop = stops[sortedSightIdx[k]]; // 근접순 k 번째 stop
+    const slotOffset = stops[slotIdx].start_time_offset_min;
+    result[slotIdx] = { ...srcStop, start_time_offset_min: slotOffset };
+  }
+  return result;
+}
+
 export function matchFoodPlaceholder(placeholderStop, foodIndex, city, userDietPrefs = [], excludeNames = null) {
   if (!placeholderStop || !placeholderStop.placeholder) return null;
   if (!Array.isArray(foodIndex) || foodIndex.length === 0) return null;
@@ -819,6 +908,9 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     // Day N (마지막) 이면 departure_time 으로 cap.
     let dayStart = tourStartTime;  // P245: default = tour_start_time (옛 '09:00' literal 대체)
     let arrivalRestDay = false; // #tour-end: 도착이 너무 늦어 Day1 투어 시간 0 → 호텔 휴식 (아래 cutoff 가 관광 전부 trim)
+    // #arrival-needle (운영자 신고): 도착이 늦어 dayStart 가 tour_start 보다 밀린 "짧은 저녁 window" 인지.
+    //   true 일 때만 도착일 stop 을 숙소 근접순으로 재정렬 (먼 첫 stop 왕복 needle 차단).
+    let arrivalLateStart = false;
     const isFirstDay = dayNum === 1;
     const isLastDay = dayNum === blockSelections.day_selections.length;
     if (isFirstDay && arrivalTime && /^\d{1,2}:\d{2}$/.test(arrivalTime)) {
@@ -834,12 +926,23 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
         arrivalRestDay = true;
       } else {
         dayStart = `${String(Math.floor(effMin / 60)).padStart(2, '0')}:${String(effMin % 60).padStart(2, '0')}`;
+        // 도착으로 시작이 tour_start 보다 밀렸으면 = 짧은 저녁 window (근접 재정렬 대상).
+        if (effMin > tourStartMin) arrivalLateStart = true;
       }
     }
 
     // stops expand
     const stops = [];
     const blockStops = Array.isArray(block.stops) ? block.stops : [];
+    // #arrival-needle (운영자 신고): 밤도착 → 짧은 저녁 window 에 큐레이션 "첫 stop" 이 숙소에서 멀면
+    //   (예: 명동 호텔 ↔ 조계사 1.2km) 호텔→먼stop→호텔 왕복 needle 패턴. 도착일에 한해, stop 좌표와
+    //   숙소 좌표를 모두 알면 보호 아닌(관광) stop 들을 숙소 근접순으로 재정렬 → 짧은 window 에 가장 가까운
+    //   stop 이 살아남게 한다. 보호 stop(lodging/airport/travel)·offset 슬롯은 불변, 도착일 외 day 는 무변.
+    //   ⚠️ 좌표 없으면 무변(안전). 도착으로 시작이 밀린(arrivalLateStart) 경우에만 발동.
+    const orderedStops = reorderArrivalStopsByLodgingProximity(blockStops, {
+      enabled: isFirstDay && arrivalLateStart && !arrivalRestDay,
+    });
+    // (이하 loop 는 blockStops 대신 orderedStops 순회 — 도착일 외엔 동일 순서)
     // 2026-06-10: 식당 placeholder 근접 매칭 앵커. matchFoodPlaceholder 의 근접 가중(score=
     //   base/(1+dist/DECAY))은 placeholderStop.lat/lng 가 있어야 작동하는데, seed 블록의 food
     //   placeholder 는 좌표가 없어(주소만) hasAnchor=false → 평점만으로 도시 전체 1등 선택 →
@@ -848,7 +951,7 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
     //   좌표를 앵커로 넘겨 "그날 동선 위 식당"을 고르게 한다. SAFETY(dietRequired) 필터는 불변.
     let lastAnchorLat = null;
     let lastAnchorLng = null;
-    for (const bs of blockStops) {
+    for (const bs of orderedStops) {
       const offsetMin = Number(bs.start_time_offset_min) || 0;
       const startTime = addMinutesToHHMM(dayStart, offsetMin) || dayStart;
 
@@ -1043,6 +1146,8 @@ export function expandBlocksToItinerary(blockSelections, blocks, userInput) {
   // daily_budget_summary: per-day skeleton (selfHealDailyBudget 가 정확값 계산 — 본 default 는 array shape 만).
   // P300/B2 (2026-05-29): 필드명 BudgetTable.tsx:9-15 일치 (food_krw→meals_krw, activity_krw→entry_fees_krw).
   //   기존 food_krw/activity_krw 는 frontend 가 안 읽어 예산표 0원. selfHealDailyBudget 가 rootValid=false 판정 시 덮어씀.
+  //   [#2 HIGH] transport_krw:0 도 self-heal 이 day.intercity_transit.est_fare_krw×pax 로 보정 (all-zero rows → rootValid=false → 재생성).
+  //   즉 KTX/항공 intercity 요금은 여기서 채우지 않고 selfHealDailyBudget 단일 경로에서 채운다 (SSOT).
   itinerary.daily_budget_summary = days.map((d) => ({
     day: d.day,
     transport_krw: 0,
@@ -1666,11 +1771,15 @@ export function expandBlocksToItineraryMultiCity(blockSelections, cityBlocksList
       message: `PR-E: 활동 블록(트레킹/러닝) ${activityDays.length}개 day 편입. 난이도·체력·hazards·부적합 대상은 day.activity_meta 에 보존 (SAFETY 표기 의무).`,
     });
   }
+  // P300/B2 필드명 통일 (#10): 단도시 skeleton(L1046-1051)과 동일하게 meals_krw/entry_fees_krw 사용.
+  //   기존 food_krw/activity_krw 는 BudgetTable.tsx 가 안 읽어 예산표 0원. selfHealDailyBudget 가 덮어씀.
+  //   [#2 HIGH] 다도시 skeleton 의 transport_krw:0 도 self-heal 이 day.intercity_transit.est_fare_krw×pax 로 보정
+  //   (all-zero rows → rootValid=false → 재생성). KTX 예산은 selfHealDailyBudget SSOT 한 곳에서만 채운다.
   mcItinerary.daily_budget_summary = days.map((d) => ({
     day: d.day,
     transport_krw: 0,
-    food_krw: 0,
-    activity_krw: 0,
+    entry_fees_krw: 0,
+    meals_krw: 0,
     total_krw: 0,
   }));
   return mcItinerary;

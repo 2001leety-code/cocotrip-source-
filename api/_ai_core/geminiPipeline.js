@@ -973,8 +973,15 @@ export async function retryWithExpandedTokens({ apiKey, systemPrompt, userMessag
     expandedModel.generateContent({
       contents: [{ role: 'user', parts: [{ text: userMessage }] }],
       systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+      // #4 (2026-06-20): per-call generationConfig 가 buildModel 의 generationConfig 를
+      //   통째로 덮어쓴다 (Gemini SDK 는 merge 안 함). maxOutputTokens 만 명시하면
+      //   responseMimeType:'application/json' + responseSchema 가 빠져 → 재시도 응답이
+      //   markdown / schema 위반 plain text 로 와서 repairAndParseJSON 실패 → minimal fallback.
+      //   buildModel 초기 설정과 동일한 JSON 모드 2개를 maxOutputTokens 와 함께 재명시한다.
       generationConfig: {
         maxOutputTokens: 65000,
+        responseMimeType: 'application/json',
+        responseSchema: PLAN_RESPONSE_SCHEMA,
       },
     }),
     GEMINI_TIMEOUT_MS,

@@ -52,4 +52,58 @@ describe('[P324] applyBlockModeDietaryWarnings (block_mode dietary SAFETY)', () 
     expect(itin.quality_warnings.some((w) => w.type === 'existing_warning')).toBe(true);
     expect(itin.quality_warnings.some((w) => w.type === 'allergen_warning')).toBe(true);
   });
+
+  // ── #9 (2026-06-20): 사용자 표시 알레르기 고지 (legacy _food_helper.js:352 와 동등) ──
+  it('#9: 알레르기 손님 → 모든 food stop tip 에 사용자 표시 고지 주입 (keyword 매칭 안 된 stop 포함)', () => {
+    const itin = {
+      days: [{ stops: [
+        { category: 'food', name: '명동 비빔밥', tip: '채소 위주' }, // shellfish keyword 없음
+        { category: 'food', name: '자갈치 조개구이' },              // keyword 있음
+        { category: 'culture', name: '경복궁', tip: '한복 대여' },   // food 아님 → 미주입
+      ] }],
+    };
+    applyBlockModeDietaryWarnings(itin, ['Shellfish'], { language: 'en' });
+    const stops = itin.days[0].stops;
+    // SAFETY: keyword 매칭 여부 무관, 모든 food stop 에 고지 (list 미검증).
+    expect(stops[0].tip).toContain('inform the restaurant');
+    expect(stops[0].tip).toContain('채소 위주'); // 기존 tip 보존
+    expect(stops[1].tip).toContain('inform the restaurant');
+    expect(stops[2].tip).toBe('한복 대여'); // culture stop = 미주입
+  });
+
+  it('#9: 4언어 — ko/ja/zh 손님 언어로 고지 + allergen 라벨 번역', () => {
+    const mk = () => ({ days: [{ stops: [{ category: 'food', name: '식당' }] }] });
+    const ko = mk(); applyBlockModeDietaryWarnings(ko, ['Nuts'], { language: 'ko' });
+    expect(ko.days[0].stops[0].tip).toContain('알레르기');
+    expect(ko.days[0].stops[0].tip).toContain('견과류');
+
+    const ja = mk(); applyBlockModeDietaryWarnings(ja, ['Nuts'], { language: 'ja' });
+    expect(ja.days[0].stops[0].tip).toContain('アレルギー');
+    expect(ja.days[0].stops[0].tip).toContain('ナッツ');
+
+    const zh = mk(); applyBlockModeDietaryWarnings(zh, ['Nuts'], { language: 'zh' });
+    expect(zh.days[0].stops[0].tip).toContain('过敏');
+    expect(zh.days[0].stops[0].tip).toContain('坚果');
+  });
+
+  it('#9: language 미지정 → en 폴백', () => {
+    const itin = { days: [{ stops: [{ category: 'food', name: '식당' }] }] };
+    applyBlockModeDietaryWarnings(itin, ['Gluten']);
+    expect(itin.days[0].stops[0].tip).toContain('Allergy notice');
+    expect(itin.days[0].stops[0].tip).toContain('gluten');
+  });
+
+  it('#9: 멱등성 — 두 번 호출해도 고지 1회만 (재dispatch 중복 방지)', () => {
+    const itin = { days: [{ stops: [{ category: 'food', name: '식당' }] }] };
+    applyBlockModeDietaryWarnings(itin, ['Dairy'], { language: 'en' });
+    const tip1 = itin.days[0].stops[0].tip;
+    applyBlockModeDietaryWarnings(itin, ['Dairy'], { language: 'en' });
+    expect(itin.days[0].stops[0].tip).toBe(tip1); // 동일 — 중복 주입 없음
+  });
+
+  it('#9: 알레르기 아닌 dietary(Halal/Vegan)만 → tip 미주입 (활성 allergen 0)', () => {
+    const itin = { days: [{ stops: [{ category: 'food', name: '식당', tip: '원본' }] }] };
+    applyBlockModeDietaryWarnings(itin, ['Halal', 'Vegan'], { language: 'en' });
+    expect(itin.days[0].stops[0].tip).toBe('원본'); // 변경 0
+  });
 });

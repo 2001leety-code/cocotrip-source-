@@ -52,12 +52,16 @@ describe('P271 block_mode arrival_guide / daily_budget minimal default', () => {
   });
 
   it('blockMode.js: expandBlocksToItinerary — daily_budget_summary per-day skeleton', () => {
-    // daily_budget_summary = days.map(...) 패턴 + 5 field 모두 존재
+    // daily_budget_summary = days.map(...) 패턴 + 필드명 통일(#10): BudgetTable.tsx 가 읽는
+    //   meals_krw/entry_fees_krw 사용 (구 food_krw/activity_krw 폐기 — frontend 미독으로 0원 표시 버그).
     expect(blockModeSrc).toMatch(/daily_budget_summary\s*=\s*days\.map/);
     expect(blockModeSrc).toMatch(/transport_krw:\s*0/);
-    expect(blockModeSrc).toMatch(/food_krw:\s*0/);
-    expect(blockModeSrc).toMatch(/activity_krw:\s*0/);
+    expect(blockModeSrc).toMatch(/entry_fees_krw:\s*0/);
+    expect(blockModeSrc).toMatch(/meals_krw:\s*0/);
     expect(blockModeSrc).toMatch(/total_krw:\s*0/);
+    // 구 필드명(food_krw/activity_krw)은 단도시·다도시 skeleton 어디에도 없어야 함 (#10 회귀 가드).
+    expect(blockModeSrc).not.toMatch(/food_krw:\s*0/);
+    expect(blockModeSrc).not.toMatch(/activity_krw:\s*0/);
   });
 
   it('blockMode.js: expandBlocksToItineraryMultiCity 도 동일 패턴 적용 (mcArrivalAirport)', () => {

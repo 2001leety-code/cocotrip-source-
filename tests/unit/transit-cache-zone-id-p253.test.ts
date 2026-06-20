@@ -70,9 +70,43 @@ describe('P253 transit cache zone_id 추출 fix', () => {
     expect(routeAgentSrc).toMatch(/const\s+zoneId\s*=\s*data\.zone_id\s*\|\|\s*null/);
   });
 
-  it('RouteAgent: dayZoneId 는 trip-level zoneId 우선 + day-level source_block_id 폴백', () => {
-    // 다도시 지원: day.source_block_id 폴백 (P253 건드리지 않음)
-    expect(routeAgentSrc).toMatch(/dayZoneId\s*=\s*zoneId\s*\|\|\s*dayPlan\.source_block_id\s*\|\|\s*null/);
+  it('RouteAgent: dayZoneId 는 per-day source_block_id 우선 + trip-level zoneId 폴백 (P-fix #1)', () => {
+    // P-fix #1 (2026-06-20): 다도시 plan 은 day 마다 block 이 다름 → per-day source_block_id
+    //   가 우선이어야 부산 day 가 서울 block 의 transit_matrix 를 조회하지 않는다. 단일-block
+    //   plan 은 source_block_id === blocksUsed[0] === zoneId 라 동작 동일.
+    expect(routeAgentSrc).toMatch(/dayZoneId\s*=\s*dayPlan\.source_block_id\s*\|\|\s*zoneId\s*\|\|\s*null/);
+  });
+
+  it('RouteAgent: trip-level zoneId 우선(legacy) 순서로 회귀하지 않음 (P-fix #1 회귀 방지)', () => {
+    // 구 순서 `zoneId || dayPlan.source_block_id` 재도입 금지 — 다도시 cache 오염 재발.
+    expect(routeAgentSrc).not.toMatch(/dayZoneId\s*=\s*zoneId\s*\|\|\s*dayPlan\.source_block_id/);
+  });
+
+  it('P-fix #1: 다도시 per-day source_block_id 우선 의미 검증 (런타임 모델)', () => {
+    // RouteAgent L1106 의 `dayPlan.source_block_id || zoneId || null` 동작을 모델링.
+    const dayZoneId = (dayPlan: { source_block_id?: string | null }, zoneId: string | null) =>
+      dayPlan.source_block_id || zoneId || null;
+
+    // ── 다도시: trip-level zoneId = 첫 block(서울), 부산 day 는 자기 block 을 가져야 함
+    const tripZoneId = 'seoul_block_1';
+    const seoulDay = { source_block_id: 'seoul_block_1' };
+    const busanDay = { source_block_id: 'busan_block_2' };
+    // 서울 day: 같은 block → seoul (변화 없음)
+    expect(dayZoneId(seoulDay, tripZoneId)).toBe('seoul_block_1');
+    // 부산 day: per-day 우선 → busan block (구 로직이면 seoul block 으로 오염되던 버그)
+    expect(dayZoneId(busanDay, tripZoneId)).toBe('busan_block_2');
+
+    // ── 단일-block plan: source_block_id === blocksUsed[0] === zoneId → 무변
+    const singleDay = { source_block_id: 'seoul_block_1' };
+    expect(dayZoneId(singleDay, 'seoul_block_1')).toBe('seoul_block_1');
+
+    // ── legacy(Gemini) plan: source_block_id 없음 → trip-level zoneId 폴백
+    const legacyDayWithTrip = {};
+    expect(dayZoneId(legacyDayWithTrip, 'trip_zone')).toBe('trip_zone');
+
+    // ── 둘 다 없음(완전 legacy) → null (cache miss → ODsay 경로)
+    const legacyDayNoTrip = {};
+    expect(dayZoneId(legacyDayNoTrip, null)).toBeNull();
   });
 
   it('transitCache: zoneId null 이면 lookupTransitCache 즉시 null 반환', () => {

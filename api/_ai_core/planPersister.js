@@ -186,7 +186,13 @@ export function selfHealDailyBudget(itinerary, ctx = {}) {
     // pax 곱셈 — 식사/입장료/잡비 인원 비례. transport 만 server T-money + ODsay 별도 계산.
     const meals_krw = foodCount * 15000 * pax;
     const entry_fees_krw = attrCount * 10000 * pax;
-    const transport_krw = 0;
+    // [#2 HIGH] intercity_transit (KTX/항공/버스) 요금을 예산표 transport_krw 에 반영.
+    //   서울↔부산 KTX(~₩59,800)·제주 항공 등은 day.intercity_transit.est_fare_krw 에 1인당
+    //   요금이 들어있는데(RouteAgent intercity 채움) 기존 하드코딩 0 으로 예산표에 빠져 있었다.
+    //   est_fare_krw = 1인 요금 → ×pax. 시내 대중교통(T-money)·ODsay 는 server 별도이므로 여기 미포함.
+    //   nullish ?? 금지 → || 사용 (intercity 없는 day 는 0 유지 = 기존 동작 byte-identical).
+    const intercityFarePerPax = Number(day?.intercity_transit?.est_fare_krw) || 0;
+    const transport_krw = intercityFarePerPax * pax;
     const misc_krw = 10000 * pax; // 잡비 — BudgetTable 미표시, total 합산만.
     const total_krw = meals_krw + entry_fees_krw + transport_krw + misc_krw;
     return {
@@ -1019,13 +1025,19 @@ export function calculateTmoney(itinerary) {
       return sum + (odsayFare || geminiFare || 0);
     }, 0);
 
+  // [#5 MED] 도착/출발 last-mile 대중교통 요금을 T-money 충전 권장액에 포함.
+  //   기존 코드는 RouteAgent 가 저장하지 않는 경로(arrival_guide.steps[].transport_to_hotel.
+  //   arex_all_stop.price_krw / departure_guide.to_airport.cost_krw)를 읽어 항상 0 →
+  //   인천 AREX·부산 김해 등 공항↔호텔 대중교통 요금이 충전 권장액에서 통째로 빠졌다.
+  //   실제 RouteAgent 저장 필드 = arrival_guide.route_to_hotel.est_fare_krw /
+  //   departure_guide.route_to_airport.est_fare_krw (RouteAgent.js L862/L983, _failed 객체는 est_fare_krw 없음 → 0).
+  //   KTX 등 intercity 요금은 T-money 대상 아니므로 여기 미포함(예산표 transport_krw 에서 별도 반영).
+  //   nullish ?? 금지 → || 사용.
   const arrivalTransitCost =
-    itinerary.arrival_guide?.steps
-      ?.find(s => s.transport_to_hotel)
-      ?.transport_to_hotel?.arex_all_stop?.price_krw || 0;
+    Number(itinerary.arrival_guide?.route_to_hotel?.est_fare_krw) || 0;
 
   const departureTransitCost =
-    itinerary.departure_guide?.to_airport?.cost_krw || 0;
+    Number(itinerary.departure_guide?.route_to_airport?.est_fare_krw) || 0;
 
   const rawTotal = totalTransitFare + arrivalTransitCost + departureTransitCost;
   itinerary.t_money_recommended_load = Math.ceil(rawTotal * 1.1 / 5000) * 5000;

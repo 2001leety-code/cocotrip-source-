@@ -49,3 +49,46 @@ describe('P181 phase 2 minimal fallback', () => {
     expect(() => repairAndParseJSON(raw)).toThrow(/invalid JSON/);
   });
 });
+
+// ── #6 (2026-06-20): backward-walk inString 추적 — 문자열 내부 숫자에서 cut 금지 ──
+// 버그: backward walk 가 inString 미추적 → `"tour_title":"call 02-123` 처럼 문자열 내부
+//   숫자(또는 true/false/null 부분문자열)에서 cut → 열린 따옴표 미닫힘 fragment → 수리/복원
+//   실패. fix: forward 패스로 index 별 inString 마킹 → 숫자/리터럴 cut + 여는따옴표 cut 을
+//   문자열 밖에서만 허용. days[] 완결 + trailing top-level 문자열 잘림 = prod 실 케이스.
+describe('#6 repairAndParseJSON — 문자열 내부 숫자/리터럴 오절단 방지 (inString 추적)', () => {
+  it('days[] 완결 + trailing 문자열 내부 숫자에서 잘림 → days 온전 복원', () => {
+    // "tour_title":"call 02-123 — 따옴표 미닫힘 + 내부 숫자. 이전엔 '3' 에서 cut 하여
+    //   `"call 02-12` dangling 문자열 fragment 생성. fix 후엔 문자열 밖까지 walk back →
+    //   완결 days[] 가 손상 없이 복원.
+    const raw =
+      '{"days":[{"day":1,"stops":[{"name":"경복궁"}]}],' +
+      '"t_money_recommended_load":50000,"tour_title":"call 02-123';
+    const out = repairAndParseJSON(raw);
+    expect(out).toBeTruthy();
+    expect(Array.isArray(out.days)).toBe(true);
+    expect(out.days).toHaveLength(1);
+    expect(out.days[0].stops[0].name).toBe('경복궁');
+  });
+
+  it('days[] 완결 + 문자열 내부 "true" 부분문자열에서 잘림 → 두 day 모두 복원', () => {
+    // "note":"this is true — 문자열 내부 "true" 가 backward 리터럴 매칭에 걸리면 오절단.
+    //   inString 가드로 cut 금지 → days[] 2건 온전.
+    const raw =
+      '{"days":[{"day":1,"stops":[{"name":"A"}]},{"day":2,"stops":[{"name":"B"}]}],' +
+      '"note":"this is true';
+    const out = repairAndParseJSON(raw);
+    expect(out).toBeTruthy();
+    expect(out.days).toHaveLength(2);
+    expect(out.days[0].stops[0].name).toBe('A');
+    expect(out.days[1].stops[0].name).toBe('B');
+  });
+
+  it('문자열 밖 숫자에서는 정상 cut (회귀 방지) — 값 보존', () => {
+    // base_price_krw 값(문자열 밖 숫자)이 마지막이면 그 숫자에서 cut 해도 valid + 값 유지.
+    const raw = '{"days":[{"day":1,"stops":[{"name":"A"}]}],"base_price_krw":480000';
+    const out = repairAndParseJSON(raw);
+    expect(out).toBeTruthy();
+    expect(out.base_price_krw).toBe(480000); // out-of-string 숫자 cut 정상 동작
+    expect(out.days[0].stops[0].name).toBe('A');
+  });
+});
