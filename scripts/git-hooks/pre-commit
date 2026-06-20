@@ -155,6 +155,10 @@ if [ -n "$SCAN_FILES" ]; then
       // 2026-06-15: plan-detail-listener-leak-pr450.test.ts 의 주석/테스트명이 소스 패턴
       // user?.uid 의 nullish 폴백을 인용(PR#450 불변식 문서화) — pre-existing legitimate.
       if (f === "tests/unit/plan-detail-listener-leak-pr450.test.ts") continue;
+      // 2026-06-20: validate-prod-regression.mjs uses SCENARIO_DIETARY ?? 'Meat' (line 71) to
+      //   preserve empty-string (no-dietary matrix scenarios) vs forcing 'Meat'. Changing to ||
+      //   would break no-dietary scenarios. Pre-existing legit; re-staged by startDate dynamic fix.
+      if (f === "scripts/validate-prod-regression.mjs") continue;
       // Literal ?? (two ASCII question marks) is our mojibake signature
       if (/\?\?/.test(c) || /\uFFFD/.test(c)) {
         bad.push(f);

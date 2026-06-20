@@ -141,7 +141,10 @@ const planRes = await fetch(`${BASE_URL}/api/ai-planner-full`, {
     guestName: 'RegressionSuite',
     pax: 2,
     durationDays: SCENARIO_DURATION,
-    startDate: '2026-06-15',
+    // Dynamic future date (today + 14d). Hardcoded '2026-06-15' became a past date,
+    //   so every scenario was rejected with PLANNER_DATE_TOO_SOON (scenario-matrix red 6+ days,
+    //   regression net effectively down). Date.now()+14d always lands in the future.
+    startDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
     area: SCENARIO_AREA,
     regions: SCENARIO_REGIONS,
     recommendedZones: SCENARIO_RECOMMENDED_ZONES,
