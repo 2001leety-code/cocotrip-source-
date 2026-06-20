@@ -896,7 +896,7 @@ export function WizardForm({ onSubmit, isLoading, initialValues }: { onSubmit: (
         <div className="flex items-center justify-center gap-1 mb-5 sm:mb-8">
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center">
-              <button onClick={() => { if (i <= step) goToStep(i); }}
+              <button aria-label={s.label} onClick={() => { if (i <= step) goToStep(i); }}
                 className={`flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold transition-all ${
                   i === step ? 'text-white' : i < step ? 'text-[#7C5CFC] cursor-pointer hover:text-white' : 'text-white/55 cursor-default'
                 }`}>

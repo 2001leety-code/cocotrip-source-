@@ -16,6 +16,7 @@ interface Message {
 
 interface ChatWidgetProps {
   language: Language;
+  hideTrigger?: boolean;
 }
 
 const WELCOME: Record<Language, string> = {
@@ -169,7 +170,7 @@ const ChatInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInp
   <input ref={ref} {...props} />
 ));
 
-export function ChatWidget({ language }: ChatWidgetProps) {
+export function ChatWidget({ language, hideTrigger }: ChatWidgetProps) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   // 모바일에선 bottom-nav(높이 ~62px)와 겹치지 않도록 위로 띄우고 살짝 작게.
@@ -797,7 +798,7 @@ export function ChatWidget({ language }: ChatWidgetProps) {
           border: 'none',
           cursor: 'pointer',
           boxShadow: '0 4px 24px rgba(124,92,252,0.5), 0 0 40px rgba(124,92,252,0.25)',
-          display: 'flex',
+          display: hideTrigger ? 'none' : 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 10000,
