@@ -132,7 +132,7 @@ export function RecommendedRestaurants({
         <h2 className="text-[16px] sm:text-lg font-bold text-white leading-tight">
           {labelTitle || 'Must-visit restaurants nearby'}
         </h2>
-        <p className="text-[14px] text-white/55 mt-1 leading-snug">
+        <p className="text-[14px] text-white/65 mt-1 leading-snug">
           {labelSubtitle || 'Top-rated spots within 5 km of your stops — discover beyond your itinerary.'}
         </p>
       </div>
@@ -149,7 +149,7 @@ export function RecommendedRestaurants({
               <h3 className="text-[14px] font-semibold text-white/85 mb-2 px-1">
                 {sectionLabelFor(tag)}
               </h3>
-              <p className="text-[14px] text-white/45 px-1">
+              <p className="text-[14px] text-white/60 px-1">
                 {labelEmptyBucket || 'No matching spots in our verified database for this diet in this area yet.'}
               </p>
             </div>
@@ -210,7 +210,7 @@ export function RecommendedRestaurants({
                           <div className="min-w-0 flex-1">
                             <h4 className="text-[14px] font-bold text-white leading-tight">{displayName}</h4>
                             {!isKo && r.name !== displayName && (
-                              <p className="text-[13px] text-white/55 mt-0.5">{r.name}</p>
+                              <p className="text-[13px] text-white/65 mt-0.5">{r.name}</p>
                             )}
                           </div>
                           {/* #15 fix: rating null(네이버 수집 미기재) 이면 배지 전체 숨김 */}
@@ -224,24 +224,24 @@ export function RecommendedRestaurants({
 
                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                           {cuisine && (
-                            <span className="text-[12px] text-white/65 bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-0.5">
+                            <span className="text-[12px] text-white/70 bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-0.5">
                               {cuisine}
                             </span>
                           )}
                           {district && (
-                            <span className="text-[12px] text-white/55">
+                            <span className="text-[12px] text-white/65">
                               <MapPin className="w-2.5 h-2.5 inline mr-0.5" />{district}
                             </span>
                           )}
                           {r.reviewCount !== undefined && (
-                            <span className="text-[12px] text-white/45">
+                            <span className="text-[12px] text-white/60">
                               {r.reviewCount.toLocaleString()} {labelReviews || 'reviews'}
                             </span>
                           )}
                         </div>
 
                         {(r.address || r.nearestStopKm !== undefined) && (
-                          <p className="text-[12px] text-white/45 mt-1.5 leading-snug">
+                          <p className="text-[12px] text-white/60 mt-1.5 leading-snug">
                             {r.address}
                             {r.nearestStopKm !== undefined && (
                               <span className="ml-1 text-[#B9A4FF]">

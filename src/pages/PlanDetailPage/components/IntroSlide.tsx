@@ -54,7 +54,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
             <span>{sw.translationFailedShowingOriginal || 'Translation unavailable — showing original'}</span>
           </div>
         )}
-        <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
           {it.tour_title || sw.introTitle || 'Your Korea Trip'}
         </h1>
         <div className="flex items-center justify-center mt-1">

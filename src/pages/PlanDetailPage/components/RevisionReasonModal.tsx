@@ -205,7 +205,7 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
             <X className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-xs text-white/55 mb-4 leading-relaxed">{labels.subtitle}</p>
+        <p className="text-[14px] text-white/55 mb-4 leading-relaxed">{labels.subtitle}</p>
 
         {/* Multi-select chips (복수 선택) */}
         <div className="flex flex-wrap gap-2 mb-4">
@@ -216,7 +216,7 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
                 key={chip}
                 type="button"
                 onClick={() => toggleReason(chip)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-full text-[14px] font-semibold transition-all min-h-[44px] ${
                   active
                     ? 'bg-[#7C5CFC]/25 border border-[#7C5CFC]/60 text-white'
                     : 'bg-white/[0.04] border border-white/10 text-white/70 hover:bg-white/[0.08]'
@@ -242,14 +242,14 @@ export function RevisionReasonModal({ open, onClose, onSubmit, language }: Props
           <button
             type="button"
             onClick={handleSkip}
-            className="flex-1 py-3 rounded-xl text-white/70 font-semibold text-sm border border-white/10 hover:bg-white/[0.05]"
+            className="flex-1 py-3 rounded-xl text-white/70 font-semibold text-sm border border-white/10 hover:bg-white/[0.05] min-h-[44px]"
           >
             {labels.skipBtn}
           </button>
           <button
             type="button"
             onClick={handleRegenerate}
-            className="flex-[2] py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2"
+            className="flex-[2] py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 min-h-[44px]"
             style={{ background: 'linear-gradient(135deg, #f59e0b, #B668FC)' }}
           >
             <RefreshCw className="w-4 h-4" />

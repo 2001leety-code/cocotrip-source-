@@ -22,17 +22,17 @@ export function FlightAd({ arrivalAirport }: FlightAdProps) {
         </div>
         <div className="flex-1">
           <p className="font-bold text-white text-base leading-tight">{p.adFlightTitle || 'Search Flights to Korea'}</p>
-          <p className="text-xs text-white/50 mt-0.5">{p.adFlightSub || 'Compare prices across airlines'}</p>
+          <p className="text-[14px] text-white/50 mt-0.5">{p.adFlightSub || 'Compare prices across airlines'}</p>
         </div>
       </div>
       <div className="px-5 pb-4">
         <a href={link.url} target="_blank" rel="noopener noreferrer"
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02]"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] min-h-[44px]"
           style={{ background: '#0073E6', boxShadow: '0 4px 16px rgba(0,115,230,0.25)' }}>
           {link.label} {'\u2192'}
         </a>
       </div>
-      <p className="text-[10px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
+      <p className="text-[12px] text-white/55 text-center pb-3 px-5">{p.adAffiliateNote || 'Affiliate link \u2014 helps support CocoTrip.'}</p>
     </div>
   );
 }

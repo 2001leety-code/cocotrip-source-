@@ -109,7 +109,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
           </div>
           <div className="text-left">
             <p className="text-[15px] font-bold text-white">{ui.arrivalGuide || 'Airport Arrival Guide'}</p>
-            <p className="text-[13px] text-white/55 mt-0.5">{guide.airport} {route ? `· ${route.est_min}${ui.minUnit || 'min'} → ${ui.toHotel || 'Hotel'}` : ''}</p>
+            <p className="text-[13px] text-white/65 mt-0.5">{guide.airport} {route ? `· ${route.est_min}${ui.minUnit || 'min'} → ${ui.toHotel || 'Hotel'}` : ''}</p>
           </div>
         </div>
         <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
@@ -132,7 +132,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[16px] font-bold text-white">{ui.charterRecTitle || 'CocoTrip Private Charter'}</p>
-                  <p className="text-[13px] text-white/60">{ui.charterRecSub || 'Door-to-door · driver loads all luggage · English-speaking'}</p>
+                  <p className="text-[13px] text-white/70">{ui.charterRecSub || 'Door-to-door · driver loads all luggage · English-speaking'}</p>
                 </div>
               </div>
               {/* PR-C (2026-06-01): 가격+구간 1줄 — 백엔드 플래그 ON 시에만 필드 존재.
@@ -181,7 +181,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[15px] font-bold text-white">{recMeta?.label || ui.toHotel || 'To Hotel'}</p>
-                  <p className="text-[13px] text-white/60">
+                  <p className="text-[13px] text-white/70">
                     {route.est_min}{ui.minUnit || 'min'}
                     {(route.est_fare_krw || 0) > 0 ? ` · ${formatKRW(route.est_fare_krw || 0)}` : ''}
                     {(route.transfers || 0) > 0 ? ` · ${route.transfers} ${ui.transfer || 'transfer'}` : ''}
@@ -222,7 +222,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                         )}
                       </div>
                       <p className="text-[14px] font-bold text-white mt-0.5">{step.title}</p>
-                      <p className="text-[14px] text-white/55 mt-1 leading-relaxed">{step.description}</p>
+                      <p className="text-[14px] text-white/65 mt-1 leading-relaxed">{step.description}</p>
 
                       {/* Sub-options (SIM/Wi-Fi etc.) */}
                       {step.options && step.options.length > 0 && (
@@ -239,7 +239,7 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                       {/* Transport-to-hotel comparison grid (Step 5 — only as a comparison; actual route is in HERO above) */}
                       {isHotelStep && step.transport_to_hotel && (
                         <div className="mt-3">
-                          <p className="text-[12px] text-white/55 uppercase tracking-wider mb-1.5">{ui.allOptions || 'All options'}</p>
+                          <p className="text-[12px] text-white/65 uppercase tracking-wider mb-1.5">{ui.allOptions || 'All options'}</p>
                           <div className="grid grid-cols-2 gap-1.5">
                             {Object.entries(step.transport_to_hotel)
                               .filter(([, val]) => val != null)
@@ -251,19 +251,19 @@ export function ArrivalGuide({ guide }: { guide: ArrivalGuideData }) {
                                   <div key={key}
                                     className={`relative rounded-lg px-2.5 py-2 border ${isRec ? 'border-[#FBBC05]/50 bg-[#FBBC05]/[0.08]' : 'border-white/[0.06] bg-white/[0.04]'}`}>
                                     {isRec && (
-                                      <span className="absolute -top-1.5 right-1.5 px-1 py-0.5 rounded text-[8px] font-bold text-black" style={{ background: '#FBBC05' }}>
+                                      <span className="absolute -top-1.5 right-1.5 px-1 py-0.5 rounded text-[11px] font-bold text-black" style={{ background: '#FBBC05' }}>
                                         ★
                                       </span>
                                     )}
                                     <div className="flex items-center gap-1.5 mb-1">
                                       <TIcon className="w-3 h-3" style={{ color: meta?.color || '#7C5CFC' }} />
-                                      <p className="text-[12px] font-semibold text-white/70 uppercase">{meta?.label || key.replace(/_/g, ' ')}</p>
+                                      <p className="text-[12px] font-semibold text-white/80 uppercase">{meta?.label || key.replace(/_/g, ' ')}</p>
                                     </div>
                                     <p className="text-[13px] font-bold text-white">{formatKRW(val?.price_krw || val?.est_price_krw || 0)}</p>
-                                    <p className="text-[12px] text-white/55">{val?.duration_min || '?'}{ui.minUnit || 'min'}</p>
+                                    <p className="text-[12px] text-white/65">{val?.duration_min || '?'}{ui.minUnit || 'min'}</p>
                                     {/* P153 (2026-05-22): instruction 텍스트 표시 — 데이터엔 있는데 UI 미노출 회귀 */}
                                     {val?.instruction && (
-                                      <p className="text-[12px] text-white/65 mt-1 leading-snug line-clamp-3">{val.instruction}</p>
+                                      <p className="text-[12px] text-white/70 mt-1 leading-snug line-clamp-3">{val.instruction}</p>
                                     )}
                                   </div>
                                 );

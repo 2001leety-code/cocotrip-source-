@@ -97,13 +97,13 @@ export function LodgingBookend({ transit, variant, lodgingLabel, otherLabel }: P
               {isDepart ? (
                 <>
                   <span className="font-semibold text-white">{stayLabel}</span>
-                  <ArrowDown className="inline w-3 h-3 mx-1 text-white/45" />
+                  <ArrowDown className="inline w-3 h-3 mx-1 text-white/60" />
                   <span>{otherLabel || ''}</span>
                 </>
               ) : (
                 <>
                   <span>{otherLabel || ''}</span>
-                  <ArrowDown className="inline w-3 h-3 mx-1 text-white/45" />
+                  <ArrowDown className="inline w-3 h-3 mx-1 text-white/60" />
                   <span className="font-semibold text-white">{stayLabel}</span>
                 </>
               )}

@@ -76,11 +76,11 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
           <p className="text-white text-sm font-semibold leading-tight">
             {ch.suggestHeader || 'This day has many transit transfers'}
           </p>
-          <p className="text-white/55 text-xs mt-1">
+          <p className="text-white/55 text-[14px] mt-1">
             {ch.suggestBody || 'Skip the hassle -- ride in comfort with a private driver'}
           </p>
           {pricing && (
-            <p className="text-[#7C5CFC] text-xs mt-2 font-medium">
+            <p className="text-[#7C5CFC] text-[14px] mt-2 font-medium flex flex-wrap gap-1">
               {pricing.en} {'·'} {pricing.hours}{ch.hoursLabel || 'hours'} {'·'} {formatKRW(pricing.priceKRW)}
             </p>
           )}
@@ -88,7 +88,7 @@ export function CharterCTA({ day, plan }: CharterCTAProps) {
       </div>
       <a
         href={charterHref}
-        className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] hover:border-[#7C5CFC]/50"
+        className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:scale-[1.02] hover:border-[#7C5CFC]/50 min-h-[44px]"
         style={{ background: 'linear-gradient(135deg,#7C5CFC,#a855f7)' }}
       >
         {ch.viewCharterCTA || 'View Charter Options'} {'→'}

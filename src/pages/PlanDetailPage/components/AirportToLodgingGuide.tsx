@@ -170,7 +170,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-white mb-1">{HEADLINE.ko.title}</p>
-            <p className="text-[13px] text-white/65 leading-relaxed">{SIMPLIFIED_KO}</p>
+            <p className="text-[13px] text-white/75 leading-relaxed">{SIMPLIFIED_KO}</p>
             {/* B-4 (2026-05-11 prod 검증): "코코트립 차량 알아보기" 버튼 제거.
                 바로 아래 AirportPickupAd 카드와 중복 — 안내문은 유지, 버튼만 삭제. */}
           </div>
@@ -197,14 +197,14 @@ export function AirportToLodgingGuide({ plan }: Props) {
           </div>
           <div className="min-w-0">
             <p className="text-[14px] font-bold text-white">{headline.title}</p>
-            <p className="text-[13px] text-white/55 mt-0.5">
-              <span className="font-semibold text-white/75">{arrivalAirport}</span>
+            <p className="text-[13px] text-white/65 mt-0.5">
+              <span className="font-semibold text-white/80">{arrivalAirport}</span>
               <ArrowRight className="inline w-3 h-3 mx-1" />
               <span>{lodgingLabel}</span>
             </p>
           </div>
         </div>
-        <p className="text-[14px] text-white/65 leading-relaxed mt-2">{headline.subtitle}</p>
+        <p className="text-[14px] text-white/70 leading-relaxed mt-2">{headline.subtitle}</p>
         {heavyLoad && (
           <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
             <p className="text-[13px] text-amber-200 leading-relaxed">
@@ -233,7 +233,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
               }`}
             >
               {isRec && (
-                <span className="absolute -top-1.5 right-2 px-2 py-0.5 rounded text-[9px] font-bold text-black"
+                <span className="absolute -top-1.5 right-2 px-2 py-0.5 rounded text-[11px] font-bold text-black"
                   style={{ background: '#FBBC05' }}>
                   ★ {recBadge}
                 </span>
@@ -244,9 +244,9 @@ export function AirportToLodgingGuide({ plan }: Props) {
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-[14px] font-bold text-white">{fmtKRW(opt.priceKRW)}</span>
-                <span className="text-[13px] text-white/55">· {opt.durationMin} min</span>
+                <span className="text-[13px] text-white/65">· {opt.durationMin} min</span>
               </div>
-              <p className="text-[13px] text-white/60 leading-snug">{notes[opt.noteKey]}</p>
+              <p className="text-[13px] text-white/70 leading-snug">{notes[opt.noteKey]}</p>
               {opt.ctaTo && (
                 <div className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold"
                   style={{ color: opt.iconColor }}>
