@@ -14,9 +14,10 @@ interface IntroSlideProps {
   planId: string;
   isTranslating: boolean;
   translationError?: string | null;
+  isOwner?: boolean;
 }
 
-export function IntroSlide({ plan, planId, isTranslating, translationError }: IntroSlideProps) {
+export function IntroSlide({ plan, planId, isTranslating, translationError, isOwner }: IntroSlideProps) {
   const { t } = useLanguage();
   const pd = getPlanDetailDict(t);
   const sw = pd.swipe || {};
@@ -57,7 +58,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError }: In
           {it.tour_title || sw.introTitle || 'Your Korea Trip'}
         </h1>
         <div className="flex items-center justify-center mt-1">
-          <ShareMiniIcon planId={planId} plan={plan} />
+          <ShareMiniIcon planId={planId} plan={plan} isOwner={isOwner} />
         </div>
         <p className="text-white/55 text-sm mt-2">
           {input.startDate} | {input.adults ? `${input.adults} adults` : `${input.pax} pax`}

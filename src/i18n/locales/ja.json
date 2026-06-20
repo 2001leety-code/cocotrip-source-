@@ -1501,7 +1501,8 @@
       "stationInfo": "駅情報",
       "lostAndFound": "遺失物センター",
       "firstTrain": "始発",
-      "lastTrain": "終電"
+      "lastTrain": "終電",
+      "fareUnavailable": "運賃情報なし"
     },
     "lodging": {
       "label": "宿泊先",
@@ -1587,6 +1588,12 @@
       "accomRecAffiliateNote": "アフィリエイトリンク — CocoTripの運営支援に繋がります。",
       "tabPreTrip": "旅行準備",
       "tabActivityGuide": "アクティビティガイド",
+      "tabIntro": "はじめに",
+      "tabDay": "Day",
+      "tabOutro": "まとめ",
+      "streamingWait": "旅程を作成中...",
+      "translatingWait": "翻訳中... しばらくお待ちください",
+      "translationFailedShowingOriginal": "翻訳できません — 原文を表示しています",
       "preTripTitle": "旅行準備ガイド",
       "preTripSubtitle": "到着前にご確認いただくと韓国旅行がよりスムーズになります"
     },
@@ -1720,7 +1727,8 @@
       "pdfGeneratedBy": "CocoTrip AIが作成",
       "adultsLabel": "大人",
       "paxLabel": "名",
-      "minUnit": "分"
+      "minUnit": "分",
+      "transfer": "乗換"
     },
     "notices": {
       "title": "プラン自動補正のお知らせ",

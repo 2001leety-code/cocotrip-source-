@@ -171,7 +171,7 @@ export interface TransitFromPrev {
   last_station?: string | null;
   est_min?: number;
   est_fare_krw?: number;
-  source?: 'odsay' | 'naver' | 'gemini' | 'naver_fallback' | 'downgrade';
+  source?: 'odsay' | 'tmap' | 'naver' | 'gemini' | 'naver_fallback' | 'downgrade' | 'blind_25_no_coords' | 'cache';
   from_label?: string;
   _downgraded_from?: string;
   _odsay_failed?: boolean;

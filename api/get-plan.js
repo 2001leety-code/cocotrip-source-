@@ -35,8 +35,9 @@ const JSON_HEADERS = {
 // PII 필드 목록 — PlanDetailPage/index.tsx L120-128 마스킹 목록과 일치.
 // 최상위 필드
 const TOP_LEVEL_PII = ['uid', 'guestEmail', 'accessToken', 'pricing'];
-// input 하위 필드
-const INPUT_PII = ['specialRequest', 'hotel_address', 'arrival_airport', 'departure_airport'];
+// input 하위 필드 — guestName(실명)·dietary·allergies(건강정보) 포함 (버그헌트 2026-06-20:
+// planPersister 가 input 에 저장하는데 마스킹 명단서 누락 → 공유 플랜에 실명·알레르기 노출되던 것).
+const INPUT_PII = ['guestName', 'specialRequest', 'hotel_address', 'arrival_airport', 'departure_airport', 'dietary', 'allergies'];
 
 /**
  * 권한 판정 + 마스킹 순수 헬퍼.

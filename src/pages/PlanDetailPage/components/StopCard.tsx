@@ -120,7 +120,10 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
   const ui = getPlanDetailUI(t);
   // 다국어 concat 누수 안전망 (사용자 PDF 보고). 백엔드 sanitize 누락 시 display-time fix.
   const lng = (language as 'ko'|'en'|'ja'|'zh') || 'ko';
-  const cleanDisplayName = sanitizeStopName(stop.display_name || stop.name_en || stop.name || stop.name_ko || '', lng);
+  const _rawDisplayName = sanitizeStopName(stop.display_name || stop.name_en || stop.name || stop.name_ko || '', lng);
+  // #16 fix: 모든 이름 필드가 빈 값이면 'Unnamed stop' 폴백 (4언어)
+  const UNNAMED: Record<string, string> = { ko: '이름 없는 장소', en: 'Unnamed stop', ja: '名称不明', zh: '未命名地点' };
+  const cleanDisplayName = _rawDisplayName || UNNAMED[lng] || 'Unnamed stop';
   const cleanKoName = sanitizeStopName(stop.name || stop.name_ko || '', 'ko');
   // Collapsed default — mobile users see more stops at a glance instead of
   // having one giant card fill the viewport (PR #76 mobile-first analysis).
@@ -218,7 +221,7 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
       role="button"
       tabIndex={0}
       aria-expanded={expanded}
-      aria-label={`${cleanDisplayName}, ${stop.start_time}`}
+      aria-label={`${cleanDisplayName || UNNAMED[lng] || 'Unnamed stop'}, ${stop.start_time}`}
       className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl hover:border-[#7C5CFC]/50 hover:bg-white/[0.07] hover:shadow-lg hover:shadow-[#7C5CFC]/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5CFC] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0412] transition-[border-color,background-color,box-shadow,transform] duration-200 cursor-pointer overflow-hidden"
       onClick={toggle}
       onKeyDown={(e) => {
@@ -263,7 +266,10 @@ export function StopCard({ stop, lodgingRole }: { stop: PlanStop; lodgingRole?: 
                 'Bakery Pilgrimage': { bg: 'bg-amber-500/20 border-amber-500/30', text: 'text-amber-300', emoji: '\u{1F950}' },
                 'Blue Ribbon': { bg: 'bg-blue-500/20 border-blue-500/30', text: 'text-blue-300', emoji: '\u{1F3C5}' },
               };
-              const cfg = tagConfig[stop.local_tag] || { bg: 'bg-white/10 border-white/20', text: 'text-white/60', emoji: '\u2B50' };
+              const cfg = tagConfig[stop.local_tag];
+              // [live MED] fix: tagConfig\uC5D0 \uC5C6\uB294 raw \uB0B4\uBD80\uD0A4(snake_case, \uD30C\uC774\uD504 \uAD6C\uBD84)\uB294 \uC228\uAE40.
+              // zone_courses DB\uAC00 local_tag\uC5D0 "downtown_temple | lotus_lantern_festival" \uD615\uD0DC \uC800\uC7A5 \u2192 UI \uB178\uCD9C \uBC29\uC9C0.
+              if (!cfg) return null;
               return <span className={`shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${cfg.bg} ${cfg.text}`}>{cfg.emoji} {stop.local_tag}</span>;
             })()}
             {isUnverifiedFood && (

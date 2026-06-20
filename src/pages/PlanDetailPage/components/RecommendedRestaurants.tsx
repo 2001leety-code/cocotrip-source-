@@ -213,10 +213,13 @@ export function RecommendedRestaurants({
                               <p className="text-[11px] text-white/55 mt-0.5">{r.name}</p>
                             )}
                           </div>
-                          <div className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-yellow-400/15 border border-yellow-400/30">
-                            <Star className="w-3 h-3 text-yellow-300 fill-current" />
-                            <span className="text-[11px] font-bold text-yellow-200">{r.rating?.toFixed(1)}</span>
-                          </div>
+                          {/* #15 fix: rating null(네이버 수집 미기재) 이면 배지 전체 숨김 */}
+                          {r.rating != null && (
+                            <div className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-yellow-400/15 border border-yellow-400/30">
+                              <Star className="w-3 h-3 text-yellow-300 fill-current" />
+                              <span className="text-[11px] font-bold text-yellow-200">{r.rating.toFixed(1)}</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">

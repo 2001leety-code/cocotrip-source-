@@ -128,10 +128,13 @@ export default function PlanDetailPage() {
         delete data.uid; delete data.guestEmail;
         delete data.accessToken;
         if (data.input) {
+          delete data.input.guestName;
           delete data.input.specialRequest;
           delete data.input.hotel_address;
           delete data.input.arrival_airport;
           delete data.input.departure_airport;
+          delete data.input.dietary;
+          delete data.input.allergies;
         }
         delete data.pricing;
       }
@@ -428,7 +431,7 @@ export default function PlanDetailPage() {
       case 'preTrip':
         return <PreTripSlide key={`preTrip-${idx}`} plan={plan} planId={planId || ''} />;
       case 'intro':
-        return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} />;
+        return <IntroSlide key={`intro-${idx}`} plan={plan} planId={planId || ''} isTranslating={isTranslating} translationError={translationError} isOwner={isOwner} />;
       case 'day': {
         // P224: ?? instead of || so dayIndex=0 is preserved (|| treats 0 as falsy)
         const dayIdx = slide.dayIndex ?? 0;

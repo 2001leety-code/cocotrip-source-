@@ -149,12 +149,21 @@ export function ShareButton({ planId, plan, isOwner }: ShareButtonProps) {
 }
 
 // Mini icon for IntroSlide
-export function ShareMiniIcon({ planId, plan }: { planId: string; plan: PlanDocument }) {
+// #14 fix: 비공개 플랜(isPublic===false)이면 버튼 비활성화 + 토스트 안내.
+// ShareButton(메인)은 isOwner && !isPublic 가드가 있으나 ShareMiniIcon은 누락됐었음.
+export function ShareMiniIcon({ planId, plan, isOwner }: { planId: string; plan: PlanDocument; isOwner?: boolean }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const sh = (getPlanDetailDict(t).share || {}) as Record<string, string>;
+  const isPublic = plan?.isPublic || false;
 
   const handleShare = async () => {
+    // 소유자이고 비공개이면 링크 공유 차단 (받는 사람이 접근 거부됨)
+    if (isOwner && !isPublic) {
+      toast(sh.privateNotice || 'Only you can view this plan — make it public first.');
+      return;
+    }
+
     const shareUrl = `https://cocotripkr.com/my-plans/${planId}?shared=1`;
     const title = plan?.itinerary?.tour_title || 'Korea Trip';
     let shareMethod = '';
@@ -180,11 +189,14 @@ export function ShareMiniIcon({ planId, plan }: { planId: string; plan: PlanDocu
     }
   };
 
+  const disabled = isOwner && !isPublic;
+
   return (
     <button
       onClick={handleShare}
-      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors ml-2"
-      aria-label={t.a11y?.share ||'Share'}
+      disabled={disabled}
+      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors ml-2 disabled:opacity-40 disabled:cursor-not-allowed"
+      aria-label={t.a11y?.share || 'Share'}
     >
       <Link2 className="w-4 h-4 text-white/50" />
     </button>

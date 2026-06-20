@@ -86,4 +86,46 @@ describe('shouldShowFallbackWarning', () => {
     expect(shouldShowFallbackWarning(null)).toBe(false);
     expect(shouldShowFallbackWarning(undefined)).toBe(false);
   });
+
+  // PR #(fix/plan-result-bughunt) #4 — deny-by-default 전환 후 회귀 방지
+  // blind_25_no_coords: 좌표 없어서 25분 고정값 사용 — 실측 데이터 없음 → 경고 O
+  it('subway + blind_25_no_coords → 경고 O (좌표 없어 25분 고정값, RouteAgent L1852)', () => {
+    expect(
+      shouldShowFallbackWarning({ method: 'subway', source: 'blind_25_no_coords' }),
+    ).toBe(true);
+  });
+
+  it('bus + blind_25_no_coords → 경고 O', () => {
+    expect(
+      shouldShowFallbackWarning({ method: 'bus', source: 'blind_25_no_coords' }),
+    ).toBe(true);
+  });
+
+  // cache: 검증된 캐시는 신뢰 source → 경고 X
+  it('subway + cache → 경고 X (검증된 캐시)', () => {
+    expect(
+      shouldShowFallbackWarning({ method: 'subway', source: 'cache' }),
+    ).toBe(false);
+  });
+
+  // tmap: 실측 API → 신뢰 source → 경고 X
+  it('subway + tmap → 경고 X (실측 TMAP API)', () => {
+    expect(
+      shouldShowFallbackWarning({ method: 'subway', source: 'tmap' }),
+    ).toBe(false);
+  });
+
+  // car + blind_25_no_coords → 경고 X (개인 차량은 isPublicTransitMethod false)
+  it('car + blind_25_no_coords → 경고 X (개인 차량 모드)', () => {
+    expect(
+      shouldShowFallbackWarning({ method: 'car', source: 'blind_25_no_coords' }),
+    ).toBe(false);
+  });
+
+  // gemini source — 추정값 → 경고 O
+  it('subway + gemini → 경고 O (Gemini 추정값)', () => {
+    expect(
+      shouldShowFallbackWarning({ method: 'subway', source: 'gemini' }),
+    ).toBe(true);
+  });
 });
