@@ -1501,7 +1501,8 @@
       "stationInfo": "역 정보",
       "lostAndFound": "분실물 센터",
       "firstTrain": "첫차",
-      "lastTrain": "막차"
+      "lastTrain": "막차",
+      "fareUnavailable": "요금 정보 없음"
     },
     "lodging": {
       "label": "숙소",
@@ -1587,6 +1588,12 @@
       "accomRecAffiliateNote": "어필리에이트 링크 — CocoTrip 운영에 도움이 됩니다.",
       "tabPreTrip": "여행 준비",
       "tabActivityGuide": "활동 가이드",
+      "tabIntro": "소개",
+      "tabDay": "Day",
+      "tabOutro": "마무리",
+      "streamingWait": "일정을 만드는 중...",
+      "translatingWait": "번역 중... 잠시만 기다려 주세요",
+      "translationFailedShowingOriginal": "번역을 사용할 수 없음 — 원문을 표시합니다",
       "preTripTitle": "여행 준비 안내",
       "preTripSubtitle": "도착 전 확인하시면 한국 여행이 더 매끄러워져요"
     },
@@ -1720,7 +1727,8 @@
       "pdfGeneratedBy": "CocoTrip AI가 생성함",
       "minUnit": "분",
       "adultsLabel": "성인",
-      "paxLabel": "명"
+      "paxLabel": "명",
+      "transfer": "환승"
     },
     "notices": {
       "title": "플랜 자동 보정 안내",

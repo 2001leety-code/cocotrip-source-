@@ -1501,7 +1501,8 @@
       "stationInfo": "车站信息",
       "lostAndFound": "失物招领",
       "firstTrain": "首班车",
-      "lastTrain": "末班车"
+      "lastTrain": "末班车",
+      "fareUnavailable": "票价信息不可用"
     },
     "lodging": {
       "label": "住宿",
@@ -1587,6 +1588,12 @@
       "accomRecAffiliateNote": "联盟链接 — 有助于支持 CocoTrip。",
       "tabPreTrip": "出行准备",
       "tabActivityGuide": "活动指南",
+      "tabIntro": "简介",
+      "tabDay": "Day",
+      "tabOutro": "总结",
+      "streamingWait": "正在生成行程...",
+      "translatingWait": "翻译中... 请稍候",
+      "translationFailedShowingOriginal": "翻译不可用 — 显示原文",
       "preTripTitle": "出行准备指南",
       "preTripSubtitle": "出发前查看让您的韩国之旅更顺畅"
     },
@@ -1720,7 +1727,8 @@
       "pdfGeneratedBy": "由 CocoTrip AI 生成",
       "adultsLabel": "成人",
       "paxLabel": "人",
-      "minUnit": "分钟"
+      "minUnit": "分钟",
+      "transfer": "换乘"
     },
     "notices": {
       "title": "行程自动校正提示",

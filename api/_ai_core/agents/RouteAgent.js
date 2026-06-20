@@ -1447,18 +1447,23 @@ export class RouteAgent extends BaseAgent {
                             const prevHotelPlace = { lat: prevHotelEffective.lat, lng: prevHotelEffective.lng, name: prevHotelEffective.label || 'Hotel', display_name: prevHotelEffective.label || 'Hotel' };
                             const transitData = await this._getTransitData(prevHotelPlace, stationPlace, clientId, clientSecret, -1, dayOfWeek);
                             const pt = transitData.publicTransit;
+                            if (!pt) {
+                                bookendFailReasons.push(`pre:odsay_null_response`);
+                                console.warn(`  - intercity bookend pre ODsay returned null (Day ${dayPlan.day}) — skipping lodging_to_station`);
+                            } else {
                             it.lodging_to_station = {
-                                method: pt?.method || 'subway',
-                                mode: methodToMode(pt?.method) || 'subway',
-                                instruction: pt?.summary || `Take public transit from ${prevHotelEffective.label || 'hotel'} to ${it.from_station}`,
-                                step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
-                                steps_detail: pt?.steps || [],
-                                est_min: pt?.duration || transitData.durationMin || 30,
-                                est_fare_krw: pt?.fare || 0,
+                                method: pt.method || 'subway',
+                                mode: methodToMode(pt.method) || 'subway',
+                                instruction: pt.summary || `Take public transit from ${prevHotelEffective.label || 'hotel'} to ${it.from_station}`,
+                                step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
+                                steps_detail: pt.steps || [],
+                                est_min: pt.duration || transitData.durationMin || 30,
+                                est_fare_krw: pt.fare || 0,
                                 source: 'odsay',
                                 from_label: prevHotelEffective.label || 'Hotel',
                                 to_label: it.from_station,
                             };
+                            }
                             console.log(`  - [${prevHotelEffective.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station.est_min}min (intercity bookend pre, source=${prevHotelEffective.source || 'prev_day_hotel'})`);
                         } catch (preErr) {
                             bookendFailReasons.push(`pre:odsay_throw:${(preErr.message || 'unknown').slice(0, 60)}`);
@@ -1484,18 +1489,23 @@ export class RouteAgent extends BaseAgent {
                             const newHotelPlace = { lat: dayHotel.lat, lng: dayHotel.lng, name: dayHotel.label || 'Hotel', display_name: dayHotel.label || 'Hotel' };
                             const transitData = await this._getTransitData(stationPlace, newHotelPlace, clientId, clientSecret, -2, dayOfWeek);
                             const pt = transitData.publicTransit;
+                            if (!pt) {
+                                bookendFailReasons.push(`post:odsay_null_response`);
+                                console.warn(`  - intercity bookend post ODsay returned null (Day ${dayPlan.day}) — skipping station_to_lodging`);
+                            } else {
                             it.station_to_lodging = {
-                                method: pt?.method || 'subway',
-                                mode: methodToMode(pt?.method) || 'subway',
-                                instruction: pt?.summary || `Take public transit from ${it.to_station} to ${dayHotel.label || 'hotel'}`,
-                                step_by_step: (pt?.steps || []).map(s => s.description || s.instruction || ''),
-                                steps_detail: pt?.steps || [],
-                                est_min: pt?.duration || transitData.durationMin || 30,
-                                est_fare_krw: pt?.fare || 0,
+                                method: pt.method || 'subway',
+                                mode: methodToMode(pt.method) || 'subway',
+                                instruction: pt.summary || `Take public transit from ${it.to_station} to ${dayHotel.label || 'hotel'}`,
+                                step_by_step: (pt.steps || []).map(s => s.description || s.instruction || ''),
+                                steps_detail: pt.steps || [],
+                                est_min: pt.duration || transitData.durationMin || 30,
+                                est_fare_krw: pt.fare || 0,
                                 source: 'odsay',
                                 from_label: it.to_station,
                                 to_label: dayHotel.label || 'Hotel',
                             };
+                            }
                             console.log(`  - [${it.to_station}→${dayHotel.label || 'Hotel'}] ${it.station_to_lodging.est_min}min (intercity bookend post)`);
                         } catch (postErr) {
                             bookendFailReasons.push(`post:odsay_throw:${(postErr.message || 'unknown').slice(0, 60)}`);

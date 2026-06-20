@@ -1,4 +1,8 @@
 // Generic confirm dialog overlay. Used for delete confirmations.
+// #3 fix: createPortal(document.body) — framer-motion transform 조상(SwipeContainer) 안에서
+// position:fixed 가 슬라이드 기준으로 배치되는 CSS 스펙 문제 회피.
+// RevisionReasonModal.tsx 와 동일한 패턴 적용.
+import { createPortal } from 'react-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 import { getPlanDetailDict } from '../types';
 
@@ -15,9 +19,10 @@ export function ConfirmDialog({ open, title, onConfirm, onCancel }: ConfirmDialo
   const ed = pd.editor || {};
 
   if (!open) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onCancel}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
@@ -39,6 +44,7 @@ export function ConfirmDialog({ open, title, onConfirm, onCancel }: ConfirmDialo
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

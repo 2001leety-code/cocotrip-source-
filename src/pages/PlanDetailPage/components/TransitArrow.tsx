@@ -27,17 +27,22 @@ export function methodLabel(method: string | undefined, trKeys: Record<string, s
 
 /**
  * "예상 이동 시간 — 실시간 교통 정보 없음" 경고 노출 여부.
- * - source==='naver_fallback' AND 대중교통 모드일 때만 true.
- * - 개인 차량(car) 모드는 ODsay 대상이 아니라 'naver_fallback'이 정상 경로 → 경고 X.
+ * - deny-by-default: 신뢰 source(odsay/tmap/cache) 이외의 대중교통이면 경고.
+ * - 개인 차량(car) 모드는 ODsay 대상이 아니라 isPublicTransitMethod 가드로 제외.
  * - downgrade(public→walk 등)는 별도 isDowngraded 분기에서 처리.
+ * - 신뢰 source: 'odsay' | 'tmap' | 'cache' — 실측 데이터가 있는 경우.
  */
+const TRUSTED_TRANSIT_SOURCES = new Set(['odsay', 'tmap', 'cache']);
+
 export function shouldShowFallbackWarning(
   transit: { source?: string; method?: string; _downgraded_from?: unknown } | null | undefined,
 ): boolean {
   if (!transit) return false;
   if (transit._downgraded_from) return false;
-  if (transit.source !== 'naver_fallback') return false;
-  return isPublicTransitMethod(transit.method);
+  if (!isPublicTransitMethod(transit.method)) return false;
+  // source 미지정(undefined/null)이면 경고 X — 구형 plan 호환
+  if (!transit.source) return false;
+  return !TRUSTED_TRANSIT_SOURCES.has(transit.source);
 }
 
 import { useState } from 'react';
@@ -295,7 +300,14 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
         {transit.from_label && <span className="text-[#7C5CFC] font-semibold">{transit.from_label} {'\u2192'}</span>}
         <span className="font-semibold">{methodLabel(transit.method, trKeys)}</span>
         <span className="text-white/50">{transit.est_min}{trKeys.minUnit || 'min'}</span>
-        {(transit.est_fare_krw || 0) > 0 && <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw || 0)}</span>}
+        {isPublicTransit
+          ? (transit.est_fare_krw || 0) > 0
+            ? <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw || 0)}</span>
+            : <span className="text-white/35 text-[10px]">{trKeys.fareUnavailable || 'Fare N/A'}</span>
+          : (transit.est_fare_krw || 0) > 0
+            ? <span className="text-[#7C5CFC]">{formatKRW(transit.est_fare_krw || 0)}</span>
+            : null
+        }
         {(transit.transfers || 0) > 0 && <span className="text-white/55">· {transit.transfers} {trKeys.transfer || 'transfer'}</span>}
         {/* 2026-04-27 이동 안내: 다음 목적지 명시. "차량 25분 → K-스타 로드" 형태로 사용자가 어디로 이동하는지 즉시 파악. */}
         {destinationName && !transit.from_label && (
@@ -338,7 +350,7 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
         </div>
       )}
 
-      {(transit.instruction_en || transit.instruction) && !hasRichSteps && (
+      {(transit.instruction_en || transit.instruction) && !hasRichSteps && !hasLegacySteps && (
         <p className="text-[10px] text-white/55 ml-6 mt-0.5 whitespace-pre-line">{transit.instruction_en || transit.instruction}</p>
       )}
 
