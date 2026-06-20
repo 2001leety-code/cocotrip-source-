@@ -11,14 +11,23 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────
     // plans — AI 플래너 결과 (공개/비공개)
-    //   read:   비로그인 허용 (uid==null or isPublic==true), 로그인 소유자
+    //   read:   소유자(로그인 본인) 전용. 비소유자/공개/게스트는 /api/get-plan 경유.
     //   update: 소유자만 (isPublic 토글, 플랜 편집). uid 변경 금지.
     //   create/delete: 서버 전용 (Admin SDK 우회)
     // ─────────────────────────────────────────────────────────
     match /plans/{planId} {
-      allow read: if resource.data.uid == null
-               || resource.data.isPublic == true
-               || (request.auth != null && resource.data.uid == request.auth.uid);
+      // fix/plan-pii-wire-leak (2026-06-20): PII wire 누출 차단.
+      //   이전 룰(uid==null || isPublic==true || owner)은 비소유자/공개/게스트 플랜의 raw
+      //   doc(accessToken·guestEmail·pricing·hotel_address 등)을 클라이언트 SDK 로 read 허용
+      //   → onSnapshot WebSocket 프레임으로 JS 마스킹 전에 브라우저 전선에 전송됐다. accessToken
+      //   유출 시 ?token= 으로 마스킹 완전 우회(소유자급).
+      //   이제 소유자만 직접 read. 비소유자/공개/게스트는 /api/get-plan(resolvePlanAccess, Admin
+      //   SDK)이 wire 전에 서버 마스킹(공개=masked / 토큰=full / 그외=403)해서 반환 → raw PII 가
+      //   클라이언트 전선에 절대 노출 안 됨.
+      //   admin(운영자)은 어드민 퍼널/도구용 전체 read 허용(다른 admin 리소스와 일관) — isAdminEmail
+      //   은 운영자 본인 이메일이라 공유 뷰어엔 해당 없음(공유 뷰어는 계속 /api/get-plan 경유).
+      allow read: if (request.auth != null && resource.data.uid == request.auth.uid)
+               || isAdminEmail();
 
       // PR #420 (audit H20): 이전엔 uid 외 어느 필드든 update 가능 → user 가
       // quality.score / priceKRW / vehicle 등 server-computed 값 조작 가능.
@@ -34,10 +43,16 @@ service cloud.firestore {
 
       allow create, delete: if false;
 
-      // Translation cache — owner can read/write, public plans allow read
+      // Translation cache — owner read/write, 공개 플랜은 공유 방문자(비로그인 포함) read 허용.
+      // fix/plan-pii-wire-leak (2026-06-20): useAutoTranslate 가 이 캐시를 클라이언트 SDK(db)로
+      //   읽는다(useAutoTranslate.ts L70). 부모 plans read 를 소유자 전용으로 좁히면서 공유
+      //   방문자(비소유자)의 캐시 read 가 막혀 매 방문 재번역(Gemini 비용↑)되므로, 공개 플랜
+      //   캐시는 read 허용한다. 캐시 doc 은 번역된 itinerary 만 담고 PII 없음 → 공개 read 안전.
+      //   write 는 소유자 전용 유지(비소유자 cache 오염 차단; 공유 방문자는 read-only).
       match /translations/{lang} {
-        allow read: if request.auth != null
-                 && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid;
+        allow read: if get(/databases/$(database)/documents/plans/$(planId)).data.isPublic == true
+                 || (request.auth != null
+                     && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid);
         allow write: if request.auth != null
                   && get(/databases/$(database)/documents/plans/$(planId)).data.uid == request.auth.uid;
       }
