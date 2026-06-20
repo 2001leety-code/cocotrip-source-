@@ -8,7 +8,7 @@ import type { Language } from '@/i18n';
 import type { ActivityMeta } from '@/types/plan';
 import { DIFF_STYLE, T, DIFF_LABEL, HAZARD_LABEL, UNSUITABLE_LABEL, GEAR_LABEL, humanize, labelToken, isCutoff, parseCutoff } from '@/lib/activityMetaLabels';
 
-const metric = 'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] text-white/60 bg-white/[0.05] border border-white/[0.08]';
+const metric = 'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[12px] text-white/60 bg-white/[0.05] border border-white/[0.08]';
 
 export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; language: Language }) {
   if (!meta || (meta.activity_type !== 'trekking' && meta.activity_type !== 'running_route')) return null;
@@ -28,7 +28,7 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
     <div className="mt-2 space-y-2" data-testid="activity-meta">
       {/* 활동 + 난이도 + 메트릭 */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-semibold"
           style={{ color: ds.color, background: ds.bg, border: `1px solid ${ds.color}33` }}>
           <Icon className="w-3 h-3" />
           {t[meta.activity_type]}{meta.difficulty ? ` · ${t.difficulty} ${dl[diff] || humanize(meta.difficulty)}` : ''}
@@ -46,7 +46,7 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
 
       {/* 부적합 경고 배너 (SAFETY — 가장 눈에 띄게, 4개국어) */}
       {Array.isArray(meta.unsuitable_for) && meta.unsuitable_for.length > 0 && (
-        <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px]"
+        <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px]"
           style={{ background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: '#f87171' }} />
           <span className="text-red-300"><b>{t.notFor}:</b> {meta.unsuitable_for.map((u) => labelToken(UNSUITABLE_LABEL, u, language)).join(', ')}</span>
@@ -55,7 +55,7 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
 
       {/* 시간 통과 제한 전용 배너 (SAFETY — 예: 한라산 진달래밭 12:30. 깨진 영어 대신 시간 명시) */}
       {cutoffs.length > 0 && (
-        <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px]"
+        <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px]"
           style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)' }}>
           <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: '#fbbf24' }} />
           <span className="text-amber-200">
@@ -71,9 +71,9 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
       {/* 위험 요소 칩 (컷오프 제외, 4개국어) */}
       {regularHazards.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[10px] text-red-400/80 font-medium">{t.hazards}:</span>
+          <span className="text-[12px] text-red-400/80 font-medium">{t.hazards}:</span>
           {regularHazards.map((h) => (
-            <span key={h} className="rounded px-1.5 py-0.5 text-[10px] text-red-300 bg-red-500/10 border border-red-500/20">{labelToken(HAZARD_LABEL, h, language)}</span>
+            <span key={h} className="rounded px-1.5 py-0.5 text-[12px] text-red-300 bg-red-500/10 border border-red-500/20">{labelToken(HAZARD_LABEL, h, language)}</span>
           ))}
         </div>
       )}
@@ -81,15 +81,15 @@ export function ActivityMetaChips({ meta, language }: { meta: ActivityMeta; lang
       {/* 준비물 칩 (advisory — 4개국어, 미등록 토큰은 humanize 폴백) */}
       {Array.isArray(meta.recommended_gear) && meta.recommended_gear.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[10px] text-white/50 font-medium">{t.gear}:</span>
+          <span className="text-[12px] text-white/50 font-medium">{t.gear}:</span>
           {meta.recommended_gear.map((g) => (
-            <span key={g} className="rounded px-1.5 py-0.5 text-[10px] text-white/60 bg-white/[0.05] border border-white/[0.08]">{labelToken(GEAR_LABEL, g, language)}</span>
+            <span key={g} className="rounded px-1.5 py-0.5 text-[12px] text-white/60 bg-white/[0.05] border border-white/[0.08]">{labelToken(GEAR_LABEL, g, language)}</span>
           ))}
         </div>
       )}
 
       {meta.requires_advance_booking && (
-        <div className="text-[10px] text-amber-300/90">📅 {t.booking}</div>
+        <div className="text-[12px] text-amber-300/90">📅 {t.booking}</div>
       )}
     </div>
   );

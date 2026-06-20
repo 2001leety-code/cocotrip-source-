@@ -197,17 +197,17 @@ export function AirportToLodgingGuide({ plan }: Props) {
           </div>
           <div className="min-w-0">
             <p className="text-[14px] font-bold text-white">{headline.title}</p>
-            <p className="text-[11px] text-white/55 mt-0.5">
+            <p className="text-[13px] text-white/55 mt-0.5">
               <span className="font-semibold text-white/75">{arrivalAirport}</span>
               <ArrowRight className="inline w-3 h-3 mx-1" />
               <span>{lodgingLabel}</span>
             </p>
           </div>
         </div>
-        <p className="text-[12px] text-white/65 leading-relaxed mt-2">{headline.subtitle}</p>
+        <p className="text-[14px] text-white/65 leading-relaxed mt-2">{headline.subtitle}</p>
         {heavyLoad && (
           <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
-            <p className="text-[11px] text-amber-200 leading-relaxed">
+            <p className="text-[13px] text-amber-200 leading-relaxed">
               {lang === 'en' && `🧳 ${luggageCount} suitcases / ${paxCount} pax — ${vehicleCount} vehicles recommended (Staria). Korean taxis fit only 1-2 large bags.`}
               {lang === 'ja' && `🧳 荷物${luggageCount}個 / ${paxCount}名 — 車両${vehicleCount}台推奨 (スターリア)。韓国のタクシーは大きな荷物1-2個まで。`}
               {lang === 'zh' && `🧳 ${luggageCount}件行李 / ${paxCount}人 — 建议${vehicleCount}辆车 (Staria)。韩国出租车仅能放1-2件大行李。`}
@@ -240,15 +240,15 @@ export function AirportToLodgingGuide({ plan }: Props) {
               )}
               <div className="flex items-center gap-2 mb-1.5">
                 <Icon className="w-4 h-4 shrink-0" style={{ color: opt.iconColor }} />
-                <p className="text-[12px] font-bold text-white truncate">{labels[opt.key]}</p>
+                <p className="text-[14px] font-bold text-white truncate">{labels[opt.key]}</p>
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-[14px] font-bold text-white">{fmtKRW(opt.priceKRW)}</span>
-                <span className="text-[11px] text-white/55">· {opt.durationMin} min</span>
+                <span className="text-[13px] text-white/55">· {opt.durationMin} min</span>
               </div>
-              <p className="text-[11px] text-white/60 leading-snug">{notes[opt.noteKey]}</p>
+              <p className="text-[13px] text-white/60 leading-snug">{notes[opt.noteKey]}</p>
               {opt.ctaTo && (
-                <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold"
+                <div className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold"
                   style={{ color: opt.iconColor }}>
                   {labels[opt.key]} <ArrowRight className="w-3 h-3" />
                 </div>
@@ -272,7 +272,7 @@ export function AirportToLodgingGuide({ plan }: Props) {
         <div className="px-4 pb-4">
           <Link to="/charter"
             onClick={() => trackAdClick('charter', 'preTrip:airportToLodging:footer', '/charter')}
-            className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-[12px] font-semibold text-white/85"
+            className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-[14px] font-semibold text-white/85"
             style={{ background: 'rgba(124,92,252,0.18)', border: '1px solid rgba(124,92,252,0.30)' }}>
             <Sparkles className="w-3.5 h-3.5" />
             {lang === 'en' && 'Skip the wait — book a private charter'}

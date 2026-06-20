@@ -43,13 +43,13 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
       {/* Title */}
       <div className="text-center mb-8">
         {isTranslating && (
-          <div className="inline-flex items-center gap-2 bg-[#7C5CFC]/20 border border-[#7C5CFC]/30 rounded-full px-4 py-1.5 mb-3 text-xs text-[#7C5CFC]">
+          <div className="inline-flex items-center gap-2 bg-[#7C5CFC]/20 border border-[#7C5CFC]/30 rounded-full px-4 py-1.5 mb-3 text-[14px] text-[#7C5CFC]">
             <div className="w-3 h-3 border border-[#7C5CFC] border-t-transparent rounded-full animate-spin" />
             Translating...
           </div>
         )}
         {!isTranslating && translationError && (
-          <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-3 text-xs text-amber-200">
+          <div className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 rounded-full px-4 py-1.5 mb-3 text-[14px] text-amber-200">
             <span aria-hidden>⚠</span>
             <span>{sw.translationFailedShowingOriginal || 'Translation unavailable — showing original'}</span>
           </div>
@@ -77,7 +77,7 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
         ].map((item, i) => (
           <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 text-center">
             <span className="text-white/55 flex justify-center mb-1">{item.icon}</span>
-            <p className="text-xs text-white/55">{item.label}</p>
+            <p className="text-[14px] text-white/55">{item.label}</p>
             <p className="text-sm font-bold">{item.value}</p>
           </div>
         ))}

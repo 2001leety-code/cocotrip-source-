@@ -24,7 +24,7 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
   const [open, setOpen] = useState(false);
   return (
     <section className="mb-5 sm:mb-6">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3 sm:px-5 sm:py-4">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3 sm:px-5 sm:py-4 min-h-[44px]">
         <div className="flex items-center gap-2.5 sm:gap-3">
           <Wallet className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#7C5CFC]" />
           <p className="text-[13px] sm:text-sm font-bold">{ui.budgetSummary || 'Daily Budget Summary'}</p>
@@ -33,12 +33,12 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
       </button>
       <div className={`overflow-hidden transition-all duration-300 ease-out ${open ? 'max-h-[1000px] opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
         {/* 포함/별도 뱃지 — CocoTrip "No Hidden Fees" 명시 */}
-        <div className="flex flex-wrap gap-1.5 mb-2.5 text-[10px]">
+        <div className="flex flex-wrap gap-1.5 mb-2.5 text-[12px]">
           <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">✓ Transport = 차량비 (톨·주차 포함)</span>
           <span className="px-2 py-0.5 rounded-full bg-white/[0.03] text-white/55 border border-white/10">× Entry/Meals = 별도 현장 결제</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[11px] sm:text-xs">
+          <table className="w-full text-[13px] sm:text-[14px]">
             <thead>
               <tr className="text-white/55 border-b border-white/[0.08]">
                 <th className="text-left py-1.5 px-1.5 sm:py-2 sm:px-2">{ui.budgetDay || 'Day'}</th>
@@ -63,7 +63,7 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
         </div>
         {tMoney > 0 && (
           <div className="mt-2.5 sm:mt-3 bg-[#7C5CFC]/10 border border-[#7C5CFC]/20 rounded-xl px-3.5 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs text-white/60">{ui.tmoneyRecommended || 'Recommended T-money load'}</span>
+            <span className="text-[13px] sm:text-[14px] text-white/60">{ui.tmoneyRecommended || 'Recommended T-money load'}</span>
             <span className="text-[13px] sm:text-sm font-bold text-[#7C5CFC]">{formatKRW(tMoney)}</span>
           </div>
         )}

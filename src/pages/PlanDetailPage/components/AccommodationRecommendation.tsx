@@ -58,7 +58,7 @@ export function AccommodationRecommendation({
     <div className="mb-6 rounded-2xl overflow-hidden border border-emerald-500/20"
       style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(20,184,166,0.05))' }}>
       <div className="px-5 py-4">
-        <p className="text-[11px] uppercase tracking-widest text-emerald-300/80 font-semibold mb-3 flex items-center gap-1.5">
+        <p className="text-[13px] uppercase tracking-widest text-emerald-300/80 font-semibold mb-3 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5" />
           {labelTitle || 'AI Hotel Recommendation'}
         </p>
@@ -69,27 +69,27 @@ export function AccommodationRecommendation({
           <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-base mb-1 break-words">{name}</p>
             {(area || address) && (
-              <p className="text-xs text-white/55 mb-2 flex items-start gap-1">
+              <p className="text-[14px] text-white/55 mb-2 flex items-start gap-1">
                 <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
                 <span className="break-words">{[area, address].filter(Boolean).join(' · ')}</span>
               </p>
             )}
             {why && (
               <div className="bg-emerald-500/10 border-l-2 border-emerald-400/50 rounded-r-xl px-3 py-2 mb-2">
-                <p className="text-[11px] uppercase tracking-wider text-emerald-300/70 font-semibold mb-1">
+                <p className="text-[13px] uppercase tracking-wider text-emerald-300/70 font-semibold mb-1">
                   {labelWhy || 'Why this hotel'}
                 </p>
-                <p className="text-xs text-emerald-100/80 leading-relaxed">{why}</p>
+                <p className="text-[14px] text-emerald-100/80 leading-relaxed">{why}</p>
               </div>
             )}
             {priceRange && (
-              <p className="text-xs text-white/60 mb-2 flex items-center gap-1">
+              <p className="text-[14px] text-white/60 mb-2 flex items-center gap-1">
                 <CreditCard className="w-3 h-3 shrink-0" />
                 <span>{priceRange}</span>
               </p>
             )}
             {bookingTip && (
-              <p className="text-[11px] text-white/55 leading-relaxed mb-2">
+              <p className="text-[13px] text-white/55 leading-relaxed mb-2">
                 <span className="text-amber-300/80 font-semibold">{labelTip || 'Booking tip'}: </span>
                 {bookingTip}
               </p>
@@ -103,13 +103,13 @@ export function AccommodationRecommendation({
           <div className="flex flex-wrap gap-2">
             {links.map((lk: { provider: string; url: string; label: string; color?: string }) => (
               <a key={lk.provider} href={lk.url} target="_blank" rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-all hover:opacity-90 active:scale-95"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[14px] font-bold text-white transition-all hover:opacity-90 active:scale-95"
                 style={{ background: lk.color || '#0073E6' }}>
                 {lk.label} {'→'}
               </a>
             ))}
           </div>
-          <p className="text-[10px] text-white/55 text-center">
+          <p className="text-[12px] text-white/55 text-center">
             {labelAffiliateNote || 'Affiliate link — helps support CocoTrip.'}
           </p>
         </div>

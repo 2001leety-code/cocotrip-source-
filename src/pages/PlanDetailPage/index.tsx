@@ -480,6 +480,7 @@ export default function PlanDetailPage() {
                 onDeleteStop={(di, si) => editor.deleteStop(di, si, token)}
                 onAddStop={(di) => setAddStopDay(di)}
                 plan={plan}
+                isOwner={isOwner}
               />
             </DndContext>
           </div>

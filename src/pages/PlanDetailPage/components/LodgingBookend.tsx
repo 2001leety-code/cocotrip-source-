@@ -90,10 +90,10 @@ export function LodgingBookend({ transit, variant, lodgingLabel, otherLabel }: P
             <Icon className="w-4 h-4 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#7C5CFC]/80">
+            <p className="text-[13px] font-bold uppercase tracking-wider text-[#7C5CFC]/80">
               {heading}
             </p>
-            <p className="text-[12px] text-white/75 truncate">
+            <p className="text-[14px] text-white/75 truncate">
               {isDepart ? (
                 <>
                   <span className="font-semibold text-white">{stayLabel}</span>
