@@ -97,7 +97,7 @@ export function QualityWarningsPanel({
         {open && (
           <div className="mt-3 space-y-3">
             {planId && (
-              <div className="text-[10px] font-mono text-white/40">
+              <div className="text-[12px] font-mono text-white/40">
                 planId: {planId}
                 {plannerMode ? ` · mode: ${plannerMode}` : ''}
               </div>
@@ -105,8 +105,8 @@ export function QualityWarningsPanel({
 
             {hasScore && qualityScore?.metrics && (
               <div className="rounded-lg border border-amber-400/20 bg-black/20 p-3">
-                <div className="text-xs font-bold text-amber-200 mb-1.5">qualityScore metrics</div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-white/75">
+                <div className="text-[14px] font-bold text-amber-200 mb-1.5">qualityScore metrics</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[13px] text-white/75">
                   {Object.entries(qualityScore.metrics).map(([key, val]) => (
                     <div key={key} className="font-mono">
                       <span className="text-white/55">{key}:</span>{' '}
@@ -136,12 +136,12 @@ export function QualityWarningsPanel({
                     </div>
                     {/* P161: items[] 없는 단건 warning (self-heal 류) 의 message 도 표시 */}
                     {!hasItems && typeof w.message === 'string' && w.message.length > 0 && (
-                      <div className="font-mono text-[10px] text-white/65 break-words">{w.message}</div>
+                      <div className="font-mono text-[12px] text-white/65 break-words">{w.message}</div>
                     )}
                     {hasItems && (
                       <ul className="space-y-0.5">
                         {w.items!.map((item, j) => (
-                          <li key={j} className="font-mono text-[10px] text-white/65">
+                          <li key={j} className="font-mono text-[12px] text-white/65">
                             {item.message ? (
                               <>{item.message}</>
                             ) : (
@@ -158,7 +158,7 @@ export function QualityWarningsPanel({
                 );
               })}
 
-            <div className="text-[10px] text-white/40 italic">
+            <div className="text-[12px] text-white/40 italic">
               ※ multi-city plan 의 lodging_bookend_violation 은 의도된 패턴 (anchor=첫 day 호텔 vs 도시 이동 후 호텔).
               validator multi-city 미인식 — 별도 후속 fix 후보.
             </div>

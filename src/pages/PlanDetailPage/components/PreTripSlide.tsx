@@ -120,7 +120,7 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
 
         {/* Sponsored 배지 — 광고임을 명확히 (규제 투명성) */}
         <div className="flex justify-end mb-3">
-          <span className="text-[10px] text-white/55 bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-0.5 font-medium">
+          <span className="text-[12px] text-white/55 bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-0.5 font-medium">
             {sponsoredLabel}
           </span>
         </div>
