@@ -110,13 +110,14 @@ describe('P137 — departure < 11:00 (이른 출국): breakfast 의무', () => {
   });
 
   it('afternoon snack at 15:00 (wrong slot for early departure) → B-MEAL fires (breakfast 필요)', () => {
-    // 이른 출국 (07:00) 인데 snack만 15:00에 넣으면 — departure 전에 이미 공항 가야 하므로
-    // 실제론 불가능하지만, departure_time < 11:00 이면 breakfast slot 의무
-    const { itinerary, request } = makePlan(departureDayWithFood(5, ['15:00']), '07:00');
-    // 15:00은 departure 07:00 buffer 위반이라 B-EARLY-DEPARTURE로도 잡히지만
+    // #7 (2026-06-20): departure 를 10:00 (non-red-eye, depHour=10<11) 로 사용 — 09:00 이상은
+    //   조식 의무 유지. (이전엔 07:00 = red-eye 였으나 red-eye 는 조식 면제로 정책 변경되어
+    //   조식 의무 테스트로 부적합. 10:00 으로 교체해 "이른 출국 = 조식 의무" 의도 보존.)
+    const { itinerary, request } = makePlan(departureDayWithFood(5, ['15:00']), '10:00');
+    // 15:00은 departure 10:00 buffer 위반이라 B-EARLY-DEPARTURE로도 잡히지만
     // B-MEAL도 별도로 확인 (breakfast count=0)
     const errors = validatePatternStructure(itinerary, request);
-    // departure 07:00이면 breakfast [06-11) = 0 → B-MEAL fires
+    // departure 10:00이면 breakfast [06-11) = 0 → B-MEAL fires
     expect(errors.some((e) => e.includes('B-MEAL') && e.includes('Day 5') && e.includes('조식'))).toBe(true);
   });
 

@@ -123,4 +123,41 @@ describe('P162/B2 selfHealDailyBudget (root array + 필드명 통일)', () => {
     expect(selfHealDailyBudget({} as any)).toBe(0);
     expect(selfHealDailyBudget({ days: [] } as any)).toBe(0);
   });
+
+  // ── [#2 HIGH] intercity_transit (KTX/항공) 요금이 예산표 transport_krw 에 반영 ──
+  it('intercity_transit (서울→부산 KTX) 요금이 transport_krw 에 ×pax 반영', () => {
+    const itinerary = {
+      days: [
+        {
+          day: 2,
+          intercity_transit: { mode: 'KTX', est_fare_krw: 59800 },
+          stops: [{ category: 'food' }, { category: 'attraction' }],
+        },
+      ],
+    } as any;
+    const healed = selfHealDailyBudget(itinerary, { pax: 2 });
+    expect(healed).toBe(1);
+    const b = itinerary.daily_budget_summary[0];
+    expect(b.transport_krw).toBe(119600); // 59800 × pax(2) — 이전엔 하드코딩 0
+    // total = meals(15000×2) + entry(10000×2) + transport(119600) + misc(10000×2)
+    expect(b.total_krw).toBe(30000 + 20000 + 119600 + 20000);
+  });
+
+  it('intercity_transit 없는 day → transport_krw 0 유지 (byte-identical, 회귀 방지)', () => {
+    const itinerary = { days: [{ day: 1, stops: [{ category: 'food' }] }] } as any;
+    selfHealDailyBudget(itinerary, { pax: 1 });
+    expect(itinerary.daily_budget_summary[0].transport_krw).toBe(0);
+  });
+
+  it('intercity_transit.est_fare_krw 결측/비숫자 → transport_krw 0 (안전 폴백)', () => {
+    const itinerary = {
+      days: [
+        { day: 1, intercity_transit: { mode: 'KTX' }, stops: [] }, // est_fare_krw 누락
+        { day: 2, intercity_transit: { mode: 'Bus', est_fare_krw: 'x' }, stops: [] }, // 비숫자
+      ],
+    } as any;
+    selfHealDailyBudget(itinerary, { pax: 3 });
+    expect(itinerary.daily_budget_summary[0].transport_krw).toBe(0);
+    expect(itinerary.daily_budget_summary[1].transport_krw).toBe(0);
+  });
 });

@@ -1048,7 +1048,11 @@ export class RouteAgent extends BaseAgent {
         const recommendedZonesMap = (data.recommended_zones && typeof data.recommended_zones === 'object' && !Array.isArray(data.recommended_zones))
             ? data.recommended_zones
             : null;
-        const tripFirstRegion = regionsList[0] ? String(regionsList[0]).toLowerCase().trim() : null;
+        // P-fix #3 (2026-06-20): normalizeRegionKey — 한글 '부산' → 'busan' (P321 재발 차단).
+        //   .toLowerCase() 만으론 '부산'.toLowerCase() === '부산' → getDayHotelCoord /
+        //   CITY_CENTER_COORDS 영문 키('busan') mismatch → 둘째 도시 숙소좌표 silent skip →
+        //   다도시 day 가 첫 도시 호텔로 폴백. ko/ja/zh 다도시 100% 영향.
+        const tripFirstRegion = regionsList[0] ? normalizeRegionKey(regionsList[0]) : null;
         // PDF-issue-3 v2 (2026-05-14): module-level helpers (getDayHotelCoord / isSameAsFirstCity)
         // 사용 — closure 제거 + unit test 가능. context 묶어서 전달.
         const dayHotelCtx = {
@@ -1101,9 +1105,14 @@ export class RouteAgent extends BaseAgent {
             const dayDate = dayPlan.date ? new Date(dayPlan.date) : null;
             const dayOfWeek = (dayDate && !isNaN(dayDate.getTime())) ? dayDate.getDay() : null;
             // Phase 3 (2026-05-27): day-level zone_id = block mode 의 source_block_id.
-            // trip-level zoneId (data.zone_id) 우선, 없으면 day-level source_block_id.
+            // P-fix #1 (2026-06-20): per-day source_block_id 우선, trip-level zoneId 폴백.
+            //   다도시 plan 은 day 마다 block 이 다르다 (부산 day = busan block, 서울 day =
+            //   seoul block). trip-level zoneId (data.zone_id = blocksUsed[0]) 우선 시
+            //   부산 day 가 서울 block 의 transit_matrix 를 조회 → 틀린 거리/시간/모드.
+            //   각 day 가 올바른 block_id 보유 → source_block_id 우선이 정답. 단일-block
+            //   plan 은 source_block_id === blocksUsed[0] === zoneId 라 동작 동일.
             // legacy path = 둘 다 null → cache miss → 기존 ODsay 경로.
-            const dayZoneId = zoneId || dayPlan.source_block_id || null;
+            const dayZoneId = dayPlan.source_block_id || zoneId || null;
 
             // ════════════════════════════════════════════════════════
             // Phase 1: 모든 장소의 좌표 확보 (Naver Geocoding) — 병렬화 (P138)
@@ -1572,6 +1581,11 @@ export class RouteAgent extends BaseAgent {
                         const formattedDepart = this._formatTime(newDepartMin);
                         if (formattedDepart) {
                             it.recommended_depart = formattedDepart;
+                            // P-fix #8 (2026-06-20): stitching 성공 = day stop1 기준 실제
+                            //   출발시각 도출 → 더 이상 추정값 아님. depart_estimated 해제
+                            //   (있었다면). _enrichMultiCityDays 의 표준 fallback 이 셋했던
+                            //   추정 마킹을 여기서 신뢰 가능한 값으로 승격.
+                            if ('depart_estimated' in it) it.depart_estimated = false;
                             // arrival_at = depart + KTX/Air/Bus duration (intercity_transit.est_min)
                             if (Number.isFinite(it.est_min)) {
                                 const newArrivalMin = newDepartMin + Number(it.est_min);
@@ -2115,6 +2129,15 @@ export class RouteAgent extends BaseAgent {
         // PDF-issue-2 (2026-05-14): from_station/to_station + 좌표 추가 — RouteAgent
         //   bookend transit 계산 + UI 가 KTX 전후 segment 표시 가능. STATION_COORDS 는
         //   상수 헤더에서 정의 (모듈 레벨).
+        // P-fix #8 (2026-06-20): recommended_depart 는 모든 노선이 '09:00'/'08:30' 류
+        //   하드코딩 = 실제 출발시각 아님(손님 첫 stop·항공권 시간과 무관). arrival_at 도
+        //   양방향 동일 + est_min 과 불일치(165min 인데 08:30→11:30 = 180min). 정책:
+        //   (a) arrival_at 은 표에서 빼고 depart + est_min 으로 매 assignment 시 역산
+        //       → 내부 정합(08:30 + 165 = 11:15). (b) 이 값들은 estimate 라서 P113
+        //       stitching(아래) 이 day stop1 기준으로 덮어쓴다. stitching 실패 시엔
+        //       depart_estimated=true 로 마킹 → UI/PDF 가 "추정" 으로 표시, 손님이 이
+        //       시각을 실제 열차 시간표로 오인해 KTX 놓치는 risk 차단. recommended_depart
+        //       는 "오전 출발 권장" 정도의 가이드 값으로만 둔다.
         const STANDARD_INTERCITY = {
             'Busan-Seoul':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com', from_station: '부산역', to_station: '서울역' },
             'Seoul-Busan':    { mode: 'KTX',     est_min: 165, est_fare_krw: 59800, recommended_depart: '08:30', arrival_at: '11:30', booking_url: 'https://www.letskorail.com', from_station: '서울역', to_station: '부산역' },
@@ -2165,6 +2188,9 @@ export class RouteAgent extends BaseAgent {
             const key = `${prevCity}-${dCity}`;
             const std = STANDARD_INTERCITY[key];
             if (std) {
+                // P-fix #8 (2026-06-20): arrival_at = depart + est_min 역산 (표 하드코딩
+                //   값은 est_min 과 불일치 — 165min 인데 08:30→11:30=180min). 내부 정합.
+                const stdArrival = this._formatTime(this._parseTime(std.recommended_depart) + Number(std.est_min)) || std.arrival_at;
                 d.intercity_transit = {
                     mode: std.mode,
                     from_city: prevCity,
@@ -2174,14 +2200,18 @@ export class RouteAgent extends BaseAgent {
                     est_min: std.est_min,
                     est_fare_krw: std.est_fare_krw,
                     recommended_depart: std.recommended_depart,
-                    arrival_at: std.arrival_at,
+                    arrival_at: stdArrival,
+                    // P-fix #8: 표준 depart/arrival 은 추정값(실제 열차 시간표 아님).
+                    //   P113 stitching 이 day stop1 기준으로 덮어쓰면 false 로 내려간다.
+                    //   stitching 실패 시 UI/PDF 가 "추정" 표시 → KTX 놓침 risk 차단.
+                    depart_estimated: true,
                     instruction: `${prevCity} → ${dCity} via ${std.mode} (~${Math.round(std.est_min/60*10)/10}h, ₩${std.est_fare_krw.toLocaleString()})`,
                     booking_url: std.booking_url,
                     // PDF-issue-2 (2026-05-14): UI 가 intercity 전후 bookend segment 표시 가능.
                     from_station: std.from_station || null,
                     to_station: std.to_station || null,
                 };
-                console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity} (${std.from_station} → ${std.to_station})`);
+                console.log(`  [Route] multi-city Day ${d.day || i+1}: fallback intercity_transit ${std.mode} ${prevCity}→${dCity} (${std.from_station} → ${std.to_station}, depart~${std.recommended_depart} est arr ${stdArrival})`);
             } else {
                 // 표준 데이터 없는 도시쌍 — 보수적 default (Bus 2시간).
                 // PDF-issue-2 v4 (2026-05-14): from_station/to_station 도 city 기반 추론
@@ -2195,7 +2225,9 @@ export class RouteAgent extends BaseAgent {
                     est_min: 120,
                     est_fare_krw: 15000,
                     recommended_depart: '09:00',
-                    arrival_at: '11:00',
+                    // P-fix #8: depart + est_min 역산 (09:00 + 120 = 11:00) + 추정 마킹.
+                    arrival_at: this._formatTime(this._parseTime('09:00') + 120) || '11:00',
+                    depart_estimated: true,
                     instruction: `${prevCity} → ${dCity} via Bus (~2h, ₩15,000)`,
                     booking_url: 'https://www.kobus.co.kr',
                     from_station: inferDefaultStation(prevCity, 'Bus'),
