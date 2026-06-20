@@ -275,7 +275,7 @@ export function InlineBookingCard({
           <p className={`text-xs ${a.text}/80 whitespace-pre-line leading-relaxed`}>{subtitle}</p>
         </div>
         {badge && (
-          <span className={`shrink-0 text-[10px] ${a.text} border ${a.border} rounded-full px-2.5 py-1 font-semibold`}
+          <span className={`shrink-0 text-[12px] ${a.text} border ${a.border} rounded-full px-2.5 py-1 font-semibold`}
             style={{ borderColor: a.border }}>
             {badge}
           </span>
@@ -283,7 +283,7 @@ export function InlineBookingCard({
       </div>
 
       {/* Options grid */}
-      <p className="text-[11px] text-white/55 mb-2">{L.chooseOption}</p>
+      <p className="text-[13px] text-white/55 mb-2">{L.chooseOption}</p>
       <div className="space-y-2 mb-4">
         {options.map((opt) => {
           const sel = selectedKey === opt.productType;
@@ -301,7 +301,7 @@ export function InlineBookingCard({
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-white font-medium truncate">{opt.label}</p>
                 {opt.detail && (
-                  <p className="text-[11px] text-white/50 mt-0.5 truncate">{opt.detail}</p>
+                  <p className="text-[13px] text-white/50 mt-0.5 truncate">{opt.detail}</p>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-3">
@@ -319,7 +319,7 @@ export function InlineBookingCard({
       {selected && (
         <div className="grid grid-cols-2 gap-2.5 mb-4">
           <div>
-            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">
+            <label className="block text-[13px] text-white/55 mb-1.5 font-medium">
               <Calendar className="w-3 h-3 inline mr-1" />
               {L.pickupTime}
             </label>
@@ -339,7 +339,7 @@ export function InlineBookingCard({
             </div>
           </div>
           <div>
-            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">
+            <label className="block text-[13px] text-white/55 mb-1.5 font-medium">
               <Users className="w-3 h-3 inline mr-1" />
               {L.pax}
             </label>
@@ -364,11 +364,11 @@ export function InlineBookingCard({
           <div className={terminalOptions.length > 0 ? 'grid grid-cols-2 gap-2.5' : ''}>
             {terminalOptions.length > 0 && (
               <div>
-                <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.terminal}</label>
+                <label className="block text-[13px] text-white/55 mb-1.5 font-medium">{L.terminal}</label>
                 <div className={`grid gap-1.5 ${terminalOptions.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {terminalOptions.map((t) => (
                     <button key={t.value} type="button" onClick={() => setTerminal(t.value)}
-                      className={`py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      className={`py-1.5 rounded-lg text-xs font-bold border transition-colors min-h-[44px] ${
                         terminal === t.value ? `bg-white/[0.08] ${a.text} border-current` : 'bg-white/[0.04] border-white/[0.08] text-white/60'
                       }`}>{t.label}</button>
                   ))}
@@ -376,7 +376,7 @@ export function InlineBookingCard({
               </div>
             )}
             <div>
-              <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.flightNo}</label>
+              <label className="block text-[13px] text-white/55 mb-1.5 font-medium">{L.flightNo}</label>
               <input type="text" value={flightNumber}
                 onChange={(e) => setFlightNumber(e.target.value.toUpperCase())}
                 placeholder={L.flightNoPh} maxLength={10}
@@ -385,7 +385,7 @@ export function InlineBookingCard({
           </div>
           {/* 캐리어 — 소/중/대 */}
           <div>
-            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.luggageLabel}</label>
+            <label className="block text-[13px] text-white/55 mb-1.5 font-medium">{L.luggageLabel}</label>
             <div className="grid grid-cols-3 gap-1.5">
               {[
                 { key: 'small', label: L.luggageSmall, value: lugSmall, set: setLugSmall },
@@ -394,7 +394,7 @@ export function InlineBookingCard({
               ].map((lug) => (
                 <div key={lug.key} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08]">
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-white/55 truncate">{lug.label}</span>
+                    <span className="text-[12px] text-white/55 truncate">{lug.label}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button type="button" onClick={() => lug.set(Math.max(0, lug.value - 1))} disabled={lug.value === 0}
@@ -414,18 +414,18 @@ export function InlineBookingCard({
       {selected && showCharter && (
         <div className="space-y-3 mb-4 pt-3 border-t border-white/[0.06]">
           <div>
-            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.pickupLocation}</label>
+            <label className="block text-[13px] text-white/55 mb-1.5 font-medium">{L.pickupLocation}</label>
             <input type="text" value={pickupAddress}
               onChange={(e) => setPickupAddress(e.target.value)}
               placeholder={L.pickupLocationPh} maxLength={120}
               className="w-full px-2.5 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white text-xs outline-none focus:border-white/25" />
           </div>
           <div>
-            <label className="block text-[11px] text-white/55 mb-1.5 font-medium">{L.driverLang}</label>
+            <label className="block text-[13px] text-white/55 mb-1.5 font-medium">{L.driverLang}</label>
             <div className="grid grid-cols-3 gap-1.5">
               {(['en', 'ja', 'zh'] as const).map((dl) => (
                 <button key={dl} type="button" onClick={() => setDriverLang(dl)}
-                  className={`py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                  className={`py-1.5 rounded-lg text-xs font-bold border transition-colors min-h-[44px] ${
                     driverLang === dl ? `bg-white/[0.08] ${a.text} border-current` : 'bg-white/[0.04] border-white/[0.08] text-white/60'
                   }`}>{dl === 'en' ? 'EN' : dl === 'ja' ? 'JA' : 'ZH'}</button>
               ))}

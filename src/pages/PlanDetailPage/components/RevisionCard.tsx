@@ -82,12 +82,12 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
             <Lock className="w-4 h-4 text-white/40" />
             <h3 className="text-sm font-semibold text-white/60">{L.title}</h3>
           </div>
-          <p className="text-white/40 text-xs mb-3">{L.desc}</p>
+          <p className="text-white/40 text-[14px] mb-3">{L.desc}</p>
           <a
             href="https://wa.me/821087140611"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold text-white/70 border border-white/10 hover:bg-white/[0.06] transition-all"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[14px] font-semibold text-white/70 border border-white/10 hover:bg-white/[0.06] transition-all min-h-[44px]"
           >
             {L.wa}
           </a>
@@ -216,7 +216,7 @@ export function RevisionCard({ plan, planId, token }: RevisionCardProps) {
             <h3 className="text-lg font-bold text-white">{lbl.title}</h3>
           </div>
           <p className="text-white/50 text-sm mb-1">{lbl.desc}</p>
-          <p className="text-amber-400/80 text-xs font-semibold mb-4">
+          <p className="text-amber-400/80 text-[14px] font-semibold mb-4">
             {lbl.remaining(credits)}
           </p>
           <button

@@ -283,11 +283,11 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           </div>
           {/* Korean name as subtle subtitle (when display_name is in another language) */}
           {cleanKoName && cleanKoName !== cleanDisplayName && (
-            <p className="text-[13px] text-white/55 mt-0.5">{cleanKoName}</p>
+            <p className="text-[13px] text-white/65 mt-0.5">{cleanKoName}</p>
           )}
           {/* Meta chips — pill-style for scannability */}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-md px-1.5 py-0.5 text-[12px] text-white/65">
+            <span className="inline-flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] rounded-md px-1.5 py-0.5 text-[12px] text-white/70">
               <Clock className="w-2.5 h-2.5" /> {stop.stay_min}{ui.minUnit || 'min'}
             </span>
             {(stop.entry_fee_krw || 0) > 0 ? (
@@ -353,20 +353,20 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           )}
           {/* Korean subtitle moved to collapsed header to avoid duplication */}
           {stop.address && (
-            <p className="text-[14px] text-white/55 flex items-start gap-1.5 leading-relaxed">
+            <p className="text-[14px] text-white/65 flex items-start gap-1.5 leading-relaxed">
               <MapPin className="w-3.5 h-3.5 shrink-0 text-[#7C5CFC]/70 mt-0.5" />
               <span>{stop.address}</span>
             </p>
           )}
           {stop.personalization_reasoning && (
             <div className="bg-[#7C5CFC]/[0.08] border border-[#7C5CFC]/25 rounded-lg px-3 py-2.5">
-              <p className="text-[12px] font-bold text-[#B668FC] uppercase tracking-wider mb-1">{ui.whyChose || 'Why this for you'}</p>
+              <p className="text-[13px] font-bold text-[#B668FC] uppercase tracking-wider mb-1">{ui.whyChose || 'Why this for you'}</p>
               <p className="text-[14px] text-white/85 leading-relaxed">{stop.personalization_reasoning}</p>
             </div>
           )}
           {(stop.tip || stop.tip_en) && (
             <div className="bg-amber-400/[0.06] border border-amber-400/20 rounded-lg px-3 py-2.5">
-              <p className="text-[12px] font-bold text-amber-300 uppercase tracking-wider mb-1">{ui.tip || 'Tip'}</p>
+              <p className="text-[13px] font-bold text-amber-300 uppercase tracking-wider mb-1">{ui.tip || 'Tip'}</p>
               <p className="text-[14px] text-white/85 leading-relaxed">{stop.tip || stop.tip_en}</p>
             </div>
           )}
@@ -376,13 +376,13 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
               <span>{ui.unverifiedHint || 'Not in our verified DB — double-check the address before visiting.'}</span>
             </p>
           )}
-          {stop.entry_fee_note && <p className="text-[12px] text-yellow-400/60">{stop.entry_fee_note}</p>}
+          {stop.entry_fee_note && <p className="text-[13px] text-yellow-400/70">{stop.entry_fee_note}</p>}
 
           {/* Reservation info */}
           {stop.reservation_required && (
             <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
               <p className="text-[13px] text-orange-400/80 font-semibold">Reservation required</p>
-              {stop.reservation_note && <p className="text-[12px] text-orange-400/60 mt-0.5">{stop.reservation_note}</p>}
+              {stop.reservation_note && <p className="text-[12px] text-orange-400/70 mt-0.5">{stop.reservation_note}</p>}
               <div className="flex flex-wrap gap-3 mt-1">
                 {stop.reservation_phone && (
                   <a href={`tel:${stop.reservation_phone}`} className="text-[12px] text-orange-400/70 underline min-h-[44px] inline-flex items-center">{stop.reservation_phone}</a>
@@ -397,7 +397,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           )}
 
           {stop.accessibility_note && (
-            <p className="text-[12px] text-blue-400/70 flex items-center gap-1">
+            <p className="text-[13px] text-blue-400/80 flex items-center gap-1">
               <Accessibility className="w-3 h-3" /> {stop.accessibility_note}
             </p>
           )}
@@ -405,7 +405,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
           {/* Recommended items */}
           {(stop.recommended_items?.length || 0) > 0 && (
             <div>
-              <p className="text-[12px] text-white/55 mb-1.5 uppercase tracking-wider">Recommended</p>
+              <p className="text-[13px] text-white/65 mb-1.5 uppercase tracking-wider">Recommended</p>
               <div className="space-y-1">
                 {stop.recommended_items!.map((rawItem, i: number) => {
                   const item = normalizeRecommendedItem(rawItem);
@@ -413,8 +413,8 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                   return (
                     <div key={i} className="flex items-center justify-between bg-white/[0.04] rounded-lg px-3 py-2">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[13px] text-white/70">{item.name}</span>
-                        {item.note && <span className="text-[11px] text-white/55 ml-1.5">{'\u00B7'} {item.note}</span>}
+                        <span className="text-[13px] text-white/75">{item.name}</span>
+                        {item.note && <span className="text-[13px] text-white/60 ml-1.5">{'\u00B7'} {item.note}</span>}
                       </div>
                       {(item.price_krw || 0) > 0 && <span className="text-[13px] text-[#7C5CFC] font-bold shrink-0 ml-2">{formatKRW(item.price_krw || 0)}</span>}
                     </div>
@@ -430,7 +430,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <Train className="w-3.5 h-3.5 text-blue-400" />
                 <p className="text-[13px] font-bold text-blue-400">Public Transit Route</p>
-                <span className="ml-auto text-[12px] text-white/55">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
+                <span className="ml-auto text-[12px] text-white/65">{publicTransit.duration}min {'\u00B7'} {formatKRW(publicTransit.fare)}</span>
               </div>
               {publicTransit.steps?.length > 0 && (
                 <div className="space-y-1">
@@ -439,13 +439,13 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
                       {step.mode === 'subway' && <Train className="w-3 h-3 text-blue-400/70 shrink-0" />}
                       {step.mode === 'bus' && <Bus className="w-3 h-3 text-green-400/70 shrink-0" />}
                       {step.mode === 'walk' && <Footprints className="w-3 h-3 text-white/55 shrink-0" />}
-                      <span className={step.mode === 'walk' ? 'text-white/55' : 'text-white/60'}>{step.description}</span>
+                      <span className={step.mode === 'walk' ? 'text-white/65' : 'text-white/70'}>{step.description}</span>
                     </div>
                   ))}
                 </div>
               )}
               {publicTransit.transfers > 0 && (
-                <p className="text-[11px] text-white/55 mt-1.5">Transfers: {publicTransit.transfers}</p>
+                <p className="text-[13px] text-white/65 mt-1.5">Transfers: {publicTransit.transfers}</p>
               )}
             </div>
           )}

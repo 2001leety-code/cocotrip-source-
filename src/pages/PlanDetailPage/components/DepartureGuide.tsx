@@ -83,7 +83,7 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
           </div>
           <div className="text-left">
             <p className="text-[15px] font-bold text-white">{ui.departureGuide || ui.departureGuideTitle || 'Departure Guide'}</p>
-            <p className="text-[13px] text-white/55 mt-0.5">
+            <p className="text-[13px] text-white/65 mt-0.5">
               {guide.airport}{routeMin ? ` · ${routeMin}${ui.minUnit || 'min'}` : ''}
             </p>
             {/* B9-33: hub 추출 성공 시 "🏨 {hub}에서 출발" 라벨 — 사용자가 출발지 즉시 인지 */}
@@ -143,7 +143,7 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                   <p className="text-[14px] text-amber-200/90 mt-0.5 font-medium">
                     {ui.departureRouteFailed || 'Departure route data temporarily unavailable'}
                   </p>
-                  <p className="text-[13px] text-white/55 mt-1.5">
+                  <p className="text-[13px] text-white/65 mt-1.5">
                     {ui.departureRouteFallback || 'Operations team is checking — fallback guidance below.'}
                   </p>
                   {(geminiMethod || geminiInstruction) && (
@@ -152,11 +152,11 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                         <p className="text-[14px] font-semibold text-white">{geminiMethod}</p>
                       )}
                       {geminiInstruction && (
-                        <p className="text-[13px] text-white/60 mt-1 leading-relaxed">{geminiInstruction}</p>
+                        <p className="text-[13px] text-white/70 mt-1 leading-relaxed">{geminiInstruction}</p>
                       )}
                       <div className="flex gap-3 mt-2 text-[13px]">
                         {typeof geminiDuration === 'number' && geminiDuration > 0 && (
-                          <span className="text-white/55">{geminiDuration} {ui.minUnit || 'min'}</span>
+                          <span className="text-white/65">{geminiDuration} {ui.minUnit || 'min'}</span>
                         )}
                         {typeof geminiCost === 'number' && geminiCost > 0 && (
                           <span className="text-pink-300 font-bold">{formatKRW(geminiCost)}</span>
@@ -187,11 +187,11 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                         <p className="text-[14px] text-white/80 mt-1 font-medium">{geminiMethod}</p>
                       )}
                       {geminiInstruction && (
-                        <p className="text-[13px] text-white/55 mt-1 leading-relaxed">{geminiInstruction}</p>
+                        <p className="text-[13px] text-white/65 mt-1 leading-relaxed">{geminiInstruction}</p>
                       )}
                       <div className="flex gap-3 mt-2 text-[13px]">
                         {typeof geminiDuration === 'number' && geminiDuration > 0 && (
-                          <span className="text-white/55">{geminiDuration} {ui.minUnit || 'min'}</span>
+                          <span className="text-white/65">{geminiDuration} {ui.minUnit || 'min'}</span>
                         )}
                         {typeof geminiCost === 'number' && geminiCost > 0 && (
                           <span className="text-pink-300 font-bold">{formatKRW(geminiCost)}</span>
@@ -202,7 +202,7 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                       </p>
                     </>
                   ) : (
-                    <p className="text-[13px] text-white/55 mt-1 leading-relaxed">
+                    <p className="text-[13px] text-white/65 mt-1 leading-relaxed">
                       {ui.departureRouteFallback || 'Operations team is checking — detailed route to follow.'}
                     </p>
                   )}
@@ -233,18 +233,18 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                       ★ {ui.directBusBadge || 'No transfer'}
                     </span>
                   </div>
-                  <p className="text-[13px] text-white/65 mt-1.5 leading-relaxed">
+                  <p className="text-[13px] text-white/70 mt-1.5 leading-relaxed">
                     {ui.directBusSubtitle || 'Easiest option with heavy luggage — direct to the airport, zero transfers'}
                   </p>
                   <div className="flex items-baseline gap-3 mt-2">
                     <span className="text-[14px] font-bold text-white">
                       {formatKRW(busInfo.priceKRW)}
                     </span>
-                    <span className="text-[13px] text-white/55">
+                    <span className="text-[13px] text-white/65">
                       · {busInfo.durationMin}{ui.minUnit || 'min'}
                     </span>
                   </div>
-                  <p className="text-[13px] text-emerald-200/85 mt-1.5">
+                  <p className="text-[13px] text-emerald-200/90 mt-1.5">
                     {ui.directBusStop || 'Stop'}: {lang === 'ko' ? busInfo.stopKo : busInfo.stopEn}
                   </p>
                 </div>
@@ -263,7 +263,7 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-bold text-white">{ui.luggageStorage || 'Luggage Storage'}</p>
-                  <p className="text-[13px] text-white/55 mt-0.5">{guide.luggage_storage.location}</p>
+                  <p className="text-[13px] text-white/65 mt-0.5">{guide.luggage_storage.location}</p>
                 </div>
               </div>
             </div>
@@ -276,7 +276,7 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-bold text-white">{ui.taxRefund || 'Tax Refund'}</p>
-                  <p className="text-[13px] text-white/55 mt-0.5">{guide.tax_refund.location}</p>
+                  <p className="text-[13px] text-white/65 mt-0.5">{guide.tax_refund.location}</p>
                   <p className="text-[12px] text-emerald-300 mt-1 font-semibold">{ui.minPurchase || 'Min. purchase:'} {formatKRW(guide.tax_refund.threshold_krw ?? 0)}</p>
                 </div>
               </div>
@@ -290,7 +290,7 @@ export function DepartureGuide({ guide, plan }: DepartureGuideProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-bold text-white">{ui.lastMinuteShopping || 'Last-Minute Shopping'}</p>
-                  <p className="text-[13px] text-white/55 mt-0.5 leading-relaxed">{guide.last_minute_shopping}</p>
+                  <p className="text-[13px] text-white/65 mt-0.5 leading-relaxed">{guide.last_minute_shopping}</p>
                 </div>
               </div>
             </div>

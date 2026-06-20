@@ -32,7 +32,7 @@ export function ActivityGuideSlide({ plan, language }: { plan: PlanDocument; lan
   return (
     <div className="py-4">
       <div className="mb-5 text-center">
-        <h2 className="text-2xl font-black text-white">{h.title}</h2>
+        <h2 className="text-3xl font-black tracking-tight leading-tight text-white">{h.title}</h2>
         <p className="text-sm text-white/55 mt-1">{h.subtitle}</p>
       </div>
 

@@ -95,7 +95,7 @@ export function OutroSlide({ plan, planId, token, isPdfGenerating, isTranslating
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
+      <h2 className="text-3xl font-extrabold tracking-tight leading-tight text-center mb-6 bg-clip-text text-transparent" style={{ backgroundImage: BRAND.gradient.primary }}>
         {sw.outroTitle || 'Ready to go!'}
       </h2>
 

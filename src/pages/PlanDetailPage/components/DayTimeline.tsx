@@ -182,13 +182,13 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
             <span className="text-[12px] font-extrabold tracking-[0.18em] uppercase bg-gradient-to-r from-[#B668FC] to-[#FF6B9D] bg-clip-text text-transparent">
               {pd.dayLabel || 'Day'}
             </span>
-            <span className="text-[18px] sm:text-[20px] font-black text-white leading-none">
+            <span className="text-[24px] sm:text-[28px] font-black tracking-tight text-white leading-none">
               {day.day || dayIndex + 1}
             </span>
           </div>
 
           {/* Theme — 큰 글씨 강조 */}
-          <h3 className="text-[15px] sm:text-base font-bold text-white leading-snug mb-2">
+          <h3 className="text-[20px] sm:text-[24px] font-extrabold tracking-tight text-white leading-tight mb-2">
             {day.theme || `Day ${day.day || dayIndex + 1}`}
           </h3>
 

@@ -69,27 +69,27 @@ export function AccommodationRecommendation({
           <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-base mb-1 break-words">{name}</p>
             {(area || address) && (
-              <p className="text-[14px] text-white/55 mb-2 flex items-start gap-1">
+              <p className="text-[14px] text-white/65 mb-2 flex items-start gap-1">
                 <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
                 <span className="break-words">{[area, address].filter(Boolean).join(' · ')}</span>
               </p>
             )}
             {why && (
               <div className="bg-emerald-500/10 border-l-2 border-emerald-400/50 rounded-r-xl px-3 py-2 mb-2">
-                <p className="text-[13px] uppercase tracking-wider text-emerald-300/70 font-semibold mb-1">
+                <p className="text-[13px] uppercase tracking-wider text-emerald-300/80 font-semibold mb-1">
                   {labelWhy || 'Why this hotel'}
                 </p>
-                <p className="text-[14px] text-emerald-100/80 leading-relaxed">{why}</p>
+                <p className="text-[14px] text-emerald-100/85 leading-relaxed">{why}</p>
               </div>
             )}
             {priceRange && (
-              <p className="text-[14px] text-white/60 mb-2 flex items-center gap-1">
+              <p className="text-[14px] text-white/70 mb-2 flex items-center gap-1">
                 <CreditCard className="w-3 h-3 shrink-0" />
                 <span>{priceRange}</span>
               </p>
             )}
             {bookingTip && (
-              <p className="text-[13px] text-white/55 leading-relaxed mb-2">
+              <p className="text-[13px] text-white/65 leading-relaxed mb-2">
                 <span className="text-amber-300/80 font-semibold">{labelTip || 'Booking tip'}: </span>
                 {bookingTip}
               </p>
@@ -109,7 +109,7 @@ export function AccommodationRecommendation({
               </a>
             ))}
           </div>
-          <p className="text-[12px] text-white/55 text-center">
+          <p className="text-[12px] text-white/65 text-center">
             {labelAffiliateNote || 'Affiliate link — helps support CocoTrip.'}
           </p>
         </div>

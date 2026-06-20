@@ -114,7 +114,7 @@ export function PreTripSlide({ plan, planId }: PreTripSlideProps) {
     <div ref={containerRef} className="px-4 pt-4 pb-8">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">{headerTitle}</h2>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight text-white mb-2">{headerTitle}</h2>
           <p className="text-sm text-white/55">{headerSubtitle}</p>
         </div>
 

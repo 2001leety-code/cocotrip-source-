@@ -40,7 +40,7 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
         <div className="overflow-x-auto">
           <table className="w-full text-[13px] sm:text-[14px]">
             <thead>
-              <tr className="text-white/55 border-b border-white/[0.08]">
+              <tr className="text-white/65 border-b border-white/[0.08]">
                 <th className="text-left py-1.5 px-1.5 sm:py-2 sm:px-2">{ui.budgetDay || 'Day'}</th>
                 <th className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2">{ui.budgetTransport || 'Transport'}</th>
                 <th className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2">{ui.budgetEntry || 'Entry'}</th>
@@ -52,9 +52,9 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
               {budget.map((row: BudgetRow, i: number) => (
                 <tr key={i} className="border-b border-white/[0.04]">
                   <td className="py-1.5 px-1.5 sm:py-2 sm:px-2 font-semibold">{ui.budgetDay || 'Day'} {row.day}</td>
-                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.transport_krw ?? row.transit_krw ?? row.transport ?? 0)}</td>
-                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.entry_fees_krw ?? row.entry_krw ?? row.activity_krw ?? row.attraction ?? 0)}</td>
-                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/50">{formatKRW(row.meals_krw ?? row.food_krw ?? row.food ?? 0)}</td>
+                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/65">{formatKRW(row.transport_krw ?? row.transit_krw ?? row.transport ?? 0)}</td>
+                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/65">{formatKRW(row.entry_fees_krw ?? row.entry_krw ?? row.activity_krw ?? row.attraction ?? 0)}</td>
+                  <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 text-white/65">{formatKRW(row.meals_krw ?? row.food_krw ?? row.food ?? 0)}</td>
                   <td className="text-right py-1.5 px-1.5 sm:py-2 sm:px-2 font-bold text-[#7C5CFC]">{formatKRW(row.total_krw ?? row.total ?? 0)}</td>
                 </tr>
               ))}
@@ -63,7 +63,7 @@ export function BudgetTable({ budget, tMoney }: { budget: BudgetRow[]; tMoney: n
         </div>
         {tMoney > 0 && (
           <div className="mt-2.5 sm:mt-3 bg-[#7C5CFC]/10 border border-[#7C5CFC]/20 rounded-xl px-3.5 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between">
-            <span className="text-[13px] sm:text-[14px] text-white/60">{ui.tmoneyRecommended || 'Recommended T-money load'}</span>
+            <span className="text-[13px] sm:text-[14px] text-white/70">{ui.tmoneyRecommended || 'Recommended T-money load'}</span>
             <span className="text-[13px] sm:text-sm font-bold text-[#7C5CFC]">{formatKRW(tMoney)}</span>
           </div>
         )}
