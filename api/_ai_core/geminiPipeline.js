@@ -20,6 +20,7 @@ import { pass1Intent, pass2Resolve, pass3Enrich } from './threePassPipeline.js';
 import { sendErrorAlert } from '../_telegram.js';
 import { throttledTelegramAlert } from '../_shared/telegram-throttle.js';
 import { selfHealLodgingBookend, updatePlanProgressive } from './planPersister.js';
+import { recordGeminiUsage } from '../_shared/apiUsageRecorder.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // P169 (2026-05-23): Gemini Streaming + 점진 Firestore Write
@@ -100,6 +101,14 @@ export function logCacheMetrics(stage, cm) {
   if (!cm || cm.total === 0) return;
   const hitRate = cm.total > 0 ? (cm.cached / cm.total * 100).toFixed(1) : '0';
   console.log(`[P195 CACHE_METRICS] stage=${stage} cached=${cm.cached} total=${cm.total} hit_rate=${hitRate}% output=${cm.output}`);
+  // 사용량 트래커 (fire-and-forget, 완전 guard — 본 plan 생성 흐름 무영향).
+  // stage 로 모델 추론: pro-escalate=Pro, 그 외=main(resolveGeminiModel). recorder 내부 await 안 함.
+  try {
+    const model = /pro/i.test(stage)
+      ? ((process.env.P181_PRO_ESCALATE_MODEL || '').trim() || 'gemini-2.5-pro')
+      : resolveGeminiModel('main');
+    recordGeminiUsage({ stage, model, cm });
+  } catch { /* 트래커 실패는 본 흐름에 영향 0 */ }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
