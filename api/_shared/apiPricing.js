@@ -1,12 +1,18 @@
 // 외부 API 단가 SSOT — 사용량 트래커 비용 환산용.
 // Gemini 단가 (per 1M tokens, USD). 단가 바뀌면 여기만 수정.
-// 출처: 2026-06 비용 감사 + Google AI 공식. ⚠️ flash-lite 는 미확정(보수적 추정) — 운영자 확인 권장.
+// 출처: 2026-06 Google 공식 가격표(운영자 확인). cached = input×0.25(컨텍스트 캐싱 ~75%↓, 보수적).
+// Pro 는 ≤200K 컨텍스트 단가 — 초과 시 더 비쌈(트래커는 보수적으로 ≤200K 단가 사용).
 export const GEMINI_PRICING = {
+  'gemini-3.1-pro':        { input: 2.00, output: 12.00, cached: 0.50 },
+  'gemini-3.5-flash':      { input: 1.50, output: 9.00,  cached: 0.375 },
+  'gemini-3-flash':        { input: 0.50, output: 3.00,  cached: 0.125 },
+  'gemini-3.1-flash-lite': { input: 0.25, output: 1.50,  cached: 0.0625 },
   'gemini-2.5-pro':        { input: 1.25, output: 10.00, cached: 0.31 },
-  'gemini-3.5-flash':      { input: 1.50, output: 9.00,  cached: 0.15 },
-  'gemini-2.5-flash':      { input: 0.30, output: 2.50,  cached: 0.03 },
-  'gemini-2.0-flash':      { input: 0.30, output: 2.50,  cached: 0.03 }, // 2.5-flash 동급 추정
-  'gemini-3.5-flash-lite': { input: 0.10, output: 0.40,  cached: 0.025 }, // ⚠️ 미확정 추정
+  'gemini-2.5-flash':      { input: 0.30, output: 2.50,  cached: 0.075 },
+  'gemini-2.5-flash-lite': { input: 0.10, output: 0.40,  cached: 0.025 }, // 최저가
+  // 코드 classifier = 'gemini-3.5-flash-lite' — 공식 표 미표기 → 3.1-lite 단가로 대체(보수적).
+  'gemini-3.5-flash-lite': { input: 0.25, output: 1.50,  cached: 0.0625 },
+  'gemini-2.0-flash':      { input: 0.30, output: 2.50,  cached: 0.075 }, // legacy, 2.5-flash 동급 추정
 };
 
 // 미등록 모델 보수적 기본값(과소집계 방지).
