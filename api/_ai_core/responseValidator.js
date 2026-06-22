@@ -456,9 +456,17 @@ export function validatePatternStructure(itinerary, request = {}) {
     const dayNum = d?.day || d?.day_index || (i + 1);
     const stops = Array.isArray(d?.stops) ? d.stops : [];
 
+    // 도착일(첫날)·출국일(마지막날)은 일정이 짧다(늦은 체크인 / 체크아웃+공항).
+    const isSingleDayPlan = days.length === 1;
+    const isFirstDay = i === 0 && !isSingleDayPlan;
+    const isLastDay  = i === days.length - 1 && !isSingleDayPlan;
+
     // B-12: min stops per day. 빈 day 도 잡힘.
-    if (stops.length < 4) {
-      errors.push(`Day ${dayNum}: stops.length=${stops.length} < 4 minimum (B-12)`);
+    // 2026-06-22 (Sentry JAVASCRIPT-REACT-3, 103건): 출국일은 체크아웃(lodging)+공항(travel)
+    //   2 stop 이 정상인데 4 강제 → 재시도해도 위반 → 500. 도착/출국일 최소 2 로 완화.
+    const minStops = (isFirstDay || isLastDay) ? 2 : 4;
+    if (stops.length < minStops) {
+      errors.push(`Day ${dayNum}: stops.length=${stops.length} < ${minStops} minimum (B-12)`);
     }
 
     // B-10: lodging bookend — 첫 stop = lodging, 마지막 stop ∈ {lodging, travel, airport}.
@@ -707,8 +715,12 @@ export function validatePatternStructure(itinerary, request = {}) {
         })();
 
         if (depMin === null) {
-          // departure_time 미제공 — 기존 로직: 3개 slot 모두 0이면 에러
-          if (breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
+          // departure_time 미제공 — 3개 slot 모두 0이면 에러.
+          // 2026-06-22 (Sentry JAVASCRIPT-REACT-3): 공항/이동 stop 이 있으면(=실제 출국일)
+          //   이른/red-eye 출국으로 식사할 시간이 없는 정상 케이스 → 식사 면제(500 방지).
+          //   공항/이동 흔적 없는 마지막날(=사실상 풀데이 오인)만 식사 요구 유지.
+          const hasDepartureStop = stops.some((s) => ['airport', 'travel'].includes(s?.category));
+          if (!hasDepartureStop && breakfastCount === 0 && afternoonMealCount === 0 && dinnerCount === 0) {
             errors.push(
               `Day ${dayNum} (출국일): 아침(06-10시)+오후식사(11-16시)+저녁(17-21시) 모두 누락 (B-MEAL)`
             );
