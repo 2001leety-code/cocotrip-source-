@@ -32,8 +32,10 @@ const DEFAULTS = {
   main: 'gemini-2.5-pro',
   // block-mode selection — Flash JSON-only 빠르고 저렴
   block: 'gemini-3.5-flash',
-  // intent classifier 폴백 — Flash Lite 유지 (rule-based 미달 시만 호출)
-  classifier: 'gemini-3.5-flash-lite',
+  // intent classifier 폴백 — Flash Lite (rule-based 미달 시만 호출).
+  // 2026-06-22 정정: gemini-3.5-flash-lite 는 미출시(공식 lite 라인업은 3.1 까지) →
+  //   content-draft.js 가 이 default 로 호출 시 404. 실존 최저가 lite = gemini-3.1-flash-lite($0.25/$1.50).
+  classifier: 'gemini-3.1-flash-lite',
   // i18n 4-lang 번역 — Flash 충분
   translate: 'gemini-3.5-flash',
 };
