@@ -18,6 +18,7 @@ import { track as posthogTrack } from '@/lib/posthog';
 import { haptic } from '@/lib/haptic';
 import { buildAttractionLink } from '@/config/affiliateLinks';
 import { Lightbox } from './Lightbox';
+import { buildMapLinks } from '../lib/mapLinks';
 
 // Sprint 1 Step 5: Action UX — 즐겨찾기 / 공유 / 길찾기.
 // localStorage 키: `cocotrip:fav:<planId>` → JSON Record<stopKey, true>.
@@ -83,17 +84,10 @@ function shouldShowAttractionLink(stop: PlanStop): boolean {
   return ATTRACTION_CATEGORIES.includes(category);
 }
 
+// Naver Map URL — delegates to the shared builder so the directions button,
+// the "네이버 지도 열기" link and the Day-1 preview card all stay in sync.
 function buildNaverMapUrl(stop: PlanStop): string {
-  if (stop.naverMapUrl) return stop.naverMapUrl;
-  if (stop.lat && stop.lng) {
-    const q = stop.name || stop.name_ko || stop.display_name || stop.name_en || '';
-    return `https://map.naver.com/v5/search/${encodeURIComponent(q)}?c=${stop.lng},${stop.lat},15,0,0,0,dh`;
-  }
-  const nameKo = (stop.name || stop.name_ko || '').replace(/\s*\(.*\)\s*/g, '').trim();
-  const addrMatch = (stop.address || '').match(/([가-힣]+구)/);
-  const district = addrMatch ? addrMatch[1] : '';
-  const q = district ? `${district} ${nameKo}` : (nameKo || stop.display_name || stop.name_en || '');
-  return `https://map.naver.com/v5/search/${encodeURIComponent(q)}`;
+  return buildMapLinks(stop).naver;
 }
 
 /**
@@ -304,7 +298,15 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
         {isFav && (
           <Heart aria-hidden className="w-3.5 h-3.5 text-pink-400 fill-current shrink-0 mt-1" />
         )}
-        <ChevronDown className={`w-4 h-4 text-white/55 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        {/* B5: 펼침 안내 — 카드가 확장된다는 affordance. 펼치면 숨김. */}
+        <div className="flex items-center gap-1 shrink-0 mt-1">
+          {!expanded && (
+            <span className="text-[10px] sm:text-[11px] text-white/40 font-medium whitespace-nowrap">
+              {ui.viewDetails || '상세정보 보기'}
+            </span>
+          )}
+          <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        </div>
       </div>
 
       {/* Expanded details — mobile: viewport-based 동적 cap (콘텐츠 잘림 방지).
@@ -510,6 +512,17 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
             );
           })()}
 
+          {/* Map links — Google (현재 위치 → 대중교통 길찾기) + Naver (장소 보기). */}
+          <div className="flex flex-wrap gap-2">
+          {/* Google Maps directions (transit mode, from user's current location) */}
+          <a
+            href={buildMapLinks(stop).google}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center min-h-[44px] gap-1.5 text-[13px] text-blue-300/80 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/20 rounded-lg px-3 py-2 transition-colors"
+          >
+            <Navigation className="w-3 h-3" /> {ui.openGoogleMap || 'Google 지도'}
+          </a>
           {/* Naver Map link - coordinate-based URL preferred for accuracy */}
           {(() => {
             // 1. RouteAgent-provided URL (most accurate)
@@ -542,6 +555,7 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
               </a>
             );
           })()}
+          </div>
         </div>
       </div>
     </div>
