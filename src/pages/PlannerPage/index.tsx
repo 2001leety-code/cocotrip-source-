@@ -20,6 +20,7 @@ import { TriviaLoadingAnimation } from './components/TriviaLoadingAnimation';
 // ItineraryResult is used within PlanDetailPage, not here directly
 import { QuickPreviewCard } from './components/QuickPreviewCard';
 import { PurchaseSection } from './components/PurchaseSection';
+import { SampleShowcase } from './components/SampleShowcase';
 
 export default function PlannerPage() {
   const { language, t, changeLanguage } = useLanguage();
@@ -164,6 +165,20 @@ export default function PlannerPage() {
           <div className={isMobile ? 'm-card m-appear p-4 shadow-2xl' : 'bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-9 shadow-2xl'}>
             <WizardForm onSubmit={handleSubmit} isLoading={status === 'loadingQuick'} initialValues={prefillValues} />
           </div>
+        )}
+
+        {/* "예시 (Example)" showcase — pre-made real-quality Day-1 plans, $0/static.
+            Shown only on the landing (idle), below the wizard. Lets visitors see
+            finished-plan quality before paying, with an unmistakable "예시" badge. */}
+        {status === 'idle' && (
+          <SampleShowcase
+            p={p}
+            isMobile={isMobile}
+            onMakePlan={() => {
+              const form = document.querySelector('form');
+              form?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
         )}
 
         {/* Phase 1 Loading — full tips array + 4-step phases (i18n loading_tips/loading_step1~4) */}

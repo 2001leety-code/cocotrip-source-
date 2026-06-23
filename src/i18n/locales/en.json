@@ -562,6 +562,15 @@
     "guestSignupBenefitSave": "Save your plan — revisit it anytime",
     "guestSignupBenefitCoins": "Earn 1–3% back in Trip Coins on every purchase",
     "guestSignupBenefitCoupon": "5% off your first charter & tour",
+    "sample": {
+      "sectionTitle": "Real example plans (free preview)",
+      "sectionSubtitle": "See the quality of a finished plan before you pay.",
+      "badge": "예시) Example",
+      "exampleItinerary": "Example itinerary",
+      "day1Label": "Day 1",
+      "ctaMakePlan": "Make my plan",
+      "disclaimer": "※ These itineraries are examples that show our quality. Your plan is generated fresh from the details you enter."
+    },
     "viewDetails": "View details",
     "previewTipLabel": "Tip",
     "openGoogleMap": "Google Maps",

@@ -1,0 +1,313 @@
+{
+  "id": "sample-busan",
+  "isSample": true,
+  "city": "busan",
+  "cityLabel": {
+    "ko": "부산",
+    "en": "Busan",
+    "ja": "釜山",
+    "zh": "釜山"
+  },
+  "tour_title_i18n": {
+    "ko": "부산 해변과 야경 1일",
+    "en": "Busan Beaches & Skyline — Day 1",
+    "ja": "釜山 ビーチと夜景 1日目",
+    "zh": "釜山海滩与夜景 第1天"
+  },
+  "generated_by": "build-sample-plans.mjs (verified zone_courses + food DB + live ODsay/Places)",
+  "day": {
+    "day": 1,
+    "date": "",
+    "theme_i18n": {
+      "ko": "해변 + 아쿠아리움 + 마린시티",
+      "en": "Beach + Aquarium + Marine City",
+      "ja": "ビーチ + 水族館 + マリンシティ",
+      "zh": "海滩 + 水族馆 + 海洋城市"
+    },
+    "city": "busan",
+    "lodgingLabel": {
+      "ko": "해운대 숙소",
+      "en": "Haeundae hotel",
+      "ja": "海雲台のホテル",
+      "zh": "海云台酒店"
+    },
+    "lodging_to_first": {
+      "method": "car",
+      "mode": "car",
+      "instruction_en": "",
+      "step_by_step": [],
+      "est_min": 8,
+      "est_fare_krw": 0,
+      "distance_km": 0.5,
+      "source": "naver_fallback"
+    },
+    "stops": [
+      {
+        "order": 1,
+        "start_time": "10:00",
+        "name": "해운대해수욕장",
+        "display_name": "Haeundae Beach",
+        "display_name_i18n": {
+          "ko": "해운대해수욕장",
+          "en": "Haeundae Beach",
+          "ja": "海雲台ビーチ",
+          "zh": "海云台海水浴场"
+        },
+        "category": "nature",
+        "address": "부산광역시 해운대구 해운대해변로 264",
+        "lat": 35.159107,
+        "lng": 129.1604,
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "tip": {
+          "ko": "아침 산책으로 시작 — 모래사장 1.5km, 동백섬 연결.",
+          "en": "Start with a morning walk — 1.5km of sand, connected to Dongbaek Island.",
+          "ja": "朝の散歩から — 砂浜1.5km、冬柏島へ続く。",
+          "zh": "从晨间漫步开始 — 1.5公里沙滩，连接冬柏岛。"
+        },
+        "photo_ref": "AaVGc3kLZZ-hWUHeW9ybefmG7y7XJ88LCxiHSf-6AChT4ivjB3LripSZn435yTpFt7sepfZw8AMRYxek-ePJgeAgLXZ8jwWEHJgTmcC-NLBcDCKXoNB2oIZ6C5St0f3XToWlyfNibL6NiwNEdwquiJE4luvHtliIidsx9II2oQgJOwTDYsEtkAh2WY2JQGtMrRe2IjkMSjIihFDz8YRqGqp7-h0Q0RcOY6dpmWW-6PId8IegAgp1gLNGqwEkxqj5uef4x-2AUTiWdEJVAtwIkbRyTUW9A7c7kdRIK27qc60OP7X0M3NJ9hyZ1NWFuNlpmYghlXg8Y6HuChjRR4fV9P2EnVEN-Tvgq5xzeoA-qeVm9CoX5yiW1Db_n1u5smunRpOFdljDLE5wP9-sgJMOxHSAk9R_qoPc0NkDc9tuVxFRdfPI5KQ4q0aNSEGr1ladsRty"
+      },
+      {
+        "order": 2,
+        "start_time": "11:30",
+        "name": "SEA LIFE 부산아쿠아리움",
+        "display_name": "SEA LIFE Busan Aquarium",
+        "display_name_i18n": {
+          "ko": "SEA LIFE 부산아쿠아리움",
+          "en": "SEA LIFE Busan Aquarium",
+          "ja": "SEA LIFE 釜山アクアリウム",
+          "zh": "SEA LIFE 釜山水族馆"
+        },
+        "category": "culture",
+        "address": "부산광역시 해운대구 해운대해변로 266",
+        "lat": 35.1593434,
+        "lng": 129.1607,
+        "stay_min": 90,
+        "entry_fee_krw": 29000,
+        "tip": {
+          "ko": "해변 바로 앞 — 온라인 예매 시 할인.",
+          "en": "Right on the beach — book online for a discount.",
+          "ja": "ビーチ目の前 — オンライン予約で割引。",
+          "zh": "就在海滩边 — 网上预订有折扣。"
+        },
+        "photo_ref": "AaVGc3kz9Gd8EfSiJsjdUwDuJLar-SR_U_8oir313mFiwa3ViKqwyGQEsXy1a3rgzgoE6egB2mI6MCOvUVvK7tpWg5GxxTbCA3-NFCEAVWsMmXYujpTP4VNaG7-jPAiatj8WepKRurYUqp1bIRWiw9inwt0peNyIDZVkOHfVxBU8XXtDYTJT9SMkPbvKbTafgO_dFT4AUMFskz59VLnQmWLsCE_0LptbRwI3WP3ETaipH7Z8O8x9Qc6DIj4YKHNsm3V7i7ffOxBrPdY18mrAqsici8HiwP0Gvdhbc2ZBr4TuqrfT33tC6bMPSF4UoRPiW35ZN-xgodScV41J6bpEnNBrcVSWWRf_ue9SK493Y8VOYITb-b3QuYczY4XAbI0VjQMeh_TxsnJGoxy6HN7aN80Ytzfqx1I5OS17-fg95Fy2pcMcCQ",
+        "transit_from_prev": {
+          "method": "walk",
+          "mode": "walk",
+          "instruction_en": "",
+          "step_by_step": [],
+          "est_min": 3,
+          "est_fare_krw": 0,
+          "total_walk_m": 0,
+          "source": "odsay"
+        }
+      },
+      {
+        "order": 3,
+        "start_time": "13:30",
+        "name": "Naan n Curry Haeundae",
+        "display_name": "Naan n Curry Haeundae",
+        "category": "food",
+        "address": "부산광역시 해운대구 구남로 25",
+        "lat": 35.16188710000001,
+        "lng": 129.1606173,
+        "stay_min": 70,
+        "entry_fee_krw": 0,
+        "verified": true,
+        "tip": {
+          "ko": "구남로 — 현지 평점 높은 해산물·맛집.",
+          "en": "Gunam-ro — top-rated local seafood restaurant.",
+          "ja": "クナムロ — 地元評価の高い海鮮店。",
+          "zh": "龟南路 — 当地高分海鲜餐厅。"
+        },
+        "rating": 5,
+        "review_count": 254,
+        "cuisine": "인도",
+        "cuisine_en": "Indian",
+        "recommended_items": [],
+        "photo_ref": "AaVGc3lwv6jjDEsOa7UEl2Wq8CTlnA1du3ENFTAN2zsYSHRwuhui-vH8NGDUCl8GIMJ4qKG-icDR9RZ2_9sRx-gn-6A55TSAfehj93rZn0DwOF0zgyP-ABlyZsXcjvV4nBkiBUXBmFGFRDTE9cVKwLIlDfWHjpVCxOhDww1r1HZXpRG-8yiekh9hihhZpvPmqOYkWOMTEVT1Ttq7uFPGmL1LKHmrgl996cE1tI2OMOUleC5MOE9gGUMXw-2erZbn5y3HDED5oYFjXTYBD7PsGxW7VgUXDaOnf6bVYYlu7xRUHRAynJ1MGjsYa_T8Yblc034CWCNByw7jLVJmJaAkignmQ2HZDg-frPJIdYwBrLzCT87bgRlgQ2QAVmiLy3cE97AUYZRlZirpkouj-pzggHVgTUiqwnLZeLxM4Rn-SAs4u8vELUQwS98ww7ek2yMrtM2O",
+        "transit_from_prev": {
+          "method": "walk",
+          "mode": "walk",
+          "instruction_en": "",
+          "step_by_step": [],
+          "est_min": 4,
+          "est_fare_krw": 0,
+          "total_walk_m": 0,
+          "source": "odsay"
+        }
+      },
+      {
+        "order": 4,
+        "start_time": "15:30",
+        "name": "마린시티",
+        "display_name": "Marine City",
+        "display_name_i18n": {
+          "ko": "마린시티",
+          "en": "Marine City",
+          "ja": "マリンシティ",
+          "zh": "海洋城市"
+        },
+        "category": "culture",
+        "address": "부산광역시 해운대구 마린시티1로",
+        "lat": 35.1570863,
+        "lng": 129.1455,
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "tip": {
+          "ko": "고층 스카이라인 + 카페 거리 — 해질녘 야경 명소.",
+          "en": "High-rise skyline + cafe street — a sunset/night-view highlight.",
+          "ja": "高層スカイライン + カフェ通り — 夕景・夜景の名所。",
+          "zh": "高楼天际线 + 咖啡街 — 日落与夜景胜地。"
+        },
+        "photo_ref": "AaVGc3miGaKZK_2JctOtH2tD4A5k3qA315GerpDdIEZsPgeKSBbiWPXzH9X-yXSULS_rXII6t87HDKYJOEJOIdX-qBbzlV3U3JMZMT69UcYLQjcVRRcBdSz9v8lUcy4UodmOHFQ1oa8hUQp0QL1jtX02MijS4DPnTX6Frt-WgaJ9nNW7NYSqB7vgEtyEvpmtNURkgHGbH3QKYoNywGxa8KdJMSjXtyL53svHXrfp42PBk6AUcqX5MaLJhaWwBxa7fxoF6HNq16g7EWNGa5UUp6V0NDcMg_fsoI2RJg1aJ8EfV5D_bW_y1JUM5b4wt7yTsLxOlJvJ9LVTunfA19JklX_5UUmgeqUHCmaDn8tmOVWICfIRAE-clenntAUxEzKk1_RP3QmFk-yki5FHk1J2vDMMaiEfqvueJhPlPh56xTP_BZPEsw",
+        "transit_from_prev": {
+          "method": "subway+bus",
+          "mode": "subway",
+          "instruction_en": "",
+          "step_by_step": [
+            "도보 244m",
+            "일반 307번 해운대해수욕장입구(09112) → 대우마리나아파트(09123) (3정거장, 9분, 배차 23분)",
+            "도보 257m"
+          ],
+          "steps_detail": [
+            {
+              "mode": "walk",
+              "distance": 244,
+              "description": "도보 244m",
+              "duration": 4
+            },
+            {
+              "mode": "bus",
+              "busNo": "307",
+              "busType": "일반",
+              "from": "해운대해수욕장입구",
+              "to": "대우마리나아파트",
+              "fromArs": "09112",
+              "toArs": "09123",
+              "fromCoord": {
+                "x": 129.161361,
+                "y": 35.159779
+              },
+              "toCoord": {
+                "x": 129.146863,
+                "y": 35.159115
+              },
+              "duration": 9,
+              "stationCount": 3,
+              "intervalMin": 23,
+              "passStops": [
+                "해운대해수욕장입구",
+                "해운대해수욕장",
+                "동백섬입구",
+                "대우마리나아파트"
+              ],
+              "description": "일반 307번 해운대해수욕장입구(09112) → 대우마리나아파트(09123) (3정거장, 9분, 배차 23분)"
+            },
+            {
+              "mode": "walk",
+              "distance": 257,
+              "description": "도보 257m",
+              "duration": 4
+            }
+          ],
+          "transfers": 1,
+          "total_walk_m": 501,
+          "first_station": "해운대해수욕장입구",
+          "last_station": "대우마리나아파트",
+          "est_min": 17,
+          "est_fare_krw": 1550,
+          "source": "odsay"
+        }
+      },
+      {
+        "order": 5,
+        "start_time": "18:00",
+        "name": "광안리해수욕장",
+        "display_name": "Gwangalli Beach",
+        "display_name_i18n": {
+          "ko": "광안리해수욕장",
+          "en": "Gwangalli Beach",
+          "ja": "広安里ビーチ",
+          "zh": "广安里海水浴场"
+        },
+        "category": "nature",
+        "address": "부산광역시 수영구 광안해변로",
+        "lat": 35.1532,
+        "lng": 129.1187,
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "tip": {
+          "ko": "광안대교 야경 + 해변 포차 — 부산 대표 밤풍경.",
+          "en": "Gwangan Bridge lights + beachfront pochas — Busan’s iconic night view.",
+          "ja": "広安大橋のライト + 海辺の屋台 — 釜山名物の夜景。",
+          "zh": "广安大桥灯光 + 海边大排档 — 釜山代表夜景。"
+        },
+        "photo_ref": "AaVGc3nsh7SI4OlDHW67_-DSdaZt3Rr5qw5ncxjL11w5eU4LOaJiymCaN5572COJiwo1GEZiv16kVTckc1mmtTmla2fDHElyDAhm5678sPwP1ld1lJ655wB0NOtS773mNuFEHjLIPW2N91BfOv3vGRpvO2cOcMnuWeH6HNsglSyCWWBlI-Yvpjn8VQzDbMMVCyEwLjZY2fBUM6USPSnr6FQOJSK_A7GqBllPICDPSe-3-pWlhDx_Wn7igHhaMFIGwMfSVEZmxCGltErZTaB2uM4hdlepdjhILv6UycYwCX_GLONaFXVFpX9HT9fODKieax01rumaPYeUsmxFNhV_LIRO3fvsuohG9cUXP_65RDHgE6zgRQ1UvPUdTIUMkOxRQCwVwocjSLbd91TQA8k_Yvb_wDsua-bik2Hssi79r_7jZcbvuuuS",
+        "transit_from_prev": {
+          "method": "subway+bus",
+          "mode": "subway",
+          "instruction_en": "",
+          "step_by_step": [
+            "도보 539m",
+            "일반 38번 동백역(09723) → 광안리해수욕장(14065) (8정거장, 15분, 배차 24분)",
+            "도보 313m"
+          ],
+          "steps_detail": [
+            {
+              "mode": "walk",
+              "distance": 539,
+              "description": "도보 539m",
+              "duration": 8
+            },
+            {
+              "mode": "bus",
+              "busNo": "38",
+              "busType": "일반",
+              "from": "동백역",
+              "to": "광안리해수욕장",
+              "fromArs": "09723",
+              "toArs": "14065",
+              "fromCoord": {
+                "x": 129.147459,
+                "y": 35.16167
+              },
+              "toCoord": {
+                "x": 129.116607,
+                "y": 35.155441
+              },
+              "duration": 15,
+              "stationCount": 8,
+              "intervalMin": 24,
+              "passStops": [
+                "동백역",
+                "부산문화여고",
+                "요트경기장",
+                "해강중고교",
+                "민락교",
+                "MBC방송국",
+                "민락동골목시장",
+                "광안농협앞",
+                "광안리해수욕장"
+              ],
+              "description": "일반 38번 동백역(09723) → 광안리해수욕장(14065) (8정거장, 15분, 배차 24분)"
+            },
+            {
+              "mode": "walk",
+              "distance": 313,
+              "description": "도보 313m",
+              "duration": 5
+            }
+          ],
+          "transfers": 1,
+          "total_walk_m": 852,
+          "first_station": "동백역",
+          "last_station": "광안리해수욕장",
+          "est_min": 28,
+          "est_fare_krw": 1550,
+          "source": "odsay"
+        }
+      }
+    ]
+  }
+}

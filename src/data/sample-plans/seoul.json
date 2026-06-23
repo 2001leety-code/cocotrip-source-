@@ -1,0 +1,405 @@
+{
+  "id": "sample-seoul",
+  "isSample": true,
+  "city": "seoul",
+  "cityLabel": {
+    "ko": "서울",
+    "en": "Seoul",
+    "ja": "ソウル",
+    "zh": "首尔"
+  },
+  "tour_title_i18n": {
+    "ko": "서울 전통과 미식 1일",
+    "en": "Seoul Heritage & Food — Day 1",
+    "ja": "ソウル 伝統とグルメ 1日目",
+    "zh": "首尔传统与美食 第1天"
+  },
+  "generated_by": "build-sample-plans.mjs (verified zone_courses + food DB + live ODsay/Places)",
+  "day": {
+    "day": 1,
+    "date": "",
+    "theme_i18n": {
+      "ko": "전통 + 시장 + 카페",
+      "en": "Tradition + Market + Cafe",
+      "ja": "伝統 + 市場 + カフェ",
+      "zh": "传统 + 市场 + 咖啡"
+    },
+    "city": "seoul",
+    "lodgingLabel": {
+      "ko": "명동 숙소",
+      "en": "Myeongdong hotel",
+      "ja": "明洞のホテル",
+      "zh": "明洞酒店"
+    },
+    "lodging_to_first": {
+      "method": "subway+bus",
+      "mode": "subway",
+      "instruction_en": "",
+      "step_by_step": [
+        "도보 293m",
+        "수도권 4호선 명동역 9번출구 → 충무로역 (1정거장, 1분, 배차 5분)",
+        "도보 0m",
+        "수도권 3호선 충무로역 → 경복궁역 5번출구 (4정거장, 7분, 배차 6분)",
+        "도보 448m"
+      ],
+      "steps_detail": [
+        {
+          "mode": "walk",
+          "distance": 293,
+          "description": "도보 293m",
+          "duration": 4
+        },
+        {
+          "mode": "subway",
+          "line": "수도권 4호선",
+          "lineKo": "4호선",
+          "lineEn": "Line 4",
+          "subwayCode": 4,
+          "fromStationID": 424,
+          "toStationID": 423,
+          "from": "명동",
+          "fromRoman": "Myeong-dong",
+          "to": "충무로",
+          "toRoman": "Chungmuro",
+          "way": "충무로",
+          "wayRoman": "Chungmuro",
+          "fromExit": "9",
+          "toExit": null,
+          "fromExitCoord": {
+            "x": 126.98729142743916,
+            "y": 37.56119900732861
+          },
+          "toExitCoord": null,
+          "duration": 1,
+          "stationCount": 1,
+          "intervalMin": 5,
+          "passStops": [
+            "명동",
+            "충무로"
+          ],
+          "description": "수도권 4호선 명동역 9번출구 → 충무로역 (1정거장, 1분, 배차 5분)"
+        },
+        {
+          "mode": "walk",
+          "distance": 0,
+          "description": "도보 0m",
+          "duration": 1
+        },
+        {
+          "mode": "subway",
+          "line": "수도권 3호선",
+          "lineKo": "3호선",
+          "lineEn": "Line 3",
+          "subwayCode": 3,
+          "fromStationID": 331,
+          "toStationID": 327,
+          "from": "충무로",
+          "fromRoman": "Chungmuro",
+          "to": "경복궁",
+          "toRoman": "Gyeongbokgung",
+          "way": "경복궁",
+          "wayRoman": "Gyeongbokgung",
+          "fromExit": null,
+          "toExit": "5",
+          "fromExitCoord": null,
+          "toExitCoord": {
+            "x": 126.97551736847802,
+            "y": 37.5762402227212
+          },
+          "duration": 7,
+          "stationCount": 4,
+          "intervalMin": 6,
+          "passStops": [
+            "충무로",
+            "을지로3가",
+            "종로3가",
+            "안국",
+            "경복궁"
+          ],
+          "description": "수도권 3호선 충무로역 → 경복궁역 5번출구 (4정거장, 7분, 배차 6분)"
+        },
+        {
+          "mode": "walk",
+          "distance": 448,
+          "description": "도보 448m",
+          "duration": 7
+        }
+      ],
+      "transfers": 2,
+      "total_walk_m": 741,
+      "first_station": "명동",
+      "last_station": "경복궁",
+      "est_min": 21,
+      "est_fare_krw": 1550,
+      "source": "odsay"
+    },
+    "stops": [
+      {
+        "order": 1,
+        "start_time": "09:30",
+        "name": "경복궁",
+        "display_name": "Gyeongbokgung Palace",
+        "display_name_i18n": {
+          "ko": "경복궁",
+          "en": "Gyeongbokgung Palace",
+          "ja": "景福宮",
+          "zh": "景福宫"
+        },
+        "category": "culture",
+        "address": "서울특별시 종로구 사직로 161",
+        "lat": 37.5788408,
+        "lng": 126.9770162,
+        "stay_min": 90,
+        "entry_fee_krw": 3000,
+        "tip": {
+          "ko": "수문장 교대식(10:00/14:00) 시간에 맞춰 방문하세요.",
+          "en": "Time your visit to the Royal Guard Changing Ceremony (10:00 / 14:00).",
+          "ja": "守門将交代式(10:00/14:00)の時間に合わせて訪れましょう。",
+          "zh": "建议配合守门将交接仪式（10:00 / 14:00）时间参观。"
+        },
+        "photo_ref": "AaVGc3nRiwHI-jOjESdoHhqyzWyJVVTLBnikdl7MxCTTgj6tawJve3MTekV6uV-jm2zAMYKcY5Fy2qQh9Px9rKbsN7pRSRrYUEdQkh5uuMOFhl9wcHKll0V4Y-NsccpbV11lwdNBTpxyKZd_vj1UjD72QFgbviT6i7DZ60zYkxKelnM4FY1sDWQ2jbSF0f85_t5J2gGPURvUzJxrSpnpQ1lebPgtGfnXbUzzOetg_TKHtfBGaJXEynITVmo8no9vKkln89st3OPYaOSZyniW6iO9zHbOAi0oj7mNEgrKn7aNXljpkj3eyqKLwbneZ5L7FTp6pI4W4Bz1t8EGPXql9quBYoDE0SGxuK-752oiAYX4iNZgyK9eWxtAr1TfWXXNVDHSa6pZPgUZO9RP05zlgOLesCmPpW9_DBTY5WibfVJOVVYuCDMM"
+      },
+      {
+        "order": 2,
+        "start_time": "11:30",
+        "name": "북촌한옥마을",
+        "display_name": "Bukchon Hanok Village",
+        "display_name_i18n": {
+          "ko": "북촌한옥마을",
+          "en": "Bukchon Hanok Village",
+          "ja": "北村韓屋村",
+          "zh": "北村韩屋村"
+        },
+        "category": "culture",
+        "address": "서울특별시 종로구 계동길 37",
+        "lat": 37.5790768,
+        "lng": 126.9862753,
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "tip": {
+          "ko": "주민이 거주하는 곳 — 정숙 관광. 8경 포토 스팟 추천.",
+          "en": "Residents live here — please keep quiet. The 8 photo spots are recommended.",
+          "ja": "住民が暮らす地区 — 静かに観光を。8つのフォトスポット推奨。",
+          "zh": "居民居住区 — 请保持安静。推荐 8 大摄影点。"
+        },
+        "photo_ref": "AaVGc3mlv5nLpzU4eBbJORCSCCzAivhBX3KZqaXeJic4Q1GyBi4tilSqnDATAkDDLOa8icOznYoxSBA8apn2KYeS8fAYXnr8jRh1aKFeINcLvyFIRd-_3uNtvqgy8v_3GGKrQ7RaWE82itJ4sfWeHxeu0_Z-ybxR5b2x_NfxoLnG6FTx8OAeeneCFhRZ_jPyPOCqXyU-yoU2VDJ8aLDPtgT4yEFOVKsYnUeWifspcFTJZQzpRVSOu4SeRkPCbxByCYzEvdNZZLL9htSjGBhxdEDPF4Py0b9_8gmqvFjo1RzICKK7Q9tB2YcOwASE_5g_UbZuOOX8hhRMyZfj9FvRBaFR8k5vMAQDybtTf5a4qVukPOF8XrUKtL0734dGX_HbA7sHWcUI543noc8jU0WchAtvwyvjV2b71f3Ba6e4XejWBvKpRkUw",
+        "transit_from_prev": {
+          "method": "subway+bus",
+          "mode": "subway",
+          "instruction_en": "",
+          "step_by_step": [
+            "도보 237m",
+            "버스 01A번 경복궁.국립민속박물관(01603) → 안국역6번출구.인사동(01200) (1정거장, 7분, 배차 9분)",
+            "도보 415m"
+          ],
+          "steps_detail": [
+            {
+              "mode": "walk",
+              "distance": 237,
+              "description": "도보 237m",
+              "duration": 4
+            },
+            {
+              "mode": "bus",
+              "busNo": "01A",
+              "busType": "버스",
+              "from": "경복궁.국립민속박물관",
+              "to": "안국역6번출구.인사동",
+              "fromArs": "01603",
+              "toArs": "01200",
+              "fromCoord": {
+                "x": 126.979588,
+                "y": 37.57945
+              },
+              "toCoord": {
+                "x": 126.984121,
+                "y": 37.57575
+              },
+              "duration": 7,
+              "stationCount": 1,
+              "intervalMin": 9,
+              "passStops": [
+                "경복궁.국립민속박물관",
+                "안국역6번출구.인사동"
+              ],
+              "description": "버스 01A번 경복궁.국립민속박물관(01603) → 안국역6번출구.인사동(01200) (1정거장, 7분, 배차 9분)"
+            },
+            {
+              "mode": "walk",
+              "distance": 415,
+              "description": "도보 415m",
+              "duration": 6
+            }
+          ],
+          "transfers": 1,
+          "total_walk_m": 652,
+          "first_station": "경복궁.국립민속박물관",
+          "last_station": "안국역6번출구.인사동",
+          "est_min": 17,
+          "est_fare_krw": 1100,
+          "source": "odsay"
+        }
+      },
+      {
+        "order": 3,
+        "start_time": "13:00",
+        "name": "장수하늘소 인사동",
+        "display_name": "Jangsu Sky Beef",
+        "category": "food",
+        "address": "서울특별시 종로구 인사동길 34-1",
+        "lat": 37.5738423,
+        "lng": 126.9856096,
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "verified": true,
+        "tip": {
+          "ko": "인사동 골목 — 현지인 평점 높은 한식 맛집.",
+          "en": "Insadong alley — a highly rated local Korean restaurant.",
+          "ja": "仁寺洞の路地 — 地元評価の高い韓国料理店。",
+          "zh": "仁寺洞小巷 — 当地高分韩餐厅。"
+        },
+        "rating": 4.8,
+        "review_count": 764,
+        "cuisine": "한우",
+        "cuisine_en": "Korean Beef",
+        "recommended_items": [],
+        "photo_ref": "AaVGc3mfJKgPSWRXsdrVKqesjgnoYVdX94z7CGAXWUWHixwxGOTBBT7HktQvxcJCo30n_w5rrSprS0wn8Yqx_x6FlYD939tLbjbMNRtw-PEL7aMgWqc_9ti2lXDd_YkgDDL7Pyndbszkt0RLXyDE4hlwiCnjvJPIgZvTouZFYsEIq26-Zrb6pgNbtBgzY3bzvsx5TdADUCjz2UZ_tbOeJNLcyW_hiN67K-uoulpJ1FvMHixzmnfsB44cjwiMpO-OgqbUlq9E1SACPDdsBXS8OEK1GGcoNWpSgImW5qzF3NVcqZMibnNy-X-MaGmbvkHj26UPjB6fthSc7ClNLO6GjdCoXNscJRm-al0RMyXqdgxo6edMINNOSfBCIVVAYeylOzslQ2PT2u91DzQZTHACgYNbB-WQoVJyqpz9V6oUqWJM2azqgWQFK7D0zc6uIK3_4g",
+        "transit_from_prev": {
+          "method": "car",
+          "mode": "car",
+          "instruction_en": "",
+          "step_by_step": [],
+          "est_min": 8,
+          "est_fare_krw": 0,
+          "distance_km": 0.6,
+          "source": "naver_fallback"
+        }
+      },
+      {
+        "order": 4,
+        "start_time": "14:30",
+        "name": "인사동",
+        "display_name": "Insadong",
+        "display_name_i18n": {
+          "ko": "인사동",
+          "en": "Insadong",
+          "ja": "仁寺洞",
+          "zh": "仁寺洞"
+        },
+        "category": "culture",
+        "address": "서울특별시 종로구 인사동길",
+        "lat": 37.5732841,
+        "lng": 126.9856063,
+        "stay_min": 90,
+        "entry_fee_krw": 0,
+        "tip": {
+          "ko": "쌈지길 + 전통 다실 + 갤러리 골목.",
+          "en": "Ssamzigil + traditional tea house + gallery alley.",
+          "ja": "サムジキル + 伝統茶屋 + ギャラリー横丁。",
+          "zh": "Ssamzigil + 传统茶屋 + 画廊小巷。"
+        },
+        "photo_ref": "AaVGc3lt0jqWIqwq1AQkMd2SEbmhLVMUN9nfQ2CiV4LSIX2pMkX03lz0HKNVBs1ozgmu05X-8dvOVrOKzcz_8OGLnxUVuWM4K-ZetYB10OLKIXv_Sj2NquTk8IxebnVR0cNZYsk42jRyB69A-fDxecg38tKjfi4MWd9op4vsPqz93xl5hD9PbNccyBNRWq9v_GWjLMIrU57IjPbTv5ZDFbz5E2_fk9-HUpRRNvhcy-DAr1dOKV42V3u8jsZnYsXcygCJv5ktawqsrGVQLjc4wIbqrhI_VsfqWzlnCf4zoU6YBRlm5wU2YXrBBc4-pg-qTuLcov2fK6NvD9m4wf-vZPD6RXdtN9FaX286h91EdCfC6uQ-OuvcE3hGTX5NBkanBOmCyzpnTvMO_PISeHlwWN5fxrW_dOu1KbUkZhSCoQESffDfH9cF",
+        "transit_from_prev": {
+          "method": "walk",
+          "mode": "walk",
+          "instruction_en": "",
+          "step_by_step": [],
+          "est_min": 3,
+          "est_fare_krw": 0,
+          "total_walk_m": 0,
+          "source": "odsay"
+        }
+      },
+      {
+        "order": 5,
+        "start_time": "16:30",
+        "name": "광장시장",
+        "display_name": "Gwangjang Market",
+        "display_name_i18n": {
+          "ko": "광장시장",
+          "en": "Gwangjang Market",
+          "ja": "広蔵市場",
+          "zh": "广藏市场"
+        },
+        "category": "food",
+        "address": "서울특별시 종로구 창경궁로 88",
+        "lat": 37.5701118,
+        "lng": 126.9997094,
+        "stay_min": 60,
+        "entry_fee_krw": 0,
+        "tip": {
+          "ko": "빈대떡 + 마약김밥 + 육회 — 한국 대표 길거리 음식.",
+          "en": "Bindaetteok + mayak gimbap + yukhoe — iconic Korean street food.",
+          "ja": "ビンデトック + 麻薬キンパ + ユッケ — 韓国を代表する屋台グルメ。",
+          "zh": "绿豆煎饼 + 麻药紫菜包饭 + 生牛肉 — 韩国代表性街头美食。"
+        },
+        "photo_ref": "AaVGc3lhvKEFckzMfd52PNKuiV0o_RNyo_1ZV6_kuaRRia8htFgTXfaAal48rw1ZY67lCwnfaqmFZ6bV2TiwE1Z8onQQFVdMiIIx8dvX6cYkTIRFMq1pimJR12ZCdTr1er4Dg4sqnE1ujNItvdFERKykTS6KSqW1u1u_7ZVwALaY3IsGVZoCeHjwVcj6Wp3ZDCLe5TSQH0Gn4khuz2Nr9IEH-2SQ4i1CNlc6Pp13TfGkfXf4KnIkav3EZyVFIBahQ59Ueiop15_My-Joq2zdPEcpT82sQahhYRvAhg34e6oWn5bRYo6-cWWQlC8OpEJYX8mdvSUvzW7DIrdpxTZu_MSWkRd49-vnUNRjGonkkxvrvlZhhgIVTfpgxdzMjoDdzJEW40IGP1c2qZ2JS7ddrVlfnlOXSSLIPvrsF594-SZyQXrWHMKx",
+        "transit_from_prev": {
+          "method": "subway+bus",
+          "mode": "subway",
+          "instruction_en": "",
+          "step_by_step": [
+            "도보 404m",
+            "수도권 1호선 종각역 3-1번출구 → 종로5가역 8번출구 (2정거장, 3분, 배차 10분)",
+            "도보 219m"
+          ],
+          "steps_detail": [
+            {
+              "mode": "walk",
+              "distance": 404,
+              "description": "도보 404m",
+              "duration": 6
+            },
+            {
+              "mode": "subway",
+              "line": "수도권 1호선",
+              "lineKo": "1호선",
+              "lineEn": "Line 1",
+              "subwayCode": 1,
+              "fromStationID": 131,
+              "toStationID": 129,
+              "from": "종각",
+              "fromRoman": "Jonggak",
+              "to": "종로5가",
+              "toRoman": "Jongno 5(o)-ga",
+              "way": "종로5가",
+              "wayRoman": "Jongno 5(o)-ga",
+              "fromExit": "3-1",
+              "toExit": "8",
+              "fromExitCoord": {
+                "x": 126.98320409746134,
+                "y": 37.57094111512746
+              },
+              "toExitCoord": {
+                "x": 127.00162519845992,
+                "y": 37.57085395694007
+              },
+              "duration": 3,
+              "stationCount": 2,
+              "intervalMin": 10,
+              "passStops": [
+                "종각",
+                "종로3가",
+                "종로5가"
+              ],
+              "description": "수도권 1호선 종각역 3-1번출구 → 종로5가역 8번출구 (2정거장, 3분, 배차 10분)"
+            },
+            {
+              "mode": "walk",
+              "distance": 219,
+              "description": "도보 219m",
+              "duration": 3
+            }
+          ],
+          "transfers": 1,
+          "total_walk_m": 623,
+          "first_station": "종각",
+          "last_station": "종로5가",
+          "est_min": 12,
+          "est_fare_krw": 1550,
+          "source": "odsay"
+        }
+      }
+    ]
+  }
+}

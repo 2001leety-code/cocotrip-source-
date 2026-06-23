@@ -1,0 +1,35 @@
+[
+  {
+    "id": "sample-seoul",
+    "file": "seoul.json",
+    "city": "seoul",
+    "cityLabel": {
+      "ko": "서울",
+      "en": "Seoul",
+      "ja": "ソウル",
+      "zh": "首尔"
+    }
+  },
+  {
+    "id": "sample-busan",
+    "file": "busan.json",
+    "city": "busan",
+    "cityLabel": {
+      "ko": "부산",
+      "en": "Busan",
+      "ja": "釜山",
+      "zh": "釜山"
+    }
+  },
+  {
+    "id": "sample-jeju",
+    "file": "jeju.json",
+    "city": "jeju",
+    "cityLabel": {
+      "ko": "제주",
+      "en": "Jeju",
+      "ja": "済州",
+      "zh": "济州"
+    }
+  }
+]

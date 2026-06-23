@@ -1,0 +1,326 @@
+{
+  "id": "sample-jeju",
+  "isSample": true,
+  "city": "jeju",
+  "cityLabel": {
+    "ko": "제주",
+    "en": "Jeju",
+    "ja": "済州",
+    "zh": "济州"
+  },
+  "tour_title_i18n": {
+    "ko": "제주 동부 자연 1일",
+    "en": "Jeju East Coast Nature — Day 1",
+    "ja": "済州 東部の自然 1日目",
+    "zh": "济州东部自然 第1天"
+  },
+  "generated_by": "build-sample-plans.mjs (verified zone_courses + food DB + live ODsay/Places)",
+  "day": {
+    "day": 1,
+    "date": "",
+    "theme_i18n": {
+      "ko": "일출봉 + 섭지코지 + 해변",
+      "en": "Sunrise Peak + Seopjikoji + Coast",
+      "ja": "日の出峰 + 섭지코지 + 海岸",
+      "zh": "日出峰 + 涉地可支 + 海岸"
+    },
+    "city": "jeju",
+    "lodgingLabel": {
+      "ko": "성산 숙소",
+      "en": "Seongsan stay",
+      "ja": "城山の宿",
+      "zh": "城山住宿"
+    },
+    "lodging_to_first": {
+      "method": "subway+bus",
+      "mode": "subway",
+      "instruction_en": "",
+      "step_by_step": [
+        "도보 351m",
+        "광역 501(서귀포버스터미널)번 성산항(406000823) → 성산일출봉입구(406000817) (1정거장, 8분, 배차 60분)",
+        "도보 1012m"
+      ],
+      "steps_detail": [
+        {
+          "mode": "walk",
+          "distance": 351,
+          "description": "도보 351m",
+          "duration": 5
+        },
+        {
+          "mode": "bus",
+          "busNo": "501(서귀포버스터미널)",
+          "busType": "광역",
+          "from": "성산항",
+          "to": "성산일출봉입구",
+          "fromArs": "406000823",
+          "toArs": "406000817",
+          "fromCoord": {
+            "x": 126.930649,
+            "y": 33.471282
+          },
+          "toCoord": {
+            "x": 126.933721,
+            "y": 33.46377
+          },
+          "duration": 8,
+          "stationCount": 1,
+          "intervalMin": 60,
+          "passStops": [
+            "성산항",
+            "성산일출봉입구"
+          ],
+          "description": "광역 501(서귀포버스터미널)번 성산항(406000823) → 성산일출봉입구(406000817) (1정거장, 8분, 배차 60분)"
+        },
+        {
+          "mode": "walk",
+          "distance": 1012,
+          "description": "도보 1012m",
+          "duration": 15
+        }
+      ],
+      "transfers": 1,
+      "total_walk_m": 1363,
+      "first_station": "성산항",
+      "last_station": "성산일출봉입구",
+      "est_min": 28,
+      "est_fare_krw": 1150,
+      "source": "odsay"
+    },
+    "stops": [
+      {
+        "order": 1,
+        "start_time": "09:00",
+        "name": "성산일출봉",
+        "display_name": "Seongsan Ilchulbong (Sunrise Peak)",
+        "display_name_i18n": {
+          "ko": "성산일출봉",
+          "en": "Seongsan Ilchulbong (Sunrise Peak)",
+          "ja": "城山日出峰",
+          "zh": "城山日出峰"
+        },
+        "category": "nature",
+        "address": "제주특별자치도 서귀포시 성산읍 성산리 1",
+        "lat": 33.4583815,
+        "lng": 126.9425,
+        "stay_min": 90,
+        "entry_fee_krw": 5000,
+        "tip": {
+          "ko": "UNESCO 세계자연유산 — 정상까지 약 25분 등반.",
+          "en": "UNESCO World Heritage — about a 25-minute climb to the summit.",
+          "ja": "ユネスコ世界自然遺産 — 山頂まで約25分。",
+          "zh": "联合国教科文世界自然遗产 — 登顶约25分钟。"
+        },
+        "photo_ref": "AaVGc3kW6ktL00Twf2kjoKHwvWJ2QYog2fkogp4Hd5GTVi1zB1qE0ebucupNv5MtyaG2SHq0QFzx9upP8l7sFvTEU0V0bL3m4JvqdkhvRy6X76R1ibnGU0jLlcWQqb7LjPlgNukCmj_De3OYEi4pSkmHfo7ALQO1qAJ47kMp23-vJ97d4b6tKF3yh-hR4DUS_WLrjmCHrWnPq_H1zy8mEO7vSExY2OtjUwRXpPvDk9_S7EaYODpEsFZTlHYo4FzO67WrCkC3Y_k247bR7tz5-I7U4CcBoAVjnHmZtfbnP_g2Xo60QVTn6U-wZnX-TKCpVY23GmZpvTcyvLSb6U2a6HwTpRy07jNsnw2k2gzrpNLJpd47p16Xnq-mU4qNhbJqYbT8UTeRD0BX_20nAeXKIVQUEkbIGG31qejVF71rvg-5wDDWMg"
+      },
+      {
+        "order": 2,
+        "start_time": "11:30",
+        "name": "섭지코지",
+        "display_name": "Seopjikoji",
+        "display_name_i18n": {
+          "ko": "섭지코지",
+          "en": "Seopjikoji",
+          "ja": "ソプチコジ",
+          "zh": "涉地可支"
+        },
+        "category": "nature",
+        "address": "제주특별자치도 서귀포시 성산읍 섭지코지로 95",
+        "lat": 33.4329769,
+        "lng": 126.93,
+        "stay_min": 90,
+        "entry_fee_krw": 4000,
+        "tip": {
+          "ko": "해안 절벽 산책로 + 등대 + 드라마 촬영지.",
+          "en": "Coastal cliff trail + lighthouse + famous drama filming spot.",
+          "ja": "海岸の断崖遊歩道 + 灯台 + ドラマのロケ地。",
+          "zh": "海岸悬崖步道 + 灯塔 + 著名取景地。"
+        },
+        "photo_ref": "AaVGc3mX0t--erALvNgG8EmgEDHGq7eB-ymR7t2SqJ_QzSRhkj0TOJ0Gth-gLN4MuZ9gyrFLiq3lqXy8KB8Gqnya1XaACLmnM2Zj4TVzgixEe3vSOJxfbFIWkNpHNnAGFyf1J-lk3BmzbWw65dmzvzIWr-ITQUxsCYiB7k3Eaypold3Poit-xvE1hdytexm7kp9SKk3hVvLdBWYvikZChzuK3UN69HLnBA-cRIP8QgdoAdhrdY8AX8tWuLI4S589ECXpMfrGEdUHcoNImFw0zLktBoZTFLlbJMI4NtlmE2Hbq0zBD56zZWWIZhsUI0_d8IZsHAfbmlDrURElqtYU6hqA3kPVKqD6EaNVabUYuRHMmLSnQiRY0evevxnu4sgcXrTnPwow8zLnrN2cSOFZgVo5uQE_y_72G5dJTMMVryQRuvI3QQ",
+        "transit_from_prev": {
+          "method": "subway+bus",
+          "mode": "subway",
+          "instruction_en": "",
+          "step_by_step": [
+            "도보 1012m",
+            "광역 295(서귀포버스터미널)번 성산일출봉입구(406000817) → 섭지코지(406001405) (7정거장, 17분, 배차 60분)",
+            "도보 844m"
+          ],
+          "steps_detail": [
+            {
+              "mode": "walk",
+              "distance": 1012,
+              "description": "도보 1012m",
+              "duration": 15
+            },
+            {
+              "mode": "bus",
+              "busNo": "295(서귀포버스터미널)",
+              "busType": "광역",
+              "from": "성산일출봉입구",
+              "to": "섭지코지",
+              "fromArs": "406000817",
+              "toArs": "406001405",
+              "fromCoord": {
+                "x": 126.933721,
+                "y": 33.46377
+              },
+              "toCoord": {
+                "x": 126.922019,
+                "y": 33.436593
+              },
+              "duration": 17,
+              "stationCount": 7,
+              "intervalMin": 60,
+              "passStops": [
+                "성산일출봉입구",
+                "성산리입구",
+                "광치기해변",
+                "성산포 수협",
+                "고성리 구 성산농협",
+                "신양입구",
+                "동모루왓",
+                "섭지코지"
+              ],
+              "description": "광역 295(서귀포버스터미널)번 성산일출봉입구(406000817) → 섭지코지(406001405) (7정거장, 17분, 배차 60분)"
+            },
+            {
+              "mode": "walk",
+              "distance": 844,
+              "description": "도보 844m",
+              "duration": 13
+            }
+          ],
+          "transfers": 1,
+          "total_walk_m": 1856,
+          "first_station": "성산일출봉입구",
+          "last_station": "섭지코지",
+          "est_min": 45,
+          "est_fare_krw": 1150,
+          "source": "odsay"
+        }
+      },
+      {
+        "order": 3,
+        "start_time": "13:30",
+        "name": "성산 영어 메뉴 카페",
+        "display_name": "Seongsan English Menu Cafe",
+        "category": "food",
+        "address": "제주특별자치도 서귀포시 성산읍 일출로 287",
+        "lat": 33.4598,
+        "lng": 126.9265,
+        "stay_min": 70,
+        "entry_fee_krw": 0,
+        "verified": true,
+        "tip": {
+          "ko": "성산 일대 — 제주 향토 음식(전복·갈치) 맛집.",
+          "en": "Seongsan area — local Jeju specialties (abalone, cutlassfish).",
+          "ja": "城山エリア — 済州の郷土料理(アワビ・タチウオ)。",
+          "zh": "城山一带 — 济州乡土料理（鲍鱼·带鱼）。"
+        },
+        "rating": 4.5,
+        "review_count": 340,
+        "cuisine": "음식점>카페,영문메뉴",
+        "cuisine_en": "Cafe - Tourist-Friendly",
+        "recommended_items": [],
+        "photo_ref": "AaVGc3mrkvGzDoqQ9uAJ46DqsBD49Vu95xESHPiKG4rlJCRb6uqPcK0KlaJjFOaGTwg0csTK696yoOr2kCLBM-aHwFuFCpvpwkQfqUyxUv3KojYxN-OUS7gNYTgpfuXdcTPpOOFH3Ctt_6XtgJZmdd4ZH1t5G2qYbGbAA-y0rtUJ6B9oGqrhv7lUH2cz-wWU5BZutQYL5o_QXx0SBIKNuHNR9cVGrT9mx-2IebO2qY9YtME799aAYClQVOegK_Ztpl7rTlFp7a5qXMZaW5VPQq4fqiDl6QYD-yh_k1EdcQF4KLkCmfnhurA03zi41vP4P-v_vKD8FBc1_t_mjhQC1nxJD5YCG8Q7vOmlm3qX5714ZuDSOd2JwGoAarz7U2sTmCohuIxWMkBaU-6m1m8ZTyEvVegtVbGVrk-6p1VN0mbsqESodA7AKwI3izzBARxYmbaO",
+        "transit_from_prev": {
+          "method": "subway+bus",
+          "mode": "subway",
+          "instruction_en": "",
+          "step_by_step": [
+            "도보 834m",
+            "인천 721-3(성산환승정류장)번 섭지코지(406001406) → 성산리입구(406000814) (6정거장, 16분, 배차 60분)",
+            "도보 445m"
+          ],
+          "steps_detail": [
+            {
+              "mode": "walk",
+              "distance": 834,
+              "description": "도보 834m",
+              "duration": 13
+            },
+            {
+              "mode": "bus",
+              "busNo": "721-3(성산환승정류장)",
+              "busType": "인천",
+              "from": "섭지코지",
+              "to": "성산리입구",
+              "fromArs": "406001406",
+              "toArs": "406000814",
+              "fromCoord": {
+                "x": 126.92237,
+                "y": 33.436921
+              },
+              "toCoord": {
+                "x": 126.931189,
+                "y": 33.460602
+              },
+              "duration": 16,
+              "stationCount": 6,
+              "intervalMin": 60,
+              "passStops": [
+                "섭지코지",
+                "동모루왓",
+                "신양리입구",
+                "성산보건지소",
+                "고성리제주은행",
+                "광치기해변",
+                "성산리입구"
+              ],
+              "description": "인천 721-3(성산환승정류장)번 섭지코지(406001406) → 성산리입구(406000814) (6정거장, 16분, 배차 60분)"
+            },
+            {
+              "mode": "walk",
+              "distance": 445,
+              "description": "도보 445m",
+              "duration": 7
+            }
+          ],
+          "transfers": 1,
+          "total_walk_m": 1279,
+          "first_station": "섭지코지",
+          "last_station": "성산리입구",
+          "est_min": 36,
+          "est_fare_krw": 1150,
+          "source": "odsay"
+        }
+      },
+      {
+        "order": 4,
+        "start_time": "15:30",
+        "name": "우도",
+        "display_name": "Udo Island",
+        "display_name_i18n": {
+          "ko": "우도",
+          "en": "Udo Island",
+          "ja": "牛島",
+          "zh": "牛岛"
+        },
+        "category": "nature",
+        "address": "제주특별자치도 제주시 우도면",
+        "lat": 33.506483,
+        "lng": 126.9533,
+        "stay_min": 120,
+        "entry_fee_krw": 0,
+        "tip": {
+          "ko": "성산항에서 페리 15분 — 전기 스쿠터로 섬 일주.",
+          "en": "15-minute ferry from Seongsan Port — circle the island by electric scooter.",
+          "ja": "城山港からフェリー15分 — 電動スクーターで島を一周。",
+          "zh": "城山港乘渡轮15分钟 — 电动滑板车环岛。"
+        },
+        "photo_ref": "AaVGc3mNJeCKZ_4-UWnp7ro-3_nB1h3_3Klkm3SGbpq5gtraw-r83IkXoZwVmth6LSGSTs-q0gdN_AqAh57AdMzL_KMWrXyO00pBU2AGKrnYmD7RkeJmQKOuuM8FAL9UV0-9aVZVw7ehA8EN7N07cR_UIWT11xiMFyroz7Ya7s0BNuBQLcIv_IpAjJSJUQ9RtFk4x1Qi_vu3ApU0cB4YmzM3lgxOdmJcs8leEOxatNjFBFFvOGHG2aap36Ikx4iWNI-Wm7EJLtqlWmI7PbQQY1l3VQXR4VOt9jqgCvC12y43pV3JHVPBEdah3I0ZYs5S_kRhIFI18NMlaoR_L49aX90Xz1CI4BM-5zZB6KdaOQ3MS3bsuM6VoNxPzRPesA1o3Edk8J5TN8gZoI9RT3HetKcTb7H1nhZ9Nw_09GGWho6z0j2Izpy9kOFGqd4qB9gwrQ",
+        "transit_from_prev": {
+          "method": "car",
+          "mode": "car",
+          "instruction_en": "",
+          "step_by_step": [],
+          "est_min": 12,
+          "est_fare_krw": 0,
+          "distance_km": 5.8,
+          "source": "naver_fallback"
+        }
+      }
+    ]
+  }
+}

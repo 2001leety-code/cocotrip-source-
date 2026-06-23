@@ -562,6 +562,15 @@
     "guestSignupBenefitSave": "プランを保存 — いつでも見返せます",
     "guestSignupBenefitCoins": "購入ごとにTrip Coinsを1〜3%還元",
     "guestSignupBenefitCoupon": "初回チャーター・ツアー5%割引クーポン",
+    "sample": {
+      "sectionTitle": "実際のサンプルプラン（無料プレビュー）",
+      "sectionSubtitle": "ご購入前に、完成したプランの品質をご確認いただけます。",
+      "badge": "예시) Example",
+      "exampleItinerary": "サンプル日程",
+      "day1Label": "Day 1",
+      "ctaMakePlan": "自分のプランを作る",
+      "disclaimer": "※ この日程は品質をお見せするためのサンプルです。あなたのプランは入力した条件に合わせて新たに生成されます。"
+    },
     "viewDetails": "詳細を見る",
     "previewTipLabel": "ヒント",
     "openGoogleMap": "Googleマップ",

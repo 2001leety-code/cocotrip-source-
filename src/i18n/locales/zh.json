@@ -562,6 +562,15 @@
     "guestSignupBenefitSave": "保存行程 — 随时再次查看",
     "guestSignupBenefitCoins": "每次消费返还1~3% Trip Coins",
     "guestSignupBenefitCoupon": "首次包车·跟团5%折扣券",
+    "sample": {
+      "sectionTitle": "真实示例行程（免费预览）",
+      "sectionSubtitle": "付款前，先亲自查看成品行程的质量。",
+      "badge": "예시) Example",
+      "exampleItinerary": "示例行程",
+      "day1Label": "Day 1",
+      "ctaMakePlan": "制作我的行程",
+      "disclaimer": "※ 此行程为展示质量的示例。您的行程将根据您输入的条件重新生成。"
+    },
     "viewDetails": "查看详情",
     "previewTipLabel": "贴士",
     "openGoogleMap": "谷歌地图",
