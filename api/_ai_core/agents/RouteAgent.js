@@ -1473,7 +1473,12 @@ export class RouteAgent extends BaseAgent {
                                 to_label: it.from_station,
                             };
                             }
-                            console.log(`  - [${prevHotelEffective.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station.est_min}min (intercity bookend pre, source=${prevHotelEffective.source || 'prev_day_hotel'})`);
+                            // 가드 (2026-06-23): pt(publicTransit)가 null 이면 위 else 가 안 돌아
+                            //   it.lodging_to_station 이 undefined → .est_min 읽기 throw
+                            //   ("Cannot read properties of undefined (reading 'est_min')") →
+                            //   catch 가 pre:odsay_throw 로 누적하며 leg skip. 정상 응답이면
+                            //   값 동일, null 응답이면 '(skipped)' 로 graceful 로그.
+                            console.log(`  - [${prevHotelEffective.label || 'Hotel'}→${it.from_station}] ${it.lodging_to_station ? `${it.lodging_to_station.est_min}min` : '(skipped — no transit)'} (intercity bookend pre, source=${prevHotelEffective.source || 'prev_day_hotel'})`);
                         } catch (preErr) {
                             bookendFailReasons.push(`pre:odsay_throw:${(preErr.message || 'unknown').slice(0, 60)}`);
                             console.warn(`  - intercity bookend pre ODsay failed:`, preErr.message);
@@ -1515,7 +1520,10 @@ export class RouteAgent extends BaseAgent {
                                 to_label: dayHotel.label || 'Hotel',
                             };
                             }
-                            console.log(`  - [${it.to_station}→${dayHotel.label || 'Hotel'}] ${it.station_to_lodging.est_min}min (intercity bookend post)`);
+                            // 가드 (2026-06-23): pt 가 null 이면 it.station_to_lodging 미할당 →
+                            //   .est_min 읽기 throw → catch 가 post:odsay_throw 로 누적하며 leg skip.
+                            //   정상 응답이면 값 동일, null 응답이면 '(skipped)' 로 graceful 로그.
+                            console.log(`  - [${it.to_station}→${dayHotel.label || 'Hotel'}] ${it.station_to_lodging ? `${it.station_to_lodging.est_min}min` : '(skipped — no transit)'} (intercity bookend post)`);
                         } catch (postErr) {
                             bookendFailReasons.push(`post:odsay_throw:${(postErr.message || 'unknown').slice(0, 60)}`);
                             console.warn(`  - intercity bookend post ODsay failed:`, postErr.message);
