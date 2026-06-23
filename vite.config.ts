@@ -34,18 +34,45 @@ export default defineConfig({
     // DEV-only (로컬 플랜 하네스): scripts/plan-local/outputs/plan-<scenario>.json 을
     //   /local-plans/<scenario>.json 으로 서빙 → PlanDetailPage ?localPlan=<scenario> 가 fetch 해 렌더.
     //   apply:'serve' = dev 서버 전용 (prod 빌드/번들 무관). `npm run plan:test -- <scenario>` 후 사용.
+    //
+    //   폴백: outputs/ 에 없으면(예: 'seoul'·'busan'·'jeju' = 예시 showcase 샘플,
+    //   record/test 로 만든 게 아님) src/data/sample-plans/<name>.json 을 즉석에서
+    //   harness PlanDocument 형태로 변환해 서빙 → 빌드 단계 0 으로 ?localPlan=seoul 동작.
     {
       name: 'local-plan-server',
       apply: 'serve',
       configureServer(server) {
-        server.middlewares.use('/local-plans', (req, res, next) => {
+        server.middlewares.use('/local-plans', async (req, res, next) => {
           let name = (req.url || '').slice(1).split('?')[0];
           if (name.endsWith('.json')) name = name.slice(0, -5);
           if (!/^[a-z0-9-]+$/i.test(name)) return next();
+
+          // 1) 하네스 출력(record/test 산출물) 우선.
           const file = path.resolve(__dirname, 'scripts/plan-local/outputs', `plan-${name}.json`);
-          if (!fs.existsSync(file)) return next();
-          res.setHeader('Content-Type', 'application/json');
-          res.end(fs.readFileSync(file));
+          if (fs.existsSync(file)) {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(fs.readFileSync(file));
+            return;
+          }
+
+          // 2) 폴백: 예시 showcase 샘플(src/data/sample-plans/<name>.json) → 변환 서빙.
+          const sampleFile = path.resolve(__dirname, 'src/data/sample-plans', `${name}.json`);
+          if (fs.existsSync(sampleFile)) {
+            try {
+              // dev-only .mjs helper (no .d.ts) — tsc(node) 가 선언 파일 못 찾는 것 무시.
+              // @ts-expect-error untyped dev tooling import
+              const { sampleToPlanDoc } = await import('./scripts/plan-local/sampleToPlanDoc.mjs');
+              const raw = JSON.parse(fs.readFileSync(sampleFile, 'utf8'));
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(sampleToPlanDoc(raw, name)));
+            } catch (e) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: String(e) }));
+            }
+            return;
+          }
+
+          return next();
         });
       },
     },
