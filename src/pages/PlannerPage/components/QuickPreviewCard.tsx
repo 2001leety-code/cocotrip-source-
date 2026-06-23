@@ -1,6 +1,12 @@
 // Quick preview card -- extracted from legacy PlannerPage.tsx L1613-1703.
+// B3b (2026-06-23): the flat Day-1 table is upgraded to the SAME expandable
+// detail-card pattern as the full plan (PreviewStopCard reuses StopCard's
+// look-and-feel + shared map-link builder). Falls back to the flat table when
+// the markdown can't be parsed into rows — graceful, no crash.
 import { Sparkles } from 'lucide-react';
 import type { PlannerDict } from '../types';
+import { PreviewStopCard } from './PreviewStopCard';
+import { parsePreviewTable } from '../lib/previewTable';
 
 interface QuickPreviewData {
   themes?: string[];
@@ -48,6 +54,19 @@ export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: Qu
         }
         if (!table || (typeof table === 'string' && table.trim().length < 10)) return null;
         const tableStr = String(table);
+        // B3b: prefer expandable detail cards (same UX as the paid plan). The
+        // preview data is name + tip only — cards degrade gracefully, map links
+        // are built from the spot name.
+        const previewStops = parsePreviewTable(tableStr);
+        if (previewStops.length > 0) {
+          return (
+            <div className="space-y-2">
+              {previewStops.map((s, si) => (
+                <PreviewStopCard key={si} stop={s} p={p} isMobile={isMobile} />
+              ))}
+            </div>
+          );
+        }
         const tableLines = tableStr.split('\n').filter((l: string) => l.trim().startsWith('|'));
         const dataLines = tableLines.filter((l: string) => !l.match(/^\|[\s:\-]+\|$/));
         if (dataLines.length < 2) {
