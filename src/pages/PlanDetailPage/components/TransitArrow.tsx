@@ -283,11 +283,23 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
   // step's distance to render a "Exit X → walk Ymin → DESTINATION" callout.
   // This is the bit users were missing — Klook/Naver always end with this.
   const lastTransitStep = [...detailSteps].reverse().find(s => s.mode === 'subway' || s.mode === 'bus');
-  const lastWalkStep = [...detailSteps].reverse().find(s => s.mode === 'walk');
+  // Index of the LAST walk step — used both for the final-arrival callout AND
+  // to suppress that exact step in the per-step list below (it was rendering
+  // twice: once as a WalkStep, once inside the final-arrival callout → operator
+  // report "Walk 도보 약 276m" / "Walk 7min (495m)" appearing duplicated).
+  let lastWalkIdx = -1;
+  for (let i = detailSteps.length - 1; i >= 0; i--) {
+    if (detailSteps[i].mode === 'walk') { lastWalkIdx = i; break; }
+  }
+  const lastWalkStep = lastWalkIdx >= 0 ? detailSteps[lastWalkIdx] : undefined;
   const exitNum = (lastTransitStep as { toExit?: string | number } | undefined)?.toExit;
   const walkM = (lastWalkStep?.distance as number | undefined) || transit.total_walk_m || 0;
   const walkMin = (lastWalkStep?.duration as number | undefined) || (walkM > 0 ? Math.max(1, Math.round(walkM / 70)) : 0);
   const showFinalArrival = !!destinationName && hasRichSteps && (exitNum || walkM > 0);
+  // When the final-arrival callout renders the last walk leg, hide that same
+  // leg from the per-step list to avoid the duplicate walk line. Only the
+  // trailing walk is folded in — earlier walk transfers still render normally.
+  const arrivalConsumesLastWalk = showFinalArrival && lastWalkIdx >= 0 && walkM > 0 && (lastWalkStep?.distance as number | undefined) === walkM;
 
   return (
     <div className="ml-4 my-1">
@@ -357,6 +369,9 @@ export function TransitArrow({ transit, destinationName }: { transit: TransitFro
       {showSteps && hasRichSteps && (
         <div className="ml-6 mt-1.5 space-y-1.5">
           {detailSteps.map((step, i) => {
+            // Skip the trailing walk leg when the final-arrival callout already
+            // shows it — prevents the duplicate "Walk Ymin (Ym)" line.
+            if (arrivalConsumesLastWalk && i === lastWalkIdx) return null;
             if (step.mode === 'subway') return <SubwayStep key={i} step={step} trKeys={trKeys} lang={language} />;
             if (step.mode === 'bus') return <BusStep key={i} step={step} trKeys={trKeys} lang={language} />;
             return <WalkStep key={i} step={step} trKeys={trKeys} />;
