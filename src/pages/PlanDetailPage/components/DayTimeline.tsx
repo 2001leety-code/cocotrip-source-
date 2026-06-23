@@ -24,6 +24,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { CharterCTA } from './CharterCTA';
 import { LodgingBookend } from './LodgingBookend';
 import { ActivityMetaChips } from './ActivityMetaChips';
+import { DayRouteMap } from './DayRouteMap';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { Language } from '@/i18n';
 import type { PlanDay, PlanStop, PlanDocument, IntercityTransitSegment } from '../types';
@@ -225,6 +226,11 @@ export function DayTimeline({ day, dayIndex, editMode, isRecalculating, onDelete
           )}
         </div>
       </div>
+
+      {/* Per-day route map (ulruru-style): numbered pins + polyline in visit order.
+          Renders nothing when <2 stops carry valid coords. Lazy-loads Leaflet so
+          it never bloats the main bundle. Sits at the top of the day's content. */}
+      <DayRouteMap stops={stops} />
 
       {/* B9-39 (2026-05-09): 다도시 plan 의 도시 간 이동 카드 (KTX/항공/버스).
           intercity_transit 가 있을 때만 노출 — 단일 도시 plan = 미노출.
