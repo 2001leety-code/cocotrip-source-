@@ -132,21 +132,25 @@ export default function PlannerPage() {
 
       {/* VP strip — "검증된 코스·동선 최적화·AI 환각 방지" 3항목 (Part 1) */}
       <div className={`max-w-3xl mx-auto px-4 ${isMobile ? 'py-3' : 'py-5'}`}>
-        <p className={`text-center text-white/45 leading-snug mb-3 ${isMobile ? 'text-[10px]' : 'text-[11px]'}`}>
+        <p className={`text-center text-white/60 leading-snug mb-3.5 ${isMobile ? 'text-[11px]' : 'text-[13px]'}`}>
           {(p as unknown as Record<string, string>).vpStripTagline || ''}
         </p>
-        <div className={`grid grid-cols-3 gap-2 ${isMobile ? 'gap-1.5' : 'gap-3'}`}>
+        {/* B1 (2026-06-23): 3대 차별점 — 핵심 메시지라 글씨/가중치/대비 강화.
+            아이콘 칩 + 더 큰 타이틀 + 또렷한 본문. 모바일 1줄 유지 (3열). */}
+        <div className={`grid grid-cols-3 ${isMobile ? 'gap-2' : 'gap-3'}`}>
           {([
             { Icon: MapPin,      titleKey: 'vpCourseTitle',      descKey: 'vpCourseDesc' },
             { Icon: Navigation,  titleKey: 'vpRouteTitle',       descKey: 'vpRouteDesc'  },
             { Icon: ShieldCheck, titleKey: 'vpNoHallucinationTitle', descKey: 'vpNoHallucinationDesc' },
           ] as { Icon: React.ComponentType<{ className?: string }>; titleKey: string; descKey: string }[]).map(({ Icon, titleKey, descKey }) => (
-            <div key={titleKey} className={`flex flex-col items-center text-center rounded-xl border border-white/[0.07] bg-white/[0.03] ${isMobile ? 'px-1.5 py-2' : 'px-3 py-3'}`}>
-              <Icon className={`mb-1 shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />
-              <p className={`font-semibold text-white leading-tight ${isMobile ? 'text-[9px]' : 'text-[11px]'}`}>
+            <div key={titleKey} className={`flex flex-col items-center text-center rounded-xl border border-white/[0.10] bg-white/[0.05] ${isMobile ? 'px-2 py-3' : 'px-3 py-4'}`}>
+              <span className={`mb-1.5 inline-flex items-center justify-center rounded-full ${isMobile ? 'w-8 h-8' : 'w-9 h-9'} ${isMobile ? 'bg-[#B668FC]/15' : 'bg-[#7C5CFC]/15'}`}>
+                <Icon className={`shrink-0 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'} ${isMobile ? 'text-[#B668FC]' : 'text-[#7C5CFC]'}`} />
+              </span>
+              <p className={`font-bold text-white leading-tight ${isMobile ? 'text-[12px]' : 'text-[15px]'}`}>
                 {(p as unknown as Record<string, string>)[titleKey] || ''}
               </p>
-              <p className={`text-white/45 leading-snug mt-0.5 ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>
+              <p className={`text-white/65 leading-snug mt-1 ${isMobile ? 'text-[10px]' : 'text-[12px]'}`}>
                 {(p as unknown as Record<string, string>)[descKey] || ''}
               </p>
             </div>

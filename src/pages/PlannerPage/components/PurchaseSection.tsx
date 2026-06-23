@@ -225,16 +225,29 @@ export function PurchaseSection({
         ) : (
           <>
             {!user && (
-              /* 게스트 결제 (flag ON): 가입은 당근(선택) — 벽 아님, 결제는 누구나. */
-              <div className="rounded-xl border border-[#7C5CFC]/25 px-3.5 py-2.5 text-center"
-                style={{ background: 'rgba(124,92,252,0.06)' }}>
-                <p className="text-white/70 text-[12px] leading-snug">
-                  {'💡 '}{(p as { guestSignupNudge?: string }).guestSignupNudge
-                    || 'Sign up free — save your plan + 2 revisions + 5% off charters'}
+              /* 게스트 결제 (flag ON): 가입은 당근(선택) — 벽 아님, 결제는 누구나.
+                 B4 (2026-06-23): 코드로 검증된 혜택만 약속.
+                 ✅ 플랜 저장·다시보기 (게스트=일회용 링크만, firestore.rules 소유자 read)
+                 ✅ Trip Coins 적립 1~3% (가입자만, planPersister 적립)
+                 ✅ 첫 차터·투어 5% 쿠폰 (가입 시 발급, onboarding-coupons)
+                 ⚠️ "수정 2회"는 게스트도 받으므로 가입 혜택으로 표기 안 함.
+                 ⚠️ 쿠폰 청구-적용은 FEATURE_DISCOUNT_V2 의존(운영자 prod 확인). */
+              <div className="rounded-xl border border-[#7C5CFC]/30 px-3.5 py-3 text-left"
+                style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(234,83,126,0.05))' }}>
+                <p className="text-white font-bold text-[13px] leading-snug mb-1.5">
+                  {'🎁 '}{(p as { guestSignupNudgeTitle?: string }).guestSignupNudgeTitle
+                    || '무료 가입하고 더 받으세요'}
                 </p>
+                <ul className="space-y-1 text-white/75 text-[12px] leading-snug">
+                  <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{(p as { guestSignupBenefitSave?: string }).guestSignupBenefitSave || '내 플랜 저장 — 언제든 다시 보기'}</span></li>
+                  <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{(p as { guestSignupBenefitCoins?: string }).guestSignupBenefitCoins || '구매할 때마다 Trip Coins 1~3% 적립'}</span></li>
+                  <li className="flex gap-1.5"><Check className="w-3 h-3 text-[#7C5CFC] mt-0.5 shrink-0" /><span>{(p as { guestSignupBenefitCoupon?: string }).guestSignupBenefitCoupon || '첫 차터·투어 5% 할인 쿠폰'}</span></li>
+                </ul>
                 <button onClick={handleSignIn} disabled={signingIn}
-                  className="mt-1 text-[#B8A0FF] text-[12px] font-semibold underline underline-offset-2 hover:text-white transition-colors disabled:opacity-60">
-                  {(p as { guestSignupCta?: string }).guestSignupCta || 'Sign up free'}
+                  className="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-bold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, #7C5CFC, #EA537E)' }}>
+                  {signingIn ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <LogIn className="w-3.5 h-3.5" />}
+                  {(p as { guestSignupCta?: string }).guestSignupCta || '무료 가입'}
                 </button>
               </div>
             )}
