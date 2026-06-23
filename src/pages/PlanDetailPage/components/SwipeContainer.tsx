@@ -45,7 +45,9 @@ export function SwipeContainer({ children, current, onSlideChange, editMode }: S
       style={{ touchAction: editMode ? 'auto' : 'pan-y' }}
     >
       <motion.div
-        className="flex"
+        // items-start: 안쪽 스크롤 제거(운영자 #2) 후 슬라이드 래퍼가 세로로 stretch 되지
+        // 않도록 상단 정렬 — 짧은 슬라이드가 불필요하게 늘어나지 않게.
+        className="flex items-start"
         animate={controls}
         // 2026-05-03 사용자 결정: 좌우 드래그 제거, 탭 클릭만으로 네비게이션.
         // 키보드 ←/→ 화살표 useEffect는 그대로 유지 (a11y).
@@ -77,12 +79,12 @@ export function SwipeContainer({ children, current, onSlideChange, editMode }: S
             className="w-full flex-shrink-0"
           >
             <div
-              // dvh: iOS Safari address-bar collapse aware. vh fallback via min() for old browsers.
-              // Buffer values cover: header(56) + section tabs(40) + slide progress(40) + page padding.
-              //   portrait mobile (default): 200px (Safari address bar visible)
-              //   landscape mobile         : 140px (no address bar — more height)
-              //   sm+ desktop              : 220px (header taller, more padding)
-              className="overflow-y-auto px-4 pb-8 max-h-[min(calc(100dvh-200px),calc(100vh-200px))] landscape:max-h-[min(calc(100dvh-140px),calc(100vh-140px))] sm:max-h-[min(calc(100dvh-220px),calc(100vh-220px))]"
+              // 2026-06-23 (운영자 #2): 슬라이드 안쪽 max-h + overflow-y-auto 제거.
+              // 기존엔 슬라이드별 고정높이(100dvh-200px) 스크롤 컨테이너가 페이지(body) 스크롤
+              // 위에 중첩 → 세로 스크롤바 2개 + 스크롤 혼란. 캐러셀은 가로 translateX 라
+              // 슬라이드 높이에 의존하지 않으므로(좌우 탭 네비 영향 0) 안쪽 스크롤을 없애
+              // 콘텐츠가 자연히 흐르게 함 → 페이지 스크롤 하나로 일원화.
+              className="px-4 pb-8"
             >
               {child}
             </div>
