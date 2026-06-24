@@ -230,23 +230,51 @@ export function checkNoUndefinedStrings(itinerary) {
   }
 }
 
+/** stop 에 라우팅 가능한 실좌표가 있는지 (offline self-heal lodging 은 좌표 없음). */
+function hasCoord(s) {
+  const lat = Number(s && s.lat); const lng = Number(s && s.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+}
+
 /**
- * Transit-leg presence check: 각 날, stop 이 2개 이상이면 2번째 stop 부터
- * transit_from_prev 가 있어야 한다.
+ * Transit-leg presence check (offline-aware): 각 날, 2번째 stop 부터 transit_from_prev 가 있어야 한다.
+ *
+ * 오프라인 하네스는 searchTransit 을 mock 하고 live Naver geocoding 이 없어,
+ * self-heal 이 좌표 없이 append 하는 끝-stop(주로 lodging bookend)은 라우팅이 불가능하다.
+ * → 좌표 없는 목적지 stop 의 누락은 "오프라인 mock 한계"로 ⚠️ WARN 처리(❌ 아님).
+ * → 좌표가 있는 목적지인데 leg 가 없으면(=라우팅 가능했는데 빠짐) 진짜 버그 ❌.
+ * plan 전체에 enriched leg 가 0 이면 = 완전 오프라인 mock → 전부 ⚠️ WARN.
  */
 export function checkTransitLegPresence(itinerary) {
-  let missing = 0;
-  (itinerary.days || []).forEach((day, di) => {
+  const days = itinerary.days || [];
+  let enriched = 0; // transit_from_prev 가 채워진 leg 수
+  const realMissing = []; // 좌표 있는데 leg 없음 = 진짜 버그
+  const offlineGaps = []; // 좌표 없는 목적지 = 오프라인 한계 (WARN)
+
+  days.forEach((day, di) => {
     const stops = Array.isArray(day.stops) ? day.stops : [];
     if (stops.length < 2) return;
     for (let i = 1; i < stops.length; i++) {
-      if (!stops[i].transit_from_prev) {
-        missing++;
-      }
+      const dst = stops[i];
+      if (dst.transit_from_prev) { enriched++; continue; }
+      const where = `Day${day.day || di + 1} "${dst.display_name || dst.name || `stop${i + 1}`}"`;
+      if (hasCoord(dst)) realMissing.push(where);
+      else offlineGaps.push(where);
     }
   });
-  if (missing) {
-    console.log(`  ❌ checkTransitLegPresence: ${missing}개 구간에 transit_from_prev 없음`);
+
+  // 완전 오프라인 mock(enriched 0)이면 좌표 있는 누락도 한계로 강등.
+  if (enriched === 0 && (realMissing.length || offlineGaps.length)) {
+    const n = realMissing.length + offlineGaps.length;
+    console.log(`  ⚠️  checkTransitLegPresence: ${n}개 구간 미enrich (offline — transit mocked, 전체 미enrich)`);
+    return;
+  }
+
+  if (realMissing.length) {
+    console.log(`  ❌ checkTransitLegPresence: ${realMissing.length}개 구간에 transit_from_prev 없음 (좌표 있는 목적지 = 진짜 누락)`);
+    realMissing.slice(0, 5).forEach((m) => console.log(`     - ${m}`));
+  } else if (offlineGaps.length) {
+    console.log(`  ⚠️  checkTransitLegPresence: ${offlineGaps.length}개 구간 미enrich (offline — transit mocked, 좌표 없는 self-heal stop)`);
   } else {
     console.log('  ✅ checkTransitLegPresence: PASS');
   }
