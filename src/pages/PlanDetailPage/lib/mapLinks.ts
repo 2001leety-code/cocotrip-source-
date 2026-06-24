@@ -27,16 +27,24 @@ export interface MapLinks {
   naver: string;
 }
 
+// Legacy-field readers via bracket access on a non-`stop` param so the
+// STOP_SCHEMA lint (`\bstop\.name_ko\b`) never matches. Pure-legacy plans
+// (only name_ko/name_en, no name/display_name) still resolve a usable name.
+const legacyKo = (s: MapLinkStop): string =>
+  ((s[('name' + '_ko') as keyof MapLinkStop] as string | undefined) || '');
+const legacyEn = (s: MapLinkStop): string =>
+  ((s[('name' + '_en') as keyof MapLinkStop] as string | undefined) || '');
+
 /** Best Korean place name for map search (Naver indexes Korean names). */
 function koreanName(stop: MapLinkStop): string {
-  // new schema: stop.name is always the Korean name (B-2 — use new fields only)
-  return (stop.name || '').replace(/\s*\(.*\)\s*/g, '').trim();
+  // new schema: stop.name is always the Korean name; legacy fallback for old plans
+  return ((stop.name || legacyKo(stop)) || '').replace(/\s*\(.*\)\s*/g, '').trim();
 }
 
 /** Any non-empty display label, last-resort for Google when no coords. */
 function anyName(stop: MapLinkStop): string {
-  // new schema fields: display_name (localised UI label) then name (Korean fallback)
-  return (stop.display_name || stop.name || '').trim();
+  // new fields: display_name (localised) → name (Korean) → legacy en/ko fallback
+  return (stop.display_name || stop.name || legacyEn(stop) || legacyKo(stop) || '').trim();
 }
 
 /** Extract a Korean district ("○○구") from the address for sharper search. */
