@@ -29,18 +29,14 @@ export interface MapLinks {
 
 /** Best Korean place name for map search (Naver indexes Korean names). */
 function koreanName(stop: MapLinkStop): string {
-  return (stop.name || stop.name_ko || '').replace(/\s*\(.*\)\s*/g, '').trim();
+  // new schema: stop.name is always the Korean name (B-2 — use new fields only)
+  return (stop.name || '').replace(/\s*\(.*\)\s*/g, '').trim();
 }
 
 /** Any non-empty display label, last-resort for Google when no coords. */
 function anyName(stop: MapLinkStop): string {
-  return (
-    stop.name ||
-    stop.name_ko ||
-    stop.display_name ||
-    stop.name_en ||
-    ''
-  ).trim();
+  // new schema fields: display_name (localised UI label) then name (Korean fallback)
+  return (stop.display_name || stop.name || '').trim();
 }
 
 /** Extract a Korean district ("○○구") from the address for sharper search. */

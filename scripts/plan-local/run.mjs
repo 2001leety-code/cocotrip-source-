@@ -92,7 +92,7 @@ async function main() {
   console.log(`\n[plan:test] scenario=${scenario}  blocks=${blocks.length}  days=${(selection.day_selections || []).length}  (offline, 외부호출 0)`);
 
   // installMocks 이후 동적 import — _pipeline 이 끌어오는 prod 모듈이 mock 치환된 상태로 로드됨.
-  const { runOfflinePlan, printPlanSummary } = await import('./_pipeline.mjs');
+  const { runOfflinePlan, printPlanSummary, checkNoUndefinedStrings, checkTransitLegPresence, checkMultiCityBookends } = await import('./_pipeline.mjs');
 
   let result;
   try {
@@ -110,6 +110,13 @@ async function main() {
   await writeFile(outPath, JSON.stringify({ scenario, pricing, blocksUsed, itinerary }, null, 2), 'utf8');
 
   printPlanSummary(itinerary, pricing, { scenario, blocksUsed });
+
+  console.log('\n─── harness checks ───────────────────────────────────────────────────────');
+  checkNoUndefinedStrings(itinerary);
+  checkTransitLegPresence(itinerary);
+  checkMultiCityBookends(itinerary);
+  console.log('──────────────────────────────────────────────────────────────────────────\n');
+
   console.log(`[plan:test] saved → ${resolve(outPath)}\n`);
 }
 

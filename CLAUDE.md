@@ -1,5 +1,7 @@
 # CocoTrip AI Planner — Project Rules
 
+> 기능 변경 시 docs/FEATURE-CHANGE-STANDARD.md (완료의 정의 8단계) 를 따른다.
+
 ## A. 프로젝트 개요
 
 CocoTripKR — 한국 프라이빗 투어 예약 + 유료 AI 플래너 ($9.90)

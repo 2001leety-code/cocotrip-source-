@@ -203,6 +203,80 @@ function groupBlocksByCity(blocks) {
   return [...byCity.entries()].map(([city, list]) => ({ city, blocks: list, ok: true }));
 }
 
+// ── 하네스 품질 체크 ──────────────────────────────────────────────────────────
+
+/**
+ * No-undefined check: 모든 stop 의 display name / tip 에 "undefined" 또는
+ * "[object Object]" 리터럴이 없어야 한다.
+ */
+export function checkNoUndefinedStrings(itinerary) {
+  const BAD = ['undefined', '[object Object]'];
+  const offenders = [];
+  (itinerary.days || []).forEach((day, di) => {
+    (day.stops || []).forEach((s, si) => {
+      const nm = s.display_name || s.name || '';
+      const tip = s.tip || '';
+      for (const b of BAD) {
+        if (nm.includes(b)) offenders.push(`day${day.day || di + 1} stop${si + 1} name="${nm}"`);
+        if (tip.includes(b)) offenders.push(`day${day.day || di + 1} stop${si + 1} tip="${tip.slice(0, 60)}"`);
+      }
+    });
+  });
+  if (offenders.length) {
+    console.log(`  ❌ checkNoUndefinedStrings: ${offenders.length}건`);
+    offenders.slice(0, 5).forEach((o) => console.log(`     - ${o}`));
+  } else {
+    console.log('  ✅ checkNoUndefinedStrings: PASS');
+  }
+}
+
+/**
+ * Transit-leg presence check: 각 날, stop 이 2개 이상이면 2번째 stop 부터
+ * transit_from_prev 가 있어야 한다.
+ */
+export function checkTransitLegPresence(itinerary) {
+  let missing = 0;
+  (itinerary.days || []).forEach((day, di) => {
+    const stops = Array.isArray(day.stops) ? day.stops : [];
+    if (stops.length < 2) return;
+    for (let i = 1; i < stops.length; i++) {
+      if (!stops[i].transit_from_prev) {
+        missing++;
+      }
+    }
+  });
+  if (missing) {
+    console.log(`  ❌ checkTransitLegPresence: ${missing}개 구간에 transit_from_prev 없음`);
+  } else {
+    console.log('  ✅ checkTransitLegPresence: PASS');
+  }
+}
+
+// ── 다도시 bookend 체크 (intercity_transit 有 여부) ───────────────────────────
+
+/**
+ * checkMultiCityBookends: 다도시 플랜의 각 날에 intercity_transit 이 있는지 확인.
+ * 단도시면 skip.
+ */
+export function checkMultiCityBookends(itinerary) {
+  const days = itinerary.days || [];
+  const cities = [...new Set(days.map((d) => d.city).filter(Boolean))];
+  if (cities.length < 2) {
+    console.log('  ✅ checkMultiCityBookends: PASS (단도시 — skip)');
+    return;
+  }
+  let missing = 0;
+  days.forEach((day, di) => {
+    if (di === 0) return; // 첫 날은 intercity 없어도 OK
+    if (!day.intercity_transit) missing++;
+  });
+  if (missing) {
+    console.log(`  ❌ checkMultiCityBookends: ${missing}일에 intercity_transit 없음`);
+  } else {
+    console.log('  ✅ checkMultiCityBookends: PASS');
+  }
+}
+
 // ── 콘솔 요약 출력 (동선 / transit / budget / T-money 눈으로 검증) ────────────
 export function printPlanSummary(itinerary, pricing, { scenario, blocksUsed }) {
   const L = (s = '') => console.log(s);
