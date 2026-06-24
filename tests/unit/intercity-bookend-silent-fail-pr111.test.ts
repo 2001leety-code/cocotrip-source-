@@ -67,10 +67,12 @@ describe('RouteAgent — P111 intercity bookend silent-fail telemetry', () => {
     expect(ROUTE_AGENT).toMatch(/bookendFailReasons\.push\(`post:odsay_throw:/);
   });
 
-  it('throttledTelegramAlert fires only when bookendFailReasons.length > 0', () => {
-    // guard pattern: if (bookendFailReasons.length > 0) { throttledTelegramAlert({...}) }
+  it('throttledTelegramAlert fires only when hardFailReasons.length > 0', () => {
+    // guard pattern: if (hardFailReasons.length > 0) { throttledTelegramAlert({...}) }
+    // (2026-06-23): synth fallback legs (*_fallback_synth) are filtered out of the alert
+    // via hardFailReasons — only genuinely-empty bookend legs notify the operator.
     const guardBlock = ROUTE_AGENT.match(
-      /if\s*\(\s*bookendFailReasons\.length\s*>\s*0\s*\)\s*\{[\s\S]{0,2000}?throttledTelegramAlert\s*\(/,
+      /if\s*\(\s*hardFailReasons\.length\s*>\s*0\s*\)\s*\{[\s\S]{0,2000}?throttledTelegramAlert\s*\(/,
     );
     expect(guardBlock).not.toBeNull();
   });
@@ -100,7 +102,18 @@ describe('RouteAgent — P111 intercity bookend silent-fail telemetry', () => {
     expect(alertBlock).toMatch(/day:\s*dayPlan\.day/);
     expect(alertBlock).toMatch(/fromCity:\s*it\.from_city/);
     expect(alertBlock).toMatch(/toCity:\s*it\.to_city/);
-    expect(alertBlock).toMatch(/reasons:\s*bookendFailReasons/);
+    expect(alertBlock).toMatch(/reasons:\s*hardFailReasons/);
+  });
+
+  it('synth fallback legs are excluded from the silent-fail alert (graceful ≠ alert)', () => {
+    // (2026-06-23) intercity bookend now synthesizes a walk/taxi fallback leg when transit
+    // returns null but both coords are known → the arrow still renders. Those cases push a
+    // '*_fallback_synth' reason that MUST be filtered out of the alert (hardFailReasons), so
+    // only a genuinely-empty leg notifies the operator. This is the updated detection criterion.
+    expect(ROUTE_AGENT).toMatch(/buildBookendFallbackLeg/);
+    expect(ROUTE_AGENT).toMatch(/const\s+hardFailReasons\s*=\s*bookendFailReasons\.filter\([\s\S]{0,80}?_fallback_synth/);
+    expect(ROUTE_AGENT).toMatch(/pre:odsay_null_fallback_synth/);
+    expect(ROUTE_AGENT).toMatch(/post:odsay_null_fallback_synth/);
   });
 
   it('non-blocking dispatch via .catch(() => {}) — alert failure never breaks plan', () => {

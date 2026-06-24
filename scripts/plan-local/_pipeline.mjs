@@ -252,31 +252,6 @@ export function checkTransitLegPresence(itinerary) {
   }
 }
 
-// ── 다도시 bookend 체크 (intercity_transit 有 여부) ───────────────────────────
-
-/**
- * checkMultiCityBookends: 다도시 플랜의 각 날에 intercity_transit 이 있는지 확인.
- * 단도시면 skip.
- */
-export function checkMultiCityBookends(itinerary) {
-  const days = itinerary.days || [];
-  const cities = [...new Set(days.map((d) => d.city).filter(Boolean))];
-  if (cities.length < 2) {
-    console.log('  ✅ checkMultiCityBookends: PASS (단도시 — skip)');
-    return;
-  }
-  let missing = 0;
-  days.forEach((day, di) => {
-    if (di === 0) return; // 첫 날은 intercity 없어도 OK
-    if (!day.intercity_transit) missing++;
-  });
-  if (missing) {
-    console.log(`  ❌ checkMultiCityBookends: ${missing}일에 intercity_transit 없음`);
-  } else {
-    console.log('  ✅ checkMultiCityBookends: PASS');
-  }
-}
-
 // ── 콘솔 요약 출력 (동선 / transit / budget / T-money 눈으로 검증) ────────────
 export function printPlanSummary(itinerary, pricing, { scenario, blocksUsed }) {
   const L = (s = '') => console.log(s);
@@ -346,4 +321,82 @@ export function printPlanSummary(itinerary, pricing, { scenario, blocksUsed }) {
   }
   L('═'.repeat(72));
   L('');
+  // 회귀 가드(checkMultiCityBookends 등)는 run.mjs 의 "harness checks" 섹션에서 일괄 호출.
+}
+
+/**
+ * dev-only post-plan ASSERTION — 다도시(도시 변경) day 의 호텔↔역 bookend leg 누락 검사.
+ *
+ * 배경: "서울→부산 KTX 가이드가 그냥 부산 나옴" 류 버그 — intercity_transit 은 있는데
+ * RouteAgent 의 lodging_to_station(이전 호텔→출발역) / station_to_lodging(도착역→새 호텔)
+ * leg 가 비어 UI(LodgingBookend)가 그 transit arrow 를 통째로 미렌더 → 사용자 화면에
+ * 호텔↔역 이동 안내 빈칸. 이 클래스의 버그를 배포 전 로컬에서 잡는다.
+ *
+ * 출력: 명확히 라벨된 PASS / FAIL 줄 + 누락 leg 요약. 절대 throw 안 함(하네스 중단 X).
+ * 프로덕션 코드와 결합 없음 — 하네스 전용 (itinerary 읽기만).
+ *
+ * @param {object} itinerary  runOfflinePlan 결과의 itinerary
+ * @returns {{ ok: boolean, cityChangeDays: number, missing: Array<object> }}
+ */
+export function checkMultiCityBookends(itinerary) {
+  const L = (s = '') => console.log(s);
+  const days = Array.isArray(itinerary && itinerary.days) ? itinerary.days : [];
+
+  // 도시 변경 day = intercity_transit(or city-change) 이 존재하는 day.
+  const cityChangeDays = days.filter((d) => d && d.intercity_transit
+    && (d.intercity_transit.mode || d.intercity_transit.method));
+
+  L('─'.repeat(72));
+  L('  🚇 MULTI-CITY BOOKEND CHECK (dev-only, 배포 전 회귀 가드)');
+  L('─'.repeat(72));
+
+  if (cityChangeDays.length === 0) {
+    L('  (도시 변경 day 없음 — 단일 도시 plan, 검사 skip)');
+    L('═'.repeat(72));
+    L('');
+    return { ok: true, cityChangeDays: 0, missing: [] };
+  }
+
+  const missing = [];
+  for (const d of cityChangeDays) {
+    const it = d.intercity_transit;
+    const fromTo = `${it.from_city || '?'}→${it.to_city || '?'}`;
+    const tag = (leg) => {
+      if (!leg) return null;
+      const bf = leg._bookend_fallback ? ' (fallback)' : '';
+      const mins = (leg.est_min === undefined || leg.est_min === null) ? '?' : leg.est_min;
+      return `${leg.method || '?'} ~${mins}min${bf}`;
+    };
+    const pre = it.lodging_to_station;
+    const post = it.station_to_lodging;
+    const preTag = tag(pre);
+    const postTag = tag(post);
+
+    const missingLegs = [];
+    if (!pre) missingLegs.push('lodging_to_station(호텔→역)');
+    if (!post) missingLegs.push('station_to_lodging(역→호텔)');
+
+    if (missingLegs.length > 0) {
+      missing.push({ day: d.day, fromTo, mode: it.mode || it.method || '?', missingLegs });
+      L(`  ❌ FAIL  Day ${d.day}  ${fromTo} via ${it.mode || it.method || '?'}`);
+      L(`           pre(lodging_to_station)=${preTag || 'MISSING'}  post(station_to_lodging)=${postTag || 'MISSING'}`);
+      L(`           → 누락: ${missingLegs.join(', ')}  (UI 에서 호텔↔역 이동 안내 빈칸)`);
+    } else {
+      L(`  ✅ PASS  Day ${d.day}  ${fromTo} via ${it.mode || it.method || '?'}`);
+      L(`           pre=${preTag}  post=${postTag}`);
+    }
+  }
+
+  L('');
+  if (missing.length > 0) {
+    L(`  ⚠ RESULT: FAIL — ${missing.length}/${cityChangeDays.length} 도시변경 day 에 bookend leg 누락.`);
+    L(`     이 plan 을 배포하면 사용자가 "KTX 가이드가 그냥 도착 도시만 나옴" 으로 신고할 수 있음.`);
+    L(`     원인 후보: STATION_COORDS 미등록 역명 / dayHotel 좌표 계산 실패 / ODsay null + fallback 합성 실패.`);
+  } else {
+    L(`  ✅ RESULT: PASS — ${cityChangeDays.length}/${cityChangeDays.length} 도시변경 day 모두 호텔↔역 bookend leg 보유.`);
+  }
+  L('═'.repeat(72));
+  L('');
+
+  return { ok: missing.length === 0, cityChangeDays: cityChangeDays.length, missing };
 }
