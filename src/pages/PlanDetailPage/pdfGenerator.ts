@@ -859,7 +859,24 @@ export async function generatePDF(
 
         let stepsHtml = '';
         if (stepsDetail.length > 0) {
-          stepsHtml = stepsDetail.map((s) => {
+          // Final-arrival callout consumes the trailing walk leg → suppress that
+          // same leg in the per-step list (parity with screen TransitArrow's
+          // `arrivalConsumesLastWalk`, else the walk line renders twice).
+          let lastWalkIdx = -1;
+          for (let i = stepsDetail.length - 1; i >= 0; i--) {
+            if (stepsDetail[i].mode === 'walk') { lastWalkIdx = i; break; }
+          }
+          const lastTransitStep = [...stepsDetail].reverse().find(s => s.mode === 'subway' || s.mode === 'bus') as { toExit?: string | number } | undefined;
+          const lastWalkStep = lastWalkIdx >= 0 ? (stepsDetail[lastWalkIdx] as { distance?: number; duration?: number }) : undefined;
+          const finalExit = lastTransitStep?.toExit;
+          const finalWalkM = (lastWalkStep?.distance as number | undefined) || totalWalk || 0;
+          const finalDestName = stop.display_name || stop.name_en || stop.name || stop.name_ko || '';
+          const showFinalArrival = !!finalDestName && (finalExit || finalWalkM > 0);
+          const arrivalConsumesLastWalk = !!showFinalArrival && lastWalkIdx >= 0 && finalWalkM > 0
+            && (lastWalkStep?.distance as number | undefined) === finalWalkM;
+          stepsHtml = stepsDetail.map((s, idx) => {
+            // Skip the trailing walk leg when the final-arrival callout shows it.
+            if (arrivalConsumesLastWalk && idx === lastWalkIdx) return '';
             if (s.mode === 'subway') {
               // ja/zh: 한국어 + 한자 번역 병기 ("강남 (江南)", "2호선 (2号線)").
               // 한국어 primary는 현지 직원에게 보여줄 때 실용적, 괄호 안 한자는 사용자 이해용.
@@ -965,19 +982,14 @@ export async function generatePDF(
             // walk
             return `<p style="font-size:9px;color:${C.muted};margin:2px 0 2px 10px;">${tr.walk} ${s.duration || '?'}${tr.min}${(s.distance as number) > 0 ? ` (${s.distance}m)` : ''}</p>`;
           }).join('');
-          // Final-arrival callout — extracts last subway/bus exit + last walk distance
-          // and renders "Exit X → walk Ymin → DESTINATION" so the PDF reader knows
-          // which exit gets them closest to where they're going.
-          const lastTransit = [...stepsDetail].reverse().find(s => s.mode === 'subway' || s.mode === 'bus') as { toExit?: string | number } | undefined;
-          const lastWalk = [...stepsDetail].reverse().find(s => s.mode === 'walk') as { distance?: number; duration?: number } | undefined;
-          const arrExit = lastTransit?.toExit;
-          const arrWalkM = lastWalk?.distance || totalWalk || 0;
-          const arrWalkMin = lastWalk?.duration || (arrWalkM > 0 ? Math.max(1, Math.round(arrWalkM / 70)) : 0);
-          const destName = stop.display_name || stop.name_en || stop.name || stop.name_ko || '';
-          if (destName && (arrExit || arrWalkM > 0)) {
+          // Final-arrival callout — renders "Exit X → walk Ymin → DESTINATION" so
+          // the PDF reader knows which exit gets them closest. Reuses the leg vars
+          // hoisted above (which also drive the duplicate-walk suppression).
+          const arrWalkMin = (lastWalkStep?.duration as number | undefined) || (finalWalkM > 0 ? Math.max(1, Math.round(finalWalkM / 70)) : 0);
+          if (showFinalArrival) {
             stepsHtml += `<div style="margin:6px 0 0;padding:6px 8px;border-radius:4px;background:linear-gradient(135deg,rgba(52,211,153,0.10),rgba(124,92,252,0.06));border:1px solid rgba(52,211,153,0.30);">
               <p style="font-size:8px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:1px;margin:0 0 3px;">★ ${tr.finalArrival}</p>
-              <p style="font-size:10px;color:${C.heading};margin:0;font-weight:600;">${arrExit ? `${tr.exit} ${arrExit} → ` : ''}${arrWalkM > 0 ? `${tr.walk} ${arrWalkMin}${tr.min} (${arrWalkM}m) → ` : ''}<span style="color:#10b981;">${destName}</span></p>
+              <p style="font-size:10px;color:${C.heading};margin:0;font-weight:600;">${finalExit ? `${tr.exit} ${finalExit} → ` : ''}${finalWalkM > 0 ? `${tr.walk} ${arrWalkMin}${tr.min} (${finalWalkM}m) → ` : ''}<span style="color:#10b981;">${finalDestName}</span></p>
             </div>`;
           } else if (totalWalk > 0) {
             stepsHtml += `<p style="font-size:8px;color:${C.muted};margin:3px 0 0 10px;">${tr.totalWalk}: ${totalWalk}m</p>`;

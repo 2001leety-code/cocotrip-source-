@@ -45,14 +45,18 @@ function transitArrow(transit) {
   const method = transit.method ? transit.method.charAt(0).toUpperCase() + transit.method.slice(1) : '';
   const duration = transit.est_min ? `${transit.est_min} min` : '';
   const fare = transit.est_fare_krw > 0 ? ` · ₩${new Intl.NumberFormat('ko-KR').format(transit.est_fare_krw)}` : (transit.method === 'walk' ? ' · Free' : '');
-  const instruction = transit.instruction_en || '';
+  // Parity with screen summary row: include transfers + total walk distance.
+  // (Email keeps a one-line summary — no per-step tables, which email clients strip.)
+  const transfers = Number(transit.transfers) > 0 ? ` · ${transit.transfers} transfer${transit.transfers > 1 ? 's' : ''}` : '';
+  const walkM = Number(transit.total_walk_m) > 0 ? ` · 🚶 ${transit.total_walk_m}m` : '';
+  const instruction = transit.instruction_en || transit.instruction || '';
   return `
     <tr><td style="padding:0 0 8px 0;">
       <table width="100%" cellpadding="0" cellspacing="0" border="0"
              style="background:#fafafa;border-left:3px solid #e9d5ff;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:4px;">
         <tr>
           <td style="font-size:12px;color:#7c3aed;font-weight:700;">
-            ${icon} ${method}${duration ? ` · ${duration}` : ''}${fare}
+            ${icon} ${method}${duration ? ` · ${duration}` : ''}${fare}${transfers}${walkM}
           </td>
         </tr>
         ${instruction ? `<tr><td style="font-size:11px;color:#888;padding-top:3px;">${instruction}</td></tr>` : ''}
