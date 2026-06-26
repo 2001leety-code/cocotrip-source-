@@ -1,9 +1,10 @@
 /**
  * POST /api/onboarding-coupons
  *
- * 회원가입 (첫 sign-in) 시 5% 쿠폰 2장 자동 발행:
- *   1) WELCOME-CHARTER-XXXXXX  (productScope='charter')
- *   2) WELCOME-TOUR-XXXXXX     (productScope='tour-package')
+ * 회원가입 (첫 sign-in) 시 쿠폰 3장 자동 발행:
+ *   1) WELCOME-CHARTER-XXXXXX  (charter 5%)
+ *   2) WELCOME-TOUR-XXXXXX     (tour-package 5%)
+ *   3) WELCOME-AIPLAN-XXXXXX   (ai-plan 무료, 1~3일 일정 — 여름 이벤트)
  *
  * 멱등성:
  *   - users/{uid}.onboardingCouponsIssued === true 면 즉시 200 reply (재발급 X)
@@ -110,12 +111,29 @@ export async function issueOnboardingCouponsForUid(db, uid) {
       source: 'onboarding',
     });
 
+    // 여름 이벤트(마감 ONBOARDING_PROMO_END): AI 플랜 무료 쿠폰 — 1~3일 일정만(maxDays:3).
+    // productScope='ai-plan' + type='free'(value:100). 실제 0원 결제 검증은 paymentGate.js
+    // 'ai-coupon' provider 가 담당(소유·미사용·일수·멱등). 차터/투어 5% 쿠폰과 별개로 추가 발급.
+    const aiPlanCoupon = couponsRef.doc();
+    tx.set(aiPlanCoupon, {
+      code: `WELCOME-AIPLAN-${randomSuffix(6)}`,
+      type: 'free',
+      value: 100,
+      label: 'Welcome — Free AI Plan (1~3 days)',
+      productScope: 'ai-plan',
+      maxDays: 3,
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'onboarding',
+    });
+
     tx.set(userRef, {
       onboardingCouponsIssued: true,
       onboardingAt: now,
     }, { merge: true });
 
-    return { issued: 2, alreadyIssued: false };
+    return { issued: 3, alreadyIssued: false };
   });
 }
 
