@@ -52,6 +52,46 @@ function reject(statusCode, code, message, details) {
   return { rejection: { statusCode, code, message, ...(details ? { details } : {}) } };
 }
 
+/**
+ * P1-②(여름 이벤트): AI 플랜 무료 쿠폰 검증 + 멱등 소비. 통과 { ok:true } / 실패 { rejection }.
+ * 검증: 소유(uid)·productScope='ai-plan'·type='free'·미사용·미만료·durationDays≤maxDays(1~3).
+ * 멱등: 트랜잭션으로 isUsed 재검사+세팅 → 더블클릭/동시요청도 1회만 소비(무료 plan 2개 생성=돈손실 차단).
+ */
+async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
+  if (!adminDb) return reject(500, 'FIRESTORE_UNAVAILABLE', 'Coupon check requires Firestore');
+  if (!code) return reject(400, 'COUPON_MISSING', 'Coupon code required');
+  const couponsRef = adminDb.collection('users').doc(uid).collection('coupons');
+  const snap = await couponsRef.where('code', '==', code).limit(1).get();
+  if (snap.empty) return reject(404, 'COUPON_NOT_FOUND', 'Coupon not found', '쿠폰을 찾을 수 없습니다.');
+  const couponRef = snap.docs[0].ref;
+  const coupon = snap.docs[0].data();
+  if (coupon.productScope !== 'ai-plan' || coupon.type !== 'free') {
+    return reject(400, 'COUPON_WRONG_TYPE', 'Not a free AI-plan coupon', '이 쿠폰은 AI 플랜 무료 쿠폰이 아닙니다.');
+  }
+  if (coupon.isUsed) return reject(403, 'COUPON_USED', 'Coupon already used', '이미 사용한 쿠폰입니다.');
+  if (coupon.expiresAt && coupon.expiresAt < Date.now()) {
+    return reject(403, 'COUPON_EXPIRED', 'Coupon expired', '만료된 쿠폰입니다.');
+  }
+  const maxDays = coupon.maxDays || 3;
+  if (durationDays > maxDays) {
+    return reject(400, 'COUPON_DAYS_EXCEEDED', `Free coupon covers up to ${maxDays} days`,
+      `무료 쿠폰은 최대 ${maxDays}일 일정까지 사용 가능합니다 (현재 ${durationDays}일).`);
+  }
+  try {
+    await adminDb.runTransaction(async (tx) => {
+      const fresh = await tx.get(couponRef);
+      if (fresh.data()?.isUsed) throw new Error('COUPON_USED');
+      tx.update(couponRef, { isUsed: true, usedAt: new Date().toISOString() });
+    });
+  } catch (e) {
+    if (e && e.message === 'COUPON_USED') {
+      return reject(403, 'COUPON_USED', 'Coupon already used', '이미 사용한 쿠폰입니다.');
+    }
+    throw e;
+  }
+  return { ok: true };
+}
+
 export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid) {
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
@@ -113,6 +153,20 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
   // Audit P0-#2: requestEmail 은 인증된 email 사용 (caller 에서 verifyUserToken 으로 결정).
   // body.email 신뢰 종료 — 이전 버전에서 admin email 위장으로 TEST mode bypass 가능했음.
   const requestEmail = (authenticatedEmail || '').toLowerCase().trim();
+
+  // P1-②(여름 이벤트): AI 플랜 무료 쿠폰 0원 경로 — paypalOrderId 대신 body.aiCouponCode.
+  // revision 아닐 때만. 검증+멱등 소비는 consumeAiPlanCoupon. 통과 시 isFreeAiCoupon=true 반환.
+  const aiCouponCode = body.aiCouponCode;
+  if (!isRevision && aiCouponCode) {
+    if (!authenticatedUid) {
+      return reject(403, 'AUTH_REQUIRED', 'Login required', 'AI 무료 쿠폰은 로그인 후 사용할 수 있습니다.');
+    }
+    const durationDays = body.durationDays || (body.duration === 'multi_day' ? 2 : 1);
+    const couponResult = await consumeAiPlanCoupon(adminDb, authenticatedUid, aiCouponCode, durationDays);
+    if (couponResult.rejection) return couponResult;
+    console.log('[planner] 🎟️ AI 무료 쿠폰 0원 통과 | uid:', authenticatedUid, '| days:', durationDays, '| code:', aiCouponCode);
+    return { isRevision: false, isAdminBypass: false, isFreeAiCoupon: true };
+  }
 
   if (!isRevision && !paypalOrderId) {
     return reject(403, 'PAYMENT_REQUIRED', 'Payment required', 'PayPal order ID is missing. Please complete payment first.');
