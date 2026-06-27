@@ -174,12 +174,18 @@ function buildDaysHtml(days = []) {
  * @param {string} params.language
  * @param {Array}  params.days - array of day objects with stops
  * @param {string} params.promoCode
+ * @param {string} params.paymentSource - 'ai-coupon' 등 결제 수단 식별자
+ * @param {boolean} params.isFreeCoupon - true 이면 AI 무료 쿠폰으로 0원 결제
  */
 export function renderBookingEmail({ guestName, orderID, tourTitle, tourDate, vehicle, pax,
-  durationDays, amountUSD, amountKRW, days = [], language = 'en', promoCode = '' }) {
+  durationDays, amountUSD, amountKRW, days = [], language = 'en', promoCode = '',
+  paymentSource = '', isFreeCoupon = false }) {
 
   const totalStops = days.reduce((acc, d) => acc + (d.stops || d.places || []).length, 0);
   const daysLabel = durationDays === 1 ? '1 Day' : `${durationDays} Days`;
+
+  // AI 무료 쿠폰 여부: paymentSource==='ai-coupon' 또는 isFreeCoupon===true
+  const isFreeAiCoupon = isFreeCoupon === true || paymentSource === 'ai-coupon';
 
   const includesHtml = `
     <tr><td style="padding:2px 0;font-size:12px;color:#444;"><span style="color:#34d399;font-weight:700;">✓</span> Private ${vehicleLabel(vehicle)}</td></tr>
@@ -269,8 +275,14 @@ export function renderBookingEmail({ guestName, orderID, tourTitle, tourDate, ve
     <!-- CTA / PRICING -->
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#f5f0ff,#fff0f8);border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
       <tr><td>
-        ${amountKRW ? `<div style="font-size:26px;font-weight:900;color:#1a1a2e;margin-bottom:4px;">${formatKRW(amountKRW)}</div>` : ''}
-        ${amountUSD ? `<div style="font-size:13px;color:#888;margin-bottom:16px;">~$${amountUSD} USD · ${vehicleLabel(vehicle)}</div>` : ''}
+        ${isFreeAiCoupon
+          ? `<div style="display:inline-block;background:#f0fdf4;border:2px solid #34d399;border-radius:10px;padding:10px 24px;margin-bottom:12px;">
+               <div style="font-size:22px;font-weight:900;color:#16a34a;margin-bottom:2px;">₩0</div>
+               <div style="font-size:12px;font-weight:700;color:#16a34a;">Free Plan Coupon — 무료 쿠폰 사용</div>
+             </div>`
+          : `${amountKRW ? `<div style="font-size:26px;font-weight:900;color:#1a1a2e;margin-bottom:4px;">${formatKRW(amountKRW)}</div>` : ''}
+             ${amountUSD ? `<div style="font-size:13px;color:#888;margin-bottom:16px;">~$${amountUSD} USD · ${vehicleLabel(vehicle)}</div>` : ''}`
+        }
         <a href="https://wa.me/821087140611" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;text-decoration:none;border-radius:30px;font-weight:700;font-size:14px;letter-spacing:0.5px;">💬 WhatsApp Your Driver</a>
         ${promoSection}
       </td></tr>
@@ -308,7 +320,9 @@ export function renderBookingEmail({ guestName, orderID, tourTitle, tourDate, ve
 /**
  * Plain text fallback for email clients that don't support HTML
  */
-export function renderBookingEmailText({ guestName, orderID, tourTitle, tourDate, vehicle, pax, amountUSD, amountKRW, days = [] }) {
+export function renderBookingEmailText({ guestName, orderID, tourTitle, tourDate, vehicle, pax,
+  amountUSD, amountKRW, days = [], paymentSource = '', isFreeCoupon = false }) {
+  const isFreeAiCoupon = isFreeCoupon === true || paymentSource === 'ai-coupon';
   const lines = [
     `CocoTrip — Booking Confirmation`,
     `=====================================`,
@@ -319,7 +333,9 @@ export function renderBookingEmailText({ guestName, orderID, tourTitle, tourDate
     `Tour Date: ${tourDate}`,
     `Vehicle: ${vehicleLabel(vehicle)}`,
     `Guests: ${pax}`,
-    amountUSD ? `Total: $${amountUSD} USD (≈ ${formatKRW(amountKRW)})` : '',
+    isFreeAiCoupon
+      ? `Total: ₩0 — Free Plan Coupon (무료 쿠폰 사용)`
+      : (amountUSD ? `Total: $${amountUSD} USD (≈ ${formatKRW(amountKRW)})` : ''),
     ``,
     `--- ITINERARY ---`,
   ];

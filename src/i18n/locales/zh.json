@@ -556,6 +556,7 @@
     "retry": "重新尝试",
     "loginRequired": "登录后可付款",
     "loginToPay": "登录后继续",
+    "useFreeAiCoupon": "用免费优惠券领取 (1-3天)",
     "guestSignupNudge": "免费注册即享 — 保存行程 + 2次免费修改 + 包车5%优惠券",
     "guestSignupCta": "免费注册",
     "loginToPayDesc": "请先登录，以便我们安全地向您发送行程。",

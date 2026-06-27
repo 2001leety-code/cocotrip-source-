@@ -15,6 +15,10 @@ import {
   serverTimestamp,
   doc,
   setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -37,6 +41,36 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
+
+/**
+ * P1-②(여름 이벤트): 로그인 사용자의 AI 플랜 무료 쿠폰(미사용·미만료·일수 가능) 1장 조회.
+ * 없으면 null. PurchaseSection 의 "무료 쿠폰 사용" 버튼 노출 + 0원 결제 판단용.
+ * @param {string} uid
+ * @param {number} durationDays - 플랜 일수 (쿠폰 maxDays 이하여야 사용 가능, 1~3일)
+ * @returns {Promise<{code:string, maxDays:number}|null>}
+ */
+export async function getAvailableAiCoupon(uid, durationDays = 3) {
+  if (!uid) return null;
+  try {
+    const q = query(
+      collection(db, 'users', uid, 'coupons'),
+      where('productScope', '==', 'ai-plan'),
+      where('isUsed', '==', false),
+    );
+    const snap = await getDocs(q);
+    const now = Date.now();
+    for (const d of snap.docs) {
+      const c = d.data();
+      if (c.expiresAt && c.expiresAt < now) continue;       // 만료 제외
+      if ((c.maxDays || 3) < durationDays) continue;        // 일수 초과 제외 (4일+ plan)
+      return { code: c.code, maxDays: c.maxDays || 3 };
+    }
+    return null;
+  } catch (e) {
+    console.warn('[getAvailableAiCoupon] failed:', e && e.message);
+    return null;
+  }
+}
 
 // LINE OIDC provider (PR #396, 2026-05-13)
 // 일본/대만/홍콩 사용자 LINE 로그인 지원. Firebase Identity Platform 업그레이드

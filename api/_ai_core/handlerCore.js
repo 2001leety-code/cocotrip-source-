@@ -41,7 +41,8 @@ import { buildSystemPrompt, logPromptMetrics, buildRevisionInstruction } from '.
 import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
 import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
 import { initAdminDb } from './firestoreAdmin.js';
-import { enforcePaymentAndRevision } from './paymentGate.js';
+import { enforcePaymentAndRevision, restoreAiPlanCoupon } from './paymentGate.js';
+import { checkStartDateTooSoon } from './validateStartDate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
 import { decidePlannerMode, pickIdentifier } from './plannerMode.js';
@@ -95,6 +96,8 @@ export default async function handler(req, res) {
   let currentStepStart = handlerStart;
   let lastUid = null;
   let lastEmail = null;
+  let consumedCouponInfo = null; // 버그헌트 A(2026-06-27): 무료쿠폰 소비 정보 — plan 생성 실패 시 롤백용
+  let planPersisted = false;     // 버그헌트 A: plan 저장 성공 여부 — 성공 후엔 정당 소비라 롤백 X
   async function withStep(label, fn) {
     currentStep = label;
     currentStepStart = Date.now();
@@ -174,28 +177,15 @@ export default async function handler(req, res) {
       res.writeHead(statusCode, { ...CORS, 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(_err(message, code, details ? { details } : undefined)));
     }
+    // 버그헌트 A(2026-06-27): 무료쿠폰이 게이트에서 소비됨 — 이후 plan 생성 실패 시 catch 에서 롤백하려고 정보 보관.
+    if (gate.consumedCoupon) consumedCouponInfo = gate.consumedCoupon;
 
-    // ── AI 플래너 출발일 검증: day1 = 오늘 불가 (내일 이후만) ─────────────────
-    // 정책 (2026-05-07 운영자 확정): AI 플래너는 디지털 상품이지만
-    //   오늘 날짜 시작은 부적절 — Gemini가 한국 로컬 정보를 기반으로 플랜 생성 시
-    //   최소 익일 출발을 전제로 설계됨. 12h cutoff 적용 대신 "오늘 = 불가" 단순 정책.
-    // 재생성(revision) 은 이미 결제된 플랜 → 날짜 변경 없으므로 체크 skip.
-    if (!gate.isRevision) {
-      const reqStartDate = body.date || body.startDate || '';
-      if (reqStartDate && /^\d{4}-\d{2}-\d{2}$/.test(reqStartDate)) {
-        // KST(+09:00) 오늘 날짜 계산
-        const nowKST = new Date(Date.now() + 9 * 3600 * 1000);
-        const todayKST = nowKST.toISOString().slice(0, 10); // YYYY-MM-DD
-        if (reqStartDate <= todayKST) {
-          console.warn('[ai-planner-full] day1 today rejected:', reqStartDate, 'today KST:', todayKST);
-          res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify(_err(
-            'Start date must be tomorrow or later. Today\'s trips cannot be planned via AI Planner.',
-            'PLANNER_DATE_TOO_SOON',
-            { details: `Requested: ${reqStartDate}, today KST: ${todayKST}` }
-          )));
-        }
-      }
+    // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
+    const tooSoon = checkStartDateTooSoon(body, gate.isRevision);
+    if (tooSoon) {
+      console.warn('[ai-planner-full] day1 today rejected:', tooSoon.reqStartDate, 'today KST:', tooSoon.todayKST);
+      res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(_err('Start date must be tomorrow or later. Today\'s trips cannot be planned via AI Planner.', 'PLANNER_DATE_TOO_SOON', { details: `Requested: ${tooSoon.reqStartDate}, today KST: ${tooSoon.todayKST}` })));
     }
 
     // ── 입력 정규화 (requestShaper) ────────────────────────────────────────
@@ -406,6 +396,7 @@ export default async function handler(req, res) {
       blocksUsed: blockModeUsed ? blocksUsed : null,
       ...(streamingPlanId ? { planIdOverride: streamingPlanId } : {}),  // P169: streaming 모드 skeleton planId 재사용
     }));
+    planPersisted = true; // 버그헌트 A: plan 저장 성공 → 무료쿠폰 정당 소비(catch 롤백 안 함)
 
     // ── P168/P170/P171/P172/P173: Pass3 background trigger (fire-and-forget; backgroundPipelines.js 추출; gate.isAdminBypass 명시 전달)
     triggerPass3BackgroundIfPending({ adminDb, planId, language, apiKey, itinerary, isAdminBypass: !!gate.isAdminBypass, identifierForBucketing });
@@ -467,6 +458,13 @@ export default async function handler(req, res) {
         // 완료 후 dev only 로 좁힐 것.
         stackHead: (error.stack || '').slice(0, 500),
       })));
+    }
+    // 버그헌트 A fix (2026-06-27): 무료 쿠폰으로 시작했는데 plan 저장 전 실패 → 쿠폰 롤백(재시도 가능하게).
+    //   PayPal 경로(plan_issued_orders set 성공 후 마킹=재시도 허용)와 대칭. 저장 성공(planPersisted) 후엔
+    //   정당 소비라 롤백 X. fire-and-forget(응답 후) — 롤백 실패해도 사용자 응답엔 영향 없음.
+    if (consumedCouponInfo && !planPersisted) {
+      restoreAiPlanCoupon(adminDb, consumedCouponInfo.uid, consumedCouponInfo.code)
+        .catch((e) => console.warn('[ai-planner-full] coupon rollback failed:', e.message));
     }
     // K Tier 2-E (PR #266) — throttled. 동일 unhandled 패턴 5분 윈도우 내 dedup.
     // catch 블록 첫 응답 전에 await 하면 telemetry throw 시 응답 못 감 → 분리.

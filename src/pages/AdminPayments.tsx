@@ -62,6 +62,9 @@ interface PendingBooking {
     status?: string;
     create_time?: string;
   };
+  // AI 무료쿠폰 결제 (planPersister 기록, priceKRW==0).
+  paymentSource?: string;
+  isFreeCoupon?: boolean;
 }
 
 function formatTs(ts?: { toMillis(): number }): string {
@@ -79,6 +82,11 @@ function statusBadge(status: string) {
   };
   const s = map[status] || { label: status, className: 'bg-white/[0.05] text-white/60 border-white/[0.15]' };
   return <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold border ${s.className}`}>{s.label}</span>;
+}
+
+// AI 무료쿠폰 결제 여부 (planPersister 가 paymentSource:'ai-coupon' 또는 isFreeCoupon:true 기록).
+function isFreeCouponBooking(b: PendingBooking): boolean {
+  return b.paymentSource === 'ai-coupon' || b.isFreeCoupon === true || b.priceKRW === 0;
 }
 
 // 어드민 테스트 예약(결제 우회) vs 실결제 구분 (2026-06-05) — booking-processor 가 ADMIN-BYPASS- orderID 에
@@ -318,6 +326,9 @@ export default function AdminPayments() {
                     {isTestBooking(b)
                       ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">🧪 테스트</span>
                       : <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">💳 실결제</span>}
+                    {isFreeCouponBooking(b) && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#7C5CFC]/15 text-[#B9A4FF] border border-[#7C5CFC]/30">🎟️ 무료쿠폰(₩0)</span>
+                    )}
                   </div>
                   <div className="text-[11px] text-white/45 shrink-0">
                     신고: {formatTs(b.createdAt)}

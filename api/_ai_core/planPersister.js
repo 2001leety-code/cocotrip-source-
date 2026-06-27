@@ -1077,7 +1077,9 @@ export async function savePlanSkeleton(adminDb, {
     _streaming_started_at: Date.now(),
     isPublic: false,
     // #payment-separation (2026-06-05): streaming/에러 단계에서도 테스트/실결제 구분 보존.
-    paymentSource: detectPaymentSource(body?.paypalOrderId),
+    // P1-②(여름 이벤트): AI 무료 쿠폰 0원 결제 = 'ai-coupon'(매출 0 구분). paypalOrderId 없어서 보정.
+    paymentSource: body?.aiCouponCode ? 'ai-coupon' : detectPaymentSource(body?.paypalOrderId),
+    isFreeCoupon: !!body?.aiCouponCode,
     isAdminBypass: isAdminBypassOrderId(body?.paypalOrderId),
     createdAt: new Date().toISOString(),
     createdAtMs: Date.now(),
@@ -1283,7 +1285,9 @@ export async function persistPlan(adminDb, {
     isPublic: false,
     // #payment-separation (2026-06-05): 어드민 테스트 vs 실결제 명시 구분 — admin 쿼리/필터용.
     // paypalOrderId prefix SSOT 분류. used_paypal_orders/capture 멱등성(P311)과 무관 = 표시 전용.
-    paymentSource: detectPaymentSource(body.paypalOrderId), // 'test'|'admin-bypass'|'manual'|'paypal'
+    // P1-②(여름 이벤트): AI 무료 쿠폰 0원 결제 = 'ai-coupon'(매출 0 구분). paypalOrderId 없어서 보정.
+    paymentSource: body.aiCouponCode ? 'ai-coupon' : detectPaymentSource(body.paypalOrderId), // +ai-coupon|test|admin-bypass|manual|paypal
+    isFreeCoupon: !!body.aiCouponCode, // AI 무료 쿠폰 0원 결제
     isAdminBypass: isAdminBypassOrderId(body.paypalOrderId), // true = 운영자 테스트(매출 제외 대상)
     createdAt: new Date().toISOString(),
     createdAtMs: Date.now(),

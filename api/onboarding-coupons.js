@@ -1,9 +1,10 @@
 /**
  * POST /api/onboarding-coupons
  *
- * 회원가입 (첫 sign-in) 시 5% 쿠폰 2장 자동 발행:
- *   1) WELCOME-CHARTER-XXXXXX  (productScope='charter')
- *   2) WELCOME-TOUR-XXXXXX     (productScope='tour-package')
+ * 회원가입 (첫 sign-in) 시 쿠폰 3장 자동 발행:
+ *   1) WELCOME-CHARTER-XXXXXX  (charter 5%)
+ *   2) WELCOME-TOUR-XXXXXX     (tour-package 5%)
+ *   3) WELCOME-AIPLAN-XXXXXX   (ai-plan 무료, 1~3일 일정 — 여름 이벤트)
  *
  * 멱등성:
  *   - users/{uid}.onboardingCouponsIssued === true 면 즉시 200 reply (재발급 X)
@@ -40,7 +41,9 @@ export const COUPON_VALIDITY_MS = 365 * 24 * 3600 * 1000; // 1년
 
 // 🚨 운영자: 오픈기념 가입 쿠폰 발급 마감일(KST). 3주 가입창 = 이 날짜까지 가입자만 WELCOME 쿠폰 발급.
 //    '' = 제한 없음(상시 발급). 배너 PROMO_END_DATE 와 맞추세요. 마감 후 신규 가입자는 쿠폰 미발급.
-const ONBOARDING_PROMO_END = ''; // 2026-06-19 상시 발급(빈값, 운영자 "자율진행") — 광고 재개 시 가입→웰컴쿠폰 funnel 유지. 종료하려면 'YYYY-MM-DD'.
+// 마감일 = Vercel 환경변수 ONBOARDING_PROMO_END 로 조정(여름 이벤트 '2026-08-10'). 빈값/미설정=상시 발급.
+// env 로 뺀 이유(P1-②): 운영자가 코드 수정 없이 Vercel 에서 이벤트 연장/종료 가능.
+const ONBOARDING_PROMO_END = (process.env.ONBOARDING_PROMO_END || '').trim();
 
 /** 가입 쿠폰 발급 창이 열려있는지 (마감일 미설정/파싱실패 → 안전하게 발급). */
 export function isOnboardingPromoOpen(now = Date.now()) {
@@ -110,12 +113,29 @@ export async function issueOnboardingCouponsForUid(db, uid) {
       source: 'onboarding',
     });
 
+    // 여름 이벤트(마감 ONBOARDING_PROMO_END): AI 플랜 무료 쿠폰 — 1~3일 일정만(maxDays:3).
+    // productScope='ai-plan' + type='free'(value:100). 실제 0원 결제 검증은 paymentGate.js
+    // 'ai-coupon' provider 가 담당(소유·미사용·일수·멱등). 차터/투어 5% 쿠폰과 별개로 추가 발급.
+    const aiPlanCoupon = couponsRef.doc();
+    tx.set(aiPlanCoupon, {
+      code: `WELCOME-AIPLAN-${randomSuffix(6)}`,
+      type: 'free',
+      value: 100,
+      label: 'Welcome — Free AI Plan (1~3 days)',
+      productScope: 'ai-plan',
+      maxDays: 3,
+      isUsed: false,
+      expiresAt,
+      createdAt: now,
+      source: 'onboarding',
+    });
+
     tx.set(userRef, {
       onboardingCouponsIssued: true,
       onboardingAt: now,
     }, { merge: true });
 
-    return { issued: 2, alreadyIssued: false };
+    return { issued: 3, alreadyIssued: false };
   });
 }
 

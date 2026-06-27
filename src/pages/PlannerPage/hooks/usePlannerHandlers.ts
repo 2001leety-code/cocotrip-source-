@@ -165,7 +165,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
 
   // LOCKED region -- handlePaymentSuccess lifted verbatim from legacy PlannerPage.tsx L1414-1493
   // 2: PayPal payment success -> Full AI plan generation (paid)
-  async function handlePaymentSuccess(paypalOrderId: string) {
+  async function handlePaymentSuccess(paypalOrderId: string, aiCouponCode?: string) {
     setIsGeneratingPlan(true);
     setPlanError(null);
     setPlanErrorCode(null);
@@ -220,6 +220,7 @@ export function usePlannerHandlers({ language, userEmail, setUserEmail }: UsePla
         signal: controller.signal,
         body: JSON.stringify({
           paypalOrderId,
+          aiCouponCode,  // P1-②: AI 무료 쿠폰 코드 (있으면 paymentGate 가 0원 통과 — paypalOrderId 없이도)
           guestName: 'Guest',
           email: userEmail,
           startDate: values.startDate,
