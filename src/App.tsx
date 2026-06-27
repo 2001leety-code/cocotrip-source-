@@ -16,6 +16,7 @@ const CustomerGallery = lazy(() => import('@/sections/CustomerGallery').then(m =
 const GoogleReviews = lazy(() => import('@/sections/GoogleReviews').then(m => ({ default: m.GoogleReviews })));
 const CTA = lazy(() => import('@/sections/CTA').then(m => ({ default: m.CTA })));
 const Membership = lazy(() => import('@/sections/Membership').then(m => ({ default: m.Membership })));
+const ExampleItinerariesSection = lazy(() => import('@/sections/ExampleItinerariesSection').then(m => ({ default: m.ExampleItinerariesSection })));
 import { Footer } from '@/sections/Footer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 // MobileHome (mobile only)  → tours.ts (~92 KB raw) leak 방지
@@ -165,6 +166,7 @@ function HomePage() {
         <TrustBadges />
         <HeroCards t={t} />
         <Suspense fallback={null}>
+          <ExampleItinerariesSection />
           <CustomerGallery />
           <GoogleReviews />
         </Suspense>
