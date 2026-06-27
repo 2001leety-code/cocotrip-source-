@@ -152,6 +152,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
 
   // \ubcf4\uc720 \ucfe0\ud3f0 \u2014 \ubbf8\ub85c\uadf8\uc778 \uc2dc hook\uc740 \uc548\uc804 (loyalty=null, coupons=[]).
   const { activeCoupons } = useLoyalty();
+  // P1-②: AI 무료쿠폰(productScope='ai-plan')은 이 할인 picker 에서 제외 — 할인 적용 대상이 아니라
+  //   PurchaseSection 의 "무료 쿠폰으로 받기"(0원) 버튼 전용. (MyPage 쿠폰함에는 그대로 노출.)
+  const discountCoupons = activeCoupons.filter(c => c.productScope !== 'ai-plan');
   // B-9 (2026-05-12): authUser / authUserId \ub294 \ucef4\ud3ec\ub10c\ud2b8 \uc0c1\ub2e8\uc5d0\uc11c \uc774\ubbf8 \ud638\ucd9c\ub428.
 
   const PROMO_LABELS: Record<string, Record<string, string>> = {
@@ -681,9 +684,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
             <span className="flex items-center gap-2">
               <Ticket className="w-4 h-4 text-[#B668FC]" />
               <span className="text-sm font-semibold text-white">{pl.pickerOpen}</span>
-              {activeCoupons.length > 0 && (
+              {discountCoupons.length > 0 && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#B668FC]/20 text-[#B668FC] border border-[#B668FC]/25">
-                  {activeCoupons.length}
+                  {discountCoupons.length}
                 </span>
               )}
             </span>
@@ -701,7 +704,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                   to { opacity: 1; transform: translateY(0); }
                 }
               `}</style>
-              {activeCoupons.length === 0 ? (
+              {discountCoupons.length === 0 ? (
                 /* Ad: AI planner → 5% coupon. Math is per user spec. */
                 <div className="rounded-xl border border-[#7C5CFC]/25 p-3.5"
                   style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.10), rgba(255,107,157,0.06))' }}>
@@ -729,7 +732,7 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
                 </div>
               ) : (
                 <ul className="space-y-2">
-                  {activeCoupons.map(c => {
+                  {discountCoupons.map(c => {
                     const valueLabel = c.type === 'percent' ? `${c.value}%` : (c.currency === 'KRW' ? `₩${c.value.toLocaleString()}` : `$${c.value}`);
                     const expDate = new Date(c.expiresAt).toLocaleDateString();
                     return (
