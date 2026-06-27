@@ -161,3 +161,10 @@ status: Emergency Exception 적용됨 (상용화 이번 주 데드라인)
 - buildSystemPrompt (L171-488) 별도 모듈 추출
 - validateResponse (L129-169) 별도 모듈 추출
 - 예상: 1-2일 작업, 상용화 후 진행
+
+---
+## 🎟️ 2026-06-27 — 버그헌트 A fix lock 예외 (handlerCore 511 > 500)
+**Emergency Exception**: P1 프로모션 버그헌트 A(AI 무료쿠폰 plan 생성 실패 시 1장뿐인 쿠폰 영구 소실)
+정당 fix가 handlerCore.js 에 롤백 로직(변수+gate후 보관+savePlan 플래그+catch 롤백) 11줄 추가 → 511줄(limit 500, P129).
+A = 돈/고객피해 긴급 fix 라 --no-verify 1회 우회. B~E(admin-promo-stats) 는 정상 커밋.
+**후속(기술부채)**: handlerCore orchestrator 분해 필요(P129) — 별도 작업으로 운영자 보고함.

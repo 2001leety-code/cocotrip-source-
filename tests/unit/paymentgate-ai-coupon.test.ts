@@ -14,7 +14,7 @@ vi.mock('../../api/_shared/paypal.js', () => ({
 vi.mock('../../api/_shared/sentry.js', () => ({ captureError: async () => {} }));
 
 // @ts-expect-error — paymentGate.js 는 JS 모듈 (타입 선언 없음)
-import { enforcePaymentAndRevision } from '../../api/_ai_core/paymentGate.js';
+import { enforcePaymentAndRevision, restoreAiPlanCoupon } from '../../api/_ai_core/paymentGate.js';
 
 beforeEach(() => {
   global.fetch = vi.fn(async () => ({ json: async () => ({ status: 'COMPLETED' }) })) as never;
@@ -23,7 +23,7 @@ beforeEach(() => {
 // users/{uid}/coupons.where('code','==',code).limit(1).get() + runTransaction 흐름 mock.
 function couponDb(coupon: Record<string, unknown> | null) {
   let used = (coupon?.isUsed as boolean) || false;
-  const couponRef = { _ref: true };
+  const couponRef = { _ref: true, async update(data: { isUsed?: boolean }) { if ('isUsed' in data) used = data.isUsed as boolean; } };
   const col = {
     where() { return col; },   // .where().where() chain
     limit() { return col; },
@@ -94,5 +94,19 @@ describe('paymentGate — AI 무료 쿠폰 0원 경로 (P1-②)', () => {
     expect(r1.isFreeAiCoupon).toBe(true);
     const r2 = await enforcePaymentAndRevision({ aiCouponCode: AI.code, durationDays: 2 }, db, 'u@e.com', UID);
     expect(r2.rejection?.code).toBe('COUPON_USED');
+  });
+
+  it('롤백(버그헌트 A): 소비 후 restoreAiPlanCoupon → 재시도 통과 (plan 생성 실패 보상)', async () => {
+    const db = couponDb({ ...AI });
+    const r1 = await enforcePaymentAndRevision({ aiCouponCode: AI.code, durationDays: 2 }, db, 'u@e.com', UID);
+    expect(r1.isFreeAiCoupon).toBe(true);
+    // gate 가 롤백용 쿠폰 정보(uid+code)를 반환해야 함
+    expect(r1.consumedCoupon).toEqual({ uid: UID, code: AI.code });
+    // plan 생성 실패 시나리오 → 쿠폰 롤백(isUsed=false)
+    await restoreAiPlanCoupon(db, UID, AI.code);
+    // 롤백 후 재시도 → 쿠폰 부활로 다시 0원 통과 (1장뿐인 쿠폰 영구 소실 안 됨)
+    const r2 = await enforcePaymentAndRevision({ aiCouponCode: AI.code, durationDays: 2 }, db, 'u@e.com', UID);
+    expect(r2.rejection).toBeUndefined();
+    expect(r2.isFreeAiCoupon).toBe(true);
   });
 });

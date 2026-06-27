@@ -92,6 +92,26 @@ async function consumeAiPlanCoupon(adminDb, uid, code, durationDays) {
   return { ok: true };
 }
 
+/**
+ * 버그헌트 A fix (2026-06-27): 무료 쿠폰 소비 후 plan 생성 실패 시 롤백(isUsed=false).
+ * PayPal 경로는 plan_issued_orders 를 set 성공 후 마킹(재시도 허용)인데, 무료 쿠폰은
+ * 게이트에서 즉시 소비되므로 생성 실패 시 1장뿐인 가입 쿠폰이 영구 소실된다(재시도=COUPON_USED).
+ * → handlerCore catch 에서 plan 미저장(planPersisted=false) 일 때만 호출해 되살린다(저장 성공 후엔 정당 소비).
+ * 더블클릭 중복생성 방지는 consumeAiPlanCoupon 의 트랜잭션이 그대로 담당(이 함수는 실패 보상 전용).
+ */
+export async function restoreAiPlanCoupon(adminDb, uid, code) {
+  if (!adminDb || !uid || !code) return;
+  try {
+    const couponsRef = adminDb.collection('users').doc(uid).collection('coupons');
+    const snap = await couponsRef.where('code', '==', code).limit(1).get();
+    if (snap.empty) return;
+    await snap.docs[0].ref.update({ isUsed: false, usedAt: null, restoredAt: new Date().toISOString() });
+    console.log('[paymentGate] 🎟️↩️ AI 무료 쿠폰 롤백 (plan 생성 실패) | uid:', uid, '| code:', code);
+  } catch (e) {
+    console.warn('[paymentGate] coupon restore failed:', e.message);
+  }
+}
+
 export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmail, authenticatedUid) {
   const revisionOf = body.revisionOf;
   const revisionToken = body.revisionToken;
@@ -165,7 +185,7 @@ export async function enforcePaymentAndRevision(body, adminDb, authenticatedEmai
     const couponResult = await consumeAiPlanCoupon(adminDb, authenticatedUid, aiCouponCode, durationDays);
     if (couponResult.rejection) return couponResult;
     console.log('[planner] 🎟️ AI 무료 쿠폰 0원 통과 | uid:', authenticatedUid, '| days:', durationDays, '| code:', aiCouponCode);
-    return { isRevision: false, isAdminBypass: false, isFreeAiCoupon: true };
+    return { isRevision: false, isAdminBypass: false, isFreeAiCoupon: true, consumedCoupon: { uid: authenticatedUid, code: aiCouponCode } };
   }
 
   if (!isRevision && !paypalOrderId) {
