@@ -2,7 +2,7 @@
 // 2026-05-05: free-claim funnel 폐기 — Option B "already booked? get it free"
 // bundle toggle 분기 제거. 유료 PayPal flow만 노출.
 // LOCKED region -- PayPalBookingButton lifted verbatim from legacy PlannerPage.tsx L1705-1993.
-import { type MutableRefObject, useState, lazy, Suspense } from 'react';
+import { type MutableRefObject, useState, useEffect, lazy, Suspense } from 'react';
 import {
   Briefcase, UtensilsCrossed, Camera, Train, ShieldCheck, Check, Mail, LogIn, Phone,
 } from 'lucide-react';
@@ -12,7 +12,7 @@ import type { PlannerDict } from '../types';
 import { TriviaLoadingAnimation } from './TriviaLoadingAnimation';
 import { formatPrice } from '@/lib/exchange-rate';
 import { useAuth } from '@/hooks/useAuth';
-import { signInWithGoogle } from '@/lib/firebase';
+import { signInWithGoogle, getAvailableAiCoupon } from '@/lib/firebase';
 import { isGuestAnonEnabled } from '@/lib/guestReader';
 // P317 (2026-05-30): lazy-load phone sign-in modal (firebase phone auth) —
 // keep it out of the PlannerPage chunk; loads only when the user opens it.
@@ -37,7 +37,7 @@ interface PurchaseSectionProps {
   revisionReason?: string | null;
   revisionNote?: string | null;
   avoidList?: string | null;
-  onPaymentSuccess: (orderId: string) => void;
+  onPaymentSuccess: (orderId: string, aiCouponCode?: string) => void;
   onRevisionRegenerate: (values: PlannerFormValues, planId: string, token: string | null, revisionReason?: string | null, revisionNote?: string | null, avoidList?: string | null) => void;
 }
 
@@ -62,6 +62,15 @@ export function PurchaseSection({
   const guestCheckoutEnabled = isGuestAnonEnabled();
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
+  // P1-②(여름 이벤트): 로그인 사용자의 AI 무료 쿠폰(1~3일) 조회 → "무료 쿠폰 사용" 버튼 노출.
+  const [aiCoupon, setAiCoupon] = useState<{ code: string; maxDays: number } | null>(null);
+  useEffect(() => {
+    if (!user) { setAiCoupon(null); return; }
+    const days = (lastValues?.current?.durationDays as number) || 3;
+    let on = true;
+    getAvailableAiCoupon(user.uid, days).then((c) => { if (on) setAiCoupon(c); });
+    return () => { on = false; };
+  }, [user, lastValues]);
   const handleSignIn = async () => {
     if (signingIn) return;
     setSigningIn(true);
@@ -237,6 +246,17 @@ export function PurchaseSection({
                   {(p as { guestSignupCta?: string }).guestSignupCta || 'Sign up free'}
                 </button>
               </div>
+            )}
+            {/* P1-②(여름 이벤트): AI 무료 쿠폰 보유 + 1~3일 plan 이면 0원 버튼 (PayPal 대신). */}
+            {user && aiCoupon && (
+              <button
+                onClick={() => onPaymentSuccess('', aiCoupon.code)}
+                disabled={isGeneratingPlan}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-60 mb-2"
+                style={{ background: 'linear-gradient(135deg, #34c759, #2a9d8f)', boxShadow: '0 4px 20px rgba(52,199,89,0.3)' }}
+              >
+                🎟️ {(p as { useFreeAiCoupon?: string }).useFreeAiCoupon || '무료 쿠폰으로 받기 (1~3일 일정)'}
+              </button>
             )}
             <PayPalBookingButton
               productType="ai-planner-full" passengers={1} dateStart="" dateEnd=""

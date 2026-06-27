@@ -558,6 +558,16 @@ export default function Admin() {
             <p className="text-xs text-gray-400">특정 손님에게 즉시 % / 정액 쿠폰 발행 — 컴플레인 대응 + VIP 보너스</p>
           </a>
           <a
+            href="/admin/promo-stats"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🎁</span>
+              <h3 className="text-base font-bold text-[#1a1a2e] group-hover:text-[#7C5CFC] transition-colors">프로모션 현황 <span className="text-[10px] text-[#7C5CFC] font-bold ml-1">NEW</span></h3>
+            </div>
+            <p className="text-xs text-gray-400">여름 이벤트 가입 쿠폰 — AI무료·차터·투어 발급/사용률 + 무료→유료 전환</p>
+          </a>
+          <a
             href="/admin/quality"
             className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-[#7C5CFC]/30 hover:shadow-md transition-all group"
           >

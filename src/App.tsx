@@ -53,6 +53,7 @@ const AdminProductEditor = lazy(() => import('@/pages/AdminProductEditor'));
 const AdminZoneCourses = lazy(() => import('@/pages/AdminZoneCourses'));
 const AdminZoneCourseEditor = lazy(() => import('@/pages/AdminZoneCourseEditor'));
 const AdminIntentClassifier = lazy(() => import('@/pages/AdminIntentClassifier'));
+const AdminPromoStats = lazy(() => import('@/pages/AdminPromoStats'));
 const PlannerPage = lazy(() => import('@/pages/PlannerPage'));
 const MobileHomeV2 = lazy(() => import('@/pages/MobileHomeV2'));
 const MobileTourDetailV2 = lazy(() => import('@/pages/MobileTourDetailV2'));
@@ -494,6 +495,16 @@ function AnimatedRoutes() {
               <AdminRoute>
                 <Suspense fallback={<PlannerSkeleton />}>
                   <AdminIntentClassifier />
+                </Suspense>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/promo-stats"
+            element={
+              <AdminRoute>
+                <Suspense fallback={<PlannerSkeleton />}>
+                  <AdminPromoStats />
                 </Suspense>
               </AdminRoute>
             }

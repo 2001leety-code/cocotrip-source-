@@ -141,7 +141,7 @@ export function aggregateMorningBriefing({ bookingDocs = [], planDocs = [], user
     if (String(p.status) !== 'ready') continue;
     if (p.isAdminBypass === true) continue;
     const src = String(p.paymentSource || '');
-    if (src === 'test' || src === 'admin-bypass') continue;
+    if (src === 'test' || src === 'admin-bypass' || src === 'ai-coupon') continue; // ai-coupon = 무료 쿠폰(매출 0, P1-②)
     if (p.paypalOrderId && isAdminBypassOrderId(p.paypalOrderId)) continue;
     paidPlan++;
   }

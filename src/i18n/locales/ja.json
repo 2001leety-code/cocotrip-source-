@@ -556,6 +556,7 @@
     "retry": "もう一度試す",
     "loginRequired": "ログイン後に決済可能",
     "loginToPay": "ログインして続行",
+    "useFreeAiCoupon": "無料クーポンで受け取る (1〜3日)",
     "guestSignupNudge": "無料登録で — プラン保存 + 無料修正2回 + チャーター5%クーポン",
     "guestSignupCta": "無料登録",
     "loginToPayDesc": "旅程表を安全にお届けするため、先にログインしてください。",
