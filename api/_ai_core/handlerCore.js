@@ -42,6 +42,7 @@ import { loadFoodIndex, runGeminiPipeline } from './geminiPipeline.js';
 import { sendNotificationEmail, recordLeadToSheets } from './emailNotifier.js';
 import { initAdminDb } from './firestoreAdmin.js';
 import { enforcePaymentAndRevision, restoreAiPlanCoupon } from './paymentGate.js';
+import { checkStartDateTooSoon } from './validateStartDate.js';
 import { VEHICLE_LABELS } from './vehicleAndPrice.js';
 import { buildAvoidClause } from './avoidListQuery.js';
 import { decidePlannerMode, pickIdentifier } from './plannerMode.js';
@@ -179,27 +180,12 @@ export default async function handler(req, res) {
     // 버그헌트 A(2026-06-27): 무료쿠폰이 게이트에서 소비됨 — 이후 plan 생성 실패 시 catch 에서 롤백하려고 정보 보관.
     if (gate.consumedCoupon) consumedCouponInfo = gate.consumedCoupon;
 
-    // ── AI 플래너 출발일 검증: day1 = 오늘 불가 (내일 이후만) ─────────────────
-    // 정책 (2026-05-07 운영자 확정): AI 플래너는 디지털 상품이지만
-    //   오늘 날짜 시작은 부적절 — Gemini가 한국 로컬 정보를 기반으로 플랜 생성 시
-    //   최소 익일 출발을 전제로 설계됨. 12h cutoff 적용 대신 "오늘 = 불가" 단순 정책.
-    // 재생성(revision) 은 이미 결제된 플랜 → 날짜 변경 없으므로 체크 skip.
-    if (!gate.isRevision) {
-      const reqStartDate = body.date || body.startDate || '';
-      if (reqStartDate && /^\d{4}-\d{2}-\d{2}$/.test(reqStartDate)) {
-        // KST(+09:00) 오늘 날짜 계산
-        const nowKST = new Date(Date.now() + 9 * 3600 * 1000);
-        const todayKST = nowKST.toISOString().slice(0, 10); // YYYY-MM-DD
-        if (reqStartDate <= todayKST) {
-          console.warn('[ai-planner-full] day1 today rejected:', reqStartDate, 'today KST:', todayKST);
-          res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify(_err(
-            'Start date must be tomorrow or later. Today\'s trips cannot be planned via AI Planner.',
-            'PLANNER_DATE_TOO_SOON',
-            { details: `Requested: ${reqStartDate}, today KST: ${todayKST}` }
-          )));
-        }
-      }
+    // ── AI 플래너 출발일 검증 (day1=오늘 불가, 내일 이후만). 로직=validateStartDate.js (P129 handlerCore 슬림). ──
+    const tooSoon = checkStartDateTooSoon(body, gate.isRevision);
+    if (tooSoon) {
+      console.warn('[ai-planner-full] day1 today rejected:', tooSoon.reqStartDate, 'today KST:', tooSoon.todayKST);
+      res.writeHead(400, { ...CORS, 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(_err('Start date must be tomorrow or later. Today\'s trips cannot be planned via AI Planner.', 'PLANNER_DATE_TOO_SOON', { details: `Requested: ${tooSoon.reqStartDate}, today KST: ${tooSoon.todayKST}` })));
     }
 
     // ── 입력 정규화 (requestShaper) ────────────────────────────────────────
