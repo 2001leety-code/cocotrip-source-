@@ -6,7 +6,7 @@
  *
  * 표시 항목:
  *   - 쿠폰 현황: 종류별(AI무료·차터·투어) 발급 수·사용 수·사용률
- *   - 프로모션 KPI: 가입 수·AI무료쿠폰 사용 수·무료→유료 전환율
+ *   - 프로모션 KPI: 가입 수·AI무료쿠폰 사용 수·무료쿠폰 사용률
  *   - 최근 무료 플랜 5건
  */
 import { useState, useEffect, useCallback } from 'react';
@@ -31,7 +31,7 @@ interface PromoData {
     promoSignups: number;
     aiCouponUsed: number;
     freePlanCount: number;
-    conversionRate: number;
+    freePlanUsageRate: number;
   };
   recentFreePlans: Array<{
     planId: string;
@@ -199,7 +199,7 @@ export default function AdminPromoStats() {
                 </div>
                 <div className="bg-[#7C5CFC]/10 border border-[#7C5CFC]/30 rounded-2xl p-4 text-center">
                   <span className="text-xl block mb-1">📈</span>
-                  <p className="text-2xl font-extrabold text-[#B9A4FF]">{data.kpi.conversionRate}%</p>
+                  <p className="text-2xl font-extrabold text-[#B9A4FF]">{data.kpi.freePlanUsageRate}%</p>
                   <p className="text-[11px] text-white/45 mt-1">무료 사용률</p>
                   <p className="text-[10px] text-white/30 mt-0.5">가입자 대비 무료플랜 사용</p>
                 </div>

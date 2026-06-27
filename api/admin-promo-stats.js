@@ -72,10 +72,11 @@ export default async function handler(req, res) {
     }
 
     // ── 2. 프로모션 KPI: 가입 수 (onboardingCouponsIssued==true) ──
-    const usersSnap = await db.collection('users')
+    // 버그헌트 D fix (2026-06-27): 전수 .get() → .count() 집계(가입자 늘어도 문서 안 읽음 — 읽기비용·15s 타임아웃 방지).
+    const usersCountSnap = await db.collection('users')
       .where('onboardingCouponsIssued', '==', true)
-      .get();
-    const promoSignups = usersSnap.size;
+      .count().get();
+    const promoSignups = usersCountSnap.data().count;
 
     // ── 3. AI 무료 쿠폰으로 결제된 플랜 수 ──
     // planPersister 가 isFreeCoupon:true + paymentSource:'ai-coupon' 로 저장한다고 가정.
@@ -84,34 +85,37 @@ export default async function handler(req, res) {
       .get();
     const freePlanCount = freePlansSnap.size;
 
-    // ── 4. 무료→유료 전환율 계산 ──
-    // AI무료 쿠폰 사용자 중 이후 유료 플랜을 구매한 비율.
-    // 단순화: 무료쿠폰 사용 수 대비 가입자(프로모션) 기준으로 산출.
+    // ── 4. 무료쿠폰 사용률 (가입자 중 무료 플랜을 실제 생성한 비율) ──
+    // 버그헌트 E fix (2026-06-27): 이전 이름 conversionRate + "무료→유료 전환율" 주석은 오해 소지였음.
+    //   실제 계산은 freePlanCount/promoSignups = '쿠폰 사용률'이지 유료 전환율이 아님(유료 전환은 무료 사용 후
+    //   별도 유료 결제한 uid 를 세야 함 — 미구현). 운영자 예산 오판 방지 위해 이름·주석 정정.
     const aiUsed = buckets['ai-plan'].used;
-    const conversionRate = promoSignups > 0
+    const freePlanUsageRate = promoSignups > 0
       ? Math.round((freePlanCount / promoSignups) * 100)
       : 0;
 
     // ── 5. 최근 무료 플랜 5건 (최신순) ──
     const recentFreePlans = [];
     if (!freePlansSnap.empty) {
+      // 버그헌트 B+C fix (2026-06-27):
+      //   B) plans.createdAt 은 ISO 문자열(숫자는 createdAtMs). .toMillis()(Firestore Timestamp 전용)는
+      //      문자열에서 undefined → 정렬 무효 + 시각 null 이었음 → createdAtMs 우선(없으면 ISO 파싱).
+      //   C) 필드명을 실제 plans 스키마로 교정: guestEmail / input.regions[] / itinerary.days.length
+      //      (top-level userEmail/region/days 는 존재하지 않아 전부 '-' 였음).
+      const planMs = (x) => x.createdAtMs || (x.createdAt ? Date.parse(x.createdAt) : 0);
       const sorted = freePlansSnap.docs
-        .filter(d => d.data().createdAt)
-        .sort((a, b) => {
-          const ta = a.data().createdAt?.toMillis?.() || 0;
-          const tb = b.data().createdAt?.toMillis?.() || 0;
-          return tb - ta;
-        })
+        .filter(d => planMs(d.data()))
+        .sort((a, b) => planMs(b.data()) - planMs(a.data()))
         .slice(0, 5);
 
       for (const doc of sorted) {
         const d = doc.data();
         recentFreePlans.push({
           planId: doc.id,
-          userEmail: d.userEmail || d.email || null,
-          createdAt: d.createdAt?.toMillis?.() || null,
-          region: d.region || d.destination || null,
-          days: d.days || null,
+          userEmail: d.guestEmail || d.email || null,
+          createdAt: planMs(d) || null,
+          region: (Array.isArray(d.input?.regions) ? d.input.regions[0] : null) || d.input?.area || d.destination || null,
+          days: (Array.isArray(d.itinerary?.days) ? d.itinerary.days.length : null) || d.input?.durationDays || null,
         });
       }
     }
@@ -132,7 +136,7 @@ export default async function handler(req, res) {
         promoSignups,      // onboarding 쿠폰 발급된 가입자 수
         aiCouponUsed: aiUsed,    // AI 무료쿠폰 실제 사용 수
         freePlanCount,     // isFreeCoupon==true 플랜 수
-        conversionRate,    // 프로모션 가입자 중 무료플랜 사용률(%)
+        freePlanUsageRate, // 프로모션 가입자 중 무료플랜 생성률(%) — '유료 전환율' 아님(버그헌트 E)
       },
       recentFreePlans,
       generatedAt: Date.now(),
