@@ -1,5 +1,8 @@
 // Quick preview card -- extracted from legacy PlannerPage.tsx L1613-1703.
-import { Sparkles } from 'lucide-react';
+// 2026-06-28: 표 → 세로 타임라인 카드 재설계 (시각·장소·팁·Google지도 링크). 운영자 Trip.com 벤치마크.
+//   day1MarkdownTable(시간|명소|팁 3컬럼, api/ai-planner-quick.js)을 타임라인으로 렌더.
+//   교통 컬럼은 현재 quick preview 데이터엔 없음 → 헤더에 있으면 유연 표시(백엔드 확장 대비).
+import { Sparkles, MapPin } from 'lucide-react';
 import type { PlannerDict } from '../types';
 
 interface QuickPreviewData {
@@ -59,26 +62,43 @@ export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: Qu
         }
         const tHeaders = dataLines[0].split('|').filter((c: string) => c.trim()).map((c: string) => c.trim());
         const tRows = dataLines.slice(1).map((r: string) => r.split('|').filter((c: string) => c.trim()).map((c: string) => c.trim()));
+        // 헤더에 교통 컬럼(있으면) 탐지 — 현재 quick preview 데이터엔 없지만 백엔드 확장 대비 유연 지원.
+        const transitIdx = tHeaders.findIndex((h: string) => /교통|이동|transit|交通|교통편/i.test(h));
+        const accent = isMobile ? '#B668FC' : '#7C5CFC';
+        const mapLabel = p.quickPreviewMapLabel || 'Map';
         return (
-          <div className="bg-black/30 rounded-xl overflow-hidden border border-white/[0.08]">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={isMobile ? 'bg-[#B668FC]/15' : 'bg-[#7C5CFC]/15'}>
-                  {tHeaders.map((h: string, hi: number) => (
-                    <th key={hi} className="px-3 py-2.5 text-left text-[11px] font-bold text-white/70 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tRows.map((row: string[], ri: number) => (
-                  <tr key={ri} className={`border-t border-white/[0.06] ${ri % 2 === 0 ? 'bg-white/[0.02]' : 'bg-white/[0.04]'} hover:bg-white/[0.07] transition-colors`}>
-                    {row.map((cell: string, ci: number) => (
-                      <td key={ci} className={`px-3 py-2.5 text-[13px] ${ci === 0 ? (isMobile ? 'font-bold text-[#FF6B9D]' : 'font-bold text-[#C4956A]') : 'text-white/70'}`}>{cell}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="relative pl-1">
+            {/* 세로 타임라인 선 */}
+            <div className="absolute left-[5px] top-2 bottom-2 w-px bg-gradient-to-b from-[#7C5CFC]/70 via-[#B668FC]/40 to-[#EA537E]/30" aria-hidden />
+            <ol className="space-y-2.5">
+              {tRows.map((row: string[], ri: number) => {
+                const time = row[0] || '';
+                const place = row[1] || '';
+                const transit = transitIdx >= 2 ? (row[transitIdx] || '') : '';
+                const lastIdx = row.length - 1;
+                const tip = lastIdx > 1 && lastIdx !== transitIdx ? (row[lastIdx] || '') : '';
+                const mapUrl = place ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}` : '';
+                return (
+                  <li key={ri} className="relative pl-5">
+                    {/* 타임라인 점 */}
+                    <span className="absolute left-0 top-[7px] w-[11px] h-[11px] rounded-full bg-gradient-to-br from-[#7C5CFC] to-[#EA537E] ring-[3px] ring-[#0a1628]" aria-hidden />
+                    <div className="bg-white/[0.04] rounded-xl px-3.5 py-2.5 border border-white/[0.08] hover:bg-white/[0.07] hover:border-[#7C5CFC]/30 transition-all">
+                      <div className="flex items-center gap-2">
+                        {time && <span className="text-[12px] font-bold shrink-0" style={{ color: accent }}>{time}</span>}
+                        <span className="font-bold text-white text-[14px] flex-1 leading-tight">{place}</span>
+                        {mapUrl && (
+                          <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium transition-opacity hover:opacity-80" style={{ color: accent }} aria-label={`${place} ${mapLabel}`}>
+                            <MapPin className="w-3 h-3" />{mapLabel}
+                          </a>
+                        )}
+                      </div>
+                      {transit && <p className="text-[11px] text-[#9FB4D8] mt-1 flex items-center gap-1">🚇 {transit}</p>}
+                      {tip && <p className="text-[12px] text-white/60 mt-1 leading-relaxed">{tip}</p>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
         );
       })()}
