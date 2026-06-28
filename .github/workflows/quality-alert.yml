@@ -236,6 +236,20 @@ jobs:
             cat /tmp/tg_response.json
           fi
 
+      # ── Alert: Discord (옵션, DISCORD_WEBHOOK_URL 미설정 시 graceful skip) ──
+      - name: Send Discord alert
+        if: ${{ steps.check.outputs.exit_code != '0' }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "[discord] DISCORD_WEBHOOK_URL 미설정 — skip"
+            exit 0
+          fi
+          node -e "const fs=require('fs'); let s={}; try{s=JSON.parse(fs.readFileSync('quality-alert-status.json','utf8'))}catch(e){} const w=s.window24h||{}; const b=s.baseline7d||{}; const run=process.env.GITHUB_SERVER_URL+'/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+process.env.GITHUB_RUN_ID; const content='[Quality score '+(s.severity||'fail')+']\n24h 평균: '+(w.avgScore!=null?w.avgScore:'null')+' (samples '+(w.sampleCount||0)+')\n7d 베이스라인: '+(b.avgScore!=null?b.avgScore:'n/a')+'\n\n대응: /admin/quality 대시보드 + 최근 머지 PR diff 확인\n\nrun: '+run; fs.writeFileSync('discord.json', JSON.stringify({content: content.slice(0,1990)}));"
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d @discord.json > /dev/null || echo "[discord] webhook 실패(non-fatal)"
+        continue-on-error: true
+
       - name: Fail step (relay exit code)
         if: ${{ steps.check.outputs.exit_code != '0' }}
         run: |
