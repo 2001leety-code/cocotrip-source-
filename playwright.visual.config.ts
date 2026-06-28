@@ -40,11 +40,13 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || 'https://cocotripkr.com',
     trace: 'retain-on-failure',
-    // Vercel Pro Deployment Protection bypass — playwright.config.ts 와 동일.
-    extraHTTPHeaders: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-      ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+    // Vercel bypass — 쿠키 방식 (playwright.config.ts 와 동일, tests/global-setup.ts).
+    // extraHTTPHeaders 가 cross-origin 폰트 CORS preflight 깨던 문제 해결(#1006).
+    storageState: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+      ? 'tests/.auth/vercel-bypass.json'
       : undefined,
   },
+  globalSetup: './tests/global-setup.ts',
   projects: [
     // P93 회귀 viewport (모바일 탭 horizontal overflow). 375 = 가장 좁은 모바일
     // breakpoint — iPhone SE / 일반 Android 소형 기기 커버.

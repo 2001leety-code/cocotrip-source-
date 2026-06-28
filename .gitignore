@@ -77,3 +77,6 @@ scripts/inspect-streaming-plans.mjs
 scripts/p[0-9][0-9][0-9]-*.mjs
 .claude/worktrees/
 outputs/
+
+# Playwright Vercel bypass storageState (CI 생성, 커밋 안 함)
+tests/.auth/
