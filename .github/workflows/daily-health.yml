@@ -194,6 +194,20 @@ jobs:
             > /dev/null || echo "⚠️  Telegram API call failed (non-fatal)"
         continue-on-error: true # alert 실패해도 workflow 통과
 
+      # 디스코드 알림 — DISCORD_WEBHOOK_URL secret 미설정 시 graceful skip. 텔레그램과 동시 발송.
+      - name: Discord alert on regression failure (L3)
+        if: always() && steps.regression.outputs.result == 'fail'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL 미설정 — skip"; exit 0
+          fi
+          node -e "const fs=require('fs'); const out=fs.existsSync('regression-output.txt')?fs.readFileSync('regression-output.txt','utf8').slice(-1200):''; const content='[Daily Sentinel — Regression FAIL] '+new Date().toISOString().slice(0,10)+'\n대상: https://cocotripkr.com\n자동 issue 생성됨 — repo Issues 확인\n\n'+out+'\n\nrun: '+process.env.WORKFLOW_URL; fs.writeFileSync('discord.json', JSON.stringify({content: content.slice(0,1990)}));"
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" -d @discord.json > /dev/null || echo "Discord webhook 실패(non-fatal)"
+        continue-on-error: true
+
       - name: Upload health log
         if: always()
         uses: actions/upload-artifact@v4
