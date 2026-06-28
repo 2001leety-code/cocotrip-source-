@@ -91,7 +91,10 @@ export default async function handler(req, res) {
     // P108 (2026-05-20): tourId/tourSlotId/bookingDate/slotCapacity 도 추출 —
     // 슬롯 capacity confirm 용. createPaypalOrder 의 pre-lock 과 짝.
     let { orderID, product, tourDate, tourTime, pickupLocation, dropoffLocation, paxCount, vehicleType, customerPhone, couponApplied, memo, itineraryData, userEmail = '', couponDocId, couponUserId, airport, promoCode,
-      tourId, tourSlotId, bookingDate, slotCapacity } = body;
+      tourId, tourSlotId, bookingDate, slotCapacity,
+      // 2026-06-28 트립닷컴식 예약정보 — 결제 직전 SMS 인증/약관 동의 메타데이터(컴플라이언스 추적용).
+      // 결제/금액/멱등성 로직 무관 — booking 레코드에 그대로 보존만. 미전달 시 기본값(false/'').
+      phoneSmsVerified, termsAgreed, termsAgreedAt } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     // SECURITY (버그헌트 #11 2026-06-14): createPaypalOrder 가 저장한 주문 스냅샷에서 product/pax/date 를
@@ -390,6 +393,10 @@ export default async function handler(req, res) {
       customerPhone: customerPhone || '',
       couponApplied: !!couponApplied,
       memo: memo || '',
+      // 2026-06-28 트립닷컴식 예약정보 — 본인확인(SMS)·약관동의 메타. 결제 로직 무관, 추적용 보존.
+      phoneSmsVerified: phoneSmsVerified === true,
+      termsAgreed: termsAgreed === true,
+      termsAgreedAt: termsAgreedAt || '',
       airport: airport || null,
       amountUSD: amount,
       amountKRW,

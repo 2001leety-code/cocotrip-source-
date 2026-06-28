@@ -14,17 +14,24 @@
  *     8. 공백만인 필드는 미입력 취급.
  *   기능 플래그 독립성:
  *     9. FEATURE_TOUR_BOOKING_MINIMAL export 값은 boolean 타입.
+ *   트립닷컴식 예약정보 (2026-06-28):
+ *     10. SMS 미인증이면 차단 (두 모드 공통).
+ *     11. 약관 미동의이면 차단 (두 모드 공통).
  */
 import { describe, it, expect } from 'vitest';
 import { isTourStep2Complete, FEATURE_TOUR_BOOKING_MINIMAL } from '../../src/components/tours/tourBookingValidation';
 
 // --- 테스트용 보조 헬퍼 ---
+// 2026-06-28: 트립닷컴식 예약정보 게이트 추가 → SMS 인증 + 약관 동의 항상 필수.
+//   기존 시나리오 보존 위해 기본 fixture 는 둘 다 true.
 const allFilled = {
   phone: '+82 10 1234 5678',
   pickupAddress: '명동 롯데호텔',
   whatsappId: '+82 10 1234 5678',
   lineId: 'cocotrip_user',
   memoText: '알레르기 없음',
+  phoneSmsVerified: true,
+  termsAgreed: true,
 };
 
 const onlyPhone = {
@@ -33,6 +40,8 @@ const onlyPhone = {
   whatsappId: '',
   lineId: '',
   memoText: '',
+  phoneSmsVerified: true,
+  termsAgreed: true,
 };
 
 const noPhone = {
@@ -41,6 +50,8 @@ const noPhone = {
   whatsappId: '+82 10 1234 5678',
   lineId: 'cocotrip_user',
   memoText: '알레르기 없음',
+  phoneSmsVerified: true,
+  termsAgreed: true,
 };
 
 const whitespacePhone = {
@@ -49,6 +60,8 @@ const whitespacePhone = {
   whatsappId: '+82 10 1234 5678',
   lineId: 'cocotrip_user',
   memoText: '알레르기 없음',
+  phoneSmsVerified: true,
+  termsAgreed: true,
 };
 
 // --- minimal=true (플래그 ON) ---
@@ -126,5 +139,24 @@ describe('isTourStep2Complete — minimal=false (기본/OFF)', () => {
 describe('FEATURE_TOUR_BOOKING_MINIMAL export 타입', () => {
   it('9. boolean 타입으로 export 됨 (firebase-free 순수 모듈)', () => {
     expect(typeof FEATURE_TOUR_BOOKING_MINIMAL).toBe('boolean');
+  });
+});
+
+// --- 트립닷컴식 예약정보: SMS 인증 + 약관 동의 게이트 (2026-06-28) ---
+describe('isTourStep2Complete — SMS 인증 + 약관 동의 (두 모드 공통)', () => {
+  it('10a. SMS 미인증이면 차단 (minimal=true)', () => {
+    expect(isTourStep2Complete({ ...onlyPhone, phoneSmsVerified: false }, true)).toBe(false);
+  });
+  it('10b. SMS 미인증이면 차단 (minimal=false)', () => {
+    expect(isTourStep2Complete({ ...allFilled, phoneSmsVerified: false }, false)).toBe(false);
+  });
+  it('11a. 약관 미동의이면 차단 (minimal=true)', () => {
+    expect(isTourStep2Complete({ ...onlyPhone, termsAgreed: false }, true)).toBe(false);
+  });
+  it('11b. 약관 미동의이면 차단 (minimal=false)', () => {
+    expect(isTourStep2Complete({ ...allFilled, termsAgreed: false }, false)).toBe(false);
+  });
+  it('11c. SMS 인증 + 약관 동의 + 전화형식 OK 면 통과 (minimal=true)', () => {
+    expect(isTourStep2Complete({ ...onlyPhone, phoneSmsVerified: true, termsAgreed: true }, true)).toBe(true);
   });
 });
