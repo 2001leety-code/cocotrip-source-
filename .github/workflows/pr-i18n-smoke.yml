@@ -71,7 +71,7 @@ jobs:
     # timeout. Playwright 4-lang × 3-viewport (~12 browser run) + Vercel preview
     # 초기 cold start + 가격 환산 PR 등의 i18n locale 로드 증가로 한도 초과.
     # 15분이면 안전 마진 확보 — 기존 normal 3-4분 (캐시 hit) / cold start 7-9분.
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
       # Workflow/docs-only PRs: Vercel ignores these paths → no preview deploy
@@ -141,18 +141,10 @@ jobs:
             --project='Pixel 5' \
             --project='iPhone 14 Pro'
 
-      # 위저드 전체 플로우 E2E — 결제 클릭은 안 함 (Test 7 = PayPal 버튼 존재만, Test 8/9 = 보안 403).
-      # PR 단계에서 위저드 UI 회귀(Step 0 도시선택·모바일 overflow 등)를 자동 차단 —
-      # 그동안 위저드는 prod daily-health 에만 있어 PR 시점 자동 검증 사각지대였음.
-      # Desktop Chrome 1개만(전체 플로우라 무거움). i18n smoke 실패해도 독립 실행(if: always).
-      - name: Run planner wizard full-flow E2E (Desktop Chrome, no payment)
-        if: always() && github.event_name == 'deployment_status'
-        env:
-          BASE_URL: ${{ github.event.deployment_status.target_url }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: |
-          npx playwright test tests/e2e/planner-full-flow.spec.ts \
-            --project='Desktop Chrome'
+      # NOTE(2026-06-28): 위저드 full-flow E2E 를 여기 붙이려 했으나 preview 환경에서
+      # x-vercel-protection-bypass 헤더가 gstatic 폰트 preflight(CORS)에서 거부 -> 폰트
+      # 로드 실패 console error 로 spec 이 죽음(prod daily-health 엔 없는 preview 특유 문제).
+      # 위저드 E2E 는 prod daily-health 에 유지. PR 배선은 폰트 CORS 해결 후 재시도.
 
       - name: Upload Playwright report
         if: always() && github.event_name == 'deployment_status'
