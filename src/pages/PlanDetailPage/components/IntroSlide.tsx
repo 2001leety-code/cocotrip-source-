@@ -38,6 +38,20 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
   const arrival = hasArrivalContent ? arrivalRaw : null;
   const input = plan.input || {};
 
+  // 2026-06-23 (운영자 #3): pax 누락 시 "undefined pax" / 통계카드 "Pax: undefined" 노출 버그.
+  // adults(없으면 pax)를 안전하게 숫자화 — 둘 다 없으면 null → 해당 세그먼트/카드 값 숨김.
+  const adultsNum = Number(input.adults);
+  const paxRaw = Number(input.pax);
+  const childrenNum = Number(input.children || 0);
+  const hasAdults = Number.isFinite(adultsNum) && adultsNum > 0;
+  const hasPax = Number.isFinite(paxRaw) && paxRaw > 0;
+  // 총 인원: adults(+children) 우선, 없으면 pax. 둘 다 없으면 null.
+  const paxTotal = hasAdults
+    ? adultsNum + (Number.isFinite(childrenNum) ? childrenNum : 0)
+    : hasPax
+      ? paxRaw
+      : null;
+
   return (
     <div>
       {/* Title */}
@@ -61,8 +75,10 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
           <ShareMiniIcon planId={planId} plan={plan} isOwner={isOwner} />
         </div>
         <p className="text-white/55 text-sm mt-2">
-          {input.startDate} | {input.adults ? `${input.adults} adults` : `${input.pax} pax`}
-          {Number(input.children || 0) > 0 && ` + ${input.children} children`}
+          {input.startDate}
+          {/* 2026-06-23 (운영자 #3): pax 값 있을 때만 노출 — 없으면 "undefined pax" 방지. */}
+          {hasAdults ? ` | ${adultsNum} adults` : hasPax ? ` | ${paxRaw} pax` : ''}
+          {childrenNum > 0 && ` + ${childrenNum} children`}
           {((plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle) && ` | ${(plan.pricing as Record<string, any>)?.vehicleLabel || (plan.pricing as Record<string, any>)?.vehicle}`}
         </p>
       </div>
@@ -72,7 +88,8 @@ export function IntroSlide({ plan, planId, isTranslating, translationError, isOw
         {[
           { icon: <Calendar className="w-4 h-4" />, label: sw.introDaysLabel || 'Days', value: String(days.length || '-') },
           { icon: <MapPin className="w-4 h-4" />, label: 'Stops', value: String(days.reduce((s: number, d: PlanDay) => s + (d.stops?.length || 0), 0)) },
-          { icon: <Users className="w-4 h-4" />, label: 'Pax', value: String(input.adults ? ((input.adults as number) + ((input.children as number) || 0)) : input.pax) },
+          // 2026-06-23 (운영자 #3): paxTotal null 시 '-' 폴백 (Days 카드와 동일 패턴) — "undefined" 방지.
+          { icon: <Users className="w-4 h-4" />, label: 'Pax', value: paxTotal != null ? String(paxTotal) : '-' },
           { icon: <CreditCard className="w-4 h-4" />, label: 'T-money', value: formatKRW(it.t_money_recommended_load || 0) },
         ].map((item, i) => (
           <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-3 text-center">
