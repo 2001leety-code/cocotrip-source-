@@ -28,22 +28,22 @@ const FALLBACK = {
   en: {
     themes: ['Seoul Highlights'],
     marketingNarrative: 'Your personalized Seoul itinerary is being prepared. Please try again in a moment.',
-    day1MarkdownTable: '### Day 1 Preview\n| Time | Spot | Tip |\n|---|---|---|\n| 10:00 | Gyeongbokgung Palace | Arrive early to avoid crowds |\n| 12:00 | Gwangjang Market | Try bindaetteok & mayak gimbap |\n| 14:00 | Bukchon Hanok Village | Best photo spots on the hill |\n| 16:00 | Insadong Tea Street | Traditional tea experience |\n| 18:00 | Namsan Tower | Sunset view from the top |',
+    day1MarkdownTable: '### Day 1 Preview\n| Time | Spot | Transit | Tip |\n|---|---|---|---|\n| 10:00 | Gyeongbokgung Palace | Start point | Arrive early to avoid crowds |\n| 12:00 | Gwangjang Market | Subway Line 1, 8 min | Try bindaetteok & mayak gimbap |\n| 14:00 | Bukchon Hanok Village | Walk 12 min | Best photo spots on the hill |\n| 16:00 | Insadong Tea Street | Walk 7 min | Traditional tea experience |\n| 18:00 | Namsan Tower | Bus 02, 15 min | Sunset view from the top |',
   },
   ko: {
     themes: ['서울 핵심 여행'],
     marketingNarrative: '맞춤형 서울 여행 일정을 준비하고 있습니다.',
-    day1MarkdownTable: '### 1일차 미리보기\n| 시간 | 명소 | 팁 |\n|---|---|---|\n| 10:00 | 경복궁 | 오전에 방문 추천 |\n| 12:00 | 광장시장 | 빈대떡, 마약김밥 필수 |\n| 14:00 | 북촌한옥마을 | 언덕 위 포토스팟 |\n| 16:00 | 인사동 | 전통 찻집 체험 |\n| 18:00 | 남산타워 | 일몰 시간 맞춰 방문 |',
+    day1MarkdownTable: '### 1일차 미리보기\n| 시간 | 명소 | 교통 | 팁 |\n|---|---|---|---|\n| 10:00 | 경복궁 | 출발지 | 오전에 방문 추천 |\n| 12:00 | 광장시장 | 지하철 1호선 8분 | 빈대떡, 마약김밥 필수 |\n| 14:00 | 북촌한옥마을 | 도보 12분 | 언덕 위 포토스팟 |\n| 16:00 | 인사동 | 도보 7분 | 전통 찻집 체험 |\n| 18:00 | 남산타워 | 버스 02번 15분 | 일몰 시간 맞춰 방문 |',
   },
   ja: {
     themes: ['ソウルハイライト'],
     marketingNarrative: 'パーソナライズされたソウル旅程を準備中です。',
-    day1MarkdownTable: '### Day 1 プレビュー\n| 時間 | スポット | ヒント |\n|---|---|---|\n| 10:00 | 景福宮 | 午前中がおすすめ |\n| 12:00 | 広蔵市場 | ビンデトッ＆麻薬キンパ |\n| 14:00 | 北村韓屋村 | 丘の上がフォトスポット |\n| 16:00 | 仁寺洞 | 伝統茶体験 |\n| 18:00 | Nソウルタワー | 夕日がベスト |',
+    day1MarkdownTable: '### Day 1 プレビュー\n| 時間 | スポット | 交通 | ヒント |\n|---|---|---|---|\n| 10:00 | 景福宮 | 出発地 | 午前中がおすすめ |\n| 12:00 | 広蔵市場 | 地下鉄1号線8分 | ビンデトッ＆麻薬キンパ |\n| 14:00 | 北村韓屋村 | 徒歩12分 | 丘の上がフォトスポット |\n| 16:00 | 仁寺洞 | 徒歩7分 | 伝統茶体験 |\n| 18:00 | Nソウルタワー | バス02番15分 | 夕日がベスト |',
   },
   zh: {
     themes: ['首尔精华'],
     marketingNarrative: '正在为您准备个性化首尔行程。',
-    day1MarkdownTable: '### 第1天预览\n| 时间 | 景点 | 贴士 |\n|---|---|---|\n| 10:00 | 景福宫 | 建议上午参观 |\n| 12:00 | 广藏市场 | 必尝绿豆煎饼 |\n| 14:00 | 北村韩屋村 | 山坡上拍照最佳 |\n| 16:00 | 仁寺洞 | 传统茶馆体验 |\n| 18:00 | 南山塔 | 日落时分最美 |',
+    day1MarkdownTable: '### 第1天预览\n| 时间 | 景点 | 交通 | 贴士 |\n|---|---|---|---|\n| 10:00 | 景福宫 | 出发地 | 建议上午参观 |\n| 12:00 | 广藏市场 | 地铁1号线8分钟 | 必尝绿豆煎饼 |\n| 14:00 | 北村韩屋村 | 步行12分钟 | 山坡上拍照最佳 |\n| 16:00 | 仁寺洞 | 步行7分钟 | 传统茶馆体验 |\n| 18:00 | 南山塔 | 公交02路15分钟 | 日落时分最美 |',
   },
 };
 
@@ -66,8 +66,13 @@ Vegan 포함 시: 100% 식물성 식당/메뉴만 추천. 비빔밥(계란/고�
 {
   "themes": ["테마1", "테마2"],
   "marketingNarrative": "이 여행의 매력을 3문장으로 설명",
-  "day1MarkdownTable": "| 시간 | 명소 | 팁 |\\n|---|---|---|\\n| 10:00 | 명소이름 | 실용 팁 |"
-}`,
+  "day1MarkdownTable": "| 시간 | 명소 | 교통 | 팁 |\\n|---|---|---|---|\\n| 10:00 | 명소이름 | 출발지 | 실용 팁 |\\n| 12:00 | 명소이름 | 지하철 4호선 12분 | 실용 팁 |"
+}
+
+교통 칼럼 규칙:
+- "교통" 칼럼에는 이전 장소에서 현재 장소까지의 이동 수단을 적으세요 (예: "지하철 4호선 12분", "도보 8분", "버스 02번 15분", "택시 10분").
+- 첫 번째 장소(출발지)는 "출발지"로 표기하세요.
+- 4개 칼럼(시간|명소|교통|팁)을 빠짐없이 채우세요.`,
       user: `목적지: ${destination}, 관심사: ${preferences}, ${durationDays}일 여행 중 1일차. ${pax}명.${foodNote}`,
     };
   }
@@ -90,11 +95,13 @@ RESPOND ONLY with this exact JSON format (no other text):
 {
   "themes": ["Theme 1", "Theme 2"],
   "marketingNarrative": "A compelling 2-3 sentence description of why this trip is amazing",
-  "day1MarkdownTable": "| Time | Spot | Insider Tip |\\n|---|---|---|\\n| 10:00 | Spot Name | Practical tip |\\n| 12:00 | Spot Name | Practical tip |\\n| 14:00 | Spot Name | Practical tip |\\n| 16:00 | Spot Name | Practical tip |\\n| 18:00 | Spot Name | Practical tip |"
+  "day1MarkdownTable": "| Time | Spot | Transit | Insider Tip |\\n|---|---|---|---|\\n| 10:00 | Spot Name | Start point | Practical tip |\\n| 12:00 | Spot Name | Subway Line 4, 12 min | Practical tip |\\n| 14:00 | Spot Name | Walk 8 min | Practical tip |\\n| 16:00 | Spot Name | Bus 02, 15 min | Practical tip |\\n| 18:00 | Spot Name | Taxi 10 min | Practical tip |"
 }
 
 RULES:
 - Include 5-7 time slots from morning to evening
+- The "Transit" column = how to get from the PREVIOUS spot to the CURRENT spot (e.g. "Subway Line 4, 12 min", "Walk 8 min", "Bus 02, 15 min", "Taxi 10 min"). For the first spot, write "Start point".
+- Fill ALL 4 columns (Time | Spot | Transit | Insider Tip) for every row — never leave Transit blank.
 - Each tip must be specific and useful (subway exit numbers, best menu items, photo angles)
 - Use real, verified places that exist in Korea
 - Make the narrative exciting and personal`,
