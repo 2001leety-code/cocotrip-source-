@@ -141,6 +141,11 @@ jobs:
             --project='Pixel 5' \
             --project='iPhone 14 Pro'
 
+      # NOTE(2026-06-28): 위저드 full-flow E2E 를 여기 붙이려 했으나 preview 환경에서
+      # x-vercel-protection-bypass 헤더가 gstatic 폰트 preflight(CORS)에서 거부 -> 폰트
+      # 로드 실패 console error 로 spec 이 죽음(prod daily-health 엔 없는 preview 특유 문제).
+      # 위저드 E2E 는 prod daily-health 에 유지. PR 배선은 폰트 CORS 해결 후 재시도.
+
       - name: Upload Playwright report
         if: always() && github.event_name == 'deployment_status'
         uses: actions/upload-artifact@v4

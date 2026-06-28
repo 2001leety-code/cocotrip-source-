@@ -250,9 +250,42 @@ async function fetchUnprocessedRefunds(db) {
   }
 }
 
+// ── (g) 미답변 차터 문의 (24h+) ────────────────────────────────────
+// charter_inquiries 는 cs_tickets 와 별도 컬렉션 (Bus/VIP 견적 상담폼, inquiry-submit.js).
+// status 'NEW'|'pending' + createdAt 24h+ = 미답변. 차터는 고단가(₩33k~110k/h)라 방치 = 매출 손실.
+// telegram /inquiries 명령은 status 만 보고 24h 게이트가 없어 매일 누적 — 여기서 24h+ 만 to-do 화.
+async function fetchOverdueCharterInquiries(db) {
+  try {
+    const cutoffMs = Date.now() - DAY_MS;
+    const snap = await db.collection('charter_inquiries')
+      .where('status', 'in', ['NEW', 'pending'])
+      .limit(50)
+      .get();
+    const items = [];
+    snap.forEach((doc) => {
+      const c = doc.data();
+      const createdMs = tsToMs(c.createdAt);
+      if (createdMs && createdMs <= cutoffMs) {
+        items.push({
+          inquiryId: String(c.inquiryId || doc.id).slice(0, 12),
+          email: c.email || '-',
+          vehicle: c.vehicle || '-',
+          eventDate: c.eventDate || '-',
+          ageHours: Math.round((Date.now() - createdMs) / HOUR_MS),
+        });
+      }
+    });
+    return { items };
+  } catch (err) {
+    console.warn('[operator-todo] charter_inquiries query failed:', err.message);
+    return { items: [], error: err.message, skipped: true };
+  }
+}
+
 // ── 메시지 빌드 ──────────────────────────────────────────────────────
 function buildMessage({
   couponWarnings, csTickets, complaints, missingCoupons, unprocessedBookings, refundRequests,
+  charterInquiries,
   collectionMissing,
 }) {
   const totalCount =
@@ -261,7 +294,8 @@ function buildMessage({
     (complaints?.length || 0) +
     (missingCoupons?.length || 0) +
     (unprocessedBookings?.length || 0) +
-    (refundRequests?.length || 0);
+    (refundRequests?.length || 0) +
+    (charterInquiries?.length || 0);
 
   if (totalCount === 0 && (!collectionMissing || collectionMissing.length === 0)) {
     return null;
@@ -332,6 +366,16 @@ function buildMessage({
     lines.push('');
   }
 
+  if (charterInquiries && charterInquiries.length > 0) {
+    lines.push(`🚐 미답변 차터 문의 (24h+): ${charterInquiries.length}건`);
+    charterInquiries.slice(0, 10).forEach((c) => {
+      lines.push(` - <code>${c.inquiryId}</code> ${c.email} ${c.vehicle}/${c.eventDate} (${c.ageHours}h)`);
+    });
+    if (charterInquiries.length > 10) lines.push(` ... 외 ${charterInquiries.length - 10}건`);
+    lines.push('  → 텔레그램 /inquiries 또는 /admin 에서 응답');
+    lines.push('');
+  }
+
   return lines.join('\n').trimEnd();
 }
 
@@ -355,9 +399,10 @@ const operatorTodoTask = async (dryRun = false) => {
       fetchUsersMissingOnboardingCoupons(db),
       fetchUnprocessedBookings(db),
       fetchUnprocessedRefunds(db),
+      fetchOverdueCharterInquiries(db),
     ]);
 
-    const labels = ['couponWarnings', 'cs_tickets', 'plan_complaints', 'users', 'unprocessedBookings', 'refundRequests'];
+    const labels = ['couponWarnings', 'cs_tickets', 'plan_complaints', 'users', 'unprocessedBookings', 'refundRequests', 'charterInquiries'];
     const collectionMissing = [];
     const data = {};
 
@@ -380,6 +425,7 @@ const operatorTodoTask = async (dryRun = false) => {
       missingCoupons: data.users,
       unprocessedBookings: data.unprocessedBookings,
       refundRequests: data.refundRequests,
+      charterInquiries: data.charterInquiries,
       collectionMissing,
     });
 
@@ -389,13 +435,14 @@ const operatorTodoTask = async (dryRun = false) => {
       (data.plan_complaints?.length || 0) +
       (data.users?.length || 0) +
       (data.unprocessedBookings?.length || 0) +
-      (data.refundRequests?.length || 0);
+      (data.refundRequests?.length || 0) +
+      (data.charterInquiries?.length || 0);
 
     console.log(
       `[operator-todo] counts: couponWarnings=${data.couponWarnings?.length || 0} ` +
       `cs=${data.cs_tickets?.length || 0} complaints=${data.plan_complaints?.length || 0} ` +
       `missingCoupons=${data.users?.length || 0} unprocessed=${data.unprocessedBookings?.length || 0} ` +
-      `refunds=${data.refundRequests?.length || 0} missing=[${collectionMissing.join(',')}]`,
+      `refunds=${data.refundRequests?.length || 0} charter=${data.charterInquiries?.length || 0} missing=[${collectionMissing.join(',')}]`,
     );
 
     if (!msg) {
@@ -413,6 +460,7 @@ const operatorTodoTask = async (dryRun = false) => {
           users: data.users?.length || 0,
           unprocessedBookings: data.unprocessedBookings?.length || 0,
           refundRequests: data.refundRequests?.length || 0,
+          charterInquiries: data.charterInquiries?.length || 0,
         }, collectionMissing },
       };
     }
