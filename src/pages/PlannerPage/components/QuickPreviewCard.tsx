@@ -1,7 +1,7 @@
 // Quick preview card -- extracted from legacy PlannerPage.tsx L1613-1703.
-// 2026-06-28: 표 → 세로 타임라인 카드 재설계 (시각·장소·팁·Google지도 링크). 운영자 Trip.com 벤치마크.
-//   day1MarkdownTable(시간|명소|팁 3컬럼, api/ai-planner-quick.js)을 타임라인으로 렌더.
-//   교통 컬럼은 현재 quick preview 데이터엔 없음 → 헤더에 있으면 유연 표시(백엔드 확장 대비).
+// 2026-06-28: 표 → 세로 타임라인 카드 재설계 (시각·장소·교통·팁·Google지도 링크). 운영자 Trip.com 벤치마크.
+//   day1MarkdownTable(시간|명소|교통|팁 4컬럼, api/ai-planner-quick.js)을 타임라인으로 렌더.
+//   교통 컬럼 = 이전 장소→현재 장소 이동 수단. 헤더 정규식으로 유연 감지 → 4컬럼/3컬럼(레거시) 모두 호환.
 import { Sparkles, MapPin } from 'lucide-react';
 import type { PlannerDict } from '../types';
 
@@ -52,7 +52,8 @@ export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: Qu
         if (!table || (typeof table === 'string' && table.trim().length < 10)) return null;
         const tableStr = String(table);
         const tableLines = tableStr.split('\n').filter((l: string) => l.trim().startsWith('|'));
-        const dataLines = tableLines.filter((l: string) => !l.match(/^\|[\s:\-]+\|$/));
+        // separator 행 제거 — multi-column "| --- | --- |" 은 셀 사이 | 때문에 [\s:\-] 만으론 안 걸러짐 → | 포함(미리보기 "--- ---" 가짜행 fix).
+        const dataLines = tableLines.filter((l: string) => !l.match(/^\|[\s:\-|]+\|$/));
         if (dataLines.length < 2) {
           return (
             <div className="bg-black/40 rounded-xl p-4 overflow-x-auto text-sm text-white/80">
@@ -62,7 +63,7 @@ export function QuickPreviewCard({ resultQuick, p, isMobile }: { resultQuick: Qu
         }
         const tHeaders = dataLines[0].split('|').filter((c: string) => c.trim()).map((c: string) => c.trim());
         const tRows = dataLines.slice(1).map((r: string) => r.split('|').filter((c: string) => c.trim()).map((c: string) => c.trim()));
-        // 헤더에 교통 컬럼(있으면) 탐지 — 현재 quick preview 데이터엔 없지만 백엔드 확장 대비 유연 지원.
+        // 헤더에 교통 컬럼 탐지 (4컬럼 시간|명소|교통|팁). 레거시 3컬럼(교통 없음)은 transitIdx=-1 → 하위호환.
         const transitIdx = tHeaders.findIndex((h: string) => /교통|이동|transit|交通|교통편/i.test(h));
         const accent = isMobile ? '#B668FC' : '#7C5CFC';
         const mapLabel = p.quickPreviewMapLabel || 'Map';
