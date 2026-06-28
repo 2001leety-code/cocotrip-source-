@@ -247,7 +247,7 @@ export default async function handler(req, res) {
 
     let foodContext = '';
     try {
-      foodContext = getFoodContext(area, dietaryAll, priceRange, 10) || '';
+      foodContext = getFoodContext(area, dietaryAll, priceRange, Math.min(40, Math.max(10, (durationDays || 1) * 4))) || ''; // P325: maxItems 일수비례(환각감소)
       if (foodContext) console.log('[ai-planner-full] Food context injected:', foodContext.length, 'chars');
     } catch (foodErr) {
       console.warn('[ai-planner-full] getFoodContext failed:', foodErr.message);

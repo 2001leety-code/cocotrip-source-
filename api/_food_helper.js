@@ -334,8 +334,12 @@ export function getFoodContext(destination, dietPrefs = [], priceRange = 'Any', 
     const priceLevel = r.priceLevel != null ? ` 💴${r.priceLevel}` : '';
     const englishMenu = r.hasEnglishMenu === true ? ' 🌐EN' : '';
     const wheelchair = r.wheelchairAccessible === true ? ' ♿' : '';
+    // P325: per-line dietary marker — Gemini 가 어느 식당이 halal/vegan 인지 알고
+    // stop.dietary_tags 에 박을 수 있게 (DB halal 식당의 ~80%는 이름에 halal 토큰 없음).
+    const _t = String(r.tag || '').toLowerCase();
+    const dietMarker = _t === 'halal' ? ' [HALAL]' : _t === 'vegan' ? ' [VEGAN]' : _t === 'vegetarian' ? ' [VEGETARIAN]' : '';
     return (
-      `  • ${r.name.split('|')[0].trim()} (${r.nameEn || ''}) ` +
+      `  • ${r.name.split('|')[0].trim()} (${r.nameEn || ''})${dietMarker} ` +
       `⭐${r.rating} (${r.reviewCount} reviews)${priceInfo}${priceLevel}${englishMenu}${wheelchair}\n` +
       `    📍 ${r.address}\n` +
       `    🗺️ ${r.googleMapsUrl || ''}`
