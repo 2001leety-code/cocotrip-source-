@@ -13,6 +13,7 @@ import { haptic } from '@/lib/haptic';
 import { TOURS, getTourPriceKRW } from '@/data/tours';
 import { formatPrice } from '@/lib/exchange-rate';
 import type { Translations } from '@/i18n';
+import { ExampleItinerariesSection } from './ExampleItinerariesSection';
 
 interface MobileHomeProps {
   t: Translations;
@@ -278,6 +279,9 @@ export function MobileHome({ t: _t }: MobileHomeProps) {
           <ChevronRight className="w-4 h-4 text-purple-400/30 shrink-0" />
         </Link>
       </section>
+
+      {/* AI 플랜 예시 (지역별) — 데스크톱 홈과 동일 반응형 섹션(grid-cols-1 → 모바일 1열). 광고 유입 모바일에서도 "AI가 짜주는 예시" 노출. AI 호출 0(정적). */}
+      <ExampleItinerariesSection />
 
       {/* D-DAY */}
       {nextTrip && (
