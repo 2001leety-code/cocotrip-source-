@@ -540,6 +540,19 @@ export default function MyPage() {
                   <code className="text-xs bg-white/5 px-2 py-0.5 rounded text-[#C4956A]">{c.code}</code>
                   {c.isUsed && <span className="text-[10px] text-red-400/60 uppercase">Used</span>}
                 </div>
+                {/* AI 무료쿠폰(ai-plan)은 쿠폰함 경유로 사용 (2026-06-28): "사용하기" →
+                    /planner?coupon=CODE. PurchaseSection 이 URL 코드를 검증 후 0원 적용. */}
+                {c.productScope === 'ai-plan' && !c.isUsed && c.expiresAt > Date.now() && (
+                  <Link
+                    to={`/planner?coupon=${encodeURIComponent(c.code)}`}
+                    onClick={() => haptic('tap')}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.99]"
+                    style={{ background: 'linear-gradient(135deg, #34c759, #2a9d8f)' }}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {mp.useAiCoupon || '사용하기'}
+                  </Link>
+                )}
               </div>
             ))}
             </div>

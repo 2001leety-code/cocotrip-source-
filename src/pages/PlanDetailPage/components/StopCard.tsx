@@ -304,7 +304,11 @@ export function StopCard({ stop, lodgingRole, isOwner }: { stop: PlanStop; lodgi
         {isFav && (
           <Heart aria-hidden className="w-3.5 h-3.5 text-pink-400 fill-current shrink-0 mt-1" />
         )}
-        <ChevronDown className={`w-4 h-4 text-white/55 shrink-0 mt-1 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        {/* 운영자: 화살표만으론 펼침 가능 여부를 모를 수 있어 밑에 "자세히" 텍스트(접힘 상태). */}
+        <div className="flex flex-col items-center shrink-0 mt-1 gap-0.5">
+          <ChevronDown className={`w-4 h-4 text-white/55 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+          {!expanded && <span className="text-[9px] leading-none text-white/45 whitespace-nowrap">{({ ko: '자세히', en: 'Details', ja: '詳細', zh: '详情' } as Record<string, string>)[lng] || '자세히'}</span>}
+        </div>
       </div>
 
       {/* Expanded details — mobile: viewport-based 동적 cap (콘텐츠 잘림 방지).
