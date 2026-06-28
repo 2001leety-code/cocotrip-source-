@@ -23,6 +23,7 @@ import { checkAvailability, REASON_LABELS } from '@/data/tour-availability';
 import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-availability-store';
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { CartAddButton } from '@/components/CartButton';
+import { BookingConsent } from '@/components/booking/BookingConsent';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
 import { useAuth } from '@/hooks/useAuth';
@@ -249,6 +250,12 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const [lineId, setLineId] = useState<string>(initialSnap?.lineId ?? '');
   const [memoText, setMemoText] = useState<string>(initialSnap?.memoText ?? '');
 
+  // 2026-06-28 트립닷컴식 예약정보: 결제 직전 SMS 인증 + 약관 동의 (BookingConsent).
+  //   phoneSmsVerified 는 세션 상태 — 보안상 24h snapshot 에 저장 안 함(재진입 시 재인증).
+  //   termsAgreed 도 매 결제마다 명시 동의 받도록 비저장 (재진입 시 다시 체크).
+  const [phoneSmsVerified, setPhoneSmsVerified] = useState<boolean>(false);
+  const [termsAgreed, setTermsAgreed] = useState<boolean>(false);
+
   // 2026-06-11 가입 프로필 prefill — phone 만 빈칸일 때 채움 (픽업/WhatsApp/LINE/메모는 프로필 미수집 → 무변경).
   // localStorage 직전입력/사용자 타이핑은 절대 안 덮음(functional update 로 최신 phone 확인). 실패/로그아웃=빈칸 graceful.
   const { profile: prefillProfile } = useUserProfile();
@@ -363,7 +370,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   // Step 2 → checkout gate. isTourStep2Complete 헬퍼에 위임 (테스트 가능).
   // PR-F: minimal=true = 전화 1개만 필수. minimal=false = 5개 전부 필수 (기본).
   const step2Complete = isTourStep2Complete(
-    { phone, pickupAddress, whatsappId, lineId, memoText },
+    { phone, pickupAddress, whatsappId, lineId, memoText, phoneSmsVerified, termsAgreed },
     FEATURE_TOUR_BOOKING_MINIMAL,
   );
 
@@ -380,6 +387,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       `LINE: ${lineId}`,
       `Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`,
       `Notes: ${memoText}`,
+      // 2026-06-28 트립닷컴식 예약정보 — SMS 인증/약관 동의 결과를 memo 에 기록.
+      //   (결제 로직 무관 — backend 가 memo 를 그대로 booking 에 보존. 운영자 컴플라이언스 추적용.)
+      `Phone SMS verified: ${phoneSmsVerified ? 'yes' : 'no'}`,
+      `Terms agreed: ${termsAgreed ? 'yes' : 'no'}`,
     ];
     if (selectedSlot) {
       const mod = selectedSlot.price_modifier_krw ?? 0;
@@ -388,7 +399,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       lines.push(`Slot: ${selectedSlot.id} @ ${selectedSlot.start_time}${labelStr ? ` "${labelStr}"` : ''}${modStr}`);
     }
     return lines.join(' | ');
-  }, [tour.title.en, pax, driverLang, phone, pickupAddress, whatsappId, lineId, effectiveAddons, memoText, selectedSlot]);
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, whatsappId, lineId, effectiveAddons, memoText, selectedSlot, phoneSmsVerified, termsAgreed]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
@@ -709,6 +720,16 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
             />
           </div>
 
+          {/* 2026-06-28 트립닷컴식 예약정보 — 결제 직전 SMS 인증 + 약관 동의 (BookingConsent).
+              위 phone 필드에 입력된 번호로 SMS 발송 → 6자리 확인. 둘 다 충족해야 결제 버튼 활성. */}
+          <BookingConsent
+            phone={phone}
+            onVerified={setPhoneSmsVerified}
+            termsAgreed={termsAgreed}
+            onTermsChange={setTermsAgreed}
+            language={langKey}
+          />
+
           {/* Tiny price tag carry-over */}
           <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <span className="text-[12px] text-white/55">{labels.priceTotal}</span>
@@ -777,6 +798,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     vehicleType={tour.vehicleType.toLowerCase()}
                     memo={fullMemo}
                     userEmail={userEmail}
+                    // 2026-06-28 트립닷컴식 예약정보 — 결제 게이트(step2Complete)가 이미 둘 다 true 를
+                    //   보장하지만, 백엔드 booking 레코드에 동의 증거를 남기도록 capture body 로 전달.
+                    phoneSmsVerified={phoneSmsVerified}
+                    termsAgreed={termsAgreed}
                     // PR-R (2026-05-08): 마감 검증 — 투어는 별도 시간 입력 X, 09:00 기본
                     // durationDays >= 2 면 multi_day cutoff (48h) 자동 적용.
                     pickupTime="09:00"

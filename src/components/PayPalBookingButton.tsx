@@ -73,6 +73,12 @@ interface Props {
   tripType?: 'oneway' | 'roundtrip';
   /** transfer/tour_hourly 결제 시 backend 차종 재계산용 */
   vehicle?: string;
+  /** 2026-06-28 트립닷컴식 예약정보 — 결제 직전 SMS 본인확인 완료 여부.
+   *  ⚠️ 결제 금액·capture·멱등성 로직 무관. createPaypalOrder/capturePaypalOrder body 에
+   *  additive 로 전달만 → 백엔드가 booking 레코드에 컴플라이언스 메타로 보존. 미전달 시 false. */
+  phoneSmsVerified?: boolean;
+  /** 2026-06-28 트립닷컴식 예약정보 — 개인정보/이용약관 동의 여부. (금액 로직 무관, 추적용 보존.) */
+  termsAgreed?: boolean;
 }
 
 interface RateInfo {
@@ -104,7 +110,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, phoneSmsVerified, termsAgreed }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -375,6 +381,13 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               ...(airport ? { airport } : {}),
               ...(couponDocId ? { couponDocId, couponUserId } : {}),
               ...(promoApplied && promoCode ? { promoCode } : {}),
+              // 2026-06-28 트립닷컴식 예약정보 — SMS 본인확인/약관동의 컴플라이언스 메타.
+              //   🔴 fix: 이 두 값을 capture body 에 전달하지 않으면 capturePaypalOrder.js 가
+              //   항상 false 로 기록(동의 증거 미보존). additive — 금액/capture/멱등성 로직 무관.
+              //   undefined 면 false 전달(백엔드 ===true 비교라 false 명시가 안전).
+              phoneSmsVerified: phoneSmsVerified === true,
+              termsAgreed: termsAgreed === true,
+              ...(termsAgreed === true ? { termsAgreedAt: new Date().toISOString() } : {}),
             }),
           });
           const json = await res.json();
@@ -499,6 +512,11 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
           // v2(2026-06-07): 개인 쿠폰을 createOrder 에도 전달 → 백엔드가 실제 청구가에 적용(표시=청구).
           // OFF 시 백엔드가 무시 → 현행 동작. capture 의 couponDocId 전달(소진)과 별개.
           ...(couponDocId ? { couponDocId, couponUserId } : {}),
+          // 2026-06-28 트립닷컴식 예약정보 — SMS 본인확인/약관동의 메타(컴플라이언스).
+          //   additive 전달만 — createPaypalOrder 는 금액을 productType/날짜/쿠폰으로만 산정,
+          //   이 두 값은 무시(알 수 없는 필드). 멱등성/금액/환율/락 로직 무관.
+          ...(phoneSmsVerified === true ? { phoneSmsVerified: true } : {}),
+          ...(termsAgreed === true ? { termsAgreed: true } : {}),
         }),
       });
       const json = await res.json();

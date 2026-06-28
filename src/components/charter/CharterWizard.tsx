@@ -18,6 +18,7 @@ import { Step4PaxVehicle } from './Step4PaxVehicle';
 import { Step5DateOptions } from './Step5DateOptions';
 import { Step6Quote } from './Step6Quote';
 import { InquiryForm } from './InquiryForm';
+import { BookingConsent } from '@/components/booking/BookingConsent';
 import { getWizardI18n } from './wizard-i18n';
 import { isValidInternationalPhone } from '@/lib/phone-validation';
 import {
@@ -34,7 +35,9 @@ type CharterSnapshotValues = { state: WizardState; manualKm: number | null };
 
 type CharterWizardProps = {
   initialState?: Partial<WizardState>;
-  onComplete?: (state: WizardState) => void;
+  // 2026-06-28 트립닷컴식 예약정보: consent 는 WizardState(스냅샷 저장)에 안 넣고 — 보안상
+  //   재진입 시 재인증·재동의 — onComplete 두 번째 인자로 결제 패널에 전달. 미전달=하위호환.
+  onComplete?: (state: WizardState, consent?: { phoneSmsVerified: boolean; termsAgreed: boolean }) => void;
   language?: 'ko' | 'en' | 'ja' | 'zh';
 };
 
@@ -113,6 +116,10 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   const { user } = useAuth();
   // 사용자 manual km override — Geocoding 실패 또는 직접 보정.
   const [manualKm, setManualKm] = useState<number | null>(null);
+  // 2026-06-28 트립닷컴식 예약정보: Step 5 결제 직전 SMS 인증 + 약관 동의 (BookingConsent).
+  //   세션 상태 — snapshot(WizardState)에 저장 안 함(보안: 재진입 시 재인증·재동의).
+  const [phoneSmsVerified, setPhoneSmsVerified] = useState<boolean>(false);
+  const [termsAgreed, setTermsAgreed] = useState<boolean>(false);
   // Resume modal — 사용자가 '이어서/새로 시작' 결정할 때까지 main snapshot 보존.
   const [resumeOpen, setResumeOpen] = useState<boolean>(!!initialSnap);
 
@@ -194,6 +201,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         // 2026-06-07: 약한 ≥7자리 → 투어와 동일 형식검증(isValidInternationalPhone, 8~15자리).
         // 기사 배차 연락이 닿는 번호 보장 (오타·가짜번호 차단). 통합 예약정보 정책.
         if (!isValidInternationalPhone(state.customerPhone ?? '')) return false;
+        // 2026-06-28 트립닷컴식 예약정보: 결제 직전 SMS 인증 + 약관 동의 필수.
+        if (!phoneSmsVerified || !termsAgreed) return false;
         if (state.service === 'airport_transfer') {
           if (!state.airport?.flightNumber || state.airport.flightNumber.length < 3) return false;
           if (state.origin === 'ICN' && !state.airport?.terminal) return false;
@@ -212,7 +221,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       }
       default: return false;
     }
-  }, [currentStep, state, quote, isInquiryVehicle]);
+  }, [currentStep, state, quote, isInquiryVehicle, phoneSmsVerified, termsAgreed]);
 
   const goNext = () => {
     // 2026-06-19 (운영자 B 결정): 하드 로그인 게이트 제거 — 비로그인도 견적(6단계) 본다.
@@ -269,7 +278,22 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         {currentStep === 2 && <Step2Service     state={state} patch={patch} language={language} />}
         {currentStep === 3 && <Step3Destination state={state} patch={patch} language={language} />}
         {currentStep === 4 && <Step4PaxVehicle  state={state} patch={patch} language={language} />}
-        {currentStep === 5 && <Step5DateOptions state={state} patch={patch} language={language} />}
+        {currentStep === 5 && (
+          <div className="space-y-6">
+            <Step5DateOptions state={state} patch={patch} language={language} />
+            {/* 2026-06-28 트립닷컴식 예약정보 — Step 5 하단 SMS 인증 + 약관 동의.
+                위 연락처 필드의 customerPhone 으로 SMS 발송. 둘 다 충족해야 다음(결제) 진행. */}
+            <div className="pt-4 border-t border-white/[0.06]">
+              <BookingConsent
+                phone={state.customerPhone ?? ''}
+                onVerified={setPhoneSmsVerified}
+                termsAgreed={termsAgreed}
+                onTermsChange={setTermsAgreed}
+                language={language}
+              />
+            </div>
+          </div>
+        )}
         {currentStep === 6 && (
           isInquiryVehicle ? (
             // Bus / VIP — 가격 카드 대신 상담 폼.
@@ -355,7 +379,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             onClick={() => {
               // 결제 진입 시 charter snapshot clear — 결제 완료/취소 후 빈 상태 재시작 보장.
               clearWizardSnapshot('charter');
-              onComplete(state);
+              // 2026-06-28 트립닷컴식 예약정보 — Step 5 에서 받은 SMS 인증/약관 동의를 결제 패널로 전달
+              //   (canAdvance 게이트가 이미 둘 다 true 보장. 백엔드 booking 레코드 동의 증거 보존용).
+              onComplete(state, { phoneSmsVerified, termsAgreed });
             }}
             disabled={!canAdvance()}
             className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"

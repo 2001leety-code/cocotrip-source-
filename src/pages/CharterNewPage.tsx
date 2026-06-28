@@ -30,6 +30,9 @@ export default function CharterNewPage() {
   const [params] = useSearchParams();
   const { user } = useAuth();
   const [completedState, setCompletedState] = useState<WizardState | null>(null);
+  // 2026-06-28 트립닷컴식 예약정보 — 위저드 Step 5 의 SMS 인증/약관 동의 결과.
+  //   WizardState(스냅샷)에 안 넣고 별도 보관(보안: 재진입 시 재인증). 결제 패널 → PayPalBookingButton 전달.
+  const [consent, setConsent] = useState<{ phoneSmsVerified: boolean; termsAgreed: boolean }>({ phoneSmsVerified: false, termsAgreed: false });
 
   usePageMeta({
     title: t.pageMeta?.charterNew?.title ?? 'Charter Quote — Private Car in Korea',
@@ -73,15 +76,19 @@ export default function CharterNewPage() {
         {!completedState ? (
           <CharterWizard
             initialState={initial}
-            onComplete={setCompletedState}
+            onComplete={(state, c) => {
+              setCompletedState(state);
+              setConsent(c ?? { phoneSmsVerified: false, termsAgreed: false });
+            }}
             language={(['ko','en','ja','zh'].includes(language) ? language : 'en') as 'ko' | 'en' | 'ja' | 'zh'}
           />
         ) : (
           <PaymentPanel
             state={completedState}
+            consent={consent}
             userEmail={user?.email ?? ''}
             language={language as 'ko' | 'en' | 'ja' | 'zh'}
-            onBack={() => setCompletedState(null)}
+            onBack={() => { setCompletedState(null); setConsent({ phoneSmsVerified: false, termsAgreed: false }); }}
             onPatchState={(patch) => setCompletedState((prev) => (prev ? { ...prev, ...patch } : prev))}
           />
         )}
@@ -105,9 +112,11 @@ export default function CharterNewPage() {
 
 // ─────────────────────────────────────────────────────────
 function PaymentPanel({
-  state, userEmail, language, onBack, onPatchState,
+  state, consent, userEmail, language, onBack, onPatchState,
 }: {
   state: WizardState;
+  /** 2026-06-28 트립닷컴식 예약정보 — 위저드 Step 5 의 SMS 인증/약관 동의 결과 (PayPalBookingButton 으로 전달). */
+  consent: { phoneSmsVerified: boolean; termsAgreed: boolean };
   userEmail: string;
   language: 'ko' | 'en' | 'ja' | 'zh';
   onBack: () => void;
@@ -236,6 +245,9 @@ function PaymentPanel({
           memo={state.notes ?? ''}
           itineraryData={{ wizard: state, airport: state.airport ?? null }}
           userEmail={userEmail}
+          // 2026-06-28 트립닷컴식 예약정보 — 위저드 Step 5 SMS 인증/약관 동의 → capture body 보존.
+          phoneSmsVerified={consent.phoneSmsVerified}
+          termsAgreed={consent.termsAgreed}
           // PR-R (2026-05-08): 마감 검증용 픽업 시각 + 멀티데이 일수
           pickupTime={state.pickupTime ?? '09:00'}
           durationDays={state.service === 'multi_day' && state.endDate && state.startDate
@@ -275,6 +287,9 @@ function PaymentPanel({
             memo={state.notes ?? ''}
             itineraryData={{ wizard: state, airport: state.airport ?? null, estimateBreakdown: quote }}
             userEmail={userEmail}
+            // 2026-06-28 트립닷컴식 예약정보 — 위저드 Step 5 SMS 인증/약관 동의 → capture body 보존.
+            phoneSmsVerified={consent.phoneSmsVerified}
+            termsAgreed={consent.termsAgreed}
             // PR-R (2026-05-08): 마감 검증용 픽업 시각 + 멀티데이 일수
             pickupTime={state.pickupTime ?? '09:00'}
             durationDays={state.service === 'multi_day' && state.endDate && state.startDate
