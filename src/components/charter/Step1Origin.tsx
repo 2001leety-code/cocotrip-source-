@@ -2,7 +2,7 @@
 // PR-H: 자유 입력 → AddressAutocomplete (Naver Local Search + 미니 지도 확인 카드).
 // 자동완성 결과만 허용 — 좌표를 보유해야 정확한 거리 산출 가능.
 import { useState } from 'react';
-import { Plane, Hotel, Car, ChevronDown, MapPin } from 'lucide-react';
+import { Plane, Hotel, Car, ChevronDown, MapPin, Search } from 'lucide-react';
 import type { WizardState, OriginCode } from './types';
 import { AIRPORTS_CATALOG, CITIES_CATALOG } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
@@ -35,8 +35,18 @@ interface Props {
 
 export function Step1Origin({ state, patch, language = 'en' }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState('');
   const lang = language === 'ko' ? 'ko' : 'en';
   const i18n = getWizardI18n(language);
+  // 공항·도시 검색 — 타이핑하면 PRIMARY+SECONDARY 전체에서 이름/코드 매칭 필터.
+  const q = query.trim().toLowerCase();
+  const ALL_ORIGINS: OriginCode[] = [...PRIMARY, ...SECONDARY];
+  const filtered = q
+    ? ALL_ORIGINS.filter((code) => {
+        const { title } = labelFor(code, lang);
+        return title.toLowerCase().includes(q) || code.toLowerCase().includes(q);
+      })
+    : null;
   // PR-H: 자유 입력 → AddressAutocomplete. 자동완성 i18n 은 addressAutocomplete namespace.
   const aacText = (translations[language] as unknown as {
     addressAutocomplete?: { originLabel: string; placeholderHint: string };
@@ -83,9 +93,31 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        {PRIMARY.map(card)}
+      {/* 공항·도시 검색 (트립닷컴식) — 타이핑하면 카드 필터. 비우면 기존 주요/펼치기. */}
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={lang === 'ko' ? '공항·도시 검색 (예: ICN, 인천, 부산)' : 'Search airport / city (e.g. ICN, Incheon, Busan)'}
+          className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-white/10 bg-white/[0.04] text-white text-sm placeholder:text-white/40 outline-none focus:border-[#B668FC]/40"
+        />
       </div>
+
+      {filtered ? (
+        filtered.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3">{filtered.map(card)}</div>
+        ) : (
+          <p className="text-center text-white/40 text-sm py-6">
+            {lang === 'ko' ? '검색 결과 없음 — 아래 자유 주소 검색을 써보세요' : 'No match — try the free address search below'}
+          </p>
+        )
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {PRIMARY.map(card)}
+        </div>
+      )}
 
       <button
         type="button"
@@ -98,9 +130,11 @@ export function Step1Origin({ state, patch, language = 'en' }: Props) {
 
       {expanded && (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            {SECONDARY.map(card)}
-          </div>
+          {!filtered && (
+            <div className="grid grid-cols-2 gap-3">
+              {SECONDARY.map(card)}
+            </div>
+          )}
           {/* PR-H: 자유 입력 → AddressAutocomplete (자동완성 + 미니지도 확인). */}
           <AddressAutocomplete
             id="charter-origin-autocomplete"
