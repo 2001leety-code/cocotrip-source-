@@ -79,6 +79,9 @@ interface Props {
   phoneSmsVerified?: boolean;
   /** 2026-06-28 트립닷컴식 예약정보 — 개인정보/이용약관 동의 여부. (금액 로직 무관, 추적용 보존.) */
   termsAgreed?: boolean;
+  /** 2026-06-29 마케팅(선택) 정보 수신 동의 — termsAgreed 와 독립. 금액/게이트 무관, capture body 로
+   *  보존만(미동의해도 결제 진행). 미전달 시 false. */
+  marketingConsent?: boolean;
 }
 
 interface RateInfo {
@@ -110,7 +113,7 @@ declare global {
 // 🧪 bypass 버튼 노출. 운영 안정 후 제거 가능.
 const TEST_ACCOUNTS: string[] = ['2001leety@gmail.com'];
 
-export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, phoneSmsVerified, termsAgreed }: Props) {
+export function PayPalBookingButton({ productType, passengers, dateStart = '', dateEnd = '', priceKRW: rawPriceKRW, p = {}, lang, pickupLocation = '', dropoffLocation = '', vehicleType = '', memo = '', itineraryData, onPaymentSuccess, userEmail = '', airport, customAmountKRW, pickupTime = '', durationDays, originKey, destKey, tripType, vehicle, phoneSmsVerified, termsAgreed, marketingConsent }: Props) {
   // 이슈 18: userId 필요 — Firestore 개인 쿠폰 검증 시 backend에 전달.
   // B-9 (2026-05-12): authUser 를 isSandboxAccount 계산에도 재사용. hook 호출 1회로 통합.
   const { user: authUser } = useAuth();
@@ -388,6 +391,9 @@ export function PayPalBookingButton({ productType, passengers, dateStart = '', d
               phoneSmsVerified: phoneSmsVerified === true,
               termsAgreed: termsAgreed === true,
               ...(termsAgreed === true ? { termsAgreedAt: new Date().toISOString() } : {}),
+              // 2026-06-29 마케팅(선택) 동의 — termsAgreed 와 독립, capture body 보존만(게이트 X).
+              marketingConsent: marketingConsent === true,
+              ...(marketingConsent === true ? { marketingConsentAt: new Date().toISOString() } : {}),
             }),
           });
           const json = await res.json();

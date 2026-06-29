@@ -79,11 +79,14 @@ interface Props {
   footerSlot?: ReactNode;
   termsAgreed?: boolean;
   onTermsChange?: (agreed: boolean) => void;
+  // 2026-06-29 마케팅(선택) 동의 emit — BookingInfoForm 의 마케팅 토글을 wizard 상태로 전달.
+  //   약관(onTermsChange)과 독립. 결제 게이트 무관(미배선이면 BookingInfoForm 내부 state 로만 유지).
+  onMarketingChange?: (agreed: boolean) => void;
 }
 
 const toISO = (d: Date) => d.toISOString().slice(0, 10);
 
-export function Step5DateOptions({ state, patch, language = 'en', quote, footerSlot, termsAgreed, onTermsChange }: Props) {
+export function Step5DateOptions({ state, patch, language = 'en', quote, footerSlot, termsAgreed, onTermsChange, onMarketingChange }: Props) {
   const i18n = getWizardI18n(language);
   const today = toISO(new Date());
   const isAirport = state.service === 'airport_transfer';
@@ -341,6 +344,7 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           onPhoneChange={(v) => patch({ customerPhone: v })}
           externalAgreeAll={termsAgreed}
           onAgreeAllChange={onTermsChange}
+          onMarketingChange={onMarketingChange}
           onFieldsChange={handleFieldsChange}
           hideAddons
           hideDiscount
