@@ -37,7 +37,7 @@ type CharterWizardProps = {
   initialState?: Partial<WizardState>;
   // 2026-06-28 트립닷컴식 예약정보: consent 는 WizardState(스냅샷 저장)에 안 넣고 — 보안상
   //   재진입 시 재인증·재동의 — onComplete 두 번째 인자로 결제 패널에 전달. 미전달=하위호환.
-  onComplete?: (state: WizardState, consent?: { phoneSmsVerified: boolean; termsAgreed: boolean }) => void;
+  onComplete?: (state: WizardState, consent?: { phoneSmsVerified: boolean; termsAgreed: boolean; marketingConsent: boolean }) => void;
   language?: 'ko' | 'en' | 'ja' | 'zh';
 };
 
@@ -120,6 +120,9 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
   //   세션 상태 — snapshot(WizardState)에 저장 안 함(보안: 재진입 시 재인증·재동의).
   const [phoneSmsVerified, setPhoneSmsVerified] = useState<boolean>(false);
   const [termsAgreed, setTermsAgreed] = useState<boolean>(false);
+  // 2026-06-29 마케팅(선택) 동의 — 약관과 독립. canAdvance(case5/case6) 게이트에 절대 미포함
+  //   (미동의해도 결제 진행). onComplete 로 결제 패널 → capture body 보존.
+  const [marketingConsent, setMarketingConsent] = useState<boolean>(false);
   // Resume modal — 사용자가 '이어서/새로 시작' 결정할 때까지 main snapshot 보존.
   const [resumeOpen, setResumeOpen] = useState<boolean>(!!initialSnap);
 
@@ -300,6 +303,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
             quote={quote}
             termsAgreed={termsAgreed}
             onTermsChange={setTermsAgreed}
+            onMarketingChange={setMarketingConsent}
             footerSlot={
               <BookingConsent
                 phone={state.customerPhone ?? ''}
@@ -399,7 +403,7 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
               clearWizardSnapshot('charter');
               // 2026-06-28 트립닷컴식 예약정보 — Step 5 에서 받은 SMS 인증/약관 동의를 결제 패널로 전달
               //   (canAdvance 게이트가 이미 둘 다 true 보장. 백엔드 booking 레코드 동의 증거 보존용).
-              onComplete(state, { phoneSmsVerified, termsAgreed });
+              onComplete(state, { phoneSmsVerified, termsAgreed, marketingConsent });
             }}
             disabled={!canAdvance()}
             className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"

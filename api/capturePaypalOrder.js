@@ -94,7 +94,8 @@ export default async function handler(req, res) {
       tourId, tourSlotId, bookingDate, slotCapacity,
       // 2026-06-28 트립닷컴식 예약정보 — 결제 직전 SMS 인증/약관 동의 메타데이터(컴플라이언스 추적용).
       // 결제/금액/멱등성 로직 무관 — booking 레코드에 그대로 보존만. 미전달 시 기본값(false/'').
-      phoneSmsVerified, termsAgreed, termsAgreedAt } = body;
+      // 2026-06-29 마케팅(선택) 동의 — termsAgreed 와 완전 독립. 미동의해도 결제 진행됨(강제동의 X).
+      phoneSmsVerified, termsAgreed, termsAgreedAt, marketingConsent, marketingConsentAt } = body;
     if (!orderID) { res.writeHead(400, JSON_CORS); return res.end(JSON.stringify(_err('orderID is required', 'MISSING_FIELDS'))); }
 
     // SECURITY (버그헌트 #11 2026-06-14): createPaypalOrder 가 저장한 주문 스냅샷에서 product/pax/date 를
@@ -397,6 +398,9 @@ export default async function handler(req, res) {
       phoneSmsVerified: phoneSmsVerified === true,
       termsAgreed: termsAgreed === true,
       termsAgreedAt: termsAgreedAt || '',
+      // 2026-06-29 마케팅(선택) 동의 — bookings 문서 독립 필드. termsAgreed 와 무관, 결제 게이트 미포함.
+      marketingConsent: marketingConsent === true,
+      marketingConsentAt: marketingConsentAt || '',
       airport: airport || null,
       amountUSD: amount,
       amountKRW,

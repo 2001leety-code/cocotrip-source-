@@ -236,6 +236,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   //   termsAgreed 도 매 결제마다 명시 동의 받도록 비저장 (재진입 시 다시 체크).
   const [phoneSmsVerified, setPhoneSmsVerified] = useState<boolean>(false);
   const [termsAgreed, setTermsAgreed] = useState<boolean>(false);
+  // 2026-06-29 마케팅(선택) 정보 수신 동의 — 약관(termsAgreed)과 독립. 결제 게이트(step2Complete)에
+  //   절대 미포함(미동의해도 결제 진행). capture body 로만 전달돼 booking 레코드에 보존.
+  const [marketingConsent, setMarketingConsent] = useState<boolean>(false);
 
   // 2026-06-11 가입 프로필 prefill — phone 만 빈칸일 때 채움 (픽업/WhatsApp/LINE/메모는 프로필 미수집 → 무변경).
   // localStorage 직전입력/사용자 타이핑은 절대 안 덮음(functional update 로 최신 phone 확인). 실패/로그아웃=빈칸 graceful.
@@ -378,6 +381,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       //   (결제 로직 무관 — backend 가 memo 를 그대로 booking 에 보존. 운영자 컴플라이언스 추적용.)
       `Phone SMS verified: ${phoneSmsVerified ? 'yes' : 'no'}`,
       `Terms agreed: ${termsAgreed ? 'yes' : 'no'}`,
+      `Marketing: ${marketingConsent ? 'yes' : 'no'}`,
     ];
     if (selectedSlot) {
       const mod = selectedSlot.price_modifier_krw ?? 0;
@@ -386,7 +390,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       lines.push(`Slot: ${selectedSlot.id} @ ${selectedSlot.start_time}${labelStr ? ` "${labelStr}"` : ''}${modStr}`);
     }
     return lines.join(' | ');
-  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, memoText, selectedSlot, phoneSmsVerified, termsAgreed]);
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, memoText, selectedSlot, phoneSmsVerified, termsAgreed, marketingConsent]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
@@ -667,6 +671,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           placeholderPhone={labels.phonePh}
           externalAgreeAll={termsAgreed}
           onAgreeAllChange={setTermsAgreed}
+          onMarketingChange={setMarketingConsent}
           onFieldsChange={(d) => {
             // CRITICAL-1: 미팅장소→픽업, 요청사항→메모, 메신저(드롭다운+id)→단일 messenger
             //   (차터 패턴 "WhatsApp: id" — KakaoTalk/WeChat 까지 커버, fullMemo·게이트 반영).
@@ -763,6 +768,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                     //   보장하지만, 백엔드 booking 레코드에 동의 증거를 남기도록 capture body 로 전달.
                     phoneSmsVerified={phoneSmsVerified}
                     termsAgreed={termsAgreed}
+                    marketingConsent={marketingConsent}
                     // PR-R (2026-05-08): 마감 검증 — 투어는 별도 시간 입력 X, 09:00 기본
                     // durationDays >= 2 면 multi_day cutoff (48h) 자동 적용.
                     pickupTime="09:00"
