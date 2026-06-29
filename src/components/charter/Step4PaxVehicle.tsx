@@ -1,9 +1,34 @@
 // Step 4: 인원 (어른/아이) + 차종 자동 추천 · i18n
 // 2026-05-07: vip(의전 차량) 추가 — bus 와 동일하게 즉시 결제 X, 상담 폼 진행.
+import { useState } from 'react';
 import { Car, Bus, Crown, AlertTriangle, Minus, Plus } from 'lucide-react';
 import { VEHICLE_TYPES } from '@/data/charterPricing';
+import { VEHICLE_GALLERY } from '@/data/vehicleImages';
 import type { WizardState, VehicleType } from './types';
 import { getWizardI18n } from './wizard-i18n';
+
+// 차종 실차 사진 갤러리 — hero 1장 + 썸네일 클릭 전환. (차종 바뀌면 key 로 리셋)
+function VehicleGallery({ images }: { images: string[] }) {
+  const [idx, setIdx] = useState(0);
+  if (!images.length) return null;
+  return (
+    <div className="space-y-2">
+      <div className="rounded-xl overflow-hidden bg-black/20" style={{ aspectRatio: '4 / 3' }}>
+        <img src={images[idx]} alt="" loading="lazy" className="w-full h-full object-cover" />
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {images.map((src, i) => (
+          <button key={src} type="button" onClick={() => setIdx(i)}
+            className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+              i === idx ? 'border-[#B668FC]' : 'border-transparent opacity-55 hover:opacity-90'
+            }`}>
+            <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function recommendVehicle(pax: number): VehicleType {
   if (pax <= 8)  return 'staria';
@@ -125,6 +150,11 @@ export function Step4PaxVehicle({ state, patch, language = 'en' }: Props) {
           })}
         </div>
       </div>
+
+      {/* 선택 차종 실차 사진 (staria=7인 갈색 / sprinter=9인 검정). key 로 차종 전환 시 리셋. */}
+      {VEHICLE_GALLERY[vehicle] && (
+        <VehicleGallery key={vehicle} images={VEHICLE_GALLERY[vehicle]!} />
+      )}
 
       {(vehicle === 'sprinter' || vehicle === 'bus') && (
         <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-4">
