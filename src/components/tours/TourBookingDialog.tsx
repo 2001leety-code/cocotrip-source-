@@ -15,7 +15,7 @@ import { normalizeProfilePhone, isEmptyVal } from '@/lib/profilePrefill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
-import { Calendar, Users, Languages, Plus, Minus, Check, Phone, MapPin, MessageCircle, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Users, Languages, Plus, Minus, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import pricingSpec from '@/data/pricing_spec.json';
 import { getTourProductType, getTourPriceKRW } from '@/data/tours';
 import { trackDateSelect } from '@/lib/analytics';
@@ -24,6 +24,8 @@ import { fetchMonthAvailability, type AvailabilityEntry } from '@/lib/tour-avail
 import { PayPalBookingButton } from '@/components/PayPalBookingButton';
 import { CartAddButton } from '@/components/CartButton';
 import { BookingConsent } from '@/components/booking/BookingConsent';
+import { BookingInfoForm } from '@/components/booking/BookingInfoForm';
+import { formatPrice } from '@/lib/exchange-rate';
 import { FEATURE_TOUR_BOOKING_MINIMAL, isTourStep2Complete } from './tourBookingValidation';
 import { SlotPicker } from '@/components/tours/SlotPicker';
 import { useAuth } from '@/hooks/useAuth';
@@ -50,40 +52,6 @@ type TourBookingSnapshot = {
   /** Phase 1 (2026-05-19): 시간 슬롯 ID (tour.slots[].id). 슬롯 없는 투어는 null. */
   selectedSlotId?: string | null;
 };
-
-/** Reusable text input row used in Step 2. Keeps the dialog body lean and
- *  ensures every field has the same focus/error treatment + label style. */
-function ContactField({
-  icon, label, placeholder, value, onChange, type = 'text', compact = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  compact?: boolean;
-}) {
-  return (
-    <div>
-      <label className={`flex items-center gap-1.5 text-[${compact ? 10 : 11}px] text-white/55 uppercase tracking-wider mb-1.5`}>
-        {icon}{label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full px-3 py-2 rounded-xl text-[${compact ? 12 : 13}px] focus:outline-none`}
-        style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.10)',
-          color: 'white',
-        }}
-      />
-    </div>
-  );
-}
 
 function isoFromDate(d: Date | undefined): string {
   if (!d) return '';
@@ -246,8 +214,10 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const [step, setStep] = useState<1 | 2>(initialSnap?.step ?? 1);
   const [phone, setPhone] = useState<string>(initialSnap?.phone ?? '');
   const [pickupAddress, setPickupAddress] = useState<string>(initialSnap?.pickupAddress ?? '');
-  const [whatsappId, setWhatsappId] = useState<string>(initialSnap?.whatsappId ?? '');
-  const [lineId, setLineId] = useState<string>(initialSnap?.lineId ?? '');
+  // whatsappId/lineId: 트립닷컴식 BookingInfoForm 통합(방법 A) 후 별도 입력 UI 미노출.
+  //   값은 snapshot 복원 + fullMemo/persist 에 보존되므로 read-only 로 유지(세터 미사용).
+  const [whatsappId] = useState<string>(initialSnap?.whatsappId ?? '');
+  const [lineId] = useState<string>(initialSnap?.lineId ?? '');
   const [memoText, setMemoText] = useState<string>(initialSnap?.memoText ?? '');
 
   // 2026-06-28 트립닷컴식 예약정보: 결제 직전 SMS 인증 + 약관 동의 (BookingConsent).
@@ -348,6 +318,13 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const slotModifierKRW = selectedSlot?.price_modifier_krw ?? 0;
 
   const totalKRW = baseKRW + addonKRW + slotModifierKRW;
+
+  // 표시가 = 청구가 (P311): totalStr/usdStr 은 기존 totalKRW 에서 파생만. 재계산 금지.
+  const totalStr = formatKRW(totalKRW);
+  const usdStr = formatPrice(totalKRW, 'en', { withCurrencyCode: true }); // "$NNN USD"
+  const baseDisplayStr = formatKRW(baseKRW);
+  const paxText = `${pax} ${language === 'ko' ? '명' : language === 'ja' ? '名' : language === 'zh' ? '人' : 'pax'}`;
+  const dateText = date || labels.pickDate;
 
   const productType = useMemo(() => getTourProductType(tour.id), [tour.id]);
   const availability = useMemo(() => {
@@ -656,86 +633,54 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
         </div>
         )}
 
-        {/* Step 2 — Contact + Pickup.
-            PR-F: 플래그 ON = 전화 필수, 나머지 선택. OFF = 전부 필수. */}
+        {/* Step 2 — Contact + Pickup (트립닷컴식 BookingInfoForm 디자인 / 방법 A).
+            결제·SMS·가격·약관 게이트는 이 컴포넌트가 소유 — BookingInfoForm 은 입력 UI 만 제공.
+            phone 은 controlled, 약관은 termsAgreed SSOT 동기, addon/할인/CTA 는 숨기고
+            footerSlot 으로 BookingConsent + 가격 태그를 렌더 (PayPal 버튼은 DialogFooter 가 소유). */}
         {step === 2 && (
-        <div className="space-y-3 mt-2">
-          <ContactField
-            icon={<Phone className="w-3.5 h-3.5" />}
-            label={`${labels.phone} *`}
-            placeholder={labels.phonePh}
-            value={phone}
-            onChange={setPhone}
-            type="tel"
-          />
-          <ContactField
-            icon={<MapPin className="w-3.5 h-3.5" />}
-            label={FEATURE_TOUR_BOOKING_MINIMAL
-              ? `${labels.pickup} (${labels.optional})`
-              : `${labels.pickup} *`}
-            placeholder={labels.pickupPh}
-            value={pickupAddress}
-            onChange={setPickupAddress}
-          />
-          <div className="grid grid-cols-2 gap-2.5">
-            <ContactField
-              icon={<MessageCircle className="w-3.5 h-3.5" />}
-              label={FEATURE_TOUR_BOOKING_MINIMAL
-                ? `${labels.whatsapp} (${labels.optional})`
-                : `${labels.whatsapp} *`}
-              placeholder={labels.whatsappPh}
-              value={whatsappId}
-              onChange={setWhatsappId}
-              compact
-            />
-            <ContactField
-              icon={<MessageCircle className="w-3.5 h-3.5" />}
-              label={FEATURE_TOUR_BOOKING_MINIMAL
-                ? `${labels.line} (${labels.optional})`
-                : `${labels.line} *`}
-              placeholder={labels.linePh}
-              value={lineId}
-              onChange={setLineId}
-              compact
-            />
-          </div>
-          <div>
-            <label className="flex items-center gap-1.5 text-[11px] text-white/55 uppercase tracking-wider mb-1.5">
-              <FileText className="w-3.5 h-3.5" />
-              {FEATURE_TOUR_BOOKING_MINIMAL
-                ? `${labels.memo} (${labels.optional})`
-                : `${labels.memo} *`}
-            </label>
-            <textarea
-              rows={3}
-              value={memoText}
-              onChange={e => setMemoText(e.target.value)}
-              placeholder={labels.memoPh}
-              className="w-full px-3 py-2 rounded-xl text-[13px] focus:outline-none resize-none"
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.10)',
-                color: 'white',
-              }}
-            />
-          </div>
-
-          {/* 2026-06-28 트립닷컴식 예약정보 — 결제 직전 SMS 인증 + 약관 동의 (BookingConsent).
-              위 phone 필드에 입력된 번호로 SMS 발송 → 6자리 확인. 둘 다 충족해야 결제 버튼 활성. */}
-          <BookingConsent
-            phone={phone}
-            onVerified={setPhoneSmsVerified}
-            termsAgreed={termsAgreed}
-            onTermsChange={setTermsAgreed}
-            language={langKey}
-          />
-
-          {/* Tiny price tag carry-over */}
-          <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <span className="text-[12px] text-white/55">{labels.priceTotal}</span>
-            <span className="text-[14px] font-black" style={{ color: '#C99FFF' }}>{formatKRW(totalKRW)}</span>
-          </div>
-        </div>
+        <BookingInfoForm
+          eyebrow={labels.step2Title}
+          title={tour.title[language] || tour.title.en}
+          dateText={dateText}
+          paxText={paxText}
+          thumbnailUrl={tour.thumbnail}
+          isAirport={false}
+          meetingLabel={labels.pickup}
+          baseStr={baseDisplayStr}
+          meetingStr=""
+          childSeatStr=""
+          totalStr={totalStr}
+          usdStr={usdStr}
+          ctaLabel={labels.next}
+          phone={phone}
+          onPhoneChange={setPhone}
+          externalAgreeAll={termsAgreed}
+          onAgreeAllChange={setTermsAgreed}
+          onFieldsChange={(d) => {
+            // 미팅장소 → 픽업주소, 요청사항 → 메모 (fullMemo 결제 payload 반영).
+            setPickupAddress(d.meetingPlace);
+            setMemoText(d.notes);
+          }}
+          hideAddons
+          hideDiscount
+          hideCta
+          onSubmit={() => { /* 결제는 footerSlot 의 PayPalBookingButton 이 담당 */ }}
+          footerSlot={
+            <div className="space-y-3">
+              <BookingConsent
+                phone={phone}
+                onVerified={setPhoneSmsVerified}
+                termsAgreed={termsAgreed}
+                onTermsChange={setTermsAgreed}
+                language={langKey}
+              />
+              <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <span className="text-[12px] text-white/55">{labels.priceTotal}</span>
+                <span className="text-[14px] font-black" style={{ color: '#C99FFF' }}>{formatKRW(totalKRW)}</span>
+              </div>
+            </div>
+          }
+        />
         )}
 
         <DialogFooter className="gap-2 mt-3 flex-col">

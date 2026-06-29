@@ -3,7 +3,7 @@
 // 순수 UI — 예약 요약·가격은 props, 입력값은 내부 state, 제출은 onSubmit 콜백.
 //   결제 실행·필수검증 게이트·SMS 인증은 호출처(CharterWizard/TourBookingDialog)에서 처리.
 // SSOT 색: 배경 #080b14 / 보라 #7C5CFC·#B9A4FF / 핑크 #EA537E·#FF6B9D / 민트 #00D28C / 골드 #C4956A.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export interface BookingFormData {
   lastName: string;
@@ -45,6 +45,26 @@ export interface BookingInfoFormProps {
   defaultPhoneDial?: string; // 국가번호 표시 (기본 +82)
   onApplyDiscount?: (code: string) => void;
   onSubmit: (data: BookingFormData) => void;
+  // ── 하위호환 옵셔널 props (2026-06-29, 투어 Step2 통합 / 방법 A) ──────────
+  // 차터(CharterWizard)는 아래 prop 미전달 = 기존 self-contained 동작 그대로.
+  // 투어(TourBookingDialog)는 결제/SMS/가격/약관 게이트를 호출처가 소유하므로
+  // 아래 prop 들로 BookingInfoForm 의 해당 영역을 호출처에 위임/동기화한다.
+  /** 전화번호 controlled — 제공 시 내부 state 대신 사용 (호출처 SMS 인증/게이트와 공유). */
+  phone?: string;
+  onPhoneChange?: (v: string) => void;
+  /** 폼 입력값 변화 emit — 호출처가 메모(요청사항·미팅장소 등) 결제 payload 반영용. */
+  onFieldsChange?: (data: BookingFormData) => void;
+  /** 약관 SSOT 외부 제어 — 제공 시 agree1~4 대신 단일 동의 상태(호출처 termsAgreed)와 동기. */
+  externalAgreeAll?: boolean;
+  onAgreeAllChange?: (agreed: boolean) => void;
+  /** 부가 서비스 섹션 숨김 (투어는 Step1 addon 에서 이미 선택 → 가격 재계산 방지). */
+  hideAddons?: boolean;
+  /** 할인코드 섹션 숨김. */
+  hideDiscount?: boolean;
+  /** 내부 CTA 버튼 숨김 — 호출처가 자체 결제 버튼(PayPalBookingButton) 렌더 시. */
+  hideCta?: boolean;
+  /** CTA 영역 대체 렌더 (예: SMS 인증 패널 + PayPalBookingButton). hideCta 와 함께 사용. */
+  footerSlot?: React.ReactNode;
 }
 
 // ── 스타일 토큰 ──────────────────────────────────────────────
@@ -96,13 +116,29 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
   const [error, setError] = useState(false);
   const [appliedCode, setAppliedCode] = useState('');
 
-  const agreeAll = f.agree1 && f.agree2 && f.agree3 && f.agree4;
-  const toggleAll = () => { const v = !agreeAll; set({ agree1: v, agree2: v, agree3: v, agree4: v }); };
+  // 전화번호 controlled 위임 — props.phone 제공 시 호출처가 소유 (내부 f.phone 미사용).
+  const phoneValue = props.phone !== undefined ? props.phone : f.phone;
+
+  // 폼 입력값 변화를 호출처로 emit (메모/미팅장소 등 결제 payload 반영용).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { props.onFieldsChange?.(f); }, [f]);
+
+  // 약관 SSOT 외부 제어 — externalAgreeAll 제공 시 단일 동의 상태(호출처)와 동기.
+  const externallyControlledTerms = props.externalAgreeAll !== undefined;
+  const agreeAll = externallyControlledTerms
+    ? !!props.externalAgreeAll
+    : (f.agree1 && f.agree2 && f.agree3 && f.agree4);
+  const toggleAll = () => {
+    const v = !agreeAll;
+    if (externallyControlledTerms) { props.onAgreeAllChange?.(v); return; }
+    set({ agree1: v, agree2: v, agree3: v, agree4: v });
+  };
 
   const applyCode = (code: string) => { set({ discountCode: code }); setAppliedCode(code); props.onApplyDiscount?.(code); };
 
   const submit = () => {
-    const ok = f.lastName && f.firstName && f.phone && f.email && f.meetingPlace && f.agree1 && f.agree2 && f.agree3;
+    const termsOk = externallyControlledTerms ? agreeAll : (f.agree1 && f.agree2 && f.agree3);
+    const ok = f.lastName && f.firstName && (phoneValue) && f.email && f.meetingPlace && termsOk;
     if (!ok) { setError(true); return; }
     setError(false);
     props.onSubmit(f);
@@ -154,7 +190,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
               <label style={C.label}>휴대폰 번호 <span style={C.req}>*</span></label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', padding: '0 13px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 600 }}>{dial}</div>
-                <input value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="10 1234 5678" inputMode="tel" style={{ ...C.input, flex: '1 1 auto', minWidth: 0 }} onFocus={focusable} onBlur={blurable} />
+                <input value={phoneValue} onChange={(e) => { const v = e.target.value; if (props.onPhoneChange) props.onPhoneChange(v); else set({ phone: v }); }} placeholder="10 1234 5678" inputMode="tel" style={{ ...C.input, flex: '1 1 auto', minWidth: 0 }} onFocus={focusable} onBlur={blurable} />
               </div>
             </div>
             <div>
@@ -210,6 +246,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
         </div>
 
         {/* 부가 서비스 */}
+        {!props.hideAddons && (
         <div style={C.card}>
           <SectionHead title="부가 서비스" sub="Optional add-ons" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -217,8 +254,10 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <AddonRow label="유아 카시트" desc="신생아·유아 동반 시 안전 카시트를 미리 장착해 드립니다" price={childSeatStr} checked={f.addonChildSeat} onChange={(v) => set({ addonChildSeat: v })} />
           </div>
         </div>
+        )}
 
         {/* 할인코드 */}
+        {!props.hideDiscount && (
         <div style={C.card}>
           <SectionHead title="할인코드" sub="Promo code" />
           <div style={{ display: 'flex', gap: 8, marginBottom: 13 }}>
@@ -237,6 +276,7 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
             <CouponBtn pct="10%" title="신규 회원 대상 공항 픽업/샌딩 10% 할인" sub="유효기간 2026-07-05 · 코드 WELCOME10" onClick={() => applyCode('WELCOME10')} />
           </div>
         </div>
+        )}
 
         {/* 약관 동의 */}
         <div style={C.card}>
@@ -246,26 +286,32 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           </label>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <AgreeRow checked={f.agree1} onChange={(v) => set({ agree1: v })} req text="만 18세 이상이며 이용약관 및 취소 규정에 동의합니다" />
-            <AgreeRow checked={f.agree2} onChange={(v) => set({ agree2: v })} req text="개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다" />
-            <AgreeRow checked={f.agree3} onChange={(v) => set({ agree3: v })} req text="개인정보 국외 이전 및 고유식별정보 수집·이용에 동의합니다" />
-            <AgreeRow checked={f.agree4} onChange={(v) => set({ agree4: v })} text="한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다" />
+            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree1} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree1: v })} req text="만 18세 이상이며 이용약관 및 취소 규정에 동의합니다" />
+            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree2} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree2: v })} req text="개인정보 제3자 제공 (차량 공급업체·기사)에 동의합니다" />
+            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree3} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree3: v })} req text="개인정보 국외 이전 및 고유식별정보 수집·이용에 동의합니다" />
+            <AgreeRow checked={externallyControlledTerms ? agreeAll : f.agree4} onChange={(v) => externallyControlledTerms ? props.onAgreeAllChange?.(v) : set({ agree4: v })} text="한정 특가·이벤트·여행 소식 등 마케팅 정보 수신에 동의합니다" />
           </div>
         </div>
 
         {/* CTA */}
         <div>
-          {error && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,100,100,0.3)', background: 'rgba(255,100,100,0.08)', marginBottom: 11, fontSize: 13, color: '#ffb4b4' }}>
-              필수 항목(성·이름·연락처·이메일·{meetingLabel})과 필수 약관 동의를 확인해 주세요.
-            </div>
+          {props.hideCta ? (
+            props.footerSlot
+          ) : (
+            <>
+              {error && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,100,100,0.3)', background: 'rgba(255,100,100,0.08)', marginBottom: 11, fontSize: 13, color: '#ffb4b4' }}>
+                  필수 항목(성·이름·연락처·이메일·{meetingLabel})과 필수 약관 동의를 확인해 주세요.
+                </div>
+              )}
+              <button type="button" onClick={submit} style={{ width: '100%', padding: 16, border: 'none', borderRadius: 14, background: 'linear-gradient(135deg,#7C5CFC 0%,#EA537E 100%)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 8px 24px rgba(124,92,252,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '-0.01em' }}>
+                {ctaLabel} <span style={{ opacity: 0.85, fontWeight: 700 }}>{totalStr}</span>
+              </button>
+              <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 11, lineHeight: 1.6 }}>
+                코코트립은 통신판매중개자로서 차량 공급업체가 제공하는 서비스의 당사자가 아니며,<br />예약·이용·환불 관련 의무와 책임은 각 공급업체에 있습니다.
+              </div>
+            </>
           )}
-          <button type="button" onClick={submit} style={{ width: '100%', padding: 16, border: 'none', borderRadius: 14, background: 'linear-gradient(135deg,#7C5CFC 0%,#EA537E 100%)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 8px 24px rgba(124,92,252,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '-0.01em' }}>
-            {ctaLabel} <span style={{ opacity: 0.85, fontWeight: 700 }}>{totalStr}</span>
-          </button>
-          <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 11, lineHeight: 1.6 }}>
-            코코트립은 통신판매중개자로서 차량 공급업체가 제공하는 서비스의 당사자가 아니며,<br />예약·이용·환불 관련 의무와 책임은 각 공급업체에 있습니다.
-          </div>
         </div>
       </div>
 
@@ -275,9 +321,9 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
           <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: 16, letterSpacing: '-0.01em' }}>결제 정보</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
             <PayRow label={`선택 옵션 · ${props.paxText}`} value={baseStr} />
-            {f.addonMeeting && <PayRow label="공항 미팅 & 피켓" value={meetingStr} />}
-            {f.addonChildSeat && <PayRow label="유아 카시트" value={childSeatStr} />}
-            {appliedCode && <PayRow label={`할인코드 적용 (${appliedCode})`} value="" pink />}
+            {!props.hideAddons && f.addonMeeting && <PayRow label="공항 미팅 & 피켓" value={meetingStr} />}
+            {!props.hideAddons && f.addonChildSeat && <PayRow label="유아 카시트" value={childSeatStr} />}
+            {!props.hideDiscount && appliedCode && <PayRow label={`할인코드 적용 (${appliedCode})`} value="" pink />}
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '15px 0' }} />
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
