@@ -182,10 +182,14 @@ export function BookingConsent({ phone, onVerified, termsAgreed, onTermsChange, 
   }, []);
 
   // 전화번호가 바뀌면 기존 인증 무효화 (다른 번호로 결제 우회 방지).
-  const lastPhoneRef = useRef(phone);
+  // ⚠️ 비교는 E.164 정규화 값 기준 — raw 문자열(공백·하이픈 등 표기 변동)로는 리셋하지 않는다.
+  //   (이전 버그: raw phone 비교 → SMS 코드 입력 중 전화칸 공백 하나만 바뀌어도
+  //    confirmationRef 가 날아가 "인증 확인"이 errInvalidCode 로 실패. 실제 번호가 같으면 세션 유지.)
+  const lastE164Ref = useRef(toE164(phone));
   useEffect(() => {
-    if (lastPhoneRef.current !== phone) {
-      lastPhoneRef.current = phone;
+    const curE164 = toE164(phone);
+    if (lastE164Ref.current !== curE164) {
+      lastE164Ref.current = curE164;
       if (verified || step === 'code') {
         setVerified(false);
         setStep('idle');
