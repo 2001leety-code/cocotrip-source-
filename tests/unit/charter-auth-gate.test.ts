@@ -47,3 +47,40 @@ describe('CharterWizard — 게스트 견적 허용 + 가입 유도 카드 (운�
     expect(src).toContain('CARROT_TITLE[language] || CARROT_TITLE.en');
   });
 });
+
+describe('CRITICAL-2 회귀 — 차터 resume 결제 게이트 우회 차단 (2026-06-29)', () => {
+  const src = readFileSync(r('src/components/charter/CharterWizard.tsx'), 'utf8');
+  it('case 6(결제 진입)에 consent 게이트 — phoneSmsVerified/termsAgreed 재검증', () => {
+    // case 5 에만 있던 consent 게이트가 case 6 에도 있어야 resume→Step6 직행 우회 차단.
+    const case6 = src.match(/case 6:\s*\{[\s\S]*?\n {6}\}/);
+    expect(case6, 'case 6 블록').toBeTruthy();
+    expect(case6![0]).toMatch(/!phoneSmsVerified \|\| !termsAgreed/);
+  });
+  it('handleResumeContinue 가 Step6 복원 금지 — Math.min(5, ...) 로 클램프', () => {
+    // consent 는 비저장이라 resume 시 false → Step6 복원하면 사용자 혼란. Step5 로 클램프.
+    expect(src).toMatch(/Math\.min\(5,\s*initialSnapStep\)/);
+    expect(src).not.toMatch(/Math\.min\(6,\s*initialSnapStep\)/);
+  });
+});
+
+describe('CRITICAL-1 회귀 — 투어 메신저 배선 + memo (2026-06-29)', () => {
+  const dialog = readFileSync(r('src/components/tours/TourBookingDialog.tsx'), 'utf8');
+  const validation = readFileSync(r('src/components/tours/tourBookingValidation.ts'), 'utf8');
+  it('messenger 단일 state + 세터 (read-only whatsappId/lineId 버그 재발 금지)', () => {
+    expect(dialog).toMatch(/const \[messenger, setMessenger\] = useState/);
+    // 구 read-only 패턴(세터 없는 useState 로 whatsappId/lineId 보유)이 부활하면 안 됨.
+    expect(dialog).not.toMatch(/const \[whatsappId\] = useState/);
+    expect(dialog).not.toMatch(/const \[lineId\] = useState/);
+  });
+  it('onFieldsChange 가 messenger 배선 (d.messengerId → setMessenger)', () => {
+    expect(dialog).toMatch(/if \(d\.messengerId\) setMessenger/);
+  });
+  it('fullMemo 가 단일 Messenger 라인 (WhatsApp:/LINE: 2줄 누락 버그 재발 금지)', () => {
+    expect(dialog).toContain('`Messenger: ${messenger}`');
+    expect(dialog).not.toContain('`WhatsApp: ${whatsappId}`');
+  });
+  it('isTourStep2Complete 게이트가 messenger 요구 (못 채우는 whatsapp|line 제거)', () => {
+    expect(validation).toMatch(/fields\.messenger\.trim\(\)\.length > 0/);
+    expect(validation).not.toMatch(/fields\.whatsappId/);
+  });
+});

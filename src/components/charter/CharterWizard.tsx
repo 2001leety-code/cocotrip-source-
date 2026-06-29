@@ -162,7 +162,11 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
     if (!initialSnap) { setResumeOpen(false); return; }
     setState(initialSnap.state);
     setManualKm(initialSnap.manualKm);
-    setCurrentStep(Math.max(1, Math.min(6, initialSnapStep)));
+    // CRITICAL-2 fix (2026-06-29): Step6(결제) 복원 금지 — consent(SMS인증·약관)는 보안상
+    //   비저장이라 resume 시 false. Step6 직행하면 case6 게이트(consent 추가됨)에 막히지만,
+    //   사용자가 Step5 로 되돌아가 재인증해야 하는 혼란 방지 위해 복원을 Step5(consent 수집)로
+    //   클램프 — resume 시 항상 본인확인·약관 재수집 후 결제.
+    setCurrentStep(Math.max(1, Math.min(5, initialSnapStep)));
     setResumeOpen(false);
   }
   function handleResumeRestart() {
@@ -215,6 +219,11 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
       }
       case 6: {
         if (isInquiryVehicle) return false; // InquiryForm 자체에 submit CTA — wizard nav 결제 비활성.
+        // CRITICAL-2 fix (2026-06-29): SMS인증+약관 게이트가 case5 에만 있어, resume 로 Step6
+        //   직행 시 consent 미검증 결제 가능했음(phoneSmsVerified/termsAgreed 비저장→false 인데
+        //   case6 통과). capturePaypalOrder 도 false 라도 capture 거부 안 함 → 약관 미동의
+        //   실결제 우회. case5 와 동일 consent 게이트를 결제 진입 case6 에도 적용.
+        if (!phoneSmsVerified || !termsAgreed) return false;
         if (!quote) return false;
         if (quote.needsCustomQuote) return true;
         return quote.subtotalKRW > 0;
