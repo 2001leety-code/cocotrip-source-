@@ -27,8 +27,7 @@ import { isTourStep2Complete, FEATURE_TOUR_BOOKING_MINIMAL } from '../../src/com
 const allFilled = {
   phone: '+82 10 1234 5678',
   pickupAddress: '명동 롯데호텔',
-  whatsappId: '+82 10 1234 5678',
-  lineId: 'cocotrip_user',
+  messenger: 'WhatsApp: +82 10 1234 5678',
   memoText: '알레르기 없음',
   phoneSmsVerified: true,
   termsAgreed: true,
@@ -37,8 +36,7 @@ const allFilled = {
 const onlyPhone = {
   phone: '+82 10 1234 5678',
   pickupAddress: '',
-  whatsappId: '',
-  lineId: '',
+  messenger: '',
   memoText: '',
   phoneSmsVerified: true,
   termsAgreed: true,
@@ -47,8 +45,7 @@ const onlyPhone = {
 const noPhone = {
   phone: '',
   pickupAddress: '명동 롯데호텔',
-  whatsappId: '+82 10 1234 5678',
-  lineId: 'cocotrip_user',
+  messenger: 'WhatsApp: +82 10 1234 5678',
   memoText: '알레르기 없음',
   phoneSmsVerified: true,
   termsAgreed: true,
@@ -57,8 +54,7 @@ const noPhone = {
 const whitespacePhone = {
   phone: '   ',
   pickupAddress: '명동 롯데호텔',
-  whatsappId: '+82 10 1234 5678',
-  lineId: 'cocotrip_user',
+  messenger: 'WhatsApp: +82 10 1234 5678',
   memoText: '알레르기 없음',
   phoneSmsVerified: true,
   termsAgreed: true,
@@ -106,16 +102,18 @@ describe('isTourStep2Complete — minimal=false (기본/OFF)', () => {
     expect(isTourStep2Complete({ ...allFilled, pickupAddress: '' }, false)).toBe(false);
   });
 
-  it('7b. whatsappId 누락이어도 lineId 있으면 통과 (메신저 둘 중 하나)', () => {
-    expect(isTourStep2Complete({ ...allFilled, whatsappId: '' }, false)).toBe(true);
+  // CRITICAL-1 fix (2026-06-29): WhatsApp/LINE 2필드 → 단일 messenger ("WhatsApp: id" 등,
+  //   KakaoTalk/WeChat 포함). 7b/7c (둘 중 하나) 케이스는 단일 모델로 통합.
+  it('7b. messenger 있으면 통과', () => {
+    expect(isTourStep2Complete({ ...allFilled, messenger: 'LINE: cocotrip_user' }, false)).toBe(true);
   });
 
-  it('7c. lineId 누락이어도 whatsappId 있으면 통과 (메신저 둘 중 하나)', () => {
-    expect(isTourStep2Complete({ ...allFilled, lineId: '' }, false)).toBe(true);
+  it('7c. messenger(KakaoTalk/WeChat 등 임의 타입)도 통과', () => {
+    expect(isTourStep2Complete({ ...allFilled, messenger: 'KakaoTalk: cocotrip' }, false)).toBe(true);
   });
 
-  it('7c-2. 메신저(WhatsApp/LINE) 둘 다 누락이면 차단', () => {
-    expect(isTourStep2Complete({ ...allFilled, whatsappId: '', lineId: '' }, false)).toBe(false);
+  it('7c-2. messenger 누락이면 차단', () => {
+    expect(isTourStep2Complete({ ...allFilled, messenger: '' }, false)).toBe(false);
   });
 
   it('7d. memoText 누락 시 차단', () => {

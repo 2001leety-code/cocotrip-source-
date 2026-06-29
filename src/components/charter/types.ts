@@ -53,6 +53,11 @@ export interface WizardState {
   customerName?: string;
   customerPhone?: string;
   customerMessenger?: string;  // WhatsApp / LINE / 카카오 ID (선택, non-blocking)
+  // MEDIUM fix (2026-06-29): BookingInfoForm 이 email/meetingPlace 를 필수(*)로 수집하는데
+  //   차터 handleFieldsChange 가 매핑 안 해 silent drop 됐음(게스트 확인메일·미팅장소 누락).
+  //   운영 정보로 보존 (결제 자체는 userEmail=auth 유지, 이건 운영자 연락/확인용 보강).
+  customerEmail?: string;
+  meetingPlace?: string;
   // multi_day 전용 — 숙소 위치 (운영 정보)
   lodgingLocation?: LodgingLocation;
   lodgingCustom?: string;        // lodgingLocation = 'custom' 일 때

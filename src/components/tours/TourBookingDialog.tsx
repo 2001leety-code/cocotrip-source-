@@ -46,8 +46,11 @@ type TourBookingSnapshot = {
   step: 1 | 2;
   phone: string;
   pickupAddress: string;
-  whatsappId: string;
-  lineId: string;
+  /** CRITICAL-1 fix (2026-06-29): 단일 messenger ("WhatsApp: id" 등). 구 snapshot
+   *  whatsappId/lineId 는 마이그레이션 폴백으로만 읽음(신규 저장 X). */
+  messenger?: string;
+  whatsappId?: string;
+  lineId?: string;
   memoText: string;
   /** Phase 1 (2026-05-19): 시간 슬롯 ID (tour.slots[].id). 슬롯 없는 투어는 null. */
   selectedSlotId?: string | null;
@@ -214,10 +217,18 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const [step, setStep] = useState<1 | 2>(initialSnap?.step ?? 1);
   const [phone, setPhone] = useState<string>(initialSnap?.phone ?? '');
   const [pickupAddress, setPickupAddress] = useState<string>(initialSnap?.pickupAddress ?? '');
-  // whatsappId/lineId: 트립닷컴식 BookingInfoForm 통합(방법 A) 후 별도 입력 UI 미노출.
-  //   값은 snapshot 복원 + fullMemo/persist 에 보존되므로 read-only 로 유지(세터 미사용).
-  const [whatsappId] = useState<string>(initialSnap?.whatsappId ?? '');
-  const [lineId] = useState<string>(initialSnap?.lineId ?? '');
+  // CRITICAL-1 fix (2026-06-29): 트립닷컴식 BookingInfoForm 통합 후 WhatsApp/LINE 전용
+  //   입력 UI 가 삭제됐는데 whatsappId/lineId 가 세터 없는 read-only 라 영구 빈값이었음 →
+  //   (A) memo 에 손님 메신저 통째 누락 (B) isTourStep2Complete 의 whatsapp|line 요구가
+  //   영구 false → PayPal 버튼 미렌더 = 투어 결제 전면 차단. BookingInfoForm 이 수집하는
+  //   단일 messenger(드롭다운+id, WhatsApp/KakaoTalk/LINE/WeChat) 를 받아 배선 (차터 패턴).
+  //   구 snapshot(whatsappId/lineId) 은 마이그레이션 폴백으로 흡수.
+  const [messenger, setMessenger] = useState<string>(() => {
+    if (initialSnap?.messenger) return initialSnap.messenger;
+    if (initialSnap?.whatsappId) return `WhatsApp: ${initialSnap.whatsappId}`;
+    if (initialSnap?.lineId) return `LINE: ${initialSnap.lineId}`;
+    return '';
+  });
   const [memoText, setMemoText] = useState<string>(initialSnap?.memoText ?? '');
 
   // 2026-06-28 트립닷컴식 예약정보: 결제 직전 SMS 인증 + 약관 동의 (BookingConsent).
@@ -253,9 +264,9 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   const persistValues = useMemo<TourBookingSnapshot>(() => ({
     pax, date, driverLang,
     selectedAddons: Array.from(selectedAddons),
-    step, phone, pickupAddress, whatsappId, lineId, memoText,
+    step, phone, pickupAddress, messenger, memoText,
     selectedSlotId,
-  }), [pax, date, driverLang, selectedAddons, step, phone, pickupAddress, whatsappId, lineId, memoText, selectedSlotId]);
+  }), [pax, date, driverLang, selectedAddons, step, phone, pickupAddress, messenger, memoText, selectedSlotId]);
   useWizardPersistence(persistKey, persistValues, step);
 
   // Firestore tour_availability cache (월별). 비어있으면 mock fallback.
@@ -347,7 +358,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
   // Step 2 → checkout gate. isTourStep2Complete 헬퍼에 위임 (테스트 가능).
   // PR-F: minimal=true = 전화 1개만 필수. minimal=false = 5개 전부 필수 (기본).
   const step2Complete = isTourStep2Complete(
-    { phone, pickupAddress, whatsappId, lineId, memoText, phoneSmsVerified, termsAgreed },
+    { phone, pickupAddress, messenger, memoText, phoneSmsVerified, termsAgreed },
     FEATURE_TOUR_BOOKING_MINIMAL,
   );
 
@@ -360,8 +371,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       `Tour: ${tour.title.en} | ${pax} pax | ${driverLang.toUpperCase()} driver`,
       `Phone: ${phone}`,
       `Pickup: ${pickupAddress}`,
-      `WhatsApp: ${whatsappId}`,
-      `LINE: ${lineId}`,
+      `Messenger: ${messenger}`,
       `Add-ons: ${Array.from(effectiveAddons).join(', ') || 'none'}`,
       `Notes: ${memoText}`,
       // 2026-06-28 트립닷컴식 예약정보 — SMS 인증/약관 동의 결과를 memo 에 기록.
@@ -376,7 +386,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
       lines.push(`Slot: ${selectedSlot.id} @ ${selectedSlot.start_time}${labelStr ? ` "${labelStr}"` : ''}${modStr}`);
     }
     return lines.join(' | ');
-  }, [tour.title.en, pax, driverLang, phone, pickupAddress, whatsappId, lineId, effectiveAddons, memoText, selectedSlot, phoneSmsVerified, termsAgreed]);
+  }, [tour.title.en, pax, driverLang, phone, pickupAddress, messenger, effectiveAddons, memoText, selectedSlot, phoneSmsVerified, termsAgreed]);
 
   // 투어 적용 가능 addon만 (driver lang 옵션은 lang select에서 자동 처리)
   // batch 9 fix (B9-5): attraction_pass 는 tour.stops 합계가 0 이면 노출 안 함
@@ -657,9 +667,13 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           externalAgreeAll={termsAgreed}
           onAgreeAllChange={setTermsAgreed}
           onFieldsChange={(d) => {
-            // 미팅장소 → 픽업주소, 요청사항 → 메모 (fullMemo 결제 payload 반영).
-            setPickupAddress(d.meetingPlace);
-            setMemoText(d.notes);
+            // CRITICAL-1: 미팅장소→픽업, 요청사항→메모, 메신저(드롭다운+id)→단일 messenger
+            //   (차터 패턴 "WhatsApp: id" — KakaoTalk/WeChat 까지 커버, fullMemo·게이트 반영).
+            // HIGH fix: BookingInfoForm 마운트 시 빈 f 로 1회 emit → snapshot 복원값을 빈값으로
+            //   덮어 지우는 회귀 방지. 값 있을 때만 set (비파괴 — 차터 handleFieldsChange 패턴).
+            if (d.meetingPlace) setPickupAddress(d.meetingPlace);
+            if (d.notes) setMemoText(d.notes);
+            if (d.messengerId) setMessenger(`${d.messenger}: ${d.messengerId}`);
           }}
           hideAddons
           hideDiscount

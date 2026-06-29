@@ -17,15 +17,15 @@ export const FEATURE_TOUR_BOOKING_MINIMAL =
  * - 공통(2026-06-28, 트립닷컴식 예약정보): **전화 SMS 인증** + **약관 동의** 둘 다 필수.
  *   결제 직전 본인 확인 + 개인정보/이용약관 동의 게이트. minimal 여부와 무관하게 항상 요구.
  * - minimal=true: 전화(형식검증) + SMS 인증 + 약관 동의만 필수.
- * - minimal=false: + 픽업주소 + 메신저(WhatsApp **OR** LINE, 둘 중 하나) + 메모.
- *   ⚠️ WhatsApp+LINE 둘 다 필수(기존)는 과수집 → 둘 중 하나(외국인은 보통 하나만 씀,
- *   딥서치 "전화 OR 메신저 ≥1 reachable").
+ * - minimal=false: + 픽업주소 + 메신저(단일 messenger 입력) + 메모.
+ *   CRITICAL-1 fix (2026-06-29): 트립닷컴식 BookingInfoForm 통합 후 WhatsApp/LINE 전용
+ *   입력칸이 사라져 whatsappId/lineId 가 영구 빈값 → 이 게이트 영구 false → 투어 결제
+ *   전면 차단됐음. BookingInfoForm 의 단일 messenger("WhatsApp: id" 등)로 교체.
  */
 export function isTourStep2Complete(fields: {
   phone: string;
   pickupAddress: string;
-  whatsappId: string;
-  lineId: string;
+  messenger: string;
   memoText: string;
   /** BookingConsent — SMS 인증 완료 여부 (트립닷컴식). 항상 필수. */
   phoneSmsVerified: boolean;
@@ -39,7 +39,7 @@ export function isTourStep2Complete(fields: {
   if (minimal) return true;
   return (
     fields.pickupAddress.trim().length > 0 &&
-    (fields.whatsappId.trim().length > 0 || fields.lineId.trim().length > 0) &&
+    fields.messenger.trim().length > 0 &&
     fields.memoText.trim().length > 0
   );
 }

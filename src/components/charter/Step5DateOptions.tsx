@@ -160,6 +160,9 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
     if (fullName) next.customerName = fullName;
     if (d.messengerId) next.customerMessenger = `${d.messenger}: ${d.messengerId}`;
     if (d.notes) next.notes = d.notes;
+    // MEDIUM fix (2026-06-29): email·meetingPlace silent drop 방지 (BookingInfoForm 필수 수집분).
+    if (d.email) next.customerEmail = d.email;
+    if (d.meetingPlace) next.meetingPlace = d.meetingPlace;
     if (isAirport) {
       const lugTotal = d.lugSmall + d.lugMedium + d.lugLarge;
       const flightChanged = d.flightNo && d.flightNo !== (airport.flightNumber ?? '');
