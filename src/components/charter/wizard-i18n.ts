@@ -52,6 +52,10 @@ export interface WizardI18n {
   terminal: string;
   flightNo: string;
   flightPlaceholder: string;
+  flightLookup: string;
+  flightLookupHint: string;
+  flightLookupFail: string;
+  flightArrivalLabel: string;
   luggage: string;
   luggageSmall: string; luggageMedium: string; luggageLarge: string;
   date: string; time: string; returnDate: string;
@@ -235,6 +239,10 @@ export function getWizardI18n(language: string): WizardI18n {
     terminal: get('terminal'),
     flightNo: get('flightNo'),
     flightPlaceholder: get('flightPlaceholder'),
+    flightLookup: get('flightLookup') || (lang === 'ko' ? '도착정보 조회' : lang === 'ja' ? '到着情報照会' : lang === 'zh' ? '查询到达信息' : 'Look up arrival'),
+    flightLookupHint: get('flightLookupHint') || (lang === 'ko' ? '편명을 넣고 누르면 도착시간·터미널이 자동 입력돼요' : lang === 'ja' ? '便名を入力して押すと到着時刻・ターミナルが自動入力されます' : lang === 'zh' ? '输入航班号后点击，自动填入到达时间和航站楼' : 'Enter your flight number to auto-fill arrival time & terminal'),
+    flightLookupFail: get('flightLookupFail') || (lang === 'ko' ? '해당 편명을 찾을 수 없어요. 직접 입력해 주세요.' : lang === 'ja' ? '該当する便名が見つかりません。手動で入力してください。' : lang === 'zh' ? '未找到该航班号，请手动输入。' : 'Flight not found — please enter details manually.'),
+    flightArrivalLabel: get('flightArrivalLabel') || (lang === 'ko' ? '도착' : lang === 'ja' ? '到着' : lang === 'zh' ? '到达' : 'Arrival'),
     luggage: get('luggage'),
     luggageSmall: get('luggageSmall'),
     luggageMedium: get('luggageMedium'),

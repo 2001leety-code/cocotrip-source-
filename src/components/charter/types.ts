@@ -71,6 +71,15 @@ export interface WizardState {
       medium?: number;                // 24인치
       large?: number;                 // 28인치+
     };
+    // 편명 자동조회 결과 (data.go.kr 인천공항 API → /api/flight-status)
+    arrival?: {
+      scheduledTime?: string;         // 예정 도착 "05:00"
+      estimatedTime?: string;         // 변경(지연) "04:35"
+      gate?: string;
+      origin?: string;                // 출발지 공항 (예: TAIPEI)
+      status?: string;                // Arrived / Delayed 등
+      lookedUp?: boolean;             // 조회 성공 여부
+    };
   };
   notes?: string;
 }

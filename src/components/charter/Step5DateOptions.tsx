@@ -6,6 +6,7 @@
 //   야간 할증 자동 계산도 여기 onChange 에서 처리.
 // 2026-05-10 (B-5/B-8 prod 검증): 캐리어 → 차량 수 동적 룰 (calcVehicleCount).
 //   1-7개=1대, 8+=2대, 14+=3대, +6/대 선형. "봉고차" 라벨 금지 → "스타리아".
+import { useState } from 'react';
 import type { WizardState, LodgingLocation, VehicleType } from './types';
 import { EXTRA_CHARGES } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
@@ -82,6 +83,37 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
     patch({ airport: { ...airport, ...p } });
   const patchLuggage = (p: Partial<NonNullable<NonNullable<WizardState['airport']>['luggage']>>) =>
     patchAirport({ luggage: { ...lug, ...p } });
+
+  // 항공편명 → 인천공항 공공API 도착정보 자동조회 (data.go.kr, /api/flight-status)
+  const [flightLoading, setFlightLoading] = useState(false);
+  const [flightErr, setFlightErr] = useState('');
+  const apiLang = ({ ko: 'K', en: 'E', ja: 'J', zh: 'C' } as const)[language] || 'E';
+  const arr = airport.arrival;
+  const lookupFlight = async () => {
+    const fn = (airport.flightNumber ?? '').trim().toUpperCase().replace(/\s+/g, '');
+    if (!fn) return;
+    setFlightLoading(true);
+    setFlightErr('');
+    try {
+      const r = await fetch(`/api/flight-status?flightId=${encodeURIComponent(fn)}&lang=${apiLang}`);
+      const j = await r.json();
+      if (j.ok && j.found && j.flight) {
+        const f = j.flight;
+        patchAirport({
+          terminal: f.terminal === 'T2' ? 'T2' : 'T1',
+          arrival: {
+            scheduledTime: f.scheduledTime, estimatedTime: f.estimatedTime,
+            gate: f.gate, origin: f.origin, status: f.status, lookedUp: true,
+          },
+        });
+      } else {
+        setFlightErr(i18n.flightLookupFail);
+      }
+    } catch {
+      setFlightErr(i18n.flightLookupFail);
+    }
+    setFlightLoading(false);
+  };
 
   // batch 9 (B9-19): 캐리어 합계 cap 제거 (vehicleLuggageMax = 99 통합).
   // 7개 초과 시 vehicleLuggageNote 가 amber 안내 — "차량 2대 권장 (운영자 견적)".
@@ -240,14 +272,30 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
             )}
             <div className={isICN ? '' : 'sm:col-span-2'}>
               <Label>{i18n.flightNo}</Label>
-              <input
-                type="text"
-                value={airport.flightNumber ?? ''}
-                onChange={e => patchAirport({ flightNumber: e.target.value.toUpperCase() })}
-                placeholder={i18n.flightPlaceholder}
-                className={inputCls}
-                maxLength={10}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={airport.flightNumber ?? ''}
+                  onChange={e => { patchAirport({ flightNumber: e.target.value.toUpperCase(), arrival: undefined }); setFlightErr(''); }}
+                  placeholder={i18n.flightPlaceholder}
+                  className={inputCls}
+                  maxLength={10}
+                />
+                <button type="button" onClick={lookupFlight}
+                  disabled={flightLoading || !(airport.flightNumber ?? '').trim()}
+                  className="shrink-0 px-4 rounded-xl text-sm font-bold border border-[#B668FC] bg-[#B668FC]/15 text-white disabled:opacity-40">
+                  {flightLoading ? '…' : i18n.flightLookup}
+                </button>
+              </div>
+              <p className="text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>
+              {flightErr && <p className="text-[11px] text-amber-300 mt-1">{flightErr}</p>}
+              {arr?.lookedUp && (
+                <div className="mt-2 px-3 py-2 rounded-xl bg-[#B668FC]/10 border border-[#B668FC]/25 text-[12px] text-white/85">
+                  ✈ {i18n.flightArrivalLabel} <b>{arr.estimatedTime || arr.scheduledTime}</b>
+                  {arr.origin ? ` · ${arr.origin}` : ''}{arr.gate ? ` · Gate ${arr.gate}` : ''}
+                  {arr.status ? ` · ${arr.status}` : ''}
+                </div>
+              )}
             </div>
           </div>
 
