@@ -65,6 +65,9 @@ export interface BookingInfoFormProps {
   hideCta?: boolean;
   /** CTA 영역 대체 렌더 (예: SMS 인증 패널 + PayPalBookingButton). hideCta 와 함께 사용. */
   footerSlot?: React.ReactNode;
+  /** 항공편 편명 입력 바로 아래 렌더 (예: 공공API 도착정보 "조회" 버튼 + 결과). isAirport 시에만 노출.
+   *  차터(CharterWizard)의 #1012 /api/flight-status 자동조회 UI 를 BookingInfoForm 항공편 섹션에 통합. */
+  flightLookupSlot?: React.ReactNode;
 }
 
 // ── 스타일 토큰 ──────────────────────────────────────────────
@@ -229,6 +232,8 @@ export function BookingInfoForm(props: BookingInfoFormProps) {
                   <input type="time" value={f.arrivalTime} onChange={(e) => set({ arrivalTime: e.target.value })} style={{ ...C.input, colorScheme: 'dark' }} onFocus={focusable} onBlur={blurable} />
                 </div>
               </div>
+              {/* 항공편 도착정보 자동조회 슬롯 (#1012 /api/flight-status — 호출처가 조회 버튼·결과 렌더). */}
+              {props.flightLookupSlot && <div style={{ marginBottom: 14 }}>{props.flightLookupSlot}</div>}
               <div style={{ marginBottom: 13 }}>
                 <label style={{ ...C.label, display: 'flex', alignItems: 'center', gap: 6 }}>캐리어 (사이즈별 수량)</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

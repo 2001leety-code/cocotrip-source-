@@ -1,16 +1,25 @@
-// Step 5: 날짜 + 이름/연락처 + 공항/일정 필수 필드 · i18n
+// Step 5: 날짜 + 일정(트립타입·멀티데이) + 옵션 + 트립닷컴식 예약정보(BookingInfoForm) · i18n
+// 2026-06-29 (방법 A): 고객정보 입력 UI(이름/연락처/메신저/미팅장소/항공편/수하물/메모)를
+//   BookingInfoForm 으로 교체. 결제·SMS·가격엔진 무수정 — 정보 UI 만 통합.
+//   가격에 영향 주는 스케줄 필드(날짜·픽업시각·트립타입·멀티데이·옵션 핀)는 BookingInfoForm 위에 유지.
+//   BookingInfoForm 은 hideCta(결제는 wizard nav/PaymentPanel 담당)·hideAddons·hideDiscount(차터 옵션은
+//   아래 옵션 핀에서 가산)로 렌더하고, footerSlot 에 BookingConsent(SMS 인증+약관) 를 배치.
+//   ⚠️ 표시가=청구가(P311): totalStr/usdStr/baseStr 은 quote.subtotalKRW 파생만, 재계산 금지.
+//   ⚠️ #1012 항공편 자동조회(/api/flight-status) 보존: BookingInfoForm 항공편 필드 아래 flightLookupSlot 으로
+//     "조회" 버튼 + 도착정보 표시를 렌더. 편명은 BookingInfoForm → state.airport.flightNumber 동기.
+//
 // 2026-05-09 (batch 9 fix B9-19): 운영자 결정 — Staria=6/Sprinter=10 cap 제거.
-//   캐리어 카운터 무제한 (99). 7개 초과 시 amber 안내 "차량 N대 권장 — 운영자 견적".
+//   캐리어 카운터 무제한 (99). 8개 이상 시 amber 안내 "차량 N대 권장 — 운영자 견적".
 // 2026-05-09 (batch 9 fix B9-1+B9-2): 픽업 시각 입력을 Step 3 select 에서
 //   Step 5 날짜 아래 type="time" 자유 입력으로 이동. 30분 단위 제약 해제.
 //   야간 할증 자동 계산도 여기 onChange 에서 처리.
-// 2026-05-10 (B-5/B-8 prod 검증): 캐리어 → 차량 수 동적 룰 (calcVehicleCount).
-//   1-7개=1대, 8+=2대, 14+=3대, +6/대 선형. "봉고차" 라벨 금지 → "스타리아".
 import { useState } from 'react';
-import type { WizardState, LodgingLocation, VehicleType } from './types';
-import { EXTRA_CHARGES } from '@/data/charterPricing';
+import type { ReactNode } from 'react';
+import type { WizardState, LodgingLocation, VehicleType, QuoteBreakdown } from './types';
+import { EXTRA_CHARGES, CHARTER_USD_FIX_RATE } from '@/data/charterPricing';
 import { getWizardI18n } from './wizard-i18n';
 import { calcVehicleCount } from '@/lib/luggageVehicle';
+import { BookingInfoForm, type BookingFormData } from '@/components/booking/BookingInfoForm';
 
 /**
  * batch 9 (B9-19) + B-5/B-8 (2026-05-10 prod 검증):
@@ -55,15 +64,26 @@ function isWithin12hCutoff(date: string, time: string): boolean {
   return hoursLeft <= 12 && hoursLeft > -1; // -1 은 이미 지난 경우 (서버에서 차단)
 }
 
+const formatKRW = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`;
+// 차터 USD 표시 = 백 createPaypalOrder 청구와 동일 고정환율(CHARTER_USD_FIX_RATE 1400) → 표시가==청구가.
+const formatCharterUSD = (krw: number) => `≈ $${Math.round(krw / CHARTER_USD_FIX_RATE).toLocaleString('en-US')} USD`;
+
 interface Props {
   state: WizardState;
   patch: (p: Partial<WizardState>) => void;
   language?: 'ko' | 'en' | 'ja' | 'zh';
+  // 2026-06-29 (방법 A) — 트립닷컴식 예약정보 통합:
+  //   quote: 표시가(파생)·요약 표기용. footerSlot: BookingConsent(SMS+약관) — wizard 가 소유.
+  //   termsAgreed: 약관 SSOT 단일 상태(wizard) — BookingInfoForm 의 단일 동의와 동기.
+  quote?: QuoteBreakdown | null;
+  footerSlot?: ReactNode;
+  termsAgreed?: boolean;
+  onTermsChange?: (agreed: boolean) => void;
 }
 
 const toISO = (d: Date) => d.toISOString().slice(0, 10);
 
-export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
+export function Step5DateOptions({ state, patch, language = 'en', quote, footerSlot, termsAgreed, onTermsChange }: Props) {
   const i18n = getWizardI18n(language);
   const today = toISO(new Date());
   const isAirport = state.service === 'airport_transfer';
@@ -78,13 +98,12 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
   const isNight = hour >= 18 || (hour >= 0 && hour < 6);
 
   const airport = state.airport ?? {};
-  const lug = airport.luggage ?? {};
   const patchAirport = (p: Partial<NonNullable<WizardState['airport']>>) =>
     patch({ airport: { ...airport, ...p } });
-  const patchLuggage = (p: Partial<NonNullable<NonNullable<WizardState['airport']>['luggage']>>) =>
-    patchAirport({ luggage: { ...lug, ...p } });
 
-  // 항공편명 → 인천공항 공공API 도착정보 자동조회 (data.go.kr, /api/flight-status)
+  // 항공편명 → 인천공항 공공API 도착정보 자동조회 (data.go.kr, /api/flight-status) — #1012 보존.
+  //   편명은 BookingInfoForm 항공편 입력 → handleFieldsChange → state.airport.flightNumber 동기.
+  //   조회 버튼·결과는 BookingInfoForm 의 flightLookupSlot 으로 항공편 필드 바로 아래 렌더.
   const [flightLoading, setFlightLoading] = useState(false);
   const [flightErr, setFlightErr] = useState('');
   const apiLang = ({ ko: 'K', en: 'E', ja: 'J', zh: 'C' } as const)[language] || 'E';
@@ -115,55 +134,50 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
     setFlightLoading(false);
   };
 
-  // batch 9 (B9-19): 캐리어 합계 cap 제거 (vehicleLuggageMax = 99 통합).
-  // 7개 초과 시 vehicleLuggageNote 가 amber 안내 — "차량 2대 권장 (운영자 견적)".
-  // + 버튼은 항상 활성 (실질 무제한). luggageOverThreshold 는 amber 색상 토글용.
-  const luggageTotal = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
-  const luggageOverThreshold = luggageTotal >= 7;
   const langCode: 'ko' | 'en' | 'ja' | 'zh' =
     language === 'ko' ? 'ko' : language === 'ja' ? 'ja' : language === 'zh' ? 'zh' : 'en';
-  const luggageVehicleNote = vehicleLuggageNote(state.vehicle, luggageTotal, langCode);
+
+  // ── BookingInfoForm 표시 텍스트 (가격은 quote.subtotalKRW 파생만 — P311 재계산 금지) ──────
+  const subtotalKRW = quote && !quote.needsCustomQuote ? quote.subtotalKRW : 0;
+  const baseChargeKRW = quote ? quote.vehicleChargeKRW : 0;
+  const totalStr = subtotalKRW > 0 ? formatKRW(subtotalKRW) : '—';
+  const usdStr = subtotalKRW > 0 ? formatCharterUSD(subtotalKRW) : '';
+  const baseStr = baseChargeKRW > 0 ? formatKRW(baseChargeKRW) : '—';
+  const meetingLabel = isAirport
+    ? (language === 'ko' ? '미팅 장소' : language === 'ja' ? 'ミーティング場所' : language === 'zh' ? '会面地点' : 'Meeting point')
+    : (language === 'ko' ? '픽업 장소' : language === 'ja' ? 'ピックアップ場所' : language === 'zh' ? '上车地点' : 'Pickup location');
+
+  // BookingInfoForm 입력값 → WizardState patch (가격 무영향 필드만 매핑).
+  //   영문 성·이름 → customerName 결합 / phone 은 onPhoneChange 로 별도 controlled /
+  //   미팅장소·메모 → 매핑 / 메신저 → customerMessenger / 항공편·수하물 → state.airport (공항 서비스 시).
+  // ⚠️ 비파괴(non-destructive): BookingInfoForm 은 마운트 시 빈 f 로 onFieldsChange 를 1회 emit 하므로
+  //   값이 빈 필드를 그대로 patch 하면 프로필 prefill(customerName 등)을 덮어쓴다. → 입력값이 있을 때만 patch.
+  //   항공편(flightNumber)은 입력값으로 동기하되, #1012 조회결과(arrival)는 lookupFlight 가 별도 patch 하므로
+  //   여기서 flightNumber 만 갱신 시 arrival 은 건드리지 않는다(조회 도착정보 보존).
+  const handleFieldsChange = (d: BookingFormData) => {
+    const next: Partial<WizardState> = {};
+    const fullName = `${d.lastName} ${d.firstName}`.trim();
+    if (fullName) next.customerName = fullName;
+    if (d.messengerId) next.customerMessenger = `${d.messenger}: ${d.messengerId}`;
+    if (d.notes) next.notes = d.notes;
+    if (isAirport) {
+      const lugTotal = d.lugSmall + d.lugMedium + d.lugLarge;
+      const flightChanged = d.flightNo && d.flightNo !== (airport.flightNumber ?? '');
+      if (d.flightNo || lugTotal > 0) {
+        next.airport = {
+          ...airport,
+          ...(d.flightNo ? { flightNumber: d.flightNo } : {}),
+          // 편명이 바뀌면 이전 조회결과 무효화 (사용자가 다시 조회하도록). #1012 동작과 동일.
+          ...(flightChanged ? { arrival: undefined } : {}),
+          ...(lugTotal > 0 ? { luggage: { small: d.lugSmall, medium: d.lugMedium, large: d.lugLarge } } : {}),
+        };
+      }
+    }
+    if (Object.keys(next).length > 0) patch(next);
+  };
 
   return (
     <div className="space-y-6">
-      {/* 이름 */}
-      <div>
-        <Label>{i18n.customerName}</Label>
-        <input
-          type="text"
-          value={state.customerName ?? ''}
-          onChange={e => patch({ customerName: e.target.value })}
-          placeholder={i18n.customerNamePlaceholder}
-          className={inputCls}
-          maxLength={40}
-        />
-      </div>
-
-      {/* 연락처 */}
-      <div>
-        <Label>{i18n.customerPhone}</Label>
-        <input
-          type="tel"
-          value={state.customerPhone ?? ''}
-          onChange={e => patch({ customerPhone: e.target.value })}
-          placeholder={i18n.customerPhonePlaceholder}
-          className={inputCls}
-          maxLength={24}
-        />
-      </div>
-
-      {/* 메신저 연락처 (선택) */}
-      <div>
-        <Label>{i18n.customerMessenger}</Label>
-        <input
-          type="text"
-          value={state.customerMessenger != null ? state.customerMessenger : ''}
-          onChange={e => patch({ customerMessenger: e.target.value })}
-          placeholder={i18n.customerMessengerPlaceholder}
-          className={inputCls}
-          maxLength={60}
-        />
-      </div>
       {/* 날짜 */}
       <div>
         <Label>{i18n.date}</Label>
@@ -250,72 +264,25 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         </>
       )}
 
-      {/* 공항 전용 필수 섹션 */}
-      {isAirport && (
-        <div className="pt-4 border-t border-white/[0.06] space-y-4">
-          <p className="text-xs uppercase tracking-wider text-[#B668FC] font-bold">{i18n.airportDetails}</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {isICN && (
-              <div>
-                <Label>{i18n.terminal}</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['T1', 'T2'] as const).map(t => (
-                    <button key={t} type="button"
-                      onClick={() => patchAirport({ terminal: t })}
-                      className={`py-3 rounded-xl text-sm font-bold border ${airport.terminal === t ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/60'}`}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className={isICN ? '' : 'sm:col-span-2'}>
-              <Label>{i18n.flightNo}</Label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={airport.flightNumber ?? ''}
-                  onChange={e => { patchAirport({ flightNumber: e.target.value.toUpperCase(), arrival: undefined }); setFlightErr(''); }}
-                  placeholder={i18n.flightPlaceholder}
-                  className={inputCls}
-                  maxLength={10}
-                />
-                <button type="button" onClick={lookupFlight}
-                  disabled={flightLoading || !(airport.flightNumber ?? '').trim()}
-                  className="shrink-0 px-4 rounded-xl text-sm font-bold border border-[#B668FC] bg-[#B668FC]/15 text-white disabled:opacity-40">
-                  {flightLoading ? '…' : i18n.flightLookup}
-                </button>
-              </div>
-              <p className="text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>
-              {flightErr && <p className="text-[11px] text-amber-300 mt-1">{flightErr}</p>}
-              {arr?.lookedUp && (
-                <div className="mt-2 px-3 py-2 rounded-xl bg-[#B668FC]/10 border border-[#B668FC]/25 text-[12px] text-white/85">
-                  ✈ {i18n.flightArrivalLabel} <b>{arr.estimatedTime || arr.scheduledTime}</b>
-                  {arr.origin ? ` · ${arr.origin}` : ''}{arr.gate ? ` · Gate ${arr.gate}` : ''}
-                  {arr.status ? ` · ${arr.status}` : ''}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label>{i18n.luggage}</Label>
-            <div className="grid grid-cols-3 gap-3">
-              <LuggageCounter label={i18n.luggageSmall}  value={lug.small ?? 0}  onChange={v => patchLuggage({ small: v })} />
-              <LuggageCounter label={i18n.luggageMedium} value={lug.medium ?? 0} onChange={v => patchLuggage({ medium: v })} />
-              <LuggageCounter label={i18n.luggageLarge}  value={lug.large ?? 0}  onChange={v => patchLuggage({ large: v })} />
-            </div>
-            {/* batch 9 (B9-19): 7개 초과 시 amber 배너 — "차량 2대 권장 (운영자 견적)".
-                Bus/VIP 는 협의 가능 안내. 그 외 7개 미만은 차분한 흰색 안내. */}
-            <p className={`text-[11px] mt-2 px-1 leading-snug ${luggageOverThreshold ? 'text-amber-300' : 'text-white/45'}`}>
-              {luggageOverThreshold ? '⚠ ' : ''}{luggageVehicleNote}
-            </p>
+      {/* ICN 공항 터미널 선택 — canAdvance 게이트(origin==='ICN' 시 terminal 필수)용.
+          BookingInfoForm 은 터미널 입력이 없으므로 여기서 유지. 편명·수하물은 BookingInfoForm 이 수집.
+          #1012 항공편 조회 시 도착 터미널 자동 선택도 여기 버튼에 반영됨. */}
+      {isAirport && isICN && (
+        <div>
+          <Label>{i18n.terminal}</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {(['T1', 'T2'] as const).map(t => (
+              <button key={t} type="button"
+                onClick={() => patchAirport({ terminal: t })}
+                className={`py-3 rounded-xl text-sm font-bold border ${airport.terminal === t ? 'border-[#B668FC] bg-[#B668FC]/15 text-white' : 'border-white/10 bg-white/[0.03] text-white/60'}`}>
+                {t}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
-      {/* 옵션 */}
+      {/* 옵션 (가격 가산 — useQuoteCalculator 가 읽음. BookingInfoForm hideAddons 와 별개) */}
       <div className="pt-4 border-t border-white/[0.06]">
         <Label>{i18n.addons}</Label>
         <div className="flex flex-wrap gap-2">
@@ -333,17 +300,65 @@ export function Step5DateOptions({ state, patch, language = 'en' }: Props) {
         {isNight && (
           <p className="text-xs text-amber-300 mt-3">⚠ {i18n.nightWarn(EXTRA_CHARGES.nightSurchargePercent)}</p>
         )}
+        {/* 공항 서비스 시 수하물 → 차량 수 권장 안내 (BookingInfoForm 캐리어 카운터 입력값 기준) */}
+        {isAirport && (() => {
+          const lug = state.airport?.luggage ?? {};
+          const total = (lug.small ?? 0) + (lug.medium ?? 0) + (lug.large ?? 0);
+          return (
+            <p className={`text-[11px] mt-3 px-1 leading-snug ${total >= 7 ? 'text-amber-300' : 'text-white/45'}`}>
+              {total >= 7 ? '⚠ ' : ''}{vehicleLuggageNote(state.vehicle, total, langCode)}
+            </p>
+          );
+        })()}
       </div>
 
-      {/* 메모 */}
-      <div>
-        <Label>{i18n.notes}</Label>
-        <textarea
-          value={state.notes ?? ''}
-          onChange={e => patch({ notes: e.target.value })}
-          rows={2}
-          className={`${inputCls} resize-none`}
-          placeholder={i18n.notesPlaceholder}
+      {/* 트립닷컴식 예약정보 (방법 A) — 이름/연락처/메신저/미팅장소/항공편/수하물/메모 입력 UI.
+          결제·SMS·가격·약관 게이트는 wizard 가 소유 — BookingInfoForm 은 입력 UI 만 제공.
+          phone 은 state.customerPhone controlled, 약관은 termsAgreed SSOT 동기, addon/할인/CTA 숨김.
+          footerSlot 에 BookingConsent(SMS) 렌더 (결제 버튼은 wizard nav 가 소유).
+          flightLookupSlot 에 #1012 /api/flight-status 조회 버튼 + 도착정보 표시. */}
+      <div className="pt-2 border-t border-white/[0.06]">
+        <BookingInfoForm
+          eyebrow={i18n.step5}
+          title={state.destinationKey ?? state.destinationCustom ?? (state.origin ?? '')}
+          dateText={`${state.startDate ?? '-'}${pickup ? ` ${pickup}` : ''}`}
+          paxText={`${state.paxCount ?? '-'}${i18n.maxUnit}`}
+          isAirport={isAirport}
+          meetingLabel={meetingLabel}
+          baseStr={baseStr}
+          meetingStr=""
+          childSeatStr=""
+          totalStr={totalStr}
+          usdStr={usdStr}
+          ctaLabel={i18n.payProceed}
+          phone={state.customerPhone ?? ''}
+          onPhoneChange={(v) => patch({ customerPhone: v })}
+          externalAgreeAll={termsAgreed}
+          onAgreeAllChange={onTermsChange}
+          onFieldsChange={handleFieldsChange}
+          hideAddons
+          hideDiscount
+          hideCta
+          onSubmit={() => { /* 결제는 wizard nav 의 결제 버튼이 담당 (PaymentPanel) */ }}
+          footerSlot={footerSlot}
+          flightLookupSlot={isAirport ? (
+            <div>
+              <button type="button" onClick={lookupFlight}
+                disabled={flightLoading || !(airport.flightNumber ?? '').trim()}
+                className="w-full px-4 py-2.5 rounded-xl text-sm font-bold border border-[#B668FC] bg-[#B668FC]/15 text-white disabled:opacity-40">
+                {flightLoading ? '…' : i18n.flightLookup}
+              </button>
+              <p className="text-[11px] text-white/45 mt-1.5">{i18n.flightLookupHint}</p>
+              {flightErr && <p className="text-[11px] text-amber-300 mt-1">{flightErr}</p>}
+              {arr?.lookedUp && (
+                <div className="mt-2 px-3 py-2 rounded-xl bg-[#B668FC]/10 border border-[#B668FC]/25 text-[12px] text-white/85">
+                  ✈ {i18n.flightArrivalLabel} <b>{arr.estimatedTime || arr.scheduledTime}</b>
+                  {arr.origin ? ` · ${arr.origin}` : ''}{arr.gate ? ` · Gate ${arr.gate}` : ''}
+                  {arr.status ? ` · ${arr.status}` : ''}
+                </div>
+              )}
+            </div>
+          ) : undefined}
         />
       </div>
     </div>
@@ -354,25 +369,6 @@ const inputCls = 'w-full px-4 py-3 rounded-xl border border-white/10 bg-white/[0
 
 function Label({ children }: { children: React.ReactNode }) {
   return <p className="text-xs uppercase tracking-wider text-white/55 mb-2 font-semibold">{children}</p>;
-}
-
-function LuggageCounter({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  // batch 9 (B9-19): cap 제거 — + 버튼 항상 활성. - 만 0 에서 disabled.
-  // 7개 초과 amber 안내는 부모(Step5DateOptions) 에서 처리.
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-xs text-white/55 truncate">{label}</span>
-      <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/10 bg-white/[0.03]">
-        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-white/70 hover:text-white w-11 h-11 text-base disabled:opacity-30" disabled={value === 0}>−</button>
-        <span className="text-base font-bold text-white">{value}</span>
-        <button
-          type="button"
-          onClick={() => onChange(Math.min(99, value + 1))}
-          className="text-white/70 hover:text-white w-11 h-11 text-base"
-        >+</button>
-      </div>
-    </div>
-  );
 }
 
 function OptionPill({ label, sub, checked, onChange }: { label: string; sub: string; checked: boolean; onChange: (v: boolean) => void }) {
