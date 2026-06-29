@@ -965,6 +965,11 @@ export function checkSoftQualityWarnings(itinerary) {
     for (const stop of (day.stops || [])) {
       const cat = String(stop?.category || '').toLowerCase();
       if (excludedCategories.has(cat)) continue;
+      // block_mode stop(source_block_id)은 사람이 사전 큐레이션한 로컬 코스. 시드의 local_tag 은
+      // 'former_railway | cherry_blossom' 식 설명 어휘라 검증기 4-value enum(Local Pick 등)과
+      // 불일치 → 카운트하면 결정론적 0% 거짓경고(B-18). block stop 은 다양성 평가 제외.
+      // (Gemini 자유생성 stop 만 평가 — block-only plan 은 totalEligible<5 로 자동 skip)
+      if (stop?.source_block_id) continue;
       totalEligible++;
       const tag = String(stop?.local_tag || '').trim();
       if (tag && validLocalTags.includes(tag)) localTagCount++;
