@@ -664,6 +664,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
           ctaLabel={labels.next}
           phone={phone}
           onPhoneChange={setPhone}
+          placeholderPhone={labels.phonePh}
           externalAgreeAll={termsAgreed}
           onAgreeAllChange={setTermsAgreed}
           onFieldsChange={(d) => {
@@ -687,6 +688,7 @@ export function TourBookingDialog({ tour, language, trigger }: Props) {
                 termsAgreed={termsAgreed}
                 onTermsChange={setTermsAgreed}
                 language={langKey}
+                hideTermsCheckbox
               />
               <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <span className="text-[12px] text-white/55">{labels.priceTotal}</span>

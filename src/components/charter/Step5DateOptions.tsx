@@ -319,7 +319,10 @@ export function Step5DateOptions({ state, patch, language = 'en', quote, footerS
           결제·SMS·가격·약관 게이트는 wizard 가 소유 — BookingInfoForm 은 입력 UI 만 제공.
           phone 은 state.customerPhone controlled, 약관은 termsAgreed SSOT 동기, addon/할인/CTA 숨김.
           footerSlot 에 BookingConsent(SMS) 렌더 (결제 버튼은 wizard nav 가 소유).
-          flightLookupSlot 에 #1012 /api/flight-status 조회 버튼 + 도착정보 표시. */}
+          flightLookupSlot 에 #1012 /api/flight-status 조회 버튼 + 도착정보 표시.
+          phone placeholder: placeholderPhone 미전달 → 기본값 '+82 10 1234 5678'(국가코드 포함) 사용.
+            wizard i18n.customerPhonePlaceholder ko='010-1234-5678'(국가코드 無)는 외국인이 +82 칸 믿고
+            국내번호 입력 → SMS 오발송하는 바로 그 문제를 재유발하므로 의도적으로 안 씀. */}
       <div className="pt-2 border-t border-white/[0.06]">
         <BookingInfoForm
           eyebrow={i18n.step5}
