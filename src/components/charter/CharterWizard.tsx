@@ -279,11 +279,18 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
         {currentStep === 3 && <Step3Destination state={state} patch={patch} language={language} />}
         {currentStep === 4 && <Step4PaxVehicle  state={state} patch={patch} language={language} />}
         {currentStep === 5 && (
-          <div className="space-y-6">
-            <Step5DateOptions state={state} patch={patch} language={language} />
-            {/* 2026-06-28 트립닷컴식 예약정보 — Step 5 하단 SMS 인증 + 약관 동의.
-                위 연락처 필드의 customerPhone 으로 SMS 발송. 둘 다 충족해야 다음(결제) 진행. */}
-            <div className="pt-4 border-t border-white/[0.06]">
+          // 2026-06-29 (방법 A): Step 5 고객정보 UI 를 BookingInfoForm 으로 통합 (Step5DateOptions 내부).
+          //   약관은 termsAgreed SSOT 단일 — BookingInfoForm 의 "모두 동의" 와 동기 (externalAgreeAll).
+          //   SMS 인증(BookingConsent)은 footerSlot 으로 BookingInfoForm 하단에 렌더 — customerPhone 으로 발송.
+          //   결제·가격 엔진·canAdvance 게이트(phoneSmsVerified·termsAgreed)는 무수정 그대로.
+          <Step5DateOptions
+            state={state}
+            patch={patch}
+            language={language}
+            quote={quote}
+            termsAgreed={termsAgreed}
+            onTermsChange={setTermsAgreed}
+            footerSlot={
               <BookingConsent
                 phone={state.customerPhone ?? ''}
                 onVerified={setPhoneSmsVerified}
@@ -291,8 +298,8 @@ export function CharterWizard({ initialState, onComplete, language = 'en' }: Cha
                 onTermsChange={setTermsAgreed}
                 language={language}
               />
-            </div>
-          </div>
+            }
+          />
         )}
         {currentStep === 6 && (
           isInquiryVehicle ? (
